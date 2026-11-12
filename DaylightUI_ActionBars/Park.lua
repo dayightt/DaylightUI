@@ -2,12 +2,10 @@
 -- a hidden frame and never hidden itself: Show and Hide on the game's bars are its
 -- own Lua, and calling them from here leads to blocked actions later. Bar 1 keeps its
 -- events, since the game still writes its page and our keybinds press its hidden
--- buttons. The twin buttons stay in place, hidden by the "statehidden" attribute.
--- That's the only thing written on them, and it's written without a handler:
--- SetAttribute runs the button's OnAttributeChanged, the game's Update then runs
--- under our taint, and its own SetShown on those buttons gets blocked in a later
--- fight. The game's next pass (UpdateShownButtons) reads the attribute and hides
--- them, and the parked bar keeps them out of sight until then.
+-- buttons. The twin buttons stay in place under the parked bar, which keeps them out
+-- of sight. Nothing is written on them: an attribute an addon writes keeps the
+-- addon's taint, so the game's own UpdateShownButtons, reading "statehidden" in a
+-- fight (a slot changing as you loot), had its SetShown on them blocked.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -36,8 +34,8 @@ function Park.Bar(frame)
     if type(frame) == "table" and frame:GetParent() ~= Park.Frame() then frame:SetParent(Park.Frame()) end
 end
 
--- defs = the bars (Bars.DEFS); a def's twinPrefix names a game bar's buttons.
-function Park.Apply(defs)
+-- Parks bars 1-8 and silences 2-8.
+function Park.Apply()
     for _, name in ipairs(Park.MULTI) do
         local bar = _G[name]
         if type(bar) == "table" then
@@ -49,14 +47,6 @@ function Park.Apply(defs)
     if type(main) == "table" then
         Park.Bar(main)
         main:EnableMouse(false)
-    end
-    for _, def in ipairs(defs) do
-        if def.twinPrefix then
-            for i = 1, 12 do
-                local b = _G[def.twinPrefix .. i]
-                if type(b) == "table" then b:SetAttributeNoHandler("statehidden", true) end
-            end
-        end
     end
     -- The game's per-action updates (cooldowns, alerts, animations) would run on
     -- every button in its list under our taint. Ours are painted by Buttons.lua and

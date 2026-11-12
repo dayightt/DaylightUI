@@ -605,7 +605,7 @@ function Bars.Build()
     -- Until here a failure leaves the game's bars untouched and the old ones run.
     -- Once those are put away nothing may stop the rest, so each part below runs
     -- on its own.
-    ns.Park.Apply(Bars.DEFS)
+    ns.Park.Apply()
     Bars.built = true
     DUI.SafeCall(ns.Park.LeaveButton, Bars.holders.main)
     DUI.SafeCall(ns.Paging.Setup, Bars.holders.main, Bars.buttons.main)

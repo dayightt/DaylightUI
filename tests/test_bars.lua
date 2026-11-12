@@ -229,8 +229,11 @@ T.test("park: the game's bars go under a hidden frame, never hidden themselves",
     T.truthy(MainActionBar.__events.ACTIONBAR_PAGE_CHANGED, "bar 1 keeps its events (the game writes its page)")
     T.falsy(MainActionBar:IsMouseEnabled())
     T.eq(ActionButton1:GetParent(), MainActionBar, "twins stay where they are")
-    T.eq(ActionButton1:GetAttribute("statehidden"), true)
-    T.eq(MultiBarBottomLeftButton12:GetAttribute("statehidden"), true)
+    -- Nothing written on them: an attribute written by an addon keeps its taint,
+    -- and the game reads "statehidden" in its own fight-time pass.
+    T.isnil(ActionButton1:GetAttribute("statehidden"), "no attribute written on a twin")
+    T.isnil(MultiBarBottomLeftButton12:GetAttribute("statehidden"))
+    T.falsy(ActionButton1:IsVisible(), "the parked bar keeps it out of sight")
     T.isnil(next(ActionBarActionEventsFrame.__events), "the per-action events frame is silenced")
     T.truthy(ActionBarButtonEventsFrame.__events.ACTIONBAR_SLOT_CHANGED, "the button events frame isn't touched")
 end)
@@ -1863,7 +1866,7 @@ T.test("small bars and the game's hidden buttons: our code never shows, hides or
     T.eq(StanceButton1:GetParent(), holder("stance")); T.truthy(StanceButton1:IsShown())
     T.falsy(StanceButton1:GetAttribute("statehidden"))
     T.eq(PetActionButton7:GetParent(), DaylightUIParkedBars); T.eq(PetActionButton6:GetParent(), holder("pet"))
-    T.eq(MultiBarBottomLeftButton1:GetAttribute("statehidden"), true)
+    T.isnil(MultiBarBottomLeftButton1:GetAttribute("statehidden"), "bar 2's twins: nothing written either")
     noBlocked()
 end)
 
