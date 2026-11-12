@@ -339,6 +339,13 @@ function Window.PadUseLabel(f, b)
     return nil
 end
 
+function Window.PadDestroy(b)
+    local info, bag, slot = padItem(b)
+    if not info or InCombatLockdown() or not (ItemLocation and C_Item.ConfirmDeleteItem) then return end
+    local guid = C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
+    if guid then C_Item.ConfirmDeleteItem(guid) end
+end
+
 function Window.PadMore(b)
     local info = padItem(b)
     if not info then return end
@@ -347,15 +354,19 @@ function Window.PadMore(b)
         keys[#keys + 1] = "bind"
         values.bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"]
     end
+    -- The game's own "delete this item?" box, as its bag does it.
+    keys[#keys + 1] = "destroy"
+    values.destroy = CONTEXT_ACTION_LABEL_DESTROY_ITEM or L["Destroy"]
     if info.hyperlink then
         keys[#keys + 1] = "share"
         values.share = SHARE_IN_CHAT or L["Share in chat"]
     end
-    if #keys == 0 then return end
     DUI.Widgets.OpenMenu(b, keys, values, nil, function(k)
         if k == "bind" then
             DUI.Pad.BindAction({ icon = info.iconFileID, name = info.hyperlink,
                 pickup = function() C_Item.PickupItem(info.itemID) end })
+        elseif k == "destroy" then
+            Window.PadDestroy(b)
         elseif k == "share" then
             local U = ChatFrameUtil
             if U and not U.InsertLink(info.hyperlink) then U.OpenChat(info.hyperlink) end
