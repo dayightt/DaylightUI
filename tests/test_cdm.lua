@@ -3440,6 +3440,39 @@ T.test("cdm effects: the glow is the game's proc ring, turning, recolored, easin
     DUI.DB.General().motion = nil
 end)
 
+-- The ring is square art: stretched over a long bar its corners smeared into a
+-- blob across the whole bar (seen in game on a seal bar).
+T.test("cdm effects: a bar's glow keeps square ends and stretches only the ring's straight middle", function()
+    local DUI, AB = fxWorld()
+    local Fx = AB.CdmEffects
+    local bar = CreateFrame("Frame", nil, UIParent)
+    bar:SetSize(200, 20)
+    Fx.SetGlow(bar, true, { 1, 0, 1 })
+    local g = Fx.GlowFrame(bar)
+    local P = g.parts
+    local gh = 20 + 2 * 20 * Fx.GLOW_PAD
+    T.truthy(g.wide, "split for a wide item")
+    T.truthy(P.left.clip:IsShown() and P.right.clip:IsShown(), "both ends drawn")
+    T.near(P.left.holder:GetWidth(), gh, 0.01, "the left end is the whole ring, square")
+    T.near(P.left.holder:GetHeight(), gh, 0.01)
+    T.near(P.left.clip:GetWidth(), gh / 2, 0.01, "cut in half")
+    T.near(P.right.holder:GetWidth(), gh, 0.01, "the right end too")
+    T.near(P.mid.holder:GetWidth(), (200 + 2 * 20 * Fx.GLOW_PAD - gh) / Fx.GLOW_MID, 0.01,
+        "the middle shows only the ring's straight edge")
+    for _, key in ipairs({ "left", "mid", "right" }) do
+        T.truthy(P[key].clip:DoesClipChildren(), key .. " is clipped")
+        T.deq({ P[key].tex:GetVertexColor() }, { 1, 0, 1, 1 }, key .. " in the picked color")
+    end
+    -- A square icon keeps the one whole ring.
+    local icon = CreateFrame("Frame", nil, UIParent)
+    icon:SetSize(36, 36)
+    Fx.SetGlow(icon, true)
+    local gi = Fx.GlowFrame(icon)
+    T.falsy(gi.wide)
+    T.falsy(gi.parts.left.clip:IsShown(), "no ends on an icon")
+    T.eq(select(2, gi.parts.mid.holder:GetPoint(1)), gi, "the whole ring over it")
+end)
+
 T.test("cdm layout: an aura shown or hidden re-places without reading the known spells or rebuilding the tree", function()
     local DUI, AB, E, D, ess = editorWorld()
     withCategories({ [0] = { 11, 12, 14 } }, { [0] = { 11, 12, 14 } })

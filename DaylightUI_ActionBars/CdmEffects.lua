@@ -177,28 +177,43 @@ Fx.GLOW_ROWS, Fx.GLOW_COLUMNS, Fx.GLOW_FRAMES = 6, 5, 30
 Fx.GLOW_LOOP = 1          -- seconds per turn
 Fx.GLOW_PAD = 0.2         -- how far it reaches past each edge, as a share of the item's short side
 
+Fx.GLOW_MID = 0.4         -- the share of the ring's width that is straight edge, stretched along a bar
+
+-- The ring is square art, so stretched over a bar its corners smear into a blob.
+-- A wide item gets it in three pieces: each end a square ring cut in half, and
+-- between them the ring's straight middle stretched. Each piece runs its own
+-- flipbook in one group, so they turn together.
+local PIECES = { "left", "mid", "right" }
+
 local function glowOf(item)
     local g = glows[item]
     if g then return g end
     g = CreateFrame("Frame", nil, item)
     g:SetFrameLevel(item:GetFrameLevel() + 6)
     g.a = 0
-    local t = g:CreateTexture(nil, "OVERLAY")
-    t:SetAllPoints(g)
-    t:SetAtlas(Fx.GLOW_ATLAS)
-    -- The game's art is gold; desaturate it so our color tints true.
-    t:SetDesaturated(true)
-    g.tex = t
     local ag = g:CreateAnimationGroup()
     ag:SetLooping("REPEAT")
-    local fb = ag:CreateAnimation("FlipBook")
-    fb:SetTarget(t)
-    fb:SetDuration(Fx.GLOW_LOOP)
-    fb:SetFlipBookRows(Fx.GLOW_ROWS)
-    fb:SetFlipBookColumns(Fx.GLOW_COLUMNS)
-    fb:SetFlipBookFrames(Fx.GLOW_FRAMES)
-    fb:SetFlipBookFrameWidth(0)
-    fb:SetFlipBookFrameHeight(0)
+    g.parts = {}
+    for _, key in ipairs(PIECES) do
+        local clip = CreateFrame("Frame", nil, g)
+        clip:SetClipsChildren(true)
+        local holder = CreateFrame("Frame", nil, clip)
+        local t = holder:CreateTexture(nil, "OVERLAY")
+        t:SetAllPoints(holder)
+        t:SetAtlas(Fx.GLOW_ATLAS)
+        -- The game's art is gold; desaturate it so our color tints true.
+        t:SetDesaturated(true)
+        local fb = ag:CreateAnimation("FlipBook")
+        fb:SetTarget(t)
+        fb:SetDuration(Fx.GLOW_LOOP)
+        fb:SetFlipBookRows(Fx.GLOW_ROWS)
+        fb:SetFlipBookColumns(Fx.GLOW_COLUMNS)
+        fb:SetFlipBookFrames(Fx.GLOW_FRAMES)
+        fb:SetFlipBookFrameWidth(0)
+        fb:SetFlipBookFrameHeight(0)
+        g.parts[key] = { clip = clip, holder = holder, tex = t }
+    end
+    g.tex = g.parts.mid.tex
     g.anim = ag
     g:SetAlpha(0)
     g:Hide()
@@ -216,24 +231,62 @@ local function sizeGlow(g, item)
     g:ClearAllPoints()
     g:SetPoint("TOPLEFT", item, "TOPLEFT", -pad, pad)
     g:SetPoint("BOTTOMRIGHT", item, "BOTTOMRIGHT", pad, -pad)
+    local gw, gh = w + 2 * pad, h + 2 * pad
+    local P = g.parts
+    for _, key in ipairs(PIECES) do
+        P[key].clip:ClearAllPoints()
+        P[key].holder:ClearAllPoints()
+    end
+    g.wide = gw > gh * 1.25
+    if not g.wide then
+        P.mid.clip:SetAllPoints(g)
+        P.mid.holder:SetAllPoints(g)
+        P.left.clip:Hide()
+        P.right.clip:Hide()
+        return
+    end
+    local half = gh / 2
+    P.left.clip:SetPoint("TOPLEFT", g, "TOPLEFT")
+    P.left.clip:SetSize(half, gh)
+    P.left.holder:SetPoint("TOPLEFT", g, "TOPLEFT")
+    P.left.holder:SetSize(gh, gh)
+    P.right.clip:SetPoint("TOPRIGHT", g, "TOPRIGHT")
+    P.right.clip:SetSize(half, gh)
+    P.right.holder:SetPoint("TOPRIGHT", g, "TOPRIGHT")
+    P.right.holder:SetSize(gh, gh)
+    P.mid.clip:SetPoint("TOPLEFT", g, "TOPLEFT", half, 0)
+    P.mid.clip:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", -half, 0)
+    P.mid.holder:SetPoint("CENTER", g, "CENTER")
+    P.mid.holder:SetSize((gw - gh) / Fx.GLOW_MID, gh)
+    P.left.clip:Show()
+    P.right.clip:Show()
 end
 
--- c = {r,g,b}, or nil for the accent (a gradient accent runs across the ring).
+-- c = {r,g,b}, or nil for the accent (a gradient accent runs across the ring:
+-- on a bar the left end takes one color, the right end the other).
 local function paintGlow(g, c)
-    local t = g.tex
+    local P = g.parts
     if type(c) == "table" then
-        t:SetVertexColor(c[1], c[2], c[3], 1)
+        for _, key in ipairs(PIECES) do P[key].tex:SetVertexColor(c[1], c[2], c[3], 1) end
         return
     end
     local lo, hi = DUI.Style.AccentPair()
     if lo and CreateColor then
-        t:SetVertexColor(1, 1, 1, 1)
-        t:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+        local L, H = CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1)
+        for _, key in ipairs(PIECES) do P[key].tex:SetVertexColor(1, 1, 1, 1) end
+        if g.wide then
+            P.left.tex:SetGradient("HORIZONTAL", L, L)
+            P.right.tex:SetGradient("HORIZONTAL", H, H)
+        end
+        P.mid.tex:SetGradient("HORIZONTAL", L, H)
     else
-        t:SetVertexColor(DUI.Style.Accent())
+        for _, key in ipairs(PIECES) do P[key].tex:SetVertexColor(DUI.Style.Accent()) end
     end
 end
 
+-- What a lit glow was painted with (plain numbers, or "accent"), so a refresh that
+-- changes nothing (every cooldown event) doesn't repaint.
+local litAs = setmetatable({}, weak)
 local glowing = setmetatable({}, weak)   -- item -> true while its glow fades in or out
 local driver = CreateFrame("Frame")
 Fx.glowDriver = driver
@@ -262,14 +315,16 @@ local function fade(_, dt)
             any = true
         end
         -- Resized while lit (an icon's own size, the editor), so follow it.
-        if goal == 1 and (item:GetWidth() ~= g.w or item:GetHeight() ~= g.h) then sizeGlow(g, item) end
+        if goal == 1 and (item:GetWidth() ~= g.w or item:GetHeight() ~= g.h) then
+            local wasWide = g.wide
+            sizeGlow(g, item)
+            local as = litAs[item]
+            if g.wide ~= wasWide and as then paintGlow(g, as.accent == nil and as or nil) end
+        end
     end
     if not any then driver:SetScript("OnUpdate", nil) end
 end
 
--- What a lit glow was painted with (plain numbers, or "accent"), so a refresh that
--- changes nothing (every cooldown event) doesn't repaint.
-local litAs = setmetatable({}, weak)
 local accentGen = 0          -- bumped on a style change, since the accent may differ
 DUI.On("StyleChanged", function() accentGen = accentGen + 1 end)
 
