@@ -3952,18 +3952,30 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
 end)
 
-T.test("bags on a controller: Destroy asks the game's own delete question for that slot", function()
+-- The game's delete question can't be asked from addon code: it opens inside
+-- the call and carries the addon's taint into the controller (tests/test_guards).
+-- So the menu row itself asks ("Click again"), and only then is it deleted.
+T.test("bags on a controller: Destroy asks in the menu first, then deletes that slot", function()
     local ns = login()
     world.items[0][2].itemID = 2
-    local asked
+    local deleted
     local made = _G.ItemLocation
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
     C_Item.GetItemGUID = function(loc) return "Item-" .. loc.bag .. "-" .. loc.slot end
-    C_Item.ConfirmDeleteItem = function(guid) asked = guid end
-    ns.Window.PadDestroy(ns.Bags.buttons[0][2])
-    T.eq(asked, "Item-0-2")
-    asked = nil
+    C_Item.DeleteItem = function(guid) deleted = guid end
+    local W = DaylightUI.Widgets
+    local realOpen, seen = W.OpenMenu, nil
+    W.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
+        seen = { keys = keys, onPick = onPick, opts = opts }
+    end
+    ns.Window.PadMore(ns.Bags.buttons[0][2])
+    W.OpenMenu = realOpen
+    T.truthy(seen, "Y opens the more-actions menu")
+    T.truthy(seen.opts and seen.opts.confirm and seen.opts.confirm.destroy, "Destroy asks again before it goes through")
+    seen.onPick("destroy")
+    T.eq(deleted, "Item-0-2")
+    deleted = nil
     ns.Window.PadDestroy(ns.Bags.buttons[0][3])
-    T.eq(asked, nil, "an empty slot has nothing to destroy")
+    T.eq(deleted, nil, "an empty slot has nothing to destroy")
     _G.ItemLocation = made
 end)

@@ -339,11 +339,15 @@ function Window.PadUseLabel(f, b)
     return nil
 end
 
+-- Deletes the item once the menu row has asked twice. The game's own delete
+-- question can't be used: it opens inside the call that asks for it, so asked
+-- from here it carries Daylight UI's taint, and with the controller UI on its
+-- focus then breaks the controller for the rest of the session.
 function Window.PadDestroy(b)
     local info, bag, slot = padItem(b)
-    if not info or InCombatLockdown() or not (ItemLocation and C_Item.ConfirmDeleteItem) then return end
+    if not info or InCombatLockdown() or not (ItemLocation and C_Item.DeleteItem) then return end
     local guid = C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
-    if guid then C_Item.ConfirmDeleteItem(guid) end
+    if guid then C_Item.DeleteItem(guid) end
 end
 
 function Window.PadMore(b)
@@ -354,7 +358,7 @@ function Window.PadMore(b)
         keys[#keys + 1] = "bind"
         values.bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"]
     end
-    -- The game's own "delete this item?" box, as its bag does it.
+    -- Destroy asks again on the row itself ("Click again") before it goes through.
     keys[#keys + 1] = "destroy"
     values.destroy = CONTEXT_ACTION_LABEL_DESTROY_ITEM or L["Destroy"]
     if info.hyperlink then
@@ -371,7 +375,7 @@ function Window.PadMore(b)
             local U = ChatFrameUtil
             if U and not U.InsertLink(info.hyperlink) then U.OpenChat(info.hyperlink) end
         end
-    end)
+    end, nil, { confirm = { destroy = true } })
 end
 
 -- The groups' headings, as stops LB and RB move the D-pad to.

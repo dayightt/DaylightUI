@@ -46,6 +46,12 @@ local RULES = {
           return l:find("poiButton:Show(", 1, true) or l:find("poiButton:Hide(", 1, true)
               or l:find("poiButton:SetShown(", 1, true)
       end },
+    -- DELETE_ITEM_CONFIRM is a synchronous event, so the game's delete pop-up
+    -- opens inside our call and carries our taint. With the controller UI on,
+    -- that pop-up's focus then taints the controller's bindings for the rest
+    -- of the session (logging out, Escape, the interact target all refused).
+    { "confirm-delete-item", "C_Item.ConfirmDeleteItem opens the game's delete pop-up under our taint: ask with a menu confirm and C_Item.DeleteItem",
+      function(l) return l:find("ConfirmDeleteItem(", 1, true) end },
     { "mouseisover", "MouseIsOver is gone in this client: use frame:IsMouseOver()",
       function(l) return (" " .. l):find("[^%w_:%.]MouseIsOver%(") end },
     { "events-list-remove", "our buttons leave the game's events list by nil in place, never tremove (rule 4)",
