@@ -63,9 +63,7 @@ end
 
 local function fillPlayer(b, d)
     local src = d.src
-    local file = ns.Rows.CLASS_ICON[not isSecret(src.classFilename) and src.classFilename or ""]
-    b.icon:SetTexture(file)
-    b.icon:SetShown(file ~= nil)
+    ns.Rows.PaintClassIcon(b.icon, src.classFilename)
     b.name:SetText(src.name)
     b.name:SetTextColor(Style.ClassTextColor(src.classFilename))
     b.picked = d.picked == true

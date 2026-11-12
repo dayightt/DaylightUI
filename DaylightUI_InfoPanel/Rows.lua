@@ -18,12 +18,34 @@ Rows.CUT = 0.45               -- the fill's angled edge, as a share of the bar's
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
--- A class's own icon (the unit frames' art), or nil.
+-- Daylight UI's own class icons, used when the unit frames are off.
 local CLASS_ICON = {}
 for _, c in ipairs({ "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }) do
     CLASS_ICON[c] = DUI.MEDIA .. "class\\" .. string.lower(c) .. ".tga"
 end
-Rows.CLASS_ICON = CLASS_ICON
+
+-- A class's icon in the set picked in the unit frame settings (a Jiberish
+-- style or a per-class pick too), else Daylight UI's own. File and texture
+-- coordinates, or nil for anything that isn't a plain class token.
+function Rows.ClassIcon(token)
+    if type(token) ~= "string" or isSecret(token) then return nil end
+    if DUI.ClassIcon then
+        local file, l, r, t, b = DUI.ClassIcon(token)
+        if file then return file, l, r, t, b end
+    end
+    if CLASS_ICON[token] then return CLASS_ICON[token], 0, 1, 0, 1 end
+end
+
+-- Puts a class's icon on a texture; false when there is none.
+function Rows.PaintClassIcon(tex, token)
+    local file, l, r, t, b = Rows.ClassIcon(token)
+    if file then
+        tex:SetTexture(file)
+        tex:SetTexCoord(l, r, t, b)
+    end
+    tex:SetShown(file ~= nil)
+    return file ~= nil
+end
 
 function Rows.New(parent, textSize, font)
     local row = CreateFrame("Frame", nil, parent)
@@ -94,14 +116,14 @@ function Rows.SetIcon(row, src, cfg)
     if not row.iconOn then return end
     -- The class's icon (the game keeps the spec hidden, so specs can't be
     -- told apart).
-    local class = src.classFilename
-    local file
-    if type(class) == "string" and not isSecret(class) then file = CLASS_ICON[class] end
-    if file ~= row.iconFile then
-        row.iconFile = file
+    local file, l, r, t, b = Rows.ClassIcon(src.classFilename)
+    -- A Jiberish style keeps every class on one sheet, so the cell is part of the key.
+    local key = file and (file .. l .. t)
+    if key ~= row.iconKey then
+        row.iconKey = key
         if file then
             row.icon:SetTexture(file)
-            row.icon:SetTexCoord(0, 1, 0, 1)
+            row.icon:SetTexCoord(l, r, t, b)
         end
     end
     row.icon:SetShown(file ~= nil)

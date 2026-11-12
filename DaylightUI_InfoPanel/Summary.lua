@@ -129,9 +129,7 @@ local function fillRow(b, d, cols, size)
     local nc = cols.name
     b.icon:ClearAllPoints()
     b.icon:SetPoint("LEFT", b, "LEFT", (nc and nc.x or 0) + 2, 0)
-    local file = ns.Rows.CLASS_ICON[type(d.class) == "string" and d.class or ""]
-    b.icon:SetTexture(file)
-    b.icon:SetShown(file ~= nil)
+    ns.Rows.PaintClassIcon(b.icon, d.class)
     local name = b.cells.name
     if size and b.size ~= size then
         b.size = size

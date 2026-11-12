@@ -2014,3 +2014,19 @@ T.test("meter header: on mouseover the rows glide down to make room for it, and 
     hover(false)
     T.eq(y(), 0, "and back")
 end)
+
+T.test("meter rows: the class icon follows the unit frames' icon set, sheet cell and all", function()
+    local DUI = login()
+    local M = stub.infopanel.Meter
+    stub.meter.sources = { { name = "Kaladin", classFilename = "WARRIOR", totalAmount = 10 } }
+    M.Draw()
+    local icon = M.rows[1].icon
+    T.eq(icon.__texture, DUI.MEDIA .. "class\\warrior.tga", "without the unit frames: Daylight UI's own")
+    local was = DUI.ClassIcon
+    DUI.ClassIcon = function(token) return "Pack\\" .. token .. ".tga", 0.125, 0.25, 0.5, 0.625 end
+    DUI:Set("InfoPanel", "meter.header", "always"); stub.RunTimers()
+    M.Draw()
+    DUI.ClassIcon = was
+    T.eq(icon.__texture, "Pack\\WARRIOR.tga", "the picked set's file")
+    T.eq(select(1, icon:GetTexCoord()), 0.125, "and its cell")
+end)
