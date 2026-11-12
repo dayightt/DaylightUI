@@ -28,7 +28,7 @@ end
 -- Bars 2-8 page per stance, form or held modifier (Paging.STATES; 0 = no change).
 local function paged(t)
     t.paging = { shift = 0, ctrl = 0, alt = 0, prowl = 0, cat = 0, bear = 0, stealth = 0,
-                 battle = 0, defensive = 0, berserker = 0 }
+                 battle = 0, defensive = 0, berserker = 0, shadowform = 0 }
     return bar(t)
 end
 

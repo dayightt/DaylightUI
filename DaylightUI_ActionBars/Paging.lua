@@ -26,13 +26,16 @@ end
 -- left the caster bar up in Cat Form; the FormBars addon pages by form for the same
 -- reason), so a druid's bars page by the form itself ([form:N], N = its place on the
 -- stance bar). Travel and Aquatic have no bar of their own (page 1).
-Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
+-- A priest's Shadowform sits on the stance bar but gives no bonus bar at all,
+-- so it pages by its form the same way, as form 1.
+Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4, [15473] = 1 }
+Paging.FORM_CLASSES = { DRUID = true, PRIEST = true }
 
--- For a druid: bonus bar -> "form:N" (or "form:N/M"), from the current stance bar.
--- nil for any other class, or a druid who knows none of the forms (then the bonus
--- bar is used, as before).
+-- For a druid or priest: bonus bar -> "form:N" (or "form:N/M"), from the current
+-- stance bar. nil for any other class, or one who knows none of the forms (then
+-- the bonus bar is used, as before).
 function Paging.FormConds()
-    if Paging.Class() ~= "DRUID" then return nil end
+    if not Paging.FORM_CLASSES[Paging.Class()] then return nil end
     if type(GetNumShapeshiftForms) ~= "function" or type(GetShapeshiftFormInfo) ~= "function" then return nil end
     local out, any = {}, false
     for i = 1, GetNumShapeshiftForms() or 0 do
@@ -298,6 +301,7 @@ Paging.STATES = {
     { id = "battle", class = "WARRIOR", cond = "[bonusbar:1]", name = "Battle Stance", when = "in Battle Stance" },
     { id = "defensive", class = "WARRIOR", cond = "[bonusbar:2]", name = "Defensive Stance", when = "in Defensive Stance" },
     { id = "berserker", class = "WARRIOR", cond = "[bonusbar:3]", name = "Berserker Stance", when = "in Berserker Stance" },
+    { id = "shadowform", class = "PRIEST", cond = "[bonusbar:1]", name = "Shadowform", when = "in Shadowform" },
 }
 
 -- The number of pages (12 slots each); 0 = no change.

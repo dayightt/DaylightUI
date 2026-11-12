@@ -934,6 +934,20 @@ T.test("paging: Bear and Dire Bear are one form: either page bar 1 to the bear b
     T.eq(AB().Paging.FormConds()[3], "form:1")
 end)
 
+T.test("paging: a priest's Shadowform pages bar 1, though the game gives it no bonus bar", function()
+    login({ class = "PRIEST", formSpells = { 15473 } })
+    T.truthy(AB().Paging.Rule():find("[form:1] 7", 1, true), AB().Paging.Rule())
+    T.falsy(AB().Paging.Rule():find("bonusbar:1", 1, true), "never the bonus bar it doesn't get")
+    DaylightUI:Set("ActionBars", "bars.bar5.paging.shadowform", 3)
+    T.truthy(holder("bar5").__stateDriver.page:find("[form:1] 3", 1, true), "bars 2-8 can page in it too")
+    noBlocked()
+end)
+
+T.test("paging: a priest without Shadowform yet keeps the bonus bar rule", function()
+    login({ class = "PRIEST", formSpells = {} })
+    T.truthy(AB().Paging.Rule():find("[bonusbar:1] 7", 1, true))
+end)
+
 T.test("leave button: out from under the parked bar 1, beside ours, put back when the game moves it", function()
     login()
     local b = MainMenuBarVehicleLeaveButton
