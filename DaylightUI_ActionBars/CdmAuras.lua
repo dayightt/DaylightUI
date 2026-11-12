@@ -1,11 +1,9 @@
--- Aura spells the game's Cooldown Manager doesn't display: a holder of ours in
--- the layout slot with the game's own aura container inside. We tell the
--- container a unit, a filter and spell ids; the game finds the aura, shows a
--- button only while it's up and draws icon, swipe, time and stacks. The
--- client's buttons are never read. The missing glow and Hide (Buff up) ask
--- whether the aura is up (A.IsUp): by spell id, plain only out of a fight; in
--- one, the game's own aura item says (CdmRows), else your own cast and how
--- long the aura lasted when last read.
+-- Aura spells the game's Cooldown Manager doesn't display. Each gets a holder in the
+-- layout slot with a client AuraContainer inside: given a unit, filter and spell ids,
+-- the client finds the aura and draws the button only while it's up. Its buttons are
+-- never read. Whether the aura is up (A.IsUp) comes from spell id lookups out of
+-- combat, and in combat from the game's own aura item, your casts and the last known
+-- duration.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -15,7 +13,7 @@ local A = {}
 ns.CdmAuras = A
 
 local holders = {}   -- [id] = holder frame
-local makeFace, placeFace, paintFace   -- a debuff on you, drawn by ours (below)
+local makeFace, placeFace, paintFace   -- self-debuff face, defined below
 
 local function plain(v)
     return type(v) == "number" and not (issecretvalue and issecretvalue(v)) and v or nil
@@ -34,7 +32,7 @@ local function nameOf(sid)
     if ok and type(n) == "string" and not (issecretvalue and issecretvalue(n)) then return n end
 end
 
--- { [spellID] = true } for the spell and every rank of it (same name), learned or not.
+-- { [spellID] = true } for the spell and every rank of it (by name), learned or not.
 function A.SpellIDs(id)
     local C = ns.CdmCustom
     if C and C.Is(id) then return C.Ranks(id) end
@@ -51,7 +49,7 @@ function A.SpellIDs(id)
         end
     end
     if own then add(own) end
-    -- Our list's ranks: a cooldown whose aura only the list knows (Bloodrage).
+    -- Some cooldowns' auras are only known from the spell list (Bloodrage).
     local key = C and base and C.KeyOfAuraSpell(base)
     if key then
         for s in pairs(C.Ranks(key)) do ids[s] = true end
@@ -75,11 +73,10 @@ function A.SpellIDs(id)
     return ids
 end
 
--- The spell puts its debuff on YOU (Arcane Blast's stack): a piece of our
--- list, or the game's piece of that spell. The game's own item never sees
--- it (it looks on you for HELPFUL|PLAYER only, CooldownViewerItemData.lua
--- GetTargetAurasFilterString), so ours draws it (CdmRows' claim).
--- Our list's key of the piece (itself, or the family of the game item's spell).
+-- Spells that put a debuff on you (Arcane Blast's stack). The game's item only
+-- looks for HELPFUL|PLAYER on you (GetTargetAurasFilterString), so it never sees
+-- these and the addon draws them instead.
+-- CdmCustom key for a piece: itself, or the family of the game item's spell.
 local function ownKey(id)
     local C = ns.CdmCustom
     if not C then return nil end
@@ -94,17 +91,17 @@ function A.SelfDebuff(id)
     return own ~= nil and ns.CdmCustom.SelfDebuff(own) or nil
 end
 
--- Its length and most stacks from the game's data (CdmCustom.SELF_DEBUFF).
+-- Duration and max stacks from CdmCustom.SELF_DEBUFF.
 function A.SelfDebuffFacts(id)
     local own = ownKey(id)
     return own ~= nil and ns.CdmCustom.SelfDebuffFacts and ns.CdmCustom.SelfDebuffFacts(own) or nil
 end
 
--- A cooldown the game shows by its aura while that's up (Rend, Thunder
--- Clap): the game's Essential icon does (CooldownViewerItemDataMixin
--- :CanUseAuraForDisplay: hasAura, and the HideAura flag not set).
+-- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap).
+-- Same test as CooldownViewerItemDataMixin:CanUseAuraForDisplay: hasAura set
+-- and the HideAura flag clear.
 function A.Follows(id)
-    if ns.CdmCustom and ns.CdmCustom.Is(id) then return false end   -- ours follow their track
+    if ns.CdmCustom and ns.CdmCustom.Is(id) then return false end   -- custom pieces follow their track
     local info = infoOf(id)
     if not info or (issecretvalue and issecretvalue(info.hasAura)) or info.hasAura ~= true then return false end
     local flags = plain(info.flags)
@@ -117,12 +114,10 @@ local function layoutFor(h)
     return { layoutIndex = 1, elementWidth = h.size, elementHeight = h.size, elementSpacing = 0 }
 end
 
--- The button's look, made once inside initializeFrame (afterwards the client
--- may lock it): our icon crop, border, shade, swipe and stack count.
--- The border goes on a box of ours with a size of its own and one anchor,
--- as on the aura bars (CdmBars' iconBox): a frame laid on the client's
--- button by all its points came out 0x0 in game (`/dui cdm shells`), so
--- the shell drew nothing. The icon sits inside the border, sized the same way.
+-- Dress the button inside initializeFrame, since the client may lock it afterwards.
+-- The border sits on a separate box with its own size and one anchor, like CdmBars'
+-- iconBox. Anchoring a frame to the client's button by all points came out 0x0 in
+-- game, so the shell drew nothing.
 local function placeButton(h, btn)
     local parts = h.parts and h.parts[btn]
     if not parts then return end
@@ -150,17 +145,16 @@ local function placeButton(h, btn)
         if t then try(ns.Cooldowns.PlaceCount, parts.count, parts.icon, t.countSpot) end
     end
     if t and parts.cd then try(ns.Cooldowns.StyleNumbers, parts.cd, t) end
-    -- A shield's amount (A.SetAmount) sits where the time was.
+    -- The shield amount (A.SetAmount) replaces the countdown.
     if h.amountOn and parts.cd then try(parts.cd.SetHideCountdownNumbers, parts.cd, true) end
-    -- "Hide duration swipe" (A.SetSwipe): the time stays.
+    -- Hide duration swipe keeps the countdown text.
     if parts.cd then try(parts.cd.SetDrawSwipe, parts.cd, not h.noSwipe) end
-    -- "Reverse swipe" (A.SetSwipe).
     if parts.cd then try(parts.cd.SetReverse, parts.cd, h.reverse == true) end
 end
 
 local function initButton(h, btn)
     local function try(fn, ...) pcall(fn, ...) end
-    -- The layout only places the button: its size is ours to set, or it's 0x0.
+    -- The layout only positions the button. Without a size it stays 0x0.
     try(btn.SetSize, btn, h.size, h.size)
     h.buttons = h.buttons or {}
     h.buttons[#h.buttons + 1] = btn
@@ -172,8 +166,8 @@ local function initButton(h, btn)
         parts.box = box
         try(box.SetFrameLevel, box, math.max(0, btn:GetFrameLevel() - 1))
         local okS, s = pcall(Style.Shell, box, Skin.ShellOpts())
-        -- Kept out of the style repaint: the client locks the button, so
-        -- placeButton (after restrictions) is its repaint.
+        -- Kept out of the normal style repaint because the client locks the
+        -- button. placeButton repaints it once restrictions lift.
         if okS and s then parts.shell = s; Style.Untrack(s) end
     end
     local icon = btn:CreateTexture(nil, "ARTWORK")
@@ -186,10 +180,9 @@ local function initButton(h, btn)
         try(Skin.StyleCooldown, cd)
         try(btn.SetDurationCooldown, btn, cd)
         parts.cd = cd
-        -- The buff's time running out: the client's countdown on it ends,
-        -- in fights and dungeons too, where auras can't be read. Hooked
-        -- here, in the creation window (no show or hide scripts in the
-        -- button: the client refuses those).
+        -- The countdown ending is the one signal that the buff expired when
+        -- auras can't be read (combat, dungeons). Hooked here during creation
+        -- because the client refuses show/hide scripts on the button.
         try(cd.HookScript, cd, "OnCooldownDone", function() DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "time out") end)
     end
     local shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
@@ -208,15 +201,14 @@ local function initButton(h, btn)
     ns.CdmEffects.MakeSlide(btn, h)
 end
 
--- h.layoutFor / h.init: another holder's own button shape and dress
--- (CdmBars' aura bars); the icon's otherwise.
--- cand: the group's candidate filters, else by spell id (A.SelfDebuffGroup).
+-- h.layoutFor and h.init let other holders (CdmBars' aura bars) use their own button
+-- shape. cand: candidate filters from A.SelfDebuffGroup, else match by spell id.
 local function build(h, unit, filter, ids, cand)
     local ok, c = pcall(CreateFrame, "AuraContainer", nil, h, "CustomAuraContainerTemplate")
     if not ok or not c then h.err = tostring(c); return end
     pcall(c.EnableMouse, c, false)
     pcall(c.SetAllPoints, c, h)
-    -- One button, from the holder's top left corner (like the Buffs bars).
+    -- One button, from the holder's top left corner.
     local fd = _G.AnchorUtil and _G.AnchorUtil.FlowDirection
     pcall(c.SetFlowLayoutAnchorPoint, c, "TOPLEFT")
     if type(fd) == "table" then pcall(c.SetFlowLayoutGrowthDirection, c, fd.Right, fd.Down) end
@@ -241,24 +233,22 @@ local function build(h, unit, filter, ids, cand)
                                         maxDuration = cand and cand.maxDuration or nil }
 end
 
--- The holder's containers for spell id: the player's buffs, then the
--- target's debuffs of yours, the order the game looks in
--- (CooldownViewerItemData.lua scanUnits). Only a self aura skips the target:
--- selfAura false doesn't mean "on the target" (Battle Shout says false).
+-- Containers for a spell id: your buffs, then your debuffs on the target, the same
+-- order the game scans. Only self auras skip the target, since selfAura false
+-- doesn't mean "on the target" (Battle Shout reports false).
 local function setup(h, id)
     h.id, h.containers, h.err = id, {}, nil
-    h.builtAt = GetTime()     -- a buff already up comes up with the new container: not a proc
-    -- Auras can't be read (a dungeon): once a buff already up has had its
-    -- button come up, the pass asks again (A.IsUp: none came = down).
+    h.builtAt = GetTime()     -- a buff already up appears with the new container; not a proc
+    -- When auras can't be read, wait for a buff that's already up to show its
+    -- button, then ask again. No button means down.
     if A.Readable and not A.Readable() then
         local quiet = (ns.CdmEffects and ns.CdmEffects.AURA_QUIET) or 0.3
         C_Timer.After(quiet + 0.05, function() if ns.CdmRows then ns.CdmRows.Refresh() end end)
     end
     local C = ns.CdmCustom
     local custom = C ~= nil and C.Is(id)
-    -- One of our own list: its containers are made out of combat only
-    -- (whether the client lets addon code make one in a fight isn't
-    -- settled); placed or reloaded mid-fight, it fills once the fight ends.
+    -- Custom pieces only build containers out of combat, since it's unclear whether
+    -- the client allows creating them mid-fight. They fill in after combat.
     if custom and InCombatLockdown() then
         DUI.AfterCombat(function()
             if h.id == id and #h.containers == 0 then
@@ -278,25 +268,21 @@ local function setup(h, id)
         self_ = info and info.selfAura
         if type(self_) ~= "boolean" or (issecretvalue and issecretvalue(self_)) then self_ = nil end
     end
-    -- A debuff the spell puts on you (Arcane Blast's stack): your own
-    -- debuffs too, and never the target's.
+    -- Self debuffs (Arcane Blast's stack) watch your debuffs, never the target's.
     h.selfDebuff = A.SelfDebuff(id)
     if ns.CdmBars and ns.CdmBars.IsShield(id) then
-        -- A shield (Power Word: Shield): on your friendly target, else on
-        -- you; one container whose unit follows the target (A.Retarget).
+        -- Shields (Power Word: Shield) show on a friendly target, else on you.
+        -- One container whose unit follows the target (A.Retarget).
         build(h, A.ShieldUnit(), "HELPFUL", ids)
         local k = h.containers[#h.containers]
         if k then k.shield = true; h.shieldUnit = k.unit end
         return
     end
     if h.selfDebuff then
-        -- A debuff the spell puts on you (Arcane Blast's stack): the client's
-        -- container showed nothing for it, by spell id (refused for a debuff
-        -- on a unit you can assist) or by caster and length alike. Ours draws
-        -- it: read by spell id where auras are plain (the game's own item
-        -- finds it that way, CooldownViewerItemData.lua
-        -- FindLinkedSpellForCurrentAuras), counted from your own casts where
-        -- they aren't. Never the target's.
+        -- The client's container shows nothing for a debuff on yourself, whether
+        -- matched by spell id (refused on a unit you can assist) or by caster and
+        -- duration. So it's drawn by the addon: read by spell id where auras are
+        -- plain, counted from your own casts where they aren't.
         h.mineOnly = true
         makeFace(h)
         if A.Readable() then A.IsUp(h) end
@@ -304,8 +290,8 @@ local function setup(h, id)
         return
     end
     build(h, "player", "HELPFUL", ids)
-    -- Added by its ID, it may be a debuff on you as well (Weakened Soul
-    -- after a self-shield): your debuffs too, and still the target's.
+    -- A spell added by ID can also be a debuff on you (Weakened Soul after a
+    -- self-shield), so watch your debuffs as well as the target's.
     local added = custom and C.IsAdded(id)
     if added then
         local filter, cand = A.SelfDebuffGroup(id, ids)
@@ -317,7 +303,7 @@ local function setup(h, id)
     end
 end
 
--- Whose shield shows: a friendly target's, else yours.
+-- Shield unit: a friendly target, else the player.
 function A.ShieldUnit()
     local ok, friend = pcall(UnitIsFriend, "player", "target")
     if ok and not (issecretvalue and issecretvalue(friend)) and friend == true then return "target" end
@@ -326,8 +312,8 @@ end
 
 A.Setup = setup
 
--- Other holders with containers (CdmBars' aura bars): retargeted and
--- rebuilt with ours.
+-- Other holders with containers (CdmBars' aura bars), retargeted and rebuilt
+-- alongside these.
 local others = setmetatable({}, { __mode = "k" })
 function A.Track(h) others[h] = true end
 
@@ -336,7 +322,7 @@ local function each(fn)
     for h in pairs(others) do fn(h) end
 end
 
--- The grayed icon inside its border (the border's width from the action bars' look).
+-- The grayed icon inside its border, using the action bars' border width.
 local function placeUnder(h)
     if not h.underBox then return end
     local T = Pixel.Px(h, Skin.BORDER_PX)
@@ -350,15 +336,14 @@ local function placeUnder(h)
     Skin.ShapeCdm(h.underShape, h.underBox, s, h.under, { h.underShade }, {})
 end
 
--- The holder for placed aura spell id, inside parent. always ("Show missing
--- buffs"): the dim underlay shows while the aura is down.
+-- Holder for an aura piece. always = Show missing buffs: a dim icon shows while
+-- the aura is down.
 function A.Acquire(id, parent, always)
     local h = holders[id]
     if not h then
         h = CreateFrame("Frame", nil, parent)
         h.size = 36
-        -- The grayed icon in the action buttons' border and shade, as the
-        -- client's button wears them while the aura is up.
+        -- Grayed icon with the same border and shade as the live button.
         h.underBox = CreateFrame("Frame", nil, h)
         h.underBox:SetAllPoints(h)
         Style.Shell(h.underBox, Skin.ShellOpts())
@@ -378,7 +363,7 @@ function A.Acquire(id, parent, always)
     end
     if not h.sid then
         local sid = ns.CdmOwn and ns.CdmOwn.SpellOf(id)
-        -- Ours may have a picture of their own (the Seal); else the spell's.
+        -- Custom pieces may have their own icon (the seal), else the spell's.
         local C = ns.CdmCustom
         local tex = C and C.Is(id) and select(2, C.Look(id))
         if type(tex) == "nil" or tex == false then
@@ -390,28 +375,26 @@ function A.Acquire(id, parent, always)
             if h.face then h.face.icon:SetTexture(tex) end
         end
     end
-    -- The grayed icon while the aura is down, only with "Show missing buffs":
-    -- the client's button covers it while up, so off, nothing shows while down.
+    -- The grayed icon only shows with Show missing buffs. While the aura is up
+    -- the client's button covers it.
     h.under:SetShown(always == true)
     h.underBox:SetShown(always == true)
     h.underOn = always == true
-    h.overIcon = false   -- A.Over says otherwise
+    h.overIcon = false   -- set by A.Over
     for _, k in ipairs(h.containers) do pcall(k.c.SetEnabled, k.c, true) end
     h:Show()
     return h
 end
 
--- "Cooldown and buff" (CdmOwn.Track): the holder over our own cooldown
--- icon, no dim underlay: the buff's button covers the icon while it's up,
--- the cooldown shows once it's gone.
+-- Cooldown and buff mode: the holder sits over the cooldown icon with no underlay.
+-- The buff covers the icon while up and the cooldown shows once it's gone.
 function A.Over(h, icon, size, text)
     h.under:Hide()
     h.underBox:Hide()
     h.underOn = false
-    h.overIcon = true    -- its buff fades in over the icon, no drop (Fx.TuneSlide)
-    -- On the icon's spot, not the icon: going on cooldown the icon dips
-    -- (Fx.Dip resizes it), and the client's button, its size locked, only
-    -- slid with it ("down 2px then back up").
+    h.overIcon = true    -- buff fades in over the icon without the drop (Fx.TuneSlide)
+    -- Anchor to the icon's parent, not the icon. Fx.Dip resizes the icon when it
+    -- goes on cooldown, and the locked client button just slid along with it.
     local spot = icon:GetParent() or icon
     h:ClearAllPoints()
     h:SetPoint("CENTER", spot, "CENTER", 0, 0)
@@ -420,8 +403,7 @@ function A.Over(h, icon, size, text)
     A.Resize(h, size, text)
 end
 
--- What a holder was last laid out for, value by value in h.look (kept, so a
--- layout pass that changed nothing makes no new table or string).
+-- Last layout values per holder in h.look, so an unchanged pass allocates nothing.
 local lookNow = {}
 local function sameLook(h, size, text)
     local L = lookNow
@@ -447,16 +429,16 @@ local function sameLook(h, size, text)
     return false
 end
 
--- A holder's size changed: tell the containers (the holder itself is sized by Rows).
--- A border or count size setting changed too: the buttons are placed again.
--- text: the piece's icon text (Cooldowns.CD.TextLook), nil = the action bars'.
+-- Size, border or count settings changed: update the containers and re-place the
+-- buttons. Rows sizes the holder itself. text: the piece's icon text
+-- (Cooldowns.CD.TextLook), or nil for the action bars' default.
 function A.Resize(h, size, text)
     if sameLook(h, size, text) then return end
     h.size, h.text = size, text
     placeUnder(h)
     placeFace(h)
-    -- The client's aura buttons are locked while auras are secret (combat, a
-    -- PvP match, a boss): they take the size once that lifts.
+    -- Client aura buttons are locked while auras are secret (combat, PvP
+    -- matches, boss fights), so resize them once that lifts.
     DUI.AfterRestrictions(function()
         for _, btn in ipairs(h.buttons or {}) do
             pcall(btn.SetSize, btn, h.size, h.size)
@@ -471,11 +453,10 @@ end
 
 function A.Frame(id) return holders[id] end
 
--- A shield's icon (Power Word: Shield): the shield left as a number over
--- it, in place of its time ("Show shield amount"). The amount is the game's
--- total of shields on the unit (UnitGetTotalAbsorbs, secret always): only
--- drawn. Any amount fills a 0-1 gate bar whose fill clips the text, so no
--- shield shows no number (CdmBars' shield bar does the same).
+-- Show shield amount: the remaining absorb as a number instead of the time.
+-- UnitGetTotalAbsorbs is always secret, so it's only drawn. A 0-1 gate bar whose
+-- fill clips the text hides the number when there's no shield (same trick as
+-- CdmBars' shield bar).
 function A.UpdateShield(h)
     if not (h.amountOn and h.amount) then return end
     local v = UnitGetTotalAbsorbs(h.shieldUnit or "player")
@@ -499,22 +480,21 @@ local function makeAmount(h)
     h.amount = g
 end
 
--- The client's buttons dressed again (the time, the swipe): after restrictions.
+-- Re-dress the client's buttons once restrictions lift.
 local function replace(h)
     DUI.AfterRestrictions(function()
         for _, btn in ipairs(h.buttons or {}) do placeButton(h, btn) end
     end, "cdm:auras:place:" .. tostring(h))
 end
 
--- on: a shield's icon with "Show shield amount" (CdmRows, each pass);
--- text: the piece's icon text (its cooldown number size and color).
+-- on: Show shield amount for a shield piece. text: the piece's icon text settings.
 function A.SetAmount(h, on, text)
     on = on == true and h.shieldUnit ~= nil
     if on and not h.amount then makeAmount(h) end
     if h.amount then
         h.amount:SetShown(on)
         if on then
-            -- Over the client's button (its container sits on the holder).
+            -- Above the client's button.
             h.amount:SetFrameLevel(h:GetFrameLevel() + 20)
             local t = text or h.text
             h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Outline())
@@ -531,8 +511,7 @@ function A.SetAmount(h, on, text)
     if on then A.UpdateShield(h) end
 end
 
--- hide: the piece's "Hide duration swipe"; reverse: its "Reverse swipe"
--- (CdmRows, each pass).
+-- The piece's Hide duration swipe and Reverse swipe settings.
 function A.SetSwipe(h, hide, reverse)
     hide, reverse = hide == true or nil, reverse == true or nil
     if h.noSwipe == hide and h.reverse == reverse then return end
@@ -541,9 +520,9 @@ function A.SetSwipe(h, hide, reverse)
     placeFace(h)
 end
 
--- on: the piece's Hide (Buff up), each pass. The container goes see-through,
--- so the client's button can't show however a fight reads the aura; the
--- grayed icon of Keep its spot shows only while the aura isn't up.
+-- Hide (Buff up). The container goes transparent so the client's button never
+-- shows, however combat reads the aura. Keep its spot's grayed icon shows only
+-- while the aura is down.
 function A.SetHideUp(h, on)
     on = on == true or nil
     if h.hideUp ~= on then
@@ -553,9 +532,8 @@ function A.SetHideUp(h, on)
     end
     if ns.Cooldowns then ns.Cooldowns.FollowHide(h) end
     if not h.underOn then return end
-    -- Hide (Buff up) with Show missing buffs: the icon is only a reminder
-    -- that the buff is down, so it shows in full color (a Paladin's
-    -- Righteous Fury); otherwise the dim gray of a buff that's just down.
+    -- With Hide (Buff up) and Show missing buffs, the icon is a reminder that the
+    -- buff is missing (Righteous Fury), so it shows in full color instead of gray.
     if h.underBright ~= on then
         h.underBright = on
         h.under:SetDesaturated(not on)
@@ -569,10 +547,9 @@ function A.SetHideUp(h, on)
     Motion.Tween(h.underBox, from, a, Motion.FAST, function(v) h.underBox:SetAlpha(v) end)
 end
 
--- Is the holder's aura up: true, false, or nil (never known yet). Out of a
--- fight and restrictions the lookups by spell id are plain. In one they
--- quietly return nothing, so only a found aura counts and
--- otherwise the last answer stays.
+-- Whether the holder's aura is up: true, false, or nil if never known. Spell id
+-- lookups only work outside combat and restrictions. Inside, they quietly return
+-- nothing, so only a found aura counts and otherwise the last answer stands.
 local function readable()
     if DUI.Restricted() then return false end
     local S = C_Secrets
@@ -585,17 +562,16 @@ end
 
 A.Readable = readable   -- /dui cdm report
 
--- How long after a container is made a buff already up has had its button
--- come up (CdmEffects' quiet time for the same): past it, none = down.
+-- After this long, a new container with no button means the aura is down
+-- (matches CdmEffects' quiet time).
 local function settled(h)
     local quiet = (ns.CdmEffects and ns.CdmEffects.AURA_QUIET) or 0.3
     return h.builtAt ~= nil and GetTime() - h.builtAt >= quiet
 end
 
--- A debuff on you, drawn by ours (setup: h.selfDebuff): the client's button
--- look (shell, cropped icon, shade, swipe, stack count), made of our own
--- frames, so it's never locked. Up from h.up, h.endsAt, h.auraLasts and
--- h.selfStacks (read where plain, else counted from your casts: selfCast).
+-- Self-debuff face (h.selfDebuff): looks like the client's button but built from
+-- addon frames, so it's never locked. Driven by h.up, h.endsAt, h.auraLasts and
+-- h.selfStacks, read where plain or counted from your casts (selfCast).
 function makeFace(h)
     if h.face then return end
     local f = CreateFrame("Frame", nil, h)
@@ -613,7 +589,7 @@ function makeFace(h)
     f.shade:SetAllPoints(f.icon)
     f.shade:SetTexture(Skin.SHADE_FILE)
     f.shade:SetVertexColor(0, 0, 0, Skin.SHADE)
-    -- The count over the swipe, as on the client's button.
+    -- Stack count above the swipe.
     f.top = CreateFrame("Frame", nil, f.box)
     f.top:SetAllPoints(f.box)
     f.top:SetFrameLevel(f.cd:GetFrameLevel() + 1)
@@ -626,7 +602,7 @@ function makeFace(h)
     placeFace(h)
 end
 
--- The look again (placeButton's, for our own face): size, border, count.
+-- placeButton's equivalent for the self-debuff face.
 function placeFace(h)
     local f = h.face
     if not f then return end
@@ -649,8 +625,8 @@ function placeFace(h)
     f.cd:SetReverse(h.reverse == true)
 end
 
--- Up or down, its time and its stacks: fades in and out (FAST: a fight's
--- word never waits). Hide (Buff up) keeps it out of sight while up.
+-- Show state, time and stacks. Fades use FAST so combat info isn't delayed.
+-- Hide (Buff up) keeps it hidden while up.
 function paintFace(h)
     local f = h.face
     if not f then return end
@@ -677,8 +653,8 @@ function paintFace(h)
     Motion.Tween(f, from, a, Motion.FAST, function(v) f:SetAlpha(v) end)
 end
 
--- When the aura runs out, by the clock: in a fight nothing else says so. One
--- timer per holder; a recast moved the end later, so it waits on.
+-- Expire the aura by the clock, since in combat nothing else reports it. One timer
+-- per holder; if a recast pushed the end back, it keeps waiting.
 local function watchEnd(h)
     if h.endTimer or not h.endsAt then return end
     h.endTimer = true
@@ -694,9 +670,9 @@ local function watchEnd(h)
     end)
 end
 
--- Each piece's buff length, per character (DB.Character().cdmAuraLasts
--- [piece id] = seconds): learned where auras can be read, so a reload
--- inside a dungeon still knows when a cast's buff runs out (A.Cast).
+-- Buff durations per piece, saved per character (cdmAuraLasts[piece id] = seconds).
+-- Learned where auras can be read, so a reload inside a dungeon still knows when
+-- a cast's buff runs out.
 local function book()
     local c = DUI.DB and DUI.DB.Character()
     if type(c) ~= "table" then return {} end
@@ -704,7 +680,7 @@ local function book()
     return c.cdmAuraLasts
 end
 
--- Never read yet: the spell's own text ("... for 5 sec.", "Lasts 12 sec.").
+-- Fallback before a duration is learned: parse the spell text.
 local TEXT_LASTS = { "[Ff]or (%d+%.?%d*) sec", "[Ll]asts (%d+%.?%d*) sec" }
 local function textLasts(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
@@ -715,13 +691,11 @@ local function textLasts(sid)
     end
 end
 
--- A debuff on you (Weakened Soul after a self-shield, Arcane Blast's stack):
--- the client's containers refuse to pick a debuff on a unit you can assist by
--- spell id unless the spell is never secret
--- (AuraContainerUtil.CanApplyIdentityCandidateFilters; a player's empty spot,
--- 2026-11-11). So it's picked by what's left: a debuff of yours, no longer
--- than the spell's (learned, else its text, else A.SELF_DEBUFF_CAP s).
--- Returns the group's filter and its candidate filters.
+-- Debuffs on you (Weakened Soul, Arcane Blast's stack). Containers refuse to match
+-- a debuff on an assistable unit by spell id unless the spell is never secret
+-- (AuraContainerUtil.CanApplyIdentityCandidateFilters). So match any debuff of
+-- yours no longer than the spell's duration (learned, else from its text, else
+-- A.SELF_DEBUFF_CAP seconds). Returns the group filter and candidate filters.
 A.SELF_DEBUFF_CAP = 30
 local function neverSecret(ids)
     local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
@@ -746,9 +720,9 @@ function A.SelfDebuffGroup(id, ids)
     return "HARMFUL|PLAYER", { maxDuration = n and (math.ceil(n) + 1) or A.SELF_DEBUFF_CAP }
 end
 
--- A buff whose charges your blocks use up (Shield Block, Holy Shield:
--- CdmOwn.Stacks), per character (cdmAuraCharges[piece id] = the most seen):
--- in a dungeon fight nothing says it ended early, but your blocks do.
+-- Buffs consumed by your blocks (Shield Block, Holy Shield). Max charges seen are
+-- saved per character (cdmAuraCharges[piece id]). In a dungeon fight nothing else
+-- says the buff ended early, but counting blocks does.
 local function charges()
     local c = DUI.DB and DUI.DB.Character()
     if type(c) ~= "table" then return {} end
@@ -756,10 +730,9 @@ local function charges()
     return c.cdmAuraCharges
 end
 
--- Never read yet: the spell's own text. WoW Forever's Shield Block "will
--- only block 2 attacks" (it was 1), Holy Shield has "4 charges". None found:
--- no counting at all (the clock alone), never a guess (a guessed 1 folded
--- Shield Block after its first block, seen in game 2026-11-09).
+-- Fallback before charges are seen: parse the spell text. Forever's Shield Block
+-- blocks 2 attacks, Holy Shield has 4 charges. If nothing matches, don't count at
+-- all and rely on the clock. Guessing 1 ended Shield Block after its first block.
 local TEXT_CHARGES = { "block (%d+) attacks?", "(%d+) charges?" }
 local function textCharges(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
@@ -770,7 +743,7 @@ local function textCharges(sid)
     end
 end
 
--- A found aura's length and end, kept for a fight's cast (A.Cast).
+-- Remember a found aura's duration and end time for casts in combat (A.Cast).
 local function learn(h, a, unit)
     h.upUnit = unit
     local n = plain(a.applications)
@@ -790,18 +763,18 @@ local function learn(h, a, unit)
     watchEnd(h)
 end
 
-local ON_YOU = { { unit = "player" } }   -- a debuff on you: no container (makeFace)
+local ON_YOU = { { unit = "player" } }   -- self debuffs have no container (makeFace)
 local function found(h)
     local get = C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID
     if type(get) ~= "function" or type(h.ids) ~= "table" then return false end
     for _, k in ipairs(h.selfDebuff and ON_YOU or h.containers or {}) do
         for sid in pairs(h.ids) do
             local ok, a = pcall(get, k.unit, sid)
-            -- On the target: only your own debuff (the container's HARMFUL|PLAYER).
+            -- On the target, only your own debuff counts (HARMFUL|PLAYER).
             local fromOther = not (issecretvalue and issecretvalue(a and a.isFromPlayerOrPlayerPet))
                 and type(a) == "table" and a.isFromPlayerOrPlayerPet == false
-            -- On you, a debuff of someone else's isn't one the debuff group
-            -- shows (HARMFUL|PLAYER, A.SelfDebuffGroup): a spot it opened stayed empty.
+            -- On you, someone else's debuff isn't shown by the HARMFUL|PLAYER group,
+            -- so counting it would leave an empty spot.
             local otherDebuff = h.mineOnly and fromOther and type(a) == "table" and a.isHarmful == true
             if ok and type(a) == "table" and not otherDebuff and (k.unit == "player" or not fromOther) then
                 learn(h, a, k.unit)
@@ -812,8 +785,8 @@ local function found(h)
     return false
 end
 
--- /dui cdm report: what the holder watches, what the client put in it and
--- what the game says of each spell id on you (plain only out of a fight).
+-- For /dui cdm report: what the holder watches, what the client put in it, and
+-- what the game says about each spell id on you (only readable out of combat).
 function A.Why(h)
     local function w(v)
         if issecretvalue and issecretvalue(v) then return "secret" end
@@ -851,31 +824,29 @@ function A.IsUp(h)
     if found(h) then
         h.up = true
     elseif h.selfDebuff then
-        -- Not found by its id says nothing: Arcane Blast's stack can't be
-        -- tracked that way in game (ArcAuras counts the casts, as selfCast
-        -- does). Down once the counted time has run out.
-        -- Found before and gone now, where auras read: down.
+        -- Not finding it by id means nothing, since Arcane Blast's stack can't be
+        -- tracked that way in game. It's down once the counted time runs out, or
+        -- when it was found before and is now gone where auras can be read.
         if not (h.endsAt and h.endsAt > GetTime()) or (h.selfRead and readable()) then
             h.up, h.endsAt, h.selfStacks, h.selfRead = false, nil, nil, nil
         end
     elseif readable() and #(h.containers or {}) > 0 then
         h.up = false
     elseif h.up == nil and #(h.containers or {}) > 0 and settled(h) then
-        -- Can't be read (a dungeon, a reload in a fight): no button came up
-        -- since the container was made, so it isn't there (A.Shown says so
-        -- if it lands).
+        -- Unreadable (dungeon, reload in combat) and no button appeared since the
+        -- container was made, so it's down. A.Shown corrects this if it lands.
         h.up = false
     end
     return h.up
 end
 
--- A buff landing or falling off: holders whose piece cares whether it's up
--- (h.wantsUp, set by CdmRows: the missing glow, Hide) ask again; a change runs the layout pass.
+-- A buff changed. Holders that care whether they're up (h.wantsUp, set by CdmRows)
+-- check again, and any change runs the layout pass.
 function A.AuraChanged()
     local moved = false
     each(function(h)
         if h.face and h:IsShown() then
-            -- Ours draws it, asked or not: its time and stacks too.
+            -- Self-debuff faces always update, including time and stacks.
             local was = h.up
             if readable() then A.IsUp(h) end
             paintFace(h)
@@ -888,8 +859,8 @@ function A.AuraChanged()
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
--- Once the frame after, however many UNIT_AURA came (a pre-pull rebuff,
--- a raid boss's target).
+-- Coalesce bursts of UNIT_AURA (pre-pull rebuffs, raid fights) into one pass
+-- on the next frame.
 local changeQueued = false
 function A.AuraChangedSoon()
     if changeQueued then return end
@@ -900,16 +871,16 @@ function A.AuraChangedSoon()
     end)
 end
 
--- Your own cast of it in a fight, the one plain word that it's up (your cast
--- events stay plain; the aura and its button don't). A harmful spell's aura is
--- on the target, so a new target takes it away (A.TargetChanged).
+-- In combat your own cast events stay plain while the aura and its button don't,
+-- so a cast is the one reliable sign it's up. A harmful spell's aura is on the
+-- target, so switching targets clears it (A.TargetChanged).
 function A.Cast(h, sid)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
     h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or "player"
-    -- Its length: read this session, else kept from before, else its text.
-    -- Without one it would read up for good (the client's button gives no
-    -- word in a dungeon fight, seen in game 2026-11-09).
+    -- Duration: read this session, else saved, else from the spell text. Without
+    -- one it would stay up forever, since the client's button says nothing in a
+    -- dungeon fight.
     h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid)
     h.endsAt = h.auraLasts and h.auraLasts > 0 and GetTime() + h.auraLasts or nil
     h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
@@ -917,22 +888,20 @@ function A.Cast(h, sid)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
--- Never read yet: the most stacks, from the spell's own text ("Effect stacks
--- up to 4 times"). None found: no cap.
+-- Max stacks parsed from the spell text ("stacks up to 4 times"). nil = no cap.
 local function textStacks(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
     if not ok or type(desc) ~= "string" or (issecretvalue and issecretvalue(desc)) then return nil end
     return tonumber(string.match(desc, "[Ss]tacks up to (%d+) times"))
 end
 
--- Your own cast of a spell whose debuff lands on you (Arcane Blast), read or
--- not (its stack can't be tracked by spell id in game; ArcAuras counts the
--- casts too): the first starts it for its length, each one after adds a
--- stack (WoW Forever's text: "lasts 18 sec from time of initial
--- application", so a recast doesn't move the end). Dying clears it.
+-- Count casts of a spell whose debuff lands on you (Arcane Blast), since the stack
+-- can't be tracked by spell id. The first cast starts the timer and each later one
+-- adds a stack. The duration runs from the first application, so recasts don't
+-- extend it. Dying clears it.
 local function selfCast(h, sid)
-    -- Read by its id just now (it can be, here): the read says, not the count
-    -- (the aura's change may come before the cast's: counted twice).
+    -- If it was just read by id, trust the read over the count. The aura event
+    -- can arrive before the cast and would be counted twice.
     if h.selfRead and readable() then
         A.AuraChangedSoon()
         return
@@ -975,31 +944,27 @@ DUI.RegisterEvent("PLAYER_DEAD", function()
     end)
 end)
 
--- The client's button came up for a new aura (the slide's OnPlay,
--- CdmEffects): in a fight the one word that a buff you didn't cast (a proc,
--- someone else's) is up. No length is known, so it reads up until the auras
--- can be read again.
--- Not only for holders that ask yet: a buff already up comes up with a new
--- container, before the pass says what it wants.
+-- The client's button appeared (CdmEffects' slide OnPlay). In combat this is the
+-- only sign that a buff you didn't cast (a proc, someone else's) is up. With no
+-- known duration it stays up until auras can be read again. Applies to every
+-- holder, since a buff already up appears before the pass says what it wants.
 function A.Shown(h)
     if h.up == true or readable() then return end
     h.up = true
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
--- Its button went away (the client stopped its shown animations, CdmEffects):
--- the buff is down, read or not.
+-- The client's button went away (CdmEffects), so the buff is down.
 function A.Hidden(h)
-    -- The holder or its piece hiding hides the button too: not the buff.
+    -- Hiding the holder hides the button too; that isn't the buff ending.
     if h.up == false or readable() or not h:IsVisible() then return end
     h.up, h.endsAt = false, nil
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
--- A hit you blocked (the game's CombatFeedback.lua: UNIT_COMBAT "BLOCK", or
--- "WOUND" flagged BLOCK / BLOCK_REDUCED; action and flag stay plain): a
--- charge of a buff your blocks use up. The last one gone, it's down. Only
--- where auras can't be read (out of one, they're read).
+-- Blocked hits (UNIT_COMBAT "BLOCK", or "WOUND" flagged BLOCK / BLOCK_REDUCED;
+-- action and flag stay plain) use up a charge of block buffs. When the last is
+-- gone the buff is down. Only used where auras can't be read.
 local blocks = CreateFrame("Frame")
 blocks:RegisterUnitEvent("UNIT_COMBAT", "player")
 blocks:SetScript("OnEvent", function(_, _, _, action, flag)
@@ -1016,14 +981,14 @@ blocks:SetScript("OnEvent", function(_, _, _, action, flag)
     end)
 end)
 
--- The game's own aura item says (CdmRows): true, or nil when it's down.
+-- Reported by the game's own aura item via CdmRows: true, or nil when down.
 function A.Told(h, up)
     h.up = up
     if not up then h.endsAt = nil end
     return up or nil
 end
 
--- A new target in a fight: what was up on the old one can't be told any more.
+-- New target in combat: auras on the old one can no longer be tracked.
 function A.TargetChanged()
     if readable() then return end
     each(function(h)
@@ -1043,15 +1008,15 @@ function A.ReleaseExcept(used)
     end
 end
 
--- A new target: the containers follow it themselves; asked once more, harmless.
+-- New target. Containers follow it on their own; this extra refresh is harmless.
 function A.Retarget()
     each(function(h)
         for _, k in ipairs(h.containers or {}) do
-            -- Same unit token, new unit: the container only re-reads on an
-            -- aura change or when told (like the target frame's auras).
+            -- Same unit token, new unit. The container only re-reads on an aura
+            -- change or when told.
             if k.shield then
-                -- Still you (an enemy or no target): left alone, so the
-                -- client doesn't rebuild its button (the bar flashed).
+                -- Still on you (enemy or no target): leave it alone, or the
+                -- client rebuilds its button and the bar flashes.
                 local unit = A.ShieldUnit()
                 if not (unit == "player" and k.unit == "player") then
                     k.unit = unit
@@ -1068,7 +1033,7 @@ function A.Retarget()
     end)
 end
 
--- Spells learned: ranks may have changed.
+-- Spells changed, so ranks may have too.
 function A.Rebuild()
     each(function(h)
         if not InCombatLockdown() and h.containers and h.id then
@@ -1083,10 +1048,10 @@ function A.Rebuild()
 end
 
 DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() A.Retarget(); A.TargetChanged(); A.AuraChanged() end)
--- A fight's end: the lookups are plain again.
+-- Out of combat, lookups are readable again.
 DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() A.AuraChanged() end)
 DUI.RegisterEvent("SPELLS_CHANGED", function() A.Rebuild() end)
--- A shield soaking, landing or breaking: the icons' amounts.
+-- Shield absorbs changed: update the amounts.
 DUI.RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED", function()
     for _, h in pairs(holders) do
         if h.amountOn and h:IsShown() then A.UpdateShield(h) end
