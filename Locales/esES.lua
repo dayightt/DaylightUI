@@ -2148,6 +2148,7 @@ L["Keybinds"] = "Atajos"
 L["Keybinds, stack counts, macro names and cooldown numbers on every bar, the Cooldown Manager and totems. General uses the font on General > Appearance."] = "Atajos, contadores de acumulación, nombres de macro y cifras de tiempo de reutilización en todas las barras, el gestor de reutilización y los tótems. General usa la fuente de General > Apariencia."
 L["Keys"] = "Llaves"
 L["Kicked by"] = "Interrumpido por"
+L["gear weapon armor consumable food drink potion reagent tradegoods recipe key container bag quest junk soulbound set locked poor common uncommon rare epic legendary quality level"] = "equipo arma armadura consumible comida bebida poción/pocion componente oficio receta llave recipiente bolsa misión/mision chatarra ligado conjunto bloqueado pobre común/comun inusual raro épico/epico legendario calidad nivel"
 L["Kinds: gear, weapon, armor, consumable, food, drink, potion, reagent, tradegoods, recipe, key, container, quest, junk\nBinding: boe, bou, soulbound. In an equipment set: set, or the set's name. Locked: locked\nQuality: poor, common, uncommon, rare, epic, legendary, or q>rare, q>=uncommon, q<epic\nItem level: ilvl>20, ilvl<=10, ilvl20-30\nJoin with & (all) or | (any), ! for not: boe & q>common, food | potion, gear & !set\nA word that isn't one of these finds names. Start with # for the keyword only."] = "Tipos: equipo, arma, armadura, consumible, comida, bebida, pocion\nTambién: componente, oficio, receta, llave, recipiente, mision, chatarra\nVínculo: boe (se liga al equipar), bou (se liga al usar), ligado. Conjunto: conjunto, o su nombre. Bloqueado: bloqueado\nCalidad: pobre, comun, inusual, raro, epico, legendario. También q>raro, q>=inusual, q<epico\nNivel: ilvl>20, ilvl<=10, ilvl20-30. También vale nivel\n& exige todo, | vale cualquiera, ! niega. Ejemplo: boe & q>comun, comida | pocion, equipo & !conjunto\nOtra palabra busca en el nombre. # delante usa solo la palabra clave."
 L["Kings"] = "Reyes"
 L["Known"] = "Conocido"
@@ -6093,3 +6094,25 @@ L["Your target"] = "Tu objetivo"
 L["Your target, else your target's target"] = "Tu objetivo, o si no el objetivo de tu objetivo"
 L["Your windows"] = "Tus ventanas"
 L["new window"] = "ventana nueva"
+
+-- A few lines change with the character's sex. The sex is only known once the
+-- player is in the world, and every one of these is read when it's drawn, so
+-- swapping them in at login is enough. UnitSex can be secret in a PvP match:
+-- then the lines above stay as they are.
+local FEMININE = {
+    ["Rested"] = "Descansada",
+    ["Fully rested. Go spend it!"] = "Totalmente descansada. ¡Ve a gastarlo!",
+    ["Ready when you are"] = "Lista cuando tú lo estés",
+    ["%s away. Your character is getting stiff."] = "%s ausente. Tu personaje se está poniendo rígida.",
+    ["DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Appearance, Fade only in the open world). Choose it above to use it. If the profile you're on has moved action bars, offers to bring them along."] = "DPS/Tanque sosegado para las misiones: tus barras de acción y tu propio marco se desvanecen un rato después de un combate (vuelven bajo el ratón, en combate o cuando estás herida), el medidor de daño empieza plegado (un clic en la pestaña del panel lo hace aparecer), el minimapa es un poco más pequeño y la barra de PE muestra su porcentaje. Nada se desvanece en mazmorras, bandas, campos de batalla o arenas (General > Apariencia, Desvanecer solo en mundo abierto). Elígelo arriba para usarlo. Si el perfil actual tiene barras de acción movidas, ofrece llevarlas consigo.",
+    ["DPS/Tank with your party and raid as square tiles under you (you included, missing health on them, dispels easy to see), and your frame and your target's raised a little. Everything it sets is on the Party and Raid pages; move any of them in unlock mode. Choose it above to use it. If the profile you're on has moved action bars, offers to bring them along."] = "DPS/Tanque con tu grupo y tu banda como casillas cuadradas debajo de ti (tú incluida, con la salud perdida en ellas y las disipaciones bien visibles), y tu marco y el de tu objetivo un poco elevados. Todo lo que ajusta está en las secciones Grupo y Banda; mueve cualquiera de ellos en modo de desbloqueo. Elígelo arriba para usarlo. Si el perfil actual tiene barras de acción movidas, ofrece llevarlas consigo.",
+}
+local login = CreateFrame("Frame")
+login:RegisterEvent("PLAYER_LOGIN")
+login:SetScript("OnEvent", function(self)
+    self:UnregisterEvent("PLAYER_LOGIN")
+    local sex = UnitSex("player")
+    if issecretvalue and issecretvalue(sex) then return end
+    if sex ~= 3 then return end
+    for key, text in pairs(FEMININE) do L[key] = text end
+end)

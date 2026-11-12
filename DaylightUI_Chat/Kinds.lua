@@ -47,6 +47,11 @@ Kinds.CHANNELS = {
     general = "general", trade = "trade", localdefense = "defense", ["local defense"] = "defense",
     lookingforgroup = "lfg", ["looking for group"] = "lfg", services = Kinds.SERVICES, newcomerchat = "general",
     worlddefense = "defense", tradelocal = Kinds.TRADE_LOCAL,
+    -- Spanish clients name the channels in Spanish.
+    comercio = "trade", defensalocal = "defense", ["defensa local"] = "defense", buscargrupo = "lfg",
+    ["buscar grupo"] = "lfg", defensamundial = "defense", ["defensa mundial"] = "defense",
+    defensaglobal = "defense", ["defensa global"] = "defense", servicios = Kinds.SERVICES, novatos = "general",
+    ["comercio (servicios)"] = Kinds.SERVICES, ["comercio (local)"] = Kinds.TRADE_LOCAL,
 }
 
 -- Kinds that were misnamed: old -> correct. A switch or tag saved on the old

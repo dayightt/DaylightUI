@@ -86,6 +86,26 @@ local NEVER = function() return false end
 -- Fields a comparison can read: q>rare, ilvl>=20.
 Search.FIELDS = { q = "quality", quality = "quality", ilvl = "itemLevel", level = "itemLevel" }
 
+-- Search words in the player's language. A translation gives the same words in
+-- the same order, one word each; "a/b" lets either spelling work (poción/pocion).
+-- The English list is written twice so the translation key stays a plain string.
+do
+    local english, i = {}, 0
+    for w in string.gmatch("gear weapon armor consumable food drink potion reagent tradegoods recipe key container bag quest junk soulbound set locked poor common uncommon rare epic legendary quality level", "%S+") do english[#english + 1] = w end
+    for spellings in string.gmatch(L["gear weapon armor consumable food drink potion reagent tradegoods recipe key container bag quest junk soulbound set locked poor common uncommon rare epic legendary quality level"], "%S+") do
+        i = i + 1
+        local en = english[i]
+        if not en then break end
+        for w in string.gmatch(string.lower(spellings), "[^/]+") do
+            if w ~= en then
+                if K[en] and not K[w] then K[w] = K[en] end
+                if Search.QUALITY[en] and not Search.QUALITY[w] then Search.QUALITY[w] = Search.QUALITY[en] end
+                if Search.FIELDS[en] and not Search.FIELDS[w] then Search.FIELDS[w] = Search.FIELDS[en] end
+            end
+        end
+    end
+end
+
 -- Turns one term (lowercase, trimmed, non-empty) into a test on item facts.
 local function term(text)
     -- ilvl20-30: inclusive range.

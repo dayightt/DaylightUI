@@ -26,7 +26,11 @@ ns.Tags = Tags
 -- With channelNumbers on (Tags.numbers) named ones keep their number too: [1. G].
 Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGroup = "LFG",
                   WorldDefense = "WD", GuildRecruitment = "GR", NewcomerChat = "N",
-                  Services = "TS", ["Trade(Services)"] = "TS", ["Trade(Local)"] = "TL", TradeLocal = "TL" }
+                  Services = "TS", ["Trade(Services)"] = "TS", ["Trade(Local)"] = "TL", TradeLocal = "TL",
+                  -- Spanish clients name the channels in Spanish.
+                  Comercio = "T", Defensalocal = "LD", Buscargrupo = "LFG", Defensamundial = "WD",
+                  Defensaglobal = "WD", Reclutamiento = "GR", Novatos = "N", Servicios = "TS",
+                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
 -- kind, written whole, set in a tab's Show window, Filter.lua). A custom tag wins;
 -- an empty box falls back to the standard one. Standard tags are also the edit
