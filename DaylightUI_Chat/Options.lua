@@ -3,7 +3,8 @@
 local _, ns = ...
 
 local matching = function(get) return get("matchInfo") == true end
-local classicStyle = function(get) return get("style") == "classic" end
+-- Classic is also what shows with the game's controller UI on (Box.On).
+local classicStyle = function(get) return get("style") == "classic" or DaylightUI.Pad.On() end
 local linkTipsOff = function(get) return get("linkTooltips") ~= true end
 local sideOff = function() return not ns.Tabs.SideShown() end
 -- Panel background opacity: shared with every window, or its own.
@@ -117,7 +118,7 @@ for k, v in pairs(HIDES) do SIDE_HIDES[k] = v end
 local SIDE_HIDES_ORDER = { "chat", "never", "fights", "fightsIdle", "always" }
 local function sideHides(get)
     local own = get("sideHides")
-    if get("style") == "classic" or not ns.Tabs.SideShown() or own == "chat" then return nil end
+    if classicStyle(get) or not ns.Tabs.SideShown() or own == "chat" then return nil end
     return own
 end
 local function notIdle(get) return get("hides") ~= "fightsIdle" and sideHides(get) ~= "fightsIdle" end
@@ -187,7 +188,7 @@ ns.OPTIONS = { pages = {
         { label = "Panel", desc = "Move it in unlock mode (/dui unlock).", items = {
             { type = "dropdown", key = "style", label = "Chat style",
               values = { daylight = "Daylight", classic = "Classic" }, order = { "daylight", "classic" },
-              desc = "Daylight: Daylight UI's own chat box, with its own tabs. Classic: the game's chat windows and tabs in the Daylight look. Switching is instant, and both keep every message." },
+              desc = "Daylight: Daylight UI's own chat box, with its own tabs. Classic: the game's chat windows and tabs in the Daylight look. Switching is instant, and both keep every message. With the game's controller mode on, chat is Classic, since the game's chat windows have its controller buttons." },
             { type = "toggle", key = "matchInfo", label = "Match the info panel's size",
               desc = "The same size as the top-right panel with its damage meter out." },
             { type = "slider", key = "width", label = "Width", min = 250, max = 1000, step = 1, unit = "px",
@@ -206,7 +207,7 @@ ns.OPTIONS = { pages = {
               disabled = function(get)
                   if get("panelShown") ~= true then return true end
                   local b = get("border")
-                  if b == "auto" then return get("style") ~= "classic" end
+                  if b == "auto" then return not classicStyle(get) end
                   return b ~= "flat"
               end },
             { type = "dropdown", key = "borderColor", label = "Border color", values = COLOR_MODE, order = COLOR_MODE_ORDER,
@@ -236,14 +237,14 @@ ns.OPTIONS = { pages = {
               hidden = classicStyle, disabled = function(get) return sideOff() or noBackground(get) end },
             { type = "slider", key = "sideAlpha", label = "Second panel background opacity", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How solid the second chat panel's background is: 0 is fully see-through.",
-              hidden = function(get) return get("style") == "classic" or get("sideAlphaOwn") ~= true end,
+              hidden = function(get) return classicStyle(get) or get("sideAlphaOwn") ~= true end,
               disabled = function(get) return sideOff() or noBackground(get) end },
             { type = "toggle", key = "sideTextSizeOwn", label = "Separate second panel text size",
               desc = "Gives the second chat panel its own text size, set in the row below. When off, it matches the main chat's text size.",
               hidden = classicStyle, disabled = sideOff },
             { type = "slider", key = "sideTextSize", label = "Second panel text size", min = 8, max = 24, step = 1, unit = "px",
               desc = "The size of the messages on the second chat panel.",
-              hidden = function(get) return get("style") == "classic" or get("sideTextSizeOwn") ~= true end,
+              hidden = function(get) return classicStyle(get) or get("sideTextSizeOwn") ~= true end,
               disabled = sideOff },
             { type = "dropdown", key = "sideHides", label = "Second panel hides",
               values = SIDE_HIDES, order = SIDE_HIDES_ORDER,
@@ -267,7 +268,7 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "inputAt", label = "Chat input position",
               values = { top = "At the top (over the tabs)", bottom = "At the bottom", below = "Under the panel" },
               order = { "top", "bottom", "below" },
-              hidden = function(get) return get("style") ~= "classic" end,
+              hidden = function(get) return not classicStyle(get) end,
               desc = "Where the box you type in appears. Under the panel keeps a strip below the chat for it, so it never covers any text. At the bottom, the Daylight chat box lifts its messages over the box while you type." },
             { type = "dropdown", key = "boxInputAt", label = "Chat input position",
               values = { top = "At the top (over the tabs)", bottom = "At the bottom", below = "Under the panel" },
@@ -320,7 +321,7 @@ ns.OPTIONS = { pages = {
               desc = "Each new message fades in instead of appearing at once. Never in a fight.", disabled = classicStyle },
             { type = "toggle", key = "typeLift", label = "Messages rise while you type",
               desc = "With the chat input at the bottom: while you type, the messages slide up and the box you type in sits under them, so it never covers a line.",
-              disabled = function(get) return get("style") == "classic" or get("boxInputAt") ~= "bottom" end },
+              disabled = function(get) return classicStyle(get) or get("boxInputAt") ~= "bottom" end },
         } },
         { label = "Filters and alerts", desc = "In the Daylight chat box (Chat style: Daylight).", items = {
             { type = "toggle", key = "spamRepeats", label = "Hide repeated messages",
@@ -341,7 +342,7 @@ ns.OPTIONS = { pages = {
               disabled = classicStyle },
             { type = "toggle", key = "alertSound", label = "Sound for lit-up words",
               desc = "A soft sound when your name or one of your words shows up.",
-              disabled = function(get) return get("style") == "classic" or (get("alertName") ~= true and (get("alertWords") or "") == "") end },
+              disabled = function(get) return classicStyle(get) or (get("alertName") ~= true and (get("alertWords") or "") == "") end },
             { type = "toggle", key = "groupLines", label = "Group finder helpers",
               desc = "Messages looking for a group get role icons next to tank, healer and dps.",
               disabled = classicStyle },
@@ -360,7 +361,7 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("whisperSound") == "none" end },
             { type = "toggle", key = "whisperTabs", label = "Whispers in their own tab",
               desc = "Each person who whispers you gets a tab next to the others, and the whisper shows in your main tab as well. When off, whispers only show in the main tab.",
-              hidden = function(get) return get("style") ~= "classic" end },
+              hidden = function(get) return not classicStyle(get) end },
             { type = "dropdown", key = "whispersIn", label = "Whispers show in",
               values = { both = "Their own window and the chat", window = "Their own window", chat = "The chat only" },
               order = { "both", "window", "chat" },

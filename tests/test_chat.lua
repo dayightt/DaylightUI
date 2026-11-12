@@ -4781,30 +4781,35 @@ T.test("chat daylight: a tab's right-click menu opens its switches under Channel
     T.eq(seen and seen.show, "Channels")
 end)
 
-T.test("chat on a controller: typing shows the game's chat buttons over the box; the Daylight tabs take LB, RB and Y", function()
+T.test("chat on a controller: Classic whatever the setting, the game's chat buttons named over the typing box", function()
     local Box = daylight()
     local Chat = stub.chatModule.Chat
+    T.truthy(Box.On(), "the Daylight box, mouse and keyboard")
     _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
     _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    DaylightUI.Fire("PadChanged")
+    stub.RunTimers()
+    T.falsy(Box.On(), "controller mode: the game's chat windows, skinned")
+    T.falsy(DaylightUIChatBox:IsShown(), "the Daylight box steps aside")
+    T.eq(DaylightUI:Get("Chat", "style"), "daylight", "the setting stays as picked")
     local eb, focused = ChatFrame1EditBox, true
     local had = eb.HasFocus
     eb.HasFocus = function() return focused end   -- the fake game's boxes never hold focus
     Chat.Input(0.016)
     local host = Chat.padHost
-    T.truthy(host, "a stand-in over the typing box")
-    T.eq(DaylightUI.Pad.taken, host)
+    T.eq(DaylightUI.Pad.taken, host, "typing: its hints show")
     local said = {}
     for _, row in ipairs(DaylightUI.Pad.HintList(host)) do said[#said + 1] = row[2] end
     T.truthy(table.concat(said, "|"):find(ACTION_LABEL_SEND or "Send", 1, true))
-    T.truthy(DaylightUI.Pad.hints:IsShown(), "the hints show")
-    T.truthy(stub.overrides.PAD4, "Y opens Daylight UI's own tab menu")
-    T.eq(stub.overrides.PAD1, nil, "A stays the game's send")
-    T.eq(stub.overrides.PAD3, nil, "X stays the game's channels")
+    T.truthy(DaylightUI.Pad.hints:IsShown())
+    for _, k in ipairs({ "PAD1", "PAD3", "PAD4", "PADLSHOULDER" }) do T.eq(stub.overrides[k], nil, k .. " stays the game's") end
     focused = false
     Chat.Input(0.016)
     T.eq(DaylightUI.Pad.taken, nil, "done typing: given back")
-    T.eq(stub.overrides.PAD4, nil)
     eb.HasFocus = had
     _G.GamepadMode, _G.InputUtil = nil, nil
+    DaylightUI.Fire("PadChanged")
+    stub.RunTimers()
+    T.truthy(Box.On(), "controller mode off: the Daylight box again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

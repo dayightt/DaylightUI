@@ -1203,25 +1203,11 @@ end
 
 -- A controller: the game gives the chat the D-pad through its own chat frame
 -- (the radial's Chat, or Enter), with its own buttons: A sends, X opens the
--- channels, Y the tab's settings, LB and RB step the tabs. Those hints are drawn
--- on the game's chat frame, which is parked out of sight here, so they show
--- over the typing box instead. With the Daylight chat box the tabs are Daylight
--- UI's own, so LB, RB and Y act on those.
+-- channels, Y the tab's settings, LB and RB step the tabs. Chat is Classic then
+-- (Box.On), but those hints are drawn on a part of the game's chat frame left
+-- hidden, so they show over the typing box instead. They only show: the
+-- buttons stay the game's.
 local padHost, padBox
-
-local function padTabs()
-    local Box = ns.Box
-    local out, at = {}, nil
-    local tabs = Box.Tabs()
-    for i = 1, #tabs do
-        local b = Box.main.buttons[i]
-        if b and b:IsShown() and Box.PaneOf(tabs[i]) == Box.main then
-            out[#out + 1] = b
-            if i == Box.Picked() then at = #out end
-        end
-    end
-    return out, at
-end
 
 local function padHints()
     local Pad = DUI.Pad
@@ -1235,13 +1221,6 @@ local function padHints()
     }
 end
 
-local function padTabMenu()
-    local Box = ns.Box
-    local i = Box.Picked()
-    local b = Box.main.buttons[i]
-    if b then ns.Tabs.OpenMenu(b, i) end
-end
-
 -- eb: the typing box with the focus, or nil.
 function Chat.PadTyping(eb)
     local Pad = DUI.Pad
@@ -1251,14 +1230,12 @@ function Chat.PadTyping(eb)
     if not padHost then
         padHost = CreateFrame("Frame", nil, UIParent)
         padHost.padHintsAbove, padHost.padNoDefaults, padHost.padHints = true, true, padHints
+        padHost.padKeys, padHost.padTabs = {}, function() return {} end
         Chat.padHost = padHost
     end
     if not eb then return Pad.Release(padHost) end
     padHost:ClearAllPoints()
     padHost:SetAllPoints(eb)
-    local own = ns.Box.On()
-    padHost.padKeys = own and { { key = "Y", label = ACTION_LABEL_TAB_SETTINGS or DUI.L["Tab settings"], run = padTabMenu } } or {}
-    padHost.padTabs = own and padTabs or function() return {} end
     Pad.Take(padHost)
 end
 
@@ -1369,6 +1346,8 @@ function Chat.Build(mod)
         if scope == "Chat" and path == "sideHides" then Chat.WakeSide() end
     end)
     DUI.On("StyleChanged", function() Chat.Refresh(mod) end)
+    -- Controller mode on or off swaps the chat style (Box.On), at once.
+    DUI.On("PadChanged", function() DUI.AfterCombat(function() Chat.Refresh(mod) end, "chat:pad") end)
     Chat.Refresh(mod)
 end
 

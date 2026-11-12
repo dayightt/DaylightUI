@@ -63,7 +63,9 @@ local parked = setmetatable({}, { __mode = "k" }) -- game frame -> its original 
 
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
-function Box.On() return cfg ~= nil and cfg.style ~= "classic" end
+-- With the game's controller UI on, chat is Classic whatever the setting: the
+-- game's chat windows carry its own controller buttons, the Daylight box doesn't.
+function Box.On() return cfg ~= nil and cfg.style ~= "classic" and not DUI.Pad.On() end
 function Box.LineFadeIn() return cfg ~= nil and cfg.lineFadeIn ~= false end
 function Box.Frame() return main.frame end
 function Box.Panes() return panes end
