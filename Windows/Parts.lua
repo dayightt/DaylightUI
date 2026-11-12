@@ -611,18 +611,30 @@ end
 -- Builds an item icon with a quality outline on b (b.edge, b.well, b.icon).
 -- The caller anchors b.edge. size is the icon size; the outline adds 2 px.
 function Parts.ItemIcon(b, size)
+    b.iconSize = size
     b.edge = tex(b, "ARTWORK")
-    b.edge:SetSize(size + 2, size + 2)
     -- Dark fill inside the outline. Makes it read as a 1 px ring, and an
     -- icon that hasn't loaded yet shows dark instead of a solid quality color.
     b.well = tex(b, "ARTWORK", { 0, 0, 0, 1 })
     b.well:SetDrawLayer("ARTWORK", 1)
-    b.well:SetPoint("TOPLEFT", b.edge, "TOPLEFT", 1, -1)
-    b.well:SetPoint("BOTTOMRIGHT", b.edge, "BOTTOMRIGHT", -1, 1)
     b.icon = b:CreateTexture(nil, "OVERLAY")
     b.icon:SetAllPoints(b.well)
     Style.CropIcon(b.icon)
+    Parts.FitItemIcon(b)
     return b
+end
+
+-- The ring is one real screen pixel, not one UI unit: below a UI scale of 1
+-- a unit is less than a pixel, and a side of the ring would round away.
+-- Called again on each fill, as the window's scale can change.
+function Parts.FitItemIcon(b)
+    local Pixel = DUI.Pixel
+    local px = Pixel and Pixel.Px(b, 1) or 1
+    local side = (Pixel and Pixel.Snap(b, b.iconSize) or b.iconSize) + 2 * px
+    b.edge:SetSize(side, side)
+    b.well:ClearAllPoints()
+    b.well:SetPoint("TOPLEFT", b.edge, "TOPLEFT", px, -px)
+    b.well:SetPoint("BOTTOMRIGHT", b.edge, "BOTTOMRIGHT", -px, px)
 end
 
 -- Sets the icon and its quality outline. If the quality isn't known yet
@@ -721,6 +733,7 @@ function Stack:Items(items)
     for i, it in ipairs(items) do
         local b = take(self, "tile", makeTile)
         b.spec = it
+        Parts.FitItemIcon(b)
         local r, g, bl = Parts.SetItemIcon(b, it.texture, it.quality)
         b.name:SetText(it.name or "")
         local nc = it.nameColor   -- defaults to the quality color
