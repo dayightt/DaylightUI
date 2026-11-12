@@ -141,6 +141,7 @@ end
 function Motion.Vanish(frame)
     if not frame:IsShown() or frame.__duiVanishing then return end
     if DUI.Sound then DUI.Sound.Play("close") end
+    if DUI.Pad then DUI.Pad.Leaving(frame) end   -- before the Hide, see Pad.Leaving
     if not Motion.On() then frame:Hide(); return end
     frame.__duiVanishing = true
     -- Escape is free again the moment the window starts to close.
@@ -174,6 +175,7 @@ local function cancel(frame)
     if g then g:Stop() end
     frame:SetAlpha(1)
     if frame.__duiEsc then frame.__duiEsc:Show() end
+    if DUI.Pad then DUI.Pad.Returning(frame) end
 end
 
 -- Wires one of our windows once: it Appears on show (with a `rise` px lift,

@@ -956,6 +956,25 @@ local function sync(frame)
     end
 end
 
+-- A window of ours starting to close tells the game at once, through its
+-- wrapped call, while it's still shown. The game's navigation frame sits in
+-- the window it serves: hidden along with it by our Hide, its OnHide switches
+-- the controller's bindings as if Daylight UI had, and the game then refuses
+-- its own protected call (SetPreferredGamepadInteractTarget). Pad.Returning
+-- tells it again when a closing window is caught and reopened mid-fade.
+function Pad.Leaving(frame)
+    if not followed[frame] or not told[frame] then return end
+    local m = manager()
+    if not m or fight or InCombatLockdown() then return end
+    told[frame] = nil
+    Pad.aimed[frame] = nil
+    m:FrameHidden(frame)
+end
+
+function Pad.Returning(frame)
+    if followed[frame] and frame:IsShown() then sync(frame) end
+end
+
 function Pad.Follow(frame, close)
     followed[frame] = true
     if close then

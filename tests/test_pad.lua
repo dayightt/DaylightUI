@@ -1063,3 +1063,25 @@ T.test("pad options: right and left go across to the setting beside a row; left 
     _G.SmartNavigation_ClearJumpNavigationOverridesInDirection = nil
     clearAll(); clearMarks()
 end)
+
+T.test("pad: a closing window tells the game as the fade starts, while still shown; caught and reopened, it's told again", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    fresh(m)
+    local f = DUI.Win.New({ name = "PadTestLeaving", title = "Test" })
+    DUI.Win.Open(f)
+    stub.RunTimers()
+    T.eq(has(m, f), true)
+    local shownWhenTold
+    local hidden = m.FrameHidden
+    function m:FrameHidden(frame) if frame == f then shownWhenTold = f:IsShown() end; return hidden(self, frame) end
+    DUI.Win.Close(f)
+    T.eq(shownWhenTold, true, "told before our Hide, so the game's own hide handler never runs under it")
+    T.eq(has(m, f), false)
+    DUI.Win.Open(f)   -- caught mid-fade
+    T.eq(has(m, f), true, "listed again")
+    DUI.Win.Close(f)
+    stub.RunTimers()
+    m.FrameHidden = hidden
+    clearAll()
+end)
