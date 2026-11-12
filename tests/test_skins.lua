@@ -227,6 +227,26 @@ T.test("skins: text the game colors again, or prints dark into the string, is li
     end
 end)
 
+T.test("skins: a book's pages stay light after a page turn", function()
+    login(function()
+        local f = CreateFrame("Frame", "ItemTextFrame", UIParent)
+        f:Hide()
+        CreateFrame("SimpleHTML", "ItemTextPageText", f)
+    end)
+    local page = _G.ItemTextPageText
+    -- ITEM_TEXT_BEGIN: the game sets the parchment's dark brown per tag.
+    for _, tag in ipairs({ "P", "H1", "H2", "H3" }) do page:SetTextColor(tag, 0.18, 0.12, 0.06) end
+    ItemTextFrame:Show()
+    stub.RunTimers()
+    local ink = DaylightUI.Style.INK
+    T.eq(page.__tagColor.P[1], ink.TEXT[1], "body text light")
+    T.eq(page.__tagColor.H1[1], ink.TITLE[1], "headings light")
+    -- A page turn only refills the text; the tag colors carry over.
+    page:SetText("Page two")
+    T.eq(page.__tagColor.P[1], ink.TEXT[1], "still light on the next page")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("skins: gossip text a few frames deep in a row is made light, also the frame after", function()
     login()
     local box = GossipFrame.GreetingPanel.ScrollBox

@@ -696,7 +696,15 @@ function Widget:SetFormattedText(fmt, ...)
     self.__text = string.format(fmt, ...)
     self.__secretAnchoring = nil
 end
-function Widget:SetTextColor(r, g, b, a) self.__textColor = { r, g, b, a } end
+-- A SimpleHTML takes a tag first ("P", "H1"...) and keeps a color per tag.
+function Widget:SetTextColor(r, g, b, a, x)
+    if type(r) == "string" then
+        self.__tagColor = self.__tagColor or {}
+        self.__tagColor[r] = { g, b, a, x }
+        return
+    end
+    self.__textColor = { r, g, b, a }
+end
 -- A check button keeps its checked state (SetChecked fires no script).
 function Widget:SetChecked(on) self.__checked = on == true end
 function Widget:GetChecked() return self.__checked == true end

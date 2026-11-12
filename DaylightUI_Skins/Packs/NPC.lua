@@ -205,7 +205,20 @@ end })
 -- ---------------------------------------------------------------------
 
 -- Books, letters and plaques, printed for parchment.
-Engine.Window({ key = "itemtext", pack = "npc", frame = "ItemTextFrame", light = true })
+-- The page is an HTML text box that rebuilds its lines on every page turn in the
+-- colors set per tag, so the tags themselves get the light colors; lighting the
+-- lines alone lasted only until the next page.
+Engine.Window({ key = "itemtext", pack = "npc", frame = "ItemTextFrame", light = true,
+    after = function(Kit)
+        local page = _G.ItemTextPageText
+        if type(page) ~= "table" or type(page.SetTextColor) ~= "function" then return end
+        local ink = DaylightUI.Style.INK
+        page:SetTextColor("P", ink.TEXT[1], ink.TEXT[2], ink.TEXT[3])
+        for _, tag in ipairs({ "H1", "H2", "H3" }) do
+            page:SetTextColor(tag, ink.TITLE[1], ink.TITLE[2], ink.TITLE[3])
+        end
+        Kit.LightAll(page, nil, 0)
+    end })
 Engine.Window({ key = "bank", pack = "npc", frame = "BankFrame", watch = true })
 Engine.Window({ key = "tabard", pack = "npc", frame = "TabardFrame" })
 Engine.Window({ key = "petition", pack = "npc", frame = "PetitionFrame", light = true })
