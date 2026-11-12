@@ -250,6 +250,26 @@ T.test("legacy challenges: a click opens its steps; the track switch tracks it",
     clean()
 end)
 
+T.test("legacy challenges: one the game can't track has no track switch", function()
+    local ns = load()
+    LW.state.untrackable = { [1102] = true }
+    open(ns, "challenges")
+    local C = ns.Challenges
+    C.Pick(11)
+    frame(2)
+    local function portal()
+        for _, b in ipairs(shownOf(C.page.list, "ch")) do if b.ch.name == "Portal Master" then return b end end
+    end
+    local row = portal()
+    row:GetScript("OnClick")(row)
+    frame(10)
+    row = portal()
+    T.truthy(row.more:IsShown(), "opened")
+    T.falsy(row.track:IsShown(), "no switch that can only say it can't be tracked")
+    T.falsy(row.trackText:IsShown())
+    clean()
+end)
+
 T.test("legacy challenges: the search is the client's, answered a frame later", function()
     local ns = load()
     open(ns, "challenges")

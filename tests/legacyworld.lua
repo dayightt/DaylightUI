@@ -281,6 +281,8 @@ local function install_achievements()
     Enum.ContentTrackingStopType = Enum.ContentTrackingStopType or { Invalidated = 0, Collected = 1, Manual = 2 }
     _G.C_ContentTracking = setmetatable({
         IsTracking = function(_, id) return S().tracked[id] == true end,
+        -- The client's answer: some challenges can't be tracked (S().untrackable).
+        IsTrackable = function(_, id) return not (S().untrackable and S().untrackable[id]) end,
         StartTracking = function(_, id) record("StartTracking", id); S().tracked[id] = true; stub.FireEvent("CONTENT_TRACKING_UPDATE", 2, id, true) end,
         StopTracking = function(_, id) record("StopTracking", id); S().tracked[id] = nil; stub.FireEvent("CONTENT_TRACKING_UPDATE", 2, id, false) end,
         GetTrackedIDs = function()

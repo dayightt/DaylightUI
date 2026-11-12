@@ -317,6 +317,14 @@ function Data.Tracked(id)
     return call(api("C_ContentTracking", "IsTracking"), trackType(), id) == true
 end
 
+-- Many Legacy challenges can't be tracked at all: the game says so when asked
+-- to start. No answer (an older client) offers the switch as before.
+function Data.Trackable(id)
+    local fn = api("C_ContentTracking", "IsTrackable")
+    if not fn then return true end
+    return call(fn, trackType(), id) == true
+end
+
 -- true when it worked; the game's own message when the list is full.
 function Data.SetTracked(id, on)
     local CT = _G.C_ContentTracking

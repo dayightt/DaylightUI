@@ -242,7 +242,7 @@ local function measure(page, c, w, open)
     local probe = page.probeRow
     local sh = laySteps(probe, steps, sw, 0)
     probe.more:Hide()
-    local h = 9 + 15 + 4 + dh + 10 + sh + (c.done and 0 or 26) + 10
+    local h = 9 + 15 + 4 + dh + 10 + sh + ((c.done or not Data().Trackable(c.id)) and 0 or 26) + 10
     return math.max(Challenges.ROW, math.floor(h + 0.5)), steps, dh
 end
 
@@ -277,8 +277,9 @@ local function fillRow(b, c, open, steps, dh, w)
         b.more:SetPoint("RIGHT", b, "RIGHT", -16, 0)
         b.more:SetHeight(1)
         local sh = laySteps(b, steps, w - (8 + Challenges.ICON + 12) - 16, 0)
-        b.track:SetShown(not done)
-        b.trackText:SetShown(not done)
+        local canTrack = not done and Data().Trackable(c.id)
+        b.track:SetShown(canTrack)
+        b.trackText:SetShown(canTrack)
         b.track:ClearAllPoints()
         b.track:SetPoint("TOPLEFT", b.more, "TOPLEFT", 0, -(sh + 4))
         b.track.SetOn(Data().Tracked(c.id))
