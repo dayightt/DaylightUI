@@ -725,6 +725,72 @@ function Panel.PadEnter()
     DUI.Pad.Settle(Panel.FirstStop())
 end
 
+-- The rows of the page in view that the D-pad stops on.
+function Panel.PadRows()
+    local out = {}
+    local pf = pageFrames[current]
+    if not pf or not pf:IsVisible() then return out end
+    for _, card in ipairs(pf.cards or {}) do
+        for _, row in ipairs(card.rows or {}) do
+            if row.padRow and row:IsVisible() then out[#out + 1] = row end
+        end
+    end
+    return out
+end
+
+-- Left and right between settings go across to the setting beside this one,
+-- as in the game's Settings window. Left of the first column is the page in
+-- the list. Without this the game's guess often jumped up to the tabs.
+-- Set as plain frame targets (the game's jump overrides) when the D-pad lands
+-- on a row, so they follow whatever the page shows now.
+Panel.COLUMN_SLACK = 20
+
+local function aim(b, dir, target)
+    if target then
+        SmartNavigation_AddJumpNavigationOverride(b, dir, target)
+    else
+        SmartNavigation_ClearJumpNavigationOverridesInDirection(b, dir)
+    end
+end
+
+-- The nearest row by height in the column next to x, on the given side (1 right, -1 left).
+local function across(rows, row, side)
+    local x, top = row:GetLeft(), row:GetTop()
+    if type(x) ~= "number" or type(top) ~= "number" then return nil end
+    local column
+    for _, r in ipairs(rows) do
+        local l = r:GetLeft()
+        if type(l) == "number" and (l - x) * side > Panel.COLUMN_SLACK
+            and (not column or (l - column) * side < 0) then column = l end
+    end
+    if not column then return nil end
+    local best, gap
+    for _, r in ipairs(rows) do
+        local l, t = r:GetLeft(), r:GetTop()
+        if type(l) == "number" and type(t) == "number" and math.abs(l - column) <= Panel.COLUMN_SLACK then
+            local d = math.abs(t - top)
+            if not best or d < gap then best, gap = r, d end
+        end
+    end
+    return best
+end
+
+function Panel.PadAim(row)
+    if InCombatLockdown() or type(SmartNavigation_AddJumpNavigationOverride) ~= "function"
+        or type(SMART_NAV_INPUT_DIRECTION) ~= "table" then return end
+    local D = SMART_NAV_INPUT_DIRECTION
+    local rows = Panel.PadRows()
+    aim(row, D.RIGHT, across(rows, row, 1))
+    aim(row, D.LEFT, across(rows, row, -1) or Panel.PageButton(current))
+end
+
+-- Right from the page in the list goes into the page, like A.
+function Panel.PadAimList(b)
+    if InCombatLockdown() or type(SmartNavigation_AddJumpNavigationOverride) ~= "function"
+        or type(SMART_NAV_INPUT_DIRECTION) ~= "table" then return end
+    aim(b, SMART_NAV_INPUT_DIRECTION.RIGHT, Panel.FirstStop())
+end
+
 function Panel.PadKeys()
     frame.padScroll = scroll
     -- On open the D-pad starts on the current page in the list, like the game's

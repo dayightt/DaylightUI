@@ -79,9 +79,11 @@ local function sectionButton(nav, section)
     -- shows the section, A enters it.
     b.OnSmartNavSelect = function()
         local on = Options.GetPage(DUI.OptionsPanel.Current() or "")
-        if on and on.section == section.id then return end
-        DUI.Sound.Play("click")
-        nav.on.Section(section.id)
+        if not (on and on.section == section.id) then
+            DUI.Sound.Play("click")
+            nav.on.Section(section.id)
+        end
+        DUI.OptionsPanel.PadAimList(b)
     end
     b.OnSmartNavClick = function() DUI.OptionsPanel.PadEnter() end
     b:SetScript("OnEnter", function(self)
@@ -270,9 +272,11 @@ local function pageButton(nav, page)
     -- Gamepad behaves like the game's Settings list (Blizzard_CategoryList.lua):
     -- the D-pad landing on a page shows it, A enters it.
     b.OnSmartNavSelect = function()
-        if DUI.OptionsPanel.Current() == page.id then return end
-        DUI.Sound.Play("click")
-        nav.on.Page(page.id)
+        if DUI.OptionsPanel.Current() ~= page.id then
+            DUI.Sound.Play("click")
+            nav.on.Page(page.id)
+        end
+        DUI.OptionsPanel.PadAimList(b)
     end
     b.OnSmartNavClick = function()
         if DUI.OptionsPanel.Current() ~= page.id then nav.on.Page(page.id) end

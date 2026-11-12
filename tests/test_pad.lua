@@ -1014,3 +1014,41 @@ T.test("pad: X presses the page footer's main button on a window that doesn't bi
     f:Hide()
     clearAll()
 end)
+
+T.test("pad options: right and left go across to the setting beside a row; left of the first column, the page in the list", function()
+    local DUI, pf = optionsOnPad()
+    local jumps = {}
+    _G.SMART_NAV_INPUT_DIRECTION = { RIGHT = { dirKey = "right" }, LEFT = { dirKey = "left" } }
+    _G.SmartNavigation_AddJumpNavigationOverride = function(b, dir, to) jumps[b] = jumps[b] or {}; jumps[b][dir.dirKey] = to end
+    _G.SmartNavigation_ClearJumpNavigationOverridesInDirection = function(b, dir) if jumps[b] then jumps[b][dir.dirKey] = nil end end
+    local P = DUI.OptionsPanel
+    local rows = P.PadRows()
+    T.truthy(#rows >= 4, "rows in view")
+    -- Two columns as the window lays them out: the fake game doesn't place
+    -- frames inside a scroll frame, so each row gets its spot here.
+    local spots = { { 100, 500 }, { 100, 470 }, { 500, 505 }, { 500, 440 } }
+    for i = 1, 4 do
+        local r, at = rows[i], spots[i]
+        r.GetLeft = function() return at[1] end
+        r.GetTop = function() return at[2] end
+    end
+    for i = 5, #rows do rows[i].GetLeft = function() return nil end end
+    local a, b, c, d = rows[1], rows[2], rows[3], rows[4]
+    a.OnSmartNavSelect()
+    T.eq(jumps[a].right, c, "right goes across to the nearest by height")
+    T.eq(jumps[a].left, P.PageButton("appearance"), "left goes back to the page in the list")
+    a.OnSmartNavDeselect()
+    b.OnSmartNavSelect()
+    T.eq(jumps[b].right, d)
+    b.OnSmartNavDeselect()
+    d.OnSmartNavSelect()
+    T.eq(jumps[d].left, b, "and back")
+    T.eq(jumps[d].right, nil, "nothing past the last column")
+    d.OnSmartNavDeselect()
+    local pb = P.PageButton("appearance")
+    pb.OnSmartNavSelect()
+    T.eq(jumps[pb].right, P.FirstStop(), "right from the page in the list enters it, like A")
+    _G.SMART_NAV_INPUT_DIRECTION, _G.SmartNavigation_AddJumpNavigationOverride = nil, nil
+    _G.SmartNavigation_ClearJumpNavigationOverridesInDirection = nil
+    clearAll(); clearMarks()
+end)

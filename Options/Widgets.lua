@@ -665,6 +665,7 @@ function W.PadRow(row)
     end
     function row.OnSmartNavSelect()
         row.padOn = true
+        if DUI.OptionsPanel and DUI.OptionsPanel.PadAim then DUI.OptionsPanel.PadAim(row) end
         row.Enter()
         if row.padStep then DUI.Pad.HoldSides(row.padStep) end
     end
