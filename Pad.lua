@@ -214,7 +214,7 @@ local function entryFor(f, name, at)
 end
 
 -- An entry with hold = { label, run, when } runs normally on a tap and runs
--- hold.run once the key is held Pad.HOLD s, like the game's tap-or-hold
+-- hold.run when a key held Pad.HOLD s is let go, like the game's tap-or-hold
 -- buttons (CreateTapOrHoldPromptedBinding, e.g. Create / Create all).
 Pad.HOLD = 0.5
 local holding
@@ -227,7 +227,12 @@ function Pad.Press(name, down)
         pressed[name] = nil
         local h = holding
         holding = nil
-        if h and h.name == name and not h.done and h.e.run then h.e.run(h.at) end
+        if not (h and h.name == name) then return end
+        if not h.done then
+            if h.e.run then h.e.run(h.at) end
+        elseif not h.e.hold.when or h.e.hold.when(h.at) then
+            h.e.hold.run(h.at)
+        end
         return
     end
     pressed[name] = true
@@ -237,10 +242,10 @@ function Pad.Press(name, down)
     if not e.hold then return e.run and e.run(at) end
     local h = { name = name, e = e, at = at }
     holding = h
+    -- The timer only marks the hold. The hold itself runs on the key's release,
+    -- because some of them (crafting all) are refused outside a real key press.
     C_Timer.After(Pad.HOLD, function()
-        if holding ~= h then return end
-        h.done = true
-        if not e.hold.when or e.hold.when(at) then e.hold.run(at) end
+        if holding == h then h.done = true end
     end)
 end
 

@@ -722,18 +722,23 @@ T.test("pad: a tap does an entry's run, holding it Pad.HOLD s its hold instead, 
     fresh(strict(true))
     local f = DUI.Win.New({ name = "PadTestHold", title = "Test" })
     local got = {}
-    f.padKeys = { { key = "X", label = "Create", run = function() got[#got + 1] = "tap" end,
-                    hold = { label = "Create all", run = function() got[#got + 1] = "hold" end } } }
+    -- Crafting all is refused outside a key press, so the hold must run inside one.
+    local function mark(what)
+        return function() got[#got + 1] = what .. ((stub.hardware or 0) > 0 and "" or "(timer)") end
+    end
+    f.padKeys = { { key = "X", label = "Create", run = mark("tap"),
+                    hold = { label = "Create all", run = mark("hold") } } }
     f:Show()
     stub.RunTimers()
     local b = _G[stub.overrides.PAD3.click]
-    b:GetScript("OnClick")(b, "LeftButton", true)
-    b:GetScript("OnClick")(b, "LeftButton", false)
+    local function key(down) stub.Key(b:GetScript("OnClick"), b, "LeftButton", down) end
+    key(true)
+    key(false)
     T.eq(table.concat(got, ","), "tap", "a tap")
-    b:GetScript("OnClick")(b, "LeftButton", true)
+    key(true)
     stub.RunTimers()
-    b:GetScript("OnClick")(b, "LeftButton", false)
-    T.eq(table.concat(got, ","), "tap,hold", "held: the hold alone")
+    key(false)
+    T.eq(table.concat(got, ","), "tap,hold", "held: the hold alone, run by the key's release")
     local said = {}
     for _, row in ipairs(DUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
     T.truthy(table.concat(said, "|"):find("Create all", 1, true), "the hint names the hold")
