@@ -28,7 +28,7 @@ DUI.PatchNotes = {
         changed = {
             { "Copy chat", "Dragging a selection past the top or bottom of the copy window scrolls it, so you can copy just part of a long log" },
             { "Action bars", "Keybinds are short by default (S2 instead of SHIFT-2); switch it back under Action bars, Keybinds" },
-            { "Damage meter", "A new look: each player's place, spec icon, total with per second and share, and a header with the fight and how long it ran; every meter setting is on one Meters page" },
+            { "Damage meter", "A new look: spec icons, per second with the total and share, and a header with the fight and how long it ran; every meter setting is on one Meters page" },
             { "Threat meter", "A cleaner look: the mob and your own threat up top, colored by how close you are to pulling, with a tank mark and a clean pull line" },
         },
         fixed = {
