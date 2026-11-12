@@ -37,6 +37,9 @@ Breakdown.SAMPLE = {
               { "Axehound Maul", 0.11 }, { "Falling Rock", 0.06 } },
     other = { { "Lashing Strike", 0.5 }, { "Shardblade", 0.3 }, { "Melee", 0.2 } },
 }
+-- Sample icons by place in the list (the game's own art), so a sample row
+-- looks like a real one.
+Breakdown.SAMPLE_ICONS = { 132355, 135131, 135807, 132169, 132147, 136048 }
 Breakdown.SAMPLE.dps = Breakdown.SAMPLE.damage
 Breakdown.SAMPLE.hps = Breakdown.SAMPLE.healing
 Breakdown.SAMPLE.absorbs = Breakdown.SAMPLE.healing
@@ -81,7 +84,11 @@ function Breakdown.Spells(src, meter)
     if meter.Sample() then
         local list = Breakdown.SAMPLE[mode.key] or Breakdown.SAMPLE.other
         local out = {}
-        for i, s in ipairs(list) do out[i] = { name = s[1], amount = math.floor((src.totalAmount or 0) * s[2]) } end
+        for i, s in ipairs(list) do
+            local amount = math.floor((src.totalAmount or 0) * s[2])
+            out[i] = { name = s[1], amount = amount, rate = math.floor(amount / ns.Meter.SAMPLE_SECONDS),
+                       icon = Breakdown.SAMPLE_ICONS[i] }
+        end
         return out
     end
     local data, why = sourceData(src, meter)

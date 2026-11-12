@@ -18,12 +18,15 @@ ns.BreakdownWindow = BW
 BW.NAME = "DaylightUIMeterDetails"
 BW.W, BW.H = 640, 440
 BW.SIDE = 170                 -- player list width
-BW.ROW = 22
+BW.ROW = 26                   -- a name above its share bar
+BW.NAME_UP = 3                -- the name sits this much above the row's middle
+BW.BAR_DOWN = 5               -- the share bar's bottom, up from the row's
 BW.BOTTOM = 52                -- footer height
 BW.REFILL = 0.5               -- seconds between refills while the meter redraws
 BW.WAIT_TEXT = DUI.L["Available after combat"]
 BW.EMPTY_TEXT = DUI.L["Nothing here for this player yet."]
 BW.tables, BW.waits = {}, {}
+BW.NO_ICON = 134400           -- the game's question-mark icon, for a spell it gives no icon
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
@@ -41,11 +44,11 @@ local function text(b, size, justify)
 end
 
 -- Positions a cell using the column header's layout ({ x, w } per column).
-local function cell(b, fs, col, pad)
+local function cell(b, fs, col, pad, dy)
     fs:ClearAllPoints()
     if not col then fs:Hide() return end
     fs:Show()
-    fs:SetPoint("LEFT", b, "LEFT", col.x + (pad or 0), 0)
+    fs:SetPoint("LEFT", b, "LEFT", col.x + (pad or 0), dy or 0)
     fs:SetWidth(math.max(1, col.w - (pad or 0)))
 end
 
@@ -70,7 +73,7 @@ end
 
 local function makeSpell(b)
     b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetSize(16, 16)
+    b.icon:SetSize(18, 18)
     Style.CropIcon(b.icon)
     b.name = text(b)
     b.amount = text(b, nil, "RIGHT")
@@ -81,7 +84,7 @@ local function makeSpell(b)
     b.bar = DUI.Widgets.Bar(b, DUI.Widgets.BAR_H)
 end
 
-local function fillNumbers(b, d, cols)
+local function fillNumbers(b, d, cols, pad)
     b.amount:SetText(ns.Meter.Short(d.amount))
     Style.InkText(b.amount, "VALUE")
     cell(b, b.amount, cols.amount)
@@ -93,11 +96,12 @@ local function fillNumbers(b, d, cols)
     b.share:SetText(d.share and (d.share .. "%") or "")
     Style.InkText(b.share, "pop")
     cell(b, b.share, cols.share)
+    -- The share bar under the name, starting where the name starts.
     b.bar:ClearAllPoints()
     local nc = cols.name
     if nc then
-        b.bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", nc.x + 22, 2)
-        b.bar:SetWidth(math.max(1, nc.w - 24))
+        b.bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", nc.x + pad, BW.BAR_DOWN)
+        b.bar:SetWidth(math.max(1, nc.w - pad - 8))
     end
     b.bar:SetMinMaxValues(0, 1)
     b.bar:SetValue(d.ratio or 0)
@@ -110,13 +114,13 @@ end
 
 local function fillSpell(b, d, cols)
     b.icon:ClearAllPoints()
-    b.icon:SetPoint("LEFT", b, "LEFT", (cols.name and cols.name.x or 0) + 2, 1)
-    b.icon:SetTexture(d.icon)
-    b.icon:SetShown(d.icon ~= nil)
+    b.icon:SetPoint("LEFT", b, "LEFT", (cols.name and cols.name.x or 0) + 2, 0)
+    b.icon:SetTexture(d.icon or BW.NO_ICON)
+    Style.CropIcon(b.icon)
     b.name:SetText(d.name)
     Style.InkText(b.name, "TEXT")
-    cell(b, b.name, cols.name, 22)
-    fillNumbers(b, d, cols)
+    cell(b, b.name, cols.name, 24, BW.NAME_UP)
+    fillNumbers(b, d, cols, 24)
     if d.tag then
         b.extra:SetText(d.tag)
         Style.InkText(b.extra, d.tagInk or "WARN")
@@ -139,8 +143,8 @@ end
 local function fillTarget(b, d, cols)
     b.name:SetText(d.name)
     if d.class and d.class ~= "" then b.name:SetTextColor(Style.ClassTextColor(d.class)) else Style.InkText(b.name, "TEXT") end
-    cell(b, b.name, cols.name, 4)
-    fillNumbers(b, d, cols)
+    cell(b, b.name, cols.name, 4, BW.NAME_UP)
+    fillNumbers(b, d, cols, 4)
 end
 
 -- ---------------------------------------------------------------------
@@ -358,7 +362,7 @@ end
 local SPELL_COLS = {
     { id = "name", text = "Spell", fill = true, sort = true },
     { id = "amount", text = "Amount", width = 64, justify = "RIGHT", sort = true },
-    { id = "rate", text = "Per second", width = 70, justify = "RIGHT", sort = true },
+    { id = "rate", text = "Per second", width = 88, justify = "RIGHT", sort = true },
     { id = "share", text = "%", width = 40, justify = "RIGHT", sort = true },
     { id = "extra", text = "Overkill", width = 64, justify = "RIGHT", sort = true },
 }

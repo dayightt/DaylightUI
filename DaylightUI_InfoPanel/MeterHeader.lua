@@ -87,7 +87,7 @@ function Header.New(area, actions)
         h.buttons[def.key] = b
     end
     h.tools:SetWidth(#Header.BUTTONS * W.ICON_BUTTON)
-    h.fight:SetPoint("RIGHT", h.tools, "LEFT", -4, 0)
+    Header.PlaceFight(h)
     h.hovered = false
     return h
 end
@@ -98,6 +98,7 @@ function Header.Apply(h, cfg)
     h.over = over
     h.back:SetShown(over)
     h.total:SetShown(cfg.headerTotal == true)
+    Header.PlaceFight(h)
     if over then
         if not h.hovered then DUI.Motion.AlphaTo(h, 0, 0, true) end
     else
@@ -135,12 +136,20 @@ function Header.Update(h, m, cfg, session)
     end
 end
 
+-- The fight's name reaches to the clock (or the total) at rest, and to the
+-- buttons while they're out: never cut short by buttons that aren't there.
+function Header.PlaceFight(h)
+    local stop = h.hovered and h.tools or (h.total:IsShown() and h.total or h.timer)
+    h.fight:SetPoint("RIGHT", stop, "LEFT", -6, 0)
+end
+
 -- The mouse came or went: the buttons cross-fade with the clock (and a
 -- "hover" header comes and goes whole). FAST.
 function Header.Hover(h, on)
     on = on == true
     if h.hovered == on then return end
     h.hovered = on
+    Header.PlaceFight(h)
     local M = DUI.Motion
     M.AlphaTo(h.tools, on and 1 or 0, M.FAST, true)
     M.AlphaTo(h.info, on and 0 or 1, M.FAST)
