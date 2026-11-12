@@ -629,10 +629,10 @@ T.test("info panel: amounts read total, then per second", function()
     stub.RunTimers()
     stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 2640, amountPerSecond = 335.7 } }
     M.Draw()
-    T.eq(stub.Text(bars()[1].amount), "2.6K (335)", "the rate drops its fraction")
+    T.eq(stub.Text(bars()[1].amount), "335 (2.6K)", "the rate drops its fraction")
     stub.meter.sources = { { name = "Safiyah", classFilename = "MAGE", totalAmount = 37, amountPerSecond = 0.71153846153846 } }
     M.Draw()
-    T.eq(stub.Text(bars()[1].amount), "37 (0)", "below one: whole, never a long decimal")
+    T.eq(stub.Text(bars()[1].amount), "0 (37)", "below one: whole, never a long decimal")
     -- In a fight the rate is secret and can't be floored here, so the
     -- shortener must round it itself (it once read "0.1298239838983").
     T.eq(stub.Plain(M.Short(stub.Secret(0.1298239838983))), "0", "a secret below one: whole too")
@@ -645,7 +645,7 @@ T.test("info panel: amounts read total, then per second", function()
     T.truthy(bars()[1]:IsShown())
     stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 400, amountPerSecond = 32.54 } }
     M.Draw()
-    T.eq(stub.Text(bars()[1].amount), "400 (32)", "no decimals")
+    T.eq(stub.Text(bars()[1].amount), "32 (400)", "no decimals")
     -- Counts stay counts.
     DUI:Set("InfoPanel", "meter.mode", "interrupts")
     stub.meter.sources = { { name = "Lopen", classFilename = "ROGUE", totalAmount = 6, amountPerSecond = 0.1 } }
@@ -661,13 +661,13 @@ T.test("info panel: meter numbers in full", function()
     stub.RunTimers()
     stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 123456, amountPerSecond = 1234.7 } }
     M.Draw()
-    T.eq(stub.Text(bars()[1].amount), "123,456 (1,234)", "whole, with the game's separator")
+    T.eq(stub.Text(bars()[1].amount), "1,234 (123,456)", "whole, with the game's separator")
     T.eq(stub.Plain(M.Short(stub.Secret(12000))), "12,000", "a secret goes through")
     T.eq(stub.Plain(M.Short(stub.Secret(335.27))), "335", "a secret rate in full: whole")
     T.eq(stub.Plain(M.Short(stub.Secret(0.1298239838983))), "0", "below one in full: whole")
     DUI:Set("InfoPanel", "meter.numbers", "short")
     M.Draw()
-    T.eq(stub.Text(bars()[1].amount), "123.4K (1.2K)", "back to short")
+    T.eq(stub.Text(bars()[1].amount), "1.2K (123.4K)", "back to short")
 end)
 
 T.test("info panel: bars are outlined and glide, but snap when the view changes", function()
@@ -676,7 +676,7 @@ T.test("info panel: bars are outlined and glide, but snap when the view changes"
     stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 400 } }
     M.Draw()
     local row = bars()[1]
-    T.truthy(DUI.Style.GetShell(row), "the raid tiles' thin outline")
+    T.truthy(DUI.Style.GetShell(row.box), "the raid tiles' thin outline")
     stub.meter.sources[1].totalAmount = 500
     M.Draw()
     T.truthy(row.bar.__interp ~= nil, "a new value glides in")
@@ -2017,9 +2017,9 @@ T.test("info panel: the meter's names and numbers in class colors, bars with no 
     DUI:Set("InfoPanel", "meter.trackAlpha", 0)
     row = bars()[1]
     T.eq(Style.BarBack(row.bar):GetAlpha(), 0, "the empty part gone")
-    T.eq(Style.GetShell(row).opts.noBorder, true, "the outline too")
+    T.eq(Style.GetShell(row.box).opts.noBorder, true, "the outline too")
     DUI:Set("InfoPanel", "meter.trackAlpha", 1)
-    T.falsy(Style.GetShell(bars()[1]).opts.noBorder, "back")
+    T.falsy(Style.GetShell(bars()[1].box).opts.noBorder, "back")
 end)
 
 T.test("info panel: a meter's own window can have its own background", function()
@@ -2561,8 +2561,8 @@ T.test("threat meter: slides out of the meter's left edge in combat in a group, 
     T.eq(rows[1].amount:GetText(), "100%")
     T.eq(rows[3].name:GetText(), "Shallan")
     T.eq(rows[2].amount:GetText(), "80%", "your percent of the pull")
-    T.truthy(DaylightUI.Style.GetShell(rows[2]).opts.borderColor, "your own row outlined")
-    T.isnil(DaylightUI.Style.GetShell(rows[1]).opts.borderColor, "the others not")
+    T.truthy(DaylightUI.Style.GetShell(rows[2].box).opts.borderColor, "your own row outlined")
+    T.isnil(DaylightUI.Style.GetShell(rows[1].box).opts.borderColor, "the others not")
     -- The pull line: your threat / your percent = 11000 (the tank's x 1.1), the bars' top.
     T.truthy(TM.line:IsShown(), "the pull line")
     local g = TM.geo
@@ -2689,7 +2689,7 @@ T.test("threat meter: test mode shows a sample group with you in it", function()
     T.eq(#rows, 6)
     T.eq(TM.win.header:GetText(), TM.SAMPLE_TARGET)
     local mine = 0
-    for _, r in ipairs(rows) do if DUI.Style.GetShell(r).opts.borderColor then mine = mine + 1 end end
+    for _, r in ipairs(rows) do if DUI.Style.GetShell(r.box).opts.borderColor then mine = mine + 1 end end
     T.eq(mine, 1, "you, outlined")
     T.truthy(TM.line:IsShown())
     DUI.SetTestMode(false)

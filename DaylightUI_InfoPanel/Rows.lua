@@ -1,5 +1,6 @@
 -- A meter row: rank, spec or class icon, then a gradient bar with the name and
--- amount. Your own row gets an accent outline.
+-- amount. The thin outline (row.box) wraps the bar alone; your own row's is lit
+-- in the accent.
 --
 -- Rank and icon only use plain values (row index, specIconID, classFilename).
 -- Name and amount may be secret and go straight into their text.
@@ -28,7 +29,8 @@ Rows.CLASS_ICON = CLASS_ICON
 
 function Rows.New(parent, textSize, font)
     local row = CreateFrame("Frame", nil, parent)
-    Style.Shell(row, { borderPx = Rows.BORDER, noBevel = true, noBackground = true })
+    row.box = CreateFrame("Frame", nil, row)
+    Style.Shell(row.box, { borderPx = Rows.BORDER, noBevel = true, noBackground = true })
     local bar = Style.Bar(row, nil, ns.MEDIA.bars.meter)
     row.bar = bar
     row.rank = Style.Text(row, Style.SIZE.tiny, "RIGHT", ns.MEDIA.fonts.meter)
@@ -71,11 +73,14 @@ function Rows.Layout(row, cfg)
         row.icon:Hide()
     end
     row.barX = x
+    row.box:ClearAllPoints()
+    row.box:SetPoint("TOPLEFT", row, "TOPLEFT", x - T, 0)
+    row.box:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
     row.bar:ClearAllPoints()
     row.bar:SetPoint("TOPLEFT", row, "TOPLEFT", x, -T)
     row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -T, T)
     Style.AngleFill(row.bar, "right", math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)))
-    Style.LayoutShell(Style.GetShell(row))
+    Style.LayoutShell(Style.GetShell(row.box))
 end
 
 -- How solid the empty track and the outline are (0: the fill alone).
@@ -84,7 +89,7 @@ function Rows.Track(row, a)
     row.track = a
     local back = Style.BarBack(row.bar)
     if back then back:SetAlpha(a) end
-    local s = Style.GetShell(row)
+    local s = Style.GetShell(row.box)
     if s then
         s.opts.noBorder = a <= 0 and not row.mine
         s.opts.borderAlpha = a < 1 and a * (DUI.DB.General().borderAlpha or 1) or nil
@@ -97,8 +102,17 @@ end
 function Rows.SetIcon(row, src, cfg)
     if not row.iconOn then return end
     local spec, class = src.specIconID, src.classFilename
+    -- The game keeps the spec icon secret (out of a fight too): a secret one
+    -- goes straight to the texture, which takes it, every time.
+    if cfg.icons ~= "class" and isSecret(spec) then
+        row.iconFile = nil
+        row.icon:SetTexture(spec)
+        Style.CropIcon(row.icon)
+        row.icon:Show()
+        return
+    end
     local file
-    if cfg.icons ~= "class" and type(spec) == "number" and not isSecret(spec) and spec > 0 then
+    if cfg.icons ~= "class" and type(spec) == "number" and spec > 0 then
         file = spec
     elseif type(class) == "string" and not isSecret(class) then
         file = CLASS_ICON[class]
@@ -119,7 +133,7 @@ function Rows.SetMine(row, on)
     on = on == true
     if row.mine == on then return end
     row.mine = on
-    local s = Style.GetShell(row)
+    local s = Style.GetShell(row.box)
     if not s then return end
     if on then
         s.opts.noBorder = false

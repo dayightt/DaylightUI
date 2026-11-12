@@ -119,7 +119,7 @@ function Header.Update(h, m, cfg, session)
         local st = m.SessionType()
         if st ~= nil then
             local ok, s = pcall(C_DamageMeter.GetSessionDurationSeconds, st)
-            if ok then length = s end
+            if ok and type(s) == "number" then length = s end   -- (none: the fight list's stays)
         end
     end
     if type(length) == "number" and not isSecret(length) then
@@ -127,6 +127,7 @@ function Header.Update(h, m, cfg, session)
     else
         h.timer:SetText("")
     end
+    Header.PlaceFight(h)   -- the clock's width changed
     if cfg.headerTotal == true then
         local t   -- (secret in a fight: only ever asked whether it's there)
         if type(session) == "table" then t = session.totalAmount end
@@ -139,8 +140,19 @@ end
 -- The fight's name reaches to the clock (or the total) at rest, and to the
 -- buttons while they're out: never cut short by buttons that aren't there.
 function Header.PlaceFight(h)
-    local stop = h.hovered and h.tools or (h.total:IsShown() and h.total or h.timer)
-    h.fight:SetPoint("RIGHT", stop, "LEFT", -6, 0)
+    -- Measured from the header's own edge: the clock's text can be empty.
+    local room = 6
+    if h.hovered then
+        room = room + h.tools:GetWidth()
+    else
+        local w = h.timer:GetStringWidth()
+        if type(w) == "number" and w > 0 then room = room + w + 2 end
+        if h.total:IsShown() then
+            local t = h.total:GetStringWidth()
+            if type(t) == "number" and t > 0 then room = room + t + 8 end
+        end
+    end
+    h.fight:SetPoint("RIGHT", h, "RIGHT", -room, 0)
 end
 
 -- The mouse came or went: the buttons cross-fade with the clock (and a

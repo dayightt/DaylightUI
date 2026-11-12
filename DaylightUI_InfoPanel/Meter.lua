@@ -184,11 +184,20 @@ function Meter.GuidOf(src)
     if not isSecret(creature) and type(creature) == "number" then return nil, creature end
     local me = src.isLocalPlayer
     if not isSecret(me) and me == true then return UnitGUID("player"), nil end
-    local class, spec = src.classFilename, src.specIconID
-    if isSecret(class) or isSecret(spec) or type(class) ~= "string" or type(spec) ~= "number" then return nil end
-    local g = Meter.guids[class .. ":" .. spec]
+    local key = Meter.WhoKey(src)
+    local g = key and Meter.guids[key]
     if type(g) == "string" then return g, nil end
     return nil
+end
+
+-- Who a source is, without its name or GUID: its class, with its spec
+-- when the game shows it (the game keeps the spec icon secret, even out
+-- of a fight, though its docs say otherwise). nil: can't tell.
+function Meter.WhoKey(src)
+    local class, spec = src.classFilename, src.specIconID
+    if isSecret(class) or type(class) ~= "string" or class == "" then return nil end
+    if not isSecret(spec) and type(spec) == "number" then return class .. ":" .. spec end
+    return class
 end
 
 -- Records class+spec -> GUID from plain sources out of combat, or false when
@@ -198,10 +207,10 @@ function Meter.SnapGuids(sources, modeKey)
     if type(sources) ~= "table" or modeKey == "enemy" then return end
     local map = Meter.guids
     for _, s in ipairs(sources) do
-        local guid, class, spec = s.sourceGUID, s.classFilename, s.specIconID
+        local guid = s.sourceGUID
         if isSecret(guid) then return end
-        if type(guid) == "string" and type(class) == "string" and type(spec) == "number" then
-            local key = class .. ":" .. spec
+        local key = Meter.WhoKey(s)
+        if type(guid) == "string" and key then
             if map[key] == nil then map[key] = guid elseif map[key] ~= guid then map[key] = false end
         end
     end
@@ -227,16 +236,30 @@ end
 -- The share is computed here, so only from plain numbers (never in combat).
 local SHAPES = { "%s", "%s (%s)", "%s (%s, %s)" }
 local pieces = {}
-function Meter.Amount(src, md, cfg, total)
+-- The per-second number: the game's, or (when it gives none or 0 for a
+-- plain total, as it can outside a fight) the total over the fight's length.
+function Meter.Rate(src, seconds)
+    local rate, amount = src.amountPerSecond, src.totalAmount
+    -- Out of a fight the game's own number can be far off (6234 damage
+    -- read 0.0015 a second): with a plain total and length, worked out here.
+    if type(amount) == "number" and not isSecret(amount)
+       and type(seconds) == "number" and not isSecret(seconds) and seconds > 0 then
+        return amount / seconds
+    end
+    return rate
+end
+
+-- Per second first where a mode has it ("330 (2.6K, 18%)"), else the total.
+function Meter.Amount(src, md, cfg, total, seconds)
     local amount = src.totalAmount
     if type(amount) == "nil" then amount = 0 end
     for i = #pieces, 1, -1 do pieces[i] = nil end
-    if cfg.showTotal ~= false then pieces[#pieces + 1] = Meter.Short(amount) end
     -- (The rate may be secret: only ever asked whether it's there.)
     if md.rate and cfg.showRate ~= false then
-        local rate = src.amountPerSecond
+        local rate = Meter.Rate(src, seconds)
         if type(rate) ~= "nil" then pieces[#pieces + 1] = Meter.Short(rate) end
     end
+    if cfg.showTotal ~= false then pieces[#pieces + 1] = Meter.Short(amount) end
     if cfg.showShare ~= false and type(total) == "number" and type(amount) == "number" and not isSecret(amount) then
         pieces[#pieces + 1] = math.floor(100 * amount / total + 0.5) .. "%"
     end
@@ -509,6 +532,23 @@ function Meter.New(m, opts)
 
     -- What the shown fight is called, for a report: "Overall", or the
     -- fight's name; then its length in seconds, when the list has it.
+    -- How long the shown fight ran (plain), or nil: the session's own, else
+    -- the game's clock for this window's Current or Overall, else the fight list's.
+    function m.Seconds(session)
+        local s = type(session) == "table" and session.durationSeconds
+        if type(s) == "number" and not isSecret(s) and s > 0 then return s end
+        if not m.fight and not m.Sample() and C_DamageMeter and C_DamageMeter.GetSessionDurationSeconds then
+            local st = m.SessionType()
+            if st ~= nil then
+                local ok, d = pcall(C_DamageMeter.GetSessionDurationSeconds, st)
+                if ok and type(d) == "number" and not isSecret(d) and d > 0 then return d end
+            end
+        end
+        if m.Sample() then return Meter.SAMPLE_SECONDS end
+        local _, length = m.FightTitle()
+        if type(length) == "number" and not isSecret(length) and length > 0 then return length end
+    end
+
     function m.FightTitle()
         if m.fight then
             for _, f in ipairs(m.Fights()) do
@@ -656,6 +696,7 @@ function Meter.New(m, opts)
         local top = count > 0 and sources[1][field]
         if type(top) == "nil" then top = 1 end
         local total = Meter.Total(sources, session)
+        local seconds = m.Seconds(session)
         -- Scrolled to the end, the last player sits fully in view.
         offset = math.max(0, math.min(offset, count - whole))
         -- You, kept in the last whole row while scrolled out of view (by
@@ -707,7 +748,7 @@ function Meter.New(m, opts)
                     if type(amount) == "nil" then amount = 0 end
                     bar.bar:SetMinMaxValues(0, top)
                     Style.SetBarValue(bar.bar, amount, snap)
-                    bar.amount:SetFormattedText(Meter.Amount(src, md, cfg, total))
+                    bar.amount:SetFormattedText(Meter.Amount(src, md, cfg, total, seconds))
                 end
                 -- Out of a fight, someone who moved glides from their old place.
                 local name = src.name

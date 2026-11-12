@@ -2715,6 +2715,9 @@ function stub.DamageMeter()
         for i, s in ipairs(list) do
             local c = {}
             for k, v in pairs(s) do c[k] = v end
+            -- Seen in game: secret even out of a fight, though the docs
+            -- mark it NeverSecret.
+            if type(c.specIconID) == "number" and not stub.plainSecrets then c.specIconID = stub.Secret(c.specIconID) end
             out[i] = c
             local a = type(s.totalAmount) == "number" and s.totalAmount or 0
             total = total + a

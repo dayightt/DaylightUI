@@ -55,7 +55,7 @@ T.test("fake game: in a fight a session's amounts and names are secret, its clas
     T.truthy(issecretvalue(src.name), "a source's name")
     T.truthy(issecretvalue(src.sourceGUID), "a source's GUID")
     T.falsy(issecretvalue(src.classFilename), "the class stays plain (NeverSecret)")
-    T.falsy(issecretvalue(src.specIconID))
+    T.truthy(issecretvalue(src.specIconID), "the spec icon too (seen in game, though its docs say never)")
     T.falsy(issecretvalue(src.isLocalPlayer))
     T.falsy(issecretvalue(src.deathRecapID))
     T.eq(src.classFilename, "WARRIOR")
@@ -462,10 +462,10 @@ T.test("meters: a row shows its rank, the player's spec icon, the name and \"tot
     M.Draw()
     local r = mainRows()[1]
     T.eq(stub.Text(r.rank), "1")
-    T.eq(r.icon:GetTexture(), 132355, "the spec's icon")
+    T.eq(stub.Plain(r.icon:GetTexture()), 132355, "the spec's icon")
     T.truthy(r.icon:IsShown())
     T.eq(stub.Text(r.name), "Kaladin")
-    T.eq(stub.Text(r.amount), "2.6K (330, 18%)")
+    T.eq(stub.Text(r.amount), "330 (2.6K, 18%)")
     T.eq(stub.Text(mainRows()[2].rank), "2")
 end)
 
@@ -479,7 +479,7 @@ T.test("meters: total, rate and share each switch off; rate only in modes that h
     T.eq(text(), "2.6K (18%)")
     DUI:Set("InfoPanel", "meter.showRate", true)
     DUI:Set("InfoPanel", "meter.showShare", false); stub.RunTimers()
-    T.eq(text(), "2.6K (330)")
+    T.eq(text(), "330 (2.6K)")
     DUI:Set("InfoPanel", "meter.showShare", true)
     DUI:Set("InfoPanel", "meter.showTotal", false); stub.RunTimers()
     T.eq(text(), "330 (18%)")
@@ -523,9 +523,9 @@ T.test("meters: a boss fight draws secret rows with no share and no errors", fun
     T.noerror(function() M.Draw() end)
     local r = mainRows()[1]
     T.truthy(r:IsShown())
-    T.eq(stub.Text(r.amount), "2.6K (330)", "no share: the numbers are secret")
+    T.eq(stub.Text(r.amount), "330 (2.6K)", "no share: the numbers are secret")
     T.eq(stub.Text(r.name), "Kaladin", "the secret name drawn whole")
-    T.eq(r.icon:GetTexture(), 132355, "the spec stays plain")
+    T.eq(stub.Plain(r.icon:GetTexture()), 132355, "the spec's icon, secret, straight to the texture")
     stub.LeaveCombat()
     stub.SetRestriction("Encounter", false)
 end)
@@ -947,7 +947,7 @@ T.test("threat look: slim rows, a tank mark, your row outlined in the accent and
     T.truthy(rows[2].mine, "your row")
     T.rgb({ rows[2].amount:GetTextColor() }, { DUI.Style.Accent() }, "your percent pops")
     T.rgb({ rows[3].amount:GetTextColor() }, DUI.Style.INK.VALUE)
-    T.eq(DUI.Style.GetShell(rows[1]).opts.borderPx, 1, "a thin outline, not the old thick one")
+    T.eq(DUI.Style.GetShell(rows[1].box).opts.borderPx, 1, "a thin outline, not the old thick one")
     stub.LeaveCombat(); stub.SetGroup(false)
 end)
 
@@ -1237,7 +1237,7 @@ T.test("meters: your row's outline follows an accent change", function()
     DUI:Set("general", "accentColor", { 0.2, 0.9, 0.3 })
     stub.RunTimers()
     M.Draw()
-    local c = DUI.Style.GetShell(M.rows[1]).opts.borderColor
+    local c = DUI.Style.GetShell(M.rows[1].box).opts.borderColor
     T.near(c[1], 0.2, 0.02, "the new accent")
     T.near(c[2], 0.9, 0.02)
 end)
@@ -1951,4 +1951,38 @@ T.test("sounds: a new meter window opens with the window sound; deleting one pla
     stop()
     T.eq(heard[#heard], "gone", "deleted: the sound an \"Are you sure?\" makes")
     T.eq(#W().Own(), 0)
+end)
+
+-- ---------------------------------------------------------------------
+-- Seen in game: the spec icon is secret even out of a fight, and the
+-- game's own per-second number is wrong out of one (6234 damage: 0.0015)
+-- ---------------------------------------------------------------------
+
+T.test("game rules: a source's spec icon is secret out of a fight; the meter draws and still tells players apart", function()
+    login()
+    local M = stub.infopanel.Meter
+    stub.SetGroup(true)
+    stub.meter.sources = { { name = "Raging Daylight", classFilename = "WARRIOR", specIconID = 132355, isLocalPlayer = true,
+                             totalAmount = 6234, amountPerSecond = 0.001488, sourceGUID = "Player-7055-002EE08B" },
+                           { name = "Sigzil", classFilename = "MAGE", specIconID = 135932, totalAmount = 900,
+                             sourceGUID = "Player-2" } }
+    local s = C_DamageMeter.GetCombatSessionFromType(Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone)
+    T.truthy(issecretvalue(s.combatSources[1].specIconID), "secret, out of a fight too")
+    T.noerror(function() M.Draw() end)
+    T.eq(stub.Plain(M.rows[1].icon:GetTexture()), 132355, "the secret icon goes straight to the texture")
+    stub.EnterCombat()
+    local live = C_DamageMeter.GetCombatSessionFromType(Enum.DamageMeterSessionType.Current, Enum.DamageMeterType.DamageDone)
+    T.eq(M.GuidOf(live.combatSources[2]), "Player-2", "the only mage, told apart by class")
+    stub.LeaveCombat()
+    stub.SetGroup(false)
+end)
+
+T.test("game rules: per second is the total over the fight's length when the numbers are plain", function()
+    local DUI = login()
+    local M = stub.infopanel.Meter
+    DUI:Set("InfoPanel", "meter.showShare", false); stub.RunTimers()
+    stub.meter.durations = { [Enum.DamageMeterSessionType.Current] = 60 }
+    stub.meter.sources = { { name = "Raging Daylight", classFilename = "WARRIOR", totalAmount = 6234, amountPerSecond = 0.001488 } }
+    M.Draw()
+    T.eq(stub.Text(M.rows[1].amount), "103 (6.2K)")
 end)

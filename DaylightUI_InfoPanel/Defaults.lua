@@ -38,7 +38,7 @@ ns.DEFAULTS = {
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
               -- Row contents. icons is spec | class | none. showMe keeps your
               -- own row in view.
-              rank = true, icons = "spec", showTotal = true, showRate = true, showShare = true, showMe = true,
+              rank = false, icons = "spec", showTotal = true, showRate = true, showShare = true, showMe = true,
               rowGap = 1,
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
