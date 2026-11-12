@@ -79,10 +79,21 @@ local function buildBox()
     box.title = Style.Text(box, Style.SIZE.small, "LEFT")   -- a hint, not a title
     box.title:SetPoint("TOPLEFT", box, "TOPLEFT", 14, -12)
     box.title:SetText(L["Select text, then Ctrl+C to copy. Ctrl+A selects all. Escape closes."])
+    local Win = DUI.Win
+    local function close() DUI.Motion.Vanish(box) end
+    box.close = W.Close(box, close)
+    box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
+    -- Escape closes this box alone, before any window under it, even after
+    -- a click elsewhere took the text box's focus away.
+    Win.Keys(box, function(key)
+        if key == "ESCAPE" then close(); return true end
+    end)
+    box:HookScript("OnShow", function() Win.KeysOn(box, true) end)
+    box:HookScript("OnHide", function() Win.KeysOn(box, false) end)
     -- Follow the newest lines. The text can't change while open, so this never
     -- yanks the view away from the reader.
     local area = W.TextArea(box, { width = Copy.SIZE[1] - 28, step = 40, follow = true,
-        onEscape = function() DUI.Motion.Vanish(box) end })
+        onEscape = close })
     area:SetPoint("TOPLEFT", box, "TOPLEFT", 14, -40)
     area:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -14, 14)
     box.area, box.edit = area, area.edit
