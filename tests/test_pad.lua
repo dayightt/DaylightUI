@@ -648,13 +648,18 @@ T.test("pad options: each row is one stop, its control and reset arrow skipped",
     clearAll(); clearMarks()
 end)
 
-T.test("pad options: a slider row takes left and right while it has the D-pad, and gives them back", function()
+T.test("pad options: the D-pad moves freely; A picks a slider up, then left and right slide it until A or B puts it down", function()
     local DUI, pf = optionsOnPad()
     local row = rowWhere(pf, function(r) return r.item.key == "softness" end)
     local before = DUI:Get("general", "softness")
     row.OnSmartNavSelect()
     T.truthy(row.hl:IsShown(), "lit as under the mouse")
-    T.truthy(stub.overrides.PADDRIGHT and stub.overrides.PADDLEFT, "left and right taken")
+    T.eq(stub.overrides.PADDRIGHT, nil, "just landing on it leaves left and right to the D-pad")
+    T.eq(DUI.OptionsPanel.Frame().padSelect(row), "Change")
+    row.OnSmartNavClick()   -- A
+    T.truthy(row.padEditing)
+    T.truthy(stub.overrides.PADDRIGHT and stub.overrides.PADDLEFT, "picked up: left and right taken")
+    T.truthy(stub.overrides.PAD2, "and B puts it down")
     local right = _G[stub.overrides.PADDRIGHT.click]
     right:GetScript("OnClick")(right, "LeftButton", true)
     right:GetScript("OnClick")(right, "LeftButton", false)
@@ -667,26 +672,32 @@ T.test("pad options: a slider row takes left and right while it has the D-pad, a
     stub.RunTimers()
     T.truthy(DUI:Get("general", "softness") < v - step / 2, "held: more than one step")
     left:GetScript("OnClick")(left, "LeftButton", false)
+    local said = {}
+    for _, r in ipairs(DUI.Pad.HintList(DUI.OptionsPanel.Frame())) do said[#said + 1] = r[2] end
+    T.truthy(table.concat(said, "|"):find(DONE or "Done", 1, true), "the hints say how to put it down")
+    _G[stub.overrides.PAD2.click]:Click()   -- B
+    T.falsy(row.padEditing)
+    T.eq(stub.overrides.PADDRIGHT, nil, "put down: the D-pad moves again")
+    T.eq(stub.overrides.PAD2, nil, "and B is the window's again")
+    row.OnSmartNavClick()
+    T.truthy(stub.overrides.PADDRIGHT)
+    row.OnSmartNavClick()
+    T.eq(stub.overrides.PADDRIGHT, nil, "A puts it down too")
+    row.OnSmartNavClick()
     row.OnSmartNavDeselect()
-    T.eq(stub.overrides.PADDRIGHT, nil, "given back to the D-pad")
+    T.eq(stub.overrides.PADDRIGHT, nil, "leaving the row puts it down")
     T.falsy(row.hl:IsShown())
     clearAll(); clearMarks()
 end)
 
-T.test("pad options: left and right step a dropdown through its choices; A opens it, flips a switch", function()
+T.test("pad options: left and right move past a dropdown; A opens its list, flips a switch", function()
     local DUI, pf = optionsOnPad()
     local dd = rowWhere(pf, function(r)
         return r.item.type == "dropdown" and type(r.item.values) == "table" and not r.disabled
     end)
     T.truthy(dd, "a dropdown on the page")
-    local keys = dd.item.order or DUI.Widgets.SortedKeys(dd.item.values)
-    local cur = DUI.Options.Get(dd.page, dd.item)
-    local at
-    for i, k in ipairs(keys) do if k == cur then at = i end end
-    local want = keys[at + 1] or keys[at]
     dd.OnSmartNavSelect()
-    dd.padStep(1)
-    T.eq(DUI.Options.Get(dd.page, dd.item), want, "the next choice")
+    T.eq(stub.overrides.PADDRIGHT, nil, "left and right stay the D-pad's")
     dd.OnSmartNavClick()
     T.eq(DUI.Widgets.menuOwner, dd.control, "A opens the list")
     DUI.Widgets.CloseMenu()

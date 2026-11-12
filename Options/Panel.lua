@@ -800,7 +800,9 @@ function Panel.PadKeys()
         if not (at and at.padRow) then return nil end
         if not at.padA or at.disabled then return false end
         local t = at.item.type
-        if t == "toggle" then
+        if t == "slider" then
+            return at.padEditing and (DONE or L["Done"]) or L["Change"]
+        elseif t == "toggle" then
             return Options.Get(at.page, at.item) == true and L["Turn off"] or L["Turn on"]
         elseif t == "dropdown" then
             return L["Choose"]

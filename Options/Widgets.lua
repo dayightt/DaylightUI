@@ -628,35 +628,26 @@ function W.PadSlide(row, dir)
     if to ~= v then Options.Set(page, item, to) end
 end
 
--- The previous or next choice in a dropdown row, skipping headings. Stops at the ends.
-function W.PadChoose(row, dir)
-    local item, page = row.item, row.page
-    if row.disabled then return end
-    local values, keys, titles
-    if item.choices then values, keys, titles = item.choices() else values = item.values end
-    keys = keys or (item.order or W.SortedKeys(values or {}))
-    if type(keys) ~= "table" or #keys == 0 then return end
-    local current = Options.Get(page, item)
-    local at
-    for i, k in ipairs(keys) do
-        if k == current then at = i end
-    end
-    local i = (at or (dir > 0 and 0 or #keys + 1)) + dir
-    while keys[i] ~= nil and type(titles) == "table" and titles[keys[i]] do i = i + dir end
-    if keys[i] == nil then return end
-    Options.Set(page, item, keys[i])
-    if row.Refresh then row.Refresh() end   -- rows outside the window (the setup guide)
-end
-
+-- A row on a controller is one stop and the D-pad moves freely between rows.
+-- A acts on it: flips a switch, opens a dropdown's list or a color, presses a
+-- button, and picks up a slider. A picked slider takes left and right (held
+-- repeats) until A or B puts it down, or the D-pad leaves.
 function W.PadRow(row)
     local item, c = row.item, row.control
     if not (c and W.PAD_ROW[item.type]) then return end
     row.padRow = true
+    local function stopEditing()
+        if not row.padEditing then return end
+        row.padEditing = nil
+        DUI.Pad.FreeSides(row.padStep)
+    end
     if item.type == "slider" then
         row.padStep = function(dir) W.PadSlide(row, dir) end
-    elseif item.type == "dropdown" then
-        row.padStep = function(dir) W.PadChoose(row, dir) end
-        row.padA = function() c:Click() end
+        row.padA = function()
+            if row.padEditing then return stopEditing() end
+            row.padEditing = true
+            DUI.Pad.HoldSides(row.padStep, stopEditing)
+        end
     elseif item.type == "gradient" then
         row.padA = function() c.lo:Click() end
         row.padX = function() c.hi:Click() end
@@ -667,11 +658,10 @@ function W.PadRow(row)
         row.padOn = true
         if DUI.OptionsPanel and DUI.OptionsPanel.PadAim then DUI.OptionsPanel.PadAim(row) end
         row.Enter()
-        if row.padStep then DUI.Pad.HoldSides(row.padStep) end
     end
     function row.OnSmartNavDeselect()
         row.padOn = nil
-        if row.padStep then DUI.Pad.FreeSides(row.padStep) end
+        stopEditing()
         row.Leave()
     end
     function row.OnSmartNavClick()

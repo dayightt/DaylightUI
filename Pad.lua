@@ -28,8 +28,8 @@
 --   frame.padScroll          the scroll frame the right stick scrolls (else the
 --                            biggest one shown, see Pad.FindScroll; call
 --                            Pad.Scrolls after a page change, Win.ShowPage)
---   stop.padStep(dir)        left / right change this stop's value (Pad.HoldSides
---                            while it has the D-pad, see W.PadRow);
+--   stop.padStep(dir)        left / right change this stop's value once it's
+--                            picked up (Pad.HoldSides, see W.PadRow);
 --                            stop.padStepLabel names it
 --
 -- Combat hands the controller back. Every window the game knows about is
@@ -289,9 +289,9 @@ end
 -- (Blizzard_SettingControls.lua). Holding repeats. The game's binding footer
 -- isn't wrapped and writing to it taints, so this is our own override
 -- binding, like X and Y.
-Pad.SIDE_LEFT, Pad.SIDE_RIGHT = "DaylightUIPadLeft", "DaylightUIPadRight"
+Pad.SIDE_LEFT, Pad.SIDE_RIGHT, Pad.SIDE_DONE = "DaylightUIPadLeft", "DaylightUIPadRight", "DaylightUIPadDone"
 Pad.REPEAT_WAIT, Pad.REPEAT_EVERY = 0.35, 0.07
-local sides, sideFn, held
+local sides, sideFn, sideDone, held
 
 local function press(dir)
     local fn = sideFn
@@ -307,10 +307,11 @@ local function press(dir)
     C_Timer.After(Pad.REPEAT_WAIT, again)
 end
 
--- fn(dir): -1 left, 1 right. Out of combat only (combat hands the controller back).
-function Pad.HoldSides(fn)
+-- fn(dir): -1 left, 1 right. done(): B, putting it down (else B is the
+-- window's). Out of combat only (combat hands the controller back).
+function Pad.HoldSides(fn, done)
     if not manager() or fight or InCombatLockdown() then return end
-    sideFn, held = fn, nil
+    sideFn, sideDone, held = fn, done, nil
     if not sides then
         sides = CreateFrame("Frame", nil, UIParent)
         for name, dir in pairs({ [Pad.SIDE_LEFT] = -1, [Pad.SIDE_RIGHT] = 1 }) do
@@ -320,17 +321,23 @@ function Pad.HoldSides(fn)
                 if down then press(dir) else held = nil end
             end)
         end
+        local b = CreateFrame("Button", Pad.SIDE_DONE, UIParent)
+        b:RegisterForClicks("AnyDown")
+        b:SetScript("OnClick", function() if sideDone then sideDone() end end)
     end
     ClearOverrideBindings(sides)
     SetOverrideBindingClick(sides, true, key("GAMEPAD_DPAD_LEFT", "PADDLEFT"), Pad.SIDE_LEFT)
     SetOverrideBindingClick(sides, true, key("GAMEPAD_DPAD_RIGHT", "PADDRIGHT"), Pad.SIDE_RIGHT)
+    if done then SetOverrideBindingClick(sides, true, key("GAMEPAD_FACE_RIGHT", "PAD2"), Pad.SIDE_DONE) end
+    if Pad.focused then Pad.ShowHints(Pad.focused) end
 end
 
 -- Gives left/right back to D-pad movement, but only if fn is still the holder.
 function Pad.FreeSides(fn)
     if fn and sideFn ~= fn then return end
-    sideFn, held = nil, nil
+    sideFn, sideDone, held = nil, nil, nil
     if sides and not InCombatLockdown() then ClearOverrideBindings(sides) end
+    if Pad.focused and not InCombatLockdown() then Pad.ShowHints(Pad.focused) end
 end
 
 function Pad.HoldingSides() return sideFn ~= nil end
@@ -443,9 +450,9 @@ function Pad.HintList(f)
     -- padSelect may return false, meaning A does nothing on this stop (a slider row).
     if a == nil then a = f.padSelect and f.padSelect(at) end
     if a ~= false then out[1] = { { key("GAMEPAD_FACE_BOTTOM", "PAD1") }, a or ACTION_LABEL_SELECT or L["Select"] } end
-    if at and at.padStep and not at.disabled then
+    if sideFn then
         out[#out + 1] = { { key("GAMEPAD_DPAD_LEFT", "PADDLEFT"), key("GAMEPAD_DPAD_RIGHT", "PADDRIGHT") },
-                          at.padStepLabel or L["Change"] }
+                          at and at.padStepLabel or L["Change"] }
     end
     local done = { A = true }
     for _, e in ipairs(list) do
@@ -469,7 +476,7 @@ function Pad.HintList(f)
         out[#out + 1] = { { key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"),
                             key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER") }, L["Windows"] }
     end
-    out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, FRAME_ACTION_BACK or L["Back"] }
+    out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, sideDone and (DONE or L["Done"]) or FRAME_ACTION_BACK or L["Back"] }
     return out
 end
 
