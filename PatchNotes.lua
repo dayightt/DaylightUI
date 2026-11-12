@@ -19,6 +19,13 @@ DUI.PatchNotes = {
             { "Whispers", "Right-click a conversation in the list to pin it or close it" },
             { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },
         },
+        fixed = {
+            { "Books", "Every page of a book or letter is light and easy to read, not just the first" },
+            { "Minimap", "No more error at login from an addon whose minimap button has a round icon" },
+            { "Fishing", "The bobber shows only the Daylight UI light, not the game's interact icon on top of it" },
+            { "Action bars", "Shadowform switches bar 1 to its own page, like a druid's forms" },
+            { "Legacy", "Challenges the game can't track no longer show a Track switch" },
+        },
     },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",
         new = {
