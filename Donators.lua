@@ -23,6 +23,8 @@ Donators.LIST = {
     "E leader",
     "Fley",
     "InventorOfTrees",
+    "Allkamet",
+    "Torrent",
     "SPARQ",
     "Pownzerfaust",
     "Tih Tahz",
@@ -32,6 +34,7 @@ Donators.LIST = {
     "Schmuddeljunge",
     "EZ",
     "Jin Rahk",
+    "Alcasan",
     "blukraken",
     "Fang",
     "Manuel",
@@ -42,7 +45,6 @@ Donators.LIST = {
     "ezra",
     "Bryan",
     "Derrick Bevan",
-    "Alcasan",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -53,6 +55,7 @@ Donators.LIST = {
     "xrayin",
     "PrinceOfPromise",
     "Stefan Ilic",
+    "FrostByghte",
     "sam",
     "Daniel",
     "Dragon Slayer",
@@ -68,6 +71,7 @@ Donators.MONTHLY = {
     "Bryan",
     "Derrick Bevan",
     "Stefan Ilic",
+    "FrostByghte",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
