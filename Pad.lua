@@ -570,7 +570,7 @@ end
 Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 28, 8, 4
 Pad.BAR_BUTTONS = { "PADDLEFT", "PADDUP", "PADDRIGHT", "PADDDOWN", "PAD3", "PAD4", "PAD2", "PAD1" }
 Pad.BIND_BUTTON = "DaylightUIPadBind" -- plus 1-8, LT, RT, PREV, NEXT
-Pad.PROMPT_W, Pad.PROMPT_ICON = 340, 40
+Pad.PROMPT_W, Pad.PROMPT_ICON = 420, 40
 
 -- The storage slot a press lands on, or nil for a button that holds none.
 function Pad.SlotOf(page, bar, index)
@@ -646,7 +646,7 @@ local function prompt()
     p:SetFrameStrata("DIALOG")
     p:SetSize(Pad.PROMPT_W, pad + Pad.PROMPT_ICON + pad + barH + pad)
     p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    Style.Shell(p, { window = true })
+    Style.Shell(p, { bgAlpha = 1 })   -- solid: it sits over the window it came from
     p.well = CreateFrame("Frame", nil, p)
     p.well:SetSize(Pad.PROMPT_ICON, Pad.PROMPT_ICON)
     p.well:SetPoint("TOPLEFT", p, "TOPLEFT", pad, -pad)
@@ -779,6 +779,8 @@ function Pad.BindAction(spec)
     SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), Pad.BIND_BUTTON .. "PREV")
     SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER"), Pad.BIND_BUTTON .. "NEXT")
     local p = prompt()
+    -- The row's tooltip would sit over the prompt (tooltips draw above everything).
+    if GameTooltip then GameTooltip:Hide() end
     if spec.icon then p.icon:SetTexture(spec.icon) end
     p.name:SetText(spec.name or "")
     DUI.Style.InkText(p.name, "VALUE")
