@@ -236,6 +236,6 @@ end
 PetPage.events = { "UNIT_PET", "UNIT_PET_EXPERIENCE", "PET_STATS_UPDATE" }
 -- Asked for "player" and "pet" both (Window.lua): your stats feed your pet's.
 PetPage.petEvents = { "UNIT_HAPPINESS", "UNIT_MODEL_CHANGED", "UNIT_NAME_UPDATE", "UNIT_LEVEL", "UNIT_STATS",
-    "UNIT_ATTACK_POWER", "UNIT_DAMAGE", "UNIT_RESISTANCES", "UNIT_MAXHEALTH" }
+    "UNIT_ATTACK_POWER", "UNIT_DAMAGE", "UNIT_RESISTANCES", "UNIT_MAXHEALTH", "UNIT_MAXPOWER" }
 
 ns.Window.Register("pet", PetPage)

@@ -139,7 +139,7 @@ end
 T.test("character stats: attributes, with buffed and lowered", function()
     local S = stats()
     local rows = S.Read("attributes")
-    T.eq(#rows, 6, "the five, then Movement speed")
+    T.eq(#rows, 8, "the five, then the game's General group: Health, power, Movement speed")
     T.eq(rows[1].label, "Strength")
     T.eq(S.Text(rows[1]), "130")
     T.eq(rows[1].buff, "up")
@@ -172,6 +172,59 @@ T.test("character stats: attack rows and their text", function()
     T.eq(S.Text(rowOf(rows, "ap")), "950")
     T.eq(S.Text(rowOf(rows, "hit")), "4.50%")
     T.eq(S.Text(rowOf(rows, "crit")), "20.04%")
+end)
+
+-- What the game's own sheet shows (Camelot PaperDollFrameConstants.lua,
+-- PAPERDOLL_STATCATEGORIES), row by row.
+T.test("character stats: health and power, in the game's own word for it", function()
+    local S = stats()
+    local rows = S.Read("attributes")
+    T.eq(S.Text(rowOf(rows, "health")), "4200")
+    T.eq(rowOf(rows, "power").label, "Rage")
+    T.eq(S.Text(rowOf(rows, "power")), "100")
+    T.eq(rows[#rows].id, "movespeed", "Movement speed still last")
+    T.eq(rowOf(stats({ class = "MAGE" }).Read("attributes"), "power").label, "Mana")
+end)
+
+T.test("character stats: dual wielding shows the off hand's damage, speed and expertise", function()
+    local S = stats()
+    T.isnil(rowOf(S.Read("attack"), "ohdmg"), "one weapon")
+    T.eq(S.Text(rowOf(S.Read("attack"), "expertise")), "5.00%", "expertise is a percent")
+    local st = CW.state.stats
+    st.dual, st.damage, st.speed, st.ohExpertise = true, { 120, 180, 60, 90 }, { 2.6, 1.8 }, 3
+    local rows = S.Read("attack")
+    T.eq(S.Text(rowOf(rows, "ohdmg")), "60 - 90")
+    T.eq(S.Text(rowOf(rows, "speed")), "2.60 / 1.80 s")
+    T.eq(S.Text(rowOf(rows, "expertise")), "5.00% / 3.00%")
+end)
+
+T.test("character stats: haste and penetration show once there is some, as the game's sheet", function()
+    local S = stats()
+    T.isnil(rowOf(S.Read("attack"), "haste"), "hidden at 0")
+    T.isnil(rowOf(S.Read("attack"), "armorpen"))
+    T.isnil(rowOf(S.Read("spell"), "spen"))
+    local st = CW.state.stats
+    st.mhaste, st.rhaste, st.shaste, st.armorPen, st.spellPen = 5, { 15, 3 }, 2.5, 140, 20
+    T.eq(S.Text(rowOf(S.Read("attack"), "haste")), "5.00%")
+    T.eq(S.Text(rowOf(S.Read("ranged"), "rhaste")), "18.00%", "the weapon's plus the quiver's")
+    T.eq(S.Text(rowOf(S.Read("spell"), "shaste")), "2.50%")
+    T.eq(S.Text(rowOf(S.Read("attack"), "armorpen")), "140")
+    T.eq(S.Text(rowOf(S.Read("spell"), "spen")), "20")
+end)
+
+T.test("character stats: no parry or dodge row at 0, no ranged damage without a ranged weapon", function()
+    local S = stats()
+    CW.state.stats.parry, CW.state.stats.rangedWeapon = 0, false
+    T.isnil(rowOf(S.Read("defense"), "parry"))
+    T.truthy(rowOf(S.Read("defense"), "dodge"))
+    T.isnil(rowOf(S.Read("ranged"), "rdmg"))
+    T.truthy(rowOf(S.Read("ranged"), "rap"))
+end)
+
+T.test("character stats: mana regen is the one while casting, as the game shows it", function()
+    local M = stats({ class = "MAGE" })
+    CW.state.stats.regen = { 10, 3.3 }
+    T.eq(M.Text(rowOf(M.Read("spell"), "regen")), "16 every 5 s")
 end)
 
 T.test("character stats: one Hit, the same number under melee, ranged and spell, for every class", function()

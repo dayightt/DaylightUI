@@ -43,6 +43,9 @@ function CW.defaultStats()
         armor = { 3000, 3200, 3200, 200 }, defense = { 300, 12 }, dodge = 6.5, parry = 7.2, block = 4.1,
         shield = true, res = { [2] = 10, [3] = 20, [4] = 0, [5] = 5, [6] = 0 },   -- a number, or { base, effective }
         avg = 64.6,
+        -- dual: two weapons (damage[3..4], speed[2], ohExpertise); haste and
+        -- penetration as the client's calls return them (PaperDollFrame_SetHaste).
+        dual = false, rangedWeapon = true, mhaste = 0, rhaste = { 0, 0 }, shaste = 0, armorPen = 0, spellPen = 0,
     }
 end
 
@@ -229,7 +232,7 @@ local function installStats()
     -- Yours, or your pet's for "pet" (CW.petStats, same shape).
     local function st(u) return u == "pet" and S().petStats or S().stats end
     _G.UnitStat = function(u, i) local s = st(u).stat[i]; return many(s[1], s[2], s[3], s[4]) end
-    _G.UnitDamage = function(u) return many(st(u).damage[1], st(u).damage[2]) end
+    _G.UnitDamage = function(u) local d = st(u).damage; return many(d[1], d[2], d[3] or d[1], d[4] or d[2]) end
     _G.UnitAttackSpeed = function(u) return many(st(u).speed[1], st(u).speed[2]) end
     _G.UnitAttackPower = function(u) return many(st(u).ap[1], st(u).ap[2], st(u).ap[3]) end
     _G.UnitRangedDamage = function() return many(st().ranged[1], st().ranged[2], st().ranged[3]) end
@@ -242,7 +245,14 @@ local function installStats()
     _G.GetCombatRatingBonus = function(cr) return secret(cr == 8 and st().shit or cr == 7 and st().rhitRating or st().hitRating) end
     _G.GetCritChance = function() return secret(st().crit) end
     _G.GetRangedCritChance = function() return secret(st().rcrit) end
-    _G.GetExpertise = function() return secret(st().expertise) end
+    _G.GetExpertise = function() return many(st().expertise, st().ohExpertise or st().expertise, 0) end
+    _G.IsDualWielding = function() return st().dual == true end
+    _G.IsRangedWeapon = function() return st().rangedWeapon == true end
+    _G.GetMeleeHaste = function() return secret(st().mhaste) end
+    _G.GetRangedHaste = function() return many(st().rhaste[1], st().rhaste[2]) end
+    _G.GetArmorPenetration = function() return secret(st().armorPen) end
+    _G.GetSpellPenetration = function() return secret(st().spellPen) end
+    _G.MANA, _G.RAGE, _G.ENERGY = "Mana", "Rage", "Energy"   -- the game's power words
     _G.GetSpellBonusDamage = function() return secret(st().spell) end
     _G.GetSpellBonusHealing = function() return secret(st().heal) end
     _G.GetSpellCritChance = function() return secret(st().scrit) end
@@ -270,7 +280,9 @@ local function installStats()
     _G.GetPetHitChanceModifier = function() return secret(st("pet").hit) end
     _G.GetPetSpellHitChanceModifier = function() return secret(st("pet").shit) end
     _G.GetPetMeleeHaste = function() return secret(st("pet").haste) end
-    _G.UnitSpellHaste = function() return secret(0) end
+    _G.UnitSpellHaste = function(u) return secret(u == "player" and st().shaste or 0) end
+    _G.GetPetCritChance = function() return many(st("pet").crit or 0, st("pet").scrit or 0) end
+    _G.GetPetDodgeChance = function() return secret(st("pet").dodge or 0) end
     _G.GetUnitSpeed = function(u)
         local r = st(u).run or 7
         return many(0, r, st(u).fly or r, st(u).swim or r)
@@ -464,7 +476,8 @@ end
 -- CW.SetPet(pet) summons another mid-test, or dismisses it with nil.
 function CW.SetPet(pet)
     S().pet = pet
-    stub.units.pet = pet and { name = pet.name or "Fang", level = pet.level or 60, maxHealth = pet.maxHealth or 3200 } or nil
+    stub.units.pet = pet and { name = pet.name or "Fang", level = pet.level or 60, maxHealth = pet.maxHealth or 3200,
+        maxPower = pet.maxPower or 100, maxMana = pet.maxMana or 0, powerToken = pet.powerToken or "FOCUS" } or nil
 end
 
 local function installPet()
@@ -474,7 +487,7 @@ local function installPet()
         if not p then return false, false end
         return true, p.hunter == true
     end
-    _G.UnitCreatureFamily = function(u) local p = pet(); if u == "pet" and p then return p.family or "Wolf", 1 end end
+    _G.UnitCreatureFamily = function(u) local p = pet(); if u == "pet" and p then return p.family or "Wolf", p.familyId or 1 end end
     _G.GetPetExperience = function() local p = pet(); return p and p.xp or 0, p and p.xpNeed or 0 end
     _G.C_PetInfo = {
         GetPetHappiness = function() local p = pet(); return p and p.mood or 3, p and p.damage or 125, p and p.rate or 1 end,
@@ -516,7 +529,9 @@ function CW.world(spec)
             secret = false, spec = spec, petStats = CW.defaultPetStats(),
         }
         for key, item in pairs(spec.items or {}) do CW.state.items[CW.SLOT_IDS[key]] = item end
-        stub.SetUnits({ player = { name = "Daylight", class = spec.class or "WARRIOR", level = 60, isPlayer = true } })
+        local token = ({ WARRIOR = "RAGE", ROGUE = "ENERGY" })[spec.class or "WARRIOR"] or "MANA"
+        stub.SetUnits({ player = { name = "Daylight", class = spec.class or "WARRIOR", level = 60, isPlayer = true,
+            maxHealth = 4200, maxPower = token == "MANA" and 3000 or 100, maxMana = token == "MANA" and 3000 or 0, powerToken = token } })
         if spec.pet then CW.SetPet(spec.pet) end
         buildFrames(spec)
         installInventory()

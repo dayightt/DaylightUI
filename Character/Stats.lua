@@ -69,6 +69,14 @@ local function overSchools(name)
     end
 end
 local function className() local _, c = UnitClass("player"); return c end
+local function dual() return call("IsDualWielding") == true end
+-- The game's own word for a unit's power (Mana, Rage, Energy, Focus).
+local function powerName(unit)
+    local _, token = call("UnitPowerType", unit)
+    return type(token) == "string" and type(_G[token]) == "string" and _G[token] or L["Power"]
+end
+-- No ranged damage rows without a ranged weapon, as on the game's sheet.
+local function noRanged() return call("IsRangedWeapon") == false end
 
 -- Forever has a single hit stat for melee, ranged and spells. The API still has
 -- four calls, so show the biggest like PaperDollFrame_SetHitChance does.
@@ -104,40 +112,57 @@ end
 Stats.ROWS = {
     attributes = {},
     attack = {
-        { id = "dmg", label = L["Damage"], fmt = "%.0f - %.0f", read = function() return call("UnitDamage", "player") end, show = 2, game = "PaperDollFrame_SetDamage" },
-        { id = "speed", label = L["Attack speed"], fmt = L["%.2f s"], read = function() return call("UnitAttackSpeed", "player") end, show = 1, game = "PaperDollFrame_SetAttackSpeed" },
+        { id = "dmg", label = L["Damage"], fmt = "%.0f - %.0f", read = function() return call("UnitDamage", "player") end, show = 2, game = "PaperDollFrame_SetMainhandDamage" },
+        { id = "ohdmg", label = L["Off-hand damage"], fmt = "%.0f - %.0f", game = "PaperDollFrame_SetOffhandDamage", skip = function() return not dual() end,
+          read = function() local _, _, lo, hi = call("UnitDamage", "player"); return lo, hi end },
+        { id = "speed", label = L["Attack speed"], fmt = L["%.2f s"], read = function() return call("UnitAttackSpeed", "player") end, show = 1, game = "PaperDollFrame_SetAttackSpeed",
+          skip = dual },
+        { id = "speed", label = L["Attack speed"], fmt = L["%.2f / %.2f s"], read = function() return call("UnitAttackSpeed", "player") end, show = 2, game = "PaperDollFrame_SetAttackSpeed",
+          skip = function() return not dual() end },
         { id = "ap", label = L["Attack power"], fmt = "%.0f", game = "PaperDollFrame_SetAttackPower", read = function() return call("UnitAttackPower", "player") end,
           compute = sum, buff = function(_, plus, minus) return buffOf(plus, minus) end },
         hitRow(),
         { id = "crit", label = L["Critical strike"], fmt = "%.2f%%", read = function() return call("GetCritChance") end, game = "PaperDollFrame_SetCritChance" },
-        { id = "expertise", label = L["Expertise"], fmt = "%.0f", read = function() return call("GetExpertise") end, game = "PaperDollFrame_SetExpertise", gameArg = true,
-          skip = function() return type(GetExpertise) ~= "function" end },
+        { id = "haste", label = L["Haste"], fmt = "%.2f%%", read = function() return call("GetMeleeHaste") end, game = "PaperDollFrame_SetHaste", hideAt = 0 },
+        -- A percent on Forever. Dual wielding shows both hands, as the game does.
+        { id = "expertise", label = L["Expertise"], fmt = "%.2f%%", read = function() return call("GetExpertise") end, show = 1, game = "PaperDollFrame_SetExpertise", gameArg = true,
+          hideAt = 0, skip = dual },
+        { id = "expertise", label = L["Expertise"], fmt = "%.2f%% / %.2f%%", read = function() return call("GetExpertise") end, show = 2, game = "PaperDollFrame_SetExpertise", gameArg = true,
+          skip = function() return not dual() end },
+        { id = "armorpen", label = L["Armor penetration"], fmt = "%.0f", read = function() return call("GetArmorPenetration") end, game = "PaperDollFrame_SetArmorPenetration", hideAt = 0 },
     },
     ranged = {
-        { id = "rdmg", label = L["Damage"], fmt = "%.0f - %.0f", game = "PaperDollFrame_SetRangedDamage",
+        { id = "rdmg", label = L["Damage"], fmt = "%.0f - %.0f", game = "PaperDollFrame_SetRangedDamage", skip = noRanged,
           read = function() local _, lo, hi = call("UnitRangedDamage", "player"); return lo, hi end },
-        { id = "rspeed", label = L["Attack speed"], fmt = L["%.2f s"], read = function() return call("UnitRangedDamage", "player") end, show = 1, game = "PaperDollFrame_SetRangedDamage" },
+        { id = "rspeed", label = L["Attack speed"], fmt = L["%.2f s"], read = function() return call("UnitRangedDamage", "player") end, show = 1, game = "PaperDollFrame_SetRangedDamage",
+          skip = noRanged },
         { id = "rap", label = L["Attack power"], fmt = "%.0f", game = "PaperDollFrame_SetRangedAttackPower", read = function() return call("UnitRangedAttackPower", "player") end,
           compute = sum, buff = function(_, plus, minus) return buffOf(plus, minus) end },
         hitRow(),
         { id = "rcrit", label = L["Critical strike"], fmt = "%.2f%%", read = function() return call("GetRangedCritChance") end, game = "PaperDollFrame_SetCritChance" },
+        -- Ranged haste is the weapon's plus the quiver's.
+        { id = "rhaste", label = L["Haste"], fmt = "%.2f%%", read = function() return call("GetRangedHaste") end, compute = sum, game = "PaperDollFrame_SetHaste", hideAt = 0 },
+        { id = "rarmorpen", label = L["Armor penetration"], fmt = "%.0f", read = function() return call("GetArmorPenetration") end, game = "PaperDollFrame_SetArmorPenetration", hideAt = 0 },
     },
     spell = {
         { id = "sp", label = L["Spell power"], fmt = "%.0f", read = overSchools("GetSpellBonusDamage"), compute = biggest, game = "PaperDollFrame_SetSpellPower" },
         { id = "heal", label = L["Healing"], fmt = "%.0f", read = function() return call("GetSpellBonusHealing") end, game = "PaperDollFrame_SetSpellHealing" },
         { id = "scrit", label = L["Critical strike"], fmt = "%.2f%%", read = overSchools("GetSpellCritChance"), compute = biggest, game = "PaperDollFrame_SetCritChance" },
         hitRow(),
+        { id = "shaste", label = L["Haste"], fmt = "%.2f%%", read = function() return call("UnitSpellHaste", "player") end, game = "PaperDollFrame_SetHaste", hideAt = 0 },
+        { id = "spen", label = L["Spell penetration"], fmt = "%.0f", read = function() return call("GetSpellPenetration") end, game = "PaperDollFrame_SetSpellPenetration", hideAt = 0 },
+        -- The game shows the regen while casting, the one that counts in a fight.
         { id = "regen", label = L["Mana regen"], fmt = L["%.0f every 5 s"], game = "PaperDollFrame_SetManaRegen", read = function() return call("GetManaRegen") end,
-          compute = function(base) return (base or 0) * 5 end, skip = function() return Stats.NO_MANA[className() or ""] == true end },
+          compute = function(_, casting) return math.floor((casting or 0) * 5) end, skip = function() return Stats.NO_MANA[className() or ""] == true end },
     },
     defense = {
         { id = "armor", label = L["Armor"], fmt = "%.0f", show = 1, game = "PaperDollFrame_SetArmor",
           read = function() local base, eff = call("UnitArmor", "player"); return eff, base end,   -- base, effective, real, bonus
           buff = overBase },
         { id = "defense", label = L["Defense"], fmt = "%.0f", game = "PaperDollFrame_SetDefense", read = function() return call("UnitDefenseSkill", "player") end, compute = sum },
-        { id = "dodge", label = L["Dodge"], fmt = "%.2f%%", game = "PaperDollFrame_SetDodge", read = function() return call("GetDodgeChance") end },
-        { id = "parry", label = L["Parry"], fmt = "%.2f%%", game = "PaperDollFrame_SetParry", read = function() return call("GetParryChance") end },
-        { id = "block", label = L["Block"], fmt = "%.2f%%", game = "PaperDollFrame_SetBlock", read = function() return call("GetBlockChance") end,
+        { id = "dodge", label = L["Dodge"], fmt = "%.2f%%", game = "PaperDollFrame_SetDodge", read = function() return call("GetDodgeChance") end, hideAt = 0 },
+        { id = "parry", label = L["Parry"], fmt = "%.2f%%", game = "PaperDollFrame_SetParry", read = function() return call("GetParryChance") end, hideAt = 0 },
+        { id = "block", label = L["Block"], fmt = "%.2f%%", game = "PaperDollFrame_SetBlock", read = function() return call("GetBlockChance") end, hideAt = 0,
           -- Same shield check as the game's sheet. IsEquippedItemType("Shields") returned false with a shield on.
           skip = function() return not (C_PaperDollInfo and C_PaperDollInfo.OffhandHasShield and C_PaperDollInfo.OffhandHasShield()) end },
     },
@@ -170,7 +195,15 @@ local function moveSpeed(unit)
             return pct(v, BASE_MOVEMENT_SPEED or 7)
         end }
 end
-Stats.ROWS.attributes[#Stats.ROWS.attributes + 1] = moveSpeed("player")
+-- Health and power sit with movement speed, as in the game's General group.
+local function maxPower(unit)
+    return { id = unit == "pet" and "pet_power" or "power", label = function() return powerName(unit) end, fmt = "%.0f", unit = unit,
+        game = "PaperDollFrame_SetPower", read = function() return call("UnitPowerMax", unit) end }
+end
+local A = Stats.ROWS.attributes
+A[#A + 1] = { id = "health", label = L["Health"], fmt = "%.0f", game = "PaperDollFrame_SetHealth", read = function() return call("UnitHealthMax", "player") end }
+A[#A + 1] = maxPower("player")
+A[#A + 1] = moveSpeed("player")
 
 local RESIST = { { 2, "fire", L["Fire"] }, { 3, "nature", L["Nature"] }, { 4, "frost", L["Frost"] }, { 5, "shadow", L["Shadow"] }, { 6, "arcane", L["Arcane"] } }
 for i, r in ipairs(RESIST) do
@@ -182,14 +215,28 @@ for i, r in ipairs(RESIST) do
 end
 
 -- Pet page rows, matching the game's pet stat group, each read for "pet".
--- No crit row: the game's shows your crit, and there is no pet crit call.
 Stats.PET_GROUPS = { "pet", "petResist" }
 Stats.LABEL.pet, Stats.LABEL.petResist = L["General"], L["Resistances"]
 Stats.PET_OPEN = { pet = true }   -- open until folded; resistances start folded
 Stats.COLOR = { pet = "attack", petResist = "resistances" }   -- header color each pet group borrows
+local function warlock() return className() == "WARLOCK" end
+-- A demon gets a share of your Intellect back as mana every 5 s, an imp more
+-- (the game's PaperDollFrame_SetWarlockPetManaRegen).
+local IMP_FAMILY, IMP_REGEN, DEMON_REGEN = 23, 0.3, 0.1
+local function petRegen(maxMana, intellect)
+    if (maxMana or 0) <= 0 then return 0 end
+    local _, family = call("UnitCreatureFamily", "pet")
+    return math.floor((intellect or 0) * (family == IMP_FAMILY and IMP_REGEN or DEMON_REGEN))
+end
+local petPower = maxPower("pet")
+petPower.skip = function() return not warlock() end   -- only a demon's mana, as on the game's sheet
 Stats.ROWS.pet = {
     { id = "pet_health", label = L["Health"], fmt = "%.0f", unit = "pet", game = "PaperDollFrame_SetHealth",
       read = function() return call("UnitHealthMax", "pet") end },
+    petPower,
+    { id = "pet_regen", label = L["Mana regen"], fmt = L["%.0f every 5 s"], unit = "pet", game = "PaperDollFrame_SetManaRegen",
+      read = function() local _, int = call("UnitStat", "player", 4); return call("UnitPowerMax", "pet", 0), int end,
+      compute = petRegen, hideAt = 0, skip = function() return not warlock() end },
     { id = "pet_armor", label = L["Armor"], fmt = "%.0f", show = 1, unit = "pet", game = "PaperDollFrame_SetArmor",
       read = function() local base, eff = call("UnitArmor", "pet"); return eff, base end, buff = overBase },
     { id = "pet_dmg", label = L["Damage"], fmt = "%.0f - %.0f", show = 2, unit = "pet", game = "PaperDollFrame_SetDamage",
@@ -202,8 +249,17 @@ Stats.ROWS.pet = {
       read = function() return call("GetPetSpellBonusDamage") end, hideAt = 0 },
     { id = "pet_hit", label = L["Chance to hit"], fmt = "%.2f%%", unit = "pet", game = "PaperDollFrame_SetHitChance",
       read = petHit, compute = bestPetHit, hideAt = 0 },
+    { id = "pet_crit", label = L["Critical strike"], fmt = "%.2f%%", unit = "pet", game = "PaperDollFrame_SetCritChance",
+      read = function() return call("GetPetCritChance") end, compute = biggest, hideAt = 0,
+      skip = function() return type(GetPetCritChance) ~= "function" end },
     { id = "pet_haste", label = L["Haste"], fmt = "%.2f%%", unit = "pet", game = "PaperDollFrame_SetHaste",
       read = function() return call("GetPetMeleeHaste"), call("UnitSpellHaste", "pet") end, compute = biggest, hideAt = 0 },
+    -- A pet has its owner's expertise.
+    { id = "pet_expertise", label = L["Expertise"], fmt = "%.2f%%", unit = "pet", game = "PaperDollFrame_SetExpertise",
+      read = function() return call("GetExpertise") end, show = 1, hideAt = 0 },
+    { id = "pet_dodge", label = L["Dodge"], fmt = "%.2f%%", unit = "pet", game = "PaperDollFrame_SetDodge",
+      read = function() return call("GetPetDodgeChance") end, hideAt = 0,
+      skip = function() return type(GetPetDodgeChance) ~= "function" end },
     moveSpeed("pet"),
 }
 Stats.ROWS.petResist = {}
@@ -221,7 +277,9 @@ function Stats.Row(def)
     local n = table.maxn(raw)
     local secret = false
     for i = 1, n do if isSecret(raw[i]) then secret = true end end
-    local row = { id = def.id, label = def.label, fmt = def.fmt, secret = secret, game = def.game, gameArg = def.gameArg, unit = def.unit }
+    local label = def.label
+    if type(label) == "function" then label = label() end
+    local row = { id = def.id, label = label, fmt = def.fmt, secret = secret, game = def.game, gameArg = def.gameArg, unit = def.unit }
     if def.compute then
         if secret then
             row.stale = true

@@ -31,6 +31,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "Arcane Blast's stacks show on a bar too, not just as an icon" },
             { "Object glow", "Uses far less memory while it looks for things around you, which could cause small stutters" },
             { "Minimap", "No more small stutters from the addon button drawer while Questie or other map pin addons add pins as you move" },
+            { "Character", "The stats show everything the game's own sheet does: health, mana, haste, off-hand damage, armor and spell penetration, and your pet's crit, dodge and a demon's mana" },
         },
     },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",

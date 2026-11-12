@@ -121,6 +121,29 @@ T.test("pet page: the game's pet rows, read for the pet; zero spell power left o
     T.eq(rowOf(rows, "pet_dmg").unit, "pet")
 end)
 
+T.test("pet page: crit, expertise and dodge, as the game's pet sheet", function()
+    local ns = load({ class = "HUNTER", pet = HUNTER_PET })
+    local pet = CW.state.petStats
+    pet.crit, pet.scrit, pet.dodge = 5, 7, 4
+    local rows = ns.Stats.Read("pet")
+    T.eq(ns.Stats.Text(rowOf(rows, "pet_crit")), "7.00%", "the bigger of melee and spell")
+    T.eq(ns.Stats.Text(rowOf(rows, "pet_dodge")), "4.00%")
+    T.eq(ns.Stats.Text(rowOf(rows, "pet_expertise")), "5.00%", "its owner's")
+    T.isnil(rowOf(rows, "pet_power"), "a hunter's pet: no power row")
+    T.isnil(rowOf(rows, "pet_regen"))
+end)
+
+T.test("pet page: a demon shows its mana and mana regen from your Intellect", function()
+    local imp = { name = "Grubnak", level = 60, family = "Imp", familyId = 23, maxMana = 1000, maxPower = 1000, powerToken = "MANA" }
+    local ns = load({ class = "WARLOCK", pet = imp })
+    local rows = ns.Stats.Read("pet")
+    T.eq(rowOf(rows, "pet_power").label, "Mana")
+    T.eq(ns.Stats.Text(rowOf(rows, "pet_power")), "1000")
+    T.eq(ns.Stats.Text(rowOf(rows, "pet_regen")), "9 every 5 s", "an imp: 30% of your 30 Intellect")
+    CW.SetPet({ name = "Voidwalker", family = "Voidwalker", familyId = 16, maxMana = 1000, maxPower = 1000, powerToken = "MANA" })
+    T.eq(ns.Stats.Text(rowOf(ns.Stats.Read("pet"), "pet_regen")), "3 every 5 s", "other demons 10%")
+end)
+
 T.test("pet page: the pet's attack speed has its own row, as yours does", function()
     local ns = load({ class = "HUNTER", pet = HUNTER_PET })
     local was = _G.UnitAttackSpeed
