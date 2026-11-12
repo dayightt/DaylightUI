@@ -56,6 +56,58 @@ T.test("hygiene: no temporary or debug code in a shipped file (use DaylightUI_De
     if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
 end)
 
+-- Comments explain the code to the next person reading it. Notes about when
+-- or why something was asked for belong in the commit message, not the code.
+local NOTE_MARKERS = {
+    { "the user", "say \"the player\", or just give the reason" },
+    { "%d%d%d%d%-%d%d%-%d%d", "a date: git already knows when" },
+    { "docs/", "a path into notes that aren't in the repo" },
+    { "cheat sheet", "a pointer to notes that aren't in the repo" },
+    { "maintenance §", "a pointer to notes that aren't in the repo" },
+    { "probe run", "say \"seen in game\"" },
+}
+
+local function noteIn(line)
+    local at = line:find("%-%-")
+    if not at then return nil end
+    local comment = line:sub(at):lower()
+    for _, m in ipairs(NOTE_MARKERS) do
+        if comment:find(m[1]) then return m[2] end
+    end
+end
+
+local function testFiles()
+    local files = {}
+    local p = io.popen('git ls-files "tests/*.lua"')
+    for line in p:lines() do
+        if not line:find("^tests/blizzard/") and line ~= "tests/test_hygiene.lua" then files[#files + 1] = line end
+    end
+    p:close()
+    return files
+end
+
+T.test("hygiene: comments in the addon and its tests carry no notes to self", function()
+    local bad = {}
+    local files = shippedFiles()
+    for _, path in ipairs(testFiles()) do files[#files + 1] = path end
+    for _, path in ipairs(files) do
+        local n = 0
+        for line in (read(path) or ""):gmatch("([^\n]*)\n?") do
+            n = n + 1
+            local why = noteIn(line)
+            if why then bad[#bad + 1] = path .. ":" .. n .. ": " .. why .. ": " .. line:gsub("^%s+", ""):sub(1, 80) end
+        end
+    end
+    if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)
+
+T.test("hygiene: the notes check finds a note", function()
+    T.truthy(noteIn("local x = 1 -- the user asked for this"))
+    T.truthy(noteIn("-- seen in game 2026-11-09"))
+    T.falsy(noteIn("-- The player can change the accent any time."))
+    T.falsy(noteIn('local s = "the user"'), "strings are code, not comments")
+end)
+
 -- Every control comes from Options/Widgets.lua so they all look the same.
 -- The close X's art is easy to spot, and only the builders may draw it.
 local CLOSE_ART_OK = { ["Options/Widgets.lua"] = true, ["DaylightUI_Skins/Kit.lua"] = true }
