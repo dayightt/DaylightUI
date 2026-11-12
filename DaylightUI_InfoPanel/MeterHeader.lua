@@ -122,6 +122,8 @@ function Header.Update(h, m, cfg, session)
             if ok and type(s) == "number" then length = s end   -- (none: the fight list's stays)
         end
     end
+    -- None from the game's clock or the fight list: the fight's own length.
+    if type(length) ~= "number" and m.Seconds then length = m.Seconds(session) end
     if type(length) == "number" and not isSecret(length) then
         h.timer:SetText(DUI.FormatClock(length))
     else

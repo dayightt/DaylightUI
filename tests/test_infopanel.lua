@@ -676,7 +676,7 @@ T.test("info panel: bars are outlined and glide, but snap when the view changes"
     stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 400 } }
     M.Draw()
     local row = bars()[1]
-    T.truthy(DUI.Style.GetShell(row.box), "the raid tiles' thin outline")
+    T.isnil(row.box, "no outline round a row")
     stub.meter.sources[1].totalAmount = 500
     M.Draw()
     T.truthy(row.bar.__interp ~= nil, "a new value glides in")
@@ -2017,9 +2017,7 @@ T.test("info panel: the meter's names and numbers in class colors, bars with no 
     DUI:Set("InfoPanel", "meter.trackAlpha", 0)
     row = bars()[1]
     T.eq(Style.BarBack(row.bar):GetAlpha(), 0, "the empty part gone")
-    T.eq(Style.GetShell(row.box).opts.noBorder, true, "the outline too")
     DUI:Set("InfoPanel", "meter.trackAlpha", 1)
-    T.falsy(Style.GetShell(bars()[1].box).opts.noBorder, "back")
 end)
 
 T.test("info panel: a meter's own window can have its own background", function()
@@ -2561,8 +2559,8 @@ T.test("threat meter: slides out of the meter's left edge in combat in a group, 
     T.eq(rows[1].amount:GetText(), "100%")
     T.eq(rows[3].name:GetText(), "Shallan")
     T.eq(rows[2].amount:GetText(), "80%", "your percent of the pull")
-    T.truthy(DaylightUI.Style.GetShell(rows[2].box).opts.borderColor, "your own row outlined")
-    T.isnil(DaylightUI.Style.GetShell(rows[1].box).opts.borderColor, "the others not")
+    T.truthy(rows[2].mine, "your own row known")
+    T.falsy(rows[1].mine, "the others not")
     -- The pull line: your threat / your percent = 11000 (the tank's x 1.1), the bars' top.
     T.truthy(TM.line:IsShown(), "the pull line")
     local g = TM.geo
@@ -2689,7 +2687,7 @@ T.test("threat meter: test mode shows a sample group with you in it", function()
     T.eq(#rows, 6)
     T.eq(TM.win.header:GetText(), TM.SAMPLE_TARGET)
     local mine = 0
-    for _, r in ipairs(rows) do if DUI.Style.GetShell(r.box).opts.borderColor then mine = mine + 1 end end
+    for _, r in ipairs(rows) do if r.mine then mine = mine + 1 end end
     T.eq(mine, 1, "you, outlined")
     T.truthy(TM.line:IsShown())
     DUI.SetTestMode(false)

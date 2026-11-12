@@ -947,7 +947,7 @@ T.test("threat look: slim rows, a tank mark, your row outlined in the accent and
     T.truthy(rows[2].mine, "your row")
     T.rgb({ rows[2].amount:GetTextColor() }, { DUI.Style.Accent() }, "your percent pops")
     T.rgb({ rows[3].amount:GetTextColor() }, DUI.Style.INK.VALUE)
-    T.eq(DUI.Style.GetShell(rows[1].box).opts.borderPx, 1, "a thin outline, not the old thick one")
+    T.isnil(rows[1].box, "no outline round the rows")
     stub.LeaveCombat(); stub.SetGroup(false)
 end)
 
@@ -1225,21 +1225,6 @@ T.test("meters: DPS and HPS fill their bars by the rate they're ranked by", func
     local _, max = M.rows[2].bar:GetMinMaxValues()
     T.eq(max, 200, "the top rate is the bars' top")
     T.eq(M.rows[2].bar:GetValue(), 100, "half the top rate: half a bar, though its total is bigger")
-end)
-
-T.test("meters: your row's outline follows an accent change", function()
-    local DUI = login()
-    local M = stub.infopanel.Meter
-    stub.meter.sources = { { name = "Me", classFilename = "MAGE", totalAmount = 10, isLocalPlayer = true } }
-    M.Draw()
-    T.truthy(M.rows[1].mine)
-    DUI:Set("general", "accent", "custom")
-    DUI:Set("general", "accentColor", { 0.2, 0.9, 0.3 })
-    stub.RunTimers()
-    M.Draw()
-    local c = DUI.Style.GetShell(M.rows[1].box).opts.borderColor
-    T.near(c[1], 0.2, 0.02, "the new accent")
-    T.near(c[2], 0.9, 0.02)
 end)
 
 T.test("meters: the fight list is read when it changes, not on every redraw in a fight", function()
@@ -1985,4 +1970,16 @@ T.test("game rules: per second is the total over the fight's length when the num
     stub.meter.sources = { { name = "Raging Daylight", classFilename = "WARRIOR", totalAmount = 6234, amountPerSecond = 0.001488 } }
     M.Draw()
     T.eq(stub.Text(M.rows[1].amount), "103 (6.2K)")
+end)
+
+T.test("meter header: the fight's length comes from the fight itself when the game's clock gives none", function()
+    login()
+    local M = stub.infopanel.Meter
+    stub.meter.durations = { [Enum.DamageMeterSessionType.Current] = 33 }
+    stub.meter.sources = { { name = "Raging Daylight", classFilename = "WARRIOR", totalAmount = 1500 } }
+    local clock = C_DamageMeter.GetSessionDurationSeconds
+    C_DamageMeter.GetSessionDurationSeconds = function() return nil end
+    M.Draw()
+    C_DamageMeter.GetSessionDurationSeconds = clock
+    T.eq(stub.Text(M.header.timer), "0:33")
 end)

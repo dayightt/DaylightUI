@@ -1,6 +1,5 @@
 -- A meter row: rank, spec or class icon, then a gradient bar with the name and
--- amount. The thin outline (row.box) wraps the bar alone; your own row's is lit
--- in the accent.
+-- amount. No outline: the fill and its soft track are the row.
 --
 -- Rank and icon only use plain values (row index, specIconID, classFilename).
 -- Name and amount may be secret and go straight into their text.
@@ -12,11 +11,10 @@ local Style, Pixel = DUI.Style, DUI.Pixel
 local Rows = {}
 ns.Rows = Rows
 
-Rows.BORDER = 1               -- the row's outline, physical px
+Rows.BORDER = 1               -- the bar's inset in its row, physical px
 Rows.GAP = 3                  -- between the rank, the icon and the bar
 Rows.RANK_DIGITS = "40"       -- the rank column is as wide as this
 Rows.CUT = 0.45               -- the fill's angled edge, as a share of the bar's height
-Rows.MINE_BAND = 0.45         -- how much of the accent your row's outline takes
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
@@ -29,8 +27,6 @@ Rows.CLASS_ICON = CLASS_ICON
 
 function Rows.New(parent, textSize, font)
     local row = CreateFrame("Frame", nil, parent)
-    row.box = CreateFrame("Frame", nil, row)
-    Style.Shell(row.box, { borderPx = Rows.BORDER, noBevel = true, noBackground = true })
     local bar = Style.Bar(row, nil, ns.MEDIA.bars.meter)
     row.bar = bar
     row.rank = Style.Text(row, Style.SIZE.tiny, "RIGHT", ns.MEDIA.fonts.meter)
@@ -73,28 +69,18 @@ function Rows.Layout(row, cfg)
         row.icon:Hide()
     end
     row.barX = x
-    row.box:ClearAllPoints()
-    row.box:SetPoint("TOPLEFT", row, "TOPLEFT", x - T, 0)
-    row.box:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
     row.bar:ClearAllPoints()
     row.bar:SetPoint("TOPLEFT", row, "TOPLEFT", x, -T)
     row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -T, T)
     Style.AngleFill(row.bar, "right", math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)))
-    Style.LayoutShell(Style.GetShell(row.box))
 end
 
--- How solid the empty track and the outline are (0: the fill alone).
+-- How solid the empty track is (0: the fill alone).
 function Rows.Track(row, a)
     a = type(a) == "number" and a or 1
     row.track = a
     local back = Style.BarBack(row.bar)
     if back then back:SetAlpha(a) end
-    local s = Style.GetShell(row.box)
-    if s then
-        s.opts.noBorder = a <= 0 and not row.mine
-        s.opts.borderAlpha = a < 1 and a * (DUI.DB.General().borderAlpha or 1) or nil
-        s.opts.shadowAlpha = 0
-    end
 end
 
 -- The row's icon: the player's spec, else their class's, else none (a mob
@@ -127,19 +113,7 @@ function Rows.SetIcon(row, src, cfg)
     row.icon:SetShown(file ~= nil)
 end
 
--- Your own row: its outline lit in the accent (eased by the shell), else
--- back to the warm border.
+-- Your own row (kept for the pinned row's place; it draws no different).
 function Rows.SetMine(row, on)
-    on = on == true
-    if row.mine == on then return end
-    row.mine = on
-    local s = Style.GetShell(row.box)
-    if not s then return end
-    if on then
-        s.opts.noBorder = false
-        Style.LightShell(s, Rows.MINE_BAND)
-    else
-        s.opts.noBorder = (row.track or 1) <= 0
-        Style.SetShellColors(s, nil, nil)
-    end
+    row.mine = on == true
 end
