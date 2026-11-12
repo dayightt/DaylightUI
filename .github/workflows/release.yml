@@ -27,6 +27,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Pull requests merged since the last version, by anyone but the owner:
+      # thanked by name in the notes (store pages, GitHub release, Discord).
+      # A failure here never stops a release: the notes just go out without it.
+      - name: Thank contributors
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          touch "$RUNNER_TEMP/thanks.md"
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          if [ -n "$prev" ]; then from="$prev"; else from=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          since=$(TZ=UTC git log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd "$from")
+          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base main --limit 100 \
+            --search "merged:>$since" --json number,title,url,author \
+            | jq -r --arg owner "$GITHUB_REPOSITORY_OWNER" -f .github/thanks.jq > "$RUNNER_TEMP/thanks.md"
+          cat "$RUNNER_TEMP/thanks.md"
+
       # The uploads (CurseForge, Wago, GitHub) take CHANGELOG.md whole: keep
       # only this version's section so older notes aren't repeated.
       - name: Trim the changelog to this version
@@ -34,6 +51,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           awk -v h="# DaylightUI $version" '$0==h{on=1} on&&/^# /&&$0!=h{exit} on' CHANGELOG.md > CHANGELOG.tmp
           if [ ! -s CHANGELOG.tmp ]; then echo "No section for $version in CHANGELOG.md"; exit 1; fi
+          cat "$RUNNER_TEMP/thanks.md" >> CHANGELOG.tmp
           # The notes alone, for the Discord post (it adds the support note after its own trim).
           cp CHANGELOG.tmp "$RUNNER_TEMP/notes.md"
           printf '\n%s\n' "$SUPPORT_NOTE" >> CHANGELOG.tmp
