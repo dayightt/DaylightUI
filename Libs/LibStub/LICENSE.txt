@@ -1,0 +1,3 @@
+LibStub
+Authors: Kaelten, Cladhaire, ckknight, Mikk, Ammo, Nevcairiel, joshborke
+License: Public Domain (as stated in LibStub.lua). No restrictions.

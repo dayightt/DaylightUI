@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- Marks the bag item under the mouse as junk, or not (Categories.JunkUnderMouse). Named in Categories.lua. -->
+    <Binding name="DAYLIGHTUI_BAGS_JUNK" header="DAYLIGHTUI_BAGS" category="ADDONS">
+        if DaylightUI and DaylightUI.BagsMarkJunk then DaylightUI.BagsMarkJunk() end
+    </Binding>
+</Bindings>

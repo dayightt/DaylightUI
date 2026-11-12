@@ -1,0 +1,34 @@
+## Interface: 16001
+## Title: |cffa335eeDaylightUI|r Buffs & Debuffs by |cff1e90ffD|r|cff4a7ff2a|r|cff766ee0y|r|cffa25ec7l|r|cffc9559fi|r|cffe65a72g|r|cfff67a44h|r|cffff9a1ft|r
+## Notes: Your buffs sorted into colour-coded categories you control, and your debuffs edged by dispel type, in the DaylightUI style.
+## Notes-ruRU: Положительные эффекты по цветным категориям, которые вы настраиваете, и отрицательные с рамкой по типу рассеивания, в стиле DaylightUI.
+## Notes-zhCN: 增益效果按你设定的彩色分类排列，减益效果按驱散类型加边框，DaylightUI风格。
+## Notes-koKR: 강화 효과는 직접 정하는 색상별 분류로, 약화 효과는 해제 유형별 테두리로, DaylightUI 스타일.
+## Notes-esES: Tus beneficios ordenados en categorías por colores que tú controlas, y tus perjuicios bordeados según el tipo de disipación, al estilo DaylightUI.
+## Notes-esMX: Tus beneficios ordenados en categorías por colores que tú controlas, y tus perjuicios bordeados según el tipo de disipación, al estilo DaylightUI.
+## Notes-deDE: Deine Stärkungszauber in farbige Kategorien sortiert, die du selbst bestimmst, und deine Schwächungszauber nach Bannart umrandet, im DaylightUI-Stil.
+## Author: Daylight
+## Version: 1.6.9
+## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
+## Dependencies: DaylightUI
+
+Core.lua
+Categories.lua
+Data.lua
+Classify.lua
+Auras.lua
+Spells.lua
+Layout.lua
+Scan.lua
+Preview.lua
+Widgets.lua
+Bar.lua
+Feel.lua
+DebuffBar.lua
+Private.lua
+PreviewBar.lua
+Reminder.lua
+EdgeEditor.lua
+Commands.lua
+Options.lua
+Module.lua

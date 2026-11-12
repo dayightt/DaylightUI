@@ -1,0 +1,8 @@
+Expressway Free, Regular, version 2.100
+(c) 2005 Typodermic Fonts (Ray Larabie). www.typodermic.com
+
+Distributed by Typodermic as freeware ("This font is freeware", in the
+font's own copyright notice). Expressway is a trademark of Typodermic.
+
+Only this free cut is bundled. The rest of the Expressway family (Bold and
+the other weights) is commercial and must not be added to this repository.

@@ -1,0 +1,11 @@
+Spell data attribution (CdmSpells.lua)
+
+Data from talentsforever.com (https://talentsforever.com).
+Source: https://talentsforever.com/data.json
+Licensed under Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+
+Changed for DaylightUI by tools/make_cdm_spells.py: spell ids only, grouped
+by class and spell name, with a cooldown flag and a duration flag read from
+the tooltip text; the tooltip text itself is left out.
+No endorsement by the source author or Blizzard is implied.

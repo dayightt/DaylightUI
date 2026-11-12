@@ -1,0 +1,39 @@
+## Interface: 16001
+## Title: |cffa335eeDaylightUI|r Chat by |cff1e90ffD|r|cff4a7ff2a|r|cff766ee0y|r|cffa25ec7l|r|cffc9559fi|r|cffe65a72g|r|cfff67a44h|r|cffff9a1ft|r
+## Notes: The game's chat in the DaylightUI look or a chat window of our own: conversations in a side list, whispers by person, a floating mode; class-colored names, timestamps and clickable web links.
+## Notes-ruRU: Чат игры в стиле DaylightUI или отдельное окно чата: беседы в боковом списке, шепот по собеседникам, плавающий режим; имена в цвете класса, время и ссылки, по которым можно щелкнуть.
+## Notes-zhCN: DaylightUI风格的游戏聊天，或独立的聊天窗口：侧边会话列表、按玩家分开的密语、浮动模式；职业颜色名字、时间戳和可点击的网址。
+## Notes-koKR: DaylightUI 스타일의 게임 대화창 또는 별도 대화창: 측면 대화 목록, 상대별 귓속말, 떠 있는 모드; 직업 색상 이름, 시간 표시, 클릭 가능한 웹 링크.
+## Notes-esES: El chat del juego con el aspecto DaylightUI o una ventana de chat propia: conversaciones en una lista lateral, susurros por persona, un modo flotante; nombres con el color de clase, marcas de hora y enlaces web clicables.
+## Notes-esMX: El chat del juego con el aspecto DaylightUI o una ventana de chat propia: conversaciones en una lista lateral, susurros por persona, un modo flotante; nombres con el color de clase, marcas de hora y enlaces web clicables.
+## Notes-deDE: Der Chat des Spiels im DaylightUI-Look oder ein eigenes Chatfenster: Unterhaltungen in einer Seitenliste, Flüstern nach Person, ein schwebender Modus; Namen in Klassenfarbe, Zeitstempel und anklickbare Weblinks.
+## Author: Daylight
+## Version: 1.6.9
+## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
+## Dependencies: DaylightUI
+
+Defaults.lua
+Tags.lua
+Chat.lua
+Feel.lua
+History.lua
+Copy.lua
+Bubbles.lua
+Links.lua
+LinkTips.lua
+Whisper.lua
+Recall.lua
+Kinds.lua
+Box.lua
+ChatMenu.lua
+Extras.lua
+Tabs.lua
+Filter.lua
+Talk.lua
+Thread.lua
+Convo.lua
+Tiles.lua
+Hub.lua
+Tell.lua
+Options.lua
+Module.lua

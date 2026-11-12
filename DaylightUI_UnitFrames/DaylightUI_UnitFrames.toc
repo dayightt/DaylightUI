@@ -1,0 +1,55 @@
+## Interface: 16001
+## Title: |cffa335eeDaylightUI|r Unit Frames by |cff1e90ffD|r|cff4a7ff2a|r|cff766ee0y|r|cffa25ec7l|r|cffc9559fi|r|cffe65a72g|r|cfff67a44h|r|cffff9a1ft|r
+## Notes: Soft, minimal player, target, target of target, pet and focus frames with cast bars, swing timers and target debuffs.
+## Notes-ruRU: Мягкие минималистичные рамки игрока, цели, цели цели, питомца и фокуса с полосами заклинаний, таймерами атаки и эффектами на цели.
+## Notes-zhCN: 柔和简约的玩家、目标、目标的目标、宠物和焦点框体，带施法条、攻击计时和目标减益。
+## Notes-koKR: 부드럽고 깔끔한 플레이어, 대상, 대상의 대상, 소환수, 주시 대상 프레임: 시전 바, 공격 타이머, 대상 약화 효과 포함.
+## Notes-esES: Marcos suaves y minimalistas de jugador, objetivo, objetivo del objetivo, mascota y foco, con barras de lanzamiento, temporizadores de golpe y perjuicios del objetivo.
+## Notes-esMX: Marcos suaves y minimalistas de jugador, objetivo, objetivo del objetivo, mascota y foco, con barras de lanzamiento, temporizadores de golpe y perjuicios del objetivo.
+## Notes-deDE: Sanfte, schlichte Rahmen für Spieler, Ziel, Ziel des Ziels, Begleiter und Fokus, mit Zauberleisten, Schlagtimern und Schwächungszaubern des Ziels.
+## Author: Daylight
+## Version: 1.6.9
+## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
+## Dependencies: DaylightUI
+## OptionalDeps: Clique
+
+Defaults.lua
+UnitFrames.lua
+Colors.lua
+CastBar.lua
+Swing.lua
+HealSpells.lua
+Auras.lua
+AuraGroups.lua
+Indicators.lua
+Texts.lua
+Looks.lua
+Combo.lua
+Happiness.lua
+Blizzard.lua
+GroupParts.lua
+GroupPrivate.lua
+Group.lua
+Raid.lua
+PartyPets.lua
+PartyCasts.lua
+Party.lua
+Arena.lua
+Leader.lua
+Pull.lua
+ClickCast.lua
+ClickBinder.lua
+ClickCastPage.lua
+PowerBar.lua
+DruidBars.lua
+Personal.lua
+Arrive.lua
+Moments.lua
+Upgrade.lua
+Units.lua
+TestMode.lua
+Sample.lua
+PageSample.lua
+Sweep.lua
+Options.lua
+Module.lua

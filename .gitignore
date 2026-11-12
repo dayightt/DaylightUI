@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+__pycache__/
+# The game's UI code for the tests (py tools/fetch_blizzard.py). Blizzard's, never committed.
+tests/blizzard/
+# Pictures from tools/snap.py, made fresh each time.
+tests/snaps/
+tools/bin/

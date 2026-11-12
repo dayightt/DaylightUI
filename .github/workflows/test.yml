@@ -1,0 +1,19 @@
+name: Tests
+
+# Runs on pull requests, and by hand from the Actions tab. Not on every push
+# to main: that ran constantly and flooded email.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update -q && sudo apt-get install -y -q luajit
+      - name: Fetch the game's UI code for the tests
+        run: python3 tools/fetch_blizzard.py
+      - name: Run the suite
+        run: luajit tests/run.lua --par

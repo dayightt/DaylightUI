@@ -1,0 +1,32 @@
+package-as: DaylightUI
+
+# The release notes on CurseForge, Wago and GitHub: this file, not the
+# commit log.
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+move-folders:
+  DaylightUI/DaylightUI_UnitFrames: DaylightUI_UnitFrames
+  DaylightUI/DaylightUI_ActionBars: DaylightUI_ActionBars
+  DaylightUI/DaylightUI_InfoPanel: DaylightUI_InfoPanel
+  DaylightUI/DaylightUI_Buffs: DaylightUI_Buffs
+  DaylightUI/DaylightUI_Tooltip: DaylightUI_Tooltip
+  DaylightUI/DaylightUI_QoL: DaylightUI_QoL
+  DaylightUI/DaylightUI_Nameplates: DaylightUI_Nameplates
+  DaylightUI/DaylightUI_Skins: DaylightUI_Skins
+  DaylightUI/DaylightUI_Chat: DaylightUI_Chat
+  DaylightUI/DaylightUI_Bags: DaylightUI_Bags
+  DaylightUI/DaylightUI_Quests: DaylightUI_Quests
+
+ignore:
+  - tests
+  - docs
+  - screenshots
+  - tools
+  - .github
+  - .pkgmeta
+  - CONTRIBUTING.md
+  - .gitignore
+  # Dev tools (/dui report, /dui perf): only on the developer's PC.
+  - DaylightUI_Dev

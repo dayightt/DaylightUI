@@ -1,0 +1,37 @@
+Copyright (c) 2026 Daylight. All rights reserved.
+
+DaylightUI is free to download and play with. The source is public so
+people can read it, report problems and help improve it.
+
+What you may do:
+- Use DaylightUI in the game.
+- Fork this repository on GitHub and change your fork to prepare pull
+  requests back to it.
+- Make plugins and profile packs (see below).
+
+What you may not do without written permission from the author:
+- Redistribute, re-upload or publish DaylightUI or any part of it (code,
+  art or layouts), changed or not, anywhere other than a pull request to
+  this repository.
+- Reuse its code, art or layouts in another addon or project.
+
+Contributions: by sending a pull request, patch or other contribution,
+you confirm it is your own work (or you have the right to send it), and
+you give the author a perpetual, worldwide, royalty-free, irrevocable
+license to use, change, relicense and distribute it as part of DaylightUI
+or otherwise.
+
+Plugins and profile packs are welcome, no permission needed: you may
+make, share and upload your own addons that run on top of DaylightUI,
+use its functions, and add to or change how it looks and works in game,
+and you may share profiles you made with it. Your addon is your own work
+under your own license. It must not include copies of DaylightUI's code
+or art (except the logo, below), and needs DaylightUI installed to run.
+
+The logo: a plugin or profile pack may use the DaylightUI logo in its own
+icon, banner or art if you add to it or change it to make it your own
+(for example your plugin's name, your own art or colors on it). You may
+not use the exact, unchanged logo image.
+
+Exceptions: the bundled fonts (Media/fonts) and libraries (Libs) keep
+their own licenses, listed with each of them.

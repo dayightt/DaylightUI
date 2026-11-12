@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+# Added to the end of every release's notes, on the store pages and in Discord.
+# Same links as the options window's home page (Options/Panel.lua).
+env:
+  SUPPORT_NOTE: |-
+    **Support Daylight UI**
+    Daylight UI is free for everyone. If you enjoy it and want to help it grow, every bit helps, and thank you to everyone who already has!
+    [☕ Tip on Ko-fi](https://ko-fi.com/daylightui) · [💜 Become a VIP on Patreon](https://www.patreon.com/cw/DaylightUI)
+
+jobs:
+  # No test run here: it took too long. The whole suite is run locally
+  # before tagging.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The uploads (CurseForge, Wago, GitHub) take CHANGELOG.md whole: keep
+      # only this version's section so older notes aren't repeated.
+      - name: Trim the changelog to this version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v h="# DaylightUI $version" '$0==h{on=1} on&&/^# /&&$0!=h{exit} on' CHANGELOG.md > CHANGELOG.tmp
+          if [ ! -s CHANGELOG.tmp ]; then echo "No section for $version in CHANGELOG.md"; exit 1; fi
+          # The notes alone, for the Discord post (it adds the support note after its own trim).
+          cp CHANGELOG.tmp "$RUNNER_TEMP/notes.md"
+          printf '\n%s\n' "$SUPPORT_NOTE" >> CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+          cat CHANGELOG.md
+
+      - name: Package and upload
+        uses: BigWigsMods/packager@v2
+        env:
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          # Wago: the project in the core .toc's X-Wago-ID, uploaded with the
+          # repository's WAGOAPI secret (skipped while either is missing).
+          WAGO_API_TOKEN: ${{ secrets.WAGOAPI }}
+          # CurseForge: the project in the core .toc's X-Curse-Project-ID, with
+          # the repository's CF_API_KEY secret (skipped while either is missing).
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+
+      # A beta is packaged as a pre-release, which GitHub never features as
+      # the latest release on the repo page: published as a normal one.
+      - name: Publish as the latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --prerelease=false --latest
+
+      # Discord: this version's notes and the support note, posted with the
+      # repository's DISCORD_WEBHOOK secret (skipped while it is missing).
+      # Links to the CurseForge page, where players download it.
+      - name: Announce on Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "No DISCORD_WEBHOOK secret: skipped"; exit 0; fi
+          version="${GITHUB_REF_NAME#v}"
+          url="https://www.curseforge.com/wow/addons/daylightui"
+          notes=$(awk -v h="# DaylightUI $version" '$0==h{on=1;next} on&&/^# /{exit} on' "$RUNNER_TEMP/notes.md" \
+            | sed -E 's/^## (.*)/**\1**/' | sed '/./,$!d')
+          if [ -z "$notes" ]; then echo "No notes for $version in CHANGELOG.md: skipped"; exit 0; fi
+          # Embed text is capped at 4096 characters.
+          if [ ${#notes} -gt 3600 ]; then notes="${notes:0:3600}..."$'\n\n'"[Full notes]($url)"; fi
+          notes="$notes"$'\n\n'"$SUPPORT_NOTE"
+          jq -n --arg t "DaylightUI $version" --arg u "$url" --arg d "$notes" \
+            '{embeds: [{title: $t, url: $u, description: $d, color: 16099875}]}' \
+            | curl -fsS -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"

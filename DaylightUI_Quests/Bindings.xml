@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- Folds the quest tracker to its header (Tracker.FoldAll). Named in Tracker.lua. -->
+    <Binding name="DAYLIGHTUI_QUESTS_FOLD" header="DAYLIGHTUI_QUESTS" category="ADDONS">
+        if DaylightUI and DaylightUI.QuestsFoldAll then DaylightUI.QuestsFoldAll() end
+    </Binding>
+</Bindings>

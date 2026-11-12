@@ -1,0 +1,2 @@
+# Store text files with LF in the repo; checkout follows core.autocrlf (CRLF on Windows).
+* text=auto

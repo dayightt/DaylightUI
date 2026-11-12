@@ -1,0 +1,36 @@
+Fonts bundled with DaylightUI
+
+Each font is used unmodified. All but Expressway Free are licensed under
+the SIL Open Font License, Version 1.1 (see OFL.txt in this folder).
+Expressway Free is freeware from Typodermic (see ExpresswayFree.txt).
+
+ArchivoNarrow-Bold.ttf: Archivo Narrow Bold
+  Copyright 2019 The Archivo Narrow Project Authors (https://github.com/Omnibus-Type/ArchivoNarrow)
+  License: SIL Open Font License 1.1
+
+BarlowCondensed-Medium.ttf: Barlow Condensed Medium Regular
+  Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+  License: SIL Open Font License 1.1
+
+ExpresswayFree.ttf: Expressway Free Regular
+  (c) 2005 Typodermic This font is freeware. Read attached text file for details. Don't forget to have a look at the rest of the Expressway family at Typodermic. Try the OpenType version with optional old-style (lowercase) numerals. http://www.typodermic.com
+
+FiraSans-Medium.ttf: Fira Sans Medium Regular
+  Digitized data copyright 2012-2016, The Mozilla Foundation and Telefonica S.A.
+  License: SIL Open Font License 1.1
+
+Lato-Regular.ttf: Lato Regular
+  Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic with Reserved Font Name "Lato". Licensed under the SIL Open Font License, Version 1.1.
+  License: SIL Open Font License 1.1
+
+PTSansNarrow-Bold.ttf: PT Sans Narrow Bold
+  Copyright © 2009 ParaType Ltd. All rights reserved.
+  License: SIL Open Font License 1.1
+
+Poppins-SemiBold.ttf: Poppins SemiBold Regular
+  Copyright 2020 The Poppins Project Authors (https://github.com/itfoundry/Poppins)
+  License: SIL Open Font License 1.1
+
+RussoOne-Regular.ttf: Russo One Regular
+  Copyright (c) 2011-2012, Jovanny Lemonad (jovanny.ru), with Reserved Font Name "Russo"
+  License: SIL Open Font License 1.1

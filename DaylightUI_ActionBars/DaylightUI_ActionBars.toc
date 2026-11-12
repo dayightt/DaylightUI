@@ -1,0 +1,45 @@
+## Interface: 16001
+## Title: |cffa335eeDaylightUI|r Action Bars by |cff1e90ffD|r|cff4a7ff2a|r|cff766ee0y|r|cffa25ec7l|r|cffc9559fi|r|cffe65a72g|r|cfff67a44h|r|cffff9a1ft|r
+## Notes: The game's action bars in the DaylightUI style: framed buttons, a centred layout with fading side grids, movable in unlock mode.
+## Notes-ruRU: Панели команд в стиле DaylightUI: кнопки в рамках, раскладка по центру с исчезающими боковыми сетками, перемещение в режиме разблокировки.
+## Notes-zhCN: DaylightUI风格的动作条：带边框的按钮，居中布局与渐隐的侧边网格，可在解锁模式中移动。
+## Notes-koKR: DaylightUI 스타일의 행동 단축바: 테두리 버튼, 가운데 배치와 서서히 사라지는 측면 격자, 잠금 해제 모드에서 이동 가능.
+## Notes-esES: Las barras de acción del juego al estilo DaylightUI: botones enmarcados, una disposición centrada con cuadrículas laterales que se desvanecen, movibles en el modo desbloqueo.
+## Notes-esMX: Las barras de acción del juego al estilo DaylightUI: botones enmarcados, una disposición centrada con cuadrículas laterales que se desvanecen, movibles en el modo desbloqueo.
+## Notes-deDE: Die Aktionsleisten des Spiels im DaylightUI-Stil: gerahmte Tasten, eine mittige Anordnung mit verblassenden Seitenrastern, im Entsperrmodus verschiebbar.
+## Author: Daylight
+## Version: 1.6.9
+## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
+## Dependencies: DaylightUI
+
+Defaults.lua
+Shape.lua
+Skin.lua
+Hide.lua
+Menus.lua
+Totems.lua
+Park.lua
+Paging.lua
+Buttons.lua
+Ping.lua
+RankUp.lua
+Keys.lua
+Small.lua
+PadSkin.lua
+Bars.lua
+Cooldowns.lua
+BuffBars.lua
+CdmData.lua
+CdmSpells.lua
+CdmCustom.lua
+CdmEffects.lua
+CdmRows.lua
+CdmOwn.lua
+CdmAuras.lua
+CdmBars.lua
+CdmEditor.lua
+CdmCard.lua
+CdmImport.lua
+Diag.lua
+Options.lua
+Module.lua

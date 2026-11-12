@@ -1,0 +1,39 @@
+## Interface: 16001
+## Title: |cffa335eeDaylightUI|r Bags by |cff1e90ffD|r|cff4a7ff2a|r|cff766ee0y|r|cffa25ec7l|r|cffc9559fi|r|cffe65a72g|r|cfff67a44h|r|cffff9a1ft|r
+## Notes: Every bag in one window, the profession bag and keyring included: search, sort, bag slots, free slots and money, in the DaylightUI look.
+## Notes-ruRU: Все сумки в одном окне, включая сумки для профессий и связку ключей: поиск, сортировка, ячейки сумок, свободные ячейки и деньги в стиле DaylightUI.
+## Notes-zhCN: 所有背包合为一个窗口，包括专业背包和钥匙链：搜索、整理、背包栏位、剩余空格和金钱，DaylightUI风格。
+## Notes-koKR: 모든 가방을 한 창에: 전문기술 가방과 열쇠고리 포함. 검색, 정렬, 가방 칸, 빈 칸, 소지금을 DaylightUI 스타일로.
+## Notes-esES: Todas las bolsas en una ventana, incluidas la bolsa de profesión y el llavero: búsqueda, orden, huecos de bolsa, huecos libres y dinero, con el aspecto DaylightUI.
+## Notes-esMX: Todas las bolsas en una ventana, incluidas la bolsa de profesión y el llavero: búsqueda, orden, huecos de bolsa, huecos libres y dinero, con el aspecto DaylightUI.
+## Notes-deDE: Alle Taschen in einem Fenster, samt Berufstasche und Schlüsselbund: Suche, Sortieren, Taschenplätze, freie Plätze und Geld im DaylightUI-Look.
+## Author: Daylight
+## Version: 1.6.9
+## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
+## Dependencies: DaylightUI
+
+Defaults.lua
+Saved.lua
+Items.lua
+Plugins.lua
+Search.lua
+Categories.lua
+Junk.lua
+Repair.lua
+Bags.lua
+Layout.lua
+Stack.lua
+Keep.lua
+Swap.lua
+Window.lua
+Disenchant.lua
+Guard.lua
+Prep.lua
+Slots.lua
+Bank.lua
+Viewer.lua
+Currency.lua
+MoneyRoll.lua
+OpenClose.lua
+Options.lua
+Module.lua
