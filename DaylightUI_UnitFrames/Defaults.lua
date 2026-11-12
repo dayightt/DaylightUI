@@ -382,7 +382,7 @@ end
 -- with that frame instead (Units.lua, ns.ApplyStrata). The personal display
 -- has always sat low, under the other frames.
 ns.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
-ns.STRATA_LABELS = { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog" }
+ns.STRATA_LABELS = { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialogue" }
 ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "raid", "arena",
                      "personal", "playerCastbar", "targetCastbar", "focusCastbar", "swing" }
 for _, k in ipairs(ns.STRATA_FRAMES) do

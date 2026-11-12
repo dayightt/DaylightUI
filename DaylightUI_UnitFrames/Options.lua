@@ -877,7 +877,7 @@ local function fontRow(key, label, what, dis)
     return mediaRow("font", key, label, what .. "." .. GENERAL_FONT, dis)
 end
 -- Which frame strata a piece draws in (ns.STRATA), for frames that overlap.
-local STRATA_HOW = " Where two pieces overlap, the higher layer draws on top: Background, Low, Medium, High, then Dialog."
+local STRATA_HOW = " Where two pieces overlap, the higher layer draws on top: Background, Low, Medium, High, then Dialogue."
 local function strataRow(key, label, what, dis, more)
     return { type = "dropdown", key = key, label = label, values = ns.STRATA_LABELS, order = ns.STRATA,
              desc = what .. STRATA_HOW .. (more or ""), disabled = dis }
