@@ -704,6 +704,7 @@ end
 -- of vanishing.
 function CB.Stop(h, glide)
     h.duration = nil
+    CB.SetUp(h, false)
     if glide and h.column and h:IsVisible() then
         h.slide:To(0)
     elseif glide and h:IsVisible() then
@@ -718,6 +719,15 @@ end
 -- Show the bar at once, cancelling a fade out in progress.
 local function showBar(h)
     DUI.Motion.AlphaTo(h, 1, 0)
+    CB.SetUp(h, true)
+end
+
+-- Whether a cast is up (h.up), told to h.onUp when it changes: the swing bars
+-- under the bar between the frames move up into its spot while none is.
+function CB.SetUp(h, up)
+    if h.up == up then return end
+    h.up = up
+    if h.onUp then h.onUp(up) end
 end
 
 -- An event. An interrupt holds the bar for a moment (if enabled), and while

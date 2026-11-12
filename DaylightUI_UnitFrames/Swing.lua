@@ -780,6 +780,13 @@ function ST.Create()
         end
     end)
     h:HookScript("OnHide", function(self) self.slide:Jump(1) end)
+    -- Under the cast bar between the frames: 1 while a cast is up, 0 while
+    -- none is and the first bar sits in the cast bar's own spot (ST.Fan).
+    h.room = DUI.Motion.Slider(function()
+        if not h.fan then return end
+        ST.FanShape(h)
+        ST.Fan(h)
+    end, { parent = h, dur = DUI.Motion.FAST, p = 0 })
     h:Hide()
     return h
 end
@@ -1002,12 +1009,14 @@ function ST.FanShape(h)
     local height = h.rowHeight or 12
     local step = height - T
     local cut = r * height
+    local raise = ST.Raise(h)
     local n = 0
     for _, row in ipairs(h.rows) do
         if row:IsShown() and not row.alone then
             -- Its top border overlaps the one above, so the line there is the
-            -- cast bar's bottom width plus the angle down to it on each side.
-            local depth = n * step - cT
+            -- cast bar's bottom width plus the angle down to it on each side
+            -- (raised into the cast bar's spot: its top width, and on down).
+            local depth = n * step - cT - raise
             row:SetWidth(W + 2 * r * depth + 2 * cut)
             Style.Slant(row, cut > 0 and "both" or nil, cut, nil, "both")
             Style.AngleFill(row.bar, cut > 0 and "right" or nil, r * (height - 2 * T), true)
@@ -1018,13 +1027,34 @@ function ST.FanShape(h)
     ST.PlaceTimes(h)
 end
 
--- Folded out by the slide: tucked up under the cast bar by what's left of it.
+-- How far the bars sit above their spot under the cast bar: with no cast up,
+-- the first one takes the cast bar's own spot (its top level with the
+-- frames'), and they scoot down as a cast starts.
+function ST.Raise(h)
+    local cb = h.castbar
+    if not (h.fan and cb and h.room) then return 0 end
+    local cT = Pixel.Px(cb, Style.BorderPx(cb))
+    return (1 - h.room.p) * math.max(0, cb:GetHeight() - cT)
+end
+
+-- Folded out by the slide: tucked up under the top line (the cast bar's
+-- bottom, or its top with no cast up) by what's left of it.
 function ST.Fan(h)
     local cb = h.castbar
     if not (h.fan and cb) then return end
     local cT = Pixel.Px(cb, Style.BorderPx(cb))
+    local top = cT + ST.Raise(h)
     h:ClearAllPoints()
-    h:SetPoint("TOP", cb, "BOTTOM", 0, cT + (1 - h.slide.p) * h:GetHeight())
+    h:SetPoint("TOP", cb, "BOTTOM", 0, top + (1 - h.slide.p) * h:GetHeight())
+    local clip = h.fanClip
+    if clip then
+        local M = 4 * ns.CastBar.CLIP_MARGIN
+        local y = top * cb:GetEffectiveScale() / clip:GetEffectiveScale()
+        clip:ClearAllPoints()
+        clip:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", -M, y)
+        clip:SetPoint("TOPRIGHT", cb, "BOTTOMRIGHT", M, y)
+        clip:SetHeight(1000)
+    end
 end
 
 -- The inner clip, inside the cast bar's (outer). As big as that one, except
@@ -1179,7 +1209,10 @@ function ST.Layout(h, cfg, castbar)
         castbar:HookScript("OnHide", function() ST.Place(h) end)
         -- And follow it as it slides.
         castbar.moved = function() ST.Hang(h) end
+        castbar.onUp = function(up) h.room:To(up and 1 or 0) end
     end
+    -- Laid out with no slide under way: straight to where a cast up or none puts them.
+    if not h.room:Moving() then h.room:Jump(castbar and castbar.up and 1 or 0) end
     -- Each bar detached on its own (not while docked) gets its own piece, mover
     -- and settings (swing.bars.<hand>).
     local bars = type(cfg.bars) == "table" and cfg.bars or {}

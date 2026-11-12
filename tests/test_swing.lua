@@ -851,6 +851,24 @@ T.test("cast bar between the frames: a trapezoid wider at the bottom, the swing 
     T.truthy(r.off:GetWidth() > r.main:GetWidth() and r.ranged:GetWidth() > r.off:GetWidth(), "each a little wider")
     local _, _, rp = r.main:GetPoint(1)
     T.eq(rp, "TOP", "centered under it")
+    -- No cast up: the first bar sits in the cast bar's own spot.
+    T.eq(h.room.p, 0, "no cast: raised into the cast bar's spot")
+    local _, _, _, _, yIdle = h:GetPoint(1)
+    local wIdle = r.main:GetWidth()
+    -- A cast starts: they scoot down under it, FAST.
+    ns.CastBar.ShowSample(cb, { value = 0.5, text = "Fireball" })
+    T.eq(h.room.goal, 1, "a cast up: heading under it")
+    stub.RunOnUpdate(h.room.driver, 1)
+    T.eq(h.room.p, 1)
+    local _, _, _, _, yCast = h:GetPoint(1)
+    T.truthy(yCast < yIdle, "lower with a cast up")
+    T.truthy(r.main:GetWidth() > wIdle, "wider further down, the angle kept")
+    -- The cast ends: back up into its spot.
+    ns.CastBar.Stop(cb, true)
+    T.eq(h.room.goal, 0, "cast over: rising back")
+    stub.RunOnUpdate(h.room.driver, 1)
+    local _, _, _, _, yBack = h:GetPoint(1)
+    T.eq(yBack, yIdle, "back in the cast bar's spot")
     -- Back under the frame: hung again.
     DaylightUI:Set("UnitFrames", "playerCastbar.at", "below")
     stub.RunTimers()
