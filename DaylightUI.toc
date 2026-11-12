@@ -187,3 +187,4 @@ Legacy\Trees.lua
 Legacy\Window.lua
 Legacy\Options.lua
 Legacy\Module.lua
+Locales\esES_gender.lua
