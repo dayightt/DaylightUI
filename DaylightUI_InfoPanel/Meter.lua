@@ -589,7 +589,24 @@ function Meter.New(m, opts)
     -- A row's spot: its place down the column (under the header), dy off it
     -- while it glides.
     local step, top = 1, 0
-    local function place(bar, dy)
+    local pushed = 0             -- a "hover" header rolled in: the rows glide down this much
+    local place                  -- (below)
+
+    -- A "hover" header coming (on) or going: the rows glide down to make
+    -- room for it, and back, so it never covers the top player.
+    local function makeRoom(on)
+        if not (cfg and cfg.header == "hover") then return end
+        local goal = on and ns.MeterHeader.H or 0
+        DUI.Motion.Tween(rows, pushed, goal, DUI.Motion.NORMAL, function(v)
+            local was = pushed
+            pushed = v
+            top = top + (v - was)
+            for _, bar in ipairs(rows) do
+                if bar.slot then place(bar, bar.dy or 0) end
+            end
+        end)
+    end
+    place = function(bar, dy)
         bar.dy = dy
         local y = -top - (bar.slot - 1) * step + dy
         bar:ClearAllPoints()
@@ -604,7 +621,7 @@ function Meter.New(m, opts)
         local h = cfg.rowHeight
         local gap = type(cfg.rowGap) == "number" and cfg.rowGap or Meter.SPACING
         step = h + gap
-        top = ns.MeterHeader.Height(cfg)
+        top = ns.MeterHeader.Height(cfg) + (pushed or 0)
         local span = (area:GetHeight() - top - reserve + gap) / step
         whole = math.max(1, math.floor(span))
         local n = reserve > 0 and whole or math.max(1, math.ceil(span))
@@ -905,9 +922,11 @@ function Meter.New(m, opts)
     local function watchHover()
         if area:GetScript("OnUpdate") then return end   -- watching already
         ns.MeterHeader.Hover(header, true)
+        makeRoom(true)
         area:SetScript("OnUpdate", function(self)
             if not self:IsMouseOver() then
                 ns.MeterHeader.Hover(header, false)
+                makeRoom(false)
                 m.hovered = nil
                 ns.Breakdown.Hide()
                 self:SetScript("OnUpdate", nil)

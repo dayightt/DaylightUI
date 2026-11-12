@@ -1999,3 +1999,18 @@ T.test("meters: the bars' angled end can be switched off, on meters and threat m
     local TM = stub.infopanel.ThreatMeter
     T.eq(masks(TM.rows[1].bar:GetStatusBarTexture()), 0, "the threat meter's too")
 end)
+
+T.test("meter header: on mouseover the rows glide down to make room for it, and back after", function()
+    local DUI = login()
+    local M = stub.infopanel.Meter
+    DUI:Set("InfoPanel", "meter.header", "hover"); stub.RunTimers()
+    stub.meter.sources = { { name = "Kaladin", classFilename = "WARRIOR", totalAmount = 10 } }
+    M.Draw()
+    local function y() return select(5, M.rows[1]:GetPoint(1)) end
+    T.eq(y(), 0, "at rest the top row has the top")
+    hover(true)
+    T.eq(y(), -M.header:GetHeight(), "the header takes the top, the row just under it")
+    T.truthy(M.header:IsShown())
+    hover(false)
+    T.eq(y(), 0, "and back")
+end)

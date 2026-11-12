@@ -15,7 +15,7 @@ local Header = {}
 ns.MeterHeader = Header
 
 Header.H = 20                 -- as tall as an icon button (W.ICON_BUTTON)
-Header.BACK = 0.95            -- the band under a "hover" header, over the top row
+Header.BACK = 1               -- the band under a "hover" header, over the top row (solid: no row shows through)
 Header.ICON = 14
 -- The buttons, left to right: their icon (Media/) and their name. The mode
 -- and the fight are words to click (links), not icons.
@@ -41,17 +41,26 @@ function Header.New(area, actions)
     h:SetPoint("TOPLEFT", area, "TOPLEFT", 0, 0)
     h:SetPoint("TOPRIGHT", area, "TOPRIGHT", 0, 0)
     h:SetHeight(Header.H)
-    h.back = h:CreateTexture(nil, "BACKGROUND")
-    h.back:SetAllPoints(h)
+    -- Everything sits on an inner frame pinned to h's bottom: in "hover"
+    -- mode h clips it and grows down from the top edge (a blind rolling
+    -- down over the first row), never fading words over words.
+    h:SetClipsChildren(true)
+    local p = CreateFrame("Frame", nil, h)
+    p:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
+    p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
+    p:SetHeight(Header.H)
+    h.inner = p
+    h.back = p:CreateTexture(nil, "BACKGROUND")
+    h.back:SetAllPoints(p)
     local c = Style.BACKGROUND
     h.back:SetColorTexture(c[1], c[2], c[3], Header.BACK)
     h.back:Hide()
-    h.icon = h:CreateTexture(nil, "ARTWORK")
+    h.icon = p:CreateTexture(nil, "ARTWORK")
     h.icon:SetSize(Header.ICON, Header.ICON)
-    h.icon:SetPoint("LEFT", h, "LEFT", 2, 0)
+    h.icon:SetPoint("LEFT", p, "LEFT", 2, 0)
     -- The mode and the fight: quiet words that open their menus (W.Link).
     local function link(key, size, ink)
-        local b = W.Link(h, size, { own = true })
+        local b = W.Link(p, size, { own = true })
         b.kind = key
         b:SetScript("OnClick", function(self)
             if W.menuOwner == self then W.CloseMenu() return end
@@ -73,17 +82,17 @@ function Header.New(area, actions)
     h.fight:SetPoint("LEFT", h.fightLink, "LEFT", 0, 0)
     h.fight:SetPoint("RIGHT", h.fightLink, "RIGHT", 0, 0)
     -- The right side: the total and the clock, or the buttons.
-    h.info = CreateFrame("Frame", nil, h)
-    h.info:SetPoint("TOPRIGHT", h, "TOPRIGHT", 0, 0)
-    h.info:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
+    h.info = CreateFrame("Frame", nil, p)
+    h.info:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+    h.info:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
     h.timer = Style.Text(h.info, Style.SIZE.small, "RIGHT")
     h.timer:SetPoint("RIGHT", h.info, "RIGHT", -2, 0)
     Style.InkText(h.timer, "VALUE")
     h.total = Style.Text(h.info, Style.SIZE.small, "RIGHT")
     h.total:SetPoint("RIGHT", h.timer, "LEFT", -8, 0)
     h.total:Hide()
-    h.tools = CreateFrame("Frame", nil, h)
-    h.tools:SetPoint("TOPRIGHT", h, "TOPRIGHT", 0, 0)
+    h.tools = CreateFrame("Frame", nil, p)
+    h.tools:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
     h.tools:SetHeight(Header.H)
     h.tools:SetAlpha(0)
     h.tools:Hide()
@@ -112,12 +121,16 @@ end
 function Header.Apply(h, cfg)
     local over = cfg.header == "hover"
     h.over = over
+    h.fullH = Header.H
+    h.inner:SetHeight(h.fullH)
     h.back:SetShown(over)
     h.total:SetShown(cfg.headerTotal == true)
     Header.PlaceFight(h)
     if over then
-        if not h.hovered then DUI.Motion.AlphaTo(h, 0, 0, true) end
+        if not h.hovered then Header.Blind(h, 0, true) end
     else
+        DUI.Motion.Tween(h.inner, 0, 0, 0)
+        h:SetHeight(h.fullH)
         h:SetAlpha(1)
         h:Show()
     end
@@ -173,7 +186,7 @@ function Header.PlaceFight(h, snap)
     -- The link is as wide as its words, up to the room left (glides there).
     local function place(r)
         h.fightRoom = r
-        h.fightLink:SetPoint("RIGHT", h, "RIGHT", -r, 0)
+        h.fightLink:SetPoint("RIGHT", h.inner, "RIGHT", -r, 0)
     end
     if snap or h.fightRoom == nil then
         DUI.Motion.Tween(h.fightLink, 0, 0, 0)
@@ -181,6 +194,26 @@ function Header.PlaceFight(h, snap)
     elseif math.abs(h.fightRoom - room) > 0.5 then
         DUI.Motion.Tween(h.fightLink, h.fightRoom, room, DUI.Motion.FAST, place)
     end
+end
+
+-- A "hover" header rolling down (to 1) or back up (to 0) from the top
+-- edge, NORMAL, from wherever it is; snap: at once.
+function Header.Blind(h, to, snap)
+    local function step(v)
+        h.blindAt = v
+        h:SetHeight(math.max(0.01, v * (h.fullH or Header.H)))
+        h:SetAlpha(math.min(1, v * 2))
+    end
+    local from = h.blindAt or (h:IsShown() and 1 or 0)
+    if to > 0 then h:Show() end
+    local done = to <= 0 and function() h:Hide() end or nil
+    if snap then
+        DUI.Motion.Tween(h.inner, to, to, 0)
+        step(to)
+        if done then done() end
+        return
+    end
+    DUI.Motion.Tween(h.inner, from, to, DUI.Motion.NORMAL, step, done)
 end
 
 -- The mouse came or went: the buttons cross-fade with the clock (and a
@@ -193,5 +226,5 @@ function Header.Hover(h, on)
     local M = DUI.Motion
     M.AlphaTo(h.tools, on and 1 or 0, M.FAST, true)
     M.AlphaTo(h.info, on and 0 or 1, M.FAST)
-    if h.over then M.AlphaTo(h, on and 1 or 0, M.FAST, true) end
+    if h.over then Header.Blind(h, on and 1 or 0) end
 end
