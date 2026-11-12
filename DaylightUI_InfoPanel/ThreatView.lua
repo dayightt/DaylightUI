@@ -16,12 +16,12 @@ ns.ThreatView = View
 
 View.HEAD = 18                -- the header's height
 View.ICON = 12
-View.LINE_PX = 1              -- the pull line, physical px
-View.GLOW_PX = 8              -- its soft glow, fading in from the left (never past the bars' end)
-View.GLOW_ALPHA = 0.3
-View.NOTCH = 4                -- the notch on its top
+View.LINE_PX = 2              -- the pull line, physical px
+View.GLOW_PX = 10             -- its soft glow, fading in from the left
+View.GLOW_ALPHA = 0.45
+View.NOTCH = 7                -- the notch on its top
 -- Rows: no rank, the icon square for the tank's mark.
-View.ROW = { rank = false, icons = "mark" }
+View.ROW = { rank = false, icons = "mark", angled = true }
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
@@ -55,9 +55,14 @@ function View.New(win)
     v.empty:SetText(L["No target"])
     v.empty:Hide()
     -- The pull line: its glow under it, its notch on top, all moved together.
-    v.glow = win:CreateTexture(nil, "OVERLAY", nil, 5)
-    v.line = win:CreateTexture(nil, "OVERLAY", nil, 7)
-    v.notch = win:CreateTexture(nil, "OVERLAY", nil, 7)
+    -- On a layer of its own above the rows (a frame's own textures draw under
+    -- its children: the bars hid it).
+    v.over = CreateFrame("Frame", nil, win)
+    v.over:SetAllPoints(win)
+    v.over:SetFrameLevel(win:GetFrameLevel() + 10)
+    v.glow = v.over:CreateTexture(nil, "OVERLAY", nil, 5)
+    v.line = v.over:CreateTexture(nil, "OVERLAY", nil, 7)
+    v.notch = v.over:CreateTexture(nil, "OVERLAY", nil, 7)
     v.notch:SetRotation(math.pi / 4)
     v.glow:SetPoint("TOPRIGHT", v.line, "TOPLEFT", 0, 0)
     v.glow:SetPoint("BOTTOMRIGHT", v.line, "BOTTOMLEFT", 0, 0)
@@ -120,6 +125,7 @@ function View.Layout(v, cfg, inset, W, n, gap)
                 Style.SetTextSize(row.name, size)
                 Style.SetTextSize(row.amount, size)
                 ns.Rows.Track(row, cfg.trackAlpha)
+                View.ROW.angled = cfg.angled ~= false
                 ns.Rows.Layout(row, View.ROW)
                 row.painted, row.mine, row.iconFile, row.levelInk, row.isTank = nil, nil, false, nil, nil
                 row.icon:Hide()
@@ -130,6 +136,7 @@ function View.Layout(v, cfg, inset, W, n, gap)
             end
         end
     end
+    v.over:SetFrameLevel(win:GetFrameLevel() + 10)   -- above the rows, whatever level the window took
     local first = v.rows[1]
     local barX = first and first.barX or 0
     local T = first and Pixel.Px(first, ns.Rows.BORDER) or 0

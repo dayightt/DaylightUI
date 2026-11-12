@@ -72,7 +72,12 @@ function Rows.Layout(row, cfg)
     row.bar:ClearAllPoints()
     row.bar:SetPoint("TOPLEFT", row, "TOPLEFT", x, -T)
     row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -T, T)
-    Style.AngleFill(row.bar, "right", math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)))
+    -- The fill's angled leading edge, unless switched off (cfg.angled).
+    if cfg.angled == false then
+        Style.AngleFill(row.bar, nil)
+    else
+        Style.AngleFill(row.bar, "right", math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)))
+    end
 end
 
 -- How solid the empty track is (0: the fill alone).

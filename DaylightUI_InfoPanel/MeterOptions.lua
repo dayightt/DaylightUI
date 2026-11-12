@@ -407,6 +407,8 @@ function MO.Page()
               desc = "Everyone's total for the fight, beside its length." }),
         win({ type = "dropdown", key = "win.barColor", label = "Bar color", kinds = BARS, choices = barColorChoices,
               desc = "Each bar in its player's class color or all in one color; a threat meter can color each bar by how close that player is to pulling." }),
+        win({ type = "toggle", key = "win.angled", label = "Angled bar ends", kinds = BARS, since = "1.7.0",
+              desc = "The bars' filled part ends in a slanted edge. When off, it ends square." }),
         win({ type = "toggle", key = "win.gradient", label = "Bar gradient", kinds = BARS,
               desc = "The bars shade from dark to bright instead of one flat color. The color pairs are on General > Gradients." }),
         win({ type = "color", key = "win.barCustom", label = "Custom bar color", kinds = BARS,

@@ -25,14 +25,14 @@ Windows.TEMPLATE = {
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
               rank = false, icons = "spec", showTotal = true, showRate = true, showShare = true, showMe = true,
-              rowGap = 1, header = "always", headerTotal = false },
+              rowGap = 1, header = "always", headerTotal = false, angled = true },
     -- auto: group (in a fight when someone else can hold the mob) | tank
     -- (only as the tank); unit: target | focus | smart (your target, else
     -- your target's target). The rest as the threat meter's own.
     threat = { enabled = true, name = "", auto = "group", unit = "target", header = "always",
                rows = 6, rowHeight = 16, textSize = 10, width = 170, border = true, alphaOwn = false, alpha = 0.85,
                barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
-               trackAlpha = 0.35, pullLine = true, pullColor = { DUI.Style.INK.BAD[1], DUI.Style.INK.BAD[2], DUI.Style.INK.BAD[3] } },
+               trackAlpha = 0.35, angled = true, pullLine = true, pullColor = { DUI.Style.INK.BAD[1], DUI.Style.INK.BAD[2], DUI.Style.INK.BAD[3] } },
     -- columns: which numbers it shows; sort / sortDesc: by which.
     summary = { enabled = true, name = "", session = "current", inGroup = false, inCombat = false, inInstance = false,
                 columns = { damage = true, dps = true, healing = true, hps = true, interrupts = true, dispels = true, deaths = true },

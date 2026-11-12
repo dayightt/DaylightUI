@@ -39,7 +39,7 @@ ns.DEFAULTS = {
               -- Row contents. icons is spec | class | none. showMe keeps your
               -- own row in view.
               rank = false, icons = "spec", showTotal = true, showRate = true, showShare = true, showMe = true,
-              rowGap = 1,
+              rowGap = 1, angled = true,   -- angled: the fill's leading edge cut at an angle
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
               numbers = "short" },   -- short (12.3K) | full (12,345), used everywhere amounts show
@@ -73,7 +73,7 @@ ns.DEFAULTS = {
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
                barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
-               pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always",
+               pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always", angled = true,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks
     -- the side facing the middle of the screen.

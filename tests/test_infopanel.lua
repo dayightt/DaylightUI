@@ -2564,7 +2564,9 @@ T.test("threat meter: slides out of the meter's left edge in combat in a group, 
     -- The pull line: your threat / your percent = 11000 (the tank's x 1.1), the bars' top.
     T.truthy(TM.line:IsShown(), "the pull line")
     local g = TM.geo
-    T.near(select(4, TM.line:GetPoint(1)), g.barLeft + g.barWidth, 1e-6, "at the end: it's the highest mark")
+    local x = select(4, TM.line:GetPoint(1))
+    T.near(x, g.barLeft + g.barWidth / TM.ROOM, 1e-6, "the highest mark, with room past it so it never hides at the bars' end")
+    T.truthy(x < g.barLeft + g.barWidth - 4)
     T.near(rows[1].bar:GetValue(), 10000, 1e-6)
     stub.LeaveCombat()
     threatSettle()

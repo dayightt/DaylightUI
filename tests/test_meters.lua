@@ -1983,3 +1983,19 @@ T.test("meter header: the fight's length comes from the fight itself when the ga
     C_DamageMeter.GetSessionDurationSeconds = clock
     T.eq(stub.Text(M.header.timer), "0:33")
 end)
+
+T.test("meters: the bars' angled end can be switched off, on meters and threat meters", function()
+    local DUI = login()
+    local M = stub.infopanel.Meter
+    stub.meter.sources = { { name = "A", classFilename = "MAGE", totalAmount = 10 } }
+    M.Draw()
+    local fill = M.rows[1].bar:GetStatusBarTexture()
+    local function masks(t) return #(t.__masks or {}) end
+    T.truthy(masks(fill) > 0, "angled at first")
+    DUI:Set("InfoPanel", "meter.angled", false); stub.RunTimers()
+    M.Draw()
+    T.eq(masks(M.rows[1].bar:GetStatusBarTexture()), 0, "square once switched off")
+    DUI:Set("InfoPanel", "threat.angled", false); stub.RunTimers()
+    local TM = stub.infopanel.ThreatMeter
+    T.eq(masks(TM.rows[1].bar:GetStatusBarTexture()), 0, "the threat meter's too")
+end)
