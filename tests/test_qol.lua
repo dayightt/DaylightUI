@@ -1937,6 +1937,27 @@ T.test("glow: the game's plate opens only for what lights up, and the light land
     g.done()
 end)
 
+T.test("glow: a lit bobber hides the game's interact icon, ore keeps it, and leaving gives it back", function()
+    local g = glowSetup(true)
+    local G = g.G
+    local function plateWithIcon()
+        local p = CreateFrame("Frame", nil, UIParent)
+        p.UnitFrame = CreateFrame("Frame", nil, p)
+        p.UnitFrame.SoftTargetFrame = CreateFrame("Frame", nil, p.UnitFrame)
+        return p, p.UnitFrame.SoftTargetFrame
+    end
+    local bobber, bobberIcon = plateWithIcon()
+    G.Show(bobber, "bobber", "ready", "GameObject-0-0-0-0-35591-1")
+    T.eq(bobberIcon:GetAlpha(), 0, "one marker on the bobber, the light")
+    local ore, oreIcon = plateWithIcon()
+    G.Show(ore, "ore", "ready", "GameObject-0-0-0-0-1731-1")
+    T.eq(bobberIcon:GetAlpha(), 1, "the bobber's plate gets its icon back")
+    T.eq(oreIcon:GetAlpha(), 1, "ore keeps the pick")
+    G.Leave()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    g.done()
+end)
+
 T.test("glow: ore a character can't gather stays dark", function()
     local g = glowSetup(true)
     g.profs = { 171 }

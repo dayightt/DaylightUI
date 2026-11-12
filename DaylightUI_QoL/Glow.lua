@@ -688,7 +688,15 @@ function Glow.Leave()
     a:Hide()
     a:ClearAllPoints()
     a:SetParent(UIParent)
+    if a.hushed then a.hushed:SetAlpha(1); a.hushed = nil end
     a.plate, a.kind, a.guid, a.state, a.gx, a.gy = nil, nil, nil, nil, nil, nil
+end
+
+-- The game's own interact icon on a plate (the pick on ore, the hand on herbs).
+function Glow.GameIcon(plate)
+    local uf = type(plate) == "table" and plate.UnitFrame
+    local icon = type(uf) == "table" and uf.SoftTargetFrame
+    return type(icon) == "table" and icon.SetAlpha and icon or nil
 end
 
 -- On plate, under what the plate shows, or moved to a new state in place.
@@ -703,6 +711,12 @@ function Glow.Show(plate, kind, state, guid)
         a.drop = nil
         if a.SetIgnoreParentAlpha then a:SetIgnoreParentAlpha(true) end
         a.plate, a.kind, a.guid = plate, kind, guid
+        -- The light marks the bobber already; the game's icon on top of it was
+        -- a second marker. Ore and herbs keep theirs: it says pick or hand.
+        if kind == "bobber" and not InCombatLockdown() then
+            a.hushed = Glow.GameIcon(plate)
+            if a.hushed then a.hushed:SetAlpha(0) end
+        end
         dress(a, Glow.LookOf(), Glow.ColorOf(kind))
         a.t, a.arrive, a.leaving = 0, 0, false
         a.lit = state == "ready" and 1 or 0
