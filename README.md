@@ -41,9 +41,17 @@ Making a plugin? [`API.md`](API.md) covers how to match the look and build on Da
 
 Thanks for wanting to help. Translations are welcome too: the strings live in `Locales/`. Setup, tests and the technical details are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## Adding features
+
+Daylight UI has one vision: **simple, smooth and immersive.** Fewer things on screen, each one easy to read. Everything moves softly instead of popping. The game world stays the star. A feature that doesn't serve that won't go into the main addon, however good it is on its own. That rules out busy displays, walls of numbers, options that only make sense to a few players, and anything that pulls your eyes off the game.
+
+**Big features should be plugins.** If you want to add something large (a new window, a new kind of tracker, a whole system), build it as a plugin: your own addon that runs on top of Daylight UI and looks like part of it. Plugins can put pieces on Daylight UI's frames, paint them, get their own section in the options window, and keep their settings in Daylight UI's profiles. Start with the [plugin guide in `API.md`](API.md#a-plugin-of-your-own) and its [quick start](API.md#quick-start).
+
+Small features that fit the vision are welcome as pull requests. Ask on [Discord](https://discord.gg/eeSYZDd6ar) before you start, so you know it fits.
+
 ## Pull request or plugin?
 
-Not everything belongs in Daylight UI itself. A lot of ideas work better as a plugin: a small addon of your own that runs on top of Daylight UI. [`API.md`](API.md) shows how to find Daylight UI's frames, put your own pieces on them, paint them, add your settings to its options pages, skin another addon's window, and fill a data text slot.
+Not everything belongs in Daylight UI itself. A lot of ideas work better as a plugin. [`API.md`](API.md) shows how to find Daylight UI's frames, put your own pieces on them, paint them, add your settings to its options pages, skin another addon's window, and fill a data text slot.
 
 **Send a pull request when:**
 - something is broken, or looks or behaves wrong;
@@ -55,7 +63,7 @@ Not everything belongs in Daylight UI itself. A lot of ideas work better as a pl
 - it's for one class, role or playstyle (a healer layout, a class resource, a PvP tracker);
 - it's a matter of taste: a different look, extra text on the frames, your own colors or fonts;
 - it ties Daylight UI to another addon, or skins one;
-- it's a big feature that was turned down here, or one you want to ship on your own schedule;
+- it's a big feature, one that was turned down here, or one you want to ship on your own schedule;
 - it's a profile pack or a preset for your guild or stream.
 
 Plugins need no permission, aren't held up by review, and keep working across updates as long as they stick to the calls in `API.md`. They can't include copies of Daylight UI's code or art; see [`LICENSE`](LICENSE).
