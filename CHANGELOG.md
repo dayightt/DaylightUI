@@ -1,3 +1,34 @@
+# DaylightUI 1.7
+
+A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.
+
+## New
+- Cast bar: Your cast bar can sit between your frame and the target's, with your swing timers fanning out under it
+- Tooltip: A friendly player's tooltip shows their buffs as small icons, so you can see what they're missing
+- Action bars: A new rank of a spell takes the old rank's place on your bars
+- Action bars: Druids: a powershift macro can swap your bar the moment you press it (/click DaylightUICat, DaylightUIBear or DaylightUIMoonkin)
+- Nameplates: Players of the other faction get an Alliance or Horde crest, and friendly names can each have a color you pick
+- Portraits: Pick how thick the portrait rings are, drop their middle line, or use the game's class icons
+- Profiles: A profile of its own for when the game's controller mode is on
+- Little touches: Pick which ends of the loot lines are angled; right-click the attack power text for melee or ranged
+
+## Changed
+- Meters: Complete Damage Meter refresh: sleek new look, as many windows as you want, and every hit one click away
+- Action bars: Keybinds are short by default (S2 instead of SHIFT-2)
+- Copy chat: Dragging past the top or bottom of the copy window scrolls it, so you can copy part of a long log
+
+## Fixed
+- Cooldown Manager: A buff can play a sound as it runs out, as in the game's own Cooldown Manager
+- Cooldown Manager: Fixed groups drifting off center, Arcane Blast's empty icon, a blank Add by ID menu, stiff size sliders, and totem buffs counted as cooldowns
+- Unit frames: Target of target can show a power bar, and your focus's target gets its own small frame, as in the game's own UI
+- Action bars: No more "the game blocked ... SetShown()" messages in chat for the stance and bottom bars during a fight
+- Nameplates: Enemy players' names are red again
+- Quest tracker: The Quests header and its buttons no longer lie over the quests as the list scrolls
+- Whispers: Right-click a whisper to ignore that player, as in the game's own menu
+- Pet frame: Your hunter pet's happiness is a clear color square again by default
+- Party frames: No more error when a ready check ends while someone is out of range
+- Little touches: Attack power shows for casters, your pet's attack speed is back, totem timers no longer jump, new loot no longer shows blank in bags, trade shows full names, a moved micro menu stays put after you die, and enchants link in chat again
+
 # DaylightUI 1.6.9
 
 Other addons can now add to Daylight UI, whispers can float anywhere, /kb, and a report tool for nameplates that vanish.
@@ -76,7 +107,7 @@ A cursor ring, junk marking and shared bag groups, druid resource bars, frames t
 ## Fixed
 - Cooldown Manager: Spells in a group can trade places, groups from the middle stay centered, and debuffs on you added by ID show (like Weakened Soul)
 - Action bars: The totem bar no longer jumps away in Ghost Wolf or a fight, and a tall data bar moves your bars up out of its way
-- Minimap: No longer blank in some dungeons, the N on the turning minimap shows again, and the minimap fades away at a campfire and on the AFK screen
+- Minimap: No longer blank after logging in, after talking to someone in town, or in some dungeons; the N on the turning minimap shows again, and the minimap fades away at a campfire and on the AFK screen
 - Character window: Movement speed is back, Damage shows attack speed on hover, and your character shows at once in a form
 - Unit frames: The pet's health bar shows on smaller screens, and target of target no longer cuts through your target's portrait
 - Loot: Looted money shows the right coin, and the loot popup keeps the Daylight UI look
