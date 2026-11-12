@@ -156,7 +156,7 @@ end
 -- What the game's sheet functions leave on a stat frame. Rows are reused for
 -- other stats, so a main-hand row must not keep an off-hand row's title.
 local LEFTOVERS = { "tooltip", "tooltip2", "tooltip3", "tooltip4", "onEnterFunc", "UpdateTooltip", "tooltipLabel",
-    "offhandDamage", "offhandAttackSpeed", "bonusDamage", "lineWrap" }
+    "offhandDamage", "offhandAttackSpeed", "bonusDamage", "minModifier", "lineWrap" }
 
 function StatText.GameTip(owner, row, look)
     if row.secret or row.stale or type(row.game) ~= "string" then return false end
@@ -172,6 +172,15 @@ function StatText.GameTip(owner, row, look)
     if owner.onEnterFunc ~= nil and owner.onEnterFunc == _G.PaperDollFrame_ExpertiseOnEnter
         and type(_G.CR_EXPERTISE_TOOLTIP) == "string" then
         owner.onEnterFunc = StatText.ExpertiseTip
+    end
+    -- The game's spell power hover leads with the lowest school and lists the
+    -- others. The row shows the best school, so lead with that one instead.
+    if owner.onEnterFunc ~= nil and owner.onEnterFunc == _G.CharacterSpellBonusDamage_OnEnter and type(owner.bonusDamage) == "table" then
+        local best = owner.minModifier
+        for _, v in pairs(owner.bonusDamage) do
+            if type(v) == "number" and type(best) == "number" and v > best then best = v end
+        end
+        owner.minModifier = best
     end
     if not pcall(owner.onEnterFunc or show, owner) then return false end
     StatText.Restyle(GameTooltip, look)

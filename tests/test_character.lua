@@ -1287,6 +1287,25 @@ T.test("character page: expertise's tooltip says the melee sentence, not the gam
     T.eq(CW.Calls("tipLine")[1], "Melee 5.0%")
 end)
 
+-- Camelot PaperDollFrame.lua: CharacterSpellBonusDamage_OnEnter leads with
+-- self.minModifier and lists each school that differs from it.
+T.test("character page: spell power's tooltip leads with the best school, as the row shows", function()
+    local P, ns = charPage({ class = "MAGE" })
+    local page = openChar(ns)
+    local lead
+    local was = { _G.CharacterSpellBonusDamage_OnEnter, _G.PaperDollFrame_SetSpellPower, _G.PaperDollStatTooltip }
+    _G.CharacterSpellBonusDamage_OnEnter = function(self) lead = self.minModifier end
+    _G.PaperDollFrame_SetSpellPower = function(f)
+        f.bonusDamage = { [2] = 50, [3] = 120, [4] = 50, [5] = 50, [6] = 50, [7] = 50 }
+        f.minModifier, f.tooltip = 50, "Spell Power"
+        f.onEnterFunc = _G.CharacterSpellBonusDamage_OnEnter
+    end
+    _G.PaperDollStatTooltip = function() end
+    P.StatTip(rowFrame(page, "spell", "sp"))
+    _G.CharacterSpellBonusDamage_OnEnter, _G.PaperDollFrame_SetSpellPower, _G.PaperDollStatTooltip = was[1], was[2], was[3]
+    T.eq(lead, 120, "fire, the best, not the lowest")
+end)
+
 T.test("character page: a tooltip that redraws itself (movement speed) keeps our colors, and rests in a fight", function()
     local P, ns = charPage()
     local page = openChar(ns)
