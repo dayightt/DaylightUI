@@ -1804,6 +1804,57 @@ local function notOwnWidth(unit)
         return notOwn(get) or ((at == "above" or at == "below") and get(unit .. "Castbar.fitFrame") ~= false)
     end
 end
+-- A cast bar's spell name and time, each with its own switch, size, position,
+-- nudge and color. who: the bar's name in labels ("Target"); whose: in
+-- sentences ("your target's"). inside: the rows for the text inside the frame.
+local TEXT_SPOTS = { left = "Left", center = "Center", right = "Right" }
+local TEXT_SPOT_ORDER = { "left", "center", "right" }
+local function castTextCard(unit, who, whose, inside)
+    local bar = unit .. "Castbar"
+    local function rows(kind, name, items)
+        local k = function(s) return bar .. "." .. kind .. "." .. s end
+        local dis = offAny(bar .. ".enabled", k("show"))
+        local lower = string.lower(name)
+        items[#items + 1] = { type = "slider", key = k("size"), label = who .. " " .. lower .. " text size", min = 6, max = 24, step = 1,
+            desc = "The " .. lower .. " on " .. whose .. " cast bar." .. (unit ~= "player" and " Inside the frame it's kept small enough for the power bar." or ""),
+            disabled = dis }
+        items[#items + 1] = { type = "dropdown", key = k("pos"), label = who .. " " .. lower .. " position",
+            values = TEXT_SPOTS, order = TEXT_SPOT_ORDER,
+            desc = "Where the " .. lower .. " sits on " .. whose .. " cast bar.", disabled = dis }
+        items[#items + 1] = { type = "slider", key = k("x"), label = who .. " " .. lower .. " left / right", min = -100, max = 100, step = 1, unit = "px",
+            desc = "Moves the " .. lower .. " sideways from its position.", disabled = dis }
+        items[#items + 1] = { type = "slider", key = k("y"), label = who .. " " .. lower .. " up / down", min = -40, max = 40, step = 1, unit = "px",
+            desc = "Moves the " .. lower .. " up or down. It can sit outside the bar.", disabled = dis }
+        items[#items + 1] = { type = "color", key = k("color"), label = who .. " " .. lower .. " color",
+            desc = "The " .. lower .. "'s color on " .. whose .. " cast bar.", disabled = dis }
+    end
+    local items = {
+        { type = "toggle", key = bar .. ".spell.show", label = who .. " spell name",
+          desc = "The spell's name on " .. whose .. " cast bar.", disabled = off(bar .. ".enabled") },
+    }
+    rows("spell", "Spell name", items)
+    items[#items + 1] = { type = "toggle", key = bar .. ".time.show", label = who .. " cast time",
+        desc = "The time on " .. whose .. " cast bar.", disabled = off(bar .. ".enabled") }
+    items[#items + 1] = { type = "dropdown", key = bar .. ".time.format", label = who .. " cast time format",
+        values = { left = "Time left (1.2)", total = "Left / total (1.2 / 2.5)" }, order = { "left", "total" },
+        desc = "What's left of the cast, or what's left out of the whole cast.",
+        disabled = offAny(bar .. ".enabled", bar .. ".time.show") }
+    rows("time", "Cast time", items)
+    if inside then
+        items[#items + 1] = { type = "slider", key = bar .. ".insideTextSize", label = who .. " text size inside the frame", min = 0, max = 20, step = 1,
+            desc = "The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 sizes them to fit the power bar.",
+            disabled = notInside(unit) }
+        if unit == "target" then
+            items[#items + 1] = { type = "slider", key = bar .. ".insideTextX", label = "Target text left / right inside the frame", min = -100, max = 100, step = 1, unit = "px",
+                desc = "Moves the spell name and time sideways together while the bar sits inside the target frame.",
+                disabled = notInside(unit) }
+            items[#items + 1] = { type = "slider", key = bar .. ".insideTextY", label = "Target text up / down inside the frame", min = -40, max = 40, step = 1, unit = "px",
+                desc = "Moves the spell name and time up or down together while the bar sits inside the target frame. They can sit outside the bar.",
+                disabled = notInside(unit) }
+        end
+    end
+    return { label = who .. " cast bar text", items = items }
+end
 local attached = notOwnSize("player")
 -- Between the frames, the bar takes the gap's width, has no icon, and fills left to right.
 local function notMiddleOwn(get) return attached(get) or atOf(get, "player") == "middle" end
@@ -2085,8 +2136,6 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "playerCastbar.slant", label = "Angled end",
               desc = "Under the frame, it continues the frame's angle. When off, its end is straight.",
               disabled = off("playerCastbar.enabled") },
-            { type = "slider", key = "playerCastbar.textSize", label = "Cast bar text size", min = 6, max = 24, step = 1,
-              desc = "The spell name and time on your cast bar.", disabled = off("playerCastbar.enabled") },
             { type = "toggle", key = "playerCastbar.reverseFill", label = "Fill right to left",
               desc = "Not while under the frame or between the frames.", disabled = notMiddleOwn },
             strataRow("playerCastbar.strata", "Cast bar layer", "The layer your cast bar draws in.",
@@ -2094,6 +2143,7 @@ ns.OPTIONS = { pages = {
                 " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
         } },
         shellCard("playerCastbar", "playerCastbar.enabled", true),
+        castTextCard("player", "Player", "your"),
         { label = "Target cast bar", items = {
             { type = "toggle", key = "targetCastbar.enabled", label = "Show the target cast bar",
               desc = "Your target's casts, while they last." },
@@ -2116,27 +2166,13 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "targetCastbar.slant", label = "Angled end",
               desc = "Cuts the end of your target's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
-            { type = "slider", key = "targetCastbar.textSize", label = "Target cast bar text size", min = 6, max = 24, step = 1,
-              desc = "The spell name and time on your target's cast bar. Not inside the frame: there it's Text size inside the frame.",
-              disabled = notOwnSize("target") },
             { type = "toggle", key = "targetCastbar.reverseFill", label = "Fill right to left",
               desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
-            { type = "slider", key = "targetCastbar.insideTextSize", label = "Text size inside the frame", min = 0, max = 20, step = 1,
-              desc = "The spell name and timer while the bar sits inside the target frame, even past the power bar's height. 0 sizes them to fit the power bar.",
-              disabled = notInside("target") },
-            { type = "slider", key = "targetCastbar.insideTextX", label = "Text left / right", min = -100, max = 100, step = 1, unit = "px",
-              desc = "Moves the spell name and timer sideways while the bar sits inside the target frame.",
-              disabled = notInside("target") },
-            { type = "slider", key = "targetCastbar.insideTextY", label = "Text up / down", min = -40, max = 40, step = 1, unit = "px",
-              desc = "Moves the spell name and timer up or down while the bar sits inside the target frame. They can sit outside the bar.",
-              disabled = notInside("target") },
-            { type = "color", key = "targetCastbar.textColor", label = "Text color",
-              desc = "The spell name and timer on the target's cast bar.",
-              disabled = off("targetCastbar.enabled") },
             strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
                 notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead."),
         } },
+        castTextCard("target", "Target", "your target's", true),
         { label = "Focus cast bar", items = {
             { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
               desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
@@ -2159,15 +2195,13 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "focusCastbar.slant", label = "Angled end",
               desc = "Cuts the end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
-            { type = "slider", key = "focusCastbar.textSize", label = "Focus cast bar text size", min = 6, max = 24, step = 1,
-              desc = "The spell name and time on your focus's cast bar. Inside the frame it's kept small enough for the power bar.",
-              disabled = off("focusCastbar.enabled") },
             { type = "toggle", key = "focusCastbar.reverseFill", label = "Fill right to left",
               desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
             strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
                 notOwnSize("focus"), " Inside the frame, it draws with the frame instead."),
         } },
+        castTextCard("focus", "Focus", "your focus's"),
         { label = "Party cast bars", items = {
             { type = "toggle", key = "partyCastbar.enabled", label = "Show party cast bars",
               desc = "Each party member's casts on their own frame, while they last. They use the target cast bar's colors." },
@@ -2191,25 +2225,10 @@ ns.OPTIONS = { pages = {
               desc = "The spell's icon at the end of each detached cast bar.", disabled = notOwnBar("party") },
             { type = "toggle", key = "partyCastbar.slant", label = "Angled end",
               desc = "Cuts the end of each detached cast bar at an angle. When off, its end is straight.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.textSize", label = "Party cast bar text size", min = 6, max = 24, step = 1,
-              desc = "The spell name and time on the party's cast bars. Inside the frame it's kept small enough for the power bar.",
-              disabled = off("partyCastbar.enabled") },
-            { type = "slider", key = "partyCastbar.insideTextSize", label = "Text size inside the frame", min = 0, max = 20, step = 1,
-              desc = "The spell name and timer while the bar sits inside a party frame, even past the power bar's height. 0 sizes them to fit the power bar.",
-              disabled = notInside("party") },
             { type = "toggle", key = "partyCastbar.reverseFill", label = "Fill right to left",
               desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
-            { type = "color", key = "partyCastbar.textColor", label = "Text color",
-              desc = "The spell name and timer on the party's cast bars.", disabled = off("partyCastbar.enabled") },
         } },
-        { label = "Text", items = {
-            { type = "toggle", key = "casts.showName", label = "Spell name",
-              desc = "The spell's name on every cast bar." },
-            { type = "dropdown", key = "casts.timer", label = "Timer",
-              values = { left = "Time left (1.2)", total = "Left / total (1.2 / 2.5)", none = "None" },
-              order = { "left", "total", "none" },
-              desc = "The time on every cast bar: what's left, what's left out of the whole cast, or nothing." },
-        } },
+        castTextCard("party", "Party", "each party member's", true),
         { label = "Cast bar fill", items = {
             { type = "dropdown", key = "casts.fill", label = "Cast bar fill style", values = FILL_STYLES, order = FILL_ORDER,
               desc = "How every cast bar (yours, target's, focus's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set right here." },

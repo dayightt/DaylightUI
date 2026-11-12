@@ -473,6 +473,33 @@ ns.UPGRADE_STEPS[16] = function(uf)
     look.showPower = nil
 end
 
+-- 17: each cast bar sets its spell name and time on its own. The shared
+-- Spell name switch and Timer pick, and each bar's one text size and color,
+-- are copied to both texts of every bar so nothing looks different.
+ns.UPGRADE_STEPS[17] = function(uf)
+    local casts = type(uf.casts) == "table" and uf.casts or {}
+    for _, key in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar", "partyCastbar" }) do
+        local bar = type(uf[key]) == "table" and uf[key] or nil
+        local size = bar and tonumber(bar.textSize)
+        local color = bar and type(bar.textColor) == "table" and bar.textColor or nil
+        local spell, time = {}, {}
+        if size then spell.size, time.size = size, size end
+        if color then
+            spell.color = { color[1], color[2], color[3] }
+            time.color = { color[1], color[2], color[3] }
+        end
+        if casts.showName == false then spell.show = false end
+        if casts.timer == "none" then time.show = false elseif casts.timer == "total" then time.format = "total" end
+        if next(spell) or next(time) then
+            if not bar then bar = {}; uf[key] = bar end
+            if next(spell) then bar.spell = spell end
+            if next(time) then bar.time = time end
+        end
+        if bar then bar.textSize, bar.textColor = nil, nil end
+    end
+    casts.showName, casts.timer = nil, nil
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 function ns.UpgradeGroupFrames(p)
     if type(p) ~= "table" then return end

@@ -15,7 +15,7 @@ local CB = {}
 ns.CastBar = CB
 
 CB.INSET_TEXT = 0.85  -- cast text height as a share of the bar it sits in
-CB.TEXT_SIZE = 12    -- a bar's Text size when it has none saved
+CB.TEXT_SIZE = 12    -- a text's size when it has none saved
 CB.PAD = 3            -- the text's distance from the bar's ends
 
 local EVENTS = {
@@ -95,12 +95,12 @@ function CB.PlaceAt(h, f, at, x, y)
     end
 end
 
-local clipIn
+local clipIn, textOpt
 local function color(c) return CreateColor(c[1], c[2], c[3], 1) end
 local WHITE = CreateColor(1, 1, 1, 1)
 -- The colors and text settings, from db.casts (CB.Configure).
 CB.cfg = { cast = Style.CAST.normal, channel = Style.CAST.normal, locked = Style.CAST.locked,
-           interrupted = { 0.52, 0.17, 0.15 }, showName = true, timer = "left", flash = true,
+           interrupted = { 0.52, 0.17, 0.15 }, flash = true,
            kickStyle = "blade", kickedBy = true, kickedByPos = "right" }
 -- Each bar's colors (class color, cast, channel, can't interrupt, interrupted):
 -- yours from db.casts, the target's from db.targetCasts.
@@ -137,9 +137,26 @@ local function backOf(h)
     return Style.BarBack(h.bar)
 end
 
+-- A bar's spell name or time setting, with what it means when unset.
+local TEXT_DEFAULTS = {
+    spell = { show = true, pos = "left", color = { 1, 1, 1 } },
+    time = { show = true, pos = "right", format = "left", color = { 1, 1, 1 } },
+}
+function textOpt(t, key, kind)
+    local v
+    if type(t) == "table" then v = t[key] end
+    if type(v) == "nil" then return TEXT_DEFAULTS[kind][key] end
+    return v
+end
+local function showsName(h) return textOpt(h.spellCfg, "show", "spell") ~= false end
+local function timeMode(h)
+    if textOpt(h.timeCfg, "show", "time") == false then return "none" end
+    return textOpt(h.timeCfg, "format", "time")
+end
+
 -- The timer's text: time left, left / total, or none.
 function CB.WriteTime(h, d)
-    local mode = CB.cfg.timer
+    local mode = timeMode(h)
     if mode == "none" then
         h.time:SetText("")
     elseif mode == "total" and d.GetTotalDuration then
@@ -510,23 +527,30 @@ function CB.Layout(h, cfg, parentCfg)
     elseif h.icon then
         h.icon:Hide()
     end
-    -- Inside a power bar the text has to fit inside it. The font sits a little
-    -- low in such a thin bar, so it also moves up a pixel. Inside, the player
-    -- can pick its own size and nudge it (dx, dy). The bar's own Text size
-    -- applies wherever it sits, capped by the power bar when inside.
-    local size, lift, dx = cfg.textSize or CB.TEXT_SIZE, 0, 0
+    -- Each text has its own size, color, spot and nudge (cfg.spell, cfg.time).
+    -- Inside a power bar they have to fit it: capped by the power bar unless
+    -- the player picked an inside size, and lifted a pixel because the font
+    -- sits a little low in such a thin bar. The inside nudge moves both.
+    local spell, time = type(cfg.spell) == "table" and cfg.spell or {}, type(cfg.time) == "table" and cfg.time or {}
+    h.spellCfg, h.timeCfg = spell, time
+    local lift, dx = 0, 0
+    local function sizeOf(t, kind)
+        local size = tonumber(textOpt(t, "size", kind)) or CB.TEXT_SIZE
+        if h.into then
+            if (cfg.insideTextSize or 0) > 0 then return cfg.insideTextSize end
+            return math.min(size, math.floor(parentCfg.powerHeight * CB.INSET_TEXT + 0.5))
+        end
+        return size
+    end
     if h.into then
-        size = math.min(size, math.floor(parentCfg.powerHeight * CB.INSET_TEXT + 0.5))
         lift = Pixel.Px(h, 1)
-        if (cfg.insideTextSize or 0) > 0 then size = cfg.insideTextSize end
         dx, lift = cfg.insideTextX or 0, lift + (cfg.insideTextY or 0)
     end
-    Style.SetTextSize(h.text, size)
-    Style.SetTextSize(h.time, size)
-    local c = cfg.textColor or { 1, 1, 1 }
-    h.text:SetTextColor(c[1], c[2], c[3])
-    h.time:SetTextColor(c[1], c[2], c[3])
-    h.time:ClearAllPoints()
+    Style.SetTextSize(h.text, sizeOf(spell, "spell"))
+    Style.SetTextSize(h.time, sizeOf(time, "time"))
+    local sc, tc = textOpt(spell, "color", "spell"), textOpt(time, "color", "time")
+    h.text:SetTextColor(sc[1], sc[2], sc[3])
+    h.time:SetTextColor(tc[1], tc[2], tc[3])
     -- The text stays clear of angled ends: the frame's when inside it, the
     -- bar's own otherwise.
     local endCut, slant = cut, cut > 0 and side or nil
@@ -545,10 +569,34 @@ function CB.Layout(h, cfg, parentCfg)
         -- The target's ring hangs over the bar's right end, so the time stays clear.
         rightPad = rightPad + (h.under.ringInset or 0)
     end
-    h.time:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + dx, lift)
+    -- The time is short, so it sits at one point. The spell name spans the
+    -- bar, or stops at the time when they sit at opposite ends, and is cut
+    -- short there rather than running under it.
+    local sPos, tPos = textOpt(spell, "pos", "spell"), textOpt(time, "pos", "time")
+    local sx, sy = (tonumber(spell.x) or 0) + dx, (tonumber(spell.y) or 0) + lift
+    local tx, ty = (tonumber(time.x) or 0) + dx, (tonumber(time.y) or 0) + lift
+    h.time:ClearAllPoints()
+    h.time:SetJustifyH(tPos == "left" and "LEFT" or tPos == "center" and "CENTER" or "RIGHT")
+    if tPos == "left" then
+        h.time:SetPoint("LEFT", h.bar, "LEFT", leftPad + tx, ty)
+    elseif tPos == "center" then
+        h.time:SetPoint("CENTER", h.bar, "CENTER", (leftPad - rightPad) / 2 + tx, ty)
+    else
+        h.time:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + tx, ty)
+    end
     h.text:ClearAllPoints()
-    h.text:SetPoint("LEFT", h.bar, "LEFT", leftPad + dx, lift)
-    h.text:SetPoint("RIGHT", h.time, "LEFT", -4, 0)
+    h.text:SetJustifyH(sPos == "right" and "RIGHT" or sPos == "center" and "CENTER" or "LEFT")
+    local timeUp = textOpt(time, "show", "time") ~= false
+    if timeUp and sPos == "left" and tPos == "right" then
+        h.text:SetPoint("LEFT", h.bar, "LEFT", leftPad + sx, sy)
+        h.text:SetPoint("RIGHT", h.time, "LEFT", -4, sy - ty)
+    elseif timeUp and sPos == "right" and tPos == "left" then
+        h.text:SetPoint("LEFT", h.time, "RIGHT", 4, sy - ty)
+        h.text:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + sx, sy)
+    else
+        h.text:SetPoint("LEFT", h.bar, "LEFT", leftPad + sx, sy)
+        h.text:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + sx, sy)
+    end
     h.text:SetWordWrap(false)
     if not h.into then Style.LayoutShell(Style.GetShell(h)) end
     CB.Refresh(h)
@@ -876,8 +924,8 @@ function CB.ShowSample(h, cast)
     h.duration = nil
     h.bar:SetMinMaxValues(0, 1)
     h.bar:SetValue(cast.value)
-    h.text:SetText(CB.cfg.showName and cast.text or "")
-    local mode = CB.cfg.timer
+    h.text:SetText(showsName(h) and cast.text or "")
+    local mode = timeMode(h)
     h.time:SetText(mode == "none" and "" or mode == "total" and "1.2 / 2.5" or "1.2")
     if h.icon then h.icon:SetTexture(cast.icon) end
     h.notInterruptible = nil
@@ -1030,7 +1078,7 @@ function CB.Refresh(h, glide)
     h.channel = channel
     h.spellID = spell
     -- With the name off, a batch still shows its progress.
-    if CB.cfg.showName then h.text:SetText(name) else h.text:SetText(count or "") end
+    if showsName(h) then h.text:SetText(name) else h.text:SetText(count or "") end
     if h.icon then h.icon:SetTexture(texture) end
     CB.ApplyColor(h)
     -- Sliding back under after the last cast: bring it back out.

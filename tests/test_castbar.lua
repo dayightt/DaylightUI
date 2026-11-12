@@ -131,7 +131,7 @@ T.test("a bar placed into another bar covers it, opaque, with text that fits", f
     T.truthy(h:GetFrameLevel() > power:GetFrameLevel(), "drawn over the power bar")
     T.eq(h.bg.__color[4], 1, "opaque backing")
     T.isnil(DaylightUI.Style.GetShell(h), "no border of its own")
-    T.eq(h.text.__font[2], math.min(ns.DEFAULTS.targetCastbar.textSize, math.floor(ns.DEFAULTS.target.powerHeight * ns.CastBar.INSET_TEXT + 0.5)))
+    T.eq(h.text.__font[2], math.min(ns.DEFAULTS.targetCastbar.spell.size, math.floor(ns.DEFAULTS.target.powerHeight * ns.CastBar.INSET_TEXT + 0.5)))
     local _, _, _, _, y = h.text:GetPoint(1)
     T.truthy(y > 0, "lifted to sit centered")
     T.isnil(h.icon)
@@ -144,7 +144,8 @@ T.test("inside a frame the text takes its own size, nudge and color", function()
     ns.CastBar.Layout(h, ns.DEFAULTS.targetCastbar, ns.DEFAULTS.target)
     local _, _, _, x0, y0 = h.text:GetPoint(1)
     local _, _, _, tx0 = h.time:GetPoint(1)
-    local cfg = { enabled = true, insideTextSize = 15, insideTextX = 6, insideTextY = -9, textColor = { 1, 0.5, 0 } }
+    local cfg = { enabled = true, insideTextSize = 15, insideTextX = 6, insideTextY = -9,
+                  spell = { color = { 1, 0.5, 0 } }, time = { color = { 1, 0.5, 0 } } }
     ns.CastBar.Layout(h, cfg, ns.DEFAULTS.target)
     T.eq(h.text.__font[2], 15); T.eq(h.time.__font[2], 15)
     local _, _, _, x, y = h.text:GetPoint(1)
@@ -220,8 +221,13 @@ T.test("cast bars: channel color, no name, and left / total timer", function()
     local h, ns = setup()
     local cfg = {}
     for k, v in pairs(ns.DEFAULTS.casts) do cfg[k] = v end
-    cfg.channel, cfg.showName, cfg.timer, cfg.fill = { 0, 0, 1 }, false, "total", "plain"
+    cfg.channel, cfg.fill = { 0, 0, 1 }, "plain"
     ns.CastBar.Configure(cfg)
+    local spell, time = { show = false }, { format = "total" }
+    local bar = {}
+    for k, v in pairs(ns.DEFAULTS.playerCastbar) do bar[k] = v end
+    bar.spell, bar.time = spell, time
+    ns.CastBar.Layout(h, bar)
     local d = stub.Duration(1.2)
     d.GetTotalDuration = function() return 2.5 end
     stub.units.player = { channel = { name = "Mind Flay", duration = d } }
@@ -230,7 +236,7 @@ T.test("cast bars: channel color, no name, and left / total timer", function()
     T.eq(h.bar:GetStatusBarTexture().__vertex[3], 1, "the channel color")
     stub.RunOnUpdate(h, 0.1)
     T.eq(h.time.__text, "1.2 / 2.5")
-    cfg.timer = "none"
+    time.show = false
     stub.RunOnUpdate(h, 0.1)
     T.eq(h.time.__text, "")
     ns.CastBar.Configure(ns.DEFAULTS.casts)
@@ -592,6 +598,57 @@ T.test("upgrade step 13: name length and cast text size each move to their frame
     ns.UPGRADE_STEPS[13](uf)
     T.isnil(uf.player, "no limit before, none now")
     T.eq(uf.playerCastbar.textSize, 12, "the old 0 was 12")
+end)
+
+T.test("upgrade step 17: the shared spell name and timer, and each bar's text size and color, move to each bar's two texts", function()
+    local _, ns = stub.Load({ module = true })
+    local uf = { casts = { showName = false, timer = "total" }, playerCastbar = { textSize = 14 },
+                 targetCastbar = { textColor = { 1, 0.5, 0 } } }
+    ns.UPGRADE_STEPS[17](uf)
+    T.eq(uf.playerCastbar.spell.size, 14); T.eq(uf.playerCastbar.time.size, 14); T.isnil(uf.playerCastbar.textSize)
+    T.rgb(uf.targetCastbar.spell.color, { 1, 0.5, 0 }); T.rgb(uf.targetCastbar.time.color, { 1, 0.5, 0 })
+    T.isnil(uf.targetCastbar.textColor)
+    for _, key in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar", "partyCastbar" }) do
+        T.eq(uf[key].spell.show, false, key); T.eq(uf[key].time.format, "total", key)
+    end
+    T.isnil(uf.casts.showName); T.isnil(uf.casts.timer)
+    uf = { casts = { timer = "none" } }
+    ns.UPGRADE_STEPS[17](uf)
+    T.eq(uf.focusCastbar.time.show, false)
+    T.isnil(uf.focusCastbar.spell, "nothing else saved")
+    uf = {}
+    ns.UPGRADE_STEPS[17](uf)
+    T.isnil(uf.playerCastbar, "an untouched profile gets nothing")
+end)
+
+T.test("each cast bar places, sizes and colors its spell name and time on its own", function()
+    local _, ns = stub.Load({ module = true, login = false })
+    local h = ns.CastBar.Create("player")
+    local cfg = {}
+    for k, v in pairs(ns.DEFAULTS.playerCastbar) do cfg[k] = v end
+    cfg.at = "free"
+    cfg.spell = { show = true, size = 15, pos = "center", x = 0, y = -2, color = { 1, 0.5, 0 } }
+    cfg.time = { show = true, format = "left", size = 9, pos = "left", x = 0, y = 3, color = { 0, 1, 0 } }
+    ns.CastBar.Layout(h, cfg)
+    local _, _, _, x0 = h.text:GetPoint(1)
+    cfg.spell.x = 4
+    ns.CastBar.Layout(h, cfg)
+    T.eq(h.text.__font[2], 15); T.eq(h.time.__font[2], 9)
+    T.eq(h.text:GetJustifyH(), "CENTER", "centered across the bar")
+    local _, _, _, x, y = h.text:GetPoint(1)
+    T.eq(x, x0 + 4); T.eq(y, -2)
+    local tp, _, _, _, ty = h.time:GetPoint(1)
+    T.eq(tp, "LEFT"); T.eq(ty, 3)
+    T.eq(h.text.__textColor[2], 0.5); T.eq(h.time.__textColor[2], 1)
+    cfg.spell.show, cfg.time.format = false, "total"
+    ns.CastBar.Layout(h, cfg)
+    ns.CastBar.ShowSample(h, { text = "Fireball", value = 0.5 })
+    T.eq(h.text.__text, "", "its own name switch")
+    T.eq(h.time.__text, "1.2 / 2.5", "its own timer pick")
+    cfg.time.show = false
+    ns.CastBar.Layout(h, cfg)
+    ns.CastBar.ShowSample(h, { text = "Fireball", value = 0.5 })
+    T.eq(h.time.__text, "")
 end)
 
 T.test("above or below its frame the target's cast bar is as wide as the frame, unless switched off", function()

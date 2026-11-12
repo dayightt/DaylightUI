@@ -77,19 +77,19 @@ ns.DEFAULTS = {
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
     -- at: where it sits (CastBar.AT). "below" hangs under your frame, "above"
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
-    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, textSize = 12, reverseFill = false,
+    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, reverseFill = false,
                       from = "frame",   -- when hung "below": under the player frame, or "power" for under a free-standing power bar (player.powerAt free)
                       shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },   -- its own border (UF.OwnShell)
     -- The target's cast bar: inside its frame over the power bar (at = "power"),
     -- or its own bar with its own size above or below the frame (nudged by
     -- x/y) or on its own mover ("free").
     -- insideText*: its text while inside the frame (size 0 fits the power bar,
-    -- X/Y nudge it). textColor applies to the spell name and timer either way.
-    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, textSize = 12, reverseFill = false,
-                      insideTextSize = 0, insideTextX = 0, insideTextY = 0, textColor = { 1, 1, 1 } },
-    -- Both cast bars: colors, the spell name, the timer ("left", "total", "none").
+    -- X/Y nudge both texts).
+    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, reverseFill = false,
+                      insideTextSize = 0, insideTextX = 0, insideTextY = 0 },
+    -- Every cast bar's colors, fill and interrupts.
     casts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
-              interrupted = { 0.52, 0.17, 0.15 }, flash = true, showName = true, timer = "left",
+              interrupted = { 0.52, 0.17, 0.15 }, flash = true,
               -- fill: "plain" (the colors above), "daylight" (the Daylight
               -- gradient) or "pair" (the Gradients page's Cast / Channel pairs).
               classColor = false, fill = "pair",
@@ -97,13 +97,13 @@ ns.DEFAULTS = {
               -- "Kicked by <name>" to the right of the bar or "below" it.
               kickStyle = "blade", kickedBy = true, kickedByPos = "right" },
     -- The focus cast bar: inside its frame over the power bar, or its own.
-    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, textSize = 12, reverseFill = false },
+    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the
     -- power bar ("power"), hung under it and sliding out ("slide"), or its own
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).
     -- insideTextSize: its text inside the frame (0 fits the power bar).
     partyCastbar = { enabled = true, at = "power", spot = "right", x = 0, y = 0, width = 140, height = 16, showIcon = true,
-                     slant = false, textSize = 11, insideTextSize = 0, reverseFill = false, textColor = { 1, 1, 1 } },
+                     slant = false, insideTextSize = 0, reverseFill = false },
     -- The target's and focus's own cast bar colors.
     targetCasts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
                     interrupted = { 0.52, 0.17, 0.15 }, classColor = false },
@@ -258,6 +258,15 @@ end
 ns.DEFAULTS.target.media.threatFont = G
 for _, k in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar", "partyCastbar", "swing" }) do
     ns.DEFAULTS[k].media = { bar = G, barBack = G, font = G }
+end
+-- Each cast bar's two texts, set on their own: the spell name and the time.
+-- pos: left | center | right on the bar, x/y nudge it. The time shows the
+-- time left ("left") or left out of the whole cast ("total").
+ns.CAST_TEXTS = { "playerCastbar", "targetCastbar", "focusCastbar", "partyCastbar" }
+for _, k in ipairs(ns.CAST_TEXTS) do
+    local size = k == "partyCastbar" and 11 or 12
+    ns.DEFAULTS[k].spell = { show = true, size = size, pos = "left", x = 0, y = 0, color = { 1, 1, 1 } }
+    ns.DEFAULTS[k].time = { show = true, format = "left", size = size, pos = "right", x = 0, y = 0, color = { 1, 1, 1 } }
 end
 ns.DEFAULTS.combo.media = { bar = G, barBack = G }
 -- A bar detached on its own (swing.bars.<hand>.detach) is a separate piece

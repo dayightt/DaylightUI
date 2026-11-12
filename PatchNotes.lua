@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         changed = {
             { "Whispers", "Right-click a conversation in the list to pin it or close it" },
             { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },
+            { "Cast bars", "Each cast bar's spell name and cast time have their own switch, size, position and color" },
         },
         fixed = {
             { "Books", "Every page of a book or letter is light and easy to read, not just the first" },

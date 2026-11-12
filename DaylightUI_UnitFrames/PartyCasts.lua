@@ -86,11 +86,11 @@ function PC.Layout(b)
     local c = b.casts
     local at = CB.At("party", cfg)
     local on = cfg.enabled == true
-    CB.Layout(c.inside, { enabled = on and at == "power", textSize = cfg.textSize, insideTextSize = cfg.insideTextSize,
-                          textColor = cfg.textColor }, d.party)
+    CB.Layout(c.inside, { enabled = on and at == "power", spell = cfg.spell, time = cfg.time,
+                          insideTextSize = cfg.insideTextSize }, d.party)
     CB.Layout(c.own, { enabled = on and at ~= "power", at = at, width = cfg.width, height = cfg.height,
-                       showIcon = cfg.showIcon, slant = at == "slide" or cfg.slant, textSize = cfg.textSize,
-                       reverseFill = cfg.reverseFill, textColor = cfg.textColor })
+                       showIcon = cfg.showIcon, slant = at == "slide" or cfg.slant,
+                       spell = cfg.spell, time = cfg.time, reverseFill = cfg.reverseFill })
     if at == "free" then place(c.own, b, cfg) end
 end
 

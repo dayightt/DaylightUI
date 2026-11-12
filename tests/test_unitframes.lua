@@ -924,11 +924,11 @@ T.test("a free target cast bar gets fill direction and text size", function()
     stub.RunTimers()
     DUI:Set("UnitFrames", "targetCastbar.at", "free")
     DUI:Set("UnitFrames", "targetCastbar.reverseFill", true)
-    DUI:Set("UnitFrames", "targetCastbar.textSize", 15)
+    DUI:Set("UnitFrames", "targetCastbar.spell.size", 15)
     stub.RunTimers()
     local h = ns.targetCastbarFree
     T.eq(h.bar.__reverse, true, "filled right to left")
-    T.eq(select(2, h.text:GetFont()), 15, "its text size")
+    T.eq(select(2, h.text:GetFont()), 15, "its spell name size")
 end)
 
 T.test("the player's power bar can stand on its own, with its own size and end, and come back", function()
