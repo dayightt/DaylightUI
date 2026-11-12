@@ -147,13 +147,21 @@ local function strict(on)
         table.insert(self.shown, frame)
         if focus or not self.focused then self:Focus(frame) end
     end
+    -- The game's FrameHidden: with no shown window left to focus, its controller
+    -- bindings go back to the core set, and the action bar's listener then calls
+    -- SetPreferredGamepadInteractTarget, which is refused when an addon started it.
+    m.toCore = 0
     function m:FrameHidden(frame)
         if barred() then return end
         self.calls[#self.calls + 1] = { "hidden", frame }
+        local was = #self.shown
         for i, f in ipairs(self.shown) do
             if f == frame then table.remove(self.shown, i); break end
         end
         if self.focused == frame then self:Focus(self.shown[1]) end
+        local left = false
+        for _, f in ipairs(self.shown) do if f:IsShown() then left = true end end
+        if #self.shown < was and not left then self.toCore = self.toCore + 1 end
     end
     _G.GamepadMode = { FrameControlsManager = m }
     _G.InputUtil = { IsGamepadUIEnabled = function() return on end }
@@ -175,6 +183,7 @@ local function fresh(m)
     stub.RunTimers()
     m:Focus(nil)
     m.shown = {}
+    m.shownFrames = m.shown
 end
 
 T.test("pad: a fight starting hands the controller back, so a closed window can't block the buttons", function()
@@ -227,11 +236,53 @@ T.test("pad: a game window parked behind ours leaves the game's list, given back
     local DUI = stub.Load()
     local m = strict(true)
     local game = CreateFrame("Frame", "PadParkedGame", UIParent)
+    local ours = CreateFrame("Frame", nil, UIParent)
+    DUI.Pad.Follow(ours)
     m:FrameShown(game)
     DUI.Pad.Forget(game)
     T.eq(has(m, game), false)
     DUI.Pad.Remember(game)
     T.eq(has(m, game), true)
+    clearAll()
+end)
+
+-- Opening the character window drops the game's parked one in the same frame,
+-- while this one is told a frame later. Dropping it then left the game's list
+-- empty, so its bindings went back to the core set from addon code and the
+-- game refused SetPreferredGamepadInteractTarget.
+T.test("pad: a parked game window waits to leave the list until a window of ours is on it", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    fresh(m)
+    local game = CreateFrame("Frame", "PadParkedAlone", UIParent)
+    local ours = CreateFrame("Frame", nil, UIParent)
+    ours:Hide()
+    DUI.Pad.Follow(ours)
+    m:FrameShown(game)
+    ours:Show()
+    DUI.Pad.Forget(game)
+    T.eq(m.toCore, 0, "never empties the game's list")
+    T.eq(has(m, game), true, "kept until ours is listed")
+    stub.RunTimers()
+    T.eq(has(m, game), false, "dropped once ours is listed")
+    T.eq(m.focused, ours)
+    T.eq(m.toCore, 0)
+    clearAll()
+end)
+
+T.test("pad: Win.Follow keeps a parked game window listed while it's alone on the list", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    local game = CreateFrame("Frame", "PadFollowedAlone", UIParent)
+    game:Hide()
+    local def = DUI.Win.Follow({ key = "padalone", frames = { w = function() return game end } })
+    fresh(m)
+    game:Show()
+    m:FrameShown(game)
+    DUI.Win.Followers.Tick()
+    T.eq(m.toCore, 0)
+    T.eq(has(m, game), true)
+    T.truthy(def)
     clearAll()
 end)
 

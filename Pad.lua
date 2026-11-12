@@ -66,6 +66,7 @@ local told = setmetatable({}, { __mode = "k" }) -- frames the game knows are ope
 Pad.aimed = setmetatable({}, { __mode = "k" }) -- padFirst already ran for this opening
 local followed = setmetatable({}, { __mode = "k" }) -- every frame we keep the game informed about
 local fight = false -- handed back, fight not over yet
+local forgetting = setmetatable({}, { __mode = "k" }) -- parked game windows waiting for one of ours to be listed
 
 local function manager()
     if type(InputUtil) ~= "table" or type(InputUtil.IsGamepadUIEnabled) ~= "function" then return nil end
@@ -481,6 +482,11 @@ local function sync(frame)
     else
         m:FrameShown(frame)
     end
+    if open and next(forgetting) then
+        local waiting = {}
+        for f in pairs(forgetting) do waiting[#waiting + 1] = f end
+        for _, f in ipairs(waiting) do Pad.Forget(f) end
+    end
 end
 
 function Pad.Follow(frame, close)
@@ -517,17 +523,36 @@ function Pad.Rescan(frame)
     if type(nav) == "table" and nav.RefreshButtonGroups then nav:RefreshButtonGroups(frame) end
 end
 
+-- Takes a parked game window off the game's list, but only while another shown
+-- window is on it. Emptying the list sends the game's controller bindings back
+-- to its core set, and the game's own listener for that makes a protected call
+-- that is refused when addon code started it. Returns false when it has to wait.
+local function drop(m, frame)
+    local list = m.shownFrames
+    if type(list) ~= "table" then
+        m:FrameHidden(frame)
+        return true
+    end
+    local listed, other = false, false
+    for _, f in ipairs(list) do
+        if f == frame then
+            listed = true
+        elseif type(f) == "table" and f.IsShown and f:IsShown() then
+            other = true
+        end
+    end
+    if not listed then return true end
+    if not other then return false end
+    m:FrameHidden(frame)
+    return true
+end
+
 -- A parked game window that's still shown goes back on the list, with focus,
 -- every time the game opens a page in it (a quest's reward page).
 function Pad.KeepOff(frame)
     local m = manager()
     if not m or fight or InCombatLockdown() or type(m.shownFrames) ~= "table" then return end
-    for _, listed in ipairs(m.shownFrames) do
-        if listed == frame then
-            m:FrameHidden(frame)
-            return
-        end
-    end
+    drop(m, frame)
 end
 
 local settling, aimAt
@@ -559,10 +584,11 @@ end
 function Pad.Forget(frame)
     local m = manager()
     if not m or later(function() Pad.Forget(frame) end, frame) then return end
-    m:FrameHidden(frame)
+    forgetting[frame] = (not drop(m, frame)) or nil
 end
 
 function Pad.Remember(frame)
+    forgetting[frame] = nil
     local m = manager()
     if not m or later(function() Pad.Remember(frame) end, frame) then return end
     if frame:IsShown() then m:FrameShown(frame) end
