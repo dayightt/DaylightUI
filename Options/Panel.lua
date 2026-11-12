@@ -19,6 +19,7 @@ Panel.TOP = 12               -- title line offset, matches Win.TITLE_Y
 Panel.HEADER = 56            -- title plus description, matches Win.HEADER
 Panel.SAMPLE_GAP = 12        -- gap between the live sample and the settings
 Panel.CHIPS_GAP = 10         -- gap between the chips and the cards
+Panel.BUG_ICON = 18          -- the Report a bug icon beside the chips
 Panel.JUMP_MARGIN = 8        -- space kept above a setting we jump to
 Panel.MIN_QUERY = 2          -- letters needed before search results show
 Panel.SLIDE = 12             -- slide-in distance for a page switch, px
@@ -26,7 +27,7 @@ Panel.SLIDE = 12             -- slide-in distance for a page switch, px
 Panel.CONTENT_WIDTH = Panel.SIZE[1] - 2 - Nav.RAIL - Nav.LIST - Panel.CONTENT_LEFT - Panel.CONTENT_RIGHT
 
 local frame, nav, topLine, grip
-local header, resetPage, testSwitch, designSwitch, sampleStrip, chips, tabRow, results, scroll, scrollBar, emptyText
+local header, resetPage, testSwitch, designSwitch, sampleStrip, chips, bugButton, tabRow, results, scroll, scrollBar, emptyText
 local designPages = {}       -- page id -> true while in Design mode (session only)
 local pageFrames = {}
 local lastPage = {}          -- section id -> last page shown
@@ -307,6 +308,13 @@ local function buildScroll()
     end
     -- One chip per card; picking one shows that card alone.
     chips = W.Chips(frame, function(card) Panel.Focus(card) end)
+    -- Report a bug, at the right end of the home page's chips.
+    bugButton = W.IconButton(frame, "ui-bug.png", L["Report a bug"], function()
+        Panel.Toggle()
+        if DUI.BugReport then DUI.BugReport.Show() end
+    end, W.CHIP_HEIGHT)
+    bugButton.icon:SetSize(Panel.BUG_ICON, Panel.BUG_ICON)
+    bugButton:Hide()
     -- Tabs for long pages, shown instead of the chips.
     tabRow = CreateFrame("Frame", nil, frame)
     tabRow:SetHeight(W.TAB_H)
@@ -438,7 +446,10 @@ function layoutContent()
     if chips:IsShown() then
         chips:ClearAllPoints()
         chips:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
-        top = top + chips.Layout(cw) + Panel.CHIPS_GAP
+        bugButton:ClearAllPoints()
+        bugButton:SetPoint("TOPRIGHT", frame, "TOPLEFT", left + cw, -top)
+        local room = bugButton:IsShown() and bugButton:GetWidth() + W.CHIP_GAP or 0
+        top = top + chips.Layout(cw - room) + Panel.CHIPS_GAP
     end
     if tabRow:IsShown() then
         tabRow:ClearAllPoints()
@@ -590,6 +601,7 @@ local function refreshResults(hits)
     testSwitch:Hide()
     designSwitch:Hide()
     chips:Hide()
+    bugButton:Hide()
     tabRow:Hide()
 end
 
@@ -658,6 +670,7 @@ function Panel.Refresh()
     end
     local tabbed = #live >= 2
     chips:SetShown(chips.count >= 2 and not tabbed and not pf.tabs)
+    bugButton:SetShown(chips:IsShown() and current == "home")
     if tabbed then fillTabs(pf, live) end
     tabRow:SetShown(tabbed)
     local design = designPages[current] == true
@@ -679,6 +692,7 @@ function Panel.Refresh()
             end
         end
         chips:Hide()
+        bugButton:Hide()
         tabRow:Hide()
         emptyText:SetText(DUI.SampleStrip.DESIGN_EMPTY)
         showEmpty(part == nil)
@@ -1107,6 +1121,7 @@ function Panel.SetDesign(on)
 end
 function Panel.Strip() return sampleStrip end
 function Panel.Chips() return chips end
+function Panel.BugButton() return bugButton end
 function Panel.Tabs() return tabRow end
 function Panel.Results() return results end
 function Panel.EmptyText() return emptyText end
