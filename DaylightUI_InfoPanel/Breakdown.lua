@@ -24,7 +24,7 @@ Breakdown.ROW = 16
 Breakdown.GAP = 6             -- gap to the meter
 Breakdown.PAD = 6
 Breakdown.WAIT = DUI.L["Available after combat"]
-Breakdown.ROW_CFG = { rank = false, icons = "spec" }   -- icon slot shows the spell icon
+Breakdown.ROW_CFG = { rank = false, icons = "class" }   -- icon slot shows the spell icon
 Breakdown.TARGET_CFG = { rank = false, icons = "none" }
 
 -- Test mode spells per mode. Amounts are fractions of the player's total.

@@ -24,7 +24,7 @@ Windows.TEMPLATE = {
               width = 207, height = 196, border = true, rowHeight = 22, textSize = 11,
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
-              rank = false, icons = "spec", showTotal = true, showRate = true, showShare = true, showMe = true,
+              rank = false, icons = "class", showTotal = true, showRate = true, showShare = true, showMe = true,
               rowGap = 1, header = "always", headerTotal = false, angled = true },
     -- auto: group (in a fight when someone else can hold the mob) | tank
     -- (only as the tank); unit: target | focus | smart (your target, else

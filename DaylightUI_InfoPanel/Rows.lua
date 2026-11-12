@@ -92,27 +92,16 @@ end
 -- keeps the empty square, so names still line up).
 function Rows.SetIcon(row, src, cfg)
     if not row.iconOn then return end
-    local spec, class = src.specIconID, src.classFilename
-    -- The game keeps the spec icon secret (out of a fight too): a secret one
-    -- goes straight to the texture, which takes it, every time.
-    if cfg.icons ~= "class" and isSecret(spec) then
-        row.iconFile = nil
-        row.icon:SetTexture(spec)
-        Style.CropIcon(row.icon)
-        row.icon:Show()
-        return
-    end
+    -- The class's icon (the game keeps the spec hidden, so specs can't be
+    -- told apart).
+    local class = src.classFilename
     local file
-    if cfg.icons ~= "class" and type(spec) == "number" and spec > 0 then
-        file = spec
-    elseif type(class) == "string" and not isSecret(class) then
-        file = CLASS_ICON[class]
-    end
+    if type(class) == "string" and not isSecret(class) then file = CLASS_ICON[class] end
     if file ~= row.iconFile then
         row.iconFile = file
         if file then
             row.icon:SetTexture(file)
-            if type(file) == "number" then Style.CropIcon(row.icon) else row.icon:SetTexCoord(0, 1, 0, 1) end
+            row.icon:SetTexCoord(0, 1, 0, 1)
         end
     end
     row.icon:SetShown(file ~= nil)
