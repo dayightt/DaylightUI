@@ -1180,10 +1180,11 @@ local inputAlpha = {} -- each box's eased alpha
 function Chat.Input(dt)
     local M = DUI.Motion
     local step = (dt and M.On() and not (Chat.fight or InCombatLockdown())) and dt / M.FAST or 1
-    local any = false
+    local any, box = false, nil
     for eb in pairs(ebAt) do
         local typing = focused(eb)
         any = any or typing
+        if typing then box = eb end
         local goal = typing and 1 or 0
         local a = inputAlpha[eb] or goal
         if a < goal then a = math.min(goal, a + step) elseif a > goal then a = math.max(goal, a - step) end
@@ -1197,6 +1198,68 @@ function Chat.Input(dt)
         ns.Feel.InputColor(eb, typing)
     end
     if ns.Box.On() then ns.Box.Typing(any) end
+    Chat.PadTyping(box)
+end
+
+-- A controller: the game gives the chat the D-pad through its own chat frame
+-- (the radial's Chat, or Enter), with its own buttons: A sends, X opens the
+-- channels, Y the tab's settings, LB and RB step the tabs. Those hints are drawn
+-- on the game's chat frame, which is parked out of sight here, so they show
+-- over the typing box instead. With the Daylight chat box the tabs are Daylight
+-- UI's own, so LB, RB and Y act on those.
+local padHost, padBox
+
+local function padTabs()
+    local Box = ns.Box
+    local out, at = {}, nil
+    local tabs = Box.Tabs()
+    for i = 1, #tabs do
+        local b = Box.main.buttons[i]
+        if b and b:IsShown() and Box.PaneOf(tabs[i]) == Box.main then
+            out[#out + 1] = b
+            if i == Box.Picked() then at = #out end
+        end
+    end
+    return out, at
+end
+
+local function padHints()
+    local Pad = DUI.Pad
+    local K = Pad.GameKey
+    return {
+        { { K("GAMEPAD_FACE_BOTTOM", "PAD1") }, ACTION_LABEL_SEND or DUI.L["Send"] },
+        { { Pad.KeyOf("X") }, ACTION_LABEL_CHAT_CHANNELS or DUI.L["Channels"] },
+        { { Pad.KeyOf("Y") }, ACTION_LABEL_TAB_SETTINGS or DUI.L["Tab settings"] },
+        { { K("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), K("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER") }, DUI.L["Tabs"] },
+        { { K("GAMEPAD_FACE_RIGHT", "PAD2") }, FRAME_ACTION_BACK or DUI.L["Back"] },
+    }
+end
+
+local function padTabMenu()
+    local Box = ns.Box
+    local i = Box.Picked()
+    local b = Box.main.buttons[i]
+    if b then ns.Tabs.OpenMenu(b, i) end
+end
+
+-- eb: the typing box with the focus, or nil.
+function Chat.PadTyping(eb)
+    local Pad = DUI.Pad
+    if not (Pad and Pad.On()) then eb = nil end
+    if eb == padBox then return end
+    padBox = eb
+    if not padHost then
+        padHost = CreateFrame("Frame", nil, UIParent)
+        padHost.padHintsAbove, padHost.padNoDefaults, padHost.padHints = true, true, padHints
+        Chat.padHost = padHost
+    end
+    if not eb then return Pad.Release(padHost) end
+    padHost:ClearAllPoints()
+    padHost:SetAllPoints(eb)
+    local own = ns.Box.On()
+    padHost.padKeys = own and { { key = "Y", label = ACTION_LABEL_TAB_SETTINGS or DUI.L["Tab settings"], run = padTabMenu } } or {}
+    padHost.padTabs = own and padTabs or function() return {} end
+    Pad.Take(padHost)
 end
 
 function Chat.Step(dt)

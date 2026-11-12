@@ -4780,3 +4780,31 @@ T.test("chat daylight: a tab's right-click menu opens its switches under Channel
     DaylightUI.Widgets.OpenMenu = open
     T.eq(seen and seen.show, "Channels")
 end)
+
+T.test("chat on a controller: typing shows the game's chat buttons over the box; the Daylight tabs take LB, RB and Y", function()
+    local Box = daylight()
+    local Chat = stub.chatModule.Chat
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    local eb, focused = ChatFrame1EditBox, true
+    local had = eb.HasFocus
+    eb.HasFocus = function() return focused end   -- the fake game's boxes never hold focus
+    Chat.Input(0.016)
+    local host = Chat.padHost
+    T.truthy(host, "a stand-in over the typing box")
+    T.eq(DaylightUI.Pad.taken, host)
+    local said = {}
+    for _, row in ipairs(DaylightUI.Pad.HintList(host)) do said[#said + 1] = row[2] end
+    T.truthy(table.concat(said, "|"):find(ACTION_LABEL_SEND or "Send", 1, true))
+    T.truthy(DaylightUI.Pad.hints:IsShown(), "the hints show")
+    T.truthy(stub.overrides.PAD4, "Y opens Daylight UI's own tab menu")
+    T.eq(stub.overrides.PAD1, nil, "A stays the game's send")
+    T.eq(stub.overrides.PAD3, nil, "X stays the game's channels")
+    focused = false
+    Chat.Input(0.016)
+    T.eq(DaylightUI.Pad.taken, nil, "done typing: given back")
+    T.eq(stub.overrides.PAD4, nil)
+    eb.HasFocus = had
+    _G.GamepadMode, _G.InputUtil = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

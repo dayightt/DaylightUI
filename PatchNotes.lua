@@ -93,7 +93,7 @@ DUI.PatchNotes = {
         changed = {
             { "World map", "Maximized, the quest list opens beside the map instead of shrinking it" },
             { "Heal indicators", "Six squares instead of four, with room for a group buff beside your heals" },
-            { "Controller", "Every window uses the same buttons as the game's own: cast and put spells on your controller bars from the spellbook, use items from your bags, learn talents, buy, train, open mail, swap gear" },
+            { "Controller", "Every window uses the same buttons as the game's own: cast and put spells on your controller bars from the spellbook, use items from your bags, learn talents, place gear in your bags, switch chat tabs, buy, train, open mail, swap gear" },
             { "Languages", "Simplified Chinese checked through by a native speaker, thanks to Finn" },
             { "Little touches", "Easier-to-hit close buttons, a softer DoT end line, party icons you can move with a name tab, a clearer Unlearn, a simpler loot window, and a one-line \"blocked\" notice" },
         },

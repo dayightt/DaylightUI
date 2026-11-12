@@ -59,7 +59,8 @@
 --                            button. For what addon code can't do itself: casting
 --                            a spell, using a bag item. Rebound as the D-pad
 --                            moves. The only kind of entry A can have
---   frame.padHints()         a list of { keys, label } shown instead (the bind prompt)
+--   frame.padHints()         a list of { keys, label } shown instead (the bind
+--                            prompt, the chat's typing box: Pad.Take)
 -- An entry whose when() returns false is hidden and does nothing. An entry
 -- with a hold and no label of its own does nothing on a tap.
 local ADDON_NAME, DUI = ...
@@ -104,6 +105,8 @@ Pad.KEYS = {
     MENU_RIGHT = { "GAMEPAD_MENU_RIGHT", "PADFORWARD" },
 }
 local function keyOf(name) return key(Pad.KEYS[name][1], Pad.KEYS[name][2]) end
+Pad.KeyOf = keyOf   -- "X" -> the game's key name for it ("PAD3")
+Pad.GameKey = key   -- a game key global ("GAMEPAD_SHOULDER_LEFT"), else the fallback
 
 -- The stop the D-pad is on: a button, or a frame that takes clicks (a gear slot).
 local function stop()
@@ -516,7 +519,11 @@ function Pad.ShowHints(f)
     for i = #list + 1, #hints.pieces do hints.pieces[i]:Hide() end
     hints:SetWidth(x)
     hints:ClearAllPoints()
-    hints:SetPoint("TOP", f, "BOTTOM", 0, -Pad.HINT_GAP)
+    if f.padHintsAbove then
+        hints:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, Pad.HINT_GAP)
+    else
+        hints:SetPoint("TOP", f, "BOTTOM", 0, -Pad.HINT_GAP)
+    end
     if not hints:IsShown() or hints.gone then
         hints.gone = nil
         hints:Show()
@@ -878,6 +885,32 @@ local function focusGained(self)
         Pad.Settle(self.padFirst())
     else
         Pad.Settle()
+    end
+end
+
+-- A box of ours the game gives the controller to by itself (the chat's typing
+-- box, which the game focuses through its own chat frame): its hints show and
+-- its keys bind while it's taken, then whichever window has the focus gets them
+-- back. f is a frame of ours with padHints and, if it binds any, padKeys /
+-- padTabs; f.padHintsAbove puts the bar over it.
+function Pad.Take(f)
+    if not manager() or fight or InCombatLockdown() or Pad.prompt then return end
+    Pad.taken = f
+    bind(f)
+    Pad.ShowHints(f)
+end
+
+function Pad.Release(f)
+    if Pad.taken ~= f then return end
+    Pad.taken = nil
+    if InCombatLockdown() then return end
+    unbind()
+    local w = Pad.focused
+    if w and not fight then
+        bind(w)
+        Pad.ShowHints(w)
+    else
+        Pad.HideHints()
     end
 end
 
