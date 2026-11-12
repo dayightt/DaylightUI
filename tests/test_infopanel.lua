@@ -1969,6 +1969,32 @@ T.test("info panel: a button with a masked icon goes in the drawer square, witho
     T.eq(right, D.CROP[2])
 end)
 
+T.test("info panel: a button whose icon has an old SetMask mask goes in the drawer, without an error", function()
+    login()
+    local D = stub.infopanel.Drawer
+    local btn = CreateFrame("Button", "LibDBIcon10_OldMask", Minimap)
+    local icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon = icon
+    -- The client's rule: a SetMask mask isn't counted by GetNumMaskTextures,
+    -- and still refuses tex coords.
+    function icon:GetNumMaskTextures() return 0 end
+    function icon:GetMaskTexture() return nil end
+    function icon:SetMask(file) self.__oldMask = file end
+    local setCoord = icon.SetTexCoord
+    function icon:SetTexCoord(...)
+        if self.__oldMask then
+            error("Texture:SetTextCoord(): Cannot set tex coords when texture has mask.")
+        end
+        return setCoord(self, ...)
+    end
+    icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    D.Collect()
+    T.eq(btn:GetParent(), D.CellOf(btn), "it's in its square")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    if icon.UpdateCoord then icon:UpdateCoord() end
+    T.eq(#stub.errors, 0, "a press keeps working: " .. tostring(stub.errors[1]))
+end)
+
 T.test("info panel: the meter and the map are as far apart as each is from the edge", function()
     login()
     local P = stub.infopanel.Panel

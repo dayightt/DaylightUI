@@ -172,12 +172,14 @@ local function skin(btn)
                 if type(m) == "table" then icon:RemoveMaskTexture(m) end
             end
         end
-        icon:SetTexCoord(c[1], c[2], c[3], c[4])
+        -- An old-style SetMask mask isn't counted above and can't be removed, but
+        -- still refuses tex coords. Such an icon keeps its own round shape.
+        local cropped = pcall(icon.SetTexCoord, icon, c[1], c[2], c[3], c[4])
         icon:SetVertexColor(1, 1, 1)
         icon:SetAlpha(1)
         if icon.SetDesaturated then icon:SetDesaturated(false) end
         -- LibDBIcon re-crops the icon on press; keep our crop.
-        if icon.UpdateCoord then
+        if cropped and icon.UpdateCoord then
             icon.UpdateCoord = function(self) self:SetTexCoord(c[1], c[2], c[3], c[4]) end
         end
     end
