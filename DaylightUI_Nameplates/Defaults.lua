@@ -152,6 +152,7 @@ ns.DEFAULTS = {
     -- still win). Off by default.
     bossBar = false, bossColor = { 0.95, 0.66, 0.2 }, -- boss (UnitIsBossMob, or a world boss)
     rareBar = false, rareColor = { 0.62, 0.74, 0.95 }, -- rare or rare elite
+    questBar = false, questColor = { 0.95, 0.85, 0.3 }, -- a mob your quests still need
     casterBar = false, casterColor = { 0.42, 0.45, 0.95 }, -- mana-using mob
     healthFormat = "percent",
     healthSize = 0, -- 0 = scale with bar height

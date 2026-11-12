@@ -394,7 +394,11 @@ Manager.QUEST_ALL = { QUEST_ACCEPTED = true, QUEST_REMOVED = true }
 Manager.QUEST_LATE = 1.5
 local questsDue, questsAll, questCount, questSig = false, false, false, false
 local function updateQuest(p)
-    if p.questShownNow then ns.Plate.UpdateQuest(p) end
+    if p.questUnit then ns.Plate.UpdateQuest(p) end
+end
+-- Quest marks or quest mob colors on: either needs the quest log followed.
+local function questsWanted()
+    return ns.cfg and (ns.cfg.quest or ns.cfg.questBar)
 end
 local function updateQuests()
     questsDue = false
@@ -409,13 +413,13 @@ local function queueQuests()
     C_Timer.After(Manager.QUEST_DELAY, updateQuests)
 end
 local function lateQuests()
-    if not (ns.cfg and ns.cfg.quest) then return end
+    if not questsWanted() then return end
     questsAll = true
     queueQuests()
 end
 function Manager.QuestsChanged(event)
-    -- Marks off: nothing to update (turning them on refreshes every plate).
-    if not (ns.cfg and ns.cfg.quest) then return end
+    -- Marks and colors off: nothing to update (turning one on refreshes every plate).
+    if not questsWanted() then return end
     if Manager.QUEST_ALL[event] then questsAll = true end
     if event == "QUEST_ACCEPTED" then C_Timer.After(Manager.QUEST_LATE, lateQuests) end
     queueQuests()

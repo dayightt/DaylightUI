@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Unit frames", "Pick which layer each unit frame, cast bar and the swing timer draws in, so you decide which one sits on top where they overlap" },
+            { "Nameplates", "Mobs your quests still need can have their health bar in their own color" },
         },
         changed = {
             { "Whispers", "Right-click a conversation in the list to pin it or close it" },

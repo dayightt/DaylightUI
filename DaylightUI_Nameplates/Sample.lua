@@ -53,6 +53,7 @@ Sample.enemyKind = nil -- same page: show the enemy as a boss, rare or caster (e
 Sample.ENEMY_KINDS = {
     { key = "boss", label = "Boss", on = "bossBar" },
     { key = "rare", label = "Rare", on = "rareBar" },
+    { key = "quest", label = "Quest", on = "questBar" },
     { key = "caster", label = "Caster", on = "casterBar" },
 }
 -- What each choice makes the enemy: its kind (as Plate.MobKind returns) and how
@@ -60,6 +61,7 @@ Sample.ENEMY_KINDS = {
 Sample.KIND_AS = {
     boss = { kind = "boss", classification = "worldboss", level = -1 },
     rare = { kind = "rare", classification = "rare" },
+    quest = { kind = "quest" },
     caster = { kind = "caster" },
 }
 
@@ -150,7 +152,7 @@ local function castBox(p) return { w = p.cast:GetWidth(), h = p.cast:GetHeight()
 Sample.PARTS = {
     { label = "Health bar", at = at("hp"),
       keys = { "width", "height", "slant", "scale", "media.health", "healthColor", "healthCustom",
-               "bossBar", "bossColor", "rareBar", "rareColor", "casterBar", "casterColor",
+               "bossBar", "bossColor", "rareBar", "rareColor", "questBar", "questColor", "casterBar", "casterColor",
                "predictHeals", "predictAbsorbs", "dotTint", "execute", "executePct", "executeStyle",
                "threat", "threatBar", "threatBorder", "threatGlow", "threatPulse", "threatFill",
                "threatAggro", "threatWarn", "threatLost",

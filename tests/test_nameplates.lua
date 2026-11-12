@@ -1868,6 +1868,40 @@ T.test("nameplates: bosses, rares and casters in their own colors (off by defaul
     u.isPlayer, u.class = nil, nil
 end)
 
+T.test("nameplates: quest mobs in their own color (off by default), with or without the quest mark, until done", function()
+    login(function()
+        stub.tooltips = { nameplate1 = { lines = {
+            { type = 17, leftText = "Wolves at the Door" },
+            { type = 8, leftText = "Wolf Pelt: 3/8" },
+        } } }
+    end)
+    local DUI = DaylightUI
+    local S = DUI.Style
+    local p = added("nameplate1")
+    local u = stub.units.nameplate1
+    DUI:Set("Nameplates", "healthColor", "class")
+    stub.RunTimers()
+    T.eq(p.kind, nil, "off by default")
+    T.rgb(p.health.__barColor, { S.ReactionColor(u.reaction) }, "reaction color")
+    DUI:Set("Nameplates", "questBar", true)
+    DUI:Set("Nameplates", "questColor", { 0, 1, 1 })
+    stub.RunTimers()
+    T.eq(p.kind, "quest")
+    T.rgb(p.health.__barColor, { S.Soften(0, 1, 1) }, "quest color")
+    -- The mark switched off: the color still follows the quest.
+    DUI:Set("Nameplates", "quest", false)
+    stub.RunTimers()
+    T.falsy(p.quest:IsShown(), "no mark")
+    T.eq(p.kind, "quest", "still colored")
+    -- Done: back to its usual color once the quest log says so.
+    stub.tooltips.nameplate1.lines[2].leftText = "Wolf Pelt: 8/8"
+    stub.FireEvent("QUEST_LOG_UPDATE")
+    stub.RunTimers()
+    T.eq(p.kind, nil, "done")
+    T.rgb(p.health.__barColor, { S.ReactionColor(u.reaction) }, "reaction color again")
+    stub.tooltips = nil
+end)
+
 T.test("nameplates: a hidden class (battlegrounds) still shows its own colors", function()
     local NP = login(function()
         stub.units.nameplate3 = { name = "Rival", isPlayer = true, class = "MAGE", classHidden = true,

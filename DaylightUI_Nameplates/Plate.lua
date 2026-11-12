@@ -994,20 +994,23 @@ function Plate.BaseColor(u)
     return Style.ReactionColor(UnitReaction(u, "player"))
 end
 
--- A special mob's own bar color (bossBar/rareBar/casterBar on): "boss", "rare" or
--- "caster", or nil. Enemy NPCs only, never players, minions or name-only plates.
--- Classification, UnitIsBossMob and power type stay plain in combat; a secret or
--- missing answer counts as no. c: the plate's settings (Plate.Cfg).
-Plate.KIND_COLOR = { boss = "bossColor", rare = "rareColor", caster = "casterColor" }
+-- A special mob's own bar color (bossBar/rareBar/questBar/casterBar on): "boss",
+-- "rare", "quest" or "caster", or nil. Enemy NPCs only, never players, minions or
+-- name-only plates. Classification, UnitIsBossMob and power type stay plain in
+-- combat; a secret or missing answer counts as no. A quest mob is one the quest
+-- mark's tooltip read found (p.questUnit, Plate.UpdateQuest). c: the plate's
+-- settings (Plate.Cfg).
+Plate.KIND_COLOR = { boss = "bossColor", rare = "rareColor", quest = "questColor", caster = "casterColor" }
 Plate.RARE = { rare = true, rareelite = true }
 function Plate.MobKind(p, c)
     if p.friendly or p.minion or not p.unit then return nil end
-    if not (c.bossBar or c.rareBar or c.casterBar) then return nil end
+    if not (c.bossBar or c.rareBar or c.questBar or c.casterBar) then return nil end
     local u = p.unit
     if plain(UnitIsPlayer, u) == true then return nil end
     local class = plain(UnitClassification, u)
     if c.bossBar and (class == "worldboss" or plain(UnitIsBossMob, u) == true) then return "boss" end
     if c.rareBar and Plate.RARE[class or ""] then return "rare" end
+    if c.questBar and p.questUnit then return "quest" end
     -- Enum.PowerType.Mana is 0.
     if c.casterBar and plain(UnitPowerType, u) == 0 then return "caster" end
     return nil
@@ -2254,8 +2257,13 @@ function Plate.QuestKind(p)
 end
 
 function Plate.UpdateQuest(p)
-    local shown, progress = false, nil
-    if cfg().quest and not p.friendly then shown, progress = Plate.IsQuestUnit(p.unit) end
+    local c = cfg()
+    local isQuest, progress = false, nil
+    if (c.quest or c.questBar) and not p.friendly then isQuest, progress = Plate.IsQuestUnit(p.unit) end
+    p.questUnit = isQuest
+    -- Quest mobs in their own color (questBar): repaint only when that changed.
+    if p.colored and Plate.MobKind(p, Plate.Cfg(p)) ~= p.kind then Plate.UpdateBarColor(p) end
+    local shown = isQuest and c.quest and true or false
     -- The count ("4/10") just left of the !, the raid marker past both.
     local counted = shown and cfg().questCount and progress ~= nil or false
     local text = counted and progress or ""
@@ -2673,7 +2681,7 @@ function Plate.Uninstall(p)
     -- this unit left showing. Its level, guild or title line, quest mark and raid
     -- marker arrive the frame after it's shown (Plate.UpdateFirst).
     p.sizeGroup, p.colored, p.corpse = nil, nil, nil
-    p.guild, p.questShownNow, p.questTextNow = nil, nil, nil
+    p.guild, p.questShownNow, p.questTextNow, p.questUnit = nil, nil, nil, nil
     p.questKindNow, p.questRNow = nil, nil
     p.level:SetText("")
     p.threatPct:Hide()

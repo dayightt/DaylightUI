@@ -357,7 +357,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "factionIcon", label = "Other faction's crest",
               desc = "An Alliance or Horde crest by the names of players of the other faction, on enemy and friendly plates alike." },
         } },
-        { label = "Special mobs", items = since("1.6.5", {
+        { label = "Special mobs", items = with(since("1.6.5", {
             { type = "toggle", key = "bossBar", label = "Bosses in their own color",
               desc = "Boss health bars in the color below, so they stand out in a crowd. Threat colors still show over it." },
             { type = "color", key = "bossColor", label = "Boss color", disabled = off("bossBar"),
@@ -366,11 +366,17 @@ ns.OPTIONS = { pages = {
               desc = "Rare and rare elite health bars in the color below. Threat colors still show over it." },
             { type = "color", key = "rareColor", label = "Rare color", disabled = off("rareBar"),
               desc = "The health bar's color on a rare." },
+        }), with(since("1.7.1", {
+            { type = "toggle", key = "questBar", label = "Quest mobs in their own color",
+              desc = "Health bars of mobs your quests still need in the color below, so they're easy to pick out of a pack. A boss or rare keeps its own color. Threat colors still show over it. Not inside instances." },
+            { type = "color", key = "questColor", label = "Quest mob color", disabled = off("questBar"),
+              desc = "The health bar's color on a mob your quests still need." },
+        }), since("1.6.5", {
             { type = "toggle", key = "casterBar", label = "Casters in their own color",
-              desc = "Mobs that use mana in the color below: the ones to interrupt or pull out of line of sight. A boss or rare keeps its own color. Threat colors still show over it." },
+              desc = "Mobs that use mana in the color below: the ones to interrupt or pull out of line of sight. A boss, rare or quest mob keeps its own color. Threat colors still show over it." },
             { type = "color", key = "casterColor", label = "Caster color", disabled = off("casterBar"),
               desc = "The health bar's color on a mob that uses mana." },
-        }) },
+        }))) },
       } },
     { id = "threat", label = "Threat",
       desc = "Warns you when a mob is about to change target, or has.",
