@@ -496,7 +496,8 @@ T.test("info panel: the meter's header buttons are the shared icon buttons, tan 
     local DUI = login()
     local M, area = stub.infopanel.Meter, stub.infopanel.Panel.meterArea
     area:GetScript("OnEnter")(area)
-    for _, k in ipairs({ "fight", "mode", "report", "reset", "new", "options" }) do
+    T.truthy(M.header.modeLink and M.header.fightLink, "the mode and the fight are words to click")
+    for _, k in ipairs({ "report", "reset", "new", "options" }) do
         local r = M.header.buttons[k].icon:GetVertexColor()
         T.near(r, DUI.Style.INK.LABEL[1], 1e-6, k .. " tan at rest")
     end

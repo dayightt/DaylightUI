@@ -766,7 +766,7 @@ T.test("meter header: the buttons open the fights, the modes, the report, reset,
     local M, h = stub.infopanel.Meter, header()
     hover(true)
     local b = h.buttons
-    T.eq(b.fight.icon:GetTexture(), DUI.MEDIA .. "ui-meter-fight.png", "our own icon")
+    T.eq(b.report.icon:GetTexture(), DUI.MEDIA .. "ui-meter-report.png", "our own icon")
     stub.meter.fights = { { sessionID = 1, name = "Hogger", durationSeconds = 42 },
                           { sessionID = 2, name = "Van Cleef", durationSeconds = 125 } }
     b.fight:GetScript("OnClick")(b.fight)

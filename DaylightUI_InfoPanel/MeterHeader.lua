@@ -17,10 +17,9 @@ ns.MeterHeader = Header
 Header.H = 20                 -- as tall as an icon button (W.ICON_BUTTON)
 Header.BACK = 0.95            -- the band under a "hover" header, over the top row
 Header.ICON = 14
--- The buttons, left to right: their icon (Media/) and their name.
+-- The buttons, left to right: their icon (Media/) and their name. The mode
+-- and the fight are words to click (links), not icons.
 Header.BUTTONS = {
-    { key = "fight", icon = "ui-meter-fight.png", tip = "Which fight" },
-    { key = "mode", icon = "ui-meter-mode.png", tip = "What it counts" },
     { key = "report", icon = "ui-meter-report.png", tip = "Report to chat" },
     { key = "reset", icon = "ui-reset.png", tip = "Reset every fight" },
     { key = "new", icon = "ui-meter-new.png", tip = "New meter window" },
@@ -50,13 +49,29 @@ function Header.New(area, actions)
     h.icon = h:CreateTexture(nil, "ARTWORK")
     h.icon:SetSize(Header.ICON, Header.ICON)
     h.icon:SetPoint("LEFT", h, "LEFT", 2, 0)
-    h.mode = Style.Text(h, Style.SIZE.tiny, "LEFT")
-    h.mode:SetPoint("LEFT", h.icon, "RIGHT", 5, 0)
-    Style.InkText(h.mode, "LABEL")
-    h.fight = Style.Text(h, Style.SIZE.small, "LEFT")
-    h.fight:SetPoint("LEFT", h.mode, "RIGHT", 6, 0)
-    h.fight:SetWordWrap(false)
-    Style.InkText(h.fight, "TEXT")
+    -- The mode and the fight: quiet words that open their menus (W.Link).
+    local function link(key, size, ink)
+        local b = W.Link(h, size, { own = true })
+        b.kind = key
+        b:SetScript("OnClick", function(self)
+            if W.menuOwner == self then W.CloseMenu() return end
+            local act = actions[key]
+            if act then act(self) end
+        end)
+        Style.DressText(b.text, size)
+        Style.InkText(b.text, ink)
+        b.text:SetWordWrap(false)
+        return b
+    end
+    h.modeLink = link("mode", Style.SIZE.tiny, "LABEL")
+    h.modeLink:SetPoint("LEFT", h.icon, "RIGHT", 5, 0)
+    h.mode = h.modeLink.text
+    h.fightLink = link("fight", Style.SIZE.small, "TEXT")
+    h.fightLink:SetPoint("LEFT", h.modeLink, "RIGHT", 6, 0)
+    h.fight = h.fightLink.text
+    h.fight:ClearAllPoints()
+    h.fight:SetPoint("LEFT", h.fightLink, "LEFT", 0, 0)
+    h.fight:SetPoint("RIGHT", h.fightLink, "RIGHT", 0, 0)
     -- The right side: the total and the clock, or the buttons.
     h.info = CreateFrame("Frame", nil, h)
     h.info:SetPoint("TOPRIGHT", h, "TOPRIGHT", 0, 0)
@@ -86,8 +101,9 @@ function Header.New(area, actions)
         prev = b
         h.buttons[def.key] = b
     end
+    h.buttons.mode, h.buttons.fight = h.modeLink, h.fightLink
     h.tools:SetWidth(#Header.BUTTONS * W.ICON_BUTTON)
-    Header.PlaceFight(h)
+    Header.PlaceFight(h, true)
     h.hovered = false
     return h
 end
@@ -112,7 +128,7 @@ function Header.Update(h, m, cfg, session)
     local md = m.Mode()
     h.icon:SetTexture(ns.Meter.ICON(md.icon or "damage"))
     h.icon:SetVertexColor(Style.Accent())
-    h.mode:SetText(md.label)
+    h.modeLink.SetLabel(md.label)
     local name, length = m.FightTitle()
     h.fight:SetText(name or "")
     if not m.fight and not m.Sample() and C_DamageMeter and C_DamageMeter.GetSessionDurationSeconds then
@@ -141,7 +157,7 @@ end
 
 -- The fight's name reaches to the clock (or the total) at rest, and to the
 -- buttons while they're out: never cut short by buttons that aren't there.
-function Header.PlaceFight(h)
+function Header.PlaceFight(h, snap)
     -- Measured from the header's own edge: the clock's text can be empty.
     local room = 6
     if h.hovered then
@@ -154,7 +170,17 @@ function Header.PlaceFight(h)
             if type(t) == "number" and t > 0 then room = room + t + 8 end
         end
     end
-    h.fight:SetPoint("RIGHT", h, "RIGHT", -room, 0)
+    -- The link is as wide as its words, up to the room left (glides there).
+    local function place(r)
+        h.fightRoom = r
+        h.fightLink:SetPoint("RIGHT", h, "RIGHT", -r, 0)
+    end
+    if snap or h.fightRoom == nil then
+        DUI.Motion.Tween(h.fightLink, 0, 0, 0)
+        place(room)
+    elseif math.abs(h.fightRoom - room) > 0.5 then
+        DUI.Motion.Tween(h.fightLink, h.fightRoom, room, DUI.Motion.FAST, place)
+    end
 end
 
 -- The mouse came or went: the buttons cross-fade with the clock (and a
