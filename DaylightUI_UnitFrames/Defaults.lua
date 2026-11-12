@@ -339,7 +339,7 @@ end
 -- time follow is turned off. Every size shares raid's switches, fade, textures
 -- and fonts (RAID_SHARED), set on the Raid 10 page.
 ns.RAID_SIZES = { 20, 40 }
-ns.RAID_SHARED = { enabled = true, showInParty = true, fade = true, media = true }
+ns.RAID_SHARED = { enabled = true, showInParty = true, fade = true, media = true, strata = true }
 local function deep(v)
     if type(v) ~= "table" then return v end
     local t = {}
@@ -375,4 +375,16 @@ do
     for _, list in ipairs({ ns.MEDIA_FRAMES, ns.LOOK_FRAMES, ns.TAB_FRAMES, ns.RIBBON_FRAMES }) do
         list[#list + 1] = "arena"
     end
+end
+
+-- Which frame strata each piece draws in, so a player can say which one sits
+-- on top where two overlap. A cast bar or swing timer hung under a frame draws
+-- with that frame instead (Units.lua, ns.ApplyStrata). The personal display
+-- has always sat low, under the other frames.
+ns.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
+ns.STRATA_LABELS = { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog" }
+ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "raid", "arena",
+                     "personal", "playerCastbar", "targetCastbar", "focusCastbar", "swing" }
+for _, k in ipairs(ns.STRATA_FRAMES) do
+    ns.DEFAULTS[k].strata = k == "personal" and "LOW" or "MEDIUM"
 end

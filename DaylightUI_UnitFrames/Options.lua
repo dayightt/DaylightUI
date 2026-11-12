@@ -876,6 +876,12 @@ end
 local function fontRow(key, label, what, dis)
     return mediaRow("font", key, label, what .. "." .. GENERAL_FONT, dis)
 end
+-- Which frame strata a piece draws in (ns.STRATA), for frames that overlap.
+local STRATA_HOW = " Where two pieces overlap, the higher layer draws on top: Background, Low, Medium, High, then Dialog."
+local function strataRow(key, label, what, dis, more)
+    return { type = "dropdown", key = key, label = label, values = ns.STRATA_LABELS, order = ns.STRATA,
+             desc = what .. STRATA_HOW .. (more or ""), disabled = dis }
+end
 
 -- The swing timer's group rows that only apply detached as a group.
 local function groupAttached(get) return get("swing.enabled") ~= true or get("swing.attach") == true end
@@ -1235,7 +1241,8 @@ end
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true, portrait = true,
     portraitRing = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true, tabHeight = true, slant = true, fillVertical = true,
-    showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true }
+    showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
+    strata = true }
 local function splitFrame(prefix, items, power)
     local basic, bars = {}, {}
     for _, it in ipairs(items) do
@@ -1288,6 +1295,8 @@ local function framePage(id, label, desc, opts)
             step = 1, desc = "The slim health bar. The name, the health number and the power line sit outside it.",
             disabled = shown, hidden = daylight }
     end
+    frame[#frame + 1] = strataRow(k("strata"), "Frame layer",
+        opts.strataWhat or ("The layer the " .. string.lower(label) .. " frame draws in."), shown)
     local m = function(s) return id .. ".media." .. s end
     for _, it in ipairs(barRows(m("health"), "this frame's health bar", "Health bar", shown)) do frame[#frame + 1] = it end
     for _, it in ipairs(healthColorRows(id, shown)) do frame[#frame + 1] = it end
@@ -1823,6 +1832,7 @@ local function raidPage(size)
           desc = "How wide each raid tile is.", disabled = off("raid.enabled") },
         { type = "slider", key = "raid.height", label = "Height", min = 14, max = 80, step = 1,
           desc = "How tall each raid tile is.", disabled = off("raid.enabled") },
+        strataRow("raid.strata", "Frame layer", "The layer the raid frames draw in, for every raid size.", off("raid.enabled")),
         barRows("raid.media.health", "the raid tiles' health bars", "Health bar", off("raid.enabled"))[1],
         barRows("raid.media.health", "the raid tiles' health bars", "Health bar", off("raid.enabled"))[2],
         healthColorRows("raid", off("raid.enabled"))[1],
@@ -1946,10 +1956,11 @@ ns.OPTIONS = { pages = {
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles. Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
-          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, slantDesc = "Cuts the right end at an angle; the bars follow it." }),
+          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it." }),
     raidPage(10), raidPage(20), raidPage(40),
     framePage("arena", "PvP Frames", "Enemy players carrying a flag in a battleground, one frame each. Right-click one to set it as your focus.",
         { power = true, powerToggle = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, spacing = true,
+          strataWhat = "The layer the PvP frames draw in.",
           showLabel = "Show the PvP frames", showDesc = "Turn the PvP frames on or off. When off, the game shows its own after a reload." }),
     framePage("targettarget", "Target of Target", "Who your target is looking at.", { healthText = true, textPos = true, flip = true,
         power = true, powerToggle = true, powerPos = true }),
@@ -2078,6 +2089,9 @@ ns.OPTIONS = { pages = {
               desc = "The spell name and time on your cast bar.", disabled = off("playerCastbar.enabled") },
             { type = "toggle", key = "playerCastbar.reverseFill", label = "Fill right to left",
               desc = "Not while under the frame or between the frames.", disabled = notMiddleOwn },
+            strataRow("playerCastbar.strata", "Cast bar layer", "The layer your cast bar draws in.",
+                function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
+                " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
         } },
         shellCard("playerCastbar", "playerCastbar.enabled", true),
         { label = "Target cast bar", items = {
@@ -2120,6 +2134,8 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "targetCastbar.textColor", label = "Text color",
               desc = "The spell name and timer on the target's cast bar.",
               disabled = off("targetCastbar.enabled") },
+            strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
+                notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead."),
         } },
         { label = "Focus cast bar", items = {
             { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
@@ -2149,6 +2165,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "focusCastbar.reverseFill", label = "Fill right to left",
               desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
+            strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
+                notOwnSize("focus"), " Inside the frame, it draws with the frame instead."),
         } },
         { label = "Party cast bars", items = {
             { type = "toggle", key = "partyCastbar.enabled", label = "Show party cast bars",
@@ -2279,6 +2297,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "swing.growUp", label = "Stack upward",
               desc = "Only when detached as a group. Main hand at the bottom, the others above it.",
               disabled = groupAttached },
+            strataRow("swing.strata", "Swing timer layer", "The layer the swing timer draws in when detached, as a group or a bar on its own.",
+                off("swing.enabled"), " Hung under the player frame or the cast bar, it draws with them instead."),
         } },
         shellCard("swing", "swing.enabled", true),
         { label = "Bars", items = {
@@ -2346,6 +2366,8 @@ ns.OPTIONS = { pages = {
         { label = "Bars", items = {
             { type = "slider", key = "personal.width", label = "Personal display width", min = 60, max = 400, step = 1, unit = "px",
               desc = "How wide the bars are.", disabled = off("personal.enabled") },
+            strataRow("personal.strata", "Personal display layer", "The layer the personal display draws in. Low keeps it under your other frames.",
+                off("personal.enabled")),
             { type = "toggle", key = "personal.showHealth", since = "1.6.0.2", label = "Personal health bar",
               desc = "Your health on the display. Turn it off to keep just your power bar. Needs the power bar on.",
               disabled = offAny("personal.enabled", "personal.showPower") },

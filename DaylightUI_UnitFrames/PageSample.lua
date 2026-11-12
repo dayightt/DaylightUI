@@ -66,7 +66,7 @@ end
 -- (spot, nudge x and y; home = true means no spot, a single place it's nudged
 -- from). size: the ones a grip writes (w and h, or s).
 PageSample.PARTS = {
-    { label = "Health bar", at = at("health"), keys = { "%s.width", "%s.height", "%s.dotTint", "%s.dotSkull" },
+    { label = "Health bar", at = at("health"), keys = { "%s.width", "%s.height", "%s.strata", "%s.dotTint", "%s.dotSkull" },
       size = { w = "%s.width", h = "%s.height" } },
     -- The power bar's height grip thickens both it and the frame (link), so it
     -- grows down toward the grip and the health bar keeps its size. Its width

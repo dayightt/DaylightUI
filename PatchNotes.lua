@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Unit frames", "Pick which layer each unit frame, cast bar and the swing timer draws in, so you decide which one sits on top where they overlap" },
+        },
         changed = {
             { "Whispers", "Right-click a conversation in the list to pin it or close it" },
             { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },

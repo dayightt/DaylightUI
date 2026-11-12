@@ -888,6 +888,7 @@ function ST.BoxClip(h)
         clip = CreateFrame("Frame", nil, UIParent)
         h.boxClip = clip
     end
+    clip:SetFrameStrata(h:GetFrameStrata())
     local M = ns.CastBar.CLIP_MARGIN
     local up = h.cfg and h.cfg.growUp == true
     clip:ClearAllPoints()
@@ -1196,6 +1197,14 @@ function ST.Layout(h, cfg, castbar)
     h.fan = fan or nil
     -- Detached as a group, the bars slide out of their own box.
     h.together = not hung and not h.docked and not fan
+    -- Hung under a frame, fanned under the cast bar or docked, the bars draw
+    -- with what they hang from. Detached they take their own strata.
+    local strata = ns.StrataOf(cfg)
+    if h.docked and ns.Personal.frame then strata = ns.Personal.frame:GetFrameStrata()
+    elseif fan then strata = castbar:GetFrameStrata()
+    elseif hung then strata = castbar.under:GetFrameStrata() end
+    h:SetFrameStrata(strata)
+    if h.boxClip then h.boxClip:SetFrameStrata(strata) end
     if not h.together then
         h.inner:ClearAllPoints()
         h.inner:SetAllPoints(h)
@@ -1235,6 +1244,7 @@ function ST.Layout(h, cfg, castbar)
         local mover = ST.MOVERS[key]
         if alone then
             row.pod:SetScale(DUI.Movers.Scale(mover))
+            row.pod:SetFrameStrata(ns.StrataOf(cfg))
             local rT = Pixel.Px(row.pod, borderOf(h))
             row.rowHeight = 2 * Pixel.Snap(row.pod, own.height / 2) + 2 * rT
             row.pod:SetSize(2 * Pixel.Snap(row.pod, own.width / 2), row.rowHeight)

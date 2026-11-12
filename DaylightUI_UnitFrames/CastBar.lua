@@ -269,7 +269,7 @@ function CB.Clip(h, f, lift)
         clip:SetClipsChildren(true)
         h.clip = clip
     end
-    clip:SetFrameStrata(h:GetFrameStrata())
+    clip:SetFrameStrata(f:GetFrameStrata())
     clip:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
     -- The frame's border, in the clip's own scale (the frame uses the UI's).
     local top = lift * f:GetEffectiveScale() / clip:GetEffectiveScale()
@@ -411,6 +411,18 @@ function CB.Layout(h, cfg, parentCfg)
     local middle = at == "middle" and not h.into and not hang and type(ns.frames) == "table" and type(ns.frames.player) == "table"
     h.middle = middle or nil
     local free = not h.into and not hang and not middle
+    -- Hung under a frame or standing between the frames it draws with that
+    -- frame, so it can tuck under it. A party bar lives in its frame and a bar
+    -- inside a frame is part of it. Otherwise it takes its own strata.
+    if not h.into and not h.inFrame then
+        local pf = ns.frames and ns.frames.player
+        local s
+        if hang then s = h.under:GetFrameStrata()
+        elseif middle then s = pf:GetFrameStrata()
+        elseif at == "personal" and ns.Personal.frame then s = ns.Personal.frame:GetFrameStrata()
+        elseif type(cfg.strata) == "string" then s = ns.StrataOf(cfg) end
+        if s then h:SetFrameStrata(s) end
+    end
     -- When hung it runs the same way as its frame's bars, from the ring to the angle.
     local side = hang and h.under.spec.slant == "left" and "left" or "right"
     h.bar:SetReverseFill(side == "left" or (free and cfg.reverseFill == true))

@@ -39,7 +39,7 @@ end
 ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "raid", "raid20", "raid40", "arena" }
 ns.COPY_KEEP = { enabled = true, showInParty = true, fade = true, follow = true, own = true,
                  direction = true, perLine = true, groupSpacing = true, sortBy = true, groups = true,
-                 hideSelf = true, showSolo = true, growUp = true, growLeft = true, ownSpot = true }
+                 hideSelf = true, showSolo = true, growUp = true, growLeft = true, ownSpot = true, strata = true }
 
 local function deepCopy(v)
     if type(v) ~= "table" then return v end
@@ -243,6 +243,30 @@ for _, spec in ipairs(ns.SPECS) do
 end
 local pendingReach, pendingUnits = 0, {}
 
+-- A saved strata, or the default when it's missing or unknown.
+function ns.StrataOf(cfg, fallback)
+    local s = type(cfg) == "table" and cfg.strata
+    if type(s) == "string" and ns.STRATA_LABELS[s] then return s end
+    return fallback or "MEDIUM"
+end
+
+-- Puts each frame in the strata its page picks. Children follow their parent,
+-- so the holders carry the party, raid and PvP frames. Cast bars and the swing
+-- timer pick theirs as they lay out, since a bar hung under a frame draws with
+-- that frame. Unit frames are protected, so this runs out of combat (Refresh).
+function ns.ApplyStrata(db)
+    for _, spec in ipairs(ns.SPECS) do
+        local f = ns.frames[spec.unit]
+        local s = ns.StrataOf(db[spec.unit])
+        for _, piece in ipairs(f and f.pieces or {}) do piece:SetFrameStrata(s) end
+    end
+    local holders = { { ns.Party.holder, db.party }, { ns.Raid.holder, db.raid }, { ns.Arena.holder, db.arena } }
+    for _, h in ipairs(holders) do
+        if h[1] then h[1]:SetFrameStrata(ns.StrataOf(h[2])) end
+    end
+    if ns.Personal.frame then ns.Personal.frame:SetFrameStrata(ns.StrataOf(db.personal, "LOW")) end
+end
+
 function ns.Refresh(mod, path)
     local top = type(path) == "string" and string.match(path, "^[^%.]+")
     local unit = top and UNIT_OF[top]
@@ -253,6 +277,7 @@ function ns.Refresh(mod, path)
         pendingReach, pendingUnits = 0, {}
         local db = mod.db
         ns.SwapSizes(db)
+        ns.ApplyStrata(db)
         UF.ConfigureColors(db.colors)
         UF.SLANT = tonumber(db.look and db.look.slant) or 0.21
         CB.Configure(db.casts, db.targetCasts)
@@ -298,14 +323,14 @@ function ns.Refresh(mod, path)
         CB.Layout(ns.targetCastbarFree, { enabled = tc.enabled and tAt ~= "power", at = tAt, x = tc.x, y = tc.y, drop = (tSlides or tAt == "below") and tPips or 0,
                                           width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant,
                                           textSize = tc.textSize, reverseFill = tc.reverseFill,
-                                          textColor = tc.textColor })
+                                          textColor = tc.textColor, strata = tc.strata })
         DUI.Movers.Suspend("unitframes.targetCastbar", tAt ~= "free")
         local fc = db.focusCastbar
         local fAt = CB.At("focus", fc)
         CB.Layout(ns.focusCastbar, { enabled = fc.enabled and fAt == "power", textSize = fc.textSize }, db.focus)
         CB.Layout(ns.focusCastbarFree, { enabled = fc.enabled and fAt ~= "power", at = fAt, x = fc.x, y = fc.y,
                                          width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fc.slant,
-                                         textSize = fc.textSize, reverseFill = fc.reverseFill })
+                                         textSize = fc.textSize, reverseFill = fc.reverseFill, strata = fc.strata })
         DUI.Movers.Suspend("unitframes.focusCastbar", fAt ~= "free")
         -- The display first, since your cast bar and swing bars may stand under it.
         ns.Personal.Layout(db.personal)
@@ -678,6 +703,7 @@ function ns.Build(mod)
             f.moverKey = "unitframes." .. spec.unit
             DUI.Movers.Register(f, f.moverKey, spec.label, spec.default)
             local list = { f }   -- requested ten times a second, so reuse one table
+            f.pieces = list      -- and these share the frame's strata (ns.ApplyStrata)
             if spec.unit == "player" and f.power then
                 -- Its standalone power bar, when used (fades with the frame).
                 list[2] = ns.PowerBar.Create(f)
