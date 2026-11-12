@@ -2560,3 +2560,28 @@ T.test("character list: on a controller the D-pad reaching the last row in view 
     DaylightUI.Pad.focused = nil
     _G.SmartNavigation, _G.InputUtil, _G.GamepadMode = was, nil, nil
 end)
+
+T.test("character on a controller: place in bags puts a piece in the first plain bag with room, or leaves it on", function()
+    local CP = charPage()
+    local put, held
+    _G.IsInventoryItemLocked = function() return false end
+    _G.PickupInventoryItem = function(id) held = id end
+    _G.CursorHasItem = function() return held ~= nil end
+    _G.ClearCursor = function() held = nil end
+    _G.PutItemInBackpack = function() put = "backpack"; held = nil end
+    _G.PutItemInBag = function(inv) put = inv; held = nil end
+    local free = { [0] = { 0, 0 }, [1] = { 3, 8 }, [2] = { 2, 0 } }   -- the backpack full, bag 1 a herb bag
+    local was = _G.C_Container
+    _G.C_Container = {
+        GetContainerNumFreeSlots = function(bag) local f = free[bag]; if f then return f[1], f[2] end return 0, 0 end,
+        ContainerIDToInventoryID = function(bag) return 30 + bag end,
+    }
+    T.truthy(CP.Unequip(5))
+    T.eq(put, 32, "bag 2: the herb bag can't hold it")
+    put = nil
+    free[2] = { 0, 0 }
+    T.falsy(CP.Unequip(5))
+    T.eq(put, nil)
+    T.eq(held, nil, "no room: it goes back on")
+    _G.C_Container = was
+end)

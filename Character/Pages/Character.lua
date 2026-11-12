@@ -331,8 +331,9 @@ end
 -- ---------------------------------------------------------------------
 -- A controller: the game's character window buttons (PaperDollFrame,
 -- Camelot): A on a slot opens its swap menu; Y the slot's more actions
--- (compare, put on a controller bar, share in chat). Not here: its X (turn and
--- zoom the model with the sticks) and Use (a protected right click).
+-- (place in bags, compare, put on a controller bar, share in chat). Not
+-- here: its X (turn and zoom the model with the sticks) and Use (a protected
+-- right click).
 -- ---------------------------------------------------------------------
 
 local function slotItem(h)
@@ -357,17 +358,39 @@ function CharacterPage.Bind(item, id)
         pickup = function() C_Item.PickupItem(item) end })
 end
 
+-- Into the first free slot of a plain bag, as the game's "place in bags"
+-- (EquipmentManager_PutItemInInventory). With no room it stays on.
+function CharacterPage.Unequip(id)
+    if InCombatLockdown() or IsInventoryItemLocked(id) then return false end
+    ClearCursor()
+    PickupInventoryItem(id)
+    if not CursorHasItem() then return false end
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        local free, family = C_Container.GetContainerNumFreeSlots(bag)
+        if type(free) == "number" and free > 0 and (family or 0) == 0 then
+            if bag == 0 then PutItemInBackpack() else PutItemInBag(C_Container.ContainerIDToInventoryID(bag)) end
+            return true
+        end
+    end
+    ClearCursor()   -- back on the character
+    if UIErrorsFrame and ERR_INV_FULL then UIErrorsFrame:AddMessage(ERR_INV_FULL, 1, 0.1, 0.1) end
+    return false
+end
+
 function CharacterPage.More(h)
     local item, id = slotItem(h)
     if not item then return end
-    local keys = { "compare", "bind", "share" }
+    local keys = { "unequip", "compare", "bind", "share" }
     local values = {
+        unequip = EQUIPMENT_MANAGER_PLACE_IN_BAGS or L["Place in bags"],
         compare = FRAME_ACTION_TOGGLE_ITEM_COMPARE or L["Compare items"],
         bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"],
         share = SHARE_IN_CHAT or L["Share in chat"],
     }
     DUI.Widgets.OpenMenu(h, keys, values, nil, function(k)
-        if k == "compare" then
+        if k == "unequip" then
+            CharacterPage.Unequip(id)
+        elseif k == "compare" then
             C_CVar.SetCVar("alwaysCompareItems", C_CVar.GetCVarBool("alwaysCompareItems") and 0 or 1)
         elseif k == "bind" then
             CharacterPage.Bind(item, id)
