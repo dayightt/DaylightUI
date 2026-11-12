@@ -574,6 +574,12 @@ end
 -- h.selfStacks, read where plain or counted from your casts (selfCast).
 function makeFace(h)
     if h.face then return end
+    if h.ownBar == "aura" then
+        -- An aura bar (CdmBars) draws it as a bar, laid out with the bar.
+        h.face = ns.CdmBars.MakeFace(h)
+        placeFace(h)
+        return
+    end
     local f = CreateFrame("Frame", nil, h)
     f:SetAllPoints(h)
     f:SetFrameLevel(h:GetFrameLevel() + 2)
@@ -596,6 +602,9 @@ function makeFace(h)
     f.count = f.top:CreateFontString(nil, "OVERLAY")
     f.count:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMRIGHT", -1, 1)
     f.shape = {}
+    function f.SetTime(start, dur)
+        if start then f.cd:SetCooldown(start, dur) else f.cd:Clear() end
+    end
     h.face = f
     local tex = h.under and h.under:GetTexture()
     if type(tex) ~= "nil" then f.icon:SetTexture(tex) end
@@ -606,6 +615,7 @@ end
 function placeFace(h)
     local f = h.face
     if not f then return end
+    if f.parts then return ns.CdmBars.LayoutFace(h) end
     local size = h.size
     local T = Pixel.Px(h, Skin.BORDER_PX)
     Style.Shell(f.box)
@@ -637,11 +647,11 @@ function paintFace(h)
         if h.endsAt and dur and dur > 0 then
             if f.shownEnd ~= h.endsAt then
                 f.shownEnd = h.endsAt
-                f.cd:SetCooldown(h.endsAt - dur, dur)
+                f.SetTime(h.endsAt - dur, dur)
             end
         elseif f.shownEnd then
             f.shownEnd = nil
-            f.cd:Clear()
+            f.SetTime(nil)
         end
         local n = h.selfStacks
         f.count:SetText(n and n > 1 and tostring(n) or "")

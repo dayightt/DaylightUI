@@ -2841,6 +2841,41 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The same stack as a bar: drawn by ours too, with its time running down the bar.
+T.test("cdm rows: a spell whose debuff lands on you as a bar is drawn by ours", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "MAGE" } })
+    AB.CdmSpells.MAGE = { { 400574, 1239696, aura = true } }
+    stub.knownSpells = { [400574] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 400574 or 100 + id, selfAura = true } end
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    set.pieces[31].shape = "bar"
+    icons[1]:Hide()
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(31), "aura bar", "drawn as a bar")
+    local h = AB.CdmBars.AuraFrame(31)
+    T.truthy(h and h:IsShown(), "our bar shown")
+    T.truthy(h.face and h.face.parts, "ours draws the bar (no client container)")
+    T.eq(#h.containers, 0, "no client container")
+    T.eq(h.face.alphaTo, 0, "down: out of sight")
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 400574); stub.RunTimers()
+    T.eq(h.face.alphaTo, 1, "your cast: up")
+    T.truthy(h.face.parts.bar.__timer, "the bar runs down its time")
+    T.truthy(h.face.shownEnd, "its time")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 400574); stub.RunTimers()
+    T.eq(h.face.parts.count:GetText(), "2", "the second cast: 2")
+    stub.Advance(18.1); stub.RunTimers()
+    T.eq(h.face.alphaTo, 0, "gone after its 18 s")
+    stub.combat = false
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm block options: always show keeps the gap of a hidden buff; collapse is ignored", function()
     local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31, 32 })
     withCategories({ [2] = { 31, 32 } }, { [2] = { 31, 32 } })

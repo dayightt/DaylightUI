@@ -598,18 +598,17 @@ local function relayout(h)
     h.over:SetAlpha(h.bare and 0 or 1)
     for btn, parts in pairs(h.parts or {}) do DUI.SafeCall(B.LayoutButton, h, btn, parts) end
     DUI.SafeCall(layoutShield, h)
+    if h.face then DUI.SafeCall(B.LayoutFace, h) end
 end
 
--- Built once inside the client's initializeFrame (the button locks once that
--- returns): our icon, a bar and time the client drives, and the stacks.
-local function initButton(h, btn)
+-- The pieces of an aura bar: icon, bar, time, stacks and the bar's look for when
+-- our empty bar is off. Made inside the client's button, or on a frame of ours
+-- for a debuff on you (the self-debuff face).
+local function makeParts(btn)
     local function try(fn, ...) return pcall(fn, ...) end
     local parts = {}
-    h.parts = h.parts or {}
-    h.parts[btn] = parts
     parts.icon = btn:CreateTexture(nil, "ARTWORK")
     try(parts.icon.SetTexCoord, parts.icon, Skin.CROP[1], Skin.CROP[2], Skin.CROP[3], Skin.CROP[4])
-    try(btn.SetIcon, btn, parts.icon)
     parts.shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
     try(parts.shade.SetAllPoints, parts.shade, parts.icon)
     try(parts.shade.SetTexture, parts.shade, Skin.SHADE_FILE)
@@ -623,24 +622,10 @@ local function initButton(h, btn)
     parts.bar = CreateFrame("StatusBar", nil, btn)
     try(parts.bar.SetStatusBarTexture, parts.bar, Style.BarFile("fill", ns.MEDIA.bars.cdm))
     try(parts.bar.SetMinMaxValues, parts.bar, 0, 1)
-    -- Empties as the aura runs out, like the game's buff bars.
-    local opts = {}
-    local D = type(Enum) == "table" and Enum.StatusBarTimerDirection
-    if type(D) == "table" and D.RemainingTime then opts.direction = D.RemainingTime end
-    local U = _G.C_AuraContainerUtil
-    if type(U) == "table" and type(U.ProcessCustomAuraButtonDurationBarOptions) == "function" then
-        local ok, o = pcall(U.ProcessCustomAuraButtonDurationBarOptions, opts)
-        if ok and type(o) == "table" then opts = o end
-    end
-    local ok, err = try(btn.SetDurationBar, btn, parts.bar, opts)
-    if not ok then h.err = tostring(err) end
     parts.time = parts.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     try(parts.time.SetPoint, parts.time, "RIGHT", parts.bar, "RIGHT", -4, 0)
-    -- The client's time as M:SS, like every other bar.
-    try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
     parts.count = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     try(parts.count.SetPoint, parts.count, "BOTTOMRIGHT", parts.icon, "BOTTOMRIGHT", -1, 1)
-    try(btn.SetApplicationCount, btn, parts.count)
     -- The bar's look while our empty bar is off ("Show missing buffs" off): the
     -- icon and bar borders and the name. Kept out of the style repaint because the
     -- client locks them, so LayoutButton (after restrictions) repaints them.
@@ -658,11 +643,89 @@ local function initButton(h, btn)
     parts.name:SetWordWrap(false)
     parts.name:SetAlpha(0)
     if btn.SetMouseMotionEnabled then try(btn.SetMouseMotionEnabled, btn, false) end
+    return parts
+end
+
+-- Built once inside the client's initializeFrame (the button locks once that
+-- returns): our pieces, with the bar, time and stacks handed to the client.
+local function initButton(h, btn)
+    local function try(fn, ...) return pcall(fn, ...) end
+    local parts = makeParts(btn)
+    h.parts = h.parts or {}
+    h.parts[btn] = parts
+    try(btn.SetIcon, btn, parts.icon)
+    -- Empties as the aura runs out, like the game's buff bars.
+    local opts = {}
+    local D = type(Enum) == "table" and Enum.StatusBarTimerDirection
+    if type(D) == "table" and D.RemainingTime then opts.direction = D.RemainingTime end
+    local U = _G.C_AuraContainerUtil
+    if type(U) == "table" and type(U.ProcessCustomAuraButtonDurationBarOptions) == "function" then
+        local ok, o = pcall(U.ProcessCustomAuraButtonDurationBarOptions, opts)
+        if ok and type(o) == "table" then opts = o end
+    end
+    local ok, err = try(btn.SetDurationBar, btn, parts.bar, opts)
+    if not ok then h.err = tostring(err) end
+    -- The client's time as M:SS, like every other bar.
+    try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
+    try(btn.SetApplicationCount, btn, parts.count)
     ns.CdmEffects.MakeSlide(btn, h)
     -- Shown and hidden, for the shield bar (ours, outside the button).
     try(btn.HookScript, btn, "OnShow", function() shieldShown(h, btn, true) end)
     try(btn.HookScript, btn, "OnHide", function() shieldShown(h, btn, false) end)
     DUI.SafeCall(B.LayoutButton, h, btn, parts)
+end
+
+-- A debuff on you (Arcane Blast's stack) gets no client button, so CdmAuras draws
+-- it itself. As a bar that's the same pieces on a frame of the addon's own, which
+-- never locks: the bar runs down the counted time and the time counts down on a
+-- Cooldown's numbers, like a cooldown bar.
+function B.MakeFace(h)
+    local f = CreateFrame("Frame", nil, h)
+    f:SetAllPoints(h)
+    f:SetFrameLevel(h.Bar:GetFrameLevel() + 2)
+    f:SetAlpha(0)
+    f.parts = makeParts(f)
+    f.count = f.parts.count
+    local bar = f.parts.bar
+    bar:SetValue(0)
+    local t = CreateFrame("Cooldown", nil, bar, "CooldownFrameTemplate")
+    t:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
+    t:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+    t:SetWidth(B.TIME_W)
+    pcall(t.SetDrawSwipe, t, false)
+    pcall(t.SetDrawEdge, t, false)
+    pcall(t.SetDrawBling, t, false)
+    local clock = Style.ClockFormatter()
+    if clock and t.SetCountdownFormatter then pcall(t.SetCountdownFormatter, t, clock) end
+    f.Timer = t
+    function f.SetTime(start, dur)
+        local U = _G.C_DurationUtil
+        if start and type(U) == "table" and type(U.CreateDuration) == "function" then
+            f.span = f.span or U.CreateDuration()
+            f.span:SetTimeFromStart(start, dur)
+            local E = type(Enum) == "table" and Enum or {}
+            local I = E.StatusBarInterpolation and E.StatusBarInterpolation.Immediate
+            local D = E.StatusBarTimerDirection and E.StatusBarTimerDirection.RemainingTime
+            pcall(bar.SetTimerDuration, bar, f.span, I, D)
+            t:SetCooldown(start, dur)
+        else
+            bar:SetMinMaxValues(0, 1)
+            bar:SetValue(0)
+            t:Clear()
+        end
+    end
+    return f
+end
+
+-- The face's look, by the same numbers as the client's button.
+function B.LayoutFace(h)
+    local f = h.face
+    if not (f and f.parts) then return end
+    local tex = h.Icon.Icon:GetTexture()
+    if type(tex) ~= "nil" then f.parts.icon:SetTexture(tex) end
+    B.LayoutButton(h, f, f.parts)
+    f.parts.time:SetText("")
+    dressTimer(f, ns.CdmRows and ns.CdmRows.BlockOf(h))
 end
 
 -- What the buttons were last laid out for, so a change triggers a new layout.
