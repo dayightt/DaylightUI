@@ -23,6 +23,7 @@ DUI.PatchNotes = {
             { "Damage meter", "Class icons match the set you picked for your unit frames, Jiberish styles included" },
         },
         fixed = {
+            { "NPC window", "Turning in a quest no longer hangs on \"Retrieving item information\": slow rewards fill in, and when the game leaves out the rewards to choose from, the window says so and Space closes it so you can talk to the NPC again" },
             { "Books", "Every page of a book or letter is light and easy to read, not just the first" },
             { "Minimap", "No more error at login from an addon whose minimap button has a round icon" },
             { "Fishing", "The bobber shows only the Daylight UI light, not the game's interact icon on top of it" },

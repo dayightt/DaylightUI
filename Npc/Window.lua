@@ -25,6 +25,7 @@ Npc.ANSWER_WAIT = 3  -- s before a page already answered can answer again if the
 Npc.REWARD_WAIT = 0.5 -- s a reward page with no choices waits before hand-in (choices can arrive just after)
 Npc.WATCH_STEP = 0.1 -- s between checks while a quest page is new
 Npc.WATCH_FOR = 5    -- s a new quest page keeps checking
+Npc.STUCK_AFTER = 2  -- s before a page missing the log's choices says to talk again
 Npc.ANSWERED = 1     -- s: pages another feature answered (QoL's auto accept) aren't shown
 Npc.FOOT = 52        -- footer height under the page
 Npc.TITLE_SIZE = DUI.Style.SIZE.title
@@ -217,6 +218,15 @@ function Npc.RewardsPending()
     return now() < (D.InLog(id) and S.loadUntil or S.rewardAt)
 end
 
+-- The page came without the choices the quest log has, and they didn't follow. The
+-- game never adds them to a page it already sent (asking again brings nothing), so
+-- only talking to the NPC again gets them.
+function Npc.RewardsStuck()
+    if S.sample or S.mode ~= "reward" or choiceCount() > 0 or now() < (S.stuckAt or 0) then return false end
+    local known = ns.Data.LogChoices(S.data and S.data.questID)
+    return known ~= nil and known > 0
+end
+
 function Npc.Complete()
     local d = S.data
     if not d then return end
@@ -353,6 +363,10 @@ function Npc.Fill(page)
             if #d.choices > 0 or #d.rewards > 0 or d.money > 0 or d.xp > 0 then
                 s:Section(choosing and #d.choices > 1 and L["Choose your reward"] or L["Rewards"])
             end
+            S.stuckShown = choosing and Npc.RewardsStuck()
+            if S.stuckShown then
+                s:Text(L["The game didn't send this quest's reward choices. Close and talk to them again to pick one."])
+            end
             if #d.choices > 0 then
                 if not choosing and #d.choices > 1 then s:Text(L["You'll choose one of these:"], { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
                 local best, waiting = ns.Data.BestSale(d.choices)
@@ -396,6 +410,9 @@ function Npc.Buttons()
         return { { text = CONTINUE or L["Continue"], primary = true, off = not d.completable, key = ok, onClick = Npc.Continue },
                  { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye } }
     elseif m == "reward" then
+        if Npc.RewardsStuck() then
+            return { { text = CLOSE or L["Close"], primary = true, key = ok, onClick = Npc.Goodbye } }
+        end
         local pending = Npc.RewardsPending()
         local off = pending or (needsChoice() and not S.choice)
         local text = pending and (RETRIEVING_ITEM_INFO or L["Loading..."]) or off and L["Choose a reward"] or L["Complete"]
@@ -539,6 +556,7 @@ function Npc.Show(mode, data, sample)
     S.itemWaits = {}
     S.rewardAt = now() + Npc.REWARD_WAIT
     S.loadUntil = now() + Npc.WATCH_FOR
+    S.stuckAt = now() + Npc.STUCK_AFTER
     if mode == "reward" and not S.sample then ns.Data.LoadQuest(data.questID) end
     Npc.Watch()
     if mode == "reward" and data.choices and #data.choices == 1 then S.choice = data.choices[1].index or 1 end
@@ -740,7 +758,7 @@ function Npc.Watch()
     local function look()
         if Npc.watching ~= token then return end
         if not S.data or not Win.IsOpen(cur()) then Npc.watching = nil; return end
-        if ns.Data.QuestMoved(S.data) then Npc.Refill() end
+        if ns.Data.QuestMoved(S.data) or Npc.RewardsStuck() ~= (S.stuckShown or false) then Npc.Refill() end
         local pending = Npc.RewardsPending()
         if pending ~= (S.pendingShown or false) then Npc.PaintFooter() end
         if now() >= stop and not pending then Npc.watching = nil; return end   -- a blank page keeps polling

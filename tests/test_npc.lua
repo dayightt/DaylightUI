@@ -510,11 +510,33 @@ T.test("npc: hand-in: choices the log promised that come long after the page sti
     NW.Quest("COMPLETE", q)
     frame()
     for _ = 1, 100 do stub.Advance(N.WATCH_STEP + 0.01); frame() end
-    T.eq(N.Buttons()[1].off, true, "still waiting")
+    T.eq(N.RewardsStuck(), true, "says to talk again")
     q.choices = late
     stub.Advance(N.WATCH_STEP + 0.01)
     frame()
     T.eq(#N.tiles, 3)
+    T.eq(N.RewardsStuck(), false)
+    T.eq(N.Buttons()[1].text, "Choose a reward", "back to the normal page")
+end)
+
+-- Seen in game: the server's page came without the choices the log has, and
+-- they never came (asking again with CompleteQuest brought nothing). Only
+-- talking to the NPC again does, so after a moment the page says so and the
+-- main button closes it, never sending an answer that can only fail.
+T.test("npc: hand-in: a page that never gets the log's choices says so and closes on Space", function()
+    local N = load()
+    NW.Quest("COMPLETE", NW.Candles({ choices = {}, log = { choices = 2 } }))
+    frame()
+    T.eq(N.Buttons()[1].off, true, "waits at first")
+    T.eq(N.RewardsStuck(), false)
+    for _ = 1, math.ceil(N.STUCK_AFTER / N.WATCH_STEP) + 2 do stub.Advance(N.WATCH_STEP + 0.01); frame() end
+    T.eq(N.RewardsStuck(), true)
+    local b = N.Buttons()[1]
+    T.eq(b.off, nil, "the main button works again")
+    T.eq(b.text, CLOSE or "Close")
+    T.eq(N.OnKey("SPACE"), true)
+    T.eq(#NW.Calls("GetQuestReward"), 0, "no blind hand-in")
+    T.eq(#NW.Calls("CloseQuest"), 1, "the talk ends, so the NPC can be asked again")
 end)
 
 -- The game's own reward window asks for an item it has no name for yet
