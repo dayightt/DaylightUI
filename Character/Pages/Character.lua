@@ -349,6 +349,14 @@ local function swapMenu(h)
     if pop and pop:IsShown() then pop:Click() end
 end
 
+-- Through Daylight UI's own prompt: the game's bind screen taints the
+-- controller when addon code opens it.
+function CharacterPage.Bind(item, id)
+    local link = GetInventoryItemLink("player", id)
+    DUI.Pad.BindAction({ icon = C_Item.GetItemIconByID(item), name = link or (C_Item.GetItemNameByID and C_Item.GetItemNameByID(item)),
+        pickup = function() C_Item.PickupItem(item) end })
+end
+
 function CharacterPage.More(h)
     local item, id = slotItem(h)
     if not item then return end
@@ -362,7 +370,7 @@ function CharacterPage.More(h)
         if k == "compare" then
             C_CVar.SetCVar("alwaysCompareItems", C_CVar.GetCVarBool("alwaysCompareItems") and 0 or 1)
         elseif k == "bind" then
-            if GamepadActionBarEditFrame then GamepadActionBarEditFrame:BindItem(item) end
+            CharacterPage.Bind(item, id)
         else
             local link = GetInventoryItemLink("player", id)
             local U = ChatFrameUtil

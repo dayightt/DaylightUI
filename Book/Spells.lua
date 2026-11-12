@@ -239,8 +239,7 @@ function Spells.Leave(b)
 end
 
 -- The game blocks addon code from picking up spells in combat.
-function Spells.Drag(b)
-    local cell = b.cell
+function Spells.Pickup(cell)
     if not cell or InCombatLockdown() or cell.future then return end
     if cell.slot then
         C_SpellBook.PickupSpellBookItem(cell.slot, cell.bank)
@@ -248,6 +247,8 @@ function Spells.Drag(b)
         C_Spell.PickupSpell(cell.spellID)
     end
 end
+
+function Spells.Drag(b) Spells.Pickup(b.cell) end
 
 -- Shift-click links the spell in chat, or inserts its name into the macro
 -- being edited, like SpellBookItemMixin:OnModifiedIconClick.
@@ -535,6 +536,7 @@ end
 
 function Spells.Jump(section)
     if Spells.frozen then return end
+    Spells.jumped = section
     if Spells.IsFolded(section) then Spells.Fold(section, false) end
     local y = Spells.sectionAt and Spells.sectionAt[section]
     if y and Spells.page then Spells.page.stack:ScrollTo(y) end
@@ -675,4 +677,60 @@ function Spells.Pieces(page)
     if not rest and page.switch:IsShown() then out[#out + 1] = page.switch end
     if not rest and page.bind:IsShown() then out[#out + 1] = page.bind end
     return out
+end
+
+-- ---------------------------------------------------------------------
+-- A controller: the game's spellbook buttons (SetUpSpellBookGamepad in
+-- Blizzard_PlayerSpellsFrame.lua). A casts, X puts the spell on a
+-- controller bar, the right menu button flips the ranks switch, LB and RB
+-- step through the schools (the left menu button searches, as on every window).
+-- ---------------------------------------------------------------------
+
+local function padCell(b)
+    return type(b) == "table" and type(b.cell) == "table" and b.cell or nil
+end
+
+-- What A casts on this row, through the controller's secure key.
+function Spells.PadCast(b)
+    local cell = padCell(b)
+    if not cell or Spells.binding or Spells.frozen or not ns.Cast then return nil end
+    return ns.Cast.Attributes(cell)
+end
+
+function Spells.CanBind(b)
+    local cell = padCell(b)
+    return cell ~= nil and not Spells.binding and not cell.future and not cell.passive
+end
+
+function Spells.Bind(b)
+    local cell = padCell(b)
+    if not cell then return end
+    DUI.Pad.BindAction({ icon = cell.icon, name = cell.rank and (cell.name .. " (" .. cell.rank .. ")") or cell.name,
+        pickup = function() Spells.Pickup(cell) end })
+end
+
+-- The school chips LB and RB step through, and the one last jumped to.
+function Spells.PadTabs()
+    local out, at = {}, nil
+    local page = Spells.page
+    if not page then return out end
+    for _, c in ipairs(page.chips) do
+        if c:IsShown() and c.section then
+            out[#out + 1] = c
+            if c.section == Spells.jumped then at = #out end
+        end
+    end
+    return out, at
+end
+
+function Spells.PadKeys(on)
+    local page = function() return Spells.page end
+    return {
+        { key = "A", label = CONTEXT_ACTION_LABEL_CAST or L["Cast"], when = on, secure = Spells.PadCast },
+        { key = "X", label = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Bind"],
+          when = function(b) return on() and Spells.CanBind(b) end, run = Spells.Bind },
+        { key = "MENU_RIGHT", label = L["Hide lower ranks"],
+          when = function() return on() and page().switch:IsShown() and not Spells.frozen end,
+          run = function() page().switch.sw:Click() end },
+    }
 end

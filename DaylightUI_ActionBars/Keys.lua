@@ -185,13 +185,12 @@ local function buildCastKeys()
     return out, false
 end
 
--- The game's controller bars hold their own slots: 3 pages of 4 bars of 8 buttons,
--- and the top bar's 4 face buttons (interact, jump...) take none, so a page is 28
--- slots (ActionBindingUtil.lua). The triggers held pick a bar, and Bindings.xml's
--- numbers pick the button: D-pad left, up, right, down, then face left, up, right,
--- down.
-Keys.PAD_PAGES, Keys.PAD_PAGE_SLOTS, Keys.PAD_BAR, Keys.PAD_RESERVED = 3, 28, 8, 4
-Keys.PAD_BUTTONS = { "PADDLEFT", "PADDUP", "PADDRIGHT", "PADDDOWN", "PAD3", "PAD4", "PAD2", "PAD1" }
+-- The game's controller bars hold their own slots, laid out as the core's Pad
+-- describes them (BAR_PAGES pages of 4 bars, the top bar's face buttons holding
+-- none). The triggers held pick a bar, and Bindings.xml's numbers the button.
+local Pad = DUI.Pad
+Keys.PAD_PAGES, Keys.PAD_PAGE_SLOTS, Keys.PAD_BAR, Keys.PAD_RESERVED = Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED
+Keys.PAD_BUTTONS = Pad.BAR_BUTTONS
 Keys.PAD_HOLD = { [1] = { "PADLTRIGGER" }, [2] = { "PADRTRIGGER" }, [3] = { "PADLTRIGGER", "PADRTRIGGER" } }
 
 -- A controller key drawn the way the controller in use draws it: the game's own

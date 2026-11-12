@@ -299,9 +299,107 @@ function Window.Create(spec)
     -- on every open (about 280 ms frozen).
     f.padSecond = true   -- opened with the character window, which keeps the D-pad
     f.padFirst = function() return Window.FirstSlot(f) end   -- start on the items, not the tools above them
+    Window.PadSetup(f)
     if DUI.Motion then DUI.Motion.Window(f) end
     ns.windows[#ns.windows + 1] = f
     return f
+end
+
+-- ---------------------------------------------------------------------
+-- A controller: the game's bag buttons (ContainerFrameCombinedBagsMixin's
+-- SetupGamepad). A picks the item up, X does what a right click does (use,
+-- equip, sell, open, read, move to or from the bank), Y has more actions,
+-- LB and RB jump between the groups (the search is every window's).
+-- ---------------------------------------------------------------------
+
+local function padItem(b)
+    if type(b) ~= "table" or not b.GetID or type(b.GetParent) ~= "function" then return nil end
+    local holder = b:GetParent()
+    local bag = b.GetBagID and b:GetBagID() or (holder and holder.GetID and holder:GetID())
+    local slot = b:GetID()
+    if type(bag) ~= "number" or type(slot) ~= "number" or (ns.Saved and ns.Saved.Is(bag)) then return nil end
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    if type(info) ~= "table" or not info.itemID then return nil end
+    return info, bag, slot
+end
+
+-- What a right click does to this item here, in the game's own words.
+function Window.PadUseLabel(f, b)
+    local info = padItem(b)
+    if not info then return nil end
+    if f.kind == "bank" then return L["To your bags"] end
+    if ns.Bank and ns.Bank.open then return L["To the bank"] end
+    local merchant = _G.MerchantFrame
+    if merchant and merchant:IsShown() and not info.hasNoValue then return CONTEXT_ACTION_LABEL_SELL or L["Sell"] end
+    if info.hasLoot then return CONTEXT_ACTION_LABEL_OPEN or L["Open"] end
+    if info.isReadable then return CONTEXT_ACTION_LABEL_READ or L["Read"] end
+    local link = info.hyperlink
+    if link and C_Item.IsEquippableItem and C_Item.IsEquippableItem(link) then return CONTEXT_ACTION_LABEL_EQUIP or L["Equip"] end
+    if C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID) then return CONTEXT_ACTION_LABEL_USE or L["Use"] end
+    return nil
+end
+
+function Window.PadMore(b)
+    local info = padItem(b)
+    if not info then return end
+    local keys, values = {}, {}
+    if C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID) then
+        keys[#keys + 1] = "bind"
+        values.bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"]
+    end
+    if info.hyperlink then
+        keys[#keys + 1] = "share"
+        values.share = SHARE_IN_CHAT or L["Share in chat"]
+    end
+    if #keys == 0 then return end
+    DUI.Widgets.OpenMenu(b, keys, values, nil, function(k)
+        if k == "bind" then
+            DUI.Pad.BindAction({ icon = info.iconFileID, name = info.hyperlink,
+                pickup = function() C_Item.PickupItem(info.itemID) end })
+        elseif k == "share" then
+            local U = ChatFrameUtil
+            if U and not U.InsertLink(info.hyperlink) then U.OpenChat(info.hyperlink) end
+        end
+    end)
+end
+
+-- The groups' headings, as stops LB and RB move the D-pad to.
+local function padGroups(f)
+    local heads = {}
+    for _, h in ipairs(f.headings or {}) do
+        if h:IsVisible() and type(h:GetTop()) == "number" then heads[#heads + 1] = h end
+    end
+    table.sort(heads, function(a, b)
+        local ta, tb = a:GetTop(), b:GetTop()
+        if ta ~= tb then return ta > tb end
+        return a:GetLeft() < b:GetLeft()
+    end)
+    local at = DUI.Pad.Stop()
+    local top, left = at and at.GetTop and at:GetTop(), at and at.GetLeft and at:GetLeft()
+    local out, here = {}, nil
+    for i, h in ipairs(heads) do
+        out[i] = { Click = function() DUI.Pad.Settle(h) end }
+        if at == h then
+            here = i
+        elseif type(top) == "number" and type(left) == "number" and h:GetTop() >= top and h:GetLeft() <= left + 1 then
+            here = i
+        end
+    end
+    return out, here
+end
+
+function Window.PadSetup(f)
+    f.padKeys = {
+        { key = "X", label = function(b) return Window.PadUseLabel(f, b) end, button = "RightButton",
+          secure = function(b)
+              if not Window.PadUseLabel(f, b) then return nil end
+              return { type = "click", clickbutton = b }
+          end },
+        { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
+          when = function(b) return padItem(b) ~= nil end, run = Window.PadMore },
+    }
+    f.padTabs = function() return padGroups(f) end
+    f.padTabsLabel = L["Groups"]
 end
 
 -- The item at the top left of the grid.

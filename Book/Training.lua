@@ -368,6 +368,7 @@ end
 
 -- Scroll a group to the top, unfolding it if needed.
 function Training.Jump(key)
+    Training.jumped = key
     if Training.FOLDED[key] and not S.open[key] then Training.Fold(key, true) end
     local y = Training.at and Training.at[key]
     if y and Training.page then Training.page.stack:ScrollTo(y) end
@@ -423,4 +424,18 @@ function Training.Pieces(page)
     end
     out[#out + 1] = page.foot
     return out
+end
+
+-- A controller: as on the spellbook page, LB and RB step the chips.
+function Training.PadTabs()
+    local out, at = {}, nil
+    local page = Training.page
+    if not page then return out end
+    for _, c in ipairs(page.chips) do
+        if c:IsShown() and c.group then
+            out[#out + 1] = c
+            if c.group == Training.jumped then at = #out end
+        end
+    end
+    return out, at
 end

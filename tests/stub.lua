@@ -2413,6 +2413,8 @@ _G.Enum.WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 }
 _G.Enum.PlayerSwingType = { MainHand = 0, OffHand = 1, Ranged = 2 }
 function stub.SetWeaponEnchants(list) stub.weaponEnchants = list or {} end
 _G.C_Item = {
+    -- The item onto the cursor, as the game's PickupItem does.
+    PickupItem = function(item) stub.cursor = { "item", item } end,
     GetWeaponEnchantInfo = function(slotID)
         local out = {}
         for _, e in ipairs(stub.weaponEnchants) do
@@ -2519,7 +2521,13 @@ function stub.ActionSlots(slots)
     _G.PlaceAction = function(slot)
         local held, old = stub.cursor, stub.slots[slot]
         if not held then return end
-        stub.slots[slot] = held[1] == "spell" and { texture = "tex" .. held[2], spellID = held[2] } or nil
+        if held[1] == "spell" then
+            stub.slots[slot] = { texture = "tex" .. held[2], spellID = held[2] }
+        elseif held[1] == "item" then
+            stub.slots[slot] = { texture = "tex" .. held[2], item = held[2] }
+        else
+            stub.slots[slot] = nil
+        end
         stub.cursor = old and old.spellID and { "spell", old.spellID } or nil
     end
     _G.C_ActionBar = {

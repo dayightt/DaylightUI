@@ -23,7 +23,8 @@
 --   entry.hold               { label, run(stop), when(stop) }: held for
 --                            Pad.HOLD s instead of tapped (tap-or-hold)
 --   frame.padTabs()          returns (list, at) for what LB / RB step through
---                            (default f.tabs); frame.padTabsLabel names them
+--                            (default f.tabs); frame.padTabsLabel (text or a
+--                            function) names them
 --   frame.padScroll          the scroll frame the right stick scrolls (else the
 --                            biggest one shown, see Pad.FindScroll; call
 --                            Pad.Scrolls after a page change, Win.ShowPage)
@@ -51,7 +52,16 @@
 --                            (the spellbook's micro button). Bound only while
 --                            when() is true with no stop. Call
 --                            Pad.Refresh(frame) after the window changes
--- An entry whose when() returns false is hidden and does nothing.
+--   entry.secure(stop)       returns a secure action's attributes ({ type =
+--                            "spell", spell = id } or { type = "click",
+--                            clickbutton = stop }); the key then clicks a secure
+--                            button carrying them, with entry.button as the mouse
+--                            button. For what addon code can't do itself: casting
+--                            a spell, using a bag item. Rebound as the D-pad
+--                            moves. The only kind of entry A can have
+--   frame.padHints()         a list of { keys, label } shown instead (the bind prompt)
+-- An entry whose when() returns false is hidden and does nothing. An entry
+-- with a hold and no label of its own does nothing on a tap.
 local ADDON_NAME, DUI = ...
 
 local L = DUI.L
@@ -87,6 +97,7 @@ end
 
 -- The game's key name for each of a window's buttons.
 Pad.KEYS = {
+    A = { "GAMEPAD_FACE_BOTTOM", "PAD1" },
     X = { "GAMEPAD_FACE_LEFT", "PAD3" },
     Y = { "GAMEPAD_FACE_TOP", "PAD4" },
     MENU_LEFT = { "GAMEPAD_MENU_LEFT", "PADBACK" },
@@ -130,9 +141,74 @@ function Pad.StepTab(dir)
 end
 
 -- The focused window's entry for a key, if it can act on the stop right now.
+-- What every window of ours gets after its own entries: Y opens a list row's
+-- right-click menu (More actions, as on the game's Communities window), and
+-- the left menu button goes into the page's search box (the game's bags,
+-- spellbook). entry.follow: bound only while it acts on the stop, again as
+-- the D-pad moves, so a window without them leaves the keys to the game.
+-- stop.padMore(stop) returns the menu's opener for a stop the kit doesn't know
+-- (a raid tile), or nil when it has none right now.
+local function moreOf(b)
+    if type(b) ~= "table" then return nil end
+    if type(b.padMore) == "function" then return b.padMore(b) end
+    local spec = b.spec or b.lineSpec
+    if type(spec) ~= "table" or spec.dim then return nil end
+    if type(spec.onRightClick) == "function" then return spec.onRightClick end
+    if type(spec.onMenu) == "function" then return spec.onMenu end   -- the finder's and Social's rows
+    return nil
+end
+
+local function searchOf(f)
+    local box = f and f.padSearch
+    if type(box) == "table" and box:IsVisible() and (not box.IsEnabled or box:IsEnabled()) then return box end
+    return nil
+end
+
+-- The footer's main button (Parts.Footer, the primary one), while it can be pressed.
+local function mainOf(f)
+    local foot = f and f.padFoot
+    if type(foot) ~= "table" or not (foot.frame and foot.frame:IsVisible()) then return nil end
+    for _, b in ipairs(foot.buttons or {}) do
+        if b:IsShown() and type(b.spec) == "table" and b.spec.primary then
+            if b.spec.off then return nil end
+            return b
+        end
+    end
+end
+
+-- X presses the footer's main button, as the game's windows put their main
+-- action on X; only on windows that don't bind X themselves.
+Pad.FOOTER_KEY = { key = "X", follow = true,
+    label = function() local b = mainOf(Pad.focused); return b and b.spec.text end,
+    when = function() return mainOf(Pad.focused) ~= nil end,
+    run = function() local b = mainOf(Pad.focused); if b then b:Click() end end }
+
+Pad.DEFAULT_KEYS = {
+    { key = "Y", follow = true, label = function() return CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"] end,
+      when = function(b) return moreOf(b) ~= nil end, run = function(b) local fn = moreOf(b); if fn then fn(b) end end },
+    { key = "MENU_LEFT", follow = true, label = function() return SEARCH or L["Search"] end,
+      when = function() return searchOf(Pad.focused) ~= nil end,
+      run = function() local box = searchOf(Pad.focused); if box then box:SetFocus() end end },
+}
+
+-- A window's own entries, then the defaults (f.padNoDefaults leaves them out).
+local function entriesOf(f)
+    local own = type(f.padKeys) == "table" and f.padKeys or {}
+    if f.padNoDefaults then return own end
+    local out, ownX = {}, false
+    for _, e in ipairs(own) do
+        out[#out + 1] = e
+        if e.key == "X" then ownX = true end
+    end
+    if not ownX then out[#out + 1] = Pad.FOOTER_KEY end
+    for _, e in ipairs(Pad.DEFAULT_KEYS) do out[#out + 1] = e end
+    return out
+end
+Pad.Entries = entriesOf
+
 local function entryFor(f, name, at)
-    if not (f and type(f.padKeys) == "table") then return nil end
-    for _, e in ipairs(f.padKeys) do
+    if not f then return nil end
+    for _, e in ipairs(entriesOf(f)) do
         if e.key == name and (not e.when or e.when(at)) then return e end
     end
 end
@@ -151,14 +227,14 @@ function Pad.Press(name, down)
         pressed[name] = nil
         local h = holding
         holding = nil
-        if h and h.name == name and not h.done then h.e.run(h.at) end
+        if h and h.name == name and not h.done and h.e.run then h.e.run(h.at) end
         return
     end
     pressed[name] = true
     local at = stop()
     local e = entryFor(Pad.focused, name, at)
     if not e then return end
-    if not e.hold then return e.run(at) end
+    if not e.hold then return e.run and e.run(at) end
     local h = { name = name, e = e, at = at }
     holding = h
     C_Timer.After(Pad.HOLD, function()
@@ -180,7 +256,24 @@ local function buildKeys()
         local b = CreateFrame("Button", Pad.KEY_BUTTON .. name, UIParent)
         b:RegisterForClicks("AnyDown", "AnyUp")
         b:SetScript("OnClick", function(_, _, down) Pad.Press(name, down ~= false) end)
+        -- A secure twin per key: a binding's click is a hardware press, so the
+        -- secure action it carries runs untainted.
+        local s = CreateFrame("Button", Pad.SECURE_BUTTON .. name, UIParent, "SecureActionButtonTemplate")
+        s:RegisterForClicks("AnyUp")
+        s:SetAttribute("useOnKeyDown", false)
+        s:HookScript("OnClick", function()
+            C_Timer.After(0, function() if Pad.focused then Pad.ShowHints(Pad.focused) end end)
+        end)
     end
+end
+
+Pad.SECURE_BUTTON = "DaylightUIPadSecure" -- plus the key
+-- Sets a key's secure twin to these attributes only, clearing the last ones.
+local function arm(name, attrs)
+    local s = _G[Pad.SECURE_BUTTON .. name]
+    for k in pairs(s.padAttrs or {}) do s:SetAttribute(k, nil) end
+    s.padAttrs = attrs
+    for k, v in pairs(attrs) do s:SetAttribute(k, v) end
 end
 
 -- D-pad left and right, taken while a stop that changes a value has focus (a
@@ -239,6 +332,8 @@ local function unbind()
     Pad.FreeSides()
 end
 
+local boundAt -- the stop the secure entries were bound for
+
 local function bind(f)
     buildKeys()
     ClearOverrideBindings(keys)
@@ -247,9 +342,25 @@ local function bind(f)
         SetOverrideBindingClick(keys, true, key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER"), Pad.NEXT_TAB)
     end
     local done = {}
-    for _, e in ipairs(type(f.padKeys) == "table" and f.padKeys or {}) do
+    local at = stop()
+    boundAt = at
+    for _, e in ipairs(entriesOf(f)) do
         if not done[e.key] then
-            if not e.click then
+            if e.follow then
+                if not e.when or e.when(at) then
+                    done[e.key] = true
+                    SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.KEY_BUTTON .. e.key)
+                end
+            elseif e.secure then
+                local attrs = (not e.when or e.when(at)) and e.secure(at) or nil
+                if attrs then
+                    done[e.key] = true
+                    arm(e.key, attrs)
+                    SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.SECURE_BUTTON .. e.key, e.button or "LeftButton")
+                end
+            elseif e.key == "A" then
+                -- A stays the game's unless a secure entry takes it.
+            elseif not e.click then
                 done[e.key] = true
                 SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.KEY_BUTTON .. e.key)
             elseif (not e.when or e.when(nil)) and _G[e.click] then
@@ -263,7 +374,7 @@ end
 -- A window changed what it shows (the NPC window going from a quest to a
 -- trainer), so rebind and relabel its buttons.
 function Pad.Refresh(f)
-    if Pad.focused ~= f or InCombatLockdown() then return end
+    if Pad.focused ~= f or Pad.prompt or InCombatLockdown() then return end
     bind(f)
     Pad.ShowHints(f)
 end
@@ -300,22 +411,40 @@ end
 
 -- What the buttons do in this window, in the game's order: A, the window's
 -- own buttons, tabs, windows, B.
+local function labelOf(e, at)
+    if type(e.label) == "function" then return e.label(at) end
+    return e.label
+end
+
+-- Whether an entry acts on this stop: its when(), and for a secure one an action.
+local function acts(e, at)
+    if e.when and not e.when(e.click and nil or at) then return false end
+    return not e.secure or e.secure(at) ~= nil
+end
+
 function Pad.HintList(f)
+    if type(f.padHints) == "function" then return f.padHints() end
     local m = manager()
     local at = stop()
     local out = {}
+    local list = entriesOf(f)
+    local a
+    for _, e in ipairs(list) do
+        if e.key == "A" and e.secure and acts(e, at) then a = labelOf(e, at); break end
+    end
     -- padSelect may return false, meaning A does nothing on this stop (a slider row).
-    local a = f.padSelect and f.padSelect(at)
+    if a == nil then a = f.padSelect and f.padSelect(at) end
     if a ~= false then out[1] = { { key("GAMEPAD_FACE_BOTTOM", "PAD1") }, a or ACTION_LABEL_SELECT or L["Select"] } end
     if at and at.padStep and not at.disabled then
         out[#out + 1] = { { key("GAMEPAD_DPAD_LEFT", "PADDLEFT"), key("GAMEPAD_DPAD_RIGHT", "PADDRIGHT") },
                           at.padStepLabel or L["Change"] }
     end
-    local done = {}
-    for _, e in ipairs(type(f.padKeys) == "table" and f.padKeys or {}) do
-        if not done[e.key] and (not e.when or e.when(e.click and nil or at)) then
+    local done = { A = true }
+    for _, e in ipairs(list) do
+        if not done[e.key] and acts(e, at) then
             done[e.key] = true
-            out[#out + 1] = { { keyOf(e.key) }, type(e.label) == "function" and e.label(at) or e.label }
+            local label = labelOf(e, at)
+            if label then out[#out + 1] = { { keyOf(e.key) }, label } end
             local h = e.hold
             if h and (not h.when or h.when(at)) then
                 out[#out + 1] = { { keyOf(e.key) }, string.format(L["Hold: %s"],
@@ -325,7 +454,8 @@ function Pad.HintList(f)
     end
     if #tabsOf(f) > 1 then
         out[#out + 1] = { { key("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"),
-                            key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER") }, f.padTabsLabel or L["Tabs"] }
+                            key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER") },
+                          (type(f.padTabsLabel) == "function" and f.padTabsLabel() or f.padTabsLabel) or L["Tabs"] }
     end
     if m and type(m.shownFrames) == "table" and #m.shownFrames > 1 then
         out[#out + 1] = { { key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"),
@@ -408,9 +538,281 @@ Pad.HINT_EVERY = 0.15
 local watching
 local function watchHints()
     local f = Pad.focused
-    if not f or not (f.padSelect or type(f.padKeys) == "table") then watching = nil; return end
+    if not f then watching = nil; return end
+    -- A secure entry carries the stop's own action (this spell, this item), so
+    -- it's armed again once the D-pad moves.
+    if Pad.prompt then C_Timer.After(Pad.HINT_EVERY, watchHints); return end   -- the bind prompt has the bar
+    if stop() ~= boundAt and not fight and not InCombatLockdown() then
+        for _, e in ipairs(entriesOf(f)) do
+            if e.secure or e.follow then bind(f); break end
+        end
+    end
     Pad.ShowHints(f)
     C_Timer.After(Pad.HINT_EVERY, watchHints)
+end
+
+-- Putting a spell or item on the game's controller bars
+
+-- The game's own bind screen (GamepadActionBarEditFrame:BindSpell and the
+-- rest) isn't wrapped: started from addon code it suspends the window and
+-- writes the game's binding stack, which taints the controller for the rest
+-- of the session. All it ends in is a pickup and PlaceAction on the slot that
+-- was pressed, so this does just that: a small prompt waits for a press on
+-- the bars and puts the action there.
+--   Pad.BindAction({ icon, name, pickup = fn })   out of combat; true if shown
+--   Pad.EndBind()                                  cancels it
+
+-- The controller bars: 3 pages of 4 bars of 8 buttons, the triggers held pick
+-- the bar (none, LT, RT, both), and the top bar's 4 face buttons (jump,
+-- interact...) hold no action, so a page is 28 slots (ActionBindingUtil.lua).
+-- Buttons in Bindings.xml order: D-pad left, up, right, down, then face left,
+-- up, right, down.
+Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 28, 8, 4
+Pad.BAR_BUTTONS = { "PADDLEFT", "PADDUP", "PADDRIGHT", "PADDDOWN", "PAD3", "PAD4", "PAD2", "PAD1" }
+Pad.BIND_BUTTON = "DaylightUIPadBind" -- plus 1-8, LT, RT, PREV, NEXT
+Pad.PROMPT_W, Pad.PROMPT_ICON = 340, 40
+
+-- The storage slot a press lands on, or nil for a button that holds none.
+function Pad.SlotOf(page, bar, index)
+    local U = C_GamepadUI
+    local first = type(U) == "table" and U.GetFirstGamepadActionStorageSlotIndex and U.GetFirstGamepadActionStorageSlotIndex()
+    if type(first) ~= "number" then return nil end
+    local at = bar * Pad.BAR_SIZE + index - 1
+    if at >= Pad.BAR_SIZE then
+        at = at - Pad.BAR_RESERVED
+    elseif at >= Pad.BAR_RESERVED then
+        return nil
+    end
+    return first + (page - 1) * Pad.BAR_PAGE_SLOTS + at
+end
+
+local function barKey(i) return GetBindingKey("GAMEPADACTIONBUTTON" .. i) or Pad.BAR_BUTTONS[i] end
+
+-- The page the game's bars show now (its special page counts as the first).
+local function barPage()
+    local bars = _G.GamepadMainActionBarFrame
+    local unit = type(bars) == "table" and bars.PageUnit
+    local page = type(unit) == "table" and type(unit.PageTracker) == "table" and unit.PageTracker.currentPage
+    if type(page) ~= "number" or page < 1 or page > Pad.BAR_PAGES then return 1 end
+    return page
+end
+
+local bindOwner, wanted
+local triggers, page = {}, 1
+
+local function bindHints()
+    return {
+        { { key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"), key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER") }, L["Other bars"] },
+        { { key("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER") },
+          string.format(L["Page %d"], page) },
+        { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, CANCEL or L["Cancel"] },
+    }
+end
+
+-- Where each button sits on its cross, in cells from the cross's middle:
+-- the D-pad's four on the left cross, the face buttons on the right.
+Pad.CROSS = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } }
+Pad.CELL, Pad.CELL_GAP, Pad.CROSS_GAP = 30, 4, 48
+Pad.PROMPT_HOLD = 0.6 -- s the placed spell stays in view before the prompt goes
+
+local function makeCell(parent)
+    local Style = DUI.Style
+    local c = CreateFrame("Frame", nil, parent)
+    c:SetSize(Pad.CELL, Pad.CELL)
+    Style.Shell(c, { borderPx = 1, noBevel = true })
+    c.icon = c:CreateTexture(nil, "ARTWORK")
+    c.icon:SetPoint("TOPLEFT", c, "TOPLEFT", 1, -1)
+    c.icon:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -1, 1)
+    Style.CropIcon(c.icon)
+    c.glyph = CreateFrame("Frame", nil, c, "InputIconTextureFrameTemplate")
+    c.glyph:SetSize(Pad.HINT_ICON - 2, Pad.HINT_ICON - 2)
+    c.glyph:SetPoint("CENTER", c, "BOTTOMRIGHT", -3, 3)
+    return c
+end
+
+local function makeGlyph(parent)
+    local g = CreateFrame("Frame", nil, parent, "InputIconTextureFrameTemplate")
+    g:SetSize(Pad.HINT_ICON, Pad.HINT_ICON)
+    return g
+end
+
+local function prompt()
+    if Pad.promptFrame then return Pad.promptFrame end
+    local Style = DUI.Style
+    local pad, step = Pad.HINT_PAD, Pad.CELL + Pad.CELL_GAP
+    local cross = 3 * Pad.CELL + 2 * Pad.CELL_GAP
+    local barW, barH = 2 * cross + Pad.CROSS_GAP, Pad.HINT_ICON + 4 + cross
+    local p = CreateFrame("Frame", nil, UIParent)
+    p:SetFrameStrata("DIALOG")
+    p:SetSize(Pad.PROMPT_W, pad + Pad.PROMPT_ICON + pad + barH + pad)
+    p:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    Style.Shell(p, { window = true })
+    p.well = CreateFrame("Frame", nil, p)
+    p.well:SetSize(Pad.PROMPT_ICON, Pad.PROMPT_ICON)
+    p.well:SetPoint("TOPLEFT", p, "TOPLEFT", pad, -pad)
+    Style.Shell(p.well, { borderPx = 1, noBevel = true })
+    p.icon = p.well:CreateTexture(nil, "ARTWORK")
+    p.icon:SetAllPoints(p.well)
+    Style.CropIcon(p.icon)
+    p.name = Style.Text(p, Style.SIZE.head, "LEFT")
+    p.name:SetPoint("TOPLEFT", p.well, "TOPRIGHT", 10, -1)
+    p.name:SetPoint("RIGHT", p, "RIGHT", -pad, 0)
+    p.name:SetWordWrap(false)
+    p.text = Style.Text(p, Style.SIZE.small, "LEFT")
+    p.text:SetPoint("BOTTOMLEFT", p.well, "BOTTOMRIGHT", 10, 1)
+    p.text:SetPoint("RIGHT", p, "RIGHT", -pad, 0)
+    -- The bar the next press lands on, as two crosses, with the triggers held lit.
+    p.bar = CreateFrame("Frame", nil, p)
+    p.bar:SetSize(barW, barH)
+    p.bar:SetPoint("TOP", p, "TOP", 0, -(pad + Pad.PROMPT_ICON + pad))
+    p.cells = {}
+    for i = 1, Pad.BAR_SIZE do
+        local c = makeCell(p.bar)
+        local spot = Pad.CROSS[i]
+        local mid = (i <= 4) and (cross / 2) or (cross + Pad.CROSS_GAP + cross / 2)
+        c:SetPoint("CENTER", p.bar, "TOPLEFT", mid + spot[1] * step, -(Pad.HINT_ICON + 4 + cross / 2) + spot[2] * step)
+        p.cells[i] = c
+    end
+    p.lt, p.rt = makeGlyph(p.bar), makeGlyph(p.bar)
+    p.lt:SetPoint("TOPLEFT", p.bar, "TOPLEFT", 0, 0)
+    p.rt:SetPoint("TOPRIGHT", p.bar, "TOPRIGHT", 0, 0)
+    p.page = Style.Text(p.bar, Style.SIZE.small, "CENTER")
+    p.page:SetPoint("TOP", p.bar, "TOP", 0, -2)
+    p.padHints = bindHints
+    p:Hide()
+    Pad.promptFrame = p
+    return p
+end
+
+local function barOf() return (triggers.LT and 1 or 0) + (triggers.RT and 2 or 0) end
+
+-- Paints the preview: what's on each button of the bar the triggers pick.
+-- moved fades the crosses in, as the bar changes under them.
+local function paintBar(moved)
+    local p = Pad.prompt
+    if not p then return end
+    local bar = barOf()
+    for i, c in ipairs(p.cells) do
+        local slot = Pad.SlotOf(page, bar, i)
+        local tex = slot and GetActionTexture(slot) or nil
+        c.icon:SetTexture(tex)
+        c.icon:SetShown(tex ~= nil)
+        c:SetAlpha(slot and 1 or 0.3)   -- the top bar's face buttons hold nothing
+        if c.glyph.SetInputKey then c.glyph:SetInputKey(barKey(i)) end
+    end
+    if p.lt.SetInputKey then p.lt:SetInputKey(key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER")) end
+    if p.rt.SetInputKey then p.rt:SetInputKey(key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER")) end
+    local M = DUI.Motion
+    M.Fade(p.lt, p.lt:GetAlpha(), triggers.LT and 1 or 0.3, M.FAST)
+    M.Fade(p.rt, p.rt:GetAlpha(), triggers.RT and 1 or 0.3, M.FAST)
+    p.page:SetText(string.format(L["Page %d"], page))
+    DUI.Style.InkText(p.page, "LABEL")
+    if moved then M.Fade(p.bar, 0.4, 1, M.FAST) end
+end
+
+local function placeOn(slot)
+    if InCombatLockdown() then return false end
+    ClearCursor()
+    wanted.pickup()
+    if not GetCursorInfo() then return false end
+    PlaceAction(slot)
+    ClearCursor()   -- what was in the slot comes onto the cursor; it's dropped, as on the game's bind
+    return true
+end
+
+local function pressBar(i)
+    local p = Pad.prompt
+    if not p then return end
+    local slot = Pad.SlotOf(page, barOf(), i)
+    if not slot then
+        if barKey(i) == key("GAMEPAD_FACE_RIGHT", "PAD2") then Pad.EndBind() end   -- B on the top bar holds nothing: cancel
+        return
+    end
+    local placed = placeOn(slot)
+    if placed then
+        -- Show it land: the new icon pops into the pressed button before the prompt goes.
+        paintBar()
+        DUI.Motion.Pop(p.cells[i].icon, 0.5)
+    end
+    Pad.EndBind(placed)
+end
+
+local function buildBind()
+    if bindOwner then return end
+    bindOwner = CreateFrame("Frame", nil, UIParent)
+    for i = 1, Pad.BAR_SIZE do
+        local b = CreateFrame("Button", Pad.BIND_BUTTON .. i, UIParent)
+        b:RegisterForClicks("AnyDown")
+        b:SetScript("OnClick", function() pressBar(i) end)
+    end
+    for _, side in ipairs({ "LT", "RT" }) do
+        local b = CreateFrame("Button", Pad.BIND_BUTTON .. side, UIParent)
+        b:RegisterForClicks("AnyDown", "AnyUp")
+        b:SetScript("OnClick", function(_, _, down)
+            triggers[side] = down ~= false or nil
+            paintBar(true)
+        end)
+    end
+    for name, dir in pairs({ PREV = -1, NEXT = 1 }) do
+        local b = CreateFrame("Button", Pad.BIND_BUTTON .. name, UIParent)
+        b:RegisterForClicks("AnyDown")
+        b:SetScript("OnClick", function()
+            page = (page - 1 + dir) % Pad.BAR_PAGES + 1
+            paintBar(true)
+            if Pad.prompt then Pad.ShowHints(Pad.prompt) end
+        end)
+    end
+end
+
+function Pad.BindAction(spec)
+    if not manager() or fight or InCombatLockdown() or type(spec) ~= "table" or type(spec.pickup) ~= "function" then return false end
+    if not Pad.SlotOf(1, 1, 1) then return false end
+    buildBind()
+    wanted, triggers, page = spec, {}, barPage()
+    -- The window's own buttons wait under the prompt.
+    if keys then ClearOverrideBindings(keys) end
+    Pad.FreeSides()
+    ClearOverrideBindings(bindOwner)
+    for i = 1, Pad.BAR_SIZE do SetOverrideBindingClick(bindOwner, true, barKey(i), Pad.BIND_BUTTON .. i) end
+    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"), Pad.BIND_BUTTON .. "LT")
+    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER"), Pad.BIND_BUTTON .. "RT")
+    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), Pad.BIND_BUTTON .. "PREV")
+    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER"), Pad.BIND_BUTTON .. "NEXT")
+    local p = prompt()
+    if spec.icon then p.icon:SetTexture(spec.icon) end
+    p.name:SetText(spec.name or "")
+    DUI.Style.InkText(p.name, "VALUE")
+    p.text:SetText(L["Press the button to put it on. Hold a trigger for its bar."])
+    DUI.Style.InkText(p.text, "TEXT")
+    Pad.prompt = p
+    p.gone = nil
+    local M = DUI.Motion
+    M.Fade(p, p:IsShown() and p:GetAlpha() or 0, 1, M.FAST)
+    p:Show()
+    paintBar()
+    Pad.ShowHints(p)
+    return true
+end
+
+-- Closes the prompt; placed says it put the action on a slot, which stays in
+-- view a moment so the player sees where it went.
+function Pad.EndBind(placed)
+    local p = Pad.prompt
+    if not p then return end
+    Pad.prompt, wanted, triggers = nil, nil, {}
+    if bindOwner and not InCombatLockdown() then ClearOverrideBindings(bindOwner) end
+    if DUI.Sound then DUI.Sound.Play(placed and "snap" or "close") end
+    p.gone = true
+    local wait = placed and Pad.PROMPT_HOLD or 0
+    DUI.Motion.Fade(p, 1, 0, DUI.Motion.FAST, wait)
+    C_Timer.After(wait + DUI.Motion.FAST, function() if p.gone then p.gone = nil; p:Hide() end end)
+    local f = Pad.focused
+    if f and not fight and not InCombatLockdown() then
+        bind(f)
+        Pad.ShowHints(f)
+    else
+        Pad.HideHints()
+    end
 end
 
 -- The right stick scrolls a window's list, as the game sets one for each of
@@ -433,15 +835,32 @@ end
 
 -- After a window shows another page, the stick follows its list.
 function Pad.Scrolls(f)
+    if Pad.focused == f then f.padSearch, f.padFoot = Pad.FindParts(f) end
     local nav = _G.SmartNavigation
     if Pad.focused ~= f or fight or InCombatLockdown() or type(nav) ~= "table" or not nav.SetScrollFrameForFrame then return end
     nav:SetScrollFrameForFrame(f, f.padScroll or Pad.FindScroll(f))
 end
 
+-- The search box (W.Input with search) and footer (Parts.Footer) on the
+-- window's page in view, found once per page so the hints don't walk the
+-- window every time.
+function Pad.FindParts(f)
+    local search, foot
+    local function walk(frame)
+        if (search and foot) or not frame:IsVisible() then return end
+        if frame.isSearch then search = search or frame end
+        if frame.padFooter then foot = foot or frame.padFooter end
+        for _, child in ipairs({ frame:GetChildren() }) do walk(child) end
+    end
+    walk(f)
+    return search, foot
+end
+
 local function focusGained(self)
+    if Pad.prompt then Pad.EndBind() end
     Pad.focused = self
     Pad.Scrolls(self)
-    if not watching and (self.padSelect or type(self.padKeys) == "table") then
+    if not watching then
         watching = true
         C_Timer.After(Pad.HINT_EVERY, watchHints)
     end
@@ -458,6 +877,7 @@ end
 local function focusLost(self)
     if Pad.focused ~= self then return end
     Pad.focused = nil
+    if Pad.prompt then Pad.EndBind() end
     if not InCombatLockdown() then unbind() end
     Pad.HideHints()
 end
@@ -626,6 +1046,7 @@ end
 local function handBack()
     if fight then return end
     fight = true
+    if Pad.prompt then Pad.EndBind() end
     unbind()
     local m = manager()
     if not m or combatActive() then return end

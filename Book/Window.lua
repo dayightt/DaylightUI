@@ -282,6 +282,60 @@ function Book.Apply()
     if Book.follow then Win.Followers.WriteWidth(Book.follow) end
 end
 
+-- ---------------------------------------------------------------------
+-- A controller: each page brings the game's own buttons for it (the
+-- spellbook's, the talents', the trainer list's). LB and RB step what the
+-- page has to step (schools, talent sets, chips), else the window's tabs.
+-- ---------------------------------------------------------------------
+
+local function headerTabs(f)
+    local out, at = {}, nil
+    for _, b in ipairs(f.tabs or {}) do
+        if b:IsShown() then
+            out[#out + 1] = b
+            if b.id == f.current then at = #out end
+        end
+    end
+    return out, at
+end
+
+local PAGE_TABS = { spells = "Spells", talents = "Talents", training = "Training" }
+
+local function pageTabs(f)
+    local part = ns[PAGE_TABS[f.current] or ""]
+    if part and part.PadTabs then
+        local list, at = part.PadTabs()
+        if #list > 1 then return list, at, true end
+    end
+    local list, at = headerTabs(f)
+    return list, at, false
+end
+
+function Book.PadSetup(f)
+    local function on(page) return function() return f.current == page end end
+    local list = {}
+    local function add(entries) for _, e in ipairs(entries) do list[#list + 1] = e end end
+    add(ns.Spells.PadKeys(on("spells")))
+    add(ns.Talents.PadKeys(on("talents")))
+    f.padKeys = list
+    f.padSelect = function(b)
+        if f.current == "talents" then return ns.Talents.PadSelect(b) end
+        -- A casts through its secure key; a row it can't cast does nothing.
+        if f.current == "spells" and type(b) == "table" and b.cell then return false end
+        return nil
+    end
+    f.padTabs = function()
+        local items, at = pageTabs(f)
+        return items, at
+    end
+    f.padTabsLabel = function()
+        local _, _, own = pageTabs(f)
+        if not own then return L["Tabs"] end
+        if f.current == "talents" then return L["Talent sets"] end
+        return CATEGORIES or L["Categories"]
+    end
+end
+
 function Book.Build(mod)
     ns.module = mod
     if Book.frame then return Book.frame end
@@ -312,6 +366,7 @@ function Book.Build(mod)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Book.ResetSpot   -- /dui reset
     Win.Tabs(f, tabs, Book.Show)
     if ns.Fight then ns.Fight.Build(f) end   -- after close and tabs exist, since the layer covers them
+    Book.PadSetup(f)
     local reg = _G.EventRegistry
     if type(reg) == "table" and type(reg.RegisterCallback) == "function" then
         reg:RegisterCallback("PlayerSpellsFrame.TabSet", Book.OnTabSet, Book)

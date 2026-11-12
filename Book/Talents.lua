@@ -771,6 +771,15 @@ end
 -- Footer buttons: Apply and Undo, or Activate
 -- ---------------------------------------------------------------------
 
+function Talents.Undo()
+    if ns.Spend.Undo() then sound("refund"); Talents.Soon() end
+end
+
+function Talents.Activate()
+    local shown = Talents.group or ns.TalentData.ActiveGroup()
+    if ns.Spend.Activate(shown) and Talents.page then Talents.Buttons(Talents.page) end
+end
+
 function Talents.Buttons(page)
     local Spend, TD = ns.Spend, ns.TalentData
     local bar = page.actions
@@ -788,9 +797,7 @@ function Talents.Buttons(page)
     bar:Set({
         { text = TALENT_FRAME_APPLY_BUTTON_TEXT or L["Apply"], primary = true, off = not ok,
             onClick = function() Talents.Apply() end },
-        { text = L["Undo"], off = not changes, onClick = function()
-            if Spend.Undo() then sound("refund"); Talents.Soon() end
-        end },
+        { text = L["Undo"], off = not changes, onClick = Talents.Undo },
     })
     bar.why = (not ok and changes) and reason or nil
     Talents.FitFoot(page)
@@ -1039,4 +1046,60 @@ function Talents.Pieces(page)
     out[#out + 1] = page.foot
     out[#out + 1] = page.actions.frame
     return out
+end
+
+-- ---------------------------------------------------------------------
+-- A controller: the game's talent buttons (SetUpTalentsGamepad in
+-- Blizzard_PlayerSpellsFrame.lua). A adds a point, Y takes one back and held
+-- undoes every change, X held applies them, LB and RB step the talent sets.
+-- ---------------------------------------------------------------------
+
+local function padNode(b)
+    if type(b) ~= "table" or type(b.node) ~= "table" then return nil end
+    if b.box and b.box.readOnly then return nil end
+    return b.node
+end
+
+local function viewingActive() return (Talents.group or ns.TalentData.ActiveGroup()) == ns.TalentData.ActiveGroup() end
+
+function Talents.PadSelect(b)
+    if padNode(b) and viewingActive() then return GAMEPAD_TALENT_ADD_POINT or L["Add point"] end
+    return nil
+end
+
+-- The talent sets, when there's a second one to switch to.
+function Talents.PadTabs()
+    local page = Talents.page
+    local out, at = {}, nil
+    if not (page and page.sets) or ns.TalentData.NumGroups() < 2 then return out end
+    local shown = Talents.group or ns.TalentData.ActiveGroup()
+    for i, b in ipairs(page.sets) do
+        if b:IsShown() and not b.off then
+            out[#out + 1] = b
+            if i == shown then at = #out end
+        end
+    end
+    return out, at
+end
+
+function Talents.PadKeys(on)
+    local Spend = function() return ns.Spend end
+    return {
+        { key = "Y", when = function(b) return on() and viewingActive() and (padNode(b) ~= nil or Spend().HasChanges()) end,
+          label = function(b)
+              local node = padNode(b)
+              return node and node.rank > 0 and (GAMEPAD_TALENT_REMOVE_POINT or L["Remove point"]) or nil
+          end,
+          run = function(b)
+              local node = padNode(b)
+              if node and node.rank > 0 then Talents.Click(b, "RightButton") end
+          end,
+          hold = { label = L["Undo"], when = function() return Spend().HasChanges() end, run = Talents.Undo } },
+        { key = "X", label = TALENT_SPEC_ACTIVATE or L["Activate"],
+          when = function() return on() and not viewingActive() and not InCombatLockdown() end,
+          run = Talents.Activate },
+        { key = "X", when = function() return on() and viewingActive() and Spend().HasChanges() end,
+          hold = { label = TALENT_FRAME_APPLY_BUTTON_TEXT or L["Apply"],
+                   when = function() return (Spend().CanApply()) end, run = Talents.Apply } },
+    }
 end

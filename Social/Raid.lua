@@ -144,6 +144,8 @@ local function makeSlot(card)
     b:SetScript("OnEnter", function(self) Raid.Enter(self) end)
     b:SetScript("OnLeave", function(self) Raid.Leave(self) end)
     b:SetScript("OnClick", function(self, button) if button == "RightButton" and self.member then Raid.Menu(self, self.member) end end)
+    -- A controller's Y opens the same menu.
+    b.padMore = function(self) if self.member then return function() Raid.Menu(self, self.member) end end end
     -- Holding moves them from the row too (in combat, or if the target layer is ever not
     -- over it); only click to target needs the layer.
     b:RegisterForDrag("LeftButton")
@@ -526,4 +528,11 @@ function Raid.Pieces(page)
     for _, c in ipairs(page.cards) do out[#out + 1] = c end
     for _, p in ipairs(page.pieces or {}) do out[#out + 1] = p end
     return out
+end
+
+-- A controller's A on a raid member targets them, as a click on the row does.
+function Raid.PadTarget(b)
+    local m = type(b) == "table" and b.member
+    if type(m) ~= "table" or type(m.unit) ~= "string" then return nil end
+    return { type = "target", unit = m.unit }
 end

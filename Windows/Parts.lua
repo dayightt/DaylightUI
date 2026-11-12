@@ -1187,6 +1187,7 @@ function Parts.Footer(page, opts)
     f.line:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 10)
     f.line:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 10)
     foot.frame = f
+    f.padFooter = foot   -- the controller's X finds the main button through it (Pad.FindParts)
     return foot
 end
 

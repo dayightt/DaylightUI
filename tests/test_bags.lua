@@ -3905,3 +3905,49 @@ T.test("bags: plugins paint the slots after each fill, with the item", function(
     T.truthy(#got > n, "painted again after the bag changed")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The game's controller window list, enough to focus the bag (FrameControlsManager).
+local function padOn()
+    local m = { shownFrames = {} }
+    function m:GetActiveFrame() return self.focused end
+    function m:FrameShown(frame)
+        table.insert(self.shownFrames, frame)
+        self.focused = frame
+        if frame.FocusGamepad then frame:FocusGamepad() end
+    end
+    function m:FrameHidden(frame)
+        for i, f in ipairs(self.shownFrames) do if f == frame then table.remove(self.shownFrames, i) end end
+        if self.focused == frame then self.focused = nil; if frame.UnfocusGamepad then frame:UnfocusGamepad() end end
+    end
+    _G.GamepadMode = { FrameControlsManager = m }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+end
+
+T.test("bags on a controller: X does an item's right click through a secure key, Y its more actions", function()
+    local ns = login()
+    world.items[0][1].itemID = 1
+    world.items[0][2].itemID = 2
+    C_Item.GetItemSpell = function(id) if id == 1 then return "Drink", 430 end end
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local B = ns.Bags
+    local at = B.buttons[0][1]
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    local f = open(ns)
+    stub.RunTimers()
+    local o = stub.overrides.PAD3
+    T.truthy(o, "X is bound on a usable item")
+    T.eq(o.button, "RightButton")
+    local s = _G[o.click]
+    T.eq(s:GetAttribute("type"), "click")
+    T.eq(s:GetAttribute("clickbutton"), at)
+    local said = {}
+    for _, row in ipairs(DaylightUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
+    said = table.concat(said, "|")
+    T.truthy(said:find(CONTEXT_ACTION_LABEL_USE or "Use", 1, true), said)
+    at = B.buttons[0][2]
+    stub.RunTimers()
+    T.eq(stub.overrides.PAD3, nil, "an item a right click does nothing with leaves X alone")
+    T.truthy(stub.overrides.PAD4, "Y still has more actions")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)

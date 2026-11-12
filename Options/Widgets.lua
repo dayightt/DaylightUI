@@ -907,6 +907,7 @@ function W.Input(parent, opts)
     e:SetTextInsets(left, right, 0, 0)
     W.InputLook(e)
     if opts.search then
+        e.isSearch = true   -- the controller's left menu button finds it (Pad.FindParts)
         e.icon = W.Icon(e, "ui-search.png", 13, C.faint)
         e.icon:SetPoint("LEFT", e, "LEFT", 8, 0)
         local s = math.min(18, h - 6)
@@ -2374,7 +2375,9 @@ function W.OpenMenu(owner, keys, values, current, onPick, width, opts)
         menu:EnableMouseWheel(true)
         menu:SetScript("OnMouseWheel", function(_, delta) menu.bar.Wheel(delta) end)
     end
-    if opts and opts.atCursor then
+    -- On a controller the mouse isn't where the player looks: open at the owner.
+    local padded = owner ~= nil and DUI.Pad and DUI.Pad.On()
+    if opts and opts.atCursor and not padded then
         cursorSpot = cursorSpot or CreateFrame("Frame", nil, UIParent)
         local x, y = GetCursorPosition()
         local s = UIParent:GetEffectiveScale() or 1

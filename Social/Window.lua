@@ -293,6 +293,10 @@ function Social.Build(mod)
         { id = "requests", text = L["Requests"] }, { id = "raid", text = RAID or L["Raid"] } },
         function(id) Social.ShowTab(id, true) end)
     f.online:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0)   -- stops short of the tabs (long translations get cut instead of overlapping)
+    -- Controller: the game's friends list has no buttons of its own, so this one
+    -- follows its Communities window. Y is a row's menu and X the footer's main
+    -- button (every window's); A on a raid member targets them.
+    f.padKeys = { { key = "A", label = TARGET or L["Target"], secure = function(b) return ns.Raid.PadTarget(b) end } }
     Win.Drag(f, { save = Social.SaveSpot, reset = Social.ResetSpot })
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("Social", "scale", v) end)
     Social.sizer = Win.Resizable(f, { db = function() return ns.module and ns.module.db end,

@@ -504,7 +504,7 @@ end)
 
 T.test("pad: the buttons are named under the window that has the focus", function()
     local DUI = stub.Load()
-    strict(true)
+    fresh(strict(true))
     local f = DUI.Win.New({ name = "PadTestHints", title = "Test" })
     f.padKeys = { { key = "X", label = "Buy a stack", run = function() end } }
     f.padSelect = function() return "Buy" end
@@ -517,7 +517,7 @@ T.test("pad: the buttons are named under the window that has the focus", functio
     for _, row in ipairs(DUI.Pad.HintList(f)) do labels[#labels + 1] = row[2] end
     T.eq(labels[1], "Buy", "A says what it does here")
     T.eq(labels[2], "Buy a stack")
-    DUI.Pad.HideHints()
+    f:Hide()   -- the window losing the focus takes its bar away
     stub.RunTimers()
     T.falsy(hints:IsShown(), "gone with it")
     clearAll()
@@ -746,9 +746,17 @@ T.test("pad options: the D-pad starts on the page in the list; landing on anothe
     local P = DUI.OptionsPanel
     local f = P.Frame()
     T.eq(f.padFirst(), P.PageButton("appearance"), "starts on the page on show")
-    local other
+    -- A set page, not one picked by pairs(): some pages start with no rows.
+    local ids = {}
     for id, b in pairs(P.Nav().pageButtons) do
-        if id ~= "appearance" and b:IsShown() then other = b end
+        if id ~= "appearance" and b:IsShown() then ids[#ids + 1] = id end
+    end
+    table.sort(ids)
+    local other
+    for _, id in ipairs(ids) do
+        local b = P.Nav().pageButtons[id]
+        b.OnSmartNavSelect()
+        if P.FirstStop() then other = b; break end
     end
     other.OnSmartNavSelect()
     T.eq(P.Current(), other.page.id, "shown as the D-pad lands on it")
@@ -833,5 +841,171 @@ T.test("pad: a long dropdown brings the next choice in as the D-pad reaches the 
     for _ = 1, 30 do stub.RunTimers(); local d = DUI.Motion.Driver(); if d then stub.RunOnUpdate(d, 0.1) end end
     T.eq(W.MenuRow(1).index, 1, "back up: the first choice again")
     W.CloseMenu()
+    clearAll()
+end)
+
+T.test("pad: a secure entry puts the stop's own action on its key, armed again as the D-pad moves", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    local f = DUI.Win.New({ name = "PadTestSecure", title = "Test" })
+    local one, two, none = CreateFrame("Button", nil, f), CreateFrame("Button", nil, f), CreateFrame("Button", nil, f)
+    one.id, two.id = 11, 22
+    local at = one
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    f.padKeys = { { key = "A", label = "Cast",
+                    secure = function(b) return b and b.id and { type1 = "spell", spell = b.id } or nil end } }
+    f:Show()
+    stub.RunTimers()
+    local o = stub.overrides.PAD1
+    T.truthy(o, "A is taken while a stop has an action")
+    local s = _G[o.click]
+    T.eq(s:GetAttribute("spell"), 11)
+    T.eq(DUI.Pad.HintList(f)[1][2], "Cast")
+    at = two
+    stub.RunTimers()
+    T.eq(s:GetAttribute("spell"), 22, "the D-pad moved: the next row's spell")
+    at = none
+    stub.RunTimers()
+    T.eq(stub.overrides.PAD1, nil, "a stop with nothing to cast leaves A to the game")
+    T.eq(s:GetAttribute("spell"), 22)
+    T.eq(DUI.Pad.HintList(f)[1][2], ACTION_LABEL_SELECT or "Select")
+    f:Hide()
+    T.eq(stub.overrides.PAD1, nil)
+    clearAll()
+end)
+
+-- The controller bars' storage: 3 pages of 28 slots, the top bar's face buttons
+-- holding none (ActionBindingUtil.lua).
+local function padBars(first, page)
+    _G.C_GamepadUI = { GetFirstGamepadActionStorageSlotIndex = function() return first end }
+    _G.GamepadMainActionBarFrame = { PageUnit = { PageTracker = { currentPage = page or 1 } } }
+end
+
+T.test("pad bind: a press on the bars puts the spell in that slot, triggers and pages picking the bar", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    stub.ActionSlots({})
+    padBars(200)
+    local Pad = DUI.Pad
+    T.eq(Pad.SlotOf(1, 0, 1), 200)
+    T.eq(Pad.SlotOf(1, 0, 8), nil, "the top bar's face buttons hold nothing")
+    T.eq(Pad.SlotOf(1, 1, 1), 204)
+    T.eq(Pad.SlotOf(1, 3, 8), 227)
+    T.eq(Pad.SlotOf(2, 0, 1), 228)
+    local f = DUI.Win.New({ name = "PadTestBind", title = "Test" })
+    f.padKeys = { { key = "X", label = "Bind", run = function() end } }
+    f:Show()
+    stub.RunTimers()
+    T.truthy(Pad.BindAction({ name = "Smite", icon = 1, pickup = function() C_Spell.PickupSpell(585) end }))
+    T.truthy(Pad.prompt and Pad.prompt:IsShown())
+    T.eq(stub.overrides.PAD3.click, Pad.BIND_BUTTON .. "5", "X is a bar button while the prompt waits")
+    local said = {}
+    for _, row in ipairs(Pad.HintList(Pad.prompt)) do said[#said + 1] = row[2] end
+    T.truthy(table.concat(said, "|"):find(CANCEL or "Cancel", 1, true))
+    stub.PressKey("PADRSHOULDER")   -- page 2
+    local lt = _G[stub.overrides.PADLTRIGGER.click]
+    lt:GetScript("OnClick")(lt, "LeftButton", true)
+    stub.PressKey("PAD1")
+    lt:GetScript("OnClick")(lt, "LeftButton", false)
+    T.eq(stub.slots[200 + 28 + 11] and stub.slots[200 + 28 + 11].spellID, 585, "page 2, LT, face down")
+    T.eq(stub.cursor, nil)
+    T.eq(Pad.prompt, nil)
+    T.eq(stub.overrides.PAD3.click, Pad.KEY_BUTTON .. "X", "the window's own X is back")
+    T.eq(stub.overrides.PADLTRIGGER, nil)
+    f:Hide()
+    _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
+    clearAll()
+end)
+
+T.test("pad bind: B on the top bar cancels, and a fight or the window closing ends the prompt", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    stub.ActionSlots({})
+    padBars(200)
+    local Pad = DUI.Pad
+    local f = DUI.Win.New({ name = "PadTestBindB", title = "Test" })
+    f:Show()
+    stub.RunTimers()
+    local spec = { name = "Smite", pickup = function() C_Spell.PickupSpell(585) end }
+    T.truthy(Pad.BindAction(spec))
+    stub.PressKey("PAD2")
+    T.eq(Pad.prompt, nil, "B cancels")
+    T.eq(next(stub.slots), nil, "nothing placed")
+    T.truthy(Pad.BindAction(spec))
+    f:Hide()
+    T.eq(Pad.prompt, nil, "the window closing ends it")
+    T.eq(stub.overrides.PAD1, nil)
+    f:Show()
+    stub.RunTimers()
+    T.truthy(Pad.BindAction(spec))
+    stub.SetRestriction("Combat", true)
+    T.eq(Pad.prompt, nil, "a fight ends it")
+    T.eq(stub.overrides.PAD1, nil, "the bars are the player's again")
+    stub.SetRestriction("Combat", false)
+    f:Hide()
+    _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
+    clearAll()
+end)
+
+T.test("pad: every window's Y opens a row's right-click menu, its left menu button the search", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    local f = DUI.Win.New({ name = "PadTestDefaults", title = "Test" })
+    local box = DUI.Widgets.Input(f, { search = true })
+    local row, plain = CreateFrame("Button", nil, f), CreateFrame("Button", nil, f)
+    local menu
+    row.lineSpec = { onRightClick = function(b) menu = b end }
+    local at = plain
+    _G.SmartNavigation = { GetCurrentButton = function() return at end, SetScrollFrameForFrame = function() end }
+    f:Show()
+    stub.RunTimers()
+    T.eq(stub.overrides.PAD4, nil, "a stop without a menu leaves Y to the game")
+    T.truthy(stub.overrides.PADBACK, "the search box is found")
+    local focused = false
+    box.SetFocus = function() focused = true end   -- the fake game's boxes never hold focus
+    _G[stub.overrides.PADBACK.click]:Click()
+    T.truthy(focused)
+    at = row
+    stub.RunTimers()
+    T.truthy(stub.overrides.PAD4, "Y on a row with a menu")
+    _G[stub.overrides.PAD4.click]:Click()
+    T.eq(menu, row)
+    f:Hide()
+    clearAll()
+end)
+
+T.test("pad: X presses the page footer's main button on a window that doesn't bind X itself", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    local f = DUI.Win.New({ name = "PadTestFooter", title = "Test" })
+    local foot = DUI.Win.Parts.Footer(f)
+    local invited = 0
+    local off = false
+    local function paint() foot:Set({ { text = "Invite", primary = true, off = off, onClick = function() invited = invited + 1 end },
+                                      { text = "Whisper", onClick = function() end } }) end
+    paint()
+    _G.SmartNavigation = { GetCurrentButton = function() return nil end, SetScrollFrameForFrame = function() end }
+    f:Show()
+    stub.RunTimers()
+    T.truthy(stub.overrides.PAD3)
+    local said = {}
+    for _, row in ipairs(DUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
+    T.truthy(table.concat(said, "|"):find("Invite", 1, true))
+    _G[stub.overrides.PAD3.click]:Click()
+    T.eq(invited, 1)
+    off = true
+    paint()
+    DUI.Pad.Refresh(f)
+    T.eq(stub.overrides.PAD3, nil, "a main button that's off leaves X alone")
+    f:Hide()
+    f.padKeys = { { key = "X", label = "Own", run = function() end } }
+    off = false
+    paint()
+    f:Show()
+    stub.RunTimers()
+    said = {}
+    for _, row in ipairs(DUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
+    T.falsy(table.concat(said, "|"):find("Invite", 1, true), "a window's own X wins")
+    f:Hide()
     clearAll()
 end)
