@@ -41,7 +41,7 @@ Donators.LIST = {
     "Luke",
     "riot.",
     "munolos",
-    "Blecha Marco",
+    "Troody",
     "ezra",
     "Bryan",
     "Derrick Bevan",
@@ -65,7 +65,7 @@ Donators.LIST = {
 -- in their own lit card under the podium. They also stay in LIST at their
 -- place by total given.
 Donators.MONTHLY = {
-    "Blecha Marco",
+    "Troody",
     "blukraken",
     "SPARQ",
     "Bryan",
