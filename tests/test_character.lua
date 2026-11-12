@@ -1247,6 +1247,75 @@ T.test("character page: the game's tooltip failing falls back to our words", fun
     T.eq(CW.Calls("tipLine")[1], "About 1 in 5 of your attacks hits for double damage.")
 end)
 
+local function rowFrame(page, group, id)
+    for _, r in ipairs(page.stats.groups[group].rows) do if r.row and r.row.id == id then return r end end
+end
+
+T.test("character page: a reused row drops the last stat's tooltip title", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    local dmg = rowFrame(page, "attack", "dmg")
+    dmg.tooltipLabel, dmg.offhandAttackSpeed = "Off Hand", 1.8   -- left by an off-hand row on this frame
+    local label, offSpeed
+    _G.PaperDollFrame_SetMainhandDamage = function(f) f.onEnterFunc = function(self) label, offSpeed = self.tooltipLabel, self.offhandAttackSpeed end end
+    _G.PaperDollStatTooltip = function() end
+    P.StatTip(dmg)
+    _G.PaperDollFrame_SetMainhandDamage, _G.PaperDollStatTooltip = nil, nil
+    T.isnil(label, "the game's main-hand row sets none, so it must start empty")
+    T.isnil(offSpeed)
+end)
+
+-- Camelot PaperDollFrameStats.lua: PaperDollFrame_ExpertiseOnEnter reads a global
+-- `category` nothing sets, so it always says CR_RANGED_EXPERTISE_TOOLTIP.
+T.test("character page: expertise's tooltip says the melee sentence, not the game's ranged one", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    local g = { "PaperDollFrame_ExpertiseOnEnter", "PaperDollFrame_SetExpertise", "PaperDollStatTooltip", "CR_EXPERTISE_TOOLTIP",
+        "CR_RANGED_EXPERTISE_TOOLTIP", "PAPERDOLLFRAME_TOOLTIP_FORMAT", "COMBAT_RATING_NAME24", "CR_EXPERTISE",
+        "HIGHLIGHT_FONT_COLOR_CODE", "FONT_COLOR_CODE_CLOSE", "NORMAL_FONT_COLOR" }
+    local was = {}
+    for _, k in ipairs(g) do was[k] = _G[k] end
+    _G.PaperDollFrame_ExpertiseOnEnter = function() GameTooltip:AddLine(string.format(_G.CR_RANGED_EXPERTISE_TOOLTIP, "?")) end
+    _G.PaperDollFrame_SetExpertise = function(f) f.onEnterFunc = _G.PaperDollFrame_ExpertiseOnEnter end
+    _G.PaperDollStatTooltip = function() end
+    _G.CR_EXPERTISE_TOOLTIP, _G.CR_RANGED_EXPERTISE_TOOLTIP = "Melee %s", "Ranged %s"
+    _G.PAPERDOLLFRAME_TOOLTIP_FORMAT, _G.COMBAT_RATING_NAME24, _G.CR_EXPERTISE = "%s", "Expertise", 24
+    _G.HIGHLIGHT_FONT_COLOR_CODE, _G.FONT_COLOR_CODE_CLOSE, _G.NORMAL_FONT_COLOR = "", "", { r = 1, g = 0.82, b = 0 }
+    P.StatTip(rowFrame(page, "attack", "expertise"))
+    for _, k in ipairs(g) do _G[k] = was[k] end
+    T.deq(CW.Calls("tipText"), { "Expertise 5.0%" })
+    T.eq(CW.Calls("tipLine")[1], "Melee 5.0%")
+end)
+
+T.test("character page: a tooltip that redraws itself (movement speed) keeps our colors, and rests in a fight", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    local r = rowFrame(page, "attributes", "movespeed")
+    local draws = 0
+    local function onEnter(self)
+        draws = draws + 1
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("|cffffffffSpeed 100%|r")
+        self.UpdateTooltip = onEnter   -- as MovementSpeed_OnEnter does
+    end
+    _G.PaperDollFrame_SetMovementSpeed = function(f) f.onEnterFunc = onEnter end
+    _G.PaperDollStatTooltip = function() end
+    local restyled = 0
+    local restyle = ns.StatText.Restyle
+    ns.StatText.Restyle = function(...) restyled = restyled + 1; return restyle(...) end
+    P.StatTip(r)
+    r:UpdateTooltip()
+    T.eq(draws, 2)
+    T.eq(restyled, 2, "restyled after the redraw too")
+    r:UpdateTooltip()
+    T.eq(restyled, 3, "and the next one")
+    stub.EnterCombat()
+    r:UpdateTooltip()
+    ns.StatText.Restyle = restyle
+    _G.PaperDollFrame_SetMovementSpeed, _G.PaperDollStatTooltip = nil, nil
+    T.eq(draws, 3, "no redraw with secret numbers")
+end)
+
 T.test("character page: refreshing in combat with secret stats", function()
     local P, ns = charPage()
     local page = openChar(ns)

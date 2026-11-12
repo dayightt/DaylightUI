@@ -139,18 +139,57 @@ local SINK = { SetText = function() end }
 -- owner.tooltip (and sometimes owner.onEnterFunc), then it's shown the way the
 -- game's sheet does it. Never with secret numbers, since the game's code does
 -- math on them. Returns false when it can't. look holds the window's colors.
+-- The game's expertise hover picks its sentence from a global `category` that
+-- nothing sets, so it always shows the ranged one. This is the same tooltip
+-- with the melee sentence.
+function StatText.ExpertiseTip(owner)
+    local main, off = GetExpertise()
+    local text = string.format("%.1f%%", main)
+    if IsDualWielding() then text = text .. " / " .. string.format("%.1f%%", off) end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetText(HIGHLIGHT_FONT_COLOR_CODE .. string.format(PAPERDOLLFRAME_TOOLTIP_FORMAT, _G["COMBAT_RATING_NAME" .. CR_EXPERTISE])
+        .. " " .. text .. FONT_COLOR_CODE_CLOSE)
+    GameTooltip:AddLine(string.format(CR_EXPERTISE_TOOLTIP, text), NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, true)
+    GameTooltip:Show()
+end
+
+-- What the game's sheet functions leave on a stat frame. Rows are reused for
+-- other stats, so a main-hand row must not keep an off-hand row's title.
+local LEFTOVERS = { "tooltip", "tooltip2", "tooltip3", "tooltip4", "onEnterFunc", "UpdateTooltip", "tooltipLabel",
+    "offhandDamage", "offhandAttackSpeed", "bonusDamage", "lineWrap" }
+
 function StatText.GameTip(owner, row, look)
     if row.secret or row.stale or type(row.game) ~= "string" then return false end
     local fn, show = _G[row.game], _G.PaperDollStatTooltip
     if type(fn) ~= "function" or type(show) ~= "function" or type(GameTooltip) ~= "table" then return false end
-    owner.Value, owner.tooltip, owner.tooltip2, owner.tooltip3, owner.tooltip4 = SINK, nil, nil, nil, nil
-    owner.onEnterFunc, owner.UpdateTooltip = nil, nil
+    for _, k in ipairs(LEFTOVERS) do owner[k] = nil end
+    owner.Value = SINK
     local ok, unit = nil, row.unit or "player"
     if row.gameArg ~= nil then ok = pcall(fn, owner, unit, row.gameArg) else ok = pcall(fn, owner, unit) end
     -- Damage rows set no text. Their hover function (CharacterDamageFrame_OnEnter)
     -- builds the tooltip instead.
     if not ok or (type(owner.tooltip) ~= "string" and type(owner.onEnterFunc) ~= "function") then return false end
+    if owner.onEnterFunc ~= nil and owner.onEnterFunc == _G.PaperDollFrame_ExpertiseOnEnter
+        and type(_G.CR_EXPERTISE_TOOLTIP) == "string" then
+        owner.onEnterFunc = StatText.ExpertiseTip
+    end
     if not pcall(owner.onEnterFunc or show, owner) then return false end
     StatText.Restyle(GameTooltip, look)
+    StatText.KeepStyled(owner, look)
     return true
+end
+
+-- Some hovers redraw themselves while shown (movement speed sets
+-- UpdateTooltip, which the tooltip calls every moment). Each redraw would
+-- bring back the game's colors, so restyle after it. In a fight the numbers
+-- are secret, so the tooltip just stays as it was.
+function StatText.KeepStyled(owner, look)
+    local redraw = owner.UpdateTooltip
+    if type(redraw) ~= "function" then return end
+    local function update(self)
+        if InCombatLockdown() or DUI.Restricted() then return end
+        if pcall(redraw, self) then StatText.Restyle(GameTooltip, look) end
+        self.UpdateTooltip = update   -- the game's redraw sets itself back
+    end
+    owner.UpdateTooltip = update
 end
