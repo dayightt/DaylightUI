@@ -63,7 +63,8 @@ function Hub.Render()
             sub = last and last.text or "",
             value = unread > 0 and tostring(unread) or (last and date("%H:%M", last.t or time()) or ""),
             valueColor = unread > 0 and { Style.Accent() } or Style.INK.LABEL,
-            onClick = function() pick(c.key) end })
+            onClick = function() pick(c.key) end,
+            onRightClick = function() Hub.RowMenu(c.key) end })
         -- A cell of an icon sheet (Jiberish style) or the whole icon.
         if b and file and l then b.icon:SetTexCoord(l, r, top, bt) end
         if b and c.key == picked then DUI.Win.Parts.PickLine(b, true) end
@@ -81,6 +82,19 @@ function Hub.Render()
     f.none:SetShown(#pinned + #recent == 0)
     f.none:SetText(q ~= "" and L["No conversations match."] or L["No conversations yet."])
     f.clearAll:SetShown(ns.Talk.AnyLoose())
+end
+
+-- Right-click a conversation to pin it or forget it, without opening it first.
+function Hub.RowMenu(key)
+    local c = ns.Talk.Get(key)
+    if not c then return end
+    local values = { pin = c.pinned and L["Unpin"] or L["Pin"], forget = L["Forget conversation"] }
+    DUI.Widgets.OpenMenu(nil, { "pin", "forget" }, values, nil, function(a)
+        local now = ns.Talk.Get(key)
+        if not now then return end
+        if a == "pin" then ns.Talk.Pin(now, not now.pinned)
+        elseif a == "forget" then ns.Talk.Forget(now) end
+    end, nil, { atCursor = true })
 end
 
 -- The module's db. Migrates a position saved the old way (the hubSpot setting) once.

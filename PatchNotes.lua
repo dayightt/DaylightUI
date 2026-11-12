@@ -11,7 +11,12 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        changed = {
+            { "Whispers", "Right-click a conversation in the list to pin it or close it" },
+            { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },
+        },
+    },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",
         new = {
             { "Cast bar", "Your cast bar can sit between your frame and the target's, with your swing timers fanning out under it" },

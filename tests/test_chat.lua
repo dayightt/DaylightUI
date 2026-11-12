@@ -3290,6 +3290,30 @@ T.test("chat whispers: Clear in the hub moves on to the next, and the last leave
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat whispers: right-click a conversation in the hub list to pin or forget it", function()
+    daylight()
+    local CH = stub.chatModule
+    whisper("got the key?", "Lephoque")
+    whisper("thanks for the run", "Aelith")
+    CH.Hub.Open()
+    runMotion(1)
+    local got
+    local open = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(_, keys, values, _, onPick, _, opts)
+        got = { keys = keys, values = values, onPick = onPick, opts = opts }
+    end
+    CH.Hub.RowMenu("w:Lephoque")
+    DaylightUI.Widgets.OpenMenu = open
+    T.eq(got.values.forget, "Forget conversation")
+    T.truthy(got.opts and got.opts.atCursor, "opens at the cursor")
+    got.onPick("pin")
+    T.truthy(CH.Talk.Get("w:Lephoque").pinned, "pinned")
+    got.onPick("forget")
+    T.falsy(CH.Talk.Get("w:Lephoque"), "forgotten")
+    T.truthy(CH.Hub.Showing("w:Aelith"), "the open one stays")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat whispers: the Clear menu acts on the one it was opened on, whatever is picked by then", function()
     daylight()
     local CH = stub.chatModule
