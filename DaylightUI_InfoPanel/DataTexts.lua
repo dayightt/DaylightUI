@@ -479,19 +479,6 @@ local function openFriends()
     if InCombatLockdown() then return end
     call(_G.ToggleFriendsFrame)
 end
--- Blizzard_Communities is load-on-demand and pulls in Blizzard_GuildControlUI,
--- whose OnLoad calls the protected C_Discord.IsUserOAuthed. If addon code
--- loads it, it stays tainted all session and guild rank settings break.
--- Until it's loaded, clicks go through a secure button over the slot
--- (DT.GuildOver) instead.
-local function guildLoaded()
-    local isLoaded = api("C_AddOns", "IsAddOnLoaded")
-    return isLoaded and call(isLoaded, "Blizzard_Communities") == true
-end
-local function openGuild()
-    if InCombatLockdown() or not guildLoaded() then return end
-    call(_G.ToggleGuildFrame)
-end
 local function openMap()
     if InCombatLockdown() then return end
     call(api("C_Map", "OpenWorldMap"))
@@ -779,9 +766,13 @@ function DT.HearthOver(slot)
     c.Over(slot, { type1 = "macro", macrotext1 = "/use item:" .. DT.HEARTH })
 end
 
--- Opens the guild window through a secure /click on the guild micro button,
--- so it loads untainted (see openGuild). The guild text uses left-click;
--- the social text only right-click, its left-click still opens friends.
+-- The guild window only ever opens through a secure /click on the guild micro
+-- button, never ToggleGuildFrame from addon code. Loading Blizzard_Communities
+-- that way pulls in Blizzard_GuildControlUI tainted (its OnLoad calls the
+-- protected C_Discord.IsUserOAuthed), and even once loaded, a toggle runs the
+-- window's OnShow tainted, so the guild settings' event handler is blocked for
+-- the rest of the session. The guild text uses left-click; the social text
+-- only right-click, its left-click still opens friends.
 DT.GUILD_CLICK = "/click GuildMicroButton"
 local guildCaster
 function DT.GuildOver(slot)
@@ -963,7 +954,7 @@ DT.TEXTS = {
             socialHint(inGuild)
         end,
         click = function(button)
-            if button == "RightButton" then openGuild() else openFriends() end
+            if button ~= "RightButton" then openFriends() end
         end,
         over = function(slot) DT.GuildOver(slot) end },
     friends = { name = "Friends", events = { "FRIENDLIST_UPDATE", "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE",
@@ -986,7 +977,7 @@ DT.TEXTS = {
             gap()
             hint(InCombatLockdown() and L["Click: guild (after combat)"] or L["Click: guild"])
         end,
-        click = openGuild, over = function(slot) DT.GuildOver(slot) end },
+        over = function(slot) DT.GuildOver(slot) end },
     system = { name = "Framerate and latency", poll = true,
         text = function()
             local fps, ms = DT.ReadSystem()

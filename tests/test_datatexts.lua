@@ -578,9 +578,11 @@ end)
 -- Blizzard_GuildControlUI (a dependency in its .toc), whose OnLoad calls the
 -- protected C_Discord.IsUserOAuthed. ToggleGuildFrame from addon code loads them
 -- under addon taint: "AddOn 'DaylightUI' tried to call the protected function
--- 'IsUserOAuthed()'". Until it's loaded, only the player's own click (a secure
--- /click GuildMicroButton) may open it.
-T.test("data texts: the guild window, not loaded yet, opens only through a secure click", function()
+-- 'IsUserOAuthed()'". Once loaded, a toggle from addon code still runs the
+-- window's OnShow tainted, and the guild settings' event handler is blocked for
+-- the rest of the session. Only the player's own click (a secure
+-- /click GuildMicroButton) may open it, loaded or not.
+T.test("data texts: the guild window opens only through a secure click, loaded or not", function()
     local DUI = login()
     _G.ToggleGuildFrame = function()
         local loaded = stub.loadedAddOns["Blizzard_Communities"]
@@ -593,6 +595,11 @@ T.test("data texts: the guild window, not loaded yet, opens only through a secur
     S[4]:GetScript("OnClick")(S[4], "RightButton")
     S[3]:GetScript("OnClick")(S[3], "LeftButton")
     T.deq(stub.opened, {}, "never loaded from addon code")
+    stub.loadedAddOns["Blizzard_Communities"] = true
+    S[4]:GetScript("OnClick")(S[4], "RightButton")
+    S[3]:GetScript("OnClick")(S[3], "LeftButton")
+    T.deq(stub.opened, {}, "never toggled from addon code once loaded either")
+    stub.loadedAddOns["Blizzard_Communities"] = nil
     for i = 3, 4 do S[i].GetLeft, S[i].GetBottom = function() return 1700 end, function() return 900 end end
     hover(3)
     local b = _G.DaylightUIDataGuild
@@ -611,13 +618,12 @@ end)
 
 T.test("data texts: clicks open the matching window; character and social wait out combat", function()
     socialIn4(login())
-    stub.loadedAddOns["Blizzard_Communities"] = true   -- opened once already (J), so a plain toggle is fine
     local S = DT().slots
     S[1]:GetScript("OnClick")(S[1], "LeftButton")
     S[2]:GetScript("OnClick")(S[2], "LeftButton")
     S[4]:GetScript("OnClick")(S[4], "LeftButton")
     S[4]:GetScript("OnClick")(S[4], "RightButton")
-    T.deq(stub.opened, { "bags", "character:PaperDollFrame", "friends", "guild" })
+    T.deq(stub.opened, { "bags", "character:PaperDollFrame", "friends" }, "the guild opens only by the secure button")
     stub.opened = {}
     stub.EnterCombat()
     S[2]:GetScript("OnClick")(S[2], "LeftButton")
