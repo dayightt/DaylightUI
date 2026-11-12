@@ -29,6 +29,7 @@ DUI.PatchNotes = {
             { "Legacy", "Challenges the game can't track no longer show a Track switch" },
             { "Cooldown Manager", "Arcane Blast's stacks show on a bar too, not just as an icon" },
             { "Object glow", "Uses far less memory while it looks for things around you, which could cause small stutters" },
+            { "Minimap", "No more small stutters from the addon button drawer while Questie or other map pin addons add pins as you move" },
         },
     },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",

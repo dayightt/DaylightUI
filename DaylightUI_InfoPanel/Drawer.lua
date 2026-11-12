@@ -72,11 +72,20 @@ end
 -- buttons on the minimap but must stay where they point. Addons embed the
 -- library under their own names (e.g. "HereBeDragonsQuestie-Pins-2.0"), so
 -- check every library for a minimapPins table instead of matching by name.
-local function pinned(f)
-    if type(LibStub) ~= "table" or type(LibStub.IterateLibraries) ~= "function" then return false end
+-- Gathered once per look: a map can hold hundreds of children.
+local function pinLists()
+    local lists = {}
+    if type(LibStub) ~= "table" or type(LibStub.IterateLibraries) ~= "function" then return lists end
     for _, lib in LibStub:IterateLibraries() do
         local pins = type(lib) == "table" and rawget(lib, "minimapPins")
-        if type(pins) == "table" and pins[f] then return true end
+        if type(pins) == "table" then lists[#lists + 1] = pins end
+    end
+    return lists
+end
+
+local function pinned(f, lists)
+    for i = 1, #lists do
+        if lists[i][f] then return true end
     end
     return false
 end
@@ -108,15 +117,19 @@ end
 -- names), or a name of its own plus a click handler and button size.
 -- Names ending in a digit are pooled pin frames ("QuestieFrame12").
 -- Hidden ones are skipped since pin libraries park removed pins hidden;
--- a real button gets picked up once it shows.
-local function wanted(f)
-    if not free(f) or pinned(f) then return false end
+-- a real button gets picked up once it shows. The pin lists are checked
+-- last, only for what looks like a button.
+local function looksLikeButton(f)
     if ringed(f) then return true end
     local name = f:GetName()
     if type(name) ~= "string" or not f:IsShown() then return false end
     if name:find("^LibDBIcon10_") then return true end
     if pinNamed(name) or name:find("%d$") then return false end
     return clickable(f) ~= nil and (f:GetWidth() or 0) >= Drawer.MIN_WIDTH
+end
+
+local function wanted(f, pins)
+    return free(f) and looksLikeButton(f) and not pinned(f, pins)
 end
 
 -- Strips color codes, links and inline icons from compartment titles.
@@ -415,26 +428,27 @@ end
 
 -- A crowded frame can't be read in chunks, so walk every frame in the game
 -- instead. The pcall is for locked aura buttons, which refuse every method.
-local function lookIn(src)
+local function lookIn(src, pins)
     if not crowded(src) then
         for _, f in ipairs({ src:GetChildren() }) do
-            if wanted(f) then take(f) end
+            if wanted(f, pins) then take(f) end
         end
         return
     end
     local f = EnumerateFrames()
     while f do
         local ok, parent = pcall(f.GetParent, f)
-        if ok and parent == src and wanted(f) then take(f) end
+        if ok and parent == src and wanted(f, pins) then take(f) end
         f = EnumerateFrames(f)
     end
 end
 
 function Drawer.Collect()
     if not (Drawer.strip and Drawer.on) then return end
+    local pins = pinLists()
     for _, key in ipairs(SOURCES) do
         local src = _G[key]
-        if type(src) == "table" and src.GetChildren then lookIn(src) end
+        if type(src) == "table" and src.GetChildren then lookIn(src, pins) end
     end
     local lib = type(LibStub) == "table" and LibStub("LibDBIcon-1.0", true)
     if type(lib) == "table" and lib.GetButtonList then

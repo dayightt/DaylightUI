@@ -1708,6 +1708,43 @@ T.test("info panel: map pins (Questie, HandyNotes) stay on the map, out of the d
     DaylightUI:Set("InfoPanel", "map.drawer", false)
 end)
 
+-- Questie adds pins as you move, so the map's child count changes and the
+-- drawer looks again several times a second. Walking every library for every
+-- child made each look about 11 ms in a profile.
+T.test("info panel: one look over a map full of pins walks the libraries once", function()
+    local hbd = { minimapPins = {}, activeMinimapPins = {} }
+    local libs = { ["HereBeDragonsQuestie-Pins-2.0"] = hbd }
+    for i = 1, 30 do libs["Lib" .. i] = {} end
+    local walks = 0
+    _G.LibStub = setmetatable({
+        libs = libs,
+        IterateLibraries = function(self) walks = walks + 1; return pairs(self.libs) end,
+    }, { __call = function(self, name) return self.libs[name] end })
+    login()
+    local D = stub.infopanel.Drawer
+    local pins = {}
+    for i = 1, 200 do
+        local pin = CreateFrame("Button", "QuestieFrame" .. i, Minimap)
+        if i % 2 == 0 then pin:Hide() end
+        hbd.minimapPins[pin] = {}
+        pins[i] = pin
+    end
+    -- A pin wearing the ring is still a pin.
+    local ringPin = CreateFrame("Button", "SomePin", Minimap)
+    ringPin:CreateTexture(nil, "ARTWORK"):SetTexture(136430)
+    hbd.minimapPins[ringPin] = {}
+    local real = CreateFrame("Button", "LibDBIcon10_Questie", Minimap)
+    walks = 0
+    D.Collect()
+    local counted = walks
+    _G.LibStub = nil
+    T.truthy(counted <= 1, "libraries walked " .. counted .. " times")
+    T.eq(real:GetParent(), D.CellOf(real), "the real button still goes in")
+    T.eq(ringPin:GetParent(), Minimap, "a pin with the ring stays a pin")
+    T.eq(pins[1]:GetParent(), Minimap, "pins stay on the map")
+    DaylightUI:Set("InfoPanel", "map.drawer", false)
+end)
+
 -- The game's addon compartment, with entries as addons register them.
 local compartment
 local function withCompartment()
