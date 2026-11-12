@@ -429,6 +429,23 @@ local function installQuest()
     _G.CompleteQuest = function() record("CompleteQuest") end
     _G.GetQuestReward = function(i) record("GetQuestReward", i); finish() end
     _G.QuestChooseRewardError = function() record("QuestChooseRewardError") end
+    -- The game's item loader (ItemMixin): the reward window waits on it for a name
+    -- GetQuestItemInfo doesn't have yet. NW.LoadItem(id) is the item arriving.
+    S().itemWaits = {}
+    _G.Item = { CreateFromItemID = function(_, id)
+        return { ContinueOnItemLoad = function(_, fn)
+            record("ContinueOnItemLoad", id)
+            local w = S().itemWaits
+            w[id] = w[id] or {}
+            table.insert(w[id], fn)
+        end }
+    end }
+end
+
+function NW.LoadItem(id)
+    local w = S().itemWaits[id] or {}
+    S().itemWaits[id] = nil
+    for _, fn in ipairs(w) do fn() end
 end
 
 -- The NPC you talk to: name, reaction (5 friendly), guid.

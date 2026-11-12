@@ -368,6 +368,7 @@ function Npc.Fill(page)
         end
     end
     page.pieces = s:End()
+    Npc.LoadItems(d)
     Npc.PaintFooter()
     if roomy and said then ns.Scene.Type(said.text, d.text) end
     Npc.said = said
@@ -535,6 +536,7 @@ function Npc.Show(mode, data, sample)
     if sample ~= nil then S.sample = sample elseif opening then S.sample = false end
     S.mode, S.data, S.choice, S.confirm = mode, data, nil, false
     S.holdUntil, S.sentUntil = 0, 0
+    S.itemWaits = {}
     S.rewardAt = now() + Npc.REWARD_WAIT
     S.loadUntil = now() + Npc.WATCH_FOR
     if mode == "reward" and not S.sample then ns.Data.LoadQuest(data.questID) end
@@ -691,9 +693,36 @@ function Npc.OnEvent(_, event, ...)
         -- GET_ITEM_INFO_RECEIVED fires on every hover, so it only counts while a price is pending.
         local again = event == "QUEST_ITEM_UPDATE" or (event == "QUEST_LOG_UPDATE" and S.mode == "gossip")
             or (event == "GET_ITEM_INFO_RECEIVED" and S.data and S.data.salePending)
-        if S.mode and Win.IsOpen(cur()) and again and not Npc.talkSoon then
-            Npc.talkSoon = true
-            C_Timer.After(0, Npc.Refill)
+        if again then Npc.RefillSoon() end
+    end
+end
+
+function Npc.RefillSoon()
+    if S.mode and Win.IsOpen(cur()) and not Npc.talkSoon then
+        Npc.talkSoon = true
+        C_Timer.After(0, Npc.Refill)
+    end
+end
+
+-- A reward whose item isn't cached has no name yet, and QUEST_ITEM_UPDATE doesn't
+-- always follow. Ask the game to load each one, as its own quest window does, and
+-- refill when it arrives. Each item is asked for once per page.
+function Npc.LoadItems(d)
+    if S.sample or not (d and d.choices) or not (Item and Item.CreateFromItemID) then return end
+    local waits = S.itemWaits
+    if not waits then return end
+    for _, list in ipairs({ d.choices, d.rewards or {} }) do
+        for _, it in ipairs(list) do
+            local id = it.loading and it.itemID
+            if type(id) == "number" and not waits[id] then
+                waits[id] = true
+                local ok, item = pcall(Item.CreateFromItemID, Item, id)
+                if ok and type(item) == "table" then
+                    item:ContinueOnItemLoad(function()
+                        if S.itemWaits == waits then Npc.RefillSoon() end
+                    end)
+                end
+            end
         end
     end
 end

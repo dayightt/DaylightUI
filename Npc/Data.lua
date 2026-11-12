@@ -128,7 +128,7 @@ local function items(kind, n)
                 it = { kind = kind, index = i, name = name, texture = texture, count = count, quality = quality,
                     usable = usable, itemID = itemID, sell = sellPrice(itemID or call(GetQuestItemLink, kind, i)) }
             else
-                it = { kind = kind, index = i, loading = true, texture = texture, count = count }
+                it = { kind = kind, index = i, loading = true, texture = texture, count = count, itemID = itemID }
             end
         elseif C_QuestOffer and fn(C_QuestOffer.GetQuestRewardCurrencyInfo) then
             local ok, c = pcall(C_QuestOffer.GetQuestRewardCurrencyInfo, kind, i)

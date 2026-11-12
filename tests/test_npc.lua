@@ -502,6 +502,40 @@ T.test("npc: hand-in: an item still loading keeps its tile; the pick sends the g
     T.deq(NW.Calls("GetQuestReward"), { { 3 } })
 end)
 
+T.test("npc: hand-in: choices the log promised that come long after the page still show", function()
+    local N = load()
+    local q = NW.Candles({ log = { choices = 3 } })
+    local late = q.choices
+    q.choices = {}
+    NW.Quest("COMPLETE", q)
+    frame()
+    for _ = 1, 100 do stub.Advance(N.WATCH_STEP + 0.01); frame() end
+    T.eq(N.Buttons()[1].off, true, "still waiting")
+    q.choices = late
+    stub.Advance(N.WATCH_STEP + 0.01)
+    frame()
+    T.eq(#N.tiles, 3)
+end)
+
+-- The game's own reward window asks for an item it has no name for yet
+-- (Item:CreateFromItemID(id):ContinueOnItemLoad) and fills it in when it comes.
+-- Waiting on QUEST_ITEM_UPDATE alone left a slow item on "Retrieving item
+-- information" for good.
+T.test("npc: hand-in: a reward item that loads after the first seconds, with no event, still fills in", function()
+    local N = load()
+    local q = NW.Candles({ choices = { { itemID = 501, quality = 2 }, { name = "Herbalist's Band", quality = 2 } } })
+    NW.Quest("COMPLETE", q)
+    frame()
+    T.deq(NW.Calls("ContinueOnItemLoad"), { { 501 } }, "the game is asked to load it")
+    stub.Advance(N.WATCH_FOR + 1)
+    frame()
+    q.choices[1].name = "Walking Boots"   -- it loads, no QUEST_ITEM_UPDATE
+    NW.LoadItem(501)
+    frame()
+    T.eq(N.tiles[1].name:GetText(), "Walking Boots")
+    T.eq(#NW.Calls("ContinueOnItemLoad"), 1, "asked once for the page")
+end)
+
 -- A reward item loading late refills the page: once a frame, where you scrolled it.
 T.test("npc: a late reward item refills the page once a frame and keeps the scroll", function()
     local N = load()
