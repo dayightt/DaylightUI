@@ -1068,19 +1068,21 @@ T.test("cdm look: per-spell bar colors paint the real bar", function()
 end)
 
 
-T.devtest("cdm: plain /dui cdm opens the layout; the dev tools take their words", function()
+T.test("cdm: plain /dui cdm opens the layout; the dev tools take their words", function()
     local DUI, AB = editorWorld()
     DUI.RunCommand("cdm"); stub.RunTimers()
     T.truthy(AB.CdmEditor.IsOpen(), "no dev tools: the editor")
     AB.CdmEditor.Close()
-    DUI.OptionsPanel.Show("home"); stub.RunTimers()
-    devCdm(DUI, "ids")
-    T.truthy(stub.ChatContains("Cooldown Manager ids:"), "dev: the ids report")
-    T.falsy(AB.CdmEditor.IsOpen(), "a dev word doesn't open the editor")
-    T.truthy(type(DaylightUIDevDB) == "table" and DaylightUIDevDB.cdmIds, "kept for report.py")
-    DUI.RunCommand("cdm"); stub.RunTimers()
-    T.truthy(stub.ChatContains("No Cooldown Manager icons yet") or DaylightUIDevDB.cdm ~= nil, "dev: plain is the viewer report")
-    DaylightUIDevDB = nil
+    if T.dev then
+        DUI.OptionsPanel.Show("home"); stub.RunTimers()
+        devCdm(DUI, "ids")
+        T.truthy(stub.ChatContains("Cooldown Manager ids:"), "dev: the ids report")
+        T.falsy(AB.CdmEditor.IsOpen(), "a dev word doesn't open the editor")
+        T.truthy(type(DaylightUIDevDB) == "table" and DaylightUIDevDB.cdmIds, "kept for report.py")
+        DUI.RunCommand("cdm"); stub.RunTimers()
+        T.truthy(stub.ChatContains("No Cooldown Manager icons yet") or DaylightUIDevDB.cdm ~= nil, "dev: plain is the viewer report")
+        DaylightUIDevDB = nil
+    end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2471,7 +2473,7 @@ T.test("cdm own icons: a pass in combat reads the game's spell list once", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.devtest("cdm own icons: a placed known spell gets our frame with a cooldown, auras don't, release hides it", function()
+T.test("cdm own icons: a placed known spell gets our frame with a cooldown, auras don't, release hides it", function()
     local DUI, AB, E, D = editorWorld()
     withCategories({ [0] = { 11, 12, 14 }, [2] = { 41 } }, { [0] = { 11, 12, 14 }, [2] = { 41 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
@@ -2493,9 +2495,11 @@ T.devtest("cdm own icons: a placed known spell gets our frame with a cooldown, a
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.isnil(AB.CdmOwn.Frame(41), "aura ids get no own frame")
     place(D, set, 13, 1, 3); place(D, set, 99, 1, 4)
-    devCdm(DUI, "why")
-    T.truthy(stub.ChatContains("our own icon, shown"), "why: the own icon")
-    T.truthy(stub.ChatContains("not known"), "why: an unknown spell")
+    if T.dev then
+        devCdm(DUI, "why")
+        T.truthy(stub.ChatContains("our own icon, shown"), "why: the own icon")
+        T.truthy(stub.ChatContains("not known"), "why: an unknown spell")
+    end
     unplace(D, set, 13); unplace(D, set, 99)
     unplace(D, set, 14)
     AB.CdmRows.Refresh(); stub.RunTimers()
@@ -2522,7 +2526,7 @@ end
 -- selfAura false doesn't mean "on the target": Battle Shout says false because
 -- it reaches the party. The game looks on you, then your target, whatever it says
 -- (scanUnits in CooldownViewerItemData.lua), and so does the addon.
-T.devtest("cdm auras: a placed aura spell gets a holder watching you, then your target", function()
+T.test("cdm auras: a placed aura spell gets a holder watching you, then your target", function()
     local DUI, AB, E, D, set = auraWorld(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     local h = AB.CdmAuras.Frame(41)
@@ -2559,7 +2563,7 @@ T.devtest("cdm auras: a placed aura spell gets a holder watching you, then your 
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(AB.CdmAuras.Frame(41), h, "same holder")
     T.eq(#h.containers, 2, "same containers")
-    devCdm(DUI, "why")
+    if T.dev then devCdm(DUI, "why") end
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -2650,13 +2654,13 @@ T.test("cdm auras: an unknown aura kind gets both containers", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.devtest("cdm auras: no aura container in the client is survived and reported", function()
+T.test("cdm auras: no aura container in the client is survived and reported", function()
     local DUI, AB = auraWorld(false)
     stub.noAuraContainer = true
     AB.CdmRows.Refresh(); stub.RunTimers()
     local h = AB.CdmAuras.Frame(41)
     T.truthy(h.err, "error kept")
-    T.truthy(devCdm(DUI, "why").AuraWhy(41):find("container failed", 1, true))
+    if T.dev then T.truthy(devCdm(DUI, "why").AuraWhy(41):find("container failed", 1, true)) end
     stub.noAuraContainer = false
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -3352,7 +3356,7 @@ T.test("cdm own icons: a spell the game files as a buff but with a real cooldown
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.devtest("cdm effects: ready glow goes off when the game hides the cooldown, follows isActive when it doesn't", function()
+T.test("cdm effects: ready glow goes off when the game hides the cooldown, follows isActive when it doesn't", function()
     local DUI, AB, set, ess = fxWorld()
     local cds = withCooldowns(ess)
     local Fx = AB.CdmEffects
@@ -3370,8 +3374,10 @@ T.devtest("cdm effects: ready glow goes off when the game hides the cooldown, fo
     cds[111] = { duration = stub.Secret(0), isOnGCD = false, isActive = false }
     cdEvent()
     T.truthy(Fx.GlowShown(ess[1]), "ready by isActive")
-    devCdm(DUI, "cdprobe")
-    T.truthy(stub.ChatContains("111: duration secret"), "cdprobe: the held spell")
+    if T.dev then
+        devCdm(DUI, "cdprobe")
+        T.truthy(stub.ChatContains("111: duration secret"), "cdprobe: the held spell")
+    end
     stub.combat = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -5924,7 +5930,7 @@ local function customRows()
 end
 local function refresh(AB) AB.CdmRows.Refresh(); stub.RunTimers() end
 
-T.devtest("cdm custom: a spell of ours as an icon is our cooldown icon, timed by the rank you know", function()
+T.test("cdm custom: a spell of ours as an icon is our cooldown icon, timed by the rank you know", function()
     local DUI, AB, D, set = customRows()
     local asked
     C_Spell.GetSpellCooldownDuration = function(sid) asked = sid; return {} end
@@ -5936,7 +5942,7 @@ T.devtest("cdm custom: a spell of ours as an icon is our cooldown icon, timed by
     T.eq(f.cooldownInfo.spellID, 2687, "the effects read it")
     T.eq(asked, 2687, "timed by the client")
     T.eq(AB.CdmRows.DrawnBy("s2687"), "own icon")
-    devCdm(DUI, "why")
+    if T.dev then devCdm(DUI, "why") end
     -- Unlearned (a talent swap): nothing drawn and nothing breaks, back when learned.
     stub.knownSpells = {}
     stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
