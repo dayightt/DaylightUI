@@ -117,6 +117,16 @@ local function presetsCopy()
     return PLM and PLM.GetCopyOfPresetLayouts and PLM:GetCopyOfPresetLayouts() or {}
 end
 
+-- The game's own preset list, for reading only. It's built once at load and
+-- never changes, while GetCopyOfPresetLayouts deep-copies every system of
+-- every preset, which is a lot of garbage for something asked often.
+local function presetsRead()
+    local PLM = EditModePresetLayoutManager
+    local own = PLM and rawget(PLM, "presetLayoutInfo")
+    if type(own) == "table" then return own end
+    return presetsCopy()
+end
+
 -- A system's entry in the game's first preset (Modern), i.e. its default spot.
 function EditMode.PresetSystem(system, index)
     local p = presetsCopy()[1]
@@ -128,7 +138,7 @@ end
 local function activeSaved()
     if not (C_EditMode and C_EditMode.GetLayouts) then return nil end
     local info = C_EditMode.GetLayouts()
-    local i = (info and info.activeLayout or 0) - #presetsCopy()
+    local i = (info and info.activeLayout or 0) - #presetsRead()
     return info and type(info.layouts) == "table" and info.layouts[i] or nil
 end
 
@@ -156,7 +166,7 @@ function EditMode.AnyActive() return isAnyOurs(activeSaved()) end
 -- with the controller UI off.
 function EditMode.GamepadMode()
     local pad = Enum.InputDeviceInterfaceType and Enum.InputDeviceInterfaceType.Gamepad
-    local p = presetsCopy()[1]
+    local p = presetsRead()[1]
     return pad ~= nil and type(p) == "table" and p.interfaceStyle == pad
 end
 
@@ -266,7 +276,7 @@ function EditMode.Install(base, profile)
     layout.layoutIndex = nil
     layout.layoutType = account
     layout.layoutName = EditMode.Name(profile)
-    local index = highest and (highest + 1) or (#presetsCopy() + 1)
+    local index = highest and (highest + 1) or (#presetsRead() + 1)
     table.insert(all, index, layout)
     if type(info.activeLayout) == "number" and info.activeLayout >= index then
         info.activeLayout = info.activeLayout + 1
@@ -419,7 +429,7 @@ writePending = function()
     local info = C_EditMode.GetLayouts()
     if not (info and type(info.layouts) == "table") then return end
     local all = merged(info)
-    local layout = (info.activeLayout or 0) > #presetsCopy() and all[info.activeLayout] or nil
+    local layout = (info.activeLayout or 0) > #presetsRead() and all[info.activeLayout] or nil
     if not layout then return end
     local changed = false
     for _, w in pairs(list) do

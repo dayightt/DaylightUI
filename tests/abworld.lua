@@ -51,7 +51,11 @@ function M.world()
         for idx = 1, 4 do systems[idx] = { system = 0, systemIndex = idx, settings = {}, anchorInfo = {} } end
         return { layoutIndex = i, layoutType = 0, layoutName = "p" .. i, systems = systems }
     end
-    _G.EditModePresetLayoutManager = { GetCopyOfPresetLayouts = function() return { preset(0), preset(1) } end }
+    -- As in the game (EditModePresetLayoutsManager.lua): the presets are built
+    -- once at load, and GetCopyOfPresetLayouts deep-copies them on every call.
+    local PLM = { presetLayoutInfo = { preset(0), preset(1) } }
+    PLM.GetCopyOfPresetLayouts = function() return CopyTable(PLM.presetLayoutInfo) end
+    _G.EditModePresetLayoutManager = PLM
     -- A reload carries the game's layouts over (M.carry), else none yet.
     saved = M.carry or { layouts = {}, activeLayout = 1 }
     M.carry = nil

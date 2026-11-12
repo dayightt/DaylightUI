@@ -847,11 +847,10 @@ T.test("installer: with controller mode on, Finish explains and writes nothing",
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     press(DUI.Installer.pages.welcome.cards.quick.dps)
     Enum.InputDeviceInterfaceType = { Mkb = 0, Gamepad = 1 }
-    local PLM = EditModePresetLayoutManager
-    local old = PLM.GetCopyOfPresetLayouts
-    PLM.GetCopyOfPresetLayouts = function() return { { interfaceStyle = 1, systems = {} } } end
+    local first = EditModePresetLayoutManager.presetLayoutInfo[1]
+    first.interfaceStyle = 1
     press(DUI.Installer.pages.finish.finish)
-    PLM.GetCopyOfPresetLayouts = old
+    first.interfaceStyle = nil
     T.truthy(string.find(DUI.Installer.pages.finish.status:GetText() or "", "Controller mode", 1, true), "says why")
     T.eq(#saved.layouts, 0)
     T.isnil(DUI.Installer.State())
