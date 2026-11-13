@@ -2168,6 +2168,175 @@ T.test("bags: grid with a free tile, loot glides the tile and the section line",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A cleanup the game's way: SortBags only asks the server, and the moves come
+-- back over several bag updates. Each step swaps two slots of one bag.
+local function sortStep(a, b, bag)
+    bag = bag or 0
+    world.items[bag][a], world.items[bag][b] = world.items[bag][b], world.items[bag][a]
+    stub.FireEvent("BAG_UPDATE", bag)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+end
+
+-- Where each item sits on screen now, by its link.
+local function itemSpots(f)
+    local out = {}
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        local info = world.items[s.bag] and world.items[s.bag][b:GetID()]
+        if b:IsShown() and info then out[info.hyperlink] = { at(b) } end
+    end
+    return out
+end
+
+local function buttonOf(f, link)
+    for _, s in ipairs(f.set.Slots()) do
+        local info = world.items[s.bag] and world.items[s.bag][s.button:GetID()]
+        if s.button:IsShown() and info and info.hyperlink == link then return s.button end
+    end
+end
+
+-- Every shown slot's icon is what the bag holds now.
+local function filledRight(f)
+    for _, s in ipairs(f.set.Slots()) do
+        local info = world.items[s.bag] and world.items[s.bag][s.button:GetID()]
+        if s.button:IsShown() and (info and info.iconFileID) ~= s.button.dluiTexture then return false end
+    end
+    return true
+end
+
+T.test("bags: a cleanup holds its moves and glides once it settles", function()
+    for _, view in ipairs({ "grid", "categories" }) do
+        local ns, f
+        if view == "grid" then
+            ns = login()
+            f = open(ns)
+            ns.Relayout()
+        else
+            ns, f = catLogin()
+        end
+        local Feel, W = DaylightUI.Win.Feel, ns.Window
+        settleFeel()
+        local before = itemSpots(f)
+        local fills = 0
+        local realFill = ns.Items.Fill
+        ns.Items.Fill = function(...) fills = fills + 1 return realFill(...) end
+        local ok, err = pcall(function()
+            f.sort:GetScript("OnClick")(f.sort)
+            T.eq(world.sorted, 1, view .. ": the game sorts")
+            T.truthy(f.sorting, view .. ": the window holds")
+            sortStep(1, 4)
+            stub.Advance(0.1)
+            sortStep(5, 6)
+            stub.Advance(0.1)
+            sortStep(2, 3)
+            stub.RunTimers()
+            T.eq(fills, 0, view .. ": no fill while the server moves things")
+            for _, s in ipairs(f.set.Slots()) do
+                T.falsy(Feel.Moving(s.button), view .. ": nothing moves yet")
+            end
+            T.truthy(f.sorting, view .. ": still settling")
+            stub.Advance(W.SORT_SETTLE)
+            stub.RunTimers()
+            T.isnil(f.sorting, view .. ": settled")
+            T.truthy(fills > 0, view .. ": filled once")
+            T.truthy(filledRight(f), view .. ": every icon is what's there now")
+            local checked, moving = 0, 0
+            for _, link in ipairs({ "|Hitem:1|h", "|Hitem:4|h", "|Hitem:6|h", "|Hitem:7|h", "|Hitem:2|h" }) do
+                local b = buttonOf(f, link)
+                if b and before[link] then
+                    checked = checked + 1
+                    local x, y = at(b)
+                    T.eq(x, before[link][1], view .. ": " .. link .. " starts where it was")
+                    T.eq(y, before[link][2])
+                    if Feel.Moving(b) then moving = moving + 1 end
+                end
+            end
+            T.truthy(checked >= 4, view .. ": the moved items are shown")
+            T.truthy(moving >= 4, view .. ": and glide to their new slots")
+            settleFeel()
+            for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button)) end
+        end)
+        ns.Items.Fill = realFill
+        T.truthy(ok, tostring(err))
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
+
+T.test("bags: a cleanup that never settles is let go after SORT_MAX", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local W = ns.Window
+    f.sort:GetScript("OnClick")(f.sort)
+    for i = 1, math.floor(W.SORT_MAX / 0.2) - 1 do
+        sortStep(1, 4)
+        if i == 1 then T.falsy(filledRight(f), "the icons wait") end
+        stub.Advance(0.2)
+        stub.RunTimers()
+        T.truthy(f.sorting, "still moving: held")
+    end
+    sortStep(1, 4)
+    stub.Advance(0.3)
+    stub.RunTimers()
+    T.isnil(f.sorting, "let go")
+    T.truthy(filledRight(f), "the bag shows what's there")
+    -- From here bag updates fill as they come.
+    sortStep(1, 4)
+    T.truthy(filledRight(f), "the next move shows at once")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: closing mid-cleanup opens with everything in place, no glide", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel = DaylightUI.Win.Feel
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    f:Hide()
+    stub.RunTimers()
+    settleFeel()
+    T.falsy(f:IsShown())
+    T.isnil(f.sorting, "closing lets the cleanup go")
+    sortStep(5, 6)
+    stub.Advance(1)
+    stub.RunTimers()
+    open(ns)
+    T.truthy(f:IsShown())
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide on the open") end
+    T.truthy(filledRight(f), "every icon is what's there")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: stacks merged on open fill at once, no glide", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    cursorWorld()
+    -- The game's bag update for each merge, as it lands.
+    local pickup = C_Container.PickupContainerItem
+    C_Container.PickupContainerItem = function(bag, slot)
+        local held = world.held
+        pickup(bag, slot)
+        if held and not world.held then
+            stub.FireEvent("BAG_UPDATE", bag)
+            stub.FireEvent("BAG_UPDATE", held.bag)
+            stub.FireEvent("BAG_UPDATE_DELAYED")
+        end
+    end
+    f:Hide()
+    stub.RunTimers()
+    settleFeel()
+    open(ns)
+    T.isnil(world.items[1][1], "the Bread merged")
+    T.eq(world.items[0][8].stackCount, 12)
+    T.isnil(f.sorting, "let go when the merging is done")
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide while the bag fades in") end
+    T.truthy(filledRight(f), "every icon is what's there")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: your own groups, from a search, come first; rename and reorder", function()
     local ns = catLogin()
     local B, Cat = ns.Bags, ns.Categories
@@ -2898,6 +3067,40 @@ T.test("bank: its own settings, search, sort and deposit; closing ours closes th
     T.eq(bank.calls.deposit, 0, "reagents into it")
     f.close:GetScript("OnClick")(f.close)
     T.eq(bank.calls.close, 1, "our X closes the game's bank")
+end)
+
+T.test("bank: sorting the bank glides the bank, the open bag stays put", function()
+    local ns, bank = bankLogin()
+    local Feel = DaylightUI.Win.Feel
+    world.items[6][3] = { iconFileID = 603, stackCount = 1, quality = 1, hyperlink = "|Hitem:63|h", itemID = 63 }
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local f, bag = ns.bank, ns.window
+    T.truthy(f:IsShown() and bag:IsShown(), "the bank opens the bags too")
+    ns.Relayout()
+    settleFeel()
+    local one, three = ns.Bank.set.buttons[6][1], ns.Bank.set.buttons[6][3]
+    local x1, y1 = at(one)
+    local x3, y3 = at(three)
+    f.sort:GetScript("OnClick")(f.sort)
+    T.eq(bank.calls.sort, 0, "the game sorts the bank")
+    T.truthy(f.sorting, "the bank holds")
+    T.isnil(bag.sorting, "the bag doesn't")
+    sortStep(1, 3, 6)
+    stub.RunTimers()
+    T.falsy(Feel.Moving(three), "nothing moves while it's sorting")
+    stub.Advance(ns.Window.SORT_SETTLE)
+    stub.RunTimers()
+    T.isnil(f.sorting, "settled")
+    T.truthy(Feel.Moving(one) and Feel.Moving(three), "both bank slots glide")
+    T.eq(select(4, three:GetPoint(1)), x1, "the item that moved starts where it was")
+    T.eq(select(5, three:GetPoint(1)), y1)
+    T.eq(select(4, one:GetPoint(1)), x3)
+    T.eq(select(5, one:GetPoint(1)), y3)
+    T.truthy(filledRight(f), "the bank shows what's there")
+    for _, s in ipairs(bag.set.Slots()) do T.falsy(Feel.Moving(s.button), "the bag stays put") end
+    settleFeel()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bank: Same look as your bags: the shared settings follow the bags, columns stay its own", function()
@@ -4143,6 +4346,8 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     T.falsy(Keep.Any())
     f.sort:GetScript("OnClick")(f.sort)
     T.eq(world.sorted, 1, "nothing kept: the game's own sort")
+    stub.Advance(ns.Window.SORT_SETTLE)
+    stub.RunTimers()
     Keep.Toggle(0, 3, 30)
     T.truthy(ns.Items.Parts(ns.Bags.buttons[0][3]).keep:IsShown(), "a line on the kept slot")
     T.falsy(ns.Items.Parts(ns.Bags.buttons[0][2]).keep:IsShown())

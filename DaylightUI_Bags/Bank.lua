@@ -321,8 +321,9 @@ function Bank.Build()
         afterLayout = function() Bank.LayoutStrip() end,
         tools = {
             { key = "sort", icon = W.SORT_ICON, title = L["Clean up the bank"],
-              onClick = function()
+              onClick = function(w)
                   if InCombatLockdown and InCombatLockdown() then return end
+                  W.BeginSort(w)
                   if C_Container.SortBank and Bank.bankType then pcall(C_Container.SortBank, Bank.bankType)
                   elseif C_Container.SortBankBags then pcall(C_Container.SortBankBags) end
               end },

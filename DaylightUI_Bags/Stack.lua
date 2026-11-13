@@ -74,6 +74,9 @@ local function step(moves, skip)
     if not m then return finish() end
     local info = infoAt(m.from)
     local link, before = info.hyperlink, info.stackCount
+    -- Still going: the window keeps holding its fills (Window.BeginSort).
+    local window = ns.window
+    if window and window.sorting then ns.Window.BeginSort(window) end
     C_Container.PickupContainerItem(m.from.bag, m.from.slot)
     C_Container.PickupContainerItem(m.to.bag, m.to.slot)
     -- Whatever didn't fit goes back where it came from.

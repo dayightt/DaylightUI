@@ -19,6 +19,7 @@ Keep.DELAY = 0.2        -- seconds between rounds (moved items stay locked brief
 Keep.TRIES = 80         -- max rounds before giving up
 
 local running = false
+local whenDone          -- called once the cleanup ends, however it ends
 
 local function kept()
     local c = DUI.DB.Character()
@@ -187,6 +188,9 @@ end
 local function finish(msg)
     running = false
     if msg then DUI.Print(msg) end
+    local fn = whenDone
+    whenDone = nil
+    if fn then fn() end
 end
 
 local function step(tries)
@@ -197,6 +201,8 @@ local function step(tries)
     local moves, busy = Keep.Moves(window)
     if #moves == 0 and not busy then return finish() end
     if tries >= Keep.TRIES then return finish(L["Clean up gave up: some items wouldn't move."]) end
+    -- Still going: the window keeps holding its fills (Window.BeginSort).
+    if window.sorting then ns.Window.BeginSort(window) end
     for _, m in ipairs(moves) do
         C_Container.PickupContainerItem(m.from.bag, m.from.slot)
         C_Container.PickupContainerItem(m.to.bag, m.to.slot)
@@ -206,10 +212,14 @@ local function step(tries)
 end
 
 -- Clean Up with kept slots: top up stacks first, like the game's sort, then
--- run the rounds of moves.
-function Keep.Sort()
-    if running or ns.Items.InCombat() or ns.Items.CursorBusy() then return end
-    if type(C_Container.PickupContainerItem) ~= "function" then return end
-    running = true
+-- run the rounds of moves. done is called when it ends, or at once when it
+-- can't start (a run already going calls its own).
+function Keep.Sort(done)
+    if running then return end
+    if ns.Items.InCombat() or ns.Items.CursorBusy() or type(C_Container.PickupContainerItem) ~= "function" then
+        if done then done() end
+        return
+    end
+    running, whenDone = true, done
     ns.Stack.Run(function() step(0) end, true)
 end
