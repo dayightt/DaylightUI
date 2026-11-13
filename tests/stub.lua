@@ -623,10 +623,15 @@ function Widget:GetAlpha()
     end
     return a
 end
--- Its own alpha times every parent's.
+-- Its own alpha times every parent's, up to (and including) the first frame
+-- that ignores its parents' alpha, as in the client.
 function Widget:GetEffectiveAlpha()
     local a, f = 1, self
-    while f do a = a * (f.__alpha or 1); f = f.__parent end
+    while f do
+        a = a * (f.__alpha or 1)
+        if f.__ignoreParentAlpha then break end
+        f = f.__parent
+    end
     return a
 end
 function Widget:SetVertexOffset(i, x, y)

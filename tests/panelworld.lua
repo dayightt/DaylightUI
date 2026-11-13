@@ -36,7 +36,27 @@ function PW.world()
     function mm:SetQuestBlobRingScalar(v) self.__blob.questScalar = v end
     function mm:SetQuestBlobRingAlpha(v) self.__blob.questAlpha = v end
     function mm:SetTaskBlobRingScalar(v) self.__blob.taskScalar = v end
-    function mm:GetZoom() return 2 end
+    -- Zoom as in the client: 6 levels, MINIMAP_UPDATE_ZOOM fired after the call.
+    -- The picture as seen in game: after a loading screen in a city, indoors or
+    -- in a dungeon the map can come up empty (__picture = "empty", set by a
+    -- test). Each frame in which the zoom changes moves it one step on: empty,
+    -- then drawing, then filled. A zoom while the map can't be seen (the panel
+    -- at 0 before the login fade-in) moves nothing.
+    mm.__zoom, mm.__zoomCalls = 2, 0
+    function mm:GetZoom() return self.__zoom end
+    function mm:GetZoomLevels() return 6 end
+    function mm:SetZoom(z)
+        self.__zoomCalls = self.__zoomCalls + 1
+        if z == self.__zoom then return end
+        self.__zoom = z
+        local now = GetTime()
+        if self.__picture and self.__picture ~= "filled" and self.__steppedAt ~= now
+            and self:IsVisible() and self:GetEffectiveAlpha() > 0 then
+            self.__steppedAt = now
+            self.__picture = self.__picture == "empty" and "drawing" or "filled"
+        end
+        C_Timer.After(0, function() stub.FireEvent("MINIMAP_UPDATE_ZOOM") end)
+    end
     CreateFrame("Frame", "MainStatusTrackingBarContainer", UIParent)
     -- The game's right-side column and the armor figure it lays out.
     local right = CreateFrame("Frame", "RightManagedFrameContainer", UIParent)

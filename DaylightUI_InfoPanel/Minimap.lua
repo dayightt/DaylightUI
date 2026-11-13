@@ -732,6 +732,51 @@ DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
     if name == "rotateMinimap" then Map.Fit() end
 end)
 
+-- After a loading screen in a city, indoors or in a dungeon, the moved map came
+-- up empty until its zoom changed. EllesmereUI forces a redraw after its own
+-- setup: zoom out and back in the same frame, which never shows. The game
+-- ignores that while the map can't be seen (the panel waits at 0 for the
+-- login fade-in), so it waits until the map shows. A second one a moment later
+-- fills in what loaded meanwhile. Once per loading screen, never at doors.
+Map.REDRAW_AGAIN = 0.5   -- seconds between the two
+Map.REDRAW_LOOK = 0.1    -- how often to look whether the map shows yet
+
+function Map.Redraw()
+    local mm = Minimap
+    if not (Map.cfg and Map.cfg.enabled and type(mm) == "table" and mm.SetZoom) then return end
+    local z = mm:GetZoom()
+    if type(z) ~= "number" then return end
+    local levels = mm.GetZoomLevels and mm:GetZoomLevels() or 1
+    local other = z > 0 and z - 1 or (levels > 1 and z + 1 or nil)
+    if not other then return end
+    mm:SetZoom(other)
+    mm:SetZoom(z)
+end
+
+local function mapShows()
+    local mm = Minimap
+    if not (type(mm) == "table" and mm:IsVisible()) then return false end
+    local a = mm:GetEffectiveAlpha()
+    return type(a) == "number" and a > 0
+end
+
+local screens = 0
+local function redrawOnceShown(mine)
+    if mine ~= screens or not (Map.cfg and Map.cfg.enabled) then return end
+    if not mapShows() then
+        C_Timer.After(Map.REDRAW_LOOK, function() redrawOnceShown(mine) end)
+        return
+    end
+    DUI.SafeCall(Map.Redraw)
+    C_Timer.After(Map.REDRAW_AGAIN, function() DUI.SafeCall(Map.Redraw) end)
+end
+
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", function()
+    screens = screens + 1
+    local mine = screens
+    C_Timer.After(0, function() redrawOnceShown(mine) end)
+end)
+
 -- In dungeons the game uses Blizzard_HybridMinimap, which draws map art on its
 -- own BACKGROUND-strata frame under the map. That ended up under the panel's
 -- background, so dungeons showed a blank map. It's moved into the map's strata

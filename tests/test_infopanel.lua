@@ -1308,17 +1308,101 @@ T.test("info panel: calendar and tracking in our square, out of sight until the 
     P.mapArea.IsMouseOver = nil
 end)
 
-T.test("info panel: the minimap is never zoomed by Daylight UI, at login or at a door (players saw it zoom in and out)", function()
+T.test("info panel: the minimap isn't zoomed at a door or after the player's own zoom (players saw it zoom in and out)", function()
     login()
-    local zooms, set = 0, Minimap.SetZoom
-    Minimap.SetZoom = function(self, z) zooms = zooms + 1; return set(self, z) end
-    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    stub.RunTimers()
+    Minimap.__zoomCalls = 0
     stub.FireEvent("ZONE_CHANGED_INDOORS")
     stub.FireEvent("MINIMAP_UPDATE_ZOOM")
     stub.RunTimers()
-    Minimap.SetZoom = set
-    T.eq(zooms, 0)
-    T.eq(MinimapCluster:IsShown(), true, "the game's cluster stays shown (hidden, the map went black)")
+    T.eq(Minimap.__zoomCalls, 0)
+    T.eq(MinimapCluster:IsShown(), true, "the game's cluster stays shown (hidden, the map went blank)")
+end)
+
+-- Seen in game: after a /reload in Stormwind (indoors, in dungeons too) the
+-- map stayed empty until a scroll, while EllesmereUI's drew at once. It zooms
+-- out and back in one frame after each loading screen; two of those, with the
+-- map on screen, drew ours.
+-- Seen in game: the redraw run once the login fade-in started (the map at 1%)
+-- left it empty; with the map outside the panel, shown from the loading
+-- screen on, it drew. So the map doesn't wait for the fade-in.
+T.test("info panel: the minimap skips the login fade-in, so it's redrawn as the loading screen goes", function()
+    stub.Load({ infopanel = true, intro = true, before = PW.world })
+    local F = DaylightUI.Fade
+    local P = stub.infopanel.Panel
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            F.Step()
+            stub.RunOnUpdate(F.driver, 1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    T.eq(P.holder:GetAlpha(), 0, "the panel waits for the fade-in")
+    T.eq(Minimap:GetEffectiveAlpha(), 1, "the map doesn't")
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(45)
+    T.eq(Minimap.__picture, "filled", "drawn right after the loading screen")
+    -- The game's own zoom as the world comes in, and the fade-in after it.
+    stub.FireEvent("MINIMAP_UPDATE_ZOOM")
+    for _ = 1, 15 do frames(60) end
+    T.eq(P.holder:GetAlpha(), 1, "the panel came in")
+    T.eq(Minimap:IsIgnoringParentAlpha(), false, "the map follows the panel's fade again")
+    T.eq(Minimap:GetEffectiveAlpha(), 1)
+    T.eq(Minimap.__picture, "filled")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("info panel: after a loading screen the minimap is redrawn unseen once it shows, so a city's map isn't left empty", function()
+    login()
+    stub.RunTimers()
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    local P = stub.infopanel.Panel
+    -- A /reload: the panel waits at 0 for the login fade-in.
+    P.holder:SetAlpha(0)
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(120)
+    T.eq(Minimap.__picture, "empty")
+    T.eq(Minimap.__zoomCalls, 0, "nothing while the map can't be seen: the game would ignore it")
+    P.holder:SetAlpha(0.02)
+    frames(60)
+    T.eq(Minimap.__picture, "filled", "drawn as the fade-in starts")
+    T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
+    local calls = Minimap.__zoomCalls
+    T.eq(calls, 4, "two zooms out and back")
+    P.holder:SetAlpha(1)
+    stub.FireEvent("MINIMAP_UPDATE_ZOOM")
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(120)
+    T.eq(Minimap.__zoomCalls, calls, "once per loading screen: never after the player's zoom or at a door")
+    -- No fade-in (the map already shows): right after the loading screen.
+    Minimap.__picture = "empty"
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(60)
+    T.eq(Minimap.__picture, "filled")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("info panel: the armor figure leaves the game's right-side column and is put back after it shows", function()
