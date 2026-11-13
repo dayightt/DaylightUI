@@ -1140,6 +1140,9 @@ T.test("bags: the search joins terms: & all, | any, ! not; binding, item level a
     T.truthy(m("weapon & set | food", bread), "& binds tighter than |")
     T.truthy(m("boe &", boe), "a half-typed join is left out")
     T.isnil(S.Parse(" ! & | "), "nothing but joins: no search")
+    T.truthy(m("food; boe", bread)); T.truthy(m("food;boe", boe)); T.falsy(m("food; boe", mine), "; is | too")
+    T.truthy(m("weapon & set; food", bread), "& binds tighter than ;")
+    T.truthy(S.HELP:find("; works like |", 1, true), "the search's help teaches ;")
 end)
 
 T.test("bags: the tool row's icons keep their colors", function()

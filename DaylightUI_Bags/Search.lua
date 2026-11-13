@@ -1,4 +1,5 @@
--- Bag search. Terms are joined with & (all) and | (any). Each term is a name,
+-- Bag search. Terms are joined with & (all) and | (any); ; works as | too, so a
+-- custom group can list several words ("ore; bar; stone"). Each term is a name,
 -- a keyword or a comparison.
 --
 --   * a plain word that is a keyword finds those items plus names containing
@@ -65,6 +66,7 @@ Search.HELP = L["Kinds: gear, weapon, armor, consumable, food, drink, potion, re
     .. "Item level: ilvl>20, ilvl<=10, ilvl20-30\n"
     .. "Join with & (all) or | (any), ! for not: boe & q>common, food | potion, gear & !set\n"
     .. "A word that isn't one of these finds names. Start with # for the keyword only."]
+    .. "\n" .. L["; works like |, so one search can list several words: ore; bar; stone"]
 
 local function trim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 
@@ -161,6 +163,7 @@ end
 function Search.Parse(text)
     local whole = string.lower(trim(text))
     if whole == "" then return nil end
+    whole = string.gsub(whole, ";", "|")
     local any = {}
     for _, part in ipairs(split(whole, "|")) do
         local all = {}
