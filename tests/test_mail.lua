@@ -890,3 +890,49 @@ T.test("mailbox on a controller: X opens all, replies to the letter read, or sen
     frame(5)
     T.eq(x(), SEND_LABEL or "Send")
 end)
+
+-- ---------------------------------------------------------------------
+-- Shift-click and ticked letters
+-- ---------------------------------------------------------------------
+
+local function shiftClick(b)
+    local was = _G.IsModifiedClick
+    _G.IsModifiedClick = function(what) return what == "MAILAUTOLOOTTOGGLE" end
+    b.lineSpec.onClick(b)
+    _G.IsModifiedClick = was
+end
+
+local function expired(n)
+    return { sender = "Alliance Auction House", subject = "Auction expired: Linen Cloth (20)",
+        items = { { name = "Linen Cloth", itemID = 2589, count = 20 + n } } }
+end
+
+T.test("inbox: Shift-click a letter takes everything in it and leaves the others", function()
+    local ns = load({ money = 0, letters = {
+        expired(1),
+        { sender = "Brannoc Ironhide", subject = "Ore", money = 500, items = { { name = "Mithril Ore", itemID = 3858, count = 20 } } },
+        expired(2),
+    } })
+    MW.Open()
+    frame(20)
+    shiftClick(lines(ns)[2])
+    settle()
+    T.eq(GetMoney(), 500, "its gold")
+    T.eq(#MW.Bags(), 1, "and its ore")
+    T.eq(MW.Bags()[1].name, "Mithril Ore")
+    T.eq(#MW.Inbox(), 2, "the expired auctions stay")
+    T.eq(#MW.Calls("Refused"), 0)
+end)
+
+T.test("inbox: Shift-click on a cash on delivery letter only opens it", function()
+    local ns = load({ money = 100000, letters = {
+        { sender = "Ysella Brightwind", subject = "Runecloth", cod = 60000, items = { { name = "Runecloth", itemID = 14047, count = 20 } } } } })
+    MW.Open()
+    frame(20)
+    shiftClick(lines(ns)[1])
+    settle()
+    T.eq(GetMoney(), 100000, "nothing paid")
+    T.eq(#MW.Calls("AutoLootMailItem"), 0)
+    T.truthy(ns.Inbox.Picked(), "opened")
+end)
+

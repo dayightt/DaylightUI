@@ -1,7 +1,8 @@
 -- Mailbox Inbox page: search and filter chips over the letter list (sender, subject,
 -- gold or items, days left), the selected letter on the right (its text, auction mail
 -- shown as a receipt, items to take one by one), Collect all under the list, and the
--- letter's Take, Reply, Return and Delete under it.
+-- letter's Take, Reply, Return and Delete under it. Shift-click on a letter takes all
+-- of it, as in the game's inbox.
 --
 -- Everything goes through the game's mail functions, one command at a time, since the
 -- client refuses a second while one is pending (C_Mail.IsCommandPending). Collect all
@@ -152,6 +153,12 @@ local function wanted(l)
     return true
 end
 
+-- The base game's Shift-click on a letter (MAILAUTOLOOTTOGGLE) takes all of it.
+local function takeAllClick()
+    if type(IsModifiedClick) == "function" then return call(IsModifiedClick, "MAILAUTOLOOTTOGGLE") == true end
+    return type(IsShiftKeyDown) == "function" and call(IsShiftKeyDown) == true
+end
+
 local function daysText(d)
     if d < 1 then return L["Under a day"] end
     local n = math.floor(d)
@@ -172,6 +179,7 @@ local function lineOf(l, picked, id)
         sub = l.sender .. "  ·  " .. days, value = value, valueColor = vc, picked = picked == l,
         id = id,
         onClick = function()
+            if takeAllClick() then Inbox.TakeAll(l) end
             Inbox.Pick(l.index)
             if DUI.Sound then DUI.Sound.Play("open") end   -- opening sound, like the game's
         end }
@@ -219,6 +227,13 @@ function Inbox.Filter(id)
     S.filter = id
     for key, b in pairs(Inbox.list and Inbox.list.chips or {}) do b.SetOn(key == id) end
     Inbox.Render()
+end
+
+-- Shift-click: everything in the letter at once, like the base game's. A cash on
+-- delivery letter only opens.
+function Inbox.TakeAll(l)
+    if not l or l.cod > 0 then return end
+    Inbox.Do(function() AutoLootMailItem(l.index) end)
 end
 
 -- Selecting a letter reads it (GetInboxText marks it read, same as the game's window).
