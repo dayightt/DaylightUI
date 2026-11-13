@@ -885,6 +885,19 @@ T.test("paging: the page list names each bar's page and your forms' pages on bar
     T.eq(values[9], "Action Bar 1 in Bear Form")
     T.eq(values[2], "Spare page 2")
     T.eq(#order, 16)
+    -- Read top to bottom: the bars by their own number, then the forms' pages,
+    -- then the spare pages, whatever page number the game gives each.
+    local names = {}
+    for i = 2, #order do names[#names + 1] = values[order[i]] end
+    for n = 1, 8 do T.eq(names[n], "Action Bar " .. n, "bar " .. n .. " in its place") end
+    T.eq(names[9], "Action Bar 1 in Cat Form")
+    T.eq(names[10], "Action Bar 1 in Bear Form")
+    local spare = {}
+    for i = 11, #names do
+        spare[#spare + 1] = tonumber(names[i]:match("^Spare page (%d+)$"))
+        T.truthy(spare[#spare], names[i] .. " is a spare page")
+        if #spare > 1 then T.truthy(spare[#spare] > spare[#spare - 1], "spare pages in number order") end
+    end
 end)
 
 T.test("paging: the rule is built again at each loading screen, after combat", function()

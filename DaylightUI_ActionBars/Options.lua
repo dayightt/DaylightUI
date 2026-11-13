@@ -387,24 +387,25 @@ end
 
 -- Bars 2-8 paging (Paging.lua): one page choice per stance, form, held modifier or target
 -- the player has. Each page is named by the bar that shows it, pages 7-10 by the
--- form that shows them on bar 1.
+-- form that shows them on bar 1. The menu lists the bars by their own number, then
+-- the forms' pages, then the spare ones: the game's page numbers jump around.
 local function pageChoices()
     local L, Paging = DaylightUI.L, ns.Paging
-    local byPage = {}
+    local values, order, named = { [0] = L["No change"] }, { 0 }, {}
+    local function add(page, name)
+        if named[page] then return end
+        named[page] = true
+        values[page] = name
+        order[#order + 1] = page
+    end
     for _, def in ipairs(ns.Bars.DEFS) do
-        if def.kind == "action" and def.page then byPage[def.page] = L[def.label] end
+        if def.kind == "action" and def.page then add(def.page, L[def.label]) end
     end
     for _, state in ipairs(Paging.STATES) do
         local n = tonumber(string.match(state.cond, "^%[bonusbar:(%d)%]$"))
-        if n and Paging.Has(state) and not byPage[6 + n] then
-            byPage[6 + n] = string.format(L["Action Bar 1 in %s"], L[state.name])
-        end
+        if n and Paging.Has(state) then add(6 + n, string.format(L["Action Bar 1 in %s"], L[state.name])) end
     end
-    local values, order = { [0] = L["No change"] }, { 0 }
-    for page = 1, Paging.PAGES do
-        values[page] = byPage[page] or string.format(L["Spare page %d"], page)
-        order[#order + 1] = page
-    end
+    for page = 1, Paging.PAGES do add(page, string.format(L["Spare page %d"], page)) end
     return values, order
 end
 
