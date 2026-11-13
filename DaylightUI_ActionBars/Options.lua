@@ -436,6 +436,9 @@ pagingItems = function(def, k, hidden)
     return items
 end
 
+local CORNERS = { topleft = "Top left", topright = "Top right", bottomleft = "Bottom left", bottomright = "Bottom right" }
+local CORNER_ORDER = { "topleft", "topright", "bottomleft", "bottomright" }
+
 -- One group per bar, from Bars.DEFS and each kind's Caps: its shape and how it fades.
 local function barGroup(def)
     local caps = ns.Bars.KINDS[def.kind].Caps
@@ -460,6 +463,15 @@ local function barGroup(def)
                           disabled = hidden }
     items[#items + 1] = { type = "toggle", key = k("vertical"), label = "Vertical bar",
                           desc = "Buttons run top to bottom instead of left to right.", disabled = hidden }
+    if caps.rows then
+        -- No saved pick follows the bar's own way (Bars.Corner), so the row reads it.
+        items[#items + 1] = { type = "dropdown", key = k("corner"), label = "Start corner",
+                              values = CORNERS, order = CORNER_ORDER, disabled = hidden,
+                              desc = "The corner the first button sits in. The buttons fill away from it, row by row (column by column on a vertical bar). Bottom left with 3 buttons a row puts 1, 2, 3 along the bottom, like a side-button mouse.",
+                              get = function() return ns.Bars.Corner(def) end,
+                              set = function(v) DUI:Set("ActionBars", k("corner"), v) end,
+                              default = function() return ns.Bars.Corner(def, ns.DEFAULTS.bars[def.key]) end }
+    end
     for _, item in ipairs(DaylightUI.Fade.Items("bars." .. def.key .. ".fade.", nil, hidden, def.label)) do
         -- The fade's Visible row is replaced by the bar's own, which can also hide it (visibleRow).
         if item.key == k("fade.mode") then items[#items + 1] = visibleRow(def, k) else items[#items + 1] = item end
@@ -472,7 +484,7 @@ end
 
 -- Every bar in one card. "Settings for" picks which bar the rows apply to, and an
 -- action bar can copy another's shape and fade.
-local SHAPE_FIELDS = { "icons", "rows", "size", "pad", "vertical", "visible" }
+local SHAPE_FIELDS = { "icons", "rows", "size", "pad", "vertical", "corner", "visible" }
 local function isAction(key)
     for _, def in ipairs(ns.Bars.DEFS) do
         if def.key == key then return def.kind == "action" end
@@ -493,7 +505,8 @@ local layoutGroups = { DaylightUI.Options.PickCard({ label = "Bars",
              fn = function(from, to)
                  local function copy(field)
                      local v = DUI:Get("ActionBars", "bars." .. from .. "." .. field)
-                     if v ~= nil then DUI:Set("ActionBars", "bars." .. to .. "." .. field, v) end
+                     -- An unset corner follows the bar's own way, so it's copied unset too.
+                     if v ~= nil or field == "corner" then DUI:Set("ActionBars", "bars." .. to .. "." .. field, v) end
                  end
                  for _, f in ipairs(SHAPE_FIELDS) do copy(f) end
                  for _, f in ipairs(DaylightUI.Fade.FIELDS) do copy("fade." .. f) end

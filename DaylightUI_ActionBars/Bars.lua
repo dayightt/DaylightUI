@@ -89,6 +89,16 @@ function Bars.Grid(i, n, cfg)
     return col, row
 end
 
+-- The corner a bar's first button sits in: its "Start corner" setting, else bars 1-4
+-- fill from the bottom left like the game's bottom bars (rows stack upward) and the
+-- rest, and any vertical bar, from the top left.
+Bars.CORNERS = { topleft = true, topright = true, bottomleft = true, bottomright = true }
+function Bars.Corner(def, cfg)
+    cfg = cfg or Bars.Config(def)
+    if Bars.CORNERS[cfg.corner] then return cfg.corner end
+    return (def.up and not cfg.vertical) and "bottomleft" or "topleft"
+end
+
 -- Lays out one bar from its settings: holder size, button positions and scale. Size
 -- is a percent of the button's own width, like Edit Mode's icon size. Buttons past
 -- the count are hidden. Out of combat only.
@@ -104,7 +114,10 @@ function Bars.LayoutBar(def)
         local w, h = ns.Shape.Extent(cfg, n, base)
         holder:SetSize(math.max(w, 1), math.max(h, 1))
         local step = base + cfg.pad / s          -- in the buttons' own scale
-        local up = def.up and not cfg.vertical
+        local corner = Bars.Corner(def, cfg)
+        local point = string.upper(corner)
+        local dx = string.find(corner, "right", 1, true) and -step or step
+        local dy = string.find(corner, "bottom", 1, true) and step or -step
         for i, btn in ipairs(list) do
             local own = ns.Buttons.IsOwn(btn)
             if i <= n then
@@ -112,11 +125,7 @@ function Bars.LayoutBar(def)
                 if not own and btn:GetParent() ~= holder then btn:SetParent(holder) end
                 btn:SetScale(s)
                 btn:ClearAllPoints()
-                if up then
-                    btn:SetPoint("BOTTOMLEFT", holder, "BOTTOMLEFT", col * step, row * step)
-                else
-                    btn:SetPoint("TOPLEFT", holder, "TOPLEFT", col * step, -row * step)
-                end
+                btn:SetPoint(point, holder, point, col * dx, row * dy)
                 if own then
                     btn:SetAttribute("statehidden", nil)
                     btn:Show()
