@@ -309,6 +309,8 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "data.goldChars", label = "Gold characters",
               values = { all = "Every character", faction = "This faction" }, order = { "all", "faction" },
               desc = "Whose gold the Gold text's tooltip lists and adds up: every character, or only those of the faction you're playing. A character counts for its faction once it has logged in after this update." },
+            { type = "toggle", key = "data.soulBag", label = "Soul bag size", since = "1.7.2", disabled = noData,
+              desc = "Warlocks: the Soul Shards text shows how many your soul bag holds beside the count, and its tooltip the free slots." },
         } },
         { label = "Slots", desc = "What each slot shows, left to right. The clock, framerate and coordinates are on the minimap too.", items = {
             slotItem(1), slotItem(2), slotItem(3), slotItem(4), slotItem(5),

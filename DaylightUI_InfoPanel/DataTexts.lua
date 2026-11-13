@@ -889,6 +889,8 @@ function DT.ReadShards()
     return num(call(fn, DT.SHARD))
 end
 
+function DT.SoulBagOn() return DUI:Get("InfoPanel", "data.soulBag") == true end
+
 -- Soul bags' slots and free slots (the game's bag family bit 4), 0, 0 with none.
 DT.SOUL_BAG = 4
 function DT.ReadSoulBag()
@@ -1221,14 +1223,15 @@ DT.TEXTS = {
         count = function() return DT.ReadShards() end,
         text = function(n)
             local v = value(tostring(n or DT.ReadShards()))
-            local slots = DT.ReadSoulBag()
+            local slots = DT.SoulBagOn() and DT.ReadSoulBag() or 0
             if slots > 0 then v = v .. word(" / ") .. value(tostring(slots)) end
             return word(L["Shards"] .. " ") .. v, v
         end,
         tip = function()
             tipTitle(L["Soul Shards"])
             line(L["In your bags"], tostring(DT.ReadShards()), { Style.Accent() })
-            local slots, free = DT.ReadSoulBag()
+            local slots, free = 0, 0
+            if DT.SoulBagOn() then slots, free = DT.ReadSoulBag() end
             if slots > 0 then
                 line(L["Soul bag slots"], tostring(slots))
                 line(L["Free slots"], tostring(free), { Style.Accent() })

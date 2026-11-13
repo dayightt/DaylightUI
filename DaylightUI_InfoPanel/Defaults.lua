@@ -95,7 +95,8 @@ ns.DEFAULTS = {
              volumeChannel = "master",    -- set from the volume text's right-click menu
              critKind = "auto",           -- auto (by class), attack, ranged or spell
              apKind = "auto",             -- auto (ranged for hunters), attack or ranged
-             goldChars = "all" },         -- gold tooltip lists "all" characters or only your "faction"
+             goldChars = "all",           -- gold tooltip lists "all" characters or only your "faction"
+             soulBag = false },           -- the Soul Shards text shows the soul bag's size too
     -- Data bar along the bottom of the screen. Up to four texts on each side
     -- of the center one; "none" leaves a slot empty.
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,
