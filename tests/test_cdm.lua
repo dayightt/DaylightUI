@@ -5912,7 +5912,10 @@ T.test("cdm custom: a paladin's Blessing shows any of their long blessings on yo
     T.eq(C.Track("blessing"), "aura"); T.falsy(C.CanTrack("blessing"))
     T.truthy(C.Entry("blessing") and C.Entry("blessing").aura)
     T.eq((C.Look("blessing")), "Blessing")
-    T.eq(select(2, C.Look("blessing")), "Interface/Icons/Spell_Holy_BlessedLife", "an icon of its own")
+    local tex = C_Spell.GetSpellTexture
+    C_Spell.GetSpellTexture = function(id) if id == 19740 then return 135906 end end
+    T.eq(select(2, C.Look("blessing")), 135906, "Blessing of Might's own icon")
+    C_Spell.GetSpellTexture = tex
     local tray = {}
     for i, e in ipairs(C.Tray()) do tray[e.id] = i end
     T.eq(tray.seal, 1); T.eq(tray.blessing, 2, "after the Seal (no aura known here)")
@@ -6356,6 +6359,34 @@ T.test("cdm custom: the Seal placed as an icon and a bar watches every seal on y
     T.eq(AB.CdmRows.DrawnBy("seal"), "aura bar")
     T.eq(AB.CdmBars.AuraFrame("seal").Bar.Name:GetText(), "Seal")
     T.eq(AB.CdmBars.AuraFrame("seal").Icon.Icon:GetTexture(), "Interface/Icons/Spell_Holy_SealOfVengeance")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm custom: the Blessing wears Blessing of Might's own icon as an icon and a bar, a known file when the client has none", function()
+    local DUI, AB, D, set = customRows()
+    stub.SetUnits({ player = { class = "PALADIN" } })
+    AB.CdmSpells.PALADIN = { { 19740, 19834, aura = true }, { 20217, aura = true } }
+    stub.knownSpells = { [19740] = true }
+    AB.CdmCustom.Forget()
+    local tex = C_Spell.GetSpellTexture
+    local icon = 135906   -- what the client hands back for rank 1, read when drawn
+    C_Spell.GetSpellTexture = function(id) if id == 19740 then return icon end end
+    D.AddPiece(set, "blessing", "icon", 0, 0)
+    refresh(AB)
+    local h = AB.CdmAuras.Frame("blessing")
+    T.truthy(h and h:IsShown())
+    T.eq(AB.CdmRows.DrawnBy("blessing"), "aura icon")
+    T.eq(h.under:GetTexture(), icon, "the empty slot wears the spell's own icon")
+    D.SetShape(set, "blessing", "bar")
+    refresh(AB)
+    T.eq(AB.CdmRows.DrawnBy("blessing"), "aura bar")
+    T.eq(AB.CdmBars.AuraFrame("blessing").Bar.Name:GetText(), "Blessing")
+    T.eq(AB.CdmBars.AuraFrame("blessing").Icon.Icon:GetTexture(), icon)
+    -- The client doesn't know the spell yet: a file it ships.
+    C_Spell.GetSpellTexture = function() return nil end
+    T.eq(select(2, AB.CdmCustom.Look("blessing")), "Interface/Icons/Spell_Holy_FistOfJustice")
+    C_Spell.GetSpellTexture = tex
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

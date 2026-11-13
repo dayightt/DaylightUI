@@ -49,8 +49,10 @@ Custom.AURA_ICON = "Interface/Icons/Spell_Holy_AuraMastery"
 -- short ones (Protection, Freedom, Sacrifice) don't count. By rank 1 id, from the
 -- generated list.
 Custom.BLESSINGS = { 19740, 19742, 20217, 1038, 19977, 25782, 25894, 25898, 25895, 25890 }
--- An icon no single Forever blessing uses.
-Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_BlessedLife"
+-- It wears Blessing of Might's icon, asked of the client when drawn. Until the
+-- client knows the spell, the file that icon comes from.
+Custom.BLESSING_SPELL = 19740
+Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_FistOfJustice"
 
 -- Hunter and warlock "pet" piece: up while your pet is out and alive, so Buff
 -- missing can glow when it isn't. Not an aura, so CdmAuras draws it itself. The
@@ -153,7 +155,10 @@ local function build()
         if seal then index.seal = seal; order[#order + 1] = "seal" end
         index.aura = auraFamily(); order[#order + 1] = "aura"
         local blessing = mergedFamily(S.PALADIN or {}, Custom.BLESSINGS, DUI.L["Blessing"], Custom.BLESSING_ICON)
-        if blessing then index.blessing = blessing; order[#order + 1] = "blessing" end
+        if blessing then
+            blessing.iconSpell = Custom.BLESSING_SPELL
+            index.blessing = blessing; order[#order + 1] = "blessing"
+        end
     end
     if type(class) == "string" and Custom.PETS[class] then
         index.pet = { ids = Custom.PETS[class], aura = true, self = true, pet = true, name = DUI.L["Pet"] }
@@ -409,6 +414,10 @@ function Custom.Look(id)
     local okT, tex = pcall(C_Spell.GetSpellTexture, sid)
     name = okN and type(name) == "string" and plain(name) or nil
     local f = Custom.Family(id)
+    if f and f.iconSpell then
+        local okI, icon = pcall(C_Spell.GetSpellTexture, f.iconSpell)
+        if okI and type(icon) ~= "nil" then return f.name or name, icon end
+    end
     return f and f.name or name, f and f.icon or okT and type(tex) ~= "nil" and tex or nil
 end
 
