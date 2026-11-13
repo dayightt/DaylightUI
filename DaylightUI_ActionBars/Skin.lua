@@ -222,7 +222,8 @@ Skin.COUNT_POS = { bottomright = { "BOTTOMRIGHT", -2, 3 }, bottomleft = { "BOTTO
 Skin.SHORT_KEYS = {
     { "Mouse Wheel Up", "WU" }, { "Mouse Wheel Down", "WD" }, { "Middle Mouse", "M3" },
     { "Mouse Button ", "M" }, { "Num Pad ", "N" }, { "Spacebar", "Sp" }, { "Backspace", "Bs" },
-    { "Capslock", "Cp" }, { "SHIFT%-", "S" }, { "CTRL%-", "C" }, { "ALT%-", "A" },
+    { "Capslock", "Cp" }, { "Page Up", "PU" }, { "Page Down", "PD" }, { "Insert", "INS" }, { "Delete", "DEL" },
+    { "SHIFT%-", "S" }, { "CTRL%-", "C" }, { "ALT%-", "A" },
     { "^s%-", "S" }, { "^c%-", "C" }, { "^a%-", "A" }, { "([SCA])s%-", "%1S" }, { "([SCA])c%-", "%1C" },
 }
 
@@ -232,6 +233,7 @@ Skin.LOCAL_KEYS = {
     NUMPADDIVIDE = "N/", NUMPADMULTIPLY = "N*", NUMPADMINUS = "N-", NUMPADPLUS = "N+",
     NUMPADDECIMAL = "N.", MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD", BUTTON3 = "M3",
     SPACE = "Sp", BACKSPACE = "Bs", CAPSLOCK = "Cp",
+    PAGEUP = "PU", PAGEDOWN = "PD", INSERT = "INS", DELETE = "DEL",
 }
 for i = 0, 9 do Skin.LOCAL_KEYS["NUMPAD" .. i] = "N" .. i end
 for i = 4, 31 do Skin.LOCAL_KEYS["BUTTON" .. i] = "M" .. i end
