@@ -1373,7 +1373,7 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)   -- its items fade out
     T.truthy(Cat.IsCollapsed("weapon"))
     T.falsy(B.buttons[0][1]:IsShown(), "folded: its items out of sight")
-    T.truthy(string.find(h.text:GetText(), "(1)", 1, true), "its count on the heading")
+    T.eq(h.count:GetText(), "1", "its count on the heading")
     h:GetScript("OnClick")(h)
     stub.RunTimers()
     T.truthy(B.buttons[0][1]:IsShown(), "open again")
@@ -1389,6 +1389,40 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     _G.GetCursorInfo = nil
     Cat.Unpin(9)
     T.eq(groupOf(ns, B.buttons[1][2]), "consumable")
+end)
+
+T.test("bags: group headings read upper case in the accent with a count and chevron", function()
+    local ns, f = catLogin()
+    local Style, Cat = DaylightUI.Style, ns.Categories
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    T.truthy(h, "a heading for Weapons")
+    T.eq(h.text:GetText(), string.upper(h.name), "name in upper case")
+    local r, g, b = h.text:GetTextColor()
+    local ar, ag, ab = Style.Accent()
+    T.near(r, ar, 0.01); T.near(g, ag, 0.01); T.near(b, ab, 0.01)
+    T.eq(h.count:GetText(), "1")
+    T.eq(h.chev.__rotation or 0, 0, "open: the chevron points down")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    local lr, lg, lb = h.text:GetTextColor()
+    T.near(lr, Style.INK.LABEL[1], 0.01); T.near(lg, Style.INK.LABEL[2], 0.01); T.near(lb, Style.INK.LABEL[3], 0.01)
+    T.truthy((h.chev.__rotation or 0) ~= 0, "folded: the chevron turns")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    local rec = headOf("recent")
+    if rec then
+        DaylightUI:Set("general", "accent", "gradient")
+        ns.Relayout()
+        rec = headOf("recent")
+        T.truthy(string.find(rec.text:GetText(), "|c", 1, true), "Recent paints letter by letter under a gradient accent")
+        DaylightUI:Set("general", "accent", nil)
+    end
 end)
 
 -- A folded heading beside open groups left a hole under it and pushed them about,
@@ -1564,7 +1598,7 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
     local h = headingOf()
     T.truthy(h, "Shift with an item held shows it, to drop on")
-    T.truthy(string.find(h.text:GetText(), "drag items here", 1, true), "and says what it's for")
+    T.truthy(string.find(h.count:GetText(), "drag items here", 1, true), "and says what it's for")
     _G.GetCursorInfo = function() return "item", 9 end
     _G.ClearCursor = function() _G.CursorHasItem = nil end
     h:GetScript("OnReceiveDrag")(h)
@@ -1574,7 +1608,8 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[1][2]), key, "dropped in")
-    T.eq(headingOf().text:GetText(), "Keepers", "the hint goes once it holds something")
+    T.eq(headingOf().text:GetText(), "KEEPERS", "the hint goes once it holds something")
+    T.eq(headingOf().count:GetText(), "1", "and the count takes its place")
     -- A search can be set and taken away again.
     Cat.SetSearch(key, "q>=rare")
     T.eq(Cat.Get(key).search, "q>=rare")
