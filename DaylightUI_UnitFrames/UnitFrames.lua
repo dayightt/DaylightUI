@@ -709,6 +709,45 @@ function UF.CreateThreatHolder(f)
     return h
 end
 
+-- A portrait of its own (<unit>.portraitAt = "free"): a holder on UIParent with
+-- its own mover, the portrait and the icons riding on it moved into it. Built
+-- like the threat tag's: never anchored to the frame, shown and hidden with it,
+-- faded with it (the frame's fade list, Units.lua).
+UF.PORTRAIT_FREE = { player = "unitframes.playerPortrait", target = "unitframes.targetPortrait",
+                     focus = "unitframes.focusPortrait" }
+function UF.CreatePortraitHolder(f)
+    local unit = f.spec.unit
+    local h = CreateFrame("Frame", "DaylightUIPortrait_" .. unit, UIParent)
+    h:SetSize(40, 40)
+    h.key = UF.PORTRAIT_FREE[unit]
+    h:Hide()
+    f.portraitHolder = h
+    f:HookScript("OnShow", function() if h.want then h:Show() end end)
+    f:HookScript("OnHide", function() h:Hide() end)
+    return h
+end
+
+-- Puts the portrait, and the status icons that ride on it, on the frame or in
+-- its holder. Pieces inside the secure frame can't be anchored to a frame of
+-- the addon's own, so the icons go along with the ring.
+function UF.HomePortrait(f)
+    local p = f.portrait
+    local home = f.portraitFree and f.portraitHolder or f
+    if p:GetParent() ~= home then p:SetParent(home) end
+    p:SetFrameLevel(home:GetFrameLevel() + (home == f and 6 or 1))
+    local st = f.status
+    if st then
+        -- The player can keep the icons on the frame instead (portraitIconsStay).
+        if f.iconsStay then home = f end
+        if st:GetParent() ~= home then
+            st:SetParent(home)
+            st:ClearAllPoints()
+            st:SetAllPoints(home)
+        end
+        st:SetFrameLevel(p:GetFrameLevel() + 6)
+    end
+end
+
 function UF.LayoutThreatTag(f, cfg, side)
     local tag = f.threatTag
     f.showThreatTag = cfg.threatTag ~= false and f.showThreat
@@ -1546,6 +1585,19 @@ function UF.LayoutPortrait(f, cfg)
     if shell then shell.opts.coveredEnd = nil end
     if not p then return end
     local mode = UF.PortraitMode(f, cfg)
+    local holder = f.portraitHolder
+    local free = UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free"
+    -- An options preview has no holder, so a portrait on its own leaves it,
+    -- as a power bar on its own does.
+    if free and not holder then mode = "none" end
+    f.portraitFree = (free and mode ~= "none" and cfg.enabled ~= false) and true or false
+    f.iconsStay = f.portraitFree and cfg.portraitIconsStay == true
+    UF.HomePortrait(f)
+    if holder then
+        holder.want = f.portraitFree
+        DUI.Movers.Suspend(holder.key, not f.portraitFree)
+        if not f.portraitFree then holder:Hide() end
+    end
     f.portraitMode = mode
     if mode == "none" then
         p:Hide()
@@ -1564,6 +1616,11 @@ function UF.LayoutPortrait(f, cfg)
     else
         R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * f.portraitScale / 2)
         f.portraitY = 0
+    end
+    if f.portraitFree then
+        f.portraitY = 0
+        holder:SetScale(DUI.Movers.Scale(holder.key))
+        holder:SetSize(2 * R, 2 * R)
     end
     local off = R * UF.PORTRAIT_OUT
     f.portraitOverlap = R - off  -- how far the ring reaches over the bar
@@ -1608,6 +1665,12 @@ function UF.LayoutPortrait(f, cfg)
     p.classSize = UF.CLASS_ICON_FILL * inner
     p.faceSize = 2 * inner
     p:Show()
+    if f.portraitFree then
+        -- On its own: the frame keeps its whole length and its own hit rect.
+        holder:SetShown(f:IsShown())
+        UF.SetHitRect(f, 0, 0)
+        return
+    end
     -- The tab starts clear of the ring, and the ring is clickable like the frame.
     f.ringInset = R - off
     f.tabInset = f.ringInset + 8
@@ -1630,6 +1693,10 @@ function UF.PlacePortrait(f, s)
     local p = f.portrait
     p:SetScale(s)
     p:ClearAllPoints()
+    if f.portraitFree then
+        p:SetPoint("CENTER", f.portraitHolder, "CENTER", 0, 0)
+        return
+    end
     p:SetPoint("CENTER", f, f.portraitEdge, f.portraitX / s, (f.portraitY or 0) / s)
 end
 
@@ -2193,8 +2260,13 @@ function UF.LayoutDots(f, cfg)
     Dots.TintVeil(f.dotVeil, Dots.Tint())
     local s = f.dotSkull
     s:ClearAllPoints()
+    -- With the portrait on its own, the skull goes along with it, unless the
+    -- icons were asked to stay on the frame.
+    local home = (f.portraitFree and not f.iconsStay) and f.portraitHolder or f.overlay
+    if s:GetParent() ~= home then s:SetParent(home) end
+    s:SetFrameLevel((home == f.overlay and f or home):GetFrameLevel() + 12)
     local p = f.portrait
-    if p and f.portraitMode and f.portraitMode ~= "none" then
+    if p and f.portraitMode and f.portraitMode ~= "none" and not f.iconsStay then
         Dots.SizeSkull(s, math.max(12, math.floor(p:GetHeight() * 0.55 + 0.5)))
         s:SetPoint("CENTER", p, "CENTER", 0, 0)
     else
@@ -2649,7 +2721,10 @@ function UF.LayoutStatus(f, cfg)
     -- The crown and role icon at home are nudged from there (leaderX/Y,
     -- roleX/Y), and sized by Corner crown / Role icon size once picked.
     local ln, rn = f.leaderNudge or UF.NO_NUDGE, f.roleNudge or UF.NO_NUDGE
-    if p:IsShown() then
+    -- Icons kept on the frame while the portrait is on its own sit as if there
+    -- were no portrait.
+    local onRing = p:IsShown() and not f.iconsStay
+    if onRing then
         local R = p:GetWidth() / 2
         for key, t in pairs(icons) do
             if key ~= "role" then
@@ -2704,7 +2779,7 @@ function UF.LayoutStatus(f, cfg)
         icons.level:ClearAllPoints()
         icons.level:SetPoint(at.point, f, at.relPoint, at.x, at.y)
     end
-    local nudge = p:IsShown() and UF.LEVEL_NUDGE or UF.LEVEL_NUDGE_BARE
+    local nudge = onRing and UF.LEVEL_NUDGE or UF.LEVEL_NUDGE_BARE
     st.levelText:ClearAllPoints()
     st.levelText:SetPoint("CENTER", icons.level, "CENTER", nudge[1], nudge[2])
     local b = icons.level:GetWidth() * UF.SKULL_SIZE

@@ -692,6 +692,12 @@ local POWER_MOVERS = {
     target = { "Target Power Bar", { "TOP", "DaylightUIFrame_target", "BOTTOM", 0, -14 } },
     focus = { "Focus Power Bar", { "TOP", "DaylightUIFrame_focus", "BOTTOM", 0, -14 } },
 }
+-- Each portrait's own handle, first beside its frame's outer end.
+local PORTRAIT_MOVERS = {
+    player = { "Player Portrait", { "RIGHT", "DaylightUIFrame_player", "LEFT", -12, 0 } },
+    target = { "Target Portrait", { "LEFT", "DaylightUIFrame_target", "RIGHT", 12, 0 } },
+    focus = { "Focus Portrait", { "LEFT", "DaylightUIFrame_focus", "RIGHT", 12, 0 } },
+}
 
 function ns.Build(mod)
     ns.module = mod
@@ -725,6 +731,12 @@ function ns.Build(mod)
                 -- Its standalone threat % tag, when used (fades with the frame).
                 list[#list + 1] = UF.CreateThreatHolder(f)
                 DUI.Movers.Register(f.threatHolder, UF.THREAT_KEY, "Target Threat %", { "CENTER", nil, "CENTER", 0, 120 })
+            end
+            if f.portrait and UF.PORTRAIT_FREE[spec.unit] then
+                -- Its portrait on its own, when used (fades with the frame).
+                list[#list + 1] = UF.CreatePortraitHolder(f)
+                local m = PORTRAIT_MOVERS[spec.unit]
+                DUI.Movers.Register(f.portraitHolder, UF.PORTRAIT_FREE[spec.unit], m[1], m[2])
             end
             DUI.Fade.Register{ key = "UnitFrames." .. spec.unit, scope = "UnitFrames", path = spec.unit .. ".fade",
                 page = "UnitFrames." .. spec.unit, frames = function() return list end, paint = UF.PaintFade, whole = true,

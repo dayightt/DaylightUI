@@ -1242,7 +1242,7 @@ end
 -- Frame card (bar textures and colors, power, heals and absorbs) becomes its
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true, portrait = true,
-    portraitRing = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true, tabHeight = true, slant = true, fillVertical = true,
+    portraitAt = true, portraitIconsStay = true, portraitRing = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true, tabHeight = true, slant = true, fillVertical = true,
     showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 local function splitFrame(prefix, items, power)
@@ -1353,6 +1353,16 @@ local function framePage(id, label, desc, opts)
             desc = "A ring over the outer end. Class icons show for players; NPCs show their face."
                 .. " Needs a frame at least " .. UF.MIN_PORTRAIT_HEIGHT .. " tall.",
             disabled = function(get) return shown(get) or tooShort(get) end }
+        if opts.portraitFree then
+            frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",
+                values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
+                desc = "On its own, the portrait leaves the frame and you can move it anywhere in unlock mode. The frame is then all bars.",
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            frame[#frame + 1] = { type = "toggle", key = k("portraitIconsStay"), label = "Icons stay on the frame",
+                desc = "With the portrait on its own, the crown, resting Zzz, PvP flag, level badge and DoT skull stay on the frame instead of going with it.",
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
+                    or get(k("portraitAt")) ~= "free" end }
+        end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRing"), label = "Ring color",
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
@@ -2001,13 +2011,13 @@ end
 
 ns.OPTIONS = { pages = {
     framePage("player", "Player", "Your own frame.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
           slantDesc = "Cuts the right end at an angle; the bars and an attached cast bar follow it." }),
     framePage("target", "Target", "Mirrors the player frame, with raid markers, the elite crest, and its buffs and debuffs.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
           slantDesc = "Cuts the left end at an angle; the bars follow it." }),
     framePage("focus", "Focus", "The unit you set as focus.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true }),
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true }),
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles. Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
