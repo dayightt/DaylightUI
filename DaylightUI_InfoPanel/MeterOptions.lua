@@ -200,7 +200,7 @@ local function buildLine(list)
     line.edit:SetScript("OnClick", function()
         MO.Pick(line.id)
         local P = DUI.OptionsPanel
-        if P and P.SetTab then P.SetTab(L["Shows"]) end
+        if P and P.SetTab then P.SetTab("Shows") end
     end)
     return line
 end
