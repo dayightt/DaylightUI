@@ -2359,7 +2359,7 @@ T.test("chat daylight: a mention's glow fades with its line (the game fades line
     stub.Advance(5)   -- past the new line's ease in
     box:FakeRefresh()
     local glow
-    for _, r in ipairs({ box:GetRegions() }) do
+    for _, r in ipairs({ box.FontStringContainer:GetRegions() }) do
         if r.__texture == "Interface\\Buttons\\WHITE8X8" then glow = r end
     end
     T.truthy(glow and glow:IsShown(), "the glow behind the line")
@@ -2383,6 +2383,29 @@ T.test("chat daylight: a mention's glow fades with its line (the game fades line
     Chat.Step(0)
     T.truthy(glow:IsShown(), "back with its line")
     T.near(glow.__gradient[2].a, full, 1e-6, "at full again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a mention on the row past the top is cut off with its line", function()
+    local _, box = daylight()
+    said(ChatFrame1, "is " .. UnitName("player") .. " coming?", "CHAT_MSG_GUILD", 1)
+    box:FakeRefresh()
+    -- Push the mention up to the game's extra row, laid out above the box's top.
+    for i = 1, box.fakeRows - 1 do said(ChatFrame1, "filler " .. i, "CHAT_MSG_GUILD", 100 + i) end
+    stub.Advance(5)
+    box:FakeRefresh()
+    local top = box.visibleLines[box.fakeRows]
+    T.truthy(top and top:IsShown() and string.find(top:GetText() or "", "coming", 1, true), "the mention sits on the top row")
+    local glow
+    for _, holder in ipairs({ box, box.FontStringContainer }) do
+        for _, r in ipairs({ holder:GetRegions() }) do
+            if r.__texture == "Interface\\Buttons\\WHITE8X8" and r:IsShown() then glow = r end
+        end
+    end
+    T.truthy(glow, "its glow is drawn")
+    -- The line is clipped by the game's container; a glow outside it showed as a
+    -- bar floating over the game world above the chat.
+    T.eq(glow:GetParent(), top:GetParent(), "inside the same clipping frame as its line")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

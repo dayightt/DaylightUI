@@ -980,16 +980,23 @@ function stub.MessageFrame(f)
     -- them: each font string gets its message's text, color and entry, then the
     -- redraw callbacks run.
     f.visibleLines = {}
+    -- The game draws its lines in a child that clips (ScrollingMessageFrame.xml),
+    -- and lays out one row more than fits (CalculateNumVisibleLines: ceil + 1), so
+    -- the top row sits past the frame's top, cut off by that clip.
+    f.FontStringContainer = new("Frame", nil, f)
+    f.FontStringContainer:SetAllPoints(f)
+    f.FontStringContainer:SetClipsChildren(true)
     function f:FakeRefresh()
         local size = (self.font and self.font[2]) or 14
         local n, shown = #self.lines, 0
-        local room = math.max(1, math.floor(((self:GetHeight() or 0) > 0 and self:GetHeight() or 200) / (size + 3)))
+        local room = math.ceil(((self:GetHeight() or 0) > 0 and self:GetHeight() or 200) / (size + 3)) + 1
+        self.fakeRows = room
         for i = 1, room do
             local l = self.lines[n - self.scrollOffset - i + 1]
             local fs = self.visibleLines[i]
             if l then
                 if not fs then
-                    fs = self:CreateFontString()
+                    fs = self.FontStringContainer:CreateFontString()
                     self.visibleLines[i] = fs
                 end
                 fs:SetFont(self.font and self.font[1] or "GameFont", size, self.font and self.font[3] or "")

@@ -305,7 +305,11 @@ function Box.Glows(f)
             used = used + 1
             local g = set[used]
             if not g then
-                g = f:CreateTexture(nil, "BACKGROUND")
+                -- Drawn in the game's clipping container with the lines (under their
+                -- text): it lays out a row past the box's top, cut off there, and a
+                -- glow outside the clip floated above the chat.
+                local holder = type(f.FontStringContainer) == "table" and f.FontStringContainer or f
+                g = holder:CreateTexture(nil, "BACKGROUND", nil, -1)
                 g:SetTexture("Interface\\Buttons\\WHITE8X8")
                 set[used] = g
             end
