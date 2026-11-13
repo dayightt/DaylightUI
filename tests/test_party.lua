@@ -42,17 +42,6 @@ T.test("a new party height moves the mover's default with it, so the first frame
     T.eq(DUI.Movers.Get("unitframes.party").default[5], 160 + 20)
 end)
 
-T.test("a party button's heals and shields never run past its health bar", function()
-    local DUI, ns = login()
-    local b = button(ns, 3, "party2", { name = "Hale", isPlayer = true, class = "PRIEST", health = 90, maxHealth = 100 })
-    for _, bar in ipairs({ b.heals, b.heals.wedge, b.absorbs, b.absorbs.wedge, b.overshield }) do
-        local clip = bar:GetParent()
-        T.truthy(clip:DoesClipChildren(), "cut off at the health bar's edge")
-        local _, rel = clip:GetPoint(1)
-        T.eq(rel, b.health)
-    end
-end)
-
 T.test("one settings table drives every party button", function()
     local DUI, ns = login()
     local b = button(ns, 1, "party1", { name = "Kaladin", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10 })

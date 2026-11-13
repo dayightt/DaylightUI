@@ -1997,9 +1997,9 @@ end
 -- A shield's bar uses the overshield's stripes, so a shield looks the same
 -- whether it fits in the missing health or runs past it. Not the Bar texture
 -- setting, since stripes are what say "shield".
-local function striped(parent)
+local function striped(f)
     local O = UF.OVERSHIELD
-    local s = CreateFrame("StatusBar", nil, parent)
+    local s = CreateFrame("StatusBar", nil, f)
     s:SetStatusBarTexture(O.stripes)
     local tex = s:GetStatusBarTexture()
     tex:SetTexture(O.stripes, "REPEAT", "REPEAT")
@@ -2008,8 +2008,8 @@ local function striped(parent)
 end
 
 local function predictionBar(f, kind)
-    if kind == "absorbs" then return striped(f.predictClip) end
-    local s = Style.Bar(f.predictClip, "seamless", UF.MediaOf(f.spec).bars.health)
+    if kind == "absorbs" then return striped(f) end
+    local s = Style.Bar(f, "seamless", UF.MediaOf(f.spec).bars.health)
     Style.BarBack(s):Hide()
     return s
 end
@@ -2037,21 +2037,7 @@ local function segment(f, kind, level)
     return s
 end
 
--- The heal and shield bars live in a frame the size of the health bar that
--- cuts off its children: a heal can run past the health's end (an overheal,
--- or a bar as long as the health starting where its fill stops), and a square
--- tile has no angled-end mask to stop it spilling into the next tile.
-local function predictClip(f)
-    local clip = CreateFrame("Frame", nil, f)
-    clip:SetAllPoints(f.health)
-    clip:SetFrameLevel(f.health:GetFrameLevel())
-    clip:SetClipsChildren(true)
-    f.predictClip = clip
-    return clip
-end
-
 function UF.CreatePrediction(f)
-    predictClip(f)
     f.heals = segment(f, "heals", 1)
     f.absorbs = segment(f, "absorbs", 1)
     UF.CreateOvershield(f)
@@ -2068,7 +2054,7 @@ end
 
 function UF.CreateOvershield(f)
     local O, c = UF.OVERSHIELD, UF.PREDICTION.absorbs.color
-    local o = CreateFrame("StatusBar", nil, f.predictClip or predictClip(f))
+    local o = CreateFrame("StatusBar", nil, f)
     o:SetFrameLevel(f.health:GetFrameLevel() + 2)
     o:SetStatusBarTexture(O.stripes)
     local tex = o:GetStatusBarTexture()
