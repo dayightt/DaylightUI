@@ -43,6 +43,7 @@ T.test("padskin: every button of the game's bars wears the look, none moved or r
         end
         T.eq(bar.BackgroundFocus.__atlas, nil, "no gold haze behind the bar in focus")
     end
+    T.eq(main.PageUnit.actionBars.stanceBar.BackgroundWatermark.__atlas, nil, "no wings behind the stance bar")
     T.truthy(Skin().IsSkinned(main.PageUnit.LeftClassAction), "a class's flyout button too")
     done()
 end)

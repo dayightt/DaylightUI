@@ -137,7 +137,12 @@ function F.Install()
         leftBar = makeBar(main.PageUnit, "PadFakeLeft", -240, 0),
         rightBar = makeBar(main.PageUnit, "PadFakeRight", 240, 0),
         bottomBar = makeBar(main.PageUnit, "PadFakeBottom", 0, -60),
+        stanceBar = makeBar(main.PageUnit, "PadFakeStance", 240, 140),
     }
+    -- The stance bar shows its winged backing from its OnLoad (StanceBar.lua).
+    local stance = main.PageUnit.actionBars.stanceBar
+    stance.BackgroundWatermark = stance:CreateTexture()
+    stance.BackgroundWatermark:SetAtlas("gamepad-actionbar-stance-backing")
     main.PageUnit.LeftClassAction = makeButton(main.PageUnit, "PadFakeLeftClass")
     main.PageUnit.RightClassAction = makeButton(main.PageUnit, "PadFakeRightClass")
     return main

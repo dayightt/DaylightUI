@@ -20,6 +20,8 @@ PadSkin.BARS = { "topBar", "leftBar", "rightBar", "bottomBar", "possessBar", "st
 -- game's focus animations end by setting theirs.
 PadSkin.BLANK = { "CircleShadow", "CircleShadowFocus", "SquareShadow", "SquareShadowFocus",
                   "CircleGlowFocus", "SquareGlowFocus" }
+-- The same for a bar's own art: its focus glow and the stance bar's winged backing.
+PadSkin.BAR_BLANK = { "BackgroundFocus", "BackgroundWatermark" }
 PadSkin.SINGLES = { "LeftClassAction", "RightClassAction" }
 PadSkin.ROUND_FROM = 5     -- buttons from this index on are a bar's face buttons
 
@@ -75,8 +77,10 @@ function PadSkin.Apply()
     for _, key in ipairs(PadSkin.BARS) do
         local bar = unit.actionBars[key]
         each(bar, function(b, i) dress(b, i, bar) end)
-        local focus = type(bar) == "table" and bar.BackgroundFocus
-        if type(focus) == "table" and focus.SetTexture then focus:SetTexture(nil) end
+        for _, k in ipairs(PadSkin.BAR_BLANK) do
+            local tex = type(bar) == "table" and bar[k]
+            if type(tex) == "table" and tex.SetTexture then tex:SetTexture(nil) end
+        end
     end
     -- The shoulder and trigger buttons that open a class's flyouts have no bar of their own.
     for _, key in ipairs(PadSkin.SINGLES) do
