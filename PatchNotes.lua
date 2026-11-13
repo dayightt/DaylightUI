@@ -16,6 +16,15 @@ DUI.PatchNotes = {
             { "Chat", "General and Trade keep /1 and /2 even when another addon joins its own chat channels first" },
             { "Bags", "Your bags open when you trade with someone, and close again when the trade ends" },
         },
+        changed = {
+            { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
+        },
+        fixed = {
+            { "Edit Mode", "Logging in or going through a loading screen no longer switches your own Edit Mode layout back to Daylight UI's" },
+            { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },
+            { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
+            { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
+        },
     },
     { version = "1.7.3", date = "2026-11-13", summary = "Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!",
         new = {

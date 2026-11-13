@@ -121,6 +121,7 @@ T.test("aura groups: an added group gets its own container, filter and spot; rem
     local p, rel, rp = c:GetPoint(1)
     T.eq(rel, b); T.eq(rp, "TOPLEFT")
     -- Switched to buffs: a buff container of its own, the debuff one emptied.
+    DUI:Set("UnitFrames", "raid.auras.x1.buffWhich", "mine")
     DUI:Set("UnitFrames", "raid.auras.x1.what", "buffs")
     stub.RunTimers()
     T.truthy(b.auraSet.extra.x1.buffs)
