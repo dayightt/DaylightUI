@@ -240,11 +240,22 @@ Training.TITLE = {
     pet = function() return L["Pet abilities"] end,
     talent = function() return L["Needs a talent"] end,
 }
+-- Trainers teach every other level, so the next spells are often two levels
+-- away: name the level they come at rather than "next level".
+function Training.NextTitle(list)
+    local lv
+    for _, sp in ipairs(list) do
+        if type(sp.level) ~= "number" or (lv and sp.level ~= lv) then return nil end
+        lv = sp.level
+    end
+    return lv and string.format(L["Level %d"], lv) or nil
+end
+
 -- One chip per listed group; clicking scrolls to it.
 Training.CHIP = {
     now = function() return L["Learn now"] end,
     needs = function() return L["Needs a spell"] end,
-    next = function() return L["Next level"] end,
+    next = function() return L["Next"] end,
     pet = function() return L["Pet"] end,
     later = function() return L["Later"] end,
     talent = function() return L["Talent"] end,
@@ -371,7 +382,8 @@ function Training.Render(page)
             elseif #shown > 0 then
                 any = true
                 Training.at[key] = s.y
-                s:Section(key == "now" and string.format(L["Learn now · %d"], #shown) or Training.TITLE[key]())
+                s:Section(key == "now" and string.format(L["Learn now · %d"], #shown)
+                    or (key == "next" and Training.NextTitle(shown)) or Training.TITLE[key]())
             end
             for _, sp in ipairs(shown) do s:Line(lineFor(sp, cash)) end
         end

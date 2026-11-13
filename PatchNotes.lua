@@ -31,6 +31,7 @@ DUI.PatchNotes = {
             { "Chat", "Whispers show their time in the format picked under Timestamps, 12-hour clocks too" },
             { "Meters", "The threat meter's own background opacity works, down to fully see-through" },
             { "Cooldown Manager", "The editor's \"Click or drag a spell\" hint no longer hides under the Add by ID button" },
+            { "Spellbook", "The Training tab names the level your next spells come at, instead of saying Next level when they're two levels away" },
         },
     },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",

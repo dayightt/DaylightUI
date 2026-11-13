@@ -145,7 +145,8 @@ T.test("book training: learn now first, then next level, then later by level, kn
     local page = openTraining(ns)
     T.truthy(page:IsVisible())
     T.eq(ns.Window.frame.current, "training")
-    T.deq(sections(page), { "LEARN NOW · 3", "NEXT LEVEL", "LEVEL 20", "LEVEL 22" })
+    T.deq(sections(page), { "LEARN NOW · 3", "LEVEL 16", "LEVEL 20", "LEVEL 22" },
+        "the next spells under the level they come at, not 'next level'")
     T.deq(lineNames(page), { "Thunder Clap", "Rend", "Taunt", "Heroic Strike", "Cleave", "Intimidating Shout" })
     T.truthy(foldRow(page), "the known ones fold under one row")
     T.isnil(line(page, "Charge"), "known spells stay folded")
