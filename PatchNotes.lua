@@ -16,6 +16,7 @@ DUI.PatchNotes = {
             { "Chat", "General and Trade keep /1 and /2 even when another addon joins its own chat channels first" },
             { "Bags", "Your bags open when you trade with someone, and close again when the trade ends" },
             { "Chat", "A sound for guild and officer chat, like the whisper sound: Chat page, Whispers" },
+            { "Bags", "A Comprehend Scroll button in the bags, next to Disenchant: click it, then click a scroll" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },

@@ -782,10 +782,12 @@ local function bagWindow()
             { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
               desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
-            -- Last, next to the search. Only shown to characters who know Disenchant
-            -- (Disenchant.lua puts a secure button over it on hover).
+            -- Last, next to the search. Each only shown to characters who know its
+            -- spell (Disenchant.lua puts a secure button over it on hover).
             { key = "disenchantButton", icon = ns.Disenchant.ICON, title = ns.Disenchant.Title,
               desc = L["Click, then click an item to disenchant it. Not during a fight."], onClick = function() end },
+            { key = "comprehendButton", icon = ns.Comprehend.ICON, title = ns.Comprehend.Title,
+              desc = L["Click, then click a scroll to comprehend it. Not during a fight."], onClick = function() end },
         },
     })
     ns.window = f
@@ -805,6 +807,7 @@ function ns.Build(mod)
         if ns.Slots then ns.Slots.Create(f) end
         registerEvents()
         ns.Disenchant.Register(f)
+        ns.Comprehend.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
         ns.Guard.Register()

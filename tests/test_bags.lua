@@ -1129,6 +1129,54 @@ T.test("bags: the secure Disenchant button goes where ours is, each time the mou
     _G.IsPlayerSpell = nil
 end)
 
+T.test("bags: the Comprehend Scroll button: shown to those who know it, beside Disenchant; hovered, it casts the spell", function()
+    local ns = login()
+    local CS, DE = ns.Comprehend, ns.Disenchant
+    T.eq(CS.SPELL, 1296017)
+    local known = {}
+    _G.IsPlayerSpell = function(id) return known[id] == true end
+    local getTex = C_Spell.GetSpellTexture
+    C_Spell.GetSpellTexture = function(id) return id == CS.SPELL and 134937 or nil end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.comprehendButton
+    T.falsy(b:IsShown(), "spell not known: no button")
+    T.eq(select(2, f.search:GetPoint(2)), f.viewButton, "the search ends at the last tool shown")
+    known[CS.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(b:IsShown())
+    T.falsy(f.disenchantButton:IsShown(), "Disenchant still follows its own spell")
+    T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
+    T.eq(b.icon:GetTexture(), 134937, "the spell's own icon")
+    known[DE.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(f.disenchantButton:IsShown(), "both known: both shown")
+    T.eq(select(2, f.search:GetPoint(2)), b, "Comprehend Scroll sits next to the search")
+    b.GetLeft, b.GetBottom = function() return 360 end, function() return 300 end
+    b:SetSize(28, 28)
+    stub.secure = true
+    T.isnil(CS.caster.button, "nothing secure until the mouse comes")
+    b:GetScript("OnEnter")(b)
+    local o = CS.caster.button
+    T.truthy(o and o:IsShown(), "the secure button lies over ours")
+    T.truthy(o ~= DE.caster.button, "its own secure button, not Disenchant's")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), CS.SPELL)
+    T.eq(o:GetParent(), UIParent, "never inside the bag: the bag still closes in a fight")
+    T.eq(o:GetFrameStrata(), "HIGH")
+    stub.EnterCombat()
+    T.falsy(o:IsShown(), "hidden as the fight starts")
+    stub.LeaveCombat()
+    b:GetScript("OnEnter")(b)
+    known[CS.SPELL] = nil
+    stub.FireEvent("SPELLS_CHANGED")
+    T.falsy(b:IsShown(), "forgotten: the button goes")
+    T.falsy(o:IsShown(), "and its secure button with it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.secure = false
+    _G.IsPlayerSpell = nil
+    C_Spell.GetSpellTexture = getTex
+end)
+
 T.test("bags: gear's item level in the bottom left corner, off by default; the bank follows", function()
     local ns = login()
     local instant, detailed = C_Item.GetItemInfoInstant, C_Item.GetDetailedItemLevelInfo
