@@ -79,6 +79,34 @@ T.test("pet happiness: hidden without a hunter pet, and when turned off", functi
     T.falsy(ns.happiness:IsShown(), "off")
 end)
 
+T.test("pet happiness: a stripe inside the frame, straight on the left and along the angle on the right", function()
+    local DUI, ns = login(2)
+    local f, h = ns.frames.pet, ns.happiness
+    local function anchorX(bar, point)
+        for i = 1, bar:GetNumPoints() do
+            local p, _, _, x = bar:GetPoint(i)
+            if p == point then return x end
+        end
+    end
+    local left0 = anchorX(f.health, "TOPLEFT")
+    local right0 = anchorX(f.power, "BOTTOMRIGHT")
+    DUI:Set("UnitFrames", "pet.happinessLook", "frame")
+    stub.RunTimers()
+    T.falsy(h:IsShown(), "the square steps aside")
+    T.truthy(h.band:IsShown() and h.stripe:IsShown(), "the stripe shows")
+    local c = ns.Happiness.COLORS[2]
+    T.rgb(h.stripe.__vertex, { DaylightUI.Style.Soften(c[1], c[2], c[3]) }, "content yellow")
+    T.eq(anchorX(f.health, "TOPLEFT"), left0, "the other end stays put")
+    T.truthy(anchorX(f.power, "BOTTOMRIGHT") < right0, "the bars stop short of the stripe")
+    T.eq(DaylightUI.Style.ClipSpan(f.health:GetStatusBarTexture()), "inner", "the bars keep a straight end")
+    T.truthy(h.stripe:GetWidth() > DaylightUI.Pixel.Px(f, ns.Happiness.STRIPE), "the block covers the angled corner")
+    DUI:Set("UnitFrames", "pet.happinessSide", "left")
+    stub.RunTimers()
+    T.truthy(anchorX(f.health, "TOPLEFT") > left0, "the straight end gives the stripe a rectangle")
+    T.eq(DaylightUI.Style.ClipSpan(f.health:GetStatusBarTexture()), "inner", "the angle is the other end")
+    T.eq(h.stripe:GetWidth(), DaylightUI.Pixel.Px(f, ns.Happiness.STRIPE))
+end)
+
 T.test("pet happiness: hovering says what the game says", function()
     local _, ns = login(3)
     local lines = {}

@@ -1686,18 +1686,24 @@ local function framePage(id, label, desc, opts)
             desc = "Your pet's mood beside the frame: red while it's unhappy, yellow while content, green while happy. Hover for its damage, loyalty and diet.",
             disabled = shown }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessLook"), label = "Happiness look",
-            values = { square = "Color square", icon = "Mood face" },
-            order = { "square", "icon" },
-            desc = "A square filled with the mood's color, or the pet's mood face.",
+            values = { square = "Color square", icon = "Mood face", frame = "In the frame" },
+            order = { "square", "icon", "frame" },
+            desc = "A square filled with the mood's color, the pet's mood face, or a stripe inside the frame.",
             disabled = happyOff }
+        local function besideOff(get) return happyOff(get) or get(k("happinessLook")) == "frame" end
+        local function stripeOff(get) return happyOff(get) or get(k("happinessLook")) ~= "frame" end
+        extras[#extras + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side",
+            values = { left = "Left", right = "Right" }, order = { "left", "right" },
+            desc = "Which end of the frame the stripe sits in. On an angled end it follows the angle.",
+            disabled = stripeOff }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
-            order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = happyOff }
+            order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",
-            desc = "How big it is.", disabled = happyOff }
+            desc = "How big it is.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessX"), label = "Happiness left / right", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it sideways.", disabled = happyOff }
+            desc = "Nudges it sideways.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessY"), label = "Happiness up / down", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it up or down.", disabled = happyOff }
+            desc = "Nudges it up or down.", disabled = besideOff }
         extras[#extras + 1] = { type = "toggle", key = k("happinessBar"), label = "Color health bar by happiness",
             desc = "The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn Pet happiness off to have only this.",
             disabled = shown }
