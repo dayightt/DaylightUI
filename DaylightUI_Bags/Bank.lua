@@ -336,8 +336,8 @@ function Bank.Build()
               onClick = function(w)
                   w.Set("showSlots", not w.Setting("showSlots"))
               end },
-            { key = "viewButton", icon = W.VIEW_ICON, title = L["Categories or bags"],
-              desc = L["Switch between items grouped by kind and the plain tab-by-tab grid."],
+            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf or grid"],
+              desc = L["Switch between Shelf, grouped by kind, and Grid, tab by tab."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
         },
     })

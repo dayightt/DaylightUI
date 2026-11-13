@@ -133,9 +133,8 @@ Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 
 -- Group heading: chevron, upper case name, count and a faint rule out to the
--- group's edge. Click folds or unfolds,
--- right-click on Recent clears it, and an item dropped or clicked onto it from
--- the cursor gets pinned to the group.
+-- group's edge. A click folds or unfolds it, a right-click on Recent clears it,
+-- and an item dropped or clicked onto it from the cursor gets pinned to the group.
 local function heading(window, i)
     window.headings = window.headings or {}
     local h = window.headings[i]
@@ -212,7 +211,8 @@ function Layout.PaintHeading(h, folded)
     end
     local rc = Style.BAND_LIT
     h.rule:SetVertexColor(rc[1], rc[2], rc[3], 1)
-    Style.InkText(h.count, "pop")
+    -- The count pops; an empty group's "drag items here" hint stays quiet.
+    Style.InkText(h.count, h.empty and "LABEL" or "pop")
     if lit then
         h.chev:SetVertexColor(Style.Accent())
     else
@@ -445,7 +445,7 @@ function Layout.Categories(window, cfg)
         used = i
         local folded = Cat.IsCollapsed(g.key)
         local h = heading(window, i)
-        h.key, h.name = g.key, g.name
+        h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
         h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(#g.entries))
         Layout.PaintHeading(h, folded)
         local textW = (h.text.GetStringWidth and h.text:GetStringWidth()) or 0

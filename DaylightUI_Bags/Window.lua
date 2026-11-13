@@ -633,7 +633,7 @@ function Window.UpdateSub(f)
     if f.spec.updateSub then return f.spec.updateSub(f) end
     local bag = f.spec.kind == "bag"
     local free, total = f.set.Free(bag)
-    if type(free) ~= "number" then return f.sub:SetText("") end
+    if type(free) ~= "number" or type(total) ~= "number" or total == 0 then return f.sub:SetText("") end
     local role = bag and ((free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN")) or nil
     local hex = DUI.Win.Parts.Hex(role and DUI.Style.INK[role] or { DUI.Style.Pop() })
     local count = hex .. free .. "|r"
@@ -967,8 +967,8 @@ local function bagWindow()
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
             { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
-            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
-              desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
+            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
+              desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
             -- Last, next to the search. Only shown to characters who know Disenchant
             -- (Disenchant.lua puts a secure button over it on hover).
@@ -1054,8 +1054,8 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
-        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."],
-            pop(L["Alt-right-click"]), pop(L["Bank and alts"]))
+        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s and %s tabs at the top show your bank and your other characters' bags from anywhere."],
+            pop(L["Alt-right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
     end,
     available = function() return ns.module ~= nil and DUI:Get("Bags", "enabled") ~= false end,
     wait = true,

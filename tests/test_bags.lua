@@ -1533,6 +1533,7 @@ T.test("bags: group headings read upper case in the accent with a count and chev
     stub.RunTimers()
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
     _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
     stub.now = 1000
     _G.GetTime = function() return stub.now end
     DaylightUI:Set("general", "accent", "gradient")
@@ -1544,6 +1545,7 @@ T.test("bags: group headings read upper case in the accent with a count and chev
     end)
     DaylightUI:Set("general", "accent", nil)
     _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
     T.truthy(ok, tostring(err))
 end)
 
@@ -1721,6 +1723,9 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     local h = headingOf()
     T.truthy(h, "Shift with an item held shows it, to drop on")
     T.truthy(string.find(h.count:GetText(), "drag items here", 1, true), "and says what it's for")
+    local hr, hg, hb = h.count:GetTextColor()
+    local ink = DaylightUI.Style.INK.LABEL
+    T.near(hr, ink[1], 0.01); T.near(hg, ink[2], 0.01); T.near(hb, ink[3], 0.01)
     _G.GetCursorInfo = function() return "item", 9 end
     _G.ClearCursor = function() _G.CursorHasItem = nil end
     h:GetScript("OnReceiveDrag")(h)
@@ -1882,6 +1887,7 @@ T.test("bags: recent items first, for a while", function()
     local ns = catLogin()
     local Cat = ns.Categories
     _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
     stub.now = 1000
     _G.GetTime = function() return stub.now end
     ns.Relayout()
@@ -1891,6 +1897,7 @@ T.test("bags: recent items first, for a while", function()
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "after the timeout, its own group")
     _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
 end)
 
 T.test("bags: right-clicking the Recent heading clears it", function()
@@ -2216,16 +2223,16 @@ end)
 
 T.test("bank: gold in the account bank is drawn in coins like the bags", function()
     local ns, bank = bankLogin()
-    bank.view = { [0] = true, [2] = true }
     bank.gold = 123456
     stub.FireEvent("BANKFRAME_OPENED")
     stub.RunTimers()
-    ns.Bank.Select(2)
-    stub.RunTimers()
     local f = ns.bank
-    if f.deposit:IsShown() then
-        T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "the account bank's gold in our coins")
-    end
+    local account
+    for _, t in ipairs(f.bankTabs) do if t.bankType == 2 then account = t end end
+    account:GetScript("OnClick")(account)
+    stub.RunTimers()
+    T.truthy(f.deposit:IsShown(), "the account bank's gold buttons show")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "the account bank's gold in our coins")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2237,6 +2244,7 @@ T.test("bank: before its first tab, the window still builds", function()
     f:Show()
     stub.RunTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(f.sub:GetText() or "", "", "no \"0 of 0 free\" before a tab")
     sameLook(f, "bank, no tab")
     local sub = (f.sub:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     T.truthy(sub == "" or sub:find("0 of 0 free", 1, true), "sub empty or 0 of 0: " .. sub)
