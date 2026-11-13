@@ -121,5 +121,5 @@ ns.DEFAULTS = {
     campfireAll = true,     -- the campfire fades every area of ours (buffs, info panel, quests, chat...), not just bars and unit frames
     campfireRest = 10,      -- minutes after the flare before a new Welcoming Campfire fades the UI again (0 = every minute)
     campfireChat = true,    -- the campfire floats the chat: panel and tabs away, the lines stay (Chat.FloatWanted)
-    sleepingBag = true,     -- resting in a sleeping bag shows the time until Well-Rested is full (Campfire.lua)
+    sleepingBag = false,    -- resting in a sleeping bag shows the time until Well-Rested is full (Campfire.lua)
 }

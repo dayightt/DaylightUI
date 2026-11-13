@@ -515,8 +515,18 @@ local UNROLL, TRACK, RESTED = 429961, 429960, 429959
 local function rested(n) return { spellId = RESTED, name = "Well-Rested", applications = n, expirationTime = GetTime() + 7200, duration = 7200 } end
 local function unroll() stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", UNROLL) end
 
+-- The timer is off as shipped: these tests switch it on.
+local function bagLogin(before)
+    local C = login(before)
+    DaylightUI:Set("QoL", "sleepingBag", true)
+    stub.RunTimers()
+    return C
+end
+
 T.test("sleeping bag: laying it out starts a three-minute count to full Well-Rested", function()
-    local C = login()
+    login()
+    T.eq(DaylightUI:Get("QoL", "sleepingBag"), false, "off as shipped")
+    local C = bagLogin()
     unroll()
     local f = frame()
     T.truthy(f and f:IsShown(), "shown without a fire")
@@ -546,7 +556,7 @@ T.test("sleeping bag: laying it out starts a three-minute count to full Well-Res
 end)
 
 T.test("sleeping bag: stacks already on count from where they are; full already says so", function()
-    login(function() stub.SetAuras("player", "HELPFUL", { rested(2) }) end)
+    bagLogin(function() stub.SetAuras("player", "HELPFUL", { rested(2) }) end)
     unroll()
     local f = frame()
     play(0.5)
@@ -560,7 +570,7 @@ T.test("sleeping bag: stacks already on count from where they are; full already 
 end)
 
 T.test("sleeping bag: walking off, a fight or switching it off ends the count; the bag's own aura is believed over walking", function()
-    local C = login()
+    local C = bagLogin()
     unroll()
     play(1)
     stub.FireEvent("PLAYER_STARTED_MOVING")
@@ -596,7 +606,7 @@ T.test("sleeping bag: walking off, a fight or switching it off ends the count; t
 end)
 
 T.test("sleeping bag: laying it out by the fire doesn't wake the campfire; the two counts share the screen", function()
-    local C = login()
+    local C = bagLogin()
     auras({ sitAura() })
     play(3)
     stub.FireEvent("UNIT_SPELLCAST_SENT", "player", "", "x", UNROLL)
