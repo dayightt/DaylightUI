@@ -112,7 +112,7 @@ function Friends.Tip(owner, f)
     elseif f.game and f.status ~= "off" then
         T.Text(string.format(L["Playing %s"], f.game))
     end
-    if f.faction then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
+    if f.faction and ns.Setting("friendFactions") == true then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
     if f.ruleset then T.Line(L["Server"], f.ruleset) end
     if f.note then T.Line(L["Note"], f.note) end
     if f.broadcast then T.Text("\"" .. f.broadcast .. "\"") end
@@ -176,7 +176,7 @@ function Friends.Away(f)
 end
 
 function Friends.FactionIcon(faction)
-    local file = faction and Friends.FACTION_ICON[faction]
+    local file = faction and ns.Setting("friendFactions") == true and Friends.FACTION_ICON[faction]
     if not file then return "" end
     local n = Friends.FACTION_SIZE
     return string.format("|T%s:%d:%d:0:0:64:64:5:59:5:59|t ", file, n, n)
@@ -198,7 +198,7 @@ end
 
 local function friendRow(s, f)
     local off = f.status == "off"
-    local dim = off or Friends.Away(f)
+    local dim = off or (ns.Setting("friendDim") == true and Friends.Away(f))
     local text = f.account
     if f.char then text = text .. "  " .. Friends.FactionIcon(f.faction) .. (dim and f.char or Rows().Named(f.char, f.class)) end
     local b = Rows().Row(s, { kind = "friend", height = Friends.ROW, friend = f, text = text, id = "friend:" .. tostring(f.id),
@@ -235,9 +235,21 @@ end
 -- keep: refresh of the open list (events, a toggle); ease: the search changed.
 -- Either way friends that stay glide to their new spot (one coming online moves up to
 -- Online) and new ones fade in.
+-- The chips show only when switched on; the list moves up into their room when not.
+local function layChips(page)
+    local on = ns.Setting("friendChips") == true
+    if not on then Friends.filter = "all" end
+    for id, b in pairs(page.chips) do
+        b:SetShown(on)
+        b.SetOn(Friends.filter == id)
+    end
+    page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", page.stack.side, -(on and Friends.TOP or Friends.CHIPS_Y))
+end
+
 function Friends.Render(keep, ease)
     local page = Friends.page
     if not (page and page:IsShown()) then return end
+    layChips(page)
     local s = page.stack
     local at = keep and s:Scrolled()
     local spots = (keep or ease) and s:Spots() or nil
@@ -328,7 +340,9 @@ end
 
 function Friends.Pieces(page)
     local out = { page.search }
-    for _, id in ipairs(Friends.FILTERS) do out[#out + 1] = page.chips[id] end
+    if ns.Setting("friendChips") == true then
+        for _, id in ipairs(Friends.FILTERS) do out[#out + 1] = page.chips[id] end
+    end
     for i, p in ipairs(page.pieces or {}) do
         if i > 12 then break end
         out[#out + 1] = p

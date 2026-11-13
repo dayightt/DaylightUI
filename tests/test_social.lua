@@ -290,6 +290,15 @@ T.test("social: friends show their faction; another game or ruleset is dimmed; c
     local page = ns.Friends.page
     local INK = DaylightUI.Style.INK
     local list = rows(page.stack, "friend")
+    T.falsy(list[1].name:GetText():find("|T", 1, true), "off as shipped: no faction")
+    T.rgb({ list[2].name:GetTextColor() }, INK.VALUE, "off as shipped: not dimmed")
+    T.falsy(page.chips.all:IsShown(), "off as shipped: no chips")
+    DaylightUI:Set("Social", "friendFactions", true)
+    DaylightUI:Set("Social", "friendDim", true)
+    DaylightUI:Set("Social", "friendChips", true)
+    frame(2)
+    list = rows(page.stack, "friend")
+    T.truthy(page.chips.all:IsShown(), "on: the chips")
     T.truthy(list[1].name:GetText():find("INV_BannerPVP_02", 1, true), "Alliance's banner")
     T.truthy(list[2].name:GetText():find("INV_BannerPVP_01", 1, true), "Horde's banner")
     T.falsy(list[3].name:GetText():find("|T", 1, true), "another game: no faction")
