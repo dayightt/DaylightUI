@@ -178,7 +178,9 @@ T.test("nameplates: the interrupt mark sits where your interrupt comes back, onl
     local cd = { on = true }
     kicker(cd)
     stub.FireEvent("SPELLS_CHANGED")
-    T.eq(NP.DEFAULTS.castKickMark, true, "on as shipped")
+    T.eq(NP.DEFAULTS.castKickMark, false, "off as shipped")
+    DaylightUI:Set("Nameplates", "castKickMark", true)
+    stub.RunTimers()
     local p = added("nameplate1")
     local now = GetTime()
     cd.d = span(now - 5, now + 1)
@@ -221,6 +223,8 @@ end)
 
 T.test("nameplates: the interrupt mark in a boss fight, every time secret, is placed without touching them", function()
     login()
+    DaylightUI:Set("Nameplates", "castKickMark", true)
+    stub.RunTimers()
     local cd = { on = true }
     kicker(cd)
     stub.FireEvent("SPELLS_CHANGED")
@@ -410,7 +414,9 @@ end)
 
 T.test("nameplates: the cast bar names who the cast is aimed at, in their class color, secret names and all", function()
     local NP = login()
-    T.eq(NP.DEFAULTS.castTarget, true, "on as shipped")
+    T.eq(NP.DEFAULTS.castTarget, false, "off as shipped")
+    DaylightUI:Set("Nameplates", "castTarget", true)
+    stub.RunTimers()
     -- The client always answers these secret.
     local aimed = { name = "Jaina", class = "MAGE" }
     _G.UnitSpellTargetName = function() if aimed.name then return stub.Secret(aimed.name) end end
