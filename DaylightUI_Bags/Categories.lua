@@ -365,9 +365,126 @@ function Cat.Export()
     return DUI.Profiles.Pack(t, Cat.SHARE_PREFIX)
 end
 
+-- Baganator's categories export (plain JSON from its category options):
+-- { version, categories = { { name, priority, search } }, modifications =
+-- { { source, items, pets, group } }, hidden = { source }, order = { source } }.
+-- A source is a custom category's name or "default_" plus a built-in key; older
+-- exports kept items in the categories themselves. Anything else is ignored, so
+-- a newer export still brings over what's recognized.
+
+-- Baganator's built-in categories that have a group here: their moved items go
+-- to that group instead of a copy of it.
+Cat.BAGANATOR_BUILTIN = {
+    hearthstone = "hearthstone", potion = "consumable", food = "consumable", consumable = "consumable",
+    reagent = "reagent", auto_equipment_sets = "sets", weapon = "weapon", armor = "armor", quiver = "quiver",
+    container = "container", tradegoods = "tradegoods", recipe = "recipe", questitem = "quest", key = "key",
+    miscellaneous = "misc", other = "other", junk = "junk",
+}
+
+local function isText(s) return type(s) == "string" and s ~= "" end
+
+local function itemIDs(list, into)
+    for _, id in ipairs(type(list) == "table" and list or {}) do
+        if type(id) == "number" and id > 0 and id == math.floor(id) and #into < Cat.SHARE_ITEMS then
+            into[#into + 1] = id
+        end
+    end
+end
+
+-- A list for Cat.ImportShared (plus .notes: what was left out, in plain words),
+-- or nil and the reason.
+function Cat.ReadBaganator(text)
+    local E = C_EncodingUtil
+    if type(E) ~= "table" or type(E.DeserializeJSON) ~= "function" then
+        return nil, L["this game client can't read profiles"]
+    end
+    local ok, v = pcall(E.DeserializeJSON, text)
+    if not ok or type(v) ~= "table" or (type(v.categories) ~= "table" and type(v.modifications) ~= "table") then
+        return nil, L["that isn't a Daylight UI or Baganator bag groups string"]
+    end
+    local notes, out, bySource, skipped = {}, {}, {}, {}
+    local customs = {}
+    for i, c in ipairs(type(v.categories) == "table" and v.categories or {}) do
+        if #customs >= Cat.SHARE_MAX then break end
+        if type(c) == "table" and isText(c.name) then
+            customs[#customs + 1] = { c = c, i = i, priority = type(c.priority) == "number" and c.priority or 0 }
+        end
+    end
+    -- Baganator tries the highest priority first; here the first group in the
+    -- list wins, so the order carries it over.
+    table.sort(customs, function(a, b)
+        if a.priority ~= b.priority then return a.priority > b.priority end
+        return a.i < b.i
+    end)
+    for _, e in ipairs(customs) do
+        local c = e.c
+        local name = string.sub(c.name, 1, 60)
+        local search, dropped
+        if type(c.search) == "string" then search, dropped = ns.Search.FromSyndicator(c.search) end
+        if dropped and #dropped > 0 then
+            notes[#notes + 1] = string.format(L["%s (left out: %s)"], name, table.concat(dropped, ", "))
+        end
+        local g = { name = name, search = search, items = {} }
+        itemIDs(c.items, g.items)
+        out[#out + 1] = g
+        bySource[name] = g
+        if isText(c.source) then bySource[c.source] = g end
+    end
+    local pets, grouped = false, false
+    local builtin = {}
+    for _, m in ipairs(type(v.modifications) == "table" and v.modifications or {}) do
+        local source = type(m) == "table" and (isText(m.source) and m.source or isText(m.name) and m.name) or nil
+        if source then
+            local g = bySource[source]
+            local base = not g and string.match(source, "^default_(.+)$")
+            local key = base and Cat.BAGANATOR_BUILTIN[base]
+            if key or g then
+                if not g then
+                    g = builtin[key]
+                    if not g then
+                        g = { builtin = key, items = {} }
+                        builtin[key] = g
+                        out[#out + 1] = g
+                    end
+                end
+                itemIDs(m.items, g.items)
+            elseif type(m.items) == "table" and #m.items > 0 then
+                skipped[#skipped + 1] = base or source
+            end
+            if type(m.pets) == "table" and #m.pets > 0 then pets = true end
+            if isText(m.group) then grouped = true end
+        end
+    end
+    if #skipped > 0 then
+        notes[#notes + 1] = string.format(L["items moved to %s"], table.concat(skipped, ", "))
+    end
+    if pets then notes[#notes + 1] = L["battle pets"] end
+    if grouped then notes[#notes + 1] = L["grouping by type or quality"] end
+    for _, source in ipairs(type(v.order) == "table" and v.order or {}) do
+        if type(source) == "string" and (source == "----" or string.sub(source, 1, 1) == "_") then
+            notes[#notes + 1] = L["sections and dividers"]
+            break
+        end
+    end
+    if type(v.hidden) == "table" and #v.hidden > 0 then notes[#notes + 1] = L["hidden categories"] end
+    if #out == 0 then return nil, L["it has no groups in it"] end
+    out.baganator, out.notes = true, notes
+    return out
+end
+
+-- The paste box takes spaces out of long pasted text so it wraps. JSON keeps
+-- them inside names and searches, so the text as pasted wins while it's the
+-- same apart from spaces and line breaks.
+function Cat.Unwrapped(shown, typed)
+    if type(typed) ~= "string" or type(shown) ~= "string" then return shown end
+    if string.gsub(typed, "%s", "") == string.gsub(shown, "%s", "") then return typed end
+    return shown
+end
+
 -- Parses and validates shared text: a list of { name, search, items, color? }, or nil
--- plus the reason.
+-- plus the reason. A Baganator export is read too (Cat.ReadBaganator).
 function Cat.ReadShared(text)
+    if type(text) == "string" and string.match(text, "^%s*{") then return Cat.ReadBaganator(text) end
     local v, why = DUI.Profiles.Unpack(text, Cat.SHARE_PREFIX)
     if not v then
         local said = { empty = L["nothing pasted"], prefix = L["that isn't a Daylight UI bag groups string"],
@@ -400,15 +517,20 @@ function Cat.ReadShared(text)
 end
 
 -- Adds shared groups. One with the same name as an existing custom group updates
--- it (search, items and color); others are added. Returns how many.
+-- it (search, items and color); others are added. Returns how many groups.
 function Cat.ImportShared(list)
     local byName = {}
     for _, g in ipairs(Cat.Custom()) do byName[tbl("groupNames")[g.key] or g.name] = g end
     local pins = tbl("pins")
+    local count = 0
     for _, sg in ipairs(list) do
-        local g = byName[sg.name]
+        local g = sg.name and byName[sg.name]
         local key
-        if g then
+        if sg.builtin then
+            -- Items moved to one of Baganator's own categories go to the group here.
+            key = Cat.Get(sg.builtin) and sg.builtin
+        elseif g then
+            count = count + 1
             key = g.key
             if sg.search then g.search = sg.search end
         else
@@ -418,12 +540,15 @@ function Cat.ImportShared(list)
             while customByKey(key) do n = n + 1; key = "custom" .. n end
             list2[#list2 + 1] = { key = key, name = sg.name, search = sg.search }
             byName[sg.name] = list2[#list2]
+            count = count + 1
         end
-        for _, id in ipairs(sg.items) do pins[id] = key end
-        if sg.color then tbl("groupColors")[key] = { sg.color[1], sg.color[2], sg.color[3] } end
+        if key then
+            for _, id in ipairs(sg.items) do pins[id] = key end
+            if sg.color then tbl("groupColors")[key] = { sg.color[1], sg.color[2], sg.color[3] } end
+        end
     end
     changed()
-    return #list
+    return count
 end
 
 -- Locks

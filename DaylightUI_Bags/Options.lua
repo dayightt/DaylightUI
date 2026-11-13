@@ -215,24 +215,48 @@ local shareGroups = {
         inn:SetWidth(140)
         inn:SetPoint("LEFT", out, "RIGHT", 10, 0)
         inn:SetScript("OnClick", function()
-            P.ShowPaste({
+            local typed
+            local box = P.ShowPaste({
                 title = L["Import bag groups"],
-                hint = L["Paste bag groups (Ctrl+V). A group with the same name as one of yours is updated; the others are added."],
+                hint = L["Paste bag groups (Ctrl+V), from Daylight UI or Baganator. A group with the same name as one of yours is updated; the others are added."],
                 read = function(text)
-                    local list, why = ns.Categories.ReadShared(text)
+                    local list, why = ns.Categories.ReadShared(ns.Categories.Unwrapped(text, typed))
                     if not list then return nil, why end
                     local names = {}
-                    for i, g in ipairs(list) do if i <= 5 then names[i] = g.name end end
-                    local more = #list > 5 and string.format(L[", and %d more"], #list - 5) or ""
-                    return list, string.format(L["%d groups: %s%s."], #list, table.concat(names, ", "), more)
+                    for _, g in ipairs(list) do
+                        if g.name then names[#names + 1] = g.name end
+                    end
+                    local said
+                    if #names == 0 then
+                        said = L["Only items moved to Baganator's own categories: they go to the same groups here."]
+                    else
+                        local more = #names > 5 and string.format(L[", and %d more"], #names - 5) or ""
+                        said = string.format(L["%d groups: %s%s."], #names, table.concat(names, ", ", 1, math.min(5, #names)), more)
+                    end
+                    if list.notes and #list.notes > 0 then
+                        said = said .. " " .. L["Some Baganator rules have no match here. Chat lists them after you import."]
+                    end
+                    return list, said
                 end,
                 go = function(list)
                     local n = ns.Categories.ImportShared(list)
                     DUI.Print(string.format(L["Imported %d bag groups."], n))
+                    if list.notes and #list.notes > 0 then
+                        DUI.Print(string.format(L["Not brought over from Baganator: %s."], table.concat(list.notes, "; ")))
+                    end
                 end,
             })
+            -- The box takes spaces out of long pasted text; Unwrapped puts them back.
+            local edit = type(box) == "table" and box.edit
+            local check = edit and edit:GetScript("OnTextChanged")
+            if check then
+                edit:SetScript("OnTextChanged", function(self, user)
+                    if user then typed = self:GetText() end
+                    check(self, user)
+                end)
+            end
         end)
-        tooltip(inn, L["Import groups"], L["Bag groups someone shared, added to yours."])
+        tooltip(inn, L["Import groups"], L["Bag groups someone shared, or your Baganator categories, added to yours."])
     end,
     update = function(row)
         if row.out then row.out.SetOff(ns.Categories.ShareTable() == nil) end

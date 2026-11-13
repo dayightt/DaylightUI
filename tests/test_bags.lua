@@ -2954,6 +2954,170 @@ T.test("bags: your own groups shared as text and imported back", function()
     _G.C_EncodingUtil = nil
 end)
 
+-- A small JSON reader standing in for the game's C_EncodingUtil.DeserializeJSON
+-- (it errors on bad text, as the game's does).
+local function readJSON(s)
+    local i = 1
+    local function ws() i = string.find(s, "%S", i) or #s + 1 end
+    local value
+    local function str()
+        local out = {}
+        i = i + 1
+        while true do
+            local c = string.sub(s, i, i)
+            if c == "" then error("unfinished string") end
+            if c == '"' then i = i + 1; return table.concat(out) end
+            if c == "\\" then
+                i = i + 1
+                c = string.sub(s, i, i)
+                if c == "n" then c = "\n" end
+            end
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    function value()
+        ws()
+        local c = string.sub(s, i, i)
+        if c == "{" then
+            local t = {}
+            i = i + 1; ws()
+            if string.sub(s, i, i) == "}" then i = i + 1; return t end
+            while true do
+                ws()
+                if string.sub(s, i, i) ~= '"' then error("key expected") end
+                local k = str(); ws()
+                if string.sub(s, i, i) ~= ":" then error("colon expected") end
+                i = i + 1
+                t[k] = value(); ws()
+                c = string.sub(s, i, i); i = i + 1
+                if c == "}" then return t end
+                if c ~= "," then error("comma expected") end
+            end
+        elseif c == "[" then
+            local t = {}
+            i = i + 1; ws()
+            if string.sub(s, i, i) == "]" then i = i + 1; return t end
+            while true do
+                t[#t + 1] = value(); ws()
+                c = string.sub(s, i, i); i = i + 1
+                if c == "]" then return t end
+                if c ~= "," then error("comma expected") end
+            end
+        elseif c == '"' then
+            return str()
+        end
+        local num = string.match(s, "^-?%d+%.?%d*", i)
+        if num then i = i + #num; return tonumber(num) end
+        if string.sub(s, i, i + 3) == "true" then i = i + 4; return true end
+        if string.sub(s, i, i + 4) == "false" then i = i + 5; return false end
+        if string.sub(s, i, i + 3) == "null" then i = i + 4; return nil end
+        error("bad JSON at " .. i)
+    end
+    local v = value(); ws()
+    if i <= #s then error("trailing text") end
+    return v
+end
+
+-- An export as Baganator's category options write it (one line, keys in any
+-- order, as its JSON encoder gives them).
+local BAGANATOR = '{"hidden":["default_toy"],"version":1,"order":["default_hearthstone","_Gear","My Gear","Shinies",'
+    .. '"__end","----","default_junk","Toys and Pets","default_other","default_special_empty"],'
+    .. '"categories":[{"name":"Shinies","priority":250,"search":"#epic|#rare&~#junk"},'
+    .. '{"name":"My Gear","search":"#gear&>40&#boe","priority":350},'
+    .. '{"search":"#toy|#socket","priority":50,"name":"Toys and Pets"},'
+    .. '{"search":"","priority":50,"name":"Keepers"}],'
+    .. '"modifications":[{"source":"Keepers","items":[6948,2589]},{"items":[4306],"source":"default_junk"},'
+    .. '{"source":"default_gem","items":[818]},{"source":"Toys and Pets","pets":[1234],"group":"expansion"}]}'
+
+T.test("bags: Baganator's categories come over as your own groups", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local list, said = Cat.ReadShared(BAGANATOR)
+    T.truthy(list, said)
+    -- Highest priority first, since the first group here that matches wins.
+    local names = {}
+    for _, g in ipairs(list) do if g.name then names[#names + 1] = g.name end end
+    T.eq(table.concat(names, ","), "My Gear,Shinies,Toys and Pets,Keepers")
+    local notes = table.concat(list.notes, "; ")
+    T.truthy(notes:find("Toys and Pets (left out: #toy, #socket)", 1, true), notes)
+    T.truthy(notes:find("items moved to gem", 1, true), notes)
+    T.truthy(notes:find("battle pets", 1, true), notes)
+    T.truthy(notes:find("grouping", 1, true), notes)
+    T.truthy(notes:find("sections and dividers", 1, true), notes)
+    T.truthy(notes:find("hidden categories", 1, true), notes)
+
+    local mine = Cat.AddCustom("Shinies", "q=1")
+    T.eq(Cat.ImportShared(list), 4, "four groups; the Junk pins aren't a group")
+    local by = {}
+    for _, g in ipairs(Cat.Custom()) do by[g.name] = g end
+    T.eq(#Cat.Custom(), 4, "Shinies updated, not doubled")
+    T.eq(by.Shinies.key, mine)
+    T.eq(by.Shinies.search, "#epic | #rare & !#junk")
+    T.eq(by["My Gear"].search, "#gear & ilvl>40 & #boe")
+    T.isnil(by["Toys and Pets"].search, "nothing of its search has a match here")
+    T.isnil(by.Keepers.search)
+    T.eq(Cat.PinOf(6948), by.Keepers.key, "its moved items pinned")
+    T.eq(Cat.PinOf(2589), by.Keepers.key)
+    T.eq(Cat.PinOf(4306), "junk", "moved to Baganator's Junk: the Junk group here")
+    T.isnil(Cat.PinOf(818))
+    -- The translated search works.
+    local m = ns.Search.Parse(by["My Gear"].search)
+    T.truthy(m({ classID = 4, itemLevel = 50, bindType = 2 }))
+    T.falsy(m({ classID = 4, itemLevel = 30, bindType = 2 }))
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: Syndicator searches turned into the bag search", function()
+    local S = catLogin().Search
+    local function as(text) return (S.FromSyndicator(text)) end
+    T.eq(as("#potion|#food"), "#potion | #food")
+    T.eq(as("~#junk&#trade goods"), "!#junk & #tradegoods")
+    T.eq(as("200-300"), "ilvl200-300")
+    T.eq(as("<=10"), "ilvl<=10")
+    T.eq(as("123"), "ilvl=123")
+    T.eq(as("(#armor|#weapon)"), "#armor | #weapon", "brackets around all of it")
+    T.eq(as("hearthstone"), "hearthstone", "a name stays a name")
+    local s, dropped = S.FromSyndicator("#armor&(#cloth|#leather)")
+    T.isnil(s, "brackets inside can't be followed")
+    T.eq(#dropped, 1)
+    s, dropped = S.FromSyndicator("#gear&#boa")
+    T.eq(s, "#gear")
+    T.eq(dropped[1], "#boa")
+    T.isnil(as(""))
+end)
+
+T.test("bags: a Baganator export with spaces survives the paste box", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local shown = DaylightUI.Profiles.Wrap(BAGANATOR)
+    T.falsy(shown:find("Toys and Pets", 1, true), "the box took the spaces out")
+    local list = Cat.ReadShared(Cat.Unwrapped(shown, BAGANATOR))
+    T.eq(list[3].name, "Toys and Pets")
+    T.eq(Cat.Unwrapped("other", BAGANATOR), "other", "text changed since: what's shown")
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: text that isn't a bag groups string is refused politely", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local list, why = Cat.ReadShared("{not json")
+    T.isnil(list)
+    T.eq(why, "that isn't a Daylight UI or Baganator bag groups string")
+    T.isnil(Cat.ReadShared('{"version":9,"layout":[1,2]}'), "a different export of Baganator's")
+    list, why = Cat.ReadShared('{"version":9,"categories":[{"priority":1}]}')
+    T.isnil(list, "no category with a name")
+    T.eq(why, "it has no groups in it")
+    -- A newer export with fields this doesn't know still brings its categories.
+    list = Cat.ReadShared('{"version":3,"categories":[{"name":"Ore","search":"ore","color":"ff0000","sections":[1]}]}')
+    T.eq(list[1].search, "ore")
+    _G.C_EncodingUtil = nil
+    T.isnil(Cat.ReadShared('{"categories":[]}'), "a client without the reader")
+end)
+
 T.test("bags: an empty group of yours can wait only in the bag, never in the bank or a saved copy", function()
     local ns = catLogin()
     local key = ns.Categories.AddCustom("Keepers")
