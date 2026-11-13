@@ -187,6 +187,25 @@ T.test("cdm data: a chain growing from its middle or end stays centered or end-f
     T.eq(D.Layout(set, { [11] = true, [12] = true })[11].x, 0, "start: the first piece stays")
 end)
 
+-- A group hung out both sides of its first piece slid right when only the left
+-- side's spells were up: only the right-hand run was measured.
+T.test("cdm data: a chain out both sides of its first piece stays centered", function()
+    local D = data()
+    local set = filled(D)
+    D.AddPiece(set, 14, "icon", 0, 0)
+    T.truthy(D.Hook(set, 14, 11, "left", "center"))
+    D.Chain(set, 11).grow = "center"
+    local full = D.Layout(set)
+    T.eq(full[14].x, -40)
+    local middle = (-40 + 116) / 2
+    T.eq(D.Layout(set, { [14] = true })[14].x, middle - 18, "the left one alone sits in the middle")
+    T.eq(D.Layout(set, { [13] = true })[13].x, middle - 18, "the right one alone too")
+    local L = D.Layout(set, { [14] = true, [13] = true })
+    T.eq((L[14].x + L[13].x + 36) / 2, middle, "both ends up: the pair's middle stays")
+    D.Chain(set, 11).grow = "end"
+    T.eq(D.Layout(set, { [14] = true })[14].x, 80, "end: the far end stays")
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)

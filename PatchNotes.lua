@@ -25,6 +25,7 @@ DUI.PatchNotes = {
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
             { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
             { "Cooldown Manager", "The Gnome racial Eureka! can now show its buff, its cooldown or both" },
+            { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
         },
     },
     { version = "1.7.3", date = "2026-11-13", summary = "Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!",

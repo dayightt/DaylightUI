@@ -757,22 +757,29 @@ local function run(set, root, side)
     return list
 end
 
-local function extent(boxes, list, axis)
+local OPPOSITE = { right = "left", left = "right", down = "up", up = "down" }
+
+-- The low and high edge of the boxes along an axis. skipHidden leaves out pieces
+-- that are down, so a collapsed one can't pull the edge.
+local function edges(boxes, list, axis, skipHidden)
     local lo, hi
     for _, id in ipairs(list) do
         local b = boxes[id]
-        local a, z
-        if axis == "x" then a, z = b.x, b.x + b.w else a, z = b.y - b.h, b.y end
-        lo = lo and min(lo, a) or a
-        hi = hi and max(hi, z) or z
+        if not (skipHidden and b.hidden) then
+            local a, z
+            if axis == "x" then a, z = b.x, b.x + b.w else a, z = b.y - b.h, b.y end
+            lo = lo and min(lo, a) or a
+            hi = hi and max(hi, z) or z
+        end
     end
-    return lo and hi - lo or 0
+    return lo, hi
 end
 
 -- Every piece's box, { [id] = { x, y, w, h, hidden } }. shown = { [id] = true } for
 -- the pieces currently up (nil = all). A hidden piece collapses along its side. A
--- chain growing from its middle or end shifts so that point of its first run stays
--- where it would be with everything shown.
+-- chain growing from its middle or end shifts so that point of its line (both
+-- runs out of the first piece along its run side's axis) stays where it would be
+-- with everything shown.
 function Data.Layout(set, shown)
     local out = {}
     lay(set, shown, out)
@@ -784,9 +791,19 @@ function Data.Layout(set, shown)
         if side then
             if not full then full = {}; lay(set, nil, full) end
             local list, axis = run(set, root, side), AXIS[side]
-            local d = extent(full, list, axis) - extent(out, list, axis)
-            if d ~= 0 then
-                local shift = SIGN[side] * d * (grow == "center" and 0.5 or 1)
+            local back = run(set, root, OPPOSITE[side])
+            for i = 2, #back do list[#list + 1] = back[i] end
+            local fullLo, fullHi = edges(full, list, axis)
+            local lo, hi = edges(out, list, axis, true)
+            -- Nothing up on the line itself: measure where it collapsed to.
+            if not lo then lo, hi = edges(out, list, axis) end
+            local shift = 0
+            if lo and grow == "center" then
+                shift = (fullLo + fullHi) / 2 - (lo + hi) / 2
+            elseif lo then
+                shift = SIGN[side] > 0 and fullHi - hi or fullLo - lo
+            end
+            if shift ~= 0 then
                 for _, id in ipairs(Data.Subtree(set, root)) do
                     local b = out[id]
                     if axis == "x" then b.x = b.x + shift else b.y = b.y + shift end
