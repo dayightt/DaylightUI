@@ -57,6 +57,53 @@ T.test("dots: the description gives total, school, duration, interval", function
     T.eq((Dots.Parse("Transfers 15 health from the target to the caster every 3 sec. Lasts 30 sec.")), 150)
 end)
 
+-- A French client: its own tooltip wording, and its own names for the spells
+-- the lists go by (Rain of Fire is an area, never a DoT on the mob).
+local FRENCH = {
+    [COR] = { name = "Corruption", desc = "Corrompt la cible et lui inflige 40 points de dégâts d'Ombre en 12 sec." },
+    [REND] = { name = "Pourfendre", desc = "Blesse la cible. Elle saigne et perd 25 points de vie en 15 sec." },
+    [RIP] = { name = "Déchirure", desc = "Coup de grâce qui inflige des dégâts sur la durée. La durée dépend du nombre de points de combo :\n   1 point : 42 points de dégâts en 12 secondes\n   3 points : 90 points de dégâts en 12 secondes\n   5 points : 138 points de dégâts en 12 secondes" },
+    [CLAW] = { name = "Griffe", desc = "Griffe l'ennemi et lui inflige 27 points de dégâts supplémentaires. Vous gagnez 1 point de combo." },
+    [686] = { name = "Trait de l'ombre", desc = "Envoie un trait d'ombre sur l'ennemi et lui inflige 13 à 18 points de dégâts d'Ombre." },
+    [139] = { name = "Rénovation", desc = "Rend 45 points de vie à la cible en 15 sec." },
+    [5740] = { name = "Pluie de feu", desc = "Invoque une pluie de feu qui brûle les ennemis dans la zone d'effet et inflige 240 points de dégâts de Feu en 8 sec." },
+    [8921] = { name = "Eclat lunaire", desc = "Brûle l'ennemi et lui inflige 9 à 12 points de dégâts des Arcanes, puis 12 points de dégâts des Arcanes supplémentaires en 9 sec." },
+    [348] = { name = "Immolation", desc = "Brûle l'ennemi et lui inflige 11 points de dégâts de feu, puis 20 points supplémentaires de dégâts de feu en 15 sec." },
+    [14914] = { name = "Flammes sacrées", desc = "Consume l'ennemi et lui inflige 84 à 104 points de dégâts du Sacré et 30 points de dégâts du Sacré supplémentaires en 10 sec." },
+    [15407] = { name = "Fouet mental", desc = "Inflige 75 points de dégâts d\226\128\153ombre en 3 sec." },
+    [18265] = { name = "Siphon de vie", desc = "Transfère 15 points de vie de la cible vers le lanceur de sorts toutes les 3 sec. Dure 30 sec." },
+}
+
+T.test("dots: a French client reads its own tooltips and spell names", function()
+    local _, Dots = world()
+    stub.spells = FRENCH
+    Dots.UseLocale("frFR")
+    local total, school, dur = Dots.Parse(FRENCH[COR].desc)
+    T.eq(total, 40); T.eq(school, SHADOW); T.eq(dur, 12)
+    total, school, dur = Dots.Parse(FRENCH[REND].desc)
+    T.eq(total, 25); T.eq(school, PHYSICAL, "a bleed is physical"); T.eq(dur, 15)
+    T.eq((Dots.Parse(FRENCH[RIP].desc, 3)), 90, "a finisher by combo points")
+    T.isnil(Dots.Parse(FRENCH[686].desc), "a direct hit is no DoT")
+    T.isnil(Dots.Parse(FRENCH[139].desc), "a heal over time is no DoT")
+    T.eq(select(2, Dots.Parse(FRENCH[8921].desc)), 64, "Arcane")
+    T.eq((Dots.Parse(FRENCH[8921].desc)), 12, "the periodic part, not the hit")
+    T.eq(select(2, Dots.Parse(FRENCH[348].desc)), 4, "Fire, with the word before it")
+    T.eq((Dots.Parse(FRENCH[348].desc)), 20)
+    T.eq(select(2, Dots.Parse(FRENCH[14914].desc)), 2, "Holy")
+    T.eq(select(2, Dots.Parse(FRENCH[15407].desc)), SHADOW, "the curly apostrophe")
+    T.eq((Dots.Parse(FRENCH[18265].desc)), 150, "a drain by its ticks")
+    cast(COR)
+    T.eq(Dots.Left("target"), 40, "the cast shows")
+    Dots.Forget()
+    cast(5740)
+    T.isnil(Dots.Left("target"), "Pluie de feu is found by its id: an area, never on the mob")
+    cast(CLAW)
+    cast(RIP)
+    T.eq(Dots.Left("target"), 42, "Griffe gave a point, Déchirure spends it")
+    Dots.UseLocale("enUS")
+    stub.spells = SPELLS
+end)
+
 T.test("dots: a cast shows its whole damage, each tick takes its share off", function()
     local _, Dots = world()
     T.isnil(Dots.Left("target"))

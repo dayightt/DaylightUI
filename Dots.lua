@@ -47,8 +47,8 @@ local SAME_SLOT = 0.2 -- two hits in one tick slot: the one closer in size was t
 local COMBO_CAP = 5
 local TICK_EVERY = 0.1
 
--- Description patterns, English only for now (kept in one table so other
--- languages can be added).
+-- Description patterns. English here, other languages in Dots.LOCALES below
+-- (a key a language leaves out uses the English one).
 Dots.PATTERNS = {
     finisher = "Finishing move",
     perPoint = "(%d+) points?%s*:%s*(%d+) damage over (%d+%.?%d*) sec",
@@ -61,9 +61,32 @@ Dots.PATTERNS = {
     awards = "Awards (%d+) combo point",
 }
 
+-- The French client words its tooltips its own way: "inflige 40 points de
+-- dégâts d'Ombre en 12 sec.", "perd 15 points de vie en 9 sec." (Rend).
+Dots.LOCALES = {
+    frFR = {
+        finisher = "Coup de grâce",
+        perPoint = "(%d+) points?%s*:%s*(%d+)[^%d]-dégâts en (%d+%.?%d*) sec",
+        weapon = "[Ee]nduit une arme",
+        heal = "^Rend ",
+        over = "(%d+) points? ([^%d]-) en (%d+%.?%d*) sec",
+        drain = "(%d+) points de vie.-toutes les (%d+%.?%d*) sec",
+        lasts = "[Dd]ure (%d+%.?%d*) sec",
+        awards = "gagnez (%d+) points? de combo",
+    },
+}
+local ENGLISH = Dots.PATTERNS
+function Dots.UseLocale(locale)
+    local own = Dots.LOCALES[locale]
+    Dots.PATTERNS = own and setmetatable(own, { __index = ENGLISH }) or ENGLISH
+end
+Dots.UseLocale(type(GetLocale) == "function" and GetLocale() or "enUS")
+
 Dots.SCHOOLS = {
     Physical = 1, Holy = 2, Fire = 4, Nature = 8, Frost = 16, Shadow = 32, Arcane = 64,
     Frostfire = 4 + 16,       -- combined schools report as the OR of their masks
+    -- French
+    ["Sacré"] = 2, Feu = 4, feu = 4, Givre = 16, givre = 16, Ombre = 32, ombre = 32, Arcanes = 64,
 }
 local PHYSICAL = 1
 
@@ -88,6 +111,18 @@ local SKIP = {
 }
 local PROJECTILE = { ["Serpent Sting"] = true, ["Fireball"] = true, ["Pyroblast"] = true, ["Frostfire Bolt"] = true }
 
+-- The lists above go by English name. Each has a spell id, so a client in
+-- another language finds its own name for it (rank 1; every rank shares it).
+local SPELL_IDS = {
+    ["Insect Swarm"] = 5570, ["Curse of Agony"] = 980, ["Fireball"] = 133, ["Holy Fire"] = 14914,
+    ["Rip"] = 1079, ["Rupture"] = 1943, ["Siphon Life"] = 18265, ["Rain of Fire"] = 5740,
+    ["Hellfire"] = 1949, ["Blizzard"] = 10, ["Flamestrike"] = 2120, ["Consecration"] = 26573,
+    ["Hurricane"] = 16914, ["Volley"] = 1510, ["Drain Life"] = 689, ["Drain Soul"] = 1120,
+    ["Drain Mana"] = 5138, ["Health Funnel"] = 755, ["Mind Flay"] = 15407, ["Arcane Missiles"] = 5143,
+    ["Starshards"] = 10797, ["Immolation Trap"] = 13795, ["Explosive Trap"] = 13813,
+    ["Wyvern Sting"] = 19386, ["Serpent Sting"] = 1978, ["Pyroblast"] = 11366,
+}
+
 local AVOIDS = {
     MISS = true, DODGE = true, PARRY = true, EVADE = true, IMMUNE = true, DEFLECT = true, RESIST = true, REFLECT = true,
 }
@@ -97,11 +132,29 @@ local MELEE_ONLY = { DODGE = true, PARRY = true, DEFLECT = true }
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function round(v) return math.floor(v + 0.5) end
 
+-- This client's name for each listed spell -> its English name. Built on first
+-- use and again (at most every few seconds) while a spell's name hasn't loaded.
+local english, englishMissing, englishAt
+local function englishName(name)
+    local now = GetTime()
+    if not english or (englishMissing and now - englishAt > 5) then
+        english, englishMissing, englishAt = {}, false, now
+        for en, id in pairs(SPELL_IDS) do
+            local ok, n = pcall(C_Spell.GetSpellName, id)
+            if ok and type(n) == "string" and not isSecret(n) then english[n] = en else englishMissing = true end
+        end
+    end
+    return english[name] or name
+end
+
 -- Reading a description
 
 local function schoolOf(words)
     local school = PHYSICAL
-    for word in string.gmatch(words or "", "%a+") do
+    -- Words split on spaces and punctuation, so "d'Ombre" gives "Ombre" and an
+    -- accented word stays whole. French tooltips use both apostrophes.
+    words = string.gsub(words or "", "\226\128\153", "'")
+    for word in string.gmatch(words, "[^%s%p%d]+") do
         if Dots.SCHOOLS[word] then school = Dots.SCHOOLS[word] end
     end
     return school
@@ -330,7 +383,7 @@ local function describe(id)
     local okDesc, desc = pcall(C_Spell.GetSpellDescription, id)
     if not okName or isSecret(name) or type(name) ~= "string" then return nil end
     if not okDesc or isSecret(desc) or type(desc) ~= "string" then desc = "" end
-    return name, desc
+    return englishName(name), desc
 end
 
 -- Whether a spell's cast can matter here, per spell id: a DoT, a finisher or
