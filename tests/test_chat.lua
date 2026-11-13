@@ -4991,3 +4991,57 @@ T.test("chat daylight: a level beside names the game has told us, only with the 
     _G.GetNormalizedRealmName, _G.IsInGuild, _G.GetNumGuildMembers, _G.GetGuildRosterInfo = nil, nil, nil, nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("chat: another addon's channels on 1 to 4 move behind the world channels", function()
+    -- The game's slots: an addon joined its own channels before the world ones.
+    local slots = { "layer", "layer99d80872", "layer99fc0872", "layer99d20872",
+        "General - Elwynn Forest", "Trade - City", "LocalDefense - Elwynn Forest", "Services", "LookingForGroup" }
+    local zone = { General = 1, Trade = 2, LocalDefense = 22, Services = 42, LookingForGroup = 26 }
+    local was = { _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor }
+    _G.GetChannelList = function()
+        local out = {}
+        for id = 1, #slots do
+            if slots[id] then out[#out + 1] = id; out[#out + 1] = slots[id]; out[#out + 1] = false end
+        end
+        return unpack(out)
+    end
+    local swaps = 0
+    _G.C_ChatInfo = setmetatable({
+        GetChannelInfoFromIdentifier = function(name)
+            local base = string.match(name, "^(.-) %- ") or name
+            return { name = name, zoneChannelID = zone[base] or 0 }
+        end,
+        SwapChatChannelsByChannelIndex = function(a, b)
+            swaps = swaps + 1
+            slots[a], slots[b] = slots[b], slots[a]
+        end,
+    }, { __index = was[2] })
+    _G.ChangeChatColor = function() end
+    local Kinds = stub.chatModule.Kinds
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "General - Elwynn Forest", "General back on 1")
+    T.eq(slots[2], "Trade - City")
+    T.eq(slots[3], "LocalDefense - Elwynn Forest")
+    T.eq(slots[4], "Services")
+    T.eq(slots[5], "LookingForGroup")
+    T.eq(slots[6], "layer", "the addon's channels keep their own order after them")
+    T.eq(slots[9], "layer99d20872")
+    local done = swaps
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(swaps, done, "already in order: nothing more")
+    -- A player's own order is theirs with the switch off.
+    slots[1], slots[6] = slots[6], slots[1]
+    DaylightUI:Set("Chat", "worldChannelsFirst", false)
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "layer", "switched off: left as it is")
+    DaylightUI:Set("Chat", "worldChannelsFirst", true)
+    slots = { "layer", "General - Elwynn Forest", "Trade - City" }
+    stub.EnterCombat()
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "layer", "not in a fight")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.eq(slots[1], "General - Elwynn Forest", "after it")
+    T.truthy(Kinds.WorldFirst, "Kinds.WorldFirst exists")
+    _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor = was[1], was[2], was[3]
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

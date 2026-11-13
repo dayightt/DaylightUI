@@ -282,6 +282,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number with the short tag: [1. G] for General, [2. T] for Trade.",
               disabled = function(get) return get("shortTags") ~= true end },
+            { type = "toggle", key = "worldChannelsFirst", label = "General and Trade first",
+              desc = "When another addon joins its own channels before General and Trade, they take /1 and /2. This puts General, Trade and the other world channels back on the first numbers." },
             { type = "toggle", key = "classColors", label = "Class-colored names",
               desc = "Players' names in their class color, in every kind of chat (the game's own setting)." },
             { type = "toggle", key = "levels", label = "Levels beside names",

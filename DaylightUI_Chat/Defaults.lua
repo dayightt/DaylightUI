@@ -41,6 +41,7 @@ ns.DEFAULTS = {
     whisperTabs = true, -- also give each person's whispers their own tab (the game's whisperMode)
     hideButtons = true,     -- the menu, channel, voice and social buttons beside chat
     shortTags = true,       -- [G], [T], [P], [S]... instead of the channel's and speech's full words
+    worldChannelsFirst = true, -- world channels keep the first numbers when an addon joins its own first (Kinds.WorldFirst)
     channelNumbers = false, -- numbered channels keep their number: [1. G], [2. T]
     -- channelTags: custom short tags per kind, set in a tab's Show window (Tags.lua). No default.
     classColors = true, -- class-colored names (the game's own setting)

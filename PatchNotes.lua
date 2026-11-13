@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "Chat", "General and Trade keep /1 and /2 even when another addon joins its own chat channels first" },
+        },
+    },
     { version = "1.7.3", date = "2026-11-13", summary = "Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!",
         new = {
             { "Plugins", "Other addons can restyle Daylight UI's nameplates and their cast bars too: daylightui.com/plugins" },
