@@ -6272,6 +6272,14 @@ L["Party text size inside the frame"] = "Tamaño del texto del grupo dentro del 
 -- player is in the world, and every one of these is read when it's drawn, so
 -- swapping them in at login is enough. UnitSex can be secret in a PvP match:
 -- then the lines above stay as they are.
+L["%s (drag items here)"] = "%s (arrastra objetos aquí)"
+L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."] = "%s un objeto para moverlo a otro grupo, bloquearlo para que no se venda nunca, o venderlo como chatarra. %s arriba muestra tu banco y las bolsas de tus otros personajes desde cualquier sitio."
+L["Categories or bags"] = "Categorías o bolsas"
+L["Right-click: your bank"] = "Clic derecho: tu banco"
+L["Switch between items grouped by kind and the plain bag-by-bag grid."] = "Cambia entre objetos agrupados por tipo y la cuadrícula simple, bolsa por bolsa."
+L["Switch between items grouped by kind and the plain tab-by-tab grid."] = "Cambia entre objetos agrupados por tipo y la cuadrícula simple, pestaña por pestaña."
+L["Your bank and your other characters' bags, from anywhere."] = "Tu banco y las bolsas de tus otros personajes, desde cualquier sitio."
+
 local FEMININE = {
     ["Welcome back, %s"] = "Bienvenida, %s",
     ["Rested"] = "Descansada",
