@@ -79,3 +79,83 @@ T.test("switching to a profile on another look carries it", function()
     stub.RunTimers()
     T.rgb(DUI.Style.BORDER, { 0.024, 0.024, 0.027 }, "back on the daylight profile")
 end)
+
+local GOLD_LO, GOLD_HI = hex("7a5c18"), hex("f3d27a")
+local GOLD_MID = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 }
+
+local function heavyShell(DUI)
+    DUI:Set("general", "borderPx", 8)
+    stub.RunTimers()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(200, 60)
+    return DUI.Style.Shell(f)
+end
+
+T.test("classic's band sweeps gold", function()
+    local DUI = stub.Load()
+    local s = heavyShell(DUI)
+    look(DUI, "classic")
+    local g = s.band.TOP.__gradient
+    T.truthy(g, "the top band sweeps")
+    T.rgb({ g[2].r, g[2].g, g[2].b }, GOLD_LO, "dark gold on the left")
+    T.rgb({ g[3].r, g[3].g, g[3].b }, GOLD_HI, "bright gold on the right")
+    T.falsy(s.border.TOP.__gradient, "the outline stays stone")
+    look(DUI, "daylight")
+    T.falsy(s.band.TOP.__gradient, "daylight's band is one color again")
+end)
+
+T.test("gold accent: on paints gold, off keeps the player's, the accent setting untouched", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    DUI:Set("general", "accent", "custom")
+    DUI:Set("general", "accentColor", { 0.1, 0.2, 0.3 })
+    look(DUI, "classic")
+    T.truthy(S.GoldAccent())
+    T.rgb({ S.Accent() }, GOLD_MID, "gold")
+    T.eq(S.AccentSweep(), "gold")
+    local lo, hi = S.AccentPair()
+    T.rgb(lo, GOLD_LO); T.rgb(hi, GOLD_HI)
+    T.rgb({ S.AccentAt(0) }, GOLD_LO, "a list starts dark gold")
+    DUI:Set("general", "lookGold", false)
+    stub.RunTimers()
+    T.falsy(S.GoldAccent())
+    T.rgb({ S.Accent() }, { 0.1, 0.2, 0.3 }, "the player's own")
+    T.eq(DUI:Get("general", "accent"), "custom", "never written")
+    DUI:Set("general", "lookGold", true)
+    look(DUI, "daylight")
+    T.rgb({ S.Accent() }, { 0.1, 0.2, 0.3 }, "daylight: the player's own")
+end)
+
+T.test("gradients off: one flat gold, no sweep", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local s = heavyShell(DUI)
+    DUI:Set("general", "gradients.off", true)
+    look(DUI, "classic")
+    T.isnil(S.AccentSweep())
+    T.rgb({ S.Accent() }, GOLD_MID)
+    T.falsy(s.band.TOP.__gradient, "the band is one color")
+    local v = s.band.TOP.__vertex
+    T.rgb({ v[1], v[2], v[3] }, GOLD_MID, "flat gold")
+end)
+
+T.test("a highlight beats the gold band and falls back to classic", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local s = heavyShell(DUI)
+    look(DUI, "classic")
+    S.SetShellColors(s, { 1, 0, 0 }, { 1, 0, 0 })
+    T.falsy(s.band.TOP.__gradient, "the highlight's own band")
+    T.rgb({ s.band.TOP.__vertex[1], s.band.TOP.__vertex[2], s.band.TOP.__vertex[3] }, { 1, 0, 0 })
+    S.SetShellColors(s, nil, nil, nil)
+    T.truthy(s.band.TOP.__gradient, "gold again")
+    T.rgb({ s.border.TOP.__vertex[1], s.border.TOP.__vertex[2], s.border.TOP.__vertex[3] }, hex("3d362e"), "stone outline")
+    -- A flag the client resolves (aggro, dispel): its off colors are classic too.
+    S.ShellColorsFromBoolean(s, true, { 1, 0, 0 }, { 1, 0, 0 })
+    local off = s.border.TOP.__vertexFromBoolean[3]
+    T.rgb({ off.r, off.g, off.b }, hex("3d362e"), "off = stone")
+    look(DUI, "daylight")
+    S.ShellColorsFromBoolean(s, true, { 1, 0, 0 }, { 1, 0, 0 })
+    off = s.border.TOP.__vertexFromBoolean[3]
+    T.rgb({ off.r, off.g, off.b }, { 0.024, 0.024, 0.027 }, "the cache follows the look")
+end)

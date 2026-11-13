@@ -381,6 +381,18 @@ function Style.Looked(t, perLook)
     if v and DUI.DB and DUI.DB.loggedIn then copyInto(t, v) end
 end
 
+-- Under the Classic look the accent turns gold to match, unless the player
+-- switched that off to keep their own (General "lookGold").
+function Style.GoldAccent()
+    return Style.Look() == "classic" and general().lookGold ~= false
+end
+
+-- The gold sweep's two ends, dark to bright: the gilded band and the gold accent.
+function Style.GoldPair()
+    local g = Style.LOOKS.classic.GOLD
+    return g[1], g[2]
+end
+
 function Style.ApplyLook()
     local look = Style.LOOKS[Style.Look()]
     for _, key in ipairs({ "BORDER", "BAND", "BAND_LIT", "BACKGROUND" }) do copyInto(Style[key], look[key]) end
@@ -594,6 +606,7 @@ end
 -- color while the class isn't known.
 function Style.AccentSweep()
     if DUI.Gradients and DUI.Gradients.Flat() then return nil end -- General > Gradients off means one color
+    if Style.GoldAccent() then return "gold" end
     local a = general().accent
     if a == "gradient" then return "daylight" end
     if a == "classGradient" and classAccent() then return "class" end
@@ -608,6 +621,7 @@ function Style.GradientAccent() return Style.AccentSweep() ~= nil end
 function Style.AccentPair()
     local kind = Style.AccentSweep()
     if kind == "daylight" then return Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2] end
+    if kind == "gold" then return Style.GoldPair() end
     if kind == "class" then
         local c = classAccent()
         return c.lo, c.hi
@@ -624,9 +638,12 @@ Style.SWEEP = { { 0.118, 0.565, 1 }, { 0.635, 0.369, 0.780 }, { 0.902, 0.353, 0.
 function Style.AccentAt(t)
     local kind = type(t) == "number" and Style.AccentSweep()
     if kind == "daylight" then return Style.SweepAt(t) end
-    if kind == "class" then
-        local c = classAccent()
-        local lo, hi = c.lo, c.hi
+    if kind == "class" or kind == "gold" then
+        local lo, hi
+        if kind == "gold" then lo, hi = Style.GoldPair() else
+            local c = classAccent()
+            lo, hi = c.lo, c.hi
+        end
         t = math.max(0, math.min(1, t))
         return lo[1] + (hi[1] - lo[1]) * t, lo[2] + (hi[2] - lo[2]) * t, lo[3] + (hi[3] - lo[3]) * t
     end
@@ -665,7 +682,8 @@ end
 -- A showpiece's sweep (the level-up light): the class pair when the class
 -- gradient is the accent, else the Daylight sweep regardless of accent.
 function Style.SplashAt(t)
-    if Style.AccentSweep() == "class" then return Style.AccentAt(t) end
+    local kind = Style.AccentSweep()
+    if kind == "class" or kind == "gold" then return Style.AccentAt(t) end
     return Style.SweepAt(t)
 end
 
@@ -684,6 +702,10 @@ function Style.SweepAt(t)
 end
 
 function Style.Accent()
+    if Style.GoldAccent() then
+        local m = Style.LOOKS.classic.BAND
+        return m[1], m[2], m[3]
+    end
     local g = general()
     if g.accent == "custom" then
         local c = g.accentColor
@@ -949,6 +971,8 @@ end
 
 -- The accent's pair in the form a shell takes ({ lo, hi }), one table per pair.
 local shellPair = {}
+local goldShellPair = { Style.LOOKS.classic.GOLD[1], Style.LOOKS.classic.GOLD[2] }
+
 local function accentShellPair(lo, hi)
     if shellPair[1] ~= lo or shellPair[2] ~= hi then shellPair = { lo, hi } end
     return shellPair
@@ -983,12 +1007,13 @@ end
 -- color objects are kept on the shell until one of them changes.
 local function boolColors(s, border, band, a)
     local c = s.boolColors
-    if c and c.a == a and c.b1 == border[1] and c.b2 == border[2] and c.b3 == border[3]
+    local look = Style.Look()
+    if c and c.a == a and c.look == look and c.b1 == border[1] and c.b2 == border[2] and c.b3 == border[3]
        and c.d1 == band[1] and c.d2 == band[2] and c.d3 == band[3] then
         return c
     end
     local nb, nd = Style.BORDER, Style.BAND
-    c = { a = a, b1 = border[1], b2 = border[2], b3 = border[3], d1 = band[1], d2 = band[2], d3 = band[3],
+    c = { a = a, look = look, b1 = border[1], b2 = border[2], b3 = border[3], d1 = band[1], d2 = band[2], d3 = band[3],
           onB = CreateColor(border[1], border[2], border[3], a), offB = CreateColor(nb[1], nb[2], nb[3], a),
           onD = CreateColor(band[1], band[2], band[3], a), offD = CreateColor(nd[1], nd[2], nd[3], a) }
     s.boolColors = c
@@ -1151,13 +1176,20 @@ function Style.PaintShellColors(s)
     local g = general()
     local ba = shellAlpha(s, g)
     local opts = s.opts
+    local classic = Style.Look() == "classic"
     local lo, hi
-    if g.gradientBorder and CreateColor ~= nil then lo, hi = Style.AccentPair() end
+    if g.gradientBorder and not classic and CreateColor ~= nil then lo, hi = Style.AccentPair() end
     local pair = lo and accentShellPair(lo, hi)
     local heavy = Style.IsHeavy(s)
     local own = CreateColor ~= nil and opts.borderPair or nil
     local sweepBorder = own or (pair and not heavy and not opts.borderColor and pair)
     local sweepBand = pair and heavy and not opts.bandColor and pair
+    -- Classic's gilded band: gold sweeping dark to bright. A highlight's own
+    -- colors still win, so aggro or a dispel reads the same as ever.
+    if classic and heavy and not opts.bandColor and CreateColor ~= nil
+       and not (DUI.Gradients and DUI.Gradients.Flat()) then
+        sweepBand = goldShellPair
+    end
     local bc, dc = opts.borderColor or Style.BORDER, opts.bandColor or Style.BAND
     local r, g2, b = bc[1], bc[2], bc[3]
     for key, tex in pairs(s.border) do putColor(tex, key, r, g2, b, ba, sweepBorder) end
