@@ -613,20 +613,22 @@ end
 function Parts.ItemIcon(b, size)
     b.iconSize = size
     b.edge = tex(b, "ARTWORK")
+    b.edge:SetSize(size + 2, size + 2)
     -- Dark fill inside the outline. Makes it read as a 1 px ring, and an
     -- icon that hasn't loaded yet shows dark instead of a solid quality color.
     b.well = tex(b, "ARTWORK", { 0, 0, 0, 1 })
     b.well:SetDrawLayer("ARTWORK", 1)
+    b.well:SetPoint("TOPLEFT", b.edge, "TOPLEFT", 1, -1)
+    b.well:SetPoint("BOTTOMRIGHT", b.edge, "BOTTOMRIGHT", -1, 1)
     b.icon = b:CreateTexture(nil, "OVERLAY")
     b.icon:SetAllPoints(b.well)
     Style.CropIcon(b.icon)
-    Parts.FitItemIcon(b)
     return b
 end
 
--- The ring is one real screen pixel, not one UI unit: below a UI scale of 1
+-- Makes the ring one real screen pixel, not one UI unit: below a UI scale of 1
 -- a unit is less than a pixel, and a side of the ring would round away.
--- Called again on each fill, as the window's scale can change.
+-- Item tiles call it on each fill, as the window's scale can change.
 function Parts.FitItemIcon(b)
     local Pixel = DUI.Pixel
     local px = Pixel and Pixel.Px(b, 1) or 1
