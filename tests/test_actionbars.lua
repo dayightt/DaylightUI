@@ -1700,8 +1700,8 @@ T.test("action bars: keybind and count positions, short keybinds, macro name siz
     T.eq(Skin.Shorten("Middle Mouse"), "M3")
     T.eq(Skin.Shorten("Page Up"), "PU")
     T.eq(Skin.Shorten("s-Page Down"), "SPD")
-    T.eq(Skin.Shorten("Insert"), "INS")
-    T.eq(Skin.Shorten("c-Delete"), "CDEL")
+    T.eq(Skin.Shorten("Insert"), "Ins")
+    T.eq(Skin.Shorten("c-Delete"), "CDel")
     -- Other languages: the rules come from the game's own key names.
     _G.KEY_NUMPAD5, _G.KEY_NUMPADPLUS = "5 du pavé num.", "+ du pavé num."
     _G.KEY_BUTTON4, _G.KEY_BUTTON10 = "Bouton 4 souris", "Bouton 10 souris"
