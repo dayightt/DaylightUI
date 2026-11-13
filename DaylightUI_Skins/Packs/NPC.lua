@@ -350,7 +350,12 @@ local function dressLetter(Kit)
         local line = type(width) == "number" and width - 2 * LETTER_GAP - 2 * LETTER_PAD
         if type(line) == "number" and line > 40 then page:SetWidth(line) end
         -- Set after the width, so the box wraps to the new line before it is measured.
+        -- The game adds the sender under a player's letter, so it goes back on too.
         local text = type(_G.ItemTextGetText) == "function" and _G.ItemTextGetText()
+        local creator = type(_G.ItemTextGetCreator) == "function" and _G.ItemTextGetCreator()
+        if type(text) == "string" and type(creator) == "string" and creator ~= "" then
+            text = text .. "\n\n" .. (_G.ITEM_TEXT_FROM or "From") .. "\n" .. creator .. "\n"
+        end
         if type(text) == "string" and text ~= "" and page.SetText then page:SetText(text) end
     end
     fitLetter(scroll, page)

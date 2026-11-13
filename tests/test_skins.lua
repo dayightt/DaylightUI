@@ -342,6 +342,12 @@ T.test("skins: a book's pages stay light after a page turn", function()
     scroll:SetPoint("TOPLEFT", ItemTextFrame, "TOPLEFT", 6, -63)
     ItemTextFrame:GetScript("OnEvent")(ItemTextFrame, "ITEM_TEXT_READY")
     T.eq(page:GetText(), "Page two", "the new page is read from ItemTextGetText")
+    -- A letter from a player ends with who wrote it, the way the game sets it.
+    _G.ITEM_TEXT_FROM = "From"
+    _G.ItemTextGetCreator = function() return "Ana" end
+    ItemTextFrame:GetScript("OnEvent")(ItemTextFrame, "ITEM_TEXT_READY")
+    T.eq(page:GetText(), "Page two\n\nFrom\nAna\n", "the sender's line stays under the letter")
+    _G.ItemTextGetCreator = nil
     T.eq(page.__tagColor.P[1], ink.TEXT[1], "still light on the next page")
     T.eq(page.__fontObject.P:GetFont(), file, "still our font")
     T.eq(page:GetHeight(), 480, "the new page is measured again")
