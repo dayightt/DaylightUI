@@ -204,20 +204,109 @@ end })
 -- for anything their skins don't cover.
 -- ---------------------------------------------------------------------
 
--- Books, letters and plaques, printed for parchment.
--- The page is an HTML text box that rebuilds its lines on every page turn in the
--- colors set per tag, so the tags themselves get the light colors; lighting the
--- lines alone lasted only until the next page.
-Engine.Window({ key = "itemtext", pack = "npc", frame = "ItemTextFrame", light = true,
-    after = function(Kit)
-        local page = _G.ItemTextPageText
-        if type(page) ~= "table" or type(page.SetTextColor) ~= "function" then return end
-        local ink = DaylightUI.Style.INK
+-- Books, letters and plaques. The game draws them for parchment: a serif page,
+-- a gold page number under the title, and the spellbook's yellow arrows.
+-- A new letter sets the font, the colors and the parchment insets again, and
+-- each page turn moves the text back down, so this runs on open and on
+-- ITEM_TEXT_READY. The HTML box only picks up a new font when its text is set.
+local LETTER_TAGS = { P = "body", H1 = "title", H2 = "head", H3 = "head" }
+local LETTER_EDGE, LETTER_TOP, LETTER_BAR, LETTER_BOTTOM = 16, 36, 26, 16
+local LETTER_BTN = 22
+local LETTER_FOOT = 46 -- text stops above the page row
+local letterListening = false
+
+local function letterLabels(Kit, btn)
+    if type(btn) ~= "table" or not btn.GetRegions then return end
+    for _, r in ipairs({ btn:GetRegions() }) do
+        if Kit.Kind(r) == "FontString" then r:SetAlpha(0) end
+    end
+end
+
+local function shown(f) return type(f) == "table" and f.IsShown and f:IsShown() == true end
+
+local function dressLetter(Kit)
+    local Style = DaylightUI.Style
+    local frame = _G.ItemTextFrame
+    local page = _G.ItemTextPageText
+    if type(page) == "table" and type(page.SetTextColor) == "function" then
+        local ink = Style.INK
+        local file = Style.FontFile(Style.WINDOW_SLOT)
+        local scale = DaylightUI:Get("general", "fontScale") or 1
+        local flags = Style.Outline()
+        if type(page.SetFont) == "function" and type(file) == "string" then
+            for tag, role in pairs(LETTER_TAGS) do
+                page:SetFont(tag, file, Style.SIZE[role] * scale, flags)
+            end
+        end
         page:SetTextColor("P", ink.TEXT[1], ink.TEXT[2], ink.TEXT[3])
         for _, tag in ipairs({ "H1", "H2", "H3" }) do
             page:SetTextColor(tag, ink.TITLE[1], ink.TITLE[2], ink.TITLE[3])
         end
+        local text = page.GetText and page:GetText()
+        if type(text) == "string" and text ~= "" and page.SetText then page:SetText(text) end
         Kit.LightAll(page, nil, 0)
+        -- The parchment inset (18, -15) sits inside the scroll. The scroll
+        -- itself is the margin, same 16px as a talk window.
+        page:ClearAllPoints()
+        page:SetPoint("TOPLEFT", 0, 0)
+        local width = type(frame) == "table" and frame.GetWidth and frame:GetWidth()
+        if type(width) == "number" and width > LETTER_EDGE + LETTER_BAR + 40 and page.SetWidth then
+            page:SetWidth(width - LETTER_EDGE - LETTER_BAR)
+        end
+    end
+    -- Prev, the number and next share one row at the bottom right, clear of
+    -- the title and of the voice button VoiceOver drops in the bottom center.
+    -- The game still shows only the end that exists.
+    local nextb = _G.ItemTextNextPageButton
+    local prev = _G.ItemTextPrevPageButton
+    local num = _G.ItemTextCurrentPage
+    local paging = shown(nextb) or shown(prev) or shown(num)
+    local scroll = _G.ItemTextScrollFrame
+    if type(frame) == "table" and type(scroll) == "table" then
+        scroll:ClearAllPoints()
+        scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", LETTER_EDGE, -LETTER_TOP)
+        scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -LETTER_BAR, paging and LETTER_FOOT or LETTER_BOTTOM)
+    end
+    if type(frame) ~= "table" or type(nextb) ~= "table" then return end
+    Kit.PageButton(nextb, "right")
+    Kit.PageButton(prev, "left")
+    letterLabels(Kit, nextb)
+    letterLabels(Kit, prev)
+    nextb:SetSize(LETTER_BTN, LETTER_BTN)
+    if type(prev) == "table" then prev:SetSize(LETTER_BTN, LETTER_BTN) end
+    nextb:ClearAllPoints()
+    nextb:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -LETTER_EDGE, 12)
+    if type(num) == "table" then
+        num:ClearAllPoints()
+        num:SetPoint("RIGHT", nextb, "LEFT", -8, 0)
+        if num.SetJustifyH then num:SetJustifyH("CENTER") end
+        if num.SetJustifyV then num:SetJustifyV("MIDDLE") end
+        if num.SetWidth then num:SetWidth(24) end
+        Kit.Font(num, Style.SIZE.small)
+        Kit.Light(num, Kit.DIM)
+    end
+    if type(prev) == "table" then
+        prev:ClearAllPoints()
+        prev:SetPoint("RIGHT", type(num) == "table" and num or nextb, "LEFT", -8, 0)
+    end
+    local title = type(frame.TitleContainer) == "table" and frame.TitleContainer.TitleText
+    if type(title) == "table" and title.SetPoint then
+        title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -Kit.TITLE_RIGHT, -Kit.TITLE_TOP)
+    end
+end
+
+Engine.Window({ key = "itemtext", pack = "npc", frame = "ItemTextFrame", light = true,
+    after = function(Kit)
+        dressLetter(Kit)
+        if letterListening then return end
+        letterListening = true
+        DaylightUI.On("StyleChanged", function() dressLetter(Kit) end)
+        local frame = _G.ItemTextFrame
+        if type(frame) == "table" and frame.HookScript then
+            frame:HookScript("OnEvent", function(_, event)
+                if event == "ITEM_TEXT_READY" then dressLetter(Kit) end
+            end)
+        end
     end })
 Engine.Window({ key = "bank", pack = "npc", frame = "BankFrame", watch = true })
 Engine.Window({ key = "tabard", pack = "npc", frame = "TabardFrame" })

@@ -231,19 +231,72 @@ T.test("skins: a book's pages stay light after a page turn", function()
     login(function()
         local f = CreateFrame("Frame", "ItemTextFrame", UIParent)
         f:Hide()
+        f:SetSize(338, 424)
+        f.TitleContainer = CreateFrame("Frame", nil, f)
+        f.TitleContainer.TitleText = f.TitleContainer:CreateFontString()
+        f.CloseButton = CreateFrame("Button", "ItemTextFrameCloseButton", f)
+        CreateFrame("ScrollFrame", "ItemTextScrollFrame", f)
         CreateFrame("SimpleHTML", "ItemTextPageText", f)
+        f:CreateFontString("ItemTextCurrentPage")
+        for _, spec in ipairs({ { "ItemTextPrevPageButton", "Ant." }, { "ItemTextNextPageButton", "Sig." } }) do
+            local b = CreateFrame("Button", spec[1], f)
+            local normal = b:CreateTexture()
+            function b:GetNormalTexture() return normal end
+            b.label = b:CreateFontString()
+            b.label:SetText(spec[2])
+        end
     end)
     local page = _G.ItemTextPageText
-    -- ITEM_TEXT_BEGIN: the game sets the parchment's dark brown per tag.
-    for _, tag in ipairs({ "P", "H1", "H2", "H3" }) do page:SetTextColor(tag, 0.18, 0.12, 0.06) end
+    -- ITEM_TEXT_BEGIN: the game sets the parchment's dark brown and its serif.
+    for _, tag in ipairs({ "P", "H1", "H2", "H3" }) do
+        page:SetTextColor(tag, 0.18, 0.12, 0.06)
+        page:SetFont(tag, "Fonts\\MORPHEUS.ttf", 15, "")
+    end
     ItemTextFrame:Show()
     stub.RunTimers()
-    local ink = DaylightUI.Style.INK
+    local Style = DaylightUI.Style
+    local ink = Style.INK
+    local file = Style.FontFile(Style.WINDOW_SLOT)
+    local scale = DaylightUI:Get("general", "fontScale") or 1
     T.eq(page.__tagColor.P[1], ink.TEXT[1], "body text light")
     T.eq(page.__tagColor.H1[1], ink.TITLE[1], "headings light")
-    -- A page turn only refills the text; the tag colors carry over.
+    T.eq(page.__tagFont.P[1], file, "the window font, not the quest serif")
+    T.eq(page.__tagFont.P[2], Style.SIZE.body * scale, "body size")
+    T.eq(page.__tagFont.H1[2], Style.SIZE.title * scale, "a heading at the title size")
+    local nextb = _G.ItemTextNextPageButton
+    T.eq(nextb:GetNormalTexture():GetAlpha(), 0, "the spellbook arrow gone")
+    T.eq(nextb.label:GetAlpha(), 0, "the Sig. label gone")
+    local chev
+    for _, r in ipairs({ nextb:GetRegions() }) do
+        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then chev = r end
+    end
+    T.truthy(chev, "our chevron")
+    T.eq(chev.__rotation, math.pi / 2, "pointing to the next page")
+    T.truthy(stub.skins.Kit.ShellOf(nextb), "a button, like the other window controls")
+    local point, rel, relPoint, x, y = nextb:GetPoint(1)
+    T.eq(point, "BOTTOMRIGHT"); T.eq(rel, ItemTextFrame); T.eq(relPoint, "BOTTOMRIGHT")
+    T.eq(x, -16); T.eq(y, 12, "the page row sits in the bottom corner")
+    point, rel, relPoint = _G.ItemTextCurrentPage:GetPoint(1)
+    T.eq(point, "RIGHT"); T.eq(rel, nextb); T.eq(relPoint, "LEFT", "the number sits against the next chevron")
+    T.eq(_G.ItemTextCurrentPage.__textColor[1], ink.LABEL[1], "the number in label ink")
+    local prevPoint, prevRel = _G.ItemTextPrevPageButton:GetPoint(1)
+    T.eq(prevPoint, "RIGHT"); T.eq(prevRel, _G.ItemTextCurrentPage, "the previous chevron on the number's other side")
+    local scroll = _G.ItemTextScrollFrame
+    local sp, srel, srp, sx, sy = scroll:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(srel, ItemTextFrame); T.eq(srp, "TOPLEFT")
+    T.eq(sx, 16); T.eq(sy, -36, "the text starts under the title, not down in the parchment")
+    T.eq(select(5, scroll:GetPoint(2)), 46, "the text stops above the page row")
+    T.eq(page:GetWidth(), 338 - 16 - 26, "the line uses the window width")
+    local _, _, _, titleRight = ItemTextFrame.TitleContainer.TitleText:GetPoint(2)
+    T.eq(titleRight, -stub.skins.Kit.TITLE_RIGHT, "the title keeps the header, clear of the close button")
+    -- A page turn puts the parchment layout and the serif back. The letter follows.
     page:SetText("Page two")
+    page:SetFont("P", "Fonts\\MORPHEUS.ttf", 15, "")
+    scroll:SetPoint("TOPLEFT", ItemTextFrame, "TOPLEFT", 6, -63)
+    ItemTextFrame:GetScript("OnEvent")(ItemTextFrame, "ITEM_TEXT_READY")
     T.eq(page.__tagColor.P[1], ink.TEXT[1], "still light on the next page")
+    T.eq(page.__tagFont.P[1], file, "still our font")
+    T.eq(select(5, scroll:GetPoint(1)), -36, "the text is brought back up")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
