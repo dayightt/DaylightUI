@@ -19,7 +19,7 @@ Shape.SIDE_GAP = 24         -- gap between the center bars and a side grid
 Shape.SMALL_SIZE = 60       -- the small bars' size, percent
 Shape.SMALL_GAP = 6         -- gap for the small bars' row above bar 2
 -- Each setting's slider: min, max, step.
-Shape.RANGES = { size = { 50, 200, 10 }, pad = { 2, 10, 1 }, rows = { 1, 4, 1 }, icons = { 1, 12, 1 } }
+Shape.RANGES = { size = { 50, 200, 10 }, height = { 40, 150, 5 }, pad = { 2, 10, 1 }, rows = { 1, 4, 1 }, icons = { 1, 12, 1 } }
 
 -- A bar's settings (db.bars[key]), else the defaults.
 function Shape.Config(key)
@@ -28,18 +28,27 @@ function Shape.Config(key)
     return type(cfg) == "table" and cfg or ns.DEFAULTS.bars[key]
 end
 
+-- A button's height as a share of its width (the "Button height" setting, 100 =
+-- square). Only the action bars have it; the game's small buttons stay square.
+function Shape.Tall(cfg)
+    local h = tonumber(cfg and cfg.height)
+    if not h or h <= 0 then return 1 end
+    return h / 100
+end
+
 -- How big a bar comes out: width, height. count = number of buttons (else its
--- "Buttons" setting, else 12); base = one button's own width (45).
-function Shape.Extent(cfg, count, base)
+-- "Buttons" setting, else 12); base = one button's own width (45); square = keep
+-- the buttons square whatever the height setting says.
+function Shape.Extent(cfg, count, base, square)
     local btn = (base or Shape.BUTTON) * cfg.size / 100
+    local tall = btn * (square and 1 or Shape.Tall(cfg))
     local n = count or cfg.icons or 12
     if n < 1 then return 0, 0 end
     local rows = math.max(1, math.min(cfg.rows or 1, n))
     local across = math.ceil(n / rows)
-    local w = across * btn + (across - 1) * cfg.pad
-    local h = rows * btn + (rows - 1) * cfg.pad
-    if cfg.vertical then w, h = h, w end
-    return w, h
+    local cols, lines = across, rows
+    if cfg.vertical then cols, lines = rows, across end
+    return cols * btn + (cols - 1) * cfg.pad, lines * tall + (lines - 1) * cfg.pad
 end
 
 -- Each bar's default position as an anchor on UIParent, from the shapes.

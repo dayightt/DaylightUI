@@ -111,19 +111,27 @@ function Bars.LayoutBar(def)
         local n = kind.Count(def, cfg)
         local base = kind.Base(def)
         local s = cfg.size / 100
-        local w, h = ns.Shape.Extent(cfg, n, base)
+        local square = not (kind.Caps and kind.Caps.height)
+        local w, h = ns.Shape.Extent(cfg, n, base, square)
         holder:SetSize(math.max(w, 1), math.max(h, 1))
-        local step = base + cfg.pad / s          -- in the buttons' own scale
+        local tall = base * (square and 1 or ns.Shape.Tall(cfg))
+        local stepX = base + cfg.pad / s         -- in the buttons' own scale
+        local stepY = tall + cfg.pad / s
         local corner = Bars.Corner(def, cfg)
         local point = string.upper(corner)
-        local dx = string.find(corner, "right", 1, true) and -step or step
-        local dy = string.find(corner, "bottom", 1, true) and step or -step
+        local dx = string.find(corner, "right", 1, true) and -stepX or stepX
+        local dy = string.find(corner, "bottom", 1, true) and stepY or -stepY
         for i, btn in ipairs(list) do
             local own = ns.Buttons.IsOwn(btn)
             if i <= n then
                 local col, row = Bars.Grid(i, n, cfg)
                 if not own and btn:GetParent() ~= holder then btn:SetParent(holder) end
                 btn:SetScale(s)
+                if not square and own then
+                    -- A button shorter or taller than wide; the skin crops its icon to fit.
+                    btn:SetSize(base, tall)
+                    ns.Skin.SetAspect(btn, tall / base)
+                end
                 btn:ClearAllPoints()
                 btn:SetPoint(point, holder, point, col * dx, row * dy)
                 if own then

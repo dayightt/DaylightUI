@@ -148,7 +148,7 @@ Buttons.KIND = {
         if def.num == 1 then return "[petbattle] hide; " end
         return "[petbattle][vehicleui][overridebar] hide; "
     end,
-    Caps = { icons = { 1, 12 }, rows = true, show = "action" },
+    Caps = { icons = { 1, 12 }, rows = true, height = true, show = "action" },
 }
 
 -- ---------------------------------------------------------------------

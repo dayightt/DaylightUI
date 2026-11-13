@@ -459,6 +459,11 @@ local function barGroup(def)
     end
     items[#items + 1] = { type = "slider", key = k("size"), label = "Button size", min = R.size[1], max = R.size[2],
                           step = R.size[3], desc = "Size as a percent of the button's normal size.", disabled = hidden }
+    if caps.height then
+        items[#items + 1] = { type = "slider", key = k("height"), label = "Button height", min = R.height[1], max = R.height[2],
+                              step = R.height[3], disabled = hidden,
+                              desc = "Each button's height as a percent of its width. 100 is square; lower makes wide, flat buttons. The icon is cropped to fit, never stretched." }
+    end
     items[#items + 1] = { type = "slider", key = k("pad"), label = "Spacing", min = R.pad[1], max = R.pad[2], step = 1, unit = "px",
                               desc = "The gap between this bar's buttons.",
                           disabled = hidden }
@@ -485,7 +490,7 @@ end
 
 -- Every bar in one card. "Settings for" picks which bar the rows apply to, and an
 -- action bar can copy another's shape and fade.
-local SHAPE_FIELDS = { "icons", "rows", "size", "pad", "vertical", "corner", "visible" }
+local SHAPE_FIELDS = { "icons", "rows", "size", "height", "pad", "vertical", "corner", "visible" }
 local function isAction(key)
     for _, def in ipairs(ns.Bars.DEFS) do
         if def.key == key then return def.kind == "action" end

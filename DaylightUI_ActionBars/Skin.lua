@@ -309,10 +309,26 @@ function Skin.LookFor(key)
 end
 
 -- The icon's crop with the zoom added (zoom = a share of the icon, 0-0.4).
-function Skin.CropOf(L)
+-- aspect = the icon's height over its width when it isn't square: the square art is
+-- cut down to that shape around its middle, so it's never stretched.
+function Skin.CropOf(L, aspect)
     local c, z = Skin.CROP_BASE, (L and tonumber(L.zoom) or 0) / 2
-    return { c[1] + z, c[2] - z, c[3] + z, c[4] - z }
+    local l, r, t, b = c[1] + z, c[2] - z, c[3] + z, c[4] - z
+    aspect = tonumber(aspect)
+    if aspect and aspect > 0 and aspect ~= 1 then
+        if aspect < 1 then
+            local mid, half = (t + b) / 2, (b - t) * aspect / 2
+            t, b = mid - half, mid + half
+        else
+            local mid, half = (l + r) / 2, (r - l) / aspect / 2
+            l, r = mid - half, mid + half
+        end
+    end
+    return { l, r, t, b }
 end
+
+-- Buttons whose height isn't their width (Skin.SetAspect).
+local aspectOf = setmetatable({}, { __mode = "k" })
 
 -- The border's color at rest (nil = the shell's own).
 function Skin.BorderOf(L)
@@ -411,6 +427,16 @@ local skinned = setmetatable({}, { __mode = "k" })
 local dragging = false
 local hovered                  -- the skinned button under the mouse (its OnEnter/OnLeave)
 local others = {}              -- the game's buttons we dress (not our own), in skin order
+
+-- A button whose height isn't its width (an action bar's Button height). Its icon
+-- is cropped to that shape; a change redoes the look.
+function Skin.SetAspect(btn, aspect)
+    if aspect == 1 then aspect = nil end
+    if aspectOf[btn] == aspect then return end
+    aspectOf[btn] = aspect
+    if skinned[btn] then Skin.Apply(btn) end
+end
+function Skin.AspectOf(btn) return aspectOf[btn] end
 
 local function styleText(fs, size)
     Style.DressText(fs, size, { slot = ns.MEDIA.font })
@@ -975,7 +1001,7 @@ function Skin.Apply(btn)
     placeIcon(btn, parts)
     local icon = iconOf(btn)
     if icon then
-        local c = Skin.CropOf(L)
+        local c = Skin.CropOf(L, aspectOf[btn])
         icon:SetTexCoord(c[1], c[2], c[3], c[4])
         local cd = btn.cooldown or btn.Cooldown
         if type(cd) == "table" and cd.SetAllPoints then

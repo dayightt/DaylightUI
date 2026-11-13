@@ -10,6 +10,7 @@ ns.MEDIA = DaylightUI.Media.RegisterArea("bars", "ActionBars", ns.MEDIA_BARS)
 -- A bar's shape (applied live by Bars.LayoutBar) and its fade (live, via the fade
 -- engine).
 --   size     button size in percent (the game's 45 px at 100)
+--   height   button height in percent of its width (100 = square; action bars only)
 --   pad      space between buttons
 --   rows     rows (columns when vertical)
 --   icons    number of buttons
@@ -29,6 +30,7 @@ end
 local function paged(t)
     t.paging = { shift = 0, ctrl = 0, alt = 0, help = 0, harm = 0, prowl = 0, cat = 0, bear = 0, stealth = 0,
                  battle = 0, defensive = 0, berserker = 0, shadowform = 0 }
+    t.height = 100
     return bar(t)
 end
 
@@ -36,6 +38,7 @@ end
 local function held(t)
     t.paging = { shift = 0, ctrl = 0, alt = 0, help = 0, harm = 0 }
     t.autoPage = true   -- forms, stances and picked pages swap its buttons (Paging.PageRule)
+    t.height = 100
     return t
 end
 
