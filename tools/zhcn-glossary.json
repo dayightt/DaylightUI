@@ -1,0 +1,19 @@
+{
+  "PvP": "PvP",
+  "PvE": "PvE",
+  "RP": "RP",
+  "DPS": "DPS",
+  "HPS": "HPS",
+  "NPC": "NPC",
+  "Focus": "焦点",
+  "Focus Target": "焦点目标",
+  "Target of Target": "目标的目标",
+  "crit": "爆击",
+  "critical strike": "爆击",
+  "minimap": "微缩地图",
+  "tooltip": "鼠标提示",
+  "Rogue": "潜行者",
+  "mouseover": "鼠标悬停",
+  "Right-click": "右键点击",
+  "Shift-click": "Shift+点击"
+}
