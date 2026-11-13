@@ -63,6 +63,8 @@ ns.OPTIONS = { pages = {
               desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Procs and use effects stay as they are." },
             { type = "toggle", key = "itemLevel", label = "Item level",
               desc = "An Item Level line on weapon and armor tooltips, in soft gold." },
+            { type = "toggle", key = "stackSize", label = "Stack size",
+              desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack." },
             { type = "toggle", key = "showIDs", label = "Spell and item IDs",
               desc = "A small gray line at the bottom of spell and item tooltips with its ID: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
             { type = "toggle", key = "lastNames.tooltip", label = "First and last names",

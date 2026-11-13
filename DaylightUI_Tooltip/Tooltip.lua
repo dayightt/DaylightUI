@@ -758,11 +758,32 @@ function Tip.PaintCoins(tip)
     end
 end
 
--- An item: its level (gear only) with Item level on, its ID with IDs on.
+-- How many of an item fit in one bag slot, or nil when it doesn't stack (or
+-- isn't loaded yet: the game refills the tooltip once it is).
+function Tip.StackSize(link)
+    if type(link) ~= "string" or not (C_Item and C_Item.GetItemInfo) then return nil end
+    local ok, n = pcall(function() return select(8, C_Item.GetItemInfo(link)) end)
+    n = ok and plain(n) or nil
+    if type(n) == "number" and n > 1 then return n end
+    return nil
+end
+
+-- "Stacks to 20": the words in the label color, the number in the accent.
+function Tip.AddStack(tip, link)
+    local n = Tip.StackSize(link)
+    if not n then return end
+    local text = L["Stacks to %s"]:format(DUI.Win.Parts.Hex({ Style.Pop() }) .. n .. "|r")
+    if Tip.HasLine(tip, text) then return end
+    local c = Style.INK.LABEL
+    tip:AddLine(text, c[1], c[2], c[3])
+end
+
+-- An item: its level (gear only) with Item level on, how many fit in a stack,
+-- its ID with IDs on.
 function Tip.OnItemLines(tip, data)
     if skinned[tip] then Tip.PaintCoins(tip) end
     if skinned[tip] and cfg and cfg.greenStats then Tip.ShortenStats(tip) end
-    if not (skinned[tip] and cfg and (cfg.itemLevel or cfg.showIDs)) then return end
+    if not (skinned[tip] and cfg and (cfg.itemLevel or cfg.showIDs or cfg.stackSize)) then return end
     local link = Tip.ItemLink(tip, data)
     if cfg.itemLevel then
         local level = Tip.ItemLevel(link)
@@ -775,6 +796,7 @@ function Tip.OnItemLines(tip, data)
             end
         end
     end
+    if cfg.stackSize then Tip.AddStack(tip, link) end
     if cfg.showIDs then
         local id = type(data) == "table" and plain(data.id) or nil
         if type(id) ~= "number" and type(link) == "string" and C_Item and C_Item.GetItemInfoInstant then

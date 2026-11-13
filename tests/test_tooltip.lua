@@ -1103,6 +1103,37 @@ T.test("tooltip: item level on gear only, once per fill, never twice with the ga
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("tooltip: stack size on items that stack, on out of the box, the number in the accent", function()
+    login(itemWorld)
+    local at = withLines(GameTooltip)
+    local stacks, before = { potion = 20, sword = 1 }, C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if stacks[link] then return link, link, 1, 1, 1, "", "", stacks[link] end
+    end
+    local Item = Enum.TooltipDataType.Item
+    local Hex, accent = DaylightUI.Win.Parts.Hex, { DaylightUI.Style.Accent() }
+    fill(GameTooltip, Item, { id = 1003, hyperlink = "potion" })
+    T.eq(GameTooltip:NumLines(), 2)
+    T.eq(at(2):GetText(), "Stacks to " .. Hex(accent) .. "20|r")
+    T.rgb(at(2).__textColor, DaylightUI.Style.INK.LABEL, "the words in the label color")
+    for _ = 1, 3 do fill(GameTooltip, Item, { id = 1003, hyperlink = "potion" }) end
+    T.eq(GameTooltip:NumLines(), 2, "a refill adds it once")
+    fill(GameTooltip, Item, { id = 1001, hyperlink = "sword" })
+    T.eq(GameTooltip:NumLines(), 1, "a sword doesn't stack: no line")
+    fill(GameTooltip, Item, { id = 1002, hyperlink = "shirt" })
+    T.eq(GameTooltip:NumLines(), 1, "not loaded yet: no line")
+    stacks.potion = stub.Secret(20)
+    fill(GameTooltip, Item, { id = 1003, hyperlink = "potion" })
+    T.eq(GameTooltip:NumLines(), 1, "a secret size: no line")
+    stacks.potion = 20
+    DaylightUI:Set("Tooltip", "stackSize", false)
+    stub.RunTimers()
+    fill(GameTooltip, Item, { id = 1003, hyperlink = "potion" })
+    T.eq(GameTooltip:NumLines(), 1, "off: no line")
+    C_Item.GetItemInfo = before
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("tooltip: short item stats, on out of the box, procs left alone", function()
     login(itemWorld)
     local at = withLines(GameTooltip)

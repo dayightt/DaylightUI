@@ -22,6 +22,7 @@ ns.DEFAULTS = {
     buffs = true, -- a friendly player's buffs as icons (out of combat only; secret in combat)
     greenStats = true, -- shorten items' green "Equip:" lines ("+1% Hit")
     itemLevel = false,      -- an "Item Level" line on weapons and armor
+    stackSize = true,       -- "Stacks to 20" on items that stack
     showIDs = false,        -- an "Item ID" / "Spell ID" line on items, spells and auras
     qualityBorder = true, -- item border in its quality color
     healthBar = true,
