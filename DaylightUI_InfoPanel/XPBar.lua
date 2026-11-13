@@ -41,6 +41,60 @@ end
 
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
+-- A separate bar can stand upright (xp.orientation, rep.orientation): it then
+-- fills bottom to top, its text turns to read along it, and its gradient runs
+-- the same way, dark at the bottom and light at the full end.
+XP.TURN = math.pi / 2
+function XP.TurnBar(bar, vertical)
+    bar:SetOrientation(vertical and "VERTICAL" or "HORIZONTAL")
+    bar:SetRotatesTexture(vertical == true)
+end
+
+local function upright(bar, lo, hi)
+    local tex = bar:GetStatusBarTexture()
+    if type(tex) == "table" and tex.SetGradient and lo and hi then tex:SetGradient("VERTICAL", lo, hi) end
+end
+local function uprightRaw(bar, lo, hi)
+    local a, b = DUI.Gradients.PaintRGBOf(lo, hi)
+    upright(bar, CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+end
+
+-- The gradient painters, turned upright for a vertical bar.
+function XP.PaintKey(bar, key, vertical)
+    local G = DUI.Gradients
+    G.Paint(bar, key)
+    if vertical then upright(bar, G.Colors(key)) end
+end
+function XP.PaintFrom(bar, rgb, vertical)
+    local G = DUI.Gradients
+    G.PaintFrom(bar, rgb)
+    if vertical then uprightRaw(bar, G.PairFrom(rgb)) end
+end
+function XP.PaintPair(bar, lo, hi, vertical)
+    DUI.Gradients.PaintPair(bar:GetStatusBarTexture(), lo, hi)
+    if vertical then uprightRaw(bar, lo, hi) end
+end
+
+-- A light along a bar (Motion.Sweep's), bottom to top on an upright one.
+function XP.Sweep(tex, over, opts, vertical)
+    local M = DUI.Motion
+    if not vertical then
+        tex:SetHeight(over:GetHeight() or 1)
+        return M.Sweep(tex, over, opts)
+    end
+    if not M.On() then return end
+    tex:ClearAllPoints()
+    tex:SetSize(over:GetWidth() or 1, opts.width or 40)
+    tex:SetAlpha(0)
+    tex:Show()
+    M.Tween(tex, 0, 1, opts.dur or 0.5, function(p)
+        tex:ClearAllPoints()
+        tex:SetPoint("CENTER", over, "BOTTOM", 0, p * (over:GetHeight() or 0))
+        local a = p < 0.15 and p / 0.15 or (p > 0.75 and (1 - p) / 0.25 or 1)
+        tex:SetAlpha((opts.alpha or 1) * a)
+    end, function() tex:Hide() end)
+end
+
 -- Banked XP: the summed reward XP of quests ready to turn in. Recounted on
 -- quest log events, including entries under collapsed headers.
 function XP.Banked()
@@ -186,14 +240,21 @@ end
 
 -- The segment lines, evenly across the bar, each a pixel wide.
 function XP.LayoutTicks()
-    local bar, w = XP.bar, XP.bar and XP.bar:GetWidth() or 0
+    local bar, vertical = XP.bar, XP.vertical
+    local w = bar and (vertical and bar:GetHeight() or bar:GetWidth()) or 0
     if not XP.tickList or w <= 0 then return end
     for i, t in ipairs(XP.tickList) do
         local x = Pixel.Snap(bar, w * i / XP.SEGMENTS)
         t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", bar, "TOPLEFT", x, 0)
-        t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
-        t:SetWidth(Pixel.Px(bar, 1))
+        if vertical then
+            t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, x)
+            t:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, x)
+            t:SetHeight(Pixel.Px(bar, 1))
+        else
+            t:SetPoint("TOPLEFT", bar, "TOPLEFT", x, 0)
+            t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
+            t:SetWidth(Pixel.Px(bar, 1))
+        end
     end
 end
 
@@ -271,13 +332,12 @@ function XP.ShowRep(sweep)
     bar:SetValue(d.value)
     local G = DUI.Gradients
     local key = "REP_" .. d.rep
-    if XP.gradient and G and G.Has(key) then G.Paint(bar, key)
-    elseif XP.gradient and G then G.PaintFrom(bar, d.color)
+    if XP.gradient and G and G.Has(key) then XP.PaintKey(bar, key, XP.vertical)
+    elseif XP.gradient and G then XP.PaintFrom(bar, d.color, XP.vertical)
     else Style.SetBarColor(bar, d.color[1], d.color[2], d.color[3]) end
     fadeRep(1, DUI.Motion.NORMAL)
     if sweep and DUI.Motion.On() then
-        XP.repShine:SetHeight(bar:GetHeight() or 1)
-        DUI.Motion.Sweep(XP.repShine, bar, { width = 40, dur = XP.REP_SWEEP.dur, alpha = XP.REP_SWEEP.alpha })
+        XP.Sweep(XP.repShine, bar, { width = 40, dur = XP.REP_SWEEP.dur, alpha = XP.REP_SWEEP.alpha }, XP.vertical)
     end
     XP.repUntil = GetTime() + (sweep and XP.REP_HOLD or 0)
     if sweep then C_Timer.After(XP.REP_HOLD, XP.HideRep) end
@@ -308,15 +368,15 @@ function XP.Paint(d)
     if custom and XP.gradient and G then
         Style.SetBarColor(XP.bar, G.MidOf(custom.lo, custom.hi))
         XP.bar:SetStatusBarColor(1, 1, 1, 1)
-        G.PaintPair(XP.bar:GetStatusBarTexture(), custom.lo, custom.hi)
+        XP.PaintPair(XP.bar, custom.lo, custom.hi, XP.vertical)
         r, g, b = G.MidOf(custom.lo, custom.hi)
     elseif XP.gradient and G then
         local key = d.rep and "REP_" .. d.rep or (XP.colorMode == "class" and G.KeyFor("player"))
         if key and G.Has(key) then
-            G.Paint(XP.bar, key)
+            XP.PaintKey(XP.bar, key, XP.vertical)
             r, g, b = G.Mid(key)
         else
-            G.PaintFrom(XP.bar, d.color)
+            XP.PaintFrom(XP.bar, d.color, XP.vertical)
             r, g, b = G.MidOf(G.PairFrom(d.color))
         end
     else
@@ -381,19 +441,25 @@ function XP.Rest()
     if was ~= false or not now or not (XP.frame and XP.frame:IsShown() and XP.bar:IsShown()) then return end
     local d = XP.Read()
     if not d or d.rep or d.rested <= 0 or secret(d.value) or secret(d.rested) then return end
-    local w = XP.bar:GetWidth() or 0
+    local vertical = XP.vertical
+    local w = (vertical and XP.bar:GetHeight() or XP.bar:GetWidth()) or 0
     if w <= 0 then return end
     local start = math.min(d.max, d.value + (d.banked or 0))   -- rest runs on past the quests' XP
     if start >= d.max then return end
     local from, to = w * start / d.max, w * math.min(d.max, start + d.rested) / d.max
     local span = XP.restedSpan
     span:ClearAllPoints()
-    span:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", from, 0)
-    span:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", from, 0)
-    span:SetWidth(math.max(1, to - from))
-    XP.shimmer:SetHeight(XP.bar:GetHeight() or 1)
-    DUI.Motion.Sweep(XP.shimmer, span, { width = math.max(8, math.min(40, to - from)),
-        dur = XP.SHIMMER.dur, alpha = XP.SHIMMER.alpha })
+    if vertical then
+        span:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, from)
+        span:SetPoint("BOTTOMRIGHT", XP.bar, "BOTTOMRIGHT", 0, from)
+        span:SetHeight(math.max(1, to - from))
+    else
+        span:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", from, 0)
+        span:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", from, 0)
+        span:SetWidth(math.max(1, to - from))
+    end
+    XP.Sweep(XP.shimmer, span, { width = math.max(8, math.min(40, to - from)),
+        dur = XP.SHIMMER.dur, alpha = XP.SHIMMER.alpha }, vertical)
 end
 
 function XP.Update()
@@ -456,6 +522,9 @@ function XP.Apply(cfg, T)
         b:SetPoint("TOPLEFT", XP.frame, "TOPLEFT", T, -T)
         b:SetPoint("BOTTOMRIGHT", XP.frame, "BOTTOMRIGHT", -T, T)
     end
+    XP.vertical = cfg.detached == true and cfg.orientation == "vertical"
+    for _, b in ipairs({ XP.bar, XP.banked, XP.rested, XP.repBar }) do XP.TurnBar(b, XP.vertical) end
+    XP.text:SetRotation(XP.vertical and XP.TURN or 0)
     XP.showText = cfg.showText == true
     XP.showPercent = cfg.showPercent == true
     Style.SetTextSize(XP.text, cfg.textSize or 9)
@@ -527,7 +596,7 @@ function Rep.Build(mod)
         DUI.Movers.Save(Rep.KEY)
         DUI:Set("InfoPanel", "rep.width", w)
         DUI:Set("InfoPanel", "rep.height", h)
-    end)
+    end, function() return Rep.vertical end)
     DUI.Movers.Register(f, Rep.KEY, "Reputation Bar", Rep.HOME)
     local function refresh() if Rep.on then Rep.Update() end end
     DUI.On("UnlockChanged", function() if ns.module then Rep.Apply(ns.module.db) end end)
@@ -573,8 +642,8 @@ end
 function Rep.Paint(d)
     local bar, G = Rep.bar, DUI.Gradients
     local key = "REP_" .. tostring(d.rep)
-    if Rep.cfg.gradient and G and G.Has(key) then G.Paint(bar, key)
-    elseif Rep.cfg.gradient and G then G.PaintFrom(bar, d.color)
+    if Rep.cfg.gradient and G and G.Has(key) then XP.PaintKey(bar, key, Rep.vertical)
+    elseif Rep.cfg.gradient and G then XP.PaintFrom(bar, d.color, Rep.vertical)
     else Style.SetBarColor(bar, d.color[1], d.color[2], d.color[3]) end
 end
 
@@ -605,21 +674,19 @@ end
 -- A gain with the watched faction (XP.RepGain): a light across the bar.
 function Rep.Gain()
     if not (Rep.frame and Rep.frame:IsShown() and DUI.Motion.On()) then return end
-    Rep.shine:SetHeight(Rep.bar:GetHeight() or 1)
-    DUI.Motion.Sweep(Rep.shine, Rep.bar, { width = 40, dur = XP.REP_SWEEP.dur, alpha = XP.REP_SWEEP.alpha })
+    XP.Sweep(Rep.shine, Rep.bar, { width = 40, dur = XP.REP_SWEEP.dur, alpha = XP.REP_SWEEP.alpha }, Rep.vertical)
 end
 
 function Rep.Apply(db)
     local cfg, f = db.rep, Rep.frame
     Rep.cfg, Rep.on = cfg, cfg.enabled == true
     Rep.tipSide = cfg.tipSide or "auto"
+    Rep.vertical = cfg.orientation == "vertical"
+    XP.TurnBar(Rep.bar, Rep.vertical)
+    Rep.text:SetRotation(Rep.vertical and XP.TURN or 0)
     ns.Panel.Look(f, ns.Panel.BackAlpha(db), db.panelBorder)
     local T = Pixel.Px(f, Style.BorderPx(f))
-    f:SetSize(cfg.width, cfg.height + 2 * T)
-    if f.SetResizeBounds then
-        local lo, hi = ns.Panel.XP_MIN, ns.Panel.XP_MAX
-        f:SetResizeBounds(lo[1], lo[2] + 2 * T, hi[1], hi[2] + 2 * T)
-    end
+    ns.Panel.SizeBar(f, cfg.width, cfg.height, T, Rep.vertical)
     Style.LayoutShell(Style.GetShell(f))
     Rep.bar:ClearAllPoints()
     Rep.bar:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)

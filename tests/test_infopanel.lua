@@ -220,6 +220,39 @@ T.test("info panel: the XP bar can grow much bigger", function()
     T.eq(P.xp:GetHeight(), 50 + 2 * xT)
 end)
 
+T.test("info panel: the separate XP and reputation bars can stand upright, filling bottom to top", function()
+    local DUI = login()
+    local P, XP, Rep = stub.infopanel.Panel, stub.infopanel.XP, stub.infopanel.RepBar
+    _G.C_Reputation = { GetWatchedFactionData = function()
+        return { name = "Stormwind", reaction = 5, currentReactionThreshold = 0, nextReactionThreshold = 3000, currentStanding = 1800 }
+    end }
+    DUI:Set("InfoPanel", "xp.orientation", "vertical")
+    T.eq(XP.bar.__orientation, "HORIZONTAL", "attached to the panel it stays across")
+    DUI:Set("InfoPanel", "xp.detached", true)
+    DUI:Set("InfoPanel", "xp.width", 300)
+    DUI:Set("InfoPanel", "xp.height", 12)
+    local xT = DUI.Pixel.Px(P.xp, DUI.Style.BorderPx(P.xp))
+    T.eq(P.xp:GetHeight(), 300, "the width setting is how tall it stands")
+    T.eq(P.xp:GetWidth(), 12 + 2 * xT, "the height setting how thick")
+    for _, b in ipairs({ XP.bar, XP.banked, XP.rested, XP.repBar }) do T.eq(b.__orientation, "VERTICAL") end
+    T.eq(XP.text.__rotation, XP.TURN, "the text reads along it")
+    XP.Update()
+    local g = XP.bar:GetStatusBarTexture().__gradient
+    T.truthy(g and g[1] == "VERTICAL", "the gradient runs bottom to top: " .. tostring(g and g[1]))
+    DUI:Set("InfoPanel", "rep.enabled", true)
+    DUI:Set("InfoPanel", "rep.orientation", "vertical")
+    DUI:Set("InfoPanel", "rep.width", 250)
+    T.eq(Rep.frame:GetHeight(), 250)
+    T.eq(Rep.bar.__orientation, "VERTICAL")
+    local rg = Rep.bar:GetStatusBarTexture().__gradient
+    T.truthy(rg and rg[1] == "VERTICAL", "reputation keeps its gradient, upright")
+    DUI:Set("InfoPanel", "xp.orientation", "horizontal")
+    T.eq(P.xp:GetWidth() > 100, true, "back across")
+    T.eq(XP.bar.__orientation, "HORIZONTAL")
+    DUI:Set("InfoPanel", "rep.enabled", false)
+    _G.C_Reputation = nil
+end)
+
 T.test("info panel: the XP bar wears the accent by default", function()
     local DUI = login()
     local XP = stub.infopanel.XP

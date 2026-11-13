@@ -33,6 +33,7 @@ Panel.XP_BORDER = function(px) return math.max(3, math.floor(px * 0.5 + 0.5)) en
 -- Default spot for the detached XP bar, under the main action bar. Updated on
 -- every layout; the mover keeps this table, so an unmoved bar follows along.
 Panel.xpDefault = { "BOTTOM", nil, "BOTTOM", 0, 6 }
+Panel.XP_EDGE = 12           -- an upright bar's gap from the screen edge, with no action bar to stand by
 
 -- Hides a game frame by parking it under a hidden parent (never destroyed).
 local hidden = CreateFrame("Frame")
@@ -237,7 +238,9 @@ end
 
 -- The same corner grip for the detached XP and reputation bars, placed on the
 -- bar itself. done(w, h) receives the new inner size, clamped to the limits.
-function Panel.BarGrip(xp, done)
+-- vertical() says whether the bar stands upright: its length is then its
+-- height, and the grip's drag is read that way round.
+function Panel.BarGrip(xp, done, vertical)
     local grip = CreateFrame("Button", nil, xp)
     grip:SetSize(Panel.GRIP, Panel.GRIP)
     grip:SetPoint("BOTTOMRIGHT", xp, "BOTTOMRIGHT", -2, 2)
@@ -256,12 +259,29 @@ function Panel.BarGrip(xp, done)
         local xT = Pixel.Px(xp, Style.BorderPx(xp))
         local w = math.floor(xp:GetWidth() + 0.5)
         local h = math.floor(xp:GetHeight() - 2 * xT + 0.5)
+        if vertical and vertical() then
+            w, h = math.floor(xp:GetHeight() + 0.5), math.floor(xp:GetWidth() - 2 * xT + 0.5)
+        end
         w = math.max(Panel.XP_MIN[1], math.min(Panel.XP_MAX[1], w))
         h = math.max(Panel.XP_MIN[2], math.min(Panel.XP_MAX[2], h))
         done(w, h)
     end)
     grip:Hide()
     return grip
+end
+
+-- Sizes a separate bar from its length and thickness (the width and height
+-- settings) plus its border T, standing upright when vertical; the grip's
+-- limits turn with it.
+function Panel.SizeBar(f, length, thick, T, vertical)
+    local lo, hi = Panel.XP_MIN, Panel.XP_MAX
+    if vertical then
+        f:SetSize(thick + 2 * T, length)
+        if f.SetResizeBounds then f:SetResizeBounds(lo[2] + 2 * T, lo[1], hi[2] + 2 * T, hi[1]) end
+    else
+        f:SetSize(length, thick + 2 * T)
+        if f.SetResizeBounds then f:SetResizeBounds(lo[1], lo[2] + 2 * T, hi[1], hi[2] + 2 * T) end
+    end
 end
 
 function Panel.BuildXPGrip(xp, mod)
@@ -271,7 +291,7 @@ function Panel.BuildXPGrip(xp, mod)
         DUI:Set("InfoPanel", "xp.matchBars", false)
         DUI:Set("InfoPanel", "xp.width", w)
         DUI:Set("InfoPanel", "xp.height", h)
-    end)
+    end, function() return ns.XP.vertical end)
     DUI.On("UnlockChanged", function() Panel.UpdateXPGrip(mod.db) end)
 end
 
@@ -421,16 +441,26 @@ function Panel.Layout(db)
         xp:SetParent(UIParent)
         local h = db.xp.height + 2 * xT
         local span = Panel.BarsSpan(xp)
-        if span then
+        local vertical = db.xp.orientation == "vertical"
+        local d = Panel.xpDefault
+        if span and vertical then
+            -- Upright: standing on the bars' bottom, just left of them.
+            d[1], d[3] = "BOTTOMRIGHT", "BOTTOMLEFT"
+            d[4], d[5] = span.left - Panel.GAP, span.bottom
+        elseif vertical then
+            -- No action bar to stand by: the right edge's middle, out of the way.
+            d[1], d[3], d[4], d[5] = "RIGHT", "RIGHT", -Panel.XP_EDGE, 0
+        elseif span then
             -- Centered in the gap between the bar's buttons and the screen's
             -- bottom edge (or the data bar along it).
-            local d = Panel.xpDefault
             d[1], d[3] = "BOTTOM", "BOTTOMLEFT"
             local room = DUI.Movers.BottomRoom()
             d[4], d[5] = (span.left + span.right) / 2, room + math.max(0, math.floor((span.bottom - room - h) / 2))
+        else
+            d[1], d[3], d[4], d[5] = "BOTTOM", "BOTTOM", 0, 6
         end
-        local width = (db.xp.matchBars and span) and (span.right - span.left) or db.xp.width
-        xp:SetSize(width, h)
+        local width = (db.xp.matchBars and span and not vertical) and (span.right - span.left) or db.xp.width
+        Panel.SizeBar(xp, width, db.xp.height, xT, vertical)
         -- Positioned by its own mover, below.
     else
         xp:SetParent(holder)

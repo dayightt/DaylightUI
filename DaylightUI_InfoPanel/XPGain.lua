@@ -30,7 +30,8 @@ end
 
 -- The white flash over the gained piece.
 local function flashPiece(XP, from, to, max)
-    local w = XP.bar:GetWidth() or 0
+    local up = XP.vertical
+    local w = (up and XP.bar:GetHeight() or XP.bar:GetWidth()) or 0
     if w <= 0 or max <= 0 then return end
     local t = XPGain.flash
     if not t then
@@ -40,9 +41,15 @@ local function flashPiece(XP, from, to, max)
         XPGain.flash = t
     end
     t:ClearAllPoints()
-    t:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", w * from / max, 0)
-    t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", w * from / max, 0)
-    t:SetWidth(math.max(1, w * (to - from) / max))
+    if up then
+        t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, w * from / max)
+        t:SetPoint("BOTTOMRIGHT", XP.bar, "BOTTOMRIGHT", 0, w * from / max)
+        t:SetHeight(math.max(1, w * (to - from) / max))
+    else
+        t:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", w * from / max, 0)
+        t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", w * from / max, 0)
+        t:SetWidth(math.max(1, w * (to - from) / max))
+    end
     DUI.Motion.Flash(t, DUI.Motion.SLOW)
 end
 
@@ -84,12 +91,23 @@ local function rise(XP, gain)
     f.text:SetText("+" .. BreakUpLargeNumbers(f.total))
     f.text:SetTextColor(XPGain.TextColor(XP))
     -- Up off the bar; down instead when the bar is in the top half of the
-    -- screen, where "up" leaves the screen.
-    local top, high = XP.frame:GetTop(), UIParent:GetHeight()
-    local dir = (top and high and top > high / 2) and -1 or 1
+    -- screen, where "up" leaves the screen. An upright bar's rises beside its
+    -- fill's end, on the side toward the screen's middle.
     f:ClearAllPoints()
-    f:SetPoint(dir == 1 and "BOTTOM" or "TOP", XP.bar, dir == 1 and "TOP" or "BOTTOM", 0, dir * 2)
-    f.move:SetOffset(0, dir * XPGain.RISE)
+    if XP.vertical then
+        local x, wide = XP.frame:GetCenter(), UIParent:GetWidth()
+        local right = not (x and wide and x > wide / 2)
+        local _, max = XP.bar:GetMinMaxValues()
+        local v, h = XP.bar:GetValue(), XP.bar:GetHeight() or 0
+        local y = (not secret(v) and not secret(max) and type(max) == "number" and max > 0) and h * v / max or h
+        f:SetPoint(right and "LEFT" or "RIGHT", XP.bar, right and "BOTTOMRIGHT" or "BOTTOMLEFT", right and 4 or -4, y)
+        f.move:SetOffset(0, XPGain.RISE)
+    else
+        local top, high = XP.frame:GetTop(), UIParent:GetHeight()
+        local dir = (top and high and top > high / 2) and -1 or 1
+        f:SetPoint(dir == 1 and "BOTTOM" or "TOP", XP.bar, dir == 1 and "TOP" or "BOTTOM", 0, dir * 2)
+        f.move:SetOffset(0, dir * XPGain.RISE)
+    end
     f.group:Stop()
     f:Show()
     f.group:Play()
@@ -97,7 +115,8 @@ end
 
 -- The bright band that crosses the bar on a level up.
 local function sweep(XP)
-    local w = XP.bar:GetWidth() or 0
+    local up = XP.vertical
+    local w = (up and XP.bar:GetHeight() or XP.bar:GetWidth()) or 0
     if w <= 0 then return end
     local band = w * XPGain.BAND
     local t = XPGain.band
@@ -118,10 +137,17 @@ local function sweep(XP)
         XPGain.band = t
     end
     t:ClearAllPoints()
-    t:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", 0, 0)
-    t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, 0)
-    t:SetWidth(band)
-    t.move:SetOffset(w - band, 0)
+    if up then
+        t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, 0)
+        t:SetPoint("BOTTOMRIGHT", XP.bar, "BOTTOMRIGHT", 0, 0)
+        t:SetHeight(band)
+        t.move:SetOffset(0, w - band)
+    else
+        t:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", 0, 0)
+        t:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, 0)
+        t:SetWidth(band)
+        t.move:SetOffset(w - band, 0)
+    end
     t.group:Stop()
     t:SetAlpha(1)
     t:Show()
