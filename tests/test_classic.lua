@@ -377,3 +377,47 @@ T.test("switching looks with the unit frames off errors nothing", function()
     look(DUI, "daylight")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+local function itemFor(DUI, key)
+    local page = DUI.Options.GetPage("appearance")
+    for _, group in ipairs(page.groups) do
+        for _, item in ipairs(group.items or {}) do
+            if item.key == key then return item, group end
+        end
+    end
+end
+
+T.test("General > Appearance has a Look card with a Gold accent switch shown under Classic", function()
+    local DUI = stub.Load()
+    local look_, group = itemFor(DUI, "look")
+    T.truthy(look_ and look_.type == "dropdown", "the Look dropdown")
+    T.eq(group.label, "Look")
+    T.eq(look_.values.daylight, "Daylight UI"); T.eq(look_.values.classic, "Classic")
+    local gold = itemFor(DUI, "lookGold")
+    T.truthy(gold and gold.type == "toggle", "the Gold accent switch")
+    local get = function(k) return k == "look" and "daylight" or nil end
+    T.eq(gold.hidden(get), true, "hidden under Daylight")
+    get = function(k) return k == "look" and "classic" or nil end
+    T.falsy(gold.hidden(get), "shown under Classic")
+end)
+
+T.test("the setup guide's Look step offers both looks first", function()
+    local DUI = stub.Load()
+    local step
+    for _, s in ipairs(DUI.InstallerPages.TOUR) do if s.id == "look" then step = s end end
+    T.truthy(step, "the Look step")
+    local first = step.groups[1]
+    T.truthy(first.cards and first.cards.key == "look" and first.cards.scope == "general")
+end)
+
+T.test("registering per-look values while files load never touches the saved settings", function()
+    local DUI = stub.Load()
+    local DB = DUI.DB
+    local was, sv, init = DB.loggedIn, DB.sv, DB.Init
+    local touched = false
+    DB.loggedIn, DB.sv = nil, nil
+    DB.Init = function() touched = true end
+    DUI.Style.Looked({ c = { 1, 1, 1 } }, { daylight = { c = { 1, 1, 1 } }, classic = { c = { 0, 0, 0 } } })
+    DB.loggedIn, DB.sv, DB.Init = was, sv, init
+    T.falsy(touched, "the saved data is set up later, by the game's load event")
+end)

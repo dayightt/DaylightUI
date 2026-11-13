@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Bug reports", "A bug icon on the options home page (or /dui bug) gives you your version, addons and setup, ready to copy into the Discord bug form. Thanks to blukraken" },
+            { "Look", "A Classic look: stone and gold borders, red buttons and gold headings, keeping Daylight UI's angled shapes. Pick it in General, Appearance" },
         },
         fixed = {
             { "Object glow", "Ore and herb names no longer disappear as you walk up to them" },

@@ -102,6 +102,7 @@ Pages.TOUR = {
     { id = "look", title = "Look",
       desc = "The colors, font and textures used everywhere. The screen changes as you pick.",
       groups = {
+          { label = "Look", cards = { scope = "general", key = "look", draw = "look", cols = 2, height = 64 } },
           { label = "Accent color", cards = { scope = "general", key = "accent", draw = "swatch", cols = 3, height = 64, colorKey = "accentColor" } },
           { label = "Font", cards = { scope = "general", key = "font", draw = "font", cols = 4, height = 56, only = DUI.Style.FONT_PICKS, more = "Every font" } },
           { label = "Bar texture", cards = { scope = "general", key = "barTexture", draw = "texture", cols = 4, height = 50, only = DUI.Media.BAR_PICKS, more = "Every texture" } },
