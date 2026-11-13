@@ -407,3 +407,45 @@ T.test("nameplates: no group focus mark in a battleground, where who's who is se
     stub.SetGroup(false)
     stub.units.party1, stub.units.party1target, stub.units.target = nil, nil, nil
 end)
+
+T.test("nameplates: the cast bar names who the cast is aimed at, in their class color, secret names and all", function()
+    local NP = login()
+    T.eq(NP.DEFAULTS.castTarget, true, "on as shipped")
+    -- The client always answers these secret.
+    local aimed = { name = "Jaina", class = "MAGE" }
+    _G.UnitSpellTargetName = function() if aimed.name then return stub.Secret(aimed.name) end end
+    _G.UnitSpellTargetClass = function() if aimed.class then return stub.Secret(aimed.class) end end
+    local realColor = _G.C_ClassColor
+    _G.C_ClassColor = { GetClassColor = function(cls)
+        if stub.Plain(cls) == "MAGE" then return { r = stub.Secret(0.25), g = stub.Secret(0.78), b = stub.Secret(0.92) } end
+    end }
+    local p = added("nameplate1")
+    stub.EnterCombat()
+    stub.units.nameplate1.cast = { name = "Frostbolt", texture = 1, duration = stub.Duration(2) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local fs = p.cast.target
+    T.truthy(fs:IsShown())
+    T.eq(stub.Text(fs), "Jaina", "the secret name, written whole")
+    local r, g = fs:GetTextColor()
+    while type(g) == "table" do g = stub.Plain(g) end -- a secret color reads back secret
+    T.near(g, 0.78, 1e-6, "in the game's class color")
+    -- An NPC or no target: white, or empty.
+    aimed.class = nil
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    local w = fs:GetTextColor()
+    while type(w) == "table" do w = stub.Plain(w) end
+    T.near(w, DaylightUI.Style.INK.VALUE[1], 1e-6, "no class: white")
+    aimed.name = nil
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.eq(stub.Text(fs), "", "an area spell: nothing")
+    -- Off (settings apply after the fight): hidden, the spell name reaching the time again.
+    stub.LeaveCombat()
+    DaylightUI:Set("Nameplates", "castTarget", false)
+    stub.RunTimers()
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.falsy(fs:IsShown(), "switched off")
+    T.eq(select(2, p.cast.text:GetPoint(2)), p.cast.time, "the spell name runs to the time")
+    _G.UnitSpellTargetName, _G.UnitSpellTargetClass, _G.C_ClassColor = nil, nil, realColor
+    stub.units.nameplate1.cast = nil
+end)

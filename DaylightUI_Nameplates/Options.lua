@@ -475,6 +475,8 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.BarRow("media.cast", "Cast bar", "the cast bar on every nameplate"),
             DaylightUI.Options.BackRow("media.cast", "Cast bar", "the cast bar on every nameplate"),
             DaylightUI.Options.FontRow("media.castFont", "Cast bar font", "The spell name and time on the cast bars"),
+            { type = "toggle", key = "castTarget", label = "Cast target", since = "1.7.2",
+              desc = "Who an enemy's spell is aimed at, in their class color, on the right of its cast bar. Spells with no one target (an area spell, a self heal) show none." },
         } },
         { label = "Interrupts", items = {
             { type = "toggle", key = "castKickMark", label = "Interrupt ready mark", since = "1.7.2",

@@ -53,6 +53,9 @@ function Cast.Create(p)
     over:SetFrameLevel(c.bar:GetFrameLevel() + 3)
     c.text = Style.Text(over, 9, "LEFT", ns.Plate.MEDIA.fonts.cast)
     c.time = Style.Text(over, 9, "RIGHT", ns.Plate.MEDIA.fonts.cast)
+    -- Who the cast is aimed at (castTarget), left of the time.
+    c.target = Style.Text(over, 9, "RIGHT", ns.Plate.MEDIA.fonts.cast)
+    c.target:Hide()
     -- The interrupt hit: a flat light on the fill, clipped to the fill's shape (its
     -- angled moving edge and the bar's end).
     c.light = c.bar:CreateTexture(nil, "ARTWORK", nil, 3)
@@ -220,6 +223,7 @@ function Cast.Layout(p, cut)
     local size = math.max(8, math.floor(h * Cast.TEXT + 0.5))
     Style.SetTextSize(c.text, size)
     Style.SetTextSize(c.time, size)
+    Style.SetTextSize(c.target, size)
     -- The time text sits inside the angled end, inset from where the slant meets the
     -- text's bottom edge. This bar's cut runs from its top to its bottom, both
     -- carrying the health bar's line further in than its own end.
@@ -227,9 +231,13 @@ function Cast.Layout(p, cut)
     local edge = g and (g.cutTop + g.lean * (0.5 + Cast.TEXT * 0.5)) or 0
     c.time:ClearAllPoints()
     c.time:SetPoint("RIGHT", c, "RIGHT", -(T + 2 + edge), 0)
+    c.target:ClearAllPoints()
+    c.target:SetPoint("RIGHT", c.time, "LEFT", -4, 0)
     c.text:ClearAllPoints()
     c.text:SetPoint("LEFT", c.bar, "LEFT", 3, 0)
-    c.text:SetPoint("RIGHT", c.time, "LEFT", -3, 0)
+    -- The spell name gives way to the target's name. Its width can be secret (the
+    -- name is), which is fine to anchor to; nothing reads it back.
+    c.text:SetPoint("RIGHT", cfg.castTarget ~= false and c.target or c.time, "LEFT", -3, 0)
     -- The light uses the fill's angled moving edge too (same mask).
     local fm = Style.GetFillMask(c.bar)
     if fm and c.lightMask ~= fm then
@@ -293,6 +301,7 @@ function Cast.Update(p)
     c.text:SetText(name)
     c.icon:SetTexture(texture)
     c.time:Show()
+    Cast.UpdateTarget(c, u)
     Cast.Unkick(p)
     paintFill(c, channel)
     Cast.UpdateKickMark(c)
@@ -300,6 +309,40 @@ function Cast.Update(p)
     DUI.Motion.AlphaTo(c, 1, 0) -- immediately, ending any fade-out in progress
     startTime(c)
     ns.Plate.Dim(p)
+end
+
+-- The cast's target in its class color (castTarget, on by default). The client
+-- always hands the name and class over secret, so both go whole to the text: the
+-- name to SetText, the class through the game's own class color to SetTextColor.
+-- No answer (an area spell, a self cast) leaves it empty.
+local function targetColor(fs, class)
+    if type(class) ~= "nil" and C_ClassColor and C_ClassColor.GetClassColor then
+        local ok, col = pcall(C_ClassColor.GetClassColor, class)
+        if ok and type(col) == "table" and not isSecret(col) then
+            fs:SetTextColor(col.r, col.g, col.b)
+            return
+        end
+    end
+    Style.InkText(fs, "VALUE")
+end
+
+function Cast.UpdateTarget(c, u)
+    local fs = c.target
+    if ns.cfg.castTarget == false or type(UnitSpellTargetName) ~= "function" then
+        fs:SetText("")
+        fs:Hide()
+        return
+    end
+    local ok, name = pcall(UnitSpellTargetName, u)
+    if not ok or type(name) == "nil" then name = "" end
+    fs:SetText(name)
+    local class
+    if type(UnitSpellTargetClass) == "function" then
+        local got, cls = pcall(UnitSpellTargetClass, u)
+        if got then class = cls end
+    end
+    targetColor(fs, class)
+    fs:Show()
 end
 
 -- Your interrupt's ready mark on a running cast (castKickMark, on by default).
@@ -343,6 +386,13 @@ function Cast.ShowSample(p, s)
     c.icon:SetTexture(s.icon)
     c.time:SetText(s.time)
     c.time:Show()
+    if ns.cfg.castTarget ~= false and s.target then
+        c.target:SetText(s.target)
+        c.target:SetTextColor(Style.ClassTextColor(s.targetClass))
+        c.target:Show()
+    else
+        c.target:Hide()
+    end
     paintFill(c, false)
     c.leaving = nil
     DUI.Motion.AlphaTo(c, 1, 0)
@@ -401,6 +451,7 @@ function Cast.Interrupted(p)
     fill:SetVertexColor(col[1], col[2], col[3], 1)
     c.text:SetText(INTERRUPTED or "Interrupted")
     c.time:Hide()
+    c.target:Hide()
     flashHit(c)
     C_Timer.After(Cast.INTERRUPTED_FOR, function()
         if c.token == mine then Cast.Stop(p) end

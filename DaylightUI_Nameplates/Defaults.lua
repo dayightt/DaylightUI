@@ -122,6 +122,7 @@ ns.DEFAULTS = {
     castIcon = false, -- spell icon left of the cast bar
     castIconPos = "outleft", -- ...or "outright"
     castX = 0, castY = 0, -- cast bar offset from its spot under the health bar
+    castTarget = true, -- who an enemy's cast is aimed at, in their class color, on its cast bar
     castKickMark = true, -- a thin mark on enemy casts where your interrupt comes off cooldown (DUI.Interrupt)
     kickStyle = "blade", -- interrupted cast animation, one of Motion.KICKS
     kickedBy = true, -- briefly show "Kicked by <name>" beside an interrupted cast
