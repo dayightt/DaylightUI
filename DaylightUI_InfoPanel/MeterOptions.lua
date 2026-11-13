@@ -371,7 +371,7 @@ function MO.Page()
               min = 2, max = 6, step = 1, disabled = off,
               hidden = function(get) return get("win.at") ~= "below" end,
               desc = "The most group members it lists under the damage meter." }),
-        { type = "toggle", key = "meter.enabled", label = "Show the damage meter", only = "main",
+        { type = "toggle", key = "meter.enabled", label = "Enable damage meter", only = "main",
           desc = "Replaces the game's damage meter window. The tab on the panel's edge, on the meter's side, also shows or hides it." },
     }
     win(shows[#shows])
