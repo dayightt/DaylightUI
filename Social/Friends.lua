@@ -16,7 +16,15 @@ local Friends = {}
 ns.Friends = Friends
 
 Friends.EDGE = 16
-Friends.TOP = 44
+Friends.CHIPS_Y = 44
+Friends.TOP = 76
+-- The chips over the list: everyone, friends in this game, everyone online.
+Friends.FILTERS = { "all", "game", "online" }
+Friends.FILTER_WORD = { all = ALL or L["All"], game = L["Same game"], online = L["Online"] }
+Friends.filter = "all"
+-- A friend's faction as the game's own banner icon, cropped like our other icons.
+Friends.FACTION_ICON = { Alliance = "Interface\\Icons\\INV_BannerPVP_02", Horde = "Interface\\Icons\\INV_BannerPVP_01" }
+Friends.FACTION_SIZE = 14
 Friends.ROW = 38
 Friends.IGNORED = 28
 Friends.folds = { offline = true, ignored = true }   -- collapsed sections (this session)
@@ -104,6 +112,7 @@ function Friends.Tip(owner, f)
     elseif f.game and f.status ~= "off" then
         T.Text(string.format(L["Playing %s"], f.game))
     end
+    if f.faction then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
     if f.ruleset then T.Line(L["Server"], f.ruleset) end
     if f.note then T.Line(L["Note"], f.note) end
     if f.broadcast then T.Text("\"" .. f.broadcast .. "\"") end
@@ -161,7 +170,27 @@ function Friends.PaintFooter()
     })
 end
 
+-- Someone you can't play with right now: in another game, or on another ruleset.
+function Friends.Away(f)
+    return f.status ~= "off" and (not f.inGame or not Data().SameRuleset(f.realm))
+end
+
+function Friends.FactionIcon(faction)
+    local file = faction and Friends.FACTION_ICON[faction]
+    if not file then return "" end
+    local n = Friends.FACTION_SIZE
+    return string.format("|T%s:%d:%d:0:0:64:64:5:59:5:59|t ", file, n, n)
+end
+
+function Friends.Filter(id)
+    Friends.filter = id
+    for k, b in pairs(Friends.page.chips) do b.SetOn(k == id) end
+    Friends.Render(nil, true)
+end
+
 local function matches(f, q)
+    if Friends.filter == "online" and f.status == "off" then return false end
+    if Friends.filter == "game" and not (f.inGame and Data().SameRuleset(f.realm)) then return false end
     if q == "" then return true end
     local hay = string.lower(table.concat({ f.account or "", f.tag or "", f.char or "", f.zone or "", f.ruleset or "", f.note or "" }, " "))
     return hay:find(q, 1, true) ~= nil
@@ -169,10 +198,11 @@ end
 
 local function friendRow(s, f)
     local off = f.status == "off"
+    local dim = off or Friends.Away(f)
     local text = f.account
-    if f.char then text = text .. "  " .. Rows().Named(f.char, f.class) end
+    if f.char then text = text .. "  " .. Friends.FactionIcon(f.faction) .. (dim and f.char or Rows().Named(f.char, f.class)) end
     local b = Rows().Row(s, { kind = "friend", height = Friends.ROW, friend = f, text = text, id = "friend:" .. tostring(f.id),
-        color = off and Style.INK.OFF or Style.INK.VALUE, sub = Friends.Sub(f), subColor = off and Style.INK.OFF or Style.INK.LABEL,
+        color = dim and Style.INK.OFF or Style.INK.VALUE, sub = Friends.Sub(f), subColor = dim and Style.INK.OFF or Style.INK.LABEL,
         dot = ns.Window.StatusColor(f.status), picked = f.id == Friends.picked,
         onClick = function() pick(Friends.picked ~= f.id and f.id or nil) end,
         onMenu = function(row) Friends.Menu(row, f) end,
@@ -269,6 +299,17 @@ function Friends.Build(page)
         onChange = function() Friends.Render(nil, true) end })
     page.search:SetPoint("TOPLEFT", page, "TOPLEFT", Friends.EDGE, -10)
     page.search:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Friends.EDGE, -10)
+    page.chips = {}
+    local x = Friends.EDGE
+    for _, id in ipairs(Friends.FILTERS) do
+        local b = W().Chip(page, Friends.FILTER_WORD[id])
+        b.FitWidth()
+        b:SetPoint("TOPLEFT", page, "TOPLEFT", x, -Friends.CHIPS_Y)
+        b:SetScript("OnClick", function() Friends.Filter(id) end)
+        b.SetOn(Friends.filter == id)
+        page.chips[id] = b
+        x = x + b:GetWidth() + W().CHIP_GAP
+    end
     page.stack = Win.Parts.Stack(page, { top = Friends.TOP, bottom = 52 })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
@@ -287,6 +328,7 @@ end
 
 function Friends.Pieces(page)
     local out = { page.search }
+    for _, id in ipairs(Friends.FILTERS) do out[#out + 1] = page.chips[id] end
     for i, p in ipairs(page.pieces or {}) do
         if i > 12 then break end
         out[#out + 1] = p

@@ -98,9 +98,12 @@ function Data.SameRuleset(realm)
     return mine == nil or theirs == nil or mine == theirs
 end
 
+Data.FACTIONS = { Alliance = true, Horde = true }
+
 -- One friend: { id, account, tag, favorite, status ("on", "away", "busy", "off"),
--- inGame (in this World of Warcraft), char, class, level, zone, race, ruleset, game
--- (another game's name), lastOnline (seconds ago), note, broadcast, gameAccountID }.
+-- inGame (in this World of Warcraft), char, class, level, zone, race, faction
+-- ("Alliance" or "Horde"), ruleset, game (another game's name), lastOnline (seconds
+-- ago), note, broadcast, gameAccountID }.
 local function friend(info)
     if type(info) ~= "table" then return nil end
     local g = type(info.gameAccountInfo) == "table" and info.gameAccountInfo or {}
@@ -120,6 +123,7 @@ local function friend(info)
     if f.inGame then
         f.char, f.class, f.level = str(g.characterName), str(g.classFilename), num(g.characterLevel)
         f.zone, f.race = str(g.areaName), str(g.raceName)
+        f.faction = Data.FACTIONS[str(g.factionName) or ""] and g.factionName or nil
     end
     -- Like the game's own card: the display name, only within the player's region.
     if g.clientProgram == Data.CLIENT_WOW and g.isInCurrentRegion ~= false then

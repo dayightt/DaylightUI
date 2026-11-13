@@ -271,6 +271,45 @@ T.test("social: a friend's ruleset is on the row and the card, and searchable; t
     T.eq(#rows(page.stack, "friend"), 1)
 end)
 
+T.test("social: friends show their faction; another game or ruleset is dimmed; chips filter All, Same game, Online", function()
+    local function friend(id, name, extra)
+        local g = { gameAccountID = 100 + id, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
+            characterName = name, classFilename = "MAGE", characterLevel = 10, areaName = "Durotar" }
+        for k, v in pairs(extra) do g[k] = v end
+        return { bnetAccountID = id, accountName = name, gameAccountInfo = g }
+    end
+    local was = _G.GetRealmName
+    _G.GetRealmName = function() return "CAMWOW US1 Realm 8 PvP" end
+    local ns = load({ friends = {
+        friend(1, "Ally", { factionName = "Alliance", realmDisplayName = "CAMWOW US1 Realm 2 PvP" }),
+        friend(2, "Hordie", { factionName = "Horde", realmDisplayName = "CAMWOW US1 Realm 10 RP" }),
+        { bnetAccountID = 3, accountName = "Sol", gameAccountInfo = { gameAccountID = 103, clientProgram = "Fen", isOnline = true, richPresence = "Diablo IV" } },
+        { bnetAccountID = 4, accountName = "Pip", lastOnlineTime = time() - 60, gameAccountInfo = { isOnline = false, clientProgram = "" } },
+    } })
+    open(ns)
+    local page = ns.Friends.page
+    local INK = DaylightUI.Style.INK
+    local list = rows(page.stack, "friend")
+    T.truthy(list[1].name:GetText():find("INV_BannerPVP_02", 1, true), "Alliance's banner")
+    T.truthy(list[2].name:GetText():find("INV_BannerPVP_01", 1, true), "Horde's banner")
+    T.falsy(list[3].name:GetText():find("|T", 1, true), "another game: no faction")
+    local function color(b) local r, g, bl = b.name:GetTextColor() return { r, g, bl } end
+    T.rgb(color(list[1]), INK.VALUE, "your ruleset, this game: bright")
+    T.rgb(color(list[2]), INK.OFF, "another ruleset: dimmed")
+    T.rgb(color(list[3]), INK.OFF, "another game: dimmed")
+    T.falsy(list[2].name:GetText():find("|c", 1, true), "dimmed: no class color either")
+    stub.Key(function() page.chips.game:Click() end)
+    frame(2)
+    T.eq(#rows(page.stack, "friend"), 1, "Same game: only who you can play with")
+    stub.Key(function() page.chips.online:Click() end)
+    frame(2)
+    T.eq(#rows(page.stack, "friend"), 3, "Online: everyone on, any game")
+    stub.Key(function() page.chips.all:Click() end)
+    frame(2)
+    _G.GetRealmName = was
+    clean()
+end)
+
 T.test("social: a friend coming online moves up to Online with a shine", function()
     local ns = load()
     open(ns)
