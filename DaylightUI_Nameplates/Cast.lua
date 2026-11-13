@@ -34,6 +34,23 @@ end
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
+-- A piece claimed by a plugin (DaylightUI.API's Paint, kind "platecast": the
+-- same pieces as the unit frames' "castbar") is left to it.
+local function owned(part)
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Owned("platecast", part) == true
+end
+
+-- Every paint of a plate's cast bar ends here, so plugins can apply their look.
+-- A plate not yet handed to the API (still being set up) is painted once it is.
+function Cast.Painted(p)
+    local R = DUI.APIReport
+    if not (type(R) == "table" and R.Painting("platecast") and p.apiSeen) then return end
+    local c = p.cast
+    R.Painted("platecast", c, { unit = p.unit, spellID = c.spellID, channel = c.channel == true,
+        notInterruptible = c.notInterruptible, interrupted = c.interrupted == true })
+end
+
 function Cast.Create(p)
     local c = CreateFrame("Frame", nil, p)
     -- Slim and plain, continuing the health bar's angle along its top (Body.lua's
@@ -250,6 +267,17 @@ local WHITE = CreateColor(1, 1, 1, 1)
 -- The fill is the same for every cast: one color, the Daylight gradient, or the
 -- Gradients page's Cast / Channel pair.
 local function paintFill(c, channel)
+    -- A plugin's fill: white under its texture, no gradient; the empty part in
+    -- the cast color unless the plugin holds that too.
+    if owned("fill") then
+        Style.SetBarGradient(c.bar, false)
+        c.bar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
+        if not owned("back") then
+            local col = castColor()
+            ns.Plate.SetBackColor(c.bar, col[1], col[2], col[3])
+        end
+        return
+    end
     local mode = ns.cfg.castFill
     local G = mode == "pair" and DUI.Gradients
     local sweep = Style.SetBarGradient(c.bar, mode == "daylight" and not G)
@@ -278,10 +306,11 @@ function Cast.Update(p)
     local c, u = p.cast, p.unit
     if not u or p.friendly then return Cast.Stop(p) end
     -- displayName, as the game's own bar uses: the first value can be an untranslated name.
-    local _, name, texture = UnitCastingInfo(u)
+    -- The flag and spell id are only kept for plugins (Cast.Painted), passed on whole.
+    local _, name, texture, _, _, _, _, ni, spellID = UnitCastingInfo(u)
     local channel = false
     if type(name) == "nil" then
-        _, name, texture = UnitChannelInfo(u)
+        _, name, texture, _, _, _, ni, spellID = UnitChannelInfo(u)
         channel = type(name) ~= "nil"
     end
     if type(name) == "nil" then return Cast.Stop(p) end
@@ -295,6 +324,7 @@ function Cast.Update(p)
     if p.castStale then Cast.Layout(p, p.hpCut) end
     c.token = (c.token or 0) + 1
     c.duration, c.channel = duration, channel
+    c.spellID, c.notInterruptible, c.interrupted = spellID, ni, nil
     local dir = Enum.StatusBarTimerDirection
     c.bar:SetTimerDuration(duration, Enum.StatusBarInterpolation.Immediate,
         channel and dir.RemainingTime or dir.ElapsedTime)
@@ -309,6 +339,7 @@ function Cast.Update(p)
     DUI.Motion.AlphaTo(c, 1, 0) -- immediately, ending any fade-out in progress
     startTime(c)
     ns.Plate.Dim(p)
+    Cast.Painted(p)
 end
 
 -- The cast's target in its class color (castTarget, on by default). The client
@@ -393,9 +424,11 @@ function Cast.ShowSample(p, s)
     else
         c.target:Hide()
     end
+    c.spellID, c.channel, c.notInterruptible, c.interrupted = nil, false, false, nil
     paintFill(c, false)
     c.leaving = nil
     DUI.Motion.AlphaTo(c, 1, 0)
+    Cast.Painted(p)
 end
 
 -- Options window: play an interrupt on the preview plate (the last one shown) as
@@ -444,15 +477,20 @@ function Cast.Interrupted(p)
     local mine = c.token
     c.bar:SetMinMaxValues(0, 1)
     c.bar:SetValue(1)
-    local col = Cast.INTERRUPTED
-    local fill = c.bar:GetStatusBarTexture()
-    Style.SetBarGradient(c.bar, false)
-    if fill.SetGradient then fill:SetGradient("HORIZONTAL", WHITE, WHITE) end
-    fill:SetVertexColor(col[1], col[2], col[3], 1)
+    -- A plugin's fill keeps its look; info.interrupted tells it to show the red.
+    c.interrupted = true
+    if not owned("fill") then
+        local col = Cast.INTERRUPTED
+        local fill = c.bar:GetStatusBarTexture()
+        Style.SetBarGradient(c.bar, false)
+        if fill.SetGradient then fill:SetGradient("HORIZONTAL", WHITE, WHITE) end
+        fill:SetVertexColor(col[1], col[2], col[3], 1)
+    end
     c.text:SetText(INTERRUPTED or "Interrupted")
     c.time:Hide()
     c.target:Hide()
     flashHit(c)
+    Cast.Painted(p)
     C_Timer.After(Cast.INTERRUPTED_FOR, function()
         if c.token == mine then Cast.Stop(p) end
     end)
@@ -476,4 +514,19 @@ function Cast.OnEvent(p, event, ...)
     else
         Cast.Update(p)
     end
+end
+
+-- What plugins get from a plate's cast bar (DaylightUI.API's Paint, kind
+-- "platecast", the same pieces as "castbar"), and how it gets its own look back.
+if DUI.APIReport then
+    DUI.APIReport.Parts("platecast", function(c)
+        return { fill = c.bar:GetStatusBarTexture(), bar = c.bar, back = Style.BarBack(c.bar),
+                 name = c.text, time = c.time, icon = c.icon }
+    end)
+    DUI.APIReport.Repainter("platecast", function(c)
+        if not owned("fill") then Style.ResetBarFill(c.bar) end -- drop the plugin's texture
+        local p = c:GetParent()
+        if c.interrupted or not Cast.Shown(p) then return end
+        paintFill(c, c.channel)
+    end)
 end

@@ -46,13 +46,13 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 3
+print(API.major, API.minor)   -- 1, 4
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 3 }` for Paint, hooks, texts and
-  settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
+- Register as a plugin with the version you use: `needs = { 1, 4 }` for Paint on nameplates and
+  their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
 
@@ -99,6 +99,15 @@ end, { owns = { "fill" } })
 
 `owns` claims the fill: Daylight UI stops coloring and texturing it, so your texture shows as you
 drew it. Without `owns` Daylight UI keeps its own look and your function paints on top after it.
+The same function with `"platecast"` does the nameplates' cast bars (1.4).
+
+**Recolor the nameplates' names** (1.4):
+
+```lua
+me.Paint("nameplate", function(plate, parts, unit)
+    parts.name:SetTextColor(1, 0.85, 0.4)
+end, { owns = { "name" } })
+```
 
 **Recolor every health bar** (unit frames, party and raid tiles):
 
@@ -182,6 +191,11 @@ Since 1.3:
 - `"questrow"`: a quest in the quest tracker. Its `unit` is the quest's id.
 - `"bagslot"`: an item slot in the bag, bank and alts windows. Its `unit` is `"bag:slot"`; a saved
   copy (an alt's bags) comes as a preview.
+
+Since 1.4:
+
+- `"platecast"`: a nameplate's cast bar. It comes and goes with its plate, and its `unit` is the
+  plate's (`"nameplate3"`). Same pieces and `info` as `"castbar"`, so one function can paint both.
 
 Tiles and lines are reused as the list changes (a search, another vendor), so they work like
 nameplates: `FrameUnitChanged` when one shows another item, `FrameRemoved` when it's hidden or the
@@ -312,6 +326,8 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 | Kind | Parts | When it's painted | `info` |
 |---|---|---|---|
 | `"castbar"` | `fill`, `bar`, `back`, `name`, `time`, `icon` | each cast or channel, an interrupt, a setting | `{ unit, spellID, channel, notInterruptible, interrupted }` |
+| `"platecast"` (1.4) | the same as `"castbar"` | each cast or channel, an interrupt, a setting | the same as `"castbar"` |
+| `"nameplate"` (1.4) | `health`, `healthFill`, `healthBack`, `healthText`, `power`, `powerFill`, `powerBack`, `name`, `guild` (the guild or title line), `level`, `dragon` (the elite mark), `marker` (the raid marker), `cast` (its cast bar's frame) | a new unit, a recolor (reaction, threat, tapped, a boss or rare color), the level, guild line or power type, a setting; never on each health tick | the unit |
 | `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `border`, `band` (lists of textures) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
 | `"questrow"` | `title`, `objectives` (a list), `bar`, `icon` | each layout of the tracker | `{ questID }` |
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
@@ -320,7 +336,10 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 
 Pieces a unit frame doesn't have (a raid tile's portrait) are `nil`. Claims that are honored on
 every repaint, the per-tick health color too: `healthFill`, `healthBack`, `powerFill`, `powerBack`,
-`name` on unit frames, `fill` and `back` on cast bars. Other pieces are painted only at the moments
+`name` on unit frames, `fill` and `back` on cast bars (a nameplate's too), and on nameplates
+`healthFill`, `healthBack`, `powerFill`, `powerBack`, `name`, `guild`, `level` and `dragon`. A
+`back` claim counts together with its fill's. A nameplate's threat border, glow and pulse stay
+Daylight UI's over a claimed fill (they're fight information). Other pieces are painted only at the moments
 in the table, so your paint right after wins. A cast you can't interrupt still shows Daylight UI's
 warning over a claimed fill (it's fight information), and `interrupted` says the bar is showing an
 interrupt. In a fight, another unit's `notInterruptible` and `spellID` may be secrets: hand them to

@@ -3,9 +3,9 @@ local stub = require("stub")
 -- The unit frames, party, raid and party pets tell the API (API.lua) when they're
 -- made, change unit, go away and get restyled.
 
-local function recorder(API, event)
+local function recorder(API, event, kind)
     local calls = {}
-    API.On(event, function(...) calls[#calls + 1] = { ... } end)
+    API.On(event, function(...) if not kind or (...) == kind then calls[#calls + 1] = { ... } end end)
     return calls
 end
 
@@ -267,8 +267,8 @@ end
 
 T.test("api plates: a plate is announced and found by its unit", function()
     local DUI, ns = plateLoad()
-    local made = recorder(DUI.API, "FrameMade")
-    local changed = recorder(DUI.API, "FrameUnitChanged")
+    local made = recorder(DUI.API, "FrameMade", "nameplate")
+    local changed = recorder(DUI.API, "FrameUnitChanged", "nameplate")
     stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
     local p = ns.Manager.byUnit.nameplate1
     T.truthy(p)
@@ -290,7 +290,7 @@ T.test("api plates: a reused plate says goodbye to its old unit first", function
     local DUI, ns = plateLoad()
     local log = {}
     for _, ev in ipairs({ "FrameMade", "FrameUnitChanged", "FrameRemoved" }) do
-        DUI.API.On(ev, function(kind, f, unit) log[#log + 1] = ev .. ":" .. tostring(unit) end)
+        DUI.API.On(ev, function(kind, f, unit) if kind == "nameplate" then log[#log + 1] = ev .. ":" .. tostring(unit) end end)
     end
     stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
     local p = ns.Manager.byUnit.nameplate1
@@ -308,7 +308,7 @@ T.test("api plates: a plate is told once it is sized", function()
     local size = ns.Manager.SizeOne
     ns.Manager.SizeOne = function(p) sized[p] = true; return size(p) end
     local ready
-    DUI.API.On("FrameUnitChanged", function(_, f) ready = sized[f] == true end)
+    DUI.API.On("FrameUnitChanged", function(kind, f) if kind == "nameplate" then ready = sized[f] == true end end)
     stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
     ns.Manager.SizeOne = size
     T.eq(ready, true, "sized before FrameUnitChanged")
@@ -338,8 +338,8 @@ end)
 
 T.test("api plates: the options page's sample plates are previews", function()
     local DUI = plateLoad()
-    local made = recorder(DUI.API, "FrameMade")
-    local removed = recorder(DUI.API, "FrameRemoved")
+    local made = recorder(DUI.API, "FrameMade", "nameplate")
+    local removed = recorder(DUI.API, "FrameRemoved", "nameplate")
     local P = DUI.OptionsPanel
     P.Show("Nameplates.plates")
     local s = P.Strip().Sample()

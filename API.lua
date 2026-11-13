@@ -7,7 +7,8 @@
 -- focustarget), "party", "raid", "partypet", "nameplate", "actionbutton".
 -- List rows in our windows (1.2): "shoptile" (the vendor's shelf, unit =
 -- "buy:<index>" or "buyback:<index>", see API.ShopItem) and "craftrow" (the
--- profession window's recipe lines, unit = the recipe id).
+-- profession window's recipe lines, unit = the recipe id). 1.4: "platecast",
+-- a nameplate's cast bar (unit = its plate's).
 -- Frame events, args (kind, frame, unit, isPreview): FrameMade,
 -- FrameUnitChanged, FrameRemoved, FrameStyled. A frame that changes unit (a
 -- pooled plate) first gets FrameRemoved for the old one. Preview frames (test

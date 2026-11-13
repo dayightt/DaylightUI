@@ -363,6 +363,14 @@ local function paintBar(p, c, u, pct, t)
     if u.class then r, g, b = Style.ClassColor(u.class) else r, g, b = Style.ReactionColor(u.reaction) end
     if c.healthColor == "custom" then r, g, b = Style.Soften(c.healthCustom[1], c.healthCustom[2], c.healthCustom[3]) end
     if onBar then r, g, b = Style.Soften(t[1], t[2], t[3]) end
+    -- A plugin's fill (DaylightUI.API's Paint), as on a real plate.
+    if Plate.Owned("healthFill") then
+        Style.SetBarGradient(bar, false)
+        bar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
+        if not Plate.Owned("healthBack") then Plate.SetBackColor(bar, r, g, b) end
+        Plate.PaintClassLayers(p, nil, nil)
+        return
+    end
     Style.SetBarColor(bar, r, g, b)
     if c.healthColor == "gradient" and not onBar and not (u.kind and c[Plate.KIND_COLOR[u.kind]]) then
         Style.SetBarColor(bar, DUI.Health.GradientAt(pct / 100))
@@ -378,8 +386,8 @@ local function paintBar(p, c, u, pct, t)
     Plate.PaintClassLayers(p, nil, nil)
 end
 
--- Name in its color (as Plate.UpdateNameColor), plus the guild line.
-local function paintNames(p, c, u)
+-- The name's color, and its text (per-letter colors for a class gradient).
+local function nameColor(p, c, u)
     local name = u.name
     if u.party and c.partyName == true then
         local t = c.partyCustom
@@ -398,6 +406,14 @@ local function paintNames(p, c, u)
         local r, g, b = Style.ReactionColor(u.reaction)
         p.name:SetTextColor(Style.Lighten(r, g, b, Plate.NAME_LIGHTEN))
     end
+    return name
+end
+
+-- Name in its color (as Plate.UpdateNameColor), plus the guild line. A plugin's
+-- name keeps its color.
+local function paintNames(p, c, u)
+    local name = u.name
+    if not Plate.Owned("name") then name = nameColor(p, c, u) end
     p.name:SetText(name)
     Plate.ShowGroupMark(p, u.party == true and (c.partyMark or "none") ~= "none")
     -- An enemy player represents the other faction (factionIcon).
@@ -488,6 +504,7 @@ end
 local function refresh(s, width, maxH)
     local c = ns.cfg
     if not c then return 0 end
+    s.width, s.maxH = width, maxH
     local p = s.p
     local friendly = s.id == "friendly"
     local u = Sample.ENEMY
@@ -595,6 +612,7 @@ local function refresh(s, width, maxH)
     elseif s.combo then
         s.combo:Hide()
     end
+    Plate.Painted(p)
 
     local group = Plate.SizeGroup(c, p.sizeGroup)
     local grow = Sample.zoom * (c.scale or 1) * (group and group.scale or 1)
@@ -611,12 +629,27 @@ function Sample.New(id, parent)
     -- Registered with the API as a preview while it shows (never looked up). Created
     -- once with no unit (no page's sample is a real unit, and the Friendly one isn't
     -- even an enemy), so showing it again is just a unit change, still to none.
+    -- Its cast bar likewise, as a "platecast" preview.
     local function show()
-        if s.p.apiSeen then DUI.APIReport.Back("nameplate", s.p)
-        else s.p.apiSeen = true; DUI.APIReport.Made("nameplate", s.p, nil, true) end
+        local R = DUI.APIReport
+        if s.p.apiSeen then
+            R.Back("nameplate", s.p)
+            R.Back("platecast", s.p.cast)
+        else
+            s.p.apiSeen = true
+            R.Made("nameplate", s.p, nil, true)
+            R.Made("platecast", s.p.cast, nil, true)
+        end
     end
     s.frame:HookScript("OnShow", show)
-    s.frame:HookScript("OnHide", function() DUI.APIReport.Gone("nameplate", s.p, true) end)
+    s.frame:HookScript("OnHide", function()
+        DUI.APIReport.Gone("nameplate", s.p, true)
+        DUI.APIReport.Gone("platecast", s.p.cast, true)
+    end)
+    -- A plugin letting go of a piece repaints the preview (Plate.lua's repainter).
+    s.p.sampleRepaint = function()
+        if s.width then refresh(s, s.width, s.maxH) end
+    end
     if s.frame:IsVisible() then show() end
     function s.Zoom() return Sample.zoom end
     function s.SetZoom(v)

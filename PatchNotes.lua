@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "Plugins", "Other addons can restyle Daylight UI's nameplates and their cast bars too: daylightui.com/plugins" },
+        },
+    },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",
         new = {
             { "Bug reports", "A bug icon on the options home page (or /dui bug) gathers everything the Discord bug form needs. Thanks to blukraken" },

@@ -214,11 +214,17 @@ function Manager.Added(unit)
     -- Registered with the API once it's really up and sized (a plate that failed above
     -- never is). The first time a pooled plate shows it's created; every time, it
     -- gets a unit.
+    -- Its cast bar goes along as a "platecast" frame.
     if not p.apiSeen then
         p.apiSeen = true
         DUI.APIReport.Made("nameplate", p, nil, false)
+        DUI.APIReport.Made("platecast", p.cast, nil, false)
     end
     DUI.APIReport.Unit("nameplate", p, unit, false)
+    DUI.APIReport.Unit("platecast", p.cast, unit, false)
+    -- Set up before the API knew it, so plugins paint it now.
+    ns.Plate.Painted(p)
+    if ns.Cast.Shown(p) then ns.Cast.Painted(p) end
 end
 
 -- Whether one of our plates can still be read and changed where it is.
@@ -318,7 +324,10 @@ function Manager.Removed(unit)
     byUnit[unit] = nil
     local wasTarget = p.isTarget
     -- The plate releases its unit but stays known for the next one.
-    if p.apiSeen then DUI.APIReport.Gone("nameplate", p, false) end
+    if p.apiSeen then
+        DUI.APIReport.Gone("nameplate", p, false)
+        DUI.APIReport.Gone("platecast", p.cast, false)
+    end
     -- The frame we silenced, not the plate's: the game has already taken its frame
     -- off the plate.
     DUI.SafeCall(Manager.UnsilenceFrame, p.gameFrame)

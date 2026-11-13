@@ -194,6 +194,33 @@ function Plate.BackAlpha(bar)
     back:SetAlpha(a and a / Style.BAR_BACK_ALPHA or 1)
 end
 
+-- A piece claimed by a plugin (DaylightUI.API's Paint, kind "nameplate":
+-- "healthFill", "name", "level"...) is left to it and never colored here.
+-- Every plate is the same kind, so this is one table read.
+function Plate.Owned(part)
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Owned("nameplate", part) == true
+end
+
+-- p was just painted (a new unit, a recolor, the level or guild line, a
+-- setting), so plugins that paint nameplates apply their look on top. Never
+-- called from a health tick.
+function Plate.Painted(p)
+    local R = DUI.APIReport
+    if not (type(R) == "table" and R.Painting("nameplate")) then return end
+    -- A plate not yet handed to the API (still being set up) is painted once it is.
+    if not p.apiSeen then return end
+    R.Painted("nameplate", p, p.unit)
+end
+
+-- Only the empty part's color, when a plugin holds the fill.
+function Plate.SetBackColor(bar, r, g, b)
+    local back = Style.BarBack(bar)
+    if not back then return end
+    local k = Style.BAR_BACK_DIM
+    back:SetVertexColor(r * k, g * k, b * k, Style.BAR_BACK_ALPHA)
+end
+
 -- ---------------------------------------------------------------------
 -- Building
 -- ---------------------------------------------------------------------
@@ -794,7 +821,8 @@ function Plate.UpdateHealth(p, instant)
     if instant then Plate.UpdateHealthMax(p) end
     Style.SetBarValue(p.health, UnitHealth(u), instant)
     -- The gradient follows health, unless a threat color is showing.
-    if c.healthColor == "gradient" and not p.threatColored and not p.kindColored and not p.tapped then
+    if c.healthColor == "gradient" and not p.threatColored and not p.kindColored and not p.tapped
+        and not Plate.Owned("healthFill") then
         DUI.Health.ApplyGradient(p.health, u)
     end
     if p.percent:IsShown() then DUI.Health.Write(p.percent, c.healthFormat or "percent", u, true) end
@@ -1219,16 +1247,18 @@ end
 function Plate.UpdateClassText(p)
     local u, c = p.unit, Plate.Cfg(p)
     local hidden, id = Plate.HiddenClass(u)
-    local copies = hidden and c.nameColor == "classGradient" and not p.groupName
+    -- A name or guild line a plugin holds keeps its own color, no copies over it.
+    local nameMine, subMine = not Plate.Owned("name"), not Plate.Owned("guild")
+    local copies = hidden and nameMine and c.nameColor == "classGradient" and not p.groupName
     local classy = Plate.GuildInClass(c)
-    local subOn = copies and classy and p.guild ~= nil and p.sub:IsShown()
+    local subOn = copies and subMine and classy and p.guild ~= nil and p.sub:IsShown()
     p.name:SetAlpha(copies and 0 or 1)
     p.sub:SetAlpha(subOn and 0 or 1)
     if hidden and not copies then
         local r, g, b = DUI.Gradients.HiddenClassColor(u)
         if type(r) ~= "nil" then
-            if c.nameColor == "class" and not p.groupName then p.name:SetTextColor(r, g, b) end
-            if p.guild ~= nil and classy then p.sub:SetTextColor(r, g, b) end
+            if nameMine and c.nameColor == "class" and not p.groupName then p.name:SetTextColor(r, g, b) end
+            if subMine and p.guild ~= nil and classy then p.sub:SetTextColor(r, g, b) end
         end
     end
     if not copies then
@@ -1495,6 +1525,25 @@ function Plate.UpdateBarColor(p)
     p.kindColored = kc ~= nil
     if kc then r, g, b = Style.Soften(kc[1], kc[2], kc[3]) end
     if onBar then r, g, b = Style.Soften(t[1], t[2], t[3]) end
+    -- A plugin's fill: white under its texture, no gradient, no class layers. The
+    -- border, glow and pulse are still threat's, and the empty part keeps the
+    -- unit's color unless the plugin holds that too.
+    if Plate.Owned("healthFill") then
+        Style.SetBarGradient(p.health, false)
+        p.health:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
+        if not Plate.Owned("healthBack") then Plate.SetBackColor(p.health, r, g, b) end
+        if not p.layersOff then
+            Plate.PaintClassLayers(p, nil, nil)
+            p.layersOff = true
+        end
+        p.tapped = false
+        Plate.ApplyThreatBorder(p, t)
+        Plate.ApplyThreatGlow(p, t)
+        Plate.ApplyThreatPulse(p, t)
+        Plate.UpdateThreatPct(p)
+        Plate.UpdateThreatSize(p)
+        return Plate.Painted(p)
+    end
     Style.SetBarColor(p.health, r, g, b)
     if c.healthColor == "gradient" and not onBar and not kc then
         Style.SetBarColor(p.health, Style.Neutral())
@@ -1532,6 +1581,7 @@ function Plate.UpdateBarColor(p)
     elseif tapped then
         Style.SetBarColor(p.health, Style.Neutral())
     end
+    Plate.Painted(p)
 end
 
 -- A friendly plate on someone in your party or raid, with Group names on: the name
@@ -1550,14 +1600,11 @@ function Plate.InGroup(p)
     return plain(UnitInParty, u) == true or type(plain(UnitInRaid, u)) == "number"
 end
 
-function Plate.UpdateNameColor(p)
-    local u = p.unit
-    local c = Plate.Cfg(p)
-    p.groupName = Plate.InGroupName(p)
-    -- Players' names in their class color, NPCs' in their reaction color (green
-    -- friendly, yellow neutral, red hostile), slightly lighter. "reaction" applies to
-    -- players too, so an enemy player reads red. Or all white. Group members get
-    -- their own color when that's on.
+-- Players' names in their class color, NPCs' in their reaction color (green
+-- friendly, yellow neutral, red hostile), slightly lighter. "reaction" applies to
+-- players too, so an enemy player reads red. Or all white. Group members get
+-- their own color when that's on.
+local function paintNameColor(p, c, u)
     if p.groupName then
         local t = c.partyCustom
         p.name:SetTextColor(t[1], t[2], t[3])
@@ -1575,16 +1622,27 @@ function Plate.UpdateNameColor(p)
         local nr, ng, nb = Style.ReactionColor(UnitReaction(u, "player"))
         p.name:SetTextColor(Style.Lighten(nr, ng, nb, Plate.NAME_LIGHTEN))
     end
+end
+
+function Plate.UpdateNameColor(p)
+    local u = p.unit
+    local c = Plate.Cfg(p)
+    p.groupName = Plate.InGroupName(p)
+    -- A plugin's name (DaylightUI.API's Paint) keeps its color.
+    if not Plate.Owned("name") then paintNameColor(p, c, u) end
     Plate.UpdateName(p)
     Plate.UpdateClassText(p)
     Plate.ShowGroupMark(p, (c.partyMark or "none") ~= "none" and Plate.InGroup(p))
     Plate.ShowFaction(p, c.factionIcon == true and Plate.OtherFaction(u))
+    Plate.Painted(p)
 end
 
--- The name, each letter in the unit's gradient when chosen.
+-- The name, each letter in the unit's gradient when chosen (not on a name a
+-- plugin holds: the letters would carry Daylight UI's colors over its own).
 function Plate.UpdateName(p)
     local text = DUI.UnitName(p.unit, "nameplates")
-    if Plate.Cfg(p).nameColor == "classGradient" and DUI.Gradients and not p.groupName then
+    if Plate.Cfg(p).nameColor == "classGradient" and DUI.Gradients and not p.groupName
+        and not Plate.Owned("name") then
         text = DUI.Gradients.Text(DUI.Gradients.KeyFor(p.unit), text)
     end
     p.name:SetText(text)
@@ -1618,7 +1676,7 @@ function Plate.PaintDragon(p, classification)
     local kind = p.dragonAllowed and Plate.DRAGON_KIND[classification or ""]
     if not kind then p.dragon:Hide() return end
     local c = Plate.DRAGON_COLORS[kind]
-    p.dragon:SetVertexColor(c[1], c[2], c[3], 1)
+    if not Plate.Owned("dragon") then p.dragon:SetVertexColor(c[1], c[2], c[3], 1) end
     p.dragon:Show()
 end
 
@@ -1657,15 +1715,22 @@ function Plate.PaintLevel(p, lvl, classification, unit)
         if type(c) == "table" and c.r then r, g, b = c.r, c.g, c.b end
     end
     p.level:SetText(text)
-    -- "??" keeps its skull red whatever the setting: danger is what the glance needs.
-    local mode = lvl > 0 and Plate.Cfg(p).levelColor or "difficulty"
-    if mode == "white" then return Style.InkText(p.level, "VALUE") end
-    if mode == "accent" then return Style.InkText(p.level, "pop") end
-    if mode == "custom" then
-        local t = Plate.Cfg(p).levelCustom
-        if type(t) == "table" then return p.level:SetTextColor(t[1], t[2], t[3]) end
+    -- A plugin's level (DaylightUI.API's Paint) keeps its color.
+    if not Plate.Owned("level") then
+        -- "??" keeps its skull red whatever the setting: danger is what the glance needs.
+        local mode = lvl > 0 and Plate.Cfg(p).levelColor or "difficulty"
+        local t = mode == "custom" and Plate.Cfg(p).levelCustom
+        if mode == "white" then
+            Style.InkText(p.level, "VALUE")
+        elseif mode == "accent" then
+            Style.InkText(p.level, "pop")
+        elseif type(t) == "table" then
+            p.level:SetTextColor(t[1], t[2], t[3])
+        elseif r then
+            p.level:SetTextColor(Style.Soften(r, g, b))
+        end
     end
-    if r then p.level:SetTextColor(Style.Soften(r, g, b)) end
+    Plate.Painted(p)
 end
 
 -- Level lines the tooltip's second line can hold instead of a title (built once,
@@ -2260,8 +2325,10 @@ function Plate.GuildInClass(c)
     return c.guildColor ~= "white" and c.guildColor ~= "custom"
 end
 
--- White or one chosen color. False: the caller sets the line's color.
+-- White or one chosen color. False: the caller sets the line's color. A line a
+-- plugin holds (DaylightUI.API's Paint, "guild") is left as it is.
 function Plate.PaintSub(p, mode, custom)
+    if Plate.Owned("guild") then return true end
     if mode == "white" then
         Style.InkText(p.sub, "VALUE")
     elseif mode == "custom" and type(custom) == "table" then
@@ -2312,6 +2379,7 @@ function Plate.UpdateSub(p, noClassText)
     p.sub:SetShown(shown and not (p.minion or p.minionBar))
     Plate.PlaceSpots(p)
     if not noClassText then Plate.UpdateClassText(p) end
+    Plate.Painted(p)
 end
 
 -- arrive: from RAID_TARGET_UPDATE, a newly set marker fades in FAST (like the unit
@@ -2904,4 +2972,30 @@ function Plate.Uninstall(p)
     p:SetAlpha(1)
     p.unit = nil
     p:Hide()
+end
+
+-- What plugins get from a plate (DaylightUI.API's Paint, kind "nameplate"),
+-- and how a plate gets its own look back when a plugin lets go of a piece.
+if DUI.APIReport then
+    DUI.APIReport.Parts("nameplate", function(p)
+        local pw = p.power and p.power.bar
+        return {
+            health = p.health, healthFill = p.health:GetStatusBarTexture(), healthBack = Style.BarBack(p.health),
+            healthText = p.percent, power = pw, powerFill = pw and pw:GetStatusBarTexture(),
+            powerBack = pw and Style.BarBack(pw), name = p.name, guild = p.sub, level = p.level,
+            dragon = p.dragon, marker = p.marker, cast = p.cast,
+        }
+    end)
+    DUI.APIReport.Repainter("nameplate", function(p)
+        -- Remove a plugin's fill texture from the bars it let go.
+        if not Plate.Owned("healthFill") then Style.ResetBarFill(p.health) end
+        local pw = p.power and p.power.bar
+        if pw and not Plate.Owned("powerFill") then Style.ResetBarFill(pw) end
+        if p.isSample then
+            if p.sampleRepaint then p.sampleRepaint() end
+            return
+        end
+        if not p.unit then return end
+        Plate.UpdateAll(p)
+    end)
 end

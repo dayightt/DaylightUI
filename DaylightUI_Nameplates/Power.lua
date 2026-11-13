@@ -115,13 +115,20 @@ end
 -- gradient. token is the unit's power token (nil = mana).
 function Power.Paint(p, token)
     local bar, c = p.power.bar, ns.Plate.Cfg(p)
-    if c.powerColor == "custom" and type(c.powerCustom) == "table" then
+    -- A plugin's fill (DaylightUI.API's Paint): white under its texture, the
+    -- empty part in the power's own color unless the plugin holds that too.
+    if ns.Plate.Owned("powerFill") then
+        Style.SetBarGradient(bar, false)
+        bar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
+        if not ns.Plate.Owned("powerBack") then ns.Plate.SetBackColor(bar, Style.PowerColor(token)) end
+    elseif c.powerColor == "custom" and type(c.powerCustom) == "table" then
         local k = c.powerCustom
         Style.SetBarColor(bar, Style.Soften(k[1], k[2], k[3]))
         DUI.Gradients.PaintFrom(bar, { k[1], k[2], k[3] })
     else
         DUI.Gradients.Paint(bar, DUI.Gradients.PowerKey(token))
     end
+    ns.Plate.Painted(p)
 end
 
 -- Range, color and value (on a new unit, max or power type).
