@@ -485,7 +485,7 @@ function Window.LayoutTools(f)
 end
 
 -- A chip shows only its groups; nothing picked shows everything. Custom groups
--- belong to All only.
+-- belong to All only. Recent is judged item by item (Window.ItemInChip).
 function Window.InChip(f, key)
     local id = f and f.chip
     if not id then return true end
@@ -497,19 +497,30 @@ function Window.InChip(f, key)
     return false
 end
 
+-- Whether an item shows under the picked chip. New loot is judged by the group
+-- it falls in once it's no longer new, so a fresh weapon still shows under Gear.
+function Window.ItemInChip(f, facts, section)
+    if not (f and f.chip) then return true end
+    return Window.InChip(f, ns.Categories.Assign(facts, section, true))
+end
+
 function Window.PaintChips(f)
     for _, b in ipairs(f.chips or {}) do b.SetOn(b.id == (f.chip or "all")) end
 end
 
 -- Picks a chip (nil or "all" = everything). The grid view dims at once; the
--- categories view lays out again, gliding like a fold. quiet: no layout (closing).
+-- categories view lays out again, gliding like a fold. quiet: closing, so the
+-- categories view lays out on the next open instead of now.
 function Window.PickChip(f, id, quiet)
     if id == "all" then id = nil end
     if f.chip == id then return end
     f.chip = id
     Window.PaintChips(f)
-    if quiet then return end
     if f.Setting("view") == "categories" then
+        if quiet then
+            f.stale = true
+            return
+        end
         ns.Layout.easing = true
         DUI.SafeCall(Window.Relayout, f)
         ns.Layout.easing = false

@@ -429,7 +429,17 @@ function Layout.Categories(window, cfg)
     end
     local shown = {}
     for _, g in ipairs(Layout.Groups(cfg, window)) do
-        if ns.Window.InChip(window, g.key) then shown[#shown + 1] = g end
+        if g.key == "recent" and window.chip then
+            -- Under a chip, Recent keeps only the new items that belong to it.
+            local kept = {}
+            for _, e in ipairs(g.entries) do
+                if ns.Window.ItemInChip(window, e.facts) then kept[#kept + 1] = e end
+            end
+            g.entries = kept
+            if #kept > 0 then shown[#shown + 1] = g end
+        elseif ns.Window.InChip(window, g.key) then
+            shown[#shown + 1] = g
+        end
     end
     for i, g in ipairs(shown) do
         used = i

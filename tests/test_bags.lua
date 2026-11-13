@@ -4388,6 +4388,62 @@ T.test("bags: a chip dims the rest in the grid view", function()
     T.eq(seen[B.buttons[0][1]], false, "a refilled non-junk slot stays dimmed")
 end)
 
+T.test("bags: a chip picked in the grid view leaves nothing dimmed after closing", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local weapon = ns.Bags.buttons[0][1]
+    local lit
+    local set = weapon.SetMatchesSearch
+    weapon.SetMatchesSearch = function(self, v) lit = v; if set then set(self, v) end end
+    ns.Window.PickChip(f, "junk")
+    T.eq(lit, false, "the weapon dims under Junk")
+    f:Hide()
+    stub.RunTimers()
+    f:Show()
+    stub.RunTimers()
+    T.eq(lit, true, "the weapon is lit again on the next open")
+end)
+
+-- New loot sits in Recent, but a chip still judges it by the group it would
+-- otherwise fall in, so a fresh weapon shows under Gear.
+T.test("bags: new loot stays in view under its chip", function()
+    local ns, f = catLogin()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    ns.Relayout()
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    T.eq(groupOf(ns, weapon), "recent")
+    T.eq(groupOf(ns, bread), "recent")
+    ns.Window.PickChip(f, "gear")
+    stub.RunTimers()
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.truthy(headingsShown(f).recent, "Recent stays with a new weapon in it")
+    T.eq(weapon:IsShown(), true, "the new weapon shows under Gear")
+    T.eq(bread:IsShown(), false, "new food doesn't")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: new loot stays lit under its chip in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    local f = open(ns)
+    ns.FillAll()
+    local seen = {}
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    for _, b in ipairs({ weapon, bread }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "gear")
+    T.eq(seen[weapon], true, "the new weapon stays lit")
+    T.eq(seen[bread], false, "new food dims")
+    _G.C_NewItems = nil
+end)
+
 T.test("bags: the chip row wraps when the grid is narrower than the chips", function()
     local ns = login({ view = "grid" })
     categoryWorld()
@@ -4413,6 +4469,8 @@ T.test("bags: chips reset when the bag closes, and a chip in combat lays out not
     T.eq(f.chip, nil, "closing clears the chip")
     f:Show()
     stub.RunTimers()
+    local back = headingsShown(f)
+    T.truthy(back.weapon and back.junk and back.consumable, "every group is back on the next open")
     stub.EnterCombat()
     ns.Window.PickChip(f, "quest")
     T.eq(#stub.errors, 0)

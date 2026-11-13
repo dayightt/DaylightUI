@@ -844,7 +844,7 @@ end
 function Items.Fits(bag, slot, info, w, quest)
     local fits = ns.Search.Matches(bag, slot, info, w and w.match, quest)
     if fits and info and w and w.chip and w.Setting("view") ~= "categories" then
-        fits = ns.Window.InChip(w, ns.Categories.Assign(ns.Categories.Facts(bag, slot, info)))
+        fits = ns.Window.ItemInChip(w, ns.Categories.Facts(bag, slot, info))
     end
     return fits
 end
