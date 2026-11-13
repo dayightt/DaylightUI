@@ -132,25 +132,10 @@ Layout.HEAD_CHEV = 8         -- chevron size
 Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 
--- A heading's rule fades out toward the right. The lit band color is a soft warm
--- line in the Daylight look but a bright gold in the Classic one, so it starts at
--- the strength the window's own header rule uses there.
-Layout.RULE_ALPHA = { daylight = 1, classic = 0.7 }
-
-function Layout.PaintRule(rule)
-    local c = DUI.Style.BAND_LIT
-    local a = Layout.RULE_ALPHA[DUI.Style.Look and DUI.Style.Look() or "daylight"] or 1
-    if CreateColor and rule.SetGradient then
-        rule:SetVertexColor(1, 1, 1, 1)
-        rule:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], 0))
-    else
-        rule:SetVertexColor(c[1], c[2], c[3], a)
-    end
-end
-
 -- Group heading: chevron, upper case name, count and a faint rule out to the
--- group's edge. A click folds or unfolds it, a right-click on Recent clears it,
--- and an item dropped or clicked onto it from the cursor gets pinned to the group.
+-- group's edge. Click folds or unfolds,
+-- right-click on Recent clears it, and an item dropped or clicked onto it from
+-- the cursor gets pinned to the group.
 local function heading(window, i)
     window.headings = window.headings or {}
     local h = window.headings[i]
@@ -225,9 +210,9 @@ function Layout.PaintHeading(h, folded)
             h.text:SetTextColor(d[1], d[2], d[3])
         end
     end
-    Layout.PaintRule(h.rule)
-    -- The count pops; an empty group's "drag items here" hint stays quiet.
-    Style.InkText(h.count, h.empty and "LABEL" or "pop")
+    local rc = Style.BAND_LIT
+    h.rule:SetVertexColor(rc[1], rc[2], rc[3], 1)
+    Style.InkText(h.count, "pop")
     if lit then
         h.chev:SetVertexColor(Style.Accent())
     else
@@ -444,23 +429,13 @@ function Layout.Categories(window, cfg)
     end
     local shown = {}
     for _, g in ipairs(Layout.Groups(cfg, window)) do
-        if g.key == "recent" and window.chip then
-            -- Under a chip, Recent keeps only the new items that belong to it.
-            local kept = {}
-            for _, e in ipairs(g.entries) do
-                if ns.Window.ItemInChip(window, e.facts) then kept[#kept + 1] = e end
-            end
-            g.entries = kept
-            if #kept > 0 then shown[#shown + 1] = g end
-        elseif ns.Window.InChip(window, g.key) then
-            shown[#shown + 1] = g
-        end
+        if ns.Window.InChip(window, g.key) then shown[#shown + 1] = g end
     end
     for i, g in ipairs(shown) do
         used = i
         local folded = Cat.IsCollapsed(g.key)
         local h = heading(window, i)
-        h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
+        h.key, h.name = g.key, g.name
         h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(#g.entries))
         Layout.PaintHeading(h, folded)
         local textW = (h.text.GetStringWidth and h.text:GetStringWidth()) or 0

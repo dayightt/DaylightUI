@@ -494,7 +494,7 @@ function Window.LayoutTools(f)
 end
 
 -- A chip shows only its groups; nothing picked shows everything. Custom groups
--- belong to All only. Recent is judged item by item (Window.ItemInChip).
+-- belong to All only.
 function Window.InChip(f, key)
     local id = f and f.chip
     if not id then return true end
@@ -506,30 +506,19 @@ function Window.InChip(f, key)
     return false
 end
 
--- Whether an item shows under the picked chip. New loot is judged by the group
--- it falls in once it's no longer new, so a fresh weapon still shows under Gear.
-function Window.ItemInChip(f, facts, section)
-    if not (f and f.chip) then return true end
-    return Window.InChip(f, ns.Categories.Assign(facts, section, true))
-end
-
 function Window.PaintChips(f)
     for _, b in ipairs(f.chips or {}) do b.SetOn(b.id == (f.chip or "all")) end
 end
 
 -- Picks a chip (nil or "all" = everything). The grid view dims at once; the
--- categories view lays out again, gliding like a fold. quiet: closing, so the
--- categories view lays out on the next open instead of now.
+-- categories view lays out again, gliding like a fold. quiet: no layout (closing).
 function Window.PickChip(f, id, quiet)
     if id == "all" then id = nil end
     if f.chip == id then return end
     f.chip = id
     Window.PaintChips(f)
+    if quiet then return end
     if f.Setting("view") == "categories" then
-        if quiet then
-            f.stale = true
-            return
-        end
         ns.Layout.easing = true
         DUI.SafeCall(Window.Relayout, f)
         ns.Layout.easing = false
@@ -642,7 +631,7 @@ function Window.UpdateSub(f)
     if f.spec.updateSub then return f.spec.updateSub(f) end
     local bag = f.spec.kind == "bag"
     local free, total = f.set.Free(bag)
-    if type(free) ~= "number" or type(total) ~= "number" or total == 0 then return f.sub:SetText("") end
+    if type(free) ~= "number" then return f.sub:SetText("") end
     local role = bag and ((free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN")) or nil
     local hex = DUI.Win.Parts.Hex(role and DUI.Style.INK[role] or { DUI.Style.Pop() })
     local count = hex .. free .. "|r"
@@ -1005,8 +994,8 @@ local function bagWindow()
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
             { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
-            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
-              desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
+            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
+              desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
             -- Last, next to the search. Only shown to characters who know Disenchant
             -- (Disenchant.lua puts a secure button over it on hover).
@@ -1092,13 +1081,8 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
-        -- The Alts tab is gone while the viewer is off, so the tour only names what's there.
-        if not ns.Viewer.On() then
-            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s tab at the top shows your bank."],
-                pop(L["Alt-right-click"]), pop(BANK or L["Bank"]))
-        end
-        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s and %s tabs at the top show your bank and your other characters' bags from anywhere."],
-            pop(L["Alt-right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
+        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."],
+            pop(L["Alt-right-click"]), pop(L["Bank and alts"]))
     end,
     available = function() return ns.module ~= nil and DUI:Get("Bags", "enabled") ~= false end,
     wait = true,

@@ -5,9 +5,8 @@
 -- none of those items can actually be reached.
 --
 -- Tabs in the title bar (Bags for another character, Bank, Account), character
--- picker beside the search. Opened from the bag's Bank and Alts tabs or /dui bank.
--- Turning viewer.enabled off removes the Alts tab and stops saving; what's
--- saved stays for when it's back on.
+-- picker in the tool row. Opened from the bag's Bank and Alts tabs or /dui bank.
+-- Turning viewer.enabled off removes the Alts tab and stops saving (what's saved stays for when it's back on).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -18,6 +17,7 @@ ns.Viewer = Viewer
 
 Viewer.NAME = "DaylightUIBagViewer"
 Viewer.DEFAULT_POINT = { "TOP", "TOP", 0, -120 }
+Viewer.ICON = "Interface\\Icons\\INV_Box_02"              -- the bag tool row icon for bank and alts
 Viewer.CHARS_ICON = "Interface\\Icons\\INV_Misc_GroupLooking"
 Viewer.EMPTY_H = 20          -- room for the "nothing saved yet" line
 
@@ -276,10 +276,11 @@ local function updateSub(f)
     end
 end
 
--- Footer: the matching gold (the character's or the account bank's). When it
--- was saved sits in the sub line.
+-- Footer: free / total for what's shown, when it was seen, and the matching
+-- gold (the character's or the account bank's).
 local function updateFooter(f)
     local inv = Saved.Of(Viewer.who)
+    local seen = seenOf(inv)
     local money
     if Viewer.part == "account" then
         local a = Saved.Account()
@@ -287,7 +288,11 @@ local function updateFooter(f)
     else
         money = Viewer.who == own() and GetMoney and GetMoney() or inv and inv.money
     end
+    local ago = DUI.Social and DUI.Social.Data and DUI.Social.Data.Ago
     if #Saved.view == 0 then f.free:SetText("") end
+    if #Saved.view > 0 and type(seen) == "number" and ago and time then
+        f.free:SetText(f.free:GetText() .. "  " .. DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. ago(math.max(0, time() - seen)) .. "|r")
+    end
     f.money:SetText(type(money) == "number" and DUI.Widgets.Money(money) or "")
 end
 
@@ -314,8 +319,8 @@ function Viewer.Build()
             { key = "charsButton", icon = Viewer.CHARS_ICON, title = L["Characters"],
               desc = L["See another character's bags and bank."],
               onClick = function(w) Viewer.PickMenu(w.charsButton) end },
-            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf or grid"],
-              desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
+            { key = "viewButton", icon = W.VIEW_ICON, title = L["Categories or bags"],
+              desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
         },
     })
