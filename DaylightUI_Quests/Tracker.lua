@@ -458,10 +458,11 @@ function Tracker.Render(animate, ifChanged)
     if not content then return end
     local snap = ns.Data.Snapshot(db.filter)
     Tracker.zone = snap.realZone   -- ZONE_CHANGED compares against the game's own zone text
+    Tracker.groups, Tracker.hereKey = snap.groups, ns.Data.HereKey(snap.here)
     for k in pairs(inTracker) do inTracker[k] = nil end
     local zoneOnly = Tracker.ZoneOnly()
     for _, g in ipairs(snap.groups) do
-        if not zoneOnly or g.name == snap.zone then
+        if not zoneOnly or snap.here[g.name] then
             for _, q in ipairs(g.quests) do inTracker[q.id] = true end
         end
     end
@@ -619,11 +620,19 @@ function Tracker.OnEvent(event, a, b)
         Tracker.ForgetMeasures()     -- measure again after a loading screen
         Tracker.CheckInstance()
     elseif event == "ZONE_CHANGED" then
-        -- A new subzone of the same zone: only the zone matters here.
+        -- A new subzone of the same zone matters only when it changes which of
+        -- the log's headers count as here (Northshire Valley inside Elwynn Forest).
         local ok, zone = pcall(GetRealZoneText)
-        if ok and zone == Tracker.zone then return end
+        if ok and zone == Tracker.zone and Tracker.groups and Tracker.HereKey() == Tracker.hereKey then return end
     end
     Tracker.Queue(event ~= "PLAYER_ENTERING_WORLD", not Tracker.ALWAYS[event], Tracker.WAITS[event] == true)
+end
+
+-- Which headers count as here now, for the groups last laid out.
+function Tracker.HereKey()
+    local D, names = ns.Data, {}
+    for _, g in ipairs(Tracker.groups) do names[g.name] = true end
+    return D.HereKey(D.HereSet(Tracker.groups, D.Here(function(name) return names[name] == true end)))
 end
 
 function Tracker.ToggleFold(id)

@@ -812,6 +812,67 @@ T.test("quests tracker: This zone only, and the width follows the minimap", func
     T.eq(Tr.Width(), 226)
 end)
 
+-- The classic log files a starting area's quests under its own name (Northshire
+-- Valley), while the game's zone text says Elwynn Forest. The subzone text names
+-- it only in the open valley; in the Abbey it says Northshire Abbey.
+local NORTHSHIRE = QW.quest(3, "Wolves Across the Border", { zone = "Northshire Valley" })
+local function elwynnMaps(where)
+    _G.GetSubZoneText = function() return where.sub end
+    Enum.UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 }
+    local maps = { [1429] = { mapID = 1429, name = "Elwynn Forest", mapType = 3, parentMapID = 1415 },
+                   [1436] = { mapID = 1436, name = "Westfall", mapType = 3, parentMapID = 1415 },
+                   [1415] = { mapID = 1415, name = "Eastern Kingdoms", mapType = 2, parentMapID = 947 } }
+    C_Map.GetBestMapForUnit = function() return 1429 end
+    C_Map.GetMapInfo = function(id) return maps[id] end
+    C_Map.GetMapChildrenInfo = function(id)
+        if id == 1415 then return { maps[1429], maps[1436] } end
+    end
+    -- Both quests have a spot on Elwynn's map, the Westfall one its hand-in.
+    C_QuestLog.GetQuestsOnMap = function(id)
+        if id == 1429 and where.spots then return { { questID = 3, x = 0.5, y = 0.4 }, { questID = 1, x = 0.4, y = 0.8 } } end
+        return {}
+    end
+end
+local function unElwynn() _G.GetSubZoneText = nil end
+
+T.test("quests tracker: This zone counts the subzone the log names", function()
+    local where = { sub = "Goldshire" }
+    local Tr, ns, settle = tracker({ zone = "Elwynn Forest", quests = { STEW, NORTHSHIRE } },
+        { before = function() elwynnMaps(where) end })
+    DaylightUI:Set("Quests", "filter", "zone")
+    settle()
+    T.isnil(Tr.frames["quest:3"], "Goldshire isn't Northshire")
+    where.sub = "Northshire Valley"
+    stub.FireEvent("ZONE_CHANGED")
+    settle()
+    T.truthy(Tr.frames["quest:3"], "a new subzone in the same zone looks again")
+    T.isnil(Tr.frames["quest:1"])
+    unElwynn()
+end)
+
+T.test("quests tracker: This zone counts a part of the zone whose quests are on its map", function()
+    local where = { sub = "Northshire Abbey", spots = true }
+    local Tr, ns, settle = tracker({ zone = "Elwynn Forest", quests = { STEW, NORTHSHIRE } },
+        { before = function() elwynnMaps(where) end })
+    DaylightUI:Set("Quests", "filter", "zone")
+    settle()
+    T.truthy(Tr.frames["quest:3"], "Northshire Valley is in Elwynn: its quests are on Elwynn's map")
+    T.isnil(Tr.frames["quest:1"], "Westfall is a zone of its own, though its hand-in is on this map")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    unElwynn()
+end)
+
+T.test("quests data: every header that counts as here comes first", function()
+    local where = { sub = "Northshire Abbey", spots = true }
+    local _, ns = load({ zone = "Elwynn Forest", quests = { STEW, QW.quest(2, "B", { zone = "Elwynn Forest" }), NORTHSHIRE } },
+        { before = function() elwynnMaps(where) end })
+    local d = ns.Data.Snapshot()
+    T.truthy(d.here["Northshire Valley"]); T.truthy(d.here["Elwynn Forest"]); T.isnil(d.here.Westfall)
+    T.eq(d.zone, "Elwynn Forest", "the zone itself stays the main one")
+    T.eq(d.groups[3].name, "Westfall", "the zone and its part ahead of Westfall")
+    unElwynn()
+end)
+
 T.test("quests tracker: the box only when asked", function()
     local Tr, ns, settle = tracker({ quests = { STEW } })
     T.eq(Tr.box:IsShown(), false)

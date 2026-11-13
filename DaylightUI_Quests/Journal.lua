@@ -122,10 +122,16 @@ function Journal.Read()
         end
     end
     if db.journalHereFirst ~= false then
-        local here = ns.Data.Here(function(name) return byZone[name] ~= nil end)
-        for i, g in ipairs(out.groups) do
-            if g.name == here and i > 1 then table.insert(out.groups, 1, table.remove(out.groups, i)); break end
+        local main = ns.Data.Here(function(name) return byZone[name] ~= nil end)
+        local here = ns.Data.HereSet(out.groups, main)
+        -- The zone itself first, then its parts (Northshire Valley in Elwynn
+        -- Forest), each keeping the log's order.
+        local function rank(g) return g.name == main and 1 or here[g.name] and 2 or 3 end
+        local sorted = {}
+        for r = 1, 3 do
+            for _, g in ipairs(out.groups) do if rank(g) == r then sorted[#sorted + 1] = g end end
         end
+        out.groups = sorted
     end
     for _, g in ipairs(out.groups) do ns.Layout.Sort(g.quests, { sort = db.journalSort }) end
     local _, numQuests = call(api(QL, "GetNumQuestLogEntries"))
