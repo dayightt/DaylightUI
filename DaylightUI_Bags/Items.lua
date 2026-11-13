@@ -207,6 +207,7 @@ function Items.Hover(btn, on, snap)
     if not p then return end
     p.hover = on or nil
     if snap then
+        if not on and (p.hoverT or 0) == 0 then return end
         p.hoverT = 0
         if p.hoverState then DUI.Motion.Tween(p.hoverState, 0, 0, 0) end
         Items.Ring(p)
@@ -218,7 +219,7 @@ function Items.Hover(btn, on, snap)
     p.hoverState = p.hoverState or {}
     DUI.Motion.Tween(p.hoverState, from, to, DUI.Motion.FAST, function(t)
         p.hoverT = t
-        Items.Ring(p)
+        if not p.flash then Items.Ring(p) end
     end)
 end
 
