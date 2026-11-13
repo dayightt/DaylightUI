@@ -54,7 +54,7 @@ end
 -- A group title over what follows.
 local function heading(page, text)
     local f = CreateFrame("Frame", nil, page)
-    f.text = W.Font(f, W.TITLE, SIZE.head, C.text)
+    f.text = W.Title(f, SIZE.head, C.text)
     f.text:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 2)
     f.text:SetText(T(text))
     page.Add(f, 22, 8)
@@ -88,7 +88,7 @@ builders.welcome = function(parent, width)
     page.cards = {}
 
     local greet = CreateFrame("Frame", nil, page)
-    greet.text = W.Font(greet, W.TITLE, SIZE.title, C.text, "CENTER")
+    greet.text = W.Title(greet, SIZE.title, C.text, "CENTER")
     greet.text:SetAllPoints(greet)
     page.greeting = greet.text
     page.Add(greet, 26, 6)
@@ -109,7 +109,7 @@ builders.welcome = function(parent, width)
 
     local function card(title, text)
         local c = Cards.Card(row)
-        c.title = W.Font(c.inner, W.TITLE, SIZE.head, C.text)
+        c.title = W.Title(c.inner, SIZE.head, C.text)
         c.title:SetPoint("TOPLEFT", c.inner, "TOPLEFT", 14, -16)
         c.title:SetText(title)
         c.text = Cards.Text(c, text)
@@ -211,7 +211,7 @@ builders.welcome = function(parent, width)
             for i = first, math.min(first + cols - 1, #packs) do
                 local pack, entries = packs[i].pack, packs[i].entries
                 local c = Cards.Card(line)
-                c.title = W.Font(c.inner, W.TITLE, SIZE.head, C.text)
+                c.title = W.Title(c.inner, SIZE.head, C.text)
                 c.title:SetPoint("TOPLEFT", c.inner, "TOPLEFT", 14, -16)
                 c.title:SetPoint("RIGHT", c.inner, "RIGHT", -14, 0)
                 c.title:SetText(pack.label)

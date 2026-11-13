@@ -413,6 +413,22 @@ function Style.GoldPair()
     return g[1], g[2]
 end
 
+-- Under Classic, titles and headings use the game's own font. Nil keeps the
+-- usual font, as on a Korean or Chinese client, whose letters the game's
+-- Latin font lacks.
+Style.CLASSIC_TITLE_FONT = [[Fonts\FRIZQT__.TTF]]
+local titled = setmetatable({}, { __mode = "k" })
+function Style.TitleFont()
+    if Style.Look() ~= "classic" or DUI.DB.UseLocalFont() then return nil end
+    return Style.CLASSIC_TITLE_FONT
+end
+
+-- A title or heading made with Style.Text: it takes Style.TitleFont when there is one.
+function Style.MarkTitle(fs)
+    titled[fs] = true
+    Style.ApplyFont(fs)
+end
+
 function Style.ApplyLook()
     local look = Style.LOOKS[Style.Look()]
     for _, key in ipairs({ "BORDER", "BAND", "BAND_LIT", "BACKGROUND" }) do copyInto(Style[key], look[key]) end
@@ -2279,7 +2295,7 @@ local gaveShadow = setmetatable({}, { __mode = "k" })
 
 function Style.ApplyFont(fs)
     local g = general()
-    local file = fontOf[fs] or Style.FontFile(fontSlot[fs])
+    local file = (titled[fs] and Style.TitleFont()) or fontOf[fs] or Style.FontFile(fontSlot[fs])
     local size, flags = (textSize[fs] or 12) * g.fontScale, flagsOf[fs] or Style.Outline()
     local shadow = g.textShadow == false and 0 or Style.TEXT_SHADOW[3]
     fs:SetFont(file, size, flags)
@@ -2292,7 +2308,7 @@ end
 -- time so no setting can be missed here.
 local function repaintFont(fs)
     local g = general()
-    if gaveFile[fs] == (fontOf[fs] or Style.FontFile(fontSlot[fs]))
+    if gaveFile[fs] == ((titled[fs] and Style.TitleFont()) or fontOf[fs] or Style.FontFile(fontSlot[fs]))
         and gaveSize[fs] == (textSize[fs] or 12) * g.fontScale
         and gaveFlags[fs] == (flagsOf[fs] or Style.Outline())
         and gaveShadow[fs] == (g.textShadow == false and 0 or Style.TEXT_SHADOW[3]) then return end

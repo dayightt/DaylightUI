@@ -90,7 +90,8 @@ local tracked = setmetatable({}, { __mode = "k" })
 local function fileOf(t)
     local own = t[3] and DUI.Media.Pick(t[3])
     if own then return Style.FontFileOf(own) end
-    return t[1] == "TITLE" and W.TITLE or W.BODY
+    if t[1] == "TITLE" then return Style.TitleFont() or W.TITLE end
+    return W.BODY
 end
 
 function W.TrackFont(fs, font, size, parent)
@@ -120,6 +121,15 @@ DUI.On("RepaintCore", function()
         end
     end
 end)
+
+-- A title or heading in the title font. Its own maker, since the title and
+-- body fonts are often the same file and the Classic look gives titles theirs.
+function W.Title(parent, size, color, justify, layer)
+    local fs = W.Font(parent, W.TITLE, size, color, justify, layer)
+    tracked[fs] = { "TITLE", size, Style.WindowSlotOf(parent) }
+    fs:SetFont(fileOf(tracked[fs]), size, "")
+    return fs
+end
 
 function W.Font(parent, font, size, color, justify, layer)
     local fs = parent:CreateFontString(nil, layer or "OVERLAY")
@@ -3093,7 +3103,7 @@ function W.Row(card, page, group, item)
 
     -- Recently added rows get a "new" tag next to the label (Options.IsNew).
     if type(item.since) == "string" then
-        row.newTag = W.Font(row, W.TITLE, SIZE.tiny, C.text)
+        row.newTag = W.Title(row, SIZE.tiny, C.text)
         row.newTag:SetPoint("LEFT", row.label, "RIGHT", 6, 0)
         row.newTag:SetText(L["NEW"])
         W.TextDaylight(row.newTag)
@@ -3178,7 +3188,7 @@ function W.Card(parent, page, group)
     card.lit:SetPoint("TOPLEFT", card, "TOPLEFT", 8, 0)
     card.lit:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, 0)
     card.lit:SetColorTexture(C.cardLit[1], C.cardLit[2], C.cardLit[3], 1)
-    card.title = W.Font(card, W.TITLE, SIZE.head, C.dim) -- card heading: INK.LABEL
+    card.title = W.Title(card, SIZE.head, C.dim) -- card heading: INK.LABEL
     card.title:SetPoint("TOPLEFT", card, "TOPLEFT", W.PAD, -12)
     card.title:SetPoint("TOPRIGHT", card, "TOPRIGHT", -W.PAD, -12)
     card.title:SetText(Options.Text(group.label))

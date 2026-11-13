@@ -321,6 +321,7 @@ end
 local function makeSection(parent)
     local b = CreateFrame("Frame", nil, parent)
     b.text = Style.Text(b, Parts.HEAD, "LEFT")
+    Style.MarkTitle(b.text)
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
     b.line = tex(b, "ARTWORK", { 1, 1, 1, 0.06 })
     b.line:SetHeight(1)

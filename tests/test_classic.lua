@@ -214,3 +214,31 @@ T.test("a button turns red and gold, and back", function()
     T.rgb(b.band.__vertex, { 0.10, 0.09, 0.063 }, "today's band")
     T.rgb(b.text.__textColor, { 0.949, 0.933, 0.902 }, "today's words")
 end)
+
+local FRIZ = "Fonts" .. string.char(92) .. "FRIZQT__.TTF"
+
+T.test("classic titles use the game's font, body text keeps the player's", function()
+    local DUI = stub.Load()
+    local S, W = DUI.Style, DUI.Widgets
+    local f = DUI.Win.New({ w = 300, h = 200 })
+    local head = W.Title(UIParent, 15, S.INK.LABEL)
+    local body = S.Text(UIParent, 13)
+    look(DUI, "classic")
+    T.eq(S.TitleFont(), FRIZ)
+    T.eq((f.title:GetFont()), FRIZ, "window title")
+    T.eq((head:GetFont()), FRIZ, "card heading")
+    T.eq((body:GetFont()), S.FONT, "body text")
+    look(DUI, "daylight")
+    T.isnil(S.TitleFont())
+    T.eq((f.title:GetFont()), S.FONT, "the player's font again")
+    T.eq((head:GetFont()), W.TITLE)
+end)
+
+T.test("a non-Latin client keeps its own font on classic titles", function()
+    local DUI = stub.Load()
+    local real = DUI.DB.UseLocalFont
+    DUI.DB.UseLocalFont = function() return true end
+    look(DUI, "classic")
+    T.isnil(DUI.Style.TitleFont(), "the game's Latin font lacks the letters")
+    DUI.DB.UseLocalFont = real
+end)

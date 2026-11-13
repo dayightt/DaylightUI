@@ -179,6 +179,7 @@ function Win.Header(f, spec)
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", left, Win.TITLE_Y)
     f.title:SetPoint("RIGHT", f, "RIGHT", -40, 0)
     f.title:SetWordWrap(false)
+    Style.MarkTitle(f.title)
     Style.InkText(f.title, "TITLE")
     if not spec.compact then
         f.sub = Style.Text(f, Win.SUB_SIZE, "LEFT")
