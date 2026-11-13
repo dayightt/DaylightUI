@@ -14,10 +14,32 @@ ns.Window = Window
 
 Window.NAME = "DaylightUIBag"
 Window.EDGE = 10             -- inner margin
-Window.TITLE = DUI.Win.COMPACT   -- title bar height, the window kit's compact header
+Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
-Window.FOOTER = 18
+Window.FOOTER_ROW = 18       -- the footer's text and button row
+Window.BAR_GAP = 2           -- between that row and the row above it
+Window.SELL_ROW = 18         -- the row holding the free-slots bar and Sell junk
+Window.BAR_W = 64            -- the free-slots bar's width
+Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + Window.SELL_ROW
+Window.CHIP_ROW = DUI.Widgets.CHIP_HEIGHT   -- the filter chips under the search
+-- Filter chips: a chip shows only the groups listed (keys of Cat.PRIORITY).
+Window.CHIPS = {
+    { id = "all" },
+    { id = "gear", groups = { "sets", "weapon", "armor" } },
+    { id = "use", groups = { "hearthstone", "consumable" } },
+    { id = "trade", groups = { "reagent", "tradegoods", "recipe" } },
+    { id = "quest", groups = { "quest" } },
+    { id = "junk", groups = { "junk" } },
+}
+local CHIP_LABEL = {
+    all = function() return ALL or L["All"] end,
+    gear = function() return L["Gear"] end,
+    use = function() return L["Use"] end,
+    trade = function() return L["Trade"] end,
+    quest = function() return QUESTS_LABEL or L["Quest"] end,
+    junk = function() return L["Junk"] end,
+}
 Window.TEXT_SIZE = Style.SIZE.body
 Window.DIM = DUI.Style.INK.LABEL   -- hints, small icons, count labels
 -- Free slot thresholds for warn and bad colors, same as the InfoPanel bag
@@ -79,7 +101,7 @@ end
 -- template: a game template to build from (the bank's Buy tab).
 function Window.TextButton(parent, label, template)
     local b = CreateFrame("Button", nil, parent, template)
-    b:SetHeight(Window.FOOTER)
+    b:SetHeight(Window.FOOTER_ROW)
     DUI.Widgets.DressButton(b)
     b.text:SetFont(b.text:GetFont(), Window.TEXT_SIZE, "")
     function b.SetLabel(s)
@@ -210,10 +232,11 @@ function Window.Create(spec)
     Style.Shell(f, { window = "Bags" })
     local E = Window.EDGE
 
-    -- The window kit's compact header: title, X, accent line.
-    DUI.Win.Header(f, { compact = true, onClose = spec.onClose })
+    -- The window kit's header: portrait, title, sub line, X, accent line.
+    DUI.Win.Header(f, { portrait = true, onClose = spec.onClose })
     DUI.Win.WheelScale(f, function() return f.Setting("scale") end, function(v) f.Set("scale", v) end, 0.5, 1.5)
     f.title:SetText(L[spec.title])
+    Window.SetPortrait(f, spec.portrait)
 
     -- Dragged by the title bar (not over the X).
     local handle = CreateFrame("Frame", nil, f)
@@ -265,21 +288,32 @@ function Window.Create(spec)
     f.search:SetPoint("TOPLEFT", f, "TOPLEFT", E, top)
     Window.LayoutTools(f)
 
+    Window.Chips(f)
     f.items = CreateFrame("Frame", nil, f)
     f.items.dluiWindow = f
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP)
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP - Window.CHIP_ROW - Window.GAP)
 
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
     DUI.Style.InkText(f.free, "VALUE")
+    -- A thin bar of used slots above the free count.
+    f.freeBar = DUI.Widgets.Bar(f, DUI.Widgets.BAR_H)
+    f.freeBar:SetWidth(Window.BAR_W)
+    f.freeBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E,
+        E + Window.FOOTER_ROW + Window.BAR_GAP + (Window.SELL_ROW - DUI.Widgets.BAR_H) / 2)
     f.money = text(f, Window.TEXT_SIZE, "RIGHT")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E)
     if spec.kind == "bag" then
+        -- Shown only at a vendor with something to sell (Window.UpdateSell).
+        f.sellJunk = Window.TextButton(f, L["Sell junk"])
+        -- On the bar's row, away from the money and currencies below.
+        f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
+        f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
+        f.sellJunk:Hide()
         -- A warlock over their Soul Shard limit (Window.UpdateShards). Deletes only
         -- on a second click.
         f.dropShards = Window.TextButton(f, "")
         f.dropShards.fit = 1
-        f.dropShards:SetPoint("LEFT", f.free, "RIGHT", 14, 0)
         DUI.Widgets.Confirm(f.dropShards, function() return Window.ShardLabel(f.shardsExtra or 0) end, function()
             ns.Junk.DeleteShards()
             DUI.Widgets.EaseShown(f.dropShards, false)
@@ -292,6 +326,7 @@ function Window.Create(spec)
         -- A search only lasts while the window is open.
         if self.search:GetText() ~= "" then self.search:SetText("") end
         self.match = nil
+        if self.chip then Window.PickChip(self, nil, true) end
         self.search:ClearFocus()
     end)
     -- On open, lay out and fill whatever changed while closed and wasn't already
@@ -458,11 +493,166 @@ function Window.LayoutTools(f)
     else f.search:SetPoint("RIGHT", f, "RIGHT", -Window.EDGE, 0) end
 end
 
+-- A chip shows only its groups; nothing picked shows everything. Custom groups
+-- belong to All only. Recent is judged item by item (Window.ItemInChip).
+function Window.InChip(f, key)
+    local id = f and f.chip
+    if not id then return true end
+    for _, c in ipairs(Window.CHIPS) do
+        if c.id == id then
+            for _, g in ipairs(c.groups or {}) do if g == key then return true end end
+        end
+    end
+    return false
+end
+
+-- Whether an item shows under the picked chip. New loot is judged by the group
+-- it falls in once it's no longer new, so a fresh weapon still shows under Gear.
+function Window.ItemInChip(f, facts, section)
+    if not (f and f.chip) then return true end
+    return Window.InChip(f, ns.Categories.Assign(facts, section, true))
+end
+
+function Window.PaintChips(f)
+    for _, b in ipairs(f.chips or {}) do b.SetOn(b.id == (f.chip or "all")) end
+end
+
+-- Picks a chip (nil or "all" = everything). The grid view dims at once; the
+-- categories view lays out again, gliding like a fold. quiet: closing, so the
+-- categories view lays out on the next open instead of now.
+function Window.PickChip(f, id, quiet)
+    if id == "all" then id = nil end
+    if f.chip == id then return end
+    f.chip = id
+    Window.PaintChips(f)
+    if f.Setting("view") == "categories" then
+        if quiet then
+            f.stale = true
+            return
+        end
+        ns.Layout.easing = true
+        DUI.SafeCall(Window.Relayout, f)
+        ns.Layout.easing = false
+    else
+        Window.MatchAll(f)
+    end
+end
+
+-- Places the chips in as many lines as the grid's width needs and moves the
+-- slots below them. Returns the chip block's height.
+function Window.LayoutChips(f, width)
+    local Wd = DUI.Widgets
+    local top = -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP)
+    local x, line = 0, 0
+    for _, b in ipairs(f.chips or {}) do
+        local bw = b:GetWidth()
+        if x > 0 and x + bw > width then x, line = 0, line + 1 end
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * (Wd.CHIP_HEIGHT + Wd.CHIP_GAP))
+        x = x + bw + Wd.CHIP_GAP
+    end
+    local h = (line + 1) * Wd.CHIP_HEIGHT + line * Wd.CHIP_GAP
+    f.items:ClearAllPoints()
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, top - h - Window.GAP)
+    return h
+end
+
+-- The chip row under the search, one W.Chip per CHIPS entry.
+function Window.Chips(f)
+    f.chips = {}
+    for _, c in ipairs(Window.CHIPS) do
+        local b = DUI.Widgets.Chip(f, CHIP_LABEL[c.id]())
+        b.id = c.id
+        b.FitWidth()
+        b:SetScript("OnClick", function() Window.PickChip(f, c.id) end)
+        f.chips[#f.chips + 1] = b
+    end
+    Window.PaintChips(f)
+end
+
+-- Header tabs of the bag window: Bags (this window), Bank and Alts open the
+-- bank and the saved characters. They sit right of the title like the other
+-- windows' tabs, and the title, sub line and drag handle stop short of them.
+function Window.LayoutTabs(f)
+    if not f.tabs then return end
+    local right
+    for i = #f.tabs, 1, -1 do
+        local b = f.tabs[i]
+        if b:IsShown() then
+            b:ClearAllPoints()
+            b:SetPoint("RIGHT", right or f.close, "LEFT", -DUI.Win.TAB_GAP, 0)
+            right = b
+        end
+    end
+    local stop = right or f.close
+    f.title:SetPoint("RIGHT", stop, "LEFT", -8, 0)
+    f.sub:SetPoint("RIGHT", stop, "LEFT", -8, 0)
+    f.handle:ClearAllPoints()
+    f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    f.handle:SetPoint("RIGHT", stop, "LEFT", -4, 0)
+    f.handle:SetHeight(Window.TITLE)
+end
+
+function Window.Tabs(f)
+    f.tab = "bags"
+    DUI.Win.Tabs(f, {
+        { id = "bags", text = L["Bags"] },
+        { id = "bank", text = BANK or L["Bank"] },
+        { id = "alts", text = L["Alts"] },
+    }, function(id)
+        -- This window is the bags: the tab springs back once the other part is open.
+        DUI.Win.PickTab(f, "bags")
+        if id == "bank" then ns.Viewer.OpenBank()
+        elseif id == "alts" then ns.Viewer.OpenAlts() end
+    end)
+    Window.SyncTabs(f)
+end
+
+-- Alts is hidden while the viewer is switched off; the other tabs close up.
+function Window.SyncTabs(f)
+    if not f.tabs then return end
+    for _, b in ipairs(f.tabs) do
+        if b.id == "alts" then b:SetShown(ns.Viewer.On()) end
+    end
+    Window.LayoutTabs(f)
+end
+
 function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
     if ns.Keep.Any() then return ns.Keep.Sort() end
     pcall(C_Container.SortBags)
+end
+
+-- Puts an icon in the header's round portrait, cropped like our other icons.
+function Window.SetPortrait(f, file, l, r, t, b)
+    if not f.portrait then return end
+    f.portrait:SetTexture(file)
+    if l then f.portrait:SetTexCoord(l, r, t, b) else DUI.Style.CropIcon(f.portrait) end
+    f.portrait:SetShown(file and true or false)
+    f.portraitRim:SetShown(file and true or false)
+end
+
+-- The sub line under the title. The bag reads "<name> · 12 of 32 free", the bank
+-- "12 of 32 free" (the number in the accent, warn or bad colors when low); the
+-- viewer paints its own through spec.updateSub.
+function Window.UpdateSub(f)
+    if not f or not f.sub then return end
+    DUI.Style.InkText(f.sub, "LABEL")
+    if f.spec.updateSub then return f.spec.updateSub(f) end
+    local bag = f.spec.kind == "bag"
+    local free, total = f.set.Free(bag)
+    if type(free) ~= "number" or type(total) ~= "number" or total == 0 then return f.sub:SetText("") end
+    local role = bag and ((free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN")) or nil
+    local hex = DUI.Win.Parts.Hex(role and DUI.Style.INK[role] or { DUI.Style.Pop() })
+    local count = hex .. free .. "|r"
+    local name = bag and DUI.UnitName("player", "player")
+    -- A name can be secret in combat; it is only shown when it is plain text.
+    if type(name) == "string" and not (issecretvalue and issecretvalue(name)) then
+        f.sub:SetText(string.format(L["%s · %s of %d free"], name, count, total))
+    else
+        f.sub:SetText(string.format(L["%s of %d free"], count, total))
+    end
 end
 
 -- Footer free slots and money (plus the window's own pieces). Only while shown;
@@ -492,24 +682,52 @@ function Window.UpdateFooter(f)
         role = (free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN") or "pop"
     end
     DUI.Style.InkText(f.free, role)
+    Window.UpdateFreeBar(f, free, total, role)
     if f.spec.updateFooter then
         f.spec.updateFooter(f)
     else
-        f.money:SetText(DUI.MoneyString(GetMoney and GetMoney() or 0))
+        f.money:SetText(DUI.Widgets.Money(GetMoney and GetMoney() or 0))
     end
     if ns.Currency then ns.Currency.Update(f) end
+    Window.UpdateSell(f)
     if bag then
         ns.Junk.MarkCheapest(f)
         Window.UpdateShards(f)
     end
+    Window.UpdateSub(f)
+end
+
+-- The bar fills with the slots in use and eases there; warn and bad colors
+-- when the bag is nearly full, the accent otherwise.
+function Window.UpdateFreeBar(f, free, total, role)
+    local W = DUI.Widgets
+    if type(free) ~= "number" or type(total) ~= "number" or total <= 0 then
+        return Style.SetBarValue(f.freeBar, 0, true)
+    end
+    local c = (role == "BAD" or role == "WARN") and Style.INK[role] or nil
+    if c then W.BarFrom(f.freeBar, c[1], c[2], c[3]) else W.BarAccent(f.freeBar) end
+    Style.SetBarValue(f.freeBar, (total - free) / total, not f.freeBar:IsVisible())
+end
+
+-- Sell junk shows at a vendor while something is worth selling, and says what
+-- it comes to.
+function Window.UpdateSell(f)
+    if not f.sellJunk then return end
+    local list = ns.Junk.vendorOpen and ns.Junk.Items() or {}
+    local total = 0
+    for _, item in ipairs(list) do total = total + item.value end
+    if #list > 0 then
+        f.sellJunk.SetLabel(string.format(L["Sell junk · %s"], DUI.Widgets.Money(total, { color = false })))
+    end
+    DUI.Widgets.EaseShown(f.sellJunk, #list > 0)
 end
 
 function Window.ShardLabel(n)
     return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete %d extra shards"], n)
 end
 
--- Delete extra shards shows beside the free slots while a warlock carries more
--- Soul Shards than their limit.
+-- Delete extra shards shows while a warlock carries more Soul Shards than their
+-- limit, left of Sell junk when that's up.
 function Window.UpdateShards(f)
     local b = f and f.dropShards
     if not b then return end
@@ -518,6 +736,13 @@ function Window.UpdateShards(f)
         f.shardsExtra = n
         if b.Disarm then b.Disarm() end
         b.Paint()
+    end
+    local E = Window.EDGE
+    b:ClearAllPoints()
+    if f.sellJunk and f.sellJunk:IsShown() then
+        b:SetPoint("BOTTOMRIGHT", f.sellJunk, "BOTTOMLEFT", -Window.GAP, 0)
+    else
+        b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
     end
     DUI.Widgets.EaseShown(b, n > 0)
 end
@@ -569,7 +794,10 @@ function Window.Relayout(f, synced, moved)
     end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
-    local W, H = w + E * 2, Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
+    -- Header, tool row, slots and footer, a gap between each; the footer sits on the edge.
+    local W = w + E * 2
+    local chipH = Window.LayoutChips(f, w)
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + Window.GAP + h + Window.GAP + Window.FOOTER + E
     -- A fold (heading click) glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel
@@ -768,19 +996,17 @@ end
 local function bagWindow()
     local f = Window.Create({
         kind = "bag", name = Window.NAME, title = "Bags", set = ns.Bags, prefix = "",
+        portrait = Window.BAGS_ICON,
         defaultPoint = Window.DEFAULT_POINT,
         onClose = function() ns.OpenClose.CloseAll() end,
         onShow = function() ns.Stack.Run() end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
-            { key = "viewerButton", icon = ns.Viewer.ICON, title = L["Bank and alts"],
-              desc = L["Your bank and your other characters' bags, from anywhere."], onClick = function(w) ns.Viewer.Menu(w.viewerButton) end,
-              hint = L["Right-click: your bank"], onRightClick = function() ns.Viewer.ToggleBank() end },
             { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
-            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
-              desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
+            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
+              desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
               onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
             -- Last, next to the search. Only shown to characters who know Disenchant
             -- (Disenchant.lua puts a secure button over it on hover).
@@ -789,6 +1015,7 @@ local function bagWindow()
         },
     })
     ns.window = f
+    Window.Tabs(f)
     return f
 end
 
@@ -865,8 +1092,13 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
-        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."],
-            pop(L["Alt-right-click"]), pop(L["Bank and alts"]))
+        -- The Alts tab is gone while the viewer is off, so the tour only names what's there.
+        if not ns.Viewer.On() then
+            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s tab at the top shows your bank."],
+                pop(L["Alt-right-click"]), pop(BANK or L["Bank"]))
+        end
+        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s and %s tabs at the top show your bank and your other characters' bags from anywhere."],
+            pop(L["Alt-right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
     end,
     available = function() return ns.module ~= nil and DUI:Get("Bags", "enabled") ~= false end,
     wait = true,

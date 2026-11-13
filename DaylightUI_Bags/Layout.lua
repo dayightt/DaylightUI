@@ -128,19 +128,46 @@ Layout.GROUP_GAP = 12        -- between groups side by side
 Layout.ROW_GAP = 8           -- between rows of groups
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
--- Group heading: name (and count when folded). Click folds or unfolds,
--- right-click on Recent clears it, and an item dropped or clicked onto it from
--- the cursor gets pinned to the group.
+Layout.HEAD_CHEV = 8         -- chevron size
+Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
+Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
+
+-- A heading's rule fades out toward the right. The lit band color is a soft warm
+-- line in the Daylight look but a bright gold in the Classic one, so it starts at
+-- the strength the window's own header rule uses there.
+Layout.RULE_ALPHA = { daylight = 1, classic = 0.7 }
+
+function Layout.PaintRule(rule)
+    local c = DUI.Style.BAND_LIT
+    local a = Layout.RULE_ALPHA[DUI.Style.Look and DUI.Style.Look() or "daylight"] or 1
+    if CreateColor and rule.SetGradient then
+        rule:SetVertexColor(1, 1, 1, 1)
+        rule:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], 0))
+    else
+        rule:SetVertexColor(c[1], c[2], c[3], a)
+    end
+end
+
+-- Group heading: chevron, upper case name, count and a faint rule out to the
+-- group's edge. A click folds or unfolds it, a right-click on Recent clears it,
+-- and an item dropped or clicked onto it from the cursor gets pinned to the group.
 local function heading(window, i)
     window.headings = window.headings or {}
     local h = window.headings[i]
     if h then return h end
     h = CreateFrame("Button", nil, window.items)
     h:SetHeight(Layout.HEAD)
+    h.chev = DUI.Widgets.Icon(h, "ui-chevron.png", Layout.HEAD_CHEV, DUI.Style.INK.LABEL)
+    h.chev:SetPoint("LEFT", h, "LEFT", 1, 0)
     h.text = DUI.Style.Text(h, Layout.HEAD_SIZE, "LEFT")
-    h.text:SetPoint("LEFT", h, "LEFT", 0, 1)
-    local d = Layout.HEAD_DIM
-    h.text:SetTextColor(d[1], d[2], d[3])
+    h.text:SetPoint("LEFT", h, "LEFT", Layout.HEAD_TEXT_X, 1)
+    h.count = DUI.Style.Text(h, DUI.Style.SIZE.tiny, "LEFT")
+    h.count:SetPoint("LEFT", h.text, "RIGHT", 5, 0)
+    h.rule = h:CreateTexture(nil, "ARTWORK")
+    h.rule:SetTexture("Interface\\Buttons\\WHITE8X8")
+    h.rule:SetHeight(1)
+    h.rule:SetPoint("LEFT", h.count, "RIGHT", 6, 0)
+    h.rule:SetPoint("RIGHT", h, "RIGHT", 0, 0)
     local function pinFromCursor(self)
         if not GetCursorInfo then return false end
         local kind, itemID = GetCursorInfo()
@@ -168,13 +195,53 @@ local function heading(window, i)
     end)
     h:SetScript("OnReceiveDrag", pinFromCursor)
     h:SetScript("OnEnter", function(self)
-        self.text:SetTextColor(DUI.Style.Accent())
+        self.hover = true
+        Layout.PaintHeading(self, self.folded)
     end)
     h:SetScript("OnLeave", function(self)
-        self.text:SetTextColor(d[1], d[2], d[3])
+        self.hover = nil
+        Layout.PaintHeading(self, self.folded)
     end)
     window.headings[i] = h
     return h
+end
+
+-- Paints a heading from its name and fold state. Colors are read now, so a
+-- change of accent repaints through the next layout. Open groups read in the
+-- accent (Recent letter by letter under a gradient accent), folded ones in the
+-- label color until the mouse is over them. The chevron turns as it folds.
+function Layout.PaintHeading(h, folded)
+    local Style, Motion = DUI.Style, DUI.Motion
+    local lit = not folded or h.hover
+    local shown = h.name and string.upper(h.name) or ""
+    if lit and h.key == "recent" then
+        Style.PaintAccentText(h.text, shown)
+    else
+        h.text:SetText(shown)
+        if lit then
+            h.text:SetTextColor(Style.Accent())
+        else
+            local d = Layout.HEAD_DIM
+            h.text:SetTextColor(d[1], d[2], d[3])
+        end
+    end
+    Layout.PaintRule(h.rule)
+    -- The count pops; an empty group's "drag items here" hint stays quiet.
+    Style.InkText(h.count, h.empty and "LABEL" or "pop")
+    if lit then
+        h.chev:SetVertexColor(Style.Accent())
+    else
+        local d = Layout.HEAD_DIM
+        h.chev:SetVertexColor(d[1], d[2], d[3])
+    end
+    local to = folded and Layout.FOLDED_TURN or 0
+    if h.turnKey == h.key and h.turn ~= to and h:IsVisible() then
+        h.chevKey = h.chevKey or {}
+        Motion.Tween(h.chevKey, h.turn or 0, to, Motion.NORMAL, function(v) h.chev:SetRotation(v) end)
+    else
+        h.chev:SetRotation(to)
+    end
+    h.turn, h.turnKey, h.folded = to, h.key, folded
 end
 
 -- Stacks show separately while one of these is open so a stack can be split to
@@ -375,15 +442,32 @@ function Layout.Categories(window, cfg)
             x, lineH = 0, 0
         end
     end
-    for i, g in ipairs(Layout.Groups(cfg, window)) do
+    local shown = {}
+    for _, g in ipairs(Layout.Groups(cfg, window)) do
+        if g.key == "recent" and window.chip then
+            -- Under a chip, Recent keeps only the new items that belong to it.
+            local kept = {}
+            for _, e in ipairs(g.entries) do
+                if ns.Window.ItemInChip(window, e.facts) then kept[#kept + 1] = e end
+            end
+            g.entries = kept
+            if #kept > 0 then shown[#shown + 1] = g end
+        elseif ns.Window.InChip(window, g.key) then
+            shown[#shown + 1] = g
+        end
+    end
+    for i, g in ipairs(shown) do
         used = i
         local folded = Cat.IsCollapsed(g.key)
         local h = heading(window, i)
-        h.key, h.name = g.key, g.name
-        h.text:SetText(folded and string.format("%s (%d)", g.name, #g.entries)
-            or #g.entries == 0 and string.format(L["%s (drag items here)"], g.name) or g.name)
+        h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
+        h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(#g.entries))
+        Layout.PaintHeading(h, folded)
         local textW = (h.text.GetStringWidth and h.text:GetStringWidth()) or 0
         if type(textW) ~= "number" then textW = 0 end
+        local countW = (h.count.GetStringWidth and h.count:GetStringWidth()) or 0
+        if type(countW) ~= "number" then countW = 0 end
+        textW = Layout.HEAD_TEXT_X + textW + 5 + countW
         local n = folded and 0 or #g.entries
         local across = math.min(n, cols)
         local rows = n > 0 and math.ceil(n / across) or 0

@@ -521,7 +521,8 @@ local function parsed(text)
 end
 
 -- Group key for an item's facts (the slot's section decides keyring).
-function Cat.Assign(f, section)
+-- noRecent: the group the item falls in once it's no longer new.
+function Cat.Assign(f, section, noRecent)
     local gone = removed()
     if section == "keyring" then return gone.key and "other" or "key" end
     local pinned = Cat.PinOf(f.itemID)
@@ -531,7 +532,7 @@ function Cat.Assign(f, section)
         if match and match(f) then return g.key end
     end
     for _, key in ipairs(Cat.PRIORITY) do
-        if not gone[key] and Cat.TESTS[key](f) then return key end
+        if not gone[key] and not (noRecent and key == "recent") and Cat.TESTS[key](f) then return key end
     end
     return "other"
 end

@@ -162,6 +162,120 @@ local function open(ns)
     return ns.window
 end
 
+T.test("bags: the window has a portrait header, its name and free slots in the sub line", function()
+    local ns = login()
+    local f = open(ns)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    T.eq(f.title:GetText(), "Bags")
+    local free, total = f.set.Free(true)
+    local sub = f.sub:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(string.find(sub, DaylightUI.UnitName("player", "player"), 1, true), "the player's name: " .. sub)
+    T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
+end)
+
+-- The fake game does no layout, so no text width is checked here: these read the
+-- anchors. inset = how far a right edge sits in from the window's right edge.
+local function anchorOf(obj, point)
+    for i = 1, obj:GetNumPoints() do
+        local p, rel, relPoint, x, y = obj:GetPoint(i)
+        if p == point then return rel, relPoint, x, y end
+    end
+end
+
+local function inset(obj, point)
+    local rel, _, x = anchorOf(obj, point)
+    return -x, rel
+end
+
+-- The header's text keeps clear of the X (and of the first header tab when there
+-- are tabs), and the sub line sits under the title, right of the portrait.
+local function headerFits(f, tabs)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    local first = tabs and tabs[1]
+    for _, fs in ipairs({ f.title, f.sub }) do
+        local rel, relPoint = anchorOf(fs, "RIGHT")
+        if first then
+            T.eq(rel, first, "stops at the first tab")
+            T.eq(relPoint, "LEFT")
+        else
+            local closeIn = inset(f.close, "TOPRIGHT") + f.close:GetWidth()
+            local textIn, textRel = inset(fs, "RIGHT")
+            T.eq(textRel, f)
+            T.truthy(textIn >= closeIn, "stops left of the X")
+        end
+    end
+    local subRel, subPoint = anchorOf(f.sub, "TOPLEFT")
+    T.eq(subRel, f.title, "the sub line hangs under the title")
+    T.eq(subPoint, "BOTTOMLEFT")
+    local _, _, titleX, titleY = anchorOf(f.title, "TOPLEFT")
+    T.truthy(titleX >= DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT, "the title starts right of the portrait")
+    T.eq(titleY, DaylightUI.Win.TITLE_Y, "on the header's title row")
+end
+
+-- Header tabs ride the X's row: anchored to the X or the tab beside it, no
+-- offset of their own, so they follow the taller header.
+local function tabsOnTitleRow(f, tabs)
+    local right = f.close
+    for i = #tabs, 1, -1 do
+        local rel, relPoint, x, y = anchorOf(tabs[i], "RIGHT")
+        T.eq(rel, right, "tab " .. i .. " sits beside the one to its right")
+        T.eq(relPoint, "LEFT"); T.eq(y, 0, "level with the X")
+        right = tabs[i]
+    end
+end
+
+T.test("bags: title and sub line stop left of the X at any width", function()
+    local ns = login()
+    local f = open(ns)
+    DaylightUI:Set("Bags", "columns", 4)
+    DaylightUI:Set("Bags", "iconSize", 26)
+    stub.RunTimers()
+    ns.Window.Relayout(f)
+    headerFits(f, f.tabs)
+    T.eq(ns.Window.TITLE, DaylightUI.Win.HEADER)
+end)
+
+T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.viewTabs)
+    tabsOnTitleRow(f, f.viewTabs)
+    T.truthy(f.sub:GetText():find("Saved", 1, true), "when it was saved")
+end)
+
+T.test("viewer: same look, keeps its tabs and picker", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123456, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.truthy(f.portrait:IsShown(), "portrait")
+    T.truthy(#f.chips > 1, "chip row")
+    T.truthy(f.freeBar:IsShown(), "free bar")
+    T.eq(f.sellJunk, nil, "no Sell junk")
+    T.eq(#f.viewTabs, 3, "Bags, Bank, Account")
+    T.truthy(f.charsButton, "the character picker")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "a saved character's gold in our coins")
+    for _, view in ipairs({ "grid", "categories" }) do
+        f.Set("view", view)
+        stub.RunTimers()
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: a holder per bag carrying its bag, and exactly one button per real slot", function()
     local ns = login()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -291,6 +405,35 @@ T.test("bags: a new green shines once, seen: looted open, or on the first open a
     local still = loot(10, 2)
     T.falsy(shining(still), "motion off: no glint")
     T.near(Items.Parts(still).shell.opts.borderColor[1], q[1], nil, "and no flash")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: a new item keeps a small dot until hovered", function()
+    local ns = login()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function loot(slot, quality)
+        world.items[0][slot] = { iconFileID = 300 + slot, stackCount = 1, quality = quality,
+            hyperlink = "|Hitem:" .. (300 + slot) .. "|h", itemID = 300 + slot }
+        newSlots["0:" .. slot] = true
+        stub.FireEvent("BAG_UPDATE", 0)
+        stub.FireEvent("BAG_UPDATE_DELAYED")
+        stub.RunTimers()
+        return B.buttons[0][slot]
+    end
+    local green = loot(7, 2)
+    T.truthy(Items.Parts(green).newDot:IsShown(), "a new green has a dot")
+    T.falsy(Items.Parts(loot(8, 0)).newDot:IsShown(), "a gray one doesn't")
+    green:GetScript("OnEnter")(green)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "hovered: the dot is gone")
+    Items.Fill(green)
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "and stays gone after a refill")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     _G.C_NewItems = nil
 end)
@@ -648,7 +791,69 @@ T.test("bags: free slots and money in the footer", function()
     local f = open(ns)
     T.eq(freeText(f), "23 / 3", "the plain bags, then the profession bag's 3 free")
     T.eq(f.free:GetText(), "23 / " .. DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Pop() }) .. "3|r", "a profession bag without a color of its own: the accent")
-    T.eq(f.money:GetText(), "money:9592")
+    T.eq(f.money:GetText(), "money:9500 money:92", "our coins: silver and copper")
+end)
+
+T.test("bags: the footer bar fills with used slots and eases there", function()
+    local ns = login()
+    local f = open(ns)
+    local free, total = f.set.Free(true)
+    T.near(f.freeBar:GetValue(), (total - free) / total, 0.001, "used over total")
+    T.eq(f.free:GetText():find("23", 1, true) ~= nil, true, "the text keeps its counts")
+    world.items[0][3] = { iconFileID = 103, stackCount = 1, quality = 1, hyperlink = "|Hitem:3|h" }
+    ns.Window.UpdateFooter(f)
+    local free2, total2 = f.set.Free(true)
+    T.eq(free2, free - 1, "one more slot used")
+    stub.Advance(1); stub.RunTimers()
+    T.near(f.freeBar:GetValue(), (total2 - free2) / total2, 0.001, "settles on the new share")
+end)
+
+T.test("bags: Sell junk sits above the money row, clear of the tracked currencies", function()
+    local ns = login()
+    DaylightUI:Set("Bags", "columns", 7)
+    C_CurrencyInfo = { GetBackpackCurrencyInfo = function(i)
+        if i <= 3 then return { iconFileID = 100 + i, quantity = 123456 * i } end
+    end }
+    local f = open(ns)
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    ns.Window.UpdateFooter(f)
+    T.eq(#f.currencySlots >= 3 and f.currencySlots[3]:IsShown(), true, "currencies are drawn")
+    local _, _, _, _, sy = f.sellJunk:GetPoint()
+    local _, _, _, _, my = f.money:GetPoint()
+    T.truthy(sy >= my + ns.Window.FOOTER_ROW, "above the row the money and currencies sit on")
+    C_CurrencyInfo = nil
+end)
+
+T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
+    local ns = login()
+    local f = open(ns)
+    local sold = {}
+    C_Container.UseContainerItem = function(bag, slot) sold[#sold + 1] = bag .. ":" .. slot end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][7] = { iconFileID = 107, stackCount = 1, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    local old = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:12|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return old(link)
+    end
+    ns.Categories.ToggleLock(12)
+    DaylightUI:Set("Bags", "sellJunk", false)
+    T.eq(f.sellJunk:IsShown(), false, "hidden away from a vendor")
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), true, "shown at a vendor with junk")
+    T.truthy(f.sellJunk.text:GetText():find("25", 1, true), "its label holds the junk's value")
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:2", "the gray slot only, not the locked one")
+    stub.FireEvent("MERCHANT_CLOSED")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), false, "hidden when the vendor closes")
 end)
 
 T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line with its price, and a setting", function()
@@ -1397,7 +1602,7 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)   -- its items fade out
     T.truthy(Cat.IsCollapsed("weapon"))
     T.falsy(B.buttons[0][1]:IsShown(), "folded: its items out of sight")
-    T.truthy(string.find(h.text:GetText(), "(1)", 1, true), "its count on the heading")
+    T.eq(h.count:GetText(), "1", "its count on the heading")
     h:GetScript("OnClick")(h)
     stub.RunTimers()
     T.truthy(B.buttons[0][1]:IsShown(), "open again")
@@ -1413,6 +1618,47 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     _G.GetCursorInfo = nil
     Cat.Unpin(9)
     T.eq(groupOf(ns, B.buttons[1][2]), "consumable")
+end)
+
+T.test("bags: group headings read upper case in the accent with a count and chevron", function()
+    local ns, f = catLogin()
+    local Style, Cat = DaylightUI.Style, ns.Categories
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    T.truthy(h, "a heading for Weapons")
+    T.eq(h.text:GetText(), string.upper(h.name), "name in upper case")
+    local r, g, b = h.text:GetTextColor()
+    local ar, ag, ab = Style.Accent()
+    T.near(r, ar, 0.01); T.near(g, ag, 0.01); T.near(b, ab, 0.01)
+    T.eq(h.count:GetText(), "1")
+    T.eq(h.chev.__rotation or 0, 0, "open: the chevron points down")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    local lr, lg, lb = h.text:GetTextColor()
+    T.near(lr, Style.INK.LABEL[1], 0.01); T.near(lg, Style.INK.LABEL[2], 0.01); T.near(lb, Style.INK.LABEL[3], 0.01)
+    T.near(h.chev.__rotation or 0, math.pi / 2, 0.001, "folded: the chevron points right")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
+    stub.now = 1000
+    _G.GetTime = function() return stub.now end
+    DaylightUI:Set("general", "accent", "gradient")
+    local ok, err = pcall(function()
+        ns.Relayout()
+        local rec = headOf("recent")
+        T.truthy(rec, "a Recent heading")
+        T.truthy(string.find(rec.text:GetText(), "|c", 1, true), "Recent paints letter by letter under a gradient accent")
+    end)
+    DaylightUI:Set("general", "accent", nil)
+    _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
+    T.truthy(ok, tostring(err))
 end)
 
 -- A folded heading beside open groups left a hole under it and pushed them about,
@@ -1588,7 +1834,10 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
     local h = headingOf()
     T.truthy(h, "Shift with an item held shows it, to drop on")
-    T.truthy(string.find(h.text:GetText(), "drag items here", 1, true), "and says what it's for")
+    T.truthy(string.find(h.count:GetText(), "drag items here", 1, true), "and says what it's for")
+    local hr, hg, hb = h.count:GetTextColor()
+    local ink = DaylightUI.Style.INK.LABEL
+    T.near(hr, ink[1], 0.01); T.near(hg, ink[2], 0.01); T.near(hb, ink[3], 0.01)
     _G.GetCursorInfo = function() return "item", 9 end
     _G.ClearCursor = function() _G.CursorHasItem = nil end
     h:GetScript("OnReceiveDrag")(h)
@@ -1598,7 +1847,8 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[1][2]), key, "dropped in")
-    T.eq(headingOf().text:GetText(), "Keepers", "the hint goes once it holds something")
+    T.eq(headingOf().text:GetText(), "KEEPERS", "the hint goes once it holds something")
+    T.eq(headingOf().count:GetText(), "1", "and the count takes its place")
     -- A search can be set and taken away again.
     Cat.SetSearch(key, "q>=rare")
     T.eq(Cat.Get(key).search, "q>=rare")
@@ -1749,6 +1999,7 @@ T.test("bags: recent items first, for a while", function()
     local ns = catLogin()
     local Cat = ns.Categories
     _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
     stub.now = 1000
     _G.GetTime = function() return stub.now end
     ns.Relayout()
@@ -1758,6 +2009,7 @@ T.test("bags: recent items first, for a while", function()
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "after the timeout, its own group")
     _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
 end)
 
 T.test("bags: right-clicking the Recent heading clears it", function()
@@ -2034,6 +2286,81 @@ local function bankLogin(newCharacter)
     ns = stub.bags
     return ns, bank
 end
+
+T.test("bank: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    T.truthy(f.sub:GetText():find(" of ", 1, true), "free slots in the sub line")
+end)
+
+
+-- Same pieces as the bags: chips, free bar, plain-money footer, no Sell junk.
+local function sameLook(f, what)
+    T.truthy(f.portrait:IsShown(), what .. ": portrait shows")
+    T.truthy(f.sub:GetText() ~= nil, what .. ": sub line")
+    T.truthy(#f.chips > 1, what .. ": chip row")
+    T.truthy(f.freeBar:IsShown(), what .. ": free bar")
+    T.eq(f.sellJunk, nil, what .. ": no Sell junk")
+end
+
+T.test("bank: same header, chips and footer as the bags", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    sameLook(f, "bank")
+    T.truthy(f.sub:GetText():find("of 12 free", 1, true), "N of M free")
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    for _, view in ipairs({ "grid", "categories" }) do
+        DaylightUI:Set("Bags", "bank.view", view)
+        stub.RunTimers()
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(f.buyTab:IsShown(), "a tab to buy")
+    local _, _, _, _, by = f.buyTab:GetPoint(1)
+    local _, _, _, _, my = f.money:GetPoint(1)
+    T.truthy(by > my, "Buy tab sits on the bar's row, above the money")
+    T.truthy(f.freeBar:GetWidth() > 0)
+end)
+
+T.test("bank: gold in the account bank is drawn in coins like the bags", function()
+    local ns, bank = bankLogin()
+    bank.gold = 123456
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local f = ns.bank
+    local account
+    for _, t in ipairs(f.bankTabs) do if t.bankType == 2 then account = t end end
+    account:GetScript("OnClick")(account)
+    stub.RunTimers()
+    T.truthy(f.deposit:IsShown(), "the account bank's gold buttons show")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "the account bank's gold in our coins")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bank: before its first tab, the window still builds", function()
+    local ns = bankLogin(true)
+    local f = ns.bank
+    T.eq(ns.Bank.HasTab(), false)
+    ns.Window.Relayout(f)
+    f:Show()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(f.sub:GetText() or "", "", "no \"0 of 0 free\" before a tab")
+    sameLook(f, "bank, no tab")
+    local sub = (f.sub:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(sub == "" or sub:find("0 of 0 free", 1, true), "sub empty or 0 of 0: " .. sub)
+end)
 
 T.test("bank: opens with the bank, the character tabs' slots in our look; the game's bank out of sight", function()
     local ns, bank = bankLogin()
@@ -2799,7 +3126,12 @@ local function runDrivers(dt)
     end
 end
 
-local function amount(f) return tonumber((f.money:GetText():gsub("money:", ""))) end
+-- The footer's money is one part a coin ("money:9500 money:92"): add them up.
+local function amount(f)
+    local sum, any = 0, false
+    for n in f.money:GetText():gmatch("money:(%d+)") do sum = sum + tonumber(n); any = true end
+    return any and sum or nil
+end
 
 T.test("bags: the footer gold counts to a new amount, tinted on a gain", function()
     local ns = login()
@@ -3610,7 +3942,7 @@ T.test("viewer: another character's bags, saved at their logout; tabs and gold f
     T.eq(#ns.Viewer.set.Slots(), 4)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).dluiTexture, 909)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).count, 3)
-    T.truthy(f.money:GetText():find("123"), "their gold")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123), "their gold")
     T.truthy(f.free:GetText():find("3 / 4"), "free / all")
     -- Their bank was never seen, so one line says so and there are no slots.
     ns.Viewer.Show(alt, "bank")
@@ -3646,11 +3978,11 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick, _, opts)
         menu = { owner = owner, keys = keys, values = values, pick = onPick, opts = opts }
     end
-    bag.viewerButton:Click()
-    T.eq(menu.keys[#menu.keys], "remove", "the chest's list ends with the way to remove one")
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
+    T.eq(menu.keys[#menu.keys], "remove", "the picker's list ends with the way to remove one")
     T.truthy(menu.opts.more.remove, "a chevron: it opens another list")
     menu.pick("remove")
-    T.eq(menu.owner, bag.viewerButton)
+    T.eq(menu.owner, ns.Viewer.window.charsButton)
     T.truthy(menu.opts.confirm[alt], "asks first")
     menu.pick(alt)
     DaylightUI.Widgets.OpenMenu = openMenu
@@ -3662,7 +3994,7 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: yourself can't be removed, and alone the chest's list has no such row", function()
+T.test("viewer: yourself can't be removed, and alone the picker's list has no such row", function()
     local ns = login()
     local own = DaylightUI.DB.CharKey()
     T.eq(DaylightUI.Alts.Forget(own), false)
@@ -3671,7 +4003,7 @@ T.test("viewer: yourself can't be removed, and alone the chest's list has no suc
     local menu
     local openMenu = DaylightUI.Widgets.OpenMenu
     DaylightUI.Widgets.OpenMenu = function(_, keys) menu = keys end
-    bag.viewerButton:Click()
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
     DaylightUI.Widgets.OpenMenu = openMenu
     for _, k in ipairs(menu) do T.truthy(k ~= "remove") end
 end)
@@ -3699,7 +4031,7 @@ T.test("viewer: switching to nothing saved glides the window and fades the line 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", function()
+T.test("viewer: the Alts tab opens it; the search dims a saved copy too", function()
     local ns = login()
     local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
     local alt = "Alt-" .. realm
@@ -3707,32 +4039,24 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
         bags = { { section = "bags", size = 2, items = { [1] = { "|cff1eff00|Hitem:9|h[Wand]|h|r", 1, 909, 2 },
                                                          [2] = { "|Hitem:8|h[Bread]|h", 5, 808, 1 } } } } } }
     local bag = open(ns)
-    -- The chest opens a list: your bank, then each other character in their class
-    -- color with their gold. Picking one opens the window on it.
-    local menu
-    local openMenu = DaylightUI.Widgets.OpenMenu
-    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
-    bag.viewerButton:Click()
-    DaylightUI.Widgets.OpenMenu = openMenu
-    T.truthy(menu, "a list, not the window")
+    -- The Alts tab opens the window on another character's bags; the picker in
+    -- the window lists everyone and switches between them.
     T.falsy(ns.Viewer.window:IsShown())
-    T.eq(menu.owner, bag.viewerButton)
-    T.eq(menu.keys[1], "bank")
-    T.eq(menu.values.bank, "Bank")
-    T.eq(menu.keys[#menu.keys - 1], alt, "the other characters after it, not you")
-    T.truthy(menu.values[alt]:find("Alt"), "by name")
-    T.truthy(menu.values[alt]:find("|c"), "in their class color")
-    T.truthy(menu.values[alt]:find("1"), "with their gold")
-    for _, k in ipairs(menu.keys) do T.truthy(k ~= DaylightUI.DB.CharKey(), "you're the Bank row") end
-    menu.pick(alt)
+    bag.tabs[3]:Click()
     stub.RunTimers()
     local f = ns.Viewer.window
     T.truthy(f:IsShown(), "opened from the bag")
     T.eq(ns.Viewer.who, alt)
     T.eq(ns.Viewer.part, "bags", "on their bags")
-    menu.pick("bank")
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
+    ns.Viewer.PickMenu(f.charsButton)
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.truthy(menu.values[alt]:find("Alt"), "by name")
+    T.truthy(menu.values[alt]:find("|c"), "in their class color")
+    menu.pick(DaylightUI.DB.CharKey())
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
-    T.eq(ns.Viewer.part, "bank", "Bank: yours")
     ns.Viewer.Show(alt, "bags")
     stub.RunTimers()
     f.search:SetText("wand")
@@ -3744,17 +4068,20 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: switched off, the button goes (the tool row closes up), nothing new is saved", function()
+T.test("viewer: switched off, the Alts tab goes (the others close up), nothing new is saved", function()
     local ns = login()
     local bag = open(ns)
-    T.truthy(bag.viewerButton:IsShown())
-    local sortX = select(4, bag.sort:GetPoint(1))
+    T.falsy(bag.viewerButton, "no chest button in the tool row any more")
+    local alts, bank = bag.tabs[3], bag.tabs[2]
+    T.truthy(alts:IsShown())
+    local _, relOn = bank:GetPoint(1)
+    T.eq(relOn, alts, "Bank sits beside Alts")
     DaylightUI:Set("Bags", "viewer.enabled", false)
     stub.RunTimers()
-    T.falsy(bag.viewerButton:IsShown(), "the chest button goes")
-    local _, rel = bag.slotsButton:GetPoint(1)
-    T.eq(rel, bag.sort, "the next tool moves up beside Clean Up")
-    T.eq(select(4, bag.sort:GetPoint(1)), sortX)
+    T.falsy(alts:IsShown(), "the Alts tab goes")
+    local _, rel = bank:GetPoint(1)
+    T.eq(rel, bag.close, "Bank takes Alts' place")
+    headerFits(bag, { bag.tabs[1] })
     ns.Viewer.Toggle()
     stub.RunTimers()
     T.falsy(ns.Viewer.window:IsShown(), "/dui bank says it's off instead")
@@ -3764,9 +4091,47 @@ T.test("viewer: switched off, the button goes (the tool row closes up), nothing 
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
-    T.truthy(bag.viewerButton:IsShown(), "back on: the button's back")
-    local _, rel2 = bag.slotsButton:GetPoint(1)
-    T.eq(rel2, bag.viewerButton)
+    T.truthy(alts:IsShown(), "back on: the tab's back")
+    local _, rel2 = bank:GetPoint(1)
+    T.eq(rel2, alts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the header tabs open the bank and the alts viewer", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 1, time = time(),
+        bags = { { section = "bags", size = 4, items = {} } } } }
+    local bag = open(ns)
+    T.eq(#bag.tabs, 3)
+    T.eq(bag.tab, "bags", "Bags is picked on open")
+    headerFits(bag, bag.tabs)
+    tabsOnTitleRow(bag, bag.tabs)
+    -- Away from a banker: the saved bank, in the viewer.
+    bag.tabs[2]:Click()
+    stub.RunTimers()
+    local v = ns.Viewer.window
+    T.truthy(v:IsShown(), "the saved bank opens")
+    T.eq(ns.Viewer.part, "bank")
+    T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
+    T.eq(bag.tab, "bags", "the Bags tab stays picked")
+    -- At a banker: the live bank.
+    ns.Viewer.Close()
+    stub.RunTimers()
+    ns.Bank.open = true
+    bag.tabs[2]:Click()
+    stub.RunTimers()
+    T.truthy(ns.Bank.window:IsShown(), "the live bank opens")
+    T.falsy(DaylightUI.Motion.Shown(v), "not the viewer")
+    ns.Bank.open = false
+    -- Alts: another character's bags.
+    bag.tabs[3]:Click()
+    stub.RunTimers()
+    T.truthy(v:IsShown())
+    T.eq(ns.Viewer.part, "bags")
+    T.eq(ns.Viewer.who, alt)
+    T.eq(bag.tab, "bags")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3895,7 +4260,7 @@ T.test("bags: on a controller the D-pad starts on the first item, once an openin
     _G.InputUtil, _G.GamepadMode, _G.SmartNavigation = nil, nil, nil
 end)
 
-T.test("viewer: a right-click on the bag's title bar or its chest button opens your bank, again closes it", function()
+T.test("viewer: a right-click on the bag's title bar opens your bank, again closes it", function()
     local ns = login()
     local bag = open(ns)
     local v = ns.Viewer.window
@@ -3907,12 +4272,9 @@ T.test("viewer: a right-click on the bag's title bar or its chest button opens y
     T.truthy(v:IsShown(), "the title bar's right-click: the bank")
     T.eq(ns.Viewer.part, "bank")
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey(), "your own")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
+    bag.handle:GetScript("OnMouseUp")(bag.handle, "RightButton")
     stub.RunTimers()
     T.falsy(DaylightUI.Motion.Shown(v), "again: it closes")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
-    stub.RunTimers()
-    T.truthy(v:IsShown(), "the chest button's right-click opens it too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4090,4 +4452,201 @@ T.test("bags on a controller: Destroy asks in the menu first, then deletes that 
     ns.Window.PadDestroy(ns.Bags.buttons[0][3])
     T.eq(deleted, nil, "an empty slot has nothing to destroy")
     _G.ItemLocation = made
+end)
+
+local function headingsShown(f)
+    local out = {}
+    for _, h in ipairs(f.headings or {}) do if h:IsShown() and h.key then out[h.key] = true end end
+    return out
+end
+
+T.test("bags: a chip shows only its groups in the categories view", function()
+    local ns, f = catLogin()
+    local W = ns.Window
+    local all = headingsShown(f)
+    T.truthy(all.junk and all.weapon and all.consumable, "everything with no chip")
+    W.PickChip(f, "junk")
+    stub.RunTimers()
+    local only = headingsShown(f)
+    T.truthy(only.junk, "the Junk heading stays")
+    T.eq(only.weapon, nil, "other headings go")
+    T.eq(only.consumable, nil)
+    local weapon = ns.Bags.buttons[0][1]
+    T.truthy(not weapon:IsShown() or (f.fading and f.fading[weapon]), "the rare weapon's slot hides (or fades out)")
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.eq(weapon:IsShown(), false, "once the fade ends it is hidden and takes no clicks")
+    T.eq(ns.Bags.buttons[0][2]:IsShown(), true, "the gray one shows")
+    W.PickChip(f, "all")
+    stub.RunTimers()
+    T.truthy(headingsShown(f).weapon, "All brings everything back")
+end)
+
+T.test("bags: a chip dims the rest in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local B = ns.Bags
+    local seen = {}
+    for _, b in ipairs({ B.buttons[0][1], B.buttons[0][2] }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "junk")
+    T.eq(seen[B.buttons[0][2]], true, "the gray item stays lit")
+    T.eq(seen[B.buttons[0][1]], false, "the weapon dims")
+    f.match = function() return false end
+    ns.Window.MatchAll(f)
+    T.eq(seen[B.buttons[0][2]], false, "a search on top narrows further")
+    f.match = nil
+    -- A refill (loot, a bag update) keeps the chip's dimming.
+    ns.Window.MatchAll(f)
+    world.items[0][1].hyperlink = "|Hitem:1|h"
+    ns.Items.Fill(B.buttons[0][1])
+    T.eq(seen[B.buttons[0][1]], false, "a refilled non-junk slot stays dimmed")
+end)
+
+T.test("bags: a chip picked in the grid view leaves nothing dimmed after closing", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local weapon = ns.Bags.buttons[0][1]
+    local lit
+    local set = weapon.SetMatchesSearch
+    weapon.SetMatchesSearch = function(self, v) lit = v; if set then set(self, v) end end
+    ns.Window.PickChip(f, "junk")
+    T.eq(lit, false, "the weapon dims under Junk")
+    f:Hide()
+    stub.RunTimers()
+    f:Show()
+    stub.RunTimers()
+    T.eq(lit, true, "the weapon is lit again on the next open")
+end)
+
+-- New loot sits in Recent, but a chip still judges it by the group it would
+-- otherwise fall in, so a fresh weapon shows under Gear.
+T.test("bags: new loot stays in view under its chip", function()
+    local ns, f = catLogin()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    ns.Relayout()
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    T.eq(groupOf(ns, weapon), "recent")
+    T.eq(groupOf(ns, bread), "recent")
+    ns.Window.PickChip(f, "gear")
+    stub.RunTimers()
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.truthy(headingsShown(f).recent, "Recent stays with a new weapon in it")
+    T.eq(weapon:IsShown(), true, "the new weapon shows under Gear")
+    T.eq(bread:IsShown(), false, "new food doesn't")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: new loot stays lit under its chip in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    local f = open(ns)
+    ns.FillAll()
+    local seen = {}
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    for _, b in ipairs({ weapon, bread }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "gear")
+    T.eq(seen[weapon], true, "the new weapon stays lit")
+    T.eq(seen[bread], false, "new food dims")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: the chip row wraps when the grid is narrower than the chips", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    DaylightUI:Set("Bags", "columns", 3)
+    local f = open(ns)
+    ns.Relayout()
+    local first, last = f.chips[1], f.chips[#f.chips]
+    local _, _, _, _, y1 = first:GetPoint(1)
+    local _, _, _, _, y2 = last:GetPoint(1)
+    T.truthy(y2 < y1, "the last chip is on a second line")
+    DaylightUI:Set("Bags", "columns", 14)
+    ns.Relayout()
+    _, _, _, _, y2 = last:GetPoint(1)
+    T.eq(y2, y1, "one line when the grid is wide")
+end)
+
+T.test("bags: chips reset when the bag closes, and a chip in combat lays out nothing protected", function()
+    local ns, f = catLogin()
+    ns.Window.PickChip(f, "gear")
+    T.eq(f.chip, "gear")
+    f:Hide()
+    stub.RunTimers()
+    T.eq(f.chip, nil, "closing clears the chip")
+    f:Show()
+    stub.RunTimers()
+    local back = headingsShown(f)
+    T.truthy(back.weapon and back.junk and back.consumable, "every group is back on the next open")
+    stub.EnterCombat()
+    ns.Window.PickChip(f, "quest")
+    T.eq(#stub.errors, 0)
+    T.eq(f.chip, "quest", "the pick is kept in combat")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(headingsShown(f).weapon, nil, "the filter applies once combat ends")
+end)
+
+T.test("bags: a heading's rule fades out to the right, softer under the Classic look", function()
+    local ns, f = catLogin()
+    local function rule()
+        for _, x in ipairs(f.headings) do if x:IsShown() then return x.rule end end
+    end
+    local g = rule().__gradient
+    T.truthy(g, "drawn as a gradient")
+    T.eq(g[1], "HORIZONTAL")
+    T.eq(g[2].a, ns.Layout.RULE_ALPHA.daylight, "starts at the Daylight strength")
+    T.eq(g[3].a, 0, "and fades to nothing")
+    DaylightUI:Set("general", "look", "classic")
+    stub.RunTimers()
+    ns.Relayout()
+    T.eq(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic, "softer on the Classic gold")
+    DaylightUI:Set("general", "look", nil)
+    stub.RunTimers()
+end)
+
+T.test("bags: the new-item glow never spills into the next slot", function()
+    local ns = login()
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function glowAt(spacing)
+        DaylightUI:Set("Bags", "spacing", spacing)
+        stub.RunTimers()
+        local p = Items.Parts(B.buttons[0][1])
+        return p.newGlow:GetWidth(), p.newDot:GetWidth()
+    end
+    local glow, dot = glowAt(7)
+    T.truthy(glow > dot, "a glow around the dot at the default spacing")
+    T.truthy(glow <= (7 - 1) * 2, "reaching at most a pixel past the gap")
+    glow, dot = glowAt(2)
+    T.eq(glow, dot, "no glow at all when the slots nearly touch")
+    DaylightUI:Set("Bags", "spacing", nil)
+    stub.RunTimers()
+end)
+
+T.test("bags: the tour names the Alts tab only while it's there", function()
+    local ns = login()
+    open(ns)
+    local stop
+    for _, d in ipairs(DaylightUI.Tour.stops) do if d.id == "bags" then stop = d end end
+    T.truthy(stop, "the bags tour stop")
+    T.truthy(stop.text():find("Alts", 1, true), "Alts named while the viewer is on")
+    DaylightUI:Set("Bags", "viewer.enabled", false)
+    stub.RunTimers()
+    T.falsy(stop.text():find("Alts", 1, true), "not named once the tab is gone")
+    DaylightUI:Set("Bags", "viewer.enabled", true)
+    stub.RunTimers()
 end)
