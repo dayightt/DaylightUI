@@ -1722,15 +1722,24 @@ stub.RESTRICTED_GLOBALS.GetShapeshiftForm = function()
     end
     return 0
 end
--- A click on a SecureActionButtonTemplate button with type "attribute" (a macro's
--- /click), done the way SECURE_ACTIONS.attribute does it in SecureTemplates.lua.
--- The name and value go onto attribute-frame (else the button itself) in the
--- secure world, then the button's OnClick scripts and hooks run.
-function stub.SecureClick(b, button)
+-- A macro's /click on a SecureActionButtonTemplate button with type "attribute",
+-- as the game does it. "/click Name" with no more words is Click("LeftButton",
+-- false), the up half only (SlashCommands.lua). SecureActionButton_OnClick then
+-- acts on the down half when the button's "useOnKeyDown" says so, else when the
+-- CVar ActionButtonUseKeyDown is on (on by default: stub.keyDownCVar false turns
+-- it off), and on the up half otherwise (SecureTemplates.lua). The action is
+-- SECURE_ACTIONS.attribute: the name and value go onto attribute-frame (else the
+-- button itself) in the secure world. The button's OnClick scripts and hooks run
+-- either way, as a wrapped script's snippet does.
+function stub.SecureClick(b, button, down)
     button = button or "LeftButton"
+    down = down == true
+    local keyDown = b:GetAttribute("useOnKeyDown")
+    if keyDown == nil then keyDown = stub.keyDownCVar ~= false end
+    local acts = (down and keyDown) or (not down and not keyDown)
     stub.inSecure = (stub.inSecure or 0) + 1
     local ok, err = pcall(function()
-        if b:GetAttribute("type") == "attribute" then
+        if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")
             local value = b:GetAttribute("attribute-value")
@@ -1740,10 +1749,10 @@ function stub.SecureClick(b, button)
     stub.inSecure = stub.inSecure - 1
     if not ok then error(err, 0) end
     local fn = b:GetScript("OnClick")
-    if fn then fn(b, button, false) end
+    if fn then fn(b, button, down) end
 end
 local SNIPPET_ARGS = { self = true, newstate = true, stateid = true, message = true, scriptid = true, name = true, value = true,
-                       delta = true, button = true, down = true }
+                       delta = true, button = true, down = true, owner = true }
 local HANDLE_METHODS = { "SetAttribute", "GetAttribute", "Show", "Hide", "IsShown", "GetID", "GetName", "EnableMouse",
                          "ClearAllPoints", "SetWidth", "SetHeight" }
 local handle
@@ -2110,6 +2119,13 @@ _G.SecureHandlerWrapScript = function(frame, script, header, preBody)
             local name, value = ...
             if type(preBody) == "string" and not tostring(name):match("^_") then
                 stub.RunSnippet(self, preBody, { name = name, value = value })
+            end
+        elseif script == "OnClick" then
+            -- Wrapped_Click: the snippet gets self, button, down and owner (the
+            -- header's handle), only while out of combat or on a protected frame.
+            local button, down = ...
+            if type(preBody) == "string" and (not stub.combat or self.__protected) then
+                stub.RunSnippet(self, preBody, { owner = handle(header), button = button, down = down })
             end
         elseif type(preBody) == "string" then
             stub.RunSnippet(self, preBody)
@@ -2689,6 +2705,7 @@ function stub.Reset()
     stub.chat, stub.errors = {}, {}
     stub.units, stub.loadedAddOns, stub.unknownEvents = {}, {}, {}
     stub.spells = {}
+    stub.keyDownCVar = nil
     stub.installedAddOns = {}
     stub.addonMeta = {}
     stub.addonState = {}

@@ -157,7 +157,6 @@ Paging.ON_STATE = [[
             page = hold
         else
             self:SetAttribute("dui-hold", nil)
-            self:SetAttribute("state-hold", nil)
         end
     end
     self:SetAttribute("actionpage", page)
@@ -187,10 +186,12 @@ local holder
 -- long. The game can't tell ahead of time and an addon can't see the key press (it
 -- goes to the game's hidden button). So a druid adds "/click DaylightUICat" (or
 -- Bear, Moonkin) to the top of the shift macro, like the FormBars addon does. The
--- click (the game's secure "attribute" action) arms bar 1 with that form's page, the
--- drop to caster that follows shows that page, and the form coming back (or any
--- other form) ends it. A click whose shift never happened is released a moment
--- later, out of combat.
+-- click arms bar 1 with that form's page, the drop to caster that follows shows that
+-- page, and the form coming back (or any other form) ends it. A click whose shift
+-- never happened is released a moment later, out of combat.
+-- A macro's plain /click is only the up half of a click, and a secure action
+-- button acts on the down half while ActionButtonUseKeyDown is on (the default), so
+-- the button's own action never ran. A wrapped OnClick runs on either half.
 -- ---------------------------------------------------------------------
 
 Paging.HOLD = { { name = "DaylightUICat", bonus = 1 }, { name = "DaylightUIBear", bonus = 3 },
@@ -198,8 +199,8 @@ Paging.HOLD = { { name = "DaylightUICat", bonus = 1 }, { name = "DaylightUIBear"
 Paging.HOLD_FOR = 3          -- seconds an unused click stays armed (out of combat)
 
 Paging.ON_HOLD = [[
-    local page = tonumber(newstate)
-    if page then self:SetAttribute("dui-hold", page) end
+    local page = tonumber(self:GetAttribute("dui-page"))
+    if page then owner:SetAttribute("dui-hold", page) end
 ]]
 
 -- The page a form's button arms bar 1 with: the form's own page, or nothing with
@@ -215,7 +216,6 @@ end
 function Paging.LetGo()
     if not holder or not holder:GetAttribute("dui-hold") then return end
     holder:SetAttribute("dui-hold", nil)
-    holder:SetAttribute("state-hold", nil)
     holder:SetAttribute("state-page", holder:GetAttribute("state-page"))
 end
 
@@ -225,9 +225,7 @@ local function makeHoldButtons(h)
     for _, def in ipairs(Paging.HOLD) do
         local b = CreateFrame("Button", def.name, UIParent, "SecureActionButtonTemplate")
         b:RegisterForClicks("AnyUp", "AnyDown")
-        b:SetAttribute("type", "attribute")
-        b:SetAttribute("attribute-frame", h)
-        b:SetAttribute("attribute-name", "state-hold")
+        SecureHandlerWrapScript(b, "OnClick", h, Paging.ON_HOLD)
         b:HookScript("OnClick", function()
             C_Timer.After(Paging.HOLD_FOR, function() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end)
         end)
@@ -236,14 +234,13 @@ local function makeHoldButtons(h)
 end
 
 local function holdPages()
-    for _, hb in ipairs(holdButtons) do hb.button:SetAttribute("attribute-value", Paging.HoldPage(hb.bonus)) end
+    for _, hb in ipairs(holdButtons) do hb.button:SetAttribute("dui-page", Paging.HoldPage(hb.bonus)) end
 end
 
 -- At file load, out of combat: the snippets, the driver, and the rule rebuilt once
 -- the game knows its page numbers for sure.
 function Paging.Setup(h, buttons)
     holder = h
-    h:SetAttribute("_onstate-hold", Paging.ON_HOLD)
     makeHoldButtons(h)
     if type(MainActionBar) == "table" then h:SetFrameRef("game-twin", MainActionBar) end
     for i = 1, 12 do

@@ -953,8 +953,8 @@ T.test("paging: a powershift macro's /click DaylightUICat keeps the cat bar up w
     login({ class = "DRUID", formSpells = DRUID_FORMS })
     local h = holder("main")
     T.truthy(DaylightUICat and DaylightUIBear and DaylightUIMoonkin, "the macro buttons")
-    T.eq(DaylightUICat:GetAttribute("attribute-value"), 7); T.eq(DaylightUIBear:GetAttribute("attribute-value"), 9)
-    T.eq(DaylightUIMoonkin:GetAttribute("attribute-value"), 10)
+    T.eq(DaylightUICat:GetAttribute("dui-page"), 7); T.eq(DaylightUIBear:GetAttribute("dui-page"), 9)
+    T.eq(DaylightUIMoonkin:GetAttribute("dui-page"), 10)
     stub.SetConditions({ ["form:1"] = true })
     T.eq(h:GetAttribute("actionpage"), 9, "bear")
     stub.EnterCombat()
@@ -984,7 +984,7 @@ T.test("paging: a powershift macro's /click DaylightUICat keeps the cat bar up w
     T.isnil(h:GetAttribute("dui-hold"))
     -- With "Change with forms and stances" off the bar stays on page 1.
     DaylightUI:Set("ActionBars", "bars.main.autoPage", false)
-    T.isnil(DaylightUICat:GetAttribute("attribute-value"))
+    T.isnil(DaylightUICat:GetAttribute("dui-page"))
     stub.SetConditions({ ["form:1"] = true })
     stub.SecureClick(DaylightUICat)
     stub.SetConditions({})
@@ -995,6 +995,31 @@ end)
 T.test("paging: only a druid gets the powershift macro buttons", function()
     login({ class = "WARRIOR" })
     T.isnil(_G.DaylightUICat)
+end)
+
+-- A macro's "/click DaylightUIBear" is the up half of a click only, and the game's
+-- secure buttons act on the down half while ActionButtonUseKeyDown is on (the
+-- default), so the plain /click did nothing in game.
+T.test("paging: a plain /click DaylightUIBear works whichever half the game acts on", function()
+    login({ class = "DRUID", formSpells = DRUID_FORMS })
+    local h = holder("main")
+    for _, keyDown in ipairs({ true, false }) do
+        stub.keyDownCVar = keyDown
+        stub.SetConditions({ ["form:3"] = true })
+        stub.SecureClick(DaylightUIBear)
+        stub.SetConditions({})
+        T.eq(h:GetAttribute("actionpage"), 9, "the bear bar through the drop to caster, key down " .. tostring(keyDown))
+        stub.SetConditions({ ["form:1"] = true })
+        T.isnil(h:GetAttribute("dui-hold"))
+    end
+    -- "/click DaylightUIBear LeftButton 1" (the down half) works too.
+    stub.keyDownCVar = nil
+    stub.SetConditions({ ["form:3"] = true })
+    stub.SecureClick(DaylightUIBear, "LeftButton", true)
+    stub.SetConditions({})
+    T.eq(h:GetAttribute("actionpage"), 9, "a down click")
+    stub.SetConditions({ ["form:1"] = true })
+    noBlocked()
 end)
 
 T.test("paging: a druid's bars 2-8 page by the form too; forms learned build it again after combat", function()
