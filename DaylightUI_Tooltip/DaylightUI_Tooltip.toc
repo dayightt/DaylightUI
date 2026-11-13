@@ -8,7 +8,7 @@
 ## Notes-esMX: Los tooltips del juego al estilo DaylightUI: marco oscuro, nombres con el color de clase, bordes según la calidad del objeto, una barra de salud fina y, si quieres, junto al cursor.
 ## Notes-deDE: Die Tooltips des Spiels im DaylightUI-Stil: dunkler Rahmen, Namen in Klassenfarbe, Ränder nach Gegenstandsqualität, eine schmale Gesundheitsleiste, auf Wunsch am Mauszeiger.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

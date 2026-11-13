@@ -8,7 +8,7 @@
 ## Notes-esMX: Todas las bolsas en una ventana, incluidas la bolsa de profesión y el llavero: búsqueda, orden, huecos de bolsa, huecos libres y dinero, con el aspecto DaylightUI.
 ## Notes-deDE: Alle Taschen in einem Fenster, samt Berufstasche und Schlüsselbund: Suche, Sortieren, Taschenplätze, freie Plätze und Geld im DaylightUI-Look.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

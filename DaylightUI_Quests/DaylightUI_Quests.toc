@@ -8,7 +8,7 @@
 ## Notes-esMX: Tus misiones con el aspecto DaylightUI, con botones de objeto y movimiento suave.
 ## Notes-deDE: Deine Quests im DaylightUI-Look, mit Gegenstandstasten und sanfter Bewegung.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 ## OptionalDeps: !KalielsTracker, EllesmereUIQuestTracker, QuestieDB

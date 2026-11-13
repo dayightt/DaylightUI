@@ -8,7 +8,7 @@
 ## Notes-esMX: Tus beneficios ordenados en categorías por colores que tú controlas, y tus perjuicios bordeados según el tipo de disipación, al estilo DaylightUI.
 ## Notes-deDE: Deine Stärkungszauber in farbige Kategorien sortiert, die du selbst bestimmst, und deine Schwächungszauber nach Bannart umrandet, im DaylightUI-Stil.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

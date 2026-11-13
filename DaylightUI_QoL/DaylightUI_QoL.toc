@@ -8,7 +8,7 @@
 ## Notes-esMX: Calidad de vida: pequeñas ayudas para el botín, las misiones, los instructores y más.
 ## Notes-deDE: Komfort: kleine Helfer für Beute, Quests, Lehrer und mehr.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

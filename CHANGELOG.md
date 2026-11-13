@@ -1,3 +1,36 @@
+# DaylightUI 1.7.1
+
+Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.
+
+## New
+- Controller: Officially in beta!
+- Performance: Large performance increases
+- Unit frames: Pick which layer each unit frame, cast bar and the swing timer draws in, so you decide which one sits on top where they overlap
+- Nameplates: Mobs your quests still need can have their health bar in their own color
+
+## Changed
+- Whispers: Right-click a conversation in the list to pin it or close it
+- Copy chat: The copy window has an X, and Escape closes it before any window behind it
+- Cast bars: Each cast bar's spell name and cast time have their own switch, size, position and color
+- Damage meter: Class icons match the set you picked for your unit frames, Jiberish styles included
+- Object glow: Ore and herbs don't light up for now, while nameplates that vanish until a /reload are looked into. Quest objects, chests and your bobber still do
+- Languages: Spanish now covers all of Daylight UI, thanks to Narian, and more Simplified Chinese thanks to Hwtaps
+
+## Fixed
+- NPC window: Turning in a quest no longer hangs on "Retrieving item information"
+- Books: Every page of a book or letter is light and easy to read, not just the first
+- Minimap: No more error at login from an addon whose minimap button has a round icon
+- Fishing: The bobber shows only the Daylight UI light, not the game's interact icon on top of it
+- Action bars: Shadowform switches bar 1 to its own page, like a druid's forms
+- Legacy: Challenges the game can't track no longer show a Track switch
+- Cooldown Manager: Arcane Blast's stacks show on a bar too, not just as an icon
+- Minimap: No more small stutters from the addon button drawer while Questie or other map pin addons add pins as you move
+- Character: The stats show everything the game's own sheet does: health, mana, haste, off-hand damage, armor and spell penetration, and your pet's crit, dodge and a demon's mana
+- Action bars: The "Daylight UI tried to call SetShown()" error for the bottom bars, which still showed up after looting in a fight, is gone for good
+- Item outlines: The colored outline around reward and shop items no longer loses a side at smaller UI scales
+- DoT damage: The damage your DoTs still have to do shows on a French game client too, not only in English
+- Action bars: Round and other shaped buttons are see-through like square ones
+
 # DaylightUI 1.7
 
 A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.
@@ -63,7 +96,7 @@ Shared profiles and a tour from the options, nameplate target arrows, spells by 
 ## Changed
 - World map: Maximized, the quest list opens beside the map instead of shrinking it
 - Heal indicators: Six squares instead of four, with room for a group buff beside your heals
-- Controller: Each window uses the same buttons as the game's own: buy, train, open mail, swap gear
+- Controller: Every window uses the same buttons as the game's own: cast and put spells on your controller bars from the spellbook, use items from your bags, learn talents, place gear in your bags, switch chat tabs, buy, train, open mail, swap gear
 - Languages: Simplified Chinese checked through by a native speaker, thanks to Finn
 - Little touches: Easier-to-hit close buttons, a softer DoT end line, party icons you can move with a name tab, a clearer Unlearn, a simpler loot window, and a one-line "blocked" notice
 

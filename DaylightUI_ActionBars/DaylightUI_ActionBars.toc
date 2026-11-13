@@ -8,7 +8,7 @@
 ## Notes-esMX: Las barras de acción del juego al estilo DaylightUI: botones enmarcados, una disposición centrada con cuadrículas laterales que se desvanecen, movibles en el modo desbloqueo.
 ## Notes-deDE: Die Aktionsleisten des Spiels im DaylightUI-Stil: gerahmte Tasten, eine mittige Anordnung mit verblassenden Seitenrastern, im Entsperrmodus verschiebbar.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

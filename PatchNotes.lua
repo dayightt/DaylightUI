@@ -11,8 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
+    { version = "Unreleased" },
+    { version = "1.7.1", date = "2026-11-12", summary = "Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.",
         new = {
+            { "Controller", "Officially in beta!" },
+            { "Performance", "Large performance increases" },
             { "Unit frames", "Pick which layer each unit frame, cast bar and the swing timer draws in, so you decide which one sits on top where they overlap" },
             { "Nameplates", "Mobs your quests still need can have their health bar in their own color" },
         },
@@ -21,10 +24,11 @@ DUI.PatchNotes = {
             { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },
             { "Cast bars", "Each cast bar's spell name and cast time have their own switch, size, position and color" },
             { "Damage meter", "Class icons match the set you picked for your unit frames, Jiberish styles included" },
-            { "Object glow", "Ore and herbs don't light up for now, as they may be why nameplates sometimes vanish until a /reload. Quest objects, chests and your bobber still do, with far less memory used" },
+            { "Object glow", "Ore and herbs don't light up for now, while nameplates that vanish until a /reload are looked into. Quest objects, chests and your bobber still do" },
+            { "Languages", "Spanish now covers all of Daylight UI, thanks to Narian, and more Simplified Chinese thanks to Hwtaps" },
         },
         fixed = {
-            { "NPC window", "Turning in a quest no longer hangs on \"Retrieving item information\": slow rewards fill in, and when the game leaves out the rewards to choose from, the window says so and Space closes it so you can talk to the NPC again" },
+            { "NPC window", "Turning in a quest no longer hangs on \"Retrieving item information\"" },
             { "Books", "Every page of a book or letter is light and easy to read, not just the first" },
             { "Minimap", "No more error at login from an addon whose minimap button has a round icon" },
             { "Fishing", "The bobber shows only the Daylight UI light, not the game's interact icon on top of it" },
@@ -36,8 +40,7 @@ DUI.PatchNotes = {
             { "Action bars", "The \"Daylight UI tried to call SetShown()\" error for the bottom bars, which still showed up after looting in a fight, is gone for good" },
             { "Item outlines", "The colored outline around reward and shop items no longer loses a side at smaller UI scales" },
             { "DoT damage", "The damage your DoTs still have to do shows on a French game client too, not only in English" },
-            { "Action bars", "Round and other shaped buttons are see-through like square ones, and the controller's stance bar has no wing picture behind it any more" },
-            { "Controller", "Cancelling a logout, and the other yes/no boxes, no longer give a \"Daylight UI tried to call CancelLogout()\" error in controller mode" },
+            { "Action bars", "Round and other shaped buttons are see-through like square ones" },
         },
     },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",

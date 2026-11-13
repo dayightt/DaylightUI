@@ -10,7 +10,7 @@
 ## Author: Daylight
 ## X-Curse-Project-ID: 1712997
 ## X-Wago-ID: n6VYLONd
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## SavedVariables: DaylightUIDB
 ## AddonCompartmentFunc: DaylightUI_OpenOptions

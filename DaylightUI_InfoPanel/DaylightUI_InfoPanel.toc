@@ -8,7 +8,7 @@
 ## Notes-esMX: El panel superior derecho: una barra de experiencia arriba, un medidor de daño y un minimapa cuadrado debajo.
 ## Notes-deDE: Das Feld oben rechts: eine Erfahrungsleiste oben, darunter ein Schadensmesser und eine eckige Minikarte.
 ## Author: Daylight
-## Version: 1.7
+## Version: 1.7.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 
