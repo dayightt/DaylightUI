@@ -52,7 +52,7 @@ local function buildLine(list)
     tooltip(line.name, L["Name"], L["Click to rename."])
     line.search = CreateFrame("Button", nil, line)
     line.search:SetPoint("LEFT", line.name, "RIGHT", 8, 0)
-    line.search:SetSize(160, LINE - 6)
+    line.search:SetSize(130, LINE - 6)
     line.search.text = W.Font(line.search, W.BODY, DUI.Style.SIZE.small, C.dim)
     line.search.text:SetPoint("LEFT", line.search, "LEFT", 0, 0)
     line.search.text:SetPoint("RIGHT", line.search, "RIGHT", 0, 0)
@@ -92,6 +92,17 @@ local function buildLine(list)
     line.move = W.MoveButtons(line)
     line.move:SetPoint("RIGHT", del, "LEFT", -64, 0)   -- leave room for "Delete?"
     line.up, line.down = line.move.up, line.move.down
+    -- The group's color: a swatch, and a link to go back to the default once one is set.
+    line.swatch = W.Swatch(line, {},
+        function() local r, g, b = Cat.Color(line.key); return r and { r, g, b } or nil end,
+        function(c) Cat.SetColor(line.key, c) end)
+    line.swatch:SetSize(36, 20)
+    line.swatch:SetPoint("RIGHT", line.move, "LEFT", -12, 0)
+    tooltip(line.swatch, L["Group color"], L["The color of this group's heading and its name in menus. Click to change."])
+    line.reset = W.Link(line)
+    line.reset.SetLabel(L["Reset"])
+    line.reset:SetPoint("RIGHT", line.swatch, "LEFT", -8, 0)
+    line.reset:SetScript("OnClick", function() Cat.ResetColor(line.key) end)
     line.down:SetScript("OnClick", function() Cat.Move(line.key, 1) end)
     line.up:SetScript("OnClick", function() Cat.Move(line.key, -1) end)
     tooltip(line.up, L["Move up"], L["Where this group sits in the bag."])
@@ -105,6 +116,10 @@ local function updateLine(line, key, order, i)
     line.name.text:SetText(g.name .. (g.custom and "  " .. DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. L["custom"] .. "|r" or ""))
     line.search.text:SetText(g.custom and (g.search or L["Only what you move here"]) or "")
     line.search:EnableMouse(g.custom == true)
+    local colored = key ~= "recent"
+    line.swatch:SetShown(colored)
+    line.swatch.Refresh()
+    line.reset:SetShown(colored and ns.Categories.HasOwnColor(key))
     line.delete.SetUsable(ns.Categories.CanDelete(key))
     line.up.SetUsable(i > 1)
     line.down.SetUsable(i < #order)
@@ -167,7 +182,7 @@ local addGroup = {
         back:SetScript("OnClick", function()
             local Cat = ns.Categories
             local keys, values = Cat.Removed(), {}
-            for _, k in ipairs(keys) do values[k] = Cat.BY_KEY[k].name end
+            for _, k in ipairs(keys) do values[k] = Cat.ColorText(k, Cat.BY_KEY[k].name) end
             W.OpenMenu(back, keys, values, nil, function(k) Cat.Restore(k) end)
         end)
         tooltip(back, L["Bring back a group"], L["A group you deleted comes back, with its items."])

@@ -139,9 +139,15 @@ Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 -- the strength the window's own header rule uses there.
 Layout.RULE_ALPHA = { daylight = 1, classic = 0.7 }
 
-function Layout.PaintRule(rule)
+-- With a color (an open group's own) the rule starts as a faint tint of it.
+Layout.RULE_TINT = 0.45
+
+function Layout.PaintRule(rule, r, g, b)
     local c = DUI.Style.BAND_LIT
     local a = Layout.RULE_ALPHA[DUI.Style.Look and DUI.Style.Look() or "daylight"] or 1
+    if r then
+        c, a = { r, g, b }, a * Layout.RULE_TINT
+    end
     if CreateColor and rule.SetGradient then
         rule:SetVertexColor(1, 1, 1, 1)
         rule:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], 0))
@@ -209,28 +215,43 @@ local function heading(window, i)
 end
 
 -- Paints a heading from its name and fold state. Colors are read now, so a
--- change of accent repaints through the next layout. Open groups read in the
--- accent (Recent letter by letter under a gradient accent), folded ones in the
--- label color until the mouse is over them. The chevron turns as it folds.
+-- change of accent or of a group's color repaints through the next layout. Open
+-- groups read in their own color (Recent keeps the accent, letter by letter
+-- under a gradient one), folded ones in the label color; the mouse over a heading
+-- lifts it to the accent. The chevron turns as it folds.
 function Layout.PaintHeading(h, folded)
     local Style, Motion = DUI.Style, DUI.Motion
     local lit = not folded or h.hover
     local shown = h.name and string.upper(h.name) or ""
+    local gr, gg, gb
+    if not folded then gr, gg, gb = ns.Categories.Color(h.key) end
     if lit and h.key == "recent" then
         Style.PaintAccentText(h.text, shown)
     else
         h.text:SetText(shown)
-        if lit then
+        if h.hover then
+            h.text:SetTextColor(Style.Accent())
+        elseif gr then
+            h.text:SetTextColor(gr, gg, gb)
+        elseif lit then
             h.text:SetTextColor(Style.Accent())
         else
             local d = Layout.HEAD_DIM
             h.text:SetTextColor(d[1], d[2], d[3])
         end
     end
-    Layout.PaintRule(h.rule)
+    Layout.PaintRule(h.rule, gr, gg, gb)
     -- The count pops; an empty group's "drag items here" hint stays quiet.
-    Style.InkText(h.count, h.empty and "LABEL" or "pop")
-    if lit then
+    if gr and not h.empty and not h.hover then
+        h.count:SetTextColor(gr, gg, gb)
+    else
+        Style.InkText(h.count, h.empty and "LABEL" or "pop")
+    end
+    if h.hover then
+        h.chev:SetVertexColor(Style.Accent())
+    elseif gr then
+        h.chev:SetVertexColor(gr, gg, gb)
+    elseif lit then
         h.chev:SetVertexColor(Style.Accent())
     else
         local d = Layout.HEAD_DIM

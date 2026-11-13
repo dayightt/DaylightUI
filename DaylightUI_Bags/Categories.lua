@@ -8,7 +8,7 @@
 -- Anything left goes to Other. Keyring slots are Keys, empty slots are Empty.
 --
 -- Settings (module "Bags"): groupOrder (keys, nil = default), groupNames
--- (key -> name), customGroups (list of { key, name, search? }), collapsed
+-- (key -> name), groupColors (key -> { r, g, b }), customGroups (list of { key, name, search? }), collapsed
 -- (key -> true), pins (item ID -> key), removedGroups (built-in key -> true,
 -- see Cat.Delete), recentMinutes.
 
@@ -24,26 +24,28 @@ local K = ns.Search.KEYWORDS
 Cat.HEARTHSTONE = 6948
 
 -- Built-in groups in default order. A renamed one keeps the player's name in
--- groupNames. breakBefore / breakAfter start a new row of groups.
+-- groupNames. breakBefore / breakAfter start a new row of groups. color is the
+-- group's default heading color; ink names a Style.INK one instead and quality
+-- the item quality whose color the game uses (read when painting).
 Cat.BUILTIN = {
     { key = "recent", name = L["Recent"], breakAfter = true },
-    { key = "hearthstone", name = L["Hearthstone"] },
-    { key = "consumable", name = L["Consumables"] },
-    { key = "quest", name = L["Quest items"] },
-    { key = "sets", name = L["Equipment sets"] },
-    { key = "weapon", name = L["Weapons"] },
-    { key = "armor", name = L["Armor"] },
-    { key = "reagent", name = L["Reagents"] },
-    { key = "tradegoods", name = L["Trade goods"] },
-    { key = "recipe", name = L["Recipes"] },
-    { key = "ammo", name = L["Ammo"] },
-    { key = "container", name = L["Containers"] },
-    { key = "quiver", name = L["Quivers"] },
-    { key = "key", name = L["Keys"] },
-    { key = "misc", name = L["Miscellaneous"] },
-    { key = "other", name = L["Other"] },
-    { key = "junk", name = L["Junk"], breakBefore = true },
-    { key = "empty", name = L["Empty"] },
+    { key = "hearthstone", color = { 0.45, 0.72, 1.0 }, name = L["Hearthstone"] },
+    { key = "consumable", color = { 0.45, 0.86, 0.5 }, name = L["Consumables"] },
+    { key = "quest", color = { 1.0, 0.82, 0.25 }, name = L["Quest items"] },
+    { key = "sets", color = { 0.72, 0.56, 1.0 }, name = L["Equipment sets"] },
+    { key = "weapon", color = { 0.96, 0.52, 0.42 }, name = L["Weapons"] },
+    { key = "armor", color = { 0.62, 0.74, 0.92 }, name = L["Armor"] },
+    { key = "reagent", color = { 0.35, 0.82, 0.8 }, name = L["Reagents"] },
+    { key = "tradegoods", color = { 0.88, 0.66, 0.4 }, name = L["Trade goods"] },
+    { key = "recipe", color = { 0.96, 0.62, 0.82 }, name = L["Recipes"] },
+    { key = "ammo", color = { 0.67, 0.83, 0.45 }, name = L["Ammo"] },
+    { key = "container", color = { 0.78, 0.58, 0.38 }, name = L["Containers"] },
+    { key = "quiver", color = { 0.67, 0.83, 0.45 }, name = L["Quivers"] },
+    { key = "key", color = { 0.92, 0.8, 0.32 }, name = L["Keys"] },
+    { key = "misc", ink = "LABEL", name = L["Miscellaneous"] },
+    { key = "other", ink = "LABEL", name = L["Other"] },
+    { key = "junk", quality = 0, name = L["Junk"], breakBefore = true },
+    { key = "empty", ink = "LABEL", name = L["Empty"] },
 }
 Cat.BY_KEY = {}
 for _, g in ipairs(Cat.BUILTIN) do Cat.BY_KEY[g.key] = g end
@@ -160,6 +162,61 @@ function Cat.Move(key, by)
     end
 end
 
+-- A group's color: the player's own, else its default. Recent has none (it
+-- keeps the accent), so it returns nil. Read when painting, never kept.
+local function validColor(c)
+    return type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number"
+end
+
+function Cat.DefaultColor(key)
+    if key == "recent" then return nil end
+    local g = Cat.BY_KEY[key]
+    local INK = DUI.Style.INK
+    if not g then
+        local c = INK.TEXT
+        return c[1], c[2], c[3]
+    end
+    if g.color then return g.color[1], g.color[2], g.color[3] end
+    if g.quality then
+        local r, gr, b
+        if C_Item and C_Item.GetItemQualityColor then r, gr, b = C_Item.GetItemQualityColor(g.quality) end
+        if type(r) == "number" and type(gr) == "number" and type(b) == "number" then return r, gr, b end
+        local q = _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[g.quality]
+        if type(q) == "table" and type(q.r) == "number" then return q.r, q.g, q.b end
+        return 0.62, 0.62, 0.62
+    end
+    local c = INK[g.ink or "LABEL"]
+    return c[1], c[2], c[3]
+end
+
+function Cat.Color(key)
+    if key == "recent" then return nil end
+    local own = tbl("groupColors")[key]
+    if validColor(own) then return own[1], own[2], own[3] end
+    return Cat.DefaultColor(key)
+end
+
+function Cat.HasOwnColor(key) return validColor(tbl("groupColors")[key]) end
+
+function Cat.SetColor(key, c)
+    if not Cat.Get(key) or key == "recent" or not validColor(c) then return end
+    tbl("groupColors")[key] = { c[1], c[2], c[3] }
+    changed()
+end
+
+function Cat.ResetColor(key)
+    if not Cat.HasOwnColor(key) then return end
+    tbl("groupColors")[key] = nil
+    changed()
+end
+
+-- A group's name in its color, for a menu row.
+function Cat.ColorText(key, text)
+    local r, g, b = Cat.Color(key)
+    if not r then return text end
+    return DUI.Win.Parts.Hex({ r, g, b }) .. text .. "|r"
+end
+
 function Cat.Rename(key, name)
     if type(name) ~= "string" or name == "" or not Cat.Get(key) then return end
     tbl("groupNames")[key] = name
@@ -199,6 +256,7 @@ function Cat.DeleteCustom(key)
         if g.key == key then
             table.remove(list, i)
             dropPins(key)
+            tbl("groupColors")[key] = nil
             changed()
             return
         end
@@ -292,7 +350,9 @@ function Cat.ShareTable()
         if g then
             local items = pinned[key] or {}
             table.sort(items)
-            groups[#groups + 1] = { name = tbl("groupNames")[key] or g.name, search = g.search, items = items }
+            local own = tbl("groupColors")[key]
+            groups[#groups + 1] = { name = tbl("groupNames")[key] or g.name, search = g.search, items = items,
+                                    color = validColor(own) and { own[1], own[2], own[3] } or nil }
         end
     end
     if #groups == 0 then return nil end
@@ -305,7 +365,7 @@ function Cat.Export()
     return DUI.Profiles.Pack(t, Cat.SHARE_PREFIX)
 end
 
--- Parses and validates shared text: a list of { name, search, items }, or nil
+-- Parses and validates shared text: a list of { name, search, items, color? }, or nil
 -- plus the reason.
 function Cat.ReadShared(text)
     local v, why = DUI.Profiles.Unpack(text, Cat.SHARE_PREFIX)
@@ -327,7 +387,12 @@ function Cat.ReadShared(text)
                 end
             end
             local search = type(g.search) == "string" and g.search ~= "" and g.search or nil
-            out[#out + 1] = { name = string.sub(g.name, 1, 60), search = search, items = items }
+            local color
+            if validColor(g.color) then
+                color = { math.max(0, math.min(1, g.color[1])), math.max(0, math.min(1, g.color[2])),
+                          math.max(0, math.min(1, g.color[3])) }
+            end
+            out[#out + 1] = { name = string.sub(g.name, 1, 60), search = search, items = items, color = color }
         end
     end
     if #out == 0 then return nil, L["it has no groups in it"] end
@@ -335,7 +400,7 @@ function Cat.ReadShared(text)
 end
 
 -- Adds shared groups. One with the same name as an existing custom group updates
--- it (search and items); others are added. Returns how many.
+-- it (search, items and color); others are added. Returns how many.
 function Cat.ImportShared(list)
     local byName = {}
     for _, g in ipairs(Cat.Custom()) do byName[tbl("groupNames")[g.key] or g.name] = g end
@@ -355,6 +420,7 @@ function Cat.ImportShared(list)
             byName[sg.name] = list2[#list2]
         end
         for _, id in ipairs(sg.items) do pins[id] = key end
+        if sg.color then tbl("groupColors")[key] = { sg.color[1], sg.color[2], sg.color[3] } end
     end
     changed()
     return #list
@@ -451,7 +517,7 @@ function Cat.Menu(btn)
     local Keep = ns.Keep
     local keepable = Keep.Offered(btn, bag, slot)
     local keptSlot = Keep.At(bag, slot) ~= nil
-    local keepRow = keptSlot and L["Stop keeping in this slot"] or L["Keep in this slot"]
+    local keepRow = keptSlot and L["Stop keeping"] or L["Keep in this slot"]
     if not info or type(info.itemID) ~= "number" then
         if keepable and keptSlot then
             DUI.Widgets.OpenMenu(btn, { "keep" }, { keep = keepRow }, nil, function() Keep.Toggle(bag, slot) end,
@@ -462,7 +528,7 @@ function Cat.Menu(btn)
     local itemID = info.itemID
     local current = Cat.Assign(Cat.Facts(holder:GetID(), btn:GetID(), info), "bags")
     local keys, values = { "lock" }, {}
-    values.lock = Cat.IsLocked(itemID) and L["Unlock"] or L["Lock (never sold or disenchanted)"]
+    values.lock = Cat.IsLocked(itemID) and L["Unlock"] or L["Lock"]
     if keepable then
         keys[#keys + 1] = "keep"
         values.keep = keepRow
@@ -482,7 +548,7 @@ function Cat.Menu(btn)
         for _, key in ipairs(Cat.Order()) do
             if key ~= "recent" and key ~= "empty" then
                 keys[#keys + 1] = key
-                values[key] = Cat.Get(key).name
+                values[key] = Cat.ColorText(key, Cat.Get(key).name)
             end
         end
     end

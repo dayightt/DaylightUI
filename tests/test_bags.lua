@@ -1650,7 +1650,7 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     T.eq(groupOf(ns, B.buttons[1][2]), "consumable")
 end)
 
-T.test("bags: group headings read upper case in the accent with a count and chevron", function()
+T.test("bags: group headings read upper case in the group's color with a count and chevron", function()
     local ns, f = catLogin()
     local Style, Cat = DaylightUI.Style, ns.Categories
     local function headOf(key)
@@ -1660,8 +1660,8 @@ T.test("bags: group headings read upper case in the accent with a count and chev
     T.truthy(h, "a heading for Weapons")
     T.eq(h.text:GetText(), string.upper(h.name), "name in upper case")
     local r, g, b = h.text:GetTextColor()
-    local ar, ag, ab = Style.Accent()
-    T.near(r, ar, 0.01); T.near(g, ag, 0.01); T.near(b, ab, 0.01)
+    local wr, wg, wb = Cat.Color("weapon")
+    T.near(r, wr, 0.01); T.near(g, wg, 0.01); T.near(b, wb, 0.01)
     T.eq(h.count:GetText(), "1")
     T.eq(h.chev.__rotation or 0, 0, "open: the chevron points down")
     h:GetScript("OnClick")(h)
@@ -4227,7 +4227,7 @@ T.test("bags: the item menu offers the slot only bag by bag; an empty kept slot 
     keys = nil
     Cat.Menu(btn)
     T.eq(#keys, 1, "empty: only the way to free it")
-    T.eq(values.keep, DaylightUI.L["Stop keeping in this slot"])
+    T.eq(values.keep, DaylightUI.L["Stop keeping"])
     pick("keep")
     T.isnil(Keep.At(0, 3))
     keys = nil
@@ -5159,14 +5159,15 @@ T.test("bags: a heading's rule fades out to the right, softer under the Classic 
     local g = rule().__gradient
     T.truthy(g, "drawn as a gradient")
     T.eq(g[1], "HORIZONTAL")
-    T.eq(g[2].a, ns.Layout.RULE_ALPHA.daylight, "starts at the Daylight strength")
+    local tint = ns.Layout.RULE_TINT
+    T.near(g[2].a, ns.Layout.RULE_ALPHA.daylight * tint, 0.001, "starts at the Daylight strength, tinted")
     T.eq(g[3].a, 0, "and fades to nothing")
     -- The Classic look may not be in this build; check it only when it is.
     if DaylightUI.Style.LOOKS and DaylightUI.Style.LOOKS.classic then
         DaylightUI:Set("general", "look", "classic")
         stub.RunTimers()
         ns.Relayout()
-        T.eq(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic, "softer on the Classic gold")
+        T.near(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic * tint, 0.001, "softer on the Classic gold")
         DaylightUI:Set("general", "look", nil)
         stub.RunTimers()
     end
@@ -5203,4 +5204,110 @@ T.test("bags: the tour names the Alts tab only while it's there", function()
     T.falsy(stop.text():find("Alts", 1, true), "not named once the tab is gone")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
+end)
+
+T.test("bags: every group has a color; the player's wins and reset brings the default back", function()
+    local ns = catLogin()
+    local Cat, INK = ns.Categories, DaylightUI.Style.INK
+    local function is(key, c, why)
+        local r, g, b = Cat.Color(key)
+        T.near(r, c[1], 0.01, why); T.near(g, c[2], 0.01, why); T.near(b, c[3], 0.01, why)
+    end
+    is("weapon", { 0.96, 0.52, 0.42 }, "weapons")
+    is("hearthstone", { 0.45, 0.72, 1.0 }, "hearthstone")
+    is("misc", INK.LABEL, "misc reads label")
+    is("other", INK.LABEL, "other reads label")
+    is("empty", INK.LABEL, "empty reads label")
+    is("junk", { 0.1 * 0, 0.5, 0.9 }, "junk is the game's poor quality color")
+    T.isnil(Cat.Color("recent"), "recent keeps the accent")
+    local mine = Cat.AddCustom("Mine")
+    is(mine, INK.TEXT, "a custom group starts soft white")
+    Cat.SetColor("weapon", { 0.1, 0.2, 0.3 })
+    is("weapon", { 0.1, 0.2, 0.3 }, "the player's own color")
+    T.truthy(Cat.HasOwnColor("weapon"))
+    Cat.SetColor(mine, { 1, 0, 0 })
+    is(mine, { 1, 0, 0 }, "custom group's own color")
+    Cat.ResetColor("weapon")
+    is("weapon", { 0.96, 0.52, 0.42 }, "reset brings the default back")
+    T.falsy(Cat.HasOwnColor("weapon"))
+    Cat.DeleteCustom(mine)
+    T.isnil(ns.module.db.groupColors[mine], "a deleted group's color goes with it")
+end)
+
+T.test("bags: a heading wears its group's color, folded ones read label, the rule tints", function()
+    local ns, f = catLogin()
+    local Cat, INK = ns.Categories, DaylightUI.Style.INK
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    local function is(fs, c, why)
+        local r, g, b = fs:GetTextColor()
+        T.near(r, c[1], 0.01, why); T.near(g, c[2], 0.01, why); T.near(b, c[3], 0.01, why)
+    end
+    is(h.text, { 0.96, 0.52, 0.42 }, "name")
+    is(h.count, { 0.96, 0.52, 0.42 }, "count")
+    local grad = h.rule.__gradient
+    T.truthy(grad, "the rule fades")
+    T.near(grad[2].r, 0.96, 0.01, "the rule starts from the group's color")
+    T.near(grad[3].a, 0, 0.001, "and fades out")
+    Cat.SetColor("weapon", { 0.2, 0.4, 0.6 })
+    ns.Relayout()
+    h = headOf("weapon")
+    is(h.text, { 0.2, 0.4, 0.6 }, "the player's color")
+    Cat.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    is(h.text, INK.LABEL, "folded: label")
+    Cat.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+end)
+
+T.test("bags: the group menus list groups in their color and the lock row is short", function()
+    local ns = login({ view = "categories" })
+    categoryWorld()
+    open(ns)
+    ns.Relayout(); ns.FillAll()
+    local Cat = ns.Categories
+    local keys, values
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(_, k, v) keys, values = k, v end
+    Cat.Menu(ns.Bags.buttons[0][1])
+    DaylightUI.Widgets.OpenMenu = openMenu
+    local L = DaylightUI.L
+    T.eq(values.lock, L["Lock"], "a short lock row")
+    local hex = DaylightUI.Win.Parts.Hex({ Cat.Color("weapon") })
+    T.eq(values.weapon, hex .. Cat.Get("weapon").name .. "|r", "weapons in their color")
+    T.truthy(#L["Lock"] <= 10)
+end)
+
+T.test("bags: a group's color travels in a shared string", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local store = {}
+    _G.C_EncodingUtil = {
+        SerializeCBOR = function(v) store[#store + 1] = v; return "cbor" .. #store end,
+        DeserializeCBOR = function(s) local v = store[tonumber(string.match(s, "^cbor(%d+)$") or "")]
+            if not v then error("bad cbor") end; return v end,
+        CompressString = function(s) return s end, DecompressString = function(s) return s end,
+        EncodeBase64 = function(s) return s end, DecodeBase64 = function(s) return s end,
+    }
+    local a = Cat.AddCustom("Tinted")
+    Cat.AddCustom("Plain")
+    Cat.SetColor(a, { 0.3, 0.5, 0.7 })
+    local text = Cat.Export()
+    Cat.DeleteCustom(a)
+    local list = Cat.ReadShared(text)
+    T.eq(#list, 2)
+    Cat.ImportShared(list)
+    local key
+    for _, g in ipairs(Cat.Custom()) do if g.name == "Tinted" then key = g.key end end
+    local r, g, b = Cat.Color(key)
+    T.near(r, 0.3, 0.01); T.near(g, 0.5, 0.01); T.near(b, 0.7, 0.01)
+    for _, g2 in ipairs(Cat.Custom()) do
+        if g2.name == "Plain" then T.falsy(Cat.HasOwnColor(g2.key), "no color shared, none set") end
+    end
+    _G.C_EncodingUtil = nil
 end)
