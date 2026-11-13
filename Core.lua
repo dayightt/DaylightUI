@@ -270,6 +270,27 @@ end
 local seen = {}
 local REPORT_AT = { [1] = true, [10] = true, [100] = true, [1000] = true }
 
+-- The session's errors for /dui bug, the latest last: one entry per message
+-- (its first line) with its count and the stack it last came with. The oldest
+-- drop off past ERROR_LOG_MAX.
+DUI.ERROR_LOG_MAX = 20
+local errorLog, errorIndex = {}, {}
+local function remember(key, n, stack)
+    local entry = errorIndex[key]
+    if entry then
+        for i = 1, #errorLog do
+            if errorLog[i] == entry then table.remove(errorLog, i); break end
+        end
+    else
+        entry = { text = key }
+        errorIndex[key] = entry
+    end
+    entry.count, entry.stack = n, stack
+    errorLog[#errorLog + 1] = entry
+    if #errorLog > DUI.ERROR_LOG_MAX then errorIndex[table.remove(errorLog, 1).text] = nil end
+end
+function DUI.Errors() return errorLog end
+
 local function report(ok, err, label)
     if not ok then
         -- A secret report can't be read for its first line, so those share one count
@@ -286,6 +307,7 @@ local function report(ok, err, label)
         local key = string.match(text, "^[^\n]*")
         local n = (seen[key] or 0) + 1
         seen[key] = n
+        remember(key, n, string.sub(text, #key + 2))
         if REPORT_AT[n] then
             geterrorhandler()(n == 1 and text or ("(seen " .. n .. " times) " .. text))
         end
@@ -897,6 +919,7 @@ local function blocked(_, addon, fn)
     local key = tostring(fn)
     if reportedBlock[key] then return end
     reportedBlock[key] = true
+    remember(string.format("the game blocked %s (%s)", key, addon), 1)
     DUI.Print(string.format(L["the game blocked %s (%s). Please report this."], key, addon))
     -- Where it came from, for the first one only (the rest share the cause), and
     -- only with the dev addon loaded. Players get one line, not a wall of stack

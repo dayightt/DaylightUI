@@ -87,6 +87,89 @@ T.test("bug report: the options home page has a Report a bug button beside its c
     T.falsy(b:IsShown(), "only on the home page")
 end)
 
+-- Errors: a report is about one bug, so the last box carries one error.
+
+local function boom(text, times)
+    for _ = 1, times or 1 do DaylightUI.SafeCall(function() error(text) end) end
+end
+
+T.test("bug report: each error is kept once with its count, the latest last, and the oldest drop off", function()
+    load()
+    boom("first", 3)
+    boom("second")
+    boom("first")
+    local log = DaylightUI.Errors()
+    T.eq(#log, 2)
+    T.truthy(string.find(log[1].text, "second", 1, true), "second is now the older one")
+    T.truthy(string.find(log[2].text, "first", 1, true), "first happened again, so it's the latest")
+    T.eq(log[2].count, 4)
+    for i = 1, DaylightUI.ERROR_LOG_MAX + 5 do boom("flood " .. i) end
+    T.eq(#DaylightUI.Errors(), DaylightUI.ERROR_LOG_MAX, "capped")
+end)
+
+T.test("bug report: a blocked action is kept as an error", function()
+    load()
+    stub.FireEvent("ADDON_ACTION_BLOCKED", "DaylightUI_Chat", "GuildInvite()")
+    stub.FireEvent("ADDON_ACTION_BLOCKED", "SomeOtherAddon", "Thing()")
+    local log = DaylightUI.Errors()
+    T.eq(#log, 1, "only Daylight UI's")
+    T.eq(log[1].text, "the game blocked GuildInvite() (DaylightUI_Chat)")
+end)
+
+T.test("bug report: the last box opens on the latest error and steps one at a time", function()
+    local Bug = load()
+    boom("older")
+    boom("newer", 2)
+    DaylightUI.RunCommand("bug")
+    local box = _G.DaylightUIBugReport
+    local edit = box.rows[3].edit
+    T.truthy(string.find(edit.__text, "newer (x2)\n", 1, true), "the latest and its count, on its own line")
+    T.truthy(string.find(edit.__text, "\n[Game ", 1, true), "then the setup")
+    T.eq(string.find(edit.__text, "older", 1, true), nil, "one error a report")
+    T.truthy(box.prev:IsShown() and box.next:IsShown(), "arrows with more than one")
+    T.eq(box.count:GetText(), "2 of 2")
+    Bug.Step(-1)
+    T.truthy(string.find(edit.__text, "older\n", 1, true), "the one before")
+    T.eq(box.count:GetText(), "1 of 2")
+    Bug.Step(-1)
+    T.eq(box.count:GetText(), "1 of 2", "stops at the first")
+end)
+
+T.test("bug report: with no error the last box is the setup alone and the arrows are away", function()
+    local Bug = load()
+    DaylightUI.RunCommand("bug")
+    local box = _G.DaylightUIBugReport
+    T.eq(box.rows[3].edit.__text, Bug.Setup())
+    T.falsy(box.prev:IsShown())
+    T.falsy(box.count:IsShown())
+end)
+
+T.test("bug report: with BugGrabber, its Daylight UI errors of this session, repeats folded", function()
+    local Bug = load()
+    for _ = 1, 12 do DaylightUI.SafeCall(function() error("Interface/AddOns/DaylightUI/Fade.lua:1: ours", 0) end) end
+    local key = DaylightUI.Errors()[1].text
+    _G.BugGrabber = {
+        GetSessionId = function() return 7 end,
+        GetDB = function() return {
+            { message = "Interface/AddOns/DaylightUI_Bags/Bag.lua:5: old session", session = 6, counter = 1 },
+            { message = "Interface/AddOns/Questie/Q.lua:9: not ours", session = 7, counter = 4 },
+            { message = "Interface/FrameXML/Game.lua:3: bad argument", session = 7, counter = 2,
+              stack = "Interface/AddOns/DaylightUI_Chat/Box.lua:961: in function" },
+            { message = key .. "\nstack", session = 7, counter = 1 },
+            { message = "Interface/AddOns/DaylightUI_Bags/Bag.lua:5: plain handler", session = 7, counter = 3 },
+            { message = "(seen 10 times) " .. key .. "\nstack", session = 7, counter = 1 },
+        } end,
+    }
+    local e = Bug.Errors()
+    _G.BugGrabber = nil
+    T.eq(#e, 3, "this session's, Daylight UI's, each once")
+    T.eq(e[1].text, "Interface/FrameXML/Game.lua:3: bad argument", "ours by its stack alone")
+    T.eq(e[2].text, "Interface/AddOns/DaylightUI_Bags/Bag.lua:5: plain handler")
+    T.eq(e[2].count, 3, "BugGrabber's count")
+    T.eq(e[3].text, key, "ours, at its latest spot")
+    T.eq(e[3].count, 12, "our own count")
+end)
+
 T.test("bug report: an addon list too long for the form's box is cut at a whole name, the rest counted", function()
     local Bug = load()
     local names = {}
@@ -113,7 +196,7 @@ T.test("bug report: a long list spends its room on whole addons, their parts and
     T.eq(string.sub(short, 1, 5), "Pack1", "helpers aren't first")
 end)
 
-T.test("bug report: the last box is the setup, never the addon list", function()
+T.test("bug report: the last box is the error and the setup, never the addon list", function()
     local Bug = load()
     local names = {}
     for i = 1, 40 do
@@ -124,4 +207,17 @@ T.test("bug report: the last box is the setup, never the addon list", function()
     local f = Bug.Fields()
     T.truthy(#f[2].text <= Bug.ADDONS_MAX)
     T.eq(f[3].text, Bug.Setup())
+end)
+
+T.test("bug report: an error brings the calls nearest it, not the whole stack", function()
+    local Bug = load()
+    local stack = {}
+    for i = 1, 30 do stack[i] = "Interface/AddOns/DaylightUI/File.lua:" .. i .. ": in function" end
+    DaylightUI.SafeCall(function() error("deep\n" .. table.concat(stack, "\n"), 0) end)
+    local e = DaylightUI.Errors()[1]
+    T.eq(e.text, "deep")
+    local text = Bug.Fields(e)[3].text
+    T.truthy(string.find(text, "File.lua:" .. Bug.STACK_LINES .. ": in function", 1, true), "the nearest calls")
+    T.eq(string.find(text, "File.lua:" .. (Bug.STACK_LINES + 1) .. ": in function", 1, true), nil, "no further")
+    T.truthy(#text < 4000, "fits the form's box")
 end)
