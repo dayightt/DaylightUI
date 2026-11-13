@@ -760,12 +760,13 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
         end
     end })
 
--- The game's popup menus (right-click menus, the buff bar's category list, bag
--- categories): window look behind them, our font, colors as the game set them.
+-- The game's popup menus (right-click a unit, the buff bar's category list,
+-- bag categories): our window behind them, our font, our row chrome.
 --
 -- How the game builds them drives the approach:
 -- - While a menu is open nothing may create textures on it, so our look goes on
---   a frame of ours just behind it.
+--   a frame of ours just behind it, and every icon, tick and arrow below is one
+--   the game already attached. We only change its texture, color or alpha.
 -- - Menus are reused and redraw their background each time, so each is dressed
 --   again every time it opens.
 -- - Every level, submenus included, is shown by the menu manager, which then
@@ -775,6 +776,11 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
 --   the menu styles' Generate.
 -- - That callback runs inside the game's secure menu code, so it only records
 --   the frame. The dressing happens a moment later from our timer.
+--
+-- Text keeps a color that means something (a class, an item quality, a disabled
+-- row). Gold titles and ordinary white rows take our ink. A chosen radio is
+-- the accent, same as our own menus. The raid-target submenu's icons are the
+-- game's sheet; those become our marker files (the same 1 to 8 as the frames).
 local menuShell = setmetatable({}, { __mode = "k" })
 
 -- Our font on every text in a menu, at any depth. Not Kit.Font, which does a
@@ -821,6 +827,161 @@ local function menuFonts(frame, depth)
         for _, c in ipairs({ frame:GetChildren() }) do menuFonts(c, depth - 1) end
     end
 end
+local MENU_CHEVRON = DUI.MEDIA .. "ui-chevron.png"
+local MENU_TICK = DUI.MEDIA .. "ui-check.png"
+local MENU_LINE = "Interface\\Buttons\\WHITE8x8"
+-- Points right. The chevron file points down; this is Kit.ROTATION.right.
+local MENU_CHEVRON_RIGHT = math.pi / 2
+
+local function menuPath(tex)
+    local p = tex.GetTexture and tex:GetTexture()
+    if type(p) ~= "string" then return "" end
+    return p:lower():gsub("/", "\\")
+end
+local function menuAtlas(tex)
+    if type(tex.GetAtlas) ~= "function" then return "" end
+    local ok, name = pcall(tex.GetAtlas, tex)
+    if not ok or type(name) ~= "string" then return "" end
+    return name:lower()
+end
+-- "radial" is the radio (empty ring or the yellow dot). "checkmark" and
+-- "ticksquare" are the checkbox. Read before we replace the texture.
+local function menuSelectKind(tex)
+    local name = menuAtlas(tex) .. " " .. menuPath(tex)
+    if name:find("radial", 1, true) then return "radio" end
+    if name:find("checkmark", 1, true) or name:find("ticksquare", 1, true) then return "check" end
+end
+-- The game's raid-target sheet is one cell of a grid (4 x 4 or 4 x 2). The
+-- cell's tex coords are the marker number, 1 star through 8 skull.
+local function menuMarkerIndex(tex)
+    if type(tex.GetTexCoord) ~= "function" then return nil end
+    local u = { tex:GetTexCoord() }
+    local left, right, top, bottom
+    if #u >= 8 then
+        left, top, right, bottom = u[1], u[2], u[7], u[8]
+    else
+        left, right, top, bottom = u[1], u[2], u[3], u[4]
+    end
+    if type(left) ~= "number" or type(right) ~= "number" or type(top) ~= "number" or type(bottom) ~= "number" then
+        return nil
+    end
+    local w, h = right - left, bottom - top
+    if w < 0.05 or h < 0.05 or w > 0.6 then return nil end
+    local cols = math.floor(1 / w + 0.5)
+    local rows = math.floor(1 / h + 0.5)
+    if cols < 1 or rows < 1 then return nil end
+    local index = math.floor(top * rows + 0.5) * cols + math.floor(left * cols + 0.5) + 1
+    if index < 1 or index > 8 then return nil end
+    return index
+end
+local function menuMarkerArt(tex, allowCell)
+    local path, atlas = menuPath(tex), menuAtlas(tex)
+    local known = path:find("raidtargeting", 1, true) ~= nil or atlas:find("raidtarget", 1, true) ~= nil
+    if not known and not allowCell then return false end
+    if not known then
+        local h = tex.GetHeight and tex:GetHeight()
+        if type(h) == "number" and h > 24 then return false end
+    end
+    local index = menuMarkerIndex(tex)
+    if not index then return false end
+    tex:SetTexture((DUI.MEDIA .. "marker-%d.png"):format(index))
+    if tex.SetTexCoord then tex:SetTexCoord(0, 1, 0, 1) end
+    tex:SetVertexColor(1, 1, 1, 1)
+    return true
+end
+local function menuIsArrow(owner, tex)
+    if owner.arrow == tex then return true end
+    local name = menuAtlas(tex) .. " " .. menuPath(tex)
+    return name:find("expandarrow", 1, true) ~= nil
+end
+local function menuIsHighlight(owner, tex)
+    if owner.highlight == tex then return true end
+    return menuPath(tex):find("questtitlehighlight", 1, true) ~= nil
+end
+local function menuIsDivider(owner, tex)
+    if owner.divider == tex then return true end
+    return menuPath(tex):find("tooltipdivider", 1, true) ~= nil
+end
+local function menuClose(a, b)
+    return type(a) == "number" and type(b) == "number" and math.abs(a - b) <= 0.08
+end
+-- Disabled rows are a flat gray. Ordinary rows are near white. Titles use the
+-- game's gold (NORMAL_FONT_COLOR). Anything else (class, quality) stays.
+local function menuGray(r, g, b)
+    return menuClose(r, g) and menuClose(g, b) and type(r) == "number" and r < 0.8 and r > 0.2
+end
+local function menuWhite(r, g, b)
+    return type(r) == "number" and r > 0.92 and g > 0.92 and b > 0.92
+end
+local function menuGold(r, g, b)
+    return type(r) == "number" and r > 0.9 and g > 0.72 and g < 0.9 and b < 0.15
+end
+-- role: "radio" the chosen one, "marker" a raid-target row, "title" a heading.
+local function menuInk(fs, role)
+    local r, g, b = fs:GetTextColor()
+    if menuGray(r, g, b) then return end
+    if role == "radio" then Style.InkText(fs, "pop"); return end
+    if role == "title" then
+        if menuGold(r, g, b) or menuWhite(r, g, b) then Style.InkText(fs, "pop") end
+        return
+    end
+    if menuGold(r, g, b) then Style.InkText(fs, "pop"); return end
+    if role == "marker" or menuWhite(r, g, b) then Style.InkText(fs, "TEXT") end
+end
+local function menuShown(tex)
+    return tex and (not tex.IsShown or tex:IsShown())
+end
+-- One row, or a title or divider frame. Textures already on it, never new ones.
+local function dressEntry(frame)
+    if type(frame) ~= "table" or not frame.GetRegions then return end
+    if frame.IsForbidden and frame:IsForbidden() then return end
+    local isButton = frame.IsObjectType and frame:IsObjectType("Button")
+    local radial, hasMarker, picked = false, false, false
+    if frame.leftTexture1 then
+        if menuSelectKind(frame.leftTexture1) == "radio" then radial = true end
+        frame.leftTexture1:SetAlpha(0)
+    end
+    if menuShown(frame.leftTexture2) then
+        if menuSelectKind(frame.leftTexture2) == "radio" then radial = true end
+        picked = true
+        frame.leftTexture2:SetAlpha(1)
+        frame.leftTexture2:SetTexture(MENU_TICK)
+        if frame.leftTexture2.SetTexCoord then frame.leftTexture2:SetTexCoord(0, 1, 0, 1) end
+        if frame.leftTexture2.SetSize then frame.leftTexture2:SetSize(14, 14) end
+        Style.PaintAccent(frame.leftTexture2)
+    end
+    local allowCell = frame.leftTexture1 ~= nil
+    for _, tex in ipairs({ frame:GetRegions() }) do
+        if tex.GetObjectType and tex:GetObjectType() == "Texture"
+            and tex ~= frame.leftTexture1 and tex ~= frame.leftTexture2 then
+            if menuMarkerArt(tex, allowCell) then hasMarker = true
+            elseif menuIsArrow(frame, tex) then
+                tex:SetTexture(MENU_CHEVRON)
+                if tex.SetTexCoord then tex:SetTexCoord(0, 1, 0, 1) end
+                if tex.SetSize then tex:SetSize(10, 10) end
+                if tex.SetRotation then tex:SetRotation(MENU_CHEVRON_RIGHT) end
+                local c = Style.INK.LABEL
+                tex:SetVertexColor(c[1], c[2], c[3], 1)
+            elseif menuIsHighlight(frame, tex) then
+                tex:SetTexture(MENU_LINE)
+                if tex.SetBlendMode then tex:SetBlendMode("ADD") end
+                tex:SetVertexColor(0.18, 0.16, 0.13, 1)
+            elseif menuIsDivider(frame, tex) then
+                tex:SetTexture(MENU_LINE)
+                if tex.SetHeight then tex:SetHeight(1) end
+                local c = Style.NEUTRAL
+                tex:SetVertexColor(c[1], c[2], c[3], 0.85)
+            end
+        end
+    end
+    local role
+    if picked and (radial or hasMarker) then role = "radio"
+    elseif hasMarker then role = "marker"
+    elseif not isButton then role = "title" end
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region.GetObjectType and region:GetObjectType() == "FontString" then menuInk(region, role) end
+    end
+end
 local function dressMenu(Kit, menu)
     if type(menu) ~= "table" or not menu.GetRegions or (menu.IsForbidden and menu:IsForbidden()) then return end
     Kit.Strip(menu)
@@ -837,6 +998,11 @@ local function dressMenu(Kit, menu)
     holder:SetFrameStrata(menu:GetFrameStrata())
     holder:SetFrameLevel(math.max(0, menu:GetFrameLevel() - 1))
     menuFonts(menu, 5)
+    if menu.GetChildren then
+        for _, child in ipairs({ menu:GetChildren() }) do
+            if child ~= holder then DUI.SafeCall(dressEntry, child) end
+        end
+    end
 end
 
 local menuListener = {} -- our EventRegistry owner

@@ -2815,6 +2815,85 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local function atlas(tex, name)
+        function tex:GetAtlas() return name end
+        return tex
+    end
+    local menu = CreateFrame("Frame", nil, UIParent)
+    menu.bg = menu:CreateTexture()
+    menu.bg:SetAtlas("common-dropdown-bg")
+    local title = CreateFrame("Frame", nil, menu)
+    title.text = title:CreateFontString()
+    title.text:SetTextColor(1, 0.82, 0)                 -- NORMAL_FONT_COLOR, a heading
+    local plain = CreateFrame("Button", nil, menu)
+    plain.text = plain:CreateFontString()
+    plain.text:SetTextColor(1, 1, 1)
+    plain.arrow = plain:CreateTexture()
+    plain.arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    plain.highlight = plain:CreateTexture()
+    plain.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    local kept = CreateFrame("Button", nil, menu)
+    kept.text = kept:CreateFontString()
+    kept.text:SetTextColor(0, 0.44, 0.87)               -- a class color
+    local off = CreateFrame("Button", nil, menu)
+    off.text = off:CreateFontString()
+    off.text:SetTextColor(0.5, 0.5, 0.5)
+    local function marker(parent, coords, color)
+        local row = CreateFrame("Button", nil, parent)
+        row.leftTexture1 = atlas(row:CreateTexture(), "common-dropdown-tickradial")
+        row.leftTexture2 = atlas(row:CreateTexture(), "common-dropdown-icon-radialtick-yellow")
+        row.text = row:CreateFontString()
+        row.text:SetTextColor(color[1], color[2], color[3])
+        row.icon = row:CreateTexture()
+        row.icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+        row.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        row.icon:SetSize(16, 16)
+        return row
+    end
+    local skull = marker(menu, { 0.75, 1, 0.25, 0.5 }, { 1, 1, 1 })       -- index 8, and the chosen one
+    local circle = marker(menu, { 0.25, 0.5, 0, 0.25 }, { 0.98, 0.57, 0 }) -- index 2
+    circle.leftTexture2:Hide()
+    local box = CreateFrame("Button", nil, menu)
+    box.leftTexture1 = atlas(box:CreateTexture(), "common-dropdown-ticksquare")
+    box.leftTexture2 = atlas(box:CreateTexture(), "common-dropdown-icon-checkmark-yellow")
+    box.text = box:CreateFontString()
+    box.text:SetTextColor(1, 1, 1)
+    local rule = CreateFrame("Frame", nil, menu)
+    rule.divider = rule:CreateTexture()
+    rule.divider:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local Style = DaylightUI.Style
+    local ar, ag, ab = Style.Accent()
+    local ink = Style.INK.TEXT
+    T.eq(menu.bg:GetAlpha(), 0, "the game's background gone")
+    T.eq(title.text.__textColor[1], ar, "a gold heading takes the accent")
+    T.eq(title.text.__textColor[2], ag)
+    T.eq(plain.text.__textColor[1], ink[1], "a white row takes our text")
+    T.eq(plain.arrow:GetTexture(), DaylightUI.MEDIA .. "ui-chevron.png")
+    T.eq(plain.arrow.__rotation, math.pi / 2, "the chevron points at the submenu")
+    T.eq(plain.highlight:GetBlendMode(), "ADD")
+    T.eq(kept.text.__textColor[2], 0.44, "a class color stays")
+    T.eq(off.text.__textColor[1], 0.5, "a disabled row stays gray")
+    T.eq(skull.leftTexture1:GetAlpha(), 0, "the empty radio is gone")
+    T.eq(skull.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "the chosen row gets our tick")
+    T.eq(skull.text.__textColor[1], ar, "the chosen row is the accent")
+    T.eq(skull.icon:GetTexture(), DaylightUI.MEDIA .. "marker-8.png", "skull uses our marker")
+    T.eq(circle.icon:GetTexture(), DaylightUI.MEDIA .. "marker-2.png", "circle uses our marker")
+    T.eq(circle.text.__textColor[1], ink[1], "a marker's name is our text, not the game's orange")
+    T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png")
+    T.eq(box.text.__textColor[1], ink[1], "a ticked checkbox stays body text")
+    T.eq(rule.divider:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the divider is a plain line")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("skins: tabs and list parts follow the game's changes with no hook on its methods (hook review area 4)", function()
     login()
     local Kit = stub.skins.Kit
