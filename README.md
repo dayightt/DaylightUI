@@ -116,6 +116,6 @@ Daylight UI is source-available, not open source. You can fork the repo to send 
 
 ## Credits
 
-Spanish translation by Narian.
+Spanish translation by Narian. Simplified Chinese translation by Levis.
 
 Ships with Expressway Free and other free fonts, each under its own license (see `Media/fonts`). The optional Fabled class icon styles come from [Jiberish Fabled Icons](https://github.com/Repooc/ElvUI_JiberishIcons) and only show if you install that addon; Daylight UI doesn't include them and isn't made or endorsed by JiberishUI.
