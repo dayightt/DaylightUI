@@ -4109,3 +4109,62 @@ T.test("bags on a controller: Destroy asks in the menu first, then deletes that 
     T.eq(deleted, nil, "an empty slot has nothing to destroy")
     _G.ItemLocation = made
 end)
+
+local function headingsShown(f)
+    local out = {}
+    for _, h in ipairs(f.headings or {}) do if h:IsShown() and h.key then out[h.key] = true end end
+    return out
+end
+
+T.test("bags: a chip shows only its groups in the categories view", function()
+    local ns, f = catLogin()
+    local W = ns.Window
+    local all = headingsShown(f)
+    T.truthy(all.junk and all.weapon and all.consumable, "everything with no chip")
+    W.PickChip(f, "junk")
+    stub.RunTimers()
+    local only = headingsShown(f)
+    T.truthy(only.junk, "the Junk heading stays")
+    T.eq(only.weapon, nil, "other headings go")
+    T.eq(only.consumable, nil)
+    local weapon = ns.Bags.buttons[0][1]
+    T.truthy(not weapon:IsShown() or (f.fading and f.fading[weapon]), "the rare weapon's slot hides (or fades out)")
+    T.eq(ns.Bags.buttons[0][2]:IsShown(), true, "the gray one shows")
+    W.PickChip(f, "all")
+    stub.RunTimers()
+    T.truthy(headingsShown(f).weapon, "All brings everything back")
+end)
+
+T.test("bags: a chip dims the rest in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local B = ns.Bags
+    local seen = {}
+    for _, b in ipairs({ B.buttons[0][1], B.buttons[0][2] }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "junk")
+    T.eq(seen[B.buttons[0][2]], true, "the gray item stays lit")
+    T.eq(seen[B.buttons[0][1]], false, "the weapon dims")
+    f.match = function() return false end
+    ns.Window.MatchAll(f)
+    T.eq(seen[B.buttons[0][2]], false, "a search on top narrows further")
+    f.match = nil
+end)
+
+T.test("bags: chips reset when the bag closes, and a chip in combat lays out nothing protected", function()
+    local ns, f = catLogin()
+    ns.Window.PickChip(f, "gear")
+    T.eq(f.chip, "gear")
+    f:Hide()
+    stub.RunTimers()
+    T.eq(f.chip, nil, "closing clears the chip")
+    f:Show()
+    stub.RunTimers()
+    stub.EnterCombat()
+    ns.Window.PickChip(f, "quest")
+    T.eq(#stub.errors, 0)
+end)

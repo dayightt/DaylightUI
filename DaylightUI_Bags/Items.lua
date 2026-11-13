@@ -753,7 +753,15 @@ function Items.Match(btn)
     local holder = btn:GetParent()
     local bag, slot = holder and holder:GetID(), btn:GetID()
     local w = windowOf(btn)
-    call(btn, "SetMatchesSearch", ns.Search.Matches(bag, slot, Items.InfoAt(bag, slot), w and w.match))
+    local info = Items.InfoAt(bag, slot)
+    local fits = ns.Search.Matches(bag, slot, info, w and w.match)
+    -- A chip dims what is outside its groups (in the categories view the layout
+    -- hides those instead).
+    if fits and w and w.chip and w.Setting("view") ~= "categories" then
+        local group = info and ns.Categories.Assign(ns.Categories.Facts(bag, slot, info))
+        fits = group ~= nil and ns.Window.InChip(w, group)
+    end
+    call(btn, "SetMatchesSearch", fits)
 end
 
 -- The slot now holds something other than its last fill: the bag update arrived

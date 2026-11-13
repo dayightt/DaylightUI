@@ -18,6 +18,24 @@ Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
 Window.FOOTER = 18
+Window.CHIP_ROW = DUI.Widgets.CHIP_HEIGHT   -- the filter chips under the search
+-- Filter chips: a chip shows only the groups listed (keys of Cat.PRIORITY).
+Window.CHIPS = {
+    { id = "all" },
+    { id = "gear", groups = { "sets", "weapon", "armor" } },
+    { id = "use", groups = { "hearthstone", "consumable" } },
+    { id = "trade", groups = { "reagent", "tradegoods", "recipe" } },
+    { id = "quest", groups = { "quest" } },
+    { id = "junk", groups = { "junk" } },
+}
+local CHIP_LABEL = {
+    all = function() return ALL or L["All"] end,
+    gear = function() return L["Gear"] end,
+    use = function() return L["Use"] end,
+    trade = function() return L["Trade"] end,
+    quest = function() return QUESTS_LABEL or L["Quest"] end,
+    junk = function() return L["Junk"] end,
+}
 Window.TEXT_SIZE = Style.SIZE.body
 Window.DIM = DUI.Style.INK.LABEL   -- hints, small icons, count labels
 -- Free slot thresholds for warn and bad colors, same as the InfoPanel bag
@@ -266,9 +284,10 @@ function Window.Create(spec)
     f.search:SetPoint("TOPLEFT", f, "TOPLEFT", E, top)
     Window.LayoutTools(f)
 
+    Window.Chips(f)
     f.items = CreateFrame("Frame", nil, f)
     f.items.dluiWindow = f
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP)
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP - Window.CHIP_ROW - Window.GAP)
 
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
@@ -281,6 +300,7 @@ function Window.Create(spec)
         -- A search only lasts while the window is open.
         if self.search:GetText() ~= "" then self.search:SetText("") end
         self.match = nil
+        if self.chip then Window.PickChip(self, nil, true) end
         self.search:ClearFocus()
     end)
     -- On open, lay out and fill whatever changed while closed and wasn't already
@@ -445,6 +465,62 @@ function Window.LayoutTools(f)
     end
     if right then f.search:SetPoint("RIGHT", right, "LEFT", -6, 0)
     else f.search:SetPoint("RIGHT", f, "RIGHT", -Window.EDGE, 0) end
+end
+
+-- A chip shows only its groups; nothing picked shows everything. Custom groups
+-- belong to All only.
+function Window.InChip(f, key)
+    local id = f and f.chip
+    if not id then return true end
+    for _, c in ipairs(Window.CHIPS) do
+        if c.id == id then
+            for _, g in ipairs(c.groups or {}) do if g == key then return true end end
+        end
+    end
+    return false
+end
+
+function Window.PaintChips(f)
+    for _, b in ipairs(f.chips or {}) do b.SetOn(b.id == (f.chip or "all")) end
+end
+
+-- Picks a chip (nil or "all" = everything). The grid view dims at once; the
+-- categories view lays out again, gliding like a fold. quiet: no layout (closing).
+function Window.PickChip(f, id, quiet)
+    if id == "all" then id = nil end
+    if f.chip == id then return end
+    f.chip = id
+    Window.PaintChips(f)
+    if quiet then return end
+    if f.Setting("view") == "categories" then
+        ns.Layout.easing = true
+        DUI.SafeCall(Window.Relayout, f)
+        ns.Layout.easing = false
+    else
+        Window.MatchAll(f)
+    end
+end
+
+function Window.ChipsWidth(f)
+    local x = 0
+    for _, b in ipairs(f.chips or {}) do x = x + b:GetWidth() + DUI.Widgets.CHIP_GAP end
+    return math.max(x - DUI.Widgets.CHIP_GAP, 0)
+end
+
+-- The chip row under the search, one W.Chip per CHIPS entry.
+function Window.Chips(f)
+    f.chips = {}
+    local x = Window.EDGE
+    for _, c in ipairs(Window.CHIPS) do
+        local b = DUI.Widgets.Chip(f, CHIP_LABEL[c.id]())
+        b.id = c.id
+        b.FitWidth()
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", x, -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP))
+        b:SetScript("OnClick", function() Window.PickChip(f, c.id) end)
+        x = x + b:GetWidth() + DUI.Widgets.CHIP_GAP
+        f.chips[#f.chips + 1] = b
+    end
+    Window.PaintChips(f)
 end
 
 -- Header tabs of the bag window: Bags (this window), Bank and Alts open the
@@ -616,8 +692,9 @@ function Window.Relayout(f, synced, moved)
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
     -- Header, tool row, slots and footer, a gap between each; the footer sits on the edge.
-    local W = w + E * 2
-    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
+    -- Never narrower than the chip row.
+    local W = math.max(w + E * 2, Window.ChipsWidth(f) + E * 2)
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + Window.CHIP_ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
     -- A fold (heading click) glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel

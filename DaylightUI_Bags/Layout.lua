@@ -375,7 +375,11 @@ function Layout.Categories(window, cfg)
             x, lineH = 0, 0
         end
     end
-    for i, g in ipairs(Layout.Groups(cfg, window)) do
+    local shown = {}
+    for _, g in ipairs(Layout.Groups(cfg, window)) do
+        if ns.Window.InChip(window, g.key) then shown[#shown + 1] = g end
+    end
+    for i, g in ipairs(shown) do
         used = i
         local folded = Cat.IsCollapsed(g.key)
         local h = heading(window, i)
