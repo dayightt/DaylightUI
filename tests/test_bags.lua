@@ -250,6 +250,32 @@ T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title r
     T.truthy(f.sub:GetText():find("Saved", 1, true), "when it was saved")
 end)
 
+T.test("viewer: same look, keeps its tabs and picker", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123456, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.truthy(f.portrait:IsShown(), "portrait")
+    T.truthy(#f.chips > 1, "chip row")
+    T.truthy(f.freeBar:IsShown(), "free bar")
+    T.eq(f.sellJunk, nil, "no Sell junk")
+    T.eq(#f.viewTabs, 3, "Bags, Bank, Account")
+    T.truthy(f.charsButton, "the character picker")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "a saved character's gold in our coins")
+    for _, view in ipairs({ "grid", "categories" }) do
+        f.Set("view", view)
+        stub.RunTimers()
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: a holder per bag carrying its bag, and exactly one button per real slot", function()
     local ns = login()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2125,6 +2151,68 @@ T.test("bank: portrait header, sub line stops at the tabs, tabs on the title row
 end)
 
 
+-- Same pieces as the bags: chips, free bar, plain-money footer, no Sell junk.
+local function sameLook(f, what)
+    T.truthy(f.portrait:IsShown(), what .. ": portrait shows")
+    T.truthy(f.sub:GetText() ~= nil, what .. ": sub line")
+    T.truthy(#f.chips > 1, what .. ": chip row")
+    T.truthy(f.freeBar:IsShown(), what .. ": free bar")
+    T.eq(f.sellJunk, nil, what .. ": no Sell junk")
+end
+
+T.test("bank: same header, chips and footer as the bags", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    sameLook(f, "bank")
+    T.truthy(f.sub:GetText():find("of 12 free", 1, true), "N of M free")
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    for _, view in ipairs({ "grid", "categories" }) do
+        DaylightUI:Set("Bags", "bank.view", view)
+        stub.RunTimers()
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(f.buyTab:IsShown(), "a tab to buy")
+    local _, _, _, _, by = f.buyTab:GetPoint(1)
+    local _, _, _, _, my = f.money:GetPoint(1)
+    T.truthy(by > my, "Buy tab sits on the bar's row, above the money")
+    T.truthy(f.freeBar:GetWidth() > 0)
+end)
+
+T.test("bank: gold in the account bank is drawn in coins like the bags", function()
+    local ns, bank = bankLogin()
+    bank.view = { [0] = true, [2] = true }
+    bank.gold = 123456
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    ns.Bank.Select(2)
+    stub.RunTimers()
+    local f = ns.bank
+    if f.deposit:IsShown() then
+        T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "the account bank's gold in our coins")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bank: before its first tab, the window still builds", function()
+    local ns = bankLogin(true)
+    local f = ns.bank
+    T.eq(ns.Bank.HasTab(), false)
+    ns.Window.Relayout(f)
+    f:Show()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    sameLook(f, "bank, no tab")
+    local sub = (f.sub:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(sub == "" or sub:find("0 of 0 free", 1, true), "sub empty or 0 of 0: " .. sub)
+end)
+
 T.test("bank: opens with the bank, the character tabs' slots in our look; the game's bank out of sight", function()
     local ns, bank = bankLogin()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -3705,7 +3793,7 @@ T.test("viewer: another character's bags, saved at their logout; tabs and gold f
     T.eq(#ns.Viewer.set.Slots(), 4)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).dluiTexture, 909)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).count, 3)
-    T.truthy(f.money:GetText():find("123"), "their gold")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123), "their gold")
     T.truthy(f.free:GetText():find("3 / 4"), "free / all")
     -- Their bank was never seen, so one line says so and there are no slots.
     ns.Viewer.Show(alt, "bank")
