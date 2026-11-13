@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Object glow", "Ore and herb names no longer disappear as you walk up to them" },
+            { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat after switching stance or form in combat" },
         },
     },
     { version = "1.7.1", date = "2026-11-12", summary = "Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.",
