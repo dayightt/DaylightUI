@@ -176,6 +176,11 @@ local function wanted(l)
     return true
 end
 
+-- The ticks show only when the player turned them on.
+function Inbox.TicksOn()
+    return ns.Setting("ticks") == true
+end
+
 -- Only a letter Collect could take something from can be ticked.
 function Inbox.Tickable(l)
     return l ~= nil and (l.money > 0 or l.items > 0) and l.cod == 0 and not l.gm
@@ -206,7 +211,7 @@ local function lineOf(l, picked, id)
         color = l.read and Style.INK.LABEL or Style.INK.VALUE,
         sub = l.sender .. "  ·  " .. days, value = value, valueColor = vc, picked = picked == l,
         id = id,
-        key = "",   -- room on the left for the tick
+        key = Inbox.TicksOn() and "" or nil,   -- room on the left for the tick
         onClick = function()
             if takeAllClick() then Inbox.TakeAll(l) end
             Inbox.Pick(l.index)
@@ -270,7 +275,9 @@ function Inbox.Render(pane)
     local shown = 0
     for _, l in ipairs(letters) do
         if wanted(l) then
-            paintTick(s:Line(lineOf(l, picked, ids[l])), l, ticked[l] ~= nil, ids[l])
+            local b = s:Line(lineOf(l, picked, ids[l]))
+            if Inbox.TicksOn() then paintTick(b, l, ticked[l] ~= nil, ids[l])
+            elseif b.tick then b.tick:Hide() end
             shown = shown + 1
         end
     end
@@ -299,6 +306,10 @@ end
 
 -- Keeps the ticks on letters still there with something to take. Returns letter -> tick.
 function Inbox.Ticks(letters)
+    if not Inbox.TicksOn() then
+        S.ticked = {}
+        return {}
+    end
     local kept = {}
     for l, j in pairs(pairIds(S.ticked, letters)) do
         if Inbox.Tickable(l) then kept[#kept + 1] = { l = l, id = S.ticked[j] } end
@@ -314,7 +325,7 @@ function Inbox.Ticks(letters)
 end
 
 function Inbox.Tick(l)
-    if not Inbox.Tickable(l) or S.collecting then return end
+    if not Inbox.TicksOn() or not Inbox.Tickable(l) or S.collecting then return end
     local j = Inbox.read and Inbox.read.ticked and Inbox.read.ticked[l]
     if j then table.remove(S.ticked, j) else S.ticked[#S.ticked + 1] = Inbox.Id(l) end
     Inbox.Render()

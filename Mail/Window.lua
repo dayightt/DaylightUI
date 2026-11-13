@@ -163,7 +163,10 @@ function Mail.Apply()
     f:SetScale(Win.Scale(ns.Setting("scale")))
     if spot() and Win.IsOpen(f) then place(f) end
     Win.Repaint(f)
-    if Win.IsOpen(f) then Mail.Header() end
+    if Win.IsOpen(f) then
+        Mail.Header()
+        if ns.Inbox and ns.Inbox.list then ns.Inbox.Render() end
+    end
     if Mail.follow then Win.Followers.WriteWidth(Mail.follow) end
 end
 

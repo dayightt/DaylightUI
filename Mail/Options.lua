@@ -20,5 +20,10 @@ ns.OPTIONS = { pages = {
               desc = "How big the window is.", disabled = function() return DaylightUI.mailMogul == true end },
             backRows[1], backRows[2],
         } },
+        { label = "Letters", items = {
+            { type = "toggle", key = "ticks", label = "Tick letters to collect", since = "1.7.2",
+              disabled = function() return DaylightUI.mailMogul == true end,
+              desc = "A small switch on each letter. Tick a few and the button under the list collects only those." },
+        } },
     } },
 } }
