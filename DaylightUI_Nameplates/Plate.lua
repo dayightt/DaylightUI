@@ -52,6 +52,10 @@ Plate.TARGET_STYLES = { outline = "Outline", glow = "Glow", none = "Nothing" }
 Plate.TARGET_ARROWS = { none = "None", sides = "Beside it", top = "Over it" }
 Plate.TARGET_ARROW_ORDER = { "none", "sides", "top" }
 Plate.ARROW_ART = DUI.MEDIA .. "ui-chevron.png"
+-- Group focus (groupFocus): a double chevron over the enemy most of your group
+-- targets, each chevron FOCUS_SIZE px, the second FOCUS_STEP px over the first.
+Plate.FOCUS_SIZE = 14
+Plate.FOCUS_STEP = 6
 Plate.ARROW_GAP = 4 -- from the bar, or from whatever already sits on that side
 Plate.ARROW_TURN = { left = math.pi / 2, right = -math.pi / 2, top = 0 }
 Plate.TARGET_STYLE_ORDER = { "outline", "glow", "none" }
@@ -340,6 +344,15 @@ function Plate.Create(parent, sample)
         a:SetRotation(turn)
         a:Hide()
         p.arrows[key] = a
+    end
+    p.focusMark = {}
+    for i = 1, 2 do
+        local a = p:CreateTexture(nil, "OVERLAY")
+        a:SetTexture(Plate.ARROW_ART)
+        a:SetRotation(Plate.ARROW_TURN.top)
+        a:SetAlpha(0)
+        a:Hide()
+        p.focusMark[i] = a
     end
 
     -- The frame the game uses to keep plates from overlapping. Where a plate is
@@ -2139,6 +2152,7 @@ function Plate.PlaceSpots(p)
     -- The target arrows go past everything placed around the bar.
     p.arrowUp, p.arrowL, p.arrowR = u.above, x.side.outleft.dist, x.side.outright.dist
     Plate.PlaceArrows(p)
+    Plate.PlaceFocus(p)
 end
 
 -- Target arrow size and position: above the bar past what sits there, or beside
@@ -2154,6 +2168,9 @@ function Plate.PlaceArrows(p)
         a:ClearAllPoints()
     end
     arrows.top:SetPoint("BOTTOM", hp, "TOP", 0, (p.arrowUp or 0) + gap)
+    -- The preview fits what's over the bar, the top arrow too.
+    local reach = p.isSample and p.spotReach
+    if reach and c.targetArrows == "top" then reach.up = math.max(reach.up, (p.arrowUp or 0) + gap + size) end
     arrows.left:SetPoint("RIGHT", hp, "LEFT", -((p.arrowL or 0) + gap), 0)
     arrows.right:SetPoint("LEFT", hp, "RIGHT", (p.arrowR or 0) + gap, 0)
 end
@@ -2181,6 +2198,43 @@ function Plate.ShowArrows(p, on)
         local want = (mode == "sides" and key ~= "top") or (mode == "top" and key == "top")
         if want or a:IsShown() then M.AlphaTo(a, want and 1 or 0, M.FAST, true) end
     end
+    Plate.PlaceFocus(p) -- over your target's top arrow, if any
+end
+
+-- The group focus mark over the bar, past what sits above it and past your
+-- target's top arrow on the same plate.
+function Plate.PlaceFocus(p)
+    local m = p.focusMark
+    if not (m and p.focusOn) then return end
+    local c = cfg()
+    local gap = Plate.ARROW_GAP
+    local up = (p.arrowUp or 0) + gap
+    if p.markOn and c and c.targetArrows == "top" then up = up + (tonumber(c.targetArrowSize) or 16) + gap end
+    for i, a in ipairs(m) do
+        a:SetSize(Plate.FOCUS_SIZE, Plate.FOCUS_SIZE)
+        a:ClearAllPoints()
+        a:SetPoint("BOTTOM", p.hp, "TOP", 0, up + (i - 1) * Plate.FOCUS_STEP)
+    end
+    local reach = p.isSample and p.spotReach
+    if reach then reach.up = math.max(reach.up, up + (#m - 1) * Plate.FOCUS_STEP + Plate.FOCUS_SIZE) end
+end
+
+-- Shows the group focus mark (on: most of your group targets this enemy) in the
+-- accent, fading FAST in and out. Never on a plate with no bar.
+function Plate.ShowFocus(p, on)
+    local m = p.focusMark
+    if not m then return end
+    on = on == true and p.hp:IsShown()
+    local was = p.focusOn == true
+    p.focusOn = on
+    if on then
+        Plate.PlaceFocus(p)
+        local r, g, b = Style.Accent()
+        for _, a in ipairs(m) do a:SetVertexColor(r, g, b, 1) end
+    end
+    if on == was then return end
+    local M = DUI.Motion
+    for _, a in ipairs(m) do M.AlphaTo(a, on and 1 or 0, M.FAST, true) end
 end
 
 -- Guild or title line text size: its own setting, else a fraction of the name's.
@@ -2824,6 +2878,10 @@ function Plate.Uninstall(p)
     p.questCount:Hide()
     -- No longer your target: its marks go now, with no sweep out on the next unit.
     p.isTarget, p.markStyle = nil, nil
+    p.focusOn = nil
+    for _, a in ipairs(p.focusMark) do
+        DUI.Motion.AlphaTo(a, 0, 0, true)
+    end
     Plate.DropRing(p.outline)
     Plate.DropRing(p.glow)
     -- The combo row leaves, and its cast bar is laid out fresh for the next unit (it

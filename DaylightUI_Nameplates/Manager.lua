@@ -395,6 +395,81 @@ function Manager.UpdateTargets()
     if ns.Combo then ns.Combo.Place() end
 end
 
+-- Group focus (groupFocus): the enemy most of your party or raid targets gets a
+-- mark. Counted at most once per FOCUS_DELAY seconds after a burst of target,
+-- roster or plate changes, never per frame. Matched by GUID (one table lookup per
+-- member, not a UnitIsUnit per member and plate). In battlegrounds, arenas and
+-- restricted maps GUIDs are secret: nothing matches, so no mark.
+Manager.FOCUS_DELAY = 0.2
+Manager.FOCUS_MIN = 2 -- at least this many of you on it
+local focusQueued = false
+local focusGuids, focusCounts = {}, {}
+
+local function focusGuid(unit)
+    local g = plain(UnitGUID, unit)
+    return type(g) == "string" and g or nil
+end
+
+local function focusWanted()
+    return ns.cfg and ns.cfg.groupFocus == true and plain(IsInGroup) == true
+end
+
+function Manager.CountFocus()
+    focusQueued = false
+    local best
+    if focusWanted() then
+        wipe(focusGuids)
+        wipe(focusCounts)
+        for unit, p in pairs(byUnit) do
+            if not p.friendly then
+                local g = focusGuid(unit)
+                if g then focusGuids[g] = p end
+            end
+        end
+        local function add(member)
+            local g = focusGuid(member == "player" and "target" or member .. "target")
+            local p = g and focusGuids[g]
+            if p then focusCounts[p] = (focusCounts[p] or 0) + 1 end
+        end
+        if plain(IsInRaid) == true then
+            for i = 1, 40 do add("raid" .. i) end
+        else
+            add("player")
+            for i = 1, 4 do add("party" .. i) end
+        end
+        -- The most, at least FOCUS_MIN; a tie marks none.
+        local most, tie = Manager.FOCUS_MIN - 1, false
+        for p, n in pairs(focusCounts) do
+            if n > most then
+                best, most, tie = p, n, false
+            elseif n == most then
+                tie = true
+            end
+        end
+        if tie then best = nil end
+    end
+    Manager.focus = best
+    Manager.Each(function(p) ns.Plate.ShowFocus(p, p == best) end)
+end
+
+-- Something that can change the count: queued, unless there's nothing to count
+-- and no mark to take down.
+function Manager.QueueFocus()
+    if focusQueued or not (focusWanted() or Manager.focus) then return end
+    focusQueued = true
+    C_Timer.After(Manager.FOCUS_DELAY, Manager.CountFocus)
+end
+
+local FOCUS_UNITS = { player = true }
+for i = 1, 4 do FOCUS_UNITS["party" .. i] = true end
+for i = 1, 40 do FOCUS_UNITS["raid" .. i] = true end
+-- UNIT_TARGET comes for every plate's mob too; only group members' count.
+function Manager.FocusTargetChanged(_, unit)
+    if type(unit) == "string" and not (issecretvalue and issecretvalue(unit)) and FOCUS_UNITS[unit] then
+        Manager.QueueFocus()
+    end
+end
+
 Manager.QUEST_DELAY = 0.2
 -- Each plate's check reads its unit's tooltip, so a full pass only happens when a
 -- quest was added or removed (QUEST_ACCEPTED, QUEST_REMOVED, or the log count
@@ -495,6 +570,7 @@ function Manager.Refresh()
         end
     end)
     Manager.UpdateTargets()
+    Manager.CountFocus()
 end
 
 -- The mouseover highlight follows the mouse; checked while it's over a plate.
@@ -712,7 +788,14 @@ function Manager.Start()
             elseif Manager.RESHOW_EVENTS[event] then DUI.SafeCall(Manager.Unseen) end
         end)
     end
-    DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() Manager.UpdateTargets() end)
+    DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
+        Manager.UpdateTargets()
+        Manager.QueueFocus()
+    end)
+    pcall(DUI.RegisterEvent, "UNIT_TARGET", Manager.FocusTargetChanged)
+    for _, e in ipairs({ "GROUP_ROSTER_UPDATE", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
+        pcall(DUI.RegisterEvent, e, function() Manager.QueueFocus() end)
+    end
     for _, e in ipairs(Manager.RECHECK_EVENTS) do
         DUI.RegisterEvent(e, function()
             Manager.Recheck()

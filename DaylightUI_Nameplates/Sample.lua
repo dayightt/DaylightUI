@@ -574,6 +574,7 @@ local function refresh(s, width, maxH)
     paintMarks(p, c, u, friendly)
     p.markStyle = nil -- repaint the mark from the settings
     Plate.UpdateTarget(p)
+    Plate.ShowFocus(p, s.id == "target" and not friendly and c.groupFocus == true)
 
     Cast.ShowSample(p, not friendly and u.cast or nil)
     Auras.ShowSample(p, "debuffs", (not friendly and c.debuffs) and first(u.debuffs, c.maxDebuffs) or NONE)

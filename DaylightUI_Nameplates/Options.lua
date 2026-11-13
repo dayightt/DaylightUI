@@ -149,6 +149,10 @@ ns.OPTIONS = { pages = {
               desc = "How big the arrows are.",
               disabled = function(get) return get("targetArrows") == "none" end },
         } },
+        { label = "Group focus", items = since("1.7.2", {
+            { type = "toggle", key = "groupFocus", label = "Group focus mark",
+              desc = "In a party or raid, a double arrow in your accent color over the enemy most of your group is targeting, so you can follow the kill target. Needs at least two of you on it. Battlegrounds and arenas hide who's targeting what, so it doesn't show there." },
+        }) },
         { label = "Other plates", items = {
             { type = "toggle", key = "dimOthers", label = "Fade other plates",
               desc = "While you have a target, every other plate fades so your target stands out. A plate that starts casting comes back to full." },

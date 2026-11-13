@@ -31,6 +31,7 @@ ns.DEFAULTS = {
     targetArrowPaint = "accent", -- "accent" or "custom" (targetArrowColor)
     targetArrowColor = { 0.85, 0.22, 0.20 },
     targetArrowSize = 16,
+    groupFocus = false, -- in a group, a double arrow over the enemy most of you are targeting (Manager.CountFocus)
     dimOthers = false, -- fade other plates while you have a target (casting ones stay full)
     dimAlpha = 0.5, -- ...to this opacity
     backAlpha = 0.8, -- opacity of the empty part of health and power bars (Style.BAR_BACK_ALPHA = default); lower also thins the plate's dark backing (Plate.Clear)

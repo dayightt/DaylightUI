@@ -328,3 +328,82 @@ T.test("nameplates: the execute range as your finisher's icon by the bar, lit on
         stub.knownSpells = {}
     end)
 end)
+
+T.test("nameplates: the group focus mark goes over the enemy most of your party targets, counted after a burst", function()
+    local NP = login()
+    T.eq(NP.DEFAULTS.groupFocus, false, "off as shipped")
+    DaylightUI:Set("Nameplates", "groupFocus", true)
+    stub.RunTimers()
+    local a, b = added("nameplate1"), added("nameplate2")
+    stub.units.nameplate1.guid = "Creature-1"
+    stub.units.nameplate2.guid = "Creature-2"
+    stub.SetGroup(true)
+    stub.units.party1 = { name = "Ann", isPlayer = true, class = "MAGE" }
+    stub.units.party2 = { name = "Bo", isPlayer = true, class = "ROGUE" }
+    stub.units.party1target = stub.units.nameplate2
+    stub.units.party2target = stub.units.nameplate2
+    stub.units.target = stub.units.nameplate1
+    stub.FireEvent("UNIT_TARGET", "party1")
+    stub.FireEvent("UNIT_TARGET", "party2")
+    T.falsy(b.focusOn, "nothing at once: counted after the burst")
+    stub.RunTimers()
+    T.truthy(b.focusOn, "two on the hound: marked")
+    T.falsy(a.focusOn, "your own target alone: no")
+    T.truthy(b.focusMark[1]:IsShown())
+    local r = b.focusMark[1]:GetVertexColor()
+    T.near(r, (DaylightUI.Style.Accent()), 1e-6, "in the accent")
+    -- A tie marks nothing.
+    stub.units.party2target = stub.units.nameplate1
+    stub.FireEvent("UNIT_TARGET", "party2")
+    stub.RunTimers()
+    T.truthy(a.focusOn, "you and Bo on the whelp: it")
+    T.falsy(b.focusOn)
+    stub.units.party3 = { name = "Cy", isPlayer = true, class = "PRIEST" }
+    stub.units.party3target = stub.units.nameplate2
+    stub.FireEvent("UNIT_TARGET", "party3")
+    stub.RunTimers()
+    T.falsy(a.focusOn, "two and two: no mark")
+    T.falsy(b.focusOn)
+    -- A mob changing its target doesn't count anything.
+    local queued = 0
+    local real = NP.Manager.CountFocus
+    NP.Manager.CountFocus = function() queued = queued + 1; return real() end
+    stub.FireEvent("UNIT_TARGET", "nameplate1")
+    stub.RunTimers()
+    T.eq(queued, 0, "a plate's own target change: ignored")
+    NP.Manager.CountFocus = real
+    -- Solo, or switched off: none.
+    stub.units.party3target = stub.units.nameplate1
+    stub.FireEvent("UNIT_TARGET", "party3")
+    stub.RunTimers()
+    T.truthy(a.focusOn)
+    DaylightUI:Set("Nameplates", "groupFocus", false)
+    stub.RunTimers()
+    T.falsy(a.focusOn, "off: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.SetGroup(false)
+    for _, k in ipairs({ "party1", "party2", "party3", "party1target", "party2target", "party3target", "target" }) do stub.units[k] = nil end
+end)
+
+T.test("nameplates: no group focus mark in a battleground, where who's who is secret", function()
+    login()
+    DaylightUI:Set("Nameplates", "groupFocus", true)
+    stub.RunTimers()
+    local a = added("nameplate1")
+    stub.units.nameplate1.guid = "Creature-1"
+    stub.SetGroup(true)
+    stub.units.party1 = { name = "Ann", isPlayer = true, class = "MAGE" }
+    stub.units.party1target = stub.units.nameplate1
+    stub.units.target = stub.units.nameplate1
+    stub.SetRestriction("PvPMatch", true)
+    stub.FireEvent("UNIT_TARGET", "party1")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(a.focusOn, "secret GUIDs match nothing")
+    stub.SetRestriction("PvPMatch", false)
+    stub.FireEvent("UNIT_TARGET", "party1")
+    stub.RunTimers()
+    T.truthy(a.focusOn, "out of it: marked")
+    stub.SetGroup(false)
+    stub.units.party1, stub.units.party1target, stub.units.target = nil, nil, nil
+end)
