@@ -3951,6 +3951,24 @@ T.test("chat daylight: your own lines never light up, whatever form the game giv
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Busy channels send many lines a second: the words' patterns are built once,
+-- and again only when the words change.
+T.test("chat daylight: alert patterns are built once, not for every line", function()
+    local Box = daylight()
+    local E = stub.chatModule.Extras
+    said(ChatFrame1, "is " .. UnitName("player") .. " coming?", "CHAT_MSG_GUILD", 1)
+    local first = E.AlertPatterns()
+    said(ChatFrame1, "anyone seen " .. UnitName("player") .. "?", "CHAT_MSG_GUILD", 2)
+    T.truthy(Box.Log()[#Box.Log()].alert, "still lights up")
+    T.eq(E.AlertPatterns(), first, "the same patterns, not rebuilt")
+    DaylightUI:Set("Chat", "alertWords", "onyxia, raid")
+    T.truthy(E.AlertPatterns() ~= first, "rebuilt for new words")
+    said(ChatFrame1, "Onyxia tonight", "CHAT_MSG_GUILD", 3)
+    T.truthy(Box.Log()[#Box.Log()].alert, "a new word lights up")
+    DaylightUI:Set("Chat", "alertWords", "")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: only words people typed count: not a sender's name, nothing that isn't lit", function()
     local Box = daylight()
     local me = UnitName("player")

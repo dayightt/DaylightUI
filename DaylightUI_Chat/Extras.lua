@@ -213,17 +213,32 @@ function Extras.Words()
     return words
 end
 
+-- The words' patterns, built again only when the words or your name change:
+-- a busy channel sends many lines a second.
+local built = { list = {} }
+function Extras.AlertPatterns()
+    if not cfg then return built.list end
+    local me = cfg.alertName ~= false and UnitName("player") or ""
+    if type(me) ~= "string" or issecretvalue(me) then me = "" end
+    local words = cfg.alertWords or ""
+    if built.words == words and built.me == me then return built.list end
+    local list = {}
+    for _, w in ipairs(Extras.Words()) do list[#list + 1] = WORD_IN .. anyCase(w) .. WORD_OUT end
+    built.words, built.me, built.list = words, me, list
+    return list
+end
+
 local function alert(text, kind, sender, guid)
     if not Extras.TALK[kind] or isMe(sender, guid) then return text, false end
-    local words = Extras.Words()
-    if #words == 0 then return text, false end
+    local patterns = Extras.AlertPatterns()
+    if #patterns == 0 then return text, false end
     -- Only count words that actually lit up. The sender's name and the channel are
     -- links, so they never count.
     local on, lit = hex(Style.Accent()), 0
     text = outsideLinks(text, function(seg)
-        for _, w in ipairs(words) do
+        for _, p in ipairs(patterns) do
             local n
-            seg, n = string.gsub(seg, WORD_IN .. anyCase(w) .. WORD_OUT, on .. "%0|r")
+            seg, n = string.gsub(seg, p, on .. "%0|r")
             lit = lit + n
         end
         return seg
@@ -259,16 +274,28 @@ function Extras.RoleColor(role)
     return Style.INK.DAMAGE
 end
 
+-- The role words never change, so their patterns are built once.
+local rolePatterns
+local function roleWordPatterns()
+    if rolePatterns then return rolePatterns end
+    rolePatterns = {}
+    for i, role in ipairs(Extras.ROLES) do
+        for _, w in ipairs(role.words) do
+            rolePatterns[#rolePatterns + 1] = { "%f[%w]" .. anyCase(w) .. "%f[%W]", "" .. i .. "%0" }
+        end
+    end
+    return rolePatterns
+end
+
 local function group(text, kind)
     if not (Extras.Public(kind) or kind == "party" or kind == "instance") then return text end
     if not Extras.LooksLikeGroup(plainLower(text)) then return text end
+    local patterns = roleWordPatterns()
     -- Mark every role word first, then add icon and color in one pass, so an icon's
     -- own name is never matched as a word.
     return (outsideLinks(text, function(seg)
-        for i, role in ipairs(Extras.ROLES) do
-            for _, w in ipairs(role.words) do
-                seg = string.gsub(seg, "%f[%w]" .. anyCase(w) .. "%f[%W]", "" .. i .. "%0")
-            end
+        for _, p in ipairs(patterns) do
+            seg = string.gsub(seg, p[1], p[2])
         end
         return (string.gsub(seg, "(%d)(.-)", function(i, word)
             local role = Extras.ROLES[tonumber(i)]
