@@ -14,9 +14,9 @@ local Bug = {}
 DUI.BugReport = Bug
 
 Bug.WIDTH = 520
-Bug.PAD = 14
+Bug.FOOT = 56        -- room for the footer
 Bug.ROW = 50        -- a label and its box
-Bug.TOP = 44        -- under the hint
+Bug.TOP = 12        -- under the header
 
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -112,77 +112,62 @@ function Bug.Fields()
     }
 end
 
-local box
+local f
 
--- A read-only box: a click selects all of it, typing puts it back.
-local function field(parent, close)
-    local W = DUI.Widgets
-    local e
-    e = W.Input(parent, { onChange = function(text, user)
-        if user and e.want and text ~= e.want then
-            e:SetText(e.want)
-            e:HighlightText()
-        end
-    end })
-    e:HookScript("OnEditFocusGained", function(self) self:HighlightText() end)
-    e:HookScript("OnEscapePressed", close)
-    function e.Fill(text)
-        e.want = text
-        e:SetText(text)
-        e:SetCursorPosition(0)
-    end
-    return e
+function Bug.Close()
+    if not (f and DUI.Win.IsOpen(f)) then return end
+    for _, row in ipairs(f.rows) do row.edit:ClearFocus() end
+    DUI.Win.Close(f)
+    DUI.Win.KeysOn(f, false)
 end
 
 local function build()
     local W, Win = DUI.Widgets, DUI.Win
-    local fields = Bug.Fields()
-    box = CreateFrame("Frame", "DaylightUIBugReport", UIParent)
-    DUI.Movers.FollowScale(box)
-    box:SetSize(Bug.WIDTH, Bug.TOP + #fields * Bug.ROW + Bug.PAD - 6)
-    box:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-    box:SetFrameStrata("DIALOG")
-    box:SetToplevel(true)
-    box:EnableMouse(true)
-    Style.Shell(box)
-    box.title = Style.Text(box, Style.SIZE.small, "LEFT")
-    box.title:SetPoint("TOPLEFT", box, "TOPLEFT", Bug.PAD, -12)
-    box.title:SetPoint("RIGHT", box, "RIGHT", -40, 0)
-    box.title:SetText(L["Click a box and press Ctrl+C, then paste it into the Discord form."])
-    local function close() DUI.Motion.Vanish(box) end
-    box.close = W.Close(box, close)
-    box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
-    Win.Keys(box, function(key)
-        if key == "ESCAPE" then close(); return true end
-    end)
-    box:HookScript("OnShow", function() Win.KeysOn(box, true) end)
-    box:HookScript("OnHide", function() Win.KeysOn(box, false) end)
-    box.rows = {}
-    for i = 1, #fields do
+    local count = #Bug.Fields()
+    f = Win.New({ name = "DaylightUIBugReport", w = Bug.WIDTH,
+        h = Win.HEADER + Bug.TOP + count * Bug.ROW + Bug.FOOT, strata = "DIALOG" })
+    f.title:SetText(L["Report a bug"])
+    if f.sub then f.sub:SetText(L["Click a box and press Ctrl+C, then paste it into the Discord form."]) end
+    f.onClose = Bug.Close
+    local host = f.host
+    f.rows = {}
+    for i = 1, count do
         local row = {}
         local y = -(Bug.TOP + (i - 1) * Bug.ROW)
-        row.label = Style.Text(box, Style.SIZE.small, "LEFT")
-        row.label:SetPoint("TOPLEFT", box, "TOPLEFT", Bug.PAD, y)
-        row.edit = field(box, close)
-        row.edit:SetPoint("TOPLEFT", box, "TOPLEFT", Bug.PAD, y - 16)
-        row.edit:SetPoint("RIGHT", box, "RIGHT", -Bug.PAD, 0)
-        box.rows[i] = row
+        row.label = Style.Text(host, Style.SIZE.small, "LEFT")
+        Style.InkText(row.label, "LABEL")
+        row.label:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y)
+        row.edit = W.Input(host)
+        row.edit:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y - 18)
+        row.edit:SetPoint("RIGHT", host, "RIGHT", -Win.EDGE, 0)
+        row.edit:SetScript("OnEscapePressed", Bug.Close)
+        f.rows[i] = row
     end
-    box:Hide()
-    DUI.Motion.Window(box, 6)
+    f.foot = Win.Parts.Footer(host)
+    f.foot:Set({ { text = _G.DONE or L["Done"], primary = true, onClick = Bug.Close } })
+    Win.Drag(f, {})
+    Win.Keys(f, function(key)
+        if key == "ESCAPE" then Bug.Close(); return true end
+    end)
 end
 
 -- Opens with every box filled and the first one selected.
 function Bug.Show()
-    if not box then build() end
-    for i, f in ipairs(Bug.Fields()) do
-        local row = box.rows[i]
-        row.label:SetText(f.label)
-        row.edit.Fill(f.text)
+    if not f then build() end
+    for i, field in ipairs(Bug.Fields()) do
+        local row = f.rows[i]
+        row.label:SetText(field.label)
+        row.edit.Lock(field.text)
     end
-    box:Show()
-    box:Raise()
-    box.rows[1].edit:SetFocus()
+    if not DUI.Win.IsOpen(f) then
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+        f:SetScale(DUI.Win.Scale(1))
+        DUI.Win.Open(f)
+        DUI.Win.KeysOn(f, true)
+    end
+    f:Raise()
+    f.rows[1].edit:SetFocus()
 end
 
 DUI.RegisterCommand("bug", Bug.Show, L["/dui bug - your version, addons and setup, ready to copy into the Discord bug form"])
