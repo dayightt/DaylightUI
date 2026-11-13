@@ -4505,7 +4505,6 @@ L["Remove tab"] = "移除标签页"
 L["Reply..."] = "回复……"
 L["Right of the chat"] = "聊天框右侧"
 L["Right-click a tab: what it shows, rename, move, remove"] = "右键点击标签页：显示内容、重命名、移动、移除"
-L["Right-click: pin, invite, note, close"] = "右键：标记、邀请、备注、关闭"
 L["Say, yell and emotes"] = "说、大喊和表情"
 L["Search whispers..."] = "搜索悄悄话……"
 L["Show..."] = "显示……"
@@ -4566,7 +4565,7 @@ L["The numbers on the bar, e.g. 1,800 / 3,000."] = "声望条上的数字，例�
 L["The reputation you're watching, always, on its own bar. Pick the faction on the Reputation page of the character window. Move it in unlock mode; drag its corner to resize."] = "你关注的声望，始终显示在独立的声望条上。在角色窗口的声望页面选择阵营。在解锁模式中移动它；拖动角落调整大小。"
 L["Welcome back, %s"] = "欢迎回来，%s"
 
--- From a Chinese player (2026-11-07): their missing lines for 1.6.1, the ones that still match.
+-- Lines contributed by a Chinese player for 1.6.1, the ones that still match.
 L["%d pt"] = "%d 磅"
 L["%s (drag items here)"] = "%s（将物品拖到这里）"
 L["%s lets you move frames; right-click a handle to put one back."] = "%s 可移动框体；右键点击拖动柄可将其复位。"
@@ -5017,7 +5016,7 @@ L["Minimap box background opacity"] = "微缩地图框背景不透明度"
 L["Separate game window background opacity"] = "为游戏窗口单独设置背景不透明度"
 L["Game window background opacity"] = "游戏窗口背景不透明度"
 
--- From the same player (2026-11-08): lines new in 1.6.2 and 1.6.3.
+-- From the same player: lines new in 1.6.2 and 1.6.3.
 L["A border and shadow around the experience bar's box and the threat meter's window."] = "为经验条框体和威胁统计窗口添加边框与阴影。"
 L["A profile from the Profiles page, used as it is."] = "直接使用“配置”页面中的现有配置。"
 L["A second bar above it."] = "在其上方显示第二条动作条。"
@@ -5144,7 +5143,7 @@ L["Your class's pick (%s)"] = "你职业的推荐（%s）"
 L["Zone name text size"] = "区域名称文字大小"
 L["[G] for General, [T] for Trade, [G] for guild (in guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags."] = "[G] 综合、[T] 交易、[G] 公会（公会绿）、[P] 小队、[S] 说、[Y] 大喊、[W] 密语。聊天中已有的行保持原样。聊天标签的“显示窗口”可设置你自己的标签。"
 
--- From the same player (2026-11-09): lines new in 1.6.4 and 1.6.5.1, the data bar page.
+-- From the same player: lines new in 1.6.4 and 1.6.5.1 (the data bar page).
 L["%d bar"] = "%d 条"
 L["%d bars"] = "%d 条"
 L["%d buff"] = "%d 个增益"
@@ -6289,13 +6288,9 @@ L["Your windows"] = "你的窗口"
 L["gear weapon armor consumable food drink potion reagent tradegoods recipe key container bag quest junk soulbound set locked poor common uncommon rare epic legendary quality level"] = "装备 武器 护甲 消耗品 食物 饮料 药水 材料 商品 配方 钥匙 容器 背包 任务 垃圾 灵魂绑定 套装 已锁定 粗糙 普通 优秀 精良 史诗 传说 品质 等级"
 L["new window"] = "新建窗口"
 
--- DaylightUI translations from zhCN-1.7.json.
+-- More DaylightUI 1.7 lines.
 L["Daylight: Daylight UI's own chat box, with its own tabs. Classic: the game's chat windows and tabs in the Daylight look. Switching is instant, and both keep every message. With the game's controller mode on, chat is Classic, since the game's chat windows have its controller buttons."] = "Daylight：Daylight UI 自带的聊天框，拥有自己的标签页。经典：游戏自带的聊天窗口和标签页，采用 Daylight 外观。切换会立即生效，两者都会保留所有消息。开启游戏的手柄模式时，聊天会使用经典模式，因为游戏的聊天窗口支持手柄按键。"
-
--- DaylightUI translations from zhCN-1.7.json.
 L["Who your focus is looking at."] = "你的焦点正在看谁。"
-
--- DaylightUI translations from zhCN-1.7.json.
 L["%.2f / %.2f s"] = "%.2f / %.2f 秒"
 L["Armor penetration"] = "护甲穿透"
 L["Between the frames"] = "框体之间"
