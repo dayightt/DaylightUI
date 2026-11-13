@@ -92,6 +92,72 @@ function Junk.MarkCheapest(f)
     if btn then ns.Items.PaintCheap(btn, true) end
 end
 
+-- Extra Soul Shards. A warlock sets how many to keep (one number for a raid, one
+-- for everywhere else, 0 = never); past that the bag window offers a button that
+-- deletes the extra ones. Deleting only ever happens on that button's click,
+-- confirmed, and only an item that is really a Soul Shard.
+Junk.SHARD = 6265
+
+function Junk.IsWarlock()
+    local _, token = UnitClass("player")
+    return token == "WARLOCK"
+end
+
+-- How many shards to keep right now, or nil when nothing should be deleted.
+function Junk.ShardLimit()
+    if not Junk.IsWarlock() then return nil end
+    local key = (type(IsInRaid) == "function" and IsInRaid()) and "shardsKeepRaid" or "shardsKeep"
+    local n = tonumber(ns.Setting(key))
+    if n and n > 0 then return math.floor(n) end
+    return nil
+end
+
+-- Every slot in the bags holding a shard, last slot first (the ones deleted first).
+function Junk.ShardSlots()
+    local out = {}
+    for _, s in ipairs(ns.Bags.Slots()) do
+        if s.section ~= "keyring" then
+            local slot = s.button:GetID()
+            local info = ns.Items.InfoAt(s.bag, slot)
+            if info and info.itemID == Junk.SHARD then table.insert(out, 1, { bag = s.bag, slot = slot }) end
+        end
+    end
+    return out
+end
+
+-- How many shards are over the limit (0 when none, or no limit).
+function Junk.ExtraShards()
+    local limit = Junk.ShardLimit()
+    if not limit then return 0 end
+    return math.max(0, #Junk.ShardSlots() - limit)
+end
+
+-- Deletes the extra shards. Only from the button's click: each slot is checked
+-- again right before, and the cursor must hold a shard before it's deleted.
+function Junk.DeleteShards()
+    if ns.Items.InCombat() or ns.Items.CursorBusy() then return 0 end
+    if type(C_Container.PickupContainerItem) ~= "function" or type(DeleteCursorItem) ~= "function" then return 0 end
+    local extra, done = Junk.ExtraShards(), 0
+    for _, at in ipairs(Junk.ShardSlots()) do
+        if done >= extra then break end
+        local ok, info = pcall(C_Container.GetContainerItemInfo, at.bag, at.slot)
+        if ok and type(info) == "table" and info.itemID == Junk.SHARD and not info.isLocked then
+            C_Container.PickupContainerItem(at.bag, at.slot)
+            local kind, id = GetCursorInfo()
+            if kind ~= "item" or id ~= Junk.SHARD then
+                if type(ClearCursor) == "function" then ClearCursor() end
+                break
+            end
+            DeleteCursorItem()
+            done = done + 1
+        end
+    end
+    if done > 0 then
+        DUI.Print(done == 1 and L["Deleted 1 Soul Shard."] or string.format(L["Deleted %d Soul Shards."], done))
+    end
+    return done
+end
+
 local selling = false
 
 local money = DUI.MoneyString
@@ -206,4 +272,8 @@ function Junk.Register()
     end
     DUI.RegisterEvent("MERCHANT_SHOW", function() Junk.OnVendor(); refreshButton() end)
     DUI.RegisterEvent("MERCHANT_CLOSED", function() Junk.vendorOpen = false; refreshButton() end)
+    -- Joining or leaving a raid switches which shard limit counts.
+    DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
+        if ns.window and ns.Window and Junk.IsWarlock() then ns.Window.UpdateShards(ns.window) end
+    end)
 end

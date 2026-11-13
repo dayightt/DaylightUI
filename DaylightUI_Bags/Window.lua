@@ -310,6 +310,15 @@ function Window.Create(spec)
         f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
         f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
         f.sellJunk:Hide()
+        -- A warlock over their Soul Shard limit (Window.UpdateShards). Deletes only
+        -- on a second click.
+        f.dropShards = Window.TextButton(f, "")
+        f.dropShards.fit = 1
+        DUI.Widgets.Confirm(f.dropShards, function() return Window.ShardLabel(f.shardsExtra or 0) end, function()
+            ns.Junk.DeleteShards()
+            DUI.Widgets.EaseShown(f.dropShards, false)
+        end)
+        f.dropShards:Hide()
     end
     if spec.footer then spec.footer(f) end
 
@@ -681,7 +690,10 @@ function Window.UpdateFooter(f)
     end
     if ns.Currency then ns.Currency.Update(f) end
     Window.UpdateSell(f)
-    if bag then ns.Junk.MarkCheapest(f) end
+    if bag then
+        ns.Junk.MarkCheapest(f)
+        Window.UpdateShards(f)
+    end
     Window.UpdateSub(f)
 end
 
@@ -708,6 +720,31 @@ function Window.UpdateSell(f)
         f.sellJunk.SetLabel(string.format(L["Sell junk · %s"], DUI.Widgets.Money(total, { color = false })))
     end
     DUI.Widgets.EaseShown(f.sellJunk, #list > 0)
+end
+
+function Window.ShardLabel(n)
+    return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete %d extra shards"], n)
+end
+
+-- Delete extra shards shows while a warlock carries more Soul Shards than their
+-- limit, left of Sell junk when that's up.
+function Window.UpdateShards(f)
+    local b = f and f.dropShards
+    if not b then return end
+    local n = ns.Junk.ExtraShards()
+    if n > 0 and n ~= f.shardsExtra then
+        f.shardsExtra = n
+        if b.Disarm then b.Disarm() end
+        b.Paint()
+    end
+    local E = Window.EDGE
+    b:ClearAllPoints()
+    if f.sellJunk and f.sellJunk:IsShown() then
+        b:SetPoint("BOTTOMRIGHT", f.sellJunk, "BOTTOMLEFT", -Window.GAP, 0)
+    else
+        b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
+    end
+    DUI.Widgets.EaseShown(b, n > 0)
 end
 
 -- Keeping it up to date

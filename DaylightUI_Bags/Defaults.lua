@@ -31,6 +31,8 @@ ns.DEFAULTS = {
     autoStack = true,       -- merge partial stacks when the bag opens (Stack.lua)
     combineStacks = true,   -- show stacks of one item as one (split again while trading, mailing, at the AH)
     stackShards = true,     -- show Soul Shards as one pile with a count (Layout.PILES)
+    shardsKeep = 0,         -- warlocks: offer to delete Soul Shards past this many (0 = never)
+    shardsKeepRaid = 0,     -- the same while in a raid
     showKeyring = false,    -- keyring slots, if the game has a keyring (Bags.HasKeyring)
     emptyGroups = false,    -- always show empty custom groups (otherwise only while Shift is held with an item on the cursor)
     -- groupOrder, groupNames, customGroups, removedGroups, collapsed, pins and locks are saved as the player sets them

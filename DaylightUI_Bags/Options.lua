@@ -225,6 +225,9 @@ local shareGroups = {
     height = function() return 42 end,
 }
 
+-- The Soul Shard rows are for warlocks only.
+local function notWarlock() return not ns.Junk.IsWarlock() end
+
 ns.OPTIONS = { pages = {
     { id = "bags", label = "Bags",
       desc = "All your bags in one window, profession bag and keyring included. It opens the same way the game's bags do.",
@@ -235,6 +238,10 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "moneyRoll", label = "Count gold changes",
               disabled = function(get) return off(get) or motionOff() end,
               desc = "The gold at the bottom of the bag counts up or down to its new amount. Needs Motion effects (General > Appearance)." },
+            { type = "slider", key = "shardsKeep", label = "Keep at most this many Soul Shards", min = 0, max = 40, step = 1, disabled = off, hidden = notWarlock,
+              desc = "Carry more and the bag shows a Delete extra shards button above your money. It deletes nothing until you click it twice. At 0 it never shows." },
+            { type = "slider", key = "shardsKeepRaid", label = "Keep at most this many Soul Shards in a raid", min = 0, max = 40, step = 1, disabled = off, hidden = notWarlock,
+              desc = "The same, while you're in a raid, where you may want more on hand. At 0 it never shows in a raid." },
         } },
         { label = "Layout", items = {
             { type = "dropdown", key = "view", label = "Arrange items", disabled = off,

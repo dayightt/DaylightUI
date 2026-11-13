@@ -904,6 +904,67 @@ T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line wi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: a warlock over their Soul Shard limit gets a button that deletes the extra ones, only on a second click", function()
+    local ns = login()
+    stub.units.player = stub.units.player or {}
+    stub.units.player.class = "WARLOCK"
+    for i = 7, 11 do
+        world.items[0][i] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    end
+    world.items[1][1] = { iconFileID = 601, stackCount = 1, quality = 1, hyperlink = "|Hitem:6266|h", itemID = 6266 }
+    local f = open(ns)
+    local b = f.dropShards
+    T.falsy(b:IsShown(), "no limit set: no button")
+    DaylightUI:Set("Bags", "shardsKeep", 3)
+    stub.Advance(1); stub.RunTimers()
+    T.truthy(b:IsShown(), "5 shards, keep 3")
+    T.eq(b.text:GetText(), "Delete 2 extra shards")
+    -- In a raid its own limit counts.
+    DaylightUI:Set("Bags", "shardsKeepRaid", 10)
+    stub.inRaid = true
+    stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.Advance(1); stub.RunTimers()
+    T.falsy(b:IsShown(), "keep 10 in a raid")
+    stub.inRaid = false
+    stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.Advance(1); stub.RunTimers()
+    T.truthy(b:IsShown())
+    -- The game's cursor and delete, recorded.
+    local deleted, picked = {}, {}
+    C_Container.PickupContainerItem = function(bag, slot)
+        local it = world.items[bag] and world.items[bag][slot]
+        picked[#picked + 1] = bag .. ":" .. slot
+        stub.cursor = it and { "item", it.itemID, bag, slot } or nil
+    end
+    _G.DeleteCursorItem = function()
+        local c = stub.cursor
+        if c then deleted[#deleted + 1] = c[3] .. ":" .. c[4]; world.items[c[3]][c[4]] = nil end
+        stub.cursor = nil
+    end
+    _G.CursorHasItem = function() return stub.cursor ~= nil end
+    b:GetScript("OnClick")(b)
+    T.eq(#deleted, 0, "the first click only asks")
+    T.eq(b.text:GetText(), "Click again")
+    stub.Advance(1)
+    b:GetScript("OnClick")(b)
+    T.eq(table.concat(deleted, ","), "0:11,0:10", "two shards, from the last slot back, nothing else")
+    T.truthy(stub.ChatContains("Deleted 2 Soul Shards."))
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
+    T.falsy(b:IsShown(), "at the limit: gone")
+    T.truthy(world.items[1][1], "the item that isn't a shard stays")
+    -- Something else on the cursor after picking up: nothing deleted.
+    world.items[0][12] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
+    C_Container.PickupContainerItem = function() stub.cursor = { "item", 1234 } end
+    deleted = {}
+    T.eq(ns.Junk.DeleteShards(), 0)
+    T.eq(#deleted, 0, "the cursor didn't hold a shard: put back, nothing deleted")
+    T.isnil(stub.cursor)
+    -- Not a warlock: no button, and the rows are hidden.
+    stub.units.player.class = "MAGE"
+    T.eq(ns.Junk.ExtraShards(), 0)
+    T.truthy(ns.Junk.IsWarlock() == false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: a new accent repaints the profession bag's count at once", function()
     local ns = login()
     local f = open(ns)
