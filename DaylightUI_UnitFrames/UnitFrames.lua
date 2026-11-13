@@ -454,8 +454,6 @@ end
 function UF.ClassIcon(token, style, picks)
     local pick = type(picks) == "table" and picks[token]
     if type(pick) == "string" and pick ~= "" then style = pick end
-    -- Daylight UI's own icons mean the look's own: the game's under Classic.
-    if (style == "daylight" or type(style) == "nil") and DUI.Style.Look() == "classic" then style = "game" end
     if style == "game" then
         local file, l, r, t, b = UF.GameClassIcon(token)
         if file then return file, l, r, t, b end
@@ -1187,8 +1185,6 @@ function UF.Layout(f, cfg, text, keepSize)
     if f.power then f.power:SetReverseFill(f.growLeft) end
     if f.altMana then f.altMana:SetReverseFill(f.growLeft) end
     if f.spec.slant then
-        -- The Classic look's gold rivets go on the bigger frames, not raid tiles.
-        Style.Rivets(f, not f.spec.compact and f.spec.group ~= "raid")
         Style.Slant(f, side, cut)
         -- Each fill's moving edge follows the frame's angle (straight when
         -- reversed, since the angle belongs to the other end).
@@ -1362,7 +1358,8 @@ function UF.CreateCrest(f)
     c.disc = layer("crest-disc.png", "ARTWORK", 0, 1.0)
     c.ring = layer("crest-ring.png", "ARTWORK", 1, 1.0)
     c.emblem = layer("emblem.png", "OVERLAY", 0, 0.72)
-    Style.Follow(c.disc, Style.BORDER)
+    local b = Style.BORDER
+    c.disc:SetVertexColor(b[1], b[2], b[3], 1)
     c:SetScript("OnSizeChanged", function(self, w)
         for _, t in ipairs({ self.glow, self.disc, self.ring, self.emblem }) do
             t:SetSize(w * t.scale, w * t.scale)

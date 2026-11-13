@@ -321,7 +321,6 @@ end
 local function makeSection(parent)
     local b = CreateFrame("Frame", nil, parent)
     b.text = Style.Text(b, Parts.HEAD, "LEFT")
-    Style.MarkTitle(b.text)
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
     b.line = tex(b, "ARTWORK", { 1, 1, 1, 0.06 })
     b.line:SetHeight(1)
@@ -350,7 +349,7 @@ function Stack:Section(label, opts)
     local b = take(self, "section", makeSection)
     b.opts = opts
     b.text:SetText(string.upper(label or ""))
-    if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "heading") end
+    if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "pop") end
     b.value:SetText(opts.value or "")
     Style.InkText(b.value, "LABEL")
     b.value:SetShown(opts.value ~= nil)

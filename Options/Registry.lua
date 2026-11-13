@@ -1219,17 +1219,6 @@ Options.RegisterPage({
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",
               desc = "Makes all text on DaylightUI's frames bigger or smaller, on top of each frame's own text size." },
         } },
-        { label = "Look", items = {
-            { type = "dropdown", key = "look", label = "Look", since = "1.7.2",
-              values = { daylight = "Daylight UI", classic = "Classic" }, order = { "daylight", "classic" },
-              desc = "Classic dresses every frame and window like the game's own: steel borders, yellow labels and titles, white numbers and red buttons. The angled shapes stay." },
-            { type = "toggle", key = "lookGold", label = "Gold accent", since = "1.7.2",
-              hidden = function(get) return get("look") ~= "classic" end,
-              desc = "Turns the accent color gold to match the Classic look. When off, Classic keeps your own accent color." },
-            { type = "toggle", key = "lookGradients", label = "Gradient bars", since = "1.7.2",
-              hidden = function(get) return get("look") ~= "classic" end,
-              desc = "Keeps your gradient bar colors with the Classic look. When off, bars use the game's plain colors: green health, and each power in its own color." },
-        } },
         { label = "Color", items = {
             { type = "dropdown", key = "accent", label = "Accent color", values = DUI.Style.ACCENTS,
               order = DUI.Style.ACCENT_ORDER,

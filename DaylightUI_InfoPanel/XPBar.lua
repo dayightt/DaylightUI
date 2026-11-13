@@ -178,7 +178,7 @@ function XP.Build(frame)
     XP.tickList = {}
     for i = 1, XP.SEGMENTS - 1 do
         local t = XP.tickFrame:CreateTexture(nil, "OVERLAY")
-        Style.Follow(t, Style.BACKGROUND, XP.TICK_ALPHA, true)
+        t:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], XP.TICK_ALPHA)
         XP.tickList[i] = t
     end
     XP.tickFrame:SetScript("OnSizeChanged", function() XP.LayoutTicks() end)

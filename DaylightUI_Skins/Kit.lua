@@ -165,7 +165,8 @@ local function liteLayout(s)
     if o.noBackground then
         s.bg:Hide()
     else
-        Style.Follow(s.bg, Style.BACKGROUND, o.bgAlpha or Style.BACKGROUND_ALPHA, true)
+        local b = Style.BACKGROUND
+        s.bg:SetColorTexture(b[1], b[2], b[3], o.bgAlpha or Style.BACKGROUND_ALPHA)
         s.bg:ClearAllPoints()
         s.bg:SetPoint("TOPLEFT", s.host, "TOPLEFT", T, -T)
         s.bg:SetPoint("BOTTOMRIGHT", s.host, "BOTTOMRIGHT", -T, T)

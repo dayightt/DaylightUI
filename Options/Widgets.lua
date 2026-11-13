@@ -90,8 +90,7 @@ local tracked = setmetatable({}, { __mode = "k" })
 local function fileOf(t)
     local own = t[3] and DUI.Media.Pick(t[3])
     if own then return Style.FontFileOf(own) end
-    if t[1] == "TITLE" then return Style.TitleFont() or W.TITLE end
-    return W.BODY
+    return t[1] == "TITLE" and W.TITLE or W.BODY
 end
 
 function W.TrackFont(fs, font, size, parent)
@@ -101,35 +100,9 @@ function W.TrackFont(fs, font, size, parent)
     return tracked[fs] and fileOf(tracked[fs]) or font
 end
 
--- Text colored from a shared color table follows it when the look changes,
--- unless something colored it differently since (a hover, a picked row).
-local inked = setmetatable({}, { __mode = "k" })
-
-local function near(x, y) return type(x) == "number" and math.abs(x - y) < 0.002 end
-
 DUI.On("RepaintCore", function()
     for fs, t in pairs(tracked) do fs:SetFont(fileOf(t), t[2], "") end
-    for fs, ink in pairs(inked) do
-        local r, g, b = fs:GetTextColor()
-        local last = ink.last
-        if near(r, last[1]) and near(g, last[2]) and near(b, last[3]) then
-            local c = ink.color
-            fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-            ink.last = { c[1], c[2], c[3] }
-        else
-            inked[fs] = nil
-        end
-    end
 end)
-
--- A title or heading in the title font. Its own maker, since the title and
--- body fonts are often the same file and the Classic look gives titles theirs.
-function W.Title(parent, size, color, justify, layer)
-    local fs = W.Font(parent, W.TITLE, size, color, justify, layer)
-    tracked[fs] = { "TITLE", size, Style.WindowSlotOf(parent) }
-    fs:SetFont(fileOf(tracked[fs]), size, "")
-    return fs
-end
 
 function W.Font(parent, font, size, color, justify, layer)
     local fs = parent:CreateFontString(nil, layer or "OVERLAY")
@@ -138,7 +111,6 @@ function W.Font(parent, font, size, color, justify, layer)
     fs:SetShadowColor(0, 0, 0, 0.7)
     color = color or C.text
     fs:SetTextColor(color[1], color[2], color[3], color[4] or 1)
-    inked[fs] = { color = color, last = { color[1], color[2], color[3] } }
     fs:SetJustifyH(justify or "LEFT")
     fs:SetWordWrap(false)
     return fs
@@ -251,17 +223,18 @@ end
 -- the bottom-right, and draws back on leave. Pressed darkens the fill.
 -- SetActive keeps the band fully lit, b.main gives a footer's main action a
 -- brighter band, SetOff dims it and blocks clicks. Every click plays a sound.
--- The band, fill and words come from the picked look (Style.LOOKS[look].BUTTON).
 W.BUTTON = {
     outline = Style.BORDER,
-    band = {}, bandMain = {}, bandOff = {}, fillTop = {}, fillBottom = {}, lit = {}, text = {},
+    band = { 0.10, 0.09, 0.063 },
+    bandMain = { 0.2, 0.172, 0.118 },
+    bandOff = { 0.07, 0.066, 0.055 },
+    fillTop = { 0.11, 0.1, 0.086 },
+    fillBottom = { 0.071, 0.071, 0.078 },
+    lit = { 1, 0.94, 0.84, 0.08 },
+    text = Style.INK.TEXT,
     gleam = { size = 10, alpha = 0.9, color = { 1, 0.95, 0.85 } },   -- the light on each tracing end
 }
 local BTN = W.BUTTON
-for k, v in pairs(Style.LOOKS.daylight.BUTTON) do
-    for i = 1, #v do BTN[k][i] = v[i] end
-end
-Style.Looked(BTN, { daylight = Style.LOOKS.daylight.BUTTON, classic = Style.LOOKS.classic.BUTTON })
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 local function vertical(tex, top, bottom)
@@ -294,7 +267,6 @@ end
 local buttons = setmetatable({}, { __mode = "k" })
 DUI.On("StyleChanged", function()
     for b in pairs(buttons) do
-        b.Paint()
         if b.trace.p > 0 and b:IsVisible() then b.trace.Draw(b.trace.p) end
     end
 end)
@@ -3107,7 +3079,7 @@ function W.Row(card, page, group, item)
 
     -- Recently added rows get a "new" tag next to the label (Options.IsNew).
     if type(item.since) == "string" then
-        row.newTag = W.Title(row, SIZE.tiny, C.text)
+        row.newTag = W.Font(row, W.TITLE, SIZE.tiny, C.text)
         row.newTag:SetPoint("LEFT", row.label, "RIGHT", 6, 0)
         row.newTag:SetText(L["NEW"])
         W.TextDaylight(row.newTag)
@@ -3208,7 +3180,7 @@ function W.Card(parent, page, group)
     card.lit:SetPoint("TOPLEFT", card, "TOPLEFT", 8, 0)
     card.lit:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, 0)
     card.lit:SetColorTexture(C.cardLit[1], C.cardLit[2], C.cardLit[3], 1)
-    card.title = W.Title(card, SIZE.head, C.dim) -- card heading: INK.LABEL
+    card.title = W.Font(card, W.TITLE, SIZE.head, C.dim) -- card heading: INK.LABEL
     card.title:SetPoint("TOPLEFT", card, "TOPLEFT", W.PAD, -12)
     card.title:SetPoint("TOPRIGHT", card, "TOPRIGHT", -W.PAD, -12)
     card.title:SetText(Options.Text(group.label))

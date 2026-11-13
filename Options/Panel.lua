@@ -162,7 +162,7 @@ local function buildHeader()
 
     header = CreateFrame("Frame", nil, frame)
     header:SetHeight(Panel.HEADER)
-    header.title = W.Title(header, SIZE.title, DUI.Style.INK.TITLE)   -- same as Win.Header's title
+    header.title = W.Font(header, W.TITLE, SIZE.title, C.text)   -- same as Win.Header's title
     header.title:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
     -- Section name after the page title, in the section color.
     header.section = W.Font(header, W.BODY, SIZE.small, C.dim)

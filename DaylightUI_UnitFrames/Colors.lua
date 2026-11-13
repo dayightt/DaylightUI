@@ -211,14 +211,6 @@ function UF.PaintHealth(f, r, g, b, pct)
         UF.SetBarColor(f.health, mr, mg, mb)
         return false
     end
-    -- The Classic look with Gradient bars off: the game's plain green, for
-    -- every unit, as its own frames show health.
-    if not f.state and DUI.Style.Look() == "classic" and DUI.Gradients.Flat() and not DUI.Gradients.Off() then
-        Style.SetBarGradient(f.health, false)
-        local c = Style.LOOKS.classic.HEALTH
-        UF.SetBarColor(f.health, c[1], c[2], c[3])
-        return false
-    end
     -- Your own bar in the Daylight gradient (the player page's Health bar
     -- color, regardless of the mode for other frames): blue to orange across
     -- the fill, the missing part in the gradient's purple, keeping the bar texture.
@@ -277,10 +269,6 @@ function UF.PaintPower(bar, token, unit, f)
     if f and f.powerMode and f.powerMode ~= "global" then
         mode = f.powerMode
         if mode == "custom" and type(f.powerCustom) == "table" then custom = f.powerCustom end
-    end
-    -- The Classic look with Gradient bars off: each power in the game's own color.
-    if DUI.Style.Look() == "classic" and DUI.Gradients and DUI.Gradients.Flat() and not DUI.Gradients.Off() then
-        mode = "type"
     end
     if mode == "gradient" and DUI.Gradients then
         local mirror = (unit == "target" or unit == "targettarget") and not (UF.colors and UF.colors.mirrorGradient == false)

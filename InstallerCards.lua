@@ -291,7 +291,7 @@ function Cards.Draw.health(card, key, w, h)
     a:SetPoint("TOPLEFT", card.inner, "TOPLEFT", 10, -12)
     a.back = a:CreateTexture(nil, "BACKGROUND")
     a.back:SetAllPoints(a)
-    Style.Follow(a.back, Style.BACKGROUND, 1, true)
+    a.back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
     a.fill = a:CreateTexture(nil, "ARTWORK")
     a.fill:SetTexture(Style.BarFile())
     card.bar = a
@@ -503,40 +503,6 @@ function Cards.Draw.frameStyle(card, key, w, h)
     return a
 end
 
--- A small frame edge in each look: Daylight UI's dark outline and warm band,
--- or Classic's dark outline, steel band and a steel rivet on its cut end.
-function Cards.Draw.look(card, key, w, h)
-    local L = Style.LOOKS[key] or Style.LOOKS.daylight
-    local a = CreateFrame("Frame", nil, card.inner)
-    a:SetSize(math.max(1, math.min(w, 110)), math.max(1, math.min(h, 26)))
-    a:SetPoint("TOPLEFT", card.inner, "TOPLEFT", 10, -10)
-    local function layer(inset, color)
-        local t = a:CreateTexture(nil, "ARTWORK")
-        t:SetPoint("TOPLEFT", a, "TOPLEFT", inset, -inset)
-        t:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -inset, inset)
-        t:SetColorTexture(color[1], color[2], color[3], 1)
-        return t
-    end
-    layer(0, L.BORDER)
-    local band = layer(1, L.BAND)
-    if L.STEEL and band.SetGradient and CreateColor then
-        local lo, hi = L.STEEL[1], L.STEEL[2]
-        band:SetColorTexture(1, 1, 1, 1)
-        band:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
-    end
-    layer(3, L.BACKGROUND)
-    if L.STEEL then
-        local r = a:CreateTexture(nil, "OVERLAY")
-        r:SetTexture(Style.RIVET_FILE)
-        r:SetSize(9, 9)
-        r:SetPoint("CENTER", a, "RIGHT", -6, 0)
-        local hi = L.STEEL[2]
-        r:SetVertexColor(hi[1], hi[2], hi[3], 1)
-    end
-    card.look = a
-    return a
-end
-
 -- An accent color as a rounded swatch.
 function Cards.Draw.swatch(card, key, w, h)
     local s = W.Round(card.inner, "ARTWORK")
@@ -607,11 +573,11 @@ function Cards.Draw.kick(card, key, w, h)
     local b = Style.BORDER
     a.edge = a:CreateTexture(nil, "BACKGROUND")
     a.edge:SetAllPoints(a)
-    Style.Follow(a.edge, b, 1, true)
+    a.edge:SetColorTexture(b[1], b[2], b[3], 1)
     a.back = a:CreateTexture(nil, "BORDER")
     a.back:SetPoint("TOPLEFT", a, "TOPLEFT", 1, -1)
     a.back:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -1, 1)
-    Style.Follow(a.back, Style.BACKGROUND, 1, true)
+    a.back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
     a.fill = a:CreateTexture(nil, "ARTWORK")
     a.fill:SetPoint("TOPLEFT", a, "TOPLEFT", 1, -1)
     a.fill:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 1, 1)
@@ -664,7 +630,7 @@ function Cards.Draw.plates(card, key, w, h)
     a:SetPoint("TOPLEFT", card.inner, "TOPLEFT", 10, -10)
     local bw, bh = math.max(1, w * size[1]), math.min(h, size[2])
     local back = a:CreateTexture(nil, "BACKGROUND")
-    Style.Follow(back, Style.BACKGROUND, 1, true)
+    back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
     back:SetSize(bw, bh)
     back:SetPoint("CENTER", a, "CENTER", 0, 0)
     local fill = a:CreateTexture(nil, "ARTWORK")

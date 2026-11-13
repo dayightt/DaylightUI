@@ -208,27 +208,9 @@ function Feel.IsOpen(frame) return frame:IsShown() and not frame.__feelClosing e
 
 -- Fade and rise in. A hidden window starts transparent and RISE px low; one
 -- caught mid-close reverses from where it is.
--- Under the Classic look a window opening gets one soft run of light across it.
-local function glint(frame)
-    if DUI.Style.Look() ~= "classic" or InCombatLockdown() or not DUI.Motion.On() then return end
-    local t = frame.__feelGlint
-    if not t then
-        t = frame:CreateTexture(nil, "OVERLAY")
-        t:SetTexture(DUI.MEDIA .. "glow.png")
-        t:SetBlendMode("ADD")
-        t:Hide()
-        frame.__feelGlint = t
-    end
-    local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
-    t:SetHeight(h * 1.2)
-    DUI.Motion.Sweep(t, frame, { width = w * 0.35, dur = DUI.Motion.SLOW, alpha = 0.18,
-        color = DUI.Style.LOOKS.classic.STEEL[2], inset = -w * 0.2 })
-end
-
 function Feel.Open(frame)
     if frame.__feelClosing and DUI.Pad then DUI.Pad.Returning(frame) end
     frame.__feelClosing = nil
-    if not frame:IsShown() then glint(frame) end
     local from = frame:IsShown() and frame:GetAlpha() or 0
     local dy = frame:IsShown() and Feel.Offset(frame) or -Feel.RISE
     if not frame:IsShown() then
