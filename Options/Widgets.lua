@@ -278,8 +278,9 @@ end)
 -- no scripts, so it can sit on a game button driven from HookScript.
 -- tr.To(on) eases on (NORMAL) or off (FAST), tr.Snap(p) jumps, tr.p is the
 -- current progress. layer defaults to BORDER; use OVERLAY over a game
--- button's own border.
-function W.Trace(frame, inset, thick, layer)
+-- button's own border. quiet: no size hook on the frame (see W.ButtonLook);
+-- the trace is then redrawn at the new size the next time it moves.
+function W.Trace(frame, inset, thick, layer, quiet)
     local tr = { p = 0 }
     for _, key in ipairs({ "top", "right", "left", "bottom" }) do
         local t = frame:CreateTexture(nil, layer or "BORDER", nil, 6)
@@ -366,7 +367,7 @@ function W.Trace(frame, inset, thick, layer)
         tr.Draw(p)
     end
     -- Redraw at the new size.
-    if frame.HookScript then
+    if frame.HookScript and not quiet then
         frame:HookScript("OnSizeChanged", function() if tr.p > 0 then tr.Draw(tr.p) end end)
     end
     return tr
@@ -407,7 +408,10 @@ end
 -- table so nothing gets written onto the game's frame. text is an existing
 -- font string to reuse, or nil to make one. No scripts: the caller drives
 -- s.Hover, and sets s.down / s.off before calling s.Paint.
-function W.ButtonLook(b, s, text)
+-- quiet: no show, hide or size hooks either. A game frame's Show, Hide and
+-- resizing run those hooks inside the game's own code, which they taint, so
+-- the caller then resets the look with s.Rest when the button goes away.
+function W.ButtonLook(b, s, text, quiet)
     s = s or b
     local px = DUI.Pixel.Px
     local one, band = px(b, 1), px(b, 3)
@@ -429,7 +433,7 @@ function W.ButtonLook(b, s, text)
     s.lit:SetPoint("TOPRIGHT", s.fill, "TOPRIGHT", 0, 0)
     s.lit:SetHeight(one)
     W.Tint(s.lit, BTN.lit)
-    local tr = W.Trace(b, one, T)
+    local tr = W.Trace(b, one, T, nil, quiet)
     s.trace = tr
     function s.Draw(p) tr.Draw(p) end
     -- Trace on (hovered or active) or back off.
@@ -454,11 +458,14 @@ function W.ButtonLook(b, s, text)
     end
     -- Hidden mid-trace gets no OnLeave, so reset to rest (or fully lit if active,
     -- in case the accent changed meanwhile).
-    b:HookScript("OnHide", function()
+    function s.Rest()
         s.down = false
         tr.Snap((s.active and not s.off) and 1 or 0)
-    end)
-    b:HookScript("OnShow", function() if tr.p > 0 then tr.Draw(tr.p) end end)
+    end
+    if not quiet then
+        b:HookScript("OnHide", s.Rest)
+        b:HookScript("OnShow", function() if tr.p > 0 then tr.Draw(tr.p) end end)
+    end
     s.Paint()
     return s
 end

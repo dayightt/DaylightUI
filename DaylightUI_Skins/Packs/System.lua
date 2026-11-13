@@ -470,17 +470,21 @@ Engine.Window({ key = "bntoast", pack = "system", addon = "Blizzard_BNet", frame
 
 -- Confirmation boxes (destroying an item, leaving a group, typing a name): our
 -- window, buttons and edit box. Their warning icon and progress bar are kept.
+-- Dressed quietly, with nothing of the automatic walk: with the controller UI
+-- on, the game stores each box's focus actions as it opens, and any hook on
+-- the pieces inside would run first and taint them (Kit.Button).
 for i = 1, 4 do
     Engine.Window({ key = "popup" .. i, pack = "system", frame = "StaticPopup" .. i,
-        window = { keep = { "AlertIcon", "ProgressBarBorder", "ProgressBarFill", "Separator" } },
+        auto = false,
+        window = { keep = { "AlertIcon", "ProgressBarBorder", "ProgressBarFill", "Separator" }, quiet = true },
         hide = { ".BG", ".Border" },
         after = function(Kit, f)
             local c = f.ButtonContainer
             if type(c) == "table" then
-                for b = 1, 4 do Kit.Button(c["Button" .. b]) end
+                for b = 1, 4 do Kit.Button(c["Button" .. b], f) end
             end
-            Kit.Button(f.ExtraButton)
-            Kit.EditBox(f.EditBox)
+            Kit.Button(f.ExtraButton, f)
+            Kit.EditBox(f.EditBox, f)
             Kit.Font(f.Text)
         end })
 end

@@ -37,6 +37,7 @@ DUI.PatchNotes = {
             { "Item outlines", "The colored outline around reward and shop items no longer loses a side at smaller UI scales" },
             { "DoT damage", "The damage your DoTs still have to do shows on a French game client too, not only in English" },
             { "Action bars", "Round and other shaped buttons are see-through like square ones, and the controller's stance bar has no wing picture behind it any more" },
+            { "Controller", "Cancelling a logout, and the other yes/no boxes, no longer give a \"Daylight UI tried to call CancelLogout()\" error in controller mode" },
         },
     },
     { version = "1.7", date = "2026-11-12", summary = "A complete Damage Meter refresh, a cast bar between your frames, buffs on friendly tooltips and faction crests on nameplates.",

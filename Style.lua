@@ -839,8 +839,10 @@ function Style.FinishShell(frame, s, outline)
     -- Laid out again when next shown if the style changed while hidden
     -- (Style.RepaintAll skips hidden shells). A shell on a frame the client
     -- restricts (an aura button in its container) can't take a script, so it's
-    -- laid out immediately on every change instead.
-    local deferrable = pcall(s.SetScript, s, "OnShow", function(self)
+    -- laid out immediately on every change instead. So is a quiet one: its
+    -- OnShow would run inside the game's own Show of the frame, before the
+    -- frame's OnShow, and taint what the game does there.
+    local deferrable = not s.opts.quiet and pcall(s.SetScript, s, "OnShow", function(self)
         if self.dirty then Style.LayoutShell(self) end
     end)
     s.alwaysLayout = not deferrable

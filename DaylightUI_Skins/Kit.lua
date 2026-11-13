@@ -563,7 +563,9 @@ function Kit.Window(frame, opts)
         if isTable(frame[key]) then keep[frame[key]] = true end
     end
     Kit.Strip(frame, keep)
-    Kit.Shell(frame, "window", opts.noBackground and { noBackground = true } or nil)
+    -- quiet: no script on the shell's frame (see Kit.Button).
+    local extra = (opts.noBackground or opts.quiet) and { noBackground = opts.noBackground, quiet = opts.quiet } or nil
+    Kit.Shell(frame, "window", extra)
     local title = titleOf(frame)
     Kit.Font(title, Style.SIZE.title)
     Kit.Light(title, Style.INK.VALUE)
@@ -796,7 +798,48 @@ local THREE_PART = { "Left", "Middle", "Right", "Center", "Mid", "LeftSeparator"
 -- A disabled button swaps its font object (SetDisabledFontObject), so ours is
 -- put back.
 
-function Kit.Button(btn)
+-- Quiet controls: the same looks with no hooks that the game's own code can
+-- set off. Showing, hiding, resizing or enabling a frame runs the scripts of
+-- the pieces inside it within the game's call, ahead of the frame's own
+-- OnShow, and addon code there taints whatever the game does next. A confirm
+-- box is where that hurts: with the controller UI on, the game stores the
+-- box's focus actions in its OnShow, and a tainted Cancel was then blocked.
+-- So a quiet control only hooks the mouse entering and leaving it. Its
+-- pressed, grayed-out and focused looks are read each frame while its box is
+-- shown, from the box's own OnShow and OnHide hooks, which run after the
+-- game's.
+local quietOf = setmetatable({}, { __mode = "k" }) -- host -> { control -> refresh }
+local quietShown = {}                              -- host -> true while shown
+local quietPoller = CreateFrame("Frame")
+quietPoller:Hide()
+Kit.quietPoller = quietPoller
+quietPoller:SetScript("OnUpdate", function()
+    for host in pairs(quietShown) do
+        for _, refresh in pairs(quietOf[host]) do refresh(false) end
+    end
+end)
+
+local function quietHost(host)
+    if quietOf[host] then return quietOf[host] end
+    local list = {}
+    quietOf[host] = list
+    host:HookScript("OnShow", function()
+        quietShown[host] = true
+        quietPoller:Show()
+        for _, refresh in pairs(list) do refresh(false) end
+    end)
+    host:HookScript("OnHide", function()
+        quietShown[host] = nil
+        if next(quietShown) == nil then quietPoller:Hide() end
+        for _, refresh in pairs(list) do refresh(true) end
+    end)
+    if host:IsVisible() then quietShown[host] = true; quietPoller:Show() end
+    return list
+end
+
+-- host: the frame that shows and hides it (a confirm box). Given, the button
+-- is dressed quietly.
+function Kit.Button(btn, host)
     if not isTable(btn) or not btn.CreateTexture or not once("button", btn) then return end
     hideButtonArt(btn)
     for _, key in ipairs(THREE_PART) do Kit.Hide(btn[key]) end
@@ -807,8 +850,32 @@ function Kit.Button(btn)
     local W = DUI.Widgets
     local fs = btn.GetFontString and btn:GetFontString()
     if kind(fs) ~= "FontString" then fs = nil end
-    local s = W.ButtonLook(btn, {}, fs)
+    local s = W.ButtonLook(btn, {}, fs, host ~= nil)
     buttonOf[btn] = s
+    if host then
+        local ink = W.BUTTON.text
+        local function words()
+            if not fs then return end
+            Style.DressText(fs, Style.SIZE.body)
+            fs:SetTextColor(ink[1], ink[2], ink[3])
+        end
+        words()
+        btn:HookScript("OnEnter", function() s.Hover(true) end)
+        btn:HookScript("OnLeave", function() s.Hover(false) end)
+        quietHost(host)[btn] = function(gone)
+            if gone then s.Rest(); return end
+            local off = (btn.IsEnabled and not btn:IsEnabled()) or nil
+            local down = (not off and btn:GetButtonState() == "PUSHED") or false
+            if off == s.off and down == (s.down or false) then return end
+            -- A disabled button takes its disabled font object, so ours goes back.
+            if off ~= s.off then words() end
+            s.off, s.down = off, down
+            s.Paint()
+            s.Light(not off and btn:IsMouseOver() == true)
+        end
+        quietHost(host)[btn](false)
+        return
+    end
     local ink = W.BUTTON.text
     local function words()
         if not fs then return end
@@ -905,7 +972,8 @@ end
 -- An edit or search box: three-piece art removed, our text box look.
 local inputOf = setmetatable({}, { __mode = "k" })   -- box -> its look
 Kit.INPUT_ROOM = 6 -- px between the box edge and its text
-function Kit.EditBox(eb)
+-- host: dressed quietly, as Kit.Button.
+function Kit.EditBox(eb, host)
     if kind(eb) ~= "EditBox" or not once("editbox", eb) then return end
     for _, key in ipairs(THREE_PART) do Kit.Hide(eb[key]) end
     local name = eb.GetName and eb:GetName()
@@ -924,9 +992,21 @@ function Kit.EditBox(eb)
     inputOf[eb] = s
     eb:HookScript("OnEnter", s.Ease)
     eb:HookScript("OnLeave", s.Ease)
-    eb:HookScript("OnEditFocusGained", s.Ease)
-    eb:HookScript("OnEditFocusLost", s.Ease)
-    eb:HookScript("OnHide", s.Rest)
+    if host then
+        local focused = false
+        quietHost(host)[eb] = function(gone)
+            if gone then focused = false; s.Rest(); return end
+            local now = eb:HasFocus() == true
+            if now ~= focused then
+                focused = now
+                s.Ease()
+            end
+        end
+    else
+        eb:HookScript("OnEditFocusGained", s.Ease)
+        eb:HookScript("OnEditFocusLost", s.Ease)
+        eb:HookScript("OnHide", s.Rest)
+    end
     Kit.Font(eb, nil)
     local faint = Style.INK.OFF
     if kind(eb.searchIcon) == "Texture" then eb.searchIcon:SetVertexColor(faint[1], faint[2], faint[3]) end

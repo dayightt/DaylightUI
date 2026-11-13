@@ -677,6 +677,9 @@ function Widget:SetEnabled(on)
 end
 function Widget:Enable() self:SetEnabled(true) end
 function Widget:Disable() self:SetEnabled(false) end
+-- "NORMAL" or "PUSHED", as the game's buttons report it.
+function Widget:SetButtonState(s) self.__state = s end
+function Widget:GetButtonState() return self.__state or "NORMAL" end
 function Widget:GetText() return self.__text end
 -- An edit box takes one line unless made multi-line. Enter in a one-line box
 -- adds no line break and only fires OnEnterPressed, as in game.
@@ -1122,6 +1125,47 @@ local function isAddonHandler(fn)
     end
     return v
 end
+stub.IsAddonHandler = isAddonHandler
+
+-- When the game's code shows, hides, resizes or enables a frame, the scripts
+-- of the pieces inside it run inside that call, before the frame's own
+-- OnShow (seen in game: a confirm box's buttons and their size changes ran
+-- before its OnShow, where the controller code stores the box's actions). An
+-- addon's script there leaves the rest of the game's call tainted. Lists each
+-- "piece.script" under frame (not frame itself) where addon code would run.
+stub.INSIDE_SCRIPTS = { "OnShow", "OnHide", "OnSizeChanged", "OnEnable", "OnDisable",
+    "OnMouseDown", "OnMouseUp", "OnEditFocusGained", "OnEditFocusLost", "OnTextChanged" }
+function stub.AddonScriptsInside(frame)
+    local found = {}
+    local function handlers(f, fn, out)
+        local parts = rawget(f, "__hookParts")
+        local pair = parts and parts[fn]
+        if pair then
+            if pair[1] then handlers(f, pair[1], out) end
+            handlers(f, pair[2], out)
+        elseif fn then
+            out[#out + 1] = fn
+        end
+        return out
+    end
+    local function walk(f, path)
+        for i, child in ipairs({ f:GetChildren() }) do
+            local name = path .. "." .. (child:GetName() or tostring(i))
+            for _, script in ipairs(stub.INSIDE_SCRIPTS) do
+                for _, fn in ipairs(handlers(child, child:GetScript(script), {})) do
+                    if isAddonHandler(fn) then
+                        local info = debug.getinfo(fn, "S")
+                        found[#found + 1] = name .. "." .. script .. " (" .. info.short_src .. ":" .. info.linedefined .. ")"
+                    end
+                end
+            end
+            walk(child, name)
+        end
+    end
+    walk(frame, frame:GetName() or "frame")
+    return found
+end
+
 -- The two halves of a HookScript chain, so each gets its own payload.
 local function callHandler(fn, secretArgs, nargs, f, event, ...)
     local hooks = rawget(f, "__hookParts")

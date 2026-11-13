@@ -758,6 +758,47 @@ T.test("skins: the confirm boxes: our window and buttons, the warning icon kept"
     T.eq(StaticPopup1Button1:GetNormalTexture():GetAlpha(), 0)
 end)
 
+-- With the controller UI on, the game stores a confirm box's focus actions as
+-- the box opens. Any addon code on the pieces inside it runs first and taints
+-- them, and cancelling a logout was then blocked. Only the box's own hooks
+-- (which run after the game's) may run Daylight UI code.
+T.test("skins: no Daylight UI code runs inside a confirm box while the game opens it", function()
+    local pop
+    login(function()
+        pop = CreateFrame("Frame", "StaticPopup1", UIParent)
+        pop:SetSize(320, 120)
+        pop.Text = pop:CreateFontString()
+        pop.ButtonContainer = CreateFrame("Frame", nil, pop)
+        for i = 1, 2 do
+            local b = CreateFrame("Button", "StaticPopup1Button" .. i, pop.ButtonContainer)
+            b:SetSize(120, 24)
+            b:SetText(i == 1 and "Okay" or "Cancel")
+            pop.ButtonContainer["Button" .. i] = b
+        end
+        pop.ExtraButton = CreateFrame("Button", nil, pop)
+        pop.EditBox = CreateFrame("EditBox", nil, pop)
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(stub.skins.Kit.ButtonOf(StaticPopup1Button1), "still our buttons")
+    local inside = stub.AddonScriptsInside(pop)
+    T.eq(#inside, 0, "Daylight UI code inside the box: " .. table.concat(inside, ", "))
+
+    -- The quiet buttons still look disabled and pressed while the box is up.
+    local Kit = stub.skins.Kit
+    local s1, s2 = Kit.ButtonOf(StaticPopup1Button1), Kit.ButtonOf(StaticPopup1Button2)
+    pop:Hide()
+    pop:Show()
+    T.truthy(Kit.quietPoller:IsShown(), "watching while the box is up")
+    StaticPopup1Button1:Disable()
+    StaticPopup1Button2:SetButtonState("PUSHED")
+    Kit.quietPoller:GetScript("OnUpdate")(Kit.quietPoller, 0.016)
+    T.truthy(s1.off, "a disabled button shows as off")
+    T.truthy(s2.down, "a pressed button shows as down")
+    pop:Hide()
+    T.falsy(Kit.quietPoller:IsShown(), "nothing runs once the box is gone")
+    T.falsy(s2.down, "back to rest when the box closes")
+end)
+
 T.test("skins: the stack split box: our window, arrows and buttons, the amount in the accent", function()
     local f
     login(function()
