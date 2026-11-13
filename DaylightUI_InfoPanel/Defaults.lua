@@ -14,7 +14,7 @@ local function ink(c) return { c[1], c[2], c[3] } end
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     xpGain = true,          -- flash the gained XP, show "+N", sweep on level up
-    xp = { enabled = true, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
+    xp = { enabled = true, gameBar = false, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
           matchBars = true,     -- when detached, match the main action bar's width
           color = "accent",     -- accent | class | blue | custom (customLo/customHi); classColor = false is the old blue
           customLo = { 0.55, 0.38, 0.12 }, customHi = { 0.98, 0.78, 0.35 },

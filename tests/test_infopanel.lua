@@ -143,6 +143,18 @@ T.test("info panel: the XP bar shows experience and rested, and hides the game's
     T.falsy(MainStatusTrackingBarContainer:IsShown(), "and kept hidden")
 end)
 
+T.test("info panel: the XP bar off keeps the game's hidden unless asked for", function()
+    login()
+    DaylightUI:Set("InfoPanel", "xp.enabled", false)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "no bar at all by default")
+    MainStatusTrackingBarContainer:SetShown(true)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "and the game can't bring it back")
+    DaylightUI:Set("InfoPanel", "xp.gameBar", true)
+    T.truthy(MainStatusTrackingBarContainer:IsShown(), "the game's bar back when asked for")
+    DaylightUI:Set("InfoPanel", "xp.enabled", true)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "and hidden again with the bar on")
+end)
+
 -- A quest log: a header, two finished quests (one under a folded header,
 -- past the shown entries), one still going, one failed.
 local function questLog()

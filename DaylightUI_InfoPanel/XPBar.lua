@@ -537,9 +537,16 @@ function XP.Apply(cfg, T)
     XP.ticks = cfg.ticks == true
     XP.showBanked = cfg.banked ~= false
     XP.tipSide = cfg.tipSide or "auto"
-    XP.hideGame = cfg.enabled and true or false
-    if cfg.enabled then
-        for _, name in ipairs(XP.GAME_BARS) do XP.HideGameBar(_G[name]) end
+    -- With the bar off, the game's stays hidden too unless the player asks for it.
+    local wasHidden = XP.hideGame
+    XP.hideGame = cfg.enabled == true or cfg.gameBar ~= true
+    for _, name in ipairs(XP.GAME_BARS) do
+        local frame = _G[name]
+        if XP.hideGame then
+            XP.HideGameBar(frame)
+        elseif wasHidden and type(frame) == "table" and frame.Show then
+            frame:Show()
+        end
     end
     XP.LayoutTicks()
     XP.bankedXP = nil   -- counted again: the switch may have changed

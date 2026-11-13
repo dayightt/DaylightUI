@@ -88,6 +88,9 @@ ns.OPTIONS = { pages = {
         { label = "Experience bar", desc = "At the level cap it shows the reputation you're watching. Before that, it turns to that faction for a few seconds when you gain reputation, and while the mouse is over it.", items = {
             { type = "toggle", key = "xp.enabled", label = "Show the experience bar",
               desc = "The experience bar on top of the panel, or reputation at the level cap." },
+            { type = "toggle", key = "xp.gameBar", label = "Use the game's experience bar instead",
+              desc = "With the experience bar above off, show the game's own bar at the bottom of the screen. Off, there's no experience bar at all.",
+              hidden = function(get) return get("xp.enabled") == true end },
             { type = "toggle", key = "xpGain", label = "XP gain effects",
               disabled = function(get) return get("xp.enabled") ~= true or motionOff() end,
               desc = "The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
