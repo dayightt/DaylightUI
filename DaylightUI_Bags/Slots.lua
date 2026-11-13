@@ -206,7 +206,7 @@ function Slots.Layout()
     if not Slots.strip then return end
     Slots.key:SetShown(ns.Bags.GameKeyring())
     Slots.PaintKey()
-    Slots.LayoutStrip(Slots.strip, ns.Setting("iconSize") or 35, ns.Setting("spacing") or 7)
+    Slots.LayoutStrip(Slots.strip, ns.Setting("iconSize") or 35, ns.Setting("spacing") or 2)
 end
 
 function Slots.Refresh()

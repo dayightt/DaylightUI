@@ -1883,7 +1883,7 @@ T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", func
     local ns, f = catLogin()
     local L, Pixel = ns.Layout, DaylightUI.Pixel
     local function want(px, size) return math.max(1, math.floor(px * size / 70 + 0.5)) end
-    for _, size in ipairs({ 35, 50 }) do
+    for _, size in ipairs({ 24, 35, 50 }) do
         DaylightUI:Set("Bags", "iconSize", size)
         stub.RunTimers()
         local cfg = f.Cfg()
@@ -1891,7 +1891,13 @@ T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", func
         T.eq(L.Ref(f, cfg, 6), want(6, size), size .. ": the room under a heading's text")
         T.eq(L.SlotTop(f, cfg) - L.HeadH(f, cfg), want(4, size), size .. ": line to the first ring")
         T.eq(L.RowGap(f, cfg), want(10, size), size .. ": last ring to the next heading")
-        T.eq(L.GroupGap(f, cfg), want(18, size), size .. ": ring to ring between groups")
+        local clear = L.HEAD_REACH + L.HEAD_AIR - 2 * want(4, size)
+        T.eq(L.GroupGap(f, cfg), math.max(want(18, size), clear), size .. ": ring to ring between groups")
+        if size >= 35 then T.eq(L.GroupGap(f, cfg), want(18, size), size .. ": the picture's own gap") end
+        -- Heading to heading: the gap plus each heading's inset inside its rings.
+        local apart = L.GroupGap(f, cfg) + 2 * L.Ref(f, cfg, L.REF.inset)
+        T.truthy(apart - L.HEAD_REACH >= 2, size .. ": the click areas of headings side by side never overlap")
+        T.truthy(apart - (L.HEAD_CHEV + L.HEAD_CHEV_GAP) >= 2, size .. ": a count never meets the next chevron")
         T.eq(cfg.spacing, 2, "slots nearly touch by default, as in the picture")
         T.truthy(L.GroupGap(f, cfg) > cfg.spacing * 2, size .. ": groups stand clearly apart from their slots")
         T.truthy(L.GroupGap(f, cfg) > L.HEAD_CHEV + L.HEAD_CHEV_GAP, size .. ": the next chevron never reaches the heading before it")
@@ -5886,7 +5892,7 @@ T.test("bags: Empty's count is the free slots, not the tiles", function()
     T.eq(h.count:GetText(), tostring(free), "one tile per slot reads the same")
 end)
 
-T.test("bags: the new-item glow never spills into the next slot", function()
+T.test("bags: the corner dots' glow never spills into the next slot", function()
     local ns = login()
     open(ns)
     local Items, B = ns.Items, ns.Bags
@@ -5901,6 +5907,15 @@ T.test("bags: the new-item glow never spills into the next slot", function()
     T.truthy(glow <= (7 - 1) * 2, "reaching at most a pixel past the gap")
     glow, dot = glowAt(2)
     T.eq(glow, dot, "no glow at all when the slots nearly touch")
+    -- The cheapest junk's dot follows the same rule.
+    glow, dot = glowAt(7)
+    ns.Items.PaintCheap(B.buttons[0][1], true)
+    local p = Items.Parts(B.buttons[0][1])
+    T.near(p.cheapGlow:GetWidth(), glow, 1e-6, "the junk dot's glow: the same size")
+    DaylightUI:Set("Bags", "spacing", 2)
+    stub.RunTimers()
+    ns.Items.PaintCheap(B.buttons[0][1], true)
+    T.near(p.cheapGlow:GetWidth(), p.cheapDot:GetWidth(), 1e-6, "and none when the slots nearly touch")
     DaylightUI:Set("Bags", "spacing", nil)
     stub.RunTimers()
 end)

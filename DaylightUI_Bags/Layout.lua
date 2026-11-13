@@ -167,8 +167,12 @@ function Layout.HeadH(window, cfg)
     return Layout.HEAD_TEXT + Layout.Ref(window, cfg, Layout.REF.pad) + line
 end
 
+-- Never so tight that a heading's count meets the next group's chevron or their
+-- click areas overlap, which small slots would otherwise do.
 function Layout.GroupGap(window, cfg)
-    return Layout.Ref(window, cfgOf(window, cfg), Layout.REF.groupGap)
+    cfg = cfgOf(window, cfg)
+    local clear = Layout.HEAD_REACH + Layout.HEAD_AIR - 2 * Layout.Ref(window, cfg, Layout.REF.inset)
+    return math.max(Layout.Ref(window, cfg, Layout.REF.groupGap), clear)
 end
 function Layout.RowGap(window, cfg)
     return Layout.Ref(window, cfgOf(window, cfg), Layout.REF.rowGap)
@@ -182,6 +186,8 @@ end
 
 Layout.HEAD_CHEV = 6         -- chevron size, a little smaller than the name
 Layout.HEAD_CHEV_GAP = 2     -- between the chevron and the name
+Layout.HEAD_REACH = Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP + 2   -- how far a heading's click area reaches left
+Layout.HEAD_AIR = 2          -- the least room between one heading's click area and the next
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 Layout.SHELF_INSET = 4       -- extra left margin in the Shelf, where the chevrons hang
 
@@ -215,7 +221,7 @@ local function heading(window, i)
     h.text:SetPoint("LEFT", h, "TOPLEFT", 0, 1 - Layout.HEAD_TEXT / 2)
     h.chev:SetPoint("RIGHT", h.text, "LEFT", -Layout.HEAD_CHEV_GAP, 0)
     -- The chevron sits outside the heading, so it takes clicks too.
-    h:SetHitRectInsets(-(Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP + 2), 0, 0, 0)
+    h:SetHitRectInsets(-Layout.HEAD_REACH, 0, 0, 0)
     h.count = DUI.Style.Text(h, DUI.Style.SIZE.tiny, "LEFT")
     h.count:SetPoint("LEFT", h.text, "RIGHT", 5, 0)
     h.rule = h:CreateTexture(nil, "ARTWORK")

@@ -427,6 +427,14 @@ function Items.ScaleArt(btn, p)
     for _, a in ipairs(p.art) do a[1]:SetSize(a[2] * k, a[3] * k) end
 end
 
+-- A corner dot's glow size. It never reaches more than a pixel past the gap
+-- into the next slot, so small spacing shrinks it, down to no glow at all.
+function Items.GlowSize(btn, dot)
+    local w = windowOf(btn)
+    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 2
+    return math.min(dot * Items.DOT_GLOW, math.max(dot, (gap - 1) * 2))
+end
+
 -- Icon inside the border, and everything positioned off it; text in the addon font.
 function Items.Place(btn)
     local p = dressed[btn]
@@ -487,11 +495,7 @@ function Items.Place(btn)
     p.newDot:ClearAllPoints()
     p.newDot:SetSize(dot, dot)
     p.newDot:SetPoint("CENTER", btn, "TOPLEFT", -2, 2)
-    -- The glow never reaches more than a pixel past the gap into the next slot, so
-    -- small spacing shrinks it, down to no glow at all.
-    local w = windowOf(btn)
-    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 2
-    local glow = math.min(dot * Items.DOT_GLOW, math.max(dot, (gap - 1) * 2))
+    local glow = Items.GlowSize(btn, dot)
     p.newGlow:ClearAllPoints()
     p.newGlow:SetSize(glow, glow)
     p.newGlow:SetPoint("CENTER", p.newDot, "CENTER", 0, 0)
@@ -645,7 +649,8 @@ function Items.PaintCheap(btn, on)
         p.cheapDot:SetSize(dot, dot)
         p.cheapDot:SetPoint("CENTER", btn, "BOTTOMLEFT", -2, -2)
         p.cheapGlow:ClearAllPoints()
-        p.cheapGlow:SetSize(dot * Items.DOT_GLOW, dot * Items.DOT_GLOW)
+        local glow = Items.GlowSize(btn, dot)
+        p.cheapGlow:SetSize(glow, glow)
         p.cheapGlow:SetPoint("CENTER", p.cheapDot, "CENTER", 0, 0)
         local c = Style.INK.WARN
         p.cheapDot:SetVertexColor(c[1], c[2], c[3], 1)
