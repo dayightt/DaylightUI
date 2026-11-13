@@ -1017,6 +1017,28 @@ T.test("npc shop: Shift-click asks how many, never buys on its own", function()
     T.deq(NW.Calls("BuyMerchantItem")[2], { 3 })
 end)
 
+-- One purchase can't take more than a stack, so more than that is bought a stack
+-- at a time, a moment apart.
+T.test("npc shop: the amount box buys several stacks one after another", function()
+    local N, ns = load()
+    NW.state.money = 2000   -- 80 lots of water at 25: plenty
+    NW.Merchant()
+    frame()
+    local tiles = {}
+    for _, p in ipairs(shop(N).pieces) do if p.spec then tiles[#tiles + 1] = p end end
+    _G.IsShiftKeyDown = function() return true end
+    tiles[1]:Click("LeftButton")
+    _G.IsShiftKeyDown = function() return false end
+    local box = ns.Shop.box
+    box.num:SetText("50")
+    box.num:GetScript("OnTextChanged")(box.num, true)
+    T.eq(box.buy.text:GetText(), "Buy · " .. DaylightUI.MoneyString(250), "50 = ten lots")
+    box.buy:Click()
+    T.deq(NW.Calls("BuyMerchantItem"), { { 1, 20 } }, "the first stack at once")
+    stub.RunTimers()
+    T.deq(NW.Calls("BuyMerchantItem"), { { 1, 20 }, { 1, 20 }, { 1, 10 } }, "then the rest")
+end)
+
 T.test("npc shop: something very dear asks a second click", function()
     local N = load()
     NW.state.money = 99999999

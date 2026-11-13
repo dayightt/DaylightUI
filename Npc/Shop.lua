@@ -135,9 +135,23 @@ local function money() return call(GetMoney) or 0 end
 
 -- Actions
 
--- Max of an item one purchase can take, and how many of those the player can pay for.
--- Same math as the game's MerchantItemButton_BuyMultipleStacks: money, plus bag counts
--- for items paid in items.
+Shop.STACKS = 10       -- most stacks the amount box buys in one go
+Shop.STACK_STEP = 0.2  -- s between those stacks' purchases
+
+-- Room for that many more stacks: free bag slots, between one and Shop.STACKS.
+local function stacksRoom()
+    if not (C_Container and fn(C_Container.GetContainerNumFreeSlots)) then return Shop.STACKS end
+    local free = 0
+    for bag = 0, Shop.BAGS do
+        local ok, n = pcall(C_Container.GetContainerNumFreeSlots, bag)
+        if ok and type(n) == "number" then free = free + n end
+    end
+    return math.max(1, math.min(Shop.STACKS, free))
+end
+
+-- Max of an item one purchase can take, and how many the player can buy in all.
+-- Same math as the game's MerchantItemButton_BuyMultipleStacks (money, plus bag counts
+-- for items paid in items), but past one stack: the rest is bought a stack at a time.
 function Shop.MaxOf(it)
     local per = math.max(1, it.stack)
     local max
@@ -152,7 +166,28 @@ function Shop.MaxOf(it)
             end
         end
     end
-    return max, math.min(max, afford)
+    local most = max > per and max * stacksRoom() or max
+    return max, math.min(most, afford)
+end
+
+-- Buys n of an item, at most one stack per purchase, the next a moment after the last.
+-- Stops if the shop closes on the way.
+function Shop.BuyLots(it, n)
+    local max = Shop.MaxOf(it)
+    local per = math.max(1, it.stack)
+    local chunk = math.max(per, math.floor(max / per) * per)
+    local index = it.index
+    local function step(left)
+        local take = math.min(left, chunk)
+        BuyMerchantItem(index, take)
+        if left > take then
+            C_Timer.After(Shop.STACK_STEP, function()
+                local m = _G.MerchantFrame
+                if type(m) == "table" and m:IsShown() then step(left - take) end
+            end)
+        end
+    end
+    step(n)
 end
 
 local function ghost(tile, text)
@@ -270,7 +305,7 @@ function Shop.Buy(it, tile, n)
         return
     end
     S.confirm = nil
-    if n then BuyMerchantItem(it.index, n) else BuyMerchantItem(it.index) end
+    if n then Shop.BuyLots(it, n) else BuyMerchantItem(it.index) end
     if tile then
         local spec = tile.spec
         Parts.PaintPick(tile, true, true)   -- one soft glow
