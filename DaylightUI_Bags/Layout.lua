@@ -515,7 +515,7 @@ end
 -- (moving the whole grid instead cost about 10 fps).
 
 Layout.FOLD_DROP = 6         -- px an opened group's items drop in from (same as the character window's folds)
-Layout.easing = false        -- true while a heading click is laying out the bag
+Layout.easing = false        -- true while a layout should animate (a heading click, a chip)
 
 -- Whether the layout being made now animates. Never in a fight or under the
 -- client's restrictions, where the bag has to be right at once.
@@ -540,33 +540,18 @@ function Layout.ItemKey(button, seen)
     return keyOf((itemIn(bagOf(button), button:GetID())), seen)
 end
 
--- What each slot held at the last layout, so the next eased one knows where each
--- item was on screen.
-local function noteKeys(window)
-    local keys, laid = window.keys or {}, window.laid
-    window.keys = keys
-    for _, s in ipairs(window.set.Slots()) do
-        local b = s.button
-        if laid then
-            keys[b] = laid[b]
-        else
-            keys[b] = (itemIn(s.bag, b:GetID()))
-        end
-    end
-end
-
 -- Current position of every shown slot and heading, as the layout set them:
 -- { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
 --   heads = { [group key] = { x, y } } }.
 function Layout.Spots(window)
     local slots, items, heads, seen = {}, {}, {}, {}
-    local keys = window.keys or {}
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() and b:GetNumPoints() == 1 then
             local _, _, _, x, y = b:GetPoint(1)
             slots[b] = { x, y }
-            local key = keyOf(keys[b], seen)
+            -- Its last fill (Items.Fill): the bags have already changed by now.
+            local key = keyOf(b.dluiKey, seen)
             if key then items[key] = slots[b] end
         end
     end
@@ -579,11 +564,11 @@ function Layout.Spots(window)
     return { slots = slots, items = items, heads = heads }
 end
 
--- Animates from the old spots (Layout.Spots) to the new layout. A slot glides
--- from where its item was (the same item may now sit in another slot after a
--- sort), an empty one from where it was itself. New ones fade in with a small
--- drop, and ones no longer shown fade out in place (window.fading, restored by
--- the next layout).
+-- Animates from the old spots (Layout.Spots) to the new layout. A slot that now
+-- holds something else glides from where that item was (a sort or a swap moved
+-- it); one that holds the same as before, or nothing, glides from its own spot.
+-- New ones fade in with a small drop, and ones no longer shown fade out in place
+-- (window.fading, restored by the next layout).
 function Layout.Ease(window, was)
     local Motion, Feel = DUI.Motion, DUI.Win.Feel
     window.gliding = window.gliding or {}
@@ -604,8 +589,10 @@ function Layout.Ease(window, was)
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() then
-            local key = Layout.ItemKey(b, seen)
-            from(b, key and items[key] or was.slots[b])
+            local now = Layout.ItemKey(b)
+            local key = keyOf(now, seen)
+            local moved = key and keyOf(b.dluiKey) ~= now
+            from(b, (moved and items[key]) or was.slots[b])
         elseif was.slots[b] then
             window.fading = window.fading or {}
             window.fading[b] = true
@@ -643,7 +630,6 @@ function Layout.Apply(window, cfg)
         w, h = Layout.Grid(window, cfg)
     end
     if was then Layout.Ease(window, was) end
-    noteKeys(window)
     return w, h
 end
 

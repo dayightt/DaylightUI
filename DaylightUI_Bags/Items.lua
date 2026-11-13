@@ -813,6 +813,8 @@ function Items.Fill(btn, tooltipOwner)
     run(ClearItemButtonOverlay, btn)
     ns.Guard.Apply(btn, info)
     btn.dluiTexture, btn.dluiShown = texture, shown
+    -- The item this slot shows on screen, so an eased layout can glide it from here.
+    btn.dluiKey = info and (info.itemID or info.hyperlink) or nil
     call(btn, "SetHasItem", shown)
     call(btn, "SetItemButtonTexture", shown)
     run(SetItemButtonQuality, btn, quality, link, false, bound)

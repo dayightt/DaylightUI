@@ -798,7 +798,7 @@ function Window.Relayout(f, synced, moved)
     local W = w + E * 2
     local chipH = Window.LayoutChips(f, w)
     local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + Window.GAP + h + Window.GAP + Window.FOOTER + E
-    -- A fold (heading click) glides the window to its new size along with the slots
+    -- An eased layout glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel
     if ns.Layout.Eases(f) then

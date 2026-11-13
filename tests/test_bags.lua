@@ -1842,21 +1842,30 @@ T.test("bags: grid view eases like the shelf", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("bags: a stack that grew keeps its spot, duplicates map in order", function()
-    local ns = login()
+T.test("bags: a stack that grew keeps its spot, the merged-away one fades", function()
+    local ns = login({ view = "categories" })
     local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "combineStacks", false)
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
     categoryWorld()
-    open(ns)
+    local f = open(ns)
     ns.Relayout()
+    ns.FillAll()
     settleFeel()
     local first, second = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    T.truthy(first:IsShown() and second:IsShown(), "two stacks of Bread, apart")
+    local fx, fy = at(first)
     -- The second stack of Bread merges into the first.
     world.items[0][8].stackCount = 12
     world.items[1][1] = nil
     easedRelayout(ns)
-    T.falsy(Feel.Moving(first), "the stack that grew stays put")
-    T.falsy(Feel.Moving(second), "the emptied slot stays put")
+    T.eq(select(4, first:GetPoint(1)), fx, "the stack that grew starts from its own spot")
+    T.eq(select(5, first:GetPoint(1)), fy)
+    T.truthy(f.fading and f.fading[second], "the merged-away one fades out")
+    T.truthy(second:IsShown(), "where it was")
     settleFeel()
+    T.falsy(second:IsShown(), "gone once faded")
     -- Keys: the item, then its place among stacks of the same item.
     world.items[1][1] = { iconFileID = 108, stackCount = 7, quality = 1, hyperlink = "|Hitem:8|h", itemID = 8 }
     T.eq(ns.Layout.ItemKey(first), "8")
@@ -1864,6 +1873,27 @@ T.test("bags: a stack that grew keeps its spot, duplicates map in order", functi
     local seen = {}
     T.eq(ns.Layout.ItemKey(first, seen), "8#1")
     T.eq(ns.Layout.ItemKey(second, seen), "8#2")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Two stacks of one item in different groups: folding the group of one must not
+-- send the other off to the folded one's spot.
+T.test("bags: folding one of two stacks leaves the other's glide its own", function()
+    local ns, f = catLogin()
+    world.sets["0:8"] = true
+    ns.Relayout()
+    ns.FillAll()
+    settleFeel()
+    local inSet, other = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    T.eq(groupOf(ns, inSet), "sets")
+    T.eq(groupOf(ns, other), "consumable")
+    local ox, oy = at(other)
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "sets" then h:GetScript("OnClick")(h, "LeftButton") end
+    end
+    T.eq(select(4, other:GetPoint(1)), ox, "starts from its own spot")
+    T.eq(select(5, other:GetPoint(1)), oy)
+    settleFeel()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
