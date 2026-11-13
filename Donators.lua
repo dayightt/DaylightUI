@@ -47,6 +47,9 @@ Donators.LIST = {
     "Derrick Bevan",
     "X Razer",
     "Sebastian Reichmann",
+    "Alen Šabanagić",
+    "Lilith Pi",
+    "Chai",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -63,6 +66,7 @@ Donators.LIST = {
     "sam",
     "Daniel",
     "Dragon Slayer",
+    "Somebody",
 }
 
 -- Monthly supporters (a Ko-fi subscription or an active Patreon member), shown
@@ -78,6 +82,7 @@ Donators.MONTHLY = {
     "FrostByghte",
     "Sebastian Reichmann",
     "Steffen Krause",
+    "Alen Šabanagić",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
