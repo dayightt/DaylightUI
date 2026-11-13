@@ -99,6 +99,10 @@ local function paintTitle(f)
     local inv = Saved.Of(Viewer.who)
     f.title:SetText(nameOf(Viewer.who))
     f.title:SetTextColor(DUI.Style.ClassTextColor(inv and inv.class))
+    -- Their class icon in the portrait, the bag's own icon when it is unknown.
+    local file, l, r, t, b
+    if DUI.ClassIcon and inv and type(inv.class) == "string" then file, l, r, t, b = DUI.ClassIcon(inv.class) end
+    if file then ns.Window.SetPortrait(f, file, l, r, t, b) else ns.Window.SetPortrait(f, ns.Window.BAGS_ICON) end
 end
 
 -- Repaint the picked tab right away when the accent changes.
@@ -206,6 +210,7 @@ local function makeTabs(f)
         right = t
     end
     f.title:SetPoint("RIGHT", right, "LEFT", -8, 0)
+    f.sub:SetPoint("RIGHT", right, "LEFT", -8, 0)
     f.handle:ClearAllPoints()
     f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     f.handle:SetPoint("RIGHT", right, "LEFT", -4, 0)
@@ -255,6 +260,26 @@ function Viewer.Menu(owner)
     end, nil, { more = more })
 end
 
+-- When the shown part was last seen, as a time ago.
+local function seenOf(inv)
+    if Viewer.part == "account" then
+        local a = Saved.Account()
+        return a and a.time
+    end
+    return inv and (Viewer.part == "bank" and inv.bankTime or inv.time)
+end
+
+-- Sub line under the character's name: when this was saved.
+local function updateSub(f)
+    local seen = seenOf(Saved.Of(Viewer.who))
+    local ago = DUI.Social and DUI.Social.Data and DUI.Social.Data.Ago
+    if #Saved.view > 0 and type(seen) == "number" and ago and time then
+        f.sub:SetText(string.format(L["Saved %s"], ago(math.max(0, time() - seen))))
+    else
+        f.sub:SetText("")
+    end
+end
+
 -- Footer: free / total for what's shown, when it was seen, and the matching
 -- gold (the character's or the account bank's).
 local function updateFooter(f)
@@ -281,7 +306,8 @@ function Viewer.Build()
         kind = "viewer", name = Viewer.NAME, title = "Bank and alts", set = Viewer.set, prefix = "viewer.",
         defaultPoint = Viewer.DEFAULT_POINT, still = true,
         onClose = function() Viewer.Close() end,
-        updateFooter = updateFooter,
+        updateFooter = updateFooter, updateSub = updateSub,
+        portrait = ns.Window.BAGS_ICON,
         afterLayout = function(w)
             -- After a repaint too, which resets the title to white.
             paintTitle(w)

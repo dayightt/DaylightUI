@@ -162,6 +162,42 @@ local function open(ns)
     return ns.window
 end
 
+T.test("bags: the window has a portrait header, its name and free slots in the sub line", function()
+    local ns = login()
+    local f = open(ns)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    T.eq(f.title:GetText(), "Bags")
+    local free, total = f.set.Free(true)
+    local sub = f.sub:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(string.find(sub, DaylightUI.UnitName("player", "player"), 1, true), "the player's name: " .. sub)
+    T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
+end)
+
+T.test("bags: a narrow window keeps title, sub line and X apart", function()
+    local ns = login()
+    local f = open(ns)
+    DaylightUI:Set("Bags", "columns", 4)
+    DaylightUI:Set("Bags", "iconSize", 26)
+    stub.RunTimers()
+    ns.Window.Relayout(f)
+    -- The fake game lays nothing out, so read the anchors: how far each right
+    -- edge sits in from the window's right edge.
+    local function inset(obj, point)
+        for i = 1, obj:GetNumPoints() do
+            local p, rel, _, x = obj:GetPoint(i)
+            if p == point then return -x, rel end
+        end
+    end
+    local closeIn, rel = inset(f.close, "TOPRIGHT")
+    T.eq(rel, f, "the X hangs off the window")
+    local closeLeft = closeIn + f.close:GetWidth()
+    local titleIn, titleRel = inset(f.title, "RIGHT")
+    local subIn, subRel = inset(f.sub, "RIGHT")
+    T.eq(titleRel, f); T.eq(subRel, f)
+    T.truthy(titleIn >= closeLeft, "the title stops left of the X")
+    T.truthy(subIn >= closeLeft, "and so does the sub line")
+end)
+
 T.test("bags: a holder per bag carrying its bag, and exactly one button per real slot", function()
     local ns = login()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))

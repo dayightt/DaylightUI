@@ -14,7 +14,7 @@ ns.Window = Window
 
 Window.NAME = "DaylightUIBag"
 Window.EDGE = 10             -- inner margin
-Window.TITLE = DUI.Win.COMPACT   -- title bar height, the window kit's compact header
+Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
 Window.FOOTER = 18
@@ -210,10 +210,11 @@ function Window.Create(spec)
     Style.Shell(f, { window = "Bags" })
     local E = Window.EDGE
 
-    -- The window kit's compact header: title, X, accent line.
-    DUI.Win.Header(f, { compact = true, onClose = spec.onClose })
+    -- The window kit's header: portrait, title, sub line, X, accent line.
+    DUI.Win.Header(f, { portrait = true, onClose = spec.onClose })
     DUI.Win.WheelScale(f, function() return f.Setting("scale") end, function(v) f.Set("scale", v) end, 0.5, 1.5)
     f.title:SetText(L[spec.title])
+    Window.SetPortrait(f, spec.portrait)
 
     -- Dragged by the title bar (not over the X).
     local handle = CreateFrame("Frame", nil, f)
@@ -453,6 +454,37 @@ function Window.Sort()
     pcall(C_Container.SortBags)
 end
 
+-- Puts an icon in the header's round portrait, cropped like our other icons.
+function Window.SetPortrait(f, file, l, r, t, b)
+    if not f.portrait then return end
+    f.portrait:SetTexture(file)
+    if l then f.portrait:SetTexCoord(l, r, t, b) else DUI.Style.CropIcon(f.portrait) end
+    f.portrait:SetShown(file and true or false)
+    f.portraitRim:SetShown(file and true or false)
+end
+
+-- The sub line under the title. The bag reads "<name> · 12 of 32 free", the bank
+-- "12 of 32 free" (the number in the accent, warn or bad colors when low); the
+-- viewer paints its own through spec.updateSub.
+function Window.UpdateSub(f)
+    if not f or not f.sub then return end
+    DUI.Style.InkText(f.sub, "LABEL")
+    if f.spec.updateSub then return f.spec.updateSub(f) end
+    local bag = f.spec.kind == "bag"
+    local free, total = f.set.Free(bag)
+    if type(free) ~= "number" then return f.sub:SetText("") end
+    local role = bag and ((free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN")) or nil
+    local hex = DUI.Win.Parts.Hex(role and DUI.Style.INK[role] or { DUI.Style.Pop() })
+    local count = hex .. free .. "|r"
+    local name = bag and DUI.UnitName("player", "player")
+    -- A name can be secret in combat; it is only shown when it is plain text.
+    if type(name) == "string" and not (issecretvalue and issecretvalue(name)) then
+        f.sub:SetText(string.format(L["%s · %s of %d free"], name, count, total))
+    else
+        f.sub:SetText(string.format(L["%s of %d free"], count, total))
+    end
+end
+
 -- Footer free slots and money (plus the window's own pieces). Only while shown;
 -- opening fills the footer (FillDirty).
 function Window.UpdateFooter(f)
@@ -486,6 +518,7 @@ function Window.UpdateFooter(f)
         f.money:SetText(DUI.MoneyString(GetMoney and GetMoney() or 0))
     end
     if ns.Currency then ns.Currency.Update(f) end
+    Window.UpdateSub(f)
 end
 
 -- Keeping it up to date
@@ -535,7 +568,9 @@ function Window.Relayout(f, synced, moved)
     end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
-    local W, H = w + E * 2, Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
+    -- Header, tool row, slots, footer: each piece with a gap after it.
+    local W = w + E * 2
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
     -- A fold (heading click) glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel
@@ -734,6 +769,7 @@ end
 local function bagWindow()
     local f = Window.Create({
         kind = "bag", name = Window.NAME, title = "Bags", set = ns.Bags, prefix = "",
+        portrait = Window.BAGS_ICON,
         defaultPoint = Window.DEFAULT_POINT,
         onClose = function() ns.OpenClose.CloseAll() end,
         onShow = function() ns.Stack.Run() end,
