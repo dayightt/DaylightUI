@@ -3335,6 +3335,20 @@ T.test("skins: the crowd control alert: the game's art unseen, ours a light line
     T.eq(h.name.__font and h.name.__font[2] or Style.SIZE.title, Style.SIZE.title, "the window title's size")
 end)
 
+T.test("skins: the crowd control alert switch off leaves the game's own alert as it is", function()
+    local LW, game = require("locworld"), nil
+    local S = login(function()
+        game = LW.Install()
+        _G.DaylightUIDB.modules.Skins = { ccAlert = false }
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.isnil(S.CcAlert.frame, "none of ours")
+    T.eq(game.Icon:GetAlpha(), 1, "the game's art still shows")
+    DaylightUI:Set("Skins", "ccAlert", true)
+    stub.RunTimers()
+    T.truthy(S.CcAlert.frame, "on again: ours")
+end)
+
 T.test("skins: the crowd control alert shows the game's words, icon and time as it lands and as they change", function()
     local Alert, game, LW = ccLogin()
     local h = Alert.frame

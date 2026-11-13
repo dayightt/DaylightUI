@@ -24,7 +24,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "packs.collections", label = "Collections and journals", reload = true,
               desc = "Collections, achievements, the dungeon journal, the dressing room." },
             { type = "toggle", key = "packs.system", label = "Menus, loot and items", reload = true,
-              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the crowd control alert, the box that splits a stack. Also the game's own character and inspect windows while Daylight UI's are off." },
+              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the box that splits a stack. Also the game's own character and inspect windows while Daylight UI's are off." },
         } },
         { label = "Windows", items = {
             backRows[1], backRows[2],
@@ -32,6 +32,11 @@ ns.OPTIONS = { pages = {
         { label = "Breath bar", items = {
             { type = "toggle", key = "breathSlant", label = "Breath bar angled end",
               desc = "Cuts the right end of the breath bar at an angle, on the fatigue and feign death bars too. When off, the end is straight.",
+              disabled = function(get) return get("packs.system") == false end },
+        } },
+        { label = "Crowd control alert", items = {
+            { type = "toggle", key = "ccAlert", label = "Crowd control alert", reload = true,
+              desc = "The alert in the middle of the screen when you're stunned, feared or silenced, as a light line in Daylight UI style. When off, the game's own alert shows instead.",
               disabled = function(get) return get("packs.system") == false end },
         } },
         { label = "Other addons", desc = "Other addons' windows in DaylightUI style. One switch per addon you have installed.",

@@ -191,7 +191,9 @@ DUI.On("TestModeChanged", syncTest)
 DUI.On("TestPartChanged", function(key) if key == "ccalert" then syncTest() end end)
 DUI.RegisterTestPart("ccalert", "CC alert", 87, function() return Alert.game ~= nil end)
 
-Engine.Register({ key = "lossofcontrol", pack = "system", apply = function()
+-- Its own switch too: with it off, the game's own alert shows as it always did.
+Engine.Register({ key = "lossofcontrol", pack = "system",
+    skip = function() return DUI:Get("Skins", "ccAlert") == false end, apply = function()
     local g = _G.LossOfControlFrame
     if type(g) ~= "table" or type(g.TimeLeft) ~= "table" or Alert.game then return end
     Alert.game = g
