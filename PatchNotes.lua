@@ -32,6 +32,7 @@ DUI.PatchNotes = {
             { "Meters", "The threat meter's own background opacity works, down to fully see-through" },
             { "Cooldown Manager", "The editor's \"Click or drag a spell\" hint no longer hides under the Add by ID button" },
             { "Spellbook", "The Training tab names the level your next spells come at, instead of saying Next level when they're two levels away" },
+            { "Windows", "Tabs at the top of the spellbook, social and other windows no longer run into each other with a wide font" },
         },
     },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",
