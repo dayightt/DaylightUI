@@ -127,12 +127,12 @@ end
 Layout.HEAD_TEXT = 15        -- the heading's text row
 Layout.HEAD = 18             -- the whole heading, its line along the bottom a little under the text
 Layout.HEAD_SIZE = DUI.Style.SIZE.small
-Layout.RING_GAP = 8          -- clear air from the line down to the slot rings' shadow
+Layout.RING_GAP = 2          -- clear air from the line down to the slot rings' shadow (the ring itself sits a shadow further)
 -- Gaps between groups side by side (slot to slot) and between rows (from the
 -- rings' shadow to the next heading). Both add the slot spacing, so a tight bag
 -- gets a tight Shelf.
-Layout.GROUP_GAP = 19
-Layout.ROW_GAP = 7
+Layout.GROUP_GAP = 13
+Layout.ROW_GAP = 3
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
 function Layout.GroupGap(cfg) return Layout.GROUP_GAP + cfg.spacing end
