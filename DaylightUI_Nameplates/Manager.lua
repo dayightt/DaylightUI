@@ -353,12 +353,25 @@ end
 -- two plates, not all of them, and a new plate (laid out at setup) only if it's
 -- your target. A size change that's only a zoom is a new scale, not a new layout
 -- (Plate.Layout).
+-- Your target's own size wins, then the plate's threat size (Plate.UpdateThreatSize),
+-- then the others' size. Every group is a fixed size, so plates only ever take a few
+-- scales.
 local function sizePlate(p)
-    local groupNow = sizeOn and (p.isTarget and "target" or (not othersPlain and "others" or nil)) or nil
+    local groupNow
+    if sizeOn and p.isTarget then
+        groupNow = "target"
+    elseif p.threatSize then
+        groupNow = p.threatSize
+    elseif sizeOn and not othersPlain then
+        groupNow = "others"
+    end
     if groupNow == p.sizeGroup then return end
     p.sizeGroup = groupNow
     ns.Plate.Layout(p)
 end
+
+-- One plate's size group again (its threat state changed).
+Manager.Resize = sizePlate
 
 -- Puts one plate in its size group from the last pass (a new plate that isn't
 -- your target).

@@ -505,6 +505,8 @@ local function refresh(s, width, maxH)
     p.friendly, p.sampleTarget = friendly, not friendly
     local pc = Plate.Cfg(p)
     p.sizeGroup = (not friendly and c.targetScale) and "target" or nil
+    -- The Threat page shows the size of the state its chips picked.
+    if s.id == "threat" and not friendly and c.threatSize == true then p.sizeGroup = Sample.threatView end
     -- Combo points go before the layout since they move the cast bar or name. Only
     -- shown when you play a combo class (rogue, druid), as in game.
     local combo = not friendly and c.comboPoints == true and Combo.Mine()
@@ -592,8 +594,8 @@ local function refresh(s, width, maxH)
         s.combo:Hide()
     end
 
-    local group = p.sizeGroup and c[p.sizeGroup]
-    local grow = Sample.zoom * (c.scale or 1) * (type(group) == "table" and group.scale or 1)
+    local group = Plate.SizeGroup(c, p.sizeGroup)
+    local grow = Sample.zoom * (c.scale or 1) * (group and group.scale or 1)
     return fit(s, grow, width, maxH)
 end
 
@@ -624,7 +626,7 @@ function Sample.New(id, parent)
     -- page, one chip per threat state, one always selected.
     function s.Views()
         local list = {}
-        if s.id == "threat" and (ns.cfg.threat or ns.cfg.threatPct) then
+        if s.id == "threat" and (ns.cfg.threat or ns.cfg.threatPct or ns.cfg.threatSize) then
             for _, v in ipairs(Sample.THREAT_VIEWS) do
                 list[#list + 1] = { key = v.key, label = L[v.label], on = Sample.threatView == v.key }
             end

@@ -528,11 +528,46 @@ local function setScale(p, v)
     p:SetScale(v)
 end
 
+-- Plate size by threat (threatSize): each threat state is a size group of its
+-- own, a zoom only (width and height stay), so a state change is one SetScale on
+-- that plate and never a new layout.
+Plate.THREAT_SIZE_KEY = { aggro = "threatSizeAggro", warn = "threatSizeWarn", lost = "threatSizeLost" }
+local threatGroups = {}
+
+-- The settings of a size group ("target", "others", a threat state, or nil).
+function Plate.SizeGroup(c, group)
+    if not group then return nil end
+    local key = Plate.THREAT_SIZE_KEY[group]
+    if key then
+        local g = threatGroups[group]
+        if not g then
+            g = {}
+            threatGroups[group] = g
+        end
+        g.scale = tonumber(c[key]) or 1
+        return g
+    end
+    local t = c[group]
+    return type(t) == "table" and t or nil
+end
+
+-- The threat state this plate is sized by, or nil. Enemies with a bar only (pets
+-- and totems keep their badge size).
+function Plate.UpdateThreatSize(p)
+    local state
+    if cfg().threatSize == true and p.unit and not (p.friendly or p.isSample or p.minion or p.minionBar) then
+        state = Plate.ThreatStateOf(p.unit)
+    end
+    if state == p.threatSize then return end
+    p.threatSize = state
+    if ns.Manager and ns.Manager.Resize then ns.Manager.Resize(p) end
+end
+
 function Plate.ApplyScale(p)
     if p.isSample then return end -- the preview fits itself to its space (Sample.lua)
     local c = cfg()
-    local group = p.sizeGroup and c[p.sizeGroup]
-    local zoom = type(group) == "table" and group.scale or 1
+    local group = Plate.SizeGroup(c, p.sizeGroup)
+    local zoom = group and group.scale or 1
     setScale(p, UIParent:GetEffectiveScale() * (c.scale or 1) * zoom)
 end
 
@@ -583,8 +618,8 @@ end
 -- Layout
 -- ---------------------------------------------------------------------
 
--- p.sizeGroup ("target", "others", or nil for normal size) picks the width and
--- height multipliers, set by Manager.UpdateTargets.
+-- p.sizeGroup ("target", "others", a threat state, or nil for normal size) picks
+-- the width and height multipliers, set by Manager.UpdateTargets.
 -- Plate.gen is bumped when settings or style change (Manager.Refresh); a plate
 -- already laid out for the same size, kind and settings is left alone.
 Plate.gen = 0
@@ -592,7 +627,7 @@ Plate.gen = 0
 function Plate.Layout(p)
     local c = Plate.Cfg(p)
     local friendly = p.friendly
-    local group = p.sizeGroup and c[p.sizeGroup]
+    local group = Plate.SizeGroup(c, p.sizeGroup)
     Plate.ApplyScale(p)
     Plate.Anchor(p)
     local nameOnly = Plate.NameOnly(p, c)
@@ -1386,6 +1421,7 @@ function Plate.UpdateBarColor(p)
     Plate.ApplyThreatGlow(p, t)
     Plate.ApplyThreatPulse(p, t)
     Plate.UpdateThreatPct(p)
+    Plate.UpdateThreatSize(p)
     -- A mob tagged by someone else goes gray (the answer may be secret).
     local tapped = UnitIsTapDenied(u)
     p.tapped = not isSecret(tapped) and tapped == true
@@ -2585,6 +2621,7 @@ function Plate.OnEvent(p, event, unit, ...)
         -- color holds).
         if THREAT_EVENTS[event] and p.colored and Plate.ThreatColor(p.unit) == p.threatNow then
             Plate.UpdateThreatPct(p)
+            Plate.UpdateThreatSize(p)
             return
         end
         -- Friend or foe can change under a plate; then everything is redone.
@@ -2680,7 +2717,7 @@ function Plate.Uninstall(p)
     -- The next unit starts clean: no size group, no known color or mark, nothing of
     -- this unit left showing. Its level, guild or title line, quest mark and raid
     -- marker arrive the frame after it's shown (Plate.UpdateFirst).
-    p.sizeGroup, p.colored, p.corpse = nil, nil, nil
+    p.sizeGroup, p.colored, p.corpse, p.threatSize = nil, nil, nil, nil
     p.guild, p.questShownNow, p.questTextNow, p.questUnit = nil, nil, nil, nil
     p.questKindNow, p.questRNow = nil, nil
     p.level:SetText("")

@@ -417,6 +417,16 @@ ns.OPTIONS = { pages = {
                 "The threat number on the nameplates. General uses the health text font.",
                 { disabled = off("threatPct"), follows = { slot = "plates.font.health", label = "Health text" } }),
         }), since("1.6.4", spotItems("Threat %", { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" }, false, off("threatPct")))) },
+        { label = "Plate size by threat", items = since("1.7.2", {
+            { type = "toggle", key = "threatSize", label = "Plate size by threat",
+              desc = "In a group, each enemy's plate takes the size of its threat state, so the mobs that need you stand out. Made for tanks: small while you hold a mob, big once it's on someone else. Your target keeps its own size. Works with Threat colors on or off." },
+            { type = "slider", key = "threatSizeAggro", label = "Threat size: attacking you", min = 0.5, max = 2, step = 0.05, unit = "x",
+              desc = "The plate's size while the mob is attacking you.", disabled = off("threatSize") },
+            { type = "slider", key = "threatSizeWarn", label = "Threat size: about to switch", min = 0.5, max = 2, step = 0.05, unit = "x",
+              desc = "The plate's size while the mob is about to switch targets.", disabled = off("threatSize") },
+            { type = "slider", key = "threatSizeLost", label = "Threat size: not attacking you", min = 0.5, max = 2, step = 0.05, unit = "x",
+              desc = "The plate's size while the mob is in the fight but attacking someone else.", disabled = off("threatSize") },
+        }) },
         { label = "Colors", items = {
             { type = "dropdown", key = "threatFill", since = "1.5.2", label = "Threat color style",
               values = { plain = "One color", pair = "Two-color gradient" }, order = { "plain", "pair" },
