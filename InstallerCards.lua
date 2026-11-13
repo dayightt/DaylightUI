@@ -503,7 +503,6 @@ function Cards.Draw.frameStyle(card, key, w, h)
     return a
 end
 
--- An accent color as a rounded swatch.
 -- A small frame edge in each look: Daylight UI's dark outline and warm band,
 -- or Classic's stone outline, gilded band and a gold rivet on its cut end.
 function Cards.Draw.look(card, key, w, h)
@@ -538,6 +537,7 @@ function Cards.Draw.look(card, key, w, h)
     return a
 end
 
+-- An accent color as a rounded swatch.
 function Cards.Draw.swatch(card, key, w, h)
     local s = W.Round(card.inner, "ARTWORK")
     local size = math.max(1, math.min(h, 26))

@@ -184,8 +184,7 @@ function CB.Create(unit, attachTo, into, opts)
         h:SetFrameLevel(into:GetFrameLevel() + 2)
         h.bg = h:CreateTexture(nil, "BACKGROUND")
         h.bg:SetAllPoints(h)
-        local b = Style.BACKGROUND
-        h.bg:SetColorTexture(b[1], b[2], b[3], 1)
+        Style.Follow(h.bg, Style.BACKGROUND, 1, true)
     else
         Style.Shell(h)
         Style.Slant(h, nil, 0)

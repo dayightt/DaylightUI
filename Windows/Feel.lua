@@ -221,7 +221,7 @@ local function glint(frame)
     end
     local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
     t:SetHeight(h * 1.2)
-    DUI.Motion.Sweep(t, frame, { width = w * 0.35, dur = DUI.Motion.SLOW * 2, alpha = 0.18,
+    DUI.Motion.Sweep(t, frame, { width = w * 0.35, dur = DUI.Motion.SLOW, alpha = 0.18,
         color = DUI.Style.LOOKS.classic.GOLD[2], inset = -w * 0.2 })
 end
 

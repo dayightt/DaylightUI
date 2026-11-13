@@ -207,7 +207,7 @@ T.test("a button turns red and gold, and back", function()
     T.truthy(g, "the fill runs top to bottom")
     T.rgb({ g[3].r, g[3].g, g[3].b }, hex("9a1a12"), "red at the top")
     T.rgb({ g[2].r, g[2].g, g[2].b }, hex("560c07"), "darker red below")
-    T.rgb(b.band.__vertex, DUI.Style.LOOKS.classic.BAND, "gold band")
+    T.rgb(b.band.__vertex, hex("6b5520"), "a darker gold band, so the gold hover trace shows")
     T.rgb(b.text.__textColor, hex("ffd35a"), "gold words")
     T.rgb(DUI.Style.INK.TEXT, { 0.949, 0.933, 0.902 }, "sentences elsewhere stay soft white")
     look(DUI, "daylight")
@@ -444,4 +444,36 @@ T.test("the options window's page title takes the look's title color", function(
     walk(_G.DaylightUIOptions)
     T.truthy(t, "the header title")
     T.rgb(t.__textColor, hex("ffd35a"))
+end)
+
+T.test("classic titles use the client's own game font, so a Russian client keeps its letters", function()
+    local DUI = stub.Load()
+    local was = STANDARD_TEXT_FONT
+    local cyr = "Fonts" .. string.char(92) .. "FRIZQT___CYR.TTF"
+    _G.STANDARD_TEXT_FONT = cyr
+    look(DUI, "classic")
+    T.eq(DUI.Style.TitleFont(), cyr)
+    _G.STANDARD_TEXT_FONT = was
+end)
+
+T.test("a title given its own color keeps it through a repaint", function()
+    local DUI = stub.Load()
+    local f = DUI.Win.New({ w = 300, h = 200 })
+    DUI.Win.SetTitle(f, "Stabby", { 1, 0.96, 0.41 })
+    look(DUI, "classic")
+    T.rgb(f.title.__textColor, { 1, 0.96, 0.41 }, "the class color stays")
+    DUI.Win.SetTitle(f, "Spellbook")
+    DUI:Set("general", "softness", 0.2)
+    stub.RunTimers()
+    T.rgb(f.title.__textColor, hex("ffd35a"), "a plain title follows the look")
+end)
+
+T.test("pieces painted once at build follow the look: crest disc, cast bar back, skinned game window back", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local tex = UIParent:CreateTexture()
+    S.Follow(tex, S.BACKGROUND, 0.85, true)
+    look(DUI, "classic")
+    T.rgb(tex.__color, hex("0f0d0b"))
+    T.near(tex.__color[4], 0.85, nil, "its own alpha kept")
 end)

@@ -326,15 +326,16 @@ local function rgb(hex)
 end
 local GOLD_LO, GOLD_HI = rgb("7a5c18"), rgb("f3d27a")
 Style.LOOKS = {
+    -- Copies of the palette above, so it stays the one place to change them.
     daylight = {
-        BORDER = { 0.024, 0.024, 0.027 },
-        BAND = { 0.10, 0.09, 0.065 },
-        BAND_LIT = { 0.2, 0.185, 0.14 },
-        BACKGROUND = { 0.078, 0.078, 0.090 },
+        BORDER = { Style.BORDER[1], Style.BORDER[2], Style.BORDER[3] },
+        BAND = { Style.BAND[1], Style.BAND[2], Style.BAND[3] },
+        BAND_LIT = { Style.BAND_LIT[1], Style.BAND_LIT[2], Style.BAND_LIT[3] },
+        BACKGROUND = { Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3] },
         INK = {
-            TITLE = { 1, 1, 1 },
-            LABEL = { 0.76, 0.71, 0.62 },
-            OFF = { 0.55, 0.51, 0.45 },
+            TITLE = { Style.INK.TITLE[1], Style.INK.TITLE[2], Style.INK.TITLE[3] },
+            LABEL = { Style.INK.LABEL[1], Style.INK.LABEL[2], Style.INK.LABEL[3] },
+            OFF = { Style.INK.OFF[1], Style.INK.OFF[2], Style.INK.OFF[3] },
         },
         -- Widgets' buttons (W.BUTTON): band, fill and words.
         BUTTON = {
@@ -359,8 +360,9 @@ Style.LOOKS = {
         },
         -- Red buttons with a gold band and gold words, like the game's.
         BUTTON = {
-            band = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
-            bandMain = GOLD_HI,
+            -- A step darker than the gold accent, so the hover trace shows on it.
+            band = rgb("6b5520"),
+            bandMain = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
             bandOff = rgb("4a3a1a"),
             fillTop = rgb("9a1a12"),
             fillBottom = rgb("560c07"),
@@ -416,14 +418,13 @@ function Style.GoldPair()
     return g[1], g[2]
 end
 
--- Under Classic, titles and headings use the game's own font. Nil keeps the
--- usual font, as on a Korean or Chinese client, whose letters the game's
--- Latin font lacks.
-Style.CLASSIC_TITLE_FONT = [[Fonts\FRIZQT__.TTF]]
+-- Under Classic, titles and headings use the game's own font: the client's,
+-- so a Russian client gets its Cyrillic one. Nil keeps the usual font, as on a
+-- Korean or Chinese client that picked its local font.
 local titled = setmetatable({}, { __mode = "k" })
 function Style.TitleFont()
     if Style.Look() ~= "classic" or DUI.DB.UseLocalFont() then return nil end
-    return Style.CLASSIC_TITLE_FONT
+    return clientFont()
 end
 
 -- A title or heading made with Style.Text: it takes Style.TitleFont when there is one.

@@ -1362,8 +1362,7 @@ function UF.CreateCrest(f)
     c.disc = layer("crest-disc.png", "ARTWORK", 0, 1.0)
     c.ring = layer("crest-ring.png", "ARTWORK", 1, 1.0)
     c.emblem = layer("emblem.png", "OVERLAY", 0, 0.72)
-    local b = Style.BORDER
-    c.disc:SetVertexColor(b[1], b[2], b[3], 1)
+    Style.Follow(c.disc, Style.BORDER)
     c:SetScript("OnSizeChanged", function(self, w)
         for _, t in ipairs({ self.glow, self.disc, self.ring, self.emblem }) do
             t:SetSize(w * t.scale, w * t.scale)
