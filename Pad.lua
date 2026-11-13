@@ -594,16 +594,39 @@ Pad.BAR_NAMES = { [0] = "topBar", "leftBar", "rightBar", "bottomBar" }   -- the 
 Pad.BIND_BUTTON = "DaylightUIPadBind" -- plus 1-8, LT, RT, PREV, NEXT
 Pad.PROMPT_W, Pad.PROMPT_ICON = 420, 40
 
--- The game's own button for this bar and index, with the page it shows now.
-local function gameButton(bar, index)
+-- The bar the game shows for this trigger state: its own pick (PageUnit's
+-- ActionBarModKeyDownStateCheck) takes an override bar that's active over it,
+-- such as the stance bar the game lays over the RT bar (seen in game). Its
+-- check only reads. A pet's possess bar holds pet actions, never a spell: false.
+local function shownBar(unit, bar)
+    for _, over in ipairs(type(unit.overrideBars) == "table" and unit.overrideBars or {}) do
+        if type(over) == "table" and type(over.IsBarActivelyOverridingActionBar) == "function" then
+            local ok, on = pcall(over.IsBarActivelyOverridingActionBar, over, bar)
+            if ok and on then
+                if over == unit.actionBars.possessBar then return false end
+                return over
+            end
+        end
+    end
+    return bar
+end
+
+-- The game's own button for this bar and index on this page, with the page
+-- it shows now. An override bar counts only on the page shown.
+local function gameButton(page, bar, index)
     local main = _G.GamepadMainActionBarFrame
     local unit = type(main) == "table" and main.PageUnit
     local bars = type(unit) == "table" and unit.actionBars
     local b = type(bars) == "table" and bars[Pad.BAR_NAMES[bar]]
-    local button = type(b) == "table" and b.GetActionButtonByIndex and b:GetActionButtonByIndex(index)
-    if type(button) ~= "table" then return nil end
+    if type(b) ~= "table" then return nil end
     local shown = type(unit.PageTracker) == "table" and unit.PageTracker.currentPage
     if type(shown) ~= "number" or shown < 1 or shown > Pad.BAR_PAGES then return nil end
+    if page == shown then
+        b = shownBar(unit, b)
+        if b == false then return false end
+    end
+    local button = b.GetActionButtonByIndex and b:GetActionButtonByIndex(index)
+    if type(button) ~= "table" then return nil end
     return button, shown
 end
 
@@ -611,10 +634,12 @@ end
 -- Read off the game's own button (its ID is the slot on the page it shows), so
 -- it's the slot the bar really uses; other pages are a page's slots away.
 function Pad.SlotOf(page, bar, index)
-    local button, shown = gameButton(bar, index)
+    local button, shown = gameButton(page, bar, index)
+    if button == false then return nil end
     if button then
         local id = button:GetID()
         if type(id) ~= "number" or id <= 0 then return nil end
+        if page == shown then return id end
         return id + (page - shown) * Pad.BAR_PAGE_SLOTS
     end
     local U = C_GamepadUI

@@ -1127,3 +1127,28 @@ T.test("pad bind: the slot is read off the game's own bar button, as in game: R2
     _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
 end)
 
+
+T.test("pad bind: R2 lands on the stance bar the game lays over R2's bar, as in game; never on a pet's possess bar", function()
+    local DUI = stub.Load()
+    local Pad = DUI.Pad
+    realBars(181, 1)
+    local unit = GamepadMainActionBarFrame.PageUnit
+    local function overBar(first, over)
+        local b = { buttons = {} }
+        for i = 1, 8 do local id = first + i - 1; b.buttons[i] = { GetID = function() return id end } end
+        function b:GetActionButtonByIndex(i) return self.buttons[i] end
+        -- The game's check: active, over this bar, on this page.
+        function b:IsBarActivelyOverridingActionBar(bar) return bar == over end
+        return b
+    end
+    local stance = overBar(273, unit.actionBars.rightBar)
+    unit.overrideBars = { stance }
+    T.eq(Pad.SlotOf(1, 2, 6), 278, "R2 + triangle: the stance bar's slot (seen in game: 273 on)")
+    T.eq(Pad.SlotOf(1, 1, 6), 190, "L2 untouched")
+    T.eq(Pad.SlotOf(2, 2, 6), 198 + 28, "another page: the plain R2 bar")
+    local possess = overBar(11, unit.actionBars.topBar)
+    unit.actionBars.possessBar = possess
+    unit.overrideBars = { possess }
+    T.eq(Pad.SlotOf(1, 0, 1), nil, "the possess bar holds pet actions: no spell goes there")
+    _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
+end)
