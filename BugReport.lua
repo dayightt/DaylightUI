@@ -17,6 +17,8 @@ Bug.WIDTH = 520
 Bug.FOOT = 56        -- room for the footer
 Bug.ROW = 50        -- a label and its box
 Bug.TOP = 12        -- under the header
+Bug.LAST = 84       -- height of the last box, which holds several lines
+Bug.LABEL = 18      -- from a label's top to its box's
 
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -67,6 +69,90 @@ function Bug.Setup()
         type(scale) == "number" and string.format("%.2f", scale) or "?", listed(off))
 end
 
+local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+
+-- Whether an error BugGrabber caught is Daylight UI's: a DaylightUI file is named
+-- where it was raised, in its message or the top line of its stack. An error
+-- another addon raised inside something of ours (a callback, a plugin's module)
+-- only has us further down, and isn't.
+local function named(text, stack)
+    if string.find(text, "DaylightUI", 1, true) then return true end
+    local top = type(stack) == "string" and string.match(stack, "[^\r\n]+")
+    return top and string.find(top, "DaylightUI", 1, true) ~= nil or false
+end
+
+-- This session's Daylight UI errors, the latest last, each { text, count, stack }:
+-- a list of its own, so it stays as it was while the window is open.
+-- Ours (DUI.Errors: through DUI.SafeCall, and the actions the game blocked) come
+-- in the order they last happened. BugGrabber, when loaded, adds the ones raised
+-- outside SafeCall. It keeps a repeated error where it first saw it, so those go
+-- first, in its order.
+-- BugGrabber writes when an error happened as year/month/day hour:minute:second.
+local function stamp(when)
+    if type(when) ~= "string" then return nil end
+    local y, mo, d, h, mi, s = string.match(when, "^(%d+)/(%d+)/(%d+) (%d+):(%d+):(%d+)")
+    if not y then return nil end
+    return time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d),
+        hour = tonumber(h), min = tonumber(mi), sec = tonumber(s) })
+end
+
+function Bug.Errors()
+    local out, own, known = {}, {}, {}
+    for _, e in ipairs(DUI.Errors()) do
+        known[e.text] = true
+        own[#own + 1] = { text = e.text, count = e.count, stack = e.stack, at = e.at }
+    end
+    local grabber = rawget(_G, "BugGrabber")
+    local db = type(grabber) == "table" and call(grabber.GetDB, grabber)
+    if type(db) == "table" then
+        local session = call(grabber.GetSessionId, grabber)
+        local seen = {}
+        for _, e in ipairs(db) do
+            local msg = type(e) == "table" and e.session == session and e.message
+            if type(msg) == "string" and not secret(msg) then
+                -- Ours repeat there as "(seen 10 times) ...".
+                local text = string.gsub(string.match(msg, "^[^\n]*"), "^%(seen %d+ times%) ", "")
+                local stack = type(e.stack) == "string" and not secret(e.stack) and e.stack or nil
+                -- A blocked action is already in the log in its own words.
+                local blocked = string.find(text, "^%[ADDON_ACTION_")
+                if not known[text] and not blocked and named(text, stack) then
+                    local entry = seen[text]
+                    if not entry then
+                        entry = { text = text, count = 0 }
+                        seen[text] = entry
+                        out[#out + 1] = entry
+                    end
+                    entry.count = entry.count + (tonumber(e.counter) or 1)
+                    entry.stack = stack
+                    entry.at = stamp(e.time) or entry.at
+                end
+            end
+        end
+    end
+    for _, e in ipairs(own) do out[#out + 1] = e end
+    -- Oldest first, so the window opens on the latest whichever list it came from.
+    for i, e in ipairs(out) do e.order = i end
+    table.sort(out, function(a, b)
+        if (a.at or 0) ~= (b.at or 0) then return (a.at or 0) < (b.at or 0) end
+        return a.order < b.order
+    end)
+    return out
+end
+
+-- An error as it's pasted: its first line and how often it happened, then the
+-- calls nearest to it. The whole stack would crowd out the rest of the box.
+Bug.STACK_LINES = 8
+local function errorText(e)
+    local lines = { (e.count or 1) > 1 and string.format("%s (x%d)", e.text, e.count) or e.text }
+    if type(e.stack) == "string" then
+        for line in string.gmatch(e.stack, "[^\r\n]+") do
+            if #lines > Bug.STACK_LINES then break end
+            lines[#lines + 1] = line
+        end
+    end
+    return table.concat(lines, "\n")
+end
+
 -- The form's addons box takes 200 characters and cuts a longer paste short.
 Bug.ADDONS_MAX = 200
 
@@ -104,11 +190,14 @@ function Bug.Short(names)
 end
 
 -- The form's fields we can answer, in its order. The labels are the form's own.
-function Bug.Fields()
+-- A report is about one bug, so the last box carries one error: `err`, or none.
+function Bug.Fields(err)
+    local last = Bug.Setup()
+    if err then last = errorText(err) .. "\n" .. last end
     return {
         { label = L["Daylight UI version"], text = tostring(DUI.VERSION) },
         { label = L["Other UI addons (bars, plates, bags...)"], text = Bug.Short(Bug.Addons()) },
-        { label = L["Add to \"Error text, if one popped up\""], text = Bug.Setup() },
+        { label = L["Add to \"Error text, if one popped up\""], text = last },
     }
 end
 
@@ -121,11 +210,30 @@ function Bug.Close()
     DUI.Win.KeysOn(f, false)
 end
 
+-- The last box: a copy box several lines tall, locked the way W.Input's are.
+local function lines(host, y)
+    local W, Win = DUI.Widgets, DUI.Win
+    local area = W.TextArea(host, { width = Bug.WIDTH - 2 * Win.EDGE - 28, step = 40, onEscape = Bug.Close })
+    area:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y)
+    area:SetPoint("RIGHT", host, "RIGHT", -Win.EDGE, 0)
+    area:SetHeight(Bug.LAST)
+    local e = area.edit
+    e:SetTextInsets(6, 6, 6, 6)   -- off the box's edge, like the one-line boxes
+    e:HookScript("OnEditFocusGained", function(self) self:HighlightText() end)
+    function e.Lock(text)
+        area.Lock(text, true)
+        e:SetText(text)
+        e:SetCursorPosition(0)
+        area:SetVerticalScroll(0)
+    end
+    return e
+end
+
 local function build()
     local W, Win = DUI.Widgets, DUI.Win
     local count = #Bug.Fields()
     f = Win.New({ name = "DaylightUIBugReport", w = Bug.WIDTH,
-        h = Win.HEADER + Bug.TOP + count * Bug.ROW + Bug.FOOT, strata = "DIALOG" })
+        h = Win.HEADER + Bug.TOP + (count - 1) * Bug.ROW + Bug.LABEL + Bug.LAST + 12 + Bug.FOOT, strata = "DIALOG" })
     f.title:SetText(L["Report a bug"])
     if f.sub then f.sub:SetText(L["Click a box and press Ctrl+C, then paste it into the Discord form."]) end
     f.onClose = Bug.Close
@@ -137,12 +245,29 @@ local function build()
         row.label = Style.Text(host, Style.SIZE.small, "LEFT")
         Style.InkText(row.label, "LABEL")
         row.label:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y)
-        row.edit = W.Input(host)
-        row.edit:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y - 18)
-        row.edit:SetPoint("RIGHT", host, "RIGHT", -Win.EDGE, 0)
-        row.edit:SetScript("OnEscapePressed", Bug.Close)
+        if i < count then
+            row.edit = W.Input(host)
+            row.edit:SetPoint("TOPLEFT", host, "TOPLEFT", Win.EDGE, y - Bug.LABEL)
+            row.edit:SetPoint("RIGHT", host, "RIGHT", -Win.EDGE, 0)
+            row.edit:SetScript("OnEscapePressed", Bug.Close)
+        else
+            row.edit = lines(host, y - Bug.LABEL)
+        end
         f.rows[i] = row
     end
+    -- Earlier and later errors, beside the last box's label. The chevron art
+    -- points down.
+    local last = f.rows[count]
+    f.next = W.IconButton(host, "ui-chevron.png", L["Later error"], function() Bug.Step(1) end)
+    f.next.icon:SetRotation(math.pi / 2)
+    f.next:SetPoint("RIGHT", host, "RIGHT", -Win.EDGE, 0)
+    f.next:SetPoint("TOP", last.label, "TOP", 0, 4)
+    f.prev = W.IconButton(host, "ui-chevron.png", L["Earlier error"], function() Bug.Step(-1) end)
+    f.prev.icon:SetRotation(-math.pi / 2)
+    f.prev:SetPoint("RIGHT", f.next, "LEFT", -2, 0)
+    f.count = Style.Text(host, Style.SIZE.small, "RIGHT")
+    Style.InkText(f.count, "pop")
+    f.count:SetPoint("RIGHT", f.prev, "LEFT", -6, 0)
     f.foot = Win.Parts.Footer(host)
     f.foot:Set({ { text = _G.DONE or L["Done"], primary = true, onClick = Bug.Close } })
     Win.Drag(f, {})
@@ -151,14 +276,61 @@ local function build()
     end)
 end
 
--- Opens with every box filled and the first one selected.
-function Bug.Show()
-    if not f then build() end
-    for i, field in ipairs(Bug.Fields()) do
+-- Shows or hides one of the error controls, easing it in and out.
+local function ease(region, on)
+    local M = DUI.Motion
+    if on == region.__wanted then return end
+    region.__wanted = on
+    if on then
+        if not region:IsShown() then region:SetAlpha(0) end
+        region:Show()
+        M.Fade(region, region:GetAlpha(), 1, M.FAST)
+    elseif not region:IsVisible() then
+        -- The window is still opening: nothing to see leave.
+        region:Hide()
+    elseif region:IsShown() then
+        M.Fade(region, region:GetAlpha(), 0, M.FAST)
+        C_Timer.After(M.FAST, function()
+            if not region.__wanted then region:Hide() end
+        end)
+    end
+end
+
+-- stepped: the last box changed under the reader, so its new text eases in.
+local function fill(stepped)
+    for i, field in ipairs(Bug.Fields(f.errors[f.at])) do
         local row = f.rows[i]
         row.label:SetText(field.label)
         row.edit.Lock(field.text)
     end
+    local many = #f.errors > 1
+    ease(f.prev, many)
+    ease(f.next, many)
+    ease(f.count, many)
+    if many then f.count:SetText(string.format(L["%d of %d"], f.at, #f.errors)) end
+    if stepped then
+        local M = DUI.Motion
+        M.Fade(f.rows[#f.rows].edit, 0, 1, M.FAST)
+        M.Fade(f.count, 0, 1, M.FAST)
+    end
+end
+
+-- Shows the error before or after the one in the last box.
+function Bug.Step(by)
+    if not (f and f.errors) then return end
+    local at = math.max(1, math.min(#f.errors, f.at + by))
+    if at == f.at then return end
+    f.at = at
+    fill(true)
+end
+
+-- Opens with every box filled, the latest error in the last one, and the first
+-- box selected.
+function Bug.Show()
+    if not f then build() end
+    f.errors = Bug.Errors()
+    f.at = #f.errors
+    fill()
     if not DUI.Win.IsOpen(f) then
         f:ClearAllPoints()
         f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
