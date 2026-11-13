@@ -53,6 +53,26 @@ T.test("bug report: a module switched off shows in the setup line", function()
     mod.enabled = true
 end)
 
+-- The game keeps a copy of a few nameplate settings, and an addon writing one
+-- leaves that copy tainted until /reload: suspected of stopping every plate.
+T.test("bug report: a tainted copy of the game's plate settings shows in the setup line, by whom", function()
+    local Bug = load()
+    local reg, secure = _G.CVarCallbackRegistry, _G.issecurevariable
+    T.eq(string.find(Bug.Setup(), "plate settings", 1, true), nil, "nothing to say without the game's copy")
+    _G.CVarCallbackRegistry = { cvarValueCache = { SoftTargetIconInteract = "1", nameplateStyle = "0" } }
+    local tainted = {}
+    _G.issecurevariable = function(_, key)
+        if tainted[key] then return false, tainted[key] end
+        return true
+    end
+    T.eq(string.find(Bug.Setup(), "plate settings", 1, true), nil, "all clean: the line stays short")
+    tainted.SoftTargetIconInteract = "Lueur"
+    T.truthy(string.find(Bug.Setup(), "plate settings tainted: SoftTargetIconInteract by Lueur", 1, true))
+    _G.issecurevariable = function() error("no") end
+    T.eq(string.find(Bug.Setup(), "plate settings", 1, true), nil, "an error asking says nothing")
+    _G.CVarCallbackRegistry, _G.issecurevariable = reg, secure
+end)
+
 T.test("bug report: /dui bug opens a box per field, each read-only and selected on a click", function()
     local Bug = load()
     DaylightUI.RunCommand("bug")

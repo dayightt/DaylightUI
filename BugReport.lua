@@ -55,18 +55,42 @@ end
 
 local function listed(names) return #names > 0 and table.concat(names, ", ") or "None" end
 
--- One line about the setup: the game build, class and level, screen, and the
--- modules switched off.
+-- The game keeps a copy of a few nameplate settings. When an addon changes one,
+-- the game stores the new value without checking who is calling, so the copy
+-- stays tainted until /reload and taints the game's plate code each time it's
+-- read. Suspected of stopping every nameplate drawing, so a report names any
+-- tainted one and who touched it.
+Bug.PLATE_CVARS = { "SoftTargetIconInteract", "SoftTargetIconEnemy", "SoftTargetIconFriend",
+    "SoftTargetNameplateSize", "nameplateStyle" }
+
+function Bug.PlateCache()
+    local reg = rawget(_G, "CVarCallbackRegistry")
+    local cache = type(reg) == "table" and reg.cvarValueCache
+    if type(cache) ~= "table" or type(issecurevariable) ~= "function" then return {} end
+    local out = {}
+    for _, name in ipairs(Bug.PLATE_CVARS) do
+        if rawget(cache, name) ~= nil then
+            local ok, secure, who = pcall(issecurevariable, cache, name)
+            if ok and secure == false then out[#out + 1] = name .. " by " .. tostring(who or "?") end
+        end
+    end
+    return out
+end
+
+-- One line about the setup: the game build, class and level, screen, the
+-- modules switched off, and any tainted plate setting.
 function Bug.Setup()
     local version, build = call(GetBuildInfo)
     local width, height = call(GetPhysicalScreenSize)
     local scale = UIParent:GetEffectiveScale()
     local _, off = Bug.Modules()
-    return string.format("[Game %s (%s) %s, %s %s, screen %sx%s at UI scale %s, modules off: %s]",
+    local tainted = Bug.PlateCache()
+    return string.format("[Game %s (%s) %s, %s %s, screen %sx%s at UI scale %s, modules off: %s%s]",
         tostring(version or "?"), tostring(build or "?"), tostring(DUI.LOCALE),
         tostring(call(UnitClassBase, "player") or "?"), tostring(call(UnitLevel, "player") or "?"),
         tostring(width or "?"), tostring(height or "?"),
-        type(scale) == "number" and string.format("%.2f", scale) or "?", listed(off))
+        type(scale) == "number" and string.format("%.2f", scale) or "?", listed(off),
+        #tainted > 0 and (", plate settings tainted: " .. table.concat(tainted, ", ")) or "")
 end
 
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
