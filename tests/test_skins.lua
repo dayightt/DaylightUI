@@ -2923,10 +2923,163 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
     for _, m in ipairs({ root, sub }) do
         T.eq(m.bg:GetAlpha(), 0, "the game's background gone")
         local ours = false
-        for _, c in ipairs({ m:GetChildren() }) do if Kit.ShellOf(c) then ours = true end end
+        for _, c in ipairs({ m:GetParent():GetChildren() }) do if Kit.ShellOf(c) then ours = true end end
         T.truthy(ours, "our look behind it")
         T.eq(m.text.__textColor[1], 0.5, "the game's colors kept")
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local function atlas(tex, name)
+        function tex:GetAtlas() return name end
+        return tex
+    end
+    local menu = CreateFrame("Frame", nil, UIParent)
+    menu.bg = menu:CreateTexture()
+    menu.bg:SetAtlas("common-dropdown-bg")
+    local title = CreateFrame("Frame", nil, menu)
+    title.text = title:CreateFontString()
+    title.text:SetTextColor(1, 0.82, 0)                 -- NORMAL_FONT_COLOR, a heading
+    local plain = CreateFrame("Button", nil, menu)
+    plain.text = plain:CreateFontString()
+    plain.text:SetTextColor(1, 1, 1)
+    plain.arrow = plain:CreateTexture()
+    plain.arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    plain.highlight = plain:CreateTexture()
+    plain.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    local kept = CreateFrame("Button", nil, menu)
+    kept.text = kept:CreateFontString()
+    kept.text:SetTextColor(0, 0.44, 0.87)               -- a class color
+    local off = CreateFrame("Button", nil, menu)
+    off.text = off:CreateFontString()
+    off.text:SetTextColor(0.5, 0.5, 0.5)
+    local function marker(parent, coords, color)
+        local row = CreateFrame("Button", nil, parent)
+        row.leftTexture1 = atlas(row:CreateTexture(), "common-dropdown-tickradial")
+        row.leftTexture2 = atlas(row:CreateTexture(), "common-dropdown-icon-radialtick-yellow")
+        row.text = row:CreateFontString()
+        row.text:SetTextColor(color[1], color[2], color[3])
+        row.icon = row:CreateTexture()
+        row.icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+        row.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        row.icon:SetSize(16, 16)
+        return row
+    end
+    local skull = marker(menu, { 0.75, 1, 0.25, 0.5 }, { 1, 1, 1 })       -- index 8, and the chosen one
+    local circle = marker(menu, { 0.25, 0.5, 0, 0.25 }, { 0.98, 0.57, 0 }) -- index 2
+    circle.leftTexture2:Hide()
+    local box = CreateFrame("Button", nil, menu)
+    box.leftTexture1 = atlas(box:CreateTexture(), "common-dropdown-ticksquare")
+    box.leftTexture2 = atlas(box:CreateTexture(), "common-dropdown-icon-checkmark-yellow")
+    box.text = box:CreateFontString()
+    box.text:SetTextColor(1, 1, 1)
+    local rule = CreateFrame("Frame", nil, menu)
+    rule.divider = rule:CreateTexture()
+    rule.divider:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    -- CreateDivider never sets frame.divider, and in game GetTexture() is a file id.
+    local bare = CreateFrame("Frame", nil, menu)
+    bare.line = bare:CreateTexture()
+    bare.line:SetTexture(130841)
+    bare.line:SetHeight(13)
+    _G.RAID_TARGET_1 = "Estrella"
+    local star = CreateFrame("Button", nil, menu)
+    star.text = star:CreateFontString()
+    star.text:SetText("Estrella")
+    star.text:SetTextColor(1, 1, 1)
+    star.icon = star:CreateTexture()
+    star.icon:SetTexture(137010)
+    star.icon:SetTexCoord(0, 0.25, 0, 0.25)
+    star.icon:SetSize(16, 16)
+    -- The row is named after the marker, and the hover covers the whole row.
+    star.highlight = star:CreateTexture()
+    star.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    star.highlight:SetBlendMode("ADD")
+    star.highlight:SetSize(180, 20)
+    -- A checkbox row with a small grid icon that is not a raid marker (minimap tracking).
+    local track = CreateFrame("Button", nil, menu)
+    track.leftTexture1 = atlas(track:CreateTexture(), "common-dropdown-ticksquare")
+    track.icon = track:CreateTexture()
+    track.icon:SetTexture(424242)
+    track.icon:SetTexCoord(0, 0.25, 0, 0.25)
+    track.icon:SetSize(16, 16)
+    track.text = track:CreateFontString()
+    track.text:SetText("Subastador")
+    track.text:SetTextColor(1, 1, 1)
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local Style = DaylightUI.Style
+    local ar, ag, ab = Style.Accent()
+    local ink = Style.INK.TEXT
+    T.eq(menu.bg:GetAlpha(), 0, "the game's background gone")
+    T.eq(title.text.__textColor[1], ar, "a gold heading takes the accent")
+    T.eq(title.text.__textColor[2], ag)
+    T.eq(plain.text.__textColor[1], ink[1], "a white row takes our text")
+    T.eq(plain.arrow:GetTexture(), DaylightUI.MEDIA .. "ui-chevron.png")
+    T.eq(plain.arrow.__rotation, math.pi / 2, "the chevron points at the submenu")
+    T.eq(plain.highlight:GetBlendMode(), "ADD")
+    local wash = plain.highlight.__vertex
+    T.eq(wash[4], stub.skins.Kit.ROW_PICK, "the row wash uses the accent strength")
+    if plain.highlight.__gradient then
+        T.eq(wash[1], 1, "a gradient wash stays white")
+    else
+        T.eq(wash[1], ar, "a flat wash is the accent, not a typed brown")
+        T.eq(wash[2], ag)
+        T.eq(wash[3], ab)
+    end
+    T.eq(kept.text.__textColor[2], 0.44, "a class color stays")
+    T.eq(off.text.__textColor[1], 0.5, "a disabled row stays gray")
+    T.eq(skull.leftTexture1:GetAlpha(), 0, "the empty radio is gone")
+    T.eq(skull.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "the chosen row gets our tick")
+    T.eq(skull.text.__textColor[1], ar, "the chosen row is the accent")
+    T.eq(skull.icon:GetTexture(), DaylightUI.MEDIA .. "marker-8.png", "skull uses our marker")
+    T.eq(circle.icon:GetTexture(), DaylightUI.MEDIA .. "marker-2.png", "circle uses our marker")
+    T.eq(circle.text.__textColor[1], ink[1], "a marker's name is our text, not the game's orange")
+    T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png")
+    T.eq(box.text.__textColor[1], ink[1], "a ticked checkbox stays body text")
+    T.eq(rule.divider:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the divider is a plain line")
+    T.eq(bare.line:GetTexture(), "Interface\\Buttons\\WHITE8x8", "a divider with no .divider field still gets the line")
+    T.eq(bare.line:GetHeight(), 1)
+    T.eq(star.icon:GetTexture(), DaylightUI.MEDIA .. "marker-1.png", "a raid icon known by file id uses our marker")
+    _G.RAID_TARGET_8 = "Calavera"
+    local marked = CreateFrame("Button", nil, menu)
+    marked.text = marked:CreateFontString()
+    marked.text:SetText("Calavera")
+    marked.text:SetTextColor(1, 1, 1)
+    marked.icon = marked:CreateTexture()
+    marked.icon:SetTexture(137010)
+    marked.icon:SetTexCoord(0.75, 1, 0.25, 0.5)
+    marked.icon:SetSize(16, 16)
+    marked.wash = marked:CreateTexture()
+    marked.wash:SetTexture(130722)
+    marked.wash:SetAllPoints(marked)
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(marked.icon:GetTexture(), DaylightUI.MEDIA .. "marker-8.png", "the small icon stays the marker")
+    T.eq(marked.wash:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the row hover is the wash, not the marker")
+    T.eq(marked.wash.__vertex[4], stub.skins.Kit.ROW_PICK, "that hover is the same accent as other rows")
+    T.eq(star.highlight:GetTexture(), "Interface\\Buttons\\WHITE8x8", "a marker row's hover is the wash, not the icon")
+    T.eq(track.icon:GetTexture(), 424242, "a tracking menu's icon is left alone")
+    local holder
+    for _, c in ipairs({ menu:GetParent():GetChildren() }) do
+        if c.ignoreInLayout and c.GetScript and c:GetScript("OnUpdate") then holder = c end
+    end
+    T.truthy(holder, "our frame watches while the menu stays open")
+    T.truthy(holder:GetParent() ~= menu, "our panel is not inside the menu, so it cannot cover the rows")
+    menu:SetFrameStrata("TOOLTIP")
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(holder:GetFrameStrata(), "FULLSCREEN_DIALOG", "the panel sits under the whole menu")
+    box.leftTexture2:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    holder:GetScript("OnUpdate")(holder)
+    stub.RunTimers()
+    T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "a checkbox refresh keeps our tick")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
