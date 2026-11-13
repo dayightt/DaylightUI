@@ -16,6 +16,7 @@ DUI.PatchNotes = {
             { "Plugins", "Other addons can restyle Daylight UI's nameplates and their cast bars too: daylightui.com/plugins" },
             { "Meters", "Damage meters can fade on their own, apart from the minimap: Meters page, Shows tab" },
             { "Unit frames", "The player, target and focus portraits can come off their frame and go anywhere you like: Portrait position on each frame's page" },
+            { "Action bars", "Short keybinds now also shorten Page Up, Page Down, Insert and Delete. Thanks to blukraken" },
         },
         changed = {
             { "Tooltip", "Buffs on a friendly player's tooltip now start off; turn them back on with Their buffs on the Tooltip page" },
