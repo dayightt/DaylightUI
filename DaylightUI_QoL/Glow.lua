@@ -196,9 +196,24 @@ local function get(name)
 end
 
 -- Only settings this client has: the list changes between versions.
+local writing = false
 local function set(name, v)
     local now = get(name)
-    if now ~= nil and now ~= v and type(SetCVar) == "function" then pcall(SetCVar, name, v) end
+    if now ~= nil and now ~= v and type(SetCVar) == "function" then
+        writing = true
+        pcall(SetCVar, name, v)
+        writing = false
+    end
+end
+
+-- The game's "Enable Interact Key" option writes SoftTargetInteract. A player who
+-- unticks it keeps it unticked: object glow stops writing it until it's ticked again.
+Glow.OPTION_CVAR = "SoftTargetInteract"
+function Glow.CVarChanged(name)
+    if writing or type(name) ~= "string" or name:lower() ~= Glow.OPTION_CVAR:lower() then return end
+    local v = get(Glow.OPTION_CVAR)
+    if v == nil then return end
+    ns.SetOwnCVar(Glow.OPTION_CVAR, v ~= Glow.CVARS[Glow.OPTION_CVAR] and v or nil)
 end
 
 -- The controller UI sets these same settings itself, for the time it's on.
@@ -239,7 +254,9 @@ function Glow.Apply()
         if not canWrite() then return end
         keepAll()
         applied = true
-        for name, v in pairs(Glow.CVARS) do set(name, v) end
+        for name, v in pairs(Glow.CVARS) do
+            if ns.OwnCVar(name) == nil then set(name, v) end
+        end
         set(Glow.RANGE_CVAR, range())
         -- A player who shows plates further out keeps that.
         local theirs = tonumber(ns.KeptCVar(Glow.PLATE_CVAR)) or 0
@@ -833,6 +850,9 @@ local function wire()
     DUI.On("StyleChanged", Glow.Redress)
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         if wanted() then Glow.Apply() end
+    end)
+    DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
+        if applied then Glow.CVarChanged(name) end
     end)
     DUI.RegisterEvent("PLAYER_LOGOUT", function()
         leaving = true

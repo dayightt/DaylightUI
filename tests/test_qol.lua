@@ -1919,6 +1919,26 @@ T.test("glow: logging out gives the settings back, so none outlives the addon", 
     g.done()
 end)
 
+-- The game's "Enable Interact Key" option is the same setting. Unticked by the
+-- player, it must stay unticked: not taken back at the next login.
+T.test("glow: unticking the game's interact key option is kept, never turned back on", function()
+    local g = glowSetup(true)
+    T.eq(g.cvars.SoftTargetInteract, "3")
+    g.cvars.SoftTargetInteract = "1"   -- the option writes Gamepad when unticked
+    stub.FireEvent("CVAR_UPDATE", "softTargetInteract", "1")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    T.eq(g.cvars.SoftTargetInteract, "1", "a loading screen leaves it alone")
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(g.cvars.SoftTargetInteract, "1", "logging out keeps the player's pick")
+    g.m:OnSettingChanged()
+    T.eq(g.cvars.SoftTargetInteract, "1", "and so does the next login")
+    -- Ticked again, object glow may use it as before.
+    g.cvars.SoftTargetInteract = "3"
+    stub.FireEvent("CVAR_UPDATE", "softTargetInteract", "3")
+    T.eq(DaylightUI.DB.Root().qolOwnCVars and DaylightUI.DB.Root().qolOwnCVars.SoftTargetInteract, nil)
+    g.done()
+end)
+
 -- The interact plate stays on whatever the target is: switched off for an
 -- object it didn't light, a node lost its plate once it became the target.
 T.test("glow: the game's interact plate stays on for every target, and the light lands on it", function()

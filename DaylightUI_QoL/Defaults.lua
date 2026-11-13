@@ -23,6 +23,19 @@ end
 -- What's kept, still kept: for a switch that puts it back now and then itself.
 function ns.KeptCVar(name) return kept()[name] end
 
+-- A setting the player changed by hand while a switch held it (in the game's own
+-- options): theirs from then on, so the switch leaves it alone and gives that back.
+local function own()
+    local root = DaylightUI.DB.Root()
+    if type(root.qolOwnCVars) ~= "table" then root.qolOwnCVars = {} end
+    return root.qolOwnCVars
+end
+function ns.OwnCVar(name) return own()[name] end
+function ns.SetOwnCVar(name, v)
+    own()[name] = v
+    if v ~= nil then kept()[name] = v end
+end
+
 function ns.GiveBackCVar(name)
     local t = kept()
     local v = t[name]
