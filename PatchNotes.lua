@@ -28,7 +28,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "Reminders for a missing paladin Blessing, and for hunters and warlocks with no pet out" },
             { "Profession window", "Each recipe shows its chance of a skill-up, and the picked one shows where it turns yellow, green and gray" },
             { "Training", "Weapon skill tooltips say which city and district each weapon master is in" },
-            { "Buffs", "Buffs can line up by kind, each category on its own row (Buffs > Bar)" },
+            { "Buffs", "Buffs can line up by kind: class buffs on one row, consumables and the rest each on their own (Buffs > Bar)" },
             { "Camping", "Resting in a sleeping bag shows a timer to full Well-Rested, even while the UI is faded" },
             { "Bags", "Bag search and custom groups take several words separated by ; (like ore; bar; stone)" },
             { "Bags", "Your cheapest piece of junk is marked, so a full bag shows what to throw away" },
