@@ -1,0 +1,127 @@
+local stub = require("stub")
+
+-- /dui bug: the filled-in report a player copies into the Discord forum.
+
+-- The game's AddOns list: the two calls the fake game leaves out.
+local function addons(names)
+    _G.C_AddOns.GetNumAddOns = function() return #names end
+    _G.C_AddOns.GetAddOnInfo = function(i) return names[i] end
+end
+
+local function load()
+    stub.Load({})
+    addons({ "Questie", "DaylightUI", "DaylightUI_Chat", "DaylightMogul", "Baganator", "NotLoaded" })
+    stub.loadedAddOns.Questie, stub.loadedAddOns.Baganator, stub.loadedAddOns.DaylightMogul = true, true, true
+    return DaylightUI.BugReport
+end
+
+T.test("bug report: the other loaded addons, A to Z, without Daylight UI's own folders", function()
+    local Bug = load()
+    T.eq(table.concat(Bug.Addons(), ","), "Baganator,DaylightMogul,Questie")
+end)
+
+T.test("bug report: no addon list on a client without one", function()
+    local Bug = load()
+    _G.C_AddOns.GetNumAddOns = nil
+    T.eq(#Bug.Addons(), 0)
+    T.eq(Bug.Fields()[2].text, "None", "as the form's own hint puts it")
+end)
+
+T.test("bug report: one answer for each box of the Discord form, and no name", function()
+    local Bug = load()
+    stub.physW, stub.physH = 2560, 1440
+    local f = Bug.Fields()
+    T.eq(#f, 3)
+    T.eq(f[1].text, tostring(DaylightUI.VERSION), "the version alone")
+    T.eq(f[2].text, "Baganator, DaylightMogul, Questie", "the other addons")
+    T.truthy(string.find(f[3].text, "screen 2560x1440 at UI scale ", 1, true), "the screen")
+    T.truthy(string.find(f[3].text, "modules off: None", 1, true), "nothing switched off")
+    for i = 1, #f do
+        T.eq(string.find(f[i].text, UnitName("player"), 1, true), nil, "the character's name stays out")
+    end
+    T.eq(string.find(f[1].text .. f[2].text, "\n", 1, true), nil, "one line each, for the one-line boxes")
+end)
+
+T.test("bug report: a module switched off shows in the setup line", function()
+    local Bug = load()
+    local on = Bug.Modules()
+    local mod = DaylightUI:GetModule(on[1])
+    mod.enabled = false
+    local _, off = Bug.Modules()
+    T.eq(off[1], on[1])
+    T.truthy(string.find(Bug.Setup(), "modules off: " .. on[1], 1, true))
+    mod.enabled = true
+end)
+
+T.test("bug report: /dui bug opens a box per field, each read-only and selected on a click", function()
+    local Bug = load()
+    DaylightUI.RunCommand("bug")
+    local box = _G.DaylightUIBugReport
+    T.truthy(box:IsShown(), "shown")
+    local f = Bug.Fields()
+    T.eq(#box.rows, #f)
+    for i, row in ipairs(box.rows) do
+        T.eq(row.label:GetText(), f[i].label)
+        T.eq(row.edit.__text, f[i].text)
+    end
+    -- Typing over a box puts its text back.
+    local edit = box.rows[2].edit
+    edit:SetText("typed over")
+    edit:GetScript("OnTextChanged")(edit, true)
+    T.eq(edit.__text, f[2].text, "read-only")
+    DaylightUI.RunCommand("bug")
+    T.eq(_G.DaylightUIBugReport, box, "the same window the second time")
+end)
+
+T.test("bug report: the options home page has a Report a bug button beside its chips", function()
+    load()
+    local Panel = DaylightUI.OptionsPanel
+    Panel.Show("home")
+    local b = Panel.BugButton()
+    T.truthy(b:IsShown(), "on the home page")
+    T.truthy(Panel.Chips():IsShown(), "next to the chips")
+    b:GetScript("OnClick")(b)
+    T.truthy(_G.DaylightUIBugReport:IsShown(), "it opens the report")
+    T.falsy(Panel.IsShown(), "and the options close, out of its way")
+    Panel.Show("appearance")
+    T.falsy(b:IsShown(), "only on the home page")
+end)
+
+T.test("bug report: an addon list too long for the form's box is cut at a whole name, the rest counted", function()
+    local Bug = load()
+    local names = {}
+    for i = 1, 40 do names[i] = "SomeLongAddonName" .. i end
+    local short = Bug.Short(names)
+    T.truthy(#short <= Bug.ADDONS_MAX, "fits the box: " .. #short)
+    local shown = select(2, string.gsub(short, "SomeLongAddonName", ""))
+    T.truthy(string.find(short, " +" .. (40 - shown) .. " more", 1, true), "says how many were left out")
+    T.eq(string.sub(short, 1, 18), "SomeLongAddonName1")
+    T.eq(Bug.Short({ "Questie", "Baganator" }), "Questie, Baganator", "a short list is left alone")
+end)
+
+T.test("bug report: a long list spends its room on whole addons, their parts and helpers aside", function()
+    local Bug = load()
+    T.eq(table.concat(Bug.Main({ "!BugGrabber", "Questie", "Spoken", "Spoken_Quests", "Zygor_Data" }), ","),
+        "Questie,Spoken,Zygor_Data,!BugGrabber", "a part without its addon loaded stays")
+    local names = { "!Helper" }
+    for i = 1, 20 do
+        names[#names + 1] = "Pack" .. i
+        names[#names + 1] = "Pack" .. i .. "_Data"
+    end
+    local short = Bug.Short(names)
+    T.eq(string.find(short, "_Data", 1, true), nil, "no parts")
+    T.eq(string.sub(short, 1, 5), "Pack1", "helpers aren't first")
+end)
+
+T.test("bug report: the last box is the setup, never the addon list", function()
+    local Bug = load()
+    local names = {}
+    for i = 1, 40 do
+        names[i] = "SomeLongAddonName" .. i
+        stub.loadedAddOns[names[i]] = true
+    end
+    addons(names)
+    local f = Bug.Fields()
+    T.truthy(#f[2].text <= Bug.ADDONS_MAX)
+    T.eq(f[3].text, Bug.Setup())
+end)
