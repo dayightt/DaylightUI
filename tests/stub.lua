@@ -557,8 +557,25 @@ function Widget:IsDesaturated() return self.__desaturated == true end
 function Widget:SetGradient(o, a, b) self.__gradient = { o, a, b } end
 function Widget:SetVertexColorFromBoolean(v, t, f) self.__vertexFromBoolean = { v, t, f } end
 -- FontString
-function Widget:SetFont(path, size, flags) self.__font = { path, size, flags } end
+function Widget:SetFont(path, size, flags, extra)
+    -- SimpleHTML:SetFont(textType, fontFile, height [, flags])
+    if rawget(self, "__type") == "SimpleHTML" and type(size) == "string" then
+        self.__tagFont = self.__tagFont or {}
+        self.__tagFont[path] = { size, flags, extra }
+        return
+    end
+    self.__font = { path, size, flags }
+end
 function Widget:GetFont() local f = self.__font; if f then return f[1], f[2], f[3] end end
+-- SimpleHTML:SetFontObject(textType, font). A FontString takes the font alone.
+function Widget:SetFontObject(font, obj)
+    if rawget(self, "__type") == "SimpleHTML" and type(font) == "string" then
+        self.__fontObject = self.__fontObject or {}
+        self.__fontObject[font] = obj
+        return
+    end
+    self.__fontObject = font
+end
 -- Like the client, an edit box's text change runs its OnTextChanged.
 function Widget:SetText(t)
     -- The client refuses text on a FontString with no font yet. Tests opt in with
