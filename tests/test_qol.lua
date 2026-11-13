@@ -1898,8 +1898,10 @@ T.test("glow: on takes the interact settings, off gives back what the player had
     T.eq(g.cvars.SoftTargetInteractRange, "15")
     T.eq(g.cvars.SoftTargetIconGameObject, "1")
     T.eq(g.cvars.nameplateGameObjectMaxDistance, "60")
+    T.eq(g.cvars.SoftTargetNameplateInteract, "1")
     g.m.db.objectGlow = false
     g.m:OnSettingChanged()
+    T.eq(g.cvars.SoftTargetNameplateInteract, "0")
     T.eq(g.cvars.SoftTargetInteract, "0")
     T.eq(g.cvars.SoftTargetInteractRange, "10")
     T.eq(g.cvars.SoftTargetIconGameObject, "0")
@@ -1917,7 +1919,9 @@ T.test("glow: logging out gives the settings back, so none outlives the addon", 
     g.done()
 end)
 
-T.test("glow: the game's plate opens only for what lights up, and the light lands on it", function()
+-- The interact plate stays on whatever the target is: switched off for an
+-- object it didn't light, a node lost its plate once it became the target.
+T.test("glow: the game's interact plate stays on for every target, and the light lands on it", function()
     local g = glowSetup(true)
     local G = g.G
     soft()
@@ -1929,10 +1933,13 @@ T.test("glow: the game's plate opens only for what lights up, and the light land
     T.eq(G.art:GetParent(), g.plate)
     T.eq(G.art.kind, "chest")
     T.eq(G.art.state, "ready")
-    g.isObject = false   -- an NPC now: no light, and the plate shut again
+    g.isObject = false   -- an NPC now: no light, and the setting left alone
     soft()
     T.eq(G.art:IsShown(), false)
-    T.eq(g.cvars.SoftTargetNameplateInteract, "0")
+    T.eq(g.cvars.SoftTargetNameplateInteract, "1")
+    stub.FireEvent("PLAYER_REGEN_DISABLED")   -- nor at the start of a fight
+    T.eq(g.cvars.SoftTargetNameplateInteract, "1")
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     g.done()
 end)
@@ -1958,9 +1965,9 @@ T.test("glow: a lit bobber hides the game's interact icon, a chest keeps it, and
     g.done()
 end)
 
--- Ore and herbs stay dark, even for a character who gathers them: the plate
--- switched on and off for every node is suspected of stopping all plates.
-T.test("glow: ore and herbs never light, and never open the game's plate", function()
+-- Ore and herbs stay dark for now, even for a character who gathers them, but
+-- keep the game's own plate all the way in.
+T.test("glow: ore and herbs never light, and keep the game's plate", function()
     local g = glowSetup(true)
     g.plateUp = true
     for _, node in ipairs({ { "Interface\\Cursor\\Mine", "Copper Vein", 1731 },
@@ -1969,7 +1976,7 @@ T.test("glow: ore and herbs never light, and never open the game's plate", funct
         g.at("GameObject-0-1-2-3-" .. node[3] .. "-00001", node[2])
         soft()
         T.eq(g.G.art:IsShown(), false, node[2])
-        T.eq(g.cvars.SoftTargetNameplateInteract, "0", node[2])
+        T.eq(g.cvars.SoftTargetNameplateInteract, "1", node[2])
     end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     g.done()

@@ -1,8 +1,7 @@
 -- Object glow: quest objects, chests and the fishing bobber light up as you get
--- near. Ore and herbs are told apart but never lit: switching the game's plate
--- on and off for every node walked past may be what stops all nameplates
--- drawing until a reload. The game picks one object as the soft interact target
--- ("softinteract") and gives it a nameplate. That plate is the only way to find
+-- near. Ore and herbs are told apart but not lit for now, while every nameplate
+-- going missing until a reload is looked into. The game picks one object as
+-- the soft interact target ("softinteract") and gives it a nameplate. That plate is the only way to find
 -- the object on screen, so the light is attached to it.
 --
 -- Dim out of reach, lit in reach, dim again when the game refuses it (skill too
@@ -10,8 +9,8 @@
 --
 -- The CVars it changes are saved per account (ns.KeepCVar) and restored when
 -- it's switched off and at logout, so characters without the module are
--- unaffected. The interact plate is only opened for objects we light, so NPCs
--- and corpses get no new plate or icon.
+-- unaffected. The interact target's plate stays on while it's on, so NPCs and
+-- corpses can get the game's plate too while they're the interact target.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -149,7 +148,6 @@ local UNABLE = "unable"
 local mod, events, probe, applied, leaving
 local fight = false         -- in a fight: PLAYER_REGEN_DISABLED comes before InCombatLockdown says so
 local lineOut = false       -- your fishing line is in the water
-local gateOpen              -- nil = not known yet
 local plateUnits = {}       -- the plate tokens up now
 local byFile = {}           -- cursor file id -> { kind, blocked }
 local gathered = {}         -- object ids the game called ore or herb: never learned as chests
@@ -174,16 +172,20 @@ local function wanted() return on("objectGlow") end
 -- The game settings
 -- ---------------------------------------------------------------------
 
--- Every setting taken over, and the value it holds. The plate's own two are
--- set by Glow.Gate; the rest stay put while it's on.
+-- Every setting taken over, and the value it holds while it's on.
 Glow.CVARS = {
     SoftTargetInteract = "3",               -- always pick an object, mouse and keyboard too
     SoftTargetInteractArc = "2",            -- all around you
     SoftTargetInteractOnlyInRange = "0",    -- not only what's already in reach
     SoftTargetInteractRangeIsHard = "0",    -- or the bobber, further out, is passed over
     SoftTargetIconGameObject = "1",         -- without it the game makes no plate for an object
+    -- On the whole time, not just for what lights up. Switched off for a node
+    -- it didn't light, the game took that node's plate away once it became the
+    -- interact target, and switching it all the time may stop every plate.
+    SoftTargetNameplateInteract = "1",
 }
-Glow.GATE_CVARS = { "SoftTargetNameplateInteract", "SoftTargetIconInteract" }
+-- Older versions changed this one too: given back if it's still kept.
+Glow.OLD_CVARS = { "SoftTargetIconInteract" }
 Glow.RANGE_CVAR = "SoftTargetInteractRange"
 Glow.PLATE_CVAR = "nameplateGameObjectMaxDistance"
 
@@ -208,34 +210,26 @@ local function canWrite() return wanted() and not padMode() end
 
 local function range() return lineOut and Glow.FISH_RANGE or Glow.RANGE end
 
--- Open: the game shows a plate for the soft target, which the light needs.
--- Shut: back to the player's own values. Forcing 0 instead made node plates
--- flash on and off. Can't be changed in combat.
-function Glow.Gate(open)
-    if not canWrite() or InCombatLockdown() then return end
-    if open then set("SoftTargetIconGameObject", "1") end   -- the game puts it back to 0 after a loading screen
-    if open == gateOpen then return end
-    gateOpen = open
-    set("SoftTargetNameplateInteract", open and "1" or (ns.KeptCVar("SoftTargetNameplateInteract") or "0"))
-    set("SoftTargetIconInteract", ns.KeptCVar("SoftTargetIconInteract") or (open and "1" or "0"))
+-- The game puts SoftTargetIconGameObject back to 0 after a loading screen.
+-- Written only when it changed, and never in a fight (the game refuses).
+function Glow.ObjectPlates()
+    if canWrite() and applied and not InCombatLockdown() then set("SoftTargetIconGameObject", "1") end
 end
 
 local function keepAll()
     for name in pairs(Glow.CVARS) do ns.KeepCVar(name) end
-    for _, name in ipairs(Glow.GATE_CVARS) do ns.KeepCVar(name) end
     ns.KeepCVar(Glow.RANGE_CVAR)
     ns.KeepCVar(Glow.PLATE_CVAR)
 end
 
 local function giveAllBack()
     applied = false
-    gateOpen = nil
     local function back(name)
         local v = ns.GiveBackCVar(name)
         if v ~= nil then set(name, v) end
     end
     for name in pairs(Glow.CVARS) do back(name) end
-    for _, name in ipairs(Glow.GATE_CVARS) do back(name) end
+    for _, name in ipairs(Glow.OLD_CVARS) do back(name) end
     back(Glow.RANGE_CVAR)
     back(Glow.PLATE_CVAR)
 end
@@ -250,7 +244,6 @@ function Glow.Apply()
         -- A player who shows plates further out keeps that.
         local theirs = tonumber(ns.KeptCVar(Glow.PLATE_CVAR)) or 0
         set(Glow.PLATE_CVAR, tostring(math.max(theirs, Glow.PLATE_RANGE)))
-        gateOpen = nil
         Glow.Evaluate()
     end, "qol:glow")
 end
@@ -762,16 +755,14 @@ function Glow.Evaluate()
     if leaving or previewing then return end
     if not allowed() or plain(UnitIsGameObject, Glow.SOFT) ~= true then
         Glow.Leave()
-        Glow.Gate(false)
         return
     end
+    Glow.ObjectPlates()
     local kind, blocked, guid = Glow.Read()
     if not kind or not on(Glow.SWITCH[kind]) then
         Glow.Leave()
-        Glow.Gate(false)
         return
     end
-    Glow.Gate(true)
     local plate = plateOf()
     if not plate then   -- just asked for: the next look finds it (Glow.Watch)
         Glow.Leave()
@@ -833,7 +824,6 @@ local function wire()
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         fight = true
         previewing = false
-        Glow.Gate(on("objectGlowFight"))
         look()
     end)
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function()

@@ -15,6 +15,9 @@ DUI.PatchNotes = {
         new = {
             { "Bug reports", "A bug icon on the options home page (or /dui bug) gives you your version, addons and setup, ready to copy into the Discord bug form. Thanks to blukraken" },
         },
+        fixed = {
+            { "Object glow", "Ore and herb names no longer disappear as you walk up to them" },
+        },
     },
     { version = "1.7.1", date = "2026-11-12", summary = "Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.",
         new = {
