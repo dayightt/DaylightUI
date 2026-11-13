@@ -221,3 +221,74 @@ T.test("bug report: an error brings the calls nearest it, not the whole stack", 
     T.eq(string.find(text, "File.lua:" .. (Bug.STACK_LINES + 1) .. ": in function", 1, true), nil, "no further")
     T.truthy(#text < 4000, "fits the form's box")
 end)
+
+T.test("bug report: the window's list is its own, so an error repeating while it's open moves nothing", function()
+    local Bug = load()
+    boom("first")
+    boom("second")
+    T.truthy(Bug.Errors() ~= DaylightUI.Errors(), "a copy")
+    DaylightUI.RunCommand("bug")
+    local box = _G.DaylightUIBugReport
+    local edit = box.rows[3].edit
+    Bug.Step(-1)
+    T.truthy(string.find(edit.__text, ": first\n", 1, true), "on the first")
+    boom("first", 3)   -- the live log moves it to the end
+    Bug.Step(1)
+    T.truthy(string.find(edit.__text, ": second\n", 1, true), "the next one is still the second")
+    T.eq(box.count:GetText(), "2 of 2")
+end)
+
+T.test("bug report: with BugGrabber, an error of ours that repeats is still the latest", function()
+    local Bug = load()
+    boom("A")
+    boom("B")
+    boom("A", 5)
+    local own = DaylightUI.Errors()
+    -- BugGrabber keeps each where it first saw it, and only counts the repeats.
+    _G.BugGrabber = {
+        GetSessionId = function() return 1 end,
+        GetDB = function() return {
+            { message = own[2].text .. "\nstack", session = 1, counter = 6 },
+            { message = "Interface/AddOns/DaylightUI_Bags/Bag.lua:5: plain handler", session = 1, counter = 1 },
+            { message = own[1].text .. "\nstack", session = 1, counter = 1 },
+        } end,
+    }
+    local e = Bug.Errors()
+    _G.BugGrabber = nil
+    T.eq(#e, 3)
+    T.truthy(string.find(e[1].text, "plain handler", 1, true), "BugGrabber's own first, where it saw it")
+    T.truthy(string.find(e[2].text, ": B", 1, true))
+    T.truthy(string.find(e[3].text, ": A", 1, true), "A happened last")
+    T.eq(e[3].count, 6)
+end)
+
+T.test("bug report: with BugGrabber, another addon's error inside something of ours isn't ours", function()
+    local Bug = load()
+    -- A callback's error: their file in the message, ours only further down the stack.
+    _G.BugGrabber = {
+        GetSessionId = function() return 1 end,
+        GetDB = function() return {
+            { message = "Interface/AddOns/Other/Core.lua:9: theirs", session = 1, counter = 1,
+              stack = "Interface/AddOns/Other/Core.lua:9: in function\nInterface/AddOns/DaylightUI/Core.lua:300: in function" },
+            { message = "Interface/FrameXML/Game.lua:3: bad argument", session = 1, counter = 1,
+              stack = "Interface/AddOns/DaylightUI_Chat/Box.lua:961: in function\n[C]: ?" },
+        } end,
+    }
+    local e = Bug.Errors()
+    _G.BugGrabber = nil
+    T.eq(#e, 1)
+    T.eq(e[1].text, "Interface/FrameXML/Game.lua:3: bad argument", "ours when we're the top of its stack")
+end)
+
+T.test("bug report: BugGrabber's list is read once, however long", function()
+    local Bug = load()
+    local db = {}
+    for i = 1, 400 do
+        db[i] = { message = "Interface/AddOns/DaylightUI/Fade.lua:" .. (i % 40) .. ": many", session = 1, counter = 2 }
+    end
+    _G.BugGrabber = { GetSessionId = function() return 1 end, GetDB = function() return db end }
+    local e = Bug.Errors()
+    _G.BugGrabber = nil
+    T.eq(#e, 40, "one entry a message")
+    T.eq(e[1].count, 20, "its repeats added up")
+end)
