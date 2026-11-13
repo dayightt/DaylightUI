@@ -376,7 +376,7 @@ function TM.Layout()
     -- Under the meter it's part of the panel: no box of its own, a hairline
     -- over it instead.
     local framed = cfg.border ~= false and not below
-    s.opts.bgAlpha = below and 0 or ns.Panel.BackAlpha(ns.module and ns.module.db or {})
+    s.opts.bgAlpha = below and 0 or ns.Panel.MeterBack(ns.module and ns.module.db or {}, cfg)
     s.opts.noBorder = not framed
     s.opts.shadowAlpha = not framed and 0 or nil
     s.opts.noBevel = not framed

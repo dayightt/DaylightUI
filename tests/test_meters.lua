@@ -984,6 +984,23 @@ T.test("threat look: the header shows the mob and your percent, colored by how c
     stub.LeaveCombat(); stub.SetGroup(false)
 end)
 
+T.test("threat look: its own background opacity clears the window's background", function()
+    local DUI = login()
+    DUI:Set("InfoPanel", "threat.at", "free")
+    DUI:Set("InfoPanel", "threat.alphaOwn", true)
+    DUI:Set("InfoPanel", "threat.alpha", 0)
+    stub.RunTimers()
+    local TM = stub.infopanel.ThreatMeter
+    TM.Layout()
+    T.eq(DUI.Style.GetShell(TM.win).opts.bgAlpha, 0, "0% leaves only the bars")
+    DUI:Set("InfoPanel", "threat.alphaOwn", false)
+    DUI:Set("InfoPanel", "panelAlphaOwn", true)
+    DUI:Set("InfoPanel", "panelAlpha", 0.4)
+    stub.RunTimers()
+    TM.Layout()
+    T.eq(DUI.Style.GetShell(TM.win).opts.bgAlpha, 0.4, "switch off: the info panel's")
+end)
+
 T.test("threat look: slim rows, a tank mark, your row outlined in the accent and its percent popping", function()
     local DUI = login()
     threatParty()
