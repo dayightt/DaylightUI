@@ -5262,16 +5262,24 @@ T.test("bags: a chip shows only its groups in the categories view", function()
     T.truthy(all.junk and all.weapon and all.consumable, "everything with no chip")
     W.PickChip(f, "junk")
     stub.RunTimers()
-    local only = headingsShown(f)
-    T.truthy(only.junk, "the Junk heading stays")
-    T.eq(only.weapon, nil, "other headings go")
-    T.eq(only.consumable, nil)
+    local function going(key)
+        for _, h in ipairs(f.headings) do
+            if h.key == key and h:IsShown() and not (f.fading and f.fading[h]) then return false end
+        end
+        return true
+    end
+    T.truthy(headingsShown(f).junk, "the Junk heading stays")
+    T.truthy(going("weapon"), "other headings go (fading out)")
+    T.truthy(going("consumable"))
     local weapon = ns.Bags.buttons[0][1]
     T.truthy(not weapon:IsShown() or (f.fading and f.fading[weapon]), "the rare weapon's slot hides (or fades out)")
     for _, fr in ipairs(stub.frames or {}) do
         if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
     end
     T.eq(weapon:IsShown(), false, "once the fade ends it is hidden and takes no clicks")
+    local only = headingsShown(f)
+    T.eq(only.weapon, nil, "faded headings are hidden")
+    T.eq(only.consumable, nil)
     T.eq(ns.Bags.buttons[0][2]:IsShown(), true, "the gray one shows")
     W.PickChip(f, "all")
     stub.RunTimers()
@@ -5757,9 +5765,17 @@ T.test("bags: Sell junk fades the junk out and glides the rest up", function()
         if h:IsShown() and h.key == "empty" and Feel.Moving(h) then up = up + 1 end
     end
     T.eq(up, 1, "the free slots' heading glides up")
+    local junkHead
+    for _, h in ipairs(f.headings) do if h.key == "junk" then junkHead = h end end
+    T.truthy(junkHead and f.fading and f.fading[junkHead], "the emptied Junk heading fades out")
+    T.truthy(junkHead:IsShown() and junkHead:GetAlpha() > 0, "where it was")
+    for _, h in ipairs(f.headings) do
+        if h ~= junkHead and h:IsShown() then T.truthy(h.key ~= "junk", "no other heading reads Junk") end
+    end
     T.truthy(Feel.Moving(f), "the window glides to its new size")
     settleFeel()
     T.falsy(apple:IsShown(), "gone once faded")
+    T.falsy(junkHead:IsShown(), "and its heading")
     T.falsy(f.stale, "laid out: nothing left for the next open")
     nothingMoves(f, "all landed")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -5846,8 +5862,15 @@ T.test("bags: more than EASE_MAX moves cross-fade instead", function()
         world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
         easedRelayout(ns)
         T.truthy(f.crossing)
+        stub.RunOnUpdate(Motion.Driver(), Motion.FAST / 2)
+        local mid = f.items:GetAlpha()
+        T.truthy(mid < 1, "half faded")
+        L.EASE_MAX = 60
         world.items[0][1] = nil
         easedRelayout(ns)
+        T.isnil(f.crossing, "the new layout glides")
+        T.truthy(f.items:GetAlpha() <= mid, "the grid comes back from where it was, no snap")
+        L.EASE_MAX = 2
         settleFeel()
         T.eq(f.items:GetAlpha(), 1)
         T.isnil(f.crossing)
@@ -5930,6 +5953,32 @@ T.test("bags: motion off lays out at once", function()
         T.falsy(f.stale)
     end)
     DaylightUI.DB.General().motion = true
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the NPC window's own Sell junk closes up the bag too", function()
+    local ns, f = junkAtVendor()
+    local Feel = DaylightUI.Win.Feel
+    -- The game's sale: every gray item goes, a moment later.
+    C_MerchantFrame = C_MerchantFrame or {}
+    local gray = ns.Bags.buttons[0][2]
+    local laid = 0
+    local relayout = ns.Window.EaseRelayout
+    ns.Window.EaseRelayout = function(...) laid = laid + 1 return relayout(...) end
+    local ok, err = pcall(function()
+        T.falsy(DaylightUI.SellJunkAroundLocks(), "nothing locked: the game sells")
+        T.eq(laid, 0)
+        world.items[0][2] = nil
+        bagChanged(0)
+        T.truthy(f.stale, "the sold slot holds its spot first")
+        for _ = 1, 3 do stub.RunTimers() end
+        T.eq(laid, 1, "then one eased layout")
+        T.falsy(f.stale)
+        T.truthy(Feel.Moving(gray), "the emptied slot glides to the free tile")
+        settleFeel()
+    end)
+    ns.Window.EaseRelayout = relayout
     T.truthy(ok, tostring(err))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

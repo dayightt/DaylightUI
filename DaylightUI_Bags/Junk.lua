@@ -234,7 +234,13 @@ end
 -- selling item by item here; false leaves it to the game's own sale.
 function DUI.SellJunkAroundLocks()
     local list, kept = Junk.Grays()
-    if kept then Junk.Sell(list) end
+    if kept then
+        Junk.Sell(list)
+    elseif #list > 0 then
+        -- The game sells them all at once; the bag closes up once they've gone.
+        local since = GetTime()
+        C_Timer.After(Junk.STEP, function() closeUp(list, since) end)
+    end
     return kept
 end
 

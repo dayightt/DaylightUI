@@ -457,7 +457,7 @@ function Layout.Categories(window, cfg)
     end
     for _, l in ipairs(window.lines or {}) do l:Hide() end
     noteLaid(window)
-    local x, y, lineH, used, wasFolded = 0, 0, 0, 0, nil
+    local x, y, lineH, wasFolded = 0, 0, 0, nil
     local function newRow()
         if x > 0 then
             y = y + lineH + Layout.ROW_GAP
@@ -478,10 +478,26 @@ function Layout.Categories(window, cfg)
             shown[#shown + 1] = g
         end
     end
-    for i, g in ipairs(shown) do
-        used = i
+    -- Each group keeps the heading it had, so an eased layout glides a heading
+    -- with its group and one whose group left fades out still reading its name.
+    local mine, spare, taken = {}, {}, {}
+    for _, g in ipairs(shown) do mine[g.key] = false end
+    for _, h in ipairs(window.headings or {}) do
+        if h.key ~= nil and mine[h.key] == false then mine[h.key] = h else spare[#spare + 1] = h end
+    end
+    local nextSpare = 1
+    for _, g in ipairs(shown) do
         local folded = Cat.IsCollapsed(g.key)
-        local h = heading(window, i)
+        local h = mine[g.key]
+        if not h then
+            h = spare[nextSpare]
+            if h then
+                nextSpare = nextSpare + 1
+            else
+                h = heading(window, #(window.headings or {}) + 1)
+            end
+        end
+        taken[h] = true
         h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
         h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(#g.entries))
         Layout.PaintHeading(h, folded)
@@ -525,7 +541,9 @@ function Layout.Categories(window, cfg)
         x = x + w + Layout.GROUP_GAP
         if g.breakAfter then newRow() end
     end
-    for i = used + 1, #(window.headings or {}) do window.headings[i]:Hide() end
+    for _, h in ipairs(window.headings or {}) do
+        if not taken[h] then h:Hide() end
+    end
     return maxW, y + lineH
 end
 
@@ -566,11 +584,11 @@ end
 
 -- Where every shown slot, heading and section line is right now (mid-glide too):
 -- { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
---   keys = { [button] = item key }, heads = { [group key] = { x, y } },
+--   keys = { [button] = item key }, heads = { [group key] = { x, y } }, headings = { [heading] = true },
 --   lines = { [i] = { x, y } } }. A free tile's spot is also kept under its tile
 -- key among the items.
 function Layout.Spots(window)
-    local slots, items, keys, heads, lines, seen = {}, {}, {}, {}, {}, {}
+    local slots, items, keys, heads, headings, lines, seen = {}, {}, {}, {}, {}, {}, {}
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() and b:GetNumPoints() == 1 then
@@ -591,6 +609,7 @@ function Layout.Spots(window)
         if h:IsShown() and h.key and h:GetNumPoints() == 1 then
             local _, _, _, x, y = h:GetPoint(1)
             heads[h.key] = { x, y }
+            headings[h] = true
         end
     end
     for i, l in ipairs(window.lines or {}) do
@@ -599,7 +618,7 @@ function Layout.Spots(window)
             lines[i] = { x, y }
         end
     end
-    return { slots = slots, items = items, keys = keys, heads = heads, lines = lines }
+    return { slots = slots, items = items, keys = keys, heads = heads, headings = headings, lines = lines }
 end
 
 -- Animates from the old spots (Layout.Spots) to the new layout. A slot that now
@@ -662,7 +681,11 @@ function Layout.Ease(window, was)
         end
     end
     for _, h in ipairs(window.headings or {}) do
-        if h:IsShown() and h.key then from(h, was.heads[h.key]) end
+        if h:IsShown() then
+            if h.key then from(h, was.heads[h.key]) end
+        elseif was.headings and was.headings[h] then
+            fadeOut(h)   -- its group left (all of it sold or used)
+        end
     end
     for i, l in ipairs(window.lines or {}) do
         if l:IsShown() then
@@ -711,6 +734,17 @@ local function arrive(cross)
     end
 end
 
+-- One tween key per window for the grid's alpha, so a new cross-fade or a
+-- settle takes over from the one running.
+local function gridKey(window)
+    local key = window.gridFade
+    if not key then
+        key = { step = function(a) window.items:SetAlpha(a) end }
+        window.gridFade = key
+    end
+    return key
+end
+
 function Layout.CrossFade(window, moves)
     local Motion, grid = DUI.Motion, window.items
     local cross = { moves = moves }
@@ -725,10 +759,10 @@ function Layout.CrossFade(window, moves)
             r:SetAlpha(0)
         end
     end
-    local function step(a) grid:SetAlpha(a) end
-    Motion.Tween(cross, grid:GetAlpha(), 0, Motion.FAST, step, function()
+    local key = gridKey(window)
+    Motion.Tween(key, grid:GetAlpha(), 0, Motion.FAST, key.step, function()
         arrive(cross)
-        Motion.Tween(cross, 0, 1, Motion.NORMAL, step, function()
+        Motion.Tween(key, 0, 1, Motion.NORMAL, key.step, function()
             if window.crossing == cross then window.crossing = nil end
         end)
     end)
@@ -746,7 +780,8 @@ local function restoreFading(window)
 end
 
 -- Ends running glides and a cross-fade where they were going. full: new pieces
--- that were fading in show whole at once too.
+-- that were fading in show whole at once too, and so does the grid; otherwise
+-- the grid fades back in from where it was (a layout made mid-way).
 local function settleMoves(window, full)
     if window.gliding then
         for r, how in pairs(window.gliding) do
@@ -759,8 +794,13 @@ local function settleMoves(window, full)
     if cross then
         window.crossing = nil
         arrive(cross)
-        DUI.Motion.Tween(cross, 1, 1, 0)
-        window.items:SetAlpha(1)
+        local key = gridKey(window)
+        if full then
+            DUI.Motion.Tween(key, 1, 1, 0)
+            window.items:SetAlpha(1)
+        else
+            DUI.Motion.Tween(key, window.items:GetAlpha(), 1, DUI.Motion.NORMAL, key.step)
+        end
     end
 end
 
