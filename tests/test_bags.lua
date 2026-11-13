@@ -1356,6 +1356,23 @@ T.test("bags: stacks show apart while trading, at the mail and auction house, or
     T.isnil(first.dluiCount)
 end)
 
+T.test("bags: a trade opens the bags and closes them again; bags already open stay open", function()
+    local ns = catLogin()
+    if ns.window:IsShown() then ns.OpenClose.CloseAll(); stub.RunTimers(); stub.FinishFade(ns.window) end
+    T.falsy(IsAnyBagOpen())
+    stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
+    T.truthy(IsAnyBagOpen(), "the trade opens them")
+    T.truthy(ns.window:IsShown(), "and this bag with them")
+    T.eq(world.opener, nil, "with no opener: the game's local stays untouched")
+    stub.FireEvent("TRADE_CLOSED"); stub.RunTimers(); stub.FinishFade(ns.window)
+    T.falsy(IsAnyBagOpen(), "closed with the trade")
+    T.falsy(ns.window:IsShown())
+    OpenAllBags(); stub.RunTimers()
+    stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
+    stub.FireEvent("TRADE_CLOSED"); stub.RunTimers()
+    T.truthy(IsAnyBagOpen(), "open before the trade: still open after")
+end)
+
 T.test("bags: soul shards (which don't stack) show as one stack, with the count; apart with the setting off", function()
     local ns = login({ view = "categories" })
     categoryWorld()

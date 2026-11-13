@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Chat", "General and Trade keep /1 and /2 even when another addon joins its own chat channels first" },
+            { "Bags", "Your bags open when you trade with someone, and close again when the trade ends" },
         },
     },
     { version = "1.7.3", date = "2026-11-13", summary = "Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!",
