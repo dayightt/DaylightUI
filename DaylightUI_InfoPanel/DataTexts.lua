@@ -889,6 +889,24 @@ function DT.ReadShards()
     return num(call(fn, DT.SHARD))
 end
 
+-- Soul bags' slots and free slots (the game's bag family bit 4), 0, 0 with none.
+DT.SOUL_BAG = 4
+function DT.ReadSoulBag()
+    local slotsOf = api("C_Container", "GetContainerNumSlots")
+    local freeOf = api("C_Container", "GetContainerNumFreeSlots")
+    local total, free = 0, 0
+    for _, bag in ipairs(DT.BAGS) do
+        if bag ~= 0 then
+            local n = num(call(slotsOf, bag))
+            local f, family = call(freeOf, bag)
+            if n > 0 and type(family) == "number" and family % (DT.SOUL_BAG * 2) >= DT.SOUL_BAG then
+                total, free = total + n, free + num(f)
+            end
+        end
+    end
+    return total, free
+end
+
 -- Equipped ammo count and name, or nil if you don't use ammo. An empty slot
 -- reports a count of 1, so check its icon instead. The count includes all
 -- ammo in your bags. Keep this cheap: it runs on every shot.
@@ -1203,11 +1221,18 @@ DT.TEXTS = {
         count = function() return DT.ReadShards() end,
         text = function(n)
             local v = value(tostring(n or DT.ReadShards()))
+            local slots = DT.ReadSoulBag()
+            if slots > 0 then v = v .. word(" / ") .. value(tostring(slots)) end
             return word(L["Shards"] .. " ") .. v, v
         end,
         tip = function()
             tipTitle(L["Soul Shards"])
-            line(L["In your bags"], tostring(DT.ReadShards()))
+            line(L["In your bags"], tostring(DT.ReadShards()), { Style.Accent() })
+            local slots, free = DT.ReadSoulBag()
+            if slots > 0 then
+                line(L["Soul bag slots"], tostring(slots))
+                line(L["Free slots"], tostring(free), { Style.Accent() })
+            end
             gap()
             hint(L["Click: bags"])
         end,

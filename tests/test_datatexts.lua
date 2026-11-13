@@ -1070,6 +1070,25 @@ T.test("data texts: crit keeps its last plain number while a fight hides it; sha
     _G.GetCritChance, _G.GetItemCount = nil, nil
 end)
 
+T.test("data texts: shards show the soul bag's size beside them, the tooltip its free slots", function()
+    local DUI = login({ bags = { [0] = { 16, 4, 0 }, [1] = { 20, 8, 4 }, [2] = { 12, 12, 0 } } }, function()
+        _G.GetItemCount = function(id) return id == 6265 and 12 or 0 end
+    end)
+    DUI:Set("InfoPanel", "data.slot3", "shards")
+    stub.RunTimers()
+    measureLikeTheGame()
+    T.eq(shown()[3], "Shards 12 / 20", "shards / the soul bag's slots")
+    T.truthy(DT().slots[3].text:GetText():find(hexOf({ DUI.Style.Accent() }), 1, true), "the numbers pop")
+    hover(3)
+    T.truthy(tipText():find("Soul bag slots | 20", 1, true), tipText())
+    T.truthy(tipText():find("Free slots | 8", 1, true), tipText())
+    stub.bags[1][3] = 0
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(shown()[3], "Shards 12", "no soul bag: the count alone")
+    _G.GetItemCount = nil
+end)
+
 T.test("data texts: a right-click on crit picks which crit it shows (a melee hybrid wants attack crit)", function()
     local DUI = login(nil, function()
         _G.GetCritChance = function() return 12.5 end
