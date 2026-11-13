@@ -376,6 +376,7 @@ local function install()
             if not r then return nil end
             return { recipeID = r.id, name = r.name, icon = 2000 + r.id, categoryID = r.cat, learned = r.learned ~= false,
                 relativeDifficulty = r.difficulty, numSkillUps = r.skillUps or 1, canSkillUp = r.difficulty ~= 3,
+                favorite = r.favorite == true,
                 isEnchantingRecipe = r.enchant == true, isDummyRecipe = false,
                 -- The made item's link. An enchant makes none.
                 hyperlink = not r.enchant and ("|cffffffff|Hitem:" .. (9000 + r.id) .. "|h[" .. r.name .. "]|h|r") or nil }
@@ -452,6 +453,33 @@ local function install()
         GetTradeSkillTexture = function() local p = open(); return p and p.icon end,
         IsDataSourceChanging = function() return S().changing == true end,
         IsNPCCrafting = function() return false end,
+        -- Favorites and tracking, the game's own lists (Blizzard_ProfessionsRecipeList.lua,
+        -- Blizzard_ProfessionsRecipeTracker.lua).
+        SetRecipeFavorite = function(id, on)
+            record("SetRecipeFavorite", id, on)
+            local r = recipe(id)
+            if r then r.favorite = on == true end
+            stub.FireEvent("TRADE_SKILL_FAVORITES_CHANGED", on == true, id)
+        end,
+        IsRecipeFavorite = function(id) local r = recipe(id); return r ~= nil and r.favorite == true end,
+        SetRecipeTracked = function(id, on, recraft)
+            record("SetRecipeTracked", id, on, recraft)
+            local list = S().tracked
+            for i = #list, 1, -1 do if list[i] == id then table.remove(list, i) end end
+            if on then list[#list + 1] = id end
+            stub.FireEvent("TRACKED_RECIPE_UPDATE", id, on == true)
+        end,
+        IsRecipeTracked = function(id)
+            for _, t in ipairs(S().tracked) do if t == id then return true end end
+            return false
+        end,
+        GetRecipesTracked = function(recraft)
+            local out = {}
+            if not recraft then for i, t in ipairs(S().tracked) do out[i] = t end end
+            return out
+        end,
+        OpenRecipe = function(id) record("OpenRecipe", id) end,
+        HasNoReagentCost = function(id) local r = recipe(id); return r ~= nil and #r.mats == 0 end,
     }
 end
 
@@ -461,7 +489,7 @@ end
 function PW.world(spec)
     spec = spec or {}
     return function()
-        PW.state = { calls = {}, cds = {}, profs = spec.profs or PW.Sample(), linked = spec.linked, hiddenSlots = {},
+        PW.state = { calls = {}, cds = {}, profs = spec.profs or PW.Sample(), linked = spec.linked, hiddenSlots = {}, tracked = spec.tracked or {},
             bags = spec.bags or { [4305] = 5, [2321] = 3, [4306] = 8, [2589] = 1, [2672] = 7 } }
         _G.ProfessionsFrame = nil
         install()

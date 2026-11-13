@@ -27,7 +27,7 @@ DUI:RegisterModule("Professions", {
     order = 128,
     section = "QoL", pageOrder = 132, windowCard = true,   -- a card on Extras > Windows
     ns = ns,
-    parts = { "SkillUps", "Data", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Window" },
+    parts = { "SkillUps", "Data", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Track", "Window" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
@@ -35,6 +35,7 @@ DUI:RegisterModule("Professions", {
         DUI.craftMogul = ns.MogulOwns()
         DUI.craftOwnWindow = mod.db.enabled == true and not DUI.craftMogul
         if ns.Window and DUI.craftOwnWindow then ns.Window.Build(mod) end
+        if ns.Track then ns.Track.Init() end
     end,
     OnSettingChanged = function()
         if ns.Window then ns.Window.Apply() end

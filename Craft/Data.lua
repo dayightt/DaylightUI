@@ -255,6 +255,28 @@ end
 
 -- Recipes
 
+-- Favorites come first, under their own heading, as in the game's list. Like the
+-- tracked list, they're the game's own (C_TradeSkillUI.SetRecipeFavorite, used by its
+-- list's right-click menu though missing from its API docs).
+Data.FAVORITES = { id = "favorites", name = PROFESSIONS_CATEGORY_FAVORITE or L["Favorites"], order = -1 }
+
+function Data.CanFavorite()
+    local ts = TS()
+    return ts ~= nil and type(ts.SetRecipeFavorite) == "function" and Data.Viewing() == nil and call("IsNPCCrafting") ~= true
+end
+
+function Data.SetFavorite(id, on) call("SetRecipeFavorite", id, on and true or false) end
+
+-- The game's rule for tracking (Professions.CanTrackRecipe): your own list, and a
+-- recipe that uses materials.
+function Data.CanTrack(recipe)
+    if type(recipe) ~= "table" or Data.Viewing() ~= nil or call("IsNPCCrafting") == true then return false end
+    local ts = TS()
+    if not (ts and type(ts.SetRecipeTracked) == "function") then return false end
+    if call("HasNoReagentCost", recipe.id) == true then return false end
+    return true
+end
+
 local function recipeIDs()
     local ids = call("GetAllRecipeIDs")
     if type(ids) ~= "table" then ids = call("GetFilteredRecipeIDs") end
@@ -290,11 +312,12 @@ function Data.Read()
         if type(r) == "table" and r.learned == true and r.isDummyRecipe ~= true
             and (not inLine or call("IsRecipeInSkillLine", id, data.prof.id) ~= false) then
             local mats = Data.Materials(id)
-            local recipe = { id = id, name = str(r.name) or "", icon = r.icon, link = str(r.hyperlink),
+            local recipe = { id = id, name = str(r.name) or "", icon = r.icon, link = str(r.hyperlink), favorite = r.favorite == true,
                 difficulty = num(r.relativeDifficulty) or Data.TRIVIAL, skillUps = num(r.numSkillUps) or 0,
                 canSkillUp = r.canSkillUp ~= false, enchant = r.isEnchantingRecipe == true, verb = str(r.alternateVerb),
                 count = num(call("GetCraftableCount", id)) or 0, mats = mats, sub = Data.MaterialsLine(mats) }
             local cat = num(r.categoryID) and category(r.categoryID, cats) or nil
+            if recipe.favorite then cat = Data.FAVORITES end
             local key = cat and cat.id or 0
             local section = bySection[key]
             if not section then

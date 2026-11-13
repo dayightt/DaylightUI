@@ -1244,3 +1244,86 @@ T.test("craft: the picked recipe shows its range as a bar, your skill marked, an
     T.falsy(b:IsShown(), "no range known: no bar")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Favorites and tracking are the game's own lists (its list's right-click menu, its
+-- Track checkbox); the game's objective tracker shows tracked recipes, but Daylight
+-- UI's quest tracker takes its place, so a small panel of ours shows them then.
+local function rightClick(b) b:GetScript("OnClick")(b, "RightButton") end
+
+local function menu(fn)
+    local W = DaylightUI.Widgets
+    local was, got = W.OpenMenu, nil
+    W.OpenMenu = function(owner, keys, values, current, onPick, width, opts) got = { keys = keys, values = values, pick = onPick, opts = opts } end
+    fn()
+    W.OpenMenu = was
+    return got
+end
+
+T.test("craft: a favorite goes to the top under Favorites, through the game's own call", function()
+    local ns = load()
+    open(ns)
+    local got = menu(function() rightClick(ns.List.lines[103]) end)
+    T.truthy(got and got.opts and got.opts.atCursor, "a right-click menu at the mouse")
+    T.eq(got.values.favorite, BATTLE_PET_FAVORITE or "Set Favorite")
+    got.pick("favorite")
+    frame(5)
+    T.eq(PW.Calls("SetRecipeFavorite")[1][1], 103)
+    T.eq(heads(ns), "FAVORITES, MATERIALS, CLOTH ARMOR")
+    T.eq(string.match(names(ns), "^[^,]+"), "Brown Linen Shirt", "first in the list")
+    local again = menu(function() rightClick(ns.List.lines[103]) end)
+    T.eq(again.values.favorite, BATTLE_PET_UNFAVORITE or "Remove Favorite")
+    again.pick("favorite")
+    frame(5)
+    T.eq(heads(ns), "MATERIALS, CLOTH ARMOR", "back in its category")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: the recipe side's Favorite and Track links say what a click does and do it", function()
+    local ns = load()
+    DaylightUI.questsOwnTracker = true
+    open(ns)
+    ns.Window.Pick(102)
+    frame(10)
+    local acts = ns.Recipe.acts
+    T.truthy(acts and acts:IsShown())
+    T.eq(acts.track.text:GetText(), PROFESSIONS_TRACK_RECIPE or "Track Recipe")
+    acts.track:Click()
+    frame(5)
+    T.eq(PW.Calls("SetRecipeTracked")[1][1], 102)
+    T.eq(PW.Calls("SetRecipeTracked")[1][3], false, "not a recraft")
+    T.eq(ns.Recipe.acts.track.text:GetText(), PROFESSIONS_UNTRACK_RECIPE or "Untrack")
+    ns.Recipe.acts.fav:Click()
+    frame(5)
+    T.eq(PW.Calls("SetRecipeFavorite")[1][1], 102)
+    T.eq(heads(ns), "FAVORITES, MATERIALS, CLOTH ARMOR")
+    DaylightUI.questsOwnTracker = nil
+end)
+
+T.test("craft: tracked recipes show in a small panel of ours, have / need, only while the game's tracker is gone", function()
+    local ns = load({ tracked = { 101 } })
+    T.isnil(ns.Track.holder, "the game's tracker shows them: nothing of ours")
+    DaylightUI.questsOwnTracker = true
+    ns.Track.Fill()
+    frame(10)
+    local h = ns.Track.holder
+    T.truthy(h and h:IsShown(), "the panel")
+    T.eq(h:GetAlpha(), 1, "faded in")
+    T.eq(h.heads[1].text:GetText(), "Azure Silk Hood")
+    T.eq(h.mats[1].count:GetText(), "5 / 2", "what you hold, as the recipe side says"); T.eq(h.mats[1].name:GetText(), "Bolt of Silk Cloth")
+    T.rgb({ h.mats[1].count:GetTextColor() }, DaylightUI.Style.INK.GOOD, "enough: done")
+    T.eq(h.mats[2].count:GetText(), "3 / 2")
+    PW.SetBag(2321, 1)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    frame(3)
+    T.eq(h.mats[2].count:GetText(), "1 / 2", "the bags change, the count follows")
+    T.rgb({ h.mats[2].count:GetTextColor() }, { DaylightUI.Style.Accent() }, "short: a number that pops")
+    h.heads[1]:GetScript("OnClick")(h.heads[1], "LeftButton")
+    T.eq(PW.Calls("OpenRecipe")[1][1], 101, "a click opens the recipe")
+    local got = menu(function() h.heads[1]:GetScript("OnClick")(h.heads[1], "RightButton") end)
+    got.pick("untrack")
+    frame(20)
+    T.eq(PW.Calls("SetRecipeTracked")[1][2], false, "untracked")
+    T.falsy(h:IsShown(), "nothing tracked: the panel fades away")
+    DaylightUI.questsOwnTracker = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

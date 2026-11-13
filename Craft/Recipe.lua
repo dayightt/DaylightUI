@@ -228,6 +228,73 @@ function Recipe.Range(s, r)
     return b
 end
 
+-- Favorite and Track, quiet links under the recipe's name, in the game's own words.
+-- Each says what a click does next and changes as it's clicked.
+Recipe.ACTS_H = 20
+Recipe.ACTS_GAP = 16
+
+local function actWords(r)
+    local fav = r.favorite and (BATTLE_PET_UNFAVORITE or L["Remove Favorite"]) or (BATTLE_PET_FAVORITE or L["Set Favorite"])
+    local track = ns.Track.Is(r.id) and (PROFESSIONS_UNTRACK_RECIPE or L["Untrack"]) or (PROFESSIONS_TRACK_RECIPE or L["Track Recipe"])
+    return fav, track
+end
+
+function Recipe.PaintActs(b)
+    local r = b.recipe
+    if not r then return end
+    local fav, track = actWords(r)
+    local M = DUI.Motion
+    for _, pair in ipairs({ { b.fav, fav }, { b.track, track } }) do
+        local link, words = pair[1], pair[2]
+        if link.words ~= words then
+            if link.words and M then M.Fade(link.text, 0, 1, M.FAST) end
+            link.words = words
+            link.SetLabel(words)
+        end
+    end
+    b.track:ClearAllPoints()
+    if b.fav:IsShown() then
+        b.track:SetPoint("LEFT", b.fav, "RIGHT", Recipe.ACTS_GAP, 0)
+    else
+        b.track:SetPoint("LEFT", b, "LEFT", 0, 0)
+    end
+end
+
+local function makeActs(parent)
+    local W = DUI.Widgets
+    local b = CreateFrame("Frame", nil, parent)
+    b.fav = W.Link(b)
+    b.fav:SetPoint("LEFT", b, "LEFT", 0, 0)
+    b.fav:SetScript("OnClick", function()
+        local r = b.recipe
+        if not r then return end
+        r.favorite = not r.favorite
+        ns.List.Favorite(r, r.favorite)
+        Recipe.PaintActs(b)
+    end)
+    b.track = W.Link(b)
+    b.track:SetScript("OnClick", function()
+        local r = b.recipe
+        if not r then return end
+        ns.Track.Set(r.id, not ns.Track.Is(r.id))
+        Recipe.PaintActs(b)
+    end)
+    return b
+end
+
+function Recipe.Acts(s, r)
+    local D = ns.Data
+    local canFav, canTrack = D.CanFavorite(), D.CanTrack(r)
+    if not (canFav or canTrack) then return nil end
+    local b = s:Piece("acts", makeActs, Recipe.ACTS_H, 2, "acts")
+    b.recipe = r
+    b.fav:SetShown(canFav)
+    b.track:SetShown(canTrack)
+    Recipe.PaintActs(b)
+    Recipe.acts = b
+    return b
+end
+
 function Recipe.Build(pane)
     Recipe.pane = pane
     pane.stack = Win.Parts.Stack(pane, { top = 12, bottom = ns.Make.FOOT })
@@ -256,6 +323,7 @@ function Recipe.Fill(pane, r, keepScroll)
     s:Line({ recipe = r, icon = r.icon, text = r.name, color = name,
         sub = ns.Data.SkillWords(r.difficulty), subColor = ns.Data.Color(r.difficulty),
         value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip })
+    Recipe.Acts(s, r)
     Recipe.Range(s, r)
     local desc = call("GetRecipeDescription", r.id, {})
     if type(desc) == "string" and not secret(desc) and desc ~= "" then

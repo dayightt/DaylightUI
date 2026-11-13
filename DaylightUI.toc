@@ -153,6 +153,7 @@ Craft\Recipe.lua
 Craft\Make.lua
 Craft\View.lua
 Craft\Key.lua
+Craft\Track.lua
 Craft\Window.lua
 Craft\Options.lua
 Craft\Module.lua

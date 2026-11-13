@@ -20,7 +20,8 @@ List.EDGE = 12
 List.TOP = 76         -- height of search and chips
 List.SEARCH_Y = 10    -- search row (Rarity colors beside it)
 List.CHIPS_Y = 46     -- chip row (a second row below when Slot doesn't fit)
-List.EVENTS = { "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "NEW_RECIPE_LEARNED", "GET_ITEM_INFO_RECEIVED" }
+List.EVENTS = { "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "NEW_RECIPE_LEARNED", "GET_ITEM_INFO_RECEIVED",
+    "TRADE_SKILL_FAVORITES_CHANGED", "TRACKED_RECIPE_UPDATE" }
 List.ITEM_WAIT = 0.2  -- s to let item info settle before re-reading the list
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -114,6 +115,33 @@ end
 
 List.Tip = tooltip   -- also used by the small view window (View.lua)
 
+-- Right-click: favorite and track, the game's own words.
+function List.Menu(b)
+    local r = b.lineSpec and b.lineSpec.recipe
+    if not r then return end
+    local D, T = ns.Data, ns.Track
+    local keys, values = {}, {}
+    if D.CanFavorite() then
+        keys[#keys + 1] = "favorite"
+        values.favorite = r.favorite and (BATTLE_PET_UNFAVORITE or L["Remove Favorite"]) or (BATTLE_PET_FAVORITE or L["Set Favorite"])
+    end
+    if D.CanTrack(r) then
+        keys[#keys + 1] = "track"
+        values.track = T.Is(r.id) and (PROFESSIONS_UNTRACK_RECIPE or L["Untrack"]) or (PROFESSIONS_TRACK_RECIPE or L["Track Recipe"])
+    end
+    if #keys == 0 then return end
+    DUI.Widgets.OpenMenu(b, keys, values, nil, function(k)
+        if k == "favorite" then List.Favorite(r, not r.favorite) else T.Set(r.id, not T.Is(r.id)) end
+    end, nil, { atCursor = true })
+end
+
+-- The game says when a favorite changed (TRADE_SKILL_FAVORITES_CHANGED); the list is
+-- read again then, and the row glides to its new place.
+function List.Favorite(r, on)
+    ns.Data.SetFavorite(r.id, on)
+    List.Soon()
+end
+
 local function onClick(b)
     local r = b.lineSpec and b.lineSpec.recipe
     if not r then return end
@@ -170,7 +198,7 @@ function List.Line(s, recipe, picked)
     local c = ns.Data.NameColor(recipe, ns.Setting("rarityNames") == true)
     local b = s:Line({ recipe = recipe, icon = recipe.icon, text = recipe.name, color = c,
         sub = recipe.sub, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
-        picked = picked, onClick = onClick, tooltip = tooltip, id = "recipe:" .. tostring(recipe.id) })
+        picked = picked, onClick = onClick, onRightClick = List.Menu, tooltip = tooltip, id = "recipe:" .. tostring(recipe.id) })
     List.PaintChance(b, recipe)
     local was = List.colors[recipe.id]
     List.colors[recipe.id] = c
