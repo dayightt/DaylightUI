@@ -685,6 +685,14 @@ function ns.HealthWake(unit)
     return DUI:Get("UnitFrames", unit .. ".fade.fullHealth") == true
 end
 
+-- Each standalone power bar's unlock handle: its name and first spot. The
+-- target's and focus's start just under their frame, clear of a cast bar there.
+local POWER_MOVERS = {
+    player = { "Player Power Bar", { "BOTTOM", nil, "BOTTOM", 0, 215 } },
+    target = { "Target Power Bar", { "TOP", "DaylightUIFrame_target", "BOTTOM", 0, -14 } },
+    focus = { "Focus Power Bar", { "TOP", "DaylightUIFrame_focus", "BOTTOM", 0, -14 } },
+}
+
 function ns.Build(mod)
     ns.module = mod
     ns.MigrateText(mod.db)
@@ -702,10 +710,12 @@ function ns.Build(mod)
             DUI.Movers.Register(f, f.moverKey, spec.label, spec.default)
             local list = { f }   -- requested ten times a second, so reuse one table
             f.pieces = list      -- and these share the frame's strata (ns.ApplyStrata)
-            if spec.unit == "player" and f.power then
+            if ns.PowerBar.FREE[spec.unit] and f.power then
                 -- Its standalone power bar, when used (fades with the frame).
                 list[2] = ns.PowerBar.Create(f)
-                DUI.Movers.Register(list[2], ns.PowerBar.KEY, "Player Power Bar", { "BOTTOM", nil, "BOTTOM", 0, 215 })
+                DUI.Movers.Register(list[2], ns.PowerBar.KeyFor(spec.unit), POWER_MOVERS[spec.unit][1], POWER_MOVERS[spec.unit][2])
+            end
+            if spec.unit == "player" and f.power then
                 -- A druid's other powers (also fade with the frame).
                 local druid = ns.DruidBars.Create(f)
                 list[#list + 1] = druid

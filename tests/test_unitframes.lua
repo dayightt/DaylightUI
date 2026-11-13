@@ -961,6 +961,41 @@ T.test("the player's power bar can stand on its own, with its own size and end, 
     T.truthy(inside:IsShown())
 end)
 
+T.test("the target's and focus's power bars can stand on their own, each with its own handle", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    for _, unit in ipairs({ "target", "focus" }) do
+        local f = ns.frames[unit]
+        local inside, bar = f.power, _G["DaylightUIPowerBar_" .. unit]
+        T.truthy(bar, unit .. ": built with the frame")
+        local key = ns.PowerBar.KeyFor(unit)
+        T.truthy(key ~= ns.PowerBar.KEY, "its own mover, not the player's")
+        T.eq(DUI.Movers.Get(key).frame, bar)
+        T.truthy(DUI.Movers.Get(key).suspended, "no handle while inside")
+        stub.units[unit] = { name = "Mob", reaction = 2, health = 50, maxHealth = 100, powerToken = "MANA", power = 30, maxPower = 100 }
+        stub.FireEvent(unit == "target" and "PLAYER_TARGET_CHANGED" or "PLAYER_FOCUS_CHANGED")
+        DUI:Set("UnitFrames", unit .. ".powerAt", "free")
+        DUI:Set("UnitFrames", unit .. ".powerWidth", 220)
+        stub.RunTimers()
+        T.truthy(bar:IsShown(), unit .. ": on its own")
+        T.falsy(DUI.Movers.Get(key).suspended)
+        T.eq(f.power, bar.set.power, "updates go to the free bar")
+        T.falsy(inside:IsShown(), "the frame's own bar is gone")
+        T.near(bar:GetWidth(), 220, 1)
+        T.eq(bar.set.power.__value, 30, "filled at once")
+        local list = f.pieces
+        T.eq(list[#list] == bar or list[2] == bar, true, "it fades with the frame")
+        f:Hide()
+        T.falsy(bar:IsShown(), "gone with the frame when there's no " .. unit)
+        f:Show()
+        T.truthy(bar:IsShown(), "back with it")
+        DUI:Set("UnitFrames", unit .. ".powerAt", "inside")
+        stub.RunTimers()
+        T.falsy(bar:IsShown(), "back inside")
+        T.eq(f.power, inside)
+    end
+end)
+
 T.test("with the power bar on its own, the hung cast bar and swing bars still line up under the frame", function()
     local DUI, ns = stub.Load({ module = true })
     stub.RunTimers()

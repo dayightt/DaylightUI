@@ -1,8 +1,9 @@
 -- A frame's power bar placed outside the frame, in two ways.
--- The player's free bar (player.powerAt = "free"): a separate bar on its own
--- mover, with its own width and angled end. Its height is the frame's
--- powerHeight plus the border. It's not secure and not anchored to the player
--- frame, so it shows, moves and fades like any other addon frame.
+-- The free bar (<unit>.powerAt = "free", player, target and focus): a separate
+-- bar on its own mover, with its own width and angled end. Its height is the
+-- frame's powerHeight plus the border. It's not secure and not anchored to the
+-- frame, so it shows, moves and fades like any other addon frame; the target's
+-- and focus's show and hide with their frame.
 -- Ribbon's line (Ribbon style, UF.StyleOf): a thin bar hung under the frame at
 -- the same width, with a gap, its angled end continuing the frame's edge. It's
 -- a child of the frame, so it fades and hides with it.
@@ -18,6 +19,10 @@ local PB = {}
 ns.PowerBar = PB
 
 PB.KEY = "unitframes.playerPower"
+-- The frames whose power bar can stand on its own, and each one's mover.
+PB.FREE = { player = PB.KEY, target = "unitframes.targetPower", focus = "unitframes.focusPower" }
+
+function PB.KeyFor(unit) return PB.FREE[unit] end
 PB.FIELDS = { "power", "powerText", "altMana", "cost", "costHolder" }
 
 -- The frame's own pieces to point back at, saved once before any swap.
@@ -54,12 +59,19 @@ end
 
 function PB.Create(f)
     keepInside(f)
-    local h = CreateFrame("Frame", "DaylightUIPowerBar_player", UIParent)
+    local unit = f.spec.unit
+    local h = CreateFrame("Frame", "DaylightUIPowerBar_" .. unit, UIParent)
     Style.Shell(h)
     Style.Slant(h, nil, 0)
     h.set = makeSet(h, f)
+    h.key = PB.FREE[unit]
     f.freePower = h
     h:Hide()
+    if unit ~= "player" then
+        -- The target and focus come and go: the bar goes with its frame.
+        f:HookScript("OnShow", function() if h.want then h:Show() end end)
+        f:HookScript("OnHide", function() h:Hide() end)
+    end
     return h
 end
 
@@ -82,7 +94,7 @@ end
 -- free bar) only reads the choice.
 function PB.Pick(f, cfg)
     local where = "inside"
-    if f.spec.unit == "player" and cfg.powerAt == "free" then
+    if f.freePower and cfg.powerAt == "free" then
         where = "free"
     elseif f.ribbon then
         where = "line"
@@ -103,7 +115,10 @@ function PB.Pick(f, cfg)
         end
         f.separator:Hide()
     end
-    if f.freePower then DUI.Movers.Suspend(PB.KEY, where ~= "free" or not ns.UF.ShowsPower(cfg)) end
+    if f.freePower then
+        f.freePower.want = where == "free" and ns.UF.ShowsPower(cfg)
+        DUI.Movers.Suspend(f.freePower.key, not f.freePower.want)
+    end
     return where
 end
 
@@ -113,16 +128,16 @@ function PB.Layout(f, cfg, text)
     local UF, h = ns.UF, f.freePower
     if not h then return end
     local show = cfg.enabled ~= false and UF.ShowsPower(cfg)
-    h:SetScale(DUI.Movers.Scale(PB.KEY))
+    h:SetScale(DUI.Movers.Scale(h.key))
     local T = Pixel.Px(h, Style.BorderPx(h))
     local H = Pixel.Snap(h, cfg.powerHeight) + 2 * T
-    h:SetSize(2 * Pixel.Snap(h, (tonumber(cfg.powerWidth) or 187) / 2), H)
+    h:SetSize(2 * Pixel.Snap(h, (tonumber(cfg.powerWidth) or tonumber(cfg.width) or 187) / 2), H)
     local side = cfg.powerSlant ~= false and f.spec.slant or nil
     local cut = side and Pixel.Snap(h, H * UF.SLANT) or 0
     Style.Slant(h, side, cut)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
     -- the frame's spec (which side is angled), this bar's cut, and its mover.
-    h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, PB.KEY
+    h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, h.key
     local p = h.set.power
     p:ClearAllPoints()
     p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
@@ -130,7 +145,8 @@ function PB.Layout(f, cfg, text)
     p:Show()
     Style.AngleFill(p, not f.flipped and side or nil, cut * (H - 2 * T) / H)
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
-    h:SetShown(show)
+    h.want = show
+    h:SetShown(show and (f.spec.unit == "player" or f:IsShown()))
     if show and not f.test and type(f.unitToken) == "string" and UnitExists(f.unitToken) then
         UF.UpdatePower(f, true)
     end
