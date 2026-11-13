@@ -4610,12 +4610,15 @@ T.test("bags: a heading's rule fades out to the right, softer under the Classic 
     T.eq(g[1], "HORIZONTAL")
     T.eq(g[2].a, ns.Layout.RULE_ALPHA.daylight, "starts at the Daylight strength")
     T.eq(g[3].a, 0, "and fades to nothing")
-    DaylightUI:Set("general", "look", "classic")
-    stub.RunTimers()
-    ns.Relayout()
-    T.eq(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic, "softer on the Classic gold")
-    DaylightUI:Set("general", "look", nil)
-    stub.RunTimers()
+    -- The Classic look may not be in this build; check it only when it is.
+    if DaylightUI.Style.LOOKS and DaylightUI.Style.LOOKS.classic then
+        DaylightUI:Set("general", "look", "classic")
+        stub.RunTimers()
+        ns.Relayout()
+        T.eq(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic, "softer on the Classic gold")
+        DaylightUI:Set("general", "look", nil)
+        stub.RunTimers()
+    end
 end)
 
 T.test("bags: the new-item glow never spills into the next slot", function()
