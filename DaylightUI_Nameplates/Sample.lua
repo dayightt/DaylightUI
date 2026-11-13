@@ -72,7 +72,7 @@ Sample.ENEMY = {
     name = "Sadeas", key = "HOSTILE", reaction = 2, level = 27, classification = "elite", health = 62, healthValue = 3120,
     heals = 8, absorbs = 6, dots = 24, marker = 8, quest = "4/10", combo = 3,
     power = 70, powerToken = "MANA", -- a caster, so the power bar shows whatever its setting
-    cast = { text = L["Shadow Bolt"], icon = I .. "Spell_Shadow_ShadowBolt", value = 0.35, time = "1.4" },
+    cast = { text = L["Shadow Bolt"], icon = I .. "Spell_Shadow_ShadowBolt", value = 0.35, time = "1.4", kick = 0.7 },
     debuffs = {
         { icon = I .. "Spell_Shadow_ShadowWordPain", time = "14s", dispel = "Magic" },
         { icon = I .. "Spell_Shadow_CurseOfSargeras", time = "22s", dispel = "Curse" },

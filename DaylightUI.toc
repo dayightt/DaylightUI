@@ -40,6 +40,7 @@ Pad.lua
 Media.lua
 Health.lua
 Threat.lua
+Interrupt.lua
 Spots.lua
 Dots.lua
 DotsDraw.lua

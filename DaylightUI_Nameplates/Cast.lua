@@ -62,6 +62,8 @@ function Cast.Create(p)
     -- Toggled through alpha only. A texture's vertex color alpha and SetAlpha are the
     -- same number, so a clear color followed by SetAlpha(1) left every cast bar white.
     c.light:SetAlpha(0)
+    -- Where your interrupt comes off cooldown (castKickMark), under the texts.
+    c.kickMark = DUI.Interrupt.NewMark(c.bar)
     c:Hide()
     p.cast = c
     -- The kick animation (Motion.Kick) and the interrupter's name live on the plate,
@@ -284,7 +286,7 @@ function Cast.Update(p)
     if not duration then return Cast.Stop(p) end
     if p.castStale then Cast.Layout(p, p.hpCut) end
     c.token = (c.token or 0) + 1
-    c.duration = duration
+    c.duration, c.channel = duration, channel
     local dir = Enum.StatusBarTimerDirection
     c.bar:SetTimerDuration(duration, Enum.StatusBarInterpolation.Immediate,
         channel and dir.RemainingTime or dir.ElapsedTime)
@@ -293,11 +295,27 @@ function Cast.Update(p)
     c.time:Show()
     Cast.Unkick(p)
     paintFill(c, channel)
+    Cast.UpdateKickMark(c)
     c.leaving = nil
     DUI.Motion.AlphaTo(c, 1, 0) -- immediately, ending any fade-out in progress
     startTime(c)
     ns.Plate.Dim(p)
 end
+
+-- Your interrupt's ready mark on a running cast (castKickMark, on by default).
+-- fade: the cooldown changed mid-cast.
+function Cast.UpdateKickMark(c, fade)
+    if ns.cfg.castKickMark == false or not c.duration then
+        DUI.Interrupt.HideMark(c.kickMark)
+        return
+    end
+    DUI.Interrupt.ShowMark(c.kickMark, c.duration, c.channel, fade)
+end
+
+-- Your interrupt went on or came off cooldown (or changed): the bars casting now.
+DUI.On("InterruptChanged", function()
+    for c in pairs(casting) do DUI.SafeCall(Cast.UpdateKickMark, c, true) end
+end)
 
 -- Options preview (Sample.lua): a cast frozen partway, painted like a real one
 -- (s: { text, icon, value 0-1, time }), or nil for none.
@@ -313,6 +331,14 @@ function Cast.ShowSample(p, s)
     c.duration = nil
     c.bar:SetMinMaxValues(0, 1)
     c.bar:SetValue(s.value)
+    -- Your interrupt back a little before the cast ends.
+    local m = c.kickMark
+    if ns.cfg.castKickMark ~= false and s.kick then
+        DUI.Interrupt.PlaceMark(m, 0, 1, s.kick, false)
+        DUI.Motion.AlphaTo(m.clip, 1, 0)
+    else
+        DUI.Interrupt.HideMark(m)
+    end
     c.text:SetText(s.text)
     c.icon:SetTexture(s.icon)
     c.time:SetText(s.time)
@@ -340,6 +366,7 @@ function Cast.Stop(p, snap)
     local c = p.cast
     c.duration = nil
     stopTime(c)
+    DUI.Interrupt.HideMark(c.kickMark)
     if snap or not c:IsShown() then
         c.leaving = nil
         DUI.Motion.AlphaTo(c, 0, 0, true)
@@ -362,6 +389,7 @@ function Cast.Interrupted(p)
     c.leaving = nil
     c.duration = nil
     stopTime(c)
+    DUI.Interrupt.HideMark(c.kickMark)
     c.token = (c.token or 0) + 1
     local mine = c.token
     c.bar:SetMinMaxValues(0, 1)

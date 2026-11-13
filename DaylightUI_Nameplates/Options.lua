@@ -468,6 +468,8 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.FontRow("media.castFont", "Cast bar font", "The spell name and time on the cast bars"),
         } },
         { label = "Interrupts", items = {
+            { type = "toggle", key = "castKickMark", label = "Interrupt ready mark", since = "1.7.2",
+              desc = "While your interrupt is on cooldown, a thin line on an enemy's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
             { type = "dropdown", key = "kickStyle", label = "Interrupt animation",
               values = DaylightUI.Motion.KICK_NAMES, order = DaylightUI.Motion.KICKS,
               onPick = function() ns.Cast.PlaySample() end,

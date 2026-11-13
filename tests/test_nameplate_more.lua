@@ -135,3 +135,114 @@ T.test("nameplates: plate size by threat in a boss fight, where the numbers are 
     stub.inGroup = false
     stub.role = nil
 end)
+
+-- Your interrupt: Pummel known, berserker stance, its cooldown per test.
+local function kicker(cd)
+    stub.knownSpells[6552] = true
+    _G.GetShapeshiftForm = function() return 3 end
+    _G.C_Spell.GetSpellCooldown = function(id)
+        return { isActive = cd.on == true, isOnGCD = cd.gcd, isEnabled = true, startTime = 0, duration = 0 }
+    end
+    _G.C_Spell.GetSpellCooldownDuration = function(id) return cd.d end
+end
+
+local function span(from, to, secret)
+    local d = C_DurationUtil.CreateDuration()
+    if secret then d:SetTimeSpan(stub.Secret(from), stub.Secret(to)) else d:SetTimeSpan(from, to) end
+    return d
+end
+
+T.test("DUI.Interrupt: your class's interrupt, by rank and stance", function()
+    login()
+    local I = DaylightUI.Interrupt
+    stub.knownSpells = {}
+    stub.knownSpells[6552], stub.knownSpells[6554] = true, true
+    stub.knownSpells[72] = true
+    _G.GetShapeshiftForm = function() return 3 end
+    stub.FireEvent("SPELLS_CHANGED")
+    T.eq(I.Spell(), 6554, "berserker: the highest Pummel")
+    _G.GetShapeshiftForm = function() return 2 end
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM")
+    T.eq(I.Spell(), 72, "defensive: Shield Bash")
+    _G.GetShapeshiftForm = function() return 1 end
+    stub.knownSpells[72] = nil
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM")
+    T.isnil(I.Spell(), "battle stance with no Shield Bash: none")
+    T.isnil(I.Ready(), "no interrupt: no answer")
+    stub.knownSpells = {}
+    _G.GetShapeshiftForm = nil
+end)
+
+T.test("nameplates: the interrupt mark sits where your interrupt comes back, only while it's on cooldown", function()
+    local NP = login()
+    local cd = { on = true }
+    kicker(cd)
+    stub.FireEvent("SPELLS_CHANGED")
+    T.eq(NP.DEFAULTS.castKickMark, true, "on as shipped")
+    local p = added("nameplate1")
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1)
+    stub.units.nameplate1.cast = { name = "Fireball", texture = 1, duration = span(now, now + 3) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    local m = p.cast.kickMark
+    T.truthy(m.clip:IsShown(), "on cooldown: the mark shows")
+    local lo, hi = m.probe:GetMinMaxValues()
+    T.eq(stub.Plain(lo), now, "over the cast's span (the cast's times are always secret)")
+    T.eq(stub.Plain(hi), now + 3)
+    T.eq(stub.Plain(m.probe:GetValue()), now + 1, "at the moment it's ready")
+    T.eq(m.clip:GetNumPoints(), 4, "clipped to the part still to come")
+    -- Ready now: no mark.
+    cd.on = false
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.falsy(m.clip:IsShown(), "ready: gone")
+    -- Only the global cooldown: ready too.
+    cd.on, cd.gcd = true, true
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.falsy(m.clip:IsShown(), "the global cooldown alone: no mark")
+    cd.gcd = nil
+    -- Off: never.
+    DaylightUI:Set("Nameplates", "castKickMark", false)
+    stub.RunTimers()
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.falsy(m.clip:IsShown(), "switched off")
+    DaylightUI:Set("Nameplates", "castKickMark", true)
+    stub.RunTimers()
+    -- The cast ends: the mark goes with it.
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.truthy(m.clip:IsShown())
+    stub.units.nameplate1.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "nameplate1")
+    stub.RunTimers()
+    T.falsy(m.clip:IsShown(), "cast over: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.knownSpells = {}
+end)
+
+T.test("nameplates: the interrupt mark in a boss fight, every time secret, is placed without touching them", function()
+    login()
+    local cd = { on = true }
+    kicker(cd)
+    stub.FireEvent("SPELLS_CHANGED")
+    local p = added("nameplate1")
+    stub.EnterCombat()
+    stub.SetRestriction("Encounter", true)
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1, true)
+    stub.units.nameplate1.cast = { name = "Fireball", texture = 1, duration = span(now, now + 3, true) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate1")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local m = p.cast.kickMark
+    T.truthy(m.clip:IsShown(), "shown")
+    T.eq(stub.Plain(m.probe:GetValue()), now + 1, "the secret end time went in whole")
+    -- Channels drain: the mark comes from the far end.
+    stub.units.nameplate1.cast = nil
+    stub.units.nameplate1.channel = { name = "Drain Life", texture = 1, duration = span(now, now + 3, true) }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "nameplate1")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(m.probe:GetReverseFill(), "a channel's mark counts from the other end")
+    stub.units.nameplate1.channel = nil
+    stub.SetRestriction("Encounter", false)
+    stub.LeaveCombat()
+    stub.knownSpells = {}
+end)
