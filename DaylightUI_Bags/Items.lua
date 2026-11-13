@@ -696,7 +696,7 @@ function Items.Fill(btn, tooltipOwner)
     call(btn, "CheckUpdateTooltip", tooltipOwner)
     -- The addon's search decides (the game's own name search is kept empty).
     local w = windowOf(btn)
-    call(btn, "SetMatchesSearch", ns.Search.Matches(bag, slot, info, w and w.match, quest))
+    call(btn, "SetMatchesSearch", Items.Fits(bag, slot, info, w, quest))
 
     -- Keep the game's quality ring hidden (SetItemButtonQuality shows it).
     if type(btn.IconBorder) == "table" and btn.IconBorder.SetAlpha then btn.IconBorder:SetAlpha(0) end
@@ -752,16 +752,17 @@ end
 function Items.Match(btn)
     local holder = btn:GetParent()
     local bag, slot = holder and holder:GetID(), btn:GetID()
-    local w = windowOf(btn)
-    local info = Items.InfoAt(bag, slot)
-    local fits = ns.Search.Matches(bag, slot, info, w and w.match)
-    -- A chip dims what is outside its groups (in the categories view the layout
-    -- hides those instead).
-    if fits and w and w.chip and w.Setting("view") ~= "categories" then
-        local group = info and ns.Categories.Assign(ns.Categories.Facts(bag, slot, info))
-        fits = group ~= nil and ns.Window.InChip(w, group)
+    call(btn, "SetMatchesSearch", Items.Fits(bag, slot, Items.InfoAt(bag, slot), windowOf(btn)))
+end
+
+-- Whether a slot stands out: it matches the window's search and, in the grid view,
+-- sits in the picked chip's groups (the categories view hides those slots instead).
+function Items.Fits(bag, slot, info, w, quest)
+    local fits = ns.Search.Matches(bag, slot, info, w and w.match, quest)
+    if fits and info and w and w.chip and w.Setting("view") ~= "categories" then
+        fits = ns.Window.InChip(w, ns.Categories.Assign(ns.Categories.Facts(bag, slot, info)))
     end
-    call(btn, "SetMatchesSearch", fits)
+    return fits
 end
 
 -- The slot now holds something other than its last fill: the bag update arrived

@@ -501,23 +501,33 @@ function Window.PickChip(f, id, quiet)
     end
 end
 
-function Window.ChipsWidth(f)
-    local x = 0
-    for _, b in ipairs(f.chips or {}) do x = x + b:GetWidth() + DUI.Widgets.CHIP_GAP end
-    return math.max(x - DUI.Widgets.CHIP_GAP, 0)
+-- Places the chips in as many lines as the grid's width needs and moves the
+-- slots below them. Returns the chip block's height.
+function Window.LayoutChips(f, width)
+    local Wd = DUI.Widgets
+    local top = -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP)
+    local x, line = 0, 0
+    for _, b in ipairs(f.chips or {}) do
+        local bw = b:GetWidth()
+        if x > 0 and x + bw > width then x, line = 0, line + 1 end
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * (Wd.CHIP_HEIGHT + Wd.CHIP_GAP))
+        x = x + bw + Wd.CHIP_GAP
+    end
+    local h = (line + 1) * Wd.CHIP_HEIGHT + line * Wd.CHIP_GAP
+    f.items:ClearAllPoints()
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, top - h - Window.GAP)
+    return h
 end
 
 -- The chip row under the search, one W.Chip per CHIPS entry.
 function Window.Chips(f)
     f.chips = {}
-    local x = Window.EDGE
     for _, c in ipairs(Window.CHIPS) do
         local b = DUI.Widgets.Chip(f, CHIP_LABEL[c.id]())
         b.id = c.id
         b.FitWidth()
-        b:SetPoint("TOPLEFT", f, "TOPLEFT", x, -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP))
         b:SetScript("OnClick", function() Window.PickChip(f, c.id) end)
-        x = x + b:GetWidth() + DUI.Widgets.CHIP_GAP
         f.chips[#f.chips + 1] = b
     end
     Window.PaintChips(f)
@@ -692,9 +702,9 @@ function Window.Relayout(f, synced, moved)
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
     -- Header, tool row, slots and footer, a gap between each; the footer sits on the edge.
-    -- Never narrower than the chip row.
-    local W = math.max(w + E * 2, Window.ChipsWidth(f) + E * 2)
-    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + Window.CHIP_ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
+    local W = w + E * 2
+    local chipH = Window.LayoutChips(f, w)
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + Window.GAP + h + Window.GAP + Window.FOOTER + E
     -- A fold (heading click) glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel

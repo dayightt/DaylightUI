@@ -4129,6 +4129,10 @@ T.test("bags: a chip shows only its groups in the categories view", function()
     T.eq(only.consumable, nil)
     local weapon = ns.Bags.buttons[0][1]
     T.truthy(not weapon:IsShown() or (f.fading and f.fading[weapon]), "the rare weapon's slot hides (or fades out)")
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.eq(weapon:IsShown(), false, "once the fade ends it is hidden and takes no clicks")
     T.eq(ns.Bags.buttons[0][2]:IsShown(), true, "the gray one shows")
     W.PickChip(f, "all")
     stub.RunTimers()
@@ -4153,6 +4157,27 @@ T.test("bags: a chip dims the rest in the grid view", function()
     ns.Window.MatchAll(f)
     T.eq(seen[B.buttons[0][2]], false, "a search on top narrows further")
     f.match = nil
+    -- A refill (loot, a bag update) keeps the chip's dimming.
+    ns.Window.MatchAll(f)
+    world.items[0][1].hyperlink = "|Hitem:1|h"
+    ns.Items.Fill(B.buttons[0][1])
+    T.eq(seen[B.buttons[0][1]], false, "a refilled non-junk slot stays dimmed")
+end)
+
+T.test("bags: the chip row wraps when the grid is narrower than the chips", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    DaylightUI:Set("Bags", "columns", 3)
+    local f = open(ns)
+    ns.Relayout()
+    local first, last = f.chips[1], f.chips[#f.chips]
+    local _, _, _, _, y1 = first:GetPoint(1)
+    local _, _, _, _, y2 = last:GetPoint(1)
+    T.truthy(y2 < y1, "the last chip is on a second line")
+    DaylightUI:Set("Bags", "columns", 14)
+    ns.Relayout()
+    _, _, _, _, y2 = last:GetPoint(1)
+    T.eq(y2, y1, "one line when the grid is wide")
 end)
 
 T.test("bags: chips reset when the bag closes, and a chip in combat lays out nothing protected", function()
@@ -4167,4 +4192,8 @@ T.test("bags: chips reset when the bag closes, and a chip in combat lays out not
     stub.EnterCombat()
     ns.Window.PickChip(f, "quest")
     T.eq(#stub.errors, 0)
+    T.eq(f.chip, "quest", "the pick is kept in combat")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(headingsShown(f).weapon, nil, "the filter applies once combat ends")
 end)
