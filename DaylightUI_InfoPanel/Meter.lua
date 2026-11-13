@@ -267,8 +267,16 @@ function Meter.Amount(src, md, cfg, total, seconds)
     return SHAPES[#pieces], pieces[1], pieces[2], pieces[3]
 end
 
--- A row's name and amount colors: each in the player's class color
--- (cfg.classText), else the name in cfg.nameColor and the amount white.
+-- The color of a row's name: the player's class color with nameColorBy
+-- "class", else the picked nameColor. An unknown or secret class reads white.
+function Meter.NameColor(token, cfg)
+    if cfg.nameColorBy == "class" then return Style.ClassTextColor(token) end
+    local nc = type(cfg.nameColor) == "table" and cfg.nameColor or Meter.WHITE
+    return nc[1], nc[2], nc[3]
+end
+
+-- A row's name and amount colors: both in the player's class color
+-- (cfg.classText), else the name by Meter.NameColor and the amount white.
 function Meter.PaintText(row, token, cfg)
     if cfg.classText == true then
         local r, g, b = Style.ClassTextColor(token)
@@ -276,8 +284,7 @@ function Meter.PaintText(row, token, cfg)
         row.amount:SetTextColor(r, g, b)
         return
     end
-    local nc = type(cfg.nameColor) == "table" and cfg.nameColor or Meter.WHITE
-    row.name:SetTextColor(nc[1], nc[2], nc[3])
+    row.name:SetTextColor(Meter.NameColor(token, cfg))
     local v = Style.INK.VALUE
     row.amount:SetTextColor(v[1], v[2], v[3])
 end

@@ -32,8 +32,10 @@ ns.DEFAULTS = {
               inGroup = false, inCombat = false, inInstance = false, onJoin = "nothing", onInstance = "ask",
               detached = false, height = 196, border = true,   -- border of the detached window
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, textSize = 11,
-              nameColor = { 1, 1, 1 },
-              -- classText colors names and numbers by class, overriding nameColor.
+              -- nameColorBy: "custom" paints names in nameColor, "class" in
+              -- each player's class color. classText colors names and numbers
+              -- by class, overriding both.
+              nameColor = { 1, 1, 1 }, nameColorBy = "custom",
               -- trackAlpha is the opacity of each bar's empty part (0 = fill only).
               -- alphaOwn / alpha give the detached window its own background opacity.
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
@@ -76,7 +78,7 @@ ns.DEFAULTS = {
     -- barColor: class | threat (colored by how close each row is) | custom.
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
-               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
+               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 }, nameColorBy = "custom",
                pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always", angled = true,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks

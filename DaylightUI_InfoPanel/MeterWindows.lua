@@ -22,7 +22,7 @@ Windows.TEMPLATE = {
     meter = { enabled = true, name = "", mode = "damage", session = "current",
               inGroup = false, inCombat = false, inInstance = false,
               width = 207, height = 196, border = true, rowHeight = 22, textSize = 11,
-              barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
+              barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 }, nameColorBy = "custom",
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
               rank = false, icons = "class", showTotal = true, showRate = true, showShare = true, showMe = true,
               rowGap = 1, header = "always", headerTotal = false, angled = true },
@@ -31,7 +31,7 @@ Windows.TEMPLATE = {
     -- your target's target). The rest as the threat meter's own.
     threat = { enabled = true, name = "", auto = "group", unit = "target", header = "always",
                rows = 6, rowHeight = 16, textSize = 10, width = 170, border = true, alphaOwn = false, alpha = 0.85,
-               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
+               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 }, nameColorBy = "custom",
                trackAlpha = 0.35, angled = true, pullLine = true, pullColor = { DUI.Style.INK.BAD[1], DUI.Style.INK.BAD[2], DUI.Style.INK.BAD[3] } },
     -- columns: which numbers it shows; sort / sortDesc: by which.
     summary = { enabled = true, name = "", session = "current", inGroup = false, inCombat = false, inInstance = false,

@@ -194,7 +194,6 @@ function View.Draw(v, cfg, data, secret, pull, top, mob, mobUnit, geo, snap)
     else
         v.yours:SetText("")
     end
-    local nc = type(cfg.nameColor) == "table" and cfg.nameColor or ns.Meter.WHITE
     for i, row in ipairs(v.rows) do
         local e = i <= count and data[i] or nil
         local on = e ~= nil
@@ -204,7 +203,7 @@ function View.Draw(v, cfg, data, secret, pull, top, mob, mobUnit, geo, snap)
         end
         if e then
             paintBar(row, e, cfg)
-            row.name:SetTextColor(nc[1], nc[2], nc[3])
+            row.name:SetTextColor(ns.Meter.NameColor(e.class, cfg))
             ns.Rows.SetMine(row, e.me == true)
             -- The tank's mark (plain: against a boss the rows come by role instead).
             local tank = not isSecret(e.tank) and e.tank == true

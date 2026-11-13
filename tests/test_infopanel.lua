@@ -2213,6 +2213,23 @@ T.test("info panel: the meter's names and numbers in class colors, bars with no 
     DUI:Set("InfoPanel", "meter.trackAlpha", 1)
 end)
 
+T.test("info panel: the meter's names alone in class colors, the numbers left as they are", function()
+    local DUI = login()
+    local M, Style = stub.infopanel.Meter, DUI.Style
+    stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 2640 },
+                           { name = "Nobody", classFilename = nil, totalAmount = 10 } }
+    DUI:Set("InfoPanel", "meter.nameColor", { 1, 0.5, 0 })
+    DUI:Set("InfoPanel", "meter.nameColorBy", "class")
+    M.Draw()
+    T.rgb(bars()[1].name.__textColor, { Style.ClassTextColor("MAGE") }, "the name in its class color")
+    T.rgb(bars()[1].amount.__textColor, Style.INK.VALUE, "the number keeps its color")
+    T.rgb(bars()[2].name.__textColor, Style.INK.VALUE, "no class known: white")
+    DUI:Set("InfoPanel", "meter.nameColorBy", "custom")
+    M.Draw()
+    T.rgb(bars()[1].name.__textColor, { 1, 0.5, 0 }, "back to the picked color")
+    DUI:Set("InfoPanel", "meter.nameColor", { 1, 1, 1 })
+end)
+
 T.test("info panel: a meter's own window can have its own background", function()
     local DUI = login()
     local P = stub.infopanel.Panel
@@ -2259,7 +2276,7 @@ T.test("options: the info panel is split into tabs and every setting has one hom
         -- Every window's own (the Meters page edits the one picked):
         "win.enabled", "win.mode", "win.session", "win.width", "win.height", "win.inGroup", "win.inCombat", "win.inInstance",
         "win.border", "win.rowHeight", "win.rowGap", "win.textSize", "win.barColor", "win.gradient", "win.barCustom",
-        "win.nameColor", "win.classText", "win.trackAlpha", "win.alphaOwn", "win.alpha", "win.rank", "win.icons",
+        "win.nameColor", "win.nameColorBy", "win.classText", "win.trackAlpha", "win.alphaOwn", "win.alpha", "win.rank", "win.icons",
         "win.showTotal", "win.showRate", "win.showShare", "win.showMe", "win.header", "win.headerTotal",
         "win.auto", "win.at", "win.unit", "win.rows", "win.belowRows", "win.pullLine", "win.pullColor",
         "win.columns.damage", "threat.fade.mode",

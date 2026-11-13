@@ -984,6 +984,25 @@ T.test("threat look: the header shows the mob and your percent, colored by how c
     stub.LeaveCombat(); stub.SetGroup(false)
 end)
 
+T.test("threat look: names in class colors on request, the percents left as they are", function()
+    local DUI = login()
+    local Style = DUI.Style
+    threatParty()
+    DUI:Set("InfoPanel", "threat.nameColorBy", "class"); stub.RunTimers()
+    local TM, v = threatOut()
+    local byName = {}
+    for _, r in ipairs(shownRows(v)) do byName[stub.Text(r.name)] = r end
+    local tank, mage = byName["Kaladin"], byName["Shallan"]
+    T.truthy(tank and mage, "both rows shown")
+    T.rgb(tank.name.__textColor, { Style.ClassTextColor("WARRIOR") }, "the tank's name in warrior colors")
+    T.rgb(mage.name.__textColor, { Style.ClassTextColor("MAGE") }, "the mage's in mage colors")
+    T.rgb(mage.amount.__textColor, Style.INK.VALUE, "the percent keeps its color")
+    DUI:Set("InfoPanel", "threat.nameColorBy", "custom"); stub.RunTimers()
+    TM.Draw()
+    T.rgb(mage.name.__textColor, { 1, 1, 1 }, "one color again")
+    stub.LeaveCombat(); stub.SetGroup(false)
+end)
+
 T.test("threat look: its own background opacity clears the window's background", function()
     local DUI = login()
     DUI:Set("InfoPanel", "threat.at", "free")
