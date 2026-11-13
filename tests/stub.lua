@@ -526,7 +526,7 @@ function Widget:SetThickness(n) self.__thickness = n end
 function Widget:GetThickness() return self.__thickness or 1 end
 -- Texture
 -- One picture at a time: an atlas replaces a color texture and the reverse.
-function Widget:SetAtlas(a) self.__atlas = a; self.__color = nil end
+function Widget:SetAtlas(a) self.__atlas = a; self.__texture = nil; self.__color = nil end
 function Widget:SetTexCoord(...) self.__texCoord = { ... } end
 function Widget:GetTexCoord() return unpack(self.__texCoord or { 0, 0, 0, 1, 1, 0, 1, 1 }) end
 -- Takes a secret cell, as in game; a missing one (plain or secret) errors.

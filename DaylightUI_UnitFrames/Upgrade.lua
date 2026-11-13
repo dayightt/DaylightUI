@@ -500,6 +500,13 @@ ns.UPGRADE_STEPS[17] = function(uf)
     casts.showName, casts.timer = nil, nil
 end
 
+-- 18: the per-type pet picture was removed. A profile that had it selected
+-- goes back to the color square.
+ns.UPGRADE_STEPS[18] = function(uf)
+    local pet = uf.pet
+    if type(pet) == "table" and pet.happinessLook == "family" then pet.happinessLook = "square" end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 function ns.UpgradeGroupFrames(p)
     if type(p) ~= "table" then return end

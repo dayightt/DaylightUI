@@ -43,6 +43,25 @@ T.test("each frame page's sample is its own frame, fitted to the room given", fu
     T.eq(#stub.errors, 0)
 end)
 
+T.test("the pet sample shows happiness while it's on, and design mode can move it", function()
+    local DUI, ns = load()
+    local s = sample(ns, "pet")
+    local found
+    for _, p in ipairs(s.Parts()) do
+        if p.label == "Pet happiness" then found = p end
+    end
+    T.truthy(found and found.region:IsVisible(), "shown in the preview")
+    T.eq(found.move.spotKey, "pet.happinessSpot")
+    T.eq(found.move.xKey, "pet.happinessX")
+    T.eq(found.move.yKey, "pet.happinessY")
+    T.eq(found.size.keys.s, "pet.happinessSize")
+    DUI:Set("UnitFrames", "pet.happiness", false)
+    s.Refresh(600, 120)
+    for _, p in ipairs(s.Parts()) do
+        T.falsy(p.label == "Pet happiness", "hidden while the switch is off")
+    end
+end)
+
 T.test("every part showing leads to settings its page has", function()
     local DUI, ns = load()
     for _, id in ipairs(SINGLE) do

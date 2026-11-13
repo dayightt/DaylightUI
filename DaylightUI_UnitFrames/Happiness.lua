@@ -1,10 +1,13 @@
--- A hunter pet's happiness beside the pet frame. Either a square filled with
--- the mood's color (happinessLook "square", the default, readable at any size)
--- or the game's mood face from PetHappiness.lua edged in that color. Red is
--- unhappy, yellow content, green happy (a happy pet does more damage and gains
--- loyalty). Placed like the corner icons via happinessSpot/X/Y, sized by
--- happinessSize. The tooltip mirrors the game's own indicator: mood, damage,
--- loyalty gain or loss, and diet. Hunter pets only.
+-- A hunter pet's happiness beside the pet frame. Two looks
+-- (pet.happinessLook): a square filled with the mood's color ("square", the
+-- default, readable at any size) or the game's mood face ("icon"). Red is
+-- unhappy, yellow content, green happy (a happy pet does more damage and
+-- gains loyalty). The square keeps the frame's own edge. The mood face sits
+-- on its own, with no box around it. Placed
+-- like the corner icons via happinessSpot/X/Y, sized by happinessSize. The
+-- tooltip mirrors the game's own indicator: mood, damage, loyalty gain or
+-- loss, and diet. Hunter pets only. The character window's pet page keeps
+-- the game's face.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -14,6 +17,15 @@ local Happiness = {}
 ns.Happiness = Happiness
 
 Happiness.ATLAS = { "UI-PetMad", "UI-PetNeutral", "UI-PetHappiness" }
+-- The old pet-happiness sheet is three faces in its top band. A client that
+-- hands that whole sheet back as one atlas shows a sliced face unless these
+-- coordinates pick one.
+Happiness.SHEET = "Interface\\PetPaperDollFrame\\UI-PetHappiness"
+Happiness.SHEET_COORD = {
+    { 0.375, 0.5625, 0, 0.359375 },
+    { 0.1875, 0.375, 0, 0.359375 },
+    { 0, 0.1875, 0, 0.359375 },
+}
 Happiness.COLORS = {
     [1] = { 0.9, 0.25, 0.22 },     -- unhappy
     [2] = { 1.0, 0.82, 0.25 },     -- content
@@ -79,7 +91,8 @@ function Happiness.Layout(h, cfg)
     if not h then return end
     h.enabled = cfg.happiness == true
     h.tint = cfg.happinessBar == true
-    h.look = cfg.happinessLook == "icon" and "icon" or "square"
+    local look = cfg.happinessLook
+    h.look = look == "icon" and "icon" or "square"
     local pet = h.pet
     local s = math.max(8, tonumber(cfg.happinessSize) or 16)
     h:SetSize(s, s)
@@ -89,7 +102,9 @@ function Happiness.Layout(h, cfg)
     h.fill:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     h.fill:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     h.face:ClearAllPoints()
-    h.face:SetAllPoints(h.fill)
+    -- The square is inset for its border. A face has no border, so it fills
+    -- the whole size.
+    if h.look == "square" then h.face:SetAllPoints(h.fill) else h.face:SetAllPoints(h) end
     Happiness.Update(h)
 end
 
@@ -115,17 +130,47 @@ function Happiness.HideSample(h)
     Happiness.Update(h)
 end
 
+-- One mood from the game's face. The atlas region is one face on a current
+-- client. The classic sheet is three faces across its top, so a region that
+-- wide is cropped to the one mood or the face shows up sliced.
+local function moodFace(face, mood)
+    local atlas = Happiness.ATLAS[mood]
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    local file = type(info) == "table" and info.file
+    local l, r = type(info) == "table" and info.leftTexCoord, type(info) == "table" and info.rightTexCoord
+    local t, b = type(info) == "table" and info.topTexCoord, type(info) == "table" and info.bottomTexCoord
+    local named = type(file) == "string" or type(file) == "number"
+    if named and type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" then
+        local w, h = r - l, b - t
+        local sheet = type(file) == "string" and file:find("PetHappiness", 1, true) and w > 0.5
+        if sheet or (h > 0 and w > h * 1.4) then
+            l, r, t, b = unpack(Happiness.SHEET_COORD[mood])
+            file = Happiness.SHEET
+        end
+        face:SetTexture(file)
+        face:SetTexCoord(l, r, t, b)
+    else
+        face:SetTexCoord(0, 1, 0, 1)
+        face:SetAtlas(atlas)
+    end
+end
+
 function Happiness.Draw(h, mood)
     h:SetShown(mood ~= nil)
     if not mood then return end
     local r, g, b = Style.Soften(unpack(Happiness.COLORS[mood]))
-    local face = h.look ~= "square"
+    local square = h.look == "square"
     h.fill:SetVertexColor(r, g, b)
-    h.fill:SetShown(not face)
-    h.face:SetShown(face)
-    -- The face gets an edge in the mood's color. The square keeps the frame's.
-    if h.shell then Style.SetShellColors(h.shell, face and { r, g, b } or nil) end
-    if face then h.face:SetAtlas(Happiness.ATLAS[mood]) end
+    h.fill:SetShown(square)
+    h.face:SetShown(not square)
+    -- The square keeps the frame's edge. A face has none: no border, no fill
+    -- behind it.
+    if h.shell then
+        Style.SetShellColors(h.shell, nil)
+        h.shell:SetShown(square)
+    end
+    if square then return end
+    moodFace(h.face, mood)
 end
 
 -- The pet's health bar color while "color the bar" is on and there's a mood
