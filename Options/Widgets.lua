@@ -241,18 +241,17 @@ end
 -- the bottom-right, and draws back on leave. Pressed darkens the fill.
 -- SetActive keeps the band fully lit, b.main gives a footer's main action a
 -- brighter band, SetOff dims it and blocks clicks. Every click plays a sound.
+-- The band, fill and words come from the picked look (Style.LOOKS[look].BUTTON).
 W.BUTTON = {
     outline = Style.BORDER,
-    band = { 0.10, 0.09, 0.063 },
-    bandMain = { 0.2, 0.172, 0.118 },
-    bandOff = { 0.07, 0.066, 0.055 },
-    fillTop = { 0.11, 0.1, 0.086 },
-    fillBottom = { 0.071, 0.071, 0.078 },
-    lit = { 1, 0.94, 0.84, 0.08 },
-    text = Style.INK.TEXT,
+    band = {}, bandMain = {}, bandOff = {}, fillTop = {}, fillBottom = {}, lit = {}, text = {},
     gleam = { size = 10, alpha = 0.9, color = { 1, 0.95, 0.85 } },   -- the light on each tracing end
 }
 local BTN = W.BUTTON
+for k, v in pairs(Style.LOOKS.daylight.BUTTON) do
+    for i = 1, #v do BTN[k][i] = v[i] end
+end
+Style.Looked(BTN, { daylight = Style.LOOKS.daylight.BUTTON, classic = Style.LOOKS.classic.BUTTON })
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 local function vertical(tex, top, bottom)
@@ -285,6 +284,7 @@ end
 local buttons = setmetatable({}, { __mode = "k" })
 DUI.On("StyleChanged", function()
     for b in pairs(buttons) do
+        b.Paint()
         if b.trace.p > 0 and b:IsVisible() then b.trace.Draw(b.trace.p) end
     end
 end)

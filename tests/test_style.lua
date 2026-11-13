@@ -1079,7 +1079,8 @@ T.test("ink: the options window's text colors are the same ones", function()
     local INK, C = DUI.Style.INK, DUI.OptionsTheme.COLORS
     T.eq(C.text, INK.TEXT); T.eq(C.value, INK.VALUE); T.eq(C.dim, INK.LABEL)
     T.eq(C.faint, INK.OFF); T.eq(C.warn, INK.BAD)
-    T.eq(DUI.Widgets.BUTTON.text, INK.TEXT, "a button's words")
+    -- A button's words follow the look (gold under Classic), soft white here.
+    T.rgb(DUI.Widgets.BUTTON.text, INK.TEXT, "a button's words")
 end)
 
 T.test("ink: InkText paints a role, pop follows the accent", function()

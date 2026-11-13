@@ -336,6 +336,16 @@ Style.LOOKS = {
             LABEL = { 0.76, 0.71, 0.62 },
             OFF = { 0.55, 0.51, 0.45 },
         },
+        -- Widgets' buttons (W.BUTTON): band, fill and words.
+        BUTTON = {
+            band = { 0.10, 0.09, 0.063 },
+            bandMain = { 0.2, 0.172, 0.118 },
+            bandOff = { 0.07, 0.066, 0.055 },
+            fillTop = { 0.11, 0.1, 0.086 },
+            fillBottom = { 0.071, 0.071, 0.078 },
+            lit = { 1, 0.94, 0.84, 0.08 },
+            text = { 0.949, 0.933, 0.902 },
+        },
     },
     classic = {
         BORDER = rgb("3d362e"),
@@ -346,6 +356,16 @@ Style.LOOKS = {
             TITLE = rgb("ffd35a"),
             LABEL = rgb("e2c27a"),
             OFF = rgb("7d6a4e"),
+        },
+        -- Red buttons with a gold band and gold words, like the game's.
+        BUTTON = {
+            band = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
+            bandMain = GOLD_HI,
+            bandOff = rgb("4a3a1a"),
+            fillTop = rgb("9a1a12"),
+            fillBottom = rgb("560c07"),
+            lit = { 1, 0.9, 0.6, 0.12 },
+            text = rgb("ffd35a"),
         },
         GOLD = { GOLD_LO, GOLD_HI },
     },
