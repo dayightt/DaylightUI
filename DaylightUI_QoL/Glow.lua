@@ -10,7 +10,8 @@
 -- The CVars it changes are saved per account (ns.KeepCVar) and restored when
 -- it's switched off and at logout, so characters without the module are
 -- unaffected. The interact target's plate stays on while it's on, so NPCs and
--- corpses can get the game's plate too while they're the interact target.
+-- corpses get the game's plate too while they're the interact target; an NPC or
+-- player whose plates the player switched off keeps it see-through (Glow.Hush).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -766,10 +767,46 @@ local function plateOf()
     return nil
 end
 
+-- The interact plate setting kept on above gives the NPC or player you're facing
+-- a plate too. If the player's own settings wouldn't show that unit's plate, the
+-- game's frame on it stays see-through while it's the interact target, so only
+-- objects gain a plate. The Nameplates module hides its own plates there itself,
+-- and a player who had the setting on before keeps every plate.
+Glow.SHOW_CVARS = { player = "nameplateShowFriendlyPlayers", npc = "nameplateShowFriendlyNpcs" }
+local hushedFrame
+
+local function owed(unit)
+    if plain(UnitCanAttack, "player", unit) ~= false then return true end
+    local kind = plain(UnitIsPlayer, unit) == true and "player" or "npc"
+    return get(Glow.SHOW_CVARS[kind]) ~= "0"
+end
+
+local function hushTarget()
+    if not applied or leaving or ns.KeptCVar("SoftTargetNameplateInteract") == "1" then return nil end
+    if DUI:GetModule("Nameplates") ~= nil then return nil end
+    if plain(UnitIsGameObject, Glow.SOFT) ~= false or plain(UnitExists, Glow.SOFT) ~= true then return nil end
+    if owed(Glow.SOFT) then return nil end
+    local plate = plain(C_NamePlate and C_NamePlate.GetNamePlateForUnit, Glow.SOFT)
+    local uf = type(plate) == "table" and plate.UnitFrame
+    return type(uf) == "table" and uf.SetAlpha and uf or nil
+end
+
+function Glow.Hush()
+    local want = hushTarget()
+    if want == hushedFrame then
+        if want then pcall(want.SetAlpha, want, 0) end   -- the game may have shown it again
+        return
+    end
+    if hushedFrame then pcall(hushedFrame.SetAlpha, hushedFrame, 1) end
+    hushedFrame = nil
+    if want and pcall(want.SetAlpha, want, 0) then hushedFrame = want end
+end
+
 -- One look at the soft target. Comes from the game's events, and every
 -- Glow.EVERY s from the light itself while one shows.
 function Glow.Evaluate()
     if leaving or previewing then return end
+    Glow.Hush()
     if not allowed() or plain(UnitIsGameObject, Glow.SOFT) ~= true then
         Glow.Leave()
         return
@@ -826,6 +863,8 @@ local function wire()
     DUI.RegisterEvent("NAME_PLATE_UNIT_ADDED", function(_, unit)
         if type(unit) == "string" and not secret(unit) then plateUnits[unit] = true end
         look()
+        -- The game hands the plate its frame in its own handler, which can run after this.
+        C_Timer.After(0, Glow.Hush)
     end)
     DUI.RegisterEvent("NAME_PLATE_UNIT_REMOVED", function(_, unit)
         if type(unit) == "string" and not secret(unit) then plateUnits[unit] = nil end
@@ -925,6 +964,7 @@ function Glow.Refresh(m)
         Glow.Leave()
         if applied then DUI.AfterCombat(function()
             if not wanted() and applied then giveAllBack() end
+            Glow.Hush()
         end, "qol:glow") end
     end
 end

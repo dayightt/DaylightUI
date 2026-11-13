@@ -2026,6 +2026,40 @@ T.test("glow: an object it doesn't light keeps the plate the player's own settin
     g.done()
 end)
 
+-- The interact plate setting the glow keeps on gives every NPC you face the
+-- game's plate. With the Nameplates module off nothing else hides it, so a
+-- player with friendly NPC plates off saw vendors' names flash up as the camera
+-- turned. Such a plate stays see-through while it's the interact target.
+T.test("glow: an NPC you face keeps no game plate the player's own settings wouldn't show", function()
+    local g = glowSetup(true, nil, { nameplateShowFriendlyNpcs = "0", nameplateShowFriendlyPlayers = "1" })
+    g.isObject = false
+    stub.units.softinteract = { name = "Felicia Doa", reaction = 5 }
+    g.plate.UnitFrame = CreateFrame("Frame", nil, g.plate)
+    g.plateUp = true
+    soft()
+    T.eq(g.plate.UnitFrame:GetAlpha(), 0, "friendly NPC plates off: the game's plate stays see-through")
+    -- turned away: the frame goes back to the game whole
+    g.plateUp = false
+    stub.units.softinteract = nil
+    soft()
+    T.eq(g.plate.UnitFrame:GetAlpha(), 1, "no longer the interact target: given back")
+    -- a friendly player, whose plates the player shows: left alone
+    stub.units.softinteract = { name = "Mknor Naw", isPlayer = true, reaction = 5 }
+    g.plateUp = true
+    soft()
+    T.eq(g.plate.UnitFrame:GetAlpha(), 1, "friendly player plates on: shown")
+    -- glow switched off: nothing of its own is kept
+    stub.units.softinteract = { name = "Felicia Doa", reaction = 5 }
+    soft()
+    T.eq(g.plate.UnitFrame:GetAlpha(), 0)
+    g.m.db.objectGlow = false
+    g.m:OnSettingChanged()
+    stub.RunTimers()
+    T.eq(g.plate.UnitFrame:GetAlpha(), 1, "glow off: the game's plate back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    g.done()
+end)
+
 T.test("glow: far, in reach and refused each show, and reaching it runs the ring", function()
     local g = glowSetup(true)
     local G = g.G
