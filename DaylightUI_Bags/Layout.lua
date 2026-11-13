@@ -543,12 +543,13 @@ function Layout.ItemKey(button, seen)
     return keyOf((itemIn(bagOf(button), button:GetID())), seen)
 end
 
--- Current position of every shown slot, heading and section line, as the
--- layout set them: { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
---   heads = { [group key] = { x, y } }, lines = { [i] = { x, y } } }. A free
--- tile's spot is also kept under its tile key among the items.
+-- Where every shown slot, heading and section line is right now (mid-glide too):
+-- { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
+--   keys = { [button] = item key }, heads = { [group key] = { x, y } },
+--   lines = { [i] = { x, y } } }. A free tile's spot is also kept under its tile
+-- key among the items.
 function Layout.Spots(window)
-    local slots, items, heads, lines, seen = {}, {}, {}, {}, {}
+    local slots, items, keys, heads, lines, seen = {}, {}, {}, {}, {}, {}
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() and b:GetNumPoints() == 1 then
@@ -556,7 +557,10 @@ function Layout.Spots(window)
             slots[b] = { x, y }
             -- Its last fill (Items.Fill): the bags have already changed by now.
             local key = keyOf(b.dluiKey, seen)
-            if key then items[key] = slots[b] end
+            if key then
+                items[key] = slots[b]
+                keys[b] = key
+            end
         end
     end
     for _, t in ipairs(window.tiles or {}) do
@@ -574,7 +578,7 @@ function Layout.Spots(window)
             lines[i] = { x, y }
         end
     end
-    return { slots = slots, items = items, heads = heads, lines = lines }
+    return { slots = slots, items = items, keys = keys, heads = heads, lines = lines }
 end
 
 -- Animates from the old spots (Layout.Spots) to the new layout. A slot that now
@@ -600,40 +604,64 @@ function Layout.Ease(window, was)
             window.gliding[r] = true
         end
     end
-    local seen, items, tiles = {}, was.items or {}, {}
+    local function fadeOut(r)
+        window.fading = window.fading or {}
+        window.fading[r] = true
+        r:Show()
+        Motion.AlphaTo(r, 0, Motion.FAST, true)
+    end
+    local items, tiles, claimed = was.items or {}, {}, {}
     for _, t in ipairs(window.tiles or {}) do
         if t.key then tiles[t.button] = t.key end
     end
-    for _, s in ipairs(window.set.Slots()) do
+    -- Slots still holding what they held keep their own stack's spot, so a slot
+    -- with a changed item can only take a spot no one kept: with several stacks
+    -- of one item, an extra stack fades in instead of gliding over another.
+    local slots = window.set.Slots()
+    for _, s in ipairs(slots) do
+        local b = s.button
+        local now = b:IsShown() and Layout.ItemKey(b)
+        if now and keyOf(b.dluiKey) == now and was.keys and was.keys[b] then claimed[was.keys[b]] = true end
+    end
+    local function claim(base)
+        local n = 1
+        while items[base .. "#" .. n] do
+            local key = base .. "#" .. n
+            if not claimed[key] then
+                claimed[key] = true
+                return items[key]
+            end
+            n = n + 1
+        end
+    end
+    for _, s in ipairs(slots) do
         local b = s.button
         if b:IsShown() then
             local now = Layout.ItemKey(b)
-            local key = keyOf(now, seen)
-            local old
-            if key and keyOf(b.dluiKey) ~= now then
-                old = items[key]   -- nil: the item wasn't in the window (loot), so it fades in
+            if now and keyOf(b.dluiKey) ~= now then
+                from(b, claim(now))   -- nil: the item wasn't in the window (loot), so it fades in
             else
-                old = (tiles[b] and items[tiles[b]]) or was.slots[b]
+                from(b, (tiles[b] and items[tiles[b]]) or was.slots[b])
             end
-            from(b, old)
         elseif was.slots[b] then
-            window.fading = window.fading or {}
-            window.fading[b] = true
-            b:Show()
-            Motion.AlphaTo(b, 0, Motion.FAST, true)
+            fadeOut(b)
         end
     end
     for _, h in ipairs(window.headings or {}) do
         if h:IsShown() and h.key then from(h, was.heads[h.key]) end
     end
     for i, l in ipairs(window.lines or {}) do
-        if l:IsShown() then from(l, was.lines and was.lines[i]) end
+        if l:IsShown() then
+            from(l, was.lines and was.lines[i])
+        elseif was.lines and was.lines[i] then
+            fadeOut(l)
+        end
     end
 end
 
 -- Places every shown slot. Returns the grid's width and height.
 function Layout.Apply(window, cfg)
-    -- Items from a fold that are fading out (or done): restore them but keep them
+    -- Items and lines that are fading out (or done): restore them but keep them
     -- hidden so the layout places them like any slot (a fold then eases them in as new).
     if window.fading then
         for b in pairs(window.fading) do
@@ -642,13 +670,14 @@ function Layout.Apply(window, cfg)
         end
         wipe(window.fading)
     end
-    -- Glides still running: settle them first so the spots read and set below
-    -- are the layout's own.
+    -- Where things are now, mid-glide too, so a layout made during one (loot
+    -- arriving in a burst) glides on from there instead of jumping.
+    local was = Layout.Eases(window) and Layout.Spots(window) or nil
+    -- Then glides still running settle, so the layout below starts from its own spots.
     if window.gliding then
         for r in pairs(window.gliding) do DUI.Win.Feel.Settle(r) end
         wipe(window.gliding)
     end
-    local was = Layout.Eases(window) and Layout.Spots(window) or nil
     local w, h
     if cfg.view == "categories" then
         w, h = Layout.Categories(window, cfg)

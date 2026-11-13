@@ -1957,6 +1957,95 @@ T.test("bags: loot arriving while open glides the rest aside", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: loot in a burst glides on from where things are", function()
+    local ns, f = catLogin()
+    local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+    settleFeel()
+    lootWeapon()
+    stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
+    local second = ns.Bags.buttons[0][7]
+    local mid, moving = {}, 0
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b ~= second then
+            mid[b] = { at(b) }
+            if Feel.Moving(b) then moving = moving + 1 end
+        end
+    end
+    T.truthy(moving > 0, "the first loot is still gliding")
+    local h = f:GetHeight()
+    lootWeapon(11, 7)
+    T.truthy(second:IsShown(), "the second loot is in")
+    for b, xy in pairs(mid) do
+        if b:IsShown() then
+            local x, y = at(b)
+            T.eq(x, xy[1], "no slot jumps when more loot lands mid-glide")
+            T.eq(y, xy[2])
+        end
+    end
+    T.eq(f:GetHeight(), h, "nor the window")
+    settleFeel()
+    local ends = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then ends[s.button] = { at(s.button) } end
+    end
+    ns.Relayout()
+    for b, xy in pairs(ends) do
+        T.eq(select(4, b:GetPoint(1)), xy[1], "and each lands on its spot")
+        T.eq(select(5, b:GetPoint(1)), xy[2])
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: an extra stack of an item you have fades in, the others keep their spots", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "combineStacks", false)
+    stub.RunTimers()
+    ns.Relayout()
+    settleFeel()
+    -- Bread sits in bag 0 slot 8 and bag 1 slot 1; a third stack lands in bag 0 slot 3, before both.
+    local a, b = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    local ax, ay = at(a)
+    local bx, by = at(b)
+    world.items[0][3] = { iconFileID = 108, stackCount = 1, quality = 1, hyperlink = "|Hitem:8|h", itemID = 8, itemName = "Bread" }
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+    local extra = ns.Bags.buttons[0][3]
+    T.eq(extra:GetAlpha(), 0, "the new stack fades in")
+    T.eq(select(4, a:GetPoint(1)), ax, "the first stack starts from its own spot")
+    T.eq(select(5, a:GetPoint(1)), ay)
+    T.eq(select(4, b:GetPoint(1)), bx, "the second too")
+    T.eq(select(5, b:GetPoint(1)), by)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a section line no longer needed fades out", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local shown = 0
+    for _, l in ipairs(f.lines or {}) do if l:IsShown() then shown = shown + 1 end end
+    T.truthy(shown > 0, "lines between sections")
+    local last = f.lines[shown]
+    -- The profession bag goes: one section and its line less.
+    world.sizes[5] = 0
+    world.items[5] = {}
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+    T.truthy(last:IsShown(), "the line stays while it fades")
+    settleFeel()
+    T.falsy(last:IsShown(), "then it's gone")
+    ns.Relayout()
+    T.falsy(last:IsShown(), "and the next layout leaves it hidden")
+    T.eq(last:GetAlpha(), 1, "whole again for when it's needed")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: loot during a fold glide settles and glides on", function()
     local ns, f = catLogin()
     local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
