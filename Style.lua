@@ -2193,11 +2193,24 @@ function Style.PaintAccentBar(bar, paintBack)
     return true
 end
 
+-- A texture tinted from a palette color keeps it through a look change.
+-- solid: SetColorTexture (a plain fill) instead of tinting the texture's art.
+local followed = setmetatable({}, { __mode = "k" })
+local function paintFollowed(tex, f)
+    local c = f.color
+    if f.solid then tex:SetColorTexture(c[1], c[2], c[3], f.alpha)
+    else tex:SetVertexColor(c[1], c[2], c[3], f.alpha) end
+end
+
+function Style.Follow(tex, color, alpha, solid)
+    local f = { color = color, alpha = alpha or 1, solid = solid }
+    followed[tex] = f
+    paintFollowed(tex, f)
+    return tex
+end
+
 function Style.Separator(parent)
-    local t = parent:CreateTexture(nil, "ARTWORK", nil, 7)
-    local b = Style.BORDER
-    t:SetColorTexture(b[1], b[2], b[3], 0.9)
-    return t
+    return Style.Follow(parent:CreateTexture(nil, "ARTWORK", nil, 7), Style.BORDER, 0.9, true)
 end
 
 -- Text
@@ -2343,6 +2356,7 @@ function Style.RepaintAll()
         if s.alwaysLayout or visible(s) then Style.LayoutShell(s) else s.dirty = true end
     end
     for fs in pairs(textSize) do repaintFont(fs) end
+    for tex, f in pairs(followed) do paintFollowed(tex, f) end
 end
 
 DUI.On("RepaintCore", Style.RepaintAll)

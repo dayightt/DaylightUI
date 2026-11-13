@@ -138,7 +138,21 @@ end
 -- (Win.COMPACT tall, no sub line or rule). spec.onClose falls back to
 -- f.onClose, then Win.Close.
 -- Sets f.title, f.sub (not compact), f.close, f.portrait, f.topLine, f.rule.
+-- Every header made, so a look change can repaint the colors it set once.
+local headers = setmetatable({}, { __mode = "k" })
+
+local function paintHeader(f)
+    Style.InkText(f.title, "TITLE")
+    if f.sub then f.sub:SetTextColor(Win.DIM[1], Win.DIM[2], Win.DIM[3]) end
+    if f.portraitRim then f.portraitRim:SetVertexColor(Style.BAND[1], Style.BAND[2], Style.BAND[3], 1) end
+end
+
+DUI.On("RepaintCore", function()
+    for f in pairs(headers) do paintHeader(f) end
+end)
+
 function Win.Header(f, spec)
+    headers[f] = true
     spec = spec or {}
     local E = Win.EDGE
     local left = E
@@ -165,7 +179,7 @@ function Win.Header(f, spec)
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", left, Win.TITLE_Y)
     f.title:SetPoint("RIGHT", f, "RIGHT", -40, 0)
     f.title:SetWordWrap(false)
-    Style.InkText(f.title, "VALUE")
+    Style.InkText(f.title, "TITLE")
     if not spec.compact then
         f.sub = Style.Text(f, Win.SUB_SIZE, "LEFT")
         f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)

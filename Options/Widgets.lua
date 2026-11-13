@@ -100,8 +100,25 @@ function W.TrackFont(fs, font, size, parent)
     return tracked[fs] and fileOf(tracked[fs]) or font
 end
 
+-- Text colored from a shared color table follows it when the look changes,
+-- unless something colored it differently since (a hover, a picked row).
+local inked = setmetatable({}, { __mode = "k" })
+
+local function near(x, y) return type(x) == "number" and math.abs(x - y) < 0.002 end
+
 DUI.On("RepaintCore", function()
     for fs, t in pairs(tracked) do fs:SetFont(fileOf(t), t[2], "") end
+    for fs, ink in pairs(inked) do
+        local r, g, b = fs:GetTextColor()
+        local last = ink.last
+        if near(r, last[1]) and near(g, last[2]) and near(b, last[3]) then
+            local c = ink.color
+            fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+            ink.last = { c[1], c[2], c[3] }
+        else
+            inked[fs] = nil
+        end
+    end
 end)
 
 function W.Font(parent, font, size, color, justify, layer)
@@ -111,6 +128,7 @@ function W.Font(parent, font, size, color, justify, layer)
     fs:SetShadowColor(0, 0, 0, 0.7)
     color = color or C.text
     fs:SetTextColor(color[1], color[2], color[3], color[4] or 1)
+    inked[fs] = { color = color, last = { color[1], color[2], color[3] } }
     fs:SetJustifyH(justify or "LEFT")
     fs:SetWordWrap(false)
     return fs

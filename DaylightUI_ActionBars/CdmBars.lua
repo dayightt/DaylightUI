@@ -616,7 +616,7 @@ local function makeParts(btn)
     -- The cover over a cooldown under the bar (LayoutButton shows it): background
     -- color first, then the bars' own empty-part texture.
     parts.back = btn:CreateTexture(nil, "BACKGROUND", nil, -8)
-    try(parts.back.SetColorTexture, parts.back, Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
+    try(Style.Follow, parts.back, Style.BACKGROUND, 1, true)
     parts.backTex = btn:CreateTexture(nil, "BACKGROUND", nil, -7)
     try(parts.backTex.SetTexture, parts.backTex, Style.BackFile(ns.MEDIA.bars.cdm .. ".back"))
     parts.bar = CreateFrame("StatusBar", nil, btn)
