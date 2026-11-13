@@ -2255,10 +2255,11 @@ T.test("bars: the game's controller bars up, ours step aside; off again they're 
     T.eq(Bars.Rule(def), ruleOff)
 end)
 
--- The game's controller bars (ActionBindingUtil.lua): 3 pages of 4 bars of 8
--- buttons, with storage skipping the top bar's 4 reserved face buttons. Bars: no
--- trigger, LT, RT, both. Buttons: D-pad left, up, right, down, then face left, up,
--- right, down (Bindings.xml).
+-- The game's controller bars (ActionBindingUtil.lua's
+-- GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID): 3 pages of 32 slots, 4
+-- bars of 8 in order no trigger, LT, RT, both; the top bar's 4 face buttons keep
+-- their numbers but hold nothing. Buttons: D-pad left, up, right, down, then face
+-- left, up, right, down (Bindings.xml).
 T.test("keys: on a controller a spell's key is the pad button that casts it", function()
     login()
     local Keys = AB().Keys
@@ -2271,10 +2272,10 @@ T.test("keys: on a controller a spell's key is the pad button that casts it", fu
     local at = {
         [FIRST + 0] = 1,        -- page 1, top bar, D-pad left
         [FIRST + 3] = 2,        -- page 1, top bar, D-pad down
-        [FIRST + 4] = 3,        -- page 1, LT, D-pad left
-        [FIRST + 11] = 4,       -- page 1, LT, face down
-        [FIRST + 27] = 5,       -- page 1, LT+RT, face down
-        [FIRST + 28] = 6,       -- page 2, top bar, D-pad left
+        [FIRST + 8] = 3,        -- page 1, LT, D-pad left
+        [FIRST + 15] = 4,       -- page 1, LT, face down
+        [FIRST + 31] = 5,       -- page 1, LT+RT, face down
+        [FIRST + 32] = 6,       -- page 2, top bar, D-pad left
     }
     for slot, id in pairs(at) do stub.slots[slot] = { texture = "t", spellID = id } end
     Keys.OnEvent("PadChanged")
@@ -2307,13 +2308,13 @@ T.test("keys: on a PS5 pad the Cooldown Manager's keys are its own glyphs (L2, c
         return a and { [1] = variant == 2 and a:gsub("%-normal$", "-flat-normal") or a } or nil
     end }
     C_Spell.GetSpellName = function(id) return id == 4 and "Face" or nil end
-    stub.slots[211] = { texture = "t", spellID = 4 }   -- page 1, LT, face down
+    stub.slots[215] = { texture = "t", spellID = 4 }   -- page 1, LT, face down
     Keys.OnEvent("PadChanged")
     T.eq(Keys.CastKey("Face"), "|A:gamepad-ps-l2-flat-normal:0:0|a+|A:gamepad-ps-cross-flat-normal:0:0|a")
     style = "Letters"
     stub.FireEvent("GAME_PAD_ACTIVE_CHANGED", true)
     T.eq(Keys.CastKey("Face"), "|A:gamepad-xbox1-trigger-lt-flat-normal:0:0|a+|A:gamepad-xbox1-a-flat-normal:0:0|a", "another pad, its own")
-    stub.slots[211] = nil
+    stub.slots[215] = nil
     _G.InputIconTextureSetUtility, _G.InputIconTextureState, _G.InputDeviceIconVariant = nil, nil, nil
     _G.C_GamepadUI, _G.GamepadMode, _G.InputUtil = nil, nil, nil
 end)

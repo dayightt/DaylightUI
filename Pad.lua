@@ -581,12 +581,13 @@ end
 --   Pad.BindAction({ icon, name, pickup = fn })   out of combat; true if shown
 --   Pad.EndBind()                                  cancels it
 
--- The controller bars: 3 pages of 4 bars of 8 buttons, the triggers held pick
--- the bar (none, LT, RT, both), and the top bar's 4 face buttons (jump,
--- interact...) hold no action, so a page is 28 slots (ActionBindingUtil.lua).
--- Buttons in Bindings.xml order: D-pad left, up, right, down, then face left,
--- up, right, down.
-Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 28, 8, 4
+-- The controller bars: 3 pages of 4 bars of 8 buttons; the triggers held pick
+-- the bar (none, LT, RT, both). Storage is page by page, 32 slots each, bar by
+-- bar in that order, buttons in Bindings.xml order (D-pad left, up, right,
+-- down, then face left, up, right, down). The top bar's 4 face buttons (jump,
+-- interact...) keep their numbers but hold no action
+-- (GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID, ActionBindingUtil.lua).
+Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 32, 8, 4
 Pad.BAR_BUTTONS = { "PADDLEFT", "PADDUP", "PADDRIGHT", "PADDDOWN", "PAD3", "PAD4", "PAD2", "PAD1" }
 Pad.BIND_BUTTON = "DaylightUIPadBind" -- plus 1-8, LT, RT, PREV, NEXT
 Pad.PROMPT_W, Pad.PROMPT_ICON = 420, 40
@@ -597,11 +598,7 @@ function Pad.SlotOf(page, bar, index)
     local first = type(U) == "table" and U.GetFirstGamepadActionStorageSlotIndex and U.GetFirstGamepadActionStorageSlotIndex()
     if type(first) ~= "number" then return nil end
     local at = bar * Pad.BAR_SIZE + index - 1
-    if at >= Pad.BAR_SIZE then
-        at = at - Pad.BAR_RESERVED
-    elseif at >= Pad.BAR_RESERVED then
-        return nil
-    end
+    if at >= Pad.BAR_RESERVED and at < Pad.BAR_SIZE then return nil end
     return first + (page - 1) * Pad.BAR_PAGE_SLOTS + at
 end
 

@@ -903,11 +903,13 @@ T.test("pad bind: a press on the bars puts the spell in that slot, triggers and 
     stub.ActionSlots({})
     padBars(200)
     local Pad = DUI.Pad
+    -- As the game's GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID: 32 a page.
     T.eq(Pad.SlotOf(1, 0, 1), 200)
+    T.eq(Pad.SlotOf(1, 0, 4), 203)
     T.eq(Pad.SlotOf(1, 0, 8), nil, "the top bar's face buttons hold nothing")
-    T.eq(Pad.SlotOf(1, 1, 1), 204)
-    T.eq(Pad.SlotOf(1, 3, 8), 227)
-    T.eq(Pad.SlotOf(2, 0, 1), 228)
+    T.eq(Pad.SlotOf(1, 1, 1), 208, "LT's bar right after the top bar's 8")
+    T.eq(Pad.SlotOf(1, 3, 8), 231)
+    T.eq(Pad.SlotOf(2, 0, 1), 232)
     local f = DUI.Win.New({ name = "PadTestBind", title = "Test" })
     f.padKeys = { { key = "X", label = "Bind", run = function() end } }
     f:Show()
@@ -923,7 +925,7 @@ T.test("pad bind: a press on the bars puts the spell in that slot, triggers and 
     lt:GetScript("OnClick")(lt, "LeftButton", true)
     stub.PressKey("PAD1")
     lt:GetScript("OnClick")(lt, "LeftButton", false)
-    T.eq(stub.slots[200 + 28 + 11] and stub.slots[200 + 28 + 11].spellID, 585, "page 2, LT, face down")
+    T.eq(stub.slots[200 + 32 + 15] and stub.slots[200 + 32 + 15].spellID, 585, "page 2, LT, face down")
     T.eq(stub.cursor, nil)
     T.eq(Pad.prompt, nil)
     T.eq(stub.overrides.PAD3.click, Pad.KEY_BUTTON .. "X", "the window's own X is back")
