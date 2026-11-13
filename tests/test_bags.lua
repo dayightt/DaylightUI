@@ -753,6 +753,23 @@ T.test("bags: the footer bar fills with used slots and eases there", function()
     T.near(f.freeBar:GetValue(), (total2 - free2) / total2, 0.001, "settles on the new share")
 end)
 
+T.test("bags: Sell junk sits above the money row, clear of the tracked currencies", function()
+    local ns = login()
+    DaylightUI:Set("Bags", "columns", 7)
+    C_CurrencyInfo = { GetBackpackCurrencyInfo = function(i)
+        if i <= 3 then return { iconFileID = 100 + i, quantity = 123456 * i } end
+    end }
+    local f = open(ns)
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    ns.Window.UpdateFooter(f)
+    T.eq(#f.currencySlots >= 3 and f.currencySlots[3]:IsShown(), true, "currencies are drawn")
+    local _, _, _, _, sy = f.sellJunk:GetPoint()
+    local _, _, _, _, my = f.money:GetPoint()
+    T.truthy(sy >= my + ns.Window.FOOTER_ROW, "above the row the money and currencies sit on")
+    C_CurrencyInfo = nil
+end)
+
 T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
     local ns = login()
     local f = open(ns)
@@ -763,6 +780,13 @@ T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
         if link == "|Hitem:2|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
         return getInfo(link)
     end
+    world.items[0][7] = { iconFileID = 107, stackCount = 1, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    local old = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:12|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return old(link)
+    end
+    ns.Categories.ToggleLock(12)
     DaylightUI:Set("Bags", "sellJunk", false)
     T.eq(f.sellJunk:IsShown(), false, "hidden away from a vendor")
     stub.FireEvent("MERCHANT_SHOW")
@@ -771,7 +795,7 @@ T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
     T.truthy(f.sellJunk.text:GetText():find("25", 1, true), "its label holds the junk's value")
     f.sellJunk:GetScript("OnClick")(f.sellJunk)
     for _ = 1, 5 do stub.RunTimers() end
-    T.eq(table.concat(sold, ","), "0:2", "the gray slot only")
+    T.eq(table.concat(sold, ","), "0:2", "the gray slot only, not the locked one")
     stub.FireEvent("MERCHANT_CLOSED")
     stub.Advance(1); stub.RunTimers()
     T.eq(f.sellJunk:IsShown(), false, "hidden when the vendor closes")

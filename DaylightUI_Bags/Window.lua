@@ -18,9 +18,10 @@ Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
 Window.FOOTER_ROW = 18       -- the footer's text and button row
-Window.BAR_GAP = 2           -- between that row and the free-slots bar
+Window.BAR_GAP = 2           -- between that row and the row above it
+Window.SELL_ROW = 18         -- the row holding the free-slots bar and Sell junk
 Window.BAR_W = 64            -- the free-slots bar's width
-Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + DUI.Widgets.BAR_H
+Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + Window.SELL_ROW
 Window.CHIP_ROW = DUI.Widgets.CHIP_HEIGHT   -- the filter chips under the search
 -- Filter chips: a chip shows only the groups listed (keys of Cat.PRIORITY).
 Window.CHIPS = {
@@ -298,13 +299,15 @@ function Window.Create(spec)
     -- A thin bar of used slots above the free count.
     f.freeBar = DUI.Widgets.Bar(f, DUI.Widgets.BAR_H)
     f.freeBar:SetWidth(Window.BAR_W)
-    f.freeBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E + Window.FOOTER_ROW + Window.BAR_GAP)
+    f.freeBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E,
+        E + Window.FOOTER_ROW + Window.BAR_GAP + (Window.SELL_ROW - DUI.Widgets.BAR_H) / 2)
     f.money = text(f, Window.TEXT_SIZE, "RIGHT")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E)
     if spec.kind == "bag" then
         -- Shown only at a vendor with something to sell (Window.UpdateSell).
         f.sellJunk = Window.TextButton(f, L["Sell junk"])
-        f.sellJunk:SetPoint("LEFT", f.free, "RIGHT", 14, 0)
+        -- On the bar's row, away from the money and currencies below.
+        f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
         f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
         f.sellJunk:Hide()
     end
