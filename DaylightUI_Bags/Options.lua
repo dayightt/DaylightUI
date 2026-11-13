@@ -341,7 +341,7 @@ ns.OPTIONS = { pages = {
       groups = {
         { label = "Bank and alts", items = {
             { type = "toggle", key = "viewer.enabled", label = "Bank and alts window", disabled = off,
-              desc = "Each character's bags are saved when you log out, and its bank each time you visit a banker. See them anywhere with the chest button in your bags, or /dui bank. When off, the button goes away and nothing new is saved." },
+              desc = "Each character's bags are saved when you log out, and its bank each time you visit a banker. See them anywhere: right-click the bag icon at the top of your bags, or /dui bank. When off, Alts leaves that menu and nothing new is saved." },
         } },
         { label = "Layout", items = {
             { type = "toggle", label = "Same look as your bags", disabled = viewerOff,

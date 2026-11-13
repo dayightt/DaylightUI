@@ -307,6 +307,9 @@ function Widget:Hide()
     if was and parentsShown(self) then
         if self.__scripts.OnHide then self.__scripts.OnHide(self) end
         cascade(self, "OnHide")
+        -- Like the client, an edit box that can no longer be seen loses the keyboard.
+        local box = stub.focus
+        if box and not box:IsVisible() then box:ClearFocus() end
     end
 end
 function Widget:SetShown(v) if v then self:Show() else self:Hide() end end

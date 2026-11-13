@@ -1228,7 +1228,7 @@ L["Each bar's hand (or the queued attack) and the time to the next swing, writte
 L["Each bar's shape and when it shows. Changes apply at once. Move bars in unlock mode."] = "각 막대의 모양과 표시 시점입니다. 바로 적용됩니다. 막대는 잠금 해제 모드에서 옮기세요."
 L["Each bar's size, shape and when it shows. Pick the bar with Settings for."] = "각 막대의 크기, 모양, 표시 시점입니다. 설정할 막대를 고르세요."
 L["Each character uses a profile (one per talent set, with dual spec). Everything on every page changes the profile in use."] = "캐릭터마다 프로필을 사용합니다 (이중 특성이면 특성마다 하나). 모든 페이지의 설정은 사용 중인 프로필을 바꿉니다."
-L["Each character's bags are saved when you log out, and its bank each time you visit a banker. See them anywhere with the chest button in your bags, or /dui bank. When off, the button goes away and nothing new is saved."] = "캐릭터마다 로그아웃할 때 가방이, 은행원을 찾을 때마다 은행이 저장됩니다. 가방의 상자 버튼이나 /dui bank로 어디서든 볼 수 있습니다. 끄면 버튼이 사라지고 새로 저장되지 않습니다."
+L["Each character's bags are saved when you log out, and its bank each time you visit a banker. See them anywhere: right-click the bag icon at the top of your bags, or /dui bank. When off, Alts leaves that menu and nothing new is saved."] = "캐릭터마다 로그아웃할 때 가방이, 은행원을 찾을 때마다 은행이 저장됩니다. 가방 위쪽의 가방 아이콘을 오른쪽 클릭하거나 /dui bank로 어디서든 볼 수 있습니다. 끄면 그 메뉴에서 다른 캐릭터가 빠지고 새로 저장되지 않습니다."
 L["Each combo point you build on your target."] = "대상에게 쌓은 연계 점수 하나하나입니다."
 L["Each icon darkens like a clock as its time runs out."] = "시간이 다 되어 갈수록 아이콘이 시계처럼 어두워집니다."
 L["Each icon's width and height."] = "각 아이콘의 너비와 높이입니다."
