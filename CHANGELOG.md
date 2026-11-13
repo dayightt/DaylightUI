@@ -1,3 +1,40 @@
+# DaylightUI 1.7.2
+
+Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.
+
+## New
+- Bug reports: A bug icon on the options home page (or /dui bug) gathers everything the Discord bug form needs. Thanks to blukraken
+- Nameplates: Plates can grow by threat for tanks, enemy casts show who they're aimed at, an execute icon, and a mark on your group's main target
+- Cast bars: A thin line on an enemy's cast bar shows where your interrupt comes back
+- Action bars: Bars can start from any corner, switch page for friendly or enemy targets, and have wide or tall buttons
+- Cooldown Manager: Reminders for a missing paladin Blessing, and for hunters and warlocks with no pet out
+- Vendor window: Shift-click an item to buy several stacks at once
+- Mailbox: Tick letters to collect just those and leave the rest in the box
+- Profession window: Each recipe shows its chance of a skill-up
+- Buffs: Buffs can line up by kind: class buffs, consumables and the rest each on their own row
+- Bags: Search with several words (ore; bar), your cheapest junk marked, and a Soul Shard limit for warlocks
+- Unit frames: Taller party pet bars, movable combo points, and target and focus power bars you can move anywhere
+- XP bar: The experience and reputation bars can stand upright
+- Chat: Chat can show a player's level beside their name
+- Friends: Faction icons, dimmed friends you can't play with right now, and All / Same game / Online filters
+- Little touches: Weapon master cities in weapon skill tooltips, stack sizes on item tooltips, soul bag size on the Soul Shards text, and a sleeping bag timer to full Well-Rested
+
+## Changed
+- Languages: More Spanish thanks to Narian, and more Simplified Chinese thanks to Levis
+
+## Fixed
+- Pet frame: Your hunter pet's mood face is easier to read at a small size, without the colored border around it. Thanks to Narian
+- Object glow: Ore and herb names no longer disappear as you walk up to them
+- Action bars: No more "the game blocked MultiBar..." messages in chat after switching stance or form in combat
+- Item icons: The thin colored outline around rewards and items no longer loses its top or side, for good this time
+- Action bars: Shadowform now really switches bar 1 to its own page
+- Object glow: Turning off the game's Enable Interact Key option stays off after a restart
+- Cooldown Manager: A buff placed above or left of another no longer pops up on top of it when it procs in a fight
+- Mailbox: Shift-click a letter to take everything in it, like the base game
+- Party and raid: Incoming heals and shields no longer spill past a frame into the next one
+- Profession window: Recipes can be favorited and tracked again: favorites sit at the top, and a tracked recipe's materials show on screen
+- Spellbook: Section buttons that don't fit in longer languages are under More, instead of disappearing
+
 # DaylightUI 1.7.1
 
 Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.
