@@ -144,6 +144,59 @@ function Data.SkillWords(difficulty)
     return L["No skill points"]
 end
 
+-- Skill-up range: the levels a recipe turns yellow, green and gray at, from the game's
+-- data in SkillUps.lua (the client itself only tells the color right now). nil when
+-- the recipe isn't listed.
+function Data.Range(id)
+    local v = ns.SkillUps and ns.SkillUps[id]
+    if type(v) ~= "number" then return nil end
+    local yellow, gray = math.floor(v / 1000), v % 1000
+    return { yellow = yellow, green = math.floor((yellow + gray) / 2), gray = gray }
+end
+
+-- The color a range gives at a skill level.
+function Data.ColorAt(range, skill)
+    if skill < range.yellow then return Data.OPTIMAL end
+    if skill < range.green then return Data.MEDIUM end
+    if skill < range.gray then return Data.EASY end
+    return Data.TRIVIAL
+end
+
+-- The skill the colors are measured from: the profession's level plus any bonus
+-- (a racial one), as the shown skill.
+function Data.Skill(prof)
+    if type(prof) ~= "table" then return nil end
+    return (prof.skill or 0) + (prof.bonus or 0)
+end
+
+-- The range of a recipe, only while it agrees with the color the client gives it: a
+-- range the game moved since the data was read would otherwise show wrong numbers.
+function Data.RangeFor(recipe, skill)
+    local range = type(recipe) == "table" and Data.Range(recipe.id)
+    if not (range and type(skill) == "number") then return nil end
+    if Data.ColorAt(range, skill) ~= recipe.difficulty then return nil end
+    return range
+end
+
+-- Chance (0 to 1) that one craft gives a skill point: always on orange, never on
+-- gray, and in between the classic rule, (gray - skill) / (gray - yellow), so 100%
+-- at yellow falling to 50% at green. nil when it can't be told honestly.
+function Data.Chance(recipe, skill)
+    if type(recipe) ~= "table" then return nil end
+    if recipe.difficulty == Data.OPTIMAL then return 1 end
+    if recipe.difficulty == Data.TRIVIAL then return 0 end
+    local range = Data.RangeFor(recipe, skill)
+    if not range then return nil end
+    if range.gray <= range.yellow then return skill < range.yellow and 1 or 0 end
+    return math.max(0, math.min(1, (range.gray - skill) / (range.gray - range.yellow)))
+end
+
+-- "72%", or nil.
+function Data.ChanceText(chance)
+    if type(chance) ~= "number" then return nil end
+    return string.format("%d%%", math.floor(chance * 100 + 0.5))
+end
+
 -- Materials. A recipe's schematic never changes, so it's read once per recipe.
 
 Data.schematics = {}

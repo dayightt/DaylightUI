@@ -105,6 +105,129 @@ local function target(pane, s, r)
     end
 end
 
+-- Skill-up range: where the recipe turns yellow, green and gray, as a bar of four
+-- colored pieces with your skill marked on it, and the chance of a point now.
+Recipe.RANGE_H = 46
+Recipe.RANGE_BAR = 6
+Recipe.TICK = { 2, 14 }      -- the marker for your skill: width, height
+Recipe.LABEL_ROOM = 26       -- a threshold's number needs this much room to show
+
+local function rangeTip(b)
+    local range = b.range
+    if not range then return end
+    local D = ns.Data
+    local function word(diff, n)
+        local c = D.Color(diff)
+        return Win.Parts.Hex(c) .. tostring(n) .. "|r"
+    end
+    DUI.Widgets.Tooltip(b, L["Skill-up range"], string.format(
+        L["Yellow from %s, green from %s, gray from %s. Orange recipes always give a point; yellow ones usually, green ones sometimes, gray ones never."],
+        word(D.MEDIUM, range.yellow), word(D.EASY, range.green), word(D.TRIVIAL, range.gray)))
+end
+
+local function makeRange(parent)
+    local W = DUI.Widgets
+    local b = CreateFrame("Frame", nil, parent)
+    b:EnableMouse(true)
+    b.you = Style.Text(b, Style.SIZE.small, "LEFT")
+    b.you:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.odds = Style.Text(b, Style.SIZE.small, "RIGHT")
+    b.odds:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    b.parts = {}
+    for i = 1, 4 do b.parts[i] = W.Bar(b, Recipe.RANGE_BAR) end
+    b.tick = b:CreateTexture(nil, "OVERLAY")
+    b.tick:SetTexture("Interface\\Buttons\\WHITE8X8")
+    local white = Style.INK.VALUE
+    b.tick:SetVertexColor(white[1], white[2], white[3], 1)
+    local white = Style.INK.VALUE
+    b.tick:SetVertexColor(white[1], white[2], white[3], 1)
+    b.tick:SetSize(Recipe.TICK[1], Recipe.TICK[2])
+    b.marks = {}
+    for i = 1, 3 do b.marks[i] = Style.Text(b, Style.SIZE.tiny, "CENTER") end
+    b:SetScript("OnEnter", rangeTip)
+    b:SetScript("OnLeave", W.HideTooltip)
+    return b
+end
+
+-- Lay the pieces out over width w: the bar runs from a little before yellow (or your
+-- skill, if lower) to a little past gray (or your skill, if higher).
+local function layRange(b, w)
+    local range, skill = b.range, b.skill
+    if not (range and skill) then return end
+    local span = math.max(10, range.gray - range.yellow)
+    local lo = math.max(0, math.min(skill, range.yellow - math.ceil(span / 2)))
+    local hi = math.max(skill + 1, range.gray + math.ceil(span / 4))
+    local function x(v) return math.floor((v - lo) / (hi - lo) * w + 0.5) end
+    local D = ns.Data
+    local cuts = { lo, range.yellow, range.green, range.gray, hi }
+    local kinds = { D.OPTIMAL, D.MEDIUM, D.EASY, D.TRIVIAL }
+    local y = -(Style.SIZE.small + 8)
+    for i, bar in ipairs(b.parts) do
+        local x1, x2 = x(cuts[i]), x(cuts[i + 1])
+        bar:ClearAllPoints()
+        if x2 - x1 >= Recipe.RANGE_BAR then
+            bar:SetPoint("TOPLEFT", b, "TOPLEFT", x1 + (i > 1 and 1 or 0), y)
+            bar:SetWidth(x2 - x1 - (i > 1 and 1 or 0))
+            bar:SetValue(1)
+            local c = D.Color(kinds[i])
+            DUI.Widgets.BarFrom(bar, c[1], c[2], c[3])
+            bar:Show()
+        else
+            bar:Hide()
+        end
+    end
+    local tickX = x(math.min(skill, hi))
+    local M = DUI.Motion
+    local function at(v)
+        b.tickX = v
+        b.tick:ClearAllPoints()
+        b.tick:SetPoint("CENTER", b, "TOPLEFT", v, y - Recipe.RANGE_BAR / 2)
+    end
+    if M and b.tickX and b.tickX ~= tickX and b:IsVisible() then
+        b.glide = b.glide or {}
+        M.Tween(b.glide, b.tickX, tickX, M.SLOW, at)
+    else
+        at(tickX)
+    end
+    -- The three threshold numbers under the bar, each in its color. Green steps aside
+    -- when it would crowd the others (a range only a few points wide).
+    local marks = { { range.yellow, D.MEDIUM }, { range.green, D.EASY }, { range.gray, D.TRIVIAL } }
+    for i, m in ipairs(marks) do
+        local fs = b.marks[i]
+        local mx = x(m[1])
+        local crowd = i == 2 and (mx - x(range.yellow) < Recipe.LABEL_ROOM or x(range.gray) - mx < Recipe.LABEL_ROOM)
+        local half = Recipe.LABEL_ROOM / 2
+        fs:ClearAllPoints()
+        fs:SetPoint("TOP", b, "TOPLEFT", math.max(half, math.min(w - half, mx)), y - Recipe.RANGE_BAR - 4)
+        fs:SetText(tostring(m[1]))
+        local c = D.Color(m[2])
+        fs:SetTextColor(c[1], c[2], c[3])
+        fs:SetShown(not crowd)
+    end
+    if range.gray <= range.yellow then b.marks[2]:Hide() end
+end
+
+-- The range piece for recipe r, or nothing when its range isn't known.
+function Recipe.Range(s, r)
+    local D = ns.Data
+    local prof = ns.List.data and ns.List.data.prof
+    local skill = D.Skill(prof)
+    local range = D.RangeFor(r, skill)
+    if not range then return nil end
+    local b = s:Piece("range", makeRange, Recipe.RANGE_H, 10, "range")
+    b.range, b.skill = range, skill
+    local Hex, INK = Win.Parts.Hex, Style.INK
+    local pop = Hex({ Style.Pop() })
+    b.you:SetText(string.format(L["You: %s"], pop .. tostring(skill) .. "|r"))
+    Style.InkText(b.you, "LABEL")
+    local chance = D.ChanceText(D.Chance(r, skill))
+    b.odds:SetText(chance and string.format(L["%s chance of a skill point"], pop .. chance .. "|r") or "")
+    b.odds:SetTextColor(INK.TEXT[1], INK.TEXT[2], INK.TEXT[3])
+    b.Stretch = function(w) layRange(b, w) end
+    layRange(b, s:Width())
+    return b
+end
+
 function Recipe.Build(pane)
     Recipe.pane = pane
     pane.stack = Win.Parts.Stack(pane, { top = 12, bottom = ns.Make.FOOT })
@@ -133,6 +256,7 @@ function Recipe.Fill(pane, r, keepScroll)
     s:Line({ recipe = r, icon = r.icon, text = r.name, color = name,
         sub = ns.Data.SkillWords(r.difficulty), subColor = ns.Data.Color(r.difficulty),
         value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip })
+    Recipe.Range(s, r)
     local desc = call("GetRecipeDescription", r.id, {})
     if type(desc) == "string" and not secret(desc) and desc ~= "" then
         s:Text(DUI.Tips and DUI.Tips.Numbers and DUI.Tips.Numbers(desc) or desc, { color = INK.TEXT, gap = 10 })

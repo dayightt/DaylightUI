@@ -1199,3 +1199,48 @@ T.test("craftworld_cooldowns", function()
     PW.Cooldown(102, nil)
     T.isnil((get(102)), "cleared by hand")
 end)
+
+-- Skill-up chance: the client only says a recipe's color; the ranges are the game's
+-- own data (Craft/SkillUps.lua), shown only while they agree with that color.
+T.test("craft: each row shows its skill-up chance; gray and unknown ones none", function()
+    local ns = load()
+    ns.SkillUps[102] = 125 * 1000 + 175   -- Bolt of Silk Cloth: yellow 125, green 150, gray 175
+    open(ns)
+    local function chance(id)
+        local b = ns.List.lines[id]
+        return b.chance and b.chance:IsShown() and b.chance:GetText() or nil
+    end
+    T.eq(chance(101), "100%", "orange always gives a point")
+    T.eq(chance(102), "54%", "yellow at 148: (175 - 148) / (175 - 125)")
+    T.rgb({ ns.List.lines[102].chance:GetTextColor() }, { DaylightUI.Style.Accent() }, "a number that pops")
+    T.isnil(chance(103), "gray: none")
+    ns.SkillUps[102] = 160 * 1000 + 200   -- this range says orange at 148, the client says yellow
+    ns.List.Soon()
+    frame(2)
+    T.isnil(chance(102), "a range that disagrees with the client's color shows nothing")
+end)
+
+T.test("craft: the picked recipe shows its range as a bar, your skill marked, and the chance", function()
+    local ns = load()
+    ns.SkillUps[102] = 125 * 1000 + 175
+    open(ns)
+    ns.Window.Pick(102)
+    frame(10)
+    local b = page(ns).recipe.stack.pools.range and page(ns).recipe.stack.pools.range[1]
+    T.truthy(b and b:IsShown(), "the range piece")
+    T.truthy(string.find(b.you:GetText(), "148", 1, true), "You: 148")
+    T.truthy(string.find(b.odds:GetText(), "54%", 1, true), "the chance")
+    local shown = 0
+    for _, bar in ipairs(b.parts) do if bar:IsShown() then shown = shown + 1 end end
+    T.eq(shown, 4, "orange, yellow, green and gray")
+    T.eq(b.marks[1]:GetText(), "125"); T.eq(b.marks[2]:GetText(), "150"); T.eq(b.marks[3]:GetText(), "175")
+    T.rgb({ b.marks[2]:GetTextColor() }, ns.Data.Color(ns.Data.EASY), "green's number in green")
+    local tick = select(4, b.tick:GetPoint(1))
+    local yellowAt = select(4, b.parts[2]:GetPoint(1))
+    local greenAt = select(4, b.parts[3]:GetPoint(1))
+    T.truthy(tick > yellowAt and tick < greenAt, "the marker sits in yellow")
+    ns.Window.Pick(103)
+    frame(10)
+    T.falsy(b:IsShown(), "no range known: no bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

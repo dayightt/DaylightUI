@@ -127,6 +127,40 @@ local function onClick(b)
     List.Pick(r.id)
 end
 
+-- The skill-up chance under the count on a row's right: a small number in the
+-- accent, the count moving up to the name's line to make room. Gray recipes show
+-- none, and neither does one whose range isn't known.
+List.chances = {}
+
+local function chanceText(b)
+    if not b.chance then
+        b.chance = Style.Text(b, Style.SIZE.tiny, "RIGHT")
+        b.chance:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -8, 6)
+    end
+    return b.chance
+end
+
+function List.PaintChance(b, recipe)
+    local fs = chanceText(b)
+    local data = List.data
+    local chance = recipe.difficulty ~= ns.Data.TRIVIAL and ns.Data.Chance(recipe, ns.Data.Skill(data and data.prof)) or nil
+    local text = ns.Data.ChanceText(chance)
+    b.value:ClearAllPoints()
+    if text then
+        b.value:SetPoint("TOPRIGHT", b, "TOPRIGHT", -8, -5)
+        b.sub:SetPoint("RIGHT", fs, "LEFT", -10, 0)
+    else
+        b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+        b.sub:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    end
+    fs:SetText(text or "")
+    fs:SetShown(text ~= nil)
+    Style.InkText(fs, "pop")
+    local was = List.chances[recipe.id]
+    List.chances[recipe.id] = text
+    if text and was and was ~= text and DUI.Motion then DUI.Motion.Fade(fs, 0, 1, DUI.Motion.FAST) end
+end
+
 -- Each recipe's last drawn color. When it changes (a skill-up turned it from orange to
 -- yellow) it eases to the new one at SLOW speed.
 List.colors = {}
@@ -137,6 +171,7 @@ function List.Line(s, recipe, picked)
     local b = s:Line({ recipe = recipe, icon = recipe.icon, text = recipe.name, color = c,
         sub = recipe.sub, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
         picked = picked, onClick = onClick, tooltip = tooltip, id = "recipe:" .. tostring(recipe.id) })
+    List.PaintChance(b, recipe)
     local was = List.colors[recipe.id]
     List.colors[recipe.id] = c
     if was and (was[1] ~= c[1] or was[2] ~= c[2] or was[3] ~= c[3]) and DUI.Motion then

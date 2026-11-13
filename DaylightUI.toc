@@ -144,6 +144,7 @@ Inspect\Window.lua
 Inspect\Options.lua
 Inspect\Module.lua
 Craft\Defaults.lua
+Craft\SkillUps.lua
 Craft\Data.lua
 Craft\Share.lua
 Craft\Spells.lua
