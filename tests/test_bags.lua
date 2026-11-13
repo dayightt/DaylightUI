@@ -452,6 +452,34 @@ T.test("bags: a new item keeps a small dot until hovered", function()
     _G.C_NewItems = nil
 end)
 
+T.test("bags: a slot's hover ring settles after a shine and when the bag closes", function()
+    local ns = login()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return slot == 7 end }
+    local f = open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function drive() stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2) end
+    world.items[0][7] = { iconFileID = 207, stackCount = 1, quality = 2, hyperlink = "|Hitem:207|h", itemID = 207 }
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    local green = B.buttons[0][7]
+    local q = Items.QualityColor(2)
+    local p = Items.Parts(green)
+    T.truthy(p.shell.opts.borderColor[1] > q[1] + 0.1, "flashing")
+    green:GetScript("OnEnter")(green)
+    drive()
+    local r = DaylightUI.Style.Accent()
+    T.near(p.shell.opts.borderColor[1], r, 1e-6, "hovered during the flash: the accent")
+    green:GetScript("OnLeave")(green)
+    drive()
+    T.near(p.shell.opts.borderColor[1], q[1], nil, "left: its quality color, not mid-flash")
+    -- The pointer is on a slot when its window hides: no leave comes.
+    local rare = B.buttons[0][1]
+    rare:GetScript("OnEnter")(rare)
+    drive()
+    f:Hide(); drive()
+    f:Show(); drive()
+    T.near(Items.Parts(rare).shell.opts.borderColor[1], 0.3, nil, "reopened: no stuck accent ring")
+end)
+
 T.test("bags: slots are one flat ring, a quality color only for uncommon and up", function()
     local ns = login()
     open(ns)

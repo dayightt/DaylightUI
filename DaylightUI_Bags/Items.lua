@@ -202,17 +202,23 @@ function Items.Ring(p, color)
 end
 
 -- Eases a slot's ring toward the accent while the pointer is on it.
-function Items.Hover(btn, on)
+function Items.Hover(btn, on, snap)
     local p = dressed[btn]
     if not p then return end
     p.hover = on or nil
+    if snap then
+        p.hoverT = 0
+        if p.hoverState then DUI.Motion.Tween(p.hoverState, 0, 0, 0) end
+        Items.Ring(p)
+        return
+    end
     local from = p.hoverT or 0
     local to = on and 1 or 0
     if from == to then return end
     p.hoverState = p.hoverState or {}
     DUI.Motion.Tween(p.hoverState, from, to, DUI.Motion.FAST, function(t)
         p.hoverT = t
-        if not p.flash then Items.Ring(p) end
+        Items.Ring(p)
     end)
 end
 
@@ -316,6 +322,8 @@ function Items.Dress(btn)
         if self.dluiNew then Items.SeeNew(self) end
     end)
     btn:HookScript("OnLeave", function(self) Items.Hover(self, false) end)
+    -- No leave comes when the slot hides under the pointer, so let go here.
+    btn:HookScript("OnHide", function(self) Items.Hover(self, false, true) end)
     btn:HookScript("PreClick", function(self)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
     end)
@@ -641,9 +649,13 @@ function Items.Shine(btn)
             bright[1] + (to[1] - bright[1]) * t,
             bright[2] + (to[2] - bright[2]) * t,
             bright[3] + (to[3] - bright[3]) * t }
-        if p.hover then return end
-        Style.SetShellColors(p.shell, col, col)
-    end, function() if p.flash == bright then p.flash = nil end end)
+        Items.Ring(p, col)
+    end, function()
+        if p.flash == bright then
+            p.flash = nil
+            Items.Ring(p)
+        end
+    end)
 end
 
 -- Items the player can't use (level, class, skill or "Already known" shown in
