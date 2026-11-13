@@ -1103,8 +1103,11 @@ T.test("tooltip: item level on gear only, once per fill, never twice with the ga
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("tooltip: stack size on items that stack, on out of the box, the number in the accent", function()
+T.test("tooltip: stack size on items that stack, once switched on, the number in the accent", function()
     login(itemWorld)
+    T.eq(DaylightUI:Get("Tooltip", "stackSize"), false, "off as shipped")
+    DaylightUI:Set("Tooltip", "stackSize", true)
+    stub.RunTimers()
     local at = withLines(GameTooltip)
     local stacks, before = { potion = 20, sword = 1 }, C_Item.GetItemInfo
     C_Item.GetItemInfo = function(link)
