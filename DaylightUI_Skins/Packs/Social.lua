@@ -72,6 +72,7 @@ end
 local CLUB_KEEP = { "Icon", "GuildTabardBackground", "GuildTabardEmblem", "GuildTabardBorder",
                     "InvitationIcon", "UnreadNotificationIcon", "FavoriteIcon" }
 local clubHooked = setmetatable({}, { __mode = "k" })
+local hookEntry
 -- The "join or create" entry is a card too, painted green by the game after
 -- the row is dressed. These are the only icons it uses for that entry.
 local ADD_ICON = { ["communities-icon-addgroupplus"] = true, ["communities-icon-searchmagnifyingglass"] = true }
@@ -103,6 +104,9 @@ local function clubCard(card)
     Kit.Hide(card.IconRing)
     Kit.Erase(card.NewCommunityFlash)
     calmEntry(card)
+    -- SetAddCommunity paints this row after it is dressed. The method on the
+    -- card is the one that runs; a hook on the mixin never reaches it.
+    hookEntry(card)
     -- The game selects the card after the click, so repaint then.
     if not clubHooked[card] then
         clubHooked[card] = true
@@ -146,16 +150,15 @@ local CLUB_ICON_Y = -8
 local LIST_TOP = CLUB_ICON_Y - CLUB_ICON - 6
 local LIST_WAS = -23
 local listHeld = setmetatable({}, { __mode = "k" })
+local watched = setmetatable({}, { __mode = "k" })
 local tipped = setmetatable({}, { __mode = "k" })
+local refit = setmetatable({}, { __mode = "k" })
 local finderHooked = setmetatable({}, { __mode = "k" })
 local subs = setmetatable({}, { __mode = "k" })
-local addHooked = false
-local joinHooked = false
 local listWide = setmetatable({}, { __mode = "k" })
 local joinBtns = setmetatable({}, { __mode = "k" })
-local subHooked = false
+local followed = setmetatable({}, { __mode = "k" })
 local placeSubtitle
-local hookAddFlow
 
 local rims = setmetatable({}, { __mode = "k" })
 
@@ -293,8 +296,8 @@ local function paintChevron(btn, c)
 end
 
 local function watchChevron(btn, c)
-    if type(btn) ~= "table" or not btn.HookScript or tipped["chev" .. tostring(btn)] then return end
-    tipped["chev" .. tostring(btn)] = true
+    if type(btn) ~= "table" or not btn.HookScript or watched[btn] then return end
+    watched[btn] = true
     local function paint() paintChevron(btn, c) end
     btn:HookScript("OnEnable", paint)
     btn:HookScript("OnDisable", paint)
@@ -320,8 +323,8 @@ local function levelHeaderButtons(frame, mm)
         if type(btn) == "table" and btn.SetAllPoints then
             btn:ClearAllPoints()
             btn:SetAllPoints(mm)
-            if not tipped[btn] and btn.HookScript then
-                tipped[btn] = true
+            if not refit[btn] and btn.HookScript then
+                refit[btn] = true
                 btn:HookScript("OnClick", function() placeClubIcon(frame) end)
             end
         end
@@ -329,17 +332,19 @@ local function levelHeaderButtons(frame, mm)
 end
 
 local function tipButton(btn, text)
-    if type(btn) ~= "table" or type(text) ~= "string" or tipped["tip" .. tostring(btn)] or not btn.HookScript then return end
-    tipped["tip" .. tostring(btn)] = true
+    if type(btn) ~= "table" or type(text) ~= "string" or text == "" or tipped[btn] or not btn.HookScript then return end
+    if not DUI.Tips then return end
+    tipped[btn] = true
     btn:HookScript("OnEnter", function(self)
         if self.IsEnabled and not self:IsEnabled() then return end
         local tip = _G.GameTooltip
         if type(tip) ~= "table" or not tip.SetOwner then return end
-        tip:SetOwner(self, "ANCHOR_RIGHT")
-        tip:SetText(text)
-        if tip.Show then tip:Show() end
+        DUI.Tips.Clear()
+        DUI.Tips.Title(text)
+        DUI.Tips.Flush(tip)
     end)
     btn:HookScript("OnLeave", function()
+        DUI.Tips.Clear()
         local tip = _G.GameTooltip
         if type(tip) == "table" and tip.Hide then tip:Hide() end
     end)
@@ -412,9 +417,26 @@ local function placeJoin(frame)
         end)
         joinBtns[frame] = b
     end
-    if b then
-        local show = empty and (not disabled.IsShown or disabled:IsShown())
-        if show then b:Show() else b:Hide() end
+    if not b then return end
+    local show = empty and (not disabled.IsShown or disabled:IsShown())
+    if b.__duiJoin == show then return end
+    b.__duiJoin = show
+    local Motion = DUI.Motion
+    if show then
+        b:Show()
+        if Motion and Motion.Fade then Motion.Fade(b, 0, 1, Motion.FAST) else b:SetAlpha(1) end
+    elseif Motion and Motion.Fade and b.CreateAnimationGroup then
+        local g = Motion.Fade(b, b:GetAlpha() or 1, 0, Motion.FAST)
+        if type(g) == "table" and g.SetScript then
+            g:SetScript("OnFinished", function()
+                if (b:GetAlpha() or 1) < 0.05 then b:Hide(); b:SetAlpha(1) end
+            end)
+        else
+            b:Hide()
+            b:SetAlpha(1)
+        end
+    else
+        b:Hide()
     end
 end
 
@@ -440,6 +462,27 @@ local function dressFinder(Kit, finder)
     end
 end
 
+-- Post-hook the method the frame already has. A hook on the mixin table is
+-- copied onto frames only when they are built, which has already happened.
+local function follow(obj, method, fn)
+    local done = followed[obj]
+    if type(done) == "table" and done[method] then return end
+    if type(hooksecurefunc) ~= "function" or type(obj) ~= "table" or type(obj[method]) ~= "function" then return end
+    if not done then
+        done = {}
+        followed[obj] = done
+    end
+    done[method] = true
+    hooksecurefunc(obj, method, fn)
+end
+
+hookEntry = function(card)
+    if type(card) ~= "table" then return end
+    for _, method in ipairs({ "SetAddCommunity", "SetFindCommunity", "SetGuildFinder" }) do
+        follow(card, method, calmEntry)
+    end
+end
+
 Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communities", frame = "CommunitiesFrame", watch = true,
     auto = { lines = true, skip = { ".MaximizeMinimizeFrame" } },
     after = function(Kit, f)
@@ -456,7 +499,6 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
         -- emblem with SetVertexColor(1, 1, 1, 1), which is fine once it isn't
         -- behind the title.
         placeClubIcon(f)
-        hookAddFlow()
         -- Maximize/minimize as bare chevrons, level with the X. The button
         -- grows or shrinks the window; the game never says so.
         local mm = f.MaximizeMinimizeFrame
@@ -467,25 +509,17 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
             tipButton(mm.MaximizeButton, _G.MAXIMIZE)
             tipButton(mm.MinimizeButton, _G.MINIMIZE)
         end
-        if not subHooked and type(hooksecurefunc) == "function" and type(CommunitiesFrameMixin) == "table" then
-            subHooked = true
-            for _, name in ipairs({ "OnClubSelected", "SetDisplayMode" }) do
-                if type(CommunitiesFrameMixin[name]) == "function" then
-                    hooksecurefunc(CommunitiesFrameMixin, name, function(self) placeClubIcon(self) end)
-                end
-            end
-        end
+        -- The mixin copies were already on these frames when the addon loaded,
+        -- so a hook on the mixin table never runs. The frame's own methods do.
+        follow(f, "OnClubSelected", function(self) placeClubIcon(self) end)
+        follow(f, "SetDisplayMode", function(self) placeClubIcon(self) end)
+        follow(f.CommunitiesList, "Update", function(self)
+            local parent = self.GetParent and self:GetParent()
+            if type(parent) == "table" then placeJoin(parent) end
+        end)
         dressFinder(Kit, f.GuildFinderFrame)
         dressFinder(Kit, f.CommunityFinderFrame)
         placeJoin(f)
-        if not joinHooked and type(hooksecurefunc) == "function" and type(CommunitiesListMixin) == "table"
-            and type(CommunitiesListMixin.Update) == "function" then
-            joinHooked = true
-            hooksecurefunc(CommunitiesListMixin, "Update", function(self)
-                local parent = self.GetParent and self:GetParent()
-                if type(parent) == "table" then placeJoin(parent) end
-            end)
-        end
         local list = f.CommunitiesList
         if type(list) == "table" then
             Kit.Strip(list)
@@ -495,14 +529,6 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
             -- under them; the frame itself is only that border, so it goes.
             if type(list.InsetFrame) == "table" and list.InsetFrame.SetAlpha then list.InsetFrame:SetAlpha(0) end
             Kit.EachRow(list.ScrollBox, clubCard, "clubcard")
-        end
-        if not addHooked and type(hooksecurefunc) == "function" and type(CommunitiesListEntryMixin) == "table" then
-            addHooked = true
-            for _, name in ipairs({ "SetAddCommunity", "SetFindCommunity", "SetGuildFinder" }) do
-                if type(CommunitiesListEntryMixin[name]) == "function" then
-                    hooksecurefunc(CommunitiesListEntryMixin, name, calmEntry)
-                end
-            end
         end
         local members = f.MemberList
         if type(members) == "table" then
@@ -555,307 +581,6 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
             Kit.Inset(card.OfficerNoteBackground)
         end
     end })
-
--- "Añadir comunidad" is a forbidden frame: reading it can abort every skin,
--- and pcall does not catch that. The list opens it through AddCommunitiesFlow_Toggle,
--- which is ordinary addon code. That call shows our own window instead, and
--- the same club APIs do the join and the create.
-local addFlow
-local flowHooked = false
-
-local function gameText(key, ...)
-    local s = _G[key]
-    if type(s) ~= "string" then return "" end
-    if select("#", ...) == 0 then return s end
-    local ok, formatted = pcall(string.format, s, ...)
-    return ok and formatted or s
-end
-
-local function clubType(kind)
-    local types = _G.Enum and Enum.ClubType
-    if type(types) == "table" and types[kind] ~= nil then return types[kind] end
-    return kind == "BattleNet" and 1 or 0
-end
-
-local function factionName()
-    if type(UnitFactionGroup) ~= "function" then return "" end
-    local _, name = UnitFactionGroup("player")
-    return type(name) == "string" and name or ""
-end
-
-local function ink(fs, which)
-    DUI.Style.InkText(fs, which)
-end
-
-local ADD_COL = 350 -- room for a description line before it wraps
-
-local function block(parent, y, title, body)
-    local head = DUI.Style.Text(parent, DUI.Style.SIZE.head, "LEFT")
-    head:SetPoint("TOPLEFT", parent, "TOPLEFT", 20, -y)
-    head:SetWidth(ADD_COL)
-    head:SetWordWrap(true)
-    head:SetText(title)
-    ink(head, "TITLE")
-    local copy = DUI.Style.Text(parent, DUI.Style.SIZE.small, "LEFT")
-    copy:SetWidth(ADD_COL)
-    copy:SetWordWrap(true)
-    copy:SetText(body)
-    ink(copy, "TEXT")
-    return head, copy
-end
-
--- The same hairline that closes a window header, sitting under a section title
--- and stopping short of the picture button beside it.
-local function underTitle(parent, title, copy, right)
-    local rule = parent:CreateTexture(nil, "ARTWORK")
-    rule:SetTexture("Interface\\Buttons\\WHITE8X8")
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-    rule:SetPoint("RIGHT", right, "LEFT", -12, 0)
-    local classic = DUI.Style.Look and DUI.Style.Look() == "classic"
-    if classic and DUI.Style.LOOKS and DUI.Style.LOOKS.classic then
-        local hi = DUI.Style.LOOKS.classic.GOLD[2]
-        rule:SetVertexColor(hi[1], hi[2], hi[3], 0.55)
-    else
-        rule:SetVertexColor(1, 1, 1, 0.06)
-    end
-    copy:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 0, -6)
-    return rule
-end
-
-local function artButton(parent, up, down, w, h)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(w, h)
-    local function atlas(tex, name)
-        if tex.SetAtlas then tex:SetAtlas(name) else tex:SetTexture(name) end
-    end
-    local normal = b:CreateTexture(nil, "ARTWORK")
-    normal:SetAllPoints()
-    atlas(normal, up)
-    b:SetNormalTexture(normal)
-    local pushed = b:CreateTexture(nil, "ARTWORK")
-    pushed:SetAllPoints()
-    atlas(pushed, down)
-    b:SetPushedTexture(pushed)
-    return b
-end
-
-local function showPage(f, page)
-    f.choose:SetShown(page == "choose")
-    f.create:SetShown(page == "create")
-    f.page = page
-end
-
-local function paintCreate(f, kind)
-    f.creating = kind
-    local bnet = kind == "BattleNet"
-    DUI.Win.SetTitle(f, gameText(bnet and "COMMUNITIES_CREATE_DIALOG_BATTLE_NET_LABEL" or "COMMUNITIES_CREATE_DIALOG_WOW_LABEL"))
-    local typeId = clubType(kind)
-    f.avatarId = 1
-    if type(C_Club) == "table" and type(C_Club.GetAvatarIdList) == "function" then
-        local ok, list = pcall(C_Club.GetAvatarIdList, typeId)
-        if ok and type(list) == "table" and #list > 0 then
-            f.avatarId = list[math.random(1, #list)]
-        end
-    end
-    if type(C_Club) == "table" and type(C_Club.SetAvatarTexture) == "function" then
-        pcall(C_Club.SetAvatarTexture, f.avatar, f.avatarId, typeId)
-    end
-    f.name:SetText("")
-    f.short:SetText("")
-    f.about.edit:SetText("")
-    if f.about.hint then
-        f.about.hint:SetText(gameText(bnet and "COMMUNITIES_CREATE_DIALOG_DESCRIPTION_INSTRUCTIONS_BATTLE_NET"
-            or "COMMUNITIES_CREATE_DIALOG_DESCRIPTION_INSTRUCTIONS"))
-    end
-    local createLabel = gameText(bnet and "COMMUNITIES_CREATE_GROUP" or "COMMUNITIES_CREATE_COMMUNITY")
-    if f.createBtn.text and f.createBtn.text.SetText then f.createBtn.text:SetText(createLabel) end
-    showPage(f, "create")
-end
-
-local function validClubText(kind, text, field)
-    if type(C_Club) ~= "table" or type(C_Club.ValidateText) ~= "function" then
-        return type(text) == "string" and text ~= ""
-    end
-    local fields = _G.Enum and Enum.ClubFieldType
-    local fieldId = type(fields) == "table" and fields[field] or nil
-    if fieldId == nil then return text ~= "" end
-    local ok, result = pcall(C_Club.ValidateText, clubType(kind), text, fieldId)
-    local success = _G.Enum and Enum.ValidateNameResult and Enum.ValidateNameResult.Success
-    if not ok or success == nil then return text ~= "" end
-    return result == success
-end
-
-function hookAddFlow()
-    if flowHooked or type(AddCommunitiesFlow_Toggle) ~= "function" then return end
-    if not (DUI.Win and DUI.Win.New and DUI.Widgets) then return end
-    flowHooked = true
-    local W = DUI.Widgets
-    local f = DUI.Win.New({ name = "DaylightCommunitiesAdd", w = 560, h = 480, strata = "DIALOG", compact = true })
-    f:ClearAllPoints()
-    f:SetPoint("TOP", UIParent, "TOP", 0, -140)
-    addFlow = f
-    f:HookScript("OnShow", function(self)
-        local faction = factionName()
-        DUI.Win.SetTitle(self, gameText("COMMUNITIES_ADD_DIALOG_LABEL"))
-        self.wowHead:SetText(gameText("COMMUNITIES_ADD_DIALOG_CREATE_WOW_LABEL", faction))
-        self.wowCopy:SetText(gameText("COMMUNITIES_ADD_DIALOG_CREATE_WOW_DESCRIPTION", faction))
-        self.invite:SetText("")
-        showPage(self, "choose")
-        local allowWow = not (type(C_Club) == "table" and type(C_Club.ShouldAllowClubType) == "function")
-            or C_Club.ShouldAllowClubType(clubType("Character"))
-        local allowBnet = not (type(C_Club) == "table" and type(C_Club.ShouldAllowClubType) == "function")
-            or C_Club.ShouldAllowClubType(clubType("BattleNet"))
-        self.wowBtn:SetEnabled(allowWow)
-        self.bnetBtn:SetEnabled(allowBnet)
-        if self.wowBtn.GetNormalTexture and self.wowBtn:GetNormalTexture() then
-            self.wowBtn:GetNormalTexture():SetDesaturated(not allowWow)
-        end
-        if self.bnetBtn.GetNormalTexture and self.bnetBtn:GetNormalTexture() then
-            self.bnetBtn:GetNormalTexture():SetDesaturated(not allowBnet)
-        end
-    end)
-
-    local choose = CreateFrame("Frame", nil, f.host)
-    choose:SetAllPoints(f.host)
-    f.choose = choose
-    local wowHead, wowCopy = block(choose, 18,
-        gameText("COMMUNITIES_ADD_DIALOG_CREATE_WOW_LABEL", factionName()),
-        gameText("COMMUNITIES_ADD_DIALOG_CREATE_WOW_DESCRIPTION", factionName()))
-    f.wowHead, f.wowCopy = wowHead, wowCopy
-    local wowBtn = artButton(choose, "communities-create-button-wow-up", "communities-create-button-wow-down", 132, 70)
-    wowBtn:SetPoint("TOPRIGHT", choose, "TOPRIGHT", -20, -18)
-    f.wowBtn = wowBtn
-    local mark = wowBtn:CreateTexture(nil, "OVERLAY")
-    mark:SetSize(42, 42)
-    mark:SetPoint("RIGHT", wowBtn, "RIGHT", -18, 0)
-    local tag = type(UnitFactionGroup) == "function" and UnitFactionGroup("player")
-    local markAtlas = tag == "Horde" and "communities-create-button-wow-horde" or "communities-create-button-wow-alliance"
-    if mark.SetAtlas then mark:SetAtlas(markAtlas) else mark:SetTexture(markAtlas) end
-    wowBtn:SetScript("OnClick", function() paintCreate(f, "Character") end)
-
-    -- A short gap under the WoW block, enough to read as its own section.
-    local bnetHead, bnetCopy = block(choose, 152,
-        gameText("COMMUNITIES_ADD_DIALOG_CREATE_BNET_LABEL"),
-        gameText("COMMUNITIES_ADD_DIALOG_CREATE_BNET_DESCRIPTION"))
-    local bnetBtn = artButton(choose, "communities-create-button-bnet-up", "communities-create-button-bnet-down", 116, 67)
-    bnetBtn:SetPoint("TOPRIGHT", choose, "TOPRIGHT", -28, -152)
-    f.bnetBtn = bnetBtn
-    bnetBtn:SetScript("OnClick", function() paintCreate(f, "BattleNet") end)
-    underTitle(choose, wowHead, wowCopy, wowBtn)
-    underTitle(choose, bnetHead, bnetCopy, bnetBtn)
-
-    local rule = choose:CreateTexture(nil, "ARTWORK")
-    rule:SetPoint("TOPLEFT", bnetCopy, "BOTTOMLEFT", 0, -28)
-    rule:SetPoint("TOPRIGHT", bnetCopy, "BOTTOMLEFT", 520, -28)
-    rule:SetHeight(1)
-    local line = DUI.Style.NEUTRAL
-    rule:SetColorTexture(line[1], line[2], line[3], 0.45)
-
-    local inviteHead = DUI.Style.Text(choose, DUI.Style.SIZE.head, "LEFT")
-    inviteHead:SetText(gameText("COMMUNITIES_ADD_DIALOG_INVITE_LINK_LABEL"))
-    ink(inviteHead, "TITLE")
-    local inviteCopy = DUI.Style.Text(choose, DUI.Style.SIZE.small, "LEFT")
-    inviteCopy:SetWidth(500)
-    inviteCopy:SetWordWrap(true)
-    inviteCopy:SetText(gameText("COMMUNITIES_ADD_DIALOG_INVITE_LINK_DESCRIPTION"))
-    ink(inviteCopy, "TEXT")
-
-    local join = W.Button(choose, gameText("COMMUNITIES_ADD_DIALOG_INVITE_LINK_JOIN"), 26)
-    join:SetWidth(110)
-    join:SetPoint("BOTTOMRIGHT", choose, "BOTTOMRIGHT", -20, 18)
-    f.join = join
-    local invite = W.Input(choose, { maxLetters = 120 })
-    invite:SetPoint("LEFT", choose, "LEFT", 20, 0)
-    invite:SetPoint("RIGHT", join, "LEFT", -12, 0)
-    invite:SetPoint("BOTTOM", join, "BOTTOM", 0, 0)
-    f.invite = invite
-    -- The heading and the field are one piece. The gap stays above them,
-    -- between this piece and the two create blocks.
-    inviteCopy:SetPoint("BOTTOMLEFT", invite, "TOPLEFT", 0, 8)
-    inviteHead:SetPoint("BOTTOMLEFT", inviteCopy, "TOPLEFT", 0, 4)
-    local function redeem()
-        local text = invite:GetText()
-        if type(text) ~= "string" or text == "" then return end
-        if type(C_Club) == "table" and type(C_Club.RedeemTicket) == "function" then
-            C_Club.RedeemTicket(text)
-        end
-        f:Hide()
-    end
-    join:SetScript("OnClick", redeem)
-    invite:HookScript("OnEnterPressed", redeem)
-
-    local create = CreateFrame("Frame", nil, f.host)
-    create:SetAllPoints(f.host)
-    create:Hide()
-    f.create = create
-    f.avatar = create:CreateTexture(nil, "ARTWORK")
-    f.avatar:SetSize(64, 64)
-    f.avatar:SetPoint("TOPLEFT", create, "TOPLEFT", 20, -16)
-    local nameLabel = DUI.Style.Text(create, DUI.Style.SIZE.small, "LEFT")
-    nameLabel:SetPoint("TOPLEFT", f.avatar, "TOPRIGHT", 16, 0)
-    nameLabel:SetText(gameText("COMMUNITIES_SETTINGS_NAME_LABEL"))
-    ink(nameLabel, "LABEL")
-    local function refreshCreate()
-        if not f.name or not f.short or not f.createBtn then return end
-        local ok = validClubText(f.creating, f.name:GetText(), "ClubName")
-            and validClubText(f.creating, f.short:GetText(), "ClubShortName")
-        f.createBtn:SetEnabled(ok)
-    end
-    f.name = W.Input(create, { maxLetters = 50, onChange = refreshCreate })
-    f.name:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -4)
-    f.name:SetPoint("RIGHT", create, "RIGHT", -20, 0)
-    local shortLabel = DUI.Style.Text(create, DUI.Style.SIZE.small, "LEFT")
-    shortLabel:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -12)
-    shortLabel:SetText(gameText("COMMUNITIES_CREATE_DIALOG_SHORT_NAME_LABEL"))
-    ink(shortLabel, "LABEL")
-    f.short = W.Input(create, { maxLetters = 6, onChange = refreshCreate })
-    f.short:SetPoint("TOPLEFT", shortLabel, "BOTTOMLEFT", 0, -4)
-    f.short:SetPoint("RIGHT", create, "RIGHT", -20, 0)
-    local aboutLabel = DUI.Style.Text(create, DUI.Style.SIZE.small, "LEFT")
-    aboutLabel:SetPoint("TOPLEFT", f.short, "BOTTOMLEFT", 0, -12)
-    aboutLabel:SetText(gameText("COMMUNITIES_CREATE_DIALOG_DESCRIPTION_LABEL"))
-    ink(aboutLabel, "LABEL")
-    -- A one-line box made multi-line collapses to a hairline. This is the
-    -- scrolling area the game uses, stretched down to the buttons.
-    f.about = W.TextArea(create, { width = 500, maxLetters = 500,
-        hint = gameText("COMMUNITIES_CREATE_DIALOG_DESCRIPTION_INSTRUCTIONS") })
-    f.about:SetPoint("TOPLEFT", aboutLabel, "BOTTOMLEFT", 0, -4)
-    f.about:SetPoint("RIGHT", create, "RIGHT", -20, 0)
-    local cancel = W.Button(create, gameText("CANCEL"), 26)
-    cancel:SetWidth(110)
-    cancel:SetPoint("BOTTOMRIGHT", create, "BOTTOMRIGHT", -20, 18)
-    cancel:SetScript("OnClick", function() f:Hide() end)
-    local createBtn = W.Button(create, gameText("COMMUNITIES_CREATE_COMMUNITY"), 26)
-    createBtn:SetWidth(160)
-    createBtn:SetPoint("RIGHT", cancel, "LEFT", -8, 0)
-    f.createBtn = createBtn
-    f.about:SetPoint("BOTTOM", createBtn, "TOP", 0, 16)
-    createBtn:SetScript("OnClick", function()
-        if not createBtn:IsEnabled() then return end
-        if type(C_Club) == "table" and type(C_Club.CreateClub) == "function" then
-            C_Club.CreateClub(f.name:GetText(), f.short:GetText(), f.about.edit:GetText(), clubType(f.creating), f.avatarId)
-        end
-        f:Hide()
-    end)
-    showPage(f, "choose")
-
-    local clubs = _G.CommunitiesFrame
-    if type(clubs) == "table" and clubs.HookScript then
-        clubs:HookScript("OnHide", function() if f:IsShown() then f:Hide() end end)
-    end
-
-    _G.AddCommunitiesFlow_IsShown = function() return f:IsShown() end
-    _G.AddCommunitiesFlow_Hide = function() f:Hide() end
-    _G.AddCommunitiesFlow_Toggle = function()
-        if f:IsShown() then f:Hide() else f:Show() end
-    end
-end
-
-Engine.Register({ key = "communitiesadddialog", pack = "social", addon = "Blizzard_Communities", apply = function()
-    if type(AddCommunitiesFlow_Toggle) ~= "function" then return false end
-    hookAddFlow()
-end })
 
 -- The guild's side windows: guild log, editing the message of the day or info
 -- text, and news filters.

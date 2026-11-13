@@ -3356,6 +3356,8 @@ T.test("skins: the guild window keeps its icon in the header; maximize and minim
         disabled.Description:SetTextColor(1, 0.82, 0)
         _G.ERR_GUILD_PLAYER_NOT_IN_GUILD = "No estás en una hermandad."
         stub.loadedAddOns.Blizzard_Communities = true
+        function f:OnClubSelected() end
+        function f:SetDisplayMode() end
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit = stub.skins.Kit
@@ -3419,6 +3421,9 @@ T.test("skins: the guild window keeps its icon in the header; maximize and minim
     f:Show()
     stub.RunTimers()
     T.eq(sub:GetText(), "Luz de Elune", "the selected community replaces the empty line")
+    _G.C_Club.GetClubInfo = function() return { name = "Circulo de la Luna" } end
+    f:OnClubSelected()
+    T.eq(sub:GetText(), "Circulo de la Luna", "switching club while the window stays open updates the line")
 end)
 
 T.test("skins: with no community the join action sits under the guild text", function()
@@ -3436,6 +3441,7 @@ T.test("skins: with no community the join action sits under the guild text", fun
         disabled:Show()
         _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
         _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        function f.CommunitiesList:Update() end
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local x
@@ -3466,51 +3472,51 @@ T.test("skins: with no community the join action sits under the guild text", fun
         if point == "BOTTOMRIGHT" then back = px end
     end
     T.eq(back, 170, "the column has its width again")
-    T.eq(b:IsShown(), false, "the empty-state button is gone")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "the empty-state button fades out")
+    -- A list rebuild while the window stays open does the same.
+    _G.C_Club.GetSubscribedClubs = function() return {} end
+    _G.IsInGuild = function() return false end
+    f.CommunitiesList:Update()
+    T.eq(f.CommunitiesList:IsShown(), false, "the empty column closes again without reopening the window")
+    T.truthy(b:IsShown(), "the join button fades back in")
+    _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
+    _G.IsInGuild = function() return true end
+    f.CommunitiesList:Update()
+    T.eq(f.CommunitiesList:IsShown(), true, "the list returns on the rebuild")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "and the button fades out again")
 end)
 
-T.test("skins: joining a community opens our window, not the game's locked dialog", function()
-    local opened, redeemed
+T.test("skins: joining a community opens the game's dialog, which we leave alone", function()
+    local opened, toggle
+    local f, disabled
     login(function()
         stub.loadedAddOns.Blizzard_Communities = true
-        _G.COMMUNITIES_ADD_DIALOG_LABEL = "Añadir comunidad"
-        _G.COMMUNITIES_ADD_DIALOG_INVITE_LINK_JOIN = "Unirse"
+        _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
         function _G.AddCommunitiesFlow_Toggle() opened = true end
-        _G.C_Club = { RedeemTicket = function(text) redeemed = text end }
+        toggle = _G.AddCommunitiesFlow_Toggle
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        f = guildWindow()
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled:Show()
         local locked = CreateFrame("Frame", "CommunitiesAddDialog", UIParent)
         locked.__forbidden = true
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.isnil(opened, "the game's toggle, which touches the locked dialog, is not called")
+    T.eq(_G.AddCommunitiesFlow_Toggle, toggle, "the game's toggle is still the game's")
+    T.isnil(_G.DaylightCommunitiesAdd, "we do not build a replacement window")
     T.isnil(stub.skins.Kit.ShellOf(_G.CommunitiesAddDialog), "the locked dialog is not touched")
-    AddCommunitiesFlow_Toggle()
-    local ours = _G.DaylightCommunitiesAdd
-    T.truthy(ours and ours:IsShown(), "our window opens")
-    T.truthy(stub.skins.Kit.ShellOf(ours) or DaylightUI.Style.GetShell(ours), "our border")
-    T.eq(ours.title:GetText(), "Añadir comunidad")
-    ours.wowBtn:Click()
-    T.eq(ours.about:GetObjectType(), "ScrollFrame", "the description is a text area")
-    T.truthy(ours.about.edit:IsMultiLine())
-    local _, aboutRel = ours.about:GetPoint(3)
-    T.eq(aboutRel, ours.createBtn, "it fills down to the buttons")
-    ours:Hide()
-    AddCommunitiesFlow_Toggle()
-    local ruled
-    for _, r in ipairs({ ours.choose:GetRegions() }) do
-        if r.GetPoint then
-            local p, rel, rp, _, y = r:GetPoint(1)
-            if p == "TOPLEFT" and rel == ours.wowHead and rp == "BOTTOMLEFT" and y == -6 and r:GetHeight() == 1 then
-                ruled = r
-            end
-        end
+    local b
+    for _, child in ipairs({ disabled:GetChildren() }) do
+        if child.text and child.text.GetText and child.text:GetText() == "Unirse o crear una comunidad" then b = child end
     end
-    T.truthy(ruled, "a hairline under the section title")
-    local _, rightRel = ruled:GetPoint(2)
-    T.eq(rightRel, ours.wowBtn, "it stops before the picture button")
-    ours.invite:SetText("https://example/invite")
-    ours.join:Click()
-    T.eq(redeemed, "https://example/invite")
-    T.eq(ours:IsShown(), false, "joining closes it")
+    T.truthy(b, "the empty page still has the join button")
+    b:Click()
+    T.eq(opened, true, "that button opens the game's dialog")
 end)
 
 T.test("skins: the game's windows wear our header, tabs, text boxes, switches and text colors", function()
