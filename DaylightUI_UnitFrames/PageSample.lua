@@ -88,7 +88,7 @@ PageSample.PARTS = {
       move = { home = true, x = "%s.healthTextX", y = "%s.healthTextY" } },
     { label = "Large health number", at = bigNumber, keys = { "%s.bigNumber", "%sText.big", "%s.healthTextX", "%s.healthTextY" },
       move = { home = true, x = "%s.healthTextX", y = "%s.healthTextY" } },
-    { label = "Power text", at = at("powerText"), keys = { "%s.showPowerText", "%s.powerFormat", "%s.hideFullPower", "%sText.power", "%s.powerTextX", "%s.powerTextY" },
+    { label = "Power text", at = at("powerText"), keys = { "%s.showPowerText", "%s.powerFormat", "%s.powerPercentSign", "%s.hideFullPower", "%sText.power", "%s.powerTextX", "%s.powerTextY" },
       move = { home = true, x = "%s.powerTextX", y = "%s.powerTextY" } },
     { label = "Raid marker", at = at("marker"), keys = { "%s.showMarker", "%s.markerSize", "%s.markerPos" },
       move = { spot = "%s.markerPos", x = "%s.markerX", y = "%s.markerY" }, size = { s = "%s.markerSize" } },

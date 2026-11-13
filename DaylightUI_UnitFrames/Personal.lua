@@ -429,7 +429,7 @@ function PR.FeedPower(instant)
     Style.SetBarValue(h.powerBar, v, instant)
     if h.powerText:IsShown() then
         local cfg = db()
-        ns.UF.WritePower(h.powerText, cfg.powerFormat, "player", cfg.hideFullPower)
+        ns.UF.WritePower(h.powerText, cfg.powerFormat, "player", cfg.hideFullPower, cfg.powerPercentSign)
     end
     return true
 end
@@ -583,7 +583,7 @@ end
 
 -- Test mode and the options page: sample values on the live display
 
-PR.SAMPLE = { health = 72, healthValue = 3600, power = 58, combo = 3, heals = 10, absorbs = 8 }
+PR.SAMPLE = { health = 72, healthValue = 3600, power = 58, powerValue = 1856, combo = 3, heals = 10, absorbs = 8 }
 
 function PR.ShowSample()
     local h, cfg = PR.frame, db()
@@ -605,8 +605,7 @@ function PR.ShowSample()
     bar:SetMinMaxValues(0, 100)
     Style.SetBarValue(bar, s.power, true)
     ns.UF.WriteSampleHealth(h.healthText, cfg.healthText, s.health, s.healthValue, cfg.percentSign, cfg.hideFullHealth)
-    h.powerText:SetText(s.power)
-    h.powerText:SetAlpha(1)
+    ns.UF.WriteSamplePower(h.powerText, cfg.powerFormat, s.power, s.powerValue, cfg.powerPercentSign, nil, token)
     if h.combo then ns.Combo.ShowSample(h.combo, s.combo) end
     if PR.auras then ns.Auras.ShowSample(PR.auras, h, cfg.auras, ns.Test.AURAS) end
 end

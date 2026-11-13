@@ -59,6 +59,11 @@ local TEXT_COLORS = { white = "White", class = "Class", custom = "Custom" }
 local TEXT_COLOR_ORDER = { "white", "class", "custom" }
 local function notCustom(key) return function(get) return get(key) ~= "custom" end end
 
+-- A "Show % sign" row: off with its text, and grayed while the format isn't Percent.
+local function signOff(off, formatKey)
+    return function(get) return off(get) or get(formatKey) ~= "percent" end
+end
+
 -- The shield texture picks (Colors page): stripes, plain, then every shared
 -- bar texture. The overshield's list starts with "Same as shields".
 local function shieldTextures(withShield)
@@ -1035,7 +1040,7 @@ local function personalTextCard()
         { type = "dropdown", key = k("healthText"), label = "Health text format", values = UF.HEALTH_FORMATS,
           order = UF.HEALTH_FORMAT_ORDER, desc = "Missing health shows nothing while you're at full.", disabled = health },
         { type = "toggle", key = k("percentSign"), label = "Show % sign",
-          desc = "62% rather than 62, when the health text shows a percent.", disabled = health },
+          desc = "62% rather than 62, when the health text shows a percent.", disabled = signOff(health, k("healthText")) },
         { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
           desc = "The health text shows at full health too. When off, it disappears while you're at full.", disabled = health },
         { type = "dropdown", key = k("healthTextPos"), label = "Health text position", values = UF.POWER_TEXT_POS,
@@ -1048,6 +1053,8 @@ local function personalTextCard()
           disabled = offAny("personal.enabled", k("showPower")) },
         { type = "dropdown", key = k("powerFormat"), label = "Power text format", values = UF.POWER_FORMATS,
           order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.", disabled = power },
+        { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+          desc = "80% rather than 80, when the power text shows a percent.", disabled = signOff(power, k("powerFormat")) },
         { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
           desc = "The power text shows while mana, rage or energy is full too. When off, it disappears at full.", disabled = power },
         { type = "dropdown", key = k("powerTextPos"), label = "Power text position", values = UF.POWER_TEXT_POS,
@@ -1458,7 +1465,7 @@ local function framePage(id, label, desc, opts)
             disabled = offAny(k("enabled"), k("showPercent")) }
         text[#text + 1] = { type = "toggle", key = k("percentSign"), label = "Show % sign",
             desc = "62% rather than 62, when the health text shows a percent.",
-            disabled = offAny(k("enabled"), k("showPercent")) }
+            disabled = signOff(offAny(k("enabled"), k("showPercent")), k("healthText")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
             desc = "The health text shows at full health too. When off, it disappears while the unit is at full.",
             disabled = offAny(k("enabled"), k("showPercent")) }
@@ -1484,6 +1491,9 @@ local function framePage(id, label, desc, opts)
         text[#text + 1] = { type = "dropdown", key = k("powerFormat"), label = "Power text format",
             values = UF.POWER_FORMATS, order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.",
             disabled = powerTextOff }
+        text[#text + 1] = { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+            desc = "80% rather than 80, when the power text shows a percent.",
+            disabled = signOff(powerTextOff, k("powerFormat")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
             desc = "The power text shows while mana, rage or energy is full too. When off, it disappears at full.",
             disabled = powerTextOff }
@@ -1961,7 +1971,8 @@ local function raidPage(size)
               desc = "How the tiles' health text is written. Missing health shows nothing while the member is at full.",
               disabled = offAny("raid.enabled", "raid.showPercent") },
             { type = "toggle", key = "raid.percentSign", label = "Show % sign",
-              desc = "62% rather than 62, when the health text shows a percent.", disabled = offAny("raid.enabled", "raid.showPercent") },
+              desc = "62% rather than 62, when the health text shows a percent.",
+              disabled = signOff(offAny("raid.enabled", "raid.showPercent"), "raid.healthText") },
             fontRow("raid.media.healthFont", "Health text font", "The raid tiles' health text", offAny("raid.enabled", "raid.showPercent")),
             { type = "slider", key = "raidText.name", label = "Name size", min = 6, max = 20, step = 1,
               desc = "How big the names on the tiles are.", disabled = off("raid.enabled") },

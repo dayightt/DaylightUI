@@ -37,16 +37,16 @@ end
 Party.SAMPLES = {
     { name = "Kaladin", class = "WARRIOR", health = 79, healthValue = 2900, power = 35, powerToken = "RAGE",
       portraitClass = "WARRIOR", level = 20, leader = true, threat = "aggro", pvp = true, role = "TANK" },
-    { name = "Lift", class = "PRIEST", health = 100, healthValue = 1900, power = 85, powerToken = "MANA",
+    { name = "Lift", class = "PRIEST", health = 100, healthValue = 1900, power = 85, powerValue = 2040, powerToken = "MANA",
       portraitClass = "PRIEST", level = 20, heals = 10, role = "HEALER", dispel = "Magic" },
-    { name = "Shallan", class = "WARLOCK", health = 54, healthValue = 1600, power = 40, powerToken = "MANA",
+    { name = "Shallan", class = "WARLOCK", health = 54, healthValue = 1600, power = 40, powerValue = 1040, powerToken = "MANA",
       portraitClass = "WARLOCK", level = 19, marker = 3, role = "DAMAGER", target = true },
-    { name = "Jasnah", class = "MAGE", health = 88, healthValue = 1700, power = 72, powerToken = "MANA",
+    { name = "Jasnah", class = "MAGE", health = 88, healthValue = 1700, power = 72, powerValue = 1800, powerToken = "MANA",
       portraitClass = "MAGE", level = 20, absorbs = 15, role = "DAMAGER" },
 }
 
 -- You as a sample, with your own name and class.
-Party.YOU = { health = 92, healthValue = 2400, power = 64, powerToken = "MANA", level = 20, role = "HEALER", you = true }
+Party.YOU = { health = 92, healthValue = 2400, power = 64, powerValue = 1600, powerToken = "MANA", level = 20, role = "HEALER", you = true }
 
 function Party.You() return ns.UF.You("party", Party.YOU, "PRIEST") end
 

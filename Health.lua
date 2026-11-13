@@ -21,6 +21,7 @@ local function whole(n)
     if BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
     return AbbreviateNumbers(n)
 end
+Health.Whole = whole
 
 -- Gradient stops as { health fraction, color }, softened like the palette.
 Health.GRADIENT = {

@@ -25,8 +25,8 @@ local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 UF.DARK_FILL = { 0.14, 0.14, 0.14 }
 UF.HEALTH_FORMATS, UF.HEALTH_FORMAT_ORDER = Health.FORMATS, Health.FORMAT_ORDER
 UF.POWER_FORMATS = { value = "Power (2.3K)", percent = "Percent (80)", valuemax = "Power / max (2.3K / 2.9K)",
-                     both = "Power and percent (2.3K | 80%)" }
-UF.POWER_FORMAT_ORDER = { "value", "percent", "valuemax", "both" }
+                     both = "Power and percent (2.3K | 80%)", full = "Power (2,300)" }
+UF.POWER_FORMAT_ORDER = { "value", "full", "percent", "valuemax", "both" }
 UF.POWER_TEXT_POS = { inner = "Inner end", center = "Center", outer = "Outer end" }
 UF.POWER_TEXT_POS_ORDER = { "inner", "center", "outer" }
 UF.GradientAt = Health.GradientAt
@@ -390,10 +390,13 @@ end
 
 -- UF.WritePower as a format and its values (fmt, a, b), for a text built from
 -- several parts (Texts.lua). nil where the client can't give a percent.
-function UF.PowerFormat(format, u)
+-- sign: a % after the Percent format.
+function UF.PowerFormat(format, u, sign)
     local hasPct = UnitPowerPercent and CurveConstants
     if format == "percent" and hasPct then
-        return "%.0f", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+        return sign and "%.0f%%" or "%.0f", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "full" then
+        return "%s", Health.Whole(UnitPower(u))
     elseif format == "valuemax" then
         return "%s / %s", Health.Number(UnitPower(u)), Health.Number(UnitPowerMax(u))
     elseif format == "both" and hasPct then
@@ -402,16 +405,16 @@ function UF.PowerFormat(format, u)
     return "%s", Health.Number(UnitPower(u))
 end
 
-function UF.WritePower(fs, format, u, hideFull)
+-- UF.WritePower for test mode samples. pct is the sample's power percent.
+-- value counts only for mana; rage, energy and focus run 0 to 100.
+function UF.WriteSamplePower(fs, format, pct, value, sign, hideFull, token)
+    pct = pct or 0
+    if token and token ~= "MANA" then value = nil end
+    fs:SetFormattedText(Health.FormatSample(format or "value", pct, value, sign))
+    fs:SetAlpha((hideFull and pct >= 100) and 0 or 1)
+end
+
+function UF.WritePower(fs, format, u, hideFull, sign)
     powerAtFull(fs, u, hideFull)
-    if format == "percent" and UnitPowerPercent and CurveConstants then
-        fs:SetFormattedText("%.0f", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100))
-    elseif format == "valuemax" then
-        fs:SetFormattedText("%s / %s", Health.Number(UnitPower(u)), Health.Number(UnitPowerMax(u)))
-    elseif format == "both" and UnitPowerPercent and CurveConstants then
-        fs:SetFormattedText("%s | %.0f%%", Health.Number(UnitPower(u)),
-            UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100))
-    else
-        fs:SetText(Health.Number(UnitPower(u)))
-    end
+    fs:SetFormattedText(UF.PowerFormat(format, u, sign))
 end
