@@ -159,6 +159,7 @@ end
 -- "Ilyenia Moonfire, Darnassus, Warrior's Terrace": the name, then the city and the
 -- district when known. A master missing from the list keeps the city its record names.
 function Training.MasterText(t)
+    if ns.Setting("masterSpot") ~= true then return t.name end
     local spot = type(t.npc) == "number" and Training.MASTERS[t.npc] or nil
     local city = mapName(t.uiMapId) or (spot and (mapName(spot.map) or spot.city))
     local district = spot and spot.district and (areaName(spot.area) or spot.district)

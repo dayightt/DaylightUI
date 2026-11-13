@@ -22,6 +22,8 @@ ns.OPTIONS = { pages = {
         { label = "Spellbook", items = {
             { type = "toggle", key = "hideLowRanks", invert = true, label = "Show lower spell ranks",
               desc = "The lower ranks of each spell sit under the highest, so you can cast an older rank for less mana. When off, the spellbook lists only the highest rank. The spellbook page has the same switch (Hide ranks)." },
+            { type = "toggle", key = "masterSpot", label = "Where weapon masters stand", since = "1.7.2",
+              desc = "On the Training page, a weapon skill's tooltip names each weapon master's city and district, not just their name." },
         } },
     } },
 } }

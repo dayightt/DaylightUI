@@ -300,6 +300,8 @@ T.test("book training: a weapon master's line says the city and district", funct
     C_Map.GetMapInfo = function(id) return maps[id] and { name = maps[id] } or nil end
     C_Map.GetAreaInfo = function(id) return id == 1660 and "Warrior's Terrace" or nil end
     local T2 = ns.Training
+    T.eq(T2.MasterText({ npc = 11866, name = "Ilyenia Moonfire", uiMapId = 1457 }), "Ilyenia Moonfire", "off as shipped: the name alone")
+    DaylightUI:Set("Book", "masterSpot", true)
     T.eq(T2.MasterText({ npc = 11866, name = "Ilyenia Moonfire", uiMapId = 1457 }),
         "Ilyenia Moonfire, Darnassus, Warrior's Terrace", "the game's own city and district names")
     T.eq(T2.MasterText({ npc = 11867, name = "Woo Ping" }), "Woo Ping, Stormwind City, Trade District",
