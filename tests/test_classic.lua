@@ -335,3 +335,45 @@ T.test("a window opening under Classic plays one gold glint; Daylight, motion of
     T.eq(swept, 1, "none with motion off")
     M.Sweep = real
 end)
+
+local function rogueLogin()
+    local DUI, ns = stub.Load({ module = true, before = function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end })
+    _G.C_Texture = _G.C_Texture or {}
+    C_Texture.GetAtlasInfo = function(name)
+        if name == "classicon-rogue" then
+            return { file = 12345, leftTexCoord = 0.1, rightTexCoord = 0.2, topTexCoord = 0.3, bottomTexCoord = 0.4 }
+        end
+    end
+    return DUI, ns
+end
+
+T.test("the Daylight UI icon style shows the game's class icons under Classic", function()
+    local DUI, ns = rogueLogin()
+    local UF = ns.UF
+    T.truthy(type(UF.ClassIcon("ROGUE", "daylight")) == "string", "ours under Daylight")
+    look(DUI, "classic")
+    T.eq(UF.ClassIcon("ROGUE", "daylight"), 12345, "the game's under Classic")
+    T.eq(UF.ClassIcon("ROGUE", "game"), 12345)
+    T.eq(UF.ClassIcon("ROGUE", "daylight", { ROGUE = "daylight" }), 12345, "a per-class daylight pick too")
+    T.eq(DUI:Get("UnitFrames", "portraits.icons"), "daylight", "nothing written")
+end)
+
+T.test("a shown portrait swaps to the game's icon on the look change", function()
+    local DUI, ns = rogueLogin()
+    local f = ns.frames.player
+    ns.UF.UpdateAll(f, true)
+    T.eq(f.portrait.icon.__texture, DUI.MEDIA .. "class\\rogue.tga")
+    look(DUI, "classic")
+    T.eq(f.portrait.icon.__texture, 12345, "the game's icon")
+    look(DUI, "daylight")
+    T.eq(f.portrait.icon.__texture, DUI.MEDIA .. "class\\rogue.tga", "ours again")
+end)
+
+T.test("switching looks with the unit frames off errors nothing", function()
+    local DUI = stub.Load()
+    look(DUI, "classic")
+    look(DUI, "daylight")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
