@@ -831,6 +831,8 @@ end
 -- opts: height (W.INPUT_H), size (13), justify ("LEFT"), hint (placeholder),
 -- search (magnifier on the left, clear X on the right; Escape clears first,
 -- then leaves), maxLetters, numeric, onChange(text, userInput).
+-- e.Lock(text) makes it a read-only copy box: it shows text, focusing it
+-- selects all of it, and typing puts the text back. e.Lock(nil) unlocks it.
 -- Enter and Escape drop focus, and a caller may SetScript those. The box owns
 -- OnTextChanged, focus and OnEnter/OnLeave: use HookScript for those, and
 -- onChange for typing. The caller sizes and places it.
@@ -925,11 +927,26 @@ function W.Input(parent, opts)
     e.hint:SetText(opts.hint or "")
     e:SetScript("OnEnter", e.Ease)
     e:SetScript("OnLeave", e.Ease)
-    e:SetScript("OnEditFocusGained", e.Ease)
+    e:SetScript("OnEditFocusGained", function(self)
+        e.Ease()
+        if self.locked then self:HighlightText() end
+    end)
     e:SetScript("OnEditFocusLost", e.Ease)
     e:SetScript("OnHide", e.Rest)
+    function e.Lock(text)
+        e.locked = text
+        if text then
+            e:SetText(text)
+            e:SetCursorPosition(0)
+        end
+    end
     e:SetScript("OnTextChanged", function(self, user)
         local text = self:GetText() or ""
+        if user and self.locked and text ~= self.locked then
+            self:SetText(self.locked)
+            self:HighlightText()
+            return
+        end
         self.hint:SetShown(text == "")
         if self.clear then self.clear:SetShown(text ~= "") end
         if opts.onChange then opts.onChange(text, user) end
