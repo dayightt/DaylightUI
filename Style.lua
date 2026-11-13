@@ -397,8 +397,11 @@ end
 local looked = {}
 function Style.Looked(t, perLook)
     looked[#looked + 1] = { t = t, values = perLook }
+    -- Never read the settings while files load: that would set up the saved
+    -- data before the game has handed it over. ApplyLook runs at load and login.
+    if not (DUI.DB and DUI.DB.loggedIn) then return end
     local v = perLook[Style.Look()]
-    if v and DUI.DB and DUI.DB.loggedIn then copyInto(t, v) end
+    if v then copyInto(t, v) end
 end
 
 -- Under the Classic look the accent turns gold to match, unless the player
