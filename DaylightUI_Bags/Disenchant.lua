@@ -17,7 +17,7 @@ local DE = {}
 ns.Disenchant = DE
 
 DE.SPELL = 13262
-DE.ICON = "Interface\\Icons\\INV_Enchant_Disenchant"
+DE.ICON = "ui-disenchant.png"
 DE.NAME = "DaylightUIBagDisenchant"
 
 function DE.Known()

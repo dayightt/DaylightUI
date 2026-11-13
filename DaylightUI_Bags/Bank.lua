@@ -18,7 +18,7 @@ ns.Bank = Bank
 
 Bank.NAME = "DaylightUIBank"
 Bank.DEFAULT_POINT = { "LEFT", "LEFT", 24, 60 }
-Bank.DEPOSIT_ICON = "Interface\\Icons\\INV_Misc_Herb_07"
+Bank.DEPOSIT_ICON = "ui-data-professions.png"   -- reagents and trade goods
 
 local function enum(name) return Enum and Enum.BankType and Enum.BankType[name] end
 -- A C_Bank function, or nil if the client doesn't have it.
@@ -331,7 +331,7 @@ function Bank.Build()
               onClick = function()
                   if Bank.bankType then call(bankFn("AutoDepositItemsIntoBank"), Bank.bankType) end
               end },
-            { key = "slotsButton", icon = W.BAGS_ICON, title = L["Bank bag slots"],
+            { key = "slotsButton", icon = W.SLOTS_ICON, title = L["Bank bag slots"],
               desc = L["Show the bank's bag slots: drag a bag out, or drop one in."],
               onClick = function(w)
                   w.Set("showSlots", not w.Setting("showSlots"))

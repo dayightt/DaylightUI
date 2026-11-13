@@ -5,8 +5,8 @@
 -- none of those items can actually be reached.
 --
 -- Tabs in the title bar (Bags for another character, Bank, Account), character
--- picker beside the search. Opened from the bag's Bank and Alts tabs or /dui bank.
--- Turning viewer.enabled off removes the Alts tab and stops saving; what's
+-- picker beside the search. Opened from the bag portrait's right-click menu or /dui bank.
+-- Turning viewer.enabled off takes Alts off that menu and stops saving; what's
 -- saved stays for when it's back on.
 
 local _, ns = ...
@@ -18,7 +18,7 @@ ns.Viewer = Viewer
 
 Viewer.NAME = "DaylightUIBagViewer"
 Viewer.DEFAULT_POINT = { "TOP", "TOP", 0, -120 }
-Viewer.CHARS_ICON = "Interface\\Icons\\INV_Misc_GroupLooking"
+Viewer.CHARS_ICON = "ui-data-social.png"
 Viewer.EMPTY_H = 20          -- room for the "nothing saved yet" line
 
 Viewer.who = nil             -- shown character, "Name-Realm"
@@ -161,7 +161,7 @@ function Viewer.ToggleBank()
     else DUI.Print(L["Bank and alts is off. Turn it on in Bags > Bank and alts."]) end
 end
 
--- The bag's Bank tab: the live bank at a banker, else the saved one here.
+-- The portrait menu's Bank: the live bank at a banker, else the saved one here.
 function Viewer.OpenBank()
     local bank = ns.Bank
     if bank and bank.open and bank.window then bank.Open()
@@ -169,7 +169,7 @@ function Viewer.OpenBank()
     else DUI.Print(L["Bank and alts is off. Turn it on in Bags > Bank and alts."]) end
 end
 
--- The bag's Alts tab: the character already shown, else the first other one
+-- The portrait menu's Alts: the character already shown, else the first other one
 -- with bags saved; your own bank when there is nobody else.
 function Viewer.OpenAlts()
     if not Viewer.On() then return end
@@ -183,10 +183,10 @@ function Viewer.OpenAlts()
     if key then Viewer.Open(key, "bags") else Viewer.Open(own(), "bank") end
 end
 
--- Hides the bag's Alts tab and closes the window when the viewer is switched off.
+-- Closes the window when the viewer is switched off. The bag's portrait menu
+-- asks Viewer.On each time it opens, so Alts leaves it by itself.
 function Viewer.Sync()
-    local bag, on = ns.window, Viewer.On()
-    if bag then ns.Window.SyncTabs(bag) end
+    local on = Viewer.On()
     if not on and Viewer.window and DUI.Motion.Shown(Viewer.window) then Viewer.Close() end
 end
 

@@ -231,9 +231,23 @@ T.test("bags: title and sub line stop left of the X at any width", function()
     DaylightUI:Set("Bags", "iconSize", 26)
     stub.RunTimers()
     ns.Window.Relayout(f)
-    headerFits(f, f.tabs)
+    T.isnil(f.tabs, "no header tabs: the bank and alts are on the portrait")
+    headerFits(f)
     T.eq(ns.Window.TITLE, DaylightUI.Win.HEADER)
 end)
+
+-- Right-clicks the bag's portrait and returns the menu it opened.
+local function portraitMenu(bag)
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
+        menu = { owner = owner, keys = keys, values = values, current = current, pick = onPick, opts = opts }
+    end
+    local b = bag.portraitButton
+    b:GetScript("OnClick")(b, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    return menu
+end
 
 T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title row", function()
     local ns = login()
@@ -1254,13 +1268,29 @@ T.test("bags: the search joins terms: & all, | any, ! not; binding, item level a
     T.truthy(S.HELP:find("; works like |", 1, true), "the search's help teaches ;")
 end)
 
-T.test("bags: the tool row's icons keep their colors", function()
+T.test("bags: the tool row is flat icons in Daylight UI's own art", function()
     local ns = login()
     local f = open(ns)
+    local M = DaylightUI.MEDIA
     T.truthy(#f.tools > 0)
     for _, b in ipairs(f.tools) do
-        T.falsy(b.icon:IsDesaturated(), "in color, not gray")
+        T.truthy(b.SetIcon, "a W.IconButton")
+        T.eq(b.icon:GetTexture():sub(1, #M), M, "Media art, not a game icon")
     end
+    T.eq(f.sort.icon:GetTexture(), M .. "ui-sort.png")
+    T.eq(f.viewButton.icon:GetTexture(), M .. "ui-view.png")
+    T.eq(f.disenchantButton.icon:GetTexture(), M .. "ui-disenchant.png")
+    T.eq(f.slotsButton.icon:GetTexture(), M .. "ui-section-bags.png")
+    -- Tan at rest, the accent on hover, with the tooltip saying what it does.
+    local b = f.viewButton
+    T.near((b.icon:GetVertexColor()), DaylightUI.Style.INK.LABEL[1], 0.01, "tan at rest")
+    b:GetScript("OnEnter")(b)
+    T.truthy(GameTooltip:IsShown(), "its tooltip at once")
+    local Driver = DaylightUI.Motion.Driver()
+    if Driver then stub.RunOnUpdate(Driver, 1) end
+    T.near((b.icon:GetVertexColor()), (DaylightUI.Style.Accent()), 0.01, "the accent on hover")
+    b:GetScript("OnLeave")(b)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: the Disenchant button: shown to enchanters; hovered, the secure button lies over it above the bag", function()
@@ -4434,7 +4464,7 @@ T.test("viewer: the Alts tab opens it; the search dims a saved copy too", functi
     -- The Alts tab opens the window on another character's bags; the picker in
     -- the window lists everyone and switches between them.
     T.falsy(ns.Viewer.window:IsShown())
-    bag.tabs[3]:Click()
+    portraitMenu(bag).pick("alts")
     stub.RunTimers()
     local f = ns.Viewer.window
     T.truthy(f:IsShown(), "opened from the bag")
@@ -4460,20 +4490,15 @@ T.test("viewer: the Alts tab opens it; the search dims a saved copy too", functi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: switched off, the Alts tab goes (the others close up), nothing new is saved", function()
+T.test("viewer: switched off, Alts leaves the portrait's menu, nothing new is saved", function()
     local ns = login()
     local bag = open(ns)
     T.falsy(bag.viewerButton, "no chest button in the tool row any more")
-    local alts, bank = bag.tabs[3], bag.tabs[2]
-    T.truthy(alts:IsShown())
-    local _, relOn = bank:GetPoint(1)
-    T.eq(relOn, alts, "Bank sits beside Alts")
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank,alts")
     DaylightUI:Set("Bags", "viewer.enabled", false)
     stub.RunTimers()
-    T.falsy(alts:IsShown(), "the Alts tab goes")
-    local _, rel = bank:GetPoint(1)
-    T.eq(rel, bag.close, "Bank takes Alts' place")
-    headerFits(bag, { bag.tabs[1] })
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank", "only the bank while the viewer is off")
+    headerFits(bag)
     ns.Viewer.Toggle()
     stub.RunTimers()
     T.falsy(ns.Viewer.window:IsShown(), "/dui bank says it's off instead")
@@ -4483,47 +4508,62 @@ T.test("viewer: switched off, the Alts tab goes (the others close up), nothing n
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
-    T.truthy(alts:IsShown(), "back on: the tab's back")
-    local _, rel2 = bank:GetPoint(1)
-    T.eq(rel2, alts)
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank,alts", "back on: Alts is back")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("bags: the header tabs open the bank and the alts viewer", function()
+T.test("bags: a right-click on the portrait opens the bank and the alts viewer", function()
     local ns = login()
     local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
     local alt = "Alt-" .. realm
     DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 1, time = time(),
         bags = { { section = "bags", size = 4, items = {} } } } }
     local bag = open(ns)
-    T.eq(#bag.tabs, 3)
-    T.eq(bag.tab, "bags", "Bags is picked on open")
-    headerFits(bag, bag.tabs)
-    tabsOnTitleRow(bag, bag.tabs)
+    T.isnil(bag.tabs, "no header tabs")
+    headerFits(bag)
+    local b = bag.portraitButton
+    T.truthy(b, "a mouse frame over the portrait")
+    T.eq(select(2, b:GetPoint(1)), bag.portrait, "lying on the portrait")
+    T.truthy(b:GetFrameLevel() > bag.handle:GetFrameLevel(), "above the title bar's drag handle")
+    -- Hover: our tooltip names it and says what the right-click does.
+    b:GetScript("OnEnter")(b)
+    T.truthy(GameTooltip:IsShown(), "a tooltip on hover")
+    b:GetScript("OnLeave")(b)
+    local m = portraitMenu(bag)
+    T.eq(m.owner, b, "dropped under the portrait")
+    T.falsy(m.opts and m.opts.atCursor, "not at the cursor")
+    T.eq(table.concat(m.keys, ","), "bank,alts")
+    T.eq(m.values.bank, BANK or "Bank")
+    T.eq(m.values.alts, "Alts")
+    -- A left click opens nothing.
+    local opened
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function() opened = true end
+    b:GetScript("OnClick")(b, "LeftButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.falsy(opened, "only the right button")
     -- Away from a banker: the saved bank, in the viewer.
-    bag.tabs[2]:Click()
+    m.pick("bank")
     stub.RunTimers()
     local v = ns.Viewer.window
     T.truthy(v:IsShown(), "the saved bank opens")
     T.eq(ns.Viewer.part, "bank")
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
-    T.eq(bag.tab, "bags", "the Bags tab stays picked")
     -- At a banker: the live bank.
     ns.Viewer.Close()
     stub.RunTimers()
     ns.Bank.open = true
-    bag.tabs[2]:Click()
+    portraitMenu(bag).pick("bank")
     stub.RunTimers()
     T.truthy(ns.Bank.window:IsShown(), "the live bank opens")
     T.falsy(DaylightUI.Motion.Shown(v), "not the viewer")
     ns.Bank.open = false
     -- Alts: another character's bags.
-    bag.tabs[3]:Click()
+    portraitMenu(bag).pick("alts")
     stub.RunTimers()
     T.truthy(v:IsShown())
     T.eq(ns.Viewer.part, "bags")
     T.eq(ns.Viewer.who, alt)
-    T.eq(bag.tab, "bags")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4961,6 +5001,7 @@ T.test("bags: the chip row wraps when the grid is narrower than the chips", func
     categoryWorld()
     DaylightUI:Set("Bags", "columns", 3)
     local f = open(ns)
+    f.search:SetFocus()
     ns.Relayout()
     local first, last = f.chips[1], f.chips[#f.chips]
     local _, _, _, _, y1 = first:GetPoint(1)
@@ -4970,6 +5011,124 @@ T.test("bags: the chip row wraps when the grid is narrower than the chips", func
     ns.Relayout()
     _, _, _, _, y2 = last:GetPoint(1)
     T.eq(y2, y1, "one line when the grid is wide")
+end)
+
+-- The window's top to the grid: the header, the tool row and, while shown, the filters.
+local function gridTop(f)
+    local _, _, _, _, y = f.items:GetPoint(1)
+    return -y
+end
+
+local function filtersShown(f)
+    for _, b in ipairs(f.chips) do if not b:IsShown() then return false end end
+    return true
+end
+
+local function runMotion(n, dt)
+    for _ = 1, n or 1 do
+        for _, fr in ipairs(stub.frames or {}) do
+            if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, dt or 1) end
+        end
+    end
+end
+
+T.test("bags: the filters are words like the header tabs, hidden until the search is used", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local W, Feel = ns.Window, DaylightUI.Win.Feel
+    for _, b in ipairs(f.chips) do
+        T.truthy(b.Pick and b.line, "a W.Tab, not a boxed chip")
+        T.isnil(b.SetOn, "no chip fill")
+    end
+    T.falsy(f.chips[1]:IsShown(), "at rest: no filters")
+    local rest, h0 = gridTop(f), f:GetHeight()
+    T.eq(rest, W.TITLE + W.GAP + W.ROW + W.GAP, "and no room kept for them")
+    -- Focus shows them, the window grows by their row.
+    f.search:SetFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "focus: the filters show")
+    Feel.Settle(f); Feel.Settle(f.items)
+    T.eq(gridTop(f), rest + DaylightUI.Widgets.TAB_H + W.GAP, "the grid moves down under them")
+    T.eq(f:GetHeight(), h0 + DaylightUI.Widgets.TAB_H + W.GAP, "the window grows by their row")
+    T.truthy(f.chips[1].picked, "All picked")
+    -- A filter picked keeps them after the search loses focus.
+    f.chips[6]:Click()
+    T.eq(f.chip, "junk")
+    T.truthy(f.chips[6].picked and not f.chips[1].picked, "the picked word in the accent")
+    f.search:ClearFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "a filter picked: they stay")
+    -- Back to All with an empty search and no focus: they go.
+    f.chips[1]:Click()
+    stub.RunTimers()
+    runMotion()
+    T.falsy(f.chips[1]:IsShown(), "All, nothing typed: hidden again")
+    Feel.Settle(f); Feel.Settle(f.items)
+    T.eq(gridTop(f), rest, "and they take no room")
+    T.eq(f:GetHeight(), h0)
+    -- Text typed keeps them after a blur too.
+    f.search:SetFocus()
+    f.search:SetText("bread")
+    f.search:ClearFocus()
+    stub.RunTimers()
+    runMotion()
+    T.truthy(filtersShown(f), "text in the search: they stay")
+    f.search:SetText("")
+    stub.RunTimers()
+    runMotion()
+    T.falsy(f.chips[1]:IsShown(), "emptied without focus: they go")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the filters fade in dropping a little, the window and grid glide with them", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local Feel = DaylightUI.Win.Feel
+    local rest = gridTop(f)
+    f.search:SetFocus()
+    local b = f.chips[2]
+    T.truthy(b:IsShown())
+    T.truthy(b:GetAlpha() < 1, "fading in")
+    T.truthy(Feel.Moving(b), "dropping in")
+    T.truthy(Feel.Moving(f), "the window eases to its new size")
+    T.eq(gridTop(f), rest, "the grid starts where it was")
+    runMotion(30, 0.05)
+    T.eq(b:GetAlpha(), 1)
+    T.falsy(Feel.Moving(f.items))
+    T.eq(gridTop(f), rest + DaylightUI.Widgets.TAB_H + ns.Window.GAP, "and ends under them")
+    -- Going, they fade out where they are.
+    f.search:ClearFocus()
+    T.truthy(b:IsShown(), "fading out")
+    runMotion(30, 0.05)
+    T.falsy(b:IsShown(), "then gone")
+    -- In a fight they come at once.
+    stub.EnterCombat()
+    f.search:SetFocus()
+    T.truthy(b:IsShown()); T.eq(b:GetAlpha(), 1, "at once in a fight")
+    T.falsy(Feel.Moving(f), "no glide in a fight")
+    f.search:ClearFocus()
+    T.falsy(b:IsShown(), "and go at once")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: closing hides the filters again", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local rest = gridTop(f)
+    f.search:SetFocus()
+    ns.Window.PickChip(f, "gear")
+    f:Hide()
+    stub.RunTimers()
+    T.falsy(f.chips[1]:IsShown(), "closed: no filters")
+    T.eq(gridTop(f), rest, "the next open starts without their row")
+    f:Show()
+    stub.RunTimers()
+    T.falsy(f.chips[1]:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: chips reset when the bag closes, and a chip in combat lays out nothing protected", function()

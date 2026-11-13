@@ -22,8 +22,9 @@ Window.BAR_GAP = 2           -- between that row and the row above it
 Window.SELL_ROW = 18         -- the row holding the free-slots bar and Sell junk
 Window.BAR_W = 64            -- the free-slots bar's width
 Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + Window.SELL_ROW
-Window.CHIP_ROW = DUI.Widgets.CHIP_HEIGHT   -- the filter chips under the search
--- Filter chips: a chip shows only the groups listed (keys of Cat.PRIORITY).
+-- Filters under the search, words like the header tabs (still called chips in
+-- the code). One shows only the groups listed (keys of Cat.PRIORITY). They show
+-- while the search is in use or a filter is picked (Window.FiltersWanted).
 Window.CHIPS = {
     { id = "all" },
     { id = "gear", groups = { "sets", "weapon", "armor" } },
@@ -46,9 +47,11 @@ Window.DIM = DUI.Style.INK.LABEL   -- hints, small icons, count labels
 -- data text (DT.BAGS_WARN/BAGS_BAD).
 Window.FREE_WARN, Window.FREE_BAD = 4, 0
 Window.DEFAULT_POINT = { "BOTTOMRIGHT", "BOTTOMRIGHT", -24, 220 }
-Window.SORT_ICON = "Interface\\Icons\\INV_Pet_Broom"
+-- Tool row icons (Media files, W.IconButton); the portrait keeps the game's bag.
+Window.SORT_ICON = "ui-sort.png"
+Window.SLOTS_ICON = "ui-section-bags.png"
+Window.VIEW_ICON = "ui-view.png"
 Window.BAGS_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
-Window.VIEW_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 
 ns.windows = {}              -- every window created, bag first
 
@@ -70,7 +73,8 @@ local function tip(owner, title, line, hint)
         Tips.Title(type(title) == "function" and title() or title)
         local l = type(line) == "function" and line() or line
         if l then Tips.Text(l) end
-        if hint then Tips.Hint(hint) end
+        local h = type(hint) == "function" and hint() or hint
+        if h then Tips.Hint(h) end
         Tips.Flush(GameTooltip)
         GameTooltip:Show()
     end)
@@ -81,19 +85,11 @@ local function tip(owner, title, line, hint)
 end
 Window.Tip = tip
 
--- Small square icon button built on W.Button with the icon over its fill.
--- tip() keeps the hover trace going through b.hover.
+-- A flat tool icon, as tall as the search. tip() takes over its tooltip (with
+-- a line saying what it does) and keeps the hover color going through b.hover.
 local function iconButton(parent, file)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(Window.ROW, Window.ROW)
-    DUI.Widgets.DressButton(b)
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetTexture(file)
-    Style.CropIcon(b.icon)
-    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 4, -4)
-    b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 4)
-    b.icon:SetAlpha(0.75)
-    b.hover = function(on) b.icon:SetAlpha(on and 1 or 0.75); b.Hover(on) end
+    local b = DUI.Widgets.IconButton(parent, file, nil, nil, Window.ROW)
+    b.hover = b.Paint
     return b
 end
 
@@ -121,7 +117,14 @@ local function searchBox(f)
         onChange = function(t)
             f.match = ns.Search.Parse(t)
             Window.MatchAll(f)
+            Window.SyncFilters(f)
         end })
+    -- The filters come with the search: shown while it has focus.
+    eb:HookScript("OnEditFocusGained", function() Window.SyncFilters(f) end)
+    eb:HookScript("OnEditFocusLost", function()
+        -- A click on a filter takes the focus first; that click decides instead.
+        if not Window.OverFilters(f) then Window.SyncFilters(f) end
+    end)
     -- Hovering the box shows the search syntax.
     eb:HookScript("OnEnter", function(self)
         GameTooltip:Hide()
@@ -262,6 +265,7 @@ function Window.Create(spec)
         end)
     end
     f.handle = handle
+    if spec.portraitMenu then Window.PortraitMenu(f, spec.portraitMenu) end
 
     local moverKey = "bags." .. f.kind
     if not DUI.Movers.Get(moverKey) then
@@ -291,7 +295,7 @@ function Window.Create(spec)
     Window.Chips(f)
     f.items = CreateFrame("Frame", nil, f)
     f.items.dluiWindow = f
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP - Window.CHIP_ROW - Window.GAP)
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP)
 
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
@@ -328,6 +332,7 @@ function Window.Create(spec)
         self.match = nil
         if self.chip then Window.PickChip(self, nil, true) end
         self.search:ClearFocus()
+        Window.SyncFilters(self)
     end)
     -- On open, lay out and fill whatever changed while closed and wasn't already
     -- done in the background (Prep.lua). New loot shines after the window has
@@ -513,8 +518,42 @@ function Window.ItemInChip(f, facts, section)
     return Window.InChip(f, ns.Categories.Assign(facts, section, true))
 end
 
-function Window.PaintChips(f)
-    for _, b in ipairs(f.chips or {}) do b.SetOn(b.id == (f.chip or "all")) end
+-- animate: a click grows the picked word's underline in.
+function Window.PaintChips(f, animate)
+    for _, b in ipairs(f.chips or {}) do b.Pick(b.id == (f.chip or "all"), animate) end
+end
+
+-- The filters show while the search has focus or text, or a filter is picked.
+function Window.FiltersWanted(f)
+    if f.chip then return true end
+    local eb = f.search
+    if not eb then return false end
+    local t = eb:GetText()
+    return (type(t) == "string" and t ~= "") or eb:HasFocus() == true
+end
+
+function Window.OverFilters(f)
+    for _, b in ipairs(f.chips or {}) do
+        if b:IsVisible() and b:IsMouseOver() then return true end
+    end
+    return false
+end
+
+-- Shows or hides the filters when that changed, laying the window out again,
+-- eased as a fold is. Closed, it lays out at once so the next open has no room
+-- left for them.
+function Window.SyncFilters(f)
+    local want = Window.FiltersWanted(f)
+    if want == (f.filtersShown or false) then return end
+    f.filtersShown = want
+    if not f.items then return end
+    if not f:IsShown() then
+        if not f.stale then DUI.SafeCall(Window.Relayout, f, true, true) end
+        return
+    end
+    ns.Layout.easing = true
+    DUI.SafeCall(Window.Relayout, f, true, true)
+    ns.Layout.easing = false
 end
 
 -- Picks a chip (nil or "all" = everything). The grid view dims at once; the
@@ -524,8 +563,10 @@ function Window.PickChip(f, id, quiet)
     if id == "all" then id = nil end
     if f.chip == id then return end
     f.chip = id
-    Window.PaintChips(f)
+    Window.PaintChips(f, not quiet)
     if f.Setting("view") == "categories" then
+        -- One layout for both the filter and the filters' row.
+        f.filtersShown = Window.FiltersWanted(f)
         if quiet then
             f.stale = true
             return
@@ -535,86 +576,103 @@ function Window.PickChip(f, id, quiet)
         ns.Layout.easing = false
     else
         Window.MatchAll(f)
+        Window.SyncFilters(f)
     end
 end
 
--- Places the chips in as many lines as the grid's width needs and moves the
--- slots below them. Returns the chip block's height.
+-- Places the filters in as many lines as the grid's width needs and moves the
+-- slots below them. Returns the room they take, 0 while hidden. When the layout
+-- eases they fade in dropping a little and fade out where they are; otherwise
+-- they come and go at once.
 function Window.LayoutChips(f, width)
-    local Wd = DUI.Widgets
+    local Wd, M = DUI.Widgets, DUI.Motion
     local top = -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP)
-    local x, line = 0, 0
-    for _, b in ipairs(f.chips or {}) do
-        local bw = b:GetWidth()
-        if x > 0 and x + bw > width then x, line = 0, line + 1 end
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * (Wd.CHIP_HEIGHT + Wd.CHIP_GAP))
-        x = x + bw + Wd.CHIP_GAP
+    local on = f.filtersShown == true
+    local eases = ns.Layout.Eases(f)
+    local was = f.filtersLaid
+    f.filtersLaid = on
+    local h = 0
+    if on then
+        local x, line = 0, 0
+        for _, b in ipairs(f.chips or {}) do
+            local bw = b:GetWidth()
+            if x > 0 and x + bw > width then x, line = 0, line + 1 end
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * Wd.TAB_H)
+            x = x + bw + Window.FILTER_GAP
+            if not was and eases then
+                b:SetAlpha(0)
+                M.AlphaTo(b, 1, M.NORMAL)
+                DUI.Win.Feel.Glide(b, 0, ns.Layout.FOLD_DROP, M.NORMAL)
+            elseif not was then
+                M.AlphaTo(b, 1, 0)
+            end
+        end
+        h = (line + 1) * Wd.TAB_H + Window.GAP
+    else
+        for _, b in ipairs(f.chips or {}) do
+            if was and eases then
+                M.AlphaTo(b, 0, M.FAST, true)
+            else
+                DUI.Win.Feel.Settle(b)
+                M.AlphaTo(b, 0, 0, true)
+            end
+        end
     end
-    local h = (line + 1) * Wd.CHIP_HEIGHT + line * Wd.CHIP_GAP
     f.items:ClearAllPoints()
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, top - h - Window.GAP)
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, top - h)
     return h
 end
 
--- The chip row under the search, one W.Chip per CHIPS entry.
+-- The filter words under the search, one W.Tab per CHIPS entry, hidden at rest.
+Window.FILTER_GAP = DUI.Win.TAB_GAP
 function Window.Chips(f)
     f.chips = {}
     for _, c in ipairs(Window.CHIPS) do
-        local b = DUI.Widgets.Chip(f, CHIP_LABEL[c.id]())
+        local b = DUI.Widgets.Tab(f, CHIP_LABEL[c.id](), { size = DUI.Win.TAB_SIZE })
         b.id = c.id
         b.FitWidth()
-        b:SetScript("OnClick", function() Window.PickChip(f, c.id) end)
+        b:SetScript("OnClick", function()
+            Window.PickChip(f, c.id)
+            Window.SyncFilters(f)
+        end)
+        b:Hide()
         f.chips[#f.chips + 1] = b
     end
     Window.PaintChips(f)
 end
 
--- Header tabs of the bag window: Bags (this window), Bank and Alts open the
--- bank and the saved characters. They sit right of the title like the other
--- windows' tabs, and the title, sub line and drag handle stop short of them.
-function Window.LayoutTabs(f)
-    if not f.tabs then return end
-    local right
-    for i = #f.tabs, 1, -1 do
-        local b = f.tabs[i]
-        if b:IsShown() then
-            b:ClearAllPoints()
-            b:SetPoint("RIGHT", right or f.close, "LEFT", -DUI.Win.TAB_GAP, 0)
-            right = b
-        end
-    end
-    local stop = right or f.close
-    f.title:SetPoint("RIGHT", stop, "LEFT", -8, 0)
-    f.sub:SetPoint("RIGHT", stop, "LEFT", -8, 0)
-    f.handle:ClearAllPoints()
-    f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    f.handle:SetPoint("RIGHT", stop, "LEFT", -4, 0)
-    f.handle:SetHeight(Window.TITLE)
-end
-
-function Window.Tabs(f)
-    f.tab = "bags"
-    DUI.Win.Tabs(f, {
-        { id = "bags", text = L["Bags"] },
-        { id = "bank", text = BANK or L["Bank"] },
-        { id = "alts", text = L["Alts"] },
-    }, function(id)
-        -- This window is the bags: the tab springs back once the other part is open.
-        DUI.Win.PickTab(f, "bags")
-        if id == "bank" then ns.Viewer.OpenBank()
-        elseif id == "alts" then ns.Viewer.OpenAlts() end
+-- A right-click on the bag's portrait drops a small menu under it: the bank
+-- and, while the viewer is on, the alts. spec: title, hint (text or functions),
+-- items() returning the menu's keys and labels, pick(key).
+function Window.PortraitMenu(f, spec)
+    local b = CreateFrame("Button", nil, f)
+    b:SetAllPoints(f.portrait)
+    b:SetFrameLevel(f.handle:GetFrameLevel() + 2)
+    b:RegisterForClicks("RightButtonUp")
+    -- Dragging from the portrait still moves the window.
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function() local fn = f.handle:GetScript("OnDragStart"); if fn then fn(f.handle) end end)
+    b:SetScript("OnDragStop", function() local fn = f.handle:GetScript("OnDragStop"); if fn then fn(f.handle) end end)
+    b:SetScript("OnClick", function(self, button)
+        if button ~= "RightButton" then return end
+        local keys, values = spec.items()
+        DUI.Widgets.OpenMenu(self, keys, values, nil, spec.pick)
     end)
-    Window.SyncTabs(f)
-end
-
--- Alts is hidden while the viewer is switched off; the other tabs close up.
-function Window.SyncTabs(f)
-    if not f.tabs then return end
-    for _, b in ipairs(f.tabs) do
-        if b.id == "alts" then b:SetShown(ns.Viewer.On()) end
+    -- The rim warms to the accent while the mouse is on it.
+    local over = 0
+    local function paint(p)
+        over = p
+        local lo, r, g, bl = Style.BAND, Style.Accent()
+        f.portraitRim:SetVertexColor(lo[1] + (r - lo[1]) * p, lo[2] + (g - lo[2]) * p, lo[3] + (bl - lo[3]) * p, 1)
     end
-    Window.LayoutTabs(f)
+    b.hover = function(on)
+        local M = DUI.Motion
+        if M then M.Tween(f.portraitRim, over, on and 1 or 0, M.FAST, paint) else paint(on and 1 or 0) end
+    end
+    tip(b, spec.title, nil, spec.hint)
+    f.portraitButton = b
+    return b
 end
 
 function Window.Sort()
@@ -794,15 +852,24 @@ function Window.Relayout(f, synced, moved)
     end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
-    -- Header, tool row, slots and footer, a gap between each; the footer sits on the edge.
+    -- Header, tool row, filters (when shown), slots and footer, a gap between
+    -- each; the footer sits on the edge.
     local W = w + E * 2
-    local chipH = Window.LayoutChips(f, w)
-    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + Window.GAP + h + Window.GAP + Window.FOOTER + E
-    -- An eased layout glides the window to its new size along with the slots
-    -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel
-    if ns.Layout.Eases(f) then
+    local eases = ns.Layout.Eases(f)
+    if not eases and Feel.Moving(f.items) then Feel.Settle(f.items) end
+    local _, _, _, _, wasY = f.items:GetPoint(1)
+    local chipH = Window.LayoutChips(f, w)
+    local _, _, _, _, nowY = f.items:GetPoint(1)
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + h + Window.GAP + Window.FOOTER + E
+    -- An eased layout glides the window to its new size along with the slots
+    -- (Layout.Ease); anything else snaps. When the filters come or go the grid
+    -- glides from where it was on the same curve, so it never jumps.
+    if eases then
         Feel.Size(f, W, H, DUI.Motion.NORMAL)   -- in step with the slots' Feel.Glide
+        if type(wasY) == "number" and type(nowY) == "number" and wasY ~= nowY then
+            Feel.Glide(f.items, 0, wasY - nowY, DUI.Motion.NORMAL)
+        end
     else
         if Feel.Moving(f) then Feel.Settle(f) end
         f:SetSize(W, H)
@@ -1004,9 +1071,27 @@ local function bagWindow()
         onClose = function() ns.OpenClose.CloseAll() end,
         onShow = function() ns.Stack.Run() end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
+        portraitMenu = {
+            title = function() return L["Bags"] end,
+            hint = function()
+                return ns.Viewer.On() and L["Right-click: your bank and alts"] or L["Right-click: your bank"]
+            end,
+            items = function()
+                local keys, values = { "bank" }, { bank = BANK or L["Bank"] }
+                if ns.Viewer.On() then
+                    keys[2] = "alts"
+                    values.alts = L["Alts"]
+                end
+                return keys, values
+            end,
+            pick = function(key)
+                if key == "bank" then ns.Viewer.OpenBank()
+                elseif key == "alts" then ns.Viewer.OpenAlts() end
+            end,
+        },
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
-            { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
+            { key = "slotsButton", icon = Window.SLOTS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
             { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
               desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
@@ -1018,7 +1103,6 @@ local function bagWindow()
         },
     })
     ns.window = f
-    Window.Tabs(f)
     return f
 end
 
@@ -1061,6 +1145,7 @@ function ns.Refresh(mod)
         for _, w in ipairs(ns.windows) do
             Window.Place(w)
             DUI.Win.Repaint(w)
+            Window.PaintChips(w)
             Window.Relayout(w)
             Window.FillAll(w)
         end
@@ -1095,13 +1180,14 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
-        -- The Alts tab is gone while the viewer is off, so the tour only names what's there.
+        -- Alts leaves the portrait's menu while the viewer is off, so the tour only
+        -- names what's there.
         if not ns.Viewer.On() then
-            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s tab at the top shows your bank."],
-                pop(L["Alt-right-click"]), pop(BANK or L["Bank"]))
+            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s."],
+                pop(L["Alt-right-click"]), pop(L["Right-click"]), pop(BANK or L["Bank"]))
         end
-        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s and %s tabs at the top show your bank and your other characters' bags from anywhere."],
-            pop(L["Alt-right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
+        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s or your %s, from anywhere."],
+            pop(L["Alt-right-click"]), pop(L["Right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
     end,
     available = function() return ns.module ~= nil and DUI:Get("Bags", "enabled") ~= false end,
     wait = true,
