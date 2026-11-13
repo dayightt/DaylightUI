@@ -1960,7 +1960,25 @@ local BASE_TEMPLATES = {
         function f:SetFrameRef(label, ref) self.__attrs["frameref-" .. label] = ref end
         function f:Execute(code) stub.RunSnippet(self, code) end
     end,
+    -- UIPanelTemplates.xml: a frame whose link clicks run the game's own
+    -- InlineHyperlinkFrame_OnClick, so SetItemRef runs as the game's code even
+    -- on a frame an addon made (stub.gameClick counts it).
+    InlineHyperlinkFrameTemplate = function(f)
+        f.__links = true
+        f.tooltipFrame = _G.GameTooltip
+        f.__scripts.OnHyperlinkClick = function(self, link, text, button)
+            stub.gameClick = (stub.gameClick or 0) + 1
+            local ok, err = pcall(_G.InlineHyperlinkFrame_OnClick, self, link, text, button)
+            stub.gameClick = stub.gameClick - 1
+            if not ok then error(err, 0) end
+        end
+    end,
 }
+
+-- UIPanelTemplates.lua, line for line (hasIconHyperlinks is never set here).
+_G.InlineHyperlinkFrame_OnClick = function(self, link, text, button)
+    SetItemRef(link, text, button)
+end
 
 -- Key bindings: stub.bindings[command] = { key, ... }. Override bindings are kept
 -- by key in stub.overrides and are protected in combat, like the client.

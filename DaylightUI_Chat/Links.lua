@@ -146,6 +146,93 @@ function Links.ClubTicket(link, text, button)
 end
 
 -- ---------------------------------------------------------------------
+-- Links the game only opens from its own click
+-- ---------------------------------------------------------------------
+
+-- A linked profession or recipe clicked in the Daylight box reached SetItemRef
+-- and the game opened nothing: it trusts only a click that is its own. So while
+-- a link is hovered, an invisible copy of it waits under the mouse on a frame
+-- made from the game's InlineHyperlinkFrameTemplate, and the click lands there.
+-- That template's link click is the game's InlineHyperlinkFrame_OnClick, which
+-- calls SetItemRef as the game's code. Nothing is written to the field it reads
+-- (hasIconHyperlinks). The copy also keeps still while the box redraws its lines,
+-- which the box does on every left press because its text can be selected.
+-- Names, channels and the links the box handles itself stay the box's click:
+-- the game's handlers for those want a chat window.
+Links.OWN = { player = true, BNplayer = true, playerCommunity = true, BNplayerCommunity = true,
+    channel = true, clubTicket = true, questie = true, addon = true }
+
+local catcher, holding -- the copy's frame (false if the template is missing), the box it serves
+
+local function makeCatcher()
+    if catcher ~= nil then return catcher or nil end
+    local ok, f = pcall(CreateFrame, "Frame", nil, UIParent, "InlineHyperlinkFrameTemplate")
+    if not ok or type(f) ~= "table" then catcher = false return nil end
+    f:EnableMouse(false) -- links still take clicks; the wheel and drags reach the box
+    f:SetAlpha(0)        -- the box's own line is what shows
+    f:Hide()
+    f.text = f:CreateFontString(nil, "OVERLAY")
+    f.text:SetPoint("CENTER")
+    f.text:SetWordWrap(false)
+    -- The box already shows the tooltip (LinkTips); the template would show a second.
+    f:SetScript("OnHyperlinkEnter", function() end)
+    f:SetScript("OnHyperlinkLeave", function() Links.Drop(true) end)
+    -- Hidden with the box: let go for good, or it would come back with the box
+    -- somewhere the mouse no longer is.
+    f:SetScript("OnHide", function(self)
+        holding = nil
+        self:Hide()
+    end)
+    catcher = f
+    return f
+end
+
+function Links.Catcher() return catcher or nil end
+function Links.Holding(box) return holding ~= nil and holding == box end
+
+-- From the box's OnHyperlinkEnter: put the copy of this link under the mouse.
+function Links.Hold(box, link, text)
+    if type(link) ~= "string" or type(text) ~= "string" then return false end
+    if issecretvalue and (issecretvalue(link) or issecretvalue(text)) then return false end
+    local kind = string.match(link, "^([^:]+):")
+    if not kind or Links.OWN[kind] or (ns.Extras and kind == ns.Extras.LINK) then return false end
+    local f = makeCatcher()
+    if not f then return false end
+    if f:GetParent() ~= box then f:SetParent(box) end
+    f:SetFrameStrata(box:GetFrameStrata())
+    f:SetFrameLevel(box:GetFrameLevel() + 10)
+    -- The box's own font, so the copy is as wide as the line's link.
+    local font, size, flags = box:GetFont()
+    if font then f.text:SetFont(font, size, flags or "") end
+    f.text:SetText(text)
+    local h = math.max(f.text:GetStringHeight() or 0, size or 0)
+    f:SetSize(math.max(f.text:GetStringWidth() or 0, 1) + 2, h + 2)
+    local x, y = GetCursorPosition()
+    local scale = f:GetEffectiveScale()
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", (x or 0) / scale, (y or 0) / scale)
+    holding = box
+    f:Show()
+    return true
+end
+
+-- Lets the copy go. left: the mouse left it, so the tooltip goes as well.
+function Links.Drop(left)
+    local box = holding
+    holding = nil
+    if catcher then catcher:Hide() end
+    if box and left then ns.LinkTips.OnLeave(box) end
+end
+
+-- The box redrew its lines (new ones came in) or scrolled: the link has moved
+-- from under the mouse. A press in progress already landed on it, so it stays.
+function Links.Moved(box, scrolled)
+    if holding ~= box then return end
+    if not scrolled and type(IsMouseButtonDown) == "function" and IsMouseButtonDown() then return end
+    Links.Drop(true)
+end
+
+-- ---------------------------------------------------------------------
 
 -- Chat events the filter watches: what players say, in any channel.
 Links.EVENTS = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER",

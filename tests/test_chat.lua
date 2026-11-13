@@ -2099,6 +2099,97 @@ T.test("chat daylight: a community invite never runs the game's click from the b
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A profession link (and a recipe's) opens only from the game's own click: one
+-- passed on from the box's script reached SetItemRef and the game opened nothing
+-- (seen in game). Under the mouse a copy of the link is held by a frame made from
+-- the game's InlineHyperlinkFrameTemplate, whose click is the game's.
+T.test("chat daylight: a profession link is clicked through the game's own link frame", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local got = {}
+    _G.SetItemRef = function(link, text, button, frame)
+        got[#got + 1] = { link = link, game = (stub.gameClick or 0) > 0, frame = frame }
+    end
+    local link = "trade:Player-6928-01B3BE12:3100:164"
+    local text = "|cffffd000|H" .. link .. "|h[Tailoring]|h|r"
+    stub.cursorPos = { 300, 120 }
+    box:GetScript("OnHyperlinkEnter")(box, link, text)
+    local c = CH.Links.Catcher()
+    T.truthy(c and c:IsShown(), "a copy of the link waits under the mouse")
+    T.eq(c:GetParent(), box)
+    T.eq(c:GetAlpha(), 0, "never seen: the box's own line shows")
+    T.eq(c:IsMouseEnabled(), false, "the wheel and drags still reach the box")
+    T.eq(c:GetHyperlinksEnabled(), true)
+    T.eq(c.text:GetText(), text)
+
+    -- The box sees its link left as the copy comes up over it: the tooltip stays.
+    local left = 0
+    local leave = CH.LinkTips.OnLeave
+    CH.LinkTips.OnLeave = function() left = left + 1 end
+    box:GetScript("OnHyperlinkLeave")(box)
+    T.eq(left, 0, "the tooltip stays while the copy holds the link")
+    T.truthy(c:IsShown())
+
+    c:GetScript("OnHyperlinkClick")(c, link, text, "LeftButton")
+    T.eq(#got, 1)
+    T.eq(got[1].link, link)
+    T.truthy(got[1].game, "SetItemRef ran as the game's code")
+
+    -- Leaving the copy lets it go, and the tooltip with it.
+    c:GetScript("OnHyperlinkLeave")(c)
+    T.eq(left, 1)
+    T.falsy(c:IsShown())
+    CH.LinkTips.OnLeave = leave
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: names, channels and Daylight UI's own links stay the box's click", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local enter = box:GetScript("OnHyperlinkEnter")
+    for _, link in ipairs({ "player:Bob", "BNplayer:Bob:1", "channel:CHANNEL:2", "clubTicket:ABC",
+                            "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
+        enter(box, link, "[" .. link .. "]")
+        local c = CH.Links.Catcher()
+        T.falsy(c and c:IsShown(), link .. " is not copied")
+    end
+    -- A secret link (chat lockdown) is left alone too.
+    enter(box, stub.Secret("item:19019"), stub.Secret("[Thunderfury]"))
+    local c = CH.Links.Catcher()
+    T.falsy(c and c:IsShown(), "a secret link")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: the copied link goes when the box scrolls or its lines move", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    for i = 1, 3 do box:AddMessage("line " .. i) end
+    local link = "enchant:3915"
+    box:GetScript("OnHyperlinkEnter")(box, link, "|cffffd000|H" .. link .. "|h[Tailoring: Bolt of Linen]|h|r")
+    local c = CH.Links.Catcher()
+    T.truthy(c:IsShown())
+    box:FakeRefresh()
+    T.falsy(c:IsShown(), "new lines moved the link away")
+
+    box:GetScript("OnHyperlinkEnter")(box, link, "|H" .. link .. "|h[x]|h")
+    -- A click in progress keeps it: the press already landed on the link.
+    local was = _G.IsMouseButtonDown
+    _G.IsMouseButtonDown = function() return true end
+    box:FakeRefresh()
+    T.truthy(c:IsShown(), "held through the click")
+    _G.IsMouseButtonDown = was
+    box:ScrollUp()
+    T.falsy(c:IsShown(), "scrolled away")
+
+    -- Hidden with the box, it doesn't come back with it.
+    box:GetScript("OnHyperlinkEnter")(box, link, "|H" .. link .. "|h[x]|h")
+    box:Hide()
+    box:Show()
+    T.falsy(c:IsShown(), "let go with the box")
+    T.falsy(CH.Links.Holding(box))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game's parked windows lie under the box and still catch link clicks with
 -- their mouse off. Right-clicking a name hit the long [2. Trade - City] under it
 -- and opened the channel menu.

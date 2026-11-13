@@ -22,6 +22,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Nameplates", "With friendly nameplates off, NPCs and players you can't attack no longer flash up nameplates as you turn the camera" },
+            { "Chat", "Clicking a linked profession or a recipe in chat opens it on the first click, no more clicking it over and over" },
         },
     },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",
