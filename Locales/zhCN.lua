@@ -6318,10 +6318,8 @@ L["Your attacks ignore %.0f of the target's armor."] = "你的攻击忽略目标
 L["Your spells ignore %.0f of the target's resistances."] = "你的法术忽略目标 %.0f 点抗性。"
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["Lock"] = "锁定"
 L["Stop keeping"] = "取消固定"
 L["The color of this group's heading and its name in menus. Click to change."] = "分组标题及其在菜单中名称的颜色。点击更改。"
-L["Group color"] = "分组颜色"
 L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s or your %s, from anywhere."] = "对物品%s可将其移到其他分组、锁定以免被卖掉，或作为垃圾出售。%s顶部的背包图标，可随时打开你的%s或%s。"
 L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s."] = "对物品%s可将其移到其他分组、锁定以免被卖掉，或作为垃圾出售。%s顶部的背包图标，可打开你的%s。"
 L["%s of %d free"] = "空闲 %s / %d"

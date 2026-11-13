@@ -5218,7 +5218,8 @@ T.test("bags: every group has a color; the player's wins and reset brings the de
     is("misc", INK.LABEL, "misc reads label")
     is("other", INK.LABEL, "other reads label")
     is("empty", INK.LABEL, "empty reads label")
-    is("junk", { 0.1 * 0, 0.5, 0.9 }, "junk is the game's poor quality color")
+    -- The fake game answers 0.1 * quality, 0.5, 0.9.
+    is("junk", { 0, 0.5, 0.9 }, "junk is the game's poor quality color")
     T.isnil(Cat.Color("recent"), "recent keeps the accent")
     local mine = Cat.AddCustom("Mine")
     is(mine, INK.TEXT, "a custom group starts soft white")

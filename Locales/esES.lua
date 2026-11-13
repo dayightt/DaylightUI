@@ -6102,10 +6102,8 @@ L["Your windows"] = "Tus ventanas"
 L["new window"] = "ventana nueva"
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["Lock"] = "Bloquear"
 L["Stop keeping"] = "Dejar de mantener"
 L["The color of this group's heading and its name in menus. Click to change."] = "El color del título del grupo y de su nombre en los menús. Clic para cambiarlo."
-L["Group color"] = "Color del grupo"
 L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s or your %s, from anywhere."] = "%s en un objeto para moverlo a otro grupo, bloquearlo para que nunca se venda o venderlo como basura. %s en el icono de la bolsa de arriba para abrir tu %s o tus %s, desde cualquier lugar."
 L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s."] = "%s en un objeto para moverlo a otro grupo, bloquearlo para que nunca se venda o venderlo como basura. %s en el icono de la bolsa de arriba para abrir tu %s."
 L["%s of %d free"] = "%s de %d libres"
