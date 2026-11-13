@@ -383,3 +383,19 @@ T.test("book training: More glides from where it is to its new spot", function()
     T.truthy(stop ~= start, "it moved")
     T.truthy(mid ~= stop, "not in one jump")
 end)
+
+T.test("book training: More shown again lands on its new spot, not where an old glide was heading", function()
+    local ns = load(fakeApi(warriorList()))
+    local page = openTraining(ns)
+    resize(page, 380)
+    page.GetWidth = function() return 340 end   -- a glide starts
+    page:GetScript("OnSizeChanged")(page, 340, page:GetHeight())
+    frame(1)
+    page.GetWidth = function() return 900 end   -- More hides mid-glide
+    page:GetScript("OnSizeChanged")(page, 900, page:GetHeight())
+    resize(page, 380)                            -- and comes back
+    local last
+    for _, c in ipairs(page.chips) do if c:IsShown() then last = c end end
+    T.eq(select(4, page.more:GetPoint(1)), select(4, last:GetPoint(1)) + last:GetWidth() + DaylightUI.Widgets.CHIP_GAP,
+        "right after the last chip")
+end)

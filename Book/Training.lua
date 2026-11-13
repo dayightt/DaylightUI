@@ -452,22 +452,21 @@ function layoutChips(page)
         if fits then x = x + cw + gap else folded[#folded + 1] = key end
     end
     Training.folded = folded
-    -- More glides from where it is now to its new spot, or eases in.
-    local to = x
+    -- More glides from where it is now to its new spot, or eases in there.
+    local function place(v)
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", page, "TOPLEFT", v, -11)
+    end
+    more.glide = more.glide or {}   -- its own tween key; the button's hover uses the button
     if #folded == 0 then
+        M.Tween(more.glide, x, x, 0, place)   -- stops a glide still running
         more:Hide()
     elseif not more:IsShown() then
-        more:ClearAllPoints()
-        more:SetPoint("TOPLEFT", page, "TOPLEFT", to, -11)
+        M.Tween(more.glide, x, x, 0, place)
         more:Show()
         M.Fade(more, 0, 1, M.FAST)
     else
-        local from = select(4, more:GetPoint(1)) or to
-        more.glide = more.glide or {}   -- its own tween key; the button's hover uses the button
-        M.Tween(more.glide, from, to, M.NORMAL, function(v)
-            more:ClearAllPoints()
-            more:SetPoint("TOPLEFT", page, "TOPLEFT", v, -11)
-        end)
+        M.Tween(more.glide, select(4, more:GetPoint(1)) or x, x, M.NORMAL, place)
     end
 end
 
