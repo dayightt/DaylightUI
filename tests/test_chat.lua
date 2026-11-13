@@ -5059,3 +5059,16 @@ T.test("chat: every options page is valid", function()
     T.truthy(n > 0, "found the chat pages")
     T.falsy(stub.ChatContains("Options ("))
 end)
+
+T.test("chat daylight: a step of the watcher failing still keeps the game's window out of sight", function()
+    local Box, box = daylight()
+    local Chat = stub.chatModule.Chat
+    local hold = Chat.Hold
+    Chat.Hold = function() error("hold broke") end
+    ChatFrame1:SetAlpha(1)
+    Chat.Pass()
+    Chat.Hold = hold
+    T.eq(ChatFrame1:GetAlpha(), 0, "parked again")
+    T.truthy(#stub.errors > 0, "the failing step is still reported")
+    stub.errors = {}
+end)

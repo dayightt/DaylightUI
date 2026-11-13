@@ -691,9 +691,10 @@ end
 -- One pass over the chat windows: restyle new ones, register the short tags
 -- redraw callback once each, keep the main one in the panel, show each undocked
 -- one's panel, and place the line under the selected tab.
-function Chat.Pass()
-    Chat.Hold()
-    scaleGame()
+-- Each step runs on its own: one that fails (another addon's odd window, say)
+-- must not leave the game's chat showing under the Daylight box. Its error is
+-- still reported.
+local function dressAll()
     local daylight = ns.Box.On()
     for _, cf in ipairs(Chat.Frames()) do
         Chat.Dress(cf)
@@ -701,10 +702,17 @@ function Chat.Pass()
         local p = panels[cf]
         if p then p:SetShown(not cf.isDocked) end
     end
-    ns.Box.Pass()
-    Chat.Tabs()
-    ns.Feel.Pill()
-    ns.ChatMenu.Pass()
+end
+
+function Chat.Pass()
+    local safe = DUI.SafeCall
+    safe(Chat.Hold)
+    safe(scaleGame)
+    safe(dressAll)
+    safe(ns.Box.Pass)
+    safe(Chat.Tabs)
+    safe(ns.Feel.Pill)
+    safe(ns.ChatMenu.Pass)
 end
 
 -- ---------------------------------------------------------------------

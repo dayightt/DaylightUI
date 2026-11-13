@@ -1368,16 +1368,21 @@ end
 
 -- From the watcher: hook each window once, and while on keep the game's chat
 -- out of sight.
-function Box.Pass()
-    for _, cf in ipairs(ns.Chat.Frames()) do
-        Box.Watch(cf)
-        if Box.On() then
-            local name = cf:GetName()
-            park(cf)
+local function passOne(cf)
+    Box.Watch(cf)
+    if Box.On() then
+        park(cf)
+        local name = cf:GetName()
+        if type(name) == "string" then
             park(_G[name .. "Tab"])
             ownAlpha(_G[name .. "EditBox"] or cf.editBox)
         end
     end
+end
+
+function Box.Pass()
+    -- One window that fails (another addon's) leaves the rest parked.
+    for _, cf in ipairs(ns.Chat.Frames()) do DUI.SafeCall(passOne, cf) end
     if Box.On() then
         park(_G.GeneralDockManager)
         Box.PaintFooter()
