@@ -57,8 +57,8 @@ function Skin.ShapeOf(L)
     local s = L and L.shape
     return Skin.SHAPES[s] and s or nil
 end
-local function shapeFile(name, shadow)
-    return DUI.MEDIA .. "shape-" .. name .. (shadow and "-shadow" or "") .. ".png"
+local function shapeFile(name, kind)
+    return DUI.MEDIA .. "shape-" .. name .. (kind and "-" .. kind or "") .. ".png"
 end
 
 -- A look's border thickness. "none" draws no border, so the icon fills the button.
@@ -106,6 +106,11 @@ function Skin.Shape(st, host, s, icon, overlays, cds, L)
         st.shapeOuter = s:CreateTexture(nil, "BORDER", nil, 0)
         st.shapeBand = s:CreateTexture(nil, "BORDER", nil, 1)
         st.shapeBg = s:CreateTexture(nil, "BORDER", nil, 2)
+        -- The border and band are filled shapes. Cut the middle out of them so the
+        -- background shows the world through it, as a square button's does.
+        st.shapeHole = s:CreateMaskTexture()
+        st.shapeOuter:AddMaskTexture(st.shapeHole)
+        st.shapeBand:AddMaskTexture(st.shapeHole)
     end
     st.shape = name
     st.shapeMask:SetTexture(file, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
@@ -122,7 +127,7 @@ function Skin.Shape(st, host, s, icon, overlays, cds, L)
     local band = Pixel.Px(host, 1)
     local w = host:GetWidth() or 0
     local e = w * (Skin.SHADOW_K - 1) / 2
-    st.shapeShadow:SetTexture(shapeFile(name, true))
+    st.shapeShadow:SetTexture(shapeFile(name, "shadow"))
     local g = DUI.DB.General()
     st.shapeShadow:SetVertexColor(0, 0, 0, type(g) == "table" and g.shadowAlpha or 0.6)
     st.shapeShadow:ClearAllPoints()
@@ -145,6 +150,10 @@ function Skin.Shape(st, host, s, icon, overlays, cds, L)
     st.shapeBg:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -T, T)
     local bg = Style.BACKGROUND
     st.shapeBg:SetVertexColor(bg[1], bg[2], bg[3], Style.BACKGROUND_ALPHA or 1)
+    st.shapeHole:SetTexture(shapeFile(name, "hole"), "CLAMPTOWHITE", "CLAMPTOWHITE")
+    st.shapeHole:ClearAllPoints()
+    st.shapeHole:SetPoint("TOPLEFT", host, "TOPLEFT", T, -T)
+    st.shapeHole:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -T, T)
     st.shapeBg:Show()
     for _, cd in ipairs(cds) do
         if cd.SetSwipeTexture then pcall(cd.SetSwipeTexture, cd, file) end
