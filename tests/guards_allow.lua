@@ -70,6 +70,9 @@ return {
         ["DaylightUI_ActionBars/CdmEffects.lua|icon|SetDesaturation"] = "KEEP (opt-in): only when a spell's gray-out option is set; re-applies it after RefreshIconDesaturation",
         ["DaylightUI_Skins/Kit.lua|tex|m"] = "KEEP: the game's side-tab icon textures (plain buttons, set on window refresh); keeps our crop",
         ["DaylightUI_Chat/Box.lua|cf|AddMessage"] = "KEEP: the Daylight chat box's lines. Read only (an earlier hook that also rewrote the game's history entries caused errors), never the combat log; other chat addons do the same and work",
+        ["DaylightUI_Skins/Packs/Social.lua|CommunitiesFrameMixin|name"] = "KEEP: OnClubSelected and SetDisplayMode move the club icon and the line under the title while the window stays open, with no event; the post-hook only places those",
+        ["DaylightUI_Skins/Packs/Social.lua|CommunitiesListMixin|Update"] = "KEEP: the club list rebuilds while the window stays open, with no event; the post-hook only shows or hides the empty column",
+        ["DaylightUI_Skins/Packs/Social.lua|CommunitiesListEntryMixin|name"] = "KEEP: SetAddCommunity paints the join row green after the row is dressed, with no event; the post-hook only sets that icon and its text",
     },
     setscript = {
     },
