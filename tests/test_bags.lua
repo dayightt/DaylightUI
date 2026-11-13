@@ -1897,6 +1897,158 @@ T.test("bags: folding one of two stacks leaves the other's glide its own", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Loot with the bag open: a new weapon lands in bag 0 slot 3 (empty in this world).
+local function lootWeapon(itemID, slot)
+    itemID, slot = itemID or 10, slot or 3
+    if world.class then world.class[itemID] = 2 end
+    world.items[0][slot] = { iconFileID = 100 + itemID, stackCount = 1, quality = 2,
+        hyperlink = "|Hitem:" .. itemID .. "|h", itemID = itemID, itemName = "Axe " .. itemID }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+end
+
+T.test("bags: loot arriving while open glides the rest aside", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 3 end }
+    local ok, err = pcall(function()
+        settleFeel()
+        local axe = ns.Bags.buttons[0][3]
+        local spots = {}
+        for _, s in ipairs(f.set.Slots()) do
+            if s.button:IsShown() and s.button ~= axe then spots[s.button] = { at(s.button) } end
+        end
+        local w0, h0 = f:GetWidth(), f:GetHeight()
+        local sized = 0
+        local realSize = Feel.Size
+        Feel.Size = function(...) sized = sized + 1 return realSize(...) end
+        lootWeapon()
+        Feel.Size = realSize
+        T.eq(groupOf(ns, axe), "recent", "new, it goes in Recent")
+        T.truthy(axe:IsShown(), "the new item shows")
+        T.eq(axe:GetAlpha(), 0, "and fades in")
+        T.truthy(Feel.Moving(axe), "dropping into place")
+        T.eq(sized, 1, "the window glides to its new size")
+        T.eq(f:GetWidth(), w0, "from its old one")
+        T.eq(f:GetHeight(), h0)
+        local moved = 0
+        for b, xy in pairs(spots) do
+            if b:IsShown() then
+                local x, y = at(b)
+                T.eq(x, xy[1], "every other slot starts where it was")
+                T.eq(y, xy[2])
+                if Feel.Moving(b) then moved = moved + 1 end
+            end
+        end
+        T.truthy(moved > 0, "the groups after it glide aside")
+        T.truthy(ns.Items.Parts(axe).glint:IsShown(), "the loot shine still plays")
+        T.truthy(ns.Items.Parts(axe).newDot:IsShown(), "and the new-item dot shows")
+        settleFeel()
+        T.eq(axe:GetAlpha(), 1)
+        local landed = 0
+        for b, xy in pairs(spots) do
+            local x, y = at(b)
+            if b:IsShown() and (x ~= xy[1] or y ~= xy[2]) then landed = landed + 1 end
+        end
+        T.eq(landed, moved, "each glide ends at the new layout's spot")
+    end)
+    _G.C_NewItems = nil
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: loot during a fold glide settles and glides on", function()
+    local ns, f = catLogin()
+    local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+    settleFeel()
+    local setItem = ns.Bags.buttons[0][4]
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "sets" then h:GetScript("OnClick")(h, "LeftButton") end
+    end
+    stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
+    T.truthy(f.fading and f.fading[setItem], "the fold is still fading")
+    lootWeapon()
+    T.falsy(setItem:IsShown(), "the folded item put away at once")
+    local axe = ns.Bags.buttons[0][3]
+    T.truthy(Feel.Moving(axe), "the new item glides in")
+    settleFeel()
+    -- The same layout made at once ends in the same spots.
+    local ends = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then ends[s.button] = { at(s.button) } end
+    end
+    local hEnd = f:GetHeight()
+    ns.Relayout()
+    for b, xy in pairs(ends) do
+        T.truthy(b:IsShown())
+        T.eq(select(4, b:GetPoint(1)), xy[1], "glided to its spot")
+        T.eq(select(5, b:GetPoint(1)), xy[2])
+    end
+    T.eq(f:GetHeight(), hEnd)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: loot in a fight lays out at once", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    settleFeel()
+    local axe = ns.Bags.buttons[0][3]
+    stub.combat = true
+    lootWeapon()
+    stub.RunTimers()
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "no slot glides in a fight")
+    end
+    T.falsy(Feel.Moving(f), "nor the window")
+    stub.combat = false
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.RunTimers()
+    T.truthy(axe:IsShown(), "the new item is in")
+    T.eq(axe:GetAlpha(), 1, "whole")
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "the layout after the fight is at once too")
+    end
+    -- Under the client's restrictions, the same.
+    stub.SetRestriction("PvPMatch", true)
+    lootWeapon(11, 7)
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "no glide under restrictions")
+    end
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: grid with a free tile, loot glides the tile and the section line", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    DaylightUI:Set("Bags", "columns", 6)
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local B = ns.Bags
+    -- Five items and the free tile fill one row; the loot needs a second one.
+    local tile = B.buttons[0][3]
+    T.truthy(tile:IsShown() and ns.Items.Parts(tile).free:IsShown(), "slot 3 is the free tile")
+    local tx, ty = at(tile)
+    local rule = f.lines[1]
+    T.truthy(rule:IsShown(), "a line before the next section")
+    local _, _, _, lx, ly = rule:GetPoint(1)
+    lootWeapon()
+    local newTile = B.buttons[0][7]
+    T.truthy(Feel.Moving(newTile), "the next empty slot is the tile now, gliding")
+    T.eq(select(4, newTile:GetPoint(1)), tx, "from where the tile was")
+    T.eq(select(5, newTile:GetPoint(1)), ty)
+    T.eq(tile:GetAlpha(), 0, "the loot fades in")
+    T.truthy(Feel.Moving(rule), "the line glides down with the rows")
+    T.eq(select(5, rule:GetPoint(1)), ly, "from its old spot")
+    T.eq(select(4, rule:GetPoint(1)), lx)
+    settleFeel()
+    T.truthy(select(5, rule:GetPoint(1)) < ly, "and lands a row lower")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: your own groups, from a search, come first; rename and reorder", function()
     local ns = catLogin()
     local B, Cat = ns.Bags, ns.Categories

@@ -39,7 +39,7 @@ local function bagOf(btn)
 end
 
 -- Records what each slot held when laid out (window.laid[button]), plus the
--- grouped free tiles (window.tiles: { button, slots }) so Layout.Hold can
+-- grouped free tiles (window.tiles: { button, slots, key }) so Layout.Hold can
 -- recount them.
 local function noteLaid(window)
     window.laid = window.laid or {}
@@ -53,9 +53,11 @@ local function noteLaid(window)
     wipe(window.tiles)
 end
 
--- A free tile: its button shows how many of `slots` are empty.
-local function noteTile(window, button, slots)
-    if window.tiles then window.tiles[#window.tiles + 1] = { button = button, slots = slots } end
+-- A free tile: its button shows how many of `slots` are empty. key names the
+-- tile itself, so an eased layout can move it like an item when another empty
+-- slot becomes the tile.
+local function noteTile(window, button, slots, key)
+    if window.tiles then window.tiles[#window.tiles + 1] = { button = button, slots = slots, key = key } end
 end
 
 -- Sections in order, each a list of slots ({ button, bag, section }).
@@ -364,7 +366,7 @@ function Layout.Groups(cfg, window)
                 if cfg.emptySlots == "grouped" then
                     if #list > 0 then
                         entries[#entries + 1] = { button = list[1].button, free = #list, empty = true }
-                        noteTile(window, list[1].button, members[section])
+                        noteTile(window, list[1].button, members[section], "free:" .. tostring(section))
                     end
                 else
                     for _, s in ipairs(list) do entries[#entries + 1] = { button = s.button, empty = true } end
@@ -506,7 +508,7 @@ function Layout.Categories(window, cfg)
     return maxW, y + lineH
 end
 
--- Eased layouts (a heading click, a chip). Everything runs on one driver and one
+-- Eased layouts (a heading click, a chip, loot while open). Everything runs on one driver and one
 -- curve (NORMAL): moved slots glide by their anchor (Feel.Glide, fractional) in
 -- step with the window height (Feel.Size, same duration). A Translation animation
 -- (Motion.Glide) moved them in whole pixels on a different curve while the
@@ -515,12 +517,13 @@ end
 -- (moving the whole grid instead cost about 10 fps).
 
 Layout.FOLD_DROP = 6         -- px an opened group's items drop in from (same as the character window's folds)
-Layout.easing = false        -- true while a layout should animate (a heading click, a chip)
+Layout.easing = false        -- true while a layout should animate (a heading click, a chip, loot)
 
 -- Whether the layout being made now animates. Never in a fight or under the
 -- client's restrictions, where the bag has to be right at once.
 function Layout.Eases(window)
-    return Layout.easing and window:IsShown() and DUI.Motion.On() and not DUI.Restricted() and true or false
+    return Layout.easing and window:IsShown() and DUI.Motion.On() and not DUI.Restricted()
+        and not (InCombatLockdown and InCombatLockdown()) and true or false
 end
 
 local function keyOf(held, seen)
@@ -540,11 +543,12 @@ function Layout.ItemKey(button, seen)
     return keyOf((itemIn(bagOf(button), button:GetID())), seen)
 end
 
--- Current position of every shown slot and heading, as the layout set them:
--- { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
---   heads = { [group key] = { x, y } } }.
+-- Current position of every shown slot, heading and section line, as the
+-- layout set them: { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
+--   heads = { [group key] = { x, y } }, lines = { [i] = { x, y } } }. A free
+-- tile's spot is also kept under its tile key among the items.
 function Layout.Spots(window)
-    local slots, items, heads, seen = {}, {}, {}, {}
+    local slots, items, heads, lines, seen = {}, {}, {}, {}, {}
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() and b:GetNumPoints() == 1 then
@@ -555,20 +559,31 @@ function Layout.Spots(window)
             if key then items[key] = slots[b] end
         end
     end
+    for _, t in ipairs(window.tiles or {}) do
+        if t.key and slots[t.button] then items[t.key] = slots[t.button] end
+    end
     for _, h in ipairs(window.headings or {}) do
         if h:IsShown() and h.key and h:GetNumPoints() == 1 then
             local _, _, _, x, y = h:GetPoint(1)
             heads[h.key] = { x, y }
         end
     end
-    return { slots = slots, items = items, heads = heads }
+    for i, l in ipairs(window.lines or {}) do
+        if l:IsShown() and l:GetNumPoints() == 1 then
+            local _, _, _, x, y = l:GetPoint(1)
+            lines[i] = { x, y }
+        end
+    end
+    return { slots = slots, items = items, heads = heads, lines = lines }
 end
 
 -- Animates from the old spots (Layout.Spots) to the new layout. A slot that now
 -- holds something else glides from where that item was (a sort or a swap moved
--- it); one that holds the same as before, or nothing, glides from its own spot.
--- New ones fade in with a small drop, and ones no longer shown fade out in place
--- (window.fading, restored by the next layout).
+-- it), a free tile from where the tile was; one that holds the same as before,
+-- or nothing, glides from its own spot.
+-- New ones (and an item that wasn't in the window before) fade in with a small
+-- drop, and ones no longer shown fade out in place (window.fading, restored by
+-- the next layout).
 function Layout.Ease(window, was)
     local Motion, Feel = DUI.Motion, DUI.Win.Feel
     window.gliding = window.gliding or {}
@@ -585,14 +600,22 @@ function Layout.Ease(window, was)
             window.gliding[r] = true
         end
     end
-    local seen, items = {}, was.items or {}
+    local seen, items, tiles = {}, was.items or {}, {}
+    for _, t in ipairs(window.tiles or {}) do
+        if t.key then tiles[t.button] = t.key end
+    end
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() then
             local now = Layout.ItemKey(b)
             local key = keyOf(now, seen)
-            local moved = key and keyOf(b.dluiKey) ~= now
-            from(b, (moved and items[key]) or was.slots[b])
+            local old
+            if key and keyOf(b.dluiKey) ~= now then
+                old = items[key]   -- nil: the item wasn't in the window (loot), so it fades in
+            else
+                old = (tiles[b] and items[tiles[b]]) or was.slots[b]
+            end
+            from(b, old)
         elseif was.slots[b] then
             window.fading = window.fading or {}
             window.fading[b] = true
@@ -602,6 +625,9 @@ function Layout.Ease(window, was)
     end
     for _, h in ipairs(window.headings or {}) do
         if h:IsShown() and h.key then from(h, was.heads[h.key]) end
+    end
+    for i, l in ipairs(window.lines or {}) do
+        if l:IsShown() then from(l, was.lines and was.lines[i]) end
     end
 end
 
@@ -638,7 +664,13 @@ function Layout.Grid(window, cfg)
     for _, h in ipairs(window.headings or {}) do h:Hide() end
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
     local grouped = cfg.emptySlots == "grouped"
-    if grouped then noteLaid(window) else window.laid = nil end
+    if grouped then
+        noteLaid(window)
+    else
+        window.laid = nil
+        if window.tiles then wipe(window.tiles) end
+    end
+    local width = cols * size + (cols - 1) * gap
     local sections = Layout.Sections((slotsInView(window)), cfg.reagentMerged == true)
     local y, lines = 0, 0
     for i, section in ipairs(sections) do
@@ -646,10 +678,10 @@ function Layout.Grid(window, cfg)
             lines = lines + 1
             local l = line(window, lines)
             y = y + Layout.SECTION_GAP
+            -- One anchor and a width, so an eased layout can glide it with the slots.
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", window.items, "TOPLEFT", 0, -y)
-            l:SetPoint("TOPRIGHT", window.items, "TOPRIGHT", 0, -y)
-            l:SetHeight(DUI.Pixel.Px(window, 1))
+            l:SetSize(width, DUI.Pixel.Px(window, 1))
             l:Show()
             y = y + Layout.SECTION_GAP
         end
@@ -657,7 +689,9 @@ function Layout.Grid(window, cfg)
         if grouped then
             local tiles, members, kinds
             shown, frees, tiles, members, kinds = Layout.Group(section)
-            for _, t in ipairs(tiles) do noteTile(window, t.button, members[kinds[t.bag]]) end
+            for _, t in ipairs(tiles) do
+                noteTile(window, t.button, members[kinds[t.bag]], "free:" .. section.key .. ":" .. tostring(kinds[t.bag]))
+            end
         end
         for n, s in ipairs(shown) do
             local col, row = (n - 1) % cols, math.floor((n - 1) / cols)
@@ -677,7 +711,7 @@ function Layout.Grid(window, cfg)
         y = y + rows * size + (rows - 1) * gap
     end
     for i = lines + 1, #(window.lines or {}) do window.lines[i]:Hide() end
-    return cols * size + (cols - 1) * gap, y
+    return width, y
 end
 
 -- Holding still while open

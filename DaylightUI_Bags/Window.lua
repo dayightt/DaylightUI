@@ -886,8 +886,11 @@ function Window.Changed(f, bags)
     if relay then
         if f:IsShown() or changed then
             laidOut = ns.CanLayout(f)
-            -- Same slots: only the changed bags and moved counts refill.
-            Window.Relayout(f, synced, synced and not changed)
+            -- Same slots: only the changed bags and moved counts refill. Loot
+            -- while open glides the rest aside (never in a fight, see Layout.Eases).
+            ns.Layout.easing = true
+            DUI.SafeCall(Window.Relayout, f, synced, synced and not changed)
+            ns.Layout.easing = false
         else
             f.stale = true
         end
