@@ -428,7 +428,6 @@ function Layout.Categories(window, cfg)
     local Cat = ns.Categories
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
     local maxW = cols * size + (cols - 1) * gap
-    local was = Layout.easing and window:IsShown() and DUI.Motion.On() and Layout.Spots(window) or nil
     for _, s in ipairs(window.set.Slots()) do
         s.button:Hide()
         s.button.dluiCount = nil
@@ -504,14 +503,12 @@ function Layout.Categories(window, cfg)
         if g.breakAfter then newRow() end
     end
     for i = used + 1, #(window.headings or {}) do window.headings[i]:Hide() end
-    if was then Layout.Ease(window, was) end
     return maxW, y + lineH
 end
 
--- Fold animation (clicking a heading). Only folds animate; loot, sorting and
--- setting changes lay out instantly. Everything runs on one driver and one curve
--- (NORMAL): moved slots glide by their anchor (Feel.Glide, fractional) in step
--- with the window height (Feel.Size, same duration). A Translation animation
+-- Eased layouts (a heading click, a chip). Everything runs on one driver and one
+-- curve (NORMAL): moved slots glide by their anchor (Feel.Glide, fractional) in
+-- step with the window height (Feel.Size, same duration). A Translation animation
 -- (Motion.Glide) moved them in whole pixels on a different curve while the
 -- bottom-anchored window's top moved smoothly, so the icons jittered.
 -- Only the moved slots, and only for that long: each is re-placed every frame
@@ -520,15 +517,57 @@ end
 Layout.FOLD_DROP = 6         -- px an opened group's items drop in from (same as the character window's folds)
 Layout.easing = false        -- true while a heading click is laying out the bag
 
+-- Whether the layout being made now animates. Never in a fight or under the
+-- client's restrictions, where the bag has to be right at once.
+function Layout.Eases(window)
+    return Layout.easing and window:IsShown() and DUI.Motion.On() and not DUI.Restricted() and true or false
+end
+
+local function keyOf(held, seen)
+    local t = type(held)
+    if t ~= "number" and t ~= "string" then return nil end
+    local base = tostring(held)
+    if not seen then return base end
+    local n = (seen[base] or 0) + 1
+    seen[base] = n
+    return base .. "#" .. n
+end
+
+-- Which item a slot shows: its item ID (a link when there's none), nil when empty.
+-- With `seen`, stacks of the same item are numbered in the order they're met, so
+-- a slot's item can be matched with the same item somewhere else after a move.
+function Layout.ItemKey(button, seen)
+    return keyOf((itemIn(bagOf(button), button:GetID())), seen)
+end
+
+-- What each slot held at the last layout, so the next eased one knows where each
+-- item was on screen.
+local function noteKeys(window)
+    local keys, laid = window.keys or {}, window.laid
+    window.keys = keys
+    for _, s in ipairs(window.set.Slots()) do
+        local b = s.button
+        if laid then
+            keys[b] = laid[b]
+        else
+            keys[b] = (itemIn(s.bag, b:GetID()))
+        end
+    end
+end
+
 -- Current position of every shown slot and heading, as the layout set them:
--- { slots = { [button] = { x, y } }, heads = { [group key] = { x, y } } }.
+-- { slots = { [button] = { x, y } }, items = { [item key] = { x, y } },
+--   heads = { [group key] = { x, y } } }.
 function Layout.Spots(window)
-    local slots, heads = {}, {}
+    local slots, items, heads, seen = {}, {}, {}, {}
+    local keys = window.keys or {}
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b:IsShown() and b:GetNumPoints() == 1 then
             local _, _, _, x, y = b:GetPoint(1)
             slots[b] = { x, y }
+            local key = keyOf(keys[b], seen)
+            if key then items[key] = slots[b] end
         end
     end
     for _, h in ipairs(window.headings or {}) do
@@ -537,12 +576,14 @@ function Layout.Spots(window)
             heads[h.key] = { x, y }
         end
     end
-    return { slots = slots, heads = heads }
+    return { slots = slots, items = items, heads = heads }
 end
 
--- Animates from the old spots (Layout.Spots) to the new layout. Moved pieces
--- glide from where they were, new ones fade in with a small drop, and folded
--- ones fade out in place (window.fading, restored by the next layout).
+-- Animates from the old spots (Layout.Spots) to the new layout. A slot glides
+-- from where its item was (the same item may now sit in another slot after a
+-- sort), an empty one from where it was itself. New ones fade in with a small
+-- drop, and ones no longer shown fade out in place (window.fading, restored by
+-- the next layout).
 function Layout.Ease(window, was)
     local Motion, Feel = DUI.Motion, DUI.Win.Feel
     window.gliding = window.gliding or {}
@@ -559,11 +600,13 @@ function Layout.Ease(window, was)
             window.gliding[r] = true
         end
     end
+    local seen, items = {}, was.items or {}
     for _, s in ipairs(window.set.Slots()) do
-        local b, old = s.button, was.slots[s.button]
+        local b = s.button
         if b:IsShown() then
-            from(b, old)
-        elseif old then
+            local key = Layout.ItemKey(b, seen)
+            from(b, key and items[key] or was.slots[b])
+        elseif was.slots[b] then
             window.fading = window.fading or {}
             window.fading[b] = true
             b:Show()
@@ -586,13 +629,26 @@ function Layout.Apply(window, cfg)
         end
         wipe(window.fading)
     end
-    -- Fold glides still running: settle them first so the spots read and set below
+    -- Glides still running: settle them first so the spots read and set below
     -- are the layout's own.
     if window.gliding then
         for r in pairs(window.gliding) do DUI.Win.Feel.Settle(r) end
         wipe(window.gliding)
     end
-    if cfg.view == "categories" then return Layout.Categories(window, cfg) end
+    local was = Layout.Eases(window) and Layout.Spots(window) or nil
+    local w, h
+    if cfg.view == "categories" then
+        w, h = Layout.Categories(window, cfg)
+    else
+        w, h = Layout.Grid(window, cfg)
+    end
+    if was then Layout.Ease(window, was) end
+    noteKeys(window)
+    return w, h
+end
+
+-- The grid view: every slot in bag order, a line between sections.
+function Layout.Grid(window, cfg)
     for _, h in ipairs(window.headings or {}) do h:Hide() end
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
     local grouped = cfg.emptySlots == "grouped"

@@ -801,7 +801,7 @@ function Window.Relayout(f, synced, moved)
     -- A fold (heading click) glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps.
     local Feel = DUI.Win.Feel
-    if ns.Layout.easing and f:IsShown() then
+    if ns.Layout.Eases(f) then
         Feel.Size(f, W, H, DUI.Motion.NORMAL)   -- in step with the slots' Feel.Glide
     else
         if Feel.Moving(f) then Feel.Settle(f) end

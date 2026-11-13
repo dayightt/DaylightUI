@@ -1746,6 +1746,127 @@ T.test("bags: folding a group eases: its items fade out, the rest glide, the win
     T.truthy(setItem:IsShown())
 end)
 
+-- An eased layout moves each item from where it was on screen, not each button:
+-- a button that now shows another item starts at that item's old spot.
+local function easedRelayout(ns)
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+end
+
+local function settleFeel()
+    local d = DaylightUI.Motion.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+    d = DaylightUI.Win.Feel.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+end
+
+local function at(btn)
+    local _, _, _, x, y = btn:GetPoint(1)
+    return x, y
+end
+
+T.test("bags: a swapped pair glides from each other's spot", function()
+    -- Grid: buttons keep their slots, so the items cross over.
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    open(ns)
+    ns.Relayout()
+    settleFeel()
+    local a, b = ns.Bags.buttons[0][1], ns.Bags.buttons[0][4]
+    local ax, ay = at(a)
+    local bx, by = at(b)
+    world.items[0][1], world.items[0][4] = world.items[0][4], world.items[0][1]
+    easedRelayout(ns)
+    T.truthy(Feel.Moving(a) and Feel.Moving(b), "grid: both glide")
+    T.eq(select(4, a:GetPoint(1)), bx, "grid: the first starts where its item was")
+    T.eq(select(5, a:GetPoint(1)), by)
+    T.eq(select(4, b:GetPoint(1)), ax, "grid: the second too")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    T.eq(select(4, a:GetPoint(1)), ax, "grid: each ends at its own slot")
+    T.eq(select(4, b:GetPoint(1)), bx)
+
+    -- Shelf: two items of one group swap slots. Each item stays where it is on
+    -- screen, so its new button starts on the item's old spot.
+    ns = catLogin()
+    settleFeel()
+    a, b = ns.Bags.buttons[0][5], ns.Bags.buttons[0][6]
+    ax, ay = at(a)
+    bx, by = at(b)
+    T.truthy(ax ~= bx or ay ~= by, "two spots")
+    world.items[0][5], world.items[0][6] = world.items[0][6], world.items[0][5]
+    easedRelayout(ns)
+    T.eq(select(4, a:GetPoint(1)), bx, "shelf: the first starts where its item was")
+    T.eq(select(5, a:GetPoint(1)), by)
+    T.eq(select(4, b:GetPoint(1)), ax, "shelf: the second too")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: grid view eases like the shelf", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local gray = ns.Bags.buttons[0][2]
+    local x0, y0 = at(gray)
+    local h0 = f:GetHeight()
+    -- The first item leaves: the rest close up, gliding there.
+    world.items[0][1] = nil
+    easedRelayout(ns)
+    T.truthy(Feel.Moving(gray), "a slot that moved glides")
+    T.falsy(gray.__duiMotion and gray.__duiMotion.glide and gray.__duiMotion.glide:IsPlaying(), "by its anchor, no Translation")
+    T.eq(select(4, gray:GetPoint(1)), x0, "from where it was")
+    T.eq(select(5, gray:GetPoint(1)), y0)
+    T.eq(f:GetHeight(), h0)
+    settleFeel()
+    local x1 = at(gray)
+    T.truthy(x1 < x0, "now at the front")
+    -- A layout that isn't eased places at once.
+    world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+    ns.Relayout()
+    T.falsy(Feel.Moving(gray), "no glide unless eased")
+    T.eq(at(gray), x0)
+    -- Motion off: at once too.
+    DaylightUI.DB.General().motion = false
+    world.items[0][1] = nil
+    easedRelayout(ns)
+    T.falsy(Feel.Moving(gray), "motion off: no glide")
+    T.eq(at(gray), x1)
+    DaylightUI.DB.General().motion = true
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a stack that grew keeps its spot, duplicates map in order", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    categoryWorld()
+    open(ns)
+    ns.Relayout()
+    settleFeel()
+    local first, second = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    -- The second stack of Bread merges into the first.
+    world.items[0][8].stackCount = 12
+    world.items[1][1] = nil
+    easedRelayout(ns)
+    T.falsy(Feel.Moving(first), "the stack that grew stays put")
+    T.falsy(Feel.Moving(second), "the emptied slot stays put")
+    settleFeel()
+    -- Keys: the item, then its place among stacks of the same item.
+    world.items[1][1] = { iconFileID = 108, stackCount = 7, quality = 1, hyperlink = "|Hitem:8|h", itemID = 8 }
+    T.eq(ns.Layout.ItemKey(first), "8")
+    T.eq(ns.Layout.ItemKey(ns.Bags.buttons[0][3]), nil, "an empty slot has no key")
+    local seen = {}
+    T.eq(ns.Layout.ItemKey(first, seen), "8#1")
+    T.eq(ns.Layout.ItemKey(second, seen), "8#2")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: your own groups, from a search, come first; rename and reorder", function()
     local ns = catLogin()
     local B, Cat = ns.Bags, ns.Categories
