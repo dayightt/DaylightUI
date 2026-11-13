@@ -212,10 +212,11 @@ local shareGroups = {
         end)
         tooltip(out, L["Export groups"], L["Your own groups as text to copy: paste it on another character, or give it to a friend."])
         local inn = W.Button(row, L["Import groups"], 26)
+        row.inn = inn
         inn:SetWidth(140)
         inn:SetPoint("LEFT", out, "RIGHT", 10, 0)
         inn:SetScript("OnClick", function()
-            local typed
+            local typed, lost
             local box = P.ShowPaste({
                 title = L["Import bag groups"],
                 hint = L["Paste bag groups (Ctrl+V), from Daylight UI or Baganator. A group with the same name as one of yours is updated; the others are added."],
@@ -236,22 +237,30 @@ local shareGroups = {
                     if list.notes and #list.notes > 0 then
                         said = said .. " " .. L["Some Baganator rules have no match here. Chat lists them after you import."]
                     end
+                    if lost and list.baganator then
+                        said = said .. " " .. L["Editing the text here took out its spaces, so paste it again to keep them."]
+                    end
                     return list, said
                 end,
                 go = function(list)
-                    local n = ns.Categories.ImportShared(list)
-                    DUI.Print(string.format(L["Imported %d bag groups."], n))
-                    if list.notes and #list.notes > 0 then
-                        DUI.Print(string.format(L["Not brought over from Baganator: %s."], table.concat(list.notes, "; ")))
-                    end
+                    local n, moved = ns.Categories.ImportShared(list)
+                    for _, line in ipairs(ns.Categories.ImportLines(n, moved, list.notes)) do DUI.Print(line) end
                 end,
             })
-            -- The box takes spaces out of long pasted text; Unwrapped puts them back.
+            -- The box takes spaces out of long pasted text, and Unwrapped puts them
+            -- back from the paste. Once the wrapped text is edited they're gone.
             local edit = type(box) == "table" and box.edit
             local check = edit and edit:GetScript("OnTextChanged")
             if check then
                 edit:SetScript("OnTextChanged", function(self, user)
-                    if user then typed = self:GetText() end
+                    if user then
+                        local now = self:GetText()
+                        if ns.Categories.Unwrapped(now, typed) ~= typed then
+                            lost = type(typed) == "string" and string.find(typed, "%s") ~= nil
+                                and not string.find(now, " ", 1, true)
+                            typed = now
+                        end
+                    end
                     check(self, user)
                 end)
             end

@@ -3025,7 +3025,7 @@ local BAGANATOR = '{"hidden":["default_toy"],"version":1,"order":["default_heart
     .. '"__end","----","default_junk","Toys and Pets","default_other","default_special_empty"],'
     .. '"categories":[{"name":"Shinies","priority":250,"search":"#epic|#rare&~#junk"},'
     .. '{"name":"My Gear","search":"#gear&>40&#boe","priority":350},'
-    .. '{"search":"#toy|#socket","priority":50,"name":"Toys and Pets"},'
+    .. '{"search":"#toy|#socket|#locked","priority":50,"name":"Toys and Pets"},'
     .. '{"search":"","priority":50,"name":"Keepers"}],'
     .. '"modifications":[{"source":"Keepers","items":[6948,2589]},{"items":[4306],"source":"default_junk"},'
     .. '{"source":"default_gem","items":[818]},{"source":"Toys and Pets","pets":[1234],"group":"expansion"}]}'
@@ -3041,15 +3041,21 @@ T.test("bags: Baganator's categories come over as your own groups", function()
     for _, g in ipairs(list) do if g.name then names[#names + 1] = g.name end end
     T.eq(table.concat(names, ","), "My Gear,Shinies,Toys and Pets,Keepers")
     local notes = table.concat(list.notes, "; ")
-    T.truthy(notes:find("Toys and Pets (left out: #toy, #socket)", 1, true), notes)
-    T.truthy(notes:find("items moved to gem", 1, true), notes)
+    T.truthy(notes:find("Toys and Pets (left out: #toy, #socket, #locked)", 1, true), notes)
+    T.truthy(notes:find("items moved to Gems", 1, true), "the category by a name, not Baganator's key: " .. notes)
     T.truthy(notes:find("battle pets", 1, true), notes)
     T.truthy(notes:find("grouping", 1, true), notes)
     T.truthy(notes:find("sections and dividers", 1, true), notes)
     T.truthy(notes:find("hidden categories", 1, true), notes)
 
     local mine = Cat.AddCustom("Shinies", "q=1")
-    T.eq(Cat.ImportShared(list), 4, "four groups; the Junk pins aren't a group")
+    local n, moved = Cat.ImportShared(list)
+    T.eq(n, 4, "four groups; the Junk pins aren't a group")
+    T.eq(moved.junk, 1)
+    local lines = table.concat(Cat.ImportLines(n, moved, list.notes), "\n")
+    T.truthy(lines:find("Imported 4 bag groups.", 1, true), lines)
+    T.truthy(lines:find("1 items marked as junk. They'll be sold at the next vendor.", 1, true), "said, since a vendor sells them: " .. lines)
+    T.truthy(lines:find("Not brought over from Baganator: ", 1, true), lines)
     local by = {}
     for _, g in ipairs(Cat.Custom()) do by[g.name] = g end
     T.eq(#Cat.Custom(), 4, "Shinies updated, not doubled")
@@ -3082,9 +3088,16 @@ T.test("bags: Syndicator searches turned into the bag search", function()
     local s, dropped = S.FromSyndicator("#armor&(#cloth|#leather)")
     T.isnil(s, "brackets inside can't be followed")
     T.eq(#dropped, 1)
+    -- Leaving out one term of an & would let in more than it should: the whole
+    -- & part goes. Leaving out one side of | only lets in less.
     s, dropped = S.FromSyndicator("#gear&#boa")
-    T.eq(s, "#gear")
+    T.isnil(s, "not every piece of gear")
+    T.eq(dropped[1], "#gear & #boa")
+    s, dropped = S.FromSyndicator("#potion|#boa")
+    T.eq(s, "#potion")
     T.eq(dropped[1], "#boa")
+    T.isnil(as("#locked"), "a keyword only Daylight UI has isn't one of Baganator's")
+    T.isnil(as("locked"))
     T.isnil(as(""))
 end)
 
@@ -3115,7 +3128,82 @@ T.test("bags: text that isn't a bag groups string is refused politely", function
     list = Cat.ReadShared('{"version":3,"categories":[{"name":"Ore","search":"ore","color":"ff0000","sections":[1]}]}')
     T.eq(list[1].search, "ore")
     _G.C_EncodingUtil = nil
-    T.isnil(Cat.ReadShared('{"categories":[]}'), "a client without the reader")
+    list, why = Cat.ReadShared('{"categories":[]}')
+    T.isnil(list, "a client without the reader")
+    T.eq(why, "this game client can't read bag groups")
+end)
+
+T.test("bags: Baganator moves to built-in categories: game names, deleted groups and long names", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local long = string.rep("Long name ", 7)
+    Cat.Delete("weapon")
+    local had = C_Item.GetItemClassInfo
+    C_Item.GetItemClassInfo = function(id) return id == 3 and "Gem" or nil end
+    local list = Cat.ReadShared('{"categories":[{"name":"' .. long .. '","search":""}],"modifications":['
+        .. '{"source":"' .. long .. '","items":[25]},{"source":"default_weapon","items":[2589]},'
+        .. '{"source":"default_gem","items":[818]},{"source":"default_auto_inventory_slots","items":[17]},'
+        .. '{"source":"default_hearthstone","items":[6948]}]}')
+    C_Item.GetItemClassInfo = had
+    local notes = table.concat(list.notes, "; ")
+    T.truthy(notes:find("items moved to Gem, Gear by slot", 1, true), "the game's own word, else a plain one: " .. notes)
+    T.truthy(notes:find("items moved to Weapons, a group you deleted", 1, true), notes)
+    local n, moved = Cat.ImportShared(list)
+    T.eq(n, 1)
+    T.eq(Cat.PinOf(25), Cat.Custom()[1].key, "a name over 60 letters still finds its items")
+    T.isnil(Cat.PinOf(2589), "never pinned to a deleted group")
+    T.eq(moved.hearthstone, 1)
+    -- Only moves to built-in groups: nothing reads "Imported 0".
+    n, moved = Cat.ImportShared(Cat.ReadShared('{"categories":[],"modifications":[{"source":"default_hearthstone","items":[6948]}]}'))
+    local lines = table.concat(Cat.ImportLines(n, moved, {}), "\n")
+    T.falsy(lines:find("Imported 0", 1, true), lines)
+    T.truthy(lines:find("1 items moved to Hearthstone.", 1, true), lines)
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: Import groups in the options takes a Baganator export, spaces and all", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local printed = {}
+    local print0 = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = msg end
+    local share
+    for _, page in ipairs(ns.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, item in ipairs(card.items) do if item.label == "Share your groups" then share = item end end
+        end
+    end
+    local row = CreateFrame("Frame")
+    share.build(row)
+    row.inn:GetScript("OnClick")(row.inn)
+    local box = _G.DaylightUIProfileBox
+    local changed = box.edit:GetScript("OnTextChanged")
+    -- A paste: the box puts the long text in lines, taking its spaces out.
+    box.edit.__text = BAGANATOR
+    changed(box.edit, true)
+    T.falsy(box.edit:GetText():find("Toys and Pets", 1, true), "wrapped in the box")
+    local status = box.status.__text
+    T.truthy(status:find("Toys and Pets", 1, true), status)
+    T.truthy(status:find("Some Baganator rules have no match here.", 1, true), status)
+    -- Typing in the wrapped text can't bring the spaces back: say so.
+    box.edit.__text = string.gsub(box.edit:GetText(), "Keepers", "Keeper")
+    changed(box.edit, true)
+    T.truthy(box.status.__text:find("paste it again", 1, true), box.status.__text)
+    -- Pasted again whole, it imports with its spaces.
+    box.edit.__text = BAGANATOR
+    changed(box.edit, true)
+    box.go:GetScript("OnClick")()
+    local names = {}
+    for _, g in ipairs(Cat.Custom()) do names[g.name] = true end
+    T.truthy(names["Toys and Pets"], "its spaces kept")
+    local said = table.concat(printed, "\n")
+    T.truthy(said:find("Imported 4 bag groups.", 1, true), said)
+    T.truthy(said:find("marked as junk", 1, true), said)
+    T.truthy(said:find("Not brought over from Baganator:", 1, true), said)
+    DaylightUI.Print = print0
+    _G.C_EncodingUtil = nil
 end)
 
 T.test("bags: an empty group of yours can wait only in the bag, never in the bank or a saved copy", function()

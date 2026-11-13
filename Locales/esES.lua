@@ -6134,6 +6134,17 @@ L["Only items moved to Baganator's own categories: they go to the same groups he
 L["Some Baganator rules have no match here. Chat lists them after you import."] = "Algunas reglas de Baganator no tienen equivalente aquí. El chat las enumera después de importar."
 L["Not brought over from Baganator: %s."] = "No se ha traído de Baganator: %s."
 L["Bag groups someone shared, or your Baganator categories, added to yours."] = "Grupos de bolsas que alguien ha compartido, o tus categorías de Baganator, añadidos a los tuyos."
+L["this game client can't read bag groups"] = "este cliente del juego no puede leer grupos de bolsas"
+L["Gems"] = "Gemas"
+L["Item enhancements"] = "Mejoras de objeto"
+L["Battle pets"] = "Mascotas de duelo"
+L["Profession items"] = "Objetos de profesión"
+L["Toys"] = "Juguetes"
+L["Gear by slot"] = "Equipo por ranura"
+L["items moved to %s, a group you deleted"] = "objetos movidos a %s, un grupo que has borrado"
+L["%d items marked as junk. They'll be sold at the next vendor."] = "%d objetos marcados como chatarra. Se venderán en el próximo vendedor."
+L["%d items moved to %s."] = "%d objetos movidos a %s."
+L["Editing the text here took out its spaces, so paste it again to keep them."] = "Al editar el texto aquí se han quitado sus espacios; vuelve a pegarlo para conservarlos."
 
 -- A few lines change with the character's sex. The sex is only known once the
 -- player is in the world, and every one of these is read when it's drawn, so

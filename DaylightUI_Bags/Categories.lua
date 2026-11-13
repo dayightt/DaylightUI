@@ -381,6 +381,25 @@ Cat.BAGANATOR_BUILTIN = {
     miscellaneous = "misc", other = "other", junk = "junk",
 }
 
+-- Baganator's other built-in categories, named for the player: the game's own
+-- word for an item class where there is one, else a plain name.
+Cat.BAGANATOR_CLASS = { gem = 3, itemenhancement = 8, battlepet = 17, profession = 19 }
+Cat.BAGANATOR_NAMES = {
+    gem = L["Gems"], itemenhancement = L["Item enhancements"], battlepet = L["Battle pets"],
+    profession = L["Profession items"], toy = L["Toys"], auto_inventory_slots = L["Gear by slot"],
+    auto_recents = L["Recent"], special_empty = L["Empty"],
+}
+
+function Cat.BaganatorName(base)
+    local class = Cat.BAGANATOR_CLASS[base]
+    if class and C_Item and C_Item.GetItemClassInfo then
+        local ok, name = pcall(C_Item.GetItemClassInfo, class)
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    if base == "toy" and type(_G.TOY) == "string" and _G.TOY ~= "" then return _G.TOY end
+    return Cat.BAGANATOR_NAMES[base] or (string.gsub(base, "_", " "))
+end
+
 local function isText(s) return type(s) == "string" and s ~= "" end
 
 local function itemIDs(list, into)
@@ -396,13 +415,15 @@ end
 function Cat.ReadBaganator(text)
     local E = C_EncodingUtil
     if type(E) ~= "table" or type(E.DeserializeJSON) ~= "function" then
-        return nil, L["this game client can't read profiles"]
+        return nil, L["this game client can't read bag groups"]
     end
+    -- JSON escapes its own line breaks, so any here are the paste box's wrapping.
+    text = string.gsub(text, "[\r\n]", "")
     local ok, v = pcall(E.DeserializeJSON, text)
     if not ok or type(v) ~= "table" or (type(v.categories) ~= "table" and type(v.modifications) ~= "table") then
         return nil, L["that isn't a Daylight UI or Baganator bag groups string"]
     end
-    local notes, out, bySource, skipped = {}, {}, {}, {}
+    local notes, out, bySource, skipped, gone = {}, {}, {}, {}, {}
     local customs = {}
     for i, c in ipairs(type(v.categories) == "table" and v.categories or {}) do
         if #customs >= Cat.SHARE_MAX then break end
@@ -427,7 +448,7 @@ function Cat.ReadBaganator(text)
         local g = { name = name, search = search, items = {} }
         itemIDs(c.items, g.items)
         out[#out + 1] = g
-        bySource[name] = g
+        bySource[name], bySource[c.name] = g, g
         if isText(c.source) then bySource[c.source] = g end
     end
     local pets, grouped = false, false
@@ -438,7 +459,11 @@ function Cat.ReadBaganator(text)
             local g = bySource[source]
             local base = not g and string.match(source, "^default_(.+)$")
             local key = base and Cat.BAGANATOR_BUILTIN[base]
-            if key or g then
+            local hasItems = type(m.items) == "table" and #m.items > 0
+            if key and not g and not Cat.Get(key) then
+                -- Deleted here: never pin to it, say so instead.
+                if hasItems then gone[#gone + 1] = tbl("groupNames")[key] or Cat.BY_KEY[key].name end
+            elseif key or g then
                 if not g then
                     g = builtin[key]
                     if not g then
@@ -448,8 +473,8 @@ function Cat.ReadBaganator(text)
                     end
                 end
                 itemIDs(m.items, g.items)
-            elseif type(m.items) == "table" and #m.items > 0 then
-                skipped[#skipped + 1] = base or source
+            elseif hasItems then
+                skipped[#skipped + 1] = base and Cat.BaganatorName(base) or source
             end
             if type(m.pets) == "table" and #m.pets > 0 then pets = true end
             if isText(m.group) then grouped = true end
@@ -457,6 +482,9 @@ function Cat.ReadBaganator(text)
     end
     if #skipped > 0 then
         notes[#notes + 1] = string.format(L["items moved to %s"], table.concat(skipped, ", "))
+    end
+    for _, name in ipairs(gone) do
+        notes[#notes + 1] = string.format(L["items moved to %s, a group you deleted"], name)
     end
     if pets then notes[#notes + 1] = L["battle pets"] end
     if grouped then notes[#notes + 1] = L["grouping by type or quality"] end
@@ -517,12 +545,13 @@ function Cat.ReadShared(text)
 end
 
 -- Adds shared groups. One with the same name as an existing custom group updates
--- it (search, items and color); others are added. Returns how many groups.
+-- it (search, items and color); others are added. Returns how many groups, and
+-- how many items went to each built-in group (key -> count).
 function Cat.ImportShared(list)
     local byName = {}
     for _, g in ipairs(Cat.Custom()) do byName[tbl("groupNames")[g.key] or g.name] = g end
     local pins = tbl("pins")
-    local count = 0
+    local count, moved = 0, {}
     for _, sg in ipairs(list) do
         local g = sg.name and byName[sg.name]
         local key
@@ -544,11 +573,31 @@ function Cat.ImportShared(list)
         end
         if key then
             for _, id in ipairs(sg.items) do pins[id] = key end
+            if sg.builtin and #sg.items > 0 then moved[key] = (moved[key] or 0) + #sg.items end
             if sg.color then tbl("groupColors")[key] = { sg.color[1], sg.color[2], sg.color[3] } end
         end
     end
     changed()
-    return count
+    return count, moved
+end
+
+-- What an import did, as chat lines. Junk is said on its own: the next vendor
+-- sells it.
+function Cat.ImportLines(count, moved, notes)
+    local lines = {}
+    if count > 0 or not next(moved) then lines[1] = string.format(L["Imported %d bag groups."], count) end
+    for _, key in ipairs(Cat.Order()) do
+        local n = moved[key]
+        if n and key == "junk" then
+            lines[#lines + 1] = string.format(L["%d items marked as junk. They'll be sold at the next vendor."], n)
+        elseif n then
+            lines[#lines + 1] = string.format(L["%d items moved to %s."], n, Cat.Get(key).name)
+        end
+    end
+    if type(notes) == "table" and #notes > 0 then
+        lines[#lines + 1] = string.format(L["Not brought over from Baganator: %s."], table.concat(notes, "; "))
+    end
+    return lines
 end
 
 -- Locks

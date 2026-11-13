@@ -227,13 +227,15 @@ local function fromSyndicatorTerm(text)
     local word = keywordOnly and trim(string.sub(text, 2)) or text
     local mapped = Search.SYNDICATOR[word]
     if mapped then return no .. (keywordOnly and "#" or "") .. mapped end
-    if mapped == false then return nil end
-    -- A keyword in the player's own language works as it is.
-    if keywordOnly then return K[word] and (no .. "#" .. word) or nil end
+    -- Only keywords from the table above: a word that is a keyword here but not
+    -- one of Baganator's (locked) would mean something else.
+    if mapped == false or keywordOnly or K[word] then return nil end
     return no .. word
 end
 
--- The whole search, plus the terms left out. nil search = nothing left of it.
+-- The whole search, plus the parts left out. nil search = nothing left of it.
+-- A term with no match here drops its whole & part: leaving out just the term
+-- would let in more than the search meant to. Dropping a | part only lets in less.
 function Search.FromSyndicator(text)
     local whole = string.lower(trim(text))
     local dropped = {}
@@ -247,14 +249,16 @@ function Search.FromSyndicator(text)
     end
     local any = {}
     for _, part in ipairs(split(whole, "|")) do
-        local all = {}
+        local all, pieces, whole = {}, {}, true
         for _, piece in ipairs(split(part, "&")) do
             if piece ~= "" then
+                pieces[#pieces + 1] = piece
                 local ours = fromSyndicatorTerm(piece)
-                if ours then all[#all + 1] = ours else dropped[#dropped + 1] = piece end
+                if ours then all[#all + 1] = ours else whole = false end
             end
         end
-        if #all > 0 then any[#any + 1] = table.concat(all, " & ") end
+        if not whole then dropped[#dropped + 1] = table.concat(pieces, " & ")
+        elseif #all > 0 then any[#any + 1] = table.concat(all, " & ") end
     end
     if #any == 0 then return nil, dropped end
     return table.concat(any, " | "), dropped
