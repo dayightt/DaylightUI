@@ -660,6 +660,8 @@ T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line wi
         return getInfo(link)
     end
     world.items[0][7] = { iconFileID = 107, stackCount = 4, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    T.eq(DaylightUI:Get("Bags", "markCheapJunk"), false, "off as shipped")
+    DaylightUI:Set("Bags", "markCheapJunk", true)
     local f = open(ns)
     local function at(bag, slot)
         for _, s in ipairs(ns.Bags.Slots()) do
