@@ -323,58 +323,63 @@ T.test("book training: closing on Training and opening the book again starts on 
     T.eq(ns.Window.frame.tab, "spells")
 end)
 
-local function chipRows(page)
-    local rows = {}
-    for _, c in ipairs(page.chips) do
-        if c:IsShown() then
-            local y = select(5, c:GetPoint(1))
-            rows[y] = (rows[y] and rows[y] .. "," or "") .. c.group
-        end
-    end
-    return rows
-end
 
 local function resize(page, w)
     page.GetWidth = function() return w end   -- the window's new width, held through refreshes
     page:GetScript("OnSizeChanged")(page, w, page:GetHeight())
-    frame(30)   -- chips and list glide into place
+    frame(30)   -- settled
 end
 
-T.test("book training: chips that don't fit beside the search box wrap below it, none hidden", function()
+T.test("book training: chips that don't fit fold into More, which reaches every group", function()
     local ns = load(fakeApi(warriorList()))
     local page = openTraining(ns)
+    T.falsy(page.more and page.more:IsShown(), "every chip fits: no More")
     resize(page, 380)
-    local shown, rows = 0, 0
-    for _, c in ipairs(page.chips) do if c:IsShown() then shown = shown + 1 end end
-    T.eq(shown, 5, "every group's chip shown")
-    for _ in pairs(chipRows(page)) do rows = rows + 1 end
-    T.truthy(rows >= 2, "on more than one row")
-    local search = page.search
+    local shown, hidden = 0, {}
     for _, c in ipairs(page.chips) do
-        if c:IsShown() and select(5, c:GetPoint(1)) == -11 then
-            T.truthy(select(4, c:GetPoint(1)) + c:GetWidth() <= 380 - ns.Training.EDGE - 160, c.group .. " clear of the search box")
-        end
+        if c:IsShown() then shown = shown + 1 elseif c.group then hidden[#hidden + 1] = c.group end
     end
-    T.truthy(page.chipsTop > ns.Training.TOP, "the list moved down for the extra row")
+    T.truthy(#hidden > 0, "some chips no longer fit")
+    T.truthy(page.more:IsShown(), "More takes the rest")
+    T.deq(ns.Training.folded, hidden, "More holds exactly the chips that went")
+    local W = DaylightUI.Widgets
+    local was, asked = W.OpenMenu, nil
+    W.OpenMenu = function(owner, keys, values, current, onPick) asked = { keys = keys, values = values, pick = onPick } end
+    page.more:Click()
+    W.OpenMenu = was
+    T.truthy(asked, "a menu opens")
+    T.eq(asked.values[asked.keys[1]], ns.Training.CHIP[hidden[1]]())
+    local jumped
+    local jump = ns.Training.Jump
+    ns.Training.Jump = function(key) jumped = key end
+    asked.pick(asked.keys[1])
+    ns.Training.Jump = jump
+    T.eq(jumped, hidden[1], "picking one jumps to its group")
+    local mx = select(4, page.more:GetPoint(1))
+    T.truthy(mx + page.more:GetWidth() <= 380 - ns.Training.EDGE - 160, "More stays clear of the search box")
 end)
 
-T.test("book training: resizing rewraps the chips at once, and widening puts them back on one row", function()
+T.test("book training: resizing refits the chips at once, and widening brings them back", function()
     local ns = load(fakeApi(warriorList()))
     local page = openTraining(ns)
     resize(page, 380)
-    T.truthy(page.chipsTop > ns.Training.TOP)
+    T.truthy(page.more:IsShown())
     resize(page, 900)
-    local rows = 0
-    for _ in pairs(chipRows(page)) do rows = rows + 1 end
-    T.eq(rows, 1)
-    T.eq(page.chipsTop, ns.Training.TOP, "the list back up")
+    T.falsy(page.more:IsShown(), "all fit again")
+    for _, c in ipairs(page.chips) do if c.group then T.truthy(c:IsShown(), c.group) end end
 end)
 
-T.test("book training: the list glides to its new top when the chips wrap", function()
+T.test("book training: More glides from where it is to its new spot", function()
     local ns = load(fakeApi(warriorList()))
     local page = openTraining(ns)
     resize(page, 380)
+    local start = select(4, page.more:GetPoint(1))
+    page.GetWidth = function() return 340 end
+    page:GetScript("OnSizeChanged")(page, 340, page:GetHeight())
+    frame(1)
+    local mid = select(4, page.more:GetPoint(1))
     frame(30)
-    T.eq(page.listTop, page.chipsTop, "settled under the last row of chips")
-    T.eq(select(5, page.stack.scroll:GetPoint(1)), -page.chipsTop)
+    local stop = select(4, page.more:GetPoint(1))
+    T.truthy(stop ~= start, "it moved")
+    T.truthy(mid ~= stop, "not in one jump")
 end)
