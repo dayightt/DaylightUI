@@ -42,6 +42,9 @@ function Paging.FormConds()
         local ok, _, _, _, sid = pcall(GetShapeshiftFormInfo, i)
         local bonus = ok and type(sid) == "number" and not (issecretvalue and issecretvalue(sid))
             and Paging.FORM_BONUS[sid] or nil
+        -- Shadowform is a priest's only form, so it is that one whatever spell id
+        -- this server gives it.
+        if ok and not bonus and Paging.Class() == "PRIEST" then bonus = 1 end
         if bonus then
             out[bonus] = out[bonus] and (out[bonus] .. "/" .. i) or ("form:" .. i)
             any = true

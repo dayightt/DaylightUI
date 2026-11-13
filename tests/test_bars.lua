@@ -946,6 +946,11 @@ T.test("paging: a priest's Shadowform pages bar 1, though the game gives it no b
     noBlocked()
 end)
 
+T.test("paging: a priest's Shadowform pages bar 1 whatever spell id the server gives it", function()
+    login({ class = "PRIEST", formSpells = { 99999 } })
+    T.truthy(AB().Paging.Rule():find("[form:1] 7", 1, true), AB().Paging.Rule())
+end)
+
 T.test("paging: a priest without Shadowform yet keeps the bonus bar rule", function()
     login({ class = "PRIEST", formSpells = {} })
     T.truthy(AB().Paging.Rule():find("[bonusbar:1] 7", 1, true))
