@@ -30,6 +30,7 @@ DUI.PatchNotes = {
             { "Quests", "This zone on the quest tracker now shows quests filed under a part of the zone, like Northshire Valley in Elwynn Forest" },
             { "Chat", "Whispers show their time in the format picked under Timestamps, 12-hour clocks too" },
             { "Meters", "The threat meter's own background opacity works, down to fully see-through" },
+            { "Cooldown Manager", "The editor's \"Click or drag a spell\" hint no longer hides under the Add by ID button" },
         },
     },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",

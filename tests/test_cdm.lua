@@ -6823,6 +6823,18 @@ end)
 -- use is "i<id>", timed by the item's own cooldown. The fake game has no items,
 -- so this test lends C_Item and C_Container the calls and takes them back.
 -- The menu used to show two blank rows.
+T.test("cdm editor: the tray's hint sits clear of the Add by ID button", function()
+    local DUI, AB, Ed = edWorld()
+    local hint, byID = Ed.TrayHint(), Ed.PillButton("byID")
+    T.eq(stub.Text(hint), DUI.L["Click or drag a spell."])
+    local found
+    for i = 1, hint:GetNumPoints() do
+        local p, rel, rp, x = hint:GetPoint(i)
+        if p == "LEFT" then found = (rel == byID and rp == "RIGHT" and x > 0) end
+    end
+    T.truthy(found, "its left edge starts past the button, so a wide font wraps it instead of covering it")
+end)
+
 T.test("cdm editor: the Add by ID menu names its two rows", function()
     local DUI, AB, Ed = edWorld()
     local W = DUI.Widgets

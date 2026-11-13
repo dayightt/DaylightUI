@@ -264,6 +264,7 @@ function Ed.Tray() return ui and ui.tray end
 function Ed.Banner() return ui and ui.banner end
 function Ed.TrayCell(i) return ui and ui.cells[i] end
 function Ed.Pill() return ui and ui.pill end
+function Ed.TrayHint() return ui and ui.hint end
 function Ed.PillButton(key) return ui and ui[key] end   -- "import", "reset", "live"...
 function Ed.PreviewOf(id) return ui and ui.pieces[id] end
 
@@ -1439,9 +1440,15 @@ function build()
     ui.byID = pillButton(tray, L["Add by ID"], function(self) Ed.OpenAddMenu(self) end)
     ui.byID:SetHeight(26)
     ui.byID:SetPoint("LEFT", ui.group, "RIGHT", 8, 0)
+    -- The hint fills the room left of the buttons, wrapping to a second line
+    -- when a wide font or a long translation leaves less of it.
     local hint = W().Font(tray, W().BODY, DUI.Style.SIZE.small, DUI.Style.INK.LABEL, "RIGHT")
+    hint:SetPoint("LEFT", ui.byID, "RIGHT", 10, 0)
     hint:SetPoint("RIGHT", tray, "TOPRIGHT", -14, -23)
+    hint:SetWordWrap(true)
+    hint:SetMaxLines(2)
     hint:SetText(L["Click or drag a spell."])
+    ui.hint = hint
     ui.empty = W().Font(tray, W().BODY, DUI.Style.SIZE.body, DUI.Style.INK.LABEL, "LEFT")
     ui.empty:SetPoint("TOPLEFT", tray, "TOPLEFT", 14, -52)
     ui.empty:SetText(L["No spells match. The Cooldown Manager lists what your class tracks."])
