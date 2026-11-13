@@ -104,7 +104,7 @@ function Paging.PageRule(rule, tag)
     return (rule:gsub("%] %d+", function() n = n + 1; return "] 1:" .. tag .. n end))
 end
 
--- Bar 1's held-modifier pages (bars.main.paging.shift/ctrl/alt). The game writes its
+-- Bar 1's held-modifier and target pages (bars.main.paging.shift/ctrl/alt/help/harm). The game writes its
 -- hidden bar 1's page on every form or page change, even while a modifier is held.
 -- So each held page carries a tag for the form or page under it ("13:f1"), the state
 -- changes along with it, and the snippet writes the held page back onto the twin.
@@ -292,11 +292,14 @@ end
 
 -- In the order they're checked: a held modifier beats a form, Prowl comes before Cat
 -- Form. On Forever every class's form N is bonus bar N (bar 1's rule).
--- class = only that class has it.
+-- class = only that class has it. held = bar 1 has it too (Paging.HeldRule): the
+-- modifiers, and your target being friendly or one you can attack.
 Paging.STATES = {
     { id = "shift", held = true, cond = "[mod:shift]", name = "Shift", when = "while you hold Shift" },
     { id = "ctrl", held = true, cond = "[mod:ctrl]", name = "Ctrl", when = "while you hold Ctrl" },
     { id = "alt", held = true, cond = "[mod:alt]", name = "Alt", when = "while you hold Alt" },
+    { id = "help", held = true, cond = "[help]", name = "Friendly target", when = "while your target is friendly" },
+    { id = "harm", held = true, cond = "[harm]", name = "Enemy target", when = "while your target is one you can attack" },
     { id = "prowl", class = "DRUID", cond = "[bonusbar:1,stealth]", name = "Prowl", when = "while you prowl" },
     { id = "cat", class = "DRUID", cond = "[bonusbar:1]", name = "Cat Form", when = "in Cat Form" },
     { id = "bear", class = "DRUID", cond = "[bonusbar:3]", name = "Bear Form", when = "in Bear Form" },

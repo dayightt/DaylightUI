@@ -787,6 +787,35 @@ T.test("paging: bar 1's Shift page shows while Shift is held, over a form, and t
     noBlocked()
 end)
 
+T.test("paging: a friendly or enemy target pages bars 2-8 and bar 1; a held key comes first, then the target, then a form", function()
+    login()
+    asClass("WARRIOR")
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.harm", 13)
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.help", 14)
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.shift", 15)
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.battle", 2)
+    T.eq(holder("bar2").__stateDriver.page, "[mod:shift] 15; [help] 14; [harm] 13; [bonusbar:1] 2; 6")
+    local cases = { { {}, 6 }, { { harm = true }, 13 }, { { help = true }, 14 },
+                    { { harm = true, ["bonusbar:1"] = true }, 13 }, { { ["bonusbar:1"] = true }, 2 },
+                    { { harm = true, ["mod:shift"] = true }, 15 } }
+    for _, case in ipairs(cases) do
+        stub.SetConditions(case[1])
+        T.eq(btn("bar2", 1):GetAttribute("action"), (case[2] - 1) * 12 + 1, "page " .. case[2])
+        T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), case[2], "the game's twin too")
+    end
+    stub.SetConditions({})
+    DaylightUI:Set("ActionBars", "bars.main.paging.harm", 13)
+    stub.SetConditions({ harm = true, ["bonusbar:1"] = true })
+    T.eq(btn("main", 1):GetAttribute("action"), 145, "bar 1 over its stance page")
+    T.eq(MainActionBar:GetAttribute("actionpage"), 13)
+    MainActionBar:SetAttribute("actionpage", 7)
+    stub.SetConditions({ harm = true, ["bonusbar:2"] = true })
+    T.eq(MainActionBar:GetAttribute("actionpage"), 13, "written back after the game's own stance write")
+    stub.SetConditions({ ["bonusbar:2"] = true })
+    T.eq(btn("main", 1):GetAttribute("action"), 85, "no target: the stance page again")
+    noBlocked()
+end)
+
 T.test("paging: back to no change drops the driver and gives the bar and its twin their own page", function()
     login()
     asClass("WARRIOR")

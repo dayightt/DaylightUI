@@ -385,7 +385,7 @@ visibleRow = function(def, k)
         end }
 end
 
--- Bars 2-8 paging (Paging.lua): one page choice per stance, form or held modifier
+-- Bars 2-8 paging (Paging.lua): one page choice per stance, form, held modifier or target
 -- the player has. Each page is named by the bar that shows it, pages 7-10 by the
 -- form that shows them on bar 1.
 local function pageChoices()
@@ -411,8 +411,8 @@ end
 pagingItems = function(def, k, hidden)
     local Paging = ns.Paging
     local intro = def.paged
-        and "Paging: this bar can show another page of buttons while you hold a key. Your stances and forms change it too, unless you switch that off below. Pick a spare page to fill it with spells of its own."
-        or "Paging: this bar can show another page of buttons while you're in a stance or form, or while you hold a key. Pick a spare page to fill it with spells of its own."
+        and "Paging: this bar can show another page of buttons while you hold a key, or when your target is friendly or an enemy. Your stances and forms change it too, unless you switch that off below. Pick a spare page to fill it with spells of its own."
+        or "Paging: this bar can show another page of buttons while you're in a stance or form, while you hold a key, or when your target is friendly or an enemy. Pick a spare page to fill it with spells of its own."
     local items = { { type = "text", label = intro, hidden = hidden } }
     if def.paged then
         items[#items + 1] = { type = "toggle", key = k("autoPage"), label = "Change with forms and stances",
@@ -427,7 +427,8 @@ pagingItems = function(def, k, hidden)
     for _, state in ipairs(Paging.STATES) do
         if state.held or not def.paged then   -- bar 1's forms already page it
             items[#items + 1] = { type = "dropdown", key = k("paging." .. state.id), label = state.name .. " page",
-                desc = "Which page of buttons this bar shows " .. state.when .. ". Your keybinds cast what the bar shows. No change keeps the bar's own buttons.",
+                desc = "Which page of buttons this bar shows " .. state.when .. ". Your keybinds cast what the bar shows. No change keeps the bar's own buttons."
+                    .. ((state.id == "help" or state.id == "harm") and " A held key's page comes first, then this one, then your stance or form." or ""),
                 choices = pageChoices,
                 hidden = function(get) return not Paging.Has(state) end,
                 disabled = hidden }

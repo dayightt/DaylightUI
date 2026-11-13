@@ -25,16 +25,16 @@ local function bar(t)
     return t
 end
 
--- Bars 2-8 page per stance, form or held modifier (Paging.STATES; 0 = no change).
+-- Bars 2-8 page per stance, form, held modifier or target (Paging.STATES; 0 = no change).
 local function paged(t)
-    t.paging = { shift = 0, ctrl = 0, alt = 0, prowl = 0, cat = 0, bear = 0, stealth = 0,
+    t.paging = { shift = 0, ctrl = 0, alt = 0, help = 0, harm = 0, prowl = 0, cat = 0, bear = 0, stealth = 0,
                  battle = 0, defensive = 0, berserker = 0, shadowform = 0 }
     return bar(t)
 end
 
--- Bar 1's page while a modifier is held (forms already page it).
+-- Bar 1's page while a modifier is held or by your target (forms already page it).
 local function held(t)
-    t.paging = { shift = 0, ctrl = 0, alt = 0 }
+    t.paging = { shift = 0, ctrl = 0, alt = 0, help = 0, harm = 0 }
     t.autoPage = true   -- forms, stances and picked pages swap its buttons (Paging.PageRule)
     return t
 end
