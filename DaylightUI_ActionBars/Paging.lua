@@ -26,25 +26,25 @@ end
 -- left the caster bar up in Cat Form; the FormBars addon pages by form for the same
 -- reason), so a druid's bars page by the form itself ([form:N], N = its place on the
 -- stance bar). Travel and Aquatic have no bar of their own (page 1).
--- A priest's Shadowform sits on the stance bar but gives no bonus bar at all,
--- so it pages by its form the same way, as form 1.
-Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4, [15473] = 1 }
-Paging.FORM_CLASSES = { DRUID = true, PRIEST = true }
+Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
 
--- For a druid or priest: bonus bar -> "form:N" (or "form:N/M"), from the current
--- stance bar. nil for any other class, or one who knows none of the forms (then
--- the bonus bar is used, as before).
+-- A priest's Shadowform is a real form, but as in Classic it has no bonus bar and
+-- no place on the stance bar (GetNumShapeshiftForms says 0). The macro conditions
+-- still call it form 1, so it pages bar 1 as [form:1], the page a druid's form 1 gets.
+Paging.PRIEST_FORMS = { [1] = "form:1" }
+
+-- For a druid: bonus bar -> "form:N" (or "form:N/M"), from the current stance bar.
+-- A priest's is fixed. nil for any other class, or a druid who knows none of the
+-- forms (then the bonus bar is used, as before).
 function Paging.FormConds()
-    if not Paging.FORM_CLASSES[Paging.Class()] then return nil end
+    if Paging.Class() == "PRIEST" then return Paging.PRIEST_FORMS end
+    if Paging.Class() ~= "DRUID" then return nil end
     if type(GetNumShapeshiftForms) ~= "function" or type(GetShapeshiftFormInfo) ~= "function" then return nil end
     local out, any = {}, false
     for i = 1, GetNumShapeshiftForms() or 0 do
         local ok, _, _, _, sid = pcall(GetShapeshiftFormInfo, i)
         local bonus = ok and type(sid) == "number" and not (issecretvalue and issecretvalue(sid))
             and Paging.FORM_BONUS[sid] or nil
-        -- Shadowform is a priest's only form, so it is that one whatever spell id
-        -- this server gives it.
-        if ok and not bonus and Paging.Class() == "PRIEST" then bonus = 1 end
         if bonus then
             out[bonus] = out[bonus] and (out[bonus] .. "/" .. i) or ("form:" .. i)
             any = true

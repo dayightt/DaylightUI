@@ -1025,23 +1025,27 @@ T.test("paging: Bear and Dire Bear are one form: either page bar 1 to the bear b
     T.eq(AB().Paging.FormConds()[3], "form:1")
 end)
 
-T.test("paging: a priest's Shadowform pages bar 1, though the game gives it no bonus bar", function()
-    login({ class = "PRIEST", formSpells = { 15473 } })
-    T.truthy(AB().Paging.Rule():find("[form:1] 7", 1, true), AB().Paging.Rule())
+-- WoW: Forever as Classic: Shadowform is a shapeshift (form 28) with no bonus bar
+-- (BonusActionBar 0 in SpellShapeshiftForm) and no stance bar, so
+-- GetNumShapeshiftForms() is 0 for a priest, yet the macro conditions call it
+-- form 1 ("/cast [noform:1] Shadowform" works in game).
+T.test("paging: a priest's Shadowform pages bar 1 with no stance bar and no bonus bar", function()
+    login({ class = "PRIEST", formSpells = {} })
+    local h = holder("main")
+    T.eq(h:GetAttribute("actionpage"), 1)
+    stub.SetConditions({ ["form:1"] = true })
+    T.eq(h:GetAttribute("actionpage"), 7, "Shadowform's page, as a druid's form 1")
+    T.eq(keyPage(1), 7, "and the keys cast it")
     T.falsy(AB().Paging.Rule():find("bonusbar:1", 1, true), "never the bonus bar it doesn't get")
+    stub.SetConditions({})
+    T.eq(h:GetAttribute("actionpage"), 1, "out of Shadowform")
     DaylightUI:Set("ActionBars", "bars.bar5.paging.shadowform", 3)
     T.truthy(holder("bar5").__stateDriver.page:find("[form:1] 3", 1, true), "bars 2-8 can page in it too")
+    DaylightUI:Set("ActionBars", "bars.main.paging.shift", 13)
+    stub.SetConditions({ ["form:1"] = true, ["mod:shift"] = true })
+    T.eq(h:GetAttribute("actionpage"), 13, "a held page over it")
+    stub.SetConditions({})
     noBlocked()
-end)
-
-T.test("paging: a priest's Shadowform pages bar 1 whatever spell id the server gives it", function()
-    login({ class = "PRIEST", formSpells = { 99999 } })
-    T.truthy(AB().Paging.Rule():find("[form:1] 7", 1, true), AB().Paging.Rule())
-end)
-
-T.test("paging: a priest without Shadowform yet keeps the bonus bar rule", function()
-    login({ class = "PRIEST", formSpells = {} })
-    T.truthy(AB().Paging.Rule():find("[bonusbar:1] 7", 1, true))
 end)
 
 T.test("leave button: out from under the parked bar 1, beside ours, put back when the game moves it", function()
