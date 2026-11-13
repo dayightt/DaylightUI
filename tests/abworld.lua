@@ -331,6 +331,24 @@ function M.newWorld(opts)
     end
     local quick = CreateFrame("Frame", "QuickKeybindFrame", UIParent)
     quick:Hide()
+    -- The game's ActionBarController (ActionBarController.lua): a page or bonus bar
+    -- change (a stance or form swap, in a fight too) runs StanceBar:Update, whose
+    -- UpdateShownButtons reads each stance button's "statehidden", and then shows or
+    -- hides bars 2-8 (MultiActionBar_Update). An attribute an addon wrote leaves the
+    -- rest of that pass tainted, so in a fight the bars' ShowBase is blocked.
+    local controller = CreateFrame("Frame", "ActionBarController", UIParent)
+    controller:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
+    controller:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
+    controller:SetScript("OnEvent", function()
+        local tainted = false
+        for i = 1, 10 do
+            local b = _G["StanceButton" .. i]
+            if type(b) == "table" and not issecurevariable(b.__attrs, "statehidden") then tainted = true end
+        end
+        if tainted and stub.combat then
+            stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: MultiBarBottomLeft:ShowBase()"
+        end
+    end)
     return saved
 end
 

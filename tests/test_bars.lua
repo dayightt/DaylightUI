@@ -1816,7 +1816,7 @@ T.test("small bars: the stance bar takes the game's buttons, as many as there ar
     T.eq(StanceButton4:GetParent(), DaylightUIParkedBars, "one past the forms: out of sight, never hidden from here")
     T.eq(StanceBar:GetParent(), DaylightUIParkedBars, "the game's bar is parked")
     T.truthy(StanceButton3:IsShown())
-    T.eq(StanceButton4:GetAttribute("statehidden"), true)
+    T.isnil(StanceButton4:GetAttribute("statehidden"), "nothing written on the game's button")
     T.near(h:GetWidth(), 3 * 18 + 2 * 2, nil, "30-wide buttons at 60%")
     T.near(StanceButton1:GetScale(), 0.6)
     T.eq(h.__stateDriver.visibility, "[petbattle][vehicleui][overridebar] hide; show")
@@ -1862,11 +1862,26 @@ T.test("small bars and the game's hidden buttons: our code never shows, hides or
     T.eq(#touched, 0, table.concat(touched, ", "))
     -- Still hidden where the bar has no room for them, still in place where it has.
     T.eq(StanceButton2:GetParent(), DaylightUIParkedBars, "past the Buttons setting: out of sight")
-    T.eq(StanceButton2:GetAttribute("statehidden"), true, "the game's own pass hides it for good")
+    T.isnil(StanceButton2:GetAttribute("statehidden"), "nothing written on it")
     T.eq(StanceButton1:GetParent(), holder("stance")); T.truthy(StanceButton1:IsShown())
-    T.falsy(StanceButton1:GetAttribute("statehidden"))
+    T.isnil(StanceButton1:GetAttribute("statehidden"))
     T.eq(PetActionButton7:GetParent(), DaylightUIParkedBars); T.eq(PetActionButton6:GetParent(), holder("pet"))
     T.isnil(MultiBarBottomLeftButton1:GetAttribute("statehidden"), "bar 2's twins: nothing written either")
+    noBlocked()
+end)
+
+-- Players saw "the game blocked MultiBarBottomLeft:ShowBase()" and the other bars'
+-- Show, Hide, SetScale and SetPoint after a stance swap in a fight.
+T.test("small bars: a stance swap in a fight never runs the game's bar pass tainted", function()
+    stub.Load({ actionbars = true, before = function()
+        ABW.newWorld({ forms = 3, ab = { bars = { stance = { icons = 2 } } } })
+    end })
+    DaylightUI:Set("ActionBars", "bars.stance.icons", 1)
+    stub.RunTimers()
+    stub.EnterCombat()
+    stub.FireEvent("UPDATE_BONUS_ACTIONBAR")
+    stub.LeaveCombat()
+    T.eq(StanceButton3:GetParent(), DaylightUIParkedBars, "past the Buttons setting: out of sight all the same")
     noBlocked()
 end)
 

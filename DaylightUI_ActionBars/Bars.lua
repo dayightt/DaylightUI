@@ -120,18 +120,16 @@ function Bars.LayoutBar(def)
                 if own then
                     btn:SetAttribute("statehidden", nil)
                     btn:Show()
-                else
-                    btn:SetAttributeNoHandler("statehidden", nil)
                 end
             elseif own then
                 btn:SetAttribute("statehidden", true)
                 btn:Hide()
             else
-                -- A game-owned button (stance, pet, possess). Never show, hide or
-                -- run its handler from here, or the game's own SetShown on it gets
-                -- blocked in a later fight. It sits under the parked frame and the
-                -- game hides it on its next pass via statehidden.
-                btn:SetAttributeNoHandler("statehidden", true)
+                -- A game-owned button (stance, pet, possess). Nothing is shown,
+                -- hidden or written on it from here: the parked frame keeps it out
+                -- of sight. The game reads its "statehidden" on every stance swap,
+                -- and a value written by an addon keeps that taint, so the rest of
+                -- the game's pass (showing bars 2-8) got blocked in a fight.
                 if btn:GetParent() ~= ns.Park.Frame() then btn:SetParent(ns.Park.Frame()) end
             end
         end

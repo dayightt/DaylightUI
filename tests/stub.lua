@@ -455,9 +455,16 @@ end
 function Widget:GetFrameLevel() return self.__level end
 -- In secure mode an attribute change runs what the client would run: the frame's
 -- _onstate-<name> snippet for a "state-<name>" attribute, and its OnAttributeChanged.
+-- An attribute written outside secure code keeps the writer's taint, as a field
+-- would (stub.Mark on the frame's attribute table): the game code that later
+-- reads it runs tainted from there on.
+local function markAttr(self, k)
+    if (stub.inSecure or 0) == 0 then stub.Mark(self.__attrs, k, "DaylightUI") end
+end
 function Widget:SetAttribute(k, v)
     guard(self, "SetAttribute")
     self.__attrs[k] = v
+    markAttr(self, k)
     -- The game runs OnAttributeChanged on every SetAttribute; the state
     -- snippets only run in the secure world (stub.secure).
     if stub.secure then
@@ -473,6 +480,7 @@ end
 function Widget:SetAttributeNoHandler(k, v)
     guard(self, "SetAttributeNoHandler")
     self.__attrs[k] = v
+    markAttr(self, k)
 end
 -- With three arguments (prefix, name, suffix) this looks the attribute up the way
 -- the secure templates read a click's "type" or "spell" (SecureButton_GetModifiedAttribute):
