@@ -545,24 +545,67 @@ function Spells.Jump(section)
     if y and Spells.page then Spells.page.stack:ScrollTo(y) end
 end
 
+-- Sections whose chips didn't fit go into the More menu, so a long language or a
+-- narrow window never leaves a section out of reach.
+function Spells.MoreMenu(owner)
+    local keys, values = {}, {}
+    for i, section in ipairs(Spells.folded or {}) do
+        keys[i] = i
+        values[i] = section.name
+    end
+    local current
+    for i, section in ipairs(Spells.folded or {}) do if section == Spells.jumped then current = i end end
+    DUI.Widgets.OpenMenu(owner, keys, values, current, function(i)
+        local section = Spells.folded and Spells.folded[i]
+        if section then Spells.Jump(section) end
+    end)
+end
+
+local function makeMore(page)
+    local b = DUI.Widgets.MenuButton(page, L["More"], DUI.Widgets.CHIP_HEIGHT)
+    b:SetScript("OnClick", function(self) Spells.MoreMenu(self) end)
+    b:Hide()
+    return b
+end
+
 local function layoutChips(page)
-    local x = Spells.EDGE
     local w = page:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.Window.SIZE.spells[1] end
     local room = w - 2 * Spells.EDGE - 160
-    for i, section in ipairs(Spells.data.sections) do
+    local gap = DUI.Widgets.CHIP_GAP
+    local sections = Spells.data.sections
+    for i, section in ipairs(sections) do
         local c = page.chips[i]
         if not c then c = makeChip(page); page.chips[i] = c end
         c.section = section
         c.text:SetText(section.name)
         c.FitWidth()
-        local w = c:GetWidth()
+    end
+    for i = #sections + 1, #page.chips do page.chips[i]:Hide() end
+    -- Do they all fit? Otherwise keep room at the end for More.
+    local total = 0
+    for i = 1, #sections do total = total + page.chips[i]:GetWidth() + (i > 1 and gap or 0) end
+    page.more = page.more or makeMore(page)
+    local more = page.more
+    local spare = room
+    if total > room then
+        more.SetLabel(L["More"], 0)
+        spare = room - more:GetWidth() - gap
+    end
+    local x, folded = Spells.EDGE, {}
+    for i, section in ipairs(sections) do
+        local c = page.chips[i]
+        local cw = c:GetWidth()
         c:ClearAllPoints()
         c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
-        c:SetShown(x + w - Spells.EDGE <= room)
-        x = x + w + 6
+        local fits = #folded == 0 and x + cw - Spells.EDGE <= spare
+        c:SetShown(fits)
+        if fits then x = x + cw + gap else folded[#folded + 1] = section end
     end
-    for i = #Spells.data.sections + 1, #page.chips do page.chips[i]:Hide() end
+    Spells.folded = folded
+    more:ClearAllPoints()
+    more:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
+    more:SetShown(#folded > 0)
 end
 
 -- keep preserves the scroll position (spell events, the ranks switch).
@@ -643,6 +686,7 @@ function Spells.Freeze(on)
     local M = DUI.Motion
     local parts = { page.search, page.switch, page.bind }
     for _, c in ipairs(page.chips) do parts[#parts + 1] = c end
+    if page.more then parts[#parts + 1] = page.more end
     for _, c in ipairs(parts) do
         local from, to = on and 1 or Spells.REST, on and Spells.REST or 1
         if M then M.Fade(c, from, to, M.FAST) else c:SetAlpha(to) end
@@ -671,6 +715,7 @@ function Spells.Pieces(page)
     local rest = Spells.frozen
     if not rest then
         for _, c in ipairs(page.chips) do if c:IsShown() then out[#out + 1] = c end end
+        if page.more and page.more:IsShown() then out[#out + 1] = page.more end
         out[#out + 1] = page.search
     end
     for i, p in ipairs(page.pieces or {}) do

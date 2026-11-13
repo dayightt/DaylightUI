@@ -94,6 +94,39 @@ T.test("book spells: the page lists every spell, two to a line, chips per sectio
     T.falsy(page.switch:IsShown(), "no lower ranks: the switch hides (the game's rule for Warriors and Rogues)")
 end)
 
+T.test("book spells: chips that don't fit fold into More, which reaches every section", function()
+    local ns = load()
+    local page = openBook(ns)
+    T.falsy(page.more and page.more:IsShown(), "every chip fits: no More")
+    page:SetWidth(330)
+    ns.Spells.Fill(page)
+    local shown, hidden = 0, {}
+    for i, c in ipairs(page.chips) do
+        if c:IsShown() then shown = shown + 1 elseif c.section and i <= #ns.Spells.data.sections then hidden[#hidden + 1] = c.section end
+    end
+    T.truthy(shown < #ns.Spells.data.sections, "some chips no longer fit")
+    T.truthy(page.more:IsShown(), "More takes the rest")
+    T.eq(#ns.Spells.folded, #hidden, "More holds exactly the chips that went")
+    T.eq(shown + #ns.Spells.folded, #ns.Spells.data.sections, "every section reachable")
+    local W = DaylightUI.Widgets
+    local was, asked = W.OpenMenu, nil
+    W.OpenMenu = function(owner, keys, values, current, onPick) asked = { keys = keys, values = values, pick = onPick } end
+    page.more:Click()
+    W.OpenMenu = was
+    T.truthy(asked, "a menu opens")
+    T.eq(asked.values[asked.keys[1]], hidden[1].name)
+    local jumped
+    local jump = ns.Spells.Jump
+    ns.Spells.Jump = function(section) jumped = section end
+    asked.pick(asked.keys[1])
+    ns.Spells.Jump = jump
+    T.eq(jumped, hidden[1], "picking one jumps to its section")
+    local mx = select(4, page.more:GetPoint(1))
+    local last
+    for _, c in ipairs(page.chips) do if c:IsShown() then last = c end end
+    T.truthy(mx >= select(4, last:GetPoint(1)) + last:GetWidth(), "More sits after the last chip")
+end)
+
 T.test("book spells: Hide lower ranks on lists the top rank only; off, the lower ranks follow it", function()
     local ns = load({ book = BW.MageBook() })
     local page = openBook(ns)
