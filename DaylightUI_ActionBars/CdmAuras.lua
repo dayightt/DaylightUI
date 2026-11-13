@@ -260,6 +260,14 @@ local function setup(h, id)
     end
     local ids = A.SpellIDs(id)
     h.ids = ids
+    if custom and C.IsPet(id) then
+        -- Your pet isn't an aura: drawn by the addon, up while it's out and alive.
+        h.petWatch = true
+        makeFace(h)
+        A.IsUp(h)
+        paintFace(h)
+        return
+    end
     local self_
     if custom then
         self_ = C.SelfOnly(id) or nil
@@ -829,8 +837,20 @@ function A.Why(h)
         #on > 0 and table.concat(on, "; ") or "none of them on you")
 end
 
+-- Your pet is out and alive. Neither answer is secret, in a fight too.
+function A.PetOut()
+    local ok, yes = pcall(UnitExists, "pet")
+    if not ok or (issecretvalue and issecretvalue(yes)) or yes ~= true then return false end
+    local okD, dead = pcall(UnitIsDead, "pet")
+    return not (okD and not (issecretvalue and issecretvalue(dead)) and dead == true)
+end
+
 function A.IsUp(h)
     if type(h) ~= "table" then return nil end
+    if h.petWatch then
+        h.up = A.PetOut()
+        return h.up
+    end
     if found(h) then
         h.up = true
     elseif h.selfDebuff then
@@ -858,7 +878,7 @@ function A.AuraChanged()
         if h.face and h:IsShown() then
             -- Self-debuff faces always update, including time and stacks.
             local was = h.up
-            if readable() then A.IsUp(h) end
+            if readable() or h.petWatch then A.IsUp(h) end
             paintFace(h)
             if h.wantsUp and h.up ~= was then moved = true end
         elseif h.wantsUp and h:IsShown() then
@@ -1056,6 +1076,26 @@ function A.Rebuild()
         end
     end)
 end
+
+-- The pet came, went or died: pet pieces show it at once.
+function A.PetChanged()
+    local moved = false
+    each(function(h)
+        if h.petWatch then
+            local was = h.up
+            A.IsUp(h)
+            paintFace(h)
+            if h.up ~= was then moved = true end
+        end
+    end)
+    if moved and ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
+local pets = CreateFrame("Frame")
+pets:RegisterUnitEvent("UNIT_PET", "player")
+pets:RegisterUnitEvent("UNIT_FLAGS", "pet")
+pets:RegisterUnitEvent("UNIT_HEALTH", "pet")
+pets:SetScript("OnEvent", function() DUI.SafeCall(A.PetChanged) end)
 
 DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() A.Retarget(); A.TargetChanged(); A.AuraChanged() end)
 -- Out of combat, lookups are readable again.

@@ -5894,6 +5894,62 @@ T.test("cdm custom: a paladin's Aura shows any aura, on you only, a buff, so a m
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm custom: a paladin's Blessing shows any of their long blessings on you, whoever cast it", function()
+    local AB, C = customWorld("PALADIN")
+    AB.CdmSpells.PALADIN = {
+        { 19740, 19834, aura = true },          -- Blessing of Might
+        { 20217, aura = true },                 -- Blessing of Kings
+        { 25782, 25916, aura = true },          -- Greater Blessing of Might
+        { 1022, 5599, cd = true, aura = true }, -- Blessing of Protection: not a long one
+        { 20154, 20287, aura = true },          -- Seal of Righteousness
+    }
+    stub.knownSpells = { [19740] = true, [20154] = true }
+    C.Forget()
+    T.truthy(C.Is("blessing"))
+    T.deq(C.Ranks("blessing"), { [19740] = true, [19834] = true, [20217] = true, [25782] = true, [25916] = true },
+        "every long blessing, nothing else")
+    T.truthy(C.SelfOnly("blessing"), "on you, whoever cast it")
+    T.eq(C.Track("blessing"), "aura"); T.falsy(C.CanTrack("blessing"))
+    T.truthy(C.Entry("blessing") and C.Entry("blessing").aura)
+    T.eq((C.Look("blessing")), "Blessing")
+    T.eq(select(2, C.Look("blessing")), "Interface/Icons/Spell_Holy_BlessedLife", "an icon of its own")
+    local tray = {}
+    for i, e in ipairs(C.Tray()) do tray[e.id] = i end
+    T.eq(tray.seal, 1); T.eq(tray.blessing, 2, "after the Seal (no aura known here)")
+    T.eq(C.KeyOfSpell(19834), "s19740", "a blessing's own piece wins a lookup by id")
+    T.eq(C.KeyOfSpell(20287), "s20154", "a seal's too")
+    local _, W = customWorld("WARRIOR")
+    T.isnil(W.Family("blessing"), "only paladins")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm custom: a hunter's or warlock's Pet piece, known with the spell that calls one, watching no aura", function()
+    local AB, C = customWorld("HUNTER")
+    AB.CdmSpells.HUNTER = {}
+    stub.knownSpells = { [883] = true }
+    C_Spell.GetSpellName = function(sid) return "Spell" .. sid end
+    C.Forget()
+    T.truthy(C.Is("pet")); T.truthy(C.IsPet("pet"))
+    T.truthy(C.Entry("pet") and C.Entry("pet").aura, "a buff-like piece")
+    T.eq(C.SpellOf("pet"), 883, "Call Pet")
+    T.eq((C.Look("pet")), "Pet")
+    T.deq(C.Ranks("pet"), {}, "no aura to look for")
+    T.eq(C.Tray()[1].id, "pet")
+    stub.knownSpells = {}
+    C.Forget()
+    T.isnil(C.Entry("pet"), "no pet yet: nothing to draw")
+    local AW, CW = customWorld("WARLOCK")
+    AW.CdmSpells.WARLOCK = {}
+    stub.knownSpells = { [688] = true }
+    CW.Forget()
+    T.eq(CW.SpellOf("pet"), 688, "Summon Imp")
+    local _, W = customWorld("WARRIOR")
+    T.isnil(W.Family("pet"), "only hunters and warlocks")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- A paladin's Seal of Righteousness is 21084, a rank the generated list
 -- (talentsforever.com) lacks. It read "not known" and the Seal piece never showed.
 T.test("cdm custom: Seal of Righteousness known as 21084 counts, for itself and the Seal", function()
@@ -5929,6 +5985,47 @@ local function customRows()
     return DUI, AB, AB.CdmData, AB.CdmData.Current()
 end
 local function refresh(AB) AB.CdmRows.Refresh(); stub.RunTimers() end
+
+T.test("cdm custom: the Pet piece shows while your pet is out and glows when it isn't, as an icon and as a bar", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "HUNTER" } })
+    AB.CdmSpells.HUNTER = {}
+    stub.knownSpells = { [883] = true }
+    AB.CdmCustom.Forget()
+    D.AddPiece(set, "pet", "icon", 0, 0)
+    T.truthy(D.SetSpellValue(set, "pet", "missingGlow", true))
+    for _, shape in ipairs({ "icon", "bar" }) do
+        T.truthy(D.SetShape(set, "pet", shape) or shape == "icon")
+        stub.SetUnits({ player = { class = "HUNTER" } })
+        AB.CdmAuras.PetChanged()
+        refresh(AB)
+        local h = shape == "bar" and AB.CdmBars.AuraFrame("pet") or AB.CdmAuras.Frame("pet")
+        T.truthy(h and h:IsShown(), shape .. ": drawn")
+        T.eq(#(h.containers or {}), 0, shape .. ": no aura container")
+        T.truthy(h.face, shape .. ": drawn by the addon")
+        T.eq(h.up, false, shape .. ": no pet")
+        T.eq(h.face:GetAlpha(), 0)
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": glows while missing")
+        stub.SetUnits({ player = { class = "HUNTER" }, pet = {} })
+        stub.FireEvent("UNIT_PET", "player"); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": pet out")
+        T.eq(h.face:GetAlpha(), 1)
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": no glow")
+        stub.SetUnits({ player = { class = "HUNTER" }, pet = { dead = true } })
+        stub.FireEvent("UNIT_HEALTH", "pet"); stub.RunTimers()
+        T.eq(h.up, false, shape .. ": a dead pet is no pet")
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": glows again")
+        -- In a fight too: whether a pet is out is never secret.
+        stub.SetUnits({ player = { class = "HUNTER" }, pet = {} })
+        stub.EnterCombat()
+        stub.FireEvent("UNIT_PET", "player"); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": called in a fight")
+        stub.LeaveCombat()
+    end
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("cdm custom: a spell of ours as an icon is our cooldown icon, timed by the rank you know", function()
     local DUI, AB, D, set = customRows()

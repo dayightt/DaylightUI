@@ -44,10 +44,28 @@ Custom.AURAS = {
 -- A later expansion's aura icon, so it isn't mistaken for one specific aura.
 Custom.AURA_ICON = "Interface/Icons/Spell_Holy_AuraMastery"
 
--- Addon-made keys: "seal", "aura", "s<spell id>" (a list family or a spell added
--- by ID in the editor) and "i<item id>" (an item added by ID).
+-- Paladin "blessing" piece, same idea as the seal: any of the paladin's long
+-- Blessings on you, whoever cast it, so Buff missing can glow when none is. The
+-- short ones (Protection, Freedom, Sacrifice) don't count. By rank 1 id, from the
+-- generated list.
+Custom.BLESSINGS = { 19740, 19742, 20217, 1038, 19977, 25782, 25894, 25898, 25895, 25890 }
+-- An icon no single Forever blessing uses.
+Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_BlessedLife"
+
+-- Hunter and warlock "pet" piece: up while your pet is out and alive, so Buff
+-- missing can glow when it isn't. Not an aura, so CdmAuras draws it itself. The
+-- spells only say whether you have a pet at all; the last one you know is its look
+-- (Call Pet, Summon Imp).
+Custom.PETS = {
+    HUNTER = { 1515, 883 },                 -- Tame Beast, Call Pet
+    WARLOCK = { 691, 712, 697, 688 },       -- Felhunter, Succubus, Voidwalker, Imp
+}
+
+-- Addon-made keys: "seal", "aura", "blessing", "pet", "s<spell id>" (a list family
+-- or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
+Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true }
 function Custom.Is(id)
-    return type(id) == "string" and (id == "seal" or id == "aura" or id:match("^[si]%d+$") ~= nil)
+    return type(id) == "string" and (Custom.NAMED[id] == true or id:match("^[si]%d+$") ~= nil)
 end
 
 -- The item of an "i<item id>" piece, else nil.
@@ -87,17 +105,24 @@ local function withMore(f)
     return out
 end
 
-local function sealFamily(list)
+-- Every rank of the list's families whose rank 1 id is in firsts, as one piece.
+-- merged = each of those spells also has a piece of its own, which wins when a
+-- spell id is looked up.
+local function mergedFamily(list, firsts, name, icon)
     local byFirst = {}
     for _, f in ipairs(list) do
         if type(f) == "table" and type(f[1]) == "number" then byFirst[f[1]] = withMore(f) end
     end
     local ids = {}
-    for _, first in ipairs(Custom.SEALS) do
+    for _, first in ipairs(firsts) do
         for _, s in ipairs(byFirst[first] or {}) do ids[#ids + 1] = s end
     end
     if #ids == 0 then return nil end
-    return { ids = ids, aura = true, self = true, name = DUI.L["Seal"], icon = Custom.SEAL_ICON }
+    return { ids = ids, aura = true, self = true, merged = true, name = name, icon = icon }
+end
+
+local function sealFamily(list)
+    return mergedFamily(list, Custom.SEALS, DUI.L["Seal"], Custom.SEAL_ICON)
 end
 
 local function auraFamily()
@@ -127,6 +152,12 @@ local function build()
         local seal = sealFamily(S.PALADIN or {})
         if seal then index.seal = seal; order[#order + 1] = "seal" end
         index.aura = auraFamily(); order[#order + 1] = "aura"
+        local blessing = mergedFamily(S.PALADIN or {}, Custom.BLESSINGS, DUI.L["Blessing"], Custom.BLESSING_ICON)
+        if blessing then index.blessing = blessing; order[#order + 1] = "blessing" end
+    end
+    if type(class) == "string" and Custom.PETS[class] then
+        index.pet = { ids = Custom.PETS[class], aura = true, self = true, pet = true, name = DUI.L["Pet"] }
+        order[#order + 1] = "pet"
     end
     if type(class) == "string" then
         for _, f in ipairs(S[class] or {}) do add(f, false) end
@@ -220,7 +251,9 @@ end
 function Custom.KeyOfSpell(sid)
     build()
     for k, f in pairs(index) do
-        for _, s in ipairs(f.ids) do if s == sid then return k end end
+        if not (f.merged or f.pet) then
+            for _, s in ipairs(f.ids) do if s == sid then return k end end
+        end
     end
 end
 
@@ -286,7 +319,7 @@ function Custom.KeyOfAuraSpell(sid)
     if not auraKeys then
         auraKeys = {}
         for k, f in pairs(index) do
-            if f.aura and not f.group then
+            if f.aura and not (f.group or f.merged or f.pet) then
                 for _, s in ipairs(f.ids) do auraKeys[s] = k end
             end
         end
@@ -324,9 +357,10 @@ function Custom.SpellOf(id)
 end
 
 -- Every rank, for the aura filter: a lower rank someone else cast still shows.
+-- The pet piece watches no aura.
 function Custom.Ranks(id)
     local out, f = {}, Custom.Family(id)
-    if f then
+    if f and not f.pet then
         for _, s in ipairs(f.ids) do out[s] = true end
         for _, s in ipairs(f.auras or {}) do out[s] = true end
     end
@@ -339,7 +373,13 @@ function Custom.IsGroup(id)
     return f ~= nil and f.group == true
 end
 
--- Group buffs, the seal and the aura are only watched on you.
+-- The pet piece: up while your pet is out (CdmAuras), not an aura.
+function Custom.IsPet(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.pet == true
+end
+
+-- Group buffs, the seal, the aura and the blessing are only watched on you.
 function Custom.SelfOnly(id)
     local f = Custom.Family(id)
     return f ~= nil and (f.group == true or f.self == true)
