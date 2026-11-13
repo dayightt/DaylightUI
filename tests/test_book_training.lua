@@ -292,6 +292,24 @@ T.test("book training: hovering a weapon skill names its weapon master", functio
     _G.GameTooltip = nil
 end)
 
+T.test("book training: a weapon master's line says the city and district", function()
+    local ns = load(fakeApi(warriorList()))
+    local maps = { [1453] = "Stormwind City", [1457] = "Darnassus" }
+    _G.C_Map = _G.C_Map or {}
+    local was, wasArea = C_Map.GetMapInfo, C_Map.GetAreaInfo
+    C_Map.GetMapInfo = function(id) return maps[id] and { name = maps[id] } or nil end
+    C_Map.GetAreaInfo = function(id) return id == 1660 and "Warrior's Terrace" or nil end
+    local T2 = ns.Training
+    T.eq(T2.MasterText({ npc = 11866, name = "Ilyenia Moonfire", uiMapId = 1457 }),
+        "Ilyenia Moonfire, Darnassus, Warrior's Terrace", "the game's own city and district names")
+    T.eq(T2.MasterText({ npc = 11867, name = "Woo Ping" }), "Woo Ping, Stormwind City, Trade District",
+        "no map on the record: the list's map")
+    T.eq(T2.MasterText({ npc = 11869, name = "Ansekhwa", uiMapId = 1456 }), "Ansekhwa, Thunder Bluff",
+        "no district known: the city only")
+    T.eq(T2.MasterText({ name = "Someone" }), "Someone", "unknown: the name alone")
+    C_Map.GetMapInfo, C_Map.GetAreaInfo = was, wasArea
+end)
+
 T.test("book training: closing on Training and opening the book again starts on the spellbook", function()
     local ns = load(fakeApi(warriorList()))
     openTraining(ns)

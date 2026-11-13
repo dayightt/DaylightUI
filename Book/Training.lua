@@ -127,6 +127,46 @@ local function subOf(sp)
     return rank or from
 end
 
+-- Where each weapon master stands, by NPC id: the city's map (its name comes from the
+-- game, in the player's language) and the district inside it. A district with an
+-- area id is named by the game too. Woo Ping's district is a best guess from his
+-- spot on the old Stormwind map; Ansekhwa's spot on Thunder Bluff's main mesa has no
+-- district name, so only the city shows.
+Training.MASTERS = {
+    [11865] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Buliwyf Stonehand
+    [13084] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Bixi Wobblebonk
+    [11867] = { map = 1453, city = L["Stormwind City"], district = L["Trade District"] },      -- Woo Ping
+    [11866] = { map = 1457, city = L["Darnassus"], district = L["Warrior's Terrace"], area = 1660 },   -- Ilyenia Moonfire
+    [2704] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },          -- Hanashi
+    [11868] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },         -- Sayoc
+    [11869] = { map = 1456, city = L["Thunder Bluff"] },                                    -- Ansekhwa
+    [11870] = { map = 1458, city = L["Undercity"], district = L["The War Quarter"] },          -- Archibald
+}
+
+local function mapName(id)
+    if not (type(id) == "number" and C_Map and type(C_Map.GetMapInfo) == "function") then return nil end
+    local ok, info = pcall(C_Map.GetMapInfo, id)
+    local name = ok and type(info) == "table" and info.name
+    return type(name) == "string" and name ~= "" and name or nil
+end
+
+local function areaName(id)
+    if not (type(id) == "number" and C_Map and type(C_Map.GetAreaInfo) == "function") then return nil end
+    local ok, name = pcall(C_Map.GetAreaInfo, id)
+    return ok and type(name) == "string" and name ~= "" and name or nil
+end
+
+-- "Ilyenia Moonfire, Darnassus, Warrior's Terrace": the name, then the city and the
+-- district when known. A master missing from the list keeps the city its record names.
+function Training.MasterText(t)
+    local spot = type(t.npc) == "number" and Training.MASTERS[t.npc] or nil
+    local city = mapName(t.uiMapId) or (spot and (mapName(spot.map) or spot.city))
+    local district = spot and spot.district and (areaName(spot.area) or spot.district)
+    if city and district then return string.format(L["%s, %s, %s"], t.name, city, district) end
+    if city then return string.format(L["%s, %s"], t.name, city) end
+    return t.name
+end
+
 local function tooltip(sp)
     return function(b)
         local tip = GameTooltip
@@ -146,14 +186,15 @@ local function tooltip(sp)
         if type(sp.cost) == "number" and sp.cost > 0 then
             Tips.Line(L["Cost"], costText(sp.cost), sp.cost > money() and Style.INK.BAD or Style.INK.MONEY)
         end
-        -- For weapon skills, list up to two weapon masters of your faction.
+        -- For weapon skills, list up to two weapon masters of your faction, with where
+        -- they stand.
         local a = api()
         if string.find(sp.status or "", "^weapon") and a and type(a.GetSource) == "function" then
             local ok, src = pcall(a.GetSource, sp.id)
             if ok and type(src) == "table" and type(src.trainers) == "table" then
                 for i, t in ipairs(src.trainers) do
                     if i > 2 then break end
-                    if type(t.name) == "string" then Tips.Line(L["Weapon master"], t.name) end
+                    if type(t.name) == "string" then Tips.Line(L["Weapon master"], Training.MasterText(t)) end
                 end
             end
         end
