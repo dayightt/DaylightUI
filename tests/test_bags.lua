@@ -452,6 +452,33 @@ T.test("bags: a new item keeps a small dot until hovered", function()
     _G.C_NewItems = nil
 end)
 
+T.test("bags: slots are one flat ring, a quality color only for uncommon and up", function()
+    local ns = login()
+    open(ns)
+    local B, Items = ns.Bags, ns.Items
+    local Style = DaylightUI.Style
+    local rare, poor, empty = B.buttons[0][1], B.buttons[0][2], B.buttons[0][3]
+    local function opts(b) return Items.Parts(b).shell.opts end
+    T.eq(Items.COMMON, Style.BAND_LIT, "common: the palette's dark warm ring, not silver")
+    T.truthy(Items.COMMON[1] < 0.3, "dark")
+    T.eq(opts(poor).borderColor, Style.BAND_LIT, "poor: dark ring")
+    T.near(opts(rare).borderColor[1], 0.3, nil, "rare: its quality color")
+    for _, b in ipairs({ rare, poor, empty }) do
+        T.eq(opts(b).bandColor, opts(b).borderColor, "no second tone")
+    end
+    T.eq(Style.BorderPx(rare), Items.BORDER_PX, "a filled slot: the full ring")
+    T.eq(Style.BorderPx(empty), Items.THIN_PX, "an empty slot: thinner")
+    T.truthy(Items.EMPTY[1] < Items.COMMON[1], "and darker")
+    -- Hover lights the ring in the accent and lets go.
+    local r = DaylightUI.Style.Accent()
+    rare:GetScript("OnEnter")(rare)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.near(opts(rare).borderColor[1], r, 1e-6, "hovered: the accent")
+    rare:GetScript("OnLeave")(rare)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.near(opts(rare).borderColor[1], 0.3, nil, "left: its quality color again")
+end)
+
 T.test("bags: slots filled the game's way, in our look", function()
     local ns = login()
     open(ns)

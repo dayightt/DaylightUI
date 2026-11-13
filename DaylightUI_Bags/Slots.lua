@@ -46,8 +46,7 @@ function Slots.Paint(b, tex, quality)
     -- Colors are shared tables (Items.QualityColor), so compare by reference.
     if b.color == color then return end
     b.color = color
-    local k = ns.Items.BAND_DIM
-    Style.SetShellColors(b.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+    Style.SetShellColors(b.shell, color, color)
 end
 
 -- The strip: a shell over the window's top-left corner.

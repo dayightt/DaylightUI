@@ -14,16 +14,19 @@ local Items = {}
 ns.Items = Items
 
 Items.TEMPLATE = "ContainerFrameItemButtonTemplate"
--- Same look as aura icons: shell border around a square cropped icon with a soft
--- inner shadow. No background, so an empty slot is only its outline.
-Items.BORDER_PX = 3
-Items.SHELL = { borderPx = Items.BORDER_PX, noBevel = true, noBackground = true }
+-- One flat ring around a square cropped icon with a soft inner shadow. Two pixels
+-- is too thin for the shell's heavy band, so the ring is a single color. No
+-- background, so an empty slot is only a thinner outline.
+Items.BORDER_PX = 2
+Items.THIN_PX = 1
+Items.SHELL = { noBevel = true, noBackground = true }
 
 -- A shell keeps the opts table it's given and its border color is written into
 -- it, so each slot needs its own copy or coloring one colors them all.
 function Items.ShellOpts()
     local o = {}
     for k, v in pairs(Items.SHELL) do o[k] = v end
+    o.borderPx = function() return o.thin and Items.THIN_PX or Items.BORDER_PX end
     return o
 end
 Items.CROP = DaylightUI.Style.ICON_CROP
@@ -31,11 +34,11 @@ Items.SHADE = DUI.MEDIA .. "inner-shadow.png"
 Items.SHADE_ALPHA = 0.55
 Items.COUNT_SIZE = Style.SIZE.tiny
 Items.FREE_SIZE = Style.SIZE.small
--- Border colors for an empty slot, common, poor and the Hearthstone (light blue,
+-- Ring colors for an empty slot, common, poor and the Hearthstone (light blue,
 -- easy to spot). Everything else uses its quality color.
-Items.EMPTY = { 0.28, 0.28, 0.3 }
-Items.COMMON = { 0.55, 0.55, 0.58 }
-Items.POOR = { 0.36, 0.36, 0.38 }
+Items.EMPTY = Style.BAND
+Items.COMMON = Style.BAND_LIT
+Items.POOR = Style.BAND_LIT
 Items.POOR_ALPHA = 0.5
 Items.HEARTH = { 0.45, 0.75, 1 }
 -- Profession bag colors by the bag type bit the game reports. Their empty slots
@@ -86,7 +89,7 @@ Items.COOLDOWN_SIZE = Style.SIZE.body   -- the game's countdown text ("37m"), fi
 -- the button, so Items.Place scales it (ContainerFrame.xml).
 Items.GAME_SLOT = 37
 Items.GAME_SIZED = { "IconQuestTexture", "NewItemTexture", "BattlepayItemTexture" }
-Items.BAND_DIM = 0.45        -- heavy border band, as a dimmed border color
+Items.HOVER_MIX = 1          -- how far a hovered ring moves toward the accent
 -- Loot shine: a new item of uncommon or better gets one diagonal glint across
 -- its icon while its border flashes bright and settles back.
 Items.SHINE_QUALITY = 2      -- uncommon and up
@@ -178,6 +181,39 @@ function Items.Report(btn, bag, slot, info)
     end
     R.Unit("bagslot", btn, key, preview)
     if R.Painting("bagslot") then R.Painted("bagslot", btn, t) end
+end
+
+-- Paints the ring: one color for border and band. A lit slot (its bag hovered)
+-- is all accent; a hovered one eases toward it.
+function Items.Ring(p, color)
+    local c = color or p.color
+    if not c then return end
+    if p.lit then
+        Style.LightShell(p.shell, 1)
+        return
+    end
+    local t = p.hoverT or 0
+    if t > 0 then
+        local r, g, b = Style.Accent()
+        t = t * Items.HOVER_MIX
+        c = { c[1] + (r - c[1]) * t, c[2] + (g - c[2]) * t, c[3] + (b - c[3]) * t }
+    end
+    Style.SetShellColors(p.shell, c, c)
+end
+
+-- Eases a slot's ring toward the accent while the pointer is on it.
+function Items.Hover(btn, on)
+    local p = dressed[btn]
+    if not p then return end
+    p.hover = on or nil
+    local from = p.hoverT or 0
+    local to = on and 1 or 0
+    if from == to then return end
+    p.hoverState = p.hoverState or {}
+    DUI.Motion.Tween(p.hoverState, from, to, DUI.Motion.FAST, function(t)
+        p.hoverT = t
+        if not p.flash then Items.Ring(p) end
+    end)
 end
 
 -- Restyles a new button (once).
@@ -275,9 +311,11 @@ function Items.Dress(btn)
     -- Looking at a new item clears its dot.
     -- Reaching for a slot mid-cleanup shows the real items first (Window.SortTouched).
     btn:HookScript("OnEnter", function(self)
+        Items.Hover(self, true)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
         if self.dluiNew then Items.SeeNew(self) end
     end)
+    btn:HookScript("OnLeave", function(self) Items.Hover(self, false) end)
     btn:HookScript("PreClick", function(self)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
     end)
@@ -408,8 +446,13 @@ function Items.Paint(btn, hasItem, quality, itemID, bag)
     if p.color ~= color then
         p.color = color
         p.flash = nil
-        local k = Items.BAND_DIM
-        Style.SetShellColors(p.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+        Items.Ring(p)
+    end
+    local thin = not hasItem
+    if (p.shell.opts.thin or false) ~= thin then
+        p.shell.opts.thin = thin
+        Style.Shell(btn, p.shell.opts)
+        Items.Ring(p)
     end
     local icon = btn.icon or btn.Icon
     local poor = hasItem and type(quality) == "number" and quality <= 0 and setting(btn, "greyPoor") == true
@@ -588,7 +631,7 @@ function Items.Shine(btn)
         p.glint:SetHeight(h)
         Motion.Sweep(p.glint, p.clip, { width = w, dur = Items.SHINE_DUR, alpha = Items.SHINE_ALPHA, inset = -w })
     end
-    local c, L, k = p.color, Items.SHINE_LIFT, Items.BAND_DIM
+    local c, L = p.color, Items.SHINE_LIFT
     local bright = { c[1] + (1 - c[1]) * L, c[2] + (1 - c[2]) * L, c[3] + (1 - c[3]) * L }
     p.flash = bright
     Motion.Tween(p, 0, 1, Motion.SLOW, function(t)
@@ -598,7 +641,8 @@ function Items.Shine(btn)
             bright[1] + (to[1] - bright[1]) * t,
             bright[2] + (to[2] - bright[2]) * t,
             bright[3] + (to[3] - bright[3]) * t }
-        Style.SetShellColors(p.shell, col, { col[1] * k, col[2] * k, col[3] * k })
+        if p.hover then return end
+        Style.SetShellColors(p.shell, col, col)
     end, function() if p.flash == bright then p.flash = nil end end)
 end
 
@@ -944,14 +988,7 @@ function Items.Light(btn, on)
     local p = dressed[btn]
     if not p then return end
     p.lit = on or nil
-    if on then
-        Style.LightShell(p.shell, Items.BAND_DIM)
-        return
-    end
-    local color = p.color
-    if not color then return end
-    local k = Items.BAND_DIM
-    Style.SetShellColors(p.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+    Items.Ring(p)
 end
 
 -- Free count on a grouped section's tile (nil = none).
