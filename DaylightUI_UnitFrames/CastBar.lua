@@ -51,7 +51,7 @@ CB.AT_LABELS = { power = "Inside the frame", above = "Above the frame", below = 
 -- The spot a bar's settings ask for, or the unit's default. In Ribbon the power
 -- is a thin line, so a bar meant to sit inside the frame sits below it at its
 -- own size instead. The same goes for a frame without a power bar to sit on
--- (UF.ShowsPower).
+-- (UF.ShowsPower) or whose power bar stands on its own (powerAt "free").
 function CB.At(unit, cfg)
     -- Standing under the personal display (its page's switch, placed by Personal.Dock).
     if unit == "player" and ns.Personal.Docks("castbar") then return "personal" end
@@ -63,7 +63,8 @@ function CB.At(unit, cfg)
     end
     if found == "power" then
         local db = ns.module and ns.module.db
-        if type(db) == "table" and (ns.UF.StyleOf(db[unit]) == "ribbon" or not ns.UF.ShowsPower(db[unit])) then
+        local u = type(db) == "table" and db[unit]
+        if type(u) == "table" and (ns.UF.StyleOf(u) == "ribbon" or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
             -- A party bar has no "below" and hangs under its frame instead.
             return unit == "party" and "slide" or "below"
         end
