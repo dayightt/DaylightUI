@@ -17,11 +17,7 @@ Window.EDGE = 10             -- inner margin
 Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
-Window.FOOTER_ROW = 18       -- the footer's text and button row
-Window.BAR_GAP = 2           -- between that row and the row above it
-Window.SELL_ROW = 18         -- the row holding the free-slots bar and Sell junk
-Window.BAR_W = 64            -- the free-slots bar's width
-Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + Window.SELL_ROW
+Window.FOOTER = 18
 Window.CHIP_ROW = DUI.Widgets.CHIP_HEIGHT   -- the filter chips under the search
 -- Filter chips: a chip shows only the groups listed (keys of Cat.PRIORITY).
 Window.CHIPS = {
@@ -101,7 +97,7 @@ end
 -- template: a game template to build from (the bank's Buy tab).
 function Window.TextButton(parent, label, template)
     local b = CreateFrame("Button", nil, parent, template)
-    b:SetHeight(Window.FOOTER_ROW)
+    b:SetHeight(Window.FOOTER)
     DUI.Widgets.DressButton(b)
     b.text:SetFont(b.text:GetFont(), Window.TEXT_SIZE, "")
     function b.SetLabel(s)
@@ -296,24 +292,14 @@ function Window.Create(spec)
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
     DUI.Style.InkText(f.free, "VALUE")
-    -- A thin bar of used slots above the free count.
-    f.freeBar = DUI.Widgets.Bar(f, DUI.Widgets.BAR_H)
-    f.freeBar:SetWidth(Window.BAR_W)
-    f.freeBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E,
-        E + Window.FOOTER_ROW + Window.BAR_GAP + (Window.SELL_ROW - DUI.Widgets.BAR_H) / 2)
     f.money = text(f, Window.TEXT_SIZE, "RIGHT")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E)
     if spec.kind == "bag" then
-        -- Shown only at a vendor with something to sell (Window.UpdateSell).
-        f.sellJunk = Window.TextButton(f, L["Sell junk"])
-        -- On the bar's row, away from the money and currencies below.
-        f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
-        f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
-        f.sellJunk:Hide()
         -- A warlock over their Soul Shard limit (Window.UpdateShards). Deletes only
         -- on a second click.
         f.dropShards = Window.TextButton(f, "")
         f.dropShards.fit = 1
+        f.dropShards:SetPoint("LEFT", f.free, "RIGHT", 14, 0)
         DUI.Widgets.Confirm(f.dropShards, function() return Window.ShardLabel(f.shardsExtra or 0) end, function()
             ns.Junk.DeleteShards()
             DUI.Widgets.EaseShown(f.dropShards, false)
@@ -671,14 +657,12 @@ function Window.UpdateFooter(f)
         role = (free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN") or "pop"
     end
     DUI.Style.InkText(f.free, role)
-    Window.UpdateFreeBar(f, free, total, role)
     if f.spec.updateFooter then
         f.spec.updateFooter(f)
     else
-        f.money:SetText(DUI.Widgets.Money(GetMoney and GetMoney() or 0))
+        f.money:SetText(DUI.MoneyString(GetMoney and GetMoney() or 0))
     end
     if ns.Currency then ns.Currency.Update(f) end
-    Window.UpdateSell(f)
     if bag then
         ns.Junk.MarkCheapest(f)
         Window.UpdateShards(f)
@@ -686,37 +670,12 @@ function Window.UpdateFooter(f)
     Window.UpdateSub(f)
 end
 
--- The bar fills with the slots in use and eases there; warn and bad colors
--- when the bag is nearly full, the accent otherwise.
-function Window.UpdateFreeBar(f, free, total, role)
-    local W = DUI.Widgets
-    if type(free) ~= "number" or type(total) ~= "number" or total <= 0 then
-        return Style.SetBarValue(f.freeBar, 0, true)
-    end
-    local c = (role == "BAD" or role == "WARN") and Style.INK[role] or nil
-    if c then W.BarFrom(f.freeBar, c[1], c[2], c[3]) else W.BarAccent(f.freeBar) end
-    Style.SetBarValue(f.freeBar, (total - free) / total, not f.freeBar:IsVisible())
-end
-
--- Sell junk shows at a vendor while something is worth selling, and says what
--- it comes to.
-function Window.UpdateSell(f)
-    if not f.sellJunk then return end
-    local list = ns.Junk.vendorOpen and ns.Junk.Items() or {}
-    local total = 0
-    for _, item in ipairs(list) do total = total + item.value end
-    if #list > 0 then
-        f.sellJunk.SetLabel(string.format(L["Sell junk · %s"], DUI.Widgets.Money(total, { color = false })))
-    end
-    DUI.Widgets.EaseShown(f.sellJunk, #list > 0)
-end
-
 function Window.ShardLabel(n)
     return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete %d extra shards"], n)
 end
 
--- Delete extra shards shows while a warlock carries more Soul Shards than their
--- limit, left of Sell junk when that's up.
+-- Delete extra shards shows beside the free slots while a warlock carries more
+-- Soul Shards than their limit.
 function Window.UpdateShards(f)
     local b = f and f.dropShards
     if not b then return end
@@ -725,13 +684,6 @@ function Window.UpdateShards(f)
         f.shardsExtra = n
         if b.Disarm then b.Disarm() end
         b.Paint()
-    end
-    local E = Window.EDGE
-    b:ClearAllPoints()
-    if f.sellJunk and f.sellJunk:IsShown() then
-        b:SetPoint("BOTTOMRIGHT", f.sellJunk, "BOTTOMLEFT", -Window.GAP, 0)
-    else
-        b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
     end
     DUI.Widgets.EaseShown(b, n > 0)
 end

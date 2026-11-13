@@ -194,16 +194,6 @@ function Junk.Sell(list)
     step()
 end
 
--- The window's Sell junk button: the same sale as the automatic one.
-function Junk.SellNow()
-    if not Junk.vendorOpen or (InCombatLockdown and InCombatLockdown()) then return end
-    Junk.Sell(Junk.Items())
-end
-
-local function refreshButton()
-    if ns.window and ns.Window then ns.Window.UpdateSell(ns.window) end
-end
-
 function Junk.OnVendor()
     Junk.vendorOpen = true
     if ns.Setting("sellJunk") ~= true then return end
@@ -270,8 +260,8 @@ function Junk.Register()
         tipHooked = true
         TDP.AddTooltipPostCall(types.Item, function(tip, data) DUI.SafeCall(Junk.OnTip, tip, data) end)
     end
-    DUI.RegisterEvent("MERCHANT_SHOW", function() Junk.OnVendor(); refreshButton() end)
-    DUI.RegisterEvent("MERCHANT_CLOSED", function() Junk.vendorOpen = false; refreshButton() end)
+    DUI.RegisterEvent("MERCHANT_SHOW", Junk.OnVendor)
+    DUI.RegisterEvent("MERCHANT_CLOSED", function() Junk.vendorOpen = false end)
     -- Joining or leaving a raid switches which shard limit counts.
     DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
         if ns.window and ns.Window and Junk.IsWarlock() then ns.Window.UpdateShards(ns.window) end

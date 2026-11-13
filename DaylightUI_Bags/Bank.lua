@@ -132,12 +132,13 @@ local function buyLabel()
     return string.format(L["Buy tab: %s"], money(data.tabCost))
 end
 
--- The Buy tab button sits on the free bar's row at the right, where the bags
--- keep Sell junk, clear of the gold below.
+-- The Buy tab button sits after the free slot count, anchored to the window
+-- (it shifts with the count's width).
 local function placeBuy(f)
-    local W = ns.Window
+    local w = f.free.GetStringWidth and f.free:GetStringWidth()
+    local E = ns.Window.EDGE
     f.buyTab:ClearAllPoints()
-    f.buyTab:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -W.EDGE, W.EDGE + W.FOOTER_ROW + W.BAR_GAP)
+    f.buyTab:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E + (type(w) == "number" and w or 40) + 10, E - 3)
 end
 
 local function footer(f)
@@ -187,9 +188,8 @@ local function updateFooter(f)
         -- the footer gold (MoneyRoll).
         local amount = call(bankFn("FetchDepositedMoney"), bankType)
         local roll = ns.Setting("moneyRoll") ~= false and f:IsVisible()
-        local coins = DUI.Widgets.Money
-        if not roll then DUI.Motion.CountTo(f.money, nil, function() return coins(amount) end)
-        else DUI.Motion.CountTo(f.money, amount, coins, DUI.Motion.SLOW) end
+        if not roll then DUI.Motion.CountTo(f.money, nil, function() return money(amount) end)
+        else DUI.Motion.CountTo(f.money, amount, money, DUI.Motion.SLOW) end
         f.deposit:SetEnabled(call(bankFn("CanDepositMoney"), bankType) == true)
         f.withdraw:SetEnabled(call(bankFn("CanWithdrawMoney"), bankType) == true)
     else

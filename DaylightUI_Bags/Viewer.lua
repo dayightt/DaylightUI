@@ -293,7 +293,7 @@ local function updateFooter(f)
     if #Saved.view > 0 and type(seen) == "number" and ago and time then
         f.free:SetText(f.free:GetText() .. "  " .. DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. ago(math.max(0, time() - seen)) .. "|r")
     end
-    f.money:SetText(type(money) == "number" and DUI.Widgets.Money(money) or "")
+    f.money:SetText(type(money) == "number" and DUI.MoneyString(money) or "")
 end
 
 function Viewer.Build()
