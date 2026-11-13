@@ -36,14 +36,6 @@ function PW.world()
     function mm:SetQuestBlobRingScalar(v) self.__blob.questScalar = v end
     function mm:SetQuestBlobRingAlpha(v) self.__blob.questAlpha = v end
     function mm:SetTaskBlobRingScalar(v) self.__blob.taskScalar = v end
-    -- Seen in game: the arrow and dots draw whatever the map's alpha, so only
-    -- hiding the map takes them away; and a map hidden and shown again can come
-    -- back empty (talking to an NPC in town).
-    local show = mm.Show
-    function mm:Show()
-        if not self:IsShown() then self.__picture = "empty" end
-        return show(self)
-    end
     -- Zoom as in the client: 6 levels, MINIMAP_UPDATE_ZOOM fired after the call.
     -- The picture as seen in game: after a loading screen in a city, indoors or
     -- in a dungeon the map can come up empty (__picture = "empty", set by a

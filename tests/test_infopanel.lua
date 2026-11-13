@@ -1512,31 +1512,17 @@ T.test("info panel: the experience bar's own fade, attached or separate, and bac
     T.eq(P.xp:GetAlpha(), 1, "float: back on a gain")
 end)
 
--- Timers run frame by frame, as in game: the map's redraw steps once a frame.
-local function frameTimers()
-    local queue = {}
-    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
-    return function(n)
-        for _ = 1, n do
-            stub.Advance(1 / 60)
-            local due = queue
-            queue = {}
-            for _, t in ipairs(due) do
-                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
-            end
-        end
-    end
-end
-
-T.test("info panel: faded out, the minimap hides (its icons ignore any alpha) and is redrawn when it's back", function()
+T.test("info panel: faded out, the minimap goes see-through, never hidden (its icons can't fade with the panel)", function()
     login()
-    stub.RunTimers()
-    local frames = frameTimers()
+    -- Hidden and shown again, the game's map lost its picture (blank at login
+    -- and after talking to an NPC in town). Only its alpha changes now.
+    local hides = 0
+    local hide = Minimap.Hide
+    Minimap.Hide = function(self) hides = hides + 1; return hide(self) end
     local F = DaylightUI.Fade
     local function settle()
         F.Step()
         for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
-        frames(60)
     end
     local P = stub.infopanel.Panel
     DaylightUI:Set("InfoPanel", "fade.mode", "ooc")
@@ -1544,69 +1530,47 @@ T.test("info panel: faded out, the minimap hides (its icons ignore any alpha) an
     stub.Advance(3)
     settle()
     T.eq(P.holder:GetAlpha(), 0, "panel faded")
-    T.falsy(Minimap:IsShown(), "faded: map hidden")
-    T.eq(Minimap:GetAlpha(), 1, "its alpha isn't what hides it")
+    T.eq(Minimap:GetAlpha(), 0, "faded: map hidden")
     stub.EnterCombat()
     settle()
-    T.truthy(Minimap:IsShown(), "in a fight: map back")
-    T.eq(Minimap.__picture, "filled", "redrawn: shown again it came back empty")
+    T.eq(Minimap:GetAlpha(), 1, "in a fight: map back")
     stub.LeaveCombat()
     stub.Advance(3)
     settle()
-    T.falsy(Minimap:IsShown(), "faded again")
+    T.eq(Minimap:GetAlpha(), 0, "faded again")
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     stub.Advance(3)
     settle()
-    T.truthy(Minimap:IsShown(), "option off: map back")
-    T.eq(Minimap.__picture, "filled")
+    T.eq(Minimap:GetAlpha(), 1, "option off: map back")
     -- Faded only part way, the panel still shows: so does the map.
     DaylightUI:Set("InfoPanel", "fade.mode", "ooc")
     DaylightUI:Set("InfoPanel", "fade.alpha", 0.3)
     stub.Advance(3)
     settle()
     T.near(P.holder:GetAlpha(), 0.3, 0.01, "panel part faded")
-    T.truthy(Minimap:IsShown(), "part faded: map still shown")
+    T.eq(Minimap:GetAlpha(), 1, "part faded: map still shown")
     -- Opacity 0: gone for good, the map's icons too.
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     DaylightUI:Set("InfoPanel", "fade.opacity", 0)
     stub.Advance(3)
     settle()
     T.eq(P.holder:GetAlpha(), 0, "opacity 0: panel gone")
-    T.falsy(Minimap:IsShown(), "opacity 0: map hidden")
+    T.eq(Minimap:GetAlpha(), 0, "opacity 0: map hidden")
     DaylightUI:Set("InfoPanel", "fade.opacity", 1)
     stub.Advance(3)
     settle()
-    T.truthy(Minimap:IsShown(), "opacity back up: map back")
+    T.eq(Minimap:GetAlpha(), 1, "opacity back up: map back")
     -- A hush (sitting at the campfire) takes it to 0 too: the map's icons go with it.
     F.Hush("test", { "InfoPanel." })
     for _ = 1, 20 do stub.Advance(0.5); settle() end
     T.eq(P.holder:GetAlpha(), 0, "hushed: panel gone")
-    T.falsy(Minimap:IsShown(), "hushed: map hidden")
+    T.eq(Minimap:GetAlpha(), 0, "hushed: map hidden")
     F.Unhush("test", true)
     settle()
-    T.truthy(Minimap:IsShown(), "hush lifted: map back")
-    T.eq(Minimap.__picture, "filled")
-    stub.ResetTimers()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- The AFK screen and the NPC scene fade the whole UI away; the map hides with
--- it and must come back drawn.
-T.test("info panel: the minimap hidden for the AFK screen comes back drawn, not empty", function()
-    login()
-    stub.RunTimers()
-    local frames = frameTimers()
-    local F = DaylightUI.Fade
-    Minimap.__picture = "filled"
-    F.MapAway("afk", true)
-    T.falsy(Minimap:IsVisible(), "the arrow and dots would float over the AFK screen")
-    F.MapAway("afk", false)
+    T.eq(Minimap:GetAlpha(), 1, "hush lifted: map back")
+    Minimap.Hide = hide
+    T.eq(hides, 0, "the map is never hidden")
     T.truthy(Minimap:IsShown())
-    frames(60)
-    T.eq(Minimap.__picture, "filled", "shown again it came back empty")
-    T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
-    stub.ResetTimers()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("info panel: old fade settings move to the fade engine", function()

@@ -431,28 +431,14 @@ T.test("afk: secret answers just leave a fact out", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- Seen in game: the arrow and the quest and tracking dots floated over the AFK
--- screen with the map only see-through. They draw whatever the map's alpha,
--- its own too, so it hides while the UI is away.
-T.test("afk: the minimap hides while the UI is away (its arrow and dots ignore any alpha) and comes back after", function()
+T.test("afk: the minimap goes see-through while the UI is away (its dots ignore the UI's alpha), never hidden", function()
     world(nil, function() CreateFrame("Frame", "Minimap", UIParent) end)
-    local backs = 0
-    DaylightUI.On("MinimapBack", function() backs = backs + 1 end)
+    T.eq(Minimap:GetAlpha(), 1, "shown before")
     away(true)
-    T.falsy(Minimap:IsVisible(), "the player arrow and quest dots would show on the AFK screen")
-    T.eq(Minimap:GetAlpha(), 1, "its alpha isn't what hides it")
+    T.eq(Minimap:GetAlpha(), 0, "the player arrow and quest dots would show on the AFK screen")
+    T.truthy(Minimap:IsShown(), "never hidden: hidden and shown again, the map lost its picture")
     away(false)
-    T.truthy(Minimap:IsShown(), "back with the UI")
-    T.eq(backs, 1, "told it's back, so the info panel redraws it")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("afk: a minimap hidden before stays hidden after", function()
-    world(nil, function() CreateFrame("Frame", "Minimap", UIParent) end)
-    Minimap:Hide()
-    away(true)
-    away(false)
-    T.falsy(Minimap:IsShown())
+    T.eq(Minimap:GetAlpha(), 1, "back with the UI")
 end)
 
 T.test("afk: a map someone else made see-through stays so after", function()

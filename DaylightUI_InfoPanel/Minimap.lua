@@ -738,8 +738,6 @@ end)
 -- ignores that while the map can't be seen (the panel waits at 0 for the
 -- login fade-in), so it waits until the map shows. A second one a moment later
 -- fills in what loaded meanwhile. Once per loading screen, never at doors.
--- The same after the map was hidden (the AFK screen, an NPC talk, the panel
--- faded out): shown again, it can come back empty.
 Map.REDRAW_AGAIN = 0.5   -- seconds between the two
 Map.REDRAW_LOOK = 0.1    -- how often to look whether the map shows yet
 
@@ -762,9 +760,9 @@ local function mapShows()
     return type(a) == "number" and a > 0
 end
 
-local asks = 0
+local screens = 0
 local function redrawOnceShown(mine)
-    if mine ~= asks or not (Map.cfg and Map.cfg.enabled) then return end
+    if mine ~= screens or not (Map.cfg and Map.cfg.enabled) then return end
     if not mapShows() then
         C_Timer.After(Map.REDRAW_LOOK, function() redrawOnceShown(mine) end)
         return
@@ -773,14 +771,11 @@ local function redrawOnceShown(mine)
     C_Timer.After(Map.REDRAW_AGAIN, function() DUI.SafeCall(Map.Redraw) end)
 end
 
-local function redrawSoon()
-    asks = asks + 1
-    local mine = asks
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", function()
+    screens = screens + 1
+    local mine = screens
     C_Timer.After(0, function() redrawOnceShown(mine) end)
-end
-
-DUI.RegisterEvent("LOADING_SCREEN_DISABLED", redrawSoon)
-DUI.On("MinimapBack", redrawSoon)
+end)
 
 -- In dungeons the game uses Blizzard_HybridMinimap, which draws map art on its
 -- own BACKGROUND-strata frame under the map. That ended up under the panel's
