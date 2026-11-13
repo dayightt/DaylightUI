@@ -521,10 +521,15 @@ function PR.Layout(cfg)
         local cc = {}
         for k, v in pairs(ns.module.db.combo) do cc[k] = v end
         cc.enabled = cfg.combo ~= false
-        cc.anchor, cc.side, cc.stretch, cc.align, cc.x, cc.y = "target", "below", true, "inner", 0, 0
+        cc.anchor, cc.side, cc.align = "target", "below", "inner"
+        cc.stretch = cfg.comboStretch ~= false
+        cc.size = tonumber(cfg.comboSize) or cc.size
+        cc.height = tonumber(cfg.comboHeight) or 0
+        cc.x, cc.y = tonumber(cfg.comboX) or 0, tonumber(cfg.comboY) or 0
         cc.slant = cfg.slant ~= false
         ns.Combo.Layout(h.combo, cc)
-        h.comboReach = cc.enabled and PR.DOCK_GAP + ns.Combo.Height(cc) or 0
+        -- Docked bars stack past the row, wherever it was nudged up or down.
+        h.comboReach = cc.enabled and math.max(0, PR.DOCK_GAP + ns.Combo.Height(cc) - cc.y) or 0
     end
     PR.Listen(cfg.enabled == true, showHealth)
     PR.following = cfg.enabled == true and cfg.follow ~= "fixed"

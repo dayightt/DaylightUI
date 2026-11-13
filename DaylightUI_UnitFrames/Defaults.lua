@@ -194,6 +194,7 @@ ns.DEFAULTS = {
     -- (Personal.lua). Shown in combat or with a target, hidden otherwise.
     personal = { enabled = false, follow = "feet", x = 0, y = -35, width = 150, height = 10,
                  powerHeight = 5, showHealth = true, showPower = true, combo = true, slant = true, castbar = false, swing = false,
+                 comboStretch = true, comboSize = 14, comboHeight = 0, comboX = 0, comboY = 0,
                  predictHeals = true, predictAbsorbs = true,
                  -- Its own rows, shaped like playerAuras: off, centered over the bars, buffs nearest.
                  auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,

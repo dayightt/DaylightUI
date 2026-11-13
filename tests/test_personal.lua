@@ -332,6 +332,28 @@ T.test("rogues get combo points under the bars", function()
     stub.comboPoints = nil
 end)
 
+T.test("the personal combo row takes its own size and nudges", function()
+    local DUI, _, PR = login("ROGUE", "ENERGY")
+    local c, h = PR.frame.combo, PR.frame
+    local reach = h.comboReach
+    T.truthy(c.pips[1]:GetWidth() > DUI:Get("UnitFrames", "personal.comboSize"), "as wide as the display by default")
+    DUI:Set("UnitFrames", "personal.comboStretch", false)
+    DUI:Set("UnitFrames", "personal.comboSize", 22)
+    DUI:Set("UnitFrames", "personal.comboHeight", 9)
+    stub.RunTimers()
+    T.near(c.pips[1]:GetWidth(), 22, 0.5, "its own pip width")
+    T.near(c.pips[1]:GetHeight(), 9, 0.5, "and height")
+    T.eq(DUI:Get("UnitFrames", "combo.size"), 14, "the target's pips keep theirs")
+    local _, _, _, x0, y0 = c:GetPoint(1)
+    DUI:Set("UnitFrames", "personal.comboX", 12)
+    DUI:Set("UnitFrames", "personal.comboY", -6)
+    stub.RunTimers()
+    local _, _, _, x1, y1 = c:GetPoint(1)
+    T.near(x1 - x0, 12, 0.01, "nudged sideways")
+    T.near(y1 - y0, -6, 0.01, "and down")
+    T.truthy(h.comboReach > reach, "what's docked under it moves down past it")
+end)
+
 T.test("hidden while dead, back when alive", function()
     local _, _, PR = login()
     stub.units.player.dead = true
