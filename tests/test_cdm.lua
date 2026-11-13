@@ -6125,6 +6125,37 @@ T.test("cdm custom: a buff of ours that's down slides out of its group; one we c
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A mage's Missile Barrage hung above Arcane Blast: while its buff was down it
+-- waited, still listening, right on top of Arcane Blast, so a proc in a fight came
+-- up there and the two icons sat on each other. Hung left, the same.
+T.test("cdm custom: a buff that slid out waits beside its spot, never on top of the piece it hangs from", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    D.AddPiece(set, "s6673", "icon", 0, 0)
+    for _, case in ipairs({ { "up", "icon" }, { "left", "icon" }, { "down", "icon" }, { "right", "icon" },
+        { "up", "bar" }, { "left", "bar" } }) do
+        local side, shape = case[1], case[2]
+        set.pieces["s2687"] = nil
+        D.AddPiece(set, "s2687", shape, 0, -96)
+        T.truthy(D.Hook(set, "s2687", "s6673", side))
+        D.SetTrack(set, "s2687", "aura")
+        stub.auras.player = { HELPFUL = { { spellId = 6673 } } }
+        refresh(AB)
+        T.eq(AB.CdmRows.DrawnBy("s2687"), "aura " .. shape)
+        side = side .. " " .. shape
+        local parent, f = pieceFrame(1, "s6673"), pieceFrame(1, "s2687")
+        T.truthy(f:IsShown(), side .. ": still listening while down")
+        local pw, ph = parent:GetSize()
+        local w, h = f:GetSize()
+        local px, py, x, y = parent.goalX, parent.goalY, f.goalX, f.goalY
+        local apart = x >= px + pw or x + w <= px or y - h >= py or y <= py - ph
+        T.truthy(apart, side .. ": waits clear of the piece it hangs from ("
+            .. x .. "," .. y .. " vs " .. px .. "," .. py .. ")")
+    end
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- A druid's Mark of the Wild and Thorns with Grow from Middle, Buff up Hide and
 -- Buff missing Show (a reminder of what's missing): the one that was up hid but
 -- kept its spot, so the missing one sat off to the side instead of in the middle.

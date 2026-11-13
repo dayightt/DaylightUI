@@ -558,8 +558,16 @@ function Rows.Update()
         -- button coming up there (CdmAuras.Shown) reopens the spot.
         for id, item in pairs(closed) do
             local b, f = boxes[id], pieceFrame(g, id)
-            put(f, layout, b.x, b.y)
-            f:SetSize(Data.Dims(set, id))
+            -- Its closed box has no size, and its corner is where its parent's edge
+            -- is. Above or left of the parent, a full-size frame there would cover
+            -- the parent, so a buff landing in a fight came up on top of it. It waits
+            -- just past that edge instead, where it comes up anyway.
+            local w, h = Data.Dims(set, id)
+            local side = set.pieces[id] and set.pieces[id].side
+            local x, y = b.x, b.y
+            if side == "up" then y = y + h elseif side == "left" then x = x - w end
+            put(f, layout, x, y)
+            f:SetSize(w, h)
             f:Show()
             place(item, blocks[id], f, set.pieces[id])
         end

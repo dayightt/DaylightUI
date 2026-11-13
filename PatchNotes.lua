@@ -24,6 +24,7 @@ DUI.PatchNotes = {
             { "Item icons", "The thin colored outline around rewards and items no longer loses its top or side" },
             { "Action bars", "Shadowform switches bar 1 to its own page, as the options say" },
             { "Object glow", "Turning off the game's Enable Interact Key option stays off after a restart" },
+            { "Cooldown Manager", "A buff placed above or left of another no longer pops up on top of it when it procs in a fight" },
         },
     },
     { version = "1.7.1", date = "2026-11-12", summary = "Controller support is officially in beta, layers for your unit frames, quest mob colors on nameplates, full Spanish and a round of fixes.",
