@@ -202,6 +202,12 @@ end
 -- A cooldown with a buff or debuff the game's icon doesn't show (Bloodrage). Either
 -- the game says it has an aura but flags it HideAura, or it says none and our spell
 -- list (CdmSpells) knows one. It can still be picked on the card.
+-- Racials the game files with no aura though they give a buff. Eureka! (Gnome) has
+-- one rank per power type, and its buff carries the same spell id.
+Own.RACIAL_AURAS = {
+    [1259812] = true, [1259813] = true, [1259817] = true, [1259821] = true, [1259823] = true, -- Eureka!
+}
+
 function Own.QuietAura(id)
     local C = ns.CdmCustom
     if C and C.Is(id) then return false end
@@ -209,6 +215,7 @@ function Own.QuietAura(id)
     local info = infoOf(id)
     if info and not (issecretvalue and issecretvalue(info.hasAura)) and info.hasAura == true then return true end
     local sid = info and plainNumber(info.spellID)
+    if sid ~= nil and Own.RACIAL_AURAS[sid] then return true end
     return sid ~= nil and C ~= nil and C.KeyOfAuraSpell(sid) ~= nil
 end
 

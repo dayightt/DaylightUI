@@ -4385,6 +4385,30 @@ T.test("cdm: a filed cooldown with no real cooldown and a buff the game hides is
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Eureka! (a Gnome racial) gives a buff the game doesn't flag, so its card had no
+-- What it shows choice.
+T.test("cdm card: Eureka! can pick its buff", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    withCategories({ [0] = { 21 } }, { [0] = { 21 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 1259812, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 120000 end
+    Own.Forget()
+    D.AddPiece(set, 21, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local shown
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.item and r.item.key == "cdm.card.track" then shown = r.show(set, 21, set.pieces[21]) end
+    end
+    T.truthy(shown, "What it shows is on its card")
+    T.truthy(D.SetSpellValue(set, 21, "track", "buff"))
+    T.eq(Own.Track(21, set.pieces[21]), "buff")
+    _G.GetSpellBaseCooldown = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Bloodrage (filed by the game as a cooldown with no aura to show) had no
 -- What it shows, Buff up or Buff missing rows, while Rend had them.
 T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows (Bloodrage)", function()
