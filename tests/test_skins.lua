@@ -2808,7 +2808,7 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
     for _, m in ipairs({ root, sub }) do
         T.eq(m.bg:GetAlpha(), 0, "the game's background gone")
         local ours = false
-        for _, c in ipairs({ m:GetChildren() }) do if Kit.ShellOf(c) then ours = true end end
+        for _, c in ipairs({ m:GetParent():GetChildren() }) do if Kit.ShellOf(c) then ours = true end end
         T.truthy(ours, "our look behind it")
         T.eq(m.text.__textColor[1], 0.5, "the game's colors kept")
     end
@@ -2868,6 +2868,35 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     local rule = CreateFrame("Frame", nil, menu)
     rule.divider = rule:CreateTexture()
     rule.divider:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
+    -- CreateDivider never sets frame.divider, and in game GetTexture() is a file id.
+    local bare = CreateFrame("Frame", nil, menu)
+    bare.line = bare:CreateTexture()
+    bare.line:SetTexture(130841)
+    bare.line:SetHeight(13)
+    _G.RAID_TARGET_1 = "Estrella"
+    local star = CreateFrame("Button", nil, menu)
+    star.text = star:CreateFontString()
+    star.text:SetText("Estrella")
+    star.text:SetTextColor(1, 1, 1)
+    star.icon = star:CreateTexture()
+    star.icon:SetTexture(137010)
+    star.icon:SetTexCoord(0, 0.25, 0, 0.25)
+    star.icon:SetSize(16, 16)
+    -- The row is named after the marker, and the hover covers the whole row.
+    star.highlight = star:CreateTexture()
+    star.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    star.highlight:SetBlendMode("ADD")
+    star.highlight:SetSize(180, 20)
+    -- A checkbox row with a small grid icon that is not a raid marker (minimap tracking).
+    local track = CreateFrame("Button", nil, menu)
+    track.leftTexture1 = atlas(track:CreateTexture(), "common-dropdown-ticksquare")
+    track.icon = track:CreateTexture()
+    track.icon:SetTexture(424242)
+    track.icon:SetTexCoord(0, 0.25, 0, 0.25)
+    track.icon:SetSize(16, 16)
+    track.text = track:CreateFontString()
+    track.text:SetText("Subastador")
+    track.text:SetTextColor(1, 1, 1)
     callbacks["MenuProxy.OnShow"](menu)
     stub.RunTimers()
     local Style = DaylightUI.Style
@@ -2880,6 +2909,15 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     T.eq(plain.arrow:GetTexture(), DaylightUI.MEDIA .. "ui-chevron.png")
     T.eq(plain.arrow.__rotation, math.pi / 2, "the chevron points at the submenu")
     T.eq(plain.highlight:GetBlendMode(), "ADD")
+    local wash = plain.highlight.__vertex
+    T.eq(wash[4], stub.skins.Kit.ROW_PICK, "the row wash uses the accent strength")
+    if plain.highlight.__gradient then
+        T.eq(wash[1], 1, "a gradient wash stays white")
+    else
+        T.eq(wash[1], ar, "a flat wash is the accent, not a typed brown")
+        T.eq(wash[2], ag)
+        T.eq(wash[3], ab)
+    end
     T.eq(kept.text.__textColor[2], 0.44, "a class color stays")
     T.eq(off.text.__textColor[1], 0.5, "a disabled row stays gray")
     T.eq(skull.leftTexture1:GetAlpha(), 0, "the empty radio is gone")
@@ -2891,6 +2929,42 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png")
     T.eq(box.text.__textColor[1], ink[1], "a ticked checkbox stays body text")
     T.eq(rule.divider:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the divider is a plain line")
+    T.eq(bare.line:GetTexture(), "Interface\\Buttons\\WHITE8x8", "a divider with no .divider field still gets the line")
+    T.eq(bare.line:GetHeight(), 1)
+    T.eq(star.icon:GetTexture(), DaylightUI.MEDIA .. "marker-1.png", "a raid icon known by file id uses our marker")
+    _G.RAID_TARGET_8 = "Calavera"
+    local marked = CreateFrame("Button", nil, menu)
+    marked.text = marked:CreateFontString()
+    marked.text:SetText("Calavera")
+    marked.text:SetTextColor(1, 1, 1)
+    marked.icon = marked:CreateTexture()
+    marked.icon:SetTexture(137010)
+    marked.icon:SetTexCoord(0.75, 1, 0.25, 0.5)
+    marked.icon:SetSize(16, 16)
+    marked.wash = marked:CreateTexture()
+    marked.wash:SetTexture(130722)
+    marked.wash:SetAllPoints(marked)
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(marked.icon:GetTexture(), DaylightUI.MEDIA .. "marker-8.png", "the small icon stays the marker")
+    T.eq(marked.wash:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the row hover is the wash, not the marker")
+    T.eq(marked.wash.__vertex[4], stub.skins.Kit.ROW_PICK, "that hover is the same accent as other rows")
+    T.eq(star.highlight:GetTexture(), "Interface\\Buttons\\WHITE8x8", "a marker row's hover is the wash, not the icon")
+    T.eq(track.icon:GetTexture(), 424242, "a tracking menu's icon is left alone")
+    local holder
+    for _, c in ipairs({ menu:GetParent():GetChildren() }) do
+        if c.ignoreInLayout and c.GetScript and c:GetScript("OnUpdate") then holder = c end
+    end
+    T.truthy(holder, "our frame watches while the menu stays open")
+    T.truthy(holder:GetParent() ~= menu, "our panel is not inside the menu, so it cannot cover the rows")
+    menu:SetFrameStrata("TOOLTIP")
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(holder:GetFrameStrata(), "FULLSCREEN_DIALOG", "the panel sits under the whole menu")
+    box.leftTexture2:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    holder:GetScript("OnUpdate")(holder)
+    stub.RunTimers()
+    T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "a checkbox refresh keeps our tick")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
