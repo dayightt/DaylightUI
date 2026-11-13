@@ -242,3 +242,61 @@ T.test("a non-Latin client keeps its own font on classic titles", function()
     T.isnil(DUI.Style.TitleFont(), "the game's Latin font lacks the letters")
     DUI.DB.UseLocalFont = real
 end)
+
+local function angledFrame(DUI, side)
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(220, 40)
+    DUI.Style.Shell(f)
+    DUI.Style.Slant(f, side, 12)
+    DUI.Style.Rivets(f, true)
+    return f
+end
+
+local function shownRivets(DUI, f)
+    local n = 0
+    for _, t in pairs(DUI.Style.RivetsOf(f) or {}) do if t:IsShown() then n = n + 1 end end
+    return n
+end
+
+T.test("rivets sit on an angled frame's cuts under Classic only", function()
+    local DUI = stub.Load()
+    local f = angledFrame(DUI, "right")
+    T.eq(shownRivets(DUI, f), 0, "none under Daylight")
+    look(DUI, "classic")
+    T.eq(shownRivets(DUI, f), 1, "one on the one cut")
+    local r = DUI.Style.RivetsOf(f).right
+    local _, rel, to, x, y = r:GetPoint(1)
+    T.truthy(rel == f and to == "RIGHT", "placed on the frame's right end, so it follows a resize")
+    T.truthy(x < 0 and x > -12, "inside the cut")
+    T.near(y, 0, 0.01, "halfway down")
+    T.rgb(r.__vertex, GOLD_HI, "bright gold")
+    look(DUI, "daylight")
+    T.eq(shownRivets(DUI, f), 0, "gone again")
+end)
+
+T.test("a frame with both ends cut gets a rivet on each, a straight frame none", function()
+    local DUI = stub.Load()
+    local f = angledFrame(DUI, "both")
+    local plain = CreateFrame("Frame", nil, UIParent)
+    plain:SetSize(200, 40)
+    DUI.Style.Shell(plain)
+    DUI.Style.Rivets(plain, true)
+    look(DUI, "classic")
+    T.eq(shownRivets(DUI, f), 2)
+    T.eq(shownRivets(DUI, plain), 0, "no cut, no rivet")
+end)
+
+T.test("the header rule turns gold with a diamond under Classic", function()
+    local DUI = stub.Load()
+    local f = DUI.Win.New({ w = 300, h = 200 })
+    T.falsy(f.ruleGem and f.ruleGem:IsShown(), "no diamond under Daylight")
+    look(DUI, "classic")
+    T.truthy(f.ruleGem and f.ruleGem:IsShown(), "a diamond in the middle")
+    T.truthy(f.ruleLeft:IsShown() and f.ruleLeft.__gradient, "gold fading out to the left")
+    T.truthy(f.ruleRight:IsShown() and f.ruleRight.__gradient, "and to the right")
+    T.falsy(f.rule:IsShown(), "the faint rule steps aside")
+    look(DUI, "daylight")
+    T.falsy(f.ruleGem:IsShown())
+    T.falsy(f.ruleLeft:IsShown())
+    T.truthy(f.rule:IsShown(), "today's faint rule")
+end)

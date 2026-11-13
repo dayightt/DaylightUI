@@ -1710,6 +1710,61 @@ function Style.Slant(frame, side, cut, ref, under)
     sl.under = (not ref and under and (side == under or side == "both") and (under ~= "both" or side == "both")) and under or nil
     local s = shellOf[frame]
     if s then Style.LayoutShell(s) else Style.LayoutSlant(frame) end
+    if Style.LayoutRivets then Style.LayoutRivets(frame) end
+end
+
+-- Classic's rivets: a small gold stud in the middle of each angled end's cut,
+-- on frames that ask for them (the unit frames). Made the first time Classic
+-- shows them, on a child frame so the bars never cover them.
+local rivetFrames = setmetatable({}, { __mode = "k" })
+local rivetsOf = setmetatable({}, { __mode = "k" })
+Style.RIVET_FILE = DUI.MEDIA .. "rivet.png"
+
+function Style.RivetsOf(frame) return rivetsOf[frame] end
+
+function Style.LayoutRivets(frame)
+    if not rivetFrames[frame] then return end
+    local sl = slantOf[frame]
+    local side, cut = sl and sl.side, sl and sl.cut or 0
+    local want = Style.Look() == "classic" and side ~= nil and cut > 0
+    local set = rivetsOf[frame]
+    if not want then
+        if set then for _, t in pairs(set) do t:Hide() end end
+        return
+    end
+    if not set then
+        local holder = CreateFrame("Frame", nil, frame)
+        holder:SetAllPoints(frame)
+        holder:SetFrameLevel(frame:GetFrameLevel() + 20)
+        set = {}
+        for _, e in ipairs(ENDS) do
+            local t = holder:CreateTexture(nil, "OVERLAY")
+            t:SetTexture(Style.RIVET_FILE)
+            set[e] = t
+        end
+        rivetsOf[frame] = set
+    end
+    local size = math.max(DUI.Pixel.Px(frame, 7), DUI.Pixel.Px(frame, Style.BorderPx(frame) * 1.6))
+    local hi = Style.LOOKS.classic.GOLD[2]
+    for _, e in ipairs(ENDS) do
+        local t = set[e]
+        if side == e or side == "both" then
+            t:ClearAllPoints()
+            if e == "right" then t:SetPoint("CENTER", frame, "RIGHT", -cut / 2, 0)
+            else t:SetPoint("CENTER", frame, "LEFT", cut / 2, 0) end
+            t:SetSize(size, size)
+            t:SetVertexColor(hi[1], hi[2], hi[3], 1)
+            t:Show()
+        else
+            t:Hide()
+        end
+    end
+end
+
+function Style.Rivets(frame, on)
+    rivetFrames[frame] = on and true or nil
+    if on then Style.LayoutRivets(frame)
+    elseif rivetsOf[frame] then for _, t in pairs(rivetsOf[frame]) do t:Hide() end end
 end
 
 -- inset: the line the texture stays inside. until (optional): a deeper line it
@@ -2393,6 +2448,7 @@ function Style.RepaintAll()
     end
     for fs in pairs(textSize) do repaintFont(fs) end
     for tex, f in pairs(followed) do paintFollowed(tex, f) end
+    for frame in pairs(rivetFrames) do Style.LayoutRivets(frame) end
 end
 
 DUI.On("RepaintCore", Style.RepaintAll)

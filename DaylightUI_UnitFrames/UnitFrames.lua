@@ -1185,6 +1185,8 @@ function UF.Layout(f, cfg, text, keepSize)
     if f.power then f.power:SetReverseFill(f.growLeft) end
     if f.altMana then f.altMana:SetReverseFill(f.growLeft) end
     if f.spec.slant then
+        -- The Classic look's gold rivets go on the bigger frames, not raid tiles.
+        Style.Rivets(f, not f.spec.compact and f.spec.group ~= "raid")
         Style.Slant(f, side, cut)
         -- Each fill's moving edge follows the frame's angle (straight when
         -- reversed, since the angle belongs to the other end).
