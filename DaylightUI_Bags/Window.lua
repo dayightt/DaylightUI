@@ -687,8 +687,8 @@ function Window.Sort()
     local f = ns.window
     if ns.Keep.Any() then
         -- Its own rounds: held until they're done, however long a round takes.
-        Window.BeginSort(f, false, true)
-        return ns.Keep.Sort(function() Window.EndSort(f) end)
+        local hold = Window.BeginSort(f, false, true)
+        return ns.Keep.Sort(function() if hold then Window.EndSort(f, nil, hold) end end)
     end
     Window.BeginSort(f, false)
     pcall(C_Container.SortBags)
@@ -705,10 +705,13 @@ Window.SORT_SETTLE = 0.25
 Window.SORT_FIRST = 1
 Window.SORT_MAX = 3
 
+-- When a hold lets go: never past SORT_MAX; not while a run of our own is still
+-- moving things (owners); SORT_FIRST after asking the server, until its first
+-- move lands; then SORT_SETTLE after the last move.
 local function sortDue(s)
     local due = s.start + Window.SORT_MAX
-    if s.owned then return due end
-    if not s.changed then return math.min(due, s.start + Window.SORT_FIRST) end
+    if s.owners > 0 then return due end
+    if s.asked then return math.min(due, s.asked + Window.SORT_FIRST) end
     return math.min(due, s.last + Window.SORT_SETTLE)
 end
 
@@ -720,26 +723,35 @@ local function sortSettled(f, s)
     C_Timer.After(due - now, function() sortSettled(f, s) end)
 end
 
--- Starts holding an open window for a cleanup, or notes that one already held
--- is still going. quiet: lay it out at once at the end, no glide (the stacks
--- merged as the bag opens, while it's still fading in); false asks for the
--- glide even when a quiet one is held. owned: the caller ends it (EndSort)
--- when its own moves are done, so only SORT_MAX lets go before that. Never in a
+local function checkSortIn(f, s, delay)
+    C_Timer.After(math.max(0, delay), function() sortSettled(f, s) end)
+end
+
+-- Starts holding an open window for a cleanup, or joins the one already held.
+-- quiet: lay it out at once at the end, no glide (the stacks merged as the bag
+-- opens, while it's still fading in); false asks for the glide even when a
+-- quiet one is held. owned: a run of our own (Keep, the merge on open) that
+-- ends its part with EndSort(f, nil, hold); otherwise it's the game's sort,
+-- which waits for the server. Returns the hold, nil when not holding: never in a
 -- fight or under the client's restrictions, where the bag has to be right at once.
 function Window.BeginSort(f, quiet, owned)
     if not f or f.spec.still then return end
-    local s = f.sorting
-    if s then
-        s.last = GetTime()
-        if quiet == false then s.quiet = false end
-        if owned then s.owned = true end
-        return
-    end
-    if not f:IsShown() or ns.Items.InCombat() or DUI.Restricted() then return end
     local now = GetTime()
-    s = { start = now, last = now, quiet = quiet == true, owned = owned == true }
-    f.sorting = s
-    C_Timer.After(sortDue(s) - now, function() sortSettled(f, s) end)
+    local s = f.sorting
+    if not s then
+        if not f:IsShown() or ns.Items.InCombat() or DUI.Restricted() then return end
+        s = { start = now, last = now, quiet = quiet == true, owners = 0 }
+        f.sorting = s
+    elseif quiet == false then
+        s.quiet = false
+    end
+    if owned then
+        s.owners = s.owners + 1
+    else
+        s.start, s.asked, s.game = now, now, true
+    end
+    checkSortIn(f, s, sortDue(s) - now)
+    return s
 end
 
 -- Lays the window out again and fills what changed, gliding when eased. Spots
@@ -764,11 +776,18 @@ function Window.EaseRelayout(f) relayoutNow(f, true) end
 -- Ends a cleanup's hold: one layout and one fill. The slots still show what
 -- they held when it began (nothing was filled or laid out since), so the glide
 -- starts from there. With no bag changed, only fills held meanwhile are done.
--- instant: no glide (a fight is starting).
-function Window.EndSort(f, instant)
+-- instant: no glide (a fight is starting). hold: a run of our own is done
+-- (BeginSort's owned); the hold waits on for any other run or the server.
+function Window.EndSort(f, instant, hold)
     local s = f and f.sorting
-    if not s then return end
+    if not s or (hold and hold ~= s) then return end
+    if hold then
+        s.owners = math.max(0, s.owners - 1)
+        if s.owners > 0 then return end
+        if s.game then return checkSortIn(f, s, sortDue(s) - GetTime()) end
+    end
     f.sorting = nil
+    instant = instant or DUI.Restricted()
     if not (s.changed or f.stale) then return Window.FillDirty(f) end
     relayoutNow(f, not (s.quiet or instant))
 end
@@ -1036,7 +1055,13 @@ function Window.Changed(f, bags)
     if f.sorting then
         if f:IsShown() and not (InCombatLockdown and InCombatLockdown()) and not DUI.Restricted() then
             -- Mid-cleanup: note it and wait for the bags to settle (Window.BeginSort).
-            f.sorting.changed, f.sorting.last = true, GetTime()
+            local s = f.sorting
+            s.changed, s.last = true, GetTime()
+            if s.asked then
+                -- The server's first move: from now on it settles SORT_SETTLE after the last.
+                s.asked = nil
+                checkSortIn(f, s, Window.SORT_SETTLE)
+            end
             if bags then
                 for bag in pairs(bags) do Window.MarkDirty(f, bag) end
             else
@@ -1197,8 +1222,8 @@ local function bagWindow()
         -- Stacks merged on open are held like a cleanup, but land without a glide:
         -- the bag is still fading in.
         onShow = function(f)
-            Window.BeginSort(f, true, true)
-            ns.Stack.Run(function() Window.EndSort(f) end)
+            local hold = Window.BeginSort(f, true, true)
+            ns.Stack.Run(function() if hold then Window.EndSort(f, nil, hold) end end)
         end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
         portraitMenu = {

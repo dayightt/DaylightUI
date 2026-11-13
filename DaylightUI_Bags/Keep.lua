@@ -211,10 +211,9 @@ end
 
 -- Clean Up with kept slots: top up stacks first, like the game's sort, then
 -- run the rounds of moves. done is called when it ends, or at once when it
--- can't start (a run already going calls its own).
+-- can't start or one is already going (that run calls its own).
 function Keep.Sort(done)
-    if running then return end
-    if ns.Items.InCombat() or ns.Items.CursorBusy() or type(C_Container.PickupContainerItem) ~= "function" then
+    if running or ns.Items.InCombat() or ns.Items.CursorBusy() or type(C_Container.PickupContainerItem) ~= "function" then
         if done then done() end
         return
     end

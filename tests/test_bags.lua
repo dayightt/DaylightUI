@@ -2318,6 +2318,69 @@ T.test("bags: a cleanup waits for the server's first move", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Timers that keep their due time: runDue() runs only those due by now
+-- (stub.RunTimers runs every one at once, however far off).
+local function timedTimers()
+    local pending = {}
+    C_Timer.After = function(d, fn) pending[#pending + 1] = { due = GetTime() + (d or 0), fn = fn } end
+    return function()
+        for _ = 1, 10 do
+            local ran = false
+            for i = #pending, 1, -1 do
+                local t = pending[i]
+                if t.due <= GetTime() + 1e-9 then
+                    table.remove(pending, i)
+                    t.fn()
+                    ran = true
+                end
+            end
+            if not ran then return end
+        end
+    end
+end
+
+T.test("bags: a quick cleanup glides as soon as it settles", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel, W = DaylightUI.Win.Feel, ns.Window
+    local ok, err = pcall(function()
+        local runDue = timedTimers()
+        local b = ns.Bags.buttons[0][4]
+        f.sort:GetScript("OnClick")(f.sort)
+        stub.Advance(0.05)
+        runDue()
+        sortStep(1, 4)
+        stub.Advance(0.2)
+        runDue()
+        T.truthy(f.sorting, "still moving")
+        sortStep(5, 6)
+        stub.Advance(W.SORT_SETTLE + 0.01)
+        runDue()
+        T.isnil(f.sorting, "played a moment after the last move, not at SORT_FIRST")
+        T.truthy(Feel.Moving(b), "as a glide")
+        T.truthy(filledRight(f))
+        settleFeel()
+        -- A game cleanup asked while the open's merge is held waits for the server too.
+        local hold = W.BeginSort(f, true, true)
+        f.sort:GetScript("OnClick")(f.sort)
+        W.EndSort(f, nil, hold)        -- the merge is done
+        T.truthy(f.sorting, "the cleanup still holds")
+        stub.Advance(0.1)
+        runDue()
+        sortStep(1, 4)
+        T.truthy(f.sorting, "its moves are held")
+        stub.Advance(W.SORT_SETTLE + 0.01)
+        runDue()
+        T.isnil(f.sorting, "and then played")
+        T.truthy(filledRight(f))
+    end)
+    stub.ResetTimers()
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: touching a slot mid-cleanup ends the hold before the click lands", function()
     local ns = login()
     local f = open(ns)
