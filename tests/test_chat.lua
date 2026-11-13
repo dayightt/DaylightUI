@@ -5045,3 +5045,17 @@ T.test("chat: another addon's channels on 1 to 4 move behind the world channels"
     _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor = was[1], was[2], was[3]
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("chat: every options page is valid", function()
+    login()
+    local n = 0
+    for id, page in DaylightUI.Options.Pages() do
+        if page.scope == "Chat" then
+            local errors = DaylightUI.Options.ValidatePage(page)
+            T.eq(#errors, 0, id .. ": " .. tostring(errors[1]))
+            n = n + 1
+        end
+    end
+    T.truthy(n > 0, "found the chat pages")
+    T.falsy(stub.ChatContains("Options ("))
+end)

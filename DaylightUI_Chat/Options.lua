@@ -255,6 +255,7 @@ ns.OPTIONS = { pages = {
         { label = "Text", items = {
             { type = "slider", key = "textSize", label = "Text size", min = 8, max = 24, step = 1, unit = "px",
               get = function() return ns.Chat.TextSize() end,
+              set = function(v) return DaylightUI:Set("Chat", "textSize", v) end,
               desc = "Text size for every chat window. Also in each chat tab's right-click menu." },
             DaylightUI.Options.FontRow("media.font", "Chat font", "The chat window's text and the chat bubbles"),
             { type = "toggle", key = "outline", label = "Chat text outline", desc = "A thin outline on chat text." },
