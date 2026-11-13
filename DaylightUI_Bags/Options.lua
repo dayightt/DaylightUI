@@ -272,6 +272,8 @@ ns.OPTIONS = { pages = {
               desc = "The item level of weapons and armor in the bottom left corner." },
             { type = "toggle", key = "showJunk", label = "Show a gold coin on junk", disabled = off,
               desc = "Shows the game's small gold coin on gray items, like the default bags." },
+            { type = "toggle", key = "markCheapJunk", label = "Mark the cheapest junk", disabled = off,
+              desc = "A small dot on the bottom left corner of the gray item worth the least, so when your bag is full you know what to throw away. Its tooltip says what it sells for." },
         } },
         { label = "Vendors", items = {
             { type = "toggle", key = "sellJunk", label = "Sell junk automatically", disabled = off,

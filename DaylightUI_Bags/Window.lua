@@ -681,6 +681,7 @@ function Window.UpdateFooter(f)
     end
     if ns.Currency then ns.Currency.Update(f) end
     Window.UpdateSell(f)
+    if bag then ns.Junk.MarkCheapest(f) end
     Window.UpdateSub(f)
 end
 

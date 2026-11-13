@@ -474,6 +474,59 @@ function Items.HideDot(btn, p)
     end
 end
 
+-- The cheapest junk in the bag (Junk.MarkCheapest): a dot like the new-item one,
+-- in the warn color on the bottom left corner, so a full bag shows what to throw
+-- away. Made the first time a slot gets it; only one slot has it at a time.
+function Items.PaintCheap(btn, on)
+    local p = dressed[btn]
+    if not p then return end
+    if on and not p.cheapDot then
+        p.cheapGlow = btn:CreateTexture(nil, "OVERLAY", nil, 4)
+        p.cheapDot = btn:CreateTexture(nil, "OVERLAY", nil, 5)
+        for _, t in ipairs({ p.cheapGlow, p.cheapDot }) do
+            t:SetColorTexture(1, 1, 1, 1)
+            local m = btn:CreateMaskTexture()
+            m:SetTexture(DUI.Win.MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            m:SetAllPoints(t)
+            t:AddMaskTexture(m)
+            t:Hide()
+        end
+    end
+    if not p.cheapDot then return end
+    if on then
+        local dot = Pixel.Px(btn, Items.DOT_PX)
+        p.cheapDot:ClearAllPoints()
+        p.cheapDot:SetSize(dot, dot)
+        p.cheapDot:SetPoint("CENTER", btn, "BOTTOMLEFT", -2, -2)
+        p.cheapGlow:ClearAllPoints()
+        p.cheapGlow:SetSize(dot * Items.DOT_GLOW, dot * Items.DOT_GLOW)
+        p.cheapGlow:SetPoint("CENTER", p.cheapDot, "CENTER", 0, 0)
+        local c = Style.INK.WARN
+        p.cheapDot:SetVertexColor(c[1], c[2], c[3], 1)
+        p.cheapGlow:SetVertexColor(c[1], c[2], c[3], Items.DOT_GLOW_ALPHA)
+    end
+    if on == (p.cheapOn == true) then return end
+    p.cheapOn = on
+    local visible = btn:IsVisible()
+    if on then
+        p.cheapDot:Show(); p.cheapGlow:Show()
+        if visible then
+            DUI.Motion.Fade(p.cheapDot, 0, 1, DUI.Motion.FAST)
+            DUI.Motion.Fade(p.cheapGlow, 0, 1, DUI.Motion.FAST)
+        else
+            p.cheapDot:SetAlpha(1); p.cheapGlow:SetAlpha(1)
+        end
+    elseif visible then
+        DUI.Motion.Fade(p.cheapDot, 1, 0, DUI.Motion.FAST)
+        DUI.Motion.Fade(p.cheapGlow, 1, 0, DUI.Motion.FAST)
+        C_Timer.After(DUI.Motion.FAST + 0.05, function()
+            if not p.cheapOn then p.cheapDot:Hide(); p.cheapGlow:Hide() end
+        end)
+    else
+        p.cheapDot:Hide(); p.cheapGlow:Hide()
+    end
+end
+
 -- Hover: the item is seen, its dot fades out and stays gone for this bag:slot:item.
 function Items.SeeNew(btn)
     local p = dressed[btn]

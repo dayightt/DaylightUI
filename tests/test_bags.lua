@@ -856,6 +856,54 @@ T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
     T.eq(f.sellJunk:IsShown(), false, "hidden when the vendor closes")
 end)
 
+T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line with its price, and a setting", function()
+    local ns = login()
+    local prices = { ["|Hitem:2|h"] = 25, ["|Hitem:12|h"] = 3, ["|Hitem:13|h"] = 1 }
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if prices[link] then return "name", link, 0, 1, 1, "", "", 20, "", 1, prices[link], 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][7] = { iconFileID = 107, stackCount = 4, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    local f = open(ns)
+    local function at(bag, slot)
+        for _, s in ipairs(ns.Bags.Slots()) do
+            if s.bag == bag and s.button:GetID() == slot then return s.button end
+        end
+    end
+    local function dot(b) local p = ns.Items.Parts(b); return p.cheapDot ~= nil and p.cheapDot:IsShown() end
+    T.eq(f.cheapest, at(0, 7), "4 x 3 copper is less than 25")
+    T.truthy(dot(at(0, 7))); T.falsy(dot(at(0, 2)))
+    local p = ns.Items.Parts(at(0, 7))
+    T.rgb(p.cheapDot.__vertexColor or { p.cheapDot:GetVertexColor() }, DaylightUI.Style.INK.WARN, "in the warn color")
+    -- A cheaper one arrives: the mark moves.
+    world.items[1][3] = { iconFileID = 113, stackCount = 1, quality = 0, hyperlink = "|Hitem:13|h", itemID = 13 }
+    stub.FireEvent("BAG_UPDATE", 1); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.cheapest, at(1, 3), "the new, cheaper one")
+    T.truthy(dot(at(1, 3))); T.falsy(dot(at(0, 7)), "the old mark fades away")
+    -- Its tooltip says what it sells for.
+    local added, addLine, getOwner = {}, GameTooltip.AddLine, GameTooltip.GetOwner
+    GameTooltip.AddLine = function(_, text) added[#added + 1] = text end
+    GameTooltip.GetOwner = function() return at(1, 3) end
+    ns.Junk.OnTip(GameTooltip, { id = 13 })
+    GameTooltip.GetOwner = function() return at(0, 7) end
+    ns.Junk.OnTip(GameTooltip, { id = 12 })
+    GameTooltip.AddLine, GameTooltip.GetOwner = addLine, getOwner
+    T.eq(#added, 1, "only on the marked slot")
+    T.eq(added[1], "Cheapest junk: " .. DaylightUI.Widgets.Money(1))
+    -- A locked one is never the cheapest; with none left, no mark.
+    ns.Categories.ToggleLock(13)
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.cheapest, at(0, 7), "locked: skipped")
+    DaylightUI:Set("Bags", "markCheapJunk", false)
+    stub.Advance(1); stub.RunTimers()
+    T.isnil(f.cheapest, "off: no mark")
+    T.falsy(dot(at(0, 7)))
+    C_Item.GetItemInfo = getInfo
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: a new accent repaints the profession bag's count at once", function()
     local ns = login()
     local f = open(ns)

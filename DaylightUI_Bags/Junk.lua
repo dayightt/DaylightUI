@@ -63,6 +63,35 @@ function Junk.Grays()
     return out, kept
 end
 
+-- The gray stack in the bag worth least, as shown (a combined stack counts as
+-- one): { button, value }, or nil when there's none. Locked items and items
+-- with no price (still loading, or no value) are left out.
+function Junk.Cheapest()
+    local best
+    for _, s in ipairs(ns.Bags.Slots()) do
+        local btn = s.button
+        if s.section ~= "keyring" and btn:IsShown() then
+            local info = ns.Items.InfoAt(s.bag, btn:GetID())
+            if info and info.quality == 0 and not info.hasNoValue and not ns.Categories.IsLocked(info.itemID) then
+                local value = priceOf(info) * (btn.dluiCount or info.stackCount or 1)
+                if value > 0 and (not best or value < best.value) then
+                    best = { button = btn, value = value }
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- Moves the bag window's mark to the cheapest junk (setting markCheapJunk).
+function Junk.MarkCheapest(f)
+    local best = ns.Setting("markCheapJunk") ~= false and Junk.Cheapest() or nil
+    local btn = best and best.button
+    if f.cheapest and f.cheapest ~= btn then ns.Items.PaintCheap(f.cheapest, false) end
+    f.cheapest, f.cheapValue = btn, best and best.value
+    if btn then ns.Items.PaintCheap(btn, true) end
+end
+
 local selling = false
 
 local money = DUI.MoneyString
@@ -142,11 +171,23 @@ function Junk.TipText(itemID)
     return Junk.TIP_ICON .. (ns.Setting("sellJunk") == true and L["Junk, sold at the next vendor"] or L["Junk"])
 end
 
+-- "Cheapest junk: 3s" while the tooltip's owner is the marked slot.
+function Junk.CheapText(owner)
+    local f = ns.window
+    if not (f and owner and owner == f.cheapest and type(f.cheapValue) == "number") then return nil end
+    return string.format(L["Cheapest junk: %s"], DUI.Widgets.Money(f.cheapValue))
+end
+
 function Junk.OnTip(tip, data)
     if tip ~= GameTooltip or type(data) ~= "table" then return end
-    local text = Junk.TipText(data.id)
-    if not text then return end
     local c = DUI.Style.INK.LABEL
+    local cheap = Junk.CheapText(tip.GetOwner and tip:GetOwner())
+    if cheap then tip:AddLine(cheap, c[1], c[2], c[3]) end
+    local text = Junk.TipText(data.id)
+    if not text then
+        if cheap and tip.Show and tip:IsShown() then tip:Show() end
+        return
+    end
     tip:AddLine(text, c[1], c[2], c[3])
     -- Refit to the new line, but only if the tooltip is already showing (same as GiverTips.lua).
     if tip.Show and tip:IsShown() then tip:Show() end
