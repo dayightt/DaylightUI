@@ -223,6 +223,12 @@ ns.OPTIONS = { pages = {
               end,
               default = function() return false end,
               disabled = off("map.enabled") },
+            { type = "dropdown", key = "map.shape", label = "Minimap shape",
+              values = { square = "Square", round = "Round" }, order = { "square", "round" },
+              desc = "Round gives the map a thin ring with N at the top. While Rotate as you turn is on, the map is always round.",
+              disabled = function(get)
+                  return get("map.enabled") ~= true or (type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true)
+              end },
             { type = "toggle", key = "map.buttons", label = "Calendar and tracking buttons",
               desc = "Shows the calendar and tracking buttons on the map's right edge while the mouse is over the map.",
               disabled = off("map.enabled") },

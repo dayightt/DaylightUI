@@ -1161,6 +1161,40 @@ T.test("info panel: turning with you, the map is round (the game turns its mask 
     GetCVarBool = old
 end)
 
+T.test("info panel: a round map without turning has its ring, N fixed at the top, nothing each frame", function()
+    local DUI = login()
+    local Map = stub.infopanel.Minimap
+    T.eq(DUI:Get("InfoPanel", "map.shape"), "square", "square by default")
+    T.eq(GetMinimapShape(), "SQUARE")
+    DUI:Set("InfoPanel", "map.shape", "round")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.ROUND_MASK, "round without rotating")
+    T.eq(GetMinimapShape(), "ROUND", "addons put their buttons round it")
+    T.truthy(Map.ring:IsShown(), "the ring")
+    T.isnil(Map.ring:GetScript("OnUpdate"), "the N never moves, so nothing runs each frame")
+    T.truthy(Map.ring.north:IsShown(), "the N")
+    local _, _, _, nx, ny = Map.ring.north:GetPoint(1)
+    T.truthy(math.abs(nx) < 0.01 and ny > 0, "north at the top")
+    -- Rotating takes over the N; switched off again, it goes back to the top.
+    local rotate = true
+    local old = GetCVarBool
+    GetCVarBool = function(k) if k == "rotateMinimap" then return rotate end return old and old(k) end
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "1")
+    stub.RunTimers()
+    T.truthy(Map.ring:GetScript("OnUpdate"), "the N follows the facing while turning")
+    rotate = false
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "0")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.ROUND_MASK, "still round: the player picked round")
+    T.isnil(Map.ring:GetScript("OnUpdate"))
+    GetCVarBool = old
+    DUI:Set("InfoPanel", "map.shape", "square")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.MASK, "back to the square")
+    T.eq(GetMinimapShape(), "SQUARE")
+    T.falsy(Map.ring:IsShown(), "no ring on the square")
+end)
+
 -- The game's Hybrid Minimap, loaded on demand where the map is drawn from art
 -- (dungeons). It's a child of the map filling it, fixed at BACKGROUND strata
 -- level 100 under the map (whose terrain it turns off), with a black background

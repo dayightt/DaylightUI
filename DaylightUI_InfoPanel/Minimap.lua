@@ -16,9 +16,10 @@ Map.MASK = "Interface\\Buttons\\WHITE8X8"
 -- with it, and ignores clipping parents. That gave empty corners and diamond
 -- shapes, so a rotating map is drawn round, like the game's.
 Map.ROUND_MASK = DUI.MEDIA .. "mask-map-round.png"
--- The round map gets a thin ring with an N marker. GetPlayerFacing: 0 is north,
--- turning left increases it, nil in some instances (the N hides). The N's frame
--- only shows while rotating and only moves when the facing changes.
+-- A round map (map.shape "round", or any rotating map) gets a thin ring with an
+-- N marker. GetPlayerFacing: 0 is north, turning left increases it, nil in some
+-- instances (the N hides). The N follows the facing only while rotating, and
+-- sits still at the top otherwise, with nothing running each frame.
 Map.RING = DUI.MEDIA .. "map-ring.png"
 Map.NORTH_INSET = 9     -- the N's middle, in from the ring
 Map.TEXT_LIFT = 4       -- the map's texts sit this many levels over it: above the ring (+2)
@@ -85,6 +86,29 @@ function Map.Turning()
     return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true
 end
 
+-- Round by choice, or because it turns: a turning square showed empty corners.
+function Map.Round()
+    local cfg = Map.cfg
+    return Map.Turning() or (type(cfg) == "table" and cfg.shape == "round")
+end
+
+-- Puts the N on the ring at this facing (nil hides it).
+function Map.PlaceNorth(f, facing)
+    f.facing = facing
+    f.north:SetShown(facing ~= nil)
+    if not facing then return end
+    local r = Minimap:GetWidth() / 2 - Map.NORTH_INSET
+    f.north:ClearAllPoints()
+    f.north:SetPoint("CENTER", f, "CENTER", r * math.sin(facing), r * math.cos(facing))
+end
+
+-- The ring's OnUpdate while the map turns: moves the N only when the facing changes.
+function Map.FollowNorth(f)
+    local facing = type(GetPlayerFacing) == "function" and GetPlayerFacing() or nil
+    if facing == f.facing then return end
+    Map.PlaceNorth(f, facing)
+end
+
 -- The ring and the N on a round map (made once, on the map's area).
 function Map.Ring()
     if Map.ring and Map.ring:GetParent() == Minimap then return Map.ring end
@@ -99,38 +123,35 @@ function Map.Ring()
     f.tex:SetTexture(Map.RING)
     f.north = Style.Text(f, Style.SIZE.body, "CENTER")
     f.north:SetText(L["N"])
-    f:SetScript("OnUpdate", function(self)
-        local facing = type(GetPlayerFacing) == "function" and GetPlayerFacing() or nil
-        if facing == self.facing then return end
-        self.facing = facing
-        self.north:SetShown(facing ~= nil)
-        if not facing then return end
-        local r = Minimap:GetWidth() / 2 - Map.NORTH_INSET
-        self.north:ClearAllPoints()
-        self.north:SetPoint("CENTER", self, "CENTER", r * math.sin(facing), r * math.cos(facing))
-    end)
     f:Hide()
     Map.ring = f
     return f
 end
 
--- Shown on a round map, painted at paint time (the accent can change).
-function Map.PaintRing(turning)
-    if not (turning or Map.ring) then return end
+-- Shown on a round map, painted at paint time (the accent can change). Only a
+-- turning map moves its N each frame; a still one has it fixed at the top.
+function Map.PaintRing(round, turning)
+    if not (round or Map.ring) then return end
     local f = Map.Ring()
     f:SetFrameLevel(Minimap:GetFrameLevel() + 2)
     f.tex:SetVertexColor(Style.BAND_LIT[1], Style.BAND_LIT[2], Style.BAND_LIT[3], 1)
     Style.InkText(f.north, "pop")
-    f.facing = false
-    if turning and not f:IsShown() then
+    if round and turning then
+        f.facing = false
+        f:SetScript("OnUpdate", Map.FollowNorth)
+    else
+        f:SetScript("OnUpdate", nil)
+        Map.PlaceNorth(f, 0)
+    end
+    if round and not f:IsShown() then
         f:Show(); DUI.Motion.Fade(f, 0, 1, DUI.Motion.NORMAL)
-    elseif not turning then
+    elseif not round then
         f:Hide()
     end
 end
 
 -- Addons that put buttons round the minimap ask this for its shape.
-function GetMinimapShape() return Map.Turning() and "ROUND" or "SQUARE" end
+function GetMinimapShape() return Map.Round() and "ROUND" or "SQUARE" end
 
 -- ---------------------------------------------------------------------
 -- Clock at the bottom of the map, local or server time. Hover shows both.
@@ -802,7 +823,7 @@ function Map.DressHybrid()
         if h.SetFixedFrameLevel then h:SetFixedFrameLevel(true) end
     end
     local mask = h.CircleMask
-    local want = Map.Turning() and Map.ROUND_MASK or Map.MASK
+    local want = Map.Round() and Map.ROUND_MASK or Map.MASK
     if type(mask) == "table" and mask.SetTexture and Map.hybridMask ~= want then
         mask:SetTexture(want, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         mask:ClearAllPoints()
@@ -845,7 +866,7 @@ function Map.Apply(cfg)
         end
         local w, h = f:GetSize()
         if math.abs(w - size) > 0.01 or math.abs(h - size) > 0.01 then f:SetSize(size, size) end
-        local mask = Map.Turning() and Map.ROUND_MASK or Map.MASK
+        local mask = Map.Round() and Map.ROUND_MASK or Map.MASK
         if f.SetMaskTexture and Map.maskSet ~= mask then
             f:SetMaskTexture(mask)
             Map.maskSet = mask
@@ -854,7 +875,7 @@ function Map.Apply(cfg)
     -- The map's layer first: the ring (+2) and texts (+TEXT_LIFT) go over it.
     if mm:GetFrameLevel() ~= area:GetFrameLevel() + 1 then mm:SetFrameLevel(area:GetFrameLevel() + 1) end
     Map.DressHybrid()
-    Map.PaintRing(Map.Turning())
+    Map.PaintRing(Map.Round(), Map.Turning())
     for _, key in ipairs({ "location", "coords", "clock", "fps" }) do
         local t = Map[key]
         if t then t:SetFrameLevel(mm:GetFrameLevel() + Map.TEXT_LIFT) end

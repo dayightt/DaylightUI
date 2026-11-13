@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Chat", "A sound for guild and officer chat, like the whisper sound: Chat page, Whispers" },
             { "Bags", "A Comprehend Scroll button in the bags, next to Disenchant: click it, then click a scroll" },
             { "Meters", "Damage and threat meters can show names in class colors while the numbers keep theirs: Name color on the Meters page" },
+            { "Minimap", "A round minimap that keeps north at the top, without turning on Rotate as you turn: Minimap shape on the Info panel page" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
