@@ -1853,7 +1853,7 @@ end)
 -- game's defaults, and nothing else is touched.
 T.test("qol: the old object glow's soft-target settings go back once, kept value or the game's default", function()
     local cvars = { SoftTargetIconGameObject = "1", SoftTargetNameplateInteract = "1", SoftTargetInteract = "3",
-        SoftTargetInteractArc = "2", showTutorials = "0" }
+        SoftTargetInteractArc = "2", SoftTargetIconInteract = "0", showTutorials = "0" }
     local defaults = { SoftTargetIconGameObject = "0", SoftTargetNameplateInteract = "0", SoftTargetInteract = "1",
         SoftTargetInteractArc = "0", showTutorials = "1" }
     local getC, setC, cc = _G.GetCVar, _G.SetCVar, _G.C_CVar
@@ -1862,7 +1862,7 @@ T.test("qol: the old object glow's soft-target settings go back once, kept value
     _G.C_CVar = setmetatable({ GetCVarDefault = function(k) return defaults[k] end }, { __index = cc })
     stub.Load({ qol = true, before = function()
         _G.DaylightUIDB = _G.DaylightUIDB or {}
-        DaylightUIDB.qolCVars = { SoftTargetNameplateInteract = "2", showTutorials = "1" }
+        DaylightUIDB.qolCVars = { SoftTargetNameplateInteract = "2", SoftTargetIconInteract = "1", showTutorials = "1" }
         DaylightUIDB.qolOwnCVars = { SoftTargetInteract = "3" }
     end })
     stub.RunTimers()
@@ -1871,6 +1871,10 @@ T.test("qol: the old object glow's soft-target settings go back once, kept value
     T.eq(cvars.SoftTargetInteract, "1")
     T.eq(cvars.SoftTargetInteractArc, "0")
     T.eq(cvars.showTutorials, "0", "another switch's setting is left alone")
+    -- The game's plates keep a copy of this one; a write from an addon stays
+    -- tainted there until /reload, so it is only forgotten.
+    T.eq(cvars.SoftTargetIconInteract, "0", "never written")
+    T.isnil(DaylightUI.DB.Root().qolCVars.SoftTargetIconInteract, "but no longer kept")
     local root = DaylightUI.DB.Root()
     T.isnil(root.qolCVars.SoftTargetNameplateInteract, "given back, not kept")
     T.isnil(root.qolOwnCVars.SoftTargetInteract)

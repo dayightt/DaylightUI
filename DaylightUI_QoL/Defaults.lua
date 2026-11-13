@@ -49,7 +49,11 @@ end
 -- before (if it was kept) or else the game's default.
 ns.GLOW_CVARS = { "SoftTargetInteract", "SoftTargetInteractArc", "SoftTargetInteractOnlyInRange",
     "SoftTargetInteractRangeIsHard", "SoftTargetIconGameObject", "SoftTargetNameplateInteract",
-    "SoftTargetIconInteract", "SoftTargetInteractRange", "nameplateGameObjectMaxDistance" }
+    "SoftTargetInteractRange", "nameplateGameObjectMaxDistance" }
+-- Only forgotten, never written: the game's nameplates keep their own copy of
+-- this one (CVarCallbackRegistry:SetCVarCachable), and a value an addon writes
+-- stays tainted in that copy until /reload, so every plate added reads it tainted.
+ns.GLOW_CVARS_FORGET = { "SoftTargetIconInteract" }
 
 local function gameDefault(name)
     local fn = (C_CVar and C_CVar.GetCVarDefault) or GetCVarDefault
@@ -72,6 +76,10 @@ function GlowGone.Enable()
             if v ~= nil and type(GetCVar) == "function" and GetCVar(name) ~= nil and tostring(GetCVar(name)) ~= v then
                 pcall(SetCVar, name, v)
             end
+        end
+        for _, name in ipairs(ns.GLOW_CVARS_FORGET) do
+            own()[name] = nil
+            ns.GiveBackCVar(name)
         end
         root.glowSettingsBack = true
     end, "qol:glowgone")
