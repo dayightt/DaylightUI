@@ -115,6 +115,7 @@ local function render()
             key = cluster.categoryId, count = collapsed and 1 or #cluster.entries,
             elementWidth = size, elementHeight = height, elementSpacing = spacing,
             lineSpacing = spacing + room, groupSpacing = s.categoryGap or 0,
+            groupLineSpacing = spacing + room, forceNewLine = s.categoryRows == true,
         }
     end
     local columns = math.max(1, math.floor(tonumber(s.columns) or 1))

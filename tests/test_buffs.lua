@@ -1229,3 +1229,44 @@ T.test("buffs: the profile in use made over again keeps its buff groups; the wea
     local b = DaylightUIBuffsWeapons.buttons[1]
     T.truthy(b and b:IsShown(), "the imbue still shows")
 end)
+
+T.test("buffs: each category on its own row starts every category on a new line", function()
+    local BL = login({ before = function()
+        stub.SetAuras("player", "HELPFUL", {
+            { name = "Power Word: Fortitude", spellId = 1243, icon = 1, expirationTime = 2000 },
+            { name = "Elixir of the Mongoose", spellId = 17538, icon = 3, expirationTime = 2200 },
+        })
+    end })
+    local layout = group("priest").layout
+    T.falsy(layout.forceNewLine, "off by default")
+    T.eq(layout.groupLineSpacing, layout.lineSpacing, "a wrapped category keeps room for its times")
+    local function rows()
+        local ys = {}
+        for _, e in ipairs(BL.Bar:CurrentFlow().elements) do ys[e.key] = e.y end
+        return ys
+    end
+    local ys = rows()
+    T.eq(ys.priest, ys.consumable, "inline: one row")
+    DaylightUI:Set("Buffs", "settings.categoryRows", true)
+    stub.RunTimers()
+    T.truthy(group("priest").layout.forceNewLine)
+    T.truthy(group("consumable").layout.forceNewLine)
+    T.falsy(DaylightUIDebuffs.__groups.debuffs.layout.forceNewLine, "the debuff bar is one group")
+    ys = rows()
+    T.truthy(ys.consumable < ys.priest, "consumables a row below the class buffs")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("buffs: with each category on its own row, imbues get the top row", function()
+    local BL = login()
+    DaylightUI:Set("Buffs", "settings.categoryRows", true)
+    stub.RunTimers()
+    stub.SetWeaponEnchants({ { slot = 0, timeLeft = 1800000, charges = 0, enchantIconID = 135, enchantType = 3 } })
+    stub.FireEvent("WEAPON_ENCHANT_CHANGED")
+    T.truthy(BL.Bar.weaponWidth > 0)
+    local _, rel, _, x, y = DaylightUIBuffs:GetPoint(1)
+    T.eq(rel, BL.Bar.holder)
+    T.eq(x, 0, "not pushed aside")
+    T.truthy(y < -BL.Bar:Height(), "a row down, past the imbues and their times")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

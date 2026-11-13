@@ -162,11 +162,23 @@ end
 -- itself: the frame a container hangs off becomes protected in combat, so the
 -- strip couldn't grow then. The container's own anchor may change in combat,
 -- and the holder only moves out of combat (unlock mode, ApplyAttach).
+-- Where the container sits past the imbue strip, in bar units: beside it, or
+-- with each category on its own row, one row below it so the imbues are a row
+-- of their own.
+function BarMixin:ContainerOffset()
+    local weapons = self.weaponWidth or 0
+    if weapons <= 0 then return 0, 0 end
+    if self:Rows() then
+        return 0, self:Height() + self:Setting("spacing") + textRoom(self:Size())
+    end
+    return weapons, 0
+end
+
 function BarMixin:PlaceContainer()
     local corner = self:Corner()
-    local offset = (self.weaponWidth or 0) * (corner == "TOPRIGHT" and -1 or 1)
+    local along, down = self:ContainerOffset()
     self.frame:ClearAllPoints()
-    self.frame:SetPoint(corner, self.holder, corner, offset, 0)
+    self.frame:SetPoint(corner, self.holder, corner, along * (corner == "TOPRIGHT" and -1 or 1), -down)
 end
 
 -- The holder doubles as the unlock handle: one row wide, one icon tall.
@@ -311,8 +323,17 @@ function BarMixin:GroupLayout(index)
         elementHeight = W.Height(size),
         elementSpacing = spacing,
         lineSpacing = spacing + textRoom(size),
+        -- The client's own default for this is 0, which would let a wrapped
+        -- category's times run into the row above.
+        groupLineSpacing = spacing + textRoom(size),
         groupSpacing = self:IsDebuff() and 0 or (self:Setting("categoryGap") or 0),
+        forceNewLine = self:Rows(),
     }
+end
+
+-- Each category on its own row (buff bar only).
+function BarMixin:Rows()
+    return not self:IsDebuff() and self:Setting("categoryRows") == true
 end
 
 local function groupState()
@@ -770,6 +791,7 @@ function BarMixin:FlowGroups(members)
             key = "enchants", count = self.enchantCount,
             elementWidth = layout.elementWidth, elementHeight = layout.elementHeight,
             elementSpacing = layout.elementSpacing, lineSpacing = layout.lineSpacing, groupSpacing = layout.groupSpacing,
+            groupLineSpacing = layout.groupLineSpacing, forceNewLine = layout.forceNewLine,
         }
     end
     for index, id in ipairs(BL.Categories.Order()) do
@@ -786,6 +808,7 @@ function BarMixin:FlowGroups(members)
                 key = id, count = count,
                 elementWidth = layout.elementWidth, elementHeight = layout.elementHeight,
                 elementSpacing = layout.elementSpacing, lineSpacing = layout.lineSpacing, groupSpacing = layout.groupSpacing,
+                groupLineSpacing = layout.groupLineSpacing, forceNewLine = layout.forceNewLine,
             }
         end
     end
@@ -805,8 +828,10 @@ function BarMixin:ElementAt(x, y)
     if not originX or not originY then return nil end
     local scale = self:Scale()
     -- The container starts after the imbue strip.
-    local offset = (self.weaponWidth or 0) * scale
+    local along, down = self:ContainerOffset()
+    local offset = along * scale
     originX = corner == "TOPRIGHT" and (originX - offset) or (originX + offset)
+    originY = originY - down * scale
     local element = Layout.HitTest(flow, corner, (x - originX) / scale, (y - originY) / scale)
     if not element then return nil end
     return element, members[element.key] or {}, originX, originY, scale
@@ -846,8 +871,9 @@ function BarMixin:CursorOver()
     if type(originX) ~= "number" or type(top) ~= "number" then return false end
     local scale = self:Scale()
     local weapons = self.weaponWidth or 0
-    local width = (weapons + (self.flowWidth or 0)) * scale
-    local height = math.max(self.flowHeight or 0, weapons > 0 and self:Height() or 0) * scale
+    local along, down = self:ContainerOffset()
+    local width = math.max(along + (self.flowWidth or 0), weapons) * scale
+    local height = math.max(down + (self.flowHeight or 0), weapons > 0 and self:Height() or 0) * scale
     if width <= 0 or height <= 0 then return false end
     local x, y = cursorUI()
     local along = corner == "TOPRIGHT" and (originX - x) or (x - originX)
