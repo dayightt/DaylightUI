@@ -176,7 +176,7 @@ local function podiumCard(row, place)
     f:SetSize(CARD_W, place == 1 and FIRST_H or CARD_H)
     f.rank = W.Font(f, W.BODY, SIZE.small, C.value, "CENTER")
     f.rank:SetPoint("TOP", f, "TOP", 0, place == 1 and -18 or -14)
-    f.name = W.Title(f, place == 1 and SIZE.title or SIZE.head, C.value, "CENTER")
+    f.name = W.Font(f, W.TITLE, place == 1 and SIZE.title or SIZE.head, C.value, "CENTER")
     f.name:SetPoint("TOP", f.rank, "BOTTOM", 0, -8)
     f.name:SetPoint("LEFT", f, "LEFT", 10, 0)
     f.name:SetPoint("RIGHT", f, "RIGHT", -10, 0)
@@ -258,7 +258,7 @@ end
 local function build(row)
     local W, C = DUI.Widgets, DUI.Widgets.COLORS
 
-    row.title = W.Title(row, HERO, C.value, "CENTER")
+    row.title = W.Font(row, W.TITLE, HERO, C.value, "CENTER")
     row.title:SetPoint("TOP", row, "TOP", 0, -TOP_TITLE)
     row.thanks = W.Font(row, W.BODY, SIZE.body, C.text, "CENTER")
     row.thanks:SetPoint("TOP", row, "TOP", 0, -TOP_THANKS)

@@ -99,7 +99,7 @@ local function sectionButton(nav, section)
     -- Sections with news (section.badge) pulse their bar and show NEW.
     if section.badge then
         b.pulse = Nav.Pulse(b, b.bar)
-        b.tag = W.Title(b, SIZE.tiny, C.text, "RIGHT")
+        b.tag = W.Font(b, W.TITLE, SIZE.tiny, C.text, "RIGHT")
         b.tag:SetPoint("TOPRIGHT", b, "TOPRIGHT", -5, -4)
         b.tag:SetText(L["NEW"])
         W.TextDaylight(b.tag)

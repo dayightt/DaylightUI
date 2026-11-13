@@ -776,8 +776,7 @@ end, L["/dui test - preview every frame with sample units (/dui test raid: with 
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
     if name == ADDON_NAME then
         DUI.DB.Init()
-        -- Before any module builds its text or frames.
-        DUI.Style.ApplyLook()
+        -- Before any module builds its text.
         DUI.Style.PickFont()
     end
 end)
@@ -793,10 +792,7 @@ end)
 
 DUI.RegisterEvent("PLAYER_LOGIN", function()
     -- The talent set is known now, so pick its profile before anything is built.
-    if DUI.DB.OnLogin() then
-        DUI.Style.ApplyLook()
-        DUI.Style.PickFont()
-    end
+    if DUI.DB.OnLogin() then DUI.Style.PickFont() end
     -- Migrate old fade settings before any module merges its defaults.
     if DUI.FadeUpgrade then DUI.SafeCall(DUI.FadeUpgrade.Run, DUI.DB.Active()) end
     local missing = DUI.MissingParts(DUI, DUI.CORE_PARTS)

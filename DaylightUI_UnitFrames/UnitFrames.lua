@@ -454,8 +454,6 @@ end
 function UF.ClassIcon(token, style, picks)
     local pick = type(picks) == "table" and picks[token]
     if type(pick) == "string" and pick ~= "" then style = pick end
-    -- Daylight UI's own icons mean the look's own: the game's under Classic.
-    if (style == "daylight" or style == nil) and DUI.Style.Look() == "classic" then style = "game" end
     if style == "game" then
         local file, l, r, t, b = UF.GameClassIcon(token)
         if file then return file, l, r, t, b end
@@ -1187,8 +1185,6 @@ function UF.Layout(f, cfg, text, keepSize)
     if f.power then f.power:SetReverseFill(f.growLeft) end
     if f.altMana then f.altMana:SetReverseFill(f.growLeft) end
     if f.spec.slant then
-        -- The Classic look's gold rivets go on the bigger frames, not raid tiles.
-        Style.Rivets(f, not f.spec.compact and f.spec.group ~= "raid")
         Style.Slant(f, side, cut)
         -- Each fill's moving edge follows the frame's angle (straight when
         -- reversed, since the angle belongs to the other end).

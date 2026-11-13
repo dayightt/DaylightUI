@@ -45,41 +45,6 @@ function Win.Lines(f, height)
     f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -height)
     f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Win.EDGE, -height)
     f.rule:SetVertexColor(1, 1, 1, 0.06)
-    Win.PaintRule(f)
-end
-
--- Under the Classic look the rule under the header is gold, brightest in the
--- middle where a small diamond sits, fading out toward both edges.
-function Win.PaintRule(f)
-    if not f.rule then return end
-    local classic = Style.Look() == "classic"
-    f.rule:SetShown(not classic)
-    if not classic then
-        if f.ruleGem then f.ruleLeft:Hide(); f.ruleRight:Hide(); f.ruleGem:Hide() end
-        return
-    end
-    if not f.ruleGem then
-        local function half(from, to)
-            local t = f:CreateTexture(nil, "ARTWORK")
-            t:SetTexture("Interface\\Buttons\\WHITE8X8")
-            t:SetHeight(1)
-            t:SetPoint(from, f.rule, from, 0, 0)
-            t:SetPoint(to, f.rule, "CENTER", 0, 0)
-            return t
-        end
-        f.ruleLeft, f.ruleRight = half("LEFT", "RIGHT"), half("RIGHT", "LEFT")
-        f.ruleGem = f:CreateTexture(nil, "OVERLAY")
-        f.ruleGem:SetTexture(Style.RIVET_FILE)
-        f.ruleGem:SetSize(9, 9)
-        f.ruleGem:SetPoint("CENTER", f.rule, "CENTER", 0, 0)
-    end
-    local hi = Style.LOOKS.classic.GOLD[2]
-    if CreateColor then
-        f.ruleLeft:SetGradient("HORIZONTAL", CreateColor(hi[1], hi[2], hi[3], 0), CreateColor(hi[1], hi[2], hi[3], 0.7))
-        f.ruleRight:SetGradient("HORIZONTAL", CreateColor(hi[1], hi[2], hi[3], 0.7), CreateColor(hi[1], hi[2], hi[3], 0))
-    end
-    f.ruleGem:SetVertexColor(hi[1], hi[2], hi[3], 1)
-    f.ruleLeft:Show(); f.ruleRight:Show(); f.ruleGem:Show()
 end
 
 -- A one-shot flare around the portrait as a window opens. Uses the game's
@@ -173,22 +138,7 @@ end
 -- (Win.COMPACT tall, no sub line or rule). spec.onClose falls back to
 -- f.onClose, then Win.Close.
 -- Sets f.title, f.sub (not compact), f.close, f.portrait, f.topLine, f.rule.
--- Every header made, so a look change can repaint the colors it set once.
-local headers = setmetatable({}, { __mode = "k" })
-
-local function paintHeader(f)
-    Win.PaintRule(f)
-    Style.InkText(f.title, "TITLE")
-    if f.sub then f.sub:SetTextColor(Win.DIM[1], Win.DIM[2], Win.DIM[3]) end
-    if f.portraitRim then f.portraitRim:SetVertexColor(Style.BAND[1], Style.BAND[2], Style.BAND[3], 1) end
-end
-
-DUI.On("RepaintCore", function()
-    for f in pairs(headers) do paintHeader(f) end
-end)
-
 function Win.Header(f, spec)
-    headers[f] = true
     spec = spec or {}
     local E = Win.EDGE
     local left = E
@@ -215,8 +165,7 @@ function Win.Header(f, spec)
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", left, Win.TITLE_Y)
     f.title:SetPoint("RIGHT", f, "RIGHT", -40, 0)
     f.title:SetWordWrap(false)
-    Style.MarkTitle(f.title)
-    Style.InkText(f.title, "TITLE")
+    Style.InkText(f.title, "VALUE")
     if not spec.compact then
         f.sub = Style.Text(f, Win.SUB_SIZE, "LEFT")
         f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
