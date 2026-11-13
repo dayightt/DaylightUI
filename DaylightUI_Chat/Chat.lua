@@ -1280,6 +1280,18 @@ function Chat.ApplySettings()
     setCVar("whisperMode", (cfg.whisperTabs == false or ns.Box.On()) and "inline" or "popout_and_inline")
 end
 
+-- A message's time in the chat's own timestamp format (12 or 24 hours, seconds),
+-- so whispers read the same as the chat lines. With timestamps off it's hours
+-- and minutes.
+function Chat.Clock(t)
+    local fmt
+    if type(GetCVar) == "function" then
+        local ok, v = pcall(GetCVar, "showTimestamps")
+        if ok and type(v) == "string" and v:find("%", 1, true) then fmt = v:gsub("%s+$", "") end
+    end
+    return date(fmt or "%H:%M", t or time())
+end
+
 -- A message kind's color (the Message colors card): the game's own, read from
 -- ChatTypeInfo and changed with ChangeChatColor like its chat settings. The game
 -- saves it.

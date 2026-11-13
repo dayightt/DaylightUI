@@ -26,7 +26,7 @@ History.DIVIDER_COLORS = { c2b59e = true, ["808080"] = true }
 -- Divider after a logout: the save time, with the day if it wasn't today.
 function History.SessionDivider(savedAt)
     local sameDay = date("%Y%m%d", savedAt) == date("%Y%m%d")
-    local when = sameDay and date("%H:%M", savedAt) or date("%d %b %H:%M", savedAt)
+    local when = sameDay and ns.Chat.Clock(savedAt) or (date("%d %b ", savedAt) .. ns.Chat.Clock(savedAt))
     return History.LABEL .. "-- " .. string.format(L["last session, %s"], when) .. " --|r"
 end
 

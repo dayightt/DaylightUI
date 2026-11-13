@@ -222,6 +222,18 @@ T.test("chat: class colors and timestamps are the game's own settings", function
     T.eq(stub.cvars.showTimestamps, "%I:%M %p ", "a 12-hour clock with AM/PM")
 end)
 
+T.test("chat: whispers show their time in the Timestamps format", function()
+    login()
+    local Chat = stub.chatModule.Chat
+    local at = os.time({ year = 2026, month = 10, day = 5, hour = 21, min = 19 })
+    DaylightUI:Set("Chat", "timestamps", "%I:%M %p ")
+    stub.RunTimers()
+    T.eq(Chat.Clock(at), "09:19 PM", "a 12-hour clock, no trailing space")
+    DaylightUI:Set("Chat", "timestamps", "none")
+    stub.RunTimers()
+    T.eq(Chat.Clock(at), "21:19", "timestamps off: hours and minutes")
+end)
+
 T.test("chat: the Timestamps list has the game's six formats, 12-hour ones too", function()
     local DUI = login()
     local page = DUI.Options.GetPage("Chat.chat")

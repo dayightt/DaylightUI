@@ -167,7 +167,7 @@ function Thread.Fill(t, slide)
             r.label:SetPoint("TOP" .. (m.me and "RIGHT" or "LEFT"), r, "TOP" .. (m.me and "RIGHT" or "LEFT"), 0, 0)
             r.label:SetJustifyH(m.me and "RIGHT" or "LEFT")
             local who = m.me and L["You"] or Thread.Name(c)
-            r.label:SetText(string.format("%s · %s", who, date("%H:%M", m.t or time())))
+            r.label:SetText(string.format("%s · %s", who, ns.Chat.Clock(m.t)))
             h = Style.SIZE.small + 4
         else
             r.label:Hide()

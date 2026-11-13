@@ -61,7 +61,7 @@ function Hub.Render()
         local b = s:Line({ text = ns.Thread.Name(c), color = { Style.ClassTextColor(c.class) },
             icon = file or (DUI.MEDIA .. "ui-chat.png"),
             sub = last and last.text or "",
-            value = unread > 0 and tostring(unread) or (last and date("%H:%M", last.t or time()) or ""),
+            value = unread > 0 and tostring(unread) or (last and ns.Chat.Clock(last.t) or ""),
             valueColor = unread > 0 and { Style.Accent() } or Style.INK.LABEL,
             onClick = function() pick(c.key) end,
             onRightClick = function(row) Hub.RowMenu(c.key, row) end })
