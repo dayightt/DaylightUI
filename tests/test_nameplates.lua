@@ -3665,6 +3665,45 @@ T.test("nameplates: a lootable corpse shows no plate of ours, only the game's lo
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game also gives a plate to the unit you face (the soft interact or soft
+-- friend target: the interact key, a controller, the object glow), even with
+-- that kind of plate switched off in its options (Blizzard_NamePlates only reads
+-- the show switches through the engine). Players with friendly plates off saw
+-- vendors and unflagged players of the other faction blink up as friendly
+-- Daylight UI plates while turning the camera.
+T.test("nameplates: a friendly unit you only face gets no plate while friendly plates are off", function()
+    local cvars = { nameplateShowFriendlyPlayers = "0", nameplateShowFriendlyNpcs = "0" }
+    local NP = login(function()
+        _G.SetCVar = function(k, v) cvars[k] = v end
+        _G.GetCVar = function(k) return cvars[k] end
+    end)
+    local vendor = { name = "Felicia Doa", reaction = 5, health = 100, maxHealth = 100 }
+    stub.units.nameplate3 = vendor
+    stub.units.softinteract = vendor
+    local p = added("nameplate3")
+    T.truthy(p == nil or not p:IsShown(), "the interact target with friendly NPC plates off: nothing of ours")
+    -- an unflagged player of the other faction, picked as the soft friend
+    local other = { name = "Mknor Naw", isPlayer = true, class = "SHAMAN", reaction = 4, health = 100, maxHealth = 100 }
+    stub.units.nameplate4 = other
+    stub.units.softinteract, stub.units.softfriend = nil, other
+    stub.FireEvent("PLAYER_SOFT_INTERACT_CHANGED")
+    local o = added("nameplate4")
+    T.truthy(o == nil or not o:IsShown(), "a soft friend with friendly player plates off: nothing of ours")
+    T.falsy(p:IsShown(), "turned away before the game takes the plate back: no blink")
+    -- friendly NPC plates switched on: the vendor's plate is a real one now
+    cvars.nameplateShowFriendlyNpcs = "1"
+    stub.units.softinteract = vendor
+    stub.FireEvent("CVAR_UPDATE", "nameplateShowFriendlyNpcs", "1")
+    stub.RunTimers()
+    T.truthy(p:IsShown(), "friendly NPC plates on: shown")
+    -- an enemy you face keeps its plate (the enemy switch is the player's own)
+    stub.units.nameplate5 = { name = "Boar", reaction = 2, hostile = true, health = 100, maxHealth = 100 }
+    stub.units.softinteract = stub.units.nameplate5
+    T.truthy(added("nameplate5"):IsShown(), "an enemy: shown")
+    stub.units.softinteract, stub.units.softfriend = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: coming back to life re-asks every plate, also a moment later", function()
     login()
     stub.units.nameplate3 = { name = "Turned Guard", reaction = 4, health = 50, maxHealth = 100 }

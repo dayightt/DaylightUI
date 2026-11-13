@@ -20,6 +20,9 @@ DUI.PatchNotes = {
             { "Tooltip", "Buffs on a friendly player's tooltip now start off; turn them back on with Their buffs on the Tooltip page" },
             { "Info panel", "Turning off the experience bar no longer brings back the game's own; switch that back on under it if you want it" },
         },
+        fixed = {
+            { "Nameplates", "With friendly nameplates off, NPCs and players you can't attack no longer flash up nameplates as you turn the camera" },
+        },
     },
     { version = "1.7.2", date = "2026-11-13", summary = "Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.",
         new = {

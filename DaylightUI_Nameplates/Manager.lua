@@ -811,6 +811,19 @@ function Manager.Start()
             C_Timer.After(Manager.RECHECK_LATE, Manager.Recheck)
         end)
     end
+    -- A friendly plate that's only there as your soft target hides and shows with
+    -- it and with the game's friendly plate switches.
+    local function softAll() Manager.Each(ns.Plate.UpdateSoftOnly) end
+    local function softRecheck() Manager.Each(function(p) ns.Plate.UpdateSoftOnly(p, true) end) end
+    pcall(DUI.RegisterEvent, "PLAYER_SOFT_INTERACT_CHANGED", softAll)
+    pcall(DUI.RegisterEvent, "PLAYER_SOFT_FRIEND_CHANGED", softAll)
+    DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
+        if type(name) ~= "string" then return end
+        name = name:lower()
+        for _, cv in pairs(ns.Plate.FRIENDLY_SHOW) do
+            if cv:lower() == name then return softRecheck() end
+        end
+    end)
     DUI.RegisterEvent("RAID_TARGET_UPDATE", function()
         Manager.Each(function(p) ns.Plate.UpdateMarker(p, true) end)
     end)

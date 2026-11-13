@@ -138,9 +138,46 @@ function Plate.IsCorpse(unit)
     return plain(UnitIsDead, unit) == true and plain(UnitIsPlayer, unit) ~= true
 end
 
--- Our plate is shown unless it's on a corpse (or hidden for a test).
+-- The game also gives a plate to the unit you're facing (the soft interact or
+-- soft friend target, used by the interact key, a controller and the object glow),
+-- even when that kind of plate is switched off in its options. A friendly unit
+-- whose plates the player turned off then shows no Daylight UI plate, as if it had
+-- none. Objects still get one, since this is the only way they ever get a plate.
+Plate.SOFT_UNITS = { "softinteract", "softfriend" }
+Plate.FRIENDLY_SHOW = { player = "nameplateShowFriendlyPlayers", npc = "nameplateShowFriendlyNpcs" }
+
+local function cvarOff(name)
+    if type(GetCVar) ~= "function" then return false end
+    local ok, v = pcall(GetCVar, name)
+    return ok and v == "0"
+end
+
+function Plate.SoftOnly(p)
+    local unit = p.unit
+    if not unit or not p.friendly or p.object then return false end
+    local kind = plain(UnitIsPlayer, unit) == true and "player" or "npc"
+    if not cvarOff(Plate.FRIENDLY_SHOW[kind]) then return false end
+    for _, soft in ipairs(Plate.SOFT_UNITS) do
+        if plain(UnitIsUnit, unit, soft) == true then return true end
+    end
+    return false
+end
+
+-- The plate is shown unless it's on a corpse, only there as your soft target,
+-- or hidden for a test.
 function Plate.ShowNow(p)
-    p:SetShown(not p.corpse and not (ns.Manager and ns.Manager.testHidden))
+    p:SetShown(not p.corpse and not p.softOnly and not (ns.Manager and ns.Manager.testHidden))
+end
+
+-- Once hidden it stays hidden until the plate goes, unless recheck is set (a show
+-- switch or friendliness changed). When you turn away, the soft target can change
+-- a moment before the game takes the plate back, and it would blink up meanwhile.
+function Plate.UpdateSoftOnly(p, recheck)
+    if p.softOnly and not recheck then return end
+    local now = Plate.SoftOnly(p)
+    if now == p.softOnly then return end
+    p.softOnly = now
+    Plate.ShowNow(p)
 end
 
 -- Died (or resurrected) under the plate: hide at once, as if leaving view.
@@ -2904,6 +2941,7 @@ function Plate.UpdateFriendly(p)
     local now = Plate.IsFriendly(unit)
     if now == p.friendly then return false end
     p.friendly = now
+    Plate.UpdateSoftOnly(p, true)
     listen(p, unit)
     if now then ns.Cast.Stop(p, true) end
     Plate.Layout(p)
@@ -2925,6 +2963,7 @@ function Plate.Install(p, unit)
     Plate.PlaceStack(p)
     if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, p.stack) end
     p.corpse = Plate.IsCorpse(unit)
+    p.softOnly = Plate.SoftOnly(p)
     Plate.ShowNow(p)
 end
 
@@ -2933,7 +2972,7 @@ function Plate.Uninstall(p)
     -- The next unit starts clean: no size group, no known color or mark, nothing of
     -- this unit left showing. Its level, guild or title line, quest mark and raid
     -- marker arrive the frame after it's shown (Plate.UpdateFirst).
-    p.sizeGroup, p.colored, p.corpse, p.threatSize = nil, nil, nil, nil
+    p.sizeGroup, p.colored, p.corpse, p.softOnly, p.threatSize = nil, nil, nil, nil, nil
     p.guild, p.questShownNow, p.questTextNow, p.questUnit = nil, nil, nil, nil
     p.questKindNow, p.questRNow = nil, nil
     p.level:SetText("")
