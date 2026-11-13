@@ -154,7 +154,7 @@ ns.DEFAULTS = {
     partyText = { name = 11, percent = 10, big = 17, power = 0 },
     -- Party pets (PartyPets.lua): a small bar beside each member's frame while
     -- their pet is out, in the owner's class colors (color = owner|own).
-    partyPet = { enabled = false, spot = "right", x = 0, y = 0, width = 80, height = 18, showPower = true, powerHeight = 3,
+    partyPet = { enabled = false, spot = "right", x = 0, y = 0, width = 80, height = 18, fillVertical = false, showPower = true, powerHeight = 3,
                  slant = true, reverseFill = false, color = "owner", showName = true, nameColor = "global", nameCustom = { 1, 1, 1 },
                  nameLimitLen = 0, showPercent = false, healthText = "percent", percentSign = false, hideFullHealth = false,
                  percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value",

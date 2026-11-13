@@ -155,3 +155,22 @@ T.test("a new member on the owner's same unit word: the pet redraws with the new
     T.eq(p.ownerClass, "WARLOCK", "the new owner's class")
     T.eq(p.nameText.__text, "Grik", "the new owner's pet")
 end)
+
+T.test("a pet bar can stand as tall as its owner, narrow and filling upward", function()
+    local DUI, ns = login()
+    local b = button(ns, 1, "party1", HUNTER)
+    stub.units.partypet1 = WOLF
+    petsOn(DUI)
+    local tall = DUI:Get("UnitFrames", "party.height")
+    DUI:Set("UnitFrames", "partyPet.width", 20)
+    DUI:Set("UnitFrames", "partyPet.height", tall)
+    DUI:Set("UnitFrames", "partyPet.fillVertical", true)
+    stub.RunTimers()
+    local p = b.pet
+    T.near(p:GetHeight(), tall, 1, "as tall as the party frame")
+    T.near(p:GetWidth(), 20, 1, "as narrow as the slider goes")
+    T.eq(p.health:GetOrientation(), "VERTICAL", "its health fills bottom to top")
+    T.eq(p.heals:GetOrientation(), "VERTICAL", "and its heals stack upward with it")
+    local _, _, _, x = p.health:GetPoint(1)
+    T.truthy(p:GetWidth() - 2 * x > 0, "room for the bar inside the border")
+end)
