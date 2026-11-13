@@ -178,7 +178,8 @@ local headers = setmetatable({}, { __mode = "k" })
 
 local function paintHeader(f)
     Win.PaintRule(f)
-    Style.InkText(f.title, "TITLE")
+    local c = f.titleColor
+    if c then f.title:SetTextColor(c[1], c[2], c[3]) else Style.InkText(f.title, "TITLE") end
     if f.sub then f.sub:SetTextColor(Win.DIM[1], Win.DIM[2], Win.DIM[3]) end
     if f.portraitRim then f.portraitRim:SetVertexColor(Style.BAND[1], Style.BAND[2], Style.BAND[3], 1) end
 end
@@ -610,6 +611,8 @@ function Win.SetTitle(f, title, color, sub)
     -- A player's name can be secret in combat, so no truth test here.
     if type(title) == "nil" then title = "" end
     f.title:SetText(title)
+    -- A title with its own color (a class color) keeps it through repaints.
+    f.titleColor = color
     if color then f.title:SetTextColor(color[1], color[2], color[3]) else Style.InkText(f.title, "TITLE") end
     if f.sub then f.sub:SetText(sub or "") end
 end
