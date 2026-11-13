@@ -4296,7 +4296,7 @@ L["Your frames per second beside the clock. Hover it for latency, addon CPU and 
 L["Your friends, recent allies, friend requests and the raid, in one window, in DaylightUI style."] = "Ваши друзья, недавние союзники, запросы дружбы и рейд — в одном окне, в стиле DaylightUI."
 L["Your group is too big for a %d-player activity."] = "Ваша группа слишком велика для занятия на %d игроков."
 L["Your guild's officer chat."] = "Чат офицеров вашей гильдии."
-L["Your heals over time and shields, everything you cast, or all of them. A class without heals sees everything it casts."] = "Ваши периодические исцеления и щиты, все, что вы применяете, или все сразу. Класс без исцелений видит все, что применяет."
+L["Your heals over time and shields, everything you cast, or all of them. A class without heals or shields shows none."] = "Ваши периодические исцеления и щиты, все, что вы применяете, или все сразу. Класс без исцелений и щитов ничего не показывает."
 L["Your health and mana come back faster while you're not fighting or casting."] = "Здоровье и мана восполняются быстрее, пока вы не сражаетесь и не применяете заклинания."
 L["Your health and power just under your character, the way Legion's personal display sat at your feet."] = "Ваши здоровье и ресурс прямо под персонажем, как личный индикатор из Legion у ваших ног."
 L["Your health bar, your power under it and, for rogues and druids, your combo points, just under your character. It follows the camera as you zoom."] = "Ваша полоса здоровья, ресурс под ней и, для разбойников и друидов, приемы серии прямо под персонажем. Следует за камерой при приближении."

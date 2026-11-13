@@ -138,7 +138,7 @@ T.test("group buffs: Mark of the Wild from any druid, every rank and Gift of the
     T.truthy(listed, "in the spell menu")
 end)
 
-T.test("a mage: Arcane Intellect to pick, but no heals, so the buff row falls back to Only mine", function()
+T.test("a mage: Arcane Intellect to pick, but no heals, so the buff row's Heals and shields shows none", function()
     local ns = setup("MAGE")
     T.isnil(ns.HealSpells.Ids())
     T.falsy(ns.HealSpells.Has())

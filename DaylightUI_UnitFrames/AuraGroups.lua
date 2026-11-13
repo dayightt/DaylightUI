@@ -18,7 +18,7 @@ AuraGroups.DEFS = {
     { key = "cc", label = "Crowd control", kind = "gcc", choices = { "cc" },
       desc = "Stuns, fears, roots and the like: one big icon in the middle by default." },
     { key = "buffs", label = "Buffs", kind = "tilebuff", choices = { "heals", "mine", "all" },
-      desc = "Your heals over time and shields, everything you cast, or all of them. A class without heals sees everything it casts." },
+      desc = "Your heals over time and shields, everything you cast, or all of them. A class without heals or shields shows none." },
 }
 AuraGroups.BY_KEY = {}
 for _, def in ipairs(AuraGroups.DEFS) do AuraGroups.BY_KEY[def.key] = def end
@@ -77,8 +77,7 @@ function AuraGroups.Refused(def, choice)
 end
 
 -- Whether the choice can show here: not rejected, and not a spell list your
--- class lacks. "Heals and shields" on a warrior shows "Only mine" instead.
--- The options still list it so one profile works for every character.
+-- class lacks. The options still list it so one profile works for every character.
 local function usable(def, choice)
     if AuraGroups.Refused(def, choice) then return false end
     local g = groupOf(def, choice)
@@ -86,8 +85,22 @@ local function usable(def, choice)
 end
 AuraGroups.Usable = usable
 
+-- The choice to show when the picked one can't. Only a filter the client
+-- refused falls back to another choice. "Heals and shields" on a class with no
+-- heals or shields shows nothing: falling back to "Only mine" filled the row
+-- with tracking and long buffs. A preview (sample) still shows the picked
+-- choice, so the row can be seen and placed, like the heal indicators.
+local function fallback(def, which, preview)
+    if which and not AuraGroups.Refused(def, which) then return preview and which or nil end
+    for _, c in ipairs(def.choices) do
+        if usable(def, c) then return c end
+    end
+    return nil
+end
+
 -- The group (container group key) that shows for def, or nil when off.
-function AuraGroups.ActiveKey(def, all)
+-- preview: for a stand-in set (options preview, test mode).
+function AuraGroups.ActiveKey(def, all, preview)
     local g = type(all) == "table" and all[def.key] or nil
     if type(g) ~= "table" or g.show ~= true then return nil end
     local which = g.which
@@ -99,10 +112,7 @@ function AuraGroups.ActiveKey(def, all)
         end
     end
     if which and usable(def, which) then return which end
-    for _, c in ipairs(def.choices) do
-        if usable(def, c) then return c end
-    end
-    return nil
+    return fallback(def, which, preview)
 end
 
 -- One container per group on frame, for unit (group buttons point theirs at
@@ -146,16 +156,11 @@ end
 -- off or switched to the other kind just gets counts of 0.
 
 -- The group def and filter a slot's settings g show, or nil when off.
-function AuraGroups.ExtraActive(g)
+function AuraGroups.ExtraActive(g, preview)
     if type(g) ~= "table" or g.show ~= true then return nil end
     local def = AuraGroups.BY_KEY[g.what == "buffs" and "buffs" or "debuffs"]
     local which = def.key == "buffs" and g.buffWhich or g.debuffWhich
-    if which == nil or not usable(def, which) then
-        which = nil
-        for _, c in ipairs(def.choices) do
-            if usable(def, c) then which = c; break end
-        end
-    end
+    if which == nil or not usable(def, which) then which = fallback(def, which, preview) end
     if not which then return nil end
     return def, which
 end
@@ -324,12 +329,12 @@ function AuraGroups.Place(set, frame, all, box)
         local c = set[def.key]
         if c then
             local g = type(all) == "table" and type(all[def.key]) == "table" and all[def.key] or {}
-            placeOne(c, def, g, AuraGroups.ActiveKey(def, all), frame, box)
+            placeOne(c, def, g, AuraGroups.ActiveKey(def, all, set.plain), frame, box)
         end
     end
     for _, key in ipairs(ns.AURA_SLOTS) do
         local g = type(all) == "table" and type(all[key]) == "table" and all[key] or nil
-        local active, which = AuraGroups.ExtraActive(g)
+        local active, which = AuraGroups.ExtraActive(g, set.plain)
         if active then extraContainer(set, frame, key, active) end
         local slot = set.extra and set.extra[key]
         for _, def in ipairs(AuraGroups.DEFS) do

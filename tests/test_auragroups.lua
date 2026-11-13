@@ -52,7 +52,7 @@ T.test("only the chosen group counts; debuffs skip crowd control while that grou
     T.eq(set.buffs.__groups.all.max, 4); T.isnil(set.buffs.__groups.mine)
 end)
 
-T.test("heals and shields: your class's heals by spell id, every rank; a class without any shows only mine", function()
+T.test("heals and shields: your class's heals by spell id, every rank; a class without any shows none", function()
     local ns, tile, set = setup()
     stub.units.player = { class = "PRIEST" }
     ns.AuraGroups.Place(set, tile, cfg({ buffs = { show = true, which = "heals" } }), BOX)
@@ -76,7 +76,44 @@ T.test("heals and shields: your class's heals by spell id, every rank; a class w
     T.falsy(ns2.AuraGroups.Usable(ns2.AuraGroups.BY_KEY.buffs, "heals"))
     ns2.AuraGroups.Place(set2, tile2, cfg({ buffs = { show = true, which = "heals" } }), BOX)
     T.isnil(set2.buffs.__groups.heals)
-    T.eq(set2.buffs.__groups.mine.max, 4, "a warrior gets only mine")
+    T.isnil(set2.buffs.__groups.mine, "never everything a warrior casts (tracking, long buffs)")
+    T.isnil(ns2.AuraGroups.ActiveKey(ns2.AuraGroups.BY_KEY.buffs, cfg({ buffs = { show = true, which = "heals" } })))
+    ns2.AuraGroups.Place(set2, tile2, cfg({ buffs = { show = true, which = "mine" } }), BOX)
+    T.eq(set2.buffs.__groups.mine.max, 4, "Only mine still works when picked")
+    T.eq(ns2.AuraGroups.ActiveKey(ns2.AuraGroups.BY_KEY.buffs, cfg({ buffs = { show = true, which = "heals" } }), true),
+         "heals", "a preview still shows the row, so it can be seen and placed")
+end)
+
+-- What the client would show in the buff row, by the game's rule (tests/aura_rules.lua).
+local shows = require("aura_rules")
+local MEMBER = { canAssist = true, groupMember = true }
+local function shown(c, aura)
+    for key, g in pairs(c.__groups) do
+        if (g.max or 0) > 0 and shows(g, MEMBER, aura) then return key end
+    end
+end
+
+T.test("heals and shields never shows tracking or long buffs, whatever the class (a player's report)", function()
+    local TRACK = { spellId = 2580, mine = true, duration = 0 }       -- Find Minerals
+    local LONG = { spellId = 6673, mine = true, duration = 120 }      -- a shout or blessing of yours
+    local RENEW = { spellId = 139, mine = true, duration = 15 }
+    for _, class in ipairs({ "PRIEST", "DRUID", "PALADIN", "SHAMAN", "MAGE", "WARRIOR", "ROGUE", "HUNTER", "WARLOCK" }) do
+        local ns, tile, set = setup()
+        stub.units.player = { class = class }
+        ns.AuraGroups.Place(set, tile, cfg({ buffs = { show = true, which = "heals" } }), BOX)
+        T.isnil(shown(set.buffs, TRACK), class .. ": no tracking")
+        T.isnil(shown(set.buffs, LONG), class .. ": no long buffs")
+        local x1 = cfg({ buffs = { show = false } })
+        x1.x1 = { show = true, what = "buffs", buffWhich = "heals", spot = "top", grow = "right", size = 14, max = 4,
+                  rows = 1, spacing = 2, x = 0, y = 0 }
+        ns.AuraGroups.Place(set, tile, x1, BOX)
+        local extra = set.extra and set.extra.x1 and set.extra.x1.buffs
+        T.isnil(extra and shown(extra, TRACK), class .. ": an added buff group, no tracking either")
+    end
+    local ns, tile, set = setup()
+    stub.units.player = { class = "PRIEST" }
+    ns.AuraGroups.Place(set, tile, cfg({ buffs = { show = true, which = "heals" } }), BOX)
+    T.eq(shown(set.buffs, RENEW), "heals", "a priest's Renew still shows")
 end)
 
 T.test("each group is placed by its spot, grows its way, at its own size", function()

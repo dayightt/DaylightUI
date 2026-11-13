@@ -4296,7 +4296,7 @@ L["Your frames per second beside the clock. Hover it for latency, addon CPU and 
 L["Your friends, recent allies, friend requests and the raid, in one window, in DaylightUI style."] = "친구, 최근 동료, 친구 요청, 공격대를 한 창에서 DaylightUI 스타일로."
 L["Your group is too big for a %d-player activity."] = "%d인 활동에는 파티 인원이 너무 많습니다."
 L["Your guild's officer chat."] = "길드 관리자 대화."
-L["Your heals over time and shields, everything you cast, or all of them. A class without heals sees everything it casts."] = "내 지속 치유와 보호막, 내가 시전한 모든 것, 또는 전부. 치유가 없는 직업은 시전한 모든 것을 봅니다."
+L["Your heals over time and shields, everything you cast, or all of them. A class without heals or shields shows none."] = "내 지속 치유와 보호막, 내가 시전한 모든 것, 또는 전부. 치유나 보호막이 없는 직업은 아무것도 표시하지 않습니다."
 L["Your health and mana come back faster while you're not fighting or casting."] = "전투나 시전을 하지 않는 동안 생명력과 마나가 더 빨리 회복됩니다."
 L["Your health and power just under your character, the way Legion's personal display sat at your feet."] = "군단의 개인 자원 표시처럼 캐릭터 발밑에 생명력과 자원을."
 L["Your health bar, your power under it and, for rogues and druids, your combo points, just under your character. It follows the camera as you zoom."] = "생명력 막대, 그 아래 자원, 도적과 드루이드는 연계 점수까지 캐릭터 바로 아래에. 카메라를 확대하거나 축소해도 따라갑니다."

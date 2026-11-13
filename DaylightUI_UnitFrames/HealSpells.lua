@@ -96,7 +96,7 @@ local function classToken()
 end
 
 -- { [spellID] = true } for every rank of every spell of your class, or nil
--- when your class has none. The filter then falls back to "Only mine".
+-- when your class has none. "Heals and shields" then shows nothing.
 function HealSpells.Ids()
     local list = HealSpells.CLASSES[classToken() or ""]
     if not list then return nil end

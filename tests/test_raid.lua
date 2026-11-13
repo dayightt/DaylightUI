@@ -331,8 +331,9 @@ T.test("with Clique loaded, the raid header hands each new button to Clique's he
     T.truthy(init:find('SetAttribute("clickcast_button", self)', 1, true), "the button is passed to Clique before it registers")
 end)
 
-T.test("raid tiles carry buffs when asked (only mine by default)", function()
+T.test("raid tiles carry buffs when asked (only mine when picked)", function()
     local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.auras.buffs.which", "mine")
     local b = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton3", ns.Raid.header)
     b:SetAttribute("unit", "raid3")
     stub.units.raid3 = { name = "Lirin", isPlayer = true, class = "PRIEST", health = 10, maxHealth = 10 }

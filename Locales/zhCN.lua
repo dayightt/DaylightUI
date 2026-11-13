@@ -4296,7 +4296,7 @@ L["Your frames per second beside the clock. Hover it for latency, addon CPU and 
 L["Your friends, recent allies, friend requests and the raid, in one window, in DaylightUI style."] = "你的好友、近期往来、好友请求和团队，全部在一个DaylightUI风格的窗口中。"
 L["Your group is too big for a %d-player activity."] = "你的队伍人数对于%d人活动来说太多了。"
 L["Your guild's officer chat."] = "你公会的官员聊天。"
-L["Your heals over time and shields, everything you cast, or all of them. A class without heals sees everything it casts."] = "你的持续治疗和护盾、你施放的所有效果，或全部。没有治疗能力的职业会看到它施放的所有效果。"
+L["Your heals over time and shields, everything you cast, or all of them. A class without heals or shields shows none."] = "你的持续治疗和护盾、你施放的所有效果，或全部。没有治疗或护盾的职业不显示任何效果。"
 L["Your health and mana come back faster while you're not fighting or casting."] = "不在战斗或施法时，你的生命值和法力值恢复得更快。"
 L["Your health and power just under your character, the way Legion's personal display sat at your feet."] = "你的生命值和能量就在你角色下方，就像军团再临的个人资源显示在你脚下一样。"
 L["Your health bar, your power under it and, for rogues and druids, your combo points, just under your character. It follows the camera as you zoom."] = "你的生命条、其下方的能量，以及盗贼和德鲁伊的连击点数，就在你角色下方。镜头缩放时随之移动。"

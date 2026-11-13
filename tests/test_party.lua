@@ -2,6 +2,15 @@ local stub = require("stub")
 
 local function login(before) return stub.Load({ module = true, before = before }) end
 
+-- Logged in with "Only mine" picked for the party and the raid: a class with no
+-- heals of its own shows nothing under the default "Heals and shields".
+local function loginMine()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "party.auras.buffs.which", "mine")
+    DUI:Set("UnitFrames", "raid.auras.buffs.which", "mine")
+    return DUI, ns
+end
+
 -- A party button as the header would make it, on unit.
 local function button(ns, i, unit, data)
     local h = ns.Party.header
@@ -132,14 +141,14 @@ end)
 local LIFT = { name = "Lift", isPlayer = true, class = "PRIEST", health = 5, maxHealth = 10 }
 
 T.test("each party button gets the aura groups on its unit: debuffs under it from its right end, your buffs from its left", function()
-    local DUI, ns = login()
+    local DUI, ns = loginMine()
     local b = button(ns, 2, "party2", LIFT)
     local set = b.auraSet
     T.truthy(set)
     T.isnil(b.debuffRow); T.isnil(b.buffRow); T.isnil(b.buffs, "the old rows are gone")
     T.eq(set.debuffs.__unit, "party2"); T.eq(set.buffs.__unit, "party2")
     T.eq(set.debuffs.__groups.all.max, 4)
-    T.eq(set.buffs.__groups.mine.max, 4, "only mine by default")
+    T.eq(set.buffs.__groups.mine.max, 4, "only mine when picked")
     T.isnil(set.cc.__groups.cc, "crowd control off: party frames keep their look")
     local p, rel, rp = set.debuffs:GetPoint(1)
     T.eq(p, "TOPRIGHT"); T.eq(rel, b); T.eq(rp, "BOTTOMRIGHT")
@@ -196,7 +205,7 @@ T.test("party auras: rows share the count, spacing sets the gap, the nudge moves
 end)
 
 T.test("only mine: off on someone too far to see (the game can't tell whose buffs those are)", function()
-    local DUI, ns = login()
+    local DUI, ns = loginMine()
     local b = button(ns, 1, "party1", { name = "Lift", isPlayer = true, class = "PRIEST", health = 5, maxHealth = 10 })
     stub.RunTimers()
     local c = b.auraSet.buffs
@@ -220,7 +229,7 @@ T.test("only mine: off on someone too far to see (the game can't tell whose buff
 end)
 
 T.test("the party's aura groups keep their own size: the raid tiles' stay theirs", function()
-    local _, ns = login()
+    local _, ns = loginMine()
     local rb = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton1", ns.Raid.header)
     rb:SetAttribute("unit", "raid3")
     stub.units.raid3 = { name = "Teft", isPlayer = true, class = "WARRIOR", health = 40, maxHealth = 80 }
@@ -269,7 +278,7 @@ local function formatAt(opts, secs)
 end
 
 T.test("party buff timers can hide while more than a minute is left, once restrictions lift", function()
-    local DUI, ns = login()
+    local DUI, ns = loginMine()
     local b = button(ns, 1, "party1", { name = "Kaladin", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10 })
     stub.RunTimers()
     local btn = b.auraSet.buffs.__groups.mine.button
@@ -314,7 +323,7 @@ T.test("the party preview hides a long sample time with the switch", function()
 end)
 
 T.test("party aura swipe: off by default, switched on once restrictions lift, on later buttons and samples too", function()
-    local DUI, ns = login()
+    local DUI, ns = loginMine()
     local b = button(ns, 1, "party1", { name = "Kaladin", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10 })
     stub.RunTimers()
     local cd = b.auraSet.buffs.__groups.mine.button.__cooldown
@@ -598,6 +607,8 @@ local function goldenLoad(party)
     return stub.Load({ module = true, before = function()
         DaylightUIDB = { version = 2, profileData = { Default = { general = {}, positions = {},
             modules = { UnitFrames = { groupFrames = 8, party = party } } } } }
+        -- A healer, so the default "Heals and shields" has a row to place.
+        stub.units.player = { class = "PRIEST" }
     end })
 end
 
