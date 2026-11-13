@@ -1210,6 +1210,11 @@ T.test("craft: each row shows its skill-up chance; gray and unknown ones none", 
         local b = ns.List.lines[id]
         return b.chance and b.chance:IsShown() and b.chance:GetText() or nil
     end
+    T.eq(ns.DEFAULTS.skillUps, false, "off as shipped")
+    T.isnil(chance(101), "off: no chance")
+    DaylightUI:Set("Professions", "skillUps", true)
+    ns.List.Soon()
+    frame(2)
     T.eq(chance(101), "100%", "orange always gives a point")
     T.eq(chance(102), "54%", "yellow at 148: (175 - 148) / (175 - 125)")
     T.rgb({ ns.List.lines[102].chance:GetTextColor() }, { DaylightUI.Style.Accent() }, "a number that pops")
@@ -1223,6 +1228,7 @@ end)
 T.test("craft: the picked recipe shows its range as a bar, your skill marked, and the chance", function()
     local ns = load()
     ns.SkillUps[102] = 125 * 1000 + 175
+    DaylightUI:Set("Professions", "skillUps", true)
     open(ns)
     ns.Window.Pick(102)
     frame(10)

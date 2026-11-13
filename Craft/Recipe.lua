@@ -209,6 +209,7 @@ end
 
 -- The range piece for recipe r, or nothing when its range isn't known.
 function Recipe.Range(s, r)
+    if ns.Setting("skillUps") ~= true then return nil end
     local D = ns.Data
     local prof = ns.List.data and ns.List.data.prof
     local skill = D.Skill(prof)

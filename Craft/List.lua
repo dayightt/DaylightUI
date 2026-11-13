@@ -171,7 +171,7 @@ end
 function List.PaintChance(b, recipe)
     local fs = chanceText(b)
     local data = List.data
-    local chance = recipe.difficulty ~= ns.Data.TRIVIAL and ns.Data.Chance(recipe, ns.Data.Skill(data and data.prof)) or nil
+    local chance = ns.Setting("skillUps") == true and recipe.difficulty ~= ns.Data.TRIVIAL and ns.Data.Chance(recipe, ns.Data.Skill(data and data.prof)) or nil
     local text = ns.Data.ChanceText(chance)
     b.value:ClearAllPoints()
     if text then
