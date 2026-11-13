@@ -14,7 +14,6 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Bug reports", "A bug icon on the options home page (or /dui bug) gives you your version, addons and setup, ready to copy into the Discord bug form. Thanks to blukraken" },
-            { "Look", "A Classic look like the game's own windows: steel borders, yellow labels, white numbers, red buttons and plain bars, keeping Daylight UI's angled shapes" },
             { "Vendor window", "Shift-click an item to buy several stacks at once, not just one" },
         },
         fixed = {
