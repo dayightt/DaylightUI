@@ -901,6 +901,7 @@ local function shiftClick(b)
     b.lineSpec.onClick(b)
     _G.IsModifiedClick = was
 end
+local function tick(b) b.tick:GetScript("OnClick")(b.tick) end
 
 local function expired(n)
     return { sender = "Alliance Auction House", subject = "Auction expired: Linen Cloth (20)",
@@ -936,3 +937,47 @@ T.test("inbox: Shift-click on a cash on delivery letter only opens it", function
     T.truthy(ns.Inbox.Picked(), "opened")
 end)
 
+T.test("inbox: ticked letters are all the collect button takes; the ticks go with them", function()
+    local ns = load({ money = 0, letters = {
+        LETTERS[1],
+        expired(1),
+        { sender = "Brannoc Ironhide", subject = "Ore money", money = 15000 },
+        { sender = "Ysella Brightwind", subject = "Runecloth", cod = 60000, items = { { name = "Runecloth", itemID = 14047, count = 20 } } },
+    } })
+    MW.Open()
+    frame(20)
+    local ls = lines(ns)
+    T.truthy(ls[4].tick.off, "a COD letter can't be ticked")
+    tick(ls[1])
+    tick(ls[3])
+    tick(ls[4])
+    frame(2)
+    T.truthy(button(ns, "Collect ticked (2)"), "the button counts the ticks")
+    press(ns, "Collect ticked")
+    settle()
+    T.eq(GetMoney(), 48500 + 15000, "both ticked letters' gold")
+    T.eq(#MW.Bags(), 0, "the expired auction stays in the box")
+    T.eq(#ns.Inbox.state.ticked, 0, "no ticks left")
+    T.truthy(button(ns, "Collect all"), "back to Collect all")
+    T.eq(#MW.Calls("Refused"), 0)
+end)
+
+T.test("inbox: of identical letters only the ticked one is taken", function()
+    local same = function()
+        return { sender = "Alliance Auction House", subject = "Auction expired: Linen Cloth (20)",
+            items = { { name = "Linen Cloth", itemID = 2589, count = 20 } } }
+    end
+    local ns = load({ letters = { same(), same(), same() } })
+    MW.Open()
+    frame(20)
+    tick(lines(ns)[2])
+    frame(2)
+    press(ns, "Collect ticked (1)")
+    settle()
+    T.eq(#MW.Bags(), 1, "one letter's cloth")
+    T.eq(#MW.Inbox(), 2)
+    T.eq(#ns.Inbox.state.ticked, 0)
+    tick(lines(ns)[1])
+    tick(lines(ns)[1])
+    T.eq(#ns.Inbox.state.ticked, 0, "a second click unticks")
+end)

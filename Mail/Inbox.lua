@@ -1,8 +1,8 @@
 -- Mailbox Inbox page: search and filter chips over the letter list (sender, subject,
--- gold or items, days left), the selected letter on the right (its text, auction mail
--- shown as a receipt, items to take one by one), Collect all under the list, and the
--- letter's Take, Reply, Return and Delete under it. Shift-click on a letter takes all
--- of it, as in the game's inbox.
+-- gold or items, days left, a tick), the selected letter on the right (its text, auction
+-- mail shown as a receipt, items to take one by one), Collect all under the list (only
+-- the ticked letters while any are ticked), and the letter's Take, Reply, Return and
+-- Delete under it. Shift-click on a letter takes all of it, as in the game's inbox.
 --
 -- Everything goes through the game's mail functions, one command at a time, since the
 -- client refuses a second while one is pending (C_Mail.IsCommandPending). Collect all
@@ -34,7 +34,8 @@ Inbox.TIE = 2            -- s two letters' expiry can differ and still count as 
 
 -- picked: the selected letter's identity (Inbox.Id), never its index. Letters shift up
 -- as emptied ones go away and down as new ones arrive.
-local S = { filter = "all", search = "", picked = nil, confirm = nil, collecting = false }
+-- ticked: the ids of letters ticked for the collect button, refreshed on each render.
+local S = { filter = "all", search = "", picked = nil, confirm = nil, collecting = false, ticked = {} }
 Inbox.state = S
 
 local function call(fn, ...)
@@ -132,6 +133,28 @@ function Inbox.LineIds(letters)
     return out
 end
 
+-- Pairs each id with at most one letter: the closest expiry, then the nearest spot,
+-- so of two identical letters the one ticked stays ticked. Returns letter -> id's place.
+local function pairIds(ids, letters)
+    local taken, out = {}, {}
+    for j, id in ipairs(ids) do
+        local pick, best, far
+        for _, l in ipairs(letters) do
+            local gap = not taken[l] and gapOf(l, id)
+            if gap then
+                local d = math.abs(l.index - id.index)
+                if not pick or gap < best - Inbox.TIE or (math.abs(gap - best) <= Inbox.TIE and d < far) then pick, best, far = l, gap, d end
+            end
+        end
+        if pick then
+            taken[pick] = true
+            id.index = pick.index
+            out[pick] = j
+        end
+    end
+    return out
+end
+
 function Inbox.Letters()
     local n, total = call(GetInboxNumItems)
     n = tonumber(n) or 0
@@ -151,6 +174,11 @@ local function wanted(l)
         if not hay:find(q, 1, true) then return false end
     end
     return true
+end
+
+-- Only a letter Collect could take something from can be ticked.
+function Inbox.Tickable(l)
+    return l ~= nil and (l.money > 0 or l.items > 0) and l.cod == 0 and not l.gm
 end
 
 -- The base game's Shift-click on a letter (MAILAUTOLOOTTOGGLE) takes all of it.
@@ -178,11 +206,50 @@ local function lineOf(l, picked, id)
         color = l.read and Style.INK.LABEL or Style.INK.VALUE,
         sub = l.sender .. "  ·  " .. days, value = value, valueColor = vc, picked = picked == l,
         id = id,
+        key = "",   -- room on the left for the tick
         onClick = function()
             if takeAllClick() then Inbox.TakeAll(l) end
             Inbox.Pick(l.index)
             if DUI.Sound then DUI.Sound.Play("open") end   -- opening sound, like the game's
         end }
+end
+
+Inbox.TICK_SCALE = 0.7
+Inbox.TICK_X = 15        -- the tick's center from the line's left edge
+
+-- A small switch on the line's left, in the space the key hint would use.
+local function tickOf(b)
+    if b.tick then return b.tick end
+    local t = DUI.Widgets.Switch(b)
+    t:SetScale(Inbox.TICK_SCALE)
+    t:SetPoint("CENTER", b, "LEFT", Inbox.TICK_X / Inbox.TICK_SCALE, 0)
+    t:SetFrameLevel(b:GetFrameLevel() + 2)
+    t:SetScript("OnClick", function(self) Inbox.Tick(self.letter) end)
+    -- The line stays lit while the mouse is on its tick.
+    t:SetScript("OnEnter", function(self)
+        local enter = b:GetScript("OnEnter")
+        if enter then enter(b) end
+        DUI.Widgets.Tooltip(self, L["Collect this letter"],
+            L["Tick letters and the button under the list takes only those. Shift-click a letter to take everything in it."])
+    end)
+    t:SetScript("OnLeave", function()
+        DUI.Widgets.HideTooltip()
+        local leave = b:GetScript("OnLeave")
+        if leave then leave(b) end
+    end)
+    b.tick = t
+    return t
+end
+
+local function paintTick(b, l, on, token)
+    local t = tickOf(b)
+    -- A pooled line showing another letter than before snaps its knob instead of sliding.
+    if t.token ~= token then t.pos = nil end
+    t.token, t.letter = token, l
+    t.off = not Inbox.Tickable(l) or nil
+    t:EnableMouse(not t.off)
+    t.SetOn(on == true)
+    t:Show()
 end
 
 function Inbox.Render(pane)
@@ -191,7 +258,8 @@ function Inbox.Render(pane)
     local letters, more = Inbox.Letters()
     local picked = Inbox.Find(S.picked, letters)
     if not picked then S.picked = nil end
-    Inbox.read = { letters = letters, picked = picked }   -- the footer paints from these
+    local ticked = Inbox.Ticks(letters)
+    Inbox.read = { letters = letters, picked = picked, ticked = ticked }   -- the footer paints from these
     local ids = Inbox.LineIds(letters)
     local s = pane.stack
     local at = s:Scrolled()
@@ -202,7 +270,7 @@ function Inbox.Render(pane)
     local shown = 0
     for _, l in ipairs(letters) do
         if wanted(l) then
-            s:Line(lineOf(l, picked, ids[l]))
+            paintTick(s:Line(lineOf(l, picked, ids[l])), l, ticked[l] ~= nil, ids[l])
             shown = shown + 1
         end
     end
@@ -229,11 +297,44 @@ function Inbox.Filter(id)
     Inbox.Render()
 end
 
+-- Keeps the ticks on letters still there with something to take. Returns letter -> tick.
+function Inbox.Ticks(letters)
+    local kept = {}
+    for l, j in pairs(pairIds(S.ticked, letters)) do
+        if Inbox.Tickable(l) then kept[#kept + 1] = { l = l, id = S.ticked[j] } end
+    end
+    table.sort(kept, function(a, b) return a.l.index < b.l.index end)
+    local out = {}
+    S.ticked = {}
+    for j, k in ipairs(kept) do
+        S.ticked[j] = k.id
+        out[k.l] = j
+    end
+    return out
+end
+
+function Inbox.Tick(l)
+    if not Inbox.Tickable(l) or S.collecting then return end
+    local j = Inbox.read and Inbox.read.ticked and Inbox.read.ticked[l]
+    if j then table.remove(S.ticked, j) else S.ticked[#S.ticked + 1] = Inbox.Id(l) end
+    Inbox.Render()
+end
+
+-- A letter about to be emptied or gone loses its tick, so the tick never passes on to
+-- an identical letter next to it.
+function Inbox.Untick(l)
+    local j = l and Inbox.read and Inbox.read.ticked and Inbox.read.ticked[l]
+    if j then
+        table.remove(S.ticked, j)
+        Inbox.read.ticked = {}
+    end
+end
+
 -- Shift-click: everything in the letter at once, like the base game's. A cash on
 -- delivery letter only opens.
 function Inbox.TakeAll(l)
     if not l or l.cod > 0 then return end
-    Inbox.Do(function() AutoLootMailItem(l.index) end)
+    if Inbox.Do(function() AutoLootMailItem(l.index) end) then Inbox.Untick(l) end
 end
 
 -- Selecting a letter reads it (GetInboxText marks it read, same as the game's window).
@@ -294,7 +395,9 @@ function Inbox.Show(pane, l)
                     items[#items + 1] = { name = name, texture = tex, count = count, quality = quality, tooltip = itemTip(l.index, a),
                         onClick = l.cod == 0 and function()
                             local at = Inbox.Find(S.picked)   -- current position of the letter
-                            if at then Inbox.Do(function() TakeInboxItem(at.index, a) end) end
+                            if at and Inbox.Do(function() TakeInboxItem(at.index, a) end) and at.items <= 1 and at.money == 0 then
+                                Inbox.Untick(Inbox.Picked())
+                            end
                         end or nil }
                 end
             end
@@ -334,13 +437,14 @@ function Inbox.Take()
     local l = Inbox.Find(S.picked)
     if not l then return end
     if l.cod > 0 and not confirmed("take", l) then return end
-    Inbox.Do(function() AutoLootMailItem(l.index) end)
+    if Inbox.Do(function() AutoLootMailItem(l.index) end) then Inbox.Untick(l) end
 end
 
 function Inbox.Return()
     local l = Inbox.Find(S.picked)
     if not l then return end
     if Inbox.Do(function() ReturnInboxItem(l.index) end) then
+        Inbox.Untick(l)
         S.picked = nil
         if DUI.Sound then DUI.Sound.Play("close") end
     end
@@ -354,6 +458,7 @@ function Inbox.Delete()
     if not l.canDelete then return Inbox.Return() end
     if (l.money > 0 or l.items > 0) and not confirmed("delete", l) then return end
     if Inbox.Do(function() DeleteInboxItem(l.index) end) then
+        Inbox.Untick(l)
         S.picked = nil
         if DUI.Sound then DUI.Sound.Play("close") end
     end
@@ -409,11 +514,30 @@ local function skipSlot(i, a)
     return call(HasInboxItem, i, a) ~= true
 end
 
+-- Collecting ticked letters only: where each one is now.
+local function tickedSpots()
+    if not S.only then return nil end
+    local spots = {}
+    for l in pairs(pairIds(S.only, Inbox.Letters())) do spots[l.index] = true end
+    return spots
+end
+
+-- A ticked letter about to be emptied leaves the run's list, so an identical letter
+-- moving up into its spot isn't taken too.
+local function emptying(i, after)
+    if not S.only or after then return end
+    local pick
+    for l, j in pairs(pairIds(S.only, Inbox.Letters())) do if l.index == i then pick = j end end
+    if pick then table.remove(S.only, pick) end
+end
+
 -- Move S.at to the next letter and slot with something to take; false at the end.
 local function advance()
     local at = S.at
+    if S.only and #S.only == 0 then return false end
+    local only = tickedSpots()
     while at.letter <= (call(GetInboxNumItems) or 0) do
-        if not skipLetter(at.letter) then
+        if (not only or only[at.letter]) and not skipLetter(at.letter) then
             while at.slot > 0 do
                 if not skipSlot(at.letter, at.slot) then return true end
                 at.slot = at.slot - 1
@@ -431,6 +555,12 @@ end
 function Inbox.Collect()
     if S.collecting or pending() then return end
     S.collecting, S.failed, S.left, S.full = true, {}, {}, false
+    -- With letters ticked, only those (copies: the ticks themselves stay as they are).
+    S.only = nil
+    if #S.ticked > 0 then
+        S.only = {}
+        for j, id in ipairs(S.ticked) do S.only[j] = { key = id.key, ends = id.ends, index = id.index } end
+    end
     S.at = { letter = 1, slot = Inbox.SLOTS }
     S.count = call(GetInboxNumItems) or 0
     if C_Mail then call(C_Mail.SetOpeningAll, true) end
@@ -445,15 +575,18 @@ function Inbox.CollectNext()
     local i = S.at.letter
     local _, _, _, _, gold, _, _, items = call(GetInboxHeaderInfo, i)
     S.tried = nil
+    items = tonumber(items) or 0
     if (tonumber(gold) or 0) > 0 then
         S.tried = Inbox.Id(Inbox.Letter(i))
+        emptying(i, items > 0)
         TakeInboxMoney(i)
-    elseif (tonumber(items) or 0) > 0 and freeSlots() ~= 0 then
+    elseif items > 0 and freeSlots() ~= 0 then
+        emptying(i, items > 1)
         TakeInboxItem(i, S.at.slot)
     else
         -- Bags full: items stay (noted under the letter), but gold from later letters is still
         -- taken.
-        if (tonumber(items) or 0) > 0 then S.full = true end
+        if items > 0 then S.full = true end
         S.at.letter, S.at.slot = i + 1, Inbox.SLOTS
     end
     C_Timer.After(Inbox.STEP, Inbox.CollectNext)
@@ -462,7 +595,9 @@ end
 
 function Inbox.StopCollecting()
     if not S.collecting then return end
-    S.collecting, S.at, S.tried = false, nil, nil
+    -- The ticks left are the ticked letters not emptied (bags full, a refused take).
+    if S.only then S.ticked = S.only end
+    S.collecting, S.at, S.tried, S.only = false, nil, nil, nil
     if C_Mail then call(C_Mail.SetOpeningAll, false) end
     Inbox.Render()
 end
@@ -503,9 +638,13 @@ function Inbox.PaintFooter(pane)
     if asked("delete") then delete = L["Click again"] elseif l and not l.canDelete then delete = MAIL_RETURN or L["Return"] end
     -- Collect all under the list (whole inbox), and the selected letter's four buttons
     -- sharing the width under the letter (five in one row overlapped).
+    local ticks = #S.ticked
     if Inbox.list and Inbox.list.foot then
+        local collect = L["Collect all"]
+        if S.collecting then collect = L["Collecting..."]
+        elseif ticks > 0 then collect = string.format(L["Collect ticked (%d)"], ticks) end
         Inbox.list.foot:Set({
-            { text = S.collecting and L["Collecting..."] or L["Collect all"], primary = true, off = busy or not anyGold, onClick = Inbox.Collect },
+            { text = collect, primary = true, off = busy or (ticks == 0 and not anyGold), onClick = Inbox.Collect },
         })
     end
     pane.foot:Set({
@@ -598,7 +737,7 @@ function Inbox.Build(page)
     DUI.RegisterEvent("MAIL_SUCCESS", function() if list:IsVisible() then Inbox.PaintFooter() end end)
     DUI.RegisterEvent("MAIL_FAILED", function(_, itemID) failed(itemID); if list:IsVisible() then Inbox.PaintFooter() end end)
     DUI.RegisterEvent("MAIL_OPEN_ALL_CANCELED", function() Inbox.StopCollecting() end)
-    DUI.RegisterEvent("MAIL_CLOSED", function() Inbox.StopCollecting(); S.picked, Inbox.read = nil, nil end)
+    DUI.RegisterEvent("MAIL_CLOSED", function() Inbox.StopCollecting(); S.picked, Inbox.read, S.ticked = nil, nil, {} end)
 end
 
 -- The inbox updates in bursts (several per letter during Collect all): redraw once,
