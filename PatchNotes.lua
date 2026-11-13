@@ -13,7 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
-            { "Bug reports", "A bug icon on the options home page (or /dui bug) gives you your version, addons and setup, ready to copy into the Discord bug form. Thanks to blukraken" },
+            { "Bug reports", "A bug icon on the options home page (or /dui bug) gives you your version, addons, setup and your latest Daylight UI error, ready to copy into the Discord bug form. Thanks to blukraken" },
             { "Look", "A Classic look like the game's own windows: steel borders, yellow labels, white numbers, red buttons and plain bars, keeping Daylight UI's angled shapes" },
             { "Vendor window", "Shift-click an item to buy several stacks at once, not just one" },
             { "Mailbox", "Tick letters to collect just those and leave the rest in the box" },
@@ -42,7 +42,11 @@ DUI.PatchNotes = {
             { "Chat", "Chat can show a player's level beside their name (off by default)" },
             { "Friends", "Faction icons, dimmed friends you can't play with right now, and All / Same game / Online filters" },
         },
+        changed = {
+            { "Languages", "More Spanish thanks to Narian, and more Simplified Chinese thanks to Levis" },
+        },
         fixed = {
+            { "Pet frame", "Your hunter pet's mood face is easier to read at a small size, without the colored border around it. Thanks to Narian" },
             { "Object glow", "Ore and herb names no longer disappear as you walk up to them" },
             { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat after switching stance or form in combat" },
             { "Item icons", "The thin colored outline around rewards and items no longer loses its top or side" },
