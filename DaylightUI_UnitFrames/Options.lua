@@ -1663,8 +1663,10 @@ local function framePage(id, label, desc, opts)
             desc = "Your pet's mood beside the frame: red while it's unhappy, yellow while content, green while happy. Hover for its damage, loyalty and diet.",
             disabled = shown }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessLook"), label = "Happiness look",
-            values = { square = "Color square", icon = "Mood face" }, order = { "square", "icon" },
-            desc = "A square filled with the mood's color, or the pet's mood face edged in it.", disabled = happyOff }
+            values = { square = "Color square", icon = "Mood face" },
+            order = { "square", "icon" },
+            desc = "A square filled with the mood's color, or the pet's mood face.",
+            disabled = happyOff }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
             order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = happyOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",

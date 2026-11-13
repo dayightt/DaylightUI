@@ -104,6 +104,12 @@ PageSample.PARTS = {
     { label = "Resting", at = status("rest"), keys = { "%s.showResting", "%s.restSize" } },
     { label = "Role icon", at = roleRegion, keys = { "%s.showRole", "%s.rolePos", "%s.roleSize" },
       move = { spot = "%s.rolePos", x = "%s.roleX", y = "%s.roleY" }, size = { s = "%s.roleSize" } },
+    -- Only the pet page's sample has one (f.happiness). Hidden while the
+    -- switch is off, so it drops out of Design mode with it.
+    { label = "Pet happiness", at = function(f) return f.happiness end,
+      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
+      move = { spot = "%s.happinessSpot", x = "%s.happinessX", y = "%s.happinessY" },
+      size = { s = "%s.happinessSize" } },
 }
 
 -- Extra texts (Add piece, Texts.lua): one part per slot, on every frame page
@@ -393,6 +399,19 @@ local function reach(f)
     return ns.Sample.Reach(f), up, down
 end
 
+-- How far the pet happiness indicator sticks out past the frame, in the
+-- frame's units: left, right, up, down. Nothing until it has been drawn.
+local function happinessPast(h, f)
+    if not (h and h:IsShown() and h.GetRect and f.GetRect) then return 0, 0, 0, 0 end
+    local okH, hl, hb, hw, hh = pcall(h.GetRect, h)
+    local okF, fl, fb, fw, fh = pcall(f.GetRect, f)
+    if not (okH and okF and type(hl) == "number" and type(fl) == "number" and type(hw) == "number") then
+        return 0, 0, 0, 0
+    end
+    return math.max(0, fl - hl), math.max(0, hl + hw - fl - fw),
+           math.max(0, hb + hh - fb - fh), math.max(0, fb - hb)
+end
+
 -- Fits target (w by h, in its own units, with parts reaching past its outer
 -- end, on the right when outerRight, and above and below) into width by at
 -- most maxH. Shrinks to fit, never grows, centered in box. box gets the width
@@ -425,8 +444,19 @@ local function refreshSingle(s, width, maxH)
     UF.Layout(f, cfg, text, true)
     f.test = sampleUnit(s.id)
     UF.ShowSample(f)
+    if f.happiness then
+        ns.Happiness.Layout(f.happiness, cfg)
+        ns.Happiness.ShowSample(f.happiness)
+    end
     f:SetAlpha(cfg.enabled == false and PageSample.OFF_ALPHA or 1)
     local out, up, down = reach(f)
+    local back, left, right, hup, hdown = 0, happinessPast(f.happiness, f)
+    if f.spec.slant == "left" then
+        out, back = math.max(out, right), left
+    else
+        out, back = math.max(out, left), right
+    end
+    up, down = math.max(up, hup), math.max(down, hdown)
     if s.auras then
         -- The frame's auras, from its page's own settings.
         local a = d[PageSample.AURA_SETS[s.id].key]
@@ -437,7 +467,7 @@ local function refreshSingle(s, width, maxH)
         up = math.max(up, tabUp(f) + top)
         down = math.max(down, bottom)
     end
-    return fit(s.frame, f, f:GetWidth(), f:GetHeight(), out, f.spec.slant == "left", up, down, width, maxH, nil,
+    return fit(s.frame, f, f:GetWidth(), f:GetHeight(), out, f.spec.slant == "left", up, down, width, maxH, back,
                s.Zoom())
 end
 
@@ -464,6 +494,12 @@ local function newSingle(id, parent)
     UF.Build(f, specOf(id))
     f:EnableMouse(false)   -- display only, the strip's hotspots take the clicks
     s.f = f
+    -- The real pet frame's indicator is a different widget. This one is only
+    -- the preview, so Design mode's hotspot gets the click, not a tooltip.
+    if id == "pet" then
+        f.happiness = ns.Happiness.Create(f)
+        f.happiness:EnableMouse(false)
+    end
     -- The target's and player's auras use stand-ins, since the client's
     -- containers only ever show a real unit's auras.
     local auraSet = PageSample.AURA_SETS[id]

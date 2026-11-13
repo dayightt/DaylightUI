@@ -13,7 +13,7 @@ local function login(mood, hunter)
     end })
 end
 
-T.test("pet happiness: a square in the mood's color by default; or the mood face, edged in its color", function()
+T.test("pet happiness: a square in the mood's color by default; or the mood face, with the frame's own edge", function()
     local DUI, ns = login(2)
     local h = ns.happiness
     T.truthy(h.fill:IsShown()); T.falsy(h.face:IsShown(), "the square by default: the face blurs at 16 px")
@@ -25,23 +25,48 @@ T.test("pet happiness: a square in the mood's color by default; or the mood face
     T.truthy(h:IsShown())
     T.truthy(h.face:IsShown()); T.falsy(h.fill:IsShown())
     T.eq(h.face.__atlas, "UI-PetNeutral", "content")
-    local S = DaylightUI.Style
-    local c = ns.Happiness.COLORS[2]
-    T.rgb(h.shell.opts.borderColor, { S.Soften(c[1], c[2], c[3]) }, "edged yellow while content")
+    T.isnil(h.face.__texture, "the game's face, not a family strip")
+    T.falsy(h.shell:IsShown(), "the mood face has no box")
+    local fp = h.face:GetPoint(1)
+    T.eq(fp, "ALL", "the face fills its size, with no border inset")
     stub.mood = 1
     stub.FireEvent("UNIT_HAPPINESS", "pet")
     T.eq(h.face.__atlas, "UI-PetMad")
+    T.falsy(h.shell:IsShown(), "still no box when unhappy")
     -- The square again, anywhere, any size.
     DUI:Set("UnitFrames", "pet.happinessLook", "square")
     DUI:Set("UnitFrames", "pet.happinessSpot", "above")
     DUI:Set("UnitFrames", "pet.happinessSize", 22)
     stub.RunTimers()
     T.falsy(h.face:IsShown()); T.truthy(h.fill:IsShown())
-    c = ns.Happiness.COLORS[1]
+    local S = DaylightUI.Style
+    local c = ns.Happiness.COLORS[1]
     T.rgb(h.fill.__vertex, { S.Soften(c[1], c[2], c[3]) }, "red when unhappy")
+    T.truthy(h.shell:IsShown(), "the square keeps its box")
     T.isnil(h.shell.opts.borderColor, "the square keeps the frame's edge")
     T.eq(h:GetWidth(), 22)
     T.eq((h:GetPoint(1)), "BOTTOM", "above the frame")
+end)
+
+T.test("pet happiness: the mood face is one face, even when the client hands over the whole sheet", function()
+    local DUI, ns = login(2)
+    DUI:Set("UnitFrames", "pet.happinessLook", "family")
+    stub.RunTimers()
+    local h = ns.happiness
+    T.truthy(h.fill:IsShown(), "a removed look falls back to the square")
+    T.falsy(h.face:IsShown())
+    _G.C_Texture = { GetAtlasInfo = function(atlas)
+        T.eq(atlas, "UI-PetNeutral")
+        return { file = "Interface\\PetPaperDollFrame\\UI-PetHappiness", leftTexCoord = 0, rightTexCoord = 1,
+                 topTexCoord = 0, bottomTexCoord = 1 }
+    end }
+    DUI:Set("UnitFrames", "pet.happinessLook", "icon")
+    stub.RunTimers()
+    T.eq(h.face.__texture, ns.Happiness.SHEET, "the whole sheet is not the face")
+    T.eq(h.face.__texCoord[1], ns.Happiness.SHEET_COORD[2][1])
+    T.eq(h.face.__texCoord[2], ns.Happiness.SHEET_COORD[2][2])
+    T.falsy(h.shell:IsShown(), "the mood face has no box")
+    _G.C_Texture = nil
 end)
 
 T.test("pet happiness: hidden without a hunter pet, and when turned off", function()
