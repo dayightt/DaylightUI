@@ -95,7 +95,9 @@ ns.DEFAULTS = {
               classColor = false, fill = "pair",
               -- Target and focus: an interrupt animation (Motion.KICKS) and
               -- "Kicked by <name>" to the right of the bar or "below" it.
-              kickStyle = "blade", kickedBy = true, kickedByPos = "right" },
+              -- kickMark: a thin line on an enemy's cast where your
+              -- interrupt comes off cooldown (DUI.Interrupt).
+              kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false },
     -- The focus cast bar: inside its frame over the power bar, or its own.
     focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the

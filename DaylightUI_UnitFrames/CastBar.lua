@@ -102,10 +102,11 @@ local WHITE = CreateColor(1, 1, 1, 1)
 -- The colors and text settings, from db.casts (CB.Configure).
 CB.cfg = { cast = Style.CAST.normal, channel = Style.CAST.normal, locked = Style.CAST.locked,
            interrupted = { 0.52, 0.17, 0.15 }, flash = true,
-           kickStyle = "blade", kickedBy = true, kickedByPos = "right" }
+           kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false }
 -- Each bar's colors (class color, cast, channel, can't interrupt, interrupted):
 -- yours from db.casts, the target's from db.targetCasts.
 local palettes = {}          -- "player" / "target" -> { cfg, normal, channel, locked }
+local marked = {}            -- bars with an interrupt mark (target and focus)
 
 local function palette(c)
     return { cfg = c, normal = color(c.cast), channel = color(c.channel), locked = color(c.locked) }
@@ -231,6 +232,11 @@ function CB.Create(unit, attachTo, into, opts)
     if h.kind ~= "player" then
         h.blade = DUI.Motion.NewBlade(attachTo or home)
         h.kickTag = DUI.Motion.NewKickTag(attachTo or home, media.font)
+    end
+    -- Where your interrupt comes off cooldown (casts.kickMark), under the texts.
+    if (h.kind == "target" or h.kind == "focus") and DUI.Interrupt then
+        h.kickMark = DUI.Interrupt.NewMark(h.bar)
+        marked[h] = true
     end
     if type(unit) == "string" then
         for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
@@ -764,6 +770,7 @@ end
 -- of vanishing.
 function CB.Stop(h, glide)
     h.duration = nil
+    CB.UpdateKickMark(h)
     CB.SetUp(h, false)
     if glide and h.column and h:IsVisible() then
         h.slide:To(0)
@@ -883,6 +890,32 @@ function CB.Kicked(h, by)
     end
 end
 
+-- Only an enemy's cast: a friend's is never yours to interrupt.
+local function hostile(u)
+    if type(u) ~= "string" or type(UnitCanAttack) ~= "function" then return false end
+    local ok, v = pcall(UnitCanAttack, "player", u)
+    return ok and not (issecretvalue and issecretvalue(v)) and v == true
+end
+
+-- Your interrupt's ready mark on a running cast (casts.kickMark). fade: the
+-- cooldown changed mid-cast.
+function CB.UpdateKickMark(h, fade)
+    local m = h.kickMark
+    if not m then return end
+    if CB.cfg.kickMark ~= true or h.test or not h.duration or not hostile(h.unit) then
+        DUI.Interrupt.HideMark(m)
+        return
+    end
+    DUI.Interrupt.ShowMark(m, h.duration, h.channel, fade)
+end
+
+-- Your interrupt went on or came off cooldown (or changed): the bars casting now.
+DUI.On("InterruptChanged", function()
+    for h in pairs(marked) do
+        if h.duration then DUI.SafeCall(CB.UpdateKickMark, h, true) end
+    end
+end)
+
 -- A new cast or unit ends the blade at once.
 function CB.Unkick(h)
     DUI.Motion.Unblade(h.blade)
@@ -890,6 +923,7 @@ end
 
 function CB.Interrupted(h)
     h.duration = nil
+    CB.UpdateKickMark(h)
     h.holding = true
     -- Each hold gets its own number so an earlier kick's timer leaves a newer one alone.
     h.holdN = (h.holdN or 0) + 1
@@ -929,6 +963,15 @@ function CB.ShowSample(h, cast)
     h.time:SetText(mode == "none" and "" or mode == "total" and "1.2 / 2.5" or "1.2")
     if h.icon then h.icon:SetTexture(cast.icon) end
     h.notInterruptible = nil
+    -- Your interrupt back a little before the sample cast ends.
+    if h.kickMark then
+        if CB.cfg.kickMark == true and cast.kick then
+            DUI.Interrupt.PlaceMark(h.kickMark, 0, 1, cast.kick, false)
+            DUI.Motion.AlphaTo(h.kickMark.clip, 1, 0)
+        else
+            DUI.Interrupt.HideMark(h.kickMark)
+        end
+    end
     CB.ApplyColor(h)
     -- Sliding back under after a cast: bring it out again, or it would hide.
     if h.column and h:IsShown() and h.slide.goal == 0 then h.slide:To(1) end
@@ -1077,6 +1120,7 @@ function CB.Refresh(h, glide)
     h.notInterruptible = notInterruptible
     h.channel = channel
     h.spellID = spell
+    CB.UpdateKickMark(h)
     -- With the name off, a batch still shows its progress.
     if showsName(h) then h.text:SetText(name) else h.text:SetText(count or "") end
     if h.icon then h.icon:SetTexture(texture) end

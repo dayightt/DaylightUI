@@ -31,7 +31,7 @@ Test.SAMPLES = {
 
 Test.CASTS = {
     player = { text = DUI.L["Holy Light"], value = 0.6, icon = "Interface\\Icons\\Spell_Holy_HolyBolt" },
-    target = { text = DUI.L["Shadow Bolt"], value = 0.35 },
+    target = { text = DUI.L["Shadow Bolt"], value = 0.35, kick = 0.8 },
 }
 
 Test.COMBO = 3

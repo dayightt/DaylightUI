@@ -2270,6 +2270,8 @@ ns.OPTIONS = { pages = {
               desc = "The bar's color while the cast can't be interrupted." },
         } },
         { label = "Target and focus interrupts", items = {
+            { type = "toggle", key = "casts.kickMark", label = "Interrupt ready mark", since = "1.7.2",
+              desc = "While your interrupt is on cooldown, a thin line on an enemy target's or focus's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
             { type = "dropdown", key = "casts.kickStyle", label = "Interrupt animation",
               values = DaylightUI.Motion.KICK_NAMES, order = DaylightUI.Motion.KICKS,
               desc = "What the target's or focus's cast bar does when its cast is interrupted. Your own interrupts light up in your accent color." },
