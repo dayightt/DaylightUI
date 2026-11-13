@@ -490,10 +490,12 @@ function EditMode.Save(text)
     if EditMode.Write() then EditMode.AskReload(text) end
 end
 
--- Save for writes nobody asked for (a part out of date), only when the layout
--- is out of date and nothing was written yet this session.
+-- Save for writes nobody asked for (a part out of date), only where the
+-- profile's layout is the one in use, it's out of date, and nothing was
+-- written yet this session. Writing activates it, so a player on a layout of
+-- their own would be switched off it.
 function EditMode.AutoSave(text)
-    if written or EditMode.UpToDate() then return end
+    if written or not EditMode.IsActive() or EditMode.UpToDate() then return end
     EditMode.Save(text)
 end
 
@@ -510,11 +512,13 @@ local function layoutsGiven()
     return type(info) == "table" and type(info.layouts) == "table" and (info.activeLayout or 0) >= 1
 end
 
--- A set-up character (the guide was finished) that's on the game's own layout,
--- or whose layout was deleted: put back on its profile's without asking.
+-- A set-up character (the guide was finished) that's on one of the game's
+-- preset layouts (turning the controller UI off forces Modern), or whose
+-- layout was deleted from under it: put back on its profile's without asking.
+-- One on a saved layout of the player's own picked it, and keeps it.
 local function setUpElsewhere()
     local I = DUI.Installer
-    return I and I.State and I.State() == "installed" and not EditMode.AnyActive()
+    return I and I.State and I.State() == "installed" and activeSaved() == nil
 end
 
 DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()

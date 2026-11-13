@@ -172,7 +172,11 @@ function Tracker.PlaceAnchor()
     if not EditMode.Exists() then return end
     if Tracker.movedByHand then
         Tracker.movedByHand = false
-        if not EditMode.UpToDate() then
+        -- Saving activates the layout, so on a layout of the player's own the
+        -- spot is theirs to set in Edit Mode, as GameMovers does.
+        if not EditMode.IsActive() then
+            DUI.Print(DUI.L["The quest tracker's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."])
+        elseif not EditMode.UpToDate() then
             EditMode.Save(DUI.L["DaylightUI saved the quest tracker's position. Reload to put it in place?"])
         end
     elseif changed then

@@ -817,6 +817,61 @@ T.test("installer: a set-up character whose layout was deleted gets it back, not
     T.truthy(DaylightUIInstaller:IsShown(), "/dui install still opens it")
 end)
 
+-- From player reports: set up, then on an Edit Mode layout they made
+-- themselves, and switched back to Daylight UI's after a relog or a loading
+-- screen (a boat, a dungeon). Their pick stays, even with ours deleted.
+local function ownLayout()
+    local mine = CopyTable(layoutNamed("DaylightUI - DPS/Tank"))
+    mine.layoutName = "I"
+    table.insert(saved.layouts, mine)
+    saved.activeLayout = #saved.layouts + 2
+    return saved.activeLayout
+end
+
+T.test("installer: a set-up character on a layout of its own keeps it through logins and loading screens", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    local mine = ownLayout()
+    DUI = reload()
+    stub.popup = nil
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")       -- a loading screen
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(saved.activeLayout, mine, "still on its own layout")
+    T.isnil(stub.popup, "no reload asked")
+    T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "no guide")
+end)
+
+T.test("installer: a layout of its own with Daylight UI's deleted doesn't bring Daylight UI's back", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    ownLayout()
+    table.remove(saved.layouts, 1)                      -- Daylight UI's deleted in Edit Mode
+    saved.activeLayout = 3
+    DUI = reload()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.isnil(layoutNamed("DaylightUI - DPS/Tank"), "not written again")
+    T.eq(saved.activeLayout, 3, "still on its own layout")
+end)
+
+T.test("installer: a part out of date never moves a character off a layout of its own", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    local mine = ownLayout()
+    DUI = reload()
+    DUI.EditMode.Add("stale", function() end, function() return false end)
+    stub.popup = nil
+    DUI.EditMode.AutoSave("updated")
+    T.eq(saved.activeLayout, mine, "still on its own layout")
+    T.isnil(stub.popup, "no reload asked")
+end)
+
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
     local DUI = login()
     DUI.Installer.Install("Healer")
