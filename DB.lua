@@ -46,7 +46,6 @@ DB.GENERAL_DEFAULTS = {
     heavyBorder = true,
     look = "daylight", -- daylight | classic: stone and gold borders, gold text (Style.LOOKS)
     lookGold = true, -- under classic, the accent turns gold to match
-    lookGradients = false, -- under classic, bars keep the player's gradients instead of the game's plain colors
     gradientBorder = false, -- window borders sweep along a gradient accent (Daylight's or the class's)
     cornerPx = 6,
     shadowPx = 4,

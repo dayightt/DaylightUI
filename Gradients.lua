@@ -116,14 +116,7 @@ end
 -- gradient accent becomes one color (Style.AccentSweep), and the Daylight bar
 -- sweep its purple (Style.SetBarGradient). The pairs themselves (RGB, the
 -- option rows) are untouched, so turning it back on loses nothing.
--- Also true under the Classic look, which uses the game's plain bars unless
--- the player switched Gradient bars on. Off() is the master switch alone.
-function Gradients.Off() return settings().off == true end
-function Gradients.Flat()
-    if Gradients.Off() then return true end
-    local g = DUI.DB.General()
-    return g.look == "classic" and g.lookGradients ~= true
-end
+function Gradients.Flat() return settings().off == true end
 
 local function rgbOf(c, fallback)
     if type(c) == "table" and type(c[1]) == "number" then return c end

@@ -452,11 +452,6 @@ function Spells.Fold(section, folded)
     if Spells.page then Spells.Fill(Spells.page, true) end
 end
 
--- A section heading at rest: quiet, or the game's yellow under the Classic look.
-local function restHead(fs)
-    if DUI.Style.Look() == "classic" then DUI.Style.InkText(fs, "TITLE") else color(fs, Spells.QUIET) end
-end
-
 -- Section header styled like the window kit's. Click to fold; shows "+"
 -- while folded, like the character window's stat groups.
 local function makeHead(parent)
@@ -475,7 +470,7 @@ local function makeHead(parent)
     b.isSection = true
     DUI.Widgets.PadSpot(b)
     b:SetScript("OnEnter", function(self) color(self.text, Spells.SOFT); color(self.state, Spells.SOFT) end)
-    b:SetScript("OnLeave", function(self) restHead(self.text); restHead(self.state) end)
+    b:SetScript("OnLeave", function(self) color(self.text, Spells.QUIET); color(self.state, Spells.QUIET) end)
     b:SetScript("OnClick", function(self)
         if self.section and not Spells.filter then Spells.Fold(self.section, not Spells.IsFolded(self.section)) end
     end)
@@ -487,8 +482,8 @@ local function head(s, section, folded)
     b.section = section
     b.text:SetText(string.upper(section.name or ""))
     b.state:SetText(folded and "+" or "")
-    restHead(b.text)
-    restHead(b.state)
+    color(b.text, Spells.QUIET)
+    color(b.state, Spells.QUIET)
     return b
 end
 

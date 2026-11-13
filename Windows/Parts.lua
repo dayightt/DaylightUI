@@ -350,7 +350,7 @@ function Stack:Section(label, opts)
     local b = take(self, "section", makeSection)
     b.opts = opts
     b.text:SetText(string.upper(label or ""))
-    if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "heading") end
+    if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "pop") end
     b.value:SetText(opts.value or "")
     Style.InkText(b.value, "LABEL")
     b.value:SetShown(opts.value ~= nil)

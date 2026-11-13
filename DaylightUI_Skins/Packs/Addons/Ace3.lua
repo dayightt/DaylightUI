@@ -203,7 +203,8 @@ local function item(Kit, w)
     Kit.HoverWash(w.frame)
     Kit.Font(w.text)
     if kind(w.line) == "Texture" then
-        Style.Follow(w.line, Style.BORDER, 1, true)
+        local b = Style.BORDER
+        w.line:SetColorTexture(b[1], b[2], b[3], 1)
     end
 end
 
@@ -241,9 +242,10 @@ end
 -- Headings use the accent like list sections; their lines are a faint rule.
 local function paintHeading(fs) Style.InkText(fs, "pop") end
 TYPES.Heading = function(Kit, w)
+    local b = Style.BORDER
     for _, line in ipairs({ w.left, w.right }) do
         if kind(line) == "Texture" then
-            Style.Follow(line, Style.BORDER, 1, true)
+            line:SetColorTexture(b[1], b[2], b[3], 1)
             line:SetHeight(1)
         end
     end
