@@ -1411,18 +1411,23 @@ T.test("bags: group headings read upper case in the accent with a count and chev
     h = headOf("weapon")
     local lr, lg, lb = h.text:GetTextColor()
     T.near(lr, Style.INK.LABEL[1], 0.01); T.near(lg, Style.INK.LABEL[2], 0.01); T.near(lb, Style.INK.LABEL[3], 0.01)
-    T.truthy((h.chev.__rotation or 0) ~= 0, "folded: the chevron turns")
+    T.near(h.chev.__rotation or 0, math.pi / 2, 0.001, "folded: the chevron points right")
     h:GetScript("OnClick")(h)
     stub.RunTimers()
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
-    local rec = headOf("recent")
-    if rec then
-        DaylightUI:Set("general", "accent", "gradient")
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    stub.now = 1000
+    _G.GetTime = function() return stub.now end
+    DaylightUI:Set("general", "accent", "gradient")
+    local ok, err = pcall(function()
         ns.Relayout()
-        rec = headOf("recent")
+        local rec = headOf("recent")
+        T.truthy(rec, "a Recent heading")
         T.truthy(string.find(rec.text:GetText(), "|c", 1, true), "Recent paints letter by letter under a gradient accent")
-        DaylightUI:Set("general", "accent", nil)
-    end
+    end)
+    DaylightUI:Set("general", "accent", nil)
+    _G.C_NewItems = nil
+    T.truthy(ok, tostring(err))
 end)
 
 -- A folded heading beside open groups left a hole under it and pushed them about,

@@ -130,7 +130,7 @@ Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
 Layout.HEAD_CHEV = 8         -- chevron size
 Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
-Layout.FOLDED_TURN = -math.pi / 2   -- the chevron points right while folded
+Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 
 -- Group heading: chevron, upper case name, count and a faint rule out to the
 -- group's edge. Click folds or unfolds,
@@ -151,7 +151,6 @@ local function heading(window, i)
     h.rule = h:CreateTexture(nil, "ARTWORK")
     h.rule:SetTexture("Interface\\Buttons\\WHITE8X8")
     h.rule:SetHeight(1)
-    h.rule:SetVertexColor(1, 1, 1, 0.06)
     h.rule:SetPoint("LEFT", h.count, "RIGHT", 6, 0)
     h.rule:SetPoint("RIGHT", h, "RIGHT", 0, 0)
     local function pinFromCursor(self)
@@ -211,6 +210,8 @@ function Layout.PaintHeading(h, folded)
             h.text:SetTextColor(d[1], d[2], d[3])
         end
     end
+    local rc = Style.BAND_LIT
+    h.rule:SetVertexColor(rc[1], rc[2], rc[3], 1)
     Style.InkText(h.count, "pop")
     if lit then
         h.chev:SetVertexColor(Style.Accent())
