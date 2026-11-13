@@ -124,11 +124,30 @@ end
 
 -- Categories view
 
-Layout.HEAD = 15             -- group heading height
+Layout.HEAD_TEXT = 15        -- the heading's text row
+Layout.HEAD = 18             -- the whole heading, its line along the bottom a little under the text
 Layout.HEAD_SIZE = DUI.Style.SIZE.small
-Layout.GROUP_GAP = 12        -- between groups side by side
-Layout.ROW_GAP = 8           -- between rows of groups
+Layout.RING_GAP = 8          -- clear air from the line down to the slot rings' shadow
+-- Gaps between groups side by side (slot to slot) and between rows (from the
+-- rings' shadow to the next heading). Both add the slot spacing, so a tight bag
+-- gets a tight Shelf.
+Layout.GROUP_GAP = 19
+Layout.ROW_GAP = 7
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
+
+function Layout.GroupGap(cfg) return Layout.GROUP_GAP + cfg.spacing end
+function Layout.RowGap(cfg) return Layout.ROW_GAP + cfg.spacing end
+
+-- How far a slot's ring reaches past the slot (the shell's shadow), rounded up
+-- to whole units like every other spot in the Shelf.
+function Layout.RingOut(window)
+    return math.ceil(DUI.Pixel.Px(window.items, DUI:Get("general", "shadowPx") or 0) - 0.001)
+end
+
+-- Where a group's first slot starts below its heading's top.
+function Layout.SlotTop(window)
+    return Layout.HEAD + Layout.RING_GAP + Layout.RingOut(window)
+end
 
 Layout.HEAD_CHEV = 8         -- chevron size
 Layout.HEAD_CHEV_GAP = 3     -- between the chevron and the name
@@ -163,7 +182,8 @@ local function heading(window, i)
     h:SetHeight(Layout.HEAD)
     h.chev = DUI.Widgets.Icon(h, "ui-chevron.png", Layout.HEAD_CHEV, DUI.Style.INK.LABEL)
     h.text = DUI.Style.Text(h, Layout.HEAD_SIZE, "LEFT")
-    h.text:SetPoint("LEFT", h, "LEFT", 0, 1)
+    -- Centered on the text row, with the line under it.
+    h.text:SetPoint("LEFT", h, "LEFT", 0, 1 + (Layout.HEAD - Layout.HEAD_TEXT) / 2)
     h.chev:SetPoint("RIGHT", h.text, "LEFT", -Layout.HEAD_CHEV_GAP, 0)
     -- The chevron sits outside the heading, so it takes clicks too.
     h:SetHitRectInsets(-(Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP + 2), 0, 0, 0)
@@ -468,10 +488,12 @@ function Layout.Categories(window, cfg)
     end
     for _, l in ipairs(window.lines or {}) do l:Hide() end
     noteLaid(window)
+    local out, top = Layout.RingOut(window), Layout.SlotTop(window)
+    local groupGap, rowGap = Layout.GroupGap(cfg), Layout.RowGap(cfg)
     local x, y, lineH, wasFolded = 0, 0, 0, nil
     local function newRow()
         if x > 0 then
-            y = y + lineH + Layout.ROW_GAP
+            y = y + lineH + rowGap
             x, lineH = 0, 0
         end
     end
@@ -527,7 +549,7 @@ function Layout.Categories(window, cfg)
         local across = math.min(n, cols)
         local rows = n > 0 and math.ceil(n / across) or 0
         local slotsW = across > 0 and (across * size + (across - 1) * gap) or 0
-        local w = math.max(slotsW, textW + 4)
+        local w = math.max(slotsW, textW)
         if g.breakBefore or (wasFolded ~= nil and folded ~= wasFolded) then newRow() end
         wasFolded = folded
         if x > 0 and x + w > maxW then newRow() end
@@ -541,7 +563,7 @@ function Layout.Categories(window, cfg)
             local b = e.button
             b:SetSize(size, size)
             b:ClearAllPoints()
-            b:SetPoint("TOPLEFT", b:GetParent(), "TOPLEFT", x + col * (size + gap), -(y + Layout.HEAD + row * (size + gap)))
+            b:SetPoint("TOPLEFT", b:GetParent(), "TOPLEFT", x + col * (size + gap), -(y + top + row * (size + gap)))
             b:Show()
             ns.Items.Place(b)
             ns.Items.SetFree(b, e.free)
@@ -550,12 +572,12 @@ function Layout.Categories(window, cfg)
                 local all = { b }
                 for _, x in ipairs(e.extra) do all[#all + 1] = x end
                 window.held[#window.held + 1] = { button = b, all = all, x = x + col * (size + gap),
-                                                  y = -(y + Layout.HEAD + row * (size + gap)), size = size }
+                                                  y = -(y + top + row * (size + gap)), size = size }
             end
         end
-        local gh = Layout.HEAD + (rows > 0 and (rows * size + (rows - 1) * gap) or 0)
+        local gh = rows > 0 and (top + rows * size + (rows - 1) * gap + out) or Layout.HEAD
         lineH = math.max(lineH, gh)
-        x = x + w + Layout.GROUP_GAP
+        x = x + w + groupGap
         if g.breakAfter then newRow() end
     end
     for _, h in ipairs(window.headings or {}) do

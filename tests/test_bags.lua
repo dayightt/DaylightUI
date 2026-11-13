@@ -1739,13 +1739,88 @@ T.test("bags: a folded group's heading takes its own line, never beside an open 
     T.truthy(foldTop < top("consumable"), "below the open groups before it")
     T.truthy(top("weapon") < foldTop, "the open groups after it on the next line")
     T.eq(top("weapon"), top("armor"), "which still sit side by side")
-    T.eq(foldTop - top("weapon"), ns.Layout.HEAD + ns.Layout.ROW_GAP, "a folded line is only its heading tall")
+    T.eq(foldTop - top("weapon"), ns.Layout.HEAD + ns.Layout.RowGap(f.Cfg()), "a folded line is only its heading tall")
     Cat.ToggleCollapsed("weapon")
     stub.RunTimers()
     T.eq(top("weapon"), top("sets"), "folded ones that follow each other share the line")
     Cat.ToggleCollapsed("sets"); Cat.ToggleCollapsed("weapon")
     stub.RunTimers()
     T.eq(top("consumable"), top("weapon"), "all open: the flow as before")
+end)
+
+-- Seen in game: each group's line ran along the top of its slots and the rings
+-- (with their shadow) drew over it, and the gaps between groups looked uneven.
+T.test("bags: the Shelf gives each heading's line room, and every gap between groups is the same", function()
+    local ns, f = catLogin()
+    local L, Pixel = ns.Layout, DaylightUI.Pixel
+    DaylightUI:Set("Bags", "columns", 4)
+    stub.RunTimers()
+    ns.Categories.ToggleCollapsed("sets")
+    stub.RunTimers()
+    local cfg = f.Cfg()
+    local size, gap = cfg.iconSize, cfg.spacing
+    -- The ring's shadow, rounded up to a whole unit.
+    local S = math.ceil(Pixel.Px(f.items, DaylightUI:Get("general", "shadowPx")) - 0.001)
+    local heads, buttons = {}, {}
+    for _, h in ipairs(f.headings) do if h:IsShown() and h.key then heads[#heads + 1] = h end end
+    for _, s in ipairs(f.set.Slots()) do if s.button:IsShown() then buttons[#buttons + 1] = s.button end end
+    for _, t in ipairs(f.tiles or {}) do if t.button:IsShown() then buttons[#buttons + 1] = t.button end end
+    local function spot(r) local _, _, _, x, y = r:GetPoint(1); return x, -y end
+    -- Rows of headings, top to bottom, each left to right.
+    local rows = {}
+    for _, h in ipairs(heads) do
+        local x, top = spot(h)
+        local row
+        for _, r in ipairs(rows) do if r.top == top then row = r end end
+        if not row then row = { top = top, heads = {} }; rows[#rows + 1] = row end
+        row.heads[#row.heads + 1] = { h = h, x = x }
+    end
+    table.sort(rows, function(a, b) return a.top < b.top end)
+    T.truthy(#rows >= 3, "several rows to compare")
+    local folded, measured = false, 0
+    for i, row in ipairs(rows) do
+        table.sort(row.heads, function(a, b) return a.x < b.x end)
+        row.bottom = row.top + L.HEAD
+        for k, e in ipairs(row.heads) do
+            local h = e.h
+            -- The line is the heading's bottom edge, as wide as the group.
+            local p, rel, relP = h.rule:GetPoint(1)
+            T.eq(rel, h); T.eq(p, "BOTTOMLEFT"); T.eq(relP, "BOTTOMLEFT")
+            T.eq(h:GetHeight(), L.HEAD)
+            if h.folded then folded = true end
+            local mine, right = {}, e.x
+            for _, b in ipairs(buttons) do
+                local bx, by = spot(b)
+                local nextTop = rows[i + 1] and rows[i + 1].top or math.huge
+                if by > row.top and by < nextTop and bx >= e.x - 0.01 and bx < e.x + h:GetWidth() then
+                    mine[#mine + 1] = b
+                    right = math.max(right, bx + size)
+                    -- Clear air from the line down to the ring's outer edge (its shadow).
+                    T.truthy(by - S - (row.top + L.HEAD) >= L.RING_GAP - 0.01,
+                        h.key .. ": the rings stay clear of the line")
+                    row.bottom = math.max(row.bottom, by + size + S)
+                end
+            end
+            if #mine > 0 and h.text:GetStringWidth() + 5 + h.count:GetStringWidth() < right - e.x then
+                T.near(h:GetWidth(), right - e.x, 0.01, h.key .. ": the line is as wide as its slots")
+                measured = measured + 1
+            end
+            local nxt = row.heads[k + 1]
+            if nxt then
+                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(cfg), 0.01, "the same gap beside every group")
+            end
+        end
+        if i > 1 then
+            T.near(row.top - rows[i - 1].bottom, L.RowGap(cfg), 0.01, "the same gap under every row")
+        end
+    end
+    T.truthy(folded, "a folded row among them")
+    T.truthy(measured > 0, "a group wider than its name")
+    T.eq(L.GroupGap(cfg), L.GROUP_GAP + gap, "the gaps grow with the slot spacing")
+    T.eq(L.RowGap(cfg), L.ROW_GAP + gap)
+    -- The window holds the last row's rings, shadow and all.
+    local _, h = L.Categories(f, cfg)
+    T.near(h, rows[#rows].bottom, 0.01, "the height reaches the last ring's outer edge")
 end)
 
 -- Folding a group should animate.
@@ -5572,7 +5647,7 @@ T.test("bags: a heading's name starts over its first slot, the chevron hangs to 
         if s.button:IsShown() and s.button:GetNumPoints() == 1 then
             local _, _, _, bx, by = s.button:GetPoint(1)
             local _, _, _, ox, oy = h:GetPoint(1)
-            if bx == ox and by == oy - Layout.HEAD then first = s.button end
+            if bx == ox and by == oy - Layout.SlotTop(f) then first = s.button end
         end
     end
     T.truthy(first, "a slot sits right under the heading's left edge")
