@@ -9,7 +9,7 @@ DaylightUI:RegisterModule("Nameplates", {
     -- Globals each file defines. If one is missing after an update, the module
     -- turns itself off with one line in chat instead of erroring.
     ns = ns,
-    parts = { "Body", "Plate", "Minion", "Cast", "Combo", "Power", "Auras", "Manager", "PlateLog", "Sample" },
+    parts = { "Body", "Plate", "Minion", "Cast", "Combo", "Power", "Auras", "Manager", "Sample" },
     label = "Nameplates",
     order = 125,
     defaults = ns.DEFAULTS,

@@ -3138,7 +3138,7 @@ function stub.Load(opts)
     end
     if opts.nameplates then
         local NP = {}
-        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Auras.lua", "Manager.lua", "PlateLog.lua", "Options.lua", "Sample.lua", "Module.lua" },
+        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
             "DaylightUI_Nameplates", NP)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Nameplates")
         stub.nameplates = NP

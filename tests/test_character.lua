@@ -23,6 +23,11 @@ T.test("character: the old probe's log is cleared", function()
     T.isnil(DaylightUIDB.charProbeLog)
 end)
 
+T.test("db: the old nameplate recorder's saved log is cleared", function()
+    load(nil, { before = function() _G.DaylightUIDB = { plateLog = { on = true, log = { { what = "state" } } } } end })
+    T.isnil(DaylightUIDB.plateLog)
+end)
+
 T.test("character: the fake game window toggles like the game's", function()
     load()
     ToggleCharacter("PaperDollFrame")

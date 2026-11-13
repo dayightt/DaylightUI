@@ -21,7 +21,6 @@ Combo.lua
 Power.lua
 Auras.lua
 Manager.lua
-PlateLog.lua
 Options.lua
 Sample.lua
 Module.lua

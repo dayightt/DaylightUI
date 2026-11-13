@@ -451,6 +451,7 @@ local function migrate(sv)
     local pd = sv.profileData
     mergeDefault(sv)
     sv.charProbeLog = nil -- an old debug log, removed
+    sv.plateLog = nil -- the old nameplate recorder's log, removed
     -- Only pre-profile settings make the standard profile here. A new install has
     -- none until the setup guide (point() provides a stand-in).
     local legacy = type(sv.general) == "table" or type(sv.modules) == "table" or type(sv.positions) == "table"
