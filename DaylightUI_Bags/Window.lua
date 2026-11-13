@@ -447,6 +447,53 @@ function Window.LayoutTools(f)
     else f.search:SetPoint("RIGHT", f, "RIGHT", -Window.EDGE, 0) end
 end
 
+-- Header tabs of the bag window: Bags (this window), Bank and Alts open the
+-- bank and the saved characters. They sit right of the title like the other
+-- windows' tabs, and the title, sub line and drag handle stop short of them.
+function Window.LayoutTabs(f)
+    if not f.tabs then return end
+    local right
+    for i = #f.tabs, 1, -1 do
+        local b = f.tabs[i]
+        if b:IsShown() then
+            b:ClearAllPoints()
+            b:SetPoint("RIGHT", right or f.close, "LEFT", -DUI.Win.TAB_GAP, 0)
+            right = b
+        end
+    end
+    local stop = right or f.close
+    f.title:SetPoint("RIGHT", stop, "LEFT", -8, 0)
+    f.sub:SetPoint("RIGHT", stop, "LEFT", -8, 0)
+    f.handle:ClearAllPoints()
+    f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    f.handle:SetPoint("RIGHT", stop, "LEFT", -4, 0)
+    f.handle:SetHeight(Window.TITLE)
+end
+
+function Window.Tabs(f)
+    f.tab = "bags"
+    DUI.Win.Tabs(f, {
+        { id = "bags", text = L["Bags"] },
+        { id = "bank", text = BANK or L["Bank"] },
+        { id = "alts", text = L["Alts"] },
+    }, function(id)
+        -- This window is the bags: the tab springs back once the other part is open.
+        DUI.Win.PickTab(f, "bags")
+        if id == "bank" then ns.Viewer.OpenBank()
+        elseif id == "alts" then ns.Viewer.OpenAlts() end
+    end)
+    Window.SyncTabs(f)
+end
+
+-- Alts is hidden while the viewer is switched off; the other tabs close up.
+function Window.SyncTabs(f)
+    if not f.tabs then return end
+    for _, b in ipairs(f.tabs) do
+        if b.id == "alts" then b:SetShown(ns.Viewer.On()) end
+    end
+    Window.LayoutTabs(f)
+end
+
 function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
@@ -776,9 +823,6 @@ local function bagWindow()
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
-            { key = "viewerButton", icon = ns.Viewer.ICON, title = L["Bank and alts"],
-              desc = L["Your bank and your other characters' bags, from anywhere."], onClick = function(w) ns.Viewer.Menu(w.viewerButton) end,
-              hint = L["Right-click: your bank"], onRightClick = function() ns.Viewer.ToggleBank() end },
             { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
             { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
@@ -791,6 +835,7 @@ local function bagWindow()
         },
     })
     ns.window = f
+    Window.Tabs(f)
     return f
 end
 

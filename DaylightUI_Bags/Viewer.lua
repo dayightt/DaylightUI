@@ -5,9 +5,8 @@
 -- none of those items can actually be reached.
 --
 -- Tabs in the title bar (Bags for another character, Bank, Account), character
--- picker in the tool row. Opened from the bag's tool row (Viewer.Menu lists the
--- bank and characters) or /dui bank. Turning viewer.enabled off removes the
--- button and stops saving (what's saved stays for when it's back on).
+-- picker in the tool row. Opened from the bag's Bank and Alts tabs or /dui bank.
+-- Turning viewer.enabled off removes the Alts tab and stops saving (what's saved stays for when it's back on).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -162,14 +161,32 @@ function Viewer.ToggleBank()
     else DUI.Print(L["Bank and alts is off. Turn it on in Bags > Bank and alts."]) end
 end
 
--- Adds or removes the bag's button (the tool row closes the gap) and closes
--- the window when the viewer is switched off.
+-- The bag's Bank tab: the live bank at a banker, else the saved one here.
+function Viewer.OpenBank()
+    local bank = ns.Bank
+    if bank and bank.open and bank.window then bank.Open()
+    elseif Viewer.On() then Viewer.Open(own(), "bank")
+    else DUI.Print(L["Bank and alts is off. Turn it on in Bags > Bank and alts."]) end
+end
+
+-- The bag's Alts tab: the character already shown, else the first other one
+-- with bags saved; your own bank when there is nobody else.
+function Viewer.OpenAlts()
+    if not Viewer.On() then return end
+    local key = Viewer.who
+    if not (key and key ~= own() and parts(key).bags) then
+        key = nil
+        for _, c in ipairs(Saved.Characters()) do
+            if not c.own and type(c.inv) == "table" and c.inv.bags then key = c.key break end
+        end
+    end
+    if key then Viewer.Open(key, "bags") else Viewer.Open(own(), "bank") end
+end
+
+-- Hides the bag's Alts tab and closes the window when the viewer is switched off.
 function Viewer.Sync()
     local bag, on = ns.window, Viewer.On()
-    if bag and bag.viewerButton then
-        bag.viewerButton:SetShown(on)
-        ns.Window.LayoutTools(bag)
-    end
+    if bag then ns.Window.SyncTabs(bag) end
     if not on and Viewer.window and DUI.Motion.Shown(Viewer.window) then Viewer.Close() end
 end
 
@@ -228,35 +245,14 @@ function Viewer.PickMenu(owner)
         keys[#keys + 1] = c.key
         values[c.key] = DUI.Win.Parts.Hex({ r, g, b }) .. name .. "|r"
     end
-    DUI.Widgets.OpenMenu(owner, keys, values, Viewer.who, function(key) Viewer.Show(key) end)
-end
-
--- The bag's chest button menu: your bank, then every other character with
--- something saved, in class color with their gold. Picking one opens the window
--- on it (their bags, or the bank if no bags are saved).
-function Viewer.Menu(owner)
-    local keys, values = { "bank" }, { bank = L["Bank"] }
-    local here = (own() or ""):match("%-(.*)$")
-    for _, c in ipairs(Saved.Characters()) do
-        if not c.own then
-            local r, g, b = DUI.Style.ClassTextColor(c.class)
-            local name = c.realm ~= here and (c.name .. " - " .. c.realm) or c.name
-            local money = type(c.inv) == "table" and type(c.inv.money) == "number" and c.inv.money
-            keys[#keys + 1] = c.key
-            values[c.key] = DUI.Win.Parts.Hex({ r, g, b }) .. name .. "|r"
-                .. (money and ("  " .. DUI.MoneyString(money)) or "")
-        end
-    end
     local more
     if #DUI.Alts.List() > 0 then
         keys[#keys + 1] = "remove"
         values.remove = L["Remove a character"]
         more = { remove = true }
     end
-    DUI.Widgets.OpenMenu(owner, keys, values, nil, function(key)
-        if key == "remove" then DUI.Alts.Menu(owner)
-        elseif key == "bank" then Viewer.Open(own(), "bank")
-        else Viewer.Open(key, "bags") end
+    DUI.Widgets.OpenMenu(owner, keys, values, Viewer.who, function(key)
+        if key == "remove" then DUI.Alts.Menu(owner) else Viewer.Show(key) end
     end, nil, { more = more })
 end
 

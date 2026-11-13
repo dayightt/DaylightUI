@@ -231,7 +231,7 @@ T.test("bags: title and sub line stop left of the X at any width", function()
     DaylightUI:Set("Bags", "iconSize", 26)
     stub.RunTimers()
     ns.Window.Relayout(f)
-    headerFits(f)
+    headerFits(f, f.tabs)
     T.eq(ns.Window.TITLE, DaylightUI.Win.HEADER)
 end)
 
@@ -3634,11 +3634,11 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick, _, opts)
         menu = { owner = owner, keys = keys, values = values, pick = onPick, opts = opts }
     end
-    bag.viewerButton:Click()
-    T.eq(menu.keys[#menu.keys], "remove", "the chest's list ends with the way to remove one")
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
+    T.eq(menu.keys[#menu.keys], "remove", "the picker's list ends with the way to remove one")
     T.truthy(menu.opts.more.remove, "a chevron: it opens another list")
     menu.pick("remove")
-    T.eq(menu.owner, bag.viewerButton)
+    T.eq(menu.owner, ns.Viewer.window.charsButton)
     T.truthy(menu.opts.confirm[alt], "asks first")
     menu.pick(alt)
     DaylightUI.Widgets.OpenMenu = openMenu
@@ -3650,7 +3650,7 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: yourself can't be removed, and alone the chest's list has no such row", function()
+T.test("viewer: yourself can't be removed, and alone the picker's list has no such row", function()
     local ns = login()
     local own = DaylightUI.DB.CharKey()
     T.eq(DaylightUI.Alts.Forget(own), false)
@@ -3659,7 +3659,7 @@ T.test("viewer: yourself can't be removed, and alone the chest's list has no suc
     local menu
     local openMenu = DaylightUI.Widgets.OpenMenu
     DaylightUI.Widgets.OpenMenu = function(_, keys) menu = keys end
-    bag.viewerButton:Click()
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
     DaylightUI.Widgets.OpenMenu = openMenu
     for _, k in ipairs(menu) do T.truthy(k ~= "remove") end
 end)
@@ -3687,7 +3687,7 @@ T.test("viewer: switching to nothing saved glides the window and fades the line 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", function()
+T.test("viewer: the Alts tab opens it; the search dims a saved copy too", function()
     local ns = login()
     local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
     local alt = "Alt-" .. realm
@@ -3695,32 +3695,24 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
         bags = { { section = "bags", size = 2, items = { [1] = { "|cff1eff00|Hitem:9|h[Wand]|h|r", 1, 909, 2 },
                                                          [2] = { "|Hitem:8|h[Bread]|h", 5, 808, 1 } } } } } }
     local bag = open(ns)
-    -- The chest opens a list: your bank, then each other character in their class
-    -- color with their gold. Picking one opens the window on it.
-    local menu
-    local openMenu = DaylightUI.Widgets.OpenMenu
-    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
-    bag.viewerButton:Click()
-    DaylightUI.Widgets.OpenMenu = openMenu
-    T.truthy(menu, "a list, not the window")
+    -- The Alts tab opens the window on another character's bags; the picker in
+    -- the window lists everyone and switches between them.
     T.falsy(ns.Viewer.window:IsShown())
-    T.eq(menu.owner, bag.viewerButton)
-    T.eq(menu.keys[1], "bank")
-    T.eq(menu.values.bank, "Bank")
-    T.eq(menu.keys[#menu.keys - 1], alt, "the other characters after it, not you")
-    T.truthy(menu.values[alt]:find("Alt"), "by name")
-    T.truthy(menu.values[alt]:find("|c"), "in their class color")
-    T.truthy(menu.values[alt]:find("1"), "with their gold")
-    for _, k in ipairs(menu.keys) do T.truthy(k ~= DaylightUI.DB.CharKey(), "you're the Bank row") end
-    menu.pick(alt)
+    bag.tabs[3]:Click()
     stub.RunTimers()
     local f = ns.Viewer.window
     T.truthy(f:IsShown(), "opened from the bag")
     T.eq(ns.Viewer.who, alt)
     T.eq(ns.Viewer.part, "bags", "on their bags")
-    menu.pick("bank")
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
+    ns.Viewer.PickMenu(f.charsButton)
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.truthy(menu.values[alt]:find("Alt"), "by name")
+    T.truthy(menu.values[alt]:find("|c"), "in their class color")
+    menu.pick(DaylightUI.DB.CharKey())
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
-    T.eq(ns.Viewer.part, "bank", "Bank: yours")
     ns.Viewer.Show(alt, "bags")
     stub.RunTimers()
     f.search:SetText("wand")
@@ -3732,17 +3724,20 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: switched off, the button goes (the tool row closes up), nothing new is saved", function()
+T.test("viewer: switched off, the Alts tab goes (the others close up), nothing new is saved", function()
     local ns = login()
     local bag = open(ns)
-    T.truthy(bag.viewerButton:IsShown())
-    local sortX = select(4, bag.sort:GetPoint(1))
+    T.falsy(bag.viewerButton, "no chest button in the tool row any more")
+    local alts, bank = bag.tabs[3], bag.tabs[2]
+    T.truthy(alts:IsShown())
+    local _, relOn = bank:GetPoint(1)
+    T.eq(relOn, alts, "Bank sits beside Alts")
     DaylightUI:Set("Bags", "viewer.enabled", false)
     stub.RunTimers()
-    T.falsy(bag.viewerButton:IsShown(), "the chest button goes")
-    local _, rel = bag.slotsButton:GetPoint(1)
-    T.eq(rel, bag.sort, "the next tool moves up beside Clean Up")
-    T.eq(select(4, bag.sort:GetPoint(1)), sortX)
+    T.falsy(alts:IsShown(), "the Alts tab goes")
+    local _, rel = bank:GetPoint(1)
+    T.eq(rel, bag.close, "Bank takes Alts' place")
+    headerFits(bag, { bag.tabs[1] })
     ns.Viewer.Toggle()
     stub.RunTimers()
     T.falsy(ns.Viewer.window:IsShown(), "/dui bank says it's off instead")
@@ -3752,9 +3747,47 @@ T.test("viewer: switched off, the button goes (the tool row closes up), nothing 
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
-    T.truthy(bag.viewerButton:IsShown(), "back on: the button's back")
-    local _, rel2 = bag.slotsButton:GetPoint(1)
-    T.eq(rel2, bag.viewerButton)
+    T.truthy(alts:IsShown(), "back on: the tab's back")
+    local _, rel2 = bank:GetPoint(1)
+    T.eq(rel2, alts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the header tabs open the bank and the alts viewer", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 1, time = time(),
+        bags = { { section = "bags", size = 4, items = {} } } } }
+    local bag = open(ns)
+    T.eq(#bag.tabs, 3)
+    T.eq(bag.tab, "bags", "Bags is picked on open")
+    headerFits(bag, bag.tabs)
+    tabsOnTitleRow(bag, bag.tabs)
+    -- Away from a banker: the saved bank, in the viewer.
+    bag.tabs[2]:Click()
+    stub.RunTimers()
+    local v = ns.Viewer.window
+    T.truthy(v:IsShown(), "the saved bank opens")
+    T.eq(ns.Viewer.part, "bank")
+    T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
+    T.eq(bag.tab, "bags", "the Bags tab stays picked")
+    -- At a banker: the live bank.
+    ns.Viewer.Close()
+    stub.RunTimers()
+    ns.Bank.open = true
+    bag.tabs[2]:Click()
+    stub.RunTimers()
+    T.truthy(ns.Bank.window:IsShown(), "the live bank opens")
+    T.falsy(DaylightUI.Motion.Shown(v), "not the viewer")
+    ns.Bank.open = false
+    -- Alts: another character's bags.
+    bag.tabs[3]:Click()
+    stub.RunTimers()
+    T.truthy(v:IsShown())
+    T.eq(ns.Viewer.part, "bags")
+    T.eq(ns.Viewer.who, alt)
+    T.eq(bag.tab, "bags")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3883,7 +3916,7 @@ T.test("bags: on a controller the D-pad starts on the first item, once an openin
     _G.InputUtil, _G.GamepadMode, _G.SmartNavigation = nil, nil, nil
 end)
 
-T.test("viewer: a right-click on the bag's title bar or its chest button opens your bank, again closes it", function()
+T.test("viewer: a right-click on the bag's title bar opens your bank, again closes it", function()
     local ns = login()
     local bag = open(ns)
     local v = ns.Viewer.window
@@ -3895,12 +3928,9 @@ T.test("viewer: a right-click on the bag's title bar or its chest button opens y
     T.truthy(v:IsShown(), "the title bar's right-click: the bank")
     T.eq(ns.Viewer.part, "bank")
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey(), "your own")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
+    bag.handle:GetScript("OnMouseUp")(bag.handle, "RightButton")
     stub.RunTimers()
     T.falsy(DaylightUI.Motion.Shown(v), "again: it closes")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
-    stub.RunTimers()
-    T.truthy(v:IsShown(), "the chest button's right-click opens it too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
