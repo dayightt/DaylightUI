@@ -1684,6 +1684,9 @@ T.test("bags: group headings read upper case in the group's color with a count a
         local rec = headOf("recent")
         T.truthy(rec, "a Recent heading")
         T.truthy(string.find(rec.text:GetText(), "|c", 1, true), "Recent paints letter by letter under a gradient accent")
+        local ar, ag, ab = DaylightUI.Style.Accent()
+        T.near(rec.rule.__color[1], ar, 0.01, "its line uses the accent")
+        T.near(rec.rule.__color[2], ag, 0.01); T.near(rec.rule.__color[3], ab, 0.01)
     end)
     DaylightUI:Set("general", "accent", nil)
     _G.C_NewItems = nil
@@ -5522,26 +5525,115 @@ T.test("bags: chips reset when the bag closes, and a chip in combat lays out not
     T.eq(headingsShown(f).weapon, nil, "the filter applies once combat ends")
 end)
 
-T.test("bags: a heading's rule fades out to the right, softer under the Classic look", function()
+T.test("bags: a heading's name starts over its first slot, the chevron hangs to its left", function()
     local ns, f = catLogin()
-    local function rule()
-        for _, x in ipairs(f.headings) do if x:IsShown() then return x.rule end end
+    local Layout = ns.Layout
+    local h
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "weapon" then h = x end end
+    T.truthy(h, "a heading for Weapons")
+    local function point(r, i)
+        local p, rel, rp, x, y = r:GetPoint(i or 1)
+        return p, rel, rp, x, y
     end
-    local g = rule().__gradient
-    T.truthy(g, "drawn as a gradient")
-    T.eq(g[1], "HORIZONTAL")
-    local tint = ns.Layout.RULE_TINT
-    T.near(g[2].a, ns.Layout.RULE_ALPHA.daylight * tint, 0.001, "starts at the Daylight strength, tinted")
-    T.eq(g[3].a, 0, "and fades to nothing")
-    -- The Classic look may not be in this build; check it only when it is.
-    if DaylightUI.Style.LOOKS and DaylightUI.Style.LOOKS.classic then
-        DaylightUI:Set("general", "look", "classic")
-        stub.RunTimers()
-        ns.Relayout()
-        T.near(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic * tint, 0.001, "softer on the Classic gold")
-        DaylightUI:Set("general", "look", nil)
-        stub.RunTimers()
+    local p, rel, rp, x = point(h.text)
+    T.eq(rel, h, "the name hangs off the heading itself")
+    T.eq(p, "LEFT"); T.eq(rp, "LEFT")
+    T.eq(x, 0, "and starts at its left edge, where the group's first slot starts")
+    local _, hrel, _, hx = point(h)
+    local first
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() and s.button:GetNumPoints() == 1 then
+            local _, _, _, bx, by = s.button:GetPoint(1)
+            local _, _, _, ox, oy = h:GetPoint(1)
+            if bx == ox and by == oy - Layout.HEAD then first = s.button end
+        end
     end
+    T.truthy(first, "a slot sits right under the heading's left edge")
+    local cp, crel, crp, cx = point(h.chev)
+    T.eq(crel, h.text, "the chevron hangs off the name")
+    T.eq(cp, "RIGHT"); T.eq(crp, "LEFT")
+    T.truthy(cx < 0, "to the left of it")
+    T.truthy(-cx + Layout.HEAD_CHEV <= ns.Window.EDGE + Layout.SHELF_INSET - 2, "and stays clear of the window edge")
+end)
+
+T.test("bags: the Shelf leaves room for the hanging chevron, the Grid keeps its margin", function()
+    local ns, f = catLogin()
+    local E = ns.Window.EDGE
+    local _, _, _, x = f.items:GetPoint(1)
+    T.eq(x, E + ns.Layout.SHELF_INSET, "the Shelf's items start a little in")
+    T.eq(f:GetWidth(), f.items:GetWidth() + E * 2 + ns.Layout.SHELF_INSET, "the window grows by the same")
+    ns.module.db.view = "grid"
+    ns.Relayout()
+    _, _, _, x = f.items:GetPoint(1)
+    T.eq(x, E, "the Grid is unchanged")
+    T.eq(f:GetWidth(), f.items:GetWidth() + E * 2)
+end)
+
+T.test("bags: a heading is underlined in its color, as wide as its group", function()
+    local ns, f = catLogin()
+    local Layout, INK = ns.Layout, DaylightUI.Style.INK
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    local c = h.rule.__color
+    T.truthy(c, "a solid line")
+    local gr, gg, gb = ns.Categories.Color("weapon")
+    T.near(c[1], gr, 0.01); T.near(c[2], gg, 0.01); T.near(c[3], gb, 0.01)
+    T.near(c[4], Layout.RULE_ALPHA, 0.001, "at about half strength")
+    local lp, lrel = h.rule:GetPoint(1)
+    local rp, rrel = h.rule:GetPoint(2)
+    T.eq(lrel, h); T.eq(rrel, h)
+    T.eq(lp, "BOTTOMLEFT"); T.eq(rp, "BOTTOMRIGHT")
+    T.truthy(h.rule:GetHeight() > 0 and h.rule:GetHeight() <= 2, "a thin line")
+    local r, g, b, a = h.count:GetTextColor()
+    T.near(r, gr, 0.01, "the count is in the group's color")
+    T.truthy(a < 1, "a little dimmer")
+    ns.Categories.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    c = h.rule.__color
+    local want = DaylightUI.Style.BAND_LIT
+    T.near(c[1], want[1], 0.01, "folded: a plain palette line")
+    T.near(c[2], want[2], 0.01); T.near(c[3], want[3], 0.01)
+    r, g, b = h.count:GetTextColor()
+    T.near(r, INK.LABEL[1], 0.01, "folded: the count reads label, not accent")
+    T.near(g, INK.LABEL[2], 0.01); T.near(b, INK.LABEL[3], 0.01)
+    ns.Categories.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+end)
+
+T.test("bags: the line is as wide as the group even when the name is wider", function()
+    local ns, f = catLogin()
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and not h.folded then
+            local w = h:GetWidth()
+            T.truthy(w >= h.text:GetStringWidth(), "the heading is at least as wide as its name")
+        end
+    end
+end)
+
+T.test("bags: Empty's count is the free slots, not the tiles", function()
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    ns.Relayout()
+    local h
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "empty" then h = x end end
+    T.truthy(h, "an Empty heading")
+    local free, tiles = 0, 0
+    for _, g in ipairs(ns.Layout.Groups(ns.module.db, f)) do
+        if g.key == "empty" then
+            for _, e in ipairs(g.entries) do free, tiles = free + (e.free or 1), tiles + 1 end
+        end
+    end
+    T.truthy(free > tiles, "the free tiles stand for more slots than there are tiles")
+    T.eq(h.count:GetText(), tostring(free), "and the heading says the same number")
+    DaylightUI:Set("Bags", "emptySlots", "all")
+    ns.Relayout()
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "empty" then h = x end end
+    T.eq(h.count:GetText(), tostring(free), "one tile per slot reads the same")
 end)
 
 T.test("bags: the new-item glow never spills into the next slot", function()
@@ -5619,10 +5711,7 @@ T.test("bags: a heading wears its group's color, folded ones read label, the rul
     end
     is(h.text, { 0.96, 0.52, 0.42 }, "name")
     is(h.count, { 0.96, 0.52, 0.42 }, "count")
-    local grad = h.rule.__gradient
-    T.truthy(grad, "the rule fades")
-    T.near(grad[2].r, 0.96, 0.01, "the rule starts from the group's color")
-    T.near(grad[3].a, 0, 0.001, "and fades out")
+    T.near(h.rule.__color[1], 0.96, 0.01, "the line is in the group's color")
     Cat.SetColor("weapon", { 0.2, 0.4, 0.6 })
     ns.Relayout()
     h = headOf("weapon")

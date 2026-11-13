@@ -633,8 +633,14 @@ function Window.LayoutChips(f, width)
         end
     end
     f.items:ClearAllPoints()
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, top - h)
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + Window.Inset(f), top - h)
     return h
+end
+
+-- The Shelf starts a little in so a heading's chevron has room in the margin.
+function Window.Inset(f)
+    local cfg = f.Cfg and f.Cfg()
+    return cfg and cfg.view == "categories" and ns.Layout.SHELF_INSET or 0
 end
 
 -- The filter words under the search, one W.Tab per CHIPS entry, hidden at rest.
@@ -988,7 +994,7 @@ function Window.Relayout(f, synced, moved)
     f.items:SetSize(w, math.max(h, 1))
     -- Header, tool row, filters (when shown), slots and footer, a gap between
     -- each; the footer sits on the edge.
-    local W = w + E * 2
+    local W = w + E * 2 + Window.Inset(f)
     local Feel = DUI.Win.Feel
     local eases = ns.Layout.Eases(f)
     if not eases and Feel.Moving(f.items) then Feel.Settle(f.items) end

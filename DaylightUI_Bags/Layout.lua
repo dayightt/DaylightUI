@@ -131,33 +131,29 @@ Layout.ROW_GAP = 8           -- between rows of groups
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
 Layout.HEAD_CHEV = 8         -- chevron size
-Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
+Layout.HEAD_CHEV_GAP = 3     -- between the chevron and the name
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
+Layout.SHELF_INSET = 4       -- extra left margin in the Shelf, where the chevrons hang
 
--- A heading's rule fades out toward the right. The lit band color is a soft warm
--- line in the Daylight look but a bright gold in the Classic one, so it starts at
--- the strength the window's own header rule uses there.
-Layout.RULE_ALPHA = { daylight = 1, classic = 0.7 }
+-- The line under an open heading, in the group's color at this strength.
+Layout.RULE_ALPHA = 0.55
+Layout.COUNT_ALPHA = 0.7     -- an open group's count, a little dimmer than its name
+Layout.RULE_PX = 1
 
--- With a color (an open group's own) the rule starts as a faint tint of it.
-Layout.RULE_TINT = 0.45
-
+-- The line under a heading: the group's color, or a plain palette line while
+-- folded (no color given).
 function Layout.PaintRule(rule, r, g, b)
     local c = DUI.Style.BAND_LIT
-    local a = Layout.RULE_ALPHA[DUI.Style.Look and DUI.Style.Look() or "daylight"] or 1
     if r then
-        c, a = { r, g, b }, a * Layout.RULE_TINT
-    end
-    if CreateColor and rule.SetGradient then
-        rule:SetVertexColor(1, 1, 1, 1)
-        rule:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], 0))
+        rule:SetColorTexture(r, g, b, Layout.RULE_ALPHA)
     else
-        rule:SetVertexColor(c[1], c[2], c[3], a)
+        rule:SetColorTexture(c[1], c[2], c[3], 1)
     end
 end
 
--- Group heading: chevron, upper case name, count and a faint rule out to the
--- group's edge. A click folds or unfolds it, a right-click on Recent clears it,
+-- Group heading: upper case name and count over the group's first slot, a line
+-- under them the width of the group, and the chevron hanging in the margin to
+-- the left of the name. A click folds or unfolds it, a right-click on Recent clears it,
 -- and an item dropped or clicked onto it from the cursor gets pinned to the group.
 local function heading(window, i)
     window.headings = window.headings or {}
@@ -166,16 +162,18 @@ local function heading(window, i)
     h = CreateFrame("Button", nil, window.items)
     h:SetHeight(Layout.HEAD)
     h.chev = DUI.Widgets.Icon(h, "ui-chevron.png", Layout.HEAD_CHEV, DUI.Style.INK.LABEL)
-    h.chev:SetPoint("LEFT", h, "LEFT", 1, 0)
     h.text = DUI.Style.Text(h, Layout.HEAD_SIZE, "LEFT")
-    h.text:SetPoint("LEFT", h, "LEFT", Layout.HEAD_TEXT_X, 1)
+    h.text:SetPoint("LEFT", h, "LEFT", 0, 1)
+    h.chev:SetPoint("RIGHT", h.text, "LEFT", -Layout.HEAD_CHEV_GAP, 0)
+    -- The chevron sits outside the heading, so it takes clicks too.
+    h:SetHitRectInsets(-(Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP + 2), 0, 0, 0)
     h.count = DUI.Style.Text(h, DUI.Style.SIZE.tiny, "LEFT")
     h.count:SetPoint("LEFT", h.text, "RIGHT", 5, 0)
     h.rule = h:CreateTexture(nil, "ARTWORK")
     h.rule:SetTexture("Interface\\Buttons\\WHITE8X8")
-    h.rule:SetHeight(1)
-    h.rule:SetPoint("LEFT", h.count, "RIGHT", 6, 0)
-    h.rule:SetPoint("RIGHT", h, "RIGHT", 0, 0)
+    h.rule:SetHeight(DUI.Pixel.Px(h, Layout.RULE_PX))
+    h.rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
+    h.rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
     local function pinFromCursor(self)
         if not GetCursorInfo then return false end
         local kind, itemID = GetCursorInfo()
@@ -242,12 +240,23 @@ function Layout.PaintHeading(h, folded)
             h.text:SetTextColor(d[1], d[2], d[3])
         end
     end
-    Layout.PaintRule(h.rule, gr, gg, gb)
-    -- The count pops; an empty group's "drag items here" hint stays quiet.
-    if gr and not h.empty and not h.hover then
-        h.count:SetTextColor(gr, gg, gb)
+    if gr then
+        Layout.PaintRule(h.rule, gr, gg, gb)
+    elseif not folded then
+        Layout.PaintRule(h.rule, Style.Accent())
     else
-        Style.InkText(h.count, h.empty and "LABEL" or "pop")
+        Layout.PaintRule(h.rule)
+    end
+    -- An open group's count wears its color a little dimmer; a folded one reads
+    -- label, the "drag items here" hint stays quiet, and the mouse lifts it.
+    if h.hover then
+        Style.InkText(h.count, "pop")
+    elseif gr and not h.empty then
+        h.count:SetTextColor(gr, gg, gb, Layout.COUNT_ALPHA)
+    elseif lit and not h.empty then
+        Style.InkText(h.count, "pop")
+    else
+        Style.InkText(h.count, "LABEL")
     end
     if h.hover then
         h.chev:SetVertexColor(Style.Accent())
@@ -501,13 +510,19 @@ function Layout.Categories(window, cfg)
         end
         taken[h] = true
         h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
-        h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(#g.entries))
+        -- Empty counts the slots its tiles stand for, as the tile does.
+        local shownN = #g.entries
+        if g.key == "empty" then
+            shownN = 0
+            for _, e in ipairs(g.entries) do shownN = shownN + (e.free or 1) end
+        end
+        h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(shownN))
         Layout.PaintHeading(h, folded)
         local textW = (h.text.GetStringWidth and h.text:GetStringWidth()) or 0
         if type(textW) ~= "number" then textW = 0 end
         local countW = (h.count.GetStringWidth and h.count:GetStringWidth()) or 0
         if type(countW) ~= "number" then countW = 0 end
-        textW = Layout.HEAD_TEXT_X + textW + 5 + countW
+        textW = textW + 5 + countW
         local n = folded and 0 or #g.entries
         local across = math.min(n, cols)
         local rows = n > 0 and math.ceil(n / across) or 0
