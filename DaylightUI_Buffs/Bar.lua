@@ -163,8 +163,8 @@ end
 -- strip couldn't grow then. The container's own anchor may change in combat,
 -- and the holder only moves out of combat (unlock mode, ApplyAttach).
 -- Where the container sits past the imbue strip, in bar units: beside it, or
--- with each category on its own row, one row below it so the imbues are a row
--- of their own.
+-- with each kind on its own row, one row below it so the imbues are a row of
+-- their own.
 function BarMixin:ContainerOffset()
     local weapons = self.weaponWidth or 0
     if weapons <= 0 then return 0, 0 end
@@ -327,11 +327,12 @@ function BarMixin:GroupLayout(index)
         -- category's times run into the row above.
         groupLineSpacing = spacing + textRoom(size),
         groupSpacing = self:IsDebuff() and 0 or (self:Setting("categoryGap") or 0),
-        forceNewLine = self:Rows(),
+        forceNewLine = self:Rows() and BL.Categories.StartsRow(index),
     }
 end
 
--- Each category on its own row (buff bar only).
+-- Each kind on its own row (buff bar only): class buffs, then weapon,
+-- consumable and the rest.
 function BarMixin:Rows()
     return not self:IsDebuff() and self:Setting("categoryRows") == true
 end

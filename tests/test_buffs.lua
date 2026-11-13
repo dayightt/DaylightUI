@@ -1230,7 +1230,7 @@ T.test("buffs: the profile in use made over again keeps its buff groups; the wea
     T.truthy(b and b:IsShown(), "the imbue still shows")
 end)
 
-T.test("buffs: each category on its own row starts every category on a new line", function()
+T.test("buffs: each kind on its own row starts consumables on a new line", function()
     local BL = login({ before = function()
         stub.SetAuras("player", "HELPFUL", {
             { name = "Power Word: Fortitude", spellId = 1243, icon = 1, expirationTime = 2000 },
@@ -1249,11 +1249,37 @@ T.test("buffs: each category on its own row starts every category on a new line"
     T.eq(ys.priest, ys.consumable, "inline: one row")
     DaylightUI:Set("Buffs", "settings.categoryRows", true)
     stub.RunTimers()
-    T.truthy(group("priest").layout.forceNewLine)
+    T.truthy(group("warrior").layout.forceNewLine, "the class buffs start a row")
+    T.falsy(group("priest").layout.forceNewLine, "and share it")
     T.truthy(group("consumable").layout.forceNewLine)
     T.falsy(DaylightUIDebuffs.__groups.debuffs.layout.forceNewLine, "the debuff bar is one group")
     ys = rows()
     T.truthy(ys.consumable < ys.priest, "consumables a row below the class buffs")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Categories are per class, so a row per category gave every class's buffs a
+-- row of its own. Class buffs share one row, with the normal gap between classes.
+T.test("buffs: each kind on its own row keeps every class's buffs on one row", function()
+    local BL = login({ before = function()
+        stub.SetAuras("player", "HELPFUL", {
+            { name = "Battle Shout", spellId = 5242, icon = 1, expirationTime = 2000 },
+            { name = "Arcane Intellect", spellId = 1459, icon = 2, expirationTime = 2100 },
+            { name = "Elixir of the Mongoose", spellId = 17538, icon = 3, expirationTime = 2200 },
+        })
+    end })
+    DaylightUI:Set("Buffs", "settings.categoryRows", true)
+    stub.RunTimers()
+    local at = {}
+    for _, e in ipairs(BL.Bar:CurrentFlow().elements) do at[e.key] = e end
+    T.truthy(at.warrior and at.mage and at.consumable, "all three drawn")
+    T.eq(at.warrior.y, at.mage.y, "warrior and mage buffs on one row")
+    T.truthy(at.consumable.y < at.mage.y, "the consumable starts the next row")
+    local s = BL.DB.settings
+    T.eq(math.abs(at.mage.x - at.warrior.x), s.iconSize + s.spacing + s.categoryGap, "the gap still sits between classes")
+    T.falsy(group("mage").layout.forceNewLine)
+    T.truthy(group("weapon").layout.forceNewLine)
+    T.truthy(group("other").layout.forceNewLine)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
