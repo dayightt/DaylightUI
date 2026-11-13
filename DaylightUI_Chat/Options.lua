@@ -284,6 +284,8 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("shortTags") ~= true end },
             { type = "toggle", key = "classColors", label = "Class-colored names",
               desc = "Players' names in their class color, in every kind of chat (the game's own setting)." },
+            { type = "toggle", key = "levels", label = "Levels beside names",
+              desc = "[60] before a player's name, for anyone in your group, guild or friends list, found with /who, or you've targeted or moused over. Someone you haven't seen yet shows no level." },
             { type = "dropdown", key = "timestamps", label = "Timestamps",
               -- The game's six formats (Social settings, TIMESTAMP_FORMAT_*), in its order.
               values = { game = "As the game's setting", none = "None",

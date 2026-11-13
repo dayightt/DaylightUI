@@ -4854,3 +4854,37 @@ T.test("chat on a controller: Classic whatever the setting, the game's chat butt
     T.truthy(Box.On(), "controller mode off: the Daylight box again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("chat daylight: a level beside names the game has told us, only with the setting on", function()
+    local Box, box = daylight(function()
+        _G.GetNormalizedRealmName = function() return "Home" end
+        _G.IsInGuild = function() return true end
+        _G.GetNumGuildMembers = function() return 2 end
+        _G.GetGuildRosterInfo = function(i)
+            if i == 1 then return "Bram-Home", "Member", 1, 60 end
+            return "Cass-Far", "Member", 1, 23
+        end
+    end)
+    local plain = function(s) return (string.gsub(string.gsub(s, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")) end
+    local function line(who, n) said(ChatFrame1, "|Hplayer:" .. who .. ":" .. n .. "|h[" .. who .. "]|h: hi", "CHAT_MSG_GUILD", n) end
+    line("Bram", 1)
+    T.falsy(plain(boxTexts(box)[box:GetNumMessages()]):find("[60]", 1, true), "off by default")
+    DaylightUI:Set("Chat", "levels", true)
+    stub.FireEvent("GUILD_ROSTER_UPDATE")
+    line("Bram", 2)
+    T.truthy(plain(boxTexts(box)[box:GetNumMessages()]):find("^%[60%] |Hplayer:Bram"), boxTexts(box)[box:GetNumMessages()])
+    line("Cass-Far", 3)
+    T.truthy(plain(boxTexts(box)[box:GetNumMessages()]):find("^%[23%] |Hplayer:Cass%-Far"), "another realm's name, by its full name")
+    line("Stranger", 4)
+    T.truthy(plain(boxTexts(box)[box:GetNumMessages()]):find("^|Hplayer:Stranger"), "never seen: no level")
+    local realLevel, realIs = _G.UnitLevel, _G.UnitIsPlayer
+    _G.UnitIsPlayer = function(u) return u == "target" or (realIs and realIs(u)) end
+    _G.UnitFullName = function(u) if u == "target" then return "Stranger", nil end end
+    _G.UnitLevel = function(u) if u == "target" then return 12 end return realLevel and realLevel(u) end
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    line("Stranger", 5)
+    T.truthy(plain(boxTexts(box)[box:GetNumMessages()]):find("^%[12%] |Hplayer:Stranger"), "targeted once: known")
+    _G.UnitLevel, _G.UnitIsPlayer, _G.UnitFullName = realLevel, realIs, nil
+    _G.GetNormalizedRealmName, _G.IsInGuild, _G.GetNumGuildMembers, _G.GetGuildRosterInfo = nil, nil, nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

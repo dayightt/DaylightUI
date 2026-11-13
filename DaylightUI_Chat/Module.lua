@@ -6,7 +6,7 @@ DaylightUI:RegisterModule("Chat", {
     -- Globals each file defines. If one is missing after an update, the module
     -- turns itself off with one line in chat instead of erroring.
     ns = ns,
-    parts = { "Tags", "Chat", "Feel", "History", "Copy", "Bubbles", "Links", "LinkTips", "Whisper", "Recall", "Kinds", "Box", "ChatMenu", "Extras", "Tabs", "Filter", "Talk", "Thread", "Convo", "Tiles", "Hub", "Tell" },
+    parts = { "Tags", "Levels", "Chat", "Feel", "History", "Copy", "Bubbles", "Links", "LinkTips", "Whisper", "Recall", "Kinds", "Box", "ChatMenu", "Extras", "Tabs", "Filter", "Talk", "Thread", "Convo", "Tiles", "Hub", "Tell" },
     label = "Chat",
     order = 145,
     defaults = ns.DEFAULTS,

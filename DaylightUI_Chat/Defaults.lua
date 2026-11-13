@@ -44,6 +44,7 @@ ns.DEFAULTS = {
     channelNumbers = false, -- numbered channels keep their number: [1. G], [2. T]
     -- channelTags: custom short tags per kind, set in a tab's Show window (Tags.lua). No default.
     classColors = true, -- class-colored names (the game's own setting)
+    levels = false,     -- "[60] Name": a level beside each name the game has told us (Levels.lua)
     timestamps = "game", -- "game" uses the game's setting, "none" turns it off, else a time format
     links = true,           -- web addresses clickable, to copy
     linkTooltips = true,    -- an item, spell or quest link's tooltip on mouseover

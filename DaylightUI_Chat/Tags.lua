@@ -152,6 +152,16 @@ function Tags.Shorten(msg, event)
     return out ~= msg and out or nil
 end
 
+-- What a line gets: short tags (shortTags) and the speaker's level (levels,
+-- Levels.lua). The changed line, or nil.
+function Tags.Shape(msg, event)
+    if type(msg) ~= "string" or secret(msg) then return nil end
+    local out = Tags.enabled and Tags.Shorten(msg, event) or msg
+    local Levels = ns.Levels
+    if Levels and Levels.on then out = Levels.Mark(out) end
+    return out ~= msg and out or nil
+end
+
 function Tags.Own(kind) return Tags.own[kind] end
 
 -- Fallback tag for a channel: its word, else its number.
@@ -201,7 +211,7 @@ local changed = {}
 -- The window just redrew. Shorten every entry added since the last redraw
 -- (newest first, stopping at the first one already seen) and update its line.
 function Tags.OnRedraw(cf)
-    if not Tags.enabled then return end
+    if not (Tags.enabled or (ns.Levels and ns.Levels.on)) then return end
     local hb = cf.historyBuffer
     if type(hb) ~= "table" or type(hb.GetEntryAtIndex) ~= "function" then return end
     local e = hb:GetEntryAtIndex(1)
@@ -213,7 +223,7 @@ function Tags.OnRedraw(cf)
         if type(e) ~= "table" or seen[e] then break end
         seen[e] = true
         local m = e.message
-        local short = not locked and not secret(m) and Tags.Shorten(m, eventOf(e))
+        local short = not locked and not secret(m) and Tags.Shape(m, eventOf(e))
         if short then
             e.message = short
             changed[e], any = short, true

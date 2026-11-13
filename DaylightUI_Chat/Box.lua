@@ -149,11 +149,13 @@ local function fresh(cf, text, args)
     return true
 end
 
--- Our copy of the line, with short tags when enabled and chat isn't locked down.
+-- Our copy of the line, with short tags and levels when enabled and chat
+-- isn't locked down.
 local function shape(text, event)
-    if secret(text) or not ns.Tags.enabled or ns.Tags.Protected() then return text end
+    if secret(text) or not (ns.Tags.enabled or ns.Levels.on) or ns.Tags.Protected() then return text end
     if secret(event) or type(event) ~= "string" then event = nil end
-    text = ns.Tags.Shorten(text, event) or text
+    text = ns.Tags.Shape(text, event) or text
+    if not ns.Tags.enabled then return text end
     -- Drop the brackets around names: [Name] -> Name (the link still works).
     return (string.gsub(text, "(|H[Bb]?[Nn]?player:[^|]*|h)%[(.-)%](|h)", "%1%2%3"))
 end

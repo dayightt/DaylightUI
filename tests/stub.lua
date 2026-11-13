@@ -3116,7 +3116,7 @@ function stub.Load(opts)
     end
     if opts.chat then
         local CH = {}
-        loadFiles("DaylightUI_Chat/", { "Defaults.lua", "Tags.lua", "Chat.lua", "Feel.lua", "History.lua", "Copy.lua", "Bubbles.lua", "Links.lua", "LinkTips.lua", "Whisper.lua", "Recall.lua", "Kinds.lua", "Box.lua", "ChatMenu.lua", "Extras.lua", "Tabs.lua", "Filter.lua", "Talk.lua", "Thread.lua", "Convo.lua", "Tiles.lua", "Hub.lua", "Tell.lua", "Options.lua", "Module.lua" }, "DaylightUI_Chat", CH)
+        loadFiles("DaylightUI_Chat/", { "Defaults.lua", "Tags.lua", "Levels.lua", "Chat.lua", "Feel.lua", "History.lua", "Copy.lua", "Bubbles.lua", "Links.lua", "LinkTips.lua", "Whisper.lua", "Recall.lua", "Kinds.lua", "Box.lua", "ChatMenu.lua", "Extras.lua", "Tabs.lua", "Filter.lua", "Talk.lua", "Thread.lua", "Convo.lua", "Tiles.lua", "Hub.lua", "Tell.lua", "Options.lua", "Module.lua" }, "DaylightUI_Chat", CH)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Chat")
         stub.chatModule = CH
     end

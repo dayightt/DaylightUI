@@ -14,6 +14,7 @@
 
 Defaults.lua
 Tags.lua
+Levels.lua
 Chat.lua
 Feel.lua
 History.lua
