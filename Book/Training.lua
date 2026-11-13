@@ -258,8 +258,13 @@ local function makeChip(parent)
     return b
 end
 
+local layoutChips
+
 function Training.Build(page)
     Training.page = page
+    -- The search box follows the page's edge while the window is resized, so
+    -- the chips are fitted again then, not only on the next refresh.
+    page:HookScript("OnSizeChanged", function() layoutChips(page) end)
     local W = DUI.Widgets
     local box = W.Input(page, { height = 24, search = true, hint = SEARCH or L["Search"],
         onChange = function(t) Training.Search(t) end })
@@ -384,11 +389,13 @@ function Training.Render(page)
     end
 end
 
-local function layoutChips(page)
-    local x = Training.EDGE
+-- Chips that don't fit beside the search box wrap onto rows below it, and the
+-- list moves down to make room. Every chip stays shown, in any language.
+function layoutChips(page)
+    local W = DUI.Widgets
+    local x, row = Training.EDGE, 0
     local w = page:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.Window.SIZE.training[1] end
-    local room = w - 2 * Training.EDGE - 160
     local i = 0
     for _, key in ipairs(Training.ORDER) do
         if Training.CHIP[key] and Training.at and Training.at[key] then
@@ -399,13 +406,36 @@ local function layoutChips(page)
             c.text:SetText(Training.CHIP[key]())
             c.FitWidth()
             local cw = c:GetWidth()
-            c:ClearAllPoints()
-            c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
-            c:SetShown(x + cw - Training.EDGE <= room)
-            x = x + cw + 6
+            local limit = row == 0 and (w - Training.EDGE - 160) or (w - Training.EDGE)
+            if x > Training.EDGE and x + cw > limit then x, row = Training.EDGE, row + 1 end
+            -- A chip moving to another spot (a wrap) glides there.
+            local y = -11 - row * (W.CHIP_HEIGHT + W.CHIP_GAP)
+            local tx = x
+            local fx, fy = c.atX or tx, c.atY or y
+            if not c:IsShown() then fx, fy = tx, y end
+            c.atX, c.atY = tx, y
+            c:Show()
+            local M = DUI.Motion
+            c.glide = c.glide or {}   -- its own tween key; the chip's hover uses the chip
+            M.Tween(c.glide, 0, 1, M.NORMAL, function(p)
+                c:ClearAllPoints()
+                c:SetPoint("TOPLEFT", page, "TOPLEFT", fx + (tx - fx) * p, fy + (y - fy) * p)
+            end)
+            x = x + cw + W.CHIP_GAP
         end
     end
     for k = i + 1, #page.chips do page.chips[k]:Hide() end
+    local top = Training.TOP + row * (W.CHIP_HEIGHT + W.CHIP_GAP)
+    if page.chipsTop ~= top then
+        local s, M = page.stack, DUI.Motion
+        local from = page.listTop or top
+        page.chipsTop = top
+        -- The list glides to its new top; a tween still running retargets.
+        M.Tween(s.scroll, from, top, M.NORMAL, function(v)
+            page.listTop = v
+            s.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", s.side, -v)
+        end)
+    end
 end
 
 -- Scroll a group to the top, unfolding it if needed.

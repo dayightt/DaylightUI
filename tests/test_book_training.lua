@@ -322,3 +322,59 @@ T.test("book training: closing on Training and opening the book again starts on 
     T.eq(ns.Window.frame.current, "spells")
     T.eq(ns.Window.frame.tab, "spells")
 end)
+
+local function chipRows(page)
+    local rows = {}
+    for _, c in ipairs(page.chips) do
+        if c:IsShown() then
+            local y = select(5, c:GetPoint(1))
+            rows[y] = (rows[y] and rows[y] .. "," or "") .. c.group
+        end
+    end
+    return rows
+end
+
+local function resize(page, w)
+    page.GetWidth = function() return w end   -- the window's new width, held through refreshes
+    page:GetScript("OnSizeChanged")(page, w, page:GetHeight())
+    frame(30)   -- chips and list glide into place
+end
+
+T.test("book training: chips that don't fit beside the search box wrap below it, none hidden", function()
+    local ns = load(fakeApi(warriorList()))
+    local page = openTraining(ns)
+    resize(page, 380)
+    local shown, rows = 0, 0
+    for _, c in ipairs(page.chips) do if c:IsShown() then shown = shown + 1 end end
+    T.eq(shown, 5, "every group's chip shown")
+    for _ in pairs(chipRows(page)) do rows = rows + 1 end
+    T.truthy(rows >= 2, "on more than one row")
+    local search = page.search
+    for _, c in ipairs(page.chips) do
+        if c:IsShown() and select(5, c:GetPoint(1)) == -11 then
+            T.truthy(select(4, c:GetPoint(1)) + c:GetWidth() <= 380 - ns.Training.EDGE - 160, c.group .. " clear of the search box")
+        end
+    end
+    T.truthy(page.chipsTop > ns.Training.TOP, "the list moved down for the extra row")
+end)
+
+T.test("book training: resizing rewraps the chips at once, and widening puts them back on one row", function()
+    local ns = load(fakeApi(warriorList()))
+    local page = openTraining(ns)
+    resize(page, 380)
+    T.truthy(page.chipsTop > ns.Training.TOP)
+    resize(page, 900)
+    local rows = 0
+    for _ in pairs(chipRows(page)) do rows = rows + 1 end
+    T.eq(rows, 1)
+    T.eq(page.chipsTop, ns.Training.TOP, "the list back up")
+end)
+
+T.test("book training: the list glides to its new top when the chips wrap", function()
+    local ns = load(fakeApi(warriorList()))
+    local page = openTraining(ns)
+    resize(page, 380)
+    frame(30)
+    T.eq(page.listTop, page.chipsTop, "settled under the last row of chips")
+    T.eq(select(5, page.stack.scroll:GetPoint(1)), -page.chipsTop)
+end)
