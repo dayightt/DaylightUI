@@ -284,12 +284,12 @@ end
 -- gold (the character's or the account bank's).
 local function updateFooter(f)
     local inv = Saved.Of(Viewer.who)
-    local seen, money
+    local seen = seenOf(inv)
+    local money
     if Viewer.part == "account" then
         local a = Saved.Account()
-        seen, money = a and a.time, a and a.money
+        money = a and a.money
     else
-        seen = inv and (Viewer.part == "bank" and inv.bankTime or inv.time)
         money = Viewer.who == own() and GetMoney and GetMoney() or inv and inv.money
     end
     local ago = DUI.Social and DUI.Social.Data and DUI.Social.Data.Ago

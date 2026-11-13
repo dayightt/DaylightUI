@@ -173,29 +173,81 @@ T.test("bags: the window has a portrait header, its name and free slots in the s
     T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
 end)
 
-T.test("bags: a narrow window keeps title, sub line and X apart", function()
+-- The fake game does no layout, so no text width is checked here: these read the
+-- anchors. inset = how far a right edge sits in from the window's right edge.
+local function anchorOf(obj, point)
+    for i = 1, obj:GetNumPoints() do
+        local p, rel, relPoint, x, y = obj:GetPoint(i)
+        if p == point then return rel, relPoint, x, y end
+    end
+end
+
+local function inset(obj, point)
+    local rel, _, x = anchorOf(obj, point)
+    return -x, rel
+end
+
+-- The header's text keeps clear of the X (and of the first header tab when there
+-- are tabs), and the sub line sits under the title, right of the portrait.
+local function headerFits(f, tabs)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    local first = tabs and tabs[1]
+    for _, fs in ipairs({ f.title, f.sub }) do
+        local rel, relPoint = anchorOf(fs, "RIGHT")
+        if first then
+            T.eq(rel, first, "stops at the first tab")
+            T.eq(relPoint, "LEFT")
+        else
+            local closeIn = inset(f.close, "TOPRIGHT") + f.close:GetWidth()
+            local textIn, textRel = inset(fs, "RIGHT")
+            T.eq(textRel, f)
+            T.truthy(textIn >= closeIn, "stops left of the X")
+        end
+    end
+    local subRel, subPoint = anchorOf(f.sub, "TOPLEFT")
+    T.eq(subRel, f.title, "the sub line hangs under the title")
+    T.eq(subPoint, "BOTTOMLEFT")
+    local _, _, titleX, titleY = anchorOf(f.title, "TOPLEFT")
+    T.truthy(titleX >= DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT, "the title starts right of the portrait")
+    T.eq(titleY, DaylightUI.Win.TITLE_Y, "on the header's title row")
+end
+
+-- Header tabs ride the X's row: anchored to the X or the tab beside it, no
+-- offset of their own, so they follow the taller header.
+local function tabsOnTitleRow(f, tabs)
+    local right = f.close
+    for i = #tabs, 1, -1 do
+        local rel, relPoint, x, y = anchorOf(tabs[i], "RIGHT")
+        T.eq(rel, right, "tab " .. i .. " sits beside the one to its right")
+        T.eq(relPoint, "LEFT"); T.eq(y, 0, "level with the X")
+        right = tabs[i]
+    end
+end
+
+T.test("bags: title and sub line stop left of the X at any width", function()
     local ns = login()
     local f = open(ns)
     DaylightUI:Set("Bags", "columns", 4)
     DaylightUI:Set("Bags", "iconSize", 26)
     stub.RunTimers()
     ns.Window.Relayout(f)
-    -- The fake game lays nothing out, so read the anchors: how far each right
-    -- edge sits in from the window's right edge.
-    local function inset(obj, point)
-        for i = 1, obj:GetNumPoints() do
-            local p, rel, _, x = obj:GetPoint(i)
-            if p == point then return -x, rel end
-        end
-    end
-    local closeIn, rel = inset(f.close, "TOPRIGHT")
-    T.eq(rel, f, "the X hangs off the window")
-    local closeLeft = closeIn + f.close:GetWidth()
-    local titleIn, titleRel = inset(f.title, "RIGHT")
-    local subIn, subRel = inset(f.sub, "RIGHT")
-    T.eq(titleRel, f); T.eq(subRel, f)
-    T.truthy(titleIn >= closeLeft, "the title stops left of the X")
-    T.truthy(subIn >= closeLeft, "and so does the sub line")
+    headerFits(f)
+    T.eq(ns.Window.TITLE, DaylightUI.Win.HEADER)
+end)
+
+T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.viewTabs)
+    tabsOnTitleRow(f, f.viewTabs)
+    T.truthy(f.sub:GetText():find("Saved", 1, true), "when it was saved")
 end)
 
 T.test("bags: a holder per bag carrying its bag, and exactly one button per real slot", function()
@@ -1958,6 +2010,18 @@ local function bankLogin(newCharacter)
     ns = stub.bags
     return ns, bank
 end
+
+T.test("bank: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    T.truthy(f.sub:GetText():find(" of ", 1, true), "free slots in the sub line")
+end)
+
 
 T.test("bank: opens with the bank, the character tabs' slots in our look; the game's bank out of sight", function()
     local ns, bank = bankLogin()

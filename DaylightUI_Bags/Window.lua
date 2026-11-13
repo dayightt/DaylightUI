@@ -568,7 +568,7 @@ function Window.Relayout(f, synced, moved)
     end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
-    -- Header, tool row, slots, footer: each piece with a gap after it.
+    -- Header, tool row, slots and footer, a gap between each; the footer sits on the edge.
     local W = w + E * 2
     local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
     -- A fold (heading click) glides the window to its new size along with the slots
