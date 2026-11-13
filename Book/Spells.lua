@@ -36,10 +36,7 @@ Spells.EVENTS = { "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "UNIT_PET", "
 -- Warm text tones for name, rank and unavailable spells.
 Spells.NAME = { 0.93, 0.89, 0.82 }
 Spells.SOFT = { 0.74, 0.70, 0.63 }
-Spells.QUIET = DUI.Style.INK.OFF
--- Ranks and hovered headings take the Classic look's gold labels.
-DUI.Style.Looked(Spells.SOFT, { daylight = { Spells.SOFT[1], Spells.SOFT[2], Spells.SOFT[3] },
-    classic = DUI.Style.LOOKS.classic.INK.LABEL })
+Spells.QUIET = { 0.55, 0.51, 0.45 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function color(fs, c, a) fs:SetTextColor(c[1], c[2], c[3], a or 1) end

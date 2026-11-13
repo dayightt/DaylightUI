@@ -504,40 +504,6 @@ function Cards.Draw.frameStyle(card, key, w, h)
 end
 
 -- An accent color as a rounded swatch.
--- A small frame edge in each look: Daylight UI's dark outline and warm band,
--- or Classic's stone outline, gilded band and a gold rivet on its cut end.
-function Cards.Draw.look(card, key, w, h)
-    local L = Style.LOOKS[key] or Style.LOOKS.daylight
-    local a = CreateFrame("Frame", nil, card.inner)
-    a:SetSize(math.max(1, math.min(w, 110)), math.max(1, math.min(h, 26)))
-    a:SetPoint("TOPLEFT", card.inner, "TOPLEFT", 10, -10)
-    local function layer(inset, color)
-        local t = a:CreateTexture(nil, "ARTWORK")
-        t:SetPoint("TOPLEFT", a, "TOPLEFT", inset, -inset)
-        t:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -inset, inset)
-        t:SetColorTexture(color[1], color[2], color[3], 1)
-        return t
-    end
-    layer(0, L.BORDER)
-    local band = layer(1, L.BAND)
-    if L.GOLD and band.SetGradient and CreateColor then
-        local lo, hi = L.GOLD[1], L.GOLD[2]
-        band:SetColorTexture(1, 1, 1, 1)
-        band:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
-    end
-    layer(3, L.BACKGROUND)
-    if L.GOLD then
-        local r = a:CreateTexture(nil, "OVERLAY")
-        r:SetTexture(Style.RIVET_FILE)
-        r:SetSize(9, 9)
-        r:SetPoint("CENTER", a, "RIGHT", -6, 0)
-        local hi = L.GOLD[2]
-        r:SetVertexColor(hi[1], hi[2], hi[3], 1)
-    end
-    card.look = a
-    return a
-end
-
 function Cards.Draw.swatch(card, key, w, h)
     local s = W.Round(card.inner, "ARTWORK")
     local size = math.max(1, math.min(h, 26))
