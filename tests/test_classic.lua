@@ -421,3 +421,27 @@ T.test("registering per-look values while files load never touches the saved set
     DB.loggedIn, DB.sv, DB.Init = was, sv, init
     T.falsy(touched, "the saved data is set up later, by the game's load event")
 end)
+
+T.test("a title set later still paints in the look's title color", function()
+    local DUI = stub.Load()
+    local f = DUI.Win.New({ w = 300, h = 200 })
+    look(DUI, "classic")
+    DUI.Win.SetTitle(f, "Spellbook")
+    T.rgb(f.title.__textColor, hex("ffd35a"))
+end)
+
+T.test("the options window's page title takes the look's title color", function()
+    local DUI = stub.Load()
+    DUI.OptionsPanel.Show("appearance")
+    look(DUI, "classic")
+    local t
+    local function walk(f)
+        for _, r in ipairs({ f:GetRegions() }) do
+            if r.GetText and r:GetText() == "Appearance" and select(2, r:GetFont()) == DUI.Style.SIZE.title then t = r end
+        end
+        for _, c in ipairs({ f:GetChildren() }) do walk(c) end
+    end
+    walk(_G.DaylightUIOptions)
+    T.truthy(t, "the header title")
+    T.rgb(t.__textColor, hex("ffd35a"))
+end)

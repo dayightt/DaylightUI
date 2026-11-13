@@ -610,7 +610,7 @@ function Win.SetTitle(f, title, color, sub)
     -- A player's name can be secret in combat, so no truth test here.
     if type(title) == "nil" then title = "" end
     f.title:SetText(title)
-    if color then f.title:SetTextColor(color[1], color[2], color[3]) else Style.InkText(f.title, "VALUE") end
+    if color then f.title:SetTextColor(color[1], color[2], color[3]) else Style.InkText(f.title, "TITLE") end
     if f.sub then f.sub:SetText(sub or "") end
 end
 
