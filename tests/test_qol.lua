@@ -1855,7 +1855,7 @@ local function glowSetup(setting, before, own)
         SoftTargetInteractOnlyInRange = "1", SoftTargetInteractRangeIsHard = "1", SoftTargetIconGameObject = "0",
         SoftTargetNameplateInteract = "0", SoftTargetIconInteract = "1", nameplateGameObjectMaxDistance = "30" }
     for k, v in pairs(own or {}) do cvars[k] = v end
-    local g = { cvars = cvars, cursor = "Interface\\Cursor\\Mine", near = true, isObject = true, profs = { 186 } }
+    local g = { cvars = cvars, cursor = "Interface\\Cursor\\LootAll", near = true, isObject = true, profs = { 186 } }
     local saved = {}
     for _, k in ipairs({ "GetCVar", "SetCVar", "UnitIsGameObject", "SetUnitCursorTexture", "UnitIsInInteractRange",
         "GetProfessions", "GetProfessionInfo", "IsInInstance", "C_NamePlate" }) do saved[k] = _G[k] end
@@ -1879,7 +1879,7 @@ local function glowSetup(setting, before, own)
     end
     stub.Load({ qol = true, before = before })
     _G.IsInInstance = function() return g.inside == true end
-    stub.units.softinteract = { name = "Copper Vein", guid = "GameObject-0-1-2-3-1731-00001" }
+    stub.units.softinteract = { name = "Battered Chest", guid = "GameObject-0-1-2-3-2843-00001" }
     g.plate = CreateFrame("Frame", nil, UIParent)
     g.m = DaylightUI:GetModule("QoL")
     g.G = stub.qol.Glow
@@ -1927,7 +1927,7 @@ T.test("glow: the game's plate opens only for what lights up, and the light land
     stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
     T.eq(G.art:IsShown(), true)
     T.eq(G.art:GetParent(), g.plate)
-    T.eq(G.art.kind, "ore")
+    T.eq(G.art.kind, "chest")
     T.eq(G.art.state, "ready")
     g.isObject = false   -- an NPC now: no light, and the plate shut again
     soft()
@@ -1937,7 +1937,7 @@ T.test("glow: the game's plate opens only for what lights up, and the light land
     g.done()
 end)
 
-T.test("glow: a lit bobber hides the game's interact icon, ore keeps it, and leaving gives it back", function()
+T.test("glow: a lit bobber hides the game's interact icon, a chest keeps it, and leaving gives it back", function()
     local g = glowSetup(true)
     local G = g.G
     local function plateWithIcon()
@@ -1949,22 +1949,29 @@ T.test("glow: a lit bobber hides the game's interact icon, ore keeps it, and lea
     local bobber, bobberIcon = plateWithIcon()
     G.Show(bobber, "bobber", "ready", "GameObject-0-0-0-0-35591-1")
     T.eq(bobberIcon:GetAlpha(), 0, "one marker on the bobber, the light")
-    local ore, oreIcon = plateWithIcon()
-    G.Show(ore, "ore", "ready", "GameObject-0-0-0-0-1731-1")
+    local chest, chestIcon = plateWithIcon()
+    G.Show(chest, "chest", "ready", "GameObject-0-0-0-0-2843-1")
     T.eq(bobberIcon:GetAlpha(), 1, "the bobber's plate gets its icon back")
-    T.eq(oreIcon:GetAlpha(), 1, "ore keeps the pick")
+    T.eq(chestIcon:GetAlpha(), 1, "a chest keeps the game's icon")
     G.Leave()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     g.done()
 end)
 
-T.test("glow: ore a character can't gather stays dark", function()
+-- Ore and herbs stay dark, even for a character who gathers them: the plate
+-- switched on and off for every node is suspected of stopping all plates.
+T.test("glow: ore and herbs never light, and never open the game's plate", function()
     local g = glowSetup(true)
-    g.profs = { 171 }
     g.plateUp = true
-    soft()
-    T.eq(g.G.art:IsShown(), false)
-    T.eq(g.cvars.SoftTargetNameplateInteract, "0")
+    for _, node in ipairs({ { "Interface\\Cursor\\Mine", "Copper Vein", 1731 },
+        { "Interface\\Cursor\\GatherHerbs", "Peacebloom", 1617 } }) do
+        g.cursor = node[1]
+        g.at("GameObject-0-1-2-3-" .. node[3] .. "-00001", node[2])
+        soft()
+        T.eq(g.G.art:IsShown(), false, node[2])
+        T.eq(g.cvars.SoftTargetNameplateInteract, "0", node[2])
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     g.done()
 end)
 
@@ -1972,7 +1979,8 @@ T.test("glow: an object it doesn't light keeps the plate the player's own settin
     -- The player shows the interact plate themself, so every node has a plate.
     -- Closing the gate must not hide it (node plates used to flash up, then go).
     local g = glowSetup(true, nil, { SoftTargetNameplateInteract = "1", SoftTargetIconInteract = "0" })
-    g.profs = { 171 }   -- can't mine: the ore stays dark
+    g.cursor = "Interface\\Cursor\\Mine"   -- ore stays dark
+    g.at("GameObject-0-1-2-3-1731-00001", "Copper Vein")
     g.plateUp = true
     soft()
     T.eq(g.G.art:IsShown(), false)
@@ -1981,7 +1989,8 @@ T.test("glow: an object it doesn't light keeps the plate the player's own settin
     g.isObject = false   -- an NPC: the player's own plate stays too
     soft()
     T.eq(g.cvars.SoftTargetNameplateInteract, "1")
-    g.profs = { 186 }    -- ore it lights: the plate shows, then the player's own again
+    g.cursor = "Interface\\Cursor\\LootAll"   -- a chest it lights: the plate shows, then the player's own again
+    g.at("GameObject-0-1-2-3-2843-00001", "Battered Chest")
     g.isObject = true
     soft()
     T.eq(g.G.art:IsShown(), true)
@@ -2002,7 +2011,7 @@ T.test("glow: far, in reach and refused each show, and reaching it runs the ring
     soft()
     T.eq(G.art.state, "ready")
     T.eq(G.art.ringAge, 0)
-    g.cursor = "Interface\\Cursor\\UnableMine"
+    g.cursor = "Interface\\Cursor\\UnableLootAll"
     soft()
     T.eq(G.art.state, "locked")
     g.done()
@@ -2075,6 +2084,8 @@ T.test("glow: a looted crate counts as a chest from then on, ore never does", fu
     stub.FireEvent("LOOT_READY")
     T.eq(G.IsChest(555, "Plain Thing"), true)
     g.plateUp = true
+    g.cursor = "Interface\\Cursor\\Mine"
+    g.at("GameObject-0-1-2-3-1731-00001", "Copper Vein")
     soft()   -- id 1731, ore by its cursor
     _G.GetLootSourceInfo = function() return "GameObject-0-1-2-3-1731-00001" end
     stub.FireEvent("LOOT_READY")
@@ -2172,12 +2183,12 @@ T.test("glow: an unknown look falls back to the sweep, and the light follows the
     g.m.db.objectGlowLook = "gone"
     T.eq(G.LookOf(), "sweep")
     g.m.db.objectGlowColor = "object"
-    local lo = G.ColorOf("herb")
-    T.eq(lo, G.KINDS.herb)
+    local lo = G.ColorOf("quest")
+    T.eq(lo, G.KINDS.quest)
     g.m.db.objectGlowColor = "accent"
     local Style = DaylightUI.Style
     local pair = Style.AccentPair()
-    T.eq(G.ColorOf("herb")[1], pair and pair[1] or (Style.Accent()))
+    T.eq(G.ColorOf("quest")[1], pair and pair[1] or (Style.Accent()))
     g.done()
 end)
 

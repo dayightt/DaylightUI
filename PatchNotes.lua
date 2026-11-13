@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "Copy chat", "The copy window has an X, and Escape closes it before any window behind it" },
             { "Cast bars", "Each cast bar's spell name and cast time have their own switch, size, position and color" },
             { "Damage meter", "Class icons match the set you picked for your unit frames, Jiberish styles included" },
+            { "Object glow", "Ore and herbs don't light up for now, as they may be why nameplates sometimes vanish until a /reload. Quest objects, chests and your bobber still do, with far less memory used" },
         },
         fixed = {
             { "NPC window", "Turning in a quest no longer hangs on \"Retrieving item information\": slow rewards fill in, and when the game leaves out the rewards to choose from, the window says so and Space closes it so you can talk to the NPC again" },
@@ -30,7 +31,6 @@ DUI.PatchNotes = {
             { "Action bars", "Shadowform switches bar 1 to its own page, like a druid's forms" },
             { "Legacy", "Challenges the game can't track no longer show a Track switch" },
             { "Cooldown Manager", "Arcane Blast's stacks show on a bar too, not just as an icon" },
-            { "Object glow", "Uses far less memory while it looks for things around you, which could cause small stutters" },
             { "Minimap", "No more small stutters from the addon button drawer while Questie or other map pin addons add pins as you move" },
             { "Character", "The stats show everything the game's own sheet does: health, mana, haste, off-hand damage, armor and spell penetration, and your pet's crit, dodge and a demon's mana" },
             { "Action bars", "The \"Daylight UI tried to call SetShown()\" error for the bottom bars, which still showed up after looting in a fight, is gone for good" },

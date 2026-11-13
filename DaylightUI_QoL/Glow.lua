@@ -1,5 +1,7 @@
--- Object glow: ore, herbs, quest objects, chests and the fishing bobber light up
--- as you get near. The game picks one object as the soft interact target
+-- Object glow: quest objects, chests and the fishing bobber light up as you get
+-- near. Ore and herbs are told apart but never lit: switching the game's plate
+-- on and off for every node walked past may be what stops all nameplates
+-- drawing until a reload. The game picks one object as the soft interact target
 -- ("softinteract") and gives it a nameplate. That plate is the only way to find
 -- the object on screen, so the light is attached to it.
 --
@@ -22,7 +24,6 @@ local Glow = {
     FISH_RANGE = "60",      -- while the line is in: the bobber lands further out
     PLATE_RANGE = 60,       -- the plate must reach as far as the soft target does
     BOBBER = 35591,         -- the bobber's object id, in its GUID
-    GATHER = { herb = 182, ore = 186 },   -- the skill line each needs
     EVERY = 0.2,            -- s between looks at a light's object
     WATCH = 0.25,           -- s between looks with no light up: an event alone misses a far object
     -- The picture, in px on the plate.
@@ -82,16 +83,14 @@ local Glow = {
     -- Light, soft and warm like the rest of the look. A thing with its own
     -- color keeps it: these say what the object is at a glance.
     KINDS = {
-        ore = { 1.00, 0.62, 0.24 },
-        herb = { 0.48, 0.92, 0.50 },
         quest = { 1.00, 0.84, 0.32 },
         chest = { 0.58, 0.78, 1.00 },
         bobber = { 1.00, 0.52, 0.42 },
         other = { 0.92, 0.90, 0.86 },
     },
-    ORDER = { "ore", "herb", "quest", "chest", "bobber", "other" },
+    ORDER = { "quest", "chest", "bobber", "other" },
     -- Which setting each kind answers to.
-    SWITCH = { ore = "objectGlowGather", herb = "objectGlowGather", quest = "objectGlowQuest",
+    SWITCH = { quest = "objectGlowQuest",
         chest = "objectGlowChest", bobber = "objectGlowBobber", other = "objectGlowOther" },
     -- The cursor the game gives an object says what it is: part of the file's
     -- name, first match wins ("questinteract" is a quest before an interact).
@@ -334,20 +333,6 @@ function Glow.IsQuest(unit)
     if type(data) == "table" and type(data.lines) == "table" then
         for _, line in ipairs(data.lines) do
             if line.type == lineType then return true end
-        end
-    end
-    return false
-end
-
--- Can this character gather it? false only when the game plainly says no.
-function Glow.Knows(kind)
-    local line = Glow.GATHER[kind]
-    if not line or type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return true end
-    local list = { GetProfessions() }
-    for i = 1, 7 do
-        if list[i] then
-            local info = { GetProfessionInfo(list[i]) }
-            if info[7] == line then return true end
         end
     end
     return false
@@ -692,7 +677,7 @@ function Glow.Leave()
     a.plate, a.kind, a.guid, a.state, a.gx, a.gy = nil, nil, nil, nil, nil, nil
 end
 
--- The game's own interact icon on a plate (the pick on ore, the hand on herbs).
+-- The game's own interact icon on a plate.
 function Glow.GameIcon(plate)
     local uf = type(plate) == "table" and plate.UnitFrame
     local icon = type(uf) == "table" and uf.SoftTargetFrame
@@ -712,7 +697,7 @@ function Glow.Show(plate, kind, state, guid)
         if a.SetIgnoreParentAlpha then a:SetIgnoreParentAlpha(true) end
         a.plate, a.kind, a.guid = plate, kind, guid
         -- The light marks the bobber already; the game's icon on top of it was
-        -- a second marker. Ore and herbs keep theirs: it says pick or hand.
+        -- a second marker.
         if kind == "bobber" and not InCombatLockdown() then
             a.hushed = Glow.GameIcon(plate)
             if a.hushed then a.hushed:SetAlpha(0) end
@@ -781,7 +766,7 @@ function Glow.Evaluate()
         return
     end
     local kind, blocked, guid = Glow.Read()
-    if not kind or not on(Glow.SWITCH[kind]) or Glow.Knows(kind) == false then
+    if not kind or not on(Glow.SWITCH[kind]) then
         Glow.Leave()
         Glow.Gate(false)
         return
@@ -885,7 +870,7 @@ function Glow.Preview()
         Glow.stand = stand
     end
     -- In the accent every kind is the same light: once is enough.
-    local order = mod and mod.db and mod.db.objectGlowColor == "object" and Glow.ORDER or { "ore" }
+    local order = mod and mod.db and mod.db.objectGlowColor == "object" and Glow.ORDER or { "quest" }
     local function beat(i)
         if run ~= previewRun or not previewing then return end
         local kind = order[math.ceil(i / 2)]
