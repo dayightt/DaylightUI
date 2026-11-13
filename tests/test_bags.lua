@@ -351,7 +351,7 @@ T.test("bags: the search hint stops at its box", function()
     T.eq(right, ns.window.search, "held to the box's right end, so a narrow bag cuts it short")
 end)
 
-T.test("bags: new items keep a still glow, no flash or pulse", function()
+T.test("bags: new items get no glow frame, flash or pulse from the game", function()
     local ns = login()
     open(ns)
     local rare = ns.Bags.buttons[0][1]
@@ -359,8 +359,7 @@ T.test("bags: new items keep a still glow, no flash or pulse", function()
     T.falsy(rare.flashAnim:IsPlaying(), "the sweep stopped")
     T.falsy(rare.newitemglowAnim:IsPlaying(), "the pulse stopped")
     T.falsy(rare.flash:IsShown(), "the flash texture hidden")
-    T.truthy(rare.NewItemTexture:IsShown(), "the glow itself stays")
-    T.eq(rare.NewItemTexture:GetAlpha(), 1, "still and fully lit (stopping the pulse had put it back to 0)")
+    T.falsy(rare.NewItemTexture:IsShown(), "the game's glow frame is hidden: Recent and the new-item dot mark new loot")
     -- A button without the animations (another client build) fills without errors.
     local plain = ns.Bags.buttons[0][2]
     plain.flashAnim, plain.newitemglowAnim, plain.flash, plain.NewItemTexture = nil, nil, nil, nil

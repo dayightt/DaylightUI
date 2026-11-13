@@ -888,12 +888,13 @@ function Items.Fill(btn, tooltipOwner)
     call(btn, "UpdateExtended")
     call(btn, "UpdateQuestItem", q.isQuestItem, q.questID, q.isActive)
     call(btn, "UpdateNewItem", quality)
-    -- No shimmer: stop the sweep and pulse the game just started. The glow stays as
-    -- a still, quality-colored one (Stop resets its alpha to 0).
+    -- No shimmer and no glow frame: stop the sweep and pulse the game just started and
+    -- hide its glow (white on common items, a second frame around the ring). New loot is
+    -- marked by the Recent group and the small new-item dot instead.
     if type(btn.flashAnim) == "table" and btn.flashAnim.Stop then btn.flashAnim:Stop() end
     if type(btn.newitemglowAnim) == "table" and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
     if type(btn.flash) == "table" and btn.flash.Hide then btn.flash:Hide() end
-    if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.SetAlpha then btn.NewItemTexture:SetAlpha(1) end
+    if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.Hide then btn.NewItemTexture:Hide() end
     call(btn, "UpdateJunkItem", quality, noValue)
     call(btn, "UpdateItemContextMatching")
     call(btn, "UpdateCooldown", shown)
