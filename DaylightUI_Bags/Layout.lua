@@ -125,28 +125,58 @@ end
 -- Categories view
 
 Layout.HEAD_TEXT = 15        -- the heading's text row
-Layout.HEAD = 18             -- the whole heading, its line along the bottom a little under the text
 Layout.HEAD_SIZE = DUI.Style.SIZE.small
-Layout.RING_GAP = 2          -- clear air from the line down to the slot rings' shadow (the ring itself sits a shadow further)
--- Gaps between groups side by side (slot to slot) and between rows (from the
--- rings' shadow to the next heading). Both add the slot spacing, so a tight bag
--- gets a tight Shelf.
-Layout.GROUP_GAP = 13
-Layout.ROW_GAP = 3
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
-function Layout.GroupGap(cfg) return Layout.GROUP_GAP + cfg.spacing end
-function Layout.RowGap(cfg) return Layout.ROW_GAP + cfg.spacing end
+-- The Shelf's spacing is drawn to a reference picture with a 62 px slot. Each
+-- length below is in that picture's pixels and scales with the slot size, so a
+-- bigger or smaller iconSize keeps the same proportions. Slots within a group
+-- keep the player's spacing setting.
+Layout.REF_SLOT = 62
+Layout.REF = {
+    pad = 6,         -- from the heading's text row down to its line
+    line = 2,        -- the line's thickness (never under LINE_MIN_PX)
+    toRing = 8,      -- from the line down to the first ring's outer edge
+    rowGap = 14,     -- from the last ring's outer edge to the next heading's top
+    groupGap = 26,   -- between groups side by side, ring edge to ring edge
+}
+Layout.LINE_MIN_PX = 2       -- one pixel read as too thin
 
--- How far a slot's ring reaches past the slot (the shell's shadow), rounded up
--- to whole units like every other spot in the Shelf.
-function Layout.RingOut(window)
-    return math.ceil(DUI.Pixel.Px(window.items, DUI:Get("general", "shadowPx") or 0) - 0.001)
+-- A reference length at this slot size, in whole units like every other spot in
+-- the Shelf (fractions added up differently along a row and a glide), at least one.
+function Layout.Ref(window, cfg, px)
+    return math.max(1, math.floor(px * cfg.iconSize / Layout.REF_SLOT + 0.5))
+end
+
+local function cfgOf(window, cfg) return cfg or window.Cfg() end
+
+-- The line under a heading, on whole pixels.
+function Layout.LineH(window, cfg)
+    cfg = cfgOf(window, cfg)
+    local Pixel = DUI.Pixel
+    local scaled = Pixel.Snap(window.items, Layout.REF.line * cfg.iconSize / Layout.REF_SLOT)
+    return math.max(scaled, Pixel.Px(window.items, Layout.LINE_MIN_PX))
+end
+
+-- The whole heading: its text row, the room under it and the line at its
+-- bottom, rounded up to a whole unit.
+function Layout.HeadH(window, cfg)
+    cfg = cfgOf(window, cfg)
+    local line = math.ceil(Layout.LineH(window, cfg) - 0.001)
+    return Layout.HEAD_TEXT + Layout.Ref(window, cfg, Layout.REF.pad) + line
+end
+
+function Layout.GroupGap(window, cfg)
+    return Layout.Ref(window, cfgOf(window, cfg), Layout.REF.groupGap)
+end
+function Layout.RowGap(window, cfg)
+    return Layout.Ref(window, cfgOf(window, cfg), Layout.REF.rowGap)
 end
 
 -- Where a group's first slot starts below its heading's top.
-function Layout.SlotTop(window)
-    return Layout.HEAD + Layout.RING_GAP + Layout.RingOut(window)
+function Layout.SlotTop(window, cfg)
+    cfg = cfgOf(window, cfg)
+    return Layout.HeadH(window, cfg) + Layout.Ref(window, cfg, Layout.REF.toRing)
 end
 
 Layout.HEAD_CHEV = 8         -- chevron size
@@ -157,12 +187,11 @@ Layout.SHELF_INSET = 4       -- extra left margin in the Shelf, where the chevro
 -- The line under an open heading, in the group's color at this strength.
 Layout.RULE_ALPHA = 0.55
 Layout.COUNT_ALPHA = 0.7     -- an open group's count, a little dimmer than its name
-Layout.RULE_PX = 1
 
--- The line under a heading: the group's color, or a plain palette line while
--- folded (no color given).
+-- The line under a heading: the group's color, or while folded (no color
+-- given) the same dim line an empty slot's ring has.
 function Layout.PaintRule(rule, r, g, b)
-    local c = DUI.Style.BAND_LIT
+    local c = ns.Items.EMPTY
     if r then
         rule:SetColorTexture(r, g, b, Layout.RULE_ALPHA)
     else
@@ -179,11 +208,10 @@ local function heading(window, i)
     local h = window.headings[i]
     if h then return h end
     h = CreateFrame("Button", nil, window.items)
-    h:SetHeight(Layout.HEAD)
     h.chev = DUI.Widgets.Icon(h, "ui-chevron.png", Layout.HEAD_CHEV, DUI.Style.INK.LABEL)
     h.text = DUI.Style.Text(h, Layout.HEAD_SIZE, "LEFT")
-    -- Centered on the text row, with the line under it.
-    h.text:SetPoint("LEFT", h, "LEFT", 0, 1 + (Layout.HEAD - Layout.HEAD_TEXT) / 2)
+    -- Centered on the text row at the top, with the line at the bottom.
+    h.text:SetPoint("LEFT", h, "TOPLEFT", 0, 1 - Layout.HEAD_TEXT / 2)
     h.chev:SetPoint("RIGHT", h.text, "LEFT", -Layout.HEAD_CHEV_GAP, 0)
     -- The chevron sits outside the heading, so it takes clicks too.
     h:SetHitRectInsets(-(Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP + 2), 0, 0, 0)
@@ -191,7 +219,6 @@ local function heading(window, i)
     h.count:SetPoint("LEFT", h.text, "RIGHT", 5, 0)
     h.rule = h:CreateTexture(nil, "ARTWORK")
     h.rule:SetTexture("Interface\\Buttons\\WHITE8X8")
-    h.rule:SetHeight(DUI.Pixel.Px(h, Layout.RULE_PX))
     h.rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
     h.rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
     local function pinFromCursor(self)
@@ -488,8 +515,8 @@ function Layout.Categories(window, cfg)
     end
     for _, l in ipairs(window.lines or {}) do l:Hide() end
     noteLaid(window)
-    local out, top = Layout.RingOut(window), Layout.SlotTop(window)
-    local groupGap, rowGap = Layout.GroupGap(cfg), Layout.RowGap(cfg)
+    local top, headH, ruleH = Layout.SlotTop(window, cfg), Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
+    local groupGap, rowGap = Layout.GroupGap(window, cfg), Layout.RowGap(window, cfg)
     local x, y, lineH, wasFolded = 0, 0, 0, nil
     local function newRow()
         if x > 0 then
@@ -556,6 +583,8 @@ function Layout.Categories(window, cfg)
         h:ClearAllPoints()
         h:SetPoint("TOPLEFT", window.items, "TOPLEFT", x, -y)
         h:SetWidth(w)
+        h:SetHeight(headH)
+        h.rule:SetHeight(ruleH)
         h:Show()
         for k = 1, n do
             local e = g.entries[k]
@@ -575,7 +604,7 @@ function Layout.Categories(window, cfg)
                                                   y = -(y + top + row * (size + gap)), size = size }
             end
         end
-        local gh = rows > 0 and (top + rows * size + (rows - 1) * gap + out) or Layout.HEAD
+        local gh = rows > 0 and (top + rows * size + (rows - 1) * gap) or headH
         lineH = math.max(lineH, gh)
         x = x + w + groupGap
         if g.breakAfter then newRow() end

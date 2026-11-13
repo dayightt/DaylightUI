@@ -14,12 +14,17 @@ local Items = {}
 ns.Items = Items
 
 Items.TEMPLATE = "ContainerFrameItemButtonTemplate"
--- One flat ring around a square cropped icon with a soft inner shadow. Two pixels
--- is too thin for the shell's heavy band, so the ring is a single color. No
--- background, so an empty slot is only a thinner outline.
-Items.BORDER_PX = 2
-Items.THIN_PX = 1
-Items.SHELL = { noBevel = true, noBackground = true }
+-- A slot is a colored ring between two thin black lines, all inside the button,
+-- around a square cropped icon with a soft inner shadow. The ring is one flat
+-- color (two pixels is too thin for the shell's heavy band) and casts no shadow,
+-- so slots sit as close as their spacing says. An empty slot has a thinner, dim
+-- ring around a dark well.
+Items.EDGE_PX = 1            -- black line outside the ring
+Items.BORDER_PX = 2          -- the ring
+Items.THIN_PX = 1            -- an empty slot's ring
+Items.GAP_PX = 1             -- black line between the ring and the icon
+Items.SHELL = { noBevel = true, noBackground = true, shadowPx = 0, shadowAlpha = 0 }
+Items.BLACK = Style.BORDER
 
 -- A shell keeps the opts table it's given and its border color is written into
 -- it, so each slot needs its own copy or coloring one colors them all.
@@ -29,16 +34,48 @@ function Items.ShellOpts()
     o.borderPx = function() return o.thin and Items.THIN_PX or Items.BORDER_PX end
     return o
 end
+
+-- How far in from the button's edge the icon (or an empty slot's well) starts.
+function Items.Inset(btn, thin)
+    return Pixel.Px(btn, Items.EDGE_PX + (thin and Items.THIN_PX or Items.BORDER_PX) + Items.GAP_PX)
+end
+
+-- The ring for a slot-looking button: a black backing the size of the button
+-- (it shows as the two black lines) under a ring shell one pixel in. Returns the
+-- shell and the backing.
+function Items.Frame(btn)
+    local shell = Style.Shell(btn, Items.ShellOpts())
+    local back = shell:CreateTexture(nil, "BACKGROUND", nil, -7)
+    back:SetAllPoints(btn)
+    local c = Items.BLACK
+    back:SetColorTexture(c[1], c[2], c[3], 1)
+    Items.FitRing(btn, shell)
+    return shell, back
+end
+
+-- Keeps the ring one pixel inside the button (the pixel depends on the button's
+-- scale, so this runs on every layout).
+function Items.FitRing(btn, shell)
+    local e = Pixel.Px(btn, Items.EDGE_PX)
+    if shell.dluiEdge == e then return end
+    shell.dluiEdge = e
+    shell:ClearAllPoints()
+    shell:SetPoint("TOPLEFT", btn, "TOPLEFT", e, -e)
+    shell:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -e, e)
+    Style.Shell(btn, shell.opts)
+end
 Items.CROP = DaylightUI.Style.ICON_CROP
 Items.SHADE = DUI.MEDIA .. "inner-shadow.png"
 Items.SHADE_ALPHA = 0.55
 Items.COUNT_SIZE = Style.SIZE.tiny
 Items.FREE_SIZE = Style.SIZE.small
--- Ring colors for an empty slot, common, poor and the Hearthstone (light blue,
--- easy to spot). Everything else uses its quality color.
-Items.EMPTY = Style.BAND
-Items.COMMON = Style.BAND_LIT
-Items.POOR = Style.BAND_LIT
+-- Ring colors for an empty slot (a dim warm line), common (a light gray, so
+-- every item reads as a slot), poor (a darker gray) and the Hearthstone (light
+-- blue, easy to spot). Everything else uses its quality color.
+Items.EMPTY = { 0.165, 0.149, 0.125 }
+Items.WELL = { 0.063, 0.063, 0.071 }   -- inside an empty slot, a shade under the window
+Items.COMMON = { 0.6, 0.6, 0.6 }
+Items.POOR = { 0.36, 0.36, 0.36 }
 Items.POOR_ALPHA = 0.5
 Items.HEARTH = { 0.45, 0.75, 1 }
 -- Profession bag colors by the bag type bit the game reports. Their empty slots
@@ -228,7 +265,11 @@ function Items.Dress(btn)
     if dressed[btn] then return dressed[btn] end
     local p = {}
     dressed[btn] = p
-    p.shell = Style.Shell(btn, Items.ShellOpts())
+    p.shell, p.back = Items.Frame(btn)
+    p.well = p.shell:CreateTexture(nil, "BACKGROUND", nil, -6)
+    local w = Items.WELL
+    p.well:SetColorTexture(w[1], w[2], w[3], 1)
+    p.well:Hide()
     hideGameArt(btn)
     -- Original size of each piece of the game's art (Items.ScaleArt).
     p.art = {}
@@ -353,7 +394,12 @@ function Items.Place(btn)
     local p = dressed[btn]
     if not p then return end
     Items.ScaleArt(btn, p)
-    local T = Pixel.Px(btn, Items.BORDER_PX)
+    Items.FitRing(btn, p.shell)
+    local T = Items.Inset(btn)
+    local W = Items.Inset(btn, true)
+    p.well:ClearAllPoints()
+    p.well:SetPoint("TOPLEFT", btn, "TOPLEFT", W, -W)
+    p.well:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -W, W)
     local icon = btn.icon or btn.Icon
     if icon then
         icon:ClearAllPoints()
@@ -418,7 +464,7 @@ function Items.Place(btn)
     font(btn.Count, Items.COUNT_SIZE)
     if type(btn.Count) == "table" and btn.Count.ClearAllPoints then
         btn.Count:ClearAllPoints()
-        btn.Count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 3)
+        btn.Count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T - 1, T)
     end
     font(p.free, Items.FREE_SIZE)
 end
@@ -470,6 +516,7 @@ function Items.Paint(btn, hasItem, quality, itemID, bag)
         if poor then icon:SetDesaturated(true) end
     end
     p.shade:SetShown(hasItem and true or false)
+    p.well:SetShown(not hasItem)
 end
 
 -- Loot shine. While filling, a slot whose item is new and uncommon or better is
@@ -832,7 +879,7 @@ function Items.Details(btn, info, bag, slot)
         if keptSlot and btn:IsVisible() and DUI.Motion then DUI.Motion.Fade(p.keep, 0, 1, DUI.Motion.FAST) end
     end
     if inSet and locked ~= (p.setBeside == true) then
-        local T = Pixel.Px(btn, Items.BORDER_PX)
+        local T = Items.Inset(btn)
         p.set:ClearAllPoints()
         if locked then p.set:SetPoint("TOPRIGHT", p.lock, "TOPLEFT", -1, -1)
         else p.set:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -T - 1, -T - 1) end

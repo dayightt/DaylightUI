@@ -62,7 +62,7 @@ local function widgetOf(btn, m, w)
         scale = ns.Items.COUNT_SIZE / Plugins.FONT_BASE
         frame:SetScale(scale)
     end
-    local inset = DUI.Pixel.Px(btn, ns.Items.BORDER_PX) * (type(frame.padding) == "number" and frame.padding or 1) / scale
+    local inset = ns.Items.Inset(btn) * (type(frame.padding) == "number" and frame.padding or 1) / scale
     local x = point:find("LEFT") and inset or -inset
     local y = point:find("TOP") and -inset or inset
     frame:ClearAllPoints()

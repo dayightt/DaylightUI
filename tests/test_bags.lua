@@ -479,23 +479,43 @@ T.test("bags: a slot's hover ring settles after a shine and when the bag closes"
     T.near(Items.Parts(rare).shell.opts.borderColor[1], 0.3, nil, "reopened: no stuck accent ring")
 end)
 
-T.test("bags: slots are one flat ring, a quality color only for uncommon and up", function()
+T.test("bags: a slot is a ring between two black lines, with no shadow", function()
     local ns = login()
     open(ns)
     local B, Items = ns.Bags, ns.Items
-    local Style = DaylightUI.Style
+    local Style, Pixel = DaylightUI.Style, DaylightUI.Pixel
     local rare, poor, empty = B.buttons[0][1], B.buttons[0][2], B.buttons[0][3]
     local function opts(b) return Items.Parts(b).shell.opts end
-    T.eq(Items.COMMON, Style.BAND_LIT, "common: the palette's dark warm ring, not silver")
-    T.truthy(Items.COMMON[1] < 0.3, "dark")
-    T.eq(opts(poor).borderColor, Style.BAND_LIT, "poor: dark ring")
+    local p = Items.Parts(rare)
+    -- Outside in: a black backing the size of the button, the ring one pixel in,
+    -- then the icon one more pixel inside the ring.
+    T.eq(p.back:GetNumPoints(), 1); T.eq(select(2, p.back:GetPoint(1)), rare, "the black backing covers the button")
+    T.eq(p.back.__color[1], Items.BLACK[1]); T.eq(p.back.__color[4], 1)
+    local e = Pixel.Px(rare, 1)
+    local sp, srel, _, sx, sy = p.shell:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(srel, rare); T.near(sx, e, 1e-6, "the ring starts a pixel in"); T.near(sy, -e, 1e-6)
+    T.eq(Style.BorderPx(rare), 2, "a two pixel ring")
+    T.eq(Items.EDGE_PX, 1); T.eq(Items.GAP_PX, 1)
+    local _, irel, _, ix, iy = rare.icon:GetPoint(1)
+    T.eq(irel, rare); T.near(ix, Pixel.Px(rare, 4), 1e-6, "the icon starts past both black lines and the ring"); T.near(iy, -Pixel.Px(rare, 4), 1e-6)
+    T.eq(opts(rare).shadowPx, 0, "no shadow around a slot")
+    T.eq(opts(rare).shadowAlpha, 0)
+    -- Every item has a ring: common a light gray, poor a darker one, better ones their quality.
+    T.near(Items.COMMON[1], 0.6, 0.02, "common: light gray")
+    T.eq(Items.COMMON[1], Items.COMMON[2]); T.eq(Items.COMMON[2], Items.COMMON[3])
+    T.truthy(Items.POOR[1] < Items.COMMON[1], "poor: darker")
+    T.eq(opts(poor).borderColor, Items.POOR)
     T.near(opts(rare).borderColor[1], 0.3, nil, "rare: its quality color")
     for _, b in ipairs({ rare, poor, empty }) do
         T.eq(opts(b).bandColor, opts(b).borderColor, "no second tone")
     end
-    T.eq(Style.BorderPx(rare), Items.BORDER_PX, "a filled slot: the full ring")
-    T.eq(Style.BorderPx(empty), Items.THIN_PX, "an empty slot: thinner")
-    T.truthy(Items.EMPTY[1] < Items.COMMON[1], "and darker")
+    -- An empty slot: a thin dim ring around a dark well.
+    T.eq(Style.BorderPx(empty), Items.THIN_PX, "an empty slot: a thinner ring")
+    T.eq(opts(empty).borderColor, Items.EMPTY)
+    local well = Items.Parts(empty).well
+    T.truthy(well:IsShown(), "a dark well inside")
+    T.near(select(4, well:GetPoint(1)), Pixel.Px(empty, 3), 1e-6, "inside the thin ring's black line")
+    T.falsy(p.well:IsShown(), "none under an item")
     -- Hover lights the ring in the accent and lets go.
     local r = DaylightUI.Style.Accent()
     rare:GetScript("OnEnter")(rare)
@@ -1766,7 +1786,7 @@ T.test("bags: a folded group's heading takes its own line, never beside an open 
     T.truthy(foldTop < top("consumable"), "below the open groups before it")
     T.truthy(top("weapon") < foldTop, "the open groups after it on the next line")
     T.eq(top("weapon"), top("armor"), "which still sit side by side")
-    T.eq(foldTop - top("weapon"), ns.Layout.HEAD + ns.Layout.RowGap(f.Cfg()), "a folded line is only its heading tall")
+    T.eq(foldTop - top("weapon"), ns.Layout.HeadH(f) + ns.Layout.RowGap(f), "a folded line is only its heading tall")
     Cat.ToggleCollapsed("weapon")
     stub.RunTimers()
     T.eq(top("weapon"), top("sets"), "folded ones that follow each other share the line")
@@ -1786,8 +1806,7 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
     stub.RunTimers()
     local cfg = f.Cfg()
     local size, gap = cfg.iconSize, cfg.spacing
-    -- The ring's shadow, rounded up to a whole unit.
-    local S = math.ceil(Pixel.Px(f.items, DaylightUI:Get("general", "shadowPx")) - 0.001)
+    local HEAD = L.HeadH(f, cfg)
     local heads, buttons = {}, {}
     for _, h in ipairs(f.headings) do if h:IsShown() and h.key then heads[#heads + 1] = h end end
     for _, s in ipairs(f.set.Slots()) do if s.button:IsShown() then buttons[#buttons + 1] = s.button end end
@@ -1807,13 +1826,13 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
     local folded, measured = false, 0
     for i, row in ipairs(rows) do
         table.sort(row.heads, function(a, b) return a.x < b.x end)
-        row.bottom = row.top + L.HEAD
+        row.bottom = row.top + HEAD
         for k, e in ipairs(row.heads) do
             local h = e.h
             -- The line is the heading's bottom edge, as wide as the group.
             local p, rel, relP = h.rule:GetPoint(1)
             T.eq(rel, h); T.eq(p, "BOTTOMLEFT"); T.eq(relP, "BOTTOMLEFT")
-            T.eq(h:GetHeight(), L.HEAD)
+            T.eq(h:GetHeight(), HEAD)
             if h.folded then folded = true end
             local mine, right = {}, e.x
             for _, b in ipairs(buttons) do
@@ -1822,10 +1841,10 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
                 if by > row.top and by < nextTop and bx >= e.x - 0.01 and bx < e.x + h:GetWidth() then
                     mine[#mine + 1] = b
                     right = math.max(right, bx + size)
-                    -- Clear air from the line down to the ring's outer edge (its shadow).
-                    T.truthy(by - S - (row.top + L.HEAD) >= L.RING_GAP - 0.01,
+                    -- From the line down to the ring's outer edge (the button's).
+                    T.truthy(by - (row.top + HEAD) >= L.Ref(f, cfg, L.REF.toRing) - 0.01,
                         h.key .. ": the rings stay clear of the line")
-                    row.bottom = math.max(row.bottom, by + size + S)
+                    row.bottom = math.max(row.bottom, by + size)
                 end
             end
             if #mine > 0 and h.text:GetStringWidth() + 5 + h.count:GetStringWidth() < right - e.x then
@@ -1834,20 +1853,53 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
             end
             local nxt = row.heads[k + 1]
             if nxt then
-                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(cfg), 0.01, "the same gap beside every group")
+                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(f, cfg), 0.01, "the same gap beside every group")
             end
         end
         if i > 1 then
-            T.near(row.top - rows[i - 1].bottom, L.RowGap(cfg), 0.01, "the same gap under every row")
+            T.near(row.top - rows[i - 1].bottom, L.RowGap(f, cfg), 0.01, "the same gap under every row")
         end
     end
     T.truthy(folded, "a folded row among them")
     T.truthy(measured > 0, "a group wider than its name")
-    T.eq(L.GroupGap(cfg), L.GROUP_GAP + gap, "the gaps grow with the slot spacing")
-    T.eq(L.RowGap(cfg), L.ROW_GAP + gap)
-    -- The window holds the last row's rings, shadow and all.
+    -- The window holds the last row's rings.
     local _, h = L.Categories(f, cfg)
     T.near(h, rows[#rows].bottom, 0.01, "the height reaches the last ring's outer edge")
+end)
+
+-- The Shelf's spacing follows the approved picture (a 62 px slot), scaled to the
+-- slot size, so a bigger slot keeps the same proportions.
+T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", function()
+    local ns, f = catLogin()
+    local L, Pixel = ns.Layout, DaylightUI.Pixel
+    local function want(px, size) return math.max(1, math.floor(px * size / 62 + 0.5)) end
+    for _, size in ipairs({ 35, 50 }) do
+        DaylightUI:Set("Bags", "iconSize", size)
+        stub.RunTimers()
+        local cfg = f.Cfg()
+        T.eq(cfg.iconSize, size)
+        T.eq(L.Ref(f, cfg, 6), want(6, size), size .. ": the room under a heading's text")
+        T.eq(L.SlotTop(f, cfg) - L.HeadH(f, cfg), want(8, size), size .. ": line to the first ring")
+        T.eq(L.RowGap(f, cfg), want(14, size), size .. ": last ring to the next heading")
+        T.eq(L.GroupGap(f, cfg), want(26, size), size .. ": ring to ring between groups")
+        local line = L.LineH(f, cfg)
+        T.truthy(line >= Pixel.Px(f.items, 2) - 1e-6, size .. ": the line is at least two pixels")
+        T.truthy(line >= 2 * size / 62 - Pixel.Px(f.items, 1), size .. ": and grows with the slot")
+        T.eq(L.HeadH(f, cfg), L.HEAD_TEXT + want(6, size) + math.ceil(line - 0.001))
+        -- The first slot of a group sits right under its heading by that much.
+        local h
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "weapon" then h = x end end
+        local _, _, _, hx, hy = h:GetPoint(1)
+        local found
+        for _, s in ipairs(f.set.Slots()) do
+            local b = s.button
+            if b:IsShown() then
+                local _, _, _, bx, by = b:GetPoint(1)
+                if bx == hx and by == hy - L.SlotTop(f, cfg) then found = true end
+            end
+        end
+        T.truthy(found, size .. ": a slot at the measured spot")
+    end
 end)
 
 -- Folding a group should animate.
@@ -5666,7 +5718,7 @@ T.test("bags: a heading's name starts over its first slot, the chevron hangs to 
     end
     local p, rel, rp, x = point(h.text)
     T.eq(rel, h, "the name hangs off the heading itself")
-    T.eq(p, "LEFT"); T.eq(rp, "LEFT")
+    T.eq(p, "LEFT"); T.eq(rp, "TOPLEFT", "on the heading's text row")
     T.eq(x, 0, "and starts at its left edge, where the group's first slot starts")
     local _, hrel, _, hx = point(h)
     local first
@@ -5714,7 +5766,9 @@ T.test("bags: a heading is underlined in its color, as wide as its group", funct
     local rp, rrel = h.rule:GetPoint(2)
     T.eq(lrel, h); T.eq(rrel, h)
     T.eq(lp, "BOTTOMLEFT"); T.eq(rp, "BOTTOMRIGHT")
-    T.truthy(h.rule:GetHeight() > 0 and h.rule:GetHeight() <= 2, "a thin line")
+    local px = DaylightUI.Pixel.Px(f.items, 1)
+    T.truthy(h.rule:GetHeight() >= 2 * px - 1e-6, "never thinner than two pixels")
+    T.near(h.rule:GetHeight(), Layout.LineH(f), 1e-6)
     local r, g, b, a = h.count:GetTextColor()
     T.near(r, gr, 0.01, "the count is in the group's color")
     T.truthy(a < 1, "a little dimmer")
@@ -5723,8 +5777,8 @@ T.test("bags: a heading is underlined in its color, as wide as its group", funct
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
     h = headOf("weapon")
     c = h.rule.__color
-    local want = DaylightUI.Style.BAND_LIT
-    T.near(c[1], want[1], 0.01, "folded: a plain palette line")
+    local want = ns.Items.EMPTY
+    T.near(c[1], want[1], 0.01, "folded: the plain dark line of an empty slot's ring")
     T.near(c[2], want[2], 0.01); T.near(c[3], want[3], 0.01)
     r, g, b = h.count:GetTextColor()
     T.near(r, INK.LABEL[1], 0.01, "folded: the count reads label, not accent")
