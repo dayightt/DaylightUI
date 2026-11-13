@@ -272,6 +272,26 @@ T.test("raid tiles: the health can fill upward instead of across", function()
     T.eq(point, "BOTTOMLEFT"); T.eq(rel, b.health:GetStatusBarTexture()); T.eq(relPoint, "TOPLEFT")
 end)
 
+T.test("raid tiles: heals and shields stay inside the health bar, across or upward", function()
+    local DUI, ns = login()
+    local b = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton5", ns.Raid.header)
+    b:SetAttribute("unit", "raid7")
+    stub.units.raid7 = { name = "Hale", isPlayer = true, class = "PRIEST", health = 90, maxHealth = 100 }
+    ns.Raid.header.initialConfigFunction(ns.Raid.header, b:GetName())
+    local function inside(why)
+        for _, bar in ipairs({ b.heals, b.heals.wedge, b.absorbs, b.absorbs.wedge, b.overshield }) do
+            local clip = bar:GetParent()
+            T.truthy(clip:DoesClipChildren(), why .. ": cut off at the health bar's edge")
+            local _, rel = clip:GetPoint(1)
+            T.eq(rel, b.health, why .. ": the cut is the health bar itself")
+        end
+    end
+    inside("across")
+    DUI:Set("UnitFrames", "raid.fillVertical", true)
+    stub.RunTimers()
+    inside("upward")
+end)
+
 T.test("raid tiles: tiles per line other than five run everyone on in order", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "raid.perLine", 4)
