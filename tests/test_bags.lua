@@ -87,7 +87,9 @@ local function setup(opts)
         if template == "ContainerFrameItemButtonTemplate" then
             f.icon = f:CreateTexture()
             f.Count = f:CreateFontString()
+            -- The quality frame sits centered on the button (ItemButtonTemplate.xml).
             f.IconBorder = f:CreateTexture()
+            f.IconBorder:SetPoint("CENTER")
             f.JunkIcon = f:CreateTexture()
             f.UpgradeIcon = f:CreateTexture()
             f.calls = {}
@@ -1900,6 +1902,39 @@ T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", func
         end
         T.truthy(found, size .. ": a slot at the measured spot")
     end
+end)
+
+-- Seen in game: new loot easing into Recent wore the game's bright white frame.
+-- The template's SetAlpha also sets its quality frame's alpha, so any fade of a
+-- slot showed it again.
+T.test("bags: a new item's ring matches every other slot's after it fades in", function()
+    local ns = login()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    local f = open(ns)
+    local Items, B = ns.Items, ns.Bags
+    world.items[0][7] = { iconFileID = 207, stackCount = 1, quality = 1, hyperlink = "|Hitem:207|h", itemID = 207 }
+    world.items[0][8] = { iconFileID = 208, stackCount = 1, quality = 2, hyperlink = "|Hitem:208|h", itemID = 208 }
+    newSlots["0:7"], newSlots["0:8"] = true, true
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    local common, green = B.buttons[0][7], B.buttons[0][8]
+    -- The template's own SetAlpha (ItemButtonMixin) passes the alpha on to its
+    -- icon, quality frame and count, never the button itself.
+    for _, b in ipairs({ common, green }) do
+        function b:SetAlpha(a) self.icon:SetAlpha(a); self.IconBorder:SetAlpha(a); self.Count:SetAlpha(a) end
+    end
+    -- The ways a slot's alpha is set: a fade in, and a bag hovered in the strip.
+    common:SetAlpha(0); common:SetAlpha(1)
+    ns.Slots.Light(f.set.Slots(), 0); ns.Slots.Light(f.set.Slots(), nil)
+    for _, b in ipairs({ common, green }) do
+        local border = b.IconBorder
+        T.truthy(border:GetAlpha() == 0 or border:GetNumPoints() == 0, "the game's quality frame can't draw")
+        T.falsy(b.NewItemTexture:IsShown(), "nor its new-item glow")
+    end
+    T.eq(Items.Parts(common).shell.opts.borderColor, Items.COMMON, "a new common item: the common ring")
+    T.near(Items.Parts(green).shell.opts.borderColor[1], Items.QualityColor(2)[1], nil, "a new green ends on its quality ring")
+    _G.C_NewItems = nil
 end)
 
 -- Folding a group should animate.

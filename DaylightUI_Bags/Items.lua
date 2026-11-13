@@ -194,6 +194,13 @@ local function hideGameArt(btn)
         local r = btn[key]
         if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
     end
+    -- The template's own SetAlpha also sets its quality border's alpha, so every
+    -- fade of a slot (new loot easing in, a bag hovered in the strip) brought back
+    -- the game's white frame. With no anchor it can't draw at all.
+    local border = btn.IconBorder
+    if type(border) == "table" and border.ClearAllPoints and border:GetNumPoints() > 0 then
+        border:ClearAllPoints()
+    end
 end
 
 -- Reports a slot to plugins (DaylightUI.API's "bagslot" kind, unit "bag:slot",
