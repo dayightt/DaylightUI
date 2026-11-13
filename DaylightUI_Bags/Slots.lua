@@ -34,7 +34,7 @@ end
 function Slots.Light(slots, bag)
     for _, s in ipairs(slots) do
         local mine = bag ~= nil and s.bag == bag
-        s.button:SetAlpha((bag == nil or mine) and 1 or Slots.DIM)
+        ns.Items.Fader(s.button):SetAlpha((bag == nil or mine) and 1 or Slots.DIM)
         ns.Items.Light(s.button, mine)
     end
 end

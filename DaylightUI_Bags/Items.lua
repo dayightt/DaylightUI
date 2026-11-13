@@ -172,6 +172,37 @@ function Items.InCombat() return InCombatLockdown and InCombatLockdown() end
 
 function Items.Parts(btn) return dressed[btn] end
 
+-- The template replaces its button's SetAlpha with one that only sets the icon,
+-- quality frame and count (ItemButtonMixin:SetAlpha), so a fade through it left
+-- the ring popping in, an empty slot's picture back and a greyed item bright.
+-- Slots fade through the frame's own SetAlpha instead.
+local function frameSetAlpha(btn)
+    local mt = getmetatable(btn)
+    local index = mt and mt.__index
+    if type(index) == "table" then return index.SetAlpha end
+    if type(index) == "function" then return index(btn, "SetAlpha") end
+end
+
+-- What to fade for a region in the bag: a slot's stand-in that sets the
+-- button's own alpha (one per slot, so tweens keep their key), else the region.
+local faders = setmetatable({}, { __mode = "k" })
+function Items.Fader(r)
+    if not dressed[r] then return r end
+    local f = faders[r]
+    if f then return f end
+    local set = frameSetAlpha(r)
+    if type(set) ~= "function" then return r end
+    f = {
+        SetAlpha = function(_, a) set(r, a) end,
+        GetAlpha = function() return r:GetAlpha() end,
+        IsShown = function() return r:IsShown() end,
+        Show = function() r:Show() end,
+        Hide = function() r:Hide() end,
+    }
+    faders[r] = f
+    return f
+end
+
 -- The window a slot belongs to (via its holder), and that window's settings.
 local function windowOf(btn)
     local h = btn:GetParent()

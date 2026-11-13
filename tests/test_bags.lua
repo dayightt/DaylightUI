@@ -90,6 +90,11 @@ local function setup(opts)
             -- The quality frame sits centered on the button (ItemButtonTemplate.xml).
             f.IconBorder = f:CreateTexture()
             f.IconBorder:SetPoint("CENTER")
+            -- The template's own SetAlpha (ItemButtonMixin) passes the alpha on to its
+            -- icon, quality frame and count, never the button itself.
+            function f:SetAlpha(a)
+                self.icon:SetAlpha(a); self.IconBorder:SetAlpha(a); self.Count:SetAlpha(a)
+            end
             f.JunkIcon = f:CreateTexture()
             f.UpgradeIcon = f:CreateTexture()
             f.calls = {}
@@ -1919,11 +1924,6 @@ T.test("bags: a new item's ring matches every other slot's after it fades in", f
     stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
     local common, green = B.buttons[0][7], B.buttons[0][8]
-    -- The template's own SetAlpha (ItemButtonMixin) passes the alpha on to its
-    -- icon, quality frame and count, never the button itself.
-    for _, b in ipairs({ common, green }) do
-        function b:SetAlpha(a) self.icon:SetAlpha(a); self.IconBorder:SetAlpha(a); self.Count:SetAlpha(a) end
-    end
     -- The ways a slot's alpha is set: a fade in, and a bag hovered in the strip.
     common:SetAlpha(0); common:SetAlpha(1)
     ns.Slots.Light(f.set.Slots(), 0); ns.Slots.Light(f.set.Slots(), nil)
@@ -1935,6 +1935,31 @@ T.test("bags: a new item's ring matches every other slot's after it fades in", f
     T.eq(Items.Parts(common).shell.opts.borderColor, Items.COMMON, "a new common item: the common ring")
     T.near(Items.Parts(green).shell.opts.borderColor[1], Items.QualityColor(2)[1], nil, "a new green ends on its quality ring")
     _G.C_NewItems = nil
+end)
+
+-- The template's SetAlpha only reaches the icon and count, so fading slots
+-- through it left the ring popping in and undid an empty or greyed icon.
+T.test("bags: slots fade as a whole and keep their own icon look", function()
+    local ns = login()
+    DaylightUI:Set("Bags", "greyPoor", true)
+    local f = open(ns)
+    local B, Items = ns.Bags, ns.Items
+    local poor, empty = B.buttons[0][2], B.buttons[0][3]
+    Items.Fill(poor); Items.Fill(empty)
+    ns.Slots.Light(f.set.Slots(), 5)
+    T.near(poor:GetAlpha(), ns.Slots.DIM, 1e-6, "another bag hovered: the whole slot dims, ring and all")
+    ns.Slots.Light(f.set.Slots(), nil)
+    T.eq(poor:GetAlpha(), 1)
+    local fade = Items.Fader(empty)
+    fade:SetAlpha(0)
+    DaylightUI.Motion.AlphaTo(fade, 1, DaylightUI.Motion.NORMAL)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.05)
+    local mid = empty:GetAlpha()
+    T.truthy(mid > 0 and mid < 1, "a fading slot is part way, ring included")
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.eq(empty:GetAlpha(), 1)
+    T.eq(empty.icon:GetAlpha(), 0, "the empty slot keeps no picture")
+    T.eq(poor.icon:GetAlpha(), Items.POOR_ALPHA, "the poor item stays greyed")
 end)
 
 -- Folding a group should animate.

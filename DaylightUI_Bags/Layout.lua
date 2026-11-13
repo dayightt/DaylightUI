@@ -709,7 +709,7 @@ function Layout.Ease(window, was)
         window.fading = window.fading or {}
         window.fading[r] = true
         r:Show()
-        DUI.Motion.AlphaTo(r, 0, DUI.Motion.FAST, true)
+        DUI.Motion.AlphaTo(ns.Items.Fader(r), 0, DUI.Motion.FAST, true)
     end
     local items, tiles, claimed = was.items or {}, {}, {}
     for _, t in ipairs(window.tiles or {}) do
@@ -773,8 +773,9 @@ function Layout.Ease(window, was)
             Feel.Glide(r, old[1] - m.x, old[2] - m.y, Motion.NORMAL)
             window.gliding[r] = true
         else
-            r:SetAlpha(0)
-            Motion.AlphaTo(r, 1, Motion.NORMAL)
+            local fade = ns.Items.Fader(r)
+            fade:SetAlpha(0)
+            Motion.AlphaTo(fade, 1, Motion.NORMAL)
             Feel.Glide(r, 0, Layout.FOLD_DROP, Motion.NORMAL)
             window.gliding[r] = "new"
         end
@@ -799,7 +800,7 @@ local function arrive(cross)
                 r:SetPoint(m.point, m.rel, m.relPoint, m.x, m.y)
             end
         else
-            r:SetAlpha(1)
+            ns.Items.Fader(r):SetAlpha(1)
         end
     end
 end
@@ -826,7 +827,7 @@ function Layout.CrossFade(window, moves)
             r:ClearAllPoints()
             r:SetPoint(m.point, m.rel, m.relPoint, m.old[1], m.old[2])
         else
-            r:SetAlpha(0)
+            ns.Items.Fader(r):SetAlpha(0)
         end
     end
     local key = gridKey(window)
@@ -843,7 +844,7 @@ end
 local function restoreFading(window)
     if not window.fading then return end
     for b in pairs(window.fading) do
-        DUI.Motion.AlphaTo(b, 1, 0)
+        DUI.Motion.AlphaTo(ns.Items.Fader(b), 1, 0)
         b:Hide()
     end
     wipe(window.fading)
@@ -856,7 +857,7 @@ local function settleMoves(window, full)
     if window.gliding then
         for r, how in pairs(window.gliding) do
             DUI.Win.Feel.Settle(r)
-            if full and how == "new" then DUI.Motion.AlphaTo(r, 1, 0) end
+            if full and how == "new" then DUI.Motion.AlphaTo(ns.Items.Fader(r), 1, 0) end
         end
         wipe(window.gliding)
     end
