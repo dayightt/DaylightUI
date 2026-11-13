@@ -101,7 +101,6 @@ local function makeTabs(f)
     end
     -- The title and drag handle stop short of the tabs.
     f.title:SetPoint("RIGHT", right, "LEFT", -8, 0)
-    f.sub:SetPoint("RIGHT", right, "LEFT", -8, 0)
     f.handle:ClearAllPoints()
     f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     f.handle:SetPoint("RIGHT", right, "LEFT", -4, 0)
@@ -314,7 +313,6 @@ function Bank.Build()
     local W = ns.Window
     local f = W.Create({
         kind = "bank", name = Bank.NAME, title = "Bank", set = Bank.set, prefix = "bank.",
-        portrait = "Interface\\Icons\\INV_Misc_Ornatebox",
         defaultPoint = Bank.DEFAULT_POINT,
         onClose = function() call(bankFn("CloseBankFrame")) end,
         footer = footer, updateFooter = updateFooter,

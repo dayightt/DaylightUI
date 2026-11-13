@@ -4567,7 +4567,7 @@ L["Welcome back, %s"] = "欢迎回来，%s"
 
 -- Lines contributed by a Chinese player for 1.6.1, the ones that still match.
 L["%d pt"] = "%d 磅"
-L["(drag items here)"] = "（将物品拖到这里）"
+L["%s (drag items here)"] = "%s（将物品拖到这里）"
 L["%s lets you move frames; right-click a handle to put one back."] = "%s 可移动框体；右键点击拖动柄可将其复位。"
 L["%s opens the settings."] = "%s 打开设置。"
 L["%s, skill %d / %d"] = "%s，技能 %d / %d"
