@@ -237,7 +237,7 @@ end
 function Bank.LayoutStrip()
     local strip, f = Bank.strip, Bank.window
     if not strip then return end
-    ns.Slots.LayoutStrip(strip, f.Setting("iconSize") or 35, f.Setting("spacing") or 7)
+    ns.Slots.LayoutStrip(strip, f.Setting("iconSize") or 35, f.Setting("spacing") or 2)
 end
 
 function Bank.RefreshStrip()

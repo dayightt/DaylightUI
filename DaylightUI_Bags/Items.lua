@@ -174,7 +174,7 @@ function Items.Parts(btn) return dressed[btn] end
 
 -- The template replaces its button's SetAlpha with one that only sets the icon,
 -- quality frame and count (ItemButtonMixin:SetAlpha), so a fade through it left
--- the ring popping in, an empty slot's picture back and a greyed item bright.
+-- the ring popping in, an empty slot's picture back and a grayed item bright.
 -- Slots fade through the frame's own SetAlpha instead.
 local function frameSetAlpha(btn)
     local mt = getmetatable(btn)
@@ -490,7 +490,7 @@ function Items.Place(btn)
     -- The glow never reaches more than a pixel past the gap into the next slot, so
     -- small spacing shrinks it, down to no glow at all.
     local w = windowOf(btn)
-    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 7
+    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 2
     local glow = math.min(dot * Items.DOT_GLOW, math.max(dot, (gap - 1) * 2))
     p.newGlow:ClearAllPoints()
     p.newGlow:SetSize(glow, glow)

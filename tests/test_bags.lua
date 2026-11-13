@@ -1831,6 +1831,8 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
     table.sort(rows, function(a, b) return a.top < b.top end)
     T.truthy(#rows >= 3, "several rows to compare")
     local folded, measured = false, 0
+    -- A heading starts and ends this far inside its group's rings.
+    local inset = L.Ref(f, cfg, L.REF.inset)
     for i, row in ipairs(rows) do
         table.sort(row.heads, function(a, b) return a.x < b.x end)
         row.bottom = row.top + HEAD
@@ -1841,11 +1843,12 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
             T.eq(rel, h); T.eq(p, "BOTTOMLEFT"); T.eq(relP, "BOTTOMLEFT")
             T.eq(h:GetHeight(), HEAD)
             if h.folded then folded = true end
-            local mine, right = {}, e.x
+            local left = e.x - inset
+            local mine, right = {}, left
             for _, b in ipairs(buttons) do
                 local bx, by = spot(b)
                 local nextTop = rows[i + 1] and rows[i + 1].top or math.huge
-                if by > row.top and by < nextTop and bx >= e.x - 0.01 and bx < e.x + h:GetWidth() then
+                if by > row.top and by < nextTop and bx >= left - 0.01 and bx < left + h:GetWidth() + 2 * inset then
                     mine[#mine + 1] = b
                     right = math.max(right, bx + size)
                     -- From the line down to the ring's outer edge (the button's).
@@ -1854,13 +1857,13 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
                     row.bottom = math.max(row.bottom, by + size)
                 end
             end
-            if #mine > 0 and h.text:GetStringWidth() + 5 + h.count:GetStringWidth() < right - e.x then
-                T.near(h:GetWidth(), right - e.x, 0.01, h.key .. ": the line is as wide as its slots")
+            if #mine > 0 and h.text:GetStringWidth() + 5 + h.count:GetStringWidth() < right - left - 2 * inset then
+                T.near(h:GetWidth(), right - left - 2 * inset, 0.01, h.key .. ": the line spans its slots, inside the rings")
                 measured = measured + 1
             end
             local nxt = row.heads[k + 1]
             if nxt then
-                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(f, cfg), 0.01, "the same gap beside every group")
+                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(f, cfg) + 2 * inset, 0.01, "the same gap beside every group")
             end
         end
         if i > 1 then
@@ -1874,24 +1877,27 @@ T.test("bags: the Shelf gives each heading's line room, and every gap between gr
     T.near(h, rows[#rows].bottom, 0.01, "the height reaches the last ring's outer edge")
 end)
 
--- The Shelf's spacing follows the approved picture (a 62 px slot), scaled to the
+-- The Shelf's spacing follows the approved picture (a 70 px slot, rings and all), scaled to the
 -- slot size, so a bigger slot keeps the same proportions.
 T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", function()
     local ns, f = catLogin()
     local L, Pixel = ns.Layout, DaylightUI.Pixel
-    local function want(px, size) return math.max(1, math.floor(px * size / 62 + 0.5)) end
+    local function want(px, size) return math.max(1, math.floor(px * size / 70 + 0.5)) end
     for _, size in ipairs({ 35, 50 }) do
         DaylightUI:Set("Bags", "iconSize", size)
         stub.RunTimers()
         local cfg = f.Cfg()
         T.eq(cfg.iconSize, size)
         T.eq(L.Ref(f, cfg, 6), want(6, size), size .. ": the room under a heading's text")
-        T.eq(L.SlotTop(f, cfg) - L.HeadH(f, cfg), want(8, size), size .. ": line to the first ring")
-        T.eq(L.RowGap(f, cfg), want(14, size), size .. ": last ring to the next heading")
-        T.eq(L.GroupGap(f, cfg), want(26, size), size .. ": ring to ring between groups")
+        T.eq(L.SlotTop(f, cfg) - L.HeadH(f, cfg), want(4, size), size .. ": line to the first ring")
+        T.eq(L.RowGap(f, cfg), want(10, size), size .. ": last ring to the next heading")
+        T.eq(L.GroupGap(f, cfg), want(18, size), size .. ": ring to ring between groups")
+        T.eq(cfg.spacing, 2, "slots nearly touch by default, as in the picture")
+        T.truthy(L.GroupGap(f, cfg) > cfg.spacing * 2, size .. ": groups stand clearly apart from their slots")
+        T.truthy(L.GroupGap(f, cfg) > L.HEAD_CHEV + L.HEAD_CHEV_GAP, size .. ": the next chevron never reaches the heading before it")
         local line = L.LineH(f, cfg)
         T.truthy(line >= Pixel.Px(f.items, 2) - 1e-6, size .. ": the line is at least two pixels")
-        T.truthy(line >= 2 * size / 62 - Pixel.Px(f.items, 1), size .. ": and grows with the slot")
+        T.truthy(line >= 2 * size / 70 - Pixel.Px(f.items, 1), size .. ": and grows with the slot")
         T.eq(L.HeadH(f, cfg), L.HEAD_TEXT + want(6, size) + math.ceil(line - 0.001))
         -- The first slot of a group sits right under its heading by that much.
         local h
@@ -1902,7 +1908,7 @@ T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", func
             local b = s.button
             if b:IsShown() then
                 local _, _, _, bx, by = b:GetPoint(1)
-                if bx == hx and by == hy - L.SlotTop(f, cfg) then found = true end
+                if bx == hx - L.Ref(f, cfg, L.REF.inset) and by == hy - L.SlotTop(f, cfg) then found = true end
             end
         end
         T.truthy(found, size .. ": a slot at the measured spot")
@@ -5786,10 +5792,11 @@ T.test("bags: a heading's name starts over its first slot, the chevron hangs to 
         if s.button:IsShown() and s.button:GetNumPoints() == 1 then
             local _, _, _, bx, by = s.button:GetPoint(1)
             local _, _, _, ox, oy = h:GetPoint(1)
-            if bx == ox and by == oy - Layout.SlotTop(f) then first = s.button end
+            local inset = Layout.Ref(f, f.Cfg(), Layout.REF.inset)
+            if bx == ox - inset and by == oy - Layout.SlotTop(f) then first = s.button end
         end
     end
-    T.truthy(first, "a slot sits right under the heading's left edge")
+    T.truthy(first, "a slot's ring sits just outside the heading's left edge, its icon right under the name")
     local cp, crel, crp, cx = point(h.chev)
     T.eq(crel, h.text, "the chevron hangs off the name")
     T.eq(cp, "RIGHT"); T.eq(crp, "LEFT")

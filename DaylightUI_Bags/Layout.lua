@@ -124,21 +124,22 @@ end
 
 -- Categories view
 
-Layout.HEAD_TEXT = 15        -- the heading's text row
-Layout.HEAD_SIZE = DUI.Style.SIZE.small
+Layout.HEAD_SIZE = DUI.Style.SIZE.tiny
+Layout.HEAD_TEXT = math.ceil(Layout.HEAD_SIZE * 1.2)   -- the heading's text row: its line height
 Layout.HEAD_DIM = DUI.Style.INK.LABEL
 
--- The Shelf's spacing is drawn to a reference picture with a 62 px slot. Each
--- length below is in that picture's pixels and scales with the slot size, so a
--- bigger or smaller iconSize keeps the same proportions. Slots within a group
--- keep the player's spacing setting.
-Layout.REF_SLOT = 62
+-- The Shelf's spacing is drawn to a reference picture whose slots are 70 px
+-- across, rings included. Each length below is in that picture's pixels as seen
+-- on screen and scales with the slot size, so a bigger or smaller iconSize keeps
+-- the same proportions. Slots within a group keep the player's spacing setting.
+Layout.REF_SLOT = 70
 Layout.REF = {
     pad = 6,         -- from the heading's text row down to its line
     line = 2,        -- the line's thickness (never under LINE_MIN_PX)
-    toRing = 8,      -- from the line down to the first ring's outer edge
-    rowGap = 14,     -- from the last ring's outer edge to the next heading's top
-    groupGap = 26,   -- between groups side by side, ring edge to ring edge
+    toRing = 4,      -- from the line down to the first ring's outer edge
+    rowGap = 10,     -- from the last ring's outer edge to the next heading's top
+    groupGap = 18,   -- between groups side by side, ring edge to ring edge
+    inset = 4,       -- a heading and its line start and end this far inside the rings
 }
 Layout.LINE_MIN_PX = 2       -- one pixel read as too thin
 
@@ -179,8 +180,8 @@ function Layout.SlotTop(window, cfg)
     return Layout.HeadH(window, cfg) + Layout.Ref(window, cfg, Layout.REF.toRing)
 end
 
-Layout.HEAD_CHEV = 8         -- chevron size
-Layout.HEAD_CHEV_GAP = 3     -- between the chevron and the name
+Layout.HEAD_CHEV = 6         -- chevron size, a little smaller than the name
+Layout.HEAD_CHEV_GAP = 2     -- between the chevron and the name
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 Layout.SHELF_INSET = 4       -- extra left margin in the Shelf, where the chevrons hang
 
@@ -517,6 +518,7 @@ function Layout.Categories(window, cfg)
     noteLaid(window)
     local top, headH, ruleH = Layout.SlotTop(window, cfg), Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
     local groupGap, rowGap = Layout.GroupGap(window, cfg), Layout.RowGap(window, cfg)
+    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
     local x, y, lineH, wasFolded = 0, 0, 0, nil
     local function newRow()
         if x > 0 then
@@ -576,13 +578,15 @@ function Layout.Categories(window, cfg)
         local across = math.min(n, cols)
         local rows = n > 0 and math.ceil(n / across) or 0
         local slotsW = across > 0 and (across * size + (across - 1) * gap) or 0
-        local w = math.max(slotsW, textW)
+        -- The heading sits inside the rings' outer edges by inset at both ends, so
+        -- its name starts over the first icon and the line spans the icons.
+        local w = math.max(slotsW, textW + 2 * inset)
         if g.breakBefore or (wasFolded ~= nil and folded ~= wasFolded) then newRow() end
         wasFolded = folded
         if x > 0 and x + w > maxW then newRow() end
         h:ClearAllPoints()
-        h:SetPoint("TOPLEFT", window.items, "TOPLEFT", x, -y)
-        h:SetWidth(w)
+        h:SetPoint("TOPLEFT", window.items, "TOPLEFT", x + inset, -y)
+        h:SetWidth(w - 2 * inset)
         h:SetHeight(headH)
         h.rule:SetHeight(ruleH)
         h:Show()
