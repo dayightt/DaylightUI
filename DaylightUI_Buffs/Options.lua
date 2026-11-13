@@ -338,7 +338,7 @@ local function barItems(debuff)
         table.insert(items, 3, { type = "slider", key = "settings.categoryGap", label = "Gap between categories",
             min = 0, max = 32, step = 1, unit = "px", desc = "Extra room between one category's buffs and the next.",
             disabled = function(get) return get("settings.categoryRows") == true end })
-        table.insert(items, 4, { type = "toggle", key = "settings.categoryRows", label = "Each category on its own row",
+        table.insert(items, 4, { type = "toggle", key = "settings.categoryRows", label = "Each category on its own row", since = "1.7.2",
             desc = "Every category starts a new row, in the order set on the Categories page, so class buffs, consumables and the rest each line up on their own. A long category still wraps at Icons per row." })
     end
     return items
