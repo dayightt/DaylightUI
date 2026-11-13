@@ -273,8 +273,13 @@ function Items.Dress(btn)
     end)
     -- A locked item's slot takes no clicks at a vendor or while Disenchant is targeting.
     -- Looking at a new item clears its dot.
+    -- Reaching for a slot mid-cleanup shows the real items first (Window.SortTouched).
     btn:HookScript("OnEnter", function(self)
+        if ns.Window then ns.Window.SortTouched(windowOf(self)) end
         if self.dluiNew then Items.SeeNew(self) end
+    end)
+    btn:HookScript("PreClick", function(self)
+        if ns.Window then ns.Window.SortTouched(windowOf(self)) end
     end)
     btn:HookScript("OnMouseUp", function(self, button)
         if self.dluiGuarded then ns.Guard.Refused(self, button) end
@@ -883,6 +888,7 @@ function Items.Fill(btn, tooltipOwner)
             item:ContinueOnItemLoad(function()
                 if btn.dluiWaiting == waitFor then btn.dluiWaiting = nil end
                 if loading and w and ns.Window then ns.Window.Changed(w, { [bag] = true })
+                elseif w and w.sorting and ns.Window then ns.Window.MarkDirty(w, bag)   -- filled when the cleanup ends
                 else Items.Fill(btn) end
             end)
         end

@@ -201,8 +201,6 @@ local function step(tries)
     local moves, busy = Keep.Moves(window)
     if #moves == 0 and not busy then return finish() end
     if tries >= Keep.TRIES then return finish(L["Clean up gave up: some items wouldn't move."]) end
-    -- Still going: the window keeps holding its fills (Window.BeginSort).
-    if window.sorting then ns.Window.BeginSort(window) end
     for _, m in ipairs(moves) do
         C_Container.PickupContainerItem(m.from.bag, m.from.slot)
         C_Container.PickupContainerItem(m.to.bag, m.to.slot)

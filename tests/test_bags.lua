@@ -2287,6 +2287,98 @@ T.test("bags: a cleanup that never settles is let go after SORT_MAX", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: a cleanup waits for the server's first move", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel, W = DaylightUI.Win.Feel, ns.Window
+    local a, b = ns.Bags.buttons[0][1], ns.Bags.buttons[0][4]
+    local ax, ay = at(a)
+    f.sort:GetScript("OnClick")(f.sort)
+    -- The server is slow to answer: the first move lands well after SORT_SETTLE.
+    stub.Advance(0.4)
+    stub.RunTimers()
+    T.truthy(f.sorting, "still waiting for the first move")
+    sortStep(1, 4)
+    T.falsy(filledRight(f), "held")
+    stub.Advance(W.SORT_SETTLE)
+    stub.RunTimers()
+    T.isnil(f.sorting, "settled after the moves")
+    T.truthy(filledRight(f))
+    T.truthy(Feel.Moving(b), "played as one glide")
+    T.eq(select(4, b:GetPoint(1)), ax, "from where its item was")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    -- A cleanup with nothing to move lets go once the server has had its time.
+    f.sort:GetScript("OnClick")(f.sort)
+    stub.Advance(W.SORT_FIRST)
+    stub.RunTimers()
+    T.isnil(f.sorting, "nothing came: let go")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: touching a slot mid-cleanup ends the hold before the click lands", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local btn = ns.Bags.buttons[0][4]
+    -- Hovering.
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    T.truthy(f.sorting)
+    T.falsy(filledRight(f), "held: the slot shows what it held")
+    btn:GetScript("OnEnter")(btn)
+    T.isnil(f.sorting, "a hover lets go")
+    T.truthy(filledRight(f), "every slot shows its real item")
+    settleFeel()
+    -- A click that never hovered (a key binding, a controller).
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    local trueAtClick
+    btn:HookScript("OnClick", function() trueAtClick = filledRight(f) end)
+    btn:Click("RightButton")
+    T.isnil(f.sorting, "a click lets go")
+    T.truthy(trueAtClick, "the slot was true before the click's use")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a fight or the client's restrictions end a cleanup's hold at once", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel = DaylightUI.Win.Feel
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    -- A cooldown starting mid-hold waits for its end too.
+    local cds = 0
+    local realCd = ns.Items.FillCooldown
+    ns.Items.FillCooldown = function(...) cds = cds + 1 return realCd(...) end
+    stub.FireEvent("BAG_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.eq(cds, 0, "no cooldown fill while held")
+    stub.EnterCombat()
+    stub.RunTimers()
+    T.isnil(f.sorting, "a fight lets go")
+    T.truthy(filledRight(f), "and fills at once")
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide in a fight") end
+    T.falsy(f.cdDirty, "the cooldowns filled with it")
+    ns.Items.FillCooldown = realCd
+    stub.LeaveCombat()
+    stub.RunTimers()
+    f.sort:GetScript("OnClick")(f.sort)
+    T.truthy(f.sorting)
+    stub.SetRestriction("PvPMatch", true)
+    sortStep(1, 4)
+    T.isnil(f.sorting, "restricted: let go")
+    T.truthy(filledRight(f))
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide under restrictions") end
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: closing mid-cleanup opens with everything in place, no glide", function()
     local ns = login()
     local f = open(ns)
@@ -4346,7 +4438,7 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     T.falsy(Keep.Any())
     f.sort:GetScript("OnClick")(f.sort)
     T.eq(world.sorted, 1, "nothing kept: the game's own sort")
-    stub.Advance(ns.Window.SORT_SETTLE)
+    stub.Advance(ns.Window.SORT_FIRST)
     stub.RunTimers()
     Keep.Toggle(0, 3, 30)
     T.truthy(ns.Items.Parts(ns.Bags.buttons[0][3]).keep:IsShown(), "a line on the kept slot")
@@ -4392,6 +4484,9 @@ T.test("bags: Clean Up with kept slots stops in a fight and never moves a locked
     f.sort:GetScript("OnClick")(f.sort)
     stub.RunTimers()
     T.eq(world.items[0][9].itemName, "Apple", "a locked slot waits")
+    stub.Advance(1)
+    stub.RunTimers()
+    T.truthy(f.sorting, "the bag holds while Clean Up is still running")
     world.items[0][9].isLocked = nil
     stub.EnterCombat()
     stub.RunTimers()

@@ -685,8 +685,12 @@ function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
     local f = ns.window
+    if ns.Keep.Any() then
+        -- Its own rounds: held until they're done, however long a round takes.
+        Window.BeginSort(f, false, true)
+        return ns.Keep.Sort(function() Window.EndSort(f) end)
+    end
     Window.BeginSort(f, false)
-    if ns.Keep.Any() then return ns.Keep.Sort(function() Window.EndSort(f) end) end
     pcall(C_Container.SortBags)
 end
 
@@ -694,14 +698,24 @@ end
 -- laying out each one makes the icons flicker through every move, so an open
 -- window holds them (f.sorting) until the bags have been still for SORT_SETTLE
 -- seconds, or SORT_MAX at most, then plays it all as one glide: each item
--- slides from where it was to its new slot.
+-- slides from where it was to its new slot. The game's sort only asks the
+-- server, so the first move can take a while: until one lands it waits up to
+-- SORT_FIRST.
 Window.SORT_SETTLE = 0.25
+Window.SORT_FIRST = 1
 Window.SORT_MAX = 3
+
+local function sortDue(s)
+    local due = s.start + Window.SORT_MAX
+    if s.owned then return due end
+    if not s.changed then return math.min(due, s.start + Window.SORT_FIRST) end
+    return math.min(due, s.last + Window.SORT_SETTLE)
+end
 
 local function sortSettled(f, s)
     if f.sorting ~= s then return end
     local now = GetTime()
-    local due = math.min(s.last + Window.SORT_SETTLE, s.start + Window.SORT_MAX)
+    local due = sortDue(s)
     if now >= due then return Window.EndSort(f) end
     C_Timer.After(due - now, function() sortSettled(f, s) end)
 end
@@ -709,21 +723,23 @@ end
 -- Starts holding an open window for a cleanup, or notes that one already held
 -- is still going. quiet: lay it out at once at the end, no glide (the stacks
 -- merged as the bag opens, while it's still fading in); false asks for the
--- glide even when a quiet one is held. Never in a fight or under the client's
--- restrictions, where the bag has to be right at once.
-function Window.BeginSort(f, quiet)
+-- glide even when a quiet one is held. owned: the caller ends it (EndSort)
+-- when its own moves are done, so only SORT_MAX lets go before that. Never in a
+-- fight or under the client's restrictions, where the bag has to be right at once.
+function Window.BeginSort(f, quiet, owned)
     if not f or f.spec.still then return end
     local s = f.sorting
     if s then
         s.last = GetTime()
         if quiet == false then s.quiet = false end
+        if owned then s.owned = true end
         return
     end
     if not f:IsShown() or ns.Items.InCombat() or DUI.Restricted() then return end
     local now = GetTime()
-    s = { start = now, last = now, quiet = quiet == true }
+    s = { start = now, last = now, quiet = quiet == true, owned = owned == true }
     f.sorting = s
-    C_Timer.After(Window.SORT_SETTLE, function() sortSettled(f, s) end)
+    C_Timer.After(sortDue(s) - now, function() sortSettled(f, s) end)
 end
 
 -- Lays the window out again and fills what changed, gliding when eased. Spots
@@ -748,12 +764,19 @@ function Window.EaseRelayout(f) relayoutNow(f, true) end
 -- Ends a cleanup's hold: one layout and one fill. The slots still show what
 -- they held when it began (nothing was filled or laid out since), so the glide
 -- starts from there. With no bag changed, only fills held meanwhile are done.
-function Window.EndSort(f)
+-- instant: no glide (a fight is starting).
+function Window.EndSort(f, instant)
     local s = f and f.sorting
     if not s then return end
     f.sorting = nil
     if not (s.changed or f.stale) then return Window.FillDirty(f) end
-    relayoutNow(f, not s.quiet)
+    relayoutNow(f, not (s.quiet or instant))
+end
+
+-- Mid-cleanup a slot can still show the item it held before. The moment the
+-- player reaches for one, the hold ends, so what they click is what they see.
+function Window.SortTouched(f)
+    if f and f.sorting then Window.EndSort(f) end
 end
 
 -- Puts an icon in the header's round portrait, cropped like our other icons.
@@ -1011,7 +1034,7 @@ end
 function Window.Changed(f, bags)
     if not f or f.spec.still then return end
     if f.sorting then
-        if f:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
+        if f:IsShown() and not (InCombatLockdown and InCombatLockdown()) and not DUI.Restricted() then
             -- Mid-cleanup: note it and wait for the bags to settle (Window.BeginSort).
             f.sorting.changed, f.sorting.last = true, GetTime()
             if bags then
@@ -1021,8 +1044,8 @@ function Window.Changed(f, bags)
             end
             return
         end
-        -- A fight started (or the window closed): what was held is laid out and
-        -- filled below, at once.
+        -- A fight or the client's restrictions started (or the window closed): what
+        -- was held is laid out and filled below, at once.
         f.sorting = nil
         f.stale = true
     end
@@ -1089,8 +1112,10 @@ end
 -- of these); closed ones are marked for later.
 local function fillCooldowns()
     for _, f in ipairs(ns.windows) do
-        if f:IsShown() then
+        if f:IsShown() and not f.sorting then
             for _, s in ipairs(f.set.Slots()) do ns.Items.FillCooldown(s.button) end
+        elseif f.sorting then
+            f.cdDirty = true    -- filled when the cleanup ends
         else
             f.cdDirty = true
             if ns.Prep then ns.Prep.CooldownsDirtied(f) end
@@ -1153,6 +1178,10 @@ local function registerEvents()
         end
     end)
     DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", soon(fillCooldowns))
+    -- A fight needs the bag right at once: a cleanup still held lands now, no glide.
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        for _, f in ipairs(ns.windows) do Window.EndSort(f, true) end
+    end)
     DUI.RegisterEvent("PLAYER_MONEY", function() for _, f in ipairs(ns.windows) do Window.UpdateFooter(f) end end)
     DUI.RegisterEvent("CURRENCY_DISPLAY_UPDATE", function() if ns.window then Window.UpdateFooter(ns.window) end end)
 end
@@ -1168,7 +1197,7 @@ local function bagWindow()
         -- Stacks merged on open are held like a cleanup, but land without a glide:
         -- the bag is still fading in.
         onShow = function(f)
-            Window.BeginSort(f, true)
+            Window.BeginSort(f, true, true)
             ns.Stack.Run(function() Window.EndSort(f) end)
         end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
