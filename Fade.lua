@@ -605,29 +605,39 @@ end
 function Fade.Hushed() return next(hushes) ~= nil end
 
 -- The game draws the minimap's dots (your arrow, quest marks, tracking,
--- party) at full strength regardless of its parents' alpha. So whoever fades
--- the map all the way out sets the map's own alpha to 0 meanwhile: the info
--- panel's fade (the login fade-in too), the AFK screen and the NPC scene
--- (UIParent's alpha). Never hide it: hidden and shown again, the game's map
--- came back blank (at every login and after each NPC talk in town). Its own
--- alpha is restored to what it was once nobody holds it.
-local mapAway, mapAlphaBefore = {}, nil
+-- party) at full strength whatever the alpha, its own included. So whoever
+-- fades the map all the way out hides it meanwhile: the info panel's fade,
+-- the AFK screen and the NPC scene (UIParent's alpha). Shown again once
+-- nobody holds it, and only if it was shown before. A map shown again can
+-- come back empty, so "MinimapBack" fires and the info panel redraws it.
+local mapAway, mapWasShown = {}, nil
+local function syncMap()
+    local map = _G.Minimap
+    if type(map) ~= "table" then return end
+    if InCombatLockdown() and map.IsProtected and map:IsProtected() then
+        DUI.AfterCombat(syncMap, "fade:mapAway")
+        return
+    end
+    local away = next(mapAway) ~= nil
+    if away and mapWasShown == nil then
+        mapWasShown = map:IsShown() == true
+        if mapWasShown then map:Hide() end
+    elseif not away and mapWasShown ~= nil then
+        local was = mapWasShown
+        mapWasShown = nil
+        if was then
+            map:Show()
+            DUI.Fire("MinimapBack")
+        end
+    end
+end
+
 function Fade.MapAway(name, on)
     on = on == true
     if (mapAway[name] == true) == on then return end
-    local map = _G.Minimap
-    if type(map) ~= "table" then return end
-    local before = next(mapAway) ~= nil
+    if type(_G.Minimap) ~= "table" then return end
     mapAway[name] = on or nil
-    local now = next(mapAway) ~= nil
-    if now and not before then
-        local a = map:GetAlpha()
-        mapAlphaBefore = type(a) == "number" and a or 1
-        map:SetAlpha(0)
-    elseif before and not now then
-        map:SetAlpha(mapAlphaBefore or 1)
-        mapAlphaBefore = nil
-    end
+    syncMap()
 end
 
 -- Returns now, goal, fadedAlpha, opacity (nil for an unknown key).

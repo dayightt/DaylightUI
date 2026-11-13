@@ -695,8 +695,8 @@ function ns.Build(mod)
     ns.DataTexts.Build(Panel.dataArea, mod)
     ns.DataBar.Build(mod)
     -- The game draws minimap icons at full strength regardless of alpha, so
-    -- once the panel fades fully out the map is made transparent too. Never
-    -- hidden: a hidden minimap came back blank.
+    -- once the panel fades fully out the map hides too (Fade.MapAway), and is
+    -- redrawn when it's back.
     local mapHidden = false
     -- The map skips the login fade-in. The game only takes a redraw of the
     -- map while it can be seen, and a city's or dungeon's map, left waiting
