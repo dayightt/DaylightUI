@@ -9,6 +9,10 @@
 -- it works in every language. Auras are only read out of combat and outside the
 -- client's restrictions, by spell id.
 --
+-- A sleeping bag gets a countdown in the same spot: resting in one adds a stack
+-- of Well-Rested each minute, up to three, and with the UI faded at camp there's
+-- no buff to watch. The count shows how long until all three are on.
+--
 -- One BACKGROUND-strata frame, no clicks, its OnUpdate only runs while shown.
 
 local _, ns = ...
@@ -64,6 +68,16 @@ local Campfire = {
     FIRE = { 1, 0.50, 0.18 },
     GOLD = { 1, 0.74, 0.36 },
     BLOOM_COLOR = { 1, 0.84, 0.58 },
+    -- The sleeping bag (Cozy Sleeping Bag). Ids from wago.tools (Spell, SpellEffect,
+    -- SpellAuraOptions, Forever 1.60.1), not yet checked on a character in game.
+    BAG = {
+        UNROLL = 429961,    -- Unroll Bag, the item's spell
+        TRACK = 429960,     -- Well-Rested Tracking Aura: on you in the bag, a stack each minute (hidden, so maybe never readable)
+        RESTED = 429959,    -- Well-Rested, stacks to 3
+        STACKS = 3,
+        EVERY = 60,         -- s per stack
+        BELOW = 52,         -- the bag's count sits this far under the fire's
+    },
 }
 Campfire.Random = math.random   -- tests fix it
 ns.Campfire = Campfire
@@ -78,6 +92,9 @@ local benefitsAt            -- Camp Benefits' end time when you sat down (an old
 local wasSitting = false    -- Welcoming Campfire was on at the last look
 local deciding, preview = false, false
 local restedAt              -- GetTime() of the last real flare (not a preview)
+-- The sleeping bag's count: endAt (GetTime when full), seen (the bag's own aura
+-- was read this time), doneAt (clock when "Fully rested" came), preview.
+local bag = { stacks = 0, a = 0 }
 
 local function on(key) return mod ~= nil and mod.db ~= nil and mod.db[key] == true end
 
@@ -216,6 +233,8 @@ local function layout()
     f.mark:SetPoint("CENTER", f, "BOTTOM", 0, H * Campfire.MARK_AT)
     f.count:ClearAllPoints()
     f.count:SetPoint("CENTER", f, "BOTTOM", 0, H * Campfire.MARK_AT)
+    f.bagTime:ClearAllPoints()
+    f.bagTime:SetPoint("CENTER", f, "BOTTOM", 0, H * Campfire.MARK_AT - Campfire.BAG.BELOW)
     f.w, f.h = W, H
 end
 
@@ -267,6 +286,12 @@ local function build()
     -- The minute's time: the seconds left sit where the mark comes after.
     f.count = Style.Text(f, Style.SIZE.title, "CENTER")
     f.count:SetAlpha(0)
+    -- The sleeping bag's time, its buff and stacks under it.
+    f.bagTime = Style.Text(f, Style.SIZE.title, "CENTER")
+    f.bagTime:SetAlpha(0)
+    f.bagLabel = Style.Text(f, Style.SIZE.small, "CENTER")
+    f.bagLabel:SetPoint("TOP", f.bagTime, "BOTTOM", 0, -4)
+    f.bagLabel:SetAlpha(0)
     f:SetScript("OnUpdate", function(_, dt) step(dt) end)
     return f
 end
@@ -408,6 +433,45 @@ local function stepTimer(dt, fade, moving)
     f.count:SetAlpha(timerA * fade)
 end
 
+-- The sleeping bag's count: the time to full Well-Rested, then "Fully rested"
+-- for a moment. Information, so it runs with motion off too (without its fades).
+local function bagShowing() return bag.endAt ~= nil or bag.doneAt ~= nil end
+
+local function bagStacksText(n)
+    local name = spellCall("GetSpellName", Campfire.BAG.RESTED)
+    if type(name) ~= "string" then name = L["Well-Rested"] end
+    return string.format("%s  %d / %d", name, n, Campfire.BAG.STACKS)
+end
+
+local function stepBag(dt, moving)
+    local goal = 0
+    if bag.endAt then
+        local left = math.max(0, bag.endAt - GetTime())
+        local secs = math.ceil(left)
+        if secs ~= f.bagTime.secs then
+            f.bagTime.secs = secs
+            f.bagTime:SetText(string.format("%d:%02d", math.floor(secs / 60), secs % 60))
+            -- The stacks on so far: one more each minute until the last lands.
+            local B = Campfire.BAG
+            local have = math.max(bag.stacks or 0, B.STACKS - math.ceil(left / B.EVERY))
+            f.bagLabel:SetText(bagStacksText(math.min(have, B.STACKS - 1)))
+        end
+        goal = 1
+    elseif bag.doneAt and clock - bag.doneAt < Campfire.MARK_HOLD then
+        goal = 1
+    end
+    if not moving then
+        bag.a = goal
+    elseif bag.a < goal then
+        bag.a = math.min(goal, bag.a + dt / Motion.NORMAL)
+    elseif bag.a > goal then
+        bag.a = math.max(goal, bag.a - dt / Motion.SLOW)
+    end
+    f.bagTime:SetAlpha(bag.full and 0 or bag.a)
+    f.bagLabel:SetAlpha(bag.a)
+    if bag.doneAt and goal == 0 and bag.a == 0 then bag.doneAt = nil end
+end
+
 -- Everything off: the glow, embers, sentences, mark and bloom, so the next
 -- fire starts clean (none of them left flagged up).
 local function hideAll()
@@ -420,7 +484,8 @@ local function hideAll()
     minuteEnd, timerA = nil, 0
     stepTimer(0, 0, false)
     glow.now, glow.from, glow.to, glowNext = 0, 0, 0, nil
-    f:Hide()
+    -- The sleeping bag's count stays (the fire may go while you lie in the bag).
+    if not bagShowing() then f:Hide() end
 end
 
 step = function(dt)
@@ -466,7 +531,8 @@ step = function(dt)
     stepTimer(dt, math.min(1, level / Campfire.REST), moving)
     stepMark(math.min(1, level / Campfire.REST), moving)
     stepBloom()
-    if Campfire.state == "idle" and glow.now == 0 and glow.to == 0 then hideAll() end
+    stepBag(dt, moving)
+    if Campfire.state == "idle" and glow.now == 0 and glow.to == 0 and not bagShowing() then hideAll() end
 end
 
 ----------------------------------------------------------------------------
@@ -479,21 +545,25 @@ function Campfire.Hushes()
     return on("campfireChat") and Campfire.HUSH_ALL_FLOAT or Campfire.HUSH_ALL
 end
 
--- Beat 1: you sat down.
-local function sitDown(isPreview)
+local function showFrame()
     build()
     layout()
-    run = run + 1
-    preview = isPreview == true
-    deciding = false
-    Campfire.state = "sitting"
-    benefitsAt = benefits()
     if not f:IsShown() then
         clock, spawnDebt = 0, 0
         f.dome:SetAlpha(0)
         f.core:SetAlpha(0)
         f:Show()
     end
+end
+
+-- Beat 1: you sat down.
+local function sitDown(isPreview)
+    showFrame()
+    run = run + 1
+    preview = isPreview == true
+    deciding = false
+    Campfire.state = "sitting"
+    benefitsAt = benefits()
     -- The words: Camp Benefits' own text, read now (talents can change it).
     lines = Campfire.Lines(spellCall("GetSpellDescription", Campfire.BENEFITS))
     lineAt, lineNext = 1, clock + Campfire.WORDS_FIRST
@@ -617,6 +687,99 @@ function Campfire.Check(quiet)
     wasSitting = sit
 end
 
+----------------------------------------------------------------------------
+-- The sleeping bag
+----------------------------------------------------------------------------
+
+local function bagOn() return on("sleepingBag") end
+
+-- Well-Rested's stacks on you (0 without it), or nil when they can't be read.
+local function restedStacks()
+    if not readable() then return nil end
+    local a = aura(Campfire.BAG.RESTED)
+    if not a then return 0 end
+    local n = a.applications
+    if type(n) ~= "number" or secret(n) or n < 1 then return 1 end
+    return n
+end
+
+-- All three stacks are on: the count gives way to "Fully rested" for a moment.
+local function bagFull()
+    showFrame()
+    bag.endAt, bag.doneAt, bag.full = nil, clock, true
+    f.bagTime.secs = nil
+    f.bagLabel:SetText(L["Fully rested"])
+    DUI.Style.InkText(f.bagLabel, "GOOD")
+end
+
+-- The count from now: a stack a minute until all are on. Called again on every
+-- stack that lands, so it keeps in step with the game's own minute.
+function Campfire.BagStart(stacks, isPreview)
+    local B = Campfire.BAG
+    stacks = stacks or 0
+    if stacks >= B.STACKS then return bagFull() end
+    showFrame()
+    bag.preview = isPreview == true
+    bag.doneAt, bag.full = nil, nil
+    bag.endAt = GetTime() + B.EVERY * (B.STACKS - stacks)
+    bag.stacks = stacks
+    f.bagTime.secs = nil
+    DUI.Style.InkText(f.bagTime, "pop")
+    DUI.Style.InkText(f.bagLabel, "LABEL")
+end
+
+-- Out of the bag: the count leaves (snap: at once).
+function Campfire.BagStop(snap)
+    if not bagShowing() then return end
+    bag.endAt, bag.seen, bag.preview = nil, nil, nil
+    if snap or not Motion.On() then
+        bag.doneAt, bag.a = nil, 0
+        if f then
+            f.bagTime:SetAlpha(0)
+            f.bagLabel:SetAlpha(0)
+        end
+    else
+        bag.doneAt = clock - Campfire.MARK_HOLD
+    end
+end
+
+-- A look at Well-Rested and the bag's own aura; quiet = only note the stacks.
+function Campfire.BagCheck(quiet)
+    local stacks = restedStacks()
+    if stacks == nil then return end
+    local B = Campfire.BAG
+    local inBag = aura(B.TRACK) ~= nil
+    local before = bag.stacks or 0
+    bag.stacks = stacks
+    if quiet or not bagOn() or bag.preview then return end
+    if inBag then bag.seen = true end
+    if stacks > before then
+        -- A stack only lands in a bag: start the count, or keep it in step.
+        if stacks < B.STACKS then
+            Campfire.BagStart(stacks)
+        elseif bag.endAt then
+            bagFull()
+        end
+    elseif inBag and not bagShowing() then
+        Campfire.BagStart(stacks)
+    elseif bag.endAt and bag.seen and not inBag then
+        Campfire.BagStop()
+    end
+end
+
+-- The bag was laid out: the count starts (the only sign when the bag's own
+-- aura can't be read).
+local function bagUnrolled()
+    if not bagOn() then return end
+    bag.seen = nil
+    Campfire.BagStart(restedStacks() or bag.stacks or 0)
+end
+
+function Campfire.PreviewBag()
+    if InCombatLockdown() then return end
+    Campfire.BagStart(1, true)
+end
+
 function Campfire.Preview()
     if InCombatLockdown() then return end
     sitDown(true)
@@ -627,12 +790,24 @@ end
 
 local WAKE = { PLAYER_STARTED_MOVING = true, PLAYER_TARGET_CHANGED = true, UNIT_SPELLCAST_SENT = true }
 
-local function onEvent(_, event)
+local function onEvent(_, event, ...)
     if event == "UNIT_AURA" then
         Campfire.Check()
+        Campfire.BagCheck()
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_ENTERING_WORLD" then
+        Campfire.BagStop(true)
         Campfire.Wake(true)
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        -- Your own casts stay plain: unit, cast id, spell.
+        if select(3, ...) == Campfire.BAG.UNROLL then bagUnrolled() end
+    elseif event == "UNIT_SPELLCAST_SENT" and select(4, ...) == Campfire.BAG.UNROLL then
+        -- Laying the bag out by the fire isn't getting up.
+        return
     elseif WAKE[event] then
+        -- Walking off ends the bag's count when its own aura can't say so.
+        if event == "PLAYER_STARTED_MOVING" and (bag.preview or (bag.endAt and not bag.seen)) then
+            Campfire.BagStop()
+        end
         Campfire.Wake()
     end
 end
@@ -643,12 +818,14 @@ local function wire()
     events = CreateFrame("Frame")
     events:RegisterUnitEvent("UNIT_AURA", "player")
     events:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
+    events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     events:RegisterEvent("PLAYER_STARTED_MOVING")
     events:RegisterEvent("PLAYER_TARGET_CHANGED")
     events:RegisterEvent("PLAYER_REGEN_DISABLED")
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
     events:SetScript("OnEvent", onEvent)
     DUI.RegisterCommand("campfire", Campfire.Preview, L["/dui campfire - preview the campfire glow"])
+    DUI.RegisterCommand("sleepingbag", Campfire.PreviewBag, L["/dui sleepingbag - preview the sleeping bag timer"])
 end
 
 function Campfire.Enable(m)
@@ -659,9 +836,11 @@ function Campfire.Enable(m)
         pcall(C_Spell.RequestLoadSpellData, Campfire.BENEFITS)
     end
     Campfire.Check(true)
+    Campfire.BagCheck(true)
 end
 
 function Campfire.Refresh(m)
     mod = m
     if not enabled() then Campfire.Wake(true) end
+    if not bagOn() then Campfire.BagStop(true) end
 end
