@@ -49,7 +49,7 @@ ns.DEFAULTS = {
     player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
                slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitDragon = false, portraitDragonColor = "class",
                predictHeals = true, predictAbsorbs = true, showThreat = true,
-               showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
+               showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
                druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", fade = DaylightUI.Fade.Defaults({ fullHealth = false, target = true }) },
     target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
                showMarker = true, showClassification = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false,
@@ -59,21 +59,21 @@ ns.DEFAULTS = {
                threatTagAt = "frame", threatTagX = 0, threatTagY = 0, threatTagWidth = 36, threatTagHeight = 0,
                threatTagSize = 0, threatTagColor = "threat", threatTagBox = true, threatTagSlant = true,
                dotTint = true, dotSkull = true,
-               showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, fade = DaylightUI.Fade.Defaults() },
+               showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, fade = DaylightUI.Fade.Defaults() },
     targettarget = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 22, showName = true, slant = true, reverseFill = false,
                      -- Power bar off by default, since most people only glance to see who it is.
                      showPower = false, powerHeight = 4, powerTextPos = "inner", powerTextX = 0, powerTextY = 0,
-                     showPowerText = false, powerFormat = "value", hideFullPower = false,
+                     showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
                      predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults() },
     pet = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 20, powerHeight = 4, showPower = true, showName = true, slant = true,
-            reverseFill = false, showPowerText = false, powerFormat = "value", hideFullPower = false,
+            reverseFill = false, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
             predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults({ fullHealth = false }), happiness = true, happinessBar = false,
             happinessLook = "square", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
     focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
               showMarker = true, slant = true, portrait = "class", portraitRing = "class", predictHeals = true, predictAbsorbs = true,
-              showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
+              showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
     -- at: where it sits (CastBar.AT). "below" hangs under your frame, "above"
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
@@ -124,7 +124,7 @@ ns.DEFAULTS = {
     party = { enabled = true, texts = textSlots(), nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", width = 170, height = 34, showPower = true, powerHeight = 7, spacing = 38, showName = true, nameOnBar = false,
               showPercent = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class",
               showMarker = true, predictHeals = true, predictAbsorbs = true, showThreat = true,
-              showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, leaderPx = 11, showPowerText = false, powerFormat = "value", hideFullPower = false, healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0,
+              showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, leaderPx = 11, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0,
               fade = DaylightUI.Fade.Defaults(), showRole = true,
               -- Aura groups (AuraGroups.lua), matching the old party rows: debuffs
               -- under the frame from its right end, your buffs from its left.
@@ -159,7 +159,7 @@ ns.DEFAULTS = {
     partyPet = { enabled = false, spot = "right", x = 0, y = 0, width = 80, height = 18, fillVertical = false, showPower = true, powerHeight = 3,
                  slant = true, reverseFill = false, color = "owner", showName = true, nameColor = "global", nameCustom = { 1, 1, 1 },
                  nameLimitLen = 0, showPercent = false, healthText = "percent", percentSign = false, hideFullHealth = false,
-                 percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value",
+                 percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value", powerPercentSign = false,
                  hideFullPower = false, powerTextPos = "inner", predictHeals = true, predictAbsorbs = true },
     partyPetText = { name = 10, percent = 10, power = 0 },
     raid = { enabled = true, texts = textSlots(), showInParty = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
@@ -306,7 +306,7 @@ do
     -- The numbers on the bars, using the player frame's keys. Size 0 fits its bar.
     d.showPercent, d.healthText, d.percentSign, d.hideFullHealth = false, "percent", false, false
     d.healthTextPos, d.healthTextSize = "center", 0
-    d.showPowerText, d.powerFormat, d.hideFullPower = false, "value", false
+    d.showPowerText, d.powerFormat, d.powerPercentSign, d.hideFullPower = false, "value", false, false
     d.powerTextPos, d.powerTextSize = "center", 0
 end
 

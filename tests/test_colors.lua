@@ -355,6 +355,25 @@ T.test("text: power and percent together", function()
     _G.UnitPowerPercent = nil
 end)
 
+T.test("text: % after a power percent, when asked", function()
+    local DUI, ns = login()
+    local f = ns.frames.player
+    _G.UnitPowerPercent = function() return 80 end
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", powerToken = "MANA", power = 2300, maxPower = 2900 }
+    DUI:Set("UnitFrames", "player.showPowerText", true)
+    DUI:Set("UnitFrames", "player.powerFormat", "percent")
+    stub.RunTimers()
+    ns.UF.UpdatePower(f, true)
+    T.eq(f.powerText.__text, "80", "off by default")
+    DUI:Set("UnitFrames", "player.powerPercentSign", true)
+    stub.RunTimers()
+    ns.UF.UpdatePower(f, true)
+    T.eq(f.powerText.__text, "80%")
+    T.eq(select(1, ns.UF.PowerFormat("percent", "player", true)), "%.0f%%")
+    T.eq(select(1, ns.UF.PowerFormat("percent", "player")), "%.0f")
+    _G.UnitPowerPercent = nil
+end)
+
 T.test("text: % after a percent, when asked", function()
     local DUI, ns = login()
     local f = ns.frames.target

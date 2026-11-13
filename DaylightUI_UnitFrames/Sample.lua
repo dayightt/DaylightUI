@@ -14,7 +14,7 @@ Sample.UNITS = { "player", "target" }
 -- Your sample's power, by class (anyone else: mana).
 Sample.POWER = { WARRIOR = "RAGE", ROGUE = "ENERGY" }
 
-Sample.YOU = { health = 80, healthValue = 2480, power = 65 }
+Sample.YOU = { health = 80, healthValue = 2480, power = 65, powerValue = 2080 }
 
 function Sample.You()
     local s = UF.You("player", Sample.YOU, "WARRIOR")

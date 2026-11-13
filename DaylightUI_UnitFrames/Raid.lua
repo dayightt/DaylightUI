@@ -35,7 +35,7 @@ function Raid.SampleFor(i)
     local class = Raid.SAMPLE_CLASSES[(i - 1) % #Raid.SAMPLE_CLASSES + 1]
     local hp = 100 - ((i * 37) % 60)
     local s = { name = Raid.SAMPLE_NAMES[i] or string.format(DUI.L["Member %d"], i), class = class, health = hp,
-                healthValue = hp * 30, power = 60, powerToken = class == "WARRIOR" and "RAGE" or
+                healthValue = hp * 30, power = 60, powerValue = 1500, powerToken = class == "WARRIOR" and "RAGE" or
                 (class == "ROGUE" and "ENERGY" or "MANA"), portraitClass = class }
     if i == 1 then s.threat = "aggro"; s.marker = 8; s.leader = true end
     if i == 7 then s.marker = 2 end

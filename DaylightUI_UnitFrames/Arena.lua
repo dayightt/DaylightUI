@@ -27,7 +27,7 @@ end
 Arena.SAMPLES = {
     { name = "Dalinar", class = "WARRIOR", reaction = 2, health = 58, healthValue = 2600, power = 30, powerToken = "RAGE",
       portraitClass = "WARRIOR", level = 20, pvp = true, marker = 8 },
-    { name = "Vivenna", class = "DRUID", reaction = 2, health = 86, healthValue = 1900, power = 64, powerToken = "MANA",
+    { name = "Vivenna", class = "DRUID", reaction = 2, health = 86, healthValue = 1900, power = 64, powerValue = 1600, powerToken = "MANA",
       portraitClass = "DRUID", level = 20, pvp = true },
 }
 

@@ -1218,6 +1218,7 @@ function UF.Layout(f, cfg, text, keepSize)
     f.percentSign = cfg.percentSign == true
     f.hideFullHealth = cfg.hideFullHealth == true
     f.powerFormat = cfg.powerFormat or "value"
+    f.powerPercentSign = cfg.powerPercentSign == true
     f.hideFullPower = cfg.hideFullPower == true
     f.nameColorMode, f.nameCustom = cfg.nameColor, cfg.nameCustom
     f.percentColorMode, f.percentCustom = cfg.percentColor, cfg.percentCustom
@@ -3052,7 +3053,7 @@ function UF.UpdatePower(f, instant)
     UF.FeedPower(f, UnitPower(u), instant)
     local _, token = UnitPowerType(u)
     UF.PaintPower(f.power, token, u, f)
-    if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower) end
+    if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower, f.powerPercentSign) end
     if f.altMana then
         -- Shown only while your power isn't mana (a form) and you have mana.
         local shown = f.druidMana and not isSecret(token) and token ~= "MANA" and token ~= nil
@@ -3077,7 +3078,7 @@ function UF.UpdatePowerValue(f)
     if not f.power or (not f.power:IsShown() and not f.altMana) then return end
     local u = f.unitToken
     UF.FeedPower(f, UnitPower(u))
-    if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower) end
+    if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower, f.powerPercentSign) end
     if f.altMana and f.altMana:IsShown() then
         Style.SetBarValue(f.altMana, UnitPower(u, MANA))
     end
@@ -3507,8 +3508,8 @@ function UF.ShowSample(f)
         Style.SetBarValue(f.power, s.power or 0, true)
         UF.PaintPower(f.power, s.powerToken or "MANA", f.unitToken, f)
         if f.powerText:IsShown() then
-            f.powerText:SetText(s.power or 0)
-            f.powerText:SetAlpha((f.hideFullPower and (s.power or 0) >= 100) and 0 or 1)
+            UF.WriteSamplePower(f.powerText, f.powerFormat, s.power, s.powerValue, f.powerPercentSign, f.hideFullPower,
+                s.powerToken)
         end
     end
     UF.PaintName(f, r, g, b)

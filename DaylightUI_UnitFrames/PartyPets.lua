@@ -183,7 +183,7 @@ end)
 -- button, shown for members whose class keeps one out.
 
 PP.SAMPLES = {
-    WARLOCK = { name = "Grimlix", health = 64, healthValue = 420, power = 80, powerToken = "MANA" },
+    WARLOCK = { name = "Grimlix", health = 64, healthValue = 420, power = 80, powerValue = 1200, powerToken = "MANA" },
     HUNTER = { name = "Sable", health = 88, healthValue = 1100, power = 55, powerToken = "FOCUS" },
 }
 
