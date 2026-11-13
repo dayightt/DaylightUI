@@ -48,7 +48,7 @@ function Win.Lines(f, height)
     Win.PaintRule(f)
 end
 
--- Under the Classic look the rule under the header is gold, brightest in the
+-- Under the Classic look the rule under the header is steel, brightest in the
 -- middle where a small diamond sits, fading out toward both edges.
 function Win.PaintRule(f)
     if not f.rule then return end
@@ -73,7 +73,7 @@ function Win.PaintRule(f)
         f.ruleGem:SetSize(9, 9)
         f.ruleGem:SetPoint("CENTER", f.rule, "CENTER", 0, 0)
     end
-    local hi = Style.LOOKS.classic.GOLD[2]
+    local hi = Style.LOOKS.classic.STEEL[2]
     if CreateColor then
         f.ruleLeft:SetGradient("HORIZONTAL", CreateColor(hi[1], hi[2], hi[3], 0), CreateColor(hi[1], hi[2], hi[3], 0.7))
         f.ruleRight:SetGradient("HORIZONTAL", CreateColor(hi[1], hi[2], hi[3], 0.7), CreateColor(hi[1], hi[2], hi[3], 0))

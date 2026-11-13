@@ -6,6 +6,9 @@ end
 
 local function copy(c) return { c[1], c[2], c[3] } end
 
+-- Classic: the game's yellow words, steel frames, near-black blue backgrounds.
+local YELLOW = { 1, 0.82, 0 }
+
 local function look(DUI, which)
     DUI:Set("general", "look", which)
     stub.RunTimers()   -- the style repaints on the next frame
@@ -18,10 +21,10 @@ T.test("classic swaps the palette in place and daylight puts today's numbers bac
     local was = { border = copy(border), band = copy(S.BAND), back = copy(S.BACKGROUND), label = copy(label) }
     look(DUI, "classic")
     T.truthy(S.BORDER == border and S.INK.LABEL == label, "the same tables, so every alias follows")
-    T.rgb(S.BORDER, hex("3d362e"), "stone border")
-    T.rgb(S.BACKGROUND, hex("0f0d0b"), "warm black")
-    T.rgb(S.INK.LABEL, hex("e2c27a"), "gold labels")
-    T.rgb(S.INK.TITLE, hex("ffd35a"), "gold titles")
+    T.rgb(S.BORDER, hex("1c1c20"), "dark steel edge")
+    T.rgb(S.BACKGROUND, hex("0a0a16"), "warm black")
+    T.rgb(S.INK.LABEL, YELLOW, "yellow labels")
+    T.rgb(S.INK.TITLE, YELLOW, "yellow titles")
     T.rgb(text, { 0.949, 0.933, 0.902 }, "sentences stay soft white")
     look(DUI, "daylight")
     T.rgb(S.BORDER, was.border, "border back")
@@ -52,9 +55,9 @@ T.test("a shell repaints to the classic border", function()
     local s = DUI.Style.Shell(f)
     look(DUI, "classic")
     local v = s.border.LEFT.__vertex
-    T.rgb({ v[1], v[2], v[3] }, hex("3d362e"))
+    T.rgb({ v[1], v[2], v[3] }, hex("1c1c20"))
     local bg = s.bg.__color or s.bg.__vertex
-    T.rgb({ bg[1], bg[2], bg[3] }, hex("0f0d0b"), "background")
+    T.rgb({ bg[1], bg[2], bg[3] }, hex("0a0a16"), "background")
 end)
 
 T.test("an unknown saved look reads daylight", function()
@@ -73,15 +76,17 @@ T.test("switching to a profile on another look carries it", function()
     DB.activeName = "Gilded"
     DUI.RepaintStyle()
     stub.RunTimers()
-    T.rgb(DUI.Style.BORDER, hex("3d362e"), "classic profile")
+    T.rgb(DUI.Style.BORDER, hex("1c1c20"), "classic profile")
     DB.activeName = was
     DUI.RepaintStyle()
     stub.RunTimers()
     T.rgb(DUI.Style.BORDER, { 0.024, 0.024, 0.027 }, "back on the daylight profile")
 end)
 
-local GOLD_LO, GOLD_HI = hex("7a5c18"), hex("f3d27a")
+local GOLD_LO, GOLD_HI = hex("b8860b"), { 1, 0.82, 0 }
 local GOLD_MID = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 }
+local STEEL_LO, STEEL_HI = hex("5c5c64"), hex("b4b4bc")
+local STEEL_MID = { (STEEL_LO[1] + STEEL_HI[1]) / 2, (STEEL_LO[2] + STEEL_HI[2]) / 2, (STEEL_LO[3] + STEEL_HI[3]) / 2 }
 
 local function heavyShell(DUI)
     DUI:Set("general", "borderPx", 8)
@@ -91,15 +96,15 @@ local function heavyShell(DUI)
     return DUI.Style.Shell(f)
 end
 
-T.test("classic's band sweeps gold", function()
+T.test("classic's band sweeps steel, even with the plain game bars on", function()
     local DUI = stub.Load()
     local s = heavyShell(DUI)
     look(DUI, "classic")
     local g = s.band.TOP.__gradient
     T.truthy(g, "the top band sweeps")
-    T.rgb({ g[2].r, g[2].g, g[2].b }, GOLD_LO, "dark gold on the left")
-    T.rgb({ g[3].r, g[3].g, g[3].b }, GOLD_HI, "bright gold on the right")
-    T.falsy(s.border.TOP.__gradient, "the outline stays stone")
+    T.rgb({ g[2].r, g[2].g, g[2].b }, STEEL_LO, "dark steel on the left")
+    T.rgb({ g[3].r, g[3].g, g[3].b }, STEEL_HI, "bright steel on the right")
+    T.falsy(s.border.TOP.__gradient, "the outline stays one color")
     look(DUI, "daylight")
     T.falsy(s.band.TOP.__gradient, "daylight's band is one color again")
 end)
@@ -109,6 +114,7 @@ T.test("gold accent: on paints gold, off keeps the player's, the accent setting 
     local S = DUI.Style
     DUI:Set("general", "accent", "custom")
     DUI:Set("general", "accentColor", { 0.1, 0.2, 0.3 })
+    DUI:Set("general", "lookGradients", true)
     look(DUI, "classic")
     T.truthy(S.GoldAccent())
     T.rgb({ S.Accent() }, GOLD_MID, "gold")
@@ -136,7 +142,7 @@ T.test("gradients off: one flat gold, no sweep", function()
     T.rgb({ S.Accent() }, GOLD_MID)
     T.falsy(s.band.TOP.__gradient, "the band is one color")
     local v = s.band.TOP.__vertex
-    T.rgb({ v[1], v[2], v[3] }, GOLD_MID, "flat gold")
+    T.rgb({ v[1], v[2], v[3] }, STEEL_MID, "flat steel")
 end)
 
 T.test("a highlight beats the gold band and falls back to classic", function()
@@ -149,11 +155,11 @@ T.test("a highlight beats the gold band and falls back to classic", function()
     T.rgb({ s.band.TOP.__vertex[1], s.band.TOP.__vertex[2], s.band.TOP.__vertex[3] }, { 1, 0, 0 })
     S.SetShellColors(s, nil, nil, nil)
     T.truthy(s.band.TOP.__gradient, "gold again")
-    T.rgb({ s.border.TOP.__vertex[1], s.border.TOP.__vertex[2], s.border.TOP.__vertex[3] }, hex("3d362e"), "stone outline")
+    T.rgb({ s.border.TOP.__vertex[1], s.border.TOP.__vertex[2], s.border.TOP.__vertex[3] }, hex("1c1c20"), "dark outline")
     -- A flag the client resolves (aggro, dispel): its off colors are classic too.
     S.ShellColorsFromBoolean(s, true, { 1, 0, 0 }, { 1, 0, 0 })
     local off = s.border.TOP.__vertexFromBoolean[3]
-    T.rgb({ off.r, off.g, off.b }, hex("3d362e"), "off = stone")
+    T.rgb({ off.r, off.g, off.b }, hex("1c1c20"), "off = the dark outline")
     look(DUI, "daylight")
     S.ShellColorsFromBoolean(s, true, { 1, 0, 0 }, { 1, 0, 0 })
     off = s.border.TOP.__vertexFromBoolean[3]
@@ -164,7 +170,7 @@ T.test("a window's title, sub line and portrait rim follow the look", function()
     local DUI = stub.Load()
     local f = DUI.Win.New({ w = 300, h = 200, portrait = true })
     look(DUI, "classic")
-    T.rgb(f.title.__textColor, hex("ffd35a"), "gold title")
+    T.rgb(f.title.__textColor, YELLOW, "gold title")
     T.rgb(f.sub.__textColor, DUI.Win.DIM, "sub line")
     T.rgb(f.portraitRim.__vertex, DUI.Style.BAND, "rim in the band")
     look(DUI, "daylight")
@@ -178,7 +184,7 @@ T.test("options text made by W.Font follows the look, unless recolored since", f
     local own = W.Font(UIParent, W.BODY, 13, DUI.Style.INK.LABEL)
     own:SetTextColor(0.2, 0.9, 0.2)
     look(DUI, "classic")
-    T.rgb(label.__textColor, hex("e2c27a"), "gold label")
+    T.rgb(label.__textColor, YELLOW, "gold label")
     T.rgb(own.__textColor, { 0.2, 0.9, 0.2 }, "a color set since is left alone")
     look(DUI, "daylight")
     T.rgb(label.__textColor, { 0.76, 0.71, 0.62 }, "tan again")
@@ -191,9 +197,9 @@ T.test("a separator and a followed texture keep the look's color", function()
     local rim = UIParent:CreateTexture()
     S.Follow(rim, S.BAND)
     look(DUI, "classic")
-    T.rgb(line.__color, hex("3d362e"), "separator in stone")
+    T.rgb(line.__color, hex("1c1c20"), "separator in stone")
     T.near(line.__color[4], 0.9)
-    T.rgb(rim.__vertex, S.LOOKS.classic.BAND, "rim in the gold band")
+    T.rgb(rim.__vertex, S.LOOKS.classic.BAND, "rim in the steel band")
     look(DUI, "daylight")
     T.rgb(line.__color, { 0.024, 0.024, 0.027 })
 end)
@@ -208,7 +214,7 @@ T.test("a button turns red and gold, and back", function()
     T.rgb({ g[3].r, g[3].g, g[3].b }, hex("9a1a12"), "red at the top")
     T.rgb({ g[2].r, g[2].g, g[2].b }, hex("560c07"), "darker red below")
     T.rgb(b.band.__vertex, hex("6b5520"), "a darker gold band, so the gold hover trace shows")
-    T.rgb(b.text.__textColor, hex("ffd35a"), "gold words")
+    T.rgb(b.text.__textColor, YELLOW, "yellow words")
     T.rgb(DUI.Style.INK.TEXT, { 0.949, 0.933, 0.902 }, "sentences elsewhere stay soft white")
     look(DUI, "daylight")
     T.rgb(b.band.__vertex, { 0.10, 0.09, 0.063 }, "today's band")
@@ -269,7 +275,7 @@ T.test("rivets sit on an angled frame's cuts under Classic only", function()
     T.truthy(rel == f and to == "RIGHT", "placed on the frame's right end, so it follows a resize")
     T.truthy(x < 0 and x > -12, "inside the cut")
     T.near(y, 0, 0.01, "halfway down")
-    T.rgb(r.__vertex, GOLD_HI, "bright gold")
+    T.rgb(r.__vertex, STEEL_HI, "bright steel")
     look(DUI, "daylight")
     T.eq(shownRivets(DUI, f), 0, "gone again")
 end)
@@ -308,7 +314,7 @@ T.test("a window opening under Classic plays one gold glint; Daylight, motion of
     M.Sweep = function(tex, over, opts)
         if over == f then
             swept = swept + 1
-            T.rgb(opts.color, GOLD_HI, "gold light")
+            T.rgb(opts.color, STEEL_HI, "silver light")
         end
         return real(tex, over, opts)
     end
@@ -427,7 +433,7 @@ T.test("a title set later still paints in the look's title color", function()
     local f = DUI.Win.New({ w = 300, h = 200 })
     look(DUI, "classic")
     DUI.Win.SetTitle(f, "Spellbook")
-    T.rgb(f.title.__textColor, hex("ffd35a"))
+    T.rgb(f.title.__textColor, YELLOW)
 end)
 
 T.test("the options window's page title takes the look's title color", function()
@@ -443,7 +449,7 @@ T.test("the options window's page title takes the look's title color", function(
     end
     walk(_G.DaylightUIOptions)
     T.truthy(t, "the header title")
-    T.rgb(t.__textColor, hex("ffd35a"))
+    T.rgb(t.__textColor, YELLOW)
 end)
 
 T.test("classic titles use the client's own game font, so a Russian client keeps its letters", function()
@@ -465,7 +471,7 @@ T.test("a title given its own color keeps it through a repaint", function()
     DUI.Win.SetTitle(f, "Spellbook")
     DUI:Set("general", "softness", 0.2)
     stub.RunTimers()
-    T.rgb(f.title.__textColor, hex("ffd35a"), "a plain title follows the look")
+    T.rgb(f.title.__textColor, YELLOW, "a plain title follows the look")
 end)
 
 T.test("pieces painted once at build follow the look: crest disc, cast bar back, skinned game window back", function()
@@ -474,6 +480,69 @@ T.test("pieces painted once at build follow the look: crest disc, cast bar back,
     local tex = UIParent:CreateTexture()
     S.Follow(tex, S.BACKGROUND, 0.85, true)
     look(DUI, "classic")
-    T.rgb(tex.__color, hex("0f0d0b"))
+    T.rgb(tex.__color, hex("0a0a16"))
     T.near(tex.__color[4], 0.85, nil, "its own alpha kept")
+end)
+
+
+T.test("classic numbers are white and section headings yellow, like the game's stat panel", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local n, h = UIParent:CreateFontString(), UIParent:CreateFontString()
+    look(DUI, "classic")
+    S.InkText(n, "pop")
+    S.InkText(h, "heading")
+    T.rgb(n.__textColor, { 1, 1, 1 }, "a number")
+    T.rgb(h.__textColor, YELLOW, "a heading")
+    look(DUI, "daylight")
+    S.InkText(n, "pop")
+    S.InkText(h, "heading")
+    T.rgb(n.__textColor, { S.Accent() }, "daylight: numbers pop in the accent")
+    T.rgb(h.__textColor, { S.Accent() }, "and headings too")
+end)
+
+T.test("classic bars are the game's plain colors until Gradient bars is on", function()
+    local DUI = stub.Load()
+    local S, G = DUI.Style, DUI.Gradients
+    look(DUI, "classic")
+    T.truthy(G.Flat(), "every pair plain")
+    T.falsy(G.Off(), "the player's own master switch untouched")
+    T.rgb({ S.FlatSweep() }, S.LOOKS.classic.FLAT_BAR, "a Daylight-sweep bar in the game's bar color")
+    DUI:Set("general", "lookGradients", true)
+    stub.RunTimers()
+    T.falsy(G.Flat(), "gradients back")
+    look(DUI, "daylight")
+    DUI:Set("general", "lookGradients", false)
+    stub.RunTimers()
+    T.falsy(G.Flat(), "daylight never flattens by itself")
+end)
+
+T.test("classic unit frames: green health, power by its type", function()
+    local DUI, ns = stub.Load({ module = true, before = function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10,
+                              powerType = 1, powerToken = "RAGE", power = 40, maxPower = 100 }
+    end })
+    local f = ns.frames.player
+    look(DUI, "classic")
+    ns.UF.UpdateAll(f, true)
+    T.falsy(f.health.__gradient, "no sweep")
+    T.rgb(f.health.__barColor, DUI.Style.LOOKS.classic.HEALTH, "the game's green")
+    DUI:Set("UnitFrames", "colors.power", "gradient")
+    stub.RunTimers()
+    ns.UF.PaintPower(f.power, "RAGE", "player", f)
+    T.rgb(f.power.__barColor, { DUI.Style.PowerColor("RAGE") }, "rage in its own color, not a gradient")
+    DUI:Set("general", "lookGradients", true)
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    local r, g = f.health.__barColor[1], f.health.__barColor[2]
+    T.falsy(math.abs(r - DUI.Style.LOOKS.classic.HEALTH[1]) < 0.01 and math.abs(g - DUI.Style.LOOKS.classic.HEALTH[2]) < 0.01,
+        "Gradient bars on: the player's own bar colors again")
+end)
+
+T.test("the Gradient bars switch shows only under Classic", function()
+    local DUI = stub.Load()
+    local item = itemFor(DUI, "lookGradients")
+    T.truthy(item and item.type == "toggle")
+    T.eq(item.hidden(function(k) return k == "look" and "daylight" or nil end), true)
+    T.falsy(item.hidden(function(k) return k == "look" and "classic" or nil end))
 end)

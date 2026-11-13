@@ -293,11 +293,23 @@ Style.INK = {
 }
 
 -- The pop color: the player's accent, read at paint time (Style.Accent is below).
-function Style.Pop() return Style.Accent() end
+-- The Classic look keeps numbers white, as the game's own windows do.
+function Style.Pop()
+    if Style.Look and Style.Look() == "classic" then
+        local v = Style.INK.VALUE
+        return v[1], v[2], v[3]
+    end
+    return Style.Accent()
+end
 
--- Paints a font string in a Style.INK role, or "pop" for the accent.
+-- Paints a font string in a Style.INK role, "pop" for a number that matters,
+-- or "heading" for a section heading (the accent, the title color under Classic).
 function Style.InkText(fs, role, a)
+    if role == "heading" then role = Style.Look() == "classic" and "TITLE" or "accent" end
     if role == "pop" then
+        local r, g, b = Style.Pop()
+        fs:SetTextColor(r, g, b, a or 1)
+    elseif role == "accent" then
         local r, g, b = Style.Accent()
         fs:SetTextColor(r, g, b, a or 1)
     else
@@ -324,7 +336,11 @@ local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function rgb(hex)
     return { tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255 }
 end
-local GOLD_LO, GOLD_HI = rgb("7a5c18"), rgb("f3d27a")
+-- Classic follows the game's own windows: steel frames on a near-black blue
+-- background, the game's yellow on labels and titles, white values, red buttons.
+local GOLD_LO, GOLD_HI = rgb("b8860b"), { 1, 0.82, 0 }
+local STEEL_LO, STEEL_HI = rgb("5c5c64"), rgb("b4b4bc")
+local function mid(a, b) return { (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, (a[3] + b[3]) / 2 } end
 Style.LOOKS = {
     -- Copies of the palette above, so it stays the one place to change them.
     daylight = {
@@ -349,27 +365,34 @@ Style.LOOKS = {
         },
     },
     classic = {
-        BORDER = rgb("3d362e"),
-        BAND = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
-        BAND_LIT = rgb("f6e3a4"),
-        BACKGROUND = rgb("0f0d0b"),
+        BORDER = rgb("1c1c20"),
+        BAND = mid(STEEL_LO, STEEL_HI),
+        BAND_LIT = rgb("d0d0d8"),
+        BACKGROUND = rgb("0a0a16"),
         INK = {
-            TITLE = rgb("ffd35a"),
-            LABEL = rgb("e2c27a"),
-            OFF = rgb("7d6a4e"),
+            TITLE = { 1, 0.82, 0 },
+            LABEL = { 1, 0.82, 0 },
+            OFF = { 0.6, 0.58, 0.55 },
         },
-        -- Red buttons with a gold band and gold words, like the game's.
+        -- Red buttons with a gold edge and yellow words, like the game's.
         BUTTON = {
             -- A step darker than the gold accent, so the hover trace shows on it.
             band = rgb("6b5520"),
-            bandMain = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
+            bandMain = mid(GOLD_LO, GOLD_HI),
             bandOff = rgb("4a3a1a"),
             fillTop = rgb("9a1a12"),
             fillBottom = rgb("560c07"),
             lit = { 1, 0.9, 0.6, 0.12 },
-            text = rgb("ffd35a"),
+            text = { 1, 0.82, 0 },
         },
+        -- The gold accent (lines, picked tabs, hovers), and the steel of the
+        -- band, rivets, header rule and the open glint.
         GOLD = { GOLD_LO, GOLD_HI },
+        STEEL = { STEEL_LO, STEEL_HI },
+        -- The game's plain bars, while Gradient bars is off: health green, and a
+        -- bar that would run the Daylight sweep (cast bars) in the game's cast yellow.
+        HEALTH = { 0.1, 0.78, 0.1 },
+        FLAT_BAR = { 1, 0.7, 0 },
     },
 }
 
@@ -743,8 +766,8 @@ end
 
 function Style.Accent()
     if Style.GoldAccent() then
-        local m = Style.LOOKS.classic.BAND
-        return m[1], m[2], m[3]
+        local lo, hi = Style.GoldPair()
+        return (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2, (lo[3] + hi[3]) / 2
     end
     local g = general()
     if g.accent == "custom" then
@@ -1011,7 +1034,7 @@ end
 
 -- The accent's pair in the form a shell takes ({ lo, hi }), one table per pair.
 local shellPair = {}
-local goldShellPair = { Style.LOOKS.classic.GOLD[1], Style.LOOKS.classic.GOLD[2] }
+local steelShellPair = { Style.LOOKS.classic.STEEL[1], Style.LOOKS.classic.STEEL[2] }
 
 local function accentShellPair(lo, hi)
     if shellPair[1] ~= lo or shellPair[2] ~= hi then shellPair = { lo, hi } end
@@ -1224,11 +1247,11 @@ function Style.PaintShellColors(s)
     local own = CreateColor ~= nil and opts.borderPair or nil
     local sweepBorder = own or (pair and not heavy and not opts.borderColor and pair)
     local sweepBand = pair and heavy and not opts.bandColor and pair
-    -- Classic's gilded band: gold sweeping dark to bright. A highlight's own
+    -- Classic's steel band: sweeping dark to bright. A highlight's own
     -- colors still win, so aggro or a dispel reads the same as ever.
     if classic and heavy and not opts.bandColor and CreateColor ~= nil
-       and not (DUI.Gradients and DUI.Gradients.Flat()) then
-        sweepBand = goldShellPair
+       and not (DUI.Gradients and DUI.Gradients.Off()) then
+        sweepBand = steelShellPair
     end
     local bc, dc = opts.borderColor or Style.BORDER, opts.bandColor or Style.BAND
     local r, g2, b = bc[1], bc[2], bc[3]
@@ -1717,7 +1740,7 @@ function Style.Slant(frame, side, cut, ref, under)
     if Style.LayoutRivets then Style.LayoutRivets(frame) end
 end
 
--- Classic's rivets: a small gold stud in the middle of each angled end's cut,
+-- Classic's rivets: a small steel stud in the middle of each angled end's cut,
 -- on frames that ask for them (the unit frames). Made the first time Classic
 -- shows them, on a child frame so the bars never cover them.
 local rivetFrames = setmetatable({}, { __mode = "k" })
@@ -1749,7 +1772,7 @@ function Style.LayoutRivets(frame)
         rivetsOf[frame] = set
     end
     local size = math.max(DUI.Pixel.Px(frame, 7), DUI.Pixel.Px(frame, Style.BorderPx(frame) * 1.6))
-    local hi = Style.LOOKS.classic.GOLD[2]
+    local hi = Style.LOOKS.classic.STEEL[2]
     for _, e in ipairs(ENDS) do
         local t = set[e]
         if side == e or side == "both" then
@@ -2230,6 +2253,10 @@ function Style.BarBack(bar) return barBack[bar] end
 -- whether the sweep is on; only then should the caller paint the fill white
 -- (white over our plain fill would be a white bar).
 function Style.FlatSweep()
+    if Style.Look() == "classic" then
+        local c = Style.LOOKS.classic.FLAT_BAR
+        return c[1], c[2], c[3]
+    end
     local m = Style.GRADIENT_MID
     return m[1], m[2], m[3]
 end

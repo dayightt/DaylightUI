@@ -208,7 +208,7 @@ function Feel.IsOpen(frame) return frame:IsShown() and not frame.__feelClosing e
 
 -- Fade and rise in. A hidden window starts transparent and RISE px low; one
 -- caught mid-close reverses from where it is.
--- Under the Classic look a window opening gets one soft run of gold light across it.
+-- Under the Classic look a window opening gets one soft run of light across it.
 local function glint(frame)
     if DUI.Style.Look() ~= "classic" or InCombatLockdown() or not DUI.Motion.On() then return end
     local t = frame.__feelGlint
@@ -222,7 +222,7 @@ local function glint(frame)
     local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
     t:SetHeight(h * 1.2)
     DUI.Motion.Sweep(t, frame, { width = w * 0.35, dur = DUI.Motion.SLOW, alpha = 0.18,
-        color = DUI.Style.LOOKS.classic.GOLD[2], inset = -w * 0.2 })
+        color = DUI.Style.LOOKS.classic.STEEL[2], inset = -w * 0.2 })
 end
 
 function Feel.Open(frame)
