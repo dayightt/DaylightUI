@@ -999,6 +999,15 @@ function Window.Relayout(f, synced, moved)
     if f.spec.afterLayout then f.spec.afterLayout(f) end
 end
 
+-- Ends every glide and fade in a window at once: its slots, the grid, its size.
+function Window.Settle(f)
+    if not f then return end
+    ns.Layout.Settle(f)
+    local Feel = DUI.Win.Feel
+    if Feel.Moving(f.items) then Feel.Settle(f.items) end
+    if Feel.Moving(f) then Feel.Settle(f) end
+end
+
 -- Marks what a window still needs to fill: f.dirty[bag] = true for one bag, or
 -- every bag when bag is nil (f.dirtyAll). Filled on open, or earlier on idle
 -- frames (Prep.lua).
@@ -1203,9 +1212,13 @@ local function registerEvents()
         end
     end)
     DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", soon(fillCooldowns))
-    -- A fight needs the bag right at once: a cleanup still held lands now, no glide.
+    -- A fight needs the bag right at once: a cleanup still held lands now, and
+    -- anything still gliding or fading lands where it was going.
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        for _, f in ipairs(ns.windows) do Window.EndSort(f, true) end
+        for _, f in ipairs(ns.windows) do
+            Window.EndSort(f, true)
+            Window.Settle(f)
+        end
     end)
     DUI.RegisterEvent("PLAYER_MONEY", function() for _, f in ipairs(ns.windows) do Window.UpdateFooter(f) end end)
     DUI.RegisterEvent("CURRENCY_DISPLAY_UPDATE", function() if ns.window then Window.UpdateFooter(ns.window) end end)

@@ -608,28 +608,21 @@ end
 -- or nothing, glides from its own spot.
 -- New ones (and an item that wasn't in the window before) fade in with a small
 -- drop, and ones no longer shown fade out in place (window.fading, restored by
--- the next layout).
+-- the next layout). More than EASE_MAX moving pieces cross-fade instead.
 function Layout.Ease(window, was)
-    local Motion, Feel = DUI.Motion, DUI.Win.Feel
-    window.gliding = window.gliding or {}
+    local moves = {}
     local function from(r, old)
         if r:GetNumPoints() ~= 1 then return end
         local _, _, _, x, y = r:GetPoint(1)
-        if not old then
-            r:SetAlpha(0)
-            Motion.AlphaTo(r, 1, Motion.NORMAL)
-            Feel.Glide(r, 0, Layout.FOLD_DROP, Motion.NORMAL)
-            window.gliding[r] = true
-        elseif x ~= old[1] or y ~= old[2] then
-            Feel.Glide(r, old[1] - x, old[2] - y, Motion.NORMAL)
-            window.gliding[r] = true
+        if not old or x ~= old[1] or y ~= old[2] then
+            moves[#moves + 1] = { r = r, old = old, x = x, y = y }
         end
     end
     local function fadeOut(r)
         window.fading = window.fading or {}
         window.fading[r] = true
         r:Show()
-        Motion.AlphaTo(r, 0, Motion.FAST, true)
+        DUI.Motion.AlphaTo(r, 0, DUI.Motion.FAST, true)
     end
     local items, tiles, claimed = was.items or {}, {}, {}
     for _, t in ipairs(window.tiles or {}) do
@@ -678,27 +671,113 @@ function Layout.Ease(window, was)
             fadeOut(l)
         end
     end
+    if #moves > Layout.EASE_MAX then return Layout.CrossFade(window, moves) end
+    local Motion, Feel = DUI.Motion, DUI.Win.Feel
+    window.gliding = window.gliding or {}
+    for _, m in ipairs(moves) do
+        local r, old = m.r, m.old
+        if old then
+            Feel.Glide(r, old[1] - m.x, old[2] - m.y, Motion.NORMAL)
+            window.gliding[r] = true
+        else
+            r:SetAlpha(0)
+            Motion.AlphaTo(r, 1, Motion.NORMAL)
+            Feel.Glide(r, 0, Layout.FOLD_DROP, Motion.NORMAL)
+            window.gliding[r] = "new"
+        end
+    end
+end
+
+-- Gliding each slot re-places it every frame, which a full bank sort can't
+-- afford. Past this many moving pieces the grid fades out where it was and back
+-- in where it's going, placing each piece only twice.
+Layout.EASE_MAX = 60
+
+local function arrive(cross)
+    if cross.arrived then return end
+    cross.arrived = true
+    for _, m in ipairs(cross.moves) do
+        local r = m.r
+        if m.old then
+            -- Unless something placed it since (a held spot taken by the next stack).
+            local _, _, _, x, y = r:GetPoint(1)
+            if x == m.old[1] and y == m.old[2] then
+                r:ClearAllPoints()
+                r:SetPoint(m.point, m.rel, m.relPoint, m.x, m.y)
+            end
+        else
+            r:SetAlpha(1)
+        end
+    end
+end
+
+function Layout.CrossFade(window, moves)
+    local Motion, grid = DUI.Motion, window.items
+    local cross = { moves = moves }
+    window.crossing = cross
+    for _, m in ipairs(moves) do
+        local r = m.r
+        if m.old then
+            m.point, m.rel, m.relPoint = r:GetPoint(1)
+            r:ClearAllPoints()
+            r:SetPoint(m.point, m.rel, m.relPoint, m.old[1], m.old[2])
+        else
+            r:SetAlpha(0)
+        end
+    end
+    local function step(a) grid:SetAlpha(a) end
+    Motion.Tween(cross, grid:GetAlpha(), 0, Motion.FAST, step, function()
+        arrive(cross)
+        Motion.Tween(cross, 0, 1, Motion.NORMAL, step, function()
+            if window.crossing == cross then window.crossing = nil end
+        end)
+    end)
+end
+
+-- Pieces that faded out come back hidden, so a layout places them like any slot
+-- (a fold then eases them in as new).
+local function restoreFading(window)
+    if not window.fading then return end
+    for b in pairs(window.fading) do
+        DUI.Motion.AlphaTo(b, 1, 0)
+        b:Hide()
+    end
+    wipe(window.fading)
+end
+
+-- Ends running glides and a cross-fade where they were going. full: new pieces
+-- that were fading in show whole at once too.
+local function settleMoves(window, full)
+    if window.gliding then
+        for r, how in pairs(window.gliding) do
+            DUI.Win.Feel.Settle(r)
+            if full and how == "new" then DUI.Motion.AlphaTo(r, 1, 0) end
+        end
+        wipe(window.gliding)
+    end
+    local cross = window.crossing
+    if cross then
+        window.crossing = nil
+        arrive(cross)
+        DUI.Motion.Tween(cross, 1, 1, 0)
+        window.items:SetAlpha(1)
+    end
+end
+
+-- Everything moving in the window lands at once: a fight needs the bag as it is.
+function Layout.Settle(window)
+    restoreFading(window)
+    settleMoves(window, true)
 end
 
 -- Places every shown slot. Returns the grid's width and height.
 function Layout.Apply(window, cfg)
-    -- Items and lines that are fading out (or done): restore them but keep them
-    -- hidden so the layout places them like any slot (a fold then eases them in as new).
-    if window.fading then
-        for b in pairs(window.fading) do
-            DUI.Motion.AlphaTo(b, 1, 0)
-            b:Hide()
-        end
-        wipe(window.fading)
-    end
+    restoreFading(window)
     -- Where things are now, mid-glide too, so a layout made during one (loot
     -- arriving in a burst) glides on from there instead of jumping.
     local was = Layout.Eases(window) and Layout.Spots(window) or nil
     -- Then glides still running settle, so the layout below starts from its own spots.
-    if window.gliding then
-        for r in pairs(window.gliding) do DUI.Win.Feel.Settle(r) end
-        wipe(window.gliding)
-    end
+    settleMoves(window)
     local w, h
     if cfg.view == "categories" then
         w, h = Layout.Categories(window, cfg)

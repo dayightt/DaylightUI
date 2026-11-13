@@ -162,31 +162,50 @@ local selling = false
 
 local money = DUI.MoneyString
 
+Junk.SETTLE = 1              -- seconds the bag waits at most for the last sales to leave it
+
+-- While the bag is open a sold item's slot keeps its place, so nothing slides
+-- under the cursor mid-sale. Once the whole sale has left the bag (the server
+-- answers each sale a moment later), the spots close up in one glide.
+local function closeUp(sold, since)
+    if GetTime() - since < Junk.SETTLE then
+        for _, item in ipairs(sold) do
+            local ok, info = pcall(C_Container.GetContainerItemInfo, item.bag, item.slot)
+            if ok and type(info) == "table" and info.hyperlink == item.link then
+                C_Timer.After(Junk.STEP, function() closeUp(sold, since) end)
+                return
+            end
+        end
+    end
+    if ns.window and ns.Window then ns.Window.EaseRelayout(ns.window) end
+end
+
 -- Sells the list one at a time and prints the total at the end.
 function Junk.Sell(list)
     if selling or #list == 0 then return end
     selling = true
-    local i, count, total = 0, 0, 0
+    local i, total, sold = 0, 0, {}
+    local function finish()
+        selling = false
+        if #sold > 0 then closeUp(sold, GetTime()) end
+    end
     local function step()
-        if not Junk.vendorOpen then
-            selling = false
-            return
-        end
+        if not Junk.vendorOpen then return finish() end
         i = i + 1
         local item = list[i]
         if not item then
-            selling = false
+            local count = #sold
             if count > 0 then
                 DUI.Print(count == 1 and string.format(L["Sold 1 junk item for %s."], money(total))
                     or string.format(L["Sold %d junk items for %s."], count, money(total)))
             end
-            return
+            return finish()
         end
         -- Is the same item still there (not moved or locked since)?
         local ok, info = pcall(C_Container.GetContainerItemInfo, item.bag, item.slot)
         if ok and info and not info.isLocked and info.hyperlink == item.link then
             pcall(C_Container.UseContainerItem, item.bag, item.slot)
-            count = count + 1
+            sold[#sold + 1] = item
             total = total + item.value
         end
         C_Timer.After(Junk.STEP, step)

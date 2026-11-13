@@ -5675,3 +5675,261 @@ T.test("bags: a group's color travels in a shared string", function()
     end
     _G.C_EncodingUtil = nil
 end)
+
+-- A vendor that takes what's used: the item leaves its slot and the bag updates
+-- (late = the bag updates only when land() is called, as when the server is slow).
+local function sellingWorld(late)
+    local sold, pending = {}, {}
+    C_Container.UseContainerItem = function(bag, slot)
+        sold[#sold + 1] = bag .. ":" .. slot
+        if late then
+            pending[#pending + 1] = { bag, slot }
+        else
+            world.items[bag][slot] = nil
+            bagChanged(bag)
+        end
+    end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" or link == "|Hitem:9|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    local function land()
+        for _, p in ipairs(pending) do
+            world.items[p[1]][p[2]] = nil
+            bagChanged(p[1])
+        end
+        wipe(pending)
+    end
+    return sold, land
+end
+
+-- The bag with a gray weapon (0:2) and apples marked as junk (1:2), free slots
+-- grouped so a sold slot leaves the grid, a vendor open.
+local function junkAtVendor(late)
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    DaylightUI:Set("Bags", "sellJunk", false)
+    stub.RunTimers()
+    ns.Categories.Pin(9, "junk")
+    ns.Relayout()
+    ns.FillAll()
+    settleFeel()
+    local sold, land = sellingWorld(late)
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    return ns, f, sold, land
+end
+
+local function nothingMoves(f, what)
+    local Feel = DaylightUI.Win.Feel
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), what) end
+    for _, h in ipairs(f.headings or {}) do T.falsy(Feel.Moving(h), what) end
+end
+
+T.test("bags: Sell junk fades the junk out and glides the rest up", function()
+    local ns, f, sold = junkAtVendor()
+    local Feel = DaylightUI.Win.Feel
+    -- The weapon's slot becomes the free tile (the first free slot); the apples'
+    -- slot leaves the grid.
+    local gray, apple = ns.Bags.buttons[0][2], ns.Bags.buttons[1][2]
+    local gx, gy = at(gray)
+    local ax, ay = at(apple)
+    local before = itemSpots(f)
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    T.eq(#sold, 1, "one at a time")
+    T.truthy(gray:IsShown(), "mid-sale the sold slot keeps its spot")
+    T.deq({ at(gray) }, { gx, gy })
+    nothingMoves(f, "nothing moves mid-sale")
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:2,1:2")
+    T.truthy(f.fading and f.fading[apple], "a sold slot fades out")
+    T.truthy(apple:IsShown(), "where it was")
+    T.deq({ at(apple) }, { ax, ay })
+    T.truthy(f.tiles[1].button == gray and Feel.Moving(gray), "the other glides to be the free tile")
+    for link, spot0 in pairs(before) do
+        local b = buttonOf(f, link)
+        if b then T.deq({ at(b) }, spot0, link .. " starts from where it was") end
+    end
+    -- Junk was the last group here: what follows it (the free slots) glides up.
+    local up = 0
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "empty" and Feel.Moving(h) then up = up + 1 end
+    end
+    T.eq(up, 1, "the free slots' heading glides up")
+    T.truthy(Feel.Moving(f), "the window glides to its new size")
+    settleFeel()
+    T.falsy(apple:IsShown(), "gone once faded")
+    T.falsy(f.stale, "laid out: nothing left for the next open")
+    nothingMoves(f, "all landed")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Sell junk waits for the last sale to leave the bag", function()
+    local ns, f, sold, land = junkAtVendor(true)
+    local Feel = DaylightUI.Win.Feel
+    local apple = ns.Bags.buttons[1][2]
+    local ax, ay = at(apple)
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(#sold, 2)
+    T.falsy(f.fading and f.fading[apple], "the server hasn't answered: nothing closes up yet")
+    T.deq({ at(apple) }, { ax, ay })
+    land()
+    T.truthy(apple:IsShown() and f.stale, "the sold slots hold their spots")
+    stub.RunTimers()
+    T.truthy(f.fading and f.fading[apple], "landed: now it closes up")
+    settleFeel()
+    nothingMoves(f, "settled")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    -- A sale that never lands is let go after SETTLE.
+    ns, f, sold = junkAtVendor(true)
+    local gray = ns.Bags.buttons[0][2]
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    local laid = 0
+    local relayout = ns.Window.EaseRelayout
+    ns.Window.EaseRelayout = function(...) laid = laid + 1 return relayout(...) end
+    stub.RunTimers()
+    T.eq(laid, 0, "still waiting")
+    stub.Advance(ns.Junk.SETTLE)
+    stub.RunTimers()
+    ns.Window.EaseRelayout = relayout
+    T.eq(laid, 1, "then lays out once")
+    T.falsy(Feel.Moving(gray))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a right-click sell still holds the spot", function()
+    local ns, f = junkAtVendor()
+    local spots = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then spots[s.button] = { at(s.button) } end
+    end
+    local weapon = ns.Bags.buttons[0][1]
+    -- What the game's right-click does at a vendor.
+    C_Container.UseContainerItem(0, 1)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.truthy(weapon:IsShown(), "the sold slot stays")
+    for b, spot0 in pairs(spots) do T.deq({ at(b) }, spot0, "nothing else moved") end
+    nothingMoves(f, "no glide")
+    T.falsy(f.fading and next(f.fading), "nothing fades")
+    T.truthy(f.stale, "the next open lays it out")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: more than EASE_MAX moves cross-fade instead", function()
+    local ns = login()
+    local L, Motion = ns.Layout, DaylightUI.Motion
+    T.eq(L.EASE_MAX, 60)
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local ok, err = pcall(function()
+        L.EASE_MAX = 2
+        local gray = ns.Bags.buttons[0][2]
+        local x0, y0 = at(gray)
+        world.items[0][1] = nil
+        easedRelayout(ns)
+        nothingMoves(f, "no slot glides")
+        T.truthy(f.crossing, "the grid cross-fades")
+        T.deq({ at(gray) }, { x0, y0 }, "the old picture fades out where it was")
+        stub.RunOnUpdate(Motion.Driver(), Motion.FAST + 0.01)
+        T.truthy(at(gray) < x0, "then each piece is at its new spot")
+        T.truthy(f.items:GetAlpha() < 0.5, "fading back in")
+        stub.RunOnUpdate(Motion.Driver(), Motion.NORMAL + 0.01)
+        T.eq(f.items:GetAlpha(), 1)
+        T.isnil(f.crossing, "done")
+        -- A layout made mid-way lands the cross-fade first.
+        world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+        easedRelayout(ns)
+        T.truthy(f.crossing)
+        world.items[0][1] = nil
+        easedRelayout(ns)
+        settleFeel()
+        T.eq(f.items:GetAlpha(), 1)
+        T.isnil(f.crossing)
+        T.truthy(at(gray) < x0, "where the last layout put it")
+        -- Few moves still glide.
+        L.EASE_MAX = 60
+        world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+        easedRelayout(ns)
+        T.isnil(f.crossing)
+        T.truthy(DaylightUI.Win.Feel.Moving(gray), "glides")
+        settleFeel()
+    end)
+    L.EASE_MAX = 60
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: combat mid-glide settles everything at once", function()
+    local ns, f = catLogin()
+    local Feel, L = DaylightUI.Win.Feel, ns.Layout
+    settleFeel()
+    local function click(key)
+        for _, h in ipairs(f.headings) do
+            if h:IsShown() and h.key == key then return h:GetScript("OnClick")(h, "LeftButton") end
+        end
+    end
+    -- Fold a group, then open it again: its items fade in, the rest glide, the window resizes.
+    click("consumable")
+    settleFeel()
+    click("consumable")
+    local bread = ns.Bags.buttons[0][8]
+    T.truthy(bread:GetAlpha() < 1, "an opened group's items are fading in")
+    T.truthy(Feel.Moving(f), "the window is resizing")
+    local glided = false
+    for _, s in ipairs(f.set.Slots()) do glided = glided or Feel.Moving(s.button) end
+    T.truthy(glided, "slots glide")
+    stub.EnterCombat()
+    nothingMoves(f, "a fight lands every glide")
+    T.falsy(Feel.Moving(f), "and the window's size")
+    T.eq(bread:GetAlpha(), 1, "fading pieces are whole")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    -- Folding again: the folded group's items fade out where they were.
+    click("consumable")
+    T.truthy(f.fading and f.fading[bread], "fading out")
+    stub.EnterCombat()
+    T.falsy(bread:IsShown(), "gone at once")
+    T.falsy(f.fading and next(f.fading))
+    stub.LeaveCombat()
+    stub.RunTimers()
+    -- A cross-fade lands too.
+    local ok, err = pcall(function()
+        L.EASE_MAX = 0
+        click("consumable")
+        T.truthy(f.crossing)
+        stub.EnterCombat()
+        T.isnil(f.crossing)
+        T.eq(f.items:GetAlpha(), 1, "the grid shows whole")
+    end)
+    L.EASE_MAX = 60
+    stub.LeaveCombat()
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: motion off lays out at once", function()
+    local ns, f, sold = junkAtVendor()
+    local Feel = DaylightUI.Win.Feel
+    local apple = ns.Bags.buttons[1][2]
+    DaylightUI.DB.General().motion = false
+    local ok, err = pcall(function()
+        f.sellJunk:GetScript("OnClick")(f.sellJunk)
+        for _ = 1, 5 do stub.RunTimers() end
+        T.eq(#sold, 2)
+        T.falsy(apple:IsShown(), "the sold slot is gone at once")
+        T.falsy(f.fading and next(f.fading), "nothing fades")
+        nothingMoves(f, "nothing glides")
+        T.falsy(Feel.Moving(f), "the window takes its size at once")
+        T.isnil(f.crossing)
+        T.falsy(f.stale)
+    end)
+    DaylightUI.DB.General().motion = true
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
