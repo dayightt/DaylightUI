@@ -614,7 +614,17 @@ local function barPage()
 end
 
 local bindOwner, wanted
-local triggers, page = {}, 1
+local page = 1
+
+-- The trigger keys the game reads as its bar modifiers (GamepadMode.IsLeftModifierDown).
+local function modKey(side)
+    if side == "LT" then return GetBindingKey("GAMEPADLEFTMOD", 1) or key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER") end
+    return GetBindingKey("GAMEPADRIGHTMOD", 1) or key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER")
+end
+
+-- Held right now, read from the key as the game does, so a missed release
+-- can't leave a trigger counted as held.
+local function held(side) return IsKeyDown(modKey(side)) == true end
 
 local function bindHints()
     return {
@@ -700,7 +710,7 @@ local function prompt()
     return p
 end
 
-local function barOf() return (triggers.LT and 1 or 0) + (triggers.RT and 2 or 0) end
+local function barOf() return (held("LT") and 1 or 0) + (held("RT") and 2 or 0) end
 
 -- Paints the preview: what's on each button of the bar the triggers pick.
 -- moved fades the crosses in, as the bar changes under them.
@@ -716,11 +726,11 @@ local function paintBar(moved)
         c:SetAlpha(slot and 1 or 0.3)   -- the top bar's face buttons hold nothing
         if c.glyph.SetInputKey then c.glyph:SetInputKey(barKey(i)) end
     end
-    if p.lt.SetInputKey then p.lt:SetInputKey(key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER")) end
-    if p.rt.SetInputKey then p.rt:SetInputKey(key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER")) end
+    if p.lt.SetInputKey then p.lt:SetInputKey(modKey("LT")) end
+    if p.rt.SetInputKey then p.rt:SetInputKey(modKey("RT")) end
     local M = DUI.Motion
-    M.Fade(p.lt, p.lt:GetAlpha(), triggers.LT and 1 or 0.3, M.FAST)
-    M.Fade(p.rt, p.rt:GetAlpha(), triggers.RT and 1 or 0.3, M.FAST)
+    M.Fade(p.lt, p.lt:GetAlpha(), held("LT") and 1 or 0.3, M.FAST)
+    M.Fade(p.rt, p.rt:GetAlpha(), held("RT") and 1 or 0.3, M.FAST)
     p.page:SetText(string.format(L["Page %d"], page))
     DUI.Style.InkText(p.page, "LABEL")
     if moved then M.Fade(p.bar, 0.4, 1, M.FAST) end
@@ -764,10 +774,7 @@ local function buildBind()
     for _, side in ipairs({ "LT", "RT" }) do
         local b = CreateFrame("Button", Pad.BIND_BUTTON .. side, UIParent)
         b:RegisterForClicks("AnyDown", "AnyUp")
-        b:SetScript("OnClick", function(_, _, down)
-            triggers[side] = down ~= false or nil
-            paintBar(true)
-        end)
+        b:SetScript("OnClick", function() paintBar(true) end)
     end
     for name, dir in pairs({ PREV = -1, NEXT = 1 }) do
         local b = CreateFrame("Button", Pad.BIND_BUTTON .. name, UIParent)
@@ -784,14 +791,14 @@ function Pad.BindAction(spec)
     if not manager() or fight or InCombatLockdown() or type(spec) ~= "table" or type(spec.pickup) ~= "function" then return false end
     if not Pad.SlotOf(1, 1, 1) then return false end
     buildBind()
-    wanted, triggers, page = spec, {}, barPage()
+    wanted, page = spec, barPage()
     -- The window's own buttons wait under the prompt.
     if keys then ClearOverrideBindings(keys) end
     Pad.FreeSides()
     ClearOverrideBindings(bindOwner)
     for i = 1, Pad.BAR_SIZE do SetOverrideBindingClick(bindOwner, true, barKey(i), Pad.BIND_BUTTON .. i) end
-    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"), Pad.BIND_BUTTON .. "LT")
-    SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER"), Pad.BIND_BUTTON .. "RT")
+    SetOverrideBindingClick(bindOwner, true, modKey("LT"), Pad.BIND_BUTTON .. "LT")
+    SetOverrideBindingClick(bindOwner, true, modKey("RT"), Pad.BIND_BUTTON .. "RT")
     SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), Pad.BIND_BUTTON .. "PREV")
     SetOverrideBindingClick(bindOwner, true, key("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER"), Pad.BIND_BUTTON .. "NEXT")
     local p = prompt()
@@ -817,7 +824,7 @@ end
 function Pad.EndBind(placed)
     local p = Pad.prompt
     if not p then return end
-    Pad.prompt, wanted, triggers = nil, nil, {}
+    Pad.prompt, wanted = nil, nil
     if bindOwner and not InCombatLockdown() then ClearOverrideBindings(bindOwner) end
     if DUI.Sound then DUI.Sound.Play(placed and "snap" or "close") end
     p.gone = true

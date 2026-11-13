@@ -921,10 +921,14 @@ T.test("pad bind: a press on the bars puts the spell in that slot, triggers and 
     for _, row in ipairs(Pad.HintList(Pad.prompt)) do said[#said + 1] = row[2] end
     T.truthy(table.concat(said, "|"):find(CANCEL or "Cancel", 1, true))
     stub.PressKey("PADRSHOULDER")   -- page 2
-    local lt = _G[stub.overrides.PADLTRIGGER.click]
-    lt:GetScript("OnClick")(lt, "LeftButton", true)
+    -- A trigger counts while its key is down, read as the game reads its bar
+    -- modifiers (IsKeyDown), never from our own press and release.
+    stub.keysDown.PADRTRIGGER = true
+    stub.PressKey("PADRTRIGGER")
+    stub.keysDown.PADRTRIGGER = nil   -- its release never reached us
+    stub.keysDown.PADLTRIGGER = true
     stub.PressKey("PAD1")
-    lt:GetScript("OnClick")(lt, "LeftButton", false)
+    stub.keysDown.PADLTRIGGER = nil
     T.eq(stub.slots[200 + 32 + 15] and stub.slots[200 + 32 + 15].spellID, 585, "page 2, LT, face down")
     T.eq(stub.cursor, nil)
     T.eq(Pad.prompt, nil)
