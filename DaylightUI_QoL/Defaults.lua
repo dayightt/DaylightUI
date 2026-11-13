@@ -43,6 +43,40 @@ function ns.GiveBackCVar(name)
     return v
 end
 
+-- The object glow, since removed, turned these on for every player: it gave
+-- every object you're near a nameplate and let soft targeting pick things all
+-- around you. Once per account each goes back to the value the player had
+-- before (if it was kept) or else the game's default.
+ns.GLOW_CVARS = { "SoftTargetInteract", "SoftTargetInteractArc", "SoftTargetInteractOnlyInRange",
+    "SoftTargetInteractRangeIsHard", "SoftTargetIconGameObject", "SoftTargetNameplateInteract",
+    "SoftTargetIconInteract", "SoftTargetInteractRange", "nameplateGameObjectMaxDistance" }
+
+local function gameDefault(name)
+    local fn = (C_CVar and C_CVar.GetCVarDefault) or GetCVarDefault
+    if type(fn) ~= "function" then return nil end
+    local ok, v = pcall(fn, name)
+    return ok and v ~= nil and tostring(v) or nil
+end
+
+local GlowGone = {}
+ns.features[#ns.features + 1] = GlowGone
+
+function GlowGone.Enable()
+    local root = DaylightUI.DB.Root()
+    if root.glowSettingsBack then return end
+    DaylightUI.AfterCombat(function()
+        if root.glowSettingsBack or type(SetCVar) ~= "function" then return end
+        for _, name in ipairs(ns.GLOW_CVARS) do
+            own()[name] = nil
+            local v = ns.GiveBackCVar(name) or gameDefault(name)
+            if v ~= nil and type(GetCVar) == "function" and GetCVar(name) ~= nil and tostring(GetCVar(name)) ~= v then
+                pcall(SetCVar, name, v)
+            end
+        end
+        root.glowSettingsBack = true
+    end, "qol:glowgone")
+end
+
 ns.DEFAULTS = {
     autoDelete = true,      -- fill in DELETE when destroying a good item
     fastLoot = false,       -- pick up every slot at once when auto loot is on
@@ -70,16 +104,6 @@ ns.DEFAULTS = {
     cursorRingGlow = true,
     cursorRingMotion = "comet", -- comet | breathe | still
     cursorRingTrail = false,
-    objectGlow = true,      -- chests, quest objects and your bobber light up as you come near (Glow.lua; changes game settings while on)
-    objectGlowLook = "sweep",  -- sweep | frame | daybreak | sunrise (Glow.LOOKS)
-    objectGlowColor = "accent", -- accent | object: each kind its own color (Glow.KINDS)
-    objectGlowHeight = 110,    -- how far under the object's name its light sits, once in reach
-    objectGlowQuest = true,
-    objectGlowChest = true,
-    objectGlowBobber = true,
-    objectGlowOther = false,   -- anything else you can use: doors, levers, mailboxes
-    objectGlowFight = false,   -- lights in a fight too
-    objectGlowInstance = false, -- lights in dungeons, raids and battlegrounds too
     keepTracking = true,    -- turn tracking (Find Minerals...) back on when the game drops it (Tracking.lua)
     quietErrors = true,     -- hide the red "not enough rage / not ready / out of range / no target" spam
     errorSound = true,      -- a soft "nope" in place of those errors' voice lines (Errors.lua)

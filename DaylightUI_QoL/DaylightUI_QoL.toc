@@ -24,7 +24,6 @@ AfkFacts.lua
 Afk.lua
 Camera.lua
 Sparkles.lua
-Glow.lua
 Tracking.lua
 Errors.lua
 ErrorText.lua

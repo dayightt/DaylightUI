@@ -20,6 +20,7 @@ DUI.PatchNotes = {
         changed = {
             { "Tooltip", "Buffs on a friendly player's tooltip now start off; turn them back on with Their buffs on the Tooltip page" },
             { "Info panel", "Turning off the experience bar no longer brings back the game's own; switch that back on under it if you want it" },
+            { "Object glow", "Removed: the Lueur addon lights up objects. Ore, herbs and chests no longer get a name over them, and the game's interact settings go back to how you had them" },
         },
         fixed = {
             { "Nameplates", "With friendly nameplates off, NPCs and players you can't attack no longer flash up nameplates as you turn the camera" },

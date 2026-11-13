@@ -951,7 +951,7 @@ T.test("edit mode: nothing is written while controller mode is on", function()
     T.eq(#saved.layouts, 0, "no layout written")
 end)
 
--- The object glow asks several times a second; a copy of every preset each
+-- Something may ask several times a second; a copy of every preset each
 -- time was most of the addon's garbage in a profile.
 T.test("edit mode: asking about the controller UI copies no presets", function()
     local DUI = login()

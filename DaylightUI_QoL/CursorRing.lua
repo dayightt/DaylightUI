@@ -1,5 +1,5 @@
 -- A ring around the mouse cursor so it's easy to find in a busy fight. Off by
--- default. Drawn like the object glow, with a breathing bloom, a light running
+-- default. Drawn with a breathing bloom, a light running
 -- around it and an optional trail.
 --
 -- The global cooldown sweeps around the ring and your casts fill a thin outer

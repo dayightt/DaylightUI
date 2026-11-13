@@ -3129,7 +3129,7 @@ function stub.Load(opts)
     end
     if opts.qol then
         local Q = {}
-        loadFiles("DaylightUI_QoL/", { "Defaults.lua", "Delete.lua", "Loot.lua", "Trainer.lua", "Quests.lua", "Gossip.lua", "Cinematics.lua", "Tutorials.lua", "AfkFacts.lua", "Afk.lua", "Camera.lua", "Sparkles.lua", "Glow.lua", "Tracking.lua", "Errors.lua", "ErrorText.lua", "Flight.lua", "LootFeed.lua", "LevelUp.lua", "ZoneTitle.lua", "RepBanner.lua", "Campfire.lua", "Fishing.lua", "CursorRing.lua", "Options.lua", "Module.lua" }, "DaylightUI_QoL", Q)
+        loadFiles("DaylightUI_QoL/", { "Defaults.lua", "Delete.lua", "Loot.lua", "Trainer.lua", "Quests.lua", "Gossip.lua", "Cinematics.lua", "Tutorials.lua", "AfkFacts.lua", "Afk.lua", "Camera.lua", "Sparkles.lua", "Tracking.lua", "Errors.lua", "ErrorText.lua", "Flight.lua", "LootFeed.lua", "LevelUp.lua", "ZoneTitle.lua", "RepBanner.lua", "Campfire.lua", "Fishing.lua", "CursorRing.lua", "Options.lua", "Module.lua" }, "DaylightUI_QoL", Q)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_QoL")
         stub.qol = Q
     end

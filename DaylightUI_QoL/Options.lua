@@ -10,8 +10,6 @@ ns.CAMERA_SLIDER = { type = "slider", key = "cameraZoom", label = "Max camera di
 -- The loot feed page's pieces.
 local LOOT_MOVER = "qol.loot"
 local function lootOff(get) return get("lootFeed") ~= true end
-local GLOW_LOOK = { frame = "Angled frame", daybreak = "Daybreak", sunrise = "Sunrise", sweep = "Sweep" }
-local GLOW_COLOR = { accent = "Accent color", object = "A color for each kind" }
 local QUALITY = { poor = "Poor (gray) and up", common = "Common (white) and up", uncommon = "Uncommon (green) and up",
     rare = "Rare (blue) and up", epic = "Epic (purple) and up" }
 local QUALITY_ORDER = { "poor", "common", "uncommon", "rare", "epic" }
@@ -75,42 +73,6 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "cursorRingTrail", label = "Cursor trail",
               desc = "A trail of light follows the cursor as it moves.",
               disabled = function(get) return get("cursorRing") ~= true end },
-        } },
-        { label = "Objects in the world", items = {
-            { type = "toggle", key = "objectGlow", label = "Object glow",
-              desc = "Chests, quest objects and your fishing bobber light up as you come near, dim from afar and bright once you can reach them. This changes a few of the game's interact settings while it's on, and gives them back when it's off." },
-            { type = "dropdown", key = "objectGlowLook", label = "Object glow look", values = GLOW_LOOK,
-              order = { "sweep", "frame", "daybreak", "sunrise" },
-              desc = "Sweep: a ring with a light running round it. Angled frame: the Daylight UI shape on the ground with a light running round it. Daybreak: a beam of light leaning down onto the object. Sunrise: a low sun rising behind it.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "dropdown", key = "objectGlowColor", label = "Object glow color", values = GLOW_COLOR,
-              order = { "accent", "object" },
-              desc = "Your accent color, or a color that says what the object is: gold for quests, blue for chests.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "slider", key = "objectGlowHeight", label = "Object glow height", min = 0, max = 250, step = 5,
-              desc = "How far under the object's name the light sits once you can reach it. The game doesn't say how tall an object is, so this is a best fit for most of them.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "button", label = "Preview the object glow", text = "Preview",
-              desc = "Plays it in the middle of the screen. Also /dui glow.",
-              func = function() if ns.Glow then ns.Glow.Preview() end end },
-            { type = "toggle", key = "objectGlowQuest", label = "Glow on quest objects",
-              desc = "Objects your quests need light up.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "toggle", key = "objectGlowChest", label = "Glow on chests",
-              desc = "Chests, crates and barrels light up. A crate or barrel may take one loot before it's recognized.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "toggle", key = "objectGlowBobber", label = "Glow on your fishing bobber",
-              desc = "Your bobber lights up while your line is in the water.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "toggle", key = "objectGlowOther", label = "Glow on everything else",
-              desc = "Anything else you can use lights up too: doors, levers, mailboxes.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "toggle", key = "objectGlowFight", label = "Object glow in fights",
-              desc = "Objects keep glowing while you're in a fight.",
-              disabled = function(get) return get("objectGlow") ~= true end },
-            { type = "toggle", key = "objectGlowInstance", label = "Object glow in dungeons and raids",
-              desc = "Objects glow in dungeons, raids and battlegrounds too.",
-              disabled = function(get) return get("objectGlow") ~= true end },
         } },
         { label = "Minimap tracking", items = {
             { type = "toggle", key = "keepTracking", label = "Keep tracking on",

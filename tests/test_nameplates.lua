@@ -3666,7 +3666,7 @@ T.test("nameplates: a lootable corpse shows no plate of ours, only the game's lo
 end)
 
 -- The game also gives a plate to the unit you face (the soft interact or soft
--- friend target: the interact key, a controller, the object glow), even with
+-- friend target: the interact key, a controller), even with
 -- that kind of plate switched off in its options (Blizzard_NamePlates only reads
 -- the show switches through the engine). Players with friendly plates off saw
 -- vendors and unflagged players of the other faction blink up as friendly

@@ -139,7 +139,7 @@ function Plate.IsCorpse(unit)
 end
 
 -- The game also gives a plate to the unit you're facing (the soft interact or
--- soft friend target, used by the interact key, a controller and the object glow),
+-- soft friend target, used by the interact key and a controller),
 -- even when that kind of plate is switched off in its options. A friendly unit
 -- whose plates the player turned off then shows no Daylight UI plate, as if it had
 -- none. Objects still get one, since this is the only way they ever get a plate.
