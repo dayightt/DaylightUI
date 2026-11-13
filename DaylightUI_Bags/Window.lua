@@ -1092,6 +1092,11 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
+        -- The Alts tab is gone while the viewer is off, so the tour only names what's there.
+        if not ns.Viewer.On() then
+            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s tab at the top shows your bank."],
+                pop(L["Alt-right-click"]), pop(BANK or L["Bank"]))
+        end
         return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. The %s and %s tabs at the top show your bank and your other characters' bags from anywhere."],
             pop(L["Alt-right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
     end,

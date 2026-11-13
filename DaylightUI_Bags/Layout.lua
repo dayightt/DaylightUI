@@ -132,6 +132,22 @@ Layout.HEAD_CHEV = 8         -- chevron size
 Layout.HEAD_TEXT_X = 13      -- where the name starts, after the chevron
 Layout.FOLDED_TURN = math.pi / 2   -- the chevron points right while folded
 
+-- A heading's rule fades out toward the right. The lit band color is a soft warm
+-- line in the Daylight look but a bright gold in the Classic one, so it starts at
+-- the strength the window's own header rule uses there.
+Layout.RULE_ALPHA = { daylight = 1, classic = 0.7 }
+
+function Layout.PaintRule(rule)
+    local c = DUI.Style.BAND_LIT
+    local a = Layout.RULE_ALPHA[DUI.Style.Look and DUI.Style.Look() or "daylight"] or 1
+    if CreateColor and rule.SetGradient then
+        rule:SetVertexColor(1, 1, 1, 1)
+        rule:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], 0))
+    else
+        rule:SetVertexColor(c[1], c[2], c[3], a)
+    end
+end
+
 -- Group heading: chevron, upper case name, count and a faint rule out to the
 -- group's edge. A click folds or unfolds it, a right-click on Recent clears it,
 -- and an item dropped or clicked onto it from the cursor gets pinned to the group.
@@ -209,8 +225,7 @@ function Layout.PaintHeading(h, folded)
             h.text:SetTextColor(d[1], d[2], d[3])
         end
     end
-    local rc = Style.BAND_LIT
-    h.rule:SetVertexColor(rc[1], rc[2], rc[3], 1)
+    Layout.PaintRule(h.rule)
     -- The count pops; an empty group's "drag items here" hint stays quiet.
     Style.InkText(h.count, h.empty and "LABEL" or "pop")
     if lit then

@@ -4599,3 +4599,54 @@ T.test("bags: chips reset when the bag closes, and a chip in combat lays out not
     stub.RunTimers()
     T.eq(headingsShown(f).weapon, nil, "the filter applies once combat ends")
 end)
+
+T.test("bags: a heading's rule fades out to the right, softer under the Classic look", function()
+    local ns, f = catLogin()
+    local function rule()
+        for _, x in ipairs(f.headings) do if x:IsShown() then return x.rule end end
+    end
+    local g = rule().__gradient
+    T.truthy(g, "drawn as a gradient")
+    T.eq(g[1], "HORIZONTAL")
+    T.eq(g[2].a, ns.Layout.RULE_ALPHA.daylight, "starts at the Daylight strength")
+    T.eq(g[3].a, 0, "and fades to nothing")
+    DaylightUI:Set("general", "look", "classic")
+    stub.RunTimers()
+    ns.Relayout()
+    T.eq(rule().__gradient[2].a, ns.Layout.RULE_ALPHA.classic, "softer on the Classic gold")
+    DaylightUI:Set("general", "look", nil)
+    stub.RunTimers()
+end)
+
+T.test("bags: the new-item glow never spills into the next slot", function()
+    local ns = login()
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function glowAt(spacing)
+        DaylightUI:Set("Bags", "spacing", spacing)
+        stub.RunTimers()
+        local p = Items.Parts(B.buttons[0][1])
+        return p.newGlow:GetWidth(), p.newDot:GetWidth()
+    end
+    local glow, dot = glowAt(7)
+    T.truthy(glow > dot, "a glow around the dot at the default spacing")
+    T.truthy(glow <= (7 - 1) * 2, "reaching at most a pixel past the gap")
+    glow, dot = glowAt(2)
+    T.eq(glow, dot, "no glow at all when the slots nearly touch")
+    DaylightUI:Set("Bags", "spacing", nil)
+    stub.RunTimers()
+end)
+
+T.test("bags: the tour names the Alts tab only while it's there", function()
+    local ns = login()
+    open(ns)
+    local stop
+    for _, d in ipairs(DaylightUI.Tour.stops) do if d.id == "bags" then stop = d end end
+    T.truthy(stop, "the bags tour stop")
+    T.truthy(stop.text():find("Alts", 1, true), "Alts named while the viewer is on")
+    DaylightUI:Set("Bags", "viewer.enabled", false)
+    stub.RunTimers()
+    T.falsy(stop.text():find("Alts", 1, true), "not named once the tab is gone")
+    DaylightUI:Set("Bags", "viewer.enabled", true)
+    stub.RunTimers()
+end)

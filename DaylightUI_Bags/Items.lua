@@ -351,7 +351,11 @@ function Items.Place(btn)
     p.newDot:ClearAllPoints()
     p.newDot:SetSize(dot, dot)
     p.newDot:SetPoint("CENTER", btn, "TOPLEFT", -2, 2)
-    local glow = dot * Items.DOT_GLOW
+    -- The glow never reaches more than a pixel past the gap into the next slot, so
+    -- small spacing shrinks it, down to no glow at all.
+    local w = windowOf(btn)
+    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 7
+    local glow = math.min(dot * Items.DOT_GLOW, math.max(dot, (gap - 1) * 2))
     p.newGlow:ClearAllPoints()
     p.newGlow:SetSize(glow, glow)
     p.newGlow:SetPoint("CENTER", p.newDot, "CENTER", 0, 0)
