@@ -46,6 +46,7 @@ Donators.LIST = {
     "Bryan",
     "Derrick Bevan",
     "X Razer",
+    "Sebastian Reichmann",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -58,6 +59,7 @@ Donators.LIST = {
     "Stefan Ilic",
     "FrostByghte",
     "Sukori",
+    "Steffen Krause",
     "sam",
     "Daniel",
     "Dragon Slayer",
@@ -74,6 +76,8 @@ Donators.MONTHLY = {
     "Derrick Bevan",
     "Stefan Ilic",
     "FrostByghte",
+    "Sebastian Reichmann",
+    "Steffen Krause",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
