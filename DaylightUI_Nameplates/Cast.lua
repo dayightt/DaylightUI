@@ -345,7 +345,7 @@ function Cast.UpdateTarget(c, u)
     fs:Show()
 end
 
--- Your interrupt's ready mark on a running cast (castKickMark, on by default).
+-- Your interrupt's ready mark on a running cast (castKickMark).
 -- fade: the cooldown changed mid-cast.
 function Cast.UpdateKickMark(c, fade)
     if ns.cfg.castKickMark == false or not c.duration then
