@@ -300,3 +300,38 @@ T.test("the header rule turns gold with a diamond under Classic", function()
     T.falsy(f.ruleLeft:IsShown())
     T.truthy(f.rule:IsShown(), "today's faint rule")
 end)
+
+T.test("a window opening under Classic plays one gold glint; Daylight, motion off and combat play none", function()
+    local DUI = stub.Load()
+    local M = DUI.Motion
+    local real, swept, f = M.Sweep, 0, nil
+    M.Sweep = function(tex, over, opts)
+        if over == f then
+            swept = swept + 1
+            T.rgb(opts.color, GOLD_HI, "gold light")
+        end
+        return real(tex, over, opts)
+    end
+    f = DUI.Win.New({ w = 300, h = 200 })
+    DUI.Win.Feel.Open(f)
+    T.eq(swept, 0, "daylight: none")
+    DUI.Win.Feel.Close(f); stub.RunTimers()
+    look(DUI, "classic")
+    f:Hide()
+    DUI.Win.Feel.Open(f)
+    T.eq(swept, 1, "classic: one")
+    f:Hide()
+    stub.EnterCombat()
+    DUI.Win.Feel.Open(f)
+    T.eq(swept, 1, "none in a fight")
+    stub.LeaveCombat()
+    T.eq(swept, 1, "none after the fight")
+    f:Hide()
+    DUI:Set("general", "motion", false)
+    T.eq(swept, 1, "none from the setting")
+    stub.RunTimers()
+    T.eq(swept, 1, "none from the repaint")
+    DUI.Win.Feel.Open(f)
+    T.eq(swept, 1, "none with motion off")
+    M.Sweep = real
+end)
