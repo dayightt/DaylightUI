@@ -409,6 +409,35 @@ T.test("bags: a new green shines once, seen: looted open, or on the first open a
     _G.C_NewItems = nil
 end)
 
+T.test("bags: a new item keeps a small dot until hovered", function()
+    local ns = login()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function loot(slot, quality)
+        world.items[0][slot] = { iconFileID = 300 + slot, stackCount = 1, quality = quality,
+            hyperlink = "|Hitem:" .. (300 + slot) .. "|h", itemID = 300 + slot }
+        newSlots["0:" .. slot] = true
+        stub.FireEvent("BAG_UPDATE", 0)
+        stub.FireEvent("BAG_UPDATE_DELAYED")
+        stub.RunTimers()
+        return B.buttons[0][slot]
+    end
+    local green = loot(7, 2)
+    T.truthy(Items.Parts(green).newDot:IsShown(), "a new green has a dot")
+    T.falsy(Items.Parts(loot(8, 0)).newDot:IsShown(), "a gray one doesn't")
+    green:GetScript("OnEnter")(green)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "hovered: the dot is gone")
+    Items.Fill(green)
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "and stays gone after a refill")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.C_NewItems = nil
+end)
+
 T.test("bags: slots filled the game's way, in our look", function()
     local ns = login()
     open(ns)

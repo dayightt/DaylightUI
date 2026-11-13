@@ -75,6 +75,7 @@ Items.BIND_SIZE = Style.SIZE.tiny
 Items.BIND_COLOR = { Style.INK.GOOD[1], Style.INK.GOOD[2], Style.INK.GOOD[3], 0.8 }   -- BoE can still be sold or traded
 Items.SET_SIZE = 5           -- equipment set mark, px
 Items.LOCK_SIZE = 11         -- lock mark, px
+Items.DOT_PX = 6            -- new-item dot, centered on the slot's top left corner
 Items.KEEP_PX = 2           -- line under a kept slot (Keep.lua)
 Items.LOCK_ATLAS = "QuestSharing-Padlock"   -- the game's own padlock (from its action button level lock)
 Items.LEVEL_SIZE = Style.SIZE.tiny   -- gear item level, bottom left (same size as the character window's)
@@ -220,6 +221,11 @@ function Items.Dress(btn)
     p.keep = btn:CreateTexture(nil, "OVERLAY", nil, 2)
     p.keep:SetColorTexture(1, 1, 1, 1)
     p.keep:Hide()
+    -- New item not looked at yet: a small accent dot on the top left corner (clear of
+    -- the bind text, which sits just inside it). Hovering the slot clears it.
+    p.newDot = btn:CreateTexture(nil, "OVERLAY", nil, 5)
+    p.newDot:SetColorTexture(1, 1, 1, 1)
+    p.newDot:Hide()
     -- The game's upgrade arrow is always hidden; its junk coin is a setting.
     if type(btn.UpgradeIcon) == "table" and btn.UpgradeIcon.SetAlpha then btn.UpgradeIcon:SetAlpha(0) end
     -- Free slot count on a grouped section's free tile.
@@ -255,6 +261,10 @@ function Items.Dress(btn)
         end
     end)
     -- A locked item's slot takes no clicks at a vendor or while Disenchant is targeting.
+    -- Looking at a new item clears its dot.
+    btn:HookScript("OnEnter", function(self)
+        if self.dluiNew then Items.SeeNew(self) end
+    end)
     btn:HookScript("OnMouseUp", function(self, button)
         if self.dluiGuarded then ns.Guard.Refused(self, button) end
     end)
@@ -326,6 +336,10 @@ function Items.Place(btn)
     p.lock:ClearAllPoints()
     p.lock:SetSize(k, k)
     p.lock:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -T, -T)
+    local dot = Pixel.Px(btn, Items.DOT_PX)
+    p.newDot:ClearAllPoints()
+    p.newDot:SetSize(dot, dot)
+    p.newDot:SetPoint("CENTER", btn, "TOPLEFT", 0, 0)
     p.keep:ClearAllPoints()
     p.keep:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", T, T)
     p.keep:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T, T)
@@ -389,16 +403,66 @@ end
 -- shines once per session.
 local shone = {}
 
+local seen = {}   -- bag:slot:item keys whose dot was cleared by a hover
+
 function Items.NoteNew(btn, bag, slot, info)
-    btn.dluiShine = nil
+    btn.dluiShine, btn.dluiNew = nil, nil
     local quality = info and info.quality
-    if type(quality) ~= "number" or quality < Items.SHINE_QUALITY then return end
-    local id = info.itemID or info.hyperlink
-    if id == nil or not (C_NewItems and C_NewItems.IsNewItem) then return end
-    local ok, new = pcall(C_NewItems.IsNewItem, bag, slot)
-    if not ok or new ~= true then return end
-    local key = bag .. ":" .. slot .. ":" .. tostring(id)
-    if not shone[key] then btn.dluiShine = key end
+    local p = dressed[btn]
+    if type(quality) == "number" and quality >= Items.SHINE_QUALITY and not ns.Saved.Is(bag) then
+        local id = info.itemID or info.hyperlink
+        if id ~= nil and C_NewItems and C_NewItems.IsNewItem then
+            local ok, new = pcall(C_NewItems.IsNewItem, bag, slot)
+            if ok and new == true then
+                local key = bag .. ":" .. slot .. ":" .. tostring(id)
+                if not shone[key] then btn.dluiShine = key end
+                if not seen[key] then btn.dluiNew = key end
+            end
+        end
+    end
+    if p then Items.PaintDot(btn, p) end
+end
+
+-- The dot follows btn.dluiNew; the accent is read each time it's painted.
+function Items.PaintDot(btn, p)
+    local on = btn.dluiNew ~= nil
+    if on then
+        local r, g, b = Style.Accent()
+        p.newDot:SetVertexColor(r, g, b, 1)
+    end
+    if on == (p.dotOn == true) then return end
+    p.dotOn = on
+    if on then
+        p.newDot:Show()
+        p.newDot:SetAlpha(1)
+        if btn:IsVisible() and p.dotSeen then DUI.Motion.Fade(p.newDot, 0, 1, DUI.Motion.FAST) end
+    else
+        Items.HideDot(btn, p)
+    end
+    p.dotSeen = true
+end
+
+-- Fades the dot out, then hides it unless it came back meanwhile.
+function Items.HideDot(btn, p)
+    if btn:IsVisible() then
+        DUI.Motion.Fade(p.newDot, 1, 0, DUI.Motion.FAST)
+        C_Timer.After(DUI.Motion.FAST + 0.05, function()
+            if not p.dotOn then p.newDot:Hide() end
+        end)
+    else
+        p.newDot:Hide()
+    end
+end
+
+-- Hover: the item is seen, its dot fades out and stays gone for this bag:slot:item.
+function Items.SeeNew(btn)
+    local p = dressed[btn]
+    seen[btn.dluiNew] = true
+    btn.dluiNew = nil
+    if not p then return end
+    p.dotSeen = true
+    p.dotOn = false
+    Items.HideDot(btn, p)
 end
 
 -- Plays a marked slot's shine once. Nothing with motion off.
