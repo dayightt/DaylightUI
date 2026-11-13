@@ -115,12 +115,18 @@ local function searchBox(f)
     local eb = DUI.Widgets.Input(f, { height = Window.ROW, size = Window.TEXT_SIZE, search = true,
         hint = L["Search, or try quest, food, rare"],
         onChange = function(t)
+            -- Mid-cleanup the icons still show what they held: end the hold
+            -- before matching, or the search dims them by the wrong items.
+            Window.SortTouched(f)
             f.match = ns.Search.Parse(t)
             Window.MatchAll(f)
             Window.SyncFilters(f)
         end })
     -- The filters come with the search: shown while it has focus.
-    eb:HookScript("OnEditFocusGained", function() Window.SyncFilters(f) end)
+    eb:HookScript("OnEditFocusGained", function()
+        Window.SortTouched(f)
+        Window.SyncFilters(f)
+    end)
     eb:HookScript("OnEditFocusLost", function()
         -- A click on a filter takes the focus first; that click decides instead.
         if not Window.OverFilters(f) then Window.SyncFilters(f) end
@@ -568,6 +574,7 @@ end
 function Window.PickChip(f, id, quiet)
     if id == "all" then id = nil end
     if f.chip == id then return end
+    if not quiet then Window.SortTouched(f) end
     f.chip = id
     Window.PaintChips(f, not quiet)
     if f.Setting("view") == "categories" then
@@ -642,6 +649,11 @@ function Window.Chips(f)
             Window.PickChip(f, c.id)
             Window.SyncFilters(f)
         end)
+        -- After Escape or Enter left the search with the mouse resting here, the
+        -- row waited for this word's click; the mouse leaving decides instead.
+        b:HookScript("OnLeave", function()
+            if not f.search:HasFocus() then Window.SyncFilters(f) end
+        end)
         b:Hide()
         f.chips[#f.chips + 1] = b
     end
@@ -686,7 +698,7 @@ function Window.Sort()
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
     local f = ns.window
     if ns.Keep.Any() then
-        -- Its own rounds: held until they're done, however long a round takes.
+        -- Its own rounds: held until they're done, or SORT_MAX at most.
         local hold = Window.BeginSort(f, false, true)
         return ns.Keep.Sort(function() if hold then Window.EndSort(f, nil, hold) end end)
     end
@@ -705,9 +717,10 @@ Window.SORT_SETTLE = 0.25
 Window.SORT_FIRST = 1
 Window.SORT_MAX = 3
 
--- When a hold lets go: never past SORT_MAX; not while a run of our own is still
--- moving things (owners); SORT_FIRST after asking the server, until its first
--- move lands; then SORT_SETTLE after the last move.
+-- When a hold lets go: never past SORT_MAX; not while a run started by the bags
+-- (Keep, the merge on open) is still moving things (owners); SORT_FIRST after
+-- asking the server, until its first move lands; then SORT_SETTLE after the
+-- last move.
 local function sortDue(s)
     local due = s.start + Window.SORT_MAX
     if s.owners > 0 then return due end
@@ -730,7 +743,7 @@ end
 -- Starts holding an open window for a cleanup, or joins the one already held.
 -- quiet: lay it out at once at the end, no glide (the stacks merged as the bag
 -- opens, while it's still fading in); false asks for the glide even when a
--- quiet one is held. owned: a run of our own (Keep, the merge on open) that
+-- quiet one is held. owned: a run started by the bags (Keep, the merge on open) that
 -- ends its part with EndSort(f, nil, hold); otherwise it's the game's sort,
 -- which waits for the server. Returns the hold, nil when not holding: never in a
 -- fight or under the client's restrictions, where the bag has to be right at once.
@@ -776,7 +789,7 @@ function Window.EaseRelayout(f) relayoutNow(f, true) end
 -- Ends a cleanup's hold: one layout and one fill. The slots still show what
 -- they held when it began (nothing was filled or laid out since), so the glide
 -- starts from there. With no bag changed, only fills held meanwhile are done.
--- instant: no glide (a fight is starting). hold: a run of our own is done
+-- instant: no glide (a fight is starting). hold: a run started by the bags is done
 -- (BeginSort's owned); the hold waits on for any other run or the server.
 function Window.EndSort(f, instant, hold)
     local s = f and f.sorting
@@ -1260,10 +1273,16 @@ local function bagWindow()
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
             { key = "slotsButton", icon = Window.SLOTS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
-              onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
+              onClick = function(w)
+                  Window.SortTouched(w)
+                  w.Set("showSlots", not w.Setting("showSlots"))
+              end },
             { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
               desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
-              onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
+              onClick = function(w)
+                  Window.SortTouched(w)
+                  w.Set("view", w.Setting("view") == "categories" and "grid" or "categories")
+              end },
             -- Last, next to the search. Only shown to characters who know Disenchant
             -- (Disenchant.lua puts a secure button over it on hover).
             { key = "disenchantButton", icon = ns.Disenchant.ICON, title = ns.Disenchant.Title,

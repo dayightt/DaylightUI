@@ -335,11 +335,15 @@ function Bank.Build()
             { key = "slotsButton", icon = W.SLOTS_ICON, title = L["Bank bag slots"],
               desc = L["Show the bank's bag slots: drag a bag out, or drop one in."],
               onClick = function(w)
+                  W.SortTouched(w)
                   w.Set("showSlots", not w.Setting("showSlots"))
               end },
             { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf or grid"],
               desc = L["Switch between Shelf, grouped by kind, and Grid, tab by tab."],
-              onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
+              onClick = function(w)
+                  W.SortTouched(w)
+                  w.Set("view", w.Setting("view") == "categories" and "grid" or "categories")
+              end },
         },
     })
     Bank.window = f

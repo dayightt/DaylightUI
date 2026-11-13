@@ -5982,3 +5982,121 @@ T.test("bags: the NPC window's own Sell junk closes up the bag too", function()
     T.truthy(ok, tostring(err))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("bags: hovering Lock in the item menu says what it does, leaving hides it", function()
+    local ns, f = catLogin()
+    local W = DaylightUI.Widgets
+    local btn = ns.Bags.buttons[0][4]
+    local said, addLine = {}, GameTooltip.AddLine
+    GameTooltip.AddLine = function(self, text, ...) said[#said + 1] = text; return addLine(self, text, ...) end
+    local function lockRow()
+        for i = 1, 30 do
+            local r = W.MenuRow(i)
+            if not r then return end
+            if r.key == "lock" then return r end
+        end
+    end
+    GameTooltip:Hide()
+    ns.Categories.Menu(btn)
+    local r = lockRow()
+    T.truthy(r, "the menu has a Lock row")
+    r:GetScript("OnEnter")(r)
+    T.truthy(GameTooltip:IsShown(), "hovering Lock shows a tip")
+    local text = table.concat(said, "\n")
+    T.truthy(text:find(DaylightUI.L["Never sold or disenchanted."], 1, true), "it says what Lock does: " .. text)
+    r:GetScript("OnLeave")(r)
+    T.falsy(GameTooltip:IsShown(), "leaving the row hides it")
+    -- Hovering another row hides it too, and closing the menu.
+    r:GetScript("OnEnter")(r)
+    T.truthy(GameTooltip:IsShown())
+    local other = W.MenuRow(2)
+    if other and other ~= r then
+        other:GetScript("OnEnter")(other)
+        T.falsy(GameTooltip:IsShown(), "another row: no Lock tip")
+        r:GetScript("OnEnter")(r)
+    end
+    W.CloseMenu()
+    T.falsy(GameTooltip:IsShown(), "closing the menu hides it")
+    -- Locked, the row says Unlock and what that does.
+    ns.Categories.ToggleLock(C_Container.GetContainerItemInfo(0, 4).itemID)
+    stub.RunTimers()
+    wipe(said)
+    ns.Categories.Menu(btn)
+    r = lockRow()
+    r:GetScript("OnEnter")(r)
+    T.truthy(table.concat(said, "\n"):find(DaylightUI.L["Can be sold again."], 1, true), "Unlock says what it does")
+    W.CloseMenu()
+    GameTooltip.AddLine = addLine
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a heading, a filter, the tools and the search end a cleanup's hold at once", function()
+    local ns, f = catLogin()
+    settleFeel()
+    local function hold(what)
+        f.sort:GetScript("OnClick")(f.sort)
+        sortStep(1, 4)
+        T.truthy(f.sorting, what .. ": held")
+    end
+    hold("heading")
+    local h
+    for _, x in ipairs(f.headings) do
+        if x:IsShown() and x.key then h = x break end
+    end
+    local key = h.key
+    h:GetScript("OnClick")(h, "LeftButton")
+    T.isnil(f.sorting, "a heading click lets go")
+    T.truthy(ns.Categories.IsCollapsed(key), "the group folds")
+    T.truthy(h.folded, "and its heading shows folded at once")
+    T.truthy(filledRight(f), "every slot shows its real item")
+    ns.Categories.ToggleCollapsed(key)
+    settleFeel()
+    hold("filter")
+    f.chips[6]:Click()
+    T.isnil(f.sorting, "a filter word lets go")
+    f.chips[1]:Click()
+    settleFeel()
+    hold("view")
+    f.viewButton:GetScript("OnClick")(f.viewButton, "LeftButton")
+    T.isnil(f.sorting, "Shelf or grid lets go")
+    settleFeel()
+    hold("slots")
+    f.slotsButton:GetScript("OnClick")(f.slotsButton, "LeftButton")
+    T.isnil(f.sorting, "the slots tool lets go")
+    settleFeel()
+    hold("focus")
+    f.search:SetFocus()
+    T.isnil(f.sorting, "clicking into the search lets go")
+    f.search:ClearFocus()
+    settleFeel()
+    hold("typing")
+    local held
+    local parse = ns.Search.Parse
+    ns.Search.Parse = function(t) held = f.sorting ~= nil; return parse(t) end
+    f.search:SetText("bread")
+    ns.Search.Parse = parse
+    T.isnil(f.sorting, "typing lets go")
+    T.eq(held, false, "before the search matches anything")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the filters go once the mouse leaves them after Escape left the search", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local chip = f.chips[3]
+    f.search:SetFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f))
+    chip.IsMouseOver = function() return true end
+    f.search:ClearFocus()   -- Escape with the mouse resting on a filter word
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "the mouse on a word: they wait")
+    chip.IsMouseOver = function() return false end
+    chip:GetScript("OnLeave")(chip)
+    stub.RunTimers()
+    runMotion(30, 0.05)
+    T.falsy(chip:IsShown(), "the mouse left: they go")
+    chip.IsMouseOver = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

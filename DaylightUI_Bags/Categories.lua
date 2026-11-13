@@ -510,6 +510,44 @@ DUI.BagsMarkJunk = function() Cat.JunkUnderMouse() end
 _G.BINDING_NAME_DAYLIGHTUI_BAGS_JUNK = L["Mark the bag item under the mouse as junk"]
 _G.BINDING_HEADER_DAYLIGHTUI_BAGS = string.format(L["Daylight UI: %s"], L["Bags"])
 
+-- What Lock or Unlock does, beside its row while the mouse is on it. The menu
+-- only says which row the mouse entered, so the row itself hides the tip when
+-- the mouse leaves it or the menu closes.
+local function lockTipOff(row)
+    if Cat.lockTipRow ~= row then return end
+    Cat.lockTipRow = nil
+    GameTooltip:Hide()
+end
+
+local function lockTip(key, locked)
+    if Cat.lockTipRow then lockTipOff(Cat.lockTipRow) end
+    if key ~= "lock" then return end
+    local W, row = DUI.Widgets, nil
+    for i = 1, Cat.MENU_ROWS do
+        local r = W.MenuRow(i)
+        if not r then break end
+        if r.key == "lock" then
+            row = r
+            break
+        end
+    end
+    if not row then return end
+    if not row.dluiLockTip then
+        row.dluiLockTip = true
+        row:HookScript("OnLeave", lockTipOff)
+        row:HookScript("OnHide", lockTipOff)
+    end
+    Cat.lockTipRow = row
+    local Tips = DUI.Tips
+    GameTooltip:Hide()
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    Tips.Clear()
+    Tips.Title(locked and L["Unlock"] or L["Lock"])
+    Tips.Text(locked and L["Can be sold again."] or L["Never sold or disenchanted."])
+    Tips.Flush(GameTooltip)
+    GameTooltip:Show()
+end
+
 function Cat.Menu(btn)
     local holder = btn:GetParent()
     local bag, slot = holder:GetID(), btn:GetID()
@@ -528,7 +566,8 @@ function Cat.Menu(btn)
     local itemID = info.itemID
     local current = Cat.Assign(Cat.Facts(holder:GetID(), btn:GetID(), info), "bags")
     local keys, values = { "lock" }, {}
-    values.lock = Cat.IsLocked(itemID) and L["Unlock"] or L["Lock"]
+    local locked = Cat.IsLocked(itemID)
+    values.lock = locked and L["Unlock"] or L["Lock"]
     if keepable then
         keys[#keys + 1] = "keep"
         values.keep = keepRow
@@ -558,7 +597,7 @@ function Cat.Menu(btn)
         elseif key == "keep" then Keep.Toggle(bag, slot, itemID)
         elseif key == "junkmark" then Cat.ToggleJunk(itemID, info.hyperlink)
         else Cat.Pin(itemID, key) end
-    end, nil, { atCursor = true, rows = Cat.MENU_ROWS })
+    end, nil, { atCursor = true, rows = Cat.MENU_ROWS, onHover = function(key) lockTip(key, locked) end })
 end
 
 -- Assigning

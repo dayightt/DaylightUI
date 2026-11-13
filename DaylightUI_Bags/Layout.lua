@@ -196,6 +196,8 @@ local function heading(window, i)
             end
             return
         end
+        -- Mid-cleanup the fold would wait for the hold: end it first.
+        ns.Window.SortTouched(window)
         -- The layout triggered by this click is animated (Layout.Ease).
         Layout.easing = true
         DUI.SafeCall(ns.Categories.ToggleCollapsed, self.key)
@@ -651,9 +653,11 @@ function Layout.Ease(window, was)
     -- with a changed item can only take a spot no one kept: with several stacks
     -- of one item, an extra stack fades in instead of gliding over another.
     local slots = window.set.Slots()
+    local nows = {}
     for _, s in ipairs(slots) do
         local b = s.button
         local now = b:IsShown() and Layout.ItemKey(b)
+        nows[b] = now
         if now and keyOf(b.dluiKey) == now and was.keys and was.keys[b] then claimed[was.keys[b]] = true end
     end
     local function claim(base)
@@ -670,7 +674,7 @@ function Layout.Ease(window, was)
     for _, s in ipairs(slots) do
         local b = s.button
         if b:IsShown() then
-            local now = Layout.ItemKey(b)
+            local now = nows[b]
             if now and keyOf(b.dluiKey) ~= now then
                 from(b, claim(now))   -- nil: the item wasn't in the window (loot), so it fades in
             else

@@ -152,7 +152,7 @@ function Viewer.Toggle()
 end
 
 -- Toggles the current character's bank in one click (right-click the bag's
--- title bar or its chest button, like Bagnon).
+-- title bar, like Bagnon).
 function Viewer.ToggleBank()
     local f = Viewer.window
     if not f then return end
