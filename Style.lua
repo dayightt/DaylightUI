@@ -318,6 +318,80 @@ Style.POWER_FALLBACK = { 0.22, 0.42, 0.86 }
 local function general() return DUI.DB.General() end
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
+-- The looks a player can pick (General "look"). Each holds the numbers the
+-- palette tables above take under it. The Classic look dresses frames in stone
+-- and gold the way the game's own windows look, keeping the angled shapes.
+local function rgb(hex)
+    return { tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255 }
+end
+local GOLD_LO, GOLD_HI = rgb("7a5c18"), rgb("f3d27a")
+Style.LOOKS = {
+    daylight = {
+        BORDER = { 0.024, 0.024, 0.027 },
+        BAND = { 0.10, 0.09, 0.065 },
+        BAND_LIT = { 0.2, 0.185, 0.14 },
+        BACKGROUND = { 0.078, 0.078, 0.090 },
+        INK = {
+            TITLE = { 1, 1, 1 },
+            LABEL = { 0.76, 0.71, 0.62 },
+            OFF = { 0.55, 0.51, 0.45 },
+        },
+    },
+    classic = {
+        BORDER = rgb("3d362e"),
+        BAND = { (GOLD_LO[1] + GOLD_HI[1]) / 2, (GOLD_LO[2] + GOLD_HI[2]) / 2, (GOLD_LO[3] + GOLD_HI[3]) / 2 },
+        BAND_LIT = rgb("f6e3a4"),
+        BACKGROUND = rgb("0f0d0b"),
+        INK = {
+            TITLE = rgb("ffd35a"),
+            LABEL = rgb("e2c27a"),
+            OFF = rgb("7d6a4e"),
+        },
+        GOLD = { GOLD_LO, GOLD_HI },
+    },
+}
+
+-- "daylight" or "classic"; anything else saved reads as daylight.
+function Style.Look()
+    local g = DUI.DB and DUI.DB.General and general()
+    local look = g and g.look
+    if look and Style.LOOKS[look] then return look end
+    return "daylight"
+end
+
+-- Puts src's values into dst, keeping dst's own tables: colors are shared by
+-- many files (Tips, Parts, the options window), so copying keeps them all in step.
+local function copyInto(dst, src)
+    for k, v in pairs(src) do
+        local cur = dst[k]
+        if type(v) == "table" and type(cur) == "table" then
+            for i = 1, #v do cur[i] = v[i] end
+        else
+            dst[k] = v
+        end
+    end
+end
+
+-- Other files hand over tables with values per look (the button colors), so
+-- one look change reaches them too. perLook = { daylight = {...}, classic = {...} }.
+local looked = {}
+function Style.Looked(t, perLook)
+    looked[#looked + 1] = { t = t, values = perLook }
+    local v = perLook[Style.Look()]
+    if v and DUI.DB and DUI.DB.loggedIn then copyInto(t, v) end
+end
+
+function Style.ApplyLook()
+    local look = Style.LOOKS[Style.Look()]
+    for _, key in ipairs({ "BORDER", "BAND", "BAND_LIT", "BACKGROUND" }) do copyInto(Style[key], look[key]) end
+    copyInto(Style.INK, look.INK)
+    local name = Style.Look()
+    for _, entry in ipairs(looked) do
+        local v = entry.values[name]
+        if v then copyInto(entry.t, v) end
+    end
+end
+
 -- Colors
 
 -- Dark and soft: pull the color toward its own gray (softness), then dim it
@@ -2230,6 +2304,7 @@ local function visible(s)
 end
 
 function Style.RepaintAll()
+    Style.ApplyLook()
     Style.PickFont()
     Style.RetextureBars()
     for s in pairs(shells) do
