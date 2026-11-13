@@ -903,13 +903,13 @@ T.test("pad bind: a press on the bars puts the spell in that slot, triggers and 
     stub.ActionSlots({})
     padBars(200)
     local Pad = DUI.Pad
-    -- As the game's GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID: 32 a page.
+    -- Without the game's bar to read: 28 a page, the top bar's face buttons taking no storage.
     T.eq(Pad.SlotOf(1, 0, 1), 200)
     T.eq(Pad.SlotOf(1, 0, 4), 203)
     T.eq(Pad.SlotOf(1, 0, 8), nil, "the top bar's face buttons hold nothing")
-    T.eq(Pad.SlotOf(1, 1, 1), 208, "LT's bar right after the top bar's 8")
-    T.eq(Pad.SlotOf(1, 3, 8), 231)
-    T.eq(Pad.SlotOf(2, 0, 1), 232)
+    T.eq(Pad.SlotOf(1, 1, 1), 204, "LT's bar right after the top bar's 4")
+    T.eq(Pad.SlotOf(1, 3, 8), 227)
+    T.eq(Pad.SlotOf(2, 0, 1), 228)
     local f = DUI.Win.New({ name = "PadTestBind", title = "Test" })
     f.padKeys = { { key = "X", label = "Bind", run = function() end } }
     f:Show()
@@ -929,7 +929,7 @@ T.test("pad bind: a press on the bars puts the spell in that slot, triggers and 
     stub.keysDown.PADLTRIGGER = true
     stub.PressKey("PAD1")
     stub.keysDown.PADLTRIGGER = nil
-    T.eq(stub.slots[200 + 32 + 15] and stub.slots[200 + 32 + 15].spellID, 585, "page 2, LT, face down")
+    T.eq(stub.slots[200 + 28 + 11] and stub.slots[200 + 28 + 11].spellID, 585, "page 2, LT, face down")
     T.eq(stub.cursor, nil)
     T.eq(Pad.prompt, nil)
     T.eq(stub.overrides.PAD3.click, Pad.KEY_BUTTON .. "X", "the window's own X is back")
@@ -1091,3 +1091,39 @@ T.test("pad: a closing window tells the game as the fade starts, while still sho
     m.FrameHidden = hidden
     clearAll()
 end)
+
+-- The game's controller bars as /dui padbars read them in game: each button's
+-- ID is its slot on the page shown, the top bar's face buttons 0.
+local function realBars(first, page)
+    local bars = {}
+    local names = { "topBar", "leftBar", "rightBar", "bottomBar" }
+    local id = first
+    for b, name in ipairs(names) do
+        local buttons = {}
+        for i = 1, 8 do
+            local slot = 0
+            if not (b == 1 and i > 4) then slot = id; id = id + 1 end
+            buttons[i] = { GetID = function() return slot end }
+        end
+        bars[name] = { GetActionButtonByIndex = function(_, i) return buttons[i] end }
+    end
+    _G.C_GamepadUI = { GetFirstGamepadActionStorageSlotIndex = function() return first end }
+    _G.GamepadMainActionBarFrame = { PageUnit = { actionBars = bars, PageTracker = { currentPage = page } } }
+end
+
+T.test("pad bind: the slot is read off the game's own bar button, as in game: R2 is R2's bar", function()
+    local DUI = stub.Load()
+    local Pad = DUI.Pad
+    realBars(181, 1)
+    T.eq(Pad.SlotOf(1, 0, 1), 181)
+    T.eq(Pad.SlotOf(1, 0, 6), nil, "the top bar's triangle holds nothing")
+    T.eq(Pad.SlotOf(1, 1, 1), 185, "L2's bar")
+    T.eq(Pad.SlotOf(1, 2, 6), 198, "R2 + triangle: R2's bar (193-200), not both triggers'")
+    T.eq(Pad.SlotOf(1, 3, 1), 201, "both triggers")
+    T.eq(Pad.SlotOf(2, 2, 6), 198 + 28, "another page: a page's slots on")
+    realBars(181 + 28, 2)   -- the bars showing page 2: their IDs moved on
+    T.eq(Pad.SlotOf(2, 2, 6), 226)
+    T.eq(Pad.SlotOf(1, 2, 6), 198)
+    _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
+end)
+

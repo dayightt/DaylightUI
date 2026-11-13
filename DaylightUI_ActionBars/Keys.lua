@@ -186,10 +186,11 @@ local function buildCastKeys()
 end
 
 -- The game's controller bars hold their own slots, laid out as the core's Pad
--- describes them (BAR_PAGES pages of 4 bars of 8, the top bar's face buttons
--- holding none). The triggers held pick a bar, and Bindings.xml's numbers the button.
+-- describes them (BAR_PAGES pages of 4 bars of 8; the top bar's 4 face buttons
+-- take no storage, so a page is 28). The triggers held pick a bar, and
+-- Bindings.xml's numbers the button.
 local Pad = DUI.Pad
-Keys.PAD_PAGES, Keys.PAD_PAGE_SLOTS, Keys.PAD_BAR = Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE
+Keys.PAD_PAGES, Keys.PAD_PAGE_SLOTS, Keys.PAD_BAR, Keys.PAD_RESERVED = Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED
 Keys.PAD_BUTTONS = Pad.BAR_BUTTONS
 Keys.PAD_HOLD = { [1] = { "PADLTRIGGER" }, [2] = { "PADRTRIGGER" }, [3] = { "PADLTRIGGER", "PADRTRIGGER" } }
 
@@ -212,6 +213,7 @@ end
 function Keys.PadKey(offset)
     local page = math.floor(offset / Keys.PAD_PAGE_SLOTS)
     local at = offset % Keys.PAD_PAGE_SLOTS
+    if at >= Keys.PAD_RESERVED then at = at + Keys.PAD_RESERVED end
     local bar = math.floor(at / Keys.PAD_BAR)
     local index = at % Keys.PAD_BAR + 1
     local key = GetBindingKey("GAMEPADACTIONBUTTON" .. index) or Keys.PAD_BUTTONS[index]

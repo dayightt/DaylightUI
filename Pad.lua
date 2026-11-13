@@ -582,23 +582,50 @@ end
 --   Pad.EndBind()                                  cancels it
 
 -- The controller bars: 3 pages of 4 bars of 8 buttons; the triggers held pick
--- the bar (none, LT, RT, both). Storage is page by page, 32 slots each, bar by
--- bar in that order, buttons in Bindings.xml order (D-pad left, up, right,
--- down, then face left, up, right, down). The top bar's 4 face buttons (jump,
--- interact...) keep their numbers but hold no action
--- (GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID, ActionBindingUtil.lua).
-Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 32, 8, 4
+-- the bar (none, LT, RT, both), buttons in Bindings.xml order (D-pad left, up,
+-- right, down, then face left, up, right, down). The top bar's 4 face buttons
+-- (jump, interact...) hold no action and take no storage, so storage runs 28
+-- slots a page, bar by bar: seen in game (/dui padbars), where the game's own
+-- buttons read top 181-184, LT 185-192, RT 193-200, both 201-208. Its helper
+-- GetGamepadStorageSlotIndexFromPageAndPageUnitSlotID (32 a page) doesn't match.
+Pad.BAR_PAGES, Pad.BAR_PAGE_SLOTS, Pad.BAR_SIZE, Pad.BAR_RESERVED = 3, 28, 8, 4
 Pad.BAR_BUTTONS = { "PADDLEFT", "PADDUP", "PADDRIGHT", "PADDDOWN", "PAD3", "PAD4", "PAD2", "PAD1" }
+Pad.BAR_NAMES = { [0] = "topBar", "leftBar", "rightBar", "bottomBar" }   -- the game's PageUnit.actionBars
 Pad.BIND_BUTTON = "DaylightUIPadBind" -- plus 1-8, LT, RT, PREV, NEXT
 Pad.PROMPT_W, Pad.PROMPT_ICON = 420, 40
 
+-- The game's own button for this bar and index, with the page it shows now.
+local function gameButton(bar, index)
+    local main = _G.GamepadMainActionBarFrame
+    local unit = type(main) == "table" and main.PageUnit
+    local bars = type(unit) == "table" and unit.actionBars
+    local b = type(bars) == "table" and bars[Pad.BAR_NAMES[bar]]
+    local button = type(b) == "table" and b.GetActionButtonByIndex and b:GetActionButtonByIndex(index)
+    if type(button) ~= "table" then return nil end
+    local shown = type(unit.PageTracker) == "table" and unit.PageTracker.currentPage
+    if type(shown) ~= "number" or shown < 1 or shown > Pad.BAR_PAGES then return nil end
+    return button, shown
+end
+
 -- The storage slot a press lands on, or nil for a button that holds none.
+-- Read off the game's own button (its ID is the slot on the page it shows), so
+-- it's the slot the bar really uses; other pages are a page's slots away.
 function Pad.SlotOf(page, bar, index)
+    local button, shown = gameButton(bar, index)
+    if button then
+        local id = button:GetID()
+        if type(id) ~= "number" or id <= 0 then return nil end
+        return id + (page - shown) * Pad.BAR_PAGE_SLOTS
+    end
     local U = C_GamepadUI
     local first = type(U) == "table" and U.GetFirstGamepadActionStorageSlotIndex and U.GetFirstGamepadActionStorageSlotIndex()
     if type(first) ~= "number" then return nil end
     local at = bar * Pad.BAR_SIZE + index - 1
-    if at >= Pad.BAR_RESERVED and at < Pad.BAR_SIZE then return nil end
+    if at >= Pad.BAR_SIZE then
+        at = at - Pad.BAR_RESERVED
+    elseif at >= Pad.BAR_RESERVED then
+        return nil
+    end
     return first + (page - 1) * Pad.BAR_PAGE_SLOTS + at
 end
 
