@@ -35,6 +35,7 @@ DUI.PatchNotes = {
             { "Character", "The stats show everything the game's own sheet does: health, mana, haste, off-hand damage, armor and spell penetration, and your pet's crit, dodge and a demon's mana" },
             { "Action bars", "The \"Daylight UI tried to call SetShown()\" error for the bottom bars, which still showed up after looting in a fight, is gone for good" },
             { "Item outlines", "The colored outline around reward and shop items no longer loses a side at smaller UI scales" },
+            { "DoT damage", "The damage your DoTs still have to do shows on a French game client too, not only in English" },
             { "Action bars", "Round and other shaped buttons are see-through like square ones, and the controller's stance bar has no wing picture behind it any more" },
         },
     },
