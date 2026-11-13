@@ -902,6 +902,30 @@ T.test("cast bars: an enemy target's cast marks where your interrupt comes back,
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cast bars: the interrupt mark shows on a target cast bar sliding out under its frame", function()
+    local cd = { on = true }
+    local DUI, ns, restore = markWorld(cd)
+    DUI:Set("UnitFrames", "casts.kickMark", true)
+    DUI:Set("UnitFrames", "targetCastbar.at", "slide")
+    stub.RunTimers()
+    local h = ns.targetCastbarFree
+    T.truthy(h.enabled); T.falsy(ns.targetCastbar.enabled, "the one inside steps aside")
+    stub.EnterCombat()
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1, true)
+    stub.units.target = { name = "Mob", reaction = 2, cast = { name = "Fireball", texture = 1, duration = span(now, now + 3, true) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    stub.RunTimers()
+    T.truthy(h.duration, "the bar it shows runs on the cast's duration")
+    T.truthy(h.kickMark.clip:IsShown(), "on cooldown: the mark shows on the bar that's up")
+    T.falsy(ns.targetCastbar.kickMark.clip:IsShown(), "and not on the one stepped aside")
+    T.eq(stub.Plain(h.kickMark.probe:GetValue()), now + 1)
+    stub.units.target.cast = nil
+    stub.LeaveCombat()
+    restore()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cast bars: the interrupt mark in a boss fight, every time secret, goes in whole", function()
     local cd = { on = true }
     local DUI, ns, restore = markWorld(cd)
