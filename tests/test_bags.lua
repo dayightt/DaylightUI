@@ -736,7 +736,45 @@ T.test("bags: free slots and money in the footer", function()
     local f = open(ns)
     T.eq(freeText(f), "23 / 3", "the plain bags, then the profession bag's 3 free")
     T.eq(f.free:GetText(), "23 / " .. DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Pop() }) .. "3|r", "a profession bag without a color of its own: the accent")
-    T.eq(f.money:GetText(), "money:9592")
+    T.eq(f.money:GetText(), "money:9500 money:92", "our coins: silver and copper")
+end)
+
+T.test("bags: the footer bar fills with used slots and eases there", function()
+    local ns = login()
+    local f = open(ns)
+    local free, total = f.set.Free(true)
+    T.near(f.freeBar:GetValue(), (total - free) / total, 0.001, "used over total")
+    T.eq(f.free:GetText():find("23", 1, true) ~= nil, true, "the text keeps its counts")
+    world.items[0][3] = { iconFileID = 103, stackCount = 1, quality = 1, hyperlink = "|Hitem:3|h" }
+    ns.Window.UpdateFooter(f)
+    local free2, total2 = f.set.Free(true)
+    T.eq(free2, free - 1, "one more slot used")
+    stub.Advance(1); stub.RunTimers()
+    T.near(f.freeBar:GetValue(), (total2 - free2) / total2, 0.001, "settles on the new share")
+end)
+
+T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
+    local ns = login()
+    local f = open(ns)
+    local sold = {}
+    C_Container.UseContainerItem = function(bag, slot) sold[#sold + 1] = bag .. ":" .. slot end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    DaylightUI:Set("Bags", "sellJunk", false)
+    T.eq(f.sellJunk:IsShown(), false, "hidden away from a vendor")
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), true, "shown at a vendor with junk")
+    T.truthy(f.sellJunk.text:GetText():find("25", 1, true), "its label holds the junk's value")
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:2", "the gray slot only")
+    stub.FireEvent("MERCHANT_CLOSED")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), false, "hidden when the vendor closes")
 end)
 
 T.test("bags: a new accent repaints the profession bag's count at once", function()
@@ -2827,7 +2865,12 @@ local function runDrivers(dt)
     end
 end
 
-local function amount(f) return tonumber((f.money:GetText():gsub("money:", ""))) end
+-- The footer's money is one part a coin ("money:9500 money:92"): add them up.
+local function amount(f)
+    local sum, any = 0, false
+    for n in f.money:GetText():gmatch("money:(%d+)") do sum = sum + tonumber(n); any = true end
+    return any and sum or nil
+end
 
 T.test("bags: the footer gold counts to a new amount, tinted on a gain", function()
     local ns = login()

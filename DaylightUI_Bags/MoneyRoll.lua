@@ -18,7 +18,7 @@ local function key(f) return "bagsMoney" .. tostring(f) end
 
 local function print_(f, amount)
     f.rollShown = amount
-    f.money:SetText(DUI.MoneyString(amount))
+    f.money:SetText(DUI.Widgets.Money(amount))
 end
 
 local function untint(f)
