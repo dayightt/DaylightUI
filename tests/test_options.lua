@@ -736,6 +736,27 @@ T.test("options: a row added since the version you count from says NEW; search f
     T.truthy(any, "searching new lists the tagged rows")
 end)
 
+T.test("options: the NEW tag sits after the label's words, clear of the reset arrow", function()
+    local DUI = stub.Load({ module = true })
+    DaylightUIDB.newSince = "1.0"
+    local W = DUI.Widgets
+    local row = W.Row(CreateFrame("Frame"), { id = "x" },
+        { label = "x" }, { type = "toggle", key = "x", label = "Rarity colors", since = "1.5.1" })
+    T.truthy(row.newTag and row.newTag:IsShown(), "tagged")
+    local _, at, _, x = row.newTag:GetPoint(1)
+    T.eq(at, row.label, "on the label")
+    local p = select(1, row.newTag:GetPoint(1))
+    T.eq(p, "LEFT")
+    T.eq(select(3, row.newTag:GetPoint(1)), "LEFT", "from the label's left, not past its frame")
+    T.eq(x, row.label:GetStringWidth() + 6, "right after the words")
+    for i = 1, row.label:GetNumPoints() do
+        local pt, _, _, ox = row.label:GetPoint(i)
+        if pt == "RIGHT" then
+            T.truthy(ox <= -(W.LABEL_GAP + row.newTag:GetStringWidth() + 6), "the label leaves room for the tag")
+        end
+    end
+end)
+
 T.test("options: an update counts from the version you came from, a new character from nothing", function()
     local DUI = stub.Load()
     local O = DUI.Options

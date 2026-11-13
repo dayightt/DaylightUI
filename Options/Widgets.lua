@@ -3132,6 +3132,22 @@ function W.Row(card, page, group, item)
         row.extras:SetPoint("RIGHT", row.control, "LEFT", -W.BESIDE_GAP, 0)
         row.label:SetPoint("RIGHT", row.extras, "LEFT", -W.LABEL_GAP, 0)
     end
+    -- The label's frame runs up to the reset arrow, so the tag goes right after
+    -- the words instead of after the frame, and the label gives up room for it.
+    if row.newTag and row.control then
+        local tagRoom = math.ceil(row.newTag:GetStringWidth() or 0) + 6
+        row.label:SetPoint("RIGHT", row.extras or row.control, "LEFT", -(W.LABEL_GAP + tagRoom), 0)
+        local measure = row.Measure
+        function row.Measure()
+            measure()
+            local text = row.label:GetUnboundedStringWidth() or row.label:GetStringWidth() or 0
+            local room = row.label:GetWidth() or 0
+            if room > 0 and text > room then text = room end
+            row.newTag:ClearAllPoints()
+            row.newTag:SetPoint("LEFT", row.label, "LEFT", math.ceil(text) + 6, 0)
+        end
+        row.Measure()
+    end
     if Options.VALUE[item.type] then
         -- Changed from default: show the reset arrow beside the control.
         local r = CreateFrame("Button", nil, row)
