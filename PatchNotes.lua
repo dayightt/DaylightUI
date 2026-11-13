@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Plugins", "Other addons can restyle Daylight UI's nameplates and their cast bars too: daylightui.com/plugins" },
+            { "Meters", "Damage meters can fade on their own, apart from the minimap: Meters page, Shows tab" },
         },
         changed = {
             { "Tooltip", "Buffs on a friendly player's tooltip now start off; turn them back on with Their buffs on the Tooltip page" },

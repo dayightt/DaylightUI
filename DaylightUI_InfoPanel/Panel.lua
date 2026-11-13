@@ -532,6 +532,7 @@ function Panel.Layout(db)
         ma:SetSize(m.width, meterH)
     end
     DUI.Movers.Suspend("infopanel.meter", not detached)
+    Panel.PlaceMeterFade(db)
     Panel.UpdateGrip(db)
 
     -- The fold arrow: on the panel's edge on the meter's side whenever the
@@ -588,6 +589,21 @@ function Panel.PlaceXPFade(db)
     if was then DUI.Fade.Hold(owner == "own" and "InfoPanel.xp" or "InfoPanel.panel", false) end
 end
 
+-- The same for the damage meters: the panel's fade, or their own. Inside the
+-- panel the meter then ignores the panel's alpha, so the two fade apart; in
+-- its own window that window is faded instead.
+function Panel.PlaceMeterFade(db)
+    local own = db.meter.ownFade == true
+    local owner = not own and "panel" or db.meter.detached == true and "window" or "inside"
+    local was = Panel.meterFadeOwner
+    if owner == was then return end
+    Panel.meterFadeOwner = owner
+    local ma = Panel.meterArea
+    ma:SetIgnoreParentAlpha(owner == "inside")
+    if owner ~= "inside" then ma:SetAlpha(1) end
+    if was then DUI.Fade.Hold(own and "InfoPanel.meter" or "InfoPanel.panel", false) end
+end
+
 -- The first layout always jumps (nothing on screen to slide from).
 function Panel.SlideMeter(goal, glide)
     local s = Panel.slide
@@ -628,10 +644,13 @@ function ns.Build(mod)
         frames = function()
             for i = #list, 1, -1 do list[i] = nil end
             list[1] = Panel.holder
-            if Panel.meterFrame:IsShown() then list[#list + 1] = Panel.meterFrame end
-            -- The player's own meter windows fade with the panel too.
-            ns.MeterFrame.Frames("meter", list)
-            ns.MeterFrame.Frames("summary", list)
+            -- The meters, separate or not, fade with the panel unless they
+            -- have a fade of their own.
+            if not mod.db.meter.ownFade then
+                if Panel.meterFrame:IsShown() then list[#list + 1] = Panel.meterFrame end
+                ns.MeterFrame.Frames("meter", list)
+                ns.MeterFrame.Frames("summary", list)
+            end
             -- Attached, it fades with the panel (a child of it); detached, it's
             -- its own frame and needs listing separately. With its own fade
             -- it's InfoPanel.xp's.
@@ -645,6 +664,19 @@ function ns.Build(mod)
         frames = function()
             xpList[1] = mod.db.xp.ownFade and Panel.xp:IsShown() and Panel.xp or nil
             return xpList
+        end }
+    local meterList = {}
+    DUI.Fade.Register{ key = "InfoPanel.meter", scope = "InfoPanel", path = "meter.fade", page = ns.MeterOptions.PAGE,
+        frames = function()
+            for i = #meterList, 1, -1 do meterList[i] = nil end
+            if not mod.db.meter.ownFade then return meterList end
+            if Panel.meterFrame:IsShown() then
+                meterList[1] = Panel.meterFrame
+            elseif Panel.meterArea:IsShown() then
+                meterList[1] = Panel.meterArea
+            end
+            ns.MeterFrame.Frames("meter", meterList)
+            return ns.MeterFrame.Frames("summary", meterList)
         end }
     -- Float: XP or money coming in (or going out) brings the panel
     -- back for a while; a reputation gain too (XP.RepGain).

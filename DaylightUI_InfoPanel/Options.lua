@@ -191,7 +191,7 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("rep.enabled") },
         } },
-        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter window, if used). So does the experience bar, unless you give it its own fade below." } }, nil, "Info panel"),
+        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade below. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
         xpFadeCard(),
       } },
     ns.MeterOptions.Page(),

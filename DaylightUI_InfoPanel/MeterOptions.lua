@@ -475,6 +475,13 @@ function MO.Page()
           desc = "What happens to the fights you have so far when you enter a dungeon, raid or battleground: keep them, ask whether to reset, or reset at once. Running back after you die doesn't count." },
     }
 
+    -- Its rows wait for the switch on top; until then the meters fade with
+    -- the panel (Info panel > General).
+    local meterFade = DUI.Fade.Card("meter.fade.", nil, function(get) return get("meter.ownFade") ~= true end, "Damage meters")
+    meterFade.label = "Damage meter fade"
+    table.insert(meterFade.items, 1, { type = "toggle", key = "meter.ownFade", label = "Damage meters have their own fade",
+        desc = "Off, the damage meters fade with the info panel. On, every damage meter and summary window follows the settings here, the one in the panel too." })
+
     local threatFade = DUI.Fade.Card("threat.fade.", { { type = "text", label = "The threat meter and your threat windows fade together, apart from the panel." } }, nil, "Threat meter")
     threatFade.label = "Threat meter fade"
     threatFade.tab = nil
@@ -494,9 +501,10 @@ function MO.Page()
               items = { windowList, newWindow } },
             { label = "All meters", items = shared },
             { label = "When it shows", tab = "Shows", items = shows },
+            meterFade,
+            threatFade,
             { label = "Bars", tab = "Bars", items = rows },
             { label = "Window", tab = "Window", items = window },
-            threatFade,
         },
     }
 end

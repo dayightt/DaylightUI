@@ -43,7 +43,10 @@ ns.DEFAULTS = {
               rowGap = 1, angled = true,   -- angled: the fill's leading edge cut at an angle
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
-              numbers = "short" },   -- short (12.3K) | full (12,345), used everywhere amounts show
+              numbers = "short",   -- short (12.3K) | full (12,345), used everywhere amounts show
+              -- false: every damage meter fades with the panel; true: they all
+              -- use the fade below, the one inside the panel too.
+              ownFade = false, fade = DaylightUI.Fade.Defaults() },
     -- The Meters options page uses keys like win.<key> that point at the
     -- selected window. This lookup supplies a default of the right type for
     -- any of those keys.
