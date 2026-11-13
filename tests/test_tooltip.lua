@@ -871,6 +871,9 @@ T.test("tooltip: a friendly player's buffs as rows of icons; none in combat (sec
         for _, l in ipairs(lines) do if type(l) == "string" and l:find("|T1", 1, true) then rows[#rows + 1] = l end end
         return rows
     end
+    T.eq(#hover(), 0, "off by default")
+    DaylightUI:Set("Tooltip", "buffs", true)
+    stub.RunTimers()
     local rows = hover()
     T.eq(#rows, 2, "twelve buffs: a row of ten, then two")
     T.truthy(rows[1]:find("|T1001:", 1, true) and rows[2]:find("|T1012:", 1, true), "each one's icon")
