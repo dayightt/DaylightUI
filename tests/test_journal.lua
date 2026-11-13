@@ -804,3 +804,60 @@ T.test("journal: a mark on the row says how many of your party are on it, and fo
     T.eq(row(f, 1).party:IsShown(), false, "switched off")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("journal on a controller: X tracks or untracks the quest on the row or page, B on a page goes back", function()
+    local function padOn()
+        _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+        _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    end
+    local J = load(nil, { before = padOn })
+    local at
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    local f = open(J)
+    T.eq(DaylightUI.Pad.taken, f, "the journal takes the buttons while it shows")
+    at = row(f, 3)
+    stub.RunTimers()
+    T.truthy(stub.overrides.PAD3, "X on a quest row")
+    local asked
+    local add, remove = C_QuestLog.AddQuestWatch, C_QuestLog.RemoveQuestWatch
+    C_QuestLog.AddQuestWatch = function(id) asked = "track " .. id end
+    C_QuestLog.RemoveQuestWatch = function(id) asked = "untrack " .. id end
+    local was = at.quest.watched == true
+    _G[stub.overrides.PAD3.click]:Click()
+    T.eq(asked, (was and "untrack " or "track ") .. 3, "one press, no walk to the footer")
+    C_QuestLog.AddQuestWatch, C_QuestLog.RemoveQuestWatch = add, remove
+    at = row(f, 1)
+    at:Click()   -- its page
+    at = nil
+    stub.RunTimers()
+    T.truthy(stub.overrides.PAD3, "X anywhere on the quest's page")
+    T.truthy(stub.overrides.PAD2, "B goes back to the list")
+    _G[stub.overrides.PAD2.click]:Click()
+    T.eq(f.list:IsShown(), true)
+    stub.RunTimers()
+    T.eq(stub.overrides.PAD2, nil, "on the list B is the map's again")
+    QW.ShowLog(false)
+    stub.RunTimers()
+    T.eq(DaylightUI.Pad.taken, nil, "given back with the log")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("journal on a controller: the game's see-through pieces under it are skipped by the D-pad, and given back", function()
+    local marked = {}
+    local J = load(nil, { before = function()
+        _G.SmartNavigation_MarkFrameIgnored = function(o) marked[o] = true end
+        _G.SmartNavigation_ClearIgnoreStatus = function(o) marked[o] = nil end
+    end })
+    local f = open(J)
+    local qm = J.Panel()
+    local any = 0
+    for _, c in ipairs({ qm:GetChildren() }) do
+        if c ~= f then T.truthy(marked[c], "a game piece under the journal"); any = any + 1 end
+    end
+    T.truthy(any > 0)
+    T.falsy(marked[f], "never the journal itself")
+    J.Veil(false)
+    T.eq(next(marked), nil, "switched off: the game's pieces are stops again")
+    _G.SmartNavigation_MarkFrameIgnored, _G.SmartNavigation_ClearIgnoreStatus = nil, nil
+end)

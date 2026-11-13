@@ -59,6 +59,8 @@
 --                            button. For what addon code can't do itself: casting
 --                            a spell, using a bag item. Rebound as the D-pad
 --                            moves. The only kind of entry A can have
+--   entry.key "B"            only as a follow entry: B does it instead of Back
+--                            while it acts (a page's own way back)
 --   frame.padHints()         a list of { keys, label } shown instead (the bind
 --                            prompt, the chat's typing box: Pad.Take)
 -- An entry whose when() returns false is hidden and does nothing. An entry
@@ -99,6 +101,7 @@ end
 -- The game's key name for each of a window's buttons.
 Pad.KEYS = {
     A = { "GAMEPAD_FACE_BOTTOM", "PAD1" },
+    B = { "GAMEPAD_FACE_RIGHT", "PAD2" },
     X = { "GAMEPAD_FACE_LEFT", "PAD3" },
     Y = { "GAMEPAD_FACE_TOP", "PAD4" },
     MENU_LEFT = { "GAMEPAD_MENU_LEFT", "PADBACK" },
@@ -136,7 +139,7 @@ local function tabsOf(f)
 end
 
 function Pad.StepTab(dir)
-    local f = Pad.focused
+    local f = Pad.focused or Pad.taken
     if not f then return end
     local list, at = tabsOf(f)
     if #list < 2 then return end
@@ -240,7 +243,7 @@ function Pad.Press(name, down)
     end
     pressed[name] = true
     local at = stop()
-    local e = entryFor(Pad.focused, name, at)
+    local e = entryFor(Pad.focused or Pad.taken, name, at)
     if not e then return end
     if not e.hold then return e.run and e.run(at) end
     local h = { name = name, e = e, at = at }
@@ -348,6 +351,19 @@ local function unbind()
 end
 
 local boundAt -- the stop the secure entries were bound for
+local boundSig -- which follow entries acted then, so a page change rebinds too
+
+-- The keys whose follow entries act on this stop now, as one string.
+local function followSig(f, at)
+    local out, seen = {}, {}
+    for _, e in ipairs(entriesOf(f)) do
+        if e.follow and not seen[e.key] and (not e.when or e.when(at)) then
+            seen[e.key] = true
+            out[#out + 1] = e.key
+        end
+    end
+    return table.concat(out, ",")
+end
 
 local function bind(f)
     buildKeys()
@@ -358,7 +374,7 @@ local function bind(f)
     end
     local done = {}
     local at = stop()
-    boundAt = at
+    boundAt, boundSig = at, followSig(f, at)
     for _, e in ipairs(entriesOf(f)) do
         if not done[e.key] then
             if e.follow then
@@ -373,8 +389,8 @@ local function bind(f)
                     arm(e.key, attrs)
                     SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.SECURE_BUTTON .. e.key, e.button or "LeftButton")
                 end
-            elseif e.key == "A" then
-                -- A stays the game's unless a secure entry takes it.
+            elseif e.key == "A" or e.key == "B" then
+                -- A and B stay the game's unless an entry takes them for this stop.
             elseif not e.click then
                 done[e.key] = true
                 SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.KEY_BUTTON .. e.key)
@@ -389,7 +405,7 @@ end
 -- A window changed what it shows (the NPC window going from a quest to a
 -- trainer), so rebind and relabel its buttons.
 function Pad.Refresh(f)
-    if Pad.focused ~= f or Pad.prompt or InCombatLockdown() then return end
+    if (Pad.focused or Pad.taken) ~= f or Pad.prompt or InCombatLockdown() then return end
     bind(f)
     Pad.ShowHints(f)
 end
@@ -454,7 +470,7 @@ function Pad.HintList(f)
         out[#out + 1] = { { key("GAMEPAD_DPAD_LEFT", "PADDLEFT"), key("GAMEPAD_DPAD_RIGHT", "PADDRIGHT") },
                           at and at.padStepLabel or L["Change"] }
     end
-    local done = { A = true }
+    local done = { A = true, B = true }
     for _, e in ipairs(list) do
         if not done[e.key] and acts(e, at) then
             done[e.key] = true
@@ -476,7 +492,11 @@ function Pad.HintList(f)
         out[#out + 1] = { { key("GAMEPAD_TRIGGER_LEFT", "PADLTRIGGER"),
                             key("GAMEPAD_TRIGGER_RIGHT", "PADRTRIGGER") }, L["Windows"] }
     end
-    out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, sideDone and (DONE or L["Done"]) or FRAME_ACTION_BACK or L["Back"] }
+    local back = sideDone and (DONE or L["Done"]) or nil
+    for _, e in ipairs(list) do
+        if not back and e.key == "B" and acts(e, at) then back = labelOf(e, at) end
+    end
+    out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, back or FRAME_ACTION_BACK or L["Back"] }
     return out
 end
 
@@ -556,14 +576,19 @@ end
 Pad.HINT_EVERY = 0.15
 local watching
 local function watchHints()
-    local f = Pad.focused
+    local f = Pad.focused or Pad.taken
     if not f then watching = nil; return end
     -- A secure entry carries the stop's own action (this spell, this item), so
     -- it's armed again once the D-pad moves.
     if Pad.prompt then C_Timer.After(Pad.HINT_EVERY, watchHints); return end   -- the bind prompt has the bar
-    if stop() ~= boundAt and not fight and not InCombatLockdown() then
-        for _, e in ipairs(entriesOf(f)) do
-            if e.secure or e.follow then bind(f); break end
+    if not fight and not InCombatLockdown() then
+        local at = stop()
+        if at ~= boundAt then
+            for _, e in ipairs(entriesOf(f)) do
+                if e.secure or e.follow then bind(f); break end
+            end
+        elseif followSig(f, at) ~= boundSig then
+            bind(f)
         end
     end
     Pad.ShowHints(f)
@@ -959,6 +984,11 @@ end
 function Pad.Take(f)
     if not manager() or fight or InCombatLockdown() or Pad.prompt then return end
     Pad.taken = f
+    if not watching then
+        watching = true
+        C_Timer.After(Pad.HINT_EVERY, watchHints)
+    end
+    if Pad.focused then return end   -- a window of ours with the D-pad wins; it's bound on focus lost
     bind(f)
     Pad.ShowHints(f)
 end
@@ -982,6 +1012,11 @@ local function focusLost(self)
     Pad.focused = nil
     if Pad.prompt then Pad.EndBind() end
     if not InCombatLockdown() then unbind() end
+    local t = Pad.taken
+    if t and not fight and not InCombatLockdown() then
+        bind(t)
+        return Pad.ShowHints(t)
+    end
     Pad.HideHints()
 end
 

@@ -1039,6 +1039,41 @@ function Journal.ShowQuest(id)
     Journal.Light(id)
 end
 
+-- A controller: the game gives the D-pad to its world map, not to the journal
+-- over it, so the journal takes its own buttons while it shows (Pad.Take), as
+-- the game's quest log does: X tracks or untracks the quest on the row or page
+-- (no walk down to the footer), Y its menu, the left menu button the search,
+-- and B on a quest's page goes back to the list.
+local function padQuest(stop)
+    if type(stop) == "table" and type(stop.quest) == "table" and stop.quest.id then return stop.quest, stop end
+    if S.page == "quest" and S.quest then return find(S.quest), nil end
+end
+
+function Journal.PadSetup()
+    f.padNoDefaults = true
+    f.padSelect = function(stop) if type(stop) == "table" and stop.quest then return L["Open"] end end
+    f.padKeys = {
+        { key = "X", follow = true, when = function(at) return padQuest(at) ~= nil end,
+          label = function(at)
+              local q = padQuest(at)
+              return q and q.watched and (UNTRACK_QUEST or L["Untrack"]) or (TRACK_QUEST or L["Track"])
+          end,
+          run = function(at) local q = padQuest(at); if q then Journal.Track(q) end end },
+        { key = "Y", follow = true, label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
+          when = function(at) return padQuest(at) ~= nil end,
+          run = function(at)
+              local q, row = padQuest(at)
+              if q then Journal.Menu(q, row or f.quest.footer.frame) end
+          end },
+        { key = "MENU_LEFT", follow = true, label = SEARCH or L["Search"],
+          when = function() return S.page == "list" and f.list.search:IsVisible() end,
+          run = function() f.list.search:SetFocus() end },
+        { key = "B", follow = true, label = BACK or L["Back"],
+          when = function() return S.page == "quest" end,
+          run = function() Journal.ShowList() end },
+    }
+end
+
 -- The tracker's click: open the map with the log on this quest's page. The map's
 -- own opening calls can't do it (QuestMapFrame_OpenToQuestDetails taints the map),
 -- so the request waits here for OnShow, during or after the call. A folded log
@@ -1089,9 +1124,29 @@ Journal.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPT
 -- Covering the game's panel
 
 -- Sets the game's pieces in the panel to alpha 0 under the journal (on), or back (off).
+-- The game's pieces under the journal, see-through but still there, would be
+-- stops for the controller's D-pad, which then got stuck on things nobody can
+-- see. The game's own mark keeps them out (out of combat only).
+local skipped = setmetatable({}, { __mode = "k" })   -- marked by the journal, so only those are cleared
+local function skipOnPad(frames, on)
+    if type(SmartNavigation_MarkFrameIgnored) ~= "function" then return end
+    DUI.AfterCombat(function()
+        for _, o in ipairs(frames) do
+            if on and not skipped[o] then
+                skipped[o] = true
+                SmartNavigation_MarkFrameIgnored(o)
+            elseif not on and skipped[o] then
+                skipped[o] = nil
+                if type(SmartNavigation_ClearIgnoreStatus) == "function" then SmartNavigation_ClearIgnoreStatus(o) end
+            end
+        end
+    end, "journal:padskip")
+end
+
 function Journal.Veil(on)
     local qm = Journal.Panel()
     if not qm then return end
+    local frames = {}
     local function each(o)
         if o == f or type(o) ~= "table" or type(o.SetAlpha) ~= "function" then return end
         if on then
@@ -1102,8 +1157,12 @@ function Journal.Veil(on)
             veiled[o] = nil
         end
     end
-    for _, c in ipairs({ qm:GetChildren() }) do each(c) end
+    for _, c in ipairs({ qm:GetChildren() }) do
+        each(c)
+        if c ~= f then frames[#frames + 1] = c end
+    end
     for _, r in ipairs({ qm:GetRegions() }) do each(r) end
+    skipOnPad(frames, on)
 end
 
 local function searchBox(page)
@@ -1174,6 +1233,7 @@ function Journal.Build()
         S.query = f.list.search:GetText() or ""
         data = Journal.Read()
         Journal.Arrive()
+        if DUI.Pad.On() then DUI.Pad.Take(f) end
     end)
     f:SetScript("OnHide", function()
         f.events:UnregisterAllEvents()
@@ -1183,6 +1243,7 @@ function Journal.Build()
         Journal.Spot(nil)
         mapHover = {}
         Journal.CloseMenu()
+        DUI.Pad.Release(f)
     end)
     -- The game's quest icon on the map reports its hover (QuestPinMixin:OnMouseEnter/
     -- Leave). Only listened to, nothing of the map's is touched.
@@ -1190,6 +1251,7 @@ function Journal.Build()
         EventRegistry:RegisterCallback("MapCanvas.QuestPin.OnEnter", function(_, _, questID) Journal.MapHover({ questID }) end, Journal)
         EventRegistry:RegisterCallback("MapCanvas.QuestPin.OnLeave", function() Journal.MapHover(nil) end, Journal)
     end
+    Journal.PadSetup()
     Journal.frame = f
     return f
 end
