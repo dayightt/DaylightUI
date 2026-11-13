@@ -74,6 +74,7 @@ ns.DEFAULTS = {
     questPos = "outleft", questX = 0, questY = 0,
     markerPos = "outleft", markerX = 0, markerY = 0,
     dotSkullPos = "outright", dotSkullX = 0, dotSkullY = 0,
+    executeIconPos = "outright", executeIconX = 0, executeIconY = 0,
     percentPos = "right", percentX = 0, percentY = 0,
     levelPos = "left", levelX = 0, levelY = 0,
     threatPctPos = "outtopleft", threatPctX = 0, threatPctY = 0,
@@ -86,7 +87,7 @@ ns.DEFAULTS = {
     dotSkull = true, -- ...plus a skull past the bar end when they'll kill it
     execute = "off", -- execute range on enemy bars: "auto" (classes with an execute), "on", "off"
     executePct = 0.2, -- ...up to this fraction of health
-    executeStyle = "band", -- ...style: "band" (lights up in range), "line" (marker only), "bar" (whole fill lights), "pulse" (band, pulsing)
+    executeStyle = "band", -- ...style: "band" (lights up in range), "line" (marker only), "bar" (whole fill lights), "pulse" (band, pulsing), "icon" (your finisher's icon by the bar)
     executeAccent = true, -- ...in the accent color; off uses executeColor
     executeColor = { 0.9, 0.36, 0.26 },
     executeTexture = "flat", -- ...fill: "flat", "bar" (shared bar texture), "fade" (faint at the low end, full at the line)

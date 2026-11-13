@@ -724,6 +724,8 @@ function Manager.Start()
     end)
     -- Your level determines every level's color.
     DUI.RegisterEvent("PLAYER_LEVEL_UP", function() Manager.Each(ns.Plate.UpdateLevel) end)
+    -- A finisher learned: execute range on "Your class" can start showing.
+    DUI.RegisterEvent("SPELLS_CHANGED", function() ns.Plate.ExecuteSpellsChanged() end)
     DUI.RegisterEvent("UPDATE_MOUSEOVER_UNIT", function()
         hoverChanged()
         watcher:Show()

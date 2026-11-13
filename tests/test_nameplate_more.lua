@@ -246,3 +246,85 @@ T.test("nameplates: the interrupt mark in a boss fight, every time secret, is pl
     stub.LeaveCombat()
     stub.knownSpells = {}
 end)
+
+-- As in the client, the execute curve is evaluated inside the game and the answer
+-- comes back secret. Runs fn(alpha) with that in place.
+local function withExecuteCurves(fn)
+    local saved = { curves = _G.C_CurveUtil, pct = _G.UnitHealthPercent }
+    _G.C_CurveUtil = { CreateCurve = function()
+        local c = { pts = {} }
+        function c:AddPoint(x, y) self.pts[#self.pts + 1] = { x, y } end
+        function c:Eval(x)
+            for i = 2, #self.pts do
+                local a, b = self.pts[i - 1], self.pts[i]
+                if x <= b[1] then return a[2] + (b[2] - a[2]) * (x - a[1]) / (b[1] - a[1]) end
+            end
+            return self.pts[#self.pts][2]
+        end
+        return c
+    end }
+    _G.UnitHealthPercent = function(u, predicted, curve)
+        if type(curve) ~= "table" or not curve.Eval then return saved.pct(u, predicted, curve) end
+        local x = stub.units[u]
+        return stub.Secret(curve:Eval(stub.Plain(x.health) / stub.Plain(x.maxHealth)))
+    end
+    local function alpha(t)
+        local a = t:GetAlpha()
+        if type(a) == "table" then return stub.Plain(a) end
+        return a
+    end
+    local ok, err = pcall(fn, alpha)
+    _G.C_CurveUtil, _G.UnitHealthPercent = saved.curves, saved.pct
+    if not ok then error(err, 0) end
+end
+
+T.test("nameplates: execute range on Your class for a priest once Shadow Word: Death is known", function()
+    login(function() stub.units.player.class = "PRIEST" end)
+    stub.knownSpells = {}
+    DaylightUI:Set("Nameplates", "execute", "auto")
+    stub.RunTimers()
+    local p = added("nameplate1")
+    T.falsy(p.exec:IsShown(), "no Shadow Word: Death: nothing")
+    stub.knownSpells[32379] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    T.truthy(p.exec:IsShown(), "learned: shown")
+    T.eq(stub.nameplates.Plate.ExecuteSpell(), 32379)
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the execute range as your finisher's icon by the bar, lit only in range", function()
+    withExecuteCurves(function(alpha)
+        local NP = login()
+        stub.knownSpells = {}
+        stub.knownSpells[20660] = true
+        local asked
+        _G.C_Spell.GetSpellTexture = function(id) asked = id; return 1000 + id end
+        DaylightUI:Set("Nameplates", "execute", "auto")
+        DaylightUI:Set("Nameplates", "executeStyle", "icon")
+        stub.RunTimers()
+        local p = added("nameplate1")
+        local f, e = p.execIcon, p.exec
+        T.truthy(f:IsShown(), "the icon is there")
+        T.eq(asked, 20660, "the rank you know")
+        T.eq(f.icon:GetTexture(), 21660)
+        T.eq(e.hotTex, f, "the icon is what lights")
+        T.falsy(e.band:IsShown(), "no band")
+        T.falsy(e.lit:IsShown(), "nothing else lights")
+        T.truthy(e.line:IsShown(), "the line stays")
+        T.eq(alpha(f), 0, "at 60%: unseen")
+        stub.units.nameplate1.health = stub.Secret(15)
+        stub.FireEvent("UNIT_HEALTH", "nameplate1")
+        T.eq(alpha(f), 1, "at 15%: seen")
+        -- It sits past the bar's end like the skull, which goes past it.
+        local point, rel = f:GetPoint(1)
+        T.eq(rel, p.hp, "beside the bar")
+        T.eq(select(2, p.dotSkull:GetPoint(1)), f, "the DoT skull past it")
+        DaylightUI:Set("Nameplates", "executeStyle", "band")
+        stub.RunTimers()
+        T.falsy(f:IsShown(), "another style: gone")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        stub.knownSpells = {}
+    end)
+end)

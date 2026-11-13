@@ -86,8 +86,17 @@ Plate.THREAT_BAND_DIM = 0.45 -- border band strength, as a fraction of the threa
 -- faster while a mob is about to switch.
 Plate.THREAT_PULSE = { strength = 0.25, aggro = 0.7, warn = 0.4, glowLow = 0.35 }
 -- Execute range: the bar's low end up to the execute %, in the accent. "auto"
--- shows it for classes whose finisher only works there.
-Plate.EXECUTE_CLASSES = { WARRIOR = true, PALADIN = true }   -- Execute, Hammer of Wrath
+-- shows it for classes whose finisher only works there: each class's finisher,
+-- ranks low to high (the "icon" style shows the one you know). Execute and Hammer
+-- of Wrath are in this client's trainer lists and always count. Shadow Word: Death
+-- isn't, so a priest only gets it once the spell is known.
+Plate.EXECUTE_CLASSES = {
+    WARRIOR = { 5308, 20658, 20660, 20661, 20662, always = true }, -- Execute
+    PALADIN = { 24275, 24274, 24239, always = true }, -- Hammer of Wrath
+    PRIEST = { 32379, 32996 }, -- Shadow Word: Death
+}
+Plate.EXECUTE_ICON = 5308 -- the icon for "Always" on a class with no finisher (Execute's)
+Plate.EXECUTE_ICON_SIZE = 1.25 -- the icon, in bar heights
 Plate.EXECUTE_REST = 0.1 -- the band while the unit is above it (executeRest)
 Plate.EXECUTE_LINE = 0.85 -- the line at its edge (executeLineSize px)
 -- "pulse": the lit band dims down to low, seconds per brighten or dim (the threat
@@ -228,8 +237,10 @@ function Plate.Create(parent, sample)
     -- plate (never on a plate in combat), hidden until used.
     p.dotVeil = DUI.Dots.NewVeil(bar, 2)
     p.dotSkull = DUI.Dots.NewSkull(hp, 14)
-    -- Execute range (Plate.UpdateExecute), hidden until laid out.
+    -- Execute range (Plate.UpdateExecute), hidden until laid out, and its "icon"
+    -- style: your finisher's icon by the bar.
     p.exec = Plate.NewExecute(bar)
+    p.execIcon = Plate.NewExecuteIcon(hp)
     -- Target marks: a soft glow spreading from the bar's edge, or a crisp outline
     -- around it. Both are rings of eight pieces (four corners, four sides) that follow
     -- the bar's shape, with the right side sheared to match its angled end
@@ -881,16 +892,46 @@ function Plate.PaintExecute(tex, alpha, c, fade)
     tex:SetVertexColor(lo[1], lo[2], lo[3], alpha)
 end
 
+-- Your finisher's spell id for "auto": your class's, if it always counts or you
+-- know a rank (the highest known), or nil. Kept until your spells change.
+local finisher, finisherRead = nil, false
+function Plate.ExecuteSpell()
+    if finisherRead then return finisher end
+    finisherRead, finisher = true, nil
+    local _, token = UnitClass("player")
+    local list = type(token) == "string" and not isSecret(token) and Plate.EXECUTE_CLASSES[token]
+    if not list then return nil end
+    local book = C_SpellBook
+    if type(book) == "table" and type(book.IsSpellKnown) == "function" then
+        for i = #list, 1, -1 do
+            local ok, yes = pcall(book.IsSpellKnown, list[i])
+            if ok and yes == true then
+                finisher = list[i]
+                return finisher
+            end
+        end
+    end
+    if list.always then finisher = list[1] end
+    return finisher
+end
+
+-- Spells learned: "auto" may now show (or not), so plates are laid out again
+-- when the answer changed.
+function Plate.ExecuteSpellsChanged()
+    local was = finisher
+    finisherRead = false
+    if Plate.ExecuteSpell() ~= was and ns.Manager and ns.cfg and ns.cfg.execute == "auto" then
+        ns.Manager.Refresh()
+    end
+end
+
 -- The execute fraction for this plate (0.2 = 20%), or nil. Enemies only.
 function Plate.ExecutePct(p)
     if p.friendly then return nil end
     local c = cfg()
     local mode = c.execute
     if mode == "off" then return nil end
-    if mode ~= "on" then
-        local _, token = UnitClass("player")
-        if not Plate.EXECUTE_CLASSES[token] then return nil end
-    end
+    if mode ~= "on" and not Plate.ExecuteSpell() then return nil end
     local pct = tonumber(c.executePct) or 0.2
     return math.max(0.01, math.min(0.99, pct))
 end
@@ -917,20 +958,62 @@ function Plate.ExecuteCurve(pct)
     return c
 end
 
+-- The "icon" style's piece: your finisher's icon on a black edge, placed past the
+-- bar like the DoT skull (Plate.PlaceSpots). Its alpha is the execute curve's.
+function Plate.NewExecuteIcon(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f.back = f:CreateTexture(nil, "BACKGROUND")
+    f.back:SetColorTexture(0, 0, 0, 1)
+    f.back:SetAllPoints(f)
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    Style.CropIcon(f.icon)
+    f:SetAlpha(0)
+    f:Hide()
+    return f
+end
+
+-- The icon's size for a bar this tall.
+function Plate.ExecuteIconSize(h)
+    return math.max(12, math.floor(h * Plate.EXECUTE_ICON_SIZE + 0.5))
+end
+
+-- Sizes and shows the icon for the "icon" style (on), else hides it.
+function Plate.LayoutExecuteIcon(p, on, h)
+    local f = p.execIcon
+    p.execIconOn = on
+    if not on then
+        f:SetAlpha(0)
+        f:Hide()
+        return
+    end
+    local size = Plate.ExecuteIconSize(h)
+    f:SetSize(size, size)
+    local T = Pixel.Px(f, 1)
+    f.icon:ClearAllPoints()
+    f.icon:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
+    f.icon:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+    local id = Plate.ExecuteSpell() or Plate.EXECUTE_ICON
+    local tex = type(C_Spell) == "table" and type(C_Spell.GetSpellTexture) == "function"
+        and C_Spell.GetSpellTexture(id) or nil
+    f.icon:SetTexture(tex or "Interface\\Icons\\INV_Sword_48")
+    f:Show()
+end
+
 -- Sizes and paints it (from Plate.Layout). show false: a name-only plate, or an
 -- enemy pet or totem.
 function Plate.LayoutExecute(p, show)
     local e = p.exec
     local pct = show and Plate.ExecutePct(p) or nil
     p.execOn = pct ~= nil
+    local c = cfg()
+    local style = c.executeStyle or "band"
+    Plate.LayoutExecuteIcon(p, pct ~= nil and style == "icon", p.hp:GetHeight())
     if not pct then
         e:Hide()
         e.pulse:Stop()
         if e.fill then e.fill:Hide() end
         return
     end
-    local c = cfg()
-    local style = c.executeStyle or "band"
     local bar = p.health
     local x = Pixel.Snap(bar, bar:GetWidth() * pct)
     -- Its right edge leans with the fill's moving edge.
@@ -958,7 +1041,8 @@ function Plate.LayoutExecute(p, show)
     end
     l:SetShown(px > 0)
     local strength = tonumber(c.executeStrength) or 0.45
-    e.band:SetShown(style ~= "line" and c.executeRest ~= false)
+    local lined = style == "line" or style == "icon"
+    e.band:SetShown(not lined and c.executeRest ~= false)
     Plate.PaintExecute(e.band, Plate.EXECUTE_REST, c, fade)
     Plate.PaintExecute(e.line, Plate.EXECUTE_LINE, c, false)
     -- The piece that lights: the band or the whole fill; none for "line".
@@ -967,7 +1051,7 @@ function Plate.LayoutExecute(p, show)
         hot = Plate.ExecuteFill(p)
         hot:SetTexture(file)
         e.lit:Hide()
-    elseif style ~= "line" then
+    elseif not lined then
         hot = e.lit
         if e.fill then e.fill:Hide() end
     else
@@ -978,6 +1062,8 @@ function Plate.LayoutExecute(p, show)
     if hot then
         Plate.PaintExecute(hot, strength, c, fade)
         hot:Show()
+    elseif style == "icon" then
+        e.hotTex = p.execIcon -- the icon lights instead
     end
     -- "pulse": the lit band pulses; motion off holds it still.
     if style == "pulse" and DUI.Motion.On() then
@@ -1621,12 +1707,12 @@ end
 -- cast bar's space, so nothing jumps when a cast starts. Settings go through
 -- Plate.Cfg (friendly plates have their own name spot); your buffs' row is the
 -- Friendly page's. A name-only friendly plate keeps the name centered.
--- The bar's two texts and the DoT skull go last (Plate.SPOT_LAST): they sit past
+-- The bar's texts, the execute icon and the DoT skull go last (Plate.SPOT_LAST): they sit past
 -- whatever shares their spot and push nothing. The skull never takes space at
 -- all, since its frame shows with any DoT up and only a secret-safe clip decides
 -- whether you see it, so nothing can line up against it.
 Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
-Plate.SPOT_LAST = { "percent", "level", "threatPct", "skull" }
+Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "skull" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
     quest = { spot = "questPos", x = "questX", y = "questY" },
@@ -1639,6 +1725,7 @@ Plate.SPOT_KEYS = {
     level = { spot = "levelPos", x = "levelX", y = "levelY" },
     threatPct = { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" },
     skull = { spot = "dotSkullPos", x = "dotSkullX", y = "dotSkullY" },
+    execIcon = { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" },
 }
 Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true } -- outside spots only
 Plate.OUTSIDE = {}
@@ -1647,13 +1734,14 @@ Plate.ABOVE = { above = true, outtopleft = true, outtopright = true }
 -- Distance from the bar's end to the first piece beside it (where the marks always
 -- were), and between pieces sharing a spot.
 Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4,
-                     percent = 3, level = 3, threatPct = 3, skull = 3 }
+                     percent = 3, level = 3, threatPct = 3, skull = 3, execIcon = 3 }
 Plate.CHAIN_GAP = 2
 
 local Spots = DUI.Spots
 local BESIDE = { outleft = true, outright = true }
 -- Pieces that are a single region of the plate.
-local SINGLE = { marker = "marker", percent = "percent", level = "level", threatPct = "threatPct", skull = "dotSkull" }
+local SINGLE = { marker = "marker", percent = "percent", level = "level", threatPct = "threatPct", skull = "dotSkull",
+                 execIcon = "execIcon" }
 local BAR_TEXT = { percent = true, level = true, threatPct = true }
 
 -- A piece's spot, grow direction (an aura row's own; the name and marks follow
@@ -1841,6 +1929,12 @@ local function room(p, piece, c, w, h)
             or (piece == "level" and (c.levelSize or 0)) or 0
         if size <= 0 then size = math.max(8, math.floor(h * 0.8 + 0.5)) end
         return true, p.isSample and textWidth(fs, 20) or 0, size
+    elseif piece == "execIcon" then
+        -- Its space is kept while the style is on, lit or not, so nothing moves as the
+        -- enemy drops into range (its alpha may be secret).
+        if not p.execIconOn then return false end
+        local size = Plate.ExecuteIconSize(h)
+        return true, size, size
     elseif piece == "skull" then
         if not p.isSample or p.friendly or c.dotSkull == false then return false end -- for the preview's fit
         local size = p.dotSkull:GetWidth()
@@ -2741,6 +2835,7 @@ function Plate.Uninstall(p)
     p.dotVeil:Hide()
     p.dotSkull:Hide()
     p.exec.lit:SetAlpha(0)
+    p.execIcon:SetAlpha(0)
     ns.Auras.SetUnit(p, nil)
     ns.Cast.Stop(p, true)
     ns.Cast.Unkick(p)

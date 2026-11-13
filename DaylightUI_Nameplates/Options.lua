@@ -4,6 +4,8 @@ local _, ns = ...
 
 local function off(key) return function(get) return get(key) ~= true end end
 local function execOff(get) return get("execute") == "off" end
+-- Styles with no lit band: just the line, or the spell icon.
+local function noBand(get) local s = get("executeStyle"); return s == "line" or s == "icon" end
 
 -- Placement rows for a piece (Plate.PlaceSpots): its spot around or on the health
 -- bar, an aura row's grow direction, and nudges. name is the label, k its keys
@@ -292,14 +294,14 @@ ns.OPTIONS = { pages = {
         { label = "Execute range", items = {
             { type = "dropdown", key = "execute", label = "Execute range",
               values = { auto = "Your class", on = "Always", off = "Off" }, order = { "auto", "on", "off" },
-              desc = "A line on enemy health bars where your finishing moves start to work. The bar's end up to it lights up in your accent color once the enemy is that low. Your class: warriors (Execute) and paladins (Hammer of Wrath)." },
+              desc = "A line on enemy health bars where your finishing moves start to work. The bar's end up to it lights up in your accent color once the enemy is that low. Your class: warriors (Execute), paladins (Hammer of Wrath), and priests once they know Shadow Word: Death." },
             { type = "slider", key = "executePct", label = "Execute range health", min = 0.05, max = 0.5, step = 0.01, unit = "%",
               desc = "How low the enemy's health has to be.",
               disabled = execOff },
             { type = "dropdown", key = "executeStyle", label = "Execute range style",
-              values = { band = "Band", line = "Line only", bar = "Whole bar", pulse = "Band, breathing" },
-              order = { "band", "line", "bar", "pulse" },
-              desc = "Band: the bar's end up to the line lights up. Line only: just the line. Whole bar: the whole health bar lights up. Band, breathing: the band, gently pulsing.",
+              values = { band = "Band", line = "Line only", bar = "Whole bar", pulse = "Band, breathing", icon = "Spell icon" },
+              order = { "band", "line", "bar", "pulse", "icon" },
+              desc = "Band: the bar's end up to the line lights up. Line only: just the line. Whole bar: the whole health bar lights up. Band, breathing: the band, gently pulsing. Spell icon: your finisher's icon shows by the bar, like the DoT skull.",
               disabled = execOff },
             { type = "toggle", key = "executeAccent", label = "Execute range: use accent color",
               desc = "In your accent color (Appearance), following it when it changes. When off, uses the color below.",
@@ -311,16 +313,19 @@ ns.OPTIONS = { pages = {
               values = { flat = "Flat", bar = "Bar texture", fade = "Fade in" },
               order = { "flat", "bar", "fade" },
               desc = "Flat: one even color. Bar texture: the bar texture from Appearance. Fade in: faint at the bar's end, full at the line.",
-              disabled = function(get) return execOff(get) or get("executeStyle") == "line" end },
+              disabled = function(get) return execOff(get) or noBand(get) end },
             { type = "slider", key = "executeStrength", label = "Execute range brightness", min = 0.1, max = 1, step = 0.05, unit = "%",
               desc = "How strongly it lights up once the enemy is in range.",
-              disabled = function(get) return execOff(get) or get("executeStyle") == "line" end },
+              disabled = function(get) return execOff(get) or noBand(get) end },
             { type = "slider", key = "executeLineSize", label = "Execute range line", min = 0, max = 4, step = 1, unit = "px",
               desc = "The line where the range starts. 0 hides it.", disabled = execOff },
             { type = "toggle", key = "executeRest", label = "Execute range: faint band",
               desc = "Shows where the range is before the enemy gets there, faintly.",
-              disabled = function(get) return execOff(get) or get("executeStyle") == "line" end },
+              disabled = function(get) return execOff(get) or noBand(get) end },
         } },
+        { label = "Execute icon", items = since("1.7.2", spotItems("Execute icon",
+            { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" }, false,
+            function(get) return execOff(get) or get("executeStyle") ~= "icon" end)) },
         { label = "Power bar", items = since("1.6.6", {
             { type = "toggle", key = "power", label = "Power bar",
               desc = "Mana, rage or energy as a thin bar under the health bar: see a caster running dry, or a rogue saving up energy. The cast bar moves down under it." },
