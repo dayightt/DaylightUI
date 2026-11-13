@@ -1,3 +1,34 @@
+# DaylightUI 1.7.3
+
+Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!
+
+## New
+- Plugins: Other addons can restyle Daylight UI's nameplates and their cast bars too: daylightui.com/plugins
+- Meters: Damage meters can fade on their own, apart from the minimap: Meters page, Shows tab
+- Unit frames: The player, target and focus portraits can come off their frame and go anywhere you like: Portrait position on each frame's page
+- Action bars: Short keybinds now also shorten Page Up, Page Down, Insert and Delete. Thanks to blukraken
+- Unit frames: The power text can show a % sign like health does, and show mana as a full number (2,300). Thanks to blukraken
+
+## Changed
+- Tooltip: Buffs on a friendly player's tooltip now start off; turn them back on with Their buffs on the Tooltip page
+- Info panel: Turning off the experience bar no longer brings back the game's own; switch that back on under it if you want it
+- Letters and books: Letters and books you read use the Daylight UI font, with the page buttons along the bottom. Thanks to Ángel
+- Nameplates: The /dui platelog command is gone; report nameplate problems with /dui bug
+- Object glow: Removed, as it seems to have been behind the nameplate bug. Ore, herbs and chests no longer get a name over them, and the game's interact settings go back to how you had them
+
+## Fixed
+- Minimap: No longer empty after logging in or a /reload in a city, indoors or in a dungeon
+- Nameplates: With friendly nameplates off, NPCs and players you can't attack no longer flash up nameplates as you turn the camera
+- Chat: Clicking a linked profession or a recipe in chat opens it on the first click, no more clicking it over and over
+- Quests: This zone on the quest tracker now shows quests filed under a part of the zone, like Northshire Valley in Elwynn Forest
+- Chat: Whispers show their time in the format picked under Timestamps, 12-hour clocks too
+- Meters: The threat meter's own background opacity works, down to fully see-through
+- Cooldown Manager: The editor's "Click or drag a spell" hint no longer hides under the Add by ID button
+- Spellbook: The Training tab names the level your next spells come at, instead of saying Next level when they're two levels away
+- Windows: Tabs at the top of the spellbook, social and other windows no longer run into each other with a wide font
+- Spellbook: The Training tab's filter buttons no longer slide under the search box; ones that don't fit go under More. Thanks to blukraken
+- Unit frames: Heals past full health and shields on a full-health frame show again
+
 # DaylightUI 1.7.2
 
 Nameplates that grow by threat for tanks, an interrupt line on enemy cast bars, more ways to set up action bars and bags, and a round of fixes.
