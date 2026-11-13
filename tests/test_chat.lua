@@ -1123,6 +1123,50 @@ T.test("chat: with The game's own picked, Play plays the game's whisper sound", 
     noSoundFakes()
 end)
 
+T.test("chat: the guild chat sound plays for others' guild lines, not yours, not on None, with a cooldown", function()
+    local played
+    login(function() played = soundFakes() end)
+    local W = stub.chatModule.Whisper
+    for k in pairs(played) do played[k] = nil end      -- the setup guide's open sound at login (Sound.lua)
+    local function guild(event, guid)
+        stub.FireEvent(event, "hi", "Someone", "", "", "", "", 0, 0, "", 0, 1, guid)
+    end
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, 0, "None by default: silent")
+    DaylightUI:Set("Chat", "guildSound", "bell")
+    stub.RunTimers()
+    T.eq(#played, 1, "picked in the options: heard once")
+    T.eq(played[1][1], W.SOUNDS.bell)
+    stub.Advance(W.COOLDOWN + 1)
+    guild("CHAT_MSG_GUILD", UnitGUID("player"))
+    T.eq(#played, 1, "not for your own line")
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, 2, "someone else's guild line")
+    T.eq(played[2][1], W.SOUNDS.bell); T.eq(played[2][2], "SFX")
+    guild("CHAT_MSG_OFFICER", "Player-1-OTHER")
+    T.eq(#played, 2, "not twice inside the cooldown")
+    stub.Advance(W.COOLDOWN + 1)
+    guild("CHAT_MSG_OFFICER", stub.Secret("Player-1-OTHER"))
+    T.eq(#played, 3, "officer chat too, and a secret GUID just plays")
+    stub.Advance(W.COOLDOWN + 1)
+    stub.FireEvent("CHAT_MSG_WHISPER", "hi", "Someone")
+    T.eq(played[#played][1], W.SOUNDS.soft, "the whisper sound keeps its own pick")
+    local play = chatItem("Play guild chat sound")
+    local get = function(k) return DaylightUI:Get("Chat", k) end
+    local n = #played
+    play.func()
+    T.eq(#played, n + 1, "Play plays it"); T.eq(played[#played][1], W.SOUNDS.bell)
+    DaylightUI:Set("Chat", "guildSound", "none")
+    stub.RunTimers()
+    T.truthy(play.disabled(get), "None: nothing to play")
+    stub.Advance(W.COOLDOWN + 1)
+    n = #played
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, n, "None: silent again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    noSoundFakes()
+end)
+
 -- The chat box as the recall tests need it: its alt-arrow mode, keys and sends.
 local function arrowBox(eb)
     eb.altMode = true

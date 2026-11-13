@@ -53,6 +53,7 @@ ns.DEFAULTS = {
     linkTooltipCompare = true, -- compare with worn gear per the game's setting (off: only with Shift)
     linkTooltipDelay = 0,       -- seconds on a link before its tooltip shows
     whisperSound = "soft", -- "soft" (Breath), "dewdrop", "hello", "bell", "pop" mute the game's sound; "game"; "none"
+    guildSound = "none",   -- a sound for guild and officer chat from others: one of whisperSound's own, or "none"
     arrowHistory = true, -- Up/Down in the edit box recall sent lines (Alt+Up/Down keeps the game's)
     history = true,         -- the last lines of each chat window come back after /reload
     historyLogout = true,   -- history also comes back after a logout, not only a /reload

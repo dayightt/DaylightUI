@@ -5,7 +5,8 @@
 -- Battle.net whisper's sender is secret. The game's own sound file is muted while
 -- ours or none is picked. A file mute lasts until the game restarts, so it's
 -- reapplied at every login, and an account-wide flag records that the mute is
--- ours so we never lift someone else's.
+-- ours so we never lift someone else's. The guild chat sound (none by default)
+-- picks from the same sounds and listens the same way.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -20,10 +21,13 @@ Whisper.SOUNDS = { soft = MEDIA .. "breath.ogg", dewdrop = MEDIA .. "dewdrop.ogg
 Whisper.GAME_FILE = 567421 -- file the game's whisper sound (SOUNDKIT.TELL_MESSAGE) plays
 Whisper.COOLDOWN = 5 -- minimum seconds between two sounds
 Whisper.EVENTS = { "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER" }
+Whisper.GUILD_EVENTS = { "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER" }
 
 local choice = "soft"
 local last = -math.huge
 local mutedNow = false -- muted by us during this game session
+local guildChoice = "none"
+local guildLast = -math.huge
 
 -- The current sound, ours or the game's (for the Play button).
 function Whisper.Play()
@@ -43,6 +47,26 @@ function Whisper.OnWhisper()
     Whisper.Play()
 end
 
+-- The guild chat sound, for its Play button.
+function Whisper.PlayGuild()
+    local file = Whisper.SOUNDS[guildChoice]
+    if file and type(PlaySoundFile) == "function" then PlaySoundFile(file, "SFX") end
+end
+
+-- Your own lines are skipped by their GUID (arg12). A secret GUID can't be
+-- compared, so that line just plays.
+function Whisper.OnGuild(_, _, _, _, _, _, _, _, _, _, _, _, guid)
+    if not Whisper.SOUNDS[guildChoice] then return end
+    if type(guid) == "string" and not issecretvalue(guid) then
+        local mine = UnitGUID("player")
+        if type(mine) == "string" and not issecretvalue(mine) and guid == mine then return end
+    end
+    local now = GetTime()
+    if now - guildLast < Whisper.COOLDOWN then return end
+    guildLast = now
+    Whisper.PlayGuild()
+end
+
 local function applyMute()
     local root = DUI.DB.Root()
     if choice ~= "game" then
@@ -59,13 +83,17 @@ local function applyMute()
 end
 
 function Whisper.Apply(cfg)
-    local was = choice
+    local was, guildWas = choice, guildChoice
     choice = cfg.whisperSound or "soft"
+    guildChoice = cfg.guildSound or "none"
     applyMute()
     if not Whisper.registered then
         Whisper.registered = true
         for _, e in ipairs(Whisper.EVENTS) do DUI.RegisterEvent(e, Whisper.OnWhisper) end
-    elseif choice ~= was and Whisper.SOUNDS[choice] then
-        Whisper.Play() -- just picked in the options: play it once
+        for _, e in ipairs(Whisper.GUILD_EVENTS) do DUI.RegisterEvent(e, Whisper.OnGuild) end
+        return
     end
+    -- Just picked in the options: play it once.
+    if choice ~= was and Whisper.SOUNDS[choice] then Whisper.Play() end
+    if guildChoice ~= guildWas and Whisper.SOUNDS[guildChoice] then Whisper.PlayGuild() end
 end
