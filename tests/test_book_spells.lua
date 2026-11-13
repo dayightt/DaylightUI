@@ -127,6 +127,54 @@ T.test("book spells: chips that don't fit fold into More, which reaches every se
     T.truthy(mx >= select(4, last:GetPoint(1)) + last:GetWidth(), "More sits after the last chip")
 end)
 
+local function resize(page, w)
+    page.GetWidth = function() return w end   -- held through refills
+    page:GetScript("OnSizeChanged")(page, w, page:GetHeight())
+end
+
+T.test("book spells: resizing refits the chips at once, and widening brings them back", function()
+    local ns = load()
+    local page = openBook(ns)
+    resize(page, 330)
+    frame(30)
+    T.truthy(page.more:IsShown(), "folded mid-drag, before any refill")
+    resize(page, 900)
+    frame(30)
+    T.falsy(page.more:IsShown(), "all fit again")
+    for i = 1, #ns.Spells.data.sections do T.truthy(page.chips[i]:IsShown(), page.chips[i].section.name) end
+end)
+
+T.test("book spells: More glides from where it is to its new spot", function()
+    local ns = load()
+    local page = openBook(ns)
+    resize(page, 330)
+    frame(30)
+    local start = select(4, page.more:GetPoint(1))
+    resize(page, 290)
+    frame(1)
+    local mid = select(4, page.more:GetPoint(1))
+    frame(30)
+    local stop = select(4, page.more:GetPoint(1))
+    T.truthy(stop ~= start, "it moved")
+    T.truthy(mid ~= stop, "not in one jump")
+end)
+
+T.test("book spells: More shown again lands on its new spot, not where an old glide was heading", function()
+    local ns = load()
+    local page = openBook(ns)
+    resize(page, 330)
+    frame(30)
+    resize(page, 290)   -- a glide starts
+    frame(1)
+    resize(page, 900)   -- More hides mid-glide
+    resize(page, 330)   -- and comes back
+    frame(30)
+    local last
+    for _, c in ipairs(page.chips) do if c:IsShown() then last = c end end
+    T.eq(select(4, page.more:GetPoint(1)), select(4, last:GetPoint(1)) + last:GetWidth() + DaylightUI.Widgets.CHIP_GAP,
+        "right after the last chip")
+end)
+
 T.test("book spells: Hide lower ranks on lists the top rank only; off, the lower ranks follow it", function()
     local ns = load({ book = BW.MageBook() })
     local page = openBook(ns)

@@ -377,6 +377,8 @@ local function paintSwitch(b)
     b.sw.SetOn(ns.Setting("hideLowRanks") ~= false)
 end
 
+local layoutChips
+
 function Spells.Build(page)
     Spells.page = page
     if ns.Cast then ns.Cast.Init() end
@@ -404,6 +406,9 @@ function Spells.Build(page)
         DUI.RegisterEvent(e, function() Spells.Soon() end)
     end
     DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() Spells.Cooldowns() end)
+    -- The search box follows the page's edge while the window is resized, so
+    -- the chips are fitted again then, not only once the drag ends.
+    page:HookScript("OnSizeChanged", function() if Spells.data then layoutChips(page) end end)
 end
 
 -- Spell events arrive in bursts, so refill once on the next frame, and only
@@ -565,7 +570,7 @@ local function makeMore(page)
     return b
 end
 
-local function layoutChips(page)
+function layoutChips(page)
     local w = page:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.Window.SIZE.spells[1] end
     local room = w - 2 * Spells.EDGE - 160
@@ -589,6 +594,8 @@ local function layoutChips(page)
         more.SetLabel(L["More"], 0)
         spare = room - more:GetWidth() - gap
     end
+    local M = DUI.Motion
+    local lit = Spells.frozen and Spells.REST or 1   -- a fight keeps them dimmed
     local x, folded = Spells.EDGE, {}
     for i, section in ipairs(sections) do
         local c = page.chips[i]
@@ -596,13 +603,28 @@ local function layoutChips(page)
         c:ClearAllPoints()
         c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
         local fits = #folded == 0 and x + cw - Spells.EDGE <= spare
-        c:SetShown(fits)
+        -- A chip coming back out of More eases in.
+        if fits and not c:IsShown() then c:Show(); M.Fade(c, 0, lit, M.FAST) end
+        if not fits then c:Hide() end
         if fits then x = x + cw + gap else folded[#folded + 1] = section end
     end
     Spells.folded = folded
-    more:ClearAllPoints()
-    more:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
-    more:SetShown(#folded > 0)
+    -- More glides from where it is now to its new spot, or eases in there.
+    local function place(v)
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", page, "TOPLEFT", v, -11)
+    end
+    more.glide = more.glide or {}   -- its own tween key; the button's hover uses the button
+    if #folded == 0 then
+        M.Tween(more.glide, x, x, 0, place)   -- stops a glide still running
+        more:Hide()
+    elseif not more:IsShown() then
+        M.Tween(more.glide, x, x, 0, place)
+        more:Show()
+        M.Fade(more, 0, lit, M.FAST)
+    else
+        M.Tween(more.glide, select(4, more:GetPoint(1)) or x, x, M.NORMAL, place)
+    end
 end
 
 -- keep preserves the scroll position (spell events, the ranks switch).
