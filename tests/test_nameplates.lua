@@ -3785,6 +3785,19 @@ T.test("nameplates: /dui platecheck says when all is well", function()
     T.truthy(text:find("Nothing looks wrong", 1, true), text)
 end)
 
+-- The game's copy of a few plate settings, left tainted by an addon's write until
+-- /reload, is the lead for every plate vanishing: the check names it and who.
+T.test("nameplates: /dui platecheck says whether the game's plate settings copy is tainted", function()
+    local NP = login()
+    local reg = _G.CVarCallbackRegistry
+    _G.CVarCallbackRegistry = { cvarValueCache = { SoftTargetIconInteract = "1" } }
+    T.truthy(checkText(NP):find("Plate settings: clean", 1, true), checkText(NP))
+    stub.Mark(_G.CVarCallbackRegistry.cvarValueCache, "SoftTargetIconInteract", "Lueur")
+    local text = checkText(NP)
+    T.truthy(text:find("Plate settings tainted: SoftTargetIconInteract by Lueur", 1, true), text)
+    _G.CVarCallbackRegistry = reg
+end)
+
 T.test("nameplates: /dui platecheck names a plate of ours that is on but not showing", function()
     local NP = login()
     local p = added("nameplate1")

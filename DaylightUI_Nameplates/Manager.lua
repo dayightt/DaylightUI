@@ -1049,6 +1049,12 @@ function Manager.CheckLines(detail)
         words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. tostring(ok and v)
     end
     out[#out + 1] = "Game: " .. table.concat(words, " ")
+    local Bug = DUI.BugReport
+    if type(Bug) == "table" and type(Bug.PlateCache) == "function" then
+        local tainted = Bug.PlateCache()
+        out[#out + 1] = #tainted > 0 and ("Plate settings tainted: " .. table.concat(tainted, ", "))
+            or "Plate settings: clean"
+    end
     local left = detail or Manager.CHECK_DETAIL
     for _, list in ipairs({ wrongs, fine }) do
         for _, lines in ipairs(list) do
