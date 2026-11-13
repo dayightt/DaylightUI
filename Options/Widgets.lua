@@ -2933,11 +2933,15 @@ function W.text(row, page, item)
     W.TextColor(fs, C.dim)
     fs:ClearAllPoints()
     fs:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -8)
-    fs:SetPoint("TOPRIGHT", row, "TOPRIGHT", -W.PAD, -8)
     fs:SetWordWrap(true)
     fs:SetMaxLines(0)   -- a paragraph shows whole: W.Row's two-line cap cut it off
     fs:SetJustifyV("TOP")
     function row.Measure()
+        -- Width by hand, like a card's description: a width that comes from
+        -- anchors isn't worked out until the next frame, so the text would wrap
+        -- at the old width and the row below would cover its last line.
+        local w = row:GetParent():GetWidth()
+        if type(w) == "number" and w > 2 * W.PAD then fs:SetWidth(w - 2 * W.PAD) end
         -- Set the text again: text set while the row was hidden measures as one
         -- cut-off line until it's laid out on screen.
         fs:SetText(Options.Label(item))

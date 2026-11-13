@@ -1418,3 +1418,30 @@ T.test("the game's AddOns settings: our own button opens the options", function(
     b:Click()
     T.truthy(DUI.OptionsPanel.IsShown())
 end)
+
+T.test("a long note wraps at its card's width, so the row below never sits on its last line", function()
+    local DUI = stub.Load({ actionbars = true })
+    DUI.OptionsPanel.Show("ActionBars.barlayout")
+    local note, card
+    for _, c in ipairs(DUI.OptionsPanel.PageFrame().cards) do
+        for _, row in ipairs(c.rows) do
+            local label = DUI.Options.Label(row.item)
+            if row.item.type == "text" and label:find("^Paging") then note, card = row, c end
+        end
+    end
+    T.truthy(note, "the Paging note")
+    -- The client wraps text at a width it has already worked out. A width that
+    -- only comes from anchors set this frame isn't, so the text measures as one
+    -- long line unless it's given its width by hand.
+    local fs = note.label
+    fs.GetStringHeight = function(self)
+        local w = self.__w
+        if type(w) ~= "number" or w <= 0 then return 15 end
+        return 15 * math.ceil(#self.__text * 6 / w)
+    end
+    note.Measure()
+    local cw = card:GetWidth()
+    T.truthy(cw > 100, "the card has its width")
+    T.eq(fs:GetWidth(), cw - 2 * DUI.Widgets.PAD, "the note spans the card")
+    T.eq(note:GetHeight(), 15 * math.ceil(#fs.__text * 6 / (cw - 2 * DUI.Widgets.PAD)) + 16, "tall enough for every line")
+end)
