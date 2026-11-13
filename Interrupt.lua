@@ -35,7 +35,7 @@ Interrupt.SPELLS = {
     WARLOCK = { { 19244, 19647, pet = true } }, -- Spell Lock
     DRUID = { { 16979, forms = { 5, 8 } } }, -- Feral Charge: bear, dire bear
 }
-Interrupt.MARK_PX = 2 -- the mark's width
+Interrupt.MARK_PX = 3 -- the mark's width
 
 local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
