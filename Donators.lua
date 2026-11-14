@@ -27,6 +27,7 @@ Donators.LIST = {
     "Torrent",
     "SPARQ",
     "Pownzerfaust",
+    "Somebody",
     "Tih Tahz",
     "Thorvald87",
     "Popatuna",
@@ -50,6 +51,9 @@ Donators.LIST = {
     "Alen Šabanagić",
     "Lilith Pi",
     "Chai",
+    "SKal",
+    "Fabrice",
+    "Extra Shmitty",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -63,10 +67,10 @@ Donators.LIST = {
     "FrostByghte",
     "Sukori",
     "Steffen Krause",
+    "Hugo Romao PT",
     "sam",
     "Daniel",
     "Dragon Slayer",
-    "Somebody",
 }
 
 -- Monthly supporters (a Ko-fi subscription or an active Patreon member), shown
@@ -83,6 +87,7 @@ Donators.MONTHLY = {
     "Sebastian Reichmann",
     "Steffen Krause",
     "Alen Šabanagić",
+    "Hugo Romao PT",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
