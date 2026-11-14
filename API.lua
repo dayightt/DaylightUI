@@ -10,6 +10,7 @@
 -- profession window's recipe lines, unit = the recipe id). 1.4: "platecast",
 -- a nameplate's cast bar (unit = its plate's). 1.5: "actionbar", the action
 -- bars' holders (unit = the bar's key: "main", "bar2"... "stance", "pet").
+-- 1.6: "meterrow", a damage meter window's row (unit = "<window>:<place>").
 -- Frame events, args (kind, frame, unit, isPreview): FrameMade,
 -- FrameUnitChanged, FrameRemoved, FrameStyled. A frame that changes unit (a
 -- pooled plate) first gets FrameRemoved for the old one. Preview frames (test
@@ -44,7 +45,9 @@ local passedOn = {}
 for _, name in ipairs(PASSED_ON) do passedOn[name] = true end
 -- The only events our windows may send (Report.Event).
 local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChanged = true,
-    CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true }
+    CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true,
+    -- The damage meter's (1.6).
+    MeterFightStarted = true, MeterFightEnded = true, MeterReset = true }
 
 local lists = {} -- event -> array of listeners { fn, owner, event, dead }
 local counts = {} -- event -> listeners still alive
@@ -662,6 +665,85 @@ function API.Glow(frame, on, r, g, b)
     if not h then return false end
     local c = type(r) == "number" and type(g) == "number" and type(b) == "number" and { r, g, b } or nil
     Fx.SetGlow(h, on == true, c)
+    return true
+end
+
+-- The damage meter (1.6). Window ids are the Meters page's: "main" (the
+-- panel's meter), "threat", and "w<n>" for the player's own windows.
+local function panelNs()
+    local mod = DUI:GetModule("InfoPanel")
+    return mod and mod.enabled and mod.ns or nil
+end
+
+function API.MeterWindows()
+    local ns = panelNs()
+    local out = {}
+    if not (ns and ns.Windows) then return out end
+    for _, e in ipairs(ns.Windows.List()) do
+        out[#out + 1] = { id = e.id, kind = e.kind or "meter", name = ns.Windows.Name(e),
+                          mode = type(e.cfg) == "table" and e.cfg.mode or nil }
+    end
+    return out
+end
+
+function API.GetMeterWindow(id)
+    local ns = panelNs()
+    if not ns or type(id) ~= "string" then return nil end
+    local h = ns.MeterFrame and ns.MeterFrame.hosts[id]
+    if h and not h.dead then return h.frame end
+    if id == "main" and ns.Meter then return ns.Meter.Area() end
+end
+
+-- What a meter window shows now, in its order: { rank, name, class, amount,
+-- perSecond, isMine, guid, mode, window, sample } each. Names and amounts can
+-- be secret in a fight. Nil for a window that isn't a meter.
+function API.MeterRows(id)
+    local ns = panelNs()
+    if not (ns and ns.Meter) then return nil end
+    return ns.Meter.Read(type(id) == "string" and id or "main")
+end
+
+function API.MeterModes()
+    local ns = panelNs()
+    local out = {}
+    if not (ns and ns.Meter) then return out end
+    for _, md in ipairs(ns.Meter.MODES) do
+        out[#out + 1] = { key = md.key, name = L[md.name], group = md.group }
+    end
+    return out
+end
+
+-- Switches a meter window to another mode ("damage", "dps", "healing"...),
+-- as its header's menu does. True when it did.
+function API.SetMeterMode(id, mode)
+    local ns = panelNs()
+    if not (ns and ns.Meter and ns.Windows) or type(id) ~= "string" then return false end
+    local known = false
+    for _, md in ipairs(ns.Meter.MODES) do if md.key == mode then known = true end end
+    local e = known and ns.Windows.Get(nil, id)
+    if not (e and (e.kind or "meter") == "meter" and e.path) then return false end
+    DUI:Set("InfoPanel", e.path .. ".mode", mode)
+    return true
+end
+
+-- Clears every fight, as the meter's reset button does (without asking).
+function API.ResetMeters()
+    local ns = panelNs()
+    if not (ns and ns.Meter) then return false end
+    ns.Meter.ResetAll()
+    return true
+end
+
+-- Opens the breakdown window (spells, targets, deaths) for the player at
+-- rank in a meter window, as a click on their row does.
+function API.OpenMeterBreakdown(id, rank)
+    local ns = panelNs()
+    local m = ns and ns.Meter and ns.Meter.ViewOf(type(id) == "string" and id or "main")
+    if not (m and ns.BreakdownWindow and type(rank) == "number") then return false end
+    local sources = m.Sources()
+    local src = type(sources) == "table" and sources[rank]
+    if not src then return false end
+    ns.BreakdownWindow.Open(m, src)
     return true
 end
 
@@ -1417,6 +1499,82 @@ function View.AddText(v, key, spec)
     if DUI.Fire then DUI.Fire("TextsChanged", full) end
     return true
 end
+-- Data texts and data panels (1.6), the way ElvUI's DT:RegisterDatatext and
+-- DT:RegisterPanel work: kept here, taken in by the Info Panel module (its
+-- Broker.lua) as it enables and whenever one is added.
+local dataTexts, dataOrder = {}, {}
+local dataPanels, panelOrder = {}, {}
+function Report.DataTexts() return dataOrder, dataTexts end
+function Report.DataPanels() return panelOrder, dataPanels end
+
+local function eventList(events)
+    if type(events) == "string" then
+        local out = {}
+        for e in string.gmatch(events, "[%w_]+") do out[#out + 1] = e end
+        return out
+    end
+    if type(events) ~= "table" then return nil end
+    local out = {}
+    for _, e in ipairs(events) do if type(e) == "string" then out[#out + 1] = e end end
+    return out
+end
+local function fnOrNil(f) return type(f) == "function" and f or nil end
+
+-- me.AddDataText(key, { label, text = fn() -> label, value, r, g, b, events,
+-- onEvent, poll, tooltip = fn(tip), click = fn(button, slot), wheel, icon,
+-- sample }). Players pick it in any data text slot. Saved as "<plugin>:<key>".
+function View.AddDataText(v, key, spec)
+    if type(key) ~= "string" or key == "" or type(spec) ~= "table" or type(spec.label) ~= "string"
+        or type(spec.text) ~= "function" then
+        chat(L["%s: a data text needs a key, a label and a text function."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    if not dataTexts[full] then dataOrder[#dataOrder + 1] = full end
+    dataTexts[full] = {
+        key = full, owner = v.name, label = spec.label, text = spec.text, events = eventList(spec.events),
+        onEvent = fnOrNil(spec.onEvent), poll = spec.poll == true, tooltip = fnOrNil(spec.tooltip),
+        click = fnOrNil(spec.click), wheel = fnOrNil(spec.wheel),
+        icon = (type(spec.icon) == "string" or type(spec.icon) == "number" or type(spec.icon) == "function") and spec.icon or nil,
+        sample = (type(spec.sample) == "string" or type(spec.sample) == "number") and spec.sample or nil,
+    }
+    Report.Count(v.name, "datatexts")
+    if DUI.Fire then DUI.Fire("DataTextsChanged", full) end
+    return true
+end
+
+-- Draws a data text again now (its value changed outside its events).
+function View.UpdateDataText(v, key)
+    if type(key) ~= "string" then return end
+    if DUI.Fire then DUI.Fire("DataTextRedraw", v.name .. ":" .. key) end
+end
+
+-- me.AddDataPanel(key, frame, { count = 1-5, slots = { "gold", "MyAddon:fish" },
+-- labels, icons, textSize }): data text slots on a frame of the plugin's.
+function View.AddDataPanel(v, key, frame, spec)
+    spec = type(spec) == "table" and spec or {}
+    if type(key) ~= "string" or key == "" or not isRegion(frame) then
+        chat(L["%s: a data panel needs a key and a frame."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local slots = {}
+    if type(spec.slots) == "table" then
+        for i, k in ipairs(spec.slots) do if type(k) == "string" then slots[i] = k end end
+    end
+    local count = math.max(1, math.min(5, math.floor(tonumber(spec.count) or #slots)))
+    if not dataPanels[full] then panelOrder[#panelOrder + 1] = full end
+    local size = DUI.Style and DUI.Style.SIZE
+    dataPanels[full] = {
+        key = full, owner = v.name, frame = frame, count = count, slots = slots,
+        labels = spec.labels ~= false, icons = spec.icons == true,
+        textSize = type(spec.textSize) == "number" and spec.textSize or (size and size.small or 12),
+    }
+    Report.Count(v.name, "datapanels")
+    if DUI.Fire then DUI.Fire("DataPanelsChanged", full) end
+    return true
+end
+
 function View.Wrap(v, tbl, name, fn) return addHook(v, tbl, name, fn, "wrap") end
 
 function View.Unhook(v, handle)

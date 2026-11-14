@@ -46,7 +46,7 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 5
+print(API.major, API.minor)   -- 1, 6
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
@@ -349,6 +349,7 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 |---|---|---|---|
 | `"castbar"` | `fill`, `bar`, `back`, `name`, `time`, `icon` | each cast or channel, an interrupt, a setting | `{ unit, spellID, channel, notInterruptible, interrupted }` |
 | `"platecast"` (1.4) | the same as `"castbar"` | each cast or channel, an interrupt, a setting | the same as `"castbar"` |
+| `"meterrow"` (1.6) | `bar`, `fill`, `back`, `name`, `amount`, `rank`, `icon` | someone else in the row, a class or mode change, a setting | a `API.MeterRows` entry |
 | `"actionbutton"` (1.5) | `icon`, `border`, `band` (tables of textures), `hotkey`, `count`, `macro` (the macro's name), `cooldown`, `highlight`, `pushed`, `checked`, `flash` | a new action in the slot, a change in how it reads (usable, short of power, out of range, a real cooldown starting or ending, a proc, hover or press lighting the border), a setting; never on a cooldown tick | `API.ButtonInfo`'s table (below) |
 | `"nameplate"` (1.4) | `health`, `healthFill`, `healthBack`, `healthText`, `power`, `powerFill`, `powerBack`, `name`, `guild` (the guild or title line), `level`, `dragon` (the elite mark), `marker` (the raid marker), `cast` (its cast bar's frame) | a new unit, a recolor (reaction, threat, tapped, a boss or rare color), the level, guild line or power type, a setting; never on each health tick | the unit |
 | `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `border`, `band` (lists of textures) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
@@ -624,6 +625,95 @@ obj.text = "12"   -- every slot showing it redraws (changes are gathered a tenth
 - An object made after login (an addon loaded on demand) joins the menus then. A slot the player set
   to it stays empty until it's made, then fills.
 - `OnClick` runs from a plain button: no protected actions (casting, using items) from it.
+
+### A data text of Daylight UI's own kind (1.6)
+
+The way ElvUI's `DT:RegisterDatatext` works, without LibDataBroker: Daylight UI draws it, redraws
+it on your events and builds its tooltip in its own look.
+
+```lua
+local me = DaylightUI.API.For("Angler")
+me.AddDataText("fish", {
+    label = "Fish",                               -- its name in the slot menus
+    events = { "BAG_UPDATE_DELAYED" },            -- redrawn on these (or "BAG_UPDATE_DELAYED LOOT_CLOSED")
+    text = function() return "Fish", GetItemCount(6303) end,   -- label, value[, r, g, b]
+    tooltip = function(tip)                       -- tip.Title, tip.Line(label, value), tip.Text, tip.Hint
+        tip.Line("Raw Slitherskin", GetItemCount(6303))
+        tip.Hint("Click: open your bags")
+    end,
+    click = function(button, slot) ToggleAllBags() end,
+})
+me.UpdateDataText("fish")   -- redraw it now, from anywhere
+```
+
+| Field | What it does |
+|---|---|
+| `label` | Its name in the menus (needed). |
+| `text()` | Returns `label, value, r, g, b` (needed). The label is tan and drops first on a narrow strip; the value takes the accent at its slot unless you give a color. Plain strings or numbers only: a secret shows nothing. |
+| `events` | Game events that redraw it. `onEvent(event, ...)` runs first, to keep your own state. |
+| `poll` | `true`: redrawn twice a second (a clock). Use events when you can. |
+| `tooltip(tip)` | Your lines; the label is its title. |
+| `click(button, slot)`, `wheel(delta, slot)` | Plain buttons: no protected actions. |
+| `icon` | A texture (or a function returning one), shown where the player has icons on. |
+| `sample` | What it shows in test mode. |
+
+It's saved as `"Angler:fish"`, so a player's pick stays put across updates. An error in your
+functions is named once in chat and the other texts keep going.
+
+### Data panels of your own (1.6)
+
+The way ElvUI's `DT:RegisterPanel` works: slots on a frame of yours, drawn like Daylight UI's strip.
+The player Shift+right-clicks a slot to pick its text from every data text there is (Daylight UI's,
+yours, other plugins', broker objects); the picks are kept in their profile.
+
+```lua
+local strip = CreateFrame("Frame", nil, UIParent)
+strip:SetSize(360, 20)
+strip:SetPoint("BOTTOM", 0, 4)
+API.Skin(strip)
+me.AddDataPanel("bottom", strip, { count = 3, slots = { "gold", "Angler:fish", "bags" } })
+```
+
+`count` 1-5, `slots` the first picks, `labels` (`false` drops the words), `icons`, `textSize`. The
+slots follow the frame's size and show while it does. Needs the Info Panel module on.
+
+## The damage meter (1.6)
+
+Daylight UI's meter reads the game's own damage meter. These calls see what its windows show, and
+the meter rows take `Paint` like the other frames.
+
+| Call | What it does |
+|---|---|
+| `API.MeterWindows()` | Every meter window: `{ id, kind, name, mode }` each. `id` is `"main"` (the panel's meter), `"threat"`, or the player's own (`"w2"`...); `kind` is `"meter"`, `"threat"` or `"summary"`. |
+| `API.GetMeterWindow(id)` | The window's frame, to put something beside it. |
+| `API.MeterRows(id)` | Everyone it shows now, in order: `{ rank, name, class, amount, perSecond, isMine, guid, mode, window, sample }`. In a fight names and amounts can be secrets: hand them to `SetText` or a bar, never compare them. |
+| `API.MeterModes()` | Every mode: `{ key, name, group }` (`"damage"`, `"dps"`, `"healing"`, `"deaths"`...). |
+| `API.SetMeterMode(id, mode)` | Switches a meter window's mode, as its header's menu does. |
+| `API.ResetMeters()` | Clears every fight, as the reset button does, without asking. |
+| `API.OpenMeterBreakdown(id, rank)` | Opens the spells, targets and death log of the player at `rank`, as a click on their row does. |
+
+Events (`API.On`): `MeterFightStarted`, `MeterFightEnded` (seconds, once the game has filed the
+fight) and `MeterReset`.
+
+```lua
+-- Say your place after each fight.
+me.On("MeterFightEnded", function(seconds)
+    for _, row in ipairs(API.MeterRows("main") or {}) do
+        if row.isMine then print(("You were #%d"):format(row.rank)) end
+    end
+end)
+```
+
+Paint kind `"meterrow"`: parts `bar`, `fill`, `back`, `name`, `amount`, `rank`, `icon`; `info` is a
+`MeterRows` entry. It's painted when the row shows someone else, a class or mode changes, or a
+setting does, never on every redraw. Claims honored: `fill`, `name`, `amount`.
+
+```lua
+-- Your own row's bar in gold.
+me.Paint("meterrow", function(row, parts, info)
+    if info and info.isMine then parts.fill:SetVertexColor(1, 0.8, 0.2) end
+end)
+```
 
 ## A plugin of your own
 

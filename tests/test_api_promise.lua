@@ -13,12 +13,14 @@ local PROMISED = {
     "Parts", "GetQuestRow",
     -- 1.5
     "GetActionBar", "ButtonInfo", "BindKeys", "Glow",
+    -- 1.6
+    "MeterWindows", "GetMeterWindow", "MeterRows", "MeterModes", "SetMeterMode", "ResetMeters", "OpenMeterBreakdown",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
-    "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults" }
+    "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
-    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "StartPainter", "Count",
+    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "StartPainter", "Count",
     "Changes", "Changers", "Texts", "ApplyDefaults" }
 local EVENTS = { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled",
                  "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }

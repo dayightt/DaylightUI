@@ -278,15 +278,28 @@ end
 -- A row's name and amount colors: both in the player's class color
 -- (cfg.classText), else the name by Meter.NameColor and the amount white.
 function Meter.PaintText(row, token, cfg)
+    -- A name or amount a plugin holds keeps its own color.
+    local name, amount = not Meter.Owned("name"), not Meter.Owned("amount")
     if cfg.classText == true then
         local r, g, b = Style.ClassTextColor(token)
-        row.name:SetTextColor(r, g, b)
-        row.amount:SetTextColor(r, g, b)
+        if name then row.name:SetTextColor(r, g, b) end
+        if amount then row.amount:SetTextColor(r, g, b) end
         return
     end
-    row.name:SetTextColor(Meter.NameColor(token, cfg))
+    if name then row.name:SetTextColor(Meter.NameColor(token, cfg)) end
     local v = Style.INK.VALUE
-    row.amount:SetTextColor(v[1], v[2], v[3])
+    if amount then row.amount:SetTextColor(v[1], v[2], v[3]) end
+end
+
+-- Plugins (DaylightUI.API's Paint, kind "meterrow"): a claimed piece of the
+-- rows is never colored here. Every row is the same kind, so one table read.
+function Meter.Owned(part)
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Owned("meterrow", part) == true
+end
+function Meter.Painting()
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Painting("meterrow")
 end
 
 -- Color a bar for a source: custom color, class gradient, or flat class color.
@@ -357,6 +370,7 @@ function Meter.ResetAll()
     for _, m in ipairs(all) do
         if not m.dead then m.Cleared() end
     end
+    DUI.APIReport.Event("MeterReset")
 end
 
 local function askReset()
@@ -431,6 +445,8 @@ end
 -- have .fight / .dead like a meter.
 function Meter.Register(view) all[#all + 1] = view end
 
+Meter.ENDED_AFTER = 0.5     -- seconds after a fight before plugins are told it ended
+
 -- One set of events and one ticker for every meter.
 local shared = false
 local function share()
@@ -439,8 +455,18 @@ local function share()
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         Meter.FightsChanged()
         Meter.BackToCurrent()
+        DUI.APIReport.Event("MeterFightStarted")
     end)
-    DUI.RegisterEvent("PLAYER_REGEN_ENABLED", Meter.FightsChanged)
+    DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        Meter.FightsChanged()
+        -- Plugins hear the end once the game has filed the fight.
+        if DUI.APIReport.Wants("MeterFightEnded") then
+            C_Timer.After(Meter.ENDED_AFTER, function()
+                local _, length = Meter.FightTitle()
+                DUI.APIReport.Event("MeterFightEnded", type(length) == "number" and length or nil)
+            end)
+        end
+    end)
     -- Who's who starts over with a new group.
     DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
         for k in pairs(Meter.guids) do Meter.guids[k] = nil end
@@ -580,6 +606,8 @@ function Meter.New(m, opts)
         row:SetScript("OnEnter", function() if m.HoverStart then m.HoverStart() end end)
         row:SetScript("OnMouseUp", function(self, button) m.RowClick(self, button) end)
         rows[i] = row
+        -- Plugins (DaylightUI.API's Paint, kind "meterrow") know it by window and place.
+        DUI.APIReport.Made("meterrow", row, m.id .. ":" .. i, false)
         return row
     end
 
@@ -705,6 +733,7 @@ function Meter.New(m, opts)
         -- rather than bars gliding from one player's number to another's.
         if cfg.mode ~= shownMode or cfg.session ~= shownSession or m.fight ~= shownFight then
             shownMode, shownSession, shownFight = cfg.mode, cfg.session, m.fight
+            for _, b in ipairs(rows) do b.paintedFor = false end   -- plugins hear the new mode
             offset = 0
             snap = true
         end
@@ -751,11 +780,16 @@ function Meter.New(m, opts)
                 -- The colors only follow the row's class (and the settings,
                 -- which clear this): painted again only when that changes.
                 local key = paintKey(src.classFilename)
-                if key == nil or key ~= bar.painted then
+                local plain = src.name
+                if isSecret(plain) or type(plain) ~= "string" then plain = nil end
+                local repaint = key == nil or key ~= bar.painted
+                if repaint then
                     bar.painted = key
-                    m.Paint(bar.bar, src)
+                    if not Meter.Owned("fill") then m.Paint(bar.bar, src) end
                     Meter.PaintText(bar, src.classFilename, cfg)
                 end
+                -- Plugins paint after a recolor or when someone else is in the row.
+                local tell = Meter.Painting() and (repaint or plain == nil or plain ~= bar.paintedFor)
                 bar.src = src
                 bar.rank:SetFormattedText("%d", at)
                 ns.Rows.SetIcon(bar, src, cfg)
@@ -779,6 +813,10 @@ function Meter.New(m, opts)
                 local who = (not fight and type(name) == "string" and not isSecret(name)) and name or nil
                 glide(bar, who)
                 if who then nextPlace[who] = bar.slot end
+                if tell then
+                    bar.paintedFor, bar.at = plain, at
+                    DUI.APIReport.Painted("meterrow", bar, Meter.RowInfo(m, bar))
+                end
             elseif bar.dy and bar.dy ~= 0 then
                 place(bar, 0)
             end
@@ -1040,3 +1078,75 @@ end
 
 -- The first meter (in the panel, or its own window) is ns.Meter itself.
 Meter.New(Meter, { id = "main", path = "meter", part = "meter", main = true })
+
+-- ---------------------------------------------------------------------
+-- For plugins (DaylightUI.API): the meter windows, what they show, and
+-- their rows' pieces. Amounts and names can be secret in a fight: handed
+-- over whole, for SetText and bar setters, never compared here.
+-- ---------------------------------------------------------------------
+
+-- The live meter of a window id ("main" = the panel's), or nil.
+function Meter.ViewOf(id)
+    for _, m in ipairs(all) do
+        if m.id == id and not m.dead and m.Sources then return m end
+    end
+end
+
+local function mineOf(src)
+    local me = src.isLocalPlayer
+    if isSecret(me) then return nil end
+    return me == true
+end
+
+-- What one source reads as, at its place in the list.
+function Meter.SourceInfo(m, src, rank)
+    local cfg = m.Config() or {}
+    local guid = Meter.GuidOf(src)
+    return {
+        window = m.id, mode = cfg.mode, rank = rank, name = src.name, class = src.classFilename,
+        amount = src.totalAmount, perSecond = src.amountPerSecond, isMine = mineOf(src), guid = guid,
+        sample = m.Sample() == true,
+    }
+end
+
+function Meter.RowInfo(m, row)
+    if not row.src then return { window = m.id } end
+    return Meter.SourceInfo(m, row.src, row.at)
+end
+
+-- Everyone the window shows now, in its order, or nil when it shows nothing.
+function Meter.Read(id)
+    local m = Meter.ViewOf(id)
+    if not m then return nil end
+    local sources = m.Sources()
+    if type(sources) ~= "table" then return {} end
+    local out = {}
+    for i, src in ipairs(sources) do out[i] = Meter.SourceInfo(m, src, i) end
+    return out
+end
+
+if DUI.APIReport then
+    DUI.APIReport.Parts("meterrow", function(row)
+        return {
+            bar = row.bar, fill = row.bar:GetStatusBarTexture(), back = Style.BarBack(row.bar),
+            name = row.name, amount = row.amount, rank = row.rank, icon = row.icon,
+        }
+    end)
+    DUI.APIReport.Info("meterrow", function(row)
+        local m = row.meter
+        return m and Meter.RowInfo(m, row) or nil
+    end)
+    -- Every row painted again in Daylight UI's look, then the plugins' on top.
+    DUI.APIReport.Repainter("meterrow", function()
+        for _, m in ipairs(all) do
+            if m.rows and not m.dead then
+                for _, row in ipairs(m.rows) do
+                    if not Meter.Owned("fill") then Style.ResetBarFill(row.bar) end
+                    row.painted, row.paintedFor = nil, false
+                end
+                m.MarkDirty()
+                if m.Draw then DUI.SafeCall(m.Draw) end
+            end
+        end
+    end, true)
+end

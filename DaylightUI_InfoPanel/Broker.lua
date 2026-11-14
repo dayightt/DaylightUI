@@ -143,3 +143,216 @@ function Broker.Watch()
     lib.RegisterCallback(Broker, "LibDataBroker_DataObjectCreated", function(_, name, obj) Broker.Add(name, obj) end)
     lib.RegisterCallback(Broker, "LibDataBroker_AttributeChanged", function(_, name) Broker.Changed(name) end)
 end
+
+-- ---------------------------------------------------------------------
+-- Data texts and data panels from Daylight UI plugins (DaylightUI.API's
+-- me.AddDataText and me.AddDataPanel). A plugin's text is keyed
+-- "<plugin>:<key>" and sits in every slot menu beside the built-in ones.
+-- ---------------------------------------------------------------------
+
+local Tips = DUI.Tips
+
+-- What a plugin's tooltip function gets: Daylight UI's tooltip rows, so its
+-- lines read like every other data text's.
+Broker.TIP = {
+    Title = function(text) Tips.Title(text) end,
+    Line = function(label, val) Tips.Line(label, val) end,
+    Text = function(text) Tips.Text(text) end,
+    Hint = function(text) Tips.Hint(text) end,
+}
+
+-- Runs one of a plugin's functions and hands back what it returned. An error
+-- is reported once under the plugin's name and returns nothing.
+local box = {}
+local function keep(fn, ...) box = { fn(...) } end
+local function run(owner, fn, ...)
+    box = {}
+    if not DUI.SafeCallAs(owner, keep, fn, ...) then return end
+    return box[1], box[2], box[3], box[4], box[5]
+end
+
+local function plainString(v)
+    if issecretvalue and issecretvalue(v) then return nil end
+    if type(v) == "number" then return tostring(v) end
+    return type(v) == "string" and v or nil
+end
+
+-- The plugin's text() returns label, value and an optional color for the
+-- value. The label is tan and drops first when the strip is short of room;
+-- the value takes the accent at its slot unless the plugin colored it.
+local function pluginText(spec)
+    return function()
+        local inSample = DUI.TestPartShown and DUI.TestPartShown("datatexts")
+        local label, val, r, g, b
+        if inSample and spec.sample ~= nil then
+            val = spec.sample
+        else
+            label, val, r, g, b = run(spec.owner, spec.text)
+        end
+        label, val = plainString(label), plainString(val)
+        if not val then
+            if not label then return nil end
+            local v = DT.Value(label)
+            return v, v
+        end
+        local c = type(r) == "number" and type(g) == "number" and type(b) == "number" and { r, g, b } or nil
+        local v = DT.Value(val, c)
+        if not label or label == "" then return v, v end
+        return DT.Word(label .. " ") .. v, v
+    end
+end
+
+function Broker.AddPlugin(spec)
+    local key = spec.key
+    local text = {
+        name = spec.label, plugin = spec.owner, events = spec.events, poll = spec.poll == true or nil,
+        text = pluginText(spec),
+    }
+    if spec.onEvent then
+        text.onEvent = function(event, ...) run(spec.owner, spec.onEvent, event, ...) end
+    end
+    if spec.tooltip then
+        text.tip = function()
+            Tips.Title(spec.label)
+            run(spec.owner, spec.tooltip, Broker.TIP)
+        end
+    end
+    if spec.click then text.click = function(button, slot) run(spec.owner, spec.click, button, slot) end end
+    if spec.wheel then text.wheel = function(delta, slot) run(spec.owner, spec.wheel, delta, slot) end end
+    if spec.icon then
+        text.iconOf = function()
+            local icon = spec.icon
+            if type(icon) == "function" then icon = run(spec.owner, icon) end
+            if type(icon) ~= "string" and type(icon) ~= "number" then return nil end
+            return icon
+        end
+    end
+    local had = DT.TEXTS[key] ~= nil
+    DT.TEXTS[key] = text
+    DT.NAMES[key] = spec.label
+    if not had then DT.ORDER[#DT.ORDER + 1] = key end
+    Broker.Used(key)
+    Broker.UsedInPanels(key)
+end
+
+-- Every plugin text registered so far, then each new one as it comes.
+function Broker.TakePlugins()
+    local Report = DUI.APIReport
+    if not (Report and Report.DataTexts) then return end
+    local order, all = Report.DataTexts()
+    for _, key in ipairs(order) do
+        if not DT.TEXTS[key] or DT.TEXTS[key].plugin then Broker.AddPlugin(all[key]) end
+    end
+end
+DUI.On("DataTextsChanged", function(key)
+    local Report = DUI.APIReport
+    local _, all = Report.DataTexts()
+    if all[key] then Broker.AddPlugin(all[key]) end
+end)
+DUI.On("DataTextRedraw", function(key)
+    if DT.TEXTS[key] then DT.Redraw(key) end
+end)
+
+-- A plugin's own panel: a strip of slots on the plugin's frame, laid out and
+-- drawn like the panel's own. The player picks each slot's text with a
+-- Shift+right-click on it; the picks are kept in the module's settings
+-- (data.panels[key]), else the panel's own defaults.
+Broker.panels = {}
+
+-- A slot with nothing picked yet: a quiet + that says how to pick. Never in
+-- the slot menus.
+Broker.EMPTY = "panel:empty"
+DT.TEXTS[Broker.EMPTY] = {
+    name = "",
+    text = function() local v = DT.Word("+") return v, v end,
+    tip = function()
+        Tips.Title(L["Empty slot"])
+        Tips.Hint(L["Shift+right-click: pick a text"])
+    end,
+}
+
+local function panelCfg(p)
+    local db = ns.module and ns.module.db
+    local saved = db and type(db.data) == "table" and type(db.data.panels) == "table" and db.data.panels[p.key]
+    local c = { enabled = true, count = p.count, labels = p.labels, icons = p.icons, textSize = p.textSize }
+    for i = 1, p.count do
+        local key = (type(saved) == "table" and saved["slot" .. i]) or p.slots[i]
+        c["slot" .. i] = DT.TEXTS[key] and key or Broker.EMPTY
+    end
+    return c
+end
+
+local function savePick(p, i, key)
+    local db = ns.module and ns.module.db
+    if not (db and type(db.data) == "table") then return end
+    db.data.panels = type(db.data.panels) == "table" and db.data.panels or {}
+    local saved = db.data.panels[p.key] or {}
+    db.data.panels[p.key] = saved
+    saved["slot" .. i] = key
+end
+
+function Broker.ApplyPanel(p)
+    if not (ns.module and ns.module.enabled) then return end
+    p.strip.Attach(p.frame, panelCfg(p))
+    p.strip.Apply(panelCfg(p))
+end
+
+local function openPick(p, s)
+    local idx
+    for i, x in ipairs(p.strip.slots) do if x == s then idx = i end end
+    if not idx then return end
+    local keys, names = { Broker.EMPTY }, { [Broker.EMPTY] = L["None"] }
+    for _, k in ipairs(DT.ORDER) do
+        keys[#keys + 1] = k
+        names[k] = DT.NAMES[k]
+    end
+    DUI.Widgets.OpenMenu(s, keys, names, panelCfg(p)["slot" .. idx], function(key)
+        savePick(p, idx, key)
+        Broker.ApplyPanel(p)
+    end, nil, { atCursor = true })
+end
+
+function Broker.AddPanel(spec)
+    local p = Broker.panels[spec.key]
+    if not p then
+        p = { key = spec.key, strip = {} }
+        Broker.panels[spec.key] = p
+        DT.New(p.strip, {
+            pick = function(s) openPick(p, s) end,
+            tip = function(s)
+                GameTooltip:SetPoint("BOTTOM", s, "TOP", 0, DT.TIP_GAP)
+            end,
+        })
+    end
+    p.frame, p.count = spec.frame, spec.count
+    p.slots, p.labels, p.icons, p.textSize = spec.slots, spec.labels, spec.icons, spec.textSize
+    Broker.ApplyPanel(p)
+    -- A plugin frame that resizes lays its slots out again.
+    if not p.sized then
+        p.sized = true
+        p.frame:HookScript("OnSizeChanged", function() p.strip.Layout(false) end)
+        p.frame:HookScript("OnShow", function() Broker.ApplyPanel(p) end)
+    end
+end
+
+-- A panel whose saved slot waited for this text shows it now.
+function Broker.UsedInPanels(key)
+    for _, p in pairs(Broker.panels) do
+        local c = panelCfg(p)
+        for i = 1, p.count do
+            if c["slot" .. i] == key then Broker.ApplyPanel(p) break end
+        end
+    end
+end
+
+function Broker.TakePanels()
+    local Report = DUI.APIReport
+    if not (Report and Report.DataPanels) then return end
+    local order, all = Report.DataPanels()
+    for _, key in ipairs(order) do Broker.AddPanel(all[key]) end
+end
+DUI.On("DataPanelsChanged", function(key)
+    if not (ns.module and ns.module.enabled) then return end
+    local _, all = DUI.APIReport.DataPanels()
+    if all[key] then Broker.AddPanel(all[key]) end
+end)

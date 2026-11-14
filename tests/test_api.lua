@@ -17,7 +17,7 @@ end
 T.test("api: version 1.1 on the same table Plugins reads", function()
     local DUI = load()
     T.eq(DaylightUI.API.major, 1)
-    T.eq(DaylightUI.API.minor, 5)
+    T.eq(DaylightUI.API.minor, 6)
     T.eq(DaylightUI.API, DUI.API)
 end)
 

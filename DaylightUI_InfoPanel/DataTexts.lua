@@ -1457,6 +1457,8 @@ function DT.New(S, opts)
     end
 
     local function onClick(self, button)
+        -- A plugin's panel picks a slot's text this way, as ElvUI's panels do.
+        if opts.pick and button == "RightButton" and IsShiftKeyDown() then return opts.pick(self) end
         local t = DT.TEXTS[self.key]
         if t and t.click then DUI.SafeCall(t.click, button, self) end
     end
@@ -1749,7 +1751,11 @@ function DT.Build(parent, mod)
     -- Save gold even when the gold text isn't shown, so the tooltip has
     -- every character once it is.
     pcall(DUI.RegisterEvent, "PLAYER_MONEY", DT.SaveMoney)
-    if ns.Broker then ns.Broker.Watch() end
+    if ns.Broker then
+        ns.Broker.Watch()
+        ns.Broker.TakePlugins()
+        ns.Broker.TakePanels()
+    end
     pcall(DUI.RegisterEvent, "PLAYER_ENTERING_WORLD", function()
         if ns.Broker then ns.Broker.Watch() end
         DT.SaveMoney()
