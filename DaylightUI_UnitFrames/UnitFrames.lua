@@ -399,12 +399,12 @@ UF.CLASS_ICONS = {
 -- The pack's folder names, newest first. It used to be ElvUI_JiberishIcons.
 UF.ICON_PACKS = { "JiberishIcons", "ElvUI_JiberishIcons" }
 UF.ICON_STYLES = {
-    daylight = "DaylightUI", game = "The game's own", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
+    daylight = "DaylightUI", game = "The game's own", vanilla = "Classic", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
     fabledmyth = "Fabled Myth", fabledpixels = "Fabled Pixels", fabledpixelsv2 = "Fabled Pixels v2",
     fabledrealm = "Fabled Realm", fabledrealmv2 = "Fabled Realm v2", intothevoid = "Into the Void",
     fabledclass = "Fabled Class", fabledregalia = "Fabled Regalia",
 }
-UF.ICON_STYLE_ORDER = { "daylight", "game", "fabled", "fabledclass", "fabledcore", "fableddimension", "fabledmyth",
+UF.ICON_STYLE_ORDER = { "daylight", "game", "vanilla", "fabled", "fabledclass", "fabledcore", "fableddimension", "fabledmyth",
     "fabledpixels", "fabledpixelsv2", "fabledrealm", "fabledrealmv2", "fabledregalia", "intothevoid" }
 -- Sheets only the new folder has (the old one has no spec sheet either). The
 -- old folder is never asked for them, since a missing file draws nothing.
@@ -455,8 +455,8 @@ local function oldPackLacks(key)
     return UF.ICON_NEW_PACK_ONLY[key] or specOf(key)
 end
 
--- Styles that need no pack: Daylight UI's own and the game's.
-UF.ICON_BUILT_IN = { daylight = true, game = true }
+-- Styles that need no pack: Daylight UI's own and the game's two.
+UF.ICON_BUILT_IN = { daylight = true, game = true, vanilla = true }
 
 -- The Icon style menu: every name (so a saved pick still reads right), the
 -- built-in styles, and the styles the installed pack has. all: every style
@@ -477,6 +477,23 @@ function UF.GameClassIcon(token)
     local ok, info = pcall(C_Texture.GetAtlasInfo, "classicon-" .. string.lower(token))
     if not ok or type(info) ~= "table" or type(info.file) == "nil" then return nil end
     return info.file, info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord
+end
+
+-- The classic character screen's class icons: one sheet, a 4 x 4 grid. Each
+-- square keeps a thin dark edge, trimmed by VANILLA_TRIM so the ring meets the art.
+UF.VANILLA_ICONS = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
+UF.VANILLA_CELLS = {
+    WARRIOR = { 0, 0 }, MAGE = { 1, 0 }, ROGUE = { 2, 0 }, DRUID = { 3, 0 },
+    HUNTER = { 0, 1 }, SHAMAN = { 1, 1 }, PRIEST = { 2, 1 }, WARLOCK = { 3, 1 },
+    PALADIN = { 0, 2 },
+}
+UF.VANILLA_TRIM = 0.02
+
+function UF.VanillaClassIcon(token)
+    local cell = UF.VANILLA_CELLS[token]
+    if not cell then return nil end
+    local x, y, k = cell[1] / 4, cell[2] / 4, UF.VANILLA_TRIM
+    return UF.VANILLA_ICONS, x + k, x + 0.25 - k, y + k, y + 0.25 - k
 end
 
 -- A class's choices for the picker: Daylight UI's own, each style, then its specs.
@@ -507,6 +524,10 @@ function UF.ClassIcon(token, style, picks)
     if type(pick) == "string" and pick ~= "" then style = pick end
     if style == "game" then
         local file, l, r, t, b = UF.GameClassIcon(token)
+        if file then return file, l, r, t, b end
+    end
+    if style == "vanilla" then
+        local file, l, r, t, b = UF.VanillaClassIcon(token)
         if file then return file, l, r, t, b end
     end
     local pack = style and not UF.ICON_BUILT_IN[style] and not oldPackLacks(style) and UF.IconPack()
