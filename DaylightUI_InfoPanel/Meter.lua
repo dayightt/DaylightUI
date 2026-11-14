@@ -36,10 +36,14 @@ Meter.MODES = {
     { key = "interrupts", group = "utility", type = "Interrupts", label = L["INTERRUPTS"], name = "Interrupts", icon = "interrupts", empty = "No interrupts yet." },
     { key = "dispels", group = "utility", type = "Dispels", label = L["DISPELS"], name = "Dispels", icon = "dispels", empty = "No dispels yet." },
     { key = "deaths", group = "utility", type = "Deaths", label = L["DEATHS"], name = "Deaths", icon = "deaths", empty = "No deaths yet." },
+    -- Not the game's meter: who's closest to pulling your target, from the
+    -- threat meter's list (ThreatMeter.lua's TM.Collect).
+    { key = "threat", group = "threat", threat = true, label = string.upper(L["Threat"]), name = "Threat", icon = "threat", empty = "No target" },
 }
 -- The groups' headings in the mode menu.
-Meter.GROUPS = { damage = "Damage", healing = "Healing", taken = "Taken", utility = "Utility" }
-Meter.GROUP_ORDER = { "damage", "healing", "taken", "utility" }
+Meter.GROUPS = { damage = "Damage", healing = "Healing", taken = "Taken", utility = "Utility", threat = "Threat" }
+Meter.GROUP_ORDER = { "damage", "healing", "taken", "utility", "threat" }
+Meter.THREAT_ROWS = 40        -- a threat list's length: a whole raid
 
 -- A meter icon's file (tools/make_meter_icons.py).
 function Meter.ICON(key) return DUI.MEDIA .. "ui-meter-" .. key .. ".png" end
@@ -543,8 +547,37 @@ function Meter.New(m, opts)
         return Meter.FightList()
     end
 
+    -- Threat as meter rows: the bar is the raw threat (the percent of the
+    -- pull while it's secret, against a boss), the text the percent.
+    local threatList, threatPool, threatMob = {}, {}, nil
+    m.threatTop, m.threatSecret = 1, false
+    local function threatSources()
+        local TM = ns.ThreatMeter
+        local sample = m.Sample()
+        threatMob = nil
+        for i = #threatList, 1, -1 do threatList[i] = nil end
+        if not TM then return threatList end
+        local mob = not sample and TM.Mob("smart") or nil
+        if not (sample or mob) then return threatList end
+        local data, secret, _, top = TM.Collect(Meter.THREAT_ROWS, mob, sample)
+        if not data then return threatList end
+        threatMob = sample and TM.SAMPLE_TARGET or DUI.UnitName(mob, "threat")
+        m.threatSecret = secret == true
+        m.threatTop = secret and 100 or (type(top) == "number" and top > 0 and top or 1)
+        for i, e in ipairs(data) do
+            local src = threatPool[i] or {}
+            threatPool[i] = src
+            src.name, src.classFilename, src.isLocalPlayer = e.name, e.class, e.me == true
+            src.scaled, src.tank = e.scaled, e.tank
+            src.totalAmount = secret and e.scaled or e.value
+            threatList[i] = src
+        end
+        return threatList
+    end
+
     -- The current list of sources, best first, or nil; then the session.
     function m.Sources()
+        if mode().threat then return threatSources() end
         if m.Sample() then return Meter.SampleFor(cfg.mode) end
         local E = Enum and Enum.DamageMeterType
         local mt = E and E[mode().type]
@@ -583,6 +616,11 @@ function Meter.New(m, opts)
     end
 
     function m.FightTitle()
+        -- A threat list's title is the mob it's for.
+        if mode().threat then
+            if type(threatMob) ~= "nil" then return threatMob end
+            return L["No target"]
+        end
         if m.fight then
             for _, f in ipairs(m.Fights()) do
                 if f.sessionID == m.fight then return fightName(f), f.durationSeconds end
@@ -613,7 +651,7 @@ function Meter.New(m, opts)
 
     function m.RowClick(row, button)
         local src = row.src
-        if not (src and row:IsShown()) then return end
+        if not (src and row:IsShown()) or mode().threat then return end
         if IsShiftKeyDown and IsShiftKeyDown() then
             ns.Report.Toggle(m, nil, src)
         elseif button == "LeftButton" and ns.BreakdownWindow then
@@ -701,7 +739,7 @@ function Meter.New(m, opts)
         local e = m.empty
         if not e then return end
         if on then
-            local none = not m.Sample() and #m.Fights() == 0
+            local none = not md.threat and not m.Sample() and #m.Fights() == 0
             e:SetText(none and L["No fights yet."] or L[md.empty or "No fights yet."])
             if not e:IsShown() then DUI.Motion.AlphaTo(e, 1, DUI.Motion.FAST) end
         elseif e:IsShown() then
@@ -764,7 +802,8 @@ function Meter.New(m, opts)
         end
         local fight = InCombatLockdown and InCombatLockdown() or false
         -- Out of a fight: who's who, for breakdowns once it starts.
-        if not fight and count > 0 and not m.Sample() then Meter.SnapGuids(sources, md.key) end
+        if not fight and count > 0 and not m.Sample() and not md.threat then Meter.SnapGuids(sources, md.key) end
+        if md.threat then top = m.threatTop end
         for k in pairs(nextPlace) do nextPlace[k] = nil end
         for i, bar in ipairs(rows) do
             local at = i + offset
@@ -796,7 +835,12 @@ function Meter.New(m, opts)
                 local me = src.isLocalPlayer
                 ns.Rows.SetMine(bar, not isSecret(me) and me == true)
                 bar.name:SetText(shortName(src.name))
-                if deaths then
+                if md.threat then
+                    bar.bar:SetMinMaxValues(0, top)
+                    Style.SetBarValue(bar.bar, src.totalAmount, snap)
+                    if m.threatSecret then bar.amount:SetFormattedText("%.0f%%", src.scaled)
+                    else bar.amount:SetFormattedText("%d%%", math.floor((src.scaled or 0) + 0.5)) end
+                elseif deaths then
                     -- A death: a full bar, and when it happened.
                     bar.bar:SetMinMaxValues(0, 1)
                     Style.SetBarValue(bar.bar, 1, snap)
@@ -980,7 +1024,8 @@ function Meter.New(m, opts)
             local bar = hoveredBar()
             if bar ~= m.hovered then
                 m.hovered = bar
-                if bar then ns.Breakdown.Show(bar) else ns.Breakdown.Hide() end
+                -- A threat row has no spells to break down.
+                if bar and not mode().threat then ns.Breakdown.Show(bar) else ns.Breakdown.Hide() end
             end
         end)
     end
@@ -1056,6 +1101,15 @@ function Meter.New(m, opts)
             for _, bar in ipairs(rows) do bar.painted, bar.mine = nil, nil end
             dirty = true
         end)
+        -- A threat list follows the target, and empties as the fight ends.
+        local function threatChanged()
+            if cfg and mode().threat then
+                dirty = true
+                snap = true
+            end
+        end
+        DUI.RegisterEvent("PLAYER_TARGET_CHANGED", threatChanged)
+        DUI.RegisterEvent("PLAYER_REGEN_ENABLED", threatChanged)
         DUI.On("TestModeChanged", resample)
         DUI.On("TestPartChanged", function(key) if key == part then resample() end end)
     end
