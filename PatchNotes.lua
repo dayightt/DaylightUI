@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "Window skins", "Some right-click menus no longer cause an error about a secret number" },
             { "Party and raid", "Prayer of Mending shows as a heal indicator when you pick it" },
             { "Window skins", "With the NPC window off, the game's quest window keeps its dark text instead of turning white" },
+            { "Nameplates", "The Group mark beside party members' names shows again, dungeons included" },
         },
     },
     { version = "1.8.1", date = "2026-11-14", summary = "Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.",

@@ -376,6 +376,11 @@ function Plate.Create(parent, sample)
     p.factionIcon:Hide()
     p.nameFrame = words
     p.name = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    -- An unseen copy of the name with no width of its own, so it's exactly as wide
+    -- as the letters. The group mark and faction crest sit against its edges and
+    -- the name's width is never read, which may be secret.
+    p.nameEdge = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.nameEdge:SetAlpha(0)
     p.sub = Style.Text(words, 9, "CENTER", Plate.MEDIA.fonts.name)
     local sc = Plate.SUB_COLOR
     p.sub:SetTextColor(sc[1], sc[2], sc[3])
@@ -813,6 +818,7 @@ function Plate.Layout(p)
     if not p.threatPctOn then p.threatPct:Hide() end
 
     Style.SetTextSize(p.name, nameSize)
+    Style.SetTextSize(p.nameEdge, nameSize)
     Plate.SizeSub(p, c)
     local qs = math.max(10, math.floor(h * 1.1 + 0.5))
     Style.SetTextSize(p.quest, qs)
@@ -1944,8 +1950,7 @@ end
 
 -- Group member names marked (friendly.partyMark), since Group names replaces the
 -- class color: a small diamond before the name, or one on each side, in the group
--- color while the name keeps its own color. Placed by the name's measured width;
--- a name that can't be measured (a secret one) gets none.
+-- color while the name keeps its own color.
 function Plate.ShowGroupMark(p, on)
     local marks = p.groupMarks
     if not marks then return end
@@ -1967,33 +1972,42 @@ end
 Plate.GROUP_MARK_ART = DUI.MEDIA .. "shape-diamond.png"
 Plate.GROUP_MARK_SCALE = 0.6 -- size, as a fraction of the name's
 Plate.GROUP_MARK_GAP = 3
+-- The name's unseen copy (p.nameEdge), given the name's text and set on the same
+-- side of the name's box, so its edges are the letters' edges. The text may be
+-- secret: it's only handed on, never looked at.
+function Plate.PlaceNameEdge(p)
+    local edge, name = p.nameEdge, p.name
+    if not edge then return nil end
+    edge:SetText(name:GetText())
+    local H = p.nameJustify or "CENTER"
+    edge:ClearAllPoints()
+    if H == "LEFT" or H == "RIGHT" then
+        edge:SetPoint(H, name, H, 0, 0)
+    else
+        edge:SetPoint("CENTER", name, "CENTER", 0, 0)
+    end
+    return edge
+end
+
 function Plate.PlaceGroupMark(p)
-    local marks, name = p.groupMarks, p.name
-    local tw = textWidth(name, nil)
-    if not (marks and tw) then return false end
+    local marks = p.groupMarks
+    local edge = marks and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local size = math.max(6, math.floor(Plate.NameSize(p, Plate.Cfg(p)) * Plate.GROUP_MARK_SCALE + 0.5))
-    local gap, H = Plate.GROUP_MARK_GAP, p.nameJustify or "CENTER"
+    local gap = Plate.GROUP_MARK_GAP
     local before, after = marks.before, marks.after
     before:SetSize(size, size)
     after:SetSize(size, size)
     before:ClearAllPoints()
     after:ClearAllPoints()
-    if H == "LEFT" then
-        before:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-        after:SetPoint("LEFT", name, "LEFT", tw + gap, 0)
-    elseif H == "RIGHT" then
-        before:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-        after:SetPoint("LEFT", name, "RIGHT", gap, 0)
-    else
-        before:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-        after:SetPoint("LEFT", name, "CENTER", tw / 2 + gap, 0)
-    end
+    before:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
+    after:SetPoint("LEFT", edge, "RIGHT", gap, 0)
     return true
 end
 
 -- Opposite faction crest by a player's name (factionIcon): Alliance or Horde, using
 -- the game's own unit frame crests, so the other side is obvious at a glance,
--- flagged or not. A secret answer or an unmeasurable name gets none.
+-- flagged or not. A secret answer gets none.
 Plate.FACTION_ATLAS = {
     Alliance = "UI-HUD-UnitFrame-Player-PVP-AllianceIcon",
     Horde = "UI-HUD-UnitFrame-Player-PVP-HordeIcon",
@@ -2035,9 +2049,9 @@ end
 
 -- Left of the name (past the group mark when that sits before it).
 function Plate.PlaceFaction(p)
-    local icon, name = p.factionIcon, p.name
-    local tw = textWidth(name, nil)
-    if not (icon and tw) then return false end
+    local icon = p.factionIcon
+    local edge = icon and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local c = Plate.Cfg(p)
     local nameSize = Plate.NameSize(p, c)
     local size = math.max(8, math.floor(nameSize * Plate.FACTION_SCALE + 0.5))
@@ -2048,14 +2062,7 @@ function Plate.PlaceFaction(p)
     end
     icon:SetSize(size, size)
     icon:ClearAllPoints()
-    local H = p.nameJustify or "CENTER"
-    if H == "LEFT" then
-        icon:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-    elseif H == "RIGHT" then
-        icon:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-    else
-        icon:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-    end
+    icon:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
     return true
 end
 

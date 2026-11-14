@@ -3975,9 +3975,18 @@ T.test("nameplates: Group mark marks your group's friendly plates beside the nam
     T.rgb(p.name.__textColor, class, "the name keeps its class color")
     T.rgb({ m.before:GetVertexColor() }, DUI:Get("Nameplates", "friendly.partyCustom"), "in the group color")
     local _, rel = m.before:GetPoint(1)
-    T.eq(rel, p.name, "by the name")
+    T.eq(rel, p.nameEdge, "by the name's letters")
+    T.eq(stub.Text(p.nameEdge), stub.Text(p.name), "the unseen copy holds the name")
+    T.eq(p.nameEdge:GetAlpha(), 0, "and is never seen")
     set("friendly.partyMark", "around"); stub.RunTimers()
     T.truthy(m.before:IsShown() and m.after:IsShown(), "one each side")
+    -- A name that can't be measured (a secret one) keeps its marks: nothing reads its width.
+    local Plate = stub.nameplates.Plate
+    stub.units.nameplate2.name = stub.Secret("Jaina")
+    Plate.UpdateNameColor(p); stub.RunTimers()
+    T.truthy(m.before:IsShown() and m.after:IsShown(), "a secret name still gets its marks")
+    stub.units.nameplate2.name = "Jaina"
+    Plate.UpdateNameColor(p); stub.RunTimers()
     stub.units.nameplate2.party = nil
     stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.RunTimers()
     T.falsy(m.before:IsShown() or m.after:IsShown(), "left the group: no mark")
@@ -4011,7 +4020,7 @@ T.test("nameplates: a player of the other faction gets the faction crest by the 
     T.truthy(foe.factionIcon:IsShown(), "on by default, on the other faction's player")
     T.eq(foe.factionIcon.__atlas, "UI-HUD-UnitFrame-Player-PVP-AllianceIcon", "their faction's crest")
     local _, rel = foe.factionIcon:GetPoint(1)
-    T.eq(rel, foe.name, "by the name")
+    T.eq(rel, foe.nameEdge, "by the name's letters")
     T.falsy(friend.factionIcon:IsShown(), "none on your own faction")
     -- Not flagged for PvP, the other faction reads friendly, but the crest still says who they are.
     stub.units.nameplate2.faction = "Alliance"
