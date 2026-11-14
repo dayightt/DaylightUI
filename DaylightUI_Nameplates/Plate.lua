@@ -1877,8 +1877,12 @@ end
 -- whatever shares their spot and push nothing. The skull never takes space at
 -- all, since its frame shows with any DoT up and only a secret-safe clip decides
 -- whether you see it, so nothing can line up against it.
-Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc", "defensives" }
-Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "skull" }
+-- The big defensive came later and goes after the older pieces: a row keeps its
+-- room with no aura up, so anywhere earlier it would push pieces players had
+-- already placed beside the bar. It still goes before the skull, which steps
+-- back over the rows' room.
+Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
+Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "defensives", "skull" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
     quest = { spot = "questPos", x = "questX", y = "questY" },
