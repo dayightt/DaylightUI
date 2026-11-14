@@ -61,7 +61,7 @@ DUI.PatchNotes = {
             { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
             { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
-            { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
+            { "Cooldown Manager", "A group set to grow from the middle stays centered as spells come and go, on every row, like when a druid changes form" },
             { "Action bars", "No more floods of SetCooldown errors or \"the game blocked MultiBar...SetShown\" warnings from the action bars in dungeons and fights" },
             { "Professions", "With What's Training installed, the profession window has a What's Training link to its list of recipes you can still learn" },
             { "Windows", "A picked row in lists like your professions and mail no longer looks cut off at the bottom. Thanks to Ángel" },

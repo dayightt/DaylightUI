@@ -206,6 +206,38 @@ T.test("cdm data: a chain out both sides of its first piece stays centered", fun
     T.eq(D.Layout(set, { [14] = true })[14].x, 80, "end: the far end stays")
 end)
 
+-- A player's druid: two rows started from the right end (the first spell has the
+-- second row under it and the first row on its left). With Grow from Middle only
+-- the column through the first spell was centered, so changing form added and
+-- dropped icons at one end and left the rows off the middle.
+T.test("cdm data: every row of a group growing from its middle stays centered", function()
+    local D = data()
+    local set = empty()
+    D.AddPiece(set, 1, "icon", 0, 0)
+    D.AddPiece(set, 2, "icon", 0, 0); D.Hook(set, 2, 1, "left")
+    D.AddPiece(set, 3, "icon", 0, 0); D.Hook(set, 3, 2, "left")
+    D.AddPiece(set, 4, "icon", 0, 0); D.Hook(set, 4, 1, "down")
+    D.AddPiece(set, 5, "icon", 0, 0); D.Hook(set, 5, 4, "left")
+    D.AddPiece(set, 6, "icon", 0, 0); D.Hook(set, 6, 5, "left")
+    D.SetChainValue(set, 1, "grow", "center")
+    local F = D.Layout(set)
+    local mid1 = (F[3].x + F[1].x + F[1].w) / 2
+    local mid2 = (F[6].x + F[4].x + F[4].w) / 2
+    local L = D.Layout(set, { [1] = true, [3] = true, [4] = true, [5] = true, [6] = true })
+    T.eq((L[3].x + L[1].x + L[1].w) / 2, mid1, "the top row keeps its middle")
+    T.eq((L[6].x + L[4].x + L[4].w) / 2, mid2, "the full row under it stays where it was")
+    T.eq(L[4].x, F[4].x)
+    L = D.Layout(set, { [1] = true, [2] = true, [3] = true, [4] = true, [6] = true })
+    T.eq((L[3].x + L[1].x + L[1].w) / 2, mid1, "the full top row stays")
+    T.eq(L[1].x, F[1].x)
+    T.eq((L[6].x + L[4].x + L[4].w) / 2, mid2, "the bottom row keeps its middle")
+    -- end: each row keeps its far end
+    D.SetChainValue(set, 1, "grow", "end")
+    L = D.Layout(set, { [1] = true, [3] = true, [4] = true, [6] = true })
+    T.eq(L[3].x, F[3].x, "the top row's far end stays")
+    T.eq(L[6].x, F[6].x, "the bottom row's too")
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)

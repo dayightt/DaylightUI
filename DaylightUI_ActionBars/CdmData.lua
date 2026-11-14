@@ -775,11 +775,33 @@ local function edges(boxes, list, axis, skipHidden)
     return lo, hi
 end
 
+-- The side a line runs to from id along an axis: its first child on that axis.
+local function lineSide(set, id, axis)
+    local k = Data.Index(set).kids[id]
+    if not k then return nil end
+    for _, side in ipairs(Data.SIDES) do if k[side] and AXIS[side] == axis then return side end end
+end
+
+-- The axis a chain's rows run along: the longer straight run out of its first
+-- piece (a group of two rows started from its right end has the second row under
+-- that first piece, and only the run to its left says the rows are across).
+local function rowAxis(set, root)
+    local best, axis = 0, nil
+    for _, side in ipairs(Data.SIDES) do
+        if Data.Child(set, root, side) then
+            local n = #run(set, root, side) + #run(set, root, OPPOSITE[side]) - 1
+            if n > best then best, axis = n, AXIS[side] end
+        end
+    end
+    return axis
+end
+
 -- Every piece's box, { [id] = { x, y, w, h, hidden } }. shown = { [id] = true } for
--- the pieces currently up (nil = all). A hidden piece collapses along its side. A
--- chain growing from its middle or end shifts so that point of its line (both
--- runs out of the first piece along its run side's axis) stays where it would be
--- with everything shown.
+-- the pieces currently up (nil = all). A hidden piece collapses along its side. In a
+-- chain growing from its middle or end, each row (a straight line of pieces along
+-- the chain's row axis) shifts so its middle or far end stays where it would be with
+-- everything shown. The pieces hung off a row move with it, then line up their own
+-- row the same way.
 function Data.Layout(set, shown)
     local out = {}
     lay(set, shown, out)
@@ -787,26 +809,33 @@ function Data.Layout(set, shown)
     local full
     for _, root in ipairs(Data.Index(set).roots) do
         local grow = Data.ChainValue(set, root, "grow")
-        local side = (grow == "center" or grow == "end") and runSide(set, root)
-        if side then
+        local axis = (grow == "center" or grow == "end") and rowAxis(set, root)
+        if axis then
             if not full then full = {}; lay(set, nil, full) end
-            local list, axis = run(set, root, side), AXIS[side]
-            local back = run(set, root, OPPOSITE[side])
-            for i = 2, #back do list[#list + 1] = back[i] end
-            local fullLo, fullHi = edges(full, list, axis)
-            local lo, hi = edges(out, list, axis, true)
-            -- Nothing up on the line itself: measure where it collapsed to.
-            if not lo then lo, hi = edges(out, list, axis) end
-            local shift = 0
-            if lo and grow == "center" then
-                shift = (fullLo + fullHi) / 2 - (lo + hi) / 2
-            elseif lo then
-                shift = SIGN[side] > 0 and fullHi - hi or fullLo - lo
-            end
-            if shift ~= 0 then
-                for _, id in ipairs(Data.Subtree(set, root)) do
-                    local b = out[id]
-                    if axis == "x" then b.x = b.x + shift else b.y = b.y + shift end
+            for _, id in ipairs(Data.Subtree(set, root)) do
+                local p = set.pieces[id]
+                local starts = id == root or not (p and p.side and AXIS[p.side] == axis)
+                local side = starts and lineSide(set, id, axis)
+                if side then
+                    local list = run(set, id, side)
+                    local back = run(set, id, OPPOSITE[side])
+                    for i = 2, #back do list[#list + 1] = back[i] end
+                    local fullLo, fullHi = edges(full, list, axis)
+                    local lo, hi = edges(out, list, axis, true)
+                    -- Nothing up on the line itself: measure where it collapsed to.
+                    if not lo then lo, hi = edges(out, list, axis) end
+                    local shift = 0
+                    if lo and grow == "center" then
+                        shift = (fullLo + fullHi) / 2 - (lo + hi) / 2
+                    elseif lo then
+                        shift = SIGN[side] > 0 and fullHi - hi or fullLo - lo
+                    end
+                    if shift ~= 0 then
+                        for _, c in ipairs(Data.Subtree(set, id)) do
+                            local b = out[c]
+                            if axis == "x" then b.x = b.x + shift else b.y = b.y + shift end
+                        end
+                    end
                 end
             end
         end
