@@ -1022,7 +1022,11 @@ local function applyAlpha(item)
     local b, state = opts[item], cdState[item]
     local mode = state == true and Fx.Get(b, "onCd") or state == false and Fx.Get(b, "onReady") or "show"
     local outOfForm = offForm(b)
-    if state == false and castable[item] == false and Fx.Get(b, "onUnusable") ~= "show" then
+    -- While its buff is up, Buff up decides (Show, or Hide below): a buff that
+    -- starts the cooldown would otherwise sit faded the whole time it's up.
+    if down[item] == false then
+        mode = "show"
+    elseif state == false and castable[item] == false and Fx.Get(b, "onUnusable") ~= "show" then
         mode = Fx.Get(b, "onUnusable")
     elseif state == false and short[item] and Fx.Get(b, "onShort") ~= "show" then
         mode = Fx.Get(b, "onShort")

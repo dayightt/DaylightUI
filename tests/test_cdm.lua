@@ -3307,6 +3307,38 @@ T.test("cdm hide up: Cooldown and buff hides our cooldown icon while the buff is
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Berserking set to Both, Fade on cooldown, Buff up Show: the buff starts the
+-- cooldown, and the icon showed faded the whole time the buff was up.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm buff up: Cooldown and buff stays bright while its buff is up, fades on cooldown after (" .. shape .. ")", function()
+    local DUI, AB, E, D = editorWorld()
+    DUI.DB.General().motion = false
+    withCategories({ [2] = { 41 } }, { [2] = { 41 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    _G.GetSpellBaseCooldown = function(sid) return sid == 141 and 15000 or 0 end
+    local cds = {}
+    C_Spell.GetSpellCooldown = function(sid) return cds[sid] end
+    local set = D.Current()
+    addBlock(D, set, shape); place(D, set, 41, 1, 1)
+    T.truthy(D.SetSpellValue(set, 41, "onCd", "fade"))
+    T.truthy(D.SetSpellValue(set, 41, "cdAlpha", 0.4))
+    cds[141] = { duration = 180, isOnGCD = false }
+    stub.auras.player = { HELPFUL = { { spellId = 141 } } }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(41), "aura and cooldown " .. shape)
+    local own = shape == "icon" and AB.CdmOwn.Frame(41) or AB.CdmBars.AuraFrame(41)
+    T.eq(own:GetAlpha(), 1, "buff up: shown, not faded")
+    stub.auras.player = { HELPFUL = {} }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.eq(own:GetAlpha(), 0.4, "buff gone, still on cooldown: faded")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- Hidden while its buff was up, the addon's cooldown icon kept its spot in a
 -- group growing from its middle.
 T.test("cdm hide up: Cooldown and buff hidden while up gives its spot up, back when it drops", function()

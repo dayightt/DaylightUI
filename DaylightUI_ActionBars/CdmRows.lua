@@ -517,12 +517,18 @@ function Rows.Update()
                 -- Otherwise a missing buff set to Show stayed off the group's middle.
                 local hideSlides = canSlide and hide
                 local glowUp = Fx.UpGlows(p)
-                holder.wantsUp = (hide or sound or ends or slides or glowUp or Fx.Get(p, "missingGlow") == true) or nil
+                -- A cooldown with its buff over it, faded or hidden on cooldown or
+                -- while ready: while the buff is up it shows (CdmEffects), so it
+                -- needs the ups too.
+                local cdFx = drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
+                    and (Fx.Get(p, "onCd") ~= "show" or Fx.Get(p, "onReady") ~= "show"
+                        or Fx.Get(p, "onUnusable") ~= "show" or Fx.Get(p, "onShort") ~= "show")
+                holder.wantsUp = (hide or sound or ends or slides or glowUp or cdFx or Fx.Get(p, "missingGlow") == true) or nil
                 holder.soundPiece, holder.soundItem = sound and p or nil, sound and item or nil
                 if holder.wantsUp then
                     local seen = auraItems[id] or (awayAura and away)
                     local up = seen and ns.CdmAuras.Told(holder, seen:IsShown()) or ns.CdmAuras.IsUp(holder)
-                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp))) then downs[id] = not up end
+                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or cdFx))) then downs[id] = not up end
                     -- Only a known "down"; one we can't tell keeps its spot.
                     closedNow = (slides and up == false) or (hideSlides and up == true)
                     if closedNow and up == true then closedUp[id] = true end
