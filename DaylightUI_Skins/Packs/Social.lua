@@ -541,34 +541,76 @@ end
 Engine.Window({ key = "calendar", pack = "social", addon = "Blizzard_Calendar", frame = "CalendarFrame", watch = true })
 
 -- Trade: both sides' items and money, and the Trade/Cancel buttons. Kit.Auto
--- finds most of it, the money boxes included. Each item row (TradeItemTemplate)
--- is a plain frame holding the slot and its name: a short list's row, as in the
--- loot window, and the slot inside it gets the item look.
+-- finds most of it. Your own money boxes are forbidden frames (TradeFrame_OnLoad
+-- calls SetForbidden on them), so they keep the game's look: no addon can touch
+-- them. Each item row (TradeItemTemplate) is a plain frame holding the slot and
+-- its name, drawn as a list line with the slot in the item look.
+local Trade = {}
+ns.Trade = Trade
+Trade.NAME_X = 14        -- the names line up with the item slots under them
+Trade.THEIR_X = 182
+Trade.HEAD_TOP = -8      -- the header band, between the accent line and the money row
+Trade.HEAD_BOTTOM = -54
+Trade.BUTTON_W = 110
+Trade.BUTTON_GAP = 8
+Trade.BUTTON_Y = 6
+Trade.ACCEPT_WASH = 0.08 -- how strongly an accepted side is tinted
+
 local function tradeItems(Kit, prefix)
     for i = 1, 7 do
         local row = _G[prefix .. i]
         local slot = _G[prefix .. i .. "ItemButton"]
-        if type(row) == "table" then Kit.Row(row, nil, nil, nil, slot) end
+        if type(row) == "table" then Kit.Row(row, nil, nil, false, slot) end
         if type(slot) == "table" then Kit.Item(slot) end
     end
 end
 
+-- Each name in its class color, read when the window opens: the game sets the
+-- names on TRADE_SHOW, just before.
+local function classColored(fs, unit)
+    if type(fs) ~= "table" then return end
+    local _, token = UnitClass(unit)
+    fs:SetTextColor(DUI.Style.ClassTextColor(token))
+end
+
+function Trade.PaintNames()
+    classColored(_G.TradeFramePlayerNameText, "player")
+    classColored(_G.TradeFrameRecipientNameText, "NPC")   -- the game's unit for the other trader
+end
+
+-- The game shows green art over a side once it accepts. Ours: an outline and a
+-- faint wash in the "good" color, easing in.
+local accepted = setmetatable({}, { __mode = "k" }) -- the game's highlight -> ours
+local function acceptLook(Kit, h)
+    if type(h) ~= "table" or not h.HookScript or accepted[h] then return end
+    Kit.Strip(h)
+    local look = CreateFrame("Frame", nil, h)
+    look:SetAllPoints(h)
+    look:EnableMouse(false)
+    local good = DUI.Style.INK.GOOD
+    Kit.Paint(Kit.Shell(look, "row", { noBackground = true }), good)
+    local wash = look:CreateTexture(nil, "BACKGROUND")
+    wash:SetAllPoints(look)
+    wash:SetColorTexture(good[1], good[2], good[3], Trade.ACCEPT_WASH)
+    accepted[h] = look
+    h:HookScript("OnShow", function()
+        look:SetAlpha(0)
+        DUI.Motion.AlphaTo(look, 1, DUI.Motion.FAST)
+    end)
+end
+
 Engine.Window({ key = "trade", pack = "social", frame = "TradeFrame",
     after = function(Kit, f)
+        local Style = DUI.Style
         tradeItems(Kit, "TradePlayerItem")
         tradeItems(Kit, "TradeRecipientItem")
-        for _, name in ipairs({ "TradePlayerInputMoneyFrame", "TradeRecipientMoneyFrame" }) do
-            local mf = _G[name]
-            if type(mf) == "table" then Kit.Strip(mf) end
-        end
-        -- Their money sits on a gold-edged box: the same box as yours instead.
+        Kit.Strip(_G.TradeRecipientMoneyFrame)
+        -- Their money sits on a gold-edged box: a text box's look instead.
         local theirBox = _G.TradeRecipientMoneyBg
         if type(theirBox) == "table" and not Kit.ShellOf(theirBox) then
             Kit.Strip(theirBox)
             Kit.Shell(theirBox, "input")
         end
-        Kit.Button(f.TradeButton or _G.TradeFrameTradeButton)
-        Kit.Button(f.CancelButton or _G.TradeFrameCancelButton)
         -- The other player's round portrait and gold ring are on their own
         -- frame (RecipientOverlay, level 550, above the names), so the window
         -- strip misses them. Erased like every skinned window's portrait.
@@ -577,24 +619,50 @@ Engine.Window({ key = "trade", pack = "social", frame = "TradeFrame",
             Kit.Erase(overlay.portrait)
             Kit.Erase(overlay.portraitFrame)
         end
-        -- The two names sit in fixed boxes (TradeFrame.xml: yours 100 wide at
-        -- x 65, theirs 80 at x 230), too narrow for a first and last name in our
-        -- font. Each gets its half of the title row instead: yours from the left
-        -- edge to the middle, theirs from TradeRecipientBG (-172) to the X. A
-        -- very long name may still wrap to a second line.
+        -- The two names head their columns. Their own boxes (TradeFrame.xml:
+        -- yours 100 wide, theirs 80) are too narrow for a first and last name,
+        -- so each gets its column's width and the band down to the money row,
+        -- a long name wrapping to a second line.
         local mine, theirs = _G.TradeFramePlayerNameText, _G.TradeFrameRecipientNameText
         if mine and theirs then
             mine:ClearAllPoints()
-            mine:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -5)
-            mine:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -184, -33)
+            mine:SetPoint("TOPLEFT", f, "TOPLEFT", Trade.NAME_X, Trade.HEAD_TOP)
+            mine:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", Trade.THEIR_X - 16, Trade.HEAD_BOTTOM)
             theirs:ClearAllPoints()
-            theirs:SetPoint("TOPLEFT", f, "TOPRIGHT", -166, -5)
-            theirs:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -30, -33)
+            theirs:SetPoint("TOPLEFT", f, "TOPLEFT", Trade.THEIR_X, Trade.HEAD_TOP)
+            theirs:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -30, Trade.HEAD_BOTTOM)
             for _, fs in ipairs({ mine, theirs }) do
+                Kit.Font(fs, Style.SIZE.head)
                 fs:SetWordWrap(true)
                 fs:SetMaxLines(2)
-                fs:SetJustifyV("TOP")
+                fs:SetJustifyH("LEFT")
+                fs:SetJustifyV("MIDDLE")
             end
+            Trade.PaintNames()
+            if not Trade.hooked then
+                Trade.hooked = true
+                f:HookScript("OnShow", Trade.PaintNames)
+            end
+        end
+        -- "Will not be traded" is a label over the last slot.
+        for _, name in ipairs({ "TradeFramePlayerEnchantText", "TradeFrameRecipientEnchantText" }) do
+            Kit.Font(_G[name], Style.SIZE.small, Style.INK.LABEL)
+        end
+        for _, name in ipairs({ "TradeHighlightPlayer", "TradeHighlightRecipient",
+                                "TradeHighlightPlayerEnchant", "TradeHighlightRecipientEnchant" }) do
+            acceptLook(Kit, _G[name])
+        end
+        -- Trade and Cancel as a footer: centered, the same width, the main one first.
+        local trade, cancel = f.TradeButton or _G.TradeFrameTradeButton, f.CancelButton or _G.TradeFrameCancelButton
+        Kit.Button(trade)
+        Kit.Button(cancel)
+        if type(trade) == "table" and type(cancel) == "table" then
+            trade:ClearAllPoints()
+            trade:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -Trade.BUTTON_GAP / 2, Trade.BUTTON_Y)
+            cancel:ClearAllPoints()
+            cancel:SetPoint("BOTTOMLEFT", f, "BOTTOM", Trade.BUTTON_GAP / 2, Trade.BUTTON_Y)
+            trade:SetWidth(Trade.BUTTON_W)
+            cancel:SetWidth(Trade.BUTTON_W)
         end
     end })
 

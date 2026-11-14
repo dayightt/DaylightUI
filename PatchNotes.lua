@@ -17,7 +17,7 @@ DUI.PatchNotes = {
             { "Unit frames", "Portraits can be square, or square with an angled side like the frames: Unit frames > Extras" },
         },
         changed = {
-            { "Window skins", "Item slots and coins in the game's windows (trade, loot, guild bank and more) now match Daylight UI's bags and windows" },
+            { "Window skins", "Item slots and coins in the game's windows (loot, guild bank and more) now match Daylight UI's bags, and the trade window has a cleaner layout" },
         },
     },
     { version = "1.8.0", date = "2026-11-14", summary = "See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.",

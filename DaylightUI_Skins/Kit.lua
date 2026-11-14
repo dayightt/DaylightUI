@@ -1672,14 +1672,18 @@ local function iconOf(btn)
 end
 
 local itemShades = setmetatable({}, { __mode = "k" }) -- item button -> its inner shadow
+local itemBacks = setmetatable({}, { __mode = "k" })  -- item button -> the black square under its icon
 
 function Kit.SlotQuality(btn)
     local s = slots[btn]
     if not s then return end
-    -- The inner shadow only over an item, as in the bags: an empty slot stays flat.
-    local shade, icon = itemShades[btn], iconOf(btn)
-    if shade and kind(icon) == "Texture" then
-        shade:SetShown(icon:IsShown() and icon:GetTexture() ~= nil)
+    -- The black square and inner shadow only under an item, as in the bags:
+    -- an empty slot is just its outline.
+    local icon = iconOf(btn)
+    if kind(icon) == "Texture" then
+        local filled = icon:IsShown() and icon:GetTexture() ~= nil
+        if itemShades[btn] then itemShades[btn]:SetShown(filled) end
+        if itemBacks[btn] then itemBacks[btn]:SetShown(filled) end
     end
     local border = btn.IconBorder
     local color = Kit.EMPTY_ITEM_BORDER
@@ -1753,6 +1757,7 @@ function Kit.Item(btn)
     local back = btn:CreateTexture(nil, "BACKGROUND", nil, -8)
     back:SetColorTexture(0, 0, 0, 1)
     if kind(icon) == "Texture" and wide(btn) then back:SetAllPoints(icon) else back:SetAllPoints(btn) end
+    if kind(icon) == "Texture" then itemBacks[btn] = back end
     if kind(icon) == "Texture" then Style.CropIcon(icon) end
     for _, key in ipairs({ "NameFrame", "Border" }) do Kit.Hide(btn[key]) end
     -- The quest item border is drawn at the default item size, so make it

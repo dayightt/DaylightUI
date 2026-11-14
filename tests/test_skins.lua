@@ -118,6 +118,12 @@ local function world()
         box.texture:SetAtlas("coin-" .. coin)
         mf[coin] = box
     end
+    -- TradeFrame_OnLoad: TradePlayerInputMoneyFrame:SetForbidden().
+    mf.__forbidden = true
+    -- TradeHighlightTemplate: green art, shown while that side has accepted.
+    local h = CreateFrame("Frame", "TradeHighlightRecipient", trade)
+    h.art = h:CreateTexture()
+    h:Hide()
     -- The game's money redraw (MoneyFrame.lua); the skin post-hooks it.
     _G.MoneyFrame_Update = function() end
     -- SmallMoneyFrameTemplate: a coin button per coin (MoneyFrame.xml).
@@ -399,20 +405,17 @@ T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function
     local slot = TradePlayerItem1ItemButton
     T.eq(slot.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
     T.truthy(Kit.ShellOf(slot), "the slot wears the item look")
-    T.truthy(Kit.RowOf(TradePlayerItem1), "the row is a short list's row, as in the loot window")
-    T.truthy(Kit.ShellOf(TradePlayerItem1) ~= Kit.ShellOf(slot), "the row's box is its own, not an item edge")
+    T.truthy(Kit.RowOf(TradePlayerItem1), "the row is a list line")
+    T.falsy(Kit.ShellOf(TradePlayerItem1), "no box round the row")
     T.eq(TradePlayerItem1.SlotTexture:GetAlpha(), 0, "the row's slot art gone")
     T.eq(TradePlayerItem1NameFrame:GetAlpha(), 0, "the row's name frame gone")
     -- The same item edge as the bags: a full shell, the band a dimmer copy.
     Kit.Paint(Kit.ShellOf(slot), { 0, 0.44, 0.87 })
     local band = Kit.ShellOf(slot).opts.bandColor
     T.truthy(band and math.abs(band[3] - 0.87 * DaylightUI.Char.Slots.BAND_DIM) < 1e-6, "the band dimmed like the bags'")
-    T.eq(TradePlayerInputMoneyFrame.Bg:GetAlpha(), 0, "the money box's own art gone")
-    for _, coin in ipairs({ "gold", "silver", "copper" }) do
-        local box = TradePlayerInputMoneyFrame[coin]
-        T.truthy(tostring(box.texture:GetTexture()):find("coin-" .. coin .. ".png", 1, true), "our " .. coin .. " coin in its box")
-        T.truthy(Kit.InputOf(box), "the " .. coin .. " box in our text box look")
-    end
+    -- Your money boxes are forbidden in game: left alone, and nothing errors.
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(Kit.InputOf(rawget(TradePlayerInputMoneyFrame, "gold")), "the forbidden boxes untouched")
     local gold = TradeRecipientMoneyFrame.GoldButton:GetNormalTexture()
     T.truthy(tostring(gold:GetTexture()):find("coin-gold.png", 1, true), "their money in our coins")
     T.truthy(stub.skins.Kit.ButtonOf(TradeFrameTradeButton), "the Trade button, flat")
@@ -421,8 +424,38 @@ T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function
     -- frame, over the names), and their name gets its whole side
     T.eq(TradeFrame.RecipientOverlay.portrait:GetAlpha(), 0, "their portrait gone")
     T.eq(TradeFrame.RecipientOverlay.portraitFrame:GetAlpha(), 0, "its gold ring gone")
-    local _, _, _, left = TradeFrameRecipientNameText:GetPoint(1)
-    T.eq(left, -166, "their name starts at their side, not after the portrait")
+    local Trade = stub.skins.Trade
+    local _, rel, relPoint, left = TradeFrameRecipientNameText:GetPoint(1)
+    T.eq(rel, TradeFrame); T.eq(relPoint, "TOPLEFT")
+    T.eq(left, Trade.THEIR_X, "their name heads their column, not after the portrait")
+    -- An empty slot is just its outline, as in the bags.
+    slot.icon:SetTexture(nil)
+    Kit.SlotQuality(slot)
+    local backs = 0
+    for _, r in ipairs({ slot:GetRegions() }) do
+        if r:GetObjectType() == "Texture" and r:GetDrawLayer() == "BACKGROUND" and r:IsShown() and r:GetAlpha() > 0 then backs = backs + 1 end
+    end
+    T.eq(backs, 0, "no black square under an empty slot")
+    -- Trade and Cancel: a footer, centered, the same width.
+    T.eq(select(3, TradeFrameTradeButton:GetPoint(1)), "BOTTOM")
+    T.eq(select(3, TradeFrameCancelButton:GetPoint(1)), "BOTTOM")
+    T.eq(TradeFrameTradeButton:GetWidth(), TradeFrameCancelButton:GetWidth())
+end)
+
+T.test("skins: trade shows the other side's accept in the good color, easing in", function()
+    login()
+    local h = TradeHighlightRecipient
+    local art = h.art
+    TradeFrame:Show()
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0, "the game's green art gone")
+    local ours = h:GetChildren()
+    T.truthy(ours, "a look of ours on it")
+    h:Show()
+    T.truthy(ours:GetAlpha() < 1, "eases in, never pops")
+    for _ = 1, 40 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.02) end
+    T.eq(ours:GetAlpha(), 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: a window from a game addon that loads later is skinned when it loads", function()
@@ -941,6 +974,20 @@ T.test("skins: money (gold, silver, copper) wears Daylight UI's coins, never a b
     T.isnil(stub.skins.Kit.ShellOf(money.GoldButton), "no button look on it")
     T.eq(coin:GetAlpha(), 1, "a coin beside an amount isn't button art")
     T.isnil(stub.skins.Kit.ShellOf(loose))
+    -- A money input that isn't forbidden (the auction house's): our boxes and coins.
+    local input = CreateFrame("Frame", nil, f)
+    for _, c in ipairs({ "gold", "silver", "copper" }) do
+        local box = CreateFrame("EditBox", nil, input)
+        box.Left, box.Right, box.Middle = box:CreateTexture(), box:CreateTexture(), box:CreateTexture()
+        box.texture = box:CreateTexture()
+        box.texture:SetAtlas("coin-" .. c)
+        input[c] = box
+    end
+    Kit.Auto(f)
+    for _, c in ipairs({ "gold", "silver", "copper" }) do
+        T.truthy(tostring(input[c].texture:GetTexture()):find("coin-" .. c .. ".png", 1, true), "our " .. c .. " coin in its box")
+        T.truthy(Kit.InputOf(input[c]), "the " .. c .. " box in our text box look")
+    end
 end)
 
 T.test("skins: a window is gone over again when its pages are shown, only what's shown, not on a timer", function()
