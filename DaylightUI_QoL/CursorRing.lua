@@ -1,11 +1,12 @@
 -- A ring around the mouse cursor so it's easy to find in a busy fight. Off by
--- default. Drawn with a breathing bloom, a light running
--- around it and an optional trail.
+-- default. One clean line, with an optional glow, motion and trail.
 --
--- The global cooldown sweeps around the ring and your casts fill a thin outer
--- ring. Both use the client's Cooldown swipe fed with the game's duration
--- objects (spell 61304, UnitCastingDuration, UnitChannelDuration), so nothing
--- secret is timed or compared in Lua.
+-- Each timer has its own ring, so none of them muddies the cursor's: the global
+-- cooldown is a thin ring just outside that drains away, and your casts fill a
+-- ring further out with a spark at their tip. Both are the client's Cooldown
+-- swipe fed with the game's duration objects (spell 61304, UnitCastingDuration,
+-- UnitChannelDuration), so nothing secret is timed or compared in Lua. The spark
+-- reads your own cast times, which stay plain in every fight.
 --
 -- The OnUpdate only runs while the ring is shown. The frame takes no mouse input.
 
@@ -18,14 +19,17 @@ ns.CursorRing = Ring
 ns.features[#ns.features + 1] = Ring
 
 Ring.ART = DUI.MEDIA .. "cursor-ring.png"          -- one flat line at RADIUS of the frame (tools/make_cursor_ring.py)
+Ring.THIN_ART = DUI.MEDIA .. "cursor-ring-thin.png" -- the same circle, a thinner line
 Ring.BLOOM_ART = DUI.MEDIA .. "cursor-ring-glow.png" -- soft light peaking at half its half
 Ring.DOT_ART = DUI.MEDIA .. "glow.png"
 Ring.GCD_SPELL = 61304       -- the game's global cooldown
 Ring.RADIUS = 0.41           -- where the line sits, in frame widths (the art's own)
 Ring.BLOOM = 1.64            -- the glow's size, in frame widths: its peak on the line
 Ring.A_BLOOM = 0.4
-Ring.CAST = 1.3              -- the cast ring's size, in frame widths: clear of the line
+Ring.GCD = 1.35              -- the global cooldown's ring, in frame widths: just outside the line
+Ring.CAST = 1.75             -- the cast ring's, clear of both
 Ring.A_CAST = 0.9
+Ring.SPARK = 0.2             -- the light at the cast's tip, in frame widths
 Ring.DOTS = 10               -- the comet: head first
 Ring.DOT = 0.24              -- its head, in frame widths
 Ring.TAIL = 0.32             -- its tail, as a share of the way round
@@ -164,6 +168,21 @@ local function stepTrail(dt, x, y)
     t.live = live
 end
 
+-- The spark at the cast's tip, where the client's swipe has reached: it fills
+-- clockwise from the top.
+local function paintSpark()
+    local from, to = f.castFrom, f.castTo
+    if not (from and to and to > from) or cfg().cursorRingCast == false then f.spark:Hide(); return end
+    local p = (GetTime() - from) / (to - from)
+    if p < 0 or p >= 1 then f.spark:Hide(); return end
+    local r = f.size * Ring.CAST * Ring.RADIUS
+    local angle = p * 2 * math.pi
+    f.spark:ClearAllPoints()
+    f.spark:SetPoint("CENTER", f, "CENTER", math.sin(angle) * r, math.cos(angle) * r)
+    f.spark:SetAlpha(f.alpha)
+    f.spark:Show()
+end
+
 local function paint(dt)
     local d = cfg()
     local a, size = f.alpha, f.size
@@ -174,6 +193,8 @@ local function paint(dt)
     local breath = 1 + (deep and Ring.DEEP or Ring.BREATH) * wave
     if f.flash > 0 then f.flash = math.max(0, f.flash - dt / Motion.NORMAL) end
     local flash = 1 + Ring.FLASH * f.flash * f.flash
+    f.ping:SetAlpha(a * f.flash * f.flash)
+    paintSpark()
     -- The line itself stays at the opacity setting: the glow breathes and flashes.
     if d.cursorRingGlow ~= false then
         f.bloom:SetAlpha(math.min(1, Ring.A_BLOOM * (1 + 1.5 * (breath - 1)) * flash))
@@ -226,14 +247,22 @@ local function build()
     f.ring:SetAllPoints(f)
     f.dots = {}
     for i = 1, Ring.DOTS do f.dots[i] = layer(f, Ring.DOT_ART, "OVERLAY", 1) end
-    f.gcd = sweep(f, Ring.ART)
-    f.gcd:SetAllPoints(f)
+    f.gcd = sweep(f, Ring.THIN_ART)
+    f.gcd:SetPoint("CENTER", f, "CENTER", 0, 0)
+    -- What's left of it: drains away rather than fills.
+    f.gcd:SetReverse(false)
+    -- Lights up as the global cooldown ends.
+    f.ping = layer(f, Ring.THIN_ART, "OVERLAY", 2)
+    f.ping:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.ping:SetAlpha(0)
     -- The global cooldown ending: the ring flashes (the client says when).
     f.gcd:SetScript("OnCooldownDone", function()
         if cfg().cursorRingFlash ~= false and f:IsShown() then f.flash = 1 end
     end)
     f.cast = sweep(f, Ring.ART)
     f.cast:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.spark = layer(f, Ring.DOT_ART, "OVERLAY", 3)
+    f.spark:Hide()
     -- The trail lies on the screen, not on the ring: it stays where it was left.
     f.trail = { next = 0 }
     for i = 1, Ring.TRAIL do
@@ -255,11 +284,17 @@ function Ring.Paint()
     f.alpha, f.size = a, size
     f:SetSize(size, size)
     gradient(f.ring, lo, hi, a)
-    -- The global cooldown: near-white light sweeping over the line.
-    local swipe = lift(hi, 0.65)
+    -- The global cooldown: a thin, near-white ring of its own.
+    local swipe = lift(hi, 0.75)
+    f.gcd:SetSize(size * Ring.GCD, size * Ring.GCD)
     f.gcd:SetSwipeColor(swipe[1], swipe[2], swipe[3], a)
+    f.ping:SetSize(size * Ring.GCD, size * Ring.GCD)
+    f.ping:SetVertexColor(swipe[1], swipe[2], swipe[3], 1)
     f.cast:SetSize(size * Ring.CAST, size * Ring.CAST)
     f.cast:SetSwipeColor(lo[1], lo[2], lo[3], a * Ring.A_CAST)
+    local sc = lift(hi, 0.6)
+    f.spark:SetVertexColor(sc[1], sc[2], sc[3], 1)
+    f.spark:SetSize(size * Ring.SPARK, size * Ring.SPARK)
     f.bloom:SetShown(d.cursorRingGlow ~= false)
     f.bloom:SetSize(size * Ring.BLOOM, size * Ring.BLOOM)
     gradient(f.bloom, lo, hi, a)
@@ -287,8 +322,9 @@ function Ring.Gcd()
     if secret(start) or secret(length) then
         if secret(info.isActive) or info.isActive ~= true then return end
         local get = C_Spell.GetSpellCooldownDuration
-        local d = type(get) == "function" and get(Ring.GCD_SPELL) or nil
-        if type(d) ~= "nil" then pcall(f.gcd.SetCooldownFromDurationObject, f.gcd, d) end
+        local okD, d = false, nil
+        if type(get) == "function" then okD, d = pcall(get, Ring.GCD_SPELL) end
+        if okD and type(d) ~= "nil" then pcall(f.gcd.SetCooldownFromDurationObject, f.gcd, d) end
     elseif type(start) == "number" and type(length) == "number" and start > 0 and length > 0 then
         f.gcd:SetCooldown(start, length)
     end
@@ -306,11 +342,23 @@ function Ring.Cast(event)
         d = UnitCastingDuration and UnitCastingDuration("player")
         if type(d) == "nil" then d = UnitChannelDuration and UnitChannelDuration("player") end
     end
-    if type(d) == "nil" then f.cast:Clear(); return end
+    if type(d) == "nil" then f.cast:Clear(); f.castFrom, f.castTo = nil, nil; return end
     pcall(f.cast.SetCooldownFromDurationObject, f.cast, d, true)
+    -- Your own cast times stay plain; anything secret just leaves the spark out.
+    local _, _, _, from, to = UnitCastingInfo("player")
+    if type(from) == "nil" then _, _, _, from, to = UnitChannelInfo("player") end
+    if type(from) == "number" and type(to) == "number" and not secret(from) and not secret(to) then
+        f.castFrom, f.castTo = from / 1000, to / 1000
+    else
+        f.castFrom, f.castTo = nil, nil
+    end
 end
 
-local function castOver() if f then f.cast:Clear() end end
+local function castOver()
+    if not f then return end
+    f.cast:Clear()
+    f.castFrom, f.castTo = nil, nil
+end
 
 -- Shown or not, as the settings and the fight say: in at FAST (a fight
 -- needs it at once), out at NORMAL.

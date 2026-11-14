@@ -1887,6 +1887,45 @@ T.test("qol: the old object glow's soft-target settings go back once, kept value
     _G.GetCVar, _G.SetCVar, _G.C_CVar = getC, setC, cc
 end)
 
+-- Each timer on its own ring, so none muddies the cursor's line: the global
+-- cooldown a thin ring just outside that drains, the cast one further out with a
+-- spark at its tip. Clean and still by default.
+T.test("cursor ring: the global cooldown and the cast each have their own ring, the cast a spark at its tip", function()
+    stub.Load({ qol = true })
+    local m = DaylightUI:GetModule("QoL")
+    local R = m.ns.CursorRing
+    T.eq(m.db.cursorRingMotion, "still", "no light running round by default")
+    T.eq(m.db.cursorRingGlow, false, "and no glow")
+    m.db.cursorRing = true
+    m:OnSettingChanged()
+    local f = _G.DaylightUICursorRing
+    T.falsy(f.dots[1]:IsShown())
+    T.falsy(f.bloom:IsShown())
+    T.near(f.gcd:GetWidth(), 40 * R.GCD, 0.01, "the global cooldown just outside the line")
+    T.truthy(R.GCD > 1 and R.CAST > R.GCD, "the cast further out still")
+    T.near(f.cast:GetWidth(), 40 * R.CAST, 0.01)
+    T.eq(f.gcd.__swipeTexture or R.THIN_ART, R.THIN_ART, "a thinner line")
+    stub.units.player = stub.units.player or { name = "You" }
+    local now = GetTime()
+    stub.units.player.cast = { name = "Fireball", duration = stub.Duration(2) }
+    local info = _G.UnitCastingInfo
+    _G.UnitCastingInfo = function(u)
+        if u == "player" and stub.units.player.cast then return "Fireball", "", 0, (now - 0.5) * 1000, (now + 1.5) * 1000 end
+    end
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    f:GetScript("OnUpdate")(f, 0)
+    T.truthy(f.spark:IsShown(), "a spark at the cast's tip")
+    local _, _, _, x, y = f.spark:GetPoint(1)
+    local r = 40 * R.CAST * R.RADIUS
+    T.near(x, r, 0.5, "a quarter in: at three o'clock"); T.near(y, 0, 0.5)
+    stub.units.player.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "player")
+    f:GetScript("OnUpdate")(f, 0)
+    T.falsy(f.spark:IsShown(), "gone with the cast")
+    _G.UnitCastingInfo = info
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cursor ring: follows the cursor, in a fight only when asked, gone (and still) once faded", function()
     stub.Load({ qol = true })
     local m = DaylightUI:GetModule("QoL")
@@ -1922,6 +1961,7 @@ T.test("cursor ring: the accent's gradient, a comet running round, casts, the fl
     local R = m.ns.CursorRing
     DUI:Set("general", "accent", "gradient")
     m.db.cursorRing = true
+    m.db.cursorRingMotion = "comet"
     m:OnSettingChanged()
     local f = _G.DaylightUICursorRing
     T.truthy(f and f:IsShown())
@@ -1967,11 +2007,14 @@ T.test("cursor ring: the accent's gradient, a comet running round, casts, the fl
     T.eq(f.gcd.__cooldown[1], 50); T.eq(f.gcd.__cooldown[2], 1.5)
     C_Spell.GetSpellCooldown = read
 
-    -- The global cooldown ending flashes the ring, then it settles.
+    -- The global cooldown ending lights its ring, then it settles.
     f.gcd:GetScript("OnCooldownDone")(f.gcd)
     T.eq(f.flash, 1)
+    f:GetScript("OnUpdate")(f, 0)
+    T.truthy(f.ping:GetAlpha() > 0.5, "its ring lights up")
     f:GetScript("OnUpdate")(f, 1)
     T.eq(f.flash, 0)
+    T.eq(f.ping:GetAlpha(), 0, "and goes dark again")
 
     -- The trail: dots left behind as the cursor moves, gone after their time.
     m.db.cursorRingTrail = true

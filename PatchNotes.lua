@@ -27,6 +27,7 @@ DUI.PatchNotes = {
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
+            { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
             { "Edit Mode", "Logging in or going through a loading screen no longer switches your own Edit Mode layout back to Daylight UI's" },
