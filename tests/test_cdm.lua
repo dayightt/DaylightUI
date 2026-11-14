@@ -5931,6 +5931,31 @@ local function customWorld(class)
     return AB, AB.CdmCustom, AB.CdmData
 end
 
+-- Poised is a passive: the passive never shows as a buff, its buff is 1328826.
+T.test("cdm custom: a passive with a buff of its own is offered and watched by the buff's id", function()
+    local AB, C = customWorld("ROGUE")
+    AB.CdmSpells.ROGUE = { { 1328825, aura = true, passive = true }, { 6770, 2070, 11297, aura = true } }
+    stub.knownSpells = { [1328825] = true, [6770] = true }
+    C.Forget()
+    local listed = {}
+    for _, e in ipairs(C.Tray()) do listed[e.id] = e end
+    T.truthy(listed.s1328825, "Poised is in the tray")
+    T.truthy(listed.s1328825.aura, "as a buff")
+    T.truthy(listed.s6770, "Sap too")
+    T.truthy(C.Ranks("s1328825")[1328826], "watched by its buff's id")
+    T.eq(C.Track("s1328825"), "aura", "Buff only: a passive has no cooldown")
+end)
+
+T.test("cdm custom: a passive whose buff id isn't known is left out", function()
+    local AB, C = customWorld("DRUID")
+    AB.CdmSpells.DRUID = { { 1328829, aura = true, passive = true } }
+    stub.knownSpells = { [1328829] = true }
+    C.Forget()
+    T.eq(C.Family("s1328829") and C.Family("s1328829").user, true, "only as a spell added by ID")
+    for _, e in ipairs(C.Tray()) do T.truthy(e.id ~= "s1328829", "not in the tray") end
+    for _, e in ipairs(C.Unlearned()) do T.truthy(e.id ~= "s1328829", "nor under other talents") end
+end)
+
 -- Arcane Blast's casts only do damage. Its stack is another spell (400573), a
 -- debuff on the mage, watched on you among buffs and debuffs, never on the target.
 T.test("cdm custom: a spell whose debuff lands on you is watched among your debuffs, by the debuff's id", function()

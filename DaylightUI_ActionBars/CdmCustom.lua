@@ -82,8 +82,10 @@ Custom.MORE_RANKS = { [20154] = { 21084 } }
 
 -- Spells whose buff or debuff has its own spell id, by the family's rank 1 id.
 -- Arcane Blast's stacking debuff is 400573 (up to 4 stacks, carries the damage
--- and mana cost increase; the casts themselves only deal damage).
-Custom.AURA_IDS = { [400574] = { 400573 } }
+-- and mana cost increase; the casts themselves only deal damage). A passive from
+-- the list is offered only once its buff is named here, as the passive itself
+-- never shows as a buff. A rogue's Poised buff is 1328826.
+Custom.AURA_IDS = { [400574] = { 400573 }, [1328825] = { 1328826 } }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -142,7 +144,7 @@ local function build()
     local function add(f, group)
         if type(f) ~= "table" or type(f[1]) ~= "number" then return end
         local k = "s" .. f[1]
-        if index[k] then return end
+        if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil }

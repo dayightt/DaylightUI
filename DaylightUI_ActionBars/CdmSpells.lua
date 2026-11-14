@@ -5,7 +5,8 @@
 --
 -- Per class token: one family per spell, every rank's id (rank 1 first);
 -- cd = a cooldown over the global cooldown, aura = it puts up a buff or a
--- debuff. GROUP: buffs other classes put on you (class = whose).
+-- debuff, passive = a passive whose buff has a spell id of its own.
+-- GROUP: buffs other classes put on you (class = whose).
 
 local _, ns = ...
 
@@ -171,6 +172,7 @@ local S = {
         { 1766, 1767, 1768, 1769, cd = true, aura = true }, -- Kick
         { 408, 8643, cd = true, aura = true }, -- Kidney Shot
         { 5763, 8694, 11400, aura = true }, -- Mind-numbing Poison
+        { 1328825, aura = true, passive = true }, -- Poised
         { 14183, cd = true }, -- Premeditation
         { 14185, cd = true }, -- Preparation
         { 14251, cd = true, aura = true }, -- Riposte
@@ -385,6 +387,7 @@ local S = {
         { 8921, 8924, 8925, 8926, 8927, 8928, 8929, 9833, 9834, 9835, aura = true }, -- Moonfire
         { 16689, 16810, 16811, 16812, 16813, 17329, cd = true, aura = true }, -- Nature's Grasp
         { 17116, cd = true }, -- Nature's Swiftness
+        { 1328829, aura = true, passive = true }, -- Poised
         { 9005, 9823, 9827, aura = true }, -- Pounce
         { 407995, 1238069, 1238070, cd = true }, -- Primal Bite
         { 5215, 6783, 9913, cd = true }, -- Prowl
