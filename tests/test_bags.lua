@@ -3054,7 +3054,7 @@ T.test("bags: Baganator's categories come over as your own groups", function()
     T.eq(moved.junk, 1)
     local lines = table.concat(Cat.ImportLines(n, moved, list.notes), "\n")
     T.truthy(lines:find("Imported 4 bag groups.", 1, true), lines)
-    T.truthy(lines:find("1 items marked as junk. They'll be sold at the next vendor.", 1, true), "said, since a vendor sells them: " .. lines)
+    T.truthy(lines:find("1 item marked as junk. It'll be sold at the next vendor.", 1, true), "said, since a vendor sells them: " .. lines)
     T.truthy(lines:find("Not brought over from Baganator: ", 1, true), lines)
     local by = {}
     for _, g in ipairs(Cat.Custom()) do by[g.name] = g end
@@ -3158,7 +3158,7 @@ T.test("bags: Baganator moves to built-in categories: game names, deleted groups
     n, moved = Cat.ImportShared(Cat.ReadShared('{"categories":[],"modifications":[{"source":"default_hearthstone","items":[6948]}]}'))
     local lines = table.concat(Cat.ImportLines(n, moved, {}), "\n")
     T.falsy(lines:find("Imported 0", 1, true), lines)
-    T.truthy(lines:find("1 items moved to Hearthstone.", 1, true), lines)
+    T.truthy(lines:find("1 item moved to Hearthstone.", 1, true), lines)
     _G.C_EncodingUtil = nil
 end)
 

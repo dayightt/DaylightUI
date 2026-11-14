@@ -589,9 +589,11 @@ function Cat.ImportLines(count, moved, notes)
     for _, key in ipairs(Cat.Order()) do
         local n = moved[key]
         if n and key == "junk" then
-            lines[#lines + 1] = string.format(L["%d items marked as junk. They'll be sold at the next vendor."], n)
+            lines[#lines + 1] = n == 1 and L["1 item marked as junk. It'll be sold at the next vendor."]
+                or string.format(L["%d items marked as junk. They'll be sold at the next vendor."], n)
         elseif n then
-            lines[#lines + 1] = string.format(L["%d items moved to %s."], n, Cat.Get(key).name)
+            lines[#lines + 1] = n == 1 and string.format(L["1 item moved to %s."], Cat.Get(key).name)
+                or string.format(L["%d items moved to %s."], n, Cat.Get(key).name)
         end
     end
     if type(notes) == "table" and #notes > 0 then
