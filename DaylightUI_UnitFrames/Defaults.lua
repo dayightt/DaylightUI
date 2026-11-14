@@ -186,7 +186,8 @@ ns.DEFAULTS = {
              privateAuras = true },
     raidText = { name = 10, percent = 10 },
     portraits = { icons = "daylight", classIcons = {},   -- a pick per class token
-                  ringWidth = "normal", ringLine = true }, -- every portrait ring: thin | normal | thick, and the groove around its middle
+                  ringWidth = "normal", ringLine = true, -- every portrait ring: thin | normal | thick, and the groove around its middle
+                  shape = "round" },                     -- round | square | angled
     range = { enabled = true, alpha = 0.45, groupOwn = false, alphaGroup = 0.45, spell = "none" },
     -- The leader drawer beside the group frames (Leader.lua).
     leader = { enabled = true, show = "tank" },

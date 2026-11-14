@@ -59,10 +59,9 @@ local function drawLight(f, v)
     cd:SetSwipeColor(1, 1, 1, Arrive.LIGHT * fade)
     cd:SetCooldown(GetTime() - math.min(v, 0.999) * LIGHT_D, LIGHT_D)
     cd:Show()
-    local turn = v * 2 * math.pi
-    local r = p.radius or 0
+    local x, y = ns.UF.RingPoint(p, v * 2 * math.pi)
     cd.head:ClearAllPoints()
-    cd.head:SetPoint("CENTER", p, "CENTER", math.sin(turn) * r, math.cos(turn) * r)
+    cd.head:SetPoint("CENTER", p, "CENTER", x, y)
     cd.head:SetAlpha(fade)
 end
 

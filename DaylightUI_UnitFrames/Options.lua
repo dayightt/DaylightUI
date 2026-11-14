@@ -2649,6 +2649,9 @@ ns.OPTIONS = { pages = {
             classIconPicker,
         } },
         { label = "Portrait rings", desc = "The ring round every portrait, on every frame. Each frame picks its ring's color on its own page.", items = {
+            { type = "dropdown", key = "portraits.shape", label = "Shape",
+              values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
+              desc = "Round rings, squares, or squares with an angled outer side like the frames' ends. The aggro fill, arrival light and elite frame follow the shape." },
             { type = "dropdown", key = "portraits.ringWidth", label = "Ring thickness",
               values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
               desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it." },

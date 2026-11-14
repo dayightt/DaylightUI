@@ -134,10 +134,59 @@ UF.RING_LIT_FILE = DUI.MEDIA .. "portrait-band-lit.png"
 UF.RING_WIDTHS = { thin = 0.85, normal = 0.772, thick = 0.68 }
 UF.RING_WIDTH_NAMES = { thin = "Thin", normal = "Normal", thick = "Thick" }
 UF.RING_WIDTH_ORDER = { "thin", "normal", "thick" }
-function UF.RingFiles(width, line)
+-- art: a square shape's art name (UF.ShapeArt), nil for the round ring.
+function UF.RingFiles(width, line, art)
     width = UF.RING_WIDTHS[width] and width or "normal"
-    local base = DUI.MEDIA .. "portrait-band" .. (width == "normal" and "" or "-" .. width) .. (line == false and "-smooth" or "")
+    local base = DUI.MEDIA .. "portrait-" .. (art and art .. "-" or "") .. "band"
+        .. (width == "normal" and "" or "-" .. width) .. (line == false and "-smooth" or "")
     return base .. ".png", base .. "-lit.png", UF.RING_WIDTHS[width]
+end
+-- The portrait's shape (portraits.shape). Square and angled have their own
+-- art (tools/make_square_portrait.py) in the round band's image size, so
+-- every layer on the ring (red band, sweep, pulse, arrival light) is sized
+-- the same way. A square's half-side is SQUARE of the ring's radius, which
+-- gives it the circle's area. Angled leans its outer side like the frames'
+-- ends (SQUARE_LEAN across per unit of height, top out), so it has art for a
+-- portrait on either end.
+UF.PORTRAIT_SHAPES = { round = "Round", square = "Square", angled = "Angled" }
+UF.PORTRAIT_SHAPE_ORDER = { "round", "square", "angled" }
+UF.SQUARE = 0.886
+UF.SQUARE_LEAN = 0.21
+function UF.ShapeArt(shape, outerRight)
+    if shape == "square" then return "square" end
+    if shape == "angled" then return outerRight and "angled-r" or "angled-l" end
+    return nil
+end
+-- The shape's corners, as fractions of its half-side (y up), for finding
+-- where a light running round it is (UF.RingPoint). nil = round.
+function UF.ShapeCorners(art)
+    local k = 2 * UF.SQUARE_LEAN
+    if art == "square" then return { { -1, 1 }, { 1, 1 }, { 1, -1 }, { -1, -1 } } end
+    if art == "angled-l" then return { { -1, 1 }, { 1, 1 }, { 1, -1 }, { -1 + k, -1 } } end
+    if art == "angled-r" then return { { -1, 1 }, { 1, 1 }, { 1 - k, -1 }, { -1, -1 } } end
+    return nil
+end
+-- Where the band's middle is at a turn clockwise from the top (radians),
+-- from the portrait's middle: on the circle, or where that direction leaves
+-- the square's outline. The aggro fill's head and the arrival light ride it.
+function UF.RingPoint(p, turn)
+    local dx, dy = math.sin(turn), math.cos(turn)
+    local r = p.radius or 0
+    local c = p.corners
+    if not c then return dx * r, dy * r end
+    local best
+    for i = 1, #c do
+        local a, b = c[i], c[i % #c + 1]
+        local ex, ey = b[1] - a[1], b[2] - a[2]
+        local den = dx * ey - dy * ex
+        if den ~= 0 then
+            local t = (a[1] * ey - a[2] * ex) / den
+            local u = (a[1] * dy - a[2] * dx) / den
+            if t > 0 and u >= -1e-9 and u <= 1 + 1e-9 and (not best or t < best) then best = t end
+        end
+    end
+    best = best or 1
+    return dx * best * r, dy * best * r
 end
 UF.ELITE_RING_COLORS = { gold = { 1.0, 0.8, 0.33 }, silver = { 0.84, 0.87, 0.92 } }
 -- Your own dragon's color (player.portraitDragonColor): an elite's gold or
@@ -162,6 +211,7 @@ UF.PULSE_TIME = 0.6    -- aggro pulse: half a breath in seconds, bouncing
 UF.PULSE_ALPHA = 0.75  -- its peak alpha
 UF.HALO_ALPHA = 0.9    -- the halo past the ring, at its peak
 UF.HALO_SIZE = 3.1     -- the halo's width, in ring radii
+UF.SQUARE_HALO = 5.0   -- a square's halo image, in half-sides (its shape fills half of it)
 UF.THREAT_BAND_DIM = 0.45   -- the tab's band, as a fraction of the color
 UF.THREAT_TAG_W = 36        -- the threat tag's width (fits "100%" and its angled end)
 
@@ -1556,10 +1606,9 @@ local function drawFill(p, v, a)
     -- A full cooldown would be finished and draw nothing, so stop just short.
     p.fill:SetCooldown(GetTime() - math.min(v, 0.999) * FILL_D, FILL_D)
     p.fill:Show()
-    local turn = v * 2 * math.pi
-    local r = p.radius or 0
+    local x, y = UF.RingPoint(p, v * 2 * math.pi)
     p.head:ClearAllPoints()
-    p.head:SetPoint("CENTER", p, "CENTER", math.sin(turn) * r, math.cos(turn) * r)
+    p.head:SetPoint("CENTER", p, "CENTER", x, y)
     p.head:SetAlpha(a)
     p.head:Show()
 end
@@ -1724,22 +1773,37 @@ function UF.LayoutPortrait(f, cfg)
         holder:SetSize(2 * R, 2 * R)
     end
     local off = R * UF.PORTRAIT_OUT
-    f.portraitOverlap = R - off  -- how far the ring reaches over the bar
     local looks = ns.module and ns.module.db and ns.module.db.portraits or {}
+    local shapeArt = UF.ShapeArt(looks.shape, outerRight)
+    p.shapeArt = shapeArt
+    p.corners = UF.ShapeCorners(shapeArt)
+    -- A square's half-side, or the ring's radius: how far it reaches each way.
+    local half = shapeArt and R * UF.SQUARE or R
+    f.portraitOverlap = half - off  -- how far the ring reaches over the bar
     local ratio
-    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(looks.ringWidth, looks.ringLine)
+    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(looks.ringWidth, looks.ringLine, shapeArt)
     local inner = R * ratio
     p:SetSize(2 * R, 2 * R)
     f.portraitEdge, f.portraitX = outerRight and "RIGHT" or "LEFT", outerRight and off or -off
     UF.PlacePortrait(f, 1)
     local art = 2 * R / UF.RING_OUTER
     p.ring:SetSize(art, art)
-    -- The dragon wraps the outer side. Drawn for a ring on the right, mirrored
-    -- for one on the left.
-    local dragon, l, r = art / UF.DRAGON_RING, 0, 1
-    if not outerRight then l, r = 1, 0 end
-    p.elite:SetSize(dragon, dragon)
-    p.elite:SetTexCoord(l, r, 0, 1)
+    if shapeArt then
+        -- A square elite wears a gold frame with corner thorns, drawn in the
+        -- band's image size, one for each end like the band.
+        p.elite:SetTexture(DUI.MEDIA .. "portrait-" .. shapeArt .. "-elite.png")
+        p.elite:SetSize(art, art)
+        p.elite:SetTexCoord(0, 1, 0, 1)
+    else
+        -- The dragon wraps the outer side. Drawn for a ring on the right, mirrored
+        -- for one on the left.
+        local dragon, l, r = art / UF.DRAGON_RING, 0, 1
+        if not outerRight then l, r = 1, 0 end
+        p.elite:SetTexture(UF.DRAGON_FILE)
+        p.elite:SetSize(dragon, dragon)
+        p.elite:SetTexCoord(l, r, 0, 1)
+    end
+    local dragon = art / UF.DRAGON_RING
     local E = UF.DRAGON_EYE
     local ex, ey = (outerRight and 1 or -1) * E.x * dragon, E.y * dragon
     for _, t in ipairs({ p.eye, p.pulseEye, p.eyeCore }) do
@@ -1754,17 +1818,57 @@ function UF.LayoutPortrait(f, cfg)
     p.pulse:SetSize(art, art)
     p.fill:SetSize(art, art)
     p.head:SetSize(0.8 * R, 0.8 * R)
-    p.radius = R * (1 + ratio) / 2   -- the band's middle
-    p.shadow:SetSize(2.6 * R, 2.6 * R)
-    p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
-    p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
+    p.radius = half * (1 + ratio) / 2   -- the band's middle
     p.rim:SetSize(2 * R * UF.RIM_OUTER, 2 * R * UF.RIM_OUTER)
-    p.mask:SetSize(2 * inner, 2 * inner)
-    -- The model's corners reach just under the ring's outer edge.
-    local side = 2 * R * 0.97 / math.sqrt(2)
-    p.model:SetSize(side, side)
-    p.classSize = UF.CLASS_ICON_FILL * inner
-    p.faceSize = 2 * inner
+    p.model:ClearAllPoints()
+    if shapeArt then
+        -- The opening is the outer shape scaled down, so one image of it
+        -- fills its box (the mask and the dark backing); the glow image holds
+        -- the shape at half its size.
+        local hole = DUI.MEDIA .. "portrait-" .. shapeArt .. "-hole.png"
+        local glow = DUI.MEDIA .. "portrait-" .. shapeArt .. "-glow.png"
+        local box = 2 * inner * UF.SQUARE
+        p.mask:SetTexture(hole, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.disc:SetTexture(hole)
+        p.shadow:SetTexture(glow)
+        p.halo:SetTexture(glow)
+        p.mask:SetSize(box, box)
+        p.disc:SetSize(box + 2, box + 2)
+        p.shadow:SetSize(4.2 * half, 4.2 * half)
+        p.halo:SetSize(UF.SQUARE_HALO * half, UF.SQUARE_HALO * half)
+        -- A model can't be masked: it fills the opening's straight part, its
+        -- edges under the band. Angled trims the tucked-in corner's side.
+        local trim = shapeArt == "square" and 0 or UF.SQUARE_LEAN * box
+        p.model:SetSize(box - trim, box)
+        p.model:SetPoint("CENTER", p, "CENTER", (outerRight and -trim or trim) / 2, 0)
+        p.classSize = UF.CLASS_ICON_FILL * inner * UF.SQUARE
+        p.faceSize = box
+    else
+        p.mask:SetTexture(DUI.MEDIA .. "crest-disc.png", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.disc:SetTexture(DUI.MEDIA .. "crest-disc.png")
+        p.shadow:SetTexture(DUI.MEDIA .. "crest-glow.png")
+        p.halo:SetTexture(DUI.MEDIA .. "crest-glow.png")
+        p.shadow:SetSize(2.6 * R, 2.6 * R)
+        p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
+        p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
+        p.mask:SetSize(2 * inner, 2 * inner)
+        -- The model's corners reach just under the ring's outer edge.
+        local side = 2 * R * 0.97 / math.sqrt(2)
+        p.model:SetSize(side, side)
+        p.model:SetPoint("CENTER", p, "CENTER", 0, 0)
+        p.classSize = UF.CLASS_ICON_FILL * inner
+        p.faceSize = 2 * inner
+    end
+    -- The band in the art just picked, even on a frame with no unit to paint
+    -- yet. UF.PaintRing colors it (and picks the lit art) on the next update.
+    if p.bandFile ~= f.ringFile then
+        p.bandFile = f.ringFile
+        p.ring:SetTexture(f.ringFile)
+        p.fillFile = f.ringFile
+        p.threatBand:SetTexture(f.ringFile)
+        p.pulse:SetTexture(f.ringFile)
+        p.fill:SetSwipeTexture(f.ringFile)
+    end
     p:Show()
     if f.portraitFree then
         -- On its own: the frame keeps its whole length and its own hit rect.
@@ -1773,16 +1877,18 @@ function UF.LayoutPortrait(f, cfg)
         return
     end
     -- The tab starts clear of the ring, and the ring is clickable like the frame.
-    f.ringInset = R - off
+    f.ringInset = half - off
     f.tabInset = f.ringInset + 8
-    local reach = R + off
+    local reach = half + off
     f.ringReach = reach   -- how far the ring reaches past the outer end
     -- The shell's corner caps sit above the ring (Style.Shell's s.over). At the
     -- ring's end they're removed once the ring reaches past the corner's curve
     -- along the bar's top and bottom edges (a small ring leaves them showing).
+    -- A square's inner side is straight, so it covers them all the way down.
     local edge = f:GetHeight() / 2 + math.abs(f.portraitY)
     local corner = Pixel.Px(f, shell and shell.opts.cornerPx or DUI:Get("general", "cornerPx") or 0)
-    if shell and R > edge and math.sqrt(R * R - edge * edge) - off >= corner then
+    local along = shapeArt and half or math.sqrt(math.max(0, R * R - edge * edge))
+    if shell and half > edge and along - off >= corner then
         shell.opts.coveredEnd = outerRight and "right" or "left"
     end
     UF.SetHitRect(f, outerRight and 0 or -reach, outerRight and -reach or 0)
@@ -1900,7 +2006,7 @@ function UF.UpdatePortrait(f)
     end
     if mode == "3d" then
         p.icon:Hide()
-        p.rim:Show()
+        p.rim:SetShown(not p.shapeArt)   -- a square's straight band already covers the model's edges
         p.model:Show()
         pcall(p.model.SetUnit, p.model, u)
         pcall(p.model.SetPortraitZoom, p.model, 1)
@@ -2522,7 +2628,7 @@ function UF.Pulse(p, on)
     local red = UF.THREAT_COLORS.aggro
     local r, g, b = math.min(1, red[1] + 0.3), math.min(1, red[2] + 0.3), math.min(1, red[3] + 0.3)
     p.pulse:SetVertexColor(r, g, b, 1)
-    p.pulseEye:SetShown(p.elite:IsShown())
+    p.pulseEye:SetShown(p.elite:IsShown() and not p.shapeArt)
     p.pulseHold:Show()
     if secret then p.pulseHold:SetAlphaFromBoolean(on, 1, 0) else p.pulseHold:SetAlpha(1) end
     if not p.pulseAnim:IsPlaying() then
@@ -2657,8 +2763,9 @@ function UF.PaintElite(f)
     local p = f.portrait
     local rc = p and p.eliteColor
     if not rc then return end
+    -- Only the dragon has eyes: a square elite's frame stays gold.
     for _, t in ipairs({ p.eye, p.eyeCore }) do
-        if not p.elite:IsShown() then
+        if not p.elite:IsShown() or p.shapeArt then
             t:Hide()
         elseif f.threatNow then
             t:SetAlpha(1)

@@ -1091,6 +1091,69 @@ T.test("ring thickness and its middle line: the ring and everything drawn on it 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("square and angled portraits: every layer takes the shape's art, lights ride its outline, elites get the gold frame", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f, p = ns.frames.target, ns.frames.target.portrait
+    wolf(nil)
+    UF.UpdateAll(f, true)
+    T.eq(p.mask.__texture, DUI.MEDIA .. "crest-disc.png", "round by default")
+    T.falsy(p.corners)
+    DUI:Set("UnitFrames", "portraits.shape", "square")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    local file, lit = UF.RingFiles("normal", true, "square")
+    local used = { [file] = true, [lit] = true }
+    T.truthy(file:find("portrait-square-band.png", 1, true))
+    T.truthy(used[p.ring:GetTexture()], "the band")
+    T.truthy(used[p.threatBand:GetTexture()], "the red aggro band")
+    T.truthy(used[p.pulse:GetTexture()], "the pulse")
+    T.truthy(used[p.fillFile], "the aggro sweep")
+    T.eq(p.mask.__texture, DUI.MEDIA .. "portrait-square-hole.png", "the picture cropped square")
+    T.eq(p.halo.__texture, DUI.MEDIA .. "portrait-square-glow.png", "a square halo")
+    -- Half way between top and right, the light sits on the square's corner.
+    local x, y = UF.RingPoint(p, math.pi / 4)
+    T.near(x, p.radius, 1e-6); T.near(y, p.radius, 1e-6)
+    x, y = UF.RingPoint(p, 0)
+    T.near(x, 0, 1e-6); T.near(y, p.radius, 1e-6, "the top edge's middle")
+    -- Aggro fills round it, the head on the outline.
+    wolf(3)
+    UF.UpdateThreat(f)
+    step(0.1)
+    T.truthy(p.fill:IsShown() and p.head:IsShown())
+    settle()
+    T.truthy(p.threatBand:IsShown(), "landed: the red band in the square's art")
+    -- An elite: the gold frame, no dragon, no eyes even with aggro.
+    stub.units.target.classification = "elite"
+    UF.UpdateAll(f, true)
+    UF.UpdateThreat(f)
+    T.truthy(p.elite:IsShown())
+    T.eq(p.elite.__texture, DUI.MEDIA .. "portrait-square-elite.png")
+    T.falsy(p.eye:IsShown(), "only the dragon has eyes")
+    -- Angled: the target's portrait sits on the frame's right end, the player's on its left.
+    DUI:Set("UnitFrames", "portraits.shape", "angled")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.truthy(p.ring:GetTexture():find("portrait-angled-r-band", 1, true), "the target: leaning right")
+    T.eq(p.elite.__texture, DUI.MEDIA .. "portrait-angled-r-elite.png")
+    local pp = ns.frames.player.portrait
+    UF.UpdateAll(ns.frames.player, true)
+    T.truthy(pp.ring:GetTexture():find("portrait-angled-l-band", 1, true), "the player: leaning left")
+    -- The lean: below the middle, the outer (right) side is tucked in.
+    local lx = UF.RingPoint(p, math.pi * 0.75)
+    T.truthy(lx < p.radius - 1e-6, "the tucked-in corner is closer in")
+    -- Back to round: the dragon and the round crop.
+    DUI:Set("UnitFrames", "portraits.shape", "round")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.eq(p.elite.__texture, UF.DRAGON_FILE)
+    T.eq(p.mask.__texture, DUI.MEDIA .. "crest-disc.png")
+    T.falsy(p.corners)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("the game's own class icons: its classicon atlas, Daylight UI's own when the client has none", function()
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }

@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Other addons", "A SkillUp link in the profession window switches to the game's window, where SkillUp Forever shows its skill-up chances, costs and route" },
+            { "Unit frames", "Portraits can be square, or square with an angled side like the frames: Unit frames > Extras" },
         },
         changed = {
             { "Window skins", "Item slots and coins in the game's windows (trade, loot, guild bank and more) now match Daylight UI's bags and windows" },
