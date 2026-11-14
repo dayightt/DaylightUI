@@ -40,6 +40,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Controller", "On a controller, the menu for the player you're targeting opens again, so you can invite them to your group" },
+            { "Cooldown Manager", "Sap, Blind, Polymorph, Fear and other crowd control can be added, along with newer spells like Shank, Death Mark and Ice Lance, which were missing from the list" },
             { "Cooldown Manager", "A buff bar or icon that first shows up during a fight or in a dungeon is drawn at your size and look, not squashed small with its text out of place" },
             { "Windows", "Turning off a Daylight UI window (talking to NPCs, vendor, trainer, bank, character, inspect, friends, mail, group finder) now brings back the game's own window exactly as the game draws it" },
             { "Cooldown Manager", "A spell showing its cooldown and its buff no longer looks faded while the buff is up when it's set to fade on cooldown" },
