@@ -271,6 +271,81 @@ T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title r
     T.truthy(f.sub:GetText():find("Saved", 1, true), "when it was saved")
 end)
 
+-- Item counts in tooltips: what each character holds, from their saved bags and
+-- bank, and this character's bags as they are now.
+local function tipRows(ns, data)
+    local rows, addLine, addDouble = {}, GameTooltip.AddLine, GameTooltip.AddDoubleLine
+    GameTooltip.AddLine = function(_, text) rows[#rows + 1] = { text } end
+    GameTooltip.AddDoubleLine = function(_, l, r) rows[#rows + 1] = { l, r } end
+    ns.Saved.OnTip(GameTooltip, data)
+    GameTooltip.AddLine, GameTooltip.AddDoubleLine = addLine, addDouble
+    return rows
+end
+local function plainText(s) return (tostring(s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+
+local function countWorld()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", time = time(),
+        bags = { { section = "bags", size = 4, items = { [1] = { "|Hitem:1|h", 3 }, [2] = { "|Hitem:9|h", 1 } } } },
+        bank = { { section = "bank", size = 4, items = { [2] = { "|Hitem:1|h", 4 }, [3] = { "|Hitem:1|h", 3 } } } } } }
+    DaylightUI.DB.Root().accountBank = { time = time(), tabs = { { section = "account", size = 4,
+        items = { [1] = { "|Hitem:1|h", 2 }, [2] = { "|Hitem:4|h", 1 } } } } }
+    local own = DaylightUI.DB.Character()
+    own.inventory = own.inventory or {}
+    own.inventory.bank = { { section = "bank", size = 4, items = { [1] = { "|Hitem:1|h", 6 } } } }
+    stub.RunTimers()
+    return ns, alt
+end
+
+T.test("bags: item tooltips count each character's bags and bank, the account bank and a total", function()
+    local ns = countWorld()
+    local rows = tipRows(ns, { id = 1 })
+    T.eq(plainText(rows[1][1]), " ", "a gap above the counts")
+    local me = DaylightUI.DB.CharKey():match("^(.-)%-")
+    T.eq(rows[2][1], me, "this character first")
+    T.eq(plainText(rows[2][2]), "Bags 5 · Bank 6", "its bags as they are now and its bank as last seen")
+    T.eq(rows[3][1], "Alt")
+    T.eq(plainText(rows[3][2]), "Bags 3 · Bank 7", "stacks added up")
+    T.eq(rows[4][1], "Account")
+    T.eq(plainText(rows[4][2]), "2")
+    T.eq(rows[5][1], "Total")
+    T.eq(plainText(rows[5][2]), "23")
+    T.eq(#rows, 5)
+    -- Labels tan, the numbers in the accent the row is painted in.
+    T.truthy(rows[3][2]:find(DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL), 1, true), "Bags and Bank in the label color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: item counts show only when another character has some", function()
+    local ns = countWorld()
+    T.eq(#tipRows(ns, { id = 6 }), 0, "only in this character's bags: nothing added")
+    T.eq(#tipRows(ns, { id = 4 }), 0, "this character and the account bank: nothing either")
+    local rows = tipRows(ns, { id = 9 })
+    T.eq(rows[2][1], "Alt", "only on another character: just that one")
+    T.eq(plainText(rows[2][2]), "Bags 1")
+    T.eq(#rows, 3, "and the total")
+    T.eq(#tipRows(ns, { id = 77 }), 0, "nobody has it")
+    T.eq(#tipRows(ns, {}), 0, "no item")
+    T.eq(#tipRows(ns, { id = stub.Secret(1) }), 0, "a secret item id is left alone")
+end)
+
+T.test("bags: item counts follow this character's bags as they change", function()
+    local ns = countWorld()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bags 5 · Bank 6")
+    world.items[0][1].stackCount = 9
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bags 9 · Bank 6", "a new stack size counts at once")
+    world.items[0][1] = nil
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bank 6", "none left in the bags")
+end)
+
 T.test("viewer: same look, keeps its tabs and picker", function()
     local ns = login()
     local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
