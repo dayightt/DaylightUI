@@ -27,12 +27,15 @@ DUI.PatchNotes = {
             { "Unit frames", "Your target and focus can fade while they're out of reach of a spell you pick, enemies too: Unit frames > Extras > Range spell" },
             { "Unit frames", "More choices for buffs and debuffs on the target and player frames: time left on or off, only under a minute, a clock sweep, tooltips, and filters like only the buffs you can purge" },
             { "Party and raid frames", "Buff and debuff icons can have bigger or smaller time and stack numbers, or no stack numbers: the Debuffs, Crowd control and Buffs cards" },
+            { "Party frames", "See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets" },
+            { "Nameplates", "An enemy's Divine Shield, Ice Block and other big defensives show as a large icon beside their nameplate: Nameplates > Auras" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
+            { "Action bars", "A key bound to the number pad's = shows as N= instead of a long name running over the buttons beside it" },
             { "Unit frames", "The focus frame can show its buffs and debuffs, like the game's own focus frame: Focus page, Auras" },
             { "Edit Mode", "Logging in or going through a loading screen no longer switches your own Edit Mode layout back to Daylight UI's" },
             { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },

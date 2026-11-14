@@ -3,6 +3,7 @@
 -- default:
 -- * your debuffs in a row centered above the name, growing both ways;
 -- * crowd control on the unit as one larger icon beside the bar's right end;
+-- * a big defensive (Divine Shield, Ice Block...) as one larger icon past it;
 -- * buffs you can purge or steal in a row above your debuffs, from the right end,
 --   each with a soft halo;
 -- * friendly plates only: your own buffs and HoTs centered above the name.
@@ -42,6 +43,8 @@ end
 Auras.KINDS = {
     debuffs = { key = "mine", filter = "HARMFUL|PLAYER|!CROWD_CONTROL" },
     cc = { key = "cc", filter = "HARMFUL|CROWD_CONTROL" },
+    -- The client flags big defensives itself, so no spell list here either.
+    defensives = { key = "big", filter = "HELPFUL|BIG_DEFENSIVE" },
     -- The client picks these from what you (and your group) can remove, so no spell
     -- list here. Use a filter string, never candidateFilters: those read aura data,
     -- which is secret on enemies in PvP, and the row would show nothing.
@@ -96,7 +99,7 @@ local function initSquare(btn, what)
     b.edge:SetAllPoints(btn)
     local w = Auras.NO_DISPEL
     b.edge:SetVertexColor(w[1], w[2], w[3], 1)
-    dispelEdge(btn, b.edge, what == "buffs" or what == "helps")
+    dispelEdge(btn, b.edge, what == "buffs" or what == "helps" or what == "defensives")
     -- Purgeable buffs also get a soft halo.
     if what == "buffs" then b.halo = Style.AuraHalo(btn, Auras.DispelColor, false, true) end
     b.icon = btn:CreateTexture(nil, "ARTWORK")
@@ -129,6 +132,7 @@ local function sizeOf(what)
     local c = ns.cfg
     if what == "debuffs" then return c.debuffSize end
     if what == "cc" then return c.ccSize end
+    if what == "defensives" then return c.defensiveSize end
     if what == "helps" then return c.friendly.myBuffSize end
     return c.buffSize
 end
@@ -243,7 +247,7 @@ end
 
 function Auras.Create(p)
     p.auras = {}
-    for _, what in ipairs({ "debuffs", "cc", "buffs", "helps" }) do
+    for _, what in ipairs({ "debuffs", "cc", "defensives", "buffs", "helps" }) do
         p.auras[what] = newContainer(p, what)
     end
 end
@@ -266,8 +270,8 @@ function Auras.Place(f, what, at, p)
     local cfg, L = ns.cfg, at.L
     f:ClearAllPoints()
     f:SetPoint(L.point, at.rel, L.relPoint, L.x, L.y)
-    if what == "cc" then
-        local s = cfg.ccSize
+    if what == "cc" or what == "defensives" then
+        local s = sizeOf(what)
         f:SetSize(s, heightOf(s))
         flow(f, "LEFT", "Right", "Up", s)
         return
@@ -288,7 +292,8 @@ function Auras.Room(what)
     elseif what == "buffs" then n = c.maxBuffs
     elseif what == "helps" then n = type(c.friendly) == "table" and c.friendly.maxMyBuffs end
     n = math.max(1, tonumber(n) or 1)
-    local up = heightOf(s) + (what == "cc" and 0 or math.ceil(timeSize(s) / 2))
+    local single = what == "cc" or what == "defensives"
+    local up = heightOf(s) + (single and 0 or math.ceil(timeSize(s) / 2))
     return n * s + (n - 1) * Auras.GAP, up
 end
 
@@ -305,6 +310,11 @@ function Auras.Layout(p)
     if cc then
         call(cc, "SetAuraGroupLayout", "cc", groupLayout("cc"))
         call(cc, "SetAuraGroupMaxFrameCount", "cc", cfg.cc and 1 or 0)
+    end
+    local big = a.defensives
+    if big then
+        call(big, "SetAuraGroupLayout", "big", groupLayout("defensives"))
+        call(big, "SetAuraGroupMaxFrameCount", "big", cfg.defensives and 1 or 0)
     end
     local b = a.buffs
     if b then

@@ -80,6 +80,7 @@ Sample.ENEMY = {
         { icon = I .. "Ability_Gouge", time = "9s", count = 3, dispel = "Bleed" },
     },
     cc = { { icon = I .. "Spell_Nature_Polymorph", time = "6s", dispel = "Magic" } },
+    defensives = { { icon = I .. "Spell_Holy_DivineIntervention", time = "11s", dispel = "Magic" } },
     buffs = { { icon = I .. "Spell_Holy_PowerWordShield", time = "19s", dispel = "Magic" } },
 }
 Sample.FRIEND = {
@@ -139,6 +140,7 @@ local function spotKeys(prefix, friendly)
 end
 local NAME, QUEST, MARK = spotKeys("name", true), spotKeys("quest"), spotKeys("marker")
 local DEBUFF, CC, BUFF, MYBUFF = spotKeys("debuff"), spotKeys("cc"), spotKeys("buff"), spotKeys("friendly.myBuff")
+local DEFENSIVE = spotKeys("defensive")
 local SKULL, PERCENT, LEVEL = spotKeys("dotSkull"), spotKeys("percent", true), spotKeys("level", true)
 local THREATPCT = spotKeys("threatPct")
 local function nameStill(p) return Plate.NameOnly(p, Plate.Cfg(p)) end
@@ -212,6 +214,10 @@ Sample.PARTS = {
       move = { spot = DEBUFF("Spot"), x = DEBUFF("X"), y = DEBUFF("Y"), outside = true }, size = { s = { "debuffSize" } } },
     { label = "Crowd control", at = rowIcons("cc"), keys = { "cc", "ccSize", "ccSpot", "ccX", "ccY" },
       move = { spot = CC("Spot"), x = CC("X"), y = CC("Y"), outside = true }, size = { s = { "ccSize" } } },
+    { label = "Big defensives", at = rowIcons("defensives"),
+      keys = { "defensives", "defensiveSize", "defensiveSpot", "defensiveX", "defensiveY" },
+      move = { spot = DEFENSIVE("Spot"), x = DEFENSIVE("X"), y = DEFENSIVE("Y"), outside = true },
+      size = { s = { "defensiveSize" } } },
     { label = "Buffs", at = rowIcons("buffs"), keys = { "buffs", "buffSize", "maxBuffs", "buffSpot", "buffGrow", "buffX", "buffY" },
       move = { spot = BUFF("Spot"), x = BUFF("X"), y = BUFF("Y"), outside = true }, size = { s = { "buffSize" } } },
     { label = "Your buffs", at = rowIcons("helps"),
@@ -597,6 +603,7 @@ local function refresh(s, width, maxH)
     Cast.ShowSample(p, not friendly and u.cast or nil)
     Auras.ShowSample(p, "debuffs", (not friendly and c.debuffs) and first(u.debuffs, c.maxDebuffs) or NONE)
     Auras.ShowSample(p, "cc", (not friendly and c.cc) and u.cc or NONE)
+    Auras.ShowSample(p, "defensives", (not friendly and c.defensives) and u.defensives or NONE)
     Auras.ShowSample(p, "buffs", (not friendly and c.buffs) and first(u.buffs, c.maxBuffs) or NONE)
     Auras.ShowSample(p, "helps", (friendly and c.friendly.myBuffs) and first(u.helps, c.friendly.maxMyBuffs) or NONE)
     local row = p.comboRow

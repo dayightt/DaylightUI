@@ -81,6 +81,7 @@ ns.DEFAULTS = {
     threatPctPos = "outtopleft", threatPctX = 0, threatPctY = 0,
     debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
     ccSpot = "outright", ccX = 0, ccY = 0,
+    defensiveSpot = "outright", defensiveX = 0, defensiveY = 0,
     buffSpot = "above", buffGrow = "left", buffX = 0, buffY = 0,
     predictHeals = true,    -- incoming heals, on the health bar
     predictAbsorbs = true,  -- shields, on the health bar
@@ -116,6 +117,8 @@ ns.DEFAULTS = {
     minionSize = 30, -- ...badge size
     cc = true, -- crowd control as a larger icon beside the bar
     ccSize = 36,
+    defensives = true, -- an enemy's big defensive (Divine Shield, Ice Block...) as a larger icon past it
+    defensiveSize = 30,
     buffs = true, -- enemy buffs you can purge or steal
     buffSize = 18,
     maxBuffs = 3,

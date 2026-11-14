@@ -1826,7 +1826,7 @@ end
 -- whatever shares their spot and push nothing. The skull never takes space at
 -- all, since its frame shows with any DoT up and only a secret-safe clip decides
 -- whether you see it, so nothing can line up against it.
-Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
+Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc", "defensives" }
 Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "skull" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
@@ -1836,19 +1836,20 @@ Plate.SPOT_KEYS = {
     helps = { spot = "myBuffSpot", grow = "myBuffGrow", x = "myBuffX", y = "myBuffY", friendly = true },
     buffs = { spot = "buffSpot", grow = "buffGrow", x = "buffX", y = "buffY" },
     cc = { spot = "ccSpot", x = "ccX", y = "ccY" },
+    defensives = { spot = "defensiveSpot", x = "defensiveX", y = "defensiveY" },
     percent = { spot = "percentPos", x = "percentX", y = "percentY" },
     level = { spot = "levelPos", x = "levelX", y = "levelY" },
     threatPct = { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" },
     skull = { spot = "dotSkullPos", x = "dotSkullX", y = "dotSkullY" },
     execIcon = { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" },
 }
-Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true } -- outside spots only
+Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true, defensives = true } -- outside spots only
 Plate.OUTSIDE = {}
 for _, s in ipairs(ns.OUTSIDE_SPOTS) do Plate.OUTSIDE[s] = true end
 Plate.ABOVE = { above = true, outtopleft = true, outtopright = true }
 -- Distance from the bar's end to the first piece beside it (where the marks always
 -- were), and between pieces sharing a spot.
-Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4,
+Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4, defensives = 4,
                      percent = 3, level = 3, threatPct = 3, skull = 3, execIcon = 3 }
 Plate.CHAIN_GAP = 2
 

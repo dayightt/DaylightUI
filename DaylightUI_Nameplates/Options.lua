@@ -498,7 +498,7 @@ ns.OPTIONS = { pages = {
         } },
       } },
     { id = "auras", label = "Auras",
-      desc = "Your debuffs, crowd control and buffs you can remove, on enemy plates.",
+      desc = "Your debuffs, crowd control, big defensives and buffs you can remove, on enemy plates.",
       groups = {
         { label = "Your debuffs", items = with({
             { type = "toggle", key = "debuffs", label = "Your debuffs", desc = "In a row above the bar." },
@@ -517,6 +517,14 @@ ns.OPTIONS = { pages = {
               desc = "How big the crowd control icon is.",
               disabled = off("cc") },
         }, spotItems("Crowd control", { spot = "ccSpot", x = "ccX", y = "ccY" }, true, off("cc"),
+            "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
+        { label = "Big defensives", items = with({
+            { type = "toggle", key = "defensives", label = "Big defensives",
+              desc = "Divine Shield, Ice Block and the like, as a bigger icon beside the bar's end, so you know not to waste your damage." },
+            { type = "slider", key = "defensiveSize", label = "Defensive size", min = 16, max = 48, step = 1, unit = "px",
+              desc = "How big the big defensive icon is.",
+              disabled = off("defensives") },
+        }, spotItems("Big defensive", { spot = "defensiveSpot", x = "defensiveX", y = "defensiveY" }, true, off("defensives"),
             "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
         { label = "Buffs", items = with({
             { type = "toggle", key = "buffs", label = "Buffs you can purge or steal", desc = "Above your debuffs, from the right." },
