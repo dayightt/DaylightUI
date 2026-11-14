@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "Other addons", "A SkillUp link in the profession window switches to the game's window, where SkillUp Forever shows its skill-up chances, costs and route" },
+        },
+    },
     { version = "1.8.0", date = "2026-11-14", summary = "See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.",
         new = {
             { "Party frames", "See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets" },

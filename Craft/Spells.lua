@@ -145,6 +145,7 @@ function Spells.Build(pane)
     Style.InkText(row.label, "LABEL")
     row.icons = {}
     row.training = Spells.MakeTraining(row)
+    row.skillup = Spells.MakeSkillUp(row)
     Spells.row = row
     DUI.RegisterEvent("SPELLS_CHANGED", function() if row:IsVisible() then Spells.Fill() end end)
     return row
@@ -188,6 +189,34 @@ function Spells.MakeTraining(row)
     return link
 end
 
+-- SkillUp Forever's numbers and route live on the game's window, so its link
+-- hands that window back (Craft.HandBack).
+function Spells.SkillUp()
+    local A = C_AddOns
+    return A and type(A.IsAddOnLoaded) == "function" and A.IsAddOnLoaded("SkillUpForever") == true or false
+end
+
+function Spells.MakeSkillUp(row)
+    local link = DUI.Widgets.Link(row)
+    link.SetLabel(L["SkillUp"])
+    link:SetScript("OnClick", function() ns.Window.HandBack() end)
+    link:HookScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        DUI.Tips.Clear()
+        DUI.Tips.Title(L["SkillUp Forever"])
+        DUI.Tips.Text(L["Shows the game's profession window, where SkillUp Forever draws its skill-up chances, costs and route. Daylight UI's window comes back the next time you open a profession."])
+        DUI.Tips.Hint(L["Click: switch to the game's window"])
+        DUI.Tips.Flush(GameTooltip)
+        GameTooltip:Show()
+    end)
+    link:HookScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+    link:Hide()
+    return link
+end
+
 -- As many as fit (Spells.Read rarely returns more than six).
 function Spells.Fill()
     local row = Spells.row
@@ -196,11 +225,20 @@ function Spells.Fill()
     local w = row:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.List.W - 2 * Win.Parts.EDGE end
     local training = Spells.Training() ~= nil
+    local skillup = Spells.SkillUp()
     row.training:SetShown(training)
-    if training then
-        local lw = row.training:GetWidth()
-        w = w - ((type(lw) == "number" and lw > 0) and lw or 0) - Spells.LABEL_GAP
+    row.skillup:SetShown(skillup)
+    -- Links sit at the row's right end, the icons get what's left.
+    local right = 0
+    for _, link in ipairs({ row.training, row.skillup }) do
+        if link:IsShown() then
+            link:ClearAllPoints()
+            link:SetPoint("RIGHT", row, "RIGHT", -right, 0)
+            local lw = link:GetWidth()
+            right = right + ((type(lw) == "number" and lw > 0) and lw or 0) + Spells.LABEL_GAP
+        end
     end
+    w = w - right
     local lead = Spells.Lead()
     local fit = math.max(0, math.floor((w - lead + Spells.GAP) / (Spells.ICON + Spells.GAP)))
     for i = 1, math.max(#list, #row.icons) do
@@ -217,7 +255,7 @@ function Spells.Fill()
             b:SetShown(s ~= nil)
         end
     end
-    row:SetShown(#list > 0 or training)
+    row:SetShown(#list > 0 or training or skillup)
 end
 
 -- Lift-in pieces.
@@ -226,7 +264,9 @@ function Spells.Pieces()
     for _, b in ipairs(Spells.row and Spells.row.icons or {}) do
         if b:IsShown() then out[#out + 1] = b end
     end
-    local t = Spells.row and Spells.row.training
-    if t and t:IsShown() then out[#out + 1] = t end
+    for _, key in ipairs({ "training", "skillup" }) do
+        local t = Spells.row and Spells.row[key]
+        if t and t:IsShown() then out[#out + 1] = t end
+    end
     return out
 end
