@@ -86,6 +86,35 @@ local function usable(def, choice)
 end
 AuraGroups.Usable = usable
 
+-- Plugins' spell lists (DaylightUI.API me.AddAuraFilter): each one is one
+-- more Filter choice for the buffs or debuffs rows, its own group matched by
+-- spell id. The client fixes a group's spells when it's added, so a list
+-- changed after it has shown takes effect after a reload.
+local NONE = {}
+function AuraGroups.TakePlugins()
+    local R = DUI.APIReport
+    for _, f in ipairs(type(R) == "table" and R.AuraFilters and R.AuraFilters() or NONE) do
+        local def = AuraGroups.BY_KEY[f.what]
+        local g = def and groupOf(def, f.key)
+        if def and not g then
+            g = { key = f.key, index = 1, plugin = f.owner }
+            local groups = ns.Auras.KINDS[def.kind].groups
+            groups[#groups + 1] = g
+            def.choices[#def.choices + 1] = f.key
+        end
+        if g then
+            g.filter = (f.what == "debuffs" and "HARMFUL" or "HELPFUL") .. (f.mine and "|PLAYER" or "")
+            g.yours = f.mine or nil
+            g.ids = function() return f.ids end
+            AuraGroups.CHOICE_LABELS[def.key][f.key] = f.label
+        end
+    end
+end
+DUI.On("AuraFiltersChanged", function()
+    DUI.SafeCall(AuraGroups.TakePlugins)
+    if ns.module then DUI.AfterCombat(function() ns.Refresh(ns.module) end, "UnitFrames.auraFilters") end
+end)
+
 -- The choice to show when the picked one can't. Only a filter the client
 -- refused falls back to another choice. "Heals and shields" on a class with no
 -- heals or shields shows nothing: falling back to "Only mine" filled the row

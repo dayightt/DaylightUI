@@ -209,6 +209,7 @@ function Plugins.ChangesLine(name)
     more(c.steps, "Adds %d setup guide page.", "Adds %d setup guide pages.")
     more(c.baggroups, "Adds %d bag group.", "Adds %d bag groups.")
     more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
+    more(c.aurafilters, "Adds %d aura filter.", "Adds %d aura filters.")
     more(c.chat, "Changes chat lines.", "Changes chat lines.")
     more(c.filters, "Filters the vendor's items.", "Filters the vendor's items.")
     local dt, dp = c.datatexts or 0, c.datapanels or 0

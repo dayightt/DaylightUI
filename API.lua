@@ -1340,6 +1340,49 @@ end
 -- Sorts the bags' groups again (what a plugin's match says changed).
 function API.RefreshBags() DUI.Fire("BagGroupsChanged") end
 
+-- Aura filters (1.7): me.AddAuraFilter(key, { label, what, spells, mine })
+-- adds a spell list to the Filter choices of the party and raid aura rows.
+-- The game's aura containers match by spell id, and on someone you can help
+-- they only allow it for buffs and for debuffs the game marks never secret,
+-- so any other debuff id is left out (a boss's debuffs could otherwise spell
+-- out "move now").
+local auraFilters = {}
+function Report.AuraFilters() return auraFilters end
+local function neverSecret(id)
+    local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
+    local levels = Enum and Enum.SecrecyLevel
+    if not (get and levels) then return false end
+    local ok, s = pcall(get, id)
+    return ok and s == levels.NeverSecret
+end
+function View.AddAuraFilter(v, key, spec)
+    local what = type(spec) == "table" and (spec.what or "buffs")
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.spells) ~= "table"
+       or (what ~= "buffs" and what ~= "debuffs") then
+        chat(L["%s: an aura filter needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local ids, any = {}, false
+    for _, id in ipairs(spec.spells) do
+        if type(id) == "number" and (what == "buffs" or neverSecret(id)) then ids[id], any = true, true end
+    end
+    if not any then
+        chat(L["%s: the game doesn't let aura filter %s pick out any of its spells on group members."], v.name, key)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local entry
+    for _, x in ipairs(auraFilters) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        auraFilters[#auraFilters + 1] = entry
+        Report.Count(v.name, "aurafilters")
+    end
+    entry.label, entry.what, entry.ids, entry.mine = spec.label, what, ids, spec.mine == true
+    DUI.Fire("AuraFiltersChanged")
+    return true
+end
+
 -- Setup guide pages (1.7): me.AddSetupStep({ id, title, desc, groups,
 -- onFinish, quick }), after Daylight UI's own pages. groups are the guide's
 -- own (rows = { { scope, key } }, cards...) over options of the plugin's

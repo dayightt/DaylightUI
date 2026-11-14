@@ -792,6 +792,24 @@ spells. A buff the player moved by hand stays where they put it. The bars' holde
 kind `"buffbar"` (`"buff"` and `"debuff"`) to attach to; the game's buttons inside lock in fights,
 so never touch those.
 
+## Aura filters on party and raid frames (1.7)
+
+```lua
+me.AddAuraFilter("walls", { label = "Big defensives", spells = { 871, 498, 642 } })
+me.AddAuraFilter("hots", { label = "My HoTs", spells = { 774, 8936 }, mine = true })
+```
+
+Your list shows up as one more choice in the Filter dropdown of the party and raid aura rows
+(Buffs, and the extra rows added in Design mode), next to "Heals and shields" and the others.
+`what` = `"buffs"` (the default) or `"debuffs"`; `mine = true` shows only the ones the player cast.
+The game matches by spell id, so list every rank. It works in fights too.
+
+On group members the game only lets addons pick out debuffs it marks as never secret (Sated,
+Exhaustion and the like), so a boss's debuffs can't be listed: any other debuff id is left out, and
+a list with none left returns `false`. Buffs are always fine. The game fixes a row's spells the
+first time it shows, so register your lists when your addon loads; a list changed after that applies
+after a `/reload`. Called again with the same key, it replaces the list.
+
 ## Chat (1.7)
 
 ```lua

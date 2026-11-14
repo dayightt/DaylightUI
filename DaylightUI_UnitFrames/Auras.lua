@@ -57,10 +57,12 @@ Auras.KINDS = {
     } },
     -- A unit frame's buffs group. Filters are fixed when declared, so all three
     -- are here and Auras.SetBuffCounts leaves one on. heals: your buffs from
-    -- your class's heal list (HealSpells.lua), matched by spell id.
+    -- your class's heal list (HealSpells.lua), matched by spell id. yours: a
+    -- group of your own buffs, off while the unit is out of sight. Plugins'
+    -- spell lists are added here too (AuraGroups.TakePlugins).
     tilebuff = { groups = {
-        { key = "mine", filter = "HELPFUL|PLAYER", index = 1 },
-        { key = "heals", filter = "HELPFUL|PLAYER", index = 1, ids = function() return ns.HealSpells.Ids() end },
+        { key = "mine", filter = "HELPFUL|PLAYER", index = 1, yours = true },
+        { key = "heals", filter = "HELPFUL|PLAYER", index = 1, yours = true, ids = function() return ns.HealSpells.Ids() end },
         { key = "all", filter = "HELPFUL", index = 1 },
     } },
     -- A unit frame's aura groups (AuraGroups.lua). Every "which" choice is
@@ -746,18 +748,19 @@ end
 -- Out of sight range the game no longer knows who cast someone's buffs and
 -- counts others' as yours, so "mine" stays off until they're seen again.
 local mineCount, unseen = setmetatable({}, { __mode = "k" }), setmetatable({}, { __mode = "k" })
-local mineKey = setmetatable({}, { __mode = "k" })   -- which of yours shows: "mine" or "heals"
+local mineKey = setmetatable({}, { __mode = "k" })   -- the group that shows
 
 function Auras.SetBuffCounts(c, cfg, count)
     if not c or plain[c] then return end
     local n = cfg.showBuffs and count or 0
-    local which = cfg.buffFilter == "all" and "all" or cfg.buffFilter == "heals" and "heals" or "mine"
-    mineCount[c] = which ~= "all" and n or 0
-    pcall(c.SetAuraGroupMaxFrameCount, c, "mine", (unseen[c] or which ~= "mine") and 0 or mineCount[c])
-    if c.dluiGroups and c.dluiGroups.heals then
-        pcall(c.SetAuraGroupMaxFrameCount, c, "heals", (unseen[c] or which ~= "heals") and 0 or mineCount[c])
+    local which = groupOf("tilebuff", cfg.buffFilter) and cfg.buffFilter or "mine"
+    mineCount[c] = n
+    for _, g in ipairs(Auras.KINDS.tilebuff.groups) do
+        if g.key == "mine" or g.key == "all" or (c.dluiGroups and c.dluiGroups[g.key]) then
+            local hide = g.key ~= which or (g.yours and unseen[c])
+            pcall(c.SetAuraGroupMaxFrameCount, c, g.key, hide and 0 or n)
+        end
     end
-    pcall(c.SetAuraGroupMaxFrameCount, c, "all", which == "all" and n or 0)
     mineKey[c] = which
 end
 
@@ -765,8 +768,10 @@ end
 function Auras.SetBuffsSeen(c, seen)
     if not c or unseen[c] == not seen then return end
     unseen[c] = not seen
-    local key = mineKey[c] == "heals" and "heals" or "mine"
-    pcall(c.SetAuraGroupMaxFrameCount, c, key, seen and (mineCount[c] or 0) or 0)
+    local g = groupOf("tilebuff", mineKey[c] or "mine")
+    if g and g.yours then
+        pcall(c.SetAuraGroupMaxFrameCount, c, g.key, seen and (mineCount[c] or 0) or 0)
+    end
 end
 
 -- Debuffs go above the frame by default: over the name tab, from its outer end

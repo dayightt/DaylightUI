@@ -754,6 +754,7 @@ local PORTRAIT_MOVERS = {
 
 function ns.Build(mod)
     ns.module = mod
+    DUI.SafeCall(ns.AuraGroups.TakePlugins)
     ns.MigrateText(mod.db)
     ns.MigrateRaidText(mod.db)
     -- A failed upgrade is reported, but the frames still get built.
