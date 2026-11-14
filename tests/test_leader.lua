@@ -362,6 +362,53 @@ T.test("ready check: placed on its spot, size from the settings, switchable", fu
     T.falsy(b.readyIcon:IsShown(), "off: nothing")
 end)
 
+T.test("summon: a raid tile shows a pending summon, its answer, then nothing", function()
+    local DUI, ns = login("leader")
+    DUI:Set("general", "motion", false)
+    local b = raidTile(ns, "raid2", { name = "Adolin", isPlayer = true, class = "WARRIOR" })
+    T.falsy(b.summonIcon:IsShown(), "nothing before a summon")
+    stub.units.raid2.summon = "Pending"
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "raid2")
+    stub.RunTimers()
+    T.truthy(b.summonIcon:IsShown())
+    T.eq(b.summonIcon:GetTexture(), DUI.MEDIA .. "status-summon.png")
+    local _, rel, rp = b.summonIcon:GetPoint(1)
+    T.eq(rel, b.health)
+    T.eq(rp, "CENTER", "in the middle of the bar")
+    stub.units.raid2.summon = "Accepted"
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "raid2")
+    stub.RunTimers()
+    T.eq(select(2, b.summonIcon:GetVertexColor()), DUI.Style.INK.GOOD[2], "accepted in the good color")
+    stub.units.raid2.summon = "Declined"
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "raid2")
+    stub.RunTimers()
+    T.eq(select(1, b.summonIcon:GetVertexColor()), DUI.Style.INK.BAD[1], "declined in the bad color")
+    stub.units.raid2.summon = nil
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "raid2")
+    stub.RunTimers()
+    T.falsy(b.summonIcon:IsShown(), "gone when it's over")
+    stub.units.raid2.summon = "Pending"
+    DUI:Set("UnitFrames", "raid.showSummon", false)
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "raid2")
+    stub.RunTimers()
+    T.falsy(b.summonIcon:IsShown(), "off: nothing")
+end)
+
+T.test("summon: a party tile shows one too", function()
+    local DUI, ns = login("leader", { party = true })
+    DUI:Set("general", "motion", false)
+    stub.units.party1 = { name = "Kaladin", isPlayer = true, class = "HUNTER", health = 5, maxHealth = 10 }
+    local h = ns.Party.header
+    local b = CreateFrame("Button", "DaylightUIPartyHeaderUnitButton1", h)
+    h.initialConfigFunction(h, b:GetName())
+    b:SetAttribute("unit", "party1")
+    stub.RunTimers()
+    stub.units.party1.summon = "Pending"
+    stub.FireEvent("INCOMING_SUMMON_CHANGED", "party1")
+    stub.RunTimers()
+    T.truthy(b.summonIcon and b.summonIcon:IsShown())
+end)
+
 T.test("ready check: the Raid page's preview tile shows one", function()
     local _, ns = login("leader")
     local s = ns.Raid.FullSample()

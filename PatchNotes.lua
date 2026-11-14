@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "Unit frames", "Portrait ring thickness and the line round the middle are set per frame, on its Portrait tab. Your picks carry over" },
         },
         fixed = {
+            { "Unit frames", "Party and raid frames show when someone is being summoned, and whether they accepted or declined" },
             { "Chat", "Profession and recipe links in chat open on the first click, even while Trade chat is busy" },
             { "Controller", "The button hints under the quest log on the map no longer sit on top of the map's own, and no longer stay on screen after closing the map in a fight" },
             { "Fonts", "Names in Russian, Korean or Chinese no longer show as boxes when the picked font doesn't have those letters" },

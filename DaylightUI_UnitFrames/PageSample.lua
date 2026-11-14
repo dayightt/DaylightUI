@@ -165,6 +165,8 @@ PageSample.GROUP_PARTS = {
       move = { spot = "%s.dispelPos", x = "%s.dispelX", y = "%s.dispelY" }, size = { s = "%s.dispelSize" } },
     { label = "Ready check", at = at("readyIcon"), keys = { "%s.showReady", "%s.readyPos", "%s.readySize" },
       move = { spot = "%s.readyPos", x = "%s.readyX", y = "%s.readyY" }, size = { s = "%s.readySize" } },
+    { label = "Summon", at = at("summonIcon"), keys = { "%s.showSummon", "%s.summonPos", "%s.summonSize" },
+      move = { spot = "%s.summonPos", x = "%s.summonX", y = "%s.summonY" }, size = { s = "%s.summonSize" } },
 }
 -- Extra aura groups (Add piece): their stand-ins, debuffs or buffs.
 for i, key in ipairs(ns.AURA_SLOTS) do

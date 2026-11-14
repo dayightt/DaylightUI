@@ -651,6 +651,12 @@ local function registerEvents()
             ready()
         end)
     end)
+    -- A summon on its way, answered or gone (UF.UpdateSummon). Batched, so a
+    -- warlock's ritual reaching several tiles at once is one pass.
+    local function summons()
+        for _, b in ns.Group.Buttons() do UF.UpdateSummon(b) end
+    end
+    DUI.RegisterEvent("INCOMING_SUMMON_CHANGED", function() later(summons) end)
     -- A roster change can put someone new on a button that keeps its unit token
     -- ("party2"), so the header never re-sends it. Re-read them all, batched
     -- into one pass on the next frame since a filling raid sends dozens at

@@ -2342,6 +2342,21 @@ end
 _G.GetShapeshiftFormID = function() return stub.formID end
 -- The camera's own calls. The zoom keys and mouse wheel run MoveViewIn/OutStart
 -- (Blizzard_FrameXML/Bindings_Camelot.xml).
+-- A summon on its way: a unit's own summon = "Pending" | "Accepted" | "Declined"
+-- (Enum.SummonStatus names). Both calls refuse a secret unit token, as in game.
+_G.Enum.SummonStatus = { None = 0, Pending = 1, Accepted = 2, Declined = 3 }
+_G.C_IncomingSummon = {
+    HasIncomingSummon = function(u)
+        assert(not isSecret(u), "HasIncomingSummon: secret unit")
+        local x = U(u)
+        return x ~= nil and type(x.summon) == "string"
+    end,
+    IncomingSummonStatus = function(u)
+        assert(not isSecret(u), "IncomingSummonStatus: secret unit")
+        local x = U(u)
+        return Enum.SummonStatus[x and x.summon or "None"] or 0
+    end,
+}
 for _, n in ipairs({ "CameraZoomIn", "CameraZoomOut", "MoveViewInStart", "MoveViewOutStart", "SetView", "ResetView" }) do
     _G[n] = function() end
 end

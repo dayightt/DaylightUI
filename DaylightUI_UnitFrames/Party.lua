@@ -71,11 +71,12 @@ function Party.SampleFor(i, cfg)
 end
 
 -- The Party page's single preview member. Every piece that can show is on
--- (crown, role, marker, dispel, PvP, ready check), but no aggro ring.
+-- (crown, role, marker, dispel, PvP, ready check, summon), but no aggro ring.
 function Party.FullSample()
     local s = {}
     for k, v in pairs(Party.SAMPLES[1]) do s[k] = v end
     s.threat, s.marker, s.dispel, s.target, s.ready = nil, 8, "Magic", true, "ready"
+    s.summon = Enum.SummonStatus and Enum.SummonStatus.Pending or 1
     return s
 end
 

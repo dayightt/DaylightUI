@@ -259,6 +259,16 @@ local function iconItems(k, dis, skip, home)
     items[#items + 1] = { type = "slider", key = k("readySize"), label = "Ready check size", min = 6, max = 32, step = 1,
         desc = "How big the ready check answer is.", unit = "px", disabled = readyOff }
     nudges(items, "ready", "Ready check", readyOff)
+    local summonOff = function(get) return dis(get) or get(k("showSummon")) == false end
+    items[#items + 1] = { type = "toggle", key = k("showSummon"), label = "Summon icon",
+        desc = "A swirl on a member who's being summoned: in your accent while they decide, green once they accept, red if they decline.",
+        disabled = dis }
+    items[#items + 1] = { type = "dropdown", key = k("summonPos"), label = "Summon spot", values = SPOT_VALUES,
+        desc = "Where the summon icon sits on each frame, or just outside it.",
+        order = ns.Spots.ORDER, disabled = summonOff }
+    items[#items + 1] = { type = "slider", key = k("summonSize"), label = "Summon size", min = 6, max = 32, step = 1,
+        desc = "How big the summon icon is.", unit = "px", disabled = summonOff }
+    nudges(items, "summon", "Summon", summonOff)
     return items
 end
 

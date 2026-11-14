@@ -292,6 +292,11 @@ UF.READY = {
     waiting = { file = "status-waiting.png", ink = "WARN" },
 }
 UF.READY_SIZE = 14
+-- A summon on its way to a group member (UF.UpdateSummon), keyed by the
+-- client's Enum.SummonStatus: waiting in the accent, then the answer.
+UF.SUMMON = { [1] = "pop", [2] = "GOOD", [3] = "BAD" }
+UF.SUMMON_FILE = "status-summon.png"
+UF.SUMMON_SIZE = 18
 UF.READY_HOLD = 10
 UF.TAB_MAX = 0.6  -- fraction of the frame; longer names are cut short with "..."
 -- The name tab's border: half the frame's, but never too thin for the band.
@@ -710,6 +715,9 @@ function UF.Build(f, spec)
     if spec.group then
         f.readyIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
         f.readyIcon:Hide()
+        f.summonIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
+        f.summonIcon:SetTexture(DUI.MEDIA .. UF.SUMMON_FILE)
+        f.summonIcon:Hide()
     end
     -- A tile has no portrait to hang the role icon from, so it gets its own
     -- badge in a free corner. A portrait frame's lives in the status set below,
@@ -1323,6 +1331,13 @@ function UF.Layout(f, cfg, text, keepSize)
         local pos = cfg.readyPos or "right"
         UF.PlaceSpot(f.readyIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.readyX, cfg.readyY)
         f.showReady = cfg.showReady ~= false
+    end
+    if f.summonIcon then
+        local size = cfg.summonSize or UF.SUMMON_SIZE
+        f.summonIcon:SetSize(size, size)
+        local pos = cfg.summonPos or "center"
+        UF.PlaceSpot(f.summonIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.summonX, cfg.summonY)
+        f.showSummon = cfg.showSummon ~= false
     end
     f.showRole = cfg.showRole ~= false
     f.roleHideDamage, f.roleHideFight = cfg.roleHideDamage == true, cfg.roleHideInCombat == true
@@ -3146,6 +3161,49 @@ end
 
 -- Tank, healer or damage, from the role the member picked. Unknown or "NONE"
 -- shows nothing. Uses f.roleIcon (tiles) or f.status.icons.role (party frames),
+-- A summon on its way to this member: the swirl in the accent while it waits,
+-- then green or red for their answer, until the client drops it. It fades in,
+-- bumps when the answer comes, and eases away, like the ready check answer.
+function UF.UpdateSummon(f, sample)
+    local icon = f.summonIcon
+    if not icon then return end
+    local status
+    if sample then
+        status = sample.summon
+    elseif C_IncomingSummon and plain(C_IncomingSummon.HasIncomingSummon, f.unitToken) then
+        status = plain(C_IncomingSummon.IncomingSummonStatus, f.unitToken)
+    end
+    local ink = f.showSummon ~= false and type(status) == "number" and UF.SUMMON[status]
+    if not ink then
+        if f.summonStatus and icon:IsShown() and not sample and DUI.Motion.On() then
+            f.summonStatus = nil
+            -- Its own alpha as last set: a range-faded tile reads GetAlpha as secret.
+            DUI.Motion.Tween(icon, f.summonAlpha or 1, 0, DUI.Motion.NORMAL, function(a) f.summonAlpha = a; icon:SetAlpha(a) end,
+                function() if not f.summonStatus then icon:Hide() end end)
+        else
+            f.summonStatus = nil
+            icon:Hide()
+        end
+        return
+    end
+    if f.summonStatus == status and icon:IsShown() then return end
+    local fresh = not icon:IsShown() or not f.summonStatus
+    f.summonStatus = status
+    local c = ink == "pop" and { Style.Pop() } or Style.INK[ink]
+    icon:SetVertexColor(c[1], c[2], c[3], 1)
+    icon:Show()
+    if sample or not DUI.Motion.On() then
+        f.summonAlpha = 1
+        icon:SetAlpha(1)
+    elseif fresh then
+        DUI.Motion.Tween(icon, 0, 1, DUI.Motion.FAST, function(a) f.summonAlpha = a; icon:SetAlpha(a) end)
+    else
+        f.summonAlpha = 1
+        icon:SetAlpha(1)
+        DUI.Motion.Bump(icon, 1.3)
+    end
+end
+
 -- whichever this frame has.
 function UF.UpdateRole(f, sample)
     local icon
@@ -3824,6 +3882,7 @@ function UF.ShowSample(f)
     UF.UpdateReady(f, s)
     UF.UpdateRole(f, s)
     ns.Texts.ShowSample(f, s)
+    UF.UpdateSummon(f, s)
     f:SetAlpha(1)
     UF.Painted(f)
 end
@@ -3851,6 +3910,7 @@ function UF.UpdateAll(f, instant)
     UF.UpdateReady(f)
     UF.UpdateRole(f)
 end
+    UF.UpdateSummon(f)
 
 local UNIT_EVENTS = {
     UNIT_HEALTH = UF.UpdateHealth,
