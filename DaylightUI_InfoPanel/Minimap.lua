@@ -801,16 +801,17 @@ function Map.Redraw()
     mm:SetZoom(z)
 end
 
+-- Solid and on screen: the game ignores a redraw of a see-through map.
 local function mapShows()
     local mm = Minimap
     if not (type(mm) == "table" and mm:IsVisible()) then return false end
     local a = mm:GetEffectiveAlpha()
-    return type(a) == "number" and a > 0
+    return type(a) == "number" and a > 0.999
 end
 
-local screens = 0
+local asks = 0
 local function redrawOnceShown(mine)
-    if mine ~= screens or not (Map.cfg and Map.cfg.enabled) then return end
+    if mine ~= asks or not (Map.cfg and Map.cfg.enabled) then return end
     if not mapShows() then
         C_Timer.After(Map.REDRAW_LOOK, function() redrawOnceShown(mine) end)
         return
@@ -819,11 +820,56 @@ local function redrawOnceShown(mine)
     C_Timer.After(Map.REDRAW_AGAIN, function() DUI.SafeCall(Map.Redraw) end)
 end
 
-DUI.RegisterEvent("LOADING_SCREEN_DISABLED", function()
-    screens = screens + 1
-    local mine = screens
+local function redrawSoon()
+    asks = asks + 1
+    local mine = asks
     C_Timer.After(0, function() redrawOnceShown(mine) end)
-end)
+end
+
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", redrawSoon)
+
+-- The game stops updating the minimap's picture while it's even slightly
+-- see-through: walk indoors meanwhile and it stays empty, at full alpha
+-- again too, until its zoom changes. So the map ignores the panel's opacity
+-- and stays solid at rest. It still fades out and in with the panel, the AFK
+-- screen and the NPC scene, and once it's solid again it gets the loading
+-- screen's redraw.
+Map.early = false   -- set by the panel while the map skips the login fade-in
+Map.dim = false     -- has been see-through since it was last redrawn
+
+function Map.Follow()
+    local mm, cfg = Minimap, Map.cfg
+    if not (cfg and cfg.enabled and area and type(mm) == "table") then return end
+    if not mm:IsIgnoringParentAlpha() then mm:SetIgnoreParentAlpha(true) end
+    local want
+    if DUI.Fade.MapIsAway() then
+        want = 0
+    elseif Map.early then
+        want = 1
+    else
+        -- How far the panel is through its fade: its alpha now over the
+        -- alpha it rests at (the panel's opacity setting). At full strength,
+        -- the most common case, there's nothing to ask.
+        local now = area:GetEffectiveAlpha()
+        if type(now) ~= "number" or now > 0.999 then
+            want = 1
+        else
+            local _, _, _, opacity = DUI.Fade.State("InfoPanel.panel")
+            local rest = type(opacity) == "number" and math.max(opacity, 0.01) or 1
+            want = math.min(1, now / rest)
+            if want > 0.999 then want = 1 elseif want < 0.001 then want = 0 end
+        end
+    end
+    local was = mm:GetAlpha()
+    if type(was) ~= "number" or math.abs(was - want) > 0.0001 then mm:SetAlpha(want) end
+    if want < 1 then
+        Map.dim = true
+    elseif Map.dim then
+        Map.dim = false
+        redrawSoon()
+    end
+end
+DUI.Fade.mapFollow = function() DUI.SafeCall(Map.Follow) end
 
 -- In dungeons the game uses Blizzard_HybridMinimap, which draws map art on its
 -- own BACKGROUND-strata frame under the map. That ended up under the panel's
@@ -1026,4 +1072,5 @@ function Map.Apply(cfg)
 
     -- Addon buttons: gathered into the drawer in the map's corner.
     ns.Drawer.Apply(cfg)
+    Map.Follow()
 end

@@ -611,14 +611,27 @@ function Fade.Hushed() return next(hushes) ~= nil end
 -- (UIParent's alpha). Never hide it: hidden and shown again, the game's map
 -- came back blank (at every login and after each NPC talk in town). Its own
 -- alpha is restored to what it was once nobody holds it.
+-- When the info panel holds the map, it sets the map's alpha itself
+-- (Fade.mapFollow): it's then asked again on every call, since the AFK
+-- screen and the NPC scene call this on each step of their fade.
 local mapAway, mapAlphaBefore = {}, nil
+function Fade.MapIsAway() return next(mapAway) ~= nil end
+
 function Fade.MapAway(name, on)
     on = on == true
-    if (mapAway[name] == true) == on then return end
+    local follow = Fade.mapFollow
+    if (mapAway[name] == true) == on then
+        if follow then follow() end
+        return
+    end
     local map = _G.Minimap
     if type(map) ~= "table" then return end
     local before = next(mapAway) ~= nil
     mapAway[name] = on or nil
+    if follow then
+        follow()
+        return
+    end
     local now = next(mapAway) ~= nil
     if now and not before then
         local a = map:GetAlpha()
