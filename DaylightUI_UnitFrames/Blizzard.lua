@@ -33,8 +33,32 @@ local function unregister(child)
     if type(child) == "table" and child.UnregisterAllEvents then child:UnregisterAllEvents() end
 end
 
+-- The controller's top bar opens the target menu through the game's own target
+-- frame, and the game closes any menu whose owner isn't visible. So with the
+-- controller UI on, that frame stays shown inside a see-through frame instead.
+local veil = CreateFrame("Frame", nil, UIParent)
+veil:SetAlpha(0)
+veil:EnableMouse(false)
+Blizzard.veil = veil
+
+local function wantVeil(frame)
+    return frame == _G.TargetFrame and DUI.Pad ~= nil and DUI.Pad.On()
+end
+
+local function quiet(frame)
+    if frame:IsMouseEnabled() then frame:EnableMouse(false) end
+    local tot = frame.totFrame
+    if type(tot) == "table" and tot.EnableMouse and tot:IsMouseEnabled() then tot:EnableMouse(false) end
+end
+
 local function park(frame)
-    if frame:GetParent() == hidden then return end
+    local veiled = wantVeil(frame)
+    local home = veiled and veil or hidden
+    if frame:GetParent() == home and frame:IsShown() == veiled then
+        -- Edit Mode can turn the mouse back on.
+        if veiled and not InCombatLockdown() then quiet(frame) end
+        return
+    end
     if EditModeManagerFrame and EditModeManagerFrame:IsShown() then
         C_Timer.After(0.25, function() park(frame) end)
         return
@@ -43,7 +67,13 @@ local function park(frame)
         DUI.AfterCombat(function() park(frame) end, "blizzard:park:" .. tostring(frame:GetName()))
         return
     end
-    frame:SetParent(hidden)
+    frame:SetParent(home)
+    if veiled then
+        quiet(frame)
+        frame:Show()
+    else
+        frame:Hide()
+    end
 end
 
 function Blizzard.Hide(frame)
@@ -71,9 +101,7 @@ Blizzard.REPARK_EVENTS = { "PLAYER_ENTERING_WORLD", "EDIT_MODE_LAYOUTS_UPDATED",
                            "UNIT_EXITED_VEHICLE", "PLAYER_REGEN_ENABLED" }
 
 function Blizzard.Repark()
-    for _, frame in ipairs(parked) do
-        if frame:GetParent() ~= hidden then park(frame) end
-    end
+    for _, frame in ipairs(parked) do park(frame) end
 end
 
 function Blizzard.WatchParked()
@@ -81,6 +109,7 @@ function Blizzard.WatchParked()
     watching = true
     local function soon() C_Timer.After(0, Blizzard.Repark) end
     for _, e in ipairs(Blizzard.REPARK_EVENTS) do pcall(DUI.RegisterEvent, e, soon) end
+    DUI.On("PadChanged", soon)
     local em = EditModeManagerFrame
     if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
 end

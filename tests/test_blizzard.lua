@@ -95,3 +95,43 @@ T.test("hiding the same frame twice is harmless", function()
     stub.RunTimers()
     T.eq(PlayerFrame:GetParent(), ns.Blizzard.hiddenParent)
 end)
+
+-- The controller's top bar opens the target menu through the game's own
+-- TargetFrame_OpenMenu(TargetFrame), and the game's menu closes itself the frame
+-- its owner isn't visible (Blizzard_Menu Menu.lua). So on a controller the game's
+-- target frame has to stay visible, just see-through and click-through.
+T.test("on a controller the game's target frame stays visible but unseen, so its menu opens", function()
+    local ns = setup()
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    TargetFrame.__protected = true
+    ns.Blizzard.Hide("TargetFrame")
+    T.truthy(TargetFrame:IsVisible(), "the menu's owner is visible")
+    T.eq(TargetFrame:GetEffectiveAlpha(), 0, "but not seen")
+    T.falsy(TargetFrame:IsMouseEnabled(), "and takes no clicks")
+    T.falsy(TargetFrame:IsEventRegistered("UNIT_HEALTH"))
+    -- Back to the mouse: parked out of sight as before.
+    _G.InputUtil, _G.GamepadMode = nil, nil
+    DaylightUI.Fire("PadChanged")
+    stub.RunTimers()
+    T.falsy(TargetFrame:IsVisible())
+    T.eq(TargetFrame:GetParent(), ns.Blizzard.hiddenParent)
+    -- And again, in a fight: waits for it to end.
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    stub.EnterCombat()
+    DaylightUI.Fire("PadChanged")
+    stub.RunTimers()
+    T.falsy(TargetFrame:IsVisible(), "nothing protected moves in a fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.truthy(TargetFrame:IsVisible())
+    _G.InputUtil, _G.GamepadMode = nil, nil
+end)
+
+T.test("with the mouse, the game's target frame is parked out of sight", function()
+    local ns = setup()
+    ns.Blizzard.Hide("TargetFrame")
+    T.falsy(TargetFrame:IsVisible())
+    T.eq(TargetFrame:GetParent(), ns.Blizzard.hiddenParent)
+end)
