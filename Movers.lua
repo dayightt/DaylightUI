@@ -1280,8 +1280,20 @@ local function showLockButton(show)
         mag:SetFrameLevel(bar:GetFrameLevel() + 2)
         mag:SetPoint("LEFT", snap, "RIGHT", 8, 0)
         lockButton.snap, lockButton.magnet = snap, mag
+
+        -- Opens or closes the box of area checkboxes, lit while it's open.
+        local areas = DUI.Widgets.Button(bar, L["Areas"], 30)
+        areas.FitWidth(90)
+        areas:SetFrameLevel(bar:GetFrameLevel() + 2)
+        areas:SetPoint("LEFT", mag, "RIGHT", 8, 0)
+        function areas.Sync() areas.SetActive(DUI.TestBox.Unlock.IsOpen()) end
+        areas:SetScript("OnClick", function()
+            DUI.TestBox.Unlock.SetOpen(not DUI.TestBox.Unlock.IsOpen())
+        end)
+        DUI.On("UnlockBoxChanged", areas.Sync)
+        lockButton.areas = areas
         bar:SetWidth(PILL_PAD + lockButton:GetWidth() + 8 + snap:GetWidth()
-            + 8 + mag:GetWidth() + PILL_PAD)
+            + 8 + mag:GetWidth() + 8 + areas:GetWidth() + PILL_PAD)
 
         -- The setup guide was never finished, so moves are lost at logout. Shown lit
         -- under the bar, with the reason on hover. A click opens the guide.
@@ -1305,12 +1317,14 @@ local function showLockButton(show)
         lockButton:SetShown(show)
         lockButton.snap:SetShown(show)
         lockButton.magnet:SetShown(show)
+        lockButton.areas:SetShown(show)
         local setup = show and DUI.DB.Unsaved()
         lockButton.setup.bar:SetShown(setup)
         lockButton.setup:SetShown(setup)
         if show then
             lockButton.snap.Sync()
             lockButton.magnet.Sync()
+            lockButton.areas.Sync()
         end
     end
 end

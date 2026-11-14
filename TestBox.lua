@@ -114,6 +114,9 @@ function TestBox.Make(spec)
     f.title = Style.Text(f, Style.SIZE.head, "CENTER")
     f.title:SetPoint("TOP", f, "TOP", 0, -8)
     f.title:SetText(spec.title)
+    local Win = DUI.Win
+    f.close = DUI.Widgets.Close(f, spec.onClose)
+    f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
     f:Hide()
     DUI.Motion.Window(f, 6)
     box.frame = f
@@ -182,6 +185,11 @@ function TestBox.Layout()
             items = testParts,
             shown = DUI.TestPartShown,
             toggle = DUI.SetTestPartShown,
+            -- Closed until the next time test mode starts.
+            onClose = function()
+                TestBox.closed = true
+                DUI.Motion.Vanish(TestBox.frame)
+            end,
         })
         TestBox.frame, TestBox.rows = TestBox.box.frame, TestBox.box.rows
     end
@@ -205,12 +213,31 @@ function UnlockBox.Layout()
             items = DUI.Movers.Areas,
             shown = DUI.Movers.AreaShown,
             toggle = DUI.Movers.SetAreaShown,
+            onClose = function() UnlockBox.SetOpen(false) end,
         })
         UnlockBox.frame, UnlockBox.rows = UnlockBox.box.frame, UnlockBox.box.rows
         UnlockBox.frame:EnableMouse(true)
     end
     UnlockBox.box.Layout()
     TestBox.Place()
+end
+
+-- Closed with its X or the Areas button on the Lock bar, and kept closed
+-- (account-wide) until that button opens it again.
+function UnlockBox.IsOpen()
+    return DUI.DB.Root().unlockBoxClosed ~= true
+end
+
+function UnlockBox.SetOpen(open)
+    DUI.DB.Root().unlockBoxClosed = (not open) or nil
+    if open and DUI.Movers.unlocked then
+        UnlockBox.Layout()
+        UnlockBox.frame:Show()
+    elseif UnlockBox.frame then
+        DUI.Motion.Vanish(UnlockBox.frame)
+    end
+    if TestBox.frame then TestBox.Place() end
+    DUI.Fire("UnlockBoxChanged", open)
 end
 
 -- The unlock box hangs under the Lock bar (or the Finish setup button under
@@ -246,6 +273,7 @@ end
 -- A page preview has no box, only its own parts.
 DUI.On("TestModeChanged", function(on)
     if not on then DUI.testSolo = nil end
+    if on then TestBox.closed = nil end
     if on and not DUI.testSolo then
         TestBox.Layout()
         TestBox.frame:Show()
@@ -255,7 +283,7 @@ DUI.On("TestModeChanged", function(on)
 end)
 
 DUI.On("UnlockChanged", function(on)
-    if on then
+    if on and UnlockBox.IsOpen() then
         UnlockBox.Layout()
         UnlockBox.frame:Show()
     elseif UnlockBox.frame then
@@ -272,7 +300,7 @@ end)
 -- area with no handles left loses its own.
 DUI.On("SettingChanged", function()
     if TestBox.frame and TestBox.frame:IsShown() then TestBox.Layout() end
-    if DUI.Movers.unlocked and UnlockBox.frame then UnlockBox.Layout() end
+    if DUI.Movers.unlocked and UnlockBox.frame and UnlockBox.IsOpen() then UnlockBox.Layout() end
 end)
 -- Accent color for the ticks.
 DUI.On("StyleChanged", function()
