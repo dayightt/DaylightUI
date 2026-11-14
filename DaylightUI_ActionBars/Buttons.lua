@@ -53,8 +53,9 @@ function Buttons.Unlist(btn)
     if type(frames) ~= "table" then return end
     local n = #frames
     if frames[n] == btn then frames[n] = nil return end
-    for i = 1, n do
-        if frames[i] == btn then frames[i] = nil return end
+    -- Walked whole: with holes left by earlier removals, the length can stop short.
+    for k, v in pairs(frames) do
+        if v == btn then frames[k] = nil return end
     end
 end
 

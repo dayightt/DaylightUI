@@ -286,6 +286,23 @@ T.test("buttons: ours come off the game's events list in place; the game's entri
     end
 end)
 
+-- A player on 1.7.3: "MultiBarBottomRightButton1:SetShown()" blocked while pressing
+-- keys in a fight. The game's button events frame hands "slot changed" to every
+-- button on its list, the hidden twins too, and each one's update shows or hides
+-- its bar's buttons, working out its slot from a page Daylight UI may have written.
+T.test("park: the game's hidden twins of every bar come off its button events list", function()
+    login()
+    local list = ActionBarButtonEventsFrame.frames
+    local twins = { ActionButton1, MultiBarBottomLeftButton6, MultiBarBottomRightButton1, MultiBarRightButton12,
+                    MultiBarLeftButton3, MultiBar5Button2, MultiBar6Button12 }
+    for _, b in ipairs(twins) do list[#list + 1] = b end
+    stub.actionbars.Park.Apply()
+    for _, v in pairs(list) do
+        for _, b in ipairs(twins) do T.falsy(v == b, "no twin left: " .. b:GetName()) end
+    end
+    T.eq(list[1], "game1"); T.eq(list[2], "game2"); T.eq(list[3], "game3")
+end)
+
 -- A /reload mid-swing: the template's first Update runs for slot 1 (its guess),
 -- finds Attack on and starts the game's blink on every button. Park silences the
 -- events that would stop it, so it ran until the next reload.

@@ -34,6 +34,23 @@ function Park.Bar(frame)
     if type(frame) == "table" and frame:GetParent() ~= Park.Frame() then frame:SetParent(Park.Frame()) end
 end
 
+-- The game's button events frame hands every event to each button on its list,
+-- the hidden twins too. On "slot changed" in a fight a twin works out its slot from
+-- its bar's page, which bar paging writes, and then shows or hides every button of
+-- its bar, so the game blocked that SetShown. A pressed key works out its slot when
+-- it's pressed and needs none of these updates, so the twins of every bar come off
+-- the list (set to nil in place, as Buttons.Unlist does).
+function Park.UnlistTwins()
+    local prefixes = { "ActionButton" }
+    for _, name in ipairs(Park.MULTI) do prefixes[#prefixes + 1] = name .. "Button" end
+    for _, prefix in ipairs(prefixes) do
+        for i = 1, 12 do
+            local b = _G[prefix .. i]
+            if type(b) == "table" then ns.Buttons.Unlist(b) end
+        end
+    end
+end
+
 -- Parks bars 1-8 and silences 2-8.
 function Park.Apply()
     for _, name in ipairs(Park.MULTI) do
@@ -53,6 +70,7 @@ function Park.Apply()
     -- the twins are hidden.
     local events = _G.ActionBarActionEventsFrame
     if type(events) == "table" then events:UnregisterAllEvents() end
+    Park.UnlistTwins()
     if not Park.wired then
         Park.wired = true
         local function recheck() DUI.AfterCombat(Park.Recheck, "park:recheck") end
