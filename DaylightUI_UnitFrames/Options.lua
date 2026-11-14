@@ -2638,7 +2638,7 @@ ns.OPTIONS = { pages = {
         { label = "Class icons", desc = "On the portrait rings of the player, target and focus frames.", items = {
             { type = "dropdown", key = "portraits.icons", label = "Icon style",
               choices = UF.IconStyleChoices,
-              desc = "Daylight UI's own icons, the game's own round class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
+              desc = "Daylight UI's own icons, the Classic class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
                   .. "(art by JiberishUI and its artists, read from that addon's own folder)." },
             { type = "text", label = function()
                 if UF.HasIconPack() then

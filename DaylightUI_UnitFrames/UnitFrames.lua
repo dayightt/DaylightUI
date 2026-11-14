@@ -399,7 +399,7 @@ UF.CLASS_ICONS = {
 -- The pack's folder names, newest first. It used to be ElvUI_JiberishIcons.
 UF.ICON_PACKS = { "JiberishIcons", "ElvUI_JiberishIcons" }
 UF.ICON_STYLES = {
-    daylight = "DaylightUI", game = "The game's own", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
+    daylight = "DaylightUI", game = "Classic", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
     fabledmyth = "Fabled Myth", fabledpixels = "Fabled Pixels", fabledpixelsv2 = "Fabled Pixels v2",
     fabledrealm = "Fabled Realm", fabledrealmv2 = "Fabled Realm v2", intothevoid = "Into the Void",
     fabledclass = "Fabled Class", fabledregalia = "Fabled Regalia",
