@@ -3134,6 +3134,19 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     holder:GetScript("OnUpdate")(holder, 0.1)
     stub.RunTimers()
     T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "a checkbox refresh keeps our tick")
+    -- A tick rebuilds every row with the game's own font (Compositor.lua,
+    -- SetFontStringToDefaults) while the menu stays open. Our font is back in
+    -- the same frame, before it is drawn, with the row's color kept.
+    T.eq((plain.text:GetFont()), Style.FONT, "the row starts in our font")
+    local gameFont = CreateFont("TestMenuGameFont")
+    gameFont:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
+    plain.text:SetFontObject(gameFont)
+    plain.text:SetTextColor(0.5, 0.6, 0.7, 1)
+    local gameFile = plain.text:GetFont()
+    T.truthy(gameFile ~= Style.FONT, "the fake game's default font is not ours")
+    holder:GetScript("OnUpdate")(holder, 0.016)
+    T.eq((plain.text:GetFont()), Style.FONT, "a refresh's text is back in our font at once")
+    T.eq(plain.text.__textColor[2], 0.6, "with the color the game gave it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

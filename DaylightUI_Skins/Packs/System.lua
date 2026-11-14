@@ -1173,11 +1173,15 @@ local function dressMenu(Kit, menu)
     -- Refresh rebuilds rows in place. Our frame, not the game's, notices the
     -- game's tick, line or raid icon coming back and asks for another pass.
     -- While the menu is closed this frame hides, so it cannot sit on screen.
-    -- Walking every row is too much for every frame; ten times a second is
-    -- quicker than anyone can see the game's tick come back.
+    -- Walking every row's art is too much for every frame; ten times a second
+    -- is quicker than anyone can see the game's tick come back. The font is
+    -- checked every frame: a refresh puts the game's font back on every row
+    -- and the wider text would show for a moment. This runs after the click's
+    -- refresh and before the menu is drawn, and costs one GetFont per text.
     holder.wait = 0
     holder:SetScript("OnUpdate", function(self, elapsed)
         if menu.IsShown and not menu:IsShown() then self:Hide(); return end
+        menuFonts(menu, 5)
         self.wait = self.wait + (elapsed or 0)
         if self.wait < 0.1 then return end
         self.wait = 0

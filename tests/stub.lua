@@ -566,7 +566,15 @@ function Widget:SetFont(path, size, flags, extra)
     end
     self.__font = { path, size, flags }
 end
-function Widget:GetFont() local f = self.__font; if f then return f[1], f[2], f[3] end end
+-- Like the client, a text given a font object reads that object's font back
+-- until it gets its own (SetFont), and a new font object replaces that.
+function Widget:GetFont()
+    local f = self.__font
+    if f then return f[1], f[2], f[3] end
+    local obj = self.__fontObject
+    if type(obj) == "string" then obj = _G[obj] end
+    if type(obj) == "table" and obj ~= self and obj.GetFont then return obj:GetFont() end
+end
 -- SimpleHTML:SetFontObject(textType, font). A FontString takes the font alone.
 function Widget:SetFontObject(font, obj)
     if rawget(self, "__type") == "SimpleHTML" and type(font) == "string" then
@@ -575,6 +583,7 @@ function Widget:SetFontObject(font, obj)
         return
     end
     self.__fontObject = font
+    if font ~= nil and rawget(self, "__type") == "FontString" then self.__font = nil end
 end
 -- Like the client, an edit box's text change runs its OnTextChanged.
 function Widget:SetText(t)
