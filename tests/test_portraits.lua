@@ -1101,7 +1101,7 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     UF.UpdateAll(f, true)
     T.eq(p.mask.__texture, DUI.MEDIA .. "crest-disc.png", "round by default")
     T.falsy(p.corners)
-    DUI:Set("UnitFrames", "portraits.shape", "square")
+    DUI:Set("UnitFrames", "target.portraitShape", "square")
     stub.RunTimers()
     UF.UpdateAll(f, true)
     local file, lit = UF.RingFiles("normal", true, "square")
@@ -1113,6 +1113,8 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     T.truthy(used[p.fillFile], "the aggro sweep")
     T.eq(p.mask.__texture, DUI.MEDIA .. "portrait-square-hole.png", "the picture cropped square")
     T.eq(p.halo.__texture, DUI.MEDIA .. "portrait-square-glow.png", "a square halo")
+    UF.UpdateAll(ns.frames.player, true)
+    T.falsy(ns.frames.player.portrait.shapeArt, "each frame has its own shape: the player's stays round")
     -- Half way between top and right, the light sits on the square's corner.
     local x, y = UF.RingPoint(p, math.pi / 4)
     T.near(x, p.radius, 1e-6); T.near(y, p.radius, 1e-6)
@@ -1133,7 +1135,8 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     T.eq(p.elite.__texture, DUI.MEDIA .. "portrait-square-elite.png")
     T.falsy(p.eye:IsShown(), "only the dragon has eyes")
     -- Angled: the target's portrait sits on the frame's right end, the player's on its left.
-    DUI:Set("UnitFrames", "portraits.shape", "angled")
+    DUI:Set("UnitFrames", "target.portraitShape", "angled")
+    DUI:Set("UnitFrames", "player.portraitShape", "angled")
     stub.RunTimers()
     UF.UpdateAll(f, true)
     T.truthy(p.ring:GetTexture():find("portrait-angled-r-band", 1, true), "the target: leaning right")
@@ -1145,7 +1148,7 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     local lx = UF.RingPoint(p, math.pi * 0.75)
     T.truthy(lx < p.radius - 1e-6, "the tucked-in corner is closer in")
     -- Back to round: the dragon and the round crop.
-    DUI:Set("UnitFrames", "portraits.shape", "round")
+    DUI:Set("UnitFrames", "target.portraitShape", "round")
     stub.RunTimers()
     UF.UpdateAll(f, true)
     T.eq(p.elite.__texture, UF.DRAGON_FILE)

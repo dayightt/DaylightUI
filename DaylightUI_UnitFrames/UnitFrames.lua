@@ -1774,7 +1774,7 @@ function UF.LayoutPortrait(f, cfg)
     end
     local off = R * UF.PORTRAIT_OUT
     local looks = ns.module and ns.module.db and ns.module.db.portraits or {}
-    local shapeArt = UF.ShapeArt(looks.shape, outerRight)
+    local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
     p.shapeArt = shapeArt
     p.corners = UF.ShapeCorners(shapeArt)
     -- A square's half-side, or the ring's radius: how far it reaches each way.

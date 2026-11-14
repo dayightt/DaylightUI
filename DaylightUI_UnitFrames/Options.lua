@@ -1294,8 +1294,8 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Text", "Auras", "Extras" }
-local TAB_OF = { ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
+local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", ["Boss debuffs"] = "Auras", Dispels = "Auras" }
@@ -1328,18 +1328,25 @@ end
 -- A frame's own rows that cover its size and shape (Basics). The rest of its
 -- Frame card (bar textures and colors, power, heals and absorbs) becomes its
 -- "Health and power" card.
-local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true, portrait = true,
-    portraitAt = true, portraitIconsStay = true, portraitRing = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true, tabHeight = true, slant = true, fillVertical = true,
+local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
+    tabHeight = true, slant = true, fillVertical = true,
     showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
+-- The portrait's own rows get a card (and tab) of their own.
+local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
+    portraitDragon = true, portraitDragonColor = true, portraitScale = true }
 local function splitFrame(prefix, items, power)
-    local basic, bars = {}, {}
+    local basic, bars, portrait = {}, {}, {}
     for _, it in ipairs(items) do
         local field = type(it.key) == "string" and string.match(it.key, "^" .. prefix .. "%.([^%.]+)$")
-        if field and BASIC_FIELDS[field] then basic[#basic + 1] = it else bars[#bars + 1] = it end
+        if field and BASIC_FIELDS[field] then basic[#basic + 1] = it
+        elseif field and PORTRAIT_FIELDS[field] then portrait[#portrait + 1] = it
+        else bars[#bars + 1] = it end
     end
     return { label = "Frame", items = basic },
-           { label = power and "Health and power" or "Health bar", items = bars }
+           { label = power and "Health and power" or "Health bar", items = bars },
+           #portrait > 0 and { label = "Portrait", desc = "The picture at the frame's outer end: what it shows, its shape, size and ring.",
+                               items = portrait } or nil
 end
 
 local function framePage(id, label, desc, opts)
@@ -1440,6 +1447,10 @@ local function framePage(id, label, desc, opts)
             desc = "A ring over the outer end. Class icons show for players; NPCs show their face."
                 .. " Needs a frame at least " .. UF.MIN_PORTRAIT_HEIGHT .. " tall.",
             disabled = function(get) return shown(get) or tooShort(get) end }
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitShape"), label = "Shape",
+            values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
+            desc = "A round ring, a square, or a square with its outer side angled like the frame's end. The aggro fill, arrival light and elite frame follow the shape.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
         if opts.portraitFree then
             frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",
                 values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
@@ -1628,11 +1639,12 @@ local function framePage(id, label, desc, opts)
                 return shown(get) or (mode ~= "ooc" and mode ~= "always" and mode ~= "float")
             end } }
     end
-    local basic, bars = splitFrame(id, frame, opts.power or opts.powerToggle)
+    local basic, bars, portraitCard = splitFrame(id, frame, opts.power or opts.powerToggle)
     local groups = {
         basic, bars,
         shellCard(id, k("enabled")),
     }
+    if portraitCard then groups[#groups + 1] = portraitCard end
     if opts.place then
         -- Each frame sits beside its party member (PartyTargets.lua).
         table.insert(groups, 2, { label = "Position", items = {
@@ -2649,9 +2661,6 @@ ns.OPTIONS = { pages = {
             classIconPicker,
         } },
         { label = "Portrait rings", desc = "The ring round every portrait, on every frame. Each frame picks its ring's color on its own page.", items = {
-            { type = "dropdown", key = "portraits.shape", label = "Shape",
-              values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
-              desc = "Round rings, squares, or squares with an angled outer side like the frames' ends. The aggro fill, arrival light and elite frame follow the shape." },
             { type = "dropdown", key = "portraits.ringWidth", label = "Ring thickness",
               values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
               desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it." },

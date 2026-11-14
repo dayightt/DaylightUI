@@ -77,7 +77,7 @@ PageSample.PARTS = {
     { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.ribbon end },
-    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
+    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On Ribbon's row it doesn't move.
     { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
