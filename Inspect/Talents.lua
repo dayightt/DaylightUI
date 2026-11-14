@@ -26,7 +26,7 @@ local function configID()
     return c or -1
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 
 local function hex(r, g, b)
     return string.format("|cff%02x%02x%02x", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))

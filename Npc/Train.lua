@@ -29,7 +29,6 @@ local Parts = Win.Parts
 
 local function fn(f) return type(f) == "function" end
 local function call(f, ...) if fn(f) then return f(...) end end
-local function now() return fn(GetTime) and GetTime() or 0 end
 local function sample() return ns.Window.state.sample == true end
 
 -- pick and confirm hold a line's Train.Key (ranks share a name).
@@ -141,8 +140,8 @@ function Train.Learn(s, line)
     if s.profession then
         if Train.NoSlot() then return bump() end
         -- A new profession uses one of two slots, so it needs a second click.
-        if not (S.confirm and S.confirm.key == Train.Key(s) and now() - S.confirm.at < Train.CONFIRM) then
-            S.confirm = { key = Train.Key(s), at = now() }
+        if not (S.confirm and S.confirm.key == Train.Key(s) and GetTime() - S.confirm.at < Train.CONFIRM) then
+            S.confirm = { key = Train.Key(s), at = GetTime() }
             if line then
                 line.sub:SetText(L["Press Train again: it takes a profession slot"])
                 Style.InkText(line.sub, "WARN")
@@ -213,8 +212,8 @@ function Train.All()
     if S.busy then return end
     if #Train.Affordable(Train.Services()) == 0 then return end
     local c = S.confirm
-    if not (c and c.key == Train.ALL and now() - c.at < Train.CONFIRM) then
-        local at = now()
+    if not (c and c.key == Train.ALL and GetTime() - c.at < Train.CONFIRM) then
+        local at = GetTime()
         S.confirm = { key = Train.ALL, at = at }
         Train.PaintFooter()
         C_Timer.After(Train.CONFIRM, function()
@@ -225,7 +224,7 @@ function Train.All()
         end)
         return
     end
-    if now() - c.at < DUI.Widgets.CONFIRM_GAP then return end   -- second half of a double-click
+    if GetTime() - c.at < DUI.Widgets.CONFIRM_GAP then return end   -- second half of a double-click
     S.confirm = nil
     S.busy = true
     Train.PaintFooter()

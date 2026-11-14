@@ -153,11 +153,7 @@ end
 
 -- Open, close, follow the game's frame
 
-local function spot()
-    local s = ns.module and ns.module.db and ns.module.db.spot
-    if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
-    return nil
-end
+local function spot() return Social.spot and Social.spot.Get() end
 
 local function place(f)
     local s = spot()
@@ -231,8 +227,7 @@ function Social.Changed(_, shown)
 end
 
 function Social.SaveSpot(x, y)
-    local db = ns.module and ns.module.db
-    if db then db.spot = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
+    if Social.spot then Social.spot.Save(x, y) end
     if ns.Raid and ns.Raid.Moved then ns.Raid.Moved() end
 end
 
@@ -252,12 +247,9 @@ end
 
 -- Right-click on the header (or /dui reset): back to the game's spot and size.
 function Social.ResetSpot()
-    local db = ns.module and ns.module.db
-    if not db then return end
+    if not (ns.module and ns.module.db) then return end
     if Social.sizer then Social.sizer.Reset() end
-    if not db.spot then return end
-    db.spot = nil
-    if Social.frame and Win.IsOpen(Social.frame) then place(Social.frame) end
+    if Social.spot then Social.spot.Reset() end
 end
 
 function Social.Apply()
@@ -282,6 +274,7 @@ function Social.Build(mod)
     local f = Win.New({ name = Social.NAME, back = "Social", w = Social.W, h = Social.H, portrait = true })
     Social.frame = f
     f.onClose = Social.Close
+    Social.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Social.ICON)
     makeStatus(f)
     for _, id in ipairs(Social.PAGES) do

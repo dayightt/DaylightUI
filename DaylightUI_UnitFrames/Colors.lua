@@ -20,7 +20,7 @@ local DUI = DaylightUI
 local Style, Health = DUI.Style, DUI.Health
 local UF = ns.UF
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 UF.DARK_FILL = { 0.14, 0.14, 0.14 }
 UF.HEALTH_FORMATS, UF.HEALTH_FORMAT_ORDER = Health.FORMATS, Health.FORMAT_ORDER
@@ -324,7 +324,7 @@ function UF.PaintName(f, r, g, b)
     local mode = f.nameColorMode
     if mode == nil or mode == "global" then mode = UF.colors and UF.colors.name or "white" end
     f.nameKey = nil
-    -- A plugin's name keeps its color and letters. The health text is still ours.
+    -- A plugin's name keeps its color and letters. The health text is still Daylight UI's.
     if UF.Owned(f, "name") then
         UF.PaintPercent(f, r, g, b)
         return

@@ -1,5 +1,5 @@
 -- PreviewBar: /dui buffs test (and DaylightUI's frame preview) draws a sample
--- of known buffs with our own buttons, laid out by the same flow algorithm
+-- of known buffs with the module's own buttons, laid out by the same flow algorithm
 -- the client uses for the live bar, so the categorized look can be judged
 -- without a raid. The live bar is hidden underneath while it shows.
 

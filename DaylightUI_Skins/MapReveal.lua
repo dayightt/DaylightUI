@@ -5,7 +5,7 @@
 -- the unexplored ones are drawn the way MapExplorationPinMixin:RefreshOverlays
 -- draws explored ones: tiles of the art layer's size from each piece's top-left.
 --
--- It's all our own frame and textures over the map canvas at the game's
+-- It's all an addon frame and textures over the map canvas at the game's
 -- exploration level. Nothing on the map is called or written; canvas, map id and
 -- level table are only read. A map change is detected by its id, checked each
 -- frame while the map is shown.

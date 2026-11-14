@@ -1,11 +1,11 @@
 -- The public API other addons build on (DaylightUI.API; Plugins.lua creates
--- the table and handles which version a plugin needs). Find our frames, hear
+-- the table and handles which version a plugin needs). Find Daylight UI's frames, hear
 -- when they're created, change unit, go away or get restyled, and read
 -- settings.
 --
 -- Frame kinds (fixed): "unit" (player, target, targettarget, pet, focus,
 -- focustarget), "party", "raid", "partypet", "nameplate", "actionbutton".
--- List rows in our windows (1.2): "shoptile" (the vendor's shelf, unit =
+-- List rows in Daylight UI's windows (1.2): "shoptile" (the vendor's shelf, unit =
 -- "buy:<index>" or "buyback:<index>", see API.ShopItem) and "craftrow" (the
 -- profession window's recipe lines, unit = the recipe id). 1.4: "platecast",
 -- a nameplate's cast bar (unit = its plate's). 1.5: "actionbar", the action
@@ -22,7 +22,7 @@
 -- CraftStarted (recipeID, count), CraftMade (recipeID, done, count),
 -- CraftStopped (recipeID, done, count).
 --
--- Our frames call the reporters below (DUI.APIReport: Made, Unit, Back, Gone,
+-- Daylight UI's frames call the reporters below (DUI.APIReport: Made, Unit, Back, Gone,
 -- Occupant, Styled), each behind Report.Wants where it costs anything, so
 -- with nobody listening a report is just a table read. They're internal and
 -- not part of DaylightUI.API (another addon could break the lookups through
@@ -45,7 +45,7 @@ local PASSED_ON = { "StyleChanged", "SettingChanged", "TestModeChanged", "Unlock
     "AfkScreenShown", "AfkScreenHidden" }
 local passedOn = {}
 for _, name in ipairs(PASSED_ON) do passedOn[name] = true end
--- The only events our windows may send (Report.Event).
+-- The only events Daylight UI's windows may send (Report.Event).
 local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChanged = true,
     CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true,
     -- The damage meter's (1.6).
@@ -274,7 +274,7 @@ end
 -- A known row is a unit change when its key moved, or a new occupant when the
 -- same key now holds something else (info.id, like another shop's item at the
 -- same index). A row not in this fill lets go of its key. Then FrameStyled
--- fires for each, so a plugin repaints over our fresh paint. info (a table or
+-- fires for each, so a plugin repaints over Daylight UI's fresh paint. info (a table or
 -- nil) is what API.ShopItem returns.
 local fills = {} -- kind -> { now = { [frame] = isPreview }, was = {...}, order }
 
@@ -335,11 +335,11 @@ function Report.ListClear(kind)
     Report.ListDone(kind)
 end
 
--- Paint (1.3): a plugin's look applied to our frames right after each of our
+-- Paint (1.3): a plugin's look applied to Daylight UI's frames right after each of its
 -- own paints. A module that opens a kind provides its frames' named parts
 -- (Report.Parts), reports when it painted one (Report.Painted), checks before
 -- coloring a piece a plugin claimed (Report.Owned), and can repaint a frame
--- back to our look (Report.Repainter).
+-- back to Daylight UI's look (Report.Repainter).
 
 local partsOf = {} -- kind -> fn(frame) -> { name = region }
 local infoOf = {} -- kind -> fn(frame) -> what it shows now, for a paint with none given
@@ -411,7 +411,7 @@ local function paintOne(e, kind, frame, info)
     DUI.SafeCallAs(e.owner or L["an addon"], e.fn, frame, parts, info)
 end
 
--- Right after we painted frame, runs every painter of its kind in the order
+-- Right after Daylight UI painted frame, runs every painter of its kind in the order
 -- they registered. With none it's just a table read. A painter stopped while
 -- its kind is being painted (by itself or another) is only marked, and the
 -- list is cleaned up after the loop.
@@ -450,7 +450,7 @@ local function eachMade(kind, fn)
     for _, frame in ipairs(list) do fn(frame) end
 end
 
--- Puts our own look back on every frame of kind (when a claim begins or ends).
+-- Puts Daylight UI's own look back on every frame of kind (when a claim begins or ends).
 local function repaintAll(kind)
     local back = repaint[kind]
     if not back then return end
@@ -474,7 +474,7 @@ local function claim(kind, e)
 end
 
 -- A painter stops: its pieces pass to the next painter that asked for them,
--- and every frame of the kind gets our own look back at once.
+-- and every frame of the kind gets Daylight UI's own look back at once.
 local function stopPainter(e)
     if e.dead then return end
     e.dead = true
@@ -498,7 +498,7 @@ local function stopPainter(e)
     end
     if (paintingNow[kind] or 0) > 0 then paintDirty[kind] = true else tidy(kind) end
     repaintAll(kind)
-    -- What the others paint goes back on top of our look.
+    -- What the others paint goes back on top of Daylight UI's look.
     for _, other in ipairs(painters[kind] or {}) do
         if not other.dead then
             eachMade(kind, function(frame) paintOne(other, kind, frame, rowInfo[frame]) end)
@@ -509,7 +509,7 @@ end
 stopPainterRef = stopPainter
 
 -- me.Paint(kind, fn, { owns = { "fill", ... } }) runs fn(frame, parts, info) on
--- every existing frame of kind, then after each of our paints. Returns a
+-- every existing frame of kind, then after each of Daylight UI's paints. Returns a
 -- handle (API.Off stops it). A kind whose module hasn't loaded yet (the
 -- plugin's name sorts first) is kept and painted once its parts are known.
 local function startPainter(owner, kind, fn, opts)
@@ -524,7 +524,7 @@ local function startPainter(owner, kind, fn, opts)
     if not list then list = {}; painters[kind] = list end
     list[#list + 1] = e
     claim(kind, e)
-    -- A claimed piece is no longer ours, so remove our look from it before the
+    -- A claimed piece is no longer Daylight UI's, so remove Daylight UI's look from it before the
     -- plugin paints (a gradient overlay, a vertex color).
     if partsOf[kind] then
         if next(e.owns) then repaintAll(kind) end
@@ -570,10 +570,10 @@ local function lookup(kind, unit)
     return u and u[unit] or nil
 end
 
--- Visible now (our own frames, so a plain read).
+-- Visible now (Daylight UI's own frames, so a plain read).
 local function shown(f)
     local v = f:IsVisible()
-    return not issecretvalue(v) and v == true
+    return not DUI.IsSecret(v) and v == true
 end
 
 -- A frame of kind showing unit: the visible one first when wantShown is set
@@ -599,13 +599,13 @@ local function playerTile(wantShown)
     for frame, tok in pairs(l) do
         if type(tok) == "string" and (not wantShown or shown(frame)) then
             local same = UnitIsUnit("player", tok)
-            if not issecretvalue(same) and same then return frame end
+            if not DUI.IsSecret(same) and same then return frame end
         end
     end
 end
 
 -- LibGetFrame-style lookup: a visible raid tile for that unit, else a party
--- tile, else our own frame for it (player, target, focus...), else a party
+-- tile, else Daylight UI's own frame for it (player, target, focus...), else a party
 -- pet. If none is visible, the same order including hidden ones.
 local ORDER = { "raid", "party", "player", "unit", "partypet" }
 function API.GetUnitFrame(unit)
@@ -887,17 +887,17 @@ function API.IsModuleEnabled(name)
     return mod and mod.enabled and true or false
 end
 
--- Fitting in: our look for other addons. All wrappers, each reading the
+-- Fitting in: Daylight UI's look for other addons. All wrappers, each reading the
 -- player's font, accent and sizes when called, never cached.
 
 local HOLDER = "__duiApiHolder"
 
--- A plain child of our frame, above our art, to draw on. Created once and the
+-- A plain child of Daylight UI's frame, above its art, to draw on. Created once and the
 -- same one returned every call. It isn't protected, so it can be created on a
 -- secure tile in combat too (the game allows a plain child of a protected
--- frame, and nothing here moves, shows or resizes the tile). Only for our own
+-- frame, and nothing here moves, shows or resizes the tile). Only for Daylight UI's own
 -- frames (ones the reporters know, previews included). A game frame or
--- another addon's gets nothing, so no field of ours is ever written on it
+-- another addon's gets nothing, so no Daylight UI field is ever written on it
 -- (taint).
 local function isOurs(frame)
     for _, m in pairs(made) do
@@ -1003,7 +1003,7 @@ API.Speed = { FAST = DUI.Motion.FAST, NORMAL = DUI.Motion.NORMAL, SLOW = DUI.Mot
 
 -- Eases a region of yours to toAlpha. speed is a number or "FAST"/"NORMAL"/"SLOW".
 -- Stepped from its current alpha (Motion.AlphaTo, no animation group). A
--- hidden region only gets its alpha set; we never show it (it may be protected).
+-- hidden region only gets its alpha set; it is never shown (it may be protected).
 function API.Fade(region, toAlpha, speed)
     if type(region) ~= "table" or type(toAlpha) ~= "number" then return end
     local Motion = DUI.Motion
@@ -1075,7 +1075,7 @@ local function placeGroup(pageId, entry)
     if not page then return false end
     local scope = str(entry.group.scope) or entry.name
     if not DUI:GetModule(scope) then
-        -- Our pages are built before a plugin's addon loads (and registers its
+        -- Daylight UI's pages are built before a plugin's addon loads (and registers its
         -- module), so until login it waits. At login it's placed or rejected.
         if not DUI.loggedIn then return false end
         entry.done = true
@@ -1089,7 +1089,7 @@ local function placeGroup(pageId, entry)
     card.label = string.format("%s - %s", tostring(entry.group.label or ""), string.format(L["From %s"], entry.name))
     local items = {}
     for i, src in ipairs(entry.group.items or {}) do
-        -- Validated like our own pages' rows (Options.Validate). A bad one is left
+        -- Validated like Daylight UI's own pages' rows (Options.Validate). A bad one is left
         -- out with one line in chat so it can't break the page.
         local item, bad
         if type(src) ~= "table" then
@@ -1593,7 +1593,7 @@ function View.AddOptionsGroup(v, pageId, group, after)
     return true
 end
 
--- Skins another addon's window in our look when that addon loads: fn(Kit)
+-- Skins another addon's window in Daylight UI's look when that addon loads: fn(Kit)
 -- runs once it's there (return false to be called again as more addons
 -- load). This is the Skins engine's third-party kind: an error in fn names
 -- the addon once in chat and stops it, and the player can't turn it off
@@ -1816,9 +1816,9 @@ end
 
 function View.Hook(v, tbl, name, after) return addHook(v, tbl, name, after, "after") end
 
--- Plugin settings on our modules (1.3): me.AddDefaults(module, tbl) adds new
+-- Plugin settings on Daylight UI's modules (1.3): me.AddDefaults(module, tbl) adds new
 -- top-level keys to a module's defaults (never one it already has), saved and
--- stripped like ours. DB.PluginKeys records their owner. A module not on yet
+-- stripped like Daylight UI's own. DB.PluginKeys records their owner. A module not on yet
 -- picks them up when it turns on (Core.lua's EnableModule).
 
 local waitingDefaults = {} -- module -> list of { owner, tbl }

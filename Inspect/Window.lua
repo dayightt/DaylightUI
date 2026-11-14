@@ -20,7 +20,7 @@ Insp.W, Insp.H = 660, 534
 
 function ns.Setting(key) return ns.module and ns.module.db and ns.module.db[key] end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 
 function Insp.Game()
     local g = _G.InspectFrame
@@ -158,12 +158,12 @@ function Insp.Ready(guid)
     local unit = Insp.UnitOf() or Insp.unit
     if not unit then return end
     local now = UnitGUID(unit)
-    if not (secret(guid) or issecretvalue(now) or now == guid) then return end
+    if not (secret(guid) or secret(now) or now == guid) then return end
     -- Identity can't be read (a PvP match, a restricted map): a new answer may be someone
     -- else on the same unit, so the pages redraw fresh (Gear.Fill's `unitShown` knows
     -- someone was shown, not who, and their slots still fade in). Re-reads after it are the
     -- same player.
-    if secret(guid) or issecretvalue(now) then
+    if secret(guid) or secret(now) then
         for _, page in pairs(Insp.frame.pages or {}) do
             if page.unitShown then page.unitShown = "unread" end
         end

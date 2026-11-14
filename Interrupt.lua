@@ -20,9 +20,9 @@ DUI.Interrupt = Interrupt
 -- one you know counts; ranks share a cooldown). stances = the warrior stance
 -- indexes it works in, forms = the druid form ids. Felhunter's Spell Lock is a pet
 -- spell (its ranks come from demon tomes). Every rank is in this client's trainer
--- and tome lists; Silence and Feral Charge are talents, so they're in neither and
+-- and tome lists. Silence and Feral Charge are talents, so they're in neither:
 -- their ids and Feral Charge's forms come from other addons written for this
--- client (not yet checked in game).
+-- client and haven't been confirmed in game.
 Interrupt.SPELLS = {
     WARRIOR = {
         { 72, 1671, 1672, stances = { 1, 2 } }, -- Shield Bash: battle, defensive
@@ -37,7 +37,7 @@ Interrupt.SPELLS = {
 }
 Interrupt.MARK_PX = 3 -- the mark's width
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 local function known(id, pet)
     local book = C_SpellBook
@@ -128,12 +128,12 @@ local function forget()
     DUI.Fire("InterruptChanged")
 end
 for _, e in ipairs({ "SPELLS_CHANGED", "UPDATE_SHAPESHIFT_FORM", "PLAYER_ENTERING_WORLD" }) do
-    pcall(DUI.RegisterEvent, e, forget)
+    DUI.RegisterEvent(e, forget)
 end
-pcall(DUI.RegisterEvent, "UNIT_PET", function(_, unit)
+DUI.RegisterEvent("UNIT_PET", function(_, unit)
     if unit == "player" then forget() end
 end)
-pcall(DUI.RegisterEvent, "SPELL_UPDATE_COOLDOWN", function() DUI.Fire("InterruptChanged") end)
+DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() DUI.Fire("InterruptChanged") end)
 
 -- ---------------------------------------------------------------------
 -- The mark on a cast bar

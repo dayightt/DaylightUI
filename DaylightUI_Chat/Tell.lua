@@ -10,6 +10,7 @@
 -- ProcessChatType does. Plain English names are left to the game.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 
 local Tell = {}
 ns.Tell = Tell
@@ -18,7 +19,6 @@ ns.Tell = Tell
 Tell.CMDS = { ["/w"] = true, ["/whisper"] = true, ["/t"] = true, ["/tell"] = true, ["/cw"] = true }
 Tell.CHARACTER = { ["/cw"] = true } -- always a character name, never a Battle.net friend
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function nonAscii(s) return string.find(s, "[\128-\255]") ~= nil end
 
 local function learnCommands()
@@ -57,7 +57,7 @@ function Tell.Parse(text)
     return first .. " " .. second, body
 end
 
--- Runs a moment after a space: converts the box to a whisper if it's one we handle.
+-- Runs a moment after a space: converts the box to a whisper if it's one of Tell.CMDS.
 function Tell.Check(eb)
     if type(eb) ~= "table" or type(eb.GetText) ~= "function" then return end
     local text = eb:GetText()

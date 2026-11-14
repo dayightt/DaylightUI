@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local DT = ns.DataTexts
@@ -24,7 +25,7 @@ function Broker.Lib()
 end
 
 local function str(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     if type(v) == "number" then return tostring(v) end
     return type(v) == "string" and v ~= "" and v or nil
 end
@@ -53,7 +54,7 @@ local function textFor(name, obj)
     end
 end
 
--- The object's own tooltip lines, shown where our tooltips go.
+-- The object's own tooltip lines, shown where Daylight UI's tooltips go.
 local function tipFor(name, obj)
     return function()
         if type(obj.OnTooltipShow) == "function" then
@@ -172,7 +173,7 @@ local function run(owner, fn, ...)
 end
 
 local function plainString(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     if type(v) == "number" then return tostring(v) end
     return type(v) == "string" and v or nil
 end

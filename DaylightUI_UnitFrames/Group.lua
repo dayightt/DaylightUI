@@ -482,8 +482,8 @@ end
 -- nothing. A header creates buttons for a negative startingIndex regardless of
 -- who's in the group (SecureGroupHeaders.lua, configureChildren; EllesmereUI,
 -- Grid2 and Cell do the same), and the second SetAttribute restores everyone.
--- Setting them all up here cost about 2 seconds at 3 fps after every load, so
--- Group:Take leaves that until the first member arrives.
+-- Setting them all up here would stall every load for seconds, so Group:Take
+-- leaves that until the first member arrives.
 function Group:MakeOn(h, want)
     if not h:GetAttribute("child" .. want) then
         local shown, first = h:IsShown(), h:GetAttribute("startingIndex")

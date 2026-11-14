@@ -24,7 +24,6 @@ List.EVENTS = { "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "NEW_RECIPE_LEA
     "TRADE_SKILL_FAVORITES_CHANGED", "TRACKED_RECIPE_UPDATE" }
 List.ITEM_WAIT = 0.2  -- s to let item info settle before re-reading the list
 
-local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 -- Collapsed categories (per character, by profession and category name)
 
@@ -57,10 +56,7 @@ local function makeHead(parent)
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
     b.state = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.state:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 3)
-    b.line = b:CreateTexture(nil, "ARTWORK")
-    b.line:SetTexture(WHITE)
-    b.line:SetVertexColor(1, 1, 1, 0.06)
-    b.line:SetHeight(1)
+    b.line = Win.Parts.Rule(b)
     b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     b.line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
     b.isSection = true

@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -57,15 +58,7 @@ local function placeAll()
     for frame, place in pairs(places) do placeOne(frame, place) end
 end
 
-local queued = false
-local function soon()
-    if queued then return end
-    queued = true
-    C_Timer.After(0, function()
-        queued = false
-        placeAll()
-    end)
-end
+local soon = DUI.Soon(placeAll)
 
 local function pin(frame, place)
     if type(frame) ~= "table" or not frame.SetPoint then return end
@@ -73,7 +66,7 @@ local function pin(frame, place)
     places[frame] = place
     if not Map.placeWired then
         Map.placeWired = true
-        for _, event in ipairs(Map.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+        for _, event in ipairs(Map.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
         -- Leaving Edit Mode puts frames back at their Edit Mode spots.
         local em = _G.EditModeManagerFrame
         if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
@@ -276,7 +269,7 @@ local function fpsTooltip(self)
         DUI.Tips.Flush(GameTooltip)
         GameTooltip:Show()
     end
-    -- The game's tooltip goes to its default corner; ours sits at the mouse.
+    -- The game's tooltip goes to its default corner; this one sits at the mouse.
     fpsAtCursor()
 end
 
@@ -290,7 +283,7 @@ local function ensureFps(mm)
     f:SetFrameLevel(mm:GetFrameLevel() + Map.TEXT_LIFT)   -- over the ring and the map's dots
     f:SetSize(50, 12)
     f:EnableMouse(true)
-    f.__duiOwnTooltipSpot = true   -- the Tooltip module leaves its tooltip to us
+    f.__duiOwnTooltipSpot = true   -- the Tooltip module leaves its tooltip to this frame
     f.text = Style.Text(f, 11, "CENTER", ns.MEDIA.font)
     Style.InkText(f.text, "VALUE")
     -- Left and right only: the text keeps its own height, so a big or tall
@@ -394,7 +387,7 @@ end
 -- ---------------------------------------------------------------------
 
 Map.LOCATION_INSET = 28      -- room left at each side for the corner buttons
--- The zone name wears its PvP color (the game's kinds, softened like our
+-- The zone name wears its PvP color (the game's kinds, softened like Daylight UI's
 -- tooltips'); no kind = a plain value.
 local INK = Style.INK
 Map.ZONE_COLORS = {
@@ -406,7 +399,7 @@ Map.ZONE_COLORS = {
 function Map.ZoneColor()
     local get = C_PvP and C_PvP.GetZonePVPInfo
     local kind = type(get) == "function" and get()
-    if type(kind) == "string" and not (issecretvalue and issecretvalue(kind)) and Map.ZONE_COLORS[kind] then
+    if type(kind) == "string" and not isSecret(kind) and Map.ZONE_COLORS[kind] then
         return Map.ZONE_COLORS[kind]
     end
     return INK.VALUE
@@ -439,7 +432,7 @@ local function ensureLocation(mm)
     if f.text.SetWordWrap then f.text:SetWordWrap(false) end
     Map.location = f
     for _, event in ipairs(Map.LOCATION_EVENTS) do
-        pcall(DUI.RegisterEvent, event, function() Map.UpdateLocation() end)
+        DUI.RegisterEvent(event, function() Map.UpdateLocation() end)
     end
     return f
 end
@@ -636,8 +629,9 @@ function Map.PaintButton(d)
     end
 end
 
--- btn: the game's button (its clicks); frame: what is placed and faded
--- (the tracking button sits in a holder of the game's).
+-- Dresses one of the game's minimap buttons. btn is the button that takes the
+-- clicks, frame is what gets placed and faded (for the tracking button that's
+-- the game's holder around it).
 function Map.DressButton(btn, frame, kind)
     if type(btn) ~= "table" or not btn.CreateTexture then return end
     if dressed[btn] then return dressed[btn] end
@@ -761,13 +755,13 @@ function Map.PlaceTop(mm, location, coords)
     end
 end
 
--- Rotation toggled (by us, Edit Mode at login, or another addon). Apply
+-- Rotation toggled (by Daylight UI, Edit Mode at login, or another addon). Apply
 -- re-runs every pin so the map and everything on it follow. A protected map
 -- waits for combat to end.
 function Map.Fit()
     local cfg = Map.cfg
     if not (cfg and cfg.enabled and area) then return end
-    -- The game sets its own mask when the setting changes: ours goes on again.
+    -- The game sets its own mask when the setting changes: Daylight UI's goes on again.
     Map.maskSet = nil
     if InCombatLockdown() then
         DUI.AfterCombat(Map.Fit, "infopanel:mapFit")
@@ -989,7 +983,7 @@ function Map.Apply(cfg)
     -- The calendar and the tracking button, down the map's right edge. They
     -- are the game's own (their clicks and menus unchanged). Switched off,
     -- they go back into the hidden cluster, their parent, rather than under
-    -- a frame of ours.
+    -- a Daylight UI frame.
     local calendar = GameTimeFrame
     local tracking = cluster and cluster.Tracking or MiniMapTrackingButton
     local trackButton = type(tracking) == "table" and type(tracking.Button) == "table" and tracking.Button or tracking
@@ -1027,7 +1021,7 @@ function Map.Apply(cfg)
         Map.buttonTicker = C_Timer.NewTicker(Map.WATCH, function() DUI.SafeCall(Map.WatchButtons) end)
     end
     -- The game's addon compartment (every addon that lists itself there,
-    -- ours included): the map's bottom-right corner, with the other buttons.
+    -- Daylight UI's included): the map's bottom-right corner, with the other buttons.
     -- With the drawer on, its entries are in the drawer and the drawer's
     -- button has that corner.
     pin(_G.AddonCompartmentFrame, function(f)

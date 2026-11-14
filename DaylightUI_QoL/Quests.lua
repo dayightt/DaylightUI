@@ -21,7 +21,7 @@ local function wants(key)
     return mod and mod.db and mod.db[key] == true and not paused()
 end
 
--- Tells our NPC window this page was answered, so it never flashes up.
+-- Tells the Daylight NPC window this page was answered, so it never flashes up.
 local function answered(event)
     if type(DaylightUI.TalkAnswered) == "function" then DaylightUI.TalkAnswered(event) end
 end

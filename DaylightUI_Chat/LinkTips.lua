@@ -6,6 +6,7 @@
 -- Secret links (chat lockdown) are ignored.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 
 local LinkTips = {}
 ns.LinkTips = LinkTips
@@ -19,14 +20,12 @@ local lifted -- extra offset above the panel for a tall compare tooltip
 local waiting -- the hover the delay is waiting on (a fresh table per hover)
 local driver -- runs only while a tooltip sits above the chat
 
-local function secret(v) return issecretvalue and issecretvalue(v) end
-
 local function place(tip, y)
     tip:ClearAllPoints()
     tip:SetPoint("BOTTOMLEFT", anchoredOn, "TOPLEFT", 0, ns.Chat.GAP + y)
 end
 
--- The game anchors the "Equipped" compare tooltip to our tooltip's top, so a
+-- The game anchors the "Equipped" compare tooltip to the link tooltip's top, so a
 -- taller compare would hang down over the chat. Raise the tooltip by the
 -- difference. The compare can appear late (Shift), so check each frame while
 -- shown and only move on a change.
@@ -98,7 +97,7 @@ function LinkTips.OnEnter(cf, link)
     end)
 end
 
--- Only hide it if it's still ours; another tooltip may have taken it over.
+-- Only hide it if this file still owns it; another tooltip may have taken it over.
 function LinkTips.OnLeave(cf)
     waiting = nil
     local tip = _G.GameTooltip

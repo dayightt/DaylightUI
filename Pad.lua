@@ -1,6 +1,6 @@
 -- Daylight UI windows on a controller.
 -- The game only gives the D-pad to windows it opened itself (ShowUIPanel), so
--- our windows have to announce themselves through
+-- Daylight UI's windows have to announce themselves through
 -- GamepadMode.FrameControlsManager's FrameShown / FrameHidden. Those are safe
 -- for addons out of combat (the game wraps both); in combat they're refused
 -- with "action blocked".
@@ -9,7 +9,7 @@
 --                            what B does. With frame.padSecond, opening next
 --                            to another window leaves that one the focus
 --                            (the bag)
---   Pad.Forget(frame)        removes a game window parked behind ours from the
+--   Pad.Forget(frame)        removes a game window parked behind Daylight UI's from the
 --                            game's list, so the D-pad never lands on it
 --   Pad.Remember(frame)      puts it back on the list
 --   Pad.Popup(frame, close)  a dropdown: takes the D-pad, then gives it back
@@ -42,7 +42,7 @@
 --
 -- The game's D-pad handling only has A and B. Every other button belongs to
 -- the window, as on the game's own windows (merchant X buys a stack, mail X
--- opens all...). While one of our windows has focus (the game calls
+-- opens all...). While one of Daylight UI's windows has focus (the game calls
 -- FocusGamepad / UnfocusGamepad on it), LB / RB step through its tabs and
 -- these are bound and listed in a small bar under it:
 --   frame.padKeys            { { key = "X"|"Y"|"MENU_LEFT"|"MENU_RIGHT", label,
@@ -77,9 +77,9 @@ Pad.NEXT_TAB = "DaylightUIPadNextTab"
 
 local told = setmetatable({}, { __mode = "k" }) -- frames the game knows are open
 Pad.aimed = setmetatable({}, { __mode = "k" }) -- padFirst already ran for this opening
-local followed = setmetatable({}, { __mode = "k" }) -- every frame we keep the game informed about
+local followed = setmetatable({}, { __mode = "k" }) -- every frame the game is kept informed about
 local fight = false -- handed back, fight not over yet
-local forgetting = setmetatable({}, { __mode = "k" }) -- parked game windows waiting for one of ours to be listed
+local forgetting = setmetatable({}, { __mode = "k" }) -- parked game windows waiting for one of Daylight UI's to be listed
 
 local function manager()
     if type(InputUtil) ~= "table" or type(InputUtil.IsGamepadUIEnabled) ~= "function" then return nil end
@@ -91,7 +91,7 @@ function Pad.On() return manager() ~= nil end
 
 -- The window's own buttons, LB, RB
 
-local keys -- the frame our keys are bound on (created once, out of combat)
+local keys -- the frame Daylight UI's keys are bound on (created once, out of combat)
 
 local function key(name, fallback)
     local k = _G[name]
@@ -147,7 +147,7 @@ function Pad.StepTab(dir)
 end
 
 -- The focused window's entry for a key, if it can act on the stop right now.
--- What every window of ours gets after its own entries: Y opens a list row's
+-- What every Daylight UI window gets after its own entries: Y opens a list row's
 -- right-click menu (More actions, as on the game's Communities window), and
 -- the left menu button goes into the page's search box (the game's bags,
 -- spellbook). entry.follow: bound only while it acts on the stop, again as
@@ -290,7 +290,7 @@ end
 -- D-pad left and right, taken while a stop that changes a value has focus (a
 -- slider or dropdown row in the options), like the game's own Settings window
 -- (Blizzard_SettingControls.lua). Holding repeats. The game's binding footer
--- isn't wrapped and writing to it taints, so this is our own override
+-- isn't wrapped and writing to it taints, so this is Daylight UI's own override
 -- binding, like X and Y.
 Pad.SIDE_LEFT, Pad.SIDE_RIGHT, Pad.SIDE_DONE = "DaylightUIPadLeft", "DaylightUIPadRight", "DaylightUIPadDone"
 Pad.REPEAT_WAIT, Pad.REPEAT_EVERY = 0.35, 0.07
@@ -983,10 +983,10 @@ local function focusGained(self)
     end
 end
 
--- A box of ours the game gives the controller to by itself (the chat's typing
+-- A Daylight UI box the game gives the controller to by itself (the chat's typing
 -- box, which the game focuses through its own chat frame): its hints show and
 -- its keys bind while it's taken, then whichever window has the focus gets them
--- back. f is a frame of ours with padHints and, if it binds any, padKeys /
+-- back. f is a Daylight UI frame with padHints and, if it binds any, padKeys /
 -- padTabs; f.padHintsAbove puts the bar over it.
 function Pad.Take(f)
     if not manager() or fight or InCombatLockdown() or Pad.prompt then return end
@@ -995,7 +995,7 @@ function Pad.Take(f)
         watching = true
         C_Timer.After(Pad.HINT_EVERY, watchHints)
     end
-    if Pad.focused then return end   -- a window of ours with the D-pad wins; it's bound on focus lost
+    if Pad.focused then return end   -- a Daylight UI window with the D-pad wins; it's bound on focus lost
     bind(f)
     Pad.ShowHints(f)
 end
@@ -1061,9 +1061,9 @@ local function sync(frame)
     end
 end
 
--- A window of ours starting to close tells the game at once, through its
+-- A Daylight UI window starting to close tells the game at once, through its
 -- wrapped call, while it's still shown. The game's navigation frame sits in
--- the window it serves: hidden along with it by our Hide, its OnHide switches
+-- the window it serves: hidden along with it by its Hide, its OnHide switches
 -- the controller's bindings as if Daylight UI had, and the game then refuses
 -- its own protected call (SetPreferredGamepadInteractTarget). Pad.Returning
 -- tells it again when a closing window is caught and reopened mid-fade.
@@ -1086,7 +1086,7 @@ function Pad.Follow(frame, close)
         frame.SmartNavigationCloseHandler = function() close(); return true end
     end
     frame.FocusGamepad, frame.UnfocusGamepad = focusGained, focusLost
-    -- One frame later, because a game window we replace opens in the same moment
+    -- One frame later, because a game window Daylight UI replaces opens in the same moment
     -- and the D-pad goes to whichever was announced last.
     frame:HookScript("OnShow", function(self) C_Timer.After(0, function() sync(self) end) end)
     frame:HookScript("OnHide", sync)

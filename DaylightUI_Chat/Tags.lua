@@ -18,6 +18,7 @@
 -- Every window but the combat log registers the callback once, from Chat.Pass.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 
 local Tags = {}
 ns.Tags = Tags
@@ -56,7 +57,6 @@ Tags.SPEECH = {
     CHAT_MSG_RAID_WARNING = { "RAID_WARNING", "RW", "warning" },
 }
 
-local function secret(v) return issecretvalue and issecretvalue(v) end
 local function esc(s) return (string.gsub(s, "%p", "%%%0")) end
 
 -- gsub replacements built once rather than a closure per line, since every chat

@@ -83,7 +83,7 @@ function Gear.Enchant(link, slotId, unit)
     local kind = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.ItemEnchantmentPermanent or Gear.ENCHANT_LINE
     for _, line in ipairs(data.lines) do
         local text = line.leftText
-        if line.type == kind and type(text) == "string" and not (issecretvalue and issecretvalue(text)) then
+        if line.type == kind and type(text) == "string" and not DUI.IsSecret(text) then
             text = bareEnchant(text)
             enchants[link] = text
             return text
@@ -136,7 +136,7 @@ function Gear.Read(key, repairAt, unit)
     return e
 end
 
--- Every slot we draw, by key.
+-- Every slot drawn, by key.
 function Gear.All(repairAt, unit)
     local out = {}
     for _, list in ipairs({ Gear.LEFT, Gear.RIGHT, Gear.BOTTOM }) do

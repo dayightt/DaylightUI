@@ -8,7 +8,7 @@
 --
 -- Under chat lockdown (possibly in instances) the countdown seconds are
 -- secret and can't be timed, so the game's own display shows instead. A
--- countdown we started ourselves is already known (Leader.sent).
+-- countdown you started is already known (Leader.sent).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -25,13 +25,13 @@ Pull.SHRINK = 0.85           -- and leaves this small
 Pull.IN = Motion.FAST        -- how long a second takes to settle
 Pull.OUT = 0.15              -- the end of a second it spends leaving
 Pull.ACCENT_FROM = 3         -- the last seconds in the accent
-Pull.OWN_WINDOW = 2          -- a countdown this soon after one we sent is ours
+Pull.OWN_WINDOW = 2          -- a countdown this soon after one you sent is yours
 Pull.MAX = 3600              -- the game's maximum
 
 local frame, host, num, label, driver
 local endAt, shownN
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 local function ease(p)
     if p <= 0 then return 0 end
@@ -69,7 +69,7 @@ local function veil()
     end
 end
 
--- Ours
+-- Daylight UI's countdown
 
 local function paintNumber(n)
     shownN = n
@@ -160,8 +160,8 @@ end
 function Pull.Running() return endAt ~= nil end
 
 -- START_PLAYER_COUNTDOWN (initiatedBy, timeRemaining, totalTime, ...).
--- Plain seconds run this timer. Secret ones only do when we just sent the
--- countdown ourselves, otherwise the game's display shows.
+-- Plain seconds run this timer. Secret ones only do when you just sent the
+-- countdown yourself, otherwise the game's display shows.
 function Pull.OnCountdown(_, seconds)
     if not Pull.on then return end
     if isSecret(seconds) or type(seconds) ~= "number" then

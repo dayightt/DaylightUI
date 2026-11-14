@@ -224,7 +224,7 @@ ns.OPTIONS = { pages = {
                   if sys and set then
                       DaylightUI.EditMode.WriteSetting(sys.Minimap, nil, set.RotateMinimap, v and 1 or 0)
                   end
-                  -- Not one of our settings, so notify the options window directly.
+                  -- Not one of Daylight UI's settings, so notify the options window directly.
                   DaylightUI.Fire("SettingChanged", "InfoPanel", "map.rotate", v)
               end,
               default = function() return false end,

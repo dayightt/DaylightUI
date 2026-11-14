@@ -704,19 +704,7 @@ local function fillCooldowns()
     end
 end
 
--- Runs fn once on the next frame, however many times it's requested this frame.
-local function soon(fn)
-    local armed = false
-    local function run()
-        armed = false
-        fn()
-    end
-    return function()
-        if armed then return end
-        armed = true
-        C_Timer.After(0, run)
-    end
-end
+local soon = DUI.Soon
 
 local function registerEvents()
     -- Bags changed during a burst; only those get refilled.

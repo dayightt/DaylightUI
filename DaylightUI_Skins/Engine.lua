@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local Engine = {}
@@ -69,7 +70,7 @@ end
 -- retried whenever another addon loads.
 function Engine.Try(def)
     if def.done or not Engine.Wanted(def) or not loaded(def.addon) then return end
-    if def.skip and def.skip() then return end -- replaced by one of our own windows, e.g. the NPC window
+    if def.skip and def.skip() then return end -- replaced by a Daylight UI window, e.g. the NPC window
     def.done = true
     DUI.AfterCombat(function()
         local ok, result = pcall(def.apply, ns.Kit, def)
@@ -304,7 +305,7 @@ local function describe(obj, keys)
     end
     if obj.GetText then
         local ok, text = pcall(obj.GetText, obj)
-        if ok and type(text) == "string" and not (issecretvalue and issecretvalue(text)) then
+        if ok and type(text) == "string" and not isSecret(text) then
             bits[#bits + 1] = '"' .. string.sub(text, 1, 24) .. '"'
         end
     end
@@ -352,7 +353,7 @@ local function findText(text)
         if not (f.IsForbidden and f:IsForbidden()) and f.IsVisible and f:IsVisible() and f.GetRegions then
             for _, r in ipairs({ f:GetRegions() }) do
                 local ok, s = pcall(function() return r.GetText and r:GetText() end)
-                if ok and type(s) == "string" and not (issecretvalue and issecretvalue(s))
+                if ok and type(s) == "string" and not isSecret(s)
                     and string.find(string.lower(s), want, 1, true) then
                     found = found + 1
                     DUI.Print(pathOf(f) .. ': "' .. string.sub(s, 1, 40) .. '"')

@@ -43,7 +43,7 @@ local function scan(label, t, out)
 end
 
 -- A game frame: its global name is the game's, or the game wrote at least one
--- of its fields. Our own frames (even built from game templates) are tainted
+-- of its fields. Daylight UI's own frames (even built from game templates) are tainted
 -- all over as expected, so they're skipped.
 local function gameFrame(f)
     if f.IsForbidden and f:IsForbidden() then return false end
@@ -58,11 +58,11 @@ local function gameFrame(f)
     return false
 end
 
--- Client-made buttons and containers inside our frames (buff buttons, bag
+-- Client-made buttons and containers inside Daylight UI's frames (buff buttons, bag
 -- slots, plate aura containers) carry the client's fields and pass gameFrame,
--- but no game code reads ours on them. Walk up to the nearest named frame or
--- anonymous frame of ours. A frame the game named (one we borrow into our
--- holders) still counts as the game's.
+-- but no game code reads Daylight UI's fields on them. Walk up to the nearest
+-- named frame or anonymous Daylight UI frame. A frame the game named (one
+-- borrowed into Daylight UI's holders) still counts as the game's.
 local function insideOurs(f)
     local own = f.GetName and f:GetName()
     if type(own) == "string" and issecurevariable(own) then return false end
@@ -87,7 +87,7 @@ end
 local function plainName(f, method)
     if type(f[method]) ~= "function" then return nil end
     local v = f[method](f)
-    if type(issecretvalue) == "function" and issecretvalue(v) then return nil end
+    if DUI.IsSecret(v) then return nil end
     return type(v) == "string" and v or nil
 end
 

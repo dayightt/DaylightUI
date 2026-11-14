@@ -4,7 +4,7 @@
 -- square and the face buttons round, as the game has them.
 --
 -- The game rewrites each button's art on every press and every time a bar grows or
--- shrinks, with no event for it. So ours is reapplied from a post-hook on
+-- shrinks, with no event for it. So the skin is reapplied from a post-hook on
 -- GamepadActionBarStyleUtil, a plain table of functions that all of that passes
 -- through (allowed in tests/guards_allow.lua).
 
@@ -16,7 +16,7 @@ ns.PadSkin = PadSkin
 
 PadSkin.BARS = { "topBar", "leftBar", "rightBar", "bottomBar", "possessBar", "stanceBar",
                  "friendlyTargetingBar", "hostileTargetingBar", "shortcutsBar" }
--- Art that only the XML sets, emptied once. An alpha of ours wouldn't hold, since the
+-- Art that only the XML sets, emptied once. An alpha set by the addon wouldn't hold, since the
 -- game's focus animations end by setting theirs.
 PadSkin.BLANK = { "CircleShadow", "CircleShadowFocus", "SquareShadow", "SquareShadowFocus",
                   "CircleGlowFocus", "SquareGlowFocus" }

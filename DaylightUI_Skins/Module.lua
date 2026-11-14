@@ -20,7 +20,7 @@ DaylightUI:RegisterModule("Skins", {
         ns.WindowScale.Start(mod.db)
         ns.WindowMove.Start(mod.db)
         ns.Engine.Start(mod.db)
-        -- Questie icons in our art follow this switch (DUI.QuestieAside).
+        -- Questie icons in the Daylight art follow this switch (DUI.QuestieAside).
         DaylightUI.Fire("QuestMapsChanged")
     end,
     OnSettingChanged = function(mod)

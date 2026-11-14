@@ -35,7 +35,7 @@ Make.GAP = 2         -- s a run can pause between two enchants before it counts 
 Make.laid = {}       -- item GUID -> the enchant applied to it this session
 
 local function TS() return type(C_TradeSkillUI) == "table" and C_TradeSkillUI or nil end
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 local function call(name, ...)
     local ts = TS()
     local fn = ts and ts[name]
@@ -274,7 +274,7 @@ function Make.OnCast(event, unit, _, spellID)
     if event == "UNIT_SPELLCAST_START" then
         s.casting = true
         local _, _, _, from, to = UnitCastingInfo("player")
-        if issecretvalue and (issecretvalue(from) or issecretvalue(to)) then from, to = nil, nil end
+        if DUI.IsSecret(from) or DUI.IsSecret(to) then from, to = nil, nil end
         if type(from) == "number" and type(to) == "number" and to > from then
             s.from, s.to = from, to
             row.bar:SetMinMaxValues(from, to)

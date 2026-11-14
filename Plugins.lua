@@ -297,7 +297,7 @@ local function groups()
 end
 
 -- Built with the first plugin or pack (no page if none are installed) and
--- rebuilt as each one registers. Their addons load after ours but before the
+-- rebuilt as each one registers. Their addons load after Daylight UI but before the
 -- window first draws the page, same as the Profiles page's pack cards.
 local page
 local function rebuild()

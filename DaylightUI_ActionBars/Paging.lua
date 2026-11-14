@@ -1,16 +1,17 @@
 -- Bar 1's page, i.e. which 12 action slots it shows. The game pages its own bar 1
--- from Lua on events; ours uses a state driver built from macro conditions in the
+-- from Lua on events; Daylight UI uses a state driver built from macro conditions in the
 -- game's order (override bar, vehicle, possess, temporary shapeshift, a page picked
 -- by hand, then forms and stances). Each change is also written to the game's hidden
--- bar 1, so a keybind (which presses its hidden button) casts what our button shows.
+-- bar 1, so a keybind (which presses its hidden button) casts what Daylight UI's button shows.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Paging = {}
 ns.Paging = Paging
 
--- The special pages when the game can't tell us (confirmed in game). Older addons
+-- The special pages when the game can't say (confirmed in game). Older addons
 -- use 12 and 14, which are wrong here.
 Paging.FALLBACK = { override = 33, vehicle = 31, temp = 32 }
 
@@ -43,7 +44,7 @@ function Paging.FormConds()
     local out, any = {}, false
     for i = 1, GetNumShapeshiftForms() or 0 do
         local ok, _, _, _, sid = pcall(GetShapeshiftFormInfo, i)
-        local bonus = ok and type(sid) == "number" and not (issecretvalue and issecretvalue(sid))
+        local bonus = ok and type(sid) == "number" and not isSecret(sid)
             and Paging.FORM_BONUS[sid] or nil
         if bonus then
             out[bonus] = out[bonus] and (out[bonus] .. "/" .. i) or ("form:" .. i)
@@ -144,7 +145,7 @@ end
 
 -- The holder's snippet: writes the page onto itself, its buttons and the game's
 -- hidden twin bar, whose buttons read their slot from its "actionpage" when a key
--- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what our
+-- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what Daylight UI's
 -- button shows. Never CallMethod in a snippet; it would leave secure code.
 Paging.ON_STATE = [[
     local page = tonumber(string.match(newstate or "", "^%d+")) or 1
@@ -287,7 +288,7 @@ end
 -- modifiers (Paging.HeldRule): its forms already page it, and the game writes its
 -- hidden bar 1's page itself on every form change (ActionBarController_UpdateAll).
 -- The game never writes bars 2-8's page (a fixed attribute in
--- MultiActionBars.xml), so ours holds.
+-- MultiActionBars.xml), so Daylight UI's holds.
 -- ---------------------------------------------------------------------
 
 -- In the order they're checked: a held modifier beats a form, Prowl comes before Cat

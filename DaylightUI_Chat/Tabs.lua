@@ -15,6 +15,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 
 local Tabs = {}
@@ -80,8 +81,6 @@ end
 -- Only what the game itself makes sticky (ChatTypeInfo), and never a whisper:
 -- no names in the settings, and switching tabs shouldn't change who hears you.
 Tabs.NO_TALK = { WHISPER = true, BN_WHISPER = true }
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 local function spoken(eb)
     local t = eb:GetAttribute("chatType")
@@ -360,7 +359,7 @@ local function select(cf)
     end
 end
 
--- On: show the game's combat log in our place; off: put it away. host is the pane
+-- On: show the game's combat log in the box's place; off: put it away. host is the pane
 -- it shows on. Its filter bar hangs off the window's tab, parked out of sight, so
 -- the bar keeps its own alpha.
 Tabs.combatShown = false

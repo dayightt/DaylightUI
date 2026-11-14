@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF = ns.UF
 
 local Raid = {}
@@ -101,7 +102,7 @@ end
 -- Players in the group now, 0 when alone.
 function Raid.Members()
     local n = GetNumGroupMembers and GetNumGroupMembers()
-    if issecretvalue and issecretvalue(n) then return 0 end
+    if isSecret(n) then return 0 end
     return type(n) == "number" and n or 0
 end
 

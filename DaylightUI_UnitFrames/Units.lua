@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF, CB, Auras, Blizzard = ns.UF, ns.CastBar, ns.Auras, ns.Blizzard
 
 ns.SPECS = {
@@ -440,14 +441,14 @@ ns.RangeTicker = function() return rangeTicker end
 -- unit event once per token, so "target" arrives on its own.
 local OWN_UNITS = { player = true, pet = true, target = true, focus = true, targettarget = true, focustarget = true }
 function ns.OurUnit(unit)
-    if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) then return false end
+    if type(unit) ~= "string" or isSecret(unit) then return false end
     return OWN_UNITS[unit] == true or unit:find("^party%d") ~= nil or unit:find("^arena%d") ~= nil or unit:find("^raid%d") ~= nil
 end
 
 -- Who is on a unit token, as a plain string to compare with last time: the
 -- GUID, else name and realm (a GUID is secret in a battleground, a name isn't).
 -- nil when neither can be read.
-local function plain(v) return type(v) == "string" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "string" and not isSecret(v) end
 function ns.WhoOn(unit)
     local ok, guid = pcall(UnitGUID, unit)
     if ok and plain(guid) then return guid end
@@ -560,7 +561,7 @@ local function registerEvents()
         allDue = false
     end
     DUI.RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", function(_, unit)
-        if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) or unit == "player" then
+        if type(unit) ~= "string" or isSecret(unit) or unit == "player" then
             allDue = true
         else
             tilesDue[unit] = true
@@ -608,7 +609,7 @@ local function registerEvents()
     -- the frames' own units start a pass.
     DUI.RegisterEvent("UNIT_FACTION", function(_, unit)
         if not ns.OurUnit(unit) then return end
-        if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) or unit == "player" then
+        if unit == "player" then
             statusAll = true
         else
             statusDue[unit] = true

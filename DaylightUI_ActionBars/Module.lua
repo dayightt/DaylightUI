@@ -1,4 +1,4 @@
--- Registers the action bars with the DaylightUI core (our own bars, Bars.lua).
+-- Registers the action bars with the DaylightUI core (Daylight UI's own bars, Bars.lua).
 
 local _, ns = ...
 

@@ -106,11 +106,7 @@ end
 
 -- Open, close, follow the game's frame
 
-local function spot()
-    local s = ns.module and ns.module.db and ns.module.db.spot
-    if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
-    return nil
-end
+local function spot() return Legacy.spot and Legacy.spot.Get() end
 
 local function place(f)
     local s = spot()
@@ -205,12 +201,11 @@ function Legacy.Asked(achievementID)
 end
 
 function Legacy.SaveSpot(x, y)
-    local db = ns.module and ns.module.db
-    if db then db.spot = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
+    if Legacy.spot then Legacy.spot.Save(x, y) end
 end
 
 -- Lay out the visible page for the grip's size (live while dragging, rows only
--- stretched).
+-- stretched; the trees board has none and refills when the drag ends).
 function Legacy.Resized(_, _, live)
     local f = Legacy.frame
     if not (f and Win.IsOpen(f)) then return end
@@ -231,12 +226,9 @@ end
 
 -- Right-click on the header (or /dui reset): back to the game's spot and size.
 function Legacy.ResetSpot()
-    local db = ns.module and ns.module.db
-    if not db then return end
+    if not (ns.module and ns.module.db) then return end
     if Legacy.sizer then Legacy.sizer.Reset() end
-    if not db.spot then return end
-    db.spot = nil
-    if Legacy.frame and Win.IsOpen(Legacy.frame) then place(Legacy.frame) end
+    if Legacy.spot then Legacy.spot.Reset() end
 end
 
 function Legacy.Apply()
@@ -297,6 +289,7 @@ function Legacy.Build(mod)
     local f = Win.New({ name = Legacy.NAME, back = "Legacy", w = Legacy.W, h = Legacy.H, portrait = true })
     Legacy.frame = f
     f.onClose = Legacy.Close
+    Legacy.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Legacy.ICON)
     for _, id in ipairs(Legacy.PAGES) do
         local P = pageOf(id)

@@ -3,13 +3,14 @@
 -- It plays from a separate event frame, at most once every few seconds, because
 -- the game's message filters skip any line with a secret part, and every
 -- Battle.net whisper's sender is secret. The game's own sound file is muted while
--- ours or none is picked. A file mute lasts until the game restarts, so it's
+-- one of the addon's or none is picked. A file mute lasts until the game restarts, so it's
 -- reapplied at every login, and an account-wide flag records that the mute is
--- ours so we never lift someone else's. The guild chat sound (none by default)
+-- the addon's, so someone else's is never lifted. The guild chat sound (none by default)
 -- picks from the same sounds and listens the same way.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Whisper = {}
 ns.Whisper = Whisper
@@ -25,11 +26,11 @@ Whisper.GUILD_EVENTS = { "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER" }
 
 local choice = "soft"
 local last = -math.huge
-local mutedNow = false -- muted by us during this game session
+local mutedNow = false -- muted by this file during this game session
 local guildChoice = "none"
 local guildLast = -math.huge
 
--- The current sound, ours or the game's (for the Play button).
+-- The current sound, the chat's or the game's (for the Play button).
 function Whisper.Play()
     local file = Whisper.SOUNDS[choice]
     if file then
@@ -57,9 +58,9 @@ end
 -- compared, so that line just plays.
 function Whisper.OnGuild(_, _, _, _, _, _, _, _, _, _, _, _, guid)
     if not Whisper.SOUNDS[guildChoice] then return end
-    if type(guid) == "string" and not issecretvalue(guid) then
+    if type(guid) == "string" and not isSecret(guid) then
         local mine = UnitGUID("player")
-        if type(mine) == "string" and not issecretvalue(mine) and guid == mine then return end
+        if type(mine) == "string" and not isSecret(mine) and guid == mine then return end
     end
     local now = GetTime()
     if now - guildLast < Whisper.COOLDOWN then return end

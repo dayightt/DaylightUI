@@ -19,6 +19,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Motion = DUI.Style, DUI.Motion
 
 local Nav = {
@@ -68,7 +69,6 @@ local function enabled()
     local n = db()
     return n ~= nil and n.marker == true
 end
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 local function api(name)
     local t = _G.C_Navigation

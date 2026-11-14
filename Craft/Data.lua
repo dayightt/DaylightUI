@@ -20,7 +20,7 @@ ns.Data = Data
 -- Enum.TradeskillRelativeDifficulty values (the enum may be missing).
 Data.OPTIMAL, Data.MEDIUM, Data.EASY, Data.TRIVIAL = 0, 1, 2, 3
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 local function num(v) return type(v) == "number" and not secret(v) and v or nil end
 local function str(v) return type(v) == "string" and not secret(v) and v or nil end
 

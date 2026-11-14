@@ -215,7 +215,7 @@ function Arrive.Stop(f)
     DUI.Fade.Back(fadeKey(f))
 end
 
--- From UF.Wire, out of combat: install the snippet, then our own handler.
+-- From UF.Wire, out of combat: install the snippet, then the frame's own handler.
 function Arrive.Wire(f)
     local header = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
     SecureHandlerWrapScript(f, "OnAttributeChanged", header, Arrive.SNIPPET)

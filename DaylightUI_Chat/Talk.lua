@@ -19,6 +19,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 
 local Talk = {}
@@ -33,7 +34,6 @@ local convos = {}      -- key -> conversation
 local seq = 0
 local awaySent = {}    -- key -> time
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function plain(v) return type(v) ~= "nil" and not secret(v) end
 
 function Talk.Apply(c) cfg = c end
@@ -261,7 +261,7 @@ local function awayNow()
     -- Like the game's own: only while flagged Away. That flag is secret during chat
     -- lockdown, when nothing can be sent anyway.
     local afk = UnitIsAFK("player")
-    if issecretvalue and issecretvalue(afk) then return false end
+    if secret(afk) then return false end
     return afk == true
 end
 

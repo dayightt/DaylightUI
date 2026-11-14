@@ -196,7 +196,7 @@ local function podiumCard(row, place)
     f.name:SetPoint("RIGHT", f, "RIGHT", -10, 0)
     f.name:SetWordWrap(false)
     f.name.english = true -- names aren't translated
-    -- A thin lit line along the card's top, like our windows have.
+    -- A thin lit line along the card's top, like Daylight UI's windows have.
     f.top = f:CreateTexture(nil, "ARTWORK")
     f.top:SetTexture(WHITE)
     f.top:SetHeight(1)

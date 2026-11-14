@@ -1,5 +1,5 @@
 -- Totems. The game's active-totem timers (TotemFrame) live under its own player
--- frame, which the unit frames hide, so they move to ours: just above its right end,
+-- frame, which the unit frames hide, so they move to Daylight UI's: just above its right end,
 -- clear of the name tab, unless moved in unlock mode (TIMERS_KEY). They're styled
 -- like the buff bar's icons (square element-colored edge, inner shade, time on the
 -- top edge). The classic totem bar (MultiCastActionBarFrame) takes the stance bar's
@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Totems = {}
 ns.Totems = Totems
@@ -47,22 +48,13 @@ local function placeAll()
 end
 
 -- Once on the next frame however many events came (no timer per event).
-local placeQueued = false
-local function placeLater()
-    placeQueued = false
-    DUI.AfterCombat(placeAll, "totems:place")
-end
-local function soon()
-    if placeQueued then return end
-    placeQueued = true
-    C_Timer.After(0, placeLater)
-end
+local soon = DUI.Soon(function() DUI.AfterCombat(placeAll, "totems:place") end)
 
 local function pin(frame, place)
     places[frame] = place
     if not Totems.placeWired then
         Totems.placeWired = true
-        for _, event in ipairs(Totems.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+        for _, event in ipairs(Totems.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
         -- Leaving Edit Mode puts them back at their Edit Mode spots.
         local em = _G.EditModeManagerFrame
         if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
@@ -87,7 +79,7 @@ local function pin(frame, place)
     DUI.AfterCombat(function() DUI.SafeCall(place) end, "totems:pin:" .. tostring(frame:GetName()))
 end
 
--- Our look on the time. The game recolors and refonts it on its own, so this runs
+-- Daylight UI's look on the time. The game recolors and refonts it on its own, so this runs
 -- again after it does.
 local function styleTime(fs, size)
     local S = DUI.Style
@@ -97,7 +89,6 @@ local function styleTime(fs, size)
     fs:SetTextColor(TIME_COLOR[1], TIME_COLOR[2], TIME_COLOR[3])
 end
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Seconds left on a totem slot. nil when the game hides it (secret) or there's no
 -- totem.
@@ -109,7 +100,7 @@ local function timeLeft(slot)
     return start + duration - GetTime()
 end
 
--- Our time text, formatted like the buff bar ("55s", not the game's "55 s") but
+-- Daylight UI's time text, formatted like the buff bar ("55s", not the game's "55 s") but
 -- rounded like the game (SecondsToTimeAbbrev: minutes, hours and days up, seconds
 -- down). In a fight the game's own text shows instead because the time goes secret,
 -- and with the buff bar's rounding a totem read 3 m then 2m as combat came and went.
@@ -121,7 +112,7 @@ function Totems.Time(left)
     return string.format("%ds", math.floor(left))
 end
 
--- If the game won't give us the time, its own text shows instead.
+-- If the game won't give the time, its own text shows instead.
 local function tick(btn, d, fs)
     local left = timeLeft(btn.slot or (btn.GetID and btn:GetID()))
     if left then
@@ -138,8 +129,8 @@ end
 Totems.TIMER_TIGHTEN = 4
 
 -- Each timer is made a little narrower (its icon stays centered) so the game's own
--- layout packs them closer. Never through the frame's `spacing` or our own call to
--- its Layout: a value of ours on the game's frame taints its layout and
+-- layout packs them closer. Never through the frame's `spacing` or Daylight UI's own call to
+-- its Layout: a Daylight UI value on the game's frame taints its layout and
 -- PlayerFrame_AdjustAttachments after it (blocked actions in a fight). A button new
 -- to the game's pool is only narrowed after the game laid it out at full width
 -- (TotemFrameMixin:Update runs Layout at once), so it reports that, and SkinTimers
@@ -219,7 +210,7 @@ local function skinTotem(btn)
     d.time:SetPoint("CENTER", tex, "TOP", 0, 0)
     -- Every update, since the game may re-anchor the time and slots reuse buttons.
     local fs = btn.Duration or btn.duration
-    -- The game's own time, kept styled for when ours can't show.
+    -- The game's own time, kept styled for when Daylight UI's can't show.
     if type(fs) == "table" and fs.SetFont then
         d.fs = fs
         if fs:GetParent() ~= d.top then fs:SetParent(d.top) end
@@ -298,7 +289,7 @@ function Totems.TimersOn()
     return not (type(db) == "table" and db.totemTimers == false)
 end
 
--- The timers' spot: a saved spot from unlock mode, else above our player frame (only
+-- The timers' spot: a saved spot from unlock mode, else above Daylight UI's player frame (only
 -- the default needs it).
 local function placeTimers(tf, player)
     if not Totems.TimersOn() then
@@ -345,15 +336,15 @@ function Totems.LayoutBar(mc, shape)
     end
 end
 
--- The totem bar in our Edit Mode layout. At the game's default spot it counts as one
+-- The totem bar in Daylight UI's Edit Mode layout. At the game's default spot it counts as one
 -- of the game's bottom bars (EditModeUtil.GetBottomActionBars), and the game
 -- restacks those whenever one shows or hides, such as when a fight starts or ends.
--- That took the totem bar out of our holder to its own spot until our pin put it
+-- That took the totem bar out of Daylight UI's holder to its own spot until Daylight UI's pin put it
 -- back after the fight. Off its default, the game leaves it alone. The spot written
 -- is the holder's own default (like the Extra Abilities button's, Bars.FillExtra),
 -- so wherever the game puts its bar back (that restack, or its own updates
 -- re-hanging the summon button, first slot and pages, MultiCastActionBarFrame.lua)
--- it lands where ours is. The game's own default sits over the middle of the action
+-- it lands where Daylight UI's is. The game's own default sits over the middle of the action
 -- bars; 1.6.8 and earlier wrote that one, so it counts as outdated (OLD_SPOT) and
 -- is rewritten once.
 Totems.OLD_SPOT = { point = "RIGHT", relativePoint = "BOTTOM", offsetX = -28, offsetY = 128 }
@@ -377,7 +368,7 @@ function Totems.FillLayout(layout)
     local entry = totemEntry(layout)
     if not wantsWrite(entry) then return end
     local d = ns.Shape.Defaults().totem
-    -- Edit Mode's offsets are in the bar's own scale (ours, from the bar's size).
+    -- Edit Mode's offsets are in the bar's own scale (Daylight UI's, from the bar's size).
     local mc = _G.MultiCastActionBarFrame
     local r = 1
     if type(mc) == "table" and mc.GetEffectiveScale then
@@ -409,7 +400,7 @@ function Totems.Apply()
         -- The game's managed-frame system pulls the timers back under its (hidden)
         -- player frame every time they show, so they vanished with each new totem.
         -- This flag tells it to leave them alone (a plain field, not a hook). It's
-        -- still a value of ours the game reads as a timer shows, and it's the only
+        -- still a Daylight UI value the game reads as a timer shows, and it's the only
         -- one left; in a fight nothing else keeps them out of its hidden player frame.
         tf.ignoreFramePositionManager = true
         pin(tf, function() placeTimers(tf, _G[Totems.PLAYER]) end)
@@ -482,7 +473,7 @@ function Totems.Hold(mc, holder)
     end
 end
 
--- The totem kind: the game's totem bar itself goes in our holder, centered and
+-- The totem kind: the game's totem bar itself goes in Daylight UI's holder, centered and
 -- scaled, and LayoutBar spaces and orients its buttons. Whether it shows stays the
 -- game's call (only with totems known). It has no buttons of its own for Bars.lua;
 -- the skin is applied by Totems.Apply.
@@ -494,7 +485,7 @@ Totems.KIND = {
         -- The game fills its slots on these, so the unlock handle and the bar's
         -- panel (only for a bar in use) follow.
         for _, event in ipairs({ "UPDATE_MULTI_CAST_ACTIONBAR", "PLAYER_ENTERING_WORLD" }) do
-            pcall(DUI.RegisterEvent, event, function()
+            DUI.RegisterEvent(event, function()
                 C_Timer.After(0, function()
                     DUI.Movers.Recheck(ns.Bars.MoverKey(def))
                     ns.Bars.PaintBacksSoon()

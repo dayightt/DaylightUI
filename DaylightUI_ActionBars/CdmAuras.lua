@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Skin, Pixel, Motion = DUI.Style, ns.Skin, DUI.Pixel, DUI.Motion
 
 local A = {}
@@ -16,7 +17,7 @@ local holders = {}   -- [id] = holder frame
 local makeFace, placeFace, paintFace   -- self-debuff face, defined below
 
 local function plain(v)
-    return type(v) == "number" and not (issecretvalue and issecretvalue(v)) and v or nil
+    return type(v) == "number" and not isSecret(v) and v or nil
 end
 
 local function infoOf(id)
@@ -29,7 +30,7 @@ end
 local function nameOf(sid)
     if not sid or not C_Spell or not C_Spell.GetSpellName then return nil end
     local ok, n = pcall(C_Spell.GetSpellName, sid)
-    if ok and type(n) == "string" and not (issecretvalue and issecretvalue(n)) then return n end
+    if ok and type(n) == "string" and not isSecret(n) then return n end
 end
 
 -- Add the auras your casts of these spells were seen to put up (CdmOwn.AuraOf).
@@ -120,7 +121,7 @@ end
 function A.Follows(id)
     if ns.CdmCustom and ns.CdmCustom.Is(id) then return false end   -- custom pieces follow their track
     local info = infoOf(id)
-    if not info or (issecretvalue and issecretvalue(info.hasAura)) or info.hasAura ~= true then return false end
+    if not info or isSecret(info.hasAura) or info.hasAura ~= true then return false end
     local flags = plain(info.flags)
     local F = type(_G.Enum) == "table" and _G.Enum.CooldownSetSpellFlags
     local hide = type(F) == "table" and plain(F.HideAura) or 1
@@ -291,7 +292,7 @@ local function setup(h, id)
     else
         local info = infoOf(id)
         self_ = info and info.selfAura
-        if type(self_) ~= "boolean" or (issecretvalue and issecretvalue(self_)) then self_ = nil end
+        if type(self_) ~= "boolean" or isSecret(self_) then self_ = nil end
     end
     -- Self debuffs (Arcane Blast's stack) watch your debuffs, never the target's.
     h.selfDebuff = A.SelfDebuff(id)
@@ -331,7 +332,7 @@ end
 -- Shield unit: a friendly target, else the player.
 function A.ShieldUnit()
     local ok, friend = pcall(UnitIsFriend, "player", "target")
-    if ok and not (issecretvalue and issecretvalue(friend)) and friend == true then return "target" end
+    if ok and not isSecret(friend) and friend == true then return "target" end
     return "player"
 end
 
@@ -582,7 +583,7 @@ local function readable()
     local S = C_Secrets
     if S and type(S.ShouldAurasBeSecret) == "function" then
         local ok, yes = pcall(S.ShouldAurasBeSecret)
-        if not ok or (issecretvalue and issecretvalue(yes)) or yes == true then return false end
+        if not ok or isSecret(yes) or yes == true then return false end
     end
     return true
 end
@@ -722,7 +723,7 @@ local TEXT_LASTS = { "[Ff]or (%d+%.?%d*) sec", "[Ff]or up to (%d+%.?%d*) sec", "
     "[Oo]ver (%d+%.?%d*) sec" }
 local function textLasts(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or (issecretvalue and issecretvalue(desc)) then return nil end
+    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
     for _, pat in ipairs(TEXT_LASTS) do
         local n = tonumber(string.match(desc, pat))
         if n and n > 0 then return n end
@@ -774,7 +775,7 @@ end
 local TEXT_CHARGES = { "block (%d+) attacks?", "(%d+) charges?" }
 local function textCharges(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or (issecretvalue and issecretvalue(desc)) then return nil end
+    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
     for _, pat in ipairs(TEXT_CHARGES) do
         local n = tonumber(string.match(desc, pat))
         if n and n > 0 then return n end
@@ -809,7 +810,7 @@ local function found(h)
         for sid in pairs(h.ids) do
             local ok, a = pcall(get, k.unit, sid)
             -- On the target, only your own debuff counts (HARMFUL|PLAYER).
-            local fromOther = not (issecretvalue and issecretvalue(a and a.isFromPlayerOrPlayerPet))
+            local fromOther = not isSecret(a and a.isFromPlayerOrPlayerPet)
                 and type(a) == "table" and a.isFromPlayerOrPlayerPet == false
             -- On you, someone else's debuff isn't shown by the HARMFUL|PLAYER group,
             -- so counting it would leave an empty spot.
@@ -827,7 +828,7 @@ end
 -- what the game says about each spell id on you (only readable out of combat).
 function A.Why(h)
     local function w(v)
-        if issecretvalue and issecretvalue(v) then return "secret" end
+        if isSecret(v) then return "secret" end
         return tostring(v)
     end
     local parts = {}
@@ -860,9 +861,9 @@ end
 -- Your pet is out and alive. Neither answer is secret, in a fight too.
 function A.PetOut()
     local ok, yes = pcall(UnitExists, "pet")
-    if not ok or (issecretvalue and issecretvalue(yes)) or yes ~= true then return false end
+    if not ok or isSecret(yes) or yes ~= true then return false end
     local okD, dead = pcall(UnitIsDead, "pet")
-    return not (okD and not (issecretvalue and issecretvalue(dead)) and dead == true)
+    return not (okD and not isSecret(dead) and dead == true)
 end
 
 function A.IsUp(h)
@@ -918,15 +919,7 @@ end
 
 -- Coalesce bursts of UNIT_AURA (pre-pull rebuffs, raid fights) into one pass
 -- on the next frame.
-local changeQueued = false
-function A.AuraChangedSoon()
-    if changeQueued then return end
-    changeQueued = true
-    C_Timer.After(0, function()
-        changeQueued = false
-        DUI.SafeCall(A.AuraChanged)
-    end)
-end
+A.AuraChangedSoon = DUI.Soon(function() DUI.SafeCall(A.AuraChanged) end)
 
 -- How long after a cast its aura may still land: a spell's flight time.
 A.CAST_LANDS = 3
@@ -951,7 +944,7 @@ end
 -- Max stacks parsed from the spell text ("stacks up to 4 times"). nil = no cap.
 local function textStacks(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or (issecretvalue and issecretvalue(desc)) then return nil end
+    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
     return tonumber(string.match(desc, "[Ss]tacks up to (%d+) times"))
 end
 
@@ -985,7 +978,7 @@ end
 local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
-    if type(sid) ~= "number" or (issecretvalue and issecretvalue(sid)) then return end
+    if type(sid) ~= "number" or isSecret(sid) then return end
     local plainNow = readable()
     each(function(h)
         if type(h.ids) == "table" and h.ids[sid] then
@@ -1054,7 +1047,7 @@ local function startGcd(sid)
     if ok and type(cd) == "table" then
         local s, d = plain(cd.startTime), plain(cd.duration)
         local g = cd.isOnGCD
-        if issecretvalue and issecretvalue(g) then g = nil end
+        if isSecret(g) then g = nil end
         if g == true and s and d and d > 0 then
             gcdLen, gcdEnd = d, s + d
             return
@@ -1170,7 +1163,7 @@ end
 local blocks = CreateFrame("Frame")
 blocks:RegisterUnitEvent("UNIT_COMBAT", "player")
 blocks:SetScript("OnEvent", function(_, _, _, action, flag)
-    if (issecretvalue and (issecretvalue(action) or issecretvalue(flag))) or readable() then return end
+    if isSecret(action) or isSecret(flag) or readable() then return end
     if not (action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))) then return end
     each(function(h)
         if h.up == true and h.blocksLeft then

@@ -1,6 +1,6 @@
 -- Kit: the building blocks every skin uses. A skin strips one of the game's
--- windows of its art and dresses it in the Daylight UI look: dark panels, our
--- font, flat controls, our close button, chevrons and scroll bars, and light
+-- windows of its art and dresses it in the Daylight UI look: dark panels, the Daylight
+-- font, flat controls, a W.Close button, chevrons and scroll bars, and light
 -- text where the game prints dark text on parchment.
 --
 -- Every shell drawn here comes from one of the Kit.LOOK entries and is
@@ -14,6 +14,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style = DUI.Style
 
 local Kit = {}
@@ -340,7 +341,7 @@ function Kit.Backdrop(frame)
     end
 end
 
--- Sets our font on a font string or edit box, keeping its size unless given.
+-- Sets the Daylight font on a font string or edit box, keeping its size unless given.
 -- color is an optional { r, g, b }. Setting a font makes the game re-layout the
 -- text and lists call this on every update, so it's skipped unless the font or
 -- size changed. Skinned windows follow the window text font setting.
@@ -359,7 +360,7 @@ function Kit.Font(fs, size, color)
     if color then fs:SetTextColor(color[1], color[2], color[3]) end
 end
 
--- Puts our font back on text another addon re-fonts on refresh (RestedXP, the
+-- Puts the Daylight font back on text another addon re-fonts on refresh (RestedXP, the
 -- dungeon journal). Keeps the size and is cheap when nothing changed.
 function Kit.Refont(fs)
     if kind(fs) ~= "FontString" then return end
@@ -370,7 +371,7 @@ end
 
 -- Some game text has its dark color baked in as an escape code (|cff000000
 -- quest names in gossip), which SetTextColor can't override. Those dark runs
--- are rewritten to our text color. Links and quality colors aren't dark, so
+-- are rewritten to Kit.TEXT. Links and quality colors aren't dark, so
 -- they're left alone. Secret strings are never touched.
 Kit.DARK_RUN = 0.3 -- runs this dark or darker get rewritten
 local function hex(c)
@@ -383,14 +384,14 @@ local function darkRun(h)
     return (0.3 * r + 0.59 * g + 0.11 * b) / 255 <= Kit.DARK_RUN
 end
 
--- Our text color as an escape code, rebuilt only when Kit.TEXT changes.
+-- Kit.TEXT as an escape code, rebuilt only when Kit.TEXT changes.
 local lightCode, lightOf
 local function lightRun(h)
     if darkRun(h) then return lightCode end
 end
 
 function Kit.LightRuns(text)
-    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return text, 0 end
+    if type(text) ~= "string" or isSecret(text) then return text, 0 end
     if not string.find(text, "|c", 1, true) then return text, 0 end
     local c = Kit.TEXT
     if lightOf ~= c then lightOf, lightCode = c, "|cff" .. hex(c) end
@@ -456,8 +457,8 @@ function Kit.RelightIn(frame, depth)
     end
 end
 
--- Maps the game's own text colors to ours on every window Kit.Auto visits:
--- NORMAL_FONT_COLOR yellow becomes tan, disabled gray becomes our dim, dark
+-- Maps the game's own text colors to Style.INK on every window Kit.Auto visits:
+-- NORMAL_FONT_COLOR yellow becomes tan, disabled gray becomes INK.OFF, dark
 -- parchment ink becomes soft white. Other colors (white, quality, red/green,
 -- class) carry meaning and stay. Checked on every pass so recolored text is
 -- caught. Secret colors are skipped.
@@ -483,7 +484,7 @@ function Kit.InkGameText(frame)
     for _, fs in ipairs({ frame:GetRegions() }) do
         if kind(fs) == "FontString" and not lit[fs] and not colourOnly[fs] then
             local r, g, b = fs:GetTextColor()
-            if type(r) == "number" and not (issecretvalue and (issecretvalue(r) or issecretvalue(g) or issecretvalue(b))) then
+            if type(r) == "number" and not (isSecret(r) or isSecret(g) or isSecret(b)) then
                 local was = inked[fs]
                 if not (was and near(r, was[1]) and near(g, was[2]) and near(b, was[3])) then
                     local ink = inkOf(r, g, b)
@@ -526,7 +527,7 @@ local function titleOf(frame)
         or (type(name) == "string" and _G[name .. "TitleText"]) or frame.TitleText or header
 end
 
--- Puts the title on the left of the title row, like our own window headers.
+-- Puts the title on the left of the title row, like Win.Header titles.
 -- Anchored by its top so a larger font grows downward, never into the accent
 -- line. A long title stops short of the close button instead of running under it.
 Kit.TITLE_X = 16 -- matches Win.EDGE
@@ -559,11 +560,11 @@ end
 function Kit.TopLineOf(frame) return topLines[frame] end
 
 -- Dresses a game window: strips its art, adds the window look behind it, sets
--- the title font, our close button, and a darker inset. opts:
+-- the title font, a W.Close button, and a darker inset. opts:
 --   noBackground  border only (map windows)
 --   keep          keys of the window's own textures to leave (a dialog's warning icon)
 --   ownFade       the game animates its alpha in itself (alert frames); a fade
---                 of ours on top would leave it stuck at 0
+--                 added on top would leave it stuck at 0
 function Kit.Window(frame, opts)
     if not isTable(frame) or not once("window", frame) then return end
     opts = opts or {}
@@ -597,7 +598,7 @@ function Kit.Window(frame, opts)
     local inset = frame.Inset or (type(name) == "string" and _G[name .. "Inset"])
     if inset then Kit.Inset(inset) end
     -- Fade in on open (out of combat; hiding stays the game's). Not for map
-    -- windows, which are just our border around the game's map.
+    -- windows, which are just a border around the game's map.
     if not opts.noBackground and DUI.Motion and frame.HookScript then
         if not opts.ownFade then
             frame:HookScript("OnShow", function(self) DUI.Motion.FadeIn(self) end)
@@ -682,7 +683,7 @@ local function hideButtonArt(btn, checked)
     end
 end
 
--- Close button: game art hidden (old named pieces too), our X on top.
+-- Close button: game art hidden (old named pieces too), a W.Close X on top.
 function Kit.Close(btn)
     if not isTable(btn) or not btn.CreateTexture or not once("close", btn) then return end
     hideButtonArt(btn)
@@ -690,7 +691,7 @@ function Kit.Close(btn)
     DUI.Widgets.DressClose(btn)
 end
 
--- Our chevron on a control. It points down by default; see Kit.ROTATION.
+-- The Daylight chevron on a control. It points down by default; see Kit.ROTATION.
 Kit.ROTATION = { down = 0, up = math.pi, right = math.pi / 2, left = -math.pi / 2 }
 local function chevron(parent, rotation, size)
     local c = parent:CreateTexture(nil, "OVERLAY")
@@ -761,7 +762,7 @@ end
 
 -- Hooks enter/leave on a game button. Some buttons get their scripts reset each
 -- time they're shown (the game menu's pooled buttons: AddButton clears them
--- before Show), dropping our hooks, so they're re-added on show if missing.
+-- before Show), dropping the hooks, so they're re-added on show if missing.
 local function hoverHooks(btn, enter, leave)
     local mine = {}
     local function wire()
@@ -801,10 +802,10 @@ end
 
 local THREE_PART = { "Left", "Middle", "Right", "Center", "Mid", "LeftSeparator", "RightSeparator" }
 
--- A text button: the game's three-piece art removed, our button look (same as
--- W.Button), and the game's own label in our font. State lives in our table
+-- A text button: the game's three-piece art removed, the button look (same as
+-- W.Button), and the game's own label in the Daylight font. State lives in a local table
 -- (Kit.ButtonOf), never on the button; its scripts are hooked, not replaced.
--- A disabled button swaps its font object (SetDisabledFontObject), so ours is
+-- A disabled button swaps its font object (SetDisabledFontObject), so the Daylight font is
 -- put back.
 
 -- Quiet controls: the same looks with no hooks that the game's own code can
@@ -876,7 +877,7 @@ function Kit.Button(btn, host)
             local off = (btn.IsEnabled and not btn:IsEnabled()) or nil
             local down = (not off and btn:GetButtonState() == "PUSHED") or false
             if off == s.off and down == (s.down or false) then return end
-            -- A disabled button takes its disabled font object, so ours goes back.
+            -- A disabled button takes its disabled font object, so the Daylight font goes back.
             if off ~= s.off then words() end
             s.off, s.down = off, down
             s.Paint()
@@ -907,8 +908,8 @@ function Kit.Button(btn, host)
     state()
 end
 
--- A dropdown (filter, set, status): the input look with a hover highlight, our
--- chevron, and its label in our font at the game's size. One with no label (just
+-- A dropdown (filter, set, status): the input look with a hover highlight, a
+-- chevron, and its label in the Daylight font at the game's size. One with no label (just
 -- an arrow) becomes a small square button outlined in the accent.
 local function hoverOutline(frame, s)
     frame:HookScript("OnEnter", function() Kit.Paint(s, Kit.ROW_HOVER) end)
@@ -934,7 +935,7 @@ function Kit.Dropdown(dd)
         for _, suffix in ipairs({ "Left", "Middle", "Right" }) do Kit.Hide(_G[name .. suffix]) end
     end
     local w = dd.GetWidth and dd:GetWidth()
-    local iconOnly = kind(label) ~= "FontString" or (type(w) == "number" and not (issecretvalue and issecretvalue(w)) and w > 0 and w <= 36)
+    local iconOnly = kind(label) ~= "FontString" or (type(w) == "number" and not isSecret(w) and w > 0 and w <= 36)
     -- Arrow only: small square button in the accent. With a label: the
     -- quieter input look.
     if iconOnly then look(dd) else hoverOutline(dd, Kit.Shell(dd, "input")) end
@@ -949,7 +950,7 @@ function Kit.Dropdown(dd)
     end
 end
 
--- A list's collapse button (statistics sub-headers): control look with our
+-- A list's collapse button (statistics sub-headers): control look with a
 -- chevron, down while open and right while closed. Open/closed is read from the
 -- game's own art, which it swaps only when refilling the row (RefreshIcon from
 -- Initialize). So the arrow is updated then, via Kit.OnRefill, and on every pass
@@ -978,7 +979,7 @@ function Kit.CollapseButton(btn)
     point()
 end
 
--- An edit or search box: three-piece art removed, our text box look.
+-- An edit or search box: three-piece art removed, the W.Input look.
 local inputOf = setmetatable({}, { __mode = "k" })   -- box -> its look
 Kit.INPUT_ROOM = 6 -- px between the box edge and its text
 -- host: dressed quietly, as Kit.Button.
@@ -990,7 +991,7 @@ function Kit.EditBox(eb, host)
         for _, key in ipairs(THREE_PART) do Kit.Hide(_G[name .. key]) end
     end
     Kit.Hide(eb.NineSlice)
-    if kind(eb.Background) == "Texture" then Kit.Hide(eb.Background) end -- a search box's own fill sits over our look
+    if kind(eb.Background) == "Texture" then Kit.Hide(eb.Background) end -- a search box's own fill sits over the new look
     -- Same look as W.Input: a rounded dark box whose outline eases toward the
     -- accent, halfway on hover and fully while typing. If the text starts right
     -- at the edge (the game's art used to reach past it), the room is added
@@ -1025,7 +1026,7 @@ function Kit.EditBox(eb, host)
 end
 function Kit.InputOf(eb) return inputOf[eb] end
 
--- A page button (a merchant's Prev/Next): small square button with our chevron
+-- A page button (a merchant's Prev/Next): small square button with a chevron
 -- and its label beside it. dir is "left" or "right". Returns the chevron.
 function Kit.PageButton(btn, dir)
     if not isTable(btn) or not btn.CreateTexture or not once("page", btn) then return end
@@ -1043,7 +1044,7 @@ function Kit.PageButton(btn, dir)
     return c
 end
 
--- A bare button for slim bars (the world map's top row): no box, just our
+-- A bare button for slim bars (the world map's top row): no box, just a
 -- chevron, dim at rest and lit with a soft wash on hover, like the close
 -- button next to it. dir is a Kit.ROTATION key, down by default.
 function Kit.BareButton(btn, dir)
@@ -1082,7 +1083,7 @@ function Kit.ResetBadge(btn)
     btn:HookScript("OnShow", function() paint(false) end)
 end
 
--- A checkbox becomes our on/off switch (same look as W.Switch): the box and tick
+-- A checkbox becomes an on/off switch (same look as W.Switch): the box and tick
 -- are hidden and a pill takes their place, the knob sliding over and the pill
 -- taking the accent when checked. The game's clicks, sound and scripts stay.
 -- SetChecked fires no event, so the switch is repainted on click, on show and
@@ -1121,7 +1122,7 @@ function Kit.Check(cb)
     if not isTable(cb) or not cb.CreateTexture or not once("check", cb) then return end
     hideButtonArt(cb, true)
     local w = cb:GetWidth()
-    if type(w) ~= "number" or (issecretvalue and issecretvalue(w)) or w <= 0 then w = DUI.Widgets.SWITCH_W end
+    if type(w) ~= "number" or isSecret(w) or w <= 0 then w = DUI.Widgets.SWITCH_W end
     local s = DUI.Widgets.SwitchLook(cb, {}, math.max(Kit.CHECK_MIN, math.min(DUI.Widgets.SWITCH_W, w - Kit.CHECK_ROOM)))
     switchOf[cb] = s
     -- A child frame that's shown and hidden along with the checkbox.
@@ -1156,7 +1157,7 @@ function Kit.Check(cb)
 end
 function Kit.SwitchOf(cb) return switchOf[cb] end
 
--- A small icon button (a model's zoom and rotate): art removed, icon in our text
+-- A small icon button (a model's zoom and rotate): art removed, icon in the text
 -- color, control outline around it at pad px. file: an icon to draw for buttons
 -- whose only picture is their art (a bag's sort button).
 function Kit.IconButton(btn, pad, file)
@@ -1201,7 +1202,7 @@ end
 
 -- A list row (a trainer's skills): box art removed, row look instead, lighter on
 -- hover and accent when selected. selected is either the game's selection
--- texture (hidden, but its shown state still tells us) or a function of the row.
+-- texture (hidden, but its shown state still counts) or a function of the row.
 -- keep: textures to leave, like its icon. Text keeps the game's colors (a
 -- trainer's tell you what you can learn). Call again when the list reuses it.
 Kit.ROW_HOVER = { 0.4, 0.4, 0.43 }
@@ -1286,7 +1287,7 @@ end
 
 -- over: the button that takes the mouse when the row doesn't (a loot row's item
 -- button spans the row). Defaults to the row.
--- shell false: draw the row as a plain line like our own lists (no box, a hover
+-- shell false: draw the row as a plain line like Parts.Stack rows (no box, a hover
 -- wash, accent wash when picked). Better for long lists where a box on every
 -- row makes them all look the same (NeedRoll).
 function Kit.RowOf(row) return rows[row] end
@@ -1518,7 +1519,7 @@ function Kit.Tab(tab, isSelected)
     end
     -- Newer tab systems (TabSystemButtonArtMixin:SetTabSelected) set
     -- tab.isSelected and disable the selected tab, so OnEnable/OnDisable tell
-    -- us when it changes. Old tabs (PanelTemplates_EnableTab) do the same.
+    -- when it changes. Old tabs (PanelTemplates_EnableTab) do the same.
     -- No hooks on the game's methods.
     local function selectedNow()
         if isSelected then return isSelected(tab) == true end
@@ -1553,7 +1554,7 @@ function Kit.TabOf(tab) return tabs[tab] end
 -- (Track/Thumb) bars.
 local function tint(tex, c) tex:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
 
--- Turns an old bar's thumb texture into our pill. Call again for addons that
+-- Turns an old bar's thumb texture into the W.Scroll pill. Call again for addons that
 -- reset their thumb art on refresh (RestedXP).
 function Kit.ScrollThumb(bar, thumb)
     if not isTable(bar) then return end
@@ -1612,10 +1613,10 @@ function Kit.ScrollBar(bar)
     end
 end
 
--- A texture-drawn progress bar (reputation): art removed, the fill in our bar
+-- A texture-drawn progress bar (reputation): art removed, the fill in the bar
 -- texture keeping the game's color, and the bar look around the track. The game
 -- still sizes bar.Fill. It also resets the fill art when refilling the row
--- (SetFillTextureByColorType from Initialize), so ours goes back on via
+-- (SetFillTextureByColorType from Initialize), so the bar texture goes back on via
 -- Kit.OnRefill and on every pass over the list.
 function Kit.ProgressBar(bar)
     if not isTable(bar) or not bar.CreateTexture then return end
@@ -1641,7 +1642,7 @@ function Kit.ProgressBar(bar)
     Kit.Font(bar.Text, Style.SIZE.small)
 end
 
--- A status bar: our fill texture (the game's color, or color), frame art
+-- A status bar: the bar fill texture (the game's color, or color), frame art
 -- stripped, bar look.
 function Kit.StatusBar(bar, color)
     if kind(bar) ~= "StatusBar" or not once("statusbar", bar) then return end
@@ -1659,7 +1660,7 @@ function Kit.StatusBar(bar, color)
 end
 
 -- Every item gets an outline in its quality color, white included. The game's
--- IconBorder is hidden and ours follows it. Empty slots get a dim outline so
+-- IconBorder is hidden and a quality outline follows it. Empty slots get a dim outline so
 -- they still read as slots.
 Kit.EMPTY_ITEM_BORDER = { 0.28, 0.28, 0.3 }
 local slots = setmetatable({}, { __mode = "k" }) -- item button -> its shell
@@ -1689,7 +1690,7 @@ function Kit.SlotQuality(btn)
     local color = Kit.EMPTY_ITEM_BORDER
     if kind(border) == "Texture" and border:IsShown() then
         local r, g, b = border:GetVertexColor()
-        if type(r) == "number" and not (issecretvalue and issecretvalue(r)) then
+        if type(r) == "number" and not isSecret(r) then
             -- The game updates a button 3-4 times per pass, so skip when the
             -- color hasn't changed (and allocate nothing).
             local cur = itemEdges[s] or (s.lite and s.opts.borderColor)
@@ -1705,13 +1706,13 @@ end
 local function wide(btn)
     local w, h = btn:GetWidth(), btn:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" or h <= 0 then return false end
-    if issecretvalue and (issecretvalue(w) or issecretvalue(h)) then return false end
+    if isSecret(w) or isSecret(h) then return false end
     return w > h * 1.6
 end
 
 -- The game sets the item border through these globals (ItemButtonTemplate.lua:
--- SetItemButtonQuality calls the other two, and so does the mixin method). We
--- post-hook them and act only on our buttons. Never hook the border texture
+-- SetItemButtonQuality calls the other two, and so does the mixin method). They
+-- get a post-hook that acts only on skinned buttons. Never hook the border texture
 -- itself: it sits on secure item buttons. Buttons whose border the game sets by
 -- hand (character slots, loot rolls) are recolored by their own skin.
 local followingBorders = false
@@ -1774,7 +1775,7 @@ end
 
 -- Money: Daylight UI's coins in place of the game's. The game sets a money
 -- frame's coin art once (and again only when colorblind mode flips, which
--- clears it for text), so the post-hook on MoneyFrame_Update puts ours back
+-- clears it for text), so the post-hook on MoneyFrame_Update puts the coins back
 -- after any redraw. Cropped like DUI.CoinIcon so a coin sits the same in a
 -- box as in a sentence.
 Kit.COINS = { "gold", "silver", "copper" }
@@ -1807,7 +1808,7 @@ function Kit.Money(f)
 end
 
 -- A gold/silver/copper input (trade, mail, the auction house): three text
--- boxes in our look, each with our coin. Their coin art is set once on load.
+-- boxes in the W.Input look, each with a Daylight coin. Their coin art is set once on load.
 function Kit.MoneyInput(f)
     if not isTable(f) or not once("moneyinput", f) then return end
     for _, coin in ipairs(Kit.COINS) do
@@ -1879,7 +1880,7 @@ end
 -- can be added under their own key (a skin's rows after the template's), and
 -- reusing a key replaces it. Driven by the list's own callbacks (ScrollBox.lua:
 -- OnUpdate after each update, OnInitializedFrame per row), never by hooking its
--- methods. The game invokes those via securecallfunction, so nothing of ours
+-- methods. The game invokes those via securecallfunction, so no addon code
 -- runs inside its update. A freshly filled row is relit right away (Kit.RelightIn
 -- to this depth), since its text was colored for parchment.
 Kit.ROW_LIGHT_DEPTH = 4
@@ -1960,18 +1961,18 @@ local function textButton(f)
     local tex = f:GetNormalTexture()
     if kind(fs) ~= "FontString" or kind(tex) ~= "Texture" then return false end
     local w, h = f:GetWidth(), f:GetHeight()
-    if type(w) ~= "number" or type(h) ~= "number" or (issecretvalue and (issecretvalue(w) or issecretvalue(h))) then return false end
+    if type(w) ~= "number" or type(h) ~= "number" or (isSecret(w) or isSecret(h)) then return false end
     if h <= 0 or w < h * 2 then return false end
     -- The texture has to be the button's art (full width), not an icon next
     -- to the label (a coin by an amount).
     local tw = tex:GetWidth()
-    if type(tw) == "number" and not (issecretvalue and issecretvalue(tw)) and tw > 0 and tw < w * 0.6 then return false end
+    if type(tw) == "number" and not isSecret(tw) and tw > 0 and tw < w * 0.6 then return false end
     return true
 end
 
 local function small(f)
     local w = f.GetWidth and f:GetWidth()
-    return type(w) ~= "number" or (issecretvalue and issecretvalue(w)) or w <= 40
+    return type(w) ~= "number" or isSecret(w) or w <= 40
 end
 
 -- A frame's children keyed by their names on the parent. Building this walks
@@ -2032,7 +2033,7 @@ local function part(f, key, opts, isRow)
         end
         return false
     end
-    -- Money frames (gold, silver, copper): our coins, the game's layout.
+    -- Money frames (gold, silver, copper): Daylight coins, the game's layout.
     if isTable(f.GoldButton) or isTable(f.CopperButton) then Kit.Money(f); return true end
     if key == "GoldButton" or key == "SilverButton" or key == "CopperButton" then return true end
     if kind(f.gold) == "EditBox" and kind(f.copper) == "EditBox" then Kit.MoneyInput(f); return true end
@@ -2099,7 +2100,7 @@ local function part(f, key, opts, isRow)
         local normal = f:GetNormalTexture()
         local w, h = f:GetWidth(), f:GetHeight()
         if kind(normal) == "Texture" and normal ~= f.Icon and type(w) == "number" and type(h) == "number"
-            and not (issecretvalue and (issecretvalue(w) or issecretvalue(h)))
+            and not (isSecret(w) or isSecret(h))
             and w > 0 and w <= 44 and math.abs(w - h) <= 4 then
             Kit.IconButton(f); return true
         end
@@ -2110,25 +2111,17 @@ local function part(f, key, opts, isRow)
     return false
 end
 
--- Skins every standard part under root: close buttons, scroll bars, dropdowns,
--- edit and search boxes, page buttons, tabs, buttons, checkboxes, item buttons,
--- progress and status bars. Hides NineSlice frame art along the way, darkens
--- insets, and does the same for the rows of every scrolling list it finds as
--- they're created. Safe to run again; each part is done once.
--- opts:
---   skip         set of frames to leave alone, including their children
---   bars         also skin status bars (off by default; many windows draw their own)
---   rows         false to leave list rows alone
---   controlsOnly only close buttons, scroll bars, dropdowns and edit boxes
---   shownOnly    only visit shown frames (repeat passes)
---   onPage       called when one of the window's pages or panels is shown
---   each         called on every non-control frame visited, to dress an
---                addon's own pieces in the same walk
---   depth        max depth, for windows deeper than Kit.AUTO_DEPTH
---   lines        draw list rows as lines rather than boxes
+-- Skins every standard part under root (close buttons, scroll bars, dropdowns,
+-- edit boxes, page buttons, tabs, buttons, checkboxes, item buttons, progress
+-- bars), hides NineSlice art, darkens insets, and dresses the rows of each
+-- scrolling list as they're created. Safe to run again; each part is done once.
+-- opts can leave frames alone (skip), add status bars (bars, off since many
+-- windows draw their own), leave rows alone (rows = false) or draw them as lines
+-- (lines), stop at the controls (controlsOnly), visit only shown frames
+-- (shownOnly), call back for each page shown (onPage) or each other frame
+-- visited (each), and go deeper than Kit.AUTO_DEPTH (depth).
 -- Big windows (professions: thousands of frames) are walked a few hundred frames
--- per frame so opening them doesn't stall; small ones finish at once. Walks
--- pause in combat and resume after.
+-- per frame so opening them doesn't stall. Walks pause in combat.
 Kit.AUTO_BUDGET = 300 -- frames visited per rendered frame
 local walking = setmetatable({}, { __mode = "k" }) -- root -> its walk, while running
 local walks = {}
@@ -2159,7 +2152,7 @@ function Kit.Auto(root, opts)
     local skip = opts.skip or {}
     local co
     local count = 0
-    -- canYield is false inside list rows: the list calls us from the game's own
+    -- canYield is false inside list rows: the list calls in from the game's own
     -- code, and a walk can't pause across that.
     local function visit(f, depth, key, isRoot, isRow, canYield)
         -- Rows skinned as a whole aren't descended into; their icon cells first.
@@ -2251,10 +2244,10 @@ function Kit.ShellOf(obj)
         or liteOf[obj] or Style.GetShell(obj)
 end
 
--- The core has already re-laid out the shells. What's left is our own colors
+-- The core has already re-laid out the shells. What's left is the skin's own colors
 -- (the accent may have changed) and insets, each only when its color changed.
 DUI.On("StyleChanged", function()
-    -- Lite shells are ours to re-layout (UI scale, border alpha).
+    -- Lite shells are re-laid out here (UI scale, border alpha).
     for s in pairs(lites) do liteLayout(s) end
     for shade in pairs(shades) do shade:SetColorTexture(0, 0, 0, Kit.INSET_SHADE) end
     for btn in pairs(looks) do paintLook(btn) end

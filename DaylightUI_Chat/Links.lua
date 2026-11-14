@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -27,7 +28,7 @@ end
 -- The message with its addresses linked, or nil if there are none or it can't
 -- be read.
 function Links.Wrap(msg)
-    if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then return nil end
+    if type(msg) ~= "string" or secret(msg) then return nil end
     if not (string.find(msg, "://", 1, true) or string.find(msg, "www.", 1, true)) then return nil end
     local changed = false
     local out = string.gsub(msg, "%S+", function(word)
@@ -88,7 +89,7 @@ function Links.Show(url)
 end
 
 function Links.OnClick(link)
-    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return end
+    if type(link) ~= "string" or secret(link) then return end
     local url = string.match(link, "^" .. string.gsub(Links.PREFIX, "%p", "%%%0") .. "(.+)$")
     if url then Links.Show(url) end
 end
@@ -115,7 +116,7 @@ end
 -- True if the click put a link in the open edit box; otherwise the game handles it.
 function Links.LinkQuestie(link, text, button)
     if button ~= "LeftButton" or type(link) ~= "string" or type(text) ~= "string" then return false end
-    if issecretvalue and (issecretvalue(link) or issecretvalue(text)) then return false end
+    if secret(link) or secret(text) then return false end
     local id = string.match(link, "^questie:(%d+)")
     if not id or not (IsModifiedClick and IsModifiedClick("CHATLINK")) then return false end
     local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
@@ -134,12 +135,12 @@ end
 -- the game's own windows. RedeemTicket is refused for addons too, so the game's
 -- window has to handle it.
 function Links.ClubTicket(link, text, button)
-    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return false end
+    if type(link) ~= "string" or secret(link) then return false end
     if not string.find(link, "^clubTicket:") then return false end
     if button == "LeftButton" and IsModifiedClick and IsModifiedClick("CHATLINK") then
         local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
         if type(insert) == "function" and type(text) == "string"
-            and not (issecretvalue and issecretvalue(text)) and insert(text) then return true end
+            and not secret(text) and insert(text) then return true end
     end
     DUI.Print(L["Community invites only open from the game's own chat: set Chat style to Classic, then click it."])
     return true
@@ -209,14 +210,12 @@ end
 -- censoredmessage, censoredmessagerewrite and censoredmessageconfirmsend all
 -- carry the line's id first.
 function Links.Censored(link)
-    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return end
+    if type(link) ~= "string" or secret(link) then return end
     local id = string.match(link, "^censoredmessage%a*:(%d+)")
     if id and ns.Box then ns.Box.Rewritten(tonumber(id)) end
 end
 
 function Links.Mirror(box) return mirrors[box] or nil end
-
-local function secret(v) return issecretvalue and issecretvalue(v) end
 
 -- Lays each shown line's twin over it. Runs on every redraw and scroll of the
 -- box; a line whose text didn't change is left as it is.

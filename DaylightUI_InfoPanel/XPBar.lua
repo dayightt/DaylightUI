@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local XP = {}
@@ -23,7 +24,7 @@ XP.TICK_ALPHA = 0.7                     -- the lines between them, in the panel'
 XP.TIP_GAP = 4                          -- between the bar and its hover details
 -- The game's own bars. They're Edit Mode frames whose updates call into
 -- their parent, so they stay where the game put them and are kept hidden
--- instead of being moved under a hidden frame of ours.
+-- instead of being moved under a hidden Daylight UI frame.
 XP.GAME_BARS = { "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer" }
 
 local function call(fn, ...)
@@ -39,7 +40,6 @@ local function atCap()
     return max ~= nil and UnitLevel("player") >= max
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- A separate bar can stand upright (xp.orientation, rep.orientation): it then
 -- fills bottom to top, its text turns to read along it, and its gradient runs
@@ -163,7 +163,7 @@ function XP.Build(frame)
     XP.text = Style.Text(XP.bar, 9, "CENTER", ns.MEDIA.fonts.xp)
     XP.text:SetPoint("CENTER", frame, "CENTER", 0, 0)
     XP.text:Hide()
-    -- The rested shimmer: a soft light that runs over a frame of ours laid
+    -- The rested shimmer: a soft light that runs over a Daylight UI frame laid
     -- across the rested part (XP.restedSpan), above both bars.
     XP.restedSpan = CreateFrame("Frame", nil, frame)
     XP.restedSpan:SetFrameLevel(XP.bar:GetFrameLevel() + 1)
@@ -224,17 +224,17 @@ function XP.Build(frame)
         XP.hover = false
         XP.HideRep()
     end)
-    pcall(DUI.RegisterEvent, "PLAYER_UPDATE_RESTING", function() XP.Rest() end)
+    DUI.RegisterEvent("PLAYER_UPDATE_RESTING", function() XP.Rest() end)
     for _, e in ipairs({ "PLAYER_XP_UPDATE", "UPDATE_EXHAUSTION", "PLAYER_LEVEL_UP", "UPDATE_FACTION",
                          "PLAYER_ENTERING_WORLD" }) do
-        pcall(DUI.RegisterEvent, e, function()
+        DUI.RegisterEvent(e, function()
             if e == "PLAYER_LEVEL_UP" and ns.XPGain then ns.XPGain.levelSeen = true end
             XP.Update()
             if e == "UPDATE_FACTION" or e == "PLAYER_ENTERING_WORLD" then XP.RepGain(e == "UPDATE_FACTION") end
         end)
     end
     for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "PLAYER_ENTERING_WORLD" }) do
-        pcall(DUI.RegisterEvent, e, XP.CountBanked)
+        DUI.RegisterEvent(e, XP.CountBanked)
     end
 end
 
@@ -290,7 +290,7 @@ end
 -- The reputation turn (below the level cap)
 -- ---------------------------------------------------------------------
 
-local function secretRep(d) return issecretvalue ~= nil and (issecretvalue(d.value) or issecretvalue(d.max)) end
+local function secretRep(d) return secret(d.value) or secret(d.max) end
 
 -- A gain with the watched faction (same faction, more than last seen; the
 -- first read after login only remembers): the bar turns to it.
@@ -609,7 +609,7 @@ function Rep.Build(mod)
     DUI.On("UnlockChanged", function() if ns.module then Rep.Apply(ns.module.db) end end)
     DUI.On("TestModeChanged", refresh)
     DUI.On("TestPartChanged", function(key) if key == "rep" then refresh() end end)
-    pcall(DUI.RegisterEvent, "UPDATE_FACTION", refresh)
+    DUI.RegisterEvent("UPDATE_FACTION", refresh)
 end
 
 function Rep.StandingName(reaction)

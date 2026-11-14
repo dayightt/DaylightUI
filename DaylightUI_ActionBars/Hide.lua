@@ -92,7 +92,7 @@ Hide.EDGE = 12      -- distance from the screen's edges in the corner, same as t
 
 function Hide.MoverKey(key) return "actionbars." .. key end
 
-local gameSpot = {}     -- key -> { x, y }: where the game had it before we moved it
+local gameSpot = {}     -- key -> { x, y }: where the game had it before it was moved
 
 local function offset(f)
     local cx, cy = f:GetCenter()
@@ -143,15 +143,9 @@ function Hide.PlaceAll(cfg)
     for _, key in ipairs(Hide.MOVER_ORDER) do DUI.SafeCall(Hide.Place, cfg, key) end
 end
 
-local queued = false
-local function soon()
-    if queued then return end
-    queued = true
-    C_Timer.After(0, function()
-        queued = false
-        if ns.db then Hide.PlaceAll(ns.db) end
-    end)
-end
+local soon = DUI.Soon(function()
+    if ns.db then Hide.PlaceAll(ns.db) end
+end)
 
 function Hide.Movers(cfg)
     for _, key in ipairs(Hide.MOVER_ORDER) do
@@ -169,7 +163,7 @@ function Hide.Movers(cfg)
     end
     if Hide.wired then return end
     Hide.wired = true
-    for _, event in ipairs(Hide.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+    for _, event in ipairs(Hide.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
     -- The game puts the micro menu back at its Edit Mode spot when its override
     -- bar goes away (after a death, a vehicle), then runs its pass over the micro
     -- buttons. After that pass it goes back to its spot.
@@ -200,7 +194,7 @@ end
 -- ---------------------------------------------------------------------
 -- Size. Edit Mode stores it (a Size slider saved as its step; ranges in the game's
 -- EditModeSettingDisplayInfo.lua) and sets the frame's scale from it when it applies
--- the layout: Bags on BagsBar, the micro menu on MicroMenu (not its container). Our
+-- the layout: Bags on BagsBar, the micro menu on MicroMenu (not its container). Daylight UI's
 -- slider reads the active layout, writes it there (DUI.EditMode.WriteSetting) and
 -- scales the frame right away.
 -- ---------------------------------------------------------------------

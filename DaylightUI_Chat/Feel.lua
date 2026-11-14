@@ -1,4 +1,4 @@
--- Chat motion. Everything that moves here is ours, layered around the game's
+-- Chat motion. Everything that moves here is Daylight UI's own, layered around the game's
 -- lines; the lines and their fade stay the game's, and nothing is written on the
 -- chat frames.
 -- * The line under the selected tab glides to the next selected tab.
@@ -16,6 +16,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 local L = DUI.L
 
@@ -128,7 +129,7 @@ end
 -- Pulsing unread tabs
 -- ---------------------------------------------------------------------
 
--- The game's own "something new" flag (it flashes the tab glow, which we clear):
+-- The game's own "something new" flag (it flashes the tab glow, which is cleared):
 -- an unselected tab pulses until you look at it.
 function Feel.Alert(tab, cf, b)
     local U = _G.ChatFrameUtil
@@ -178,7 +179,7 @@ end
 -- The edit box in its channel's color
 -- ---------------------------------------------------------------------
 
-local backs = setmetatable({}, { __mode = "k" }) -- game's edit box -> our shell behind it
+local backs = setmetatable({}, { __mode = "k" }) -- game's edit box -> the shell behind it
 local typedTo = setmetatable({}, { __mode = "k" })
 
 function Feel.InputBack(eb, back) backs[eb] = back end
@@ -186,7 +187,7 @@ function Feel.InputBack(eb, back) backs[eb] = back end
 -- Color of the box's target: the game's own (ChatTypeInfo), channels by number.
 function Feel.ChannelColor(eb)
     local kind = eb.GetAttribute and eb:GetAttribute("chatType")
-    if type(kind) ~= "string" or (issecretvalue and issecretvalue(kind)) then return nil end
+    if type(kind) ~= "string" or secret(kind) then return nil end
     local info = type(ChatTypeInfo) == "table" and ChatTypeInfo or {}
     local entry
     if kind == "CHANNEL" then
@@ -198,7 +199,7 @@ function Feel.ChannelColor(eb)
     return kind, { entry.r, entry.g, entry.b }
 end
 
--- Checked every frame while the box is ours, so a channel change eases over.
+-- Checked every frame while the box is dressed, so a channel change eases over.
 function Feel.InputColor(eb, typing)
     local back = backs[eb]
     if not (back and typing) then return end
@@ -239,7 +240,7 @@ local function regions(f, ...)
 end
 
 -- The game's jump-to-bottom button with its art cleared (the game still shows,
--- fades and flashes it). It takes no clicks until it's under our pill.
+-- fades and flashes it). It takes no clicks until it's under the pill.
 function Feel.DressJump(btn)
     if type(btn) ~= "table" or jumps[btn] or not btn.HookScript then return end
     jumps[btn] = true
@@ -410,8 +411,6 @@ function Feel.Shine()
         color = { r, g, b } })
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
-
 -- Your own epic-or-better loot (by the link's quality, once the item is cached).
 function Feel.EpicLoot(msg, ...)
     local guid = select(11, ...)
@@ -483,7 +482,7 @@ local function arrive(cf, on)
     for _, line in ipairs(lines) do
         local info = line.messageInfo
         local ts = type(info) == "table" and info.timestamp
-        if type(ts) == "number" and not issecretvalue(ts) and line:IsShown() then
+        if type(ts) == "number" and not secret(ts) and line:IsShown() then
             local t = (now - ts) / dur
             if t < 2 then
                 local k = (on and t < 1) and 1 - (1 - math.max(t, 0)) ^ 2 or 1
@@ -511,7 +510,7 @@ function Feel.Reveal(cf)
     local from = {}
     for _, line in ipairs(lines) do
         local a = line:IsShown() and line:GetAlpha() or 0
-        from[line] = (type(a) == "number" and not issecretvalue(a)) and a or 1
+        from[line] = (type(a) == "number" and not secret(a)) and a or 1
     end
     revealing[cf] = { at = GetTime(), from = from }
 end

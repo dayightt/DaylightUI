@@ -28,7 +28,7 @@ DruidBars.POWERS = {
 
 local holder, rows, cfg, current
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 local function known(power)
     if not power.forms then return true end

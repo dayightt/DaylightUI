@@ -12,6 +12,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style = DUI.Style
 
 local Extras = {}
@@ -20,7 +21,7 @@ ns.Extras = Extras
 Extras.REPEAT = 60 -- seconds within which a repeat counts as spam
 Extras.PING = 4 -- minimum seconds between alert sounds
 Extras.PING_SOUND = "dewdrop"
-Extras.LINK = "daylightchat" -- link type for our own links: |Hdaylightchat:spam:all|h
+Extras.LINK = "daylightchat" -- link type for the chat's own links: |Hdaylightchat:spam:all|h
 
 -- Channels where strangers talk, checked for spam.
 Extras.PUBLIC = { say = true, yell = true, emote = true, general = true, trade = true, lfg = true, defense = true, channel = true }
@@ -63,13 +64,13 @@ end
 -- Is this line yours? Compare GUIDs (the event's arg12) first, which is exact
 -- whatever form the name takes. Secret GUIDs aren't compared.
 local function isMe(sender, guid)
-    if type(guid) == "string" and not issecretvalue(guid) then
+    if type(guid) == "string" and not isSecret(guid) then
         local mine = UnitGUID("player")
-        if type(mine) == "string" and not issecretvalue(mine) and guid == mine then return true end
+        if type(mine) == "string" and not isSecret(mine) and guid == mine then return true end
     end
     if type(sender) ~= "string" then return false end
     local me = UnitName("player")
-    if type(me) ~= "string" or issecretvalue(me) then return false end
+    if type(me) ~= "string" or isSecret(me) then return false end
     return sender == me or string.match(sender, "^([^%-]+)") == me
 end
 
@@ -208,7 +209,7 @@ function Extras.Words()
     end
     if cfg.alertName ~= false then
         local me = UnitName("player")
-        if type(me) == "string" and not issecretvalue(me) and me ~= "" then words[#words + 1] = me end
+        if type(me) == "string" and not isSecret(me) and me ~= "" then words[#words + 1] = me end
     end
     return words
 end
@@ -219,7 +220,7 @@ local built = { list = {} }
 function Extras.AlertPatterns()
     if not cfg then return built.list end
     local me = cfg.alertName ~= false and UnitName("player") or ""
-    if type(me) ~= "string" or issecretvalue(me) then me = "" end
+    if type(me) ~= "string" or isSecret(me) then me = "" end
     local words = cfg.alertWords or ""
     if built.words == words and built.me == me then return built.list end
     local list = {}
@@ -304,7 +305,7 @@ local function group(text, kind)
     end))
 end
 
--- Our copy of a plain line with alert words lit and role icons added. Returns
+-- A copy of a plain line with alert words lit and role icons added. Returns
 -- true if it's an alert.
 function Extras.Decorate(text, kind, sender, guid)
     if not cfg then return text, false end
@@ -314,10 +315,10 @@ function Extras.Decorate(text, kind, sender, guid)
     return text, hit
 end
 
--- Handles a click on one of our links; true if it was ours. Old whisper or
+-- Handles a click on one of the chat's own links; true if it was one. Old whisper or
 -- invite links restored from history do nothing.
 function Extras.OnLink(link)
-    if type(link) ~= "string" or issecretvalue(link) then return false end
+    if type(link) ~= "string" or isSecret(link) then return false end
     local what = string.match(link, "^" .. Extras.LINK .. ":(%a+):.+$")
     if not what then return false end
     if what == "spam" then ns.Box.ShowSpam() end

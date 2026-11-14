@@ -46,13 +46,12 @@ local postage           -- send page postage as last read
 local itemsChanged = 0   -- bumped when item tallies change; the sorted list is only rebuilt then
 local missing = {}       -- names with no ID found this session (bags aren't searched again)
 
-local function now() return GetTime() end
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
     local ok, a, b, c, d, e, f, g, h, i, j, k, l, m = pcall(fn, ...)
     if ok then return a, b, c, d, e, f, g, h, i, j, k, l, m end
 end
-local function num(v) return (type(v) == "number" and not (issecretvalue and issecretvalue(v))) and v or nil end
+local function num(v) return (type(v) == "number" and not DUI.IsSecret(v)) and v or nil end
 
 -- Saved data
 
@@ -71,7 +70,7 @@ end
 -- Item ID by name: saved whenever the game shows one (a won letter's item, a gear buy,
 -- a post), else the client's cache, else the bags.
 function Ledger.Remember(name, id)
-    if type(name) == "string" and type(id) == "number" and not (issecretvalue and issecretvalue(id)) then
+    if type(name) == "string" and type(id) == "number" and not DUI.IsSecret(id) then
         Ledger.Data().ids[name] = id
         missing[name] = nil
     end
@@ -164,7 +163,7 @@ function Ledger.Recent() return Ledger.Data().recent end
 -- Reasons and gold
 
 local function expire(list)
-    local t = now()
+    local t = GetTime()
     for i = #list, 1, -1 do
         if t - list[i].t > Ledger.WINDOW then table.remove(list, i) end
     end
@@ -210,7 +209,7 @@ local function match(list, amount, out)
 end
 
 local function wait(r)
-    r.t = now()
+    r.t = GetTime()
     expire(reasons)
     expire(gains)
     -- Gold that arrived before its reason (the order isn't guaranteed).
@@ -234,7 +233,7 @@ function Ledger.OnMoney()
     expire(reasons)
     expire(gains)   -- loot and vendor gold never finds a reason; only kept for the window
     local r = match(reasons, delta, delta < 0)
-    if r then settle(r, delta) else gains[#gains + 1] = { amount = delta, t = now() } end
+    if r then settle(r, delta) else gains[#gains + 1] = { amount = delta, t = GetTime() } end
 end
 
 -- Inbox, before and after

@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -28,7 +29,6 @@ Summary.COLUMNS = {
     { id = "deaths", type = "Deaths", text = "Deaths", width = 44, count = true },
 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 local function plain(v) return type(v) ~= "nil" and not isSecret(v) end
 

@@ -8,7 +8,7 @@ ns.MEDIA = DaylightUI.Media.RegisterArea("tooltip", "Tooltip", ns.MEDIA_BARS)
 
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS),
-    anchor = "game", -- "game": at our unlock handle (near the game's spot); "cursor": follows the mouse
+    anchor = "game", -- "game": at Daylight UI's unlock handle (near the game's spot); "cursor": follows the mouse
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,
     scale = 1,

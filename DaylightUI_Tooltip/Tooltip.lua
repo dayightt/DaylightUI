@@ -1,7 +1,7 @@
--- Skins the game's tooltips. The game's frame and art stay (hidden), with our
--- shell behind the text, our font, and a slim health bar under unit tooltips.
+-- Skins the game's tooltips. The game's frame and art stay (hidden), with Daylight UI's
+-- shell behind the text, Daylight UI's font, and a slim health bar under unit tooltips.
 -- Player names and the border take the class color (other units their
--- reaction), items take their quality color on the border. Positioned at our
+-- reaction), items take their quality color on the border. Positioned at Daylight UI's
 -- unlock handle or at the cursor. World tooltips vanish the moment the mouse
 -- leaves, or fade like the game's with the Fade out option.
 --
@@ -11,6 +11,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -41,14 +42,15 @@ Tip.ANCHOR_DEFAULT = { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -100, 100 }
 local cfg
 local skinned = setmetatable({}, { __mode = "k" }) -- tooltip -> its shell
 
--- To get rid of a tooltip we set alpha 0, never Hide(). Hiding the game's
--- tooltip from our code runs its hide handlers tainted, and the game's tooltip
+-- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
+-- tooltip from Daylight UI's code runs its hide handlers tainted, and the game's tooltip
 -- code (SetWorldCursor first) then errors on secret values. It comes back the
 -- next time the game clears it for new content or hides it.
--- why "combat": a unit hidden in combat; Shift brings it back (KeepMuted).
--- why "gone": the mouse left something in the world. Also parked offscreen
--- (Tip.Park), because the game's fade sets the alpha back itself. Default-placed
--- "combat" ones are parked too (Tip.MuteUnit). Parked means clamped[tip] is set.
+-- The reason is "combat" for a unit hidden in combat, which Shift brings back
+-- (KeepMuted), or "gone" when the mouse left something in the world. A "gone" one
+-- is also parked offscreen (Tip.Park), because the game's fade sets the alpha back
+-- itself, and so is a default-placed "combat" one (Tip.MuteUnit). A parked tooltip
+-- has clamped[tip] set.
 local muted = setmetatable({}, { __mode = "k" })
 local clamped = setmetatable({}, { __mode = "k" }) -- parked tooltip -> whether it was clamped to the screen
 function Tip.Mute(tip, why)
@@ -75,7 +77,7 @@ function Tip.Unmute(tip)
 end
 
 local function plain(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -114,7 +116,7 @@ function Tip.Skin(tip)
     if tip.IsForbidden and tip:IsForbidden() then return end
     -- The game's art is kept (it restyles it on every show) but hidden. Some
     -- world tooltips bring it back into view, and its gray edge showed as a gap
-    -- inside our border, so it's hidden again on show, on new content and every
+    -- inside Daylight UI's border, so it's hidden again on show, on new content and every
     -- frame (Tip.HideArt). No hook on its SetAlpha: the game's own calls to a
     -- hooked method failed with "attempt to call a nil value".
     Tip.HideArt(tip)
@@ -145,7 +147,7 @@ function Tip.Skin(tip)
 end
 
 -- A compare tooltip's "Equipped" tab (the game's CompareHeader with its art and
--- gold label, ShoppingTooltipTemplate) gets our shell instead, its bottom tucked
+-- gold label, ShoppingTooltipTemplate) gets Daylight UI's shell instead, its bottom tucked
 -- under the tooltip's top border so they read as one piece, in the tooltip's
 -- border color (Tip.Colors), with a tan label. The game only sets text and
 -- width on show, so this is done once.
@@ -175,7 +177,7 @@ function Tip.Colors(tip, c, pair)
     if hs then Style.SetShellColors(hs, c, nil, pair) end
 end
 
-local barR, barG, barB -- our health bar color, if any
+local barR, barG, barB -- Daylight UI's health bar color, if any
 local barKey -- or its gradient pair (Gradient on)
 
 -- The game refilling a tooltip from data (an item's, every 0.2 s while hovered)
@@ -183,7 +185,7 @@ local barKey -- or its gradient pair (Gradient on)
 -- it again) right away, before anything is drawn
 -- (TooltipDataHandlerMixin:InternalProcessInfo). So the border reset waits for
 -- those post-calls and the same color again means no change. Resetting and then
--- tinting used to lay the shell out twice per refill. A compare tooltip that's
+-- tinting would lay the shell out twice per refill. A compare tooltip that's
 -- already up works the same (TooltipComparisonManager:SetItemTooltip).
 function Tip.Refilling(tip)
     if type(tip.CompareHeader) == "table" and tip:IsShown() then return true end
@@ -251,7 +253,7 @@ function Tip.BorderPair(unit, tip)
     return { lo, hi }
 end
 
--- The game's tooltip fonts, set to ours. They're shared font objects, so every
+-- The game's tooltip fonts, set to Daylight UI's. They're shared font objects, so every
 -- tooltip (and anything else using them) follows.
 Tip.FONTS = {
     { name = "GameTooltipHeaderText", delta = 2 },
@@ -290,7 +292,7 @@ function Tip.StyleBar()
         local edge = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
         edge:SetColorTexture(0, 0, 0, 1)
         Tip.barEdge = edge
-        -- The game recolors it by health as the value changes, so ours (class
+        -- The game recolors it by health as the value changes, so Daylight UI's color (class
         -- or reaction) is put back after. Use a script hook, never a hook on
         -- the bar's method: that taints the game's health code, which then
         -- fails on the secret health values it gets.
@@ -605,7 +607,7 @@ function Tip.AddID(tip, label, id)
     local text = tostring(id)
     if Tip.HasLine(tip, label, text) then return end
     local v = Tip.ID_VALUE
-    local ar, ag, ab = Style.Accent() -- label in the accent, like our own tooltips
+    local ar, ag, ab = Style.Accent() -- label in the accent, like Daylight UI's own tooltips
     tip:AddDoubleLine(label, text, ar, ag, ab, v[1], v[2], v[3])
 end
 
@@ -807,17 +809,12 @@ function Tip.OnItemLines(tip, data)
     end
 end
 
--- Repaints a spell's lines to match our tooltips. The game draws them white with
--- a yellow description. The cost ("30 Mana", the game's own power word) gets
--- that power's color; other short lines (cast time, range, cooldown) become
--- labels with their numbers popped; the description and other sentences use
--- Tips.TEXT with numbers colored by meaning (DUI.Tips.Numbers: heals green,
--- damage soft red, otherwise the accent). Only the game's white and yellow lines
--- are touched: the title, red lines (an unmet requirement) and lines with their
--- own color codes are left. A recipe's item (from its name line on: the data's
--- ItemName line, or else the first line in a game color like a quality) keeps
--- the game's colors, like an item tooltip. Secret text is skipped. The color
--- meanings come from DUI.Tips.GameColor, shared with the talent tooltip.
+-- Repaints a spell's lines to match Daylight UI's tooltips. The cost gets its
+-- power's color, other short lines become labels, and the description and other
+-- sentences get the text color with their numbers colored by DUI.Tips.Numbers.
+-- Only the game's white and yellow lines change, so the title, red lines (an
+-- unmet requirement) and lines with their own color codes keep theirs. A recipe's
+-- item keeps the game's colors, like an item tooltip. Secret text is skipped.
 local function isYellow(r, g, b) return DUI.Tips.GameColor(r, g, b) == "yellow" end
 local function isWhite(r, g, b) return DUI.Tips.GameColor(r, g, b) == "white" end
 local function isRed(r, g, b) return DUI.Tips.GameColor(r, g, b) == "red" end
@@ -838,9 +835,9 @@ end
 local function dataYellow(lines, i)
     local line = lines and lines[i]
     local c = type(line) == "table" and line.leftColor or nil
-    if type(c) ~= "table" or (issecretvalue and issecretvalue(c)) then return nil end
+    if type(c) ~= "table" or isSecret(c) then return nil end
     local r, g, b = c.r, c.g, c.b
-    if (issecretvalue and issecretvalue(r)) or type(r) ~= "number" then return nil end
+    if isSecret(r) or type(r) ~= "number" then return nil end
     return isYellow(r, g, b) and true or false
 end
 
@@ -863,11 +860,11 @@ function Tip.PaintSpell(tip, data)
         local lt = type(left) == "table" and left.GetText and left:GetText()
         -- In combat the text reads secret but its color doesn't (per the
         -- game's FontString docs), so a secret line is judged by color alone.
-        local hidden = issecretvalue ~= nil and issecretvalue(lt)
+        local hidden = isSecret(lt)
         if hidden or type(lt) == "string" then
             if not hidden and lt == itemName then return end
             local r, g, b = left:GetTextColor()
-            if issecretvalue and issecretvalue(r) then r = nil end
+            if isSecret(r) then r = nil end
             -- a line the game drew in its own color (not white, yellow or
             -- requirement red): a recipe's item in its quality
             if type(r) == "number" and (hidden or (lt ~= "" and not lt:find("|c", 1, true)))
@@ -876,11 +873,11 @@ function Tip.PaintSpell(tip, data)
         for _, side in ipairs(SIDES) do
             local fs = side == "Left" and left or Tip.Line(tip, i, side)
             local text = type(fs) == "table" and fs.GetText and fs:GetText()
-            if type(text) ~= "nil" and issecretvalue and issecretvalue(text) then
+            if type(text) ~= "nil" and isSecret(text) then
                 -- secret: only the yellow description becomes text color (no numbers to read)
                 local r, g, b = fs:GetTextColor()
                 local yellow
-                if not issecretvalue(r) then yellow = isYellow(r, g, b)
+                if not isSecret(r) then yellow = isYellow(r, g, b)
                 elseif side == "Left" then
                     yellow = dataYellow(dataLines, i)
                     if yellow == nil then yellow = isSpell and i == lastData end
@@ -888,9 +885,9 @@ function Tip.PaintSpell(tip, data)
                 if yellow then fs:SetTextColor(INK.TEXT[1], INK.TEXT[2], INK.TEXT[3]) end
             elseif type(text) == "string" and text ~= "" and not text:find("|c", 1, true) then
                 local r, g, b = fs:GetTextColor()
-                if issecretvalue and issecretvalue(r) then r = nil end
+                if isSecret(r) then r = nil end
                 if isYellow(r, g, b) then
-                    -- the description: yellow becomes our text color (like a
+                    -- the description: yellow becomes Daylight UI's text color (like a
                     -- creature's lines), with its numbers colored
                     fs:SetText(Tips.Numbers(text))
                     fs:SetTextColor(INK.TEXT[1], INK.TEXT[2], INK.TEXT[3])
@@ -986,7 +983,7 @@ end
 
 -- Runs the plugins for a tooltip already on show and fits it to the new lines
 -- (Show only while it's shown: called when it isn't, it runs the game's show
--- handlers under our taint).
+-- handlers under the addon's taint).
 function Tip.PluginsShown(kind, tip, data)
     if Tip.Plugins(kind, tip, Tip.PluginData(kind, tip, data)) and tip:IsShown() then tip:Show() end
 end
@@ -1004,16 +1001,16 @@ end
 -- ---------------------------------------------------------------------
 
 -- With the cursor setting, the main tooltip follows the cursor whenever the game
--- has put it at its default spot. We track that ourselves, since the game's own
+-- has put it at its default spot. That is tracked here, since the game's own
 -- markers (`default`, the anchor type) can read back secret for a world tooltip.
 -- The post-hooks only set a flag; the tooltip is moved each frame from a script
--- hook and never re-owned (SetOwner from our code clears it and runs the game's
+-- hook and never re-owned (SetOwner from Daylight UI's code clears it and runs the game's
 -- clear handlers tainted).
 local atDefault = false
 local defaultOwner -- owner when the game put it at its default spot
 function Tip.OnDefaultAnchor(tip, parent)
     if tip ~= GameTooltip then return end
-    -- Our frames marked __duiOwnTooltipSpot (the minimap's fps) use the game's
+    -- Daylight UI's frames marked __duiOwnTooltipSpot (the minimap's fps) use the game's
     -- tooltip code but place the tooltip themselves, so leave those alone.
     atDefault = not (type(parent) == "table" and parent.__duiOwnTooltipSpot)
     defaultOwner = parent or UIParent
@@ -1025,9 +1022,9 @@ function Tip.OnDefaultAnchor(tip, parent)
 end
 
 -- A unit hidden in combat. Alpha 0 alone flashed it for each new enemy: the
--- game's fill ends with Show() after our post-calls, which restores the alpha
--- (and stops a fade) before any update of ours runs. So one at the game's spot
--- (placed by us, so we can restore it) is also parked offscreen. One placed by
+-- game's fill ends with Show() after Daylight UI's post-calls, which restores the alpha
+-- (and stops a fade) before any update from here runs. So one at the game's spot
+-- (placed here, so it can be restored) is also parked offscreen. One placed by
 -- its owner keeps its spot.
 function Tip.MuteUnit(tip)
     Tip.Mute(tip, "combat")
@@ -1062,13 +1059,12 @@ function Tip.OnCleared(tip)
     Tip.Unmute(tip)
 end
 
--- A default-placed tooltip goes to the cursor or to our handle, never the game's
+-- A default-placed tooltip goes to the cursor or to Daylight UI's handle, never the game's
 -- Edit Mode spot. The handle starts about where the game puts it, so an unmoved
--- one looks the same. It may have been re-owned without a clear we saw (the
+-- one looks the same. It may have been re-owned without a clear seen here (the
 -- minimap does this every frame with UIParent, the world's owner), and its
--- anchor tells us. Anything else that puts it at the game's spot counts too
--- (which code path does it in game isn't known yet): anchored to the game's
--- container means default-placed. Anchored to anything else, the screen or our
+-- anchor tells. Anything else that puts it at the game's spot counts too:
+-- anchored to the game's container means default-placed. Anchored to anything else, the screen or Daylight UI's
 -- handle, means its owner placed it.
 function Tip.Place(tip)
     if not (cfg and tip == GameTooltip) or muted[tip] == "gone" or clamped[tip] ~= nil then return end
@@ -1101,7 +1097,7 @@ Tip.MIRROR = { ANCHOR_RIGHT = "ANCHOR_LEFT", ANCHOR_TOPRIGHT = "ANCHOR_TOPLEFT",
 local function px(f, v)
     local s = f:GetEffectiveScale()
     v = plain(v)
-    if type(v) ~= "number" or type(s) ~= "number" or issecretvalue and issecretvalue(s) then return nil end
+    if type(v) ~= "number" or type(s) ~= "number" or isSecret(s) then return nil end
     return v * s
 end
 
@@ -1147,8 +1143,7 @@ end
 -- and each new anchor makes the client re-layout the tooltip and its text. When
 -- the tooltip shows a secret (a mob in a restricted dungeon, its quest lines),
 -- its anchoring becomes secret: every GetPoint return reads secret, point and
--- frame too, and comparing them errored every frame (tooltip stuck on screen,
--- the game's "large number of errors"). If unreadable, just re-anchor.
+-- frame too, and comparing them errors every frame. If unreadable, just re-anchor.
 local function anchorTo(tip, point, rel, relPoint, x, y)
     if plain(tip:GetNumPoints()) == 1 then
         local ok, p, r, rp, px, py = pcall(tip.GetPoint, tip, 1)
@@ -1206,7 +1201,7 @@ end
 -- or for units hidden in combat, it's muted instead: alpha 0, held there every
 -- frame until new content arrives or the game hides it. No hook on FadeOut: the
 -- game's own calls to a hooked method failed. The fade is the client's own
--- update setting the alpha every frame and can run after ours, so alpha 0 alone
+-- update setting the alpha every frame and can run after this, so alpha 0 alone
 -- still showed it fading. The tooltip is also parked offscreen (unclamped)
 -- until then.
 Tip.PARK = 100
@@ -1233,7 +1228,7 @@ function Tip.OnWorldCursor()
     -- In combat the world tooltip's owner can read back secret. That still
     -- counts as the world's (as in OnCleared), never another owner.
     local owner = tip.GetOwner and tip:GetOwner()
-    if not (issecretvalue and issecretvalue(owner)) and owner ~= UIParent then return end
+    if not isSecret(owner) and owner ~= UIParent then return end
     Tip.Mute(tip, "gone")
     Tip.Park(tip)
 end
@@ -1244,13 +1239,13 @@ function Tip.KeepMuted(tip)
     -- Shift pressed (or combat over) while a hidden unit is hovered.
     if muted[tip] == "combat" and not Tip.HideNow(tip) then return Tip.Unmute(tip) end
     local a = tip:GetAlpha()
-    if type(a) ~= "number" or (issecretvalue and issecretvalue(a)) or a > 0 then tip:SetAlpha(0) end
+    if type(a) ~= "number" or isSecret(a) or a > 0 then tip:SetAlpha(0) end
     if muted[tip] == "gone" or clamped[tip] ~= nil then Tip.Park(tip) end
 end
 
--- Fade in (NORMAL) when a tooltip shows, using the eased value squared. Ease-out
--- alone put half the alpha on in the first sixth, and FAST looked like a pop in
--- game. Not Motion.FadeIn: the client's Show resets a tooltip's alpha to 1 (the
+-- Fade in (NORMAL) when a tooltip shows, using the eased value squared, since
+-- ease-out alone puts half the alpha on in the first sixth and reads as a pop.
+-- Not Motion.FadeIn: the client's Show resets a tooltip's alpha to 1 (the
 -- fill's own Show, on every refill too), and that fade yields to anything that
 -- sets the alpha. This one holds through a higher alpha and is reapplied every
 -- frame before drawing (Tip.OnUpdate). It only yields to a lower alpha (the
@@ -1267,10 +1262,10 @@ local hiddenAt = setmetatable({}, { __mode = "k" })
 
 function Tip.OnFadeHide(tip) hiddenAt[tip] = GetTime() end
 
--- Still ours? Not once muted, or once the alpha drops below what we set.
+-- Still held here? Not once muted, or once the alpha drops below the one set.
 local function holds(tip, s)
     local a = tip:GetAlpha()
-    if muted[tip] or type(a) ~= "number" or (issecretvalue and issecretvalue(a)) or a < s.v - 0.02 then
+    if muted[tip] or type(a) ~= "number" or isSecret(a) or a < s.v - 0.02 then
         fades[tip] = nil
         return false
     end
@@ -1301,7 +1296,7 @@ function Tip.FadeIn(tip)
     end)
 end
 
--- Questie's objective rows come from a post-call that runs after ours, so
+-- Questie's objective rows come from a post-call that runs after this one, so
 -- they're repainted here before drawing, once per fill (Tip.OnCleared resets
 -- the count). Its drop chance ("[37%]") is hardcoded gray and becomes the
 -- accent. A finished row (three spaces, its color, then 3/3) goes dim with
@@ -1352,9 +1347,9 @@ function Tip.OnUpdate(tip)
     Tip.Place(tip)
 end
 
--- Driven from our own frame because the game stops the tooltip's OnUpdate while
+-- Driven from Daylight UI's own frame because the game stops the tooltip's OnUpdate while
 -- it fades, which left it off the cursor. When the tooltip's own update is
--- running, its hook has already done the work since our last tick, so nothing
+-- running, its hook has already done the work since Daylight UI's last tick, so nothing
 -- to do (once per frame, not twice). Shown only while the tooltip is.
 function Tip.Tick()
     if Tip.hookRan then
@@ -1373,7 +1368,7 @@ local hooked = false
 
 -- Skins every tooltip that exists now. Asks every frame what it is, the client's
 -- locked aura buttons included, so in combat or under restrictions it waits
--- (DUI.AfterRestrictions). Frames the client still won't let us touch are skipped.
+-- (DUI.AfterRestrictions). Frames the client still won't let addons touch are skipped.
 function Tip.SkinAll()
     if type(EnumerateFrames) ~= "function" then return end
     if DUI.Restricted() then
@@ -1439,7 +1434,6 @@ function Tip.Build(mod)
                     DUI.SafeCall(Tip.PluginsShown, "item", tip, data)
                 end)
             end
-            -- Spells and auras: the ID line.
             for _, kind in ipairs(Tip.SPELL_KINDS) do
                 if types and types[kind] then
                     TDP.AddTooltipPostCall(types[kind], function(tip, data)
@@ -1451,7 +1445,7 @@ function Tip.Build(mod)
         end
         -- Post-hooks only (they run after the game's code). Re-owning the
         -- tooltip from a hook taints the game's world cursor tooltip code,
-        -- which then errors. Our own frame keeps a default-placed tooltip on
+        -- which then errors. Daylight UI's own frame keeps a default-placed tooltip on
         -- the cursor.
         Tip.driver = CreateFrame("Frame", nil, UIParent)
         Tip.driver:SetScript("OnUpdate", Tip.Tick)
@@ -1471,22 +1465,13 @@ function Tip.Build(mod)
         end
         -- This event fires on every cursor move, many times a frame, so the
         -- handler is created once and only checks once, next frame.
-        local worldQueued = false
-        local function worldCursorLater()
-            worldQueued = false
-            DUI.SafeCall(Tip.OnWorldCursor)
-        end
-        pcall(DUI.RegisterEvent, "WORLD_CURSOR_TOOLTIP_UPDATE", function()
-            if worldQueued then return end
-            worldQueued = true
-            C_Timer.After(0, worldCursorLater)
-        end)
+        DUI.RegisterEvent("WORLD_CURSOR_TOOLTIP_UPDATE", DUI.Soon(function() DUI.SafeCall(Tip.OnWorldCursor) end))
     end
     Tip.Refresh(mod)
 end
 
 -- With PrettyTooltip on (and this module off, see Module.lua) its unit panels
--- borrow the game's health bar, so only that stays ours: its look
+-- borrow the game's health bar, so only that stays Daylight UI's: its look
 -- (Tip.StyleBar) and the unit's color. Always shown, since the bar's setting has
 -- no options page while the module is off.
 function Tip.BarOnly(mod)
@@ -1516,8 +1501,8 @@ end
 
 -- The aura buttons' tooltip (buffs, debuffs, target auras) belongs to the client
 -- and no addon can reach it. The client accepts a backdrop for it through
--- AuraContainerInbound, so we pass one as close to ours as a plain backdrop
--- gets: our background and border colors and border thickness.
+-- AuraContainerInbound, so it gets one as close to Daylight UI's as a plain backdrop
+-- gets: Daylight UI's background and border colors and border thickness.
 Tip.WHITE = "Interface\\Buttons\\WHITE8X8"
 
 function Tip.StyleAuraTooltip()

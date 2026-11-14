@@ -30,7 +30,7 @@ Health.GRADIENT = {
     { 1, { 0.35, 0.8, 0.35 } },
 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- Number styles for health and power (General `numbers`): the game's
 -- shortener with custom break points, or its thousands separator. Both accept
@@ -115,9 +115,9 @@ function Health.FullCurve()
 end
 
 local function hideAtFull(fs, u)
-    local fullCurve = Health.FullCurve()
-    if fullCurve and UnitHealthPercent then
-        local ok, a = pcall(UnitHealthPercent, u, true, fullCurve)
+    local curve = Health.FullCurve()
+    if curve and UnitHealthPercent then
+        local ok, a = pcall(UnitHealthPercent, u, true, curve)
         if ok then
             pcall(fs.SetAlpha, fs, a)
             return

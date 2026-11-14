@@ -1,6 +1,6 @@
 -- Shared animation helpers. Three speeds, ease-out, and one switch
 -- (general.motion): when it's off every helper jumps straight to its end
--- state. Only our own regions are animated.
+-- state. Only Daylight UI's own regions are animated.
 
 local _, DUI = ...
 
@@ -178,7 +178,7 @@ local function cancel(frame)
     if DUI.Pad then DUI.Pad.Returning(frame) end
 end
 
--- Wires one of our windows once: it Appears on show (with a `rise` px lift,
+-- Wires one of Daylight UI's windows once: it Appears on show (with a `rise` px lift,
 -- or fade only), and Escape fades it out. Escape goes through a tiny hidden
 -- stand-in frame in UISpecialFrames, shown while the window is. The game
 -- hides the stand-in and its OnHide fades the window. With ownEscape the
@@ -253,7 +253,7 @@ function Motion.FadeIn(frame)
     if frame.IsForbidden and frame:IsForbidden() then return end
     local old = fading[frame]
     local target = old and old.target or frame:GetAlpha()
-    if issecretvalue and issecretvalue(target) then return end
+    if DUI.IsSecret(target) then return end
     if old then old.over = true end
     if not fadeWired[frame] then
         fadeWired[frame] = true
@@ -402,7 +402,7 @@ end
 -- The shared tween driver (nil until the first tween). Tests run it.
 function Motion.Driver() return driver end
 
--- Eases one of our regions to an alpha from wherever it is, stepped by hand
+-- Eases one of Daylight UI's regions to an alpha from wherever it is, stepped by hand
 -- (no animation group, so nothing else's alpha on it is lost). Going up from
 -- hidden it shows at 0 first. With hide, it's hidden once it reaches 0.
 -- Asked for the same goal while already heading there, it carries on, unless
@@ -421,7 +421,7 @@ function Motion.AlphaTo(region, to, dur, hide)
         return
     end
     local from = region:GetAlpha()
-    if issecretvalue and issecretvalue(from) then from = to end
+    if DUI.IsSecret(from) then from = to end
     local snap = type(dur) == "number" and dur <= 0
     if key.goal == to and from ~= to and not snap then return end
     key.goal = to
@@ -440,7 +440,7 @@ function Motion.CountTo(fs, to, fmt, dur)
     local key = fs.__duiCountKey
     if not key then key = {}; fs.__duiCountKey = key end
     local from = key.shown
-    local plain = type(to) == "number" and not (issecretvalue and issecretvalue(to))
+    local plain = type(to) == "number" and not DUI.IsSecret(to)
     key.shown = plain and to or nil
     if not plain or type(from) ~= "number" or from == to or not Motion.On() then
         Motion.Tween(key, 0, 0, 0)
@@ -453,7 +453,7 @@ function Motion.CountTo(fs, to, fmt, dur)
     return true
 end
 
--- A light that runs once across `over` from left to right. `tex` is one of our
+-- A light that runs once across `over` from left to right. `tex` is one of Daylight UI's
 -- textures (an additive band). It fades in and out at the ends, so it needs
 -- no mask. opts: width, dur (0.5), alpha (peak, 1), color {r,g,b}, inset (px
 -- kept clear at both ends), key (tween key, default tex), done. Does nothing
@@ -1004,17 +1004,17 @@ end
 -- info. element picks whose last-names setting applies (DUI.UnitName).
 function Motion.KickerName(guid, element)
     if type(guid) == "nil" then return end
-    local secret = issecretvalue and issecretvalue(guid)
+    local secret = DUI.IsSecret(guid)
     if not secret and UnitTokenFromGUID then
         local u = UnitTokenFromGUID(guid)
-        if type(u) == "string" and not (issecretvalue and issecretvalue(u)) then
+        if type(u) == "string" and not DUI.IsSecret(u) then
             return DUI.UnitName(u, element), select(2, UnitClass(u))
         end
     end
     if not GetPlayerInfoByGUID then return end
     local ok, _, token, _, _, _, name = pcall(GetPlayerInfoByGUID, guid)
     if not ok or type(name) == "nil" then return end
-    if not (issecretvalue and issecretvalue(name)) and name == "" then return end
+    if not DUI.IsSecret(name) and name == "" then return end
     return name, token
 end
 

@@ -305,7 +305,7 @@ end
 -- or nil while not shown. Only read, never anchored to: the buttons are protected.
 function Panel.BarsSpan(xp)
     local left, right, bottom
-    -- Our own bar 1 when the action bars draw their own, else the game's.
+    -- Daylight UI's own bar 1 when the action bars draw their own, else the game's.
     local own = DUI.ActionBarButtons and DUI.ActionBarButtons("main")
     for i = 1, 12 do
         local b = own and own[i] or _G["ActionButton" .. i]
@@ -681,7 +681,7 @@ function ns.Build(mod)
     -- Float: XP or money coming in (or going out) brings the panel
     -- back for a while; a reputation gain too (XP.RepGain).
     for _, e in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_MONEY" }) do
-        pcall(DUI.RegisterEvent, e, function()
+        DUI.RegisterEvent(e, function()
             DUI.Fade.Wake("InfoPanel.panel")
             if e ~= "PLAYER_MONEY" then DUI.Fade.Wake("InfoPanel.xp") end
         end)
@@ -745,9 +745,9 @@ function ns.Build(mod)
         if mod.db.xp.detached then C_Timer.After(0, relayout) end
     end
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", afterBars)
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", afterBars)
-    pcall(DUI.RegisterEvent, "PLAYER_SPECIALIZATION_CHANGED", afterBars)
-    -- Our own bars re-lay out live (a setting, a move): follow bar 1.
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", afterBars)
+    DUI.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", afterBars)
+    -- Daylight UI's own bars re-lay out live (a setting, a move): follow bar 1.
     DUI.On("ActionBarLaidOut", function(key) if key == "main" then afterBars() end end)
     -- Moving past the screen's middle (auto side) or a reset flips the meter
     -- and its threat meter to the other side. Detached windows do the same.

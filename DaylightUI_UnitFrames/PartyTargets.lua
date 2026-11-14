@@ -93,7 +93,7 @@ function PT.Refresh(p)
 end
 
 -- The member's unit changed (the header re-sorted, someone joined), so the
--- target follows. Allowed in combat since it only touches our fields.
+-- target follows. Allowed in combat since it only touches the button's own fields.
 function PT.Retarget(b, unit)
     local p = b.ptarget
     if not p or p.preview then return end

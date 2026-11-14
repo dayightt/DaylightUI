@@ -1,8 +1,8 @@
 -- The breath bar (also fatigue, feign death and the release timer) drawn as one
--- of our bars: framed like the cast bar (Style.Shell, so border settings apply),
+-- of the Daylight bars: framed like the cast bar (Style.Shell, so border settings apply),
 -- angled on the right end unless breathSlant is off, label inside, and filled
 -- with its gradient pair (TIMER_<timer>). The game's bar keeps working,
--- invisible underneath; ours copies its range, value and label every frame
+-- invisible underneath; the new bar copies its range, value and label every frame
 -- while it's shown. Positioning stays the game's.
 
 local _, ns = ...
@@ -17,7 +17,7 @@ local Breath = {
     TEXT = Style.SIZE.small,
 }
 ns.Breath = Breath
-Breath.holders = setmetatable({}, { __mode = "k" }) -- the game's timer frame -> ours
+Breath.holders = setmetatable({}, { __mode = "k" }) -- the game's timer frame -> the new bar
 
 local function paint(h)
     local G = DUI.Gradients
@@ -26,7 +26,7 @@ local function paint(h)
     G.Paint(h.bar, G.Has(key) and key or "FALLBACK")
 end
 
--- Copies the game's bar, label and timer kind onto ours. MirrorTimerMixin
+-- Copies the game's bar, label and timer kind onto the new one. MirrorTimerMixin
 -- updates them every frame; they're plain numbers, never secret.
 function Breath.Sync(h)
     local t = h.timer
@@ -87,7 +87,7 @@ local function build(Kit, t)
     Kit.Strip(t)
     game:SetAlpha(0)
     if type(t.Text) == "table" then t.Text:SetAlpha(0) end
-    -- Ours is a child of the game's timer, so it hides with it and nothing runs
+    -- The new bar is a child of the game's timer, so it hides with it and nothing runs
     -- when no timer is up. It copies range, value, label and timer kind each
     -- frame, setting each only when it changed. No hooks on the game's bar.
     h:SetScript("OnUpdate", Breath.Sync)

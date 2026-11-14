@@ -46,7 +46,7 @@ PR.TEXT_PAD = 4      -- a number's gap from the bar's end
 PR.POWER_POLL = 0.05   -- your power fills between the game's events, so poll while it moves
 PR.POWER_REST = 1      -- s of unchanged power before the poll rests until the next power event
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 local function db() return ns.module and ns.module.db and ns.module.db.personal end
 
 -- One body like the player frame: health over power in a single shell, a thin

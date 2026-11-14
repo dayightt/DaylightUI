@@ -12,7 +12,7 @@ local Engine = ns.Engine
 -- community cards down the left, icon tabs down the right (chat, roster,
 -- benefits, info), the roster list, guild info and news, perks and rewards, and
 -- the member card beside the roster. Parchment, marble and filigree go, panels
--- become insets on our window, and every list entry gets our rows.
+-- become insets on the window, and every list entry gets the row look.
 local function stripAll(Kit, parent, keys)
     if type(parent) ~= "table" then return end
     for _, key in ipairs(keys) do Kit.Strip(parent[key]) end
@@ -413,7 +413,7 @@ end
 
 -- Run fn after one of the window's own callbacks. CommunitiesFrame is a
 -- callback registry (ClubSelected, DisplayModeChanged); the game calls those
--- inside its own functions, so ours waits for the next frame, once however
+-- inside its own functions, so the restyle waits for the next frame, once however
 -- many fire. No method of the window is hooked.
 local frameOwner = {}
 local function onFrame(frame, names, fn)
@@ -444,7 +444,7 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
         for _, key in ipairs({ "ChatTab", "RosterTab", "GuildBenefitsTab", "GuildInfoTab", "GuildPreferredPlaySettingsTab" }) do
             Kit.SideTab(f[key], nil, Kit.SIDE_TAB_CROP, true)
         end
-        -- The club icon sits in the header, the same slot as our own windows'
+        -- The club icon sits in the header, the same slot as Daylight UI windows'
         -- portrait. The game hides it while the window is small and hangs the
         -- big one off the top-left corner when it's large; either way it comes
         -- back here, left of the title. A guild with no tabard repaints that
@@ -514,7 +514,7 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
                 local page = benefits[key]
                 if type(page) == "table" then Kit.EachRow(page.ScrollBox, iconRow, key) end
             end
-            -- Guild reputation: the game's fill on our bar look.
+            -- Guild reputation: the game's fill on the Daylight bar look.
             local faction = benefits.FactionFrame
             local bar = type(faction) == "table" and faction.Bar
             if type(bar) == "table" and Kit.Kind(bar.Progress) == "Texture" then
@@ -522,7 +522,7 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
                 Kit.Shell(bar, "bar")
             end
         end
-        -- The member card beside the roster: our panel, with the notes as insets.
+        -- The member card beside the roster: a panel, with the notes as insets.
         local card = f.GuildMemberDetailFrame
         if type(card) == "table" then
             Kit.Panel(card)
@@ -578,9 +578,9 @@ function Trade.PaintNames()
     classColored(_G.TradeFrameRecipientNameText, "NPC")   -- the game's unit for the other trader
 end
 
--- The game shows green art over a side once it accepts. Ours: an outline and a
+-- The game shows green art over a side once it accepts. Here: an outline and a
 -- faint wash in the "good" color, easing in.
-local accepted = setmetatable({}, { __mode = "k" }) -- the game's highlight -> ours
+local accepted = setmetatable({}, { __mode = "k" }) -- the game's highlight -> its replacement
 local function acceptLook(Kit, h)
     if type(h) ~= "table" or not h.HookScript or accepted[h] then return end
     Kit.Strip(h)
@@ -667,14 +667,14 @@ Engine.Window({ key = "trade", pack = "social", frame = "TradeFrame",
     end })
 
 -- Guild bank: the item slots and GuildItemSearchBox (a child of the frame but
--- not a keyed part) already get our look from the generic pass. The game's own
+-- not a keyed part) already get the Daylight look from the generic pass. The game's own
 -- search marks matching slots too (SetMatchesSearch from GetGuildBankItemInfo's
 -- isFiltered) and flags tabs with a match. On top of that, slots that don't
 -- match are dimmed to 0.3 alpha, in case the skin hides the game's overlay
 -- (not yet confirmed in game). Slots are Column1..7 / Button1..14, each with a
 -- fixed ID 1-98 passed straight to GetGuildBankItemInfo.
 local bankItems = setmetatable({}, { __mode = "k" }) -- bank window -> its 98 slots
-local bankDimmed = setmetatable({}, { __mode = "k" }) -- bank window -> true if we've dimmed any
+local bankDimmed = setmetatable({}, { __mode = "k" }) -- bank window -> true if any were dimmed
 local function guildBankItems(f)
     if bankItems[f] then return bankItems[f] end
     local out = {}

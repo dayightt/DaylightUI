@@ -18,6 +18,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local AL = {}
@@ -278,7 +279,7 @@ function AL.Scan()
                     local ok, a = pcall(get, unit, i, filter)
                     if not ok or type(a) ~= "table" then break end
                     local name, id = a.name, a.spellId
-                    if issecretvalue and (issecretvalue(name) or issecretvalue(id)) then break end
+                    if isSecret(name) or isSecret(id) then break end
                     remember(name, id)
                 end
             end

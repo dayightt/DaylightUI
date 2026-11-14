@@ -42,7 +42,7 @@ function Track.IDs()
     local out = {}
     local ids = call("GetRecipesTracked", false)
     for _, id in ipairs(type(ids) == "table" and ids or {}) do
-        if type(id) == "number" and not (issecretvalue and issecretvalue(id)) then out[#out + 1] = id end
+        if type(id) == "number" and not DUI.IsSecret(id) then out[#out + 1] = id end
     end
     return out
 end
@@ -227,14 +227,7 @@ end
 
 -- Events come in bursts (a craft touches the bags many times): one read the next
 -- frame covers them.
-function Track.Soon()
-    if Track.pending then return end
-    Track.pending = true
-    C_Timer.After(0, function()
-        Track.pending = nil
-        Track.Fill()
-    end)
-end
+Track.Soon = DUI.Soon(function() Track.Fill() end)
 
 -- Started at login whatever the profession window: tracking is the game's, and a
 -- tracked recipe needs showing out in the world too.

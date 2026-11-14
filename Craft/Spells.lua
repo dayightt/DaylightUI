@@ -22,7 +22,7 @@ Spells.FOOT = 52      -- room under the list (matches Make.FOOT on the recipe si
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 local function num(v) return type(v) == "number" and not secret(v) and v or nil end
 
 local function bank()
@@ -132,10 +132,7 @@ function Spells.Build(pane)
     row:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", Win.Parts.EDGE, 12)
     row:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -Win.Parts.EDGE, 12)
     row:SetHeight(Spells.ICON)
-    row.line = row:CreateTexture(nil, "ARTWORK")
-    row.line:SetTexture(WHITE)
-    row.line:SetVertexColor(1, 1, 1, 0.06)
-    row.line:SetHeight(1)
+    row.line = Win.Parts.Rule(row)
     row.line:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 10)
     row.line:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 10)
     -- A label before the icons, so it's clear they're spells to drag to a bar.

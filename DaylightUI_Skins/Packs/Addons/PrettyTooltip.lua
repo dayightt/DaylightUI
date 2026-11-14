@@ -1,4 +1,4 @@
--- Skins PrettyTooltip: its panels get the same shell as our tooltips, while its
+-- Skins PrettyTooltip: its panels get the same shell as the Daylight tooltips, while its
 -- layout, text, stat and school colors are kept.
 -- How (Panel/Layout.lua, Panel/Render.lua, v1.3.8): it hides the game's tooltip
 -- (alpha 0) and draws its own panel on top. The game's tooltip comes back when a
@@ -7,20 +7,21 @@
 -- on UIParent, created the first time a tooltip gets data of a kind it draws.
 -- So panels are found by shape (PS.IsPanel), right after such a fill
 -- (PS.OnData). Its own art is plain fields on the panel. Every render repaints
--- that art (alpha 0 didn't stick: its gold band and edges showed over our shell
+-- that art (alpha 0 didn't stick: its gold band and edges showed over the shell
 -- in game, since its SetVertexColor and SetGradient carry an alpha) and ends in
 -- the panel's SetHeight (finishPanel). A post-hook on that frame's own method
 -- hides the art again before it's drawn (PS.HideArt) and picks up pieces it
 -- creates later plus the item's color. Nothing is written to its settings.
 -- Its accent is read back off its left and right edges: drawChrome paints those
 -- in its accent times EDGE, or a dual school's two colors when they differ.
--- It reads its font from the game's tooltip font objects, so those get ours
+-- It reads its font from the game's tooltip font objects, so those get the Daylight font
 -- here, since the Tooltip module that normally does it is off while
 -- PrettyTooltip draws (DUI.PrettyAside). Nothing here reads game data, only the
 -- plain numbers it painted.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style = DUI.Style
 
@@ -32,21 +33,21 @@ Engine.AddonSwitch({ key = "prettytooltip", addon = ADDON, label = "PrettyToolti
 local PS = {
     EDGE = 0.36, -- edge brightness as a fraction of its accent
     PLAIN = 0.08, -- r, g, b within this of each other = white or gray, no border color
-    BORDER = 3, -- same as our tooltips (Tooltip.lua Tip.BORDER)
+    BORDER = 3, -- same as the Daylight tooltips (Tooltip.lua Tip.BORDER)
     -- Its art on the panel, hidden. Icon, level badge and rules stay.
     ART = { "halo", "background", "glow", "header" },
     ART_LISTS = { "edges", "shades" },
     FONTS = { "GameTooltipHeaderText", "GameTooltipText", "GameTooltipTextSmall" },
 }
 ns.PrettySkin = PS
-PS.shells = setmetatable({}, { __mode = "k" }) -- its panel or Equipped tab -> our shell
+PS.shells = setmetatable({}, { __mode = "k" }) -- its panel or Equipped tab -> its shell
 PS.closed = setmetatable({}, { __mode = "k" }) -- its X, dressed
 PS.seen = setmetatable({}, { __mode = "k" }) -- tooltips already searched for a panel
 PS.hiddenAt = setmetatable({}, { __mode = "k" }) -- panel -> time it last hid
 PS.fades = setmetatable({}, { __mode = "k" }) -- panel -> its running fade
 
 local function isTable(x) return type(x) == "table" end
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "number" and not isSecret(v) end
 
 function PS.Shell(f) return PS.shells[f] end
 
@@ -60,7 +61,7 @@ local function opts()
     return { borderPx = PS.BORDER, flat = true, noBevel = true, bgAlpha = plain(alpha) and alpha or nil }
 end
 
--- The tab above a compare panel, like our tooltips' (Tip.SkinHeader).
+-- The tab above a compare panel, like the Daylight tooltips' (Tip.SkinHeader).
 function PS.Tag(tag)
     if PS.shells[tag] then return end
     tag.border:Hide()
@@ -71,7 +72,7 @@ function PS.Tag(tag)
 end
 
 -- Its accent, read off its edges: one color, two when a dual school's ends
--- differ, or nil for white/gray (our normal border).
+-- differ, or nil for white/gray (the normal border).
 function PS.Accent(panel)
     local left, right = panel.edges[3], panel.edges[4]
     local lr, lg, lb = left:GetVertexColor()
@@ -84,7 +85,7 @@ function PS.Accent(panel)
     return lo
 end
 
--- Its X is two lines tinted on hover. Ours replaces it and theirs is hidden.
+-- Its X is two lines tinted on hover. A W.Close replaces it and the original is hidden.
 function PS.Close(close)
     if PS.closed[close] then return end
     PS.closed[close] = true
@@ -123,8 +124,8 @@ function PS.Paint(panel)
     if tag then Style.SetShellColors(tag, color, nil, pair) end
 end
 
--- It shows and hides its panel itself and never sets the panel's alpha, so we
--- give it the same fade as our tooltips (Tip.FadeIn: eased value squared,
+-- It shows and hides its panel itself and never sets the panel's alpha, so this
+-- gives it the same fade as the Daylight tooltips (Tip.FadeIn: eased value squared,
 -- NORMAL). Hidden and shown in the same frame (a refill) counts as never having
 -- left. In combat it appears instantly. It disappears with its own Hide.
 function PS.OnShow(panel)
@@ -170,8 +171,8 @@ function PS.Walk(def)
 end
 
 -- The first fill of a kind it draws on each tooltip. It creates that tooltip's
--- panel during the same fill and its post-call runs before ours (it starts on
--- load, ours at login), so the panel is dressed before it's drawn. Repeated next
+-- panel during the same fill and its post-call runs before this one (it starts on
+-- load, this at login), so the panel is dressed before it's drawn. Repeated next
 -- frame in case that ordering doesn't hold.
 function PS.OnData(def, tip, data)
     if PS.seen[tip] or not DUI.PrettyAside.Covers(data) then return end

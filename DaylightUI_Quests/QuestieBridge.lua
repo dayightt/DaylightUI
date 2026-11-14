@@ -17,6 +17,7 @@
 --   Modules/QuestieNameplate.lua:315; Questie.icons in Questie.lua:230).
 
 local _, ns = ...
+local isSecret = DaylightUI.IsSecret
 
 local Bridge = {
     -- Icon file name (Questie.icons) -> objective kind. Questie's nameplates show its
@@ -176,7 +177,7 @@ end
 
 -- What Questie would show on this unit's nameplate, as an objective kind.
 function Bridge.PlateKind(guid)
-    if type(guid) ~= "string" or (issecretvalue and issecretvalue(guid)) then return nil end
+    if type(guid) ~= "string" or isSecret(guid) then return nil end
     local a = Bridge.Loaded() and api()
     if not a or a.isReady ~= true or type(a.GetQuestObjectiveIconForUnit) ~= "function" then return nil end
     return safe(function()

@@ -108,7 +108,7 @@ function Blizzard.WatchParked()
     if watching then return end
     watching = true
     local function soon() C_Timer.After(0, Blizzard.Repark) end
-    for _, e in ipairs(Blizzard.REPARK_EVENTS) do pcall(DUI.RegisterEvent, e, soon) end
+    for _, e in ipairs(Blizzard.REPARK_EVENTS) do DUI.RegisterEvent(e, soon) end
     DUI.On("PadChanged", soon)
     local em = EditModeManagerFrame
     if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end

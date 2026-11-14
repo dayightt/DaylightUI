@@ -9,12 +9,11 @@
 -- unless its plain id or event says otherwise.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Kinds = {}
 ns.Kinds = Kinds
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Chat type (event name minus "CHAT_MSG_") -> kind.
 Kinds.BY_TYPE = {

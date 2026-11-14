@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Motion = DUI.Style, DUI.Motion
 
@@ -18,7 +19,7 @@ local ZoneTitle = {
     HOLD = 2.5,         -- seconds the whole title stays
     SUB_HOLD = 1.5,     -- seconds a subzone alone stays
     DRIFT = 6,          -- px it rises as it goes
-    -- The game's PvP colors (SetZoneText), softened like our tooltips'.
+    -- The game's PvP colors (SetZoneText), softened like the Daylight tooltips'.
     COLORS = {
         sanctuary = { 0.55, 0.80, 0.92 },
         friendly = { 0.55, 0.85, 0.55 },
@@ -42,8 +43,6 @@ local run = 0           -- each show's id: a newer one stops the older one's tim
 local full = -1         -- the id of the last whole-title show
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.zoneTitle == true end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 -- A plain string from one of the game's zone getters, or nil.
 local function read(fn)
@@ -158,7 +157,7 @@ local function out(id)
     end, function() if id == run then f:Hide() end end)
 end
 
--- Our level-up or reputation banner, or the game's toasts, have the top of the screen. The game's
+-- The Daylight level-up or reputation banner, or the game's toasts, have the top of the screen. The game's
 -- IsCurrentlyToasting hands back the toast frame (or nil), and a right-click
 -- hides the manager with it still set (EventToastManager.lua).
 local function busy()
@@ -294,7 +293,7 @@ local function wire()
     DUI.RegisterCommand("zone", ZoneTitle.Preview, L["/dui zone - preview the zone title"])
 end
 
--- The game's zone texts: hidden while ours is on.
+-- The game's zone texts: hidden while this one is on.
 local function gameTexts()
     local a = enabled() and 0 or 1
     for _, name in ipairs(GAME_TEXTS) do

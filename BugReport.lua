@@ -93,12 +93,12 @@ function Bug.Setup()
         #tainted > 0 and (", plate settings tainted: " .. table.concat(tainted, ", ")) or "")
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 
 -- Whether an error BugGrabber caught is Daylight UI's: a DaylightUI file is named
 -- where it was raised, in its message or the top line of its stack. An error
--- another addon raised inside something of ours (a callback, a plugin's module)
--- only has us further down, and isn't.
+-- another addon raised inside something of Daylight UI's (a callback, a plugin's
+-- module) only has Daylight UI further down, and isn't.
 local function named(text, stack)
     if string.find(text, "DaylightUI", 1, true) then return true end
     local top = type(stack) == "string" and string.match(stack, "[^\r\n]+")
@@ -107,7 +107,7 @@ end
 
 -- This session's Daylight UI errors, the latest last, each { text, count, stack }:
 -- a list of its own, so it stays as it was while the window is open.
--- Ours (DUI.Errors: through DUI.SafeCall, and the actions the game blocked) come
+-- Daylight UI's own (DUI.Errors: through DUI.SafeCall, and the actions the game blocked) come
 -- in the order they last happened. BugGrabber, when loaded, adds the ones raised
 -- outside SafeCall. It keeps a repeated error where it first saw it, so those go
 -- first, in its order.
@@ -134,7 +134,7 @@ function Bug.Errors()
         for _, e in ipairs(db) do
             local msg = type(e) == "table" and e.session == session and e.message
             if type(msg) == "string" and not secret(msg) then
-                -- Ours repeat there as "(seen 10 times) ...".
+                -- Its own errors repeat there as "(seen 10 times) ...".
                 local text = string.gsub(string.match(msg, "^[^\n]*"), "^%(seen %d+ times%) ", "")
                 local stack = type(e.stack) == "string" and not secret(e.stack) and e.stack or nil
                 -- A blocked action is already in the log in its own words.
@@ -213,7 +213,7 @@ function Bug.Short(names)
     return string.format("%s +%d more", out, #names - fit)
 end
 
--- The form's fields we can answer, in its order. The labels are the form's own.
+-- The form's fields this can answer, in its order. The labels are the form's own.
 -- A report is about one bug, so the last box carries one error: `err`, or none.
 function Bug.Fields(err)
     local last = Bug.Setup()

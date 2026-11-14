@@ -148,7 +148,7 @@ function Page.Fill(page)
     -- Who is shown: their guid, or the unit when the guid is secret (then never compared).
     -- Insp.Changed clears it on close, so every open dresses the model fresh.
     local guid = UnitGUID(unit)
-    if issecretvalue and issecretvalue(guid) then guid = nil end
+    if DUI.IsSecret(guid) then guid = nil end
     local who = guid or ("unit:" .. unit)
     local same = page.unitShown == who
     local any, changed = false, false

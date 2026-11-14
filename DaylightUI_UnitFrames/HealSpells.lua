@@ -91,7 +91,7 @@ HealSpells.LONG_WARN = 60
 
 local function classToken()
     local _, token = UnitClass("player")
-    if type(token) ~= "string" or (issecretvalue and issecretvalue(token)) then return nil end
+    if type(token) ~= "string" or DaylightUI.IsSecret(token) then return nil end
     return token
 end
 
@@ -186,7 +186,7 @@ function HealSpells.Mine()
     local out = {}
     for _, f in ipairs(HealSpells.CLASSES[classToken() or ""] or {}) do
         local ok, name = pcall(C_Spell.GetSpellName, f[1])
-        if not ok or type(name) ~= "string" or (issecretvalue and issecretvalue(name)) then name = tostring(f[1]) end
+        if not ok or type(name) ~= "string" or DaylightUI.IsSecret(name) then name = tostring(f[1]) end
         out[#out + 1] = { id = f[1], name = name }
     end
     return out

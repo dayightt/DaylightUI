@@ -5,7 +5,7 @@
 -- (MapMove.lua). Saved per profile by window name (windowSpots). Right-click
 -- the title bar, or /dui reset, to restore the game's spot.
 --
--- Nothing of the game's is called or replaced: just our drag strip, SetPoint
+-- Nothing of the game's is called or replaced: just a drag strip, SetPoint
 -- and StartMoving on the window, and post-hooks on global functions.
 
 local _, ns = ...
@@ -56,7 +56,7 @@ function Move.Apply(name)
         DUI.AfterCombat(function() Move.Apply(name) end, "skins:windowMove:" .. name)
         return
     end
-    -- Remember the game's own anchor if it just placed it (ours are BOTTOMLEFT).
+    -- Remember the game's own anchor if it just placed it (the saved ones are BOTTOMLEFT).
     local point, rel, relPoint, x, y = f:GetPoint(1)
     if relPoint ~= "BOTTOMLEFT" then home[name] = { point, rel, relPoint, x, y } end
     local r = ratio(f)
@@ -110,7 +110,7 @@ local function makeBar(name, f)
     end)
     bar:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
-        -- Saved by us, not in the game's layout cache.
+        -- Saved in the addon's settings, not in the game's layout cache.
         f:SetUserPlaced(false)
         save(name, f)
     end)

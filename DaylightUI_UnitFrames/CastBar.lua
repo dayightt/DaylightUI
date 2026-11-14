@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local CB = {}
@@ -628,9 +629,9 @@ end
 local function paintLockedBack(h, pal, ni)
     local back = backOf(h)
     if not back then return end
-    if not (issecretvalue and issecretvalue(ni)) then return end
+    if not isSecret(ni) then return end
     local r, g, b, a = back:GetVertexColor()
-    if issecretvalue(r) or type(r) ~= "number" then return end
+    if isSecret(r) or type(r) ~= "number" then return end
     local k = Style.BAR_BACK_DIM
     local lr, lg, lb = pal.locked.r, pal.locked.g, pal.locked.b
     if CB.cfg.fill == "pair" and DUI.Gradients then lr, lg, lb = DUI.Gradients.Mid("CAST_LOCKED") end
@@ -641,7 +642,7 @@ end
 local function paintLocked(h, pal)
     local ni = h.notInterruptible
     paintLockedBack(h, pal, ni)
-    local secretFlag = issecretvalue and issecretvalue(ni)
+    local secretFlag = isSecret(ni)
     -- A plugin's fill takes no locked color itself. A plain "can't be
     -- interrupted" is laid over it like a secret one, as a combat warning.
     local plainOverFill = not secretFlag and ni == true and owned("fill")
@@ -703,7 +704,7 @@ function paintColor(h)
     -- A cast you can't interrupt is a warning, so its color beats class color
     -- and gradients (a secret flag goes through paintLocked).
     local ni = h.notInterruptible
-    if not (issecretvalue and issecretvalue(ni)) and ni == true then
+    if not isSecret(ni) and ni == true then
         Style.SetBarGradient(h.bar, false)
         if CB.cfg.fill == "pair" and DUI.Gradients then
             DUI.Gradients.Paint(h.bar, "CAST_LOCKED")
@@ -726,9 +727,9 @@ function paintColor(h)
     -- In the caster's class color, when enabled (players only).
     if pal.cfg.classColor then
         local isPlayer = UnitIsPlayer(h.unit)
-        if not (issecretvalue and issecretvalue(isPlayer)) and isPlayer then
+        if not isSecret(isPlayer) and isPlayer then
             local _, token = UnitClass(h.unit)
-            if not (issecretvalue and issecretvalue(token)) and token then
+            if not isSecret(token) and token then
                 base = CreateColor(Style.ClassColor(token))
             end
         end
@@ -814,7 +815,7 @@ function CB.OnEvent(h, event, ...)
     end
     if event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
         local b, id = h.batch, select(3, ...)
-        if b and not (issecretvalue and issecretvalue(id)) and id == b.spell then h.batch = nil end
+        if b and not isSecret(id) and id == b.spell then h.batch = nil end
     end
     local start = event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
     if start then CB.Unkick(h) end
@@ -870,7 +871,6 @@ end
 function CB.Kicked(h, by)
     local k = h.blade
     if not k then return end
-    local isSecret = issecretvalue or function() return false end
     local me = UnitGUID("player")
     local mine = type(by) ~= "nil" and not isSecret(by) and not isSecret(me) and by == me
     local r, g, b
@@ -899,7 +899,7 @@ end
 local function hostile(u)
     if type(u) ~= "string" or type(UnitCanAttack) ~= "function" then return false end
     local ok, v = pcall(UnitCanAttack, "player", u)
-    return ok and not (issecretvalue and issecretvalue(v)) and v == true
+    return ok and not isSecret(v) and v == true
 end
 
 -- Your interrupt's ready mark on a running cast (casts.kickMark). fade: the
@@ -1001,7 +1001,7 @@ CB.BATCH_GAP = 1      -- seconds the bar waits between two crafts for the next o
 local function plain(...)
     for i = 1, select("#", ...) do
         local v = select(i, ...)
-        if type(v) ~= "number" or (issecretvalue and issecretvalue(v)) then return false end
+        if type(v) ~= "number" or isSecret(v) then return false end
     end
     return true
 end
@@ -1095,7 +1095,7 @@ function CB.Refresh(h, glide)
     -- A craft reports it can't be interrupted, but the locked gray is meant as
     -- a warning about casts you can't kick, so draw a craft like any other cast.
     local batch
-    if not (issecretvalue and issecretvalue(craft)) and craft == true then
+    if not isSecret(craft) and craft == true then
         notInterruptible = false
         batch = CB.Batch(h, spell, from, to)
     elseif type(name) ~= "nil" then

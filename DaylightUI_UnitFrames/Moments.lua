@@ -6,11 +6,12 @@
 --   and fades, and DEAD fades in instead of snapping
 -- - a ready check: a tile that answers ready shines once in the good color,
 --   and when everyone is ready one light ripples across all of them
--- Only our own lights, on a small frame over each body. Nothing protected
+-- Only lights of its own, on a small frame over each body. Nothing protected
 -- moves and nothing a fight needs waits for them. Motion off disables all of it.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Motion = DUI.Motion
 local Style = DUI.Style
 local Pixel = DUI.Pixel
@@ -65,7 +66,7 @@ local function sweep(f, kind, look, color)
         inset = w * Moments.BAND * 0.25 })
 end
 
--- Frames that can take a light now: ours, shown, and not samples.
+-- Frames that can take a light now: Daylight UI's, shown, and not samples.
 local function live(f)
     return f and not f.test and f:IsVisible()
 end
@@ -237,7 +238,7 @@ function Moments.EveryoneReady()
     for _, b in ns.Group.Buttons() do
         if live(b) and type(b.unitToken) == "string" and UnitExists(b.unitToken) then
             local ok, s = pcall(GetReadyCheckStatus, b.unitToken)
-            if not ok or (issecretvalue and issecretvalue(s)) or s ~= "ready" then return false end
+            if not ok or isSecret(s) or s ~= "ready" then return false end
             any = true
         end
     end

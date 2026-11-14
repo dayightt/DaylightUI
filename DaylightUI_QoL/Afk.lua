@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 
 local Afk = {}
@@ -46,7 +47,6 @@ local function call(fn, ...)
     if ok then return a, b, c, d end
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
 local function plain(v) return v ~= nil and not secret(v) end
 
 local function wanted() return mod and mod.db and mod.db.afkScreen ~= false end

@@ -18,7 +18,7 @@ Room.EDGE = 4     -- margin from the screen edge
 
 local order = {}  -- open windows taking part, newest first
 
-local function num(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function num(v) return type(v) == "number" and not DUI.IsSecret(v) end
 
 local function forget(f)
     for i = #order, 1, -1 do if order[i] == f then table.remove(order, i) end end

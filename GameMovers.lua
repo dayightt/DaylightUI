@@ -41,7 +41,7 @@ GM.FRAMES = {
 
 function GM.Key(name) return "game." .. name end
 
--- name -> { parent, points }: where the game had a frame before we moved it,
+-- name -> { parent, points }: where the game had a frame before it was moved,
 -- so a reset can put it back (the game only re-places it when it shows).
 local origin = {}
 
@@ -150,15 +150,7 @@ local function placeAll()
     end
 end
 
-local queued = false
-local function soon()
-    if queued then return end
-    queued = true
-    C_Timer.After(0, function()
-        queued = false
-        placeAll()
-    end)
-end
+local soon = DUI.Soon(placeAll)
 
 -- The game's Edit Mode pieces (loot window, crowd control alert). Addon code
 -- never moves them because that would taint them. The handle records the
@@ -166,7 +158,7 @@ end
 -- layout (like the game's quest tracker) and a reload applies it. Nothing is
 -- written into a layout of the player's own; they move it in Edit Mode.
 -- size: for a piece the game scales itself (its Edit Mode Size), the game's
--- value with ours on top, reapplied every time the game sets it.
+-- value with Daylight UI's on top, reapplied every time the game sets it.
 
 GM.EDIT_FRAMES = {
     -- With "Open loot window at mouse" on, the game opens it at the cursor.
@@ -310,7 +302,7 @@ function GM.Setup()
     if type(_G.AlertFrame_ShowNewAlert) == "function" then
         hooksecurefunc("AlertFrame_ShowNewAlert", function(f) DUI.SafeCall(sizeToast, f) end)
     end
-    for _, event in ipairs(GM.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+    for _, event in ipairs(GM.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
     local em = _G.EditModeManagerFrame
     if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
 end

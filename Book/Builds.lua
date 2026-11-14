@@ -134,7 +134,7 @@ function Builds.Load(build)
     return staged
 end
 
--- Prefer the client's GenerateImportString, fall back to our encoder.
+-- Prefer the client's GenerateImportString, fall back to the encoder here.
 function Builds.Copy()
     local configID = ns.Spend.Config()
     if not configID then return nil end

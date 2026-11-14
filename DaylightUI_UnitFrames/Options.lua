@@ -569,7 +569,7 @@ end
 -- square, shown while indicators are on.
 local function spellName(id)
     local ok, name = pcall(C_Spell.GetSpellName, id)
-    if ok and type(name) == "string" and not (issecretvalue and issecretvalue(name)) then return name end
+    if ok and type(name) == "string" and not DaylightUI.IsSecret(name) then return name end
 end
 
 -- Your spells with a range, highest rank, by name. A pick saved on another

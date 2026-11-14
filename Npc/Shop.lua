@@ -39,7 +39,6 @@ Shop.LAST_GAP = 6                   -- gap between the shelf and the strip
 
 local function fn(f) return type(f) == "function" end
 local function call(f, ...) if fn(f) then return f(...) end end
-local function now() return fn(GetTime) and GetTime() or 0 end
 
 local S = { tab = "shop", filter = "", confirm = nil }
 Shop.state = S
@@ -300,8 +299,8 @@ function Shop.Buy(it, tile, n)
     -- Expensive items or ones paid in something else need a second click. The game would
     -- ask with its own popup, but that reads its own frame. The Buy button in the
     -- quantity box counts as the second click, since it shows the cost.
-    if not n and (it.extended or it.price >= Shop.HIGH) and not (S.confirm and S.confirm.index == it.index and now() - S.confirm.at < Shop.CONFIRM) then
-        S.confirm = { index = it.index, at = now() }
+    if not n and (it.extended or it.price >= Shop.HIGH) and not (S.confirm and S.confirm.index == it.index and GetTime() - S.confirm.at < Shop.CONFIRM) then
+        S.confirm = { index = it.index, at = GetTime() }
         if tile then
             tile.sub:SetText(L["Click again to buy"])
             Style.InkText(tile.sub, "WARN")   -- same armed look as every "click again"

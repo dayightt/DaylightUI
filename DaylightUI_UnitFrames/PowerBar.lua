@@ -217,7 +217,7 @@ local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local regen = { sweeps = {}, gen = 0, onMana = true }
 PB.regen = regen
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- Whether your class has mana at all. The class can read as secret under the
 -- client's restrictions, so the last plain value is kept.

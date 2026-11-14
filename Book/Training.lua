@@ -311,15 +311,7 @@ end
 
 -- Changes arrive in bursts (a level up), so refresh once on the next frame,
 -- and only while visible.
-function Training.Soon()
-    local page = Training.page
-    if not (page and page:IsVisible()) or Training.pending then return end
-    Training.pending = true
-    C_Timer.After(0, function()
-        Training.pending = nil
-        if page:IsVisible() then Training.Refresh() end
-    end)
-end
+Training.Soon = Win.Soon(function() return Training.page end, function() Training.Refresh() end)
 
 local function foldText(key, open, n)
     local text

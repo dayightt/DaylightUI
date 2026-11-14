@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -26,7 +27,6 @@ Header.BUTTONS = {
     { key = "options", icon = "ui-options.png", tip = "Options" },
 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- How tall a meter's header is in its layout: "hover" lies over the rows.
 function Header.Height(cfg)

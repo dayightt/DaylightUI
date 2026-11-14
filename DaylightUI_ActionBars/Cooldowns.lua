@@ -1,11 +1,12 @@
 -- Skins the game's Cooldown Manager to match the action buttons: each icon square
 -- inside the shell's border, cropped and softly shaded, with the same dark sweep and
--- our font on its numbers. The viewers and their icons stay the game's. Layout,
+-- Daylight UI's font on its numbers. The viewers and their icons stay the game's. Layout,
 -- sizes, spells and Edit Mode settings are untouched, and their own art is only
 -- hidden by alpha.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel = DUI.Style, DUI.Pixel
 local Skin = ns.Skin
@@ -30,7 +31,7 @@ CD.SCAN = 0.5                -- seconds between checks for icons and moves nothi
 
 local skinned = setmetatable({}, { __mode = "k" })   -- item -> its pieces
 local hooked = setmetatable({}, { __mode = "k" })
-local mine = setmetatable({}, { __mode = "k" })      -- our own textures, never hidden
+local mine = setmetatable({}, { __mode = "k" })      -- Daylight UI's own textures, never hidden
 
 local function kind(x)
     if type(x) ~= "table" or type(x.GetObjectType) ~= "function" then return nil end
@@ -50,7 +51,7 @@ function CD.IconOf(item)
 end
 
 -- The game's art on the icon: every texture on its frame except the icon, its
--- out-of-range tint, its debuff border and ours. Found once and cached, since every
+-- out-of-range tint, its debuff border and Daylight UI's. Found once and cached, since every
 -- OnShow of a reused icon hides it again. Only searched again when a frame gained
 -- regions (regions are never removed).
 local function regionCount(p)
@@ -132,13 +133,13 @@ function CD.Place(item)
 end
 
 -- A bar's name or time in its color. The game's own color is kept to restore once
--- the bar leaves our blocks, since the game recycles its pooled bars.
+-- the bar leaves Daylight UI's blocks, since the game recycles its pooled bars.
 local inked = setmetatable({}, { __mode = "k" })    -- fs -> the game's { r, g, b }
 local function inkKept(fs, c)
     if type(fs) ~= "table" or not fs.GetTextColor then return end
     if not inked[fs] then
         local r, g, b = fs:GetTextColor()
-        if type(r) ~= "number" or (issecretvalue and issecretvalue(r)) then r, g, b = 1, 1, 1 end
+        if type(r) ~= "number" or isSecret(r) then r, g, b = 1, 1, 1 end
         inked[fs] = { r, g, b }
     end
     CD.Ink(fs, c)
@@ -168,7 +169,7 @@ function CD.StyleText(item)
     if kind(bar) == "StatusBar" then
         Style.TrackBar(bar, nil, ns.MEDIA.bars.cdm)
         -- Only a bar in one of the player's bar blocks gets its block's look.
-        -- The others keep the game's, with just our font and border.
+        -- The others keep the game's, with just Daylight UI's font and border.
         local p = skinned[item]
         local block = p and ns.CdmRows and ns.CdmRows.BlockOf(item)
         if not (block and block.kind == "bar") then
@@ -183,7 +184,7 @@ function CD.StyleText(item)
         local t = CD.BarText(block)
         styleText(bar.Name, t.nameSize)
         inkKept(bar.Name, t.nameColor)
-        -- Its time shows through our clock or the game's own text (BB.SyncClocks,
+        -- Its time shows through Daylight UI's clock or the game's own text (BB.SyncClocks,
         -- which follows the block's Show time).
         styleText(bar.Duration, t.timeSize)
         inkKept(bar.Duration, t.timeColor)
@@ -239,7 +240,7 @@ function CD.PlaceCount(fs, icon, spot)
     fs:SetPoint(s[1], icon, s[1], s[2], s[3])
 end
 
--- The cooldown's numbers: shown or not, in our font at the given size.
+-- The cooldown's numbers: shown or not, in Daylight UI's font at the given size.
 function CD.StyleNumbers(cd, t)
     if kind(cd) ~= "Cooldown" then return end
     if cd.SetHideCountdownNumbers then pcall(cd.SetHideCountdownNumbers, cd, not t.numbers) end
@@ -279,7 +280,7 @@ local function paintLow(item, l)
     local w = l.color
     -- The game's icon counting its buff down (not the cooldown) keeps the plain color.
     local aura = item.wasSetFromAura
-    if issecretvalue and issecretvalue(aura) then aura = nil end
+    if isSecret(aura) then aura = nil end
     local sid = ns.CdmEffects and ns.CdmEffects.SpellOf(item)
     local dur
     local C = ns.CdmCustom
@@ -327,7 +328,7 @@ local function watchLow(item, fs, t)
     if not lowTicker then lowTicker = C_Timer.NewTicker(CD.LOW_TICK, lowTick) end
 end
 
--- One icon's text (the game's item or our own icon), from its block.
+-- One icon's text (the game's item or Daylight UI's own icon), from its block.
 function CD.StyleIconText(item, block)
     local t = CD.TextLook(block)
     textOf[item] = t
@@ -357,7 +358,7 @@ local keyed = setmetatable({}, { __mode = "k" })       -- item -> { block, name 
 
 function CD.KeyLabel(item) return keyLabels[item] end
 
--- Hide (Buff up) on one of our aura holders: its keybind hides with the buff and
+-- Hide (Buff up) on one of Daylight UI's aura holders: its keybind hides with the buff and
 -- comes back with the grayed icon when it drops (CdmAuras.SetHideUp).
 function CD.FollowHide(item)
     local l = keyLabels[item]
@@ -453,7 +454,7 @@ function CD.ClearIconText(item)
     end
 end
 
--- The fill in its color and the empty part (our own backdrop, p.back) dark. Never
+-- The fill in its color and the empty part (Daylight UI's own backdrop, p.back) dark. Never
 -- the fill's own color dimmed, which read as one color (a priest's white bar on a
 -- gray-white track).
 local function paint(p)
@@ -595,7 +596,7 @@ function CD.ColourBase(item, bar, p, mode, button)
                 if ok then id = v end
             end
             if id == nil and type(item.cooldownInfo) == "table" then id = item.cooldownInfo.spellID end
-            if type(id) == "number" and not issecretvalue(id) then
+            if type(id) == "number" and not isSecret(id) then
                 p.spellColour = CD.PALETTE[id % #CD.PALETTE + 1]
             end
         end
@@ -656,7 +657,7 @@ function CD.SkinItem(item)
     -- adds one again, so there's no hook on the icon's AddMaskTexture.
     if kind(item.Cooldown) == "Cooldown" then Skin.StyleCooldown(item.Cooldown) end
     -- The bar view (BuffBarCooldownViewer): the bar sits in a bordered frame just
-    -- outside it, like our own bars (a border on the bar itself sits under its
+    -- outside it, like Daylight UI's own bars (a border on the bar itself sits under its
     -- fill), plus a dim backdrop for the empty part. The fill is Style.TrackBar's
     -- (CD.StyleText) and the game's own backdrop is hidden below (hideArt).
     if kind(item.Bar) == "StatusBar" then
@@ -709,10 +710,10 @@ end
 -- The reclaim pass. The game lays its items out again (RefreshLayout: the viewer
 -- showing, its settings changing, Edit Mode, a full aura update) and puts every item
 -- back in its own grid, sometimes with a fresh pool item among them. On the next
--- frame our layout skins and claims them again (CdmRows.Update scans first). No
+-- frame Daylight UI's layout skins and claims them again (CdmRows.Update scans first). No
 -- hooks on the game's own methods (RefreshLayout, OnAcquireItemFrame, the items'
 -- SetPoint): every moment it lays out is a script, event or EventRegistry callback
--- we hear too, and the items it hides and shows again run their OnHide/OnShow.
+-- that fire here too, and the items it hides and shows again run their OnHide/OnShow.
 -- forget = its settings may have moved a spell to another category, so re-read the
 -- known spells.
 function CD.Soon(forget)
@@ -740,7 +741,7 @@ function CD.Hook()
 end
 
 -- The game's other layout moments. The viewers hear them too, in no fixed order
--- relative to us, so each one only requests the pass, which runs after they're done.
+-- relative to these frames, so each one only requests the pass, which runs after they're done.
 local heard = false
 local function listen()
     if heard then return end
@@ -767,7 +768,7 @@ local function listen()
     watch:SetScript("OnEvent", function(_, _, _, info)
         local full = type(info) ~= "table" or (not issecretvalue(info.isFullUpdate) and info.isFullUpdate)
         if full then CD.Soon() elseif issecretvalue(info.isFullUpdate) then CD.LookSoon() end
-        -- Our holders' missing glow (CdmAuras.IsUp).
+        -- Daylight UI's holders' missing glow (CdmAuras.IsUp).
         if ns.CdmAuras then ns.CdmAuras.AuraChangedSoon() end
     end)
 end
@@ -796,23 +797,14 @@ end
 CD.Scan = scan
 
 -- The check every CD.SCAN: a new icon, or a placed item that isn't in its block (a
--- layout moment we missed), triggers the reclaim pass.
+-- layout moment no event announced), triggers the reclaim pass.
 local function look()
     local R = ns.CdmRows
     if scan() or (R and R.Drifted()) then CD.Soon() end
 end
 
 -- The check on the next frame, once however many asked this frame.
-local looking = false
-local function lookNow()
-    looking = false
-    look()
-end
-function CD.LookSoon()
-    if looking then return end
-    looking = true
-    C_Timer.After(0, lookNow)
-end
+CD.LookSoon = DUI.Soon(look)
 
 function CD.Tick()
     look()

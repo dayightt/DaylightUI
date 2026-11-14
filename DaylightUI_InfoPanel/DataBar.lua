@@ -154,8 +154,8 @@ function Bar.Build(mod)
     local function screen()
         if Bar.on then DUI.AfterCombat(function() ns.Refresh(mod) end, "databar.screen") end
     end
-    pcall(DUI.RegisterEvent, "UI_SCALE_CHANGED", screen)
-    pcall(DUI.RegisterEvent, "DISPLAY_SIZE_CHANGED", screen)
+    DUI.RegisterEvent("UI_SCALE_CHANGED", screen)
+    DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", screen)
     local function update()
         if Bar.on then
             Bar.left.Update()
@@ -163,7 +163,7 @@ function Bar.Build(mod)
             Bar.right.Update()
         end
     end
-    pcall(DUI.RegisterEvent, "PLAYER_ENTERING_WORLD", update)
+    DUI.RegisterEvent("PLAYER_ENTERING_WORLD", update)
     DUI.On("TestModeChanged", update)
     DUI.On("TestPartChanged", function(key) if key == "datatexts" then update() end end)
 

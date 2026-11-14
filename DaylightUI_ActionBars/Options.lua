@@ -15,7 +15,7 @@ end
 local SHOW = { hidden = "Hidden", shown = "Shown" }
 local SHOW_ORDER = { "hidden", "shown" }
 -- The bag bar or micro menu size. It's the game's Edit Mode setting, stored in its
--- layout (Hide.SetSize), not in ours.
+-- layout (Hide.SetSize), not in Daylight UI's.
 local function menuSize(key, label)
     local s = ns.Hide.SIZE[key]
     return { type = "slider", label = label, min = s.min / 100, max = s.max / 100, step = s.step / 100, unit = "%",

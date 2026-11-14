@@ -7,12 +7,12 @@
 -- table (`Bagnon.Settings.ProfileDefaults.<frame>.skin`, read through the
 -- profile metatables and never saved), not in its settings.
 -- A skin is a frame Bagnon creates behind each window (`template`), passed to
--- `load` and to `layout` after each layout. It gets our window shell and accent
--- line. While our skin is in use, the window's own parts are dressed too: the X,
+-- `load` and to `layout` after each layout. It gets the Daylight window shell and accent
+-- line. While the Daylight skin is in use, the window's own parts are dressed too: the X,
 -- title font objects, search box, top buttons, bag buttons, side tabs, and every
 -- item slot after Bagnon colors it (a post-hook on its item class's
 -- UpdateBorder, with quality, quest, unusable and set colors carried over to
--- our outline). After switching to another skin those parts stay ours until a
+-- the outline). After switching to another skin those parts stay dressed until a
 -- /reload.
 
 local _, ns = ...
@@ -31,11 +31,11 @@ local function isTable(x) return type(x) == "table" end
 local BG = {}
 ns.BagnonSkin = BG
 BG.ID = "DaylightUI"
-BG.TEMPLATE = "BackdropTemplate" -- any template works; the frame only carries our shell
+BG.TEMPLATE = "BackdropTemplate" -- any template works; the frame only carries the shell
 BG.ICON_PAD = 2 -- px between a top button's icon and its outline
 BG.dressed = setmetatable({}, { __mode = "k" }) -- window -> true (X and title dressed)
 
--- Whether a Bagnon window (or part of one) is currently using our skin.
+-- Whether a Bagnon window (or part of one) is currently using the Daylight skin.
 function BG.Ours(frame)
     local bg = isTable(frame) and rawget(frame, "skin")
     return isTable(bg) and isTable(bg.skin) and bg.skin.id == BG.ID
@@ -66,8 +66,8 @@ function BG.Parts(Kit, f)
         BG.dressed[f] = true
         Kit.Close(f.CloseButton)
         Kit.EditBox(rawget(f, "SearchBar"))
-        -- Fade in on open and leave a ghost on close, like our windows, but
-        -- only while it uses our skin.
+        -- Fade in on open and leave a ghost on close, like Daylight UI windows, but
+        -- only while it uses the Daylight skin.
         if f.HookScript and DUI.Motion then
             f:HookScript("OnShow", function(self) if BG.Ours(self) then DUI.Motion.FadeIn(self) end end)
             f:HookScript("OnHide", function(self) if BG.Ours(self) then DUI.Motion.Ghost(self, Kit.GhostDress) end end)
@@ -96,7 +96,7 @@ function BG.Item(Kit, btn)
         return
     end
     Kit.Item(btn)            -- once
-    Kit.Hide(btn.IconGlow) -- our outline carries the color, so drop the glow
+    Kit.Hide(btn.IconGlow) -- the outline carries the color, so drop the glow
     Kit.SlotQuality(btn)
 end
 
@@ -129,7 +129,7 @@ function BG.Skin(Kit)
     }
 end
 
--- Makes our skin the default for every Bagnon window whose look was never
+-- Makes the Daylight skin the default for every Bagnon window whose look was never
 -- picked. Switching it off (and reloading) leaves Bagnon's own default.
 function BG.Default(B)
     local defaults = isTable(B.Settings) and B.Settings.ProfileDefaults

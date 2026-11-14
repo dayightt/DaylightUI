@@ -11,6 +11,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -46,7 +47,6 @@ Breakdown.SAMPLE.absorbs = Breakdown.SAMPLE.healing
 Breakdown.SAMPLE_TARGETS = { { "Chasmfiend", 0.52 }, { "Axehound", 0.31 }, { "Whitespine", 0.17 } }
 
 local frame, owner, rows, targetRows
-local isSecret = function(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Modes for damage dealt, which have targets.
 local DEALT = { damage = true, dps = true }

@@ -1,7 +1,7 @@
 -- The game's micro menu and bag bar in the action buttons' look (a setting, on by
 -- default; a reload switches it). The buttons stay the game's (keybinds, tooltips,
 -- alerts); only their art changes.
---   * Micro buttons: a shell frames one of our line icons
+--   * Micro buttons: a shell frames one of Daylight UI's line icons
 --     (tools/make_micro_icons.py), painted along the accent so the whole row is one
 --     sweep (a single-color accent is just that color). The game's art is cut away
 --     by a mask, which also covers whatever atlas or alpha the game sets later.
@@ -182,10 +182,10 @@ local function followMicro()
         hooksecurefunc("UpdateMicroButtons", function() Menus.PaintMicro() end)
     end
     -- Edit Mode rotated or stacked the menu; repaint after it has laid it out.
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", function() C_Timer.After(0, Menus.PaintMicro) end)
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function() C_Timer.After(0, Menus.PaintMicro) end)
 end
 
--- A micro button: the shell on a box inside it, our icon on that, and the game's art
+-- A micro button: the shell on a box inside it, Daylight UI's icon on that, and the game's art
 -- masked away (the mask sits off the button, so all of the art is outside it).
 function Menus.SkinMicro(btn, name)
     if type(btn) ~= "table" or skinned[btn] or (btn.IsForbidden and btn:IsForbidden()) then return end

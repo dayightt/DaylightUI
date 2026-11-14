@@ -20,7 +20,7 @@ Data.CLIENT_WOW = "WoW"   -- BNET_CLIENT_WOW: a friend in some version of World 
 Data.GROUP_SIZE = 5       -- players per raid group (PLAYERS_PER_GROUP)
 Data.GROUPS = 8           -- NUM_RAID_GROUPS
 
-local function secret(v) return issecretvalue and issecretvalue(v) end
+local secret = DUI.IsSecret
 local function str(v) return type(v) == "string" and not secret(v) and v ~= "" and v or nil end
 local function num(v) return type(v) == "number" and not secret(v) and v or nil end
 local function plainBool(v) if type(v) == "boolean" and not secret(v) then return v end end

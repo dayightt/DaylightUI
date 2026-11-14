@@ -1,5 +1,5 @@
--- Skins Questie's windows. Swapping its objective icons for our art (while this
--- switch is on) and hiding its tracker in favor of ours is done in the core's
+-- Skins Questie's windows. Swapping its objective icons for the Daylight art (while this
+-- switch is on) and hiding its tracker in favor of the Daylight one is done in the core's
 -- QuestieAside.lua, which also restores them when Skins is off. Questie keeps
 -- its tooltips, windows and minimap button (in the info panel's drawer).
 -- Its windows are AceGUI (Questie_Camelot.toc on Forever): the options

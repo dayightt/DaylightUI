@@ -92,7 +92,6 @@ local function tex(parent, layer, sub)
 end
 
 local function rgb(t, c, a) t:SetVertexColor(c[1], c[2], c[3], a or 1) end
-local function color(fs, c) fs:SetTextColor(c[1], c[2], c[3], 1) end
 local function sound(name) if DUI.Sound then DUI.Sound.Play(name) end end
 
 -- ---------------------------------------------------------------------
@@ -368,7 +367,7 @@ end
 -- Redraw the hovered tooltip once its spell data has loaded.
 function Talents.SpellLoaded(spellID)
     local b = Talents.waiting
-    if not b or (issecretvalue and issecretvalue(spellID)) then return end
+    if not b or DUI.IsSecret(spellID) then return end
     if not (b.node and b.node.spellID == spellID) then return end
     Talents.waiting = nil
     if b.over and GameTooltip and GameTooltip:IsOwned(b) then Talents.Tip(b) end
@@ -866,11 +865,9 @@ function Talents.Build(page)
     local foot = CreateFrame("Frame", nil, page)
     foot:SetSize(600, 28)
     foot:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Talents.EDGE + 4, 12)
-    foot.line = tex(foot, "ARTWORK")
-    foot.line:SetHeight(1)
+    foot.line = Parts.Rule(foot)
     foot.line:SetPoint("TOPLEFT", foot, "TOPLEFT", -4, 10)
     foot.line:SetPoint("TOPRIGHT", foot, "TOPRIGHT", 4, 10)
-    foot.line:SetVertexColor(1, 1, 1, 0.06)
     foot.left = Style.Text(foot, 22, "LEFT")
     foot.left:SetPoint("LEFT", foot, "LEFT", 0, 0)
     foot.label = Style.Text(foot, Style.SIZE.small, "LEFT")
@@ -906,15 +903,7 @@ end
 
 -- Talent events arrive in bursts, so refill once on the next frame, and
 -- only while visible.
-function Talents.Soon()
-    local page = Talents.page
-    if not (page and page:IsVisible()) or Talents.pending then return end
-    Talents.pending = true
-    C_Timer.After(0, function()
-        Talents.pending = nil
-        if page:IsVisible() then Talents.Fill(page) end
-    end)
-end
+Talents.Soon = Win.Soon(function() return Talents.page end, function(page) Talents.Fill(page) end)
 
 -- Largest tile-to-tile pitch that fits every tree in w x h.
 local function pitchFor(data, w, h)

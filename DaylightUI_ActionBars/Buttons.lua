@@ -45,7 +45,7 @@ function Buttons.DefOf(btn) return own[btn] end
 function Buttons.All() return list end
 
 -- The template adds every button to the game's event list and never removes it, so
--- the game's handlers would run on ours under our taint. Set the entry to nil in
+-- the game's handlers would run on these buttons under the addon's taint. Set the entry to nil in
 -- place (it's the last one right after creation); removing it would shift the
 -- game's own entries.
 function Buttons.Unlist(btn)
@@ -76,13 +76,13 @@ end
 
 -- The template's show, hover and slot-change code would put each button in the
 -- game's range and usable watchers, which run the game's button code on it (that
--- failed on ours), and its hide would turn the slot's range check off under our
--- painter. These no-ops keep our buttons out of all that.
+-- failed on these buttons), and its hide would turn the slot's range check off under Daylight UI's
+-- painter. These no-ops keep Daylight UI's buttons out of all that.
 local function stayOut() end
 
 -- A bar's twelve buttons. SecureActionButtonTemplate goes last on purpose so the
 -- click handler is the plain secure one, not the template's, which reads its own
--- fields under our taint and gets blocked in combat. Clicks act on release, like
+-- fields under the addon's taint and gets blocked in combat. Clicks act on release, like
 -- the game's buttons.
 function Buttons.Make(def, holder)
     local made = {}
@@ -95,7 +95,7 @@ function Buttons.Make(def, holder)
         local leave = btn.UnregisterActionBarButtonCheckFrames
         if type(btn.action) == "number" and type(leave) == "function" then leave(btn, btn.action) end
         -- That Update also tinted the icon for slot 1, graying every button when
-        -- slot 1 wasn't usable. Our tint only undoes colors it set itself, so
+        -- slot 1 wasn't usable. Daylight UI's tint only undoes colors it set itself, so
         -- reset it here.
         if type(btn.icon) == "table" then btn.icon:SetVertexColor(1, 1, 1) end
         -- Same for the autocast corners, shown on every button when slot 1 held a
@@ -108,7 +108,7 @@ function Buttons.Make(def, holder)
         btn.RegisterActionBarButtonCheckFrames = stayOut
         btn.UnregisterActionBarButtonCheckFrames = stayOut
         -- The game's UpdateAction (page change, show, hover) ends in these two,
-        -- which write attributes. Running tainted on our buttons, the write is
+        -- which write attributes. Running tainted on Daylight UI's buttons, the write is
         -- blocked in combat.
         btn.UpdatePressAndHoldAction = stayOut
         btn.UpdatePingAttributes = stayOut
@@ -153,7 +153,7 @@ Buttons.KIND = {
 }
 
 -- ---------------------------------------------------------------------
--- Painting. Our buttons are off the game's event list, so every part is drawn here
+-- Painting. Daylight UI's buttons are off the game's event list, so every part is drawn here
 -- from events. Painters run in order and each event runs only the ones it needs.
 -- Values the client may make secret in combat (counts, cooldown times) are passed
 -- whole to the engine (SetText, the cooldown's duration object), never compared
@@ -301,7 +301,7 @@ Buttons.PAINTERS = {
         sweep(btn.chargeCooldown, chOn, chOn and AB.GetActionChargeDuration(slot))
         if ns.Ping then ns.Ping.Note(btn, slot, info, charges) end
     end },
-    -- A proc shows the game's own glow on our button. The skin's border follows it.
+    -- A proc shows the game's own glow on Daylight UI's button. The skin's border follows it.
     { name = "proc", fn = function(btn, slot)
         local id = spellOf(slot)
         local O = C_SpellActivationOverlay
@@ -317,7 +317,7 @@ Buttons.PAINTERS = {
         ns.Skin.UpdateProc(btn)
     end },
     -- Range is checked here and by the range watch while there's a target. Never
-    -- call EnableActionRangeCheck ourselves: it unbalanced the client's internal
+    -- call EnableActionRangeCheck from addon code: it unbalanced the client's internal
     -- count, which survives a /reload, and the game's next enable crashed the
     -- client (BC_ASSERT). The game's twins don't turn it on either, since they're
     -- hidden and a hidden button turns its check off (ActionButton.lua OnHide).
@@ -403,9 +403,8 @@ end
 
 -- Paint on the next frame, once: a button whose slot changed (bar 1 paging), or
 -- everything (several page events arrive together).
-local queued, queuedAll, pending = {}, false, false
+local queued, queuedAll = {}, false
 local function flush()
-    pending = false
     if queuedAll then
         -- Only visible buttons, as in flushWanted. A hidden one is painted in
         -- full when it shows (its OnShow in Buttons.Make).
@@ -421,18 +420,14 @@ local function flush()
         Buttons.Paint(btn)
     end
 end
-local function later()
-    if pending then return end
-    pending = true
-    C_Timer.After(0, function() DUI.SafeCall(flush) end)
-end
+local later = DUI.Soon(function() DUI.SafeCall(flush) end)
 function Buttons.Queue(btn) queued[btn] = true; later() end
 function Buttons.QueueAll() queuedAll = true; later() end
 
 -- Painters requested by events, collected and run once on the next frame. Cooldown
 -- events come in pairs and bursts (SPELL_UPDATE_COOLDOWN with
--- ACTIONBAR_UPDATE_COOLDOWN, charges, loss of control), and each one used to repaint
--- every button. Only visible buttons are painted: bars 5-8 start hidden, and a bar
+-- ACTIONBAR_UPDATE_COOLDOWN, charges, loss of control), and repainting every button for
+-- each would waste the frame. Only visible buttons are painted: bars 5-8 start hidden, and a bar
 -- shown only in or out of combat is hidden the rest of the time. A skipped button is
 -- marked and painted in full when it shows.
 local wanted, wantedPending = {}, false
@@ -508,8 +503,7 @@ Buttons.EVENTS = {
             end
         end
     end,
-    -- The skin used to repaint our buttons on this too; now the usable painter
-    -- handles them.
+    -- The usable painter covers these buttons; the skin skips them on this event.
     ACTIONBAR_UPDATE_USABLE = USABLE,
     ACTION_RANGE_CHECK_UPDATE = function(slot, inRange, checksRange)
         local on = Buttons.On(slot)

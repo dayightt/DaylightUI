@@ -23,7 +23,7 @@ local function api()
     return type(a) == "table" and a or nil
 end
 
-local function num(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function num(v) return type(v) == "number" and not DUI.IsSecret(v) end
 
 local function ask(name, ...)
     local a = api()
@@ -38,7 +38,7 @@ function OM.Loaded() return api() ~= nil end
 -- The world map shows OpenMap's stitched map now.
 function OM.Stitched() return ask("IsStitched") == true end
 
--- A canvas frame level for one of our frames at `level`. While the stitched
+-- A canvas frame level for one of Daylight UI's frames at `level`. While the stitched
 -- art shows it is raised `lift` levels over the art (default OM.ABOVE),
 -- otherwise left as is.
 function OM.Level(level, lift)

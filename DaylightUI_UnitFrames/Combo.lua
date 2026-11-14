@@ -23,7 +23,7 @@ Combo.FULL_COLOR = DUI.Gradients.COMBO_FULL
 -- only (ClassPowerBar.lua). UNIT_POWER_UPDATE is a slower copy of it.
 local EVENTS = { "UNIT_POWER_FREQUENT", "UNIT_DISPLAYPOWER", "UNIT_MAXPOWER" }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 function Combo.Create(target)
     local _, class = UnitClass("player")

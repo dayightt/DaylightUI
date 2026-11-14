@@ -4,7 +4,7 @@
 -- and Shift also clears dependents, like ClassTalentUtil.ShouldRefundClearEdges.
 -- Undo calls RollbackConfig. Apply calls C_ClassTalents.CommitConfig(nil).
 --
--- All permission checks come from the game, never our own tier math:
+-- All permission checks come from the game, never from tier math done here:
 -- canPurchaseRank / canRefundRank, GetNodeCost against the tree's currency,
 -- whether the shown set is the active one, whether a commit is pending, and
 -- CanChangeTalents for Apply (its error explains a disabled Apply button).
@@ -145,7 +145,7 @@ function Spend.Init()
     if Spend.ready then return end
     Spend.ready = true
     DUI.RegisterEvent("TRAIT_CONFIG_UPDATED", function(_, configID)
-        -- The event may carry our config or the active config ID (the game's
+        -- The event may carry this config or the active config ID (the game's
         -- frame watches the latter). Any other ID counts once nothing is staged.
         local mine = Spend.committing
         if not mine then return end

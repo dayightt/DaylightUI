@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 
 
@@ -19,7 +20,7 @@ Engine.Window({ key = "gamemenu", pack = "system", frame = "GameMenuFrame", hide
 Engine.Window({ key = "addons", pack = "system", frame = "AddonList", watch = true })
 Engine.Window({ key = "macros", pack = "system", addon = "Blizzard_MacroUI", frame = "MacroFrame", watch = true })
 Engine.Window({ key = "clock", pack = "system", addon = "Blizzard_TimeManager", frame = "TimeManagerFrame" })
--- Loot window: each item becomes one of our rows (the game's square card,
+-- Loot window: each item becomes a list row (the game's square card,
 -- quality tint and hover glow removed; quality shows in the name and the icon
 -- outline). The row takes no mouse itself. Its item button spans the row, so
 -- the row lights from that. No animation of its own: an earlier light sweep was
@@ -35,17 +36,17 @@ end
 
 Engine.Window({ key = "loot", pack = "system", frame = "LootFrame", watch = true,
     after = function(Kit, f) Kit.EachRow(f.ScrollBox, lootRow, "lootrow") end })
--- Group loot rolls: each popup gets our window look with a quality-colored line
+-- Group loot rolls: each popup gets the window look with a quality-colored line
 -- on top, the icon outlined in that color, the name on one line above a sub line
--- (slot, "BoP" in the warn color), and Need/Greed/Pass in a row of our control
+-- (slot, "BoP" in the warn color), and Need/Greed/Pass in a row of control
 -- boxes. The game's dice and coins are kept since nothing reads faster. The
--- timer is our pill bar following the game's hidden one, with seconds left; in
+-- timer is a pill bar following the game's hidden one, with seconds left; in
 -- the last quarter it turns the warn color and pulses.
--- Motion: out of combat the popup glides up while fading in. Always (our own
+-- Motion: out of combat the popup glides up while fading in. Always (the added
 -- pieces only) the top line draws out from the left and a quality-colored light
 -- sweeps across. Closing leaves the window's fading ghost.
 -- The game reuses and positions the popups itself (the container is left
--- alone), so they're revisited whenever one is added or the rolls change. Our
+-- alone), so they're revisited whenever one is added or the rolls change. The
 -- additions live in `rolls`, never in fields on the game's frames.
 local LootRoll = {
     BUTTON = 26, -- roll button box size
@@ -58,7 +59,7 @@ local LootRoll = {
     RISE = 14, -- px the popup glides up when opening
 }
 ns.LootRoll = LootRoll
-local rolls = setmetatable({}, { __mode = "k" }) -- popup -> our pieces
+local rolls = setmetatable({}, { __mode = "k" }) -- popup -> the pieces added to it
 
 local function rollInfo(f)
     if type(f.rollID) ~= "number" or type(GetLootRollItemInfo) ~= "function" then return nil end
@@ -124,7 +125,7 @@ local function followTimer(r, timer)
     if not ok then return end
     r.bar:SetMinMaxValues(lo, hi)
     r.bar:SetValue(v)
-    if issecretvalue and (issecretvalue(v) or issecretvalue(hi)) then return end
+    if isSecret(v) or isSecret(hi) then return end
     if type(v) ~= "number" or type(hi) ~= "number" or hi <= 0 then return end
     local secs = math.max(0, math.ceil(v / 1000))
     if secs ~= r.secs then
@@ -180,7 +181,7 @@ local function openRoll(Kit, f)
 end
 
 -- The glide up on open: drawn RISE px low, easing back to rest. Visual only,
--- the popup itself never moves. State lives in our table, not in
+-- the popup itself never moves. State lives in a local table, not in
 -- Motion.Glide's field on the frame.
 local function riseOf(f)
     if not f.CreateAnimationGroup then return nil end
@@ -276,7 +277,7 @@ local function dress(Kit, f)
     end
     if r.sub.SetWordWrap then r.sub:SetWordWrap(false) end
 
-    -- The timer: the game's runs hidden, ours follows it.
+    -- The timer: the game's runs hidden, the pill bar follows it.
     r.bar = W.Bar(f, W.BAR_H)
     r.bar:SetFrameLevel((f:GetFrameLevel() or 0) + 2)
     r.time = Style.Text(r.bar, Style.SIZE.tiny, "RIGHT")
@@ -318,15 +319,7 @@ Engine.Register({ key = "lootroll", pack = "system", apply = function(Kit)
             for _, f in pairs(c.rollFrames) do skinRoll(Kit, f) end
         end
     end
-    local pending = false
-    local function soon()
-        if pending then return end
-        pending = true
-        C_Timer.After(0, function()
-            pending = false
-            DUI.SafeCall(all)
-        end)
-    end
+    local soon = DUI.Soon(function() DUI.SafeCall(all) end)
     for _, fn in ipairs({ "GroupLootContainer_AddFrame", "GroupLootContainer_Update" }) do
         if type(_G[fn]) == "function" then hooksecurefunc(fn, soon) end
     end
@@ -334,7 +327,7 @@ Engine.Register({ key = "lootroll", pack = "system", apply = function(Kit)
     all()
 end })
 
--- Loot toasts ("You received", money): our window look on a box the size of the
+-- Loot toasts ("You received", money): the window look on a box the size of the
 -- game's art, with its gold toast, glow and sheen removed and the item icon
 -- outlined in quality color. The need/greed icon and roll stay. The game pools
 -- these and sets one up before showing it, so each is dressed once on first
@@ -412,9 +405,9 @@ Engine.Window({ key = "scrapper", pack = "system", addon = "Blizzard_ScrappingMa
 Engine.Window({ key = "auction", pack = "system", addon = "Blizzard_AuctionHouseUI", frame = "AuctionHouseFrame", watch = true })
 
 -- The layering notice (the game is about to move you to another copy of the
--- zone, and you can delay it): our window and font, the gold glow removed. Its
--- minimize button keeps its icon on our box. It fades in with the game's own
--- alert animation, not ours (Kit.Window ownFade).
+-- zone, and you can delay it): the window look and font, the gold glow removed. Its
+-- minimize button keeps its icon on the new box. It fades in with the game's own
+-- alert animation, not Motion (Kit.Window ownFade).
 Engine.Window({ key = "layering", pack = "system", addon = "Blizzard_SocialToast", frame = "ShardTransferImminentFrame",
     auto = false,
     window = { ownFade = true },
@@ -431,7 +424,7 @@ Engine.Window({ key = "layering", pack = "system", addon = "Blizzard_SocialToast
         end
     end })
 
--- Battle.net toasts (friend online/offline, broadcast, invite): our window and
+-- Battle.net toasts (friend online/offline, broadcast, invite): the window look and
 -- font, icon kept, glow removed. The game grays the last line again on every
 -- toast and combat pauses the skin's passes, so that line is set to tan from
 -- the toast's own OnShow. Fades like the layering notice.
@@ -439,7 +432,7 @@ local toastHooked = false
 local splitHooked = false -- the split box's OnShow repaint, hooked once
 local function toastLine(fs)
     local text = fs:GetText()
-    if type(text) == "string" and not (issecretvalue and issecretvalue(text)) then
+    if type(text) == "string" and not isSecret(text) then
         local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
         if plain ~= text then fs:SetText(plain) end
     end
@@ -468,7 +461,7 @@ Engine.Window({ key = "bntoast", pack = "system", addon = "Blizzard_BNet", frame
         toastLine(f.BottomLine)
     end })
 
--- Confirmation boxes (destroying an item, leaving a group, typing a name): our
+-- Confirmation boxes (destroying an item, leaving a group, typing a name): the
 -- window, buttons and edit box. Their warning icon and progress bar are kept.
 -- Dressed quietly, with nothing of the automatic walk: with the controller UI
 -- on, the game stores each box's focus actions as it opens, and any hook on
@@ -521,7 +514,7 @@ Engine.Window({ key = "rolecheck", pack = "system", frame = "LFDRoleCheckPopup",
         if type(desc) == "table" then Kit.Font(desc.SubText, DUI.Style.SIZE.small, DUI.Style.INK.LABEL) end
     end })
 
--- The stack split box (Shift-click a stack in your bags): our window, arrows and
+-- The stack split box (Shift-click a stack in your bags): the window look, arrows and
 -- buttons, the amount in the accent. The game moves its pieces and shows one of
 -- two backgrounds on each open, so only their alpha is touched and its layout
 -- stays.
@@ -547,7 +540,7 @@ Engine.Window({ key = "stacksplit", pack = "system", frame = "StackSplitFrame",
 
 -- The world map and the quest log beside it, looks only. The quest log feeds the
 -- objective tracker, so its scripts, quest rows and the map's own buttons are
--- left alone. Nothing here does more than hide the game's art and draw ours.
+-- left alone. Nothing here does more than hide the game's art and draw the skin.
 
 -- A breadcrumb in the map's navigation bar ("World > Eastern Kingdoms").
 local function crumb(Kit, btn)
@@ -644,7 +637,7 @@ local function questHeaders(Kit, contents)
 end
 
 -- A quest opened from the map's log: parchment, gold frame and button backdrop
--- removed (our window shows through), our buttons, a plain rewards header, and
+-- removed (the window shows through), W.Button look, a plain rewards header, and
 -- each reward outlined in its quality. Rewards are built per quest shown, so
 -- this reruns then. Looks only: the buttons still act for the quest log.
 local stripped = setmetatable({}, { __mode = "k" }) -- details buttons whose art is gone
@@ -663,7 +656,7 @@ local function questDetails(Kit)
     local qm = _G.QuestMapFrame
     local d = type(qm) == "table" and qm.DetailsFrame
     if type(d) ~= "table" then return end
-    -- The game colors this text dark for the parchment we removed.
+    -- The game colors this text dark for the parchment that was removed.
     ns.LightQuestInfo(Kit)
     Kit.Hide(d.Bg)
     Kit.Erase(d.SealMaterialBG)
@@ -676,7 +669,7 @@ local function questDetails(Kit)
     for _, key in ipairs({ "AbandonButton", "ShareButton", "TrackButton" }) do
         local b = d[key]
         -- The dividers drawn on the middle button go with the rest of its art.
-        -- Once only, since our outline is drawn on the button too.
+        -- Once only, since the outline is drawn on the button too.
         if type(b) == "table" and b.GetRegions and not stripped[b] then
             stripped[b] = true
             for _, r in ipairs({ b:GetRegions() }) do
@@ -737,7 +730,7 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
             ns.MapMove.Apply()
         end
         -- The map's filter button sits in the top row (Forever puts it right of
-        -- the zone buttons). Bare like them, with our "filters changed" badge.
+        -- the zone buttons). Bare like them, with a "filters changed" badge.
         local filter = f.WorldMapTrackingOptionsButton
         if type(filter) == "table" then
             Kit.BareButton(filter)
@@ -811,45 +804,45 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
     end })
 
 -- The game's popup menus (right-click a unit, the buff bar's category list,
--- bag categories): our window behind them, our font, our row chrome.
+-- bag categories): a window shell behind them, the Daylight font and row chrome.
 --
 -- How the game builds them drives the approach:
--- - While a menu is open nothing may create textures on it, so our look goes on
---   a frame of ours parented outside the menu and kept on a lower strata. A
+-- - While a menu is open nothing may create textures on it, so the look goes on
+--   a separate frame parented outside the menu and kept on a lower strata. A
 --   child of the menu draws in the same layer as the rows and, the second
 --   time the menu opens, covers them. Every icon, tick and arrow below is one
---   the game already attached. We only change its texture, color or alpha.
+--   the game already attached. Only its texture, color or alpha changes.
 -- - Menus are reused and redraw their background each time, so each is dressed
 --   again every time it opens.
 -- - Every level, submenus included, is shown by the menu manager, which then
 --   fires EventRegistry "MenuProxy.OnShow" with the menu frame
 --   (Blizzard_Menu/Menu.lua, MenuProxyMixin:OnShow; the game's gamepad code
---   listens the same way). We listen there, with no hook on the manager or on
+--   listens the same way). This listens there, with no hook on the manager or on
 --   the menu styles' Generate.
 -- - That callback runs inside the game's secure menu code, so it only records
---   the frame. The dressing happens a moment later from our timer.
+--   the frame. The dressing happens a moment later from a timer.
 -- - A ticked checkbox returns MenuResponse.Refresh. That rebuilds the rows
 --   (MenuMixin:ReinitializeAll) without another OnShow, so the game's tick,
---   divider and icons come back while the menu is still open. The frame we
+--   divider and icons come back while the menu is still open. The frame
 --   put behind the menu watches for that art and dresses again. No hook on
---   the menu: Refresh runs on the private menu, not the proxy OnShow hands us.
+--   the menu: Refresh runs on the private menu, not the proxy OnShow hands over.
 --
 -- Text keeps a color that means something (a class, an item quality, a disabled
--- row). Gold titles and ordinary white rows take our ink. A chosen radio is
--- the accent, same as our own menus. The raid-target submenu's icons are the
--- game's sheet; those become our marker files (the same 1 to 8 as the frames).
+-- row). Gold titles and ordinary white rows take Style.INK. A chosen radio is
+-- the accent, same as W.OpenMenu. The raid-target submenu's icons are the
+-- game's sheet; those become the Daylight marker files (the same 1 to 8 as the frames).
 local menuShell = setmetatable({}, { __mode = "k" })
 -- Set when the skin applies. The frame behind a menu calls it when the game
 -- redraws a row without opening the menu again.
 local requestMenu = function() end
 
--- Our font on every text in a menu, at any depth. Not Kit.Font, which does a
+-- The Daylight font on every text in a menu, at any depth. Not Kit.Font, which does a
 -- text only once: the game resets its own font every time it reuses a row, so
--- here it's checked every time and set only when it isn't ours. The game blocks
--- SetFont on menu text while the menu is open, so the text gets one of our font
+-- here it's checked every time and set only when it isn't right. The game blocks
+-- SetFont on menu text while the menu is open, so the text gets one of the addon's font
 -- objects instead (one per size, kept in sync with the font settings by
 -- Style.DressText). If the game ever blocks that too, menus keep its font and
--- we stop trying.
+-- this stops trying.
 local Style = DUI.Style
 local menuFontObjects, menuFontsBlocked = {}, false
 local function menuFontObject(size)
@@ -891,7 +884,7 @@ local MENU_CHEVRON = DUI.MEDIA .. "ui-chevron.png"
 local MENU_TICK = DUI.MEDIA .. "ui-check.png"
 local MENU_LINE = "Interface\\Buttons\\WHITE8x8"
 -- In game GetTexture() gives back a file id, not the path. Learned the first
--- time we paint a line, so a dressed hover is not treated as the game's art
+-- time a line is painted, so a dressed hover is not treated as the game's art
 -- on every following frame.
 local menuLineIDs = {}
 local function paintMenuLine(tex)
@@ -920,7 +913,7 @@ local function menuAtlas(tex)
     return name:lower()
 end
 -- "radial" is the radio (empty ring or the yellow dot). "checkmark" and
--- "ticksquare" are the checkbox. Read before we replace the texture.
+-- "ticksquare" are the checkbox. Read before the texture is replaced.
 local function menuSelectKind(tex)
     local name = menuAtlas(tex) .. " " .. menuPath(tex)
     if name:find("radial", 1, true) then return "radio" end
@@ -1158,7 +1151,7 @@ local function menuArtBack(menu)
         end
     end
 end
--- One step under the menu, so the whole menu (rows included) paints over our
+-- One step under the menu, so the whole menu (rows included) paints over the
 -- panel. A child cannot sit on a lower strata than its parent, which is why
 -- the panel is not parented to the menu.
 local MENU_UNDER = {
@@ -1188,14 +1181,9 @@ local function dressMenu(Kit, menu)
         menuShell[menu] = holder
     end
     placeMenuShell(menu, holder)
-    -- Refresh rebuilds rows in place. Our frame, not the game's, notices the
-    -- game's tick, line or raid icon coming back and asks for another pass.
-    -- While the menu is closed this frame hides, so it cannot sit on screen.
-    -- Walking every row's art is too much for every frame; ten times a second
-    -- is quicker than anyone can see the game's tick come back. The font is
-    -- checked every frame: a refresh puts the game's font back on every row
-    -- and the wider text would show for a moment. This runs after the click's
-    -- refresh and before the menu is drawn, and costs one GetFont per text.
+    -- Refresh rebuilds rows in place, so this frame watches for the game's tick,
+    -- line or raid icon coming back (ten times a second is quicker than the eye).
+    -- The font is checked every frame, or the game's wider text would flash.
     holder.wait = 0
     holder:SetScript("OnUpdate", function(self, elapsed)
         if menu.IsShown and not menu:IsShown() then self:Hide(); return end
@@ -1213,7 +1201,7 @@ local function dressMenu(Kit, menu)
     end
 end
 
-local menuListener = {} -- our EventRegistry owner
+local menuListener = {} -- the EventRegistry owner
 Engine.Register({ key = "popupmenus", pack = "system", apply = function(Kit)
     local registry = _G.EventRegistry
     if type(registry) ~= "table" or type(registry.RegisterCallback) ~= "function" then return false end

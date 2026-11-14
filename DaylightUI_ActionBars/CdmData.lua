@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Data = {}
 ns.CdmData = Data
@@ -174,7 +175,7 @@ end
 
 local function myClass()
     local _, token = UnitClass("player")
-    if type(token) == "string" and not (issecretvalue and issecretvalue(token)) then return token end
+    if type(token) == "string" and not isSecret(token) then return token end
 end
 Data.MyClass = myClass
 
@@ -533,7 +534,8 @@ end
 
 -- The first piece of id's chain (itself when free). This runs about 25 times per
 -- piece on every layout pass, which runs on every aura change, so a normal chain is
--- walked without allocating a table; that used to be most of the module's garbage.
+-- walked without allocating a table, which would otherwise be most of the module's
+-- garbage.
 -- Only a walk longer than any real chain (a loop in a bad save) keeps a list.
 Data.ROOT_WALK = 64
 function Data.Root(set, id)
@@ -608,7 +610,7 @@ function Data.Dims(set, id)
     return s, s
 end
 
--- The piece as a block of one. This is what Rows' placement, the skins, our bars and
+-- The piece as a block of one. This is what Rows' placement, the skins, Daylight UI's bars and
 -- CdmEffects read (kind, size, width, look, toggles). Built fresh each call, so cache
 -- it per pass.
 function Data.PieceBlock(set, id)

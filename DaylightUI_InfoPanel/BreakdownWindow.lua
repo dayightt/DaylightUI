@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -28,7 +29,6 @@ BW.EMPTY_TEXT = DUI.L["Nothing here for this player yet."]
 BW.tables, BW.waits = {}, {}
 BW.NO_ICON = 134400           -- the game's question-mark icon, for a spell it gives no icon
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Modes where the other side is an attacker rather than a target.
 local ATTACKERS = { taken = true, avoidable = true }
@@ -260,7 +260,7 @@ end
 local function deathList()
     local src = BW.src
     local id = src and src.deathRecapID
-    if type(id) ~= "number" or issecretvalue and issecretvalue(id) or id <= 0 then return nil, BW.NO_DEATH end
+    if type(id) ~= "number" or isSecret(id) or id <= 0 then return nil, BW.NO_DEATH end
     local log, why = ns.DeathLog.Read(id)
     if not log then return nil, why or BW.NO_DEATH end
     return log.events
@@ -431,7 +431,7 @@ local function isPicked(s)
     -- In deaths mode each death is its own row, matched by recap ID.
     if BW.recap ~= nil then
         local r = s.deathRecapID
-        return not issecretvalue(r) and r == BW.recap
+        return not isSecret(r) and r == BW.recap
     end
     local g, c = ns.Meter.GuidOf(s)
     if BW.guid ~= nil then return g == BW.guid end
@@ -442,7 +442,7 @@ local function remember(src)
     BW.src = src
     BW.guid, BW.creature = ns.Meter.GuidOf(src)
     local r = src and src.deathRecapID
-    BW.recap = (type(r) == "number" and not issecretvalue(r) and r > 0) and r or nil
+    BW.recap = (type(r) == "number" and not isSecret(r) and r > 0) and r or nil
     BW.shone = nil
 end
 

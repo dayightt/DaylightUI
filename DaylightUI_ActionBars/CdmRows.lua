@@ -1,12 +1,13 @@
 -- The player's Cooldown Manager layout on screen: one layout frame per talent set
--- (at screen center), one of our frames per piece inside it (placed from
+-- (at screen center), one of Daylight UI's frames per piece inside it (placed from
 -- CdmData.Layout), and the claiming of the game's items into them. The game keeps
--- making and laying out its items; after each of its passes we move the ones the
--- player placed into their slot. We never reparent, show, hide or scale the game's
+-- making and laying out its items; after each of its passes the ones the
+-- player placed move into their slot. It never reparents, shows, hides or scales the game's
 -- frames, and all bookkeeping is in weak tables.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local CD = ns.Cooldowns
 local Data = ns.CdmData
@@ -19,7 +20,7 @@ local KINDS = {
     EssentialCooldownViewer = "icon", UtilityCooldownViewer = "icon",
     BuffIconCooldownViewer = "icon", BuffBarCooldownViewer = "bar",
 }
--- Viewers that hold auras (the others hold cooldowns). Decides what we draw when a
+-- Viewers that hold auras (the others hold cooldowns). Decides what gets drawn when a
 -- spell sits in a block of the other shape.
 local AURA_VIEWERS = { BuffIconCooldownViewer = true, BuffBarCooldownViewer = true }
 
@@ -29,7 +30,7 @@ local frames = {}                          -- [g] = { layout = frame, pieces = {
 local claimed = setmetatable({}, weak)     -- item -> piece id
 local sizes = setmetatable({}, weak)       -- bar item -> { w, h }
 local faded = setmetatable({}, weak)       -- item -> true
-local ours = setmetatable({}, weak)        -- our own bar (CdmBars) -> piece id, this pass
+local ours = setmetatable({}, weak)        -- Daylight UI's own bar (CdmBars) -> piece id, this pass
 local blocks = {}                          -- [id] = the piece's block of one (Data.PieceBlock), this pass
 local drawn = {}                           -- [cooldownID] = what shows it, this pass (Rows.DrawnBy)
 local hooked = setmetatable({}, weak)
@@ -37,13 +38,13 @@ local pending, ready = false, false
 local lastItems, lastExtra, lastOn = {}, {}, false   -- the last pass's items, for Rows.Away
 
 local function num(v)
-    if type(v) ~= "number" or (issecretvalue and issecretvalue(v)) then return nil end
+    if type(v) ~= "number" or isSecret(v) then return nil end
     return v
 end
 
 function Rows.Owns(item) return claimed[item] ~= nil or ours[item] ~= nil end
 
--- The block of one a held item (or one of our bars) sits in, or nil.
+-- The block of one a held item (or one of Daylight UI's bars) sits in, or nil.
 function Rows.BlockOf(item)
     local id = claimed[item] or ours[item]
     return id ~= nil and blocks[id] or nil
@@ -88,7 +89,7 @@ end
 -- The fade engine's area ("ActionBars.cdm"): the shown pieces for mouseover, and the
 -- layout frame that carries them. Alpha only goes on the layout frame (its pieces
 -- follow) and on the game's viewers. Their items belong to the game and are never
--- ours to hide, so it's alpha only, multiplied by the viewer's own Edit Mode
+-- Daylight UI's to hide, so it's alpha only, multiplied by the viewer's own Edit Mode
 -- opacity (which the game sets with SetAlpha).
 local fadeList = {}
 function Rows.FadeFrames()
@@ -106,7 +107,7 @@ local function viewerOpacity(v)
     local enum = Enum and Enum.EditModeCooldownViewerSetting
     if not (enum and enum.Opacity and type(v.GetSettingValue) == "function") then return 1 end
     local ok, o = pcall(v.GetSettingValue, v, enum.Opacity)
-    if not ok or type(o) ~= "number" or (issecretvalue and issecretvalue(o)) then return 1 end
+    if not ok or type(o) ~= "number" or isSecret(o) then return 1 end
     return math.max(0, math.min(1, o / 100))
 end
 
@@ -129,7 +130,7 @@ local function pieceFrame(g, id)
     return t[id]
 end
 
--- Plugins (DaylightUI.API, kind "cdmpiece"): each shown piece's frame (ours,
+-- Plugins (DaylightUI.API, kind "cdmpiece"): each shown piece's frame (Daylight UI's,
 -- whatever draws the spell inside it), by its key, with what it shows. Two
 -- tables kept and swapped, so a pass makes no garbage.
 Rows.pieceInfo = setmetatable({}, weak)   -- piece frame -> { key, spellID, shape, drawnBy }
@@ -173,13 +174,13 @@ local function usable(item)
 end
 
 -- A shield placed as a bar that fills by the shield left (CdmBars.IsShield). Only
--- our aura bar can do that, so the game's own bar for it steps aside.
+-- Daylight UI's aura bar can do that, so the game's own bar for it steps aside.
 local function byShield(set, id, kind)
     return kind == "bar" and ns.CdmBars ~= nil and ns.CdmBars.IsShield(id)
         and Fx.Get(set.pieces[id], "fillBy") ~= "time"
 end
 
--- A shield placed as an icon showing its amount ("Show shield amount"). Only our aura
+-- A shield placed as an icon showing its amount ("Show shield amount"). Only Daylight UI's aura
 -- holder can do that (CdmAuras.SetAmount), so the game's buff icon steps aside too.
 local function shieldIcon(set, id)
     return ns.CdmBars ~= nil and ns.CdmBars.IsShield(id)
@@ -213,7 +214,7 @@ local function hook(item)
 end
 
 -- A shown, held item that isn't anchored to its block, because the game laid it out
--- at a moment we didn't hear about (Cooldowns.lua checks every CD.SCAN). Hidden ones
+-- at a moment no event announced (Cooldowns.lua checks every CD.SCAN). Hidden ones
 -- are skipped; they're placed when they show.
 function Rows.Drifted()
     local fr = ready and frames[Data.CurrentIndex()]
@@ -222,7 +223,7 @@ function Rows.Drifted()
         if item:IsShown() then
             if item:GetNumPoints() == 0 then return true end
             local _, rel = item:GetPoint(1)
-            if not (issecretvalue and issecretvalue(rel)) and rel ~= fr.pieces[id] then return true end
+            if not isSecret(rel) and rel ~= fr.pieces[id] then return true end
         end
     end
     return false
@@ -239,14 +240,14 @@ local function place(item, block, f, button)
     if block.kind == "bar" and not item.placeholder then
         sizes[item] = { w, h }
         ns.BuffBars.LayoutBar(item, w, h)
-        -- Our own bars also fit their timer pieces (CdmBars).
+        -- Daylight UI's own bars also fit their timer pieces (CdmBars).
         if item.fitBar then item.fitBar(item, w, h, block, button) end
     end
 end
 
 -- Moves a piece to its spot. One already showing that moves (its chain closing up,
 -- or opening for a piece coming back) glides; one just shown snaps. Piece frames
--- are ours, so the items anchored to them follow, in fights too.
+-- are Daylight UI's, so the items anchored to them follow, in fights too.
 local function put(f, layout, x, y)
     if f.goalX == x and f.goalY == y and f.atX then return end
     f.goalX, f.goalY = x, y
@@ -266,11 +267,11 @@ end
 -- pass that breaks partway (under SafeCall) leaves the last complete layout to the
 -- show rules.
 local mine, elsewhere, elsewhereAura = {}, {}, {}
--- id -> the game's aura item for a spell we draw as "Cooldown and buff".
+-- id -> the game's aura item for a spell drawn as "Cooldown and buff".
 local auraItems = {}
 local usedOwn, usedHolders, usedHolds, usedBars = {}, {}, {}, {}
 local shown, downs, told = {}, {}, {}
--- id -> our aura holder whose buff is down and gave up its spot (slide over).
+-- id -> Daylight UI's aura holder whose buff is down and gave up its spot (slide over).
 local closed = {}
 -- id -> true when it closed because it's up and hidden (Buff up Hide).
 local closedUp = {}
@@ -289,7 +290,7 @@ local function knownNow()
     return passKnown
 end
 
--- One of the game's items (in viewer passName): held in its piece, hidden so ours
+-- One of the game's items (in viewer passName): held in its piece, hidden so Daylight UI's
 -- can draw it, or released.
 local function claim(item)
     local id = num(item.cooldownID)
@@ -300,24 +301,24 @@ local function claim(item)
     -- The game's item shows the wrong thing for the spell's Track (CdmOwn.Track):
     -- a buff item tracked as its cooldown or both (Shield Block, Charge; it hides
     -- while the buff is down), or a cooldown item the player set to Cooldown or Buff
-    -- only (Rend, Thunder Clap). Ours draws it below and the game's stays hidden.
+    -- only (Rend, Thunder Clap). Daylight UI draws it below and the game's stays hidden.
     local cooldown = false
     local Own = ns.CdmOwn
     if block and Own then
         local p = set.pieces[id]
         if AURA_VIEWERS[name] then
             local t = Own.Track(id, p, knownNow())
-            -- The recast glow needs the aura's end, which only ours keeps.
+            -- The recast glow needs the aura's end, which only Daylight UI's holder keeps.
             cooldown = t == "cooldown" or t == "both" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
         else
             -- Left unset it stays the game's icon (Rend, Moonfire too: shown all
             -- the time, with its aura while up).
             local t = Own.Track(id, p, knownNow())
             local pick = Own.Picked(p)
-            -- Also moved to ours: Hide (Buff up) and the recast glow, since the game's
+            -- Also moved to Daylight UI's holder: Hide (Buff up) and the recast glow, since the game's
             -- icon can't say when it's showing the aura or when it ends; any buff request for an aura the game's
             -- icon never shows (Bloodrage, one learned from a cast, or one picked
-            -- before any is known); a buff sound, since only ours hears the aura
+            -- before any is known); a buff sound, since only Daylight UI's holder hears the aura
             -- land or end; and a buff's charges (Shield Block, Holy Shield;
             -- Own.Stacks).
             local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
@@ -329,7 +330,7 @@ local function claim(item)
     end
     if block and ns.CdmAuras and ns.CdmAuras.SelfDebuff(id) then
         -- The debuff lands on you (Arcane Blast's stack). The game's item never
-        -- sees it, so it says nothing either way. Ours draws it from your debuffs
+        -- sees it, so it says nothing either way. Daylight UI draws it from your debuffs
         -- and the game's stays hidden and ignored.
         release(item)
         faded[item] = true
@@ -349,7 +350,7 @@ local function claim(item)
     elseif block and (not Data.Native(block, kind) or byShield(set, id, kind)
         or (AURA_VIEWERS[name] and shieldIcon(set, id))) then
         -- Placed in the other shape (or a shield bar filled by the shield left,
-        -- which the game's bar can't do): ours draws the spell and the game's item
+        -- which the game's bar can't do): Daylight UI draws the spell and the game's item
         -- stays hidden. Its showing and hiding still tells whether the aura is up
         -- (a closing gap), so it's still listened to (hook).
         release(item)
@@ -379,9 +380,9 @@ end
 -- drawOurs results that are aura holders themselves.
 local HOLDS = { ["aura icon"] = true, ["aura bar"] = true, ["aura and cooldown bar"] = true }
 
--- A spell the game has no item of this shape for, drawn by us in piece frame f.
--- Bar: our cooldown bar or aura bar (CdmBars). Icon: our own icon, or for an aura the
--- game's aura display in a holder of ours (CdmAuras). track = a buff spell's pick
+-- A spell the game has no item of this shape for, drawn by Daylight UI in piece frame f.
+-- Bar: Daylight UI's cooldown bar or aura bar (CdmBars). Icon: Daylight UI's own icon, or for an aura the
+-- game's aura display in a Daylight UI holder (CdmAuras). track = a buff spell's pick
 -- (CdmOwn.Track), "cooldown" or "both".
 local function drawOurs(id, p, block, f, always, aura, track)
     local set, Own = passSet, ns.CdmOwn
@@ -411,7 +412,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
         ours[item] = id
         drawn[id] = under and "aura and cooldown bar" or aura and "aura bar" or "cooldown bar"
     elseif track == "both" then
-        -- Our cooldown icon, with the buff's button over it while up.
+        -- Daylight UI's cooldown icon, with the buff's button over it while up.
         item = Own.Acquire(id, f)
         usedOwn[id] = true
         drawn[id] = "own icon"
@@ -445,7 +446,7 @@ end
 function Rows.Update()
     pending = false
     if not ready then return end
-    -- A layout pass may have made fresh pool items, so apply our look first.
+    -- A layout pass may have made fresh pool items, so apply Daylight UI's look first.
     CD.Scan()
     local g = Data.CurrentIndex()
     local set = Data.Get(g)
@@ -479,7 +480,7 @@ function Rows.Update()
             passName = name
             -- A viewer the game hides (Cooldown Manager off, viewer set to Hidden,
             -- or In combat while out of a fight) hides its items and stops updating
-            -- them. They're released and ours draws their spells. When it shows
+            -- them. They're released and Daylight UI draws their spells. When it shows
             -- again they're claimed back (hook).
             hook(v)
             if v:IsShown() then CD.EachItem(v, claim) else CD.EachItem(v, release) end
@@ -515,7 +516,7 @@ function Rows.Update()
                 if awayAura then downs[id] = not up end
                 if always or not block.collapse or not awayAura or up then
                     -- A cooldown set to Cooldown and buff by hand keeps the cooldown
-                    -- under the aura bar even when we can't tell.
+                    -- under the aura bar even when that can't be told.
                     local both = not awayAura and Own and Own.Picked(p) == "both" and "both" or nil
                     item = drawOurs(id, p, block, f, always, awayAura, both)
                     if item and block.kind == "bar" and awayAura then
@@ -538,7 +539,7 @@ function Rows.Update()
                 local e = k or Own.Entry(id, knownNow())
                 if block.kind == "bar" or (e and e.aura) then downs[id] = not item:IsShown() end
             end
-            -- Our aura holder (icon or bar): the missing glow and Hide (Buff up) ask
+            -- Daylight UI's aura holder (icon or bar): the missing glow and Hide (Buff up) ask
             -- CdmAuras.IsUp, unless the game's item already answered.
             local holder = item and ns.CdmAuras and (HOLDS[drawn[id]] and item
                 or drawn[id] == "aura and cooldown icon" and ns.CdmAuras.Frame(id))
@@ -548,7 +549,7 @@ function Rows.Update()
                 local sound = Fx.Get(p, "buffSound") ~= "none"
                 -- An end sound needs the ups as well as the downs.
                 local ends = Fx.Get(p, "buffEndSound") ~= "none"
-                -- "Slide over when a buff drops": a buff of ours that's down gives
+                -- "Slide over when a buff drops": a Daylight UI buff that's down gives
                 -- up its spot like the game's own (which hide). Not a shield bar,
                 -- which stays as an empty bar, nor a bar with its cooldown under it.
                 local canSlide = block.collapse and HOLDS[drawn[id]] == true
@@ -574,7 +575,7 @@ function Rows.Update()
                     local up = seen and ns.CdmAuras.Told(holder, seen:IsShown()) or ns.CdmAuras.IsUp(holder)
                     if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or clip or cdFx))) then downs[id] = not up end
                     if clip and up == true then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
-                    -- Only a known "down"; one we can't tell keeps its spot.
+                    -- Only a known "down"; an unknown one keeps its spot.
                     closedNow = (slides and up == false) or (hideSlides and up == true)
                     if closedNow and up == true then closedUp[id] = true end
                 end
@@ -590,7 +591,7 @@ function Rows.Update()
             end
             -- A cooldown hidden by On cooldown or When ready Hide gives up its spot
             -- too with Slide over (Grow from Middle recenters). So does Buff up Hide
-            -- on the game's buff item or our cooldown icon under a buff, whatever
+            -- on the game's buff item or Daylight UI's cooldown icon under a buff, whatever
             -- Keep its spot says (Fx.GoneUp).
             if item and not closedNow and block.collapse and Fx.Gone(item)
                 and (not always or Fx.GoneUp(item)) then
@@ -606,7 +607,7 @@ function Rows.Update()
         end
         local layout = frames[g].layout
         local boxes = Data.Layout(set, shown)
-        -- A closed-up buff of ours stays shown where it gave up its spot, with
+        -- A closed-up Daylight UI buff stays shown where it gave up its spot, with
         -- nothing visible while down. Its holder keeps listening, and the client's
         -- button coming up there (CdmAuras.Shown) reopens the spot.
         for id, item in pairs(closed) do
@@ -646,7 +647,7 @@ function Rows.Update()
         -- A bar takes its chain's look (color, icon, text, time); an icon its text.
         if kind == "bar" then DUI.SafeCall(CD.StyleText, item) else DUI.SafeCall(CD.StyleIconText, item, blocks[id]) end
     end
-    -- Our own icons and bars (CdmOwn, CdmBars) take the same options: On cooldown,
+    -- Daylight UI's own icons and bars (CdmOwn, CdmBars) take the same options: On cooldown,
     -- While ready, the glows. Not the aura holders or stand-ins.
     local function applyOwn(id, item)
         if mine[id] ~= item and not extra[item] then
@@ -660,7 +661,7 @@ function Rows.Update()
     for id, item in pairs(closed) do
         if Fx.Gone(item) or closedUp[id] then applyOwn(id, item) end
     end
-    -- Our own bars too (CdmBars: Rend, spells the game draws as icons). Their fill
+    -- Daylight UI's own bars too (CdmBars: Rend, spells the game draws as icons). Their fill
     -- and background colors come from the same pass.
     for item, id in pairs(ours) do
         if (items[id] == item or closed[id] == item) and blocks[id].kind == "bar" then
@@ -728,7 +729,7 @@ function Rows.Away()
             item:SetAlpha(1)
         end
     end
-    -- A closed-up buff of ours follows its chain's rules too, since its button may
+    -- A closed-up Daylight UI buff follows its chain's rules too, since its button may
     -- come up before the next pass knows.
     for id, item in pairs(closed) do
         local block = blocks[id]
@@ -743,7 +744,7 @@ end
 -- /dui cdm why: one line per placed spell saying what the last pass did with it.
 -- Ends up in the player's saved settings file for bug reports.
 local function word(v)
-    if issecretvalue and issecretvalue(v) then return "secret" end
+    if isSecret(v) then return "secret" end
     if type(v) == "number" and v % 1 ~= 0 then return string.format("%.2f", v) end
     return tostring(v)
 end
@@ -764,7 +765,7 @@ function Rows.Why()
         games[id] = t
         local rel
         if item:GetNumPoints() > 0 then rel = select(2, item:GetPoint(1)) end
-        local at = (issecretvalue and issecretvalue(rel)) and "anchor secret"
+        local at = isSecret(rel) and "anchor secret"
             or ((fr and rel == fr.pieces[id]) and "in its piece" or "elsewhere")
         t[#t + 1] = string.format("%s shown %s alpha %s %s%s", kind, word(item:IsShown()), word(item:GetAlpha()),
             at, claimed[item] and " held" or (faded[item] and " faded" or ""))
@@ -777,7 +778,7 @@ function Rows.Why()
         local p, block = set.pieces[id], blocks[id]
         local f = fr and fr.pieces[id]
         local item = lastItems[id]
-        -- Our aura holder: what it knows about its buff (for slide over).
+        -- Daylight UI's aura holder: what it knows about its buff (for slide over).
         local h = closed[id] or (HOLDS[drawn[id]] and item) or nil
         local buff = ""
         if h then
@@ -855,7 +856,7 @@ function Rows.PlaceAll(kind)
 end
 
 DUI.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() Rows.Refresh() end)
--- A spell learned (level, trainer, talent) may need our own icon now.
+-- A spell learned (level, trainer, talent) may need Daylight UI's own icon now.
 DUI.RegisterEvent("SPELLS_CHANGED", function() Rows.Refresh() end)
 -- "Hide out of combat" blocks show and hide with combat.
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() Rows.Refresh() end)

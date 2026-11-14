@@ -16,7 +16,7 @@
 --
 -- The layer covers the screen and takes the mouse but never the keyboard
 -- (except Escape, which skips), so game keys still work. A fight ends it at
--- once. No game calls and no protected frames: only our frames, plus samples
+-- once. No game calls and no protected frames: only Daylight UI's frames, plus samples
 -- through test mode (DUI.SetTestSolo), which ends in a fight by itself.
 
 local _, DUI = ...

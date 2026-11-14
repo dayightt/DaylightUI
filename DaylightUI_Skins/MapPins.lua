@@ -9,7 +9,7 @@
 -- coordinates. Only zone maps get pins. Pins that land on the same spot
 -- (Blackrock Mountain, a zeppelin tower) merge into one that lists them all.
 --
--- Like the map reveal, everything is our own frame over the map canvas at the
+-- Like the map reveal, everything is an addon frame over the map canvas at the
 -- game's dungeon entrance level. The map's id, canvas and level table are only
 -- read. Pins keep their on-screen size as the map zooms.
 

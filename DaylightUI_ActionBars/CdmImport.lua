@@ -15,6 +15,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local Import = {}
@@ -192,7 +193,7 @@ end
 -- iconScale, isHorizontal, iconDirection) and the item template sizes from
 -- CooldownViewer.xml. That way an import comes out as the same grid in the same
 -- spot, whatever the profile. EllesmereUI measures the laid-out items instead, but
--- ours are claimed into our layout, so the settings are read. The viewers are never
+-- Daylight UI's are claimed into its layout, so the settings are read. The viewers are never
 -- moved; their spot is the game's Edit Mode spot.
 Import.VIEWERS = { [0] = "EssentialCooldownViewer", [1] = "UtilityCooldownViewer",
     [2] = "BuffIconCooldownViewer", [3] = "BuffBarCooldownViewer" }
@@ -200,10 +201,10 @@ Import.ITEM = { [0] = { 50, 50 }, [1] = { 30, 30 }, [2] = { 40, 40 }, [3] = { 22
 Import.PAD_OFFSET = -4   -- CooldownViewerMixin:GetAdditionalPaddingOffset
 local LEFT_DIR = 0       -- Enum.CooldownViewerIconDirection.Left (Right is 1)
 
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) and v == v end
+local function plain(v) return type(v) == "number" and not isSecret(v) and v == v end
 local function field(v, key)
     local x = v[key]
-    if issecretvalue and issecretvalue(x) then return nil end
+    if isSecret(x) then return nil end
     return x
 end
 

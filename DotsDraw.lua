@@ -27,7 +27,7 @@ Dots.SKULL_BAR = 10000
 local EDGE_ALPHA = 0.55
 local EDGE_PX = 2
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- The veil color: the unit frames' Colors page pick, else the default.
 function Dots.Tint()

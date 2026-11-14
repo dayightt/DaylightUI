@@ -36,7 +36,7 @@ Pages.MODULES = {
       pitch = "Small helpers: faster looting, quest automation, trainers and more." },
 }
 
--- Other addons that replace the same thing as one of ours. Same list
+-- Other addons that replace the same thing as one of Daylight UI's. Same list
 -- DUI.WarnIfLoaded warns about in chat.
 Pages.CLASHES = {
     { module = "ActionBars", addon = "EllesmereUIActionBars", label = "EllesmereUI Action Bars", what = "action bars" },
@@ -461,7 +461,7 @@ end
 -- falls back to every character.
 function Pages.Character()
     local guid = UnitGUID("player")
-    if type(guid) ~= "string" or (issecretvalue and issecretvalue(guid)) then return nil end
+    if type(guid) ~= "string" or DUI.IsSecret(guid) then return nil end
     return guid
 end
 

@@ -111,7 +111,7 @@ function Theme.Section(id)
     return fallback[id]
 end
 
--- Our icons by name. Plugins (Plugins.lua) pass a full path or file id.
+-- Daylight UI's icons by name. Plugins (Plugins.lua) pass a full path or file id.
 function Theme.IconFile(icon)
     if type(icon) == "number" or string.find(icon, "[\\/]") then return icon end
     return DUI.MEDIA .. "ui-section-" .. icon .. ".png"

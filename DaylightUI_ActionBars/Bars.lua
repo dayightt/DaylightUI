@@ -16,7 +16,7 @@ ns.Bars = Bars
 -- The bars, in options order. Keys match the old engine's so settings and positions
 -- carry over. page = fixed page of action slots (bar 1 follows Paging.lua),
 -- command = the game's keybind command prefix, twin = the hidden game bar whose
--- buttons our keybinds press, up = rows stack upward like the game's bottom bars.
+-- buttons Daylight UI's keybinds press, up = rows stack upward like the game's bottom bars.
 Bars.DEFS = {
     { key = "main", num = 1, label = "Action Bar 1", kind = "action", page = 1, paged = true, up = true,
       command = "ACTIONBUTTON", twin = "MainActionBar", twinPrefix = "ActionButton" },
@@ -158,7 +158,7 @@ end
 
 -- The visibility rule for a bar: its kind's clauses, then its Show setting.
 function Bars.Rule(def)
-    -- In gamepad mode the game's controller bars replace every bar, so ours hide
+    -- In gamepad mode the game's controller bars replace every bar, so Daylight UI's bars hide
     -- the same way the game's own do.
     if DUI.Pad.On() then return "hide" end
     local cfg = Bars.Config(def)
@@ -171,7 +171,7 @@ end
 
 -- Whether a bar can show at all: not set to Hidden, has buttons, and passes its
 -- kind's check (no stance bar without forms). A kind that lays out a game bar
--- (the totem bar) has no buttons of ours, so its check alone decides. Bars that
+-- (the totem bar) has no Daylight UI buttons, so its check alone decides. Bars that
 -- fail get no unlock handle.
 function Bars.InUse(def)
     local list, kind = Bars.buttons[def.key], Bars.KINDS[def.kind]
@@ -371,14 +371,7 @@ end
 
 -- Repaints the panels on the next frame after a bar moves, shows, hides or is laid
 -- out, when its spot has settled. Many calls collapse into one pass.
-function Bars.PaintBacksSoon()
-    if Bars.backsQueued then return end
-    Bars.backsQueued = true
-    C_Timer.After(0, function()
-        Bars.backsQueued = nil
-        DUI.SafeCall(Bars.PaintBacks)
-    end)
-end
+Bars.PaintBacksSoon = DUI.Soon(function() DUI.SafeCall(Bars.PaintBacks) end)
 
 function Bars.SkinAll()
     DUI.SafeCall(Bars.PaintBacks)
@@ -463,7 +456,7 @@ function Bars.SettingChanged(mod, path)
     Bars.Refresh(mod)
 end
 
--- Extra Abilities (the big extra button) moves off the bars to our spot, but only
+-- Extra Abilities (the big extra button) moves off the bars to Daylight UI's spot, but only
 -- while it's still at the game's default. A spot picked in Edit Mode is left alone.
 local function extraEntry(layout)
     local sys = Enum.EditModeSystem and Enum.EditModeSystem.ExtraAbilities
@@ -522,7 +515,7 @@ function Bars.Enable(mod)
         end)
     end
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", convert)
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", convert)
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", convert)
     DUI.On("PadChanged", function() DUI.AfterCombat(Bars.Relayout, "bars:relayout") end)
     DUI.AfterCombat(Bars.Relayout, "bars:relayout")
     Bars.Refresh(mod)
@@ -640,7 +633,7 @@ function Bars.Build()
     -- Some kinds have their own events (a form learned). Re-lay those bars after combat.
     for _, def in ipairs(Bars.DEFS) do
         for _, event in ipairs(Bars.KINDS[def.kind].Events or {}) do
-            pcall(DUI.RegisterEvent, event, function()
+            DUI.RegisterEvent(event, function()
                 DUI.AfterCombat(function()
                     Bars.LayoutBar(def)
                     Bars.ApplyVisibility(def)
@@ -653,7 +646,7 @@ function Bars.Build()
 end
 
 -- ManaRise (another addon that fills spells you can't afford yet) finds the game's
--- bars on its own. Ours are registered through its ManaRise_RegisterBarAddon call,
+-- bars on its own. Daylight UI's are registered through its ManaRise_RegisterBarAddon call,
 -- now if it's loaded or else when it loads. Once per session.
 function Bars.TellManaRise()
     if Bars.toldManaRise then return end

@@ -1,6 +1,6 @@
 -- Spellbook data, read from C_SpellBook the same way the game's Camelot
 -- spellbook does (Blizzard_SpellBookCategory.lua). One section per visible
--- skill line, then Pet if the pet has a spellbook. No spell lists of our own.
+-- skill line, then Pet if the pet has a spellbook. No spell lists of its own.
 --
 -- Lower ranks (IsSpellBookItemLowRank) are nested under the top rank with the
 -- same name in the same section. Flyouts such as warrior stances are expanded

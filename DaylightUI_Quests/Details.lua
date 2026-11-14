@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -30,7 +31,7 @@ local function pick(ok, ...) if ok then return ... end end
 local function call(fn, ...)
     if type(fn) == "function" then return pick(pcall(fn, ...)) end
 end
-local function plain(v) return type(v) == "string" and not (issecretvalue and issecretvalue(v)) and v ~= "" end
+local function plain(v) return type(v) == "string" and not isSecret(v) and v ~= "" end
 
 -- Rewards as text lines: money, experience, items given. Choice items are only
 -- counted, because the game reads those from its selected quest, which addon

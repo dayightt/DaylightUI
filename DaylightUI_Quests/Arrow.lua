@@ -13,6 +13,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Motion = DUI.Style, DUI.Motion
 
 local Arrow = {
@@ -42,7 +43,6 @@ local function enabled()
     local n = db()
     return n ~= nil and n.arrow == true
 end
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 local function num(v) return type(v) == "number" and not secret(v) end
 
 local function call(t, name, ...)

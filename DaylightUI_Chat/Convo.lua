@@ -131,7 +131,7 @@ local function moveStop()
     Convo.moving = nil
     local drawer = ns.Tiles.Drawer()
     drawer:StopMovingOrSizing()
-    drawer:SetUserPlaced(false) -- saved by us, not in the game's layout file
+    drawer:SetUserPlaced(false) -- saved in the addon's settings, not in the game's layout file
     drawer:SetClampedToScreen(false)
     ns.Feel.Sizing(false, card)
     saveSpot(drawer)

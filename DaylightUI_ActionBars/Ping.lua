@@ -11,6 +11,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Ping = {}
 ns.Ping = Ping
@@ -23,7 +24,7 @@ local function enabled()
 end
 
 local function plain(v)
-    if type(issecretvalue) == "function" and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -76,7 +77,7 @@ end
 local events = CreateFrame("Frame")
 events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 events:SetScript("OnEvent", function(_, _, _, _, spellID)
-    if type(issecretvalue) == "function" and issecretvalue(spellID) then return end
+    if isSecret(spellID) then return end
     DUI.SafeCall(Ping.Shot, spellID)
 end)
 

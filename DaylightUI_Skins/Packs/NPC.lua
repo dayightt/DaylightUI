@@ -40,7 +40,7 @@ function ns.LightQuestInfo(Kit)
 end
 
 -- ---------------------------------------------------------------------
--- Flight map (load on demand): our border around the map, no panel over it.
+-- Flight map (load on demand): the Daylight border around the map, no panel over it.
 -- ---------------------------------------------------------------------
 
 Engine.Register({ key = "flightmap", pack = "npc", addon = "Blizzard_FlightMap", apply = function(Kit)
@@ -209,7 +209,7 @@ local function dressLetter(Kit)
         if type(text) == "string" and text ~= "" and page.SetText then page:SetText(text) end
     end
     fitLetter(scroll, page)
-    -- The close and the title sit where our own windows put them. The game's
+    -- The close and the title sit where Daylight UI windows put them. The game's
     -- corner button and its title row sit higher and further right.
     local close = type(frame) == "table" and frame.CloseButton
     if type(close) == "table" and close.SetPoint then
@@ -277,6 +277,6 @@ Engine.Window({ key = "tabard", pack = "npc", frame = "TabardFrame" })
 Engine.Window({ key = "petition", pack = "npc", frame = "PetitionFrame", light = true })
 Engine.Window({ key = "registrar", pack = "npc", frame = "GuildRegistrarFrame", light = true })
 -- The old flight map draws the map into the window's InsetBg, so that's kept
--- with our window around it.
+-- with a Daylight window around it.
 Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } } })
 
