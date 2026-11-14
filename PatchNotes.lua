@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "Party and raid", "Prayer of Mending shows as a heal indicator when you pick it" },
             { "Window skins", "With the NPC window off, the game's quest window keeps its dark text instead of turning white" },
             { "Nameplates", "The Group mark beside party members' names shows again, dungeons included" },
+            { "Unit frames", "Your target's buffs are back under the frame where you had them before 1.8.0, and your own and the personal display's auras grow the way they used to. Spots you picked yourself stay" },
             { "Nameplates", "The level, health text, threat % and execute icon beside the plate are back where they sat before 1.8.0, instead of pushed far out by the new big defensive icon" },
         },
     },
