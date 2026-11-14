@@ -242,6 +242,7 @@ Raid.group = ns.Group.New({
     dress = function(b) Raid.DressSample(b) end,
     showSample = function(b, i, cfg) Raid.ShowSample(b, i, cfg) end,
     hideSample = function(b) Raid.HideSample(b) end,
+    previewMade = function(list) Raid.preview = list end,
 })
 Raid.buttons = Raid.group.buttons   -- every button set up so far (Group:Take)
 
@@ -270,7 +271,6 @@ end
 
 function Raid.CreatePreview()
     Raid.group:CreatePreview()
-    Raid.preview = Raid.group.preview
 end
 
 -- "Use raid frames in a party": the raid tiles show in a party too and the

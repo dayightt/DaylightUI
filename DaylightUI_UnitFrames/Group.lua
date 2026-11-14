@@ -433,7 +433,7 @@ end
 function Group:Resize(cfg)
     local holder = self.holder
     local rows, count
-    if self:Previewing() and self.preview then
+    if self:Previewing() and self:EnsurePreview() then
         rows = self:PreviewRows(cfg)
         count = self.opts.previewCount(cfg)
     else
@@ -596,13 +596,26 @@ function Group:NewSampleButton(parent, i, dress)
     return b
 end
 
+-- The samples are only built the first time test mode shows them. Forty raid
+-- tiles and five party tiles that most players never look at made every login
+-- slower and heavier.
 function Group:CreatePreview()
+    self.previewWanted = true
+end
+
+function Group:EnsurePreview()
+    if self.preview or not self.previewWanted then return self.preview end
     self.preview = {}
     for i = 1, self.opts.maxCount do
         local b = self:NewSampleButton(self.holder, i, self.opts.dress)
         b:Hide()
         self.preview[i] = b
     end
+    if self.opts.previewMade then self.opts.previewMade(self.preview) end
+    local cfg, text = self:Config()
+    local holder = self.holder
+    if cfg and holder.tileW then self:LayoutPreview(cfg, text, holder.tileW, holder.tileH) end
+    return self.preview
 end
 
 -- Lays sample buttons out from the holder's corner (Group.Corner) the same way
@@ -695,8 +708,9 @@ function Group:FillSamples(list, count, cfg)
 end
 
 function Group:ShowPreview(on)
-    if not self.preview then return end
     on = on and self:Previewing() and not (self.opts.hideInTest and self.opts.hideInTest())
+    if on then self:EnsurePreview() end
+    if not self.preview then return end
     local cfg = self:Config()
     local count = cfg and self.opts.previewCount(cfg) or #self.preview
     self:FillSamples(self.preview, on and count or 0, cfg)

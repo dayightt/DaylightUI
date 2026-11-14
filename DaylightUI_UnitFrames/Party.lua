@@ -138,6 +138,7 @@ Party.group = ns.Group.New({
     dress = function(b) Party.DressSample(b) end,
     showSample = function(b, i, cfg) Party.ShowSample(b, i, cfg) end,
     hideSample = function(b) Party.HideSample(b) end,
+    previewMade = function(list) Party.preview = list end,
     layoutButton = function(b)
         ns.PartyPets.Layout(b)
         ns.PartyTargets.Layout(b)
@@ -154,7 +155,6 @@ end
 
 function Party.CreatePreview()
     Party.group:CreatePreview()
-    Party.preview = Party.group.preview
 end
 
 local function preview(on)
