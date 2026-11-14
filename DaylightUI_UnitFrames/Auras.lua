@@ -35,13 +35,19 @@ Auras.KINDS = {
         { key = "cure", filter = "HARMFUL|!PLAYER|RAID_PLAYER_DISPELLABLE", index = 2, halo = true },
         { key = "others", filter = "HARMFUL|!PLAYER", index = 3, fallback = true },
     } },
+    -- The buff filter picks one group (buffFilter all|purge|mine). The other
+    -- two are added the first time they're picked (lazy).
     buff = { name = "DaylightUITargetBuffs", groups = {
-        { key = "buffs", filter = "HELPFUL", index = 1 },
+        { key = "buffs", filter = "HELPFUL", index = 1, pick = "all" },
+        { key = "purge", filter = "HELPFUL|RAID_PLAYER_DISPELLABLE", index = 1, pick = "purge", lazy = true },
+        { key = "mine", filter = "HELPFUL|PLAYER", index = 1, pick = "mine", lazy = true },
     } },
     -- The player frame's own rows (off by default). On yourself "mine and
-    -- others" means nothing, so every debuff is one group.
+    -- others" means nothing, so it's every debuff, or only the ones you can
+    -- dispel (debuffFilter all|dispel).
     selfdebuff = { name = "DaylightUIPlayerDebuffs", groups = {
-        { key = "all", filter = "HARMFUL", index = 1 },
+        { key = "all", filter = "HARMFUL", index = 1, pick = "all" },
+        { key = "dispel", filter = Auras.DISPEL_FILTER, index = 1, pick = "dispel", lazy = true },
     } },
     selfbuff = { name = "DaylightUIPlayerBuffs", groups = {
         { key = "buffs", filter = "HELPFUL", index = 1 },
@@ -220,7 +226,11 @@ end
 function Auras.InitButton(btn, kind, container, cure)
     local s = dimsOf(container, kind)
     btn:SetSize(s[1], s[2])
-    if Auras.TILE_KINDS[kind] then Auras.TileMouse(btn, container ~= nil and tipsOn[container] == true) end
+    if Auras.TILE_KINDS[kind] then
+        Auras.TileMouse(btn, container ~= nil and tipsOn[container] == true)
+    elseif container and tipsOn[container] == false then
+        pcall(btn.EnableMouse, btn, false)
+    end
     local T = Pixel.Px(btn, Auras.BORDER_PX)
     local icon = btn:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", btn, "TOPLEFT", T, -T)
@@ -352,7 +362,7 @@ local function newContainer(frame, kind, side, unit, down, prep, lazy)
     if prep then prep(c) end
     if lazy then return c end
     for _, g in ipairs(Auras.KINDS[kind].groups) do
-        if not g.fallback then Auras.AddGroup(c, g.key) end
+        if not g.fallback and not g.lazy then Auras.AddGroup(c, g.key) end
     end
     -- The all-in-one group only when the client refused the split.
     for _, g in ipairs(Auras.KINDS[kind].groups) do
@@ -386,7 +396,10 @@ function Auras.Create(frame, side, unit, cfg)
         return function(c)
             local w = cfg and tonumber(cfg[kind .. "Size"])
             if w then Auras.SetOwnSize(c, w, tonumber(cfg[kind .. "Spacing"]) or Auras.SPACING[kind]) end
-            if cfg then Auras.SetTextSizes(c, cfg[kind .. "TimeSize"], cfg[kind .. "CountSize"]) end
+            if cfg then
+                Auras.SetTextSizes(c, cfg[kind .. "TimeSize"], cfg[kind .. "CountSize"])
+                Auras.SetRowLook(c, cfg, kind)
+            end
         end
     end
     local debuffs = newContainer(frame, kinds.debuff, side, unit, false, prep("debuff"))
@@ -535,11 +548,28 @@ end
 -- above.
 function Auras.SetTips(c, on)
     on = on == true
-    if plain[c] or (tipsOn[c] == true) == on then return end
+    -- nil until set: a target row's icons take the hover unless switched off.
+    if plain[c] or tipsOn[c] == on then return end
     tipsOn[c] = on
     DUI.AfterRestrictions(function()
-        for btn in pairs(ownButtons(c)) do Auras.TileMouse(btn, on) end
+        for btn, parts in pairs(ownButtons(c)) do
+            -- A tile's icons never take clicks. The target's and player's
+            -- rows keep what the client gives them, only the hover goes.
+            if Auras.TILE_KINDS[parts.kind] then Auras.TileMouse(btn, on) else pcall(btn.EnableMouse, btn, on) end
+        end
     end, "auras:tips:" .. tostring(c))
+end
+
+-- A target, player or personal row's time numbers, sweep and tooltips from
+-- its settings (<kind>Timers, <kind>ShortTimers, <kind>Swipe, <kind>Tips).
+-- Called before the row's groups are added too, since locked buttons only
+-- take them while they're built.
+function Auras.SetRowLook(c, cfg, kind)
+    if not (c and cfg) then return end
+    Auras.SetTimers(c, cfg[kind .. "Timers"] ~= false)
+    Auras.SetShortTimers(c, cfg[kind .. "ShortTimers"] == true)
+    Auras.SetSwipe(c, cfg[kind .. "Swipe"] == true)
+    Auras.SetTips(c, cfg[kind .. "Tips"] ~= false)
 end
 
 -- Whether a container's time numbers show only under a minute. Locked buttons
@@ -609,9 +639,29 @@ function Auras.Limit(set)
     for i, g in ipairs(groupsOf(set, "debuff")) do
         pcall(d.SetAuraGroupMaxFrameCount, d, g.key, set.counts.debuff[i] or 0)
     end
-    if set.buffs then
-        pcall(set.buffs.SetAuraGroupMaxFrameCount, set.buffs, "buffs", set.counts.buff[1] or 0)
+    local b = set.buffs
+    if b then
+        for i, g in ipairs(groupsOf(set, "buff")) do
+            pcall(b.SetAuraGroupMaxFrameCount, b, g.key, set.counts.buff[i] or 0)
+        end
     end
+end
+
+-- The wanted count of each group of a picked-filter row (groups with `pick`):
+-- n for the picked one, 0 for the rest. A picked group not made yet is added
+-- now, after the row's settings are on its container.
+local function pickedWant(set, kind, pick, n)
+    local c, out = set[kind .. "s"], {}
+    local groups = groupsOf(set, kind)
+    local known = false
+    for _, g in ipairs(groups) do known = known or g.pick == pick end
+    if not known then pick = groups[1].pick end
+    for i, g in ipairs(groups) do
+        local on = g.pick == pick and n > 0
+        if on and g.lazy and not Auras.AddGroup(c, g.key) then on = false end
+        out[i] = on and n or 0
+    end
+    return out
 end
 
 -- Where each row sits (Spots.lua): its spot, growth direction, and nudge.
@@ -631,18 +681,26 @@ function Auras.Apply(set, cfg)
     -- It re-lays the groups and sizes the buttons once restrictions lift.
     Auras.SetOwnSize(set.debuffs, cfg.debuffSize or sizeOf.debuff[1], cfg.debuffSpacing or Auras.SPACING.debuff)
     Auras.SetTextSizes(set.debuffs, cfg.debuffTimeSize, cfg.debuffCountSize)
+    Auras.SetRowLook(set.debuffs, cfg, "debuff")
     if set.buffs then
         Auras.SetOwnSize(set.buffs, cfg.buffSize or sizeOf.buff[1], cfg.buffSpacing or Auras.SPACING.buff)
         Auras.SetTextSizes(set.buffs, cfg.buffTimeSize, cfg.buffCountSize)
+        Auras.SetRowLook(set.buffs, cfg, "buff")
     end
     -- Others' debuffs: the dispellable ones and the rest, each up to the count,
     -- or all in one group when the client refused the split.
     local others = (cfg.debuffs and cfg.debuffFilter == "all") and cfg.maxOtherDebuffs or 0
     local split = Auras.Splits(set.debuffs)
+    local debuffWant
+    if groupsOf(set, "debuff")[1].pick then
+        debuffWant = pickedWant(set, "debuff", cfg.debuffFilter, cfg.debuffs and cfg.maxDebuffs or 0)
+    else
+        debuffWant = { cfg.debuffs and cfg.maxDebuffs or 0,
+                       split and others or 0, split and others or 0, split and 0 or others }
+    end
     set.want = {
-        debuff = { cfg.debuffs and cfg.maxDebuffs or 0,
-                   split and others or 0, split and others or 0, split and 0 or others },
-        buff = { cfg.buffs and cfg.maxBuffs or 0 },
+        debuff = debuffWant,
+        buff = set.buffs and pickedWant(set, "buff", cfg.buffFilter, cfg.buffs and cfg.maxBuffs or 0) or {},
     }
     set.rows = { debuff = cfg.debuffRows, buff = cfg.buffRows }
     Auras.Limit(set)
@@ -878,7 +936,8 @@ end
 
 -- n samples in rows from the outer end inward. vert is the edge rows start from
 -- ("BOTTOM" stacks up, "TOP" down), matching how the container lays out real ones.
-local function showRow(c, kind, list, n, perRow, outer, dir, vert)
+-- cfg, when given: the row's time numbers and sweep follow its settings.
+local function showRow(c, kind, list, n, perRow, outer, dir, vert, cfg)
     local h = holderFor(c)
     local s, gap = dimsOf(c, kind)
     local vdir = vert == "BOTTOM" and 1 or -1
@@ -886,6 +945,10 @@ local function showRow(c, kind, list, n, perRow, outer, dir, vert)
         local btn = h.pool[i] or sampleButton(h, kind)
         h.pool[i] = btn
         fitSample(btn, s, list[i], c)
+        if cfg then
+            btn.time:SetShown(cfg[kind .. "Timers"] ~= false and not (cfg[kind .. "ShortTimers"] and list[i].long))
+            Auras.ShowSampleSwipe(btn, cfg[kind .. "Swipe"] == true and (list[i].left or 0.5))
+        end
         local col, row = (i - 1) % perRow, math.floor((i - 1) / perRow)
         btn:ClearAllPoints()
         btn:SetPoint(vert .. outer, h, vert .. outer, dir * col * (s[1] + gap), vdir * row * (s[2] + gap + 4))
@@ -940,11 +1003,20 @@ function Auras.ShowSample(set, frame, cfg, samples)
     set.sample = { cfg = cfg, list = samples }
     local left = set.side == "left"
     local outer, dir = left and "RIGHT" or "LEFT", left and -1 or 1
+    -- A row filtered to what you can dispel or purge shows only those samples.
+    local function only(list, field)
+        local out = {}
+        for _, a in ipairs(list) do if a[field] then out[#out + 1] = a end end
+        return out
+    end
+    local debuffList, buffList = samples.debuffs, samples.buffs
+    if set.side == "right" and cfg.debuffFilter == "dispel" then debuffList = only(debuffList, "cure") end
+    if cfg.buffFilter == "purge" then buffList = only(buffList, "purge") end
     local nd = 0
     if cfg.debuffs then
         local got = capCounts(set, "debuff", { cfg.maxDebuffs,
             cfg.debuffFilter == "all" and cfg.maxOtherDebuffs or 0 }, cfg.debuffRows)
-        nd = math.min(#samples.debuffs, got[1] + got[2])
+        nd = math.min(#debuffList, got[1] + got[2])
     end
     -- Each row's samples run the way Place laid out the row: from its flow's
     -- corner, across, then up or down.
@@ -955,12 +1027,12 @@ function Auras.ShowSample(set, frame, cfg, samples)
         return left and "RIGHT" or "LEFT", left and -1 or 1, L.vDir == "Up" and "BOTTOM" or "TOP"
     end
     local o, d, v = flowOf("debuff", "BOTTOM")
-    showRow(set.debuffs, "debuff", samples.debuffs, nd, perRowOf(set, "debuff"), o, d, v)
+    showRow(set.debuffs, "debuff", debuffList, nd, perRowOf(set, "debuff"), o, d, v, cfg)
     if set.buffs then
-        local nb = cfg.buffs and math.min(#samples.buffs,
+        local nb = cfg.buffs and math.min(#buffList,
             capCounts(set, "buff", { cfg.maxBuffs }, cfg.buffRows)[1]) or 0
         o, d, v = flowOf("buff", "TOP")
-        showRow(set.buffs, "buff", samples.buffs, nb, perRowOf(set, "buff"), o, d, v)
+        showRow(set.buffs, "buff", buffList, nb, perRowOf(set, "buff"), o, d, v, cfg)
     end
 end
 

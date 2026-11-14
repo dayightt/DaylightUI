@@ -122,7 +122,10 @@ T.test("the Player page has the same Debuffs and Buffs cards, on the player's ke
                          "buffGrow", "buffX", "buffY" }) do
         T.truthy(keys["playerAuras." .. k], k)
     end
-    T.isnil(keys["playerAuras.debuffFilter"], "no mine/others on yourself")
+    local filter = keys["playerAuras.debuffFilter"]
+    T.isnil(filter.values.mine, "no mine/others on yourself: all or the ones you can dispel")
+    T.truthy(filter.values.dispel)
+    T.isnil(keys["playerAuras.buffFilter"], "purging your own buffs means nothing")
     T.isnil(keys["playerAuras.maxOtherDebuffs"])
     T.eq(#O.ValidatePage(O.GetPage("UnitFrames.player")), 0)
     -- The target's cards are untouched.
@@ -207,4 +210,43 @@ T.test("the target's preview keeps the room its cast bar takes in game", functio
     s.Refresh(600, 160)
     T.truthy(ns.auras.aboveLift > 0)
     T.eq(s.f.sampleAuras.aboveLift, ns.auras.aboveLift)
+end)
+
+T.test("the target's buff filter picks one group, each added the first time it's picked", function()
+    local DUI, ns = login()
+    local b = ns.auras.buffs
+    T.eq(b.__groups.buffs.filter, "HELPFUL")
+    T.isnil(b.__groups.purge, "nothing paid for a filter nobody picked")
+    DUI:Set("UnitFrames", "targetAuras.buffFilter", "purge")
+    T.eq(b.__groups.purge.filter, "HELPFUL|RAID_PLAYER_DISPELLABLE")
+    T.truthy(b.__groups.purge.max > 0)
+    T.eq(b.__groups.buffs.max, 0, "only the picked one shows")
+    DUI:Set("UnitFrames", "targetAuras.buffFilter", "mine")
+    T.eq(b.__groups.mine.filter, "HELPFUL|PLAYER")
+    T.eq(b.__groups.purge.max, 0)
+    T.truthy(b.__groups.mine.max > 0)
+end)
+
+T.test("the player's debuffs can show only the ones you can dispel", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "playerAuras.debuffs", true)
+    local d = ns.playerAuras.debuffs
+    T.isnil(d.__groups.dispel)
+    DUI:Set("UnitFrames", "playerAuras.debuffFilter", "dispel")
+    T.eq(d.__groups.dispel.filter, "HARMFUL|RAID_PLAYER_DISPELLABLE")
+    T.eq(d.__groups.all.max, 0)
+    T.truthy(d.__groups.dispel.max > 0)
+end)
+
+T.test("the target's time numbers, sweep and tooltips follow their switches, built in from the start", function()
+    local DUI, ns = login(function()
+        DaylightUIDB = { modules = { UnitFrames = { targetAuras = { buffSwipe = true, buffTips = false } } } }
+    end)
+    local btn = ns.auras.buffs.__groups.buffs.button
+    T.truthy(btn, "the client built the buttons")
+    T.eq(btn:IsMouseEnabled(), false, "built with tooltips off: the mouse goes through")
+    DUI:Set("UnitFrames", "targetAuras.buffTips", true)
+    T.eq(btn:IsMouseEnabled(), true, "on again")
+    local debuff = ns.auras.debuffs.__groups.mine.button
+    T.eq(debuff:IsMouseEnabled(), true, "the debuffs keep theirs")
 end)

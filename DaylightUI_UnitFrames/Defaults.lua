@@ -202,7 +202,9 @@ ns.DEFAULTS = {
                  auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
                            buffSpot = "above", buffGrow = "center", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                            buffSize = 20, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
-                           debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                           debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                           debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                           debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
                  fade = DaylightUI.Fade.Defaults({ mode = "ooc", target = true, delay = 2, mouseover = false }) },
     -- Spot, grow and nudge (Spots.lua) for each row: debuffs over the name
     -- tab, buffs under the frame, both from the outer end inward.
@@ -210,7 +212,9 @@ ns.DEFAULTS = {
                     buffSpot = "below", buffGrow = "left", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
                     maxDebuffs = 8, maxOtherDebuffs = 4, buffSize = 16, buffs = true, maxBuffs = 6,
                     debuffSpacing = 3, buffSpacing = 3, debuffRows = 3, buffRows = 2,
-                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                    debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The player frame's own aura rows, styled like the target's. Off by
     -- default, since the Buffs module shows yours. Both sit over the frame,
     -- clear of the cast bar and swing timers below, buffs nearest, running from
@@ -218,7 +222,9 @@ ns.DEFAULTS = {
     playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "right", debuffX = 0, debuffY = 0,
                     buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                     buffSize = 16, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
-                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                    debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
     -- Text sizes per frame. Party and raid share theirs.
     playerText = { name = 12, percent = 11, big = 20, power = 0 },
     targetText = { name = 12, percent = 11, big = 20, power = 0 },

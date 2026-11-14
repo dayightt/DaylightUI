@@ -804,6 +804,9 @@ local function unitAuraCards(prefix, own, desc)
           desc = "How big each debuff icon is.", disabled = dOff },
     }
     if own then
+        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter",
+            values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
+            desc = "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max shown", min = 1, max = 16, step = 1,
                                   desc = "The most debuff icons at once.", disabled = dOff }
     else
@@ -839,6 +842,28 @@ local function unitAuraCards(prefix, own, desc)
         { type = "slider", key = k("buffCountSize"), label = "Stack count size", min = 6, max = 20, step = 1,
           desc = "How big the number of stacks is on each buff icon.", disabled = bOff },
     }
+    if not own then
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter",
+            values = { all = "All buffs", purge = "Only ones I can purge or steal", mine = "Only mine" },
+            order = { "all", "purge", "mine" }, disabled = bOff,
+            desc = "Every buff, only the ones your class can take off an enemy, or only the ones you cast. A class that can't purge shows none with the second." })
+    end
+    -- Time numbers, sweep and tooltips: the same switches the party and raid icons have.
+    local function look(list, kind, show)
+        local dis = off(k(show))
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on icons",
+                            desc = "The time left as a number on each icon.", disabled = dis }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = "Only under a minute",
+                            desc = "Hides the number while a minute or more is left, so long ones stay quiet.",
+                            disabled = offAny(k(show), k(kind .. "Timers")) }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = "Cooldown swipe",
+                            desc = "Each icon darkens like a clock as its time runs out.", disabled = dis }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = "Tooltip on hover",
+                            desc = "Hovering an icon says what it is. Off, the mouse goes straight through to what's behind it.",
+                            disabled = dis }
+    end
+    look(debuffs, "debuff", "debuffs")
+    look(buffs, "buff", "buffs")
     for _, it in ipairs(spotItems(prefix, "debuff", k("debuffs"))) do debuffs[#debuffs + 1] = it end
     for _, it in ipairs(spotItems(prefix, "buff", k("buffs"))) do buffs[#buffs + 1] = it end
     return { { label = "Debuffs", desc = desc.debuffs, items = debuffs },

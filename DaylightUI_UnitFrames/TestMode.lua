@@ -41,18 +41,18 @@ Test.COMBO = 3
 local I = "Interface\\Icons\\"
 Test.AURAS = {
     debuffs = {
-        { icon = I .. "Spell_Shadow_ShadowWordPain", time = "14s", dispel = "Magic" },
-        { icon = I .. "Spell_Shadow_CurseOfSargeras", time = "22s", dispel = "Curse", cure = true },
-        { icon = I .. "Ability_Gouge", time = "9s", count = 3, dispel = "Bleed" },
-        { icon = I .. "Spell_Nature_CorrosiveBreath", time = "1m", dispel = "Poison" },
-        { icon = I .. "Spell_Shadow_AbominationExplosion", time = "3m", dispel = "Disease" },
+        { icon = I .. "Spell_Shadow_ShadowWordPain", time = "14s", dispel = "Magic", left = 0.5 },
+        { icon = I .. "Spell_Shadow_CurseOfSargeras", time = "22s", dispel = "Curse", cure = true, left = 0.7 },
+        { icon = I .. "Ability_Gouge", time = "9s", count = 3, dispel = "Bleed", left = 0.3 },
+        { icon = I .. "Spell_Nature_CorrosiveBreath", time = "1m", dispel = "Poison", left = 0.8, long = true },
+        { icon = I .. "Spell_Shadow_AbominationExplosion", time = "3m", dispel = "Disease", left = 0.9, long = true },
     },
     buffs = {
-        { icon = I .. "Spell_Holy_WordFortitude", time = "29m" },
-        { icon = I .. "Spell_Nature_Regeneration", time = "13m" },
-        { icon = I .. "Spell_Holy_MagicalSentry", time = "44m" },
-        { icon = I .. "Ability_Warrior_BattleShout", time = "2m" },
-        { icon = I .. "Spell_Holy_PowerWordShield", time = "19s", purge = "Magic" },
+        { icon = I .. "Spell_Holy_WordFortitude", time = "29m", left = 0.95, long = true },
+        { icon = I .. "Spell_Nature_Regeneration", time = "13m", left = 0.4, long = true },
+        { icon = I .. "Spell_Holy_MagicalSentry", time = "44m", left = 0.75, long = true },
+        { icon = I .. "Ability_Warrior_BattleShout", time = "2m", left = 0.1, long = true },
+        { icon = I .. "Spell_Holy_PowerWordShield", time = "19s", purge = "Magic", left = 0.6 },
     },
 }
 
