@@ -343,8 +343,8 @@ end
 -- wrap downward (under a frame) instead of up. prep(c) applies the settings
 -- before any group is added. lazy: no groups now, each is added the first time
 -- it shows (Auras.AddGroup, AuraGroups.Place).
-local function newContainer(frame, kind, side, unit, down, prep, lazy)
-    local ok, c = pcall(CreateFrame, "AuraContainer", Auras.KINDS[kind].name, frame, "CustomAuraContainerTemplate")
+local function newContainer(frame, kind, side, unit, down, prep, lazy, name)
+    local ok, c = pcall(CreateFrame, "AuraContainer", name or Auras.KINDS[kind].name, frame, "CustomAuraContainerTemplate")
     if not ok or not c then return nil end
     c:SetUnit(unit or "target")
     c:EnableMouse(false)
@@ -375,6 +375,8 @@ end
 -- frame's own (unit "player").
 local SET_KINDS = {
     target = { debuff = "debuff", buff = "buff" },
+    -- The focus's rows work like the target's, in containers of their own name.
+    focus = { debuff = "debuff", buff = "buff", names = { debuff = "DaylightUIFocusDebuffs", buff = "DaylightUIFocusBuffs" } },
     player = { debuff = "selfdebuff", buff = "selfbuff" },
 }
 
@@ -402,14 +404,15 @@ function Auras.Create(frame, side, unit, cfg)
             end
         end
     end
-    local debuffs = newContainer(frame, kinds.debuff, side, unit, false, prep("debuff"))
+    local names = kinds.names or {}
+    local debuffs = newContainer(frame, kinds.debuff, side, unit, false, prep("debuff"), nil, names.debuff)
     if not debuffs then
         if not warned then DUI.Print(DUI.L["This client has no aura container; target auras are off."]) end
         warned = true
         return nil
     end
     -- Buffs under the frame: their rows start at the top and go down.
-    return { debuffs = debuffs, buffs = newContainer(frame, kinds.buff, side, unit, true, prep("buff")), side = side,
+    return { debuffs = debuffs, buffs = newContainer(frame, kinds.buff, side, unit, true, prep("buff"), nil, names.buff), side = side,
              kinds = kinds }
 end
 

@@ -909,6 +909,10 @@ local PLAYER_AURA_GROUPS = unitAuraCards("playerAuras", true, {
     debuffs = "Every debuff on you, over your frame. Off by default: your buff bars show them too.",
     buffs = "Small icons over your frame, nearest it. Off by default: your buff bars show them too." })
 
+local FOCUS_AURA_GROUPS = unitAuraCards("focusAuras", false, {
+    debuffs = "Over the focus's name tab. Only yours by default.",
+    buffs = "Small icons under the focus. Off by default." })
+
 -- The personal display's own rows, dimmed with the display.
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {
     debuffs = "Every debuff on you, by your personal display. Off by default.",
@@ -2087,7 +2091,8 @@ ns.OPTIONS = { pages = {
         { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
           slantDesc = "Cuts the left end at an angle; the bars follow it." }),
     framePage("focus", "Focus", "The unit you set as focus.",
-        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true }),
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
+          auras = FOCUS_AURA_GROUPS }),
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles. Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,

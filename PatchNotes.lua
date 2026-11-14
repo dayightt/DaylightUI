@@ -32,6 +32,7 @@ DUI.PatchNotes = {
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
+            { "Unit frames", "The focus frame can show its buffs and debuffs, like the game's own focus frame: Focus page, Auras" },
             { "Edit Mode", "Logging in or going through a loading screen no longer switches your own Edit Mode layout back to Daylight UI's" },
             { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },

@@ -250,3 +250,29 @@ T.test("the target's time numbers, sweep and tooltips follow their switches, bui
     local debuff = ns.auras.debuffs.__groups.mine.button
     T.eq(debuff:IsMouseEnabled(), true, "the debuffs keep theirs")
 end)
+
+T.test("the focus's rows are off until switched on, then only your debuffs, in containers of their own", function()
+    local DUI, ns = login()
+    T.isnil(ns.focusAuras, "nobody pays for them until they're on")
+    DUI:Set("UnitFrames", "focusAuras.debuffs", true)
+    local set = ns.focusAuras
+    T.truthy(set)
+    T.eq(set.debuffs.__unit, "focus"); T.eq(set.buffs.__unit, "focus")
+    T.eq(_G.DaylightUIFocusDebuffs, set.debuffs)
+    T.truthy(_G.DaylightUITargetDebuffs ~= set.debuffs, "the target keeps its own")
+    T.truthy(set.debuffs.__groups.mine.max > 0)
+    T.eq(set.debuffs.__groups.rest.max, 0, "others' debuffs wait for Mine first, then others")
+    DUI:Set("UnitFrames", "focusAuras.debuffFilter", "all")
+    T.truthy(set.debuffs.__groups.rest.max > 0)
+    T.eq(set.buffs.__groups.buffs.max, 0, "the buffs stay off")
+end)
+
+T.test("the Focus page has its Debuffs and Buffs cards, and they pass the page check", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    local by = {}
+    for _, g in ipairs(O.GetPage("UnitFrames.focus").groups) do by[g.label] = g end
+    T.eq(by.Debuffs.items[1].key, "focusAuras.debuffs")
+    T.eq(by.Buffs.items[1].key, "focusAuras.buffs")
+    T.eq(#O.ValidatePage(O.GetPage("UnitFrames.focus")), 0)
+end)

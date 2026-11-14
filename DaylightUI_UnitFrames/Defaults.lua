@@ -215,6 +215,15 @@ ns.DEFAULTS = {
                     debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                     debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                     debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
+    -- The focus's own rows, shaped like the target's but smaller: off by
+    -- default, and only your own debuffs once on, so it tracks what you put there.
+    focusAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "right", debuffX = 0, debuffY = 0,
+                   buffSpot = "below", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 22, debuffFilter = "mine",
+                   maxDebuffs = 6, maxOtherDebuffs = 3, buffSize = 16, maxBuffs = 6,
+                   debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 1,
+                   debuffTimeSize = 11, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                   debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                   debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The player frame's own aura rows, styled like the target's. Off by
     -- default, since the Buffs module shows yours. Both sit over the frame,
     -- clear of the cast bar and swing timers below, buffs nearest, running from

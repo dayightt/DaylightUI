@@ -136,7 +136,8 @@ local function auraRow(prefix, kind)
              move = { spot = p .. "Spot", x = p .. "X", y = p .. "Y" }, size = { s = p .. "Size" } }
 end
 -- Page id -> its aura settings and inner end (the side the rows grow toward).
-PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" } }
+PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" },
+                         focus = { key = "focusAuras", side = "right" } }
 PageSample.AURA_PARTS = {}
 for id, a in pairs(PageSample.AURA_SETS) do
     PageSample.AURA_PARTS[id] = { auraRow(a.key, "debuff"), auraRow(a.key, "buff") }
@@ -463,6 +464,7 @@ local function refreshSingle(s, width, maxH)
         -- The frame's auras, from its page's own settings.
         local a = d[PageSample.AURA_SETS[s.id].key]
         if s.id == "target" then s.auras.aboveLift, s.auras.buffDrop = ns.TargetAuraRoom(d) end
+        if s.id == "focus" then s.auras.aboveLift, s.auras.buffDrop = ns.FocusAuraRoom(d) end
         Auras.Apply(s.auras, a)
         local top, bottom = Auras.Place(s.auras, f, cfg)
         Auras.ShowSample(s.auras, f, a, ns.Test.AURAS)
