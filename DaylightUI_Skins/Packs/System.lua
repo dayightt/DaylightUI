@@ -489,6 +489,38 @@ for i = 1, 4 do
         end })
 end
 
+-- The role check pop-ups (a leader's role poll, and the dungeon finder's
+-- confirm-your-role box) dressed like the confirm boxes above, and just as
+-- quietly: both set up controller focus as they open. The role icons and
+-- their radio dots are the game's art and stay.
+local function roleTitle(Kit, f)
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.GetObjectType and r:GetObjectType() == "FontString" then Kit.Font(r, DUI.Style.SIZE.head) end
+    end
+end
+
+Engine.Window({ key = "rolepoll", pack = "system", frame = "RolePollPopup",
+    auto = false,
+    window = { quiet = true },
+    hide = { ".Border" },
+    after = function(Kit, f)
+        roleTitle(Kit, f)
+        Kit.Button(f.acceptButton, f)
+    end })
+
+Engine.Window({ key = "rolecheck", pack = "system", frame = "LFDRoleCheckPopup",
+    auto = false,
+    window = { quiet = true },
+    hide = { ".Border" },
+    after = function(Kit, f)
+        Kit.Font(f.Text, DUI.Style.SIZE.head)
+        Kit.Button(_G.LFDRoleCheckPopupAcceptButton, f)
+        Kit.Button(_G.LFDRoleCheckPopupDeclineButton, f)
+        Kit.Font(_G.LFDRoleCheckPopupDescriptionText)
+        local desc = _G.LFDRoleCheckPopupDescription
+        if type(desc) == "table" then Kit.Font(desc.SubText, DUI.Style.SIZE.small, DUI.Style.INK.LABEL) end
+    end })
+
 -- The stack split box (Shift-click a stack in your bags): our window, arrows and
 -- buttons, the amount in the accent. The game moves its pieces and shows one of
 -- two backgrounds on each open, so only their alpha is touched and its layout
