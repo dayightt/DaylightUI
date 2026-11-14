@@ -7126,3 +7126,126 @@ T.test("bags: Move what you searched for sends matches to the open bank", functi
     T.falsy(moveButton(f), "the bank closed: gone")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Bag addons whose Baganator support lives inside Baganator itself, or only wakes
+-- when Baganator is really loaded, are hooked up by Daylight UI directly.
+local function loadAddon(name)
+    stub.FireEvent("ADDON_LOADED", name)
+    stub.RunTimers()
+end
+
+T.test("bags: Pawn's upgrade arrows show on gear and answer the upgrade search", function()
+    local ns, f = catLogin()
+    local registered
+    _G.PawnRegisterThirdPartyBag = function(name, o) registered = { name = name, o = o } end
+    _G.PawnShouldItemLinkHaveUpgradeArrow = function(link) return link == "|Hitem:6|h" end
+    loadAddon("Pawn")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local armor, weapon = P.Widget(B.buttons[0][5], "pawn"), P.Widget(B.buttons[0][1], "pawn")
+    T.truthy(armor and armor:IsShown(), "the upgrade gets Pawn's arrow")
+    T.eq((armor:GetPoint(1)), "TOPLEFT", "top left, as in Baganator")
+    T.falsy(weapon and weapon:IsShown(), "gear that isn't an upgrade: none")
+    T.truthy(P.IsUpgrade("|Hitem:6|h"), "the upgrade search asks Pawn")
+    T.eq(registered and registered.name, "Daylight UI", "Pawn knows these bags")
+    T.eq(type(registered.o.RefreshAll), "function", "so it refreshes them when gear or scales change")
+    _G.PawnRegisterThirdPartyBag, _G.PawnShouldItemLinkHaveUpgradeArrow = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Can I Mog It marks show on gear, told the bag and slot", function()
+    local ns, f = catLogin()
+    local asked = {}
+    _G.CIMI_AddToFrame = function(btn)
+        local o = CreateFrame("Frame", nil, btn)
+        o.CIMIIconTexture = o:CreateTexture(nil, "OVERLAY")
+        btn.CanIMogItOverlay = o
+    end
+    _G.CIMI_SetIcon = function(frame, _, text) frame.cimiText = text end
+    _G.CanIMogIt = { GetTooltipText = function(_, link, bag, slot)
+        asked[#asked + 1] = { link, bag, slot }
+        return "Learned"
+    end, RegisterMessage = function() end }
+    loadAddon("CanIMogIt")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "can_i_mog_it")
+    T.truthy(w and w:IsShown(), "a weapon gets its mark")
+    T.eq(w.cimiText, "Learned")
+    T.eq((w:GetPoint(1)), "TOPRIGHT")
+    local bread = P.Widget(B.buttons[0][8], "can_i_mog_it")
+    T.falsy(bread and bread:IsShown(), "food: nothing to collect")
+    local found = false
+    for _, a in ipairs(asked) do if a[1] == "|Hitem:1|h" and a[2] == 0 and a[3] == 1 then found = true end end
+    T.truthy(found, "asked with the item's bag and slot")
+    _G.CIMI_AddToFrame, _G.CIMI_SetIcon, _G.CanIMogIt = nil, nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Simple Item Levels shows its item level and answers the upgrade search", function()
+    local ns, f = catLogin()
+    _G.SimpleItemLevel = { API = {
+        ItemLevel = function(link) return link == "|Hitem:1|h" and 17 or nil end,
+        ItemIsUpgrade = function(link) return link == "|Hitem:1|h" end,
+    } }
+    loadAddon("SimpleItemLevel")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "simpleitemlevel-ilvl")
+    T.truthy(w and w:IsShown(), "gear with a level shows it")
+    T.eq(w:GetText(), "17")
+    T.truthy(P.IsUpgrade("|Hitem:1|h"))
+    T.falsy(P.IsUpgrade("|Hitem:6|h"))
+    _G.SimpleItemLevel = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Caerdon Wardrobe draws through a Daylight UI feature of its own", function()
+    local ns, f = catLogin()
+    local features, updates = {}, {}
+    _G.CaerdonItem = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    _G.CaerdonWardrobe = {
+        RegisterFeature = function(self, m) features[m:GetName()] = setmetatable({}, { __index = m }) end,
+        GetFeature = function(self, name) return features[name] end,
+        UpdateButton = function(self, btn, item, feature, where)
+            updates[#updates + 1] = { btn = btn, item = item, feature = feature, where = where }
+            if not btn.caerdon then
+                btn.caerdon = { mogStatus = CreateFrame("Frame", nil, btn), bindsOnText = btn:CreateFontString() }
+            end
+        end,
+        GetCaerdonButton = function(self, btn) return btn.caerdon end,
+    }
+    loadAddon("CaerdonWardrobe")
+    ns.FillAll()
+    stub.RunTimers()
+    T.truthy(features["Daylight UI"], "registered as one of its bag features")
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "caerdon_wardrobe_status")
+    T.truthy(w and w:IsShown(), "its status shows on an item")
+    local told = false
+    for _, u in ipairs(updates) do
+        if u.btn == B.buttons[0][1] and u.item and u.where and u.where.bag == 0 and u.where.slot == 1 then
+            told = u.feature == features["Daylight UI"]
+        end
+    end
+    T.truthy(told, "updated with the item, its slot and the Daylight UI feature")
+    _G.CaerdonItem, _G.CaerdonWardrobe = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a corner asked for as default_position is honored, and plugins get itemLocation", function()
+    local ns = login()
+    local seen
+    local init, update = upArrow(function(d) seen = seen or d; return true end)
+    Baganator.API.RegisterCornerWidget("Low", "low", update, init, { default_position = "bottom_left", priority = 1 })
+    open(ns)
+    stub.RunTimers()
+    local w = ns.Plugins.Widget(ns.Bags.buttons[0][1], "low")
+    T.eq((w:GetPoint(1)), "BOTTOMLEFT")
+    T.eq(seen.itemLocation and seen.itemLocation.bagID, seen.bagID)
+    T.eq(seen.itemLocation.slotIndex, seen.slotID)
+    _G.Baganator = nil
+end)

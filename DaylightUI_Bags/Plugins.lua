@@ -84,7 +84,8 @@ function Plugins.Paint(btn, info, bag, slot)
     if info and not ns.Saved.Is(bag) then
         details = { itemID = info.itemID, itemLink = info.hyperlink, iconTexture = info.iconFileID,
             itemCount = info.stackCount, quality = info.quality, isBound = info.isBound,
-            hasNoValue = info.hasNoValue, bagID = bag, slotID = slot }
+            hasNoValue = info.hasNoValue, bagID = bag, slotID = slot,
+            itemLocation = { bagID = bag, slotIndex = slot } }
     end
     local taken, unsure = {}, false
     for _, w in ipairs(widgets) do
@@ -171,7 +172,9 @@ local API = {}
 function API.RegisterCornerWidget(_, id, onUpdate, onInit, position)
     if id == nil or type(onUpdate) ~= "function" or type(onInit) ~= "function" or registered(widgets, id) then return end
     position = type(position) == "table" and position or {}
-    local corner = Plugins.CORNERS[position.corner] and position.corner or Plugins.FALLBACK
+    -- Some plugins name their corner default_position (Simple Item Levels).
+    local asked = position.corner or position.default_position
+    local corner = Plugins.CORNERS[asked] and asked or Plugins.FALLBACK
     widgets[#widgets + 1] = { id = id, onUpdate = onUpdate, onInit = onInit, corner = corner,
         priority = type(position.priority) == "number" and position.priority or math.huge, n = #widgets + 1 }
     table.sort(widgets, sortWidgets)
@@ -208,3 +211,148 @@ function Plugins.Shim()
     }
 end
 Plugins.Shim()
+
+-- Addons that never find these bags through the calls above: Can I Mog It and
+-- Pawn have no Baganator code of their own (Baganator carries it), and Simple Item
+-- Levels and Caerdon Wardrobe only hook in once Baganator itself has loaded. Each
+-- is hooked up here instead, the way Baganator does it, once that addon loads.
+-- Never while Baganator itself is on: it does this for them.
+
+local function gear(link)
+    if type(link) ~= "string" or not (C_Item and C_Item.GetItemInfoInstant) then return false end
+    local classID = select(6, C_Item.GetItemInfoInstant(link))
+    local C = ns.Search.CLASS
+    return classID == C.weapon or classID == C.armor
+end
+
+-- Whether Can I Mog It has anything to say about the item.
+local function collectible(d)
+    if gear(d.itemLink) then return true end
+    local id = d.itemID
+    if type(id) ~= "number" then return false end
+    if C_ToyBox and C_ToyBox.GetToyInfo and C_ToyBox.GetToyInfo(id) ~= nil then return true end
+    if C_MountJournal and C_MountJournal.GetMountFromItem and C_MountJournal.GetMountFromItem(id) ~= nil then return true end
+    local classID = select(6, C_Item.GetItemInfoInstant(id))
+    return Enum and Enum.ItemClass and classID == Enum.ItemClass.Battlepet or false
+end
+
+Plugins.KNOWN = {}
+
+Plugins.KNOWN.CanIMogIt = function()
+    if type(CIMI_AddToFrame) ~= "function" or type(CIMI_SetIcon) ~= "function" or type(CanIMogIt) ~= "table" then return end
+    API:RegisterCornerWidget("can_i_mog_it", function(frame, d)
+        local function update(self)
+            if not self or not self:GetParent() then return end
+            if type(CIMI_CheckOverlayIconEnabled) == "function" and not CIMI_CheckOverlayIconEnabled(self) then
+                if self.CIMIIconTexture then self.CIMIIconTexture:SetShown(false) end
+                self:SetScript("OnUpdate", nil)
+                return
+            end
+            CIMI_SetIcon(self, update, CanIMogIt:GetTooltipText(d.itemLink, d.bagID, d.slotID))
+        end
+        update(frame)
+        return collectible(d)
+    end, function(btn)
+        CIMI_AddToFrame(btn, function() end)
+        local o = btn.CanIMogItOverlay
+        if type(o) ~= "table" then return nil end
+        o:SetSize(13, 13)
+        if o.CIMIIconTexture then o.CIMIIconTexture:SetPoint("TOPRIGHT") end
+        return o
+    end, { corner = "top_right", priority = 1 })
+    if type(CanIMogIt.RegisterMessage) == "function" then
+        pcall(CanIMogIt.RegisterMessage, CanIMogIt, "OptionUpdate", function() Plugins.Refresh() end)
+    end
+    for _, e in ipairs({ "TRANSMOG_COLLECTION_SOURCE_ADDED", "NEW_PET_ADDED", "NEW_TOY_ADDED", "NEW_MOUNT_ADDED" }) do
+        pcall(DUI.RegisterEvent, e, Plugins.Refresh)
+    end
+end
+
+Plugins.KNOWN.Pawn = function()
+    if type(PawnShouldItemLinkHaveUpgradeArrow) ~= "function" then return end
+    -- Pawn's own throttled check: nil means it ran out of time or the item is
+    -- still loading, and the slot is asked again.
+    local function upgrade(link)
+        if not gear(link) then return false end
+        return PawnShouldItemLinkHaveUpgradeArrow(link)
+    end
+    API:RegisterCornerWidget("pawn", function(_, d) return upgrade(d.itemLink) end, function(btn)
+        local arrow = btn:CreateTexture(nil, "OVERLAY")
+        arrow:SetTexture("Interface\\AddOns\\Pawn\\Textures\\UpgradeArrow")
+        arrow:SetSize(13.5, 15)
+        return arrow
+    end, { corner = "top_left", priority = 1 })
+    API:RegisterUpgradePlugin("pawn", function(link) return upgrade(link) == true end)
+    -- Pawn calls RefreshAll when gear, spec or its scales change.
+    if type(PawnRegisterThirdPartyBag) == "function" then
+        pcall(PawnRegisterThirdPartyBag, "Daylight UI", { RefreshAll = function() Plugins.Refresh() end })
+    end
+    DUI.RegisterEvent("PLAYER_LEVEL_UP", Plugins.Refresh)
+end
+
+Plugins.KNOWN.SimpleItemLevel = function()
+    local api = type(SimpleItemLevel) == "table" and SimpleItemLevel.API
+    if type(api) ~= "table" then return end
+    if type(api.ItemLevel) == "function" then
+        API:RegisterCornerWidget("simpleitemlevel-ilvl", function(text, d)
+            if not gear(d.itemLink) then return false end
+            local level = api.ItemLevel(d.itemLink)
+            if level == nil then return nil end
+            text:SetText(tostring(level))
+            local r, g, b = C_Item.GetItemQualityColor(d.quality or 1)
+            if type(r) == "number" then text:SetTextColor(r, g, b) end
+            return true
+        end, function(btn)
+            return DUI.Style.Text(btn, ns.Items.COUNT_SIZE, "RIGHT")
+        end, { corner = "top_right", priority = 1 })
+    end
+    if type(api.ItemIsUpgrade) == "function" then
+        API:RegisterUpgradePlugin("simpleitemlevel", function(link) return gear(link) and api.ItemIsUpgrade(link) == true end)
+    end
+end
+
+Plugins.KNOWN.CaerdonWardrobe = function()
+    local CW = CaerdonWardrobe
+    if type(CW) ~= "table" or type(CW.RegisterFeature) ~= "function" or type(CaerdonItem) ~= "table" then return end
+    local options = { fixedStatusPosition = true, statusProminentSize = 16 }
+    local feature = {}
+    function feature:GetName() return "Daylight UI" end
+    function feature:GetDisplayInfo() return {} end
+    function feature:GetTooltipData() end
+    function feature:Refresh() Plugins.Refresh() end
+    function feature:Init() end
+    CW:RegisterFeature(feature)
+    -- Caerdon starts its features while it loads itself, before these bags, so
+    -- this one is never started by it: the widgets below are all it needs.
+    local me = type(CW.GetFeature) == "function" and CW:GetFeature("Daylight UI") or feature
+    local function widget(id, field, corner, priority)
+        API:RegisterCornerWidget(id, function(frame, d)
+            local btn = frame:GetParent() and frame:GetParent():GetParent()
+            local item = CaerdonItem:CreateFromBagAndSlot(d.bagID, d.slotID)
+            CW:UpdateButton(btn, item, me, { bag = d.bagID, slot = d.slotID }, options)
+            return item ~= nil
+        end, function(btn)
+            CW:UpdateButton(btn, nil, me, nil, options)
+            local cb = CW:GetCaerdonButton(btn)
+            return cb and cb[field]
+        end, { corner = corner, priority = priority })
+    end
+    widget("caerdon_wardrobe_status", "mogStatus", "top_right", 1)
+    widget("caerdon_wardrobe_binding", "bindsOnText", "bottom_left", 2)
+end
+
+local hooked = {}
+function Plugins.Hook(name)
+    if hooked[name] or not Plugins.KNOWN[name] then return end
+    if not (type(_G.Baganator) == "table" and _G.Baganator.DaylightUI) then return end
+    hooked[name] = true
+    ask(name, Plugins.KNOWN[name])
+end
+
+function Plugins.HookKnown()
+    for name in pairs(Plugins.KNOWN) do
+        if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then Plugins.Hook(name) end
+    end
+    DUI.RegisterEvent("ADDON_LOADED", function(_, name) Plugins.Hook(name) end)
+end
+Plugins.HookKnown()
