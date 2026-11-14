@@ -72,7 +72,6 @@ end
 local CLUB_KEEP = { "Icon", "GuildTabardBackground", "GuildTabardEmblem", "GuildTabardBorder",
                     "InvitationIcon", "UnreadNotificationIcon", "FavoriteIcon" }
 local clubHooked = setmetatable({}, { __mode = "k" })
-local hookEntry
 -- The "join or create" entry is a card too, painted green by the game after
 -- the row is dressed. These are the only icons it uses for that entry.
 local ADD_ICON = { ["communities-icon-addgroupplus"] = true, ["communities-icon-searchmagnifyingglass"] = true }
@@ -104,9 +103,8 @@ local function clubCard(card)
     Kit.Hide(card.IconRing)
     Kit.Erase(card.NewCommunityFlash)
     calmEntry(card)
-    -- SetAddCommunity paints this row after it is dressed. The method on the
-    -- card is the one that runs; a hook on the mixin never reaches it.
-    hookEntry(card)
+    -- The game paints the add entry after the row is dressed. Kit.EachRow runs
+    -- this again next frame, after the list's update, so it comes out calm.
     -- The game selects the card after the click, so repaint then.
     if not clubHooked[card] then
         clubHooked[card] = true
@@ -462,24 +460,27 @@ local function dressFinder(Kit, finder)
     end
 end
 
--- Post-hook the method the frame already has. A hook on the mixin table is
--- copied onto frames only when they are built, which has already happened.
-local function follow(obj, method, fn)
-    local done = followed[obj]
-    if type(done) == "table" and done[method] then return end
-    if type(hooksecurefunc) ~= "function" or type(obj) ~= "table" or type(obj[method]) ~= "function" then return end
-    if not done then
-        done = {}
-        followed[obj] = done
+-- Run fn after one of the window's own callbacks. CommunitiesFrame is a
+-- callback registry (ClubSelected, DisplayModeChanged); the game calls those
+-- inside its own functions, so ours waits for the next frame, once however
+-- many fire. No method of the window is hooked.
+local frameOwner = {}
+local function onFrame(frame, names, fn)
+    if followed[frame] then return end
+    if type(frame) ~= "table" or type(frame.RegisterCallback) ~= "function" or type(frame.Event) ~= "table" then return end
+    followed[frame] = true
+    local pending = false
+    local function soon()
+        if pending or not (C_Timer and C_Timer.After) then return end
+        pending = true
+        C_Timer.After(0, function()
+            pending = false
+            DUI.SafeCall(fn, frame)
+        end)
     end
-    done[method] = true
-    hooksecurefunc(obj, method, fn)
-end
-
-hookEntry = function(card)
-    if type(card) ~= "table" then return end
-    for _, method in ipairs({ "SetAddCommunity", "SetFindCommunity", "SetGuildFinder" }) do
-        follow(card, method, calmEntry)
+    for _, name in ipairs(names) do
+        local event = frame.Event[name]
+        if event then pcall(frame.RegisterCallback, frame, event, soon, frameOwner) end
     end
 end
 
@@ -509,14 +510,9 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
             tipButton(mm.MaximizeButton, _G.MAXIMIZE)
             tipButton(mm.MinimizeButton, _G.MINIMIZE)
         end
-        -- The mixin copies were already on these frames when the addon loaded,
-        -- so a hook on the mixin table never runs. The frame's own methods do.
-        follow(f, "OnClubSelected", function(self) placeClubIcon(self) end)
-        follow(f, "SetDisplayMode", function(self) placeClubIcon(self) end)
-        follow(f.CommunitiesList, "Update", function(self)
-            local parent = self.GetParent and self:GetParent()
-            if type(parent) == "table" then placeJoin(parent) end
-        end)
+        -- The icon goes back to the header when the club or the display mode
+        -- changes: the window's own callbacks, not a hook on its methods.
+        onFrame(f, { "ClubSelected", "DisplayModeChanged" }, placeClubIcon)
         dressFinder(Kit, f.GuildFinderFrame)
         dressFinder(Kit, f.CommunityFinderFrame)
         placeJoin(f)
@@ -529,6 +525,9 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
             -- under them; the frame itself is only that border, so it goes.
             if type(list.InsetFrame) == "table" and list.InsetFrame.SetAlpha then list.InsetFrame:SetAlpha(0) end
             Kit.EachRow(list.ScrollBox, clubCard, "clubcard")
+            -- The empty column and the join button follow the club list: Kit.EachRow
+            -- runs this after every update, next frame, with no hook on the list.
+            Kit.EachRow(list.ScrollBox, function() placeJoin(f) end, "join")
         end
         local members = f.MemberList
         if type(members) == "table" then

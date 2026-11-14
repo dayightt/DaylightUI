@@ -57,6 +57,19 @@ local function rows(...)
     return list
 end
 
+-- A frame that is a callback registry, as CommunitiesFrame is (CallbackRegistryMixin).
+local function registry(frame, names)
+    frame.Event, frame.callbacks = {}, {}
+    for _, name in ipairs(names) do frame.Event[name] = name end
+    function frame:RegisterCallback(event, fn, owner)
+        self.callbacks[event] = self.callbacks[event] or {}
+        self.callbacks[event][owner] = fn
+    end
+    function frame:TriggerEvent(event, ...)
+        for owner, fn in pairs(self.callbacks[event] or {}) do fn(owner, ...) end
+    end
+end
+
 local function world()
     -- The game's item button border functions (ItemButtonTemplate.lua,
     -- SetItemButtonBorder_Base / SetItemButtonBorderVertexColor_Base).
@@ -3356,8 +3369,7 @@ T.test("skins: the guild window keeps its icon in the header; maximize and minim
         disabled.Description:SetTextColor(1, 0.82, 0)
         _G.ERR_GUILD_PLAYER_NOT_IN_GUILD = "No estás en una hermandad."
         stub.loadedAddOns.Blizzard_Communities = true
-        function f:OnClubSelected() end
-        function f:SetDisplayMode() end
+        registry(f, { "ClubSelected", "DisplayModeChanged" })
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit = stub.skins.Kit
@@ -3422,8 +3434,16 @@ T.test("skins: the guild window keeps its icon in the header; maximize and minim
     stub.RunTimers()
     T.eq(sub:GetText(), "Luz de Elune", "the selected community replaces the empty line")
     _G.C_Club.GetClubInfo = function() return { name = "Circulo de la Luna" } end
-    f:OnClubSelected()
+    f:TriggerEvent("ClubSelected", 7)
+    T.eq(sub:GetText(), "Luz de Elune", "the line waits for the next frame, outside the game's own call")
+    stub.RunTimers()
     T.eq(sub:GetText(), "Circulo de la Luna", "switching club while the window stays open updates the line")
+    -- A new display mode (the game moves the icon as the window grows) puts it back.
+    overlay.Portrait:ClearAllPoints()
+    overlay.Portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 99, -99)
+    f:TriggerEvent("DisplayModeChanged", 2)
+    stub.RunTimers()
+    T.eq(select(4, overlay.Portrait:GetPoint(1)), DaylightUI.Win.EDGE, "a new display mode puts the icon back in the header")
 end)
 
 T.test("skins: with no community the join action sits under the guild text", function()
@@ -3441,7 +3461,6 @@ T.test("skins: with no community the join action sits under the guild text", fun
         disabled:Show()
         _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
         _G.C_Club = { GetSubscribedClubs = function() return {} end }
-        function f.CommunitiesList:Update() end
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local x
@@ -3476,12 +3495,14 @@ T.test("skins: with no community the join action sits under the guild text", fun
     -- A list rebuild while the window stays open does the same.
     _G.C_Club.GetSubscribedClubs = function() return {} end
     _G.IsInGuild = function() return false end
-    f.CommunitiesList:Update()
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
     T.eq(f.CommunitiesList:IsShown(), false, "the empty column closes again without reopening the window")
     T.truthy(b:IsShown(), "the join button fades back in")
     _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
     _G.IsInGuild = function() return true end
-    f.CommunitiesList:Update()
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
     T.eq(f.CommunitiesList:IsShown(), true, "the list returns on the rebuild")
     T.truthy(not b:IsShown() or b:GetAlpha() == 0, "and the button fades out again")
 end)
