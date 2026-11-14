@@ -391,6 +391,21 @@ do
     end
 end
 
+-- Each party member's target (PartyTargets.lua): set up like the target of
+-- target, off by default, beside its member (spot right|left|below|above,
+-- past a party pet on the same side).
+do
+    local t = deep(ns.DEFAULTS.targettarget)
+    t.enabled, t.width, t.height = false, 80, 20
+    t.spot, t.x, t.y = "right", 0, 0
+    ns.DEFAULTS.partyTarget = t
+    ns.DEFAULTS.partyTargetText = deep(ns.DEFAULTS.targettargetText)
+    ns.DEFAULTS.partyTargetText.name = 10
+    for _, list in ipairs({ ns.MEDIA_FRAMES, ns.LOOK_FRAMES }) do
+        list[#list + 1] = "partyTarget"
+    end
+end
+
 -- Enemy flag carriers (Arena.lua), which the game exposes as arena units in a
 -- battleground. One setup for all of them, built like the focus frame (its
 -- look, texts and sizes), stacked spacing apart.
@@ -410,7 +425,7 @@ end
 -- has always sat low, under the other frames.
 ns.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
 ns.STRATA_LABELS = { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialogue" }
-ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "raid", "arena",
+ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "partyTarget", "raid", "arena",
                      "personal", "playerCastbar", "targetCastbar", "focusCastbar", "swing" }
 for _, k in ipairs(ns.STRATA_FRAMES) do
     ns.DEFAULTS[k].strata = k == "personal" and "LOW" or "MEDIUM"

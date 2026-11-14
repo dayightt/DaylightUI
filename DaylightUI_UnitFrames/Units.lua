@@ -36,7 +36,7 @@ end
 -- "Copy from" on each frame's page: the frames that can be copied, by settings
 -- key, and what a copy leaves alone: the frame's switch, fade, and group
 -- layout and sorting (plus a raid size's own follow).
-ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "raid", "raid20", "raid40", "arena" }
+ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "partyTarget", "raid", "raid20", "raid40", "arena" }
 ns.COPY_KEEP = { enabled = true, showInParty = true, fade = true, follow = true, own = true,
                  direction = true, perLine = true, groupSpacing = true, sortBy = true, groups = true,
                  hideSelf = true, showSolo = true, growUp = true, growLeft = true, ownSpot = true, strata = true }
@@ -262,7 +262,8 @@ local ONE, FRAMES, NO_RAID, ALL = 1, 2, 3, 4
 local REACH = { playerCastbar = FRAMES, targetCastbar = FRAMES, focusCastbar = FRAMES, swing = FRAMES,
                 targetAuras = FRAMES, playerAuras = FRAMES, focusAuras = FRAMES, combo = FRAMES, personal = ONE,
                 arena = FRAMES, arenaText = FRAMES,
-                party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID }
+                party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID,
+                partyTarget = NO_RAID, partyTargetText = NO_RAID }
 local UNIT_OF = {}
 for _, spec in ipairs(ns.SPECS) do
     UNIT_OF[spec.unit], UNIT_OF[spec.unit .. "Text"] = spec.unit, spec.unit
@@ -291,6 +292,7 @@ function ns.ApplyStrata(db)
         if h[1] then h[1]:SetFrameStrata(ns.StrataOf(h[2])) end
     end
     if ns.Personal.frame then ns.Personal.frame:SetFrameStrata(ns.StrataOf(db.personal, "LOW")) end
+    for _, p in ipairs(ns.PartyTargets.buttons) do p:SetFrameStrata(ns.StrataOf(db.partyTarget)) end
 end
 
 function ns.Refresh(mod, path)
@@ -660,6 +662,7 @@ local function registerEvents()
                 UF.UpdateAll(b, true)   -- status, crown and role included
                 ns.GroupParts.UpdateTargetMark(b)
                 if b.pet then ns.PartyPets.Refresh(b.pet) end
+                if b.ptarget then ns.PartyTargets.Refresh(b.ptarget) end
             else
                 b.rosterWho = nil
                 ns.GroupParts.PointAuras(b)
@@ -668,6 +671,7 @@ local function registerEvents()
                 UF.UpdateRole(b)
                 ns.GroupParts.UpdateTargetMark(b)
                 if b.pet then ns.PartyPets.Refresh(b.pet) end
+                if b.ptarget then ns.PartyTargets.Refresh(b.ptarget) end
             end
         end
     end
@@ -695,7 +699,7 @@ ns.FADE_FULL_HEALTH = { player = true, pet = true }
 
 -- Frames that can't float (Fade.Register's float = false). They already come
 -- and go with their unit.
-ns.FLOAT = { target = false, targettarget = false, focus = false, focustarget = false }
+ns.FLOAT = { target = false, targettarget = false, focus = false, focustarget = false, partyTarget = false }
 
 -- Health is secret, so whether it's full is left to the game at paint time
 -- (UF.FullHealthAlpha). A change counts as activity instead: the frame comes
@@ -847,6 +851,7 @@ function ns.Build(mod)
                     page = "UnitFrames." .. g.key, frames = function() return g.buttons end, paint = UF.PaintFade, whole = true }
             end
         end
+        ns.PartyTargets.RegisterFade()
         ns.auras = Auras.Create(ns.frames.target, "left", nil, mod.db.targetAuras)
         ns.combo = ns.Combo.Create(ns.frames.target)
         ns.happiness = ns.Happiness.Create(ns.frames.pet)

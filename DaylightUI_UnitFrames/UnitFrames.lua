@@ -66,11 +66,12 @@ for _, b in ipairs({ "health", "power" }) do
     Media.RegisterSlot(UF.MEDIA.personal.fonts[b], "UnitFrames", "personal.media." .. b .. "Font", "font", UF.MEDIA.player.fonts[b])
 end
 
--- The settings key a frame's spec reads (player... party, raid, partyPet).
+-- The settings key a frame's spec reads (player... party, raid, partyPet, partyTarget).
 function UF.FrameKey(spec)
     if spec.group then return spec.group end
     local u = spec.unit or "player"
     if string.find(u, "^partypet") then return "partyPet" end
+    if string.find(u, "^party%dtarget$") then return "partyTarget" end
     if string.find(u, "^arena%d") then return "arena" end
     return u
 end
@@ -3332,7 +3333,7 @@ function UF.UpdateIdentity(f)
     UF.PaintRing(f)   -- a tapped or changed reaction changes its pair
     UF.PaintName(f, r, g, b)
     -- A group button reads its group's switch (your own button included).
-    local element = f.spec and f.spec.group or nil
+    local element = f.spec and (f.spec.group or f.spec.names) or nil
     local name = UF.NameText(f, UF.LimitName(DUI.UnitName(u, element), f.nameLimitLen))
     f.nameText:SetText(name)
     UF.ApplyCrest(f, UnitClassification(u))

@@ -659,7 +659,7 @@ end
 -- the page's settings key, hidden (optional) hides the card.
 local COPY_NAMES = { player = "Player", target = "Target", focus = "Focus", targettarget = "Target of Target", focustarget = "Focus Target",
                      pet = "Pet", party = "Party", raid = "Raid 10", raid20 = "Raid 20", raid40 = "Raid 40",
-                     arena = "PvP Frames" }
+                     arena = "PvP Frames", partyTarget = "Party Targets" }
 local copyPick = {}
 local function copyCard(id, hidden)
     local function others()
@@ -1285,7 +1285,7 @@ end
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
 local TAB_ORDER = { "Basics", "Bars", "Text", "Auras", "Extras" }
-local TAB_OF = { ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics",
+local TAB_OF = { ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", ["Boss debuffs"] = "Auras", Dispels = "Auras" }
@@ -1623,6 +1623,17 @@ local function framePage(id, label, desc, opts)
         basic, bars,
         shellCard(id, k("enabled")),
     }
+    if opts.place then
+        -- Each frame sits beside its party member (PartyTargets.lua).
+        table.insert(groups, 2, { label = "Position", items = {
+            { type = "dropdown", key = k("spot"), label = "Position", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
+              desc = "Which side of the party member's frame their target sits on. Past a party pet on the same side.", disabled = shown },
+            { type = "slider", key = k("x"), label = "Left / right", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges every party target sideways from its position.", disabled = shown },
+            { type = "slider", key = k("y"), label = "Up / down", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges every party target up or down from its position.", disabled = shown },
+        } })
+    end
     if opts.tab then groups[#groups + 1] = tabCard(id, ribbon) end
     groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
     groups[#groups + 1] = { label = "Text", items = text }
@@ -2113,6 +2124,10 @@ ns.OPTIONS = { pages = {
         power = true, powerToggle = true, powerPos = true }),
     framePage("focustarget", "Focus Target", "Who your focus is looking at.", { healthText = true, textPos = true,
         power = true, powerToggle = true, powerPos = true }),
+    framePage("partyTarget", "Party Targets", "Who each party member is targeting, in a small frame beside them. Click one to target it too.",
+        { healthText = true, textPos = true, flip = true, power = true, powerToggle = true, powerPos = true, place = true,
+          strataWhat = "The layer the party targets draw in.",
+          showLabel = "Show party targets", showDesc = "A small frame beside each party member showing who they're targeting." }),
     framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
         tab = true, small = true }),
 

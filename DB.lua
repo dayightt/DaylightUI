@@ -28,7 +28,7 @@ DB.GENERAL_DEFAULTS = {
     windowBack = "general", -- their empty part; "general" = barBack
     accent = "classGradient",
     lastNames = { -- first and last names, one switch per element
-        player = true, target = true, targettarget = true, focus = true, focustarget = true, pet = true,
+        player = true, target = true, targettarget = true, focus = true, focustarget = true, pet = true, partyTarget = true,
         party = true, raid = true, nameplates = true, tooltip = true, character = true, inspect = true,
         threat = false, -- the threat meter's rows are narrow
     },

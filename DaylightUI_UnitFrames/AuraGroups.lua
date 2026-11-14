@@ -258,6 +258,13 @@ function AuraGroups.Box(frame, cfg)
     elseif spot == "left" then box.outL = box.outL + pw + ns.PartyPets.GAP
     elseif spot == "below" then box.below = box.below + ph + ns.PartyPets.GAP
     elseif spot == "above" then box.above = box.above + ph + ns.PartyPets.GAP end
+    -- Party targets (PartyTargets.lua) the same way, past the pet.
+    spot, pw, ph = nil, 0, 0
+    if frame.spec and frame.spec.pets then spot, pw, ph = ns.PartyTargets.Room() end
+    if spot == "right" then box.outR = box.outR + pw + ns.PartyTargets.GAP
+    elseif spot == "left" then box.outL = box.outL + pw + ns.PartyTargets.GAP
+    elseif spot == "below" then box.below = box.below + ph + ns.PartyTargets.GAP
+    elseif spot == "above" then box.above = box.above + ph + ns.PartyTargets.GAP end
     return box
 end
 

@@ -80,12 +80,13 @@ function Party.FullSample()
 end
 
 -- Sample buttons (test mode, the Party page preview) carry the aura groups on
--- stand-ins, placed and filled from the settings. Their pets too (PartyPets.lua).
+-- stand-ins, placed and filled from the settings. Their pets and targets too.
 -- A real button gets its pet once pets are turned on.
 function Party.DressSample(b)
     if b.preview then
         b.sampleSet = ns.AuraGroups.PlainSet(b)
         ns.PartyPets.DressSample(b)
+        ns.PartyTargets.DressSample(b)
         ns.PartyCasts.Make(b)
     end
 end
@@ -95,6 +96,7 @@ function Party.ShowSample(b, i, cfg)
     ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
     ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
     ns.PartyPets.ShowSample(b)
+    ns.PartyTargets.ShowSample(b, i)
     -- The healer is casting, so the page's preview shows every piece.
     ns.PartyCasts.ShowSample(b, b.fullSample or b.test == Party.SAMPLES[2])
 end
@@ -103,6 +105,7 @@ function Party.HideSample(b)
     ns.AuraGroups.HideSample(b.sampleSet)
     ns.Indicators.HideSample(b.sampleSet)
     ns.PartyPets.HideSample(b)
+    ns.PartyTargets.HideSample(b)
     ns.PartyCasts.HideSample(b)
 end
 
@@ -136,6 +139,7 @@ Party.group = ns.Group.New({
     hideSample = function(b) Party.HideSample(b) end,
     layoutButton = function(b)
         ns.PartyPets.Layout(b)
+        ns.PartyTargets.Layout(b)
         ns.PartyCasts.Layout(b)
     end,
 })

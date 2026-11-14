@@ -207,6 +207,13 @@ PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
     keys = { "partyPet.enabled", "partyPet.spot", "partyPet.x", "partyPet.y", "partyPet.width", "partyPet.height" },
     move = { spot = "partyPet.spot", x = "partyPet.x", y = "partyPet.y", dots = function(b) return ns.PartyPets.Dots(b) end },
     size = { w = "partyPet.width", h = "partyPet.height" } }
+-- A party member's target (PartyTargets.lua), while they're on.
+PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
+    label = "Party target",
+    at = function(b) return b.ptarget and b.ptarget:IsShown() and b.ptarget or nil end,
+    keys = { "partyTarget.enabled", "partyTarget.spot", "partyTarget.x", "partyTarget.y", "partyTarget.width", "partyTarget.height" },
+    move = { spot = "partyTarget.spot", x = "partyTarget.x", y = "partyTarget.y", dots = function(b) return ns.PartyTargets.Dots(b) end },
+    size = { w = "partyTarget.width", h = "partyTarget.height" } }
 
 -- The keys on a unit frames page. A page doesn't change once registered.
 local pageKeys = {}
@@ -370,6 +377,7 @@ end
 
 local function specOf(unit)
     if unit == "arena" then return ns.Arena.Spec(1) end
+    if unit == "partyTarget" then return ns.PartyTargets.SPEC end
     for _, spec in ipairs(ns.SPECS) do
         if spec.unit == unit then return spec end
     end
@@ -379,6 +387,7 @@ end
 local function sampleUnit(id)
     if id == "player" then return ns.Sample.You() end
     if id == "arena" then return ns.Arena.SAMPLES[1] end
+    if id == "partyTarget" then return ns.PartyTargets.PageSample() end
     return ns.Test.SampleFor(id)
 end
 
@@ -628,6 +637,9 @@ function PageSample.GroupReach(cfg, b)
     end
     -- A party member's pet (PartyPets.lua).
     local pu, pd, pl, pr = ns.PartyPets.Reach(b)
+    up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
+    -- And their target (PartyTargets.lua).
+    pu, pd, pl, pr = ns.PartyTargets.Reach(b)
     up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
     local pos = cfg.namePos
     if type(pos) == "string" and pos:find("^out") and cfg.showName ~= false then
