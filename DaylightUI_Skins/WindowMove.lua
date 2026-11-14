@@ -14,8 +14,10 @@ local DUI = DaylightUI
 local Move = {}
 ns.WindowMove = Move
 
--- The dressing room, the guild window, and a letter or book.
-Move.WINDOWS = { "DressUpFrame", "CommunitiesFrame", "ItemTextFrame" }
+-- The dressing room, the guild window, a letter or book, and the hunter's
+-- stable. The game places the stable itself, so a drag would be lost on the
+-- next layout.
+Move.WINDOWS = { "DressUpFrame", "CommunitiesFrame", "ItemTextFrame", "PetStableFrame" }
 Move.BAR_HEIGHT = 26 -- title row height, down to the dressing room's set menu (the guild window's dropdowns start 26-28 down)
 Move.BUTTONS = 70 -- room at the bar's right end for maximize/minimize and close
 Move.BAR_LIFT = 20 -- above the window's model, which starts under the title
