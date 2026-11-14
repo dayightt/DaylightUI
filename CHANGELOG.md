@@ -1,3 +1,27 @@
+# DaylightUI 1.8.1
+
+Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.
+
+## New
+- Unit frames: Aura lists to hide buffs and debuffs you never want, or show only the ones you care about: Unit frames > Aura Lists
+- Unit frames: Square or angled portraits, with ring thickness and line set per frame on a new Portrait tab
+- Party and raid: See when someone is being summoned, and whether they accepted or declined
+- Other addons: A SkillUp link in the profession window, for SkillUp Forever's skill-up chances and route
+
+## Changed
+- Window skins: Item slots and coins in loot, guild bank and other windows match the bags; a cleaner trade window
+- Moving frames: The unlock and test mode boxes have a close button
+
+## Fixed
+- Nameplates: Another fix for nameplates vanishing. The game's Stack Nameplates option is now on for enemies, since the reports came from players with it off. Still happening? /dui platefix has new steps that pin down the cause
+- Nameplates: Heal and shield bars fit the health bar again
+- Dungeons: Leaving a dungeon group no longer stops with a "DaylightUI has been blocked" message
+- Chat: Profession and recipe links open on the first click, even while Trade chat is busy
+- Fonts: Russian, Korean and Chinese names no longer show as boxes
+- Buffs: Boosted Rest from a Camp Tent no longer sits among your debuffs
+- Meters: Clearing the meter no longer flips it from Overall back to Current
+- Little touches: Buying stacks from a vendor stops if another item lands in the slot, and the controller hints on the map stay out of the way
+
 # DaylightUI 1.8.0
 
 See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.
