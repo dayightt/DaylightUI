@@ -219,8 +219,10 @@ Skin.COUNT_POS = { bottomright = { "BOTTOMRIGHT", -2, 3 }, bottomleft = { "BOTTO
 
 -- Shorter keybinds: modifiers as one letter, mouse buttons and the number pad as a
 -- letter and number.
+-- The client has no name for the number pad's = key and shows its raw code, with
+-- or without its own "N" in front.
 Skin.SHORT_KEYS = {
-    { "Mouse Wheel Up", "WU" }, { "Mouse Wheel Down", "WD" }, { "Middle Mouse", "M3" },
+    { "N?NUMPADEQUALS", "N=" }, { "Mouse Wheel Up", "WU" }, { "Mouse Wheel Down", "WD" }, { "Middle Mouse", "M3" },
     { "Mouse Button ", "M" }, { "Num Pad ", "N" }, { "Spacebar", "Sp" }, { "Backspace", "Bs" },
     { "Capslock", "Cp" }, { "Page Up", "PU" }, { "Page Down", "PD" }, { "Insert", "Ins" }, { "Delete", "Del" },
     { "SHIFT%-", "S" }, { "CTRL%-", "C" }, { "ALT%-", "A" },
@@ -231,7 +233,7 @@ Skin.SHORT_KEYS = {
 -- (KEY_NUMPAD5 is "5 du pavé num." in French) and modifiers.
 Skin.LOCAL_KEYS = {
     NUMPADDIVIDE = "N/", NUMPADMULTIPLY = "N*", NUMPADMINUS = "N-", NUMPADPLUS = "N+",
-    NUMPADDECIMAL = "N.", MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD", BUTTON3 = "M3",
+    NUMPADDECIMAL = "N.", NUMPADEQUALS = "N=", MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD", BUTTON3 = "M3",
     SPACE = "Sp", BACKSPACE = "Bs", CAPSLOCK = "Cp",
     PAGEUP = "PU", PAGEDOWN = "PD", INSERT = "Ins", DELETE = "Del",
 }

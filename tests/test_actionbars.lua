@@ -1697,6 +1697,8 @@ T.test("action bars: keybind and count positions, short keybinds, macro name siz
     T.eq(select(1, b.Count:GetPoint(1)), "BOTTOMLEFT")
     T.eq(Skin.Shorten("s-Mouse Button 4"), "SM4")
     T.eq(Skin.Shorten("c-Num Pad 5"), "CN5")
+    T.eq(Skin.Shorten("NNUMPADEQUALS"), "N=", "the client's raw code for numpad =")
+    T.eq(Skin.Shorten("s-NUMPADEQUALS"), "SN=")
     T.eq(Skin.Shorten("Middle Mouse"), "M3")
     T.eq(Skin.Shorten("Page Up"), "PU")
     T.eq(Skin.Shorten("s-Page Down"), "SPD")
