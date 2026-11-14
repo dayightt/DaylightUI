@@ -3141,6 +3141,51 @@ T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A priest's pull: the first debuff is cast out of a fight, and it lands on the
+-- target just as the fight starts, when auras can no longer be read. It never
+-- glowed, while every later cast (in the fight) did.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm up glow: a debuff cast to start a fight still counts as up once the fight hides auras (" .. shape .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    DUI.DB.General().motion = false
+    if shape == "bar" then set.pieces[41].shape = "bar" end
+    T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+    T.truthy(h.wantsUp)
+    T.falsy(AB.CdmEffects.GlowShown(h), "down before the pull")
+    -- The cast, out of a fight: nothing on the target yet.
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pull", 141)
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "not landed yet")
+    -- It lands as the fight starts: the game won't say any more.
+    stub.Advance(0.5)
+    stub.combat = true
+    stub.auras.target = { HARMFUL = { { spellId = 141, isFromPlayerOrPlayerPet = true } } }
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "glows: the pull cast counts")
+    T.eq(h.upUnit, "target")
+    T.truthy(h.endsAt and math.abs(h.endsAt - (GetTime() - 0.5) - 18) < 0.01, "18 s from the cast")
+    -- A cast long before the fight doesn't count.
+    stub.combat = false
+    stub.auras.target = { HARMFUL = {} }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "down after it")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "early", 141)
+    stub.Advance(AB.CdmAuras.CAST_LANDS + 1)
+    stub.combat = true
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "a cast that missed long ago isn't taken as up")
+    stub.combat = false
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- Hide (Buff up) on the pieces Daylight UI draws itself. The client's button is
 -- never asked to hide. Its container goes see-through instead, so it can't show
 -- in a fight however the aura is read.

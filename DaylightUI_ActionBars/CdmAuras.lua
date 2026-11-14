@@ -718,7 +718,8 @@ local function book()
 end
 
 -- Fallback before a duration is learned: parse the spell text.
-local TEXT_LASTS = { "[Ff]or (%d+%.?%d*) sec", "[Ll]asts (%d+%.?%d*) sec" }
+local TEXT_LASTS = { "[Ff]or (%d+%.?%d*) sec", "[Ff]or up to (%d+%.?%d*) sec", "[Ll]asts (%d+%.?%d*) sec",
+    "[Oo]ver (%d+%.?%d*) sec" }
 local function textLasts(sid)
     local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
     if not ok or type(desc) ~= "string" or (issecretvalue and issecretvalue(desc)) then return nil end
@@ -872,6 +873,13 @@ function A.IsUp(h)
     end
     if found(h) then
         h.up = true
+        h.castAt = nil
+    elseif h.castAt and not readable() and h.up ~= true and GetTime() - h.castAt <= A.CAST_LANDS then
+        -- Cast while auras could still be read, and they went secret before it was
+        -- seen landing: the pull that started this fight.
+        local sid, at = h.castSpell, h.castAt
+        h.castAt = nil
+        A.Cast(h, sid, at)
     elseif h.selfDebuff then
         -- Not finding it by id means nothing, since Arcane Blast's stack can't be
         -- tracked that way in game. It's down once the counted time runs out, or
@@ -920,10 +928,13 @@ function A.AuraChangedSoon()
     end)
 end
 
+-- How long after a cast its aura may still land: a spell's flight time.
+A.CAST_LANDS = 3
+
 -- In combat your own cast events stay plain while the aura and its button don't,
 -- so a cast is the one reliable sign it's up. A harmful spell's aura is on the
 -- target, so switching targets clears it (A.TargetChanged).
-function A.Cast(h, sid)
+function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
     h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or "player"
@@ -931,7 +942,7 @@ function A.Cast(h, sid)
     -- one it would stay up forever, since the client's button says nothing in a
     -- dungeon fight.
     h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid)
-    h.endsAt = h.auraLasts and h.auraLasts > 0 and GetTime() + h.auraLasts or nil
+    h.endsAt = h.auraLasts and h.auraLasts > 0 and (at or GetTime()) + h.auraLasts or nil
     h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
     watchEnd(h)
     if ns.CdmRows then ns.CdmRows.Refresh() end
@@ -978,7 +989,15 @@ casts:SetScript("OnEvent", function(_, _, _, _, sid)
     local plainNow = readable()
     each(function(h)
         if type(h.ids) == "table" and h.ids[sid] then
-            if h.face then selfCast(h, sid) elseif h.wantsUp and not plainNow then A.Cast(h, sid) end
+            if h.face then
+                selfCast(h, sid)
+            elseif h.wantsUp and not plainNow then
+                A.Cast(h, sid)
+            elseif h.wantsUp then
+                -- Out of a fight the aura is read as it lands, unless the fight this
+                -- cast starts hides it first (A.IsUp).
+                h.castSpell, h.castAt = sid, GetTime()
+            end
         end
     end)
 end)

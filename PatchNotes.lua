@@ -42,6 +42,7 @@ DUI.PatchNotes = {
         fixed = {
             { "Controller", "On a controller, the menu for the player you're targeting opens again, so you can invite them to your group" },
             { "Chat", "Clicking Show Message on a message the game hid as possibly inappropriate shows it in the Daylight UI chat" },
+            { "Cooldown Manager", "The debuff you open a fight with now lights up its icon or bar like every one after it" },
             { "Cooldown Manager", "Sap, Blind, Polymorph, Fear and other crowd control can be added, along with a rogue's Poised and newer spells like Shank, Death Mark and Ice Lance, which were missing from the list" },
             { "Cooldown Manager", "A buff bar or icon that first shows up during a fight or in a dungeon is drawn at your size and look, not squashed small with its text out of place" },
             { "Windows", "Turning off a Daylight UI window (talking to NPCs, vendor, trainer, bank, character, inspect, friends, mail, group finder) now brings back the game's own window exactly as the game draws it" },
