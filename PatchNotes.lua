@@ -26,6 +26,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "A warrior's stance icons light up in the Cooldown Manager while you're in that stance" },
             { "Unit frames", "Your target and focus can fade while they're out of reach of a spell you pick, enemies too: Unit frames > Extras > Range spell" },
             { "Unit frames", "More choices for buffs and debuffs on the target and player frames: time left on or off, only under a minute, a clock sweep, tooltips, and filters like only the buffs you can purge" },
+            { "Party and raid frames", "Buff and debuff icons can have bigger or smaller time and stack numbers, or no stack numbers: the Debuffs, Crowd control and Buffs cards" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },

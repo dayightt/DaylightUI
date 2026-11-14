@@ -146,6 +146,8 @@ local noTimers = setmetatable({}, { __mode = "k" })
 
 -- Containers whose icons show the time left as a clock sweep (Auras.SetSwipe).
 local swipeOn = setmetatable({}, { __mode = "k" })
+-- Containers whose icons hide their stack count (Auras.SetCounts).
+local noCounts = setmetatable({}, { __mode = "k" })
 local tipsOn = setmetatable({}, { __mode = "k" })
 
 -- The sweep: elapsed time shades the icon clockwise, like the action bars'
@@ -262,6 +264,7 @@ function Auras.InitButton(btn, kind, container, cure)
     local count = Style.Text(btn, countSize, "RIGHT")
     count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
     btn:SetApplicationCount(count)
+    if container and noCounts[container] then count:SetAlpha(0) end
     pcall(btn.SetTooltipAnchorPoint, btn, Auras.TOOLTIP_ANCHOR)
     if not BUFF_KINDS[kind] then
         -- A square edge the size of the button, behind the icon, tinted by the
@@ -532,6 +535,19 @@ function Auras.SetTimers(c, on)
             end
         end
     end, "auras:timers:" .. tostring(c))
+end
+
+-- Whether a container's icons show their stack count. The client writes the
+-- number, so off only turns the text see-through. Locked buttons wait, as above.
+function Auras.SetCounts(c, on)
+    on = on ~= false
+    if plain[c] or (noCounts[c] == true) == not on then return end
+    noCounts[c] = not on or nil
+    DUI.AfterRestrictions(function()
+        for _, parts in pairs(ownButtons(c)) do
+            if parts.count then pcall(parts.count.SetAlpha, parts.count, on and 1 or 0) end
+        end
+    end, "auras:counts:" .. tostring(c))
 end
 
 -- Whether a container's icons show the clock sweep. Locked buttons wait, as
@@ -985,6 +1001,7 @@ function Auras.DrawSample(c, list, n, kind, flow)
         c.pool[i] = btn
         fitSample(btn, s, list[i], c)
         btn.time:SetShown(flow.timers ~= false and not (flow.shortTimers and list[i].long))
+        btn.count:SetShown(flow.counts ~= false)
         Auras.ShowSampleSwipe(btn, flow.swipe == true and list[i].left)
         local col, row = (i - 1) % per, math.floor((i - 1) / per)
         btn:ClearAllPoints()

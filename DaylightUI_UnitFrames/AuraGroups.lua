@@ -29,7 +29,8 @@ AuraGroups.CHOICE_LABELS = {
 }
 
 -- Every setting of a group. Looks.lua resets all of them.
-AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "spacing", "x", "y", "timers", "shortTimers", "swipe", "tooltips" }
+AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "spacing", "x", "y", "timers", "shortTimers", "swipe",
+                      "tooltips", "timeSize", "countSize", "counts" }
 
 -- Sample icons for stand-ins (options preview, /dui test), in the shape
 -- Auras.DrawSample expects.
@@ -293,11 +294,14 @@ local function placeOne(c, def, g, on, frame, box)
         { x = g.x, y = g.y, line = per * (s[1] + gap) - gap })
     -- Under the frame, the numbers on each icon's top edge need room.
     local spot = type(g.spot) == "string" and g.spot or ""
+    local timeSize = tonumber(g.timeSize) or ns.Auras.TIME_SIZE[def.kind]
     if g.timers == true and (spot == "below" or spot:find("^outbottom")) then
-        L.y = L.y - ns.Auras.TIME_SIZE[def.kind] * 0.6
+        L.y = L.y - timeSize * 0.6
     end
     local real = not ns.Auras.IsPlain(c)
     -- Settings first, since a group added now builds its buttons from them.
+    ns.Auras.SetTextSizes(c, timeSize, tonumber(g.countSize) or ns.Auras.COUNT_SIZE)
+    ns.Auras.SetCounts(c, g.counts ~= false)
     ns.Auras.SetTimers(c, g.timers == true)
     ns.Auras.SetShortTimers(c, g.shortTimers == true)
     ns.Auras.SetSwipe(c, g.swipe == true)
@@ -318,7 +322,7 @@ local function placeOne(c, def, g, on, frame, box)
     c:SetSize(math.max(1, L.line), s[2])
     if real then pcall(c.UpdateAllAuras, c) end
     placed[c] = { L = L, on = on, max = max, per = per, s = s, gap = gap, timers = g.timers == true,
-                  shortTimers = g.shortTimers == true, swipe = g.swipe == true, def = def }
+                  shortTimers = g.shortTimers == true, swipe = g.swipe == true, counts = g.counts ~= false, def = def }
 end
 
 -- The parent is protected (a group button), so out of combat only. Extra group
@@ -366,7 +370,7 @@ function AuraGroups.ShowSample(set, frame, all, box, i)
             ns.Auras.DrawSample(c, list, n, def.kind, { anchor = p.L.flowAnchor, hDir = p.L.hDir,
                                                          vDir = p.L.vDir, perRow = math.min(p.per, fits),
                                                          timers = p.timers, shortTimers = p.shortTimers,
-                                                         swipe = p.swipe })
+                                                         swipe = p.swipe, counts = p.counts })
         end
     end
 end

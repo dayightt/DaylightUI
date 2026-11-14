@@ -185,3 +185,33 @@ T.test("Tooltip on hover gives an icon the hover back, never the clicks, and is 
     T.eq(btn.__motion, false, "switched off later")
     T.eq(btn.__clicks, false)
 end)
+
+T.test("a group's time and stack sizes and its stack count switch are on its buttons from the start, and follow later", function()
+    local ns, tile, set = setup()
+    ns.AuraGroups.Place(set, tile, cfg({ debuffs = { timers = true, timeSize = 11, countSize = 13, counts = false } }), BOX)
+    local btn = set.debuffs.__groups.notcc.button
+    local _, time = btn.__time:GetFont()
+    local _, count = btn.__count:GetFont()
+    T.eq(time, 11); T.eq(count, 13)
+    T.eq(btn.__count:GetAlpha(), 0, "built with stacks off")
+    ns.AuraGroups.Place(set, tile, cfg({ debuffs = { timers = true, timeSize = 9, countSize = 12 } }), BOX)
+    T.eq(btn.__count:GetAlpha(), 1, "on again")
+    _, count = btn.__count:GetFont()
+    T.eq(count, 12)
+end)
+
+T.test("the party and raid pages list the new text rows on every group", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    for _, page in ipairs({ "UnitFrames.party", "UnitFrames.raid" }) do
+        local keys = {}
+        for _, g in ipairs(O.GetPage(page).groups) do
+            for _, it in ipairs(g.items or {}) do if it.key then keys[it.key] = true end end
+        end
+        local p = page == "UnitFrames.party" and "party" or "raid"
+        for _, k in ipairs({ "debuffs.timeSize", "debuffs.countSize", "debuffs.counts", "buffs.counts", "cc.timeSize" }) do
+            T.truthy(keys[p .. ".auras." .. k], page .. " " .. k)
+        end
+        T.eq(#O.ValidatePage(O.GetPage(page)), 0)
+    end
+end)

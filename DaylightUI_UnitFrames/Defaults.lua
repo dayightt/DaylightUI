@@ -27,7 +27,7 @@ local function auraSlots(into)
     for _, k in ipairs(ns.AURA_SLOTS) do
         into[k] = { show = false, what = "debuffs", debuffWhich = "dispel", buffWhich = "heals", spot = "topleft",
                     grow = "right", size = 14, max = 3, rows = 1, spacing = 2, x = 0, y = 0, timers = false,
-                    shortTimers = false, swipe = false, tooltips = false }
+                    shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true }
     end
     return into
 end
@@ -133,11 +133,11 @@ ns.DEFAULTS = {
                   -- Debuff tooltips on: what's on a party member matters
                   -- more than a mouseover cast while the cursor is over an icon.
                   debuffs = { show = true, which = "all", spot = "below", grow = "left", size = 18, max = 4,
-                              rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true },
+                              rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 8, countSize = 10, counts = true },
                   cc = { show = false, spot = "center", grow = "center", size = 18, max = 1, rows = 1, spacing = 2,
-                         x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true },
+                         x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 9, countSize = 10, counts = true },
                   buffs = { show = true, which = "heals", spot = "below", grow = "right", size = 14, max = 4,
-                            rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false },
+                            rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
               }),
               -- Header layout: down or across, frames per line, sorting, you.
               direction = "columns", perLine = 5, groupSpacing = 4, sortBy = "role", hideSelf = true, showSolo = false,
@@ -172,12 +172,12 @@ ns.DEFAULTS = {
                  -- Calm by default: two small debuffs in the corner, crowd control
                  -- in the middle only while it lasts, no timer numbers.
                  debuffs = { show = true, which = "all", spot = "bottomright", grow = "left", size = 12, max = 2,
-                             rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                             rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
                  cc = { show = true, spot = "center", grow = "center", size = 16, max = 1, rows = 1, spacing = 2,
-                        x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                        x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 9, countSize = 10, counts = true },
                  -- bottomleft matches the old tile buffs' "below". An upgrade step leaves an unsaved spot at this.
                  buffs = { show = false, which = "heals", spot = "bottomleft", grow = "right", size = 14, max = 4,
-                           rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                           rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
              }),
              showPercent = false, slant = false, showPower = true, powerHeight = 3, showMarker = true,
              predictHeals = true, predictAbsorbs = true, showThreat = true, showDispel = true, dispelSize = 12, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3, dispelOnlyMine = true, dispelPos = "topright", dispelX = 0, dispelY = 0, rolePos = "bottomleft", roleSize = 11, roleX = 0, roleY = 0, markerPos = "bottomright", markerSize = 11, markerX = 0, markerY = 0, leaderPos = "topleft", leaderPx = 11, leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0, roleHideDamage = false, roleHideInCombat = false, leaderHideInCombat = false,
