@@ -2757,8 +2757,8 @@ end
 -- The dragon: an elite's gold or silver (its rank at a glance, whatever the
 -- ring's color), or your own (eliteColor "own") in your chosen color
 -- (UF.DRAGON_COLORS). Aggro never recolors it, its eyes catch fire instead (a
--- secret "is tanking" lights them through the client). A square's frame has
--- no eyes, so it takes the threat color itself while the unit is on you.
+-- secret "is tanking" lights them through the client). A square's elite
+-- frame has no eyes and keeps its color.
 local function paintEliteBase(f, p, rc)
     if UF.Owned(f, "dragon") then return nil end
     if rc ~= "own" then
@@ -2785,7 +2785,7 @@ local function paintEliteBase(f, p, rc)
     local _, lo, hi, sr, sg, sb = ringColors(f, "class")
     if type(sr) ~= "nil" then
         p.elite:SetVertexColor(sr, sg, sb, 1)
-        return nil   -- a secret class color: nothing to fall back to by a flag
+        return nil
     elseif lo then
         p.elite:SetVertexColor(1, 1, 1, 1)
         p.elite:SetGradient("VERTICAL", lo, hi)   -- last, since a plain color clears it
@@ -2814,16 +2814,7 @@ function UF.PaintElite(f)
         end
     end
     if not p.elite:IsShown() then return end
-    local base = paintEliteBase(f, p, rc)
-    if not p.shapeArt then return end
-    local c = f.threatNow
-    if c then
-        p.elite:SetVertexColor(c[1], c[2], c[3], 1)
-    elseif type(f.threatFlag) ~= "nil" and base then
-        local red = UF.THREAT_COLORS.aggro
-        p.elite:SetVertexColorFromBoolean(f.threatFlag, CreateColor(red[1], red[2], red[3], 1),
-            CreateColor(base[1], base[2], base[3], 1))
-    end
+    paintEliteBase(f, p, rc)
 end
 
 -- Your own frame's dragon (player.portraitDragon): no rank, your chosen color.

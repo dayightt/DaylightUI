@@ -1152,14 +1152,7 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     T.truthy(p.elite:IsShown())
     T.eq(p.elite.__texture, DUI.MEDIA .. "portrait-square-elite.png")
     T.falsy(p.eye:IsShown(), "only the dragon has eyes")
-    T.rgb(p.elite.__vertex, UF.THREAT_COLORS.aggro, "no eyes, so the frame itself turns the aggro color")
-    wolf(nil)
-    stub.units.target.classification = "elite"
-    UF.UpdateThreat(f)
-    T.rgb(p.elite.__vertex, UF.ELITE_RING_COLORS.gold, "back to gold once it's off you")
-    UF.ApplyThreat(f, nil, stub.Secret(true))
-    T.truthy(p.elite.__vertexFromBoolean, "a secret 'is tanking' picks red or gold through the client")
-    UF.ApplyThreat(f, nil)
+    T.rgb(p.elite.__vertex, UF.ELITE_RING_COLORS.gold, "the frame stays gold with aggro")
     -- Angled: the target's portrait sits on the frame's right end, the player's on its left.
     DUI:Set("UnitFrames", "target.portraitShape", "angled")
     DUI:Set("UnitFrames", "player.portraitShape", "angled")
