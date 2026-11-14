@@ -225,6 +225,15 @@ ns.DEFAULTS = {
                    debuffTimeSize = 11, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                    debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
+    -- The pet's own rows: off by default, small to suit its frame, under it
+    -- so they keep clear of the player frame above.
+    petAuras = { debuffs = false, buffs = false, debuffSpot = "below", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                 buffSpot = "below", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 18, debuffFilter = "all",
+                 maxDebuffs = 4, buffSize = 14, maxBuffs = 4,
+                 debuffSpacing = 2, buffSpacing = 2, debuffRows = 1, buffRows = 1,
+                 debuffTimeSize = 10, buffTimeSize = 8, debuffCountSize = 9, buffCountSize = 9,
+                 debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                 debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The player frame's own aura rows, styled like the target's. Off by
     -- default, since the Buffs module shows yours. Both sit over the frame,
     -- clear of the cast bar and swing timers below, side by side: buffs from

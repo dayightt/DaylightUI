@@ -56,6 +56,7 @@ DUI.PatchNotes = {
             { "Window skins", "The Select Your Role pop-up for a role check is in Daylight UI style now, not the game's gold frame" },
             { "Action bars", "A key bound to the number pad's = shows as N= instead of a long name running over the buttons beside it" },
             { "Unit frames", "The focus frame can show its buffs and debuffs, like the game's own focus frame: Focus page, Auras" },
+            { "Pet frame", "The pet frame can show your pet's buffs and debuffs, like the game's own pet frame: Pet page, Auras" },
             { "Edit Mode", "Logging in or going through a loading screen no longer switches your own Edit Mode layout back to Daylight UI's" },
             { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },

@@ -832,7 +832,8 @@ end
 
 -- A frame's buffs and debuffs: two cards at the bottom of its page. prefix is
 -- its settings. own: the player's own rows, where every debuff is one row
--- (no "mine, then others" on yourself).
+-- (no "mine, then others" on yourself). own = "pet": the same, with a buff
+-- filter of all or only yours.
 local function unitAuraCards(prefix, own, desc)
     local k = function(s) return prefix .. "." .. s end
     local dOff, bOff = off(k("debuffs")), off(k("buffs"))
@@ -844,7 +845,8 @@ local function unitAuraCards(prefix, own, desc)
     if own then
         debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter",
             values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
-            desc = "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
+            desc = own == "pet" and "Every debuff on your pet, or only the ones your class can remove."
+                or "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max shown", min = 1, max = 16, step = 1,
                                   desc = "The most debuff icons at once.", disabled = dOff }
     else
@@ -880,7 +882,11 @@ local function unitAuraCards(prefix, own, desc)
         { type = "slider", key = k("buffCountSize"), label = "Stack count size", min = 6, max = 20, step = 1,
           desc = "How big the number of stacks is on each buff icon.", disabled = bOff },
     }
-    if not own then
+    if own == "pet" then
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter",
+            values = { all = "All buffs", mine = "Only mine" }, order = { "all", "mine" }, disabled = bOff,
+            desc = "Every buff on your pet, or only the ones you cast on it." })
+    elseif not own then
         table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter",
             values = { all = "All buffs", purge = "Only ones I can purge or steal", mine = "Only mine" },
             order = { "all", "purge", "mine" }, disabled = bOff,
@@ -919,6 +925,10 @@ local PLAYER_AURA_GROUPS = unitAuraCards("playerAuras", true, {
 local FOCUS_AURA_GROUPS = unitAuraCards("focusAuras", false, {
     debuffs = "Over the focus from its right end. Only yours by default.",
     buffs = "Small icons over the focus from its left end. Off by default." })
+
+local PET_AURA_GROUPS = unitAuraCards("petAuras", "pet", {
+    debuffs = "Every debuff on your pet, under its frame. Off by default.",
+    buffs = "Small icons under your pet's frame. Off by default." })
 
 -- The personal display's own rows, dimmed with the display.
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {
@@ -2135,7 +2145,7 @@ ns.OPTIONS = { pages = {
           strataWhat = "The layer the party targets draw in.",
           showLabel = "Show party targets", showDesc = "A small frame beside each party member showing who they're targeting." }),
     framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
-        tab = true, small = true }),
+        tab = true, small = true, auras = PET_AURA_GROUPS }),
 
     { id = "colors", label = "Colors", desc = "The bars' and names' colors on every unit frame.", groups = {
         { label = "Health", items = {

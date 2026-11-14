@@ -49,8 +49,11 @@ Auras.KINDS = {
         { key = "all", filter = "HARMFUL", index = 1, pick = "all" },
         { key = "dispel", filter = Auras.DISPEL_FILTER, index = 1, pick = "dispel", lazy = true },
     } },
+    -- Every buff, or only the ones you cast (buffFilter all|mine, the pet's
+    -- rows: Mend Pet, your blessings on it).
     selfbuff = { name = "DaylightUIPlayerBuffs", groups = {
-        { key = "buffs", filter = "HELPFUL", index = 1 },
+        { key = "buffs", filter = "HELPFUL", index = 1, pick = "all" },
+        { key = "mine", filter = "HELPFUL|PLAYER", index = 1, pick = "mine", lazy = true },
     } },
     -- A unit frame's buffs group. Filters are fixed when declared, so all three
     -- are here and Auras.SetBuffCounts leaves one on. heals: your buffs from
@@ -381,6 +384,8 @@ local SET_KINDS = {
     -- The focus's rows work like the target's, in containers of their own name.
     focus = { debuff = "debuff", buff = "buff", names = { debuff = "DaylightUIFocusDebuffs", buff = "DaylightUIFocusBuffs" } },
     player = { debuff = "selfdebuff", buff = "selfbuff" },
+    -- A friendly unit like you: every debuff (or the ones you can dispel) and its buffs.
+    pet = { debuff = "selfdebuff", buff = "selfbuff", names = { debuff = "DaylightUIPetDebuffs", buff = "DaylightUIPetBuffs" } },
 }
 
 -- side is the frame's inner end ("left" for the target, "right" for the

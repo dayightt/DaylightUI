@@ -252,6 +252,22 @@ function ns.PlaceFocusAuras(db)
     Auras.Place(set, f, db.focus)
 end
 
+-- The pet's own buffs and debuffs (settings petAuras, off by default), made
+-- the first time a row is on, like the player's.
+-- Protected parent, so only call through DUI.AfterCombat.
+function ns.PlacePetAuras(db)
+    local a, f = db.petAuras, ns.frames.pet
+    if not (a and f) then return end
+    if not ns.petAuras and (a.debuffs or a.buffs) then
+        ns.petAuras = Auras.Create(f, "right", "pet", a)
+        if ns.petAuras then ns.RefitOnTab(f, function() return ns.petAuras end) end
+    end
+    local set = ns.petAuras
+    if not set then return end
+    Auras.Apply(set, a)
+    Auras.Place(set, f, db.pet)
+end
+
 -- How far a changed setting reaches. A frame's own keys (player.*,
 -- playerText.*) only lay out that frame, since each layout reads only its own.
 -- Cast bar, swing, combo and aura row keys affect the five frames, and a party
@@ -260,7 +276,7 @@ end
 -- frame. A refresh queued during combat keeps the widest scope requested.
 local ONE, FRAMES, NO_RAID, ALL = 1, 2, 3, 4
 local REACH = { playerCastbar = FRAMES, targetCastbar = FRAMES, focusCastbar = FRAMES, swing = FRAMES,
-                targetAuras = FRAMES, playerAuras = FRAMES, focusAuras = FRAMES, combo = FRAMES, personal = ONE,
+                targetAuras = FRAMES, playerAuras = FRAMES, focusAuras = FRAMES, petAuras = FRAMES, combo = FRAMES, personal = ONE,
                 arena = FRAMES, arenaText = FRAMES,
                 party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID,
                 partyTarget = NO_RAID, partyTargetText = NO_RAID }
@@ -376,6 +392,7 @@ function ns.Refresh(mod, path)
         Auras.Place(ns.auras, ns.frames.target, db.target)
         ns.PlacePlayerAuras(db)
         ns.PlaceFocusAuras(db)
+        ns.PlacePetAuras(db)
         ns.Combo.Layout(ns.combo, db.combo)
         ns.Happiness.Layout(ns.happiness, db.pet)
         ns.DruidBars.Layout(db.player.druidBars)
@@ -509,7 +526,10 @@ local function registerEvents()
         Auras.Refresh(ns.focusAuras)
     end)
     DUI.RegisterEvent("UNIT_PET", function(_, unit)
-        if unit == "player" then UF.UpdateAll(ns.frames.pet, true); occupant("pet") end
+        if unit == "player" then
+            UF.UpdateAll(ns.frames.pet, true); occupant("pet")
+            Auras.Refresh(ns.petAuras)
+        end
     end)
     DUI.RegisterEvent("UNIT_TARGET", function(_, unit)
         if unit == "target" then UF.UpdateAll(ns.frames.targettarget, true); occupant("targettarget") end

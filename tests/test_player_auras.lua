@@ -280,3 +280,32 @@ T.test("the Focus page has its Debuffs and Buffs cards, and they pass the page c
     T.eq(by.Buffs.items[1].key, "focusAuras.buffs")
     T.eq(#O.ValidatePage(O.GetPage("UnitFrames.focus")), 0)
 end)
+
+T.test("the pet's rows are off until switched on, then every debuff on it, in containers of their own", function()
+    local DUI, ns = login()
+    T.isnil(ns.petAuras, "nobody pays for them until they're on")
+    DUI:Set("UnitFrames", "petAuras.debuffs", true)
+    local set = ns.petAuras
+    T.truthy(set)
+    T.eq(set.debuffs.__unit, "pet"); T.eq(set.buffs.__unit, "pet")
+    T.eq(_G.DaylightUIPetDebuffs, set.debuffs)
+    T.truthy(_G.DaylightUIPlayerDebuffs ~= set.debuffs, "the player keeps its own")
+    T.truthy(set.debuffs.__groups.all.max > 0)
+    T.eq(set.buffs.__groups.buffs.max, 0, "the buffs stay off")
+    DUI:Set("UnitFrames", "petAuras.buffs", true)
+    T.truthy(set.buffs.__groups.buffs.max > 0)
+    DUI:Set("UnitFrames", "petAuras.buffFilter", "mine")
+    T.eq(set.buffs.__groups.buffs.max, 0)
+    T.truthy(set.buffs.__groups.mine.max > 0, "only the buffs you put on it")
+    T.eq(set.buffs.__groups.mine.filter, "HELPFUL|PLAYER")
+end)
+
+T.test("the Pet page has its Debuffs and Buffs cards, and they pass the page check", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    local by = {}
+    for _, g in ipairs(O.GetPage("UnitFrames.pet").groups) do by[g.label] = g end
+    T.eq(by.Debuffs.items[1].key, "petAuras.debuffs")
+    T.eq(by.Buffs.items[1].key, "petAuras.buffs")
+    T.eq(#O.ValidatePage(O.GetPage("UnitFrames.pet")), 0)
+end)

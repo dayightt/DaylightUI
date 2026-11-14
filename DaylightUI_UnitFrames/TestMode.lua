@@ -104,6 +104,9 @@ function Test.Start()
     if ns.focusAuras and cfg and ns.frames.focus.test then
         ns.Auras.ShowSample(ns.focusAuras, ns.frames.focus, cfg.focusAuras, Test.AURAS)
     end
+    if ns.petAuras and cfg and ns.frames.pet.test then
+        ns.Auras.ShowSample(ns.petAuras, ns.frames.pet, cfg.petAuras, Test.AURAS)
+    end
     if ns.playerAuras and cfg then
         ns.Auras.ShowSample(ns.playerAuras, ns.frames.player, cfg.playerAuras, Test.AURAS)
     end
@@ -149,6 +152,7 @@ function Test.Stop()
     if ns.auras then ns.Auras.HideSample(ns.auras) end
     if ns.playerAuras then ns.Auras.HideSample(ns.playerAuras) end
     if ns.focusAuras then ns.Auras.HideSample(ns.focusAuras) end
+    if ns.petAuras then ns.Auras.HideSample(ns.petAuras) end
     DUI.AfterCombat(function()
         local cfg = db()
         for _, spec in ipairs(ns.SPECS) do

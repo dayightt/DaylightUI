@@ -137,7 +137,7 @@ local function auraRow(prefix, kind)
 end
 -- Page id -> its aura settings and inner end (the side the rows grow toward).
 PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" },
-                         focus = { key = "focusAuras", side = "right" } }
+                         focus = { key = "focusAuras", side = "right" }, pet = { key = "petAuras", side = "right" } }
 PageSample.AURA_PARTS = {}
 for id, a in pairs(PageSample.AURA_SETS) do
     PageSample.AURA_PARTS[id] = { auraRow(a.key, "debuff"), auraRow(a.key, "buff") }
