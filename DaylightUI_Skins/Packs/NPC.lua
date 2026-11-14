@@ -14,29 +14,42 @@ local function g(name) return _G[name] end
 -- Quests
 -- ---------------------------------------------------------------------
 
-local QUEST_TITLES = { "QuestInfoTitleHeader", "QuestInfoDescriptionHeader", "QuestInfoObjectivesHeader",
-                       "QuestProgressTitleText", "QuestProgressRequiredItemsText", "CurrentQuestsText",
-                       "AvailableQuestsText" }
+-- The quest text the world map's quest log borrows from the game's quest
+-- window (QuestInfo_Display moves it to whichever shows a quest). The rewards
+-- have a frame of their own on the map, so they aren't here.
+local QUEST_TITLES = { "QuestInfoTitleHeader", "QuestInfoDescriptionHeader", "QuestInfoObjectivesHeader" }
 local QUEST_TEXT = { "QuestInfoDescriptionText", "QuestInfoObjectivesText", "QuestInfoGroupSize",
-                     "QuestInfoRewardText", "QuestInfoQuestType", "QuestProgressText",
-                     "QuestProgressRequiredMoneyText", "GreetingText" }
-local REWARD_TEXT = { "ItemChooseText", "ItemReceiveText", "PlayerTitleText" }
+                     "QuestInfoRewardText", "QuestInfoQuestType" }
 
--- Relights quest text the game may have just filled. Also used for quests
--- opened from the map's log (System pack), which must work without this pack.
+local function objectiveLines()
+    local objectives = g("QuestInfoObjectivesFrame")
+    return type(objectives) == "table" and type(objectives.Objectives) == "table" and objectives.Objectives or {}
+end
+
+-- Lights that text for a quest opened from the map's log (System pack), which
+-- must work without this pack.
 function ns.LightQuestInfo(Kit)
     for _, n in ipairs(QUEST_TITLES) do Kit.Light(g(n), Kit.HEADER) end
     for _, n in ipairs(QUEST_TEXT) do Kit.Light(g(n)) end
-    local rewards = g("QuestInfoRewardsFrame")
-    if type(rewards) == "table" then
-        Kit.Light(rewards.Header, Kit.HEADER)
-        for _, key in ipairs(REWARD_TEXT) do Kit.Light(rewards[key]) end
-        if type(rewards.XPFrame) == "table" then Kit.Light(rewards.XPFrame.ReceiveText) end
+    for _, fs in ipairs(objectiveLines()) do Kit.Light(fs) end
+end
+
+-- Hands that text back when the game's own quest window shows it. The game
+-- colors it again only when the parchment changes, so its colors are put back
+-- here the way QuestInfo_Display picks them. Objective lines it colors each
+-- time, so they only stop being relit.
+function ns.DarkQuestInfo(Kit)
+    local text, title
+    if type(GetMaterialTextColors) == "function" then
+        local info = g("QuestInfoFrame")
+        local contrast = _G.QuestTextContrast
+        local stone = type(contrast) == "table" and type(contrast.UseLightText) == "function"
+            and contrast.UseLightText() == true
+        text, title = GetMaterialTextColors(stone and "Stone" or (type(info) == "table" and info.material or nil))
     end
-    local objectives = g("QuestInfoObjectivesFrame")
-    if type(objectives) == "table" and type(objectives.Objectives) == "table" then
-        for _, fs in ipairs(objectives.Objectives) do Kit.Light(fs) end
-    end
+    for _, n in ipairs(QUEST_TITLES) do Kit.Unlight(g(n), title) end
+    for _, n in ipairs(QUEST_TEXT) do Kit.Unlight(g(n), text) end
+    for _, fs in ipairs(objectiveLines()) do Kit.Unlight(fs) end
 end
 
 -- ---------------------------------------------------------------------

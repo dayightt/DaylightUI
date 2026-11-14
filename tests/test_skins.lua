@@ -1294,6 +1294,54 @@ T.test("skins: a quest opened from the map has light text, even with the NPC pac
     T.eq(QuestInfoTitleHeader.__textColor[1], stub.skins.Kit.HEADER[1], "titles in the accent")
 end)
 
+T.test("skins: the game's quest window keeps its dark text after the map lit the same text", function()
+    login(function()
+        local map = window("WorldMapFrame")
+        local qm = CreateFrame("Frame", "QuestMapFrame", map)
+        qm.DetailsFrame = CreateFrame("Frame", nil, qm)
+        _G.QuestMapFrame_ShowQuestDetails = function() end
+        -- The game's rule (QuestInfo.lua, forever): the shared quest text moves to
+        -- whichever window shows it, and its colors are set again only when the
+        -- material changes. Map pages pass no material.
+        _G.QuestInfoFrame = CreateFrame("Frame", "QuestInfoFrame", UIParent)
+        _G.GetMaterialTextColors = function(material)
+            if material == "Stone" then return { 1, 1, 1 }, { 1, 0.8, 0 } end
+            return { 0.18, 0.12, 0.06 }, { 0, 0, 0 }
+        end
+        _G.QuestInfo_Display = function(_, parent, _, material)
+            for _, n in ipairs({ "QuestInfoTitleHeader", "QuestInfoDescriptionText" }) do _G[n]:SetParent(parent) end
+            if QuestInfoFrame.material ~= material then
+                QuestInfoFrame.material = material
+                local text, title = GetMaterialTextColors(material)
+                QuestInfoTitleHeader:SetTextColor(title[1], title[2], title[3])
+                QuestInfoDescriptionText:SetTextColor(text[1], text[2], text[3])
+            end
+        end
+    end)
+    WorldMapFrame:Show()
+    stub.RunTimers()
+    local body, title = QuestInfoDescriptionText, QuestInfoTitleHeader
+    -- A quest opened on the map: light text there.
+    QuestInfo_Display(nil, QuestMapFrame.DetailsFrame)
+    T.truthy(body.__textColor[1] > 0.8, "light on the map")
+    -- Then one from an NPC, twice (same material, so the game paints only once).
+    QuestFrame:Show()
+    QuestInfo_Display(nil, QuestFrame, nil, "Parchment")
+    T.eq(body.__textColor[1], 0.18, "the game's dark ink in its own window")
+    T.eq(title.__textColor[1], 0, "and its dark title")
+    QuestInfo_Display(nil, QuestFrame, nil, "Parchment")
+    -- The skin runs again (a /reload, a repaint, the map shown again).
+    WorldMapFrame:Hide(); WorldMapFrame:Show()
+    stub.skins.Kit.RepaintSoon(); stub.RunTimers()
+    stub.skins.Kit.RelightIn(QuestFrame, 3)
+    T.eq(body.__textColor[1], 0.18, "still the game's dark ink")
+    T.eq(title.__textColor[1], 0, "still its dark title")
+    -- Back on the map, light again.
+    QuestInfo_Display(nil, QuestMapFrame.DetailsFrame)
+    T.truthy(body.__textColor[1] > 0.8, "light on the map again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- A roll popup as the game's template makes it (GroupLootFrame.xml, forever).
 local function rollPopup()
     local roll = CreateFrame("Frame", "GroupLootFrame1", UIParent)

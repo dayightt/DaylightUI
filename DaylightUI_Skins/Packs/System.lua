@@ -652,12 +652,15 @@ local function inMap(f)
     end
     return false
 end
+-- Whether the quest text the map shares with the game's quest window was last
+-- shown on the map (QuestInfo_Display moves it to whichever window shows a quest).
+local questTextOnMap = false
 local function questDetails(Kit)
     local qm = _G.QuestMapFrame
     local d = type(qm) == "table" and qm.DetailsFrame
     if type(d) ~= "table" then return end
     -- The game colors this text dark for the parchment that was removed.
-    ns.LightQuestInfo(Kit)
+    if questTextOnMap then ns.LightQuestInfo(Kit) end
     Kit.Hide(d.Bg)
     Kit.Erase(d.SealMaterialBG)
     Kit.Strip(d.BorderFrame)
@@ -779,13 +782,18 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
             end
             -- A quest opened: its page and rewards were just built.
             if type(QuestMapFrame_ShowQuestDetails) == "function" then
-                hooksecurefunc("QuestMapFrame_ShowQuestDetails", function() questDetails(Kit) end)
+                hooksecurefunc("QuestMapFrame_ShowQuestDetails", function()
+                    questTextOnMap = true
+                    questDetails(Kit)
+                end)
             end
-            -- The game's own quest window fills through QuestInfo_Display too, and
-            -- keeps its dark text on its parchment, so only the map's page counts.
+            -- The game's own quest window fills through QuestInfo_Display too, with
+            -- the same text, and keeps its dark ink on its parchment: shown there,
+            -- the text gets the game's look back.
             if type(QuestInfo_Display) == "function" then
                 hooksecurefunc("QuestInfo_Display", function(_, parent)
-                    if inMap(parent) then questDetails(Kit) end
+                    questTextOnMap = inMap(parent)
+                    if questTextOnMap then questDetails(Kit) else ns.DarkQuestInfo(Kit) end
                 end)
             end
             if type(QuestLogQuests_Update) == "function" then
