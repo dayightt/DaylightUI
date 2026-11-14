@@ -3179,6 +3179,11 @@ T.test("nameplates: an enemy totem is a round badge in its element's color, and 
     T.falsy(p.name:IsShown(), "no name")
     T.eq(p.badge.icon.__portraitUnit, "nameplate3", "its portrait, drawn by the game")
     T.rgb(p.badge.ring.__vertex, NP.Minion.COLORS.fire, "the fire color (any rank)")
+    -- The ring fills only RING_OUTER of its image: drawn at the badge's size, the
+    -- portrait stuck out past it.
+    local s = p.badge:GetWidth()
+    T.near(p.badge.ring:GetWidth() * NP.Minion.RING_OUTER, s, 0.01, "the ring's outer edge is the badge's edge")
+    T.truthy(p.badge.icon:GetWidth() < s, "the portrait sits inside the ring")
     local enemy = added("nameplate1")
     T.falsy(enemy.badge:IsShown(), "a mob keeps its bar")
     T.truthy(enemy.hp:IsShown())

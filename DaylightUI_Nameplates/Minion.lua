@@ -15,6 +15,9 @@ ns.Minion = Minion
 Minion.CVAR = "nameplateShowEnemyMinions"
 Minion.RING = DUI.MEDIA .. "portrait-band.png"
 Minion.RING_INNER = 0.772 -- ring art opening, as a fraction of its outer edge (UF.RING_INNER)
+-- The ring fills only this much of its image (UF.RING_OUTER), so the image is
+-- drawn bigger for the ring itself to reach the badge's edge.
+Minion.RING_OUTER = 0.60
 Minion.GLOW = DUI.MEDIA .. "crest-glow.png"
 Minion.DISC = DUI.MEDIA .. "crest-disc.png"
 Minion.HOVER = 0.2 -- mouseover brighten
@@ -131,7 +134,7 @@ function Minion.Layout(p, c, kind, h)
     b:SetPoint("CENTER", p.hp, "CENTER", 0, 0)
     b:SetSize(s, s)
     local inner = s * Minion.RING_INNER
-    b.ring:SetSize(s, s)
+    b.ring:SetSize(s / Minion.RING_OUTER, s / Minion.RING_OUTER)
     b.glow:SetSize(s * 2, s * 2)
     b.shadow:SetSize(s * 1.3, s * 1.3)
     b.disc:SetSize(inner + 2, inner + 2)
