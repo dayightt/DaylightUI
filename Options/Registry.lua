@@ -1276,6 +1276,8 @@ Options.RegisterPage({
         { label = "Motion", items = {
             { type = "toggle", key = "motion", label = "Motion effects",
               desc = "Windows glide in and out, tooltips fade in, a spell's icon pops when it's ready, gold and XP count up. When off, everything snaps into place." },
+            { type = "toggle", key = "portraitFlare", label = "Window icon flare",
+              desc = "A halo and a ring of embers light the round icon at the top of a window as it opens (the spellbook, professions, the guild window). Needs Motion effects." },
             { type = "toggle", key = "smoothBars", label = "Smooth bars",
               desc = "Bars glide to their new value instead of jumping." },
         } },

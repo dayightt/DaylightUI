@@ -52,6 +52,7 @@ DB.GENERAL_DEFAULTS = {
     hidePTRButton = false, -- beta/PTR only: hide Blizzard's Issue Reporter bug button
     smoothBars = true,
     motion = true, -- windows glide in, spells ping, numbers count up. Off snaps everything
+    portraitFlare = true, -- the ring of embers round a window's icon as it opens (Win.PlayGlow). Needs motion
     sounds = true, -- soft UI sounds instead of the game's (Sound.lua). Off = the game's everywhere
     soundKinds = { -- per kind: "soft" (Daylight UI's) | "game" (the game's) | "none" (Sound.KINDS)
         windows = "soft", clicks = "soft", toggles = "soft", snaps = "soft", confirms = "soft",

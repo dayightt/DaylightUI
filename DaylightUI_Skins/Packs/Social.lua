@@ -134,6 +134,32 @@ local function rimClubIcon(overlay, portrait)
     rim:SetVertexColor(band[1], band[2], band[3], 1)
 end
 
+-- The flare the other windows play around their portrait as they open (spells,
+-- professions), here around the club icon. Made once. It plays a frame after
+-- the window shows, once the game has put the icon where it goes, from the
+-- frame's OnShow script rather than a hook on its methods.
+local glows = setmetatable({}, { __mode = "k" })
+
+local function glowClubIcon(frame)
+    local overlay = type(frame) == "table" and frame.PortraitOverlay
+    local portrait = type(overlay) == "table" and overlay.Portrait
+    if type(overlay) ~= "table" then return end
+    local Win = DUI.Win
+    if type(portrait) ~= "table" or not (Win and Win.MakeGlow and Win.PlayGlow) then return end
+    if glows[frame] then return end
+    glows[frame] = Win.MakeGlow(frame, portrait)
+    frame:HookScript("OnShow", function()
+        if not (C_Timer and C_Timer.After) then return end
+        C_Timer.After(0, function()
+            -- The game's icon frame sits at a fixed level (300) well above the
+            -- window's own, so the flare goes over it, as it does on ours.
+            local level = overlay:GetFrameLevel()
+            if type(level) == "number" then glows[frame]:SetFrameLevel(level + 2) end
+            DUI.SafeCall(Win.PlayGlow, glows[frame], portrait)
+        end)
+    end)
+end
+
 local function placeClubIcon(frame)
     local overlay = frame.PortraitOverlay
     local portrait = type(overlay) == "table" and overlay.Portrait
@@ -451,6 +477,7 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
         -- emblem with SetVertexColor(1, 1, 1, 1), which is fine once it isn't
         -- behind the title.
         placeClubIcon(f)
+        glowClubIcon(f)
         -- Maximize/minimize as bare chevrons, level with the X. The button
         -- grows or shrinks the window; the game never says so.
         local mm = f.MaximizeMinimizeFrame
