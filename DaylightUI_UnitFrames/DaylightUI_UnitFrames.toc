@@ -19,6 +19,7 @@ Colors.lua
 CastBar.lua
 Swing.lua
 HealSpells.lua
+AuraLists.lua
 Auras.lua
 AuraGroups.lua
 Indicators.lua
@@ -41,6 +42,7 @@ Pull.lua
 ClickCast.lua
 ClickBinder.lua
 ClickCastPage.lua
+AuraListsPage.lua
 PowerBar.lua
 DruidBars.lua
 Personal.lua

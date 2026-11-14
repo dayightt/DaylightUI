@@ -368,6 +368,23 @@ for _, k in ipairs(ns.RIBBON_FRAMES) do
     d.sizes = { daylight = day, ribbon = RIBBON_SIZES[k] }
 end
 
+-- Aura lists (AuraLists.lua): spells shared by every frame's aura rows. Each
+-- row hides the Hidden list's spells and shows everything else until it picks
+-- a show-only list. Debuff rows can also show only boss debuffs or leave out
+-- the ones lasting longer than maxTime seconds (0 = any).
+ns.DEFAULTS.auraLists = { hidden = { name = "Hidden", mode = "hide", spells = "" },
+                          watch = { name = "Watch list", mode = "only", spells = "" } }
+for _, t in ipairs({ ns.DEFAULTS.targetAuras, ns.DEFAULTS.focusAuras, ns.DEFAULTS.petAuras, ns.DEFAULTS.playerAuras,
+                     ns.DEFAULTS.personal.auras }) do
+    t.debuffHide, t.buffHide, t.debuffOnly, t.buffOnly = "hidden", "hidden", "none", "none"
+    t.debuffBoss, t.debuffMaxTime = false, 0
+end
+for _, frame in ipairs({ "party", "raid" }) do
+    for _, g in pairs(ns.DEFAULTS[frame].auras) do
+        g.hide, g.only, g.boss, g.maxTime = "hidden", "none", false, 0
+    end
+end
+
 -- Raid setups by size (Raid.lua; the Raid 10, Raid 20 and Raid 40 pages).
 -- 11 to 20 players use raid20 / raid20Text and 21 to 40 use raid40 / raid40Text,
 -- built like the 10-player raid setup, unless follow is on (the default), in

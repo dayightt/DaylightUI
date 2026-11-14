@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
+            { "Unit frames", "Aura lists: hide the buffs and debuffs you never want to see, or show only the ones you care about, on any frame: Unit frames > Aura Lists" },
             { "Other addons", "A SkillUp link in the profession window switches to the game's window, where SkillUp Forever shows its skill-up chances, costs and route" },
             { "Unit frames", "Portraits can be square, or square with an angled side like the frames, picked per frame on its new Portrait tab" },
         },

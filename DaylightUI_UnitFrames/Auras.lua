@@ -325,7 +325,7 @@ function Auras.AddGroup(c, key)
             sortMethod = AuraContainerSortMethod.ExpirationOnly,
             sortDirection = AuraContainerSortDirection.Normal,
             maxFrameCount = 0,
-            candidateFilters = ids and { includeSpellIDs = ids } or nil,
+            candidateFilters = ns.AuraLists.Filters(c, g),
             layout = groupLayout(kind, g.index, c),
             initializeFrame = function(btn) Auras.InitButton(btn, kind, c, g.halo) end,
         })
@@ -411,6 +411,7 @@ function Auras.Create(frame, side, unit, cfg)
             if cfg then
                 Auras.SetTextSizes(c, cfg[kind .. "TimeSize"], cfg[kind .. "CountSize"])
                 Auras.SetRowLook(c, cfg, kind)
+                ns.AuraLists.Use(c, ns.AuraLists.FromRow(cfg, kind))
             end
         end
     end
@@ -708,10 +709,12 @@ function Auras.Apply(set, cfg)
     Auras.SetOwnSize(set.debuffs, cfg.debuffSize or sizeOf.debuff[1], cfg.debuffSpacing or Auras.SPACING.debuff)
     Auras.SetTextSizes(set.debuffs, cfg.debuffTimeSize, cfg.debuffCountSize)
     Auras.SetRowLook(set.debuffs, cfg, "debuff")
+    ns.AuraLists.Use(set.debuffs, ns.AuraLists.FromRow(cfg, "debuff"))
     if set.buffs then
         Auras.SetOwnSize(set.buffs, cfg.buffSize or sizeOf.buff[1], cfg.buffSpacing or Auras.SPACING.buff)
         Auras.SetTextSizes(set.buffs, cfg.buffTimeSize, cfg.buffCountSize)
         Auras.SetRowLook(set.buffs, cfg, "buff")
+        ns.AuraLists.Use(set.buffs, ns.AuraLists.FromRow(cfg, "buff"))
     end
     -- Others' debuffs: the dispellable ones and the rest, each up to the count,
     -- or all in one group when the client refused the split.

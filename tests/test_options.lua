@@ -197,7 +197,7 @@ T.test("every unit frames page is valid", function()
         T.eq(#DUI.Options.ValidatePage(page), 0, id)
         if page.section == "UnitFrames" then n = n + 1 end
     end
-    T.eq(n, 18, "no Healer Frames page, no Target Auras page; Click-casting is one; Raid 10, 20 and 40; the Personal Display; PvP Frames; Focus Target; Party Targets")
+    T.eq(n, 19, "no Healer Frames page, no Target Auras page; Click-casting is one; Raid 10, 20 and 40; the Personal Display; PvP Frames; Focus Target; Party Targets; Aura Lists")
     T.falsy(stub.ChatContains("Options ("))
 end)
 

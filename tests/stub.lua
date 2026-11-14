@@ -882,9 +882,26 @@ local function newAuraContainer(name, parent, template)
     c.__groups, c.__groupOrder = {}, {}
     function c:SetUnit(u) self.__unit = u end
     function c:UpdateAllAuras() self.__refreshes = (self.__refreshes or 0) + 1 end
+    -- The game's checks on a group's candidate filters (ValidateCandidateFilters,
+    -- Blizzard_CustomAuraContainer.lua): nil or a table, its spell and type lists
+    -- tables, maxDuration a number of 0 or more, the flags booleans.
+    local function validCandidates(cand)
+        assert(cand == nil or type(cand) == "table", "candidateFilters must be a table or nil.")
+        if cand == nil then return end
+        for _, f in ipairs({ "includeSpellIDs", "excludeSpellIDs", "includeDispelTypes", "excludeDispelTypes" }) do
+            assert(cand[f] == nil or type(cand[f]) == "table", f .. " must be a table or nil")
+        end
+        assert(cand.maxDuration == nil or (type(cand.maxDuration) == "number" and cand.maxDuration >= 0),
+            "maxDuration must be a non-negative number or nil.")
+        for _, f in ipairs({ "isFromPlayerOrPlayerPet", "isRoleAura", "isPriorityAura", "isStealable", "nameplateShowAll",
+                             "nameplateShowPersonal", "canApplyAura", "isBossAura", "isBossOrRoleAura" }) do
+            assert(cand[f] == nil or type(cand[f]) == "boolean", f .. " must be a boolean or nil.")
+        end
+    end
     function c:AddAuraGroup(key, filter, opts)
         if stub.refuseAuraFilters and stub.refuseAuraFilters[filter] then error("Invalid aura filter: " .. filter) end
         assert(not self.__groups[key], "duplicate group " .. key)
+        validCandidates(opts and opts.candidateFilters)
         local g = { filter = filter, opts = opts, max = opts and opts.maxFrameCount, layout = opts and opts.layout }
         self.__groups[key] = g
         self.__groupOrder[#self.__groupOrder + 1] = key
@@ -929,6 +946,17 @@ local function newAuraContainer(name, parent, template)
         self.__enchantSort = { method, dir }
     end
     function c:SetAuraGroupMaxFrameCount(key, n) assert(self.__groups[key], key); self.__groups[key].max = n end
+    -- Changes a group's candidate filters in place (SetAuraGroupCandidateFilters):
+    -- the group re-reads its auras at once, and nil clears them.
+    function c:SetAuraGroupCandidateFilters(key, cand)
+        assert(self.__groups[key], "aura group was not found with this key.")
+        validCandidates(cand)
+        local g = self.__groups[key]
+        g.opts = g.opts or {}
+        g.opts.candidateFilters = cand
+        self.__candidateSets = (self.__candidateSets or 0) + 1
+        self.__refreshes = (self.__refreshes or 0) + 1
+    end
     function c:SetAuraGroupLayout(key, l) assert(self.__groups[key], key); self.__groups[key].layout = l end
     function c:SetFlowLayoutAnchorPoint(p) self.__anchorPoint = p end
     function c:SetFlowLayoutGrowthDirection(h, v) self.__growth = { h, v } end
@@ -3119,8 +3147,8 @@ stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
                           "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "Diag.lua", "Options.lua", "Module.lua" }
-stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
-                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
+stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
+                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
 
 -- Each file is read and compiled once per run (false = not on disk). Every Load
 -- runs the compiled chunk again, which gives fresh locals as a reload does.

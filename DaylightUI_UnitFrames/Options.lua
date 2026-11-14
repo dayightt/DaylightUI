@@ -430,6 +430,40 @@ local function filterValues(def)
     return values, order
 end
 
+-- Aura list rows for one aura row (AuraLists.lua). keyOf(field) is the row's
+-- setting for hide | only | boss | maxTime. what = "buffs" | "debuffs" names
+-- the icons; only = the row may pick a show-only list (spell ids are matched
+-- there: buffs, or debuffs on an enemy); debuffs on yourself or your group get
+-- the boss and duration rows instead. Extra hidden/disabled rules come in.
+local LIST_SINCE = "1.8.1"
+local function auraListRows(keyOf, what, only, dis, hidden)
+    local AL = ns.AuraLists
+    local friendlyDebuffs = what == "debuffs" and not only
+    local items = {
+        { type = "dropdown", key = keyOf("hide"), label = "Hide list", since = LIST_SINCE,
+          choices = function() return AL.Choices("hide") end, disabled = dis, hidden = hidden,
+          desc = friendlyDebuffs
+              and "Debuffs on this list never show here. The game only lets addons hide a few harmless debuffs on you and your group, like Sated; the Aura Lists page marks which. Make and fill lists on Unit Frames > Aura Lists."
+              or "The " .. what .. " on this list never show here. Make and fill lists on Unit Frames > Aura Lists." },
+    }
+    if only then
+        items[#items + 1] = { type = "dropdown", key = keyOf("only"), label = "Show only list", since = LIST_SINCE,
+            choices = function() return AL.Choices("only") end, disabled = dis, hidden = hidden,
+            desc = what == "buffs"
+                and "Shows only the buffs on this list, with the filter above still applying. An empty list shows them all. Buffs on an enemy can't be matched, so none show there while a list is picked."
+                or "Shows only the debuffs on this list, with the filter above still applying. An empty list shows them all." }
+    end
+    if friendlyDebuffs and keyOf("boss") then
+        items[#items + 1] = { type = "toggle", key = keyOf("boss"), label = "Only boss debuffs", since = LIST_SINCE,
+            disabled = dis, hidden = hidden,
+            desc = "Shows only the debuffs a boss puts on you, the ones a fight is about." }
+        items[#items + 1] = { type = "slider", key = keyOf("maxTime"), label = "Longest debuff shown", since = LIST_SINCE,
+            min = 0, max = 600, step = 5, disabled = dis, hidden = hidden,
+            desc = "Leaves out debuffs that last longer than this many seconds, and ones that never run out, like long curses and Resurrection Sickness. 0 shows them all." }
+    end
+    return items
+end
+
 -- Add piece (Design mode): a card per extra aura group slot (party, raid),
 -- shown only while the slot is in use. frame: "raid"; gate: its Show key.
 local function extraAuraCards(frame, gate)
@@ -451,6 +485,9 @@ local function extraAuraCards(frame, gate)
             { type = "dropdown", key = g("buffWhich"), label = "Filter", values = bv, order = border,
               desc = "Which buffs this group shows.", hidden = isNot("buffs"), disabled = dis },
         }
+        for _, it in ipairs(auraListRows(g, "debuffs", false, dis, isNot("debuffs"))) do items[#items + 1] = it end
+        -- The buff rows share the slot's hide key with its debuff rows, one of them hidden.
+        for _, it in ipairs(auraListRows(g, "buffs", true, dis, isNot("buffs"))) do items[#items + 1] = it end
         groupRows(items, g, dis, offAny(gate, g("timers")), gone)
         items[#items + 1] = { type = "button", label = "Remove this aura group", text = "Remove", hidden = gone,
             desc = "Takes this extra aura group off the frame. Add another in Design mode.",
@@ -634,6 +671,9 @@ local function auraCards(k, gate)
             items[#items + 1] = { type = "dropdown", key = g("which"), label = "Filter", values = values,
                                   desc = "Which " .. string.lower(def.label) .. " show.", order = order, disabled = dis }
         end
+        local what = def.key == "buffs" and "buffs" or "debuffs"
+        local keyOf = def.key == "cc" and function(f) return f == "hide" and g(f) or nil end or g
+        for _, it in ipairs(auraListRows(keyOf, what, def.key == "buffs", dis)) do items[#items + 1] = it end
         groupRows(items, g, dis, offAny(gate, g("show"), g("timers")))
         if def.key == "cc" and AG.Refused(def, "cc") then
             for _, it in ipairs(items) do it.hidden = function() return true end end
@@ -906,6 +946,13 @@ local function unitAuraCards(prefix, own, desc)
                             desc = "Hovering an icon says what it is. Off, the mouse goes straight through to what's behind it.",
                             disabled = dis }
     end
+    -- Aura lists right after each row's filter (the third row).
+    local function lists(list, kind, what, only)
+        local keyOf = function(f) return k(kind .. f:sub(1, 1):upper() .. f:sub(2)) end
+        for i, it in ipairs(auraListRows(keyOf, what, only, off(k(what)))) do table.insert(list, 3 + i, it) end
+    end
+    lists(debuffs, "debuff", "debuffs", not own)
+    lists(buffs, "buff", "buffs", true)
     look(debuffs, "debuff", "debuffs")
     look(buffs, "buff", "buffs")
     for _, it in ipairs(spotItems(prefix, "debuff", k("debuffs"))) do debuffs[#debuffs + 1] = it end
@@ -2685,4 +2732,6 @@ ns.OPTIONS = { pages = {
     } },
     -- Click-casting (ClickCastPage.lua).
     ns.ClickCastPage,
+    -- Aura lists (AuraListsPage.lua).
+    ns.AuraListsPage,
 } }

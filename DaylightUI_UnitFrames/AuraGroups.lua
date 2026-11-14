@@ -342,6 +342,7 @@ local function placeOne(c, def, g, on, frame, box)
     ns.Auras.SetShortTimers(c, g.shortTimers == true)
     ns.Auras.SetSwipe(c, g.swipe == true)
     ns.Auras.SetTips(c, g.tooltips == true)
+    ns.AuraLists.Use(c, ns.AuraLists.FromGroup(g))
     if real and on then ns.Auras.AddGroup(c, on) end
     if def.kind == "tilebuff" then
         ns.Auras.SetBuffCounts(c, { showBuffs = on ~= nil, buffFilter = on }, max)
