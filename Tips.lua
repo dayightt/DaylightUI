@@ -202,6 +202,30 @@ function Tips.NumberColor(kind)
     return { Style.Pop() }
 end
 
+-- The spans of the game's escape codes that carry digits of their own: the
+-- plural and grammar codes (|4hour:hrs;), textures, atlases, links and key
+-- names. A color code put inside one breaks it, so numbers there stay as they are.
+local CODES = { "|%d[^;]*;", "|T.-|t", "|A.-|a", "|H.-|h", "|K.-|k" }
+function Tips.CodeSpans(text)
+    local spans
+    if text:find("|", 1, true) then
+        for _, p in ipairs(CODES) do
+            local from = 1
+            while true do
+                local a, b = text:find(p, from)
+                if not a then break end
+                spans = spans or {}
+                spans[#spans + 1] = { a, b }
+                from = b + 1
+            end
+        end
+    end
+    return function(at)
+        if spans then for _, s in ipairs(spans) do if at >= s[1] and at <= s[2] then return true end end end
+        return false
+    end
+end
+
 -- Returns text with its numbers colored. Only standalone numbers, and only on
 -- a line without its own color codes (a |r would end that color early). Plain
 -- strings only, never a secret.
@@ -210,11 +234,14 @@ function Tips.Numbers(text)
     local W = words()
     local low = string.lower(text)
     local nums = {}
+    local inCode = Tips.CodeSpans(text)
     -- %f[%d], not %f[%w]: the game's text sometimes glues a number to the word
     -- before it ("inflicts32 to 35"), and that one gets its space back.
     for s, n, e in text:gmatch("()%f[%d](%d[%d,]*%.?%d*)()") do
         while n:sub(-1) == "." or n:sub(-1) == "," do n, e = n:sub(1, -2), e - 1 end -- trailing punctuation belongs to the sentence, not the number
-        nums[#nums + 1] = { s = s, e = e, n = n, glued = s > 1 and text:sub(s - 1, s - 1):find("%a") ~= nil }
+        if not inCode(s) then
+            nums[#nums + 1] = { s = s, e = e, n = n, glued = s > 1 and text:sub(s - 1, s - 1):find("%a") ~= nil }
+        end
     end
     if #nums == 0 then return text end
     local dmg = W.damage

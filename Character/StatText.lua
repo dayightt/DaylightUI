@@ -99,7 +99,9 @@ end
 function StatText.Numbers(text, c)
     if text:find("|c", 1, true) then return text end
     local open = DUI.Win.Parts.Hex(c)
-    return (text:gsub("%f[%w](%d[%d,]*%.?%d*)", function(n)
+    local inCode = DUI.Tips.CodeSpans(text)
+    return (text:gsub("()%f[%w](%d[%d,]*%.?%d*)", function(at, n)
+        if inCode(at) then return nil end
         local tail = ""
         if n:sub(-1) == "." then n, tail = n:sub(1, -2), "." end
         return open .. n .. "|r" .. tail
