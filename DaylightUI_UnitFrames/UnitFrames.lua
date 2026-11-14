@@ -3159,8 +3159,6 @@ function UF.UpdateReady(f, sample, animate)
     end
 end
 
--- Tank, healer or damage, from the role the member picked. Unknown or "NONE"
--- shows nothing. Uses f.roleIcon (tiles) or f.status.icons.role (party frames),
 -- A summon on its way to this member: the swirl in the accent while it waits,
 -- then green or red for their answer, until the client drops it. It fades in,
 -- bumps when the answer comes, and eases away, like the ready check answer.
@@ -3204,6 +3202,8 @@ function UF.UpdateSummon(f, sample)
     end
 end
 
+-- Tank, healer or damage, from the role the member picked. Unknown or "NONE"
+-- shows nothing. Uses f.roleIcon (tiles) or f.status.icons.role (party frames),
 -- whichever this frame has.
 function UF.UpdateRole(f, sample)
     local icon
@@ -3880,9 +3880,9 @@ function UF.ShowSample(f)
     UF.UpdateStatus(f, s)
     UF.UpdateLeader(f, s)
     UF.UpdateReady(f, s)
+    UF.UpdateSummon(f, s)
     UF.UpdateRole(f, s)
     ns.Texts.ShowSample(f, s)
-    UF.UpdateSummon(f, s)
     f:SetAlpha(1)
     UF.Painted(f)
 end
@@ -3908,9 +3908,9 @@ function UF.UpdateAll(f, instant)
     UF.UpdateStatus(f)
     UF.UpdateLeader(f)
     UF.UpdateReady(f)
+    UF.UpdateSummon(f)
     UF.UpdateRole(f)
 end
-    UF.UpdateSummon(f)
 
 local UNIT_EVENTS = {
     UNIT_HEALTH = UF.UpdateHealth,
