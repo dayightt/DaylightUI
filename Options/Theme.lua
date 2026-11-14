@@ -70,7 +70,7 @@ if barsShort == "Action bars, short" then barsShort = L["Bars"] end
 section("core", "e9dcc8", "home", L["General"], L["Look, layout, profiles and setup."])
 section("UnitFrames", "3d9cff", "frames", L["Frames"], L["Player, target, party, raid and more."])
 section("ActionBars", "5f8cff", "bars", barsShort, L["Your action bars and their buttons."])
-section("CooldownManager", "7d7cf5", "cooldowns", L["Cooldowns"], L["The cooldown manager's layout."])
+section("CooldownManager", "7d7cf5", "cooldowns", L["CDM"], L["The cooldown manager's layout."])
 section("InfoPanel", "9a72e8", "info", L["Info"], L["The info panel, meter, map and tracker."])
 section("Quests", "a76fe0", "quests", L["Quests"], L["Your quest tracker."])
 section("Bags", "b56ad6", "bags", L["Bags"], L["Backpack, bank and categories."])
