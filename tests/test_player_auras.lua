@@ -11,12 +11,12 @@ local function shown(h)
     return (h and h:IsShown()) and n or 0
 end
 
-T.test("the player's rows are off by default, above the frame, from the portrait end", function()
+T.test("the player's rows are off by default, above the frame, buffs from the left, debuffs from the right", function()
     local DUI, ns = login()
     local d = ns.DEFAULTS.playerAuras
     T.eq(d.debuffs, false); T.eq(d.buffs, false)
     T.eq(d.debuffSpot, "above"); T.eq(d.buffSpot, "above")
-    T.eq(d.debuffGrow, "right"); T.eq(d.buffGrow, "right")
+    T.eq(d.debuffGrow, "left"); T.eq(d.buffGrow, "right")
     T.isnil(ns.playerAuras, "no containers until a row is switched on: nobody pays for them")
     T.isnil(_G.DaylightUIPlayerDebuffs)
     DUI:Set("UnitFrames", "playerAuras.buffs", true)
@@ -70,7 +70,7 @@ T.test("the player's and the target's icon sizes are their own", function()
     if real then T.eq(real:GetWidth(), 40) end
 end)
 
-T.test("over the frame the rows start from the portrait end, buffs nearest", function()
+T.test("over the frame the rows sit side by side: buffs from the left end, debuffs from the right", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "playerAuras.debuffs", true)
     DUI:Set("UnitFrames", "playerAuras.buffs", true)
@@ -78,11 +78,15 @@ T.test("over the frame the rows start from the portrait end, buffs nearest", fun
     local p, rel, rp = set.debuffs:GetPoint(1)
     T.eq(rel, f)
     T.truthy(p:find("^BOTTOM") and rp:find("^TOP"), "over the frame")
-    T.eq(set.debuffs.__growth[1], AnchorUtil.FlowDirection.Right, "toward the angled end")
+    T.eq(set.debuffs.__growth[1], AnchorUtil.FlowDirection.Left, "debuffs run left from the right end")
+    T.eq(set.buffs.__growth[1], AnchorUtil.FlowDirection.Right, "buffs run right from the left end")
     T.eq(set.debuffs.__growth[2], AnchorUtil.FlowDirection.Up)
-    local _, _, _, _, by = set.buffs:GetPoint(1)
+    T.truthy(p:find("RIGHT$"), "debuffs at the right end")
+    local bp, _, _, _, by = set.buffs:GetPoint(1)
     local _, _, _, _, dy = set.debuffs:GetPoint(1)
-    T.truthy(dy > by, "the debuffs over the buffs")
+    T.truthy(bp:find("LEFT$"), "buffs at the left end")
+    T.near(dy, by, 0.01, "side by side, not stacked")
+    T.truthy(set.buffs:GetWidth() + set.debuffs:GetWidth() < f:GetWidth(), "each in its own part of the line")
 end)
 
 T.test("nothing pushes the player's rows: they sit where they're placed", function()

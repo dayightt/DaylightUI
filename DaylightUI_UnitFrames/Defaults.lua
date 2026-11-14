@@ -198,27 +198,28 @@ ns.DEFAULTS = {
                  powerHeight = 5, showHealth = true, showPower = true, combo = true, slant = true, castbar = false, swing = false,
                  comboStretch = true, comboSize = 14, comboHeight = 0, comboX = 0, comboY = 0,
                  predictHeals = true, predictAbsorbs = true,
-                 -- Its own rows, shaped like playerAuras: off, centered over the bars, buffs nearest.
-                 auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
-                           buffSpot = "above", buffGrow = "center", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
+                 -- Its own rows, shaped like playerAuras: off, over the bars, buffs from the left, debuffs from the right.
+                 auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                           buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                            buffSize = 20, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
                            debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                            debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                            debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
                  fade = DaylightUI.Fade.Defaults({ mode = "ooc", target = true, delay = 2, mouseover = false }) },
-    -- Spot, grow and nudge (Spots.lua) for each row: debuffs over the name
-    -- tab, buffs under the frame, both from the outer end inward.
+    -- Spot, grow and nudge (Spots.lua) for each row. Both over the frame,
+    -- side by side: buffs from the left end, debuffs from the right, as on
+    -- every frame.
     targetAuras = { debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
-                    buffSpot = "below", buffGrow = "left", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
+                    buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
                     maxDebuffs = 8, maxOtherDebuffs = 4, buffSize = 16, buffs = true, maxBuffs = 6,
-                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 3, buffRows = 2,
+                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 4, buffRows = 3,
                     debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                     debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                     debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The focus's own rows, shaped like the target's but smaller: off by
     -- default, and only your own debuffs once on, so it tracks what you put there.
-    focusAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "right", debuffX = 0, debuffY = 0,
-                   buffSpot = "below", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 22, debuffFilter = "mine",
+    focusAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                   buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 22, debuffFilter = "mine",
                    maxDebuffs = 6, maxOtherDebuffs = 3, buffSize = 16, maxBuffs = 6,
                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 1,
                    debuffTimeSize = 11, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
@@ -226,9 +227,9 @@ ns.DEFAULTS = {
                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The player frame's own aura rows, styled like the target's. Off by
     -- default, since the Buffs module shows yours. Both sit over the frame,
-    -- clear of the cast bar and swing timers below, buffs nearest, running from
-    -- the portrait end toward the angled one. All debuffs on you form one group.
-    playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "right", debuffX = 0, debuffY = 0,
+    -- clear of the cast bar and swing timers below, side by side: buffs from
+    -- the left end, debuffs from the right. All debuffs on you form one group.
+    playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                     buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                     buffSize = 16, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
                     debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,

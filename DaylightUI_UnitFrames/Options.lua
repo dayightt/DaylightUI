@@ -909,16 +909,16 @@ local function unitAuraCards(prefix, own, desc)
 end
 
 local TARGET_AURA_GROUPS = unitAuraCards("targetAuras", false, {
-    debuffs = "Above the name tab by default, running inward. Yours come first.",
-    buffs = "Small icons in their own row, under the frame by default." })
+    debuffs = "Over the frame from its right end by default. Yours come first.",
+    buffs = "Small icons over the frame from its left end by default." })
 -- Off by default, since the buff bars by the info panel show the same.
 local PLAYER_AURA_GROUPS = unitAuraCards("playerAuras", true, {
-    debuffs = "Every debuff on you, over your frame. Off by default: your buff bars show them too.",
-    buffs = "Small icons over your frame, nearest it. Off by default: your buff bars show them too." })
+    debuffs = "Every debuff on you, over your frame from its right end. Off by default: your buff bars show them too.",
+    buffs = "Small icons over your frame from its left end. Off by default: your buff bars show them too." })
 
 local FOCUS_AURA_GROUPS = unitAuraCards("focusAuras", false, {
-    debuffs = "Over the focus's name tab. Only yours by default.",
-    buffs = "Small icons under the focus. Off by default." })
+    debuffs = "Over the focus from its right end. Only yours by default.",
+    buffs = "Small icons over the focus from its left end. Off by default." })
 
 -- The personal display's own rows, dimmed with the display.
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {

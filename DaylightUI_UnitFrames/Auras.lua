@@ -809,6 +809,18 @@ function Auras.Place(set, frame, frameCfg)
     local up, down = set.aboveLift or 0, set.buffDrop or 0
     local any = {}
     set.flow = {}
+    -- Both rows over (or under) the frame, buffs running right from the left
+    -- end and debuffs left from the right end: they share the line side by
+    -- side, each in its own half, instead of stacking.
+    local sb, sd = spots.buff, spots.debuff
+    local paired = set.buffs and sb and sd and sb.spot == sd.spot and (sb.spot == "above" or sb.spot == "below")
+        and sb.grow == "right" and sd.grow == "left"
+    local pairTall, buffLine = 0, 0
+    local function total(list) local n = 0; for _, v in ipairs(list or {}) do n = n + v end; return n end
+    -- With either row empty the other keeps the whole line.
+    if paired and (total(set.want and set.want.buff) == 0 or total(set.want and set.want.debuff) == 0) then
+        paired = false
+    end
     -- Buffs first, so they're nearest the frame when both share a side.
     for _, entry in ipairs({ { set.buffs, "buff" }, { set.debuffs, "debuff" } }) do
         local c, kind = entry[1], entry[2]
@@ -824,6 +836,19 @@ function Auras.Place(set, frame, frameCfg)
             elseif sp.spot == "below" then
                 line = fw - (sp.grow == "right" and box.belowInL or box.belowInR)
             end
+            -- Paired, the buffs take what their rows need, up to half, and the
+            -- debuffs the rest: they're bigger and matter more.
+            if paired and line then
+                local full = fw - box[sp.spot .. "InL"] - box[sp.spot .. "InR"]
+                if kind == "buff" then
+                    local s, gap = rowDims(set, "buff")
+                    local per = math.ceil(total(set.want.buff) / math.max(1, set.rows and set.rows.buff or 1))
+                    buffLine = math.min(math.floor(full / 2) - Auras.GAP, per * (s[1] + gap) - gap)
+                    line = buffLine
+                else
+                    line = full - buffLine - 2 * Auras.GAP
+                end
+            end
             local L = ns.Spots.Layout(sp.spot, sp.grow, box, { x = sp.x, y = sp.y, line = line })
             line = math.max(rowDims(set, kind)[1], L.line)
             -- The time sits on each icon's top edge, so leave room for it under the frame.
@@ -835,7 +860,9 @@ function Auras.Place(set, frame, frameCfg)
             put(c, L.point, frame, L.relPoint, L.x, L.y)
             size(c, line, rowDims(set, kind)[2])
             set.flow[kind] = L
-            if side == "above" then
+            if paired then
+                pairTall = math.max(pairTall, Auras.Height(set, kind))
+            elseif side == "above" then
                 up = up + Auras.Height(set, kind) + Auras.GAP
             elseif side == "below" then
                 down = down + Auras.Height(set, kind) + Auras.GAP
@@ -843,6 +870,8 @@ function Auras.Place(set, frame, frameCfg)
             if side then any[side] = true end
         end
     end
+    if paired and sideOf(sb.spot) == "above" then up = up + pairTall + Auras.GAP end
+    if paired and sideOf(sb.spot) == "below" then down = down + pairTall + Auras.GAP end
     local top = any.above and Auras.GAP + up or 0
     local bottom = any.below and down or 0
 
