@@ -2951,8 +2951,8 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     for i = 1, 4 do stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-x" .. i, 400574) end
     stub.RunTimers()
     T.eq(h.face.count:GetText(), "4", "never past its 4 (the game's data)")
-    stub.Advance(17); stub.RunTimers()
-    T.eq(h.face.alphaTo, 0, "18 s after the first cast: gone")
+    stub.Advance(17.1); stub.RunTimers()
+    T.eq(h.face.alphaTo, 0, "18 s after the first cast (and the game's moment more): gone")
     stub.combat = false
     -- Out of a fight its id finds nothing (it can't be tracked that way in game,
     -- so ArcAuras counts casts too). The casts count, an aura change doesn't take
@@ -2997,7 +2997,11 @@ T.test("cdm rows: a spell whose debuff lands on you as a bar is drawn by ours", 
     T.truthy(h.face.shownEnd, "its time")
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 400574); stub.RunTimers()
     T.eq(h.face.parts.count:GetText(), "2", "the second cast: 2")
-    stub.Advance(18.1); stub.RunTimers()
+    stub.Advance(18.3); stub.RunTimers()
+    T.eq(h.face.alphaTo, 1, "a moment past 18 s it's still on you in game")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 400574); stub.RunTimers()
+    T.eq(h.face.parts.count:GetText(), "3", "a cast then adds to the old stack, as in game")
+    stub.Advance(AB.CdmAuras.SELF_LATE); stub.RunTimers()
     T.eq(h.face.alphaTo, 0, "gone after its 18 s")
     stub.combat = false
     noCategories()
@@ -6142,12 +6146,44 @@ T.test("cdm custom: a spell whose debuff lands on you is watched among your debu
     stub.RunTimers()
     T.eq(h.selfStacks, 4, "4 at most")
     T.truthy(h.endsAt and math.abs(h.endsAt - GetTime() - 18) < 0.01, "18 s from the first cast")
-    stub.Advance(18.1); stub.RunTimers()
+    stub.Advance(18 + AB.CdmAuras.SELF_LATE + 0.1); stub.RunTimers()
     T.eq(h.up, false, "then gone")
     local f = CreateFrame("Frame", nil, UIParent)
     f.size = 30
     AB.CdmAuras.Setup(f, "s116")
     T.eq(f.containers[2].unit, "target"); T.eq(f.containers[2].c.__groups.a.filter, "HARMFUL|PLAYER")
+end)
+
+-- The game takes the stack off a moment after its 18 s, so a cast landing in that
+-- moment adds to the old stack in game. Starting a fresh 18 s there left the icon
+-- out of step with the debuff from then on.
+T.test("cdm custom: a cast just after the stack's 18 s adds to it, as the game does", function()
+    local AB, C = customWorld("MAGE")
+    AB.CdmSpells.MAGE = { { 400574, 1239696, aura = true } }
+    stub.knownSpells = { [400574] = true }
+    C.Forget()
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.size = 30
+    AB.CdmAuras.Setup(h, "s400574")
+    AB.CdmAuras.Track(h)
+    stub.combat = true
+    local first = GetTime()
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c1", 400574); stub.RunTimers()
+    stub.Advance(16.5)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c2", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 2)
+    stub.Advance(1.8); stub.RunTimers()
+    T.eq(h.face.alphaTo, 1, "18.3 s in it's still on you in game, so still shown")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c3", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 3, "added to the old stack")
+    T.truthy(math.abs(h.endsAt - first - 18) < 0.01, "its end stays 18 s from the first cast")
+    stub.Advance(1.2); stub.RunTimers()
+    T.eq(h.face.alphaTo, 0, "then gone")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c4", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 1, "the next cast starts it over")
+    T.truthy(math.abs(h.endsAt - GetTime() - 18) < 0.01, "with a fresh 18 s")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- Weakened Soul (6788), added by its ID: a debuff your own shield puts on you or

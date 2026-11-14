@@ -663,13 +663,24 @@ function placeFace(h)
     f.cd:SetReverse(h.reverse == true)
 end
 
+-- The game takes a debuff on you off a moment after its time runs out, and a cast
+-- landing in that moment still adds to the old stack. So a counted self debuff
+-- stays this long past its end before it counts as gone.
+A.SELF_LATE = 1
+
+-- When the holder's aura is gone: its end, plus SELF_LATE for a counted self debuff.
+local function goneAt(h)
+    if not h.endsAt then return nil end
+    return h.selfDebuff and h.endsAt + A.SELF_LATE or h.endsAt
+end
+
 -- Show state, time and stacks. Fades use FAST so combat info isn't delayed.
 -- Hide (Buff up) keeps it hidden while up.
 function paintFace(h)
     local f = h.face
     if not f then return end
     local now = GetTime()
-    local up = h.up == true and (h.endsAt == nil or h.endsAt > now)
+    local up = h.up == true and (h.endsAt == nil or goneAt(h) > now)
     if up then
         local dur = h.auraLasts
         if h.endsAt and dur and dur > 0 then
@@ -696,10 +707,10 @@ end
 local function watchEnd(h)
     if h.endTimer or not h.endsAt then return end
     h.endTimer = true
-    C_Timer.After(math.max(0, h.endsAt - GetTime()) + 0.05, function()
+    C_Timer.After(math.max(0, goneAt(h) - GetTime()) + 0.05, function()
         h.endTimer = nil
         if not h.endsAt then return end
-        if GetTime() < h.endsAt then return watchEnd(h) end
+        if GetTime() < goneAt(h) then return watchEnd(h) end
         h.endsAt = nil
         local was = h.up
         if readable() or h.selfDebuff then A.IsUp(h) elseif was then h.up = false end
@@ -885,7 +896,7 @@ function A.IsUp(h)
         -- Not finding it by id means nothing, since Arcane Blast's stack can't be
         -- tracked that way in game. It's down once the counted time runs out, or
         -- when it was found before and is now gone where auras can be read.
-        if not (h.endsAt and h.endsAt > GetTime()) or (h.selfRead and readable()) then
+        if not (h.endsAt and goneAt(h) > GetTime()) or (h.selfRead and readable()) then
             h.up, h.endsAt, h.selfStacks, h.selfRead = false, nil, nil, nil
         end
     elseif readable() and #(h.containers or {}) > 0 then
@@ -962,7 +973,7 @@ local function selfCast(h, sid)
     local now = GetTime()
     local facts = A.SelfDebuffFacts(h.id) or {}
     h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid) or facts.lasts
-    if h.up == true and h.endsAt and h.endsAt > now then
+    if h.up == true and h.endsAt and goneAt(h) > now then
         local cap = facts.stacks or h.selfMax or textStacks(sid)
         local n = (h.selfStacks or 1) + 1
         h.selfStacks = cap and math.min(n, cap) or n

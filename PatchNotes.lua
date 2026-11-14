@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "Cooldown Manager", "Arcane Blast's stacks no longer end a moment before the real debuff does and then drift out of step with it" },
+        },
+    },
     { version = "1.8.1", date = "2026-11-14", summary = "Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.",
         new = {
             { "Unit frames", "Aura lists to hide buffs and debuffs you never want, or show only the ones you care about: Unit frames > Aura Lists" },
