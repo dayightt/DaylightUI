@@ -518,6 +518,37 @@ local function spellName(id)
     if ok and type(name) == "string" and not (issecretvalue and issecretvalue(name)) then return name end
 end
 
+-- Your spells with a range, highest rank, by name. A pick saved on another
+-- character stays listed so the menu never shows a blank.
+local function rangeSpellChoices()
+    local values, order = { none = "None, your group only" }, {}
+    local SD = DaylightUI.Book and DaylightUI.Book.SpellData
+    local seen, list = {}, {}
+    local data = SD and SD.Read(false)
+    for _, section in ipairs(data and data.sections or {}) do
+        for _, e in ipairs(section.spells) do
+            local id = e.spellID
+            if type(id) == "number" and not e.passive and not e.future and not e.pet and not seen[e.name]
+                and C_Spell.SpellHasRange and C_Spell.SpellHasRange(id) == true then
+                seen[e.name] = true
+                list[#list + 1] = { key = tostring(id), name = e.name }
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    local saved = DaylightUI:Get("UnitFrames", "range.spell")
+    local savedId = tonumber(saved)
+    if savedId and not values[saved] then
+        local listed = false
+        for _, e in ipairs(list) do if e.key == saved then listed = true end end
+        local name = not listed and spellName(savedId)
+        if name then list[#list + 1] = { key = saved, name = name } end
+    end
+    order[1] = "none"
+    for _, e in ipairs(list) do values[e.key], order[#order + 1] = e.name, e.key end
+    return values, order
+end
+
 local function indicatorCards(k, gate)
     local HS, Ind = ns.HealSpells, ns.Indicators
     local function n(key) return k("indicators." .. key) end
@@ -2581,9 +2612,13 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "portraits.ringLine", label = "Line round the middle",
               desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band." },
         } },
-        { label = "Range fade", desc = "Dims friendly units that are out of reach: target, focus, target of target, party and raid frames, when they're in your group.", items = {
+        { label = "Range fade", desc = "Dims units that are out of reach: target, focus, target of target, party and raid frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",
-              desc = "The game only reports range for your group; anyone else stays at full opacity." },
+              desc = "Your group fades by your heal's range, or the game's own check without one. Anyone else fades only with a range spell picked below." },
+            { type = "dropdown", key = "range.spell", label = "Range spell", fallback = "none",
+              desc = "Target, focus and the PvP frames fade when this spell can't reach someone outside your group, like an enemy you want to cast on. Units it can't be cast on stay as they are.",
+              disabled = function(get) return get("range.enabled") ~= true end,
+              choices = rangeSpellChoices },
             { type = "slider", key = "range.alpha", label = "Faded opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through a frame gets while its unit is out of range.", disabled = function(get) return get("range.enabled") ~= true end },
             { type = "toggle", key = "range.groupOwn", label = "Separate opacity for party and raid",

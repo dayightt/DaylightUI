@@ -3580,6 +3580,13 @@ function UF.ResolveRangeSpell()
     end
 end
 
+-- The spell picked on the Range fade card, as a number, or nil for none.
+-- Target, focus and the PvP frames use it for anyone outside your group.
+function UF.RangePick(range)
+    local id = type(range) == "table" and tonumber(range.spell)
+    if id and C_Spell and C_Spell.IsSpellInRange then return id end
+end
+
 -- Reads the range and stores the answer on the frame. f.rangeRead is "none"
 -- (no range check, just the fade), "unchecked" (the game couldn't tell, so
 -- full), or "read" with the answer in f.rangeIn (possibly secret, never
@@ -3593,7 +3600,15 @@ local function readRange(f)
     -- Only units the game really range-checks, i.e. your group. Anyone else
     -- (you, your pet, strangers, enemies) gives no usable answer.
     if type(u) ~= "string" or not inGroupCached(f, u) then
-        f.rangeRead = "none"
+        -- Outside the group only the picked spell can tell. nil = it can't be
+        -- cast on them at all (or isn't known here), so they stay as they are.
+        local inRange
+        if f.rangePick and type(u) == "string" then inRange = C_Spell.IsSpellInRange(f.rangePick, u) end
+        if isSecret(inRange) or inRange ~= nil then
+            f.rangeRead, f.rangeIn = "read", inRange
+        else
+            f.rangeRead = "none"
+        end
         return
     end
     local inRange, checked

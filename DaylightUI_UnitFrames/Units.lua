@@ -288,6 +288,7 @@ function ns.Refresh(mod, path)
                 f.iconStyle, f.classIcons = db.portraits.icons, db.portraits.classIcons
                 f.rangeFade = spec.range and db.range.enabled or false
                 f.rangeAlpha = UF.RangeAlpha(db.range, false)
+                f.rangePick = UF.RangePick(db.range)
                 UF.Layout(f, cfg, text)
                 local on = cfg.enabled
                 ns.SetEnabled(f, on)

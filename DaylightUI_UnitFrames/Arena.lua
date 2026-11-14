@@ -86,6 +86,7 @@ function Arena.Layout(d)
     for i, b in ipairs(Arena.buttons) do
         b.iconStyle, b.classIcons = d.portraits.icons, d.portraits.classIcons
         b.rangeFade, b.rangeAlpha = d.range.enabled, UF.RangeAlpha(d.range, false)
+        b.rangePick = UF.RangePick(d.range)
         UF.Layout(b, cfg, text)
         b:ClearAllPoints()
         b:SetPoint("TOPRIGHT", Arena.holder, "TOPRIGHT", 0, -(i - 1) * step)

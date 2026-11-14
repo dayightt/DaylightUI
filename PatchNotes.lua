@@ -24,6 +24,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "Any spell can show its cooldown, its buff or both. A buff Daylight UI didn't know about is picked up the first time you cast the spell outside a fight" },
             { "Click-casting", "With the Forever version of Clique, Daylight UI's own click-casting now steps aside for it as it does for Clique" },
             { "Cooldown Manager", "A warrior's stance icons light up in the Cooldown Manager while you're in that stance" },
+            { "Unit frames", "Your target and focus can fade while they're out of reach of a spell you pick, enemies too: Unit frames > Extras > Range spell" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
