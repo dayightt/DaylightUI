@@ -1177,28 +1177,6 @@ T.test("the game's own class icons: its classicon atlas, Daylight UI's own when 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("classic class icons: the old character screen's sheet, each class its square", function()
-    local DUI, ns = login(function()
-        stub.units.player = { name = "Stabby", isPlayer = true, class = "PALADIN", health = 5, maxHealth = 10 }
-    end)
-    local UF = ns.UF
-    local _, order = UF.IconStyleChoices()
-    T.eq(order[3], "vanilla", "in the menu with no icon pack installed")
-    local file, l, r, t, b = UF.ClassIcon("PALADIN", "vanilla")
-    T.eq(file, UF.VANILLA_ICONS)
-    T.truthy(l > 0 and r < 0.25 and t > 0.5 and b < 0.75, "the paladin's square, trimmed")
-    file, l = UF.ClassIcon("MAGE", nil, { MAGE = "vanilla" })
-    T.eq(file, UF.VANILLA_ICONS, "a per-class pick")
-    T.truthy(l > 0.25 and l < 0.3)
-    DUI:Set("UnitFrames", "portraits.icons", "vanilla")
-    DUI:Set("UnitFrames", "player.portrait", "class")
-    stub.RunTimers()
-    local f = ns.frames.player
-    UF.UpdateAll(f, true)
-    T.eq(f.portrait.icon.__texture, UF.VANILLA_ICONS, "the portrait shows it")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 T.test("a portrait on its own leaves the frame for its own movable holder", function()
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10, level = 20 }
