@@ -6624,3 +6624,10 @@ L["The game menu, addon list, macros, clock, loot, socketing, upgrading, the scr
 L["The size of the whole interface, the game's windows too. Daylight UI keeps it the same when the game changes its own (a new resolution, another monitor), so your frames stay where you put them. It takes the place of the game's UI scale setting, for every character on this account."] = "整个界面的大小，包括游戏自带的窗口。当游戏更改自身缩放时（新分辨率、另一台显示器），Daylight UI 会保持不变，让你的框体停留在你放置的位置。它取代游戏的 UI 缩放设置，对此账号下的所有角色生效。"
 L["UI scale"] = "UI 缩放"
 L["Which end of the frame the stripe sits in. On an angled end it follows the angle."] = "条纹位于框体的哪一端。在斜角端会沿斜角走向。"
+
+-- DaylightUI translations from merged zhcn-fork.lua.
+L["The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 sizes them to fit the power bar."] = "施法条位于框体内时显示法术名称和时间，甚至可以超出能量条高度。设为 0 时，使其适应能量条高度。"
+
+-- DaylightUI translations from AI translation.
+L["%s: an aura filter needs a key, a label and a list of spell ids."] = "%s：光环筛选需要 key、标签和法术 ID 列表。"
+L["%s: the game doesn't let aura filter %s pick out any of its spells on group members."] = "%s：游戏不允许光环筛选 %s 在队伍成员上识别其任何法术。"
