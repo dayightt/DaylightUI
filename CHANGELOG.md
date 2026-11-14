@@ -1,3 +1,42 @@
+# DaylightUI 1.8.0
+
+See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.
+
+## New
+- Party frames: See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets
+- Unit frames: Target and focus can fade while out of range of a spell you pick
+- Unit frames: More buff and debuff options on every frame: timers, a clock sweep, text sizes, only buffs you can purge
+- Nameplates: Enemy big defensives like Divine Shield show as a large icon; friendly totems as a small colored badge
+- Cooldown Manager: Any spell can show its cooldown, its buff or both; buffs and DoTs can glow when it's time to recast
+- Cooldown Manager: A warrior's stance icons light up while you're in that stance
+- Minimap: An icon size slider, and a round minimap that keeps north at the top
+- Meters: Names can show in class colors while the numbers keep theirs
+- Chat: A sound for guild and officer chat; General and Trade keep /1 and /2 when another addon joins channels first
+- Bags: Bags open when you trade, and a Comprehend Scroll button sits next to Disenchant
+- Moving frames: /dui unlock can hide whole groups of handles, so the ones under them are easy to grab
+- Pet frame: Hunter pet happiness as a colored stripe inside the frame. Thanks to Ángel
+- Other addons: An Open Clique link in the spellbook, a What's Training link for professions, and click-casting steps aside for CliqueForever
+- Plugins: Other addons can add to and restyle Daylight UI's action bars, meters, tooltips, bags, buffs, chat and more: daylightui.com/plugins
+
+## Changed
+- Unit frames: Buffs sit on the left and debuffs on the right on every frame. Spots you picked yourself stay
+- Window skins: Right-click menus, the guild window and the role check pop-up are in the Daylight UI look. Thanks to Ángel
+- Cursor ring: Cleaner, with a thin ring for the global cooldown and an outer ring for casts
+- Little touches: Names beside party and raid tiles sit on a dark tab, and the quest under your mouse gets a soft background
+
+## Fixed
+- Minimap: No longer goes empty indoors or after fading out in a fight
+- Action bars: Frames no longer slide off the bottom when the game changes its UI scale. UI scale is now on General > Size
+- Action bars: No more floods of errors or "blocked" warnings in dungeons and fights
+- Action bars: Shadowform and the cat, bear and moonkin /click macros switch bar 1 right away
+- Cooldown Manager: Sap, Blind, Polymorph, Poised and other missing spells can be added
+- Cooldown Manager: Icons and bars no longer come out squashed, wrongly faded or off-center, and the first debuff of a fight lights up
+- Unit frames: The focus and pet frames can show buffs and debuffs, like the game's own
+- Edit Mode: Logging in no longer switches your own layout back to Daylight UI's
+- Controller: The menu for the player you're targeting opens again
+- Windows: Turning off a Daylight UI window brings back the game's own window as the game draws it, and the character window shows your title
+- Little touches: Spell tooltips say "2 hours" instead of code, cast bar text sizes work again, rows no longer look cut off at the bottom, and Rune of Teleportation no longer shows as an empty square
+
 # DaylightUI 1.7.3
 
 Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!
