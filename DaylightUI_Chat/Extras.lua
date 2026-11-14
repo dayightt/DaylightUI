@@ -321,5 +321,10 @@ function Extras.OnLink(link)
     local what = string.match(link, "^" .. Extras.LINK .. ":(%a+):.+$")
     if not what then return false end
     if what == "spam" then ns.Box.ShowSpam() end
+    -- A plugin's link (DaylightUI.API: me.ChatLink): daylightchat:plugin:<name>:<data>.
+    if what == "plugin" then
+        local name, data = string.match(link, "^" .. Extras.LINK .. ":plugin:([^:]+):(.*)$")
+        if name then DUI.APIReport.ChatLinkClicked(name, data) end
+    end
     return true
 end

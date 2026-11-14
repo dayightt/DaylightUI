@@ -40,14 +40,18 @@ local Report = {}
 DUI.APIReport = Report
 
 local FRAME_EVENTS = { FrameMade = true, FrameUnitChanged = true, FrameRemoved = true, FrameStyled = true }
-local PASSED_ON = { "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }
+local PASSED_ON = { "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login",
+    -- 1.7
+    "AfkScreenShown", "AfkScreenHidden" }
 local passedOn = {}
 for _, name in ipairs(PASSED_ON) do passedOn[name] = true end
 -- The only events our windows may send (Report.Event).
 local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChanged = true,
     CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true,
     -- The damage meter's (1.6).
-    MeterFightStarted = true, MeterFightEnded = true, MeterReset = true }
+    MeterFightStarted = true, MeterFightEnded = true, MeterReset = true,
+    -- The Cooldown Manager's (1.7): spellID, piece key.
+    CooldownReady = true, CooldownStarted = true }
 
 local lists = {} -- event -> array of listeners { fn, owner, event, dead }
 local counts = {} -- event -> listeners still alive
@@ -126,6 +130,16 @@ end
 local stopPainterRef -- the Paint section's stopper (defined below)
 
 function API.Off(handle)
+    if type(handle) == "table" and handle.tooltipLines == true then return Report.DropTooltipLines(handle) end
+    if type(handle) == "table" and handle.chatFormatter == true then return Report.DropFormatter(handle) end
+    if type(handle) == "table" and handle.shopFilter == true then
+        if Report.DropShopFilter then Report.DropShopFilter(handle) end
+        return
+    end
+    if type(handle) == "table" and handle.override == true then
+        if Report.DropOverride then Report.DropOverride(handle, true) end
+        return
+    end
     if type(handle) == "table" and handle.painter == true then
         if stopPainterRef then stopPainterRef(handle) end
         return
@@ -747,6 +761,72 @@ function API.OpenMeterBreakdown(id, rank)
     return true
 end
 
+-- The Cooldown Manager (1.7). Its pieces are frames of kind "cdmpiece" (unit =
+-- the piece's key: the game's cooldown id, or "s<spell>" for Daylight UI's
+-- own), Attach and Glow work on them.
+local function cdmRows()
+    local ns = barsNs()
+    return ns and ns.Cooldowns and ns.Cooldowns.enabled and ns.CdmRows or nil
+end
+function API.GetCooldownPiece(spellID)
+    local Rows = cdmRows()
+    if not (Rows and type(spellID) == "number") then return nil end
+    return Rows.PieceOf(spellID)
+end
+-- What a piece shows: { key, spellID, shape ("icon" | "bar"), drawnBy }.
+function API.CooldownPieceInfo(frame)
+    local Rows = cdmRows()
+    local info = Rows and type(frame) == "table" and Rows.pieceInfo[frame]
+    if not info then return nil end
+    return { key = info.key, spellID = info.spellID, shape = info.shape, drawnBy = info.drawnBy }
+end
+
+-- Daylight UI's big frames by a fixed name (1.7), for a plugin to dock to or
+-- stay clear of. Nil when that part is off or not made yet.
+local NAMED = {
+    infopanel = "DaylightUIInfoPanelBody", minimap = "Minimap", meter = "DaylightUIDamageMeter",
+    threat = "DaylightUIThreatMeter", databar = "DaylightUIDataBar", chat = "DaylightUIChatPanel",
+    questtracker = "DaylightUIQuestTracker", bags = "DaylightUIBag", bank = "DaylightUIBank",
+    afk = "DaylightUIAfkScreen", npc = "DaylightUINpc",
+}
+API.FRAME_NAMES = {}
+for k in pairs(NAMED) do API.FRAME_NAMES[#API.FRAME_NAMES + 1] = k end
+table.sort(API.FRAME_NAMES)
+function API.GetFrame(name)
+    local g = type(name) == "string" and NAMED[name]
+    local f = g and _G[g]
+    if type(f) == "table" and type(f.GetObjectType) == "function" then return f end
+    return nil
+end
+
+-- The frame placed under a mover key (1.7): "unitframes.player",
+-- "actionbars.main", "infopanel", a plugin's "plugin.<name>.<key>".
+function API.GetMoverFrame(key)
+    local M = DUI.Movers
+    local e = type(key) == "string" and M and M.Get(key)
+    local f = type(e) == "table" and e.frame
+    if type(f) == "table" and type(f.GetObjectType) == "function" then return f end
+    return nil
+end
+
+-- Unlock mode on (/dui unlock).
+function API.IsUnlocked() return DUI.Movers ~= nil and DUI.Movers.unlocked == true end
+
+-- Whether the player lets Daylight UI animate (General > Motion).
+function API.MotionOn() return not (DUI.Motion and DUI.Motion.On) or DUI.Motion.On() ~= false end
+
+-- A file in Daylight UI's media folder, to use where it is ("ui-mail.png").
+function API.Media(file)
+    if type(file) ~= "string" or file == "" or string.find(file, "..", 1, true) then return nil end
+    return DUI.MEDIA .. file
+end
+
+-- The AFK screen is up (Quality of Life's), so the plugin can step aside.
+function API.IsAfkScreen()
+    local f = _G.DaylightUIAfkScreen
+    return type(f) == "table" and f.IsShown ~= nil and f:IsShown() == true
+end
+
 -- A visible shop tile: tab "buy" or "buyback", and the game's index there.
 function API.GetShopTile(tab, index)
     if (tab ~= "buy" and tab ~= "buyback") or type(index) ~= "number" then return nil end
@@ -1138,6 +1218,286 @@ function View.RegisterFade(v, def)
     end
     return DUI.SafeCallAs(name, DUI.Fade.Register, copy)
 end
+
+-- Chat (1.7), Daylight UI's chat box only (Chat module on, Daylight style):
+-- me.FormatChat(fn(text, info) -> text | false | nil) on every plain line
+-- after Daylight UI's own touches; nil keeps it, false leaves it out.
+-- info = { event, kind ("say", "guild", "whisper", "system"...), sender,
+-- guid, body (what they typed), channel, line }. Lines the game keeps secret
+-- never reach it. me.ChatLink(data, text) makes a link whose click runs the
+-- plugin's me.OnChatLink(fn(data)).
+local formatters = {}
+local chatLinks = {}
+function Report.ChatFormatting() return #formatters > 0 end
+local fmtOut
+local function fmtCall(fn, text, info) fmtOut = fn(text, info) end
+function Report.FormatChat(text, info)
+    for _, e in ipairs(formatters) do
+        fmtOut = nil
+        if DUI.SafeCallAs(e.owner, fmtCall, e.fn, text, info) then
+            if fmtOut == false then return false end
+            if type(fmtOut) == "string" then text = fmtOut end
+        end
+    end
+    return text
+end
+function View.FormatChat(v, fn)
+    if type(fn) ~= "function" then return nil end
+    local e = { fn = fn, owner = v.name, chatFormatter = true }
+    formatters[#formatters + 1] = e
+    Report.Count(v.name, "chat")
+    return e
+end
+function Report.DropFormatter(e)
+    for i, x in ipairs(formatters) do
+        if x == e then
+            table.remove(formatters, i)
+            Report.Count(e.owner, "chat", nil, -1)
+            return
+        end
+    end
+end
+function View.ChatLink(v, data, text)
+    if type(text) ~= "string" then return nil end
+    data = string.gsub(tostring(data or ""), "|", "")
+    local r, g, b = DUI.Style.Accent()
+    return string.format("|cff%02x%02x%02x|Hdaylightchat:plugin:%s:%s|h[%s]|h|r",
+        math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), v.name, data, text)
+end
+function View.OnChatLink(v, fn)
+    chatLinks[v.name] = type(fn) == "function" and fn or nil
+end
+function Report.ChatLinkClicked(name, data)
+    local fn = chatLinks[name]
+    if fn then DUI.SafeCallAs(name, fn, data) end
+end
+
+-- Buff categories (1.7): me.AddBuffCategory(key, { label, spells = { ids },
+-- color }) gives the buff bar a category of the plugin's, made once in the
+-- player's list (theirs after that to move, recolor, hide or delete) holding
+-- those spells by id, in fights too. Called again, it updates the spells.
+local buffCats = {}
+function Report.BuffCategories() return buffCats end
+function View.AddBuffCategory(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.spells) ~= "table" then
+        chat(L["%s: a buff category needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local spells = {}
+    for _, sid in ipairs(spec.spells) do if type(sid) == "number" then spells[#spells + 1] = sid end end
+    local color = type(spec.color) == "table" and type(spec.color[1]) == "number"
+        and { spec.color[1], spec.color[2], spec.color[3] } or nil
+    local entry
+    for _, x in ipairs(buffCats) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        buffCats[#buffCats + 1] = entry
+        Report.Count(v.name, "buffcats")
+    end
+    entry.label, entry.spells, entry.color = spec.label, spells, color
+    DUI.Fire("BuffCategoriesChanged")
+    return true
+end
+
+-- Bag groups (1.7): me.AddBagGroup(key, { label, match = fn(item) -> true })
+-- puts matching items in a group of the plugin's in the bags' Categories
+-- view, after the player's own groups and before Daylight UI's. item = the
+-- bags' facts: itemID, link, name, quality, classID, subClassID, count,
+-- maxStack, bound, bindType, itemLevel, questItem, craftingReagent, recent.
+local bagGroups = {}
+function Report.BagGroups() return bagGroups end
+function View.AddBagGroup(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.match) ~= "function" then
+        chat(L["%s: a bag group needs a key, a label and a match function."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local g = { key = full, name = spec.label, match = spec.match, owner = v.name }
+    local found = false
+    for i, x in ipairs(bagGroups) do
+        if x.key == full then bagGroups[i], found = g, true end
+    end
+    if not found then
+        bagGroups[#bagGroups + 1] = g
+        Report.Count(v.name, "baggroups")
+    end
+    DUI.Fire("BagGroupsChanged")
+    return true
+end
+function View.RemoveBagGroup(v, key)
+    local full = v.name .. ":" .. tostring(key)
+    for i, x in ipairs(bagGroups) do
+        if x.key == full then
+            table.remove(bagGroups, i)
+            Report.Count(v.name, "baggroups", nil, -1)
+            DUI.Fire("BagGroupsChanged")
+            return true
+        end
+    end
+    return false
+end
+-- Sorts the bags' groups again (what a plugin's match says changed).
+function API.RefreshBags() DUI.Fire("BagGroupsChanged") end
+
+-- Setup guide pages (1.7): me.AddSetupStep({ id, title, desc, groups,
+-- onFinish, quick }), after Daylight UI's own pages. groups are the guide's
+-- own (rows = { { scope, key } }, cards...) over options of the plugin's
+-- module; onFinish runs on Finish (set up another addon there).
+function View.AddSetupStep(v, def)
+    local Pages = DUI.InstallerPages
+    if not Pages then return false end
+    local ok, why = Pages.AddStep(v.name, def)
+    if not ok then
+        chat(L["%s: the setup step was left out (%s)."], v.name, tostring(why))
+        return false
+    end
+    Report.Count(v.name, "steps")
+    return true
+end
+
+-- Tooltip lines (1.7): me.AddTooltipLines(kind, fn(lines, data)), kind
+-- "unit" (data.unit), "item" (data.link, data.itemID) or "spell"
+-- (data.spellID). lines.Line(label, value, color), lines.Text(text, color),
+-- lines.Hint(text), lines.Gap(). Runs after Daylight UI's own lines.
+local tooltipLines = { unit = {}, item = {}, spell = {} }
+function Report.TooltipLines(kind) return tooltipLines[kind] end
+function View.AddTooltipLines(v, kind, fn)
+    local list = tooltipLines[kind]
+    if not list or type(fn) ~= "function" then
+        chat(L["%s: tooltip lines need a kind (unit, item or spell) and a function."], v.name)
+        return nil
+    end
+    local e = { fn = fn, owner = v.name, kind = kind, tooltipLines = true }
+    list[#list + 1] = e
+    Report.Count(v.name, "tooltips")
+    return e
+end
+function Report.DropTooltipLines(e)
+    local list = tooltipLines[e.kind]
+    for i, x in ipairs(list or {}) do
+        if x == e then
+            table.remove(list, i)
+            Report.Count(e.owner, "tooltips", nil, -1)
+            return
+        end
+    end
+end
+
+-- Shop filters (1.7): me.FilterShop(fn(item) -> false to leave it out) on
+-- the vendor window's shelf, before its tiles are drawn. item = { index,
+-- name, link, texture, price, stack, quality, usable... } as the shelf has it.
+local shopFilters = {}
+function View.FilterShop(v, fn)
+    if type(fn) ~= "function" then return nil end
+    local e = { fn = fn, owner = v.name, shopFilter = true }
+    shopFilters[#shopFilters + 1] = e
+    Report.Count(v.name, "filters")
+    API.RefreshShop()
+    return e
+end
+function Report.FilterShop(list)
+    if #shopFilters == 0 or type(list) ~= "table" then return list end
+    local out = {}
+    for _, item in ipairs(list) do
+        local stay = true
+        for _, e in ipairs(shopFilters) do
+            box = nil
+            if DUI.SafeCallAs(e.owner, keep, e.fn, item) and box == false then stay = false break end
+        end
+        if stay then out[#out + 1] = item end
+    end
+    return out
+end
+local function dropShopFilter(e)
+    for i, x in ipairs(shopFilters) do
+        if x == e then
+            table.remove(shopFilters, i)
+            Report.Count(e.owner, "filters", nil, -1)
+            API.RefreshShop()
+            return
+        end
+    end
+end
+Report.DropShopFilter = dropShopFilter
+
+-- Fills the vendor window's shelf again (a plugin's filter changed).
+function API.RefreshShop()
+    local Npc = DUI.Npc
+    local Shop = type(Npc) == "table" and Npc.Shop
+    if type(Shop) == "table" and type(Shop.Refresh) == "function" then DUI.SafeCall(Shop.Refresh, true) end
+end
+
+-- Whether one of the plugin's parts shows its sample now (1.7): unlock mode,
+-- or test mode with its test part ticked.
+function View.IsPreviewing(v, key)
+    if API.IsUnlocked() then return true end
+    if DUI.testMode ~= true or not str(key) then return false end
+    return DUI.TestPartShown(prefixed(v, key)) == true
+end
+
+-- Stops Daylight UI placing one of the plugin's movers while the plugin docks
+-- it to something itself (1.7). Its saved spot stays, and unlock mode shows
+-- no handle for it until it's given back (suspended false).
+function View.SuspendMover(v, key, suspended)
+    if not str(key) then return false end
+    return DUI.SafeCallAs(v.name, DUI.Movers.Suspend, prefixed(v, key), suspended and true or false)
+end
+
+-- A temporary value for one of Daylight UI's settings (1.7), as a fishing
+-- mode hiding the fishing water while it runs. Never saved: the player's own
+-- value is back on API.Off(handle), at logout, and the moment the player
+-- changes that setting themself (they win).
+local overrides = {}       -- array of { scope, path, value, was, owner }
+local overriding = false
+local function overrideKey(o) return o.scope .. "\1" .. o.path end
+local function putBack(o)
+    overriding = true
+    DUI.SafeCall(DUI.Set, DUI, o.scope, o.path, o.was)
+    overriding = false
+end
+function View.Override(v, scope, path, value)
+    if not (str(scope) and str(path)) or not DUI:GetModule(scope) and scope ~= "general" then return nil end
+    local o = { scope = scope, path = path, value = value, owner = v.name, override = true }
+    -- Two plugins on one setting: the first keeps it.
+    for _, x in ipairs(overrides) do
+        if overrideKey(x) == overrideKey(o) then
+            chat(L["%s and %s both want to change %s; %s keeps it."], x.owner, v.name, path, x.owner)
+            return nil
+        end
+    end
+    o.was = DUI:Get(scope, path)
+    if type(o.was) == "table" then return nil end     -- only plain values
+    overrides[#overrides + 1] = o
+    overriding = true
+    local ok = DUI.SafeCallAs(v.name, DUI.Set, DUI, scope, path, value)
+    overriding = false
+    if not ok then
+        table.remove(overrides)
+        return nil
+    end
+    return o
+end
+local function dropOverride(o, restore)
+    for i, x in ipairs(overrides) do
+        if x == o then
+            table.remove(overrides, i)
+            if restore then putBack(o) end
+            return
+        end
+    end
+end
+Report.DropOverride = dropOverride
+DUI.On("SettingChanged", function(scope, path)
+    if overriding then return end
+    for i = #overrides, 1, -1 do
+        local o = overrides[i]
+        if o.scope == scope and o.path == path then table.remove(overrides, i) end
+    end
+end)
+DUI.RegisterEvent("PLAYER_LOGOUT", function()
+    for i = #overrides, 1, -1 do putBack(overrides[i]) end
+end)
 
 function View.RegisterTestPart(v, key, label, available)
     if not str(key) then return end
@@ -1596,3 +1956,7 @@ end
 for _, name in ipairs(PASSED_ON) do
     DUI.On(name, function(a, b, c, d) fire(name, a, b, c, d) end)
 end
+-- A frame put on its spot by its mover (1.7): a profile, a move, unlock mode.
+-- Plugins follow it here instead of hooking its SetPoint.
+passedOn.FramePlaced = true
+DUI.On("MoverApplied", function(key) fire("FramePlaced", key) end)

@@ -689,15 +689,26 @@ DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() targetAt = GetTime() end)
 -- cdState changed from was to now (both plain): ready or on cooldown. quiet = the
 -- light still runs but the sound waits (an aura's time ended over a cooldown that's
 -- still going).
+-- Plugins hear it too (DaylightUI.API: CooldownReady, CooldownStarted), by spell.
+local function tell(event, item)
+    local R = DUI.APIReport
+    if not R.Wants(event) then return end
+    local key = item.cooldownID
+    if issecretvalue and issecretvalue(key) then key = nil end
+    R.Event(event, Fx.SpellOf(item), key ~= nil and tostring(key) or nil)
+end
+
 local function moment(item, was, now, quiet)
     if was == true and now == false then
         Fx.Sweep(item)
+        tell("CooldownReady", item)
         if realCool[item] and not quiet then
             realCool[item], armed[item] = nil, nil
             playSound(item, opts[item], "readySound")
         end
     elseif was == false and now == true then
         Fx.Dip(item)
+        tell("CooldownStarted", item)
     end
 end
 

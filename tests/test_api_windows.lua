@@ -39,7 +39,7 @@ end
 T.test("api windows: a vendor's tiles are made, found, told apart and styled", function()
     stub.Load({ before = NW.world({}) })
     local API = DaylightUI.API
-    T.eq(API.minor, 6)
+    T.eq(API.minor, 7)
     local log = recorder(API, { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled" })
     NW.Merchant()
     frame(30)

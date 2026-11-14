@@ -129,6 +129,45 @@ local function pieceFrame(g, id)
     return t[id]
 end
 
+-- Plugins (DaylightUI.API, kind "cdmpiece"): each shown piece's frame (ours,
+-- whatever draws the spell inside it), by its key, with what it shows. Two
+-- tables kept and swapped, so a pass makes no garbage.
+Rows.pieceInfo = setmetatable({}, weak)   -- piece frame -> { key, spellID, shape, drawnBy }
+local toldNow, toldLast, toldEver = {}, {}, setmetatable({}, weak)
+function Rows.ReportPieces(g, items, blocks)
+    local R = DUI.APIReport
+    for f in pairs(toldNow) do toldNow[f] = nil end
+    for id, item in pairs(items) do
+        local f = frames[g] and frames[g].pieces[id]
+        if f then
+            local key = tostring(id)
+            local info = Rows.pieceInfo[f]
+            if not info then info = {}; Rows.pieceInfo[f] = info end
+            info.key, info.shape, info.drawnBy = key, blocks[id] and blocks[id].kind, drawn[id]
+            info.spellID = (ns.CdmOwn and ns.CdmOwn.SpellOf(id)) or Fx.SpellOf(item)
+            toldNow[f] = key
+            if not toldEver[f] then
+                toldEver[f] = true
+                R.Made("cdmpiece", f, key, false)
+            else
+                R.Unit("cdmpiece", f, key, false)
+            end
+        end
+    end
+    for f in pairs(toldLast) do
+        if not toldNow[f] then R.Gone("cdmpiece", f, false) end
+    end
+    toldNow, toldLast = toldLast, toldNow
+end
+
+-- The shown piece for a spell (any rank's key), or nil.
+function Rows.PieceOf(spellID)
+    for f, key in pairs(toldLast) do
+        local info = Rows.pieceInfo[f]
+        if info and (info.spellID == spellID or key == tostring(spellID)) then return f end
+    end
+end
+
 local function usable(item)
     return not (InCombatLockdown() and item.IsProtected and item:IsProtected())
 end
@@ -647,6 +686,8 @@ function Rows.Update()
     Fx.EndPass(told)
     -- Done here, not above, since a buff that's down may have closed up out of items.
     for id, isDown in pairs(downs) do Fx.BuffMoment(set.pieces[id], items[id], isDown) end
+
+    DUI.SafeCall(Rows.ReportPieces, g, items, blocks)
 
     -- The chain's show rules (out of combat, group, target, mounted, where).
     lastItems, lastExtra, lastOn = items, extra, on

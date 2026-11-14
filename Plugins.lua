@@ -31,7 +31,7 @@ local L = DUI.L
 local Plugins = {}
 DUI.Plugins = Plugins
 
-DUI.API = { major = 1, minor = 6 }
+DUI.API = { major = 1, minor = 7 }
 
 Plugins.ORDER = 2000 -- plugin sections go after all built-in ones (News is 1000), under their heading
 Plugins.list, Plugins.order = {}, {}
@@ -202,6 +202,15 @@ function Plugins.ChangesLine(name)
     if c.texts > 0 then
         out[#out + 1] = string.format(c.texts == 1 and L["Adds %d text."] or L["Adds %d texts."], c.texts)
     end
+    local function more(n, one, many)
+        if (n or 0) > 0 then out[#out + 1] = string.format(n == 1 and L[one] or L[many], n) end
+    end
+    more(c.tooltips, "Adds tooltip lines (%d).", "Adds tooltip lines (%d).")
+    more(c.steps, "Adds %d setup guide page.", "Adds %d setup guide pages.")
+    more(c.baggroups, "Adds %d bag group.", "Adds %d bag groups.")
+    more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
+    more(c.chat, "Changes chat lines.", "Changes chat lines.")
+    more(c.filters, "Filters the vendor's items.", "Filters the vendor's items.")
     local dt, dp = c.datatexts or 0, c.datapanels or 0
     if dt > 0 then
         out[#out + 1] = string.format(dt == 1 and L["Adds %d data text."] or L["Adds %d data texts."], dt)

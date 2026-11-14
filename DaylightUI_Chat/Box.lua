@@ -379,6 +379,16 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
         return
     end
     local shown, hit = ns.Extras.Decorate(shape(text, event), kind, sender, guid)
+    -- Plugins' formatters (DaylightUI.API: me.FormatChat) last: a new text, or
+    -- false to leave the line out.
+    local R = DUI.APIReport
+    if R.ChatFormatting() then
+        local ev = event
+        if secret(ev) then ev = nil end
+        shown = R.FormatChat(shown, { event = ev, kind = kind, sender = sender, guid = guid, body = body,
+            channel = type(args) == "table" and not secret(args[9]) and args[9] or nil, line = line })
+        if shown == false then return end
+    end
     Box.Push({ shown, r, g, b, kind, alert = hit or nil, here = askedFrom(kind), line = line })
     if hit then ns.Feel.Shine() end
 end

@@ -7300,3 +7300,34 @@ T.test("cdm editor: add a spell or an item by its ID; an item times its own cool
     T.truthy(ok, tostring(err))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("cdm api: pieces are frames plugins find by spell, with ready and cooldown events", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    pass(AB)
+    local API = DUI.API
+    local f = API.GetCooldownPiece(111)
+    T.eq(f, pieceFrame(1, 11), "the piece's own frame")
+    local info = API.CooldownPieceInfo(f)
+    T.eq(info.key, "11"); T.eq(info.spellID, 111); T.eq(info.shape, "icon")
+    local listed = {}
+    for frame, key in API.Frames("cdmpiece") do listed[key] = frame end
+    T.eq(listed["11"], f); T.truthy(listed["12"]); T.truthy(listed["21"])
+    T.truthy(API.Attach(f), "a holder to draw on")
+    T.eq(API.Glow(f, true, 0, 1, 0), true, "a glow of the plugin's")
+    local log = {}
+    API.On("CooldownStarted", function(sid, key) log[#log + 1] = "start:" .. tostring(sid) .. ":" .. tostring(key) end)
+    API.On("CooldownReady", function(sid, key) log[#log + 1] = "ready:" .. tostring(sid) .. ":" .. tostring(key) end)
+    cds[111] = { duration = 8, isOnGCD = false }
+    pass(AB)
+    T.eq(log[1], "start:111:11")
+    ess[1].Cooldown:GetScript("OnCooldownDone")(ess[1].Cooldown)
+    T.eq(log[2], "ready:111:11")
+    local gone
+    API.On("FrameRemoved", function(kind, frame, key) if kind == "cdmpiece" then gone = key end end)
+    unplace(AB.CdmData, set, 12)
+    pass(AB)
+    T.eq(gone, "12", "an unplaced piece is gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

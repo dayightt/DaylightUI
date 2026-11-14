@@ -46,7 +46,7 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 6
+print(API.major, API.minor)   -- 1, 7
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
@@ -714,6 +714,116 @@ me.Paint("meterrow", function(row, parts, info)
     if info and info.isMine then parts.fill:SetVertexColor(1, 0.8, 0.2) end
 end)
 ```
+
+## Tooltips (1.7)
+
+```lua
+me.AddTooltipLines("item", function(lines, data)
+    if data.itemID == 6303 then lines.Line("Fish caught", MyAddon.caught) end
+end)
+```
+
+`kind` is `"unit"` (`data.unit`), `"item"` (`data.link`, `data.itemID`) or `"spell"` (`data.spellID`,
+auras too). Your lines go after Daylight UI's own, in its look: `lines.Line(label, value, color)`,
+`lines.Text(text, color)` (wrapped), `lines.Hint(text)` (the accent), `lines.Gap()`. A line already
+there is never added twice, so it's fine that item tooltips refill several times a second. A value
+the game keeps secret comes as `nil`. `API.Off(handle)` stops it. Nothing runs while another addon
+(PrettyTooltip) styles the tooltips instead.
+
+## The setup guide (1.7)
+
+```lua
+me.AddSetupStep({
+    id = "look", title = "Angler", desc = "How the fishing bar looks.",
+    groups = { { label = "Size", rows = { { "Angler", "barSize" } } } },
+    onFinish = function() MyAddon:SetUpOtherAddons() end,
+})
+```
+
+Your page comes after Daylight UI's own pages, before Finish. `groups` are the guide's own: `rows`
+of `{ scope, key }` for settings on an options page (your module's, through `AddOptionsGroup` or
+your own page). The player's picks are a draft until Finish, and X takes them all back, yours
+included. `onFinish` runs on Finish (set up other addons there); Finish then asks for a reload.
+`quick = true` puts it in Quick setup too.
+
+## The Cooldown Manager (1.7)
+
+| Call | What it does |
+|---|---|
+| `API.GetCooldownPiece(spellID)` | The frame of the piece showing that spell, while it's placed and shown. |
+| `API.CooldownPieceInfo(frame)` | `{ key, spellID, shape ("icon" or "bar"), drawnBy }`. |
+
+Each placed piece is a frame of kind `"cdmpiece"` (its `unit` is the piece's key): `FrameMade`,
+`FrameUnitChanged`, `FrameRemoved` as pieces are placed and taken away, and `API.Attach` and
+`API.Glow` work on it. Events: `CooldownStarted` and `CooldownReady` (spellID, key), the moments
+Daylight UI's own light runs. Whatever draws inside the piece (often the game's own icon) is not
+yours to change.
+
+```lua
+me.On("CooldownReady", function(spellID)
+    if spellID == 12294 then API.Glow(API.GetCooldownPiece(12294), true) end
+end)
+```
+
+## The bags (1.7)
+
+```lua
+me.AddBagGroup("fishing", { label = "Fishing", match = function(item)
+    return item.itemID == 6256 or item.itemID == 6365   -- poles
+end })
+```
+
+Your group shows in the Categories view after the player's own groups, before Daylight UI's, and
+takes what `match` says (a pinned item and the player's own searches win). `item` has `itemID`,
+`link`, `name`, `quality`, `classID`, `subClassID`, `count`, `maxStack`, `bound`, `bindType`,
+`itemLevel`, `questItem`, `craftingReagent`, `recent`. The player can rename and move it but not
+delete it: it goes with your addon. `me.RemoveBagGroup(key)` takes it away; `API.RefreshBags()`
+sorts again when your `match` would answer differently.
+
+## The buffs (1.7)
+
+```lua
+me.AddBuffCategory("food", { label = "Well Fed", spells = { 24870, 25661 }, color = { 0.9, 0.6, 0.2 } })
+```
+
+A category of yours on the buff bar, made once in the player's list (then theirs: move, recolor, hide
+or delete it), holding those spells by id, so it sorts in fights too. Called again it updates the
+spells. A buff the player moved by hand stays where they put it. The bars' holders are frames of
+kind `"buffbar"` (`"buff"` and `"debuff"`) to attach to; the game's buttons inside lock in fights,
+so never touch those.
+
+## Chat (1.7)
+
+```lua
+me.FormatChat(function(text, info)
+    if info.kind == "guild" and info.sender == "Bob" then return "|cffffd100*|r " .. text end
+end)
+local link = me.ChatLink("fish:42", "Show fish")   -- "[Show fish]" in the accent
+me.OnChatLink(function(data) MyAddon:Show(data) end)
+```
+
+Daylight UI's chat box only (the Chat module in Daylight style). Your function gets each line after
+Daylight UI's own touches: return a new text, `false` to leave it out, or nothing to keep it. `info`
+has `event`, `kind`, `sender`, `guid`, `body` (what they typed), `channel` and `line`. Lines the game
+keeps secret never reach you. A click on a link made by `me.ChatLink` calls your `OnChatLink`.
+
+## Fitting in around Daylight UI (1.7)
+
+| Call | What it does |
+|---|---|
+| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"` (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
+| `API.GetMoverFrame(key)` | The frame placed under a mover key: `"unitframes.player"`, `"actionbars.main"`, `"infopanel"`, yours `"plugin.<name>.<key>"`. |
+| `API.IsUnlocked()` | Unlock mode is on. |
+| `me.IsPreviewing(key)` | Your part should show its sample now: unlock mode, or test mode with its test part ticked. |
+| `me.SuspendMover(key, true)` | Daylight UI stops placing your mover while you dock it to something; `false` gives it back. |
+| `API.MotionOn()` | The player lets Daylight UI animate. |
+| `API.Media(file)` | A file in Daylight UI's media folder, used where it is. |
+| `API.IsAfkScreen()` | The AFK screen is up. Events `AfkScreenShown`, `AfkScreenHidden`. |
+| `me.Override(scope, path, value)` | One of Daylight UI's settings changed for a while (hide the fishing water while your mode runs). Never saved: `API.Off(handle)`, logging out or the player changing it puts theirs back. One plugin per setting. |
+| `me.FilterShop(fn(item))` | Return `false` to leave an item off the vendor window's shelf (`item.index`, `name`, `link`...). `API.RefreshShop()` fills it again. |
+
+Event `FramePlaced(key)`: a frame was put on its spot by its mover (a profile, a move). Follow a
+frame here instead of hooking its `SetPoint`.
 
 ## A plugin of your own
 

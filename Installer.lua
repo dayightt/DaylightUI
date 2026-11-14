@@ -955,6 +955,13 @@ function Installer.Finish()
     end
     if applyModules(flow) then reload = true end
     if applyExtras() then reload = true end
+    -- Plugins' pages that set up something of their own (another addon).
+    for _, def in ipairs(Installer.TourPages()) do
+        if type(def.onFinish) == "function" then
+            DUI.SafeCallAs(def.plugin or L["an addon"], def.onFinish)
+            reload = true
+        end
+    end
     Installer.Mark("installed")
     Installer.MarkSeen()
     -- After the reload (or the guide closing without one), ask "Take a tour?" (Tour.lua).

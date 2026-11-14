@@ -102,7 +102,8 @@ end
 local function updateLine(line, key, order, i)
     local g = ns.Categories.Get(key)
     line.key = key
-    line.name.text:SetText(g.name .. (g.custom and "  " .. DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. L["custom"] .. "|r" or ""))
+    local tag = g.custom and L["custom"] or g.plugin
+    line.name.text:SetText(g.name .. (tag and "  " .. DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. tag .. "|r" or ""))
     line.search.text:SetText(g.custom and (g.search or L["Only what you move here"]) or "")
     line.search:EnableMouse(g.custom == true)
     line.delete.SetUsable(ns.Categories.CanDelete(key))

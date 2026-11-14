@@ -1837,3 +1837,28 @@ T.test("installer tour: the bars, plates and calm pages pick their presets throu
     T.eq(DUI:Get("ActionBars", "bars.bar2.visible"), "always")
     T.eq(DUI:Get("Nameplates", "scale"), 1)
 end)
+
+T.test("installer: a plugin's page comes after Daylight UI's own, and its onFinish runs on Finish", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local me = DUI.API.For("Guide")
+    local finished = 0
+    T.eq(me.AddSetupStep({ id = "look", title = "Guide's look", desc = "Pick a size.",
+        groups = { { label = "Size", rows = { { "general", "scale" } } } },
+        onFinish = function() finished = finished + 1 end }), true)
+    T.eq(me.AddSetupStep({ id = "bad" }), false, "a step needs a title and groups")
+    DUI.Installer.Start("tour")
+    local ids = {}
+    for _, def in ipairs(DUI.Installer.Steps()) do ids[#ids + 1] = def.id end
+    local at, last = nil, #ids
+    for i, id in ipairs(ids) do if id == "Guide:look" then at = i end end
+    T.truthy(at, "listed")
+    T.eq(ids[last], "finish")
+    T.eq(at, last - 1, "after Daylight UI's own pages, before Finish")
+    DUI.Installer.Go("Guide:look")
+    T.truthy(DUI.Installer.pages["Guide:look"], "its page is built")
+    DUI.Installer.Go("finish")
+    DUI.Installer.Finish()
+    T.eq(finished, 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

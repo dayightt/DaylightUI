@@ -258,3 +258,35 @@ T.test("text color: a gray category's name reads warm; the timer is a warm value
     T.deq({ BL.Categories.TextColor("mage") }, { BL.Widgets.CategoryColor("mage") }, "a colored category keeps its color")
     T.deq(BL.Widgets.TIME_COLOR, INK.VALUE)
 end)
+
+T.test("a plugin's buff category is made once and holds its spells by id, a hand move still wins", function()
+    local BL = loadBL()
+    local me = DaylightUI.API.For("Watcher")
+    T.eq(me.AddBuffCategory("food", { label = "Well Fed", spells = { 1001, 1002 }, color = { 0.9, 0.6, 0.2 } }), true)
+    local id
+    for k, rec in pairs(BL.DB.categories) do if rec.plugin == "Watcher:food" then id = k end end
+    T.truthy(id, "made in the player's list")
+    T.eq(BL.Categories.Get(id).name, "Well Fed")
+    local order = BL.Categories.Order()
+    T.eq(order[#order], "other", "before Other")
+    local sets = BL.Spells.Sets()
+    T.truthy(sets.byCategory[id][1001] and sets.byCategory[id][1002], "its spells by id")
+    T.truthy(sets.categorised[1001], "out of Other")
+    -- Again (another login, or new spells): the same category, the new list.
+    me.AddBuffCategory("food", { label = "Well Fed", spells = { 1003 } })
+    local n = 0
+    for _, rec in pairs(BL.DB.categories) do if rec.plugin == "Watcher:food" then n = n + 1 end end
+    T.eq(n, 1, "made once")
+    sets = BL.Spells.Sets()
+    T.truthy(sets.byCategory[id][1003]); T.isnil(sets.byCategory[id][1001])
+    -- A buff the player moved by hand stays where they put it.
+    BL.DB.spells[1003] = "Feast"
+    BL.DB.overrides.Feast = "world"
+    BL.Fire("OVERRIDES_CHANGED")
+    sets = BL.Spells.Sets()
+    T.isnil(sets.byCategory[id][1003], "the player's move wins")
+    T.eq(me.AddBuffCategory("bad", { label = "x" }), false)
+    local bar
+    for f, scope in DaylightUI.API.Frames("buffbar") do if scope == "buff" then bar = f end end
+    T.truthy(bar, "the buff bar's holder is a frame plugins can attach to")
+end)

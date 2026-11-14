@@ -33,7 +33,7 @@ DUI.PatchNotes = {
             { "Nameplates", "An enemy's Divine Shield, Ice Block and other big defensives show as a large icon beside their nameplate: Nameplates > Auras" },
             { "Nameplates", "Friendly totems show as a small round badge in their element's color instead of their long name" },
             { "Pet frame", "Your hunter pet's happiness can be a colored stripe inside the pet frame: Happiness look, In the frame. Thanks to Ángel" },
-            { "Plugins", "Other addons can restyle Daylight UI's action buttons and damage meters, and add their own data texts and data bars: daylightui.com/plugins" },
+            { "Plugins", "Other addons can restyle Daylight UI's action buttons and damage meters, and add their own data texts, tooltip lines, bag groups, buff categories, chat touches and setup guide pages: daylightui.com/plugins" },
         },
         changed = {
             { "Unit frames", "Buffs sit on the left and debuffs on the right on every frame: the target's buffs moved up beside its debuffs. Spots you picked yourself stay" },

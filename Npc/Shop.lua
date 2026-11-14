@@ -718,7 +718,8 @@ end
 
 function Shop.List()
     if ns.Window.state.sample then return Shop.SAMPLE end
-    return Shop.Items()
+    -- Plugins' shop filters (DaylightUI.API) may leave items out.
+    return DUI.APIReport.FilterShop(Shop.Items())
 end
 
 function Shop.PaintFooter(page)

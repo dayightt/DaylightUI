@@ -4158,3 +4158,29 @@ T.test("bags on a controller: Destroy asks in the menu first, then deletes that 
     T.eq(deleted, nil, "an empty slot has nothing to destroy")
     _G.ItemLocation = made
 end)
+
+T.test("bags: a plugin's group takes what its match says, after your own groups", function()
+    local ns = catLogin()
+    local B, Cat = ns.Bags, ns.Categories
+    local me = DaylightUI.API.For("Angler")
+    local asked
+    T.eq(me.AddBagGroup("food", { label = "Picnic", match = function(item)
+        asked = item
+        return item.itemID == 8 or item.itemID == 9
+    end }), true)
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[0][8]), "Angler:food", "bread in the plugin's group")
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "and the apple")
+    T.truthy(asked and asked.quality ~= nil, "the match gets the item's facts")
+    T.eq(Cat.Get("Angler:food").name, "Picnic")
+    T.falsy(Cat.CanDelete("Angler:food"), "it goes with its addon, not deleted by hand")
+    local mine = Cat.AddCustom("Bread only", "bread")
+    T.eq(groupOf(ns, B.buttons[0][8]), mine, "your own group wins")
+    me.AddBagGroup("broken", { label = "Broken", match = function() error("nope") end })
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "a broken one is skipped")
+    T.eq(me.RemoveBagGroup("food"), true)
+    stub.RunTimers()
+    T.isnil(Cat.Get("Angler:food"))
+    T.truthy(groupOf(ns, B.buttons[1][2]) ~= "Angler:food", "back where it was")
+end)

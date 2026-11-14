@@ -482,8 +482,10 @@ function Afk.Show(preview)
     end
     local from = screen:IsShown() and Afk.p or 0
     screen:Show()
+    local was = Afk.up
     Afk.up = true
     Motion.Tween("qol:afk", from, 1, Motion.SLOW, apply)
+    if not was then DUI.Fire("AfkScreenShown") end
     return true
 end
 
@@ -491,6 +493,7 @@ end
 function Afk.Leave(now)
     if not (screen and Afk.up) then return end
     Afk.up, Afk.preview = false, false
+    DUI.Fire("AfkScreenHidden")
     local done = function()
         if Afk.up then return end
         screen:Hide()

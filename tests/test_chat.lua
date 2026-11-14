@@ -5169,3 +5169,32 @@ T.test("chat daylight: a step of the watcher failing still keeps the game's wind
     T.truthy(#stub.errors > 0, "the failing step is still reported")
     stub.errors = {}
 end)
+
+T.test("chat daylight: a plugin's formatter changes or drops a line; its links come back to it", function()
+    local Box, box = daylight()
+    local me = DaylightUI.API.For("Chatty")
+    local seen
+    local h = me.FormatChat(function(text, info)
+        seen = info
+        if info.body == "spam me" then return false end
+        return text .. " (ok)"
+    end)
+    said(ChatFrame1, "Bob: hi", "CHAT_MSG_GUILD", 21)
+    local texts = boxTexts(box)
+    T.truthy(string.find(texts[#texts], "(ok)", 1, true), "changed")
+    T.eq(seen.event, "CHAT_MSG_GUILD"); T.eq(seen.kind, "guild"); T.eq(seen.sender, "Bob"); T.eq(seen.body, "Bob: hi")
+    local n = #boxTexts(box)
+    said(ChatFrame1, "spam me", "CHAT_MSG_GUILD", 22)
+    T.eq(#boxTexts(box), n, "left out")
+    DaylightUI.API.Off(h)
+    said(ChatFrame1, "Bob: bye", "CHAT_MSG_GUILD", 23)
+    texts = boxTexts(box)
+    T.falsy(string.find(texts[#texts], "(ok)", 1, true), "stopped")
+    -- A link of the plugin's, clicked in the box.
+    local got
+    me.OnChatLink(function(data) got = data end)
+    local link = me.ChatLink("fish:42", "Show fish")
+    T.truthy(string.find(link, "|Hdaylightchat:plugin:Chatty:fish:42|h[Show fish]|h", 1, true))
+    stub.chatModule.Extras.OnLink("daylightchat:plugin:Chatty:fish:42")
+    T.eq(got, "fish:42")
+end)

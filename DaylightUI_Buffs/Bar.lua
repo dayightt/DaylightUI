@@ -260,6 +260,9 @@ function BarMixin:Create()
     local holder = CreateFrame("Frame", self.frameName .. "Holder", UIParent)
     holder:SetFrameStrata("LOW")
     self.holder = holder
+    -- Plugins find the bar by its scope ("buff" or "debuff") and attach to this
+    -- holder (ours): the client's aura buttons inside lock in fights.
+    DUI.APIReport.Made("buffbar", holder, self.scope, false)
     DUI.Movers.Register(holder, self.moverKey, self.label, self.default, {
         scale = function()
             if self.frame then self:ApplyScale() end

@@ -95,12 +95,28 @@ end
 Cat.KEEP = { other = true, empty = true }
 local function removed() return tbl("removedGroups") end
 
--- A group: { key, name, breakBefore, breakAfter, custom, search }.
+-- Plugins' groups (DaylightUI.API: me.AddBagGroup), kept by the API and never
+-- saved: they come and go with their addon. { key = "<plugin>:<key>", name,
+-- match, owner } each.
+local NONE = {}
+function Cat.Plugins()
+    local R = DUI.APIReport
+    return type(R) == "table" and R.BagGroups and R.BagGroups() or NONE
+end
+function Cat.PluginGroup(key)
+    for _, g in ipairs(Cat.Plugins()) do if g.key == key then return g end end
+end
+
+-- A group: { key, name, breakBefore, breakAfter, custom, search, plugin }.
 function Cat.Get(key)
     if removed()[key] then return nil end
     local g = Cat.BY_KEY[key]
     local custom = not g and customByKey(key)
-    if not g and not custom then return nil end
+    if not g and not custom then
+        local p = Cat.PluginGroup(key)
+        if not p then return nil end
+        return { key = key, name = tbl("groupNames")[key] or p.name, plugin = p.owner }
+    end
     local base = g or custom
     return { key = key, name = tbl("groupNames")[key] or base.name, breakBefore = base.breakBefore,
              breakAfter = base.breakAfter, custom = custom and true or nil, search = custom and custom.search or nil }
@@ -125,6 +141,7 @@ function Cat.Order()
         defaults[#defaults + 1] = g.key
         if g.key == "recent" then
             for _, c in ipairs(Cat.Custom()) do defaults[#defaults + 1] = c.key end
+            for _, p in ipairs(Cat.Plugins()) do defaults[#defaults + 1] = p.key end
         end
     end
     for i, key in ipairs(defaults) do
@@ -144,6 +161,17 @@ local function changed()
     if ns.Relayout then ns.Relayout() end
     if ns.FillAll then ns.FillAll() end
     if ns.RefreshOptions then ns.RefreshOptions() end
+end
+-- A plugin's group came, went or asked to sort again: the next frame, once.
+local pluginsPending = false
+DUI.On("BagGroupsChanged", function() Cat.PluginsChanged() end)
+function Cat.PluginsChanged()
+    if pluginsPending then return end
+    pluginsPending = true
+    C_Timer.After(0, function()
+        pluginsPending = false
+        DUI.SafeCall(changed)
+    end)
 end
 
 function Cat.Move(key, by)
@@ -206,7 +234,7 @@ function Cat.DeleteCustom(key)
 end
 
 function Cat.CanDelete(key)
-    return Cat.Get(key) ~= nil and not Cat.KEEP[key]
+    return Cat.Get(key) ~= nil and not Cat.KEEP[key] and not Cat.PluginGroup(key)
 end
 
 -- Custom groups are gone for good; built-in ones wait in Cat.Removed().
@@ -520,6 +548,14 @@ local function parsed(text)
     return m or nil
 end
 
+local matched
+local function ask(fn, f) matched = fn(f) == true end
+function Cat.PluginMatch(g, f)
+    matched = false
+    DUI.SafeCallAs(g.owner, ask, g.match, f)
+    return matched
+end
+
 -- Group key for an item's facts (the slot's section decides keyring).
 function Cat.Assign(f, section)
     local gone = removed()
@@ -529,6 +565,11 @@ function Cat.Assign(f, section)
     for _, g in ipairs(Cat.Custom()) do
         local match = parsed(g.search)
         if match and match(f) then return g.key end
+    end
+    -- Plugins' groups, after the player's own and before the built-in ones. An
+    -- error in one is named once and that item moves on.
+    for _, g in ipairs(Cat.Plugins()) do
+        if Cat.PluginMatch(g, f) then return g.key end
     end
     for _, key in ipairs(Cat.PRIORITY) do
         if not gone[key] and Cat.TESTS[key](f) then return key end

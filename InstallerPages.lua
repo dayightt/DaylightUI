@@ -338,8 +338,43 @@ function Pages.Available(def)
     return false
 end
 
+-- Plugins' pages (DaylightUI.API: me.AddSetupStep), after Daylight UI's own,
+-- in the order they were added. Same shape as TOUR's, plus `plugin` (its name)
+-- and an optional `onFinish` run when the player finishes the guide.
+Pages.PLUGIN = {}
+
+local function allPages()
+    local out = {}
+    for _, def in ipairs(Pages.TOUR) do out[#out + 1] = def end
+    for _, def in ipairs(Pages.PLUGIN) do out[#out + 1] = def end
+    return out
+end
+Pages.All = allPages
+
+-- False (and why) when the step can't be taken: a missing id, title or
+-- groups, or an id already used.
+function Pages.AddStep(plugin, def)
+    if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" or type(def.title) ~= "string"
+        or type(def.groups) ~= "table" then
+        return false, "a step needs an id, a title and groups"
+    end
+    local id = plugin .. ":" .. def.id
+    if id == "welcome" or id == "finish" then return false, "that id is taken" end
+    for _, d in ipairs(allPages()) do
+        if d.id == id and d.plugin ~= plugin then return false, "that id is taken" end
+    end
+    local copy = {}
+    for k, v in pairs(def) do copy[k] = v end
+    copy.id, copy.plugin, copy.quick = id, plugin, def.quick == true or nil
+    for i, d in ipairs(Pages.PLUGIN) do
+        if d.id == id then Pages.PLUGIN[i] = copy return true end
+    end
+    Pages.PLUGIN[#Pages.PLUGIN + 1] = copy
+    return true
+end
+
 function Pages.Get(id)
-    for _, def in ipairs(Pages.TOUR) do
+    for _, def in ipairs(allPages()) do
         if def.id == id then return def end
     end
 end
@@ -348,7 +383,7 @@ end
 -- tour = false).
 function Pages.Tour()
     local out = {}
-    for _, def in ipairs(Pages.TOUR) do
+    for _, def in ipairs(allPages()) do
         if def.tour ~= false and Pages.Available(def) then out[#out + 1] = def end
     end
     return out
@@ -357,7 +392,7 @@ end
 -- The pages Quick setup shows, in order.
 function Pages.Quick()
     local out = {}
-    for _, def in ipairs(Pages.TOUR) do
+    for _, def in ipairs(allPages()) do
         if def.quick and Pages.Available(def) then out[#out + 1] = def end
     end
     return out

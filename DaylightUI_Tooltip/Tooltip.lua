@@ -910,6 +910,87 @@ function Tip.PaintSpell(tip, data)
     end
 end
 
+-- Plugins' lines (DaylightUI.API: me.AddTooltipLines(kind, fn(lines, data))),
+-- after Daylight UI's own, in the same look. Item tooltips refill several
+-- times a second, so a line already there is never added twice.
+local INK = Style.INK
+local adding                                -- the tooltip lines go to while a plugin runs
+local added = false
+local function inkOf(c, fallback)
+    if type(c) == "table" and type(c[1]) == "number" then return c[1], c[2], c[3] end
+    return fallback[1], fallback[2], fallback[3]
+end
+Tip.PLUGIN_LINES = {
+    -- A label and its value: label soft white, value white unless colored.
+    Line = function(left, right, color)
+        local tip = adding
+        if not tip or type(left) ~= "string" then return end
+        right = right ~= nil and tostring(right) or ""
+        if Tip.HasLine(tip, left, right) then return end
+        local lr, lg, lb = inkOf(nil, INK.TEXT)
+        local r, g, b = inkOf(color, INK.VALUE)
+        tip:AddDoubleLine(left, right, lr, lg, lb, r, g, b)
+        added = true
+    end,
+    -- A sentence, wrapped.
+    Text = function(text, color)
+        local tip = adding
+        if not tip or type(text) ~= "string" or Tip.HasLine(tip, text) then return end
+        local r, g, b = inkOf(color, INK.TEXT)
+        tip:AddLine(text, r, g, b, true)
+        added = true
+    end,
+    -- What a click does, in the accent.
+    Hint = function(text)
+        local tip = adding
+        if not tip or type(text) ~= "string" or Tip.HasLine(tip, text) then return end
+        local r, g, b = Style.Accent()
+        tip:AddLine(text, r, g, b, true)
+        added = true
+    end,
+    Gap = function()
+        local tip = adding
+        if not tip then return end
+        tip:AddLine(" ")
+        added = true
+    end,
+}
+
+-- kind = "unit" | "item" | "spell". Returns whether anything was added.
+function Tip.Plugins(kind, tip, data)
+    local R = DUI.APIReport
+    if not (skinned[tip] and type(R) == "table" and R.TooltipLines) then return false end
+    local list = R.TooltipLines(kind)
+    if not list or #list == 0 then return false end
+    adding, added = tip, false
+    for _, e in ipairs(list) do DUI.SafeCallAs(e.owner, e.fn, Tip.PLUGIN_LINES, data) end
+    adding = nil
+    return added
+end
+
+-- What a plugin's function is told about the tooltip: plain values only (nil
+-- when the game keeps one secret).
+function Tip.PluginData(kind, tip, data)
+    if kind == "unit" then
+        local _, unit = tip.GetUnit and tip:GetUnit()
+        return { unit = plain(unit) }
+    end
+    if kind == "item" then
+        local link = Tip.ItemLink and Tip.ItemLink(tip, data) or nil
+        local id = type(data) == "table" and plain(data.id) or nil
+        return { link = plain(link), itemID = type(id) == "number" and id or nil }
+    end
+    local id = type(data) == "table" and plain(data.id) or nil
+    return { spellID = type(id) == "number" and id or nil }
+end
+
+-- Runs the plugins for a tooltip already on show and fits it to the new lines
+-- (Show only while it's shown: called when it isn't, it runs the game's show
+-- handlers under our taint).
+function Tip.PluginsShown(kind, tip, data)
+    if Tip.Plugins(kind, tip, Tip.PluginData(kind, tip, data)) and tip:IsShown() then tip:Show() end
+end
+
 -- A spell or aura: its ID line with IDs on. Left out when the game keeps it
 -- secret (an aura in a boss fight or battleground).
 function Tip.OnSpellLines(tip, data)
@@ -1344,8 +1425,9 @@ function Tip.Build(mod)
                 if kind == nil or not tinted[kind] then Tip.Settle(tip) end
             end) end
             if types and types.Unit then
-                TDP.AddTooltipPostCall(types.Unit, function(tip)
+                TDP.AddTooltipPostCall(types.Unit, function(tip, data)
                     DUI.SafeCall(Tip.OnUnit, tip)
+                    DUI.SafeCall(Tip.Plugins, "unit", tip, Tip.PluginData("unit", tip, data))
                     Tip.Settle(tip)
                 end)
             end
@@ -1354,12 +1436,16 @@ function Tip.Build(mod)
                     DUI.SafeCall(Tip.OnItem, tip, data)
                     Tip.Settle(tip)
                     DUI.SafeCall(Tip.OnItemLines, tip, data)
+                    DUI.SafeCall(Tip.PluginsShown, "item", tip, data)
                 end)
             end
             -- Spells and auras: the ID line.
             for _, kind in ipairs(Tip.SPELL_KINDS) do
                 if types and types[kind] then
-                    TDP.AddTooltipPostCall(types[kind], function(tip, data) DUI.SafeCall(Tip.OnSpellLines, tip, data) end)
+                    TDP.AddTooltipPostCall(types[kind], function(tip, data)
+                        DUI.SafeCall(Tip.OnSpellLines, tip, data)
+                        DUI.SafeCall(Tip.PluginsShown, "spell", tip, data)
+                    end)
                 end
             end
         end
