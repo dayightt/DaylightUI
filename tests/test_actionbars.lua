@@ -1588,6 +1588,26 @@ T.test("action bars: the bag bar and micro menu are skinned, unless turned off",
     T.eq(QuestLogMicroButton.Background:GetAlpha(), 1)
 end)
 
+T.test("action bars: a button shape leaves the micro menu and bag bar framed", function()
+    -- A shape is drawn only by the action buttons' own pieces, so these keep the
+    -- square shell, background and all (a player saw them go see-through).
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world(); menuButtons()
+        DaylightUIDB = { modules = { ActionBars = { look = { shape = "circle" } } } }
+    end })
+    local Menus = stub.actionbars.Menus
+    for _, btn in ipairs({ QuestLogMicroButton, CharacterBag0Slot }) do
+        local o = Menus.Parts(btn).shell.opts
+        T.falsy(o.noBackground, btn:GetName() .. ": its background stays")
+        T.falsy(o.noBorder, btn:GetName() .. ": its border stays")
+    end
+    -- A border style change reaches them at once.
+    DUI:Set("ActionBars", "look.borderStyle", "none")
+    stub.RunTimers()
+    T.truthy(Menus.Parts(QuestLogMicroButton).shell.opts.noBorder, "border style followed")
+    T.falsy(Menus.Parts(QuestLogMicroButton).shell.opts.noBackground, "background still there")
+end)
+
 T.test("action bars: the micro icons run along the accent, one sweep through the row", function()
     local DUI = stub.Load({ actionbars = true, before = function() world(); menuButtons() end })
     local Menus, Style = stub.actionbars.Menus, DUI.Style
