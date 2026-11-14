@@ -62,9 +62,21 @@ local function configOf(style)
     return configs[style] or nil
 end
 
+-- The number style, read once and kept until a General setting changes: every
+-- health and power text runs through Health.Number.
+local numberStyle
+local function forgetStyle() numberStyle = nil end
+DUI.On("SettingChanged", function(scope) if scope == "general" then forgetStyle() end end)
+DUI.On("RepaintCore", forgetStyle)
+DUI.On("Login", forgetStyle)
+
 -- A health or power number in the player's chosen style. Secrets are fine.
 function Health.Number(n)
-    local style = DUI.DB.General().numbers
+    local style = numberStyle
+    if style == nil then
+        style = DUI.DB.General().numbers or false
+        numberStyle = style
+    end
     if style == "full" and BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
     local opts = style ~= "short" and configOf(style)
     if opts then

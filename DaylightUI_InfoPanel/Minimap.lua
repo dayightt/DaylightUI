@@ -518,8 +518,14 @@ local function tick()
     Map.UpdateFps()
 end
 
+-- Runs only while the clock or the framerate is shown.
 local clockTicker
-local function startClockTicker()
+local function startClockTicker(on)
+    if not on then
+        if clockTicker then clockTicker:Cancel() end
+        clockTicker = nil
+        return
+    end
     if clockTicker then return end
     clockTicker = C_Timer.NewTicker(1, tick)
 end
@@ -1048,7 +1054,7 @@ function Map.Apply(cfg)
     end
     Map.PlaceBottom(mm)
     tick()
-    startClockTicker()
+    startClockTicker((cfg.clock and cfg.clock.enabled) or (cfg.fps and cfg.fps.enabled))
 
     -- Location, then coordinates, top middle of the map.
     local location = ensureLocation(mm)

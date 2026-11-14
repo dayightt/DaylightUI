@@ -254,7 +254,7 @@ end
 
 -- Low-time color: a client color curve evaluated on the spell's cooldown duration.
 -- Secret-safe, since the client does the math and SetTextColor takes the result.
--- Runs every LOW_TICK while any piece has it on.
+-- Runs every LOW_TICK while any piece has it on and a cooldown is counting.
 CD.LOW_TICK = 0.1
 local lows = setmetatable({}, { __mode = "k" })     -- item -> { fs, curve }
 local curves = {}                                   -- "r,g,b,at" -> curve
@@ -297,14 +297,49 @@ local function paintLow(item, l)
     end
 end
 
+-- The numbers only show while the item's cooldown frame does, so once none has
+-- shown for LOW_IDLE ticks the ticker stops, leaving the plain color (right for a
+-- buff's countdown and for a long cooldown's start). A cooldown starting wakes it.
+CD.LOW_IDLE = 3
+local lowIdle = 0
+local function counting(item)
+    local cd = item.Cooldown
+    return type(cd) == "table" and type(cd.IsShown) == "function" and cd:IsShown() == true
+end
+
 local function lowTick()
-    local any = false
+    local any, busy = false, false
     for item, l in pairs(lows) do
         any = true
+        if counting(item) then busy = true end
         if item:IsVisible() then paintLow(item, l) end
     end
-    if not any and lowTicker then lowTicker:Cancel(); lowTicker = nil end
+    lowIdle = busy and 0 or lowIdle + 1
+    if any and lowIdle < CD.LOW_IDLE then return end
+    if lowTicker then lowTicker:Cancel(); lowTicker = nil end
+    for _, l in pairs(lows) do
+        local w = l.color
+        l.fs:SetTextColor(w[1], w[2], w[3], 1)
+    end
 end
+
+local lowHeard = false
+local function startLow()
+    lowIdle = 0
+    if not lowTicker then lowTicker = C_Timer.NewTicker(CD.LOW_TICK, lowTick) end
+    if lowHeard then return end
+    lowHeard = true
+    local function wake()
+        if not next(lows) then return end
+        for item, l in pairs(lows) do
+            if item:IsVisible() then paintLow(item, l) end
+        end
+        startLow()
+    end
+    DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", wake)
+    DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", wake)
+end
+CD.LowTicking = function() return lowTicker ~= nil end
 
 local function watchLow(item, fs, t)
     local curve = t.low and type(fs) == "table" and lowCurve(t) or nil
@@ -325,7 +360,7 @@ local function watchLow(item, fs, t)
         lows[item] = l
     end
     paintLow(item, l)
-    if not lowTicker then lowTicker = C_Timer.NewTicker(CD.LOW_TICK, lowTick) end
+    startLow()
 end
 
 -- One icon's text (the game's item or Daylight UI's own icon), from its block.

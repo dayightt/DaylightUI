@@ -98,16 +98,21 @@ end
 
 -- true: ready now (or only the global cooldown runs). false: on its cooldown.
 -- nil: no interrupt, or no plain answer.
-function Interrupt.Ready()
+-- info: the cooldown table, when it could be read.
+local function readiness()
     local id = Interrupt.Spell()
     if not id or type(C_Spell) ~= "table" or type(C_Spell.GetSpellCooldown) ~= "function" then return nil end
     local ok, info = pcall(C_Spell.GetSpellCooldown, id)
     if not ok or type(info) ~= "table" then return nil end
     local active, gcd = info.isActive, info.isOnGCD
-    if isSecret(active) or isSecret(gcd) then return nil end
-    if active ~= true or gcd == true then return true end
-    if info.isEnabled == false then return nil end -- on hold: no end time yet
-    return false
+    if isSecret(active) or isSecret(gcd) then return nil, info end
+    if active ~= true or gcd == true then return true, info end
+    if info.isEnabled == false then return nil, info end -- on hold: no end time yet
+    return false, info
+end
+
+function Interrupt.Ready()
+    return (readiness())
 end
 
 -- The cooldown as the client's duration object while it runs (its times secret in
@@ -123,17 +128,38 @@ end
 
 -- What can change the answer: learning a rank, a stance or form, a pet, a
 -- cooldown. Listeners redraw on DUI.On("InterruptChanged").
+local last -- what the listeners were last told, as a plain key
+
 local function forget()
     looked = false
+    last = nil
     DUI.Fire("InterruptChanged")
 end
 for _, e in ipairs({ "SPELLS_CHANGED", "UPDATE_SHAPESHIFT_FORM", "PLAYER_ENTERING_WORLD" }) do
     DUI.RegisterEvent(e, forget)
 end
-DUI.RegisterEvent("UNIT_PET", function(_, unit)
-    if unit == "player" then forget() end
+DUI.RegisterUnitEvent("UNIT_PET", forget, "player")
+-- The client sends this on every global cooldown, so tell the listeners only when
+-- your interrupt's own state moved. A cooldown whose times are secret can't be
+-- compared, so it's always passed on.
+local function cooldownKey()
+    if not Interrupt.Spell() then return "none" end
+    local ready, info = readiness()
+    if ready == true then return "ready" end
+    if ready == false then
+        local start, len = info.startTime, info.duration
+        if not isSecret(start) and not isSecret(len) then
+            return "cooling:" .. tostring(start) .. ":" .. tostring(len)
+        end
+    end
+    return nil
+end
+DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function()
+    local key = cooldownKey()
+    if key and key == last then return end
+    last = key
+    DUI.Fire("InterruptChanged")
 end)
-DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() DUI.Fire("InterruptChanged") end)
 
 -- ---------------------------------------------------------------------
 -- The mark on a cast bar
@@ -200,15 +226,17 @@ function Interrupt.PlaceMark(m, start, finish, ready, channel)
     tick:SetVertexColor(r, g, b, 1)
 end
 
+local function placeFrom(m, castDuration, cd, channel)
+    Interrupt.PlaceMark(m, castDuration:GetStartTime(), castDuration:GetEndTime(), cd:GetEndTime(), channel)
+end
+
 -- Shows the mark for a cast (castDuration: the duration object the cast bar runs
 -- on) while your interrupt is on cooldown, else hides it. fade: ease in FAST (a
 -- cooldown that started mid-cast); a new cast shows it at once.
 function Interrupt.ShowMark(m, castDuration, channel, fade)
     local cd = type(castDuration) ~= "nil" and Interrupt.Cooldown() or nil
     if not cd then return Interrupt.HideMark(m) end
-    local ok = pcall(function()
-        Interrupt.PlaceMark(m, castDuration:GetStartTime(), castDuration:GetEndTime(), cd:GetEndTime(), channel)
-    end)
+    local ok = pcall(placeFrom, m, castDuration, cd, channel)
     if not ok then return Interrupt.HideMark(m) end
     local M = DUI.Motion
     if fade and not m.clip:IsShown() then

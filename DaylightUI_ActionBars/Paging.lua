@@ -224,15 +224,15 @@ function Paging.LetGo()
 end
 
 local holdButtons = {}
+local function letGo() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end
+local function letGoSoon() C_Timer.After(Paging.HOLD_FOR, letGo) end
 local function makeHoldButtons(h)
     if #holdButtons > 0 or Paging.Class() ~= "DRUID" then return end
     for _, def in ipairs(Paging.HOLD) do
         local b = CreateFrame("Button", def.name, UIParent, "SecureActionButtonTemplate")
         b:RegisterForClicks("AnyUp", "AnyDown")
         SecureHandlerWrapScript(b, "OnClick", h, Paging.ON_HOLD)
-        b:HookScript("OnClick", function()
-            C_Timer.After(Paging.HOLD_FOR, function() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end)
-        end)
+        b:HookScript("OnClick", letGoSoon)
         holdButtons[#holdButtons + 1] = { button = b, bonus = def.bonus }
     end
 end

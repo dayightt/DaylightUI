@@ -7,8 +7,8 @@
 --
 -- It's all an addon frame and textures over the map canvas at the game's
 -- exploration level. Nothing on the map is called or written; canvas, map id and
--- level table are only read. A map change is detected by its id, checked each
--- frame while the map is shown.
+-- level table are only read. A map change is noticed from the game's
+-- "MapCanvas.MapSet" callback.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -151,10 +151,14 @@ local function build()
     Reveal.frame = frame
     frame:SetScript("OnShow", function() Reveal.Draw() end)
     DUI.On("OpenMapStitched", function() if frame:IsVisible() then Reveal.Draw() end end)
-    -- A new map (zone picked, or up a level in the nav bar) changes the id.
-    frame:SetScript("OnUpdate", function()
-        if f.mapID ~= drawnFor then Reveal.Draw() end
-    end)
+    -- A new map (zone picked, or up a level in the nav bar): the game's map
+    -- canvases announce each one, so nothing needs to be polled per frame.
+    -- Other canvases (the flight map) send it too, hence the id check.
+    Reveal.MapSet = function()
+        if frame:IsVisible() and f.mapID ~= drawnFor then Reveal.Draw() end
+    end
+    local reg = _G.EventRegistry
+    if reg and reg.RegisterCallback then reg:RegisterCallback("MapCanvas.MapSet", Reveal.MapSet, Reveal) end
     -- Map closed: draw nothing now; its OnShow redraws on open.
     frame:SetScript("OnEvent", function() if frame:IsVisible() then Reveal.Draw() end end)
     frame:RegisterEvent("MAP_EXPLORATION_UPDATED")
@@ -166,7 +170,7 @@ end
 ns.Engine.Register({ key = "worldmap.reveal", apply = function()
     if frame then return end
     if not build() then return false end
-    -- Off: hidden, so the per-frame map id check costs nothing.
+    -- Off: hidden, so nothing is drawn.
     frame:SetShown(Reveal.On())
     Reveal.Draw()
 end })

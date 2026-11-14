@@ -310,10 +310,17 @@ local function build()
     Pins.frame = frame
     frame:SetScript("OnShow", function() Pins.Draw() end)
     DUI.On("OpenMapStitched", function() if frame:IsVisible() then Pins.Draw() end end)
-    -- Redraw on a new map id, or a zoom or canvas resize (scale or width change).
+    -- Redraw on a new map, which the game's map canvases announce (the flight
+    -- map too, hence the id check).
+    Pins.MapSet = function()
+        if frame:IsVisible() and f.mapID ~= drawnFor then Pins.Draw() end
+    end
+    local reg = _G.EventRegistry
+    if reg and reg.RegisterCallback then reg:RegisterCallback("MapCanvas.MapSet", Pins.MapSet, Pins) end
+    -- A zoom or canvas resize has no callback, so its scale and width are
+    -- watched while the map is shown.
     frame:SetScript("OnUpdate", function()
-        if f.mapID ~= drawnFor then Pins.Draw()
-        elseif child:GetWidth() ~= drawnW or child:GetScale() ~= drawnScale then Pins.Place() end
+        if child:GetWidth() ~= drawnW or child:GetScale() ~= drawnScale then Pins.Place() end
     end)
     return true
 end

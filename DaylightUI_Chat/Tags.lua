@@ -71,10 +71,9 @@ local function ownTag(num, name)
     local Kinds = ns.Kinds
     local tag = Tags.own[Kinds.OfChannel(string.match(name, "^(.-) %- ") or name)]
     if tag or not num then return tag end
-    for _, c in ipairs(Kinds.Joined()) do
-        if tostring(c.id) == num then return Tags.own[c.kind] end
-    end
-    return nil
+    -- The channel list by number, kept until channels change.
+    local kind = Kinds.OfNumber(tonumber(num))
+    return kind and Tags.own[kind] or nil
 end
 
 -- "[1. General - Zone]"

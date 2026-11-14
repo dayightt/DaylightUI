@@ -23,24 +23,46 @@ Hide.parent = hidden
 
 local home = setmetatable({}, { __mode = "k" })     -- frame -> its parent before it was parked
 
--- Edit Mode is moving things, so retry once it's closed.
-local function later(fn)
-    if EditModeManagerFrame and EditModeManagerFrame:IsShown() then
-        C_Timer.After(0.25, fn)
-        return true
+-- Edit Mode is moving things, so retry once it's closed. One wait for all of
+-- them, and only the latest ask per frame: Hide.Apply runs often while Edit Mode
+-- is open.
+local waiting = {}      -- frame -> park or unpark
+local retrying = false
+local function editing() return EditModeManagerFrame and EditModeManagerFrame:IsShown() end
+local function retry()
+    if editing() then C_Timer.After(0.25, retry); return end
+    retrying = false
+    local todo = {}
+    for frame, fn in pairs(waiting) do todo[frame] = fn end
+    for frame, fn in pairs(todo) do
+        waiting[frame] = nil
+        fn(frame)
     end
 end
+local function later(frame, fn)
+    if not editing() then
+        waiting[frame] = nil
+        return false
+    end
+    waiting[frame] = fn
+    if not retrying then
+        retrying = true
+        C_Timer.After(0.25, retry)
+    end
+    return true
+end
 
-local function park(frame)
-    if frame:GetParent() == hidden then return end
-    if later(function() park(frame) end) then return end
+local park, unpark
+function park(frame)
+    if frame:GetParent() == hidden then waiting[frame] = nil; return end
+    if later(frame, park) then return end
     home[frame] = frame:GetParent()
     frame:SetParent(hidden)
 end
 
-local function unpark(frame)
-    if frame:GetParent() ~= hidden then return end
-    if later(function() unpark(frame) end) then return end
+function unpark(frame)
+    if frame:GetParent() ~= hidden then waiting[frame] = nil; return end
+    if later(frame, unpark) then return end
     frame:SetParent(home[frame] or UIParent)
     frame:SetAlpha(1)
 end

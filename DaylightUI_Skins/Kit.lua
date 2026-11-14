@@ -2127,8 +2127,16 @@ local walking = setmetatable({}, { __mode = "k" }) -- root -> its walk, while ru
 local walks = {}
 local walker = CreateFrame("Frame")
 walker:Hide()
+local function resumeWalks()
+    if #walks > 0 then walker:Show() end
+end
 walker:SetScript("OnUpdate", function(self)
-    if InCombatLockdown and InCombatLockdown() then return end
+    -- Paused walks wait out the fight hidden, so they cost nothing per frame.
+    if InCombatLockdown and InCombatLockdown() then
+        self:Hide()
+        DUI.AfterCombat(resumeWalks, "skins:walk")
+        return
+    end
     for i = #walks, 1, -1 do
         local w = walks[i]
         local t0 = Kit.Profiling and debugprofilestop()

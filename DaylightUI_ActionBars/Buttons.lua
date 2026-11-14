@@ -178,12 +178,18 @@ function Buttons.Tint(btn, slot, usable, noMana)
     ns.Skin.UpdateState(btn, slot, usable, noMana)
 end
 
-function Buttons.SetOutOfRange(btn, out)
-    out = out == true
+function Buttons.RangeChanged(btn, out)
     local st = Buttons.State(btn)
     local parts = ns.Skin.GetParts(btn)
+    return not (st.outOfRange == out and (not parts or parts.outOfRange == out))
+end
+
+function Buttons.SetOutOfRange(btn, out)
+    out = out == true
     -- Every target change asks every button, so bail when nothing changed.
-    if st.outOfRange == out and (not parts or parts.outOfRange == out) then return end
+    if not Buttons.RangeChanged(btn, out) then return end
+    local st = Buttons.State(btn)
+    local parts = ns.Skin.GetParts(btn)
     st.outOfRange = out
     if parts then
         parts.outOfRange = out
@@ -379,7 +385,11 @@ local function rangeTick(_, dt)
     for _, btn in ipairs(list) do
         if btn:IsVisible() then
             local slot = Buttons.SlotOf(btn)
-            if slot and HasAction(slot) then Buttons.Paint(btn, RANGE) end
+            -- Ask first and paint only a change: most ticks change nothing, and a
+            -- spell with no range answers nil, which reads as in range.
+            if slot and HasAction(slot) and Buttons.RangeChanged(btn, IsActionInRange(slot) == false) then
+                Buttons.Paint(btn, RANGE)
+            end
         end
     end
 end

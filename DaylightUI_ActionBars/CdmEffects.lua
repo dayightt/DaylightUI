@@ -761,11 +761,15 @@ end
 local ACTIVE_ALPHA = 0.7
 
 -- A piece's buff swipe color: its own, else the accent (read at paint time).
-function Fx.ActiveColor(b)
+-- into: a table to fill instead of a new one, for the swipe hooks that run on
+-- every cooldown update.
+function Fx.ActiveColor(b, into)
     local c = b and Fx.Get(b, "activeColor")
     if type(c) == "table" then return c end
     local r, g, bl = DUI.Style.Accent()
-    return { r, g, bl, ACTIVE_ALPHA }
+    if not into then return { r, g, bl, ACTIVE_ALPHA } end
+    into[1], into[2], into[3], into[4] = r, g, bl, ACTIVE_ALPHA
+    return into
 end
 
 local function setTint(cd, c)
@@ -779,6 +783,10 @@ local function fromAura(item)
     return type(v) == "boolean" and not secret(v) and v
 end
 
+-- Read by setTint at once and never kept, so one of each serves every item.
+local NO_SWIPE = { 0, 0, 0, 0 }
+local accentSwipe = {}
+
 local function applyTint(item)
     local cd = item.Cooldown
     if type(cd) ~= "table" or type(cd.SetSwipeColor) ~= "function" then return end
@@ -786,9 +794,9 @@ local function applyTint(item)
     local want
     if b and kinds[item] == "icon" and fromAura(item) then
         if Fx.Get(b, "activeGlow") == false or Fx.Get(b, "noDurationSwipe") == true then
-            want = { 0, 0, 0, 0 }
+            want = NO_SWIPE
         else
-            want = Fx.ActiveColor(b)
+            want = Fx.ActiveColor(b, accentSwipe)
         end
     end
     if want then

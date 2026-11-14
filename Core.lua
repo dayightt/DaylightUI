@@ -374,6 +374,34 @@ function DUI.RegisterEvent(event, fn, last)
     return true
 end
 
+-- A unit event for the given units only (up to two, as the client allows). The
+-- client filters it, so the same event for every nameplate or raid member never
+-- reaches Lua. Handlers are called with (event, ...). Returns false for an
+-- event this client doesn't have.
+local unitEventFrames = {}
+function DUI.RegisterUnitEvent(event, fn, unit1, unit2)
+    local key = event .. ":" .. tostring(unit1) .. ":" .. tostring(unit2)
+    local e = unitEventFrames[key]
+    if not e then
+        local f = CreateFrame("Frame")
+        local ok
+        if unit2 then
+            ok = pcall(f.RegisterUnitEvent, f, event, unit1, unit2)
+        else
+            ok = pcall(f.RegisterUnitEvent, f, event, unit1)
+        end
+        if not ok then return false end
+        local list = {}
+        e = { frame = f, list = list }
+        f:SetScript("OnEvent", function(_, ev, ...)
+            for i = 1, #list do DUI.SafeCall(list[i], ev, ...) end
+        end)
+        unitEventFrames[key] = e
+    end
+    e.list[#e.list + 1] = fn
+    return true
+end
+
 -- Whether v is a secret value. Every file that handles game values reads it
 -- through here, so there's one place to change if the client's rules move.
 function DUI.IsSecret(v)

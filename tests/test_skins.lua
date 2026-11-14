@@ -939,6 +939,28 @@ T.test("skins: a big window is dressed over a few frames, not all at once, lists
     Kit.AUTO_BUDGET = budget
 end)
 
+T.test("skins: a walk caught by a fight waits hidden, then finishes after it", function()
+    login()
+    local Kit = stub.skins.Kit
+    local budget = Kit.AUTO_BUDGET
+    Kit.AUTO_BUDGET = 5
+    local f = CreateFrame("Frame", nil, UIParent)
+    local buttons = {}
+    for i = 1, 30 do buttons[i] = button(nil, CreateFrame("Frame", nil, f)) end
+    Kit.Auto(f)
+    T.truthy(Kit.walker:IsShown(), "walking")
+    stub.EnterCombat()
+    stub.RunOnUpdate(Kit.walker, 1 / 60)
+    T.falsy(Kit.walker:IsShown(), "hidden for the fight, so no work per frame")
+    T.isnil(Kit.ButtonOf(buttons[30]), "paused")
+    stub.LeaveCombat()
+    T.truthy(Kit.walker:IsShown(), "back once the fight ends")
+    for _ = 1, 40 do stub.RunOnUpdate(Kit.walker, 1 / 60) end
+    T.truthy(Kit.ButtonOf(buttons[30]), "and the walk finishes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    Kit.AUTO_BUDGET = budget
+end)
+
 T.test("skins: money (gold, silver, copper) wears Daylight UI's coins, never a button look", function()
     login()
     local Kit = stub.skins.Kit
@@ -2081,7 +2103,12 @@ end)
 -- way on an addon frame over the canvas.
 T.test("skins: unexplored areas show dimmed on the map, from the game's pieces less the explored ones", function()
     local f
+    local mapSet = {}
     login(function()
+        -- The game's EventRegistry: callbacks get their owner first.
+        _G.EventRegistry = { RegisterCallback = function(_, event, fn, owner)
+            if event == "MapCanvas.MapSet" then mapSet[#mapSet + 1] = function(...) fn(owner, ...) end end
+        end }
         f = window("WorldMapFrame")
         f.ScrollContainer = CreateFrame("ScrollFrame", nil, f)
         f.ScrollContainer.Child = CreateFrame("Frame", nil, f.ScrollContainer)
@@ -2121,9 +2148,11 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     -- A piece 512 wide: two full tiles side by side at its offset.
     local p, rel, rp, x, y = first:GetPoint(1)
     T.eq(p, "TOPLEFT"); T.eq(rel, R.frame)
-    -- Another map is redrawn for it, since its id is read each frame.
+    -- Another map is redrawn for it when the game's canvas announces it, with
+    -- nothing polled per frame.
+    T.isnil(R.frame:GetScript("OnUpdate"), "no per-frame watcher")
     f.mapID = 947        -- Azeroth: no pieces
-    stub.RunOnUpdate(R.frame)
+    for _, fn in ipairs(mapSet) do fn(947) end
     shown = 0
     for _, r in ipairs({ R.frame:GetRegions() }) do if r:IsShown() then shown = shown + 1 end end
     T.eq(shown, 0)
@@ -2247,7 +2276,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
     T.truthy(kinds.raid)
     -- No pins on a map that isn't a zone.
     f.mapID = 947
-    stub.RunOnUpdate(P.frame)
+    P.MapSet()   -- the game's "MapCanvas.MapSet"
     T.eq(#shown(), 0)
     -- Forever's new dungeons have no corpse point. The addon's own list puts
     -- Excavation Site on the Wetlands, using the game's name when it has one.
@@ -2257,7 +2286,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
         return info(id)
     end
     f.mapID = 1437
-    stub.RunOnUpdate(P.frame)
+    P.MapSet()   -- the game's "MapCanvas.MapSet"
     local got = {}
     for _, b in ipairs(shown()) do
         if b.pin.family == "instance" then got[#got + 1] = b end

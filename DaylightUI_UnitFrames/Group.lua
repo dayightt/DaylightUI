@@ -88,16 +88,21 @@ end
 
 -- Every set-up button of every group, party and raid alike:
 --   for _, b in Group.Buttons() do ... end
-function Group.Buttons()
-    local gi, bi = 1, 0
-    return function()
-        while Group.all[gi] do
-            bi = bi + 1
-            local b = Group.all[gi].buttons[bi]
-            if b then return bi, b end
-            gi, bi = gi + 1, 0
-        end
+-- Stateless, so the range ticker and fight passes make no new closure per
+-- walk. The loop's first value packs the group and button numbers together.
+local SPAN = 4096
+local function nextButton(_, at)
+    local gi, bi = math.floor(at / SPAN), at % SPAN
+    while Group.all[gi] do
+        bi = bi + 1
+        local b = Group.all[gi].buttons[bi]
+        if b then return gi * SPAN + bi, b end
+        gi, bi = gi + 1, 0
     end
+end
+
+function Group.Buttons()
+    return nextButton, nil, SPAN
 end
 
 -- Tiles per line: a group's five by default (the header then keeps each group

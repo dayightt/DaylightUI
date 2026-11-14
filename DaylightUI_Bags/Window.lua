@@ -639,6 +639,9 @@ function Window.Changed(f, bags)
     if not (InCombatLockdown and InCombatLockdown()) then
         changed, synced = f.set.Sync(f.items), true
     else
+        -- The slots can't change in a fight (Sync waits for it to end), so the
+        -- layout below skips its own Sync and refills only what moved.
+        synced = true
         -- One cached function and key per window (loot in a fight calls this often).
         if not f.changedLater then
             f.changedLater = function() Window.Changed(f) end

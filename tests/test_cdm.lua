@@ -1511,6 +1511,48 @@ T.test("cdm text: numbers off and sized, count spot, low-time color; back on rel
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm text: the low-time ticker sleeps with nothing counting and wakes on a cooldown", function()
+    local DUI, AB, set, ess = fxWorld()
+    withCooldowns(ess)
+    local CD, D = AB.Cooldowns, AB.CdmData
+    _G.C_CurveUtil = { CreateColorCurve = function()
+        local c = { points = {} }
+        function c:SetType() end
+        function c:AddPoint(x, col) self.points[#self.points + 1] = { x, col } end
+        return c
+    end }
+    local asked = 0
+    C_Spell.GetSpellCooldownDuration = function()
+        asked = asked + 1
+        return { EvaluateRemainingDuration = function(_, curve)
+            local pick = curve.points[1][2]
+            return { GetRGBA = function() return pick.r, pick.g, pick.b, pick.a end }
+        end }
+    end
+    local item = ess[1]
+    local fs = item:CreateFontString()
+    item.Cooldown.GetCountdownFontString = function() return fs end
+    item.Cooldown:Hide()
+    D.SetLook(set, 11, "low", true)
+    D.SetLook(set, 11, "lowColor", { 0, 1, 0 })
+    pass(AB)
+    T.truthy(CD.LowTicking(), "on while the color is used")
+    for _ = 1, CD.LOW_IDLE do stub.RunTickers() end
+    T.falsy(CD.LowTicking(), "no cooldown counting: it stops")
+    T.rgb({ fs:GetTextColor() }, AB.Skin.LookFor("cdm").cooldownTextColor, "left in the plain color")
+    asked = 0
+    stub.RunTickers()
+    T.eq(asked, 0, "nothing asked while asleep")
+    item.Cooldown:Show()
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.truthy(CD.LowTicking(), "a cooldown wakes it")
+    T.rgb({ fs:GetTextColor() }, { 0, 1, 0 }, "painted at once")
+    for _ = 1, CD.LOW_IDLE + 1 do stub.RunTickers() end
+    T.truthy(CD.LowTicking(), "keeps going while it counts")
+    _G.C_CurveUtil = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm text: an icon's numbers and stacks colors; unset = the action bars' colors", function()
     local DUI, AB, set, ess = fxWorld()
     withCooldowns(ess)

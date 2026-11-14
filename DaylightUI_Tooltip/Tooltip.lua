@@ -478,18 +478,31 @@ Tip.TARGET_LABEL = L["Target:"]
 -- Tip.BUFF_MAX. Aura data is secret in combat and under the client's
 -- restrictions, and then nothing is added.
 Tip.BUFF_ROW, Tip.BUFF_MAX, Tip.BUFF_SIZE = 10, 40, 16
+-- Each icon's text is made once: the tooltip fills again on every unit update.
+local iconText, iconSize = {}, nil
+local function buffIcon(icon)
+    if iconSize ~= Tip.BUFF_SIZE then
+        iconSize = Tip.BUFF_SIZE
+        for k in pairs(iconText) do iconText[k] = nil end
+    end
+    local t = iconText[icon]
+    if not t then
+        local c = Style.ICON_CROP
+        t = string.format("|T%s:%d:%d:0:0:64:64:%d:%d:%d:%d|t", tostring(icon), iconSize, iconSize,
+            c[1] * 64, c[2] * 64, c[3] * 64, c[4] * 64)
+        iconText[icon] = t
+    end
+    return t
+end
 function Tip.BuffIcons(unit)
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return nil end
     local icons = {}
-    local c = Style.ICON_CROP
-    local crop = string.format(":%d:%d:0:0:64:64:%d:%d:%d:%d", Tip.BUFF_SIZE, Tip.BUFF_SIZE,
-        c[1] * 64, c[2] * 64, c[3] * 64, c[4] * 64)
     for i = 1, Tip.BUFF_MAX do
         local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")
         if not ok or type(a) ~= "table" then break end
         local icon = plain(a.icon)
         if icon == nil then return nil end -- secret, none of it is readable
-        icons[#icons + 1] = "|T" .. tostring(icon) .. crop .. "|t"
+        icons[#icons + 1] = buffIcon(icon)
     end
     if #icons == 0 then return nil end
     local rows = {}
