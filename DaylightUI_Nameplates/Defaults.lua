@@ -181,7 +181,7 @@ ns.DEFAULTS = {
     castFill = "pair", -- "plain" (castColor), "daylight" (logo gradient), "pair" (Gradients page)
     slant = true, -- angled bar end
     clickPad = 4, -- extra click area around the name and bar
-    stacking = "game", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)
+    stacking = "stack", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)
     stackFriendly = false, -- stack friendly plates too
 }
 -- Threat % font: "general" uses the health text's (Plate.MEDIA).

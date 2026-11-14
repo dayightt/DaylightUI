@@ -36,6 +36,13 @@ end
 
 function Manager.Spares() return #spare end
 
+-- Sets the spare plates aside for good and builds a new set, for /dui platefix.
+-- The old ones stay hidden where they are and are never put on a plate again.
+function Manager.FreshPool()
+    for i = #spare, 1, -1 do spare[i] = nil end
+    Manager.Prepare(Manager.PREPARE)
+end
+
 local plain = function(...) return ns.Plate.Plain(...) end
 
 local function forbidden(frame)
@@ -150,6 +157,7 @@ end
 -- from its plate by the time it reports the unit gone). A frame already silenced
 -- is left alone.
 function Manager.Silence(nameplate, p)
+    if Manager.fixWithout == "silence" then return end -- /dui platefix is trying the plates without this
     local uf = nameplate.UnitFrame
     if type(uf) ~= "table" or not uf.SetAlpha then return end
     if p then
@@ -728,7 +736,29 @@ function Manager.ApplyStacking()
     DUI.AfterCombat(function()
         pcall(set, Manager.STACK_CVAR, E.Enemy, on)
         pcall(set, Manager.STACK_CVAR, E.Friendly, on and ns.cfg.stackFriendly == true)
+        Manager.Restack()
     end, "nameplates:stacking")
+end
+
+-- Whether the game stacks this kind of plate right now. A plate's stacking
+-- frame is only handed to the game while it does: a plate the game doesn't
+-- stack is left exactly as the game made it.
+function Manager.Stacks(friendly)
+    local E = Enum and Enum.NamePlateStackType
+    local get = C_CVar and C_CVar.GetCVarBitfield
+    if E and type(get) == "function" then
+        local on = plain(get, Manager.STACK_CVAR, friendly and E.Friendly or E.Enemy)
+        if on == true or on == false then return on end
+    end
+    -- No answer from the game: go by the setting here.
+    local c = ns.cfg
+    if not c or c.stacking ~= "stack" then return false end
+    return not friendly or c.stackFriendly == true
+end
+
+-- The stacking setting changed: every plate hands its frame over or puts it away.
+function Manager.Restack()
+    Manager.Each(ns.Plate.PlaceStack)
 end
 
 -- Makes every plate clickable over its whole frame: the game's click insets (which
@@ -820,6 +850,7 @@ function Manager.Start()
     DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
         if type(name) ~= "string" then return end
         name = name:lower()
+        if name == Manager.STACK_CVAR:lower() then return Manager.Restack() end
         for _, cv in pairs(ns.Plate.FRIENDLY_SHOW) do
             if cv:lower() == name then return softRecheck() end
         end
@@ -1038,7 +1069,8 @@ function Manager.CheckLines(detail)
     }
     local words = {}
     for _, name in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateOccludedAlphaMult", "nameplateGlobalScale",
-        "nameplateStackingTypes", "nameplateMaxDistance" }) do
+        "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale", "nameplateStackingTypes",
+        "nameplateMaxDistance" }) do
         local ok, v = pcall(C_CVar.GetCVar, name)
         words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. tostring(ok and v)
     end
@@ -1101,7 +1133,7 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 -- names the cause and fixes it without a reload. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
-Manager.FIX_STEPS = 4
+Manager.FIX_STEPS = 7
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
 Manager.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
@@ -1119,6 +1151,48 @@ local function gameDefault(name)
     return ok and type(v) == "string" and v or nil
 end
 
+-- Hands every plate back to the game and takes none again until told to.
+local function handBack()
+    Manager.fixPaused = true
+    local units = {}
+    for unit in pairs(byUnit) do units[#units + 1] = unit end
+    for _, unit in ipairs(units) do DUI.SafeCall(Manager.Removed, unit) end
+    return #units
+end
+
+-- Switches the game's plates off and on so it rebuilds them, then puts the
+-- Daylight UI plates back a moment later.
+local function offAndOn()
+    local was = {}
+    for _, name in ipairs(Manager.FIX_SHOW_CVARS) do
+        local v = cvar(name)
+        if v then
+            was[name] = v
+            pcall(SetCVar, name, "0")
+        end
+    end
+    C_Timer.After(Manager.FIX_GAP, function()
+        for name, v in pairs(was) do pcall(SetCVar, name, v) end
+        C_Timer.After(Manager.FIX_BACK, function()
+            Manager.fixPaused = nil
+            DUI.SafeCall(Manager.Recheck)
+        end)
+    end)
+end
+
+-- Steps 5 to 7. Step 3 showed the game's rebuilt plates draw until the Daylight UI
+-- plates go back on, so each of these rebuilds them the same way and then puts
+-- the plates back with one part of that left out (Manager.fixWithout): "stack"
+-- hands the game no stacking frame, "silence" leaves the game's own frame
+-- showing underneath, "pool" uses plates built just now instead of the ones
+-- from login. One part at a time, so the step that works names the part.
+local function backWithout(part)
+    handBack()
+    Manager.fixWithout = part
+    if part == "pool" then Manager.FreshPool() end
+    offAndOn()
+end
+
 Manager.FIX = {
     -- 1. Reapply the plate size and click insets given to the game.
     function()
@@ -1130,29 +1204,11 @@ Manager.FIX = {
     -- 2. Hand every game plate back as it was (Daylight UI's off, its own frame, name and pieces
     -- restored), and take none again until step 3 is done.
     function()
-        Manager.fixPaused = true
-        local units = {}
-        for unit in pairs(byUnit) do units[#units + 1] = unit end
-        for _, unit in ipairs(units) do DUI.SafeCall(Manager.Removed, unit) end
-        return string.format("%d plates handed back to the game", #units)
+        return string.format("%d plates handed back to the game", handBack())
     end,
     -- 3. Toggle the game's plates off and on so it rebuilds them, then put Daylight UI's back.
     function()
-        local was = {}
-        for _, name in ipairs(Manager.FIX_SHOW_CVARS) do
-            local v = cvar(name)
-            if v then
-                was[name] = v
-                pcall(SetCVar, name, "0")
-            end
-        end
-        C_Timer.After(Manager.FIX_GAP, function()
-            for name, v in pairs(was) do pcall(SetCVar, name, v) end
-            C_Timer.After(Manager.FIX_BACK, function()
-                Manager.fixPaused = nil
-                DUI.SafeCall(Manager.Recheck)
-            end)
-        end)
+        offAndOn()
         return "the game's plates switched off and on (Daylight UI's go back on a second later)"
     end,
     -- 4. Reset the plate settings Daylight UI changes to the game's defaults (Daylight UI sets its
@@ -1166,6 +1222,22 @@ Manager.FIX = {
             if v and pcall(SetCVar, name, v) then done = done + 1 end
         end
         return string.format("%d plate settings back to the game's defaults", done)
+    end,
+    -- 5. Rebuilt, then back on with no stacking frame handed to the game.
+    function()
+        backWithout("stack")
+        return "the game's plates rebuilt, Daylight UI's back on without their stacking frame (wait two seconds)"
+    end,
+    -- 6. Rebuilt, then back on with the game's own frame left showing underneath.
+    function()
+        backWithout("silence")
+        return "the game's plates rebuilt, Daylight UI's back on over the game's own, which stay visible "
+            .. "(wait two seconds, and say which of the two you see)"
+    end,
+    -- 7. Rebuilt, then back on using plates built just now.
+    function()
+        backWithout("pool")
+        return "the game's plates rebuilt, Daylight UI's back on with newly built plates (wait two seconds)"
     end,
 }
 
@@ -1241,6 +1313,7 @@ function Manager.Fix()
     if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
     local n = (Manager.fixStep or 0) + 1
     if n > Manager.FIX_STEPS then
+        Manager.fixWithout = nil -- nothing helped, so the next plates are whole again
         Manager.FixDone(nil)
         return "platefix: that was every step and none brought them back. Copy the text in the box and send it to the "
             .. "Daylight UI team, then /reload."

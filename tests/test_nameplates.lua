@@ -2060,6 +2060,60 @@ T.test("nameplates: stacking or overlapping, the game's own setting", function()
     T.eq(set["nameplateStackingTypes1"], false, "they overlap")
 end)
 
+-- The game's stacking setting, kept in a table the way the client keeps it.
+local function stackWorld(bits)
+    Enum.NamePlateStackType = { None = 0, Enemy = 1, Friendly = 2 }
+    _G.C_CVar = {
+        SetCVarBitfield = function(_, i, v) bits[i] = v end,
+        GetCVarBitfield = function(_, i) return bits[i] == true end,
+    }
+end
+
+T.test("nameplates: enemy plates stack unless you choose otherwise, friendly ones don't", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    T.eq(bits[1], true, "enemies stack as shipped")
+    T.eq(bits[2], false, "friendly plates overlap")
+end)
+
+T.test("nameplates: the game gets a stacking frame only for plates it stacks", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    local foe, friend = added("nameplate1"), added("nameplate2")
+    T.eq(plates[1].__stack, foe.stack, "an enemy plate hands its frame over")
+    T.truthy(foe.stack:IsShown())
+    T.isnil(plates[2].__stack, "a friendly plate, not stacked, hands over nothing")
+    T.falsy(friend.stack:IsShown(), "and its frame stays put away")
+end)
+
+T.test("nameplates: with plates set to overlap the game is handed no stacking frame", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    DaylightUI:Set("Nameplates", "stacking", "overlap")
+    stub.RunTimers()
+    -- A mob that comes into view now, on a game plate that never had a frame.
+    stub.units.nameplate3 = { name = "Scalding Whelp", hostile = true, reaction = 2, health = 60, maxHealth = 100, pct = 60 }
+    local foe = added("nameplate3")
+    T.isnil(plates[3].__stack, "nothing handed over")
+    T.falsy(foe.stack:IsShown())
+    -- Back to stacking: the plate already up hands its frame over too.
+    DaylightUI:Set("Nameplates", "stacking", "stack")
+    stub.RunTimers()
+    T.eq(plates[3].__stack, foe.stack)
+    T.truthy(foe.stack:IsShown())
+end)
+
+T.test("nameplates: stacking switched off in the game's own menu puts the frames away", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    local foe = added("nameplate1")
+    T.truthy(foe.stack:IsShown())
+    bits[1] = false
+    stub.FireEvent("CVAR_UPDATE", "nameplateStackingTypes")
+    stub.RunTimers()
+    T.falsy(foe.stack:IsShown(), "put away with the game no longer stacking")
+end)
+
 T.test("nameplates: a plate reused for another unit shows nothing of the last one, even for a frame", function()
     local realMarker, realGuild = _G.GetRaidTargetIndex, _G.GetGuildInfo
     login(function()
@@ -2296,6 +2350,7 @@ end)
 
 T.test("nameplates: the stacking box keeps its size when you target (the game re-stacks every plate when it changes)", function()
     login()
+    DaylightUI:Set("Nameplates", "stackFriendly", true) -- the second plate is a friendly player's
     local a = added("nameplate1")
     local b = added("nameplate2")
     local function box(p) return { p.stack:GetWidth(), p.stack:GetHeight(), p.stack:GetScale(), p.stack:GetNumPoints() } end
@@ -2951,6 +3006,7 @@ end)
 
 T.test("nameplates: the stacking frame moves with our plate onto its next game plate", function()
     login()
+    DaylightUI:Set("Nameplates", "stackFriendly", true) -- its next plate is a friendly player's
     local p = added("nameplate1")
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
     local NP = stub.nameplates
@@ -4016,7 +4072,7 @@ T.test("nameplates: /dui platefix step 1 sets the plate size and click area agai
     size = nil
     local text = NP.Manager.Fix()
     T.truthy(size, "the size set again")
-    T.truthy(text:find("platefix 1/4", 1, true), text)
+    T.truthy(text:find("platefix 1/7", 1, true), text)
 end)
 
 T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none until step 3 is done", function()
@@ -4034,7 +4090,7 @@ T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none 
     T.isnil(NP.Manager.byUnit.nameplate1, "the 2 s check leaves them too")
     -- 3: off and on again, then ours back.
     local text = NP.Manager.Fix()
-    T.truthy(text:find("platefix 3/4", 1, true), text)
+    T.truthy(text:find("platefix 3/7", 1, true), text)
     T.eq(cvars.nameplateShowEnemies, "0", "off a moment")
     stub.RunTimers()
     T.eq(cvars.nameplateShowEnemies, "1", "back on")
@@ -4052,8 +4108,12 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
     T.eq(cvars.nameplateMaxDistance, "default:nameplateMaxDistance")
     T.eq(cvars.nameplateMinScale, "default:nameplateMinScale")
     T.eq(cvars.nameplateShowEnemyMinions, "default:nameplateShowEnemyMinions")
+    for _ = 5, NP.Manager.FIX_STEPS do
+        NP.Manager.Fix()
+        stub.RunTimers()
+    end
     T.truthy(NP.Manager.Fix():find("every step", 1, true), "the end")
-    T.truthy(NP.Manager.Fix():find("platefix 1/4", 1, true), "and round again")
+    T.truthy(NP.Manager.Fix():find("platefix 1/7", 1, true), "and round again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

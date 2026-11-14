@@ -681,13 +681,23 @@ end
 -- addon frames, so nothing on one game plate depends on a frame that moves on to
 -- another (that made plates go invisible). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
+-- A plate hands the game its stacking frame only while the game stacks that kind
+-- of plate (and /dui platefix can try the plates with none at all).
+function Plate.NoStack(p)
+    local M = ns.Manager
+    if not M then return false end
+    return M.fixWithout == "stack" or not M.Stacks(p.friendly == true)
+end
+
 function Plate.PlaceStack(p)
     local np, s = p.nameplate, p.stack
     if type(np) ~= "table" or p.isSample or not s then return end
+    if Plate.NoStack(p) then return Plate.Detach(p) end
     if s:GetParent() ~= np then s:SetParent(np) end
     s:ClearAllPoints()
     s:SetPoint("CENTER", np, "CENTER", 0, p.stackY or 0)
     s:Show()
+    if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, s) end
 end
 
 -- Off the game's plate, the stacking frame is hidden, unpinned and taken back, as
@@ -2995,9 +3005,7 @@ function Plate.Install(p, unit)
     Plate.Layout(p)
     ns.Auras.SetUnit(p, unit)
     Plate.UpdateFirst(p)
-    local np = p.nameplate
     Plate.PlaceStack(p)
-    if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, p.stack) end
     p.corpse = Plate.IsCorpse(unit)
     p.softOnly = Plate.SoftOnly(p)
     Plate.ShowNow(p)
