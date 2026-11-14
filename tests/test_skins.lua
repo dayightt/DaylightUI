@@ -2712,6 +2712,47 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A row's focus glow (FocusEffectTemplates) can have secret anchoring, and
+-- then its size getters return secret numbers, as the API docs say. A player
+-- got "attempt to compare local 'h' (a secret number value)" 26 times.
+T.test("skins: a menu row whose glow has a secret height is checked without comparing it", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local Kit = stub.skins.Kit
+    local menu = CreateFrame("Frame", nil, UIParent)
+    menu.bg = menu:CreateTexture()
+    local row = CreateFrame("Frame", nil, menu)
+    row.GlowTexture = row:CreateTexture()
+    row.GlowTexture:SetTexture(130841)
+    function row.GlowTexture:GetHeight() return stub.Secret(12) end
+    function row.GlowTexture:GetWidth() return stub.Secret(120) end
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local holder
+    for _, c in ipairs({ menu:GetParent():GetChildren() }) do if Kit.ShellOf(c) then holder = c end end
+    T.truthy(holder, "our look behind it")
+    local tick = holder.__scripts and holder.__scripts.OnUpdate
+    T.truthy(tick, "it watches the menu")
+    -- In game a secret number answers type() with "number" and only errors
+    -- when compared. The fake secret is a table, so make it answer like the
+    -- game's for this one look.
+    local realType, realCheck = type, issecretvalue
+    local function fake(v) return realType(v) == "table" and rawget(v, "__secret") == true end
+    _G.issecretvalue = fake
+    _G.type = function(v)
+        if fake(v) and realType(rawget(v, "__value")) == "number" then return "number" end
+        return realType(v)
+    end
+    local ok, err = pcall(tick, holder, 0.2)
+    _G.type, _G.issecretvalue = realType, realCheck
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", function()
     local callbacks = {}
     login(function()

@@ -14,6 +14,8 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Cooldown Manager", "Arcane Blast's stacks no longer end a moment before the real debuff does and then drift out of step with it" },
+            { "Window skins", "The hunter's Beast Training window has the Daylight UI look again" },
+            { "Window skins", "Some right-click menus no longer cause an error about a secret number" },
         },
     },
     { version = "1.8.1", date = "2026-11-14", summary = "Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.",

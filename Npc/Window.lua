@@ -685,10 +685,15 @@ function Npc.OnEvent(_, event, ...)
         if not (Npc.frames and Npc.frames.trainer) then return end
         -- Beast Training (a hunter spell, no NPC) keeps the game's window.
         local T = Enum and Enum.TrainerType
+        -- The Skins module hears "TrainerLent" and dresses the game's window then.
         if T and C_Trainer and C_Trainer.GetTrainerType and C_Trainer.GetTrainerType() == T.Pet then
-            if not Win.Followers.Lend(Npc.follow, "trainer") then
-                DUI.AfterCombat(function() Win.Followers.Lend(Npc.follow, "trainer") end, "npc:lendTrainer")
+            local function lend()
+                if not Win.Followers.Lend(Npc.follow, "trainer") then return false end
+                ns.trainerLent = true
+                DUI.Fire("TrainerLent")
+                return true
             end
+            if not lend() then DUI.AfterCombat(lend, "npc:lendTrainer") end
             return
         end
         Npc.Want("trainer", event)

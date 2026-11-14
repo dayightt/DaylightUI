@@ -51,6 +51,47 @@ Engine.Register({ key = "flightmap", pack = "npc", addon = "Blizzard_FlightMap",
 end })
 
 -- ---------------------------------------------------------------------
+-- Beast Training. The NPC window's trainer page replaces the game's trainer
+-- window, but buying there is only allowed from the game's own window, so the
+-- NPC window lends it back for Beast Training. Dressed the first time that
+-- happens; a class trainer's window stays hidden and bare.
+-- ---------------------------------------------------------------------
+
+local trainerHooked = false
+local beastTraining = { key = "trainer", pack = "npc",
+    skip = function() return not (DaylightUI.Npc and DaylightUI.Npc.trainerLent) end,
+    apply = function(Kit)
+        local f = g("ClassTrainerFrame")
+        if not f then return false end
+        Kit.Window(f)
+        Kit.Inset(f.BottomInset or g("ClassTrainerFrameBottomInset"))
+        Kit.Button(g("ClassTrainerTrainButton"))
+        Kit.Dropdown(f.FilterDropdown or g("ClassTrainerFrameFilterDropdown"))
+        Kit.ScrollBar(f.ScrollBar)
+        Kit.StatusBar(g("ClassTrainerStatusBar"), { 0.35, 0.55, 0.9 })
+        -- The game's text colors stay: they show what you can learn.
+        local function row(r)
+            if type(r) ~= "table" then return end
+            local icon = r.icon or r.Icon
+            Kit.Row(r, icon and { [icon] = true } or nil, r.selectedTex)
+            if icon and icon.SetTexCoord then DaylightUI.Style.CropIcon(icon) end
+            Kit.Font(r.name)
+            Kit.Font(r.subText)
+        end
+        row(g("ClassTrainerFrameSkillStepButton"))
+        Kit.Hide(g("ClassTrainerFrameSkillStepButtonHighlight"))
+        Kit.EachRow(f.ScrollBox, row)
+        -- Only this function shows or hides a row's selection art, when the list
+        -- fills and on a pick, so the row is repainted after it.
+        if not trainerHooked and type(ClassTrainerFrame_InitServiceButton) == "function" then
+            trainerHooked = true
+            hooksecurefunc("ClassTrainerFrame_InitServiceButton", function(b) Kit.RepaintRow(b) end)
+        end
+    end }
+Engine.Register(beastTraining)
+DaylightUI.On("TrainerLent", function() Engine.Try(beastTraining) end)
+
+-- ---------------------------------------------------------------------
 -- Everything else NPCs show, via Engine.Window.
 -- ---------------------------------------------------------------------
 

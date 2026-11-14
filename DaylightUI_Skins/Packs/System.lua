@@ -981,7 +981,7 @@ end
 local function menuIconSized(tex)
     local w = tex.GetWidth and tex:GetWidth()
     local h = tex.GetHeight and tex:GetHeight()
-    if type(w) ~= "number" or type(h) ~= "number" then return false end
+    if type(w) ~= "number" or type(h) ~= "number" or isSecret(w) or isSecret(h) then return false end
     return w > 0 and h > 0 and w <= 24 and h <= 24
 end
 local function menuMarkerNumber(tex, frame)
@@ -1034,8 +1034,9 @@ local function menuThinLine(owner, tex)
             if region.GetObjectType and region:GetObjectType() == "FontString" then return false end
         end
     end
+    -- A focus glow with secret anchoring reports a secret height. It is no divider.
     local h = tex.GetHeight and tex:GetHeight()
-    return type(h) == "number" and h > 0 and h <= 16
+    return type(h) == "number" and not isSecret(h) and h > 0 and h <= 16
 end
 local function menuIsDivider(owner, tex)
     if owner.divider == tex or owner.Divider == tex then return true end

@@ -314,6 +314,23 @@ T.test("trainer: Beast Training (no NPC) stays the game's window", function()
     T.eq(ClassTrainerFrame:GetParent(), DaylightUI.Win.Followers.veil, "veiled again once closed")
 end)
 
+-- The game's trainer window has no skin of its own while Daylight UI's trainer
+-- page replaces it, but Beast Training still shows the game's window.
+T.test("trainer: Beast Training's game window wears the Daylight UI look, a class trainer's stays bare", function()
+    stub.Load({ before = NW.world({}), skins = true })
+    local Kit = stub.skins.Kit
+    NW.Trainer()
+    frame(2)
+    T.isnil(Kit.ShellOf(ClassTrainerFrame), "a class trainer's window is replaced, not skinned")
+    CloseTrainer()
+    frame(2)
+    NW.Trainer({ type = 3 })
+    frame(2)
+    T.eq(ClassTrainerFrame:GetParent(), UIParent, "lent back")
+    T.truthy(Kit.ShellOf(ClassTrainerFrame), "skinned for Beast Training")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("trainer: the sample talk's trainer line opens a sample page and learns nothing for real", function()
     local N = load()
     N.Sample()
