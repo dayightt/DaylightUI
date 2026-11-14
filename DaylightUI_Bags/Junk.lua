@@ -19,6 +19,7 @@ local function priceOf(info)
     end
     return 0
 end
+Junk.PriceOf = priceOf
 
 -- Every junk slot that sells for something: { bag, slot, value }.
 function Junk.Items()
@@ -179,15 +180,21 @@ local function closeUp(sold, since)
     end
     if ns.window and ns.Window then ns.Window.EaseRelayout(ns.window) end
 end
+Junk.CloseUp = closeUp
 
--- Sells the list one at a time and prints the total at the end.
-function Junk.Sell(list)
-    if selling or #list == 0 then return end
+-- Sells the list one at a time and prints the total at the end (say(count,
+-- total) instead, when given). done() runs once the selling stops.
+function Junk.Sell(list, say, done)
+    if selling or #list == 0 then
+        if done then done() end
+        return
+    end
     selling = true
     local i, total, sold = 0, 0, {}
     local function finish()
         selling = false
         if #sold > 0 then closeUp(sold, GetTime()) end
+        if done then done() end
     end
     local function step()
         if not Junk.vendorOpen then return finish() end
@@ -195,7 +202,9 @@ function Junk.Sell(list)
         local item = list[i]
         if not item then
             local count = #sold
-            if count > 0 then
+            if count > 0 and say then
+                say(count, total)
+            elseif count > 0 then
                 DUI.Print(count == 1 and string.format(L["Sold 1 junk item for %s."], money(total))
                     or string.format(L["Sold %d junk items for %s."], count, money(total)))
             end

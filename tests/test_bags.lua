@@ -6980,3 +6980,149 @@ T.test("bags: the filters go once the mouse leaves them after Escape left the se
     chip.IsMouseOver = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Move what you searched for: the matches go where a right-click would send them.
+local function moveWorld(opts)
+    -- The client's switch for the mail's send page, there before any addon loads.
+    _G.SetSendMailShowing = _G.SetSendMailShowing or function() end
+    local ns = opts and opts.bank and bankLogin() or login()
+    world.items[0][1].itemName, world.items[0][1].itemID = "Copper Ore", 1
+    world.items[0][4].itemName, world.items[0][4].itemID = "Copper Bar", 4
+    world.items[0][5].itemName = "Linen Cloth"
+    local used = {}
+    C_Container.UseContainerItem = function(bag, slot)
+        used[#used + 1] = bag .. ":" .. slot
+        world.items[bag][slot] = nil
+        bagChanged(bag)
+    end
+    local f = open(ns)
+    f.search:SetText("copper")
+    stub.RunTimers()
+    return ns, f, used
+end
+
+local function moveButton(f)
+    runMotion(20, 0.05)
+    for _, b in ipairs({ f.move, f.moveSell }) do
+        if b and b:IsShown() and b:GetAlpha() > 0 then return b end
+    end
+end
+
+local function runMoves()
+    for _ = 1, 20 do stub.Advance(0.2); stub.RunTimers() end
+end
+
+T.test("bags: Move what you searched for shows while searching with a trade open", function()
+    local ns, f, used = moveWorld()
+    T.falsy(moveButton(f), "nowhere to move to: no button")
+    local offered = {}
+    _G.GetTradePlayerItemLink = function(i) return offered[i] end
+    stub.FireEvent("TRADE_SHOW")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.truthy(b, "a trade open: the button")
+    T.eq(b.text:GetText(), "Move 2 to trade")
+    T.eq(select(2, b:GetPoint(1)), f, "on the filter row")
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4", "each match, as a right-click would")
+    T.falsy(moveButton(f), "nothing left to move")
+    stub.FireEvent("TRADE_CLOSED")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for moves only what fits", function()
+    local ns, f, used = moveWorld()
+    local offered = { "a", "b", "c", "d", "e" }
+    _G.GetTradePlayerItemLink = function(i) return offered[i] end
+    stub.FireEvent("TRADE_SHOW")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 1 to trade", "one trade slot left")
+    offered[6] = "f"
+    stub.FireEvent("TRADE_PLAYER_ITEM_CHANGED", 6)
+    stub.RunTimers()
+    runMotion(20, 0.05)
+    T.falsy(moveButton(f), "a full trade: no button")
+    stub.FireEvent("TRADE_CLOSED")
+    stub.RunTimers()
+    -- The send page of the mail: the client takes right-clicked items while it shows.
+    local attached = {}
+    _G.HasSendMailItem = function(i) return attached[i] == true end
+    stub.FireEvent("MAIL_SHOW")
+    stub.RunTimers()
+    T.falsy(moveButton(f), "the inbox: nothing takes items")
+    SetSendMailShowing(true)
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 2 to mail")
+    for i = 1, 11 do attached[i] = true end
+    stub.FireEvent("MAIL_SEND_INFO_UPDATE")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 1 to mail", "one attachment left")
+    local b = moveButton(f)
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(#used, 1, "only what fits")
+    SetSendMailShowing(false)
+    stub.FireEvent("MAIL_CLOSED")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for sells at a vendor on a second click", function()
+    local ns, f, used = moveWorld()
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:1|h" or link == "|Hitem:4|h" then return "name", link, 2, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.eq(b, f.moveSell)
+    T.eq(b.text:GetText(), "Sell 2")
+    b:GetScript("OnClick")(b)
+    T.eq(#used, 0, "the first click only asks")
+    T.eq(b.text:GetText(), "Click again")
+    stub.Advance(1)
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4", "sold")
+    stub.FireEvent("MERCHANT_CLOSED")
+    C_Item.GetItemInfo = getInfo
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for keeps locked and priceless items from the vendor", function()
+    local ns, f, used = moveWorld()
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:1|h" then return "name", link, 2, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][4].hasNoValue = true
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Sell 1", "no price: not sold")
+    ns.Categories.ToggleLock(1)
+    stub.RunTimers()
+    runMotion(20, 0.05)
+    T.falsy(moveButton(f), "locked: kept")
+    stub.FireEvent("MERCHANT_CLOSED")
+    C_Item.GetItemInfo = getInfo
+end)
+
+T.test("bags: Move what you searched for sends matches to the open bank", function()
+    local ns, f, used = moveWorld({ bank = true })
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.eq(b and b.text:GetText(), "Move 2 to bank")
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4")
+    stub.FireEvent("BANKFRAME_CLOSED")
+    stub.RunTimers()
+    f.search:SetText("linen")
+    stub.RunTimers()
+    T.falsy(moveButton(f), "the bank closed: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

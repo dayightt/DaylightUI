@@ -121,6 +121,7 @@ local function searchBox(f)
             f.match = ns.Search.Parse(t)
             Window.MatchAll(f)
             Window.SyncFilters(f)
+            ns.Move.Queue()
         end })
     -- The filters come with the search: shown while it has focus.
     eb:HookScript("OnEditFocusGained", function()
@@ -329,6 +330,7 @@ function Window.Create(spec)
             DUI.Widgets.EaseShown(f.dropShards, false)
         end)
         f.dropShards:Hide()
+        ns.Move.Build(f)
     end
     if spec.footer then spec.footer(f) end
 
@@ -606,13 +608,14 @@ function Window.LayoutChips(f, width)
     f.filtersLaid = on
     local h = 0
     if on then
-        local x, line = 0, 0
+        local x, line, lastX = 0, 0, 0
         for _, b in ipairs(f.chips or {}) do
             local bw = b:GetWidth()
             if x > 0 and x + bw > width then x, line = 0, line + 1 end
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * Wd.TAB_H)
-            x = x + bw + Window.FILTER_GAP
+            lastX = x + bw + Window.FILTER_GAP
+            x = lastX
             if not was and eases then
                 b:SetAlpha(0)
                 M.AlphaTo(b, 1, M.NORMAL)
@@ -621,8 +624,10 @@ function Window.LayoutChips(f, width)
                 M.AlphaTo(b, 1, 0)
             end
         end
+        line = line + ns.Move.Place(f, true, lastX, line, top, width, eases)
         h = (line + 1) * Wd.TAB_H + Window.GAP
     else
+        ns.Move.Place(f, false, 0, 0, top, width, eases)
         for _, b in ipairs(f.chips or {}) do
             if was and eases then
                 M.AlphaTo(b, 0, M.FAST, true)
@@ -654,6 +659,7 @@ function Window.Chips(f)
         b:SetScript("OnClick", function()
             Window.PickChip(f, c.id)
             Window.SyncFilters(f)
+            ns.Move.Queue()
         end)
         -- After Escape or Enter left the search with the mouse resting here, the
         -- row waited for this word's click; the mouse leaving decides instead.
@@ -1314,6 +1320,7 @@ function ns.Build(mod)
         ns.Disenchant.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
+        ns.Move.Register()
         ns.Guard.Register()
         ns.Repair.Register()
         ns.Layout.Register()

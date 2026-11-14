@@ -3112,7 +3112,7 @@ function stub.Load(opts)
     end
     if opts.bags then
         local BG = {}
-        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
+        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Move.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
                                         "Currency.lua", "MoneyRoll.lua",
                                         "OpenClose.lua", "Options.lua", "Module.lua" }, "DaylightUI_Bags", BG)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Bags")
