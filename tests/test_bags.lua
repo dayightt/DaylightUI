@@ -1775,31 +1775,75 @@ T.test("bags: group headings read upper case in the group's color with a count a
     T.truthy(ok, tostring(err))
 end)
 
--- A folded heading beside open groups left a hole under it and pushed them about,
--- and since the fold is saved the odd shape stayed. Folded headings now take a line
--- of their own (side by side when they follow each other), and open groups keep theirs.
-T.test("bags: a folded group's heading takes its own line, never beside an open group", function()
+-- A folded group collapses where it is: its heading keeps its spot and the width it
+-- has open, so nothing beside or after it moves. Only a row whose groups are all
+-- folded shrinks, to one heading tall, and the rows below move up.
+T.test("bags: a folded group keeps its spot and width; a fully folded row is one heading tall", function()
     local ns, f = catLogin()
     local Cat = ns.Categories
-    local function top(key)
+    local function spot(key)
         for _, x in ipairs(f.headings) do
-            if x:IsShown() and x.key == key then return select(5, x:GetPoint(1)) end
+            if x:IsShown() and x.key == key then
+                local _, _, _, px, py = x:GetPoint(1)
+                return px, py
+            end
         end
     end
-    T.eq(top("consumable"), top("sets"), "open: side by side")
+    local keys = { "consumable", "sets", "weapon", "armor", "tradegoods", "junk", "empty" }
+    local before = {}
+    for _, k in ipairs(keys) do before[k] = { spot(k) } end
+    T.eq(before.consumable[2], before.sets[2], "open: side by side")
     Cat.ToggleCollapsed("sets")
     stub.RunTimers()
-    local foldTop = top("sets")
-    T.truthy(foldTop < top("consumable"), "below the open groups before it")
-    T.truthy(top("weapon") < foldTop, "the open groups after it on the next line")
-    T.eq(top("weapon"), top("armor"), "which still sit side by side")
-    T.eq(foldTop - top("weapon"), ns.Layout.HeadH(f) + ns.Layout.RowGap(f), "a folded line is only its heading tall")
+    for _, k in ipairs(keys) do
+        local x, y = spot(k)
+        T.eq(x, before[k][1], k .. " stays in its column")
+        T.eq(y, before[k][2], k .. " stays on its row")
+    end
     Cat.ToggleCollapsed("weapon")
     stub.RunTimers()
-    T.eq(top("weapon"), top("sets"), "folded ones that follow each other share the line")
-    Cat.ToggleCollapsed("sets"); Cat.ToggleCollapsed("weapon")
+    T.eq(spot("weapon"), before.weapon[1], "a second folded one keeps its place too")
+    T.eq(select(2, spot("weapon")), select(2, spot("sets")), "folded neighbours stay side by side")
+    T.eq(select(2, spot("armor")), before.armor[2], "the row below keeps its height while consumable is open")
+    Cat.ToggleCollapsed("consumable")
     stub.RunTimers()
-    T.eq(top("consumable"), top("weapon"), "all open: the flow as before")
+    local lift = ns.Layout.HeadH(f) + ns.Layout.RowGap(f)
+    T.truthy(select(2, spot("armor")) > before.armor[2], "every group of the top row folded: the rows below move up")
+    T.eq(select(2, spot("armor")), -lift, "the folded row is one heading tall")
+    Cat.ToggleCollapsed("sets"); Cat.ToggleCollapsed("weapon"); Cat.ToggleCollapsed("consumable")
+    stub.RunTimers()
+    for _, k in ipairs(keys) do
+        local x, y = spot(k)
+        T.eq(x, before[k][1], k .. " back in its column")
+        T.eq(y, before[k][2], k .. " back on its row")
+    end
+end)
+
+T.test("bags: folding a group moves no other heading or slot while its row has an open group", function()
+    local ns, f = catLogin()
+    local B = ns.Bags
+    local function snapshot()
+        local t = {}
+        for _, x in ipairs(f.headings) do
+            if x:IsShown() and x.key and x.key ~= "sets" then t[x.key] = { select(4, x:GetPoint(1)), select(5, x:GetPoint(1)) } end
+        end
+        for _, s in ipairs(f.set.Slots()) do
+            if s.button:IsShown() and s.button ~= B.buttons[0][4] then t[s.button] = { select(4, s.button:GetPoint(1)), select(5, s.button:GetPoint(1)) } end
+        end
+        return t
+    end
+    local before = snapshot()
+    ns.Categories.ToggleCollapsed("sets")
+    stub.RunTimers()
+    local after = snapshot()
+    local n = 0
+    for k, p in pairs(before) do
+        n = n + 1
+        T.truthy(after[k], "still there")
+        T.eq(after[k][1], p[1], "same x")
+        T.eq(after[k][2], p[2], "same y")
+    end
+    T.truthy(n > 5, "several headings and slots checked")
 end)
 
 -- Seen in game: each group's line ran along the top of its slots and the rings
@@ -1997,22 +2041,23 @@ T.test("bags: folding a group eases: its items fade out, the rest glide, the win
         end
     end
     settle()
-    local setItem, weapon = B.buttons[0][4], B.buttons[0][1]
+    -- Junk sits alone on its row: folding it lifts the row below and shrinks the window.
+    local setItem, weapon = B.buttons[0][2], B.buttons[0][3]
     local h0 = f:GetHeight()
     local y0 = select(5, weapon:GetPoint(1))
-    click("sets")
+    click("junk")
     T.truthy(setItem:IsShown(), "the folded item fades, it doesn't vanish")
-    T.truthy(gliding(weapon), "a group pushed down glides there")
+    T.truthy(gliding(weapon), "a group pushed up glides there")
     T.eq(select(5, weapon:GetPoint(1)), y0, "from where it was")
     T.eq(f:GetHeight(), h0, "the window starts from its old size")
     stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
     local midY, midH = select(5, weapon:GetPoint(1)), f:GetHeight()
-    T.truthy(midY < y0 and midH > h0, "halfway, slot and window both on their way")
+    T.truthy(midY > y0 and midH < h0, "halfway, slot and window both on their way")
     settle()
-    T.truthy(select(5, weapon:GetPoint(1)) < midY, "the slot at its new spot")
+    T.truthy(select(5, weapon:GetPoint(1)) > midY, "the slot at its new spot")
     T.falsy(setItem:IsShown(), "gone once faded")
-    T.truthy(f:GetHeight() > h0, "and the window got there")
-    click("sets")
+    T.truthy(f:GetHeight() < h0, "and the window got there")
+    click("junk")
     T.truthy(setItem:IsShown())
     T.eq(setItem:GetAlpha(), 0, "an opened group's items fade in")
     settle()
@@ -2024,9 +2069,9 @@ T.test("bags: folding a group eases: its items fade out, the rest glide, the win
     T.falsy(gliding(weapon), "no glide but a fold's")
     ns.Categories.Unpin(9)
     -- A fold mid-fade then laid out again: the faded item comes back whole.
-    click("sets")
+    click("junk")
     ns.Relayout()
-    click("sets")
+    click("junk")
     settle()
     T.eq(setItem:GetAlpha(), 1, "back at full")
     T.truthy(setItem:IsShown())
@@ -2336,9 +2381,9 @@ T.test("bags: loot during a fold glide settles and glides on", function()
     local ns, f = catLogin()
     local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
     settleFeel()
-    local setItem = ns.Bags.buttons[0][4]
+    local setItem = ns.Bags.buttons[0][2]
     for _, h in ipairs(f.headings) do
-        if h:IsShown() and h.key == "sets" then h:GetScript("OnClick")(h, "LeftButton") end
+        if h:IsShown() and h.key == "junk" then h:GetScript("OnClick")(h, "LeftButton") end
     end
     stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
     T.truthy(f.fading and f.fading[setItem], "the fold is still fading")
@@ -6504,10 +6549,10 @@ T.test("bags: combat mid-glide settles everything at once", function()
         end
     end
     -- Fold a group, then open it again: its items fade in, the rest glide, the window resizes.
-    click("consumable")
+    click("junk")
     settleFeel()
-    click("consumable")
-    local bread = ns.Bags.buttons[0][8]
+    click("junk")
+    local bread = ns.Bags.buttons[0][2]
     T.truthy(bread:GetAlpha() < 1, "an opened group's items are fading in")
     T.truthy(Feel.Moving(f), "the window is resizing")
     local glided = false
@@ -6520,7 +6565,7 @@ T.test("bags: combat mid-glide settles everything at once", function()
     stub.LeaveCombat()
     stub.RunTimers()
     -- Folding again: the folded group's items fade out where they were.
-    click("consumable")
+    click("junk")
     T.truthy(f.fading and f.fading[bread], "fading out")
     stub.EnterCombat()
     T.falsy(bread:IsShown(), "gone at once")
@@ -6530,7 +6575,7 @@ T.test("bags: combat mid-glide settles everything at once", function()
     -- A cross-fade lands too.
     local ok, err = pcall(function()
         L.EASE_MAX = 0
-        click("consumable")
+        click("junk")
         T.truthy(f.crossing)
         stub.EnterCombat()
         T.isnil(f.crossing)

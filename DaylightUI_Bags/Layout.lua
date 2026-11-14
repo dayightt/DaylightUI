@@ -509,9 +509,9 @@ end
 
 -- Groups flow left to right and wrap at the grid's width. A group wider than the
 -- remaining space starts a new row; one wider than a full row spans several.
--- Folded group headings never share a row with open groups (it left a hole under
--- them and shuffled the others). Consecutive folded ones line up on their own
--- row, one heading tall.
+-- A folded group keeps its place and the width it has open, so folding one moves
+-- nothing beside or after it: only its items go, and a row of folded groups is one
+-- heading tall.
 function Layout.Categories(window, cfg)
     local Cat = ns.Categories
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
@@ -525,7 +525,7 @@ function Layout.Categories(window, cfg)
     local top, headH, ruleH = Layout.SlotTop(window, cfg), Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
     local groupGap, rowGap = Layout.GroupGap(window, cfg), Layout.RowGap(window, cfg)
     local inset = Layout.Ref(window, cfg, Layout.REF.inset)
-    local x, y, lineH, wasFolded = 0, 0, 0, nil
+    local x, y, lineH = 0, 0, 0
     local function newRow()
         if x > 0 then
             y = y + lineH + rowGap
@@ -581,14 +581,14 @@ function Layout.Categories(window, cfg)
         if type(countW) ~= "number" then countW = 0 end
         textW = textW + 5 + countW
         local n = folded and 0 or #g.entries
-        local across = math.min(n, cols)
+        local across = math.min(#g.entries, cols)
         local rows = n > 0 and math.ceil(n / across) or 0
         local slotsW = across > 0 and (across * size + (across - 1) * gap) or 0
+        rows = folded and 0 or rows
         -- The heading sits inside the rings' outer edges by inset at both ends, so
         -- its name starts over the first icon and the line spans the icons.
         local w = math.max(slotsW, textW + 2 * inset)
-        if g.breakBefore or (wasFolded ~= nil and folded ~= wasFolded) then newRow() end
-        wasFolded = folded
+        if g.breakBefore then newRow() end
         if x > 0 and x + w > maxW then newRow() end
         h:ClearAllPoints()
         h:SetPoint("TOPLEFT", window.items, "TOPLEFT", x + inset, -y)
