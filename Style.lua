@@ -2150,12 +2150,133 @@ local gaveSize = setmetatable({}, { __mode = "k" })
 local gaveFlags = setmetatable({}, { __mode = "k" })
 local gaveShadow = setmetatable({}, { __mode = "k" })
 
+-- Other alphabets. A font file only draws the letters it has, and most of the
+-- bundled fonts have no Russian, Korean or Chinese ones, so a player's name in
+-- those showed as boxes. The game's own text uses font families, one font per
+-- alphabet, and Daylight UI does the same: the picked font draws Latin letters
+-- (and Russian ones when it has them), the game's own fonts draw the rest.
+-- A plain SetFont fixes a text's face for good (a font object set on it later
+-- no longer changes it), so text styled here always goes through Style.SetFace.
+Style.ALPHABETS = { "roman", "russian", "korean", "simplifiedchinese", "traditionalchinese" }
+Style.ALPHABET_FONTS = {
+    russian = "Fonts\\FRIZQT___CYR.TTF",
+    korean = "Fonts\\2002.ttf",
+    simplifiedchinese = "Fonts\\ARKai_T.ttf",
+    traditionalchinese = "Fonts\\blei00d.TTF",
+}
+-- Font files that have the Russian alphabet, by lower-case file name.
+Style.CYRILLIC = {}
+for _, name in ipairs({ "ArchivoNarrow-Bold", "Comfortaa-Bold", "ExpresswayFree", "FiraSans-Medium",
+    "MPLUSRounded-ExtraBold", "Nunito-Black", "Oswald-Bold", "PTSansNarrow-Bold", "PressStart2P", "Rubik-Bold",
+    "RubikGlitch", "RubikMonoOne", "RussoOne-Regular" }) do
+    Style.CYRILLIC[(name .. ".ttf"):lower()] = true
+end
+Style.CYRILLIC["arialn.ttf"], Style.CYRILLIC["frizqt___cyr.ttf"] = true, true
+
+-- On a Korean or Chinese client the picked font already draws that language
+-- (the "Use my language's font" switch decides which), so it keeps it.
+local CLIENT_ALPHABET = ({ koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" })[
+    type(GetLocale) == "function" and GetLocale() or ""]
+
+local function hasCyrillic(file)
+    local name = string.match(string.lower(file), "([^\\/]+)$")
+    return Style.CYRILLIC[name or ""] == true
+end
+
+-- The client may hand a path back with other slashes or case.
+local function samePath(a, b)
+    if type(a) ~= "string" or type(b) ~= "string" then return false end
+    return string.lower(string.gsub(a, "/", "\\")) == string.lower(string.gsub(b, "/", "\\"))
+end
+
+local families = {}   -- key -> family, or false when it couldn't be made
+local familyCount = 0
+local ourFamily = setmetatable({}, { __mode = "k" })
+
+-- The family for one font, size, outline and shadow, made once per session.
+-- Sizes are kept to a quarter point, so a slider drag makes only a few (the
+-- client never frees a font object). nil when the client can't make one.
+function Style.FontFamily(file, size, flags, shadow)
+    if type(CreateFontFamily) ~= "function" or type(file) ~= "string"
+        or type(size) ~= "number" or size <= 0 then return nil end
+    size = math.floor(size * 4 + 0.5) / 4
+    flags, shadow = flags or "", shadow or 0
+    local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow
+    local fam = families[key]
+    if fam ~= nil then return fam or nil end
+    local members = {}
+    for i, alphabet in ipairs(Style.ALPHABETS) do
+        local own = alphabet == "roman" or alphabet == CLIENT_ALPHABET
+            or (alphabet == "russian" and hasCyrillic(file))
+        members[i] = { alphabet = alphabet, file = own and file or Style.ALPHABET_FONTS[alphabet],
+                       height = size, flags = flags }
+    end
+    familyCount = familyCount + 1
+    local ok, made = pcall(CreateFontFamily, "DaylightUIFont" .. familyCount, members)
+    if not (ok and made) then
+        families[key] = false
+        return nil
+    end
+    -- A family's shadow is its own and each member's, as the game's are.
+    made:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+    made:SetShadowColor(0, 0, 0, shadow)
+    if made.GetFontObjectForAlphabet then
+        for _, alphabet in ipairs(Style.ALPHABETS) do
+            local okM, member = pcall(made.GetFontObjectForAlphabet, made, alphabet)
+            if okM and type(member) == "table" and member ~= made then
+                member:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+                member:SetShadowColor(0, 0, 0, shadow)
+            end
+        end
+    end
+    ourFamily[made] = true
+    families[key] = made
+    return made
+end
+
+-- Gives a text (or a message frame) a font through its family, so names in
+-- other alphabets draw. Keeps the text's justification and color, which a
+-- font object would reset. A text some other code already gave a plain
+-- SetFont keeps that face, so it gets a plain SetFont again.
+function Style.SetFace(fs, file, size, flags, shadow)
+    local fam = Style.FontFamily(file, size, flags, shadow)
+    if not (fam and fs.SetFontObject and fs.GetFontObject) then
+        fs:SetFont(file, size, flags or "")
+        return
+    end
+    if fs:GetFontObject() ~= fam then
+        local justifyH = fs.GetJustifyH and fs:GetJustifyH()
+        local justifyV = fs.GetJustifyV and fs:GetJustifyV()
+        -- The color may be secret: only its type is looked at, then it's handed back.
+        local r, g, b, a = fs:GetTextColor()
+        fs:SetFontObject(fam)
+        if type(justifyH) == "string" then fs:SetJustifyH(justifyH) end
+        if type(justifyV) == "string" then fs:SetJustifyV(justifyV) end
+        if type(r) == "number" then fs:SetTextColor(r, g, b, a) end
+    end
+    local now, height = fs:GetFont()
+    if type(issecretvalue) == "function" and (issecretvalue(now) or issecretvalue(height)) then return end
+    if not samePath(now, file) or type(height) ~= "number" or math.abs(height - size) > 0.3 then
+        fs:SetFont(file, size, flags or "")
+    end
+end
+
+-- Gives a text the same font as another text of Daylight UI's, family included.
+function Style.CopyFace(fs, from)
+    local obj = from.GetFontObject and from:GetFontObject()
+    if obj and ourFamily[obj] and fs.SetFontObject then
+        if fs:GetFontObject() ~= obj then fs:SetFontObject(obj) end
+        if samePath(fs:GetFont(), (from:GetFont())) then return end
+    end
+    fs:SetFont(from:GetFont())
+end
+
 function Style.ApplyFont(fs)
     local g = general()
     local file = fontOf[fs] or Style.FontFile(fontSlot[fs])
     local size, flags = (textSize[fs] or 12) * g.fontScale, flagsOf[fs] or Style.Outline()
     local shadow = g.textShadow == false and 0 or Style.TEXT_SHADOW[3]
-    fs:SetFont(file, size, flags)
+    Style.SetFace(fs, file, size, flags, shadow)
     fs:SetShadowColor(0, 0, 0, shadow)
     gaveFile[fs], gaveSize[fs], gaveFlags[fs], gaveShadow[fs] = file, size, flags, shadow
 end

@@ -23,7 +23,7 @@ local function dressRegion(r, first, want, file, outline)
         local size = type(want) == "number" and want or now
         if type(size) ~= "number" then return end
         if had == file and now == size and (flags or "") == (outline or "") then return end
-        r:SetFont(file, size, outline)
+        Style.SetFace(r, file, size, outline)
     end
 end
 

@@ -952,7 +952,7 @@ function Box.Font()
         local frame = P.frame
         if frame then
             local size = P == side and ns.Chat.SideTextSize() or ns.Chat.TextSize()
-            frame:SetFont(Style.FontFile(ns.MEDIA.font), size, cfg.outline and "OUTLINE" or "")
+            Style.SetFace(frame, Style.FontFile(ns.MEDIA.font), size, cfg.outline and "OUTLINE" or "", 0.9)
             frame:SetShadowOffset(1, -1)
             frame:SetShadowColor(0, 0, 0, 0.9)
         end

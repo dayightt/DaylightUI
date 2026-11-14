@@ -1310,12 +1310,12 @@ function Plate.UpdateClassText(p)
     for token, win in pairs(ct.wins) do
         win:Show()
         local fs, sub = ct.name[token], ct.sub[token]
-        fs:SetFont(p.name:GetFont())
+        Style.CopyFace(fs, p.name)
         fs:SetJustifyH(p.nameJustify or "CENTER") -- the name's side of its spot (Plate.PlaceSpots)
         fs:SetText(DUI.Gradients.Text(token, name))
         fs:SetTextColor(1, 1, 1) -- the letters carry their own colors
         fs:Show()
-        sub:SetFont(p.sub:GetFont())
+        Style.CopyFace(sub, p.sub)
         sub:SetJustifyH(p.nameJustify or "CENTER")
         if subOn then pcall(sub.SetFormattedText, sub, "<%s>", p.guild[1]) end
         sub:SetTextColor(Style.ClassTextColor(token))
