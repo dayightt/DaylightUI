@@ -535,16 +535,20 @@ function CB.Layout(h, cfg, parentCfg)
         h.icon:Hide()
     end
     -- Each text has its own size, color, spot and nudge (cfg.spell, cfg.time).
-    -- Inside a power bar they have to fit it: capped by the power bar unless
-    -- the player picked an inside size, and lifted a pixel because the font
-    -- sits a little low in such a thin bar. The inside nudge moves both.
+    -- Inside a power bar a text left at its default size shrinks to fit the
+    -- bar; a size the player picked is kept, and the inside size wins over
+    -- both. They're lifted a pixel because the font sits a little low in such
+    -- a thin bar. The inside nudge moves both.
     local spell, time = type(cfg.spell) == "table" and cfg.spell or {}, type(cfg.time) == "table" and cfg.time or {}
     h.spellCfg, h.timeCfg = spell, time
     local lift, dx = 0, 0
+    local defaults = ns.DEFAULTS[(h.kind or "") .. "Castbar"]
     local function sizeOf(t, kind)
         local size = tonumber(textOpt(t, "size", kind)) or CB.TEXT_SIZE
         if h.into then
             if (cfg.insideTextSize or 0) > 0 then return cfg.insideTextSize end
+            local base = defaults and defaults[kind] and defaults[kind].size or CB.TEXT_SIZE
+            if size ~= base then return size end
             return math.min(size, math.floor(parentCfg.powerHeight * CB.INSET_TEXT + 0.5))
         end
         return size

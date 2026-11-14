@@ -43,6 +43,7 @@ DUI.PatchNotes = {
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
+            { "Unit frames", "The target, focus and party cast bar text sizes work again while the bar sits inside the frame, instead of staying tiny" },
             { "Tooltips", "Spell tooltips show \"2 hours\" again instead of a jumble of code like \"|cff...4hour:hrs;\"" },
             { "Action bars", "The micro menu and bag bar keep their dark frames when the action buttons have a round or other shape, instead of turning see-through" },
             { "Action bars", "Bars and other frames no longer slide toward or off the bottom of the screen when the game changes its UI scale on its own, after a new resolution or another monitor. UI scale is now on General > Size" },

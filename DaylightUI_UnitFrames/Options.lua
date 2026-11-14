@@ -1937,7 +1937,7 @@ local function castTextCard(unit, who, whose, inside)
         local dis = offAny(bar .. ".enabled", k("show"))
         local lower = string.lower(name)
         items[#items + 1] = { type = "slider", key = k("size"), label = who .. " " .. lower .. " text size", min = 6, max = 24, step = 1,
-            desc = "The " .. lower .. " on " .. whose .. " cast bar." .. (unit ~= "player" and " Inside the frame it's kept small enough for the power bar." or ""),
+            desc = "The " .. lower .. " on " .. whose .. " cast bar." .. (unit ~= "player" and " Inside the frame, left at its default, it shrinks to fit the power bar." or ""),
             disabled = dis }
         items[#items + 1] = { type = "dropdown", key = k("pos"), label = who .. " " .. lower .. " position",
             values = TEXT_SPOTS, order = TEXT_SPOT_ORDER,
@@ -1963,7 +1963,7 @@ local function castTextCard(unit, who, whose, inside)
     rows("time", "Cast time", items)
     if inside then
         items[#items + 1] = { type = "slider", key = bar .. ".insideTextSize", label = who .. " text size inside the frame", min = 0, max = 20, step = 1,
-            desc = "The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 sizes them to fit the power bar.",
+            desc = "The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 keeps each text's own size, shrinking a default one to fit the power bar.",
             disabled = notInside(unit) }
         if unit == "target" then
             items[#items + 1] = { type = "slider", key = bar .. ".insideTextX", label = "Target text left / right inside the frame", min = -100, max = 100, step = 1, unit = "px",
