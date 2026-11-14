@@ -216,6 +216,23 @@ T.test("a default party frame with its name on the bar keeps the bar-name placem
     T.eq(f.nameText:GetNumPoints(), 2, "both edges, as UF.PlaceTileName sets")
 end)
 
+T.test("a party button named outside the tile gets a name tab, like the player frame's", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "party.nameOnBar", true)
+    DUI:Set("UnitFrames", "party.portrait", "none")
+    DUI:Set("UnitFrames", "party.namePos", "above")
+    stub.RunTimers()
+    local f = partyButton(ns, 1, "party1")
+    stub.RunTimers()
+    T.truthy(f.nameTag and f.nameTag:IsShown(), "a tab over the tile")
+    T.eq(f.nameText:GetParent(), f.nameTag)
+    -- With the name off the bar, the frame's own name tab takes over.
+    DUI:Set("UnitFrames", "party.nameOnBar", false)
+    stub.RunTimers()
+    T.falsy(f.nameTag:IsShown())
+    T.eq(f.nameText:GetParent(), f.tab)
+end)
+
 T.test("a party button named like a tile keeps its name off the health text", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "party.nameOnBar", true)

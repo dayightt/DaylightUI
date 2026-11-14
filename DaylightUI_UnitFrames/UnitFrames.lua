@@ -883,8 +883,9 @@ end
 -- (UF.TALL_TILE or more) puts it along the top and the health text along the
 -- bottom so the two never meet. SetTileName stores what PlaceTileName needs (a
 -- party button places it later, from UF.SizeTab).
-function UF.SetTileName(f, cfg)
+function UF.SetTileName(f, cfg, text)
     local cut = (f.spec.slant and cfg.slant ~= false) and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    local pos = ((f.spec.group or ns.Spots.Valid(cfg.namePos)) and cfg.namePos) or "bar"
     f.tileName = {
         cutPad = cut,
         showPercent = cfg.showPercent == true,
@@ -892,10 +893,22 @@ function UF.SetTileName(f, cfg)
         justify = (f.spec.group and UF.NAME_ALIGN[cfg.nameAlign]) or "CENTER",
         -- "bar": across the bar (above). Otherwise a Spots spot (namePos). A
         -- big frame (player, target...) only comes here for a spot.
-        pos = ((f.spec.group or ns.Spots.Valid(cfg.namePos)) and cfg.namePos) or "bar",
+        pos = pos,
         box = { w = cfg.width, h = cfg.height, padX = 3, padY = 2,
                 cutL = f.spec.slant == "left" and cut or 0, cutR = f.spec.slant == "right" and cut or 0 },
+        -- A group tile's name outside the tile sits on a name tab (nameTag).
+        -- Ribbon has its own row above the frame instead.
+        tag = (f.spec.group and not f.ribbon and cfg.nameTag ~= false and UF.TAG_SPOTS[pos]) == true,
+        cut = cut > 0 and f.spec.slant or nil,
     }
+    if f.tileName.tag then
+        local size = text and tonumber(text.name) or 12
+        f.tileName.tagH = Pixel.Snap(f, math.max(tonumber(cfg.tabHeight) or UF.TAB_HEIGHT, size + 6))
+        if not f.nameTag then
+            UF.CreateNameTag(f)
+            UF.ApplyShell(f, cfg)   -- give the new tab this frame's tab border
+        end
+    end
     f.tallTile = (f.spec.group and cfg.height >= UF.TALL_TILE) == true
     -- A frame that isn't a compact tile keeps its health text at the inner end
     -- (a tall one without the big number puts it along the bottom), so the name
@@ -911,10 +924,83 @@ local NAME_GROW = { topleft = "right", left = "right", bottomleft = "right", top
                     outtopright = "right", outbottomright = "right" }
 local NAME_JUSTIFY = { right = "LEFT", left = "RIGHT", center = "CENTER" }
 
+-- Outside spots, where a tile's name gets the name tab behind it.
+UF.TAG_SPOTS = { above = true, below = true, outleft = true, outright = true, outtopleft = true,
+                 outtopright = true, outbottomleft = true, outbottomright = true }
+
+-- The name tab of a group tile whose name sits outside it: the same dark tab
+-- the player and target wear, made the first time it's wanted.
+function UF.CreateNameTag(f)
+    local tag = CreateFrame("Frame", nil, f.overlay)
+    tag:SetFrameLevel(f.overlay:GetFrameLevel() + 1)
+    Style.Shell(tag, { borderPx = UF.TAB_BORDER })
+    Style.Slant(tag, nil, 0)
+    tag:Hide()
+    f.nameTag = tag
+    return tag
+end
+
+-- Shows or hides the tile's name tab, fading either way.
+function UF.ShowNameTag(f, on)
+    local tag = f.nameTag
+    if not tag or f.nameTagOn == on then return end
+    f.nameTagOn = on
+    DUI.Motion.AlphaTo(tag, on and 1 or 0, DUI.Motion.NORMAL, true)
+end
+
+-- The tab fits the name, up to the tile's width. A secret name can't be
+-- measured, so it takes the tile's width.
+function UF.SizeNameTag(f, name)
+    local tag, t = f.nameTag, f.tileName
+    if not (tag and t and t.tag) then return end
+    local sl = Style.GetSlant(tag)
+    local extra = 2 * UF.TAB_PAD + ((sl and sl.side) and sl.cut or 0)
+    local fw = f:GetWidth()
+    if not isSecret(name) and name == nil then name = f.nameText:GetText() end
+    local w = fw
+    if not isSecret(name) and name ~= nil then
+        f.nameText:SetWidth(0)
+        local ok, sw = pcall(f.nameText.GetStringWidth, f.nameText)
+        -- In an instance the width can be secret even when the text isn't.
+        if ok and type(sw) == "number" and not isSecret(sw) then w = math.min(sw + extra, fw) end
+    end
+    w = Pixel.Snap(f, math.max(30, w))
+    tag:SetWidth(w)
+    -- A name too long for the tab is cut short with "...".
+    f.nameText:SetWidth(math.max(1, w - extra + 2))
+end
+
+-- The tab sits where the name would, flush on the tile's edge above or below
+-- it (outlines overlapping, as the player's tab), and the name in its middle.
+local function placeNameTag(f, t)
+    local tag, fs = f.nameTag, f.nameText
+    local h = t.tagH or UF.TAB_HEIGHT
+    tag:SetHeight(h)
+    tag:ClearAllPoints()
+    local px = Pixel.Px(f, 1)
+    if t.pos == "above" or t.pos == "below" then
+        local up = t.pos == "above"
+        tag:SetPoint(up and "BOTTOM" or "TOP", f, up and "TOP" or "BOTTOM", t.x, (up and -px or px) + t.y)
+    elseif t.pos == "outleft" or t.pos == "outright" then
+        local left = t.pos == "outleft"
+        tag:SetPoint(left and "RIGHT" or "LEFT", f, left and "LEFT" or "RIGHT", (left and -2 or 2) + t.x, t.y)
+    else
+        local L = ns.Spots.Layout(t.pos, NAME_GROW[t.pos] or "center", t.box, { x = t.x, y = t.y })
+        tag:SetPoint(L.point, f.health or f, L.relPoint, L.x, L.y)
+    end
+    -- Angled like the tile, at the same end.
+    Style.Slant(tag, t.cut, t.cut and Pixel.Snap(f, h * UF.SLANT) or 0)
+    Style.LayoutShell(Style.GetShell(tag))
+    fs:SetPoint("CENTER", tag, "CENTER", 0, 0)
+    fs:SetJustifyH("CENTER")
+    UF.SizeNameTag(f)
+end
+
 local function placeNameAtSpot(f, t)
     local fs = f.nameText
     fs:ClearAllPoints()
     fs:SetWidth(0)
+    if t.tag and f.nameTag then return placeNameTag(f, t) end
     if t.pos == "outleft" or t.pos == "outright" then
         local left = t.pos == "outleft"
         fs:SetPoint(left and "RIGHT" or "LEFT", f, left and "LEFT" or "RIGHT", (left and -4 or 4) + t.x, t.y)
@@ -929,6 +1015,8 @@ end
 
 function UF.PlaceTileName(f)
     local t = f.tileName
+    -- The name lives in its tab while it has one, else back on the tile.
+    if f.nameTag then f.nameText:SetParent(t.tag and f.nameTag or f.overlay) end
     if t.pos ~= "bar" and ns.Spots.Valid(t.pos) then return placeNameAtSpot(f, t) end
     local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0)
     local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0)
@@ -1013,7 +1101,7 @@ function UF.ApplyShell(f, cfg)
     -- The name tab's own look (<frame>.tab, own = true), also used by the
     -- threat tag so the two still match. Ribbon's line keeps the frame's.
     local look = UF.TabLook(cfg)
-    for _, tab in pairs({ f.tab or false, f.threatTag or false, f.line or false }) do
+    for _, tab in pairs({ f.tab or false, f.threatTag or false, f.line or false, f.nameTag or false }) do
         local ts = tab and Style.GetShell(tab)
         if ts then
             if look and tab ~= f.line then
@@ -1199,14 +1287,14 @@ function UF.Layout(f, cfg, text, keepSize)
     -- pet) with its name on the bar is named as before, regardless of its tab.
     if f.tab and cfg.nameOnBar == true
         and ((f.spec.group and UF.PortraitMode(f, cfg) == "none") or f.spec.compact or ns.Spots.Valid(cfg.namePos)) then
-        UF.SetTileName(f, cfg)
+        UF.SetTileName(f, cfg, text)
     end
     f.barNameX, f.barNameY = tonumber(cfg.nameX) or 0, tonumber(cfg.nameY) or 0
     f.nameText:ClearAllPoints()
     if f.tab then
         f.nameText:SetPoint("CENTER", f.tab, "CENTER", 0, 0)  -- refined by UF.SizeTab
     elseif compact then
-        UF.SetTileName(f, cfg)
+        UF.SetTileName(f, cfg, text)
         UF.PlaceTileName(f)
     else
         local side = cfg.showPercent and 30 or 4
@@ -1216,6 +1304,7 @@ function UF.Layout(f, cfg, text, keepSize)
     end
     f.nameText:SetWordWrap(false)
     f.nameText:SetShown(cfg.showName ~= false)
+    UF.ShowNameTag(f, (f.tileName and f.tileName.tag and cfg.showName ~= false) == true)
 
     -- Which end the bars fill from: the frame's own direction, or reversed.
     f.flipped = cfg.reverseFill == true
@@ -3247,7 +3336,7 @@ function UF.UpdateIdentity(f)
     local name = UF.NameText(f, UF.LimitName(DUI.UnitName(u, element), f.nameLimitLen))
     f.nameText:SetText(name)
     UF.ApplyCrest(f, UnitClassification(u))
-    if f.tab then UF.SizeTab(f, name) end
+    if f.tab then UF.SizeTab(f, name) elseif f.nameTag then UF.SizeNameTag(f, name) end
     ns.Texts.Update(f, "identity")
     identityUnit, identityToken = nil, nil
     UF.Painted(f)
@@ -3586,7 +3675,7 @@ function UF.ShowSample(f)
         f.markerShown = shown
     end
     UF.ApplyCrest(f, s.classification)
-    if f.tab then UF.SizeTab(f, name) end
+    if f.tab then UF.SizeTab(f, name) elseif f.nameTag then UF.SizeNameTag(f, name) end
     UF.UpdatePortrait(f)
     UF.ApplyThreat(f, s.threat)
     UF.ShowThreatTag(f, s.threatPct, s.threat)

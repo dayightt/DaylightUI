@@ -346,6 +346,9 @@ local function nameItems(k, dis, desc, big, small)
           values = { left = "Left", center = "Center", right = "Right" }, order = { "left", "center", "right" },
           desc = desc or "Where the name sits across the bar: left, center or right.", disabled = dis,
           hidden = function(get) local p = get(k("namePos")); return p ~= nil and p ~= "bar" end }
+        items[#items + 1] = { type = "toggle", key = k("nameTag"), label = "Name tab",
+          desc = "A dark tab behind the name while it sits outside the tile, like the player frame's name. When off, the name floats on its own.",
+          disabled = dis, hidden = function(get) return not UF.TAG_SPOTS[get(k("namePos")) or ""] end }
     end
     items[#items + 1] = { type = "slider", key = k("nameX"), label = "Name left / right", min = -50, max = 50, step = 1,
         desc = "Nudges the name sideways from its position.", unit = "px", disabled = dis }

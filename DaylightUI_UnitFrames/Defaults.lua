@@ -144,7 +144,7 @@ ns.DEFAULTS = {
               -- Grow from the bottom and/or the right (Group.Corner).
               growUp = false, growLeft = false,
               -- Tile look pieces, off or unused in the default look.
-              fillVertical = false, showPower = true, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0,
+              fillVertical = false, showPower = true, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
               rolePos = "home", roleSize = 11, roleX = 0, roleY = 0, markerPos = "home", markerX = 0, markerY = 0, leaderPos = "home", leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0,
               roleHideDamage = false, roleHideInCombat = false, leaderHideInCombat = false,
               showDispel = false, dispelSize = 14, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3,
@@ -165,7 +165,7 @@ ns.DEFAULTS = {
     raid = { enabled = true, texts = textSlots(), showInParty = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
              nameColor = "global", nameCustom = { 1, 1, 1 }, nameLimitLen = 0,
              direction = "columns", sortBy = "group", groups = 8, growUp = false, growLeft = false,
-             perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0,
+             perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
              -- Aura groups (AuraGroups.lua), placed by Spots on the tile.
              indicators = indicators(8),
              auras = auraSlots({

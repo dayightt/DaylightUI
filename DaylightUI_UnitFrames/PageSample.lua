@@ -30,10 +30,12 @@ local function db() return ns.module and ns.module.db end
 local function at(field) return function(f) return f[field] end end
 local function status(icon) return function(f) return f.status and f.status.icons[icon] end end
 
--- The name: its tab, or the text itself when it sits on the bar (or on
--- Ribbon's row, which it shares with the health number).
+-- The name: its tab (a tile's own when its name sits outside it), or the text
+-- itself when it sits on the bar (or on Ribbon's row, which it shares with the
+-- health number).
 local function nameRegion(f)
     if f.tab and f.tab:IsShown() and not f.ribbon then return f.tab end
+    if f.nameTag and f.nameTagOn then return f.nameTag end
     return f.nameText
 end
 
@@ -78,7 +80,7 @@ PageSample.PARTS = {
     { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On Ribbon's row it doesn't move.
-    { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight",
+    { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
                                                "%s.tab.at", "%s.tab.x", "%s.tab.y", "%s.tab.width", "%s.tab.own" },
       move = { spot = "%s.namePos", x = "%s.nameX", y = "%s.nameY" },
       tabMove = { spot = "%s.tab.at", x = "%s.tab.x", y = "%s.tab.y", dots = function(f) return UF.TabDots(f) end },
