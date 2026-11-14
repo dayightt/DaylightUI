@@ -648,6 +648,17 @@ end
 -- each reward outlined in its quality. Rewards are built per quest shown, so
 -- this reruns then. Looks only: the buttons still act for the quest log.
 local stripped = setmetatable({}, { __mode = "k" }) -- details buttons whose art is gone
+
+-- Whether a frame sits inside the world map's quest log.
+local function inMap(f)
+    local qm = _G.QuestMapFrame
+    for _ = 1, 12 do
+        if type(f) ~= "table" or not f.GetParent then return false end
+        if f == qm then return true end
+        f = f:GetParent()
+    end
+    return false
+end
 local function questDetails(Kit)
     local qm = _G.QuestMapFrame
     local d = type(qm) == "table" and qm.DetailsFrame
@@ -774,8 +785,15 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
                 hooksecurefunc("NavBar_AddButton", function(nav) navBar(Kit, nav) end)
             end
             -- A quest opened: its page and rewards were just built.
-            for _, fn in ipairs({ "QuestMapFrame_ShowQuestDetails", "QuestInfo_Display" }) do
-                if type(_G[fn]) == "function" then hooksecurefunc(fn, function() questDetails(Kit) end) end
+            if type(QuestMapFrame_ShowQuestDetails) == "function" then
+                hooksecurefunc("QuestMapFrame_ShowQuestDetails", function() questDetails(Kit) end)
+            end
+            -- The game's own quest window fills through QuestInfo_Display too, and
+            -- keeps its dark text on its parchment, so only the map's page counts.
+            if type(QuestInfo_Display) == "function" then
+                hooksecurefunc("QuestInfo_Display", function(_, parent)
+                    if inMap(parent) then questDetails(Kit) end
+                end)
             end
             if type(QuestLogQuests_Update) == "function" then
                 hooksecurefunc("QuestLogQuests_Update", function()

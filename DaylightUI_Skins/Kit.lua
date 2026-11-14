@@ -1788,37 +1788,8 @@ function Kit.RowIcons(row)
     end
 end
 
--- An equipment slot: frame art removed, icon cropped on a dark square, quality
--- outline.
-function Kit.Slot(slot)
-    if not isTable(slot) or not slot.CreateTexture or not once("slot", slot) then return end
-    local name = slot.GetName and slot:GetName()
-    Kit.Strip(slot.BorderFrame)
-    if isTable(slot.BorderFrame) and slot.BorderFrame.Hide then slot.BorderFrame:Hide() end
-    -- The game recolors (and re-shows) the slot art on every update, so it's
-    -- hidden outright rather than faded.
-    local normal = (type(name) == "string" and _G[name .. "NormalTexture"]) or (slot.GetNormalTexture and slot:GetNormalTexture())
-    if isTable(normal) and normal.Hide then normal:Hide() end
-    for _, r in ipairs({ slot:GetRegions() }) do
-        -- Slots built without the frame child have their ring as an atlas.
-        local atlas = kind(r) == "Texture" and r.GetAtlas and r:GetAtlas()
-        if type(atlas) == "string" and string.find(atlas, "GearSlot", 1, true) then r:SetAlpha(0) end
-    end
-    local icon = iconOf(slot)
-    if kind(icon) == "Texture" then Style.CropIcon(icon) end
-    -- Some slots hide their border by hand on show (the ammo slot), so recolor
-    -- after the game's OnShow.
-    if slot.HookScript then slot:HookScript("OnShow", function(self) Kit.SlotQuality(self) end) end
-    -- Already outlined by Kit.Auto; the slot art still needs removing.
-    if slots[slot] then return end
-    local back = slot:CreateTexture(nil, "BACKGROUND", nil, -8)
-    back:SetColorTexture(0, 0, 0, 0.6)
-    back:SetAllPoints(slot)
-    qualityOutline(slot)
-end
-
 -- ---------------------------------------------------------------------
--- Lists and panes
+-- Lists
 -- ---------------------------------------------------------------------
 
 -- Styles a scrolling list's rows as they're created and reused: fn(row) runs
@@ -1873,47 +1844,6 @@ function Kit.EachRow(box, fn, key)
         if not jobs.fns[key] then jobs.order[#jobs.order + 1] = key end
         jobs.fns[key] = fn
     end
-end
-
--- A row in the character window's lists (reputation, skills, statistics...):
--- headers get the row look with their +/- recolored, entries a flat highlight
--- (the game still sets its color and strength), bars our bar look, and our font.
-local highlit = setmetatable({}, { __mode = "k" })
-
-function Kit.ListRow(row)
-    if not isTable(row) or not row.CreateTexture then return end
-    local content = row.Content
-    if isTable(content) and content.GetChildren then
-        local hl = content.BackgroundHighlight
-        if isTable(hl) and not highlit[hl] and type(hl.TextureRegions) == "table" then
-            highlit[hl] = true
-            for _, r in ipairs(hl.TextureRegions) do r:SetColorTexture(1, 1, 1, 1) end
-        end
-        for _, child in ipairs({ content:GetChildren() }) do
-            if kind(child.Fill) == "Texture" then Kit.ProgressBar(child) end
-        end
-        Kit.Font(content.Name, Style.SIZE.body)
-        Kit.Font(content.Value, Style.SIZE.body)
-        Kit.Font(content.Count, Style.SIZE.body)
-        Kit.CollapseButton(row.ToggleCollapseButton)
-    elseif kind(row.StateIcon) == "Texture" then
-        Kit.Row(row, { [row.StateIcon] = true })
-        if row.StateIcon.SetDesaturated then row.StateIcon:SetDesaturated(true) end
-        row.StateIcon:SetVertexColor(Kit.TEXT[1], Kit.TEXT[2], Kit.TEXT[3])
-        Kit.Font(row.Name, Style.SIZE.body)
-    end
-end
-
--- The character window's detail pane next to a list: art removed, title and
--- subtitle in our font, the rest via Kit.Auto. skip: parts to leave as they are.
-function Kit.SidePane(pane, skip)
-    if not isTable(pane) or not pane.GetRegions then return end
-    Kit.Strip(pane)
-    Kit.Hide(pane.Divider)
-    Kit.Font(pane.Title, Style.SIZE.head)
-    Kit.Light(pane.Title)
-    Kit.Font(pane.Subtitle, Style.SIZE.small)
-    Kit.Auto(pane, { skip = skip })
 end
 
 -- ---------------------------------------------------------------------

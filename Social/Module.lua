@@ -15,7 +15,6 @@ DUI:RegisterModule("Social", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.module = mod
-        DUI.socialOwnWindow = mod.db.enabled == true
         if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()

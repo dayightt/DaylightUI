@@ -16,7 +16,6 @@ Defaults.lua
 Kit.lua
 Engine.lua
 Packs\NPC.lua
-Packs\Character.lua
 Packs\Spells.lua
 Packs\Social.lua
 Packs\Collections.lua

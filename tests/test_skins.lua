@@ -80,34 +80,14 @@ local function world()
     _G.SetItemButtonBorderVertexColor = function(button, r, g, b)
         if button.IconBorder then button.IconBorder:SetVertexColor(r, g, b) end
     end
+    -- The game's quest window: Daylight UI has its own, so no skin touches it.
     local q = window("QuestFrame")
-    CreateFrame("Frame", "QuestFrameDetailPanel", q).parchment = nil
-    _G.QuestFrameDetailPanel:CreateTexture()
     button("QuestFrameAcceptButton", q)
-    button("QuestFrameDeclineButton", q)
     for _, n in ipairs({ "QuestInfoTitleHeader", "QuestInfoDescriptionText", "QuestInfoObjectivesText" }) do
         _G[n] = q:CreateFontString(n)
     end
     _G.QuestInfo_Display = function() end
-    local gsp = window("GossipFrame")
-    gsp.GreetingPanel = CreateFrame("Frame", nil, gsp)
-    gsp.GreetingPanel.GoodbyeButton = button(nil, gsp.GreetingPanel)
-    gsp.GreetingPanel.ScrollBox = list(gsp.GreetingPanel)
-    local m = window("MerchantFrame")
-    button("MerchantFrameTab1", m)
-    for _, n in ipairs({ "MerchantPrevPageButton", "MerchantNextPageButton" }) do
-        local pb = CreateFrame("Button", n, m)
-        local normal = pb:CreateTexture()
-        function pb:GetNormalTexture() return normal end
-        pb.label = pb:CreateFontString()
-        pb.label:SetTextColor(1, 0.82, 0)
-    end
-    local slot = CreateFrame("Frame", "MerchantItem1", m)
-    local ib = CreateFrame("Button", "MerchantItem1ItemButton", slot)
-    ib.icon = ib:CreateTexture()
-    ib.IconBorder = ib:CreateTexture()
-    slot:CreateTexture("MerchantItem1SlotTexture")
-    _G.MerchantItem1SlotTexture = slot:CreateTexture()
+    window("TabardFrame")
 
     local trade = window("TradeFrame")
     trade.TradeButton = button("TradeFrameTradeButton", trade)
@@ -124,8 +104,7 @@ local function world()
     mf.Bg = mf:CreateTexture()
 end
 
--- With the NPC window off, a player gets these skins on the game's own gossip
--- and quest windows. With it on, they are moved aside (see test_npc).
+-- Daylight UI's own windows off: the game's own ones are what a player sees.
 local function login(before)
     stub.Load({ skins = true, before = function()
         world()
@@ -139,7 +118,7 @@ end
 T.test("skins: a window gets our border and panel, the game's art goes, our close X", function()
     login()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local f = QuestFrame
+    local f = TradeFrame
     T.eq(f.NineSlice:GetAlpha(), 0, "the game's frame art gone")
     T.eq(f.Bg:GetAlpha(), 0)
     T.truthy(stub.skins.Kit.ShellOf(f), "our border and panel")
@@ -160,7 +139,7 @@ end)
 
 T.test("skins: buttons wear our one button look (W.Button's): the warm band and fill, the mouse traces it in the accent", function()
     login()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     T.eq(b.Left:GetAlpha(), 0); T.eq(b.Middle:GetAlpha(), 0); T.eq(b.Right:GetAlpha(), 0)
     local Kit, W = stub.skins.Kit, DaylightUI.Widgets
     local s = Kit.ButtonOf(b)
@@ -195,7 +174,7 @@ end)
 -- That removed the skin's hooks, so from the second opening on hover lit nothing.
 T.test("skins: a button whose OnEnter/OnLeave the game clears still lights when shown again", function()
     login()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     local Kit = stub.skins.Kit
     b:SetSize(100, 22)
     b:Hide()
@@ -225,19 +204,31 @@ T.test("skins: a button whose OnEnter/OnLeave the game clears still lights when 
 end)
 
 T.test("skins: text the game colors again, or prints dark into the string, is light again as the game fills it", function()
-    login()
+    local contents
+    login(function()
+        local map = window("WorldMapFrame")
+        local qm = CreateFrame("Frame", "QuestMapFrame", map)
+        qm.DetailsFrame = CreateFrame("Frame", nil, qm)
+        contents = CreateFrame("Frame", nil, qm.DetailsFrame)
+    end)
+    WorldMapFrame:Show()
+    stub.RunTimers()
     local body = QuestInfoDescriptionText
-    QuestInfo_Display()
     -- The game's next fill colors and fills the text, then the skin follows.
     body:SetTextColor(0.2, 0.1, 0)
     body:SetText("|cff000000Elmore's Task|r and |cffff2020red|r")
-    QuestInfo_Display()
+    QuestInfo_Display(nil, contents)
     T.truthy(body.__textColor[1] > 0.8, "put back")
     T.truthy(not body:GetText():find("|cff000000", 1, true), "the dark run rewritten")
     T.truthy(body:GetText():find("|cffff2020", 1, true), "other colors left")
     for _, m in ipairs({ "SetTextColor", "SetText", "SetFormattedText" }) do
         T.isnil(rawget(body, m), "no hook on the game's text: " .. m)
     end
+    -- The game's own quest window fills through the same function and keeps its
+    -- dark ink on its parchment.
+    body:SetTextColor(0.2, 0.1, 0)
+    QuestInfo_Display(nil, QuestFrame)
+    T.eq(body.__textColor[1], 0.2, "the game's quest window left as the game draws it")
 end)
 
 T.test("skins: a book's pages stay light after a page turn", function()
@@ -375,60 +366,6 @@ T.test("skins: a book's pages stay light after a page turn", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("skins: gossip text a few frames deep in a row is made light, also the frame after", function()
-    login()
-    local box = GossipFrame.GreetingPanel.ScrollBox
-    local row = CreateFrame("Frame", nil, box)
-    local inner = CreateFrame("Frame", nil, CreateFrame("Frame", nil, row))
-    local text = inner:CreateFontString()
-    box.rows[1] = row
-    box:Update()
-    text:SetTextColor(0.15, 0.09, 0.04)          -- the game fills it after its update
-    local late = CreateFrame("Frame", nil, box)
-    local lateText = late:CreateFontString()
-    lateText:SetTextColor(0, 0, 0)
-    box.rows[2] = late
-    stub.RunTimers()
-    T.truthy(text.__textColor[1] > 0.8, "kept light")
-    T.truthy(lateText.__textColor[1] > 0.8, "the next frame's pass")
-end)
-
-T.test("skins: quest text the game prints dark is made light, again each time it fills it", function()
-    login()
-    local body = QuestInfoDescriptionText
-    body:SetTextColor(0.2, 0.1, 0)     -- the game's parchment ink
-    QuestInfo_Display()
-    T.truthy(body.__textColor[1] > 0.8, "light text")
-    T.eq(QuestInfoTitleHeader.__textColor[1], stub.skins.Kit.HEADER[1], "titles in the accent")
-end)
-
-T.test("skins: gossip rows are made light as the list shows them", function()
-    login()
-    local panel = GossipFrame.GreetingPanel
-    local row = CreateFrame("Button", nil, panel.ScrollBox)
-    local text = row:CreateFontString()
-    text:SetTextColor(0, 0, 0)
-    panel.ScrollBox.rows[1] = row
-    panel.ScrollBox:Update()
-    stub.RunTimers()   -- rows are gone over the frame after the list updates
-    T.truthy(text.__textColor[1] > 0.8, "a row the list just made")
-end)
-
-T.test("skins: merchant slots and tabs", function()
-    login()
-    T.eq(MerchantItem1SlotTexture:GetAlpha(), 0, "the slot art gone")
-    T.eq(MerchantItem1ItemButton.icon.__texCoord[1], 0.08, "the icon cropped")
-    local ib = MerchantItem1ItemButton
-    ib.IconBorder:SetVertexColor(1, 1, 1); ib.IconBorder:Show()          -- a white item
-    T.eq(stub.skins.Kit.ShellOf(ib).opts.borderColor[1], 1, "outlined like the slots, white too")
-    T.eq(ib.IconBorder:GetAlpha(), 0, "the game's own border gone")
-    T.truthy(stub.skins.Kit.TabOf(MerchantFrameTab1), "our tab look")
-    local prev = MerchantPrevPageButton
-    T.eq(prev:GetNormalTexture():GetAlpha(), 0, "the page button's art gone")
-    T.truthy(stub.skins.Kit.ShellOf(prev), "outlined like the rest")
-    T.truthy(prev.label.__textColor[1] > 0.8, "its label light")
-end)
-
 T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function()
     login()
     T.eq(TradePlayerItem1.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
@@ -446,51 +383,52 @@ end)
 
 T.test("skins: a window from a game addon that loads later is skinned when it loads", function()
     login()
-    T.isnil(stub.skins.Kit.ShellOf(_G.ClassTrainerFrame or {}), "not there yet")
-    local f = window("ClassTrainerFrame")
-    button("ClassTrainerTrainButton", f)
-    f.FilterDropdown = CreateFrame("Button", nil, f)
-    f.FilterDropdown.Background = f.FilterDropdown:CreateTexture()
-    f.FilterDropdown.Text = f.FilterDropdown:CreateFontString()
-    f.ScrollBox = list(f)
-    local r = CreateFrame("Button", nil, f.ScrollBox)
-    r.icon, r.disabledBG, r.selectedTex = r:CreateTexture(), r:CreateTexture(), r:CreateTexture()
-    r.name = r:CreateFontString()
-    r.name:SetTextColor(1, 0.1, 0.1)             -- can't learn it yet
-    r.selectedTex:Hide()
-    f.ScrollBox.rows[1] = r
-    -- The game's (Blizzard_TrainerUI.lua): the only code showing or hiding a row's selection art.
-    _G.ClassTrainerFrame_InitServiceButton = function(b) end
-    stub.FireEvent("ADDON_LOADED", "Blizzard_TrainerUI")
-    stub.loadedAddOns.Blizzard_TrainerUI = true
-    stub.FireEvent("ADDON_LOADED", "Blizzard_TrainerUI")
+    T.isnil(stub.skins.Kit.ShellOf(_G.CalendarFrame or {}), "not there yet")
+    local f = window("CalendarFrame")
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Calendar")
+    stub.loadedAddOns.Blizzard_Calendar = true
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Calendar")
+    stub.RunTimers()
     T.truthy(stub.skins.Kit.ShellOf(f), "skinned once its addon is in")
-    T.truthy(stub.skins.Kit.ButtonOf(ClassTrainerTrainButton))
-    T.eq(f.FilterDropdown.Background:GetAlpha(), 0, "the dropdown's art gone")
-    T.truthy(stub.skins.Kit.ShellOf(f.FilterDropdown), "a button like the rest")
-    T.eq(r.disabledBG:GetAlpha(), 0, "the row's box art gone")
-    T.eq(r.icon:GetAlpha(), 1, "its icon kept")
-    T.eq(r.name.__textColor[1], 1, "the game's colors kept")
-    local s = stub.skins.Kit.ShellOf(r)
-    T.eq(s.opts.borderColor, stub.skins.Kit.ROW_BORDER, "not selected: the row's gray outline")
-    r.selectedTex:Show()
-    ClassTrainerFrame_InitServiceButton(r)
-    T.eq(s.opts.borderColor, stub.skins.Kit.SELECTED, "the soft light gray round the selected row")
-    for _, m in ipairs({ "Show", "Hide", "SetShown" }) do
-        T.isnil(rawget(r.selectedTex, m), "no hook on the selection art's " .. m)
+    T.eq(f.NineSlice:GetAlpha(), 0, "the game's art gone")
+end)
+
+T.test("skins: the game's windows Daylight UI rebuilt are left exactly as the game draws them", function()
+    local made = {}
+    login(function()
+        _G.DaylightUIDB = { modules = { NPC = { enabled = false }, Character = { enabled = false }, Inspect = { enabled = false },
+            Social = { enabled = false }, Mail = { enabled = false }, GroupFinder = { enabled = false } } }
+        for _, name in ipairs({ "GossipFrame", "MerchantFrame", "BankFrame", "CharacterFrame", "FriendsFrame",
+                                "MailFrame", "OpenMailFrame", "LFGParentFrame" }) do
+            made[name] = window(name)
+        end
+    end)
+    made.QuestFrame = QuestFrame
+    for _, pair in ipairs({ { "ClassTrainerFrame", "Blizzard_TrainerUI" }, { "InspectFrame", "Blizzard_InspectUI" },
+                            { "SocialUIFrame", "Blizzard_SocialUI" } }) do
+        made[pair[1]] = window(pair[1])
+        stub.loadedAddOns[pair[2]] = true
+        stub.FireEvent("ADDON_LOADED", pair[2])
     end
-    _G.ClassTrainerFrame_InitServiceButton = nil
+    stub.RunTimers()
+    for name, f in pairs(made) do
+        f:Hide(); f:Show()
+        T.isnil(stub.skins.Kit.ShellOf(f), name .. ": no shell of ours")
+        T.eq(f.NineSlice:GetAlpha(), 1, name .. ": the game's art kept")
+    end
+    T.isnil(stub.skins.Kit.ButtonOf(QuestFrameAcceptButton), "the game's own buttons too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: a pack switched off leaves its windows as the game draws them", function()
     login(function()
         _G.DaylightUIDB = { modules = { Skins = { packs = { npc = false } }, NPC = { enabled = false } } }
     end)
-    T.isnil(stub.skins.Kit.ShellOf(QuestFrame))
-    T.eq(QuestFrame.NineSlice:GetAlpha(), 1)
+    T.isnil(stub.skins.Kit.ShellOf(TabardFrame))
+    T.eq(TabardFrame.NineSlice:GetAlpha(), 1)
     DaylightUI:Set("Skins", "packs.npc", true)
     stub.RunTimers()
-    T.truthy(stub.skins.Kit.ShellOf(QuestFrame), "on again: skinned now")
+    T.truthy(stub.skins.Kit.ShellOf(TabardFrame), "on again: skinned now")
 end)
 
 -- A "Talking to NPCs" switch read as the switch for the NPC window, which it
@@ -510,198 +448,15 @@ T.test("skins: the Packs card has no switch named after a window Daylight UI reb
     end
 end)
 
-T.test("skins: the game's character window follows Menus, loot and items; an old Character switch does nothing", function()
-    local f
-    login(function()
-        _G.DaylightUIDB = { modules = { Skins = { packs = { character = false } }, Character = { enabled = false } } }
-        f = window("CharacterFrame")
-    end)
-    T.truthy(stub.skins.Kit.ShellOf(f), "the old switch left off doesn't strand it")
-    login(function()
-        _G.DaylightUIDB = { modules = { Skins = { packs = { system = false } }, Character = { enabled = false } } }
-        f = window("CharacterFrame")
-    end)
-    T.isnil(stub.skins.Kit.ShellOf(f))
-end)
-
--- The character window, as far as the skin touches it.
-local function character()
-    local f = window("CharacterFrame")
-    f.LeftPaneHost = CreateFrame("Frame", nil, f)
-    f.LeftPaneHost:CreateTexture()
-    f.RightPaneHost = CreateFrame("Frame", nil, f)
-    f.RightPaneHost.StoneBg = f.RightPaneHost:CreateTexture()
-    local collapsed = false
-    function f:IsRightPaneCollapsed() return collapsed end
-    -- As the game's (CharacterFrame.lua): RefreshRightPane shows or hides the pane.
-    function f:SetRightPaneCollapsed(v)
-        collapsed = v
-        self.RightPaneHost:SetShown(not v)
-    end
-    f.RightPaneToggleButton = CreateFrame("Button", nil, f)
-    _G.ToggleCharacter = function() end
-    CreateFrame("Frame", "PaperDollFrame", f)
-    _G.CharacterLevelText = f:CreateFontString()
-    local slot = CreateFrame("Button", "CharacterHeadSlot", f)
-    slot:SetID(1)
-    slot.BorderFrame = CreateFrame("Frame", nil, slot)
-    slot.BorderFrame.art = slot.BorderFrame:CreateTexture()
-    slot.IconBorder = slot:CreateTexture()
-    slot.icon = slot:CreateTexture()
-    _G.CharacterHeadSlotNormalTexture = slot:CreateTexture()
-    _G.PaperDollItemSlotButton_Update = function() end
-    local pane = CreateFrame("Frame", "CharacterStatsPaneScrollBox", f.RightPaneHost)
-    pane.ScrollBox = list(pane)
-    local header = CreateFrame("Frame", nil, pane.ScrollBox)
-    header.Background = header:CreateTexture()
-    header.Title = header:CreateFontString()
-    local stat = CreateFrame("Frame", nil, pane.ScrollBox)
-    stat.Background = stat:CreateTexture()
-    stat.Label, stat.Value = stat:CreateFontString(), stat:CreateFontString()
-    stat.Value:SetTextColor(0.1, 1, 0.1)         -- buffed: the game's green
-    pane.ScrollBox.rows = rows(header, stat)
-    -- A tab down the window's side: a frame, its selection a texture.
-    f.ModeTabs = CreateFrame("Frame", "CharacterFrameModeTabs", f)
-    local mode = CreateFrame("Frame", "CharacterFrameModeTab1", f.ModeTabs)
-    mode.Background = mode:CreateTexture()
-    mode.Icon = mode:CreateTexture()
-    mode.SelectedTexture = mode:CreateTexture()
-    function mode:SetChecked(on) self.SelectedTexture:SetShown(on) end
-    f.ModeTabs.Tabs = { mode }
-    -- A button over the stats: a check button.
-    local tab = CreateFrame("CheckButton", "PaperDollSidebarTab1", f)
-    tab.art = tab:CreateTexture()
-    tab.Icon = tab:CreateTexture()
-    local checked = true
-    function tab:GetChecked() return checked end
-    function tab:SetChecked(v) checked = v end
-    _G.PaperDollFrame_UpdateSidebarTabs = function() end
-    -- The model's buttons.
-    local scene = CreateFrame("Frame", "CharacterModelScene", f)
-    scene.ControlFrame = CreateFrame("Frame", nil, scene)
-    local zoom = CreateFrame("Button", nil, scene.ControlFrame)
-    zoom.Icon = zoom:CreateTexture()
-    local zn = zoom:CreateTexture()
-    function zoom:GetNormalTexture() return zn end
-    scene.ControlFrame.zoomInButton = zoom
-    return f
-end
-
-T.test("skins: the character window: slots outlined in their item's quality color, stats, side tabs", function()
-    local f
-    login(function()
-        f = character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)     -- the game: an epic
-        CharacterHeadSlot.IconBorder:Show()
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.truthy(stub.skins.Kit.ShellOf(f), "our window")
-    local slot = CharacterHeadSlot
-    T.eq(slot.BorderFrame.art:GetAlpha(), 0, "the slot's frame art gone")
-    T.eq(slot.IconBorder:GetAlpha(), 0, "the game's quality ring gone")
-    T.eq(slot.icon.__texCoord[1], 0.08, "the icon cropped")
-    local Kit = stub.skins.Kit
-    local s = Kit.ShellOf(slot)
-    T.eq(s.opts.borderColor[1], 0.64, "our outline in the item's quality color")
-    SetItemButtonBorderVertexColor(slot, 1, 1, 1)                         -- a white item
-    T.eq(s.opts.borderColor[1], 1, "a white item: a white outline")
-    SetItemButtonBorder(slot)                                             -- nothing in it
-    T.eq(s.opts.borderColor[1], stub.skins.Kit.EMPTY_ITEM_BORDER[1], "empty: dim, still there")
-    for _, m in ipairs({ "Show", "Hide", "SetShown", "SetVertexColor", "SetTexture", "SetAtlas" }) do
-        T.isnil(rawget(slot.IconBorder, m), "no hook on the border's " .. m .. " (it sits on secure item buttons)")
-    end
-    local rows = CharacterStatsPaneScrollBox.ScrollBox.rows
-    T.eq(rows[1].Background:GetAlpha(), 0, "the header's art gone")
-    T.eq(rows[1].Title.__font[1], DaylightUI.Style.FONT)
-    T.eq(rows[2].Value.__textColor[2], 1, "the game's value color kept")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.truthy(rows[2].Label.__textColor[1] < 0.8, "the label dim")
-    local selected = Kit.SELECTED[1]
-    local tab = PaperDollSidebarTab1
-    T.eq(tab.art:GetAlpha(), 0, "the button's art gone")
-    T.eq(tab.Icon:GetAlpha(), 1, "its icon kept")
-    local ts = Kit.ShellOf(tab)
-    T.eq(ts.opts.borderColor[1], selected, "the soft light gray round the selected one")
-    tab:SetChecked(false)
-    PaperDollFrame_UpdateSidebarTabs()
-    T.eq(ts.opts.borderColor, Kit.TAB_BORDER, "repainted as the game updates them: the dim outline")
-    local mode = CharacterFrameModeTab1
-    T.eq(mode.Background:GetAlpha(), 0, "the side tab's art gone")
-    local ms = Kit.ShellOf(mode)
-    mode:SetChecked(true)
-    ToggleCharacter("PaperDollFrame")                       -- the game checks the tabs in it
-    T.eq(ms.opts.borderColor[1], selected, "the selected side tab")
-    mode:SetChecked(false)
-    mode:GetScript("OnMouseUp")(mode, "LeftButton", true)   -- another tab clicked
-    T.eq(ms.opts.borderColor, Kit.TAB_BORDER)
-    for _, m in ipairs({ "Show", "Hide", "SetShown" }) do
-        T.isnil(rawget(mode.SelectedTexture, m), "no hook on the selection art's " .. m)
-    end
-    T.eq(mode.Icon.__texCoord[1], stub.skins.Engine.PORTRAIT_CROP, "the portrait cropped square")
-    T.eq(ms.opts.flat, true, "a control's flat outline, as our buttons")
-    mode.Icon:SetTexCoord(0.03, 0.97, 0.03, 0.97)            -- the game, on selecting it
-    T.eq(mode.Icon.__texCoord[1], stub.skins.Engine.PORTRAIT_CROP, "and kept so")
-    local zoom = CharacterModelScene.ControlFrame.zoomInButton
-    T.eq(zoom:GetNormalTexture():GetAlpha(), 0, "the model button's art gone")
-    T.eq(Kit.ShellOf(zoom).opts.borderColor, Kit.CONTROL_BORDER, "outlined like a button")
-    -- The stats pane's arrow follows the pane (shown or hidden by the game), no hook on the window.
-    local arrow
-    for _, r in ipairs({ f.RightPaneToggleButton:GetRegions() }) do
-        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then arrow = r end
-    end
-    T.eq(arrow.__rotation, Kit.ROTATION.left, "open: pointing to fold it away")
-    f:SetRightPaneCollapsed(true)
-    T.eq(arrow.__rotation, Kit.ROTATION.right, "folded: pointing to open it")
-    f:SetRightPaneCollapsed(false)
-    T.eq(arrow.__rotation, Kit.ROTATION.left)
-    _G.ToggleCharacter = nil
-end)
-
-T.test("skins: reputation: headers on our plates, bars in our look with the game's colors", function()
-    login(function()
-        character()
-        local rep = CreateFrame("Frame", "ReputationFrame", CharacterFrame)
-        rep.ScrollBox = list(rep)
-        local header = CreateFrame("Button", nil, rep.ScrollBox)
-        header.art = header:CreateTexture()
-        header.StateIcon = header:CreateTexture()
-        header.Name = header:CreateFontString()
-        local entry = CreateFrame("Button", nil, rep.ScrollBox)
-        entry.Content = CreateFrame("Frame", nil, entry)
-        local hl = CreateFrame("Frame", nil, entry.Content)
-        hl.TextureRegions = { hl:CreateTexture(), hl:CreateTexture() }
-        entry.Content.BackgroundHighlight = hl
-        local bar = CreateFrame("Frame", nil, entry.Content)
-        bar.bg = bar:CreateTexture()
-        bar.Fill = bar:CreateTexture()
-        bar.Fill:SetVertexColor(0, 0.6, 0.1)     -- friendly
-        bar.Text = bar:CreateFontString()
-        entry.Content.ReputationBar = bar
-        entry.Content.Name = entry.Content:CreateFontString()
-        rep.ScrollBox.rows = rows(header, entry)
-        rep.ReputationDetailFrame = CreateFrame("Frame", nil, rep)
-        local cb = CreateFrame("CheckButton", nil, rep.ReputationDetailFrame)
-        cb.Label = cb:CreateFontString()
-        rep.ReputationDetailFrame.AtWarCheckbox = cb
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local Kit = stub.skins.Kit
-    local header, entry = unpack(ReputationFrame.ScrollBox.rows)
-    T.eq(header.art:GetAlpha(), 0, "the header's art gone")
-    T.eq(header.StateIcon:GetAlpha(), 1, "its +/- kept")
-    T.truthy(Kit.ShellOf(header), "on our plate")
-    local bar = entry.Content.ReputationBar
-    T.eq(bar.bg:GetAlpha(), 0, "the bar's art gone")
-    T.eq(bar.Fill.__texture, DaylightUI.Style.BAR.fill, "our fill")
-    T.eq(bar.Fill.__vertex[2], 0.6, "the standing's color kept")
-    T.eq(entry.Content.BackgroundHighlight.TextureRegions[1].__color[1], 1, "a flat highlight")
-    T.truthy(Kit.SwitchOf(ReputationFrame.ReputationDetailFrame.AtWarCheckbox), "a checkbox as our switch")
-end)
-
 T.test("skins: /dui skins dump lists what a window is made of", function()
-    login(function() character() end)
-    DaylightUI.RunCommand("skins dump CharacterFrame.RightPaneHost 2")
-    T.truthy(stub.ChatContains("CharacterStatsPaneScrollBox"), "a named child")
+    login(function()
+        local host = CreateFrame("Frame", nil, window("DumpTestFrame"))
+        DumpTestFrame.RightPaneHost = host
+        CreateFrame("Frame", "DumpTestScrollBox", host)
+        host.StoneBg = host:CreateTexture()
+    end)
+    DaylightUI.RunCommand("skins dump DumpTestFrame.RightPaneHost 2")
+    T.truthy(stub.ChatContains("DumpTestScrollBox"), "a named child")
     T.truthy(stub.ChatContains(".StoneBg Texture"), "a keyed region")
     DaylightUI.RunCommand("skins dump NoSuchFrame")
     T.truthy(stub.ChatContains("no frame NoSuchFrame"))
@@ -842,29 +597,6 @@ T.test("skins: a window's template in one call, from a game addon that loads lat
     T.truthy(stub.skins.Kit.ButtonOf(p.ok), "its parts")
 end)
 
-T.test("skins: currency's list and transfer button are left as the game draws them", function()
-    login(function()
-        character()
-        local tok = CreateFrame("Frame", "TokenFrame", CharacterFrame)
-        tok.ScrollBox = list(tok)
-        local row = CreateFrame("Button", nil, tok.ScrollBox)
-        row.art = row:CreateTexture()
-        tok.ScrollBox.rows = rows(row)
-        tok.DetailFrame = CreateFrame("Frame", nil, tok)
-        local transfer = button(nil, tok.DetailFrame)
-        tok.DetailFrame.CurrencyTransferToggleButton = transfer
-        local cb = CreateFrame("CheckButton", nil, tok.DetailFrame)
-        cb.Label = cb:CreateFontString()
-        tok.DetailFrame.InactiveCheckbox = cb
-        stub.loadedAddOns.Blizzard_TokenUI = true
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local d = TokenFrame.DetailFrame
-    T.truthy(stub.skins.Kit.SwitchOf(d.InactiveCheckbox), "its pane's checkbox")
-    T.isnil(stub.skins.Kit.ShellOf(d.CurrencyTransferToggleButton), "the transfer button untouched")
-    T.eq(TokenFrame.ScrollBox.rows[1].art:GetAlpha(), 1, "its list rows untouched")
-end)
-
 T.test("skins: the confirm boxes: our window and buttons, the warning icon kept", function()
     local pop
     login(function()
@@ -999,37 +731,6 @@ T.test("skins: the role check pop-ups: our window and buttons, the role icons ke
     T.truthy(Kit.ButtonOf(LFDRoleCheckPopupDeclineButton))
     poll:Hide(); poll:Show()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("skins: a statistics sub-header's collapse button: ours, pointing the way the group is", function()
-    login()
-    local Kit = stub.skins.Kit
-    local row = CreateFrame("Button", nil, UIParent)
-    row.Content = CreateFrame("Frame", nil, row)
-    local tcb = CreateFrame("Button", nil, row)
-    local normal = tcb:CreateTexture()
-    function tcb:GetNormalTexture() return normal end
-    row.ToggleCollapseButton = tcb
-    normal:SetAtlas("campaign_headericon_closed")
-    function normal:GetAtlas() return self.__atlas end
-    Kit.ListRow(row)
-    T.truthy(Kit.ShellOf(tcb), "our control")
-    T.eq(normal:GetAlpha(), 0, "the game's red art gone")
-    local chev
-    for _, r in ipairs({ tcb:GetRegions() }) do
-        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then chev = r end
-    end
-    T.eq(chev.__rotation, Kit.ROTATION.right, "closed: pointing right")
-    -- The game swaps the art as it fills the row (RefreshIcon from Initialize),
-    -- then the list's OnInitializedFrame runs Kit.RelightIn through Kit.EachRow.
-    normal:SetAtlas("campaign_headericon_open")
-    Kit.RelightIn(row, Kit.ROW_LIGHT_DEPTH)
-    T.eq(chev.__rotation, Kit.ROTATION.down, "open: pointing down")
-    normal:SetAtlas("campaign_headericon_closed")
-    Kit.ListRow(row)                                    -- the pass over the rows after an update
-    T.eq(chev.__rotation, Kit.ROTATION.right, "closed again")
-    T.truthy(Kit.Erased(normal), "the game's art erased for good")
-    T.isnil(rawget(normal, "SetAtlas"), "no hook on the game's art")
 end)
 
 T.test("skins: dropdowns: a plain outline, a down chevron, the game's text size; found by key too", function()
@@ -1361,30 +1062,6 @@ T.test("skins: the world map: our window under the map, its border frame's butto
     T.eq(count.art:GetAlpha(), 0, "its own art gone")
 end)
 
-T.test("skins: a gossip option's quest name, set through its button in the game's black, is light at once", function()
-    login()
-    local box = GossipFrame.GreetingPanel.ScrollBox
-    local b = CreateFrame("Button", nil, box)
-    local fs = b:CreateFontString()
-    function b:GetFontString() return fs end
-    function b:SetText(text) fs.__text = text end          -- the client sets its label itself
-    local setText, update = b.SetText, box.Update
-    box.rows[1] = b
-    box:Update(function(row) row:SetText("|cff000000A Token of Good Faith|r") end)
-    stub.RunTimers()                                        -- a new row: made light the frame after
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "rewritten")
-    -- The row reused for another option is relit in the same frame the game
-    -- fills it, so there's no frame of black text.
-    box:Update(function(row)
-        row:SetText("|cff000000Another Quest|r")
-        fs:SetTextColor(0, 0, 0)
-    end)
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "rewritten at once")
-    T.truthy(fs.__textColor[1] > 0.8, "light at once")
-    T.eq(b.SetText, setText, "no hook on the button")
-    T.eq(box.Update, update, "no hook on the list")
-end)
-
 T.test("skins: a window that isn't there yet is skinned once a game addon brings it", function()
     login()
     local Engine = stub.skins.Engine
@@ -1403,7 +1080,7 @@ T.test("skins: window skins take the accent only on hover and selection", functi
     DaylightUI:Set("general", "accentColor", { 1, 0, 0 })
     DaylightUI:Set("general", "accent", "custom")
     stub.RunTimers()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     local s = Kit.ButtonOf(b)
     T.rgb(s.band.__vertex, DaylightUI.Widgets.BUTTON.band, "a button at rest: still its quiet band")
     b:SetSize(100, 22)
@@ -1415,26 +1092,6 @@ T.test("skins: window skins take the accent only on hover and selection", functi
     local sel = row:CreateTexture()
     Kit.Row(row, nil, sel)
     T.eq(Kit.ShellOf(row).opts.borderColor, Kit.SELECTED, "a selected row: the soft light gray")
-end)
-
-T.test("skins: the quest greeting's quest buttons (from a pool, no names) are light, their quest names too", function()
-    login(function()
-        local panel = CreateFrame("Frame", "QuestFrameGreetingPanel", QuestFrame)
-        _G.QuestFrameGreetingPanel_OnShow = function() end
-        panel.child = CreateFrame("Frame", nil, panel)
-    end)
-    local b = CreateFrame("Button", nil, QuestFrameGreetingPanel.child)
-    local fs = b:CreateFontString()
-    function b:GetFontString() return fs end
-    function b:SetFormattedText(fmt, ...) fs.__text = string.format(fmt, ...) end
-    b:SetFormattedText("|cff000000%s|r", "Drive Them Out")
-    fs:SetTextColor(0, 0, 0)
-    QuestFrameGreetingPanel_OnShow()
-    T.truthy(fs.__textColor[1] > 0.8, "light")
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "its name's black rewritten")
-    b:SetFormattedText("|cff000000%s|r", "Dwarven Digging")          -- reused for another quest
-    QuestFrameGreetingPanel_OnShow()                                  -- (the game's greeting fill)
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "and again as it's reused")
 end)
 
 T.test("skins: the old flight map keeps its map (drawn into the window's inset background)", function()
@@ -2600,44 +2257,6 @@ local function socialWindow()
     return f, tab, card
 end
 
-T.test("skins: the rebuilt friends window: our window, its side tabs, friend cards as rows", function()
-    local f, tab, card
-    login(function()
-        f, tab, card = socialWindow()
-        stub.loadedAddOns.Blizzard_SocialUI = true
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local Kit = stub.skins.Kit
-    T.truthy(Kit.ShellOf(f), "our window")
-    T.eq(f.TopFade:GetAlpha(), 0, "the game's fades gone")
-    T.eq(f.BottomFade:GetAlpha(), 0)
-    T.eq(f.BattleNetBar.Background:GetAlpha(), 0, "the Battle.net bar's art gone")
-    T.eq(tab.Background:GetAlpha(), 0, "the side tab's art gone")
-    T.eq(tab.Icon:GetAlpha(), 1, "its icon kept")
-    T.truthy(Kit.ShellOf(tab), "the side tab look")
-    local ts = Kit.ShellOf(tab)
-    T.truthy(ts.host == tab or DaylightUI.Style.GetShell(tab) == ts, "the whole tab outlined, against the window (no gap to the icon)")
-    local search = f.FriendsList.FilterBar.SearchBar
-    T.eq(search.Background:GetAlpha(), 0, "the search box's own black art gone")
-    T.truthy(Kit.InputOf(search), "the input look")
-    T.truthy(Kit.ButtonOf(f.FriendsList.ActionButton), "Add New Friend, flat")
-    T.eq(card.Background:GetAlpha(), 0, "the card's art gone")
-    T.truthy(Kit.ShellOf(card), "the row look")
-    T.eq(card.PartyButton:GetNormalTexture():GetAlpha(), 0, "the invite button's art gone")
-    T.truthy(Kit.ShellOf(card.PartyButton), "an icon button like ours")
-    -- When the list adds more friends they're styled the frame after.
-    local more = CreateFrame("Button", nil, f.FriendsList.ScrollBox)
-    more.Background = more:CreateTexture()
-    more.PresenceHolder = CreateFrame("Frame", nil, more)
-    more.TextHolder = CreateFrame("Frame", nil, more)
-    function more:GetElementData() return {} end
-    table.insert(f.FriendsList.ScrollBox.rows, more)
-    f.FriendsList.ScrollBox:Update()
-    stub.RunTimers()
-    T.eq(more.Background:GetAlpha(), 0, "a new card dressed too")
-    T.truthy(Kit.ShellOf(more))
-end)
-
 -- The guild window (Blizzard_Communities, CommunitiesFrame.xml). Icon tabs down
 -- its right side (RightSideTabTemplate), guilds and communities as cards on the
 -- left, the roster rows, info and news, and the member card.
@@ -2817,13 +2436,14 @@ end)
 -- ---------------------------------------------------------------------
 
 T.test("skins: an item's outline isn't painted again for the color it already has", function()
-    login(function()
-        character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
-        CharacterHeadSlot.IconBorder:Show()
-    end)
+    login()
     local Kit = stub.skins.Kit
-    local slot = CharacterHeadSlot
+    local slot = CreateFrame("Button", nil, UIParent)
+    slot.icon = slot:CreateTexture()
+    slot.IconBorder = slot:CreateTexture()
+    slot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
+    slot.IconBorder:Show()
+    Kit.Item(slot)
     local s = Kit.ShellOf(slot)
     local paints, paint = 0, Kit.Paint
     Kit.Paint = function(...) paints = paints + 1; return paint(...) end
@@ -2928,25 +2548,11 @@ end)
 
 T.test("skins: a window's title the game recolors is light again as the window opens", function()
     login()
-    local title = QuestFrame.TitleContainer.TitleText
-    QuestFrame:Hide()
+    local title = TradeFrame.TitleContainer.TitleText
+    TradeFrame:Hide()
     title:SetTextColor(1, 0.82, 0)                   -- the game, while it was closed
-    QuestFrame:Show()
+    TradeFrame:Show()
     T.truthy(title.__textColor[3] > 0.6, "light again, not the game's gold")
-end)
-
-T.test("skins: an equipment slot that hides its border by hand as it shows (ammo) is recolored after", function()
-    login(function()
-        character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
-        CharacterHeadSlot.IconBorder:Show()
-        CharacterHeadSlot:SetScript("OnShow", function(self) self.IconBorder:Hide() end)   -- the game's XML
-    end)
-    local Kit = stub.skins.Kit
-    local slot = CharacterHeadSlot
-    T.eq(Kit.ShellOf(slot).opts.borderColor[1], 0.64)
-    slot:Hide(); slot:Show()
-    T.eq(Kit.ShellOf(slot).opts.borderColor, Kit.EMPTY_ITEM_BORDER, "its border hidden: our outline dim")
 end)
 
 T.test("skins: the game's pop-up menus, every level, are dressed as they show (EventRegistry, no hooks)", function()

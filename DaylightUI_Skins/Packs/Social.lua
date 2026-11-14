@@ -1,62 +1,13 @@
--- Social pack: friends, guild and communities, calendar, mail, trade, the guild
--- bank and the group finder. Each is Engine.Window plus anything unique to it.
+-- Social pack: guild and communities, the calendar, trade and the guild bank.
+-- Friends, mail and the group finder have Daylight UI windows of their own, so
+-- with those switched off the game's stay as the game draws them. Each is
+-- Engine.Window plus anything unique to it.
 
 local _, ns = ...
 local DUI = DaylightUI
 local Engine = ns.Engine
 
 
-Engine.Window({ key = "friends", pack = "social", frame = "FriendsFrame", watch = true })
-
--- This client's rebuilt friends window (Blizzard_SocialUI): one window with icon
--- tabs down the right side (pooled, created on open), a Battle.net bar on top,
--- Lua-built pages per tab (friends, recent allies, quick join, requests,
--- recruit a friend, raid), and side windows (broadcast, ignore list, raid info).
--- Friends are cards in a scrolling list; they get our rows, and their invite
--- button becomes one of our icon buttons.
-local SOCIAL_PAGES = { "FriendsList", "RecentAlliesList", "QuickJoinFrame", "FriendRequestsList",
-                       "RecruitAFriendFrame", "RaidFrame" }
-local SOCIAL_SIDES = { "BattleNetBroadcastFrame", "BattleNetUnavailableNoticeFrame", "IgnoreListFrame", "RaidInfoFrame" }
-
-local function friendCard(card)
-    if type(card) ~= "table" or type(card.TextHolder) ~= "table" or type(card.PresenceHolder) ~= "table" then return end
-    local Kit = ns.Kit
-    Kit.Row(card)
-    Kit.IconButton(card.PartyButton)
-end
-
-Engine.Window({ key = "socialui", pack = "social", addon = "Blizzard_SocialUI", frame = "SocialUIFrame", watch = true,
-    skip = function() return DaylightUI.socialOwnWindow == true end, -- the Daylight UI social window shows instead
-    hide = { ".TopFade", ".BottomFade", ".BattleNetBar.Background" },
-    auto = { skip = { ".BattleNetBar.ControlsContainer.BattleNetMenuButton" } },
-    after = function(Kit, f)
-        local pool = f.socialTabPool
-        if type(pool) == "table" and pool.EnumerateActive then
-            for tab in pool:EnumerateActive() do Kit.SideTab(tab, nil, nil, true) end
-        end
-        local controls = type(f.BattleNetBar) == "table" and f.BattleNetBar.ControlsContainer
-        if type(controls) == "table" then
-            Kit.Inset(controls)
-            Kit.IconButton(controls.BattleNetMenuButton)
-        end
-        for _, key in ipairs(SOCIAL_PAGES) do
-            local page = f[key]
-            if type(page) == "table" then
-                Kit.Hide(page.TopDivider)
-                Kit.Hide(page.BottomDivider)
-                Kit.Button(page.ActionButton)
-                Kit.EachRow(page.ScrollBox, friendCard, "socialcard")
-            end
-        end
-        for _, key in ipairs(SOCIAL_SIDES) do
-            local side = f[key]
-            if type(side) == "table" then
-                Kit.Panel(side)
-                Kit.Hide(side.Border)
-                Kit.Hide(side.NineSlice)
-            end
-        end
-    end })
 -- The guild window (Blizzard_Communities, the game's layout kept): guild and
 -- community cards down the left, icon tabs down the right (chat, roster,
 -- benefits, info), the roster list, guild info and news, perks and rewards, and
@@ -589,21 +540,6 @@ for _, name in ipairs({ "CommunitiesGuildLogFrame", "CommunitiesGuildTextEditFra
 end
 Engine.Window({ key = "calendar", pack = "social", addon = "Blizzard_Calendar", frame = "CalendarFrame", watch = true })
 
--- Mail: inbox and send (one window, two tabs), plus an opened letter, whose
--- text is printed for parchment.
-Engine.Window({ key = "mail", pack = "social", frame = "MailFrame", watch = true,
-    skip = function() return DaylightUI.mailOwnWindow == true or DaylightUI.mailMogul == true end })
--- Opening another letter while one is open refills and recolors it without
--- re-showing the window, so relight after.
-local letterHooked = false
-Engine.Window({ key = "openmail", pack = "social", frame = "OpenMailFrame", light = true,
-    skip = function() return DaylightUI.mailOwnWindow == true or DaylightUI.mailMogul == true end,
-    after = function(Kit, f)
-        if letterHooked or type(InboxFrame_OnClick) ~= "function" then return end
-        letterHooked = true
-        hooksecurefunc("InboxFrame_OnClick", function() Kit.LightAll(f, nil, 8, true) end)
-    end })
-
 -- Trade: both sides' items and money, and the Trade/Cancel buttons. Kit.Auto
 -- finds most of it. Money frames are the one thing it deliberately skips (it
 -- never descends into one, so the game's coin buttons stay as they are), same
@@ -715,55 +651,4 @@ Engine.Window({ key = "guildbank", pack = "social", addon = "Blizzard_GuildBankU
             DUI.RegisterEvent("GUILDBANKBAGSLOTS_CHANGED", function() if f:IsShown() then guildBankFilter(f) end end)
         end
         guildBankFilter(f)
-    end })
-
--- This client's group finder: one window with three pages drawn over it, each a
--- framed window of its own (list yourself, browse groups, who's around). The
--- pages' frames go so they sit on ours. Category buttons keep their pictures,
--- on our row outline.
-local function groupFinderPage(Kit, page)
-    if type(page) ~= "table" or not page.GetRegions then return end
-    Kit.Strip(page)
-    Kit.Hide(page.NineSlice)
-    Kit.Strip(page.PortraitContainer)
-    Kit.Inset(page.Inset)
-    Kit.Strip(page.RolesSection)
-    Kit.Strip(page.DividerFrame)
-    -- Backgrounds the game re-sets as you pick a category: kept hidden.
-    if type(page.Inset) == "table" then Kit.Erase(page.Inset.CustomBG) end
-    Kit.Erase(page.Bg)
-    Kit.Erase(page.BackgroundArt)
-    -- Each page has its own title (the page covers the window), placed in the
-    -- title row like every window's.
-    local title = type(page.TitleContainer) == "table" and page.TitleContainer.TitleText
-    Kit.Font(title, DUI.Style.SIZE.title)
-    Kit.Light(title)
-    Kit.Title(page, title)
-end
-
-local function categoryButton(Kit, b)
-    if type(b) ~= "table" or not b.CreateTexture then return end
-    Kit.Hide(b.Cover)
-    local keep = {}
-    if Kit.Kind(b.Icon) == "Texture" then keep[b.Icon] = true end
-    Kit.Row(b, keep)
-    Kit.Font(b.Label)
-end
-
--- The Daylight UI group finder replaces it while that's on.
-Engine.Window({ key = "groupfinder", pack = "social", frame = "LFGParentFrame", watch = true,
-    skip = function() return DaylightUI.lfgOwnWindow == true end,
-    after = function(Kit, f)
-        for _, key in ipairs({ "ListingTab", "BrowsingTab", "WhoListingTab" }) do
-            Kit.SideTab(f[key], nil, Kit.SIDE_TAB_CROP)
-        end
-        for _, name in ipairs({ "LFGListingFrame", "LFGBrowseFrame", "LFGWhoListFrame" }) do
-            groupFinderPage(Kit, _G[name])
-        end
-        local listing = _G.LFGListingFrame
-        local view = type(listing) == "table" and listing.CategoryView
-        local selection = type(view) == "table" and view.CategorySelection
-        if type(selection) == "table" and type(selection.CategoryButtons) == "table" then
-            for _, b in ipairs(selection.CategoryButtons) do categoryButton(Kit, b) end
-        end
     end })

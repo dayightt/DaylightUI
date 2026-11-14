@@ -3114,7 +3114,7 @@ end
 -- Another addon's tests load their own files the same way (DaylightMogul).
 stub.LoadFiles = loadFiles
 
-stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Character.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
+stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
 
 -- Loads the core (and optionally the unit frames module) into fresh namespaces
 -- the way the client does, then fires the load events.

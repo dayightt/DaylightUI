@@ -40,6 +40,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Controller", "On a controller, the menu for the player you're targeting opens again, so you can invite them to your group" },
+            { "Windows", "Turning off a Daylight UI window (talking to NPCs, vendor, trainer, bank, character, inspect, friends, mail, group finder) now brings back the game's own window exactly as the game draws it" },
             { "Cooldown Manager", "A spell showing its cooldown and its buff no longer looks faded while the buff is up when it's set to fade on cooldown" },
             { "Character window", "Your title shows with your name at the top of the character window, and changes as soon as you pick another one" },
             { "Window skins", "The Select Your Role pop-up for a role check is in Daylight UI style now, not the game's gold frame" },

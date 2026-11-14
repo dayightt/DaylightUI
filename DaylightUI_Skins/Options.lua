@@ -18,13 +18,13 @@ ns.OPTIONS = { pages = {
       groups = {
         { label = "Packs", desc = "The game's windows Daylight UI didn't rebuild. Rebuilt windows have their own switches under Extras.", items = {
             { type = "toggle", key = "packs.npc", label = "Flight maps, stable and books", reload = true,
-              desc = "Flight maps, books and letters, tabards and petitions, the stable. Also the game's own quest, gossip, vendor, trainer and bank windows while Daylight UI's are off." },
+              desc = "Flight maps, books and letters, tabards and petitions, the stable." },
             { type = "toggle", key = "packs.social", label = "Guild, calendar and trading", reload = true,
-              desc = "Guild and communities, the calendar, trading, the guild bank. Also the game's own friends, mail and group finder windows while Daylight UI's are off." },
+              desc = "Guild and communities, the calendar, trading, the guild bank." },
             { type = "toggle", key = "packs.collections", label = "Collections and journals", reload = true,
               desc = "Collections, achievements, the dungeon journal, the dressing room." },
             { type = "toggle", key = "packs.system", label = "Menus, loot and items", reload = true,
-              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the box that splits a stack. Also the game's own character and inspect windows while Daylight UI's are off." },
+              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the box that splits a stack." },
         } },
         { label = "Windows", items = {
             backRows[1], backRows[2],

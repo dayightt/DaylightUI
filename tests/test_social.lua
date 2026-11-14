@@ -87,13 +87,11 @@ end
 
 T.test("social: on by default", function()
     stub.Load({ before = function() SW.world({})(); DaylightUIDB = nil end })
-    T.eq(DaylightUI.socialOwnWindow, true)
     T.truthy(stub.social.Window.frame, "built")
 end)
 
 T.test("social: switched off, the game's window stays the game's", function()
     local ns = load({ enabled = false })
-    T.eq(DaylightUI.socialOwnWindow, false)
     T.isnil(ns.Window.frame, "nothing built")
     SW.Toggle()
     frame(5)
