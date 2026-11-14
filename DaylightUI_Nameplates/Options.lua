@@ -519,9 +519,9 @@ ns.OPTIONS = { pages = {
         }, spotItems("Crowd control", { spot = "ccSpot", x = "ccX", y = "ccY" }, true, off("cc"),
             "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
         { label = "Big defensives", items = with({
-            { type = "toggle", key = "defensives", label = "Big defensives",
+            { type = "toggle", key = "defensives", label = "Big defensives", since = "1.8.0",
               desc = "Divine Shield, Ice Block and the like, as a bigger icon beside the bar's end, so you know not to waste your damage." },
-            { type = "slider", key = "defensiveSize", label = "Defensive size", min = 16, max = 48, step = 1, unit = "px",
+            { type = "slider", key = "defensiveSize", label = "Defensive size", since = "1.8.0", min = 16, max = 48, step = 1, unit = "px",
               desc = "How big the big defensive icon is.",
               disabled = off("defensives") },
         }, spotItems("Big defensive", { spot = "defensiveSpot", x = "defensiveX", y = "defensiveY" }, true, off("defensives"),
@@ -544,7 +544,7 @@ ns.OPTIONS = { pages = {
               desc = "No plates over friendly players and NPCs in dungeons, raids, battlegrounds and arenas. They come back as you leave." },
         }) },
         { label = "Totems", items = {
-            { type = "toggle", key = "friendly.totems", label = "Totems as badges",
+            { type = "toggle", key = "friendly.totems", label = "Totems as badges", since = "1.8.0",
               desc = "A friendly totem shows as a small round badge with its picture, ringed in its element's color, instead of its long name." },
         } },
         { label = "Health bar", items = {

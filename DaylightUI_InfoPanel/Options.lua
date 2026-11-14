@@ -207,7 +207,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "map.size", label = "Minimap size", min = 120, max = 2800, step = 2, unit = "px",
               desc = "How big the square minimap is.",
               disabled = off("map.enabled") },
-            { type = "slider", key = "map.iconScale", label = "Minimap icon size", min = 0.5, max = 2, step = 0.1, unit = "%",
+            { type = "slider", key = "map.iconScale", label = "Minimap icon size", since = "1.8.0", min = 0.5, max = 2, step = 0.1, unit = "%",
               desc = "How big the icons on the map are: herbs and ore, party members, quest spots and the like. The map keeps its size. This is Edit Mode's own setting, kept in your Edit Mode layout.",
               get = function() return ns.Minimap.GetIconScale() end,
               set = function(v) ns.Minimap.SetIconScale(v) end,
@@ -229,7 +229,7 @@ ns.OPTIONS = { pages = {
               end,
               default = function() return false end,
               disabled = off("map.enabled") },
-            { type = "dropdown", key = "map.shape", label = "Minimap shape",
+            { type = "dropdown", key = "map.shape", label = "Minimap shape", since = "1.8.0",
               values = { square = "Square", round = "Round" }, order = { "square", "round" },
               desc = "Round gives the map a thin ring with N at the top. While Rotate as you turn is on, the map is always round.",
               disabled = function(get)

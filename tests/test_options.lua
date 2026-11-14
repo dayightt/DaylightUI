@@ -734,6 +734,10 @@ T.test("options: a row added since the version you count from says NEW; search f
         if hit.item.since then any = true end
     end
     T.truthy(any, "searching new lists the tagged rows")
+    DaylightUIDB.newSince = "1.7.3"
+    local labels = {}
+    for _, hit in ipairs(O.Search(" New ")) do labels[hit.item.label] = true end
+    T.truthy(labels["UI scale"], "any case and stray spaces still list what came after 1.7.3")
 end)
 
 T.test("options: the NEW tag sits after the label's words, clear of the reset arrow", function()

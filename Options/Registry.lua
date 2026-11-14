@@ -488,10 +488,15 @@ function Options.NewSinceChoices()
     return values, order
 end
 
+-- Typing "new" (any case, stray spaces too) also lists every row tagged NEW.
+local function asksForNew(query)
+    return string.lower(query):match("^%s*(.-)%s*$") == string.lower(L["NEW"])
+end
+
 -- Shared by results and counts: not a text item, matches, not hidden now.
 local function found(page, group, item, query)
     if item.type == "text" or Options.IsHidden(page, item) then return false end
-    return Options.Matches(group, item, query) or (query == string.lower(L["NEW"]) and Options.IsNew(item))
+    return Options.Matches(group, item, query) or (asksForNew(query) and Options.IsNew(item))
 end
 
 -- Every visible setting matching query, in window order, as

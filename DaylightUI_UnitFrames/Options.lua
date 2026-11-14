@@ -346,7 +346,7 @@ local function nameItems(k, dis, desc, big, small)
           values = { left = "Left", center = "Center", right = "Right" }, order = { "left", "center", "right" },
           desc = desc or "Where the name sits across the bar: left, center or right.", disabled = dis,
           hidden = function(get) local p = get(k("namePos")); return p ~= nil and p ~= "bar" end }
-        items[#items + 1] = { type = "toggle", key = k("nameTag"), label = "Name tab",
+        items[#items + 1] = { type = "toggle", key = k("nameTag"), label = "Name tab", since = "1.8.0",
           desc = "A dark tab behind the name while it sits outside the tile, like the player frame's name. When off, the name floats on its own.",
           disabled = dis, hidden = function(get) return not UF.TAG_SPOTS[get(k("namePos")) or ""] end }
     end
@@ -394,11 +394,11 @@ local function groupRows(items, g, dis, noTimers, gone)
           disabled = dis },
         { type = "toggle", key = g("shortTimers"), label = "Only under a minute",
           desc = "Hides the number while a minute or more is left, so long buffs stay quiet.", disabled = noTimers },
-        { type = "slider", key = g("timeSize"), label = "Time left text size", min = 6, max = 16, step = 1,
+        { type = "slider", key = g("timeSize"), label = "Time left text size", since = "1.8.0", min = 6, max = 16, step = 1,
           desc = "How big the time left is on each icon.", disabled = noTimers },
-        { type = "toggle", key = g("counts"), label = "Stack count",
+        { type = "toggle", key = g("counts"), label = "Stack count", since = "1.8.0",
           desc = "The number of stacks in the corner of each icon.", disabled = dis },
-        { type = "slider", key = g("countSize"), label = "Stack count size", min = 6, max = 16, step = 1,
+        { type = "slider", key = g("countSize"), label = "Stack count size", since = "1.8.0", min = 6, max = 16, step = 1,
           desc = "How big the number of stacks is on each icon.",
           disabled = function(get) return dis(get) or get(g("counts")) == false end },
         { type = "toggle", key = g("swipe"), label = "Cooldown swipe",
@@ -883,14 +883,14 @@ local function unitAuraCards(prefix, own, desc)
           desc = "How big each debuff icon is.", disabled = dOff },
     }
     if own then
-        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter",
+        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter", since = "1.8.0",
             values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
             desc = own == "pet" and "Every debuff on your pet, or only the ones your class can remove."
                 or "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max shown", min = 1, max = 16, step = 1,
                                   desc = "The most debuff icons at once.", disabled = dOff }
     else
-        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter",
+        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter", since = "1.8.0",
             values = { mine = "Only mine", all = "Mine first, then others" }, order = { "mine", "all" },
             desc = "Only the debuffs you put on it, or yours first and then everyone else's.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max of my debuffs", min = 1, max = 16, step = 1,
@@ -923,11 +923,11 @@ local function unitAuraCards(prefix, own, desc)
           desc = "How big the number of stacks is on each buff icon.", disabled = bOff },
     }
     if own == "pet" then
-        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter",
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter", since = "1.8.0",
             values = { all = "All buffs", mine = "Only mine" }, order = { "all", "mine" }, disabled = bOff,
             desc = "Every buff on your pet, or only the ones you cast on it." })
     elseif not own then
-        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter",
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter", since = "1.8.0",
             values = { all = "All buffs", purge = "Only ones I can purge or steal", mine = "Only mine" },
             order = { "all", "purge", "mine" }, disabled = bOff,
             desc = "Every buff, only the ones your class can take off an enemy, or only the ones you cast. A class that can't purge shows none with the second." })
@@ -935,14 +935,14 @@ local function unitAuraCards(prefix, own, desc)
     -- Time numbers, sweep and tooltips: the same switches the party and raid icons have.
     local function look(list, kind, show)
         local dis = off(k(show))
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on icons",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on icons", since = "1.8.0",
                             desc = "The time left as a number on each icon.", disabled = dis }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = "Only under a minute",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = "Only under a minute", since = "1.8.0",
                             desc = "Hides the number while a minute or more is left, so long ones stay quiet.",
                             disabled = offAny(k(show), k(kind .. "Timers")) }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = "Cooldown swipe",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = "Cooldown swipe", since = "1.8.0",
                             desc = "Each icon darkens like a clock as its time runs out.", disabled = dis }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = "Tooltip on hover",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = "Tooltip on hover", since = "1.8.0",
                             desc = "Hovering an icon says what it is. Off, the mouse goes straight through to what's behind it.",
                             disabled = dis }
     end
@@ -1494,7 +1494,7 @@ local function framePage(id, label, desc, opts)
             desc = "A ring over the outer end. Class icons show for players; NPCs show their face."
                 .. " Needs a frame at least " .. UF.MIN_PORTRAIT_HEIGHT .. " tall.",
             disabled = function(get) return shown(get) or tooShort(get) end }
-        frame[#frame + 1] = { type = "dropdown", key = k("portraitShape"), label = "Shape",
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitShape"), label = "Shape", since = "1.8.1",
             values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
             desc = "A round ring, a square, or a square with its outer side angled like the frame's end. The aggro fill, arrival light and elite frame follow the shape.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
@@ -1512,11 +1512,11 @@ local function framePage(id, label, desc, opts)
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
-        frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness",
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness", since = "1.8.1",
             values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
             desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
-        frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle",
+        frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
             desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
         if opts.dragon then
@@ -1702,11 +1702,11 @@ local function framePage(id, label, desc, opts)
     if opts.place then
         -- Each frame sits beside its party member (PartyTargets.lua).
         table.insert(groups, 2, { label = "Position", items = {
-            { type = "dropdown", key = k("spot"), label = "Position", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
+            { type = "dropdown", key = k("spot"), label = "Position", since = "1.8.0", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
               desc = "Which side of the party member's frame their target sits on. Past a party pet on the same side.", disabled = shown },
-            { type = "slider", key = k("x"), label = "Left / right", min = -100, max = 100, step = 1, unit = "px",
+            { type = "slider", key = k("x"), label = "Left / right", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
               desc = "Nudges every party target sideways from its position.", disabled = shown },
-            { type = "slider", key = k("y"), label = "Up / down", min = -100, max = 100, step = 1, unit = "px",
+            { type = "slider", key = k("y"), label = "Up / down", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
               desc = "Nudges every party target up or down from its position.", disabled = shown },
         } })
     end
@@ -1846,7 +1846,7 @@ local function framePage(id, label, desc, opts)
             disabled = happyOff }
         local function besideOff(get) return happyOff(get) or get(k("happinessLook")) == "frame" end
         local function stripeOff(get) return happyOff(get) or get(k("happinessLook")) ~= "frame" end
-        extras[#extras + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side",
+        extras[#extras + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side", since = "1.8.0",
             values = { left = "Left", right = "Right" }, order = { "left", "right" },
             desc = "Which end of the frame the stripe sits in. On an angled end it follows the angle.",
             disabled = stripeOff }
@@ -2717,7 +2717,7 @@ ns.OPTIONS = { pages = {
         { label = "Range fade", desc = "Dims units that are out of reach: target, focus, target of target, party and raid frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",
               desc = "Your group fades by your heal's range, or the game's own check without one. Anyone else fades only with a range spell picked below." },
-            { type = "dropdown", key = "range.spell", label = "Range spell", fallback = "none",
+            { type = "dropdown", key = "range.spell", label = "Range spell", since = "1.8.0", fallback = "none",
               desc = "Target, focus and the PvP frames fade when this spell can't reach someone outside your group, like an enemy you want to cast on. Units it can't be cast on stay as they are.",
               disabled = function(get) return get("range.enabled") ~= true end,
               choices = rangeSpellChoices },
