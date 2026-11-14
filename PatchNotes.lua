@@ -30,10 +30,12 @@ DUI.PatchNotes = {
             { "Party frames", "See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets" },
             { "Nameplates", "An enemy's Divine Shield, Ice Block and other big defensives show as a large icon beside their nameplate: Nameplates > Auras" },
             { "Nameplates", "Friendly totems show as a small round badge in their element's color instead of their long name" },
+            { "Pet frame", "Your hunter pet's happiness can be a colored stripe inside the pet frame: Happiness look, In the frame. Thanks to Ángel" },
         },
         changed = {
             { "Unit frames", "Buffs sit on the left and debuffs on the right on every frame: the target's buffs moved up beside its debuffs. Spots you picked yourself stay" },
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
+            { "Guild", "The guild and communities window is in the Daylight UI look. Thanks to Ángel" },
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
@@ -46,6 +48,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
             { "Action bars", "No more floods of SetCooldown errors or \"the game blocked MultiBar...SetShown\" warnings from the action bars in dungeons and fights" },
             { "Professions", "With What's Training installed, the profession window has a What's Training link to its list of recipes you can still learn" },
+            { "Windows", "A picked row in lists like your professions and mail no longer looks cut off at the bottom. Thanks to Ángel" },
         },
     },
     { version = "1.7.3", date = "2026-11-13", summary = "Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!",
