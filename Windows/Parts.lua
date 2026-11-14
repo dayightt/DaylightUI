@@ -490,10 +490,8 @@ Parts.LINE = 36
 Parts.LINE_ICON = 28
 -- Space between a line's name and its sub. The pair is this tall, centered
 -- on the row, so the selection wash has the same padding above and below.
-Parts.LINE_GAP = 4
--- A line's sub is a point smaller than the shared small text, so it sits clear of
--- the name above it.
-Parts.LINE_SUB = Style.SIZE.small - 1
+Parts.LINE_GAP = 3
+Parts.LINE_SUB = Parts.SMALL
 Parts.LATER = Style.INK.OFF   -- name color of a dim line
 
 local function makeLine(parent)
