@@ -33,13 +33,29 @@ local function chatWindow(i, docked)
     -- after r, g, b are in `extraData` (the event is 4th), and the arrival time
     -- is in `timestamp`.
     cf.lines = {}
-    function cf:AddMessage(msg, r, g, b, infoID, accessID, typeID, event)
-        table.insert(self.lines, { msg, event, r, g, b, timestamp = GetTime() })
+    function cf:AddMessage(msg, r, g, b, ...)
+        local extra = { n = select("#", ...), ... }
+        table.insert(self.lines, { msg, extra[4], r, g, b, timestamp = GetTime(), extra = extra })
     end
     function cf:GetNumMessages() return #self.lines end
+    -- As the game's UnpackageEntry: message, r, g, b, then AddMessage's extra values.
     function cf:GetMessageInfo(i)
         local l = self.lines[i]
-        if l then return l[1], l[3], l[4], l[5] end
+        if not l then return end
+        if l.extra then return l[1], l[3], l[4], l[5], unpack(l.extra, 1, l.extra.n) end
+        return l[1], l[3], l[4], l[5]
+    end
+    -- The game's TransformMessages: picked entries rewritten in place, no AddMessage.
+    function cf:TransformMessages(pred, fn)
+        for _, l in ipairs(self.lines) do
+            local x = l.extra or { n = 0 }
+            if pred(l[1], l[3], l[4], l[5], unpack(x, 1, x.n)) then
+                local out = (function(...) return { n = select("#", ...), ... } end)(fn(l[1], l[3], l[4], l[5], unpack(x, 1, x.n)))
+                l[1], l[3], l[4], l[5] = out[1], out[2], out[3], out[4]
+                l.extra = { n = math.max(out.n - 4, 0), unpack(out, 5, out.n) }
+                l.timestamp = GetTime()
+            end
+        end
     end
     function cf:GetID() return i end
     -- How long lines stay, as ScrollingMessageFrameMixin keeps it (120 s from
@@ -2196,6 +2212,43 @@ T.test("chat daylight: a profession link is clicked through the game's own link 
     T.eq(left, 1)
     T.falsy(c:IsShown())
     CH.LinkTips.OnLeave = leave
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game hides a message it thinks is inappropriate behind a "Show Message"
+-- link. Its click rewrites that line in the game's own windows only
+-- (ItemRefHandlersShared.lua: TransformMessages, no AddMessage), so the box has
+-- to take the shown message from there.
+T.test("chat daylight: Show Message on a hidden message shows it in the box", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local hidden = "Message from Robb is potentially inappropriate. |Hcensoredmessage:77|h[Show Message]|h"
+    said(ChatFrame1, "before", "CHAT_MSG_SAY", 76)
+    said(ChatFrame1, hidden, "CHAT_MSG_WHISPER", 77)
+    said(ChatFrame1, "after", "CHAT_MSG_SAY", 78)
+    -- The game's handler, as in its source: every window's line with this id rewritten.
+    _G.SetItemRef = function(link)
+        local id = tonumber(string.match(link, "^censoredmessage:(%d+)"))
+        if not id then return end
+        ChatFrame1:TransformMessages(function(_, _, _, _, _, _, _, _, args) return args[11] == id end,
+            function(_, r, g, b, infoID, accessID, typeID, event, args, ...)
+                return "[Robb] whispers: hello there |Hreportcensoredmessage:77|h[Report]|h", r, g, b,
+                    infoID, accessID, typeID, event, args, ...
+            end)
+    end
+    stub.cursorPos = { 300, 120 }
+    box:GetScript("OnHyperlinkEnter")(box, "censoredmessage:77", "|Hcensoredmessage:77|h[Show Message]|h")
+    local c = CH.Links.Catcher()
+    T.truthy(c and c:IsShown(), "clicked through the game's own link frame")
+    c:GetScript("OnHyperlinkClick")(c, "censoredmessage:77", "[Show Message]", "LeftButton")
+    local texts = boxTexts(box)
+    T.eq(#texts, 3, "still three lines")
+    T.eq(texts[1], "before")
+    T.truthy(string.find(texts[2], "hello there", 1, true), "the message shows in its place: " .. tostring(texts[2]))
+    T.eq(texts[3], "after", "in the same order")
+    -- Switching tabs fills the box from its kept lines: the message stays shown.
+    CH.Box.Pick(CH.Box.Picked())
+    T.truthy(string.find(boxTexts(box)[2], "hello there", 1, true), "kept")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

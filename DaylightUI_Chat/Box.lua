@@ -129,14 +129,20 @@ local function forget(now)
     end
 end
 
+-- The chat event's line id (its 11th argument), or nil: many events carry 0.
+local function lineOf(args)
+    local id = type(args) == "table" and args[11]
+    if type(id) == "number" and not secret(id) and id > 0 then return id end
+end
+
 -- First time this line is seen? Other windows may pass it along too.
 local function fresh(cf, text, args)
     local now = GetTime()
     forget(now)
     -- A line id identifies one line, but many events (system, loot) carry 0; those
     -- are matched by text.
-    local id = type(args) == "table" and args[11]
-    if type(id) == "number" and not secret(id) and id > 0 then
+    local id = lineOf(args)
+    if id then
         if seenId[id] then return false end
         seenId[id] = now
         return true
@@ -350,14 +356,15 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
     -- Locked (secret) whispers and away, busy and offline notices still show here.
     if (kind == "whisper" or kind == "bnet") and ns.Talk.On() and cfg.whispersIn == "window"
         and ns.Talk.Keeps(event, args) then return end
+    local line = lineOf(args)
     if secret(text) then
-        Box.Push({ text, r, g, b, kind })
+        Box.Push({ text, r, g, b, kind, line = line })
         return
     end
     -- Classic: kept as-is for a switch back. Spam, alerts and group links are
     -- Daylight box features.
     if not Box.On() then
-        Box.Push({ shape(text, event), r, g, b, kind })
+        Box.Push({ shape(text, event), r, g, b, kind, line = line })
         return
     end
     -- Plain line: drop spam, light alert words, add role icons to group lines.
@@ -371,9 +378,33 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
         Box.Spammed({ shape(text, event), r, g, b, kind })
         return
     end
-    local line, hit = ns.Extras.Decorate(shape(text, event), kind, sender, guid)
-    Box.Push({ line, r, g, b, kind, alert = hit or nil, here = askedFrom(kind) })
+    local shown, hit = ns.Extras.Decorate(shape(text, event), kind, sender, guid)
+    Box.Push({ shown, r, g, b, kind, alert = hit or nil, here = askedFrom(kind), line = line })
     if hit then ns.Feel.Shine() end
+end
+
+-- The game hides a message it finds inappropriate behind a "Show Message" link.
+-- Its click rewrites that line only in the game's own windows (TransformMessages,
+-- which no AddMessage hook sees), so the box takes the new text from there.
+function Box.Rewritten(id)
+    if type(id) ~= "number" or id <= 0 then return end
+    local text, event
+    for cf in pairs(hooked) do
+        local n = type(cf.GetNumMessages) == "function" and cf:GetNumMessages() or 0
+        for i = n, 1, -1 do
+            local t, _, _, _, _, _, _, ev, args = cf:GetMessageInfo(i)
+            if lineOf(args) == id then text, event = t, ev; break end
+        end
+        if text ~= nil then break end
+    end
+    if text == nil or (not secret(text) and type(text) ~= "string") then return end
+    if secret(event) or type(event) ~= "string" then event = nil end
+    local changed = false
+    for _, e in ipairs(log) do
+        if e.line == id then e[1] = shape(text, event); changed = true end
+    end
+    if not changed then return end
+    for _, P in ipairs(panes) do Box.Refill(P, true) end
 end
 
 -- Called from the watcher only, never inside the game's code. Windows opened
@@ -631,6 +662,20 @@ function Box.SyncCombat()
 end
 
 -- The current tab on its own panel: its lines, newest at the bottom.
+-- Fills a pane's box again from the kept lines of its picked tab. stay: keep
+-- the place read to, else back to the newest.
+function Box.Refill(P, stay)
+    local frame, i = P.frame, pickedOf(P)
+    local tab = i and Box.Tabs()[i]
+    if not frame or not tab or tab.combat then return end
+    local at = stay and frame:GetScrollOffset() or 0
+    frame:Clear()
+    for _, e in ipairs(log) do
+        if belongs(tab, e) then show(P, e) end
+    end
+    if at > 0 then frame:SetScrollOffset(at) else frame:ScrollToBottom() end
+end
+
 function Box.Pick(i, animate)
     local tabs = Box.Tabs()
     if not tabs[i] then i = Box.FirstOf(main) or 1 end
@@ -652,13 +697,7 @@ function Box.Pick(i, animate)
     -- A combat log tab shows the game's own window in our place.
     frame:SetShown(Box.On() and not tab.combat)
     if tab.combat then return end
-    local function fill()
-        frame:Clear()
-        for _, e in ipairs(log) do
-            if belongs(tab, e) then show(P, e) end
-        end
-        frame:ScrollToBottom()
-    end
+    local function fill() Box.Refill(P) end
     -- Selected by the player: the old lines fade out, the tab's fade in.
     local M = DUI.Motion
     if not (animate and M.On()) then frame:SetAlpha(1); fill(); return end

@@ -1080,9 +1080,28 @@ function stub.MessageFrame(f)
         self.lines = keep
     end
     function f:GetNumMessages() return #self.lines end
+    -- Like the mixin's UnpackageEntry: message, r, g, b, then what AddMessage got after them.
     function f:GetMessageInfo(i)
         local l = self.lines[i]
-        if l then return l[1], l[2], l[3], l[4] end
+        if not l then return end
+        local x = l.extra
+        if x then return l[1], l[2], l[3], l[4], unpack(x, 1, x.n) end
+        return l[1], l[2], l[3], l[4]
+    end
+    -- The mixin's TransformMessages: each entry the predicate picks is replaced by
+    -- what transformFunction returns for it, packaged again with a new timestamp.
+    function f:TransformMessages(pred, fn)
+        for i, l in ipairs(self.lines) do
+            local x = l.extra
+            local function args() if x then return l[1], l[2], l[3], l[4], unpack(x, 1, x.n) end return l[1], l[2], l[3], l[4] end
+            if pred(args()) then
+                local out = (function(...) return { n = select("#", ...), ... } end)(fn(args()))
+                local n = out.n
+                local extra = n > 4 and { unpack(out, 5, n) } or nil
+                if extra then extra.n = n - 4 end
+                self.lines[i] = { out[1], out[2], out[3], out[4], timestamp = GetTime(), extra = extra }
+            end
+        end
     end
     function f:Clear() self.lines = {}; self.scrollOffset = 0 end
     function f:GetMaxScrollRange() return math.max(#self.lines - 1, 0) end

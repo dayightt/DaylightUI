@@ -177,6 +177,9 @@ local function makeCatcher()
     -- The box already shows the tooltip (LinkTips); the template would show a second.
     f:SetScript("OnHyperlinkEnter", function() end)
     f:SetScript("OnHyperlinkLeave", function() Links.Drop(true) end)
+    -- After the game's own click: a hidden message shown (or one of yours
+    -- rewritten) changed only the game's windows, so the box copies it.
+    f:HookScript("OnHyperlinkClick", function(_, link) DUI.SafeCall(Links.Censored, link) end)
     -- Hidden with the box: let go for good, or it would come back with the box
     -- somewhere the mouse no longer is.
     f:SetScript("OnHide", function(self)
@@ -185,6 +188,14 @@ local function makeCatcher()
     end)
     catcher = f
     return f
+end
+
+-- censoredmessage, censoredmessagerewrite and censoredmessageconfirmsend all
+-- carry the line's id first.
+function Links.Censored(link)
+    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return end
+    local id = string.match(link, "^censoredmessage%a*:(%d+)")
+    if id and ns.Box then ns.Box.Rewritten(tonumber(id)) end
 end
 
 function Links.Catcher() return catcher or nil end
