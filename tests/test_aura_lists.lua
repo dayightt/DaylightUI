@@ -33,13 +33,14 @@ local function tile(ns)
     return f, ns.AuraGroups.Create(f, "raid1")
 end
 
-T.test("two lists to start: Hidden (hide) and Watch list (show only), both empty", function()
+T.test("two lists to start: Hidden (hide, only Boosted Rest) and Watch list (show only, empty)", function()
     local _, ns = setup()
     local AL = ns.AuraLists
     T.eq(table.concat(AL.All(), ","), "hidden,watch")
     T.eq(AL.ModeOf("hidden"), "hide")
     T.eq(AL.ModeOf("watch"), "only")
-    T.isnil(AL.Ids("hidden"))
+    T.eq(AL.Get("hidden").spells, "1229451")
+    T.isnil(AL.Ids("watch"))
     local values, order = AL.Choices("hide")
     T.eq(table.concat(order, ","), "none,hidden")
     T.eq(values.hidden, "Hidden")
@@ -52,11 +53,12 @@ T.test("adding by id takes every rank seen with that name; removing takes them a
     T.eq(AL.Add("hidden", "1243"), "Power Word: Fortitude")
     local ids = AL.Ids("hidden")
     T.truthy(ids[1243] and ids[1244], "both ranks")
-    local e = AL.Entries("hidden")
-    T.eq(#e, 1)
-    T.eq(#e[1].ids, 2)
+    local fort
+    for _, e in ipairs(AL.Entries("hidden")) do if e.name == "Power Word: Fortitude" then fort = e end end
+    T.eq(#fort.ids, 2)
     AL.Remove("hidden", "Power Word: Fortitude")
-    T.isnil(AL.Ids("hidden"))
+    T.isnil(AL.Ids("hidden")[1243])
+    T.truthy(AL.Ids("hidden")[1229451], "Boosted Rest stays")
 end)
 
 T.test("adding by name needs the aura seen, or an id; unknown words say why", function()
@@ -73,6 +75,7 @@ end)
 
 T.test("a hide list leaves its buffs off party tiles, in place, no reload", function()
     local DUI, ns = setup()
+    ns.AuraLists.Delete("hidden")
     local f, set = tile(ns)
     ns.AuraGroups.Place(set, f, groupCfg({ buffs = { hide = "hidden" } }), BOX)
     local g = set.buffs.__groups.all
@@ -118,6 +121,23 @@ T.test("debuffs on your group: a hide list only reaches never-secret spells; bos
     T.eq(shows(g, MEMBER, pain), true, "the client won't match it on a friend")
     T.eq(shows(g, MEMBER, { spellId = 1, harmful = true, duration = 18 }), false, "not a boss's")
     T.eq(shows(g, MEMBER, { spellId = 2, harmful = true, duration = 600, boss = true }), false, "too long")
+end)
+
+T.test("Boosted Rest is off every debuff row by default: party tiles and your own frame", function()
+    local DUI, ns = setup()
+    stub.neverSecretAuras[1229451] = true
+    local rest = { spellId = 1229451, harmful = true, duration = 3600, neverSecret = true }
+    local f, set = tile(ns)
+    T.eq(DUI:Get("UnitFrames", "party.auras.debuffs.hide"), "hidden", "party's default pick")
+    ns.AuraGroups.Place(set, f, groupCfg({ debuffs = { hide = "hidden" } }), BOX)
+    local g = set.debuffs.__groups.all
+    T.eq(shows(g, MEMBER, rest), false, "party tile")
+    T.eq(shows(g, MEMBER, { spellId = 589, harmful = true, duration = 18 }), true, "other debuffs stay")
+    for _, key in ipairs({ "playerAuras", "targetAuras", "focusAuras", "petAuras", "personal.auras" }) do
+        T.eq(DUI:Get("UnitFrames", key .. ".debuffHide"), "hidden", key)
+    end
+    local mine = ns.auras.debuffs.__groups.mine
+    T.truthy(mine.opts.candidateFilters.excludeSpellIDs[1229451], "target frame's debuff row")
 end)
 
 T.test("target debuffs: a show-only list keeps your DoTs to it on an enemy", function()

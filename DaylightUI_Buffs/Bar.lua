@@ -353,6 +353,7 @@ function BarMixin:ApplyGroups()
     if self:IsDebuff() then
         if not self.groups.debuffs then
             local ok, err = pcall(c.AddAuraGroup, c, "debuffs", "HARMFUL", {
+                candidateFilters = { excludeSpellIDs = BL.QUIET_DEBUFFS },
                 sortMethod = AuraContainerSortMethod.ExpirationOnly,
                 sortDirection = AuraContainerSortDirection.Normal,
                 layout = self:GroupLayout(1),

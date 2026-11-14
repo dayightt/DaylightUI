@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Unit frames", "Portraits can be square, or square with an angled side like the frames, picked per frame on its new Portrait tab" },
         },
         changed = {
+            { "Buffs", "Boosted Rest from a Camp Tent no longer sits among your debuffs. Unit frames can show it again from their Hidden aura list" },
             { "Window skins", "Item slots and coins in the game's windows (loot, guild bank and more) now match Daylight UI's bags, and the trade window has a cleaner layout" },
             { "Unit frames", "Portrait ring thickness and the line round the middle are set per frame, on its Portrait tab. Your picks carry over" },
         },

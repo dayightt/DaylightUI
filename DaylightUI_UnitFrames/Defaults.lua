@@ -374,7 +374,9 @@ end
 -- row hides the Hidden list's spells and shows everything else until it picks
 -- a show-only list. Debuff rows can also show only boss debuffs or leave out
 -- the ones lasting longer than maxTime seconds (0 = any).
-ns.DEFAULTS.auraLists = { hidden = { name = "Hidden", mode = "hide", spells = "" },
+-- Hidden starts with Boosted Rest, the hour before a Camp Tent gives rested
+-- experience again: a timer on a bonus, never something a frame needs.
+ns.DEFAULTS.auraLists = { hidden = { name = "Hidden", mode = "hide", spells = "1229451" },
                           watch = { name = "Watch list", mode = "only", spells = "" } }
 for _, t in ipairs({ ns.DEFAULTS.targetAuras, ns.DEFAULTS.focusAuras, ns.DEFAULTS.petAuras, ns.DEFAULTS.playerAuras,
                      ns.DEFAULTS.personal.auras }) do
