@@ -1,4 +1,4 @@
--- Enemy pets and totems (the game's "minions") as a round badge instead of a bar:
+-- Enemy pets and totems (the game's "minions"), and friendly totems, as a round badge instead of a bar:
 -- the unit's portrait in a ring colored by the totem's element. With minionStyle
 -- "bar", a slim bar in that color with the portrait beside it and the name above.
 -- In battlegrounds the game hides a minion's name and type, so there every minion
@@ -63,9 +63,17 @@ function Minion.Element(unit)
 end
 
 -- Whether a plate is an enemy minion while the switch is on: "badge", "bar"
--- (slim bar) or false.
+-- (slim bar) or false. A friendly totem is a badge too (friendly.totems): a row
+-- of long totem names over a group is mostly noise. Friendly pets keep their name.
 function Minion.Is(p, c)
-    if c.minions == false or p.friendly or p.object or not p.unit then return false end
+    if p.object or not p.unit then return false end
+    if p.friendly then
+        local f = ns.cfg.friendly
+        if type(f) == "table" and f.totems == false then return false end
+        if plain(UnitIsMinion, p.unit) ~= true or not Minion.Element(p.unit) then return false end
+        return "badge"
+    end
+    if c.minions == false then return false end
     if plain(UnitIsMinion, p.unit) ~= true then return false end
     return c.minionStyle == "bar" and "bar" or "badge"
 end

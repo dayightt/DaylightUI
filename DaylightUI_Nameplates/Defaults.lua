@@ -135,6 +135,7 @@ ns.DEFAULTS = {
     friendly = {
         enabled = false, height = 4, width = 170,
         hideInInstance = false, -- turn off the game's friendly plates in dungeons, raids and battlegrounds (Manager.ApplyInstanceFriends)
+        totems = true, -- friendly totems as a round badge in their element's color instead of their name
         percent = false, healthFormat = "percent", healthSize = 0,
         level = false,
         power = false, -- power bar under friendly health bars (who: shared powerShow)

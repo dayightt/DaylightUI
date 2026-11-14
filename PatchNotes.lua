@@ -29,6 +29,7 @@ DUI.PatchNotes = {
             { "Party and raid frames", "Buff and debuff icons can have bigger or smaller time and stack numbers, or no stack numbers: the Debuffs, Crowd control and Buffs cards" },
             { "Party frames", "See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets" },
             { "Nameplates", "An enemy's Divine Shield, Ice Block and other big defensives show as a large icon beside their nameplate: Nameplates > Auras" },
+            { "Nameplates", "Friendly totems show as a small round badge in their element's color instead of their long name" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },

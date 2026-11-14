@@ -3198,6 +3198,28 @@ T.test("nameplates: an enemy totem is a round badge in its element's color, and 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: a friendly totem is a badge instead of its name, a friendly pet keeps its name", function()
+    login(function()
+        stub.spells = { [5394] = { name = "Healing Stream Totem" } }
+    end)
+    stub.units.nameplate3 = { name = "Healing Stream Totem III", minion = true, reaction = 5, health = 5, maxHealth = 5 }
+    stub.units.nameplate4 = { name = "Wolf", minion = true, reaction = 5, health = 50, maxHealth = 50 }
+    local NP = stub.nameplates
+    local p = added("nameplate3")
+    T.truthy(p.friendly, "friendly")
+    T.truthy(p.badge:IsShown(), "a badge")
+    T.falsy(p.name:IsShown(), "no long name")
+    T.rgb(p.badge.ring.__vertex, NP.Minion.COLORS.water, "ringed in its element's color")
+    local pet = added("nameplate4")
+    T.falsy(pet.badge:IsShown(), "a pet isn't a totem")
+    T.truthy(pet.name:IsShown(), "it keeps its name")
+    DaylightUI:Set("Nameplates", "friendly.totems", false)
+    stub.RunTimers()
+    T.falsy(p.badge:IsShown(), "switched off")
+    T.truthy(p.name:IsShown(), "the name again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: friendly plates off in instances hands the player's own switches back on the way out", function()
     local cvars = { nameplateShowFriendlyPlayers = "1", nameplateShowFriendlyNpcs = "0" }
     login(function()

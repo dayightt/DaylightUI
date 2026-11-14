@@ -543,6 +543,10 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "friendly.hideInInstance", label = "Hide friendly plates in instances",
               desc = "No plates over friendly players and NPCs in dungeons, raids, battlegrounds and arenas. They come back as you leave." },
         }) },
+        { label = "Totems", items = {
+            { type = "toggle", key = "friendly.totems", label = "Totems as badges",
+              desc = "A friendly totem shows as a small round badge with its picture, ringed in its element's color, instead of its long name." },
+        } },
         { label = "Health bar", items = {
             { type = "toggle", key = "friendly.enabled", label = "Health bar",
               desc = "A thin bar under the name." },
