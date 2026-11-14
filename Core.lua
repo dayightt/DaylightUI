@@ -253,7 +253,7 @@ end
 -- as is (tostring on one may error). The stack itself may come back secret
 -- once a secret was touched, and is dropped then so the report stays plain
 -- and each error keeps its own count.
-local function isSecretValue(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local function isSecretValue(v) return DUI.IsSecret(v) end
 local function withStack(err)
     if isSecretValue(err) then return err end
     if type(debugstack) == "function" then
@@ -355,12 +355,14 @@ end
 
 -- last: run after every other handler of the event, whenever those were
 -- registered (the logout strip, so the others still see full settings).
+-- Returns false for an event this client doesn't have, instead of erroring,
+-- so callers can list events from other game versions without guarding each.
 function DUI.RegisterEvent(event, fn, last)
     local list = eventHandlers[event]
     if not list then
+        if not pcall(eventFrame.RegisterEvent, eventFrame, event) then return false end
         list = {}
         eventHandlers[event] = list
-        eventFrame:RegisterEvent(event)
     end
     if last then
         local tail = lastHandlers[event] or {}
@@ -368,6 +370,28 @@ function DUI.RegisterEvent(event, fn, last)
         tail[#tail + 1] = fn
     else
         list[#list + 1] = fn
+    end
+    return true
+end
+
+-- Whether v is a secret value. Every file that handles game values reads it
+-- through here, so there's one place to change if the client's rules move.
+function DUI.IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v) == true
+end
+
+-- Wraps fn so that however many times the result is called in one frame, fn
+-- runs once, on the next frame. For handlers that react to bursts of events.
+function DUI.Soon(fn)
+    local armed = false
+    local function run()
+        armed = false
+        fn()
+    end
+    return function()
+        if armed then return end
+        armed = true
+        C_Timer.After(0, run)
     end
 end
 

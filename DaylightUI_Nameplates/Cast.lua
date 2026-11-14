@@ -32,7 +32,7 @@ local function castColor()
     return c.castColor or Style.CAST.normal
 end
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- A piece claimed by a plugin (DaylightUI.API's Paint, kind "platecast": the
 -- same pieces as the unit frames' "castbar") is left to it.

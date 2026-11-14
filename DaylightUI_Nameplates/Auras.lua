@@ -32,7 +32,7 @@ Auras.DISPEL_COLORS = {
 }
 
 -- Dispel type color: the unit frames' Colors page pick (colors.dispelMagic...)
--- when that module is on, else ours (like the buffs' BL.DispelColor). Read when a
+-- when that module is on, else Daylight UI's own (like the buffs' BL.DispelColor). Read when a
 -- button is made, so edges already on screen pick up a change after /reload, as
 -- on the unit frames.
 function Auras.DispelColor(key)
@@ -84,8 +84,8 @@ local function iconCoords(w, h)
 end
 
 -- The edge takes the aura's dispel type color, chosen by the client since the type
--- can be secret: our colors via the enum style and color objects, or the client's
--- own if ours are refused.
+-- can be secret. Daylight UI's colors go in through the enum style and color
+-- objects, or the client's own are used if those are refused.
 local function dispelEdge(btn, edge, helpful)
     Style.DispelEdge(btn, edge, function(key) return Auras.DispelColor(key) or Auras.NO_DISPEL end,
         { helpful = helpful })

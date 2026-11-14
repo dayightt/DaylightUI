@@ -1,4 +1,4 @@
--- A nameplate in the Daylight UI look: our bar (border, angled right end, soft
+-- A nameplate in the Daylight UI look: a bar (border, angled right end, soft
 -- colors) with the health percent on it, the name under it, a gold mark on quest
 -- targets and the raid marker beside it, the cast bar under the name, and auras
 -- above (Auras.lua). Your target's plate gets the accent on its border; the one
@@ -35,7 +35,7 @@ Plate.SLANT = 0.6 -- angled end cut, as a fraction of bar height
 Plate.NAME_GAP = 2 -- gap between the bar and the name
 Plate.HOVER = 0.15 -- mouseover brighten
 Plate.MARKER = 16
--- A cell of our 4 x 2 raid marker sheet; SetSpriteSheetCell accepts a secret index.
+-- A cell of the 4 x 2 raid marker sheet; SetSpriteSheetCell accepts a secret index.
 Plate.MARKER_SHEET = DUI.MEDIA .. "markers.png"
 Plate.MARKER_ROWS, Plate.MARKER_COLS = 2, 4
 Plate.QUEST_COLOR = { 1, 0.82, 0.1 }
@@ -107,7 +107,7 @@ Plate.EXECUTE_LINE = 0.85 -- the line at its edge (executeLineSize px)
 -- pulse's slow speed).
 Plate.EXECUTE_PULSE = { low = 0.35, time = 0.7 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 local NONE, WHITE = {}, { 1, 1, 1 } -- never written
 
 -- A call's plain first return, or nil (on an error or a secret result).
@@ -130,8 +130,8 @@ end
 
 -- Corpses: a lootable mob keeps its plate (the engine leaves it for the loot
 -- sparkle and interact icon), and the game's plate then only shows its widgets
--- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). Ours shows nothing
--- there; the game's widgets and soft-target icon stay visible over its hidden
+-- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). The Daylight UI
+-- plate shows nothing there; the game's widgets and soft-target icon stay visible over its hidden
 -- frame (Manager.Silence). Dead players keep theirs.
 function Plate.IsCorpse(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
@@ -262,7 +262,7 @@ end
 -- Building
 -- ---------------------------------------------------------------------
 
--- Built away from the game's plates (under our own parent), then moved onto one
+-- Built away from the game's plates (under the manager's own parent), then moved onto one
 -- when needed (Plate.Attach): a frame created as a child of a game plate in combat
 -- comes out forbidden to addons.
 -- sample: the options preview (Sample.lua). It never has a unit, so no client aura
@@ -270,8 +270,8 @@ end
 function Plate.Create(parent, sample)
     local p = CreateFrame("Frame", nil, parent)
     p.isSample = sample == true
-    -- The game scales each plate its own way (simplified ones way down). Ours is the
-    -- UI scale times our Scale setting (Plate.ApplyScale).
+    -- The game scales each plate its own way (simplified ones way down). This one
+    -- is the UI scale times the Scale setting (Plate.ApplyScale).
     if p.SetIgnoreParentScale and not p.isSample then p:SetIgnoreParentScale(true) end
     p:SetSize(1, 1)
 
@@ -384,7 +384,7 @@ function Plate.Create(parent, sample)
     local q = Plate.QUEST_COLOR
     p.quest:SetTextColor(q[1], q[2], q[3])
     p.quest:Hide()
-    -- Quest mark using our objective symbols (questIcon): the symbol on a frame just
+    -- Quest mark using the quest tracker's objective symbols (questIcon): the symbol on a frame just
     -- over the text, which holds the mark's place with the symbol's dark edge drawn
     -- inline (Plate.UpdateQuest).
     p.questArt = CreateFrame("Frame", nil, over)
@@ -421,9 +421,9 @@ function Plate.Create(parent, sample)
 
     -- The frame the game uses to keep plates from overlapping. Where a plate is
     -- clicked stays the game's (the plate size from Manager.ApplySize, with click
-    -- insets past the edges from Manager.ApplyClickable) and is never set by us, the
-    -- same as EllesmereUI. Plates went invisible while ours pointed the game's at our
-    -- own frames.
+    -- insets past the edges from Manager.ApplyClickable) and is never set here, the
+    -- same as EllesmereUI. Plates went invisible when the game's was pointed at
+    -- addon frames.
     p.stack = CreateFrame("Frame", nil, p)
     -- The game measures a stacking frame by what's drawn in it, not its size: an empty
     -- one counts as nothing and plates don't stack. So it carries an invisible fill
@@ -603,13 +603,12 @@ end
 
 -- A plate's scale: the UI scale times the Scale setting, times its size group's
 -- zoom (Target: on your target, Others: on the rest while you have a target), set
--- in one step. Ours ignores the game plate's own scale: the game shrinks
+-- in one step. It ignores the game plate's own scale. The game shrinks
 -- "simplified" plates (minions, totems, minor mobs, friendlies:
 -- nameplateSimplifiedScale, 0.3) and the target's (nameplateSelectedScale), and
--- Manager.ApplyScales pins its scales to 1 so its frames never resize under ours.
--- No glide: SetScale re-lays out the whole plate, and the old glide (up to 60 a
--- second, through intermediate sizes) was the biggest cost of a target switch and
--- slowed the game over a session. The stacking box keeps its own fixed size (Layout).
+-- Manager.ApplyScales pins its scales to 1 so its frames never resize underneath.
+-- No glide: SetScale re-lays out the whole plate, and gliding through the sizes
+-- (up to 60 a second) made target switches costly and slowed the game over time. The stacking box keeps its own fixed size (Layout).
 local function setScale(p, v)
     if p.scaleSet == v then return end
     p.scaleSet = v
@@ -659,10 +658,10 @@ function Plate.ApplyScale(p)
     setScale(p, UIParent:GetEffectiveScale() * (c.scale or 1) * zoom)
 end
 
--- Attaches to the game's plate, our bar centered on it. The game's plate is sized
--- to our bar (Manager.ApplySize) and sits on the unit, so the bar sits just over
+-- Attaches to the game's plate, the bar centered on it. The game's plate is sized
+-- to the bar (Manager.ApplySize) and sits on the unit, so the bar sits just over
 -- the unit and the game's damage numbers (drawn under all UI) rise above it. The
--- game's own taller plate put its center, and our bar, up where they start. The
+-- game's own taller plate put its center, and the bar, up where they start. The
 -- Height setting offsets it from there.
 function Plate.Anchor(p)
     local nameplate = p.nameplate
@@ -679,7 +678,7 @@ end
 
 -- The frame the game uses to keep this plate apart from others (p.stack), hung
 -- like EllesmereUI's: directly on the game's plate and pinned to it, never through
--- our frames, so nothing on one game plate depends on a frame that moves on to
+-- addon frames, so nothing on one game plate depends on a frame that moves on to
 -- another (that made plates go invisible). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
 function Plate.PlaceStack(p)
@@ -691,7 +690,7 @@ function Plate.PlaceStack(p)
     s:Show()
 end
 
--- Off the game's plate: our stacking frame is hidden, unpinned and taken back, as
+-- Off the game's plate, the stacking frame is hidden, unpinned and taken back, as
 -- EllesmereUI clears its own. The game plate is never pointed at itself (the game
 -- never sets its stacking frame on its own).
 function Plate.Detach(p)
@@ -822,10 +821,10 @@ function Plate.Layout(p)
     -- Either line can show up on this plate later, so reserve room for the larger.
     local subRoom = math.max(c.guild and Plate.SubSize(c) or 0, c.role and Plate.SubSize(c, true) or 0)
     if subRoom > 0 then subRoom = subRoom + 1 end
-    -- The stacking box uses the plate's normal size, never the target zoom: its own
-    -- scale (it ignores the plate's), its own size, one anchor. Pinned to the bar's
-    -- corners it shrank and grew with every plate on a target switch, and the game
-    -- restacked them all, sliding plates for seconds and costing ~50 fps in a crowd.
+    -- The stacking box keeps the plate's normal size, never the target zoom, with
+    -- its own scale and size and one anchor. Pinned to the bar's corners it would
+    -- resize with every plate on a target switch, and the game would restack them
+    -- all, sliding plates around for seconds in a crowd.
     local nameBlock = nameSize + subRoom + Plate.NAME_GAP
     local top, bottom = (over and nameBlock or 0) + 4, c.castHeight + 4 + powerRoom + (under and nameBlock or 0)
     p.stack:SetIgnoreParentScale(true)
