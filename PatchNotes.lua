@@ -39,6 +39,7 @@ DUI.PatchNotes = {
             { "Unit frames", "Buffs sit on the left and debuffs on the right on every frame: the target's buffs moved up beside its debuffs. Spots you picked yourself stay" },
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
             { "Guild", "The guild and communities window is in the Daylight UI look. Thanks to Ángel" },
+            { "Quest tracker", "The quest under your mouse gets a soft background, like a row in the quest log, so it's clearer which one you're on" },
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {

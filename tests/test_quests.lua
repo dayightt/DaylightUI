@@ -1754,6 +1754,21 @@ T.test("quests clicks: moving from one quest to the next dims every other quest"
     T.eq(c.dim, 1, "off the list: all lit")
 end)
 
+T.test("quests clicks: a hovered quest wears the list row wash, eased in and out", function()
+    local Tr = tracker({ quests = { STEW, QW.quest(2, "A Fishy Peril") } })
+    local a, b = Tr.frames["quest:1"], Tr.frames["quest:2"]
+    local function settle() for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 60) end end
+    T.falsy(a.hi:IsShown(), "nothing at rest")
+    a:GetScript("OnEnter")(a)
+    settle()
+    T.truthy(a.hi:IsShown(), "the hovered quest's wash")
+    T.near(a.hi:GetAlpha(), DaylightUI.Win.Parts.HI[4], 0.001, "the shared row wash's strength")
+    T.falsy(b.hi:IsShown(), "only that one")
+    a:GetScript("OnLeave")(a)
+    settle()
+    T.falsy(a.hi:IsShown(), "gone with the mouse")
+end)
+
 T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but still lights", function()
     local Tr = tracker({ quests = { STEW } })
     local f = Tr.frames["quest:1"]
