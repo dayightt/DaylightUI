@@ -72,6 +72,25 @@ end
 local CLUB_KEEP = { "Icon", "GuildTabardBackground", "GuildTabardEmblem", "GuildTabardBorder",
                     "InvitationIcon", "UnreadNotificationIcon", "FavoriteIcon" }
 local clubHooked = setmetatable({}, { __mode = "k" })
+-- The "join or create" entry is a card too, painted green by the game after
+-- the row is dressed. These are the only icons it uses for that entry.
+local ADD_ICON = { ["communities-icon-addgroupplus"] = true, ["communities-icon-searchmagnifyingglass"] = true }
+
+local function calmEntry(card)
+    if type(card) ~= "table" then return end
+    local Kit = ns.Kit
+    local icon = card.Icon
+    if Kit.Kind(icon) == "Texture" and icon.GetAtlas and ADD_ICON[icon:GetAtlas()] then
+        if icon.SetDesaturated then icon:SetDesaturated(true) end
+        local c = DUI.Style.INK.TEXT
+        icon:SetVertexColor(c[1], c[2], c[3])
+    end
+    if Kit.Kind(card.Name) == "FontString" then
+        Kit.Font(card.Name, DUI.Style.SIZE.body)
+        Kit.Light(card.Name, DUI.Style.INK.TEXT)
+    end
+    if Kit.Kind(card.Background) == "Texture" then card.Background:SetAlpha(0) end
+end
 
 local function clubCard(card)
     if type(card) ~= "table" or not card.CreateTexture or type(card.Selection) ~= "table" then return end
@@ -83,6 +102,9 @@ local function clubCard(card)
     Kit.Row(card, keep, card.Selection, false)
     Kit.Hide(card.IconRing)
     Kit.Erase(card.NewCommunityFlash)
+    calmEntry(card)
+    -- The game paints the add entry after the row is dressed. Kit.EachRow runs
+    -- this again next frame, after the list's update, so it comes out calm.
     -- The game selects the card after the click, so repaint then.
     if not clubHooked[card] then
         clubHooked[card] = true
@@ -118,6 +140,350 @@ local function iconRow(row)
     Kit.Strip(row.DisabledBorder)
 end
 
+-- Header icon, same place as Win.Header's portrait. The list used to start
+-- under the old title (y -23); it moves down so the icon isn't on the first card.
+-- Frames hung off the list's top keep the spot they had.
+local CLUB_ICON = DUI.Win.PORTRAIT
+local CLUB_ICON_Y = -8
+local LIST_TOP = CLUB_ICON_Y - CLUB_ICON - 6
+local LIST_WAS = -23
+local listHeld = setmetatable({}, { __mode = "k" })
+local watched = setmetatable({}, { __mode = "k" })
+local tipped = setmetatable({}, { __mode = "k" })
+local refit = setmetatable({}, { __mode = "k" })
+local finderHooked = setmetatable({}, { __mode = "k" })
+local subs = setmetatable({}, { __mode = "k" })
+local listWide = setmetatable({}, { __mode = "k" })
+local joinBtns = setmetatable({}, { __mode = "k" })
+local followed = setmetatable({}, { __mode = "k" })
+local placeSubtitle
+
+local rims = setmetatable({}, { __mode = "k" })
+
+local function cropClubIcon(tex)
+    if type(tex) ~= "table" or not tex.SetTexCoord then return end
+    -- KeepCrop holds the crop when the game sets the texture again.
+    ns.Kit.KeepCrop(tex, DUI.Style.ICON_CROP[1])
+end
+
+-- The spells window's portrait: the icon cropped out of its square border,
+-- circled, and ringed with the same rim.
+local function rimClubIcon(overlay, portrait)
+    local rim = rims[overlay]
+    if not rim and overlay.CreateTexture then
+        rim = overlay:CreateTexture(nil, "OVERLAY")
+        rim:SetTexture(DUI.MEDIA .. "portrait-rim.png")
+        rims[overlay] = rim
+    end
+    if not rim then return end
+    rim:ClearAllPoints()
+    rim:SetPoint("TOPLEFT", portrait, "TOPLEFT", -3, 3)
+    rim:SetPoint("BOTTOMRIGHT", portrait, "BOTTOMRIGHT", 3, -3)
+    local band = DUI.Style.BAND
+    rim:SetVertexColor(band[1], band[2], band[3], 1)
+end
+
+local function placeClubIcon(frame)
+    local overlay = frame.PortraitOverlay
+    local portrait = type(overlay) == "table" and overlay.Portrait
+    if type(overlay) == "table" then
+        overlay:Show()
+        if type(portrait) == "table" then
+            portrait:ClearAllPoints()
+            portrait:SetSize(CLUB_ICON, CLUB_ICON)
+            portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", DUI.Win.EDGE, CLUB_ICON_Y)
+            cropClubIcon(portrait)
+            local mask = overlay.CircleMask
+            if type(mask) == "table" and mask.SetAllPoints then
+                mask:ClearAllPoints()
+                mask:SetAllPoints(portrait)
+            end
+            rimClubIcon(overlay, portrait)
+        end
+        for _, key in ipairs({ "TabardBackground", "TabardEmblem", "TabardBorder" }) do
+            local tex = overlay[key]
+            if type(tex) == "table" and tex.ClearAllPoints then
+                tex:ClearAllPoints()
+                tex:SetSize(CLUB_ICON, CLUB_ICON)
+                tex:SetPoint("CENTER", type(portrait) == "table" and portrait or frame, "CENTER")
+            end
+        end
+    end
+    local title = type(frame.TitleContainer) == "table" and frame.TitleContainer.TitleText
+    if type(title) == "table" and title.SetPoint then
+        title:SetPoint("TOPLEFT", frame, "TOPLEFT", DUI.Win.EDGE + CLUB_ICON + 12, DUI.Win.TITLE_Y)
+        placeSubtitle(frame, title)
+    end
+    local list = frame.CommunitiesList
+    if type(list) ~= "table" or not list.SetPoint then return end
+    local x = -1
+    local point, _, _, px = list:GetPoint(1)
+    if point == "TOPLEFT" and type(px) == "number" then x = px end
+    list:SetPoint("TOPLEFT", frame, "TOPLEFT", x, LIST_TOP)
+    local shift = LIST_TOP - LIST_WAS
+    for _, key in ipairs({ "GuildFinderFrame", "CommunityFinderFrame", "ApplicantList", "Chat",
+                           "InvitationFrame", "ClubFinderInvitationFrame" }) do
+        local child = frame[key]
+        if type(child) == "table" and child.GetNumPoints then
+            for i = 1, child:GetNumPoints() do
+                local p, rel, rp, cx, cy = child:GetPoint(i)
+                if rel == list and p == "TOPLEFT" and type(cy) == "number" then
+                    if listHeld[child] == nil then listHeld[child] = cy end
+                    child:SetPoint(p, rel, rp, cx, listHeld[child] - shift)
+                end
+            end
+        end
+    end
+end
+
+-- The spellbook's second line. Here it is the community on screen, else the
+-- guild, else the game's own "not in a guild".
+local function clubLine(frame)
+    local id
+    if type(frame.GetSelectedClubId) == "function" then
+        local ok, v = pcall(frame.GetSelectedClubId, frame)
+        if ok then id = v end
+    end
+    if id and type(C_Club) == "table" and type(C_Club.GetClubInfo) == "function" then
+        local ok, info = pcall(C_Club.GetClubInfo, id)
+        if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+            return info.name
+        end
+    end
+    if type(IsInGuild) == "function" and IsInGuild() and type(GetGuildInfo) == "function" then
+        local ok, name = pcall(GetGuildInfo, "player")
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    local none = _G.ERR_GUILD_PLAYER_NOT_IN_GUILD
+    if type(none) == "string" and none ~= "" then return none end
+end
+
+function placeSubtitle(frame, title)
+    local Kit = ns.Kit
+    if not Kit or type(frame.CreateFontString) ~= "function" then return end
+    local sub = subs[frame]
+    if not sub then
+        sub = frame:CreateFontString(nil, "OVERLAY")
+        subs[frame] = sub
+    end
+    Kit.Font(sub, DUI.Style.SIZE.small)
+    Kit.Light(sub, DUI.Style.INK.LABEL)
+    sub:ClearAllPoints()
+    sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
+    local close = frame.CloseButton
+    if type(close) == "table" then
+        sub:SetPoint("RIGHT", close, "LEFT", -12, 0)
+    else
+        sub:SetPoint("RIGHT", frame, "RIGHT", -80, 0)
+    end
+    sub:SetJustifyH("LEFT")
+    if sub.SetWordWrap then sub:SetWordWrap(false) end
+    local line = clubLine(frame)
+    if type(line) == "string" then sub:SetText(line); if sub.Show then sub:Show() end
+    elseif sub.Hide then sub:Hide() end
+end
+
+-- The down chevron is minimize. On the finder page the game disables it,
+-- because there is no chat view to shrink to, and a bare chevron still looks
+-- clickable. Dim it while it is off.
+local function paintChevron(btn, c)
+    if type(c) ~= "table" or not c.SetVertexColor then return end
+    local on = type(btn.IsEnabled) ~= "function" or btn:IsEnabled()
+    local ink = on and DUI.Style.INK.LABEL or DUI.Style.INK.OFF
+    c:SetVertexColor(ink[1], ink[2], ink[3], on and 1 or 0.45)
+end
+
+local function watchChevron(btn, c)
+    if type(btn) ~= "table" or not btn.HookScript or watched[btn] then return end
+    watched[btn] = true
+    local function paint() paintChevron(btn, c) end
+    btn:HookScript("OnEnable", paint)
+    btn:HookScript("OnDisable", paint)
+    btn:HookScript("OnShow", paint)
+    btn:HookScript("OnEnter", paint)
+    btn:HookScript("OnLeave", paint)
+    paint()
+end
+
+local function levelHeaderButtons(frame, mm)
+    local close = frame.CloseButton
+    if type(close) ~= "table" or not mm.SetPoint then return end
+    -- Same spot and size as the spells window's close, not the game's corner button.
+    local size = DUI.Widgets and DUI.Widgets.CLOSE or 24
+    close:SetSize(size, size)
+    close:ClearAllPoints()
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", DUI.Win.CLOSE_X, DUI.Win.CloseY(false))
+    mm:ClearAllPoints()
+    mm:SetSize(size, size)
+    mm:SetPoint("RIGHT", close, "LEFT", -DUI.Win.HEADER_ICON_GAP, 0)
+    for _, key in ipairs({ "MinimizeButton", "MaximizeButton" }) do
+        local btn = mm[key]
+        if type(btn) == "table" and btn.SetAllPoints then
+            btn:ClearAllPoints()
+            btn:SetAllPoints(mm)
+            if not refit[btn] and btn.HookScript then
+                refit[btn] = true
+                btn:HookScript("OnClick", function() placeClubIcon(frame) end)
+            end
+        end
+    end
+end
+
+local function tipButton(btn, text)
+    if type(btn) ~= "table" or type(text) ~= "string" or text == "" or tipped[btn] or not btn.HookScript then return end
+    if not DUI.Tips then return end
+    tipped[btn] = true
+    btn:HookScript("OnEnter", function(self)
+        if self.IsEnabled and not self:IsEnabled() then return end
+        local tip = _G.GameTooltip
+        if type(tip) ~= "table" or not tip.SetOwner then return end
+        DUI.Tips.Clear()
+        DUI.Tips.Title(text)
+        DUI.Tips.Flush(tip)
+    end)
+    btn:HookScript("OnLeave", function()
+        DUI.Tips.Clear()
+        local tip = _G.GameTooltip
+        if type(tip) == "table" and tip.Hide then tip:Hide() end
+    end)
+end
+
+local function lightFinderText(Kit, disabled)
+    if type(disabled) ~= "table" then return end
+    Kit.Font(disabled.Title, DUI.Style.SIZE.title)
+    Kit.Light(disabled.Title, DUI.Style.INK.TITLE)
+    Kit.Font(disabled.Description, DUI.Style.SIZE.body)
+    Kit.Light(disabled.Description, DUI.Style.INK.TEXT)
+end
+
+-- No clubs yet: the join row is the only thing in the left column, and its
+-- label wraps into three short lines. The column closes and the action sits
+-- under the guild text, as one button.
+local function loneJoin(list)
+    local box = type(list) == "table" and list.ScrollBox
+    local provider = type(box) == "table" and box.GetDataProvider and box:GetDataProvider()
+    if type(provider) == "table" and type(provider.GetSize) == "function" then
+        local ok, n = pcall(provider.GetSize, provider)
+        if ok and type(n) == "number" then return n <= 1 end
+    end
+    if type(C_Club) ~= "table" or type(C_Club.GetSubscribedClubs) ~= "function" then return false end
+    local ok, clubs = pcall(C_Club.GetSubscribedClubs)
+    if not ok or type(clubs) ~= "table" or #clubs > 0 then return false end
+    if type(IsInGuild) == "function" and IsInGuild() then return false end
+    return true
+end
+
+local function setListColumn(list, open)
+    for i = 1, list.GetNumPoints and list:GetNumPoints() or 0 do
+        local p, rel, rp, x, y = list:GetPoint(i)
+        if p == "BOTTOMRIGHT" and type(x) == "number" then
+            if listWide[list] == nil then listWide[list] = x end
+            list:SetPoint(p, rel, rp, open and listWide[list] or 0, y)
+        end
+    end
+    -- Hiding the column also drops the vertical rule that split it from the text.
+    if list.Show and list.Hide then
+        if open then list:Show() else list:Hide() end
+    end
+    if type(list.ScrollBox) == "table" and list.ScrollBox.SetAlpha then
+        list.ScrollBox:SetAlpha(open and 1 or 0)
+    end
+end
+
+local function placeJoin(frame)
+    local list = type(frame) == "table" and frame.CommunitiesList
+    if type(list) ~= "table" then return end
+    local empty = loneJoin(list)
+    setListColumn(list, not empty)
+    local finder = frame.GuildFinderFrame
+    local disabled = type(finder) == "table" and finder.DisabledFrame
+    if type(disabled) ~= "table" or not DUI.Widgets then return end
+    local label = _G.COMMUNITIES_JOIN_COMMUNITY
+    if type(label) ~= "string" or label == "" then label = _G.COMMUNITIES_ADD_DIALOG_LABEL end
+    if type(label) ~= "string" then label = "" end
+    local b = joinBtns[frame]
+    if not b and label ~= "" then
+        -- The description font string is far taller than the window, so a button
+        -- hung on its bottom lands outside the frame. Pin it to the window's
+        -- own bottom edge instead, still drawn with the empty-state page.
+        b = DUI.Widgets.Button(disabled, label, 26)
+        local wide = b.text and b.text.GetStringWidth and b.text:GetStringWidth()
+        b:SetWidth(type(wide) == "number" and wide > 40 and math.ceil(wide) + 36 or 280)
+        b:SetPoint("BOTTOM", frame, "BOTTOM", 0, 22)
+        b:SetScript("OnClick", function()
+            if type(AddCommunitiesFlow_Toggle) == "function" then AddCommunitiesFlow_Toggle() end
+        end)
+        joinBtns[frame] = b
+    end
+    if not b then return end
+    local show = empty and (not disabled.IsShown or disabled:IsShown())
+    if b.__duiJoin == show then return end
+    b.__duiJoin = show
+    local Motion = DUI.Motion
+    if show then
+        b:Show()
+        if Motion and Motion.Fade then Motion.Fade(b, 0, 1, Motion.FAST) else b:SetAlpha(1) end
+    elseif Motion and Motion.Fade and b.CreateAnimationGroup then
+        local g = Motion.Fade(b, b:GetAlpha() or 1, 0, Motion.FAST)
+        if type(g) == "table" and g.SetScript then
+            g:SetScript("OnFinished", function()
+                if (b:GetAlpha() or 1) < 0.05 then b:Hide(); b:SetAlpha(1) end
+            end)
+        else
+            b:Hide()
+            b:SetAlpha(1)
+        end
+    else
+        b:Hide()
+    end
+end
+
+local function dressFinder(Kit, finder)
+    if type(finder) ~= "table" then return end
+    local disabled = finder.DisabledFrame
+    if type(disabled) == "table" then
+        -- The dragon illustration and the inset edge around it.
+        Kit.Strip(disabled)
+        Kit.Hide(disabled.NineSlice)
+        lightFinderText(Kit, disabled)
+        if not finderHooked[disabled] and disabled.HookScript then
+            finderHooked[disabled] = true
+            disabled:HookScript("OnShow", function() lightFinderText(Kit, disabled) end)
+        end
+    end
+    local inset = finder.InsetFrame
+    if type(inset) == "table" then
+        Kit.Strip(inset)
+        Kit.Hide(inset.NineSlice)
+        Kit.Light(inset.GuildDescription, DUI.Style.INK.TEXT)
+        Kit.Light(inset.ErrorDescription, DUI.Style.INK.TEXT)
+    end
+end
+
+-- Run fn after one of the window's own callbacks. CommunitiesFrame is a
+-- callback registry (ClubSelected, DisplayModeChanged); the game calls those
+-- inside its own functions, so ours waits for the next frame, once however
+-- many fire. No method of the window is hooked.
+local frameOwner = {}
+local function onFrame(frame, names, fn)
+    if followed[frame] then return end
+    if type(frame) ~= "table" or type(frame.RegisterCallback) ~= "function" or type(frame.Event) ~= "table" then return end
+    followed[frame] = true
+    local pending = false
+    local function soon()
+        if pending or not (C_Timer and C_Timer.After) then return end
+        pending = true
+        C_Timer.After(0, function()
+            pending = false
+            DUI.SafeCall(fn, frame)
+        end)
+    end
+    for _, name in ipairs(names) do
+        local event = frame.Event[name]
+        if event then pcall(frame.RegisterCallback, frame, event, soon, frameOwner) end
+    end
+end
+
 Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communities", frame = "CommunitiesFrame", watch = true,
     auto = { lines = true, skip = { ".MaximizeMinimizeFrame" } },
     after = function(Kit, f)
@@ -127,31 +493,41 @@ Engine.Window({ key = "communities", pack = "social", addon = "Blizzard_Communit
         for _, key in ipairs({ "ChatTab", "RosterTab", "GuildBenefitsTab", "GuildInfoTab", "GuildPreferredPlaySettingsTab" }) do
             Kit.SideTab(f[key], nil, Kit.SIDE_TAB_CROP, true)
         end
-        -- The round portrait (club avatar or guild tabard) is on its own frame,
-        -- PortraitOverlay, so the window strip misses it. It has to go like
-        -- every portrait or the left-aligned title runs over it. Erased, not
-        -- faded: for a guild with no tabard the game repaints the "no logo"
-        -- emblem with SetVertexColor(1, 1, 1, 1) on each UpdatePortrait, and a
-        -- texture's vertex alpha is its alpha.
-        local overlay = f.PortraitOverlay
-        if type(overlay) == "table" then
-            for _, key in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
-                Kit.Erase(overlay[key])
-            end
-        end
-        -- Maximize/minimize as bare chevrons next to the X, like the world map.
-        -- The walk's boxed button stuck up over the window's top edge.
+        -- The club icon sits in the header, the same slot as our own windows'
+        -- portrait. The game hides it while the window is small and hangs the
+        -- big one off the top-left corner when it's large; either way it comes
+        -- back here, left of the title. A guild with no tabard repaints that
+        -- emblem with SetVertexColor(1, 1, 1, 1), which is fine once it isn't
+        -- behind the title.
+        placeClubIcon(f)
+        -- Maximize/minimize as bare chevrons, level with the X. The button
+        -- grows or shrinks the window; the game never says so.
         local mm = f.MaximizeMinimizeFrame
         if type(mm) == "table" then
-            Kit.BareButton(mm.MinimizeButton, "down")
-            Kit.BareButton(mm.MaximizeButton, "up")
+            watchChevron(mm.MinimizeButton, Kit.BareButton(mm.MinimizeButton, "down"))
+            watchChevron(mm.MaximizeButton, Kit.BareButton(mm.MaximizeButton, "up"))
+            levelHeaderButtons(f, mm)
+            tipButton(mm.MaximizeButton, _G.MAXIMIZE)
+            tipButton(mm.MinimizeButton, _G.MINIMIZE)
         end
+        -- The icon goes back to the header when the club or the display mode
+        -- changes: the window's own callbacks, not a hook on its methods.
+        onFrame(f, { "ClubSelected", "DisplayModeChanged" }, placeClubIcon)
+        dressFinder(Kit, f.GuildFinderFrame)
+        dressFinder(Kit, f.CommunityFinderFrame)
+        placeJoin(f)
         local list = f.CommunitiesList
         if type(list) == "table" then
             Kit.Strip(list)
             Kit.Strip(list.FilligreeOverlay)
             Kit.Inset(list.InsetFrame)
+            -- The inset sits over the cards as a border. Its shade is drawn
+            -- under them; the frame itself is only that border, so it goes.
+            if type(list.InsetFrame) == "table" and list.InsetFrame.SetAlpha then list.InsetFrame:SetAlpha(0) end
             Kit.EachRow(list.ScrollBox, clubCard, "clubcard")
+            -- The empty column and the join button follow the club list: Kit.EachRow
+            -- runs this after every update, next frame, with no hook on the list.
+            Kit.EachRow(list.ScrollBox, function() placeJoin(f) end, "join")
         end
         local members = f.MemberList
         if type(members) == "table" then

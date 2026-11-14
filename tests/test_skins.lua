@@ -57,6 +57,19 @@ local function rows(...)
     return list
 end
 
+-- A frame that is a callback registry, as CommunitiesFrame is (CallbackRegistryMixin).
+local function registry(frame, names)
+    frame.Event, frame.callbacks = {}, {}
+    for _, name in ipairs(names) do frame.Event[name] = name end
+    function frame:RegisterCallback(event, fn, owner)
+        self.callbacks[event] = self.callbacks[event] or {}
+        self.callbacks[event][owner] = fn
+    end
+    function frame:TriggerEvent(event, ...)
+        for owner, fn in pairs(self.callbacks[event] or {}) do fn(owner, ...) end
+    end
+end
+
 local function world()
     -- The game's item button border functions (ItemButtonTemplate.lua,
     -- SetItemButtonBorder_Base / SetItemButtonBorderVertexColor_Base).
@@ -3327,16 +3340,18 @@ T.test("skins: the dressing room in our look: model buttons, bare chevrons, the 
     _G.GetItemQualityColor, _G.CUSTOM_SET_SLOT_STATE_UNCOLLECTED, _G.CUSTOM_SET_SLOT_STATE_ERROR = nil, nil, nil
 end)
 
--- The guild window's round portrait (CommunitiesFrame.xml PortraitOverlay) and its
--- maximize/minimize pair beside the X. A guild with no tabard design gets the
--- "no logo" emblem with SetVertexColor(1, 1, 1, 1) on every UpdatePortrait
--- (GuildUtil.lua SetGuildTabardTextures), which brought it back behind the title.
-T.test("skins: the guild window's portrait stays gone after the game repaints it; maximize and minimize are bare chevrons", function()
-    local f, overlay
+-- The guild window's club icon (CommunitiesFrame.xml PortraitOverlay) and its
+-- maximize/minimize pair beside the X. The game hides the icon while the window
+-- is small and hangs it off the corner when large. It stays in the header, and
+-- a guild with no tabard can repaint the emblem (SetVertexColor 1,1,1,1) without
+-- it landing behind the title.
+T.test("skins: the guild window keeps its icon in the header; maximize and minimize sit level with the X", function()
+    local f, overlay, dragon
     login(function()
         f = guildWindow()
         overlay = CreateFrame("Frame", nil, f)
         overlay:SetFrameLevel(300)
+        overlay:Hide()
         for _, k in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
             overlay[k] = overlay:CreateTexture()
         end
@@ -3344,23 +3359,185 @@ T.test("skins: the guild window's portrait stays gone after the game repaints it
         f.MaximizeMinimizeFrame = CreateFrame("Frame", nil, f)
         f.MaximizeMinimizeFrame.MaximizeButton = artButton(f.MaximizeMinimizeFrame)
         f.MaximizeMinimizeFrame.MinimizeButton = artButton(f.MaximizeMinimizeFrame)
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        local disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        dragon = disabled:CreateTexture()
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled.Description:SetTextColor(1, 0.82, 0)
+        _G.ERR_GUILD_PLAYER_NOT_IN_GUILD = "No estás en una hermandad."
         stub.loadedAddOns.Blizzard_Communities = true
+        registry(f, { "ClubSelected", "DisplayModeChanged" })
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit = stub.skins.Kit
-    -- The game's UpdatePortrait for a guild without a design.
+    T.truthy(overlay:IsShown(), "the icon stays while the window is small")
+    T.eq(overlay.Portrait:GetWidth(), DaylightUI.Win.PORTRAIT, "the same size as our windows' portrait")
+    local point, rel, relPoint, x, y = overlay.Portrait:GetPoint(1)
+    T.eq(point, "TOPLEFT"); T.eq(rel, f); T.eq(relPoint, "TOPLEFT")
+    T.eq(x, DaylightUI.Win.EDGE); T.eq(y, -8, "in the header, not hanging off the corner")
+    local _, _, _, titleX, titleY = f.TitleContainer.TitleText:GetPoint(1)
+    T.eq(titleX, DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT + 12, "the title starts after the icon")
+    T.eq(titleY, DaylightUI.Win.TITLE_Y, "level with the portrait, like the spellbook")
+    local sub
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.GetText and r:GetText() == "No estás en una hermandad." then sub = r end
+    end
+    T.truthy(sub, "a line under the title when no guild is selected")
+    local sp, sr, srp, _, sy = sub:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(sr, f.TitleContainer.TitleText); T.eq(srp, "BOTTOMLEFT")
+    T.eq(sy, -2, "tucked under the title")
+    T.eq(sub.__font[2], DaylightUI.Style.SIZE.small)
+    T.eq(sub.__textColor[1], DaylightUI.Style.INK.LABEL[1])
+    T.eq(overlay.Portrait.__texCoord[1], DaylightUI.Style.ICON_CROP[1], "the icon's square border cropped off")
+    local rim
+    for _, r in ipairs({ overlay:GetRegions() }) do
+        if r.__texture == DaylightUI.MEDIA .. "portrait-rim.png" then rim = r end
+    end
+    T.truthy(rim, "the same rim as the spellbook portrait")
+    local cp, cr, crp, _, cy = f.CloseButton:GetPoint(1)
+    T.eq(cp, "TOPRIGHT"); T.eq(cr, f); T.eq(crp, "TOPRIGHT")
+    T.eq(cy, DaylightUI.Win.CloseY(false), "the close button sits in the header, not in the corner")
+    -- The game's UpdatePortrait for a guild without a design. The emblem stays put.
     overlay.TabardEmblem:SetShown(true)
     overlay.TabardEmblem:SetTexture("Interface\\GuildFrame\\GuildLogo-NoLogo")
     overlay.TabardEmblem:SetVertexColor(1, 1, 1, 1)
-    overlay.TabardBackground:SetVertexColor(0.2245, 0.2088, 0.1794)
-    for _, k in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
-        T.truthy(Kit.Erased(overlay[k]), k .. " erased, so the game's vertex color can't bring it back")
-    end
+    T.eq(overlay.TabardEmblem:GetWidth(), DaylightUI.Win.PORTRAIT, "the tabard uses the same slot")
+    T.eq(dragon:GetAlpha(), 0, "the finder splash's dragon gone")
+    T.eq(f.GuildFinderFrame.DisabledFrame.Description.__textColor[1], DaylightUI.Style.INK.TEXT[1], "its text in our ink")
+    local mm = f.MaximizeMinimizeFrame
+    point, rel, relPoint, x, y = mm:GetPoint(1)
+    T.eq(point, "RIGHT"); T.eq(rel, f.CloseButton); T.eq(relPoint, "LEFT")
+    T.eq(y, 0, "level with the close button")
     for _, k in ipairs({ "MinimizeButton", "MaximizeButton" }) do
-        local b = f.MaximizeMinimizeFrame[k]
+        local b = mm[k]
         T.eq(b:GetNormalTexture():GetAlpha(), 0, k .. ": the game's art gone")
-        T.isnil(Kit.ShellOf(b), k .. ": a bare chevron by the X, no box over the top edge")
+        T.isnil(Kit.ShellOf(b), k .. ": a bare chevron, no box over the top edge")
     end
+    -- Shrinking the window hides the icon. The click puts it back.
+    overlay:Hide()
+    mm.MinimizeButton:Click()
+    T.truthy(overlay:IsShown(), "shrinking the window doesn't drop the icon")
+    -- The finder page disables minimize. The chevron goes dim so it doesn't look live.
+    local chev
+    for _, r in ipairs({ mm.MinimizeButton:GetRegions() }) do
+        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then chev = r end
+    end
+    mm.MinimizeButton:Disable()
+    T.eq(chev.__vertex[1], DaylightUI.Style.INK.OFF[1], "a disabled minimize chevron reads as off")
+    function f:GetSelectedClubId() return 7 end
+    _G.C_Club = { GetClubInfo = function() return { name = "Luz de Elune" } end }
+    f:Hide()
+    f:Show()
+    stub.RunTimers()
+    T.eq(sub:GetText(), "Luz de Elune", "the selected community replaces the empty line")
+    _G.C_Club.GetClubInfo = function() return { name = "Circulo de la Luna" } end
+    f:TriggerEvent("ClubSelected", 7)
+    T.eq(sub:GetText(), "Luz de Elune", "the line waits for the next frame, outside the game's own call")
+    stub.RunTimers()
+    T.eq(sub:GetText(), "Circulo de la Luna", "switching club while the window stays open updates the line")
+    -- A new display mode (the game moves the icon as the window grows) puts it back.
+    overlay.Portrait:ClearAllPoints()
+    overlay.Portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 99, -99)
+    f:TriggerEvent("DisplayModeChanged", 2)
+    stub.RunTimers()
+    T.eq(select(4, overlay.Portrait:GetPoint(1)), DaylightUI.Win.EDGE, "a new display mode puts the icon back in the header")
+end)
+
+T.test("skins: with no community the join action sits under the guild text", function()
+    local f, disabled
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        f = guildWindow()
+        f.CommunitiesList:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 170, 29)
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled:Show()
+        _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local x
+    for i = 1, f.CommunitiesList:GetNumPoints() do
+        local p, _, _, px = f.CommunitiesList:GetPoint(i)
+        if p == "BOTTOMRIGHT" then x = px end
+    end
+    T.eq(x, 0, "the empty column closes")
+    T.eq(f.CommunitiesList:IsShown(), false, "the column, and the rule beside it, go")
+    local b
+    for _, child in ipairs({ disabled:GetChildren() }) do
+        if child.text and child.text.GetText and child.text:GetText() == "Unirse o crear una comunidad" then b = child end
+    end
+    T.truthy(b and b:IsShown(), "a button inside the window")
+    local p, rel, rp, _, y = b:GetPoint(1)
+    T.eq(p, "BOTTOM"); T.eq(rel, f); T.eq(rp, "BOTTOM")
+    T.eq(y, 22, "above the bottom edge, not outside the frame")
+    -- Already in a guild: the column comes back and the button does not stay.
+    _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
+    _G.IsInGuild = function() return true end
+    f:Hide()
+    f:Show()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true, "the club list is back")
+    local back
+    for i = 1, f.CommunitiesList:GetNumPoints() do
+        local point, _, _, px = f.CommunitiesList:GetPoint(i)
+        if point == "BOTTOMRIGHT" then back = px end
+    end
+    T.eq(back, 170, "the column has its width again")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "the empty-state button fades out")
+    -- A list rebuild while the window stays open does the same.
+    _G.C_Club.GetSubscribedClubs = function() return {} end
+    _G.IsInGuild = function() return false end
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), false, "the empty column closes again without reopening the window")
+    T.truthy(b:IsShown(), "the join button fades back in")
+    _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
+    _G.IsInGuild = function() return true end
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true, "the list returns on the rebuild")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "and the button fades out again")
+end)
+
+T.test("skins: joining a community opens the game's dialog, which we leave alone", function()
+    local opened, toggle
+    local f, disabled
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
+        function _G.AddCommunitiesFlow_Toggle() opened = true end
+        toggle = _G.AddCommunitiesFlow_Toggle
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        f = guildWindow()
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled:Show()
+        local locked = CreateFrame("Frame", "CommunitiesAddDialog", UIParent)
+        locked.__forbidden = true
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(_G.AddCommunitiesFlow_Toggle, toggle, "the game's toggle is still the game's")
+    T.isnil(_G.DaylightCommunitiesAdd, "we do not build a replacement window")
+    T.isnil(stub.skins.Kit.ShellOf(_G.CommunitiesAddDialog), "the locked dialog is not touched")
+    local b
+    for _, child in ipairs({ disabled:GetChildren() }) do
+        if child.text and child.text.GetText and child.text:GetText() == "Unirse o crear una comunidad" then b = child end
+    end
+    T.truthy(b, "the empty page still has the join button")
+    b:Click()
+    T.eq(opened, true, "that button opens the game's dialog")
 end)
 
 T.test("skins: the game's windows wear our header, tabs, text boxes, switches and text colors", function()
