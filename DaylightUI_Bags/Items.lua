@@ -698,6 +698,30 @@ function Items.Details(btn, info, bag, slot)
     return pending
 end
 
+-- A slot's picture. The slot can report an item with no icon (seen on a freshly
+-- looted pattern, and on a rune right after one was used), and the item's own icon
+-- can be missing too until its data loads. The item's basic info is always on hand,
+-- and an icon seen once for an item is kept, so a slot never goes blank.
+local knownIcons = {}
+function Items.IconOf(info)
+    if not info then return nil end
+    local id = info.itemID
+    local icon = info.iconFileID
+    if type(icon) == "nil" and type(id) == "number" and C_Item then
+        if C_Item.GetItemIconByID then
+            local ok, i = pcall(C_Item.GetItemIconByID, id)
+            if ok and type(i) ~= "nil" then icon = i end
+        end
+        if type(icon) == "nil" and C_Item.GetItemInfoInstant then
+            local ok, _, _, _, _, i = pcall(C_Item.GetItemInfoInstant, id)
+            if ok and type(i) ~= "nil" then icon = i end
+        end
+        if type(icon) == "nil" then icon = knownIcons[id] end
+    end
+    if type(icon) ~= "nil" and type(id) == "number" then knownIcons[id] = icon end
+    return icon
+end
+
 -- Fills a slot from the game in the same order the game fills its own
 -- (ContainerFrameMixin:UpdateItems). Each call is guarded, so methods this
 -- client lacks are skipped.
@@ -709,11 +733,7 @@ function Items.Fill(btn, tooltipOwner)
     -- A slot can report an item with no icon yet (seen on a freshly looted pattern
     -- in Forever) and still have none after the single wait below. Fall back to the
     -- item's own icon, otherwise it stayed blank until the item moved.
-    local shown = texture
-    if shown == nil and info and type(info.itemID) == "number" and C_Item and C_Item.GetItemIconByID then
-        local ok, icon = pcall(C_Item.GetItemIconByID, info.itemID)
-        if ok and type(icon) ~= "nil" then shown = icon end
-    end
+    local shown = Items.IconOf(info)
     local count = info and info.stackCount
     local locked = info and info.isLocked
     local quality = info and info.quality

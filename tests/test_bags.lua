@@ -412,6 +412,39 @@ T.test("bags: an item the slot still gives no icon after its wait shows the item
     _G.Item = nil
 end)
 
+T.test("bags: a stack that loses its icon after one is used keeps its picture", function()
+    local ns = login()
+    _G.Item = { CreateFromBagAndSlot = function(_, bag, slot)
+        return { IsItemEmpty = function() return false end, ContinueOnItemLoad = function(_, fn) fn() end }
+    end }
+    local oldIcon, oldInstant = C_Item.GetItemIconByID, C_Item.GetItemInfoInstant
+    C_Item.GetItemIconByID = function() return nil end
+    C_Item.GetItemInfoInstant = function() return nil end
+    open(ns)
+    local slot = ns.Bags.buttons[0][3]
+    world.items[0][3] = { stackCount = 5, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031, iconFileID = 134419 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419)
+    -- one rune used: the slot reports the smaller stack with no icon
+    world.items[0][3] = { stackCount = 4, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419, "the same picture, not a blank tile")
+    T.eq(slot.icon:GetAlpha(), 1, "shown")
+    -- an item never seen with an icon: its basic info has one
+    C_Item.GetItemInfoInstant = function(id) return id, "", "", "", 999 end
+    world.items[0][4] = { stackCount = 1, quality = 1, hyperlink = "|Hitem:4|h", itemID = 4 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(ns.Bags.buttons[0][4].calls.SetItemButtonTexture[1], 999, "the icon from the item's basic info")
+    C_Item.GetItemIconByID, C_Item.GetItemInfoInstant = oldIcon, oldInstant
+    _G.Item = nil
+end)
+
 T.test("bags: empty slots grouped into one free tile per section", function()
     local ns = login()
     local f = open(ns)
