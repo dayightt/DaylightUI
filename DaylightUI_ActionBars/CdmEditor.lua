@@ -268,6 +268,8 @@ function Ed.Pill() return ui and ui.pill end
 function Ed.TrayHint() return ui and ui.hint end
 function Ed.PillButton(key) return ui and ui[key] end   -- "import", "reset", "live"...
 function Ed.PreviewOf(id) return ui and ui.pieces[id] end
+function Ed.Chooser() return ui and ui.chooser end
+function Ed.Plus(side) return ui and ui.plus[side] end
 
 -- After a layout change: update the live layout, then the editor.
 function Ed.Changed()
@@ -700,12 +702,14 @@ function Ed.Open(g)
     ui.overlay:Show()
     Ed.Draw()
     if DUI.Sound then DUI.Sound.Play("open") end
+    ns.CdmGuide.Offer()
     return true
 end
 
 function Ed.Close()
     if not isOpen then return end
     isOpen = false
+    ns.CdmGuide.Stop()
     if Ed.FlowCheck then Ed.FlowCheck() end   -- stop the outline colors from cycling
     selected, attach, pending, drag, trayMove = nil, nil, nil, nil, nil
     Data.SetViewing(nil)
@@ -1515,13 +1519,17 @@ end
 -- Opening it: /cdm, /dui cdm, the options page
 -- ---------------------------------------------------------------------
 
--- /cdm opens this editor instead of the game's Cooldown Manager settings. Whatever
+-- /cdm opens this editor instead of the game's Cooldown Manager settings, and
+-- /cdm tour walks through it. Whatever
 -- command owns "/cdm" gets its handler swapped, and the chat box's lookup cache is
 -- pointed at Daylight UI's too. Skipped while the module is switched off; the core's login
 -- handler (which enables the modules) runs first.
 local function takeOverSlash()
     if not ns.Cooldowns.enabled then return end
-    local open = function() Ed.Open() end
+    local open = function(msg)
+        if type(msg) == "string" and string.lower(strtrim(msg)) == "tour" then return ns.CdmGuide.Start() end
+        Ed.Open()
+    end
     for key in pairs(SlashCmdList) do
         for i = 1, 9 do
             local s = _G["SLASH_" .. key .. i]

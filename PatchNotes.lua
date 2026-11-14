@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Cooldown Manager", "A short tour the first time you open the cooldown layout: adding spells, making groups and changing them. /cdm tour shows it again" },
+        },
         fixed = {
             { "Cooldown Manager", "Arcane Blast's stacks no longer end a moment before the real debuff does and then drift out of step with it" },
             { "Window skins", "The hunter's Beast Training window has the Daylight UI look again" },
