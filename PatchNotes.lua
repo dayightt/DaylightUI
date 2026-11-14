@@ -34,6 +34,7 @@ DUI.PatchNotes = {
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
             { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
             { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
+            { "Action bars", "No more floods of SetCooldown errors or \"the game blocked MultiBar...SetShown\" warnings from the action bars in dungeons and fights" },
             { "Professions", "With What's Training installed, the profession window has a What's Training link to its list of recipes you can still learn" },
         },
     },

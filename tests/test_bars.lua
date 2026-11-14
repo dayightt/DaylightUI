@@ -733,6 +733,41 @@ T.test("paging: bars 2-8 keep their fixed slots, with no driver", function()
     T.eq(btn("bar2", 1):GetAttribute("action"), 61)
 end)
 
+-- A page written onto the game's bar from addon code keeps the addon's taint: its
+-- buttons then work out their slot tainted, and the game's own cooldown update
+-- on them refuses the fight's secret times ("bad argument #1 to 'SetCooldown'"
+-- on MultiBarBottomLeftButton6, thousands of times in a dungeon) and its
+-- SetShown in a fight is blocked (MultiBarRightButtonContainer12). A bar with no
+-- paging of its own leaves the game's page alone.
+T.test("paging: bars 2-8 with no paging never write the game's bar page", function()
+    local writes = {}
+    stub.Load({ actionbars = true, before = function()
+        ABW.newWorld({})
+        for _, name in ipairs({ "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
+                                "MultiBar5", "MultiBar6", "MultiBar7" }) do
+            local bar = _G[name]
+            if bar then
+                local orig = bar.SetAttribute
+                bar.SetAttribute = function(self, k, v)
+                    if k == "actionpage" and writes.on then writes[#writes + 1] = name .. "=" .. tostring(v) end
+                    return orig(self, k, v)
+                end
+            end
+        end
+        writes.on = true
+    end })
+    stub.RunTimers()
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.shift", 3)
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.shift", 0)
+    stub.RunTimers()
+    T.eq(table.concat(writes, ", "), "", "a Shift page that isn't up yet changes nothing either")
+    T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 6)
+    DaylightUI:Set("ActionBars", "bars.bar2.paging.shift", 3)
+    stub.SetConditions({ ["mod:shift"] = true })
+    T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 3, "a page that does change still reaches the game's bar")
+    T.eq(MultiBarRight:GetAttribute("actionpage"), 3)
+end)
+
 -- The player's class (the fake world starts with no player unit).
 local function asClass(c)
     stub.units = stub.units or {}

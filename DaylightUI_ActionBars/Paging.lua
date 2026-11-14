@@ -161,15 +161,18 @@ Paging.ON_STATE = [[
     end
     self:SetAttribute("actionpage", page)
     self:ChildUpdate("page", page)
+    -- Only a real change: a page written from addon code keeps its taint, and the
+    -- game's buttons work out their slot from it, so a needless write left their
+    -- cooldown update unable to take a fight's secret times.
     local twin = self:GetFrameRef("game-twin")
-    if twin then twin:SetAttribute("actionpage", page) end
+    if twin and tonumber(twin:GetAttribute("actionpage")) ~= page then twin:SetAttribute("actionpage", page) end
     -- Bar 1's: on each of the game's hidden buttons too, which read their
     -- own page before their bar's, so the game's own (stale) bar 1 write
     -- can't change what a key casts.
     for i = 1, 12 do
         local b = self:GetFrameRef("game-btn" .. i)
         if not b then break end
-        b:SetAttribute("actionpage", page)
+        if tonumber(b:GetAttribute("actionpage")) ~= page then b:SetAttribute("actionpage", page) end
     end
 ]]
 
