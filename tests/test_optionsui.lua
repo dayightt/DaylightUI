@@ -648,7 +648,7 @@ T.test("tabs: the frame pages open on Basics, the rest in Bars, Text, Auras and 
     local P = DUI.OptionsPanel
     P.Show("UnitFrames.party")
     local pf = P.PageFrame()
-    T.deq(pf.tabs, { "Basics", "Bars", "Text", "Auras", "Extras" })
+    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" })
     T.eq(pf.tab, "Basics")
     T.eq(pf.Find("party.width").tab, "Basics", "size in Basics")
     T.eq(pf.Find("party.direction").tab, "Basics", "layout in Basics")
