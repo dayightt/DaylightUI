@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         },
         changed = {
             { "Window skins", "Item slots and coins in the game's windows (loot, guild bank and more) now match Daylight UI's bags, and the trade window has a cleaner layout" },
+            { "Unit frames", "Portrait ring thickness and the line round the middle are set per frame, on its Portrait tab. Your picks carry over" },
         },
         fixed = {
             { "Chat", "Profession and recipe links in chat open on the first click, even while Trade chat is busy" },

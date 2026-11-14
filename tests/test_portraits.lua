@@ -1075,10 +1075,12 @@ T.test("ring thickness and its middle line: the ring and everything drawn on it 
     local R = p:GetWidth() / 2
     T.near(p.radius, R * (1 + UF.RING_WIDTHS.normal) / 2, 1e-6)
     local normalMask = p.mask:GetWidth()
-    DUI:Set("UnitFrames", "portraits.ringWidth", "thick")
-    DUI:Set("UnitFrames", "portraits.ringLine", false)
+    DUI:Set("UnitFrames", "player.portraitRingWidth", "thick")
+    DUI:Set("UnitFrames", "player.portraitRingLine", false)
     stub.RunTimers()
     UF.UpdateAll(f, true)
+    UF.UpdateAll(ns.frames.target, true)
+    T.eq(ns.frames.target.ringFile, UF.RingFiles("normal", true), "each frame its own: the target's stays normal")
     local file, lit = UF.RingFiles("thick", false)
     T.truthy(file:find("portrait-band-thick-smooth.png", 1, true))
     local used = { [file] = true, [lit] = true }
@@ -1089,6 +1091,22 @@ T.test("ring thickness and its middle line: the ring and everything drawn on it 
     T.near(p.radius, R * (1 + UF.RING_WIDTHS.thick) / 2, 1e-6, "the sweep's light runs down the thick band's middle")
     T.truthy(p.mask:GetWidth() < normalMask, "a smaller picture inside")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("upgrade step 18: a shared ring thickness and line move onto every frame with a portrait", function()
+    local _, ns = login()
+    local uf = { portraits = { icons = "game", ringWidth = "thin", ringLine = false }, target = { width = 200 } }
+    ns.UPGRADE_STEPS[18](uf)
+    for _, key in ipairs({ "player", "target", "focus", "party", "arena" }) do
+        T.eq(uf[key].portraitRingWidth, "thin", key)
+        T.eq(uf[key].portraitRingLine, false, key)
+    end
+    T.eq(uf.target.width, 200, "the frame's other settings stay")
+    T.eq(uf.portraits.ringWidth, nil); T.eq(uf.portraits.ringLine, nil)
+    T.eq(uf.portraits.icons, "game", "the icon style stays shared")
+    uf = { portraits = { icons = "game" } }
+    ns.UPGRADE_STEPS[18](uf)
+    T.eq(uf.player, nil, "nothing changed from the defaults: no frame settings written")
 end)
 
 T.test("square and angled portraits: every layer takes the shape's art, lights ride its outline, elites get the gold frame", function()
@@ -1134,6 +1152,14 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     T.truthy(p.elite:IsShown())
     T.eq(p.elite.__texture, DUI.MEDIA .. "portrait-square-elite.png")
     T.falsy(p.eye:IsShown(), "only the dragon has eyes")
+    T.rgb(p.elite.__vertex, UF.THREAT_COLORS.aggro, "no eyes, so the frame itself turns the aggro color")
+    wolf(nil)
+    stub.units.target.classification = "elite"
+    UF.UpdateThreat(f)
+    T.rgb(p.elite.__vertex, UF.ELITE_RING_COLORS.gold, "back to gold once it's off you")
+    UF.ApplyThreat(f, nil, stub.Secret(true))
+    T.truthy(p.elite.__vertexFromBoolean, "a secret 'is tanking' picks red or gold through the client")
+    UF.ApplyThreat(f, nil)
     -- Angled: the target's portrait sits on the frame's right end, the player's on its left.
     DUI:Set("UnitFrames", "target.portraitShape", "angled")
     DUI:Set("UnitFrames", "player.portraitShape", "angled")

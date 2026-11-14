@@ -126,9 +126,9 @@ UF.RING_COLORS = { light = "Light", dark = "Dark", class = "Class gradient",
 UF.RING_COLOR_ORDER = { "light", "dark", "class", "accent", "daylight" }
 UF.RING_FILE = DUI.MEDIA .. "portrait-band.png"
 UF.RING_LIT_FILE = DUI.MEDIA .. "portrait-band-lit.png"
--- The ring's thickness (portraits.ringWidth): its opening as a fraction of its
+-- The ring's thickness (<frame>.portraitRingWidth): its opening as a fraction of its
 -- outer edge, each with its own art (tools/make_elite_ring.py), with or without
--- the groove around its middle (portraits.ringLine). Every layer on the ring
+-- the groove around its middle (<frame>.portraitRingLine). Every layer on the ring
 -- (red band, sweep, pulse, arrival light) uses the same file, so each fits
 -- whichever ring is picked.
 UF.RING_WIDTHS = { thin = 0.85, normal = 0.772, thick = 0.68 }
@@ -1773,7 +1773,6 @@ function UF.LayoutPortrait(f, cfg)
         holder:SetSize(2 * R, 2 * R)
     end
     local off = R * UF.PORTRAIT_OUT
-    local looks = ns.module and ns.module.db and ns.module.db.portraits or {}
     local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
     p.shapeArt = shapeArt
     p.corners = UF.ShapeCorners(shapeArt)
@@ -1781,7 +1780,7 @@ function UF.LayoutPortrait(f, cfg)
     local half = shapeArt and R * UF.SQUARE or R
     f.portraitOverlap = half - off  -- how far the ring reaches over the bar
     local ratio
-    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(looks.ringWidth, looks.ringLine, shapeArt)
+    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)
     local inner = R * ratio
     p:SetSize(2 * R, 2 * R)
     f.portraitEdge, f.portraitX = outerRight and "RIGHT" or "LEFT", outerRight and off or -off
@@ -2758,12 +2757,49 @@ end
 -- The dragon: an elite's gold or silver (its rank at a glance, whatever the
 -- ring's color), or your own (eliteColor "own") in your chosen color
 -- (UF.DRAGON_COLORS). Aggro never recolors it, its eyes catch fire instead (a
--- secret "is tanking" lights them through the client).
+-- secret "is tanking" lights them through the client). A square's frame has
+-- no eyes, so it takes the threat color itself while the unit is on you.
+local function paintEliteBase(f, p, rc)
+    if UF.Owned(f, "dragon") then return nil end
+    if rc ~= "own" then
+        p.elite:SetVertexColor(rc[1], rc[2], rc[3], 1)
+        return rc
+    end
+    local pick = UF.DRAGON_COLORS[f.dragonColor] and f.dragonColor or "class"
+    local metal = UF.ELITE_RING_COLORS[pick]
+    if metal then
+        p.elite:SetVertexColor(metal[1], metal[2], metal[3], 1)
+        return metal
+    end
+    if pick == "accent" then
+        local a, b = Style.AccentPair()
+        if a then
+            p.elite:SetVertexColor(1, 1, 1, 1)
+            p.elite:SetGradient("VERTICAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+            return b
+        end
+        local r, g, bl = Style.Accent()
+        p.elite:SetVertexColor(r, g, bl, 1)
+        return { r, g, bl }
+    end
+    local _, lo, hi, sr, sg, sb = ringColors(f, "class")
+    if type(sr) ~= "nil" then
+        p.elite:SetVertexColor(sr, sg, sb, 1)
+        return nil   -- a secret class color: nothing to fall back to by a flag
+    elseif lo then
+        p.elite:SetVertexColor(1, 1, 1, 1)
+        p.elite:SetGradient("VERTICAL", lo, hi)   -- last, since a plain color clears it
+        return { hi.r, hi.g, hi.b }
+    end
+    local g = UF.RING_COLOR
+    p.elite:SetVertexColor(g[1], g[2], g[3], 1)
+    return g
+end
+
 function UF.PaintElite(f)
     local p = f.portrait
     local rc = p and p.eliteColor
     if not rc then return end
-    -- Only the dragon has eyes: a square elite's frame stays gold.
     for _, t in ipairs({ p.eye, p.eyeCore }) do
         if not p.elite:IsShown() or p.shapeArt then
             t:Hide()
@@ -2778,35 +2814,15 @@ function UF.PaintElite(f)
         end
     end
     if not p.elite:IsShown() then return end
-    if rc ~= "own" then
-        p.elite:SetVertexColor(rc[1], rc[2], rc[3], 1)
-        return
-    end
-    local pick = UF.DRAGON_COLORS[f.dragonColor] and f.dragonColor or "class"
-    local metal = UF.ELITE_RING_COLORS[pick]
-    if metal then
-        p.elite:SetVertexColor(metal[1], metal[2], metal[3], 1)
-        return
-    end
-    if pick == "accent" then
-        local a, b = Style.AccentPair()
-        if a then
-            p.elite:SetVertexColor(1, 1, 1, 1)
-            p.elite:SetGradient("VERTICAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
-        else
-            p.elite:SetVertexColor(Style.Accent())
-        end
-        return
-    end
-    local _, lo, hi, sr, sg, sb = ringColors(f, "class")
-    if type(sr) ~= "nil" then
-        p.elite:SetVertexColor(sr, sg, sb, 1)
-    elseif lo then
-        p.elite:SetVertexColor(1, 1, 1, 1)
-        p.elite:SetGradient("VERTICAL", lo, hi)   -- last, since a plain color clears it
-    else
-        local g = UF.RING_COLOR
-        p.elite:SetVertexColor(g[1], g[2], g[3], 1)
+    local base = paintEliteBase(f, p, rc)
+    if not p.shapeArt then return end
+    local c = f.threatNow
+    if c then
+        p.elite:SetVertexColor(c[1], c[2], c[3], 1)
+    elseif type(f.threatFlag) ~= "nil" and base then
+        local red = UF.THREAT_COLORS.aggro
+        p.elite:SetVertexColorFromBoolean(f.threatFlag, CreateColor(red[1], red[2], red[3], 1),
+            CreateColor(base[1], base[2], base[3], 1))
     end
 end
 

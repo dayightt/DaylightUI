@@ -1334,7 +1334,7 @@ local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
 local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
-    portraitDragon = true, portraitDragonColor = true, portraitScale = true }
+    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true }
 local function splitFrame(prefix, items, power)
     local basic, bars, portrait = {}, {}, {}
     for _, it in ipairs(items) do
@@ -1464,6 +1464,13 @@ local function framePage(id, label, desc, opts)
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRing"), label = "Ring color",
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness",
+            values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
+            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+        frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle",
+            desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
         if opts.dragon then
             frame[#frame + 1] = { type = "toggle", key = k("portraitDragon"), label = "Dragon around the portrait",
@@ -2659,13 +2666,6 @@ ns.OPTIONS = { pages = {
                 return DaylightUI.L["Install the Jiberish Fabled Icons addon to unlock more class icon styles."]
             end },
             classIconPicker,
-        } },
-        { label = "Portrait rings", desc = "The ring round every portrait, on every frame. Each frame picks its ring's color on its own page.", items = {
-            { type = "dropdown", key = "portraits.ringWidth", label = "Ring thickness",
-              values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
-              desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it." },
-            { type = "toggle", key = "portraits.ringLine", label = "Line round the middle",
-              desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band." },
         } },
         { label = "Range fade", desc = "Dims units that are out of reach: target, focus, target of target, party and raid frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",

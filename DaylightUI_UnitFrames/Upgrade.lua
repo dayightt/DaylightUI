@@ -500,6 +500,23 @@ ns.UPGRADE_STEPS[17] = function(uf)
     casts.showName, casts.timer = nil, nil
 end
 
+-- 18: each frame picks its own portrait ring thickness and middle line. A
+-- profile that changed the shared ones gets them on every frame with a
+-- portrait, so nothing looks different.
+ns.UPGRADE_STEPS[18] = function(uf)
+    local looks = uf.portraits
+    if type(looks) ~= "table" then return end
+    local width, line = looks.ringWidth, looks.ringLine
+    if type(width) == "string" or type(line) == "boolean" then
+        for _, key in ipairs({ "player", "target", "focus", "party", "arena" }) do
+            if type(uf[key]) ~= "table" then uf[key] = {} end
+            if type(width) == "string" then uf[key].portraitRingWidth = width end
+            if type(line) == "boolean" then uf[key].portraitRingLine = line end
+        end
+    end
+    looks.ringWidth, looks.ringLine = nil, nil
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 function ns.UpgradeGroupFrames(p)
     if type(p) ~= "table" then return end
