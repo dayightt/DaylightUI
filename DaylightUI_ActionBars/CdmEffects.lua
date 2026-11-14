@@ -56,18 +56,24 @@ Fx.FORMS = {
               { key = "Aquatic", name = "Aquatic Form", spells = { 1066 } },
               { key = "Travel", name = "Travel Form", spells = { 783 } },
               { key = "Moonkin", name = "Moonkin Form", spells = { 24858 } } },
-    WARRIOR = { { key = "Battle", name = "Battle Stance", spells = { 2457 } },
-                { key = "Defensive", name = "Defensive Stance", spells = { 71 } },
-                { key = "Berserker", name = "Berserker Stance", spells = { 2458 } } },
+    WARRIOR = { { key = "Battle", name = "Battle Stance", spells = { 2457 }, lit = true },
+                { key = "Defensive", name = "Defensive Stance", spells = { 71 }, lit = true },
+                { key = "Berserker", name = "Berserker Stance", spells = { 2458 }, lit = true } },
     ROGUE = { { key = "Unstealthed", name = "Out of Stealth", none = true },
               { key = "Stealth", name = "Stealth", spells = { 1784, 1785, 1786, 1787 }, stealth = true } },
 }
 Fx.FORM_KEYS = {}
 local formBySpell = {}
+-- Stances put up no buff, so nothing else tells their icon apart while you're in
+-- one. Druid forms and Stealth are buffs and already show as up.
+local litBySpell = {}
 for _, list in pairs(Fx.FORMS) do
     for _, f in ipairs(list) do
         Fx.FORM_KEYS[#Fx.FORM_KEYS + 1] = f.key
-        for _, sid in ipairs(f.spells or {}) do formBySpell[sid] = f.key end
+        for _, sid in ipairs(f.spells or {}) do
+            formBySpell[sid] = f.key
+            if f.lit then litBySpell[sid] = f.key end
+        end
     end
 end
 -- Each is a spell option, shown by default and only saved when turned off.
@@ -1067,8 +1073,52 @@ end
 
 -- Apply / clear --------------------------------------------------------
 
+-- The stance you're in: a wash over its icon in the buff-up color, as a druid's form
+-- shows while its buff is up. The same switches turn it off (activeGlow,
+-- noDurationSwipe). It changes the moment the stance does.
+local stanceWash = setmetatable({}, weak)   -- item -> its wash texture
+local STANCE_ALPHA = 0.5
+
+local function wantsStance(item)
+    local b = opts[item]
+    if not b or kinds[item] ~= "icon" or formNow == nil then return false end
+    if Fx.Get(b, "activeGlow") == false or Fx.Get(b, "noDurationSwipe") == true then return false end
+    local sid = Fx.SpellOf(item)
+    return sid ~= nil and litBySpell[sid] == formNow
+end
+
+local function applyStance(item)
+    local on = wantsStance(item)
+    local t = stanceWash[item]
+    if not t then
+        if not on then return end
+        t = item:CreateTexture(nil, "OVERLAY", nil, 1)
+        t:SetTexture("Interface\\Buttons\\WHITE8x8")
+        t:SetBlendMode("ADD")
+        t:SetAlpha(0)
+        stanceWash[item] = t
+    end
+    local icon = ns.Cooldowns.IconOf(item) or item.Icon
+    t:ClearAllPoints()
+    t:SetAllPoints(type(icon) == "table" and icon or item)
+    if on then
+        local c = Fx.ActiveColor(opts[item])
+        t:SetVertexColor(c[1], c[2], c[3])
+    end
+    local to = on and STANCE_ALPHA or 0
+    if t.__on == on then return end
+    t.__on = on
+    t:Show()
+    Motion.Tween(t, t:GetAlpha(), to, Motion.FAST, function(a) t:SetAlpha(a) end)
+end
+Fx.StanceShown = function(item)
+    local t = stanceWash[item]
+    return t ~= nil and t.__on == true
+end
+
 local function refresh(item, read)
     if not opts[item] then return end
+    applyStance(item)
     if read then
         local was = cdState[item]
         updateState(item)
@@ -1197,6 +1247,12 @@ function Fx.Clear(item)
         item:SetAlpha(1)
     end
     alphaNow[item] = nil
+    local wash = stanceWash[item]
+    if wash then
+        Motion.Tween(wash, 0, 0, 0)
+        wash.__on = nil
+        wash:SetAlpha(0)
+    end
     if mouseOff[item] then mouseOff[item] = nil; item:EnableMouse(true) end
     cdState[item], away[item], usable[item], castable[item], down[item] = nil, nil, nil, nil, nil
     short[item] = nil

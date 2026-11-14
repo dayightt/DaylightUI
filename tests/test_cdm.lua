@@ -1896,6 +1896,37 @@ T.test("cdm effects: a spell left out of a form hides while you're in it, and co
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A stance is no buff, so only this wash says which one you're in.
+T.test("cdm effects: the warrior stance you're in is lit, and the light moves with the stance", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    local stance = 1
+    local spells = { 2457, 71, 2458 }
+    _G.GetNumShapeshiftForms = function() return #spells end
+    _G.GetShapeshiftFormInfo = function(i) return 132349 + i, stance == i, true, spells[i] end
+    ess[1].cooldownInfo.overrideSpellID = 71    -- Defensive Stance
+    pass(AB)
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers(); eased(DUI)
+    T.eq(AB.CdmEffects.FormNow(), "Battle")
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "in Battle Stance: Defensive isn't lit")
+    stance = 2
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.truthy(AB.CdmEffects.StanceShown(ess[1]), "in Defensive Stance: lit at once")
+    eased(DUI)
+    stance = 3
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "Berserker: Defensive goes dark")
+    stance = 2
+    set.pieces[11].activeGlow = false
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "the buff-up color switched off: no wash either")
+    T.falsy(AB.CdmEffects.StanceShown(ess[2]), "a spell that isn't a stance never lights")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Arcane Shot with every Visibility on Show vanished with no target (not
 -- usable, out of range), on and off cooldown.
 T.test("cdm effects: every Visibility on Show keeps a spell shown when it isn't usable", function()
