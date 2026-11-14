@@ -503,7 +503,7 @@ function B.LayoutButton(h, btn, parts)
     local w, hh = h.w, h.h
     btn:SetSize(w, hh)
     local p = CD.Parts(h)
-    local block = ns.CdmRows and ns.CdmRows.BlockOf(h)
+    local block = ns.CdmRows and ns.CdmRows.BlockOf(h) or h.firstBlock
     local Look = ns.CdmData.Look
     local icon = not block or Look(block, "icon") ~= false
     local inset = Pixel.Px(h, Skin.BORDER_PX)
@@ -787,7 +787,8 @@ end
 
 -- always = "Show missing buffs": our empty bar shows while the aura is down. When
 -- off, only the client's button shows, wearing the bar's look.
-function B.Aura(id, parent, under, always)
+-- w, hh, block and button: the size and look it's about to be fitted to (CdmRows).
+function B.Aura(id, parent, under, always, w, hh, block, button)
     under = under == true
     local h = auras[id]
     if not h then
@@ -816,10 +817,6 @@ function B.Aura(id, parent, under, always)
             p.slot:SetParent(h.under)
             p.slot:SetFrameLevel(math.max(0, h.Bar:GetFrameLevel() - 1))
         end
-        if ns.CdmAuras then
-            DUI.SafeCall(ns.CdmAuras.Setup, h, id)
-            ns.CdmAuras.Track(h)
-        end
     elseif h:GetParent() ~= parent then
         h:SetParent(parent)
     end
@@ -829,6 +826,26 @@ function B.Aura(id, parent, under, always)
     setUnder(h, under)
     -- Applied together with the button's layout (fitAura) so both change at once.
     h.wantBare = not (always == true or under)
+    if not h.built then
+        h.built = true
+        -- The client makes the buttons and lays them out the moment the
+        -- containers exist, and in a fight or a dungeon they can't be laid out
+        -- again until it's over. So they're made at the size and look the bar is
+        -- about to get, never the starting one.
+        if w and hh then h.w, h.h = w, hh end
+        h.button, h.firstBlock = button, block
+        h.bare = h.wantBare
+        h.under:SetAlpha(h.bare and 0 or 1)
+        h.over:SetAlpha(h.bare and 0 or 1)
+        if ns.CdmAuras then
+            DUI.SafeCall(ns.CdmAuras.Setup, h, id)
+            ns.CdmAuras.Track(h)
+        end
+        if under and h.Timer then
+            local over = h.Timer:GetFrameLevel() + 1
+            for _, k in ipairs(h.containers or {}) do pcall(k.c.SetFrameLevel, k.c, over) end
+        end
+    end
     -- The client's bar above our empty one (its frames sit a level under h.under's).
     local level = h.Bar:GetFrameLevel() + 2
     for _, k in ipairs(h.containers or {}) do

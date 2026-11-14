@@ -362,12 +362,14 @@ local function placeUnder(h)
 end
 
 -- Holder for an aura piece. always = Show missing buffs: a dim icon shows while
--- the aura is down.
-function A.Acquire(id, parent, always)
+-- the aura is down. size and text: the look it's about to get (A.Resize). The
+-- client makes and lays out its buttons the moment the containers exist, and in a
+-- fight they can't be laid out again, so they're made at that size, not a guess.
+function A.Acquire(id, parent, always, size, text)
     local h = holders[id]
     if not h then
         h = CreateFrame("Frame", nil, parent)
-        h.size = 36
+        h.size, h.text = size or 36, text
         -- Grayed icon with the same border and shade as the live button.
         h.underBox = CreateFrame("Frame", nil, h)
         h.underBox:SetAllPoints(h)

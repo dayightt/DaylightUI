@@ -4256,6 +4256,40 @@ T.test("cdm bars: a tracked buff in a bar block is the client's aura bar over an
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client makes a group's buttons and runs initializeFrame the moment the group
+-- is added, and the buttons lock once that returns while auras are secret. So a
+-- bar first shown in a fight or a dungeon has to be the block's size from the start.
+T.test("cdm bars: an aura bar first made under restrictions is the block's size at once", function()
+    local DUI, AB, set = barsWorld()
+    local D = AB.CdmData
+    place(D, set, 31, 1)
+    lookOf(set, 1).width = 300
+    stub.SetRestriction("PvPMatch", true)
+    pass(AB)
+    local h = AB.CdmBars.AuraFrame(31)
+    T.truthy(h and h.containers[1], "built")
+    local btn = h.containers[1].c.__groups.a.button
+    T.eq(btn:GetWidth(), 300, "the block's width, not the starting size")
+    T.eq(btn:GetHeight(), h:GetHeight(), "and its height")
+    T.eq(stub.lockErrors, 0, tostring(next(stub.lockSites)))
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm auras: an aura icon first made under restrictions is the block's size at once", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    lookOf(set, 1).size = 44
+    stub.SetRestriction("PvPMatch", true)
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h = AB.CdmAuras.Frame(41)
+    T.truthy(h and h.containers[1], "built")
+    local btn = h.containers[1].c.__groups.a.button
+    T.eq(btn:GetWidth(), 44, "the block's size, not the starting one")
+    T.eq(stub.lockErrors, 0, tostring(next(stub.lockSites)))
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm bars: the aura bar takes the block's look and the spell's own color", function()
     local DUI, AB, set = barsWorld()
     local D = AB.CdmData

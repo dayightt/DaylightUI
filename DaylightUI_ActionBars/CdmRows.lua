@@ -364,7 +364,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
         if aura and under and byShield(set, id, "bar") then
             under, keep = false, Fx.Get(p, "hideMissing") ~= true
         end
-        item = aura and Bars.Aura(id, f, under, keep) or Bars.Cooldown(id, f)
+        item = aura and Bars.Aura(id, f, under, keep, block.width, block.size, block, p) or Bars.Cooldown(id, f)
         usedBars[item] = true
         ours[item] = id
         drawn[id] = under and "aura and cooldown bar" or aura and "aura bar" or "cooldown bar"
@@ -375,7 +375,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
         drawn[id] = "own icon"
         if ns.CdmAuras then
             local text = CD.TextLook(block)
-            local holder = ns.CdmAuras.Acquire(id, item)
+            local holder = ns.CdmAuras.Acquire(id, item, nil, block.size, text)
             ns.CdmAuras.Over(holder, item, block.size, text)
             ns.CdmAuras.SetAmount(holder, shieldIcon(set, id), text)
             ns.CdmAuras.SetSwipe(holder, Fx.Get(p, "noDurationSwipe"), Fx.Get(p, "reverse"))
@@ -385,7 +385,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
     elseif aura then
         if not ns.CdmAuras then return nil end
         local text = CD.TextLook(block)
-        item = ns.CdmAuras.Acquire(id, f, always)
+        item = ns.CdmAuras.Acquire(id, f, always, block.size, text)
         ns.CdmAuras.Resize(item, block.size, text)
         ns.CdmAuras.SetAmount(item, shieldIcon(set, id), text)
         ns.CdmAuras.SetSwipe(item, Fx.Get(p, "noDurationSwipe"), Fx.Get(p, "reverse"))
