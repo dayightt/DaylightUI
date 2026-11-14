@@ -496,7 +496,10 @@ function Pad.HintList(f)
     for _, e in ipairs(list) do
         if not back and e.key == "B" and acts(e, at) then back = labelOf(e, at) end
     end
-    out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, back or FRAME_ACTION_BACK or L["Back"] }
+    -- padGameBack: a box sitting in a game window whose own footer already says Back.
+    if back or not f.padGameBack then
+        out[#out + 1] = { { key("GAMEPAD_FACE_RIGHT", "PAD2") }, back or FRAME_ACTION_BACK or L["Back"] }
+    end
     return out
 end
 
@@ -546,7 +549,9 @@ function Pad.ShowHints(f)
     for i = #list + 1, #hints.pieces do hints.pieces[i]:Hide() end
     hints:SetWidth(x)
     hints:ClearAllPoints()
-    if f.padHintsAbove then
+    if type(f.padHintsPlace) == "function" then
+        f.padHintsPlace(hints)
+    elseif f.padHintsAbove then
         hints:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, Pad.HINT_GAP)
     else
         hints:SetPoint("TOP", f, "BOTTOM", 0, -Pad.HINT_GAP)
@@ -581,7 +586,9 @@ local function watchHints()
     -- A secure entry carries the stop's own action (this spell, this item), so
     -- it's armed again once the D-pad moves.
     if Pad.prompt then C_Timer.After(Pad.HINT_EVERY, watchHints); return end   -- the bind prompt has the bar
-    if not fight and not InCombatLockdown() then
+    -- In a fight the buttons are the action bars', so there's no bar to show.
+    if fight or InCombatLockdown() then C_Timer.After(Pad.HINT_EVERY, watchHints); return end
+    do
         local at = stop()
         if at ~= boundAt then
             for _, e in ipairs(entriesOf(f)) do
@@ -996,7 +1003,14 @@ end
 function Pad.Release(f)
     if Pad.taken ~= f then return end
     Pad.taken = nil
-    if InCombatLockdown() then return end
+    if InCombatLockdown() then
+        -- Bindings can't change until the fight ends, but the bar can go now.
+        Pad.HideHints()
+        DUI.AfterCombat(function()
+            if not Pad.focused and not Pad.taken then unbind() end
+        end, "pad:release")
+        return
+    end
     unbind()
     local w = Pad.focused
     if w and not fight then
@@ -1205,6 +1219,7 @@ local function handBack()
     fight = true
     if Pad.prompt then Pad.EndBind() end
     unbind()
+    Pad.HideHints()
     local m = manager()
     if not m or combatActive() then return end
     for frame in pairs(told) do
@@ -1219,6 +1234,12 @@ local function takeBack()
     waiting = {}
     for _, fn in pairs(asked) do fn() end
     for frame in pairs(followed) do sync(frame) end
+    -- A box still taken (the quest journal open through the fight) gets its keys back.
+    local t = Pad.taken
+    if t and not Pad.focused and not InCombatLockdown() and manager() then
+        bind(t)
+        Pad.ShowHints(t)
+    end
 end
 
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", handBack)

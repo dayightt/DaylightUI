@@ -1152,3 +1152,54 @@ T.test("pad bind: R2 lands on the stance bar the game lays over R2's bar, as in 
     T.eq(Pad.SlotOf(1, 0, 1), nil, "the possess bar holds pet actions: no spell goes there")
     _G.C_GamepadUI, _G.GamepadMainActionBarFrame = nil, nil
 end)
+
+T.test("pad: a taken box's button bar leaves as a fight starts, stays gone if it closes in the fight, and comes back after", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(200, 300)
+    f.padNoDefaults = true
+    f:Show()
+    DUI.Pad.Take(f)
+    stub.RunTimers()
+    local hints = DUI.Pad.hints
+    T.truthy(hints and hints:IsShown(), "a bar while it's taken")
+    stub.EnterCombat()
+    stub.RunTimers()
+    T.falsy(hints:IsShown(), "the controller is the action bars' in a fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.truthy(hints:IsShown(), "back once the fight ends, while it's still open")
+    stub.EnterCombat()
+    stub.RunTimers()
+    f:Hide()
+    DUI.Pad.Release(f)
+    T.falsy(hints:IsShown(), "gone as it closes")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    -- Another window of ours open since login (the setup guide) may take the bar back.
+    T.truthy(not hints:IsShown() or hints.owner ~= f, "closed in the fight: no bar left behind")
+    T.eq(DUI.Pad.taken, nil)
+    clearAll()
+end)
+
+T.test("pad: a box under a game footer puts its bar beside it, and leaves Back to the game's", function()
+    local DUI = stub.Load()
+    fresh(strict(true))
+    local legend = CreateFrame("Frame", nil, UIParent)
+    legend:SetSize(80, 30)
+    legend:Show()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(200, 300)
+    f.padNoDefaults, f.padGameBack = true, true
+    f.padHintsPlace = function(bar) bar:SetPoint("TOPRIGHT", legend, "TOPLEFT", -6, 0) end
+    f:Show()
+    DUI.Pad.Take(f)
+    stub.RunTimers()
+    T.eq(select(2, DUI.Pad.hints:GetPoint()), legend, "beside the game's footer")
+    for _, row in ipairs(DUI.Pad.HintList(f)) do
+        T.truthy(row[2] ~= (FRAME_ACTION_BACK or "Back"), "no second Back")
+    end
+    DUI.Pad.Release(f)
+    clearAll()
+end)

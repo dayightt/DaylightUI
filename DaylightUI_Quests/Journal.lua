@@ -1055,8 +1055,28 @@ local function padQuest(stop)
     if S.page == "quest" and S.quest then return find(S.quest), nil end
 end
 
+-- The map keeps its own controller footer under its bottom right corner (it
+-- says Back), so the journal's bar sits to its left instead of on top of it.
+Journal.PAD_FOOTERS = { "questLogFooter", "questDetailsFooter", "worldMapFooter" }
+function Journal.PadPlace(bar)
+    local map = _G.WorldMapFrame
+    if type(map) == "table" then
+        for _, name in ipairs(Journal.PAD_FOOTERS) do
+            local footer = map[name]
+            local legend = type(footer) == "table" and footer.inputLegend
+            if type(legend) == "table" and legend.IsVisible and legend:IsVisible() then
+                bar:SetPoint("TOPRIGHT", legend, "TOPLEFT", -DUI.Pad.HINT_GAP, 0)
+                return
+            end
+        end
+    end
+    bar:SetPoint("TOP", f, "BOTTOM", 0, -DUI.Pad.HINT_GAP)
+end
+
 function Journal.PadSetup()
     f.padNoDefaults = true
+    f.padGameBack = true
+    f.padHintsPlace = Journal.PadPlace
     f.padSelect = function(stop) if type(stop) == "table" and stop.quest then return L["Open"] end end
     f.padKeys = {
         { key = "X", follow = true, when = function(at) return padQuest(at) ~= nil end,

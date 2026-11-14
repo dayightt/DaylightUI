@@ -21,6 +21,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Chat", "Profession and recipe links in chat open on the first click, even while Trade chat is busy" },
+            { "Controller", "The button hints under the quest log on the map no longer sit on top of the map's own, and no longer stay on screen after closing the map in a fight" },
         },
     },
     { version = "1.8.0", date = "2026-11-14", summary = "See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.",
