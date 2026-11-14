@@ -314,9 +314,9 @@ function Viewer.Build()
             { key = "charsButton", icon = Viewer.CHARS_ICON, title = L["Characters"],
               desc = L["See another character's bags and bank."],
               onClick = function(w) Viewer.PickMenu(w.charsButton) end },
-            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf or grid"],
+            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf, grid or list"],
               desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
-              onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
+              onClick = function(w) w.Set("view", ns.Window.NextView(w.Setting("view"))) end },
         },
     })
     Viewer.window = f

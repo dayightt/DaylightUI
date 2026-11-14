@@ -7249,3 +7249,149 @@ T.test("bags: a corner asked for as default_position is honored, and plugins get
     T.eq(seen.itemLocation.slotIndex, seen.slotID)
     _G.Baganator = nil
 end)
+
+-- The list view: the Shelf's groups as headings, a row per item under each.
+local function listLogin()
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "view", "list")
+    stub.RunTimers()
+    return ns, f
+end
+
+local function rowsOf(f)
+    local out = {}
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b.dluiRow and b.dluiRow:IsShown() then
+            local _, _, _, x, y = b:GetPoint(1)
+            out[#out + 1] = { b = b, x = x, y = -y, row = b.dluiRow }
+        end
+    end
+    table.sort(out, function(a, b) return a.y < b.y end)
+    return out
+end
+
+local function headingY(f, key)
+    for _, h in ipairs(f.headings or {}) do
+        if h:IsShown() and h.key == key then return -select(5, h:GetPoint(1)) end
+    end
+end
+
+T.test("bags: the list view puts a row per item under its group's heading", function()
+    local ns, f = listLogin()
+    local L = ns.Layout
+    local rows = rowsOf(f)
+    T.truthy(#rows >= 6, "a row per shown item: " .. #rows)
+    local icon = L.ListIcon(f.Cfg())
+    local width = f.items:GetWidth()
+    for i, r in ipairs(rows) do
+        T.eq(r.x, 0, "rows start at the left edge")
+        T.eq(r.b:GetWidth(), icon, "the slot stays square, at the row's height")
+        local hit = r.b.__hitRect
+        T.deq(hit, { 0, -(width - icon), 0, 0 }, "its click area covers the whole row")
+        T.eq(r.row:GetWidth(), width)
+        if i > 1 then T.truthy(r.y >= rows[i - 1].y + icon, "rows never overlap") end
+    end
+    -- Every group's rows sit under its heading and above the next one.
+    local groups = ns.Layout.Groups(f.Cfg(), f)
+    local tops = {}
+    for _, g in ipairs(groups) do tops[#tops + 1] = { key = g.key, y = headingY(f, g.key), g = g } end
+    table.sort(tops, function(a, b) return a.y < b.y end)
+    for i, t in ipairs(tops) do
+        local below = tops[i + 1] and tops[i + 1].y or math.huge
+        for _, e in ipairs(t.g.entries) do
+            local _, _, _, _, y = e.button:GetPoint(1)
+            T.truthy(-y > t.y and -y < below, t.key .. ": its rows under its heading")
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: list rows read name, kind, level, count and sell value", function()
+    local ns, f = listLogin()
+    local B = ns.Bags
+    local getInfo, instant = C_Item.GetItemInfo, C_Item.GetItemInfoInstant
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:8|h" then return "Bread", link, 1, 5, 1, "Consumable", "Food", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    C_Item.GetItemInfoInstant = function(id)
+        local itemID = type(id) == "number" and id or tonumber(string.match(tostring(id), "item:(%d+)"))
+        return itemID, itemID == 8 and "Consumable" or "", "", "", 0, world.class[itemID], 0
+    end
+    ns.Relayout()
+    ns.FillAll()
+    local row = B.buttons[0][8].dluiRow
+    T.eq(row.name:GetText(), "Bread")
+    T.eq(row.kind:GetText(), "Consumable")
+    T.eq(row.count:GetText(), "12", "both stacks of bread, combined")
+    T.truthy(row.value:GetText():find("3", 1, true), "12 x 25 copper: " .. tostring(row.value:GetText()))
+    T.eq(row.level:GetText(), "", "no item level on food")
+    C_Item.GetItemInfo, C_Item.GetItemInfoInstant = getInfo, instant
+end)
+
+T.test("bags: list columns sort inside each group, a second click flips", function()
+    local ns, f = listLogin()
+    local head = f.listHead
+    T.truthy(head and head:IsShown(), "column heads over the rows")
+    world.items[0][9] = { iconFileID = 109, stackCount = 1, quality = 1, hyperlink = "|Hitem:9|h", itemID = 9, itemName = "Apple" }
+    world.items[0][10] = { iconFileID = 108, stackCount = 2, quality = 1, hyperlink = "|Hitem:11|h", itemID = 11, itemName = "Cheese" }
+    world.class[11] = 0
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    local function order()
+        local names = {}
+        for _, r in ipairs(rowsOf(f)) do
+            for _, g in ipairs(ns.Layout.Groups(f.Cfg(), f)) do
+                if g.key == "consumable" then
+                    for _, e in ipairs(g.entries) do if e.button == r.b then names[#names + 1] = r.row.name:GetText() end end
+                end
+            end
+        end
+        return table.concat(names, ",")
+    end
+    head.cells.name:GetScript("OnClick")(head.cells.name)
+    stub.RunTimers()
+    T.eq(DaylightUI:Get("Bags", "listSort"), "name")
+    T.eq(order(), "Apple,Bread,Cheese", "by name")
+    head.cells.name:GetScript("OnClick")(head.cells.name)
+    stub.RunTimers()
+    T.eq(order(), "Cheese,Bread,Apple", "flipped")
+    head.cells.count:GetScript("OnClick")(head.cells.count)
+    stub.RunTimers()
+    T.eq(order(), "Bread,Apple,Cheese", "by count, most first (12, 3 with the other stack, 2)")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a folded group in the list is its heading alone; leaving the list squares the slots again", function()
+    local ns, f = listLogin()
+    local B = ns.Bags
+    local bread = B.buttons[0][8]
+    T.truthy(bread.dluiRow:IsShown())
+    ns.Categories.ToggleCollapsed("consumable")
+    stub.RunTimers()
+    T.falsy(bread:IsShown() and bread:GetAlpha() > 0 and bread.dluiRow:IsShown() and not (f.fading and f.fading[bread]),
+        "its rows go")
+    ns.Categories.ToggleCollapsed("consumable")
+    stub.RunTimers()
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        T.deq(b.__hitRect or { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, "square click areas again")
+        T.falsy(b.dluiRow and b.dluiRow:IsShown(), "no row text")
+    end
+    T.falsy(f.listHead:IsShown(), "no column heads")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the view button goes Shelf, Grid, List and round again", function()
+    local ns, f = catLogin()
+    local b = f.viewButton
+    local seen = {}
+    for _ = 1, 3 do
+        b:GetScript("OnClick")(b)
+        stub.RunTimers()
+        seen[#seen + 1] = DaylightUI:Get("Bags", "view")
+    end
+    T.eq(table.concat(seen, ","), "grid,list,categories")
+end)

@@ -26,7 +26,9 @@ ns.DEFAULTS = {
     sellJunk = true,        -- sell the Junk group when a vendor opens
     autoRepair = true,      -- repair all when a repair vendor opens
     repairGuild = false,    -- use guild funds first when the guild allows it
-    view = "categories",    -- "categories" or "grid"
+    view = "categories",    -- "categories", "grid" or "list"
+    listSort = "shelf",     -- the list's column to sort by inside each group ("shelf" = the Shelf's order)
+    listDesc = false,
     recentMinutes = 15,     -- minutes a new item stays in Recent
     autoStack = true,       -- merge partial stacks when the bag opens (Stack.lua)
     combineStacks = true,   -- show stacks of one item as one (split again while trading, mailing, at the AH)

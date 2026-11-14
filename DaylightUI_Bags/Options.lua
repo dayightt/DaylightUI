@@ -293,8 +293,8 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Layout", items = {
             { type = "dropdown", key = "view", label = "Arrange items", disabled = off,
-              values = { categories = "Shelf (grouped by kind)", grid = "Grid (bag by bag)" }, order = { "categories", "grid" },
-              desc = "Shelf groups your items by kind, with a heading for each group. Grid is one even grid, bag by bag. You can also switch with the button next to the search box. In the grid, Alt-right-click an item to keep it in its slot when you clean up." },
+              values = { categories = "Shelf (grouped by kind)", grid = "Grid (bag by bag)", list = "List (a row per item)" }, order = { "categories", "grid", "list" },
+              desc = "Shelf groups your items by kind, with a heading for each group. Grid is one even grid, bag by bag. List shows a row per item under the same groups, with its kind, level, count and price; click a column to sort. You can also switch with the button next to the search box. In the grid, Alt-right-click an item to keep it in its slot when you clean up." },
             { type = "slider", key = "columns", label = "Columns", min = 6, max = 20, step = 1, disabled = off,
               desc = "How many slots fit in each row of the bag. More columns make it wider and shorter." },
             { type = "slider", key = "iconSize", label = "Slot size", min = 24, max = 48, step = 1, unit = "px", disabled = off,

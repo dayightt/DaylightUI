@@ -353,6 +353,10 @@ function Layout.Piling()
     return ns.Setting("stackShards") ~= false and next(Layout.apart) == nil
 end
 
+-- Whether a view lays items out by group (the Shelf and the list) rather than
+-- bag by bag.
+function Layout.Grouped(view) return view == "categories" or view == "list" end
+
 -- Empty custom groups show always with "Show empty groups", otherwise only while
 -- Shift is held with an item on the cursor, so they don't clutter the bag but
 -- are there to drop on.
@@ -368,7 +372,7 @@ function Layout.CheckDrop()
     if on == Layout.dropping then return end
     Layout.dropping = on
     local f = ns.window
-    if ns.Setting("emptyGroups") == true or not f or not f:IsShown() or ns.Setting("view") ~= "categories" then return end
+    if ns.Setting("emptyGroups") == true or not f or not f:IsShown() or not Layout.Grouped(ns.Setting("view")) then return end
     if #ns.Categories.Custom() > 0 then ns.Window.Relayout(f) end
 end
 
@@ -673,21 +677,12 @@ function Layout.Pack(boxes, maxW, gapX, gapY, prev)
     return spots, math.max(0, y - gapY), memo
 end
 
--- The Shelf: each group's heading over its slots, packed by Layout.Pack. A folded
--- group keeps its spot and the width it has open: only its items go.
-function Layout.Categories(window, cfg)
+-- The groups the window shows now (chips and Recent applied), each with its
+-- heading: the one it had, so an eased layout glides a heading with its group
+-- and one whose group left fades out still reading its name. Returns
+-- { g, h, folded, textW } in order, and the headings in use.
+function Layout.Headed(window, cfg)
     local Cat = ns.Categories
-    local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
-    local maxW = cols * size + (cols - 1) * gap
-    for _, s in ipairs(window.set.Slots()) do
-        s.button:Hide()
-        s.button.dluiCount = nil
-    end
-    for _, l in ipairs(window.lines or {}) do l:Hide() end
-    noteLaid(window)
-    local top, headH, ruleH = Layout.SlotTop(window, cfg), Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
-    local groupGap, rowGap = Layout.GroupGap(window, cfg), Layout.RowGap(window, cfg)
-    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
     local shown = {}
     for _, g in ipairs(Layout.Groups(cfg, window)) do
         if g.key == "recent" and window.chip then
@@ -709,7 +704,7 @@ function Layout.Categories(window, cfg)
     for _, h in ipairs(window.headings or {}) do
         if h.key ~= nil and mine[h.key] == false then mine[h.key] = h else spare[#spare + 1] = h end
     end
-    local nextSpare, boxes = 1, {}
+    local nextSpare, out = 1, {}
     for _, g in ipairs(shown) do
         local folded = Cat.IsCollapsed(g.key)
         local h = mine[g.key]
@@ -736,6 +731,30 @@ function Layout.Categories(window, cfg)
         local countW = (h.count.GetStringWidth and h.count:GetStringWidth()) or 0
         if type(countW) ~= "number" then countW = 0 end
         textW = textW + 5 + countW
+        out[#out + 1] = { g = g, h = h, folded = folded, textW = textW }
+    end
+    return out, taken
+end
+
+-- The Shelf: each group's heading over its slots, packed by Layout.Pack. A folded
+-- group keeps its spot and the width it has open: only its items go.
+function Layout.Categories(window, cfg)
+    local Cat = ns.Categories
+    local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
+    local maxW = cols * size + (cols - 1) * gap
+    for _, s in ipairs(window.set.Slots()) do
+        s.button:Hide()
+        s.button.dluiCount = nil
+    end
+    for _, l in ipairs(window.lines or {}) do l:Hide() end
+    noteLaid(window)
+    local top, headH, ruleH = Layout.SlotTop(window, cfg), Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
+    local groupGap, rowGap = Layout.GroupGap(window, cfg), Layout.RowGap(window, cfg)
+    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
+    local headed, taken = Layout.Headed(window, cfg)
+    local boxes = {}
+    for _, hd in ipairs(headed) do
+        local g, h, folded, textW = hd.g, hd.h, hd.folded, hd.textW
         -- The heading sits inside the rings' outer edges by inset at both ends, so
         -- its name starts over the first icon and the line spans the icons.
         local headW = textW + 2 * inset
@@ -800,6 +819,246 @@ function Layout.Categories(window, cfg)
         if not taken[h] then h:Hide() end
     end
     return maxW, height
+end
+
+-- The list view: the Shelf's groups as headings, a row per item under each,
+-- column heads on top to sort by. A row is the item's own slot button, kept
+-- square at the row's height on the left with its click area stretched over the
+-- whole row, so using, dragging, the tooltip and other addons' marks all work as
+-- on any slot. The words beside it live on a frame of their own on the button.
+Layout.LIST_GAP = 2          -- between rows
+Layout.LIST_TEXT = 6         -- from the icon to the name
+
+function Layout.ListIcon(cfg)
+    return math.max(20, math.floor(cfg.iconSize * 0.62 + 0.5))
+end
+
+-- Column heads; the icon's column has no head.
+Layout.LIST_COLS = {
+    { id = "icon", width = 0 },
+    { id = "name", fill = true, sort = true },
+    { id = "kind", width = 66, sort = true },
+    { id = "level", width = 30, sort = true, justify = "RIGHT" },
+    { id = "count", width = 30, sort = true, justify = "RIGHT" },
+    { id = "value", width = 62, sort = true, justify = "RIGHT" },
+}
+local function colText(id)
+    if id == "name" then return L["Name"] end
+    if id == "kind" then return L["Kind"] end
+    if id == "level" then return L["Lvl"] end
+    if id == "count" then return L["Count"] end
+    if id == "value" then return L["Sells for"] end
+    return ""
+end
+
+local function listHead(window)
+    local head = window.listHead
+    if head then return head end
+    local cols = {}
+    for i, c in ipairs(Layout.LIST_COLS) do
+        cols[i] = { id = c.id, width = c.width, fill = c.fill, sort = c.sort, justify = c.justify, text = colText(c.id) }
+    end
+    head = DUI.Widgets.ColumnHead(window.items, cols, function(id, desc)
+        ns.Window.SortTouched(window)
+        DUI:Set("Bags", "listDesc", desc)
+        DUI:Set("Bags", "listSort", id)
+    end)
+    window.listHead = head
+    return head
+end
+
+-- What a row shows for an entry: name, quality, kind, level, count, value.
+function Layout.RowFacts(e)
+    if e.empty then
+        return { name = L["Empty slots"], kind = "", level = 0, count = e.free or 1, value = 0 }
+    end
+    local f = e.facts or {}
+    local link = f.link
+    local name = f.name
+    if (not name or name == "") and link and C_Item and C_Item.GetItemInfo then
+        name = (C_Item.GetItemInfo(link))
+    end
+    if (not name or name == "") and type(link) == "string" then name = link:match("%[(.-)%]") end
+    local kind = ""
+    if link and C_Item and C_Item.GetItemInfoInstant then
+        local _, itemType = C_Item.GetItemInfoInstant(link)
+        if type(itemType) == "string" then kind = itemType end
+    end
+    local value = 0
+    if link and not f.hasNoValue then
+        value = ns.Junk.PriceOf({ hyperlink = link }) * (e.total or f.count or 1)
+    end
+    return { name = name or "", quality = f.quality, kind = kind, level = f.itemLevel or 0,
+             count = e.total or f.count or 1, value = value }
+end
+
+local function rowOf(btn, width, icon, at)
+    local row = btn.dluiRow
+    if not row then
+        local Style = DUI.Style
+        row = CreateFrame("Frame", nil, btn)
+        row.hi = row:CreateTexture(nil, "BACKGROUND")
+        row.hi:SetTexture("Interface\\Buttons\\WHITE8X8")
+        row.hi:Hide()
+        row.name = Style.Text(row, Style.SIZE.body, "LEFT")
+        row.kind = Style.Text(row, Style.SIZE.small, "LEFT")
+        row.level = Style.Text(row, Style.SIZE.small, "RIGHT")
+        row.count = Style.Text(row, Style.SIZE.small, "RIGHT")
+        row.value = Style.Text(row, Style.SIZE.small, "RIGHT")
+        for _, k in ipairs({ "name", "kind", "level", "count", "value" }) do row[k]:SetWordWrap(false) end
+        btn:HookScript("OnEnter", function() if row:IsShown() then DUI.Win.Parts.Light(row.hi, true) end end)
+        btn:HookScript("OnLeave", function() DUI.Win.Parts.Light(row.hi, false) end)
+        btn.dluiRow = row
+    end
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+    row:SetSize(width, icon)
+    row.hi:ClearAllPoints()
+    row.hi:SetPoint("TOPLEFT", row, "TOPLEFT", icon + Layout.LIST_TEXT / 2, 0)
+    row.hi:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    local nameX = icon + Layout.LIST_TEXT
+    for _, k in ipairs({ "name", "kind", "level", "count", "value" }) do
+        local c = at[k]
+        local fs = row[k]
+        fs:ClearAllPoints()
+        local x, w = c.x, c.w
+        if k == "name" then x, w = nameX, c.x + c.w - nameX end
+        fs:SetPoint("LEFT", row, "LEFT", x, 0)
+        fs:SetWidth(math.max(1, w))
+    end
+    row:Show()
+    return row
+end
+
+-- Paints a row from its entry (at layout, and after each fill of its slot).
+function Layout.PaintRow(btn)
+    local row, e = btn.dluiRow, btn.dluiEntry
+    if not (row and e and row:IsShown()) then return end
+    local Style = DUI.Style
+    local d = Layout.RowFacts(e)
+    row.name:SetText(d.name)
+    local r, g, b
+    if type(d.quality) == "number" and C_Item and C_Item.GetItemQualityColor then
+        r, g, b = C_Item.GetItemQualityColor(d.quality)
+    end
+    if type(r) == "number" then row.name:SetTextColor(r, g, b) else Style.InkText(row.name, e.empty and "LABEL" or "VALUE") end
+    row.kind:SetText(d.kind)
+    Style.InkText(row.kind, "LABEL")
+    row.level:SetText(d.level > 0 and tostring(math.floor(d.level + 0.5)) or "")
+    Style.InkText(row.level, "VALUE")
+    row.count:SetText(tostring(d.count))
+    Style.InkText(row.count, "pop")
+    row.value:SetText(d.value > 0 and DUI.Widgets.Money(d.value) or "")
+    Style.InkText(row.value, "VALUE")
+    -- The count reads in its column, so the icon carries none.
+    if type(btn.Count) == "table" and btn.Count.Hide then btn.Count:Hide() end
+end
+
+-- The order inside a group by the picked column (nil keeps the Shelf's own order).
+-- Words read A to Z and numbers biggest first; a second click flips either.
+local function sorter(by, desc)
+    if not by then return nil end
+    return function(a, b)
+        local x, y = a.row[by], b.row[by]
+        if x ~= y then
+            if type(x) == "string" then
+                x, y = string.lower(x), string.lower(y)
+                if desc then return x > y end
+                return x < y
+            end
+            if desc then return x < y end
+            return x > y
+        end
+        return a.i < b.i
+    end
+end
+
+-- Puts every slot back to a plain square slot when the view isn't the list.
+function Layout.EndList(window)
+    if window.listHead then window.listHead:Hide() end
+    for _, s in ipairs(window.set.Slots()) do
+        local b = s.button
+        if b.dluiRow and b.dluiRow:IsShown() then
+            b.dluiRow:Hide()
+            b:SetHitRectInsets(0, 0, 0, 0)
+        end
+        b.dluiEntry = nil
+    end
+end
+
+function Layout.List(window, cfg)
+    local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
+    local width = cols * size + (cols - 1) * gap
+    local icon = Layout.ListIcon(cfg)
+    for _, s in ipairs(window.set.Slots()) do
+        local b = s.button
+        b:Hide()
+        b.dluiCount = nil
+        if b.dluiRow then b.dluiRow:Hide() end
+        b:SetHitRectInsets(0, 0, 0, 0)
+        b.dluiEntry = nil
+    end
+    for _, l in ipairs(window.lines or {}) do l:Hide() end
+    noteLaid(window)
+    local head = listHead(window)
+    head:ClearAllPoints()
+    head:SetPoint("TOPLEFT", window.items, "TOPLEFT", 0, 0)
+    head:SetWidth(width)
+    local at = head:Layout(width)
+    local by, desc = ns.Setting("listSort"), ns.Setting("listDesc") == true
+    if by == "shelf" then by = nil end
+    head:SetSort(by, desc)
+    head:Show()
+    local headH, ruleH = Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
+    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
+    local toRows = Layout.SlotTop(window, cfg) - headH
+    local rowGap = Layout.RowGap(window, cfg)
+    local y = head:GetHeight() + rowGap
+    local headed, taken = Layout.Headed(window, cfg)
+    local order = sorter(by, desc)
+    for gi, hd in ipairs(headed) do
+        local g, h = hd.g, hd.h
+        if gi > 1 then y = y + rowGap end
+        h:ClearAllPoints()
+        h:SetPoint("TOPLEFT", window.items, "TOPLEFT", inset, -y)
+        h:SetWidth(width - 2 * inset)
+        h:SetHeight(headH)
+        h.rule:SetHeight(ruleH)
+        h:Show()
+        y = y + headH
+        if not hd.folded and #g.entries > 0 then
+            local list = {}
+            for i, e in ipairs(g.entries) do list[i] = { e = e, i = i, row = Layout.RowFacts(e) } end
+            if order then table.sort(list, order) end
+            y = y + toRows
+            for i, it in ipairs(list) do
+                local e = it.e
+                local b = e.button
+                if i > 1 then y = y + Layout.LIST_GAP end
+                b:SetSize(icon, icon)
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", b:GetParent(), "TOPLEFT", 0, -y)
+                b:SetHitRectInsets(0, -(width - icon), 0, 0)
+                b:Show()
+                ns.Items.Place(b)
+                ns.Items.SetFree(b, e.free)
+                if e.extra and #e.extra > 0 then
+                    b.dluiCount = e.total
+                    local all = { b }
+                    for _, other in ipairs(e.extra) do all[#all + 1] = other end
+                    window.held[#window.held + 1] = { button = b, all = all, x = 0, y = -y, size = icon }
+                end
+                b.dluiEntry = e
+                rowOf(b, width, icon, at)
+                Layout.PaintRow(b)
+                y = y + icon
+            end
+        end
+    end
+    for _, h in ipairs(window.headings or {}) do
+        if not taken[h] then h:Hide() end
+    end
+    return width, y
 end
 
 -- Eased layouts (a heading click, a chip, loot while open). Everything runs on one driver and one
@@ -1077,10 +1336,15 @@ function Layout.Apply(window, cfg)
     -- Then glides still running settle, so the layout below starts from its own spots.
     settleMoves(window)
     local w, h
-    if cfg.view == "categories" then
-        w, h = Layout.Categories(window, cfg)
+    if cfg.view == "list" then
+        w, h = Layout.List(window, cfg)
     else
-        w, h = Layout.Grid(window, cfg)
+        Layout.EndList(window)
+        if cfg.view == "categories" then
+            w, h = Layout.Categories(window, cfg)
+        else
+            w, h = Layout.Grid(window, cfg)
+        end
     end
     if was then Layout.Ease(window, was) end
     return w, h

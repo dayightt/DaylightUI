@@ -110,6 +110,15 @@ function Window.TextButton(parent, label, template)
     return b
 end
 
+-- The view the view button goes to next: Shelf, Grid, List, round again.
+Window.VIEWS = { "categories", "grid", "list" }
+function Window.NextView(view)
+    for i, v in ipairs(Window.VIEWS) do
+        if v == view then return Window.VIEWS[i % #Window.VIEWS + 1] end
+    end
+    return Window.VIEWS[1]
+end
+
 local function searchBox(f)
     -- Each window has its own search.
     local eb = DUI.Widgets.Input(f, { height = Window.ROW, size = Window.TEXT_SIZE, search = true,
@@ -579,7 +588,7 @@ function Window.PickChip(f, id, quiet)
     if not quiet then Window.SortTouched(f) end
     f.chip = id
     Window.PaintChips(f, not quiet)
-    if f.Setting("view") == "categories" then
+    if ns.Layout.Grouped(f.Setting("view")) then
         -- One layout for both the filter and the filters' row.
         f.filtersShown = Window.FiltersWanted(f)
         if quiet then
@@ -645,7 +654,7 @@ end
 -- The Shelf starts a little in so a heading's chevron has room in the margin.
 function Window.Inset(f)
     local cfg = f.Cfg and f.Cfg()
-    return cfg and cfg.view == "categories" and ns.Layout.SHELF_INSET or 0
+    return cfg and ns.Layout.Grouped(cfg.view) and ns.Layout.SHELF_INSET or 0
 end
 
 -- The filter words under the search, one W.Tab per CHIPS entry, hidden at rest.
@@ -1065,7 +1074,7 @@ end
 function Window.FillAll(f)
     if not f then return end
     if not f:IsShown() then
-        if f.Setting("view") == "categories" then f.stale = true end
+        if ns.Layout.Grouped(f.Setting("view")) then f.stale = true end
         Window.MarkDirty(f)
         return
     end
@@ -1120,7 +1129,7 @@ function Window.Changed(f, bags)
         DUI.AfterCombat(f.changedLater, f.changedKey)
     end
     local laidOut = false
-    local relay = changed or f.Setting("emptySlots") == "grouped" or f.Setting("view") == "categories"
+    local relay = changed or f.Setting("emptySlots") == "grouped" or ns.Layout.Grouped(f.Setting("view"))
     if relay and not changed and f:IsShown() and ns.Layout.Holds(f) then
         -- Open, and items only left (fast selling): slots stay put and the next open
         -- lays it out (Layout.Holds).
@@ -1289,11 +1298,11 @@ local function bagWindow()
                   Window.SortTouched(w)
                   w.Set("showSlots", not w.Setting("showSlots"))
               end },
-            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf or grid"],
-              desc = L["Switch between Shelf, grouped by kind, and Grid, bag by bag."],
+            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf, grid or list"],
+              desc = L["Switch between Shelf, grouped by kind, Grid, bag by bag, and List, a row per item."],
               onClick = function(w)
                   Window.SortTouched(w)
-                  w.Set("view", w.Setting("view") == "categories" and "grid" or "categories")
+                  w.Set("view", Window.NextView(w.Setting("view")))
               end },
             -- Last, next to the search. Only shown to characters who know Disenchant
             -- (Disenchant.lua puts a secure button over it on hover).

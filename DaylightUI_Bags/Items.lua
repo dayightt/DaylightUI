@@ -1041,6 +1041,8 @@ function Items.Fill(btn, tooltipOwner)
             end)
         end
     end
+    -- In the list view the row beside the slot reads the same item.
+    if btn.dluiRow then ns.Layout.PaintRow(btn) end
     return shown ~= nil
 end
 
@@ -1056,7 +1058,7 @@ end
 -- sits in the picked chip's groups (the categories view hides those slots instead).
 function Items.Fits(bag, slot, info, w, quest)
     local fits = ns.Search.Matches(bag, slot, info, w and w.match, quest)
-    if fits and info and w and w.chip and w.Setting("view") ~= "categories" then
+    if fits and info and w and w.chip and not ns.Layout.Grouped(w.Setting("view")) then
         fits = ns.Window.ItemInChip(w, ns.Categories.Facts(bag, slot, info))
     end
     return fits

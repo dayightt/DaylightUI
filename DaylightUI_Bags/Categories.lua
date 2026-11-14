@@ -755,7 +755,7 @@ function Cat.Menu(btn)
     end
     local bank = ns.Bank and ns.Bank.window
     local window = bank and bank.set.Button(bag, slot) == btn and bank or ns.window
-    if window and window.Setting("view") == "categories" then
+    if window and ns.Layout.Grouped(window.Setting("view")) then
         if Cat.PinOf(itemID) then
             keys[#keys + 1] = "unpin"
             values.unpin = L["Back to its own group"]

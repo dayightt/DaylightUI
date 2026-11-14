@@ -338,11 +338,11 @@ function Bank.Build()
                   W.SortTouched(w)
                   w.Set("showSlots", not w.Setting("showSlots"))
               end },
-            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf or grid"],
-              desc = L["Switch between Shelf, grouped by kind, and Grid, tab by tab."],
+            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf, grid or list"],
+              desc = L["Switch between Shelf, grouped by kind, Grid, tab by tab, and List, a row per item."],
               onClick = function(w)
                   W.SortTouched(w)
-                  w.Set("view", w.Setting("view") == "categories" and "grid" or "categories")
+                  w.Set("view", W.NextView(w.Setting("view")))
               end },
         },
     })
