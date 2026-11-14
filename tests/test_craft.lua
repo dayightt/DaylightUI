@@ -522,6 +522,43 @@ T.test("craft: the spells under the list say what they are", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("craft: no What's Training, no link", function()
+    local ns = load()
+    open(ns)
+    T.falsy(ns.Spells.row.training:IsShown())
+end)
+
+-- What's Training hangs its recipe tab on the game's window, which ours covers:
+-- the spell row links to its floating window, on its profession view.
+T.test("craft: with What's Training loaded, the link opens its recipe list", function()
+    local opened, view = 0, nil
+    local spec = PW.world()
+    local ns
+    stub.Load({ before = function()
+        spec()
+        stub.loadedAddOns.WhatsTraining = true
+        SLASH_WHATSTRAINING1 = "/wt"
+        SlashCmdList.WHATSTRAINING = function()
+            opened = opened + 1
+            local f = CreateFrame("Frame", "WhatsTrainingFloatingFrame", UIParent)
+            function f.SetProfessionView(_, on) view = on end
+            f:Show()
+        end
+    end })
+    ns = stub.craft
+    open(ns)
+    local link = ns.Spells.row.training
+    T.truthy(link:IsShown(), "the link shows")
+    T.eq(link.text:GetText(), "What's Training")
+    link:Click()
+    T.eq(opened, 1, "its window opened once")
+    T.eq(view, true, "on its recipe list")
+    link:Click()
+    T.eq(opened, 1, "already open: not toggled shut")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    SlashCmdList.WHATSTRAINING = nil
+end)
+
 T.test("craft: Unlearn still shows when the tabs crowd the header", function()
     local profs = PW.Sample()
     for i = 1, 12 do

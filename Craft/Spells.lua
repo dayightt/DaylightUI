@@ -144,6 +144,7 @@ function Spells.Build(pane)
     row.label:SetText(L["Abilities"])
     Style.InkText(row.label, "LABEL")
     row.icons = {}
+    row.training = Spells.MakeTraining(row)
     Spells.row = row
     DUI.RegisterEvent("SPELLS_CHANGED", function() if row:IsVisible() then Spells.Fill() end end)
     return row
@@ -159,6 +160,34 @@ function Spells.Lead()
     return math.ceil(w) + Spells.LABEL_GAP
 end
 
+-- What's Training puts its recipe list on a side tab of the game's profession
+-- window, which this one covers. Its own floating window has the same list, so
+-- the row links to that instead.
+function Spells.Training()
+    local A = C_AddOns
+    if not (A and type(A.IsAddOnLoaded) == "function") or A.IsAddOnLoaded("WhatsTraining") ~= true then return nil end
+    local open = SlashCmdList and SlashCmdList.WHATSTRAINING
+    return type(open) == "function" and open or nil
+end
+
+function Spells.OpenTraining()
+    local open = Spells.Training()
+    if not open then return end
+    local f = _G.WhatsTrainingFloatingFrame
+    if not (type(f) == "table" and f:IsShown()) then pcall(open, "") end
+    f = _G.WhatsTrainingFloatingFrame
+    if type(f) == "table" and type(f.SetProfessionView) == "function" then pcall(f.SetProfessionView, f, true) end
+end
+
+function Spells.MakeTraining(row)
+    local link = DUI.Widgets.Link(row)
+    link.SetLabel(L["What's Training"])
+    link:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    link:SetScript("OnClick", function() Spells.OpenTraining() end)
+    link:Hide()
+    return link
+end
+
 -- As many as fit (Spells.Read rarely returns more than six).
 function Spells.Fill()
     local row = Spells.row
@@ -166,6 +195,12 @@ function Spells.Fill()
     local list = Spells.Read()
     local w = row:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.List.W - 2 * Win.Parts.EDGE end
+    local training = Spells.Training() ~= nil
+    row.training:SetShown(training)
+    if training then
+        local lw = row.training:GetWidth()
+        w = w - ((type(lw) == "number" and lw > 0) and lw or 0) - Spells.LABEL_GAP
+    end
     local lead = Spells.Lead()
     local fit = math.max(0, math.floor((w - lead + Spells.GAP) / (Spells.ICON + Spells.GAP)))
     for i = 1, math.max(#list, #row.icons) do
@@ -182,7 +217,7 @@ function Spells.Fill()
             b:SetShown(s ~= nil)
         end
     end
-    row:SetShown(#list > 0)
+    row:SetShown(#list > 0 or training)
 end
 
 -- Lift-in pieces.
@@ -191,5 +226,7 @@ function Spells.Pieces()
     for _, b in ipairs(Spells.row and Spells.row.icons or {}) do
         if b:IsShown() then out[#out + 1] = b end
     end
+    local t = Spells.row and Spells.row.training
+    if t and t:IsShown() then out[#out + 1] = t end
     return out
 end
