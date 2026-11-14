@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Chat", "A sound for guild and officer chat, like the whisper sound: Chat page, Whispers" },
             { "Bags", "A Comprehend Scroll button in the bags, next to Disenchant: click it, then click a scroll" },
             { "Meters", "Damage and threat meters can show names in class colors while the numbers keep theirs: Name color on the Meters page" },
+            { "Minimap", "Make the icons on the minimap bigger or smaller without changing the map's size: Minimap icon size on the Minimap page" },
             { "Minimap", "A round minimap that keeps north at the top, without turning on Rotate as you turn: Minimap shape on the Info panel page" },
             { "Party and raid frames", "A name placed above or beside a party or raid tile sits on a dark name tab, like the player frame's, instead of floating: Name tab" },
             { "Spellbook", "An Open Clique link on the spellbook when you use Clique" },

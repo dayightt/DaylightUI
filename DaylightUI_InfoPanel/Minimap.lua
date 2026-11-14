@@ -86,6 +86,33 @@ function Map.Turning()
     return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true
 end
 
+-- The size of the game's icons on the map (nodes, party members, quest spots),
+-- apart from the map's own size. Edit Mode stores it in its layout as a slider
+-- step and sets it again each time it applies one, so it's written there too.
+Map.ICON_SCALE = { min = 50, max = 200, step = 10 }
+
+local function iconSetting()
+    local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting
+    return sys and sys.Minimap, set and set.IconScale
+end
+
+function Map.GetIconScale()
+    local S, system, setting = Map.ICON_SCALE, iconSetting()
+    local stored = system ~= nil and setting ~= nil and DaylightUI.EditMode.ActiveSetting(system, nil, setting)
+    if type(stored) == "number" then return (stored * S.step + S.min) / 100 end
+    return 1
+end
+
+function Map.SetIconScale(scale)
+    local S, system, setting = Map.ICON_SCALE, iconSetting()
+    local pct = math.max(S.min, math.min(S.max, math.floor(scale * 100 / S.step + 0.5) * S.step))
+    if Minimap and Minimap.SetIconScale then Minimap:SetIconScale(pct / 100) end
+    if system ~= nil and setting ~= nil then
+        DaylightUI.EditMode.WriteSetting(system, nil, setting, (pct - S.min) / S.step)
+    end
+    DaylightUI.Fire("SettingChanged", "InfoPanel", "map.iconScale", pct / 100)
+end
+
 -- Round by choice, or because it turns: a turning square showed empty corners.
 function Map.Round()
     local cfg = Map.cfg
