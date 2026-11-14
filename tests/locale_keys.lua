@@ -135,6 +135,7 @@ function K.Walk(DUI, keys)
         for _, item in ipairs(type(list) == "table" and list or {}) do addItem(item, "module " .. name) end
     end
     for _, label in ipairs(DUI.Movers.Labels()) do add(label, "mover") end
+    for _, a in ipairs(DUI.Movers.AREAS) do if a.label then add(a.label, "unlock area") end end
     for _, part in ipairs(DUI.TestBox.parts) do add(part.label, "test part") end
     -- The unit frames' page samples. Each part's name shows in the strip's tooltip
     -- through Options.Text (the label is also the part's id there).

@@ -269,3 +269,67 @@ T.test("page preview: cast bars and swing pages show their own bars", function()
     T.falsy(ns.playerCastbar:IsShown())
     T.isnil(ns.frames.target.test)
 end)
+
+-- The unlock box: one checkbox per area with handles, tucking them away.
+local function unlockRow(DUI, key)
+    for _, row in ipairs(DUI.TestBox.Unlock.rows or {}) do
+        if row:IsShown() and row.key == key then return row end
+    end
+end
+
+T.test("unlock box: shows while unlocked, one box per area with handles", function()
+    local DUI = stub.Load({ module = true, buffs = true })
+    T.falsy(DUI.TestBox.Unlock.frame and DUI.TestBox.Unlock.frame:IsShown())
+    DUI.Movers.Unlock()
+    T.truthy(DUI.TestBox.Unlock.frame:IsShown())
+    T.truthy(unlockRow(DUI, "unit"), "unit frames")
+    T.truthy(unlockRow(DUI, "buffs"), "buffs")
+    T.isnil(unlockRow(DUI, "chat"), "chat isn't loaded")
+    T.eq(DUI.Movers.AreaOf("unitframes.playerCastbar"), "cast")
+    T.eq(DUI.Movers.AreaOf("unitframes.raid20"), "group")
+    T.eq(DUI.Movers.AreaOf("unitframes.target"), "unit")
+    T.eq(DUI.Movers.AreaOf("plugin.x.y"), "other")
+    DUI.Movers.Lock()
+    stub.FinishFade(DUI.TestBox.Unlock.frame)
+    T.falsy(DUI.TestBox.Unlock.frame:IsShown())
+end)
+
+T.test("unlock box: unticking an area hides its handles, kept after a lock", function()
+    local DUI = stub.Load({ module = true, buffs = true })
+    DUI:Set("general", "motion", false)
+    DUI.Movers.Unlock()
+    T.truthy(DUI.Movers.Handle("unitframes.target"):IsShown())
+    unlockRow(DUI, "unit"):Click()
+    T.falsy(DUI.Movers.AreaShown("unit"))
+    T.falsy(DUI.Movers.Handle("unitframes.target"):IsShown(), "tucked away")
+    local other = 0
+    for _, a in ipairs(DUI.Movers.Areas()) do
+        if a.key ~= "unit" then other = other + 1; T.truthy(DUI.Movers.AreaShown(a.key), a.key) end
+    end
+    T.truthy(other > 0, "other areas stay")
+    T.falsy(unlockRow(DUI, "unit").check:IsShown())
+    DUI.Movers.Lock()
+    DUI.Movers.Unlock()
+    T.falsy(DUI.Movers.Handle("unitframes.target"):IsShown(), "still tucked away")
+    T.truthy(DaylightUIDB.unlockHidden.unit, "saved account-wide")
+    unlockRow(DUI, "unit"):Click()
+    T.truthy(DUI.Movers.Handle("unitframes.target"):IsShown(), "back")
+    T.eq(DUI.Movers.Handle("unitframes.target"):GetAlpha(), 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("unlock box: sits under the Lock bar, the test box under it", function()
+    local DUI = stub.Load({ module = true })
+    DUI.SetTestMode(true)
+    local _, rel = DUI.TestBox.frame:GetPoint(1)
+    T.eq(rel, UIParent)
+    DUI.Movers.Unlock()
+    local ub = DUI.TestBox.Unlock.frame
+    _, rel = ub:GetPoint(1)
+    T.truthy(rel == DUI.Movers.LockButton().bar or rel == DUI.Movers.SetupButton().bar)
+    _, rel = DUI.TestBox.frame:GetPoint(1)
+    T.eq(rel, ub)
+    DUI.Movers.Lock()
+    _, rel = DUI.TestBox.frame:GetPoint(1)
+    T.eq(rel, UIParent)
+end)

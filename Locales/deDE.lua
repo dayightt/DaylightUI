@@ -6,6 +6,10 @@ local L = DUI.L
 -- Machine draft below this line: not yet checked by a native speaker.
 L["  %s (on %s)"] = "  %s (auf %s)"
 L["  %s (on %s) - caster is a %s"] = "  %s (auf %s) - der Zaubernde ist ein %s"
+L["Combat Text"] = "Kampftext"
+L["Game Frames"] = "Spielfenster"
+L["Group Frames"] = "Gruppenrahmen"
+L["Show in unlock mode"] = "Im Entsperrmodus anzeigen"
 L["\"Kicked by\" and the player's name in their class color, beside the cast bar for a moment."] = "„Unterbrochen von“ und der Name des Spielers in seiner Klassenfarbe, einen Moment neben der Zauberleiste."
 L["\"Kicked by\" and the player's name in their class color, beside the target's or focus's cast bar for a moment."] = "„Unterbrochen von“ und der Name des Spielers in seiner Klassenfarbe, einen Moment neben der Zauberleiste des Ziels oder Fokus."
 L["\"You create...\" and other crafting messages."] = "„Ihr stellt her...“ und andere Handwerksnachrichten."

@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
+            { "Moving frames", "/dui unlock has a box to hide whole groups of handles, like unit frames or action bars, so the ones under them are easy to grab" },
             { "Chat", "General and Trade keep /1 and /2 even when another addon joins its own chat channels first" },
             { "Bags", "Your bags open when you trade with someone, and close again when the trade ends" },
             { "Chat", "A sound for guild and officer chat, like the whisper sound: Chat page, Whispers" },
@@ -43,6 +44,7 @@ DUI.PatchNotes = {
             { "Cursor ring", "A cleaner cursor ring: the global cooldown gets its own thin ring that runs down, and casts fill a ring further out with a spark at the tip. No glow or moving light unless you turn them on" },
         },
         fixed = {
+            { "Minimap", "The minimap no longer goes empty when you walk into a building, cave or dungeon with the info panel's opacity below 100% or after it faded out in a fight. The map itself now stays solid at any opacity" },
             { "Unit frames", "The target, focus and party cast bar text sizes work again while the bar sits inside the frame, instead of staying tiny" },
             { "Tooltips", "Spell tooltips show \"2 hours\" again instead of a jumble of code like \"|cff...4hour:hrs;\"" },
             { "Action bars", "The micro menu and bag bar keep their dark frames when the action buttons have a round or other shape, instead of turning see-through" },
