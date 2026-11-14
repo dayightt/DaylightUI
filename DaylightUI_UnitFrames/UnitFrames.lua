@@ -1019,8 +1019,8 @@ function UF.PlaceTileName(f)
     -- The name lives in its tab while it has one, else back on the tile.
     if f.nameTag then f.nameText:SetParent(t.tag and f.nameTag or f.overlay) end
     if t.pos ~= "bar" and ns.Spots.Valid(t.pos) then return placeNameAtSpot(f, t) end
-    local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0) + (f.moodSide == "left" and f.moodPad or 0)
-    local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0) + (f.moodSide == "right" and f.moodPad or 0)
+    local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0)
+    local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0)
     -- Target of target and pet: clear of the health text, when it's shown.
     if not f.spec.group and t.showPercent then rightPad = rightPad + 26 end
     if t.outerHalf then
@@ -1368,7 +1368,6 @@ function UF.Layout(f, cfg, text, keepSize)
     -- Either size sits at the frame's inner end, clear of the angled edge.
     local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
     local dir = inner == "LEFT" and 1 or -1
-    local mood = (f.moodPad and f.moodSide == (inner == "LEFT" and "left" or "right")) and f.moodPad or 0
     local nx, ny = cfg.healthTextX, cfg.healthTextY
     -- Ribbon: on the row above the bar at its inner end (bigger with the large
     -- number), sliding in with the row.
@@ -1380,13 +1379,13 @@ function UF.Layout(f, cfg, text, keepSize)
         f.percentText:SetJustifyH(inner)
     elseif f.bigNumber then
         Style.SetTextSize(f.percentText, text.big)
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + UF.BIG_NUMBER_INSET + mood) * dir, -UF.BIG_NUMBER_DROP, nx, ny)
+        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + UF.BIG_NUMBER_INSET) * dir, -UF.BIG_NUMBER_DROP, nx, ny)
         f.percentText:SetJustifyH(inner)
     elseif f.tallTile then
         UF.PlaceText(f.percentText, "BOTTOM", f.health, "BOTTOM", 0, 3, nx, ny)
         f.percentText:SetJustifyH("CENTER")
     else
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + 4 + mood) * dir, 0, nx, ny)
+        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + 4) * dir, 0, nx, ny)
         f.percentText:SetJustifyH(inner)
     end
     f.percentText:SetShown(cfg.showPercent == true)
@@ -3134,12 +3133,8 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
     -- Power text: inside the power bar, clear of its angled end.
     local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
     local pad = endPad or ((side and cut * (ph + Pixel.Px(f, 2)) / H or 0) + 4)
-    local moodEnd = (f.moodPad and f.moodSide == (inner == "LEFT" and "left" or "right")) and f.moodPad or 0
-    pad = pad + moodEnd
     -- Under the big health number, it lines up with it.
-    if not free and cfg.bigNumber == true and cfg.showPercent == true then
-        pad = (cut or 0) + UF.BIG_NUMBER_INSET + moodEnd
-    end
+    if not free and cfg.bigNumber == true and cfg.showPercent == true then pad = (cut or 0) + UF.BIG_NUMBER_INSET end
     local pos = cfg.powerTextPos or "inner"
     local nx, ny = cfg.powerTextX, cfg.powerTextY
     f.powerText:ClearAllPoints()
@@ -3149,7 +3144,6 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
     elseif pos == "outer" then
         local outer = inner == "LEFT" and "RIGHT" or "LEFT"
         local opad = endPad and 4 or ((side and cut * (ph + Pixel.Px(f, 2)) / H or 0) + 4)
-        if f.moodPad and f.moodSide == (outer == "LEFT" and "left" or "right") then opad = opad + f.moodPad end
         UF.PlaceText(f.powerText, outer, f.power, outer, (outer == "LEFT" and 1 or -1) * opad, Pixel.Px(f, 1), nx, ny)
         f.powerText:SetJustifyH(outer)
     else
