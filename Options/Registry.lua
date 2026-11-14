@@ -343,7 +343,10 @@ end
 -- While a slider is dragged on a page with a preview (Options.previewer),
 -- write the value quietly so only the preview redraws. The caller Sets it
 -- on release. Returns false when there's no preview: Set as usual.
+-- item.onRelease: a slider whose every step would be costly (the UI scale
+-- resizes the whole interface) is set once, when it's let go.
 function Options.Preview(page, item, value)
+    if item.onRelease then return not Options.Locked(page, item) end
     if item.set or item.reload or not Options.previewer or Options.Locked(page, item) then return false end
     return Options.previewer(page, item, value) == true
 end
@@ -1214,6 +1217,14 @@ Options.RegisterPage({
                 "The empty part behind the bars in DaylightUI's windows. General uses the bar background above."),
         } },
         { label = "Size", items = {
+            { type = "slider", label = "UI scale", min = DUI.Pixel.SCALE_MIN, max = DUI.Pixel.SCALE_MAX, step = 0.01,
+              unit = "%", since = "1.7.4", onRelease = true,
+              get = function() return DUI.Pixel.UIScale() or UIParent:GetScale() end,
+              set = function(v) DUI.Pixel.SetUIScale(v) end,
+              default = function() return DUI.Pixel.GameScale() or UIParent:GetScale() end,
+              desc = "The size of the whole interface, the game's windows too. Daylight UI keeps it the same when the game "
+                  .. "changes its own (a new resolution, another monitor), so your frames stay where you put them. "
+                  .. "It takes the place of the game's UI scale setting, for every character on this account." },
             { type = "slider", key = "scale", label = "Scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "Makes every DaylightUI frame and window bigger or smaller. To size one frame alone, unlock the frames and scroll over it." },
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",

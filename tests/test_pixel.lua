@@ -53,3 +53,80 @@ T.test("a UI scale change triggers a core repaint", function()
     T.truthy(repainted)
     T.near(DUI.Pixel.perfect, 768 / 2160)
 end)
+
+-- Daylight UI keeps the UI scale itself. Spots are saved from the screen's
+-- center in UI units, so if the client changed the scale on its own the screen
+-- would get taller or shorter in those units and bars near the bottom would
+-- slide toward or off the edge.
+
+T.test("the UI scale the game had is kept from the first loading screen on", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    T.near(DUI.DB.Root().uiScale, 0.8)
+end)
+
+T.test("the client changing the scale on its own is undone", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    stub.SetScreen(2560, 1440, 1)
+    stub.FireEvent("UI_SCALE_CHANGED")
+    T.near(UIParent:GetScale(), 0.8)
+    T.near(UIParent:GetHeight(), 768 / 0.8)
+end)
+
+T.test("a new resolution keeps the screen just as tall in UI units", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    stub.SetScreen(1920, 1080, 0.71)
+    stub.FireEvent("DISPLAY_SIZE_CHANGED")
+    stub.FireEvent("UI_SCALE_CHANGED")
+    T.near(UIParent:GetHeight(), 768 / 0.8)
+end)
+
+T.test("in a fight the scale waits until the fight ends", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    stub.EnterCombat()
+    stub.SetScreen(2560, 1440, 1)
+    stub.FireEvent("UI_SCALE_CHANGED")
+    T.near(UIParent:GetScale(), 1)
+    stub.LeaveCombat()
+    T.near(UIParent:GetScale(), 0.8)
+end)
+
+T.test("a saved scale is used again at the next login", function()
+    local DUI = stub.Load({ before = function()
+        stub.SetScreen(2560, 1440, 1)
+        _G.DaylightUIDB = { uiScale = 0.7 }
+    end })
+    T.near(UIParent:GetScale(), 0.7)
+end)
+
+T.test("picking a scale sizes the screen and tells every area", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    local told = false
+    DUI.RegisterEvent("UI_SCALE_CHANGED", function() told = true end)
+    DUI.Pixel.SetUIScale(0.7)
+    T.near(DUI.DB.Root().uiScale, 0.7)
+    T.near(UIParent:GetHeight(), 768 / 0.7)
+    T.truthy(told)
+end)
+
+T.test("a picked scale stays between 40% and 115%", function()
+    local DUI = at(2560, 1440, 0.8)
+    DUI.Pixel.SetUIScale(0.1)
+    T.near(UIParent:GetScale(), 0.4)
+    DUI.Pixel.SetUIScale(3)
+    T.near(UIParent:GetScale(), 1.15)
+end)
+
+T.test("a bar near the bottom stays the same distance from it", function()
+    local DUI = at(2560, 1440, 0.8)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    local bottomBefore = -UIParent:GetHeight() / 2
+    stub.SetScreen(2560, 1440, 1)
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    T.near(-UIParent:GetHeight() / 2, bottomBefore)
+end)

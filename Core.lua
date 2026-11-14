@@ -347,6 +347,12 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     end
 end)
 
+-- Runs the handlers of a client event the client won't send for a change
+-- made from code (UIParent:SetScale fires no UI_SCALE_CHANGED).
+function DUI.RunEvent(event, ...)
+    if eventHandlers[event] then eventFrame:GetScript("OnEvent")(eventFrame, event, ...) end
+end
+
 -- last: run after every other handler of the event, whenever those were
 -- registered (the logout strip, so the others still see full settings).
 function DUI.RegisterEvent(event, fn, last)

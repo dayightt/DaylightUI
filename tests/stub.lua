@@ -1354,14 +1354,33 @@ end
 -- Screen
 -- ---------------------------------------------------------------------
 
+-- UIParent fills the screen, so its size in UI units follows its scale:
+-- 768 / scale tall, as wide as the screen's shape makes it.
+local function sizeUIParent(ui)
+    local s = ui.__scale or 1
+    ui.__w = stub.physW / stub.physH * 768 / s
+    ui.__h = 768 / s
+end
+
+-- The client changing the UI scale itself (its own slider, a new resolution).
 function stub.SetScreen(physW, physH, uiScale)
     stub.physW, stub.physH, stub.uiScale = physW, physH, uiScale
     local ui = _G.UIParent
     if ui then
         ui.__scale = uiScale
-        ui.__w = physW / physH * 768 / uiScale
-        ui.__h = 768 / uiScale
+        sizeUIParent(ui)
     end
+end
+
+-- An addon setting UIParent's scale resizes it the same way, but the client
+-- fires no UI_SCALE_CHANGED for it (that event follows the uiScale CVar).
+function stub.MakeUIParent()
+    local ui = new("Frame", "UIParent")
+    function ui:SetScale(s)
+        Widget.SetScale(self, s)
+        sizeUIParent(self)
+    end
+    return ui
 end
 _G.GetPhysicalScreenSize = function() return stub.physW, stub.physH end
 
@@ -2806,7 +2825,7 @@ function stub.Reset()
         if stub.combat and (stub.inSecure or 0) == 0 then return end
         if type(f) == "table" and f.Hide then f:Hide() end
     end
-    _G.UIParent = new("Frame", "UIParent")
+    _G.UIParent = stub.MakeUIParent()
     stub.SetScreen(1920, 1080, 1)
     for _, n in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "PetFrame" }) do
         local f = new("Frame", n, _G.UIParent)
