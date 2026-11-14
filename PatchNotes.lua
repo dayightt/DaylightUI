@@ -31,6 +31,7 @@ DUI.PatchNotes = {
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
             { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
             { "Cooldown Manager", "The Gnome racial Eureka! can now show its buff, its cooldown or both" },
+            { "Click-casting", "With the Forever version of Clique, Daylight UI's own click-casting now steps aside for it as it does for Clique" },
             { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
         },
     },
