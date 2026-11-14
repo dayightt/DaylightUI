@@ -538,6 +538,7 @@ function UF.OnEnter(self)
     if type(unit) ~= "string" or not UnitExists(unit) then return end
     GameTooltip_SetDefaultAnchor(GameTooltip, self)
     GameTooltip:SetUnit(unit)
+    if ns.Happiness then ns.Happiness.AddTip(self) end
     GameTooltip:Show()
 end
 
@@ -1185,7 +1186,15 @@ function UF.Layout(f, cfg, text, keepSize)
     f.cornerMode = f.spec.cornerIcons == true and UF.PortraitMode(f, cfg) == "none" and not tabOn
 
     f.health:ClearAllPoints()
-    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
+    -- A happiness stripe inside the pet frame takes a strip off one end
+    -- (Happiness.Prepare). The bars stop short of it on a straight edge.
+    local band = ns.Happiness and ns.Happiness.Prepare(f, cfg) or nil
+    local insetL, insetR = T, T
+    if band then
+        local reserve = band.w + band.gap + (band.cut or 0)
+        if band.side == "left" then insetL = T + reserve else insetR = T + reserve end
+    end
+    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", insetL, -T)
     -- Tiles can optionally fill health bottom to top instead of across.
     f.health:SetOrientation(cfg.fillVertical == true and "VERTICAL" or "HORIZONTAL")
     -- The player's power bar may stand on its own, and in Ribbon every power
@@ -1207,8 +1216,8 @@ function UF.Layout(f, cfg, text, keepSize)
     end
     if showPower and where == "inside" then
         f.power:ClearAllPoints()
-        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", T, T)
-        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T)
+        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
         f.power:SetHeight(Pixel.Snap(f, cfg.powerHeight))
         f.separator:ClearAllPoints()
         f.separator:SetPoint("BOTTOMLEFT", f.power, "TOPLEFT", 0, 0)
@@ -1216,7 +1225,7 @@ function UF.Layout(f, cfg, text, keepSize)
         f.separator:SetHeight(Pixel.Px(f, Style.SEPARATOR_PX))
         f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", 0, 0)
     else
-        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
     end
 
     -- Where the marker, crown and role icon sit (UF.IconSpot). nil means home,
@@ -1320,7 +1329,8 @@ function UF.Layout(f, cfg, text, keepSize)
         local H = f:GetHeight()
         local ph = (showPower and where == "inside") and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
         f.healthCut = cut * (H - 2 * T - ph) / H
-        local fillSide = (not f.flipped and cfg.fillVertical ~= true) and side or nil
+        -- The stripe owns the angled end, so the bars' fill stays square.
+        local fillSide = (not f.flipped and cfg.fillVertical ~= true and not (band and band.along)) and side or nil
         Style.AngleFill(f.health, fillSide, f.healthCut)
         if f.power and where == "inside" then Style.AngleFill(f.power, fillSide, cut * f.power:GetHeight() / H) end
     end

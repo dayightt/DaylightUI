@@ -1,13 +1,15 @@
--- A hunter pet's happiness beside the pet frame. Two looks
--- (pet.happinessLook): a square filled with the mood's color ("square", the
--- default, readable at any size) or the game's mood face ("icon"). Red is
--- unhappy, yellow content, green happy (a happy pet does more damage and
--- gains loyalty). The square keeps the frame's own edge. The mood face sits
--- on its own, with no box around it. Placed
--- like the corner icons via happinessSpot/X/Y, sized by happinessSize. The
--- tooltip mirrors the game's own indicator: mood, damage, loyalty gain or
--- loss, and diet. Hunter pets only. The character window's pet page keeps
--- the game's face.
+-- A hunter pet's happiness. Three looks (pet.happinessLook): a square filled
+-- with the mood's color ("square", the default, readable at any size), the
+-- game's mood face ("icon"), or a gradient stripe inside the frame ("frame") on
+-- the left or right (pet.happinessSide). Red is unhappy, yellow content, green
+-- happy (a happy pet does more damage and gains loyalty). The square keeps
+-- the frame's own edge. The mood face sits on its own, with no box around it.
+-- The stripe is separated from the bars like health is from power. On an
+-- angled end the bars stay straight and the stripe fills out to the frame's
+-- angle. The square and the face are placed like
+-- the corner icons via happinessSpot/X/Y, sized by happinessSize. The tooltip
+-- mirrors the game's own indicator: mood, damage, loyalty gain or loss, and
+-- diet. Hunter pets only. The character window's pet page keeps the game's face.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -31,6 +33,159 @@ Happiness.COLORS = {
     [2] = { 1.0, 0.82, 0.25 },     -- content
     [3] = { 0.35, 0.8, 0.35 },     -- happy
 }
+Happiness.STRIPE = 4             -- the in-frame stripe, about a power bar tall
+
+local function widget(f)
+    if f and f.happiness then return f.happiness end
+    if ns.happiness and f and ns.happiness.pet == f then return ns.happiness end
+end
+
+-- Hunters are the only ones with a pet that has a mood.
+function Happiness.HunterPet()
+    return select(2, UnitClass("player")) == "HUNTER"
+end
+
+function Happiness.Integrated(cfg)
+    return type(cfg) == "table" and cfg.happiness == true and cfg.happinessLook == "frame"
+end
+
+-- The stripe is a gradient like every bar: the mood's color from a darker
+-- shade at the bottom to itself at the top (it is four pixels wide, so the
+-- shade runs along its length). It fades in and out and slides from one mood's
+-- color to the next with Motion, and just snaps with Motion off.
+local function lerp(a, b, e) return a + (b - a) * e end
+
+local function shadeStripe(h, lo, hi)
+    h.stripe:SetVertexColor(1, 1, 1, 1)
+    if h.stripe.SetGradient and CreateColor then
+        h.stripe:SetGradient("VERTICAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+    else
+        h.stripe:SetVertexColor(hi[1], hi[2], hi[3], 1)
+    end
+end
+
+local function paintStripe(h, mood)
+    local G = DUI.Gradients
+    local lo, hi = G.PaintRGBOf(G.PairFrom(Happiness.COLORS[mood]))
+    local was = h.shade
+    h.shade = { lo, hi }
+    h.shadeKey = h.shadeKey or {}
+    if was and was[1][1] == lo[1] and was[1][2] == lo[2] and was[1][3] == lo[3]
+        and was[2][1] == hi[1] and was[2][2] == hi[2] and was[2][3] == hi[3] then return end
+    -- A stripe that isn't showing takes its color at once, then fades in.
+    if not was or not h.band:IsShown() then
+        DUI.Motion.Tween(h.shadeKey, 0, 0, 0)
+        return shadeStripe(h, lo, hi)
+    end
+    local l0, h0 = was[1], was[2]
+    local cur = h.shadeNow or { l0, h0 }
+    local fl, fh = cur[1], cur[2]
+    DUI.Motion.Tween(h.shadeKey, 0, 1, DUI.Motion.NORMAL, function(e)
+        local l = { lerp(fl[1], lo[1], e), lerp(fl[2], lo[2], e), lerp(fl[3], lo[3], e) }
+        local u = { lerp(fh[1], hi[1], e), lerp(fh[2], hi[2], e), lerp(fh[3], hi[3], e) }
+        h.shadeNow = { l, u }
+        shadeStripe(h, l, u)
+    end)
+end
+
+-- The stripe, once the frame exists. Parent is the pet frame, so hiding the
+-- square doesn't hide it. Clipped to the frame's angle.
+local function ensureBand(h)
+    if h.stripe then return end
+    local pet = h.pet
+    local band = CreateFrame("Frame", nil, pet)
+    band:SetAllPoints(pet)
+    if pet.overlay then band:SetFrameLevel(math.max(pet.health:GetFrameLevel() + 1, pet.overlay:GetFrameLevel() - 1)) end
+    h.band = band
+    h.stripe = band:CreateTexture(nil, "ARTWORK")
+    h.stripe:SetTexture("Interface\\Buttons\\WHITE8X8")
+    h.gap = Style.Separator(band)
+    if pet.spec and pet.spec.slant then
+        Style.Clip(pet, h.stripe, "inner", "inner", "right")
+        Style.Clip(pet, h.gap, "inner", "inner", "right")
+    end
+    band:Hide()
+end
+
+local function barTextures(f)
+    local t = {}
+    local function add(tex) if tex then t[#t + 1] = tex end end
+    add(f.health and f.health:GetStatusBarTexture())
+    add(f.health and Style.BarBack(f.health))
+    if f.power then
+        add(f.power:GetStatusBarTexture())
+        add(Style.BarBack(f.power))
+        add(f.separator)
+    end
+    if f.heals then
+        add(f.heals:GetStatusBarTexture())
+        if f.heals.wedge then add(f.heals.wedge:GetStatusBarTexture()) end
+    end
+    if f.absorbs then
+        add(f.absorbs:GetStatusBarTexture())
+        if f.absorbs.wedge then add(f.absorbs.wedge:GetStatusBarTexture()) end
+    end
+    if f.overshield then
+        add(f.overshield:GetStatusBarTexture())
+        add(f.overshield.glow)
+    end
+    return t
+end
+
+-- Lay the stripe out and tell the frame how far the bars stand off it.
+-- On an angled end the bars stop at a straight edge, the separator stays
+-- straight, and the stripe fills out to the frame's own angle. Its narrowest
+-- point (the top of the cut) is the same width as the straight stripe.
+-- Returns nil when the stripe is off.
+function Happiness.Prepare(f, cfg)
+    local h = widget(f)
+    if not h then return nil end
+    ensureBand(h)
+    -- Only a pet that has a mood gives up room for it: a hunter's (the options
+    -- page's sample stands in for one). A warlock's demon on the same profile
+    -- keeps its whole frame.
+    local on = f.unitToken == "pet" and Happiness.Integrated(cfg) and (f.happiness ~= nil or Happiness.HunterPet())
+    h.reserved = on or false
+    for _, tex in ipairs(barTextures(f)) do Style.ClipSpan(tex, "inner") end
+    if not on then
+        DUI.Motion.AlphaTo(h.band, 0, 0, true)
+        return nil
+    end
+    local side = cfg.happinessSide == "left" and "left" or "right"
+    local slantOn = cfg.slant ~= false and f.spec.slant or nil
+    local along = slantOn == side
+    local T = Pixel.Px(f, Style.BorderPx(f))
+    local w = Pixel.Px(f, Happiness.STRIPE)
+    local gap = Pixel.Px(f, Style.SEPARATOR_PX)
+    -- The cut is already on the frame (UF.Layout). The block has to cover it
+    -- so the top of the angle still keeps a full stripe.
+    local cut = along and (f.cut or 0) or 0
+    local block = w + cut
+    -- The gap is straight, inboard of the angle, so the frame's cut must not
+    -- mask it. The stripe takes only the frame's own outer line.
+    Style.ClipSpan(h.gap, "inner", false, "off")
+    Style.ClipSpan(h.stripe, "inner", false, along and side or "off")
+    h.stripe:ClearAllPoints()
+    h.gap:ClearAllPoints()
+    if side == "left" then
+        h.stripe:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
+        h.stripe:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", T, T)
+        h.stripe:SetWidth(block)
+        h.gap:SetPoint("TOPLEFT", f, "TOPLEFT", T + block, -T)
+        h.gap:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", T + block, T)
+        h.gap:SetWidth(gap)
+    else
+        h.stripe:SetPoint("TOPRIGHT", f, "TOPRIGHT", -T, -T)
+        h.stripe:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+        h.stripe:SetWidth(block)
+        h.gap:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(T + block), -T)
+        h.gap:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(T + block), T)
+        h.gap:SetWidth(gap)
+    end
+    -- The bars themselves move in by the whole block (UF.Layout), and the
+    -- texts sit on the bars, so they are already clear of the stripe.
+    return { side = side, along = along, w = w, gap = gap, cut = cut }
+end
 
 -- Returns the mood (1 to 3), the damage percent and the loyalty rate, or nil
 -- when there's no hunter pet.
@@ -43,10 +198,7 @@ function Happiness.Read()
     return mood, damage, loyalty
 end
 
-local function showTooltip(self)
-    local mood, damage, loyalty = Happiness.Read()
-    if not mood then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+local function addTipLines(mood, damage, loyalty)
     local Tips, c = DUI.Tips, Happiness.COLORS[mood]
     Tips.Clear()
     Tips.Title(_G["PET_HAPPINESS" .. mood] or string.format(DUI.L["Happiness %s"], tostring(mood)), c[1], c[2], c[3])
@@ -64,12 +216,20 @@ local function showTooltip(self)
         Tips.Sub(string.format(PET_DIET_TEMPLATE, list))
     end
     Tips.Flush(GameTooltip)
+end
+
+local function showTooltip(self)
+    local mood, damage, loyalty = Happiness.Read()
+    if not mood then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    addTipLines(mood, damage, loyalty)
     GameTooltip:Show()
 end
 
 function Happiness.Create(pet)
     local h = CreateFrame("Frame", nil, pet)
     h.pet = pet
+    ensureBand(h)
     h.shell = Style.Shell(h)
     h.fill = h:CreateTexture(nil, "ARTWORK")
     h.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -92,7 +252,13 @@ function Happiness.Layout(h, cfg)
     h.enabled = cfg.happiness == true
     h.tint = cfg.happinessBar == true
     local look = cfg.happinessLook
-    h.look = look == "icon" and "icon" or "square"
+    h.look = (look == "icon" or look == "frame") and look or "square"
+    if h.look == "frame" then
+        h:Hide()
+        Happiness.Update(h)
+        return
+    end
+    if h.band then DUI.Motion.AlphaTo(h.band, 0, 0, true) end
     local pet = h.pet
     local s = math.max(8, tonumber(cfg.happinessSize) or 16)
     h:SetSize(s, s)
@@ -155,7 +321,26 @@ local function moodFace(face, mood)
     end
 end
 
+-- On the pet frame's own tooltip while the stripe is showing.
+function Happiness.AddTip(f)
+    local h = widget(f)
+    if not h or h.look ~= "frame" or not h.enabled or not h.band or not h.band:IsShown() then return end
+    local mood, damage, loyalty = h.test and 2, nil, nil
+    if not h.test then mood, damage, loyalty = Happiness.Read() end
+    if not mood then return end
+    addTipLines(mood, damage, loyalty)
+end
+
 function Happiness.Draw(h, mood)
+    if h.look == "frame" then
+        h:Hide()
+        -- Nothing to show where the frame kept no room for it (Prepare).
+        local on = mood ~= nil and h.stripe ~= nil and h.reserved == true
+        if on then paintStripe(h, mood) end
+        if h.band then DUI.Motion.AlphaTo(h.band, on and 1 or 0, DUI.Motion.NORMAL, true) end
+        return
+    end
+    if h.band then DUI.Motion.AlphaTo(h.band, 0, 0, true) end
     h:SetShown(mood ~= nil)
     if not mood then return end
     local r, g, b = Style.Soften(unpack(Happiness.COLORS[mood]))

@@ -68,7 +68,7 @@ ns.DEFAULTS = {
     pet = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 20, powerHeight = 4, showPower = true, showName = true, slant = true,
             reverseFill = false, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
             predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults({ fullHealth = false }), happiness = true, happinessBar = false,
-            happinessLook = "square", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
+            happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
     focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,

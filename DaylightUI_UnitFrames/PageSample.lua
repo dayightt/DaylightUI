@@ -109,7 +109,7 @@ PageSample.PARTS = {
     -- Only the pet page's sample has one (f.happiness). Hidden while the
     -- switch is off, so it drops out of Design mode with it.
     { label = "Pet happiness", at = function(f) return f.happiness end,
-      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
+      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSide", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
       move = { spot = "%s.happinessSpot", x = "%s.happinessX", y = "%s.happinessY" },
       size = { s = "%s.happinessSize" } },
 }
