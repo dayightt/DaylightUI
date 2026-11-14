@@ -126,6 +126,14 @@ function LW.Install()
     f.ScrollBox:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -22)
     f.ScrollBox:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
     f.ScrollBox:SetWidth(216)
+    function f.ScrollBox:GetDataProviderSize() return #LW.slots end
+    function f:GetPanelMaxHeight() return self.panelMaxHeight end
+    -- MinimalScrollBar, as the game anchors it: 16 px in from the window's right
+    -- edge, 28 from the top, 6 from the bottom.
+    f.ScrollBar = CreateFrame("Frame", nil, f)
+    f.ScrollBar:SetWidth(8)
+    f.ScrollBar:SetPoint("TOPLEFT", f, "TOPRIGHT", -16, -28)
+    f.ScrollBar:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", -16, 6)
     return f
 end
 

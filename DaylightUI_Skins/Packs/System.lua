@@ -34,8 +34,161 @@ local function lootRow(row)
     Kit.Light(row.QualityText, DUI.Style.INK.LABEL)
 end
 
+-- The loot window's header and room. The game puts the title in a 22 px strip
+-- with its X in the corner, higher than the title. Here they sit where every
+-- Daylight UI window has them (title at Win.TITLE_Y, the X level with it), and
+-- the rows have the same MARGIN to the window's edge on the left, right and
+-- bottom, and under the header at the top. The rows keep the game's 46 px
+-- slots but draw a little shorter, so they stand further apart, with the icon
+-- a bit smaller so its outline clears the row's, the name lower and the rarity
+-- tucked into the corner so the two don't run together.
+-- The game sizes the window from its rows with a minimum that leaves spare room
+-- at the bottom for one or two, so the height is worked out here from the rows
+-- instead, up to the game's own maximum. Past that the list scrolls, and only
+-- then does its bar show (the game's shows always), with room made for it.
+-- Nothing here is a hook on the game's methods: it runs after the window shows
+-- and after each list update, next frame, and only sets what differs.
+local LootLayout = {
+    MARGIN = 12,     -- px between the window's edge (or the header) and the rows
+    HEAD = DUI.Win and DUI.Win.COMPACT or 36, -- the header's height
+    PAD = 6,         -- the game's padding inside its list (ScrollBoxPad)
+    ROW_SLOT = 46,   -- the game's row height
+    SLOT_GAP = 2,    -- the game's space between rows
+    ROW_GAP = 2,     -- px a row draws shorter than its slot (so 4 px between rows, not 2)
+    MAX_HEIGHT = 290, -- the game's panelMaxHeight, used when it can't be read
+    BAR_W = 8,       -- the scroll bar's width
+    BAR_INSET = 6,   -- px from the window's right edge to the bar
+    BAR_GAP = 6,     -- px between the rows and the bar
+    ICON = 30,       -- the item button, px square (the game's is 37); its quality outline sticks out ~2.5 px more each side
+    ITEM_X = 8,      -- the icon's left edge in the row (the game's: 5)
+    TEXT_GAP = 10,   -- px between the icon and the name
+    TEXT_DROP = 6,   -- px a one-line name sits below the row's middle (clear of the rarity)
+    TAG_X = -10, TAG_Y = -5, -- the rarity's corner
+}
+ns.LootLayout = LootLayout
+
+-- Where the list sits (offsets from the window's corners) and how tall the
+-- window is for n rows, and whether those rows need the bar.
+function LootLayout.Plan(n, maxHeight)
+    local L = LootLayout
+    local left = L.MARGIN - L.PAD
+    local top = L.HEAD + L.MARGIN - L.PAD
+    local bottom = L.MARGIN - L.PAD - L.ROW_GAP -- a row's last 2 px of its slot are empty
+    local wanted = top + bottom + 2 * L.PAD + n * L.ROW_SLOT + math.max(n - 1, 0) * L.SLOT_GAP
+    local scrolls = wanted > maxHeight
+    local right = scrolls and (L.BAR_INSET + L.BAR_W + L.BAR_GAP - L.PAD) or (L.MARGIN - L.PAD)
+    return { left = left, top = top, bottom = bottom, right = right, height = math.min(wanted, maxHeight), scrolls = scrolls }
+end
+
+local function lootHeader(f)
+    local Win = DUI.Win
+    local close = f.ClosePanelButton
+    if type(close) == "table" and close.SetPoint then
+        local size = DUI.Widgets and DUI.Widgets.CLOSE or 24
+        close:SetSize(size, size)
+        close:ClearAllPoints()
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
+    end
+    local title = type(f.TitleContainer) == "table" and f.TitleContainer.TitleText
+    if type(title) == "table" and title.SetPoint then
+        title:ClearAllPoints()
+        title:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, Win.TITLE_Y)
+        if type(close) == "table" then title:SetPoint("RIGHT", close, "LEFT", -12, 0) end
+    end
+end
+
+-- True when the frame's points already are these (nothing to set).
+local function pointsAre(frame, want)
+    if frame:GetNumPoints() ~= #want then return false end
+    for i, w in ipairs(want) do
+        local point, rel, relPoint, x, y = frame:GetPoint(i)
+        if point ~= w[1] or rel ~= w[2] or relPoint ~= w[3]
+            or type(x) ~= "number" or type(y) ~= "number"
+            or math.abs(x - w[4]) > 0.01 or math.abs(y - w[5]) > 0.01 then
+            return false
+        end
+    end
+    return true
+end
+
+local function placePoints(frame, want)
+    if pointsAre(frame, want) then return end
+    frame:ClearAllPoints()
+    for _, w in ipairs(want) do frame:SetPoint(w[1], w[2], w[3], w[4], w[5]) end
+end
+
+local function lootRoom(f)
+    if DUI.Win.Held(f) then return end
+    local L = LootLayout
+    local box = f.ScrollBox
+    if type(box) ~= "table" or not box.SetPoint or type(box.GetDataProviderSize) ~= "function" then return end
+    local n = box:GetDataProviderSize()
+    if type(n) ~= "number" or n < 1 then return end
+    local max = L.MAX_HEIGHT
+    if type(f.GetPanelMaxHeight) == "function" then
+        local ok, h = pcall(f.GetPanelMaxHeight, f)
+        if ok and type(h) == "number" and h > 0 then max = h end
+    end
+    local plan = L.Plan(n, max)
+    local h = f:GetHeight()
+    if type(h) ~= "number" or math.abs(h - plan.height) > 0.01 then f:SetHeight(plan.height) end
+    placePoints(box, {
+        { "TOPLEFT", f, "TOPLEFT", plan.left, -plan.top },
+        { "BOTTOMRIGHT", f, "BOTTOMRIGHT", -plan.right, plan.bottom },
+    })
+    -- The bar: only when the rows need it, level with them.
+    local bar = f.ScrollBar
+    if type(bar) == "table" and bar.SetPoint then
+        local x = -(L.BAR_INSET + L.BAR_W)
+        placePoints(bar, {
+            { "TOPLEFT", f, "TOPRIGHT", x, -(plan.top + L.PAD) },
+            { "BOTTOMLEFT", f, "BOTTOMRIGHT", x, plan.bottom + L.PAD },
+        })
+        bar:SetAlpha(plan.scrolls and 1 or 0)
+    end
+end
+
+-- A row draws ROW_GAP shorter than its slot. Its icon is smaller and in the
+-- middle, the name sits just below the middle of the row, and the rarity is in
+-- the top right corner, above the name's line.
+local function lootRoomRow(row)
+    if type(row) ~= "table" or type(row.Item) ~= "table" or not row.SetHeight then return end
+    local L = LootLayout
+    local h = row:GetHeight()
+    if type(h) == "number" and math.abs(h - L.ROW_SLOT) < 0.5 then row:SetHeight(L.ROW_SLOT - L.ROW_GAP) end
+    local item = row.Item
+    item:SetSize(L.ICON, L.ICON)
+    item:ClearAllPoints()
+    item:SetPoint("LEFT", row, "LEFT", L.ITEM_X, 0)
+    if type(row.IconQuestTexture) == "table" and row.IconQuestTexture.SetSize then
+        row.IconQuestTexture:SetSize(L.ICON, L.ICON)
+    end
+    local name = row.Text
+    if type(name) == "table" and name.SetPoint then
+        name:ClearAllPoints()
+        -- One line sits below the rarity. Two lines are centered instead, or the
+        -- second would touch the row's bottom edge.
+        local height = name.GetStringHeight and name:GetStringHeight()
+        local lines = type(height) == "number" and height > 1.5 * (DUI.Style.SIZE.body + 2)
+        name:SetPoint("LEFT", item, "RIGHT", L.TEXT_GAP, (row.QualityText and not lines) and -L.TEXT_DROP or 0)
+        if name.SetJustifyV then name:SetJustifyV("MIDDLE") end
+    end
+    local tag = row.QualityText
+    if type(tag) == "table" and tag.SetPoint then
+        tag:ClearAllPoints()
+        tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", L.TAG_X, L.TAG_Y)
+    end
+end
+
 Engine.Window({ key = "loot", pack = "system", frame = "LootFrame", watch = true,
-    after = function(Kit, f) Kit.EachRow(f.ScrollBox, lootRow, "lootrow") end })
+    after = function(Kit, f)
+        Kit.EachRow(f.ScrollBox, lootRow, "lootrow")
+        Kit.EachRow(f.ScrollBox, lootRoomRow, "lootroom")
+        -- Once per update, not per row: the first row's pass does it.
+        Kit.EachRow(f.ScrollBox, function() lootRoom(f) end, "lootfit")
+        lootHeader(f)
+        lootRoom(f)
+    end })
 -- Group loot rolls: each popup gets the window look with a quality-colored line
 -- on top, the icon outlined in that color, the name on one line above a sub line
 -- (slot, "BoP" in the warn color), and Need/Greed/Pass in a row of control
