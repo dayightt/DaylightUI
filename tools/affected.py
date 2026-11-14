@@ -45,7 +45,7 @@ RIG_TESTS = ["test_core", "test_stub_reuse"]
 # Run for any shipped Lua change: they check every file (look rules, banned
 # patterns), in under 10 s together.
 ALWAYS_LUA = ["test_hygiene", "test_guards"]
-# test_locale draws every page in every language (37 s, the second slowest), so it
+# test_locale draws every page in every language (~10 s), so it
 # only runs for a change to the text itself.
 LOCALE_WORDS = re.compile(r"\bL\[")
 SLOW = {"test_group", "test_group_sweep", "test_hostile_bg", "test_hostile_fight", "test_hostile_party",
