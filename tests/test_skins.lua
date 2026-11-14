@@ -3234,6 +3234,10 @@ T.test("skins: with no community the join action sits under the guild text", fun
         stub.loadedAddOns.Blizzard_Communities = true
         f = guildWindow()
         f.CommunitiesList:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 170, 29)
+        -- The game has already filled the list (its own OnShow ran once).
+        f.CommunitiesList.ScrollBox.GetDataProvider = function()
+            return { GetSize = function() return #_G.C_Club.GetSubscribedClubs() + 1 end }
+        end
         local finder = CreateFrame("Frame", nil, f)
         f.GuildFinderFrame = finder
         disabled = CreateFrame("Frame", nil, finder)
@@ -3287,6 +3291,36 @@ T.test("skins: with no community the join action sits under the guild text", fun
     stub.RunTimers()
     T.eq(f.CommunitiesList:IsShown(), true, "the list returns on the rebuild")
     T.truthy(not b:IsShown() or b:GetAlpha() == 0, "and the button fades out again")
+end)
+
+T.test("skins: a window with no community keeps its club list shown until the game has filled it", function()
+    -- The game fills the club list in the list's own OnShow, then the window's
+    -- OnShow scrolls it to the selected club. A list hidden before that has no
+    -- data, so the scroll fails with "attempt to index a nil value".
+    local f, provider, visible
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        f = guildWindow()
+        f.CommunitiesList:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 170, 29)
+        f.CommunitiesList.ScrollBox.GetDataProvider = function() return provider end
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        _G.IsInGuild = function() return false end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    visible = f.CommunitiesList:IsShown()
+    T.eq(visible, true, "no data yet: the list is not hidden, so its OnShow still runs")
+    T.eq(f.CommunitiesList:GetAlpha(), 0, "but it can't be seen")
+    -- The game fills it; the next rebuild can close the empty column.
+    provider = { GetSize = function() return 1 end }
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), false, "with its data in place the empty column closes")
+    -- A club shows up: the column returns whole.
+    provider = { GetSize = function() return 2 end }
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true)
+    T.eq(f.CommunitiesList:GetAlpha(), 1, "and fully visible")
 end)
 
 T.test("skins: joining a community opens the game's dialog, which we leave alone", function()
