@@ -14,10 +14,13 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Other addons", "A SkillUp link in the profession window switches to the game's window, where SkillUp Forever shows its skill-up chances, costs and route" },
-            { "Unit frames", "Portraits can be square, or square with an angled side like the frames: Unit frames > Extras" },
+            { "Unit frames", "Portraits can be square, or square with an angled side like the frames, picked per frame on its new Portrait tab" },
         },
         changed = {
             { "Window skins", "Item slots and coins in the game's windows (loot, guild bank and more) now match Daylight UI's bags, and the trade window has a cleaner layout" },
+        },
+        fixed = {
+            { "Chat", "Profession and recipe links in chat open on the first click, even while Trade chat is busy" },
         },
     },
     { version = "1.8.0", date = "2026-11-14", summary = "See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.",

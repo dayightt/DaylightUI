@@ -2173,8 +2173,14 @@ end)
 
 -- A profession link (and a recipe's) opens only from the game's own click: one
 -- passed on from the box's script reached SetItemRef and the game opened nothing
--- (seen in game). Under the mouse a copy of the link is held by a frame made from
--- the game's InlineHyperlinkFrameTemplate, whose click is the game's.
+-- (seen in game). Each shown line has an invisible twin over it on a frame made
+-- from the game's InlineHyperlinkFrameTemplate, whose click is the game's.
+local function twinOf(CH, box, i)
+    local m = CH.Links.Mirror(box)
+    local t = m and m.lines[i]
+    if t and t:IsShown() then return t end
+end
+
 T.test("chat daylight: a profession link is clicked through the game's own link frame", function()
     local _, box = daylight()
     local CH = stub.chatModule
@@ -2184,34 +2190,37 @@ T.test("chat daylight: a profession link is clicked through the game's own link 
     end
     local link = "trade:Player-6928-01B3BE12:3100:164"
     local text = "|cffffd000|H" .. link .. "|h[Tailoring]|h|r"
-    stub.cursorPos = { 300, 120 }
-    box:GetScript("OnHyperlinkEnter")(box, link, text)
-    local c = CH.Links.Catcher()
-    T.truthy(c and c:IsShown(), "a copy of the link waits under the mouse")
-    T.eq(c:GetParent(), box)
-    T.eq(c:GetAlpha(), 0, "never seen: the box's own line shows")
-    T.eq(c:IsMouseEnabled(), false, "the wheel and drags still reach the box")
-    T.eq(c:GetHyperlinksEnabled(), true)
-    T.eq(c.text:GetText(), text)
+    local name = "|Hplayer:Robb|h[Robb]|h"
+    box:AddMessage(name .. " says: " .. text)
+    box:FakeRefresh()
+    local m = CH.Links.Mirror(box)
+    T.truthy(m and m:IsShown(), "the lines' twins are up")
+    T.eq(m:GetParent(), box)
+    T.eq(m:GetAlpha(), 0, "never seen: the box's own lines show")
+    T.eq(m:IsMouseEnabled(), false, "the wheel, drags and names still reach the box")
+    T.eq(m:GetHyperlinksEnabled(), true)
+    local t = twinOf(CH, box, 1)
+    T.truthy(t, "the line with the link has its twin")
+    T.eq(select(2, t:GetPoint(1)), box.visibleLines[1], "laid exactly over its line")
+    T.eq(t:GetText(), "[Robb] says: " .. text, "the name is plain words, the profession a link")
 
-    -- The box sees its link left as the copy comes up over it: the tooltip stays.
-    local left = 0
-    local leave = CH.LinkTips.OnLeave
+    -- Hovering the twin's link shows the box's tooltip.
+    local entered, left = {}, 0
+    local enter, leave = CH.LinkTips.OnEnter, CH.LinkTips.OnLeave
+    CH.LinkTips.OnEnter = function(f, l) entered[#entered + 1] = { f, l } end
     CH.LinkTips.OnLeave = function() left = left + 1 end
-    box:GetScript("OnHyperlinkLeave")(box)
-    T.eq(left, 0, "the tooltip stays while the copy holds the link")
-    T.truthy(c:IsShown())
+    m:GetScript("OnHyperlinkEnter")(m, link, text)
+    T.eq(entered[1] and entered[1][1], box)
+    T.eq(entered[1] and entered[1][2], link)
 
-    c:GetScript("OnHyperlinkClick")(c, link, text, "LeftButton")
+    m:GetScript("OnHyperlinkClick")(m, link, text, "LeftButton")
     T.eq(#got, 1)
     T.eq(got[1].link, link)
     T.truthy(got[1].game, "SetItemRef ran as the game's code")
-
-    -- Leaving the copy lets it go, and the tooltip with it.
-    c:GetScript("OnHyperlinkLeave")(c)
+    T.truthy(m:IsShown(), "still there for the next click")
+    m:GetScript("OnHyperlinkLeave")(m)
     T.eq(left, 1)
-    T.falsy(c:IsShown())
-    CH.LinkTips.OnLeave = leave
+    CH.LinkTips.OnEnter, CH.LinkTips.OnLeave = enter, leave
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2236,11 +2245,10 @@ T.test("chat daylight: Show Message on a hidden message shows it in the box", fu
                     infoID, accessID, typeID, event, args, ...
             end)
     end
-    stub.cursorPos = { 300, 120 }
-    box:GetScript("OnHyperlinkEnter")(box, "censoredmessage:77", "|Hcensoredmessage:77|h[Show Message]|h")
-    local c = CH.Links.Catcher()
-    T.truthy(c and c:IsShown(), "clicked through the game's own link frame")
-    c:GetScript("OnHyperlinkClick")(c, "censoredmessage:77", "[Show Message]", "LeftButton")
+    box:FakeRefresh()
+    local m = CH.Links.Mirror(box)
+    T.truthy(m and m:IsShown(), "clicked through the game's own link frame")
+    m:GetScript("OnHyperlinkClick")(m, "censoredmessage:77", "[Show Message]", "LeftButton")
     local texts = boxTexts(box)
     T.eq(#texts, 3, "still three lines")
     T.eq(texts[1], "before")
@@ -2255,47 +2263,40 @@ end)
 T.test("chat daylight: names, channels and Daylight UI's own links stay the box's click", function()
     local _, box = daylight()
     local CH = stub.chatModule
-    local enter = box:GetScript("OnHyperlinkEnter")
     for _, link in ipairs({ "player:Bob", "BNplayer:Bob:1", "channel:CHANNEL:2", "clubTicket:ABC",
                             "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
-        enter(box, link, "[" .. link .. "]")
-        local c = CH.Links.Catcher()
-        T.falsy(c and c:IsShown(), link .. " is not copied")
+        box:AddMessage("|H" .. link .. "|h[x]|h")
     end
-    -- A secret link (chat lockdown) is left alone too.
-    enter(box, stub.Secret("item:19019"), stub.Secret("[Thunderfury]"))
-    local c = CH.Links.Catcher()
-    T.falsy(c and c:IsShown(), "a secret link")
+    -- A secret line (chat lockdown) is left alone too.
+    box:AddMessage(stub.Secret("|Hitem:19019|h[Thunderfury]|h"))
+    box:FakeRefresh()
+    for i = 1, 8 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
+    local m = CH.Links.Mirror(box)
+    T.falsy(m and m:IsShown(), "nothing for the game to click")
+    T.eq(CH.Links.Twin("|Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"), "[Bob]: |Hitem:1|h[A]|h")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("chat daylight: the copied link goes when the box scrolls or its lines move", function()
+-- New lines in a busy channel and scrolling move the links: the twins follow, so
+-- the click always lands on the link that's shown.
+T.test("chat daylight: the twins follow new lines and scrolling", function()
     local _, box = daylight()
     local CH = stub.chatModule
-    for i = 1, 3 do box:AddMessage("line " .. i) end
-    local link = "enchant:3915"
-    box:GetScript("OnHyperlinkEnter")(box, link, "|cffffd000|H" .. link .. "|h[Tailoring: Bolt of Linen]|h|r")
-    local c = CH.Links.Catcher()
-    T.truthy(c:IsShown())
+    local link = "|Henchant:3915|h[Tailoring: Bolt of Linen]|h"
+    box:AddMessage("recipe " .. link)
     box:FakeRefresh()
-    T.falsy(c:IsShown(), "new lines moved the link away")
-
-    box:GetScript("OnHyperlinkEnter")(box, link, "|H" .. link .. "|h[x]|h")
-    -- A click in progress keeps it: the press already landed on the link.
-    local was = _G.IsMouseButtonDown
-    _G.IsMouseButtonDown = function() return true end
+    T.eq(twinOf(CH, box, 1):GetText(), "recipe " .. link)
+    box:AddMessage("just talk")
     box:FakeRefresh()
-    T.truthy(c:IsShown(), "held through the click")
-    _G.IsMouseButtonDown = was
+    T.falsy(twinOf(CH, box, 1), "the bottom line has no link now")
+    T.eq(twinOf(CH, box, 2):GetText(), "recipe " .. link, "the link's twin moved up with it")
     box:ScrollUp()
-    T.falsy(c:IsShown(), "scrolled away")
-
-    -- Hidden with the box, it doesn't come back with it.
-    box:GetScript("OnHyperlinkEnter")(box, link, "|H" .. link .. "|h[x]|h")
-    box:Hide()
-    box:Show()
-    T.falsy(c:IsShown(), "let go with the box")
-    T.falsy(CH.Links.Holding(box))
+    box:FakeRefresh()
+    T.eq(twinOf(CH, box, 1):GetText(), "recipe " .. link, "and back down when scrolled")
+    -- The box's font follows the style: the twin wraps the same way.
+    box:SetFont("Fonts/ARIALN.TTF", 18, "")
+    box:FakeRefresh()
+    T.eq(select(2, twinOf(CH, box, 1):GetFont()), 18)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

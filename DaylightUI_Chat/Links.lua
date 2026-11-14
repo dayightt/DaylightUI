@@ -150,43 +150,59 @@ end
 -- ---------------------------------------------------------------------
 
 -- A linked profession or recipe clicked in the Daylight box reached SetItemRef
--- and the game opened nothing: it trusts only a click that is its own. So while
--- a link is hovered, an invisible copy of it waits under the mouse on a frame
--- made from the game's InlineHyperlinkFrameTemplate, and the click lands there.
--- That template's link click is the game's InlineHyperlinkFrame_OnClick, which
--- calls SetItemRef as the game's code. Nothing is written to the field it reads
--- (hasIconHyperlinks). The copy also keeps still while the box redraws its lines,
--- which the box does on every left press because its text can be selected.
--- Names, channels and the links the box handles itself stay the box's click:
--- the game's handlers for those want a chat window.
+-- and the game opened nothing: it trusts only a click that is its own. So every
+-- shown line of the box gets an invisible twin laid exactly over it, on a frame
+-- made from the game's InlineHyperlinkFrameTemplate. That template's link click
+-- is the game's InlineHyperlinkFrame_OnClick, which calls SetItemRef as the
+-- game's code. Nothing is written to the field it reads (hasIconHyperlinks).
+--
+-- The twins copy whole lines and follow every redraw and scroll, so a link is
+-- covered end to end wherever the mouse lands, even while new lines keep coming.
+-- A copy of just the hovered link, placed at the mouse, covered half of it and
+-- went away with every new line, so clicks often missed it.
+--
+-- Names, channels and the links the box handles itself are left as plain words
+-- in the twin: the frame takes no mouse, so a click there falls through to the
+-- box, whose handlers for those want a chat window.
 Links.OWN = { player = true, BNplayer = true, playerCommunity = true, BNplayerCommunity = true,
     channel = true, clubTicket = true, questie = true, addon = true }
 
-local catcher, holding -- the copy's frame (false if the template is missing), the box it serves
+local mirrors = {} -- box -> its twin frame (false if the template is missing)
 
-local function makeCatcher()
-    if catcher ~= nil then return catcher or nil end
-    local ok, f = pcall(CreateFrame, "Frame", nil, UIParent, "InlineHyperlinkFrameTemplate")
-    if not ok or type(f) ~= "table" then catcher = false return nil end
-    f:EnableMouse(false) -- links still take clicks; the wheel and drags reach the box
-    f:SetAlpha(0)        -- the box's own line is what shows
-    f:Hide()
-    f.text = f:CreateFontString(nil, "OVERLAY")
-    f.text:SetPoint("CENTER")
-    f.text:SetWordWrap(false)
-    -- The box already shows the tooltip (LinkTips); the template would show a second.
-    f:SetScript("OnHyperlinkEnter", function() end)
-    f:SetScript("OnHyperlinkLeave", function() Links.Drop(true) end)
+local function own(kind)
+    return Links.OWN[kind] or (ns.Extras and kind == ns.Extras.LINK) or false
+end
+
+-- The line with the box's own links turned into their plain words, and whether
+-- a link the game must click is left in it.
+function Links.Twin(text)
+    local any = false
+    local out = string.gsub(text, "|H([^:|]+)([^|]*)|h(.-)|h", function(kind, _, shown)
+        if own(kind) then return shown end
+        any = true
+    end)
+    return out, any
+end
+
+local function makeMirror(box)
+    local f = mirrors[box]
+    if f ~= nil then return f or nil end
+    local ok
+    ok, f = pcall(CreateFrame, "Frame", nil, box, "InlineHyperlinkFrameTemplate")
+    if not ok or type(f) ~= "table" then mirrors[box] = false return nil end
+    f:EnableMouse(false) -- links still take clicks; the wheel, drags and the rest reach the box
+    f:SetAlpha(0)        -- the box's own lines are what shows
+    f:SetAllPoints(box)
+    f:SetClipsChildren(true) -- the box lays one row past its top, cut off the same way
+    f.lines = {}
+    f.box = box
+    -- Hovering a twin's link is hovering the box's: its tooltip, from the box.
+    f:SetScript("OnHyperlinkEnter", function(_, link) ns.LinkTips.OnEnter(box, link) end)
+    f:SetScript("OnHyperlinkLeave", function() ns.LinkTips.OnLeave(box) end)
     -- After the game's own click: a hidden message shown (or one of yours
     -- rewritten) changed only the game's windows, so the box copies it.
     f:HookScript("OnHyperlinkClick", function(_, link) DUI.SafeCall(Links.Censored, link) end)
-    -- Hidden with the box: let go for good, or it would come back with the box
-    -- somewhere the mouse no longer is.
-    f:SetScript("OnHide", function(self)
-        holding = nil
-        self:Hide()
-    end)
-    catcher = f
+    mirrors[box] = f
     return f
 end
 
@@ -198,49 +214,57 @@ function Links.Censored(link)
     if id and ns.Box then ns.Box.Rewritten(tonumber(id)) end
 end
 
-function Links.Catcher() return catcher or nil end
-function Links.Holding(box) return holding ~= nil and holding == box end
+function Links.Mirror(box) return mirrors[box] or nil end
 
--- From the box's OnHyperlinkEnter: put the copy of this link under the mouse.
-function Links.Hold(box, link, text)
-    if type(link) ~= "string" or type(text) ~= "string" then return false end
-    if issecretvalue and (issecretvalue(link) or issecretvalue(text)) then return false end
-    local kind = string.match(link, "^([^:]+):")
-    if not kind or Links.OWN[kind] or (ns.Extras and kind == ns.Extras.LINK) then return false end
-    local f = makeCatcher()
-    if not f then return false end
-    if f:GetParent() ~= box then f:SetParent(box) end
-    f:SetFrameStrata(box:GetFrameStrata())
-    f:SetFrameLevel(box:GetFrameLevel() + 10)
-    -- The box's own font, so the copy is as wide as the line's link.
-    local font, size, flags = box:GetFont()
-    if font then f.text:SetFont(font, size, flags or "") end
-    f.text:SetText(text)
-    local h = math.max(f.text:GetStringHeight() or 0, size or 0)
-    f:SetSize(math.max(f.text:GetStringWidth() or 0, 1) + 2, h + 2)
-    local x, y = GetCursorPosition()
-    local scale = f:GetEffectiveScale()
-    f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", (x or 0) / scale, (y or 0) / scale)
-    holding = box
-    f:Show()
-    return true
-end
+local function secret(v) return issecretvalue and issecretvalue(v) end
 
--- Lets the copy go. left: the mouse left it, so the tooltip goes as well.
-function Links.Drop(left)
-    local box = holding
-    holding = nil
-    if catcher then catcher:Hide() end
-    if box and left then ns.LinkTips.OnLeave(box) end
-end
-
--- The box redrew its lines (new ones came in) or scrolled: the link has moved
--- from under the mouse. A press in progress already landed on it, so it stays.
-function Links.Moved(box, scrolled)
-    if holding ~= box then return end
-    if not scrolled and type(IsMouseButtonDown) == "function" and IsMouseButtonDown() then return end
-    Links.Drop(true)
+-- Lays each shown line's twin over it. Runs on every redraw and scroll of the
+-- box; a line whose text didn't change is left as it is.
+function Links.Sync(box)
+    if type(box) ~= "table" or type(box.visibleLines) ~= "table" then return end
+    local f = mirrors[box]
+    local used = 0
+    for i, line in ipairs(box.visibleLines) do
+        local text = line:IsShown() and line:GetText()
+        local copy, any
+        if type(text) == "string" and not secret(text) and string.find(text, "|H", 1, true) then
+            copy, any = Links.Twin(text)
+        end
+        if any then
+            f = f or makeMirror(box)
+            if not f then return end
+            local t = f.lines[i]
+            if not t then
+                t = f:CreateFontString(nil, "OVERLAY")
+                f.lines[i] = t
+            end
+            if t.over ~= line then
+                t:ClearAllPoints()
+                t:SetAllPoints(line)
+                t.over = line
+            end
+            local font, size, flags = line:GetFont()
+            if font and (t.font ~= font or t.size ~= size or t.flags ~= flags) then
+                t:SetFont(font, size, flags or "")
+                t.font, t.size, t.flags = font, size, flags
+                t.src = nil
+            end
+            if t.src ~= copy then
+                t:SetJustifyH(line:GetJustifyH() or "LEFT")
+                if line.GetIndentedWordWrap then t:SetIndentedWordWrap(line:GetIndentedWordWrap() and true or false) end
+                if line.GetSpacing then t:SetSpacing(line:GetSpacing() or 0) end
+                t:SetText(copy)
+                t.src = copy
+            end
+            t:Show()
+            used = used + 1
+        elseif f and f.lines[i] then
+            f.lines[i]:Hide()
+        end
+    end
+    if not f then return end
+    for i = #box.visibleLines + 1, #f.lines do f.lines[i]:Hide() end
+    f:SetShown(used > 0)
 end
 
 -- ---------------------------------------------------------------------

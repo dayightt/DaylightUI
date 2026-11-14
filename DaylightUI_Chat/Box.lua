@@ -20,7 +20,7 @@
 --   replies. Typing uses the game's own edit box in our spot (Chat.Hold), as
 --   in Classic.
 -- * Links: clicks go to the game (SetItemRef, as its chat windows do; the ones it
---   only opens from its own click through Links.Hold). Hover
+--   only opens from its own click land on twins of the lines, Links.Sync). Hover
 --   shows the tooltip above the panel (LinkTips).
 -- * Floating, fading, the resize grip, history and Copy come from Chat.lua, with
 --   our message list in place of the game's window.
@@ -1018,23 +1018,17 @@ local function buildPane(P, holder, panel, name)
             and IsModifiedClick and IsModifiedClick("CHATLINK") then Box.Asked() end
         SetItemRef(link, text, button, DEFAULT_CHAT_FRAME)
     end)
-    frame:SetScript("OnHyperlinkEnter", function(f, link, text)
-        ns.LinkTips.OnEnter(f, link)
-        ns.Links.Hold(f, link, text)
-    end)
-    -- The copy coming up over the link reads as leaving it: the tooltip stays.
-    frame:SetScript("OnHyperlinkLeave", function(f)
-        if not ns.Links.Holding(f) then ns.LinkTips.OnLeave(f) end
-    end)
+    frame:SetScript("OnHyperlinkEnter", function(f, link) ns.LinkTips.OnEnter(f, link) end)
+    frame:SetScript("OnHyperlinkLeave", function(f) ns.LinkTips.OnLeave(f) end)
     frame:EnableMouseWheel(true)
     frame:SetScript("OnMouseWheel", onWheel)
     frame:SetOnScrollChangedCallback(function(f)
-        DUI.SafeCall(ns.Links.Moved, f, true)
+        DUI.SafeCall(ns.Links.Sync, f)
         DUI.SafeCall(ns.Feel.Scrolled, f)
     end)
     ns.Feel.WatchLines(frame)
     frame:AddOnDisplayRefreshedCallback(function(f)
-        DUI.SafeCall(ns.Links.Moved, f)
+        DUI.SafeCall(ns.Links.Sync, f)
         DUI.SafeCall(Box.Glows, f)
     end)
     -- Tabs are parented to the panel, so they float away with it.
