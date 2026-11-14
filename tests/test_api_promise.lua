@@ -11,12 +11,14 @@ local PROMISED = {
     "GetShopTile", "ShopItem", "GetCraftRow", "GetPart", "SelectCraftRecipe", "GetCraftProfession", "FontRow", "FontFile",
     -- 1.3
     "Parts", "GetQuestRow",
+    -- 1.5
+    "GetActionBar", "ButtonInfo", "BindKeys", "Glow",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
-    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "StartPainter", "Count",
+    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "StartPainter", "Count",
     "Changes", "Changers", "Texts", "ApplyDefaults" }
 local EVENTS = { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled",
                  "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }

@@ -623,7 +623,8 @@ end
 -- r nil = no color of ours (one we had goes back to white, once).
 local function setTint(btn, parts, a, r, g, b, shadeOn)
     local icon = iconOf(btn)
-    if icon then
+    -- An icon a plugin holds keeps its own color and opacity.
+    if icon and not Skin.Owned(btn, "icon") then
         if icon.SetVertexColor then
             if r then icon:SetVertexColor(r, g, b)
             elseif parts.tintR then icon:SetVertexColor(1, 1, 1) end
@@ -654,6 +655,7 @@ function Skin.UpdateRange(btn, has)
     -- Already gliding there (an emptied slot or a fresh skin still snaps).
     if same and parts.tweening and shadeOn and not parts.snapTint then return end
     local snap = parts.snapTint or parts.tintA == nil or not shadeOn or not DUI.Motion.On()
+        or Skin.Owned(btn, "icon")
     parts.snapTint = nil
     if snap or same then
         if parts.tweening then
@@ -661,7 +663,7 @@ function Skin.UpdateRange(btn, has)
             DUI.Motion.Tween(parts, 0, 0, 0)               -- stop the glide
         end
         setTint(btn, parts, a, r, g, b, shadeOn)
-        return
+        return Skin.Painted(btn)
     end
     local a0, r0, g0, b0 = parts.tintA, parts.tintR or 1, parts.tintG or 1, parts.tintB or 1
     local colour = r ~= nil or parts.tintR ~= nil
@@ -676,6 +678,7 @@ function Skin.UpdateRange(btn, has)
     end, function()
         parts.tweening = nil
         setTint(btn, parts, a, r, g, b, shadeOn)
+        Skin.Painted(btn)
     end)
 end
 
@@ -732,33 +735,42 @@ local function plainOf(color)
     return color
 end
 function Skin.PaintBorder(btn, parts)
-    local L, color, lit = parts.L, nil, false
+    local L, color, lit, why = parts.L, nil, false, nil
     if parts.proc then
-        color = parts.procColor
+        color, why = parts.procColor, "proc"
     elseif (parts.pressed or parts.keyDown) and L.pressBorder then
-        color, lit = parts.pressLit, true
+        color, lit, why = parts.pressLit, true, "pressed"
     elseif parts.hover and L.hoverBorder then
-        color, lit = parts.hoverLit, true
+        color, lit, why = parts.hoverLit, true, "hover"
     elseif parts.formOn then
-        color, lit = L.checked == "custom" and L.checkedColor or Skin.STATE.lit, true
+        color, lit, why = L.checked == "custom" and L.checkedColor or Skin.STATE.lit, true, "form"
     elseif L.checkedBorder and activeOf[btn] then
-        color, lit = parts.activeLit, true
+        color, lit, why = parts.activeLit, true, "active"
     end
     color = color or (L.borderColor == "accent" and Skin.STATE.lit) or parts.rest or Skin.NORMAL
-    if parts.color == color then return end
+    if parts.color == color and parts.borderState == why then return end
     local was, wasLit = parts.color, parts.lit
-    parts.color, parts.lit = color, lit
+    parts.color, parts.lit, parts.borderState = color, lit, why
+    -- A border a plugin holds is its own: it reads why from the paint's info.
+    if Skin.Owned(btn, "border") then
+        DUI.Motion.Tween(parts.back, 0, 0, 0)          -- stop a glide of ours
+        return Skin.Painted(btn)
+    end
+    if was == color then return Skin.Painted(btn) end
     if was == nil or not (lit or wasLit) or not DUI.Motion.On() then
         DUI.Motion.Tween(parts.back, 0, 0, 0)          -- stop a glide
         paintColor(parts, color)
-        return
+        return Skin.Painted(btn)
     end
     local a, b = plainOf(was), plainOf(color)
     DUI.Motion.Tween(parts.back, 0, 1, DUI.Motion.FAST, function(p)
         local c = { lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p) }
         local band = { c[1] * 0.45, c[2] * 0.45, c[3] * 0.45 }
         if parts.shape then Skin.PaintShape(parts, c, band) else Style.SetShellColors(parts.back, c, band) end
-    end, function() paintColor(parts, color) end)
+    end, function()
+        paintColor(parts, color)
+        Skin.Painted(btn)
+    end)
 end
 
 -- An active spell's border and glow, as the look says.
@@ -792,6 +804,59 @@ end
 
 function Skin.GetParts(btn) return skinned[btn] end
 
+-- Plugins (DaylightUI.API's Paint, kind "actionbutton"). Only the buttons of
+-- bars 1-8 are reported; the game's stance and pet buttons we dress are not.
+-- A piece a plugin claimed ("icon", "border", "hotkey", "count", "macro") is
+-- never colored here. Every button is the same kind, so this is one table read.
+function Skin.Owned(btn, part)
+    if not ownButtons[btn] then return false end
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Owned("actionbutton", part) == true
+end
+
+-- What a button shows and how it reads right now, for a plugin's paint. All
+-- plain: the slot, its contents, and states already worked out for the tint.
+function Skin.Info(btn)
+    local parts, def = skinned[btn], ns.Buttons and ns.Buttons.DefOf(btn)
+    if not (parts and def) then return nil end
+    local slot = actionOf(btn)
+    local kind, id
+    if slot then kind, id = call(GetActionInfo, slot) end
+    return {
+        bar = def.num, barKey = def.key, index = btn:GetAttribute("dui-index"), slot = slot,
+        type = kind, id = id, empty = not hasAction(btn, slot),
+        usable = not parts.unusable, noPower = parts.noPower == true,
+        outOfRange = parts.outOfRange == true, cooling = parts.cooling == true,
+        proc = parts.proc == true, checked = btn:GetChecked() == true,
+        border = parts.borderState,
+    }
+end
+
+-- btn was just painted (a new action, a tint or border change, a cooldown
+-- starting or ending, a setting), so plugins apply their look on top.
+-- A whole repaint (Buttons.Paint, Skin.Apply) holds these while it runs and
+-- paints once at its end, if anything asked.
+local paintHeld, paintAsked = nil, false
+function Skin.Painted(btn)
+    if not ownButtons[btn] then return end
+    if paintHeld == btn then paintAsked = true return end
+    local R = DUI.APIReport
+    if not (type(R) == "table" and R.Painting("actionbutton")) then return end
+    R.Painted("actionbutton", btn, Skin.Info(btn))
+end
+-- Returns what to hand Skin.Release.
+function Skin.Hold(btn)
+    local h, a = paintHeld, paintAsked
+    paintHeld, paintAsked = btn, false
+    return h, a
+end
+-- force: paint even if nothing asked during the hold.
+function Skin.Release(btn, wasHeld, wasAsked, force)
+    local asked = paintAsked
+    paintHeld, paintAsked = wasHeld, wasAsked
+    if asked or force then Skin.Painted(btn) end
+end
+
 -- A real cooldown (not the global one) started or ended on one of our buttons
 -- (tracked by Ping.lua, plain in combat too). The icon grays and dims as the look
 -- says, gliding FAST.
@@ -801,13 +866,16 @@ function Skin.SetCooling(btn, on)
     on = on == true
     if parts.cooling == on then return end
     parts.cooling = on
+    local h, a = Skin.Hold(btn)
     Skin.UpdateRange(btn)
     Skin.PaintGray(btn, parts)
+    Skin.Release(btn, h, a, true)
 end
 
 function Skin.PaintGray(btn, parts)
     local icon = iconOf(btn)
     if not (icon and icon.SetDesaturation) then return end
+    if Skin.Owned(btn, "icon") then return end
     local goal = ((parts.cooling and parts.L.cdGray) or parts.formOff) and 1 or 0
     if parts.gray == goal then return end
     local from = parts.gray or 0
@@ -919,7 +987,14 @@ function Skin.Redress(btn, down)
     if down ~= nil then Skin.SetKeyDown(btn, down) end
 end
 
+local applyLook
 function Skin.Apply(btn)
+    local h, a = Skin.Hold(btn)
+    applyLook(btn)
+    Skin.Release(btn, h, a, true)
+end
+
+applyLook = function(btn)
     local parts = skinned[btn]
     local L = Skin.LookFor(barOf[btn])
     if not parts then
@@ -1017,7 +1092,7 @@ function Skin.Apply(btn)
     local key = parts.key
     styleText(key, L.keybindSize)
     local c = L.keybindColor
-    key:SetTextColor(c[1], c[2], c[3])
+    if not Skin.Owned(btn, "hotkey") then key:SetTextColor(c[1], c[2], c[3]) end
     -- Keybind tucked into the icon's top-right corner, count in the bottom-right.
     local at = Skin.KEYBIND_POS[L.keybindPos] or Skin.KEYBIND_POS.topright
     key:ClearAllPoints()
@@ -1031,7 +1106,7 @@ function Skin.Apply(btn)
         btn.Count:ClearAllPoints()
         btn.Count:SetPoint(at[1], btn, at[1], at[2] + L.countX, at[3] + L.countY)
         local cc = L.countColor
-        btn.Count:SetTextColor(cc[1], cc[2], cc[3])
+        if not Skin.Owned(btn, "count") then btn.Count:SetTextColor(cc[1], cc[2], cc[3]) end
     end
     styleText(btn.Name, L.macroSize)
     if type(btn.Name) == "table" and btn.Name.SetAlpha then
@@ -1043,7 +1118,7 @@ function Skin.Apply(btn)
             btn.Name:SetPoint("BOTTOM", btn, "BOTTOM", L.macroX, Skin.MACRO_Y + L.macroY)
         end
         local mc = L.macroColor
-        btn.Name:SetTextColor(mc[1], mc[2], mc[3])
+        if not Skin.Owned(btn, "macro") then btn.Name:SetTextColor(mc[1], mc[2], mc[3]) end
     end
     local hl, pushed, checked = paintWashes(btn, L, icon)
     local pc = L.pressed
@@ -1359,3 +1434,43 @@ DUI.ActionButtonLook = {
     KEYBIND_POS = Skin.KEYBIND_POS, COUNT_POS = Skin.COUNT_POS,
     SHADE_FILE = Skin.SHADE_FILE, SHADE = Skin.SHADE,
 }
+
+-- What plugins get from one of the bars' buttons (DaylightUI.API's Paint, kind
+-- "actionbutton"), and how a button gets its own look back when a plugin lets
+-- go of a piece. With a shape picked the border and band are the shape's
+-- two pieces; otherwise the shell's lists of textures.
+if DUI.APIReport then
+    DUI.APIReport.Parts("actionbutton", function(btn)
+        local parts = skinned[btn]
+        if not parts then return nil end
+        local s = parts.back
+        local border, band
+        if parts.shape then
+            border, band = { parts.shapeOuter }, { parts.shapeBand }
+        else
+            border, band = s and s.border, s and s.band
+        end
+        return {
+            icon = iconOf(btn), border = border, band = band, hotkey = parts.key,
+            count = btn.Count, macro = btn.Name, cooldown = btn.cooldown,
+            highlight = btn:GetHighlightTexture(), pushed = btn:GetPushedTexture(),
+            checked = btn.GetCheckedTexture and btn:GetCheckedTexture() or nil, flash = btn.Flash,
+        }
+    end)
+    DUI.APIReport.Info("actionbutton", Skin.Info)
+    DUI.APIReport.Repainter("actionbutton", function(btn)
+        local parts = skinned[btn]
+        if not parts then return end
+        -- Ours again from scratch: the icon back to white and full color, no
+        -- tint or gray remembered, then the look and every painter.
+        local icon = iconOf(btn)
+        if icon and not Skin.Owned(btn, "icon") then
+            icon:SetVertexColor(1, 1, 1)
+            if icon.SetDesaturation then icon:SetDesaturation(0) end
+            parts.tintA, parts.tintR, parts.tintG, parts.tintB = nil, nil, nil, nil
+            parts.gA, parts.gray = nil, nil
+        end
+        Skin.Apply(btn)
+        if ns.Buttons then ns.Buttons.Paint(btn) end
+    end)
+end

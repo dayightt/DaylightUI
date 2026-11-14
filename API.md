@@ -46,7 +46,7 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 4
+print(API.major, API.minor)   -- 1, 5
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
@@ -107,6 +107,21 @@ The same function with `"platecast"` does the nameplates' cast bars (1.4).
 me.Paint("nameplate", function(plate, parts, unit)
     parts.name:SetTextColor(1, 0.85, 0.4)
 end, { owns = { "name" } })
+```
+
+**Color action buttons your own way** (1.5), the job ElvUI plugins do on its bars:
+
+```lua
+me.Paint("actionbutton", function(button, parts, info)
+    if not info or info.empty then return end
+    if info.outOfRange then
+        parts.icon:SetVertexColor(0.9, 0.2, 0.2)
+    elseif info.noPower then
+        parts.icon:SetVertexColor(0.3, 0.4, 1)
+    else
+        parts.icon:SetVertexColor(1, 1, 1)
+    end
+end, { owns = { "icon" } })
 ```
 
 **Recolor every health bar** (unit frames, party and raid tiles):
@@ -172,6 +187,7 @@ plain gray.
 | `API.GetUnitFrame(unit)` | The frame showing that unit: a shown raid tile first, then party, then the single frames (player, target, focus...), then party pets. `nil` if none. |
 | `API.GetNameplate(unit)` | The nameplate for `"nameplate3"` and so on. |
 | `API.GetActionButton(bar, i)` | Button `i` of action bar `bar`: its number `1`-`8`, or its key `"main"`, `"bar2"`, `"left"`, `"right"`, `"bar5"`-`"bar8"`. |
+| `API.GetActionBar(bar)` (1.5) | The frame holding a whole bar: the same numbers and keys, plus `"stance"`, `"pet"`, `"possess"` and `"totem"`. |
 | `API.GetShopTile(tab, index)` | The vendor window's tile for an item: `tab` = `"buy"` or `"buyback"`, `index` = the game's index there. `nil` when it isn't on show. |
 | `API.GetCraftRow(recipeID)` | The profession window's line for a recipe, while it's on show. |
 | `API.GetQuestRow(questID)` | The quest tracker's row for a quest, while it's on show. |
@@ -196,6 +212,12 @@ Since 1.4:
 
 - `"platecast"`: a nameplate's cast bar. It comes and goes with its plate, and its `unit` is the
   plate's (`"nameplate3"`). Same pieces and `info` as `"castbar"`, so one function can paint both.
+
+Since 1.5:
+
+- `"actionbar"`: a bar's holder, the frame its buttons sit in. Its `unit` is the bar's key
+  (`"main"`, `"bar2"`... `"stance"`, `"pet"`). It gets `FrameStyled` each time the bar is laid out
+  again (size, rows, spacing). An `"actionbutton"`'s `unit` is `"<bar number>:<button>"`, `"1:5"`.
 
 Tiles and lines are reused as the list changes (a search, another vendor), so they work like
 nameplates: `FrameUnitChanged` when one shows another item, `FrameRemoved` when it's hidden or the
@@ -327,12 +349,18 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 |---|---|---|---|
 | `"castbar"` | `fill`, `bar`, `back`, `name`, `time`, `icon` | each cast or channel, an interrupt, a setting | `{ unit, spellID, channel, notInterruptible, interrupted }` |
 | `"platecast"` (1.4) | the same as `"castbar"` | each cast or channel, an interrupt, a setting | the same as `"castbar"` |
+| `"actionbutton"` (1.5) | `icon`, `border`, `band` (tables of textures), `hotkey`, `count`, `macro` (the macro's name), `cooldown`, `highlight`, `pushed`, `checked`, `flash` | a new action in the slot, a change in how it reads (usable, short of power, out of range, a real cooldown starting or ending, a proc, hover or press lighting the border), a setting; never on a cooldown tick | `API.ButtonInfo`'s table (below) |
 | `"nameplate"` (1.4) | `health`, `healthFill`, `healthBack`, `healthText`, `power`, `powerFill`, `powerBack`, `name`, `guild` (the guild or title line), `level`, `dragon` (the elite mark), `marker` (the raid marker), `cast` (its cast bar's frame) | a new unit, a recolor (reaction, threat, tapped, a boss or rare color), the level, guild line or power type, a setting; never on each health tick | the unit |
 | `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `border`, `band` (lists of textures) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
 | `"questrow"` | `title`, `objectives` (a list), `bar`, `icon` | each layout of the tracker | `{ questID }` |
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
 | `"shoptile"` | `icon`, `name` | each fill of the shelf | `{ tab, index, id, link }` |
 | `"craftrow"` | `icon`, `name` | each fill of the list | `{ recipeID }` |
+
+Action buttons: claims honored are `icon` (Daylight UI stops tinting, fading and graying it),
+`border` (the border and band stop changing color: read `info.border` to light it yourself),
+`hotkey`, `count` and `macro` (their text color). Only bars 1-8 are buttons of Daylight UI's; the
+stance and pet buttons are the game's.
 
 Pieces a unit frame doesn't have (a raid tile's portrait) are `nil`. Claims that are honored on
 every repaint, the per-tick health color too: `healthFill`, `healthBack`, `powerFill`, `powerBack`,
@@ -345,6 +373,24 @@ warning over a claimed fill (it's fight information), and `interrupted` says the
 interrupt. In a fight, another unit's `notInterruptible` and `spellID` may be secrets: hand them to
 setters that take them (a `...FromBoolean` setter, `SetText`), never compare or test them. A plugin that wants to follow health uses the game's events
 like any addon. `API.Parts(frame)` gives any frame's parts; `API.GetPart(frame, name)` one.
+
+### Action bars
+
+| Call | What it does |
+|---|---|
+| `API.ButtonInfo(button)` (1.5) | What a button shows and how it reads now, the same table its paint gets: `bar` (1-8), `barKey`, `index`, `slot`, `type` and `id` (the game's `GetActionInfo`), `empty`, `usable`, `noPower`, `outOfRange`, `cooling` (a real cooldown, not the global one), `proc`, `checked` (being cast, queued or repeating), `border` (why its border is lit: `"proc"`, `"pressed"`, `"hover"`, `"form"`, `"active"`, or `nil`). `nil` for any other frame. |
+| `API.BindKeys()` (1.5) | Opens the game's key binding mode on the bars, as the Action Bars page's Bind keys button does. `false` in a fight or with the bars switched off. |
+| `API.Glow(frame, on, r, g, b)` (1.5) | The glow the Cooldown Manager uses (the game's proc ring, easing in and out) on any of Daylight UI's frames, in your color or the accent. It sits on the frame's `API.Attach` holder, so it never fights Daylight UI's own glows. `false` for another frame or with the bars off. |
+
+```lua
+-- Light a button while your addon's buff is missing.
+local button = API.GetActionButton(1, 3)
+API.Glow(button, MyAddon:BuffMissing(), 1, 0.8, 0.2)
+```
+
+Where ElvUI plugins hook `StyleButton` or LibActionButton's `OnButtonUpdate`, `OnButtonUsable` and
+`OnButtonState`, use `Paint` on `"actionbutton"`: it runs at the same moments, with `info` saying
+what changed. Bars are made when the game loads, so a plugin can't add bars of its own.
 
 ### Your own texts on the unit frames
 

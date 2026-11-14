@@ -152,6 +152,8 @@ function Bars.LayoutBar(def)
         end
     end
     DUI.Fire("ActionBarLaidOut", def.key)
+    local Report = DUI.APIReport
+    if Report.Wants("FrameStyled") then Report.Styled("actionbar", holder, false) end
 end
 
 -- The visibility rule for a bar: its kind's clauses, then its Show setting.
@@ -602,6 +604,8 @@ function Bars.Build()
         local holder = makeHolder(def)
         Bars.holders[def.key] = holder
         Bars.buttons[def.key] = Bars.KINDS[def.kind].Setup(def, holder) or {}
+        -- Plugins find each bar by its key ("main", "bar2"... "stance", "pet").
+        DUI.APIReport.Made("actionbar", holder, def.key, false)
     end
     for _, def in ipairs(Bars.DEFS) do
         Bars.LayoutBar(def)

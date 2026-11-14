@@ -339,15 +339,26 @@ local function paintFrom(btn, slot, names, from)
         end
     end
 end
+-- Painters that change what the button shows: plugins (DaylightUI.API's Paint)
+-- paint after any of these. The rest tell the skin, which asks when it changed.
+local CONTENTS = { icon = true, count = true, name = true, checked = true, equipped = true }
+local function shows(names)
+    if not names then return true end
+    for n in pairs(names) do if CONTENTS[n] then return true end end
+    return false
+end
 function Buttons.Paint(btn, names)
     local slot = Buttons.SlotOf(btn)
     if not slot then return end
+    local Skin = ns.Skin
+    local h, a = Skin.Hold(btn)
     local from = 1
     while true do
         at = from
-        if DUI.SafeCall(paintFrom, btn, slot, names, from) then return end
+        if DUI.SafeCall(paintFrom, btn, slot, names, from) then break end
         from = at + 1
     end
+    Skin.Release(btn, h, a, shows(names))
 end
 
 function Buttons.PaintAll(names)

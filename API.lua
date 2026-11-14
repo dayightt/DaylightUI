@@ -8,7 +8,8 @@
 -- List rows in our windows (1.2): "shoptile" (the vendor's shelf, unit =
 -- "buy:<index>" or "buyback:<index>", see API.ShopItem) and "craftrow" (the
 -- profession window's recipe lines, unit = the recipe id). 1.4: "platecast",
--- a nameplate's cast bar (unit = its plate's).
+-- a nameplate's cast bar (unit = its plate's). 1.5: "actionbar", the action
+-- bars' holders (unit = the bar's key: "main", "bar2"... "stance", "pet").
 -- Frame events, args (kind, frame, unit, isPreview): FrameMade,
 -- FrameUnitChanged, FrameRemoved, FrameStyled. A frame that changes unit (a
 -- pooled plate) first gets FrameRemoved for the old one. Preview frames (test
@@ -324,6 +325,7 @@ end
 -- back to our look (Report.Repainter).
 
 local partsOf = {} -- kind -> fn(frame) -> { name = region }
+local infoOf = {} -- kind -> fn(frame) -> what it shows now, for a paint with none given
 local repaint = {} -- kind -> fn(frame)
 local painters = {} -- kind -> array of { fn, owner, owns = { part = true }, dead, painter = true }
 local owners = {} -- kind -> { part -> the painter holding it }
@@ -334,6 +336,10 @@ function Report.Parts(kind, fn)
     partsOf[kind] = fn
     if not had and paintAsked then paintAsked(kind) end
 end
+-- A kind whose frames can say what they show at any time (action buttons):
+-- a painter started, stopped or caught up gets that instead of nothing.
+function Report.Info(kind, fn) infoOf[kind] = fn end
+
 -- Is anyone painting kind? A module skips gathering info when nobody is.
 function Report.Painting(kind) return painters[kind] ~= nil end
 
@@ -381,6 +387,10 @@ local function paintOne(e, kind, frame, info)
     if not get then return end
     local ok, parts = pcall(get, frame)
     if not ok or type(parts) ~= "table" then return end
+    if info == nil and infoOf[kind] then
+        local got, i = pcall(infoOf[kind], frame)
+        if got then info = i end
+    end
     DUI.SafeCallAs(e.owner or L["an addon"], e.fn, frame, parts, info)
 end
 
@@ -608,6 +618,51 @@ function API.GetActionButton(bar, i)
     if bar == nil or i == nil then return nil end
     bar = BAR_NUM[bar] or bar
     return lookup("actionbutton", tostring(bar) .. ":" .. tostring(i))
+end
+
+-- A bar's holder (1.5): its number 1-8 or any key in Bars.DEFS ("stance",
+-- "pet", "possess", "totem" too).
+local BAR_KEY = {}
+for key, n in pairs(BAR_NUM) do BAR_KEY[n] = key end
+function API.GetActionBar(bar)
+    if bar == nil then return nil end
+    return lookup("actionbar", BAR_KEY[bar] or tostring(bar))
+end
+
+-- What one of the bars' buttons shows and how it reads right now (1.5): the
+-- same table its paint gets. Nil for anything else.
+function API.ButtonInfo(button)
+    local m, fn = made.actionbutton, infoOf.actionbutton
+    if type(button) ~= "table" or not (m and m[button] ~= nil) or not fn then return nil end
+    local ok, info = pcall(fn, button)
+    return ok and info or nil
+end
+
+local function barsNs()
+    local mod = DUI:GetModule("ActionBars")
+    return mod and mod.enabled and mod.ns or nil
+end
+
+-- Opens the game's key binding mode on the bars (1.5), as the Action Bars
+-- page's Bind keys button does. False in a fight or with the bars off.
+function API.BindKeys()
+    local ns = barsNs()
+    if not (ns and ns.Keys and ns.Keys.OpenQuick) then return false end
+    return ns.Keys.OpenQuick() == true
+end
+
+-- The Cooldown Manager's glow (1.5) on one of Daylight UI's frames: the game's
+-- proc ring, easing in and out. It sits on the frame's API.Attach holder, so
+-- it never fights Daylight UI's own glows. r, g, b: its color, else the accent.
+function API.Glow(frame, on, r, g, b)
+    local ns = barsNs()
+    local Fx = ns and ns.CdmEffects
+    if not (Fx and Fx.SetGlow) then return false end
+    local h = API.Attach(frame)
+    if not h then return false end
+    local c = type(r) == "number" and type(g) == "number" and type(b) == "number" and { r, g, b } or nil
+    Fx.SetGlow(h, on == true, c)
+    return true
 end
 
 -- A visible shop tile: tab "buy" or "buyback", and the game's index there.
