@@ -378,13 +378,8 @@ function Meter.ResetAll()
 end
 
 local function askReset()
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET = StaticPopupDialogs.DAYLIGHTUI_METER_RESET or {
-        text = L["Clear every fight from the damage meter?"],
-        button1 = YES or L["Yes"], button2 = NO or L["No"],
-        OnAccept = function() Meter.ResetAll() end,
-        timeout = 0, whileDead = true, hideOnEscape = true,
-    }
-    StaticPopup_Show("DAYLIGHTUI_METER_RESET")
+    DUI.Widgets.Ask({ key = "meterReset", text = L["Clear every fight from the damage meter?"],
+        onYes = Meter.ResetAll })
 end
 
 local function hasFights()
@@ -930,13 +925,13 @@ function Meter.New(m, opts)
     end
     m.PickFight = pickFight
 
-    -- The fights were cleared (Meter.ResetAll): back to the current one.
+    -- The fights were cleared (Meter.ResetAll): an earlier fight is gone, but
+    -- the window stays on Current or Overall, whichever the player picked.
     function m.Cleared()
         m.fight = nil
         offset = 0
         snap = true
         dirty = true
-        if cfg and cfg.session ~= "current" then DUI:Set("InfoPanel", path .. ".session", "current") end
     end
 
     -- The fight and mode buttons open a drop-down of their choices, in the
