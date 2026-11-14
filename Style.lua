@@ -1586,9 +1586,7 @@ function Style.Clip(frame, tex, inset, until_, only)
     clipOf[tex] = { frame = frame, clip = clip }
 end
 
--- Move a texture's clip. A number is a depth in the frame's own pixels,
--- measured square to the cut from the outer edge (the named lines live in
--- that same scale). Pass only the fields that change.
+-- Move a texture's clip to other named lines. Pass only the fields that change.
 function Style.ClipSpan(tex, inset, until_, only)
     local c = clipOf[tex]
     if not c then return end
@@ -1675,11 +1673,6 @@ function Style.LayoutSlant(frame)
     local slope = math.sqrt(H * H + cut * cut) / H
     local depth = slantDepth
     depth.outer, depth.band, depth.line, depth.inner = 0, one, T - one, T
-    -- A number is its own depth, so a strip can sit further in than the border.
-    local function lineDepth(key)
-        if type(key) == "number" then return key end
-        return depth[key] or 0
-    end
     local sharp = ref ~= nil or 4 * cut > SHARP_PAST
     -- A piece at one end (Style.Near) skips the other end's mask when the frame is
     -- wide enough that the mask's whole span (4x the cut, from a border's depth
@@ -1706,7 +1699,7 @@ function Style.LayoutSlant(frame)
                 -- A pixel past the deeper line, under what lies there. Two soft edges on one
                 -- line each cover only part of that pixel, and whatever is behind the frame
                 -- would show through.
-                local d = (lineDepth(until_) + one) * slope
+                local d = ((depth[until_] or 0) + one) * slope
                 stop:SetTexture(slantImage(true, end_, leans(sl.under, end_), sharp), "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
                 stop.cutting = true
                 stop:ClearAllPoints()
@@ -1732,7 +1725,7 @@ function Style.LayoutSlant(frame)
             end
             local mask = maskFor(owner, "clip", clip.inset, end_)
             if active then
-                local d = lineDepth(clip.inset) * slope
+                local d = (depth[clip.inset] or 0) * slope
                 mask:SetTexture(slantImage(false, end_, leans(sl.under, end_), sharp), "CLAMP", "CLAMP")
                 mask.cutting = true
                 mask:ClearAllPoints()
