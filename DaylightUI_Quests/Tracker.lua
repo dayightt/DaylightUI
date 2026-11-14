@@ -228,11 +228,10 @@ function Tracker.HoverDim(f)
     local M = DUI.Motion
     for key, fr in pairs(frames) do
         if fr.kind == "quest" or fr.kind == "ach" then
+            -- Always tweened, even to where it is: moving from one quest to the next
+            -- leaves an undim running on the dim ones, and this replaces it.
             local to = (on and fr ~= f) and Tracker.DIM or 1
-            local from = fr.dim or 1
-            if from ~= to then
-                M.Tween("quests:dim:" .. key, from, to, M.FAST, function(a) ns.Rows.Dim(fr, a) end)
-            end
+            M.Tween("quests:dim:" .. key, fr.dim or 1, to, M.FAST, function(a) ns.Rows.Dim(fr, a) end)
         end
     end
 end

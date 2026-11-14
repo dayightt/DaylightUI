@@ -64,6 +64,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "A group set to grow from the middle stays centered as spells come and go, on every row, like when a druid changes form" },
             { "Nameplates", "An enemy totem's picture sits inside its round frame instead of sticking out past it" },
             { "Bags", "An item like a Rune of Teleportation no longer shows as an empty square with just its count after you use one" },
+            { "Quest tracker", "Moving the mouse from one quest straight down to the next lights only that quest, not all the others" },
             { "Action bars", "No more floods of SetCooldown errors or \"the game blocked MultiBar...SetShown\" warnings from the action bars in dungeons and fights" },
             { "Professions", "With What's Training installed, the profession window has a What's Training link to its list of recipes you can still learn" },
             { "Windows", "A picked row in lists like your professions and mail no longer looks cut off at the bottom. Thanks to Ángel" },

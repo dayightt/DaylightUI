@@ -1734,6 +1734,26 @@ T.test("quests clicks: the tooltip lists objectives and the hint", function()
     end
 end)
 
+-- Moving from one quest straight down to the next: the leave lifted every dim
+-- and the enter skipped the quests already dim, so they all lit up again.
+T.test("quests clicks: moving from one quest to the next dims every other quest", function()
+    local Tr, ns = tracker({ quests = { STEW, QW.quest(2, "A Fishy Peril"), QW.quest(3, "Red Leather Bandanas") } })
+    local a, b, c = Tr.frames["quest:1"], Tr.frames["quest:2"], Tr.frames["quest:3"]
+    local function settle() for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 60) end end
+    a:GetScript("OnEnter")(a)
+    settle()
+    T.eq(b.dim, Tr.DIM)
+    a:GetScript("OnLeave")(a)
+    b:GetScript("OnEnter")(b)
+    settle()
+    T.eq(b.dim, 1, "the quest under the mouse is lit")
+    T.eq(a.dim, Tr.DIM, "the one left is dim")
+    T.eq(c.dim, Tr.DIM, "the one that was already dim stays dim")
+    b:GetScript("OnLeave")(b)
+    settle()
+    T.eq(c.dim, 1, "off the list: all lit")
+end)
+
 T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but still lights", function()
     local Tr = tracker({ quests = { STEW } })
     local f = Tr.frames["quest:1"]
