@@ -1045,6 +1045,55 @@ function Layout.ListScroll(window)
     end
 end
 
+-- Each column as wide as its widest word or number in this bag, so nothing
+-- reads cut off ("Consumab..."); a kind past LIST_KIND_MAX still shortens.
+-- Returns every shown entry's row facts, read once here.
+Layout.LIST_KIND_MAX = 120
+Layout.LIST_NAME_MIN = 110   -- the least room a name keeps; the list widens for it
+function Layout.FitColumns(window, head, headed)
+    local m = window.listMeasure
+    if not m then
+        m = DUI.Style.Text(window, DUI.Style.SIZE.small, "LEFT")
+        m:Hide()
+        window.listMeasure = m
+    end
+    local widest = { kind = 0, level = 0, count = 0, value = 0 }
+    local function measure(k, text)
+        if text == "" then return end
+        m:SetText(text)
+        local w = m:GetStringWidth()
+        if type(w) == "number" and w > widest[k] then widest[k] = w end
+    end
+    local facts = {}
+    for _, hd in ipairs(headed) do
+        if not hd.folded then
+            for _, e in ipairs(hd.g.entries) do
+                local d = Layout.RowFacts(e)
+                facts[e] = d
+                measure("kind", d.kind)
+                if d.level > 0 then measure("level", tostring(math.floor(d.level + 0.5))) end
+                measure("count", tostring(d.count))
+                if d.value > 0 then measure("value", DUI.Widgets.Money(d.value)) end
+            end
+        end
+    end
+    widest.kind = math.min(widest.kind, Layout.LIST_KIND_MAX)
+    for _, col in ipairs(head.cols) do
+        if widest[col.id] then col.min = math.ceil(widest[col.id]) end
+    end
+    return facts
+end
+
+-- The list's least width: every fixed column whole, plus the icon and a name.
+function Layout.ListWidth(head, icon)
+    local w = 0
+    for i, col in ipairs(head.cols) do
+        if not col.fill then w = w + head:Need(col.id) end
+        if i > 1 then w = w + DUI.Widgets.COLUMN_GAP end
+    end
+    return w + icon + Layout.LIST_TEXT + Layout.LIST_NAME_MIN - DUI.Widgets.COLUMN_GAP
+end
+
 function Layout.List(window, cfg)
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
     local inset = Layout.Ref(window, cfg, Layout.REF.inset)
@@ -1066,6 +1115,9 @@ function Layout.List(window, cfg)
     local rowGap = Layout.RowGap(window, cfg)
     head:ClearAllPoints()
     head:SetPoint("BOTTOMLEFT", window.items, "TOPLEFT", pad, rowGap)
+    local headed, taken = Layout.Headed(window, cfg)
+    local facts = Layout.FitColumns(window, head, headed)
+    width = math.max(width, Layout.ListWidth(head, icon))
     head:SetWidth(width)
     local at = head:Layout(width)
     local by, desc = ns.Setting("listSort"), ns.Setting("listDesc") == true
@@ -1076,7 +1128,6 @@ function Layout.List(window, cfg)
     local headH, ruleH = Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
     local toRows = Layout.SlotTop(window, cfg) - headH
     local y = 0
-    local headed, taken = Layout.Headed(window, cfg)
     local order = sorter(by, desc)
     local placed = {}
     for gi, hd in ipairs(headed) do
@@ -1089,7 +1140,7 @@ function Layout.List(window, cfg)
         y = y + headH
         if not hd.folded and #g.entries > 0 then
             local list = {}
-            for i, e in ipairs(g.entries) do list[i] = { e = e, i = i, row = Layout.RowFacts(e) } end
+            for i, e in ipairs(g.entries) do list[i] = { e = e, i = i, row = facts[e] } end
             if order then table.sort(list, order) end
             y = y + toRows
             for i, it in ipairs(list) do

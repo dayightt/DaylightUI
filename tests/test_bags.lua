@@ -7412,6 +7412,28 @@ T.test("bags: a folded group in the list is its heading alone; leaving the list 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: list columns fit their headings and their widest words", function()
+    local ns, f = listLogin()
+    local instant = C_Item.GetItemInfoInstant
+    C_Item.GetItemInfoInstant = function(id)
+        local itemID = type(id) == "number" and id or tonumber(string.match(tostring(id), "item:(%d+)"))
+        return itemID, "Miscellaneous", "", "", 0, world.class[itemID], 0
+    end
+    ns.Relayout()
+    local head = f.listHead
+    for id, cell in pairs(head.cells) do
+        if id ~= "icon" and id ~= "name" then
+            T.truthy(cell:GetWidth() >= cell.text:GetStringWidth() + DaylightUI.Widgets.SORT_ARROW + 4,
+                id .. ": its heading whole with the chevron")
+        end
+    end
+    T.truthy(head.cells.kind:GetWidth() >= #"Miscellaneous" * 7, "the kind column fits its widest word")
+    local row = ns.Bags.buttons[0][8].dluiRow
+    T.truthy(row.name:GetWidth() >= ns.Layout.LIST_NAME_MIN, "a name keeps its room")
+    C_Item.GetItemInfoInstant = instant
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: a long list stops growing and scrolls, its column heads staying put", function()
     local ns, f = listLogin()
     local L = ns.Layout
