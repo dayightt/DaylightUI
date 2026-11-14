@@ -936,7 +936,6 @@ function CB.Interrupted(h)
     -- The stop can arrive first and start it sliding back under, so bring it
     -- out again for the hold to show.
     if h.column and h.slide.goal == 0 then h.slide:To(1) end
-    if h.bar.ClearTimerDuration then pcall(h.bar.ClearTimerDuration, h.bar) end
     h.bar:SetMinMaxValues(0, 1)
     h.bar:SetValue(1)
     if not owned("fill") then

@@ -769,15 +769,18 @@ function Plate.Layout(p)
     local fillCut = ns.Body.FitBar(p.body, p.health, { p.hover })
     Plate.BackAlpha(p.health)
     Plate.LayoutMarks(p, cut)
-    -- Heals, then a shield, continuing where the health fill (or the previous bar)
-    -- ends, out to the fill's right end, their moving edges leaning like the fill's.
+    -- Heals, then a shield, starting where the health fill (or the previous bar)
+    -- ends, their moving edges leaning like the fill's. Each is as wide as the whole
+    -- health bar so an amount draws at the same scale as health; the heal
+    -- calculator keeps them inside the missing health (Plate.UpdatePrediction).
     local anchor = p.health:GetStatusBarTexture()
+    local full = p.health:GetWidth()
     for _, key in ipairs({ "heals", "absorbs" }) do
         local s = p[key]
         s:ClearAllPoints()
         s:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
         s:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 0, 0)
-        s:SetPoint("RIGHT", p.health, "RIGHT", 0, 0)
+        s:SetWidth(full)
         Style.AngleFill(s, fillCut > 0 and "right" or nil, fillCut)
         anchor = s:GetStatusBarTexture()
     end
@@ -876,11 +879,39 @@ local function amount(fn, u)
     return v
 end
 
+-- The plate's heal prediction calculator, filled for its unit, or nil when the
+-- client has none. Heals and shields are both held to the missing health, so
+-- neither runs past the end of the bar. One per plate, made the first time.
+local function filledCalc(p, u)
+    if type(CreateUnitHealPredictionCalculator) ~= "function" or type(UnitGetDetailedHealPrediction) ~= "function" then
+        return nil
+    end
+    local calc = p.healCalc
+    if not calc then
+        local ok, made = pcall(CreateUnitHealPredictionCalculator)
+        if not ok or not made then return nil end
+        calc = made
+        local mode = Enum.UnitDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode.MissingHealth
+        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
+        local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
+        if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
+        if calc.SetIncomingHealOverflowPercent then pcall(calc.SetIncomingHealOverflowPercent, calc, 1) end
+        p.healCalc = calc
+    end
+    if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
+    return calc
+end
+
+local function fromCalc(calc, method)
+    if not (calc and calc[method]) then return nil end
+    local ok, v = pcall(calc[method], calc)
+    if ok then return v end
+end
+
 -- Incoming heals and absorb shield: whole amounts (maybe secret) go straight into
--- the bars, never compared or tested. This runs on every health and prediction
--- event of every plate (~1,000 times a second on 40 plates in a fight), so no
--- tables, show/hide only when the setting changes, and nothing is read for a bar
--- that's off.
+-- the bars, never compared or tested. This runs on every prediction event of
+-- every plate, so no tables, show/hide only when the setting changes, and
+-- nothing is read for a bar that's off.
 function Plate.UpdatePrediction(p)
     local u = p.unit
     local c = cfg()
@@ -889,13 +920,18 @@ function Plate.UpdatePrediction(p)
     if p.absorbsOn ~= absorbs then p.absorbsOn = absorbs; p.absorbs:SetShown(absorbs) end
     if not (heals or absorbs) then return end
     local max = UnitHealthMax(u)
+    local calc = filledCalc(p, u)
     if heals then
+        local v = fromCalc(calc, "GetIncomingHeals")
+        if type(v) == "nil" then v = amount(UnitGetIncomingHeals, u) end
         p.heals:SetMinMaxValues(0, max)
-        p.heals:SetValue(amount(UnitGetIncomingHeals, u))
+        p.heals:SetValue(v)
     end
     if absorbs then
+        local v = fromCalc(calc, "GetDamageAbsorbs")
+        if type(v) == "nil" then v = amount(UnitGetTotalAbsorbs, u) end
         p.absorbs:SetMinMaxValues(0, max)
-        p.absorbs:SetValue(amount(UnitGetTotalAbsorbs, u))
+        p.absorbs:SetValue(v)
     end
 end
 

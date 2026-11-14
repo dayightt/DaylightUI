@@ -171,19 +171,23 @@ function Shop.MaxOf(it)
 end
 
 -- Buys n of an item, at most one stack per purchase, the next a moment after the last.
--- Stops if the shop closes on the way.
+-- Stops if the shop closes on the way, or if another item has moved into this
+-- slot (a limited one sold out), so it never buys the wrong thing.
 function Shop.BuyLots(it, n)
     local max = Shop.MaxOf(it)
     local per = math.max(1, it.stack)
     local chunk = math.max(per, math.floor(max / per) * per)
     local index = it.index
+    local link = call(GetMerchantItemLink, index)
     local function step(left)
         local take = math.min(left, chunk)
         BuyMerchantItem(index, take)
         if left > take then
             C_Timer.After(Shop.STACK_STEP, function()
                 local m = _G.MerchantFrame
-                if type(m) == "table" and m:IsShown() then step(left - take) end
+                if type(m) ~= "table" or not m:IsShown() then return end
+                if call(GetMerchantItemLink, index) ~= link then return end
+                step(left - take)
             end)
         end
     end

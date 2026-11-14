@@ -896,6 +896,24 @@ T.test("npc shop: clicking fast buys on every click (the game turns a quick seco
     T.eq(#NW.Calls("BuyMerchantItem"), 2, "both clicks bought")
 end)
 
+T.test("npc shop: buying stacks stops when another item moves into the slot", function()
+    local _, ns = load()
+    NW.Merchant()
+    frame()
+    local it = { index = 1, stack = 5, price = 25 }
+    local max, most = ns.Shop.MaxOf(it)
+    T.truthy(most >= max * 3, "room and money for three purchases")
+    ns.Shop.BuyLots(it, max * 3)
+    stub.RunTimers()
+    T.eq(#NW.Calls("BuyMerchantItem"), 3, "a lot at a time, all three")
+    ns.Shop.BuyLots(it, max * 3)
+    T.eq(#NW.Calls("BuyMerchantItem"), 4, "the first lot at once")
+    -- It sells out: the next item slides up into slot 1.
+    table.remove(NW.state.merchant.items, 1)
+    stub.RunTimers()
+    T.eq(#NW.Calls("BuyMerchantItem"), 4, "nothing else bought")
+end)
+
 T.test("npc shop: a click buys one; too dear or not for you shows soft red", function()
     local N = load()
     NW.Merchant()
