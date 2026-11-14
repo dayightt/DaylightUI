@@ -978,6 +978,30 @@ function W.TextAreaShow(area, top, bottom)
     if to ~= at then area:SetVerticalScroll(to); area.bar.Update() end
 end
 
+-- Sets an edit box's text and makes sure it shows. The game sometimes leaves
+-- the box empty for chat or error text it won't take, likely a code it can't
+-- read. Then each line it refuses shows with its codes as plain characters.
+-- Returns the text the box now holds.
+local function escaped(s) return (string.gsub(s, "|", "||")) end
+
+function W.SetEditText(edit, text)
+    text = text or ""
+    edit:SetText(text)
+    if text == "" or edit:GetNumLetters() > 0 then return text end
+    local out = {}
+    for line in string.gmatch(text .. "\n", "(.-)\n") do
+        edit:SetText(line)
+        if line ~= "" and edit:GetNumLetters() == 0 then line = escaped(line) end
+        out[#out + 1] = line
+    end
+    local fixed = table.concat(out, "\n")
+    edit:SetText(fixed)
+    if edit:GetNumLetters() > 0 then return fixed end
+    fixed = escaped(text)
+    edit:SetText(fixed)
+    return fixed
+end
+
 function W.TextArea(parent, opts)
     opts = opts or {}
     local area = CreateFrame("ScrollFrame", nil, parent)
@@ -3573,42 +3597,237 @@ function W.RoleText(role, size)
     return CreateAtlasMarkup(atlas, size or 14, size or 14)
 end
 
--- A one-line text prompt (a name, a rename, a search) using the game's
--- confirm dialog, which the Skins restyle. onAccept gets the trimmed text,
--- never empty unless opts.empty. It runs after the dialog closes: the game
--- hides a dialog after its OnAccept, so a second W.Prompt opened from inside
--- it would reuse that dialog and close on the same click (StaticPopup_OnClick).
--- opts.now runs it inside the click instead, for game calls that refuse to
--- run from a timer (friend invites, broadcasts).
-function W.Prompt(text, initial, onAccept, opts)
-    local which = "DAYLIGHTUI_PROMPT"
-    if not StaticPopupDialogs[which] then
-        local function accept(box, d)
-            local value = box and strtrim(box:GetText() or "") or ""
-            if (value ~= "" or (d and d.empty)) and d and d.onAccept then
-                if d.now then d.onAccept(value) else C_Timer.After(0, function() d.onAccept(value) end) end
-            end
-        end
-        StaticPopupDialogs[which] = {
-            text = "%s", button1 = ACCEPT or L["Accept"], button2 = CANCEL or L["Cancel"],
-            hasEditBox = true, editBoxWidth = 260, timeout = 0, whileDead = true, hideOnEscape = true,
-            preferredIndex = 3,
-            OnShow = function(self, d)
-                local box = self.editBox or self.EditBox
-                if box then
-                    box:SetText(d and d.initial or "")
-                    box:HighlightText()
-                    box:SetFocus()
-                end
-            end,
-            OnAccept = function(self, d) accept(self.editBox or self.EditBox, d) end,
-            EditBoxOnEnterPressed = function(box)
-                local parent = box:GetParent()
-                accept(box, parent.data)
-                parent:Hide()
-            end,
-            EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
-        }
+-- A question in Daylight UI's own box (DaylightUIAsk), built on the window kit.
+-- Never the game's StaticPopup: opened from addon code it leaves the game's
+-- shared pop-up state tainted, and the game's own pop-ups then fail their
+-- protected calls (Leave Instance Group, logging out).
+--
+--   W.Ask({ key = "meterReset", text = "Clear every fight?", yes = YES, no = NO,
+--           onYes = fn(value), onNo = fn() })
+--
+-- key: one box per key; asking again while it's up or waiting only updates it.
+-- yes, no: the buttons (default Yes and No); no = false leaves one button.
+-- input = { initial, hint, empty, locked }: a text box. onYes gets its trimmed
+--   text and isn't called when it's empty unless `empty`; `locked` keeps the
+--   text as given, selected, for copying.
+-- reload: Yes reloads the UI. Addon code can't call ReloadUI, so Yes is then a
+--   secure /reload button over the footer's, out of combat only, and onYes runs
+--   first in that click. In combat the question waits for the fight to end.
+-- onYes and onNo run inside the click, since the game refuses some calls from
+-- a timer. Asked while another question is up, it waits its turn.
+W.ASK_W = 380
+W.ASK_TOP = 10     -- from the title row to the question
+W.ASK_GAP = 12     -- from the question to the text box
+W.ASK_FOOT = 56    -- the footer's room, as the bug report window's
+
+local askBox, askReload
+local askQueue = {}
+
+local function askHideReload(force)
+    if not askReload then return end
+    if force or not InCombatLockdown() then askReload:Hide() end
+    -- A secure button left anchored to a frame of ours would tie the two together.
+    DUI.AfterCombat(function()
+        if not askReload:IsShown() then askReload:ClearAllPoints() end
+    end, "ask reload points")
+end
+
+local askShow
+
+local function askNext()
+    local spec = table.remove(askQueue, 1)
+    if not spec then return end
+    if spec.reload and InCombatLockdown() then
+        DUI.AfterCombat(function() W.Ask(spec) end, "ask:" .. (spec.key or "reload"))
+        return askNext()
     end
-    StaticPopup_Show(which, text, nil, { initial = initial, onAccept = onAccept, empty = opts and opts.empty, now = opts and opts.now })
+    askShow(spec)
+end
+
+local function askLetGo(f)
+    f.spec = nil
+    f.input:ClearFocus()
+    askHideReload()
+    DUI.Win.KeysOn(f, false)
+    DUI.Win.Close(f)
+end
+
+-- The box is free again as soon as it's answered: a question asked from the
+-- answer, or one waiting, takes it over while it fades (Feel.Open turns a
+-- closing window around).
+local function askAnswer(yes)
+    local f = askBox
+    local spec = f and f.spec
+    if not spec then return end
+    local value
+    if spec.input then value = strtrim(f.input:GetText() or "") end
+    askLetGo(f)
+    if yes then
+        if not (spec.input and value == "" and not spec.input.empty) and spec.onYes then
+            DUI.SafeCall(spec.onYes, value)
+        end
+        -- Pressed without the secure button (a controller, or it couldn't be
+        -- made): addon code can't reload, so say how.
+        if spec.reload then DUI.Print(L["Type /reload to finish."]) end
+    elseif spec.onNo then
+        DUI.SafeCall(spec.onNo)
+    end
+    if not f.spec then askNext() end
+end
+
+-- The secure button sits over the footer's Yes, which still shows the hover.
+local function askForward(script)
+    local b = askBox and askBox.foot.buttons[1]
+    local fn = b and b:GetScript(script)
+    if fn then fn(b) end
+end
+
+local function askShowReload(f)
+    if InCombatLockdown() then return end
+    if not askReload then
+        local ok, b = pcall(CreateFrame, "Button", "DaylightUIAskReload", UIParent, "SecureActionButtonTemplate")
+        if not ok or type(b) ~= "table" then return end
+        b:SetAttribute("type", "macro")
+        b:SetAttribute("macrotext", "/reload")
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetAttribute("useOnKeyDown", false)   -- nil follows the key-down CVar, which would ignore the Up click
+        -- onYes before the /reload; the box lets go only after it, so nothing
+        -- hides the button while its own click runs.
+        b:SetScript("PreClick", function()
+            local spec = W.Asking()
+            if spec and spec.onYes then DUI.SafeCall(spec.onYes) end
+        end)
+        b:SetScript("PostClick", function()
+            if W.Asking() then askLetGo(askBox) end
+        end)
+        b:SetScript("OnEnter", function() askForward("OnEnter") end)
+        b:SetScript("OnLeave", function() askForward("OnLeave") end)
+        b:SetScript("OnMouseDown", function() askForward("OnMouseDown") end)
+        b:SetScript("OnMouseUp", function() askForward("OnMouseUp") end)
+        askReload = b
+    end
+    askReload:SetFrameStrata("FULLSCREEN")   -- one above the box's DIALOG
+    askReload:ClearAllPoints()
+    askReload:SetAllPoints(f.foot.buttons[1])
+    askReload:Show()
+end
+
+local function askBuild()
+    local Win = DUI.Win
+    local f = Win.New({ name = "DaylightUIAsk", w = W.ASK_W, h = 160, strata = "DIALOG", compact = true })
+    f.onClose = function() askAnswer(false) end
+    f.text = Style.Text(f.host, SIZE.body, "LEFT")
+    f.text:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -(Win.COMPACT + W.ASK_TOP))
+    f.text:SetWidth(W.ASK_W - 2 * Win.EDGE)
+    f.text:SetWordWrap(true)
+    Style.InkText(f.text, "TEXT")
+    f.input = W.Input(f.host)
+    f.input:SetPoint("TOPLEFT", f.text, "BOTTOMLEFT", 0, -W.ASK_GAP)
+    f.input:SetPoint("RIGHT", f, "RIGHT", -Win.EDGE, 0)
+    f.input:SetScript("OnEnterPressed", function() askAnswer(true) end)
+    f.input:SetScript("OnEscapePressed", function() askAnswer(false) end)
+    f.foot = Win.Parts.Footer(f.host)
+    Win.Drag(f, {})
+    Win.Keys(f, function(key)
+        if key == "ESCAPE" then askAnswer(false); return true end
+        -- Enter can't reload: only a click on the secure button can.
+        if (key == "ENTER" or key == "NUMPADENTER") and f.spec and not f.spec.reload then
+            return f.foot:Press(1)
+        end
+    end)
+    return f
+end
+
+askShow = function(spec)
+    local Win = DUI.Win
+    askBox = askBox or askBuild()
+    local f = askBox
+    f.spec = spec
+    f.title:SetText(spec.title or "Daylight UI")
+    f.text:SetText(spec.text or "")
+    local textH = f.text:GetStringHeight()
+    local h = Win.COMPACT + W.ASK_TOP + (type(textH) == "number" and math.ceil(textH) or SIZE.body) + W.ASK_FOOT
+    local input = spec.input
+    f.input:SetShown(input ~= nil)
+    if input then
+        f.input.Lock(nil)
+        f.input:SetText(input.initial or "")
+        f.input.hint:SetText(input.hint or "")
+        if input.locked then f.input.Lock(input.initial or "") end
+        h = h + W.ASK_GAP + W.INPUT_H
+    end
+    local list = { { text = spec.yes or YES or L["Yes"], primary = true, onClick = function() askAnswer(true) end } }
+    if spec.no ~= false then
+        list[2] = { text = spec.no or NO or L["No"], onClick = function() askAnswer(false) end }
+    end
+    f.foot:Set(list)
+    if Win.IsOpen(f) then
+        Win.Feel.Size(f, W.ASK_W, h)
+    else
+        f:SetSize(W.ASK_W, h)
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+        f:SetScale(Win.Scale(1))
+        Win.Open(f)
+        Win.KeysOn(f, true)
+    end
+    f:Raise()
+    if input then
+        f.input:SetFocus()
+        f.input:HighlightText()
+    end
+    if spec.reload then askShowReload(f) else askHideReload() end
+end
+
+function W.Ask(spec)
+    if spec.reload and InCombatLockdown() then
+        DUI.AfterCombat(function() W.Ask(spec) end, "ask:" .. (spec.key or "reload"))
+        return
+    end
+    if spec.key then
+        if W.Asking() and W.Asking().key == spec.key then
+            askShow(spec)
+            return
+        end
+        for i, waiting in ipairs(askQueue) do
+            if waiting.key == spec.key then askQueue[i] = spec; return end
+        end
+    end
+    if W.Asking() then
+        askQueue[#askQueue + 1] = spec
+        return
+    end
+    askShow(spec)
+end
+
+-- The question showing now (its spec), or nil.
+function W.Asking()
+    return askBox and askBox.spec or nil
+end
+
+-- Answers the question showing now, Yes (true) or No (false), as its buttons do.
+function W.Answer(yes)
+    if W.Asking() then askAnswer(yes) end
+end
+
+-- A reload question can't stay up through a fight: its secure button has to
+-- hide now, the last moment that's allowed. It comes back when the fight ends.
+DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    askHideReload(true)
+    local spec = W.Asking()
+    if not (spec and spec.reload) then return end
+    askBox.spec = nil
+    DUI.Win.KeysOn(askBox, false)
+    DUI.Win.Close(askBox)
+    askNext()
+    DUI.AfterCombat(function() W.Ask(spec) end, "ask:" .. (spec.key or "reload"))
+end)
+
+-- A one-line text prompt (a name, a rename, a search) in the question box.
+-- onAccept gets the trimmed text, never empty unless opts.empty, inside the
+-- click (friend invites and broadcasts refuse to run from a timer).
+function W.Prompt(text, initial, onAccept, opts)
+    W.Ask({ key = "prompt", text = text, yes = ACCEPT or L["Accept"], no = CANCEL or L["Cancel"],
+        input = { initial = initial, empty = opts and opts.empty },
+        onYes = onAccept })
 end

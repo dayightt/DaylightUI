@@ -343,9 +343,10 @@ T.test("social: the right-click menu: note, favorite, remove asks first", functi
     m.pick("favorite")
     T.eq(SW.Calls("BNSetFriendFavoriteFlag")[1][2], true)
     m.pick("remove")
-    T.eq(stub.popup.which, "CONFIRM_REMOVE_BN_FRIEND", "the game's own question")
-    T.eq(stub.popup.data, 3)
+    T.eq(stub.Asked(), "removeFriend", "asked first")
     T.eq(#SW.Calls("BNRemoveFriend"), 0, "nothing removed yet")
+    stub.Answer(true)
+    T.eq(SW.Calls("BNRemoveFriend")[1][1], 3, "yes removes that friend")
 end)
 
 T.test("social: your status from the header (a click), and a broadcast", function()
@@ -362,8 +363,7 @@ end)
 
 -- The prompt's Accept, pressed by the player: a key or click of theirs around it.
 local function accept(text)
-    local dialog = StaticPopupDialogs[stub.popup.which]
-    stub.Key(dialog.OnAccept, { editBox = { GetText = function() return text end } }, stub.popup.data)
+    stub.Key(stub.Reply, text)
     stub.RunTimers()
 end
 

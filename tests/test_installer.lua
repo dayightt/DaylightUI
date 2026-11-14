@@ -93,9 +93,9 @@ T.test("installer: a layout set up from the bundled one is up to date, so no sec
     DUI.Installer.Install()
     T.truthy(DUI.EditMode.UpToDate(), "nothing left out of date: " .. table.concat(DUI.EditMode.Stale() or {}, ", "))
     DUI = reload({ before = bundled })
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    T.isnil(stub.popup, "no second reload asked")
+    T.isnil(stub.Asked(), "no second reload asked")
 end)
 
 T.test("installer: the old debug log is cleared from the saved settings", function()
@@ -726,7 +726,7 @@ T.test("installer: another character on the account can use the first one's setu
     local DUI = login()
     DUI.Installer.Install()                            -- the first character
     DUI:Set("general", "accent", "class")              -- and a change of its own
-    stub.popup = nil
+    stub.Dismiss()
     saved.activeLayout = 1                             -- a new character: on the game's own layout
     DUI.DB.Root().characters = nil
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -738,7 +738,7 @@ T.test("installer: another character on the account can use the first one's setu
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank")
     T.eq(DaylightUIDB.profileData["DPS/Tank"].general.accent, "class", "as the first one left it")
     T.eq(saved.activeLayout, 3, "ours active for this character")
-    T.isnil(stub.popup, "no popup: the guide has its own Reload")
+    T.isnil(stub.Asked(), "no popup: the guide has its own Reload")
 end)
 
 T.test("installer: a set-up character sees the guide once per account, with Keep my setup first", function()
@@ -795,11 +795,11 @@ T.test("installer: a set-up character on the game's layout is put back on its ow
     DUI.Installer.Install()
     DUI = reload()
     saved.activeLayout = 1
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "no guide")
     T.eq(saved.activeLayout, 3, "its layout back in use")
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "asks for the reload")
+    T.eq(stub.Asked(), "reload", "asks for the reload")
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "nor on entering the world")
 end)
@@ -834,14 +834,14 @@ T.test("installer: a set-up character on a layout of its own keeps it through lo
     DUI = reload()
     local mine = ownLayout()
     DUI = reload()
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")       -- a loading screen
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     stub.RunTimers()
     T.eq(saved.activeLayout, mine, "still on its own layout")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "no guide")
 end)
 
@@ -866,10 +866,10 @@ T.test("installer: a part out of date never moves a character off a layout of it
     local mine = ownLayout()
     DUI = reload()
     DUI.EditMode.Add("stale", function() end, function() return false end)
-    stub.popup = nil
+    stub.Dismiss()
     DUI.EditMode.AutoSave("updated")
     T.eq(saved.activeLayout, mine, "still on its own layout")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
 end)
 
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
@@ -929,11 +929,11 @@ end)
 T.test("installer: reload prompts wait while the guide is open", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    stub.popup = nil
+    stub.Dismiss()
     DUI.EditMode.AskReload("something changed")
-    T.isnil(stub.popup, "held")
+    T.isnil(stub.Asked(), "held")
     closeGuide()
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "shown once the guide closes")
+    T.eq(stub.Asked(), "reload", "shown once the guide closes")
 end)
 
 T.test("installer: how close a profile is to a ready-made setup, whatever its settings", function()

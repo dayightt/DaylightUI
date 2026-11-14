@@ -193,10 +193,13 @@ function Craft.Plus(f, n)
     end)
 end
 
--- The game's own confirm popup (UNLEARN_SKILL; accepting calls AbandonSkill).
+-- Asked in Daylight UI's question box with the game's own sentence; yes
+-- unlearns it, as the game's UNLEARN_SKILL pop-up does.
 function Craft.Unlearn(name, skillLine)
-    if type(StaticPopup_Show) ~= "function" then return end
-    StaticPopup_Show("UNLEARN_SKILL", name, nil, skillLine)
+    local abandon = (C_SkillInfo and C_SkillInfo.AbandonSkill) or _G.AbandonSkill
+    if type(abandon) ~= "function" then return end
+    DUI.Widgets.Ask({ key = "unlearn", text = string.format(UNLEARN_SKILL or L["Do you really want to unlearn %s?"], name),
+        onYes = function() abandon(skillLine) end })
 end
 
 -- Tooltip for the Unlearn link, shown before the game's popup asks.

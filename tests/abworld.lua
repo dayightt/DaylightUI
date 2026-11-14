@@ -44,8 +44,6 @@ function M.world()
             stub.RunTimers()
         end,
     }
-    _G.StaticPopupDialogs = {}
-    _G.StaticPopup_Show = function(which) stub.popup = which end
     local function preset(i)
         local systems = {}
         for idx = 1, 4 do systems[idx] = { system = 0, systemIndex = idx, settings = {}, anchorInfo = {} } end

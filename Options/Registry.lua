@@ -315,11 +315,7 @@ end
 -- item.restart: the game only reads this at startup. Show the sentence
 -- with just an Okay so it can't be missed.
 local function tellRestart(item)
-    StaticPopupDialogs.DAYLIGHTUI_RESTART = StaticPopupDialogs.DAYLIGHTUI_RESTART or {
-        text = "%s", button1 = OKAY or L["Okay"],
-        timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
-    }
-    StaticPopup_Show("DAYLIGHTUI_RESTART", L[item.restart])
+    DUI.Widgets.Ask({ key = "restart", text = L[item.restart], yes = OKAY or L["Okay"], no = false })
 end
 
 function Options.Set(page, item, value)

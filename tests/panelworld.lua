@@ -1,7 +1,7 @@
 local stub = require("stub")
 
 -- The info panel's world for its tests (test_infopanel, test_meters): the game's
--- minimap and its cluster, experience, the tooltip and pop-ups, and C_Spell for the
+-- minimap and its cluster, experience, the tooltip, and C_Spell for the
 -- meter's spells (the damage meter is the fake game's own, stub.DamageMeter).
 -- PW.login() loads the panel with its meter shown.
 local PW = {}
@@ -9,8 +9,6 @@ local PW = {}
 function PW.world()
     -- The damage meter is the fake game's own (stub.DamageMeter), filled through stub.meter.
     _G.GameTooltip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
-    _G.StaticPopupDialogs = {}
-    _G.StaticPopup_Show = function(which) stub.popup = which end
     _G.C_Spell = {
         GetSpellName = function(id) return ({ [1] = "Fireball", [2] = "Fire Blast" })[id] end,
         GetSpellTexture = function(id) return 1000 + id end,

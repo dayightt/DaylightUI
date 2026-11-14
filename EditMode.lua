@@ -476,13 +476,7 @@ function EditMode.AskReload(text)
     -- closing the guide shows it then (Installer.HoldReload).
     local I = DUI.Installer
     if I and I.HoldReload and I.HoldReload(function() EditMode.AskReload(text) end) then return end
-    StaticPopupDialogs.DAYLIGHTUI_RELOAD = StaticPopupDialogs.DAYLIGHTUI_RELOAD or {
-        button1 = RELOADUI or L["Reload"], button2 = LATER or L["Later"],
-        OnAccept = function() ReloadUI() end,
-        timeout = 0, whileDead = true, hideOnEscape = true,
-    }
-    StaticPopupDialogs.DAYLIGHTUI_RELOAD.text = text
-    StaticPopup_Show("DAYLIGHTUI_RELOAD")
+    DUI.Widgets.Ask({ key = "reload", text = text, yes = RELOADUI or L["Reload"], no = LATER or L["Later"], reload = true })
 end
 
 -- Writes, then asks for the reload that applies it.

@@ -1797,6 +1797,39 @@ stub.RESTRICTED_GLOBALS.GetShapeshiftForm = function()
     end
     return 0
 end
+-- Daylight UI's question box (DUI.Widgets.Ask): the key of the question it's
+-- asking now, or nil; answer it; or click its secure Reload as the player would.
+function stub.Asked()
+    local W = _G.DaylightUI and _G.DaylightUI.Widgets
+    local spec = W and W.Asking and W.Asking()
+    return spec and spec.key
+end
+function stub.Answer(yes) _G.DaylightUI.Widgets.Answer(yes) end
+-- Says No to every question up or waiting, so a test starts with none.
+function stub.Dismiss()
+    for _ = 1, 20 do
+        if not stub.Asked() then return end
+        stub.Answer(false)
+    end
+end
+-- Types text into the question box's text box, then says yes.
+function stub.Reply(text)
+    _G.DaylightUIAsk.input:SetText(text)
+    stub.Answer(true)
+end
+function stub.AskText()
+    local spec = _G.DaylightUI.Widgets.Asking()
+    return spec and spec.text or ""
+end
+function stub.ClickReload()
+    local b = _G.DaylightUIAskReload
+    assert(b and b:IsShown(), "no Reload button up")
+    stub.hardware = (stub.hardware or 0) + 1
+    local ok, err = pcall(stub.SecureClick, b, "LeftButton", false)
+    stub.hardware = stub.hardware - 1
+    if not ok then error(err, 0) end
+end
+
 -- A macro's /click on a SecureActionButtonTemplate button with type "attribute",
 -- as the game does it. "/click Name" with no more words is Click("LeftButton",
 -- false), the up half only (SlashCommands.lua). SecureActionButton_OnClick then
@@ -1805,15 +1838,22 @@ end
 -- it off), and on the up half otherwise (SecureTemplates.lua). The action is
 -- SECURE_ACTIONS.attribute: the name and value go onto attribute-frame (else the
 -- button itself) in the secure world. The button's OnClick scripts and hooks run
--- either way, as a wrapped script's snippet does.
+-- either way, as a wrapped script's snippet does. PreClick and PostClick run
+-- around it, as the client's Click does. Type "macro" runs its macrotext; only /reload is
+-- known here (ReloadUI, which a secure click may call).
 function stub.SecureClick(b, button, down)
     button = button or "LeftButton"
     down = down == true
+    local pre = b:GetScript("PreClick")
+    if pre then pre(b, button, down) end
     local keyDown = b:GetAttribute("useOnKeyDown")
     if keyDown == nil then keyDown = stub.keyDownCVar ~= false end
     local acts = (down and keyDown) or (not down and not keyDown)
     stub.inSecure = (stub.inSecure or 0) + 1
     local ok, err = pcall(function()
+        if acts and b:GetAttribute("type") == "macro" and b:GetAttribute("macrotext") == "/reload" then
+            ReloadUI()
+        end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")
@@ -1825,6 +1865,8 @@ function stub.SecureClick(b, button, down)
     if not ok then error(err, 0) end
     local fn = b:GetScript("OnClick")
     if fn then fn(b, button, down) end
+    local post = b:GetScript("PostClick")
+    if post then post(b, button, down) end
 end
 local SNIPPET_ARGS = { self = true, newstate = true, stateid = true, message = true, scriptid = true, name = true, value = true,
                        delta = true, button = true, down = true, owner = true }

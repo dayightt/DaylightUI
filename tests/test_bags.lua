@@ -1669,7 +1669,7 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     local row = CreateFrame("Frame")
     add.build(row)
     row.add:GetScript("OnClick")(row.add)
-    stub.popup.data.onAccept("Keepers")
+    stub.Reply("Keepers")
     stub.RunTimers()
     local key = Cat.Custom()[1] and Cat.Custom()[1].key
     T.truthy(key, "one box, and the group exists")
@@ -1820,29 +1820,18 @@ T.test("bags: an empty group of yours can wait only in the bag, never in the ban
     ns.Categories.DeleteCustom(key)
 end)
 
-T.test("W.Prompt: what you accept runs after the box has closed, so a second box isn't closed with it", function()
+T.test("W.Prompt: a box asked from an accepted one stays open", function()
     catLogin()
     local W = DaylightUI.Widgets
-    local ran, data = 0, nil
-    W.Prompt("First", "", function() ran = ran + 1 end)
-    data = stub.popup.data
-    local box = { GetText = function() return " Keepers " end }
-    -- StaticPopup_OnClick hides the dialog after OnAccept if it still has the same
-    -- `which`, and a second W.Prompt reuses that same dialog.
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = box }, data)
-    T.eq(ran, 0, "not inside the game's click")
-    stub.RunTimers()
-    T.eq(ran, 1)
-    -- Empty is refused unless the question lets it be cleared.
-    W.Prompt("Second", "", function() ran = ran + 10 end)
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(ran, 1)
     local got
-    W.Prompt("Third", "old", function(v) got = v end, { empty = true })
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(got, "")
+    W.Prompt("First", "", function(v)
+        got = v
+        W.Prompt("Second", "", function() end)
+    end)
+    stub.Reply(" Keepers ")
+    T.eq(got, "Keepers", "trimmed, inside the click")
+    T.truthy(stub.AskText() == "Second" and _G.DaylightUIAsk:IsShown(), "the second box is up")
+    stub.Dismiss()
 end)
 
 T.test("bags: recent items first, for a while", function()

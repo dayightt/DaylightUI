@@ -137,10 +137,11 @@ function Friends.Menu(owner, f)
         elseif k == "note" then
             W().Prompt(string.format(L["A note for %s:"], f.account), f.note or "", function(text) Data().SetNote(f, text) end)
         elseif k == "favorite" then Data().SetFavorite(f, not f.favorite)
-        elseif k == "remove" and type(StaticPopup_Show) == "function" then
-            -- The game's own confirmation; yes removes the friend (UnitPopupRemoveBnetFriendButtonMixin).
+        elseif k == "remove" and type(BNRemoveFriend) == "function" then
+            -- The game's own question and call (CONFIRM_REMOVE_BN_FRIEND).
             local text = BATTLETAG_REMOVE_FRIEND_CONFIRMATION or L["Remove %s from your friends?"]
-            StaticPopup_Show("CONFIRM_REMOVE_BN_FRIEND", string.format(text, f.account), nil, f.id)
+            W().Ask({ key = "removeFriend", text = string.format(text, f.account), yes = ACCEPT or L["Accept"],
+                no = CANCEL or L["Cancel"], onYes = function() BNRemoveFriend(f.id) end })
         end
     end, nil, { atCursor = true })
 end

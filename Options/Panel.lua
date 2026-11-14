@@ -83,32 +83,10 @@ Panel.PATREON = "https://www.patreon.com/cw/DaylightUI"
 Panel.PROFILES_SITE = "https://www.daylightui.com/profiles"
 Panel.DONATORS = "donators"   -- page id (Donators.lua)
 
--- Popup with a pre-selected link to copy, since addons can't open a browser.
+-- A box with the link selected to copy, since addons can't open a browser.
 local function showLink(which, url, text)
-    if not StaticPopupDialogs[which] then
-        local function fill(box)
-            box:SetText(url)
-            box:HighlightText()
-            box:SetFocus()
-        end
-        StaticPopupDialogs[which] = {
-            text = text,
-            button1 = CLOSE or L["Close"],
-            hasEditBox = true, editBoxWidth = 260, timeout = 0, whileDead = true, hideOnEscape = true,
-            preferredIndex = 3,
-            OnShow = function(self)
-                local box = self.editBox or self.EditBox
-                if box then fill(box) end
-            end,
-            -- Typing can't change the link; it snaps back, still selected.
-            EditBoxOnTextChanged = function(box)
-                if box:GetText() ~= url then fill(box) end
-            end,
-            EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
-            EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
-        }
-    end
-    StaticPopup_Show(which)
+    DUI.Widgets.Ask({ key = which, text = text, yes = CLOSE or L["Close"], no = false,
+        input = { initial = url, locked = true } })
 end
 
 function Panel.ShowDiscord()

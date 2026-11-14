@@ -1544,10 +1544,10 @@ T.test("quests clicks: the menu, with Share only in a group", function()
     T.deq(QW.Calls("share"), { q.logIndex })
     -- A yes/no box of its own, no map or journal needed; only the yes drops it.
     T.deq(QW.Calls("abandon"), {}, "nothing dropped yet")
-    T.eq(stub.popup.which, "DAYLIGHTUI_ABANDON_QUEST")
-    T.truthy(stub.popup.text:find(q.title, 1, true), "it names the quest")
+    T.eq(stub.Asked(), "abandonQuest")
+    T.truthy(stub.AskText():find(q.title, 1, true), "it names the quest")
     T.deq(QW.Calls("map"), {}, "no map opened")
-    StaticPopupDialogs.DAYLIGHTUI_ABANDON_QUEST.OnAccept(nil, stub.popup.data)
+    stub.Answer(true)
     T.deq(QW.Calls("abandon"), { q.id })
     T.eq(#QW.Calls("error"), 1, "only the refused Share in the fight said no")
 end)
@@ -1561,13 +1561,13 @@ T.test("quests clicks: Abandon's box works in a fight, names what it destroys, a
     local combat = _G.InCombatLockdown
     _G.InCombatLockdown = function() return true end
     ns.Clicks.Do("abandon", q)
-    T.truthy(stub.popup and stub.popup.text:find("Okra", 1, true), "the item is named")
+    T.truthy(stub.AskText():find("Okra", 1, true), "the item is named")
     T.deq(QW.Calls("error"), {}, "no refusal in a fight")
     _G.InCombatLockdown = combat
     local can = C_QuestLog.CanAbandonQuest
     C_QuestLog.CanAbandonQuest = function() return false end
     T.deq(ns.Clicks.MenuKeys(q), { "priority", "fold", "map", "details", "wowhead", "untrack" }, "no row when the game says no")
-    StaticPopupDialogs.DAYLIGHTUI_ABANDON_QUEST.OnAccept(nil, stub.popup.data)
+    stub.Answer(true)
     T.deq(QW.Calls("abandon"), {}, "gone meanwhile: nothing happens")
     C_QuestLog.CanAbandonQuest = can
     C_QuestLog.GetAbandonQuestItems, C_Item.GetItemNameByID = itemsWas, nameWas

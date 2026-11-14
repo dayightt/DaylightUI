@@ -156,8 +156,12 @@ function Npc.Accept()
     local d = S.data
     if not d then return end
     if S.sample then return Npc.Close() end
-    if d.pvp and type(StaticPopup_Show) == "function" then
-        StaticPopup_Show("CONFIRM_ACCEPT_PVP_QUEST")   -- the game's own confirmation; yes accepts
+    if d.pvp then
+        -- The game's own question (CONFIRM_ACCEPT_PVP_QUEST): yes accepts, no declines.
+        DUI.Widgets.Ask({ key = "pvpQuest", text = CONFIRM_ACCEPT_PVP_QUEST or L["Accepting this quest will flag you for PvP. Accept anyway?"],
+            yes = ACCEPT or L["Accept"], no = CANCEL or L["Cancel"],
+            onYes = function() AcceptQuest() end,
+            onNo = function() if type(DeclineQuest) == "function" then DeclineQuest() end end })
         return
     end
     if not firstPress() then return end

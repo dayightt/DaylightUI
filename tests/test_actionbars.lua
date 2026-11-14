@@ -1000,9 +1000,10 @@ T.test("profiles: switching to a new profile gives it its own layout, a copy of 
     DUI.Installer.Install()
     T.truthy(layoutNamed("DaylightUI - DPS/Tank"), "Default's layout")
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Choose("character", "Healer")
-    T.eq(stub.popup, "DAYLIGHTUI_PROFILE", "asked to reload")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, "Healer")
+    T.eq(stub.Asked(), "profile", "asked to reload")
+    stub.ClickReload()
     local l, index = layoutNamed("DaylightUI - Healer")
     T.truthy(l, "the profile's own layout")
     T.eq(C_EditMode.GetLayouts().activeLayout, index, "made active before the reload")
@@ -1017,13 +1018,14 @@ T.test("profiles: a switch made after combat (no click) asks for the reload clic
     _G.GetNumSpecGroups = function() return 1 end
     DUI.Installer.Install()
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Assign("character", "Healer")
     DUI.Profiles.SwitchNow("Healer")
     T.truthy(DUI.EditMode.IsActive("Healer"))
     stub.RunTimers()
     T.falsy(stub.reloaded, "a timer can't reload (blocked without a click)")
-    T.eq(stub.popup, "DAYLIGHTUI_PROFILE_RELOAD", "asks for the reload click instead")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE_RELOAD.OnAccept()
+    T.eq(stub.Asked(), "profileReload", "asks for the reload click instead")
+    stub.ClickReload()
     T.truthy(stub.reloaded)
 end)
 
@@ -1032,14 +1034,14 @@ T.test("profiles: the game's layout update after a switch neither undoes it nor 
     _G.GetNumSpecGroups = function() return 1 end
     DUI.Installer.Install()
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Choose("character", "Healer")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, "Healer")
-    stub.popup = nil
+    stub.ClickReload()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- the game, after the save
     T.truthy(DUI.EditMode.IsActive("Healer"), "the new profile's layout stays active")
-    T.isnil(stub.popup, "no second reload asked")
+    T.isnil(stub.Asked(), "no second reload asked")
     stub.RunTimers()
-    T.isnil(stub.popup, "nor after the save's moment")
+    T.isnil(stub.Asked(), "nor after the save's moment")
 end)
 
 T.test("profiles: renaming a profile renames its layout", function()
@@ -1060,12 +1062,12 @@ T.test("profiles: after switching without the layout, the next load puts it in p
     DUI.Profiles.Create("Healer")
     -- On the Healer profile now, but Default's layout is still active.
     DUI.DB.activeName = "Healer"
-    stub.popup = nil
+    if stub.Asked() then stub.Answer(false) end
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     local _, index = layoutNamed("DaylightUI - Healer")
     T.truthy(index, "made")
     T.eq(C_EditMode.GetLayouts().activeLayout, index, "and active")
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "asked to reload")
+    T.eq(stub.Asked(), "reload", "asked to reload")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "not the installer")
 end)
 
@@ -2233,13 +2235,13 @@ T.test("action bars: bag bar and micro menu size read and write the active Edit 
     T.truthy(bag, "a bag bar size slider"); T.truthy(micro, "a micro menu size slider")
     T.near(bag.get(), 1.5, 0.001, "the layout's 150%")
     T.near(micro.get(), 1.0, 0.001, "the layout's 100%")
-    stub.popup = nil           -- the login's own prompt
+    if stub.Asked() then stub.Answer(false) end   -- the login's own question
     bag.set(0.8)
     T.near(BagsBar:GetScale(), 0.8, 0.001, "smaller at once")
     stub.RunTimers()
     T.eq(saved.layouts[1].systems[1].settings[1].value, 1, "80% saved as step 1")
     T.eq(saved.activeLayout, 3, "the active layout stays")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
     T.near(bag.get(), 0.8, 0.001)
     micro.set(1.2)
     T.near(MicroMenu:GetScale(), 1.2, 0.001)

@@ -28,6 +28,7 @@ DUI.PatchNotes = {
             { "Chat", "Profession and recipe links in chat open on the first click, even while Trade chat is busy" },
             { "Controller", "The button hints under the quest log on the map no longer sit on top of the map's own, and no longer stay on screen after closing the map in a fight" },
             { "Fonts", "Names in Russian, Korean or Chinese no longer show as boxes when the picked font doesn't have those letters" },
+            { "Interface", "Leaving a dungeon group no longer stops with a \"DaylightUI has been blocked\" message. Daylight UI's questions now open in its own box" },
         },
     },
     { version = "1.8.0", date = "2026-11-14", summary = "See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.",

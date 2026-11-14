@@ -52,6 +52,15 @@ local RULES = {
     -- of the session (logging out, Escape, the interact target all refused).
     { "confirm-delete-item", "C_Item.ConfirmDeleteItem opens the game's delete pop-up under our taint: ask with a menu confirm and C_Item.DeleteItem",
       function(l) return l:find("ConfirmDeleteItem(", 1, true) end },
+    -- StaticPopup_Show run by addon code writes the game's shared pop-up state
+    -- (dialog fields, its order ids) under our taint. The game's own pop-ups
+    -- read it later, so Leave Instance Group (LeaveInstanceParty) or logging out
+    -- (CancelLogout) was refused and blamed on Daylight UI.
+    { "static-popup", "the game's pop-ups opened or defined by Daylight UI taint them: ask with DUI.Widgets.Ask",
+      function(l)
+          return l:find("StaticPopup_Show(", 1, true) or l:find("StaticPopup_Queue(", 1, true)
+              or l:match("StaticPopupDialogs[%.%[][%w_\"'%]]*%s*=[^=]")
+      end },
     { "mouseisover", "MouseIsOver is gone in this client: use frame:IsMouseOver()",
       function(l) return (" " .. l):find("[^%w_:%.]MouseIsOver%(") end },
     { "events-list-remove", "our buttons leave the game's events list by nil in place, never tremove (rule 4)",

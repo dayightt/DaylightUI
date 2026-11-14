@@ -1,5 +1,11 @@
 local stub = require("stub")
 
+-- The key of the question Daylight UI's own box is asking now, or nil.
+local function asked()
+    local spec = DaylightUI.Widgets and DaylightUI.Widgets.Asking()
+    return spec and spec.key
+end
+
 -- The fake world around the panel (slide, login, meter) lives in
 -- tests/panelworld.lua, shared with tests/test_meters.lua.
 local PW = require("panelworld")
@@ -765,7 +771,7 @@ T.test("info panel: joining a group keeps, asks about, or resets the fights", fu
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET"); T.falsy(stub.meter.reset)
+    T.eq(asked(), "meterReset"); T.falsy(stub.meter.reset)
     stub.FireEvent("GROUP_ROSTER_UPDATE")
     stub.inGroup = false
     stub.FireEvent("GROUP_ROSTER_UPDATE")
@@ -788,16 +794,16 @@ end
 T.test("info panel: entering an instance keeps, asks about, or resets the fights", function()
     local DUI = login()
     stub.meter.fights = { { sessionID = 1 } }
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     zoneTo(33)
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET", "asks by default"); T.falsy(stub.meter.reset)
-    stub.popup = nil
+    T.eq(asked(), "meterReset", "asks by default"); T.falsy(stub.meter.reset)
+    DaylightUI.Widgets.Answer(false)
     zoneTo(nil)
     DUI:Set("InfoPanel", "meter.onInstance", "nothing")
     zoneTo(34)
-    T.isnil(stub.popup, "keeps them"); T.falsy(stub.meter.reset)
+    T.isnil(asked(), "keeps them"); T.falsy(stub.meter.reset)
     zoneTo(nil)
-    T.isnil(stub.popup, "leaving isn't entering")
+    T.isnil(asked(), "leaving isn't entering")
     DUI:Set("InfoPanel", "meter.onInstance", "reset")
     zoneTo(36)
     T.truthy(stub.meter.reset)
@@ -830,18 +836,17 @@ end)
 
 T.test("info panel: both on Ask, answering yes on joining isn't asked again at the door", function()
     local DUI = login()
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     DUI:Set("InfoPanel", "meter.onInstance", "ask")
     stub.meter.fights = { { sessionID = 1 } }
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
-    stub.popup = nil
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    T.eq(asked(), "meterReset")
+    DaylightUI.Widgets.Answer(true)
     stub.meter.fights = {}
     zoneTo(33)
-    T.isnil(stub.popup, "nothing left to clear")
+    T.isnil(asked(), "nothing left to clear")
 end)
 
 T.test("info panel: a /reload or login inside and the run back after dying aren't entering", function()
@@ -1045,9 +1050,9 @@ T.test("info panel: reset asks first, then clears every fight", function()
     local b = M.header.buttons.reset
     T.eq(b.kind, "reset")
     b:GetScript("OnClick")(b, "LeftButton")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
+    T.eq(asked(), "meterReset")
     T.falsy(stub.meter.reset, "nothing cleared until confirmed")
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    DaylightUI.Widgets.Answer(true)
     T.truthy(stub.meter.reset)
     T.eq(DUI:Get("InfoPanel", "meter.session"), "current")
 end)

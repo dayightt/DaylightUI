@@ -864,19 +864,13 @@ end
 -- removes, no map or log needed (the journal may be off or folded). Checked again
 -- on yes, since the quest may be gone by then.
 function Journal.AbandonPopup(q)
-    if not (StaticPopupDialogs and StaticPopup_Show) then return end
-    local which = "DAYLIGHTUI_ABANDON_QUEST"
-    StaticPopupDialogs[which] = StaticPopupDialogs[which] or {
-        text = "%s", button1 = YES or L["Yes"], button2 = NO or L["No"],
-        OnAccept = function(_, d)
-            if d and Journal.CanAbandon(d) then Journal.Abandon(d) end
-        end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
     local text = L["Abandon \"%s\"?"]:format(q.title or "")
     local items = Journal.AbandonItems(q)
     if items then text = text .. "\n" .. alsoDestroys(items) end
-    StaticPopup_Show(which, text, nil, { id = q.id })
+    local d = { id = q.id }
+    DUI.Widgets.Ask({ key = "abandonQuest", text = text, onYes = function()
+        if Journal.CanAbandon(d) then Journal.Abandon(d) end
+    end })
 end
 
 -- Right-click menus. The game's quest log has them (QuestMapFrame.lua

@@ -487,14 +487,14 @@ end)
 T.test("bars: a setting applies at once, no reload; fewer buttons hide the rest", function()
     login()
     if DaylightUIInstaller then DaylightUIInstaller:Hide() end   -- made the first time it shows
-    stub.popup = nil
+    stub.Dismiss()
     DaylightUI:Set("ActionBars", "bars.main.icons", 6)
     T.near(holder("main"):GetWidth(), 6 * 31.5 + 5 * 2)
     T.falsy(btn("main", 7):IsShown()); T.eq(btn("main", 7):GetAttribute("statehidden"), true)
     T.truthy(btn("main", 6):IsShown())
     DaylightUI:Set("ActionBars", "bars.main.icons", 12)
     T.truthy(btn("main", 7):IsShown()); T.isnil(btn("main", 7):GetAttribute("statehidden"))
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
 end)
 
 T.test("bars: a change in combat waits for combat to end", function()
