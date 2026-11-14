@@ -857,7 +857,8 @@ local function listHead(window)
     for i, c in ipairs(Layout.LIST_COLS) do
         cols[i] = { id = c.id, width = c.width, fill = c.fill, sort = c.sort, justify = c.justify, text = colText(c.id) }
     end
-    head = DUI.Widgets.ColumnHead(window.items, cols, function(id, desc)
+    -- On the window, above the rows: they scroll under it.
+    head = DUI.Widgets.ColumnHead(window, cols, function(id, desc)
         ns.Window.SortTouched(window)
         DUI:Set("Bags", "listDesc", desc)
         DUI:Set("Bags", "listSort", id)
@@ -975,6 +976,10 @@ end
 -- Puts every slot back to a plain square slot when the view isn't the list.
 function Layout.EndList(window)
     if window.listHead then window.listHead:Hide() end
+    if window.listBar then window.listBar:Hide() end
+    window.items:SetClipsChildren(false)
+    window.items:EnableMouseWheel(false)
+    window.listLead, window.listPlaced, window.listOffset = 0, nil, 0
     for _, s in ipairs(window.set.Slots()) do
         local b = s.button
         if b.dluiRow and b.dluiRow:IsShown() then
@@ -985,8 +990,66 @@ function Layout.EndList(window)
     end
 end
 
+-- How tall the list grows before it scrolls: about half the screen, so a full
+-- bag never runs off it.
+Layout.LIST_SCREEN = 0.5
+function Layout.ListView(window)
+    local ui = UIParent
+    local h = ui and ui:GetHeight()
+    if type(h) ~= "number" or h <= 0 then h = 768 end
+    local mine = window.items:GetEffectiveScale()
+    local scale = (ui and mine and mine > 0) and ui:GetEffectiveScale() / mine or 1
+    return math.floor(h * scale * Layout.LIST_SCREEN)
+end
+
+-- The list's scroll bar, the shared one, reading and moving the list's offset.
+local function listBar(window)
+    if window.listBar then return window.listBar end
+    window.listBar = DUI.Widgets.Scroll(window.items, {
+        parent = window, x = 3, step = 3 * (Layout.ListIcon(window.Cfg()) + Layout.LIST_GAP),
+        read = function()
+            local view = window.listView or 0
+            return window.listOffset or 0, math.max(0, (window.listContent or 0) - view), view
+        end,
+        write = function(v)
+            window.listOffset = v
+            Layout.ListScroll(window)
+        end,
+    })
+    return window.listBar
+end
+
+-- Places the list's headings and rows at their spots less the scroll offset.
+-- Rows wholly out of view are hidden; one cut by an edge only clicks where it
+-- shows.
+function Layout.ListScroll(window)
+    local placed = window.listPlaced
+    if not placed then return end
+    if not ns.CanLayout(window) then return end
+    Layout.Settle(window)
+    local off, view = window.listOffset or 0, window.listView or 0
+    for _, p in ipairs(placed) do
+        local r, top = p.r, p.y - off
+        local inside = top + p.h > 0 and top < view
+        r:ClearAllPoints()
+        if p.heading then
+            r:SetPoint("TOPLEFT", window.items, "TOPLEFT", p.x, -top)
+        else
+            r:SetPoint("TOPLEFT", r:GetParent(), "TOPLEFT", p.x, -top)
+            if inside then
+                r:SetHitRectInsets(0, -p.reach, math.max(0, -top), math.max(0, top + p.h - view))
+            end
+            if p.held then p.held.y = -top end
+        end
+        r:SetShown(inside)
+    end
+end
+
 function Layout.List(window, cfg)
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
+    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
+    -- The list cuts off what's outside it, so the chevrons hang inside it.
+    local pad = math.max(Layout.SHELF_INSET, Layout.HEAD_CHEV + Layout.HEAD_CHEV_GAP - inset)
     local width = cols * size + (cols - 1) * gap
     local icon = Layout.ListIcon(cfg)
     for _, s in ipairs(window.set.Slots()) do
@@ -1000,30 +1063,29 @@ function Layout.List(window, cfg)
     for _, l in ipairs(window.lines or {}) do l:Hide() end
     noteLaid(window)
     local head = listHead(window)
+    local rowGap = Layout.RowGap(window, cfg)
     head:ClearAllPoints()
-    head:SetPoint("TOPLEFT", window.items, "TOPLEFT", 0, 0)
+    head:SetPoint("BOTTOMLEFT", window.items, "TOPLEFT", pad, rowGap)
     head:SetWidth(width)
     local at = head:Layout(width)
     local by, desc = ns.Setting("listSort"), ns.Setting("listDesc") == true
     if by == "shelf" then by = nil end
     head:SetSort(by, desc)
     head:Show()
+    window.listLead = head:GetHeight() + rowGap
     local headH, ruleH = Layout.HeadH(window, cfg), Layout.LineH(window, cfg)
-    local inset = Layout.Ref(window, cfg, Layout.REF.inset)
     local toRows = Layout.SlotTop(window, cfg) - headH
-    local rowGap = Layout.RowGap(window, cfg)
-    local y = head:GetHeight() + rowGap
+    local y = 0
     local headed, taken = Layout.Headed(window, cfg)
     local order = sorter(by, desc)
+    local placed = {}
     for gi, hd in ipairs(headed) do
         local g, h = hd.g, hd.h
         if gi > 1 then y = y + rowGap end
-        h:ClearAllPoints()
-        h:SetPoint("TOPLEFT", window.items, "TOPLEFT", inset, -y)
         h:SetWidth(width - 2 * inset)
         h:SetHeight(headH)
         h.rule:SetHeight(ruleH)
-        h:Show()
+        placed[#placed + 1] = { r = h, heading = true, x = pad + inset, y = y, h = headH }
         y = y + headH
         if not hd.folded and #g.entries > 0 then
             local list = {}
@@ -1035,9 +1097,9 @@ function Layout.List(window, cfg)
                 local b = e.button
                 if i > 1 then y = y + Layout.LIST_GAP end
                 b:SetSize(icon, icon)
+                local p = { r = b, x = pad, y = y, h = icon, reach = width - icon }
                 b:ClearAllPoints()
-                b:SetPoint("TOPLEFT", b:GetParent(), "TOPLEFT", 0, -y)
-                b:SetHitRectInsets(0, -(width - icon), 0, 0)
+                b:SetPoint("TOPLEFT", b:GetParent(), "TOPLEFT", pad, -y)
                 b:Show()
                 ns.Items.Place(b)
                 ns.Items.SetFree(b, e.free)
@@ -1045,11 +1107,13 @@ function Layout.List(window, cfg)
                     b.dluiCount = e.total
                     local all = { b }
                     for _, other in ipairs(e.extra) do all[#all + 1] = other end
-                    window.held[#window.held + 1] = { button = b, all = all, x = 0, y = -y, size = icon }
+                    p.held = { button = b, all = all, x = pad, y = -y, size = icon }
+                    window.held[#window.held + 1] = p.held
                 end
                 b.dluiEntry = e
                 rowOf(b, width, icon, at)
                 Layout.PaintRow(b)
+                placed[#placed + 1] = p
                 y = y + icon
             end
         end
@@ -1057,7 +1121,17 @@ function Layout.List(window, cfg)
     for _, h in ipairs(window.headings or {}) do
         if not taken[h] then h:Hide() end
     end
-    return width, y
+    local view = math.min(y, Layout.ListView(window))
+    window.listPlaced, window.listContent, window.listView = placed, y, view
+    window.listOffset = math.max(0, math.min(window.listOffset or 0, y - view))
+    window.items:SetClipsChildren(true)
+    window.items:EnableMouseWheel(true)
+    local bar = listBar(window)
+    bar.Stop()
+    bar:Show()
+    Layout.ListScroll(window)
+    bar.Update()
+    return pad + width, view
 end
 
 -- Eased layouts (a heading click, a chip, loot while open). Everything runs on one driver and one

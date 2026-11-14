@@ -647,14 +647,16 @@ function Window.LayoutChips(f, width)
         end
     end
     f.items:ClearAllPoints()
-    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + Window.Inset(f), top - h)
+    -- The list's column heads sit above its rows (listLead), outside what scrolls.
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + Window.Inset(f), top - h - (f.listLead or 0))
     return h
 end
 
 -- The Shelf starts a little in so a heading's chevron has room in the margin.
 function Window.Inset(f)
     local cfg = f.Cfg and f.Cfg()
-    return cfg and ns.Layout.Grouped(cfg.view) and ns.Layout.SHELF_INSET or 0
+    -- The list keeps its chevrons inside its own width, as it cuts off what's outside.
+    return cfg and cfg.view == "categories" and ns.Layout.SHELF_INSET or 0
 end
 
 -- The filter words under the search, one W.Tab per CHIPS entry, hidden at rest.
@@ -1016,7 +1018,7 @@ function Window.Relayout(f, synced, moved)
     local _, _, _, _, wasY = f.items:GetPoint(1)
     local chipH = Window.LayoutChips(f, w)
     local _, _, _, _, nowY = f.items:GetPoint(1)
-    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + h + Window.GAP + Window.FOOTER + E
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + (f.listLead or 0) + h + Window.GAP + Window.FOOTER + E
     -- An eased layout glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps. When the filters come or go the grid
     -- glides from where it was on the same curve, so it never jumps.

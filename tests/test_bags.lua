@@ -7307,16 +7307,17 @@ end
 T.test("bags: the list view puts a row per item under its group's heading", function()
     local ns, f = listLogin()
     local L = ns.Layout
+    L.ListView = function() return 10000 end
+    ns.Relayout()
     local rows = rowsOf(f)
     T.truthy(#rows >= 6, "a row per shown item: " .. #rows)
     local icon = L.ListIcon(f.Cfg())
     local width = f.items:GetWidth()
     for i, r in ipairs(rows) do
-        T.eq(r.x, 0, "rows start at the left edge")
+        T.eq(r.x, width - r.row:GetWidth(), "rows start at the left edge, past the chevrons' room")
         T.eq(r.b:GetWidth(), icon, "the slot stays square, at the row's height")
         local hit = r.b.__hitRect
-        T.deq(hit, { 0, -(width - icon), 0, 0 }, "its click area covers the whole row")
-        T.eq(r.row:GetWidth(), width)
+        T.deq(hit, { 0, -(r.row:GetWidth() - icon), 0, 0 }, "its click area covers the whole row")
         if i > 1 then T.truthy(r.y >= rows[i - 1].y + icon, "rows never overlap") end
     end
     -- Every group's rows sit under its heading and above the next one.
@@ -7408,6 +7409,50 @@ T.test("bags: a folded group in the list is its heading alone; leaving the list 
         T.falsy(b.dluiRow and b.dluiRow:IsShown(), "no row text")
     end
     T.falsy(f.listHead:IsShown(), "no column heads")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a long list stops growing and scrolls, its column heads staying put", function()
+    local ns, f = listLogin()
+    local L = ns.Layout
+    local view = L.ListView
+    L.ListView = function() return 80 end
+    ns.Relayout()
+    T.eq(f.items:GetHeight(), 80, "the list's room stops at its height")
+    T.truthy(f.listContent > 80, "more rows than that: " .. tostring(f.listContent))
+    T.truthy(f.items.__clips, "rows past the room are cut off")
+    T.truthy(f.items.__wheel, "the wheel scrolls it")
+    local first = rowsOf(f)[1]
+    local y0 = first.y
+    local headY = select(5, f.listHead:GetPoint(1))
+    f.listBar.To(30)
+    T.eq(f.listOffset, 30)
+    local _, _, _, _, y = first.b:GetPoint(1)
+    T.eq(-y, y0 - 30, "rows move up")
+    T.eq(select(5, f.listHead:GetPoint(1)), headY, "the column heads stay")
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b.dluiEntry then
+            local _, _, _, _, by = b:GetPoint(1)
+            T.truthy(-by + b:GetHeight() > 0 and -by < 80, "only rows in view are shown")
+            local hit = b.__hitRect
+            T.truthy(hit[3] >= 0 and hit[4] >= 0, "a cut row clicks only where it shows")
+        end
+    end
+    f.listBar.To(10000)
+    T.eq(f.listOffset, f.listContent - 80, "never past the end")
+    f.items:GetScript("OnMouseWheel")(f.items, 1)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.truthy(f.listOffset < f.listContent - 80, "the wheel scrolls back up: " .. f.listOffset .. " of " .. f.listContent)
+    L.ListView = function() return 10000 end
+    ns.Relayout()
+    T.eq(f.listOffset, 0, "a list that fits sits at its top")
+    T.eq(f.items:GetHeight(), f.listContent)
+    L.ListView = view
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    T.falsy(f.items.__clips, "the Shelf never cuts its slots")
+    T.falsy(f.items.__wheel)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
