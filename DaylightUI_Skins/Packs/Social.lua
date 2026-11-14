@@ -541,13 +541,15 @@ end
 Engine.Window({ key = "calendar", pack = "social", addon = "Blizzard_Calendar", frame = "CalendarFrame", watch = true })
 
 -- Trade: both sides' items and money, and the Trade/Cancel buttons. Kit.Auto
--- finds most of it. Money frames are the one thing it deliberately skips (it
--- never descends into one, so the game's coin buttons stay as they are), same
--- as on the merchant.
+-- finds most of it, the money boxes included. Each item row (TradeItemTemplate)
+-- is a plain frame holding the slot and its name: a short list's row, as in the
+-- loot window, and the slot inside it gets the item look.
 local function tradeItems(Kit, prefix)
     for i = 1, 7 do
-        local btn = _G[prefix .. i]
-        if btn then Kit.Item(btn) end
+        local row = _G[prefix .. i]
+        local slot = _G[prefix .. i .. "ItemButton"]
+        if type(row) == "table" then Kit.Row(row, nil, nil, nil, slot) end
+        if type(slot) == "table" then Kit.Item(slot) end
     end
 end
 
@@ -557,10 +559,13 @@ Engine.Window({ key = "trade", pack = "social", frame = "TradeFrame",
         tradeItems(Kit, "TradeRecipientItem")
         for _, name in ipairs({ "TradePlayerInputMoneyFrame", "TradeRecipientMoneyFrame" }) do
             local mf = _G[name]
-            if type(mf) == "table" then
-                Kit.Strip(mf)
-                Kit.Inset(mf)
-            end
+            if type(mf) == "table" then Kit.Strip(mf) end
+        end
+        -- Their money sits on a gold-edged box: the same box as yours instead.
+        local theirBox = _G.TradeRecipientMoneyBg
+        if type(theirBox) == "table" and not Kit.ShellOf(theirBox) then
+            Kit.Strip(theirBox)
+            Kit.Shell(theirBox, "input")
         end
         Kit.Button(f.TradeButton or _G.TradeFrameTradeButton)
         Kit.Button(f.CancelButton or _G.TradeFrameCancelButton)

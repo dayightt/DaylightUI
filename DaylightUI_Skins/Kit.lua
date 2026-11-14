@@ -210,9 +210,18 @@ local function sameColor(a, b)
     return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] and a[4] == b[4]
 end
 
+local itemEdges = setmetatable({}, { __mode = "k" }) -- item edge shell -> its color now
+
 function Kit.Paint(s, border)
     if not s then return end
-    if s.lite then
+    if itemEdges[s] then
+        -- An item's edge: the bags' look, the band a dimmer copy of the outline.
+        local c = border or Kit.EMPTY_ITEM_BORDER
+        if sameColor(itemEdges[s], c) then return end
+        itemEdges[s] = { c[1], c[2], c[3] }
+        local k = DUI.Char.Slots.BAND_DIM
+        Style.SetShellColors(s, c, { c[1] * k, c[2] * k, c[3] * k })
+    elseif s.lite then
         if sameColor(s.opts.borderColor, border) then return end
         s.opts.borderColor = border
         liteColor(s)
@@ -1662,9 +1671,16 @@ local function iconOf(btn)
     return btn.icon or btn.Icon or (type(name) == "string" and _G[name .. "IconTexture"])
 end
 
+local itemShades = setmetatable({}, { __mode = "k" }) -- item button -> its inner shadow
+
 function Kit.SlotQuality(btn)
     local s = slots[btn]
     if not s then return end
+    -- The inner shadow only over an item, as in the bags: an empty slot stays flat.
+    local shade, icon = itemShades[btn], iconOf(btn)
+    if shade and kind(icon) == "Texture" then
+        shade:SetShown(icon:IsShown() and icon:GetTexture() ~= nil)
+    end
     local border = btn.IconBorder
     local color = Kit.EMPTY_ITEM_BORDER
     if kind(border) == "Texture" and border:IsShown() then
@@ -1672,7 +1688,7 @@ function Kit.SlotQuality(btn)
         if type(r) == "number" and not (issecretvalue and issecretvalue(r)) then
             -- The game updates a button 3-4 times per pass, so skip when the
             -- color hasn't changed (and allocate nothing).
-            local cur = s.lite and s.opts.borderColor
+            local cur = itemEdges[s] or (s.lite and s.opts.borderColor)
             if cur and cur[1] == r and cur[2] == g and cur[3] == b and cur[4] == nil then return end
             color = { r, g, b }
         end
@@ -1704,12 +1720,23 @@ local function followBorders()
     end
 end
 
+-- The same edge and inner shadow as the bags and the character window, so an
+-- item looks the same in every window.
 local function qualityOutline(btn)
     local icon = iconOf(btn)
     local target = (kind(icon) == "Texture" and wide(btn)) and icon or btn
-    -- Outside the item by the border's own width, so all of it shows.
-    local pad = DUI.Pixel.Px(btn, Kit.LOOK.outline.borderPx)
-    slots[btn] = Kit.Outline(target, pad, "outline")
+    local Slots = DUI.Char.Slots
+    local edge = Slots.Edge(target)
+    edge.frame:EnableMouse(false)
+    slots[btn] = edge.shell
+    itemEdges[edge.shell] = {}
+    if kind(icon) == "Texture" then
+        local shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
+        shade:SetTexture(Slots.SHADE)
+        shade:SetVertexColor(0, 0, 0, Slots.SHADE_ALPHA)
+        shade:SetAllPoints(icon)
+        itemShades[btn] = shade
+    end
     Kit.Hide(btn.IconBorder)
     followBorders()
     Kit.SlotQuality(btn)
@@ -1738,6 +1765,55 @@ function Kit.Item(btn)
     local name = btn.GetName and btn:GetName()
     if type(name) == "string" then Kit.Hide(_G[name .. "NameFrame"]) end
     qualityOutline(btn)
+end
+
+-- Money: Daylight UI's coins in place of the game's. The game sets a money
+-- frame's coin art once (and again only when colorblind mode flips, which
+-- clears it for text), so the post-hook on MoneyFrame_Update puts ours back
+-- after any redraw. Cropped like DUI.CoinIcon so a coin sits the same in a
+-- box as in a sentence.
+Kit.COINS = { "gold", "silver", "copper" }
+local function coinArt(tex, coin)
+    if kind(tex) ~= "Texture" then return end
+    tex:SetTexture(DUI.MEDIA .. "coin-" .. coin .. ".png")
+    tex:SetTexCoord(-4 / 64, 60 / 64, 0, 1)
+end
+
+local moneys = setmetatable({}, { __mode = "k" }) -- money frame -> true
+local function paintCoins(f)
+    for _, coin in ipairs(Kit.COINS) do
+        local b = f[coin:gsub("^%l", string.upper) .. "Button"]
+        if isTable(b) and b.GetNormalTexture then coinArt(b:GetNormalTexture(), coin) end
+    end
+end
+
+local followingMoney = false
+function Kit.Money(f)
+    if not isTable(f) or moneys[f] then return end
+    moneys[f] = true
+    paintCoins(f)
+    if not followingMoney and type(_G.MoneyFrame_Update) == "function" then
+        followingMoney = true
+        hooksecurefunc("MoneyFrame_Update", function(frame)
+            if type(frame) == "string" then frame = _G[frame] end
+            if moneys[frame] then paintCoins(frame) end
+        end)
+    end
+end
+
+-- A gold/silver/copper input (trade, mail, the auction house): three text
+-- boxes in our look, each with our coin. Their coin art is set once on load.
+function Kit.MoneyInput(f)
+    if not isTable(f) or not once("moneyinput", f) then return end
+    for _, coin in ipairs(Kit.COINS) do
+        local box = f[coin]
+        if kind(box) == "EditBox" then
+            Kit.EditBox(box)
+            coinArt(box.texture, coin)
+        end
+        local fixed = f["fixed" .. coin:gsub("^%l", string.upper)]
+        if isTable(fixed) then coinArt(fixed.texture, coin) end
+    end
 end
 
 -- Small item icons in plain list cells (the auction house name column: Icon plus
@@ -1951,11 +2027,10 @@ local function part(f, key, opts, isRow)
         end
         return false
     end
-    -- Money frames (gold, silver, copper): left as the game draws them.
-    if key == "GoldButton" or key == "SilverButton" or key == "CopperButton"
-        or isTable(f.GoldButton) or isTable(f.CopperButton) then
-        return true
-    end
+    -- Money frames (gold, silver, copper): our coins, the game's layout.
+    if isTable(f.GoldButton) or isTable(f.CopperButton) then Kit.Money(f); return true end
+    if key == "GoldButton" or key == "SilverButton" or key == "CopperButton" then return true end
+    if kind(f.gold) == "EditBox" and kind(f.copper) == "EditBox" then Kit.MoneyInput(f); return true end
     -- Bars with their own frame, flare or animated fill (a profession's skill
     -- bar) are left entirely alone.
     if kind(f.Fill) == "Texture" and isTable(f.Mask) and (isTable(f.Border) or isTable(f.Flare)) then

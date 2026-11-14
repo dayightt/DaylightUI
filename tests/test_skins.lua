@@ -97,11 +97,38 @@ local function world()
     trade.RecipientOverlay = CreateFrame("Frame", nil, trade)
     trade.RecipientOverlay.portrait = trade.RecipientOverlay:CreateTexture()
     trade.RecipientOverlay.portraitFrame = trade.RecipientOverlay:CreateTexture()
-    local ti = CreateFrame("Button", "TradePlayerItem1", trade)
-    ti.icon = ti:CreateTexture()
-    ti.IconBorder = ti:CreateTexture()
+    -- TradeItemTemplate: a plain row with the slot art, a name frame and the
+    -- item button inside (TradeFrame.xml).
+    local ti = CreateFrame("Frame", "TradePlayerItem1", trade)
+    ti:SetSize(153, 37)
+    ti.SlotTexture = ti:CreateTexture("TradePlayerItem1SlotTexture")
+    _G.TradePlayerItem1NameFrame = ti:CreateTexture("TradePlayerItem1NameFrame")
+    local slot = CreateFrame("Button", "TradePlayerItem1ItemButton", ti)
+    slot:SetSize(37, 37)
+    slot.icon = slot:CreateTexture()
+    slot.IconBorder = slot:CreateTexture()
+    -- MoneyInputFrameTemplate: three boxes, each with its coin (MoneyInputFrame.xml).
     local mf = CreateFrame("Frame", "TradePlayerInputMoneyFrame", trade)
     mf.Bg = mf:CreateTexture()
+    for _, coin in ipairs({ "gold", "silver", "copper" }) do
+        local box = CreateFrame("EditBox", "TradePlayerInputMoneyFrame" .. coin, mf)
+        box.left, box.right = box:CreateTexture(), box:CreateTexture()
+        box.Left, box.Right, box.Middle = box.left, box.right, box:CreateTexture()
+        box.texture = box:CreateTexture()
+        box.texture:SetAtlas("coin-" .. coin)
+        mf[coin] = box
+    end
+    -- The game's money redraw (MoneyFrame.lua); the skin post-hooks it.
+    _G.MoneyFrame_Update = function() end
+    -- SmallMoneyFrameTemplate: a coin button per coin (MoneyFrame.xml).
+    local rm = CreateFrame("Frame", "TradeRecipientMoneyFrame", trade)
+    for _, key in ipairs({ "GoldButton", "SilverButton", "CopperButton" }) do
+        local b = CreateFrame("Button", nil, rm)
+        local tex = b:CreateTexture()
+        tex:SetAtlas("coin-gold")
+        function b:GetNormalTexture() return tex end
+        rm[key] = b
+    end
 end
 
 -- Daylight UI's own windows off: the game's own ones are what a player sees.
@@ -368,9 +395,26 @@ end)
 
 T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function()
     login()
-    T.eq(TradePlayerItem1.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
-    T.truthy(stub.skins.Kit.ShellOf(TradePlayerItem1), "the item look")
+    local Kit = stub.skins.Kit
+    local slot = TradePlayerItem1ItemButton
+    T.eq(slot.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
+    T.truthy(Kit.ShellOf(slot), "the slot wears the item look")
+    T.truthy(Kit.RowOf(TradePlayerItem1), "the row is a short list's row, as in the loot window")
+    T.truthy(Kit.ShellOf(TradePlayerItem1) ~= Kit.ShellOf(slot), "the row's box is its own, not an item edge")
+    T.eq(TradePlayerItem1.SlotTexture:GetAlpha(), 0, "the row's slot art gone")
+    T.eq(TradePlayerItem1NameFrame:GetAlpha(), 0, "the row's name frame gone")
+    -- The same item edge as the bags: a full shell, the band a dimmer copy.
+    Kit.Paint(Kit.ShellOf(slot), { 0, 0.44, 0.87 })
+    local band = Kit.ShellOf(slot).opts.bandColor
+    T.truthy(band and math.abs(band[3] - 0.87 * DaylightUI.Char.Slots.BAND_DIM) < 1e-6, "the band dimmed like the bags'")
     T.eq(TradePlayerInputMoneyFrame.Bg:GetAlpha(), 0, "the money box's own art gone")
+    for _, coin in ipairs({ "gold", "silver", "copper" }) do
+        local box = TradePlayerInputMoneyFrame[coin]
+        T.truthy(tostring(box.texture:GetTexture()):find("coin-" .. coin .. ".png", 1, true), "our " .. coin .. " coin in its box")
+        T.truthy(Kit.InputOf(box), "the " .. coin .. " box in our text box look")
+    end
+    local gold = TradeRecipientMoneyFrame.GoldButton:GetNormalTexture()
+    T.truthy(tostring(gold:GetTexture()):find("coin-gold.png", 1, true), "their money in our coins")
     T.truthy(stub.skins.Kit.ButtonOf(TradeFrameTradeButton), "the Trade button, flat")
     T.truthy(stub.skins.Kit.ButtonOf(TradeFrameCancelButton), "the Cancel button, flat")
     -- the other player's portrait and its gold ring are erased (their own
@@ -862,7 +906,7 @@ T.test("skins: a big window is dressed over a few frames, not all at once, lists
     Kit.AUTO_BUDGET = budget
 end)
 
-T.test("skins: money (gold, silver, copper) keeps the game's coins", function()
+T.test("skins: money (gold, silver, copper) wears Daylight UI's coins, never a button look", function()
     login()
     local Kit = stub.skins.Kit
     local f = CreateFrame("Frame", nil, UIParent)
@@ -888,7 +932,12 @@ T.test("skins: money (gold, silver, copper) keeps the game's coins", function()
     function loose:GetNormalTexture() return coin end
     function loose:GetFontString() return label end
     Kit.Auto(f)
-    T.eq(money.CopperButton.coin:GetAlpha(), 1, "the coin kept")
+    T.eq(money.CopperButton.coin:GetAlpha(), 1, "the coin shown")
+    T.truthy(tostring(money.CopperButton.coin:GetTexture()):find("coin-copper.png", 1, true), "our copper coin")
+    -- The game puts its coin back only when colorblind mode flips; ours follows.
+    money.GoldButton.coin:SetAtlas("coin-gold")
+    MoneyFrame_Update(money, 10000)
+    T.truthy(tostring(money.GoldButton.coin:GetTexture()):find("coin-gold.png", 1, true), "ours again after the game's redraw")
     T.isnil(stub.skins.Kit.ShellOf(money.GoldButton), "no button look on it")
     T.eq(coin:GetAlpha(), 1, "a coin beside an amount isn't button art")
     T.isnil(stub.skins.Kit.ShellOf(loose))
