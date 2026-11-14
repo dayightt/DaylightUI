@@ -246,7 +246,8 @@ end
 T.test("controls_mogul: virtual_rows_only", function()
     local DUI = stub.Load()
     local t, made = table400(DUI, 2000)
-    local most = math.ceil(400 / 36) + 1
+    local line = DUI.Win.Parts.LINE
+    local most = math.ceil(400 / line) + 1
     T.truthy(made() <= most, "made " .. made() .. " line frames for 2000 rows, at most " .. most)
     T.truthy(t.shown[1] ~= nil and t.shown[1].data.text == "Row 1", "row 1 at the top")
     T.truthy(t.shown[1].label:GetText() == "Row 1", "filled")
@@ -254,7 +255,8 @@ T.test("controls_mogul: virtual_rows_only", function()
     local before = made()
     t:Scroll(1e9)
     T.eq(made(), before, "scrolling to the end reuses the frames")
-    for i = 1990, 2000 do
+    local first = 2000 - math.ceil(400 / line) + 1
+    for i = first, 2000 do
         T.truthy(t.shown[i] and t.shown[i]:IsShown() and t.shown[i].label:GetText() == "Row " .. i, "row " .. i .. " shows")
     end
     T.eq(t.shown[1], nil, "row 1 gave its frame back")
@@ -262,10 +264,10 @@ T.test("controls_mogul: virtual_rows_only", function()
     for _ in pairs(t.shown) do n = n + 1 end
     T.truthy(n <= most, "only the rows in view: " .. n)
     local _, max, view = t:Range()
-    T.eq(view, 400); T.eq(max, 2000 * 36 - 400)
+    T.eq(view, 400); T.eq(max, 2000 * line - 400)
     -- a row's frame sits where the row is in the view
     local top = select(5, t.shown[2000]:GetPoint(1))
-    T.eq(-top + 36, 400, "the last row ends at the view's bottom")
+    T.eq(-top + line, 400, "the last row ends at the view's bottom")
 end)
 
 T.test("controls_mogul: open_glides_rows_in", function()
@@ -280,11 +282,12 @@ T.test("controls_mogul: open_glides_rows_in", function()
     local h4, h5 = t:RowHeight(4), t:RowHeight(5)
     T.truthy(h4 > 0 and h4 < 26 and h5 > 0 and h5 < 26, "partly tall: " .. h4 .. " " .. h5)
     T.truthy(t.shown[4]:GetHeight() > 0 and t.shown[4]:GetHeight() < 26, "its frame too")
+    local line = DUI.Win.Parts.LINE
     local y6 = select(5, t.shown[6]:GetPoint(1))
-    T.near(-y6, 3 * 36 + h4 + h5, 0.01, "the rows below glide")
+    T.near(-y6, 3 * line + h4 + h5, 0.01, "the rows below glide")
     tweens(DUI, DUI.Motion.NORMAL)
     T.eq(t:RowHeight(4), 26); T.eq(t:RowHeight(5), 26)
-    T.eq(select(5, t.shown[6]:GetPoint(1)), -(3 * 36 + 52), "full")
+    T.eq(select(5, t.shown[6]:GetPoint(1)), -(3 * line + 52), "full")
     DUI:Set("general", "motion", false)
     t:SetRows(rows)
     t:Open(3, 2)
@@ -310,7 +313,7 @@ T.test("controls_mogul: why_row_measures", function()
     T.truthy(card and card.edge ~= nil, "a why card")
     T.eq(card:GetHeight(), t:RowHeight(2), "the row is the card's height")
     T.eq(card.text:GetText(), "Because it is cheap.")
-    T.eq(select(5, t.shown[3]:GetPoint(1)), -(36 + 64), "the next row under it")
+    T.eq(select(5, t.shown[3]:GetPoint(1)), -(Parts.LINE + t:RowHeight(2)), "the next row under it")
     -- pick: the accent wash on the picked line only
     t:Pick(1)
     T.truthy(t.shown[1].pick:IsShown(), "picked")
@@ -331,14 +334,15 @@ T.test("controls_mogul: open_interrupted_lays_out_from_the_old_rows", function()
     local t = table400(DUI, 0, { rows = lines(10) })
     t:Open(3, 2)
     tweens(DUI, DUI.Motion.NORMAL / 2)
-    T.truthy(t:RowHeight(4) < 36, "half open")
+    local line = DUI.Win.Parts.LINE
+    T.truthy(t:RowHeight(4) < line, "half open")
     t:Open(5, 1)
-    T.eq(t:RowHeight(4), 36, "the old grow snapped to full")
+    T.eq(t:RowHeight(4), line, "the old grow snapped to full")
     T.eq(t:RowHeight(6), 0, "the new one starts closed")
-    T.eq(yOf(t, 6), 5 * 36, "row 6 sits under row 5 at once (no stale tops)")
-    T.eq(yOf(t, 7), 5 * 36, "and row 7 under the closed row 6")
+    T.eq(yOf(t, 6), 5 * line, "row 6 sits under row 5 at once (no stale tops)")
+    T.eq(yOf(t, 7), 5 * line, "and row 7 under the closed row 6")
     tweens(DUI, DUI.Motion.NORMAL * 2)
-    T.eq(yOf(t, 7), 6 * 36)
+    T.eq(yOf(t, 7), 6 * line)
 end)
 
 T.test("controls_mogul: close_done_order_and_setrows", function()
@@ -358,10 +362,11 @@ T.test("controls_mogul: close_done_order_and_setrows", function()
     T.eq(doneA, 1, "the cut-short close's done ran once")
     T.eq(#t.rows, 5)
     T.eq(t.growing, nil, "its refill ended the open")
-    for i = 1, 5 do T.eq(t:RowHeight(i), 36, "row " .. i .. " full") end
+    local line = DUI.Win.Parts.LINE
+    for i = 1, 5 do T.eq(t:RowHeight(i), line, "row " .. i .. " full") end
     tweens(DUI, DUI.Motion.NORMAL * 2)
     T.eq(doneA, 1)
-    for i = 1, 5 do T.eq(yOf(t, i), (i - 1) * 36) end
+    for i = 1, 5 do T.eq(yOf(t, i), (i - 1) * line) end
     -- SetRows during a Close: the new list wins and the close's done isn't called
     local doneB = 0
     t:Close(1, 1, function() doneB = doneB + 1 end)
@@ -369,7 +374,7 @@ T.test("controls_mogul: close_done_order_and_setrows", function()
     t:SetRows(lines(4, "N"))
     tweens(DUI, DUI.Motion.NORMAL * 2)
     T.eq(doneB, 0, "SetRows drops a running close's done")
-    T.eq(t:RowHeight(2), 36, "the new rows full")
+    T.eq(t:RowHeight(2), line, "the new rows full")
     T.eq(t.shown[2].alpha or t.shown[2]:GetAlpha(), 1)
 end)
 

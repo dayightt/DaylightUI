@@ -488,6 +488,12 @@ end
 
 Parts.LINE = 36
 Parts.LINE_ICON = 28
+-- Space between a line's name and its sub. The pair is this tall, centered
+-- on the row, so the selection wash has the same padding above and below.
+Parts.LINE_GAP = 4
+-- A line's sub is a point smaller than the shared small text, so it sits clear of
+-- the name above it.
+Parts.LINE_SUB = Style.SIZE.small - 1
 Parts.LATER = Style.INK.OFF   -- name color of a dim line
 
 local function makeLine(parent)
@@ -507,13 +513,17 @@ local function makeLine(parent)
     Style.CropIcon(b.icon)
     b.value = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-    b.name = Style.Text(b, Style.SIZE.body, "LEFT")
-    b.name:SetPoint("TOPLEFT", b.edge, "TOPRIGHT", 10, -2)
-    b.name:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    -- Name and sub as one block, centered on the icon. Pinning the name to
+    -- the icon's top left the sub sitting on the bottom edge of the wash.
+    b.block = CreateFrame("Frame", nil, b)
+    b.block:SetHeight(Parts.TEXT + Parts.LINE_GAP + Parts.LINE_SUB)
+    b.name = Style.Text(b.block, Style.SIZE.body, "LEFT")
+    b.name:SetPoint("TOPLEFT", b.block, "TOPLEFT", 0, 0)
+    b.name:SetPoint("TOPRIGHT", b.block, "TOPRIGHT", 0, 0)
     b.name:SetWordWrap(false)
-    b.sub = Style.Text(b, Parts.SMALL, "LEFT")
-    b.sub:SetPoint("TOPLEFT", b.name, "BOTTOMLEFT", 0, -3)
-    b.sub:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    b.sub = Style.Text(b.block, Parts.LINE_SUB, "LEFT")
+    b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
+    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     b.sub:SetWordWrap(false)
     -- Key hint, same as a Row's.
     b.key = Style.Text(b, Style.SIZE.tiny, "CENTER")
@@ -574,6 +584,16 @@ function Stack:Line(spec)
     b.Lit(b:IsMouseOver() == true)
     b.edge:ClearAllPoints()
     b.edge:SetPoint("LEFT", b, "LEFT", spec.key ~= nil and 6 + Parts.KEY + 8 or 4, 0)
+    local pair = spec.sub ~= nil and spec.sub ~= ""
+    b.block:ClearAllPoints()
+    b.block:SetPoint("LEFT", b.edge, "RIGHT", 10, 0)
+    b.block:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    b.block:SetHeight(pair and (Parts.TEXT + Parts.LINE_GAP + Parts.LINE_SUB) or Parts.TEXT)
+    -- A list can narrow the sub (Craft's skill-up chance); a reused frame starts
+    -- from the block's full width again.
+    b.sub:ClearAllPoints()
+    b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
+    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     local c = spec.color or (dim and Parts.LATER) or Style.INK.VALUE
     b.name:SetText(spec.text or "")
     b.name:SetTextColor(c[1], c[2], c[3])
