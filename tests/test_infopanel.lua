@@ -512,7 +512,7 @@ end)
 T.test("info panel: the mode button opens a drop-down of every mode", function()
     local DUI = login()
     local M, area = stub.infopanel.Meter, stub.infopanel.Panel.meterArea
-    T.eq(#M.MODES, 11, "every mode the game keeps")
+    T.eq(#M.MODES, 12, "every mode the game keeps")
     area:GetScript("OnEnter")(area)
     local b = M.header.buttons.mode
     T.eq(b.kind, "mode")
