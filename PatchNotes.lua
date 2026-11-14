@@ -20,6 +20,7 @@ DUI.PatchNotes = {
             { "Meters", "Damage and threat meters can show names in class colors while the numbers keep theirs: Name color on the Meters page" },
             { "Minimap", "A round minimap that keeps north at the top, without turning on Rotate as you turn: Minimap shape on the Info panel page" },
             { "Party and raid frames", "A name placed above or beside a party or raid tile sits on a dark name tab, like the player frame's, instead of floating: Name tab" },
+            { "Spellbook", "An Open Clique link on the spellbook when you use Clique" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },

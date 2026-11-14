@@ -451,3 +451,50 @@ T.test("book spells: closing the window ends click-cast mode; the switch goes of
     T.falsy(ns.Spells.binding)
     T.falsy(DaylightUI.ClickBind.On())
 end)
+
+-- Clique's own tab sits on the game's book, which ours covers: the page links to it.
+local function loadClique(name, opened)
+    stub.Load({ before = function()
+        BW.world({})()
+        DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { Book = { enabled = true } } } } }
+        stub.loadedAddOns[name] = true
+        _G[name] = { ShowBindingConfig = function(self) opened[#opened + 1] = self end }
+    end })
+    return stub.book
+end
+
+T.test("book spells: no Clique, no Clique link", function()
+    local ns = load()
+    local page = openBook(ns)
+    T.falsy(page.clique:IsShown())
+end)
+
+T.test("book spells: with Clique loaded, the link opens its bindings window and closes the book", function()
+    for _, name in ipairs({ "Clique", "CliqueForever" }) do
+        local opened = {}
+        local ns = loadClique(name, opened)
+        local page = openBook(ns)
+        T.truthy(page.clique:IsShown(), name .. ": the link shows")
+        T.eq(page.clique.text:GetText(), "Open Clique")
+        page.clique:Click()
+        T.eq(#opened, 1, name .. ": Clique's own opener ran once")
+        T.eq(opened[1], _G[name], name .. ": called on Clique's addon table")
+        frame(30)
+        T.falsy(DaylightUI.Win.IsOpen(ns.Window.frame), name .. ": the book makes way")
+        _G[name] = nil
+    end
+end)
+
+T.test("book spells: Clique loaded but broken, the link stays hidden and nothing errors", function()
+    local ns
+    stub.Load({ before = function()
+        BW.world({})()
+        DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { Book = { enabled = true } } } } }
+        stub.loadedAddOns.Clique = true
+        _G.Clique = nil
+    end })
+    ns = stub.book
+    local page = openBook(ns)
+    T.falsy(page.clique:IsShown())
+    T.noerror(function() ns.Spells.OpenClique() end)
+end)

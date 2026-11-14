@@ -342,6 +342,52 @@ local function makeBind(page)
     return t
 end
 
+-- Clique puts its own tab on the game's spellbook, which this window covers,
+-- so the page carries a link to Clique's bindings window instead. Both the
+-- original addon and its Forever port name their addon table after the folder.
+Spells.CLIQUE = { "Clique", "CliqueForever" }
+
+function Spells.Clique()
+    local A = C_AddOns
+    if not (A and type(A.IsAddOnLoaded) == "function") then return nil end
+    for _, name in ipairs(Spells.CLIQUE) do
+        local addon = _G[name]
+        if A.IsAddOnLoaded(name) == true and type(addon) == "table"
+            and type(addon.ShowBindingConfig) == "function" then
+            return addon
+        end
+    end
+    return nil
+end
+
+-- Clique's window takes the book's place, as its own spellbook tab does.
+-- In a fight Clique refuses with a message of its own, and the book stays.
+function Spells.OpenClique()
+    local addon = Spells.Clique()
+    if not addon then return end
+    local ok = pcall(addon.ShowBindingConfig, addon)
+    if ok and not InCombatLockdown() and ns.Window then ns.Window.Close() end
+end
+
+local function makeClique(page)
+    local link = DUI.Widgets.Link(page)
+    link.SetLabel(L["Open Clique"])
+    link:SetScript("OnClick", function() Spells.OpenClique() end)
+    link:Hide()
+    return link
+end
+
+-- Where the Click-cast button would be, or just left of it when both show.
+local function placeClique(page)
+    local link = page.clique
+    link:ClearAllPoints()
+    if page.bind:IsShown() then
+        link:SetPoint("RIGHT", page.bind, "LEFT", -12, 0)
+    else
+        link:SetPoint("RIGHT", page, "BOTTOMRIGHT", -Spells.EDGE - 4, 21)
+    end
+end
+
 -- ---------------------------------------------------------------------
 -- Page
 -- ---------------------------------------------------------------------
@@ -391,6 +437,7 @@ function Spells.Build(page)
     page.stack = Win.Parts.Stack(page, { top = Spells.TOP, bottom = Spells.FOOT })
     page.switch = makeSwitch(page)
     page.bind = makeBind(page)
+    page.clique = makeClique(page)
     DUI.On("ClickCastChanged", function() Spells.BindMode(DUI.ClickBind and DUI.ClickBind.On()) end)
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
@@ -641,6 +688,8 @@ function Spells.Fill(page, keep)
     page.bind:SetShown(bindUsable())
     Spells.binding = (bindUsable() and DUI.ClickBind.On()) or nil
     page.bind.SetActive(Spells.binding and true or false)
+    page.clique:SetShown(Spells.Clique() ~= nil)
+    placeClique(page)
     Spells.filter = nil
     local t = page.search:GetText() or ""
     if t ~= "" then Spells.filter = string.lower(t) end
@@ -703,7 +752,7 @@ function Spells.Freeze(on)
     local page = Spells.page
     if not page then return end
     local M = DUI.Motion
-    local parts = { page.search, page.switch, page.bind }
+    local parts = { page.search, page.switch, page.bind, page.clique }
     for _, c in ipairs(page.chips) do parts[#parts + 1] = c end
     if page.more then parts[#parts + 1] = page.more end
     for _, c in ipairs(parts) do
@@ -743,6 +792,7 @@ function Spells.Pieces(page)
     end
     if not rest and page.switch:IsShown() then out[#out + 1] = page.switch end
     if not rest and page.bind:IsShown() then out[#out + 1] = page.bind end
+    if not rest and page.clique:IsShown() then out[#out + 1] = page.clique end
     return out
 end
 
