@@ -69,7 +69,7 @@ end
 -- A bar's text size falls back to its group's.
 function Card.Fallback(key, set, id)
     if key == "glowColor" or key == "readyGlowColor" or key == "usableGlowColor" or key == "missingGlowColor"
-        or key == "upGlowColor" then
+        or key == "upGlowColor" or key == "clipGlowColor" then
         return { DUI.Style.Accent() }
     end
     if key == "barColor" then
@@ -532,6 +532,11 @@ Card.ROWS = {
             desc = "Glows while the buff is up: Clearcasting, Nightfall." }) },
         { show = function(...) return showsBuff(...) and opt("hideActive") ~= true and opt("upGlow") == true end,
           item = spell("upGlowColor", { type = "color", label = "Glow color" }) },
+        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true end,
+          item = spell("clipGlow", { type = "toggle", label = "Glow to recast",
+            desc = "Glows when it's time to cast it again: your next cast would land just as it runs out. Cast any sooner and a damage over time spell loses the ticks it had left." }) },
+        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true and opt("clipGlow") == true end,
+          item = spell("clipGlowColor", { type = "color", label = "Recast color" }) },
         { show = showsBuff, item = soundRow("buffSound", "Sound",
             "Plays once as the buff lands, like Clearcasting or Nightfall.") },
         { show = function(...) return isIcon(...) and hasBuff(...) and opt("noDurationSwipe") ~= true end,

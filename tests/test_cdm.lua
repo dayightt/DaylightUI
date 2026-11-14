@@ -3186,6 +3186,47 @@ T.test("cdm up glow: a debuff cast to start a fight still counts as up once the 
 end)
 end
 
+-- Recast glow: a damage over time spell cast again early loses the ticks it had
+-- left, so it glows once the next cast would land just as it runs out. Timed from
+-- your own casts, so it works in a fight where the aura can't be read.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm recast glow: lights when the next cast would land as the debuff ends (" .. shape .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    DUI.DB.General().motion = false
+    if shape == "bar" then set.pieces[41].shape = "bar" end
+    T.truthy(D.SetSpellValue(set, 41, "clipGlow", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
+    C_Spell.GetSpellInfo = function(sid) return { castTime = sid == 141 and 2000 or 0 } end
+    stub.combat = true
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+    T.truthy(h.wantsUp, "it watches its debuff")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 141)
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "18 s left: not yet")
+    -- 2.5 s left, more than its 2 s cast.
+    stub.Advance(15.5)
+    stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "a cast now would still clip it")
+    stub.Advance(0.6)
+    stub.RunTimers(); stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "glows: a cast now lands as it ends")
+    -- Casting it is the refresh: the glow goes out.
+    local now = GetTime() * 1000
+    stub.units.player = stub.units.player or {}
+    stub.units.player.cast = { name = "Rend", spellID = 141, from = now, to = now + 2000 }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player", "cast2", 141)
+    stub.RunTimers(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "not while casting it")
+    stub.units.player.cast = nil
+    stub.combat = false
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- Hide (Buff up) on the pieces Daylight UI draws itself. The client's button is
 -- never asked to hide. Its container goes see-through instead, so it can't show
 -- in a fight however the aura is read.

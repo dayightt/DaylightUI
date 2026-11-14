@@ -27,6 +27,8 @@ ns.CdmEffects = Fx
 -- while its buff is down. missingGlow (missingGlowColor) makes it glow then.
 -- upGlow (upGlowColor): glows while its buff is up. WoW Forever fires no proc
 -- alerts, so for something like Clearcasting the buff landing is the proc.
+-- clipGlow (clipGlowColor): glows while it's up and the next cast of it would land
+-- just as it runs out (CdmAuras.ClipDue), the moment to cast it again.
 -- hideActive: hidden while its buff is up (by alpha, so the gap stays).
 -- hideMissing: shown only while its buff is up (CdmOwn.Track says "buff" and
 -- missing is ignored; a shield bar hides with no shield, see CdmBars).
@@ -42,7 +44,7 @@ Fx.DEFAULTS = { readySound = "none", usableSound = "none", buffSound = "none", b
     glow = true, size = 0, noSwipe = false, noGcd = false, reverse = false, desat = "game",
     onCd = "show", onReady = "show", onUnusable = "show", onShort = "show", cdAlpha = 0.4, readyGlow = false, usableGlow = false, activeGlow = true, noDurationSwipe = false,
     barMode = "block", backMode = "block", showName = true, nameAlign = "left", fillBy = "shield",
-    shieldAmount = true, inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
+    shieldAmount = true, inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
 
 -- Show in: each form, stance or stealth of the class the spell can be left out of
 -- (e.g. cat spells only in Cat Form), saved as hideIn<Key> (false = shown). In a
@@ -151,6 +153,7 @@ local tinted = setmetatable({}, weak)      -- item -> true while its swipe color
 local tintHooked = setmetatable({}, weak)  -- cooldown frame -> true
 local away = setmetatable({}, weak)        -- item -> true while its "Hide out of combat" block is away
 local down = setmetatable({}, weak)        -- item -> true: buff down, false: up (from CdmRows; nil = can't tell)
+local due = setmetatable({}, weak)         -- item -> true: time to cast it again (CdmRows, the recast glow)
 local own = setmetatable({}, weak)         -- item -> true for our own icons and bars (CdmOwn, CdmBars)
 local refreshNow                          -- refresh without reading (set below)
 local guard = false                        -- set during our own calls so our hooks skip them
@@ -422,20 +425,26 @@ end
 local function upGlows(b)
     return Fx.Get(b, "upGlow") == true and Fx.Get(b, "hideActive") ~= true
 end
--- The glow asked for by the buff being down (true) or up (false).
-local function buffGlow(b, isDown)
+local function clipGlows(b)
+    return Fx.Get(b, "clipGlow") == true and Fx.Get(b, "hideActive") ~= true
+end
+-- The glow asked for by the buff being down (true) or up (false). due = time to
+-- cast it again, which wins over the plain up glow.
+local function buffGlow(b, isDown, due)
     if isDown == true and missingGlows(b) then return "missingGlowColor" end
+    if isDown == false and due == true and clipGlows(b) then return "clipGlowColor" end
     if isDown == false and upGlows(b) then return "upGlowColor" end
     return false
 end
 Fx.UpGlows = upGlows
+Fx.ClipGlows = clipGlows
 
 -- Reads only our own bookkeeping, never the game's values. Returns the color key of
 -- the glow that should show (proc first, then usable, then ready), or false.
 local function wantsGlow(item)
     local b = opts[item]
     if Fx.Get(b, "glow") ~= false and alerts[item] == true then return "glowColor" end
-    local buff = buffGlow(b, down[item])
+    local buff = buffGlow(b, down[item], due[item])
     if buff then return buff end
     -- Usable: Revenge after a block, Overpower after a dodge, Execute under 20%.
     -- WoW Forever fires no spell alerts, so this stands in for the proc.
@@ -1148,10 +1157,10 @@ refreshNow = function(item) refresh(item, false) end
 -- CdmRows each pass after Fx.Apply. An item we don't otherwise hold (a stand-in, an
 -- aura holder) only gets the missing glow, from button.
 local looseLit = setmetatable({}, weak)
-function Fx.SetDown(item, button, isDown)
-    down[item] = isDown
+function Fx.SetDown(item, button, isDown, isDue)
+    down[item], due[item] = isDown, isDue
     if opts[item] then refreshNow(item); return end
-    local want = buffGlow(button, isDown)
+    local want = buffGlow(button, isDown, isDue)
     looseLit[item] = want and true or nil
     showGlow(item, want, button)
 end
@@ -1161,10 +1170,10 @@ end
 -- buff glow isn't left on it.
 function Fx.EndPass(told)
     for item in pairs(looseLit) do
-        if not told[item] then looseLit[item] = nil; down[item] = nil; showGlow(item, false) end
+        if not told[item] then looseLit[item] = nil; down[item] = nil; due[item] = nil; showGlow(item, false) end
     end
     for item in pairs(opts) do
-        if not told[item] and down[item] ~= nil then down[item] = nil; refreshNow(item) end
+        if not told[item] and down[item] ~= nil then down[item] = nil; due[item] = nil; refreshNow(item) end
     end
 end
 

@@ -1012,6 +1012,140 @@ DUI.RegisterEvent("PLAYER_DEAD", function()
     end)
 end)
 
+-- Recast glow. On WoW Forever an aura cast again before it runs out loses the time
+-- it had left (a damage over time spell loses its remaining ticks), so the moment to
+-- cast it again is when that cast would land just as the old one ends. Your own
+-- casts stay plain in a fight, so it's worked out from them and the clock alone:
+-- when you're free (your current cast or channel, then the global cooldown) plus the
+-- spell's cast time, against the end A.Cast or a read gave the holder.
+A.GCD = 1.5
+local castEnd, castSpell, gcdEnd, gcdLen = 0, nil, 0, A.GCD
+local offGcd = {}      -- [spell id] = true for a spell seen to start no global cooldown
+local castTimes = {}   -- [spell id] = cast time in seconds
+
+local function castTime(sid)
+    local c = castTimes[sid]
+    if c then return c end
+    local ok, info = pcall(C_Spell.GetSpellInfo, sid)
+    local ms = ok and type(info) == "table" and plain(info.castTime) or nil
+    c = ms and ms > 0 and ms / 1000 or 0
+    castTimes[sid] = c
+    return c
+end
+
+local function readCast()
+    local _, _, _, _, e, _, _, _, sid = UnitCastingInfo("player")
+    if not plain(e) then
+        _, _, _, _, e, _, _, sid = UnitChannelInfo("player")
+    end
+    if plain(e) then
+        castEnd, castSpell = e / 1000, plain(sid)
+    else
+        castEnd, castSpell = 0, nil
+    end
+end
+
+-- A cast or channel just started the global cooldown. Its times read secret in a
+-- fight, so its length is the last one read, and a spell once seen to start none
+-- never does.
+local function startGcd(sid)
+    if offGcd[sid] then return end
+    local ok, cd = pcall(C_Spell.GetSpellCooldown, sid)
+    if ok and type(cd) == "table" then
+        local s, d = plain(cd.startTime), plain(cd.duration)
+        local g = cd.isOnGCD
+        if issecretvalue and issecretvalue(g) then g = nil end
+        if g == true and s and d and d > 0 then
+            gcdLen, gcdEnd = d, s + d
+            return
+        end
+        if g ~= true and d == 0 then offGcd[sid] = true; return end
+    end
+    gcdEnd = GetTime() + gcdLen
+end
+
+-- Whether it's time to cast sid again for the aura on holder h, and if not yet,
+-- when it will be (given what you're doing now).
+function A.ClipDue(h, sid)
+    if type(h) ~= "table" or h.up ~= true or type(sid) ~= "number" then return false end
+    if readable() and not found(h) then return false end
+    local now, ends = GetTime(), h.endsAt
+    if not ends or ends <= now then return false end
+    -- Already casting it: that cast is the refresh.
+    if castSpell and castEnd > now and (castSpell == sid or nameOf(castSpell) == nameOf(sid)) then return false end
+    local at = ends - castTime(sid)
+    if at <= math.max(now, castEnd, gcdEnd) then return true end
+    return false, at
+end
+
+-- Holders with the recast glow, told by each pass: [holder] = { sid, due }.
+local clipWatch = setmetatable({}, { __mode = "k" })
+local wakeAt = math.huge
+local clipCheck
+
+-- One timer, for the soonest answer that will change. An earlier one replaces it.
+local function schedule(at)
+    if at >= wakeAt then return end
+    wakeAt = at
+    local function fire()
+        if wakeAt ~= at then return end
+        if GetTime() + 0.01 < at then
+            C_Timer.After(at - GetTime() + 0.02, fire)
+            return
+        end
+        wakeAt = math.huge
+        clipCheck()
+    end
+    C_Timer.After(math.max(0, at - GetTime()) + 0.02, fire)
+end
+
+-- Only a holder whose answer changed asks for a pass.
+clipCheck = function()
+    for h, w in pairs(clipWatch) do
+        local due, at = A.ClipDue(h, w.sid)
+        if at then schedule(at) end
+        if due ~= w.due then
+            if ns.CdmRows then ns.CdmRows.Refresh() end
+            return
+        end
+    end
+end
+
+function A.ClipPass() for h in pairs(clipWatch) do clipWatch[h] = nil end end
+
+-- From the pass: the recast glow's answer for this holder now.
+function A.Clip(h, sid)
+    local due, at = A.ClipDue(h, sid)
+    clipWatch[h] = { sid = sid, due = due }
+    if at then schedule(at) end
+    return due
+end
+
+local clipCasts = CreateFrame("Frame")
+for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_DELAYED",
+    "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_CHANNEL_UPDATE",
+    "UNIT_SPELL_HASTE" }) do
+    clipCasts:RegisterUnitEvent(e, "player")
+end
+for _, e in ipairs({ "SPELLS_CHANGED", "PLAYER_EQUIPMENT_CHANGED" }) do clipCasts:RegisterEvent(e) end
+clipCasts:SetScript("OnEvent", function(_, event, _, _, sid)
+    if event == "UNIT_SPELL_HASTE" or event == "SPELLS_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
+        for k in pairs(castTimes) do castTimes[k] = nil end
+        return
+    end
+    if next(clipWatch) == nil then return end
+    sid = plain(sid)
+    readCast()
+    -- A cast with a cast time started the global cooldown as it began; an instant
+    -- does as it goes off.
+    if sid and (event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
+        or (event == "UNIT_SPELLCAST_SUCCEEDED" and castTime(sid) == 0 and castEnd <= GetTime())) then
+        startGcd(sid)
+    end
+    clipCheck()
+end)
+
 -- The client's button appeared (CdmEffects' slide OnPlay). In combat this is the
 -- only sign that a buff you didn't cast (a proc, someone else's) is up. With no
 -- known duration it stays up until auras can be read again. Applies to every

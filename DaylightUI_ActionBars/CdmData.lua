@@ -1018,6 +1018,7 @@ Data.SPELL_FIELDS = {
     inactiveFlash = { bool = true, bar = true }, chargeLines = { bool = true, bar = true },
     missing = { bool = true }, missingGlow = { bool = true }, missingGlowColor = { color = true },
     upGlow = { bool = true }, upGlowColor = { color = true },
+    clipGlow = { bool = true }, clipGlowColor = { color = true },
     hideActive = { bool = true }, hideMissing = { bool = true },
     readySound = { sound = true }, usableSound = { sound = true }, buffSound = { sound = true }, buffEndSound = { sound = true },
 }

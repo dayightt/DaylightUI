@@ -235,6 +235,8 @@ local shown, downs, told = {}, {}, {}
 local closed = {}
 -- id -> true when it closed because it's up and hidden (Buff up Hide).
 local closedUp = {}
+-- id -> whether it's time to cast it again (the recast glow, CdmAuras.Clip).
+local clips = {}
 local pairA, pairB = { items = {}, extra = {} }, { items = {}, extra = {} }
 local items, extra = pairA.items, pairA.extra
 local function wipe(t) for k in pairs(t) do t[k] = nil end end
@@ -266,14 +268,15 @@ local function claim(item)
         local p = set.pieces[id]
         if AURA_VIEWERS[name] then
             local t = Own.Track(id, p, knownNow())
-            cooldown = t == "cooldown" or t == "both"
+            -- The recast glow needs the aura's end, which only ours keeps.
+            cooldown = t == "cooldown" or t == "both" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
         else
             -- Left unset it stays the game's icon (Rend, Moonfire too: shown all
             -- the time, with its aura while up).
             local t = Own.Track(id, p, knownNow())
             local pick = Own.Picked(p)
-            -- Also moved to ours: Hide (Buff up), since the game's icon can't say
-            -- when it's showing the aura; any buff request for an aura the game's
+            -- Also moved to ours: Hide (Buff up) and the recast glow, since the game's
+            -- icon can't say when it's showing the aura or when it ends; any buff request for an aura the game's
             -- icon never shows (Bloodrage, one learned from a cast, or one picked
             -- before any is known); a buff sound, since only ours hears the aura
             -- land or end; and a buff's charges (Shield Block, Holy Shield;
@@ -281,7 +284,7 @@ local function claim(item)
             local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
             cooldown = t ~= nil and (pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
                 or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
-                or Fx.Get(p, "buffEndSound") ~= "none"
+                or Fx.Get(p, "buffEndSound") ~= "none" or Fx.Get(p, "clipGlow") == true
                 or (t == "both" and (not follows or Own.Stacks(id))))
         end
     end
@@ -452,7 +455,8 @@ function Rows.Update()
     wipe(extra); wipe(shown); wipe(items)
     -- id -> true when its buff is down, false when up (nil: not a buff, or can't
     -- tell yet because CdmAuras.IsUp has no answer).
-    wipe(downs); wipe(closed); wipe(closedUp)
+    wipe(downs); wipe(closed); wipe(closedUp); wipe(clips)
+    if ns.CdmAuras then ns.CdmAuras.ClipPass() end
     if on then
         local Own = ns.CdmOwn
         for id, p in pairs(set.pieces) do
@@ -517,18 +521,20 @@ function Rows.Update()
                 -- Otherwise a missing buff set to Show stayed off the group's middle.
                 local hideSlides = canSlide and hide
                 local glowUp = Fx.UpGlows(p)
+                local clip = Fx.ClipGlows(p)
                 -- A cooldown with its buff over it, faded or hidden on cooldown or
                 -- while ready: while the buff is up it shows (CdmEffects), so it
                 -- needs the ups too.
                 local cdFx = drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
                     and (Fx.Get(p, "onCd") ~= "show" or Fx.Get(p, "onReady") ~= "show"
                         or Fx.Get(p, "onUnusable") ~= "show" or Fx.Get(p, "onShort") ~= "show")
-                holder.wantsUp = (hide or sound or ends or slides or glowUp or cdFx or Fx.Get(p, "missingGlow") == true) or nil
+                holder.wantsUp = (hide or sound or ends or slides or glowUp or clip or cdFx or Fx.Get(p, "missingGlow") == true) or nil
                 holder.soundPiece, holder.soundItem = sound and p or nil, sound and item or nil
                 if holder.wantsUp then
                     local seen = auraItems[id] or (awayAura and away)
                     local up = seen and ns.CdmAuras.Told(holder, seen:IsShown()) or ns.CdmAuras.IsUp(holder)
-                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or cdFx))) then downs[id] = not up end
+                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or clip or cdFx))) then downs[id] = not up end
+                    if clip and up == true then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
                     -- Only a known "down"; one we can't tell keeps its spot.
                     closedNow = (slides and up == false) or (hideSlides and up == true)
                     if closedNow and up == true then closedUp[id] = true end
@@ -631,12 +637,12 @@ function Rows.Update()
     wipe(told)
     for id, item in pairs(items) do
         told[item] = true
-        Fx.SetDown(item, set.pieces[id], downs[id])
+        Fx.SetDown(item, set.pieces[id], downs[id], clips[id])
     end
     -- Closed while up: pass along what this pass read (a drop reopens its spot).
     for id in pairs(closedUp) do
         told[closed[id]] = true
-        Fx.SetDown(closed[id], set.pieces[id], downs[id] == true)
+        Fx.SetDown(closed[id], set.pieces[id], downs[id] == true, clips[id])
     end
     Fx.EndPass(told)
     -- Done here, not above, since a buff that's down may have closed up out of items.
