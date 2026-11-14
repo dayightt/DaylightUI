@@ -515,10 +515,10 @@ end
 -- a group too big for one row may be laid out a row taller and narrower, and fill
 -- is the room its items really take, so a half-empty last row isn't counted as used.
 -- Rows are built one at a time. A row starts with the next group in order, and is
--- tried at each height a waiting group could need. The space to its right is filled
--- by later groups, the one that fills the most first (ties keep order), and beside a
--- tall group shorter ones stack in columns. The row that wastes least is kept. A
--- group only ever moves earlier to fill a gap. Groups that must start or end a row
+-- tried at each height a waiting group could need. The groups after it follow in
+-- their order, each beside the last or stacked under it when it's short enough, so
+-- the bag reads in group order like a page and none jumps ahead to fill a gap.
+-- The row that wastes least is kept. Groups that must start or end a row
 -- split the list into parts packed on their own. A box with `drawnH` is planned at
 -- its shape's height and drawn at drawnH. `prev` (key -> { row, shape }) is
 -- the last layout's answer: when two choices are equally good, the one that keeps
@@ -549,25 +549,24 @@ local function fillRow(boxes, todo, lead, si, H, maxW, gapX, gapY, prev, rowNo)
     end
     local kept = keeps(lead, si)
     while true do
-        local best
-        for order, i in ipairs(todo) do
-            if not taken[i] then
-                for k, sh in ipairs(boxes[i].shapes) do
-                    if sh.h <= H then
-                        local kp = keeps(i, k)
-                        for ci, c in ipairs(cols) do
-                            local room = ci == #cols and (maxW - c.x) or c.w
-                            if sh.w <= room and c.used + gapY + sh.h <= H then
-                                local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = true,
-                                               i = i, col = ci, x = c.x, y = c.used + gapY }
-                                if better(cand, best) then best = cand end
-                            end
-                        end
-                        if right + gapX + sh.w <= maxW then
-                            local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = false,
-                                           i = i, x = right + gapX, y = 0 }
-                            if better(cand, best) then best = cand end
-                        end
+        local best, order, i = nil, nil, nil
+        for o, j in ipairs(todo) do
+            if not taken[j] then order, i = o, j break end
+        end
+        if i then
+            for k, sh in ipairs(boxes[i].shapes) do
+                if sh.h <= H then
+                    local kp = keeps(i, k)
+                    local c = cols[#cols]
+                    if sh.w <= maxW - c.x and c.used + gapY + sh.h <= H then
+                        local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = true,
+                                       i = i, col = #cols, x = c.x, y = c.used + gapY }
+                        if better(cand, best) then best = cand end
+                    end
+                    if right + gapX + sh.w <= maxW then
+                        local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = false,
+                                       i = i, x = right + gapX, y = 0 }
+                        if better(cand, best) then best = cand end
                     end
                 end
             end

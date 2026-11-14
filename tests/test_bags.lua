@@ -1876,12 +1876,13 @@ T.test("bags: a folded group keeps its spot and width; what's under it moves up,
     local keys = { "consumable", "sets", "weapon", "armor", "tradegoods", "junk", "empty" }
     local before = {}
     for _, k in ipairs(keys) do before[k] = { spot(k) } end
-    -- This bag packs as Consumables over Armor beside the tall Empty, then a row
-    -- of Sets, Weapons, Trade goods and Junk.
-    T.eq(before.consumable[1], before.armor[1], "armor stacks under consumables")
-    T.truthy(before.armor[2] < before.consumable[2])
-    T.eq(before.consumable[2], before.empty[2], "beside the tall Empty")
-    T.eq(before.sets[2], before.weapon[2], "sets and weapons side by side")
+    -- This bag packs in order as Consumables over Sets, Weapons over Armor, Trade
+    -- goods over Junk, then Empty on a row of its own.
+    T.eq(before.consumable[1], before.sets[1], "sets stack under consumables")
+    T.truthy(before.sets[2] < before.consumable[2])
+    T.eq(before.weapon[1], before.armor[1], "armor stacks under weapons")
+    T.eq(before.consumable[2], before.weapon[2], "consumables and weapons side by side")
+    T.truthy(before.empty[2] < before.junk[2], "Empty last, below")
     local function unchanged(but, what)
         for _, k in ipairs(keys) do
             if not but[k] then
@@ -1895,19 +1896,17 @@ T.test("bags: a folded group keeps its spot and width; what's under it moves up,
     Cat.ToggleCollapsed("sets")
     stub.RunTimers()
     unchanged({}, "(sets folded)")
-    Cat.ToggleCollapsed("weapon")
-    stub.RunTimers()
-    unchanged({}, "(weapons folded too)")
     Cat.ToggleCollapsed("consumable")
     stub.RunTimers()
-    T.eq(select(2, spot("armor")), -(L.HeadH(f) + L.RowGap(f)), "armor moves up under the folded heading")
-    unchanged({ armor = true }, "(consumables folded)")
-    Cat.ToggleCollapsed("empty")
+    T.eq(select(2, spot("sets")), -(L.HeadH(f) + L.RowGap(f)), "sets move up under the folded heading")
+    unchanged({ sets = true }, "(consumables folded)")
+    Cat.ToggleCollapsed("weapon")
+    Cat.ToggleCollapsed("tradegoods")
     stub.RunTimers()
-    local column = L.HeadH(f) + L.RowGap(f) + L.SlotTop(f) + f.Cfg().iconSize
-    T.eq(select(2, spot("sets")), -(column + L.RowGap(f)), "the top row shrinks to its tallest column")
-    T.eq(select(1, spot("sets")), before.sets[1], "and the row below only moves up")
-    for _, k in ipairs({ "sets", "weapon", "consumable", "empty" }) do Cat.ToggleCollapsed(k) end
+    local x, y = spot("empty")
+    T.truthy(y > before.empty[2], "the top row shrinks once every column does")
+    T.eq(x, before.empty[1], "and the row below only moves up")
+    for _, k in ipairs({ "sets", "weapon", "consumable", "tradegoods" }) do Cat.ToggleCollapsed(k) end
     stub.RunTimers()
     unchanged({}, "(all open again)")
 end)
@@ -2007,6 +2006,34 @@ T.test("bags: the Shelf packs a real bag into less height, nothing overlapping",
     for i, a in ipairs(r) do
         for k = i + 1, #r do
             if r[k].y == a.y then T.truthy(a.x < r[k].x, a.key .. " before " .. r[k].key .. " on its row") end
+        end
+    end
+end)
+
+-- Reading the Shelf like a page (rows top to bottom, a row's columns left to right,
+-- each column top to bottom) gives the groups in their order: none jumps ahead to
+-- fill a gap, so Junk and Empty stay last.
+local function readingOrder(boxes, memo, spots)
+    local list = {}
+    for i, b in ipairs(boxes) do list[i] = { i = i, row = memo[b.key].row, x = spots[i].x, y = spots[i].y } end
+    table.sort(list, function(a, b)
+        if a.row ~= b.row then return a.row < b.row end
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    return list
+end
+
+T.test("bags: the Shelf keeps its groups in order, nothing jumps ahead", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local SEEN = { { "hearthstone", 1, 88 }, { "consumable", 12, 104 }, { "quest", 9, 98 }, { "weapon", 3, 76 },
+                   { "armor", 1, 50 }, { "tradegoods", 4, 104 }, { "junk", 3, 42 }, { "empty", 2, 50 } }
+    for _, bag in ipairs({ USER_BAG, SEEN }) do
+        local boxes, maxW, gx, gy = packWorld(L, f, bag)
+        local spots, _, memo = L.Pack(boxes, maxW, gx, gy)
+        for n, e in ipairs(readingOrder(boxes, memo, spots)) do
+            T.eq(boxes[e.i].key, boxes[n].key, "group " .. n .. " reads in its turn")
         end
     end
 end)
