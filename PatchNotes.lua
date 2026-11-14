@@ -21,6 +21,8 @@ DUI.PatchNotes = {
             { "Minimap", "A round minimap that keeps north at the top, without turning on Rotate as you turn: Minimap shape on the Info panel page" },
             { "Party and raid frames", "A name placed above or beside a party or raid tile sits on a dark name tab, like the player frame's, instead of floating: Name tab" },
             { "Spellbook", "An Open Clique link on the spellbook when you use Clique" },
+            { "Cooldown Manager", "Any spell can show its cooldown, its buff or both. A buff Daylight UI didn't know about is picked up the first time you cast the spell outside a fight" },
+            { "Click-casting", "With the Forever version of Clique, Daylight UI's own click-casting now steps aside for it as it does for Clique" },
         },
         changed = {
             { "Menus", "The right-click menu on players and targets is in the Daylight UI look, raid markers included. Thanks to Ángel" },
@@ -30,8 +32,6 @@ DUI.PatchNotes = {
             { "Action bars", "Shadowform now switches Action Bar 1 to its own page when Change with forms and stances is on" },
             { "Action bars", "The /click DaylightUICat, DaylightUIBear and DaylightUIMoonkin macro lines now swap your bar the moment you press the key" },
             { "Party and raid frames", "The Heals and shields buff filter no longer shows tracking or long buffs" },
-            { "Cooldown Manager", "The Gnome racial Eureka! can now show its buff, its cooldown or both" },
-            { "Click-casting", "With the Forever version of Clique, Daylight UI's own click-casting now steps aside for it as it does for Clique" },
             { "Cooldown Manager", "A group set to grow from the middle stays centered when only spells on its left side are showing" },
         },
     },

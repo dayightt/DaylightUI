@@ -193,8 +193,13 @@ local function isShield(_, id, p) return p.shape == "bar" and ns.CdmBars ~= nil 
 -- The same spell as an icon can show its amount where the time was.
 local function isShieldIcon(_, id, p) return p.shape ~= "bar" and ns.CdmBars ~= nil and ns.CdmBars.IsShield(id) end
 local function always() return true end
--- A buff the game files as one (CdmOwn.Track) gets the Track row.
+-- Shows a buff (CdmOwn.Track says what), alone or with its cooldown.
 local function isBuff(_, id, p) return ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, p) ~= nil end
+-- Every game spell can pick what it shows, a buff known yet or not: the buff of one
+-- picked blind is watched by the spell's own id until a cast teaches the real one.
+local function gameSpell(_, id)
+    return ns.CdmOwn ~= nil and not (ns.CdmCustom and ns.CdmCustom.Is(id)) and ns.CdmOwn.Entry(id) ~= nil
+end
 -- A cooldown, or a buff tracked with its cooldown (matches the card's header).
 local function isCooldown(_, id, p)
     local t = ns.CdmOwn and ns.CdmOwn.Track(id, p)
@@ -253,8 +258,8 @@ local BUFF_DOWN = { type = "dropdown", key = "cdm.card.buffDown", label = "Visib
 -- (CdmCustom.Track). The game's spells use Track above.
 local function canTrack(_, id) return ns.CdmCustom ~= nil and ns.CdmCustom.CanTrack(id) == true end
 local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What it shows",
-    values = { cooldown = "Cooldown", aura = "Buff or debuff" }, order = { "cooldown", "aura" },
-    desc = "Some spells have both, like Bloodrage. Pick which one this piece shows.",
+    values = { both = "Both", cooldown = "Cooldown", aura = "Buff only" }, order = { "both", "cooldown", "aura" },
+    desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up.",
     get = function()
         local set, id = picked()
         return id and ns.CdmCustom.Track(id, set) or nil
@@ -271,7 +276,11 @@ local function track(item)
     item.key = "cdm.card.track"
     item.get = function()
         local _, id, p = picked()
-        if id then return ns.CdmOwn.Track(id, p) end
+        if not id then return nil end
+        local t = ns.CdmOwn.Track(id, p)
+        if t then return t end
+        local e = ns.CdmOwn.Entry(id)
+        return e and e.aura and "buff" or "cooldown"
     end
     item.set = function(v)
         local set, id = picked()
@@ -472,7 +481,7 @@ Card.ROWS = {
         { show = both(chainHas("bar"), several), item = look("time", { type = "toggle", label = "Time on bars" }, true) },
     },
     show = {
-        { show = isBuff, item = track({ type = "dropdown", label = "What it shows",
+        { show = gameSpell, item = track({ type = "dropdown", label = "What it shows",
             values = { both = "Both", cooldown = "Cooldown", buff = "Buff only" },
             order = { "both", "cooldown", "buff" },
             desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up." }) },

@@ -1174,7 +1174,7 @@ end
 
 -- What a custom spell's piece (CdmCustom) shows: its cooldown or its buff/debuff.
 -- The game's pieces (number keys) have no track.
-Data.TRACKS = { "cooldown", "aura" }
+Data.TRACKS = { "cooldown", "aura", "both" }
 function Data.SetTrack(set, id, track)
     local p = set.pieces[id]
     if not (p and type(id) == "string" and oneOf(Data.TRACKS, track)) then return false end

@@ -4452,10 +4452,13 @@ T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows 
     local function shows(id, key) return row(key).show(set, id, set.pieces[id]) end
     for _, key in ipairs({ "cdm.card.track", "cdm.card.buffUp", "cdm.card.missingGlow" }) do
         T.truthy(shows(11, key), key .. ": a cooldown with a buff")
-        T.falsy(shows(12, key), key .. ": a cooldown with none")
+    end
+    T.truthy(shows(12, "cdm.card.track"), "a cooldown with no buff known can still pick")
+    for _, key in ipairs({ "cdm.card.buffUp", "cdm.card.missingGlow" }) do
+        T.falsy(shows(12, key), key .. ": a cooldown with none, left as a cooldown")
     end
     T.eq(Own.Track(11, set.pieces[11]), "cooldown", "left alone, what it always showed")
-    T.isnil(Own.Track(12, set.pieces[12]), "nothing to pick")
+    T.isnil(Own.Track(12, set.pieces[12]), "left alone, a plain cooldown")
     T.eq(R.DrawnBy(11), "game", "left alone, the game's icon")
     -- Picked: its buff over its cooldown, watched for every rank.
     T.truthy(D.SetSpellValue(set, 11, "track", "both"))
@@ -4489,6 +4492,102 @@ T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows 
     T.truthy(shows(12, "cdm.card.track"), "hasAura with the HideAura flag")
     T.isnil(Own.Track(11, set.pieces[11]), "no aura by either word")
     _G.GetSpellBaseCooldown = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The spell ids a holder's first container watches.
+local function watched(AB, id, shape)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    local out = {}
+    local c = h and h.containers[1]
+    for k, v in pairs(c and c.c.__groups.a.opts.candidateFilters.includeSpellIDs or {}) do
+        out[v == true and k or v] = true
+    end
+    return out
+end
+
+-- Every spell can pick Cooldown, Buff only or Both, even one with no buff anyone
+-- listed: its buff is watched by its own id until a cast teaches the real one.
+T.test("cdm track: a cooldown with no buff known can still be set to its buff or both, icon and bar", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = false, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 60000 end
+    Own.Forget()
+    D.AddPiece(set, 12, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(12), "game", "left alone, the game's cooldown icon")
+    T.isnil(Own.Track(12, set.pieces[12]))
+    T.truthy(D.SetSpellValue(set, 12, "track", "cooldown"))
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(12), "game", "Cooldown is what it was: still the game's")
+    for _, shape in ipairs({ "icon", "bar" }) do
+        D.SetShape(set, 12, shape)
+        T.truthy(D.SetSpellValue(set, 12, "track", "buff"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura bar" or "aura icon", shape .. ": Buff only")
+        T.truthy(watched(AB, 12, shape)[112], shape .. ": watched by its own id")
+        T.truthy(D.SetSpellValue(set, 12, "track", "both"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura and cooldown bar" or "aura and cooldown icon", shape .. ": Both")
+    end
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Nothing lists every spell's buff, and a buff's id can differ from its spell's.
+-- A cast where auras can be read finds it by id, else by the spell's name, and
+-- keeps it per character.
+T.test("cdm track: a placed spell's buff is learned from a cast, by name when its id differs", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = false, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 60000 end
+    Own.Forget()
+    D.AddPiece(set, 12, "bar", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    -- Your debuff on the target, under another id but the spell's name.
+    stub.SetAuras("target", "HARMFUL", { { name = "Spell112", spellId = 9112, sourceUnit = "player", isFromPlayerOrPlayerPet = true } })
+    -- Not placed: nothing learned.
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-0", 111); stub.RunTimers()
+    T.isnil(Own.AuraOf(111), "a spell not placed")
+    -- In a fight auras can't be read: nothing learned.
+    stub.SetRestriction("PvPMatch", true)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 112); stub.RunTimers()
+    T.isnil(Own.AuraOf(112), "auras secret: nothing read")
+    stub.SetRestriction("PvPMatch", false)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 112); stub.RunTimers()
+    T.truthy(Own.AuraOf(112) and Own.AuraOf(112)[9112], "found by name")
+    T.truthy(DUI.DB.Character().cdmAuraIDs[112][9112], "kept for this character")
+    T.truthy(Own.QuietAura(12), "now a cooldown with a buff the game's icon doesn't show")
+    T.eq(Own.Track(12, set.pieces[12]), "cooldown", "left alone it stays a cooldown, like Bloodrage")
+    for _, shape in ipairs({ "bar", "icon" }) do
+        D.SetShape(set, 12, shape)
+        T.truthy(D.SetSpellValue(set, 12, "track", "both"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura and cooldown bar" or "aura and cooldown icon", shape .. ": Both")
+        local ids = watched(AB, 12, shape)
+        T.truthy(ids[9112] and ids[112], shape .. ": the learned id watched as well as its own")
+    end
+    -- Someone else's debuff of that name teaches nothing.
+    D.AddPiece(set, 11, "icon", 0, -48)
+    stub.SetAuras("target", "HARMFUL", { { name = "Spell111", spellId = 9111, sourceUnit = "party1", isFromPlayerOrPlayerPet = false } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 111); stub.RunTimers()
+    T.isnil(Own.AuraOf(111), "not yours")
+    -- A buff on you under the cast's own id.
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell111", spellId = 111 } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-4", 111); stub.RunTimers()
+    T.truthy(Own.AuraOf(111) and Own.AuraOf(111)[111], "found by id")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -5709,7 +5808,9 @@ T.test("cdm data: our own spell keys sit beside the game's ids: layout, order, t
     T.truthy(D.SetTrack(set, "s2687", "aura"))
     T.eq(set.pieces["s2687"].track, "aura")
     T.falsy(D.SetTrack(set, 11, "aura"), "a game id has no track")
-    T.falsy(D.SetTrack(set, "s2687", "both"), "a bad value")
+    T.truthy(D.SetTrack(set, "s2687", "both"))
+    T.falsy(D.SetTrack(set, "s2687", "buff"), "a bad value")
+    D.SetTrack(set, "s2687", "aura")
     T.falsy(D.SetTrack(set, "s1", "aura"), "not placed")
     local to = D.Profile(D.CopyProfile(D.NewProfile("Mine", nil, set))).set
     T.eq(to.pieces["s2687"].track, "aura", "copied with the rest")
@@ -5835,14 +5936,17 @@ T.test("cdm custom: our keys, the highest known rank, every rank, the track", fu
     T.truthy(C.Entry("s1243") and C.Entry("s1243").aura, "a group buff counts as known, a buff")
     T.truthy(C.SelfOnly("s1243")); T.falsy(C.SelfOnly("s6673"))
     T.falsy(C.Entry("s2687").aura, "a spell with both: its cooldown first")
-    T.truthy(C.CanTrack("s2687")); T.falsy(C.CanTrack("s6673")); T.falsy(C.CanTrack("s1243"))
+    T.truthy(C.CanTrack("s2687")); T.truthy(C.CanTrack("s6673"), "a buff of yours can pick too")
+    T.falsy(C.CanTrack("s1243"), "a group buff: no cooldown of yours")
     local set = D.Current()
     D.AddPiece(set, "s2687", "icon", 0, 0)
     T.truthy(D.SetTrack(set, "s2687", "aura"))
     T.truthy(C.Entry("s2687").aura, "the piece's pick")
     D.AddPiece(set, "s6673", "icon", 40, 0)
+    T.eq(C.Track("s6673"), "aura", "left alone, a buff")
     D.SetTrack(set, "s6673", "cooldown")
-    T.eq(C.Track("s6673"), "aura", "a pick the spell can't do is ignored")
+    T.eq(C.Track("s6673"), "cooldown", "the player's pick")
+    D.SetTrack(set, "s6673", "aura")
     T.truthy(C.IsAdded("s1953"), "not in the list: a spell added by its ID")
     T.isnil(C.Entry("s1953"), "another class's spell (Blink), not known: nothing to draw")
     -- Mana Spring (5677) added by its ID read as a cooldown. It's on no class's
@@ -6762,9 +6866,11 @@ T.test("cdm card: a spell of ours with a cooldown and a buff picks which one it 
     T.eq(set.pieces["s2687"].track, "aura")
     T.eq(AB.CdmRows.DrawnBy("s2687"), "aura icon", "the live layout follows")
     Ed.Choose("s6673"); Ed.Pick("icon")
-    T.falsy(row.show(set, "s6673", set.pieces["s6673"]), "a buff only: no pick")
+    T.truthy(row.show(set, "s6673", set.pieces["s6673"]), "a buff can pick too")
+    row.item.set("both"); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy("s6673"), "aura and cooldown icon", "Both: its buff over its cooldown")
     D.AddPiece(set, 11, "icon", 0, -100)
-    T.falsy(row.show(set, 11, set.pieces[11]), "the game's spells: no pick")
+    T.falsy(row.show(set, 11, set.pieces[11]), "the game's spells have their own pick")
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -421,14 +421,16 @@ function Custom.Look(id)
     return f and f.name or name, f and f.icon or okT and type(tex) ~= "nil" and tex or nil
 end
 
--- A spell of your class with both a cooldown and a buff (Bloodrage).
+-- The card's What it shows can pick its cooldown, its buff or both. Not for
+-- someone else's buff on you, the merged families (seal, aura, blessing) or the pet,
+-- which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)
-    return f ~= nil and hasCd(id, f) and f.aura or false
+    return f ~= nil and not (f.group or f.merged or f.pet) and not worn(id, f)
 end
 
--- "cooldown" or "aura": the piece's saved choice (Data.SetTrack) if the spell
--- supports it, else its cooldown if it has one, else its buff.
+-- "cooldown", "aura" or "both": the piece's saved choice (Data.SetTrack) if the
+-- spell can pick, else its cooldown if it has one, else its buff.
 function Custom.Track(id, set)
     local f = Custom.Family(id)
     if not f then return nil end
@@ -437,8 +439,8 @@ function Custom.Track(id, set)
     local t = p and p.track
     -- Buff missing mode tracks the buff, shown only while it's up.
     if p and p.hideMissing == true and f.aura then return "aura" end
+    if (t == "aura" or t == "cooldown" or t == "both") and Custom.CanTrack(id) then return t end
     if t == "aura" and f.aura then return "aura" end
-    if t == "cooldown" and hasCd(id, f) then return "cooldown" end
     -- Spells added by ID: the cooldown if it has a real one, else the buff.
     if f.user and not f.item then
         if worn(id, f) then return "aura" end

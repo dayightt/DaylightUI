@@ -32,10 +32,27 @@ local function nameOf(sid)
     if ok and type(n) == "string" and not (issecretvalue and issecretvalue(n)) then return n end
 end
 
--- { [spellID] = true } for the spell and every rank of it (by name), learned or not.
+-- Add the auras your casts of these spells were seen to put up (CdmOwn.AuraOf).
+local function withLearned(ids)
+    local Own = ns.CdmOwn
+    if not (Own and Own.AuraOf) then return ids end
+    local more
+    for s in pairs(ids) do
+        local got = Own.AuraOf(s)
+        if got then
+            more = more or {}
+            for a in pairs(got) do more[a] = true end
+        end
+    end
+    for a in pairs(more or {}) do ids[a] = true end
+    return ids
+end
+
+-- { [spellID] = true } for the spell and every rank of it (by name), learned or not,
+-- and the auras seen from its casts.
 function A.SpellIDs(id)
     local C = ns.CdmCustom
-    if C and C.Is(id) then return C.Ranks(id) end
+    if C and C.Is(id) then return withLearned(C.Ranks(id)) end
     local ids = {}
     local own = infoOf(id)
     local base = own and plain(own.spellID)
@@ -70,7 +87,7 @@ function A.SpellIDs(id)
             end
         end
     end
-    return ids
+    return withLearned(ids)
 end
 
 -- Spells that put a debuff on you (Arcane Blast's stack). The game's item only

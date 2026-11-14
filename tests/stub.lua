@@ -2467,6 +2467,23 @@ _G.C_UnitAuras = {
         end
         return nil
     end,
+    -- The first aura with that name under the filter (HELPFUL when none; |PLAYER
+    -- = only yours). Quietly nothing while auras are secret (RequiresNonSecretAura).
+    GetAuraDataBySpellName = function(unit, name, filter)
+        if stub.AurasRestricted() then return nil end
+        filter = filter or "HELPFUL"
+        local kind = filter:find("HARMFUL") and "HARMFUL" or "HELPFUL"
+        local mine = filter:find("PLAYER") ~= nil
+        local list = stub.auras[unit] and stub.auras[unit][kind]
+        for _, a in ipairs(list or {}) do
+            if a.name == name and (not mine or a.sourceUnit == "player" or a.isFromPlayerOrPlayerPet == true) then
+                local out = {}
+                for k, v in pairs(a) do out[k] = v end
+                return out
+            end
+        end
+        return nil
+    end,
     -- Private auras (boss debuffs): the client draws them on a frame the addon
     -- lends it. Checked against AddPrivateAuraAnchorArgs and PrivateAuraIconInfo
     -- (UnitConstantsDocumentation). Added and removed out of combat only.

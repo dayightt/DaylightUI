@@ -274,13 +274,15 @@ local function claim(item)
             local pick = Own.Picked(p)
             -- Also moved to ours: Hide (Buff up), since the game's icon can't say
             -- when it's showing the aura; any buff request for an aura the game's
-            -- icon never shows (Bloodrage); a buff sound, since only ours hears the
-            -- aura land or end; and a buff's charges (Shield Block, Holy Shield;
+            -- icon never shows (Bloodrage, one learned from a cast, or one picked
+            -- before any is known); a buff sound, since only ours hears the aura
+            -- land or end; and a buff's charges (Shield Block, Holy Shield;
             -- Own.Stacks).
+            local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
             cooldown = t ~= nil and (pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
                 or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
                 or Fx.Get(p, "buffEndSound") ~= "none"
-                or (t == "both" and (Own.QuietAura(id) or Own.Stacks(id))))
+                or (t == "both" and (not follows or Own.Stacks(id))))
         end
     end
     if block and ns.CdmAuras and ns.CdmAuras.SelfDebuff(id) then

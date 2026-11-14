@@ -87,8 +87,19 @@ function Own.HasAura(id, k)
 end
 
 function Own.Track(id, p, known)
+    local C = ns.CdmCustom
+    if C and C.Is(id) then
+        -- A spell of the addon's own list shows one thing (CdmCustom.Track), or both.
+        return C.Track(id) == "both" and "both" or nil
+    end
     local k = (known or Own.Known())[id]
-    if not (k and Own.HasAura(id, k)) then return nil end
+    if not k then return nil end
+    -- No buff known yet: a plain cooldown, unless the player picked something else.
+    -- The buff is watched by the spell's own id until a cast teaches the real one.
+    if not Own.HasAura(id, k) then
+        local t = Own.Picked(p)
+        return t ~= "cooldown" and t or nil
+    end
     local t = Own.Picked(p)
     if t then return t end
     -- The game's icon never shows a quiet aura, so left alone it stays a cooldown
@@ -216,8 +227,97 @@ function Own.QuietAura(id)
     if info and not (issecretvalue and issecretvalue(info.hasAura)) and info.hasAura == true then return true end
     local sid = info and plainNumber(info.spellID)
     if sid ~= nil and Own.RACIAL_AURAS[sid] then return true end
-    return sid ~= nil and C ~= nil and C.KeyOfAuraSpell(sid) ~= nil
+    return sid ~= nil and ((C ~= nil and C.KeyOfAuraSpell(sid) ~= nil) or Own.AuraOf(sid) ~= nil)
 end
+
+-- Buffs and debuffs learned from your own casts, per character:
+-- DB.Character().cdmAuraIDs[cast spell id] = { [aura spell id] = true }. Nothing
+-- lists every spell's aura, so a placed spell's cast where auras can be read looks
+-- for it, by id and by name (the aura's id can differ from the cast's).
+local function auraBook()
+    local c = DUI.DB and DUI.DB.Character()
+    if type(c) ~= "table" then return {} end
+    if type(c.cdmAuraIDs) ~= "table" then c.cdmAuraIDs = {} end
+    return c.cdmAuraIDs
+end
+
+-- { [aura spell id] = true } learned for this cast spell id, or nil.
+function Own.AuraOf(sid)
+    local t = sid ~= nil and auraBook()[sid]
+    return type(t) == "table" and next(t) ~= nil and t or nil
+end
+
+-- Spell ids of every placed piece, as { [cast spell id] = true }.
+local function placedSpells()
+    local set = ns.CdmData and ns.CdmData.Current()
+    local out = {}
+    local C = ns.CdmCustom
+    for id in pairs(set and set.pieces or {}) do
+        if C and C.Is(id) then
+            if not C.IsPet(id) then
+                for s in pairs(C.Ranks(id)) do out[s] = true end
+            end
+        else
+            local s = Own.SpellOf(id)
+            if s then out[s] = true end
+        end
+    end
+    return out
+end
+
+-- Your aura from this cast: on you, then your own on the target. By id first,
+-- then by the spell's name.
+local LOOKS = { { unit = "player", filter = "HELPFUL" }, { unit = "target", filter = "HARMFUL|PLAYER" } }
+local function auraFrom(sid)
+    local U = C_UnitAuras
+    if type(U) ~= "table" then return nil end
+    local name
+    local okN, n = pcall(C_Spell.GetSpellName, sid)
+    if okN and type(n) == "string" and not (issecretvalue and issecretvalue(n)) then name = n end
+    for _, look in ipairs(LOOKS) do
+        local a
+        if type(U.GetUnitAuraBySpellID) == "function" then
+            local ok, got = pcall(U.GetUnitAuraBySpellID, look.unit, sid)
+            -- On the target, only your own debuff.
+            if ok and type(got) == "table" and (look.unit == "player"
+                or got.isFromPlayerOrPlayerPet == true or got.sourceUnit == "player") then
+                a = got
+            end
+        end
+        if not a and name and type(U.GetAuraDataBySpellName) == "function" then
+            local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, name, look.filter)
+            if ok and type(got) == "table" then a = got end
+        end
+        local found = a and plainNumber(a.spellId)
+        if found then return found end
+    end
+end
+
+-- After a cast of a placed spell, out of a fight: remember the aura it put up.
+Own.AURA_LOOK_DELAY = 0.3
+function Own.LearnAura(sid)
+    if not (ns.Cooldowns and ns.Cooldowns.enabled) then return end
+    local A = ns.CdmAuras
+    if not (A and A.Readable and A.Readable()) then return end
+    if not placedSpells()[sid] then return end
+    local found = auraFrom(sid)
+    if not found then return end
+    local book = auraBook()
+    if type(book[sid]) == "table" and book[sid][found] then return end
+    book[sid] = type(book[sid]) == "table" and book[sid] or {}
+    book[sid][found] = true
+    known = nil
+    A.Rebuild()
+    if ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
+local casts = CreateFrame("Frame")
+casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+casts:SetScript("OnEvent", function(_, _, _, _, sid)
+    if type(sid) ~= "number" or (issecretvalue and issecretvalue(sid)) or InCombatLockdown() then return end
+    -- The aura lands a moment after the cast event.
+    C_Timer.After(Own.AURA_LOOK_DELAY, function() DUI.SafeCall(Own.LearnAura, sid) end)
+end)
 
 -- Cooldowns whose buff holds charges, every rank. The game's cooldown icon shows the
 -- buff but never its count (its cooldown items only draw spell charges, see
