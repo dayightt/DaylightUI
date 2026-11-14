@@ -44,7 +44,7 @@ Cat.BUILTIN = {
     { key = "key", color = { 0.92, 0.8, 0.32 }, name = L["Keys"] },
     { key = "misc", ink = "LABEL", name = L["Miscellaneous"] },
     { key = "other", ink = "LABEL", name = L["Other"] },
-    { key = "junk", quality = 0, name = L["Junk"], breakBefore = true },
+    { key = "junk", quality = 0, name = L["Junk"] },
     { key = "empty", ink = "LABEL", name = L["Empty"] },
 }
 Cat.BY_KEY = {}
