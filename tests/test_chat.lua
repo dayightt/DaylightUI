@@ -494,6 +494,7 @@ T.test("chat: typing a reply on the whisper card keeps the idle fade away", func
     CH.Convo.Open("w:Someone")
     T.truthy(CH.Convo.Key(), "the card is open")
     T.eq(_G.DaylightUIChatTalk:GetFrameStrata(), "HIGH", "the card sits over the action bars and unit frames (MEDIUM), as the Show window")
+    T.eq(_G.DaylightUIChatDrawer:GetFrameStrata(), "HIGH", "its clipping drawer too, since a clipping frame draws its children in its own strata")
     local box, focused = CH.Convo.Thread().input, true
     box.HasFocus = function() return focused end    -- the fake game's boxes never hold focus
     T.truthy(CH.Convo.Typing())

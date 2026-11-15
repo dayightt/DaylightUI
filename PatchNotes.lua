@@ -35,6 +35,7 @@ DUI.PatchNotes = {
             { "Window skins", "The loot window's title and close button line up like every other window, with even room round the items and a scroll bar only when the list is long" },
         },
         fixed = {
+            { "Whispers", "An open conversation no longer hides behind the unit frames and action bars" },
             { "Fonts", "On a Russian client, picking a font without Russian letters no longer leaves text blank: a close-looking font that has them is used instead" },
             { "Window skins", "Opening the guild window with no guild or community no longer causes an error" },
             { "Action bars", "The shaman totem bar fades again when its bar is set to fade" },

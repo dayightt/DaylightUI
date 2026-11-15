@@ -626,8 +626,10 @@ function Tiles.Build()
     column:SetClipsChildren(true)
     column:SetSize(1, 1)
     column:Hide()
-    -- The conversation's slide frame.
+    -- The conversation's slide frame. A clipping frame draws its children in its
+    -- own strata, so the card's HIGH only holds if the drawer is HIGH too.
     drawer = CreateFrame("Frame", "DaylightUIChatDrawer", panel)
+    drawer:SetFrameStrata("HIGH")
     drawer:SetClipsChildren(true)
     drawer:SetSize(0.01, 1)
     drawer:Hide()
