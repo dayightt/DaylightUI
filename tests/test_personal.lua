@@ -725,3 +725,125 @@ T.test("incoming heals and shields cost nothing while the display is off, and th
     DUI:Set("UnitFrames", "personal.predictHeals", true)
     T.eq(stub.Plain(body.heals.__value), 30, "back to the real amount")
 end)
+
+-- The Personal Display page's live preview (PageSample.lua), like the Player
+-- and Target pages have: a body made by the same builder, filled with sample
+-- values, so the page shows what it changes even while the display is off or
+-- faded, or hidden behind the options window.
+
+local function pageSample(ns, width, maxH)
+    local box = CreateFrame("Frame", nil, UIParent)
+    local s = ns.PageSample.New("personal", box)
+    return s, s.Refresh(width or 600, maxH or 160)
+end
+
+T.test("preview: the page carries one, with sample values and your power's color", function()
+    local DUI, ns, PR = login()
+    T.eq(type(DUI.Options.GetPage("UnitFrames.personal").sample), "function", "a live preview on the page")
+    local s, h = pageSample(ns)
+    T.truthy(h > 0 and h <= 160, "fitted to its room: " .. tostring(h))
+    local p = s.p
+    T.truthy(p ~= PR.frame, "its own display, never the real one")
+    T.truthy(p.healthBar:IsShown() and p.powerBar:IsShown())
+    T.eq(stub.Plain(p.healthBar.__value), PR.SAMPLE.health)
+    T.eq(stub.Plain(p.powerBar.__value), PR.SAMPLE.power)
+    T.eq(stub.Plain(PR.frame.healthBar.__value), 60, "the real display keeps your own health")
+    T.eq(p.powerBar.__barColor[1], PR.frame.powerBar.__barColor[1], "power painted like the real one")
+    T.eq(p.powerBar.__barColor[3], PR.frame.powerBar.__barColor[3])
+    T.falsy(p:IsMouseEnabled(), "only to look at")
+    T.eq(#stub.errors, 0)
+end)
+
+T.test("preview: shown even while the display is off, faded like other frames' pages", function()
+    local DUI, ns = login(nil, nil, false)
+    local s = pageSample(ns)
+    T.truthy(s.p:IsShown())
+    T.eq(s.p:GetAlpha(), ns.PageSample.OFF_ALPHA, "off: drawn faded")
+    DUI:Set("UnitFrames", "personal.enabled", true)
+    s.Refresh(600, 160)
+    T.eq(s.p:GetAlpha(), 1)
+end)
+
+T.test("preview: follows the page's settings", function()
+    local DUI, ns = login()
+    local s = pageSample(ns)
+    local p = s.p
+    DUI:Set("UnitFrames", "personal.width", 220)
+    DUI:Set("UnitFrames", "personal.showPercent", true)
+    s.Refresh(600, 160)
+    T.near(p:GetWidth(), 220, 1)
+    T.truthy(p.healthText:IsShown())
+    T.eq(stub.Text(p.healthText), tostring(ns.Personal.SAMPLE.health))
+    DUI:Set("UnitFrames", "personal.showPower", false)
+    s.Refresh(600, 160)
+    T.falsy(p.powerBar:IsShown(), "power bar off, gone from the preview")
+    DUI:Set("UnitFrames", "personal.slant", false)
+    s.Refresh(600, 160)
+    T.eq(p.cut, 0, "square ends")
+end)
+
+T.test("preview: a rogue's pips and the aura rows show on it", function()
+    local DUI, ns, PR = login("ROGUE", "ENERGY")
+    DUI:Set("UnitFrames", "personal.auras.buffs", true)
+    local s = pageSample(ns)
+    T.truthy(s.p.combo and s.p.combo:IsShown(), "the combo row")
+    T.truthy(s.p.combo ~= PR.frame.combo)
+    T.eq(stub.Plain(s.p.combo.pips[1].bar.__value), PR.SAMPLE.combo)
+    T.falsy(s.p.combo:IsEventRegistered("UNIT_POWER_FREQUENT"), "a picture: it listens to nothing")
+    local seen = {}
+    for _, part in ipairs(s.Parts()) do seen[part.label] = part end
+    T.truthy(seen["Combo points"] and seen["Buffs"], "each a piece to click")
+    DUI:Set("UnitFrames", "personal.combo", false)
+    s.Refresh(600, 160)
+    T.falsy(s.p.combo:IsShown())
+end)
+
+T.test("preview: every piece leads to settings its page has, and the bars resize in Design mode", function()
+    local DUI, ns = login("ROGUE", "ENERGY")
+    DUI:Set("UnitFrames", "personal.showPercent", true)
+    DUI:Set("UnitFrames", "personal.showPowerText", true)
+    DUI:Set("UnitFrames", "personal.auras.debuffs", true)
+    DUI:Set("UnitFrames", "personal.auras.buffs", true)
+    local s = pageSample(ns)
+    local keys = {}
+    for _, g in ipairs(DUI.Options.GetPage("UnitFrames.personal").groups) do
+        for _, item in ipairs(g.items) do if item.key then keys[item.key] = true end end
+    end
+    local seen = {}
+    for _, p in ipairs(s.Parts()) do
+        seen[p.label] = p
+        T.truthy(p.region:IsVisible(), p.label .. " shows")
+        for _, k in ipairs(p.keys) do T.truthy(keys[k], p.label .. ": " .. k) end
+    end
+    T.eq(#s.missing, 0, table.concat(s.missing, ", "))
+    for _, label in ipairs({ "Health bar", "Power bar", "Health text", "Power text", "Combo points", "Debuffs", "Buffs" }) do
+        T.truthy(seen[label], label)
+    end
+    T.eq(seen["Health bar"].size.keys.w, "personal.width")
+    T.eq(seen["Health bar"].size.keys.h, "personal.height")
+    T.eq(seen["Power bar"].size.keys.h, "personal.powerHeight")
+    T.eq(seen["Buffs"].move.spotKey, "personal.auras.buffSpot")
+    T.eq(seen["Combo points"].move.xKey, "personal.comboX")
+end)
+
+T.test("preview: nothing runs while it sits there", function()
+    local DUI, ns = login("ROGUE", "ENERGY")
+    local s = pageSample(ns)
+    local function walk(f)
+        T.isnil(f:GetScript("OnUpdate"), "no per-frame work")
+        for _, child in ipairs({ f:GetChildren() }) do walk(child) end
+    end
+    walk(s.frame)
+    stub.units.player.health = 20
+    stub.FireEvent("UNIT_HEALTH", "player")
+    T.eq(stub.Plain(s.p.healthBar.__value), ns.Personal.SAMPLE.health, "the sample stands still")
+end)
+
+T.test("preview: thin bars, so it starts zoomed in, never past its room", function()
+    local _, ns = login()
+    local s = pageSample(ns, 600, 160)
+    T.eq(s.Zoom(), ns.PageSample.PERSONAL_ZOOM)
+    T.near(s.p:GetScale(), ns.PageSample.PERSONAL_ZOOM, 0.01)
+    s.Refresh(200, 160)
+    T.truthy(s.p:GetWidth() * s.p:GetScale() <= 200, "a narrow room shrinks it")
+end)

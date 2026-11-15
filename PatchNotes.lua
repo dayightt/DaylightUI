@@ -18,10 +18,12 @@ DUI.PatchNotes = {
             { "Bags", "Item tooltips show how many of that item each of your characters has, in their bags and bank" },
             { "Bags", "While you search, one button moves everything that matches to the bank, mail, trade window or vendor" },
             { "Bags", "Bring your Baganator categories over as bag groups" },
+            { "Unit frames", "The player frame can stay shown while your mana refills and fade once it's full (Player > Opacity & fade)" },
             { "Quests", "With GatherMate2, the quest arrow can point you to a herb or ore node close by, then back to your quest (Quest Tracker > Navigation)" },
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
         },
         changed = {
+            { "Unit frames", "The Personal Display page has a live preview at the top, like the other frame pages, so you can see your changes" },
             { "Bags", "The bags and bank have a fresh, calmer look: groups sit in tidy rows you can fold and color, and items glide into place when you loot, sort or sell" },
             { "Window skins", "The flight map's title and close button line up like every other window, with even room round the map" },
             { "Window skins", "The New Recipe Learned pop-up has the Daylight UI look" },
