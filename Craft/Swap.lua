@@ -12,7 +12,7 @@ local Swap = {}
 ns.Swap = Swap
 
 Swap.ICON = "ui-swap.png"
-Swap.H = 20   -- the button on the game's window, as tall as its close button
+Swap.GAP = 10   -- between the link on the game's window and its X
 
 -- Daylight UI's window is the one to use (DaylightMogul's, when that's in use,
 -- leaves this off).
@@ -53,11 +53,12 @@ end
 function Swap.Button()
     local g = game()
     if Swap.button or not g or DUI.craftMogul then return end
-    local b = DUI.Widgets.Button(g, L["Daylight UI window"], Swap.H)
-    b:SetWidth(math.ceil(b.text and b.text:GetStringWidth() or 120) + 24)
+    -- Quiet words beside the X: a boxed button was taller than the header.
+    local b = DUI.Widgets.Link(g, DUI.Style.SIZE.small)
+    b.SetLabel(L["Daylight UI window"])
     local close = type(g.CloseButton) == "table" and g.CloseButton
-    if close then b:SetPoint("RIGHT", close, "LEFT", -6, 0)
-    else b:SetPoint("TOPRIGHT", g, "TOPRIGHT", -32, -2) end
+    if close then b:SetPoint("RIGHT", close, "LEFT", -Swap.GAP, 0)
+    else b:SetPoint("TOPRIGHT", g, "TOPRIGHT", -32, -4) end
     b:SetFrameLevel(g:GetFrameLevel() + 510)   -- above the game's pages (level 100)
     b:SetScript("OnClick", function() Swap.Use(true) end)
     b:HookScript("OnEnter", tip)
