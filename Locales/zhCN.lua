@@ -7052,3 +7052,9 @@ L["Twinkle"] = "闪烁"
 L["Use Daylight UI's window from now on. The button in its header brings this one back."] = "从现在起使用 Daylight UI 的窗口。其标题栏中的按钮可恢复此窗口。"
 L["Use the game's own window"] = "使用游戏自带的窗口"
 L["What fills the card behind the name: the 3D model, the face, or the class icon (NPCs show their face). None leaves only the unit's colors."] = "名称背后卡片中显示的内容：3D 模型、头像或职业图标（NPC 显示其头像）。选择“无”则仅保留单位颜色。"
+
+-- DaylightUI translations from AI translation.
+L["Right-click: your alts"] = "右键点击：你的小号"
+L["Show the bag's header"] = "显示背包标题栏"
+L["The bag's picture, name and free slots above the search box. Off, the search box sits at the top with a small bank button next to the close button, and you drag the window by any empty spot."] = "搜索框上方的背包图案、名称和空余格数。关闭时，搜索框位于顶部，关闭按钮旁有一个小银行按钮，你可以通过任意空白处拖动窗口。"
+L["Your bank, from anywhere."] = "随时随地查看你的银行。"
