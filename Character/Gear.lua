@@ -21,10 +21,16 @@ function Gear.UsesAmmo(unit)
     return type(UnitUsesAmmo) == "function" and UnitUsesAmmo(unit or "player") == true
 end
 
-Gear.LABEL = { Head = L["Head"], Neck = L["Neck"], Shoulder = L["Shoulders"], Back = L["Back"], Chest = L["Chest"], Shirt = L["Shirt"],
-    Tabard = L["Tabard"], Wrist = L["Wrists"], Hands = L["Hands"], Waist = L["Waist"], Legs = L["Legs"], Feet = L["Feet"],
-    Finger0 = L["Ring"], Finger1 = L["Ring"], Trinket0 = L["Trinket"], Trinket1 = L["Trinket"], MainHand = L["Main hand"],
-    SecondaryHand = L["Off hand"], Ranged = L["Ranged"], Ammo = L["Ammo"] }
+-- The character window's own slot names (the game's globals), so each language says what
+-- the game says; our own text is the fallback.
+Gear.LABEL = { Head = HEADSLOT or L["Head"], Neck = NECKSLOT or L["Neck"], Shoulder = SHOULDERSLOT or L["Shoulders"],
+    Back = BACKSLOT or L["Back"], Chest = CHESTSLOT or L["Chest"], Shirt = SHIRTSLOT or L["Shirt"],
+    Tabard = TABARDSLOT or L["Tabard"], Wrist = WRISTSLOT or L["Wrists"], Hands = HANDSSLOT or L["Hands"],
+    Waist = WAISTSLOT or L["Waist"], Legs = LEGSSLOT or L["Legs"], Feet = FEETSLOT or L["Feet"],
+    Finger0 = FINGER0SLOT or L["Ring"], Finger1 = FINGER1SLOT or L["Ring"],
+    Trinket0 = TRINKET0SLOT or L["Trinket"], Trinket1 = TRINKET1SLOT or L["Trinket"],
+    MainHand = MAINHANDSLOT or L["Main hand"], SecondaryHand = SECONDARYHANDSLOT or L["Off hand"],
+    Ranged = RANGEDSLOT or L["Ranged"], Ammo = AMMOSLOT or L["Ammo"] }
 
 -- Shirt and tabard say what they are instead of an item level.
 Gear.NO_LEVEL = { Shirt = true, Tabard = true }

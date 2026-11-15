@@ -313,7 +313,7 @@ function CharacterPage.BuildFooter(page)
     foot.dura:SetPoint("LEFT", foot.level, "RIGHT", 24, 0)
     foot.dura:SetTextColor(D[1], D[2], D[3])
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
-    sets:SetWidth(124)
+    sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
     sets:SetScript("OnClick", function(self) if ns.Menus then ns.Menus.Sets(self) end end)
     foot.sets = sets

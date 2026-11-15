@@ -32,9 +32,9 @@ DT.ICON_GAP = 5
 DT.GAIN = DUI.Style.INK.MONEY  -- color while gold counts up
 
 -- Slots the durability text checks, with the character window's names.
-DT.GEAR = { { 1, L["Head"] }, { 3, L["Shoulders"] }, { 5, L["Chest"] }, { 6, L["Waist"] }, { 7, L["Legs"] },
-            { 8, L["Feet"] }, { 9, L["Wrists"] }, { 10, L["Hands"] }, { 16, L["Main hand"] }, { 17, L["Off hand"] },
-            { 18, L["Ranged"] } }
+DT.GEAR = { { 1, HEADSLOT or L["Head"] }, { 3, SHOULDERSLOT or L["Shoulders"] }, { 5, CHESTSLOT or L["Chest"] }, { 6, WAISTSLOT or L["Waist"] }, { 7, LEGSSLOT or L["Legs"] },
+            { 8, FEETSLOT or L["Feet"] }, { 9, WRISTSLOT or L["Wrists"] }, { 10, HANDSSLOT or L["Hands"] }, { 16, MAINHANDSLOT or L["Main hand"] }, { 17, SECONDARYHANDSLOT or L["Off hand"] },
+            { 18, RANGEDSLOT or L["Ranged"] } }
 DT.BAGS = { 0, 1, 2, 3, 4 }
 -- Thresholds where durability (percent) and free bag slots turn amber, then red.
 DT.GEAR_WARN, DT.GEAR_BAD = 50, 20
