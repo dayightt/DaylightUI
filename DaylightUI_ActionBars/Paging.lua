@@ -162,18 +162,20 @@ Paging.ON_STATE = [[
     end
     self:SetAttribute("actionpage", page)
     self:ChildUpdate("page", page)
-    -- Only a real change: a page written from addon code keeps its taint, and the
-    -- game's buttons work out their slot from it, so a needless write left their
-    -- cooldown update unable to take a fight's secret times.
-    local twin = self:GetFrameRef("game-twin")
-    if twin and tonumber(twin:GetAttribute("actionpage")) ~= page then twin:SetAttribute("actionpage", page) end
-    -- Bar 1's: on each of the game's hidden buttons too, which read their
-    -- own page before their bar's, so the game's own (stale) bar 1 write
-    -- can't change what a key casts.
+    -- The page a key casts from goes on each of the game's hidden buttons, which
+    -- read their own page before their bar's. Not on the game's bar: it holds no
+    -- protected button, so a handle to it is refused in a fight. Bar 1's always
+    -- (the game's own stale bar 1 write can't change what a key casts). Bars 2-8
+    -- only while paged away from the bar's own page, so a bar with no paging
+    -- writes nothing on them. Only a real change: a page written from addon code
+    -- keeps its taint.
+    local base = self:GetAttribute("dui-twinpage")
+    local want = page
+    if base and page == base then want = nil end
     for i = 1, 12 do
         local b = self:GetFrameRef("game-btn" .. i)
         if not b then break end
-        if tonumber(b:GetAttribute("actionpage")) ~= page then b:SetAttribute("actionpage", page) end
+        if tonumber(b:GetAttribute("actionpage")) ~= want then b:SetAttribute("actionpage", want) end
     end
 ]]
 
@@ -237,6 +239,14 @@ local function makeHoldButtons(h)
     end
 end
 
+-- The game's hidden buttons a bar's page goes on (Paging.ON_STATE).
+local function twinRefs(h, prefix)
+    for i = 1, 12 do
+        local b = _G[prefix .. i]
+        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
+    end
+end
+
 local function holdPages()
     for _, hb in ipairs(holdButtons) do hb.button:SetAttribute("dui-page", Paging.HoldPage(hb.bonus)) end
 end
@@ -246,11 +256,7 @@ end
 function Paging.Setup(h, buttons)
     holder = h
     makeHoldButtons(h)
-    if type(MainActionBar) == "table" then h:SetFrameRef("game-twin", MainActionBar) end
-    for i = 1, 12 do
-        local b = _G["ActionButton" .. i]
-        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
-    end
+    twinRefs(h, "ActionButton")
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.Apply()
@@ -342,10 +348,13 @@ function Paging.BarRule(def)
     return table.concat(parts, "; ")
 end
 
--- At build: the same snippets as bar 1, onto the bar's own twin.
+-- At build: the same snippets as bar 1, onto the bar's own twin buttons, which
+-- fall back to the bar's fixed page.
 function Paging.SetupBar(def, h, buttons)
-    local twin = def.twin and _G[def.twin]
-    if type(twin) == "table" then h:SetFrameRef("game-twin", twin) end
+    if def.twinPrefix then
+        twinRefs(h, def.twinPrefix)
+        h:SetAttribute("dui-twinpage", def.page)
+    end
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.ApplyBar(def, h)

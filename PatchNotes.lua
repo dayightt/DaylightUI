@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
+            { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat during a fight, on any bar" },
             { "Setup", "Moved frames and changed settings no longer go back to the default every time you log out when you skipped the setup guide, and the guide stops popping up once you have" },
         },
     },

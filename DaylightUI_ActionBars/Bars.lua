@@ -552,13 +552,15 @@ function Bars.Span(buttons)
     return (left + right) / 2 - UIParent:GetWidth() / 2, (bottom + top) / 2 - UIParent:GetHeight() / 2
 end
 
--- A bar's hidden game buttons (its twins), up to its button count.
+-- Where the game lays out a bar's hidden buttons (its twins), up to its button
+-- count. The twins themselves sit under the parking frame (Park.Twins), so this
+-- reads the slot each one came from: its container, which Edit Mode places.
 function Bars.GameButtons(def)
     local out = {}
     if not def.twinPrefix then return out end
     for i = 1, Bars.KINDS[def.kind].Count(def, Bars.Config(def)) do
         local b = _G[def.twinPrefix .. i]
-        if type(b) == "table" then out[#out + 1] = b end
+        if type(b) == "table" then out[#out + 1] = type(b.container) == "table" and b.container or b end
     end
     return out
 end
