@@ -47,39 +47,32 @@ function Win.Lines(f, height)
     f.rule:SetVertexColor(1, 1, 1, 0.06)
 end
 
--- A one-shot flare around the portrait as a window opens. Uses the game's
--- spell alert flipbooks (ActionButtonSpellAlerts.xml): the burst, then the
--- spinning ring, desaturated and tinted with the accent, then fading out.
--- It plays once so it never reads as an alert. Alpha is stepped by
--- Motion.Tween, not an animation group. No flare with motion off.
-Win.GLOW_START = "UI-HUD-ActionBar-Proc-Start-Flipbook"
-Win.GLOW_LOOP = "UI-HUD-ActionBar-Proc-Loop-Flipbook"
-Win.GLOW_START_SIZE = 2.6   -- times the portrait size (the game uses 150 on a 45 button)
-Win.GLOW_LOOP_SIZE = 1.4    -- times the portrait size, same ratio as the game
-Win.GLOW_START_TIME = 0.7   -- same as the game
-Win.GLOW_HOLD = 1.1         -- seconds the ring spins before fading
+-- A one-shot flare around the portrait as a window opens: a soft halo on the
+-- portrait's rim, and embers that fly out and then circle the rim, flickering,
+-- before everything fades. All of it is round like the portrait (the game's spell alert
+-- flipbooks are square, made for action buttons), tinted with the accent, a
+-- gradient accent running around the circle. It plays once so it never reads as
+-- an alert. Stepped by Motion.Tween, not an animation group. No flare with
+-- motion off.
+Win.GLOW_TEXTURE = DUI.MEDIA .. "cursor-ring-glow.png"
+Win.EMBER_TEXTURE = DUI.MEDIA .. "glow.png"
+-- The halo art peaks at a quarter of its width, so 2.3 times the portrait puts
+-- the ring on the portrait's rim.
+Win.GLOW_HALO_SIZE = 2.3    -- the halo's size, times the portrait size
+Win.GLOW_TIME = 1.8         -- seconds the halo and the embers stay before fading
+Win.GLOW_HALO_ALPHA = 0.7
+Win.EMBERS = 14             -- how many
+Win.EMBER_TURNS = 2         -- laps round the rim over the whole flare
+Win.EMBER_REACH = 14        -- how far past the rim they fly out to start, in pixels
+Win.EMBER_SIZE = 12         -- the biggest ember, in pixels
 
-local function flipbook(g, tex, dur, looping)
-    local ag = g:CreateAnimationGroup()
-    if looping then ag:SetLooping("REPEAT") end
-    local fb = ag:CreateAnimation("FlipBook")
-    fb:SetTarget(tex)
-    fb:SetDuration(dur)
-    fb:SetFlipBookRows(6)
-    fb:SetFlipBookColumns(5)
-    fb:SetFlipBookFrames(30)
-    fb:SetFlipBookFrameWidth(0)
-    fb:SetFlipBookFrameHeight(0)
-    return ag
-end
-
-local function glowTexture(g, p, atlas, size)
+local function glowTexture(g, p, size, file)
     local t = g:CreateTexture(nil, "OVERLAY")
-    t:SetAtlas(atlas)
-    t:SetDesaturated(true)   -- the art is gold; desaturate so the accent tint comes out true
+    t:SetTexture(file or Win.GLOW_TEXTURE)
     t:SetBlendMode("ADD")
     t:SetSize(Win.PORTRAIT * size, Win.PORTRAIT * size)
     t:SetPoint("CENTER", p, "CENTER", 0, 0)
+    t:SetAlpha(0)
     return t
 end
 
@@ -87,12 +80,15 @@ function Win.MakeGlow(f, p)
     local g = CreateFrame("Frame", nil, f)
     g:SetAllPoints(f)
     g:SetFrameLevel(f:GetFrameLevel() + 8)
-    g.start = glowTexture(g, p, Win.GLOW_START, Win.GLOW_START_SIZE)
-    g.loop = glowTexture(g, p, Win.GLOW_LOOP, Win.GLOW_LOOP_SIZE)
-    g.startAnim = flipbook(g, g.start, Win.GLOW_START_TIME, false)
-    g.loopAnim = flipbook(g, g.loop, 1, true)
-    g.startAnim:SetScript("OnFinished", function() g.start:SetAlpha(0) end)
-    g.hold = {}
+    g.portrait = p
+    g.halo = glowTexture(g, p, Win.GLOW_HALO_SIZE)
+    g.embers = {}
+    for i = 1, Win.EMBERS do
+        local e = glowTexture(g, p, 1, Win.EMBER_TEXTURE)
+        e:SetSize(Win.EMBER_SIZE, Win.EMBER_SIZE)
+        g.embers[i] = e
+    end
+    g.orbit = {}
     g:SetAlpha(0)
     g:Hide()
     return g
@@ -109,28 +105,58 @@ local function paintGlow(t)
 end
 
 local function stopGlow(g)
-    g.startAnim:Stop()
-    g.loopAnim:Stop()
+    g.halo:SetAlpha(0)
+    for _, e in ipairs(g.embers) do e:SetAlpha(0) end
     g:SetAlpha(0)
     g:Hide()
 end
 
--- Plays the flare once, if there is a portrait and motion is on.
-function Win.Glow(f)
-    local g = f.portraitGlow
-    if not g or not (DUI.Motion and DUI.Motion.On()) or not f.portrait:IsShown() then return end
+-- The embers at time t (0 to 1) of the flare: out past the rim at first, then
+-- drawn in to it, each on its own lap, flickering, and shrinking a little.
+local function placeEmbers(g, t)
+    local lo, hi = Style.AccentPair()
+    local rim = Win.PORTRAIT / 2 + 4
+    local out = Win.EMBER_REACH * (1 - t) * (1 - t)
+    local n = #g.embers
+    for i, e in ipairs(g.embers) do
+        local angle = (i - 1) * 2 * math.pi / n + Win.EMBER_TURNS * 2 * math.pi * t
+        local r = rim + out + 3 * math.sin(angle * 3 + i)
+        e:ClearAllPoints()
+        e:SetPoint("CENTER", g.portrait, "CENTER", r * math.cos(angle), r * math.sin(angle))
+        local size = Win.EMBER_SIZE * (0.55 + 0.45 * ((i % 3) / 2)) * (1 - 0.35 * t)
+        e:SetSize(size, size)
+        local flicker = 0.5 + 0.5 * math.sin(t * 16 + i * 1.7)
+        e:SetAlpha(0.45 + 0.55 * flicker)
+        if lo then
+            -- A gradient accent runs round the circle: the low end on the left.
+            local k = 0.5 + 0.5 * math.cos(angle)
+            e:SetVertexColor(lo[1] + (hi[1] - lo[1]) * k, lo[2] + (hi[2] - lo[2]) * k, lo[3] + (hi[3] - lo[3]) * k, 1)
+        end
+    end
+end
+
+-- Plays a flare made by Win.MakeGlow once, over its portrait, if motion is on.
+-- Also for a game window that wears our look (the guild window's club icon).
+function Win.PlayGlow(g, portrait)
+    if not g or not portrait or not (DUI.Motion and DUI.Motion.On()) or not portrait:IsShown() then return end
+    local general = DUI.DB and DUI.DB.General and DUI.DB.General()
+    if general and general.portraitFlare == false then return end
     local Motion = DUI.Motion
-    paintGlow(g.start)
-    paintGlow(g.loop)
-    g.startAnim:Stop()
-    g.start:SetAlpha(1)
+    paintGlow(g.halo)
+    if not Style.AccentPair() then
+        for _, e in ipairs(g.embers) do e:SetVertexColor(Style.Accent()) end
+    end
+    g.halo:SetAlpha(Win.GLOW_HALO_ALPHA)
     g:Show()
-    g.startAnim:Play()
-    g.loopAnim:Play()
     Motion.Tween(g, 0, 1, Motion.FAST, function(a) g:SetAlpha(a) end)
-    Motion.Tween(g.hold, 0, 1, Win.GLOW_HOLD, nil, function()
+    Motion.Tween(g.orbit, 0, 1, Win.GLOW_TIME, function(t) placeEmbers(g, t) end, function()
         Motion.Tween(g, 1, 0, Motion.SLOW, function(a) g:SetAlpha(a) end, function() stopGlow(g) end)
     end)
+end
+
+-- Plays the flare once, if there is a portrait and motion is on.
+function Win.Glow(f)
+    Win.PlayGlow(f.portraitGlow, f.portrait)
 end
 
 -- The shared window header, also used by the character window and bags.

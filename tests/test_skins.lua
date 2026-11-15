@@ -3413,6 +3413,67 @@ T.test("skins: the guild window keeps its icon in the header; maximize and minim
     T.eq(select(4, overlay.Portrait:GetPoint(1)), DaylightUI.Win.EDGE, "a new display mode puts the icon back in the header")
 end)
 
+-- The accent flare our own windows play around their portrait as they open
+-- (spells, professions). The guild window's club icon gets it too, every time
+-- the window shows, from its OnShow script, a frame later.
+T.test("skins: the guild window's club icon plays the same flare each time it opens, and not with motion off", function()
+    local f, overlay
+    login(function()
+        f = guildWindow()
+        overlay = CreateFrame("Frame", nil, f)
+        overlay:SetFrameLevel(300)   -- CommunitiesFrame.xml: the icon frame's own level
+        for _, k in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
+            overlay[k] = overlay:CreateTexture()
+        end
+        f.PortraitOverlay = overlay
+        stub.loadedAddOns.Blizzard_Communities = true
+        registry(f, { "ClubSelected", "DisplayModeChanged" })
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local glow
+    for _, child in ipairs({ f:GetChildren() }) do
+        if child.halo and child.embers then glow = child end
+    end
+    T.truthy(glow, "a flare is made once for the icon")
+    local function settle()
+        for _ = 1, 90 do
+            local m = DaylightUI.Motion.Driver()
+            if m then stub.RunOnUpdate(m, 1 / 30) end
+        end
+    end
+    T.eq(glow:IsShown(), false, "nothing before the window shows")
+    f:Hide(); f:Show()
+    T.eq(glow:IsShown(), false, "a frame after the show, once the icon is in place")
+    stub.RunTimers()
+    T.eq(glow:IsShown(), true, "the flare plays")
+    T.truthy(glow:GetFrameLevel() > overlay:GetFrameLevel(), "over the game's icon, not hidden behind it")
+    T.truthy(glow.halo:GetAlpha() > 0, "the halo shows")
+    settle()
+    T.eq(glow:IsShown(), false, "once, then gone: never a standing alert")
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(glow:IsShown(), true, "again on the next open")
+    settle()
+    local count = 0
+    for _, child in ipairs({ f:GetChildren() }) do
+        if child.halo and child.embers then count = count + 1 end
+    end
+    T.eq(count, 1, "still the one flare")
+    -- A guild is selected: the game hides the club's icon and shows the tabard in
+    -- its place (UpdatePortrait). The flare plays round the tabard.
+    overlay.Portrait:Hide()
+    overlay.TabardEmblem:Show()
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(glow:IsShown(), true, "a guild's tabard gets the flare too")
+    settle()
+    overlay.TabardEmblem:Hide(); overlay.TabardBackground:Hide()
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(glow:IsShown(), false, "nothing of the icon showing: no flare")
+    overlay.Portrait:Show()
+    DaylightUI.DB.General().motion = false
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(glow:IsShown(), false, "motion off: no flare")
+end)
+
 T.test("skins: with no community the join action sits under the guild text", function()
     local f, disabled
     login(function()

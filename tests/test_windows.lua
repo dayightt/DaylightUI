@@ -377,12 +377,39 @@ T.test("windows: the portrait's ring is the warm band, and the accent flare play
     Win.AddPage(f, "a", { Build = function() end })
     Win.ShowPage(f, "a"); Win.Open(f)
     local glow = f.portraitGlow
+    T.eq(glow.halo:GetTexture(), DUI.MEDIA .. "cursor-ring-glow.png", "a round halo, not the game's square flipbooks")
+    T.eq(glow.halo:GetWidth(), glow.halo:GetHeight(), "as wide as it is tall")
     T.eq(glow:IsShown(), true)
-    T.eq(glow.loopAnim:IsPlaying(), true, "the flames turn")
+    T.eq(glow.wave, nil, "no ring spreading out: the halo and the embers only")
+    T.eq(glow.halo:GetAlpha(), DUI.Win.GLOW_HALO_ALPHA, "the halo sits on the rim")
+    -- Embers fly out and circle the rim: always the same distance from the
+    -- portrait's centre as the others on their lap, never in a square.
+    T.eq(#glow.embers, DUI.Win.EMBERS, "a ring of embers")
+    local function spot(e)
+        local _, _, _, x, y = e:GetPoint(1)
+        return x, y, math.sqrt(x * x + y * y)
+    end
+    local x1, y1 = spot(glow.embers[1])
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.3)
+    local x2, y2 = spot(glow.embers[1])
+    T.truthy(x1 ~= x2 or y1 ~= y2, "they circle")
+    local lo, hi = 1e9, 0
+    for _, e in ipairs(glow.embers) do
+        local _, _, r = spot(e)
+        lo, hi = math.min(lo, r), math.max(hi, r)
+        T.truthy(e:GetAlpha() > 0, "lit")
+    end
+    T.truthy(hi - lo < 10, "all about one distance out: a circle, not a square")
+    T.truthy(lo > DUI.Win.PORTRAIT / 2, "outside the portrait")
     settle(Win)
     T.eq(glow:IsShown(), false, "once, then gone: never a standing alert")
-    T.eq(glow.loopAnim:IsPlaying(), false)
+    T.eq(glow.halo:GetAlpha(), 0)
+    for _, e in ipairs(glow.embers) do T.eq(e:GetAlpha(), 0, "embers out") end
     Win.Close(f); settle(Win)
+    DUI.DB.General().portraitFlare = false
+    Win.Open(f)
+    T.eq(glow:IsShown(), false, "its own switch off: no flare, the rest of the motion stays")
+    DUI.DB.General().portraitFlare = true
     DUI.DB.General().motion = false
     Win.Open(f)
     T.eq(glow:IsShown(), false, "motion off: no flare")
