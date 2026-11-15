@@ -162,11 +162,21 @@ end
 -- A copy of just the hovered link, placed at the mouse, covered half of it and
 -- went away with every new line, so clicks often missed it.
 --
--- Names, channels and the links the box handles itself are left as plain words
--- in the twin: the frame takes no mouse, so a click there falls through to the
--- box, whose handlers for those want a chat window.
-Links.OWN = { player = true, BNplayer = true, playerCommunity = true, BNplayerCommunity = true,
-    channel = true, clubTicket = true, questie = true, addon = true }
+-- Names go through the twin too: a name's right-click menu opened from the box's
+-- own click carried Daylight UI's taint, and the game then blocked its Copy
+-- Character Name. Channels and the links the box handles itself are left as
+-- plain words in the twin: the frame takes no mouse, so a click there falls
+-- through to the box, whose handlers for those want a chat window.
+Links.OWN = { channel = true, clubTicket = true, questie = true, addon = true }
+
+-- Shift-click on a name asks the game's /who; its answer belongs on the tab you
+-- asked from, so the box is told (it can't see the game's own click).
+local NAMES = { player = true, playerCommunity = true }
+function Links.NameClicked(link)
+    if type(link) ~= "string" or secret(link) then return end
+    local kind = string.match(link, "^(%a+):")
+    if NAMES[kind] and IsModifiedClick and IsModifiedClick("CHATLINK") and ns.Box then ns.Box.Asked() end
+end
 
 local mirrors = {} -- box -> its twin frame (false if the template is missing)
 
@@ -202,7 +212,10 @@ local function makeMirror(box)
     f:SetScript("OnHyperlinkLeave", function() ns.LinkTips.OnLeave(box) end)
     -- After the game's own click: a hidden message shown (or one of yours
     -- rewritten) changed only the game's windows, so the box copies it.
-    f:HookScript("OnHyperlinkClick", function(_, link) DUI.SafeCall(Links.Censored, link) end)
+    f:HookScript("OnHyperlinkClick", function(_, link)
+        DUI.SafeCall(Links.Censored, link)
+        DUI.SafeCall(Links.NameClicked, link)
+    end)
     mirrors[box] = f
     return f
 end
