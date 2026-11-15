@@ -7,25 +7,8 @@
 -- plates: a case ("defaults", or "<piece>@<spot>"), "<case>|<piece>", or
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
-local BACK = "back where it sat before 1.8.0: the big defensive icon added then pushed it out"
-local ROWS = "aura rows back as they were before 1.8.0 for players who had them (upgrade step 19)"
 return {
-    values = {
-        ["UnitFrames.targetAuras.buffSpot"] = ROWS,
-        ["UnitFrames.targetAuras.buffGrow"] = ROWS,
-        ["UnitFrames.targetAuras.buffRows"] = ROWS,
-        ["UnitFrames.targetAuras.debuffRows"] = ROWS,
-        ["UnitFrames.playerAuras.debuffGrow"] = ROWS,
-        ["UnitFrames.personal.auras.debuffGrow"] = ROWS,
-        ["UnitFrames.personal.auras.buffGrow"] = ROWS,
-    },
+    values = {},
     frames = {},
-    plates = {
-        ["*|execIcon"] = BACK,
-        ["level@outright"] = BACK,
-        ["name@outright"] = BACK,
-        ["percent@outright"] = BACK,
-        ["threatPct@outright"] = BACK,
-        ["defensives@outtopleft"] = "the threat % stays by the bar, the big defensive goes past it",
-    },
+    plates = {},
 }
