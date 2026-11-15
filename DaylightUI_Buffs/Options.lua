@@ -352,6 +352,44 @@ local function attachItem(debuff)
             .. ", following it as the minimap or damage meter changes size. Turn it off to move the bar yourself in unlock mode." }
 end
 
+-- The aura lists live in the Unit Frames module: with it off there are none to
+-- pick, so the list rows hide.
+local NEW = "1.8.3"
+local function noLists() return not DUI.AuraLists end
+local function listChoices(mode)
+    return function()
+        if DUI.AuraLists then return DUI.AuraLists.Choices(mode) end
+        return { none = "None" }, { "none" }
+    end
+end
+
+local function filterItems(debuff)
+    if debuff then
+        local p = "settings.debuff."
+        return {
+            { type = "dropdown", key = p .. "filter", label = "Debuff filter", since = NEW,
+              values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
+              desc = "Every debuff on you, or only the ones your class can remove." },
+            { type = "dropdown", key = p .. "hideList", label = "Hide list", since = NEW,
+              choices = listChoices("hide"), hidden = noLists,
+              desc = "Debuffs on this list never show here. The game only lets addons hide a few harmless debuffs on you, like Sated; the Aura Lists page marks which. Make and fill lists on Unit Frames > Aura Lists." },
+            { type = "toggle", key = p .. "bossOnly", label = "Only boss debuffs", since = NEW,
+              desc = "Shows only the debuffs a boss puts on you, the ones a fight is about." },
+            { type = "slider", key = p .. "maxTime", label = "Longest debuff shown", since = NEW,
+              min = 0, max = 600, step = 5,
+              desc = "Leaves out debuffs that last longer than this many seconds, and ones that never run out, like long curses and Resurrection Sickness. 0 shows them all." },
+        }
+    end
+    return {
+        { type = "dropdown", key = "settings.hideList", label = "Hide list", since = NEW,
+          choices = listChoices("hide"), hidden = noLists,
+          desc = "The buffs on this list never show here. Make and fill lists on Unit Frames > Aura Lists." },
+        { type = "dropdown", key = "settings.onlyList", label = "Show only list", since = NEW,
+          choices = listChoices("only"), hidden = noLists,
+          desc = "Shows only the buffs on this list. An empty list shows them all. Make and fill lists on Unit Frames > Aura Lists." },
+    }
+end
+
 local PREVIEW = { type = "button", label = "Preview",
     text = function() return BL.Preview.Active() and "Hide" or "Show" end,
     desc = "Fills the bar with a sample of every buff it knows, sorted and colored as they would be.",
@@ -365,6 +403,7 @@ BL.OPTIONS = { pages = {
       groups = {
         { label = "Bar", items = barItems(false) },
         { label = "Position", items = { attachItem(false) } },
+        { label = "Filter", desc = "Which buffs show, from the lists on Unit Frames > Aura Lists.", items = filterItems(false) },
         { label = "Text", desc = "Applies to both the buff and debuff bars.", items = {
             { type = "toggle", key = "settings.showTimers", label = "Show time left",
               desc = "How long each buff and debuff has left, on its icon." },
@@ -416,6 +455,7 @@ BL.OPTIONS = { pages = {
       groups = {
         { label = "Bar", items = barItems(true) },
         { label = "Position", items = { attachItem(true) } },
+        { label = "Filter", desc = "Which debuffs show on this bar.", items = filterItems(true) },
         { label = "Boss debuffs",
           desc = "Some boss abilities put debuffs on you that addons can't see. The game draws them itself, in a row under your debuffs.",
           items = {

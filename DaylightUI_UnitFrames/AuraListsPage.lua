@@ -168,7 +168,7 @@ local page = { id = "auralists", label = "Aura Lists",
     desc = "Lists of buffs and debuffs every frame can hide or show only, like other UIs' blacklists and whitelists.",
     groups = {
         { label = "Edit a list",
-          desc = "A hide list leaves its spells off every aura row that picks it; Hidden is picked everywhere until you change it. A show-only list makes a row show nothing else. Each frame's Buffs and Debuffs cards pick the lists they use.",
+          desc = "A hide list leaves its spells off every aura row that picks it; Hidden is picked everywhere until you change it. A show-only list makes a row show nothing else. Each frame's Buffs and Debuffs cards pick the lists they use, and so do the buff and debuff bars (Buffs > Filter).",
           items = {
             { type = "dropdown", label = "List", since = "1.8.1",
               desc = "Which list the spells below belong to.",

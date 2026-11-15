@@ -113,7 +113,14 @@ BL.DEFAULTS = {
         -- On a ready check, or entering a dungeon or raid in a group, show
         -- the group buffs you're missing for this many seconds (Reminder.lua).
         reminder = { enabled = true, seconds = 10 },
+        -- Aura lists from Unit Frames > Aura Lists ("none" = no list): one to
+        -- hide, one to show only.
+        hideList = "none", onlyList = "none",
         debuff = {
+            -- Every debuff or only the ones you can dispel (all | dispel), a
+            -- list to hide, only a boss's, and the longest shown in seconds
+            -- (0 = any).
+            filter = "all", hideList = "none", bossOnly = false, maxTime = 0,
             iconSize = 36,
             borderPx = 2,
             spacing = 3,

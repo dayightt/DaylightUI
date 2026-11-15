@@ -248,6 +248,7 @@ function BarMixin:Create()
     end
     self.frame = c
     self.groups = {}        -- [groupKey] = true once registered with the container
+    self.refused = {}       -- [groupKey] = true when the client refused its filter
     self.buttons = {}       -- [groupKey] = { button, ... } created by the client for that group
     self.consolidated = {}  -- [groupKey] = true while the group is collapsed to one icon
     self.memberCounts = {}  -- [groupKey] = n, refreshed whenever auras are readable
@@ -352,18 +353,7 @@ function BarMixin:ApplyGroups()
     if not c then return end
     self:InvalidateMembers()
     if self:IsDebuff() then
-        if not self.groups.debuffs then
-            local ok, err = pcall(c.AddAuraGroup, c, "debuffs", "HARMFUL", {
-                candidateFilters = { excludeSpellIDs = BL.QUIET_DEBUFFS },
-                sortMethod = AuraContainerSortMethod.ExpirationOnly,
-                sortDirection = AuraContainerSortDirection.Normal,
-                layout = self:GroupLayout(1),
-                initializeFrame = function(btn) self:InitButton(btn, "debuffs") end,
-            })
-            if ok then self.groups.debuffs = true else BL.Print("Debuff group failed: " .. tostring(err)) end
-        else
-            pcall(c.SetAuraGroupLayout, c, "debuffs", self:GroupLayout(1))
-        end
+        self:ApplyDebuffGroups()
         self:Restyle()
         return
     end
@@ -383,12 +373,7 @@ function BarMixin:ApplyGroups()
         -- into it.
         if id == ENCHANT_KEY then self.weaponLayoutDirty = true end
         if cat then
-            local filters
-            if id == "other" then
-                filters = { excludeSpellIDs = sets.categorised }
-            else
-                filters = { includeSpellIDs = sets.byCategory[id] or {} }
-            end
+            local filters = BL.Auras.BuffFilters(id, sets)
             local collapsed = Layout.ConsolidateAllowed(cat, settings, state)
             local max = cat.hidden and 0 or (collapsed and 1 or math.huge)
             self.consolidated[id] = (collapsed and not cat.hidden) or nil
@@ -419,6 +404,55 @@ function BarMixin:ApplyGroups()
     end
     self:Restyle()
     self:RefreshCounts()
+end
+
+-- The debuff bar's two groups: every debuff, and only the ones you can dispel.
+-- A group's filter can't change once it's added, so the filter setting picks
+-- which one shows and the other is held at none. The dispel group is added the
+-- first time it's picked; a client that refuses it keeps showing every debuff.
+local DEBUFF_FILTERS = { debuffs = "HARMFUL", dispel = BL.Auras.DISPEL_FILTER }
+
+function BarMixin:ApplyDebuffGroups()
+    local c = self.frame
+    local cand = BL.Auras.DebuffFilters()
+    local want = BL.Auras.DebuffGroup()
+    local function add(key)
+        if self.groups[key] or self.refused[key] then return end
+        local ok, err = pcall(c.AddAuraGroup, c, key, DEBUFF_FILTERS[key], {
+            candidateFilters = cand,
+            sortMethod = AuraContainerSortMethod.ExpirationOnly,
+            sortDirection = AuraContainerSortDirection.Normal,
+            maxFrameCount = key == want and math.huge or 0,
+            layout = self:GroupLayout(1),
+            initializeFrame = function(btn) self:InitButton(btn, key) end,
+        })
+        if ok then
+            self.groups[key] = true
+        else
+            -- Every debuff is tried again next time; a refused filter isn't.
+            if key ~= "debuffs" then self.refused[key] = true end
+            BL.Print("Debuff group failed: " .. tostring(err))
+        end
+    end
+    add(want)
+    if not self.groups[want] then want = "debuffs"; add(want) end
+    for key in pairs(DEBUFF_FILTERS) do
+        if self.groups[key] then
+            pcall(c.SetAuraGroupCandidateFilters, c, key, cand)
+            pcall(c.SetAuraGroupLayout, c, key, self:GroupLayout(1))
+            pcall(c.SetAuraGroupMaxFrameCount, c, key, key == want and math.huge or 0)
+        end
+    end
+    self.debuffGroup = want
+    self.countStale = true
+end
+
+-- The debuffs the bar shows, as the client would list them, or nil while they
+-- can't be read.
+function BarMixin:DebuffEntries()
+    local entries, restricted = BL.Auras.Collect(DEBUFF_FILTERS[self.debuffGroup or "debuffs"])
+    if restricted then return nil end
+    return BL.Auras.KeepDebuffs(entries)
 end
 
 -- Weapon enchants ------------------------------------------------------------
@@ -754,9 +788,11 @@ function BarMixin:AllMembers()
     for _, id in ipairs(BL.Categories.Order()) do byGroup[id] = {} end
     for _, e in ipairs(entries) do
         local id = e.spellId
-        local key = (id ~= nil and sets.categorised[id]) and sets.category[id] or "other"
-        if not byGroup[key] then key = "other" end
-        table.insert(byGroup[key], e)
+        if BL.Auras.ShowsBuff(id) then
+            local key = (id ~= nil and sets.categorised[id]) and sets.category[id] or "other"
+            if not byGroup[key] then key = "other" end
+            table.insert(byGroup[key], e)
+        end
     end
     for key, list in pairs(byGroup) do byGroup[key] = Layout.SortLikeClient(list) end
     self.membersCache = byGroup
@@ -850,8 +886,8 @@ function BarMixin:CurrentFlow()
         -- The count is read here, once per aura change, rather than on every
         -- change, since only this needs it.
         if self.countStale and not DUI.Restricted() then
-            local entries, restricted = BL.Auras.Collect("HARMFUL")
-            if not restricted then
+            local entries = self:DebuffEntries()
+            if entries then
                 self.lastCount = #entries
                 self.countStale = false
             end
@@ -1084,8 +1120,7 @@ end
 function BarMixin:ShowPopout(groupKey, members, anchorX, anchorY)
     local c = self:EnsurePopout()
     if not c then return end
-    local sets = BL.Spells.Sets()
-    local filters = (groupKey == "other") and { excludeSpellIDs = sets.categorised } or { includeSpellIDs = sets.byCategory[groupKey] or {} }
+    local filters = BL.Auras.BuffFilters(groupKey, BL.Spells.Sets())
     local layout = self:GroupLayout(1)
     layout.groupSpacing = 0
     c.bar = self
@@ -1549,6 +1584,8 @@ BL.On("SPELLS_CHANGED", function() if BL.Bar.frame then BL.Bar:MarkDirty() end e
 BL.On("AURAS_CHANGED", function()
     eachBar(function(bar) bar:SetPreviewActive(BL.Preview.Active()) end)
 end)
+-- A spell added to or taken off an aura list reaches the bars that pick it.
+DUI.On("AuraListsChanged", function() eachBar(function(bar) bar:MarkDirty() end) end)
 -- Settings both bars share (their text).
 local SHARED = { timeSize = true, countSize = true, showTimers = true, timePos = true, textOutline = true }
 

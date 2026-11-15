@@ -116,8 +116,8 @@ Feel.snaps = {}
 -- A bar's members: buffs by category, debuffs as one group in the client's order.
 local function membersOf(bar)
     if not bar:IsDebuff() then return bar:AllMembers() end
-    local entries, restricted = BL.Auras.Collect("HARMFUL")
-    if restricted then return nil end
+    local entries = bar:DebuffEntries()
+    if not entries then return nil end
     return { debuffs = BL.Layout.SortLikeClient(entries) }
 end
 

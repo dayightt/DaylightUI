@@ -23,6 +23,8 @@ local L = DUI.L
 
 local AL = {}
 ns.AuraLists = AL
+-- The Buffs module's bars pick from the same lists.
+DUI.AuraLists = AL
 
 AL.KEY = "auraLists"
 AL.BUILTIN = { "hidden", "watch" }
@@ -210,6 +212,7 @@ end
 function AL.Changed()
     version = version + 1
     for c in pairs(known) do AL.Push(c) end
+    DUI.Fire("AuraListsChanged")
 end
 
 -- ---------------------------------------------------------------------

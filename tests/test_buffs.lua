@@ -12,7 +12,7 @@ end
 
 local function login(opts)
     opts = opts or {}
-    stub.Load({ buffs = true, infopanel = opts.infopanel, before = function()
+    stub.Load({ buffs = true, module = opts.module, infopanel = opts.infopanel, before = function()
         world()
         if opts.before then opts.before() end
     end })
@@ -1309,4 +1309,119 @@ T.test("buffs: Boosted Rest stays off the debuff bar, its count and its hover", 
     local entries = BL.Auras.Collect("HARMFUL")
     T.eq(#entries, 1)
     T.eq(entries[1].spellId, 589)
+end)
+
+T.test("buffs: the debuff bar shows every debuff or only the ones you can dispel", function()
+    local BL = login()
+    local groups = DaylightUIDebuffs.__groups
+    T.isnil(groups.dispel, "made only once it's picked")
+    DaylightUI:Set("Buffs", "settings.debuff.filter", "dispel")
+    stub.RunTimers()
+    T.truthy(groups.dispel)
+    T.eq(groups.dispel.filter, "HARMFUL|RAID_PLAYER_DISPELLABLE")
+    T.eq(groups.dispel.max, math.huge)
+    T.eq(groups.debuffs.max, 0, "every debuff held at none")
+    stub.SetAuras("player", "HARMFUL", { { name = "Poison", spellId = 99 }, { name = "Curse", spellId = 704 } })
+    stub.SetAuras("player", "HARMFUL|RAID_PLAYER_DISPELLABLE", { { name = "Curse", spellId = 704 } })
+    T.eq(#BL.DebuffBar:DebuffEntries(), 1, "the hover counts what shows")
+    DaylightUI:Set("Buffs", "settings.debuff.filter", "all")
+    stub.RunTimers()
+    T.eq(groups.debuffs.max, math.huge)
+    T.eq(groups.dispel.max, 0)
+    T.eq(#BL.DebuffBar:DebuffEntries(), 2)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("buffs: a client that refuses the dispel filter keeps every debuff", function()
+    local BL = login({ before = function()
+        stub.refuseAuraFilters = { ["HARMFUL|RAID_PLAYER_DISPELLABLE"] = true }
+    end })
+    DaylightUI:Set("Buffs", "settings.debuff.filter", "dispel")
+    stub.RunTimers()
+    stub.refuseAuraFilters = nil
+    local groups = DaylightUIDebuffs.__groups
+    T.isnil(groups.dispel)
+    T.eq(groups.debuffs.max, math.huge)
+    T.eq(BL.DebuffBar.debuffGroup, "debuffs")
+end)
+
+T.test("buffs: the debuff bar's hide list, boss debuffs and longest shown", function()
+    local shows = require("aura_rules")
+    local BL = login({ module = true })
+    local me = { canAssist = true, groupMember = true }
+    stub.neverSecretAuras[57724] = true
+    DaylightUI:Set("Buffs", "settings.debuff.hideList", "hidden")
+    -- A list edit reaches the bar that picked it.
+    DaylightUI:Set("UnitFrames", "auraLists.hidden.spells", "1229451 57724 589")
+    DaylightUI:Set("Buffs", "settings.debuff.maxTime", 60)
+    stub.RunTimers()
+    local g = DaylightUIDebuffs.__groups.debuffs
+    T.eq(shows(g, me, { spellId = 57724, harmful = true, duration = 30, neverSecret = true }), false, "Sated hidden")
+    T.eq(shows(g, me, { spellId = 1229451, harmful = true, duration = 30, neverSecret = true }), false, "Boosted Rest too")
+    T.eq(shows(g, me, { spellId = 589, harmful = true, duration = 18 }), true, "the client can't match it on you")
+    T.eq(shows(g, me, { spellId = 600, harmful = true, duration = 1800 }), false, "too long")
+    T.eq(shows(g, me, { spellId = 601, harmful = true, duration = 0 }), false, "never runs out")
+    T.eq(shows(g, me, { spellId = 602, harmful = true, duration = 45 }), true)
+    stub.SetAuras("player", "HARMFUL", {
+        { name = "Sated", spellId = 57724, duration = 30 }, { name = "Shadow Word: Pain", spellId = 589, duration = 18 },
+        { name = "Curse", spellId = 600, duration = 1800 }, { name = "Sickness", spellId = 601, duration = 0 },
+        { name = "Boss hit", spellId = 602, duration = 45, isBossAura = true },
+    })
+    local ids = {}
+    for _, e in ipairs(BL.DebuffBar:DebuffEntries()) do ids[#ids + 1] = e.spellId end
+    T.deq(ids, { 589, 602 }, "the hover matches what the client shows")
+    DaylightUI:Set("Buffs", "settings.debuff.bossOnly", true)
+    stub.RunTimers()
+    T.eq(g.opts.candidateFilters.isBossAura, true)
+    ids = {}
+    for _, e in ipairs(BL.DebuffBar:DebuffEntries()) do ids[#ids + 1] = e.spellId end
+    T.deq(ids, { 602 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("buffs: the buff bar's hide and show-only lists", function()
+    local shows = require("aura_rules")
+    local BL = login({ module = true })
+    local me = { canAssist = true, groupMember = true }
+    -- The bar sorts a buff once it has seen it.
+    stub.SetAuras("player", "HELPFUL", { { name = "Power Word: Fortitude", spellId = 1243 },
+        { name = "Divine Spirit", spellId = 14752 }, { name = "Arcane Intellect", spellId = 1459 },
+        { name = "Something", spellId = 99999 } })
+    landed(1, 1243)
+    DaylightUI:Set("Buffs", "settings.hideList", "hidden")
+    DaylightUI:Set("UnitFrames", "auraLists.hidden.spells", "1243")
+    stub.RunTimers()
+    T.eq(shows(group("priest"), me, { spellId = 1243, duration = 1800 }), false, "Fortitude hidden")
+    T.eq(shows(group("priest"), me, { spellId = 14752, duration = 1800 }), true, "Divine Spirit still shows")
+    T.eq(shows(group("other"), me, { spellId = 1243, duration = 1800 }), false, "nor does it fall into Other")
+    T.eq(shows(group("other"), me, { spellId = 99999, duration = 1800 }), true)
+    DaylightUI:Set("UnitFrames", "auraLists.watch.spells", "1459")
+    DaylightUI:Set("Buffs", "settings.onlyList", "watch")
+    stub.RunTimers()
+    T.eq(shows(group("mage"), me, { spellId = 1459, duration = 1800 }), true)
+    T.eq(shows(group("priest"), me, { spellId = 14752, duration = 1800 }), false, "only the list shows")
+    T.eq(shows(group("other"), me, { spellId = 99999, duration = 1800 }), false)
+    BL.Bar:InvalidateMembers()
+    local shown = {}
+    for key, list in pairs(BL.Bar:AllMembers()) do
+        for _, e in ipairs(list) do shown[#shown + 1] = key .. ":" .. e.spellId end
+    end
+    T.deq(shown, { "mage:1459" }, "the hover matches what the client shows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("buffs: the list rows hide while the unit frames are off", function()
+    local BL = login()
+    local function item(page, key)
+        for _, g in ipairs(BL.OPTIONS.pages[page].groups) do
+            for _, it in ipairs(g.items) do if it.key == key then return it end end
+        end
+    end
+    T.truthy(item(1, "settings.hideList").hidden(), "no lists to pick")
+    T.truthy(item(2, "settings.debuff.hideList").hidden())
+    T.falsy(item(2, "settings.debuff.filter").hidden, "the dispel filter needs no list")
+    -- Saved picks do nothing without the lists.
+    DaylightUI:Set("Buffs", "settings.hideList", "hidden")
+    stub.RunTimers()
+    T.isnil(group("priest").opts.candidateFilters.excludeSpellIDs)
 end)

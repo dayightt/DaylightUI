@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "Unit frames", "The player frame can stay shown while your mana refills and fade once it's full (Player > Opacity & fade)" },
             { "Quests", "With GatherMate2, the quest arrow can point you to a herb or ore node close by, then back to your quest (Quest Tracker > Navigation)" },
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
+            { "Buffs", "The buff and debuff bars can use your aura lists to hide spells or show only some, and the debuff bar can show only what you can dispel, only boss debuffs, or leave out long ones (Buffs > Filter)" },
         },
         changed = {
             { "Unit frames", "The Personal Display page has a live preview at the top, like the other frame pages, so you can see your changes" },
