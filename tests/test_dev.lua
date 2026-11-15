@@ -526,9 +526,27 @@ T.test("dev garbage: counts what each of a module's functions allocates, then pu
     T.eq(BL.Bar.Learn, learn, "put back after")
     T.eq(BL.Auras.CollectWeapons, collect)
     local lines = DaylightUIDevDB.garbage[1].lines
-    T.truthy(#lines > 0 and lines[1]:find("KB/s own", 1, true), lines[1])
+    T.truthy(#lines > 1 and lines[1]:find("Watched code made", 1, true) and lines[2]:find("KB/s own", 1, true), lines[2])
     local all = table.concat(lines, "\n")
     T.truthy(all:find("Buffs.Auras:CollectWeapons", 1, true), all)
+end)
+
+T.test("dev garbage core: counts each event handler under its event, then puts the core back", function()
+    local DUI = stub.Load({ buffs = true })
+    local ns = loadDev()
+    _G.DaylightUIDevDB = nil
+    local safe, style = DUI.SafeCall, DUI.Style.Text
+    local keep = {}
+    DUI.RegisterEvent("DEV_GARBAGE_PROBE", function() for i = 1, 50 do keep[i] = { i } end end)
+    local n = ns.Garbage.Run("Core", 1)
+    T.truthy(n and n > 100, "plenty of core functions watched")
+    T.truthy(DUI.SafeCall ~= safe and DUI.Style.Text ~= style, "wrapped for the run")
+    for _ = 1, 20 do stub.FireEvent("DEV_GARBAGE_PROBE") end
+    stub.RunOnUpdate(ns.Garbage.clock, 1.1)
+    T.eq(DUI.SafeCall, safe, "put back after")
+    T.eq(DUI.Style.Text, style)
+    local all = table.concat(DaylightUIDevDB.garbage[1].lines, " | ")
+    T.truthy(all:find("event DEV_GARBAGE_PROBE", 1, true), all)
 end)
 
 T.test("dev mem: walks our namespaces and saved settings once each and names the biggest", function()

@@ -102,3 +102,32 @@ T.test("api unit parts: giving the fill back paints the class color again", func
     local c = f.health.__barColor
     T.eq(c[1], r); T.eq(c[2], g); T.eq(c[3], b)
 end)
+
+T.test("api unit parts: the portrait's ring, dragon and badges by name, and a claimed ring and dragon stay the plugin's", function()
+    local _, ns, API = load()
+    stub.units.target = { name = "Ragnaros", reaction = 2, classification = "elite", health = 50, maxHealth = 100 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    stub.RunTimers()
+    local f = ns.frames.target
+    local p = API.Parts(f)
+    T.eq(p.ring, f.portrait.ring)
+    T.eq(p.dragon, f.portrait.elite)
+    T.eq(p.model, f.portrait.model)
+    T.truthy(type(p.badges) == "table" and p.badges.level, "the status badges")
+    local handle = API.For("Neon").Paint("unit", function(fr, parts)
+        if parts.ring then parts.ring:SetVertexColor(1, 0, 1, 1) end
+        if parts.dragon then parts.dragon:SetVertexColor(0, 1, 1, 1) end
+    end, { owns = { "ring", "dragon" } })
+    T.truthy(f.portrait.elite:IsShown(), "an elite gets the dragon")
+    -- Daylight UI repaints the ring and dragon on its own, without a new paint.
+    ns.UF.PaintRing(f)
+    ns.UF.PaintElite(f)
+    local r, d = f.portrait.ring.__vertex, f.portrait.elite.__vertex
+    T.eq(r[1], 1); T.eq(r[2], 0); T.eq(r[3], 1, "the ring keeps the plugin's color")
+    T.eq(d[1], 0); T.eq(d[2], 1); T.eq(d[3], 1, "the dragon keeps the plugin's color")
+    API.Off(handle)
+    stub.RunTimers()
+    r = f.portrait.ring.__vertex
+    T.falsy(r[1] == 1 and r[2] == 0 and r[3] == 1, "let go, the ring gets Daylight UI's color back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
