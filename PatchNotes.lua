@@ -27,6 +27,8 @@ DUI.PatchNotes = {
             { "Bags", "Folding an item group in the bag gives its room back again, instead of leaving a gap under its heading" },
             { "Bags", "The bags make the game's opening and closing sounds again when Soft UI sounds are off" },
             { "Bags", "Deleting extra Soul Shards takes them from your other bags first, so your Soul Bag stays full" },
+            { "General", "No more \"Can't measure restricted regions\" error at login" },
+            { "Quests", "The buttons under a quest in the map's quest log no longer have their words cut off" },
         },
     },
     { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",

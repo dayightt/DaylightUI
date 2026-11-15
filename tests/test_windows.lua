@@ -287,6 +287,23 @@ T.test("windows: Parts.Tone gives any button the footer's main and refusal look"
     T.rgb({ foot.buttons[2].text:GetTextColor() }, Parts.NO)
 end)
 
+T.test("windows: a shared footer lays out again when its row changes width", function()
+    local DUI = stub.Load()
+    local Parts = DUI.Win.Parts
+    local page = CreateFrame("Frame", nil, UIParent)
+    page:SetSize(400, 300)
+    local foot = Parts.Footer(page, { equal = true })
+    foot.frame:SetWidth(120)   -- laid out while the panel was still narrow
+    foot:Set({ { text = "Show on map", primary = true }, { text = "Untrack" }, { text = "Share" }, { text = "Abandon" } })
+    local was = foot.buttons[3]:GetWidth()
+    foot.frame:SetWidth(360)
+    local onSize = foot.frame:GetScript("OnSizeChanged")
+    T.truthy(onSize, "the footer follows its width")
+    onSize(foot.frame, 360, 28)
+    T.truthy(foot.buttons[3]:GetWidth() > was, "the buttons take the new room")
+    T.truthy(foot.buttons[3].text:GetWidth() > was, "and so does their text")
+end)
+
 T.test("windows: the main action's glow circles while shown and rests when off", function()
     local DUI = stub.Load()
     local Parts, W = DUI.Win.Parts, DUI.Widgets
