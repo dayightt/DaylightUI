@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Bags", "Item tooltips show how many of that item each of your characters has, in their bags and bank" },
             { "Bags", "While you search, one button moves everything that matches to the bank, mail, trade window or vendor" },
             { "Bags", "Bring your Baganator categories over as bag groups" },
+            { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
         },
         changed = {
             { "Bags", "The bags and bank have a fresh, calmer look: groups sit in tidy rows you can fold and color, and items glide into place when you loot, sort or sell" },

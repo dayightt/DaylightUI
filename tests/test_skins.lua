@@ -3934,6 +3934,122 @@ T.test("skins: the guild window drags by its title bar like the dressing room, i
     T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "back on its spot after the game lays out")
 end)
 
+-- Every game window the skins dress that stands on its own drags the same way,
+-- including the ones a game addon makes later (the auction house, macros...).
+T.test("skins: every skinned game window drags by its title bar, its spot kept after the game lays out", function()
+    login(function()
+        _G.ShowUIPanel = function(p) p:Show() end
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local Move = stub.skins.WindowMove
+    T.truthy(#Move.WINDOWS >= 25, "the skinned windows, not just a few")
+    local made = {}
+    for _, name in ipairs(Move.WINDOWS) do
+        if not _G[name] then made[name] = window(name) end
+    end
+    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local db = DaylightUI.DB.Active().modules.Skins
+    for _, name in ipairs(Move.WINDOWS) do
+        local f, bar = _G[name], Move.bars[name]
+        T.truthy(bar, name .. " gets a strip")
+        T.eq(bar:GetParent(), f, name)
+        local _, rel, rp, x, y = bar:GetPoint(1)
+        T.eq(rel, f); T.eq(rp, "TOPLEFT"); T.eq(x, 0); T.eq(y, 0, name .. ": along the top")
+        T.truthy(select(4, bar:GetPoint(2)) <= -Move.BUTTONS, name .. ": the close button left free")
+    end
+    -- The calendar's month arrows (about 226-433 px in from its left on its 659
+    -- px width, Blizzard_Calendar.xml) and filter button stay clickable.
+    T.eq(select(4, Move.bars.CalendarFrame:GetPoint(2)), -440, "the calendar drags by the left of its title row")
+    T.eq(Move.bars.FlightMapFrame:GetHeight(), 20, "the flight map's canvas starts 20 down")
+    for _, name in ipairs({ "AuctionHouseFrame", "GameMenuFrame", "TimeManagerFrame", "TaxiFrame" }) do
+        local f, bar = _G[name], Move.bars[name]
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+        f:Show()
+        bar:GetScript("OnDragStart")(bar, "LeftButton")
+        T.truthy(f.__moving, name .. " moves")
+        f.__center = { 640, 400 }
+        bar:GetScript("OnDragStop")(bar)
+        T.truthy(Move.Spot(name), name .. ": its spot saved under its own name")
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+        UpdateUIPanelPositions(f)
+        T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", name .. ": back on its spot after the game lays out")
+        f:Hide()
+    end
+    -- Scaled with Ctrl + wheel, a window that loaded after the scaler started keeps its corner too.
+    _G.IsControlKeyDown = function() return true end
+    _G.UIPanelWindows = { AuctionHouseFrame = { area = "doublewide" } }
+    stub.skins.WindowScale.Scan()
+    local ah = AuctionHouseFrame
+    ah:Show()
+    local x = select(4, ah:GetPoint(1))
+    ah:GetScript("OnMouseWheel")(ah, 1)
+    T.eq(ah:GetScale(), 1.05)
+    T.near(select(4, ah:GetPoint(1)) * 1.05, x, 0.01, "the corner stayed")
+    -- /dui reset forgets them all.
+    DaylightUI.Movers.ResetAll()
+    for name in pairs(made) do T.isnil(db.windowSpots[name], name) end
+end)
+
+-- Beast Training lends the game's trainer window back; for a class trainer the
+-- NPC window keeps it out of sight under a parent of its own, and it stays there.
+T.test("skins: the trainer window drags only while Beast Training lends it back", function()
+    login(function()
+        window("ClassTrainerFrame")
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local Move, f = stub.skins.WindowMove, ClassTrainerFrame
+    T.truthy(Move.bars.ClassTrainerFrame)
+    DaylightUI.DB.Active().modules.Skins.windowSpots.ClassTrainerFrame = { 300, 700 }
+    local veil = DaylightUI.Win.Followers.veil
+    f:SetParent(veil)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", veil, "TOPLEFT", 0, 0)
+    f:Show()
+    UpdateUIPanelPositions(f)
+    T.eq(select(2, f:GetPoint(1)), veil, "parked: left where the veil keeps it")
+    local bar = Move.bars.ClassTrainerFrame
+    bar:GetScript("OnDragStart")(bar, "LeftButton")
+    T.falsy(f.__moving, "and can't be dragged out")
+    f:SetParent(UIParent)
+    UpdateUIPanelPositions(f)
+    T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "lent: on its spot")
+end)
+
+-- The collections journal holds secure buttons (the toy box, mounts), so in a
+-- fight it can't be moved: it waits for the fight to end.
+T.test("skins: a window with secure buttons isn't moved in a fight, only after it", function()
+    login(function()
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local f = window("CollectionsJournal")
+    CreateFrame("CheckButton", nil, f, "SecureActionButtonTemplate")
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Collections")
+    stub.RunTimers()
+    local Move, bar = stub.skins.WindowMove, stub.skins.WindowMove.bars.CollectionsJournal
+    T.truthy(bar)
+    T.truthy(f:IsProtected(), "protected through its buttons")
+    DaylightUI.DB.Active().modules.Skins.windowSpots.CollectionsJournal = { 300, 700 }
+    -- Open as the fight starts, the game's spot not yet put back.
+    f:Show()
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+    stub.secure = true
+    stub.EnterCombat()
+    UpdateUIPanelPositions(f)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(select(3, f:GetPoint(1)), "TOPLEFT", "left where the game put it")
+    bar:GetScript("OnDragStart")(bar, "LeftButton")
+    T.falsy(f.__moving, "no drag in a fight")
+    stub.LeaveCombat()
+    stub.secure = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "on its spot once the fight ends")
+end)
+
 -- The hunter's stable on Forever is the Camelot one
 -- (Blizzard_StableUI/Camelot/Blizzard_StableUI.xml): PetStableFrame is a
 -- PortraitFrameTemplate whose pet slots are CheckButtons (PetStableSlotTemplate)

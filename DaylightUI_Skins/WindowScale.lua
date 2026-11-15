@@ -39,7 +39,11 @@ end
 function Scale.Apply(name)
     local f, s = hooked[name], Scale.Of(name)
     if not (f and s) or InCombatLockdown() then return end
-    if math.abs((f:GetScale() or 1) - s) > 0.001 then f:SetScale(s) end
+    if math.abs((f:GetScale() or 1) - s) > 0.001 then
+        f:SetScale(s)
+        -- A dragged window keeps its top-left corner on its spot.
+        if ns.WindowMove then ns.WindowMove.Apply(name) end
+    end
 end
 
 function Scale.ApplyAll()
