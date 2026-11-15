@@ -191,8 +191,7 @@ end
 -- Find a group and Who grow by the detail card's room (Social's, DUI.Social.Detail) while a
 -- row is picked.
 Lfg.side = {}
-Lfg.CARD_W = 264   -- wider than Social's card: a group's members each get a line to themselves
-function Lfg.Span() return Lfg.CARD_W + DUI.Social.Detail.GAP end
+function Lfg.Span() return DUI.Social.Detail.SPAN end
 local function width(id) return Lfg.W + (Lfg.side[id] and Lfg.Span() or 0) end
 
 -- The detail card of a page opened or closed: the window makes room on its right (or

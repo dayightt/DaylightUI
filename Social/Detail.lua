@@ -64,13 +64,12 @@ local function tex(parent, layer, color)
     return t
 end
 
--- opts: width (the card's width, Detail.W by default; the window makes room for that and
--- Detail.GAP), side(open) (the window makes or gives back the room), fit(p) (the page's widgets
+-- opts: side(open) (the window makes or gives back the room), fit(p) (the page's widgets
 -- move over by p of the card's room, p from 0 to 1, as the list's edge eases), refill()
 -- (lay the list out again at its new width, once it has got there).
 function Detail.New(page, opts)
     local d = setmetatable({ page = page, opts = opts, open = false, rows = {}, buttons = {} }, Detail)
-    d.w = opts.width or Detail.W
+    d.w = Detail.W
     local f = CreateFrame("Frame", nil, page)
     f:SetWidth(d.w)
     f:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Detail.EDGE, -Detail.TOP)

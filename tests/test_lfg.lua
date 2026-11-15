@@ -912,16 +912,15 @@ T.test("lfg: the corner grip resizes the window: more room, the text its size", 
     T.falsy(ns.module.db.sizes, "and the size forgotten")
 end)
 
-T.test("lfg: the card is wider here than Social's, and the members each get their own line", function()
+T.test("lfg: the card is as wide as Social's, and the members each get their own line", function()
     local ns = load()
     local f = open(ns)
     tab(ns, "find")
     local narrow = f:GetWidth()
     click(rows(ns.Browse.page.stack, "group")[1])
     local d = ns.Browse.page.detail
-    T.eq(d.frame:GetWidth(), ns.Window.CARD_W)
-    T.truthy(ns.Window.CARD_W > DaylightUI.Social.Detail.W, "wider than Social's card")
-    T.eq(f:GetWidth(), narrow + ns.Window.CARD_W + DaylightUI.Social.Detail.GAP)
+    T.eq(d.frame:GetWidth(), DaylightUI.Social.Detail.W)
+    T.eq(f:GetWidth(), narrow + DaylightUI.Social.Detail.SPAN)
     -- Each person is a line of their own: badge, name and level, all on one middle line.
     local shown = {}
     for _, m in ipairs(d.people) do if m:IsShown() then shown[#shown + 1] = m end end

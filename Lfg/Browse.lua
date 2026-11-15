@@ -475,7 +475,7 @@ function Browse.Build(page)
     page.seek:SetMinMaxValues(0, 1)
     W().BarAccent(page.seek)
     page.seek:Hide()
-    page.detail = Card().New(page, { width = ns.Window.CARD_W, refill = function() Browse.Render(nil, true) end,
+    page.detail = Card().New(page, { refill = function() Browse.Render(nil, true) end,
         side = function(open) ns.Window.SetSide("find", open) end, fit = function(p) Browse.Fit(page, p) end })
     for _, e in ipairs(Browse.EVENTS) do
         DUI.RegisterEvent(e, function(event)

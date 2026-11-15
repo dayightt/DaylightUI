@@ -163,7 +163,7 @@ function Who.Build(page)
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
     Style.InkText(page.note, "LABEL")
     page.note:Hide()
-    page.detail = Card().New(page, { width = ns.Window.CARD_W, refill = function() Who.Render() end,
+    page.detail = Card().New(page, { refill = function() Who.Render() end,
         side = function(open) ns.Window.SetSide("who", open) end, fit = function(p) Who.Fit(page, p) end })
     page:HookScript("OnShow", function()
         local F = friends()
