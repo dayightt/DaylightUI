@@ -331,6 +331,74 @@ Engine.Window({ key = "tabard", pack = "npc", frame = "TabardFrame" })
 Engine.Window({ key = "petition", pack = "npc", frame = "PetitionFrame", light = true })
 Engine.Window({ key = "registrar", pack = "npc", frame = "GuildRegistrarFrame", light = true })
 -- The old flight map draws the map into the window's InsetBg, so that's kept
--- with a Daylight window around it.
-Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } } })
+-- with a Daylight window around it. The game puts the map 4 px from the left, 6 from
+-- the right and bottom and straight under a 24 px title strip, with the title and the
+-- X in its corners. Here the title and the X sit where every Daylight UI window has
+-- them and the map has the same room on every side, the window growing to make it.
+-- Only InsetBg is moved: the route and the flight points hang from it (the route map
+-- is anchored to its corners, each button to its bottom left), so they go with it.
+local TAXI_MARGIN = 12 -- px between the window's edge (or the header) and the map
+local taxiMap = setmetatable({}, { __mode = "k" }) -- window -> the map's size, from the game's anchors
+
+local function taxiPlace(frame, want)
+    local same = frame:GetNumPoints() == #want
+    for i = 1, same and #want or 0 do
+        local point, rel, relPoint, x, y = frame:GetPoint(i)
+        local w = want[i]
+        if point ~= w[1] or rel ~= w[2] or relPoint ~= w[3] or type(x) ~= "number" or type(y) ~= "number"
+            or math.abs(x - w[4]) > 0.01 or math.abs(y - w[5]) > 0.01 then
+            same = false
+            break
+        end
+    end
+    if same then return end
+    frame:ClearAllPoints()
+    for _, w in ipairs(want) do frame:SetPoint(w[1], w[2], w[3], w[4], w[5]) end
+end
+
+local function taxiLayout(f)
+    local Win = DaylightUI.Win
+    local bg = f.InsetBg
+    if type(bg) ~= "table" or not bg.SetPoint or not f.SetSize or Win.Held(f) then return end
+    -- The map's size as the game anchors it, read once: after that InsetBg's own size
+    -- follows the window's, which is what is being set here.
+    local map = taxiMap[f]
+    if not map then
+        local w, h = bg:GetWidth(), bg:GetHeight()
+        if type(w) ~= "number" or type(h) ~= "number" or w <= 0 or h <= 0 then return end
+        map = { w = w, h = h }
+        taxiMap[f] = map
+    end
+    local m, head = TAXI_MARGIN, Win.COMPACT
+    local width, height = m + map.w + m, head + m + map.h + m
+    taxiPlace(bg, {
+        { "TOPLEFT", f, "TOPLEFT", m, -(head + m) },
+        { "BOTTOMRIGHT", f, "BOTTOMRIGHT", -m, m },
+    })
+    local w, h = f:GetWidth(), f:GetHeight()
+    if type(w) ~= "number" or type(h) ~= "number" or math.abs(w - width) > 0.01 or math.abs(h - height) > 0.01 then
+        f:SetSize(width, height)
+        -- The panel manager places its neighbours by these.
+        if type(_G.SetUIPanelAttribute) == "function" then
+            pcall(_G.SetUIPanelAttribute, f, "width", width)
+            pcall(_G.SetUIPanelAttribute, f, "height", height)
+        end
+    end
+    local close = f.CloseButton
+    if type(close) == "table" and close.SetPoint then
+        local size = DaylightUI.Widgets and DaylightUI.Widgets.CLOSE or 24
+        close:SetSize(size, size)
+        close:ClearAllPoints()
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
+    end
+    local title = f.TitleText
+    if type(title) == "table" and title.SetPoint then
+        title:ClearAllPoints()
+        title:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, Win.TITLE_Y)
+        if type(close) == "table" then title:SetPoint("RIGHT", close, "LEFT", -12, 0) end
+    end
+end
+
+Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } },
+    after = function(_, f) taxiLayout(f) end })
 
