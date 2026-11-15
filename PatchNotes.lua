@@ -20,6 +20,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
+            { "Bags", "Item groups and empty slots reach the right edge of the bag again instead of stopping a slot or two short" },
         },
     },
     { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",

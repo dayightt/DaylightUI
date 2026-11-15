@@ -563,6 +563,31 @@ local function fitRow(boxes, row, maxW, gapX)
     end
 end
 
+-- Spreading items evenly over their lines leaves room at the row's right end.
+-- Hand it out a column at a time to the groups that wrap, never adding a line,
+-- so the row stays level and reaches the bag's edge.
+local function widen(boxes, row, shapes, maxW, gapX)
+    local used = (#row - 1) * gapX
+    for k = 1, #row do used = used + shapes[k].w end
+    local grew = true
+    while grew do
+        grew = false
+        for k, i in ipairs(row) do
+            local b, s = boxes[i], shapes[k]
+            local across = s.across or 0
+            local lines = across > 0 and math.ceil(b.n / across) or 1
+            if lines > 1 and across < b.cols and math.ceil(b.n / (across + 1)) == lines then
+                local wider = b.shape(across + 1)
+                if used + wider.w - s.w <= maxW then
+                    used = used + wider.w - s.w
+                    shapes[k] = wider
+                    grew = true
+                end
+            end
+        end
+    end
+end
+
 -- Packs `boxes` into `maxW`. Returns each box's { x, y, shape } by index (shape
 -- is the box's chosen { w, h, across }), and the total height.
 function Layout.Pack(boxes, maxW, gapX, gapY)
@@ -570,6 +595,7 @@ function Layout.Pack(boxes, maxW, gapX, gapY)
     local row, shapes = {}, nil
     local function close()
         if #row == 0 then return end
+        widen(boxes, row, shapes, maxW, gapX)
         local x, rowH = 0, 0
         for k, i in ipairs(row) do
             local s = shapes[k]
