@@ -334,8 +334,8 @@ local function paintQuest(b, q)
     b.title:SetText(q.title)
     -- A ready quest keeps its level color while "Ready" at the end says so. With
     -- progress hidden, the title color has to say it.
-    local byLevel = q.state == "ready" and db.journalProgress ~= false
-    b.title:SetTextColor((byLevel and ns.Look.LevelColor or ns.Look.TitleColor)(lk, q))
+    if q.state == "ready" and db.journalProgress == false then b.title:SetTextColor(ns.Look.Color(lk, "ready"))
+    else b.title:SetTextColor(ns.Look.TitleColor(lk, q)) end
     -- the quest's tag right after its title, which makes room for it
     local tagged = ns.Look.PaintTag(b.tag, lk, db.questTags and q.tag or nil)
     local room = tagged and (b.tag:GetWidth() + ns.Look.TAG_GAP) or 0
@@ -352,7 +352,8 @@ local function paintQuest(b, q)
     end
     b.level:SetText(type(q.level) == "number" and q.level > 0 and tostring(q.level) or "")
     b.prog:SetText(db.journalProgress ~= false and Journal.Progress(q) or "")
-    if q.state == "ready" or q.state == "failed" then b.prog:SetTextColor(ns.Look.TitleColor(lk, q))
+    if q.state == "ready" then b.prog:SetTextColor(ns.Look.Color(lk, "ready"))
+    elseif q.state == "failed" then b.prog:SetTextColor(ns.Look.TitleColor(lk, q))
     else Style.InkText(b.prog, "pop") end   -- progress uses the accent
     local dot = q.watched == true and db.journalDots ~= false
     b.dot:SetShown(dot)

@@ -76,11 +76,10 @@ end
 -- Off the game's plate, back to the spares.
 function Manager.Release(p)
     if forbidden(p) then return end
-    pcall(ns.Plate.Detach, p)
     p:Hide()
     p:ClearAllPoints()
     p:SetParent(home)
-    p.nameplate = nil
+    p.nameplate, p.stack = nil, nil
     spare[#spare + 1] = p
 end
 
@@ -206,6 +205,40 @@ local function clickFrame(nameplate)
     return f
 end
 
+-- The frame the game spaces a plate by, kept the same way: one per game plate,
+-- on it for good, sized by whichever Daylight UI plate is there (Plate.PlaceStack).
+-- A game plate keeps pointing at the last frame it was handed, so a frame that
+-- travelled on with a Daylight UI plate left the old game plate spaced by
+-- something sitting on another plate. The game measures the frame by what's
+-- drawn in it, not its size, so it carries an unseen fill.
+local stackOf = setmetatable({}, { __mode = "k" }) -- game plate -> its stacking frame
+local stackSpare = {}
+Manager.stackOf = stackOf
+
+local function newStack()
+    local f = CreateFrame("Frame")
+    f.fill = f:CreateTexture(nil, "BACKGROUND")
+    f.fill:SetColorTexture(0, 0, 0, 0)
+    f.fill:SetAllPoints(f)
+    return f
+end
+
+function Manager.PrepareStacks(n)
+    for _ = 1, n do stackSpare[#stackSpare + 1] = newStack() end
+end
+
+-- This game plate's stacking frame, or nil once the game has closed it to addons.
+function Manager.StackFrame(nameplate)
+    local f = stackOf[nameplate]
+    if not f then
+        f = table.remove(stackSpare) or newStack()
+        stackOf[nameplate] = f
+        f:SetParent(nameplate)
+    end
+    if forbidden(f) then return nil end
+    return f
+end
+
 function Manager.Unclickable(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
     if plain(UnitIsPlayer, unit) ~= true or plain(UnitIsFriend, "player", unit) ~= true then return false end
@@ -307,7 +340,6 @@ function Manager.Abandon(p)
         pcall(ns.Plate.Uninstall, p)
         Manager.Release(p)
     else
-        pcall(ns.Plate.Detach, p)
         pcall(p.Hide, p)
     end
 end
@@ -369,8 +401,6 @@ function Manager.Removed(unit)
     if Manager.Usable(p) then
         ns.Plate.Uninstall(p)
         Manager.Release(p)
-    else
-        pcall(ns.Plate.Detach, p) -- take the stacking frame off the game's plate regardless
     end
     -- Any other plate going leaves the rest (and the combo row) alone.
     if wasTarget then Manager.UpdateTargets() end
@@ -798,6 +828,7 @@ function Manager.Start()
     Manager.startedAt = type(GetTime) == "function" and GetTime() or nil -- for a report: time into the session
     Manager.Prepare(Manager.PREPARE)
     Manager.PrepareClicks(Manager.PREPARE)
+    Manager.PrepareStacks(Manager.PREPARE)
     Manager.WantDots()
     -- One mob's DoTs changed (a cast, a tick): only its plate redraws.
     local changedKey
@@ -995,7 +1026,7 @@ DUI.RegisterCommand("platedebug", function()
         return string.format("%.0f,%.0f %.0fx%.0f", l, b, w, h)
     end
     say("Game's plate (takes the clicks) " .. rect(np) .. "; ours " .. rect(p) .. "; our bar " .. rect(p.hp))
-    say("Stacking box " .. rect(p.stack))
+    say("Stacking box " .. (p.stack and rect(p.stack) or "none"))
     local okC, can = pcall(np.CanChangeHitTestPoints, np)
     say("Can set the click area: " .. tostring(okC and can))
     local M, T = C_NamePlateManager, Enum and Enum.NamePlateType
@@ -1026,8 +1057,8 @@ function Manager.CheckOne(unit, np)
     local uf = np.UnitFrame
     if type(uf) == "table" then
         local okP, parent = pcall(uf.GetParent, uf)
-        lines[#lines + 1] = string.format("  game frame onPlate=%s held=%s clicks=%s", tostring(okP and parent == np),
-            tostring(held[uf] == true), clickOf[np] and "ours" or "game's")
+        lines[#lines + 1] = string.format("  game frame onPlate=%s held=%s clicks=%s box=%s", tostring(okP and parent == np),
+            tostring(held[uf] == true), clickOf[np] and "ours" or "game's", stackOf[np] and "ours" or "none")
     end
     local p = byUnit[unit]
     if not p then
@@ -1083,15 +1114,14 @@ end
 
 DUI.RegisterCommand("platecheck", function()
     for _, line in ipairs(Manager.CheckLines()) do DUI.Print(line) end
+    DUI.Print(Report.MarkSaid(Report.Mark()))
 end, L["/dui platecheck - run while a nameplate is missing, and send us what it prints"])
 
 -- /dui plateprobe: run after platecheck while plates are missing. Tests one
--- suspect: the frame handed to the game for spacing plates apart (Plate.Install,
--- p.stack) went bad and the game's stacking pushed every plate out of view. Every
--- plate gets its own frame back (Plate.Detach doesn't do this; it hides the
--- stacking frame, as EllesmereUI does). A plate that comes into view afterwards gets
--- a Daylight UI plate again;
--- /reload restores everything.
+-- suspect: the frame handed to the game for spacing plates apart went bad and
+-- the game's stacking pushed every plate out of view. Every plate is spaced by
+-- itself instead. A plate that comes into view afterwards gets its stacking
+-- frame again; /reload restores everything.
 function Manager.Probe()
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
     if not get then return 0, 0 end
@@ -1216,10 +1246,11 @@ Manager.FIX = {
         end
         return string.format("%d plate settings back to the game's defaults", done)
     end,
-    -- 5. Rebuilt, then back on with no stacking frame handed to the game.
+    -- 5. Rebuilt, then back on with each game plate spaced by itself, not by a
+    -- frame of Daylight UI's.
     function()
         backWithout("stack")
-        return "the game's plates rebuilt, Daylight UI's back on without their stacking frame (wait two seconds)"
+        return "the game's plates rebuilt, Daylight UI's back on with each game plate spaced by itself (wait two seconds)"
     end,
     -- 6. Rebuilt, then back on with the game's own frame left showing underneath.
     function()

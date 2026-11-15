@@ -427,17 +427,6 @@ function Plate.Create(parent, sample)
         p.focusMark[i] = a
     end
 
-    -- The frame the game uses to keep plates from overlapping. Where a plate is
-    -- clicked is a frame that stays on the game's plate (Manager.OwnClicks), never
-    -- one of this plate's, which moves between game plates.
-    p.stack = CreateFrame("Frame", nil, p)
-    -- The game measures a stacking frame by what's drawn in it, not its size: an empty
-    -- one counts as nothing and plates don't stack. So it carries an invisible fill
-    -- for the game to measure.
-    p.stack.fill = p.stack:CreateTexture(nil, "BACKGROUND")
-    p.stack.fill:SetColorTexture(0, 0, 0, 0)
-    p.stack.fill:SetAllPoints(p.stack)
-
     p:SetScript("OnEvent", Plate.OnEvent)
     ns.Minion.Create(p)
     ns.Cast.Create(p)
@@ -682,39 +671,47 @@ function Plate.Attach(p, nameplate)
     Plate.Anchor(p)
 end
 
--- The frame the game uses to keep this plate apart from others (p.stack), hung
--- like EllesmereUI's: directly on the game's plate and pinned to it, never through
--- addon frames, so nothing on one game plate depends on a frame that moves on to
--- another (that made plates go invisible). Placed on every attach, since Layout
+-- The frame the game uses to keep this plate apart from others belongs to the
+-- game's plate, not to this one (Manager.StackFrame): it sits on that plate and
+-- is pinned to it for good, as Platynator's is, so no game plate is ever spaced
+-- by a frame that has moved on to another. This plate only gives it its size
+-- and height while it's there (p.stack). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
--- Every plate hands the game its stacking frame, as Platynator does, whether the
--- game stacks that kind of plate or not (/dui platefix can try the plates with
--- none at all).
+-- Every game plate is handed its stacking frame, whether the game stacks that
+-- kind of plate or not. /dui platefix can try the plates spaced by themselves.
 function Plate.NoStack()
     local M = ns.Manager
     return M ~= nil and M.fixWithout == "stack"
 end
 
 function Plate.PlaceStack(p)
-    local np, s = p.nameplate, p.stack
-    if type(np) ~= "table" or p.isSample or not s then return end
-    if Plate.NoStack(p) then return Plate.Detach(p) end
-    if s:GetParent() ~= np then s:SetParent(np) end
-    s:ClearAllPoints()
-    s:SetPoint("CENTER", np, "CENTER", 0, p.stackY or 0)
+    local np, M = p.nameplate, ns.Manager
+    if type(np) ~= "table" or p.isSample or not M then return end
+    local s = M.StackFrame(np)
+    p.stack = s
+    if not s then return end
+    if Plate.NoStack() then
+        s:Hide()
+        if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, np) end
+        return
+    end
+    -- Only what changed is set: every new size makes the game space its plates again.
+    local scale, w, h, y = p.stackScale or 1, p.stackW or 1, p.stackH or 1, p.stackY or 0
+    if s.scale ~= scale then
+        s.scale = scale
+        s:SetScale(scale)
+    end
+    if s.w ~= w or s.h ~= h then
+        s.w, s.h = w, h
+        s:SetSize(w, h)
+    end
+    if s.y ~= y then
+        s.y = y
+        s:ClearAllPoints()
+        s:SetPoint("CENTER", np, "CENTER", 0, y)
+    end
     s:Show()
     if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, s) end
-end
-
--- Off the game's plate, the stacking frame is hidden, unpinned and taken back, as
--- EllesmereUI clears its own. The game plate is never pointed at itself (the game
--- never sets its stacking frame on its own).
-function Plate.Detach(p)
-    local s = p.stack
-    if not s then return end
-    s:Hide()
-    s:ClearAllPoints()
-    if s:GetParent() ~= p then s:SetParent(p) end
 end
 
 -- ---------------------------------------------------------------------
@@ -847,9 +844,8 @@ function Plate.Layout(p)
     -- It takes the game plate's scale, as EllesmereUI's does, instead of a copy of
     -- the UI scale: alt-tab can change that for a moment, and a copy taken then
     -- stayed wrong, so the game stacked every plate by a box of the wrong size.
-    p.stack:SetIgnoreParentScale(false)
-    p.stack:SetScale(cfg().scale or 1)
-    p.stack:SetSize(w, h + top + bottom)
+    p.stackScale = cfg().scale or 1
+    p.stackW, p.stackH = w, h + top + bottom
     p.stackY = (cfg().offsetY or 0) + (top - bottom) / 2
     Plate.PlaceStack(p)
     p.hpCut = cut

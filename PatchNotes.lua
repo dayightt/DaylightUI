@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        changed = {
+            { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log and the game's own tracker" },
+        },
         fixed = {
             { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
         },

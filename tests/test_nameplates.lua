@@ -3030,34 +3030,53 @@ T.test("nameplates: an error while putting ours on leaves nothing half done", fu
     T.truthy(#stub.errors >= 1, "the error is reported")
 end)
 
-T.test("nameplates: a game plate let go no longer points at our frames", function()
+-- The game's plate keeps pointing at the last stacking frame it was handed. So
+-- each game plate has one of its own that never leaves it, like its click frame.
+T.test("nameplates: a game plate keeps its own stacking frame after our plate leaves", function()
     login()
     local p = added("nameplate1")
     local np = plates[1]
-    T.eq(np.__stack, p.stack)
-    T.eq(p.stack:GetParent(), np, "right on the game's plate (EllesmereUI's way)")
-    local _, rel = p.stack:GetPoint(1)
+    local box = np.__stack
+    T.eq(p.stack, box, "our plate sizes this game plate's frame")
+    T.eq(box:GetParent(), np, "right on the game's plate")
+    local _, rel = box:GetPoint(1)
     T.eq(rel, np, "pinned to it, never through our frames")
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
-    T.falsy(p.stack:IsShown(), "ours hidden")
-    T.eq(p.stack:GetNumPoints(), 0, "unpinned")
-    T.eq(p.stack:GetParent(), p, "and taken back")
-    T.falsy(np.__stack == np, "never pointed at itself")
+    T.eq(np.__stack, box, "still its own")
+    T.eq(box:GetParent(), np, "still on it")
+    T.isnil(p.stack, "our plate carries none away")
     T.eq(np.__hit:GetParent(), np, "its click frame stays on that game plate, never one that moves on")
 end)
 
-T.test("nameplates: a plate of ours that can't be used any more still takes its stacking frame off", function()
-    local NP = login()
+T.test("nameplates: our plate moving on leaves the first game plate's stacking frame behind", function()
+    login()
     local p = added("nameplate1")
+    local first = plates[1].__stack
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate2")
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1") -- last back with the spares, so first out again
+    local q = added("nameplate2")
+    T.eq(q, p, "the same plate of ours, on another game plate")
+    T.truthy(plates[2].__stack ~= first, "the second game plate has a frame of its own")
+    T.eq(plates[2].__stack:GetParent(), plates[2])
+    T.eq(plates[1].__stack, first, "the first still points at its own")
+    T.eq(first:GetParent(), plates[1], "which never left it")
+    local _, rel = first:GetPoint(1)
+    T.eq(rel, plates[1], "nor is it pinned anywhere else")
+end)
+
+T.test("nameplates: a plate of ours that can't be used any more leaves the game plate's stacking frame on it", function()
+    local NP = login()
+    added("nameplate1")
+    local box = plates[1].__stack
     local real = NP.Manager.Usable
     NP.Manager.Usable = function() return false end
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
     NP.Manager.Usable = real
-    T.falsy(p.stack:IsShown())
-    T.eq(p.stack:GetParent(), p)
+    T.eq(box:GetParent(), plates[1])
+    T.eq(plates[1].__stack, box)
 end)
 
-T.test("nameplates: the stacking frame moves with our plate onto its next game plate", function()
+T.test("nameplates: our plate sizes the stacking frame of the game plate it lands on", function()
     login()
     DaylightUI:Set("Nameplates", "stackFriendly", true) -- its next plate is a friendly player's
     local p = added("nameplate1")
@@ -3070,6 +3089,18 @@ T.test("nameplates: the stacking frame moves with our plate onto its next game p
     local _, rel = p.stack:GetPoint(1)
     T.eq(rel, np, "pinned to the new one, not the old")
     T.truthy(p.stack:IsShown())
+    T.truthy(p.stack:GetWidth() > 1 and p.stack:GetHeight() > 1, "sized for this plate")
+end)
+
+T.test("nameplates: the stacking frames are built at login, one for each plate the game can show", function()
+    local made = 0
+    local NP = login()
+    local real = _G.CreateFrame
+    _G.CreateFrame = function(...) made = made + 1 return real(...) end
+    added("nameplate1")
+    _G.CreateFrame = real
+    T.eq(made, 0, "none built as a plate comes up")
+    T.truthy(NP.Manager.stackOf[plates[1]], "this game plate's own")
 end)
 
 T.test("nameplates: the pool covers every plate the game can show, built at login", function()
@@ -4034,6 +4065,42 @@ T.test("nameplates: /dui platecheck reads a see-through game plate and never a s
     T.truthy(text:find("LOOKS WRONG", 1, true), text)
     _G.UnitCanAttack = function() return stub.Secret(true) end
     T.truthy(pcall(NP.Manager.CheckLines), "a secret answer doesn't stop it")
+end)
+
+-- Where the game has put a plate can't be read, and that is the one thing a
+-- vanished plate doesn't tell. A marker drawn on the screen itself, pinned to
+-- the plate, shows it in a screenshot.
+T.test("nameplates: /dui platecheck marks on screen where the game has each plate", function()
+    login()
+    added("nameplate1")
+    local R = DaylightUI.PlateReport
+    local n = R.Mark()
+    T.eq(n, 2, "one for each game plate")
+    local m = R.marks[1]
+    local _, rel = m.dot:GetPoint(1)
+    T.eq(rel, plates[1], "pinned to the game's plate")
+    T.eq(R.markLayer:GetParent(), UIParent, "but drawn on the screen, not on the plate")
+    T.eq(m.line.__start[2], UIParent, "a line from the middle of the screen")
+    T.eq(m.line.__end[2], plates[1], "to the plate, wherever it is")
+    T.eq(m.text.__text, "1", "numbered like the check's lines")
+    T.truthy(R.markLayer:IsShown())
+    T.truthy(R.marksOn)
+    stub.RunTimers()
+    T.falsy(R.marksOn, "gone again after a while")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: /dui platecheck says what the game answers about the camera, and who is friendly", function()
+    local NP = login()
+    added("nameplate1")
+    _G.C_NamePlateManager = { IsNamePlateUnitBehindCamera = function(u) return u == "nameplate1" end }
+    local text = checkText(NP)
+    _G.C_NamePlateManager = nil
+    T.truthy(text:find("nameplate1: enemy", 1, true), text)
+    T.truthy(text:find("behindCamera=true", 1, true), text)
+    T.truthy(text:find("nameplate2: friendly, player=true", 1, true), text)
+    T.truthy(text:find("behindCamera=false", 1, true), text)
+    T.truthy(text:find("box=ours", 1, true), "whether the game plate has its stacking frame")
 end)
 
 T.test("nameplates: /dui plateprobe hands each plate it can reach its own stacking frame", function()
