@@ -13,6 +13,9 @@ local function box(parent)
     b.ScrollTarget = CreateFrame("Frame", nil, b)
     b.ScrollTarget:SetAllPoints(b)
     function b:ForEachFrame(fn) for _, r in ipairs(self.rows) do fn(r) end end
+    -- The list's view and the padding it keeps (CreateScrollBoxListLinearView's).
+    local view = { GetPadding = function() return { GetLeft = function() return PAD end } end }
+    function b:GetView() return view end
     function b:RegisterCallback(event, fn, owner)
         self.callbacks[event] = self.callbacks[event] or {}
         self.callbacks[event][owner] = fn
@@ -126,6 +129,14 @@ function LW.Install()
     f.ScrollBox:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -22)
     f.ScrollBox:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
     f.ScrollBox:SetWidth(216)
+    function f.ScrollBox:GetDataProviderSize() return #LW.slots end
+    function f:GetPanelMaxHeight() return self.panelMaxHeight end
+    -- MinimalScrollBar, as the game anchors it: 16 px in from the window's right
+    -- edge, 28 from the top, 6 from the bottom.
+    f.ScrollBar = CreateFrame("Frame", nil, f)
+    f.ScrollBar:SetWidth(8)
+    f.ScrollBar:SetPoint("TOPLEFT", f, "TOPRIGHT", -16, -28)
+    f.ScrollBar:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", -16, 6)
     return f
 end
 
@@ -176,7 +187,12 @@ function LW.Open(f, slots, autoLoot)
     b:TriggerEvent("OnUpdate")
     f:Show()
     local n = #slots
-    f:SetHeight(math.min(math.max(n, 1) * ROW_H + math.max(n - 1, 0) * SPACING + 26 + 20, f.panelMaxHeight))
+    -- ScrollingFlatPanelMixin:Resize: the height the rows need, up to the maximum,
+    -- and the bar shown only when they need more than that. It sizes for its own
+    -- numbers, so with five rows it hides the bar though our rows scroll.
+    local need = math.max(n, 1) * ROW_H + math.max(n - 1, 0) * SPACING + 26 + 20
+    f:SetHeight(math.min(need, f.panelMaxHeight))
+    f.ScrollBar:SetShown(need > f.panelMaxHeight)
     for i = fits + 1, n do add(i) end
     b:TriggerEvent("OnUpdate")
 end

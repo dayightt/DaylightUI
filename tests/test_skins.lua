@@ -1596,6 +1596,135 @@ T.test("skins: the loot window's rows are our rows: the game's card and glow gon
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The loot window's header sits where every window's does, the rows have the
+-- same room on every side, the window is as tall as its rows need, and the bar
+-- shows only once they don't fit.
+T.test("skins: the loot window's title and X sit where our windows have them, with the same room on every side of the rows", function()
+    local LW, f = require("lootworld"), nil
+    local S = login(function() f = LW.Install() end)
+    local Win, L = DaylightUI.Win, S.LootLayout
+    local function pointOf(frame, name)
+        for i = 1, frame:GetNumPoints() do
+            local p, rel, rp, x, y = frame:GetPoint(i)
+            if p == name then return rel, rp, x, y end
+        end
+    end
+    local function corpse(n)
+        local out = {}
+        for i = 1, n do out[i] = { name = "Linen Cloth " .. i, link = "item:3", quality = 1, icon = 132889 } end
+        return out
+    end
+    LW.Open(f, LW.Corpse())
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local rel, _, x, y = pointOf(f.ClosePanelButton, "TOPRIGHT")
+    T.eq(rel, f); T.eq(x, Win.CLOSE_X, "the X where every window has it"); T.eq(y, Win.CloseY(true), "level with the title")
+    T.eq(f.ClosePanelButton:GetWidth(), DaylightUI.Widgets.CLOSE, "the same size")
+    rel, _, x, y = pointOf(f.TitleContainer.TitleText, "TOPLEFT")
+    T.eq(rel, f); T.eq(x, Win.EDGE, "the title on the window's left edge"); T.eq(y, Win.TITLE_Y)
+    -- The same room on every side: the list's inset plus the game's padding in it
+    -- is MARGIN on the left, the right and the bottom (a row's last 2 px of its
+    -- slot are empty), and under the header on top.
+    local pad = L.PAD
+    local _, _, lx, ly = pointOf(f.ScrollBox, "TOPLEFT")
+    local _, _, rx, ry = pointOf(f.ScrollBox, "BOTTOMRIGHT")
+    T.eq(lx + pad, L.MARGIN, "left")
+    T.eq(-rx + pad, L.MARGIN, "right")
+    T.eq(ry + pad + L.ROW_GAP, L.MARGIN, "bottom")
+    T.eq(-ly + pad - L.HEAD, L.MARGIN, "top, under the header")
+    -- Tall enough for the rows and no more: 4 rows, 12 of padding, the list's insets.
+    local n = #LW.Corpse()
+    local rows = n * L.ROW_SLOT + (n - 1) * L.SLOT_GAP + 2 * pad
+    T.eq(f:GetHeight(), -ly + ry + rows + 0, "as tall as the rows need")
+    T.falsy(f.ScrollBar:IsShown(), "everything fits: no bar")
+    -- Rows keep their slots but draw shorter. The icon is smaller and in the
+    -- middle, clear of the row's own outline, the name sits below the rarity.
+    for _, row in ipairs(f.ScrollBox.rows) do
+        T.eq(row:GetHeight(), L.ROW_SLOT - L.ROW_GAP, "a row draws shorter than its slot")
+        local p, rrel, _, ix, iy = row.Item:GetPoint(1)
+        T.eq(p, "LEFT"); T.eq(rrel, row); T.eq(ix, L.ITEM_X, "the icon clear of the row's edge"); T.eq(iy, 0, "in the middle")
+        T.eq(row.Item:GetWidth(), L.ICON, "smaller, so its outline clears the row's")
+        -- The quality outline sticks out ~2.5 px past the button each side.
+        T.truthy((row:GetHeight() - row.Item:GetHeight() - 5) / 2 >= 4, "room above and below the icon's outline")
+        for _, k in ipairs({ "MARGIN", "HEAD", "PAD", "ROW_GAP", "ICON", "ITEM_X", "TEXT_GAP", "TEXT_DROP", "TAG_X", "TAG_Y", "BAR_W" }) do
+            T.eq(type(L[k]), "number", "the layout number " .. k)
+        end
+        T.eq(L.TAG_X, -10); T.eq(L.TAG_Y, -5)
+        local _, nrel, _, nx, ny = row.Text:GetPoint(1)
+        T.eq(nrel, row.Item); T.eq(nx, L.TEXT_GAP, "the name clear of the icon")
+        if row.QualityText then
+            T.eq(ny, -L.TEXT_DROP, "the name below the middle")
+            local tp, trel, _, tx, ty = row.QualityText:GetPoint(1)
+            T.eq(tp, "TOPRIGHT"); T.eq(trel, row); T.eq(tx, L.TAG_X); T.eq(ty, L.TAG_Y, "the rarity in the corner")
+        else
+            T.eq(ny, 0, "coin: its one line level with the icon")
+        end
+    end
+    -- A name that wraps to two lines is centered in the row, not dropped, or its
+    -- second line would touch the row's bottom edge. A coin row has no rarity.
+    LW.Close(f); stub.RunTimers()
+    LW.Open(f, { { name = string.rep("x", 40), link = "item:3", quality = 0, icon = 132889 } })
+    stub.RunTimers()
+    local long = f.ScrollBox.rows[1]
+    T.eq(long.Text:GetStringHeight(), 30, "the name wraps")
+    local _, _, _, _, longY = long.Text:GetPoint(1)
+    T.eq(longY, 0, "two lines: centered in the row")
+    -- Its right edge stops short of the rarity in the corner, which it shares a height with.
+    local tagW = long.QualityText:GetStringWidth()
+    local nameLeft = L.ITEM_X + L.ICON + L.TEXT_GAP
+    T.truthy(nameLeft + long.Text:GetWidth() <= long:GetWidth() + L.TAG_X - tagW, "a two-line name ends before the rarity")
+    -- The button answers over the row's whole height, not just the icon's 30 px.
+    local hit = long.Item.__hitRect
+    T.truthy(hit, "the item button's hit area was set")
+    T.eq(long.Item:GetHeight() - hit[3] - hit[4], long:GetHeight(), "it reaches the row's top and bottom")
+    LW.Close(f); stub.RunTimers()
+    LW.Open(f, LW.Corpse())
+    stub.RunTimers()
+    local one = f.ScrollBox.rows[2]
+    local _, _, _, _, oneY = one.Text:GetPoint(1)
+    T.eq(oneY, -L.TEXT_DROP, "one line: below the rarity again")
+    T.eq(one.Text:GetWidth(), 150, "and the game's own width again")
+    -- Nothing keeps changing while it sits there.
+    local height = f:GetHeight()
+    for _ = 1, 3 do f.ScrollBox:TriggerEvent("OnUpdate"); stub.RunTimers() end
+    T.eq(f:GetHeight(), height, "the same height after more updates")
+    _, _, lx, ly = pointOf(f.ScrollBox, "TOPLEFT")
+    T.eq(-ly + pad - L.HEAD, L.MARGIN, "and the list stays where it is")
+    -- The game lays a row out again at its own height: it is shortened again.
+    f.ScrollBox.rows[1]:SetHeight(L.ROW_SLOT)
+    f.ScrollBox:TriggerEvent("OnUpdate"); stub.RunTimers()
+    T.eq(f.ScrollBox.rows[1]:GetHeight(), L.ROW_SLOT - L.ROW_GAP, "shortened again")
+    -- A smaller corpse: the game gives its own height, ours follows the rows.
+    LW.Close(f); stub.RunTimers()
+    LW.Open(f, corpse(1))
+    stub.RunTimers()
+    T.eq(f:GetHeight(), L.Plan(1, f.panelMaxHeight).height, "one row: as tall as one row needs")
+    T.falsy(f.ScrollBar:IsShown())
+    -- Four rows still fit under the game's maximum, five don't: then the list
+    -- scrolls, the bar shows and the right side leaves room for it.
+    T.eq(L.Plan(4, f.panelMaxHeight).scrolls, false, "four rows fit")
+    T.eq(L.Plan(5, f.panelMaxHeight).scrolls, true, "five don't")
+    -- Exactly five: the game sizes the window for them and hides its bar, but ours
+    -- scroll, so the bar must be shown (not just made opaque).
+    LW.Close(f); stub.RunTimers()
+    LW.Open(f, corpse(5))
+    stub.RunTimers()
+    T.falsy(L.Plan(5, f.panelMaxHeight).height < f.panelMaxHeight and false, "five rows reach the maximum")
+    T.truthy(f.ScrollBar:IsShown(), "five rows scroll here: the bar shows though the game hid it")
+    T.eq(f.ScrollBar:GetAlpha(), 1)
+    LW.Close(f); stub.RunTimers()
+    LW.Open(f, corpse(6))
+    stub.RunTimers()
+    T.eq(f:GetHeight(), f.panelMaxHeight, "never taller than the game's own maximum")
+    T.truthy(f.ScrollBar:IsShown(), "the rows scroll: the bar shows")
+    _, _, rx, ry = pointOf(f.ScrollBox, "BOTTOMRIGHT")
+    T.eq(-rx + pad, L.BAR_INSET + L.BAR_W + L.BAR_GAP, "the rows stop short of the bar")
+    local brel, brp, bx, by = pointOf(f.ScrollBar, "TOPLEFT")
+    T.eq(brel, f); T.eq(brp, "TOPRIGHT"); T.eq(bx, -(L.BAR_INSET + L.BAR_W), "the bar near the window's right edge")
+    T.eq(by, -(L.HEAD + L.MARGIN), "level with the rows' top")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("skins: the breath bar's angled end has its own switch; off, the end and the fill are straight", function()
     local t
     local S = login(function()

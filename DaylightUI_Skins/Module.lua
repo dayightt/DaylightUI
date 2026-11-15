@@ -6,7 +6,7 @@ DaylightUI:RegisterModule("Skins", {
     -- The module's parts, so a file missing after an update disables the
     -- module with one line in chat instead of erroring.
     ns = ns,
-    parts = { "Kit", "Engine", "Breath", "CcAlert", "MapMove", "MapReveal", "MapPins", "WindowScale", "WindowMove", "LootRoll", "Ace3", "RXPv2", "FDJ", "NeedRoll", "DBMSkin", "BigWigsSkin", "PrettySkin", "Attune", "OPieSkin", "BagnonSkin", "BaganatorSkin", "Trade" },
+    parts = { "Kit", "Engine", "Breath", "CcAlert", "MapMove", "MapReveal", "MapPins", "WindowScale", "WindowMove", "LootRoll", "LootLayout", "Ace3", "RXPv2", "FDJ", "NeedRoll", "DBMSkin", "BigWigsSkin", "PrettySkin", "Attune", "OPieSkin", "BagnonSkin", "BaganatorSkin", "Trade" },
     label = "Game window skins",
     order = 150,
     section = "QoL", pageOrder = 140, -- options page sits under Extras, after the custom windows
