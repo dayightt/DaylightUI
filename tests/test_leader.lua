@@ -613,3 +613,39 @@ T.test("ready check: an answer that lands as it ends gets the ripple alone, not 
     T.near(select(2, h.light:GetVertexColor()), g, 0.001)
     T.eq(b.readyStatus, "ready", "the answer still shows")
 end)
+
+T.test("leader card: long button texts wrap onto a new line instead of spilling", function()
+    local _, ns = login("leader")
+    local lines = ns.Leader.Wrap({ 60, 60 }, 232, 6)
+    T.eq(#lines, 1, "two short ones share a line")
+    lines = ns.Leader.Wrap({ 140, 140 }, 232, 6)
+    T.eq(#lines, 2, "two long ones take a line each")
+    lines = ns.Leader.Wrap({ 40, 40, 40, 70 }, 232, 6)
+    T.eq(#lines, 1, "the pull row fits one line")
+    lines = ns.Leader.Wrap({ 40, 40, 40, 140 }, 232, 6)
+    T.eq(#lines, 2, "a long Cancel drops to its own line")
+    T.eq(#lines[2], 1)
+    T.eq(#ns.Leader.Wrap({}, 232, 6), 0)
+end)
+
+T.test("leader card: Ready and Role are our own icons, not words, so no language breaks them", function()
+    local DUI, ns = login("leader")
+    local function pieces(b)
+        local out = {}
+        for _, c in ipairs({ b:GetChildren() }) do
+            for _, r in ipairs({ c:GetRegions() }) do
+                if r.GetTexture and r:GetTexture() then out[#out + 1] = r end
+            end
+        end
+        return out
+    end
+    local ready = pieces(ns.Leader.readyButtons[1].button)
+    T.eq(#ready, 1, "one tick")
+    T.eq(ready[1]:GetTexture(), DUI.MEDIA .. "ui-check.png")
+    T.eq(ns.Leader.readyButtons[1].button.text:GetText(), "", "no words on it")
+    local roles = pieces(ns.Leader.readyButtons[2].button)
+    T.eq(#roles, 3, "tank, healer, damage")
+    for _, r in ipairs(roles) do T.eq(r:GetTexture(), ns.UF.ROLE_ICON_TEXTURE) end
+    -- The strip fits inside the button's fill (24 high, a 3 px band round it).
+    T.truthy(ns.Leader.ICON_SIZE <= ns.Leader.BUTTON_H - 6, "icons stay inside the button")
+end)

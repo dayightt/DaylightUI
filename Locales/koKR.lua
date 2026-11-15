@@ -504,6 +504,7 @@ L["As wide as the minimap above it, so their edges line up. When off, it uses th
 L["Ask to reset"] = "초기화 물어보기"
 L["Asking who you played with..."] = "함께 플레이한 사람을 묻는 중..."
 L["Asking who's about..."] = "주변 사람을 묻는 중..."
+L["Asks everyone if they are ready."] = "모두에게 준비가 되었는지 묻습니다."
 L["Asks everyone to pick tank, healer or damage."] = "모두에게 방어, 치유, 공격 중 하나를 고르게 합니다."
 L["Assassination"] = "암살"
 L["Assign a buff"] = "강화 효과 지정"

@@ -505,6 +505,7 @@ L["As wide as the minimap above it, so their edges line up. When off, it uses th
 L["Ask to reset"] = "Спрашивать о сбросе"
 L["Asking who you played with..."] = "Запрос тех, с кем вы играли..."
 L["Asking who's about..."] = "Запрос тех, кто рядом..."
+L["Asks everyone if they are ready."] = "Спрашивает всех, готовы ли они."
 L["Asks everyone to pick tank, healer or damage."] = "Просит всех выбрать роль: танк, лекарь или боец."
 L["Assassination"] = "Ликвидация"
 L["Assign a buff"] = "Назначить эффект"
