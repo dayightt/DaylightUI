@@ -66,7 +66,7 @@ Not everything belongs in Daylight UI itself. A lot of ideas work better as a pl
 - it's a big feature, one that was turned down here, or one you want to ship on your own schedule;
 - it's a profile pack or a preset for your guild or stream.
 
-Plugins need no permission, aren't held up by review, and keep working across updates as long as they stick to the calls in `API.md`. They can't include copies of Daylight UI's code or art; see [`LICENSE`](LICENSE).
+Plugins need no permission, aren't held up by review, and keep working across updates as long as they stick to the calls in `API.md`. They can't include copies of Daylight UI's code or art, and they must stay free: donations are welcome, but nothing can be locked behind a payment, subscription or early access. See [`LICENSE`](LICENSE).
 
 ## What every change has to meet
 
@@ -112,7 +112,7 @@ AI tools are fine to use, but the PR is yours and so is every line in it.
 
 ## License
 
-Daylight UI is source-available, not open source. You can fork the repo to send pull requests, and plugins and profile packs are welcome without asking. Re-uploading it or reusing its code or art elsewhere needs permission. By sending a pull request you agree to the contribution terms in [`LICENSE`](LICENSE): you keep the copyright to your work and give Daylight UI a license to use it.
+Daylight UI is source-available, not open source. You can fork the repo to send pull requests, and plugins and profile packs are welcome without asking (free for everyone; donations are fine, paywalls aren't). Re-uploading it or reusing its code or art elsewhere needs permission. By sending a pull request you agree to the contribution terms in [`LICENSE`](LICENSE): you keep the copyright to your work and give Daylight UI a license to use it.
 
 ## Credits
 
