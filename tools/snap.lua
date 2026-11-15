@@ -207,6 +207,20 @@ local RECIPES = {
         BW.Open(tab == "talents" and BW.TALENTS or BW.SPELLBOOK)
         return _G.DaylightUIBook
     end },
+    craft = { about = "the profession window on Tailoring", world = "craftworld", before = function(PW)
+        PW.world({})()
+    end, open = function(_, _, PW)
+        PW.Open(197)
+        for _ = 1, 20 do
+            require("stub").RunTimers()
+            DaylightUI.Win.Followers.Tick()
+            local d = DaylightUI.Win.Feel.Driver()
+            if d then require("stub").RunOnUpdate(d, 1 / 30) end
+            local m = DaylightUI.Motion.Driver()
+            if m then require("stub").RunOnUpdate(m, 1 / 30) end
+        end
+        return _G.DaylightUICraft
+    end },
     character = { about = "the character window [the game's page: ReputationFrame, SkillFrame...]", character = true,
         world = "charworld", before = function(CW)
         CW.world({ factions = {

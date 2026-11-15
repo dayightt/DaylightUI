@@ -1,5 +1,5 @@
 -- Registers the profession window with the core. It lives in the core addon and is
--- switched by the "enabled" setting, read at login.
+-- switched by the "enabled" setting, from the options or either window (Swap.lua).
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
@@ -27,7 +27,7 @@ DUI:RegisterModule("Professions", {
     order = 128,
     section = "QoL", pageOrder = 132, windowCard = true,   -- a card on Extras > Windows
     ns = ns,
-    parts = { "SkillUps", "Data", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Track", "Window" },
+    parts = { "SkillUps", "Data", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Track", "Window", "Swap" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
@@ -36,8 +36,10 @@ DUI:RegisterModule("Professions", {
         DUI.craftOwnWindow = mod.db.enabled == true and not DUI.craftMogul
         if ns.Window and DUI.craftOwnWindow then ns.Window.Build(mod) end
         if ns.Track then ns.Track.Init() end
+        if ns.Swap then ns.Swap.Init() end
     end,
     OnSettingChanged = function()
+        if ns.Swap then ns.Swap.Apply() end
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()

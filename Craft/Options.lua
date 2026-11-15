@@ -13,9 +13,9 @@ ns.OPTIONS = { pages = {
         { label = "Window", items = {
             { type = "text", label = "DaylightMogul's profession window is in use.",
               hidden = function() return not DaylightUI.craftMogul end },
-            { type = "toggle", key = "enabled", label = "DaylightUI style profession window", reload = true,
+            { type = "toggle", key = "enabled", label = "DaylightUI style profession window",
               disabled = function() return DaylightUI.craftMogul == true end,
-              desc = "Opening a profession shows DaylightUI's window: your recipes on the left, the one you picked on the right. In a fight the game's own window opens. Turn it off to use the game's window." },
+              desc = "Opening a profession shows DaylightUI's window: your recipes on the left, the one you picked on the right. Turn it off to use the game's own window, in Daylight UI's look, for addons that build on it. Each window also has a button to switch to the other." },
             { type = "toggle", key = "rarityNames", since = "1.5.1", label = "Rarity colors",
               desc = "Recipe names take the rarity color of what they make. Off, they show how likely a skill-up is. The same switch sits beside the window's search.",
               disabled = function() return DaylightUI.craftMogul == true end },

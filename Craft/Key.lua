@@ -29,6 +29,7 @@ Key.BINDING = "TOGGLEPROFESSIONBOOK"
 -- The spell the key casts: the last used profession, else the first with a crafting
 -- window. nil when there's none, so the key stays the game's.
 function Key.Spell()
+    if not DUI.craftOwnWindow then return nil end   -- the game's window picked: its key opens its book
     local tabs = ns.Data.Tabs()
     if #tabs == 0 then return nil end
     local char = DUI.DB and DUI.DB.Character and DUI.DB.Character()

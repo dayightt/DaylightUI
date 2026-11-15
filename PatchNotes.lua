@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Professions", "Use the game's own profession window if you prefer it or your addons need it: a button in either window swaps to the other and remembers it, and the game's window has the Daylight UI look" },
+        },
         changed = {
             { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log and the game's own tracker" },
         },

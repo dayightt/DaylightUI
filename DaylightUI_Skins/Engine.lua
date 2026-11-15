@@ -234,6 +234,8 @@ function Engine.Window(def)
         local ranThisFrame, askedAgain, shape = false, false, nil
         local function again(ifChanged)
             if InCombatLockdown and InCombatLockdown() then return end
+            -- Replaced by a Daylight UI window for now: nothing to dress while it's covered.
+            if def.skip and def.skip() then return end
             if ranThisFrame then
                 askedAgain = true
                 return
@@ -264,7 +266,7 @@ function Engine.Window(def)
             shape = not Kit.Walking(f) and Kit.Shape(f) or nil
             if t0 then Kit.Spent("window " .. def.key, debugprofilestop() - t0) end
         end
-        def.again = again
+        def.again, reg.again = again, again
         applyWindow(def, Kit, f, false, def.watch and again or nil)
         -- On open: run now and once more next frame, to catch whatever the
         -- game fills in right after.

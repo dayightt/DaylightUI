@@ -50,6 +50,55 @@ Engine.Window({ key = "professionsbook", pack = "system", addon = "Blizzard_Prof
     watch = true, auto = { skip = barPaths },
     after = function(Kit, f) professionPanels(Kit, f.ProfessionsContentFrame, 0) end })
 
+-- The game's profession window, for players who pick it over Daylight UI's (or
+-- while Daylight UI's lends it out: the guild's crafters, an NPC's crafting). Too
+-- much its own for the whole template: only its controls go through it (close,
+-- scroll bars, dropdowns, search boxes), the rest by name. Its skill bars keep
+-- their own look. Never walked while Daylight UI's window covers it, nor while
+-- DaylightMogul's does.
+local function professionsCovered()
+    if DaylightUI.craftMogul == true then return true end
+    local W = DaylightUI.Craft and DaylightUI.Craft.Window
+    return type(W) == "table" and type(W.Covers) == "function" and W.Covers() == true
+end
+
+local professions = Engine.Window({ key = "professions", pack = "system", addon = "Blizzard_Professions", frame = "ProfessionsFrame",
+    watch = true, auto = { controlsOnly = true, rows = false }, skip = professionsCovered,
+    after = function(Kit, f)
+        Kit.SideTab(f.ProfessionsOverviewTab, nil, Kit.SIDE_TAB_CROP)
+        for i = 1, 7 do Kit.SideTab(f["Professions" .. i .. "Tab"], nil, Kit.SIDE_TAB_CROP) end
+        professionPanels(Kit, f.BookPage, 0)
+        local page = f.CraftingPage
+        if type(page) == "table" then
+            Kit.Strip(page)
+            for _, key in ipairs({ "CreateButton", "CreateAllButton", "ViewGuildCraftersButton" }) do Kit.Button(page[key]) end
+            local list = page.RecipeList
+            if type(list) == "table" then
+                Kit.Inset(list)
+                Kit.Hide(list.BackgroundNineSlice)
+            end
+            local form = page.SchematicForm
+            if type(form) == "table" then
+                Kit.Inset(form)
+                Kit.Hide(form.NineSlice)
+                if type(form.OutputIcon) == "table" then Kit.Item(form.OutputIcon) end
+            end
+        end
+    end })
+
+-- The game re-checks its side tabs when a profession opens or a skill changes,
+-- with the window already open. And when Daylight UI's window hands it over, it's
+-- already shown, so no OnShow says it needs its look.
+local function professionsAgain()
+    local f = _G.ProfessionsFrame
+    if type(f) ~= "table" or not f:IsShown() or professionsCovered() then return end
+    if professions.again then professions.again() else Engine.Try(professions) end
+    ns.Kit.RepaintSoon()
+end
+DaylightUI.On("CraftGameWindow", function() C_Timer.After(0, professionsAgain) end)
+DaylightUI.RegisterEvent("TRADE_SKILL_SHOW", professionsAgain)
+DaylightUI.RegisterEvent("SKILL_LINES_CHANGED", professionsAgain)
+
 -- The hunter's stable. Forever uses the Camelot one (Blizzard_StableUI/Camelot):
 -- `PetStableFrame` (retail's `StableFrame` doesn't exist here). The gold rules,
 -- the coin box and the frame around the pet sit on their own pieces, above the

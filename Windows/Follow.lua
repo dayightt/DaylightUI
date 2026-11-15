@@ -9,6 +9,7 @@
 --                changed = function(kind, shown) ... end,    -- a game window was shown or hidden
 --                onPark = function(kind, frame, parked) ... end })  -- optional: parked (true) or given back
 --                pin = function(kind, frame) ... end      -- optional: each poll while parked and shown, out of combat
+--                leave = function(kind) ... end    -- optional: true leaves that window the game's (the player picked it)
 --
 -- Parking only happens out of combat. Until then the game's own window shows
 -- instead. Load-on-demand addons (the trainer) are parked as they load.
@@ -81,7 +82,8 @@ end
 local function park(def)
     for kind in pairs(def.frames) do
         local f = frameOf(def, kind)
-        if f and not def.parked[kind] and not f:IsShown() and not (def.lent and def.lent[kind]) then
+        if f and not def.parked[kind] and not f:IsShown() and not (def.lent and def.lent[kind])
+            and not (def.leave and def.leave(kind)) then
             f:SetParent(def.veil and def.veil[kind] and Follow.veil or Follow.hidden)
             def.parked[kind] = true
             writeWidth(def, f)
@@ -101,12 +103,13 @@ function Follow.Lend(def, kind)
     return true
 end
 
--- Re-park a lent window while it is still shown, e.g. when a lent profession
--- overview turns into a recipe list. Veil only: a hidden parent would fire its
--- OnHide and close the trade skill. Out of combat only.
+-- Park a window while it is still shown: a lent profession overview that turns
+-- into a recipe list, or one the player switches back from the game's look. Veil
+-- only: a hidden parent would fire its OnHide and close the trade skill. Out of
+-- combat only.
 function Follow.Reclaim(def, kind)
     local f = frameOf(def, kind)
-    if not (f and def.lent[kind] and def.veil and def.veil[kind]) then return false end
+    if not (f and not def.parked[kind] and def.veil and def.veil[kind]) then return false end
     if InCombatLockdown() or not f:IsShown() then return false end
     def.lent[kind] = nil
     f:SetParent(Follow.veil)
@@ -159,7 +162,7 @@ function Follow.Tick()
             -- Game windows are protected in combat, so pinning waits.
             if on and def.pin and not InCombatLockdown() then def.pin(kind, f) end
             if f and def.lent[kind] and not f:IsShown() then def.lent[kind] = nil end
-            if f and not def.parked[kind] then need = true end
+            if f and not def.parked[kind] and not (def.leave and def.leave(kind)) then need = true end
         end
         if need then DUI.AfterCombat(def.parkFn, def.parkKey) end
     end

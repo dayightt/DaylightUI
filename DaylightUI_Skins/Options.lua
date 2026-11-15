@@ -24,7 +24,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "packs.collections", label = "Collections and journals", reload = true,
               desc = "Collections, achievements, the dungeon journal, the dressing room." },
             { type = "toggle", key = "packs.system", label = "Menus, loot and items", reload = true,
-              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the box that splits a stack." },
+              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the game's profession window, the world map's frame, the breath bar, the box that splits a stack." },
         } },
         { label = "Windows", items = {
             backRows[1], backRows[2],
