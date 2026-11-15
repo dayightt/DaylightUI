@@ -882,7 +882,8 @@ me.AddGlowStyle("pulse", {
 ```
 
 Your style joins Daylight UI's five in every glow menu: the main window buttons (General), the
-target nameplate's outline light (Nameplates > Target) and the Cooldown Manager's Glow style. Its key
+target nameplate's outline light (Nameplates > Target) and each Cooldown Manager spell's glow style
+(its card's Look tab). Its key
 in those menus and in `API.GlowStyles` is `"YourPlugin:pulse"`.
 
 `draw` runs every frame while your glow shows. `at` goes from 0 to 1 through each turn; `lo` and `hi`
