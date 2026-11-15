@@ -113,11 +113,10 @@ function Copy.Show(cf)
         box.edit:SetShadowOffset(1, -1)
         box.edit:SetShadowColor(0, 0, 0, 0.9)
     end
-    box.text = Copy.Text(cf)
-    box.area.Lock(box.text) -- read-only: typing just restores the text
     box:Show()
     box:Raise()
-    box.edit:SetText(box.text)
+    box.text = DUI.Widgets.SetEditText(box.edit, Copy.Text(cf))
+    box.area.Lock(box.text) -- read-only: typing just restores the text
     box.edit:SetFocus()
     -- Cursor at the end too, since the box keeps the cursor in view.
     box.edit:SetCursorPosition(#box.text)

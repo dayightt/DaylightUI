@@ -834,6 +834,26 @@ T.test("chat: the copy window holds the tab's lines, secret ones left out", func
     T.eq(box.edit.__text, want)
 end)
 
+T.test("chat: a line the edit box won't take doesn't blank the copy window", function()
+    login()
+    local Copy = stub.chatModule.Copy
+    ChatFrame1.lines = {}
+    ChatFrame1:AddMessage("one", 1, 1, 1)
+    ChatFrame1:AddMessage("bad|xline", 1, 1, 1)
+    ChatFrame1:AddMessage("two", 1, 1, 1)
+    stub.EditRefuses = function(t) return string.find((string.gsub(t, "||", "")), "|x", 1, true) ~= nil end
+    local ok, err = pcall(Copy.Show, ChatFrame1)
+    stub.EditRefuses = nil
+    T.truthy(ok, err)
+    local edit = _G.DaylightUIChatCopy.edit
+    T.truthy(edit:GetNumLetters() > 0, "the box holds text")
+    T.eq(edit.__text, "|cffffffffone|r\n||cffffffffbad||xline||r\n|cfffffffftwo|r",
+        "good lines keep their colors, the refused one shows its codes")
+    -- Typing restores what the box shows, not the refused text.
+    edit:GetScript("OnTextChanged")(edit, true)
+    T.eq(edit.__text, "|cffffffffone|r\n||cffffffffbad||xline||r\n|cfffffffftwo|r")
+end)
+
 T.test("chat: the copy window opens at the newest lines, once the game has measured the text", function()
     login()
     local Copy = stub.chatModule.Copy

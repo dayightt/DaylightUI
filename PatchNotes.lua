@@ -46,6 +46,7 @@ DUI.PatchNotes = {
             { "Party frames", "The dispel border no longer draws a line across a party member's portrait" },
             { "Unit frames", "3D portraits now fade with their frame instead of staying on screen: when frames fade, at a campfire, while fishing and on the AFK screen" },
             { "Chat", "Copy Character Name on a name in chat works again instead of being blocked by the game" },
+            { "Chat", "The chat copy window and the bug report box no longer come up empty when one line in them has odd text codes" },
             { "Leader tools", "Ready check and Role check no longer get cut off in other languages: they're icons now, with their names when you point at them" },
             { "Buffs", "In other languages, the missing buffs banner names Blessing of Light properly instead of calling it a light color" },
             { "Windows", "Item icons in the NPC window's rewards and other lists no longer lose the bottom of their colored outline at smaller interface scales" },
