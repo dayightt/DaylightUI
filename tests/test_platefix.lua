@@ -113,7 +113,7 @@ T.test("platefix: step 5 puts the plates back without the stacking frame", funct
     T.truthy(p, "the plate is back on")
     T.eq(np.stackSet, before, "the game was handed no stacking frame")
     T.falsy(p.stack:IsShown(), "and the stacking frame is put away")
-    T.eq(np.UnitFrame:GetAlpha(), 0, "the game's own frame is still hidden")
+    T.falsy(np.UnitFrame:GetParent() == np, "the game's own frame is still off its plate")
 end)
 
 T.test("platefix: step 6 puts the plates back and leaves the game's frame alone", function()
@@ -124,7 +124,8 @@ T.test("platefix: step 6 puts the plates back and leaves the game's frame alone"
     runTo(NP, 1)
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
-    T.eq(np.UnitFrame:GetAlpha(), 1, "the game's own frame stays visible")
+    T.eq(np.UnitFrame:GetParent(), np, "the game's own frame stays on its plate")
+    T.truthy(np.UnitFrame:IsVisible(), "and visible")
     T.truthy(np.stackSet > before, "the stacking frame is handed over again")
     T.truthy(p.stack:IsShown())
 end)
@@ -136,7 +137,8 @@ T.test("platefix: step 7 puts the plates back on newly built plates", function()
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
     T.truthy(p ~= old, "a plate built just now, not one from login")
-    T.eq(C_NamePlate.GetNamePlateForUnit("nameplate1").UnitFrame:GetAlpha(), 0, "the game's own frame is hidden again")
+    local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
+    T.falsy(np.UnitFrame:GetParent() == np, "the game's own frame is off its plate again")
     T.truthy(p.stack:IsShown())
 end)
 
@@ -145,4 +147,54 @@ T.test("platefix: a round where nothing helped leaves the takeover whole", funct
     runTo(NP, NP.Manager.FIX_STEPS)
     NP.Manager.Fix()
     T.isnil(NP.Manager.fixWithout)
+end)
+
+-- The copy box came up empty in game with the real report. The report carried
+-- the stacking setting's raw value (shown as a box glyph in chat: a byte that
+-- isn't a letter) and, on a Chinese client, zone and addon names whose last
+-- character the length cut could split in half.
+local function clean(text)
+    for i = 1, #text do
+        local b = text:byte(i)
+        if (b < 32 and b ~= 10) or b == 127 then return false, "control byte " .. b .. " at " .. i end
+    end
+    local i = 1
+    while i <= #text do
+        local b = text:byte(i)
+        local n = b < 0x80 and 0 or (b >= 0xF0 and b < 0xF8) and 3 or (b >= 0xE0) and 2 or (b >= 0xC2) and 1 or -1
+        if n < 0 then return false, "bad UTF-8 at " .. i end
+        for k = 1, n do
+            local c = text:byte(i + k)
+            if not c or c < 0x80 or c > 0xBF then return false, "cut UTF-8 at " .. i end
+        end
+        i = i + n + 1
+    end
+    if text:gsub("||", ""):find("|", 1, true) then return false, "a lone | (the box reads it as a code)" end
+    return true
+end
+
+T.test("platefix: the report is plain text the copy box can show, and goes to chat too", function()
+    local NP = login()
+    C_CVar.GetCVar = function(k)
+        if k == "nameplateStackingTypes" then return "\001A" end
+        return GetCVar(k)
+    end
+    _G.Enum = _G.Enum or {}
+    Enum.NamePlateStackType = { None = 0, Enemy = 1, Friendly = 2 }
+    C_CVar.GetCVarBitfield = function(_, i) return i == 1 end
+    _G.GetRealZoneText = function() return "暴风城|cffff0000" .. string.rep("区", 900) end
+    NP.Manager.Fix()
+    local printed = {}
+    local was = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    DaylightUI.RunCommand("platefix yes")
+    DaylightUI.Print = was
+    local text = shownText()
+    T.truthy(text and #text > 0, "the box has the report")
+    local ok, why = clean(text)
+    T.truthy(ok, why)
+    T.truthy(#text <= NP.Manager.REPORT_MAX)
+    T.truthy(text:find("Stacking enemy=true friendly=false", 1, true), "the stacking setting in words")
+    local chat = table.concat(printed, "\n")
+    T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
 end)

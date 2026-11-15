@@ -3662,8 +3662,7 @@ end
 -- over the health fraction: hi below full (the frame's opacity, 1 if not
 -- given) and a at full. One curve per step of a and hi.
 UF.fullCurves = {}
-function UF.FullHealthAlpha(u, a, hi)
-    hi = type(hi) == "number" and hi or 1
+local function fullCurve(a, hi)
     local lo, top = math.floor(a * 100 + 0.5), math.floor(hi * 100 + 0.5)
     local key = top * 1000 + lo
     local c = UF.fullCurves[key]
@@ -3681,6 +3680,12 @@ function UF.FullHealthAlpha(u, a, hi)
         end
         UF.fullCurves[key] = c
     end
+    return c
+end
+
+function UF.FullHealthAlpha(u, a, hi)
+    hi = type(hi) == "number" and hi or 1
+    local c = fullCurve(a, hi)
     if c and UnitHealthPercent then
         local ok, v = pcall(UnitHealthPercent, u, true, c)
         if ok then return v end
@@ -3691,21 +3696,58 @@ function UF.FullHealthAlpha(u, a, hi)
     return hp >= max and a or hi
 end
 
--- Sets a frame the range check leaves alone; m is the fade's alpha. The
--- full-health wait is only for the player and pet frames. A party or raid tile
--- on "player" fades by its group's settings.
-local fullPaths = {}   -- unit -> { "<unit>.fade.fullHealth", "<unit>.fade" }
+-- "Only at full mana" (player): the same wait over the mana, only while the
+-- frame shows mana (not for a warrior, a rogue or a druid in a form).
+UF.MANA = MANA
+function UF.ShowsMana(u)
+    local ok, kind = pcall(UnitPowerType, u)
+    return ok and not isSecret(kind) and kind == MANA
+end
+
+-- Mana is plain out of a fight and read as is. In one it's secret and goes
+-- through the curve like health. With the health wait on too, the two secret
+-- answers can't be weighed against each other, so the frame stays shown.
+function UF.FullManaAlpha(u, a, hi, health)
+    hi = type(hi) == "number" and hi or 1
+    local okC, cur = pcall(UnitPower, u, MANA)
+    local okM, max = pcall(UnitPowerMax, u, MANA)
+    if okC and okM and type(cur) == "number" and type(max) == "number" and not isSecret(cur) and not isSecret(max) then
+        if cur < max then return hi end
+        if health then return UF.FullHealthAlpha(u, a, hi) end
+        return a
+    end
+    if health then return hi end
+    local c = fullCurve(a, hi)
+    if c and UnitPowerPercent then
+        local ok, v = pcall(UnitPowerPercent, u, MANA, false, c)
+        if ok then return v end
+    end
+    return hi
+end
+
+-- Sets a frame the range check leaves alone; m is the fade's alpha. The full
+-- health and mana waits are only for the player and pet frames and the pieces
+-- that fade with them (f.fadeOf: a free power bar, a portrait on its own). A
+-- party or raid tile on "player" fades by its group's settings.
+local fullPaths = {}   -- unit -> { "<unit>.fade.fullHealth", "<unit>.fade", "<unit>.fade.fullMana" }
 local function setFaded(f, m)
-    local u = f.unitToken
-    if not f.test and not f.group and ns.FADE_FULL_HEALTH[u] then
+    local owner = f.fadeOf or f
+    local u = owner.unitToken
+    if not owner.test and not owner.group and type(u) == "string" and (ns.FADE_FULL_HEALTH[u] or ns.FADE_FULL_MANA[u]) then
         local paths = fullPaths[u]
         if not paths then
-            paths = { u .. ".fade.fullHealth", u .. ".fade" }
+            paths = { u .. ".fade.fullHealth", u .. ".fade", u .. ".fade.fullMana" }
             fullPaths[u] = paths
         end
-        if DUI:Get("UnitFrames", paths[1]) == true then
+        local health = ns.FADE_FULL_HEALTH[u] and DUI:Get("UnitFrames", paths[1]) == true
+        local mana = ns.FADE_FULL_MANA[u] and DUI:Get("UnitFrames", paths[3]) == true and UF.ShowsMana(u)
+        if health or mana then
             local hi = DUI.Fade.Opacity("UnitFrames", paths[2])
-            if m < hi and pcall(f.SetAlpha, f, UF.FullHealthAlpha(u, m, hi)) then return end
+            if m < hi then
+                local a
+                if mana then a = UF.FullManaAlpha(u, m, hi, health) else a = UF.FullHealthAlpha(u, m, hi) end
+                if pcall(f.SetAlpha, f, a) then return end
+            end
         end
     end
     f:SetAlpha(m)

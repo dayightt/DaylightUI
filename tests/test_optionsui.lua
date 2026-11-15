@@ -33,7 +33,7 @@ T.test("every section has a color, an icon and a short name; an unknown one gets
         local look = Theme.Section(s.id)
         T.eq(#look.color, 3, s.id .. " color")
         T.truthy(type(look.icon) == "string" and look.icon ~= "", s.id .. " icon")
-        T.truthy(#look.short <= 9, s.id .. " short name fits the rail")
+        T.truthy(#look.short <= 8, s.id .. " short name fits the rail")
     end
     DUI.Options.RegisterSection("BuffLedger", "Buff Ledger", 135)
     local look = Theme.Section("BuffLedger")

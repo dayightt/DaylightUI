@@ -34,7 +34,7 @@ end
 -- A font page's own pick, or nil for the game's.
 local function picked(key)
     if DUI.DB.UseLocalFont() then return nil end
-    local f = DUI.Style.FONTS[key]
+    local f = DUI.Style.FontEntry(key)
     local file = (DUI.Media and DUI.Media.Fetch("font", key)) or (f and f.file)
     if type(file) ~= "string" or file == GameFonts.ClientFont() then return nil end
     return file

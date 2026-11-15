@@ -34,6 +34,8 @@ ns.DEFAULTS = {
     groupFocus = false, -- in a group, a double arrow over the enemy most of you are targeting (Manager.CountFocus)
     dimOthers = false, -- fade other plates while you have a target (casting ones stay full)
     dimAlpha = 0.5, -- ...to this opacity
+    rangeFade = false, -- fade enemy plates your class's attacks can't reach (Range.SPELLS)
+    rangeAlpha = 0.5, -- ...to this opacity
     backAlpha = 0.8, -- opacity of the empty part of health and power bars (Style.BAR_BACK_ALPHA = default); lower also thins the plate's dark backing (Plate.Clear)
     width = 170,
     height = 16,

@@ -387,6 +387,33 @@ local function moneyToast(Kit, f)
     Kit.Font(f.Amount, DUI.Style.SIZE.body)
 end
 
+-- The new recipe toast: its gold art is one unnamed atlas wider than what it
+-- holds, so the box is drawn round the icon and words instead of the frame. The
+-- icon stays round: the game puts its portrait mask back on every toast.
+local RecipeToast = { boxes = setmetatable({}, { __mode = "k" }) }
+ns.RecipeToast = RecipeToast
+RecipeToast.BOX = { left = 10, right = -24, top = -8, bottom = 8 } -- from the frame's edges
+
+local function recipeToast(Kit, f)
+    local SIZE, INK = DUI.Style.SIZE, DUI.Style.INK
+    if not RecipeToast.boxes[f] then
+        for _, r in ipairs({ f:GetRegions() }) do
+            if r ~= f.Icon and r.GetObjectType and r:GetObjectType() == "Texture" then Kit.Erase(r) end
+        end
+        Kit.Erase(f.glow)
+        Kit.Erase(f.shine)
+        local box, b = CreateFrame("Frame", nil, f), RecipeToast.BOX
+        box:SetPoint("TOPLEFT", f, "TOPLEFT", b.left, b.top)
+        box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", b.right, b.bottom)
+        box:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
+        box:EnableMouse(false)
+        Kit.Shell(box, "window")
+        RecipeToast.boxes[f] = box
+    end
+    Kit.Font(f.Title, SIZE.small, INK.LABEL)
+    Kit.Font(f.Name, SIZE.body, INK.VALUE)
+end
+
 Engine.Register({ key = "loottoast", pack = "system", apply = function(Kit)
     if type(_G.AlertFrame_ShowNewAlert) ~= "function" then return end
     hooksecurefunc("AlertFrame_ShowNewAlert", function(f)
@@ -395,6 +422,8 @@ Engine.Register({ key = "loottoast", pack = "system", apply = function(Kit)
             DUI.SafeCall(lootToast, Kit, f)
         elseif f.queue == _G.MoneyWonAlertSystem then
             DUI.SafeCall(moneyToast, Kit, f)
+        elseif f.queue == _G.NewRecipeLearnedAlertSystem then
+            DUI.SafeCall(recipeToast, Kit, f)
         end
     end)
 end })
@@ -652,12 +681,15 @@ local function inMap(f)
     end
     return false
 end
+-- Whether the quest text the map shares with the game's quest window was last
+-- shown on the map (QuestInfo_Display moves it to whichever window shows a quest).
+local questTextOnMap = false
 local function questDetails(Kit)
     local qm = _G.QuestMapFrame
     local d = type(qm) == "table" and qm.DetailsFrame
     if type(d) ~= "table" then return end
     -- The game colors this text dark for the parchment that was removed.
-    ns.LightQuestInfo(Kit)
+    if questTextOnMap then ns.LightQuestInfo(Kit) end
     Kit.Hide(d.Bg)
     Kit.Erase(d.SealMaterialBG)
     Kit.Strip(d.BorderFrame)
@@ -779,13 +811,18 @@ Engine.Window({ key = "worldmap", pack = "system", frame = "WorldMapFrame", auto
             end
             -- A quest opened: its page and rewards were just built.
             if type(QuestMapFrame_ShowQuestDetails) == "function" then
-                hooksecurefunc("QuestMapFrame_ShowQuestDetails", function() questDetails(Kit) end)
+                hooksecurefunc("QuestMapFrame_ShowQuestDetails", function()
+                    questTextOnMap = true
+                    questDetails(Kit)
+                end)
             end
-            -- The game's own quest window fills through QuestInfo_Display too, and
-            -- keeps its dark text on its parchment, so only the map's page counts.
+            -- The game's own quest window fills through QuestInfo_Display too, with
+            -- the same text, and keeps its dark ink on its parchment: shown there,
+            -- the text gets the game's look back.
             if type(QuestInfo_Display) == "function" then
                 hooksecurefunc("QuestInfo_Display", function(_, parent)
-                    if inMap(parent) then questDetails(Kit) end
+                    questTextOnMap = inMap(parent)
+                    if questTextOnMap then questDetails(Kit) else ns.DarkQuestInfo(Kit) end
                 end)
             end
             if type(QuestLogQuests_Update) == "function" then
@@ -981,7 +1018,7 @@ end
 local function menuIconSized(tex)
     local w = tex.GetWidth and tex:GetWidth()
     local h = tex.GetHeight and tex:GetHeight()
-    if type(w) ~= "number" or type(h) ~= "number" then return false end
+    if type(w) ~= "number" or type(h) ~= "number" or isSecret(w) or isSecret(h) then return false end
     return w > 0 and h > 0 and w <= 24 and h <= 24
 end
 local function menuMarkerNumber(tex, frame)
@@ -1034,8 +1071,9 @@ local function menuThinLine(owner, tex)
             if region.GetObjectType and region:GetObjectType() == "FontString" then return false end
         end
     end
+    -- A focus glow with secret anchoring reports a secret height. It is no divider.
     local h = tex.GetHeight and tex:GetHeight()
-    return type(h) == "number" and h > 0 and h <= 16
+    return type(h) == "number" and not isSecret(h) and h > 0 and h <= 16
 end
 local function menuIsDivider(owner, tex)
     if owner.divider == tex or owner.Divider == tex then return true end

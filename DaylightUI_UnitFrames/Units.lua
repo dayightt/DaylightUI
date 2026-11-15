@@ -351,6 +351,7 @@ function ns.Refresh(mod, path)
                 if b.restyled and b:IsShown() then ns.Arrive.Start(b, "UnitFrames.party") end
             end
         end
+        ns.WatchMana(db)
         ns.Leader.Apply(db)
         ns.Pull.Apply(db)
         -- The party's first frame starts at the same height regardless of its
@@ -745,6 +746,65 @@ function ns.HealthWake(unit)
     return DUI:Get("UnitFrames", unit .. ".fade.fullHealth") == true
 end
 
+-- Units whose fade can wait for full mana (the Fade card's "fullMana").
+ns.FADE_FULL_MANA = { player = true }
+
+-- Mana is plain out of a fight, so there it's simply read on each change and
+-- the frame stays shown while it's short. In a fight (or under the client's
+-- restrictions) it reads secret: then whether it's full is left to the game at
+-- paint time (UF.FullManaAlpha) and a change counts as activity, as health
+-- does. The events are only on while the switch is.
+ns.manaShort, ns.manaAt = {}, {}   -- short: true, false, or nil while secret
+local manaWatch = CreateFrame("Frame")
+
+local function readMana(unit)
+    if not UF.ShowsMana(unit) then return false end
+    local okC, cur = pcall(UnitPower, unit, UF.MANA)
+    local okM, max = pcall(UnitPowerMax, unit, UF.MANA)
+    if not (okC and okM) or isSecret(cur) or isSecret(max) or type(cur) ~= "number" or type(max) ~= "number" then return nil end
+    return cur < max
+end
+
+manaWatch:SetScript("OnEvent", function(_, event, unit, kind)
+    unit = event == "PLAYER_REGEN_ENABLED" and "player" or unit
+    if isSecret(kind) or (kind ~= nil and kind ~= "MANA") then return end
+    ns.manaShort[unit] = readMana(unit)
+    ns.manaAt[unit] = GetTime()
+end)
+
+function ns.WatchMana(db)
+    local fade = db.player and db.player.fade
+    local on = type(fade) == "table" and fade.fullMana == true
+    if on == (manaWatch.on or false) then return end
+    manaWatch.on = on
+    if on then
+        manaWatch:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+        manaWatch:RegisterUnitEvent("UNIT_MAXPOWER", "player")
+        manaWatch:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+        manaWatch:RegisterEvent("PLAYER_REGEN_ENABLED")   -- plain again: read it
+        ns.manaShort.player = readMana("player")
+    else
+        manaWatch:UnregisterAllEvents()
+        ns.manaShort.player = nil
+    end
+end
+
+function ns.ManaWake(unit)
+    if DUI:Get("UnitFrames", unit .. ".fade.fullMana") ~= true then return false end
+    if ns.manaShort[unit] == true then return true end
+    local t = ns.manaAt[unit]
+    return t ~= nil and GetTime() - t <= ns.HEALTH_WAKE and UF.ShowsMana(unit)
+end
+
+-- The wake for a unit's fade entry: a health or mana change, or mana short.
+function ns.FadeWake(unit)
+    local health, mana = ns.FADE_FULL_HEALTH[unit], ns.FADE_FULL_MANA[unit]
+    if not (health or mana) then return nil end
+    return function()
+        return (health and ns.HealthWake(unit)) or (mana and ns.ManaWake(unit)) or false
+    end
+end
+
 -- Each standalone power bar's unlock handle: its name and first spot. The
 -- target's and focus's start just under their frame, clear of a cast bar there.
 local POWER_MOVERS = {
@@ -799,10 +859,12 @@ function ns.Build(mod)
                 local m = PORTRAIT_MOVERS[spec.unit]
                 DUI.Movers.Register(f.portraitHolder, UF.PORTRAIT_FREE[spec.unit], m[1], m[2])
             end
+            -- The pieces fade by the frame's own rules (its full health or mana wait).
+            for i = 2, #list do list[i].fadeOf = f end
             DUI.Fade.Register{ key = "UnitFrames." .. spec.unit, scope = "UnitFrames", path = spec.unit .. ".fade",
                 page = "UnitFrames." .. spec.unit, frames = function() return list end, paint = UF.PaintFade, whole = true,
                 float = ns.FLOAT[spec.unit],
-                wake = ns.FADE_FULL_HEALTH[spec.unit] and function() return ns.HealthWake(spec.unit) end or nil }
+                wake = ns.FadeWake(spec.unit) }
         end
         -- The target's cast bar covers its power bar and follows the angled end.
         local target = ns.frames.target

@@ -143,6 +143,25 @@ for id, a in pairs(PageSample.AURA_SETS) do
     PageSample.AURA_PARTS[id] = { auraRow(a.key, "debuff"), auraRow(a.key, "buff") }
 end
 
+-- The personal display's pieces (Personal.lua). Its keys are its own, so no "%s".
+PageSample.PERSONAL_PARTS = {
+    { label = "Health bar", at = at("healthBar"),
+      keys = { "personal.width", "personal.height", "personal.showHealth", "personal.colorHealth",
+               "personal.predictHeals", "personal.predictAbsorbs", "personal.strata" },
+      size = { w = "personal.width", h = "personal.height" } },
+    { label = "Power bar", at = at("powerBar"), keys = { "personal.showPower", "personal.powerHeight", "personal.colorPower" },
+      size = { w = "personal.width", h = "personal.powerHeight" } },
+    { label = "Health text", at = at("healthText"),
+      keys = { "personal.showPercent", "personal.healthText", "personal.healthTextPos", "personal.healthTextSize" } },
+    { label = "Power text", at = at("powerText"),
+      keys = { "personal.showPowerText", "personal.powerFormat", "personal.powerTextPos", "personal.powerTextSize" } },
+    { label = "Combo points", at = at("combo"),
+      keys = { "personal.combo", "personal.comboStretch", "personal.comboSize", "personal.comboHeight", "personal.comboX", "personal.comboY" },
+      move = { home = true, x = "personal.comboX", y = "personal.comboY" } },
+    auraRow("personal.auras", "debuff"),
+    auraRow("personal.auras", "buff"),
+}
+
 -- A party member's or raid tile's own extras: its aura groups (stand-ins,
 -- AuraGroups.PlainSet) and the sample dispel icon. "%s" is the page's id.
 local function groupSet(key) return function(b) return b.sampleSet and b.sampleSet[key] end end
@@ -714,9 +733,65 @@ local function newRaid(parent, size)
     return s
 end
 
+-- The personal display: a copy built and laid out by Personal.lua's own code,
+-- with test mode's values. The real one sits under your character, often
+-- faded or behind this window, and is off by default.
+
+PageSample.PERSONAL_ZOOM = 2   -- a thin pair of bars, so start bigger (the strip's Zoom slider)
+PageSample.zoom.personal = PageSample.PERSONAL_ZOOM
+
+local function refreshPersonal(s, width, maxH)
+    local d = db()
+    if not d then return 0 end
+    local cfg, p = d.personal, s.p
+    local PR = ns.Personal
+    p:SetScale(1)
+    PR.Shape(p, cfg, true)
+    PR.LayoutCombo(p, cfg)
+    PR.FillSample(p, cfg)
+    p:SetAlpha(cfg.enabled == true and 1 or PageSample.OFF_ALPHA)
+    local up, down = 0, p.combo and p.combo:IsShown() and p.comboReach or 0
+    local a = cfg.auras
+    if type(a) == "table" then
+        -- Under the bars the rows start past the combo row, as on the real one.
+        s.auras.aboveLift, s.auras.buffDrop = 0, p.comboReach or 0
+        Auras.Apply(s.auras, a)
+        local top, bottom = Auras.Place(s.auras, p, cfg)
+        Auras.ShowSample(s.auras, p, a, ns.Test.AURAS)
+        up, down = math.max(up, top), math.max(down, bottom)
+    end
+    return fit(s.frame, p, p:GetWidth(), p:GetHeight(), 0, true, up, down, width, maxH, 0, s.Zoom())
+end
+
+local function newPersonal(parent)
+    local s = { id = "personal", missing = {} }
+    s.frame = CreateFrame("Frame", nil, parent)
+    zoomable(s)
+    local p = CreateFrame("Frame", nil, s.frame)
+    ns.Personal.Build(p)
+    -- Rogues and druids: their pips, a picture only, so it listens to nothing.
+    p.combo = ns.Combo.Create(p)
+    if p.combo then p.combo:UnregisterAllEvents() end
+    s.auras = Auras.PlainSet(p, "right")
+    p.sampleAuras = s.auras
+    s.p = p
+    function s.Refresh(width, maxH) return refreshPersonal(s, width, maxH) end
+    function s.Parts()
+        local out, missing = {}, {}
+        local cfg = db() and db().personal
+        for _, part in ipairs(PageSample.PERSONAL_PARTS) do
+            collect(out, missing, part, p, "personal", p:GetScale(), cfg)
+        end
+        s.missing = missing
+        return out
+    end
+    return s
+end
+
 -- The live sample for a unit frames page ("player", "target", ..., "party",
--- "raid") on parent. size is a raid page's size (10, 20 or 40).
+-- "raid", "personal") on parent. size is a raid page's size (10, 20 or 40).
 function PageSample.New(id, parent, size)
+    if id == "personal" then return newPersonal(parent) end
     if id == "party" then return newParty(parent) end
     if id == "raid" then return newRaid(parent, size) end
     return newSingle(id, parent)

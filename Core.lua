@@ -805,6 +805,7 @@ function DUI:Set(scope, path, value)
     local t = scopeTable(scope)
     if not t then return false end
     DUI.DB.SetPath(t, path, value)
+    DUI.DB.Keep()
     if scope == "general" then
         if not DUI.NoRepaint(path) then DUI.NotifyStyleChanged() end
     else

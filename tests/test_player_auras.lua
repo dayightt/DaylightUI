@@ -309,3 +309,52 @@ T.test("the Pet page has its Debuffs and Buffs cards, and they pass the page che
     T.eq(by.Buffs.items[1].key, "petAuras.buffs")
     T.eq(#O.ValidatePage(O.GetPage("UnitFrames.pet")), 0)
 end)
+
+T.test("upgrade step 19: a profile from before 1.8.0 keeps its aura rows where they were", function()
+    local _, ns = login()
+    local p = { modules = { UnitFrames = { groupFrames = 18, targetAuras = { buffSpot = "below" },
+                                           playerAuras = { debuffGrow = "center" } } } }
+    ns.UpgradeGroupFrames(p)
+    local uf = p.modules.UnitFrames
+    T.eq(uf.groupFrames, #ns.UPGRADE_STEPS)
+    local t = uf.targetAuras
+    T.eq(t.buffSpot, "below"); T.eq(t.buffGrow, "left", "the target's buffs under the frame, from the outer end")
+    T.eq(t.debuffRows, 3); T.eq(t.buffRows, 2)
+    T.eq(uf.playerAuras.debuffGrow, "center", "a direction the player picked stays")
+    T.eq(uf.personal.auras.debuffGrow, "center"); T.eq(uf.personal.auras.buffGrow, "center")
+    T.isnil(uf.focusAuras, "the focus rows came after: they keep the new layout")
+    -- Run again: nothing more happens.
+    t.buffGrow = "right"
+    ns.UpgradeGroupFrames(p)
+    T.eq(t.buffGrow, "right", "once only")
+end)
+
+T.test("upgrade step 19: a brand new profile gets the new rows", function()
+    local _, ns = login()
+    local p = {}
+    ns.UpgradeGroupFrames(p)
+    local uf = p.modules.UnitFrames
+    T.eq(uf.groupFrames, #ns.UPGRADE_STEPS)
+    T.isnil(uf.targetAuras, "nothing written: the defaults apply")
+    T.isnil(uf.playerAuras); T.isnil(uf.personal)
+end)
+
+T.test("upgrade step 19: a player from 1.8.1 finds the target's buffs under the frame again", function()
+    -- The move check's saved player: what 1.8.1 left for someone who changed nothing.
+    local Check, data = require("release_check"), require("release_data")
+    local DUI = Check.Load(data.saved)
+    T.eq(DUI:Get("UnitFrames", "targetAuras.buffSpot"), "below")
+    T.eq(DUI:Get("UnitFrames", "targetAuras.buffGrow"), "left")
+    T.eq(DUI.DB.Active().modules.UnitFrames.groupFrames, 19)
+end)
+
+T.test("upgrade step 19: buffs a player put above the frame long ago stay above", function()
+    local _, ns = login()
+    -- Before spots, "above" was a pick (the default was under the frame); step 10
+    -- turns it into today's default spot in the same run.
+    local p = { modules = { UnitFrames = { groupFrames = 9, targetAuras = { buffsAt = "above" } } } }
+    ns.UpgradeGroupFrames(p)
+    local t = p.modules.UnitFrames.targetAuras
+    T.eq(t.buffSpot, "above", "their own pick")
+    T.eq(t.buffGrow, "left", "the rest goes back as it was")
+end)

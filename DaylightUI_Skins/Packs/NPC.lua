@@ -14,29 +14,42 @@ local function g(name) return _G[name] end
 -- Quests
 -- ---------------------------------------------------------------------
 
-local QUEST_TITLES = { "QuestInfoTitleHeader", "QuestInfoDescriptionHeader", "QuestInfoObjectivesHeader",
-                       "QuestProgressTitleText", "QuestProgressRequiredItemsText", "CurrentQuestsText",
-                       "AvailableQuestsText" }
+-- The quest text the world map's quest log borrows from the game's quest
+-- window (QuestInfo_Display moves it to whichever shows a quest). The rewards
+-- have a frame of their own on the map, so they aren't here.
+local QUEST_TITLES = { "QuestInfoTitleHeader", "QuestInfoDescriptionHeader", "QuestInfoObjectivesHeader" }
 local QUEST_TEXT = { "QuestInfoDescriptionText", "QuestInfoObjectivesText", "QuestInfoGroupSize",
-                     "QuestInfoRewardText", "QuestInfoQuestType", "QuestProgressText",
-                     "QuestProgressRequiredMoneyText", "GreetingText" }
-local REWARD_TEXT = { "ItemChooseText", "ItemReceiveText", "PlayerTitleText" }
+                     "QuestInfoRewardText", "QuestInfoQuestType" }
 
--- Relights quest text the game may have just filled. Also used for quests
--- opened from the map's log (System pack), which must work without this pack.
+local function objectiveLines()
+    local objectives = g("QuestInfoObjectivesFrame")
+    return type(objectives) == "table" and type(objectives.Objectives) == "table" and objectives.Objectives or {}
+end
+
+-- Lights that text for a quest opened from the map's log (System pack), which
+-- must work without this pack.
 function ns.LightQuestInfo(Kit)
     for _, n in ipairs(QUEST_TITLES) do Kit.Light(g(n), Kit.HEADER) end
     for _, n in ipairs(QUEST_TEXT) do Kit.Light(g(n)) end
-    local rewards = g("QuestInfoRewardsFrame")
-    if type(rewards) == "table" then
-        Kit.Light(rewards.Header, Kit.HEADER)
-        for _, key in ipairs(REWARD_TEXT) do Kit.Light(rewards[key]) end
-        if type(rewards.XPFrame) == "table" then Kit.Light(rewards.XPFrame.ReceiveText) end
+    for _, fs in ipairs(objectiveLines()) do Kit.Light(fs) end
+end
+
+-- Hands that text back when the game's own quest window shows it. The game
+-- colors it again only when the parchment changes, so its colors are put back
+-- here the way QuestInfo_Display picks them. Objective lines it colors each
+-- time, so they only stop being relit.
+function ns.DarkQuestInfo(Kit)
+    local text, title
+    if type(GetMaterialTextColors) == "function" then
+        local info = g("QuestInfoFrame")
+        local contrast = _G.QuestTextContrast
+        local stone = type(contrast) == "table" and type(contrast.UseLightText) == "function"
+            and contrast.UseLightText() == true
+        text, title = GetMaterialTextColors(stone and "Stone" or (type(info) == "table" and info.material or nil))
     end
-    local objectives = g("QuestInfoObjectivesFrame")
-    if type(objectives) == "table" and type(objectives.Objectives) == "table" then
-        for _, fs in ipairs(objectives.Objectives) do Kit.Light(fs) end
-    end
+    for _, n in ipairs(QUEST_TITLES) do Kit.Unlight(g(n), title) end
+    for _, n in ipairs(QUEST_TEXT) do Kit.Unlight(g(n), text) end
+    for _, fs in ipairs(objectiveLines()) do Kit.Unlight(fs) end
 end
 
 -- ---------------------------------------------------------------------
@@ -49,6 +62,47 @@ Engine.Register({ key = "flightmap", pack = "npc", addon = "Blizzard_FlightMap",
     local border = f.BorderFrame or f
     Kit.Window(border, { noBackground = true })
 end })
+
+-- ---------------------------------------------------------------------
+-- Beast Training. The NPC window's trainer page replaces the game's trainer
+-- window, but buying there is only allowed from the game's own window, so the
+-- NPC window lends it back for Beast Training. Dressed the first time that
+-- happens; a class trainer's window stays hidden and bare.
+-- ---------------------------------------------------------------------
+
+local trainerHooked = false
+local beastTraining = { key = "trainer", pack = "npc",
+    skip = function() return not (DaylightUI.Npc and DaylightUI.Npc.trainerLent) end,
+    apply = function(Kit)
+        local f = g("ClassTrainerFrame")
+        if not f then return false end
+        Kit.Window(f)
+        Kit.Inset(f.BottomInset or g("ClassTrainerFrameBottomInset"))
+        Kit.Button(g("ClassTrainerTrainButton"))
+        Kit.Dropdown(f.FilterDropdown or g("ClassTrainerFrameFilterDropdown"))
+        Kit.ScrollBar(f.ScrollBar)
+        Kit.StatusBar(g("ClassTrainerStatusBar"), { 0.35, 0.55, 0.9 })
+        -- The game's text colors stay: they show what you can learn.
+        local function row(r)
+            if type(r) ~= "table" then return end
+            local icon = r.icon or r.Icon
+            Kit.Row(r, icon and { [icon] = true } or nil, r.selectedTex)
+            if icon and icon.SetTexCoord then DaylightUI.Style.CropIcon(icon) end
+            Kit.Font(r.name)
+            Kit.Font(r.subText)
+        end
+        row(g("ClassTrainerFrameSkillStepButton"))
+        Kit.Hide(g("ClassTrainerFrameSkillStepButtonHighlight"))
+        Kit.EachRow(f.ScrollBox, row)
+        -- Only this function shows or hides a row's selection art, when the list
+        -- fills and on a pick, so the row is repainted after it.
+        if not trainerHooked and type(ClassTrainerFrame_InitServiceButton) == "function" then
+            trainerHooked = true
+            hooksecurefunc("ClassTrainerFrame_InitServiceButton", function(b) Kit.RepaintRow(b) end)
+        end
+    end }
+Engine.Register(beastTraining)
+DaylightUI.On("TrainerLent", function() Engine.Try(beastTraining) end)
 
 -- ---------------------------------------------------------------------
 -- Everything else NPCs show, via Engine.Window.
@@ -277,6 +331,74 @@ Engine.Window({ key = "tabard", pack = "npc", frame = "TabardFrame" })
 Engine.Window({ key = "petition", pack = "npc", frame = "PetitionFrame", light = true })
 Engine.Window({ key = "registrar", pack = "npc", frame = "GuildRegistrarFrame", light = true })
 -- The old flight map draws the map into the window's InsetBg, so that's kept
--- with a Daylight window around it.
-Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } } })
+-- with a Daylight window around it. The game puts the map 4 px from the left, 6 from
+-- the right and bottom and straight under a 24 px title strip, with the title and the
+-- X in its corners. Here the title and the X sit where every Daylight UI window has
+-- them and the map has the same room on every side, the window growing to make it.
+-- Only InsetBg is moved: the route and the flight points hang from it (the route map
+-- is anchored to its corners, each button to its bottom left), so they go with it.
+local TAXI_MARGIN = 12 -- px between the window's edge (or the header) and the map
+local taxiMap = setmetatable({}, { __mode = "k" }) -- window -> the map's size, from the game's anchors
+
+local function taxiPlace(frame, want)
+    local same = frame:GetNumPoints() == #want
+    for i = 1, same and #want or 0 do
+        local point, rel, relPoint, x, y = frame:GetPoint(i)
+        local w = want[i]
+        if point ~= w[1] or rel ~= w[2] or relPoint ~= w[3] or type(x) ~= "number" or type(y) ~= "number"
+            or math.abs(x - w[4]) > 0.01 or math.abs(y - w[5]) > 0.01 then
+            same = false
+            break
+        end
+    end
+    if same then return end
+    frame:ClearAllPoints()
+    for _, w in ipairs(want) do frame:SetPoint(w[1], w[2], w[3], w[4], w[5]) end
+end
+
+local function taxiLayout(f)
+    local Win = DaylightUI.Win
+    local bg = f.InsetBg
+    if type(bg) ~= "table" or not bg.SetPoint or not f.SetSize or Win.Held(f) then return end
+    -- The map's size as the game anchors it, read once: after that InsetBg's own size
+    -- follows the window's, which is what is being set here.
+    local map = taxiMap[f]
+    if not map then
+        local w, h = bg:GetWidth(), bg:GetHeight()
+        if type(w) ~= "number" or type(h) ~= "number" or w <= 0 or h <= 0 then return end
+        map = { w = w, h = h }
+        taxiMap[f] = map
+    end
+    local m, head = TAXI_MARGIN, Win.COMPACT
+    local width, height = m + map.w + m, head + m + map.h + m
+    taxiPlace(bg, {
+        { "TOPLEFT", f, "TOPLEFT", m, -(head + m) },
+        { "BOTTOMRIGHT", f, "BOTTOMRIGHT", -m, m },
+    })
+    local w, h = f:GetWidth(), f:GetHeight()
+    if type(w) ~= "number" or type(h) ~= "number" or math.abs(w - width) > 0.01 or math.abs(h - height) > 0.01 then
+        f:SetSize(width, height)
+        -- The panel manager places its neighbours by these.
+        if type(_G.SetUIPanelAttribute) == "function" then
+            pcall(_G.SetUIPanelAttribute, f, "width", width)
+            pcall(_G.SetUIPanelAttribute, f, "height", height)
+        end
+    end
+    local close = f.CloseButton
+    if type(close) == "table" and close.SetPoint then
+        local size = DaylightUI.Widgets and DaylightUI.Widgets.CLOSE or 24
+        close:SetSize(size, size)
+        close:ClearAllPoints()
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
+    end
+    local title = f.TitleText
+    if type(title) == "table" and title.SetPoint then
+        title:ClearAllPoints()
+        title:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, Win.TITLE_Y)
+        if type(close) == "table" then title:SetPoint("RIGHT", close, "LEFT", -12, 0) end
+    end
+end
+
+Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } },
+    after = function(_, f) taxiLayout(f) end })
 

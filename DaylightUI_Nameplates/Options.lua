@@ -159,6 +159,12 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "dimAlpha", label = "Other plates opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through the other plates get while you have a target.", disabled = off("dimOthers") },
         } },
+        { label = "Out of range", items = since("1.8.3", {
+            { type = "toggle", key = "rangeFade", label = "Fade out of range enemies",
+              desc = "Enemy plates fade while your class's attacks can't reach them: casters by their main spell, melee by their strikes, hunters by their shots and melee strikes. Your target and a plate that's casting stay full." },
+            { type = "slider", key = "rangeAlpha", label = "Out of range opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
+              desc = "How see-through enemy plates get while they're out of range.", disabled = off("rangeFade") },
+        }) },
         { label = "Combo points", desc = "Rogues and druids in cat form: your combo points on your target's plate. Colors follow Unit Frames > Extras > Combo points.", items = {
             { type = "toggle", key = "comboPoints", label = "Combo points",
               desc = "Rogues and druids in cat form: your combo points on your target's health bar." },

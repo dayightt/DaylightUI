@@ -59,6 +59,7 @@ T.test("api more: a setting changed for a while comes back, never saved, and the
     -- Logging out with one held: the player's value is what's saved.
     me.Override("general", "motion", not was)
     stub.FireEvent("PLAYER_LOGOUT")
+    DUI.DB.Fill(DUI.DB.Active()) -- the test plays on after logout, which the game never does
     T.eq(DUI:Get("general", "motion"), was)
     -- The player changing it themself takes it over.
     local h2 = me.Override("general", "motion", not was)

@@ -1,7 +1,7 @@
 -- Puts a Daylight UI plate on each of the game's nameplates. When a plate gets a
--- unit, the game's own plate frame goes to alpha 0 where it is (its widgets, like
--- soft-target icons, stay visible) and the Daylight UI plate shows in its place. Plates the game
--- keeps from addons (friendly ones in instances) are left alone.
+-- unit, the game's own plate frame is taken off it (its widgets, like soft-target
+-- icons, stay in view) and the Daylight UI plate shows in its place. Plates the
+-- game keeps from addons (friendly ones in instances) are left alone.
 --
 -- A Daylight UI plate sits on a game plate only while that plate shows a unit and
 -- comes off the moment the unit goes. The game reuses its plates, and one that
@@ -72,24 +72,21 @@ function Manager.Release(p)
     spare[#spare + 1] = p
 end
 
--- Turns off the game's own plate under the Daylight UI one, the way EllesmereUI does. The frame
--- stays where the game put it at alpha 0. Reparenting it left the game's plate code
--- running under addon taint, which then errored on secret values (and per
--- EllesmereUI broke picking between overlapping plates).
--- Its pieces (health bar, level, borders: every child frame) are parked on a
--- hidden frame, since alpha alone got undone in combat. The name text directly on
--- it stays, made transparent (park). Its events and its cast bar's are
--- unregistered: left running it handled ~46 events per plate and rebuilt its aura
--- icons on every aura change, all fight long, under every plate. Its
--- widgets stay on it and visible; the soft-target icon belongs to the game's
--- nameplate driver (its own events).
--- When given back (Manager.Unsilence) it re-registers the events it registered at
--- creation (Manager.LOAD_EVENTS, from the game's CompactUnitFrame_OnLoad). Its
--- unit events return with the next unit the game assigns (the game clears the
--- unit as it takes the frame back), so a plate the game draws itself works as before.
-local silenced = setmetatable({}, { __mode = "k" })
-local parked = setmetatable({}, { __mode = "k" }) -- game frame -> its parked pieces
-local faded = setmetatable({}, { __mode = "k" }) -- region left on it, made transparent -> its previous alpha
+-- Takes the game's own plate frame off its plate while a Daylight UI plate is
+-- on it, the way Platynator does: the frame moves onto a hidden frame and all
+-- its events (and its cast bar's) stop, so none of the game's plate code runs
+-- or draws under the Daylight UI plate. Its widgets (quest progress, loot
+-- sparkle) and soft-target icon move onto the game's plate itself and stay in
+-- view. Where the plate is clicked becomes Daylight UI's too (Manager.OwnClicks),
+-- since the game hangs it from that frame's health bar and name.
+-- The game puts the frame back on a plate itself each time it hands one out,
+-- and its SetUnit registers the unit events again, so every hand-out is taken
+-- off again (Manager.Added, Manager.FrameHandedOut). Nothing is given back when
+-- a unit leaves: the game takes its frame back to its pool, and a frame handed
+-- to a plate without a Daylight UI plate on it gets back the events it
+-- registered when it was made (Manager.LOAD_EVENTS, from the game's
+-- CompactUnitFrame_OnLoad) and its widgets (Manager.GiveBackFrame).
+local held = setmetatable({}, { __mode = "k" }) -- game frames taken off their plate
 Manager.LOAD_EVENTS = {
     "VARIABLES_LOADED", "CVAR_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_TARGET_CHANGED",
     "PLAYER_SOFT_FRIEND_CHANGED", "PLAYER_SOFT_ENEMY_CHANGED", "UPDATE_MOUSEOVER_UNIT", "PLAYER_LEVEL_UP",
@@ -110,72 +107,109 @@ local function quiet(uf)
     end
 end
 
-local function park(uf)
-    local list = parked[uf] or {}
-    parked[uf] = list
-    for _, child in ipairs({ uf:GetChildren() }) do
-        if type(child) == "table" and child ~= uf.WidgetContainer and child ~= uf.SoftTargetFrame
-            and not forbidden(child) and not (child.IsProtected and child:IsProtected()) then
-            list[#list + 1] = child
-            child:SetParent(hidden)
-        end
-    end
-    -- Regions directly on the frame (its name text) stay on it, made transparent.
-    -- The game hangs the plate's click area off that name, and anchoring a plate's
-    -- points to a frame outside it (which EllesmereUI never does) made plates go
-    -- invisible. The frame's own alpha gets reset in combat; a region's isn't touched.
-    for _, region in ipairs({ uf:GetRegions() }) do
-        if type(region) == "table" and region.SetAlpha and not forbidden(region) and not faded[region] then
-            local ok, a = pcall(region.GetAlpha, region)
-            faded[region] = (ok and type(a) == "number" and not isSecret(a)) and a or 1
-            region:SetAlpha(0)
+-- The pieces of the game's frame that stay in view on the plate.
+local function keepers(uf)
+    return { uf.WidgetContainer, uf.SoftTargetFrame }
+end
+
+local function moveKeepers(uf, to)
+    for _, keep in ipairs(keepers(uf)) do
+        if type(keep) == "table" and keep.SetParent and not forbidden(keep) and keep:GetParent() ~= to then
+            keep:SetParent(to)
         end
     end
 end
 
-local function unfade(uf)
-    for _, region in ipairs({ uf:GetRegions() }) do
-        local a = type(region) == "table" and faded[region]
-        if a and not forbidden(region) then
-            faded[region] = nil
-            region:SetAlpha(a)
-        end
-    end
-end
-
-local function unpark(uf)
-    local list = parked[uf]
-    if not list then return end
-    parked[uf] = nil
-    for i = #list, 1, -1 do
-        local child = list[i]
-        if not forbidden(child) and child:GetParent() == hidden then child:SetParent(uf) end
-    end
-end
-
--- p is the Daylight UI plate on it, which holds the frame (the game has already detached it
--- from its plate by the time it reports the unit gone). A frame already silenced
--- is left alone.
-function Manager.Silence(nameplate, p)
-    if Manager.fixWithout == "silence" then return end -- /dui platefix is trying the plates without this
+-- p is the Daylight UI plate on it. It remembers the frame, since the game has
+-- already taken its frame off the plate by the time it reports the unit gone.
+function Manager.HideGameFrame(nameplate, p)
+    if Manager.fixWithout == "hide" then return end -- /dui platefix is trying the plates without this
     local uf = nameplate.UnitFrame
-    if type(uf) ~= "table" or not uf.SetAlpha then return end
-    if p then
-        if p.gameFrame and p.gameFrame ~= uf then Manager.UnsilenceFrame(p.gameFrame) end
-        p.gameFrame = uf
-    end
-    if silenced[uf] then
-        quiet(uf) -- in case the game gave it a unit (and its events) again
-        uf:SetAlpha(0) -- and showed it (Manager.Unseen)
-        return
-    end
-    silenced[uf] = true
-    park(uf)
+    if type(uf) ~= "table" or not uf.SetParent or forbidden(uf) then return end
+    if p then p.gameFrame = uf end
+    held[uf] = true
+    if uf:GetParent() ~= hidden then uf:SetParent(hidden) end
     quiet(uf)
-    uf:SetAlpha(0)
-    -- Widgets and the soft-target icon (mining pick, herb hand) stay visible over the hidden frame.
-    for _, keep in ipairs({ uf.WidgetContainer, uf.SoftTargetFrame }) do
-        if type(keep) == "table" and keep.SetIgnoreParentAlpha then keep:SetIgnoreParentAlpha(true) end
+    moveKeepers(uf, nameplate)
+end
+
+function Manager.IsHeld(uf)
+    return held[uf] == true
+end
+
+-- The game's own way of setting where its plate is clicked (its UpdateHitTestArea).
+local function gameClicks(nameplate)
+    local uf = nameplate.UnitFrame
+    if type(uf) ~= "table" or forbidden(uf) or type(uf.UpdateHitTestArea) ~= "function" then return end
+    if type(NamePlateSetupOptions) ~= "table" then return end
+    pcall(uf.UpdateHitTestArea, uf, NamePlateSetupOptions)
+end
+
+-- Gives a held frame back to the game: its events, its widgets and, when it's on
+-- a plate (nameplate given), its spot and click area there, as the game sets
+-- them when it hands a frame out.
+function Manager.GiveBackFrame(uf, nameplate)
+    if type(uf) ~= "table" or not uf.SetParent or forbidden(uf) or not held[uf] then return end
+    held[uf] = nil
+    if quieted[uf] then
+        quieted[uf] = nil
+        for _, e in ipairs(Manager.LOAD_EVENTS) do pcall(uf.RegisterEvent, uf, e) end
+    end
+    moveKeepers(uf, uf)
+    if type(nameplate) == "table" and nameplate.UnitFrame == uf and not forbidden(nameplate) then
+        if uf:GetParent() ~= nameplate then
+            uf:SetParent(nameplate)
+            uf:ClearAllPoints()
+            uf:SetAllPoints(nameplate)
+        end
+        gameClicks(nameplate)
+    end
+end
+
+-- Where a plate is clicked, Platynator's way: one frame of Daylight UI's per
+-- game plate, covering it (the game sizes its plates to the Daylight UI ones,
+-- Manager.ApplySize), handed to the game as the plate's click area. It stays on
+-- that game plate for good, so the game's plate never points at a frame that
+-- moved on to another. Built at login (Manager.PrepareClicks); one needed in a
+-- fight is built bare, never on a game plate. A plate the game shows only as a
+-- name (friendly players with friendly bars off) or only its widgets (a
+-- lootable corpse) can't be clicked, as the game does it.
+local clickOf = setmetatable({}, { __mode = "k" }) -- game plate -> its click frame
+local clickSpare = {}
+Manager.clickOf = clickOf
+
+function Manager.PrepareClicks(n)
+    for _ = 1, n do clickSpare[#clickSpare + 1] = CreateFrame("Frame") end
+end
+
+local function clickFrame(nameplate)
+    local f = clickOf[nameplate]
+    if f then return f end
+    f = table.remove(clickSpare) or CreateFrame("Frame")
+    clickOf[nameplate] = f
+    f:SetParent(nameplate)
+    f:ClearAllPoints()
+    f:SetAllPoints(nameplate)
+    f:Show()
+    return f
+end
+
+function Manager.Unclickable(unit)
+    if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
+    if plain(UnitIsPlayer, unit) ~= true or plain(UnitIsFriend, "player", unit) ~= true then return false end
+    local ok, v = pcall(GetCVar, Manager.NAME_ONLY_CVAR)
+    return ok and v == "1"
+end
+
+function Manager.OwnClicks(p)
+    local np, unit = p.nameplate, p.unit
+    if type(np) ~= "table" or not unit or forbidden(np) or Manager.fixWithout == "hide" then return end
+    local okC, can = pcall(np.CanChangeHitTestPoints, np)
+    if not okC or can ~= true then return end
+    if Manager.Unclickable(unit) then
+        pcall(np.ClearAllHitTestPoints, np)
+    else
+        pcall(np.SetAllHitTestPoints, np, clickFrame(np))
     end
 end
 
@@ -209,9 +243,10 @@ function Manager.Added(unit)
         return
     end
     byUnit[unit] = p
-    if not (DUI.SafeCall(Manager.Silence, nameplate, p) and DUI.SafeCall(ns.Plate.Install, p, unit)) then
+    if not (DUI.SafeCall(Manager.HideGameFrame, nameplate, p) and DUI.SafeCall(ns.Plate.Install, p, unit)
+        and DUI.SafeCall(Manager.OwnClicks, p)) then
         byUnit[unit] = nil
-        DUI.SafeCall(Manager.UnsilenceFrame, p.gameFrame) -- give the game its plate back for this unit
+        DUI.SafeCall(Manager.GiveBackFrame, p.gameFrame, nameplate) -- give the game its plate back for this unit
         p.gameFrame = nil
         refused[nameplate] = true
         Manager.Abandon(p)
@@ -265,49 +300,25 @@ function Manager.Abandon(p)
     end
 end
 
--- Makes the game's own plate visible again for whatever the game puts on it next.
-function Manager.Unsilence(nameplate)
-    Manager.UnsilenceFrame(type(nameplate) == "table" and nameplate.UnitFrame)
-end
-
-function Manager.UnsilenceFrame(uf)
-    if type(uf) ~= "table" or not uf.SetAlpha or forbidden(uf) then return end
-    silenced[uf] = nil
-    unpark(uf)
-    unfade(uf)
-    if quieted[uf] then
-        quieted[uf] = nil
-        for _, e in ipairs(Manager.LOAD_EVENTS) do pcall(uf.RegisterEvent, uf, e) end
-    end
-    uf:SetAlpha(1)
-    -- Widgets and the soft-target icon (mining pick, herb hand) stay visible over the hidden frame.
-    for _, keep in ipairs({ uf.WidgetContainer, uf.SoftTargetFrame }) do
-        if type(keep) == "table" and keep.SetIgnoreParentAlpha then keep:SetIgnoreParentAlpha(false) end
-    end
-end
-
--- The game only makes its plate frame visible again in one place:
--- CompactUnitFrame_UpdateCenterStatusIcon (SetAlpha(1); plates don't fade out of
--- range), called from its nameplate driver's OnEvent (Blizzard_NamePlates and
--- CompactUnitFrame.lua). That happens when a plate gets its unit (SetUnit ->
--- UpdateAll; FrameHandedOut silences it again) and on its options update, which
--- covers every plate (UpdateNamePlateOptions -> ApplyFrameOptions on these events;
--- CVAR_UPDATE only matters for its option CVars, but any is cheap). The frame's
--- own events are already stopped (quiet). So right after the driver's OnEvent,
--- the silenced frames go back to 0, with no hook on the frame's SetAlpha.
-Manager.RESHOW_EVENTS = { DISPLAY_SIZE_CHANGED = true, VARIABLES_LOADED = true, CVAR_UPDATE = true }
-function Manager.Unseen()
-    for uf in pairs(silenced) do
-        if not forbidden(uf) then uf:SetAlpha(0) end
+-- Takes every frame under a Daylight UI plate off its plate again and sets each
+-- click area again. The game's options update (UpdateNamePlateOptions) gives
+-- every frame its unit, events and click area back; Manager.Start switches off
+-- the two driver events that run it in play (DISPLAY_SIZE_CHANGED, CVAR_UPDATE),
+-- and VARIABLES_LOADED still does once.
+Manager.RECLAIM_EVENTS = { DISPLAY_SIZE_CHANGED = true, VARIABLES_LOADED = true, CVAR_UPDATE = true }
+function Manager.Reclaim()
+    for _, p in pairs(byUnit) do
+        if type(p.nameplate) == "table" then
+            Manager.HideGameFrame(p.nameplate, p)
+            Manager.OwnClicks(p)
+        end
     end
 end
 
 -- The game hands a plate its frame from a shared pool as the plate gets its unit,
--- and that can happen after Manager.Added ran. The frame hidden there was then
--- an older one, and the new one stayed visible underneath (seen in combat with
--- many plates coming and going). So right after the game hands one out, hide it
--- if a Daylight UI plate is on that plate and show it if not (it may still
--- be hidden from its previous plate).
+-- and that can happen after Manager.Added ran. So right after the game hands one
+-- out, take it off the plate if a Daylight UI plate is on that plate, and give it
+-- back if not (it may still be held from its previous plate).
 function Manager.FrameHandedOut(unit)
     local p = byUnit[unit]
     local nameplate = p and p.nameplate
@@ -321,9 +332,10 @@ function Manager.FrameHandedOut(unit)
     local uf = nameplate.UnitFrame
     if type(uf) ~= "table" or forbidden(uf) then return end
     if p then
-        Manager.Silence(nameplate, p)
-    elseif silenced[uf] then
-        Manager.Unsilence(nameplate)
+        Manager.HideGameFrame(nameplate, p)
+        Manager.OwnClicks(p)
+    elseif held[uf] then
+        Manager.GiveBackFrame(uf, nameplate)
     end
 end
 
@@ -337,9 +349,9 @@ function Manager.Removed(unit)
         DUI.APIReport.Gone("nameplate", p, false)
         DUI.APIReport.Gone("platecast", p.cast, false)
     end
-    -- The silenced frame, not the plate's, since the game has already taken its frame
-    -- off the plate.
-    DUI.SafeCall(Manager.UnsilenceFrame, p.gameFrame)
+    -- The game's frame stays held: the game takes it back to its pool, and the
+    -- next plate it's handed to either has a Daylight UI plate or gets it back
+    -- (Manager.FrameHandedOut).
     p.gameFrame = nil
     ns.Cast.Forget(p)
     if Manager.Usable(p) then
@@ -395,6 +407,7 @@ Manager.Resize = sizePlate
 -- your target).
 function Manager.SizeOne(p)
     sizePlate(p)
+    ns.Range.Read(p)
     ns.Plate.Dim(p, true)
 end
 
@@ -587,6 +600,7 @@ function Manager.Refresh()
             DUI.APIReport.Styled("nameplate", p, false)
         end
     end)
+    ns.Range.Apply()
     Manager.UpdateTargets()
     Manager.CountFocus()
 end
@@ -714,6 +728,9 @@ function Manager.PlateSize()
     return (c.width + 2 * pad) * scale, 2 * half * scale
 end
 
+Manager.DRIVER_OFF = { "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE" }
+-- The aura scale and debuff padding settings (lower case, as CVAR_UPDATE is compared).
+Manager.SIZE_CVARS = { nameplateaurascale = true, nameplatedebuffpadding = true }
 function Manager.ApplySize()
     local set = C_NamePlate and C_NamePlate.SetNamePlateSize
     if type(set) ~= "function" then return end
@@ -740,31 +757,14 @@ function Manager.ApplyStacking()
     end, "nameplates:stacking")
 end
 
--- Whether the game stacks this kind of plate right now. A plate's stacking
--- frame is only handed to the game while it does: a plate the game doesn't
--- stack is left exactly as the game made it.
-function Manager.Stacks(friendly)
-    local E = Enum and Enum.NamePlateStackType
-    local get = C_CVar and C_CVar.GetCVarBitfield
-    if E and type(get) == "function" then
-        local on = plain(get, Manager.STACK_CVAR, friendly and E.Friendly or E.Enemy)
-        if on == true or on == false then return on end
-    end
-    -- No answer from the game: go by the setting here.
-    local c = ns.cfg
-    if not c or c.stacking ~= "stack" then return false end
-    return not friendly or c.stackFriendly == true
-end
-
--- The stacking setting changed: every plate hands its frame over or puts it away.
+-- The stacking setting changed: every plate hands its frame over again.
 function Manager.Restack()
     Manager.Each(ns.Plate.PlaceStack)
 end
 
--- Makes every plate clickable over its whole frame: the game's click insets (which
--- can shrink a plate's click area to nothing, and may have been left that way) are
--- pushed past its edges.
-Manager.CLICK_INSET = -10000
+-- Makes every plate clickable over its whole click area (Manager.OwnClicks): the
+-- game's click insets can shrink it to nothing, and may have been left that way.
+Manager.CLICK_INSET = 0
 function Manager.ApplyClickable()
     local M, T = C_NamePlateManager, Enum and Enum.NamePlateType
     if not (M and M.SetNamePlateHitTestInsets and T) then return end
@@ -785,6 +785,7 @@ end
 function Manager.Start()
     Manager.startedAt = type(GetTime) == "function" and GetTime() or nil -- for a report: time into the session
     Manager.Prepare(Manager.PREPARE)
+    Manager.PrepareClicks(Manager.PREPARE)
     Manager.WantDots()
     -- One mob's DoTs changed (a cast, a tick): only its plate redraws.
     local changedKey
@@ -824,8 +825,18 @@ function Manager.Start()
     if type(driver) == "table" and type(driver.HookScript) == "function" then
         driver:HookScript("OnEvent", function(_, event, unit)
             if event == "NAME_PLATE_UNIT_ADDED" then DUI.SafeCall(Manager.FrameHandedOut, unit)
-            elseif Manager.RESHOW_EVENTS[event] then DUI.SafeCall(Manager.Unseen) end
+            elseif Manager.RECLAIM_EVENTS[event] then DUI.SafeCall(Manager.Reclaim) end
         end)
+    end
+    -- The game's driver redoes every plate's frame, size and click area on these
+    -- (UpdateNamePlateOptions), handing its frames their unit and events again
+    -- under the Daylight UI plates. Platynator switches them off on this client;
+    -- the plate size is set here instead.
+    if type(driver) == "table" and type(driver.UnregisterEvent) == "function" then
+        for _, e in ipairs(Manager.DRIVER_OFF) do pcall(driver.UnregisterEvent, driver, e) end
+    end
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+        DUI.RegisterEvent(e, function() Manager.ApplySize() end)
     end
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         Manager.UpdateTargets()
@@ -851,6 +862,9 @@ function Manager.Start()
         if type(name) ~= "string" then return end
         name = name:lower()
         if name == Manager.STACK_CVAR:lower() then return Manager.Restack() end
+        if name == Manager.NAME_ONLY_CVAR:lower() then return Manager.Each(Manager.OwnClicks) end
+        -- The game sets its own plate size again when these change (its CVar callbacks).
+        if Manager.SIZE_CVARS[name] then return C_Timer.After(0, Manager.ApplySize) end
         for _, cv in pairs(ns.Plate.FRIENDLY_SHOW) do
             if cv:lower() == name then return softRecheck() end
         end
@@ -861,7 +875,11 @@ function Manager.Start()
     -- Your level determines every level's color.
     DUI.RegisterEvent("PLAYER_LEVEL_UP", function() Manager.Each(ns.Plate.UpdateLevel) end)
     -- A finisher learned: execute range on "Your class" can start showing.
-    DUI.RegisterEvent("SPELLS_CHANGED", function() ns.Plate.ExecuteSpellsChanged() end)
+    -- Out of range fade asks your attacks by name, read again for a new spell.
+    DUI.RegisterEvent("SPELLS_CHANGED", function()
+        ns.Plate.ExecuteSpellsChanged()
+        ns.Range.SpellsChanged()
+    end)
     DUI.RegisterEvent("UPDATE_MOUSEOVER_UNIT", function()
         hoverChanged()
         watcher:Show()
@@ -910,6 +928,7 @@ function Manager.Start()
         if plain(UnitExists, unit) == true then DUI.SafeCall(Manager.Added, unit) end
     end
     C_Timer.NewTicker(Manager.SYNC_EVERY, function() DUI.SafeCall(Manager.Sync) end)
+    ns.Range.Apply()
 end
 
 -- /dui platefps hides the Daylight UI plates (the game's stay hidden too) or brings them back,
@@ -1027,7 +1046,9 @@ function Manager.CheckOne(unit, np)
     end
     local uf = np.UnitFrame
     if type(uf) == "table" then
-        lines[#lines + 1] = string.format("  game frame alpha=%s silenced=%s", asked(uf, "GetAlpha"), tostring(silenced[uf] == true))
+        local okP, parent = pcall(uf.GetParent, uf)
+        lines[#lines + 1] = string.format("  game frame onPlate=%s held=%s clicks=%s", tostring(okP and parent == np),
+            tostring(held[uf] == true), clickOf[np] and "ours" or "game's")
     end
     local p = byUnit[unit]
     if not p then
@@ -1069,10 +1090,17 @@ function Manager.CheckLines(detail)
     }
     local words = {}
     for _, name in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateOccludedAlphaMult", "nameplateGlobalScale",
-        "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale", "nameplateStackingTypes",
-        "nameplateMaxDistance" }) do
+        "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale", "nameplateMaxDistance" }) do
         local ok, v = pcall(C_CVar.GetCVar, name)
         words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. tostring(ok and v)
+    end
+    -- The stacking setting is a bitfield whose raw value isn't text (the copy box
+    -- showed nothing at all with it in), so it's read bit by bit.
+    local E = Enum and Enum.NamePlateStackType
+    local getBit = C_CVar and C_CVar.GetCVarBitfield
+    if E and type(getBit) == "function" then
+        local function bit(i) return tostring(plain(getBit, Manager.STACK_CVAR, i)) end
+        words[#words + 1] = "Stacking enemy=" .. bit(E.Enemy) .. " friendly=" .. bit(E.Friendly)
     end
     out[#out + 1] = "Game: " .. table.concat(words, " ")
     local Bug = DUI.BugReport
@@ -1156,7 +1184,12 @@ local function handBack()
     Manager.fixPaused = true
     local units = {}
     for unit in pairs(byUnit) do units[#units + 1] = unit end
-    for _, unit in ipairs(units) do DUI.SafeCall(Manager.Removed, unit) end
+    for _, unit in ipairs(units) do
+        local p = byUnit[unit]
+        local np, uf = p.nameplate, p.gameFrame
+        DUI.SafeCall(Manager.Removed, unit)
+        DUI.SafeCall(Manager.GiveBackFrame, uf, np)
+    end
     return #units
 end
 
@@ -1183,7 +1216,7 @@ end
 -- Steps 5 to 7. Step 3 showed the game's rebuilt plates draw until the Daylight UI
 -- plates go back on, so each of these rebuilds them the same way and then puts
 -- the plates back with one part of that left out (Manager.fixWithout): "stack"
--- hands the game no stacking frame, "silence" leaves the game's own frame
+-- hands the game no stacking frame, "hide" leaves the game's own frame
 -- showing underneath, "pool" uses plates built just now instead of the ones
 -- from login. One part at a time, so the step that works names the part.
 local function backWithout(part)
@@ -1199,10 +1232,11 @@ Manager.FIX = {
         local set = C_NamePlate and C_NamePlate.SetNamePlateSize
         if type(set) == "function" then pcall(set, Manager.PlateSize()) end
         Manager.ApplyClickable()
+        Manager.Each(Manager.OwnClicks)
         return "the plate size and click area set again"
     end,
-    -- 2. Hand every game plate back as it was (Daylight UI's off, its own frame, name and pieces
-    -- restored), and take none again until step 3 is done.
+    -- 2. Hand every game plate back as it was (Daylight UI's off, its own frame back on it
+    -- with its events and click area), and take none again until step 3 is done.
     function()
         return string.format("%d plates handed back to the game", handBack())
     end,
@@ -1230,7 +1264,7 @@ Manager.FIX = {
     end,
     -- 6. Rebuilt, then back on with the game's own frame left showing underneath.
     function()
-        backWithout("silence")
+        backWithout("hide")
         return "the game's plates rebuilt, Daylight UI's back on over the game's own, which stay visible "
             .. "(wait two seconds, and say which of the two you see)"
     end,
@@ -1296,7 +1330,35 @@ function Manager.FixReport(step)
     for _, line in ipairs(run.world or Manager.ReportWorld()) do out[#out + 1] = line end
     out[#out + 1] = "Before step 1:"
     for _, line in ipairs(run.before) do out[#out + 1] = line end
-    return string.sub(table.concat(out, "\n"), 1, Manager.REPORT_MAX)
+    return Manager.Printable(table.concat(out, "\n"), Manager.REPORT_MAX)
+end
+
+-- Text an edit box shows as it is: control bytes become "?", a "|" is doubled
+-- (else the box reads it as a color or link code), broken UTF-8 becomes "?", and
+-- a cut at max bytes never splits a character. Any of these left the copy box empty.
+function Manager.Printable(text, max)
+    local out, len, i = {}, 0, 1
+    while i <= #text do
+        local b = text:byte(i)
+        local n = b < 0x80 and 1 or (b >= 0xF0 and b < 0xF5) and 4 or (b >= 0xE0 and b < 0xF0) and 3
+            or (b >= 0xC2 and b < 0xE0) and 2 or 0
+        local piece
+        if n == 1 then
+            piece = (b == 124 and "||") or (((b < 32 and b ~= 10) or b == 127) and "?") or string.char(b)
+        elseif n > 1 then
+            piece = text:sub(i, i + n - 1)
+            for k = 2, n do
+                local c = piece:byte(k)
+                if not c or c < 0x80 or c > 0xBF then piece = nil break end
+            end
+        end
+        if not piece then piece, n = "?", 1 end
+        if max and len + #piece > max then break end
+        out[#out + 1] = piece
+        len = len + #piece
+        i = i + n
+    end
+    return table.concat(out)
 end
 
 -- Shows the report in a copy box (the profiles' one) and ends the round.
@@ -1305,6 +1367,8 @@ function Manager.FixDone(step)
     Manager.fixStep, Manager.fixRun = nil, nil
     DUI.Profiles.ShowText(L["Nameplate report"], L["Ctrl+C to copy, then paste it in a bug report on the Daylight UI Discord. "
         .. "After that, /reload."], text)
+    -- In chat too, so a screenshot still carries it if the box can't be copied.
+    for line in string.gmatch(text, "[^\n]+") do DUI.Print(line) end
     return text
 end
 

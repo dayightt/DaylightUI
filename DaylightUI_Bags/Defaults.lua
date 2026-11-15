@@ -6,7 +6,7 @@ ns.DEFAULTS = {
     enabled = true,         -- replace the default bags (needs a reload)
     columns = 10,           -- slots per row
     iconSize = 35,          -- px
-    spacing = 7,            -- px between slots
+    spacing = 2,            -- px between slots
     scale = 1,
     windowAlphaOwn = false,   -- off: use the general window opacity
     windowAlpha = 0.85,
@@ -26,7 +26,9 @@ ns.DEFAULTS = {
     sellJunk = true,        -- sell the Junk group when a vendor opens
     autoRepair = true,      -- repair all when a repair vendor opens
     repairGuild = false,    -- use guild funds first when the guild allows it
-    view = "categories",    -- "categories" or "grid"
+    view = "categories",    -- "categories", "grid" or "list"
+    listSort = "shelf",     -- the list's column to sort by inside each group ("shelf" = the Shelf's order)
+    listDesc = false,
     recentMinutes = 15,     -- minutes a new item stays in Recent
     autoStack = true,       -- merge partial stacks when the bag opens (Stack.lua)
     combineStacks = true,   -- show stacks of one item as one (split again while trading, mailing, at the AH)
@@ -40,13 +42,13 @@ ns.DEFAULTS = {
     moneyRoll = true,       -- tween the footer gold to its new amount
     -- Bank (Bank.lua): its own columns and bag slot row. Everything else follows
     -- the bags (ns.BANK_SHARED) unless ownLook gives it its own copy.
-    bank = { columns = 14, ownLook = false, iconSize = 35, spacing = 7, scale = 1, view = "categories", emptySlots = "all",
+    bank = { columns = 14, ownLook = false, iconSize = 35, spacing = 2, scale = 1, view = "categories", emptySlots = "all",
              greyPoor = true, redUnusable = true, showBind = true, showSet = false, showLevel = false, showJunk = false, showSlots = false },
     -- Viewer (Viewer.lua: the bank from anywhere, other characters' bags). When off,
     -- nothing new is saved. Own columns and position; the rest follows the bags
     -- unless ownLook. redUnusable, showSet and showJunk are left out on purpose: with
     -- ownLook they read nil (off), and a saved copy is never judged usable.
-    viewer = { enabled = true, columns = 14, ownLook = false, iconSize = 35, spacing = 7, scale = 1, view = "categories",
+    viewer = { enabled = true, columns = 14, ownLook = false, iconSize = 35, spacing = 2, scale = 1, view = "categories",
                emptySlots = "all", greyPoor = true, showBind = true, showLevel = false },
     -- position = { left, top } in UI units; nil means the default spot
 }

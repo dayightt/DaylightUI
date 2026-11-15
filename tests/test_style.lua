@@ -1252,3 +1252,65 @@ T.test("fonts: a text that already got a plain font elsewhere still gets the pic
     T.eq(size, 14)
     _G.CreateFontFamily = nil
 end)
+
+local function withLocale(locale, fn)
+    local before = _G.GetLocale
+    _G.GetLocale = function() return locale end
+    local ok, err = pcall(fn)
+    _G.GetLocale = before
+    _G.CreateFontFamily = nil
+    if not ok then error(err, 0) end
+end
+
+T.test("fonts: on a Russian client a font with no Russian letters hands over to one that has them", function()
+    withLocale("ruRU", function()
+        local DUI = stub.Load()
+        local Style = DUI.Style
+        DUI:Set("general", "font", "barlow")
+        Style.PickFont()
+        T.eq(Style.FONT, Style.FONTS.expressway.file, "Barlow has no Russian letters, Expressway does")
+        T.eq(Style.Text(UIParent, 13):GetFont(), Style.FONTS.expressway.file, "every text follows")
+        DUI:Set("general", "font", "fira")
+        Style.PickFont()
+        T.eq(Style.FONT, Style.FONTS.fira.file, "a font that has them stays")
+        DUI:Set("general", "font", "cinzel")
+        Style.PickFont()
+        T.eq(Style.FONT, DUI.GameFonts.ClientFont(), "an Azeroth font hands over to the game's own")
+        DUI:Set("general", "damage.font", "lato")
+        T.eq(DUI.GameFonts.DamageWanted(), Style.FONTS.fira.file, "a page's own pick too")
+        local values = DUI.Options.DamageFontChoices()
+        T.truthy(string.find(values.barlow, "Expressway", 1, true), "the picker says which font it shows as")
+        T.eq(values.fira, "Fira Sans")
+    end)
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "barlow")
+    DUI.Style.PickFont()
+    T.eq(DUI.Style.FONT, DUI.Style.FONTS.barlow.file, "other clients keep it")
+    T.eq(DUI.Options.DamageFontChoices().barlow, "Barlow Condensed")
+end)
+
+T.test("fonts: every font says whether it has Russian letters, and which one stands in when not", function()
+    local Style = stub.Load().Style
+    for key, f in pairs(Style.FONTS) do
+        if f.cyrillic ~= true then
+            local by = Style.FONTS[f.cyrillic]
+            T.truthy(by and by.cyrillic == true, key .. " names a stand-in that has them")
+        end
+    end
+    T.truthy(Style.CYRILLIC["expresswayfree.ttf"])
+    T.truthy(Style.CYRILLIC["arialn.ttf"])
+    T.falsy(Style.CYRILLIC["lato-regular.ttf"])
+end)
+
+T.test("fonts: on a Korean client with Daylight UI's own font picked, Korean letters still draw", function()
+    withLocale("koKR", function()
+        local DUI = stub.Load()
+        fontFamilies()
+        local express = DUI.Style.FONTS.expressway.file
+        T.eq(DUI.Style.FontFamily(express, 12, "", 0):GetFontObjectForAlphabet("korean"):GetFont(), DUI.Style.ALPHABET_FONTS.korean,
+            "Expressway has no Korean letters")
+        local client = DUI.GameFonts.ClientFont()
+        T.eq(DUI.Style.FontFamily(client, 12, "", 0):GetFontObjectForAlphabet("korean"):GetFont(), client,
+            "the game's own font draws them itself")
+    end)
+end)

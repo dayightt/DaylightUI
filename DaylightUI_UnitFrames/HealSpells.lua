@@ -34,9 +34,14 @@ ns.HealSpells = HealSpells
 
 HealSpells.CLASSES = {
     PRIEST = {
-        { 139, 6074, 6075, 6076, 6077, 6078, 10927, 10928, 10929, 25315, color = { 0.45, 0.85, 0.45 } },   -- Renew
+        -- Renew also comes as a second set of ranks 1 to 10 (425268 to 425277).
+        { 139, 6074, 6075, 6076, 6077, 6078, 10927, 10928, 10929, 25315,
+          425268, 425269, 425270, 425271, 425272, 425273, 425274, 425275, 425276, 425277,
+          color = { 0.45, 0.85, 0.45 } },   -- Renew
         { 17, 592, 600, 3747, 6065, 6066, 10898, 10899, 10900, 10901, color = { 1, 0.84, 0.35 } }, -- Power Word: Shield
-        { 401859, 1240826, 1240827, color = { 0.95, 0.5, 0.75 } },               -- Prayer of Mending
+        -- The cast's ids, then the buff's: Prayer of Mending lands on the target
+        -- under different ids (401877, 1240848, 1240849).
+        { 401859, 1240826, 1240827, 401877, 1240848, 1240849, color = { 0.95, 0.5, 0.75 } }, -- Prayer of Mending
         { 6346, color = { 0.95, 0.6, 0.3 } },                                -- Fear Ward
         { 10060, color = { 0.6, 0.75, 1 } },                                -- Power Infusion
         { 552, color = { 0.78, 0.62, 0.38 } },                             -- Abolish Disease

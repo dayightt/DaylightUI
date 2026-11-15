@@ -131,8 +131,8 @@ end
 -- Corpses: a lootable mob keeps its plate (the engine leaves it for the loot
 -- sparkle and interact icon), and the game's plate then only shows its widgets
 -- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). The Daylight UI
--- plate shows nothing there; the game's widgets and soft-target icon stay visible over its hidden
--- frame (Manager.Silence). Dead players keep theirs.
+-- plate shows nothing there; the game's widgets and soft-target icon stay in view on its
+-- plate (Manager.HideGameFrame). Dead players keep theirs.
 function Plate.IsCorpse(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
     return plain(UnitIsDead, unit) == true and plain(UnitIsPlayer, unit) ~= true
@@ -186,6 +186,7 @@ function Plate.UpdateCorpse(p)
     if now == p.corpse then return end
     p.corpse = now
     Plate.ShowNow(p)
+    if ns.Manager then ns.Manager.OwnClicks(p) end -- a corpse's plate can't be clicked, as in the game
 end
 
 -- Name-only plates: game objects, and friendly plates while friendly bars are off.
@@ -376,7 +377,14 @@ function Plate.Create(parent, sample)
     p.factionIcon:Hide()
     p.nameFrame = words
     p.name = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.name:SetWordWrap(false)
+    -- An unseen copy of the name with no width of its own, so it's exactly as wide
+    -- as the letters. The group mark and faction crest sit against its edges and
+    -- the name's width is never read, which may be secret.
+    p.nameEdge = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.nameEdge:SetAlpha(0)
     p.sub = Style.Text(words, 9, "CENTER", Plate.MEDIA.fonts.name)
+    p.sub:SetWordWrap(false)
     local sc = Plate.SUB_COLOR
     p.sub:SetTextColor(sc[1], sc[2], sc[3])
     p.quest = Style.Text(over, 14, "LEFT", Plate.MEDIA.font)
@@ -420,10 +428,8 @@ function Plate.Create(parent, sample)
     end
 
     -- The frame the game uses to keep plates from overlapping. Where a plate is
-    -- clicked stays the game's (the plate size from Manager.ApplySize, with click
-    -- insets past the edges from Manager.ApplyClickable) and is never set here, the
-    -- same as EllesmereUI. Plates went invisible when the game's was pointed at
-    -- addon frames.
+    -- clicked is a frame that stays on the game's plate (Manager.OwnClicks), never
+    -- one of this plate's, which moves between game plates.
     p.stack = CreateFrame("Frame", nil, p)
     -- The game measures a stacking frame by what's drawn in it, not its size: an empty
     -- one counts as nothing and plates don't stack. So it carries an invisible fill
@@ -681,12 +687,12 @@ end
 -- addon frames, so nothing on one game plate depends on a frame that moves on to
 -- another (that made plates go invisible). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
--- A plate hands the game its stacking frame only while the game stacks that kind
--- of plate (and /dui platefix can try the plates with none at all).
-function Plate.NoStack(p)
+-- Every plate hands the game its stacking frame, as Platynator does, whether the
+-- game stacks that kind of plate or not (/dui platefix can try the plates with
+-- none at all).
+function Plate.NoStack()
     local M = ns.Manager
-    if not M then return false end
-    return M.fixWithout == "stack" or not M.Stacks(p.friendly == true)
+    return M ~= nil and M.fixWithout == "stack"
 end
 
 function Plate.PlaceStack(p)
@@ -813,6 +819,7 @@ function Plate.Layout(p)
     if not p.threatPctOn then p.threatPct:Hide() end
 
     Style.SetTextSize(p.name, nameSize)
+    Style.SetTextSize(p.nameEdge, nameSize)
     Plate.SizeSub(p, c)
     local qs = math.max(10, math.floor(h * 1.1 + 0.5))
     Style.SetTextSize(p.quest, qs)
@@ -1312,8 +1319,10 @@ local function classText(p)
         inner:SetAllPoints(win)
         ct.name[token] = Style.Text(inner, 11, "CENTER", Plate.MEDIA.fonts.name)
         ct.name[token]:SetAllPoints(p.name)
+        ct.name[token]:SetWordWrap(false)
         ct.sub[token] = Style.Text(inner, 9, "CENTER", Plate.MEDIA.fonts.name)
         ct.sub[token]:SetAllPoints(p.sub)
+        ct.sub[token]:SetWordWrap(false)
         ct.wins[token] = win
     end
     p.classText = ct
@@ -1871,8 +1880,12 @@ end
 -- whatever shares their spot and push nothing. The skull never takes space at
 -- all, since its frame shows with any DoT up and only a secret-safe clip decides
 -- whether you see it, so nothing can line up against it.
-Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc", "defensives" }
-Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "skull" }
+-- The big defensive came later and goes after the older pieces: a row keeps its
+-- room with no aura up, so anywhere earlier it would push pieces players had
+-- already placed beside the bar. It still goes before the skull, which steps
+-- back over the rows' room.
+Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
+Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "defensives", "skull" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
     quest = { spot = "questPos", x = "questX", y = "questY" },
@@ -1944,8 +1957,7 @@ end
 
 -- Group member names marked (friendly.partyMark), since Group names replaces the
 -- class color: a small diamond before the name, or one on each side, in the group
--- color while the name keeps its own color. Placed by the name's measured width;
--- a name that can't be measured (a secret one) gets none.
+-- color while the name keeps its own color.
 function Plate.ShowGroupMark(p, on)
     local marks = p.groupMarks
     if not marks then return end
@@ -1967,33 +1979,42 @@ end
 Plate.GROUP_MARK_ART = DUI.MEDIA .. "shape-diamond.png"
 Plate.GROUP_MARK_SCALE = 0.6 -- size, as a fraction of the name's
 Plate.GROUP_MARK_GAP = 3
+-- The name's unseen copy (p.nameEdge), given the name's text and set on the same
+-- side of the name's box, so its edges are the letters' edges. The text may be
+-- secret: it's only handed on, never looked at.
+function Plate.PlaceNameEdge(p)
+    local edge, name = p.nameEdge, p.name
+    if not edge then return nil end
+    edge:SetText(name:GetText())
+    local H = p.nameJustify or "CENTER"
+    edge:ClearAllPoints()
+    if H == "LEFT" or H == "RIGHT" then
+        edge:SetPoint(H, name, H, 0, 0)
+    else
+        edge:SetPoint("CENTER", name, "CENTER", 0, 0)
+    end
+    return edge
+end
+
 function Plate.PlaceGroupMark(p)
-    local marks, name = p.groupMarks, p.name
-    local tw = textWidth(name, nil)
-    if not (marks and tw) then return false end
+    local marks = p.groupMarks
+    local edge = marks and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local size = math.max(6, math.floor(Plate.NameSize(p, Plate.Cfg(p)) * Plate.GROUP_MARK_SCALE + 0.5))
-    local gap, H = Plate.GROUP_MARK_GAP, p.nameJustify or "CENTER"
+    local gap = Plate.GROUP_MARK_GAP
     local before, after = marks.before, marks.after
     before:SetSize(size, size)
     after:SetSize(size, size)
     before:ClearAllPoints()
     after:ClearAllPoints()
-    if H == "LEFT" then
-        before:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-        after:SetPoint("LEFT", name, "LEFT", tw + gap, 0)
-    elseif H == "RIGHT" then
-        before:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-        after:SetPoint("LEFT", name, "RIGHT", gap, 0)
-    else
-        before:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-        after:SetPoint("LEFT", name, "CENTER", tw / 2 + gap, 0)
-    end
+    before:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
+    after:SetPoint("LEFT", edge, "RIGHT", gap, 0)
     return true
 end
 
 -- Opposite faction crest by a player's name (factionIcon): Alliance or Horde, using
 -- the game's own unit frame crests, so the other side is obvious at a glance,
--- flagged or not. A secret answer or an unmeasurable name gets none.
+-- flagged or not. A secret answer gets none.
 Plate.FACTION_ATLAS = {
     Alliance = "UI-HUD-UnitFrame-Player-PVP-AllianceIcon",
     Horde = "UI-HUD-UnitFrame-Player-PVP-HordeIcon",
@@ -2035,9 +2056,9 @@ end
 
 -- Left of the name (past the group mark when that sits before it).
 function Plate.PlaceFaction(p)
-    local icon, name = p.factionIcon, p.name
-    local tw = textWidth(name, nil)
-    if not (icon and tw) then return false end
+    local icon = p.factionIcon
+    local edge = icon and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local c = Plate.Cfg(p)
     local nameSize = Plate.NameSize(p, c)
     local size = math.max(8, math.floor(nameSize * Plate.FACTION_SCALE + 0.5))
@@ -2048,14 +2069,7 @@ function Plate.PlaceFaction(p)
     end
     icon:SetSize(size, size)
     icon:ClearAllPoints()
-    local H = p.nameJustify or "CENTER"
-    if H == "LEFT" then
-        icon:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-    elseif H == "RIGHT" then
-        icon:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-    else
-        icon:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-    end
+    icon:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
     return true
 end
 
@@ -2124,9 +2138,11 @@ local function placeName(p, L, rel, spot, nameOnly, w)
     local name, sub = p.name, p.sub
     name:ClearAllPoints()
     sub:ClearAllPoints()
+    -- Off the bar a name keeps its whole length on one line, even past the plate's
+    -- edges; on the bar it's held to the room there and cut short instead.
     if nameOnly then
-        name:SetWidth(w + 20)
-        sub:SetWidth(w + 20)
+        name:SetWidth(0)
+        sub:SetWidth(0)
         p.nameJustify = "CENTER"
         name:SetJustifyH("CENTER")
         sub:SetJustifyH("CENTER")
@@ -2137,7 +2153,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         return
     end
     local H = sideOf(L.point)
-    local width = Plate.OUTSIDE[spot] and w + 20 or L.line
+    local width = Plate.OUTSIDE[spot] and 0 or L.line
     name:SetWidth(width)
     sub:SetWidth(width)
     -- Kept to pass along (to the class text copies), since nothing should read it back
@@ -2635,13 +2651,18 @@ end
 -- Other plates fade while your target is on a plate (dimOthers, to dimAlpha); your
 -- target and any casting plate stay full. Plate.hasTarget is set by
 -- Manager.UpdateTargets. Back up FAST (a cast must be seen at once), down at
--- NORMAL; snaps for a freshly shown plate.
+-- NORMAL; snaps for a freshly shown plate. An enemy out of your reach fades the
+-- same way (rangeFade, p.outOfRange from Range.lua), to the lower of the two.
 Plate.hasTarget = false
 function Plate.Dim(p, snap)
     local c = cfg()
     local goal = 1
-    if c.dimOthers and Plate.hasTarget and not p.isTarget and not ns.Cast.Shown(p) then
+    local full = p.isTarget or ns.Cast.Shown(p)
+    if c.dimOthers and Plate.hasTarget and not full then
         goal = c.dimAlpha or 0.5
+    end
+    if c.rangeFade and p.outOfRange and not full then
+        goal = math.min(goal, c.rangeAlpha or 0.5)
     end
     if p.dimGoal == goal then return end
     local from = p.dimGoal or 1
@@ -3051,7 +3072,7 @@ function Plate.Uninstall(p)
     DUI.Motion.KickTagOff(p.kickTag)
     ns.Minion.Clear(p)
     DUI.Motion.Tween(p, 1, 1, 0) -- stops a fade in progress
-    p.dimGoal = nil
+    p.dimGoal, p.outOfRange = nil, nil
     p:SetAlpha(1)
     p.unit = nil
     p:Hide()

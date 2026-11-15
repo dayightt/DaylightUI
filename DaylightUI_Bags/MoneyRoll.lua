@@ -8,7 +8,7 @@ local DUI = DaylightUI
 local MoneyRoll = {}
 ns.MoneyRoll = MoneyRoll
 
-MoneyRoll.GAIN = DUI.Style.INK.MONEY   -- color of the text while gold goes up
+MoneyRoll.GAIN = DUI.Style.INK.GOOD   -- color of the whole amount while gold goes up
 
 local function enabled()
     return ns.Setting("moneyRoll") ~= false and DUI.Motion ~= nil and DUI.Motion.On()
@@ -18,11 +18,15 @@ local function key(f) return "bagsMoney" .. tostring(f) end
 
 local function print_(f, amount)
     f.rollShown = amount
-    f.money:SetText(DUI.MoneyString(amount))
+    -- While tinted the digits take the text color, so the coin codes stay plain.
+    f.money:SetText(DUI.Widgets.Money(amount, { color = not f.rollColor }))
 end
 
 local function untint(f)
-    if f.rollColor then f.money:SetTextColor(unpack(f.rollColor)); f.rollColor = nil end
+    if f.rollColor then
+        f.money:SetTextColor(unpack(f.rollColor)); f.rollColor = nil
+        if f.rollShown then print_(f, f.rollShown) end
+    end
 end
 
 function MoneyRoll.Step(f)

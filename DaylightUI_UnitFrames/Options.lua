@@ -1696,12 +1696,18 @@ local function framePage(id, label, desc, opts)
     local fadeExtra
     if id == "player" or id == "pet" then
         local who = id == "pet" and "your pet's" or "your"
+        local function waitOff(get)
+            local mode = get(k("fade.mode"))
+            return shown(get) or (mode ~= "ooc" and mode ~= "always" and mode ~= "float")
+        end
         fadeExtra = { { type = "toggle", key = k("fade.fullHealth"), label = "Only at full health",
             desc = "Fades only while " .. who .. " health is full; comes back as soon as it drops. Show on mouseover still works.",
-            disabled = function(get)
-                local mode = get(k("fade.mode"))
-                return shown(get) or (mode ~= "ooc" and mode ~= "always" and mode ~= "float")
-            end } }
+            disabled = waitOff } }
+        if id == "player" then
+            fadeExtra[2] = { type = "toggle", key = k("fade.fullMana"), label = "Only at full mana",
+                desc = "Fades only while your mana is full; stays while it refills after a spell or a fight. Does nothing while your bar shows rage or energy.",
+                disabled = waitOff }
+        end
     end
     local basic, bars, portraitCard = splitFrame(id, frame, opts.power or opts.powerToggle)
     local groups = {
@@ -2572,7 +2578,8 @@ ns.OPTIONS = { pages = {
         } },
     } },
 
-    { id = "personal", label = "Personal Display", preview = { "personal" }, desc = "Your health and power just under your character, the way Legion's personal display sat at your feet.", groups = {
+    { id = "personal", label = "Personal Display", preview = { "personal" },
+      sample = function(parent) return ns.PageSample.New("personal", parent) end, desc = "Your health and power just under your character, the way Legion's personal display sat at your feet.", groups = {
         { label = "Personal display", items = {
             { type = "toggle", key = "personal.enabled", label = "Show the personal display",
               desc = "Your health bar, your power under it and, for rogues and druids, your combo points, just under your character. It follows the camera as you zoom." },

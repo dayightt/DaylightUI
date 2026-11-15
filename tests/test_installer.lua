@@ -469,6 +469,26 @@ T.test("installer: a new character gets the guide; X closes it until the next lo
     T.truthy(DaylightUIInstaller:IsShown(), "asked again at the next login")
 end)
 
+-- A player who skipped the guide and then changed something has set the
+-- character up their own way: the guide stops asking, and the next login puts
+-- the profile's Edit Mode layout in place with one reload.
+T.test("installer: a change made after closing the guide counts as set up", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    closeGuide()
+    T.isnil(DUI.Installer.State())
+    DUI:Set("general", "softness", 0.5)
+    T.eq(DUI.Installer.State(), "installed", "set up from the first change")
+    T.eq(#saved.layouts, 0, "nothing written mid-session")
+    reload()
+    stub.RunTimers()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "the guide doesn't ask again")
+    T.truthy(layoutNamed("DaylightUI - DPS/Tank"), "the profile's layout went in")
+    T.eq(stub.Asked(), "reload", "one reload asked for it")
+    T.eq(DaylightUI:Get("general", "softness"), 0.5, "the change was kept")
+end)
+
 -- A new character's intro cinematic hides the whole UI; when the UI comes
 -- back the game closes every window (UIParent_OnShow: CloseAllWindows).
 -- Neither is the player closing the guide.

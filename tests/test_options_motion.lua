@@ -150,3 +150,18 @@ T.test("options motion: Home's banner plays a sunrise: lines, then the sun from 
     T.eq(sr.pieces.tagline:GetAlpha(), 1)
     T.truthy(math.abs(sr.pieces.glow:GetAlpha() - O.SUNRISE_GLOW[2]) < 0.01, "the glow rests")
 end)
+
+T.test("options motion: the window icon flare switch dims with Motion effects off and carries a NEW tag", function()
+    local DUI, pf = open("appearance")
+    local row, card = rowFor(pf, "portraitFlare")
+    T.truthy(row, "on the Appearance page")
+    if card.tab then DUI.OptionsPanel.SetTab(card.tab) end
+    T.eq(row.item.since, "1.8.3", "tagged NEW")
+    T.truthy(row.item.desc:find("Needs Motion effects (General > Appearance).", 1, true), "says what it needs")
+    T.falsy(row.item.desc:find("spellbook", 1, true), "names no single window: it plays on all of them")
+    T.falsy(row.disabled, "on while Motion effects are")
+    DUI.DB.General().motion = false
+    DUI.OptionsPanel.Show("appearance")
+    row = rowFor(DUI.OptionsPanel.PageFrame(), "portraitFlare")
+    T.truthy(row.disabled, "dim with Motion effects off")
+end)

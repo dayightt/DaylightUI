@@ -8,11 +8,23 @@
 --   order, title, text (string or function)
 --   part(): the regions to light, one box around those shown (none: the card
 --     sits in the middle)
---   available(), enter(), leave(): optional (show a sample, open the options)
+--   available(), enter(), leave(next): optional (show a sample, open the
+--     options); leave gets the stop coming next, nil when the tour ends
 --   settle: seconds to let enter() finish
 --   wait: true if the part only shows once the player opens it (a key away).
 --     Until then the card sits in the middle, and the light glides over once
 --     it's up.
+--
+--   follow: true, or a function saying when, if the part moves or changes
+--     while its step shows (a window the player is working in): the light
+--     glides after it.
+--   done(): true once the player has done what the step asks; it moves on.
+--   avoid(): regions the card mustn't cover, though they aren't lit.
+--
+-- Tour.Run(list, opts) runs any list of stops as a tour of its own (the
+-- Cooldown Manager's first-time tour). opts: key, through (the mouse reaches
+-- what's under the layer, for stops the player tries as they read), skipped
+-- (the line shown on a skip), finished(how) with how = "done" or "skip".
 --
 -- The layer covers the screen and takes the mouse but never the keyboard
 -- (except Escape, which skips), so game keys still work. A fight ends it at
@@ -45,11 +57,12 @@ Tour.DIM = 0.55 -- how dark the rest of the screen gets
 Tour.SETTLE = 0.4 -- lets what a step opens finish opening before the light finds it
 Tour.WATCH = 0.2 -- how often a waiting step looks for its part
 Tour.TOAST_TIME = 3.2
+Tour.TYPE_GAP = 0.09 -- between the letters the search stop types
 Tour.ASK_DELAY = 2 -- after login (the setup guide's check goes first)
 
 Tour.stops = {}
 
-local S -- the running tour: { list, i, rect, x, top, lit, waiting }
+local S -- the running tour: { list, opts, i, rect, x, top, lit, box, waiting, shown }
 
 local function pop(text) return Parts.Hex({ Style.Pop() }) .. text .. "|r" end
 Tour.Pop = pop
@@ -62,7 +75,10 @@ function Tour.Add(id, def)
     Tour.stops[#Tour.stops + 1] = def
 end
 
-function Tour.Running() return S ~= nil end
+function Tour.Running(key)
+    if key == nil then return S ~= nil end
+    return S ~= nil and S.opts.key == key
+end
 function Tour.Step() return S and S.i or nil end
 function Tour.StepId() return S and S.list[S.i].id or nil end
 function Tour.Lit() return S and S.lit or nil end
@@ -178,6 +194,18 @@ local function partOf(step)
     return first, box
 end
 
+-- The light's box grown by the regions a step's card keeps clear of.
+local function avoidOf(step, box)
+    if not step.avoid then return box end
+    local got = { pcall(step.avoid) }
+    if not got[1] then return box end
+    for i = 2, table.maxn(got) do
+        local b = boxOf(got[i])
+        if b then box = grow(box, b) end
+    end
+    return box
+end
+
 local function paint()
     local step = S.list[S.i]
     local n = #S.list
@@ -186,7 +214,7 @@ local function paint()
     local bar = Tour.card.bar
     Motion.Tween(bar, bar:GetValue(), S.i / n, Motion.SLOW, function(v) bar:SetValue(v) end)
     local part, box = partOf(step)
-    S.lit = box and part or nil
+    S.lit, S.box, S.shown = box and part or nil, box, S.i
     S.waiting = step.wait and not box
     local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
     if not box then
@@ -198,7 +226,7 @@ local function paint()
     Tour.spot.edge:Show()
     local pad = Tour.LIGHT_PAD
     local rect = { l = box.l - pad, b = box.b - pad, r = box.r + pad, t = box.t + pad }
-    local x, top = Tour.CardSpot(rect, Tour.W, h, sw, sh)
+    local x, top = Tour.CardSpot(avoidOf(step, rect), Tour.W, h, sw, sh)
     moveTo(rect, x, top)
 end
 
@@ -207,16 +235,16 @@ local function guarded(fn)
     if not DUI.SafeCall(fn) then Tour.Stop() end
 end
 
-local function leaveStep()
+local function leaveStep(nextStep)
     local step = S and S.list[S.i]
-    if step and step.leave then DUI.SafeCall(step.leave) end
+    if step and step.leave then DUI.SafeCall(step.leave, nextStep) end
 end
 
 -- The text fades out and the next step's fades in. A step that opens
 -- something (enter) lets it land first so the light finds its real spot.
 local function goTo(i)
     if not S or i < 1 or i > #S.list or i == S.i then return end
-    leaveStep()
+    leaveStep(S.list[i])
     S.i = i
     local step = S.list[i]
     if step.enter then guarded(step.enter) end
@@ -243,6 +271,8 @@ end
 local function pane(f)
     local t = f:CreateTexture(nil, "BACKGROUND")
     t:SetColorTexture(0, 0, 0, Tour.DIM)
+    Tour.panes = Tour.panes or {}
+    Tour.panes[#Tour.panes + 1] = t
     return t
 end
 
@@ -321,7 +351,6 @@ local function buildCard(f)
     c.back:SetScript("OnClick", function() Tour.Back() end)
     c.back.FitWidth(Tour.BTN_W)
     c.skip = W.Link(c)
-    c.skip.SetLabel(L["Skip tour"])
     c.skip:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", Tour.EDGE, Tour.EDGE + 2)
     c.skip:SetScript("OnClick", function() Tour.Skip() end)
 end
@@ -347,14 +376,36 @@ function Tour.OnKey(key)
     return false
 end
 
--- A waiting step (the bags, a key away) keeps looking for its part.
+local function moved(a, b)
+    if not (a and b) then return a ~= b end
+    return math.abs(a.l - b.l) > 0.5 or math.abs(a.b - b.b) > 0.5
+        or math.abs(a.r - b.r) > 0.5 or math.abs(a.t - b.t) > 0.5
+end
+
+-- A waiting step (the bags, a key away) keeps looking for its part; a
+-- following one glides after it; a step the player has done moves on.
 local watched = 0
 local function watch(_, dt)
-    if not (S and S.waiting) then return end
+    if not S then return end
+    local step = S.list[S.i]
+    if not (S.waiting or step.follow or step.done) or S.shown ~= S.i then return end
     watched = watched + (dt or 0)
     if watched < Tour.WATCH then return end
     watched = 0
-    if partOf(S.list[S.i]) then guarded(paint) end
+    if step.done then
+        local ok, yes = pcall(step.done)
+        if ok and yes then return Tour.Next() end
+    end
+    if S.waiting then
+        if partOf(step) then guarded(paint) end
+        return
+    end
+    local follow = step.follow
+    if type(follow) == "function" then
+        local ok, on = pcall(follow)
+        follow = ok and on
+    end
+    if follow and moved(select(2, partOf(step)), S.box) then guarded(paint) end
 end
 
 function Tour.Build()
@@ -376,15 +427,17 @@ end
 -- Running
 
 -- Hands the screen back at once while the dim fades out behind it.
-local function finish()
+local function finish(how)
     leaveStep()
     local f = Tour.frame
+    local opts = S.opts
     S = nil
     Tour.fading = nil
     f:EnableMouse(false)
     Win.KeysOn(f, false)
     Tour.spot.pulse:Stop()
     Motion.AlphaTo(f, 0, Motion.NORMAL, true)
+    if how and opts.finished then DUI.SafeCall(opts.finished, how) end
 end
 
 local function toast(text)
@@ -403,26 +456,14 @@ end
 
 local function guideUp() return DUI.InstallerUI and DUI.InstallerUI.IsShown() end
 
--- Runs the whole tour from its first stop. False when it can't start now.
-function Tour.Start()
-    if S then return false end
-    if InCombatLockdown() then
-        DUI.Print(L["The tour waits until the fight is over."])
-        return false
-    end
-    if guideUp() then
-        DUI.Print(L["Finish the setup guide first."])
-        return false
-    end
-    local list = Tour.List()
-    if #list == 0 then return false end
-    Tour.HideAsk()
-    -- The options would cover what the first stops light, so one stop reopens them.
-    local P = DUI.OptionsPanel
-    if P and P.IsShown and P.IsShown() then P.Toggle() end
+-- Runs a list of stops from its first. False when it can't start now.
+function Tour.Run(list, opts)
+    if S or InCombatLockdown() or #list == 0 then return false end
+    opts = opts or {}
     local f = Tour.Build()
-    S = { list = list, i = 1 }
-    f:EnableMouse(true)
+    S = { list = list, opts = opts, i = 1 }
+    Tour.card.skip.SetLabel(L["Skip tour"])
+    f:EnableMouse(not opts.through)
     f:SetAlpha(0)
     f:Show()
     W.TintAccent(Tour.spot.edge)
@@ -444,11 +485,34 @@ function Tour.Start()
     return true
 end
 
+-- Runs the whole tour from its first stop. False when it can't start now.
+function Tour.Start()
+    if S then return false end
+    if InCombatLockdown() then
+        DUI.Print(L["The tour waits until the fight is over."])
+        return false
+    end
+    if guideUp() then
+        DUI.Print(L["Finish the setup guide first."])
+        return false
+    end
+    local list = Tour.List()
+    if #list == 0 then return false end
+    Tour.HideAsk()
+    -- The options would cover what the first stops light, so one stop reopens them.
+    local P = DUI.OptionsPanel
+    if P and P.IsShown and P.IsShown() then P.Toggle() end
+    return Tour.Run(list, {
+        key = "tour",
+        skipped = string.format(L["Tour skipped. %s on the options' Home page shows it again."], pop(L["Take the tour"])),
+        finished = function() DUI.DB.Root().tourDone = true end,
+    })
+end
+
 function Tour.Next()
     if not S then return end
     if S.i < #S.list then return goTo(S.i + 1) end
-    finish()
-    DUI.DB.Root().tourDone = true
+    finish("done")
 end
 
 function Tour.Back()
@@ -458,9 +522,9 @@ end
 -- Skip tour prints one line saying where to find it again.
 function Tour.Skip()
     if not S then return end
-    finish()
-    DUI.DB.Root().tourDone = true
-    toast(string.format(L["Tour skipped. %s on the options' Home page shows it again."], pop(L["Take the tour"])))
+    local text = S.opts.skipped
+    finish("skip")
+    if text then toast(text) end
 end
 
 -- A fight started, so put everything back at once.
@@ -560,18 +624,63 @@ Tour.Add("unlock", {
     part = function() return DUI.Movers.LockButton() end,
 })
 
+-- The tour opened the options, so it closes them (Done, Skip, a fight) like
+-- their X does, unless the next stop shows them too.
+local function closeOptions(nextStep)
+    if nextStep and nextStep.usesOptions then return end
+    local P = DUI.OptionsPanel
+    if P.IsShown() then P.Toggle() end
+end
+
 Tour.Add("options", {
     order = 90,
     title = L["Every setting"],
     text = function()
-        return string.format(L["Press Escape and pick Daylight UI in the game menu, or type %s. Search finds any setting. %s over any Daylight UI window sizes it. %s on Home runs this tour again."],
+        return string.format(L["Press Escape and pick Daylight UI in the game menu, or type %s. %s over any Daylight UI window sizes it. %s on Home runs this tour again."],
             pop("/dui"), pop(L["Ctrl + mouse wheel"]), pop(L["Take the tour"]))
     end,
+    usesOptions = true,
     enter = function() DUI.OptionsPanel.Show("home") end,
-    -- the tour opened them, so it closes them (Done, Skip, a fight) like their X does
-    leave = function()
-        local P = DUI.OptionsPanel
-        if P.IsShown() then P.Toggle() end
-    end,
+    leave = closeOptions,
     part = function() return DUI.OptionsPanel.Frame() end,
+})
+
+-- The search box types a word by itself, a letter at a time, so the player
+-- sees the matching settings show up as live rows.
+local function typeDemo(word)
+    local box = DUI.OptionsPanel.SearchBox()
+    if not box then return end
+    local token = {}
+    Tour.typing = token
+    box:SetText("")
+    if not Motion.On() then return box:SetText(word) end
+    local n = 0
+    local function letter()
+        if Tour.typing ~= token or Tour.StepId() ~= "search" then return end
+        n = n + 1
+        box:SetText(string.sub(word, 1, n))
+        if n < #word then C_Timer.After(Tour.TYPE_GAP, letter) end
+    end
+    C_Timer.After(Tour.SETTLE, letter)
+end
+
+Tour.Add("search", {
+    order = 95,
+    title = L["Find any setting"],
+    text = function()
+        return string.format(L["Type a word in %s and every setting that matches shows up here, ready to change on the spot. No digging through pages."],
+            pop(L["Search settings"]))
+    end,
+    usesOptions = true,
+    enter = function()
+        DUI.OptionsPanel.Show("home")
+        typeDemo(L["Health"])
+    end,
+    leave = function(nextStep)
+        Tour.typing = nil
+        local box = DUI.OptionsPanel.SearchBox()
+        if box then box:SetText("") end
+        closeOptions(nextStep)
+    end,
+    part = function() return DUI.OptionsPanel.SearchBox() end,
 })

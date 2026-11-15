@@ -106,6 +106,28 @@ T.test("action bars: the totem bar sits in its holder after a reload, not at its
     T.eq(rel, holder, "on its holder, where the unlock handle is")
 end)
 
+T.test("action bars: the totem bar goes back in its holder when the game hands it to UIParent", function()
+    loginShaman()
+    local mc = MultiCastActionBarFrame
+    local holder = stub.actionbars.Bars.holders.totem
+    -- A load in a fight leaves it on UIParent, and something else may move it out later.
+    -- Outside the holder the bar's fade never reaches it.
+    mc:SetParent(UIParent)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), holder, "back in its holder")
+    -- In a fight the parent can't change: it waits for the fight to end.
+    stub.combat = true
+    mc:SetParent(UIParent)
+    stub.FireEvent("UPDATE_MULTI_CAST_ACTIONBAR")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), UIParent, "left alone in a fight")
+    stub.combat = false
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), holder, "back after the fight")
+end)
+
 T.test("action bars: the totem buttons stay put when the game stacks its bottom bars in a fight (Ghost Wolf)", function()
     loginShaman()
     local mc = MultiCastActionBarFrame

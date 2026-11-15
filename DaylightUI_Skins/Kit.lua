@@ -478,6 +478,20 @@ end
 -- Text still in the ink it was given is skipped. If the game recolored it,
 -- the color won't match and it's inked again.
 local inked = setmetatable({}, { __mode = "k" }) -- font string -> the ink it was given
+
+-- Undoes Kit.Light for text the game also shows in a window that keeps its own
+-- look (the quest text the world map shares with the game's quest window): no
+-- more relighting, its font's own shadow back, and the color given, if any.
+function Kit.Unlight(fs, color)
+    if kind(fs) ~= "FontString" or not (lit[fs] or inked[fs]) then return end
+    lit[fs], inked[fs] = nil, nil
+    local font = fs.GetFontObject and fs:GetFontObject()
+    if type(font) == "table" and font.GetShadowOffset then
+        fs:SetShadowOffset(font:GetShadowOffset())
+        fs:SetShadowColor(font:GetShadowColor())
+    end
+    if type(color) == "table" then fs:SetTextColor(color[1], color[2], color[3]) end
+end
 function Kit.InkGameText(frame)
     if not isTable(frame) or not frame.GetRegions then return end
     if frame.GetNumRegions and frame:GetNumRegions() == 0 then return end

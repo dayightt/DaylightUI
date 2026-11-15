@@ -2,8 +2,8 @@
 -- a hidden frame and never hidden itself: Show and Hide on the game's bars are its
 -- own Lua, and calling them from here leads to blocked actions later. Bar 1 keeps its
 -- events, since the game still writes its page and Daylight UI's keybinds press its hidden
--- buttons. The twin buttons stay in place under the parked bar, which keeps them out
--- of sight. Nothing is written on them: an attribute an addon writes keeps the
+-- buttons. Those twin buttons move out of their bars to the hidden frame (Park.Twins).
+-- Nothing is written on them: an attribute an addon writes keeps the
 -- addon's taint, so the game's own UpdateShownButtons, reading "statehidden" in a
 -- fight (a slot changing as you loot), had its SetShown on them blocked.
 
@@ -34,6 +34,12 @@ function Park.Bar(frame)
     if type(frame) == "table" and frame:GetParent() ~= Park.Frame() then frame:SetParent(Park.Frame()) end
 end
 
+local function twinPrefixes()
+    local prefixes = { "ActionButton" }
+    for _, name in ipairs(Park.MULTI) do prefixes[#prefixes + 1] = name .. "Button" end
+    return prefixes
+end
+
 -- The game's button events frame hands every event to each button on its list,
 -- the hidden twins too. On "slot changed" in a fight a twin works out its slot from
 -- its bar's page, which bar paging writes, and then shows or hides every button of
@@ -41,12 +47,32 @@ end
 -- it's pressed and needs none of these updates, so the twins of every bar come off
 -- the list (set to nil in place, as Buttons.Unlist does).
 function Park.UnlistTwins()
-    local prefixes = { "ActionButton" }
-    for _, name in ipairs(Park.MULTI) do prefixes[#prefixes + 1] = name .. "Button" end
-    for _, prefix in ipairs(prefixes) do
+    for _, prefix in ipairs(twinPrefixes()) do
         for i = 1, 12 do
             local b = _G[prefix .. i]
             if type(b) == "table" then ns.Buttons.Unlist(b) end
+        end
+    end
+end
+
+-- The game's bars aren't protected themselves, only through the secure buttons
+-- inside them. On a page, form or vehicle change the game shows, hides, scales and
+-- moves every bar in one pass, and once anything has tainted that pass each bar
+-- still holding a button was blocked in a fight ("MultiBarBottomLeft:ShowBase()",
+-- then every other bar). So the buttons live under the hidden frame instead and
+-- the bars hold nothing protected. A key press still finds the right page: the
+-- secure templates look it up through the button's own bar field before its parent.
+function Park.Twins()
+    local parked = Park.Frame()
+    for _, prefix in ipairs(twinPrefixes()) do
+        for i = 1, 12 do
+            local b = _G[prefix .. i]
+            if type(b) == "table" and b:GetParent() ~= parked then
+                b:SetParent(parked)
+                -- Anchored to the hidden frame too, so nothing ties it to its bar.
+                b:ClearAllPoints()
+                b:SetPoint("CENTER", parked, "CENTER")
+            end
         end
     end
 end
@@ -71,6 +97,7 @@ function Park.Apply()
     local events = _G.ActionBarActionEventsFrame
     if type(events) == "table" then events:UnregisterAllEvents() end
     Park.UnlistTwins()
+    Park.Twins()
     if not Park.wired then
         Park.wired = true
         local function recheck() DUI.AfterCombat(Park.Recheck, "park:recheck") end
@@ -196,6 +223,7 @@ end
 function Park.Recheck()
     for _, name in ipairs(Park.MULTI) do Park.Bar(_G[name]) end
     Park.Bar(_G.MainActionBar)
+    Park.Twins()
     local b = Park.leave
     if b and b:GetParent() ~= UIParent then b:SetParent(UIParent) end
 end

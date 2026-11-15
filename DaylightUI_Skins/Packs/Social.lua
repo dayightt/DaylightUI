@@ -140,6 +140,17 @@ end
 -- frame's OnShow script rather than a hook on its methods.
 local glows = setmetatable({}, { __mode = "k" })
 
+-- Whichever of the icon's pieces the game is showing: the club's icon, or for a
+-- guild the tabard in its place (UpdatePortrait hides one and shows the other).
+-- They share one slot, so the flare is the same round either way.
+local function shownClubIcon(overlay, portrait)
+    for _, key in ipairs({ "Portrait", "TabardEmblem", "TabardBackground" }) do
+        local piece = overlay[key]
+        if type(piece) == "table" and piece.IsShown and piece:IsShown() then return piece end
+    end
+    return portrait
+end
+
 local function glowClubIcon(frame)
     local overlay = type(frame) == "table" and frame.PortraitOverlay
     local portrait = type(overlay) == "table" and overlay.Portrait
@@ -155,7 +166,7 @@ local function glowClubIcon(frame)
             -- window's own, so the flare goes over it, as it does on ours.
             local level = overlay:GetFrameLevel()
             if type(level) == "number" then glows[frame]:SetFrameLevel(level + 2) end
-            DUI.SafeCall(Win.PlayGlow, glows[frame], portrait)
+            DUI.SafeCall(Win.PlayGlow, glows[frame], shownClubIcon(overlay, portrait))
         end)
     end)
 end
@@ -350,6 +361,14 @@ local function loneJoin(list)
     return true
 end
 
+-- The game builds the club list's data in the list's own OnShow, and the
+-- window's OnShow then scrolls that list to the selected club. A list hidden
+-- before its first show has no data yet, so that scroll errors.
+local function listHasData(list)
+    local box = type(list) == "table" and list.ScrollBox
+    return type(box) == "table" and type(box.GetDataProvider) == "function" and box:GetDataProvider() ~= nil
+end
+
 local function setListColumn(list, open)
     for i = 1, list.GetNumPoints and list:GetNumPoints() or 0 do
         local p, rel, rp, x, y = list:GetPoint(i)
@@ -359,9 +378,11 @@ local function setListColumn(list, open)
         end
     end
     -- Hiding the column also drops the vertical rule that split it from the text.
+    -- Until the game has filled the list it stays shown, only see-through.
     if list.Show and list.Hide then
-        if open then list:Show() else list:Hide() end
+        if open then list:Show() elseif listHasData(list) then list:Hide() end
     end
+    if list.SetAlpha then list:SetAlpha(open and 1 or 0) end
     if type(list.ScrollBox) == "table" and list.ScrollBox.SetAlpha then
         list.ScrollBox:SetAlpha(open and 1 or 0)
     end

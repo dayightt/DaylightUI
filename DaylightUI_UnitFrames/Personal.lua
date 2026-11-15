@@ -148,8 +148,8 @@ local function numberSize(size, barHeight)
     return math.max(PR.TEXT_MIN, math.floor(barHeight * 0.85 + 0.5))
 end
 
-function PR.LayoutNumbers(cfg, cut, H, showHealth)
-    local s = PR.frame.body
+function PR.LayoutNumbers(h, cfg, cut, H, showHealth)
+    local s = h.body
     local function lay(fs, bar, on, pos, size, y)
         fs:SetShown(on)
         if not on then return end
@@ -170,16 +170,21 @@ function PR.Docks(kind)
     return cfg ~= nil and cfg.enabled == true and cfg[kind] == true
 end
 
-function PR.Create()
-    local media = ns.UF.MEDIA.personal
-    local h = CreateFrame("Frame", "DaylightUIPersonal", UIParent)
+-- Puts the bars and numbers on h. The real display and the options page's
+-- preview are both built here, so the preview always looks like the real one.
+function PR.Build(h)
     h:EnableMouse(false)
-    h:SetFrameStrata("LOW")
-    h.body = makeBody(h, media)
+    h.body = makeBody(h, ns.UF.MEDIA.personal)
     h.healthBar, h.powerBar = h.body.health, h.body.power
     h.healthText, h.powerText = h.body.healthText, h.body.powerText
     -- What the health painting reads off a frame (UF.PaintHealth).
     h.paint = { health = h.healthBar, unitToken = "player" }
+end
+
+function PR.Create()
+    local h = CreateFrame("Frame", "DaylightUIPersonal", UIParent)
+    h:SetFrameStrata("LOW")
+    PR.Build(h)
     h:Hide()
     PR.frame = h
 
@@ -392,20 +397,22 @@ end
 -- Its own bar colors, or the player frame's while set to "player". Called from
 -- Layout, which every setting change goes through after the player frame's
 -- own layout.
-function PR.ReadColors(cfg)
-    local f, own = PR.frame.paint, ns.frames and ns.frames.player or {}
+function PR.ReadColors(h, cfg)
+    local f, own = h.paint, ns.frames and ns.frames.player or {}
     if cfg.colorHealth == "player" then f.healthMode, f.healthCustom = own.healthMode, own.healthCustom
     else f.healthMode, f.healthCustom = cfg.colorHealth, cfg.colorHealthCustom end
     if cfg.colorPower == "player" then f.powerMode, f.powerCustom = own.powerMode, own.powerCustom
     else f.powerMode, f.powerCustom = cfg.colorPower, cfg.colorPowerCustom end
 end
 
-function PR.PaintHealth()
-    local f = PR.frame.paint
-    f.state = ns.UF.UnitState("player")
+-- pct: a sample's health. A sample is never dead, and a health-following
+-- color follows the sample's value, not yours.
+function PR.PaintHealth(h, pct)
+    local f = h.paint
+    f.state = not pct and ns.UF.UnitState("player") or nil
     local r, g, b = ns.UF.UnitColor("player")
     if f.state then r, g, b = ns.UF.StateColor(f.state) end
-    ns.UF.PaintHealth(f, r, g, b)
+    ns.UF.PaintHealth(f, r, g, b, pct)
 end
 
 function PR.UpdatePower(instant)
@@ -471,17 +478,18 @@ end
 
 function PR.UpdateAll()
     if not PR.frame or PR.frame.test then return end
-    PR.PaintHealth()
+    PR.PaintHealth(PR.frame)
     PR.UpdateHealth(true)
     PR.UpdatePower(true)
     if PR.frame.combo then ns.Combo.Update(PR.frame.combo, true) end
 end
 
-function PR.Layout(cfg)
-    local h = PR.frame
-    if not h or not cfg then return end
-    h:SetScale(DUI.Movers.Scale(PR.KEY))
-    PR.ReadColors(cfg)
+-- Lays out a display (the real one or the page's preview) from the settings:
+-- colors, border, bars, numbers, heal bars. made: create the heal bars if
+-- they're wanted and missing. Returns the angled side, the power bar's height
+-- (0 for none), the height, the cut and whether it has a health bar.
+function PR.Shape(h, cfg, made)
+    PR.ReadColors(h, cfg)
     ns.UF.ApplyShell(h.body, cfg)
     local side = cfg.slant ~= false and "right" or nil
     local w = tonumber(cfg.width) or 150
@@ -493,16 +501,42 @@ function PR.Layout(cfg)
     h.body:SetPoint("TOP", h, "TOP", 0, 0)
     h:SetSize(h.body:GetWidth(), H)
     h.cut, h.foot, h.cutSide = cut, 0, "right"
-    PR.LayoutNumbers(cfg, cut, H, showHealth)
+    PR.LayoutNumbers(h, cfg, cut, H, showHealth)
+    -- Incoming heals and shields, using the player frame's bars and colors.
+    local body = h.body
+    body.predictHeals = showHealth and cfg.predictHeals ~= false
+    body.predictAbsorbs = showHealth and cfg.predictAbsorbs ~= false
+    if made and showHealth and not body.heals then ns.UF.CreatePrediction(body) end
+    if body.heals then ns.UF.LayoutPrediction(body, side) end
+    return side, p, H, cut, showHealth
+end
+
+-- The combo row's own settings, from the display's.
+function PR.LayoutCombo(h, cfg)
+    if not h.combo then return end
+    local cc = {}
+    for k, v in pairs(ns.module.db.combo) do cc[k] = v end
+    cc.enabled = cfg.combo ~= false
+    cc.anchor, cc.side, cc.align = "target", "below", "inner"
+    cc.stretch = cfg.comboStretch ~= false
+    cc.size = tonumber(cfg.comboSize) or cc.size
+    cc.height = tonumber(cfg.comboHeight) or 0
+    cc.x, cc.y = tonumber(cfg.comboX) or 0, tonumber(cfg.comboY) or 0
+    cc.slant = cfg.slant ~= false
+    ns.Combo.Layout(h.combo, cc)
+    -- Docked bars stack past the row, wherever it was nudged up or down.
+    h.comboReach = cc.enabled and math.max(0, PR.DOCK_GAP + ns.Combo.Height(cc) - cc.y) or 0
+end
+
+function PR.Layout(cfg)
+    local h = PR.frame
+    if not h or not cfg then return end
+    h:SetScale(DUI.Movers.Scale(PR.KEY))
+    -- Heal bars made the first time the display is on with a health bar.
+    local side, p, H, cut, showHealth = PR.Shape(h, cfg, cfg.enabled)
     -- The spell cost shade, the player frame's own (set on the Player page),
     -- created the first time the display is on.
     local body = h.body
-    -- Incoming heals and shields, using the player frame's bars and colors,
-    -- created the first time the display has a health bar.
-    body.predictHeals = showHealth and cfg.predictHeals ~= false
-    body.predictAbsorbs = showHealth and cfg.predictAbsorbs ~= false
-    if cfg.enabled and showHealth and not body.heals then ns.UF.CreatePrediction(body) end
-    if body.heals then ns.UF.LayoutPrediction(body, side) end
     if cfg.enabled and not body.cost then ns.UF.CreateCost(body, { slant = true }) end
     if body.cost then
         ns.UF.LayoutCost(body, side, cut * body.power:GetHeight() / H, ns.module.db.player)
@@ -517,20 +551,7 @@ function PR.Layout(cfg)
         h.comboMade = true
         h.combo = ns.Combo.Create(h)
     end
-    if h.combo then
-        local cc = {}
-        for k, v in pairs(ns.module.db.combo) do cc[k] = v end
-        cc.enabled = cfg.combo ~= false
-        cc.anchor, cc.side, cc.align = "target", "below", "inner"
-        cc.stretch = cfg.comboStretch ~= false
-        cc.size = tonumber(cfg.comboSize) or cc.size
-        cc.height = tonumber(cfg.comboHeight) or 0
-        cc.x, cc.y = tonumber(cfg.comboX) or 0, tonumber(cfg.comboY) or 0
-        cc.slant = cfg.slant ~= false
-        ns.Combo.Layout(h.combo, cc)
-        -- Docked bars stack past the row, wherever it was nudged up or down.
-        h.comboReach = cc.enabled and math.max(0, PR.DOCK_GAP + ns.Combo.Height(cc) - cc.y) or 0
-    end
+    PR.LayoutCombo(h, cfg)
     PR.Listen(cfg.enabled == true, showHealth)
     PR.following = cfg.enabled == true and cfg.follow ~= "fixed"
     DUI.Movers.Suspend(PR.KEY, PR.following)
@@ -590,8 +611,15 @@ function PR.ShowSample()
     if not h or not cfg or not cfg.enabled then return end
     h.test = true
     h:Show()
-    PR.PaintHealth()
+    PR.FillSample(h, cfg)
+    if PR.auras then ns.Auras.ShowSample(PR.auras, h, cfg.auras, ns.Test.AURAS) end
+end
+
+-- The sample values on a display: the real one in test mode, or the options
+-- page's preview. Plain numbers of ours, never mixed with your real ones.
+function PR.FillSample(h, cfg)
     local s = PR.SAMPLE
+    PR.PaintHealth(h, s.health)
     Style.SetBarRange(h.healthBar, 0, 100)
     Style.SetBarValue(h.healthBar, s.health, true)
     local body = h.body
@@ -607,7 +635,6 @@ function PR.ShowSample()
     ns.UF.WriteSampleHealth(h.healthText, cfg.healthText, s.health, s.healthValue, cfg.percentSign, cfg.hideFullHealth)
     ns.UF.WriteSamplePower(h.powerText, cfg.powerFormat, s.power, s.powerValue, cfg.powerPercentSign, nil, token)
     if h.combo then ns.Combo.ShowSample(h.combo, s.combo) end
-    if PR.auras then ns.Auras.ShowSample(PR.auras, h, cfg.auras, ns.Test.AURAS) end
 end
 
 function PR.HideSample()

@@ -307,6 +307,9 @@ function Widget:Hide()
     if was and parentsShown(self) then
         if self.__scripts.OnHide then self.__scripts.OnHide(self) end
         cascade(self, "OnHide")
+        -- Like the client, an edit box that can no longer be seen loses the keyboard.
+        local box = stub.focus
+        if box and not box:IsVisible() then box:ClearFocus() end
     end
 end
 function Widget:SetShown(v) if v then self:Show() else self:Hide() end end
@@ -598,6 +601,25 @@ function Widget:SetText(t)
     local fn = self.__scripts and self.__scripts.OnTextChanged
     if fn then fn(self, false) end
 end
+-- Like the client, one edit box has the keyboard at a time: giving it to one
+-- takes it from the other, and each runs its focus script.
+local function focusScript(box, name)
+    local fn = box.__scripts and box.__scripts[name]
+    if fn then fn(box) end
+end
+function Widget:SetFocus()
+    local was = stub.focus
+    if was == self then return end
+    stub.focus = self
+    if was then focusScript(was, "OnEditFocusLost") end
+    focusScript(self, "OnEditFocusGained")
+end
+function Widget:ClearFocus()
+    if stub.focus ~= self then return end
+    stub.focus = nil
+    focusScript(self, "OnEditFocusLost")
+end
+function Widget:HasFocus() return stub.focus == self end
 function Widget:SetAlpha(a) self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = nil end
 -- Like the client, the alpha it picks really lands (true -> t, false -> f).
 function Widget:SetAlphaFromBoolean(v, t, f)
@@ -2308,8 +2330,9 @@ _G.UnitInRange = function(u)
     return false, false
 end
 -- Spells the player knows (stub.knownSpells[id] = true) and each unit's answer
--- to a spell's range check: x.spellRange (true/false/secret). nil means the check
--- is invalid, which is what the game answers for strangers and enemies.
+-- to a spell's range check: x.spellRange (true/false/secret), or a table of
+-- answers by spell id. nil means the check is invalid, which is what the game
+-- answers for strangers and enemies.
 stub.knownSpells = {}
 _G.C_SpellBook = _G.C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return stub.knownSpells[id] == true end
@@ -2322,7 +2345,9 @@ C_Spell.PickupSpell = function(id) stub.cursor = { "spell", id } end
 C_Spell.IsSpellInRange = function(id, u)
     local x = U(u)
     if not stub.knownSpells[id] or not x then return nil end
-    return x.spellRange
+    local r = x.spellRange
+    if type(r) == "table" and not isSecret(r) then return r[id] end
+    return r
 end
 _G.UnitIsPVP = function(u) local x = U(u); return x ~= nil and x.pvp == true end
 _G.UnitFactionGroup = function(u) local x = U(u); if x then return x.faction end end
@@ -2864,6 +2889,7 @@ function stub.Reset()
     stub.restrictions, stub.inRestrictionDispatch = {}, false
     stub.lockErrors, stub.lockSites = 0, {}
     stub.secure, stub.inSecure = false, 0
+    stub.focus = nil
     stub.conditions, stub.drivers, stub.frozenGroup = {}, {}, nil
     stub.TEMPLATES = {}
     for k, v in pairs(BASE_TEMPLATES) do stub.TEMPLATES[k] = v end
@@ -3187,7 +3213,7 @@ stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
                      "Options.lua", "Module.lua" }
 stub.QUESTS_FILES = { "Blizzard.lua", "Defaults.lua", "Data.lua", "Layout.lua", "Look.lua", "Rows.lua", "Animate.lua",
-                      "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
+                      "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Gather.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
 stub.CHARACTER_FILES = { "Defaults.lua", "Colors.lua", "Gear.lua", "Stats.lua", "StatText.lua", "Window.lua", "Follow.lua", "Slots.lua",
                          "Model.lua", "Pages/Character.lua", "Pages/Pet.lua", "Menus.lua", "List.lua", "Pages/Reputation.lua",
                          "Pages/Skills.lua", "Pages/PvP.lua", "Pages/Statistics.lua", "Pages/Currency.lua",
@@ -3203,7 +3229,7 @@ stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lu
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
-                          "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "Diag.lua", "Options.lua", "Module.lua" }
+                          "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "CdmGuide.lua", "Diag.lua", "Options.lua", "Module.lua" }
 stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
                       "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
 
@@ -3296,7 +3322,7 @@ function stub.Load(opts)
     end
     if opts.bags then
         local BG = {}
-        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
+        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Move.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
                                         "Currency.lua", "MoneyRoll.lua",
                                         "OpenClose.lua", "Options.lua", "Module.lua" }, "DaylightUI_Bags", BG)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Bags")
@@ -3304,7 +3330,7 @@ function stub.Load(opts)
     end
     if opts.nameplates then
         local NP = {}
-        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
+        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Range.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
             "DaylightUI_Nameplates", NP)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Nameplates")
         stub.nameplates = NP

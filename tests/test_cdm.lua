@@ -7441,3 +7441,90 @@ T.test("cdm api: pieces are frames plugins find by spell, with ready and cooldow
     T.eq(gone, "12", "an unplaced piece is gone")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The first-time tour (CdmGuide.lua) runs on the main tour's card over the editor.
+local function edges(f, l, b, r, t)
+    f.GetLeft = function() return l end
+    f.GetBottom = function() return b end
+    f.GetRight = function() return r end
+    f.GetTop = function() return t end
+end
+local function tick() DaylightUITour:GetScript("OnUpdate")(DaylightUITour, 1) end
+
+T.test("cdm tour: the first open walks through adding a spell and making a group", function()
+    local DUI, AB, Ed, D = edWorld()
+    local G = AB.CdmGuide
+    DUI:Set("general", "motion", false)   -- the card lands at once, no glide
+    edges(Ed.Tray(), 400, 16, 1000, 140)
+    stub.RunTimers()
+    T.eq(G.Running(), true, "it comes with the first open")
+    T.eq(DUI.Tour.StepId(), "add")
+    T.eq(DUI.Tour.Lit(), Ed.Tray(), "the tray lit")
+    T.eq(DaylightUITour:IsMouseEnabled(), false, "the mouse reaches the editor, so each step can be tried")
+    T.eq(DUI.Tour.panes[1].__color[4], DUI.Tour.DIM, "the same dim as the main tour")
+    T.eq(DUI.Tour.card.skip.text:GetText(), "Skip tour", "worded like the main tour")
+    Ed.Choose(11)
+    edges(Ed.Chooser(), 500, 300, 740, 396)
+    tick()
+    T.eq(DUI.Tour.Lit(), Ed.Chooser(), "the light follows to the Icon or Bar question")
+    Ed.Pick("icon")
+    edges(Ed.PreviewOf(11), 900, 500, 940, 540)
+    edges(AB.CdmCard.Frame(), 960, 200, 1340, 700)
+    tick(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "group", "a spell placed: on to groups")
+    T.eq(DUI.Tour.Lit(), Ed.PreviewOf(11), "the new spell lit")
+    local _, _, _, x, top = DUI.Tour.card:GetPoint(1)
+    local h = DUI.Tour.card:GetHeight()
+    local clear = x + DUI.Tour.W <= 960 or x >= 1340 or top <= 200 or top - h >= 700
+    T.truthy(clear, "the tour's card keeps clear of the spell's card")
+    Ed.SetAttach(11, "right"); Ed.Choose(12); Ed.Pick("icon")
+    tick(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "card", "a spell hooked on: on to the card")
+    DUI.Tour.Next(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "top")
+    DUI.Tour.Next()
+    T.eq(G.Running(), false, "Done ends it")
+    T.eq(DUI.DB.Root().cdmGuideSeen, true)
+    Ed.Close(); Ed.Open(); stub.RunTimers()
+    T.eq(G.Running(), false, "once per account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm tour: closing the editor ends it; /cdm tour brings it back; a layout skips it", function()
+    local DUI, AB, Ed, D = edWorld()
+    local G = AB.CdmGuide
+    stub.RunTimers()
+    T.eq(G.Running(), true)
+    Ed.Close()
+    T.eq(G.Running(), false, "gone with the editor")
+    T.eq(DaylightUITour:IsMouseEnabled(), false)
+    SlashCmdList.DAYLIGHTUICDM("tour"); stub.RunTimers()
+    T.eq(Ed.IsOpen(), true, "/cdm tour opens the editor")
+    T.eq(G.Running(), true, "with the tour")
+    DUI.Tour.OnKey("ESCAPE")
+    T.eq(G.Running(), false, "Escape skips it")
+    T.truthy(string.find(DUI.Tour.toast.text:GetText(), "/cdm tour", 1, true), "and says how to see it again")
+    T.eq(Ed.IsOpen(), true, "the editor stays")
+    Ed.Close()
+    DUI.DB.Root().cdmGuideSeen = nil
+    -- a class, so the layout is saved as a profile
+    stub.units.player = stub.units.player or { isPlayer = true, name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    D.Ensure(D.CurrentIndex())
+    D.AddPiece(D.Current(), 11, "icon", 0, 0)
+    Ed.Open(); stub.RunTimers()
+    T.eq(G.Running(), false, "a player with a layout already knows the way")
+    T.eq(DUI.DB.Root().cdmGuideSeen, true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm tour: a fight ends it with the editor", function()
+    local DUI, AB, Ed = edWorld()
+    stub.RunTimers()
+    T.eq(AB.CdmGuide.Running(), true)
+    stub.EnterCombat()
+    T.eq(AB.CdmGuide.Running(), false)
+    T.eq(Ed.IsOpen(), false)
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

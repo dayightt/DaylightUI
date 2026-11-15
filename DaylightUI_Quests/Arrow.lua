@@ -4,6 +4,8 @@
 -- With no quest picked it uses the nearest spot of every quest in the tracker
 -- (otherwise it had nothing to point at). Spots come from QuestieDB (Spots.lua).
 -- While the game shows a quest marker, the arrow points where the marker is.
+-- With nav.arrowNodes and GatherMate2 on, a gathering node close by comes first
+-- (Gather.lua), its name under the yards; once reached, back to the quest.
 --
 -- Nothing goes on the map: no waypoint, no pin, and the game's quest pick is left
 -- alone (a pin here pinged the map and minimap every time it moved). Direction is
@@ -29,19 +31,30 @@ local Arrow = {
     NEAR_ALPHA = 0.35,
     FIGHT_ALPHA = 0.4,  -- in combat (nav.fightFade)
     SAMPLE = { yards = 120, turn = 0.6 },   -- unlock mode preview
+    NODE_RANGE = 100,   -- yards; a gathering node this close comes first (GatherMate's own tracking distance)
+    NODE_ARRIVE = 8,    -- yards; reaching a node passes it
+    NODE_FORGET = 300,  -- seconds a reached node is passed over (about a respawn)
+    NODE_WATCH = 2,     -- seconds between looks for a node while the arrow sleeps
 }
 ns.Arrow = Arrow
 
 local mod, f, listening
 local target          -- { map, x, y }
 local reached         -- { map, x, y }: the spot reached, while resting there
+local node            -- a gathering node close by (Gather.Nearest), pointed at before the quest
+local passed = {}     -- [kind] = { [coord] = time reached }
+local watch           -- the slow look for nodes while asleep
 local pickWait = 0
-local cur = { alpha = 0, turn = nil }
+local cur = { alpha = 0, turn = nil, name = 0 }
 
 local function db() return mod and mod.db and mod.db.nav end
 local function enabled()
     local n = db()
     return n ~= nil and n.arrow == true
+end
+local function nodesOn()
+    local n = db()
+    return n ~= nil and n.arrowNodes == true and ns.Gather ~= nil and ns.Gather.Loaded()
 end
 local function num(v) return type(v) == "number" and not secret(v) end
 
@@ -179,7 +192,7 @@ end
 -- the zone changes. Once reached it rests (so it doesn't point back while fighting
 -- around a camp) until the spot isn't needed or the player walks away. It also
 -- rests together with the marker's pin.
-function Arrow.Pick()
+local function pickQuest()
     local map, px, py = here()
     if not map then target = nil; return end
     local gx, gy = guided(map)
@@ -210,6 +223,39 @@ function Arrow.Pick()
     target = { map = best.map, x = best.x, y = best.y }
 end
 
+-- Nodes reached a while ago count again (they've likely grown back).
+local function forget(now)
+    for _, list in pairs(passed) do
+        for coord, at in pairs(list) do
+            if now - at > Arrow.NODE_FORGET then list[coord] = nil end
+        end
+    end
+end
+
+-- The gathering node close by, if any. Kept while it's still there, so the arrow
+-- doesn't flip between two herbs at the same distance.
+local function pickNode()
+    if not nodesOn() then node = nil; return end
+    local map, px, py = here()
+    local w, h
+    if map then w, h = size(map) end
+    if not w then node = nil; return end
+    forget(GetTime())
+    node = ns.Gather.Nearest(map, px, py, w, h, Arrow.NODE_RANGE, node and node.map == map and node or nil, passed)
+end
+
+-- Reached: pass it over for a while and look again at once.
+local function passNode()
+    passed[node.kind] = passed[node.kind] or {}
+    passed[node.kind][node.coord] = GetTime()
+    node, pickWait = nil, 0
+end
+
+function Arrow.Pick()
+    pickQuest()
+    pickNode()
+end
+
 local function build()
     if f then return f end
     f = CreateFrame("Frame", "DaylightUIQuestArrow", UIParent)
@@ -228,6 +274,9 @@ local function build()
     f.glow:SetPoint("CENTER", f.arrow)
     f.dist = Style.Text(f, Style.SIZE.body, "CENTER")
     f.dist:SetPoint("TOP", f.arrow, "BOTTOM", 0, -2)
+    -- A gathering node's name, under the yards (or the arrow).
+    f.what = Style.Text(f, Style.SIZE.small, "CENTER")
+    f.what:SetAlpha(0)
     DUI.Movers.Register(f, Arrow.MOVER, "Quest arrow", Arrow.DEFAULT, { active = enabled,
         scale = function(s)
             local n = db()
@@ -267,6 +316,13 @@ local function paint()
     f.glow:SetVertexColor(r, g, b, tonumber(n.arrowGlowAlpha) or 0.35)
     f.dist:SetShown(n.arrowDistance ~= false)
     Style.InkText(f.dist, "VALUE")
+    f.what:ClearAllPoints()
+    if n.arrowDistance ~= false then
+        f.what:SetPoint("TOP", f.dist, "BOTTOM", 0, -1)
+    else
+        f.what:SetPoint("TOP", f.arrow, "BOTTOM", 0, -2)
+    end
+    Style.InkText(f.what, "LABEL")
 end
 
 local function ease(from, to, dt, dur)
@@ -308,19 +364,25 @@ local function onUpdate(_, dt)
     end
 
     local want, turn, d = 0, nil, nil
+    local aim = node or target
     if sampleWanted() then
         want, turn, d = 1, Arrow.SAMPLE.turn, Arrow.SAMPLE.yards
-    elseif target then
+        aim = nil
+    elseif aim then
         local map, px, py = here()
         local facing = type(GetPlayerFacing) == "function" and GetPlayerFacing() or nil
-        if map == target.map and num(facing) then
+        if map == aim.map and num(facing) then
             local dx, dy
-            dx, dy, d = offset(map, px, py, target.x, target.y)
+            dx, dy, d = offset(map, px, py, aim.x, aim.y)
             if d then
                 -- North is up, away from the player: the bearing to it, rotated by the facing.
                 turn = math.atan2(-dx, -dy) - facing
                 want = d < Arrow.NEAR and Arrow.NEAR_ALPHA or 1
-                if d < Arrow.ARRIVE then reached, target, want = target, nil, 0 end
+                if aim == node then
+                    if d < Arrow.NODE_ARRIVE then passNode() end
+                elseif d < Arrow.ARRIVE then
+                    reached, target, want = target, nil, 0
+                end
                 local n = db()
                 if n and n.fightFade and InCombatLockdown() then want = math.min(want, Arrow.FIGHT_ALPHA) end
             end
@@ -331,14 +393,27 @@ local function onUpdate(_, dt)
         f.arrow:SetRotation(turnTo(turn, dt))
         showText(distText(d))
     end
+    -- The node's name eases in and out; the last one stays while it fades.
+    local name = aim and aim == node and node.name
+    if name and f.whatShown ~= name then
+        f.whatShown = name
+        f.what:SetText(name)
+    end
+    cur.name = ease(cur.name, name and 1 or 0, dt, Motion.FAST)
+    f.what:SetAlpha(cur.name)
     cur.alpha = ease(cur.alpha, want, dt, Motion.FAST)
     f:SetAlpha(cur.alpha)
     if want == 0 and cur.alpha < 0.01 then
         f:SetAlpha(0)
         cur.alpha, cur.turn = 0, nil
         -- Nothing to point at: sleep until the pick, the log or a setting changes
-        -- (resting at a spot keeps checking, so walking away wakes it).
-        if not target and not reached and not (ns.Route and ns.Route.Arrived()) then f:SetScript("OnUpdate", nil) end
+        -- (resting at a spot keeps checking, so walking away wakes it; nodes have
+        -- their own slow look, Arrow.Watch).
+        if not target and not node and not reached and not (ns.Route and ns.Route.Arrived()) then
+            f:SetScript("OnUpdate", nil)
+            cur.name = 0
+            f.what:SetAlpha(0)
+        end
     end
 end
 
@@ -357,8 +432,28 @@ function Arrow.LogChanged()
     pickWait = math.min(pickWait, Arrow.SOON)
 end
 
+-- While the arrow sleeps, a slow look for a gathering node walked into range
+-- (the game has no event for the player moving). Awake, Pick does it.
+function Arrow.Watch()
+    if not (f and enabled()) or f:GetScript("OnUpdate") == onUpdate then return end
+    pickNode()
+    if node then Arrow.Wake() end
+end
+
+local function follow()
+    local want = enabled() and nodesOn()
+    if want and not watch then
+        watch = C_Timer.NewTicker(Arrow.NODE_WATCH, Arrow.Watch)
+    elseif not want and watch then
+        watch:Cancel()
+        watch = nil
+    end
+    if not want then node = nil end
+end
+
 function Arrow.Refresh()
     if not mod then return end
+    follow()
     if not enabled() then
         target, reached = nil, nil
         if f then
@@ -392,4 +487,4 @@ end
 
 -- for the tests
 Arrow.Frame = function() return f end
-Arrow.Target = function() return target end
+Arrow.Target = function() return node or target end

@@ -18,7 +18,7 @@ ns.Bank = Bank
 
 Bank.NAME = "DaylightUIBank"
 Bank.DEFAULT_POINT = { "LEFT", "LEFT", 24, 60 }
-Bank.DEPOSIT_ICON = "Interface\\Icons\\INV_Misc_Herb_07"
+Bank.DEPOSIT_ICON = "ui-data-professions.png"   -- reagents and trade goods
 
 local function enum(name) return Enum and Enum.BankType and Enum.BankType[name] end
 -- A C_Bank function, or nil if the client doesn't have it.
@@ -101,6 +101,7 @@ local function makeTabs(f)
     end
     -- The title and drag handle stop short of the tabs.
     f.title:SetPoint("RIGHT", right, "LEFT", -8, 0)
+    f.sub:SetPoint("RIGHT", right, "LEFT", -8, 0)
     f.handle:ClearAllPoints()
     f.handle:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     f.handle:SetPoint("RIGHT", right, "LEFT", -4, 0)
@@ -131,13 +132,12 @@ local function buyLabel()
     return string.format(L["Buy tab: %s"], money(data.tabCost))
 end
 
--- The Buy tab button sits after the free slot count, anchored to the window
--- (it shifts with the count's width).
+-- The Buy tab button sits on the free bar's row at the right, where the bags
+-- keep Sell junk, clear of the gold below.
 local function placeBuy(f)
-    local w = f.free.GetStringWidth and f.free:GetStringWidth()
-    local E = ns.Window.EDGE
+    local W = ns.Window
     f.buyTab:ClearAllPoints()
-    f.buyTab:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E + (type(w) == "number" and w or 40) + 10, E - 3)
+    f.buyTab:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -W.EDGE, W.EDGE + W.FOOTER_ROW + W.BAR_GAP)
 end
 
 local function footer(f)
@@ -187,8 +187,9 @@ local function updateFooter(f)
         -- the footer gold (MoneyRoll).
         local amount = call(bankFn("FetchDepositedMoney"), bankType)
         local roll = ns.Setting("moneyRoll") ~= false and f:IsVisible()
-        if not roll then DUI.Motion.CountTo(f.money, nil, function() return money(amount) end)
-        else DUI.Motion.CountTo(f.money, amount, money, DUI.Motion.SLOW) end
+        local coins = DUI.Widgets.Money
+        if not roll then DUI.Motion.CountTo(f.money, nil, function() return coins(amount) end)
+        else DUI.Motion.CountTo(f.money, amount, coins, DUI.Motion.SLOW) end
         f.deposit:SetEnabled(call(bankFn("CanDepositMoney"), bankType) == true)
         f.withdraw:SetEnabled(call(bankFn("CanWithdrawMoney"), bankType) == true)
     else
@@ -236,7 +237,7 @@ end
 function Bank.LayoutStrip()
     local strip, f = Bank.strip, Bank.window
     if not strip then return end
-    ns.Slots.LayoutStrip(strip, f.Setting("iconSize") or 35, f.Setting("spacing") or 7)
+    ns.Slots.LayoutStrip(strip, f.Setting("iconSize") or 35, f.Setting("spacing") or 2)
 end
 
 function Bank.RefreshStrip()
@@ -313,14 +314,16 @@ function Bank.Build()
     local W = ns.Window
     local f = W.Create({
         kind = "bank", name = Bank.NAME, title = "Bank", set = Bank.set, prefix = "bank.",
+        portrait = "Interface\\Icons\\INV_Misc_Ornatebox",
         defaultPoint = Bank.DEFAULT_POINT,
         onClose = function() call(bankFn("CloseBankFrame")) end,
         footer = footer, updateFooter = updateFooter,
         afterLayout = function() Bank.LayoutStrip() end,
         tools = {
             { key = "sort", icon = W.SORT_ICON, title = L["Clean up the bank"],
-              onClick = function()
+              onClick = function(w)
                   if InCombatLockdown and InCombatLockdown() then return end
+                  W.BeginSort(w)
                   if C_Container.SortBank and Bank.bankType then pcall(C_Container.SortBank, Bank.bankType)
                   elseif C_Container.SortBankBags then pcall(C_Container.SortBankBags) end
               end },
@@ -329,14 +332,18 @@ function Bank.Build()
               onClick = function()
                   if Bank.bankType then call(bankFn("AutoDepositItemsIntoBank"), Bank.bankType) end
               end },
-            { key = "slotsButton", icon = W.BAGS_ICON, title = L["Bank bag slots"],
+            { key = "slotsButton", icon = W.SLOTS_ICON, title = L["Bank bag slots"],
               desc = L["Show the bank's bag slots: drag a bag out, or drop one in."],
               onClick = function(w)
+                  W.SortTouched(w)
                   w.Set("showSlots", not w.Setting("showSlots"))
               end },
-            { key = "viewButton", icon = W.VIEW_ICON, title = L["Categories or bags"],
-              desc = L["Switch between items grouped by kind and the plain tab-by-tab grid."],
-              onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
+            { key = "viewButton", icon = W.VIEW_ICON, title = L["Shelf, grid or list"],
+              desc = L["Switch between Shelf, grouped by kind, Grid, tab by tab, and List, a row per item."],
+              onClick = function(w)
+                  W.SortTouched(w)
+                  w.Set("view", W.NextView(w.Setting("view")))
+              end },
         },
     })
     Bank.window = f

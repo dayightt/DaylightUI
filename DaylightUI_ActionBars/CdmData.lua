@@ -209,6 +209,15 @@ function Data.Profiles(class)
     return out
 end
 
+-- Whether any profile, of any class, has a spell placed.
+function Data.AnyPlaced()
+    for _, p in pairs(profiles()) do
+        if type(p) == "table" and type(p.set) == "table" and type(p.set.pieces) == "table"
+            and next(p.set.pieces) ~= nil then return true end
+    end
+    return false
+end
+
 -- A name no other profile of the class uses: name, else "name 2", "name 3"...
 function Data.FreeName(name, class, except)
     local taken = {}

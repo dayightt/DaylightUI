@@ -253,6 +253,7 @@ function Movers.SetPieceScale(key, v)
     v = math.floor(math.max(Movers.MIN, math.min(Movers.MAX, v)) / Movers.STEP + 0.5) * Movers.STEP
     if math.abs(v - 1) < 0.001 then v = nil end
     pieceScales()[key] = v
+    DUI.DB.Keep()
     Movers.Apply(key)
     local h = handles[key]
     if h and h:IsShown() then Movers.PlaceHandle(entries[key], h) end
@@ -438,6 +439,7 @@ local function store(e, x, y)
         pos.at, pos.ax, pos.ay = at, DUI.Pixel.Snap(UIParent, ax), DUI.Pixel.Snap(UIParent, ay)
     end
     DUI.DB.Positions()[e.key] = pos
+    DUI.DB.Keep()
     if e.proxy then
         -- Onto the saved (snapped) spot, as other frames land on theirs.
         if handles[e.key] then Movers.PlaceHandle(e, handles[e.key]) end
@@ -1319,6 +1321,7 @@ local function showLockButton(show)
         lockButton.magnet:SetShown(show)
         lockButton.areas:SetShown(show)
         local setup = show and DUI.DB.Unsaved()
+        if setup then lockButton.setup.bar:SetAlpha(1) end
         lockButton.setup.bar:SetShown(setup)
         lockButton.setup:SetShown(setup)
         if show then
@@ -1333,6 +1336,16 @@ function Movers.LockButton() return lockButton end
 function Movers.SnapButton() return lockButton and lockButton.snap end
 function Movers.MagnetButton() return lockButton and lockButton.magnet end
 function Movers.SetupButton() return lockButton and lockButton.setup end
+
+-- The first move made the profile a real one, so the finish-setup button has
+-- nothing left to warn about and fades away.
+DUI.On("ProfileKept", function()
+    local setup = lockButton and lockButton.setup
+    if setup and setup.bar:IsShown() then DUI.Motion.AlphaTo(setup.bar, 0, DUI.Motion.FAST, true) end
+    local P = DUI.OptionsPanel
+    local nav = P and P.Nav and P.Nav()
+    if nav and nav.SyncSetup then nav.SyncSetup() end
+end)
 
 -- Areas whose handles the unlock box can tuck away, so the ones under them
 -- can be reached. A handle belongs to the first area its key matches.

@@ -69,6 +69,7 @@ ns.DEFAULTS = {
         arrowGlow = true,            -- soft glow behind the arrow
         arrowGlowAlpha = 0.35,
         arrowDistance = true,        -- yards under the arrow
+        arrowNodes = false,          -- a gathering node close by comes first (Gather.lua, needs GatherMate2)
         trail = true,         -- breadcrumbs on the ground from the player to the marker
     },
     -- An NPC's quests in its tooltip, from Questie's list (GiverTips.lua, needs Questie)

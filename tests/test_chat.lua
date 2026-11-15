@@ -2190,19 +2190,19 @@ T.test("chat daylight: a profession link is clicked through the game's own link 
     end
     local link = "trade:Player-6928-01B3BE12:3100:164"
     local text = "|cffffd000|H" .. link .. "|h[Tailoring]|h|r"
-    local name = "|Hplayer:Robb|h[Robb]|h"
-    box:AddMessage(name .. " says: " .. text)
+    local channel = "|Hchannel:channel:2|h[2. Trade]|h"
+    box:AddMessage(channel .. " Robb: " .. text)
     box:FakeRefresh()
     local m = CH.Links.Mirror(box)
     T.truthy(m and m:IsShown(), "the lines' twins are up")
     T.eq(m:GetParent(), box)
     T.eq(m:GetAlpha(), 0, "never seen: the box's own lines show")
-    T.eq(m:IsMouseEnabled(), false, "the wheel, drags and names still reach the box")
+    T.eq(m:IsMouseEnabled(), false, "the wheel, drags and channels still reach the box")
     T.eq(m:GetHyperlinksEnabled(), true)
     local t = twinOf(CH, box, 1)
     T.truthy(t, "the line with the link has its twin")
     T.eq(select(2, t:GetPoint(1)), box.visibleLines[1], "laid exactly over its line")
-    T.eq(t:GetText(), "[Robb] says: " .. text, "the name is plain words, the profession a link")
+    T.eq(t:GetText(), "[2. Trade] Robb: " .. text, "the channel is plain words, the profession a link")
 
     -- Hovering the twin's link shows the box's tooltip.
     local entered, left = {}, 0
@@ -2221,6 +2221,44 @@ T.test("chat daylight: a profession link is clicked through the game's own link 
     m:GetScript("OnHyperlinkLeave")(m)
     T.eq(left, 1)
     CH.LinkTips.OnEnter, CH.LinkTips.OnLeave = enter, leave
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A name's right-click menu built from an addon's click carries the addon's
+-- taint, and its Copy Character Name was blocked (ADDON_ACTION_FORBIDDEN on
+-- CopyToClipboard, seen in game). So names are clicked through the twin too.
+T.test("chat daylight: a name is clicked through the game's own link frame, so its menu is the game's", function()
+    local Box, box = daylight()
+    local CH = stub.chatModule
+    local got = {}
+    _G.SetItemRef = function(link, text, button)
+        got[#got + 1] = { link = link, button = button, game = (stub.gameClick or 0) > 0 }
+    end
+    local name = "|Hplayer:Robb-Realm:77:GUILD|h[Robb]|h"
+    local bn = "|HBNplayer:Kira:3:78:BN_WHISPER|h[Kira]|h"
+    box:AddMessage(name .. ": hi")
+    box:AddMessage(bn .. ": yo")
+    box:FakeRefresh()
+    local t1, t2 = twinOf(CH, box, 1), twinOf(CH, box, 2)
+    T.truthy(t1 and t2, "a line with only a name gets its twin")
+    T.truthy(string.find(t1:GetText(), "|Hplayer:", 1, true) or string.find(t2:GetText(), "|Hplayer:", 1, true),
+        "the name stays a link in the twin")
+    local m = CH.Links.Mirror(box)
+    local link = "player:Robb-Realm:77:GUILD"
+    m:GetScript("OnHyperlinkClick")(m, link, "[Robb]", "RightButton")
+    T.eq(#got, 1)
+    T.eq(got[1].button, "RightButton")
+    T.truthy(got[1].game, "the menu opens from the game's own click")
+    -- Shift-click still sends a /who, and its answer still shows on the tab you asked from.
+    local asked = 0
+    local was = Box.Asked
+    Box.Asked = function() asked = asked + 1 end
+    local mod = _G.IsModifiedClick
+    _G.IsModifiedClick = function(k) return k == "CHATLINK" end
+    m:GetScript("OnHyperlinkClick")(m, link, "[Robb]", "LeftButton")
+    _G.IsModifiedClick = mod
+    Box.Asked = was
+    T.eq(asked, 1, "the box knows a /who was asked")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2260,20 +2298,21 @@ T.test("chat daylight: Show Message on a hidden message shows it in the box", fu
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("chat daylight: names, channels and Daylight UI's own links stay the box's click", function()
+T.test("chat daylight: channels and Daylight UI's own links stay the box's click", function()
     local _, box = daylight()
     local CH = stub.chatModule
-    for _, link in ipairs({ "player:Bob", "BNplayer:Bob:1", "channel:CHANNEL:2", "clubTicket:ABC",
+    for _, link in ipairs({ "channel:CHANNEL:2", "clubTicket:ABC",
                             "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
         box:AddMessage("|H" .. link .. "|h[x]|h")
     end
     -- A secret line (chat lockdown) is left alone too.
     box:AddMessage(stub.Secret("|Hitem:19019|h[Thunderfury]|h"))
     box:FakeRefresh()
-    for i = 1, 8 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
+    for i = 1, 6 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
     local m = CH.Links.Mirror(box)
     T.falsy(m and m:IsShown(), "nothing for the game to click")
-    T.eq(CH.Links.Twin("|Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"), "[Bob]: |Hitem:1|h[A]|h")
+    T.eq(CH.Links.Twin("|Hchannel:CHANNEL:2|h[2]|h |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"),
+        "[2] |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

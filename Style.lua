@@ -155,18 +155,21 @@ Style.SIZE = {
 -- One font everywhere, picked in Appearance. The bundled fonts are all free to
 -- share (Media/fonts/FONTS.txt). "Game font" is whatever the client uses, so a
 -- player's own font override shows up there without Daylight UI shipping it.
+-- `cyrillic` is true for a font with the Russian alphabet. A font without it
+-- names the closest-looking one that has it, which draws in its place on a
+-- Russian client (Style.FontEntry): its own Russian text would show blank.
 local FONTS = DUI.MEDIA .. "fonts\\"
 Style.FONTS = {
-    expressway = { label = "Expressway", file = FONTS .. "ExpresswayFree.ttf" },
-    ptsans = { label = "PT Sans Narrow", file = FONTS .. "PTSansNarrow-Bold.ttf" },
-    archivo = { label = "Archivo Narrow", file = FONTS .. "ArchivoNarrow-Bold.ttf" },
-    barlow = { label = "Barlow Condensed", file = FONTS .. "BarlowCondensed-Medium.ttf" },
-    fira = { label = "Fira Sans", file = FONTS .. "FiraSans-Medium.ttf" },
-    poppins = { label = "Poppins", file = FONTS .. "Poppins-SemiBold.ttf" },
-    lato = { label = "Lato", file = FONTS .. "Lato-Regular.ttf" },
-    russo = { label = "Russo One", file = FONTS .. "RussoOne-Regular.ttf" },
-    game = { label = "Game font", game = true },
-    arialn = { label = "Arial Narrow", file = "Fonts\\ARIALN.TTF" },
+    expressway = { label = "Expressway", file = FONTS .. "ExpresswayFree.ttf", cyrillic = true },
+    ptsans = { label = "PT Sans Narrow", file = FONTS .. "PTSansNarrow-Bold.ttf", cyrillic = true },
+    archivo = { label = "Archivo Narrow", file = FONTS .. "ArchivoNarrow-Bold.ttf", cyrillic = true },
+    barlow = { label = "Barlow Condensed", file = FONTS .. "BarlowCondensed-Medium.ttf", cyrillic = "expressway" },
+    fira = { label = "Fira Sans", file = FONTS .. "FiraSans-Medium.ttf", cyrillic = true },
+    poppins = { label = "Poppins", file = FONTS .. "Poppins-SemiBold.ttf", cyrillic = "rubik" },
+    lato = { label = "Lato", file = FONTS .. "Lato-Regular.ttf", cyrillic = "fira" },
+    russo = { label = "Russo One", file = FONTS .. "RussoOne-Regular.ttf", cyrillic = true },
+    game = { label = "Game font", game = true, cyrillic = true },
+    arialn = { label = "Arial Narrow", file = "Fonts\\ARIALN.TTF", cyrillic = true },
 }
 -- Display fonts (tools/make_fonts.py, licenses in Media/fonts/DISPLAY-FONTS.txt).
 -- Made for damage numbers but offered for all text. `display` marks those that
@@ -174,46 +177,85 @@ Style.FONTS = {
 -- Expressway (Theme.BodyFont).
 local DISPLAY = {
     -- comic, chunky
-    { "bangers", "Bangers", "Bangers" }, { "luckiest", "Luckiest Guy", "LuckiestGuy" },
-    { "titan", "Titan One", "TitanOne" }, { "bowlby", "Bowlby One", "BowlbyOneSC" },
-    { "lilita", "Lilita One", "LilitaOne" }, { "coiny", "Coiny", "Coiny" }, { "chewy", "Chewy", "Chewy" },
+    { "bangers", "Bangers", "Bangers", cyrillic = "oswald" },
+    { "luckiest", "Luckiest Guy", "LuckiestGuy", cyrillic = "nunito" },
+    { "titan", "Titan One", "TitanOne", cyrillic = "nunito" },
+    { "bowlby", "Bowlby One", "BowlbyOneSC", cyrillic = "russo" },
+    { "lilita", "Lilita One", "LilitaOne", cyrillic = "nunito" },
+    { "coiny", "Coiny", "Coiny", cyrillic = "nunito" },
+    { "chewy", "Chewy", "Chewy", cyrillic = "nunito" },
     -- tall impact
-    { "anton", "Anton", "Anton" }, { "bebas", "Bebas Neue", "BebasNeue" },
-    { "staatliches", "Staatliches", "Staatliches" }, { "oswald", "Oswald", "Oswald-Bold" },
-    { "teko", "Teko", "Teko-SemiBold" }, { "bigshoulders", "Big Shoulders", "BigShoulders-Black" },
-    { "passion", "Passion One", "PassionOne" }, { "squada", "Squada One", "SquadaOne" },
+    { "anton", "Anton", "Anton", cyrillic = "oswald" },
+    { "bebas", "Bebas Neue", "BebasNeue", cyrillic = "oswald" },
+    { "staatliches", "Staatliches", "Staatliches", cyrillic = "oswald" },
+    { "oswald", "Oswald", "Oswald-Bold", cyrillic = true },
+    { "teko", "Teko", "Teko-SemiBold", cyrillic = "oswald" },
+    { "bigshoulders", "Big Shoulders", "BigShoulders-Black", cyrillic = "oswald" },
+    { "passion", "Passion One", "PassionOne", cyrillic = "oswald" },
+    { "squada", "Squada One", "SquadaOne", cyrillic = "oswald" },
     -- tech
-    { "blackops", "Black Ops One", "BlackOpsOne", true }, { "audiowide", "Audiowide", "Audiowide" },
-    { "orbitron", "Orbitron", "Orbitron-Black" }, { "chakra", "Chakra Petch", "ChakraPetch-Bold" },
-    { "rubikmono", "Rubik Mono", "RubikMonoOne", true },
-    -- Azeroth
-    { "cinzel", "Cinzel", "Cinzel-Black" }, { "metamorphous", "Metamorphous", "Metamorphous" },
-    { "pirata", "Pirata One", "PirataOne", true }, { "medieval", "MedievalSharp", "MedievalSharp", true },
+    { "blackops", "Black Ops One", "BlackOpsOne", true, cyrillic = "russo" },
+    { "audiowide", "Audiowide", "Audiowide", cyrillic = "russo" },
+    { "orbitron", "Orbitron", "Orbitron-Black", cyrillic = "russo" },
+    { "chakra", "Chakra Petch", "ChakraPetch-Bold", cyrillic = "russo" },
+    { "rubikmono", "Rubik Mono", "RubikMonoOne", true, cyrillic = true },
+    -- Azeroth (none of the bundled fonts with Russian letters is close: the game's own is)
+    { "cinzel", "Cinzel", "Cinzel-Black", cyrillic = "game" },
+    { "metamorphous", "Metamorphous", "Metamorphous", cyrillic = "game" },
+    { "pirata", "Pirata One", "PirataOne", true, cyrillic = "game" },
+    { "medieval", "MedievalSharp", "MedievalSharp", true, cyrillic = "game" },
     -- fun
-    { "marker", "Permanent Marker", "PermanentMarker", true }, { "pressstart", "Press Start 2P", "PressStart2P", true },
-    { "bungee", "Bungee", "Bungee" }, { "righteous", "Righteous", "Righteous" },
-    { "glitch", "Rubik Glitch", "RubikGlitch", true }, { "kanit", "Kanit Black Italic", "Kanit-BlackItalic" },
-    { "alfaslab", "Alfa Slab One", "AlfaSlabOne" }, { "changa", "Changa One", "ChangaOne" },
-    { "archivoblack", "Archivo Black", "ArchivoBlack" },
+    { "marker", "Permanent Marker", "PermanentMarker", true, cyrillic = "nunito" },
+    { "pressstart", "Press Start 2P", "PressStart2P", true, cyrillic = true },
+    { "bungee", "Bungee", "Bungee", cyrillic = "russo" },
+    { "righteous", "Righteous", "Righteous", cyrillic = "comfortaa" },
+    { "glitch", "Rubik Glitch", "RubikGlitch", true, cyrillic = true },
+    { "kanit", "Kanit Black Italic", "Kanit-BlackItalic", cyrillic = "russo" },
+    { "alfaslab", "Alfa Slab One", "AlfaSlabOne", cyrillic = "russo" },
+    { "changa", "Changa One", "ChangaOne", cyrillic = "russo" },
+    { "archivoblack", "Archivo Black", "ArchivoBlack", cyrillic = "russo" },
     -- soft, rounded
-    { "fredoka", "Fredoka", "Fredoka-SemiBold" }, { "baloo", "Baloo 2", "Baloo2-ExtraBold" },
-    { "nunito", "Nunito Black", "Nunito-Black" }, { "varela", "Varela Round", "VarelaRound" },
-    { "mplus", "M PLUS Rounded", "MPLUSRounded-ExtraBold" }, { "sniglet", "Sniglet", "Sniglet-ExtraBold" },
-    { "comfortaa", "Comfortaa", "Comfortaa-Bold" }, { "quicksand", "Quicksand", "Quicksand-Bold" },
-    { "grandstander", "Grandstander", "Grandstander-Black" }, { "rubik", "Rubik", "Rubik-Bold" },
-    { "mali", "Mali", "Mali-Bold" }, { "itim", "Itim", "Itim" }, { "delius", "Delius", "Delius" },
-    { "dosis", "Dosis", "Dosis-ExtraBold" }, { "gluten", "Gluten", "Gluten-SemiBold" },
+    { "fredoka", "Fredoka", "Fredoka-SemiBold", cyrillic = "nunito" },
+    { "baloo", "Baloo 2", "Baloo2-ExtraBold", cyrillic = "nunito" },
+    { "nunito", "Nunito Black", "Nunito-Black", cyrillic = true },
+    { "varela", "Varela Round", "VarelaRound", cyrillic = "comfortaa" },
+    { "mplus", "M PLUS Rounded", "MPLUSRounded-ExtraBold", cyrillic = true },
+    { "sniglet", "Sniglet", "Sniglet-ExtraBold", cyrillic = "nunito" },
+    { "comfortaa", "Comfortaa", "Comfortaa-Bold", cyrillic = true },
+    { "quicksand", "Quicksand", "Quicksand-Bold", cyrillic = "comfortaa" },
+    { "grandstander", "Grandstander", "Grandstander-Black", cyrillic = "nunito" },
+    { "rubik", "Rubik", "Rubik-Bold", cyrillic = true },
+    { "mali", "Mali", "Mali-Bold", cyrillic = "comfortaa" },
+    { "itim", "Itim", "Itim", cyrillic = "comfortaa" },
+    { "delius", "Delius", "Delius", cyrillic = "comfortaa" },
+    { "dosis", "Dosis", "Dosis-ExtraBold", cyrillic = "mplus" },
+    { "gluten", "Gluten", "Gluten-SemiBold", cyrillic = "nunito" },
 }
 -- The setup guide's font cards: UI fonts only.
 Style.FONT_PICKS = { "expressway", "ptsans", "archivo", "barlow", "fira", "poppins", "lato", "russo", "game", "arialn" }
 Style.FONT_ORDER = { "expressway", "ptsans", "archivo", "barlow", "fira", "poppins", "lato", "russo" }
 for _, d in ipairs(DISPLAY) do
-    Style.FONTS[d[1]] = { label = d[2], file = FONTS .. d[3] .. ".ttf", display = d[4] }
+    Style.FONTS[d[1]] = { label = d[2], file = FONTS .. d[3] .. ".ttf", display = d[4], cyrillic = d.cyrillic }
     Style.FONT_ORDER[#Style.FONT_ORDER + 1] = d[1]
 end
 Style.FONT_ORDER[#Style.FONT_ORDER + 1] = "game"
 Style.FONT_ORDER[#Style.FONT_ORDER + 1] = "arialn"
 Style.FONT = Style.FONTS.expressway.file
+
+-- Clients whose own text is in the Russian alphabet.
+Style.CYRILLIC_LOCALES = { ruRU = true }
+
+-- The font that draws a pick on this client: the pick itself, or on a Russian
+-- client the one standing in for a font with no Russian letters. nil for a key
+-- that isn't one of Daylight UI's fonts.
+function Style.FontEntry(key)
+    local f = Style.FONTS[key]
+    if f and type(f.cyrillic) == "string" and type(GetLocale) == "function"
+        and Style.CYRILLIC_LOCALES[GetLocale()] then
+        return Style.FONTS[f.cyrillic] or f
+    end
+    return f
+end
 
 -- Sets Style.FONT from the Appearance setting: one of Daylight UI's, or a shared font
 -- ("lsm:<name>", Daylight UI's until its addon has registered it).
@@ -227,7 +269,7 @@ end
 function Style.FontFileOf(key)
     local shared = DUI.Media and DUI.Media.Fetch("font", key)
     if shared then return shared end
-    local f = Style.FONTS[key] or Style.FONTS.expressway
+    local f = Style.FontEntry(key) or Style.FONTS.expressway
     return (f.game or DUI.DB.UseLocalFont()) and clientFont() or f.file
 end
 
@@ -2165,18 +2207,17 @@ Style.ALPHABET_FONTS = {
     traditionalchinese = "Fonts\\blei00d.TTF",
 }
 -- Font files that have the Russian alphabet, by lower-case file name.
-Style.CYRILLIC = {}
-for _, name in ipairs({ "ArchivoNarrow-Bold", "Comfortaa-Bold", "ExpresswayFree", "FiraSans-Medium",
-    "MPLUSRounded-ExtraBold", "Nunito-Black", "Oswald-Bold", "PTSansNarrow-Bold", "PressStart2P", "Rubik-Bold",
-    "RubikGlitch", "RubikMonoOne", "RussoOne-Regular" }) do
-    Style.CYRILLIC[(name .. ".ttf"):lower()] = true
+Style.CYRILLIC = { ["frizqt___cyr.ttf"] = true }
+for _, f in pairs(Style.FONTS) do
+    if f.cyrillic == true and f.file then
+        Style.CYRILLIC[string.match(string.lower(f.file), "([^\\/]+)$")] = true
+    end
 end
-Style.CYRILLIC["arialn.ttf"], Style.CYRILLIC["frizqt___cyr.ttf"] = true, true
 
--- On a Korean or Chinese client the picked font already draws that language
--- (the "Use my language's font" switch decides which), so it keeps it.
-local CLIENT_ALPHABET = ({ koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" })[
-    type(GetLocale) == "function" and GetLocale() or ""]
+-- A Korean or Chinese client's own font draws its language itself (with
+-- "Use my language's font" on, every pick is that font). Any other font
+-- leaves those letters to the game's.
+local CLIENT_ALPHABET = { koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" }
 
 local function hasCyrillic(file)
     local name = string.match(string.lower(file), "([^\\/]+)$")
@@ -2204,9 +2245,10 @@ function Style.FontFamily(file, size, flags, shadow)
     local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow
     local fam = families[key]
     if fam ~= nil then return fam or nil end
+    local client = CLIENT_ALPHABET[type(GetLocale) == "function" and GetLocale() or ""]
     local members = {}
     for i, alphabet in ipairs(Style.ALPHABETS) do
-        local own = alphabet == "roman" or alphabet == CLIENT_ALPHABET
+        local own = alphabet == "roman" or (alphabet == client and samePath(file, clientFont()))
             or (alphabet == "russian" and hasCyrillic(file))
         members[i] = { alphabet = alphabet, file = own and file or Style.ALPHABET_FONTS[alphabet],
                        height = size, flags = flags }

@@ -8,7 +8,7 @@
 ## Notes-esMX: Placas de nombre al estilo DaylightUI: barras propias, lanzamientos con resaltado de interrumpibles, tus perjuicios, control de masas y marcas de misión.
 ## Notes-deDE: Namensplaketten im DaylightUI-Stil: eigene Leisten, Zauber mit Hervorhebung für Unterbrechbares, deine Schwächungszauber, Kontrolleffekte und Questmarkierungen.
 ## Author: Daylight
-## Version: 1.8.1
+## Version: 1.8.2
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 
@@ -19,6 +19,7 @@ Minion.lua
 Cast.lua
 Combo.lua
 Power.lua
+Range.lua
 Auras.lua
 Manager.lua
 Options.lua

@@ -1,3 +1,25 @@
+# DaylightUI 1.8.2
+
+Target buffs and nameplate pieces back where they sat before 1.8.0, another vanishing nameplate fix, and a Cooldown Manager tour.
+
+## New
+- Cooldown Manager: A short tour the first time you open the cooldown layout: adding spells, making groups and changing them. /cdm tour shows it again
+
+## Changed
+- Options: Little touches: the options tour shows the search box, and the Cooldowns tab is now called CDM
+
+## Fixed
+- Cooldown Manager: Arcane Blast's stacks no longer end a moment before the real debuff does and then drift out of step with it
+- Window skins: The hunter's Beast Training window has the Daylight UI look again
+- Window skins: Some right-click menus no longer cause an error about a secret number
+- Party and raid: Prayer of Mending shows as a heal indicator when you pick it
+- Window skins: With the NPC window off, the game's quest window keeps its dark text instead of turning white
+- Nameplates: The Group mark beside party members' names shows again, dungeons included
+- Unit frames: Your target's buffs are back under the frame where you had them before 1.8.0, and your own and the personal display's auras grow the way they used to. Spots you picked yourself stay
+- Nameplates: The level, health text, threat % and execute icon beside the plate are back where they sat before 1.8.0, instead of pushed far out by the new big defensive icon
+- Nameplates: Another fix for nameplates vanishing until a /reload
+- Nameplates: The report box at the end of /dui platefix is no longer empty, and the report also shows in chat
+
 # DaylightUI 1.8.1
 
 Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.
