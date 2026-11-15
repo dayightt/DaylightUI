@@ -63,7 +63,9 @@ Plate.GLOW = DUI.MEDIA .. "glow.png"
 Plate.GLOW_REACH = 12 -- how far the glow spreads from the bar
 Plate.GLOW_ALPHA = 0.9
 Plate.OUTLINE_PX = 2 -- outline thickness in screen pixels
-Plate.CIRCLE_SIZE = 12 -- the animated lights on the target outline (targetLight)
+-- The animated lights on the target outline (targetLight): a light's size as a
+-- share of the bar's height, so a taller plate gets bigger lights.
+Plate.CIRCLE_SCALE = { size = 0.9, thick = 0 }
 Plate.LINE = "Interface\\Buttons\\WHITE8x8"
 
 -- Target mark color: the accent (read each time so an accent change repaints it),
@@ -2743,7 +2745,7 @@ function Plate.ShowCircle(p, on, c, threat)
     elseif not c.targetAccent then lo = c.targetOutline end
     local depth = Pixel.Px(p.hp, Plate.OUTLINE_PX)
     W.GlowAround(p.outline, true, {
-        style = on, frame = p.hp, inset = -depth, thick = depth, cut = p.cut or 0, size = Plate.CIRCLE_SIZE,
+        style = on, frame = p.hp, inset = -depth, thick = depth, cut = p.cut or 0, scale = Plate.CIRCLE_SCALE,
         lo = lo, parent = p.outline, layer = "OVERLAY", sub = 4,
     })
 end

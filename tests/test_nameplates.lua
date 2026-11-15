@@ -642,6 +642,7 @@ T.test("nameplates: the outline light runs round your target's outline when pick
         seen[#seen + 1] = x
     end
     T.truthy(math.max(unpack(seen)) > w - 2, "reaches the right end")
+    T.near(ring.glowSize, h * 0.9, 1e-6, "lights sized by the bar's height")
     -- Untargeted: the lights go with the outline.
     stub.units.target = nil
     stub.FireEvent("PLAYER_TARGET_CHANGED")

@@ -153,8 +153,6 @@ Pages.TOUR = {
                   { "ActionBars", "bars.right.visible", "always" } } },
           } },
           { label = "", needs = "ActionBars", rows = { { "ActionBars", "hideEmpty" } } },
-          { label = "Cooldown Manager glow", needs = "ActionBars",
-            cards = { scope = "ActionBars", key = "cdmGlow", draw = "glowIcon", cols = 3, height = 76 } },
       } },
     { id = "plates", title = "Nameplates", later = "Nameplates.plates",
       desc = "The bars over enemies' heads: how big they are, and what they show.",

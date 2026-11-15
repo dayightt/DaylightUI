@@ -652,10 +652,8 @@ function Cards.Draw.kick(card, key, w, h)
 end
 
 -- The animated glows (Motion.GLOW_STYLES): each card runs its style on a small
--- sample of what it lights, a main button, an enemy's nameplate or a
--- Cooldown Manager icon. "none" shows the sample alone, "ring" the game's proc
--- ring the Cooldown Manager uses. The lights run only while the page shows.
-local GLOW_ICON = 136048 -- a spell icon for the Cooldown Manager's sample
+-- sample of what it lights, a main button or an enemy's nameplate. "none"
+-- shows the sample alone. The lights run only while the page shows.
 local function glowSample(card, key, w, h, shape)
     local s
     if shape == "button" then
@@ -664,55 +662,26 @@ local function glowSample(card, key, w, h, shape)
         s:EnableMouse(false)
     else
         s = CreateFrame("Frame", nil, card.inner)
-        if shape == "icon" then
-            local side = math.min(h, 30)
-            s:SetSize(side, side)
-            s.icon = s:CreateTexture(nil, "ARTWORK")
-            s.icon:SetAllPoints(s)
-            s.icon:SetTexture(GLOW_ICON)
-            Style.CropIcon(s.icon)
-        else
-            s:SetSize(math.min(w, 120), math.max(1, math.min(10, h)))
-            s.back = s:CreateTexture(nil, "BACKGROUND")
-            s.back:SetAllPoints(s)
-            s.back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
-            s.fill = s:CreateTexture(nil, "ARTWORK")
-            s.fill:SetPoint("TOPLEFT", s, "TOPLEFT")
-            s.fill:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT")
-            s.fill:SetWidth(math.max(1, s:GetWidth() * 0.62))
-            s.fill:SetTexture(Style.BarFile())
-            s.fill:SetVertexColor(RED[1], RED[2], RED[3], 1)
-        end
+        s:SetSize(math.min(w, 120), math.max(1, math.min(10, h)))
+        s.back = s:CreateTexture(nil, "BACKGROUND")
+        s.back:SetAllPoints(s)
+        s.back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
+        s.fill = s:CreateTexture(nil, "ARTWORK")
+        s.fill:SetPoint("TOPLEFT", s, "TOPLEFT")
+        s.fill:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT")
+        s.fill:SetWidth(math.max(1, s:GetWidth() * 0.62))
+        s.fill:SetTexture(Style.BarFile())
+        s.fill:SetVertexColor(RED[1], RED[2], RED[3], 1)
     end
     s:SetPoint("TOP", card.inner, "TOP", 0, -10 - math.max(0, (h - s:GetHeight()) / 2))
     local host = {}
     local function light()
-        if key == "ring" then
-            if not s.ring then
-                local r = s:CreateTexture(nil, "OVERLAY")
-                local pad = s:GetWidth() * 0.2
-                r:SetPoint("TOPLEFT", s, "TOPLEFT", -pad, pad)
-                r:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", pad, -pad)
-                r:SetAtlas("UI-HUD-ActionBar-Proc-Loop-Flipbook")
-                r:SetDesaturated(true)
-                local ag = r:GetParent():CreateAnimationGroup()
-                ag:SetLooping("REPEAT")
-                local fb = ag:CreateAnimation("FlipBook")
-                fb:SetTarget(r)
-                fb:SetDuration(1)
-                fb:SetFlipBookRows(6)
-                fb:SetFlipBookColumns(5)
-                fb:SetFlipBookFrames(30)
-                s.ring, s.ringAnim = r, ag
-            end
-            s.ring:SetVertexColor(Style.Accent())
-            s.ringAnim:Play()
-        elseif DUI.Motion.GLOW_STYLES[key] then
+        if DUI.Motion.GLOW_STYLES[key] then
             local px = DUI.Pixel.Px(s, 2)
             W.GlowAround(host, true, {
                 style = key, frame = s, parent = s, layer = "OVERLAY", sub = 7,
                 inset = shape == "plate" and -px or 0, thick = px,
-                size = shape == "icon" and s:GetWidth() * 0.45 or (shape == "plate" and 10 or nil),
+                size = shape == "plate" and 10 or nil,
             })
         end
     end
@@ -723,7 +692,6 @@ local function glowSample(card, key, w, h, shape)
 end
 function Cards.Draw.glowButton(card, key, w, h) return glowSample(card, key, w, h, "button") end
 function Cards.Draw.glowPlate(card, key, w, h) return glowSample(card, key, w, h, "plate") end
-function Cards.Draw.glowIcon(card, key, w, h) return glowSample(card, key, w, h, "icon") end
 
 -- Bars on a small screen: one or two rows at the bottom and side bars on the
 -- right edge (the action bars step's presets).

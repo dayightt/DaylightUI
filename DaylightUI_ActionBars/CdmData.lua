@@ -1048,6 +1048,7 @@ Data.SPELL_FIELDS = {
     cdAlpha = { min = 0, max = 1 },
     barMode = { values = { "block", "solid", "gradient" }, bar = true },
     fillBy = { values = { "shield", "time" }, bar = true }, shieldAmount = { bool = true },
+    glowStyle = { glow = true },
     barColor = { color = true, bar = true },
     barGradient = { gradient = true, bar = true },
     backMode = { values = { "block", "solid", "gradient" }, bar = true },
@@ -1192,6 +1193,8 @@ function Data.SetSpellValue(set, id, key, value)
         if not oneOf(spec.values, value) then return false end
     elseif spec.sound then
         if not DUI.Sound.IsAlert(value) then return false end
+    elseif spec.glow then
+        if value ~= "ring" and not DUI.Motion.GLOW_STYLES[value] then return false end
     else
         if type(value) ~= "number" or value ~= value then return false end
         value = max(spec.min, min(spec.max, value))

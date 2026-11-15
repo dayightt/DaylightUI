@@ -45,7 +45,7 @@ Fx.DEFAULTS = { readySound = "none", usableSound = "none", buffSound = "none", b
     glow = true, size = 0, noSwipe = false, noGcd = false, reverse = false, desat = "game",
     onCd = "show", onReady = "show", onUnusable = "show", onShort = "show", cdAlpha = 0.4, readyGlow = false, usableGlow = false, activeGlow = true, noDurationSwipe = false,
     barMode = "block", backMode = "block", showName = true, nameAlign = "left", fillBy = "shield",
-    shieldAmount = true, inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
+    shieldAmount = true, glowStyle = "ring", inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
 
 -- Show in: each form, stance or stealth of the class the spell can be left out of
 -- (e.g. cat spells only in Cat Form), saved as hideIn<Key> (false = shown). In a
@@ -342,14 +342,18 @@ end
 local accentGen = 0          -- bumped on a style change, since the accent may differ
 DUI.On("StyleChanged", function() accentGen = accentGen + 1 end)
 
--- The picked glow: "ring" (the game's proc ring) or one of the animated lights
--- (Motion.GLOW_STYLES), which run round the item's edge. Motion off keeps the ring.
-function Fx.GlowStyle()
-    local s = DUI:Get("ActionBars", "cdmGlow")
+-- A spell's glow style: "ring" (the game's proc ring) or one of the animated
+-- lights (Motion.GLOW_STYLES), which run round the item's edge. Motion off, a
+-- glow with no spell behind it (an action button's) or a plugin's style that
+-- isn't loaded keep the ring.
+function Fx.GlowStyle(button)
+    local s = Fx.Get(button, "glowStyle")
     if not (DUI.Motion.GLOW_STYLES[s] and DUI.Motion.On()) then return "ring" end
     return s
 end
-Fx.GLOW_LIGHT = 0.45   -- a light's size, as a share of the item's short side
+-- A light's size and a strip's width, as shares of the item's short side, so a
+-- big icon or a tall bar gets a glow to match.
+Fx.GLOW_SCALE = { size = 0.7, thick = 0.08 }
 
 -- Lays the picked style on a lit glow: the ring's pieces, or the lights.
 local function styleGlow(g, item, c, style)
@@ -361,17 +365,15 @@ local function styleGlow(g, item, c, style)
         return
     end
     g.anim:Stop()
-    local short = math.min(g.w or 36, g.h or 36)
-    local px = DUI.Pixel.Px(item, 2)
     DUI.Widgets.GlowAround(g, true, {
-        style = style, frame = item, inset = 0, thick = px, size = short * Fx.GLOW_LIGHT,
+        style = style, frame = item, inset = 0, thick = DUI.Pixel.Px(item, 2), scale = Fx.GLOW_SCALE,
         lo = type(c) == "table" and c or nil, parent = g, layer = "OVERLAY", sub = 7,
     })
 end
 
 local function lightGlow(item, c)
     local was = litAs[item]
-    local style = Fx.GlowStyle()
+    local style = Fx.GlowStyle(opts[item])
     if lit[item] and was and was.style == style then
         if type(c) == "table" then
             if was[1] == c[1] and was[2] == c[2] and was[3] == c[3] then return end
@@ -409,18 +411,6 @@ end
 -- c = {r,g,b}, or nil for the accent.
 function Fx.SetGlow(item, on, c)
     if on then lightGlow(item, c) else showGlow(item, false) end
-end
-
--- A new glow style picked: every lit glow takes it.
-function Fx.RestyleGlows()
-    local again = {}
-    for item, as in pairs(litAs) do
-        if lit[item] then again[item] = as.accent and false or { as[1], as[2], as[3] } end
-    end
-    for item, c in pairs(again) do
-        litAs[item] = nil
-        lightGlow(item, c or nil)
-    end
 end
 
 -- The glow's frame (for tests).

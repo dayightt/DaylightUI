@@ -60,7 +60,6 @@ ns.DEFAULTS = {
     cdmFade = DaylightUI.Fade.Defaults(),
     skinMenus = true,       -- bag bar and micro menu in the buttons' look (Menus.lua)
     cooldowns = true,       -- Cooldown Manager icons in the same look
-    cdmGlow = "ring",       -- Cooldown Manager glows: "ring" (the game's proc ring) or a Motion.GLOW_STYLES key
     cdmKeybinds = false,    -- keybind on every icon (a piece's keyShown overrides it)
     readyPing = true,       -- a button coming off a real cooldown (not the GCD) pops and flashes
     rankUp = true,          -- a newly learned rank replaces the previous one on your bars (RankUp.lua)

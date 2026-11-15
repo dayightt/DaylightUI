@@ -790,6 +790,13 @@ local function glowPlace(b)
     local f = b.glowFrame or b
     local w, h = f:GetWidth(), f:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" then return end
+    -- Sized by what it's on (shape.scale), so it grows and shrinks with it.
+    local sc = b.glowScale
+    if sc then
+        local short = math.min(w, h)
+        b.glowThick = math.max(b.glowMinThick or 1, short * sc.thick)
+        b.glowSize = short * sc.size
+    end
     local i, T, cut = b.glowInset, b.glowThick, b.glowCut or 0
     w, h = w - 2 * i, h - 2 * i
     if w <= T + cut or h <= T then return end
@@ -875,7 +882,9 @@ end
 --   style   one of W.GLOW_STYLES (circle when left out)
 --   frame   what they run round; inset  in from its edges (negative = outside it)
 --   thick   how wide a strip is; cut  how far in the lower right corner sits
---   size    a light's size; lo, hi  the two colors (default: the accent's ends)
+--   size    a light's size; scale  { size, thick } as shares of the frame's
+--           short side instead, following it as it resizes (thick is then the least)
+--   lo, hi  the two colors (default: the accent's ends)
 --   parent, layer, sub  where the textures go (read the first time only)
 -- They ease in when switched on and out when off; motion off keeps them away.
 function W.GlowAround(host, on, shape)
@@ -901,6 +910,10 @@ function W.GlowAround(host, on, shape)
     host.glowThick = shape.thick or host.glowThick
     host.glowCut = shape.cut or 0
     host.glowSize = shape.size
+    -- scale = { size, thick }: a light's size and a strip's width as shares of
+    -- the frame's short side, read every frame.
+    host.glowScale = type(shape.scale) == "table" and shape.scale or nil
+    host.glowMinThick = shape.thick
     if shape.lo then host.glowColors = { shape.lo, shape.hi or shape.lo } else glowPaint(host) end
     if not host.glowDriver:IsShown() or host.glowFade < 1 then
         if not host.glowDriver:IsShown() then host.glowFade = 0 end
