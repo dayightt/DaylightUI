@@ -209,6 +209,7 @@ function Lfg.SetSide(id, on)
     -- The controller finds a window's main button when the page changes or the window
     -- gets the focus, and hidden pieces aren't found: look again now the card has shown.
     if on and DUI.Pad and DUI.Pad.Scrolls then DUI.Pad.Scrolls(f) end
+    Lfg.PadChanged()
     if f.current ~= id then return end
     local w, h = Lfg.sizer.Size(id)
     f.goalW, f.goalH = w, h
@@ -272,17 +273,50 @@ function Lfg.AllLevels()
     return ok and on == true
 end
 
+-- The switch was flipped (here, or in the game's own window): the categories and activities
+-- are read again for the new filter and the open page is drawn again. The client says
+-- so with CVAR_UPDATE, but that is not relied on: the menu calls this itself, straight
+-- after SetCVar. What Find a group already shows was searched with the old filter's
+-- activities, and searching needs a click, so its Refresh lights up instead of searching.
+function Lfg.LevelsChanged()
+    ns.Data.Forget()
+    if ns.Browse and ns.Browse.searched then ns.Browse.stale = true end
+    local f = Lfg.frame
+    if f and Win.IsOpen(f) then Lfg.Apply() end
+end
+
+function Lfg.SetAllLevels(on)
+    SetCVar(Lfg.ALL_LEVELS, on and "1" or "0")
+    Lfg.LevelsChanged()
+end
+
 function Lfg.OptionsMenu(owner)
     local W = DUI.Widgets
     if W.menuOwner == owner then return W.CloseMenu() end
     W.OpenMenu(owner, { "all" }, { all = LFG_LIST_IGNORE_SUGGESTED_LEVEL or L["Show all levels"] }, nil,
-        function() SetCVar(Lfg.ALL_LEVELS, Lfg.AllLevels() and "0" or "1") end, Lfg.MENU_W,
+        function() Lfg.SetAllLevels(not Lfg.AllLevels()) end, Lfg.MENU_W,
         { keepOpen = true, rows = 1, checked = function() return Lfg.AllLevels() end })
 end
 
 -- Controller (the game's finder has no controller buttons of its own): footer buttons on
 -- X and Y like the game's other windows (X main, Y second), Y is Refresh on Find a
 -- group, the menu button opens the gear options, LB / RB switch tabs.
+-- The card's main button on the page in view, when a card is open and the button can act.
+function Lfg.CardButton()
+    local page = Lfg.page == "find" and ns.Browse.page or Lfg.page == "who" and ns.Who.page or nil
+    local d = page and page.detail
+    if not (d and d:IsOpen()) then return nil end
+    local b = d.buttons[1]
+    if b and b:IsShown() and b.spec and not b.spec.off then return b end
+    return nil
+end
+
+-- What the controller's keys show changed (the card opened, closed or moved to someone else).
+function Lfg.PadChanged()
+    local f = Lfg.frame
+    if f and DUI.Pad and DUI.Pad.Refresh then DUI.Pad.Refresh(f) end
+end
+
 function Lfg.PadKeys(f)
     local Listing, Data = ns.Listing, ns.Data
     local function on(id) return Lfg.page == id end
@@ -297,6 +331,11 @@ function Lfg.PadKeys(f)
           when = function() return on("list") and not listed() and next(Listing.sel or {}) ~= nil end },
         { key = "Y", label = REFRESH or L["Refresh"], run = function() ns.Browse.Refresh() end,
           when = function() return on("find") end },
+        -- The card beside Find a group / Who: X presses its main button (the first one). The window
+        -- binds X itself (List me), so the controller's own footer lookup is never added: this is it.
+        { key = "X", label = function() local b = Lfg.CardButton(); return b and b.text:GetText() or "" end,
+          run = function() local b = Lfg.CardButton(); if b then b:Click() end end,
+          when = function() return Lfg.CardButton() ~= nil end },
         { key = "MENU_RIGHT", label = OPTIONS or L["Options"], run = function() Lfg.OptionsMenu(f.gear or f) end },
     }
 end
@@ -327,7 +366,7 @@ function Lfg.Build(mod)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Lfg.ResetSpot   -- /dui reset
     DUI.RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", function() Lfg.Header() end)
     DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
-        if name == Lfg.ALL_LEVELS and Win.IsOpen(f) then Lfg.Apply() end
+        if name == Lfg.ALL_LEVELS then Lfg.LevelsChanged() end
     end)
     -- The game shows its browse page for some activities (LFG_LIST_SHOW_SEARCH, and its own
     -- code searches them): open on Find a group.

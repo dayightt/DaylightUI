@@ -59,7 +59,7 @@ function Browse.Search(only)
     if not cat then return Browse.Render() end
     local acts = only or Data().Filtered(cat)
     Browse.searching, Browse.failed, Browse.open = true, false, nil
-    Browse.searched, Browse.ours, Browse.narrow = true, true, only
+    Browse.searched, Browse.ours, Browse.narrow, Browse.stale = true, true, only, nil
     Data().Ask("Search", cat, 0, 0, nil, false, nil, acts)
     Browse.Render()
 end
@@ -205,6 +205,7 @@ function Browse.PaintChips(page)
     DUI.Motion.AlphaTo(page.all, (narrow and Browse.cat) and 1 or 0, DUI.Motion.FAST, true)
     page.all.SetOff(Browse.searching == true)
     page.refresh.SetOff(Browse.searching == true or Browse.cat == nil)
+    page.refresh.SetActive(Browse.stale == true)   -- the level filter changed since the search: searching again shows the change
 end
 
 -- Category chip: search that category (clicking the lit one refreshes).
@@ -338,7 +339,9 @@ function Browse.PaintDetail()
     local page = Browse.page
     if not (page and page.detail) then return end
     local r = Browse.open and Browse.shown and Browse.shown[Browse.open]
-    return page.detail:Set(r and Browse.Spec(r) or nil)
+    local changed = page.detail:Set(r and Browse.Spec(r) or nil)
+    if ns.Window.PadChanged then ns.Window.PadChanged() end   -- the controller's X follows the card's button
+    return changed
 end
 
 -- The card open or closed: Refresh keeps to the list's side, and the list's right edge

@@ -80,7 +80,9 @@ function Who.PaintDetail()
     if not (page and page.detail) then return end
     local person
     for _, p in ipairs(Who.list or {}) do if p.name == Who.picked then person = p end end
-    return page.detail:Set(person and Who.Spec(person) or nil)
+    local changed = page.detail:Set(person and Who.Spec(person) or nil)
+    if ns.Window.PadChanged then ns.Window.PadChanged() end   -- the controller's X follows the card's button
+    return changed
 end
 
 -- The card open or closed: the search box and the Sort chip keep to the list's side, and

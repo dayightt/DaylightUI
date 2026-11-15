@@ -1042,3 +1042,106 @@ T.test("lfg: List yourself's role buttons carry a badge, and the panel is padded
     local _, _, _, _, ny = page.npf:GetPoint(1)
     T.near(-ny + page.npf:GetHeight() + pad, -top + page.saved:GetHeight(), 0.5, "and under the last row")
 end)
+
+-- The gear's "Show all levels" switch.
+T.test("lfg: show all levels adds the activities past your level, to List yourself and the categories, without the client's event", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "list")
+    local function names()
+        local out = {}
+        for _, b in ipairs(rows(ns.Listing.page.stack, "act")) do out[#out + 1] = b.name:GetText() end
+        return table.concat(out, "|")
+    end
+    local cats = #ns.Data.Categories()
+    T.falsy(names():find("Scarlet Monastery", 1, true), "past your level: not listed")
+    -- The client's CVAR_UPDATE may not come for a change made from code: the menu doesn't wait for it.
+    local fire = stub.FireEvent
+    stub.FireEvent = function(e, ...) if e == "CVAR_UPDATE" then return end return fire(e, ...) end
+    local ok, err = pcall(function()
+        ns.Window.OptionsMenu(f.gear)
+        ns.Window.SetAllLevels(true)
+    end)
+    stub.FireEvent = fire
+    T.truthy(ok, tostring(err))
+    frame(5)
+    T.truthy(ns.Window.AllLevels(), "the switch reads on")
+    T.truthy(names():find("Scarlet Monastery", 1, true), "now listed: " .. names())
+    T.truthy(#ns.Data.Categories() > cats, "and a category that had nothing at your level shows")
+    ns.Window.SetAllLevels(false)
+    frame(5)
+    T.falsy(names():find("Scarlet Monastery", 1, true), "off again")
+    DaylightUI.Widgets.CloseMenu()
+end)
+
+T.test("lfg: show all levels lights Refresh on Find a group (the groups shown were searched without them)", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local B = ns.Browse
+    T.falsy(B.stale)
+    ns.Window.SetAllLevels(true)
+    frame(2)
+    T.truthy(B.stale, "the search is out of date")
+    stub.Key(function() B.Refresh() end)
+    frame(2)
+    T.falsy(B.stale, "searched again")
+    -- The new search asks for the activities past your level too.
+    local last = LW.Calls("Search")
+    local acts = last[#last][2]
+    local has = false
+    for _, id in ipairs(acts or {}) do if id == 800 then has = true end end
+    T.truthy(has, "Scarlet Monastery is in the search")
+end)
+
+-- The controller: X presses the card's main button on Find a group and Who. The window binds X for
+-- List me itself, so the controller's own footer lookup never applies here.
+T.test("lfg: on a controller X presses the card's main button on Find a group and on Who", function()
+    local ns = load()
+    local f = open(ns)
+    local function entry(key)
+        for _, e in ipairs(f.padKeys) do
+            if e.key == key and (not e.when or e.when()) then return e end
+        end
+    end
+    tab(ns, "find")
+    T.isnil(entry("X"), "no card: no X")
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local x = entry("X")
+    T.truthy(x, "X with the card open")
+    T.eq(x.label(), "Whisper", "it says what it does")
+    stub.Key(function() x.run() end)
+    T.eq(LW.Calls("SendTell")[1][1], "Gorrak Stonefist")
+    -- A player listed alone: Invite is the main button.
+    click(rows(ns.Browse.page.stack, "group")[3])
+    T.eq(entry("X").label(), "Invite")
+    stub.Key(function() entry("X").run() end)
+    T.eq(LW.Calls("InviteUnit")[1][1], "Ularanu Seachaser")
+    tab(ns, "who")
+    T.isnil(entry("X"), "Who has no card open yet (the one on Find belongs to Find)")
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(entry("X").label(), "Whisper")
+    stub.Key(function() entry("X").run() end)
+    T.eq(LW.Calls("SendTell")[2][1], "Daemon Process")
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.isnil(entry("X"), "card closed: X gone")
+    tab(ns, "list")
+    T.isnil(entry("X"), "and on List yourself, nothing ticked")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: the controller's hints are refreshed as the card opens, moves and closes", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "find")
+    local P = DaylightUI.Pad
+    local calls = 0
+    local real = P.Refresh
+    P.Refresh = function(fr) if fr == f then calls = calls + 1 end return real(fr) end
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local opened = calls
+    T.truthy(opened > 0, "refreshed when the card opened")
+    click(rows(ns.Browse.page.stack, "group")[3])
+    T.truthy(calls > opened, "and when it moved to another group")
+    P.Refresh = real
+end)
