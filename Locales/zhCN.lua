@@ -7002,3 +7002,11 @@ L["Switch between Shelf, grouped by kind, Grid, bag by bag, and List, a row per 
 L["Switch between Shelf, grouped by kind, Grid, tab by tab, and List, a row per item."] = "在“架子”按类别分组、“网格”逐个标签页和“列表”每件物品一行之间切换。"
 L["Turn off Recent"] = "关闭最近列表"
 L["When GatherMate2 knows a node within 100 yards, the arrow points there first, with its name under the yards, then goes back to your quest once you reach it. Which nodes count follows GatherMate2's own settings: the kinds it shows on your map and its node filter. Needs the GatherMate2 addon."] = "{\"当GatherMate2知道100码内有一个节点时，箭头会先指向那里，并在码数下方显示其名称，到达后则恢复指向你的任务。哪些节点计入取决于GatherMate2自身的设置：它在地图上显示的种类及其节点筛选。需要GatherMate2插件。\"}"
+
+-- DaylightUI translations from AI translation.
+L["%s: a frame style needs a key and a label."] = "%s：框体样式需要一个键和一个标签。"
+L["A hide list leaves its spells off every aura row that picks it; Hidden is picked everywhere until you change it. A show-only list makes a row show nothing else. Each frame's Buffs and Debuffs cards pick the lists they use, and so do the buff and debuff bars (Buffs > Filter)."] = "隐藏列表会使其中的法术在所有选用该列表的光环行上不显示；在你更改之前，各处均选用“隐藏”。仅显示列表会让该行只显示列表中的内容。每个框体的“增益”和“减益”卡片会选用各自使用的列表，增益条和减益条也是如此（增益 > 筛选）。"
+L["Debuffs on this list never show here. The game only lets addons hide a few harmless debuffs on you, like Sated; the Aura Lists page marks which. Make and fill lists on Unit Frames > Aura Lists."] = "此列表中的减益从不在此显示。游戏只允许插件隐藏你身上少数无害的减益（如饱足）；“光环列表”页面会标明哪些可以隐藏。请在“单位框体 > 光环列表”中创建并填充列表。"
+L["Shows only the buffs on this list. An empty list shows them all. Make and fill lists on Unit Frames > Aura Lists."] = "仅显示此列表中的增益。列表为空时显示全部。请在“单位框体 > 光环列表”中创建并填充列表。"
+L["Which buffs show, from the lists on Unit Frames > Aura Lists."] = "显示哪些增益，来自“单位框体 > 光环列表”中的列表。"
+L["Which debuffs show on this bar."] = "此状态条上显示哪些减益。"
