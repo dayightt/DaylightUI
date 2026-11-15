@@ -283,6 +283,10 @@ function Social.SetSide(id, on)
     if not f then return end
     local def = f.defs and f.defs[id]
     if def then def.w = width(id) end
+    -- The controller finds a window's search box and main button when the page changes or
+    -- the window gets the focus, and hidden pieces aren't found: the card has just shown,
+    -- so look again (X presses its Invite).
+    if on and DUI.Pad and DUI.Pad.Scrolls then DUI.Pad.Scrolls(f) end
     if f.current ~= id then return end
     local w, h = Social.sizer.Size(id)
     f.goalW, f.goalH = w, h
@@ -317,6 +321,7 @@ function Social.Build(mod)
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("Social", "scale", v) end)
     Social.sizer = Win.Resizable(f, { db = function() return ns.module and ns.module.db end,
         base = function(id) return width(id), Social.H end, minH = Social.MIN_H,
+        extra = function(id) return Social.side[id] and ns.Detail.SPAN or 0 end,   -- the card's room isn't part of the size kept
         save = Social.SaveSpot, resized = Social.Resized, follow = function() return Social.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Social.ResetSpot   -- /dui reset
     for _, e in ipairs({ "BN_INFO_CHANGED", "PLAYER_FLAGS_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED",

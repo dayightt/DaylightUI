@@ -463,7 +463,9 @@ end
 -- size unless opts.shared. Sizes never go below the page's base size
 -- (opts.base(id) -> w, h) in width, or below minH (default 3/4 of base) in height.
 -- opts: db(), base(id), shared, minH, save, place, resized(w, h, live),
--- follow() -> the Win.Follow def whose panel width needs rewriting.
+-- follow() -> the Win.Follow def whose panel width needs rewriting, extra(id) -> width
+-- the page has on top of the saved one right now (a side card that is open): it is
+-- left out of what is saved and added back when it is read.
 -- Returns R with R.Size(id), R.Saved(id) (nil if unsaved) and R.Reset().
 function Win.Resizable(f, opts)
     local R = {}
@@ -478,7 +480,8 @@ function Win.Resizable(f, opts)
         local s = db and type(db.sizes) == "table" and db.sizes[key(id)]
         if type(s) ~= "table" or type(s[1]) ~= "number" or type(s[2]) ~= "number" then return nil end
         local bw = base(id)
-        return math.max(bw, s[1]), math.max(minH(id), s[2])
+        local extra = opts.extra and opts.extra(id) or 0
+        return math.max(bw, s[1] + extra), math.max(minH(id), s[2])
     end
     function R.Size(id)
         local w, h = R.Saved(id)
@@ -507,7 +510,8 @@ function Win.Resizable(f, opts)
             local db = opts.db()
             if not db then return end
             if type(db.sizes) ~= "table" then db.sizes = {} end
-            db.sizes[key(id)] = { math.floor(w + 0.5), math.floor(h + 0.5) }
+            local extra = opts.extra and opts.extra(id) or 0
+            db.sizes[key(id)] = { math.floor(w - extra + 0.5), math.floor(h + 0.5) }
             written()
         end,
         save = opts.save, place = opts.place, resized = opts.resized, reset = function() R.Reset() end })

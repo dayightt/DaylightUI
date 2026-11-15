@@ -1107,9 +1107,10 @@ T.test("social: the card's header is centered on the icon; the status has air un
     local f = d.frame
     -- Two lines (name, BattleTag): the block's middle is the icon's middle.
     local top = -select(5, f.title:GetPoint(1))
-    local middle = top + (Detail.NAME + Detail.UNDER) / 2
+    local titleH, subH = f.title:GetStringHeight() or Detail.NAME, f.sub:GetStringHeight() or (Detail.UNDER - 2)
+    local middle = top + (titleH + 2 + subH) / 2
     T.truthy(math.abs(middle - (Detail.PAD + Detail.ICON / 2)) <= 1, "centered on the icon: " .. middle)
-    T.eq(-select(5, f.sub:GetPoint(1)), top + Detail.NAME, "the line under follows the name")
+    T.eq(-select(5, f.sub:GetPoint(1)), top + titleH + 2, "the line under follows the name")
     -- The badge's letter fills it.
     T.eq(select(2, f.letter:GetPoint(1)), f.avatar, "the letter is anchored to the badge")
     T.eq(f.letter:GetJustifyH(), "CENTER")
@@ -1200,5 +1201,147 @@ T.test("social: the list's edge eases when the card opens and closes", function(
     T.truthy(back > side and back < side + span, "on its way out: " .. back)
     frame(30)
     T.eq(inset(), side, "back where it was")
+    clean()
+end)
+
+-- Review fixes ---------------------------------------------------------------------------
+
+-- The controller's X finds the card's main button: the controller looks for a window's
+-- parts only on a page change or when the window gets the focus, and the card was still
+-- hidden then.
+T.test("social: the controller's X presses the card's Invite once the card has opened", function()
+    local ns = load()
+    local win = open(ns)
+    local Pad = DaylightUI.Pad
+    Pad.focused = win
+    local page = ns.Friends.page
+    local kit = rows(page.stack, "friend")[4]
+    stub.Key(function() kit:Click() end)
+    frame(30)
+    T.truthy(win.padFoot, "the card's parts were looked up when it opened")
+    T.eq(win.padFoot.frame, page.detail.frame)
+    T.truthy(Pad.FOOTER_KEY.when(), "X has a main button to press")
+    Pad.focused = nil
+    clean()
+end)
+
+-- Resizing with the card open keeps the window's own width, not the card's room.
+T.test("social: a window resized with the card open doesn't keep the card's width", function()
+    local ns = load()
+    local win = open(ns)
+    local page = ns.Friends.page
+    local W, SPAN = ns.Window.W, ns.Detail.SPAN
+    local kit = rows(page.stack, "friend")[4]
+    stub.Key(function() kit:Click() end)
+    frame(30)
+    T.eq(win:GetWidth(), W + SPAN)
+    win.GetLeft = function() return 100 end
+    win.GetTop = function() return 700 end
+    local e = win:GetEffectiveScale()
+    stub.cursorPos = { 800 * e, 137 * e }
+    win.grip:GetScript("OnMouseDown")(win.grip, "LeftButton")
+    stub.cursorPos = { 850 * e, 137 * e }
+    stub.RunOnUpdate(win.grip, 1 / 30)
+    win.grip:GetScript("OnMouseUp")(win.grip, "LeftButton")
+    frame(5)
+    T.eq(win:GetWidth(), W + SPAN + 50, "50 px wider with the card")
+    T.eq(ns.module.db.sizes.friends[1], W + 50, "what is kept leaves the card's room out")
+    -- The card closes: the list keeps the 50 px, not the card's.
+    stub.Key(function() kit:Click() end)
+    frame(30)
+    T.eq(win:GetWidth(), W + 50, "the window goes back to its own width")
+    -- And it opens at that size plus the card again.
+    stub.Key(function() kit:Click() end)
+    frame(30)
+    T.eq(win:GetWidth(), W + 50 + SPAN)
+    clean()
+end)
+
+-- A larger text scale makes the lines taller: nothing is laid on top of anything.
+T.test("social: the card lays its lines out by their real height (a larger text scale)", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local d = page.detail
+    -- Texts taller than at the default size, as at a text scale of 1.6.
+    local function tall(fs, h) fs.GetStringHeight = function() return h end end
+    tall(d.frame.title, 30); tall(d.frame.sub, 24)
+    for _, r in ipairs(d.rows) do tall(r.label, 24); tall(r.value, 24) end
+    local mara = rows(page.stack, "friend")[1]
+    stub.Key(function() mara:Click() end)
+    frame(30)
+    local f = d.frame
+    local titleY, subY = -select(5, f.title:GetPoint(1)), -select(5, f.sub:GetPoint(1))
+    T.truthy(subY >= titleY + 30, "the second line starts under the name: " .. titleY .. " / " .. subY)
+    local ruleY = -select(5, f.rule:GetPoint(1))
+    T.truthy(ruleY >= subY + 24, "the header's rule is under both: " .. ruleY)
+    local shown = {}
+    for _, r in ipairs(d.rows) do if r.value:IsShown() then shown[#shown + 1] = r end end
+    T.truthy(#shown >= 3, "lines to compare")
+    local prevEnd = ruleY
+    for _, r in ipairs(shown) do
+        local top = -select(5, (r.label:IsShown() and r.label or r.value):GetPoint(1))
+        T.truthy(top >= prevEnd, "a line starts below the one before: " .. top .. " vs " .. prevEnd)
+        local valueY = -select(5, r.value:GetPoint(1))
+        if r.label:IsShown() then
+            local rule = -select(5, r.rule:GetPoint(1))
+            T.truthy(rule >= top + 24, "its rule is under its title")
+            T.truthy(valueY > rule, "and its value under the rule")
+        end
+        prevEnd = valueY + 24
+    end
+    clean()
+end)
+
+-- Two players of one name on different realms are two players.
+T.test("social: a same-named player of another realm doesn't hide Invite or Add friend", function()
+    local ns = load()
+    local D = ns.Data
+    _G.GetNormalizedRealmName = function() return "Stormrage" end
+    local was = _G.UnitName
+    _G.UnitName = function(u) if u == "party1" then return "Odessa Reed", "Area52" end end
+    stub.inGroup = true
+    T.truthy(D.InGroup("Odessa Reed", "Area 52"), "the one in your group (the realm spelled as it is shown)")
+    T.truthy(D.InGroup("Odessa Reed-Area52"), "a name with its realm")
+    T.falsy(D.InGroup("Odessa Reed", "Stormrage"), "the same name on your own realm is someone else")
+    T.falsy(D.InGroup("Odessa Reed-Stormrage"))
+    T.truthy(D.InGroup("Odessa Reed"), "no realm known: by the name")
+    -- A unit of your own realm carries no realm in its name.
+    _G.UnitName = function(u) if u == "party2" then return "Lirien Vale" end end
+    T.truthy(D.InGroup("Lirien Vale", "Stormrage"))
+    T.falsy(D.InGroup("Lirien Vale", "Area 52"))
+    -- Friends: a friend's character of the same name on another realm isn't this ally.
+    local friends = SW.Friends()
+    friends[3].gameAccountInfo.realmName = "Area52"
+    friends[3].gameAccountInfo.characterName = "Odessa Reed"
+    local ns2 = load({ friends = friends })
+    local D2 = ns2.Data
+    _G.GetNormalizedRealmName = function() return "Stormrage" end
+    T.falsy(D2.IsFriendName("Odessa Reed", "Stormrage"), "same name, another realm: not your friend")
+    T.truthy(D2.IsFriendName("Odessa Reed", "Area 52"), "the same realm: your friend")
+    T.truthy(D2.IsFriendName("Odessa Reed-Area52"), "a name with its realm")
+    _G.UnitName, _G.GetNormalizedRealmName, stub.inGroup = was, nil, nil
+end)
+
+-- A friend already in a group: the game asks to be invited into theirs, and says so.
+T.test("social: a friend in a group has Request invite where it would say Invite", function()
+    local friends = SW.Friends()
+    friends[3].gameAccountInfo.playerGuid = "Player-kit"
+    local ns = load({ friends = friends })
+    _G.GetDisplayedInviteType = function(guid) return guid == "Player-kit" and "REQUEST_INVITE" or "INVITE" end
+    open(ns)
+    local page = ns.Friends.page
+    local kit = rows(page.stack, "friend")[4]
+    T.eq(ns.Data.InviteKind(kit.spec.friend), "REQUEST_INVITE")
+    T.eq(ns.Friends.InviteWord(kit.spec.friend), "Request invite")
+    stub.Key(function() kit:Click() end)
+    frame(30)
+    T.eq(panel(page), "Request invite, Whisper", "the card's button")
+    local m = menuOf(function() kit.spec.onMenu(kit) end)
+    T.eq(m.values.invite, "Request invite", "the menu's")
+    -- Anyone else is invited.
+    local other = rows(page.stack, "friend")[1]
+    T.eq(ns.Data.InviteKind(other.spec.friend), "INVITE")
+    _G.GetDisplayedInviteType = nil
     clean()
 end)

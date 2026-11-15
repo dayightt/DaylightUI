@@ -2,7 +2,7 @@
 -- Online and Offline (collapsed), and ignored players (collapsed). Each row has a
 -- status dot, the friend's name in white and their character in class color, with
 -- level and zone, another game, or last-online time underneath. Hover shows a card
--- tooltip, click picks a friend and opens the detail panel under the list (who, where,
+-- tooltip, click picks a friend and opens the detail card beside the list (who, where,
 -- Invite and Whisper), right-click opens a menu (same as the group finder). A friend
 -- coming online gets a shine. A square button beside the search adds a friend.
 
@@ -99,6 +99,12 @@ function Friends.Sub(f)
     return f.game and string.format(L["Playing %s"], f.game) or ""
 end
 
+-- What the button says: the game asks to be invited into a group a friend is already in
+-- ("request"), and invites anyone else.
+function Friends.InviteWord(f)
+    return Data().InviteKind(f) == "REQUEST_INVITE" and L["Request invite"] or INVITE or L["Invite"]
+end
+
 function Friends.Tip(owner, f)
     if not (GameTooltip and f) then return end
     local T = DUI.Tips
@@ -128,7 +134,7 @@ function Friends.Menu(owner, f)
     local keys, values = {}, {}
     local function add(k, v) keys[#keys + 1] = k; values[k] = v end
     if f.status ~= "off" then add("whisper", WHISPER or L["Whisper"]) end
-    if Data().CanInviteFriend(f) then add("invite", INVITE or L["Invite"]) end
+    if Data().CanInviteFriend(f) then add("invite", Friends.InviteWord(f)) end
     add("note", L["Set note..."])
     add("favorite", f.favorite and L["Remove from favorites"] or L["Add to favorites"])
     add("remove", L["Remove friend..."])
@@ -177,7 +183,7 @@ function Friends.Spec(f)
     local ink = Style.INK
     local buttons = {}
     if Data().CanInviteFriend(f) then
-        buttons[#buttons + 1] = { text = INVITE or L["Invite"], primary = true, onClick = function() Data().InviteFriend(picked()) end }
+        buttons[#buttons + 1] = { text = Friends.InviteWord(f), primary = true, onClick = function() Data().InviteFriend(picked()) end }
     end
     if f.status ~= "off" then
         buttons[#buttons + 1] = { text = WHISPER or L["Whisper"], onClick = function() Data().WhisperFriend(picked()) end }
@@ -263,7 +269,7 @@ local function friendRow(s, f)
         dot = ns.Window.StatusColor(f.status), picked = f.id == Friends.picked,
         -- A quick Invite at the row's right end, when that friend can be invited now
         -- (the panel's Invite does the same for the picked row).
-        action = Data().CanInviteFriend(f) and { tip = INVITE or L["Invite"], onClick = function() Data().InviteFriend(f) end } or nil,
+        action = Data().CanInviteFriend(f) and { tip = Friends.InviteWord(f), onClick = function() Data().InviteFriend(f) end } or nil,
         onClick = function() pick(Friends.picked ~= f.id and f.id or nil) end,
         onMenu = function(row) Friends.Menu(row, f) end,
         onEnter = function(row) Friends.Tip(row, f) end })

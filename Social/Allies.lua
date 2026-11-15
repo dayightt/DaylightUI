@@ -3,7 +3,7 @@
 -- friends show up there as "legacy friends"). A search box and chips (All, Grouped,
 -- Traded, Whispered), then Pinned and Recent. Each row has a status dot, the name in
 -- class color, level and the shared activity below, and how long ago on the right.
--- Click picks one and opens the detail panel under the list (who, where, and the buttons
+-- Click picks one and opens the detail card beside the list (who, where, and the buttons
 -- that apply: Invite, Whisper, Pin, Add friend); right-click opens a menu.
 
 local _, DUI = ...

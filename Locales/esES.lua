@@ -2122,6 +2122,7 @@ L["Nudges it up or down from its spot."] = "La desplaza hacia arriba o abajo des
 L["Party pet"] = "Mascota de grupo"
 L["Ready check left / right"] = "Comprobación de listos izquierda / derecha"
 L["Ready check up / down"] = "Comprobación de listos arriba / abajo"
+L["Request invite"] = "Pedir invitación"
 L["Role icon left / right"] = "Icono de rol izquierda / derecha"
 L["Role icon up / down"] = "Icono de rol arriba / abajo"
 L["Show in unlock mode"] = "Mostrar en modo desbloqueo"
