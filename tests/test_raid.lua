@@ -105,33 +105,36 @@ T.test("the dispel highlight: border and tint on the tile, and the any-debuff gr
     stub.units.raid5 = { name = "Lirin", isPlayer = true, class = "PRIEST", health = 10, maxHealth = 10 }
     ns.Raid.header.initialConfigFunction(ns.Raid.header, b:GetName())
     local c = b.dispel
-    local hl = c.__groups.dispel.button.highlight
-    T.truthy(hl, "highlight textures on the aura button")
+    T.eq(c.__groups.dispel.max, 1, "the corner icon")
+    T.isnil(c.__groups.dispelAll, "the any-debuff group: added when picked")
+    -- The border rides on the glow's buttons, under the portrait.
+    local gb = b.glowBox
+    local hl = gb.__groups.glow.button.highlight
+    T.truthy(hl, "highlight textures on the glow's aura button")
     T.falsy(hl.tint:IsShown(), "off by default")
     T.falsy(hl.strips[1]:IsShown())
-    T.eq(c.__groups.dispel.max, 1)
-    T.isnil(c.__groups.dispelAll, "the any-debuff group: added when picked")
     DUI:Set("UnitFrames", "raid.dispelHighlight", "border")
     T.truthy(hl.strips[1]:IsShown())
-    T.falsy(hl.tint:IsShown())
+    T.falsy(hl.tint:IsShown(), "the tint has its own container")
     DUI:Set("UnitFrames", "raid.dispelHighlight", "tint")
     T.falsy(hl.strips[1]:IsShown())
-    T.truthy(math.abs(hl.tint:GetAlpha() - 0.3) < 0.001, "default strength")
+    T.near(b.tint:GetAlpha(), 0.3, 0.001, "default strength")
     DUI:Set("UnitFrames", "raid.dispelAlpha", 0.6)
-    T.truthy(math.abs(hl.tint:GetAlpha() - 0.6) < 0.001)
-    -- Icon off, highlight on: the group still runs.
+    T.near(b.tint:GetAlpha(), 0.6, 0.001)
+    -- Icon off: its group stops; the border and glow keep theirs.
+    DUI:Set("UnitFrames", "raid.dispelHighlight", "border")
     DUI:Set("UnitFrames", "raid.showDispel", false)
-    T.eq(c.__groups.dispel.max, 1)
-    DUI:Set("UnitFrames", "raid.dispelOnlyMine", false)
     T.eq(c.__groups.dispel.max, 0)
-    T.eq(c.__groups.dispelAll.filter, "HARMFUL")
-    T.eq(c.__groups.dispelAll.max, 1)
-    DUI:Set("UnitFrames", "raid.dispelHighlight", "none")
-    T.eq(c.__groups.dispelAll.max, 0, "nothing of the corner icon's left on")
-    -- The glow (on by default) runs on its own container, under the portrait.
-    T.eq(b.glowBox.__groups.glowAll.max, 1)
     DUI:Set("UnitFrames", "raid.dispelGlow", false)
-    T.eq(b.glowBox.__groups.glowAll.max, 0)
+    T.eq(gb.__groups.glow.max, 1, "the border alone keeps the glow's group")
+    DUI:Set("UnitFrames", "raid.dispelOnlyMine", false)
+    T.eq(gb.__groups.glow.max, 0)
+    T.eq(gb.__groups.glowAll.filter, "HARMFUL")
+    T.eq(gb.__groups.glowAll.max, 1)
+    DUI:Set("UnitFrames", "raid.dispelHighlight", "none")
+    T.eq(gb.__groups.glowAll.max, 0, "nothing left on")
+    DUI:Set("UnitFrames", "raid.dispelGlow", true)
+    T.eq(gb.__groups.glowAll.max, 1, "the glow alone")
 end)
 
 T.test("raid tiles show the raid marker in the bar's corner and a leader crown", function()

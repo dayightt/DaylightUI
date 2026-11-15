@@ -456,7 +456,7 @@ end
 local function apply(p)
     Afk.p = p
     screen:SetAlpha(p)
-    UIParent:SetAlpha(1 - p)
+    DUI.Fade.SetUIAlpha(1 - p)
     -- The minimap's dots ignore the alpha: the map hides once the UI is gone.
     DUI.Fade.MapAway("afk", p >= 1)
     Afk.PlacePanel(p)
@@ -497,7 +497,7 @@ function Afk.Leave(now)
     local done = function()
         if Afk.up then return end
         screen:Hide()
-        UIParent:SetAlpha(1)
+        DUI.Fade.SetUIAlpha(1)
     end
     if now or InCombatLockdown() then
         Motion.Tween("qol:afk", Afk.p or 0, 0, 0, apply, done)

@@ -66,6 +66,40 @@ T.test("2D, 3D and no portrait", function()
     T.eq(f.__hitRect[1], 0)
 end)
 
+-- A 3D model ignores its parents' alpha, UIParent's too: the face stayed on
+-- screen while its frame faded (fishing, the campfire, the AFK screen). The
+-- model takes the portrait's real alpha itself.
+T.test("a 3D portrait fades with its frame and with the whole UI", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE" }
+    end)
+    local f = ns.frames.player
+    DUI:Set("UnitFrames", "player.portrait", "3d")
+    local m = f.portrait.model
+    local F = DUI.Fade
+    local function run()
+        for _ = 1, 20 do
+            stub.Advance(0.5)
+            F.Step()
+            for _ = 1, 30 do stub.RunOnUpdate(F.driver, 1 / 60) end
+        end
+    end
+    run()
+    T.near(m:GetAlpha(), 1, 0.001, "shown with its frame")
+    F.Hush("test", { "UnitFrames." })
+    run()
+    T.near(f:GetAlpha(), 0, 0.001, "the frame faded (a campfire or fishing hush)")
+    T.near(m:GetAlpha(), 0, 0.001, "the face goes with it")
+    F.Unhush("test", true)
+    run()
+    T.near(m:GetAlpha(), 1, 0.001, "and comes back with it")
+    F.SetUIAlpha(0.25)
+    T.near(m:GetAlpha(), 0.25, 0.001, "the whole UI fading (the AFK screen, the NPC scene) takes it too")
+    F.SetUIAlpha(1)
+    T.near(m:GetAlpha(), 1, 0.001)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("icon styles come from the icon pack only when it is installed", function()
     local _, ns = login()
     local UF = ns.UF

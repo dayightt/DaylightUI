@@ -638,6 +638,14 @@ function Fade.MapIconScale()
     return 1
 end
 
+-- UIParent's own alpha, for whatever fades the whole UI (the AFK screen, the
+-- NPC scene). 3D models ignore their parents' alpha, UIParent's too, so this
+-- tells everyone ("UIAlpha") and whoever draws a model sets the model's own.
+function Fade.SetUIAlpha(a)
+    UIParent:SetAlpha(a)
+    DUI.Fire("UIAlpha", a)
+end
+
 local dotsGone = false
 function Fade.MapDotsGone() return dotsGone end
 
