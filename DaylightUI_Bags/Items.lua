@@ -999,6 +999,10 @@ function Items.Fill(btn, tooltipOwner)
     btn.dluiKey = info and (info.itemID or info.hyperlink) or nil
     call(btn, "SetHasItem", shown)
     call(btn, "SetItemButtonTexture", shown)
+    -- The game's SetItemButtonTexture puts the whole picture back, so the icon's own
+    -- frame showed inside the ring until the next layout. Crop it again every fill.
+    local icon = btn.icon or btn.Icon
+    if type(icon) == "table" and icon.SetTexCoord then Style.CropIcon(icon) end
     run(SetItemButtonQuality, btn, quality, link, false, bound)
     -- Combined stacks (categories view): the total goes on the stack that represents them.
     run(SetItemButtonCount, btn, btn.dluiCount or count)

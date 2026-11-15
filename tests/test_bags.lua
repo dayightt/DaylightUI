@@ -103,6 +103,12 @@ local function setup(opts)
                                  "CheckUpdateTooltip", "SetMatchesSearch" }) do
                 f[m] = function(self, ...) self.calls[m] = { ... } end
             end
+            -- The game's SetItemButtonTexture puts the whole picture back on every
+            -- call (ItemButtonTemplate.lua: SetTexCoord(0, 1, 0, 1)).
+            function f:SetItemButtonTexture(...)
+                self.calls.SetItemButtonTexture = { ... }
+                self.icon:SetTexCoord(0, 1, 0, 1)
+            end
             -- The new-item shimmer: UpdateNewItem starts the sweep and the pulse, like the game's.
             f.flash = f:CreateTexture()
             f.NewItemTexture = f:CreateTexture()
@@ -725,6 +731,9 @@ T.test("bags: an item the slot still gives no icon after its wait shows the item
     stub.FireEvent("ITEM_LOCK_CHANGED", 0, 3)
     stub.RunTimers()
     T.eq(slot.icon:GetAlpha(), 1, "picked up and put down: still shown")
+    local l, r, t, b = slot.icon:GetTexCoord()
+    T.eq(l, ns.Items.CROP[1], "the icon stays cropped after the game sets its picture (no frame inside the ring)")
+    T.eq(b, ns.Items.CROP[4])
     C_Item.GetItemIconByID = oldIcon
     _G.Item = nil
 end)
