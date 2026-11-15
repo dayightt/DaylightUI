@@ -46,7 +46,7 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 7
+print(API.major, API.minor)   -- 1, 8
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
