@@ -25,7 +25,7 @@ Friends.filter = "all"
 -- A friend's faction as the game's own banner icon, cropped like our other icons.
 Friends.FACTION_ICON = { Alliance = "Interface\\Icons\\INV_BannerPVP_02", Horde = "Interface\\Icons\\INV_BannerPVP_01" }
 Friends.FACTION_SIZE = 14
-Friends.ROW = 38
+Friends.ROW = 42
 Friends.IGNORED = 28
 Friends.folds = { offline = true, ignored = true }   -- collapsed sections (this session)
 
@@ -205,6 +205,9 @@ local function friendRow(s, f)
     local b = Rows().Row(s, { kind = "friend", height = Friends.ROW, friend = f, text = text, id = "friend:" .. tostring(f.id),
         color = dim and Style.INK.OFF or Style.INK.VALUE, sub = Friends.Sub(f), subColor = dim and Style.INK.OFF or Style.INK.LABEL,
         dot = ns.Window.StatusColor(f.status), picked = f.id == Friends.picked,
+        -- A quick Invite at the row's right end, when that friend can be invited now
+        -- (the footer's Invite does the same for the picked row).
+        action = Data().CanInviteFriend(f) and { tip = INVITE or L["Invite"], onClick = function() Data().InviteFriend(f) end } or nil,
         onClick = function() pick(Friends.picked ~= f.id and f.id or nil) end,
         onMenu = function(row) Friends.Menu(row, f) end,
         onEnter = function(row) Friends.Tip(row, f) end })

@@ -18,7 +18,7 @@ ns.Allies = Allies
 Allies.EDGE = 16
 Allies.CHIPS_Y = 44
 Allies.TOP = 76
-Allies.ROW = 38
+Allies.ROW = 42
 Allies.FILTERS = { "all", "party", "trade", "whisper" }
 Allies.FILTER_WORD = { all = ALL or L["All"], party = L["Grouped"], trade = L["Traded"], whisper = L["Whispered"] }
 Allies.filter = "all"

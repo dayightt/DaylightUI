@@ -192,6 +192,73 @@ T.test("social: a friend picked: Invite (their game account) and Whisper (Battle
     clean()
 end)
 
+-- A quick Invite at the row's right end, as the game's own friends list has: only
+-- on a friend you can play with now, without picking the row, and the row's light
+-- stays on while the mouse is on the button.
+T.test("social: a friend you can invite has a quick Invite button at the end of the row", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local list = rows(page.stack, "friend")
+    local Rows = DaylightUI.Lfg.Rows
+    local kit, ambrose, sol = list[4], list[3], list[6]
+    T.truthy(kit.action:IsShown(), "Kit is on your ruleset: a button")
+    T.falsy(ambrose.action:IsShown(), "Ambrose is offline: none")
+    T.falsy(sol.action:IsShown(), "Sol plays another game: none")
+    -- The name stops short of it.
+    T.eq(select(4, kit.name:GetPoint(2)), -(10 + Rows.ACTION_W + Rows.ACTION_INSET - 4), "the text leaves room for the button")
+    T.eq(select(4, sol.name:GetPoint(2)), -10, "and not where there is none")
+    -- It sits at the right end, level with the row's middle.
+    local p, rel, rp, x, y = kit.action:GetPoint(1)
+    T.eq(p, "RIGHT"); T.eq(rel, kit); T.eq(rp, "RIGHT"); T.eq(y, 0, "in the middle")
+    T.truthy(x < 0 and x > -12, "against the right edge")
+    T.eq(kit.action:GetWidth(), Rows.ACTION_W); T.eq(kit.action:GetHeight(), Rows.ACTION_H, "a button, not a bare icon")
+    -- Clicking invites that friend and doesn't pick the row.
+    stub.Key(function() kit.action:Click() end)
+    T.eq(SW.Calls("InviteFriend")[1][1], 100 + #"Thessaly Moor", "their game account")
+    T.isnil(ns.Friends.picked, "the row isn't picked by it")
+    T.eq(footer(page), "Invite (off), Whisper (off), Add friend")
+    -- The mouse on the button keeps the row lit; leaving it with the mouse off the row lets it go.
+    kit.action:GetScript("OnEnter")(kit.action)
+    frame(3)
+    T.truthy(kit.hi:IsShown(), "the row stays lit under its button")
+    kit.action:GetScript("OnLeave")(kit.action)
+    frame(10)
+    T.falsy(kit.hi:IsShown(), "and goes dark once the mouse is gone")
+    -- Every row: a button exactly when that friend can be invited.
+    local can = 0
+    for _, b in ipairs(rows(page.stack, "friend")) do
+        local ok = ns.Data.CanInviteFriend(b.spec.friend)
+        T.eq(b.action:IsShown(), ok, b.name:GetText() .. ": a button only if they can be invited")
+        if ok then can = can + 1 end
+    end
+    T.truthy(can >= 2, "more than the one row")
+    clean()
+end)
+
+-- The name and the sub line are one block centered on the row, so the selection
+-- wash has the same room above and below (the sub used to sit on its bottom edge).
+T.test("social: a friend's two lines are centered in the row's wash", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local Rows = DaylightUI.Lfg.Rows
+    for _, b in ipairs(rows(page.stack, "friend")) do
+        if b.sub:IsShown() then
+            local function line(fs, size)
+                local v = fs:GetStringHeight()
+                return (type(v) == "number" and v > 0) and v or size + 2   -- the fake game has no text metrics
+            end
+            local top = -select(5, b.name:GetPoint(1))
+            local block = line(b.name, DaylightUI.Style.SIZE.body) + Rows.LINE_GAP + line(b.sub, DaylightUI.Style.SIZE.small)
+            local below = ns.Friends.ROW - top - block
+            T.truthy(math.abs(top - below) <= 1, b.name:GetText() .. ": room above " .. top .. ", below " .. below)
+            T.truthy(top >= 4, "room round the text, not on the edge")
+        end
+    end
+    clean()
+end)
+
 T.test("social: the search box filters friends", function()
     local ns = load()
     open(ns)
@@ -236,6 +303,101 @@ T.test("social: invite only friends on your ruleset; a realm with no ruleset wor
     f.realm = "CAMWOW US1 Realm 2 PvE"
     T.falsy(D.CanInviteFriend(f))
     _G.GetRealmName = was
+end)
+
+-- The game's party button is off for a friend of the other faction (a Horde friend
+-- can't join an Alliance group). A faction that isn't known is left to the game, and
+-- a client that hands over the localized name is read by the game's own words.
+T.test("social: a friend of the other faction can't be invited; a localized faction name is read", function()
+    local function friend(id, name, extra)
+        local g = { gameAccountID = 100 + id, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
+            characterName = name, classFilename = "MAGE", characterLevel = 10, areaName = "Durotar",
+            realmDisplayName = "CAMWOW US1 Realm 8 PvP" }
+        for k, v in pairs(extra) do g[k] = v end
+        return { bnetAccountID = id, accountName = name, gameAccountInfo = g }
+    end
+    local was = { realm = _G.GetRealmName, horde = _G.FACTION_HORDE, alliance = _G.FACTION_ALLIANCE }
+    _G.GetRealmName = function() return "CAMWOW US1 Realm 8 PvP" end
+    _G.FACTION_HORDE, _G.FACTION_ALLIANCE = "Horda", "Alianza"
+    local ns = load({ friends = {
+        friend(1, "Ally", { factionName = "Alliance" }),
+        friend(2, "Hordie", { factionName = "Horde" }),
+        friend(3, "Localized", { factionName = "Horda" }),
+        friend(4, "Unknown", {}),
+    } })
+    stub.SetUnits({ player = { name = "Me", class = "MAGE", faction = "Alliance" } })
+    local D = ns.Data
+    T.eq(D.FactionOf("Horde"), "Horde"); T.eq(D.FactionOf("Alianza"), "Alliance"); T.eq(D.FactionOf("Horda"), "Horde")
+    T.isnil(D.FactionOf("Gnome")); T.isnil(D.FactionOf(nil))
+    open(ns)
+    local page = ns.Friends.page
+    local byName = {}
+    for _, b in ipairs(rows(page.stack, "friend")) do byName[b.spec.friend.char] = b end
+    T.truthy(byName.Ally.action:IsShown(), "same faction: a button")
+    T.falsy(byName.Hordie.action:IsShown(), "the other faction: none")
+    T.falsy(byName.Localized.action:IsShown(), "the other faction by its localized name: none")
+    T.truthy(byName.Unknown.action:IsShown(), "no faction known: left to the game")
+    -- The footer's Invite agrees.
+    stub.Key(function() byName.Hordie:Click() end)
+    T.eq(footer(page), "Invite (off), Whisper, Add friend")
+    -- A Horde player: it turns round.
+    stub.SetUnits({ player = { name = "Me", class = "MAGE", faction = "Horde" } })
+    T.truthy(D.CanInviteFriend(byName.Hordie.spec.friend))
+    T.falsy(D.CanInviteFriend(byName.Ally.spec.friend))
+    _G.GetRealmName, _G.FACTION_HORDE, _G.FACTION_ALLIANCE = was.realm, was.horde, was.alliance
+    clean()
+end)
+
+-- The rest of what the game's party button reads (FriendsFrame_GetInviteRestriction):
+-- a server that lets the factions group, a realm with no info yet, another region, and
+-- a friend already in a group, who is asked to invite instead of being invited.
+T.test("social: the invite follows the game's rules: cross-faction servers, realm info, region, request to join", function()
+    local function friend(id, name, extra)
+        local g = { gameAccountID = 100 + id, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
+            characterName = name, classFilename = "MAGE", characterLevel = 10, areaName = "Durotar",
+            realmDisplayName = "CAMWOW US1 Realm 8 PvP", factionName = "Alliance", playerGuid = "Player-" .. id }
+        for k, v in pairs(extra) do g[k] = v end
+        return { bnetAccountID = id, accountName = name, gameAccountInfo = g }
+    end
+    local was = { realm = _G.GetRealmName, party = _G.C_PartyInfo, kind = _G.GetDisplayedInviteType, ask = _G.BNRequestInviteFriend }
+    _G.GetRealmName = function() return "CAMWOW US1 Realm 8 PvP" end
+    local ns = load({ friends = {
+        friend(1, "Home", {}),
+        friend(2, "Hordie", { factionName = "Horde" }),
+        friend(3, "NoRealm", { realmID = 0 }),
+        friend(4, "Abroad", { isInCurrentRegion = false }),
+        friend(5, "Grouped", {}),
+    } })
+    stub.SetUnits({ player = { name = "Me", class = "MAGE", faction = "Alliance" } })
+    local D = ns.Data
+    local byName = {}
+    for _, f in ipairs(D.Friends()) do byName[f.char] = f end
+    T.truthy(D.CanInviteFriend(byName.Home), "the plain case")
+    T.falsy(D.CanInviteFriend(byName.Hordie), "another faction")
+    T.falsy(D.CanInviteFriend(byName.NoRealm), "a realm with no info yet (realmID 0): the game's restriction INFO")
+    T.falsy(D.CanInviteFriend(byName.Abroad), "another region")
+    -- A server that lets the factions group: the faction no longer stops it.
+    _G.C_PartyInfo = { CanFormCrossFactionParties = function() return true end }
+    T.truthy(D.CanInviteFriend(byName.Hordie), "cross-faction parties allowed")
+    T.falsy(D.CanInviteFriend(byName.NoRealm), "but the other rules still hold")
+    _G.C_PartyInfo = { CanFormCrossFactionParties = function() return false end }
+    T.falsy(D.CanInviteFriend(byName.Hordie), "not allowed here")
+    _G.C_PartyInfo = was.party
+    -- The game's own call: invite, or ask to be invited when they are in a group.
+    local asked
+    _G.BNRequestInviteFriend = function(id) asked = id end
+    _G.GetDisplayedInviteType = function(guid) return guid == "Player-5" and "REQUEST_INVITE" or "INVITE" end
+    D.InviteFriend(byName.Home)
+    T.eq(SW.Calls("InviteFriend")[1][1], 101, "an invite for a friend not in a group")
+    T.isnil(asked)
+    D.InviteFriend(byName.Grouped)
+    T.eq(asked, 105, "a friend already in a group: asked to invite, as the game does")
+    T.eq(#SW.Calls("InviteFriend"), 1, "no plain invite on top of it")
+    _G.GetDisplayedInviteType = nil
+    D.InviteFriend(byName.Grouped)
+    T.eq(#SW.Calls("InviteFriend"), 2, "a client without that call: a plain invite")
+    _G.GetRealmName, _G.GetDisplayedInviteType, _G.BNRequestInviteFriend = was.realm, was.kind, was.ask
+    clean()
 end)
 
 T.test("social: a friend's ruleset is on the row and the card, and searchable; the game's card hides it abroad", function()
