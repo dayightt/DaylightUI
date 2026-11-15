@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "Quests", "With GatherMate2, the quest arrow can point you to a herb or ore node close by, then back to your quest (Quest Tracker > Navigation)" },
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
             { "Buffs", "The buff and debuff bars can use your aura lists to hide spells or show only some, and the debuff bar can show only what you can dispel, only boss debuffs, or leave out long ones (Buffs > Filter)" },
+            { "Windows", "The main button in Daylight UI windows (Accept, Complete, Send, Invite, Next...) has a soft light circling its edge in your accent color" },
             { "Windows", "The glow round a window's icon as it opens is now a soft round halo with embers, shows on the guild window too, and can be turned off (General > Appearance)" },
             { "Cooldown Manager", "Hunters see how long their traps keep your target frozen or burning, how long Bestial Wrath and Mend Pet last on the pet, and how long their hawks stay" },
         },

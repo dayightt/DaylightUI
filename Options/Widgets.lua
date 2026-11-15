@@ -268,6 +268,7 @@ local buttons = setmetatable({}, { __mode = "k" })
 DUI.On("StyleChanged", function()
     for b in pairs(buttons) do
         if b.trace.p > 0 and b:IsVisible() then b.trace.Draw(b.trace.p) end
+        if b.glowWant then b.RefreshGlow() end
     end
 end)
 
@@ -437,7 +438,10 @@ function W.ButtonLook(b, s, text, quiet)
     s.trace = tr
     function s.Draw(p) tr.Draw(p) end
     -- Trace on (hovered or active) or back off.
-    function s.Light(on) tr.To((on or s.active) and not s.off) end
+    function s.Light(on)
+        tr.To((on or s.active) and not s.off)
+        if s.GlowHover then s.GlowHover(on) end
+    end
     if text then
         s.text = text
     else
@@ -495,13 +499,185 @@ function W.DressButton(b, text)
         b:SetEnabled(not on)
         b.Paint()
         b.Light(not on and b:IsMouseOver() == true)
+        if b.glowWant or b.glowDriver then b.RefreshGlow() end
     end
+    -- Hidden mid-hover gets no OnLeave: light the glow again when it comes back.
+    b:HookScript("OnShow", function() if b.glowWant then b.RefreshGlow() end end)
     function b.FitWidth(min)
         local w = b.text:GetStringWidth()
         if type(w) ~= "number" then w = 60 end
         b:SetWidth(math.max(min or 90, w + 32))
     end
+    -- The main action's glow (W.Glow).
+    function b.SetGlow(on)
+        b.glowWant = on and true or nil
+        b.RefreshGlow()
+    end
+    function b.RefreshGlow() W.Glow(b) end
     return b
+end
+
+-- The glow on a window's main action: two lights circle the button's band,
+-- one in each end of the accent, each trailing a tail that fades out along
+-- the band, a lap every lap seconds. They're stepped by hand while the button
+-- is shown (a Translation animation moves in whole pixels and stutters this
+-- slowly), so a hidden button costs nothing. The glow fades out on hover,
+-- where the trace takes over, and rests while the button is off or motion is
+-- switched off.
+W.GLOW = { lap = 3.6, size = 14, light = 0.6, tail = 0.22, tailAlpha = 0.85 }
+
+-- Split a distance round the band (clockwise from the top-left) into a side
+-- (1 top, 2 right, 3 bottom, 4 left) and how far along that side.
+local function glowSide(d, w, h)
+    if d < w then return 1, d end
+    d = d - w
+    if d < h then return 2, d end
+    d = d - h
+    if d < w then return 3, d end
+    return 4, d - w
+end
+
+-- One piece of tail on a side, from p0 to p1 along it (p1 nearer the light),
+-- fading from alpha a0 to a1. Its two colors are kept on the texture and
+-- refilled, so a frame makes no new tables.
+local function glowPiece(b, tex, side, p0, p1, a0, a1, c)
+    local i, T, w, h = b.glowInset, b.glowThick, b.glowW, b.glowH
+    local len = p1 - p0
+    if len < 0.5 or a1 <= 0.01 then tex:Hide(); return end
+    local x, y
+    if side == 1 then x, y = i + p0, -i
+    elseif side == 2 then x, y = i + w - T, -(i + p0)
+    elseif side == 3 then x, y = i + w - p1, -(i + h - T)
+    else x, y = i, -(i + h - p1) end
+    tex:ClearAllPoints()
+    tex:SetPoint("TOPLEFT", b, "TOPLEFT", x, y)
+    local horiz = side == 1 or side == 3
+    if horiz then tex:SetSize(len, T) else tex:SetSize(T, len) end
+    tex:Show()
+    -- Gradients run left to right and bottom to top.
+    local lo, hi = a0, a1
+    if side == 2 or side == 3 then lo, hi = a1, a0 end
+    if tex.SetGradient and CreateColor then
+        local from, to = tex.glowFrom, tex.glowTo
+        from.r, from.g, from.b, from.a = c[1], c[2], c[3], lo
+        to.r, to.g, to.b, to.a = c[1], c[2], c[3], hi
+        tex:SetVertexColor(1, 1, 1, 1)
+        tex:SetGradient(horiz and "HORIZONTAL" or "VERTICAL", from, to)
+    else
+        tex:SetVertexColor(c[1], c[2], c[3], math.max(lo, hi))
+    end
+end
+
+-- Draw both lights and their tails where the clock says.
+local function glowPlace(b)
+    local w, h = b:GetWidth(), b:GetHeight()
+    if type(w) ~= "number" or type(h) ~= "number" then return end
+    local i, T = b.glowInset, b.glowThick
+    w, h = w - 2 * i, h - 2 * i
+    if w <= T or h <= T then return end
+    b.glowW, b.glowH = w, h
+    local G, fade = W.GLOW, b.glowFade
+    local around = 2 * (w + h)
+    local long = G.tail * around
+    for n, light in ipairs(b.glowLights) do
+        local c = b.glowColors[n]
+        local head = ((b.glowAt + (n - 1) / 2) % 1) * around
+        local side, along = glowSide(head, w, h)
+        local x, y
+        if side == 1 then x, y = i + along, -(i + T / 2)
+        elseif side == 2 then x, y = i + w - T / 2, -(i + along)
+        elseif side == 3 then x, y = i + w - along, -(i + h - T / 2)
+        else x, y = i + T / 2, -(i + h - along) end
+        light.dot:ClearAllPoints()
+        light.dot:SetPoint("CENTER", b, "TOPLEFT", x, y)
+        light.dot:SetVertexColor(c[1], c[2], c[3], 1)
+        light.dot:SetAlpha(G.light * fade)
+        -- The tail walks back from the light, round corners if it has to.
+        local left, at = long, head
+        for k = 1, #light.tail do
+            local tex = light.tail[k]
+            if left <= 0 then tex:Hide()
+            else
+                local s, a = glowSide(at % around, w, h)
+                local piece = math.min(left, a)
+                local top = G.tailAlpha * fade
+                glowPiece(b, tex, s, a - piece, a, top * (left - piece) / long, top * left / long, c)
+                left = left - piece
+                at = (at % around) - piece - 0.001
+                if at < 0 then at = at + around end
+            end
+        end
+    end
+end
+
+local function glowPaint(b)
+    local lo, hi
+    if CreateColor then lo, hi = Style.AccentPair() end
+    if not lo then
+        local r, g, bl = Style.Accent()
+        lo, hi = { r, g, bl }, { r, g, bl }
+    end
+    b.glowColors = { lo, hi }
+end
+
+local function glowFadeTo(b, to, dur)
+    local M = DUI.Motion
+    local function step(v) b.glowFade = v; glowPlace(b) end
+    if M then M.Tween(b.glowLights, b.glowFade, to, dur, step) else step(to) end
+end
+
+local function glowMake(b)
+    local G = W.GLOW
+    local px = DUI.Pixel.Px
+    b.glowInset, b.glowThick = px(b, 1), px(b, 3) - px(b, 1)
+    b.glowAt, b.glowFade = 0, 1
+    b.glowLights = {}
+    for n = 1, 2 do
+        local light = { tail = {} }
+        light.dot = b:CreateTexture(nil, "BORDER", nil, 7)
+        light.dot:SetTexture(MEDIA .. "glow.png")
+        light.dot:SetBlendMode("ADD")
+        light.dot:SetSize(G.size, G.size)
+        -- A tail can reach round two corners on a short button.
+        for k = 1, 3 do
+            local t = b:CreateTexture(nil, "BORDER", nil, 7)
+            t:SetTexture(WHITE)
+            t:SetBlendMode("ADD")
+            if CreateColor then t.glowFrom, t.glowTo = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1) end
+            t:Hide()
+            light.tail[k] = t
+        end
+        b.glowLights[n] = light
+    end
+    -- The clock, a frame of its own so it stops with the button.
+    local d = CreateFrame("Frame", nil, b)
+    d:SetScript("OnUpdate", function(_, dt)
+        b.glowAt = (b.glowAt + dt / W.GLOW.lap) % 1
+        glowPlace(b)
+    end)
+    b.glowDriver = d
+    function b.GlowHover(on)
+        if b.glowDriver:IsShown() then glowFadeTo(b, on and 0 or 1, on and DUI.Motion.FAST or DUI.Motion.NORMAL) end
+    end
+end
+
+function W.Glow(b)
+    local M = DUI.Motion
+    local live = b.glowWant and not b.off and (not M or M.On())
+    if not live and not b.glowDriver then return end
+    if not b.glowDriver then glowMake(b) end
+    b.glowDriver:SetShown(live == true)
+    for _, light in ipairs(b.glowLights) do
+        light.dot:SetShown(live == true)
+        if not live then for _, t in ipairs(light.tail) do t:Hide() end end
+    end
+    if live then
+        glowPaint(b)
+        -- Stop a hover fade left running, then start from the mouse as it is.
+        if M then M.Tween(b.glowLights, b.glowFade, b.glowFade, 0) end
+        b.glowFade = b:IsMouseOver() == true and 0 or 1
+        glowPlace(b)
+    end
 end
 
 -- The standard text link: quiet text that turns the accent on hover while a

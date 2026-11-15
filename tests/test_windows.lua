@@ -287,6 +287,51 @@ T.test("windows: Parts.Tone gives any button the footer's main and refusal look"
     T.rgb({ foot.buttons[2].text:GetTextColor() }, Parts.NO)
 end)
 
+T.test("windows: the main action's glow circles while shown and rests when off", function()
+    local DUI = stub.Load()
+    local Parts, W = DUI.Win.Parts, DUI.Widgets
+    local page = CreateFrame("Frame", nil, UIParent)
+    page:SetSize(400, 300)
+    local foot = Parts.Footer(page)
+    foot.frame:SetWidth(360)
+    foot:Set({ { text = "Accept", primary = true }, { text = "Decline", tone = "no" } })
+    local main, other = foot.buttons[1], foot.buttons[2]
+    T.truthy(main.glowDriver and main.glowDriver:IsVisible(), "the main button glows")
+    T.eq(other.glowDriver, nil, "a plain button makes no glow")
+    -- The lights move round the band and stay on it.
+    local light = main.glowLights[1].dot
+    local _, _, _, x0, y0 = light:GetPoint(1)
+    main.glowDriver.__scripts.OnUpdate(main.glowDriver, W.GLOW.lap / 3)
+    local _, _, _, x1, y1 = light:GetPoint(1)
+    T.truthy(x0 ~= x1 or y0 ~= y1, "the light moved")
+    T.truthy(x1 >= 0 and x1 <= main:GetWidth() and y1 <= 0 and y1 >= -main:GetHeight(), "the light is on the button")
+    T.truthy(main.glowLights[1].tail[1]:IsShown(), "a tail follows the light")
+    -- Hover hands over to the trace: the glow fades out.
+    main.GlowHover(true)
+    for _ = 1, 5 do
+        local f = EnumerateFrames()
+        while f do
+            if f:IsVisible() then stub.RunOnUpdate(f, 0.1) end
+            f = EnumerateFrames(f)
+        end
+    end
+    T.eq(main.glowFade, 0)
+    main.GlowHover(false)
+    -- Off (nothing to accept yet): it rests, and comes back with the button.
+    foot:Set({ { text = "Accept", primary = true, off = true }, { text = "Decline", tone = "no" } })
+    T.eq(main.glowDriver:IsShown(), false, "an off button doesn't glow")
+    foot:Set({ { text = "Accept", primary = true }, { text = "Decline", tone = "no" } })
+    T.eq(main.glowDriver:IsShown(), true)
+    -- A button that stops being the main one stops glowing.
+    foot:Set({ { text = "Goodbye" } })
+    T.eq(main.glowDriver:IsShown(), false)
+    -- Motion switched off: no glow.
+    foot:Set({ { text = "Accept", primary = true } })
+    DUI:Set("general", "motion", false)
+    main.RefreshGlow()
+    T.eq(main.glowDriver:IsShown(), false, "motion off snaps everything still")
+end)
+
 T.test("windows: keys are ours only out of combat, and every other key goes on", function()
     local DUI = stub.Load()
     local Win = DUI.Win

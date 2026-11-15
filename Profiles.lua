@@ -992,6 +992,7 @@ local function buildBox()
     box.go = W.Button(box, L["Import"], 26)
     box.go:SetWidth(120)
     box.go.SetActive(true)
+    box.go.SetGlow(true)
     box.go:SetPoint("RIGHT", box.close, "LEFT", -8, 0)
     -- The name an imported profile is saved under.
     local name = W.Input(box, { hint = L["Name this profile"] })

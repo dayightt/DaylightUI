@@ -332,8 +332,7 @@ local function setButton(b, text, act, off, main)
     b.text:SetText(text)
     b.act = act
     b.FitWidth(90)
-    local c = main and Win.Parts.YES or W().BUTTON.text
-    b.text:SetTextColor(c[1], c[2], c[3], 1)
+    Win.Parts.Tone(b, main and "main" or nil)
     b.SetOff(off == true)
 end
 

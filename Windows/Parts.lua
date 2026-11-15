@@ -1234,8 +1234,8 @@ function Parts.Footer(page, opts)
 end
 
 -- Footer buttons are plain W.Buttons, not accent colored (class colors would
--- look gaudy). The main action gets a lifted band and green text, a refusal
--- (tone = "no") red text.
+-- look gaudy). The main action gets a lifted band, green text and the
+-- circling glow (W.Glow), a refusal (tone = "no") red text.
 Parts.YES = Style.INK.GOOD
 Parts.NO = Style.INK.BAD
 
@@ -1243,6 +1243,7 @@ Parts.NO = Style.INK.BAD
 -- band picks up the change on the button's next repaint (SetOff, hover).
 function Parts.Tone(b, tone)
     b.main = tone == "main"
+    if b.SetGlow then b.SetGlow(b.main) end
     local c = (tone == "main" and Parts.YES) or (tone == "no" and Parts.NO) or DUI.Widgets.BUTTON.text
     b.text:SetTextColor(c[1], c[2], c[3], 1)
 end
