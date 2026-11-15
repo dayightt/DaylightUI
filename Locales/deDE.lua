@@ -4754,3 +4754,4 @@ L["items moved to %s, a group you deleted"] = "Gegenstände in %s, einer Gruppe,
 L["%d items marked as junk. They'll be sold at the next vendor."] = "%d Gegenstände als Schrott markiert. Sie werden beim nächsten Händler verkauft."
 L["%d items moved to %s."] = "%d Gegenstände nach %s verschoben."
 L["Editing the text here took out its spaces, so paste it again to keep them."] = "Das Bearbeiten des Texts hier hat seine Leerzeichen entfernt. Füge ihn erneut ein, um sie zu behalten."
+L["Light (Blessing of Light)"] = "Licht"

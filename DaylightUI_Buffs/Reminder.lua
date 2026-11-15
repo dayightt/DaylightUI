@@ -33,6 +33,10 @@ Reminder.NAME_COLOR = Style.INK.TEXT
 -- talent, Shadow Protection is for some fights). blessing: one per paladin in
 -- the group (Reminder.BLESSING_ORDER).
 local I = "Interface\\Icons\\"
+-- "Light" alone is also a color elsewhere, so the blessing has a key of its
+-- own: a language can name the blessing without changing the color too.
+local lightWord = L["Light (Blessing of Light)"]
+if lightWord == "Light (Blessing of Light)" then lightWord = "Light" end
 Reminder.BUFFS = {
     { key = "fortitude", class = "PRIEST", short = L["Fortitude"], icon = I .. "Spell_Holy_WordFortitude",
       ids = { 1243, 1244, 1245, 2791, 10937, 10938, 25389, 21562, 21564, 25392 } },
@@ -52,7 +56,7 @@ Reminder.BUFFS = {
       ids = { 20217, 25898 } },
     { key = "salvation", class = "PALADIN", short = L["Salvation"], icon = I .. "Spell_Holy_SealOfSalvation", blessing = true,
       ids = { 1038, 25895 } },
-    { key = "light", class = "PALADIN", short = L["Light"], icon = I .. "Spell_Holy_PrayerOfHealing02", blessing = true,
+    { key = "light", class = "PALADIN", short = lightWord, icon = I .. "Spell_Holy_PrayerOfHealing02", blessing = true,
       ids = { 19977, 19978, 19979, 27144, 25890, 27145 } },
     { key = "sanctuary", class = "PALADIN", short = L["Sanctuary"], icon = I .. "Spell_Nature_LightningShield", blessing = true,
       ids = { 20911, 20912, 20913, 20914, 27168, 25899, 27169 } },

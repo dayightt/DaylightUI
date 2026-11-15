@@ -40,6 +40,7 @@ DUI.PatchNotes = {
             { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat during a fight, on any bar" },
             { "Chat", "Copy Character Name on a name in chat works again instead of being blocked by the game" },
             { "Leader tools", "Ready check and Role check no longer get cut off in other languages: they're icons now, with their names when you point at them" },
+            { "Buffs", "In other languages, the missing buffs banner names Blessing of Light properly instead of calling it a light color" },
             { "Windows", "Item icons in the NPC window's rewards and other lists no longer lose the bottom of their colored outline at smaller interface scales" },
             { "Windows", "At a profession trainer, each recipe shows the level its item is for and the skill it needs again" },
             { "Setup", "Moved frames and changed settings no longer go back to the default every time you log out when you skipped the setup guide, and the guide stops popping up once you have" },
