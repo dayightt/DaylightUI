@@ -361,6 +361,61 @@ T.test("a new style made of a name row and no line: the power stays inside, the 
     T.eq(f.style, "daylight")
 end)
 
+T.test("a plugin's frame style joins every Frame style menu, keeps its heights, and its frames say they wear it", function()
+    local DUI, ns = login()
+    local me = DaylightUI.API.For("Slimmy")
+    T.eq(me.AddFrameStyle("bad", { row = true }), false, "no label")
+    T.eq(me.AddFrameStyle("slim", { label = "Slim", desc = "Slim: thin.", row = true, line = true, ring = 5,
+        sizes = { player = { height = 18, powerHeight = 3 }, party = { spacing = 40 }, raid = { height = 9 } } }), true)
+    local style = ns.STYLES["Slimmy:slim"]
+    T.truthy(style, "taken into the unit frames")
+    T.eq(style.ring, 1, "the ring share kept in range")
+    T.isnil(ns.DEFAULTS.raid.sizes, "raid tiles take no style")
+    local O = DUI.Options
+    local extras = O.GetPage("UnitFrames.extras")
+    local row
+    for _, page in ipairs({ extras, O.GetPage("UnitFrames.player") }) do
+        for _, g in ipairs(page and page.groups or {}) do
+            for _, it in ipairs(g.items) do if it.label == "Frame style" then row = it end end
+        end
+        T.truthy(row, "a Frame style row")
+        local values, order = row.choices()
+        T.eq(values["Slimmy:slim"], "Slim"); T.eq(order[#order], "Slimmy:slim")
+        T.truthy(string.find(row.desc, "Slim: thin.", 1, true), "its words in the row's description")
+        T.eq(#O.ValidatePage(page), 0)
+        row = nil
+    end
+    -- Wearing it: its own heights, Daylight's where it gave none.
+    ns.SetStyle("look.style", "Slimmy:slim")
+    stub.RunTimers()
+    T.eq(DUI:Get("UnitFrames", "player.height"), 18)
+    T.eq(DUI:Get("UnitFrames", "player.tabHeight"), ns.DEFAULTS.player.sizes.daylight.tabHeight)
+    T.eq(DUI:Get("UnitFrames", "party.spacing"), 40)
+    local f = ns.frames.player
+    T.eq(f.style, "Slimmy:slim")
+    local parts = DaylightUI.API.Parts(f)
+    T.eq(parts.style, "Slimmy:slim")
+    T.eq(parts.row, f.tab); T.eq(parts.line, f.line)
+    DUI:Set("UnitFrames", "player.height", 22)
+    -- The plugin gone (its style no longer known): Daylight, its heights kept for later.
+    ns.STYLES["Slimmy:slim"] = nil
+    ns.Refresh(ns.module)
+    stub.RunTimers()
+    T.eq(f.style, "daylight")
+    T.eq(DUI:Get("UnitFrames", "player.height"), 43, "Daylight's heights back")
+    T.eq(ns.module.db.player.sizes["Slimmy:slim"].height, 22, "the player's change to the style kept")
+    T.eq(DaylightUI.API.Parts(f).style, "daylight")
+    T.isnil(DaylightUI.API.Parts(f).line)
+end)
+
+T.test("a plugin's frame style draws as a setup guide card from its pieces", function()
+    local DUI, ns = login()
+    DaylightUI.API.For("Slimmy").AddFrameStyle("slim", { label = "Slim", line = true })
+    local card = { inner = CreateFrame("Frame") }
+    T.noerror(function() DUI.InstallerCards.Draw.frameStyle(card, "Slimmy:slim", 140, 50) end)
+    T.noerror(card.redraw)
+end)
+
 -- A party button in Ribbon, made as the header would.
 local function partyButton(ns, i)
     local h = ns.Party.header

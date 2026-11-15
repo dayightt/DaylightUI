@@ -1326,9 +1326,15 @@ end
 -- The current settings, for a row that asks outside its page's get.
 local function liveGet(key) return DaylightUI:Get("UnitFrames", key) end
 
-local function styleRow(key, own, dis)
-    local values, order = {}, {}
-    if own then
+-- Every Frame style row, so a plugin's style (ns.TakePluginStyles) joins
+-- their menus, the setup guide's cards and their descriptions. The tables are
+-- filled in place: the guide and the options panel keep the row's own.
+local styleRows = {}
+local function fillStyleRow(row)
+    local values, order = row.values, row.order
+    for k in pairs(values) do values[k] = nil end
+    for i = #order, 1, -1 do order[i] = nil end
+    if row.ownPick then
         values.global = "Default"
         order[1] = "global"
     end
@@ -1336,6 +1342,16 @@ local function styleRow(key, own, dis)
         values[s] = ns.STYLES[s].label
         order[#order + 1] = s
     end
+    row.desc = styleDesc() .. (row.ownPick
+        and " Default uses the style set for every frame (Extras > Frame style). Each style keeps its own heights."
+        or " Each frame can pick its own on its page.")
+end
+function ns.StyleRowsChanged()
+    for _, row in ipairs(styleRows) do fillStyleRow(row) end
+end
+
+local function styleRow(key, own, dis)
+    local values, order = {}, {}
     -- A frame's "Default" names the style it gives: "Default (Daylight)".
     local function choices()
         if not own then return values, order end
@@ -1344,14 +1360,15 @@ local function styleRow(key, own, dis)
         named.global = "Default (" .. UF.StyleDef({ style = "global" }).label .. ")"
         return named, order
     end
-    return { type = "dropdown", key = key, label = "Frame style", values = values, order = order, choices = choices,
-             desc = styleDesc() .. (own
-                 and " Default uses the style set for every frame (Extras > Frame style). Each style keeps its own heights."
-                 or " Each frame can pick its own on its page."),
+    local row = { type = "dropdown", key = key, label = "Frame style", values = values, order = order, choices = choices,
+             ownPick = own,
              get = function() return DaylightUI:Get("UnitFrames", key) end,
              set = function(v) ns.SetStyle(key, v) end,
              default = function() return own and "global" or "daylight" end,
              disabled = dis }
+    fillStyleRow(row)
+    styleRows[#styleRows + 1] = row
+    return row
 end
 
 -- Tabs on a frame page: Basics first (position, size and shape, when it

@@ -88,7 +88,9 @@ function ns.SwapSizes(db)
     for _, key in ipairs(ns.STYLE_FRAMES) do
         local cfg = db[key]
         local want = type(cfg) == "table" and ns.UF.StyleOf(cfg)
-        local was = want and (ns.STYLES[cfg.sizesFor] and cfg.sizesFor or "daylight")
+        -- A style that's gone (its plugin off) still names the heights the
+        -- live keys hold, so they're stored under it and Daylight's come back.
+        local was = want and (type(cfg.sizesFor) == "string" and cfg.sizesFor or "daylight")
         if want and want ~= was and type(cfg.sizes) == "table" then
             local away, take = cfg.sizes[was] or {}, cfg.sizes[want] or {}
             cfg.sizes[was] = away
@@ -102,6 +104,45 @@ function ns.SwapSizes(db)
     end
     return moved
 end
+
+-- Plugins' frame styles (DaylightUI.API's AddFrameStyle), taken into
+-- ns.STYLES after the shipped ones. Each frame's heights in that style become
+-- defaults (Daylight's where the plugin gave none) and are filled into the
+-- saved settings, as any default is at login.
+function ns.TakePluginStyles()
+    local R = DUI.APIReport
+    local list = type(R) == "table" and R.FrameStyles and R.FrameStyles() or {}
+    for _, s in ipairs(list) do
+        local style = ns.STYLES[s.key]
+        if not style then
+            style = { plugin = s.owner }
+            ns.STYLES[s.key] = style
+            ns.STYLE_ORDER[#ns.STYLE_ORDER + 1] = s.key
+        end
+        style.label, style.desc = s.label, s.desc or s.label
+        style.row, style.line, style.ring = s.row, s.line, s.ring
+        local db = ns.module and ns.module.db
+        for _, k in ipairs(ns.STYLE_FRAMES) do
+            local d = ns.DEFAULTS[k]
+            local own = s.sizes[k] or {}
+            local t = {}
+            for _, key in ipairs(ns.SIZE_KEYS) do
+                if own[key] ~= nil then t[key] = own[key] else t[key] = d.sizes.daylight[key] end
+            end
+            d.sizes[s.key] = t
+            local cfg = type(db) == "table" and db[k]
+            if type(cfg) == "table" and type(cfg.sizes) == "table" then
+                local saved = type(cfg.sizes[s.key]) == "table" and cfg.sizes[s.key] or {}
+                cfg.sizes[s.key] = DUI.DB.MergeDefaults(saved, t)
+            end
+        end
+    end
+    if ns.StyleRowsChanged then ns.StyleRowsChanged() end
+end
+DUI.On("FrameStylesChanged", function()
+    DUI.SafeCall(ns.TakePluginStyles)
+    if ns.module then DUI.AfterCombat(function() ns.Refresh(ns.module) end, "UnitFrames.frameStyles") end
+end)
 
 -- A style pick from the options (look.style, <frame>.style): written, heights
 -- swapped, then set once more through DUI:Set so the frames and the open page
@@ -822,6 +863,7 @@ local PORTRAIT_MOVERS = {
 function ns.Build(mod)
     ns.module = mod
     DUI.SafeCall(ns.AuraGroups.TakePlugins)
+    DUI.SafeCall(ns.TakePluginStyles)
     ns.MigrateText(mod.db)
     ns.MigrateRaidText(mod.db)
     -- A failed upgrade is reported, but the frames still get built.

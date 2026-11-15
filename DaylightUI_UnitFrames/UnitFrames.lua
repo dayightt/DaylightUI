@@ -4184,6 +4184,11 @@ if DUI.APIReport then
             ring = p and p.ring, dragon = p and p.elite, model = p and p.model,
             crest = f.crest, badges = f.status and f.status.icons,
             border = shell and shell.border, band = shell and shell.band,
+            -- Its frame style's key and pieces, so a plugin's style paints only
+            -- the frames wearing it.
+            style = f.style or "daylight",
+            row = f.nameRow and f.hitTop and f.hitTop > 0 and f.tab or nil,
+            line = f.powerLine and f.line and f.line:IsShown() and f.line or nil,
         }
     end
     local function repaintFrame(f)

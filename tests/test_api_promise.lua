@@ -22,13 +22,15 @@ local PROMISED = {
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
     "IsPreviewing", "SuspendMover", "Override", "FilterShop", "AddTooltipLines", "AddSetupStep", "AddBagGroup",
-    "RemoveBagGroup", "AddBuffCategory", "FormatChat", "ChatLink", "OnChatLink" }
+    "RemoveBagGroup", "AddBuffCategory", "FormatChat", "ChatLink", "OnChatLink",
+    -- 1.8
+    "AddFrameStyle" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",
     "FormatChat", "ChatFormatting", "ChatLinkClicked", "DropOverride", "DropShopFilter", "DropTooltipLines",
     "DropFormatter", "StartPainter", "Count",
-    "Changes", "Changers", "Texts", "ApplyDefaults" }
+    "Changes", "Changers", "Texts", "ApplyDefaults", "FrameStyles" }
 local EVENTS = { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled",
                  "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }
 

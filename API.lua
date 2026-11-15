@@ -1383,6 +1383,49 @@ function View.AddAuraFilter(v, key, spec)
     return true
 end
 
+-- Frame styles (1.8): me.AddFrameStyle(key, { label, desc, row, line, ring,
+-- sizes }) adds a style to every Frame style menu and the setup guide's
+-- cards, built from the unit frames' own pieces: row = the name and health
+-- number on a bare row above the bar, line = the power as a thin line under
+-- it, ring = the portrait's radius as a share of the whole frame (0.3 to 1),
+-- sizes = { player = { height, powerHeight, tabHeight }, party = { ..., spacing } }
+-- (missing ones are Daylight's). The plugin paints its own look on top through
+-- the parts (style, row, line) and Paint. Called again, it updates the style.
+local frameStyles = {}
+local STYLE_FRAMES = { player = true, target = true, focus = true, party = true, arena = true }
+local STYLE_SIZES = { height = { 6, 120 }, powerHeight = { 1, 40 }, tabHeight = { 6, 40 }, spacing = { 0, 200 } }
+function Report.FrameStyles() return frameStyles end
+function View.AddFrameStyle(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) then
+        chat(L["%s: a frame style needs a key and a label."], v.name)
+        return false
+    end
+    local sizes = {}
+    for frame, t in pairs(type(spec.sizes) == "table" and spec.sizes or {}) do
+        if STYLE_FRAMES[frame] and type(t) == "table" then
+            local own = {}
+            for k, range in pairs(STYLE_SIZES) do
+                local n = t[k]
+                if type(n) == "number" then own[k] = math.max(range[1], math.min(range[2], math.floor(n + 0.5))) end
+            end
+            sizes[frame] = own
+        end
+    end
+    local ring = type(spec.ring) == "number" and math.max(0.3, math.min(1, spec.ring)) or nil
+    local full = v.name .. ":" .. key
+    local entry
+    for _, x in ipairs(frameStyles) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        frameStyles[#frameStyles + 1] = entry
+        Report.Count(v.name, "framestyles")
+    end
+    entry.label, entry.desc = spec.label, str(spec.desc) and spec.desc or nil
+    entry.row, entry.line, entry.ring, entry.sizes = spec.row == true, spec.line == true, ring, sizes
+    DUI.Fire("FrameStylesChanged")
+    return true
+end
+
 -- Setup guide pages (1.7): me.AddSetupStep({ id, title, desc, groups,
 -- onFinish, quick }), after Daylight UI's own pages. groups are the guide's
 -- own (rows = { { scope, key } }, cards...) over options of the plugin's

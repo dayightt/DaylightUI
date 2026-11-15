@@ -51,7 +51,7 @@ print(API.major, API.minor)   -- 1, 7
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -352,7 +352,7 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 | `"meterrow"` (1.6) | `bar`, `fill`, `back`, `name`, `amount`, `rank`, `icon` | someone else in the row, a class or mode change, a setting | a `API.MeterRows` entry |
 | `"actionbutton"` (1.5) | `icon`, `border`, `band` (tables of textures), `hotkey`, `count`, `macro` (the macro's name), `cooldown`, `highlight`, `pushed`, `checked`, `flash` | a new action in the slot, a change in how it reads (usable, short of power, out of range, a real cooldown starting or ending, a proc, hover or press lighting the border), a setting; never on a cooldown tick | `API.ButtonInfo`'s table (below) |
 | `"nameplate"` (1.4) | `health`, `healthFill`, `healthBack`, `healthText`, `power`, `powerFill`, `powerBack`, `name`, `guild` (the guild or title line), `level`, `dragon` (the elite mark), `marker` (the raid marker), `cast` (its cast bar's frame) | a new unit, a recolor (reaction, threat, tapped, a boss or rare color), the level, guild line or power type, a setting; never on each health tick | the unit |
-| `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `border`, `band` (lists of textures) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
+| `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `ring` (the portrait's ring), `dragon` (an elite's dragon around it), `model` (the 3D portrait), `crest` (the elite badge on frames with no portrait), `badges` (the status icons by name: `leader`, `rest`, `pvp`, `level`...), `border`, `band` (lists of textures); 1.8: `style` (the frame style it wears: `"daylight"`, `"ribbon"` or a plugin's `"MyPlugin:key"`), `row` (the name row above the bar, in a style with one), `line` (the power line under it) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
 | `"questrow"` | `title`, `objectives` (a list), `bar`, `icon` | each layout of the tracker | `{ questID }` |
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
 | `"shoptile"` | `icon`, `name` | each fill of the shelf | `{ tab, index, id, link }` |
@@ -365,10 +365,10 @@ stance and pet buttons are the game's.
 
 Pieces a unit frame doesn't have (a raid tile's portrait) are `nil`. Claims that are honored on
 every repaint, the per-tick health color too: `healthFill`, `healthBack`, `powerFill`, `powerBack`,
-`name` on unit frames, `fill` and `back` on cast bars (a nameplate's too), and on nameplates
+`name`, `ring` and `dragon` on unit frames, `fill` and `back` on cast bars (a nameplate's too), and on nameplates
 `healthFill`, `healthBack`, `powerFill`, `powerBack`, `name`, `guild`, `level` and `dragon`. A
 `back` claim counts together with its fill's. A nameplate's threat border, glow and pulse stay
-Daylight UI's over a claimed fill (they're fight information). Other pieces are painted only at the moments
+Daylight UI's over a claimed fill (they're fight information). The same goes for a portrait's red threat band and pulse over a claimed ring. Other pieces are painted only at the moments
 in the table, so your paint right after wins. A cast you can't interrupt still shows Daylight UI's
 warning over a claimed fill (it's fight information), and `interrupted` says the bar is showing an
 interrupt. In a fight, another unit's `notInterruptible` and `spellID` may be secrets: hand them to
@@ -809,6 +809,45 @@ Exhaustion and the like), so a boss's debuffs can't be listed: any other debuff 
 a list with none left returns `false`. Buffs are always fine. The game fixes a row's spells the
 first time it shows, so register your lists when your addon loads; a list changed after that applies
 after a `/reload`. Called again with the same key, it replaces the list.
+
+## Frame styles (1.8)
+
+```lua
+me.AddFrameStyle("slim", {
+    label = "Slim",
+    desc = "Slim: a thin bar with the name above it and the power as a line under it.",
+    row = true, line = true, ring = 0.5,
+    sizes = { player = { height = 18, powerHeight = 4, tabHeight = 14 },
+              party = { height = 16, powerHeight = 3, tabHeight = 12, spacing = 40 } },
+})
+```
+
+Your style joins Daylight and Ribbon in every Frame style menu (Extras, and each of the player,
+target, focus, party and PvP frame pages) and as a card on the setup guide's Frames page. It's built
+from the pieces Daylight UI's frames already have, so every option keeps working in it:
+
+- `row = true`: the name and health number sit on a bare row above the bar instead of in the name tab.
+- `line = true`: the power is a thin line hung under the frame instead of a bar inside it. Cast bars,
+  combo points, aura rows and party pets keep clear of it.
+- `ring`: the portrait ring's radius as a share of the whole frame with its row and line (0.3 to 1,
+  Ribbon uses 0.56), centered on it. Leave it out and the ring follows the frame as in Daylight.
+- `sizes`: each frame's own heights in your style (`height`, `powerHeight`, `tabHeight`, and the
+  party's `spacing`). Daylight's fill in the rest. Each style keeps its own heights, so a player's
+  changes to yours stay yours.
+
+Then give it its look with `me.Paint`: each unit frame's parts say which `style` it wears, so paint
+only those, and use `row` and `line` for the pieces your style adds.
+
+```lua
+me.Paint("unit", function(frame, parts)
+    if parts.style ~= "MyPlugin:slim" then return end
+    -- your colors and textures here
+end)
+```
+
+The style's key is saved as `"<your plugin>:<key>"`. With your plugin off, frames that wore it
+show Daylight until it's back, with their heights kept. Register it when your addon loads; called
+again with the same key, it updates the style.
 
 ## Chat (1.7)
 
