@@ -28,7 +28,7 @@ Move.WINDOWS = {
     "CommunitiesFrame", "CommunitiesGuildLogFrame", "CommunitiesGuildTextEditFrame",
     "CommunitiesGuildNewsFiltersFrame", "CalendarFrame", "GuildBankFrame", "TradeFrame",
     -- Things an NPC or an item opens
-    "ItemTextFrame", "TabardFrame", "PetitionFrame", "GuildRegistrarFrame", "TaxiFrame",
+    "ItemTextFrame", "PetStableFrame", "TabardFrame", "PetitionFrame", "GuildRegistrarFrame", "TaxiFrame",
     "FlightMapFrame", "ClassTrainerFrame", "AuctionHouseFrame", "ItemSocketingFrame",
     "ItemUpgradeFrame", "ScrappingMachineFrame",
     -- The game's own menus

@@ -4086,9 +4086,10 @@ end)
 -- The hunter's stable on Forever is the Camelot one
 -- (Blizzard_StableUI/Camelot/Blizzard_StableUI.xml): PetStableFrame is a
 -- PortraitFrameTemplate whose pet slots are CheckButtons (PetStableSlotTemplate)
--- with a named icon and their own current/unlocked/locked slot art.
+-- with a named icon and their own current/unlocked/locked slot art. The gold
+-- rules and the coin box are their own frames.
 T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its pet slots our item look", function()
-    local f, slot
+    local f, slot, bar, stabled, panelAttr, ownSelect, ownUpdate
     login(function()
         f = window("PetStableFrame")
         slot = CreateFrame("CheckButton", "PetStableCurrentPet", f)
@@ -4098,6 +4099,56 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
         slot.unlockedBackground = slot:CreateTexture()
         slot.lockedBackground = slot:CreateTexture()
         slot.currentGlow = slot:CreateTexture()
+        slot.Text = slot:CreateFontString()
+        CreateFrame("CheckButton", "PetStableStabledPet1", f)
+        stabled = CreateFrame("CheckButton", "PetStableStabledPet2", f)
+        function f:SelectPet(index)
+            self.selectedPet = index
+            _G.PetStableLevelText:SetText("run on")
+            _G.PetStableLoyaltyText:SetText("loyalty")
+        end
+        function f:Update()
+            slot:ClearAllPoints()
+            slot:SetPoint("TOP", f.modelScene, "BOTTOM", -69, -34)
+        end
+        ownSelect, ownUpdate = f.SelectPet, f.Update
+        -- The game's callback registry (only what the skin uses of it).
+        local cbs = {}
+        _G.EventRegistry = {
+            RegisterCallback = function(_, e, fn, owner) cbs[e] = cbs[e] or {}; cbs[e][#cbs[e] + 1] = { fn, owner } end,
+            TriggerEvent = function(_, e, ...) for _, c in ipairs(cbs[e] or {}) do c[1](c[2], ...) end end,
+        }
+        -- Clicking a slot runs the game's own OnClick, which picks the pet.
+        slot:SetScript("OnClick", function() f:SelectPet(2) end)
+        f.TopDividerFrame = CreateFrame("Frame", nil, f)
+        f.BottomDividerFrame = CreateFrame("Frame", nil, f)
+        f.modelScene = CreateFrame("Frame", nil, f)
+        f.modelScene.Inset = CreateFrame("Frame", nil, f.modelScene)
+        f.modelScene.Inset.Bg = f.modelScene.Inset:CreateTexture()
+        local money = CreateFrame("Frame", "PetStableMoneyFrame", f)
+        money.Border = CreateFrame("Frame", nil, money)
+        bar = CreateFrame("Frame", nil, f)
+        f.expBar = bar
+        bar.Fill = bar:CreateTexture()
+        bar.Fill:SetHeight(15)
+        bar.Mask = bar:CreateMaskTexture()
+        bar.Text = bar:CreateFontString()
+        bar.overlay = CreateFrame("Frame", nil, bar)
+        _G.PetStableLevelText = f:CreateFontString()
+        _G.PetStableLoyaltyText = f:CreateFontString()
+        _G.PetStableSlotText = f:CreateFontString()
+        f.purchaseButton = CreateFrame("Button", nil, f)
+        f.selectedPet = 1
+        _G.UNIT_LEVEL_TEMPLATE = "Nivel %d"
+        _G.StableFrameMixin = { SelectPet = function() end }
+        _G.C_StableInfo = { GetStablePetInfo = function(id)
+            if id == 2 then
+                return { name = "Lobo", level = 10, familyName = "Lobo", loyaltyName = "(Nivel de lealtad 3) Amigo", loyaltyLevel = 3 }
+            end
+            return { name = "Kaelen", level = 18, familyName = "Ave rapaz", loyaltyName = "Mejor amigo", loyaltyLevel = 6 }
+        end }
+        panelAttr = {}
+        _G.SetUIPanelAttribute = function(frame, name, value) panelAttr[name] = value end
         stub.loadedAddOns.Blizzard_StableUI = true
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -4106,4 +4157,98 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     T.eq(slot.currentBackground:GetAlpha(), 0, "the slot's own art gone")
     T.eq(slot.unlockedBackground:GetAlpha(), 0)
     T.eq(slot.lockedBackground:GetAlpha(), 0)
+    T.eq(f.TopDividerFrame:GetAlpha(), 0, "the rule above the pet gone")
+    T.eq(f.BottomDividerFrame:GetAlpha(), 0, "the rule under the pet gone")
+    T.eq(f.modelScene.Inset.Bg:GetAlpha(), 0, "the box around the pet gone")
+    T.eq(_G.PetStableMoneyFrame.Border:GetAlpha(), 0, "the coin box gone")
+    T.eq(f:GetWidth(), 448, "a little narrower than the wide pass")
+    T.eq(f:GetHeight(), 570, "taller than the game's frame")
+    T.eq(panelAttr.width, 448, "the game's panel layout is told through its own call")
+    T.eq(panelAttr.height, 570, "the layout keeps that size")
+    local own = type(_G.UIPanelWindows) == "table" and _G.UIPanelWindows.PetStableFrame
+    T.falsy(own and (own.width or own.height), "nothing written into the game's own panel table")
+    local _, _, _, _, my = f.modelScene:GetPoint(1)
+    T.eq(my, -84, "the pet starts under the three lines")
+    local _, _, _, _, by = f.modelScene:GetPoint(2)
+    T.eq(by, 182, "the extra height opens the gap under the pet")
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "the name on its own line")
+    local function plain(s) return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    local detail = plain(_G.PetStableLoyaltyText:GetText())
+    T.eq(detail, "Nivel 18 | Ave rapaz\nMejor amigo | 6")
+    f.selectedPet = nil
+    local strict, bad = _G.C_StableInfo.GetStablePetInfo, 0
+    _G.C_StableInfo.GetStablePetInfo = function(id)
+        if type(id) ~= "number" then bad = bad + 1 end
+        return strict(id)
+    end
+    f:SelectPet(nil)
+    stub.RunTimers()
+    T.eq(bad, 0, "no pet picked yet: the game's call is never made without an index")
+    T.eq(#stub.errors, 0)
+    -- Nothing hooks the game's methods: its own are still the ones on the frame.
+    T.truthy(f.SelectPet == ownSelect and f.Update == ownUpdate, "no hooksecurefunc on the stable")
+    slot:Click()
+    T.eq(_G.PetStableLevelText:GetText(), "run on", "ours waits for the next frame, not inside the game's call")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Lobo", "a click on a slot keeps the name on its own line")
+    -- A pet named after its family says it once.
+    T.eq(plain(_G.PetStableLoyaltyText:GetText()), "Nivel 10\n(Nivel de lealtad 3) Amigo", "the family not repeated when it's the name")
+    -- The game's callbacks and events redo the lines and the slots too.
+    f.selectedPet = 1
+    f:SelectPet(1)
+    EventRegistry:TriggerEvent("StableFrameMixin.PetSelected", 1)
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "its PetSelected callback")
+    f:SelectPet(2)
+    EventRegistry:TriggerEvent("StableFrameMixin.OnSelectedPetChanged")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Lobo", "its OnSelectedPetChanged callback")
+    f.selectedPet = 2
+    f:SelectPet(1); f.selectedPet = 1
+    stub.FireEvent("PET_STABLE_UPDATE")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "a stable update")
+    _G.PetStableLevelText:SetText("run on")
+    stub.FireEvent("PLAYER_MONEY")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "money changing")
+    f:Update()
+    stub.FireEvent("PET_STABLE_UPDATE")
+    stub.RunTimers()
+    local sp, sr, srp, sx, sy = slot:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(sr, f.modelScene); T.eq(srp, "BOTTOMLEFT")
+    T.eq(sx, 28); T.eq(sy, -34, "the current pet stays on the left after a refresh")
+    local rp, rr, rrp = stabled:GetPoint(1)
+    T.eq(rp, "TOPRIGHT"); T.eq(rr, f.modelScene); T.eq(rrp, "BOTTOMRIGHT", "the stabled pets stay on the right")
+    T.eq(_G.PetStableLevelText.__textColor[1], DaylightUI.Style.INK.TITLE[1], "the pet's name in our ink")
+    local cp, cr, crp, cx, cy = f.CloseButton:GetPoint(1)
+    T.eq(cp, "TOPRIGHT"); T.eq(cr, f); T.eq(crp, "TOPRIGHT")
+    T.eq(cx, DaylightUI.Win.CLOSE_X); T.eq(cy, DaylightUI.Win.CloseY(false), "the X sits in the header")
+    T.eq(f.CloseButton:GetWidth(), DaylightUI.Widgets.CLOSE)
+    local tp, tr, trp, tx, ty = f.TitleContainer.TitleText:GetPoint(1)
+    T.eq(tp, "TOPLEFT"); T.eq(tr, f); T.eq(trp, "TOPLEFT")
+    T.eq(tx, stub.skins.Kit.TITLE_X); T.eq(ty, -stub.skins.Kit.TITLE_TOP, "the title where Kit.Window puts every window's")
+    T.eq(_G.PetStableSlotText.__font[2], DaylightUI.Style.SIZE.body, "the buy-a-slot line is a step under the heading")
+    T.eq(_G.PetStableSlotText.__textColor[1], DaylightUI.Style.INK.LABEL[1], "the same ink as the slot labels")
+    local ap, ar = _G.PetStableSlotText:GetPoint(1)
+    T.eq(ap, "ALL"); T.eq(ar:GetParent(), f)
+    local hp, hr, hrp, _, hy = ar:GetPoint(1)
+    T.eq(hp, "TOP"); T.eq(hr, slot); T.eq(hrp, "BOTTOM"); T.eq(hy, -28, "it sits lower in the gap")
+    local bp, br, brp, _, by = ar:GetPoint(2)
+    T.eq(bp, "BOTTOM"); T.eq(br, f.purchaseButton); T.eq(brp, "TOP"); T.eq(by, 4, "and stops above the cost")
+    local dressed
+    for _, child in ipairs({ bar:GetChildren() }) do
+        if stub.skins.Kit.ShellOf(child) then dressed = true end
+    end
+    T.truthy(dressed, "the experience bar wears our bar")
+    local barDrag = stub.skins.WindowMove.bars.PetStableFrame
+    T.truthy(barDrag, "the title bar drags it, like the other npc windows")
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116)
+    f:Show()
+    barDrag:GetScript("OnDragStart")(barDrag, "LeftButton")
+    T.truthy(f.__moving, "it moves")
+    f.__center = { 500, 400 }
+    barDrag:GetScript("OnDragStop")(barDrag)
+    T.truthy(stub.skins.WindowMove.Spot("PetStableFrame"), "its spot saved")
 end)
