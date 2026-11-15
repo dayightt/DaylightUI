@@ -1225,11 +1225,74 @@ T.test("skins: the old flight map keeps its map (drawn into the window's inset b
     T.eq(f.Bg:GetAlpha(), 0, "its frame art gone")
 end)
 
-
-
-
-
-
+-- TaxiFrame as the game builds it (dumped from a client): a 590 x 608 window, the map
+-- drawn into InsetBg (4 px from the left, 6 from the right and bottom, under a 24 px
+-- strip, 580 x 580), the route map anchored to InsetBg's corners and each flight point
+-- to its bottom left, the title and the X in the window's corners.
+T.test("skins: the flight map's title and X sit where our windows have them, with the same room round the map", function()
+    local f, route, button, title, close
+    login(function()
+        f = CreateFrame("Frame", "TaxiFrame", UIParent)
+        f:SetSize(590, 608)
+        f.InsetBg = f:CreateTexture("TaxiFrameInsetBg")
+        f.InsetBg:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -24)
+        f.InsetBg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 4)
+        f.InsetBg:SetSize(580, 580)   -- the fake game has no layout
+        f.Bg = f:CreateTexture()
+        title = f:CreateFontString()
+        f.TitleText = title
+        title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -6)
+        title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -40, -6)
+        close = CreateFrame("Button", nil, f)
+        f.CloseButton = close
+        close:SetSize(24, 24)
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 3)
+        route = CreateFrame("Frame", "TaxiRouteMap", f)
+        route:SetPoint("TOPLEFT", f.InsetBg, "TOPLEFT", 0, 0)
+        route:SetPoint("BOTTOMRIGHT", f.InsetBg, "BOTTOMRIGHT", 0, 0)
+        button = CreateFrame("Button", "TaxiButton1", f)
+        button:SetPoint("CENTER", f.InsetBg, "BOTTOMLEFT", 248, 434)
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Win = DaylightUI.Win
+    local m = 12
+    local function pointOf(frame, name)
+        for i = 1, frame:GetNumPoints() do
+            local p, rel, rp, x, y = frame:GetPoint(i)
+            if p == name then return rel, rp, x, y end
+        end
+    end
+    -- The map has the same room on every side: the header over it, the edges round it.
+    local rel, rp, x, y = pointOf(f.InsetBg, "TOPLEFT")
+    T.eq(rel, f); T.eq(x, m, "left"); T.eq(-y, Win.COMPACT + m, "under the header, with the room")
+    rel, rp, x, y = pointOf(f.InsetBg, "BOTTOMRIGHT")
+    T.eq(rel, f); T.eq(-x, m, "right"); T.eq(y, m, "bottom")
+    T.eq(f:GetWidth(), m + 580 + m, "the window grew to make the room")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    -- The route and the flight points still hang from the map, untouched.
+    rel, rp, x, y = pointOf(route, "TOPLEFT")
+    T.eq(rel, f.InsetBg); T.eq(x, 0); T.eq(y, 0)
+    rel, rp, x, y = pointOf(button, "CENTER")
+    T.eq(rel, f.InsetBg, "the flight point is still on the map"); T.eq(rp, "BOTTOMLEFT"); T.eq(x, 248); T.eq(y, 434)
+    -- The title and the X where every window has them.
+    rel, _, x, y = pointOf(close, "TOPRIGHT")
+    T.eq(rel, f); T.eq(x, Win.CLOSE_X); T.eq(y, Win.CloseY(true), "level with the title")
+    T.eq(close:GetWidth(), DaylightUI.Widgets.CLOSE, "the same size")
+    rel, _, x, y = pointOf(title, "TOPLEFT")
+    T.eq(rel, f); T.eq(x, Win.EDGE); T.eq(y, Win.TITLE_Y)
+    -- Opening it again changes nothing: no growing, nothing moved twice.
+    for _ = 1, 3 do f:Hide(); f:Show(); stub.RunTimers() end
+    T.eq(f:GetWidth(), m + 580 + m, "the same width after opening it again")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    rel, rp, x, y = pointOf(f.InsetBg, "TOPLEFT")
+    T.eq(x, m); T.eq(-y, Win.COMPACT + m)
+    -- The game sets the window's size again: the room is made again, from the same map.
+    f:SetSize(590, 608)
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(f:GetWidth(), m + 580 + m, "the room made again")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("skins: a quest opened from the map: parchment and frame gone, our buttons, rewards outlined", function()
     local d, rewards
