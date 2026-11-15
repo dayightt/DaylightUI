@@ -273,6 +273,31 @@ T.test("trainer: a profession trainer: the skill bar, the next rank, recipes by 
     T.deq(sections(N), { "LEARN NOW · 2", "NEEDS SKILL 125", "NEEDS SKILL 135" })
 end)
 
+T.test("trainer: each recipe says the level its item is for and the skill it needs, as the game's trainer does", function()
+    local N = load()
+    local list = NW.Recipes()
+    list[3].useLevel = 10                                  -- Woolen Bag, loaded
+    list[4].link = "|cnIQ2:|Hitem:4310::::::::20:::::::::|h[Heavy Woolen Gloves]|h|r"   -- not loaded yet
+    NW.Trainer({ services = list, rank = 118, maxRank = 150, type = 2 })
+    frame()
+    T.eq(line(N, "Woolen Bag").sub:GetText(), "Level 10 · Skill 80")
+    T.eq(line(N, "Gray Woolen Shirt").sub:GetText(), "Skill 100", "no item: the skill alone")
+    T.eq(line(N, "Expert Tailoring").sub:GetText(), "Level 20 · Skill 125", "the trainer's own level requirement")
+    T.eq(line(N, "Heavy Woolen Gloves").sub:GetText(), "Skill 125")
+    -- The item arrives: the page reads it again.
+    list[4].useLevel = 21
+    stub.FireEvent("GET_ITEM_INFO_RECEIVED", 4310, true)
+    frame(2)
+    T.eq(line(N, "Heavy Woolen Gloves").sub:GetText(), "Level 21 · Skill 125")
+end)
+
+T.test("trainer: a class trainer's lines keep their rank alone", function()
+    local N = load()
+    NW.Trainer()
+    frame()
+    T.eq(line(N, "Frostbolt").sub:GetText(), "Rank 4")
+end)
+
 T.test("trainer: a new profession asks a second click and is never in Train all; no free slot refuses it", function()
     local N = load()
     local svc = { { name = "Apprentice Tailoring", kind = "available", level = 5, cost = 100, profession = true },

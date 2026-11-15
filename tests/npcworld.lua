@@ -401,6 +401,13 @@ local function installQuest()
                 end
             end
         end
+        -- A trainer recipe's item, by its link: `useLevel` on the service means the item
+        -- is loaded (5th return: the level it needs), else nil like the game's cache.
+        for _, s in ipairs(trainerList()) do
+            if s.link and s.link == key and s.useLevel then
+                return s.name, s.link, 2, nil, s.useLevel
+            end
+        end
     end
     _G.GetRewardMoney = function() return Q().money or 0 end
     _G.GetRewardXP = function() return Q().xp or 0 end

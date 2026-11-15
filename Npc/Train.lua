@@ -37,25 +37,52 @@ Train.state = S
 
 -- Reading the trainer
 
+-- The level a recipe's item needs before it can be used (its tooltip's "Requires
+-- Level"). The second return is true while the game hasn't loaded the item yet.
+local function useLevelOf(link)
+    if type(link) ~= "string" or not (C_Item and fn(C_Item.GetItemInfo)) then return nil end
+    local ok, name, _, _, _, minLevel = pcall(C_Item.GetItemInfo, link)
+    if not (ok and name) then return nil, true end
+    return type(minLevel) == "number" and minLevel or nil
+end
+
 -- Every service the trainer lists: { index, name, kind (available | unavailable |
--- used), icon, level, sub, cost, profession, skill, skillRank, skillMet, step,
--- quality (for recipes) }.
+-- used), icon, level, useLevel (a recipe's item), sub, cost, profession, skill,
+-- skillRank, skillMet, step, quality (for recipes) }. Train.itemsPending says an
+-- item wasn't loaded yet, so the page reads again when it arrives.
 function Train.Services()
     if sample() then return Train.sampleList or {} end
     local out = {}
     local step = call(GetTrainerServiceStepIndex)
+    Train.itemsPending = false
     for i = 1, call(GetNumTrainerServices) or 0 do
         local name, kind, icon, level, sub = call(GetTrainerServiceInfo, i)
         if name then
             local cost, profession = call(GetTrainerServiceCost, i)
             local skill, rank, met = call(GetTrainerServiceSkillReq, i)
+            local link = call(GetTrainerServiceItemLink, i)
+            local useLevel, pending = useLevelOf(link)
+            if pending then Train.itemsPending = true end
             out[#out + 1] = { index = i, name = name, kind = kind, icon = icon, level = level or 0,
                 sub = sub ~= "" and sub or nil, cost = type(cost) == "number" and cost or 0, profession = profession == true,
                 skill = skill, skillRank = rank, skillMet = met, step = step == i,
-                quality = ns.Shop.QualityOf(call(GetTrainerServiceItemLink, i)) }
+                useLevel = useLevel, quality = ns.Shop.QualityOf(link) }
         end
     end
     return out
+end
+
+-- A profession line's sub text, as the game's trainer lists it: the level it's for
+-- (its item's, or the trainer's own requirement) and the skill it needs.
+function Train.Needs(s)
+    local bits = { s.sub }
+    local level = math.max(s.useLevel or 0, s.level or 0)
+    if level > 1 then bits[#bits + 1] = string.format(L["Level %d"], level) end
+    if type(s.skillRank) == "number" and s.skillRank > 0 then
+        bits[#bits + 1] = string.format(L["Skill %d"], s.skillRank)
+    end
+    if #bits == 0 then return nil end
+    return table.concat(bits, " · ")
 end
 
 -- Profession skill: name, rank, max (nil at a class trainer).
@@ -246,9 +273,9 @@ local function tooltip(s)
     end
 end
 
-local function lineFor(s, cash, noSlot)
-    local spec = { service = s, icon = s.icon, text = s.name, sub = s.sub, value = costText(s.cost),
-        tooltip = tooltip(s) }
+local function lineFor(s, cash, noSlot, prof)
+    local spec = { service = s, icon = s.icon, text = s.name, sub = prof and Train.Needs(s) or s.sub,
+        value = costText(s.cost), tooltip = tooltip(s) }
     if s.kind ~= "available" then
         spec.dim = true
         if s.kind == "used" then spec.value = "" end
@@ -323,7 +350,9 @@ function Train.Fill(page)
     local list = Train.Services()
     local cash, noSlot = Train.Money(), Train.NoSlot()
     if not Train.Picked(list) then S.pick, S.confirm = nil, nil end   -- learned, or gone
-    paintSkill(page, Train.Skill(list))
+    local skillName, skillRank, skillMax = Train.Skill(list)
+    paintSkill(page, skillName, skillRank, skillMax)
+    local prof = skillRank ~= nil   -- a profession trainer: each line says its level and skill
     local s = page.stack
     s:Begin()
     local nowList, later, known = {}, {}, {}
@@ -342,7 +371,7 @@ function Train.Fill(page)
     if #nowList == 0 then
         s:Text(L["Nothing new to learn right now."], { color = Parts.DIM })
     end
-    for _, svc in ipairs(nowList) do s:Line(lineFor(svc, cash, noSlot)) end
+    for _, svc in ipairs(nowList) do s:Line(lineFor(svc, cash, noSlot, prof)) end
     -- Coming later, grouped.
     local groups, order = {}, {}
     for _, svc in ipairs(later) do
@@ -357,7 +386,7 @@ function Train.Fill(page)
     for _, label in ipairs(order) do
         s:Section(label)
         table.sort(groups[label].list, stepFirst)
-        for _, svc in ipairs(groups[label].list) do s:Line(lineFor(svc, cash, noSlot)) end
+        for _, svc in ipairs(groups[label].list) do s:Line(lineFor(svc, cash, noSlot, prof)) end
     end
     -- Already known, collapsed.
     page.known = nil
@@ -373,7 +402,7 @@ function Train.Fill(page)
             end })
         page.known = row.text
         if S.knownOpen then
-            for _, svc in ipairs(known) do s:Line(lineFor(svc, cash, noSlot)) end
+            for _, svc in ipairs(known) do s:Line(lineFor(svc, cash, noSlot, prof)) end
         end
     end
     page.pieces = s:End()

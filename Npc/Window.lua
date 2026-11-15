@@ -700,8 +700,10 @@ function Npc.OnEvent(_, event, ...)
     elseif event == "TRAINER_CLOSED" then
         S.closed.trainer = true
         ns.Train.Closed()
-    elseif S.mode == "trainer" and Npc.TRAINER_REFRESH[event] then
-        if event == "PLAYER_MONEY" then ns.Shop.RollMoney() else ns.Train.Updated() end
+    elseif S.mode == "trainer" and (Npc.TRAINER_REFRESH[event]
+        or (event == "GET_ITEM_INFO_RECEIVED" and ns.Train.itemsPending)) then
+        if event == "PLAYER_MONEY" then ns.Shop.RollMoney()
+        elseif Npc.TRAINER_REFRESH[event] then ns.Train.Updated() end
         if not Npc.trainSoon then
             Npc.trainSoon = true
             C_Timer.After(0, function() Npc.trainSoon = false; ns.Train.Refresh() end)
