@@ -636,6 +636,19 @@ function DB.Positions() return DB.Active().positions end
 -- change is dropped at logout, so the options and unlock mode say so.
 function DB.Unsaved() return DB.Active().unsaved == true end
 
+-- A player who likes the look as it is may never finish the setup guide, so
+-- the first thing they change or move turns the stand-in into a real profile.
+-- The guide's own preview doesn't count: it is undone when the guide closes.
+function DB.Keep()
+    if not DB.loggedIn then return end
+    local p = DB.Active()
+    if not p.unsaved then return end
+    local D = DUI.InstallerDraft
+    if D and D.Active and D.Active() then return end
+    p.unsaved = nil
+    DUI.Fire("ProfileKept")
+end
+
 -- Settings plugins added to Daylight UI's modules (DaylightUI.API's AddDefaults), as
 -- module -> key -> plugin name. Kept in saved data so a disabled plugin keeps
 -- its values and tools/settings_check.lua knows about them.

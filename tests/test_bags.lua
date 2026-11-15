@@ -145,6 +145,10 @@ end
 
 -- The plain grid unless categories are asked for. Most of these tests are about
 -- the grid, and the categories view has its own.
+-- The game stops at logout. A test that plays on afterwards puts back the
+-- defaults the logout stripped from the saved profile.
+local function carryOn() DaylightUI.DB.Fill(DaylightUI.DB.Active()) end
+
 local function login(opts)
     stub.Load({ bags = true, before = function() setup(opts) end })
     stub.RunTimers()
@@ -3682,6 +3686,7 @@ end)
 T.test("viewer: another character's bags, saved at their logout; tabs and gold follow", function()
     local ns = login()
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     local mine = DaylightUI.DB.Character().inventory
     T.truthy(mine and mine.bags, "your bags saved at logout")
     T.eq(mine.bags[1].items[1][1], "|Hitem:1|h")
@@ -3850,6 +3855,7 @@ T.test("viewer: switched off, the button goes (the tool row closes up), nothing 
     T.truthy(stub.ChatContains("Bank and alts is off"))
     DaylightUI.DB.Character().inventory = nil
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()

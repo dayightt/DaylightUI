@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
+            { "Setup", "Moved frames and changed settings no longer go back to the default every time you log out when you skipped the setup guide" },
         },
     },
     { version = "1.8.2", date = "2026-11-14", summary = "Target buffs and nameplate pieces back where they sat before 1.8.0, another vanishing nameplate fix, and a Cooldown Manager tour.",

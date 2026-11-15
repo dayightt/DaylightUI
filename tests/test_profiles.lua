@@ -151,6 +151,15 @@ local function reload()
     return DUI
 end
 
+-- Runs the motion kit's tweens to their end.
+local function settle()
+    local d = DaylightUI.Motion.Driver()
+    for _ = 1, 60 do
+        if not (d and d:GetScript("OnUpdate")) then return end
+        stub.RunOnUpdate(d, 1 / 60)
+    end
+end
+
 local function me()
     stub.units.player = { name = "Kaladin", isPlayer = true, class = "WARRIOR" }
 end
@@ -249,9 +258,8 @@ T.test("profiles: a fresh install has no profile until it's installed", function
     local DUI = login()
     T.eq(DUI.DB.ActiveName(), "DPS/Tank", "runs on an unsaved stand-in")
     T.deq(DUI.Profiles.Names(), {}, "nothing listed")
-    DUI:Set("general", "softness", 0.5)
     stub.FireEvent("PLAYER_LOGOUT")
-    T.isnil(next(DaylightUIDB.profileData), "nothing saved")
+    T.isnil(next(DaylightUIDB.profileData), "nothing saved: nothing was changed")
     DUI = reload()
     T.truthy(DaylightUIDB.profileData["DPS/Tank"].unsaved, "a new stand-in")
     T.isnil(DaylightUIDB.profileData.Default)
@@ -259,6 +267,63 @@ T.test("profiles: a fresh install has no profile until it's installed", function
     T.deq(DUI.Profiles.Names(), { "DPS/Tank" }, "installed")
     DUI = reload()
     T.truthy(DaylightUIDB.profileData["DPS/Tank"], "kept now")
+end)
+
+-- A player report: moved frames and changed settings went back at every
+-- logout, for anyone who liked the look and never finished the setup guide.
+T.test("profiles: a change made before the setup guide makes the stand-in a real profile", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    T.truthy(DUI.DB.Unsaved())
+    DUI:Set("general", "softness", 0.5)
+    T.falsy(DUI.DB.Unsaved(), "kept from the first change")
+    T.deq(DUI.Profiles.Names(), { "DPS/Tank" })
+    stub.FireEvent("PLAYER_LOGOUT")
+    DUI = reload()
+    T.eq(DUI:Get("general", "softness"), 0.5, "still there after logging back in")
+    T.eq(DUI.DB.ActiveName(), "DPS/Tank")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("profiles: a frame moved before the setup guide stays where it was put", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    T.truthy(DUI.DB.Unsaved())
+    DUI.Movers.Unlock()
+    T.truthy(DUI.Movers.SetupButton():IsShown())
+    local key = "unitframes.player"
+    local e = DUI.Movers.Get(key)
+    T.truthy(e, "a mover to drag")
+    -- Dropped 120 right and 80 down from the screen's center.
+    e.frame.__center = { UIParent:GetWidth() / 2 + 120, UIParent:GetHeight() / 2 - 80 }
+    DUI.Movers.Save(key, true)
+    T.falsy(DUI.DB.Unsaved(), "kept from the first move")
+    settle()
+    T.falsy(DUI.Movers.SetupButton().bar:IsShown(), "the finish-setup button fades away")
+    DUI.Movers.Lock()
+    DUI.Movers.Unlock()
+    T.falsy(DUI.Movers.SetupButton():IsShown(), "the finish-setup button is gone")
+    DUI.Movers.Lock()
+    stub.FireEvent("PLAYER_LOGOUT")
+    DUI = reload()
+    local pos = DUI.DB.Positions()[key]
+    T.truthy(pos, "the spot was saved")
+    T.truthy(math.abs(pos[1] - 120) < 1 and math.abs(pos[2] + 80) < 1, "where it was put")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("profiles: the setup guide's preview doesn't keep the stand-in", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local D = DUI.InstallerDraft
+    local active = D.Active
+    D.Active = function() return true end
+    DUI:Set("general", "softness", 0.5)
+    D.Active = active
+    T.truthy(DUI.DB.Unsaved(), "a preview isn't a change of the player's")
 end)
 
 -- A player report: moved frames went back at every login. Nothing is saved
@@ -287,7 +352,8 @@ T.test("profiles: unsaved, unlock mode and the options window offer to finish th
     T.falsy(DUI.Movers.SetupButton():IsShown(), "saved: gone")
     DUI.Movers.Lock()
     DUI.OptionsPanel.Show("home")
-    T.falsy(nav.setup:IsShown())
+    settle()
+    T.falsy(nav.setup:IsShown(), "faded away")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
