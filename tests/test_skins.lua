@@ -1534,6 +1534,39 @@ T.test("skins: a loot toast gets our look as it shows, its icon outlined in the 
     _G.GetItemInfo, _G.GetItemQualityColor = nil, nil
 end)
 
+-- The game's NewRecipeLearnedAlertFrameTemplate: an unnamed gold atlas, a round
+-- profession icon (masked by the game on every SetUp), Title and Name.
+T.test("skins: the new recipe toast wears the window look, its gold art gone and its icon kept", function()
+    local S = login(function()
+        _G.NewRecipeLearnedAlertSystem = {}
+        _G.AlertFrame_ShowNewAlert = function(f) f:Show() end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Kit = S.Kit
+    local t = CreateFrame("Button", nil, UIParent)
+    t:SetSize(312, 89)
+    t.queue = NewRecipeLearnedAlertSystem
+    local art = t:CreateTexture(nil, "BACKGROUND"); art:SetAtlas("recipetoast-bg", true)
+    t.Icon = t:CreateTexture(nil, "BACKGROUND"); t.Icon:SetTexture("cooking")
+    t.glow, t.shine = t:CreateTexture(nil, "OVERLAY"), t:CreateTexture(nil, "OVERLAY")
+    t.Title, t.Name = t:CreateFontString(), t:CreateFontString()
+    t.Title:SetText("New Recipe Learned!"); t.Name:SetText("Seasoned Wolf Kabob")
+    AlertFrame_ShowNewAlert(t)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(art:GetAlpha(), 0, "the gold toast gone")
+    T.truthy(Kit.Erased(art), "erased for good, as the loot toast's background")
+    T.truthy(Kit.Erased(t.glow) and Kit.Erased(t.shine), "its glow and shine erased")
+    T.eq(t.Icon:GetAlpha(), 1, "the profession icon stays")
+    local box = S.RecipeToast.boxes[t]
+    T.truthy(box and Kit.ShellOf(box), "a window-look box behind it")
+    local c = DaylightUI.Style.INK.LABEL
+    T.near(select(1, t.Title:GetTextColor()), c[1], 0.01, "the heading tan")
+    -- The game reuses it: one box, however many recipes.
+    AlertFrame_ShowNewAlert(t)
+    T.eq(S.RecipeToast.boxes[t], box, "the same box")
+    _G.NewRecipeLearnedAlertSystem, _G.AlertFrame_ShowNewAlert = nil, nil
+end)
+
 -- The loot window (Packs/System.lua). The fake is the game's own template and
 -- what its Init writes (tests/lootworld.lua). Skinned only, with no motion of its own.
 T.test("skins: the loot window's rows are our rows: the game's card and glow gone, our outline lit on hover", function()

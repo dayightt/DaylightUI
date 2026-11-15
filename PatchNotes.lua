@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         },
         changed = {
             { "Window skins", "The flight map's title and close button line up like every other window, with even room round the map" },
+            { "Window skins", "The New Recipe Learned pop-up has the Daylight UI look" },
         },
         fixed = {
             { "Window skins", "Opening the guild window with no guild or community no longer causes an error" },

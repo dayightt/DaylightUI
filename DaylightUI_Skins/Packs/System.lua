@@ -387,6 +387,33 @@ local function moneyToast(Kit, f)
     Kit.Font(f.Amount, DUI.Style.SIZE.body)
 end
 
+-- The new recipe toast: its gold art is one unnamed atlas wider than what it
+-- holds, so the box is drawn round the icon and words instead of the frame. The
+-- icon stays round: the game puts its portrait mask back on every toast.
+local RecipeToast = { boxes = setmetatable({}, { __mode = "k" }) }
+ns.RecipeToast = RecipeToast
+RecipeToast.BOX = { left = 10, right = -24, top = -8, bottom = 8 } -- from the frame's edges
+
+local function recipeToast(Kit, f)
+    local SIZE, INK = DUI.Style.SIZE, DUI.Style.INK
+    if not RecipeToast.boxes[f] then
+        for _, r in ipairs({ f:GetRegions() }) do
+            if r ~= f.Icon and r.GetObjectType and r:GetObjectType() == "Texture" then Kit.Erase(r) end
+        end
+        Kit.Erase(f.glow)
+        Kit.Erase(f.shine)
+        local box, b = CreateFrame("Frame", nil, f), RecipeToast.BOX
+        box:SetPoint("TOPLEFT", f, "TOPLEFT", b.left, b.top)
+        box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", b.right, b.bottom)
+        box:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
+        box:EnableMouse(false)
+        Kit.Shell(box, "window")
+        RecipeToast.boxes[f] = box
+    end
+    Kit.Font(f.Title, SIZE.small, INK.LABEL)
+    Kit.Font(f.Name, SIZE.body, INK.VALUE)
+end
+
 Engine.Register({ key = "loottoast", pack = "system", apply = function(Kit)
     if type(_G.AlertFrame_ShowNewAlert) ~= "function" then return end
     hooksecurefunc("AlertFrame_ShowNewAlert", function(f)
@@ -395,6 +422,8 @@ Engine.Register({ key = "loottoast", pack = "system", apply = function(Kit)
             DUI.SafeCall(lootToast, Kit, f)
         elseif f.queue == _G.MoneyWonAlertSystem then
             DUI.SafeCall(moneyToast, Kit, f)
+        elseif f.queue == _G.NewRecipeLearnedAlertSystem then
+            DUI.SafeCall(recipeToast, Kit, f)
         end
     end)
 end })
