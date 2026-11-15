@@ -23,6 +23,7 @@ DUI.PatchNotes = {
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
             { "Buffs", "The buff and debuff bars can use your aura lists to hide spells or show only some, and the debuff bar can show only what you can dispel, only boss debuffs, or leave out long ones (Buffs > Filter)" },
             { "Windows", "The glow round a window's icon as it opens is now a soft round halo with embers, shows on the guild window too, and can be turned off (General > Appearance)" },
+            { "Cooldown Manager", "Hunters see how long their traps keep your target frozen or burning, how long Bestial Wrath and Mend Pet last on the pet, and how long their hawks stay" },
         },
         changed = {
             { "Unit frames", "The Personal Display page has a live preview at the top, like the other frame pages, so you can see your changes" },
@@ -38,6 +39,8 @@ DUI.PatchNotes = {
             { "Action bars", "The shaman totem bar fades again when its bar is set to fade" },
             { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
             { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat during a fight, on any bar" },
+            { "Action bars", "A priest's bars no longer swap to an empty page in Spirit of Redemption, or when something turns you into an animal" },
+            { "Minimap", "Your arrow and the map's dots no longer float on screen when the minimap fades away: on the AFK screen, at a campfire, while fishing or with the panel faded out" },
             { "Chat", "Copy Character Name on a name in chat works again instead of being blocked by the game" },
             { "Leader tools", "Ready check and Role check no longer get cut off in other languages: they're icons now, with their names when you point at them" },
             { "Buffs", "In other languages, the missing buffs banner names Blessing of Light properly instead of calling it a light color" },

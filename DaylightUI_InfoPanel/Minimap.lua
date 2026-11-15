@@ -82,24 +82,20 @@ end
 -- The size of the game's icons on the map (nodes, party members, quest spots),
 -- apart from the map's own size. Edit Mode stores it in its layout as a slider
 -- step and sets it again each time it applies one, so it's written there too.
-Map.ICON_SCALE = { min = 50, max = 200, step = 10 }
+Map.ICON_SCALE = DUI.Fade.MAP_ICON_SCALE
 
 local function iconSetting()
     local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting
     return sys and sys.Minimap, set and set.IconScale
 end
 
-function Map.GetIconScale()
-    local S, system, setting = Map.ICON_SCALE, iconSetting()
-    local stored = system ~= nil and setting ~= nil and DaylightUI.EditMode.ActiveSetting(system, nil, setting)
-    if type(stored) == "number" then return (stored * S.step + S.min) / 100 end
-    return 1
-end
+Map.GetIconScale = DUI.Fade.MapIconScale
 
 function Map.SetIconScale(scale)
     local S, system, setting = Map.ICON_SCALE, iconSetting()
     local pct = math.max(S.min, math.min(S.max, math.floor(scale * 100 / S.step + 0.5) * S.step))
-    if Minimap and Minimap.SetIconScale then Minimap:SetIconScale(pct / 100) end
+    -- Out of sight, the icons stay at 0 until the map is back (Fade.MapDots).
+    if Minimap and Minimap.SetIconScale and not DUI.Fade.MapDotsGone() then Minimap:SetIconScale(pct / 100) end
     if system ~= nil and setting ~= nil then
         DaylightUI.EditMode.WriteSetting(system, nil, setting, (pct - S.min) / S.step)
     end
@@ -862,6 +858,8 @@ function Map.Follow()
     end
     local was = mm:GetAlpha()
     if type(was) ~= "number" or math.abs(was - want) > 0.0001 then mm:SetAlpha(want) end
+    -- Its arrow and dots ignore its alpha: fully out of sight, they go too.
+    DUI.Fade.MapDots(want > 0)
     if want < 1 then
         Map.dim = true
     elseif Map.dim then

@@ -622,6 +622,33 @@ function Fade.Hushed() return next(hushes) ~= nil end
 local mapAway, mapAlphaBefore = {}, nil
 function Fade.MapIsAway() return next(mapAway) ~= nil end
 
+-- The map's own alpha at 0 still leaves the arrow and dots on screen (seen in
+-- game), but they shrink with the game's icon scale. So a map out of sight
+-- takes its icons to 0, and back to Edit Mode's minimap Icon Scale (a slider
+-- step in the layout) when it comes back. Its picture, spot and alpha are left
+-- alone, so this can't blank it.
+Fade.MAP_ICON_SCALE = { min = 50, max = 200, step = 10 }
+
+function Fade.MapIconScale()
+    local sys, set = Enum and Enum.EditModeSystem, Enum and Enum.EditModeMinimapSetting
+    local EM, S = DUI.EditMode, Fade.MAP_ICON_SCALE
+    local stored = EM and sys and set and sys.Minimap ~= nil and set.IconScale ~= nil
+        and EM.ActiveSetting(sys.Minimap, nil, set.IconScale)
+    if type(stored) == "number" then return (stored * S.step + S.min) / 100 end
+    return 1
+end
+
+local dotsGone = false
+function Fade.MapDotsGone() return dotsGone end
+
+function Fade.MapDots(show)
+    local map = _G.Minimap
+    if type(map) ~= "table" or type(map.SetIconScale) ~= "function" then return end
+    if show == not dotsGone then return end
+    dotsGone = not show
+    pcall(map.SetIconScale, map, show and Fade.MapIconScale() or 0)
+end
+
 function Fade.MapAway(name, on)
     on = on == true
     local follow = Fade.mapFollow
@@ -642,9 +669,11 @@ function Fade.MapAway(name, on)
         local a = map:GetAlpha()
         mapAlphaBefore = type(a) == "number" and a or 1
         map:SetAlpha(0)
+        Fade.MapDots(false)
     elseif before and not now then
         map:SetAlpha(mapAlphaBefore or 1)
         mapAlphaBefore = nil
+        Fade.MapDots(true)
     end
 end
 

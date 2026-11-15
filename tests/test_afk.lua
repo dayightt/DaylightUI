@@ -441,6 +441,21 @@ T.test("afk: the minimap goes see-through while the UI is away (its dots ignore 
     T.eq(Minimap:GetAlpha(), 1, "back with the UI")
 end)
 
+-- Its own alpha at 0 still leaves the arrow and dots (seen in game); the
+-- game's icon scale takes them away, and back to the Edit Mode size after.
+T.test("afk: the game's minimap loses its arrow and dots while the UI is away", function()
+    local icons = 1
+    world(nil, function()
+        CreateFrame("Frame", "Minimap", UIParent)
+        Minimap.SetIconScale = function(self, v) icons = v end
+    end)
+    away(true)
+    T.eq(icons, 0, "no dots floating over the AFK screen")
+    away(false)
+    T.eq(icons, 1, "the Edit Mode size back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("afk: a map someone else made see-through stays so after", function()
     world(nil, function() CreateFrame("Frame", "Minimap", UIParent) end)
     Minimap:SetAlpha(0.4)

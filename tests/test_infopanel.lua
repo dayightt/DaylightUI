@@ -1613,6 +1613,11 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     local hides = 0
     local hide = Minimap.Hide
     Minimap.Hide = function(self) hides = hides + 1; return hide(self) end
+    -- The arrow and dots draw whatever the map's alpha, but shrink with the
+    -- game's icon scale: out of sight, the map takes them to 0.
+    local icons, writes = 1, 0
+    local setIcons = Minimap.SetIconScale
+    Minimap.SetIconScale = function(self, v) icons = v; writes = writes + 1 end
     local F = DaylightUI.Fade
     local function settle()
         F.Step()
@@ -1625,9 +1630,11 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     settle()
     T.eq(P.holder:GetAlpha(), 0, "panel faded")
     T.eq(Minimap:GetAlpha(), 0, "faded: map hidden")
+    T.eq(icons, 0, "faded: its arrow and dots gone too")
     stub.EnterCombat()
     settle()
     T.eq(Minimap:GetAlpha(), 1, "in a fight: map back")
+    T.eq(icons, 1, "with its dots at their size")
     stub.LeaveCombat()
     stub.Advance(3)
     settle()
@@ -1643,6 +1650,7 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     settle()
     T.near(P.holder:GetAlpha(), 0.3, 0.01, "panel part faded")
     T.near(Minimap:GetAlpha(), 0.3, 0.01, "part faded: the map fades with it")
+    T.eq(icons, 1, "still in sight: the dots stay")
     -- Opacity 0: gone for good, the map's icons too.
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     DaylightUI:Set("InfoPanel", "fade.opacity", 0)
@@ -1659,10 +1667,16 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     for _ = 1, 20 do stub.Advance(0.5); settle() end
     T.eq(P.holder:GetAlpha(), 0, "hushed: panel gone")
     T.eq(Minimap:GetAlpha(), 0, "hushed: map hidden")
+    T.eq(icons, 0, "hushed (campfire, fishing): no dots left floating")
+    local held = writes
+    for _ = 1, 5 do stub.Advance(0.5); settle() end
+    T.eq(writes, held, "written once, not on every step")
     F.Unhush("test", true)
     settle()
     T.eq(Minimap:GetAlpha(), 1, "hush lifted: map back")
+    T.eq(icons, 1, "dots back at the size the player picked")
     Minimap.Hide = hide
+    Minimap.SetIconScale = setIcons
     T.eq(hides, 0, "the map is never hidden")
     T.truthy(Minimap:IsShown())
 end)
