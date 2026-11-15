@@ -638,17 +638,18 @@ function Parts.ItemIcon(b, size)
     b.well:SetDrawLayer("ARTWORK", 1)
     b.well:SetPoint("TOPLEFT", b.edge, "TOPLEFT", 1, -1)
     b.well:SetPoint("BOTTOMRIGHT", b.edge, "BOTTOMRIGHT", -1, 1)
-    -- The game snaps each texture to the pixel grid on its own. On a tile that
-    -- sits on a half pixel, the outline and the fill inside it could round apart
-    -- and one side of the ring vanished. Unsnapped, the one pixel between them
-    -- always covers exactly one pixel row.
-    for _, t in ipairs({ b.edge, b.well }) do
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
-        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
-    end
     b.icon = b:CreateTexture(nil, "OVERLAY")
     b.icon:SetAllPoints(b.well)
     Style.CropIcon(b.icon)
+    -- The game snaps each texture to the pixel grid on its own. On a tile that
+    -- sits on a half pixel, the outline, the fill and the icon could each round
+    -- their own way, and the icon, drawn on top, covered one side of the ring.
+    -- All three unsnapped, the icon lands exactly on the fill and the one pixel
+    -- between fill and outline always shows.
+    for _, t in ipairs({ b.edge, b.well, b.icon }) do
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    end
     return b
 end
 
