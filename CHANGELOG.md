@@ -1,3 +1,43 @@
+# DaylightUI 1.9.0
+
+A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.
+
+## New
+- Bags: A list view for the bags and bank: a row per item with its name, level, count and sell value
+- Bags: Item tooltips show how many of that item each of your characters has, in their bags and bank
+- Bags: While you search, one button moves everything that matches to the bank, mail, trade window or vendor
+- Bags: Bring your Baganator categories over as bag groups
+- Nameplates: Enemy nameplates can fade while they're out of your attack range (Nameplates > Target)
+- Buffs: The buff and debuff bars can hide or show spells by your aura lists, and show only what you can dispel or boss debuffs (Buffs > Filter)
+- Unit frames: The player frame can stay shown while your mana refills and fade once it's full (Player > Opacity & fade)
+- Quests: With GatherMate2, the quest arrow can point you to a herb or ore node close by (Quest Tracker > Navigation)
+- Window skins: Drag the game's windows by their title bar and they stay there: collections, achievements, the auction house, the calendar and more
+- Cooldown Manager: Hunters see how long their traps, Bestial Wrath, Mend Pet and hawks last
+- Windows: The main button in Daylight UI windows (Accept, Complete, Send...) has a soft light circling its edge
+
+## Changed
+- Bags: A fresh, calmer look for the bags and bank: tidy rows of groups you can fold and color, and items glide into place
+- Window skins: The hunter's stable and the New Recipe Learned pop-up have the Daylight UI look, and the loot window and flight map line up like every other window
+- Unit frames: The Personal Display page has a live preview at the top, like the other frame pages
+- Windows: Little touches: a soft round halo when a window opens, shown on the guild window too, with its own switch (General > Appearance)
+
+## Fixed
+- Setup: Moved frames and changed settings no longer reset at every logout if you skipped the setup guide
+- Action bars: No more "the game blocked MultiBar..." messages in chat during a fight
+- Action bars: A priest's bars no longer swap to an empty page in Spirit of Redemption or when turned into an animal
+- Action bars: The shaman totem bar fades with its bar again
+- Bags: Can I Mog It, Pawn, Simple Item Levels and Caerdon marks show on the bag slots
+- Nameplates: Long names stay on one line instead of breaking over the bar
+- Minimap: Your arrow and the map's dots no longer float on screen when the minimap fades away
+- Unit frames: 3D portraits fade with their frame instead of staying on screen
+- Party frames: The dispel border no longer draws a line across a party member's portrait
+- Whispers: An open conversation no longer hides behind the unit frames and action bars
+- Chat: Copy Character Name works again, and the chat copy and bug report boxes no longer come up empty
+- Languages: Russian text no longer goes blank with a font that has no Russian letters
+- Languages: Ready and Role check no longer get cut off, and the missing buffs banner names Blessing of Light properly
+- Window skins: Opening the guild window with no guild or community no longer causes an error
+- Windows: Profession trainers show each recipe's item level and needed skill again, and item icons keep their whole colored outline
+
 # DaylightUI 1.8.2
 
 Target buffs and nameplate pieces back where they sat before 1.8.0, another vanishing nameplate fix, and a Cooldown Manager tour.
