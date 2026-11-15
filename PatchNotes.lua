@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
+        },
+    },
     { version = "1.8.2", date = "2026-11-14", summary = "Target buffs and nameplate pieces back where they sat before 1.8.0, another vanishing nameplate fix, and a Cooldown Manager tour.",
         new = {
             { "Cooldown Manager", "A short tour the first time you open the cooldown layout: adding spells, making groups and changing them. /cdm tour shows it again" },

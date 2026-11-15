@@ -377,12 +377,14 @@ function Plate.Create(parent, sample)
     p.factionIcon:Hide()
     p.nameFrame = words
     p.name = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.name:SetWordWrap(false)
     -- An unseen copy of the name with no width of its own, so it's exactly as wide
     -- as the letters. The group mark and faction crest sit against its edges and
     -- the name's width is never read, which may be secret.
     p.nameEdge = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
     p.nameEdge:SetAlpha(0)
     p.sub = Style.Text(words, 9, "CENTER", Plate.MEDIA.fonts.name)
+    p.sub:SetWordWrap(false)
     local sc = Plate.SUB_COLOR
     p.sub:SetTextColor(sc[1], sc[2], sc[3])
     p.quest = Style.Text(over, 14, "LEFT", Plate.MEDIA.font)
@@ -1317,8 +1319,10 @@ local function classText(p)
         inner:SetAllPoints(win)
         ct.name[token] = Style.Text(inner, 11, "CENTER", Plate.MEDIA.fonts.name)
         ct.name[token]:SetAllPoints(p.name)
+        ct.name[token]:SetWordWrap(false)
         ct.sub[token] = Style.Text(inner, 9, "CENTER", Plate.MEDIA.fonts.name)
         ct.sub[token]:SetAllPoints(p.sub)
+        ct.sub[token]:SetWordWrap(false)
         ct.wins[token] = win
     end
     p.classText = ct
@@ -2134,9 +2138,11 @@ local function placeName(p, L, rel, spot, nameOnly, w)
     local name, sub = p.name, p.sub
     name:ClearAllPoints()
     sub:ClearAllPoints()
+    -- Off the bar a name keeps its whole length on one line, even past the plate's
+    -- edges; on the bar it's held to the room there and cut short instead.
     if nameOnly then
-        name:SetWidth(w + 20)
-        sub:SetWidth(w + 20)
+        name:SetWidth(0)
+        sub:SetWidth(0)
         p.nameJustify = "CENTER"
         name:SetJustifyH("CENTER")
         sub:SetJustifyH("CENTER")
@@ -2147,7 +2153,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         return
     end
     local H = sideOf(L.point)
-    local width = Plate.OUTSIDE[spot] and w + 20 or L.line
+    local width = Plate.OUTSIDE[spot] and 0 or L.line
     name:SetWidth(width)
     sub:SetWidth(width)
     -- Kept to pass along (to the class text copies), since nothing should read it back
