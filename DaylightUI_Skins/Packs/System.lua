@@ -164,6 +164,27 @@ local function lootRoom(f)
     end
 end
 
+-- The item button is what answers clicks and hovers (it takes the item, shows its
+-- tooltip and lights the row), and it is only the icon's size. Its hit area covers
+-- the whole row instead, so the name and the empty part of the row answer too.
+-- Reaching past the button's edges is what negative insets do; they follow the
+-- row's size (the bar showing or hiding changes its width).
+local function lootHit(row)
+    local item = row.Item
+    if type(item) ~= "table" or not item.SetHitRectInsets then return end
+    if InCombatLockdown() and item.IsProtected and item:IsProtected() then return end
+    local L = LootLayout
+    local rowH, rowW = row:GetHeight(), row:GetWidth()
+    local up = (type(rowH) == "number" and rowH > L.ICON) and -(rowH - L.ICON) / 2 or 0
+    local left, right = 0, 0
+    if type(rowW) == "number" and rowW > L.ITEM_X + L.ICON then
+        left, right = -L.ITEM_X, -(rowW - L.ITEM_X - L.ICON)
+    end
+    item:SetHitRectInsets(left, right, up, up)
+end
+
+local lootHitWatched = setmetatable({}, { __mode = "k" }) -- rows whose size changes refit the hit area
+
 -- A row draws ROW_GAP shorter than its slot. Its icon is smaller and in the
 -- middle, the name sits just below the middle of the row, and the rarity is in
 -- the top right corner, above the name's line.
@@ -177,12 +198,12 @@ local function lootRoomRow(row)
     item:SetSize(L.ICON, L.ICON)
     item:ClearAllPoints()
     item:SetPoint("LEFT", row, "LEFT", L.ITEM_X, 0)
-    -- The button is what answers clicks and hovers: its hit area covers the
-    -- row's full height again, though the icon is smaller.
-    local rowH = row:GetHeight()
-    if item.SetHitRectInsets and type(rowH) == "number" and rowH > L.ICON then
-        local grow = -(rowH - L.ICON) / 2
-        item:SetHitRectInsets(0, 0, grow, grow)
+    -- The button is what answers clicks and hovers: its hit area covers the whole
+    -- row, though the icon is smaller (and follows the row when its width changes).
+    lootHit(row)
+    if not lootHitWatched[row] and row.HookScript then
+        lootHitWatched[row] = true
+        row:HookScript("OnSizeChanged", lootHit)
     end
     if type(row.IconQuestTexture) == "table" and row.IconQuestTexture.SetSize then
         row.IconQuestTexture:SetSize(L.ICON, L.ICON)
