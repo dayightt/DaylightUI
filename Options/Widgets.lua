@@ -726,6 +726,57 @@ function STYLE.shine(b, at, fade, lo, hi, size)
     glowDot(b, L[1] + L[2] + bot, size, hi, 0.8 * e)
 end
 
+-- Styles added by plugins (API AddGlowStyle): draw(g, at, lo, hi, size)
+-- with g's helpers below, which take distances as shares of the way round
+-- (clockwise from the top-left corner), so a style needs no sizes of its own.
+local ADDED, BROKEN = {}, {}
+local Ctx = {}
+Ctx.__index = Ctx
+local function color(c, fallback)
+    if type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number" then return c end
+    return fallback
+end
+function Ctx:Light(at, size, c, alpha)
+    if type(at) ~= "number" or type(size) ~= "number" or type(alpha) ~= "number" then return end
+    glowDot(self.b, (at % 1) * self.b.glowAround, size, color(c, self.lo), math.min(1, alpha) * self.fade)
+end
+function Ctx:Trail(at, length, alpha, tail, head)
+    if type(at) ~= "number" or type(length) ~= "number" or type(alpha) ~= "number" then return end
+    local a = self.b.glowAround
+    local c = color(head, self.lo)
+    glowTrail(self.b, (at % 1) * a, math.max(0, math.min(1, length)) * a, math.min(1, alpha) * self.fade, color(tail, c), c)
+end
+function Ctx:Edge(side, from, to, a0, a1, c0, c1)
+    local L = self.b.glowLen[side]
+    if not L or type(from) ~= "number" or type(to) ~= "number" or type(a0) ~= "number" then return end
+    from, to = math.max(0, math.min(1, from)), math.max(0, math.min(1, to))
+    if type(a1) ~= "number" then a1 = a0 end
+    c0 = color(c0, self.lo)
+    glowPiece(self.b, side, from * L, to * L, math.min(1, a0) * self.fade, math.min(1, a1) * self.fade, c0, color(c1, c0))
+end
+
+-- Adds a style to every glow menu. lap = seconds a turn; draw as above. A style
+-- that errors is reported once and drawn as Circling from then on.
+function W.AddGlowStyle(key, label, lap, draw)
+    local M = DUI.Motion
+    if not M.GLOW_STYLES[key] then M.GLOW_STYLE_ORDER[#M.GLOW_STYLE_ORDER + 1] = key end
+    M.GLOW_STYLES[key] = label
+    W.GLOW_LAP[key] = lap
+    ADDED[key], BROKEN[key] = draw, nil
+end
+
+local function drawAdded(b, draw, at, fade, lo, hi, size)
+    local g = b.glowCtx
+    if not g then g = setmetatable({ b = b }, Ctx); b.glowCtx = g end
+    -- The helpers apply the fade in and out, so a style's own alphas stay 0 to 1.
+    g.width, g.height, g.lo, g.hi, g.fade = b.glowW, b.glowH, lo, hi, fade
+    local ok, err = pcall(draw, g, at, lo, hi, size)
+    if not ok then
+        BROKEN[b.glowStyle] = true
+        if geterrorhandler then geterrorhandler()(err) end
+    end
+end
+
 local function glowHideRest(b)
     for pool, used in pairs(b.glowUse) do
         for k = used + 1, b.glowShown[pool] or 0 do pool[k]:Hide() end
@@ -746,8 +797,13 @@ local function glowPlace(b)
     local L = b.glowLen
     L[1], L[2], L[3], L[4] = w, math.sqrt(h * h + cut * cut), w - cut, h
     b.glowAround = L[1] + L[2] + L[3] + L[4]
-    local draw = STYLE[b.glowStyle] or STYLE.circle
-    draw(b, b.glowAt, b.glowFade, b.glowColors[1], b.glowColors[2], b.glowSize or W.GLOW.size)
+    local lo, hi, size = b.glowColors[1], b.glowColors[2], b.glowSize or W.GLOW.size
+    local added = ADDED[b.glowStyle]
+    if added and not BROKEN[b.glowStyle] then
+        drawAdded(b, added, b.glowAt, b.glowFade, lo, hi, size)
+    else
+        (STYLE[b.glowStyle] or STYLE.circle)(b, b.glowAt, b.glowFade, lo, hi, size)
+    end
     glowHideRest(b)
 end
 

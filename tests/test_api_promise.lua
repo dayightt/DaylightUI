@@ -20,13 +20,17 @@ local PROMISED = {
     "GetCooldownPiece", "CooldownPieceInfo",
     -- 1.8
     "MainButton",
+    -- 1.9
+    "GlowStyles", "GlowAround",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
     "IsPreviewing", "SuspendMover", "Override", "FilterShop", "AddTooltipLines", "AddSetupStep", "AddBagGroup",
     "RemoveBagGroup", "AddBuffCategory", "FormatChat", "ChatLink", "OnChatLink",
     -- 1.8
-    "AddFrameStyle" }
+    "AddFrameStyle",
+    -- 1.9
+    "AddGlowStyle" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",

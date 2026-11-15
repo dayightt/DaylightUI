@@ -13,7 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
-            { "Glows", "Five animated glows to pick from for the main window buttons (or none), your target's nameplate outline and Cooldown Manager glows" },
+            { "Glows", "Five animated glows to pick from for the main window buttons (or none), your target's nameplate outline and Cooldown Manager glows, and plugins can add their own" },
             { "Bags", "Turn off the side-by-side compare with your worn gear for items in your bags and bank, and still compare by holding Shift (Bags > Layout)" },
             { "Windows", "Use the game's own windows if you prefer them or your addons need them: a button in each Daylight UI window (professions, spellbook, character, talking to NPCs, inspect, group finder, mailbox, social, Legacy) swaps to the game's, which now has the Daylight UI look, and a link there swaps back. It's remembered" },
         },
@@ -23,6 +23,7 @@ DUI.PatchNotes = {
         fixed = {
             { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
             { "Bags", "Item groups and empty slots reach the right edge of the bag again instead of stopping a slot or two short" },
+            { "Bags", "Folding an item group in the bag gives its room back again, instead of leaving a gap under its heading" },
         },
     },
     { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",
