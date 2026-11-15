@@ -67,6 +67,7 @@ Donators.LIST = {
     "FrostByghte",
     "Sukori",
     "Steffen Krause",
+    "mattgif",
     "Hugo Romao PT",
     "sam",
     "Daniel",

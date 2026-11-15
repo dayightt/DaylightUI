@@ -63,6 +63,26 @@ T.test("platefix: yes after a step opens a report naming that step", function()
     T.isnil(NP.Manager.fixStep, "the round is over")
 end)
 
+-- Every report carries the player's screen setup, so reports can be lined up
+-- to see what the players who get vanishing plates share.
+T.test("platefix: the report says how the game is shown on screen", function()
+    local NP, cvars = login()
+    cvars.gxMaximize, cvars.gxapi, cvars.maxFPS, cvars.maxFPSBk = "1", "D3D12", "144", "30"
+    cvars.useUiScale, cvars.uiScale = "1", "0.71"
+    stub.physW, stub.physH = 2560, 1080
+    _G.GetMonitorCount = function() return 2 end
+    _G.C_VideoOptions = { GetGxAdapterInfo = function() return { { name = "AMD Radeon RX 7800 XT" } } end }
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.FireEvent("DISPLAY_SIZE_CHANGED")
+    local text = table.concat(NP.Manager.ReportWorld(), "\n")
+    for _, want in ipairs({ "2560x1080", "monitors=2", "maximized=1", "api=D3D12", "AMD Radeon RX 7800 XT",
+        "maxFPS=144", "background=30", "uiScale=0.71", "UIParent=", "scale changes 2", "display changes 1" }) do
+        T.truthy(text:find(want, 1, true), want .. " in: " .. text)
+    end
+    _G.GetMonitorCount, _G.C_VideoOptions = nil, nil
+end)
+
 T.test("platefix: after every step with no yes, the report says none did", function()
     local NP = login()
     for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
@@ -142,6 +162,34 @@ T.test("platefix: step 7 puts the plates back on newly built plates", function()
     T.truthy(p.stack:IsShown())
 end)
 
+-- All 40 plates built in one frame froze the game for a moment, and the
+-- plates' flash was missed.
+T.test("platefix: step 7 builds its plates a few a frame, then rebuilds the game's", function()
+    local NP, cvars = login()
+    runTo(NP, 6)
+    local P = NP.Plate
+    -- Each timer's run counts as a frame of its own.
+    local create, after, frames = P.Create, C_Timer.After, { 0 }
+    P.Create = function(...)
+        frames[#frames] = frames[#frames] + 1
+        return create(...)
+    end
+    C_Timer.After = function(t, fn) return after(t, function() frames[#frames + 1] = 0; fn() end) end
+    NP.Manager.Fix()
+    for _ = 1, 3 do stub.RunTimers() end
+    P.Create, C_Timer.After = create, after
+    local made, most, busy = 0, 0, 0
+    for _, n in ipairs(frames) do
+        made, most = made + n, math.max(most, n)
+        if n > 0 then busy = busy + 1 end
+    end
+    T.eq(made, NP.Manager.PREPARE, "every plate built")
+    T.truthy(most <= NP.Manager.FRESH_PER_FRAME, "only a few in any one frame: " .. most)
+    T.eq(busy, NP.Manager.PREPARE / NP.Manager.FRESH_PER_FRAME, "spread over frames")
+    T.eq(cvars.nameplateShowEnemies, "1", "the game's plates switched off and on after")
+    T.truthy(NP.Manager.byUnit.nameplate1, "and Daylight UI's back on")
+end)
+
 T.test("platefix: a round where nothing helped leaves the takeover whole", function()
     local NP = login()
     runTo(NP, NP.Manager.FIX_STEPS)
@@ -197,4 +245,66 @@ T.test("platefix: the report is plain text the copy box can show, and goes to ch
     T.truthy(text:find("Stacking enemy=true friendly=false", 1, true), "the stacking setting in words")
     local chat = table.concat(printed, "\n")
     T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
+end)
+
+-- The report says which parts of Daylight UI were on, and the live state of the
+-- things only Daylight UI does outside its plates, so reports from players who
+-- lose their plates can be lined up.
+T.test("platefix: the report names Daylight UI's modules and its own global pieces as they are", function()
+    local NP = login()
+    local text = table.concat(NP.Manager.ReportWorld(), "\n")
+    T.truthy(text:find("Daylight UI modules on: Nameplates", 1, true), text)
+    T.truthy(text:find("off: UnitFrames", 1, true), text)
+    T.truthy(text:find("buffers drawn 0", 1, true), text)
+    T.truthy(text:find("UIParent alpha 1.00", 1, true), text)
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.SetFlattensRenderLayers = function() end
+    f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.Whole(f, "test", true)
+    stub.RunTimers()
+    text = table.concat(NP.Manager.ReportWorld(), "\n")
+    T.truthy(text:find("buffers drawn 1", 1, true), text)
+end)
+
+-- It happens with the Nameplates module off too, so the check and the fix
+-- steps that don't need it work without it.
+T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates module off", function()
+    local cvars = {}
+    stub.Load({ before = function()
+        local np = CreateFrame("Frame", nil, UIParent)
+        _G.C_NamePlate = { GetNamePlateForUnit = function(unit) if unit == "nameplate1" then return np end end }
+        _G.issecure = function() return false end
+        stub.units = {
+            player = { name = "Me", class = "PRIEST", isPlayer = true },
+            nameplate1 = { name = "Searing Whelp", hostile = true, reaction = 2, health = 60, maxHealth = 100 },
+        }
+    end })
+    _G.SetCVar = function(k, v) cvars[k] = v end
+    _G.GetCVar = function(k) return cvars[k] end
+    _G.C_CVar = _G.C_CVar or {}
+    C_CVar.GetCVarDefault = function(k) return "default:" .. k end
+    cvars.nameplateShowEnemies = "1"
+    local printed = {}
+    local was = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    DaylightUI.RunCommand("platecheck")
+    local check = table.concat(printed, "\n")
+    T.truthy(check:find("Nameplates module off", 1, true), check)
+    T.truthy(check:find("Game plates 1", 1, true), check)
+    T.truthy(check:find("nameplate1", 1, true), check)
+    printed = {}
+    DaylightUI.RunCommand("platefix")
+    T.eq(cvars.nameplateShowEnemies, "0", "the game's plates switched off")
+    stub.RunTimers()
+    stub.RunTimers()
+    T.eq(cvars.nameplateShowEnemies, "1", "and on again")
+    DaylightUI.RunCommand("platefix")
+    T.eq(cvars.nameplateMaxDistance, "default:nameplateMaxDistance", "plate settings to the game's defaults")
+    DaylightUI.RunCommand("platefix yes")
+    DaylightUI.Print = was
+    local text = shownText()
+    T.truthy(text and text:find("step 2 brought them back", 1, true), tostring(text))
+    T.truthy(text:find("Daylight UI modules on:", 1, true), text)
+    T.truthy(text:find("Nameplates module off", 1, true), text)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -245,8 +245,7 @@ local function lines(host, y)
     e:SetTextInsets(6, 6, 6, 6)   -- off the box's edge, like the one-line boxes
     e:HookScript("OnEditFocusGained", function(self) self:HighlightText() end)
     function e.Lock(text)
-        area.Lock(text, true)
-        e:SetText(text)
+        area.Lock(W.SetEditText(e, text), true)
         e:SetCursorPosition(0)
         area:SetVerticalScroll(0)
     end

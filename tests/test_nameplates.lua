@@ -2398,9 +2398,22 @@ T.test("nameplates: the stacking box keeps its size when you target (the game re
     stub.units.target = stub.units.nameplate1
     stub.FireEvent("PLAYER_TARGET_CHANGED")
     T.deq(box(b), before, "another plate shrinking: its stacking box doesn't")
-    local ui = UIParent:GetEffectiveScale()
-    T.near(a.stack:GetScale(), ui, 1e-6, "the target's box: its plain size, not the zoom")
+    T.near(a.stack:GetEffectiveScale(), b.stack:GetEffectiveScale(), 1e-6, "the target's box: its plain size, not the zoom")
     stub.units.target = nil
+end)
+
+-- Alt-tab can change the UI scale for a moment. A plate laid out in that moment
+-- kept a stacking box of the wrong size after the scale came back, and the game
+-- stacked every enemy plate by it.
+T.test("nameplates: the stacking box follows the UI scale back after a moment's change", function()
+    login()
+    local base = UIParent:GetScale()
+    UIParent:SetScale(base * 0.25)
+    local a = added("nameplate1")
+    UIParent:SetScale(base)
+    local b = added("nameplate2")
+    T.near(a.stack:GetEffectiveScale(), b.stack:GetEffectiveScale(), 1e-6, "same box as a plate laid out after")
+    T.falsy(a.stack:IsIgnoringParentScale(), "it takes the game plate's scale, as EllesmereUI's does")
 end)
 
 T.test("nameplates: by default only your target grows; the other plates aren't touched on a target switch", function()

@@ -595,6 +595,11 @@ function Widget:SetText(t)
     if stub.FontRule and rawget(self, "__type") == "FontString" and not self.__font and t ~= nil then
         error("FontString:SetText(): Font not set", 2)
     end
+    -- Seen in game: an edit box sometimes holds nothing after SetText of some
+    -- chat or error text. Which text does it is unknown, so tests name it with
+    -- stub.EditRefuses(text).
+    if stub.EditRefuses and rawget(self, "__type") == "EditBox" and type(t) == "string"
+        and stub.EditRefuses(t) then t = "" end
     self.__text = t
     self.__plainText = stub.Plain(t)
     self.__secretAnchoring = isSecret(t) or nil
@@ -742,6 +747,12 @@ function Widget:Disable() self:SetEnabled(false) end
 function Widget:SetButtonState(s) self.__state = s end
 function Widget:GetButtonState() return self.__state or "NORMAL" end
 function Widget:GetText() return self.__text end
+function Widget:GetNumLetters()
+    local t = self.__text
+    if type(t) ~= "string" then return 0 end
+    local _, n = string.gsub(t, "[^\128-\191]", "")
+    return n
+end
 -- An edit box takes one line unless made multi-line. Enter in a one-line box
 -- adds no line break and only fires OnEnterPressed, as in game.
 function Widget:SetMultiLine(on) self.__multiLine = on and true or false end
@@ -2372,6 +2383,21 @@ end
 _G.IsEveryoneAssistant = function() return stub.everyoneAssist == true end
 -- A ready check answer: a unit's own ready = "ready" | "notready" | "waiting".
 _G.GetReadyCheckStatus = function(u) local x = U(u); return x and x.ready end
+-- A summon on its way: a unit's own summon = "Pending" | "Accepted" | "Declined"
+-- (Enum.SummonStatus names). Both calls refuse a secret unit token, as in game.
+_G.Enum.SummonStatus = { None = 0, Pending = 1, Accepted = 2, Declined = 3 }
+_G.C_IncomingSummon = {
+    HasIncomingSummon = function(u)
+        assert(not isSecret(u), "HasIncomingSummon: secret unit")
+        local x = U(u)
+        return x ~= nil and type(x.summon) == "string"
+    end,
+    IncomingSummonStatus = function(u)
+        assert(not isSecret(u), "IncomingSummonStatus: secret unit")
+        local x = U(u)
+        return Enum.SummonStatus[x and x.summon or "None"] or 0
+    end,
+}
 _G.HasLFGRestrictions = function() return stub.lfgGroup == true end
 _G.UnitInBattleground = function(u) if u == "player" and stub.inBattleground then return 1 end end
 -- Group calls the game marks HasRestrictions do nothing for addon code in a fight
@@ -2409,21 +2435,6 @@ end
 _G.GetShapeshiftFormID = function() return stub.formID end
 -- The camera's own calls. The zoom keys and mouse wheel run MoveViewIn/OutStart
 -- (Blizzard_FrameXML/Bindings_Camelot.xml).
--- A summon on its way: a unit's own summon = "Pending" | "Accepted" | "Declined"
--- (Enum.SummonStatus names). Both calls refuse a secret unit token, as in game.
-_G.Enum.SummonStatus = { None = 0, Pending = 1, Accepted = 2, Declined = 3 }
-_G.C_IncomingSummon = {
-    HasIncomingSummon = function(u)
-        assert(not isSecret(u), "HasIncomingSummon: secret unit")
-        local x = U(u)
-        return x ~= nil and type(x.summon) == "string"
-    end,
-    IncomingSummonStatus = function(u)
-        assert(not isSecret(u), "IncomingSummonStatus: secret unit")
-        local x = U(u)
-        return Enum.SummonStatus[x and x.summon or "None"] or 0
-    end,
-}
 for _, n in ipairs({ "CameraZoomIn", "CameraZoomOut", "MoveViewInStart", "MoveViewOutStart", "SetView", "ResetView" }) do
     _G[n] = function() end
 end
@@ -3207,7 +3218,7 @@ function stub.WrapSecrets()
     end
 end
 
-stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "Gradients.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
+stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "Gradients.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerUI.lua", "InstallerSteps.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",

@@ -280,8 +280,7 @@ local function tilesFor(list, choosing, best)
             tint = bad and ns.Shop.BAD_ICON or nil, picked = choosing and S.choice == (it.index or i),
             mark = best and ns.Data.SaleOf(it) == best and Npc.COIN or nil,
             tooltip = tooltipFor(it), link = not S.sample and function() return GetQuestItemLink(it.kind, it.index) end or nil,
-            onClick = choosing and function() Npc.Pick(i) end or nil,
-            onDouble = choosing and function() Npc.Pick(i); Npc.Complete() end or nil }
+            onClick = choosing and function() Npc.Pick(i) end or nil }
     end
     return out
 end

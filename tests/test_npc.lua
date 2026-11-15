@@ -427,6 +427,19 @@ T.test("npc: hand-in: choices that came after the page was read still need a pic
     T.deq(NW.Calls("GetQuestReward"), { { 3 } })
 end)
 
+T.test("npc: hand-in: double-clicking a reward picks it without handing the quest in", function()
+    local N = load()
+    NW.Quest("COMPLETE", NW.Candles())
+    frame()
+    local tile = N.tiles[2]
+    tile:Click("LeftButton")
+    -- In game a button with an OnDoubleClick script gets that instead of its second OnClick.
+    tile:GetScript("OnDoubleClick")(tile, "LeftButton")
+    T.eq(#NW.Calls("GetQuestReward"), 0, "no hand-in from a double-click")
+    N.OnKey("SPACE")
+    T.deq(NW.Calls("GetQuestReward"), { { 2 } }, "the double-clicked reward is the pick")
+end)
+
 -- Space tapped faster than the server answers: the old page is still up.
 T.test("npc: one press per page: a second one before the next page sends nothing", function()
     local N = load()

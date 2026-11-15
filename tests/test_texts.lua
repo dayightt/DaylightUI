@@ -90,6 +90,21 @@ T.test("texts: a name text follows the last-name switch; class shows for players
     T.eq(stub.Text(f.extraTexts[2]), "", "a mob's class says nothing")
 end)
 
+T.test("target name: with the last-name switch off, a new target shows only the first name", function()
+    local DUI, ns = login()
+    stub.RunTimers()
+    stub.units.target = { name = "Bone", lastName = "Money", isPlayer = true, class = "MAGE", health = 5, maxHealth = 10 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    local f = ns.frames.target
+    T.eq(stub.Text(f.nameText), "Bone Money", "on by default")
+    DUI:Set("general", "lastNames.target", false)
+    stub.RunTimers()
+    T.eq(stub.Text(f.nameText), "Bone", "the current target at once")
+    stub.units.target = { name = "Ayla", lastName = "Moonwhisper", isPlayer = true, class = "DRUID", health = 5, maxHealth = 10 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    T.eq(stub.Text(f.nameText), "Ayla", "and the next target")
+end)
+
 T.test("texts: placed by Spots inside the frame, nudged", function()
     local DUI, ns = login()
     ns.Texts.Add("player", "level")
