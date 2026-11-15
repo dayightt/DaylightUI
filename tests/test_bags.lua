@@ -190,6 +190,36 @@ T.test("bags: the window has a portrait header, its name and free slots in the s
     T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
 end)
 
+T.test("bags: with the header off the search tops the window and a bank button sits by the X", function()
+    local ns = login()
+    local f = open(ns)
+    local _, _, _, _, withY = f.search:GetPoint(1)
+    local tall = f:GetHeight()
+    DaylightUI:Set("Bags", "showHeader", false)
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(f.portrait:IsShown(), "no portrait")
+    T.falsy(f.title:IsShown(), "no title")
+    T.falsy(f.sub:IsShown(), "no free count line")
+    T.truthy(f.bankButton and f.bankButton:IsShown(), "the bank button shows")
+    local _, rel = f.bankButton:GetPoint(1)
+    T.eq(rel, f.close, "beside the X")
+    local _, _, _, _, y = f.search:GetPoint(1)
+    T.truthy(y > withY, "the search moved up")
+    T.eq(f:GetHeight(), tall - (ns.Window.TITLE - ns.Window.Top(f)), "the window lost the header's height")
+    T.truthy(f:GetScript("OnDragStart"), "the window drags by itself")
+    local opened = 0
+    ns.Viewer.ToggleBank = function() opened = opened + 1 end
+    f.bankButton:GetScript("OnClick")(f.bankButton, "LeftButton")
+    T.eq(opened, 1, "a click opens the bank")
+    DaylightUI:Set("Bags", "showHeader", true)
+    stub.RunTimers()
+    T.truthy(f.portrait:IsShown() and f.title:IsShown(), "the header is back")
+    T.falsy(f.bankButton:IsShown(), "the bank button goes with it")
+    T.isnil(f:GetScript("OnDragStart"))
+    T.eq(f:GetHeight(), tall)
+end)
+
 -- The fake game does no layout, so no text width is checked here: these read the
 -- anchors. inset = how far a right edge sits in from the window's right edge.
 local function anchorOf(obj, point)
@@ -1176,6 +1206,20 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     T.eq(ns.Junk.DeleteShards(), 0)
     T.eq(#deleted, 0, "the cursor didn't hold a shard: put back, nothing deleted")
     T.isnil(stub.cursor)
+    -- A soul bag stays full: the extra shards go from the other bags first.
+    C_Container.PickupContainerItem = function(bag, slot)
+        local it = world.items[bag] and world.items[bag][slot]
+        stub.cursor = it and { "item", it.itemID, bag, slot } or nil
+    end
+    world.family = { [1] = 4 }
+    world.items[1][5] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    world.items[1][6] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    stub.FireEvent("BAG_UPDATE", 1); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
+    deleted = {}
+    T.eq(ns.Junk.DeleteShards(), 3)
+    T.truthy(world.items[1][5] and world.items[1][6], "the soul bag's shards stay")
+    T.truthy(not deleted[1]:find("^1:"), "the first one deleted is from a plain bag")
+    world.family = nil
     -- Not a warlock: no button, and the rows are hidden.
     stub.units.player.class = "MAGE"
     T.eq(ns.Junk.ExtraShards(), 0)

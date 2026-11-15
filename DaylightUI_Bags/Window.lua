@@ -51,6 +51,7 @@ Window.DEFAULT_POINT = { "BOTTOMRIGHT", "BOTTOMRIGHT", -24, 220 }
 Window.SORT_ICON = "ui-sort.png"
 Window.SLOTS_ICON = "ui-section-bags.png"
 Window.VIEW_ICON = "ui-view.png"
+Window.BANK_ICON = "ui-bank.png"
 Window.BAGS_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
 
 ns.windows = {}              -- every window created, bag first
@@ -292,7 +293,8 @@ function Window.Create(spec)
     end
 
     -- Tool row: the window's buttons right to left, the search fills the rest.
-    local top = -(Window.TITLE + Window.GAP)
+    Window.HeaderShown(f)
+    local top = -(Window.Top(f) + Window.GAP)
     f.tools = {}
     for _, t in ipairs(spec.tools or {}) do
         local b = iconButton(f, t.icon)
@@ -312,6 +314,7 @@ function Window.Create(spec)
     f.items = CreateFrame("Frame", nil, f)
     f.items.dluiWindow = f
     f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP)
+    Window.ApplyHeader(f)
 
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
@@ -375,6 +378,8 @@ function Window.Create(spec)
     f.padSecond = true   -- opened with the character window, which keeps the D-pad
     f.padFirst = function() return Window.FirstSlot(f) end   -- start on the items, not the tools above them
     Window.PadSetup(f)
+    -- The game's bag sounds, heard when soft UI sounds are off.
+    if f.kind == "bag" then f.duiGameSounds = { open = "IG_BACKPACK_OPEN", close = "IG_BACKPACK_CLOSE" } end
     if DUI.Motion then DUI.Motion.Window(f) end
     ns.windows[#ns.windows + 1] = f
     return f
@@ -513,11 +518,13 @@ function Window.LayoutTools(f)
         b:ClearAllPoints()
         if b:IsShown() then
             if right then b:SetPoint("RIGHT", right, "LEFT", -4, 0)
-            else b:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Window.EDGE, -(Window.TITLE + Window.GAP)) end
+            elseif f.noHeader and f.bankButton then b:SetPoint("RIGHT", f.bankButton, "LEFT", -4, 0)
+            else b:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Window.EDGE, -(Window.Top(f) + Window.GAP)) end
             right = b
         end
     end
     if right then f.search:SetPoint("RIGHT", right, "LEFT", -6, 0)
+    elseif f.noHeader and f.bankButton then f.search:SetPoint("RIGHT", f.bankButton, "LEFT", -6, 0)
     else f.search:SetPoint("RIGHT", f, "RIGHT", -Window.EDGE, 0) end
 end
 
@@ -610,7 +617,7 @@ end
 -- they come and go at once.
 function Window.LayoutChips(f, width)
     local Wd, M = DUI.Widgets, DUI.Motion
-    local top = -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP)
+    local top = -(Window.Top(f) + Window.GAP + Window.ROW + Window.GAP)
     local on = f.filtersShown == true
     local eases = ns.Layout.Eases(f)
     local was = f.filtersLaid
@@ -681,6 +688,69 @@ function Window.Chips(f)
         f.chips[#f.chips + 1] = b
     end
     Window.PaintChips(f)
+end
+
+-- The room above the tool row: the whole header, or with the bag's header
+-- turned off only enough for the accent line, the search at the very top.
+function Window.Top(f)
+    return f.noHeader and (Window.EDGE - Window.GAP) or Window.TITLE
+end
+
+-- Whether the window shows its header. Only the bag can turn it off.
+function Window.HeaderShown(f)
+    f.noHeader = f.spec.headerOption and f.Setting("showHeader") == false or nil
+    return not f.noHeader
+end
+
+-- Shows or hides the bag's header: portrait, title and free count. Without it
+-- the close X joins the tool row with a small bank button beside it, and the
+-- window drags from anywhere that isn't a slot or button.
+function Window.ApplyHeader(f)
+    if not f.spec.headerOption then return end
+    local shown = Window.HeaderShown(f)
+    if f.headerLaid == shown then return end
+    f.headerLaid = shown
+    local hasArt = f.portrait:GetTexture() ~= nil
+    f.portrait:SetShown(shown and hasArt)
+    f.portraitRim:SetShown(shown and hasArt)
+    f.title:SetShown(shown)
+    if f.sub then f.sub:SetShown(shown) end
+    if f.rule then f.rule:SetShown(shown) end
+    if f.portraitButton then f.portraitButton:SetShown(shown) end
+    f.handle:SetShown(shown)
+    if not shown and not f.bankButton then
+        local b = iconButton(f, Window.BANK_ICON)
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnClick", function(_, button)
+            if button ~= "RightButton" then ns.Viewer.ToggleBank()
+            elseif ns.Viewer.On() then ns.Viewer.OpenAlts() end
+        end)
+        tip(b, BANK or L["Bank"], L["Your bank, from anywhere."], function()
+            return ns.Viewer.On() and L["Right-click: your alts"] or nil
+        end)
+        f.bankButton = b
+    end
+    local close = f.close
+    close:ClearAllPoints()
+    if shown then
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", DUI.Win.CLOSE_X, DUI.Win.CloseY(false))
+        if f.bankButton then f.bankButton:Hide() end
+        f:SetScript("OnDragStart", nil)
+        f:SetScript("OnDragStop", nil)
+        f:SetScript("OnMouseUp", nil)
+    else
+        close:SetPoint("RIGHT", f, "TOPRIGHT", -Window.EDGE + 4, -(Window.Top(f) + Window.GAP + Window.ROW / 2))
+        f.bankButton:ClearAllPoints()
+        f.bankButton:SetPoint("RIGHT", close, "LEFT", -2, 0)
+        f.bankButton:Show()
+        -- With no title bar the window itself is the handle.
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.handle:GetScript("OnDragStart"))
+        f:SetScript("OnDragStop", f.handle:GetScript("OnDragStop"))
+        f:SetScript("OnMouseUp", f.handle:GetScript("OnMouseUp"))
+    end
+    f.search:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE, -(Window.Top(f) + Window.GAP))
+    Window.LayoutTools(f)
 end
 
 -- A right-click on the bag's portrait drops a small menu under it: the bank
@@ -839,8 +909,9 @@ function Window.SetPortrait(f, file, l, r, t, b)
     if not f.portrait then return end
     f.portrait:SetTexture(file)
     if l then f.portrait:SetTexCoord(l, r, t, b) else DUI.Style.CropIcon(f.portrait) end
-    f.portrait:SetShown(file and true or false)
-    f.portraitRim:SetShown(file and true or false)
+    local on = file and not f.noHeader and true or false
+    f.portrait:SetShown(on)
+    f.portraitRim:SetShown(on)
 end
 
 -- The sub line under the title. The bag reads "<name> · 12 of 32 free", the bank
@@ -1018,7 +1089,7 @@ function Window.Relayout(f, synced, moved)
     local _, _, _, _, wasY = f.items:GetPoint(1)
     local chipH = Window.LayoutChips(f, w)
     local _, _, _, _, nowY = f.items:GetPoint(1)
-    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + (f.listLead or 0) + h + Window.GAP + Window.FOOTER + E
+    local H = Window.Top(f) + Window.GAP + Window.ROW + Window.GAP + chipH + (f.listLead or 0) + h + Window.GAP + Window.FOOTER + E
     -- An eased layout glides the window to its new size along with the slots
     -- (Layout.Ease); anything else snaps. When the filters come or go the grid
     -- glides from where it was on the same curve, so it never jumps.
@@ -1266,6 +1337,7 @@ local function bagWindow()
             ns.Stack.Run(function() if hold then Window.EndSort(f, nil, hold) end end)
         end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
+        headerOption = true,
         portraitMenu = {
             title = function() return L["Bags"] end,
             hint = function()
@@ -1351,6 +1423,7 @@ function ns.Refresh(mod)
             Window.Place(w)
             DUI.Win.Repaint(w)
             Window.PaintChips(w)
+            Window.ApplyHeader(w)
             Window.Relayout(w)
             Window.FillAll(w)
         end
