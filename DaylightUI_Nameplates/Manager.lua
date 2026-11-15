@@ -38,9 +38,20 @@ function Manager.Spares() return #spare end
 
 -- Sets the spare plates aside for good and builds a new set, for /dui platefix.
 -- The old ones stay hidden where they are and are never put on a plate again.
-function Manager.FreshPool()
+-- A few are built each frame: all 40 in one frame froze the game for a moment.
+-- done runs once the last one is built.
+Manager.FRESH_PER_FRAME = 4
+function Manager.FreshPool(done)
     for i = #spare, 1, -1 do spare[i] = nil end
-    Manager.Prepare(Manager.PREPARE)
+    local left = Manager.PREPARE
+    local function step()
+        local n = math.min(left, Manager.FRESH_PER_FRAME)
+        Manager.Prepare(n)
+        left = left - n
+        if left > 0 then return C_Timer.After(0, step) end
+        if done then done() end
+    end
+    step()
 end
 
 local plain = function(...) return ns.Plate.Plain(...) end
@@ -838,6 +849,9 @@ function Manager.Start()
     for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
         DUI.RegisterEvent(e, function() Manager.ApplySize() end)
     end
+    local changes = Manager.screenChanges
+    DUI.RegisterEvent("UI_SCALE_CHANGED", function() changes.scale = changes.scale + 1 end)
+    DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() changes.display = changes.display + 1 end)
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         Manager.UpdateTargets()
         Manager.QueueFocus()
@@ -1222,7 +1236,7 @@ end
 local function backWithout(part)
     handBack()
     Manager.fixWithout = part
-    if part == "pool" then Manager.FreshPool() end
+    if part == "pool" then return Manager.FreshPool(offAndOn) end
     offAndOn()
 end
 
@@ -1288,6 +1302,54 @@ Manager.REPORT_CVARS = {
     "nameplateSize", "nameplateStyle", "nameplateSimplifiedTypes", "nameplateMotionSpeed", "nameplateShowEnemyMinions",
 }
 
+-- How the game is shown: screen, window mode, graphics card, frame caps, and the
+-- UI scale three ways (the game's setting, whether it's used, and what UIParent
+-- really has, which Daylight UI keeps at its own saved value), with how often
+-- the scale and the screen changed this session. Lined up across reports, this
+-- shows what the players who lose their plates have in common.
+Manager.screenChanges = { scale = 0, display = 0 }
+
+function Manager.ReportScreen()
+    local words = {}
+    local function add(label, v)
+        if v ~= nil then words[#words + 1] = label .. "=" .. tostring(v) end
+    end
+    if type(GetPhysicalScreenSize) == "function" then
+        local ok, w, h = pcall(GetPhysicalScreenSize)
+        if ok and type(w) == "number" and type(h) == "number" then words[#words + 1] = string.format("%dx%d", w, h) end
+    end
+    if type(GetMonitorCount) == "function" then
+        local ok, n = pcall(GetMonitorCount)
+        if ok then add("monitors", n) end
+    end
+    add("maximized", cvar("gxMaximize"))
+    add("windowed", cvar("gxWindow"))
+    add("api", cvar("gxapi"))
+    add("maxFPS", cvar("maxFPS"))
+    add("background", cvar("maxFPSBk"))
+    local V = C_VideoOptions
+    if type(V) == "table" and type(V.GetGxAdapterInfo) == "function" then
+        local ok, list = pcall(V.GetGxAdapterInfo)
+        if ok and type(list) == "table" then
+            local names = {}
+            for _, a in ipairs(list) do
+                if type(a) == "table" and type(a.name) == "string" then names[#names + 1] = a.name end
+            end
+            if #names > 0 then words[#words + 1] = "GPU " .. table.concat(names, " / ") end
+        end
+    end
+    local scale = {}
+    scale[#scale + 1] = "uiScale=" .. tostring(cvar("uiScale"))
+    scale[#scale + 1] = "useUiScale=" .. tostring(cvar("useUiScale"))
+    local ok, ui = pcall(UIParent.GetScale, UIParent)
+    scale[#scale + 1] = "UIParent=" .. (ok and type(ui) == "number" and string.format("%.2f", ui) or "?")
+    local c = Manager.screenChanges
+    return {
+        "Screen: " .. table.concat(words, " "),
+        string.format("Scale: %s, scale changes %d, display changes %d", table.concat(scale, " "), c.scale, c.display),
+    }
+end
+
 -- Where the player is and what else is running, at the time of asking.
 function Manager.ReportWorld()
     local out = {}
@@ -1306,6 +1368,7 @@ function Manager.ReportWorld()
         if v then words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. v end
     end
     out[#out + 1] = "More: " .. table.concat(words, " ")
+    for _, line in ipairs(Manager.ReportScreen()) do out[#out + 1] = line end
     local A = C_AddOns
     if A and A.GetNumAddOns and A.GetAddOnInfo and A.IsAddOnLoaded then
         local names, more = {}, 0

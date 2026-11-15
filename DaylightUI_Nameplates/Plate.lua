@@ -844,8 +844,11 @@ function Plate.Layout(p)
     -- all, sliding plates around for seconds in a crowd.
     local nameBlock = nameSize + subRoom + Plate.NAME_GAP
     local top, bottom = (over and nameBlock or 0) + 4, c.castHeight + 4 + powerRoom + (under and nameBlock or 0)
-    p.stack:SetIgnoreParentScale(true)
-    p.stack:SetScale(UIParent:GetEffectiveScale() * (cfg().scale or 1))
+    -- It takes the game plate's scale, as EllesmereUI's does, instead of a copy of
+    -- the UI scale: alt-tab can change that for a moment, and a copy taken then
+    -- stayed wrong, so the game stacked every plate by a box of the wrong size.
+    p.stack:SetIgnoreParentScale(false)
+    p.stack:SetScale(cfg().scale or 1)
     p.stack:SetSize(w, h + top + bottom)
     p.stackY = (cfg().offsetY or 0) + (top - bottom) / 2
     Plate.PlaceStack(p)

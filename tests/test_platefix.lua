@@ -63,6 +63,26 @@ T.test("platefix: yes after a step opens a report naming that step", function()
     T.isnil(NP.Manager.fixStep, "the round is over")
 end)
 
+-- Every report carries the player's screen setup, so reports can be lined up
+-- to see what the players who get vanishing plates share.
+T.test("platefix: the report says how the game is shown on screen", function()
+    local NP, cvars = login()
+    cvars.gxMaximize, cvars.gxapi, cvars.maxFPS, cvars.maxFPSBk = "1", "D3D12", "144", "30"
+    cvars.useUiScale, cvars.uiScale = "1", "0.71"
+    stub.physW, stub.physH = 2560, 1080
+    _G.GetMonitorCount = function() return 2 end
+    _G.C_VideoOptions = { GetGxAdapterInfo = function() return { { name = "AMD Radeon RX 7800 XT" } } end }
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.FireEvent("DISPLAY_SIZE_CHANGED")
+    local text = table.concat(NP.Manager.ReportWorld(), "\n")
+    for _, want in ipairs({ "2560x1080", "monitors=2", "maximized=1", "api=D3D12", "AMD Radeon RX 7800 XT",
+        "maxFPS=144", "background=30", "uiScale=0.71", "UIParent=", "scale changes 2", "display changes 1" }) do
+        T.truthy(text:find(want, 1, true), want .. " in: " .. text)
+    end
+    _G.GetMonitorCount, _G.C_VideoOptions = nil, nil
+end)
+
 T.test("platefix: after every step with no yes, the report says none did", function()
     local NP = login()
     for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
@@ -140,6 +160,34 @@ T.test("platefix: step 7 puts the plates back on newly built plates", function()
     local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
     T.falsy(np.UnitFrame:GetParent() == np, "the game's own frame is off its plate again")
     T.truthy(p.stack:IsShown())
+end)
+
+-- All 40 plates built in one frame froze the game for a moment, and the
+-- plates' flash was missed.
+T.test("platefix: step 7 builds its plates a few a frame, then rebuilds the game's", function()
+    local NP, cvars = login()
+    runTo(NP, 6)
+    local P = NP.Plate
+    -- Each timer's run counts as a frame of its own.
+    local create, after, frames = P.Create, C_Timer.After, { 0 }
+    P.Create = function(...)
+        frames[#frames] = frames[#frames] + 1
+        return create(...)
+    end
+    C_Timer.After = function(t, fn) return after(t, function() frames[#frames + 1] = 0; fn() end) end
+    NP.Manager.Fix()
+    for _ = 1, 3 do stub.RunTimers() end
+    P.Create, C_Timer.After = create, after
+    local made, most, busy = 0, 0, 0
+    for _, n in ipairs(frames) do
+        made, most = made + n, math.max(most, n)
+        if n > 0 then busy = busy + 1 end
+    end
+    T.eq(made, NP.Manager.PREPARE, "every plate built")
+    T.truthy(most <= NP.Manager.FRESH_PER_FRAME, "only a few in any one frame: " .. most)
+    T.eq(busy, NP.Manager.PREPARE / NP.Manager.FRESH_PER_FRAME, "spread over frames")
+    T.eq(cvars.nameplateShowEnemies, "1", "the game's plates switched off and on after")
+    T.truthy(NP.Manager.byUnit.nameplate1, "and Daylight UI's back on")
 end)
 
 T.test("platefix: a round where nothing helped leaves the takeover whole", function()
