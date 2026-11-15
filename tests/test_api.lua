@@ -337,6 +337,14 @@ T.test("api kit: the rest is our own pieces", function()
     T.eq(type(API.Close(f, function() end)), "table")
     T.eq(type(API.Switch(f)), "table")
     T.eq(type(API.Input(f, {})), "table")
+    -- The main action's look, glow and all, and back to plain.
+    local go = API.Button(f, "Go", 24)
+    T.eq(API.MainButton(go), true)
+    T.eq(go.main, true)
+    T.truthy(go.glowDriver and go.glowDriver:IsShown(), "the glow circles it")
+    T.eq(API.MainButton(go, false), true)
+    T.eq(go.glowDriver:IsShown(), false)
+    T.eq(API.MainButton(CreateFrame("Button", nil, f)), false, "only API.Button's buttons")
     -- Stepped from where it is (Motion.AlphaTo), with no animation group.
     local function settle() for _ = 1, 40 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.05) end end
     API.Fade(f, 0.5, "FAST")

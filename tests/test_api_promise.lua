@@ -18,6 +18,8 @@ local PROMISED = {
     -- 1.7
     "GetFrame", "GetMoverFrame", "IsUnlocked", "MotionOn", "Media", "IsAfkScreen", "RefreshShop", "RefreshBags",
     "GetCooldownPiece", "CooldownPieceInfo",
+    -- 1.8
+    "MainButton",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
@@ -104,7 +106,7 @@ T.test("api promise: a big plugin uses every promised call", function()
     API.Skin(mine, { window = true })
     API.Text(mine, "small"); API.Bar(mine); API.Accent(); API.Colors(); API.Font(); API.ClassColor("PRIEST")
     API.Fade(mine, 0.5, "FAST")
-    API.Button(mine, "Go", 22); API.Close(mine, function() end); API.Switch(mine); API.Input(mine, {})
+    API.MainButton(API.Button(mine, "Go", 22)); API.Close(mine, function() end); API.Switch(mine); API.Input(mine, {})
 
     -- A party fight in a restricted match.
     stub.SetGroup(true, false)

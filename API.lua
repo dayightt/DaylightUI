@@ -969,6 +969,15 @@ function API.Switch(...) return DUI.Widgets.Switch(...) end
 function API.Input(...) return DUI.Widgets.Input(...) end
 function API.Menu(...) return DUI.Widgets.OpenMenu(...) end
 
+-- A window's main action (1.8): the lifted band, green text and the accent
+-- lights circling it, as on Daylight UI's own Accept buttons. Only buttons
+-- made by API.Button take it.
+function API.MainButton(button, on)
+    if type(button) ~= "table" or type(button.SetGlow) ~= "function" or type(button.text) ~= "table" then return false end
+    DUI.Win.Parts.Tone(button, on ~= false and "main" or nil)
+    return true
+end
+
 function API.Accent() return DUI.Style.Accent() end
 
 local INK_KEYS = { "TITLE", "VALUE", "TEXT", "LABEL", "OFF", "GOOD", "WARN", "BAD", "DAMAGE", "MONEY" }

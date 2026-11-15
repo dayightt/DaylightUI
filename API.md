@@ -161,6 +161,7 @@ UI's own settings with `me.AddDefaults("UnitFrames", { neonGlow = 0.5 })`.
 | `API.Text(parent, size, justify)` | A font string in the player's font, outline and shadow. `size`: `"tiny"` `"small"` `"body"` `"head"` `"title"` (10/12/13/15/18). |
 | `API.Bar(parent)` | A status bar with the Daylight gradient fill. Set it like any `StatusBar`. |
 | `API.Button(parent, text, height)` | A button. Hovering traces its edge in the accent; click sound built in. |
+| `API.MainButton(button, on)` (1.8) | Makes an `API.Button` your window's main action, like Daylight UI's Accept buttons: a lifted band, green text and two accent lights circling its edge (they rest while the button is off or the player has motion off). `on = false` makes it plain again. One per window. |
 | `API.Close(parent, onClick, size)` | The close X. |
 | `API.Switch(parent)` | An on/off switch. `sw.SetOn(true)`. |
 | `API.Input(parent, opts)` | A text or search box. `opts`: `search`, `hint`, `numeric`, `onChange = function(text) end`. |
