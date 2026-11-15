@@ -568,6 +568,10 @@ local cdmPages = {
           { label = "Layout", items = {
               { type = "toggle", key = "cooldowns", label = "Use DaylightUI's Cooldown Manager", reload = true,
                 desc = "DaylightUI style layout and look for the game's Cooldown Manager. When off, it's left exactly as the game draws it and /cdm opens the game's own settings." },
+              { type = "dropdown", key = "cdmGlow", label = "Glow style",
+                choices = function() return DaylightUI.Motion.GlowChoices(nil, { "ring", "Ring" }) end,
+                desc = "How a spell glows when its card asks for it (ready, usable, buff up or missing, time to recast): the game's spell alert ring, or a soft light moving round its edge.",
+                disabled = cdmOff },
               { type = "button", label = "Edit layout", text = "Edit on screen",
                 desc = "Opens the layout editor right on your screen, on the profile your talent set uses: pull spells up from the tray, drag them where you want them, hook them together, click one to change it. Type /cdm to open it any time. Out of combat only.",
                 disabled = cdmOff,

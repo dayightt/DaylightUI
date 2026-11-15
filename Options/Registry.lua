@@ -1278,6 +1278,10 @@ Options.RegisterPage({
         { label = "Motion", items = {
             { type = "toggle", key = "motion", label = "Motion effects",
               desc = "Windows glide in and out, tooltips fade in, a spell's icon pops when it's ready, gold and XP count up. When off, everything snaps into place." },
+            { type = "dropdown", key = "buttonGlow", label = "Main button glow",
+              choices = function() return DUI.Motion.GlowChoices("Off") end,
+              disabled = function(get) return get("motion") == false end,
+              desc = "The soft light moving round the main button of a Daylight UI window (Accept, Complete, Send...), in the style you pick, or Off for none. Needs Motion effects." },
             { type = "toggle", key = "portraitFlare", label = "Window icon flare", since = "1.8.3",
               disabled = function(get) return get("motion") == false end,
               desc = "A halo and a ring of embers light the round icon at the top of a window as it opens. Needs Motion effects (General > Appearance)." },

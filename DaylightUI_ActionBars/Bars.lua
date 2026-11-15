@@ -453,6 +453,7 @@ function Bars.SettingChanged(mod, path)
     local picked = type(path) == "string" and string.match(path, "^bars%.([^%.]+)%.visible$")
     if picked and type(mod.db.checkEmptyBars) == "table" then mod.db.checkEmptyBars[picked] = nil end
     if type(path) == "string" and string.match(path, "^bars%.") then Bars.Relayout() end
+    if path == "cdmGlow" and ns.CdmEffects then ns.CdmEffects.RestyleGlows() end
     Bars.Refresh(mod)
 end
 

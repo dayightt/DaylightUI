@@ -16,6 +16,22 @@ function Motion.On()
     return not (g and g.motion == false)
 end
 
+-- The animated glow styles a player picks from (main buttons, the nameplate target
+-- outline, the Cooldown Manager), drawn by Widgets' W.GlowAround. Kept here so the
+-- options list, built before the widgets load, knows them.
+Motion.GLOW_STYLES = { circle = "Circling", comet = "Comet", breathe = "Breathing", twinkle = "Twinkle", shine = "Shine" }
+Motion.GLOW_STYLE_ORDER = { "circle", "comet", "breathe", "twinkle", "shine" }
+
+-- A dropdown's values and order: first = { key, name } leads, then "none" named
+-- none (when given), then the styles.
+function Motion.GlowChoices(none, first)
+    local values, order = {}, {}
+    if first then values[first[1]], order[1] = first[2], first[1] end
+    if none then values.none = none; order[#order + 1] = "none" end
+    for _, k in ipairs(Motion.GLOW_STYLE_ORDER) do values[k] = Motion.GLOW_STYLES[k]; order[#order + 1] = k end
+    return values, order
+end
+
 -- Each region keeps its own animation groups, created once and reused.
 local function group(region, key)
     region.__duiMotion = region.__duiMotion or {}

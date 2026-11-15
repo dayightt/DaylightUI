@@ -1376,6 +1376,34 @@ end
 
 local function pass(AB) AB.CdmRows.Refresh(); stub.RunTimers() end
 
+T.test("cdm effects: a picked glow style runs lights round the item in place of the ring", function()
+    local DUI, AB, set, ess = fxWorld()
+    local Fx, M = AB.CdmEffects, _G.ActionButtonSpellAlertManager
+    DUI:Set("ActionBars", "cdmGlow", "comet")
+    stub.RunTimers()
+    M:ShowAlert(ess[1])
+    local g = Fx.GlowFrame(ess[1])
+    T.truthy(Fx.GlowShown(ess[1]), "glows")
+    T.truthy(g.glowDriver and g.glowDriver:IsShown(), "the lights run")
+    T.eq(g.glowStyle, "comet")
+    T.falsy(g.parts.mid.clip:IsShown(), "no ring under them")
+    g.glowDriver.__scripts.OnUpdate(g.glowDriver, 0.3)
+    local _, rel = g.glowDots[1]:GetPoint(1)
+    T.eq(rel, ess[1], "round the item")
+    -- Back to the ring: the lit glow changes at once.
+    DUI:Set("ActionBars", "cdmGlow", "ring")
+    stub.RunTimers()
+    T.truthy(g.parts.mid.clip:IsShown(), "the ring again")
+    for _ = 1, 5 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.falsy(g.glowDriver:IsShown(), "the lights stop")
+    -- Motion off keeps the ring whatever is picked.
+    DUI:Set("ActionBars", "cdmGlow", "twinkle")
+    DUI:Set("general", "motion", false)
+    stub.RunTimers()
+    T.eq(Fx.GlowStyle(), "ring")
+    M:HideAlert(ess[1])
+end)
+
 T.test("cdm effects: proc glow follows the game's alert on claimed items only", function()
     local DUI, AB, set, ess = fxWorld()
     local Fx, M = AB.CdmEffects, _G.ActionButtonSpellAlertManager
