@@ -33,7 +33,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "tests", "snaps")
 STRATA = ["WORLD", "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP"]
 LAYERS = {"BACKGROUND": 0, "BORDER": 1, "ARTWORK": 2, "OVERLAY": 3, "HIGHLIGHT": 4}
-DEFAULT_FONT = os.path.join(ROOT, "Media", "fonts", "Expressway.ttf")
+DEFAULT_FONT = os.path.join(ROOT, "Media", "fonts", "ExpresswayFree.ttf")
 WHITE = {"interface\\buttons\\white8x8", "interface\\buttons\\white8x8.blp"}
 
 
@@ -506,7 +506,7 @@ def wrap(font, para, width):
 
 def write_metrics():
     """Every font's letter widths and line height, per point of size, for snap.lua."""
-    out = ["return { default = \"expressway.ttf\", fonts = {"]
+    out = ["return { default = \"expresswayfree.ttf\", fonts = {"]
     fonts = os.path.join(ROOT, "Media", "fonts")
     for f in sorted(os.listdir(fonts)):
         if not f.lower().endswith((".ttf", ".otf")):

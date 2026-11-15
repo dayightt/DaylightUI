@@ -76,6 +76,17 @@ local RECIPES = {
         DUI.SetTestSolo({ "meter", "threat", "meters", "datatexts" })
         DUI.SetTestMode(true)
     end },
+    meterhover = { about = "the panel meter with its header on mouseover: the mouse comes onto it (--gif)", open = function(DUI)
+        DUI:Set("InfoPanel", "meter.enabled", true)
+        DUI:Set("InfoPanel", "meter.header", "hover")
+        DUI.SetTestSolo({ "meter" })
+        DUI.SetTestMode(true)
+        return _G.DaylightUIInfoPanel
+    end, play = function(DUI)
+        local area = DUI:GetModule("InfoPanel").ns.Panel.meterArea
+        area.IsMouseOver = function() return true end
+        area:GetScript("OnEnter")(area)
+    end },
     breakdown = { about = "the breakdown window: a click on the meter's first player [targets: its Targets tab]", open = function(DUI, tab)
         DUI:Set("InfoPanel", "meter.enabled", true)
         DUI.SetTestSolo({ "meter" })
