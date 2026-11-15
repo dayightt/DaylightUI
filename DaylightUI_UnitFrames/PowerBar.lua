@@ -75,7 +75,7 @@ function PB.Create(f)
     return h
 end
 
--- Ribbon's line (UF.Build, frames with spec.ribbon and a power bar).
+-- A style's power line (UF.Build, frames with spec.styled and a power bar).
 function PB.CreateLine(f)
     keepInside(f)
     local h = CreateFrame("Frame", nil, f)
@@ -89,14 +89,14 @@ function PB.CreateLine(f)
 end
 
 -- Where the frame's power bar is: "free" (the player's standalone bar), "line"
--- (Ribbon) or "inside". Points f's power fields at that bar's pieces and hides
+-- (a style's line under the frame) or "inside". Points f's power fields at that bar's pieces and hides
 -- the others. A frame without the requested holder (an options sample has no
 -- free bar) only reads the choice.
 function PB.Pick(f, cfg)
     local where = "inside"
     if f.freePower and cfg.powerAt == "free" then
         where = "free"
-    elseif f.ribbon then
+    elseif f.powerLine then
         where = "line"
     end
     local holders = { free = f.freePower, line = f.line }
@@ -152,7 +152,7 @@ function PB.Layout(f, cfg, text)
     end
 end
 
--- Lays out Ribbon's line under f: the gap, then a bar as wide as the frame.
+-- Lays out a style's power line under f: the gap, then a bar as wide as the frame.
 -- Its angle continues the frame's edge using one mask measured from the
 -- frame's top corner down through the line (like a hung cast bar), so the two
 -- can't drift apart. side/cut are the frame's. Sets f.foot, the space the line
@@ -167,7 +167,7 @@ function PB.LayoutLine(f, cfg, text, side, cut, show)
     end
     local T = Pixel.Px(h, Style.BorderPx(h))
     local H = Pixel.Snap(f, tonumber(cfg.powerHeight) or 4) + 2 * T
-    local gap = Pixel.Snap(f, tonumber(cfg.ribbonGap) or ns.UF.RIBBON_GAP)
+    local gap = Pixel.Snap(f, tonumber(cfg.ribbonGap) or ns.UF.LINE_GAP)
     h:ClearAllPoints()
     h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -gap)
     h:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -gap)

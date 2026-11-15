@@ -21,7 +21,7 @@ Arena.shown = 0   -- how many are shown; the range ticker skips them all at 0
 -- Built like the focus frame, angled the target's way since it's an enemy.
 function Arena.Spec(i)
     return { unit = "arena" .. i, label = "PvP Frame", power = true, slant = "left", tab = true, marker = true,
-             portrait = true, range = true, ribbon = true }
+             portrait = true, range = true, styled = true }
 end
 
 Arena.SAMPLES = {

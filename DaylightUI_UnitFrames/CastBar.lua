@@ -49,8 +49,8 @@ CB.AT_LABELS = { power = "Inside the frame", above = "Above the frame", below = 
                  slide = "Under the frame (slides out)", middle = "Between your frame and the target's",
                  free = "On its own (unlock to move)" }
 
--- The spot a bar's settings ask for, or the unit's default. In Ribbon the power
--- is a thin line, so a bar meant to sit inside the frame sits below it at its
+-- The spot a bar's settings ask for, or the unit's default. In a style whose
+-- power is a thin line under the frame (ns.STYLES line), a bar meant to sit inside the frame sits below it at its
 -- own size instead. The same goes for a frame without a power bar to sit on
 -- (UF.ShowsPower) or whose power bar stands on its own (powerAt "free").
 function CB.At(unit, cfg)
@@ -65,7 +65,7 @@ function CB.At(unit, cfg)
     if found == "power" then
         local db = ns.module and ns.module.db
         local u = type(db) == "table" and db[unit]
-        if type(u) == "table" and (ns.UF.StyleOf(u) == "ribbon" or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
+        if type(u) == "table" and (ns.UF.StyleDef(u).line or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
             -- A party bar has no "below" and hangs under its frame instead.
             return unit == "party" and "slide" or "below"
         end

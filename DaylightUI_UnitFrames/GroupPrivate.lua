@@ -42,8 +42,8 @@ end
 -- both icons fit across the tile.
 function GPA.Size(cfg)
     local h = tonumber(cfg.height) or 28
-    -- Ribbon's power is a line under the frame, not inside it.
-    if ns.UF.ShowsPower(cfg) and ns.UF.StyleOf(cfg) ~= "ribbon" then h = h - (tonumber(cfg.powerHeight) or 0) end
+    -- A style's power line sits under the frame, not inside it.
+    if ns.UF.ShowsPower(cfg) and not ns.UF.StyleDef(cfg).line then h = h - (tonumber(cfg.powerHeight) or 0) end
     local s = math.floor(h * GPA.SHARE + 0.5)
     local w = tonumber(cfg.width) or 72
     s = math.min(s, math.floor((w - 4 - GPA.GAP) / GPA.MAX))

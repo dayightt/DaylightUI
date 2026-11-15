@@ -75,7 +75,7 @@ Pages.HEALERS = { PRIEST = true, DRUID = true, SHAMAN = true, PALADIN = true, MO
 -- Healer setup's tiles have none, and a pick here mustn't add them back).
 Pages.PORTRAIT_UNITS = { "player", "target", "focus" }
 
--- The frames' own style picks (the unit frames' RIBBON_FRAMES). The Frame
+-- The frames' own style picks (the unit frames' STYLE_FRAMES). The Frame
 -- style cards reset them to "global" so the pick reaches every frame.
 Pages.STYLE_FOLLOWERS = { "player.style", "target.style", "focus.style", "party.style" }
 

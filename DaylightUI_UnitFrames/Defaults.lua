@@ -252,8 +252,8 @@ ns.DEFAULTS = {
     targettargetText = { name = 11, percent = 11, power = 0 },
     petText = { name = 11, percent = 11, power = 0 },
     -- slant: the angled end's width as a share of frame height (every frame).
-    -- style: the frames' look, "daylight" or "ribbon" (UF.StyleOf). Each frame
-    -- can pick its own, see RIBBON_FRAMES below.
+    -- style: the frames' look, a key of ns.STYLES (UF.StyleOf). Each frame
+    -- can pick its own, see STYLE_FRAMES below.
     look = { slant = 0.21, style = "daylight" },
     -- Every frame's colors (Colors.lua).
     colors = { health = "classGradient", mirrorGradient = true, healthColor = { 0.35, 0.75, 0.35 }, backBrightness = 0.4,
@@ -347,27 +347,51 @@ for _, k in ipairs(ns.TAB_FRAMES) do
                            at = "outer", x = 0, y = 0, width = "fit", widthPx = 90, align = "center" }
 end
 
--- The two styles (UF.StyleOf): Daylight (the frame, its name tab, power inside)
--- or Ribbon (a slim bar with name and health number floating above and the
--- power as a thin line underneath). style = "global" follows look.style. Each
--- style keeps its own heights in sizes. The live keys (height...) hold the
--- shown style's values and sizesFor says which (ns.SwapSizes), so sliders,
--- samples and Design mode grips can keep reading and writing them directly.
--- ribbonGap: space between the bar and its power line.
-ns.RIBBON_FRAMES = { "player", "target", "focus", "party" }
-ns.SIZE_KEYS = { "height", "powerHeight", "tabHeight", "spacing" }
-local RIBBON_SIZES = {
-    player = { height = 24, powerHeight = 5, tabHeight = 16 },
-    target = { height = 24, powerHeight = 5, tabHeight = 16 },
-    focus = { height = 20, powerHeight = 4, tabHeight = 14 },
-    party = { height = 20, powerHeight = 4, tabHeight = 14, spacing = 48 },
+-- The frame styles (UF.StyleOf). A style is a set of pieces the frame code
+-- asks about, never a name it checks for, so a new style is a new entry here
+-- (and any piece it needs that isn't built yet):
+--   label  its name in the options and the setup guide's cards
+--   desc   one sentence for the Frame style row
+--   row    the name and health number sit on a row above the bar (the name
+--          tab without its look) instead of in the name tab
+--   line   the power is a thin line hung under the frame instead of inside it
+--   ring   the portrait's radius as a share of the whole frame (row, bar and
+--          line), centered on it; nil = the frame's own size rule
+--   sizes  each frame's own heights in this style; missing ones are Daylight's
+-- style = "global" follows look.style. Each style keeps its own heights in
+-- sizes. The live keys (height...) hold the shown style's values and sizesFor
+-- says which (ns.SwapSizes), so sliders, samples and Design mode grips can keep
+-- reading and writing them directly. ribbonGap: space between the bar and its
+-- power line, in any style with a line.
+ns.STYLES = {
+    daylight = { label = "Daylight",
+                 desc = "Daylight: the frame with its name in a tab above it and the power bar inside." },
+    ribbon = { label = "Ribbon", row = true, line = true, ring = 0.56,
+               desc = "Ribbon: a slim bar with the name and health floating above it and the power as a thin line under it.",
+               sizes = {
+                   player = { height = 24, powerHeight = 5, tabHeight = 16 },
+                   target = { height = 24, powerHeight = 5, tabHeight = 16 },
+                   focus = { height = 20, powerHeight = 4, tabHeight = 14 },
+                   party = { height = 20, powerHeight = 4, tabHeight = 14, spacing = 48 },
+               } },
 }
-for _, k in ipairs(ns.RIBBON_FRAMES) do
+ns.STYLE_ORDER = { "daylight", "ribbon" }
+-- The frames that can take a style (spec.styled); the rest are always Daylight.
+ns.STYLE_FRAMES = { "player", "target", "focus", "party" }
+ns.SIZE_KEYS = { "height", "powerHeight", "tabHeight", "spacing" }
+for _, k in ipairs(ns.STYLE_FRAMES) do
     local d = ns.DEFAULTS[k]
-    local day = {}
-    for _, key in ipairs(ns.SIZE_KEYS) do day[key] = d[key] end
     d.style, d.sizesFor, d.ribbonGap = "global", "daylight", 2
-    d.sizes = { daylight = day, ribbon = RIBBON_SIZES[k] }
+    d.sizes = {}
+    for _, style in ipairs(ns.STYLE_ORDER) do
+        local own = ns.STYLES[style].sizes
+        own = type(own) == "table" and own[k] or {}
+        local t = {}
+        for _, key in ipairs(ns.SIZE_KEYS) do
+            if own[key] ~= nil then t[key] = own[key] else t[key] = d[key] end
+        end
+        d.sizes[style] = t
+    end
 end
 
 -- Aura lists (AuraLists.lua): spells shared by every frame's aura rows. Each
@@ -444,7 +468,7 @@ do
     t.spacing, t.showThreat, t.showLeader = 30, false, false
     ns.DEFAULTS.arena = t
     ns.DEFAULTS.arenaText = deep(ns.DEFAULTS.focusText)
-    for _, list in ipairs({ ns.MEDIA_FRAMES, ns.LOOK_FRAMES, ns.TAB_FRAMES, ns.RIBBON_FRAMES }) do
+    for _, list in ipairs({ ns.MEDIA_FRAMES, ns.LOOK_FRAMES, ns.TAB_FRAMES, ns.STYLE_FRAMES }) do
         list[#list + 1] = "arena"
     end
 end

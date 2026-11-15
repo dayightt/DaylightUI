@@ -280,10 +280,10 @@ local function noHome(k)
         local cfg = { portrait = get(k("portrait")), height = get(k("height")), style = get(k("style")),
                       tabHeight = get(k("tabHeight")), showPower = get(k("showPower")), ribbonGap = get(k("ribbonGap")),
                       powerHeight = get(k("powerHeight")) }
-        local mode = UF.PortraitMode({ portrait = true, spec = { ribbon = true } }, cfg)
-        -- Ribbon's row also counts as a home while the health number is on it.
+        local mode = UF.PortraitMode({ portrait = true, spec = { styled = true } }, cfg)
+        -- A style's name row also counts as a home while the health number is on it.
         local tab = (get(k("showName")) ~= false and get(k("nameOnBar")) ~= true)
-            or (UF.StyleOf(cfg) == "ribbon" and get(k("showPercent")) == true)
+            or (UF.StyleDef(cfg).row and get(k("showPercent")) == true)
         return mode == "none" and not tab
     end
 end
@@ -1223,12 +1223,12 @@ local function shellCard(id, gate, bar)
 end
 
 -- The name tab's own look and placement (<frame>.tab, Defaults.lua TAB_FRAMES).
--- Daylight only (Ribbon's row has no shell), while the name is in its tab.
+-- Only with a name tab (a style's name row has no shell), while the name is in it.
 local TAB_SLANTS = { frame = "Same as the frame", on = "Angled", off = "Straight" }
 local TAB_AT = { outer = "Outer end", middle = "Middle", inner = "Inner end" }
 local TAB_WIDTHS = { fit = "Fit the name", full = "Full width", fixed = "Fixed width" }
 local TAB_ALIGNS = { left = "Left", center = "Center", right = "Right" }
-local function tabCard(id, ribbon)
+local function tabCard(id, onRow)
     local k = function(s) return id .. ".tab." .. s end
     local f = function(s) return id .. "." .. s end
     local noTab = function(get)
@@ -1238,34 +1238,34 @@ local function tabCard(id, ribbon)
     return { label = "Name tab",
         desc = "The small tab that holds the name above the frame: its own border, corners, shadow, place and width.",
         items = {
-            { type = "toggle", key = k("own"), label = "Own name tab look", disabled = noTab, hidden = ribbon,
+            { type = "toggle", key = k("own"), label = "Own name tab look", disabled = noTab, hidden = onRow,
               desc = "Gives the name tab the border, corners and shadow below. When off, it matches the frame." },
             { type = "slider", key = k("borderPx"), label = "Name tab border thickness", min = 0, max = 16, step = 1,
-              desc = "How thick the name tab's outline is. 0 leaves none.", unit = "px", disabled = dis, hidden = ribbon },
+              desc = "How thick the name tab's outline is. 0 leaves none.", unit = "px", disabled = dis, hidden = onRow },
             { type = "slider", key = k("cornerPx"), label = "Name tab corner rounding", min = 0, max = 24, step = 1,
-              desc = "How round the name tab's corners are. 0 keeps them sharp.", unit = "px", disabled = dis, hidden = ribbon },
+              desc = "How round the name tab's corners are. 0 keeps them sharp.", unit = "px", disabled = dis, hidden = onRow },
             { type = "slider", key = k("shadowPx"), label = "Name tab shadow size", min = 0, max = 12, step = 1,
-              desc = "How far the name tab's shadow spreads. 0 leaves no shadow.", unit = "px", disabled = dis, hidden = ribbon },
+              desc = "How far the name tab's shadow spreads. 0 leaves no shadow.", unit = "px", disabled = dis, hidden = onRow },
             { type = "dropdown", key = k("slant"), label = "Name tab angled end", values = TAB_SLANTS,
               desc = "Whether the name tab's end is cut at an angle. Same as the frame follows the frame's own end.",
-              order = { "frame", "on", "off" }, disabled = noTab, hidden = ribbon },
+              order = { "frame", "on", "off" }, disabled = noTab, hidden = onRow },
             { type = "dropdown", key = k("at"), label = "Name tab position", values = TAB_AT,
               order = { "outer", "middle", "inner" },
               desc = "Where along the frame's top the tab sits. A full-width tab always starts at the outer end. Or drag the tab in Design mode.",
-              disabled = function(get) return noTab(get) or get(k("width")) == "full" end, hidden = ribbon },
+              disabled = function(get) return noTab(get) or get(k("width")) == "full" end, hidden = onRow },
             { type = "slider", key = k("x"), label = "Name tab left / right", min = -100, max = 100, step = 1,
-              desc = "Nudges the name tab sideways along the frame's top.", unit = "px", disabled = noTab, hidden = ribbon },
+              desc = "Nudges the name tab sideways along the frame's top.", unit = "px", disabled = noTab, hidden = onRow },
             { type = "slider", key = k("y"), label = "Name tab up / down", min = -10, max = 40, step = 1, unit = "px",
-              desc = "Lift the tab off the frame to float it above with a gap.", disabled = noTab, hidden = ribbon },
+              desc = "Lift the tab off the frame to float it above with a gap.", disabled = noTab, hidden = onRow },
             { type = "dropdown", key = k("width"), label = "Name tab width", values = TAB_WIDTHS,
               order = { "fit", "full", "fixed" },
               desc = "Fit the name grows and shrinks with each name. Full width runs along the whole top of the frame.",
-              disabled = noTab, hidden = ribbon },
+              disabled = noTab, hidden = onRow },
             { type = "slider", key = k("widthPx"), label = "Fixed name tab width", min = 30, max = 400, step = 1,
-              desc = "How wide the name tab is when Name tab width is Fixed width.", unit = "px", disabled = function(get) return noTab(get) or get(k("width")) ~= "fixed" end, hidden = ribbon },
+              desc = "How wide the name tab is when Name tab width is Fixed width.", unit = "px", disabled = function(get) return noTab(get) or get(k("width")) ~= "fixed" end, hidden = onRow },
             { type = "dropdown", key = k("align"), label = "Name alignment in the tab", values = TAB_ALIGNS,
               desc = "Where the name sits inside its tab: left, center or right.",
-              order = { "left", "center", "right" }, disabled = noTab, hidden = ribbon },
+              order = { "left", "center", "right" }, disabled = noTab, hidden = onRow },
         } }
 end
 
@@ -1318,28 +1318,34 @@ end
 -- The frames' style (Defaults.lua, UF.StyleOf). A pick writes through
 -- ns.SetStyle, so each frame takes that style's own heights before anything
 -- redraws. own: a frame's pick, which can follow the Extras page's.
-local STYLE_DESC = "Daylight: the frame with its name in a tab above it and the power bar inside."
-    .. " Ribbon: a slim bar with the name and health floating above it and the power as a thin line under it."
+local function styleDesc()
+    local parts = {}
+    for _, key in ipairs(ns.STYLE_ORDER) do parts[#parts + 1] = ns.STYLES[key].desc end
+    return table.concat(parts, " ")
+end
 -- The current settings, for a row that asks outside its page's get.
 local function liveGet(key) return DaylightUI:Get("UnitFrames", key) end
 
 local function styleRow(key, own, dis)
-    local values = { daylight = UF.STYLES.daylight, ribbon = UF.STYLES.ribbon }
-    local order = { "daylight", "ribbon" }
+    local values, order = {}, {}
     if own then
         values.global = "Default"
-        order = { "global", "daylight", "ribbon" }
+        order[1] = "global"
+    end
+    for _, s in ipairs(ns.STYLE_ORDER) do
+        values[s] = ns.STYLES[s].label
+        order[#order + 1] = s
     end
     -- A frame's "Default" names the style it gives: "Default (Daylight)".
     local function choices()
         if not own then return values, order end
-        local named = { daylight = values.daylight, ribbon = values.ribbon }
-        local every = liveGet("look.style") == "ribbon" and values.ribbon or values.daylight
-        named.global = "Default (" .. every .. ")"
+        local named = {}
+        for s, label in pairs(values) do named[s] = label end
+        named.global = "Default (" .. UF.StyleDef({ style = "global" }).label .. ")"
         return named, order
     end
     return { type = "dropdown", key = key, label = "Frame style", values = values, order = order, choices = choices,
-             desc = STYLE_DESC .. (own
+             desc = styleDesc() .. (own
                  and " Default uses the style set for every frame (Extras > Frame style). Each style keeps its own heights."
                  or " Each frame can pick its own on its page."),
              get = function() return DaylightUI:Get("UnitFrames", key) end,
@@ -1416,23 +1422,28 @@ local function framePage(id, label, desc, opts)
     local function powerTextOff(get) return powerOff(get) or get(k("showPowerText")) ~= true end
     -- The spell cost and regen sweep also run on the personal display's bar.
     local function powerSpellOff(get) return shown(get) or (powerOff(get) and get("personal.enabled") ~= true) end
-    -- A frame that can use Ribbon (Defaults.lua): its pick, plus the rows that
-    -- mean something else there, shown in that style's terms (the bar's
-    -- height, the name's row, the power line), each hidden in the other style.
+    -- A frame that can take a style (Defaults.lua, ns.STYLES): its pick, plus
+    -- the rows that mean something else with a style's pieces, shown in their
+    -- terms (the bar's height, the name row, the power line), each hidden
+    -- without that piece.
     local styled = false
-    for _, f in ipairs(ns.RIBBON_FRAMES) do styled = styled or f == id end
-    local function ribbon(get)
+    for _, f in ipairs(ns.STYLE_FRAMES) do styled = styled or f == id end
+    local function has(get, piece)
         if not styled then return false end
         local s = get(k("style"))
         if s == nil or s == "global" then s = get("look.style") end
-        return s == "ribbon"
+        local style = ns.STYLES[s] or ns.STYLES.daylight
+        return style[piece] == true
     end
-    local function daylight(get) return not ribbon(get) end
-    -- Too short for a portrait (UF.PortraitHeight; in Ribbon, the whole ribbon).
+    local function onRow(get) return has(get, "row") end
+    local function noRow(get) return not has(get, "row") end
+    local function onLine(get) return has(get, "line") end
+    local function noLine(get) return not has(get, "line") end
+    -- Too short for a portrait (UF.PortraitHeight; with a style's ring, the whole frame).
     local function tooShort(get)
         local cfg = { height = get(k("height")), tabHeight = get(k("tabHeight")), showPower = get(k("showPower")),
                       ribbonGap = get(k("ribbonGap")), powerHeight = get(k("powerHeight")), style = get(k("style")) }
-        return UF.PortraitHeight({ spec = { ribbon = styled } }, cfg) < UF.MIN_PORTRAIT_HEIGHT
+        return UF.PortraitHeight({ spec = { styled = styled } }, cfg) < UF.MIN_PORTRAIT_HEIGHT
     end
     local frame = {
         { type = "toggle", key = k("enabled"), label = opts.showLabel or ("Show the " .. string.lower(label) .. " frame"),
@@ -1442,11 +1453,11 @@ local function framePage(id, label, desc, opts)
     frame[#frame + 1] = { type = "slider", key = k("width"), label = "Width", min = opts.minWidth or SIZE.min, max = SIZE.max, step = 1,
         desc = "How wide this frame is.", disabled = shown }
     frame[#frame + 1] = { type = "slider", key = k("height"), label = "Height", min = 10, max = opts.maxHeight or 80, step = 1,
-        desc = "How tall this frame is.", disabled = shown, hidden = ribbon }
+        desc = "How tall this frame is.", disabled = shown, hidden = onLine }
     if styled then
         frame[#frame + 1] = { type = "slider", key = k("height"), label = "Bar height", min = 10, max = opts.maxHeight or 80,
             step = 1, desc = "The slim health bar. The name, the health number and the power line sit outside it.",
-            disabled = shown, hidden = daylight }
+            disabled = shown, hidden = noLine }
     end
     frame[#frame + 1] = strataRow(k("strata"), "Frame layer",
         opts.strataWhat or ("The layer the " .. string.lower(label) .. " frame draws in."), shown)
@@ -1460,13 +1471,13 @@ local function framePage(id, label, desc, opts)
     end
     if opts.power then
         frame[#frame + 1] = { type = "slider", key = k("powerHeight"), label = "Power bar height", min = 2, max = 20, step = 1,
-            desc = "How tall the power bar is.", disabled = powerOff, hidden = ribbon }
+            desc = "How tall the power bar is.", disabled = powerOff, hidden = onLine }
         if styled then
             frame[#frame + 1] = { type = "slider", key = k("powerHeight"), label = "Power line height", min = 2, max = 20,
-                step = 1, desc = "The thin power bar under the health bar.", disabled = powerOff, hidden = daylight }
+                step = 1, desc = "The thin power bar under the health bar.", disabled = powerOff, hidden = noLine }
             frame[#frame + 1] = { type = "slider", key = k("ribbonGap"), label = "Gap above the power line", min = 0, max = 12,
                 step = 1, unit = "px", desc = "The space between the health bar and the power line under it.",
-                disabled = powerOff, hidden = daylight }
+                disabled = powerOff, hidden = noLine }
         end
     end
     if opts.power or opts.powerToggle then
@@ -1476,12 +1487,12 @@ local function framePage(id, label, desc, opts)
     if opts.powerFree then
         local notFree = function(get) return powerOff(get) or get(k("powerAt")) ~= "free" end
         local AT = { inside = "Inside the frame", free = "On its own (unlock to move)" }
-        local AT_RIBBON = { inside = "Under the frame", free = AT.free }
+        local AT_LINE = { inside = "Under the frame", free = AT.free }
         frame[#frame + 1] = { type = "dropdown", key = k("powerAt"), label = "Power bar position",
             values = AT, order = { "inside", "free" },
-            -- In Ribbon "inside" is the line under the frame.
+            -- With a style's power line "inside" is the line under the frame.
             choices = function()
-                return (ribbon(liveGet) and AT_RIBBON or AT), { "inside", "free" }
+                return (onLine(liveGet) and AT_LINE or AT), { "inside", "free" }
             end,
             desc = "On its own, the power bar leaves the frame and you can move it anywhere in unlock mode, like the middle of the screen. The frame is then all health.",
             disabled = powerOff }
@@ -1547,11 +1558,11 @@ local function framePage(id, label, desc, opts)
     end
     if opts.tab then
         frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name tab height", min = 10, max = 28, step = 1, unit = "px",
-            desc = "How tall the tab holding the name above the frame is.", disabled = shown, hidden = ribbon }
+            desc = "How tall the tab holding the name above the frame is.", disabled = shown, hidden = onRow }
         if styled then
             frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name row height", min = 10, max = 28, step = 1,
                 unit = "px", desc = "The row above the bar that holds the name and the health number.",
-                disabled = shown, hidden = daylight }
+                disabled = shown, hidden = noRow }
         end
     end
     if opts.portrait then
@@ -1576,7 +1587,7 @@ local function framePage(id, label, desc, opts)
         { type = "toggle", key = k("showName"), label = (opts.tab and not opts.small) and "Name tab" or "Name",
           desc = (opts.tab and not opts.small) and "The name sits in a small tab above the frame. Long names are cut short."
               or "Shows the unit's name on this frame.",
-          disabled = shown, hidden = ribbon },
+          disabled = shown, hidden = onRow },
         lastNames(id),
         { type = "dropdown", key = k("nameColor"), label = "Name color", values = NAME_COLORS, order = NAME_COLOR_ORDER,
           desc = "This frame's own name color. Same as the Colors page follows the name color every frame shares.",
@@ -1608,7 +1619,7 @@ local function framePage(id, label, desc, opts)
     if styled then
         table.insert(text, 2, { type = "toggle", key = k("showName"), label = "Name",
             desc = "The name floats above the bar, at its outer end. Long names are cut short.",
-            disabled = shown, hidden = daylight })
+            disabled = shown, hidden = noRow })
     end
     text[#text + 1] = fontRow(m("nameFont"), "Name font", "This frame's names, and its level badge", shown)
     if opts.healthText then
@@ -1726,7 +1737,7 @@ local function framePage(id, label, desc, opts)
               desc = "Nudges every party target up or down from its position.", disabled = shown },
         } })
     end
-    if opts.tab then groups[#groups + 1] = tabCard(id, ribbon) end
+    if opts.tab then groups[#groups + 1] = tabCard(id, onRow) end
     groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
     groups[#groups + 1] = { label = "Text", items = text }
     local extras = {}
@@ -1942,7 +1953,7 @@ local function atChoice(unit, desc)
     for _, v in ipairs(CB.AT[unit]) do values[v] = CB.AT_LABELS[v] end
     if unit == "player" then values.below = "Under the frame (slides out)" end
     if unit == "party" then values.free = "Detached, beside the frame" end
-    -- In Ribbon the frame's power is a thin line, and with power bars off there's
+    -- In a style with a power line it's a thin line, and with power bars off there's
     -- none, so no cast can go inside it. A bar set to sit there sits below
     -- instead (CB.At).
     local outsideOrder = {}
@@ -1951,7 +1962,7 @@ local function atChoice(unit, desc)
     end
     local function outside()
         local cfg = liveGet(unit)
-        return UF.StyleOf(cfg) == "ribbon" or not UF.ShowsPower(cfg)
+        return UF.StyleDef(cfg).line or not UF.ShowsPower(cfg)
     end
     return { type = "dropdown", key = unit .. "Castbar.at", since = "1.5.1", label = "Position", values = values, order = CB.AT[unit],
              choices = function()

@@ -9,10 +9,10 @@ local isSecret = DUI.IsSecret
 local UF, CB, Auras, Blizzard = ns.UF, ns.CastBar, ns.Auras, ns.Blizzard
 
 ns.SPECS = {
-    { unit = "player", label = "Player", power = true, slant = "right", tab = true, portrait = true, combat = true, ribbon = true,
+    { unit = "player", label = "Player", power = true, slant = "right", tab = true, portrait = true, combat = true, styled = true,
       default = { "BOTTOM", nil, "BOTTOM", -200, 240 } },
     { unit = "target", label = "Target", power = true, slant = "left", tab = true, marker = true, classification = true,
-      portrait = true, range = true, threat = true, threatTag = true, dots = true, arrive = true, ribbon = true,
+      portrait = true, range = true, threat = true, threatTag = true, dots = true, arrive = true, styled = true,
       level = 30,   -- so the target of target beside it draws fully under its ring (its parts reach its own +15)
       default = { "BOTTOM", nil, "BOTTOM", 200, 240 } },
     { unit = "targettarget", label = "Target of Target", compact = true, power = true, slant = "left", poll = 0.1, range = true,
@@ -20,7 +20,7 @@ ns.SPECS = {
     { unit = "pet", label = "Pet", compact = true, power = true, slant = "right", tab = true,
       default = { "TOPLEFT", "DaylightUIFrame_player", "BOTTOMLEFT", 30, -36 } },
     { unit = "focus", label = "Focus", power = true, slant = "right", tab = true, marker = true, portrait = true,
-      range = true, threat = true, ribbon = true,
+      range = true, threat = true, styled = true,
       default = { "LEFT", nil, "LEFT", 300, 0 } },
     -- Who your focus is targeting (the game's own focus frame has this too).
     { unit = "focustarget", label = "Focus Target", compact = true, power = true, slant = "right", poll = 0.1, range = true,
@@ -85,10 +85,10 @@ end
 -- Returns true when anything changed.
 function ns.SwapSizes(db)
     local moved = false
-    for _, key in ipairs(ns.RIBBON_FRAMES) do
+    for _, key in ipairs(ns.STYLE_FRAMES) do
         local cfg = db[key]
         local want = type(cfg) == "table" and ns.UF.StyleOf(cfg)
-        local was = want and (cfg.sizesFor == "ribbon" and "ribbon" or "daylight")
+        local was = want and (ns.STYLES[cfg.sizesFor] and cfg.sizesFor or "daylight")
         if want and want ~= was and type(cfg.sizes) == "table" then
             local away, take = cfg.sizes[was] or {}, cfg.sizes[want] or {}
             cfg.sizes[was] = away

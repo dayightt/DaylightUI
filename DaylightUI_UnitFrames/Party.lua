@@ -14,7 +14,7 @@ ns.Party = Party
 
 Party.SPEC = {
     group = "party", power = true, slant = "right", tab = true, marker = true, portrait = true,
-    range = true, groupThreat = true, role = true, cornerIcons = true, pets = true, ribbon = true,
+    range = true, groupThreat = true, role = true, cornerIcons = true, pets = true, styled = true,
 }
 
 local function db() return ns.module and ns.module.db end

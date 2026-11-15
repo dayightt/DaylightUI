@@ -443,42 +443,54 @@ local function styleBar(parent, fillH, thin)
     return bar
 end
 
--- Frame style (Unit frames, look.style): Daylight's frame with its name tab and
--- the number inside, or Ribbon's slim bar with name and number on a row above
--- and the power line below. A small sketch in the real frames' proportions
--- (Ribbon's bar 24 to its line 5), kept clear of the tick in the top right.
+-- Frame style (Unit frames, look.style), drawn from the style's pieces (the
+-- unit frames' STYLES): a frame with its name tab and the number inside, or a
+-- slim bar with the name and number on a row above (row) and the power as a
+-- line below (line). A small sketch in the real frames' proportions (a bar 24
+-- to its line 5), kept clear of the tick in the top right.
 Cards.STYLE_TICK = 22 -- room kept for the tick
+local function frameStyleOf(key)
+    local mod = DUI:GetModule("UnitFrames")
+    local styles = mod and mod.ns and mod.ns.STYLES
+    return type(styles) == "table" and styles[key] or {}
+end
 function Cards.Draw.frameStyle(card, key, w, h)
+    local style = frameStyleOf(key)
     local a = CreateFrame("Frame", nil, card.inner)
     a:SetSize(math.max(1, w - Cards.STYLE_TICK), h)
     a:SetPoint("TOPLEFT", card.inner, "TOPLEFT", 10, -10)
     local k = tonumber(DUI:Get("UnitFrames", "look.slant")) or 0.21
     local name = DUI.UnitName("player", "player") or L["Name"]
     local fills = {}
-    if key == "ribbon" then
+    if style.row or style.line then
         local fillH = math.max(6, math.floor(h * 0.24 + 0.5))
         local P, gap = math.max(2, math.floor(fillH * 5 / 24 + 0.5)), 2
-        local n = W.Font(a, W.BODY, SIZE.small, C.text)
-        n:SetPoint("TOPLEFT", a, "TOPLEFT", 4, 0)
-        n:SetText(name)
-        local v = W.Font(a, W.BODY, SIZE.body, C.value)
-        v:SetText("87")
         local bar = styleBar(a, fillH)
         bar:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -math.floor(h * 0.3 + 0.5))
         bar:SetPoint("RIGHT", a, "RIGHT", 0, 0)
         local H = bar:GetHeight()
         local cut = math.floor(H * k + 0.5)
         Style.Slant(bar, "right", cut)
-        -- The number at the row's inner end, clear of the bar's angle.
-        v:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", -cut, 2)
-        local line = styleBar(a, P, true)
-        line:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 0, -gap)
-        line:SetPoint("TOPRIGHT", bar, "BOTTOMRIGHT", 0, -gap)
-        local total = H + gap + line:GetHeight()
-        Style.Slant(line, "right", cut * total / H, { frame = bar, height = total })
-        local r, g, b = Style.PowerColor("MANA")
-        line.fill:SetVertexColor(r, g, b, 1)
-        fills = { bar.fill, line.fill }
+        fills = { bar.fill }
+        if style.row then
+            local n = W.Font(a, W.BODY, SIZE.small, C.text)
+            n:SetPoint("TOPLEFT", a, "TOPLEFT", 4, 0)
+            n:SetText(name)
+            -- The number at the row's inner end, clear of the bar's angle.
+            local v = W.Font(a, W.BODY, SIZE.body, C.value)
+            v:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", -cut, 2)
+            v:SetText("87")
+        end
+        if style.line then
+            local line = styleBar(a, P, true)
+            line:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 0, -gap)
+            line:SetPoint("TOPRIGHT", bar, "BOTTOMRIGHT", 0, -gap)
+            local total = H + gap + line:GetHeight()
+            Style.Slant(line, "right", cut * total / H, { frame = bar, height = total })
+            local r, g, b = Style.PowerColor("MANA")
+            line.fill:SetVertexColor(r, g, b, 1)
+            fills[2] = line.fill
+        end
     else
         local bar = styleBar(a, math.max(6, math.floor(h * 0.36 + 0.5)))
         bar:SetPoint("BOTTOMLEFT", a, "BOTTOMLEFT", 0, math.floor(h * 0.08 + 0.5))

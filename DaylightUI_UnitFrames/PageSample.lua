@@ -31,10 +31,10 @@ local function at(field) return function(f) return f[field] end end
 local function status(icon) return function(f) return f.status and f.status.icons[icon] end end
 
 -- The name: its tab (a tile's own when its name sits outside it), or the text
--- itself when it sits on the bar (or on Ribbon's row, which it shares with the
--- health number).
+-- itself when it sits on the bar (or on a style's name row, which it shares
+-- with the health number).
 local function nameRegion(f)
-    if f.tab and f.tab:IsShown() and not f.ribbon then return f.tab end
+    if f.tab and f.tab:IsShown() and not f.nameRow then return f.tab end
     if f.nameTag and f.nameTagOn then return f.nameTag end
     return f.nameText
 end
@@ -72,20 +72,20 @@ PageSample.PARTS = {
       size = { w = "%s.width", h = "%s.height" } },
     -- The power bar's height grip thickens both it and the frame (link), so it
     -- grows down toward the grip and the health bar keeps its size. Its width
-    -- is the frame's. Ribbon's line is under the frame, so it grows on its own
+    -- is the frame's. A style's power line is under the frame, so it grows on its own
     -- (linkIf).
     { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
-      linkIf = function(f) return not f.ribbon end },
+      linkIf = function(f) return not f.powerLine end },
     { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
-    -- frame's top (tabMove, UF.TabDots). On Ribbon's row it doesn't move.
+    -- frame's top (tabMove, UF.TabDots). On a name row it doesn't move.
     { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
                                                "%s.tab.at", "%s.tab.x", "%s.tab.y", "%s.tab.width", "%s.tab.own" },
       move = { spot = "%s.namePos", x = "%s.nameX", y = "%s.nameY" },
       tabMove = { spot = "%s.tab.at", x = "%s.tab.x", y = "%s.tab.y", dots = function(f) return UF.TabDots(f) end },
       moveIf = function(f) return f.nameOnBar == true or not (f.tab and f.tab:IsShown()) end,
-      tabIf = function(f) return f.nameOnBar ~= true and f.tab ~= nil and f.tab:IsShown() and not f.ribbon end },
+      tabIf = function(f) return f.nameOnBar ~= true and f.tab ~= nil and f.tab:IsShown() and not f.nameRow end },
     { label = "Health text", at = healthText, keys = { "%s.showPercent", "%s.healthText", "%sText.percent", "%s.healthTextX", "%s.healthTextY" },
       move = { home = true, x = "%s.healthTextX", y = "%s.healthTextY" } },
     { label = "Large health number", at = bigNumber, keys = { "%s.bigNumber", "%sText.big", "%s.healthTextX", "%s.healthTextY" },

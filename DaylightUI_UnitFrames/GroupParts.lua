@@ -71,10 +71,9 @@ function GP.MakeGlow(owner)
 end
 
 -- How far a tile's own pieces reach above its top and below its bottom:
--- Ribbon's name row and power line (UF.Layout's f.hitTop, f.foot), so the glow
--- and target outline wrap the whole ribbon.
+-- its style's name row and power line (UF.Layout's f.hitTop, f.foot, 0 in a
+-- style without them), so the glow and target outline wrap all of it.
 function GP.Reach(b)
-    if not b.ribbon then return 0, 0 end
     return b.hitTop or 0, b.foot or 0
 end
 

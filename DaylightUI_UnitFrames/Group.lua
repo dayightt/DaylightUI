@@ -154,13 +154,13 @@ function Group.Footprint(cfg, count, rows, w, h)
     return across, long
 end
 
--- Ribbon (UF.RibbonReach): the first frame's name row reaches above the holder
--- and the last one's power line below it, so the holder (the unlock handle)
--- includes them and the frames start this far down inside it. Returns up,
--- down, or 0, 0 for a group that can't use Ribbon.
+-- The style's reach (UF.StyleReach): the first frame's name row reaches above
+-- the holder and the last one's power line below it, so the holder (the unlock
+-- handle) includes them and the frames start this far down inside it. Returns
+-- up, down, or 0, 0 for a group that can't take a style.
 function Group:Pads(cfg)
-    if not self.opts.spec.ribbon then return 0, 0 end
-    return UF.RibbonReach(cfg, self.holder or UIParent)
+    if not self.opts.spec.styled then return 0, 0 end
+    return UF.StyleReach(cfg, self.holder or UIParent)
 end
 
 -- The settings in use: a sweep step's (Sweep.lua), or the group's own.

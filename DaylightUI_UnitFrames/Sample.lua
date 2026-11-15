@@ -76,7 +76,7 @@ function Sample.Layout(box)
         UF.ShowSample(f)
         width = width + f:GetWidth() + Sample.Reach(f)
         if f.tab and f.tab:IsShown() then tab = math.max(tab, f.tabHeight or UF.TAB_HEIGHT) end
-        foot = math.max(foot, f.foot or 0)   -- Ribbon's power line
+        foot = math.max(foot, f.foot or 0)   -- a style's power line
     end
     -- Big frames shrink together to fit the box. The pair is centered, counting
     -- the name tabs and Ribbon's lines.

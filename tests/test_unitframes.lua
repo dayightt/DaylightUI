@@ -1916,7 +1916,7 @@ T.test("power bar off: the Ribbon line goes and nothing keeps room for it", func
     stub.RunTimers()
     T.falsy(f.line:IsShown())
     T.eq(f.foot, 0)
-    local _, down = ns.UF.RibbonReach(DUI:Get("UnitFrames", "party"), f)
+    local _, down = ns.UF.StyleReach(DUI:Get("UnitFrames", "party"), f)
     T.eq(down, 0, "the party's holder takes no line in")
 end)
 

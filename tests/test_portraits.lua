@@ -229,12 +229,12 @@ T.test("Ribbon: an elite draws no edge line across the name row (it has no tab t
     local f = ns.frames.target
     stub.units.target = { name = "Grell", isPlayer = false, reaction = 2, classification = "elite" }
     ns.UF.UpdateAll(f, true)
-    T.truthy(f.ribbon)
+    T.eq(f.style, "ribbon")
     T.truthy(f.crestShown)
     T.falsy(f.tabEdge:IsShown())
     DUI:Set("UnitFrames", "target.style", "daylight")
     ns.UF.UpdateAll(f, true)
-    T.falsy(f.ribbon)
+    T.eq(f.style, "daylight")
     T.truthy(f.tabEdge:IsShown(), "back on the Daylight tab")
 end)
 

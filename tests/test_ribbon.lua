@@ -58,7 +58,7 @@ T.test("Ribbon: the name and health number on a bare row above, the power a line
     local DUI, ns = login()
     ribbon(DUI, ns)
     local f = ns.frames.player
-    T.truthy(f.ribbon)
+    T.eq(f.style, "ribbon")
     T.truthy(f.tab:IsShown(), "the row shows")
     T.falsy(DaylightUI.Style.GetShell(f.tab):IsShown(), "with no shell of its own")
     local p, rel, rp = f.nameText:GetPoint(1)
@@ -89,7 +89,7 @@ T.test("back to Daylight puts every piece back", function()
     ribbon(DUI, ns)
     ribbon(DUI, ns, false)
     local f = ns.frames.player
-    T.falsy(f.ribbon)
+    T.eq(f.style, "daylight")
     T.falsy(f.line:IsShown())
     T.eq(f.power, f.insidePower.power)
     T.truthy(f.power:IsShown())
@@ -161,7 +161,7 @@ T.test("Ribbon: the ring spans the whole ribbon, centered on it", function()
     local p = f.portrait
     T.truthy(p:IsShown())
     local H = f:GetHeight() + f.hitTop + f.foot
-    T.near(p:GetWidth(), 2 * DaylightUI.Pixel.Snap(f, H * ns.UF.RIBBON_RING))
+    T.near(p:GetWidth(), 2 * DaylightUI.Pixel.Snap(f, H * ns.STYLES.ribbon.ring))
     T.near(f.portraitY, (f.hitTop - f.foot) / 2)
     local _, _, _, _, y = p:GetPoint(1)
     T.near(y, f.portraitY)
@@ -201,7 +201,7 @@ T.test("Ribbon party buttons: the line under each, the boss debuffs measured on 
     stub.units.party1 = { name = "Lift", isPlayer = true, class = "PRIEST", health = 5, maxHealth = 10, power = 3, maxPower = 10 }
     h.initialConfigFunction(h, b:GetName())
     stub.RunTimers()
-    T.truthy(b.ribbon)
+    T.eq(b.style, "ribbon")
     T.truthy(b.line and b.line:IsShown(), "a line under the button")
     T.eq(b.power, b.line.set.power)
     local cfg = DUI:Get("UnitFrames", "party")
@@ -245,7 +245,7 @@ T.test("Ribbon: every option of the player, target, focus and party pages works"
     ribbon(DUI, ns)
     local O = DUI.Options
     local tried = 0
-    for _, id in ipairs(ns.RIBBON_FRAMES) do
+    for _, id in ipairs(ns.STYLE_FRAMES) do
         local page = O.GetPage("UnitFrames." .. id)
         for _, g in ipairs(page.groups) do
             for _, it in ipairs(g.items or {}) do
@@ -287,7 +287,7 @@ T.test("Ribbon: every option of the player, target, focus and party pages works"
         end
     end
     T.truthy(tried > 200, "it went through the rows: " .. tried)
-    T.truthy(ns.frames.player.ribbon, "still Ribbon at the end")
+    T.eq(ns.frames.player.style, "ribbon", "still Ribbon at the end")
 end)
 
 T.test("the setup guide's Frames page offers the style as two drawn cards", function()
@@ -305,6 +305,60 @@ T.test("the setup guide's Frames page offers the style as two drawn cards", func
         T.noerror(function() DUI.InstallerCards.Draw.frameStyle(card, key, 140, 50) end)
         T.noerror(card.redraw)
     end
+end)
+
+-- A style is only a set of pieces (ns.STYLES), so a new one is a new entry.
+-- These mix the pieces in ways no shipped style does, and the frames and the
+-- options follow each piece on its own.
+local function addStyle(ns, key, def)
+    def.label, def.desc = def.label or key, def.desc or key
+    ns.STYLES[key] = def
+    ns.STYLE_ORDER[#ns.STYLE_ORDER + 1] = key
+end
+
+T.test("a new style made of a power line and no name row: the tab stays, the power hangs under", function()
+    local DUI, ns = login()
+    addStyle(ns, "lineonly", { line = true })
+    ns.SetStyle("look.style", "lineonly")
+    stub.RunTimers()
+    local f = ns.frames.player
+    T.eq(f.style, "lineonly")
+    T.falsy(f.nameRow); T.truthy(f.powerLine)
+    T.truthy(DaylightUI.Style.GetShell(f.tab):IsShown(), "the name tab keeps its shell")
+    T.eq(f.percentText:GetParent(), f.overlay, "the number stays on the bar")
+    T.truthy(f.line:IsShown(), "the line hangs under")
+    T.eq(f.power, f.line.set.power)
+    T.truthy(f.foot > 0); T.eq(f.hitTop, 0)
+    T.eq(ns.CastBar.At("target", DUI:Get("UnitFrames", "targetCastbar")), "below", "no cast inside a line")
+    local up, down = ns.UF.StyleReach(DUI:Get("UnitFrames", "party"), f)
+    T.eq(up, 0); T.truthy(down > 0)
+    local O = DUI.Options
+    local page = O.GetPage("UnitFrames.player")
+    local rows = {}
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items) do rows[it.label] = it end
+    end
+    T.truthy(O.IsHidden(page, rows["Power bar height"])); T.falsy(O.IsHidden(page, rows["Power line height"]))
+    T.falsy(O.IsHidden(page, rows["Name tab height"])); T.truthy(O.IsHidden(page, rows["Name row height"]))
+end)
+
+T.test("a new style made of a name row and no line: the power stays inside, the ring keeps the frame's size", function()
+    local DUI, ns = login()
+    addStyle(ns, "rowonly", { row = true })
+    ns.SetStyle("look.style", "rowonly")
+    stub.RunTimers()
+    local f = ns.frames.player
+    T.truthy(f.nameRow); T.falsy(f.powerLine)
+    T.falsy(DaylightUI.Style.GetShell(f.tab):IsShown(), "a bare row")
+    T.eq(f.percentText:GetParent(), f.tab)
+    T.falsy(f.line:IsShown()); T.eq(f.power, f.insidePower.power)
+    T.eq(f.foot, 0); T.truthy(f.hitTop > 0)
+    T.eq(f.portraitY, 0, "no ring share: the ring sits on the frame as in Daylight")
+    T.eq(ns.CastBar.At("target", DUI:Get("UnitFrames", "targetCastbar")), "power", "a cast still fits inside")
+    -- A pick no style has (a profile from a newer version) reads as Daylight.
+    ns.SetStyle("look.style", "gone")
+    stub.RunTimers()
+    T.eq(f.style, "daylight")
 end)
 
 -- A party button in Ribbon, made as the header would.

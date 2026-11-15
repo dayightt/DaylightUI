@@ -270,8 +270,8 @@ function AuraGroups.Box(frame, cfg)
         w = frame:GetWidth(), h = frame:GetHeight(), padX = T, padY = T + 1,
         cutL = side == "left" and cut or 0, cutR = side == "right" and cut or 0,
         topInset = 0,
-        -- Ribbon's power is a line under the frame (f.foot), not inside it.
-        bottomInset = (ns.UF.ShowsPower(cfg) and not frame.ribbon) and (cfg.powerHeight or 0) + 1 or 0,
+        -- A style's power line is under the frame (f.foot), not inside it.
+        bottomInset = (ns.UF.ShowsPower(cfg) and not frame.powerLine) and (cfg.powerHeight or 0) + 1 or 0,
         topReserve = cfg.showDispel and (cfg.dispelSize or 0) + 2 or 0,
         above = tabOn and (frame.tabHeight or 0) + tabLift or 0, below = frame.foot or 0,
         outL = outerL and reach or 0, outR = outerL and 0 or reach,

@@ -321,21 +321,18 @@ UF.PORTRAIT_ORDER = { "none", "class", "2d", "3d" }
 
 UF.MIN_PORTRAIT_HEIGHT = 20   -- shorter frames get no ring, it would swamp them
 
--- The two styles (Defaults.lua, RIBBON_FRAMES). In Ribbon the frame is a slim
--- bar, its name and health number float on a row above it (the name tab with
--- its shell hidden), and its power is a thin line hung under it (PowerBar.lua),
--- with the angle carried through both.
-UF.STYLES = { daylight = "Daylight", ribbon = "Ribbon" }
-UF.STYLE_ORDER = { "daylight", "ribbon" }
-UF.RIBBON_GAP = 2           -- gap between the bar and its line, when unset
-UF.RIBBON_RING = 0.56       -- the ring's radius, as a fraction of the whole ribbon's height
-UF.RIBBON_TEXT_LIFT = 1     -- the row's texts sit this far above the bar's top edge
-UF.RIBBON_NUMBER_INSET = 2  -- the health number's inset from the row's inner end
-UF.RIBBON_NAME_SHARE = 0.62 -- the fraction of the row the name may take (the number gets the rest)
+-- The frame styles and the pieces each one has are in Defaults.lua (ns.STYLES).
+-- A row (style.row) is the name tab with its shell hidden, holding the name and
+-- health number above the bar; a line (style.line) is the power hung under the
+-- frame (PowerBar.lua), with the angle carried through it.
+UF.LINE_GAP = 2           -- gap between the bar and its line, when unset
+UF.ROW_TEXT_LIFT = 1      -- the row's texts sit this far above the bar's top edge
+UF.ROW_NUMBER_INSET = 2   -- the health number's inset from the row's inner end
+UF.ROW_NAME_SHARE = 0.62  -- the fraction of the row the name may take (the number gets the rest)
 
 -- The style a frame's settings ask for: its own pick, or with "global" the one
 -- for every frame (look.style). Settings without a style key (raid tiles,
--- target of target, pet) are always Daylight.
+-- target of target, pet) are always Daylight, and so is a pick no style has.
 function UF.StyleOf(cfg)
     local own = type(cfg) == "table" and cfg.style or nil
     if type(own) ~= "string" then return "daylight" end
@@ -343,11 +340,19 @@ function UF.StyleOf(cfg)
         local db = ns.module and ns.module.db
         own = db and db.look and db.look.style
     end
-    return own == "ribbon" and "ribbon" or "daylight"
+    return ns.STYLES[own] and own or "daylight"
 end
 
-function UF.IsRibbon(f, cfg)
-    return type(f.spec) == "table" and f.spec.ribbon == true and UF.StyleOf(cfg) == "ribbon"
+-- The style's pieces for these settings (ns.STYLES).
+function UF.StyleDef(cfg)
+    return ns.STYLES[UF.StyleOf(cfg)]
+end
+
+-- The style a frame wears: its settings' pick when the frame can take one
+-- (spec.styled), else Daylight.
+function UF.FrameStyle(f, cfg)
+    if type(f.spec) == "table" and f.spec.styled == true then return UF.StyleOf(cfg) end
+    return "daylight"
 end
 
 -- Whether a frame with these settings draws its power bar (its own Power bar
@@ -357,31 +362,35 @@ function UF.ShowsPower(cfg)
 end
 
 -- How far a frame with these settings reaches above its top and below its
--- bottom in Ribbon: the name row (f.hitTop) and the power line (f.foot, with
--- the border UF.ApplyShell gives it), in the frame's units. 0, 0 in Daylight.
--- For code that sizes room before the frame is laid out (the party's holder,
--- Group:Pads).
-function UF.RibbonReach(cfg, frame)
-    if UF.StyleOf(cfg) ~= "ribbon" then return 0, 0 end
-    local up = ((cfg.showName ~= false and cfg.nameOnBar ~= true) or cfg.showPercent == true)
-        and (tonumber(cfg.tabHeight) or UF.TAB_HEIGHT) or 0
-    local down = 0
-    if UF.ShowsPower(cfg) then
+-- bottom: its style's name row (f.hitTop) and power line (f.foot, with the
+-- border UF.ApplyShell gives it), in the frame's units. 0, 0 for a style with
+-- neither. For code that sizes room before the frame is laid out (the party's
+-- holder, Group:Pads).
+function UF.StyleReach(cfg, frame)
+    local style = UF.StyleDef(cfg)
+    local up, down = 0, 0
+    if style.row and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or cfg.showPercent == true) then
+        up = tonumber(cfg.tabHeight) or UF.TAB_HEIGHT
+    end
+    if style.line and UF.ShowsPower(cfg) then
         local own = type(cfg.shell) == "table" and cfg.shell.own == true and tonumber(cfg.shell.borderPx)
         local px = own and (own > 0 and UF.TAB_BORDER(own) or 0) or UF.TAB_BORDER(DUI.DB.General().borderPx)
-        down = Pixel.Snap(frame, tonumber(cfg.ribbonGap) or UF.RIBBON_GAP) + Pixel.Snap(frame, tonumber(cfg.powerHeight) or 4)
+        down = Pixel.Snap(frame, tonumber(cfg.ribbonGap) or UF.LINE_GAP) + Pixel.Snap(frame, tonumber(cfg.powerHeight) or 4)
             + 2 * Pixel.Px(frame, px)
     end
     return up, down
 end
 
--- The height a portrait is measured against: the frame's, or in Ribbon the
--- whole ribbon's (row, bar, line).
+-- The height a portrait is measured against: the frame's, or for a style
+-- whose ring spans the whole frame (style.ring), its row, bar and line.
 function UF.PortraitHeight(f, cfg)
     local h = tonumber(cfg.height) or 0
-    if not UF.IsRibbon(f, cfg) then return h end
-    h = h + (tonumber(cfg.tabHeight) or UF.TAB_HEIGHT)
-    if UF.ShowsPower(cfg) then h = h + (tonumber(cfg.ribbonGap) or UF.RIBBON_GAP) + (tonumber(cfg.powerHeight) or 0) end
+    local style = ns.STYLES[UF.FrameStyle(f, cfg)]
+    if not style.ring then return h end
+    if style.row then h = h + (tonumber(cfg.tabHeight) or UF.TAB_HEIGHT) end
+    if style.line and UF.ShowsPower(cfg) then
+        h = h + (tonumber(cfg.ribbonGap) or UF.LINE_GAP) + (tonumber(cfg.powerHeight) or 0)
+    end
     return h
 end
 
@@ -677,9 +686,9 @@ function UF.Build(f, spec)
         f.altMana:Hide()
         UF.CreateCost(f, spec)
     end
-    -- Ribbon's power line under the frame, created with the frame (a party
-    -- button may be created mid-fight). Hidden until the style needs it.
-    if spec.ribbon and f.power then ns.PowerBar.CreateLine(f) end
+    -- The power line a style can hang under the frame, created with the frame
+    -- (a party button may be created mid-fight). Hidden until a style needs it.
+    if spec.styled and f.power then ns.PowerBar.CreateLine(f) end
     if spec.tab then
         -- Frames with a tab only show the name there. The tab lives in a frame
         -- that clips it at the body's top edge, so it can slide up from behind
@@ -834,9 +843,9 @@ function UF.LayoutThreatTag(f, cfg, side)
         if tag:GetParent() ~= f then tag:SetParent(f) end
         if holder then holder:Hide() end
         tag:SetFrameLevel(f.overlay:GetFrameLevel() + 1)
-        if f.ribbon then
-            -- Ribbon: off the bar's inner end, level with it (the row's inner
-            -- end holds the health number).
+        if f.nameRow then
+            -- Off the bar's inner end, level with it (the name row's inner end
+            -- holds the health number).
             local away = inner == "LEFT" and "RIGHT" or "LEFT"
             tag:SetPoint(away, f, inner, (inner == "LEFT" and -1 or 1) * 3 + nx, ny)
         elseif f.tabAt == "inner" and f.tab and f.tab:IsShown() then
@@ -957,8 +966,8 @@ function UF.SetTileName(f, cfg, text)
         box = { w = cfg.width, h = cfg.height, padX = 3, padY = 2,
                 cutL = f.spec.slant == "left" and cut or 0, cutR = f.spec.slant == "right" and cut or 0 },
         -- A group tile's name outside the tile sits on a name tab (nameTag).
-        -- Ribbon has its own row above the frame instead.
-        tag = (f.spec.group and not f.ribbon and cfg.nameTag ~= false and UF.TAG_SPOTS[pos]) == true,
+        -- A style with a name row has that row above the frame instead.
+        tag = (f.spec.group and not f.nameRow and cfg.nameTag ~= false and UF.TAG_SPOTS[pos]) == true,
         cut = cut > 0 and f.spec.slant or nil,
     }
     if f.tileName.tag then
@@ -1183,13 +1192,13 @@ function UF.TabLook(cfg)
     if type(t) == "table" and t.own == true then return t end
 end
 
--- Where the name tab sits and how wide it is (Daylight; Ribbon's row keeps its
+-- Where the name tab sits and how wide it is (a style's name row keeps its
 -- place). Stored on the frame for UF.PlaceTab and UF.SizeTab.
 UF.TAB_AT = { outer = true, middle = true, inner = true }
 UF.TAB_WIDTHS = { fit = true, full = true, fixed = true }
 UF.TAB_ALIGNS = { left = "LEFT", center = "CENTER", right = "RIGHT" }
 function UF.ReadTab(f, cfg)
-    local t = (not f.ribbon and type(cfg.tab) == "table") and cfg.tab or {}
+    local t = (not f.nameRow and type(cfg.tab) == "table") and cfg.tab or {}
     f.tabWidth = UF.TAB_WIDTHS[t.width] and t.width or "fit"
     f.tabWidthPx = tonumber(t.widthPx) or 90
     -- A full-width tab runs from past the portrait, so always at the outer end.
@@ -1227,11 +1236,16 @@ function UF.Layout(f, cfg, text, keepSize)
     UF.ApplyShell(f, cfg)
     local T = Pixel.Px(f, Style.BorderPx(f))
     if not keepSize then f:SetHeight(UF.OuterHeight(f, cfg, T)) end
-    -- Ribbon (UF.StyleOf): the row above and the line below. Their room
-    -- (f.hitTop, f.foot) is read by everything placed above or below the frame.
-    f.ribbon = UF.IsRibbon(f, cfg)
+    -- The style's pieces (ns.STYLES): a name row above and a power line below.
+    -- Their room (f.hitTop, f.foot) is read by everything placed above or
+    -- below the frame.
+    f.style = UF.FrameStyle(f, cfg)
+    local style = ns.STYLES[f.style]
+    f.nameRow = style.row == true
+    f.powerLine = style.line == true
+    f.ringShare = style.ring
     f.foot = 0
-    local rowOn = f.ribbon and type(f.tab) == "table"
+    local rowOn = f.nameRow and type(f.tab) == "table"
         and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or cfg.showPercent == true)
     f.hitTop = rowOn and (tonumber(cfg.tabHeight) or UF.TAB_HEIGHT) or 0
     -- Work out the angled end first, since corner icons keep clear of it.
@@ -1435,13 +1449,13 @@ function UF.Layout(f, cfg, text, keepSize)
     local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
     local dir = inner == "LEFT" and 1 or -1
     local nx, ny = cfg.healthTextX, cfg.healthTextY
-    -- Ribbon: on the row above the bar at its inner end (bigger with the large
-    -- number), sliding in with the row.
-    f.percentText:SetParent((f.ribbon and f.tab) or f.overlay)
-    if f.ribbon and f.tab then
+    -- With a name row: on the row above the bar at its inner end (bigger with
+    -- the large number), sliding in with the row.
+    f.percentText:SetParent((f.nameRow and f.tab) or f.overlay)
+    if f.nameRow and f.tab then
         Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
-        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.tab, "BOTTOM" .. inner, dir * UF.RIBBON_NUMBER_INSET,
-            UF.RIBBON_TEXT_LIFT, nx, ny)
+        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.tab, "BOTTOM" .. inner, dir * UF.ROW_NUMBER_INSET,
+            UF.ROW_TEXT_LIFT, nx, ny)
         f.percentText:SetJustifyH(inner)
     elseif f.bigNumber then
         Style.SetTextSize(f.percentText, text.big)
@@ -1471,11 +1485,11 @@ function UF.Layout(f, cfg, text, keepSize)
         local home = (f.nameOnBar or f.cornerMode) and f.overlay or f.tab
         f.nameText:SetParent(home)
         if f.marker then f.marker:SetParent(f.markerSpot and f.overlay or home) end
-        -- Ribbon's row is the tab with its shell hidden. It shows while the
+        -- A name row is the tab with its shell hidden. It shows while the
         -- name or the health number is on it.
         f.tab:SetShown((cfg.showName ~= false and not f.nameOnBar) or f.hitTop > 0)
-        Style.GetShell(f.tab):SetShown(not f.ribbon)
-        if f.tabEdge then f.tabEdge:SetShown((f.crestShown and not f.ribbon) or false) end
+        Style.GetShell(f.tab):SetShown(not f.nameRow)
+        if f.tabEdge then f.tabEdge:SetShown((f.crestShown and not f.nameRow) or false) end
         -- Everything above the body's top edge, outlines overlapping.
         f.tabClip:ClearAllPoints()
         f.tabClip:SetPoint("TOPLEFT", f, "TOPLEFT", -UF.TAB_CLIP_PAD, UF.TAB_CLIP_PAD)
@@ -1508,8 +1522,8 @@ function UF.Layout(f, cfg, text, keepSize)
     Style.LayoutShell(Style.GetShell(f))
     -- The style changed since the last layout, so the frame arrives in its new
     -- shape (ns.Refresh, Arrive.lua).
-    f.restyled = type(f.styleSeen) == "boolean" and f.styleSeen ~= f.ribbon
-    f.styleSeen = f.ribbon
+    f.restyled = type(f.styleSeen) == "string" and f.styleSeen ~= f.style
+    f.styleSeen = f.style
     UF.Painted(f)
 end
 
@@ -1773,10 +1787,10 @@ function UF.LayoutPortrait(f, cfg)
     local outerRight = f.spec.slant == "left"
     f.portraitScale = tonumber(cfg.portraitScale) or 1
     local R
-    if f.ribbon then
-        -- Ribbon: as tall as the whole ribbon, centered on it.
+    if f.ringShare then
+        -- As tall as the whole frame with its row and line, centered on it.
         local up, down = f.hitTop or 0, f.foot or 0
-        R = Pixel.Snap(f, (f:GetHeight() + up + down) * UF.RIBBON_RING * f.portraitScale)
+        R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * f.portraitScale)
         f.portraitY = (up - down) / 2
     else
         R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * f.portraitScale / 2)
@@ -1963,7 +1977,9 @@ function UF.PaintRing(f)
     if not (p and p:IsShown()) then return end
     local mode, lo, hi, sr, sg, sb = ringColors(f)
     local file, lit = f.ringFile or UF.RING_FILE, f.ringLitFile or UF.RING_LIT_FILE
-    if type(sr) ~= "nil" then
+    if UF.Owned(f, "ring") then
+        -- A plugin colors the ring; the threat band and pulse over it stay.
+    elseif type(sr) ~= "nil" then
         p.ring:SetTexture(lit)
         p.ring:SetVertexColor(sr, sg, sb, 1)
     elseif lo then
@@ -2057,7 +2073,7 @@ function UF.PlaceBarName(f)
     f.nameText:SetJustifyH(outer)
 end
 
--- Ribbon: the name at the row's outer end, after the raid marker (and the crest
+-- A name row: the name at the row's outer end, after the raid marker (and the crest
 -- when it sits there), level with the health number at the inner end, which
 -- keeps the rest of the row. A long name is cut short with "...".
 function UF.PlaceRowName(f)
@@ -2071,8 +2087,8 @@ function UF.PlaceRowName(f)
         f.marker:SetPoint(outer, f.tab, outer, sign * crestW + f.markerNudge.x, f.markerNudge.y)
     end
     f.nameText:ClearAllPoints()
-    f.nameText:SetPoint("BOTTOM" .. outer, f.tab, "BOTTOM" .. outer, sign * (crestW + markerW), UF.RIBBON_TEXT_LIFT)
-    f.nameText:SetWidth(math.max(1, f.tab:GetWidth() * UF.RIBBON_NAME_SHARE - crestW - markerW))
+    f.nameText:SetPoint("BOTTOM" .. outer, f.tab, "BOTTOM" .. outer, sign * (crestW + markerW), UF.ROW_TEXT_LIFT)
+    f.nameText:SetWidth(math.max(1, f.tab:GetWidth() * UF.ROW_NAME_SHARE - crestW - markerW))
     f.nameText:SetJustifyH(outer)
 end
 
@@ -2081,8 +2097,8 @@ end
 -- fraction of the frame instead.
 function UF.SizeTab(f, name)
     if not f.tab then return end
-    -- Ribbon's row runs from past the ring to the frame's inner end.
-    if f.ribbon then f.tab:SetWidth(Pixel.Snap(f, math.max(30, f:GetWidth() - (f.tabInset or 0)))) end
+    -- A name row runs from past the ring to the frame's inner end.
+    if f.nameRow then f.tab:SetWidth(Pixel.Snap(f, math.max(30, f:GetWidth() - (f.tabInset or 0)))) end
     if f.nameOnBar then
         if f.tileName then
             UF.PlaceTileName(f)
@@ -2097,7 +2113,7 @@ function UF.SizeTab(f, name)
         if f.onTabSized then f.onTabSized(f) end
         return
     end
-    if f.ribbon then
+    if f.nameRow then
         UF.PlaceRowName(f)
         if f.onTabSized then f.onTabSized(f) end
         return
@@ -2727,10 +2743,10 @@ function UF.ApplyThreat(f, level, flag)
         UF.PaintElite(f)
     end
     -- No portrait: the name tab's border while it shows, else the frame's own
-    -- (tiles, party buttons without a tab, and Ribbon, whose row has none).
-    local tabOn = f.tab and f.tab:IsShown() and not f.ribbon or false
+    -- (tiles, party buttons without a tab, and a name row, which has none).
+    local tabOn = f.tab and f.tab:IsShown() and not f.nameRow or false
     local s = (tabOn and Style.GetShell(f.tab))
-        or ((f.spec.threatOnFrame or f.ribbon or (f.spec.group and not tabOn)) and Style.GetShell(f))
+        or ((f.spec.threatOnFrame or f.nameRow or (f.spec.group and not tabOn)) and Style.GetShell(f))
         or nil
     -- A style change can move it, so reset the shell it left.
     if f.threatShell and f.threatShell ~= s then
@@ -3595,8 +3611,8 @@ function UF.ApplyCrest(f, c)
             local m = f.crestShown and UF.ELITE_RING_COLORS[kind] or UF.LEVEL_RING
             f.status.icons.level:SetVertexColor(m[1], m[2], m[3], 1)
         end
-        -- The tab's lit top edge. Ribbon's row has no shell to edge.
-        f.tabEdge:SetShown(f.crestShown and not f.ribbon)
+        -- The tab's lit top edge. A name row has no shell to edge.
+        f.tabEdge:SetShown(f.crestShown and not f.nameRow)
     end
 end
 
@@ -4165,6 +4181,8 @@ if DUI.APIReport then
             powerBack = f.power and Style.BarBack(f.power),
             name = f.nameText, level = f.status and f.status.levelText,
             texts = f.extraTexts, portrait = p, classIcon = p and p.icon,
+            ring = p and p.ring, dragon = p and p.elite, model = p and p.model,
+            crest = f.crest, badges = f.status and f.status.icons,
             border = shell and shell.border, band = shell and shell.band,
         }
     end
