@@ -285,6 +285,13 @@ function Cat.Removed()
     return out
 end
 
+-- Recent on or off: the same as deleting it or bringing it back.
+function Cat.RecentShown() return not removed().recent end
+
+function Cat.SetRecentShown(on)
+    if on then Cat.Restore("recent") else Cat.Delete("recent") end
+end
+
 function Cat.Restore(key)
     if not removed()[key] then return end
     removed()[key] = nil

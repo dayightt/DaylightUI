@@ -243,8 +243,12 @@ local function heading(window, i)
         -- Recent's right-click: a menu to empty it now instead of waiting for its timer.
         if button == "RightButton" then
             if self.key == "recent" then
-                DUI.Widgets.OpenMenu(self, { "clear" }, { clear = L["Clear recent items"] }, nil,
-                    function() ns.Categories.ClearRecent() end, nil, { atCursor = true })
+                DUI.Widgets.OpenMenu(self, { "clear", "off" },
+                    { clear = L["Clear recent items"], off = L["Turn off Recent"] }, nil,
+                    function(key)
+                        if key == "off" then ns.Categories.SetRecentShown(false)
+                        else ns.Categories.ClearRecent() end
+                    end, nil, { atCursor = true })
             end
             return
         end

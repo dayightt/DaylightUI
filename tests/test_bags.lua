@@ -3589,6 +3589,32 @@ T.test("bags: right-clicking the Recent heading clears it", function()
     _G.C_NewItems = nil
 end)
 
+T.test("bags: Recent can be turned off from its heading and back on", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    ns.Relayout()
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "recent")
+    local head
+    for _, h in ipairs(ns.window.headings) do if h.key == "recent" and h:IsShown() then head = h end end
+    local picked, keys
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(_, k, _, _, onPick) keys, picked = k, onPick end
+    head:GetScript("OnClick")(head, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.eq(keys and keys[2], "off")
+    picked("off")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(Cat.RecentShown(), "off")
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "a new item goes straight to its own group")
+    Cat.SetRecentShown(true)
+    stub.RunTimers()
+    T.truthy(Cat.RecentShown())
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "recent", "back on, new items gather again")
+    _G.C_NewItems = nil
+end)
+
 -- A blank slot in Recent. The slot filled empty, then the item came, and another
 -- bag's change laid it out as Recent while only refilling that other bag.
 T.test("bags: an item a layout finds in a bag that didn't change gets its icon", function()
