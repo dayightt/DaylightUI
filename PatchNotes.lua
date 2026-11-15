@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
+        },
+    },
     { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",
         new = {
             { "Bags", "A list view for the bags and bank: a row per item with its name, level, count and sell value" },
