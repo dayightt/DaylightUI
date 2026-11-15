@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Nameplates", "Your target's outline can have a soft light circling it, like the main buttons in Daylight UI windows" },
+            { "Bags", "Turn off the side-by-side compare with your worn gear for items in your bags and bank, and still compare by holding Shift (Bags > Layout)" },
             { "Windows", "Use the game's own windows if you prefer them or your addons need them: a button in each Daylight UI window (professions, spellbook, character, talking to NPCs, inspect, group finder, mailbox, social, Legacy) swaps to the game's, which now has the Daylight UI look, and a link there swaps back. It's remembered" },
         },
         changed = {

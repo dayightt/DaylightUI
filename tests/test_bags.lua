@@ -7602,3 +7602,28 @@ T.test("bags: a plugin's group takes what its match says, after your own groups"
     T.isnil(Cat.Get("Angler:food"))
     T.truthy(groupOf(ns, B.buttons[1][2]) ~= "Angler:food", "back where it was")
 end)
+
+T.test("bags: compare off keeps the worn item away from a bag item's tooltip", function()
+    local ns = login()
+    open(ns)
+    local btn = ns.Bags.buttons[0][1]
+    local hidden, suppressed = 0, nil
+    local saved = _G.GameTooltip
+    local tip = { shoppingTooltips = {}, GetOwner = function() return btn end }
+    _G.GameTooltip = tip
+    _G.GameTooltip_SuppressAutomaticCompareItem = function(t) suppressed = t end
+    _G.GameTooltip_HideShoppingTooltips = function() hidden = hidden + 1 end
+    ns.Items.NoCompare(btn)
+    T.isnil(suppressed, "on: the game's compare setting decides")
+    DaylightUI:Set("Bags", "compareItems", false)
+    stub.RunTimers()
+    ns.Items.NoCompare(btn)
+    T.eq(suppressed, tip, "off: the refresh won't bring it back")
+    T.eq(hidden, 1, "off: the one just shown goes")
+    _G.IsModifiedClick = function(k) return k == "COMPAREITEMS" end
+    ns.Items.NoCompare(btn)
+    T.eq(hidden, 1, "Shift held: it stays")
+    _G.IsModifiedClick = nil
+    _G.GameTooltip_SuppressAutomaticCompareItem, _G.GameTooltip_HideShoppingTooltips = nil, nil
+    _G.GameTooltip = saved
+end)

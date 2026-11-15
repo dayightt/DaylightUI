@@ -311,6 +311,8 @@ ns.OPTIONS = { pages = {
               desc = "Profession bag slots follow your other bags' slots. When off, they get their own section below a thin line." },
             { type = "toggle", key = "showKeyring", label = "Show keyring", disabled = off,
               desc = "Your keyring's slots, in their own section at the end of the bag. When off, keys stay on the keyring, out of sight. The key on the bag slots bar does the same." },
+            { type = "toggle", key = "compareItems", label = "Compare with what you wear", disabled = off,
+              desc = "An item's tooltip in your bags and bank shows the gear you have on beside it, as the game's own compare setting says. Off, only while Shift is held." },
             { type = "dropdown", key = "emptySlots", label = "Empty slots", disabled = off,
               values = { all = "Every empty slot", grouped = "One tile with the count" }, order = { "all", "grouped" },
               desc = "One tile: each section shows a single empty slot with the free count on it. Drop an item on it to put it there." },
