@@ -1086,6 +1086,7 @@ end
 function Panel.IsShown() return frame ~= nil and DUI.Motion.Shown(frame) end
 function Panel.Current() return current end
 function Panel.Frame() return frame end
+function Panel.SearchBox() return nav and nav.searchBox end
 function Panel.PageFrame(id) return pageFrames[id or current] end
 function Panel.ResetButton() return resetPage end
 function Panel.TestSwitch() return testSwitch end

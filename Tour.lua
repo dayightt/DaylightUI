@@ -8,7 +8,8 @@
 --   order, title, text (string or function)
 --   part(): the regions to light, one box around those shown (none: the card
 --     sits in the middle)
---   available(), enter(), leave(): optional (show a sample, open the options)
+--   available(), enter(), leave(next): optional (show a sample, open the
+--     options); leave gets the stop coming next, nil when the tour ends
 --   settle: seconds to let enter() finish
 --   wait: true if the part only shows once the player opens it (a key away).
 --     Until then the card sits in the middle, and the light glides over once
@@ -56,6 +57,7 @@ Tour.DIM = 0.55 -- how dark the rest of the screen gets
 Tour.SETTLE = 0.4 -- lets what a step opens finish opening before the light finds it
 Tour.WATCH = 0.2 -- how often a waiting step looks for its part
 Tour.TOAST_TIME = 3.2
+Tour.TYPE_GAP = 0.09 -- between the letters the search stop types
 Tour.ASK_DELAY = 2 -- after login (the setup guide's check goes first)
 
 Tour.stops = {}
@@ -233,16 +235,16 @@ local function guarded(fn)
     if not DUI.SafeCall(fn) then Tour.Stop() end
 end
 
-local function leaveStep()
+local function leaveStep(nextStep)
     local step = S and S.list[S.i]
-    if step and step.leave then DUI.SafeCall(step.leave) end
+    if step and step.leave then DUI.SafeCall(step.leave, nextStep) end
 end
 
 -- The text fades out and the next step's fades in. A step that opens
 -- something (enter) lets it land first so the light finds its real spot.
 local function goTo(i)
     if not S or i < 1 or i > #S.list or i == S.i then return end
-    leaveStep()
+    leaveStep(S.list[i])
     S.i = i
     local step = S.list[i]
     if step.enter then guarded(step.enter) end
@@ -622,18 +624,63 @@ Tour.Add("unlock", {
     part = function() return DUI.Movers.LockButton() end,
 })
 
+-- The tour opened the options, so it closes them (Done, Skip, a fight) like
+-- their X does, unless the next stop shows them too.
+local function closeOptions(nextStep)
+    if nextStep and nextStep.usesOptions then return end
+    local P = DUI.OptionsPanel
+    if P.IsShown() then P.Toggle() end
+end
+
 Tour.Add("options", {
     order = 90,
     title = L["Every setting"],
     text = function()
-        return string.format(L["Press Escape and pick Daylight UI in the game menu, or type %s. Search finds any setting. %s over any Daylight UI window sizes it. %s on Home runs this tour again."],
+        return string.format(L["Press Escape and pick Daylight UI in the game menu, or type %s. %s over any Daylight UI window sizes it. %s on Home runs this tour again."],
             pop("/dui"), pop(L["Ctrl + mouse wheel"]), pop(L["Take the tour"]))
     end,
+    usesOptions = true,
     enter = function() DUI.OptionsPanel.Show("home") end,
-    -- the tour opened them, so it closes them (Done, Skip, a fight) like their X does
-    leave = function()
-        local P = DUI.OptionsPanel
-        if P.IsShown() then P.Toggle() end
-    end,
+    leave = closeOptions,
     part = function() return DUI.OptionsPanel.Frame() end,
+})
+
+-- The search box types a word by itself, a letter at a time, so the player
+-- sees the matching settings show up as live rows.
+local function typeDemo(word)
+    local box = DUI.OptionsPanel.SearchBox()
+    if not box then return end
+    local token = {}
+    Tour.typing = token
+    box:SetText("")
+    if not Motion.On() then return box:SetText(word) end
+    local n = 0
+    local function letter()
+        if Tour.typing ~= token or Tour.StepId() ~= "search" then return end
+        n = n + 1
+        box:SetText(string.sub(word, 1, n))
+        if n < #word then C_Timer.After(Tour.TYPE_GAP, letter) end
+    end
+    C_Timer.After(Tour.SETTLE, letter)
+end
+
+Tour.Add("search", {
+    order = 95,
+    title = L["Find any setting"],
+    text = function()
+        return string.format(L["Type a word in %s and every setting that matches shows up here, ready to change on the spot. No digging through pages."],
+            pop(L["Search settings"]))
+    end,
+    usesOptions = true,
+    enter = function()
+        DUI.OptionsPanel.Show("home")
+        typeDemo(L["Health"])
+    end,
+    leave = function(nextStep)
+        Tour.typing = nil
+        local box = DUI.OptionsPanel.SearchBox()
+        if box then box:SetText("") end
+        closeOptions(nextStep)
+    end,
+    part = function() return DUI.OptionsPanel.SearchBox() end,
 })
