@@ -187,6 +187,57 @@ T.test("cdm data: a chain growing from its middle or end stays centered or end-f
     T.eq(D.Layout(set, { [11] = true, [12] = true })[11].x, 0, "start: the first piece stays")
 end)
 
+-- A group hung out both sides of its first piece slid right when only the left
+-- side's spells were up: only the right-hand run was measured.
+T.test("cdm data: a chain out both sides of its first piece stays centered", function()
+    local D = data()
+    local set = filled(D)
+    D.AddPiece(set, 14, "icon", 0, 0)
+    T.truthy(D.Hook(set, 14, 11, "left", "center"))
+    D.Chain(set, 11).grow = "center"
+    local full = D.Layout(set)
+    T.eq(full[14].x, -40)
+    local middle = (-40 + 116) / 2
+    T.eq(D.Layout(set, { [14] = true })[14].x, middle - 18, "the left one alone sits in the middle")
+    T.eq(D.Layout(set, { [13] = true })[13].x, middle - 18, "the right one alone too")
+    local L = D.Layout(set, { [14] = true, [13] = true })
+    T.eq((L[14].x + L[13].x + 36) / 2, middle, "both ends up: the pair's middle stays")
+    D.Chain(set, 11).grow = "end"
+    T.eq(D.Layout(set, { [14] = true })[14].x, 80, "end: the far end stays")
+end)
+
+-- A player's druid: two rows started from the right end (the first spell has the
+-- second row under it and the first row on its left). With Grow from Middle only
+-- the column through the first spell was centered, so changing form added and
+-- dropped icons at one end and left the rows off the middle.
+T.test("cdm data: every row of a group growing from its middle stays centered", function()
+    local D = data()
+    local set = empty()
+    D.AddPiece(set, 1, "icon", 0, 0)
+    D.AddPiece(set, 2, "icon", 0, 0); D.Hook(set, 2, 1, "left")
+    D.AddPiece(set, 3, "icon", 0, 0); D.Hook(set, 3, 2, "left")
+    D.AddPiece(set, 4, "icon", 0, 0); D.Hook(set, 4, 1, "down")
+    D.AddPiece(set, 5, "icon", 0, 0); D.Hook(set, 5, 4, "left")
+    D.AddPiece(set, 6, "icon", 0, 0); D.Hook(set, 6, 5, "left")
+    D.SetChainValue(set, 1, "grow", "center")
+    local F = D.Layout(set)
+    local mid1 = (F[3].x + F[1].x + F[1].w) / 2
+    local mid2 = (F[6].x + F[4].x + F[4].w) / 2
+    local L = D.Layout(set, { [1] = true, [3] = true, [4] = true, [5] = true, [6] = true })
+    T.eq((L[3].x + L[1].x + L[1].w) / 2, mid1, "the top row keeps its middle")
+    T.eq((L[6].x + L[4].x + L[4].w) / 2, mid2, "the full row under it stays where it was")
+    T.eq(L[4].x, F[4].x)
+    L = D.Layout(set, { [1] = true, [2] = true, [3] = true, [4] = true, [6] = true })
+    T.eq((L[3].x + L[1].x + L[1].w) / 2, mid1, "the full top row stays")
+    T.eq(L[1].x, F[1].x)
+    T.eq((L[6].x + L[4].x + L[4].w) / 2, mid2, "the bottom row keeps its middle")
+    -- end: each row keeps its far end
+    D.SetChainValue(set, 1, "grow", "end")
+    L = D.Layout(set, { [1] = true, [3] = true, [4] = true, [6] = true })
+    T.eq(L[3].x, F[3].x, "the top row's far end stays")
+    T.eq(L[6].x, F[6].x, "the bottom row's too")
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)
@@ -1460,6 +1511,48 @@ T.test("cdm text: numbers off and sized, count spot, low-time color; back on rel
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm text: the low-time ticker sleeps with nothing counting and wakes on a cooldown", function()
+    local DUI, AB, set, ess = fxWorld()
+    withCooldowns(ess)
+    local CD, D = AB.Cooldowns, AB.CdmData
+    _G.C_CurveUtil = { CreateColorCurve = function()
+        local c = { points = {} }
+        function c:SetType() end
+        function c:AddPoint(x, col) self.points[#self.points + 1] = { x, col } end
+        return c
+    end }
+    local asked = 0
+    C_Spell.GetSpellCooldownDuration = function()
+        asked = asked + 1
+        return { EvaluateRemainingDuration = function(_, curve)
+            local pick = curve.points[1][2]
+            return { GetRGBA = function() return pick.r, pick.g, pick.b, pick.a end }
+        end }
+    end
+    local item = ess[1]
+    local fs = item:CreateFontString()
+    item.Cooldown.GetCountdownFontString = function() return fs end
+    item.Cooldown:Hide()
+    D.SetLook(set, 11, "low", true)
+    D.SetLook(set, 11, "lowColor", { 0, 1, 0 })
+    pass(AB)
+    T.truthy(CD.LowTicking(), "on while the color is used")
+    for _ = 1, CD.LOW_IDLE do stub.RunTickers() end
+    T.falsy(CD.LowTicking(), "no cooldown counting: it stops")
+    T.rgb({ fs:GetTextColor() }, AB.Skin.LookFor("cdm").cooldownTextColor, "left in the plain color")
+    asked = 0
+    stub.RunTickers()
+    T.eq(asked, 0, "nothing asked while asleep")
+    item.Cooldown:Show()
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.truthy(CD.LowTicking(), "a cooldown wakes it")
+    T.rgb({ fs:GetTextColor() }, { 0, 1, 0 }, "painted at once")
+    for _ = 1, CD.LOW_IDLE + 1 do stub.RunTickers() end
+    T.truthy(CD.LowTicking(), "keeps going while it counts")
+    _G.C_CurveUtil = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm text: an icon's numbers and stacks colors; unset = the action bars' colors", function()
     local DUI, AB, set, ess = fxWorld()
     withCooldowns(ess)
@@ -1874,6 +1967,37 @@ T.test("cdm effects: a spell left out of a form hides while you're in it, and co
     stub.FireEvent("UPDATE_STEALTH"); stub.RunTimers()
     T.eq(AB.CdmEffects.FormNow(), "Stealth")
     T.eq(ess[1]:GetAlpha(), 1, "in Stealth: shown")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A stance is no buff, so only this wash says which one you're in.
+T.test("cdm effects: the warrior stance you're in is lit, and the light moves with the stance", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    local stance = 1
+    local spells = { 2457, 71, 2458 }
+    _G.GetNumShapeshiftForms = function() return #spells end
+    _G.GetShapeshiftFormInfo = function(i) return 132349 + i, stance == i, true, spells[i] end
+    ess[1].cooldownInfo.overrideSpellID = 71    -- Defensive Stance
+    pass(AB)
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers(); eased(DUI)
+    T.eq(AB.CdmEffects.FormNow(), "Battle")
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "in Battle Stance: Defensive isn't lit")
+    stance = 2
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.truthy(AB.CdmEffects.StanceShown(ess[1]), "in Defensive Stance: lit at once")
+    eased(DUI)
+    stance = 3
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "Berserker: Defensive goes dark")
+    stance = 2
+    set.pieces[11].activeGlow = false
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.falsy(AB.CdmEffects.StanceShown(ess[1]), "the buff-up color switched off: no wash either")
+    T.falsy(AB.CdmEffects.StanceShown(ess[2]), "a spell that isn't a stance never lights")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2827,8 +2951,8 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     for i = 1, 4 do stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-x" .. i, 400574) end
     stub.RunTimers()
     T.eq(h.face.count:GetText(), "4", "never past its 4 (the game's data)")
-    stub.Advance(17); stub.RunTimers()
-    T.eq(h.face.alphaTo, 0, "18 s after the first cast: gone")
+    stub.Advance(17.1); stub.RunTimers()
+    T.eq(h.face.alphaTo, 0, "18 s after the first cast (and the game's moment more): gone")
     stub.combat = false
     -- Out of a fight its id finds nothing (it can't be tracked that way in game,
     -- so ArcAuras counts casts too). The casts count, an aura change doesn't take
@@ -2873,7 +2997,11 @@ T.test("cdm rows: a spell whose debuff lands on you as a bar is drawn by ours", 
     T.truthy(h.face.shownEnd, "its time")
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 400574); stub.RunTimers()
     T.eq(h.face.parts.count:GetText(), "2", "the second cast: 2")
-    stub.Advance(18.1); stub.RunTimers()
+    stub.Advance(18.3); stub.RunTimers()
+    T.eq(h.face.alphaTo, 1, "a moment past 18 s it's still on you in game")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 400574); stub.RunTimers()
+    T.eq(h.face.parts.count:GetText(), "3", "a cast then adds to the old stack, as in game")
+    stub.Advance(AB.CdmAuras.SELF_LATE); stub.RunTimers()
     T.eq(h.face.alphaTo, 0, "gone after its 18 s")
     stub.combat = false
     noCategories()
@@ -3091,6 +3219,92 @@ T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A priest's pull: the first debuff is cast out of a fight, and it lands on the
+-- target just as the fight starts, when auras can no longer be read. It never
+-- glowed, while every later cast (in the fight) did.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm up glow: a debuff cast to start a fight still counts as up once the fight hides auras (" .. shape .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    DUI.DB.General().motion = false
+    if shape == "bar" then set.pieces[41].shape = "bar" end
+    T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+    T.truthy(h.wantsUp)
+    T.falsy(AB.CdmEffects.GlowShown(h), "down before the pull")
+    -- The cast, out of a fight: nothing on the target yet.
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pull", 141)
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "not landed yet")
+    -- It lands as the fight starts: the game won't say any more.
+    stub.Advance(0.5)
+    stub.combat = true
+    stub.auras.target = { HARMFUL = { { spellId = 141, isFromPlayerOrPlayerPet = true } } }
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "glows: the pull cast counts")
+    T.eq(h.upUnit, "target")
+    T.truthy(h.endsAt and math.abs(h.endsAt - (GetTime() - 0.5) - 18) < 0.01, "18 s from the cast")
+    -- A cast long before the fight doesn't count.
+    stub.combat = false
+    stub.auras.target = { HARMFUL = {} }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "down after it")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "early", 141)
+    stub.Advance(AB.CdmAuras.CAST_LANDS + 1)
+    stub.combat = true
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "a cast that missed long ago isn't taken as up")
+    stub.combat = false
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- Recast glow: a damage over time spell cast again early loses the ticks it had
+-- left, so it glows once the next cast would land just as it runs out. Timed from
+-- your own casts, so it works in a fight where the aura can't be read.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm recast glow: lights when the next cast would land as the debuff ends (" .. shape .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    DUI.DB.General().motion = false
+    if shape == "bar" then set.pieces[41].shape = "bar" end
+    T.truthy(D.SetSpellValue(set, 41, "clipGlow", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
+    C_Spell.GetSpellInfo = function(sid) return { castTime = sid == 141 and 2000 or 0 } end
+    stub.combat = true
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+    T.truthy(h.wantsUp, "it watches its debuff")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 141)
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "18 s left: not yet")
+    -- 2.5 s left, more than its 2 s cast.
+    stub.Advance(15.5)
+    stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "a cast now would still clip it")
+    stub.Advance(0.6)
+    stub.RunTimers(); stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "glows: a cast now lands as it ends")
+    -- Casting it is the refresh: the glow goes out.
+    local now = GetTime() * 1000
+    stub.units.player = stub.units.player or {}
+    stub.units.player.cast = { name = "Rend", spellID = 141, from = now, to = now + 2000 }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player", "cast2", 141)
+    stub.RunTimers(); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "not while casting it")
+    stub.units.player.cast = nil
+    stub.combat = false
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- Hide (Buff up) on the pieces Daylight UI draws itself. The client's button is
 -- never asked to hide. Its container goes see-through instead, so it can't show
 -- in a fight however the aura is read.
@@ -3256,6 +3470,38 @@ T.test("cdm hide up: Cooldown and buff hides our cooldown icon while the buff is
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Berserking set to Both, Fade on cooldown, Buff up Show: the buff starts the
+-- cooldown, and the icon showed faded the whole time the buff was up.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm buff up: Cooldown and buff stays bright while its buff is up, fades on cooldown after (" .. shape .. ")", function()
+    local DUI, AB, E, D = editorWorld()
+    DUI.DB.General().motion = false
+    withCategories({ [2] = { 41 } }, { [2] = { 41 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    _G.GetSpellBaseCooldown = function(sid) return sid == 141 and 15000 or 0 end
+    local cds = {}
+    C_Spell.GetSpellCooldown = function(sid) return cds[sid] end
+    local set = D.Current()
+    addBlock(D, set, shape); place(D, set, 41, 1, 1)
+    T.truthy(D.SetSpellValue(set, 41, "onCd", "fade"))
+    T.truthy(D.SetSpellValue(set, 41, "cdAlpha", 0.4))
+    cds[141] = { duration = 180, isOnGCD = false }
+    stub.auras.player = { HELPFUL = { { spellId = 141 } } }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(41), "aura and cooldown " .. shape)
+    local own = shape == "icon" and AB.CdmOwn.Frame(41) or AB.CdmBars.AuraFrame(41)
+    T.eq(own:GetAlpha(), 1, "buff up: shown, not faded")
+    stub.auras.player = { HELPFUL = {} }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.eq(own:GetAlpha(), 0.4, "buff gone, still on cooldown: faded")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
 
 -- Hidden while its buff was up, the addon's cooldown icon kept its spot in a
 -- group growing from its middle.
@@ -4174,6 +4420,40 @@ T.test("cdm bars: a tracked buff in a bar block is the client's aura bar over an
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client makes a group's buttons and runs initializeFrame the moment the group
+-- is added, and the buttons lock once that returns while auras are secret. So a
+-- bar first shown in a fight or a dungeon has to be the block's size from the start.
+T.test("cdm bars: an aura bar first made under restrictions is the block's size at once", function()
+    local DUI, AB, set = barsWorld()
+    local D = AB.CdmData
+    place(D, set, 31, 1)
+    lookOf(set, 1).width = 300
+    stub.SetRestriction("PvPMatch", true)
+    pass(AB)
+    local h = AB.CdmBars.AuraFrame(31)
+    T.truthy(h and h.containers[1], "built")
+    local btn = h.containers[1].c.__groups.a.button
+    T.eq(btn:GetWidth(), 300, "the block's width, not the starting size")
+    T.eq(btn:GetHeight(), h:GetHeight(), "and its height")
+    T.eq(stub.lockErrors, 0, tostring(next(stub.lockSites)))
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm auras: an aura icon first made under restrictions is the block's size at once", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    lookOf(set, 1).size = 44
+    stub.SetRestriction("PvPMatch", true)
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h = AB.CdmAuras.Frame(41)
+    T.truthy(h and h.containers[1], "built")
+    local btn = h.containers[1].c.__groups.a.button
+    T.eq(btn:GetWidth(), 44, "the block's size, not the starting one")
+    T.eq(stub.lockErrors, 0, tostring(next(stub.lockSites)))
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm bars: the aura bar takes the block's look and the spell's own color", function()
     local DUI, AB, set = barsWorld()
     local D = AB.CdmData
@@ -4385,6 +4665,30 @@ T.test("cdm: a filed cooldown with no real cooldown and a buff the game hides is
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Eureka! (a Gnome racial) gives a buff the game doesn't flag, so its card had no
+-- What it shows choice.
+T.test("cdm card: Eureka! can pick its buff", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    withCategories({ [0] = { 21 } }, { [0] = { 21 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 1259812, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 120000 end
+    Own.Forget()
+    D.AddPiece(set, 21, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local shown
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.item and r.item.key == "cdm.card.track" then shown = r.show(set, 21, set.pieces[21]) end
+    end
+    T.truthy(shown, "What it shows is on its card")
+    T.truthy(D.SetSpellValue(set, 21, "track", "buff"))
+    T.eq(Own.Track(21, set.pieces[21]), "buff")
+    _G.GetSpellBaseCooldown = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Bloodrage (filed by the game as a cooldown with no aura to show) had no
 -- What it shows, Buff up or Buff missing rows, while Rend had them.
 T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows (Bloodrage)", function()
@@ -4409,10 +4713,13 @@ T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows 
     local function shows(id, key) return row(key).show(set, id, set.pieces[id]) end
     for _, key in ipairs({ "cdm.card.track", "cdm.card.buffUp", "cdm.card.missingGlow" }) do
         T.truthy(shows(11, key), key .. ": a cooldown with a buff")
-        T.falsy(shows(12, key), key .. ": a cooldown with none")
+    end
+    T.truthy(shows(12, "cdm.card.track"), "a cooldown with no buff known can still pick")
+    for _, key in ipairs({ "cdm.card.buffUp", "cdm.card.missingGlow" }) do
+        T.falsy(shows(12, key), key .. ": a cooldown with none, left as a cooldown")
     end
     T.eq(Own.Track(11, set.pieces[11]), "cooldown", "left alone, what it always showed")
-    T.isnil(Own.Track(12, set.pieces[12]), "nothing to pick")
+    T.isnil(Own.Track(12, set.pieces[12]), "left alone, a plain cooldown")
     T.eq(R.DrawnBy(11), "game", "left alone, the game's icon")
     -- Picked: its buff over its cooldown, watched for every rank.
     T.truthy(D.SetSpellValue(set, 11, "track", "both"))
@@ -4446,6 +4753,102 @@ T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows 
     T.truthy(shows(12, "cdm.card.track"), "hasAura with the HideAura flag")
     T.isnil(Own.Track(11, set.pieces[11]), "no aura by either word")
     _G.GetSpellBaseCooldown = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The spell ids a holder's first container watches.
+local function watched(AB, id, shape)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    local out = {}
+    local c = h and h.containers[1]
+    for k, v in pairs(c and c.c.__groups.a.opts.candidateFilters.includeSpellIDs or {}) do
+        out[v == true and k or v] = true
+    end
+    return out
+end
+
+-- Every spell can pick Cooldown, Buff only or Both, even one with no buff anyone
+-- listed: its buff is watched by its own id until a cast teaches the real one.
+T.test("cdm track: a cooldown with no buff known can still be set to its buff or both, icon and bar", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = false, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 60000 end
+    Own.Forget()
+    D.AddPiece(set, 12, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(12), "game", "left alone, the game's cooldown icon")
+    T.isnil(Own.Track(12, set.pieces[12]))
+    T.truthy(D.SetSpellValue(set, 12, "track", "cooldown"))
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(12), "game", "Cooldown is what it was: still the game's")
+    for _, shape in ipairs({ "icon", "bar" }) do
+        D.SetShape(set, 12, shape)
+        T.truthy(D.SetSpellValue(set, 12, "track", "buff"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura bar" or "aura icon", shape .. ": Buff only")
+        T.truthy(watched(AB, 12, shape)[112], shape .. ": watched by its own id")
+        T.truthy(D.SetSpellValue(set, 12, "track", "both"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura and cooldown bar" or "aura and cooldown icon", shape .. ": Both")
+    end
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Nothing lists every spell's buff, and a buff's id can differ from its spell's.
+-- A cast where auras can be read finds it by id, else by the spell's name, and
+-- keeps it per character.
+T.test("cdm track: a placed spell's buff is learned from a cast, by name when its id differs", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = false, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 60000 end
+    Own.Forget()
+    D.AddPiece(set, 12, "bar", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    -- Your debuff on the target, under another id but the spell's name.
+    stub.SetAuras("target", "HARMFUL", { { name = "Spell112", spellId = 9112, sourceUnit = "player", isFromPlayerOrPlayerPet = true } })
+    -- Not placed: nothing learned.
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-0", 111); stub.RunTimers()
+    T.isnil(Own.AuraOf(111), "a spell not placed")
+    -- In a fight auras can't be read: nothing learned.
+    stub.SetRestriction("PvPMatch", true)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 112); stub.RunTimers()
+    T.isnil(Own.AuraOf(112), "auras secret: nothing read")
+    stub.SetRestriction("PvPMatch", false)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 112); stub.RunTimers()
+    T.truthy(Own.AuraOf(112) and Own.AuraOf(112)[9112], "found by name")
+    T.truthy(DUI.DB.Character().cdmAuraIDs[112][9112], "kept for this character")
+    T.truthy(Own.QuietAura(12), "now a cooldown with a buff the game's icon doesn't show")
+    T.eq(Own.Track(12, set.pieces[12]), "cooldown", "left alone it stays a cooldown, like Bloodrage")
+    for _, shape in ipairs({ "bar", "icon" }) do
+        D.SetShape(set, 12, shape)
+        T.truthy(D.SetSpellValue(set, 12, "track", "both"))
+        R.Refresh(); stub.RunTimers()
+        T.eq(R.DrawnBy(12), shape == "bar" and "aura and cooldown bar" or "aura and cooldown icon", shape .. ": Both")
+        local ids = watched(AB, 12, shape)
+        T.truthy(ids[9112] and ids[112], shape .. ": the learned id watched as well as its own")
+    end
+    -- Someone else's debuff of that name teaches nothing.
+    D.AddPiece(set, 11, "icon", 0, -48)
+    stub.SetAuras("target", "HARMFUL", { { name = "Spell111", spellId = 9111, sourceUnit = "party1", isFromPlayerOrPlayerPet = false } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 111); stub.RunTimers()
+    T.isnil(Own.AuraOf(111), "not yours")
+    -- A buff on you under the cast's own id.
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell111", spellId = 111 } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-4", 111); stub.RunTimers()
+    T.truthy(Own.AuraOf(111) and Own.AuraOf(111)[111], "found by id")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -5666,7 +6069,9 @@ T.test("cdm data: our own spell keys sit beside the game's ids: layout, order, t
     T.truthy(D.SetTrack(set, "s2687", "aura"))
     T.eq(set.pieces["s2687"].track, "aura")
     T.falsy(D.SetTrack(set, 11, "aura"), "a game id has no track")
-    T.falsy(D.SetTrack(set, "s2687", "both"), "a bad value")
+    T.truthy(D.SetTrack(set, "s2687", "both"))
+    T.falsy(D.SetTrack(set, "s2687", "buff"), "a bad value")
+    D.SetTrack(set, "s2687", "aura")
     T.falsy(D.SetTrack(set, "s1", "aura"), "not placed")
     local to = D.Profile(D.CopyProfile(D.NewProfile("Mine", nil, set))).set
     T.eq(to.pieces["s2687"].track, "aura", "copied with the rest")
@@ -5689,6 +6094,31 @@ local function customWorld(class)
     AB.CdmCustom.Forget()
     return AB, AB.CdmCustom, AB.CdmData
 end
+
+-- Poised is a passive: the passive never shows as a buff, its buff is 1328826.
+T.test("cdm custom: a passive with a buff of its own is offered and watched by the buff's id", function()
+    local AB, C = customWorld("ROGUE")
+    AB.CdmSpells.ROGUE = { { 1328825, aura = true, passive = true }, { 6770, 2070, 11297, aura = true } }
+    stub.knownSpells = { [1328825] = true, [6770] = true }
+    C.Forget()
+    local listed = {}
+    for _, e in ipairs(C.Tray()) do listed[e.id] = e end
+    T.truthy(listed.s1328825, "Poised is in the tray")
+    T.truthy(listed.s1328825.aura, "as a buff")
+    T.truthy(listed.s6770, "Sap too")
+    T.truthy(C.Ranks("s1328825")[1328826], "watched by its buff's id")
+    T.eq(C.Track("s1328825"), "aura", "Buff only: a passive has no cooldown")
+end)
+
+T.test("cdm custom: a passive whose buff id isn't known is left out", function()
+    local AB, C = customWorld("DRUID")
+    AB.CdmSpells.DRUID = { { 1328829, aura = true, passive = true } }
+    stub.knownSpells = { [1328829] = true }
+    C.Forget()
+    T.eq(C.Family("s1328829") and C.Family("s1328829").user, true, "only as a spell added by ID")
+    for _, e in ipairs(C.Tray()) do T.truthy(e.id ~= "s1328829", "not in the tray") end
+    for _, e in ipairs(C.Unlearned()) do T.truthy(e.id ~= "s1328829", "nor under other talents") end
+end)
 
 -- Arcane Blast's casts only do damage. Its stack is another spell (400573), a
 -- debuff on the mage, watched on you among buffs and debuffs, never on the target.
@@ -5716,12 +6146,44 @@ T.test("cdm custom: a spell whose debuff lands on you is watched among your debu
     stub.RunTimers()
     T.eq(h.selfStacks, 4, "4 at most")
     T.truthy(h.endsAt and math.abs(h.endsAt - GetTime() - 18) < 0.01, "18 s from the first cast")
-    stub.Advance(18.1); stub.RunTimers()
+    stub.Advance(18 + AB.CdmAuras.SELF_LATE + 0.1); stub.RunTimers()
     T.eq(h.up, false, "then gone")
     local f = CreateFrame("Frame", nil, UIParent)
     f.size = 30
     AB.CdmAuras.Setup(f, "s116")
     T.eq(f.containers[2].unit, "target"); T.eq(f.containers[2].c.__groups.a.filter, "HARMFUL|PLAYER")
+end)
+
+-- The game takes the stack off a moment after its 18 s, so a cast landing in that
+-- moment adds to the old stack in game. Starting a fresh 18 s there left the icon
+-- out of step with the debuff from then on.
+T.test("cdm custom: a cast just after the stack's 18 s adds to it, as the game does", function()
+    local AB, C = customWorld("MAGE")
+    AB.CdmSpells.MAGE = { { 400574, 1239696, aura = true } }
+    stub.knownSpells = { [400574] = true }
+    C.Forget()
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.size = 30
+    AB.CdmAuras.Setup(h, "s400574")
+    AB.CdmAuras.Track(h)
+    stub.combat = true
+    local first = GetTime()
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c1", 400574); stub.RunTimers()
+    stub.Advance(16.5)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c2", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 2)
+    stub.Advance(1.8); stub.RunTimers()
+    T.eq(h.face.alphaTo, 1, "18.3 s in it's still on you in game, so still shown")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c3", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 3, "added to the old stack")
+    T.truthy(math.abs(h.endsAt - first - 18) < 0.01, "its end stays 18 s from the first cast")
+    stub.Advance(1.2); stub.RunTimers()
+    T.eq(h.face.alphaTo, 0, "then gone")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c4", 400574); stub.RunTimers()
+    T.eq(h.selfStacks, 1, "the next cast starts it over")
+    T.truthy(math.abs(h.endsAt - GetTime() - 18) < 0.01, "with a fresh 18 s")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- Weakened Soul (6788), added by its ID: a debuff your own shield puts on you or
@@ -5792,14 +6254,17 @@ T.test("cdm custom: our keys, the highest known rank, every rank, the track", fu
     T.truthy(C.Entry("s1243") and C.Entry("s1243").aura, "a group buff counts as known, a buff")
     T.truthy(C.SelfOnly("s1243")); T.falsy(C.SelfOnly("s6673"))
     T.falsy(C.Entry("s2687").aura, "a spell with both: its cooldown first")
-    T.truthy(C.CanTrack("s2687")); T.falsy(C.CanTrack("s6673")); T.falsy(C.CanTrack("s1243"))
+    T.truthy(C.CanTrack("s2687")); T.truthy(C.CanTrack("s6673"), "a buff of yours can pick too")
+    T.falsy(C.CanTrack("s1243"), "a group buff: no cooldown of yours")
     local set = D.Current()
     D.AddPiece(set, "s2687", "icon", 0, 0)
     T.truthy(D.SetTrack(set, "s2687", "aura"))
     T.truthy(C.Entry("s2687").aura, "the piece's pick")
     D.AddPiece(set, "s6673", "icon", 40, 0)
+    T.eq(C.Track("s6673"), "aura", "left alone, a buff")
     D.SetTrack(set, "s6673", "cooldown")
-    T.eq(C.Track("s6673"), "aura", "a pick the spell can't do is ignored")
+    T.eq(C.Track("s6673"), "cooldown", "the player's pick")
+    D.SetTrack(set, "s6673", "aura")
     T.truthy(C.IsAdded("s1953"), "not in the list: a spell added by its ID")
     T.isnil(C.Entry("s1953"), "another class's spell (Blink), not known: nothing to draw")
     -- Mana Spring (5677) added by its ID read as a cooldown. It's on no class's
@@ -5912,7 +6377,10 @@ T.test("cdm custom: a paladin's Blessing shows any of their long blessings on yo
     T.eq(C.Track("blessing"), "aura"); T.falsy(C.CanTrack("blessing"))
     T.truthy(C.Entry("blessing") and C.Entry("blessing").aura)
     T.eq((C.Look("blessing")), "Blessing")
-    T.eq(select(2, C.Look("blessing")), "Interface/Icons/Spell_Holy_BlessedLife", "an icon of its own")
+    local tex = C_Spell.GetSpellTexture
+    C_Spell.GetSpellTexture = function(id) if id == 19740 then return 135906 end end
+    T.eq(select(2, C.Look("blessing")), 135906, "Blessing of Might's own icon")
+    C_Spell.GetSpellTexture = tex
     local tray = {}
     for i, e in ipairs(C.Tray()) do tray[e.id] = i end
     T.eq(tray.seal, 1); T.eq(tray.blessing, 2, "after the Seal (no aura known here)")
@@ -6360,6 +6828,34 @@ T.test("cdm custom: the Seal placed as an icon and a bar watches every seal on y
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm custom: the Blessing wears Blessing of Might's own icon as an icon and a bar, a known file when the client has none", function()
+    local DUI, AB, D, set = customRows()
+    stub.SetUnits({ player = { class = "PALADIN" } })
+    AB.CdmSpells.PALADIN = { { 19740, 19834, aura = true }, { 20217, aura = true } }
+    stub.knownSpells = { [19740] = true }
+    AB.CdmCustom.Forget()
+    local tex = C_Spell.GetSpellTexture
+    local icon = 135906   -- what the client hands back for rank 1, read when drawn
+    C_Spell.GetSpellTexture = function(id) if id == 19740 then return icon end end
+    D.AddPiece(set, "blessing", "icon", 0, 0)
+    refresh(AB)
+    local h = AB.CdmAuras.Frame("blessing")
+    T.truthy(h and h:IsShown())
+    T.eq(AB.CdmRows.DrawnBy("blessing"), "aura icon")
+    T.eq(h.under:GetTexture(), icon, "the empty slot wears the spell's own icon")
+    D.SetShape(set, "blessing", "bar")
+    refresh(AB)
+    T.eq(AB.CdmRows.DrawnBy("blessing"), "aura bar")
+    T.eq(AB.CdmBars.AuraFrame("blessing").Bar.Name:GetText(), "Blessing")
+    T.eq(AB.CdmBars.AuraFrame("blessing").Icon.Icon:GetTexture(), icon)
+    -- The client doesn't know the spell yet: a file it ships.
+    C_Spell.GetSpellTexture = function() return nil end
+    T.eq(select(2, AB.CdmCustom.Look("blessing")), "Interface/Icons/Spell_Holy_FistOfJustice")
+    C_Spell.GetSpellTexture = tex
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The Seal as an icon with "Glow when not active" on, no seal up, and no glow:
 -- the aura holders never said whether the buff was down.
 T.test("cdm custom: Glow when not active lights our aura icon and bar while the buff is down", function()
@@ -6688,9 +7184,11 @@ T.test("cdm card: a spell of ours with a cooldown and a buff picks which one it 
     T.eq(set.pieces["s2687"].track, "aura")
     T.eq(AB.CdmRows.DrawnBy("s2687"), "aura icon", "the live layout follows")
     Ed.Choose("s6673"); Ed.Pick("icon")
-    T.falsy(row.show(set, "s6673", set.pieces["s6673"]), "a buff only: no pick")
+    T.truthy(row.show(set, "s6673", set.pieces["s6673"]), "a buff can pick too")
+    row.item.set("both"); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy("s6673"), "aura and cooldown icon", "Both: its buff over its cooldown")
     D.AddPiece(set, 11, "icon", 0, -100)
-    T.falsy(row.show(set, 11, set.pieces[11]), "the game's spells: no pick")
+    T.falsy(row.show(set, 11, set.pieces[11]), "the game's spells have their own pick")
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -6792,6 +7290,18 @@ end)
 -- use is "i<id>", timed by the item's own cooldown. The fake game has no items,
 -- so this test lends C_Item and C_Container the calls and takes them back.
 -- The menu used to show two blank rows.
+T.test("cdm editor: the tray's hint sits clear of the Add by ID button", function()
+    local DUI, AB, Ed = edWorld()
+    local hint, byID = Ed.TrayHint(), Ed.PillButton("byID")
+    T.eq(stub.Text(hint), DUI.L["Click or drag a spell."])
+    local found
+    for i = 1, hint:GetNumPoints() do
+        local p, rel, rp, x = hint:GetPoint(i)
+        if p == "LEFT" then found = (rel == byID and rp == "RIGHT" and x > 0) end
+    end
+    T.truthy(found, "its left edge starts past the button, so a wide font wraps it instead of covering it")
+end)
+
 T.test("cdm editor: the Add by ID menu names its two rows", function()
     local DUI, AB, Ed = edWorld()
     local W = DUI.Widgets
@@ -6898,5 +7408,123 @@ T.test("cdm editor: add a spell or an item by its ID; an item times its own cool
     _G.C_Container = saved.container
     stub.knownSpells = {}
     T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm api: pieces are frames plugins find by spell, with ready and cooldown events", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    pass(AB)
+    local API = DUI.API
+    local f = API.GetCooldownPiece(111)
+    T.eq(f, pieceFrame(1, 11), "the piece's own frame")
+    local info = API.CooldownPieceInfo(f)
+    T.eq(info.key, "11"); T.eq(info.spellID, 111); T.eq(info.shape, "icon")
+    local listed = {}
+    for frame, key in API.Frames("cdmpiece") do listed[key] = frame end
+    T.eq(listed["11"], f); T.truthy(listed["12"]); T.truthy(listed["21"])
+    T.truthy(API.Attach(f), "a holder to draw on")
+    T.eq(API.Glow(f, true, 0, 1, 0), true, "a glow of the plugin's")
+    local log = {}
+    API.On("CooldownStarted", function(sid, key) log[#log + 1] = "start:" .. tostring(sid) .. ":" .. tostring(key) end)
+    API.On("CooldownReady", function(sid, key) log[#log + 1] = "ready:" .. tostring(sid) .. ":" .. tostring(key) end)
+    cds[111] = { duration = 8, isOnGCD = false }
+    pass(AB)
+    T.eq(log[1], "start:111:11")
+    ess[1].Cooldown:GetScript("OnCooldownDone")(ess[1].Cooldown)
+    T.eq(log[2], "ready:111:11")
+    local gone
+    API.On("FrameRemoved", function(kind, frame, key) if kind == "cdmpiece" then gone = key end end)
+    unplace(AB.CdmData, set, 12)
+    pass(AB)
+    T.eq(gone, "12", "an unplaced piece is gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The first-time tour (CdmGuide.lua) runs on the main tour's card over the editor.
+local function edges(f, l, b, r, t)
+    f.GetLeft = function() return l end
+    f.GetBottom = function() return b end
+    f.GetRight = function() return r end
+    f.GetTop = function() return t end
+end
+local function tick() DaylightUITour:GetScript("OnUpdate")(DaylightUITour, 1) end
+
+T.test("cdm tour: the first open walks through adding a spell and making a group", function()
+    local DUI, AB, Ed, D = edWorld()
+    local G = AB.CdmGuide
+    DUI:Set("general", "motion", false)   -- the card lands at once, no glide
+    edges(Ed.Tray(), 400, 16, 1000, 140)
+    stub.RunTimers()
+    T.eq(G.Running(), true, "it comes with the first open")
+    T.eq(DUI.Tour.StepId(), "add")
+    T.eq(DUI.Tour.Lit(), Ed.Tray(), "the tray lit")
+    T.eq(DaylightUITour:IsMouseEnabled(), false, "the mouse reaches the editor, so each step can be tried")
+    T.eq(DUI.Tour.panes[1].__color[4], DUI.Tour.DIM, "the same dim as the main tour")
+    T.eq(DUI.Tour.card.skip.text:GetText(), "Skip tour", "worded like the main tour")
+    Ed.Choose(11)
+    edges(Ed.Chooser(), 500, 300, 740, 396)
+    tick()
+    T.eq(DUI.Tour.Lit(), Ed.Chooser(), "the light follows to the Icon or Bar question")
+    Ed.Pick("icon")
+    edges(Ed.PreviewOf(11), 900, 500, 940, 540)
+    edges(AB.CdmCard.Frame(), 960, 200, 1340, 700)
+    tick(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "group", "a spell placed: on to groups")
+    T.eq(DUI.Tour.Lit(), Ed.PreviewOf(11), "the new spell lit")
+    local _, _, _, x, top = DUI.Tour.card:GetPoint(1)
+    local h = DUI.Tour.card:GetHeight()
+    local clear = x + DUI.Tour.W <= 960 or x >= 1340 or top <= 200 or top - h >= 700
+    T.truthy(clear, "the tour's card keeps clear of the spell's card")
+    Ed.SetAttach(11, "right"); Ed.Choose(12); Ed.Pick("icon")
+    tick(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "card", "a spell hooked on: on to the card")
+    DUI.Tour.Next(); stub.RunTimers()
+    T.eq(DUI.Tour.StepId(), "top")
+    DUI.Tour.Next()
+    T.eq(G.Running(), false, "Done ends it")
+    T.eq(DUI.DB.Root().cdmGuideSeen, true)
+    Ed.Close(); Ed.Open(); stub.RunTimers()
+    T.eq(G.Running(), false, "once per account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm tour: closing the editor ends it; /cdm tour brings it back; a layout skips it", function()
+    local DUI, AB, Ed, D = edWorld()
+    local G = AB.CdmGuide
+    stub.RunTimers()
+    T.eq(G.Running(), true)
+    Ed.Close()
+    T.eq(G.Running(), false, "gone with the editor")
+    T.eq(DaylightUITour:IsMouseEnabled(), false)
+    SlashCmdList.DAYLIGHTUICDM("tour"); stub.RunTimers()
+    T.eq(Ed.IsOpen(), true, "/cdm tour opens the editor")
+    T.eq(G.Running(), true, "with the tour")
+    DUI.Tour.OnKey("ESCAPE")
+    T.eq(G.Running(), false, "Escape skips it")
+    T.truthy(string.find(DUI.Tour.toast.text:GetText(), "/cdm tour", 1, true), "and says how to see it again")
+    T.eq(Ed.IsOpen(), true, "the editor stays")
+    Ed.Close()
+    DUI.DB.Root().cdmGuideSeen = nil
+    -- a class, so the layout is saved as a profile
+    stub.units.player = stub.units.player or { isPlayer = true, name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    D.Ensure(D.CurrentIndex())
+    D.AddPiece(D.Current(), 11, "icon", 0, 0)
+    Ed.Open(); stub.RunTimers()
+    T.eq(G.Running(), false, "a player with a layout already knows the way")
+    T.eq(DUI.DB.Root().cdmGuideSeen, true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm tour: a fight ends it with the editor", function()
+    local DUI, AB, Ed = edWorld()
+    stub.RunTimers()
+    T.eq(AB.CdmGuide.Running(), true)
+    stub.EnterCombat()
+    T.eq(AB.CdmGuide.Running(), false)
+    T.eq(Ed.IsOpen(), false)
+    stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

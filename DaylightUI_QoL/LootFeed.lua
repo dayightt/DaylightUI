@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel, Motion = DUI.Style, DUI.Pixel, DUI.Motion
 
@@ -101,8 +102,6 @@ local function textSize()
     return v and v > 0 and v or Style.SIZE.body
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
-
 -- ---------------------------------------------------------------------
 -- Reading the game's messages
 -- ---------------------------------------------------------------------
@@ -118,22 +117,36 @@ function Feed.Pattern(fmt)
     return p
 end
 
-local patterns
-local function itemPatterns()
-    if patterns then return patterns end
-    patterns = {}
-    for _, name in ipairs(Feed.ITEM_STRINGS) do
+-- A list of the game's format strings as whole-line patterns, built once.
+local built = {}
+local function anchored(names)
+    local list = built[names]
+    if list then return list end
+    list = {}
+    for _, name in ipairs(names) do
         local p = Feed.Pattern(_G[name])
-        if p then patterns[#patterns + 1] = "^" .. p .. "$" end
+        if p then list[#list + 1] = "^" .. p .. "$" end
     end
-    return patterns
+    built[names] = list
+    return list
+end
+
+local coins
+local function coinPatterns()
+    if coins then return coins end
+    coins = {}
+    for _, coin in ipairs(Feed.COINS) do
+        local p = Feed.Pattern(_G[coin[1]])
+        if p then coins[#coins + 1] = { p, coin[2] } end
+    end
+    return coins
 end
 
 -- "You receive loot: [Tough Spider Silk]x2." -> link, 2. Nil for anyone
 -- else's loot or another line.
 function Feed.ParseItem(msg)
     if type(msg) ~= "string" or secret(msg) then return nil end
-    for _, p in ipairs(itemPatterns()) do
+    for _, p in ipairs(anchored(Feed.ITEM_STRINGS)) do
         local a, b = msg:match(p)
         if a then
             -- A language may put the count first.
@@ -147,14 +160,12 @@ end
 -- "You loot 1 Silver, 24 Copper" -> 124 (copper). Nil for another line.
 function Feed.ParseMoney(msg)
     if type(msg) ~= "string" or secret(msg) then return nil end
-    for _, name in ipairs(Feed.MONEY_STRINGS) do
-        local p = Feed.Pattern(_G[name])
-        local amount = p and msg:match("^" .. p .. "$")
+    for _, p in ipairs(anchored(Feed.MONEY_STRINGS)) do
+        local amount = msg:match(p)
         if amount then
             local total = 0
-            for _, coin in ipairs(Feed.COINS) do
-                local cp = Feed.Pattern(_G[coin[1]])
-                local n = cp and amount:match(cp)
+            for _, coin in ipairs(coinPatterns()) do
+                local n = amount:match(coin[1])
                 if n then total = total + tonumber(n) * coin[2] end
             end
             if total > 0 then return total end
@@ -166,10 +177,8 @@ end
 -- "Your skill in Tailoring has increased to 152." -> "Tailoring", 152.
 function Feed.ParseSkill(msg)
     if type(msg) ~= "string" or secret(msg) then return nil end
-    for _, name in ipairs(Feed.SKILL_STRINGS) do
-        local p = Feed.Pattern(_G[name])
-        local a, b
-        if p then a, b = msg:match("^" .. p .. "$") end
+    for _, p in ipairs(anchored(Feed.SKILL_STRINGS)) do
+        local a, b = msg:match(p)
         if a and b then
             -- A language may put the rank first.
             if tonumber(a) and not tonumber(b) then a, b = b, a end
@@ -293,7 +302,7 @@ local function shellOpts()
         bgAlpha = Style.BackAlpha(db("lootFeedAlphaOwn"), db("lootFeedAlpha")) }
 end
 
--- Its border: ours, the item's quality, the accent or the player's own.
+-- Its border: the default one, the item's quality, the accent or the player's own.
 local function paintBorder(row)
     local s, mode = row.shell, db("lootFeedBorderColor")
     if not s then return end

@@ -20,14 +20,14 @@ PetPage.GAP = 20             -- the model's room to the stats pane
 PetPage.XP_H = 4             -- the XP bar
 PetPage.XP_GAP = 10          -- under the model
 PetPage.FACE = 18            -- the mood face in the footer
--- The game's mood faces (PetHappiness.lua) and our colors for them.
+-- The game's mood faces (PetHappiness.lua) and the colors for them.
 PetPage.MOOD = {
     [1] = { atlas = "UI-PetMad", color = Style.INK.BAD },
     [2] = { atlas = "UI-PetNeutral", color = Style.INK.WARN },
     [3] = { atlas = "UI-PetHappiness", color = Style.INK.GOOD },
 }
 
-local function isSecret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
+local isSecret = DUI.IsSecret
 local function plain(v, kind) return type(v) == kind and not isSecret(v) end
 
 -- A pet to show: true for a hunter pet or a warlock demon, and whether it's

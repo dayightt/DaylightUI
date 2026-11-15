@@ -22,7 +22,7 @@ CharacterPage.ICON_GAP = 12     -- icons only: icon column to model
 CharacterPage.STATS_W = 200
 CharacterPage.STATS_PAD = 10
 CharacterPage.FOOTER = 36
-CharacterPage.FOOT_LIFT = 8     -- the footer up off the window's bottom edge, as our other windows' footers
+CharacterPage.FOOT_LIFT = 8     -- the footer up off the window's bottom edge, like the other windows' footers
 CharacterPage.STAT_ROW = 18
 CharacterPage.STAT_INSET = 4    -- a stat's words in from its stripe's edges
 CharacterPage.GROUP_HEAD = 26
@@ -36,7 +36,7 @@ CharacterPage.DIM = Style.INK.LABEL     -- the fold +/-, the footer's words
 CharacterPage.VALUE = Style.INK.VALUE   -- a stat's plain value
 CharacterPage.UP, CharacterPage.DOWN = { 0.45, 0.9, 0.45 }, { 1, 0.4, 0.4 }
 CharacterPage.STALE = Style.INK.OFF    -- a value not read yet
--- The game's stat tooltips in our colors (StatText.Restyle): as our own tips.
+-- The game's stat tooltips repainted in Daylight UI colors (StatText.Restyle).
 CharacterPage.TIP = { title = Style.INK.VALUE, body = Style.INK.TEXT, value = "pop", up = CharacterPage.UP, down = CharacterPage.DOWN }
 
 -- Where everything goes, as { x, y (down is negative), w, h } from the
@@ -343,7 +343,7 @@ local function slotItem(h)
     return item, id
 end
 
--- A on our slot: the game's own way (OpenEquipmentFlyoutForFocusedButton).
+-- A on a Daylight UI slot works the game's own way (OpenEquipmentFlyoutForFocusedButton).
 local function swapMenu(h)
     if not DUI.Pad.On() then return end
     local pop = h.button and h.button.popoutButton
@@ -413,7 +413,7 @@ function CharacterPage.Build(page)
     for _, h in pairs(page.slots) do h:SetScript("OnMouseUp", swapMenu) end
     page.model = ns.Model.Build(page)
     -- The model reaches under the slot columns (Model.Spread): kept at the
-    -- page's own level, below our slots and the game's lent buttons.
+    -- page's own level, below the slots and the game's lent buttons.
     local base = page:GetFrameLevel() or 0
     page.model:SetFrameLevel(base)
     if ns.Model.scene then ns.Model.scene:SetFrameLevel(base) end

@@ -1,7 +1,7 @@
 local stub = require("stub")
 
 -- The info panel's world for its tests (test_infopanel, test_meters): the game's
--- minimap and its cluster, experience, the tooltip and pop-ups, and C_Spell for the
+-- minimap and its cluster, experience, the tooltip, and C_Spell for the
 -- meter's spells (the damage meter is the fake game's own, stub.DamageMeter).
 -- PW.login() loads the panel with its meter shown.
 local PW = {}
@@ -9,8 +9,6 @@ local PW = {}
 function PW.world()
     -- The damage meter is the fake game's own (stub.DamageMeter), filled through stub.meter.
     _G.GameTooltip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
-    _G.StaticPopupDialogs = {}
-    _G.StaticPopup_Show = function(which) stub.popup = which end
     _G.C_Spell = {
         GetSpellName = function(id) return ({ [1] = "Fireball", [2] = "Fire Blast" })[id] end,
         GetSpellTexture = function(id) return 1000 + id end,
@@ -36,7 +34,28 @@ function PW.world()
     function mm:SetQuestBlobRingScalar(v) self.__blob.questScalar = v end
     function mm:SetQuestBlobRingAlpha(v) self.__blob.questAlpha = v end
     function mm:SetTaskBlobRingScalar(v) self.__blob.taskScalar = v end
-    function mm:GetZoom() return 2 end
+    -- Zoom as in the client: 6 levels, MINIMAP_UPDATE_ZOOM fired after the call.
+    -- The picture as seen in game: after a loading screen in a city, indoors or
+    -- in a dungeon the map can come up empty (__picture = "empty", set by a
+    -- test). Each frame in which the zoom changes moves it one step on: empty,
+    -- then drawing, then filled. A zoom while the map can't be seen (the panel
+    -- at 0 before the login fade-in) moves nothing, nor one while it's even
+    -- slightly see-through: seen in game, at 90% the map stopped updating.
+    mm.__zoom, mm.__zoomCalls = 2, 0
+    function mm:GetZoom() return self.__zoom end
+    function mm:GetZoomLevels() return 6 end
+    function mm:SetZoom(z)
+        self.__zoomCalls = self.__zoomCalls + 1
+        if z == self.__zoom then return end
+        self.__zoom = z
+        local now = GetTime()
+        if self.__picture and self.__picture ~= "filled" and self.__steppedAt ~= now
+            and self:IsVisible() and self:GetEffectiveAlpha() > 0.999 then
+            self.__steppedAt = now
+            self.__picture = self.__picture == "empty" and "drawing" or "filled"
+        end
+        C_Timer.After(0, function() stub.FireEvent("MINIMAP_UPDATE_ZOOM") end)
+    end
     CreateFrame("Frame", "MainStatusTrackingBarContainer", UIParent)
     -- The game's right-side column and the armor figure it lays out.
     local right = CreateFrame("Frame", "RightManagedFrameContainer", UIParent)

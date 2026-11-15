@@ -37,16 +37,16 @@ end
 Party.SAMPLES = {
     { name = "Kaladin", class = "WARRIOR", health = 79, healthValue = 2900, power = 35, powerToken = "RAGE",
       portraitClass = "WARRIOR", level = 20, leader = true, threat = "aggro", pvp = true, role = "TANK" },
-    { name = "Lift", class = "PRIEST", health = 100, healthValue = 1900, power = 85, powerToken = "MANA",
+    { name = "Lift", class = "PRIEST", health = 100, healthValue = 1900, power = 85, powerValue = 2040, powerToken = "MANA",
       portraitClass = "PRIEST", level = 20, heals = 10, role = "HEALER", dispel = "Magic" },
-    { name = "Shallan", class = "WARLOCK", health = 54, healthValue = 1600, power = 40, powerToken = "MANA",
+    { name = "Shallan", class = "WARLOCK", health = 54, healthValue = 1600, power = 40, powerValue = 1040, powerToken = "MANA",
       portraitClass = "WARLOCK", level = 19, marker = 3, role = "DAMAGER", target = true },
-    { name = "Jasnah", class = "MAGE", health = 88, healthValue = 1700, power = 72, powerToken = "MANA",
+    { name = "Jasnah", class = "MAGE", health = 88, healthValue = 1700, power = 72, powerValue = 1800, powerToken = "MANA",
       portraitClass = "MAGE", level = 20, absorbs = 15, role = "DAMAGER" },
 }
 
 -- You as a sample, with your own name and class.
-Party.YOU = { health = 92, healthValue = 2400, power = 64, powerToken = "MANA", level = 20, role = "HEALER", you = true }
+Party.YOU = { health = 92, healthValue = 2400, power = 64, powerValue = 1600, powerToken = "MANA", level = 20, role = "HEALER", you = true }
 
 function Party.You() return ns.UF.You("party", Party.YOU, "PRIEST") end
 
@@ -71,21 +71,23 @@ function Party.SampleFor(i, cfg)
 end
 
 -- The Party page's single preview member. Every piece that can show is on
--- (crown, role, marker, dispel, PvP, ready check), but no aggro ring.
+-- (crown, role, marker, dispel, PvP, ready check, summon), but no aggro ring.
 function Party.FullSample()
     local s = {}
     for k, v in pairs(Party.SAMPLES[1]) do s[k] = v end
     s.threat, s.marker, s.dispel, s.target, s.ready = nil, 8, "Magic", true, "ready"
+    s.summon = Enum.SummonStatus and Enum.SummonStatus.Pending or 1
     return s
 end
 
 -- Sample buttons (test mode, the Party page preview) carry the aura groups on
--- stand-ins, placed and filled from the settings. Their pets too (PartyPets.lua).
+-- stand-ins, placed and filled from the settings. Their pets and targets too.
 -- A real button gets its pet once pets are turned on.
 function Party.DressSample(b)
     if b.preview then
         b.sampleSet = ns.AuraGroups.PlainSet(b)
         ns.PartyPets.DressSample(b)
+        ns.PartyTargets.DressSample(b)
         ns.PartyCasts.Make(b)
     end
 end
@@ -95,6 +97,7 @@ function Party.ShowSample(b, i, cfg)
     ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
     ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
     ns.PartyPets.ShowSample(b)
+    ns.PartyTargets.ShowSample(b, i)
     -- The healer is casting, so the page's preview shows every piece.
     ns.PartyCasts.ShowSample(b, b.fullSample or b.test == Party.SAMPLES[2])
 end
@@ -103,6 +106,7 @@ function Party.HideSample(b)
     ns.AuraGroups.HideSample(b.sampleSet)
     ns.Indicators.HideSample(b.sampleSet)
     ns.PartyPets.HideSample(b)
+    ns.PartyTargets.HideSample(b)
     ns.PartyCasts.HideSample(b)
 end
 
@@ -134,8 +138,10 @@ Party.group = ns.Group.New({
     dress = function(b) Party.DressSample(b) end,
     showSample = function(b, i, cfg) Party.ShowSample(b, i, cfg) end,
     hideSample = function(b) Party.HideSample(b) end,
+    previewMade = function(list) Party.preview = list end,
     layoutButton = function(b)
         ns.PartyPets.Layout(b)
+        ns.PartyTargets.Layout(b)
         ns.PartyCasts.Layout(b)
     end,
 })
@@ -149,7 +155,6 @@ end
 
 function Party.CreatePreview()
     Party.group:CreatePreview()
-    Party.preview = Party.group.preview
 end
 
 local function preview(on)

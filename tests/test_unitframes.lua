@@ -1163,6 +1163,39 @@ T.test("test mode samples show the class gradient name", function()
     T.eq(f.nameText.__text, DaylightUI.Gradients.Text("NEUTRAL", "Foe"))
 end)
 
+T.test("test mode samples write power in its format", function()
+    local f, ns = make(TARGET, { width = 220, height = 50, powerHeight = 13, showName = true, slant = true,
+        showPower = true, showPowerText = true, powerFormat = "percent", powerPercentSign = true })
+    f.test = { name = "Sample", class = "PRIEST", health = 80, power = 65, powerToken = "MANA" }
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "65%")
+    f.powerFormat = "both"
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "65 | 65%")
+    f.powerFormat, f.powerPercentSign = "percent", false
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "65")
+    -- Mana samples carry a value; rage, energy and focus run 0 to 100.
+    f.test.powerValue = 2080
+    f.powerFormat = "full"
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "2,080")
+    f.powerFormat = "valuemax"
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "2.1K / 3.2K")
+    f.test.powerToken = "RAGE"
+    ns.UF.ShowSample(f)
+    T.eq(f.powerText.__text, "65 / 100", "rage ignores the mana value")
+end)
+
+T.test("power can be written in full, with separators", function()
+    local f, ns = make(TARGET, { width = 220, height = 50, powerHeight = 13, showName = true, slant = true,
+        showPower = true, showPowerText = true, powerFormat = "full" })
+    stub.units.target = { name = "Mob", reaction = 2, powerToken = "MANA", power = 21000, maxPower = 30000 }
+    ns.UF.UpdatePower(f, true)
+    T.eq(f.powerText.__text, "21,000")
+end)
+
 T.test("tab height, portrait size and marker size are options", function()
     local cfg = { width = 220, height = 50, powerHeight = 13, showName = true, slant = true, portrait = "class",
         tabHeight = 22, portraitScale = 0.5, markerSize = 20 }

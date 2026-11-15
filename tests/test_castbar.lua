@@ -154,6 +154,16 @@ T.test("inside a frame the text takes its own size, nudge and color", function()
     T.eq(h.text.__textColor[2], 0.5); T.eq(h.time.__textColor[3], 0)
 end)
 
+T.test("inside a frame a text size the player picked is kept, the default fits the bar", function()
+    local _, ns = stub.Load({ module = true, login = false })
+    local target = CreateFrame("Frame", nil, UIParent)
+    local h = ns.CastBar.Create("target", target, CreateFrame("StatusBar", nil, target))
+    local fit = math.floor(ns.DEFAULTS.target.powerHeight * ns.CastBar.INSET_TEXT + 0.5)
+    ns.CastBar.Layout(h, { enabled = true, spell = { size = 20 }, time = { size = 12 } }, ns.DEFAULTS.target)
+    T.eq(h.text.__font[2], 20, "the picked spell name size")
+    T.eq(h.time.__font[2], math.min(12, fit), "the default time size still fits the power bar")
+end)
+
 T.test("an enemy's secret cast data goes straight to the client widgets", function()
     local _, ns = stub.Load({ module = true, login = false })
     local target = CreateFrame("Frame", nil, UIParent)
@@ -826,4 +836,123 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     stub.RunTimers()
     T.eq(h.under, ns.frames.player, "the power bar back inside: under the frame again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Your interrupt (Pummel) on cooldown until cd.d ends, or ready.
+local function markWorld(cd)
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    stub.knownSpells = { [6552] = true }
+    _G.GetShapeshiftForm = function() return 3 end
+    local saved = { C_Spell.GetSpellCooldown, C_Spell.GetSpellCooldownDuration }
+    C_Spell.GetSpellCooldown = function()
+        return { isActive = cd.on == true, isOnGCD = cd.gcd, isEnabled = true, startTime = 0, duration = 0 }
+    end
+    C_Spell.GetSpellCooldownDuration = function() return cd.d end
+    stub.FireEvent("SPELLS_CHANGED")
+    local function restore()
+        C_Spell.GetSpellCooldown, C_Spell.GetSpellCooldownDuration = saved[1], saved[2]
+        _G.GetShapeshiftForm = nil
+        stub.knownSpells = {}
+    end
+    return DUI, ns, restore
+end
+
+local function span(from, to, secret)
+    local d = C_DurationUtil.CreateDuration()
+    if secret then d:SetTimeSpan(stub.Secret(from), stub.Secret(to)) else d:SetTimeSpan(from, to) end
+    return d
+end
+
+T.test("cast bars: an enemy target's cast marks where your interrupt comes back, off as shipped", function()
+    local cd = { on = true }
+    local DUI, ns, restore = markWorld(cd)
+    T.eq(DUI:Get("UnitFrames", "casts.kickMark"), false, "off as shipped")
+    local h = ns.targetCastbar
+    local m = h.kickMark
+    T.truthy(m, "the target's bar has one")
+    T.truthy(ns.focusCastbar.kickMark and ns.targetCastbarFree.kickMark and ns.focusCastbarFree.kickMark)
+    T.isnil(ns.playerCastbar and ns.playerCastbar.kickMark, "never on your own bar")
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1)
+    stub.units.target = { name = "Mob", reaction = 2, cast = { name = "Fireball", texture = 1, duration = span(now, now + 3) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.falsy(m.clip:IsShown(), "switched off: nothing")
+    DUI:Set("UnitFrames", "casts.kickMark", true)
+    stub.RunTimers()
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.truthy(m.clip:IsShown(), "on cooldown: the mark shows")
+    T.eq(stub.Plain(m.probe:GetValue()), now + 1, "at the moment it's ready")
+    local lo, hi = m.probe:GetMinMaxValues()
+    T.eq(stub.Plain(lo), now); T.eq(stub.Plain(hi), now + 3, "over the cast's span")
+    -- Ready: gone, back when it goes on cooldown again.
+    cd.on = false
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.falsy(m.clip:IsShown(), "ready: gone")
+    cd.on = true
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.truthy(m.clip:IsShown(), "used mid-cast: it comes back")
+    -- A friendly caster: no mark.
+    stub.units.target.reaction = 5
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.falsy(m.clip:IsShown(), "not an enemy")
+    stub.units.target.reaction = 2
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.truthy(m.clip:IsShown())
+    -- The cast ends: the mark goes with it.
+    stub.units.target.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "target")
+    stub.RunTimers()
+    T.falsy(m.clip:IsShown(), "cast over: gone")
+    restore()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cast bars: the interrupt mark shows on a target cast bar sliding out under its frame", function()
+    local cd = { on = true }
+    local DUI, ns, restore = markWorld(cd)
+    DUI:Set("UnitFrames", "casts.kickMark", true)
+    DUI:Set("UnitFrames", "targetCastbar.at", "slide")
+    stub.RunTimers()
+    local h = ns.targetCastbarFree
+    T.truthy(h.enabled); T.falsy(ns.targetCastbar.enabled, "the one inside steps aside")
+    stub.EnterCombat()
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1, true)
+    stub.units.target = { name = "Mob", reaction = 2, cast = { name = "Fireball", texture = 1, duration = span(now, now + 3, true) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    stub.RunTimers()
+    T.truthy(h.duration, "the bar it shows runs on the cast's duration")
+    T.truthy(h.kickMark.clip:IsShown(), "on cooldown: the mark shows on the bar that's up")
+    T.falsy(ns.targetCastbar.kickMark.clip:IsShown(), "and not on the one stepped aside")
+    T.eq(stub.Plain(h.kickMark.probe:GetValue()), now + 1)
+    stub.units.target.cast = nil
+    stub.LeaveCombat()
+    restore()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cast bars: the interrupt mark in a boss fight, every time secret, goes in whole", function()
+    local cd = { on = true }
+    local DUI, ns, restore = markWorld(cd)
+    DUI:Set("UnitFrames", "casts.kickMark", true)
+    stub.RunTimers()
+    stub.EnterCombat()
+    stub.SetRestriction("Encounter", true)
+    local now = GetTime()
+    cd.d = span(now - 5, now + 1, true)
+    stub.units.focus = { name = "Boss", reaction = 2, channel = { name = "Drain Life", texture = 1, duration = span(now, now + 3, true) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "focus")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local m = ns.focusCastbar.kickMark
+    T.truthy(m.clip:IsShown(), "shown")
+    T.eq(stub.Plain(m.probe:GetValue()), now + 1, "the secret end time went in whole")
+    stub.units.focus.channel = nil
+    stub.SetRestriction("Encounter", false)
+    stub.LeaveCombat()
+    restore()
 end)

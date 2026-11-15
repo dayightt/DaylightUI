@@ -85,11 +85,7 @@ end
 
 -- Open, close, follow the game's frame
 
-local function spot()
-    local s = ns.module and ns.module.db and ns.module.db.spot
-    if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
-    return nil
-end
+local function spot() return Mail.spot and Mail.spot.Get() end
 
 local function place(f)
     local s = spot()
@@ -143,18 +139,14 @@ function Mail.Changed(kind, shown)
 end
 
 function Mail.SaveSpot(x, y)
-    local db = ns.module and ns.module.db
-    if db then db.spot = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
+    if Mail.spot then Mail.spot.Save(x, y) end
 end
 
 -- Right-click on the header (or /dui reset): back to the game's spot and size.
 function Mail.ResetSpot()
-    local db = ns.module and ns.module.db
-    if not db then return end
+    if not (ns.module and ns.module.db) then return end
     if Mail.sizer then Mail.sizer.Reset() end
-    if not db.spot then return end
-    db.spot = nil
-    if Mail.frame and Win.IsOpen(Mail.frame) then place(Mail.frame) end
+    if Mail.spot then Mail.spot.Reset() end
 end
 
 function Mail.Apply()
@@ -182,6 +174,7 @@ function Mail.Build(mod)
     local f = Win.New({ name = Mail.NAME, back = "Mailbox", w = Mail.W, h = Mail.H, portrait = true })
     Mail.frame = f
     f.onClose = Mail.Close
+    Mail.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Mail.ICON)
     Win.AddPage(f, "inbox", page("inbox", Mail.W))
     Win.AddPage(f, "send", page("send", Mail.SEND_W))

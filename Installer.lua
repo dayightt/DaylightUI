@@ -81,7 +81,7 @@ end
 -- Whether to show the guide now. A character not set up yet: always (unless
 -- closed this session). One set up, or that said "Not now" to the old
 -- installer: once per account per version. One set up but on another layout
--- (the game's own, or ours deleted) is put back by EditMode.lua instead of
+-- (the game's own, or Daylight UI's deleted) is put back by EditMode.lua instead of
 -- being asked again.
 function Installer.Needed()
     if dismissed then return false end
@@ -94,11 +94,18 @@ function Installer.Needed()
     return state ~= "installed"
 end
 
+-- Changing something after closing the guide sets the character up the
+-- player's own way, so the guide stops asking. The next login puts the
+-- profile's Edit Mode layout in place with one reload (EditMode.lua).
+DUI.On("ProfileKept", function()
+    if Installer.State() ~= "installed" then Installer.Mark("installed") end
+end)
+
 -- A character with no saved answer is asked shortly after login, without
--- waiting for Edit Mode: those checks need one of our parts loaded and the
+-- waiting for Edit Mode: those checks need one of Daylight UI's parts loaded and the
 -- game's layouts ready, and a new character may have neither. A set-up
 -- character waits for the layouts (EditMode.lua), since until then it can't
--- tell whether it's on ours.
+-- tell whether it's on Daylight UI's.
 Installer.LOGIN_DELAY = 1
 DUI.RegisterEvent("PLAYER_LOGIN", function()
     C_Timer.After(Installer.LOGIN_DELAY, function()
@@ -112,7 +119,7 @@ end)
 local function plain(fn, ...)
     if type(fn) ~= "function" then return nil end
     local ok, v = pcall(fn, ...)
-    if not ok or (issecretvalue and issecretvalue(v)) then return nil end
+    if not ok or DUI.IsSecret(v) then return nil end
     return v
 end
 
@@ -162,7 +169,7 @@ function Installer.GreetingText()
     local name = UnitName("player") or ""
     if type(UnitFullName) == "function" then
         local first, last = UnitFullName("player")
-        local secret = issecretvalue and (issecretvalue(first) or issecretvalue(last))
+        local secret = DUI.IsSecret(first) or DUI.IsSecret(last)
         if not secret and type(first) == "string" and type(last) == "string" and last ~= "" then
             name = first .. " " .. last
         end
@@ -281,7 +288,7 @@ function Installer.RoleTag(name)
     return Installer.PackCredit(name)
 end
 
--- The role page's cards: the ready-made profiles (ours, then packs'), plus,
+-- The role page's cards: the ready-made profiles (Daylight UI's, then packs'), plus,
 -- for an already set-up character, the profiles it uses if they're others.
 function Installer.RoleChoices()
     local out, have = {}, {}
@@ -451,8 +458,8 @@ function Installer.PickBundle(def, answer)
     if answer ~= "yes" then D.Seed(Installer.Target()) end
 end
 
--- A module's switch. Sets our module on or off and answers every clashing
--- addon the same way (on = ours, off = theirs), so the cards never disagree
+-- A module's switch. Sets Daylight UI's module on or off and answers every clashing
+-- addon the same way (on = "ours", off = "theirs"), so the cards never disagree
 -- with the tile.
 function Installer.SetModule(mod, on)
     local flow = Installer.flow
@@ -465,8 +472,8 @@ function Installer.SetModule(mod, on)
     if page and page.Refresh then page.Refresh() end
 end
 
--- A clash's answer. "ours" turns our module on (and the other addon off at
--- Finish), "theirs" turns ours off. Sibling clashes follow.
+-- A clash's answer. "ours" turns the Daylight UI module on (and the other addon off at
+-- Finish), "theirs" turns it off. Sibling clashes follow.
 function Installer.PickClash(clash, v)
     local flow = Installer.flow
     if not flow then return end
@@ -481,7 +488,7 @@ function Installer.PickClash(clash, v)
 end
 
 -- Whether Finish turns this clash's other addon off: only when answered
--- "ours" and our module for it ends up installed and on, so a player is never
+-- "ours" and the Daylight UI module for it ends up installed and on, so a player is never
 -- left with neither.
 function Installer.ClashTakesOver(clash)
     local flow, P = Installer.flow, DUI.InstallerPages
@@ -955,6 +962,13 @@ function Installer.Finish()
     end
     if applyModules(flow) then reload = true end
     if applyExtras() then reload = true end
+    -- Plugins' pages that set up something of their own (another addon).
+    for _, def in ipairs(Installer.TourPages()) do
+        if type(def.onFinish) == "function" then
+            DUI.SafeCallAs(def.plugin or L["an addon"], def.onFinish)
+            reload = true
+        end
+    end
     Installer.Mark("installed")
     Installer.MarkSeen()
     -- After the reload (or the guide closing without one), ask "Take a tour?" (Tour.lua).

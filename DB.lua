@@ -19,16 +19,16 @@ end
 
 DB.GENERAL_DEFAULTS = {
     font = "expressway",
-    localFont = false, -- Korean/Chinese clients only: use the game's font instead of ours
+    localFont = false, -- Korean/Chinese clients only: use the game's font instead of Daylight UI's
     gameText = false, -- also apply that font to the game's own text (GameFonts.lua)
-    barTexture = "daylight", -- every bar's fill: ours, or "lsm:<name>" from shared media
+    barTexture = "daylight", -- every bar's fill: Daylight UI's, or "lsm:<name>" from shared media
     barBack = "daylight", -- the empty part behind every bar's fill, same format
-    windowFont = "general", -- text in our windows (and skinned game ones); "general" = the font above
-    windowBar = "general", -- bars in our windows (W.Bar); "general" = barTexture
+    windowFont = "general", -- text in Daylight UI's windows (and skinned game ones); "general" = the font above
+    windowBar = "general", -- bars in Daylight UI's windows (W.Bar); "general" = barTexture
     windowBack = "general", -- their empty part; "general" = barBack
     accent = "classGradient",
     lastNames = { -- first and last names, one switch per element
-        player = true, target = true, targettarget = true, focus = true, focustarget = true, pet = true,
+        player = true, target = true, targettarget = true, focus = true, focustarget = true, pet = true, partyTarget = true,
         party = true, raid = true, nameplates = true, tooltip = true, character = true, inspect = true,
         threat = false, -- the threat meter's rows are narrow
     },
@@ -41,7 +41,7 @@ DB.GENERAL_DEFAULTS = {
     brightness = 0.95,
     borderAlpha = 1,
     shadowAlpha = 0.35,
-    windowAlpha = 0.85, -- every window's background, ours and skinned game ones (Shell opts.window)
+    windowAlpha = 0.85, -- every window's background, Daylight UI's and skinned game ones (Shell opts.window)
     borderPx = 8,
     heavyBorder = true,
     gradientBorder = false, -- window borders sweep along a gradient accent (Daylight's or the class's)
@@ -53,7 +53,7 @@ DB.GENERAL_DEFAULTS = {
     smoothBars = true,
     motion = true, -- windows glide in, spells ping, numbers count up. Off snaps everything
     sounds = true, -- soft UI sounds instead of the game's (Sound.lua). Off = the game's everywhere
-    soundKinds = { -- per kind: "soft" (ours) | "game" (the game's) | "none" (Sound.KINDS)
+    soundKinds = { -- per kind: "soft" (Daylight UI's) | "game" (the game's) | "none" (Sound.KINDS)
         windows = "soft", clicks = "soft", toggles = "soft", snaps = "soft", confirms = "soft",
     },
     fadeIn = true, -- the UI fades in on login and /reload
@@ -104,7 +104,7 @@ function DB.StripDefaults(t, defaults)
     end
 end
 
--- Paths are our own strings ("player.fade") read many times a second (the
+-- Paths are the addon's own strings ("player.fade") read many times a second (the
 -- fade ticker reads every area's), so each is split once and cached.
 local split = {}
 local function partsOf(path)
@@ -174,7 +174,7 @@ end
 local function lastName()
     if type(UnitFullName) ~= "function" then return nil end
     local first, last = UnitFullName("player")
-    if issecretvalue and (issecretvalue(first) or issecretvalue(last)) then return nil end
+    if DUI.IsSecret(first) or DUI.IsSecret(last) then return nil end
     if type(first) ~= "string" or type(last) ~= "string" or last == "" then return nil end
     return first, last
 end
@@ -451,6 +451,7 @@ local function migrate(sv)
     local pd = sv.profileData
     mergeDefault(sv)
     sv.charProbeLog = nil -- an old debug log, removed
+    sv.plateLog = nil -- the old nameplate recorder's log, removed
     -- Only pre-profile settings make the standard profile here. A new install has
     -- none until the setup guide (point() provides a stand-in).
     local legacy = type(sv.general) == "table" or type(sv.modules) == "table" or type(sv.positions) == "table"
@@ -635,7 +636,20 @@ function DB.Positions() return DB.Active().positions end
 -- change is dropped at logout, so the options and unlock mode say so.
 function DB.Unsaved() return DB.Active().unsaved == true end
 
--- Settings plugins added to our modules (DaylightUI.API's AddDefaults), as
+-- A player who likes the look as it is may never finish the setup guide, so
+-- the first thing they change or move turns the stand-in into a real profile.
+-- The guide's own preview doesn't count: it is undone when the guide closes.
+function DB.Keep()
+    if not DB.loggedIn then return end
+    local p = DB.Active()
+    if not p.unsaved then return end
+    local D = DUI.InstallerDraft
+    if D and D.Active and D.Active() then return end
+    p.unsaved = nil
+    DUI.Fire("ProfileKept")
+end
+
+-- Settings plugins added to Daylight UI's modules (DaylightUI.API's AddDefaults), as
 -- module -> key -> plugin name. Kept in saved data so a disabled plugin keeps
 -- its values and tools/settings_check.lua knows about them.
 function DB.PluginKeys()

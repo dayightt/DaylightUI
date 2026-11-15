@@ -137,6 +137,24 @@ T.test("windows: header tabs: the picked one lit, a click picks and tells, the t
     T.truthy(x and x < -40, "the title's right end moved in past the tabs")
 end)
 
+T.test("windows: tabs refit their labels on show and on a style change, so a wide font never overlaps them", function()
+    local DUI = stub.Load()
+    local Win = DUI.Win
+    local f = Win.New({ name = "DaylightUIWideTabWindow", w = 400, h = 300 })
+    Win.Tabs(f, { { id = "a", text = "Spellbook" }, { id = "b", text = "Talents" } }, function() end)
+    local narrow = f.tabs[1]:GetWidth()
+    -- A wider font than the one measured when the tabs were made.
+    stub.measure = function(fs) return #(fs:GetText() or "") * 12, 13 end
+    f:Show()
+    T.eq(f.tabs[1]:GetWidth(), 9 * 12 + 4, "shown: measured again in the font it draws with")
+    T.truthy(f.tabs[1]:GetWidth() > narrow)
+    stub.measure = function(fs) return #(fs:GetText() or "") * 14, 13 end
+    Win.Repaint(f)
+    T.eq(f.tabs[2]:GetWidth(), 7 * 14 + 4, "a style change refits them too")
+    stub.measure = nil
+    f:Hide()
+end)
+
 T.test("windows: a header icon sits left of the X; tabs and the title start left of it", function()
     local DUI = stub.Load()
     local Win = DUI.Win

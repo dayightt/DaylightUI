@@ -216,7 +216,6 @@ function Win.Tabs(f, tabs, onPick)
         local t = tabs[i]
         local b = DUI.Widgets.Tab(f, t.text, { size = Win.TAB_SIZE })
         b.id = t.id
-        b.FitWidth()
         b:SetPoint("RIGHT", right, "LEFT", -Win.TAB_GAP, 0)
         b:SetScript("OnClick", function()
             if f.tab == b.id then return end
@@ -226,18 +225,35 @@ function Win.Tabs(f, tabs, onPick)
         table.insert(f.tabs, 1, b)
         right = b
     end
-    -- Keep the title and sub line clear of the tabs.
+    Win.FitTabs(f)
+    if not f.fitTabsOnShow then
+        f.fitTabsOnShow = true
+        f:HookScript("OnShow", function() Win.FitTabs(f) end)
+    end
+    for _, b in ipairs(f.tabs) do b.Pick(f.tab == b.id) end
+end
+
+-- Sizes each tab to its label and keeps the title and sub line clear of them.
+-- Run again when the window shows and on a style change: a new font, or one the
+-- client hadn't finished loading at the first measure, changes the labels' width.
+function Win.FitTabs(f)
+    if not f.tabs then return end
     local room = 40 + (f.headerRoom or 0)
-    for _, b in ipairs(f.tabs) do room = room + b:GetWidth() + Win.TAB_GAP end
+    for _, b in ipairs(f.tabs) do
+        b.FitWidth()
+        room = room + b:GetWidth() + Win.TAB_GAP
+    end
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
     if f.sub then f.sub:SetPoint("RIGHT", f, "RIGHT", -room, 0) end
-    for _, b in ipairs(f.tabs) do b.Pick(f.tab == b.id) end
 end
 
 -- Repaints colors the core restyle doesn't cover. Call on style changes.
 function Win.Repaint(f)
     if f.topLine then Style.PaintAccent(f.topLine, 0.7) end
-    if f.tabs then for _, b in ipairs(f.tabs) do b.Paint(false) end end
+    if f.tabs then
+        for _, b in ipairs(f.tabs) do b.Paint(false) end
+        Win.FitTabs(f)
+    end
     if f.grip then f.grip.Paint() end
 end
 
@@ -489,7 +505,7 @@ function Win.Drag(f, opts)
         if not f.dragging then return end
         f.dragging = nil
         f:StopMovingOrSizing()
-        f:SetUserPlaced(false)   -- we save the position, not the game's layout cache
+        f:SetUserPlaced(false)   -- the position is saved here, not in the game's layout cache
         local x, y = Win.TopOf(f)
         if not x then return end
         Win.PlaceTop(f, x, y)   -- back to a single anchor so Feel can glide it
@@ -663,6 +679,19 @@ function Win.Close(f, done)
 end
 
 function Win.IsOpen(f) return Feel.IsOpen(f) end
+
+-- Refill events come in bursts. The returned caller runs fn(frame) once on the
+-- next frame, and only while frame() is shown, both when asked and when it runs.
+function Win.Soon(frame, fn)
+    local run = DUI.Soon(function()
+        local f = frame()
+        if f and f:IsVisible() then fn(f) end
+    end)
+    return function()
+        local f = frame()
+        if f and f:IsVisible() then run() end
+    end
+end
 
 -- Dim the current page while waiting for the next one.
 function Win.Dim(f, on)

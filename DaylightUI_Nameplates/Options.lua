@@ -159,6 +159,12 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "dimAlpha", label = "Other plates opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through the other plates get while you have a target.", disabled = off("dimOthers") },
         } },
+        { label = "Out of range", items = since("1.8.3", {
+            { type = "toggle", key = "rangeFade", label = "Fade out of range enemies",
+              desc = "Enemy plates fade while your class's attacks can't reach them: casters by their main spell, melee by their strikes, hunters by their shots and melee strikes. Your target and a plate that's casting stay full." },
+            { type = "slider", key = "rangeAlpha", label = "Out of range opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
+              desc = "How see-through enemy plates get while they're out of range.", disabled = off("rangeFade") },
+        }) },
         { label = "Combo points", desc = "Rogues and druids in cat form: your combo points on your target's plate. Colors follow Unit Frames > Extras > Combo points.", items = {
             { type = "toggle", key = "comboPoints", label = "Combo points",
               desc = "Rogues and druids in cat form: your combo points on your target's health bar." },
@@ -498,7 +504,7 @@ ns.OPTIONS = { pages = {
         } },
       } },
     { id = "auras", label = "Auras",
-      desc = "Your debuffs, crowd control and buffs you can remove, on enemy plates.",
+      desc = "Your debuffs, crowd control, big defensives and buffs you can remove, on enemy plates.",
       groups = {
         { label = "Your debuffs", items = with({
             { type = "toggle", key = "debuffs", label = "Your debuffs", desc = "In a row above the bar." },
@@ -518,6 +524,14 @@ ns.OPTIONS = { pages = {
               disabled = off("cc") },
         }, spotItems("Crowd control", { spot = "ccSpot", x = "ccX", y = "ccY" }, true, off("cc"),
             "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
+        { label = "Big defensives", items = with({
+            { type = "toggle", key = "defensives", label = "Big defensives", since = "1.8.0",
+              desc = "Divine Shield, Ice Block and the like, as a bigger icon beside the bar's end, so you know not to waste your damage." },
+            { type = "slider", key = "defensiveSize", label = "Defensive size", since = "1.8.0", min = 16, max = 48, step = 1, unit = "px",
+              desc = "How big the big defensive icon is.",
+              disabled = off("defensives") },
+        }, spotItems("Big defensive", { spot = "defensiveSpot", x = "defensiveX", y = "defensiveY" }, true, off("defensives"),
+            "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
         { label = "Buffs", items = with({
             { type = "toggle", key = "buffs", label = "Buffs you can purge or steal", desc = "Above your debuffs, from the right." },
             { type = "slider", key = "buffSize", label = "Buff size", min = 10, max = 30, step = 1, unit = "px",
@@ -535,6 +549,10 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "friendly.hideInInstance", label = "Hide friendly plates in instances",
               desc = "No plates over friendly players and NPCs in dungeons, raids, battlegrounds and arenas. They come back as you leave." },
         }) },
+        { label = "Totems", items = {
+            { type = "toggle", key = "friendly.totems", label = "Totems as badges", since = "1.8.0",
+              desc = "A friendly totem shows as a small round badge with its picture, ringed in its element's color, instead of its long name." },
+        } },
         { label = "Health bar", items = {
             { type = "toggle", key = "friendly.enabled", label = "Health bar",
               desc = "A thin bar under the name." },

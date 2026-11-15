@@ -416,9 +416,14 @@ function MO.Page()
               desc = "The bars' color when Bar color is One color." }),
         win({ type = "toggle", key = "win.classText", label = "Class-colored names and numbers", kinds = METER,
               desc = "Each bar's name and number in that player's class color." }),
-        win({ type = "color", key = "win.nameColor", label = "Name color", kinds = BARS,
+        win({ type = "dropdown", key = "win.nameColorBy", label = "Name color", kinds = BARS, since = "1.7.4",
+              values = { class = "Class color", custom = "One color" }, order = { "class", "custom" },
               disabled = function(get) return get("win.classText") == true end,
-              desc = "The color of the names on the bars." }),
+              desc = "Each name in its player's class color, or all in one color. The numbers stay as they are, so a dark bar with class-colored names reads well." }),
+        win({ type = "color", key = "win.nameColor", label = "Custom name color", since = "1.7.4", kinds = BARS,
+              hidden = function(get) return get("win.nameColorBy") == "class" end,
+              disabled = function(get) return get("win.classText") == true end,
+              desc = "The names' color when Name color is One color." }),
         win({ type = "slider", key = "win.trackAlpha", label = "Bar background opacity", kinds = BARS, min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How solid the empty part and outline of each bar are. At 0 only the colored bars show." }),
         win({ type = "toggle", key = "win.pullLine", label = "Pull line", kinds = THREAT,
@@ -475,6 +480,13 @@ function MO.Page()
           desc = "What happens to the fights you have so far when you enter a dungeon, raid or battleground: keep them, ask whether to reset, or reset at once. Running back after you die doesn't count." },
     }
 
+    -- Its rows wait for the switch on top; until then the meters fade with
+    -- the panel (Info panel > General).
+    local meterFade = DUI.Fade.Card("meter.fade.", nil, function(get) return get("meter.ownFade") ~= true end, "Damage meters")
+    meterFade.label = "Damage meter fade"
+    table.insert(meterFade.items, 1, { type = "toggle", key = "meter.ownFade", label = "Damage meters have their own fade",
+        desc = "Off, the damage meters fade with the info panel. On, every damage meter and summary window follows the settings here, the one in the panel too." })
+
     local threatFade = DUI.Fade.Card("threat.fade.", { { type = "text", label = "The threat meter and your threat windows fade together, apart from the panel." } }, nil, "Threat meter")
     threatFade.label = "Threat meter fade"
     threatFade.tab = nil
@@ -494,9 +506,10 @@ function MO.Page()
               items = { windowList, newWindow } },
             { label = "All meters", items = shared },
             { label = "When it shows", tab = "Shows", items = shows },
+            meterFade,
+            threatFade,
             { label = "Bars", tab = "Bars", items = rows },
             { label = "Window", tab = "Window", items = window },
-            threatFade,
         },
     }
 end

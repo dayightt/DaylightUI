@@ -33,7 +33,7 @@ T.test("every section has a color, an icon and a short name; an unknown one gets
         local look = Theme.Section(s.id)
         T.eq(#look.color, 3, s.id .. " color")
         T.truthy(type(look.icon) == "string" and look.icon ~= "", s.id .. " icon")
-        T.truthy(#look.short <= 9, s.id .. " short name fits the rail")
+        T.truthy(#look.short <= 8, s.id .. " short name fits the rail")
     end
     DUI.Options.RegisterSection("BuffLedger", "Buff Ledger", 135)
     local look = Theme.Section("BuffLedger")
@@ -648,7 +648,7 @@ T.test("tabs: the frame pages open on Basics, the rest in Bars, Text, Auras and 
     local P = DUI.OptionsPanel
     P.Show("UnitFrames.party")
     local pf = P.PageFrame()
-    T.deq(pf.tabs, { "Basics", "Bars", "Text", "Auras", "Extras" })
+    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" })
     T.eq(pf.tab, "Basics")
     T.eq(pf.Find("party.width").tab, "Basics", "size in Basics")
     T.eq(pf.Find("party.direction").tab, "Basics", "layout in Basics")
@@ -1417,4 +1417,31 @@ T.test("the game's AddOns settings: our own button opens the options", function(
     T.eq(b.text:GetText(), "Open DaylightUI options")
     b:Click()
     T.truthy(DUI.OptionsPanel.IsShown())
+end)
+
+T.test("a long note wraps at its card's width, so the row below never sits on its last line", function()
+    local DUI = stub.Load({ actionbars = true })
+    DUI.OptionsPanel.Show("ActionBars.barlayout")
+    local note, card
+    for _, c in ipairs(DUI.OptionsPanel.PageFrame().cards) do
+        for _, row in ipairs(c.rows) do
+            local label = DUI.Options.Label(row.item)
+            if row.item.type == "text" and label:find("^Paging") then note, card = row, c end
+        end
+    end
+    T.truthy(note, "the Paging note")
+    -- The client wraps text at a width it has already worked out. A width that
+    -- only comes from anchors set this frame isn't, so the text measures as one
+    -- long line unless it's given its width by hand.
+    local fs = note.label
+    fs.GetStringHeight = function(self)
+        local w = self.__w
+        if type(w) ~= "number" or w <= 0 then return 15 end
+        return 15 * math.ceil(#self.__text * 6 / w)
+    end
+    note.Measure()
+    local cw = card:GetWidth()
+    T.truthy(cw > 100, "the card has its width")
+    T.eq(fs:GetWidth(), cw - 2 * DUI.Widgets.PAD, "the note spans the card")
+    T.eq(note:GetHeight(), 15 * math.ceil(#fs.__text * 6 / (cw - 2 * DUI.Widgets.PAD)) + 16, "tall enough for every line")
 end)

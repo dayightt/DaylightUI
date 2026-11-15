@@ -36,6 +36,18 @@ function Menus.TitleList()
     return keys, values, (type(cur) == "number" and cur > 0) and tostring(cur) or Menus.NONE
 end
 
+-- Your name with the title you wear, the way the game shows it. The game's
+-- title text has a space on the side your name goes ("Private " or " the
+-- Explorer").
+function Menus.WithTitle(name)
+    local cur = type(GetCurrentTitle) == "function" and GetCurrentTitle() or 0
+    if type(name) ~= "string" or type(cur) ~= "number" or cur <= 0 then return name end
+    local title = GetTitleName(cur)
+    if type(title) ~= "string" or trim(title) == "" then return name end
+    if string.sub(title, 1, 1) == " " then return name .. " " .. trim(title) end
+    return trim(title) .. " " .. name
+end
+
 function Menus.PickTitle(k)
     if type(SetCurrentTitle) == "function" then SetCurrentTitle(tonumber(k)) end
 end

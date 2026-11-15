@@ -1,6 +1,7 @@
 -- Registers the quest tracker with the DaylightUI core.
 
 local _, ns = ...
+local isSecret = DaylightUI.IsSecret
 
 DaylightUI:RegisterModule("Quests", {
     label = "Quest Tracker",
@@ -26,7 +27,7 @@ DaylightUI:RegisterModule("Quests", {
         -- explore (Questie's answer when it's on, otherwise looked up in QuestieDB),
         -- shown in the accent. Gone when the module is off.
         DaylightUI.QuestKindForUnit = function(guid)
-            if type(guid) ~= "string" or (issecretvalue and issecretvalue(guid)) then return nil end
+            if type(guid) ~= "string" or isSecret(guid) then return nil end
             local kind = ns.Bridge and ns.Bridge.PlateKind(guid)
             local npc = ns.GiverTips and ns.GiverTips.NpcID(guid)
             local need

@@ -17,6 +17,7 @@ Rows.CHEVRON = 12
 Rows.ZONE_CHEVRON = 10
 Rows.LIFT = 1          -- how far a hovered quest title moves toward white
 Rows.GLOW = DUI.MEDIA .. "glow.png"
+Rows.HI_PAD = 2        -- the hover wash past a quest's top and bottom (half the compact gap)
 Rows.GLOW_SIZE = 30    -- glow behind a hovered icon
 Rows.GLOW_ALPHA = 0.85
 Rows.glowParent = nil  -- the tracker's holder, outside the list (which clips)
@@ -44,6 +45,15 @@ local function newBlock(kind, parent)
         f.chevron:SetTexture(Look.CHEVRON)
         f.chevron:SetSize(Rows.ZONE_CHEVRON, Rows.ZONE_CHEVRON)
     else
+        -- The shared list-row hover wash, as in the quest log, reaching half the
+        -- gap above and below so the hovered quest reads as one block.
+        local W = DUI.Win.Parts
+        f.hi = f:CreateTexture(nil, "BACKGROUND")
+        f.hi:SetTexture(W.WHITE)
+        f.hi:SetVertexColor(W.HI[1], W.HI[2], W.HI[3], W.HI[4])
+        f.hi:SetPoint("TOPLEFT", f, "TOPLEFT", 0, Rows.HI_PAD)
+        f.hi:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, -Rows.HI_PAD)
+        f.hi:Hide()
         for _, name in ipairs({ "ring", "ready", "failed" }) do
             local t = f:CreateTexture(nil, "ARTWORK")
             t:SetSize(Layout.ICON, Layout.ICON)
@@ -94,6 +104,7 @@ function Rows.Free(f)
     end
     f:Hide()
     f:ClearAllPoints()
+    if f.hi then DUI.Win.Parts.Light(f.hi, false, true) end
     f.key, f.block, f.painted, f.state = nil, nil, nil, nil
     pools[f.kind] = pools[f.kind] or {}
     table.insert(pools[f.kind], f)
@@ -442,6 +453,7 @@ end
 function Rows.Hover(f, on)
     local Motion = DUI.Motion
     if f.ring then
+        DUI.Win.Parts.Light(f.hi, on and true or false)
         local key = "quests:lift:" .. tostring(f)
         Motion.Tween(key, f.lift or 0, (on and on ~= "icon") and 1 or 0, Motion.FAST, function(p) Rows.Lift(f, p) end)
         local g = Rows.Glow()

@@ -93,7 +93,7 @@ function PP.Refresh(p)
 end
 
 -- The owner's unit changed (the header re-sorted, someone joined), so the pet
--- follows. Allowed in combat since it only touches our fields and unit events.
+-- follows. Allowed in combat since it only touches the button's own fields and unit events.
 function PP.Retarget(b, unit)
     local p = b.pet
     if not p or p.preview then return end
@@ -183,7 +183,7 @@ end)
 -- button, shown for members whose class keeps one out.
 
 PP.SAMPLES = {
-    WARLOCK = { name = "Grimlix", health = 64, healthValue = 420, power = 80, powerToken = "MANA" },
+    WARLOCK = { name = "Grimlix", health = 64, healthValue = 420, power = 80, powerValue = 1200, powerToken = "MANA" },
     HUNTER = { name = "Sable", health = 88, healthValue = 1100, power = 55, powerToken = "FOCUS" },
 }
 

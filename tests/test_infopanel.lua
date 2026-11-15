@@ -1,5 +1,11 @@
 local stub = require("stub")
 
+-- The key of the question Daylight UI's own box is asking now, or nil.
+local function asked()
+    local spec = DaylightUI.Widgets and DaylightUI.Widgets.Asking()
+    return spec and spec.key
+end
+
 -- The fake world around the panel (slide, login, meter) lives in
 -- tests/panelworld.lua, shared with tests/test_meters.lua.
 local PW = require("panelworld")
@@ -141,6 +147,18 @@ T.test("info panel: the XP bar shows experience and rested, and hides the game's
     T.eq(MainStatusTrackingBarContainer:GetParent(), UIParent, "and left in place")
     MainStatusTrackingBarContainer:SetShown(true)
     T.falsy(MainStatusTrackingBarContainer:IsShown(), "and kept hidden")
+end)
+
+T.test("info panel: the XP bar off keeps the game's hidden unless asked for", function()
+    login()
+    DaylightUI:Set("InfoPanel", "xp.enabled", false)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "no bar at all by default")
+    MainStatusTrackingBarContainer:SetShown(true)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "and the game can't bring it back")
+    DaylightUI:Set("InfoPanel", "xp.gameBar", true)
+    T.truthy(MainStatusTrackingBarContainer:IsShown(), "the game's bar back when asked for")
+    DaylightUI:Set("InfoPanel", "xp.enabled", true)
+    T.falsy(MainStatusTrackingBarContainer:IsShown(), "and hidden again with the bar on")
 end)
 
 -- A quest log: a header, two finished quests (one under a folded header,
@@ -500,7 +518,7 @@ end)
 T.test("info panel: the mode button opens a drop-down of every mode", function()
     local DUI = login()
     local M, area = stub.infopanel.Meter, stub.infopanel.Panel.meterArea
-    T.eq(#M.MODES, 11, "every mode the game keeps")
+    T.eq(#M.MODES, 12, "every mode the game keeps")
     area:GetScript("OnEnter")(area)
     local b = M.header.buttons.mode
     T.eq(b.kind, "mode")
@@ -753,7 +771,7 @@ T.test("info panel: joining a group keeps, asks about, or resets the fights", fu
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET"); T.falsy(stub.meter.reset)
+    T.eq(asked(), "meterReset"); T.falsy(stub.meter.reset)
     stub.FireEvent("GROUP_ROSTER_UPDATE")
     stub.inGroup = false
     stub.FireEvent("GROUP_ROSTER_UPDATE")
@@ -776,16 +794,16 @@ end
 T.test("info panel: entering an instance keeps, asks about, or resets the fights", function()
     local DUI = login()
     stub.meter.fights = { { sessionID = 1 } }
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     zoneTo(33)
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET", "asks by default"); T.falsy(stub.meter.reset)
-    stub.popup = nil
+    T.eq(asked(), "meterReset", "asks by default"); T.falsy(stub.meter.reset)
+    DaylightUI.Widgets.Answer(false)
     zoneTo(nil)
     DUI:Set("InfoPanel", "meter.onInstance", "nothing")
     zoneTo(34)
-    T.isnil(stub.popup, "keeps them"); T.falsy(stub.meter.reset)
+    T.isnil(asked(), "keeps them"); T.falsy(stub.meter.reset)
     zoneTo(nil)
-    T.isnil(stub.popup, "leaving isn't entering")
+    T.isnil(asked(), "leaving isn't entering")
     DUI:Set("InfoPanel", "meter.onInstance", "reset")
     zoneTo(36)
     T.truthy(stub.meter.reset)
@@ -818,18 +836,17 @@ end)
 
 T.test("info panel: both on Ask, answering yes on joining isn't asked again at the door", function()
     local DUI = login()
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     DUI:Set("InfoPanel", "meter.onInstance", "ask")
     stub.meter.fights = { { sessionID = 1 } }
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
-    stub.popup = nil
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    T.eq(asked(), "meterReset")
+    DaylightUI.Widgets.Answer(true)
     stub.meter.fights = {}
     zoneTo(33)
-    T.isnil(stub.popup, "nothing left to clear")
+    T.isnil(asked(), "nothing left to clear")
 end)
 
 T.test("info panel: a /reload or login inside and the run back after dying aren't entering", function()
@@ -1033,9 +1050,9 @@ T.test("info panel: reset asks first, then clears every fight", function()
     local b = M.header.buttons.reset
     T.eq(b.kind, "reset")
     b:GetScript("OnClick")(b, "LeftButton")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
+    T.eq(asked(), "meterReset")
     T.falsy(stub.meter.reset, "nothing cleared until confirmed")
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    DaylightUI.Widgets.Answer(true)
     T.truthy(stub.meter.reset)
     T.eq(DUI:Get("InfoPanel", "meter.session"), "current")
 end)
@@ -1147,6 +1164,40 @@ T.test("info panel: turning with you, the map is round (the game turns its mask 
     T.eq(GetMinimapShape(), "SQUARE")
     T.falsy(Map.ring:IsShown(), "no ring on the square")
     GetCVarBool = old
+end)
+
+T.test("info panel: a round map without turning has its ring, N fixed at the top, nothing each frame", function()
+    local DUI = login()
+    local Map = stub.infopanel.Minimap
+    T.eq(DUI:Get("InfoPanel", "map.shape"), "square", "square by default")
+    T.eq(GetMinimapShape(), "SQUARE")
+    DUI:Set("InfoPanel", "map.shape", "round")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.ROUND_MASK, "round without rotating")
+    T.eq(GetMinimapShape(), "ROUND", "addons put their buttons round it")
+    T.truthy(Map.ring:IsShown(), "the ring")
+    T.isnil(Map.ring:GetScript("OnUpdate"), "the N never moves, so nothing runs each frame")
+    T.truthy(Map.ring.north:IsShown(), "the N")
+    local _, _, _, nx, ny = Map.ring.north:GetPoint(1)
+    T.truthy(math.abs(nx) < 0.01 and ny > 0, "north at the top")
+    -- Rotating takes over the N; switched off again, it goes back to the top.
+    local rotate = true
+    local old = GetCVarBool
+    GetCVarBool = function(k) if k == "rotateMinimap" then return rotate end return old and old(k) end
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "1")
+    stub.RunTimers()
+    T.truthy(Map.ring:GetScript("OnUpdate"), "the N follows the facing while turning")
+    rotate = false
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "0")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.ROUND_MASK, "still round: the player picked round")
+    T.isnil(Map.ring:GetScript("OnUpdate"))
+    GetCVarBool = old
+    DUI:Set("InfoPanel", "map.shape", "square")
+    stub.RunTimers()
+    T.eq(Minimap.__mask, Map.MASK, "back to the square")
+    T.eq(GetMinimapShape(), "SQUARE")
+    T.falsy(Map.ring:IsShown(), "no ring on the square")
 end)
 
 -- The game's Hybrid Minimap, loaded on demand where the map is drawn from art
@@ -1296,17 +1347,156 @@ T.test("info panel: calendar and tracking in our square, out of sight until the 
     P.mapArea.IsMouseOver = nil
 end)
 
-T.test("info panel: the minimap is never zoomed by Daylight UI, at login or at a door (players saw it zoom in and out)", function()
+T.test("info panel: the minimap isn't zoomed at a door or after the player's own zoom (players saw it zoom in and out)", function()
     login()
-    local zooms, set = 0, Minimap.SetZoom
-    Minimap.SetZoom = function(self, z) zooms = zooms + 1; return set(self, z) end
-    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    stub.RunTimers()
+    Minimap.__zoomCalls = 0
     stub.FireEvent("ZONE_CHANGED_INDOORS")
     stub.FireEvent("MINIMAP_UPDATE_ZOOM")
     stub.RunTimers()
-    Minimap.SetZoom = set
-    T.eq(zooms, 0)
-    T.eq(MinimapCluster:IsShown(), true, "the game's cluster stays shown (hidden, the map went black)")
+    T.eq(Minimap.__zoomCalls, 0)
+    T.eq(MinimapCluster:IsShown(), true, "the game's cluster stays shown (hidden, the map went blank)")
+end)
+
+-- Seen in game: after a /reload in Stormwind (indoors, in dungeons too) the
+-- map stayed empty until a scroll, while EllesmereUI's drew at once. It zooms
+-- out and back in one frame after each loading screen; two of those, with the
+-- map on screen, drew ours.
+-- Seen in game: the redraw run once the login fade-in started (the map at 1%)
+-- left it empty; with the map outside the panel, shown from the loading
+-- screen on, it drew. So the map doesn't wait for the fade-in.
+T.test("info panel: the minimap skips the login fade-in, so it's redrawn as the loading screen goes", function()
+    stub.Load({ infopanel = true, intro = true, before = PW.world })
+    local F = DaylightUI.Fade
+    local P = stub.infopanel.Panel
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            F.Step()
+            stub.RunOnUpdate(F.driver, 1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    T.eq(P.holder:GetAlpha(), 0, "the panel waits for the fade-in")
+    T.eq(Minimap:GetEffectiveAlpha(), 1, "the map doesn't")
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(45)
+    T.eq(Minimap.__picture, "filled", "drawn right after the loading screen")
+    -- The game's own zoom as the world comes in, and the fade-in after it.
+    stub.FireEvent("MINIMAP_UPDATE_ZOOM")
+    for _ = 1, 15 do frames(60) end
+    T.eq(P.holder:GetAlpha(), 1, "the panel came in")
+    T.eq(stub.infopanel.Minimap.early, false, "the map follows the panel's fade again")
+    T.eq(Minimap:GetEffectiveAlpha(), 1)
+    T.eq(Minimap.__picture, "filled")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("info panel: after a loading screen the minimap is redrawn unseen once it shows, so a city's map isn't left empty", function()
+    login()
+    stub.RunTimers()
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    local P = stub.infopanel.Panel
+    -- A /reload: the panel waits at 0 for the login fade-in.
+    P.holder:SetAlpha(0)
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(120)
+    T.eq(Minimap.__picture, "empty")
+    T.eq(Minimap.__zoomCalls, 0, "nothing while the map can't be seen: the game would ignore it")
+    P.holder:SetAlpha(0.02)
+    frames(60)
+    T.eq(Minimap.__picture, "empty", "barely there: the game would ignore it, so it waits")
+    P.holder:SetAlpha(0.5)
+    frames(60)
+    T.eq(Minimap.__picture, "empty", "still see-through")
+    P.holder:SetAlpha(1)
+    frames(60)
+    T.eq(Minimap.__picture, "filled", "drawn once the fade-in is done")
+    T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
+    local calls = Minimap.__zoomCalls
+    T.eq(calls, 4, "two zooms out and back")
+    P.holder:SetAlpha(1)
+    stub.FireEvent("MINIMAP_UPDATE_ZOOM")
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(120)
+    T.eq(Minimap.__zoomCalls, calls, "once per loading screen: never after the player's zoom or at a door")
+    -- No fade-in (the map already shows): right after the loading screen.
+    Minimap.__picture = "empty"
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    frames(60)
+    T.eq(Minimap.__picture, "filled")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the game stops updating a see-through minimap. Players with
+-- the panel at 70% walked into a hut or a cave and the map went empty, and
+-- one faded out in a fight came back empty too. So the map stays solid at
+-- the panel's opacity, and solid again after a fade it's redrawn.
+T.test("info panel: the minimap faded out and back is redrawn, so walking indoors meanwhile doesn't leave it empty", function()
+    login()
+    stub.RunTimers()
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local F = DaylightUI.Fade
+    local P = stub.infopanel.Panel
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            F.Step()
+            stub.RunOnUpdate(F.driver, 1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    DaylightUI:Set("InfoPanel", "fade.mode", "combat")
+    DaylightUI:Set("InfoPanel", "fade.delay", 0)
+    DaylightUI:Set("InfoPanel", "fade.opacity", 0.7)
+    frames(60)
+    stub.EnterCombat()
+    frames(120)
+    T.eq(Minimap:GetAlpha(), 0, "faded in the fight")
+    -- Into a cave while it can't be seen: the game leaves its picture empty.
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(60)
+    T.eq(Minimap.__zoomCalls, 0, "nothing while it can't be seen")
+    stub.LeaveCombat()
+    frames(120)
+    T.near(P.holder:GetAlpha(), 0.7, 0.01, "the panel back at its opacity after the fight")
+    T.eq(Minimap:GetEffectiveAlpha(), 1, "the map solid: a see-through map isn't kept up to date")
+    T.eq(Minimap.__picture, "filled", "and drawn")
+    T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
+    local calls = Minimap.__zoomCalls
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(120)
+    T.eq(Minimap.__zoomCalls, calls, "never at a door while it shows")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("info panel: the armor figure leaves the game's right-side column and is put back after it shows", function()
@@ -1452,7 +1642,7 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     stub.Advance(3)
     settle()
     T.near(P.holder:GetAlpha(), 0.3, 0.01, "panel part faded")
-    T.eq(Minimap:GetAlpha(), 1, "part faded: map still shown")
+    T.near(Minimap:GetAlpha(), 0.3, 0.01, "part faded: the map fades with it")
     -- Opacity 0: gone for good, the map's icons too.
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     DaylightUI:Set("InfoPanel", "fade.opacity", 0)
@@ -2117,6 +2307,23 @@ T.test("info panel: the meter's names and numbers in class colors, bars with no 
     DUI:Set("InfoPanel", "meter.trackAlpha", 1)
 end)
 
+T.test("info panel: the meter's names alone in class colors, the numbers left as they are", function()
+    local DUI = login()
+    local M, Style = stub.infopanel.Meter, DUI.Style
+    stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 2640 },
+                           { name = "Nobody", classFilename = nil, totalAmount = 10 } }
+    DUI:Set("InfoPanel", "meter.nameColor", { 1, 0.5, 0 })
+    DUI:Set("InfoPanel", "meter.nameColorBy", "class")
+    M.Draw()
+    T.rgb(bars()[1].name.__textColor, { Style.ClassTextColor("MAGE") }, "the name in its class color")
+    T.rgb(bars()[1].amount.__textColor, Style.INK.VALUE, "the number keeps its color")
+    T.rgb(bars()[2].name.__textColor, Style.INK.VALUE, "no class known: white")
+    DUI:Set("InfoPanel", "meter.nameColorBy", "custom")
+    M.Draw()
+    T.rgb(bars()[1].name.__textColor, { 1, 0.5, 0 }, "back to the picked color")
+    DUI:Set("InfoPanel", "meter.nameColor", { 1, 1, 1 })
+end)
+
 T.test("info panel: a meter's own window can have its own background", function()
     local DUI = login()
     local P = stub.infopanel.Panel
@@ -2163,7 +2370,7 @@ T.test("options: the info panel is split into tabs and every setting has one hom
         -- Every window's own (the Meters page edits the one picked):
         "win.enabled", "win.mode", "win.session", "win.width", "win.height", "win.inGroup", "win.inCombat", "win.inInstance",
         "win.border", "win.rowHeight", "win.rowGap", "win.textSize", "win.barColor", "win.gradient", "win.barCustom",
-        "win.nameColor", "win.classText", "win.trackAlpha", "win.alphaOwn", "win.alpha", "win.rank", "win.icons",
+        "win.nameColor", "win.nameColorBy", "win.classText", "win.trackAlpha", "win.alphaOwn", "win.alpha", "win.rank", "win.icons",
         "win.showTotal", "win.showRate", "win.showShare", "win.showMe", "win.header", "win.headerTotal",
         "win.auto", "win.at", "win.unit", "win.rows", "win.belowRows", "win.pullLine", "win.pullColor",
         "win.columns.damage", "threat.fade.mode",

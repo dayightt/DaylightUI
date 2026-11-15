@@ -1,8 +1,8 @@
 -- Private auras are boss debuffs addon code can never read. The client draws
--- them itself on an anchor we lend it (C_UnitAuras.AddPrivateAuraAnchor), one
+-- them itself on an anchor lent to it (C_UnitAuras.AddPrivateAuraAnchor), one
 -- anchor per aura index. Container mode needs a handshake only Blizzard's
 -- frames can do, so this uses single-icon mode. Blizzard's raid, party and
--- debuff frames normally carry these anchors; we hide those, so ours must.
+-- debuff frames normally carry these anchors. Daylight UI hides those, so its frames must.
 --
 -- A set is a row of plain slot frames that the caller positions. Anchors can
 -- only be added and removed out of combat, so PA.Want records what the set
@@ -110,8 +110,9 @@ end
 
 -- How many anchors the set holds now.
 function PA.Count(set)
+    if not (set and set.ids) then return 0 end
     local n = 0
-    for _ in pairs(set and set.ids or {}) do n = n + 1 end
+    for _ in pairs(set.ids) do n = n + 1 end
     return n
 end
 

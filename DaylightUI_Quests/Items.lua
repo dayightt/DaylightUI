@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style = DUI.Style
 
 local Items = {}
@@ -26,8 +27,6 @@ holder:SetAllPoints(UIParent)
 holder:SetFrameStrata("LOW")
 holder:EnableMouse(false)
 Items.holder = holder
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Each quest's block key ("quest:123"), built once instead of every frame.
 local keyOf = setmetatable({}, { __index = function(t, id)
@@ -253,4 +252,4 @@ function Items.Dim(snap)
     end
 end
 
-pcall(DUI.RegisterEvent, "BAG_UPDATE_COOLDOWN", function() Items.Refresh() end)
+DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", function() Items.Refresh() end)

@@ -2,8 +2,8 @@
 -- container uses to place buttons. Given the groups in order and how many
 -- buttons each shows, it yields every button's offset from the container's
 -- anchor corner. The bar uses it to map a cursor position back to
--- (group, index) - the client hides which of its buttons are live, but the
--- geometry is fully determined by data we can read out of combat - and the
+-- (group, index), since the client hides which of its buttons are live but the
+-- geometry follows from data that can be read out of combat. The
 -- preview uses it so a sample looks exactly like the real thing.
 --
 -- Offsets follow the client's convention: measured from the anchor point,

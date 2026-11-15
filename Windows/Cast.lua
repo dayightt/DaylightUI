@@ -69,7 +69,7 @@ function Win.Caster(spec)
         local ok, b = pcall(CreateFrame, "Button", spec.name, UIParent, "SecureActionButtonTemplate")
         if not ok or type(b) ~= "table" then return nil end
         b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetAttribute("useOnKeyDown", false)   -- nil follows the key-down CVar, which would ignore our Up clicks
+        b:SetAttribute("useOnKeyDown", false)   -- nil follows the key-down CVar, which would ignore the Up clicks sent here
         b:RegisterForDrag("LeftButton")
         b:Hide()
         b:SetScript("OnEnter", function(self) if self.row and spec.enter then spec.enter(self.row) end end)

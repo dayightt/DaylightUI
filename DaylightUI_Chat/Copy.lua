@@ -125,7 +125,7 @@ function Copy.Show(cf)
     box.area:SetVerticalScroll(box.area:GetVerticalScrollRange())
 end
 
--- The Copy link at the right end of the tab row. It lives on our panel, never
+-- The Copy link at the right end of the tab row. It lives on the chat panel, never
 -- on a chat window, and fades in while the mouse is over the chat.
 function Copy.Build(parent)
     if button then return end

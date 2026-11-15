@@ -152,6 +152,10 @@ end
 
 -- The plain grid unless categories are asked for. Most of these tests are about
 -- the grid, and the categories view has its own.
+-- The game stops at logout. A test that plays on afterwards puts back the
+-- defaults the logout stripped from the saved profile.
+local function carryOn() DaylightUI.DB.Fill(DaylightUI.DB.Active()) end
+
 local function login(opts)
     stub.Load({ bags = true, before = function() setup(opts) end })
     stub.RunTimers()
@@ -725,6 +729,39 @@ T.test("bags: an item the slot still gives no icon after its wait shows the item
     _G.Item = nil
 end)
 
+T.test("bags: a stack that loses its icon after one is used keeps its picture", function()
+    local ns = login()
+    _G.Item = { CreateFromBagAndSlot = function(_, bag, slot)
+        return { IsItemEmpty = function() return false end, ContinueOnItemLoad = function(_, fn) fn() end }
+    end }
+    local oldIcon, oldInstant = C_Item.GetItemIconByID, C_Item.GetItemInfoInstant
+    C_Item.GetItemIconByID = function() return nil end
+    C_Item.GetItemInfoInstant = function() return nil end
+    open(ns)
+    local slot = ns.Bags.buttons[0][3]
+    world.items[0][3] = { stackCount = 5, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031, iconFileID = 134419 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419)
+    -- one rune used: the slot reports the smaller stack with no icon
+    world.items[0][3] = { stackCount = 4, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419, "the same picture, not a blank tile")
+    T.eq(slot.icon:GetAlpha(), 1, "shown")
+    -- an item never seen with an icon: its basic info has one
+    C_Item.GetItemInfoInstant = function(id) return id, "", "", "", 999 end
+    world.items[0][4] = { stackCount = 1, quality = 1, hyperlink = "|Hitem:4|h", itemID = 4 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(ns.Bags.buttons[0][4].calls.SetItemButtonTexture[1], 999, "the icon from the item's basic info")
+    C_Item.GetItemIconByID, C_Item.GetItemInfoInstant = oldIcon, oldInstant
+    _G.Item = nil
+end)
+
 T.test("bags: empty slots grouped into one free tile per section", function()
     local ns = login()
     local f = open(ns)
@@ -1035,6 +1072,8 @@ T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line wi
         return getInfo(link)
     end
     world.items[0][7] = { iconFileID = 107, stackCount = 4, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    T.eq(DaylightUI:Get("Bags", "markCheapJunk"), false, "off as shipped")
+    DaylightUI:Set("Bags", "markCheapJunk", true)
     local f = open(ns)
     local function at(bag, slot)
         for _, s in ipairs(ns.Bags.Slots()) do
@@ -1518,6 +1557,54 @@ T.test("bags: the secure Disenchant button goes where ours is, each time the mou
     _G.IsPlayerSpell = nil
 end)
 
+T.test("bags: the Comprehend Scroll button: shown to those who know it, beside Disenchant; hovered, it casts the spell", function()
+    local ns = login()
+    local CS, DE = ns.Comprehend, ns.Disenchant
+    T.eq(CS.SPELL, 1296017)
+    local known = {}
+    _G.IsPlayerSpell = function(id) return known[id] == true end
+    local getTex = C_Spell.GetSpellTexture
+    C_Spell.GetSpellTexture = function(id) return id == CS.SPELL and 134937 or nil end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.comprehendButton
+    T.falsy(b:IsShown(), "spell not known: no button")
+    T.eq(select(2, f.search:GetPoint(2)), f.viewButton, "the search ends at the last tool shown")
+    known[CS.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(b:IsShown())
+    T.falsy(f.disenchantButton:IsShown(), "Disenchant still follows its own spell")
+    T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
+    T.truthy(tostring(b.icon:GetTexture()):find("ui%-micro%-quests%.png"), "a flat icon like the rest of the row")
+    known[DE.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(f.disenchantButton:IsShown(), "both known: both shown")
+    T.eq(select(2, f.search:GetPoint(2)), b, "Comprehend Scroll sits next to the search")
+    b.GetLeft, b.GetBottom = function() return 360 end, function() return 300 end
+    b:SetSize(28, 28)
+    stub.secure = true
+    T.isnil(CS.caster.button, "nothing secure until the mouse comes")
+    b:GetScript("OnEnter")(b)
+    local o = CS.caster.button
+    T.truthy(o and o:IsShown(), "the secure button lies over ours")
+    T.truthy(o ~= DE.caster.button, "its own secure button, not Disenchant's")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), CS.SPELL)
+    T.eq(o:GetParent(), UIParent, "never inside the bag: the bag still closes in a fight")
+    T.eq(o:GetFrameStrata(), "HIGH")
+    stub.EnterCombat()
+    T.falsy(o:IsShown(), "hidden as the fight starts")
+    stub.LeaveCombat()
+    b:GetScript("OnEnter")(b)
+    known[CS.SPELL] = nil
+    stub.FireEvent("SPELLS_CHANGED")
+    T.falsy(b:IsShown(), "forgotten: the button goes")
+    T.falsy(o:IsShown(), "and its secure button with it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.secure = false
+    _G.IsPlayerSpell = nil
+    C_Spell.GetSpellTexture = getTex
+end)
+
 T.test("bags: gear's item level in the bottom left corner, off by default; the bank follows", function()
     local ns = login()
     local instant, detailed = C_Item.GetItemInfoInstant, C_Item.GetDetailedItemLevelInfo
@@ -1752,6 +1839,23 @@ T.test("bags: stacks show apart while trading, at the mail and auction house, or
     stub.RunTimers()
     T.truthy(other:IsShown(), "combining off")
     T.isnil(first.dluiCount)
+end)
+
+T.test("bags: a trade opens the bags and closes them again; bags already open stay open", function()
+    local ns = catLogin()
+    if ns.window:IsShown() then ns.OpenClose.CloseAll(); stub.RunTimers(); stub.FinishFade(ns.window) end
+    T.falsy(IsAnyBagOpen())
+    stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
+    T.truthy(IsAnyBagOpen(), "the trade opens them")
+    T.truthy(ns.window:IsShown(), "and this bag with them")
+    T.eq(world.opener, nil, "with no opener: the game's local stays untouched")
+    stub.FireEvent("TRADE_CLOSED"); stub.RunTimers(); stub.FinishFade(ns.window)
+    T.falsy(IsAnyBagOpen(), "closed with the trade")
+    T.falsy(ns.window:IsShown())
+    OpenAllBags(); stub.RunTimers()
+    stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
+    stub.FireEvent("TRADE_CLOSED"); stub.RunTimers()
+    T.truthy(IsAnyBagOpen(), "open before the trade: still open after")
 end)
 
 T.test("bags: soul shards (which don't stack) show as one stack, with the count; apart with the setting off", function()
@@ -3049,7 +3153,7 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     local row = CreateFrame("Frame")
     add.build(row)
     row.add:GetScript("OnClick")(row.add)
-    stub.popup.data.onAccept("Keepers")
+    stub.Reply("Keepers")
     stub.RunTimers()
     local key = Cat.Custom()[1] and Cat.Custom()[1].key
     T.truthy(key, "one box, and the group exists")
@@ -3456,29 +3560,18 @@ T.test("bags: an empty group of yours can wait only in the bag, never in the ban
     ns.Categories.DeleteCustom(key)
 end)
 
-T.test("W.Prompt: what you accept runs after the box has closed, so a second box isn't closed with it", function()
+T.test("W.Prompt: a box asked from an accepted one stays open", function()
     catLogin()
     local W = DaylightUI.Widgets
-    local ran, data = 0, nil
-    W.Prompt("First", "", function() ran = ran + 1 end)
-    data = stub.popup.data
-    local box = { GetText = function() return " Keepers " end }
-    -- StaticPopup_OnClick hides the dialog after OnAccept if it still has the same
-    -- `which`, and a second W.Prompt reuses that same dialog.
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = box }, data)
-    T.eq(ran, 0, "not inside the game's click")
-    stub.RunTimers()
-    T.eq(ran, 1)
-    -- Empty is refused unless the question lets it be cleared.
-    W.Prompt("Second", "", function() ran = ran + 10 end)
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(ran, 1)
     local got
-    W.Prompt("Third", "old", function(v) got = v end, { empty = true })
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(got, "")
+    W.Prompt("First", "", function(v)
+        got = v
+        W.Prompt("Second", "", function() end)
+    end)
+    stub.Reply(" Keepers ")
+    T.eq(got, "Keepers", "trimmed, inside the click")
+    T.truthy(stub.AskText() == "Second" and _G.DaylightUIAsk:IsShown(), "the second box is up")
+    stub.Dismiss()
 end)
 
 T.test("bags: recent items first, for a while", function()
@@ -5481,6 +5574,7 @@ end)
 T.test("viewer: another character's bags, saved at their logout; tabs and gold follow", function()
     local ns = login()
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     local mine = DaylightUI.DB.Character().inventory
     T.truthy(mine and mine.bags, "your bags saved at logout")
     T.eq(mine.bags[1].items[1][1], "|Hitem:1|h")
@@ -5639,6 +5733,7 @@ T.test("viewer: switched off, Alts leaves the portrait's menu, nothing new is sa
     T.truthy(stub.ChatContains("Bank and alts is off"))
     DaylightUI.DB.Character().inventory = nil
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
@@ -7450,4 +7545,30 @@ T.test("bags: the view button goes Shelf, Grid, List and round again", function(
         seen[#seen + 1] = DaylightUI:Get("Bags", "view")
     end
     T.eq(table.concat(seen, ","), "grid,list,categories")
+end)
+
+T.test("bags: a plugin's group takes what its match says, after your own groups", function()
+    local ns = catLogin()
+    local B, Cat = ns.Bags, ns.Categories
+    local me = DaylightUI.API.For("Angler")
+    local asked
+    T.eq(me.AddBagGroup("food", { label = "Picnic", match = function(item)
+        asked = item
+        return item.itemID == 8 or item.itemID == 9
+    end }), true)
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[0][8]), "Angler:food", "bread in the plugin's group")
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "and the apple")
+    T.truthy(asked and asked.quality ~= nil, "the match gets the item's facts")
+    T.eq(Cat.Get("Angler:food").name, "Picnic")
+    T.falsy(Cat.CanDelete("Angler:food"), "it goes with its addon, not deleted by hand")
+    local mine = Cat.AddCustom("Bread only", "bread")
+    T.eq(groupOf(ns, B.buttons[0][8]), mine, "your own group wins")
+    me.AddBagGroup("broken", { label = "Broken", match = function() error("nope") end })
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "a broken one is skipped")
+    T.eq(me.RemoveBagGroup("food"), true)
+    stub.RunTimers()
+    T.isnil(Cat.Get("Angler:food"))
+    T.truthy(groupOf(ns, B.buttons[1][2]) ~= "Angler:food", "back where it was")
 end)

@@ -240,11 +240,22 @@ Training.TITLE = {
     pet = function() return L["Pet abilities"] end,
     talent = function() return L["Needs a talent"] end,
 }
+-- Trainers teach every other level, so the next spells are often two levels
+-- away: name the level they come at rather than "next level".
+function Training.NextTitle(list)
+    local lv
+    for _, sp in ipairs(list) do
+        if type(sp.level) ~= "number" or (lv and sp.level ~= lv) then return nil end
+        lv = sp.level
+    end
+    return lv and string.format(L["Level %d"], lv) or nil
+end
+
 -- One chip per listed group; clicking scrolls to it.
 Training.CHIP = {
     now = function() return L["Learn now"] end,
     needs = function() return L["Needs a spell"] end,
-    next = function() return L["Next level"] end,
+    next = function() return L["Next"] end,
     pet = function() return L["Pet"] end,
     later = function() return L["Later"] end,
     talent = function() return L["Talent"] end,
@@ -257,6 +268,8 @@ local function makeChip(parent)
     b:SetScript("OnClick", function(self) Training.Jump(self.group) end)
     return b
 end
+
+local layoutChips
 
 function Training.Build(page)
     Training.page = page
@@ -291,19 +304,14 @@ function Training.Build(page)
         end
     end
     DUI.RegisterEvent("PLAYER_MONEY", function() Training.Soon() end)
+    -- The search box follows the page's edge while the window is resized, so
+    -- the chips are fitted again then, not only on the next refresh.
+    page:HookScript("OnSizeChanged", function() layoutChips(page) end)
 end
 
 -- Changes arrive in bursts (a level up), so refresh once on the next frame,
 -- and only while visible.
-function Training.Soon()
-    local page = Training.page
-    if not (page and page:IsVisible()) or Training.pending then return end
-    Training.pending = true
-    C_Timer.After(0, function()
-        Training.pending = nil
-        if page:IsVisible() then Training.Refresh() end
-    end)
-end
+Training.Soon = Win.Soon(function() return Training.page end, function() Training.Refresh() end)
 
 local function foldText(key, open, n)
     local text
@@ -366,7 +374,8 @@ function Training.Render(page)
             elseif #shown > 0 then
                 any = true
                 Training.at[key] = s.y
-                s:Section(key == "now" and string.format(L["Learn now · %d"], #shown) or Training.TITLE[key]())
+                s:Section(key == "now" and string.format(L["Learn now · %d"], #shown)
+                    or (key == "next" and Training.NextTitle(shown)) or Training.TITLE[key]())
             end
             for _, sp in ipairs(shown) do s:Line(lineFor(sp, cash)) end
         end
@@ -384,28 +393,85 @@ function Training.Render(page)
     end
 end
 
-local function layoutChips(page)
-    local x = Training.EDGE
+-- Groups whose chips didn't fit go into the More menu, as on the spells page,
+-- so a long language or a narrow window never leaves a group out of reach.
+function Training.MoreMenu(owner)
+    local keys, values, current = {}, {}, nil
+    for i, key in ipairs(Training.folded or {}) do
+        keys[i] = i
+        values[i] = Training.CHIP[key]()
+        if key == Training.jumped then current = i end
+    end
+    DUI.Widgets.OpenMenu(owner, keys, values, current, function(i)
+        local key = Training.folded and Training.folded[i]
+        if key then Training.Jump(key) end
+    end)
+end
+
+local function makeMore(page)
+    local b = DUI.Widgets.MenuButton(page, L["More"], DUI.Widgets.CHIP_HEIGHT)
+    b:SetScript("OnClick", function(self) Training.MoreMenu(self) end)
+    b:Hide()
+    return b
+end
+
+function layoutChips(page)
     local w = page:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.Window.SIZE.training[1] end
     local room = w - 2 * Training.EDGE - 160
-    local i = 0
+    local gap = DUI.Widgets.CHIP_GAP
+    local keys = {}
     for _, key in ipairs(Training.ORDER) do
-        if Training.CHIP[key] and Training.at and Training.at[key] then
-            i = i + 1
-            local c = page.chips[i]
-            if not c then c = makeChip(page); page.chips[i] = c end
-            c.group = key
-            c.text:SetText(Training.CHIP[key]())
-            c.FitWidth()
-            local cw = c:GetWidth()
-            c:ClearAllPoints()
-            c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
-            c:SetShown(x + cw - Training.EDGE <= room)
-            x = x + cw + 6
-        end
+        if Training.CHIP[key] and Training.at and Training.at[key] then keys[#keys + 1] = key end
     end
-    for k = i + 1, #page.chips do page.chips[k]:Hide() end
+    for i, key in ipairs(keys) do
+        local c = page.chips[i]
+        if not c then c = makeChip(page); page.chips[i] = c end
+        c.group = key
+        c.text:SetText(Training.CHIP[key]())
+        c.FitWidth()
+    end
+    for i = #keys + 1, #page.chips do page.chips[i]:Hide() end
+    -- Do they all fit? Otherwise keep room at the end for More.
+    local total = 0
+    for i = 1, #keys do total = total + page.chips[i]:GetWidth() + (i > 1 and gap or 0) end
+    page.more = page.more or makeMore(page)
+    local more = page.more
+    local spare = room
+    if total > room then
+        more.SetLabel(L["More"], 0)
+        spare = room - more:GetWidth() - gap
+    end
+    local M = DUI.Motion
+    local x, folded = Training.EDGE, {}
+    for i, key in ipairs(keys) do
+        local c = page.chips[i]
+        local cw = c:GetWidth()
+        c:ClearAllPoints()
+        c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
+        local fits = #folded == 0 and x + cw - Training.EDGE <= spare
+        -- A chip coming back out of More eases in.
+        if fits and not c:IsShown() then c:Show(); M.Fade(c, 0, 1, M.FAST) end
+        if not fits then c:Hide() end
+        if fits then x = x + cw + gap else folded[#folded + 1] = key end
+    end
+    Training.folded = folded
+    -- More glides from where it is now to its new spot, or eases in there.
+    local function place(v)
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", page, "TOPLEFT", v, -11)
+    end
+    more.glide = more.glide or {}   -- its own tween key; the button's hover uses the button
+    if #folded == 0 then
+        M.Tween(more.glide, x, x, 0, place)   -- stops a glide still running
+        more:Hide()
+    elseif not more:IsShown() then
+        M.Tween(more.glide, x, x, 0, place)
+        more:Show()
+        M.Fade(more, 0, 1, M.FAST)
+    else
+        M.Tween(more.glide, select(4, more:GetPoint(1)) or x, x, M.NORMAL, place)
+    end
 end
 
 -- Scroll a group to the top, unfolding it if needed.

@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local Items = {}
@@ -763,19 +764,28 @@ function Items.ForgetUsable() wipe(unusable) end
 -- Red as the game writes it (RED_FONT_COLOR 1 / 0.125 / 0.125, read back rounded).
 -- nil when the color is secret (client restrictions), so unknown.
 local function red(c)
-    if issecretvalue and issecretvalue(c) then return nil end
+    if isSecret(c) then return nil end
     if type(c) ~= "table" then return false end
     local r, g, b = c.r, c.g, c.b
-    if issecretvalue and (issecretvalue(r) or issecretvalue(g) or issecretvalue(b)) then return nil end
+    if isSecret(r) or isSecret(g) or isSecret(b) then return nil end
     return type(r) == "number" and type(g) == "number" and type(b) == "number" and r > 0.9 and g < 0.2 and b < 0.2
+end
+
+-- The words before the first number of the game's durability line, read once.
+local durability
+local function durabilityPrefix()
+    if durability == nil and type(DURABILITY_TEMPLATE) == "string" then
+        durability = DURABILITY_TEMPLATE:match("^(.-)%%")
+    end
+    return durability
 end
 
 -- Red lines that aren't about usability: broken gear, salvage, combat notes.
 local function notAboutUse(text)
     if type(text) ~= "string" then return false end
     if text == ITEM_SCRAPABLE_NOT or text == CANNOT_UNEQUIP_COMBAT or text == ITEM_DISENCHANT_NOT_DISENCHANTABLE then return true end
-    local durability = type(DURABILITY_TEMPLATE) == "string" and DURABILITY_TEMPLATE:match("^(.-)%%") or nil
-    return durability ~= nil and durability ~= "" and text:sub(1, #durability) == durability
+    local prefix = durabilityPrefix()
+    return prefix ~= nil and prefix ~= "" and text:sub(1, #prefix) == prefix
 end
 
 local function readUnusable(bag, slot, link)
@@ -788,7 +798,7 @@ local function readUnusable(bag, slot, link)
         -- so ask the game whether the recipe can be learned instead.
         if not C_Item.IsUsableItem then return false end
         local ok, usable = pcall(C_Item.IsUsableItem, link)
-        if not ok or issecretvalue and issecretvalue(usable) then return nil end
+        if not ok or isSecret(usable) then return nil end
         return not usable
     end
     local equip = C_Item.IsEquippableItem and C_Item.IsEquippableItem(link)
@@ -797,7 +807,7 @@ local function readUnusable(bag, slot, link)
     if not (C_TooltipInfo and C_TooltipInfo.GetBagItem) then return false end
     -- Use the slot's own tooltip so the link's bonus IDs give the real required level.
     local ok, tip = pcall(C_TooltipInfo.GetBagItem, bag, slot)
-    if not ok or type(tip) ~= "table" or (issecretvalue and issecretvalue(tip.lines)) or type(tip.lines) ~= "table" then
+    if not ok or type(tip) ~= "table" or isSecret(tip.lines) or type(tip.lines) ~= "table" then
         return nil
     end
     for _, line in ipairs(tip.lines) do
@@ -805,7 +815,7 @@ local function readUnusable(bag, slot, link)
             local left, right = red(line.leftColor), red(line.rightColor)
             if left == nil or right == nil then return nil end
             local text = line.leftText
-            if issecretvalue and issecretvalue(text) then return nil end
+            if isSecret(text) then return nil end
             if right or (left and not notAboutUse(text)) then return true end
         end
     end
@@ -935,6 +945,30 @@ function Items.Details(btn, info, bag, slot)
     return pending
 end
 
+-- A slot's picture. The slot can report an item with no icon (seen on a freshly
+-- looted pattern, and on a rune right after one was used), and the item's own icon
+-- can be missing too until its data loads. The item's basic info is always on hand,
+-- and an icon seen once for an item is kept, so a slot never goes blank.
+local knownIcons = {}
+function Items.IconOf(info)
+    if not info then return nil end
+    local id = info.itemID
+    local icon = info.iconFileID
+    if type(icon) == "nil" and type(id) == "number" and C_Item then
+        if C_Item.GetItemIconByID then
+            local ok, i = pcall(C_Item.GetItemIconByID, id)
+            if ok and type(i) ~= "nil" then icon = i end
+        end
+        if type(icon) == "nil" and C_Item.GetItemInfoInstant then
+            local ok, _, _, _, _, i = pcall(C_Item.GetItemInfoInstant, id)
+            if ok and type(i) ~= "nil" then icon = i end
+        end
+        if type(icon) == "nil" then icon = knownIcons[id] end
+    end
+    if type(icon) ~= "nil" and type(id) == "number" then knownIcons[id] = icon end
+    return icon
+end
+
 -- Fills a slot from the game in the same order the game fills its own
 -- (ContainerFrameMixin:UpdateItems). Each call is guarded, so methods this
 -- client lacks are skipped.
@@ -946,11 +980,7 @@ function Items.Fill(btn, tooltipOwner)
     -- A slot can report an item with no icon yet (seen on a freshly looted pattern
     -- in Forever) and still have none after the single wait below. Fall back to the
     -- item's own icon, otherwise it stayed blank until the item moved.
-    local shown = texture
-    if shown == nil and info and type(info.itemID) == "number" and C_Item and C_Item.GetItemIconByID then
-        local ok, icon = pcall(C_Item.GetItemIconByID, info.itemID)
-        if ok and type(icon) ~= "nil" then shown = icon end
-    end
+    local shown = Items.IconOf(info)
     local count = info and info.stackCount
     local locked = info and info.isLocked
     local quality = info and info.quality

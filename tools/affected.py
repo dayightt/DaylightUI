@@ -45,7 +45,7 @@ RIG_TESTS = ["test_core", "test_stub_reuse"]
 # Run for any shipped Lua change: they check every file (look rules, banned
 # patterns), in under 10 s together.
 ALWAYS_LUA = ["test_hygiene", "test_guards"]
-# test_locale draws every page in every language (37 s, the second slowest), so it
+# test_locale draws every page in every language (~10 s), so it
 # only runs for a change to the text itself.
 LOCALE_WORDS = re.compile(r"\bL\[")
 SLOW = {"test_group", "test_group_sweep", "test_hostile_bg", "test_hostile_fight", "test_hostile_party",
@@ -54,6 +54,10 @@ SLOW = {"test_group", "test_group_sweep", "test_hostile_bg", "test_hostile_fight
 # it's left to the whole suite (test_options, test_installer, test_lag...).
 BROAD = 3
 SKIP_DIRS = ("Media/", "screenshots/", "Libs/", "DaylightUI_Dev/", ".claude/", "tools/")
+# Files that decide what a returning player finds (defaults, upgrades, frame
+# spots, nameplate spots): test_release_moves checks a player from the last
+# release finds nothing moved (~2 s).
+MOVES = re.compile(r"(^|/)(Defaults|Upgrade|DB|Movers|Spots|FadeUpgrade|Profiles)\.lua$|^DaylightUI_Nameplates/Plate\.lua$")
 
 
 def git(*args):
@@ -172,6 +176,8 @@ def pick(files, tests, text_changed):
             continue
         for t in ALWAYS_LUA:
             add(t, "every shipped Lua change", True)
+        if MOVES.search(f):
+            add("test_release_moves", f + " (could move a returning player's setup)", True)
         if top == "Locales":
             add("test_locale", f, True)
             continue

@@ -64,13 +64,11 @@ end
 
 T.test("lfg: on by default", function()
     stub.Load({ before = function() LW.world({})(); DaylightUIDB = nil end })
-    T.eq(DaylightUI.lfgOwnWindow, true)
     T.truthy(stub.lfg.Window.frame, "built")
 end)
 
 T.test("lfg: switched off, the game's window stays the game's", function()
     local ns = load({ enabled = false })
-    T.eq(DaylightUI.lfgOwnWindow, false)
     T.isnil(ns.Window.frame, "nothing built")
     LW.Toggle(1)
     frame(5)

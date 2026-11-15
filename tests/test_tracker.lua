@@ -128,10 +128,18 @@ T.test("tracker: moved in unlock mode, it goes there (per profile) and the layou
     T.near(hy + Tr.stand:GetHeight() / 2 + UIParent:GetHeight() / 2, 700 - P.GAP, 0.1)
     local saves = 0
     local EM = DUI.EditMode
-    local exists, upToDate, save = EM.Exists, EM.UpToDate, EM.Save
+    local exists, upToDate, save, active = EM.Exists, EM.UpToDate, EM.Save, EM.IsActive
     EM.Exists = function() return true end
     EM.UpToDate = function() return false end
     EM.Save = function() saves = saves + 1 end
+    -- On a layout of the player's own, the spot is theirs to set in Edit Mode:
+    -- saving would switch them onto Daylight UI's.
+    EM.IsActive = function() return false end
+    DUI.Movers.Unlock()
+    e.onMoved(Tr.MOVER)
+    DUI.Movers.Lock()
+    T.eq(saves, 0, "not saved on a layout of their own")
+    EM.IsActive = function() return true end
     DUI.Movers.Unlock()
     DUI.DB.Positions()[Tr.MOVER] = { -300, 100 }
     e.onMoved(Tr.MOVER)
@@ -154,7 +162,7 @@ T.test("tracker: moved in unlock mode, it goes there (per profile) and the layou
     local _, _, _, x2 = Tr.anchor:GetPoint(1)
     T.eq(x2, 1900 - Tr.EDGE)
     T.eq(saves, 2)
-    EM.Exists, EM.UpToDate, EM.Save = exists, upToDate, save
+    EM.Exists, EM.UpToDate, EM.Save, EM.IsActive = exists, upToDate, save, active
 end)
 
 T.test("tracker: the anchor always has a place, and waits for the panel's", function()

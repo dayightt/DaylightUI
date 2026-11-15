@@ -74,5 +74,6 @@ return {
     setscript = {
     },
     rules = {
+        ["DaylightUI_Bags/Bank.lua|static-popup"] = "the account bank's Withdraw and Deposit: the game's own gold boxes (BANK_MONEY_*), which hold its money entry; a click of the player's opens them",
     },
 }

@@ -672,8 +672,7 @@ T.test("incoming heals and shields hang off the health fill, the player frame's 
     local DUI, ns, PR = login()
     local body = PR.frame.body
     T.truthy(body.heals and body.absorbs and body.overshield, "the same bars as the player frame")
-    T.eq(body.heals:GetParent(), body.predictClip, "in the clip over its health bar")
-    T.eq(body.predictClip:GetParent(), body)
+    T.eq(body.heals:GetParent(), body)
     T.eq(body.heals:GetPoint(1), "TOPLEFT", "starting where the health fill ends")
     local _, rel = body.heals:GetPoint(1)
     T.eq(rel, PR.frame.healthBar:GetStatusBarTexture())

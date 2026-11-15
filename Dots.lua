@@ -129,7 +129,7 @@ local AVOIDS = {
 -- Spells can't be dodged or parried, so next to a spell DoT these were melee.
 local MELEE_ONLY = { DODGE = true, PARRY = true, DEFLECT = true }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 local function round(v) return math.floor(v + 0.5) end
 
 -- This client's name for each listed spell -> its English name. Built on first
@@ -324,7 +324,7 @@ end
 
 -- Upkeep
 
--- Whether hits on the mob reach us right now. UNIT_COMBAT only covers unit
+-- Whether hits on the mob reach the player right now. UNIT_COMBAT only covers unit
 -- tokens, so a mob you tabbed away from ticks unseen and keeps its DoTs.
 local function observable(key)
     if Dots.KeyOf("target") == key or Dots.KeyOf("focus") == key then return true end

@@ -30,10 +30,12 @@ local function db() return ns.module and ns.module.db end
 local function at(field) return function(f) return f[field] end end
 local function status(icon) return function(f) return f.status and f.status.icons[icon] end end
 
--- The name: its tab, or the text itself when it sits on the bar (or on
--- Ribbon's row, which it shares with the health number).
+-- The name: its tab (a tile's own when its name sits outside it), or the text
+-- itself when it sits on the bar (or on Ribbon's row, which it shares with the
+-- health number).
 local function nameRegion(f)
     if f.tab and f.tab:IsShown() and not f.ribbon then return f.tab end
+    if f.nameTag and f.nameTagOn then return f.nameTag end
     return f.nameText
 end
 
@@ -75,10 +77,10 @@ PageSample.PARTS = {
     { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.ribbon end },
-    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
+    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On Ribbon's row it doesn't move.
-    { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight",
+    { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
                                                "%s.tab.at", "%s.tab.x", "%s.tab.y", "%s.tab.width", "%s.tab.own" },
       move = { spot = "%s.namePos", x = "%s.nameX", y = "%s.nameY" },
       tabMove = { spot = "%s.tab.at", x = "%s.tab.x", y = "%s.tab.y", dots = function(f) return UF.TabDots(f) end },
@@ -88,7 +90,7 @@ PageSample.PARTS = {
       move = { home = true, x = "%s.healthTextX", y = "%s.healthTextY" } },
     { label = "Large health number", at = bigNumber, keys = { "%s.bigNumber", "%sText.big", "%s.healthTextX", "%s.healthTextY" },
       move = { home = true, x = "%s.healthTextX", y = "%s.healthTextY" } },
-    { label = "Power text", at = at("powerText"), keys = { "%s.showPowerText", "%s.powerFormat", "%s.hideFullPower", "%sText.power", "%s.powerTextX", "%s.powerTextY" },
+    { label = "Power text", at = at("powerText"), keys = { "%s.showPowerText", "%s.powerFormat", "%s.powerPercentSign", "%s.hideFullPower", "%sText.power", "%s.powerTextX", "%s.powerTextY" },
       move = { home = true, x = "%s.powerTextX", y = "%s.powerTextY" } },
     { label = "Raid marker", at = at("marker"), keys = { "%s.showMarker", "%s.markerSize", "%s.markerPos" },
       move = { spot = "%s.markerPos", x = "%s.markerX", y = "%s.markerY" }, size = { s = "%s.markerSize" } },
@@ -104,6 +106,12 @@ PageSample.PARTS = {
     { label = "Resting", at = status("rest"), keys = { "%s.showResting", "%s.restSize" } },
     { label = "Role icon", at = roleRegion, keys = { "%s.showRole", "%s.rolePos", "%s.roleSize" },
       move = { spot = "%s.rolePos", x = "%s.roleX", y = "%s.roleY" }, size = { s = "%s.roleSize" } },
+    -- Only the pet page's sample has one (f.happiness). Hidden while the
+    -- switch is off, so it drops out of Design mode with it.
+    { label = "Pet happiness", at = function(f) return f.happiness end,
+      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSide", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
+      move = { spot = "%s.happinessSpot", x = "%s.happinessX", y = "%s.happinessY" },
+      size = { s = "%s.happinessSize" } },
 }
 
 -- Extra texts (Add piece, Texts.lua): one part per slot, on every frame page
@@ -128,7 +136,8 @@ local function auraRow(prefix, kind)
              move = { spot = p .. "Spot", x = p .. "X", y = p .. "Y" }, size = { s = p .. "Size" } }
 end
 -- Page id -> its aura settings and inner end (the side the rows grow toward).
-PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" } }
+PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" },
+                         focus = { key = "focusAuras", side = "right" }, pet = { key = "petAuras", side = "right" } }
 PageSample.AURA_PARTS = {}
 for id, a in pairs(PageSample.AURA_SETS) do
     PageSample.AURA_PARTS[id] = { auraRow(a.key, "debuff"), auraRow(a.key, "buff") }
@@ -156,6 +165,8 @@ PageSample.GROUP_PARTS = {
       move = { spot = "%s.dispelPos", x = "%s.dispelX", y = "%s.dispelY" }, size = { s = "%s.dispelSize" } },
     { label = "Ready check", at = at("readyIcon"), keys = { "%s.showReady", "%s.readyPos", "%s.readySize" },
       move = { spot = "%s.readyPos", x = "%s.readyX", y = "%s.readyY" }, size = { s = "%s.readySize" } },
+    { label = "Summon", at = at("summonIcon"), keys = { "%s.showSummon", "%s.summonPos", "%s.summonSize" },
+      move = { spot = "%s.summonPos", x = "%s.summonX", y = "%s.summonY" }, size = { s = "%s.summonSize" } },
 }
 -- Extra aura groups (Add piece): their stand-ins, debuffs or buffs.
 for i, key in ipairs(ns.AURA_SLOTS) do
@@ -198,6 +209,13 @@ PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
     keys = { "partyPet.enabled", "partyPet.spot", "partyPet.x", "partyPet.y", "partyPet.width", "partyPet.height" },
     move = { spot = "partyPet.spot", x = "partyPet.x", y = "partyPet.y", dots = function(b) return ns.PartyPets.Dots(b) end },
     size = { w = "partyPet.width", h = "partyPet.height" } }
+-- A party member's target (PartyTargets.lua), while they're on.
+PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
+    label = "Party target",
+    at = function(b) return b.ptarget and b.ptarget:IsShown() and b.ptarget or nil end,
+    keys = { "partyTarget.enabled", "partyTarget.spot", "partyTarget.x", "partyTarget.y", "partyTarget.width", "partyTarget.height" },
+    move = { spot = "partyTarget.spot", x = "partyTarget.x", y = "partyTarget.y", dots = function(b) return ns.PartyTargets.Dots(b) end },
+    size = { w = "partyTarget.width", h = "partyTarget.height" } }
 
 -- The keys on a unit frames page. A page doesn't change once registered.
 local pageKeys = {}
@@ -361,6 +379,7 @@ end
 
 local function specOf(unit)
     if unit == "arena" then return ns.Arena.Spec(1) end
+    if unit == "partyTarget" then return ns.PartyTargets.SPEC end
     for _, spec in ipairs(ns.SPECS) do
         if spec.unit == unit then return spec end
     end
@@ -370,6 +389,7 @@ end
 local function sampleUnit(id)
     if id == "player" then return ns.Sample.You() end
     if id == "arena" then return ns.Arena.SAMPLES[1] end
+    if id == "partyTarget" then return ns.PartyTargets.PageSample() end
     return ns.Test.SampleFor(id)
 end
 
@@ -391,6 +411,19 @@ local function reach(f)
     end
     if f.crest and f.crest:IsShown() then up = math.max(up, tabUp(f) + UF.CREST_SIZE / 2) end
     return ns.Sample.Reach(f), up, down
+end
+
+-- How far the pet happiness indicator sticks out past the frame, in the
+-- frame's units: left, right, up, down. Nothing until it has been drawn.
+local function happinessPast(h, f)
+    if not (h and h:IsShown() and h.GetRect and f.GetRect) then return 0, 0, 0, 0 end
+    local okH, hl, hb, hw, hh = pcall(h.GetRect, h)
+    local okF, fl, fb, fw, fh = pcall(f.GetRect, f)
+    if not (okH and okF and type(hl) == "number" and type(fl) == "number" and type(hw) == "number") then
+        return 0, 0, 0, 0
+    end
+    return math.max(0, fl - hl), math.max(0, hl + hw - fl - fw),
+           math.max(0, hb + hh - fb - fh), math.max(0, fb - hb)
 end
 
 -- Fits target (w by h, in its own units, with parts reaching past its outer
@@ -425,19 +458,31 @@ local function refreshSingle(s, width, maxH)
     UF.Layout(f, cfg, text, true)
     f.test = sampleUnit(s.id)
     UF.ShowSample(f)
+    if f.happiness then
+        ns.Happiness.Layout(f.happiness, cfg)
+        ns.Happiness.ShowSample(f.happiness)
+    end
     f:SetAlpha(cfg.enabled == false and PageSample.OFF_ALPHA or 1)
     local out, up, down = reach(f)
+    local back, left, right, hup, hdown = 0, happinessPast(f.happiness, f)
+    if f.spec.slant == "left" then
+        out, back = math.max(out, right), left
+    else
+        out, back = math.max(out, left), right
+    end
+    up, down = math.max(up, hup), math.max(down, hdown)
     if s.auras then
         -- The frame's auras, from its page's own settings.
         local a = d[PageSample.AURA_SETS[s.id].key]
         if s.id == "target" then s.auras.aboveLift, s.auras.buffDrop = ns.TargetAuraRoom(d) end
+        if s.id == "focus" then s.auras.aboveLift, s.auras.buffDrop = ns.FocusAuraRoom(d) end
         Auras.Apply(s.auras, a)
         local top, bottom = Auras.Place(s.auras, f, cfg)
         Auras.ShowSample(s.auras, f, a, ns.Test.AURAS)
         up = math.max(up, tabUp(f) + top)
         down = math.max(down, bottom)
     end
-    return fit(s.frame, f, f:GetWidth(), f:GetHeight(), out, f.spec.slant == "left", up, down, width, maxH, nil,
+    return fit(s.frame, f, f:GetWidth(), f:GetHeight(), out, f.spec.slant == "left", up, down, width, maxH, back,
                s.Zoom())
 end
 
@@ -464,6 +509,12 @@ local function newSingle(id, parent)
     UF.Build(f, specOf(id))
     f:EnableMouse(false)   -- display only, the strip's hotspots take the clicks
     s.f = f
+    -- The real pet frame's indicator is a different widget. This one is only
+    -- the preview, so Design mode's hotspot gets the click, not a tooltip.
+    if id == "pet" then
+        f.happiness = ns.Happiness.Create(f)
+        f.happiness:EnableMouse(false)
+    end
     -- The target's and player's auras use stand-ins, since the client's
     -- containers only ever show a real unit's auras.
     local auraSet = PageSample.AURA_SETS[id]
@@ -588,6 +639,9 @@ function PageSample.GroupReach(cfg, b)
     end
     -- A party member's pet (PartyPets.lua).
     local pu, pd, pl, pr = ns.PartyPets.Reach(b)
+    up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
+    -- And their target (PartyTargets.lua).
+    pu, pd, pl, pr = ns.PartyTargets.Reach(b)
     up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
     local pos = cfg.namePos
     if type(pos) == "string" and pos:find("^out") and cfg.showName ~= false then

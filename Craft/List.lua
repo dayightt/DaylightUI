@@ -24,7 +24,6 @@ List.EVENTS = { "TRADE_SKILL_LIST_UPDATE", "BAG_UPDATE_DELAYED", "NEW_RECIPE_LEA
     "TRADE_SKILL_FAVORITES_CHANGED", "TRACKED_RECIPE_UPDATE" }
 List.ITEM_WAIT = 0.2  -- s to let item info settle before re-reading the list
 
-local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 -- Collapsed categories (per character, by profession and category name)
 
@@ -57,10 +56,7 @@ local function makeHead(parent)
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
     b.state = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.state:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 3)
-    b.line = b:CreateTexture(nil, "ARTWORK")
-    b.line:SetTexture(WHITE)
-    b.line:SetVertexColor(1, 1, 1, 0.06)
-    b.line:SetHeight(1)
+    b.line = Win.Parts.Rule(b)
     b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     b.line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
     b.isSection = true
@@ -174,15 +170,23 @@ function List.PaintChance(b, recipe)
     local chance = ns.Setting("skillUps") == true and recipe.difficulty ~= ns.Data.TRIVIAL and ns.Data.Chance(recipe, ns.Data.Skill(data and data.prof)) or nil
     local text = ns.Data.ChanceText(chance)
     b.value:ClearAllPoints()
-    if text then
-        b.value:SetPoint("TOPRIGHT", b, "TOPRIGHT", -8, -5)
-        b.sub:SetPoint("RIGHT", fs, "LEFT", -10, 0)
-    else
-        b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-        b.sub:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
-    end
     fs:SetText(text or "")
     fs:SetShown(text ~= nil)
+    -- The sub keeps the block's two bottom points; it stops short of the chance
+    -- by how much wider the chance is than the count (the block ends at the count).
+    local inset = 0
+    if text then
+        -- The count sits on the name's line: its top is the name's top, which is
+        -- where the centered block starts.
+        local top = (Win.Parts.LINE - b.block:GetHeight()) / 2
+        b.value:SetPoint("TOPRIGHT", b, "TOPRIGHT", -8, -top)
+        inset = math.max(0, fs:GetStringWidth() - b.value:GetStringWidth())
+    else
+        b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+    end
+    b.sub:ClearAllPoints()
+    b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
+    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", -inset, 0)
     Style.InkText(fs, "pop")
     local was = List.chances[recipe.id]
     List.chances[recipe.id] = text

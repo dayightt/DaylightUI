@@ -13,7 +13,7 @@ local LABEL = "|cff1e90ffD|r|cff4083f5a|r|cff6276e8y|r|cff8569d8l|r|cffa65dc3i|r
     .. "|cffc556a3g|r|cffdc5881h|r|cffed685et|r|cfff8813cU|r|cffff9a1fI|r"
 
 -- The menu builds its buttons from a list (InitButtons/AddButton) with gaps
--- between sections. Ours goes right above AddOns, taking the gap above it so
+-- between sections. Daylight UI's goes right above AddOns, taking the gap above it so
 -- it heads that section, and the menu lays itself out to fit.
 local function addToMenu(menu)
     local b = menu:AddButton(LABEL, function()
@@ -34,7 +34,7 @@ DUI.RegisterEvent("PLAYER_LOGIN", function()
     if type(GameMenuFrame) ~= "table" then return end
     if type(rawget(GameMenuFrame, "AddButton")) ~= "function" then return end
     -- The game rebuilds the list (InitButtons) only from the menu's OnShow and
-    -- OnEvent, so re-add ours after each without hooking the menu's methods.
+    -- OnEvent, so re-add the button after each without hooking the menu's methods.
     local function after(menu) DUI.SafeCall(addToMenu, menu) end
     GameMenuFrame:HookScript("OnShow", after)
     GameMenuFrame:HookScript("OnEvent", after)

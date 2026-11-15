@@ -18,6 +18,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 local L = DUI.L
 
@@ -63,7 +64,7 @@ function Tiles.Side() return (cfg and cfg.whisperSide == "left") and "left" or "
 local function tagName(c)
     local info = C_BattleNet and C_BattleNet.GetAccountInfoByID and C_BattleNet.GetAccountInfoByID(c.bn)
     local tag = type(info) == "table" and info.battleTag
-    if type(tag) ~= "string" or (issecretvalue ~= nil and issecretvalue(tag)) then return nil end
+    if type(tag) ~= "string" or isSecret(tag) then return nil end
     local name = string.match(tag, "^[^#]+")
     return name
 end

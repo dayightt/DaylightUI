@@ -1,16 +1,17 @@
 -- Bar 1's page, i.e. which 12 action slots it shows. The game pages its own bar 1
--- from Lua on events; ours uses a state driver built from macro conditions in the
+-- from Lua on events; Daylight UI uses a state driver built from macro conditions in the
 -- game's order (override bar, vehicle, possess, temporary shapeshift, a page picked
 -- by hand, then forms and stances). Each change is also written to the game's hidden
--- bar 1, so a keybind (which presses its hidden button) casts what our button shows.
+-- bar 1, so a keybind (which presses its hidden button) casts what Daylight UI's button shows.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Paging = {}
 ns.Paging = Paging
 
--- The special pages when the game can't tell us (confirmed in game). Older addons
+-- The special pages when the game can't say (confirmed in game). Older addons
 -- use 12 and 14, which are wrong here.
 Paging.FALLBACK = { override = 33, vehicle = 31, temp = 32 }
 
@@ -26,25 +27,25 @@ end
 -- left the caster bar up in Cat Form; the FormBars addon pages by form for the same
 -- reason), so a druid's bars page by the form itself ([form:N], N = its place on the
 -- stance bar). Travel and Aquatic have no bar of their own (page 1).
--- A priest's Shadowform sits on the stance bar but gives no bonus bar at all,
--- so it pages by its form the same way, as form 1.
-Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4, [15473] = 1 }
-Paging.FORM_CLASSES = { DRUID = true, PRIEST = true }
+Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
 
--- For a druid or priest: bonus bar -> "form:N" (or "form:N/M"), from the current
--- stance bar. nil for any other class, or one who knows none of the forms (then
--- the bonus bar is used, as before).
+-- A priest's Shadowform is a real form, but as in Classic it has no bonus bar and
+-- no place on the stance bar (GetNumShapeshiftForms says 0). The macro conditions
+-- still call it form 1, so it pages bar 1 as [form:1], the page a druid's form 1 gets.
+Paging.PRIEST_FORMS = { [1] = "form:1" }
+
+-- For a druid: bonus bar -> "form:N" (or "form:N/M"), from the current stance bar.
+-- A priest's is fixed. nil for any other class, or a druid who knows none of the
+-- forms (then the bonus bar is used, as before).
 function Paging.FormConds()
-    if not Paging.FORM_CLASSES[Paging.Class()] then return nil end
+    if Paging.Class() == "PRIEST" then return Paging.PRIEST_FORMS end
+    if Paging.Class() ~= "DRUID" then return nil end
     if type(GetNumShapeshiftForms) ~= "function" or type(GetShapeshiftFormInfo) ~= "function" then return nil end
     local out, any = {}, false
     for i = 1, GetNumShapeshiftForms() or 0 do
         local ok, _, _, _, sid = pcall(GetShapeshiftFormInfo, i)
-        local bonus = ok and type(sid) == "number" and not (issecretvalue and issecretvalue(sid))
+        local bonus = ok and type(sid) == "number" and not isSecret(sid)
             and Paging.FORM_BONUS[sid] or nil
-        -- Shadowform is a priest's only form, so it is that one whatever spell id
-        -- this server gives it.
-        if ok and not bonus and Paging.Class() == "PRIEST" then bonus = 1 end
         if bonus then
             out[bonus] = out[bonus] and (out[bonus] .. "/" .. i) or ("form:" .. i)
             any = true
@@ -144,7 +145,7 @@ end
 
 -- The holder's snippet: writes the page onto itself, its buttons and the game's
 -- hidden twin bar, whose buttons read their slot from its "actionpage" when a key
--- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what our
+-- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what Daylight UI's
 -- button shows. Never CallMethod in a snippet; it would leave secure code.
 Paging.ON_STATE = [[
     local page = tonumber(string.match(newstate or "", "^%d+")) or 1
@@ -157,20 +158,24 @@ Paging.ON_STATE = [[
             page = hold
         else
             self:SetAttribute("dui-hold", nil)
-            self:SetAttribute("state-hold", nil)
         end
     end
     self:SetAttribute("actionpage", page)
     self:ChildUpdate("page", page)
-    local twin = self:GetFrameRef("game-twin")
-    if twin then twin:SetAttribute("actionpage", page) end
-    -- Bar 1's: on each of the game's hidden buttons too, which read their
-    -- own page before their bar's, so the game's own (stale) bar 1 write
-    -- can't change what a key casts.
+    -- The page a key casts from goes on each of the game's hidden buttons, which
+    -- read their own page before their bar's. Not on the game's bar: it holds no
+    -- protected button, so a handle to it is refused in a fight. Bar 1's always
+    -- (the game's own stale bar 1 write can't change what a key casts). Bars 2-8
+    -- only while paged away from the bar's own page, so a bar with no paging
+    -- writes nothing on them. Only a real change: a page written from addon code
+    -- keeps its taint.
+    local base = self:GetAttribute("dui-twinpage")
+    local want = page
+    if base and page == base then want = nil end
     for i = 1, 12 do
         local b = self:GetFrameRef("game-btn" .. i)
         if not b then break end
-        b:SetAttribute("actionpage", page)
+        if tonumber(b:GetAttribute("actionpage")) ~= want then b:SetAttribute("actionpage", want) end
     end
 ]]
 
@@ -187,10 +192,12 @@ local holder
 -- long. The game can't tell ahead of time and an addon can't see the key press (it
 -- goes to the game's hidden button). So a druid adds "/click DaylightUICat" (or
 -- Bear, Moonkin) to the top of the shift macro, like the FormBars addon does. The
--- click (the game's secure "attribute" action) arms bar 1 with that form's page, the
--- drop to caster that follows shows that page, and the form coming back (or any
--- other form) ends it. A click whose shift never happened is released a moment
--- later, out of combat.
+-- click arms bar 1 with that form's page, the drop to caster that follows shows that
+-- page, and the form coming back (or any other form) ends it. A click whose shift
+-- never happened is released a moment later, out of combat.
+-- A macro's plain /click is only the up half of a click, and a secure action
+-- button acts on the down half while ActionButtonUseKeyDown is on (the default), so
+-- the button's own action never ran. A wrapped OnClick runs on either half.
 -- ---------------------------------------------------------------------
 
 Paging.HOLD = { { name = "DaylightUICat", bonus = 1 }, { name = "DaylightUIBear", bonus = 3 },
@@ -198,8 +205,8 @@ Paging.HOLD = { { name = "DaylightUICat", bonus = 1 }, { name = "DaylightUIBear"
 Paging.HOLD_FOR = 3          -- seconds an unused click stays armed (out of combat)
 
 Paging.ON_HOLD = [[
-    local page = tonumber(newstate)
-    if page then self:SetAttribute("dui-hold", page) end
+    local page = tonumber(self:GetAttribute("dui-page"))
+    if page then owner:SetAttribute("dui-hold", page) end
 ]]
 
 -- The page a form's button arms bar 1 with: the form's own page, or nothing with
@@ -215,41 +222,41 @@ end
 function Paging.LetGo()
     if not holder or not holder:GetAttribute("dui-hold") then return end
     holder:SetAttribute("dui-hold", nil)
-    holder:SetAttribute("state-hold", nil)
     holder:SetAttribute("state-page", holder:GetAttribute("state-page"))
 end
 
 local holdButtons = {}
+local function letGo() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end
+local function letGoSoon() C_Timer.After(Paging.HOLD_FOR, letGo) end
 local function makeHoldButtons(h)
     if #holdButtons > 0 or Paging.Class() ~= "DRUID" then return end
     for _, def in ipairs(Paging.HOLD) do
         local b = CreateFrame("Button", def.name, UIParent, "SecureActionButtonTemplate")
         b:RegisterForClicks("AnyUp", "AnyDown")
-        b:SetAttribute("type", "attribute")
-        b:SetAttribute("attribute-frame", h)
-        b:SetAttribute("attribute-name", "state-hold")
-        b:HookScript("OnClick", function()
-            C_Timer.After(Paging.HOLD_FOR, function() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end)
-        end)
+        SecureHandlerWrapScript(b, "OnClick", h, Paging.ON_HOLD)
+        b:HookScript("OnClick", letGoSoon)
         holdButtons[#holdButtons + 1] = { button = b, bonus = def.bonus }
     end
 end
 
+-- The game's hidden buttons a bar's page goes on (Paging.ON_STATE).
+local function twinRefs(h, prefix)
+    for i = 1, 12 do
+        local b = _G[prefix .. i]
+        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
+    end
+end
+
 local function holdPages()
-    for _, hb in ipairs(holdButtons) do hb.button:SetAttribute("attribute-value", Paging.HoldPage(hb.bonus)) end
+    for _, hb in ipairs(holdButtons) do hb.button:SetAttribute("dui-page", Paging.HoldPage(hb.bonus)) end
 end
 
 -- At file load, out of combat: the snippets, the driver, and the rule rebuilt once
 -- the game knows its page numbers for sure.
 function Paging.Setup(h, buttons)
     holder = h
-    h:SetAttribute("_onstate-hold", Paging.ON_HOLD)
     makeHoldButtons(h)
-    if type(MainActionBar) == "table" then h:SetFrameRef("game-twin", MainActionBar) end
-    for i = 1, 12 do
-        local b = _G["ActionButton" .. i]
-        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
-    end
+    twinRefs(h, "ActionButton")
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.Apply()
@@ -287,7 +294,7 @@ end
 -- modifiers (Paging.HeldRule): its forms already page it, and the game writes its
 -- hidden bar 1's page itself on every form change (ActionBarController_UpdateAll).
 -- The game never writes bars 2-8's page (a fixed attribute in
--- MultiActionBars.xml), so ours holds.
+-- MultiActionBars.xml), so Daylight UI's holds.
 -- ---------------------------------------------------------------------
 
 -- In the order they're checked: a held modifier beats a form, Prowl comes before Cat
@@ -341,10 +348,13 @@ function Paging.BarRule(def)
     return table.concat(parts, "; ")
 end
 
--- At build: the same snippets as bar 1, onto the bar's own twin.
+-- At build: the same snippets as bar 1, onto the bar's own twin buttons, which
+-- fall back to the bar's fixed page.
 function Paging.SetupBar(def, h, buttons)
-    local twin = def.twin and _G[def.twin]
-    if type(twin) == "table" then h:SetFrameRef("game-twin", twin) end
+    if def.twinPrefix then
+        twinRefs(h, def.twinPrefix)
+        h:SetAttribute("dui-twinpage", def.page)
+    end
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.ApplyBar(def, h)

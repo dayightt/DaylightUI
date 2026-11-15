@@ -871,6 +871,9 @@ T.test("tooltip: a friendly player's buffs as rows of icons; none in combat (sec
         for _, l in ipairs(lines) do if type(l) == "string" and l:find("|T1", 1, true) then rows[#rows + 1] = l end end
         return rows
     end
+    T.eq(#hover(), 0, "off by default")
+    DaylightUI:Set("Tooltip", "buffs", true)
+    stub.RunTimers()
     local rows = hover()
     T.eq(#rows, 2, "twelve buffs: a row of ten, then two")
     T.truthy(rows[1]:find("|T1001:", 1, true) and rows[2]:find("|T1012:", 1, true), "each one's icon")
@@ -1103,8 +1106,11 @@ T.test("tooltip: item level on gear only, once per fill, never twice with the ga
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("tooltip: stack size on items that stack, on out of the box, the number in the accent", function()
+T.test("tooltip: stack size on items that stack, once switched on, the number in the accent", function()
     login(itemWorld)
+    T.eq(DaylightUI:Get("Tooltip", "stackSize"), false, "off as shipped")
+    DaylightUI:Set("Tooltip", "stackSize", true)
+    stub.RunTimers()
     local at = withLines(GameTooltip)
     local stacks, before = { potion = 20, sword = 1 }, C_Item.GetItemInfo
     C_Item.GetItemInfo = function(link)
@@ -1396,6 +1402,12 @@ T.test("tooltip: numbers in a sentence by what they are (Tips.Numbers)", functio
     T.eq(Tips.Numbers("Heals 30 every 3 sec."), "Heals " .. good .. "30|r every " .. pop .. "3|r sec.", "a HoT: the tick green, the time the accent")
     T.eq(Tips.Numbers("Restores 100 Mana."), "Restores " .. H({ DaylightUI.Style.PowerColor("MANA") }) .. "100|r Mana.", "mana in its color")
     T.eq(Tips.Numbers("|cffff0000Red 5|r"), "|cffff0000Red 5|r", "a line with its own code left")
+    -- the game's plural code (|4hour:hrs;) and textures carry digits of their own
+    T.eq(Tips.Numbers("an effect that lasts 2 |4hour:hrs;."), "an effect that lasts " .. pop .. "2|r |4hour:hrs;.", "the plural code stays whole")
+    T.eq(Tips.Numbers("Costs |TInterface\\Icons\\Coin:14:14|t 5"), "Costs |TInterface\\Icons\\Coin:14:14|t " .. pop .. "5|r", "a texture's size stays whole")
+    local StatText = DaylightUI.Char and DaylightUI.Char.StatText
+    T.truthy(type(StatText) == "table", "stat text loaded")
+    T.eq(StatText.Numbers("Lasts 2 |4hour:hrs;.", INK.GOOD), "Lasts " .. good .. "2|r |4hour:hrs;.", "stat text keeps the plural code too")
 end)
 
 T.test("tooltip: a loot row near the right edge opens its tooltip on the left when its compares can't fit", function()
@@ -1682,4 +1694,36 @@ T.test("prettytooltip on: the Tooltips options page goes; set to the game's own 
     T.truthy(Tip.Shell(GameTooltip), "it draws no panels: ours are on")
     T.falsy(stub.tooltip.OPTIONS.pages[1].hidden(), "and their page")
     PW.Uninstall(stub)
+end)
+
+T.test("tooltip: plugins add lines in Daylight UI's look, once each, after its own", function()
+    login(itemWorld)
+    local at = withLines(GameTooltip)
+    local me = DaylightUI.API.For("Lines")
+    local seen = {}
+    me.AddTooltipLines("item", function(lines, data)
+        seen.item = data
+        lines.Line("Fish caught", 12)
+        lines.Hint("Shift: more")
+    end)
+    me.AddTooltipLines("spell", function(lines, data) seen.spell = data.spellID; lines.Text("A plugin's note") end)
+    local types = Enum.TooltipDataType
+    fill(GameTooltip, types.Item, { id = 1001, hyperlink = "sword" })
+    T.eq(seen.item.itemID, 1001); T.eq(seen.item.link, "sword")
+    local n = GameTooltip:NumLines()
+    T.eq(at(n - 1):GetText(), "Fish caught"); T.eq(at(n - 1, "Right"):GetText(), "12")
+    T.rgb(at(n - 1).__textColor, DaylightUI.Style.INK.TEXT, "label soft white")
+    T.eq(at(n):GetText(), "Shift: more")
+    for _ = 1, 3 do fill(GameTooltip, types.Item, { id = 1001, hyperlink = "sword" }) end
+    T.eq(GameTooltip:NumLines(), n, "a refill adds them once")
+    fill(GameTooltip, types.Spell, { id = 133 })
+    T.eq(seen.spell, 133)
+    seen.spell = 0
+    fill(GameTooltip, types.Spell, { id = stub.Secret(133) })
+    T.isnil(seen.spell, "a secret id comes as nil")
+    local broken = me.AddTooltipLines("item", function() error("boom") end)
+    fill(GameTooltip, types.Item, { id = 1001, hyperlink = "sword" })
+    T.truthy(GameTooltip:NumLines() >= n, "an error in one leaves the others")
+    DaylightUI.API.Off(broken)
+    T.isnil(me.AddTooltipLines("weather", function() end), "an unknown kind is refused")
 end)

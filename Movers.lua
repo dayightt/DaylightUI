@@ -253,6 +253,7 @@ function Movers.SetPieceScale(key, v)
     v = math.floor(math.max(Movers.MIN, math.min(Movers.MAX, v)) / Movers.STEP + 0.5) * Movers.STEP
     if math.abs(v - 1) < 0.001 then v = nil end
     pieceScales()[key] = v
+    DUI.DB.Keep()
     Movers.Apply(key)
     local h = handles[key]
     if h and h:IsShown() then Movers.PlaceHandle(entries[key], h) end
@@ -438,6 +439,7 @@ local function store(e, x, y)
         pos.at, pos.ax, pos.ay = at, DUI.Pixel.Snap(UIParent, ax), DUI.Pixel.Snap(UIParent, ay)
     end
     DUI.DB.Positions()[e.key] = pos
+    DUI.DB.Keep()
     if e.proxy then
         -- Onto the saved (snapped) spot, as other frames land on theirs.
         if handles[e.key] then Movers.PlaceHandle(e, handles[e.key]) end
@@ -1280,8 +1282,20 @@ local function showLockButton(show)
         mag:SetFrameLevel(bar:GetFrameLevel() + 2)
         mag:SetPoint("LEFT", snap, "RIGHT", 8, 0)
         lockButton.snap, lockButton.magnet = snap, mag
+
+        -- Opens or closes the box of area checkboxes, lit while it's open.
+        local areas = DUI.Widgets.Button(bar, L["Areas"], 30)
+        areas.FitWidth(90)
+        areas:SetFrameLevel(bar:GetFrameLevel() + 2)
+        areas:SetPoint("LEFT", mag, "RIGHT", 8, 0)
+        function areas.Sync() areas.SetActive(DUI.TestBox.Unlock.IsOpen()) end
+        areas:SetScript("OnClick", function()
+            DUI.TestBox.Unlock.SetOpen(not DUI.TestBox.Unlock.IsOpen())
+        end)
+        DUI.On("UnlockBoxChanged", areas.Sync)
+        lockButton.areas = areas
         bar:SetWidth(PILL_PAD + lockButton:GetWidth() + 8 + snap:GetWidth()
-            + 8 + mag:GetWidth() + PILL_PAD)
+            + 8 + mag:GetWidth() + 8 + areas:GetWidth() + PILL_PAD)
 
         -- The setup guide was never finished, so moves are lost at logout. Shown lit
         -- under the bar, with the reason on hover. A click opens the guide.
@@ -1305,12 +1319,15 @@ local function showLockButton(show)
         lockButton:SetShown(show)
         lockButton.snap:SetShown(show)
         lockButton.magnet:SetShown(show)
+        lockButton.areas:SetShown(show)
         local setup = show and DUI.DB.Unsaved()
+        if setup then lockButton.setup.bar:SetAlpha(1) end
         lockButton.setup.bar:SetShown(setup)
         lockButton.setup:SetShown(setup)
         if show then
             lockButton.snap.Sync()
             lockButton.magnet.Sync()
+            lockButton.areas.Sync()
         end
     end
 end
@@ -1320,13 +1337,81 @@ function Movers.SnapButton() return lockButton and lockButton.snap end
 function Movers.MagnetButton() return lockButton and lockButton.magnet end
 function Movers.SetupButton() return lockButton and lockButton.setup end
 
--- While unlocked, a frame's handle shows if it's in use, else it's hidden.
--- active is an optional check that the frame is in use at all (a bar set to
--- Hidden, a bag bar turned off), rechecked when its setting changes.
+-- The first move made the profile a real one, so the finish-setup button has
+-- nothing left to warn about and fades away.
+DUI.On("ProfileKept", function()
+    local setup = lockButton and lockButton.setup
+    if setup and setup.bar:IsShown() then DUI.Motion.AlphaTo(setup.bar, 0, DUI.Motion.FAST, true) end
+    local P = DUI.OptionsPanel
+    local nav = P and P.Nav and P.Nav()
+    if nav and nav.SyncSetup then nav.SyncSetup() end
+end)
+
+-- Areas whose handles the unlock box can tuck away, so the ones under them
+-- can be reached. A handle belongs to the first area its key matches.
+Movers.AREAS = {
+    { id = "cast",       label = "Cast Bars",     match = "^unitframes%.%a*[Cc]astbar" },
+    { id = "group",      label = "Group Frames",  match = "^unitframes%.raid" },
+    { id = "group",      match = "^unitframes%.party" },
+    { id = "group",      match = "^unitframes%.arena" },
+    { id = "unit",       label = "Unit Frames",   match = "^unitframes%." },
+    { id = "actionbars", label = "Action Bars",   match = "^actionbars%." },
+    { id = "buffs",      label = "Buffs",         match = "^buffs%." },
+    { id = "infopanel",  label = "Info Panel",    match = "^infopanel" },
+    { id = "quests",     label = "Quests",        match = "^quests%." },
+    { id = "chat",       label = "Chat",          match = "^chat" },
+    { id = "bags",       label = "Bags",          match = "^bags%." },
+    { id = "tooltip",    label = "Tooltip",       match = "^tooltip" },
+    { id = "combattext", label = "Combat Text",   match = "^combattext%." },
+    { id = "game",       label = "Game Frames",   match = "^game%." },
+    { id = "other",      label = "Other",         match = "" },
+}
+
+function Movers.AreaOf(key)
+    for _, a in ipairs(Movers.AREAS) do
+        if string.find(key, a.match) then return a.id end
+    end
+    return "other"
+end
+
+-- Account-wide, like the test box's choices.
+local function hiddenAreas()
+    local root = DUI.DB.Root()
+    if type(root.unlockHidden) ~= "table" then root.unlockHidden = {} end
+    return root.unlockHidden
+end
+
+function Movers.AreaShown(id) return hiddenAreas()[id] ~= true end
+
+-- A frame in use whose handle would show while unlocked, whatever the box says.
+function Movers.InUse(key)
+    local e = entries[key]
+    return e ~= nil and not e.suspended and not (e.active and not e.active())
+end
+
+-- The areas with at least one handle in use, in AREAS order.
+function Movers.Areas()
+    local used, out, seen = {}, {}, {}
+    for _, key in ipairs(order) do
+        if Movers.InUse(key) then used[Movers.AreaOf(key)] = true end
+    end
+    for _, a in ipairs(Movers.AREAS) do
+        if a.label and used[a.id] and not seen[a.id] then
+            seen[a.id] = true
+            out[#out + 1] = { key = a.id, label = a.label }
+        end
+    end
+    return out
+end
+
+-- While unlocked, a frame's handle shows if it's in use and its area isn't
+-- tucked away, else it's hidden. active is an optional check that the frame is
+-- in use at all (a bar set to Hidden, a bag bar turned off), rechecked when its
+-- setting changes.
 function Movers.Recheck(key)
     local e = entries[key]
     if not (e and Movers.unlocked) then return end
-    if e.suspended or (e.active and not e.active()) then
+    if not Movers.InUse(key) or not Movers.AreaShown(Movers.AreaOf(key)) then
         if handles[key] then handles[key]:Hide() end
         return
     end
@@ -1335,6 +1420,36 @@ function Movers.Recheck(key)
     DUI.Style.PaintAccent(handles[key].tint, 0.25)
     handles[key]:Show()
     Movers.PaintGroups()
+end
+
+-- The unlock box's tick: the area's handles fade out (then hide) or back in.
+function Movers.SetAreaShown(id, on)
+    on = on and true or false
+    if Movers.AreaShown(id) == on then return end
+    hiddenAreas()[id] = (not on) or nil
+    if Movers.unlocked then
+        local list = {}
+        for _, key in ipairs(order) do
+            if Movers.AreaOf(key) == id then
+                local h = handles[key]
+                if on then
+                    Movers.Recheck(key)
+                    h = handles[key]
+                    if h and h:IsShown() then h:SetAlpha(0); list[#list + 1] = h end
+                elseif h and h:IsShown() then
+                    list[#list + 1] = h
+                end
+            end
+        end
+        if not on and editor and editor.key and Movers.AreaOf(editor.key) == id then Movers.CloseEditor() end
+        DUI.Motion.Tween("movers:area:" .. id, on and 0 or 1, on and 1 or 0, DUI.Motion.FAST, function(p)
+            for _, h in ipairs(list) do h:SetAlpha(p) end
+        end, function()
+            if Movers.AreaShown(id) then return end
+            for _, h in ipairs(list) do h:Hide(); h:SetAlpha(1) end
+        end)
+    end
+    DUI.Fire("UnlockAreaChanged", id, on)
 end
 
 -- Unlock mode's handles and grid fade in together (one tween for all) and out

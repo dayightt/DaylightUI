@@ -14,7 +14,7 @@ local function ink(c) return { c[1], c[2], c[3] } end
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     xpGain = true,          -- flash the gained XP, show "+N", sweep on level up
-    xp = { enabled = true, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
+    xp = { enabled = true, gameBar = false, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
           matchBars = true,     -- when detached, match the main action bar's width
           color = "accent",     -- accent | class | blue | custom (customLo/customHi); classColor = false is the old blue
           customLo = { 0.55, 0.38, 0.12 }, customHi = { 0.98, 0.78, 0.35 },
@@ -32,8 +32,10 @@ ns.DEFAULTS = {
               inGroup = false, inCombat = false, inInstance = false, onJoin = "nothing", onInstance = "ask",
               detached = false, height = 196, border = true,   -- border of the detached window
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, textSize = 11,
-              nameColor = { 1, 1, 1 },
-              -- classText colors names and numbers by class, overriding nameColor.
+              -- nameColorBy: "custom" paints names in nameColor, "class" in
+              -- each player's class color. classText colors names and numbers
+              -- by class, overriding both.
+              nameColor = { 1, 1, 1 }, nameColorBy = "custom",
               -- trackAlpha is the opacity of each bar's empty part (0 = fill only).
               -- alphaOwn / alpha give the detached window its own background opacity.
               classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
@@ -43,7 +45,10 @@ ns.DEFAULTS = {
               rowGap = 1, angled = true,   -- angled: the fill's leading edge cut at an angle
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
-              numbers = "short" },   -- short (12.3K) | full (12,345), used everywhere amounts show
+              numbers = "short",   -- short (12.3K) | full (12,345), used everywhere amounts show
+              -- false: every damage meter fades with the panel; true: they all
+              -- use the fade below, the one inside the panel too.
+              ownFade = false, fade = DaylightUI.Fade.Defaults() },
     -- The Meters options page uses keys like win.<key> that point at the
     -- selected window. This lookup supplies a default of the right type for
     -- any of those keys.
@@ -73,7 +78,7 @@ ns.DEFAULTS = {
     -- barColor: class | threat (colored by how close each row is) | custom.
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
-               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 },
+               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 }, nameColorBy = "custom",
                pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always", angled = true,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks
@@ -81,7 +86,8 @@ ns.DEFAULTS = {
     -- alphaOwn / alpha / border: the minimap box's own look, separate from
     -- panelAlpha and panelBorder.
     -- drawerOrder: the addon drawer's buttons in the order the player dragged them.
-    map = { enabled = true, size = 226, buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
+    -- shape: "square" or "round" (a rotating map is always round).
+    map = { enabled = true, size = 226, shape = "square", buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
              alphaOwn = false, alpha = 0.85, border = true,
              clock = { enabled = true, twentyFour = true, useServer = false, textSize = 11, color = ink(INK.VALUE) },
              fps = { enabled = false, textSize = 11, color = ink(INK.VALUE) },      -- next to the clock
@@ -95,7 +101,8 @@ ns.DEFAULTS = {
              volumeChannel = "master",    -- set from the volume text's right-click menu
              critKind = "auto",           -- auto (by class), attack, ranged or spell
              apKind = "auto",             -- auto (ranged for hunters), attack or ranged
-             goldChars = "all" },         -- gold tooltip lists "all" characters or only your "faction"
+             goldChars = "all",           -- gold tooltip lists "all" characters or only your "faction"
+             soulBag = false },           -- the Soul Shards text shows the soul bag's size too
     -- Data bar along the bottom of the screen. Up to four texts on each side
     -- of the center one; "none" leaves a slot empty.
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,

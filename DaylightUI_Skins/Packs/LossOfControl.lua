@@ -5,7 +5,7 @@
 -- The game's LossOfControlFrame still does all the real work invisibly: when to
 -- show, what to say, its Edit Mode position, its fade and sound. All of that
 -- compares values that go secret under the client's restrictions, which only
--- the game's code may do. Ours is a same-size child of it, so it shares its
+-- the game's code may do. The new one is a same-size child of it, so it shares its
 -- position, scale, alpha and visibility, and only passes the game's text and
 -- icon through untouched. The size is fixed because a secret text's width
 -- can't be measured, so long names get cut off.

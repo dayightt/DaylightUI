@@ -6,6 +6,7 @@
 -- names can no longer be read.
 
 local _, BL = ...
+local DUI = DaylightUI
 
 local Spells = {}
 BL.Spells = Spells
@@ -67,12 +68,57 @@ function Spells.Sets()
         byCategory[cat][spellId] = true
         if cat ~= "other" then categorised[spellId] = true end
     end
+    -- Plugins' categories (DaylightUI.API: me.AddBuffCategory) hold their spells by
+    -- id, so the client sorts them in a fight too. A buff the player moved by
+    -- hand stays where they put it.
+    for _, pc in ipairs(BL.PluginCategories()) do
+        local id = pc.category
+        if id and BL.DB.categories[id] then
+            byCategory[id] = byCategory[id] or {}
+            for _, sid in ipairs(pc.spells) do
+                local name = BL.DB.spells[sid]
+                if not (name and BL.DB.overrides[name]) then
+                    local was = category[sid]
+                    if was and byCategory[was] then byCategory[was][sid] = nil end
+                    byCategory[id][sid] = true
+                    category[sid], known[sid], categorised[sid] = id, true, true
+                end
+            end
+        end
+    end
     sets = { byCategory = byCategory, known = known, categorised = categorised, category = category }
     setsDB = BL.DB
     return sets
 end
 
 local function dropSets() sets = nil end
+
+-- Plugins' categories: each one's own category (made once in the player's
+-- list, marked with the plugin's key, then theirs to move, recolor or hide)
+-- and its spell ids. Kept by the API, never saved.
+local NONE = {}
+function BL.PluginCategories()
+    local R = DUI.APIReport
+    return type(R) == "table" and R.BuffCategories and R.BuffCategories() or NONE
+end
+function BL.TakePluginCategories()
+    if not BL.DB then return end
+    for _, pc in ipairs(BL.PluginCategories()) do
+        local found
+        for id, rec in pairs(BL.DB.categories) do
+            if rec.plugin == pc.key then found = id end
+        end
+        if not found then
+            found = BL.Categories.Create(pc.label, pc.color)
+            BL.DB.categories[found].plugin = pc.key
+        end
+        pc.category = found
+    end
+    sets = nil
+    BL.Fire("CATEGORIES_CHANGED")
+end
+BL.On("DB_READY", function() DUI.SafeCall(BL.TakePluginCategories) end)
+DUI.On("BuffCategoriesChanged", function() DUI.SafeCall(BL.TakePluginCategories) end)
 BL.On("SPELLS_CHANGED", dropSets)
 BL.On("OVERRIDES_CHANGED", dropSets)
 BL.On("CATEGORIES_CHANGED", dropSets)

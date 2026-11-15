@@ -1123,6 +1123,9 @@ function Window.Changed(f, bags)
     if not (InCombatLockdown and InCombatLockdown()) then
         changed, synced = f.set.Sync(f.items), true
     else
+        -- The slots can't change in a fight (Sync waits for it to end), so the
+        -- layout below skips its own Sync and refills only what moved.
+        synced = true
         -- One cached function and key per window (loot in a fight calls this often).
         if not f.changedLater then
             f.changedLater = function() Window.Changed(f) end
@@ -1193,19 +1196,7 @@ local function fillCooldowns()
     end
 end
 
--- Runs fn once on the next frame, however many times it's requested this frame.
-local function soon(fn)
-    local armed = false
-    local function run()
-        armed = false
-        fn()
-    end
-    return function()
-        if armed then return end
-        armed = true
-        C_Timer.After(0, run)
-    end
-end
+local soon = DUI.Soon
 
 local function registerEvents()
     -- Bags changed during a burst; only those get refilled.
@@ -1306,10 +1297,12 @@ local function bagWindow()
                   Window.SortTouched(w)
                   w.Set("view", Window.NextView(w.Setting("view")))
               end },
-            -- Last, next to the search. Only shown to characters who know Disenchant
-            -- (Disenchant.lua puts a secure button over it on hover).
+            -- Last, next to the search. Each only shown to characters who know its
+            -- spell (Disenchant.lua puts a secure button over it on hover).
             { key = "disenchantButton", icon = ns.Disenchant.ICON, title = ns.Disenchant.Title,
               desc = L["Click, then click an item to disenchant it. Not during a fight."], onClick = function() end },
+            { key = "comprehendButton", icon = ns.Comprehend.ICON, title = ns.Comprehend.Title,
+              desc = L["Click, then click a scroll to comprehend it. Not during a fight."], onClick = function() end },
         },
     })
     ns.window = f
@@ -1329,6 +1322,7 @@ function ns.Build(mod)
         if ns.Slots then ns.Slots.Create(f) end
         registerEvents()
         ns.Disenchant.Register(f)
+        ns.Comprehend.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
         ns.Move.Register()

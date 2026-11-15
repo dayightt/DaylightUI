@@ -368,12 +368,15 @@ end
 
 -- 10: the target's debuffs and buffs sit at a spot (Spots.lua) instead of just
 -- above or below. Each old side maps to the spot of the same name.
-ns.UPGRADE_STEPS[10] = function(uf)
+ns.UPGRADE_STEPS[10] = function(uf, _, _, run)
     local t = uf.targetAuras
     if type(t) ~= "table" then return end
     local SIDE = { above = "above", below = "below" }
     if SIDE[t.debuffsAt] then t.debuffSpot = SIDE[t.debuffsAt] end
-    if SIDE[t.buffsAt] then t.buffSpot = SIDE[t.buffsAt] end
+    if SIDE[t.buffsAt] then
+        t.buffSpot = SIDE[t.buffsAt]
+        if run then run.picked["targetAuras.buffSpot"] = true end
+    end
     t.debuffsAt, t.buffsAt = nil, nil
 end
 
@@ -500,7 +503,53 @@ ns.UPGRADE_STEPS[17] = function(uf)
     casts.showName, casts.timer = nil, nil
 end
 
+-- 18: each frame picks its own portrait ring thickness and middle line. A
+-- profile that changed the shared ones gets them on every frame with a
+-- portrait, so nothing looks different.
+ns.UPGRADE_STEPS[18] = function(uf)
+    local looks = uf.portraits
+    if type(looks) ~= "table" then return end
+    local width, line = looks.ringWidth, looks.ringLine
+    if type(width) == "string" or type(line) == "boolean" then
+        for _, key in ipairs({ "player", "target", "focus", "party", "arena" }) do
+            if type(uf[key]) ~= "table" then uf[key] = {} end
+            if type(width) == "string" then uf[key].portraitRingWidth = width end
+            if type(line) == "boolean" then uf[key].portraitRingLine = line end
+        end
+    end
+    looks.ringWidth, looks.ringLine = nil, nil
+end
+
+-- 19: 1.8.0 moved the target's buffs over the frame beside its debuffs and
+-- turned the player's and personal display's rows to match. Profiles from
+-- before then get their rows back where they were, unless the player picked
+-- them since; a brand new profile (no step done before this run) keeps the
+-- new layout. The focus rows came with that change and keep it. Only values
+-- that differ from a default are saved, and the table may already be filled
+-- with today's defaults, so a value equal to today's default was never picked,
+-- unless an earlier step in this run set it from an older pick of the player's.
+ns.UPGRADE_STEPS[19] = function(uf, _, _, run)
+    if not run or run.from == 0 then return end
+    local function keep(t, path, now, old)
+        for k, v in pairs(old) do
+            if (t[k] == nil or t[k] == now[k]) and not run.picked[path .. "." .. k] then t[k] = v end
+        end
+    end
+    local D = ns.DEFAULTS
+    for key, old in pairs({ targetAuras = { buffSpot = "below", buffGrow = "left", debuffRows = 3, buffRows = 2 },
+                            playerAuras = { debuffGrow = "right" } }) do
+        if type(uf[key]) ~= "table" then uf[key] = {} end
+        keep(uf[key], key, D[key], old)
+    end
+    if type(uf.personal) ~= "table" then uf.personal = {} end
+    if type(uf.personal.auras) ~= "table" then uf.personal.auras = {} end
+    keep(uf.personal.auras, "personal.auras", D.personal.auras, { debuffGrow = "center", buffGrow = "center" })
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
+-- Each step also gets this run: from = the last step done before it (0 for a
+-- new profile), picked = settings an earlier step set from the player's own
+-- older choices ("targetAuras.buffSpot" = true).
 function ns.UpgradeGroupFrames(p)
     if type(p) ~= "table" then return end
     if type(p.modules) ~= "table" then p.modules = {} end
@@ -511,8 +560,9 @@ function ns.UpgradeGroupFrames(p)
         uf = {}
         p.modules.UnitFrames = uf
     end
-    for i = (tonumber(uf.groupFrames) or 0) + 1, #ns.UPGRADE_STEPS do
-        ns.UPGRADE_STEPS[i](uf, p.positions, p.general)
+    local run = { from = tonumber(uf.groupFrames) or 0, picked = {} }
+    for i = run.from + 1, #ns.UPGRADE_STEPS do
+        ns.UPGRADE_STEPS[i](uf, p.positions, p.general, run)
         uf.groupFrames = i
     end
 end

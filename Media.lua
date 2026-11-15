@@ -1,10 +1,10 @@
 -- Shared media. Bar textures and fonts that other addons registered with
--- LibSharedMedia are offered next to ours in Appearance, and ours are
+-- LibSharedMedia are offered next to Daylight UI's in Appearance, and Daylight UI's are
 -- registered there for everyone else. Without the library (embedded in the
--- release and in many other addons) only our own are offered.
+-- release and in many other addons) only Daylight UI's own are offered.
 --
 -- A shared pick is saved as "lsm:<name>". Addons register media as they load,
--- some after us, so picks are looked up at use time and a late arrival
+-- some after Daylight UI, so picks are looked up at use time and a late arrival
 -- triggers a repaint.
 
 local _, DUI = ...
@@ -13,10 +13,10 @@ local Media = {}
 DUI.Media = Media
 
 Media.PREFIX = "lsm:"
-Media.OWN_BAR = "DaylightUI" -- our bar fill's name in the shared list
+Media.OWN_BAR = "DaylightUI" -- Daylight UI's bar fill's name in the shared list
 
--- Our other bar fills (from tools/make_bar_textures.py). Picked by key like
--- shared ones (Media.Fetch resolves them), listed right after ours, and
+-- Daylight UI's other bar fills (from tools/make_bar_textures.py). Picked by key like
+-- shared ones (Media.Fetch resolves them), listed right after Daylight UI's, and
 -- registered in the shared list as "DaylightUI <label>".
 Media.BARS = {
     { key = "silk", label = "Silk" },
@@ -35,7 +35,7 @@ for _, b in ipairs(Media.BARS) do
     Media.BAR_PICKS[#Media.BAR_PICKS + 1] = b.key
 end
 
--- Our own bar choices for a dropdown: fills values and order after
+-- Daylight UI's own bar choices for a dropdown: fills values and order after
 -- "daylight", and returns the shared names to leave out of the shared part.
 function Media.OwnBars(values, order)
     local skip = { [Media.OWN_BAR] = true }
@@ -70,7 +70,7 @@ function Media.Fetch(kind, key)
 end
 
 -- One kind's shared list as dropdown values ({ ["lsm:Name"] = "Name" }) and
--- names in order, skipping `skip` (our own, already offered).
+-- names in order, skipping `skip` (Daylight UI's own, already offered).
 function Media.List(kind, skip)
     local values, order, lsm = {}, {}, Media.Lib()
     if not lsm then return values, order end
@@ -162,7 +162,7 @@ function Media.ApplyToAll(kind)
     end
 end
 
--- Our windows' own slots (General > Appearance): their text and their bars (W.Bar).
+-- Daylight UI's windows' own slots (General > Appearance): their text and their bars (W.Bar).
 Media.RegisterSlot("windows.font", "general", "windowFont", "font")
 Media.RegisterSlot("windows.bar", "general", "windowBar", "bar")
 Media.RegisterSlot("windows.back", "general", "windowBack", "back")
@@ -185,7 +185,7 @@ function Media.AnyOwn(kind)
     return false
 end
 
--- Register our bar fills and bundled fonts in the shared lists.
+-- Register Daylight UI's bar fills and bundled fonts in the shared lists.
 local registered = false
 function Media.RegisterOwn()
     local lsm = Media.Lib()
@@ -197,7 +197,7 @@ function Media.RegisterOwn()
     end
     for _, key in ipairs(DUI.Style.FONT_ORDER) do
         local f = DUI.Style.FONTS[key]
-        -- Only the fonts we ship, not the client's.
+        -- Only the fonts the addon ships, not the client's.
         if f.file and string.find(f.file, DUI.MEDIA, 1, true) == 1 then
             pcall(lsm.Register, lsm, "font", f.label, f.file)
         end
@@ -218,8 +218,8 @@ local function usesShared(name)
     return false
 end
 
--- At login, register ours and repaint if a shared pick is in use (its addon
--- may have loaded after us). Later arrivals repaint too.
+-- At login, register Daylight UI's and repaint if a shared pick is in use (its addon
+-- may have loaded after Daylight UI). Later arrivals repaint too.
 local hooked = false
 function Media.Hook()
     Media.RegisterOwn()

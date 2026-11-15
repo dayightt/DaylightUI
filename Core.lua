@@ -253,7 +253,7 @@ end
 -- as is (tostring on one may error). The stack itself may come back secret
 -- once a secret was touched, and is dropped then so the report stays plain
 -- and each error keeps its own count.
-local function isSecretValue(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local function isSecretValue(v) return DUI.IsSecret(v) end
 local function withStack(err)
     if isSecretValue(err) then return err end
     if type(debugstack) == "function" then
@@ -269,6 +269,27 @@ end
 -- sees it once, and BugSack still learns how often it happened.
 local seen = {}
 local REPORT_AT = { [1] = true, [10] = true, [100] = true, [1000] = true }
+
+-- The session's errors for /dui bug, the latest last: one entry per message
+-- (its first line) with its count and the stack it last came with. The oldest
+-- drop off past ERROR_LOG_MAX.
+DUI.ERROR_LOG_MAX = 20
+local errorLog, errorIndex = {}, {}
+local function remember(key, n, stack)
+    local entry = errorIndex[key]
+    if entry then
+        for i = 1, #errorLog do
+            if errorLog[i] == entry then table.remove(errorLog, i); break end
+        end
+    else
+        entry = { text = key }
+        errorIndex[key] = entry
+    end
+    entry.count, entry.stack, entry.at = n, stack, time()
+    errorLog[#errorLog + 1] = entry
+    if #errorLog > DUI.ERROR_LOG_MAX then errorIndex[table.remove(errorLog, 1).text] = nil end
+end
+function DUI.Errors() return errorLog end
 
 local function report(ok, err, label)
     if not ok then
@@ -286,6 +307,7 @@ local function report(ok, err, label)
         local key = string.match(text, "^[^\n]*")
         local n = (seen[key] or 0) + 1
         seen[key] = n
+        remember(key, n, string.sub(text, #key + 2))
         if REPORT_AT[n] then
             geterrorhandler()(n == 1 and text or ("(seen " .. n .. " times) " .. text))
         end
@@ -325,14 +347,22 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     end
 end)
 
+-- Runs the handlers of a client event the client won't send for a change
+-- made from code (UIParent:SetScale fires no UI_SCALE_CHANGED).
+function DUI.RunEvent(event, ...)
+    if eventHandlers[event] then eventFrame:GetScript("OnEvent")(eventFrame, event, ...) end
+end
+
 -- last: run after every other handler of the event, whenever those were
 -- registered (the logout strip, so the others still see full settings).
+-- Returns false for an event this client doesn't have, instead of erroring,
+-- so callers can list events from other game versions without guarding each.
 function DUI.RegisterEvent(event, fn, last)
     local list = eventHandlers[event]
     if not list then
+        if not pcall(eventFrame.RegisterEvent, eventFrame, event) then return false end
         list = {}
         eventHandlers[event] = list
-        eventFrame:RegisterEvent(event)
     end
     if last then
         local tail = lastHandlers[event] or {}
@@ -340,6 +370,56 @@ function DUI.RegisterEvent(event, fn, last)
         tail[#tail + 1] = fn
     else
         list[#list + 1] = fn
+    end
+    return true
+end
+
+-- A unit event for the given units only (up to two, as the client allows). The
+-- client filters it, so the same event for every nameplate or raid member never
+-- reaches Lua. Handlers are called with (event, ...). Returns false for an
+-- event this client doesn't have.
+local unitEventFrames = {}
+function DUI.RegisterUnitEvent(event, fn, unit1, unit2)
+    local key = event .. ":" .. tostring(unit1) .. ":" .. tostring(unit2)
+    local e = unitEventFrames[key]
+    if not e then
+        local f = CreateFrame("Frame")
+        local ok
+        if unit2 then
+            ok = pcall(f.RegisterUnitEvent, f, event, unit1, unit2)
+        else
+            ok = pcall(f.RegisterUnitEvent, f, event, unit1)
+        end
+        if not ok then return false end
+        local list = {}
+        e = { frame = f, list = list }
+        f:SetScript("OnEvent", function(_, ev, ...)
+            for i = 1, #list do DUI.SafeCall(list[i], ev, ...) end
+        end)
+        unitEventFrames[key] = e
+    end
+    e.list[#e.list + 1] = fn
+    return true
+end
+
+-- Whether v is a secret value. Every file that handles game values reads it
+-- through here, so there's one place to change if the client's rules move.
+function DUI.IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v) == true
+end
+
+-- Wraps fn so that however many times the result is called in one frame, fn
+-- runs once, on the next frame. For handlers that react to bursts of events.
+function DUI.Soon(fn)
+    local armed = false
+    local function run()
+        armed = false
+        fn()
+    end
+    return function()
+        if armed then return end
+        armed = true
+        C_Timer.After(0, run)
     end
 end
 
@@ -725,6 +805,7 @@ function DUI:Set(scope, path, value)
     local t = scopeTable(scope)
     if not t then return false end
     DUI.DB.SetPath(t, path, value)
+    DUI.DB.Keep()
     if scope == "general" then
         if not DUI.NoRepaint(path) then DUI.NotifyStyleChanged() end
     else
@@ -897,6 +978,7 @@ local function blocked(_, addon, fn)
     local key = tostring(fn)
     if reportedBlock[key] then return end
     reportedBlock[key] = true
+    remember(string.format("the game blocked %s (%s)", key, addon), 1)
     DUI.Print(string.format(L["the game blocked %s (%s). Please report this."], key, addon))
     -- Where it came from, for the first one only (the rest share the cause), and
     -- only with the dev addon loaded. Players get one line, not a wall of stack

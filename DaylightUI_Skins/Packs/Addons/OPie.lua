@@ -19,6 +19,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Engine = ns.Engine
 local Style, Pixel, Motion = DUI.Style, DUI.Pixel, DUI.Motion
 
@@ -90,7 +91,6 @@ local function kit()
     return type(A) == "table" and A or Fallback
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 -- OPie may pass a secret flag in combat, so let the client pick the alpha.
 local function alphaFrom(region, flag, on)
     if secret(flag) then
@@ -476,7 +476,7 @@ Engine.Register({ key = "opie", pack = "addons", addon = ADDON, switch = "opie",
         CreateIndicator = OPieSkin.Create,
         supportsShortLabels = true,
     })
-    -- OPie refused our buttons (a newer OPie wants more): report it in chat,
+    -- OPie refused the skin's buttons (a newer OPie wants more): report it in chat,
     -- and OPie keeps its own.
     if not ok then error(tostring(err)) end
     DUI.On("ActionButtonLookChanged", Engine.Safe(def, OPieSkin.RestyleAll))

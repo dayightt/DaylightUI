@@ -156,8 +156,12 @@ function Npc.Accept()
     local d = S.data
     if not d then return end
     if S.sample then return Npc.Close() end
-    if d.pvp and type(StaticPopup_Show) == "function" then
-        StaticPopup_Show("CONFIRM_ACCEPT_PVP_QUEST")   -- the game's own confirmation; yes accepts
+    if d.pvp then
+        -- The game's own question (CONFIRM_ACCEPT_PVP_QUEST): yes accepts, no declines.
+        DUI.Widgets.Ask({ key = "pvpQuest", text = CONFIRM_ACCEPT_PVP_QUEST or L["Accepting this quest will flag you for PvP. Accept anyway?"],
+            yes = ACCEPT or L["Accept"], no = CANCEL or L["Cancel"],
+            onYes = function() AcceptQuest() end,
+            onNo = function() if type(DeclineQuest) == "function" then DeclineQuest() end end })
         return
     end
     if not firstPress() then return end
@@ -681,10 +685,15 @@ function Npc.OnEvent(_, event, ...)
         if not (Npc.frames and Npc.frames.trainer) then return end
         -- Beast Training (a hunter spell, no NPC) keeps the game's window.
         local T = Enum and Enum.TrainerType
+        -- The Skins module hears "TrainerLent" and dresses the game's window then.
         if T and C_Trainer and C_Trainer.GetTrainerType and C_Trainer.GetTrainerType() == T.Pet then
-            if not Win.Followers.Lend(Npc.follow, "trainer") then
-                DUI.AfterCombat(function() Win.Followers.Lend(Npc.follow, "trainer") end, "npc:lendTrainer")
+            local function lend()
+                if not Win.Followers.Lend(Npc.follow, "trainer") then return false end
+                ns.trainerLent = true
+                DUI.Fire("TrainerLent")
+                return true
             end
+            if not lend() then DUI.AfterCombat(lend, "npc:lendTrainer") end
             return
         end
         Npc.Want("trainer", event)

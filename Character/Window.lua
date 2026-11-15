@@ -38,7 +38,7 @@ Window.PAGES = {
 
 Window.EVENTS = { "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "UPDATE_INVENTORY_DURABILITY", "UNIT_STATS",
     "UNIT_ATTACK_POWER", "UNIT_RANGED_ATTACK_POWER", "UNIT_ATTACK_SPEED", "UNIT_DAMAGE", "UNIT_RANGEDDAMAGE",
-    "UNIT_RESISTANCES", "COMBAT_RATING_UPDATE", "PLAYER_LEVEL_UP", "KNOWN_TITLES_UPDATE", "EQUIPMENT_SETS_CHANGED",
+    "UNIT_RESISTANCES", "COMBAT_RATING_UPDATE", "PLAYER_LEVEL_UP", "KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE", "EQUIPMENT_SETS_CHANGED",
     "CURSOR_CHANGED", "CURRENT_SPELL_CAST_CHANGED", "UNIT_MODEL_CHANGED", "GET_ITEM_INFO_RECEIVED", "PLAYER_REGEN_ENABLED",
     "PLAYER_REGEN_DISABLED", "PLAYER_MOUNT_DISPLAY_CHANGED",   -- mounting changes movement speed
     "UNIT_MAXHEALTH", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER", "UNIT_SPELL_HASTE", "SPELL_POWER_CHANGED" }
@@ -153,7 +153,8 @@ end
 function Window.PaintHeader()
     local f = ns.window
     local className, token = UnitClass("player")
-    f.nameText:SetText(DUI.UnitName("player", "character") or "")   -- first and last name, per its own setting
+    local name = DUI.UnitName("player", "character") or ""   -- first and last name, per its own setting
+    f.nameText:SetText(ns.Menus and ns.Menus.WithTitle(name) or name)
     if token then f.nameText:SetTextColor(Style.ClassColor(token)) else Style.InkText(f.nameText, "VALUE") end
     local w = f.nameText:GetStringWidth()
     f.nameButton:SetWidth(type(w) == "number" and math.max(1, w) or 1)
@@ -275,7 +276,7 @@ end
 -- The Character page listens to Window.EVENTS (gear, stats, model). Other pages
 -- only get their own `events`. These go to every page: level for the header,
 -- and combat start/end for what locks.
-Window.SHARED = { PLAYER_LEVEL_UP = true, PLAYER_REGEN_ENABLED = true, PLAYER_REGEN_DISABLED = true }
+Window.SHARED = { PLAYER_LEVEL_UP = true, UNIT_NAME_UPDATE = true, PLAYER_REGEN_ENABLED = true, PLAYER_REGEN_DISABLED = true }
 local NO_EVENTS = {}
 
 -- Unit events some page also wants for your pet (its `petEvents`).

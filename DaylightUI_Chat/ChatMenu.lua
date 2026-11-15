@@ -1,12 +1,12 @@
 -- The game's chat menu (language, emotes, say, yell...). The side buttons are
 -- hidden by default, so the game's own menu button sits invisibly over an icon
 -- in the Daylight box's header and takes the click itself.
--- A menu of our own can't replace it: the language lives on the game's edit box,
+-- A separate menu can't replace it: the language lives on the game's edit box,
 -- and setting it from addon code taints everything the box sends. Picked with a
 -- real click in the game's menu, it stays clean.
 --
 -- The button is seated only once the game has set your language. Showing it runs
--- its OnShow from our code, and with no language yet that OnShow writes the first
+-- its OnShow from addon code, and with no language yet that OnShow writes the first
 -- one (ChatFrameMenuButtonMixin.ValidateSelectedLanguage). For the same reason it
 -- stays shown and only its mouse input is toggled.
 

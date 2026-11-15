@@ -21,7 +21,7 @@ PA.KINDS = { Item = "itemPanels", Spell = "spellPanels", Unit = "unitPanels", Co
 
 local function isTable(x) return type(x) == "table" end
 local function plain(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if DUI.IsSecret(v) then return nil end
     return v
 end
 

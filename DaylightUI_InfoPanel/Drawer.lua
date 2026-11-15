@@ -191,7 +191,7 @@ local function skin(btn)
         icon:SetVertexColor(1, 1, 1)
         icon:SetAlpha(1)
         if icon.SetDesaturated then icon:SetDesaturated(false) end
-        -- LibDBIcon re-crops the icon on press; keep our crop.
+        -- LibDBIcon re-crops the icon on press; keep Daylight UI's crop.
         if cropped and icon.UpdateCoord then
             icon.UpdateCoord = function(self) self:SetTexCoord(c[1], c[2], c[3], c[4]) end
         end
@@ -258,7 +258,7 @@ local function runEntry(data, owner)
     DUI.SafeCall(data.func, owner, { context = ctx, buttonName = "LeftButton" }, owner, nil, "LeftButton")
 end
 
--- The square that shows the addon compartment as our own menu.
+-- The square that shows the addon compartment as Daylight UI's own menu.
 local function menuHeld()
     local W = DUI.Widgets
     return Drawer.more ~= nil and W.menuOwner == Drawer.more.button

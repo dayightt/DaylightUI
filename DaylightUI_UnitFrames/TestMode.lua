@@ -19,10 +19,10 @@ ns.Test = Test
 Test.UNITS = { "target", "focus", "pet", "targettarget", "focustarget" }
 
 Test.SAMPLES = {
-    target = { name = "Sadeas", reaction = 2, health = 62, healthValue = 3120, power = 45, powerToken = "MANA",
+    target = { name = "Sadeas", reaction = 2, health = 62, healthValue = 3120, power = 45, powerValue = 1800, powerToken = "MANA",
                classification = "elite", marker = 8, portraitClass = "WARRIOR", threat = "aggro", threatPct = 100, level = 27,
                dots = 24, dotSkull = true },
-    focus = { name = "Navani", class = "PRIEST", health = 70, healthValue = 1840, power = 70, powerToken = "MANA",
+    focus = { name = "Navani", class = "PRIEST", health = 70, healthValue = 1840, power = 70, powerValue = 1680, powerToken = "MANA",
               marker = 4, portraitClass = "PRIEST", heals = 12, absorbs = 8, level = 25, leader = true },
     pet = { name = "Syl", reaction = 5, health = 91, healthValue = 880, portraitClass = "HUNTER" },
     targettarget = { class = "self", health = 100, healthValue = 4100 },
@@ -31,7 +31,7 @@ Test.SAMPLES = {
 
 Test.CASTS = {
     player = { text = DUI.L["Holy Light"], value = 0.6, icon = "Interface\\Icons\\Spell_Holy_HolyBolt" },
-    target = { text = DUI.L["Shadow Bolt"], value = 0.35 },
+    target = { text = DUI.L["Shadow Bolt"], value = 0.35, kick = 0.8 },
 }
 
 Test.COMBO = 3
@@ -41,18 +41,18 @@ Test.COMBO = 3
 local I = "Interface\\Icons\\"
 Test.AURAS = {
     debuffs = {
-        { icon = I .. "Spell_Shadow_ShadowWordPain", time = "14s", dispel = "Magic" },
-        { icon = I .. "Spell_Shadow_CurseOfSargeras", time = "22s", dispel = "Curse", cure = true },
-        { icon = I .. "Ability_Gouge", time = "9s", count = 3, dispel = "Bleed" },
-        { icon = I .. "Spell_Nature_CorrosiveBreath", time = "1m", dispel = "Poison" },
-        { icon = I .. "Spell_Shadow_AbominationExplosion", time = "3m", dispel = "Disease" },
+        { icon = I .. "Spell_Shadow_ShadowWordPain", time = "14s", dispel = "Magic", left = 0.5 },
+        { icon = I .. "Spell_Shadow_CurseOfSargeras", time = "22s", dispel = "Curse", cure = true, left = 0.7 },
+        { icon = I .. "Ability_Gouge", time = "9s", count = 3, dispel = "Bleed", left = 0.3 },
+        { icon = I .. "Spell_Nature_CorrosiveBreath", time = "1m", dispel = "Poison", left = 0.8, long = true },
+        { icon = I .. "Spell_Shadow_AbominationExplosion", time = "3m", dispel = "Disease", left = 0.9, long = true },
     },
     buffs = {
-        { icon = I .. "Spell_Holy_WordFortitude", time = "29m" },
-        { icon = I .. "Spell_Nature_Regeneration", time = "13m" },
-        { icon = I .. "Spell_Holy_MagicalSentry", time = "44m" },
-        { icon = I .. "Ability_Warrior_BattleShout", time = "2m" },
-        { icon = I .. "Spell_Holy_PowerWordShield", time = "19s", purge = "Magic" },
+        { icon = I .. "Spell_Holy_WordFortitude", time = "29m", left = 0.95, long = true },
+        { icon = I .. "Spell_Nature_Regeneration", time = "13m", left = 0.4, long = true },
+        { icon = I .. "Spell_Holy_MagicalSentry", time = "44m", left = 0.75, long = true },
+        { icon = I .. "Ability_Warrior_BattleShout", time = "2m", left = 0.1, long = true },
+        { icon = I .. "Spell_Holy_PowerWordShield", time = "19s", purge = "Magic", left = 0.6 },
     },
 }
 
@@ -101,6 +101,12 @@ function Test.Start()
         ns.Auras.ShowSample(ns.auras, ns.frames.target, cfg.targetAuras, Test.AURAS)
     end
     -- The player frame's own rows, only once switched on.
+    if ns.focusAuras and cfg and ns.frames.focus.test then
+        ns.Auras.ShowSample(ns.focusAuras, ns.frames.focus, cfg.focusAuras, Test.AURAS)
+    end
+    if ns.petAuras and cfg and ns.frames.pet.test then
+        ns.Auras.ShowSample(ns.petAuras, ns.frames.pet, cfg.petAuras, Test.AURAS)
+    end
     if ns.playerAuras and cfg then
         ns.Auras.ShowSample(ns.playerAuras, ns.frames.player, cfg.playerAuras, Test.AURAS)
     end
@@ -145,6 +151,8 @@ function Test.Stop()
     ns.Happiness.HideSample(ns.happiness)
     if ns.auras then ns.Auras.HideSample(ns.auras) end
     if ns.playerAuras then ns.Auras.HideSample(ns.playerAuras) end
+    if ns.focusAuras then ns.Auras.HideSample(ns.focusAuras) end
+    if ns.petAuras then ns.Auras.HideSample(ns.petAuras) end
     DUI.AfterCombat(function()
         local cfg = db()
         for _, spec in ipairs(ns.SPECS) do

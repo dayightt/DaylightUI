@@ -61,7 +61,7 @@ local function apply(on, keep)
     end, "qol:sparkles")
 end
 
--- A graphics change (the player's or a preset's): set ours again once it settles.
+-- A graphics change (the player's or a preset's): apply the sparkle setting again once it settles.
 local function onCVar(_, name)
     if not wanted() or pending or type(name) ~= "string" or not watched[name:lower()] then return end
     pending = true

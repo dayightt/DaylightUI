@@ -76,9 +76,14 @@ end
 -- The bindings (this character, one list per talent set)
 
 -- With Clique loaded, Clique handles click-casting and nothing is written here.
+-- The Forever port of Clique loads as CliqueForever.
+CC.CLIQUE = { "Clique", "CliqueForever" }
 function CC.Stepped()
-    return C_AddOns ~= nil and type(C_AddOns.IsAddOnLoaded) == "function"
-        and C_AddOns.IsAddOnLoaded("Clique") == true
+    if not (C_AddOns ~= nil and type(C_AddOns.IsAddOnLoaded) == "function") then return false end
+    for _, name in ipairs(CC.CLIQUE) do
+        if C_AddOns.IsAddOnLoaded(name) == true then return true end
+    end
+    return false
 end
 
 -- The talent set's list (the active one when not given). Read-only while
@@ -342,6 +347,7 @@ function CC.EachFrame(fn)
         for _, b in ns.Group.Buttons() do
             fn(b)
             if b.pet then fn(b.pet) end   -- a party member's pet (PartyPets.lua)
+            if b.ptarget then fn(b.ptarget) end   -- and their target (PartyTargets.lua)
         end
         for _, g in ipairs(ns.Group.all) do
             for _, b in ipairs(g.bare) do fn(b) end   -- made ahead, not set up yet

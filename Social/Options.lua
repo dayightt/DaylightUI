@@ -17,5 +17,13 @@ ns.OPTIONS = { pages = {
               desc = "How big the window is." },
             backRows[1], backRows[2],
         } },
+        { label = "Friends", items = {
+            { type = "toggle", key = "friendFactions", label = "Faction icons", since = "1.7.2",
+              desc = "A small Alliance or Horde banner before each friend's character, and their faction in the tooltip." },
+            { type = "toggle", key = "friendDim", label = "Dim friends you can't play with", since = "1.7.2",
+              desc = "Friends in another game or on another ruleset show dimmed, like the ones who are offline." },
+            { type = "toggle", key = "friendChips", label = "Filter chips", since = "1.7.2",
+              desc = "All, Same game and Online chips over the friends list, to show only the friends you can play with or the ones who are on." },
+        } },
     } },
 } }

@@ -45,7 +45,7 @@ function Gossip.OnShow()
     -- The game already presses buttons the server flags for it.
     if not isService(o) or o.selectOptionWhenOnlyOption then return end
     pickedThisTalk = true
-    if type(DaylightUI.TalkAnswered) == "function" then DaylightUI.TalkAnswered("GOSSIP_SHOW") end   -- our NPC window stays shut
+    if type(DaylightUI.TalkAnswered) == "function" then DaylightUI.TalkAnswered("GOSSIP_SHOW") end   -- the Daylight NPC window stays shut
     C.SelectOptionByIndex(o.orderIndex or 1)
 end
 

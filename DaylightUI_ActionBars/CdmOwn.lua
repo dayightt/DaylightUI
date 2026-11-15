@@ -1,9 +1,10 @@
 -- Icons for spells the player knows but the game's Cooldown Manager doesn't display
 -- (set to "Not Displayed"). The game builds no item frame for those, so a placed one
--- gets a frame of ours with a cooldown swipe.
+-- gets a Daylight UI frame with a cooldown swipe.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local Own = {}
@@ -39,7 +40,7 @@ function Own.Entry(id, known)
 end
 for _, e in ipairs({ "SPELLS_CHANGED", "ACTIVE_TALENT_GROUP_CHANGED", "PLAYER_SPECIALIZATION_CHANGED",
                      "PLAYER_TALENT_UPDATE", "COOLDOWN_VIEWER_DATA_LOADED", "COOLDOWN_VIEWER_TABLE_HOTFIXED" }) do
-    pcall(DUI.RegisterEvent, e, Own.Forget)
+    DUI.RegisterEvent(e, Own.Forget)
 end
 
 function Own.Read()
@@ -54,7 +55,7 @@ function Own.Read()
             if ok and type(ids) == "table" then
                 for _, id in ipairs(ids) do
                     -- In two categories the cooldown one wins (pairs order isn't fixed).
-                    local had = type(id) == "number" and not (issecretvalue and issecretvalue(id)) and out[id]
+                    local had = type(id) == "number" and not isSecret(id) and out[id]
                     if had == nil or (had and had.aura and not AURA[name]) then
                         out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false, cat = name }
                     end
@@ -87,8 +88,19 @@ function Own.HasAura(id, k)
 end
 
 function Own.Track(id, p, known)
+    local C = ns.CdmCustom
+    if C and C.Is(id) then
+        -- A spell of the addon's own list shows one thing (CdmCustom.Track), or both.
+        return C.Track(id) == "both" and "both" or nil
+    end
     local k = (known or Own.Known())[id]
-    if not (k and Own.HasAura(id, k)) then return nil end
+    if not k then return nil end
+    -- No buff known yet: a plain cooldown, unless the player picked something else.
+    -- The buff is watched by the spell's own id until a cast teaches the real one.
+    if not Own.HasAura(id, k) then
+        local t = Own.Picked(p)
+        return t ~= "cooldown" and t or nil
+    end
     local t = Own.Picked(p)
     if t then return t end
     -- The game's icon never shows a quiet aura, so left alone it stays a cooldown
@@ -136,7 +148,7 @@ function Own.Learned(sid) return sid ~= nil and learned()[sid] == true end
 -- Placed spells with an aura whose cooldown is still unknown, checked on each
 -- cooldown update (a short list, usually empty). Rebuilt after a layout change
 -- (Data.version) or a talent set swap.
-local function plainNum(v) if type(v) == "number" and not (issecretvalue and issecretvalue(v)) then return v end end
+local function plainNum(v) if type(v) == "number" and not isSecret(v) then return v end end
 function Own.Learn()
     if not (ns.Cooldowns and ns.Cooldowns.enabled) then return end
     local set = ns.CdmData and ns.CdmData.Current()
@@ -156,7 +168,7 @@ function Own.Learn()
         local ok, cd = pcall(C_Spell.GetSpellCooldown, sid)
         local dur = ok and type(cd) == "table" and plainNum(cd.duration)
         local gcd = ok and type(cd) == "table" and cd.isOnGCD
-        if dur and dur > 1.6 and not (issecretvalue and issecretvalue(gcd)) and gcd ~= true then
+        if dur and dur > 1.6 and not isSecret(gcd) and gcd ~= true then
             learned()[sid] = true
             table.remove(unsure, i)
             got = true
@@ -170,14 +182,14 @@ end
 DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() DUI.SafeCall(Own.Learn) end)
 
 -- The spell has a real cooldown (longer than the global cooldown): the game's base
--- cooldown, else one we've seen it run.
+-- cooldown, else one it was seen to run.
 function Own.HasCooldown(sid)
     if not sid then return false end
     if Own.Learned(sid) then return true end
     local get = _G.GetSpellBaseCooldown or (C_Spell and C_Spell.GetSpellBaseCooldown)
     if type(get) ~= "function" then return false end
     local ok, ms = pcall(get, sid)
-    if not ok or type(ms) ~= "number" or (issecretvalue and issecretvalue(ms)) then return false end
+    if not ok or type(ms) ~= "number" or isSecret(ms) then return false end
     return ms > 1500
 end
 
@@ -189,7 +201,7 @@ local function infoOf(id)
 end
 
 local function plainNumber(v)
-    if type(v) == "number" and not (issecretvalue and issecretvalue(v)) then return v end
+    if type(v) == "number" and not isSecret(v) then return v end
 end
 
 function Own.SpellOf(id)
@@ -200,21 +212,117 @@ function Own.SpellOf(id)
 end
 
 -- A cooldown with a buff or debuff the game's icon doesn't show (Bloodrage). Either
--- the game says it has an aura but flags it HideAura, or it says none and our spell
+-- the game says it has an aura but flags it HideAura, or it says none and Daylight UI's spell
 -- list (CdmSpells) knows one. It can still be picked on the card.
+-- Racials the game files with no aura though they give a buff. Eureka! (Gnome) has
+-- one rank per power type, and its buff carries the same spell id.
+Own.RACIAL_AURAS = {
+    [1259812] = true, [1259813] = true, [1259817] = true, [1259821] = true, [1259823] = true, -- Eureka!
+}
+
 function Own.QuietAura(id)
     local C = ns.CdmCustom
     if C and C.Is(id) then return false end
     if ns.CdmAuras and ns.CdmAuras.Follows(id) then return false end
     local info = infoOf(id)
-    if info and not (issecretvalue and issecretvalue(info.hasAura)) and info.hasAura == true then return true end
+    if info and not isSecret(info.hasAura) and info.hasAura == true then return true end
     local sid = info and plainNumber(info.spellID)
-    return sid ~= nil and C ~= nil and C.KeyOfAuraSpell(sid) ~= nil
+    if sid ~= nil and Own.RACIAL_AURAS[sid] then return true end
+    return sid ~= nil and ((C ~= nil and C.KeyOfAuraSpell(sid) ~= nil) or Own.AuraOf(sid) ~= nil)
 end
+
+-- Buffs and debuffs learned from your own casts, per character:
+-- DB.Character().cdmAuraIDs[cast spell id] = { [aura spell id] = true }. Nothing
+-- lists every spell's aura, so a placed spell's cast where auras can be read looks
+-- for it, by id and by name (the aura's id can differ from the cast's).
+local function auraBook()
+    local c = DUI.DB and DUI.DB.Character()
+    if type(c) ~= "table" then return {} end
+    if type(c.cdmAuraIDs) ~= "table" then c.cdmAuraIDs = {} end
+    return c.cdmAuraIDs
+end
+
+-- { [aura spell id] = true } learned for this cast spell id, or nil.
+function Own.AuraOf(sid)
+    local t = sid ~= nil and auraBook()[sid]
+    return type(t) == "table" and next(t) ~= nil and t or nil
+end
+
+-- Spell ids of every placed piece, as { [cast spell id] = true }.
+local function placedSpells()
+    local set = ns.CdmData and ns.CdmData.Current()
+    local out = {}
+    local C = ns.CdmCustom
+    for id in pairs(set and set.pieces or {}) do
+        if C and C.Is(id) then
+            if not C.IsPet(id) then
+                for s in pairs(C.Ranks(id)) do out[s] = true end
+            end
+        else
+            local s = Own.SpellOf(id)
+            if s then out[s] = true end
+        end
+    end
+    return out
+end
+
+-- Your aura from this cast: on you, then your own on the target. By id first,
+-- then by the spell's name.
+local LOOKS = { { unit = "player", filter = "HELPFUL" }, { unit = "target", filter = "HARMFUL|PLAYER" } }
+local function auraFrom(sid)
+    local U = C_UnitAuras
+    if type(U) ~= "table" then return nil end
+    local name
+    local okN, n = pcall(C_Spell.GetSpellName, sid)
+    if okN and type(n) == "string" and not isSecret(n) then name = n end
+    for _, look in ipairs(LOOKS) do
+        local a
+        if type(U.GetUnitAuraBySpellID) == "function" then
+            local ok, got = pcall(U.GetUnitAuraBySpellID, look.unit, sid)
+            -- On the target, only your own debuff.
+            if ok and type(got) == "table" and (look.unit == "player"
+                or got.isFromPlayerOrPlayerPet == true or got.sourceUnit == "player") then
+                a = got
+            end
+        end
+        if not a and name and type(U.GetAuraDataBySpellName) == "function" then
+            local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, name, look.filter)
+            if ok and type(got) == "table" then a = got end
+        end
+        local found = a and plainNumber(a.spellId)
+        if found then return found end
+    end
+end
+
+-- After a cast of a placed spell, out of a fight: remember the aura it put up.
+Own.AURA_LOOK_DELAY = 0.3
+function Own.LearnAura(sid)
+    if not (ns.Cooldowns and ns.Cooldowns.enabled) then return end
+    local A = ns.CdmAuras
+    if not (A and A.Readable and A.Readable()) then return end
+    if not placedSpells()[sid] then return end
+    local found = auraFrom(sid)
+    if not found then return end
+    local book = auraBook()
+    if type(book[sid]) == "table" and book[sid][found] then return end
+    book[sid] = type(book[sid]) == "table" and book[sid] or {}
+    book[sid][found] = true
+    known = nil
+    A.Rebuild()
+    if ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
+local casts = CreateFrame("Frame")
+casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+casts:SetScript("OnEvent", function(_, _, _, _, sid)
+    if type(sid) ~= "number" or isSecret(sid) or InCombatLockdown() then return end
+    -- The aura lands a moment after the cast event.
+    C_Timer.After(Own.AURA_LOOK_DELAY, function() DUI.SafeCall(Own.LearnAura, sid) end)
+end)
 
 -- Cooldowns whose buff holds charges, every rank. The game's cooldown icon shows the
 -- buff but never its count (its cooldown items only draw spell charges, see
--- CooldownViewer.lua), so ours draws them, with the client's aura button counting
+-- CooldownViewer.lua), so Daylight UI draws them, with the client's aura button counting
 -- the charges left.
 local STACKS = {
     [2565] = true,                                 -- Shield Block
@@ -310,7 +418,7 @@ function Own.UpdateAll()
     for _, f in pairs(frames) do
         if f:IsShown() then Own.Update(f) end
     end
-    -- Our cooldown bars (CdmBars) follow the same events.
+    -- Daylight UI's cooldown bars (CdmBars) follow the same events.
     if ns.CdmBars then ns.CdmBars.UpdateAll() end
 end
 
@@ -386,7 +494,7 @@ function Own.Placeholder(id, parent, kind, bright)
             f.Bar:SetMinMaxValues(0, 1)
             f.Bar:SetValue(0)
             DUI.Style.TrackBar(f.Bar, nil, ns.MEDIA.bars.cdm)
-            -- Our own dark empty bar. The game bars' skin leaves its backdrop
+            -- Daylight UI's own dark empty bar. The game bars' skin leaves its backdrop
             -- untinted here, and it came out white.
             local back = f.Bar:CreateTexture(nil, "BACKGROUND", nil, -8)
             back:SetAllPoints()
@@ -402,7 +510,7 @@ function Own.Placeholder(id, parent, kind, bright)
         if kind == "bar" then
             f.Icon:SetAlpha(0)
         elseif ns.Cooldowns and ns.Cooldowns.SkinItem then
-            -- An icon wears the layout's look like our cooldown icons: border,
+            -- An icon wears the layout's look like Daylight UI's cooldown icons: border,
             -- crop, shade and shape, with the grayed icon inside the border.
             DUI.SafeCall(ns.Cooldowns.SkinItem, f)
         end
@@ -461,4 +569,4 @@ end
 function Own.PlaceholderFrame(id, kind) return holds[id .. kind] end
 
 -- Cooldown and charge events: CdmEffects' single pass on the next frame (Fx.Soon)
--- updates our icons too.
+-- updates Daylight UI's icons too.

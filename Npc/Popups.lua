@@ -79,7 +79,7 @@ end
 
 -- Wait a frame: the game fills the popup after showing it.
 function P.Soon()
-    if C_Timer and C_Timer.After then C_Timer.After(0, P.Update) else P.Update() end
+    C_Timer.After(0, P.Update)
 end
 
 function P.Enable()

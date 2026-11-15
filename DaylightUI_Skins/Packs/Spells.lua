@@ -7,7 +7,7 @@ local Engine = ns.Engine
 
 
 -- A profession panel on the overview page (name, spells, skill bar): art
--- removed, row look, our font.
+-- removed, row look, the Daylight font.
 local function professionPanel(Kit, panel)
     if not Kit.ShellOf(panel) then
         Kit.Strip(panel)
@@ -37,7 +37,7 @@ local function professionPanels(Kit, frame, depth)
     for _, c in ipairs({ frame:GetChildren() }) do professionPanels(Kit, c, depth + 1) end
 end
 
--- The professions book: each profession panel gets the row look and our font.
+-- The professions book: each profession panel gets the row look and the Daylight font.
 -- Its skill bars are drawn their own way and left alone.
 local PROFESSION_PANELS = { "PrimaryProfession1", "PrimaryProfession2",
                             "SecondaryProfession1", "SecondaryProfession2", "SecondaryProfession3" }

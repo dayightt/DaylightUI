@@ -47,7 +47,11 @@ local SHOWN = {
     weapon = L["Weapon"], consumable = L["Consumable"], world = L["World"], other = L["Other"],
 }
 local SHIPPED_NAME = {}
-for _, def in ipairs(SHIPPED) do SHIPPED_NAME[def.id] = def.name end
+local CLASS = {}
+for _, def in ipairs(SHIPPED) do
+    SHIPPED_NAME[def.id] = def.name
+    if def.token then CLASS[def.id] = true end
+end
 
 -- Public, read-only view of the shipped list (colors resolved).
 Categories.DEFAULTS = {}
@@ -140,6 +144,21 @@ end
 
 function Categories.Order()
     return BL.DB.categoryOrder
+end
+
+-- Whether a category holds one class's buffs (Warrior, Mage...).
+function Categories.IsClass(id)
+    return id ~= nil and CLASS[id] == true and Categories.Exists(id)
+end
+
+-- With each kind on its own row: whether the category at this spot in the
+-- order starts a new row. Class categories next to each other share one row,
+-- every other category starts its own. Index 0 is the weapon enchants, which
+-- come first.
+function Categories.StartsRow(index)
+    local order = Categories.Order()
+    if not Categories.IsClass(order[index]) then return true end
+    return not Categories.IsClass(order[index - 1])
 end
 
 function Categories.Exists(id)

@@ -342,6 +342,52 @@ local function makeBind(page)
     return t
 end
 
+-- Clique puts its own tab on the game's spellbook, which this window covers,
+-- so the page carries a link to Clique's bindings window instead. Both the
+-- original addon and its Forever port name their addon table after the folder.
+Spells.CLIQUE = { "Clique", "CliqueForever" }
+
+function Spells.Clique()
+    local A = C_AddOns
+    if not (A and type(A.IsAddOnLoaded) == "function") then return nil end
+    for _, name in ipairs(Spells.CLIQUE) do
+        local addon = _G[name]
+        if A.IsAddOnLoaded(name) == true and type(addon) == "table"
+            and type(addon.ShowBindingConfig) == "function" then
+            return addon
+        end
+    end
+    return nil
+end
+
+-- Clique's window takes the book's place, as its own spellbook tab does.
+-- In a fight Clique refuses with a message of its own, and the book stays.
+function Spells.OpenClique()
+    local addon = Spells.Clique()
+    if not addon then return end
+    local ok = pcall(addon.ShowBindingConfig, addon)
+    if ok and not InCombatLockdown() and ns.Window then ns.Window.Close() end
+end
+
+local function makeClique(page)
+    local link = DUI.Widgets.Link(page)
+    link.SetLabel(L["Open Clique"])
+    link:SetScript("OnClick", function() Spells.OpenClique() end)
+    link:Hide()
+    return link
+end
+
+-- Where the Click-cast button would be, or just left of it when both show.
+local function placeClique(page)
+    local link = page.clique
+    link:ClearAllPoints()
+    if page.bind:IsShown() then
+        link:SetPoint("RIGHT", page.bind, "LEFT", -12, 0)
+    else
+        link:SetPoint("RIGHT", page, "BOTTOMRIGHT", -Spells.EDGE - 4, 21)
+    end
+end
+
 -- ---------------------------------------------------------------------
 -- Page
 -- ---------------------------------------------------------------------
@@ -377,6 +423,8 @@ local function paintSwitch(b)
     b.sw.SetOn(ns.Setting("hideLowRanks") ~= false)
 end
 
+local layoutChips
+
 function Spells.Build(page)
     Spells.page = page
     if ns.Cast then ns.Cast.Init() end
@@ -389,6 +437,7 @@ function Spells.Build(page)
     page.stack = Win.Parts.Stack(page, { top = Spells.TOP, bottom = Spells.FOOT })
     page.switch = makeSwitch(page)
     page.bind = makeBind(page)
+    page.clique = makeClique(page)
     DUI.On("ClickCastChanged", function() Spells.BindMode(DUI.ClickBind and DUI.ClickBind.On()) end)
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
@@ -404,6 +453,9 @@ function Spells.Build(page)
         DUI.RegisterEvent(e, function() Spells.Soon() end)
     end
     DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() Spells.Cooldowns() end)
+    -- The search box follows the page's edge while the window is resized, so
+    -- the chips are fitted again then, not only once the drag ends.
+    page:HookScript("OnSizeChanged", function() if Spells.data then layoutChips(page) end end)
 end
 
 -- Spell events arrive in bursts, so refill once on the next frame, and only
@@ -458,10 +510,7 @@ local function makeHead(parent)
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
     b.state = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.state:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 3)
-    b.line = b:CreateTexture(nil, "ARTWORK")
-    b.line:SetTexture(WHITE)
-    b.line:SetVertexColor(1, 1, 1, 0.06)
-    b.line:SetHeight(1)
+    b.line = Win.Parts.Rule(b)
     b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     b.line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
     b.isSection = true
@@ -565,7 +614,7 @@ local function makeMore(page)
     return b
 end
 
-local function layoutChips(page)
+function layoutChips(page)
     local w = page:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.Window.SIZE.spells[1] end
     local room = w - 2 * Spells.EDGE - 160
@@ -589,6 +638,8 @@ local function layoutChips(page)
         more.SetLabel(L["More"], 0)
         spare = room - more:GetWidth() - gap
     end
+    local M = DUI.Motion
+    local lit = Spells.frozen and Spells.REST or 1   -- a fight keeps them dimmed
     local x, folded = Spells.EDGE, {}
     for i, section in ipairs(sections) do
         local c = page.chips[i]
@@ -596,13 +647,28 @@ local function layoutChips(page)
         c:ClearAllPoints()
         c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
         local fits = #folded == 0 and x + cw - Spells.EDGE <= spare
-        c:SetShown(fits)
+        -- A chip coming back out of More eases in.
+        if fits and not c:IsShown() then c:Show(); M.Fade(c, 0, lit, M.FAST) end
+        if not fits then c:Hide() end
         if fits then x = x + cw + gap else folded[#folded + 1] = section end
     end
     Spells.folded = folded
-    more:ClearAllPoints()
-    more:SetPoint("TOPLEFT", page, "TOPLEFT", x, -11)
-    more:SetShown(#folded > 0)
+    -- More glides from where it is now to its new spot, or eases in there.
+    local function place(v)
+        more:ClearAllPoints()
+        more:SetPoint("TOPLEFT", page, "TOPLEFT", v, -11)
+    end
+    more.glide = more.glide or {}   -- its own tween key; the button's hover uses the button
+    if #folded == 0 then
+        M.Tween(more.glide, x, x, 0, place)   -- stops a glide still running
+        more:Hide()
+    elseif not more:IsShown() then
+        M.Tween(more.glide, x, x, 0, place)
+        more:Show()
+        M.Fade(more, 0, lit, M.FAST)
+    else
+        M.Tween(more.glide, select(4, more:GetPoint(1)) or x, x, M.NORMAL, place)
+    end
 end
 
 -- keep preserves the scroll position (spell events, the ranks switch).
@@ -619,6 +685,8 @@ function Spells.Fill(page, keep)
     page.bind:SetShown(bindUsable())
     Spells.binding = (bindUsable() and DUI.ClickBind.On()) or nil
     page.bind.SetActive(Spells.binding and true or false)
+    page.clique:SetShown(Spells.Clique() ~= nil)
+    placeClique(page)
     Spells.filter = nil
     local t = page.search:GetText() or ""
     if t ~= "" then Spells.filter = string.lower(t) end
@@ -681,7 +749,7 @@ function Spells.Freeze(on)
     local page = Spells.page
     if not page then return end
     local M = DUI.Motion
-    local parts = { page.search, page.switch, page.bind }
+    local parts = { page.search, page.switch, page.bind, page.clique }
     for _, c in ipairs(page.chips) do parts[#parts + 1] = c end
     if page.more then parts[#parts + 1] = page.more end
     for _, c in ipairs(parts) do
@@ -721,6 +789,7 @@ function Spells.Pieces(page)
     end
     if not rest and page.switch:IsShown() then out[#out + 1] = page.switch end
     if not rest and page.bind:IsShown() then out[#out + 1] = page.bind end
+    if not rest and page.clique:IsShown() then out[#out + 1] = page.clique end
     return out
 end
 

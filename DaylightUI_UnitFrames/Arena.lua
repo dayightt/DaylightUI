@@ -27,7 +27,7 @@ end
 Arena.SAMPLES = {
     { name = "Dalinar", class = "WARRIOR", reaction = 2, health = 58, healthValue = 2600, power = 30, powerToken = "RAGE",
       portraitClass = "WARRIOR", level = 20, pvp = true, marker = 8 },
-    { name = "Vivenna", class = "DRUID", reaction = 2, health = 86, healthValue = 1900, power = 64, powerToken = "MANA",
+    { name = "Vivenna", class = "DRUID", reaction = 2, health = 86, healthValue = 1900, power = 64, powerValue = 1600, powerToken = "MANA",
       portraitClass = "DRUID", level = 20, pvp = true },
 }
 
@@ -39,10 +39,6 @@ function Arena.Count()
         if b:IsShown() then n = n + 1 end
     end
     Arena.shown = n
-end
-
-function Arena.IsArenaUnit(unit)
-    return type(unit) == "string" and not (issecretvalue and issecretvalue(unit)) and unit:find("^arena%d") ~= nil
 end
 
 -- Built once, out of combat, since these are secure buttons.
@@ -86,6 +82,7 @@ function Arena.Layout(d)
     for i, b in ipairs(Arena.buttons) do
         b.iconStyle, b.classIcons = d.portraits.icons, d.portraits.classIcons
         b.rangeFade, b.rangeAlpha = d.range.enabled, UF.RangeAlpha(d.range, false)
+        b.rangePick = UF.RangePick(d.range)
         UF.Layout(b, cfg, text)
         b:ClearAllPoints()
         b:SetPoint("TOPRIGHT", Arena.holder, "TOPRIGHT", 0, -(i - 1) * step)

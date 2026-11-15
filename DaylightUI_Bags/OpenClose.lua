@@ -146,6 +146,18 @@ function OC.Take()
     DUI.On("CharacterWindowClosed", function()
         if DUI.Pad.On() and OC.AnyOpen() then OC.CloseAll() end
     end)
+    -- The game opens the bags at the mailbox and auction house, but at a trade only
+    -- on a controller. Open them there too, the way the bank does (no opener frame:
+    -- that would be written into a game local from addon code), and close them
+    -- with the trade if they were opened for it.
+    DUI.RegisterEvent("TRADE_SHOW", function()
+        OC.tradeOpened = OC.tradeOpened or not OC.AnyOpen()
+        if type(OpenAllBags) == "function" then pcall(OpenAllBags) end
+    end)
+    DUI.RegisterEvent("TRADE_CLOSED", function()
+        if OC.tradeOpened and OC.AnyOpen() then OC.CloseAll() end
+        OC.tradeOpened = nil
+    end)
     -- This bag closed some other way (Escape): close the game's bags too.
     local f = ns.window
     if f then

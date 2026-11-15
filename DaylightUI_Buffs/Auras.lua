@@ -9,6 +9,11 @@ BL.Auras = Auras
 
 Auras.MAX = 64
 
+-- Debuffs that are only a timer on a bonus and never need a glance, left off
+-- the debuff bar: Boosted Rest, the hour before a Camp Tent gives rested
+-- experience again.
+BL.QUIET_DEBUFFS = { [1229451] = true }
+
 local WEAPON_SLOT_TO_INVENTORY = { [0] = 16, [1] = 17, [2] = 18 }
 
 local function plainNumber(v)
@@ -31,6 +36,8 @@ function Auras.Collect(filter)
         end
         if type(data) == "nil" then break end
         data = BL.PlainTable(data)
+        -- The bar's container leaves these out, so the count and hover must too.
+        if data and filter == "HARMFUL" and BL.QUIET_DEBUFFS[plainNumber(data.spellId) or 0] then data = nil end
         if data then
             local expiration = plainNumber(data.expirationTime)
             -- A secret expiration can't be sorted or printed, but the

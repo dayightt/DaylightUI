@@ -149,12 +149,19 @@ function Follow.ToggleInFight()
 end
 
 local wasOpen, wasPage = false, nil
+-- What the last full look saw. Most frames nothing moved, so the look stops
+-- after one IsShown.
+local seenShown, seenPage, seenParked, seenOverride, seen = nil, nil, nil, nil, false
 function Follow.Tick()
     local g = Follow.Game()
     if not g then return end
+    local shown, page = g:IsShown(), g.activeSubframe
+    if seen and Follow.parked and shown == seenShown and page == seenPage and Follow.parked == seenParked
+        and Follow.override == seenOverride then
+        return
+    end
     if Follow.override ~= nil and g:IsShown() == Follow.override then Follow.override = nil end
     local open = Follow.Want()
-    local page = g.activeSubframe
     if open ~= wasOpen then
         wasOpen, wasPage = open, page
         if open then ns.Window.Open(Follow.CurrentPage()) else ns.Window.Close() end
@@ -164,6 +171,8 @@ function Follow.Tick()
         ns.Window.ShowPage(Follow.CurrentPage())
     end
     if not Follow.parked and not g:IsShown() then DUI.AfterCombat(Follow.Park, "characterPark") end
+    seen, seenShown, seenPage = true, g:IsShown(), g.activeSubframe
+    seenParked, seenOverride = Follow.parked, Follow.override
 end
 
 local watcher = CreateFrame("Frame")

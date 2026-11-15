@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style = DUI.Style
 
 local Tracker = {}
@@ -54,7 +55,7 @@ function Tracker.Recent()
     return c.questRecent
 end
 
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "number" and not isSecret(v) end
 local function amount(ob)
     if ob.kind == "count" then return ob.have elseif ob.kind == "bar" then return ob.pct end
 end
@@ -228,11 +229,10 @@ function Tracker.HoverDim(f)
     local M = DUI.Motion
     for key, fr in pairs(frames) do
         if fr.kind == "quest" or fr.kind == "ach" then
+            -- Always tweened, even to where it is: moving from one quest to the next
+            -- leaves an undim running on the dim ones, and this replaces it.
             local to = (on and fr ~= f) and Tracker.DIM or 1
-            local from = fr.dim or 1
-            if from ~= to then
-                M.Tween("quests:dim:" .. key, from, to, M.FAST, function(a) ns.Rows.Dim(fr, a) end)
-            end
+            M.Tween("quests:dim:" .. key, fr.dim or 1, to, M.FAST, function(a) ns.Rows.Dim(fr, a) end)
         end
     end
 end
@@ -313,7 +313,7 @@ function Tracker.ForgetMeasures()
 end
 
 function Tracker.Measure(text, size, width)
-    local plainText = not (issecretvalue and issecretvalue(text))
+    local plainText = not isSecret(text)
     local bySize = measured[size]
     local byWidth = bySize and bySize[width]
     local known = plainText and byWidth and byWidth[text]
@@ -330,7 +330,7 @@ function Tracker.Measure(text, size, width)
     h = type(h) == "number" and h or 0
     -- Only cache a real height for plain keys (a failed measure, e.g. before the font
     -- is ready, gets asked again next time).
-    if plainText and not (issecretvalue and issecretvalue(h)) and type(text) == "string" and type(size) == "number" and type(width) == "number"
+    if plainText and not isSecret(h) and type(text) == "string" and type(size) == "number" and type(width) == "number"
         and size == size and width == width and h > 0 then
         if measuredN >= Tracker.MEASURE_KEEP then Tracker.ForgetMeasures() end
         bySize = measured[size]
@@ -458,10 +458,11 @@ function Tracker.Render(animate, ifChanged)
     if not content then return end
     local snap = ns.Data.Snapshot(db.filter)
     Tracker.zone = snap.realZone   -- ZONE_CHANGED compares against the game's own zone text
+    Tracker.groups, Tracker.hereKey = snap.groups, ns.Data.HereKey(snap.here)
     for k in pairs(inTracker) do inTracker[k] = nil end
     local zoneOnly = Tracker.ZoneOnly()
     for _, g in ipairs(snap.groups) do
-        if not zoneOnly or g.name == snap.zone then
+        if not zoneOnly or snap.here[g.name] then
             for _, q in ipairs(g.quests) do inTracker[q.id] = true end
         end
     end
@@ -619,11 +620,19 @@ function Tracker.OnEvent(event, a, b)
         Tracker.ForgetMeasures()     -- measure again after a loading screen
         Tracker.CheckInstance()
     elseif event == "ZONE_CHANGED" then
-        -- A new subzone of the same zone: only the zone matters here.
+        -- A new subzone of the same zone matters only when it changes which of
+        -- the log's headers count as here (Northshire Valley inside Elwynn Forest).
         local ok, zone = pcall(GetRealZoneText)
-        if ok and zone == Tracker.zone then return end
+        if ok and zone == Tracker.zone and Tracker.groups and Tracker.HereKey() == Tracker.hereKey then return end
     end
     Tracker.Queue(event ~= "PLAYER_ENTERING_WORLD", not Tracker.ALWAYS[event], Tracker.WAITS[event] == true)
+end
+
+-- Which headers count as here now, for the groups last laid out.
+function Tracker.HereKey()
+    local D, names = ns.Data, {}
+    for _, g in ipairs(Tracker.groups) do names[g.name] = true end
+    return D.HereKey(D.HereSet(Tracker.groups, D.Here(function(name) return names[name] == true end)))
 end
 
 function Tracker.ToggleFold(id)
@@ -958,14 +967,14 @@ function Tracker.Build(mod)
             return view:IsMouseOver() == true or (ns.Items ~= nil and ns.Items.Hovered())
         end }
     for _, e in ipairs(Tracker.EVENTS) do
-        pcall(DUI.RegisterEvent, e, function(event, ...) Tracker.OnEvent(event, ...) end)
+        DUI.RegisterEvent(e, function(event, ...) Tracker.OnEvent(event, ...) end)
     end
     -- Spoken's voice packs loaded or its quest part toggled: re-check the Play buttons.
     ns.Voice.Enable(function() Tracker.Queue(true, true) end)
     -- Text is drawn to whole pixels, so measured heights can shift slightly with the
     -- UI scale.
     for _, e in ipairs({ "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED" }) do
-        pcall(DUI.RegisterEvent, e, function() Tracker.ForgetMeasures() end)
+        DUI.RegisterEvent(e, function() Tracker.ForgetMeasures() end)
     end
     -- Matching the minimap: its Size slider (or turning matching off) re-lays the list
     -- right away, not on the next quest event.

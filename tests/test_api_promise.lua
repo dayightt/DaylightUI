@@ -11,12 +11,23 @@ local PROMISED = {
     "GetShopTile", "ShopItem", "GetCraftRow", "GetPart", "SelectCraftRecipe", "GetCraftProfession", "FontRow", "FontFile",
     -- 1.3
     "Parts", "GetQuestRow",
+    -- 1.5
+    "GetActionBar", "ButtonInfo", "BindKeys", "Glow",
+    -- 1.6
+    "MeterWindows", "GetMeterWindow", "MeterRows", "MeterModes", "SetMeterMode", "ResetMeters", "OpenMeterBreakdown",
+    -- 1.7
+    "GetFrame", "GetMoverFrame", "IsUnlocked", "MotionOn", "Media", "IsAfkScreen", "RefreshShop", "RefreshBags",
+    "GetCooldownPiece", "CooldownPieceInfo",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
-    "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults" }
+    "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
+    "IsPreviewing", "SuspendMover", "Override", "FilterShop", "AddTooltipLines", "AddSetupStep", "AddBagGroup",
+    "RemoveBagGroup", "AddBuffCategory", "FormatChat", "ChatLink", "OnChatLink" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
-    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "StartPainter", "Count",
+    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",
+    "FormatChat", "ChatFormatting", "ChatLinkClicked", "DropOverride", "DropShopFilter", "DropTooltipLines",
+    "DropFormatter", "StartPainter", "Count",
     "Changes", "Changers", "Texts", "ApplyDefaults" }
 local EVENTS = { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled",
                  "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }

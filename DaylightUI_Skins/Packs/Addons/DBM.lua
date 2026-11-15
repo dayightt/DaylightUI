@@ -1,5 +1,5 @@
 -- Gives Deadly Boss Mods' timer bars the player's look: font, outline and shadow
--- from Appearance, the chosen bar texture on the fill, our border (border
+-- from Appearance, the chosen bar texture on the fill, the Daylight border (border
 -- settings, right end angled like the cast bar), and cropped icons. Everything
 -- else stays DBM's: sizes, positions, colors, font size, alpha, its own
 -- animations and journal icons. Option changes apply immediately.
@@ -7,12 +7,13 @@
 -- frame "DBT_Bar_<n>" with a StatusBar "<frame>Bar" holding Name, Timer,
 -- Icon1/2, Background and Variance by name. Every look change goes through the
 -- bar's ApplyStyle (on the shared metatable prototype), which resets font and
--- texture, so ours go back on after it. Bars are created in fights and their
+-- texture, so the skin's go back on after it. Bars are created in fights and their
 -- text and values are secret in boss fights, so nothing here reads them: only
--- fonts, files, masks and our own frame behind the bar.
+-- fonts, files, masks and a separate frame behind the bar.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -25,10 +26,10 @@ local DBMSkin = {
     SLANT = 0.6, -- angled cut as a fraction of the height, same as the breath bar
 }
 ns.DBMSkin = DBMSkin
-DBMSkin.holders = setmetatable({}, { __mode = "k" }) -- bar frame -> our border frame behind it
+DBMSkin.holders = setmetatable({}, { __mode = "k" }) -- bar frame -> the border frame behind it
 
 local function isTable(x) return type(x) == "table" end
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "number" and not isSecret(v) end
 
 -- Its pieces, by name.
 local function parts(frame)
@@ -40,7 +41,7 @@ end
 
 local function shown(tex) return isTable(tex) and tex:IsShown() end
 
--- Our border around the bar and any icons beside it, sized to the border
+-- The border around the bar and any icons beside it, sized to the border
 -- settings at the bar's scale (DBM scales its big bars). The right end is
 -- angled unless an icon sits there.
 local function layout(h)
@@ -79,7 +80,7 @@ function DBMSkin.Dress(obj)
         if isTable(icon2) then Style.CropIcon(icon2) end
         DBMSkin.holders[frame] = h
     end
-    -- DBM's size with our font face; the font scale applies on top, as on ours.
+    -- DBM's size with the Daylight font face; the font scale applies on top, as everywhere else.
     local opts = isTable(_G.DBT) and _G.DBT.Options
     local size = isTable(opts) and plain(opts.FontSize) and opts.FontSize or nil
     if isTable(name) then Style.DressText(name, size) end

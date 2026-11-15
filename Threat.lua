@@ -22,7 +22,7 @@ Threat.WARN_PCT = 80
 -- given one (you have no threat yet). Uses melee's, the lower of the two.
 Threat.PULL = 1.1
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- A plain number, or nil if missing, refused or secret.
 local function number(v)
@@ -93,5 +93,5 @@ end
 function Threat.Forget() tankCache = nil end
 for _, e in ipairs({ "PLAYER_ROLES_ASSIGNED", "GROUP_ROSTER_UPDATE", "ACTIVE_TALENT_GROUP_CHANGED",
                      "PLAYER_SPECIALIZATION_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_ENTERING_WORLD" }) do
-    pcall(DUI.RegisterEvent, e, Threat.Forget)
+    DUI.RegisterEvent(e, Threat.Forget)
 end

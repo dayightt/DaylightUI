@@ -1,6 +1,6 @@
 -- Gives BigWigs' timer bars (and LittleWigs', which uses BigWigs' plugins) the
 -- player's look: font, outline and shadow from Appearance, the chosen bar
--- texture on fill and background, and our border with the right end angled like
+-- texture on fill and background, and the Daylight border with the right end angled like
 -- the cast bar. Everything else stays BigWigs' own, as with DBM.lua: sizes,
 -- positions, colors, font size, its messages and other panels.
 -- How (BigWigs_Plugins v427.8): bars are pooled LibCandyBar bars, each with
@@ -15,6 +15,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -29,10 +30,10 @@ local BigWigsSkin = {
     TEXT_X = 2, -- LibCandyBar's text inset
 }
 ns.BigWigsSkin = BigWigsSkin
-BigWigsSkin.holders = setmetatable({}, { __mode = "k" }) -- bar -> our border frame behind it
+BigWigsSkin.holders = setmetatable({}, { __mode = "k" }) -- bar -> the border frame behind it
 
 local function isTable(x) return type(x) == "table" end
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "number" and not isSecret(v) end
 
 -- Recognizes a bar by the shape LibCandyBar gives it.
 local function isBar(bar)
@@ -49,7 +50,7 @@ end
 
 -- The font size BigWigs wants. Emphasized bars are only flagged after the style
 -- runs, so tell them apart by position or height. Always use the setting, never
--- the text's current size, which already includes our font scale.
+-- the text's current size, which already includes the font scale.
 local function fontSize(bar)
     local db = barsDB()
     if not db then return nil end
@@ -59,7 +60,7 @@ local function fontSize(bar)
     return plain(size) and size or nil
 end
 
--- The bar keeps BigWigs' size and position, and our border becomes its edge. The
+-- The bar keeps BigWigs' size and position, and the border becomes its edge. The
 -- fill and icon move in by the border width, since BigWigs' default 1 px gap has
 -- no room for a border outside. The right end is angled unless an icon sits there.
 local function layout(bar, h)

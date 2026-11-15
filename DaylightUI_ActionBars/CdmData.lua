@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Data = {}
 ns.CdmData = Data
@@ -174,7 +175,7 @@ end
 
 local function myClass()
     local _, token = UnitClass("player")
-    if type(token) == "string" and not (issecretvalue and issecretvalue(token)) then return token end
+    if type(token) == "string" and not isSecret(token) then return token end
 end
 Data.MyClass = myClass
 
@@ -206,6 +207,15 @@ function Data.Profiles(class)
         return tostring(a.id) < tostring(b.id)
     end)
     return out
+end
+
+-- Whether any profile, of any class, has a spell placed.
+function Data.AnyPlaced()
+    for _, p in pairs(profiles()) do
+        if type(p) == "table" and type(p.set) == "table" and type(p.set.pieces) == "table"
+            and next(p.set.pieces) ~= nil then return true end
+    end
+    return false
 end
 
 -- A name no other profile of the class uses: name, else "name 2", "name 3"...
@@ -533,7 +543,8 @@ end
 
 -- The first piece of id's chain (itself when free). This runs about 25 times per
 -- piece on every layout pass, which runs on every aura change, so a normal chain is
--- walked without allocating a table; that used to be most of the module's garbage.
+-- walked without allocating a table, which would otherwise be most of the module's
+-- garbage.
 -- Only a walk longer than any real chain (a loop in a bad save) keeps a list.
 Data.ROOT_WALK = 64
 function Data.Root(set, id)
@@ -608,7 +619,7 @@ function Data.Dims(set, id)
     return s, s
 end
 
--- The piece as a block of one. This is what Rows' placement, the skins, our bars and
+-- The piece as a block of one. This is what Rows' placement, the skins, Daylight UI's bars and
 -- CdmEffects read (kind, size, width, look, toggles). Built fresh each call, so cache
 -- it per pass.
 function Data.PieceBlock(set, id)
@@ -757,22 +768,51 @@ local function run(set, root, side)
     return list
 end
 
-local function extent(boxes, list, axis)
+local OPPOSITE = { right = "left", left = "right", down = "up", up = "down" }
+
+-- The low and high edge of the boxes along an axis. skipHidden leaves out pieces
+-- that are down, so a collapsed one can't pull the edge.
+local function edges(boxes, list, axis, skipHidden)
     local lo, hi
     for _, id in ipairs(list) do
         local b = boxes[id]
-        local a, z
-        if axis == "x" then a, z = b.x, b.x + b.w else a, z = b.y - b.h, b.y end
-        lo = lo and min(lo, a) or a
-        hi = hi and max(hi, z) or z
+        if not (skipHidden and b.hidden) then
+            local a, z
+            if axis == "x" then a, z = b.x, b.x + b.w else a, z = b.y - b.h, b.y end
+            lo = lo and min(lo, a) or a
+            hi = hi and max(hi, z) or z
+        end
     end
-    return lo and hi - lo or 0
+    return lo, hi
+end
+
+-- The side a line runs to from id along an axis: its first child on that axis.
+local function lineSide(set, id, axis)
+    local k = Data.Index(set).kids[id]
+    if not k then return nil end
+    for _, side in ipairs(Data.SIDES) do if k[side] and AXIS[side] == axis then return side end end
+end
+
+-- The axis a chain's rows run along: the longer straight run out of its first
+-- piece (a group of two rows started from its right end has the second row under
+-- that first piece, and only the run to its left says the rows are across).
+local function rowAxis(set, root)
+    local best, axis = 0, nil
+    for _, side in ipairs(Data.SIDES) do
+        if Data.Child(set, root, side) then
+            local n = #run(set, root, side) + #run(set, root, OPPOSITE[side]) - 1
+            if n > best then best, axis = n, AXIS[side] end
+        end
+    end
+    return axis
 end
 
 -- Every piece's box, { [id] = { x, y, w, h, hidden } }. shown = { [id] = true } for
--- the pieces currently up (nil = all). A hidden piece collapses along its side. A
--- chain growing from its middle or end shifts so that point of its first run stays
--- where it would be with everything shown.
+-- the pieces currently up (nil = all). A hidden piece collapses along its side. In a
+-- chain growing from its middle or end, each row (a straight line of pieces along
+-- the chain's row axis) shifts so its middle or far end stays where it would be with
+-- everything shown. The pieces hung off a row move with it, then line up their own
+-- row the same way.
 function Data.Layout(set, shown)
     local out = {}
     lay(set, shown, out)
@@ -780,16 +820,33 @@ function Data.Layout(set, shown)
     local full
     for _, root in ipairs(Data.Index(set).roots) do
         local grow = Data.ChainValue(set, root, "grow")
-        local side = (grow == "center" or grow == "end") and runSide(set, root)
-        if side then
+        local axis = (grow == "center" or grow == "end") and rowAxis(set, root)
+        if axis then
             if not full then full = {}; lay(set, nil, full) end
-            local list, axis = run(set, root, side), AXIS[side]
-            local d = extent(full, list, axis) - extent(out, list, axis)
-            if d ~= 0 then
-                local shift = SIGN[side] * d * (grow == "center" and 0.5 or 1)
-                for _, id in ipairs(Data.Subtree(set, root)) do
-                    local b = out[id]
-                    if axis == "x" then b.x = b.x + shift else b.y = b.y + shift end
+            for _, id in ipairs(Data.Subtree(set, root)) do
+                local p = set.pieces[id]
+                local starts = id == root or not (p and p.side and AXIS[p.side] == axis)
+                local side = starts and lineSide(set, id, axis)
+                if side then
+                    local list = run(set, id, side)
+                    local back = run(set, id, OPPOSITE[side])
+                    for i = 2, #back do list[#list + 1] = back[i] end
+                    local fullLo, fullHi = edges(full, list, axis)
+                    local lo, hi = edges(out, list, axis, true)
+                    -- Nothing up on the line itself: measure where it collapsed to.
+                    if not lo then lo, hi = edges(out, list, axis) end
+                    local shift = 0
+                    if lo and grow == "center" then
+                        shift = (fullLo + fullHi) / 2 - (lo + hi) / 2
+                    elseif lo then
+                        shift = SIGN[side] > 0 and fullHi - hi or fullLo - lo
+                    end
+                    if shift ~= 0 then
+                        for _, c in ipairs(Data.Subtree(set, id)) do
+                            local b = out[c]
+                            if axis == "x" then b.x = b.x + shift else b.y = b.y + shift end
+                        end
+                    end
                 end
             end
         end
@@ -1001,6 +1058,7 @@ Data.SPELL_FIELDS = {
     inactiveFlash = { bool = true, bar = true }, chargeLines = { bool = true, bar = true },
     missing = { bool = true }, missingGlow = { bool = true }, missingGlowColor = { color = true },
     upGlow = { bool = true }, upGlowColor = { color = true },
+    clipGlow = { bool = true }, clipGlowColor = { color = true },
     hideActive = { bool = true }, hideMissing = { bool = true },
     readySound = { sound = true }, usableSound = { sound = true }, buffSound = { sound = true }, buffEndSound = { sound = true },
 }
@@ -1157,7 +1215,7 @@ end
 
 -- What a custom spell's piece (CdmCustom) shows: its cooldown or its buff/debuff.
 -- The game's pieces (number keys) have no track.
-Data.TRACKS = { "cooldown", "aura" }
+Data.TRACKS = { "cooldown", "aura", "both" }
 function Data.SetTrack(set, id, track)
     local p = set.pieces[id]
     if not (p and type(id) == "string" and oneOf(Data.TRACKS, track)) then return false end

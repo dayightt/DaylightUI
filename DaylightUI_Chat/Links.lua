@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -27,7 +28,7 @@ end
 -- The message with its addresses linked, or nil if there are none or it can't
 -- be read.
 function Links.Wrap(msg)
-    if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then return nil end
+    if type(msg) ~= "string" or secret(msg) then return nil end
     if not (string.find(msg, "://", 1, true) or string.find(msg, "www.", 1, true)) then return nil end
     local changed = false
     local out = string.gsub(msg, "%S+", function(word)
@@ -88,7 +89,7 @@ function Links.Show(url)
 end
 
 function Links.OnClick(link)
-    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return end
+    if type(link) ~= "string" or secret(link) then return end
     local url = string.match(link, "^" .. string.gsub(Links.PREFIX, "%p", "%%%0") .. "(.+)$")
     if url then Links.Show(url) end
 end
@@ -115,7 +116,7 @@ end
 -- True if the click put a link in the open edit box; otherwise the game handles it.
 function Links.LinkQuestie(link, text, button)
     if button ~= "LeftButton" or type(link) ~= "string" or type(text) ~= "string" then return false end
-    if issecretvalue and (issecretvalue(link) or issecretvalue(text)) then return false end
+    if secret(link) or secret(text) then return false end
     local id = string.match(link, "^questie:(%d+)")
     if not id or not (IsModifiedClick and IsModifiedClick("CHATLINK")) then return false end
     local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
@@ -134,15 +135,135 @@ end
 -- the game's own windows. RedeemTicket is refused for addons too, so the game's
 -- window has to handle it.
 function Links.ClubTicket(link, text, button)
-    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then return false end
+    if type(link) ~= "string" or secret(link) then return false end
     if not string.find(link, "^clubTicket:") then return false end
     if button == "LeftButton" and IsModifiedClick and IsModifiedClick("CHATLINK") then
         local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
         if type(insert) == "function" and type(text) == "string"
-            and not (issecretvalue and issecretvalue(text)) and insert(text) then return true end
+            and not secret(text) and insert(text) then return true end
     end
     DUI.Print(L["Community invites only open from the game's own chat: set Chat style to Classic, then click it."])
     return true
+end
+
+-- ---------------------------------------------------------------------
+-- Links the game only opens from its own click
+-- ---------------------------------------------------------------------
+
+-- A linked profession or recipe clicked in the Daylight box reached SetItemRef
+-- and the game opened nothing: it trusts only a click that is its own. So every
+-- shown line of the box gets an invisible twin laid exactly over it, on a frame
+-- made from the game's InlineHyperlinkFrameTemplate. That template's link click
+-- is the game's InlineHyperlinkFrame_OnClick, which calls SetItemRef as the
+-- game's code. Nothing is written to the field it reads (hasIconHyperlinks).
+--
+-- The twins copy whole lines and follow every redraw and scroll, so a link is
+-- covered end to end wherever the mouse lands, even while new lines keep coming.
+-- A copy of just the hovered link, placed at the mouse, covered half of it and
+-- went away with every new line, so clicks often missed it.
+--
+-- Names, channels and the links the box handles itself are left as plain words
+-- in the twin: the frame takes no mouse, so a click there falls through to the
+-- box, whose handlers for those want a chat window.
+Links.OWN = { player = true, BNplayer = true, playerCommunity = true, BNplayerCommunity = true,
+    channel = true, clubTicket = true, questie = true, addon = true }
+
+local mirrors = {} -- box -> its twin frame (false if the template is missing)
+
+local function own(kind)
+    return Links.OWN[kind] or (ns.Extras and kind == ns.Extras.LINK) or false
+end
+
+-- The line with the box's own links turned into their plain words, and whether
+-- a link the game must click is left in it.
+function Links.Twin(text)
+    local any = false
+    local out = string.gsub(text, "|H([^:|]+)([^|]*)|h(.-)|h", function(kind, _, shown)
+        if own(kind) then return shown end
+        any = true
+    end)
+    return out, any
+end
+
+local function makeMirror(box)
+    local f = mirrors[box]
+    if f ~= nil then return f or nil end
+    local ok
+    ok, f = pcall(CreateFrame, "Frame", nil, box, "InlineHyperlinkFrameTemplate")
+    if not ok or type(f) ~= "table" then mirrors[box] = false return nil end
+    f:EnableMouse(false) -- links still take clicks; the wheel, drags and the rest reach the box
+    f:SetAlpha(0)        -- the box's own lines are what shows
+    f:SetAllPoints(box)
+    f:SetClipsChildren(true) -- the box lays one row past its top, cut off the same way
+    f.lines = {}
+    f.box = box
+    -- Hovering a twin's link is hovering the box's: its tooltip, from the box.
+    f:SetScript("OnHyperlinkEnter", function(_, link) ns.LinkTips.OnEnter(box, link) end)
+    f:SetScript("OnHyperlinkLeave", function() ns.LinkTips.OnLeave(box) end)
+    -- After the game's own click: a hidden message shown (or one of yours
+    -- rewritten) changed only the game's windows, so the box copies it.
+    f:HookScript("OnHyperlinkClick", function(_, link) DUI.SafeCall(Links.Censored, link) end)
+    mirrors[box] = f
+    return f
+end
+
+-- censoredmessage, censoredmessagerewrite and censoredmessageconfirmsend all
+-- carry the line's id first.
+function Links.Censored(link)
+    if type(link) ~= "string" or secret(link) then return end
+    local id = string.match(link, "^censoredmessage%a*:(%d+)")
+    if id and ns.Box then ns.Box.Rewritten(tonumber(id)) end
+end
+
+function Links.Mirror(box) return mirrors[box] or nil end
+
+-- Lays each shown line's twin over it. Runs on every redraw and scroll of the
+-- box; a line whose text didn't change is left as it is.
+function Links.Sync(box)
+    if type(box) ~= "table" or type(box.visibleLines) ~= "table" then return end
+    local f = mirrors[box]
+    local used = 0
+    for i, line in ipairs(box.visibleLines) do
+        local text = line:IsShown() and line:GetText()
+        local copy, any
+        if type(text) == "string" and not secret(text) and string.find(text, "|H", 1, true) then
+            copy, any = Links.Twin(text)
+        end
+        if any then
+            f = f or makeMirror(box)
+            if not f then return end
+            local t = f.lines[i]
+            if not t then
+                t = f:CreateFontString(nil, "OVERLAY")
+                f.lines[i] = t
+            end
+            if t.over ~= line then
+                t:ClearAllPoints()
+                t:SetAllPoints(line)
+                t.over = line
+            end
+            local font, size, flags = line:GetFont()
+            if font and (t.font ~= font or t.size ~= size or t.flags ~= flags) then
+                t:SetFont(font, size, flags or "")
+                t.font, t.size, t.flags = font, size, flags
+                t.src = nil
+            end
+            if t.src ~= copy then
+                t:SetJustifyH(line:GetJustifyH() or "LEFT")
+                if line.GetIndentedWordWrap then t:SetIndentedWordWrap(line:GetIndentedWordWrap() and true or false) end
+                if line.GetSpacing then t:SetSpacing(line:GetSpacing() or 0) end
+                t:SetText(copy)
+                t.src = copy
+            end
+            t:Show()
+            used = used + 1
+        elseif f and f.lines[i] then
+            f.lines[i]:Hide()
+        end
+    end
+    if not f then return end
+    for i = #box.visibleLines + 1, #f.lines do f.lines[i]:Hide() end
+    f:SetShown(used > 0)
 end
 
 -- ---------------------------------------------------------------------

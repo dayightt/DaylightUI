@@ -9,13 +9,12 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 
 local Levels = {}
 ns.Levels = Levels
 
 Levels.known = {}
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end

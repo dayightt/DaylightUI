@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Motion = DUI.Style, DUI.Motion
 
@@ -33,8 +34,6 @@ local rows = {}
 ErrorText.rows = rows
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.errorText == true end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 -- Every message type the client has, read once from its LE_GAME_ERR_* names.
 local types
@@ -205,7 +204,7 @@ local function onMessage(kind)
     end
 end
 
--- A red line of ours (DUI.ShowError): drawn here while this is on.
+-- A red line of Daylight UI's own (DUI.ShowError): drawn here while this is on.
 local function ours(text)
     if not enabled() or (not secret(text) and type(text) ~= "string") then return false end
     DUI.SafeCall(ErrorText.Show, "error", text)
@@ -245,7 +244,7 @@ function ErrorText.Enable(m)
     if not listening then
         listening = true
         -- Always listening (the shared event frame has no unregister); nothing
-        -- is ours while this is off, so nothing shows then.
+        -- is handled while this is off, so nothing shows then.
         DUI.RegisterEvent("UI_ERROR_MESSAGE", onMessage("error"))
         DUI.RegisterEvent("UI_INFO_MESSAGE", onMessage("info"))
         DUI.errorText = ours

@@ -1,4 +1,4 @@
--- Per-spell effects on the Cooldown Manager items we place (CdmRows): proc glow,
+-- Per-spell effects on the Cooldown Manager items Daylight UI places (CdmRows): proc glow,
 -- per-icon size, no cooldown swipe, and what happens on cooldown (gray, fade, hide,
 -- ready glow). Options live in DB.Character().cdm.sets[g].buttons[id]; a missing
 -- key means the default. Fx.Clear undoes everything when an item is released.
@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 
 local Fx = {}
 ns.CdmEffects = Fx
@@ -14,7 +15,7 @@ ns.CdmEffects = Fx
 -- Option keys, beyond the defaults below:
 -- glowColor (proc) and readyGlowColor: nil = the accent.
 -- Icons only: noDurationSwipe = no swipe while the buff is up (game items: same as
--- activeGlow false; our aura holders: CdmAuras.SetSwipe). activeGlow false hides
+-- activeGlow false; Daylight UI's aura holders: CdmAuras.SetSwipe). activeGlow false hides
 -- the game's swipe while the buff is up (the timer stays). activeColor {r,g,b,a}
 -- recolors it, nil = the accent (Fx.ActiveColor).
 -- Bars only: barMode "block" | "solid" | "gradient" (barColor {r,g,b}, barGradient
@@ -27,6 +28,8 @@ ns.CdmEffects = Fx
 -- while its buff is down. missingGlow (missingGlowColor) makes it glow then.
 -- upGlow (upGlowColor): glows while its buff is up. WoW Forever fires no proc
 -- alerts, so for something like Clearcasting the buff landing is the proc.
+-- clipGlow (clipGlowColor): glows while it's up and the next cast of it would land
+-- just as it runs out (CdmAuras.ClipDue), the moment to cast it again.
 -- hideActive: hidden while its buff is up (by alpha, so the gap stays).
 -- hideMissing: shown only while its buff is up (CdmOwn.Track says "buff" and
 -- missing is ignored; a shield bar hides with no shield, see CdmBars).
@@ -42,7 +45,7 @@ Fx.DEFAULTS = { readySound = "none", usableSound = "none", buffSound = "none", b
     glow = true, size = 0, noSwipe = false, noGcd = false, reverse = false, desat = "game",
     onCd = "show", onReady = "show", onUnusable = "show", onShort = "show", cdAlpha = 0.4, readyGlow = false, usableGlow = false, activeGlow = true, noDurationSwipe = false,
     barMode = "block", backMode = "block", showName = true, nameAlign = "left", fillBy = "shield",
-    shieldAmount = true, inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
+    shieldAmount = true, inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
 
 -- Show in: each form, stance or stealth of the class the spell can be left out of
 -- (e.g. cat spells only in Cat Form), saved as hideIn<Key> (false = shown). In a
@@ -56,18 +59,24 @@ Fx.FORMS = {
               { key = "Aquatic", name = "Aquatic Form", spells = { 1066 } },
               { key = "Travel", name = "Travel Form", spells = { 783 } },
               { key = "Moonkin", name = "Moonkin Form", spells = { 24858 } } },
-    WARRIOR = { { key = "Battle", name = "Battle Stance", spells = { 2457 } },
-                { key = "Defensive", name = "Defensive Stance", spells = { 71 } },
-                { key = "Berserker", name = "Berserker Stance", spells = { 2458 } } },
+    WARRIOR = { { key = "Battle", name = "Battle Stance", spells = { 2457 }, lit = true },
+                { key = "Defensive", name = "Defensive Stance", spells = { 71 }, lit = true },
+                { key = "Berserker", name = "Berserker Stance", spells = { 2458 }, lit = true } },
     ROGUE = { { key = "Unstealthed", name = "Out of Stealth", none = true },
               { key = "Stealth", name = "Stealth", spells = { 1784, 1785, 1786, 1787 }, stealth = true } },
 }
 Fx.FORM_KEYS = {}
 local formBySpell = {}
+-- Stances put up no buff, so nothing else tells their icon apart while you're in
+-- one. Druid forms and Stealth are buffs and already show as up.
+local litBySpell = {}
 for _, list in pairs(Fx.FORMS) do
     for _, f in ipairs(list) do
         Fx.FORM_KEYS[#Fx.FORM_KEYS + 1] = f.key
-        for _, sid in ipairs(f.spells or {}) do formBySpell[sid] = f.key end
+        for _, sid in ipairs(f.spells or {}) do
+            formBySpell[sid] = f.key
+            if f.lit then litBySpell[sid] = f.key end
+        end
     end
 end
 -- Each is a spell option, shown by default and only saved when turned off.
@@ -76,7 +85,7 @@ for _, k in ipairs(Fx.FORM_KEYS) do
     if ns.CdmData then ns.CdmData.SPELL_FIELDS["hideIn" .. k] = { bool = true } end
 end
 
-local function plainOf(v) return not (issecretvalue and issecretvalue(v)) and v or nil end
+local function plainOf(v) return not secret(v) and v or nil end
 
 -- The class's forms (nil when there are none to pick).
 function Fx.FormsOf(class)
@@ -125,8 +134,8 @@ local usable = setmetatable({}, weak)      -- item -> the game's last plain "cas
 local castable = setmetatable({}, weak)    -- item -> castable or only short of power; nil = the game won't say
 local short = setmetatable({}, weak)       -- item -> true while only short of power
 local dimAs = setmetatable({}, weak)       -- icon texture -> "no" | "power" while dimmed
-local dimNow = setmetatable({}, weak)      -- our own icon texture -> the color it shows or eases from
-local alphaNow = setmetatable({}, weak)    -- our own item -> the alpha it shows or eases to
+local dimNow = setmetatable({}, weak)      -- Daylight UI's own icon texture -> the color it shows or eases from
+local alphaNow = setmetatable({}, weak)    -- Daylight UI's own item -> the alpha it shows or eases to
 local glows = setmetatable({}, weak)       -- item -> its glow frame
 local lit = setmetatable({}, weak)         -- item -> true while its glow shows
 local noSwipe = setmetatable({}, weak)     -- item -> "all" | "gcd": swipe kept off always, or on the GCD
@@ -136,7 +145,7 @@ local swipeHooked = setmetatable({}, weak) -- cooldown frame -> true
 local cdState = setmetatable({}, weak)     -- item -> true on cooldown, false ready (last known)
 local cdFresh = setmetatable({}, weak)     -- item -> true when cdState was read this time (not secret)
 local greyHooked = setmetatable({}, weak)  -- icon texture -> true
-local greyed = setmetatable({}, weak)      -- item -> true while its gray is ours
+local greyed = setmetatable({}, weak)      -- item -> true while the gray is Daylight UI's
 local greyAs = setmetatable({}, weak)      -- icon texture -> the gray last set on it
 local faded = setmetatable({}, weak)       -- item -> true while its alpha is held below 1
 local doneHooked = setmetatable({}, weak)  -- cooldown frame -> true
@@ -145,9 +154,10 @@ local tinted = setmetatable({}, weak)      -- item -> true while its swipe color
 local tintHooked = setmetatable({}, weak)  -- cooldown frame -> true
 local away = setmetatable({}, weak)        -- item -> true while its "Hide out of combat" block is away
 local down = setmetatable({}, weak)        -- item -> true: buff down, false: up (from CdmRows; nil = can't tell)
-local own = setmetatable({}, weak)         -- item -> true for our own icons and bars (CdmOwn, CdmBars)
+local due = setmetatable({}, weak)         -- item -> true: time to cast it again (CdmRows, the recast glow)
+local own = setmetatable({}, weak)         -- item -> true for Daylight UI's own icons and bars (CdmOwn, CdmBars)
 local refreshNow                          -- refresh without reading (set below)
-local guard = false                        -- set during our own calls so our hooks skip them
+local guard = false                        -- set during the file's own calls so its hooks skip them
 
 function Fx.Get(button, key)
     local v
@@ -156,12 +166,12 @@ function Fx.Get(button, key)
     return v
 end
 
--- The saved button table of a claimed item (nil when not ours).
+-- The saved button table of a claimed item (nil when Daylight UI doesn't hold it).
 function Fx.ButtonOf(item) return opts[item] end
 
 -- Glow -----------------------------------------------------------------
 -- The game's own proc glow (the looping spell alert ring every player knows) on a
--- frame of ours, recolored to the option's color or the accent (a gradient accent
+-- Daylight UI frame, recolored to the option's color or the accent (a gradient accent
 -- runs across it). Three hand-made glows were tried first and read as a border, a
 -- blob and a slab; it has to glow and move. The game's alert manager is never
 -- touched. It fades in fast (fight info never waits) and out gently. With motion
@@ -201,7 +211,7 @@ local function glowOf(item)
         local t = holder:CreateTexture(nil, "OVERLAY")
         t:SetAllPoints(holder)
         t:SetAtlas(Fx.GLOW_ATLAS)
-        -- The game's art is gold; desaturate it so our color tints true.
+        -- The game's art is gold; desaturate it so Daylight UI's color tints true.
         t:SetDesaturated(true)
         local fb = ag:CreateAnimation("FlipBook")
         fb:SetTarget(t)
@@ -416,20 +426,26 @@ end
 local function upGlows(b)
     return Fx.Get(b, "upGlow") == true and Fx.Get(b, "hideActive") ~= true
 end
--- The glow asked for by the buff being down (true) or up (false).
-local function buffGlow(b, isDown)
+local function clipGlows(b)
+    return Fx.Get(b, "clipGlow") == true and Fx.Get(b, "hideActive") ~= true
+end
+-- The glow asked for by the buff being down (true) or up (false). due = time to
+-- cast it again, which wins over the plain up glow.
+local function buffGlow(b, isDown, due)
     if isDown == true and missingGlows(b) then return "missingGlowColor" end
+    if isDown == false and due == true and clipGlows(b) then return "clipGlowColor" end
     if isDown == false and upGlows(b) then return "upGlowColor" end
     return false
 end
 Fx.UpGlows = upGlows
+Fx.ClipGlows = clipGlows
 
--- Reads only our own bookkeeping, never the game's values. Returns the color key of
+-- Reads only Daylight UI's own bookkeeping, never the game's values. Returns the color key of
 -- the glow that should show (proc first, then usable, then ready), or false.
 local function wantsGlow(item)
     local b = opts[item]
     if Fx.Get(b, "glow") ~= false and alerts[item] == true then return "glowColor" end
-    local buff = buffGlow(b, down[item])
+    local buff = buffGlow(b, down[item], due[item])
     if buff then return buff end
     -- Usable: Revenge after a block, Overpower after a dodge, Execute under 20%.
     -- WoW Forever fires no spell alerts, so this stands in for the proc.
@@ -448,7 +464,7 @@ function Fx.GlowShown(item) return lit[item] == true end
 -- Coming ready: a light sweeps once across the item (a band in a clipping frame,
 -- like the bags' loot glint). Going on cooldown: the icon dips and springs back like
 -- a pressed button. The dip resizes the item, so the game's items only dip out of
--- combat (nothing of the game's animates in a fight); our own icons always do.
+-- combat (nothing of the game's animates in a fight); Daylight UI's own icons always do.
 -- With motion off, neither happens.
 
 Fx.SWEEP_DUR = 0.45
@@ -524,18 +540,18 @@ function Fx.Dip(item)
     end)
 end
 
--- A buff landing on our aura icons and bars (CdmAuras, CdmBars) slides in like the
+-- A buff landing on Daylight UI's aura icons and bars (CdmAuras, CdmBars) slides in like the
 -- buff bar's (Buffs Feel.lua). It's an animation group handed to the client in
 -- initializeFrame and played as the button comes up for a new aura, in fights too.
 -- Translation and alpha only. The button locks once initializeFrame returns, so
 -- retuning it (motion toggled) waits for the holders' after-restrictions layout.
--- Over our own cooldown icon ("Cooldown and buff", CdmAuras.Over) it only fades in
+-- Over Daylight UI's own cooldown icon ("Cooldown and buff", CdmAuras.Over) it only fades in
 -- place: the same spell's icon is already there, so a drop looked like the icon
 -- jumping (Shield Block).
 Fx.SLIDE = 6   -- px it drops in from
 
 function Fx.MakeSlide(btn, h)
-    -- No OnShow/OnHide on a frame of ours inside the button: the client refuses them
+    -- No OnShow/OnHide on a Daylight UI frame inside the button: the client refuses them
     -- there ("blocked by secret aspects").
     if type(btn.AddAuraShownAnimation) ~= "function" then return end
     local ag = btn:CreateAnimationGroup()
@@ -674,15 +690,26 @@ DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() targetAt = GetTime() end)
 -- cdState changed from was to now (both plain): ready or on cooldown. quiet = the
 -- light still runs but the sound waits (an aura's time ended over a cooldown that's
 -- still going).
+-- Plugins hear it too (DaylightUI.API: CooldownReady, CooldownStarted), by spell.
+local function tell(event, item)
+    local R = DUI.APIReport
+    if not R.Wants(event) then return end
+    local key = item.cooldownID
+    if secret(key) then key = nil end
+    R.Event(event, Fx.SpellOf(item), key ~= nil and tostring(key) or nil)
+end
+
 local function moment(item, was, now, quiet)
     if was == true and now == false then
         Fx.Sweep(item)
+        tell("CooldownReady", item)
         if realCool[item] and not quiet then
             realCool[item], armed[item] = nil, nil
             playSound(item, opts[item], "readySound")
         end
     elseif was == false and now == true then
         Fx.Dip(item)
+        tell("CooldownStarted", item)
     end
 end
 
@@ -703,11 +730,11 @@ local function onGcd(item)
     if not sid or type(C_Spell) ~= "table" or type(C_Spell.GetSpellCooldown) ~= "function" then return false end
     local ok, info = pcall(C_Spell.GetSpellCooldown, sid)
     local gcd = ok and type(info) == "table" and info.isOnGCD
-    if issecretvalue and issecretvalue(gcd) then return false end
+    if secret(gcd) then return false end
     return gcd == true
 end
 
--- Applies our swipe rule to the item's cooldown: always off, or off while only the
+-- Applies Daylight UI's swipe rule to the item's cooldown: always off, or off while only the
 -- global cooldown runs.
 local function applySwipe(item, cd)
     local rule = noSwipe[item]
@@ -715,8 +742,8 @@ local function applySwipe(item, cd)
     setSwipe(cd, not (rule == "all" or onGcd(item)))
 end
 
--- The game sets the swipe and cooldown again as it updates (our own icons set the
--- cooldown), so ours is reapplied after.
+-- The game sets the swipe and cooldown again as it updates (Daylight UI's own icons set the
+-- cooldown), so this one is reapplied after.
 local function hookSwipe(item, cd)
     if swipeHooked[cd] then return end
     swipeHooked[cd] = true
@@ -728,17 +755,21 @@ end
 
 -- Active swipe ---------------------------------------------------------
 -- While the spell's buff is up the game paints the swipe yellow and counts the buff
--- down. We only recolor that swipe (alpha 0 = timer only). Unset, it takes the
+-- down. Only that swipe is recolored (alpha 0 = timer only). Unset, it takes the
 -- accent like the glows, at the game's own opacity.
 
 local ACTIVE_ALPHA = 0.7
 
 -- A piece's buff swipe color: its own, else the accent (read at paint time).
-function Fx.ActiveColor(b)
+-- into: a table to fill instead of a new one, for the swipe hooks that run on
+-- every cooldown update.
+function Fx.ActiveColor(b, into)
     local c = b and Fx.Get(b, "activeColor")
     if type(c) == "table" then return c end
     local r, g, bl = DUI.Style.Accent()
-    return { r, g, bl, ACTIVE_ALPHA }
+    if not into then return { r, g, bl, ACTIVE_ALPHA } end
+    into[1], into[2], into[3], into[4] = r, g, bl, ACTIVE_ALPHA
+    return into
 end
 
 local function setTint(cd, c)
@@ -749,8 +780,12 @@ end
 
 local function fromAura(item)
     local v = item.wasSetFromAura
-    return type(v) == "boolean" and not (issecretvalue and issecretvalue(v)) and v
+    return type(v) == "boolean" and not secret(v) and v
 end
+
+-- Read by setTint at once and never kept, so one of each serves every item.
+local NO_SWIPE = { 0, 0, 0, 0 }
+local accentSwipe = {}
 
 local function applyTint(item)
     local cd = item.Cooldown
@@ -759,22 +794,22 @@ local function applyTint(item)
     local want
     if b and kinds[item] == "icon" and fromAura(item) then
         if Fx.Get(b, "activeGlow") == false or Fx.Get(b, "noDurationSwipe") == true then
-            want = { 0, 0, 0, 0 }
+            want = NO_SWIPE
         else
-            want = Fx.ActiveColor(b)
+            want = Fx.ActiveColor(b, accentSwipe)
         end
     end
     if want then
         tinted[item] = true
         setTint(cd, want)
     elseif tinted[item] then
-        -- The buff is gone (or the item left our blocks): back to the cooldown shade.
+        -- The buff is gone (or the item left Daylight UI's blocks): back to the cooldown shade.
         tinted[item] = nil
         setTint(cd, ns.Skin.SWIPE)
     end
 end
 
--- The game sets the swipe color and cooldown as it updates, so ours goes on after.
+-- The game sets the swipe color and cooldown as it updates, so this one goes on after.
 local function hookTint(item, cd)
     if tintHooked[cd] then return end
     tintHooked[cd] = true
@@ -786,7 +821,6 @@ end
 
 -- Cooldown -------------------------------------------------------------
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 local function clean(v)
     if type(v) == "nil" or secret(v) then return nil end
@@ -942,12 +976,12 @@ local function setGrey(icon, on)
     guard = false
 end
 
--- force = the game just wrote its own gray (our hook), so ours goes back on even if
--- it's what we last set.
+-- force = the game just wrote its own gray (the hook), so this one goes back on even if
+-- it's the last one written.
 local function applyGrey(item, icon, force)
     local want = wantGrey(item)
     if want == nil then
-        -- Back to game default: undo ours and the game sets its own next update.
+        -- Back to game default: undo this one and the game sets its own next update.
         if greyed[item] then greyed[item] = nil; greyAs[icon] = nil; setGrey(icon, false) end
         return
     end
@@ -958,7 +992,7 @@ local function applyGrey(item, icon, force)
     setGrey(icon, want)
 end
 
--- The game grays icons as it updates, so ours goes on after.
+-- The game grays icons as it updates, so this gray goes on after.
 local function hookGrey(item, icon)
     if greyHooked[icon] then return end
     greyHooked[icon] = true
@@ -968,7 +1002,7 @@ local function hookGrey(item, icon)
 end
 
 -- Not castable: use the game's own Cooldown Manager colors so a spell waiting on a
--- dodge doesn't look ready. Our icons ease there FAST; the game's items snap, and
+-- dodge doesn't look ready. Daylight UI's icons ease there FAST; the game's items snap, and
 -- the game's own refresh puts its color back (range red too).
 local DIM = { no = { 0.4, 0.4, 0.4 }, power = { 0.5, 0.5, 1 }, yes = { 1, 1, 1 } }
 
@@ -992,7 +1026,7 @@ local function applyDim(item, icon)
     end
 end
 
--- Our own icons and bars ease (FAST, fight info never waits). The game's items snap,
+-- Daylight UI's own icons and bars ease (FAST, fight info never waits). The game's items snap,
 -- since nothing of the game's fades in combat.
 local function setAlpha(item, a)
     local from = alphaNow[item]
@@ -1016,14 +1050,18 @@ local function applyAlpha(item)
     local b, state = opts[item], cdState[item]
     local mode = state == true and Fx.Get(b, "onCd") or state == false and Fx.Get(b, "onReady") or "show"
     local outOfForm = offForm(b)
-    if state == false and castable[item] == false and Fx.Get(b, "onUnusable") ~= "show" then
+    -- While its buff is up, Buff up decides (Show, or Hide below): a buff that
+    -- starts the cooldown would otherwise sit faded the whole time it's up.
+    if down[item] == false then
+        mode = "show"
+    elseif state == false and castable[item] == false and Fx.Get(b, "onUnusable") ~= "show" then
         mode = Fx.Get(b, "onUnusable")
     elseif state == false and short[item] and Fx.Get(b, "onShort") ~= "show" then
         mode = Fx.Get(b, "onShort")
     end
     -- Every Hide gives up its spot (Not usable and Short too; a group growing from
     -- its middle stayed off-center otherwise), as does Buff up Hide on the game's
-    -- buff item or our cooldown icon under a buff ("up": Keep its spot only applies
+    -- buff item or Daylight UI's cooldown icon under a buff ("up": Keep its spot only applies
     -- while missing).
     local hideUp = down[item] == false and Fx.Get(b, "hideActive") == true
     local isGone = nil
@@ -1044,7 +1082,7 @@ local function applyAlpha(item)
     if a == 1 and not faded[item] and not mouseOff[item] then return end
     faded[item] = (a ~= 1) or nil
     setAlpha(item, a)
-    -- Hidden means no tooltip over the empty gap either. Our own frames don't take
+    -- Hidden means no tooltip over the empty gap either. Daylight UI's own frames don't take
     -- the mouse, so they're left alone.
     if own[item] then return end
     if a == 0 then
@@ -1067,8 +1105,52 @@ end
 
 -- Apply / clear --------------------------------------------------------
 
+-- The stance you're in: a wash over its icon in the buff-up color, as a druid's form
+-- shows while its buff is up. The same switches turn it off (activeGlow,
+-- noDurationSwipe). It changes the moment the stance does.
+local stanceWash = setmetatable({}, weak)   -- item -> its wash texture
+local STANCE_ALPHA = 0.5
+
+local function wantsStance(item)
+    local b = opts[item]
+    if not b or kinds[item] ~= "icon" or formNow == nil then return false end
+    if Fx.Get(b, "activeGlow") == false or Fx.Get(b, "noDurationSwipe") == true then return false end
+    local sid = Fx.SpellOf(item)
+    return sid ~= nil and litBySpell[sid] == formNow
+end
+
+local function applyStance(item)
+    local on = wantsStance(item)
+    local t = stanceWash[item]
+    if not t then
+        if not on then return end
+        t = item:CreateTexture(nil, "OVERLAY", nil, 1)
+        t:SetTexture("Interface\\Buttons\\WHITE8x8")
+        t:SetBlendMode("ADD")
+        t:SetAlpha(0)
+        stanceWash[item] = t
+    end
+    local icon = ns.Cooldowns.IconOf(item) or item.Icon
+    t:ClearAllPoints()
+    t:SetAllPoints(type(icon) == "table" and icon or item)
+    if on then
+        local c = Fx.ActiveColor(opts[item])
+        t:SetVertexColor(c[1], c[2], c[3])
+    end
+    local to = on and STANCE_ALPHA or 0
+    if t.__on == on then return end
+    t.__on = on
+    t:Show()
+    Motion.Tween(t, t:GetAlpha(), to, Motion.FAST, function(a) t:SetAlpha(a) end)
+end
+Fx.StanceShown = function(item)
+    local t = stanceWash[item]
+    return t ~= nil and t.__on == true
+end
+
 local function refresh(item, read)
     if not opts[item] then return end
+    applyStance(item)
     if read then
         local was = cdState[item]
         updateState(item)
@@ -1091,13 +1173,13 @@ function Fx.Refresh(item) refresh(item, true) end
 refreshNow = function(item) refresh(item, false) end
 
 -- Whether a piece's buff is down (true), up (false) or unknown (nil), reported by
--- CdmRows each pass after Fx.Apply. An item we don't otherwise hold (a stand-in, an
+-- CdmRows each pass after Fx.Apply. An item not otherwise held (a stand-in, an
 -- aura holder) only gets the missing glow, from button.
 local looseLit = setmetatable({}, weak)
-function Fx.SetDown(item, button, isDown)
-    down[item] = isDown
+function Fx.SetDown(item, button, isDown, isDue)
+    down[item], due[item] = isDown, isDue
     if opts[item] then refreshNow(item); return end
-    local want = buffGlow(button, isDown)
+    local want = buffGlow(button, isDown, isDue)
     looseLit[item] = want and true or nil
     showGlow(item, want, button)
 end
@@ -1107,14 +1189,14 @@ end
 -- buff glow isn't left on it.
 function Fx.EndPass(told)
     for item in pairs(looseLit) do
-        if not told[item] then looseLit[item] = nil; down[item] = nil; showGlow(item, false) end
+        if not told[item] then looseLit[item] = nil; down[item] = nil; due[item] = nil; showGlow(item, false) end
     end
     for item in pairs(opts) do
-        if not told[item] and down[item] ~= nil then down[item] = nil; refreshNow(item) end
+        if not told[item] and down[item] ~= nil then down[item] = nil; due[item] = nil; refreshNow(item) end
     end
 end
 
--- Runs after each placement pass for every item we hold (CdmRows). isOwn = our own
+-- Runs after each placement pass for every held item (CdmRows). isOwn = Daylight UI's own
 -- icon or bar (CdmOwn, CdmBars), not the game's item.
 function Fx.Apply(item, button, kind, isOwn, onlyBuff)
     opts[item], kinds[item] = button, kind
@@ -1122,7 +1204,7 @@ function Fx.Apply(item, button, kind, isOwn, onlyBuff)
     -- Buff only has no cooldown rows on its card, so any old values there are ignored.
     buffOnly[item] = onlyBuff or nil
     local cd = type(item.Cooldown) == "table" and item.Cooldown or nil
-    -- No event fires when a cooldown ends, but its own frame does (our bars' time
+    -- No event fires when a cooldown ends, but its own frame does (Daylight UI's bars' time
     -- in CdmBars is one too). No game value is read; the spell is simply ready.
     local done = cd or (type(item.Timer) == "table" and item.Timer) or nil
     if done and type(done.HookScript) == "function" and not doneHooked[done] then
@@ -1166,7 +1248,7 @@ function Fx.Apply(item, button, kind, isOwn, onlyBuff)
     Fx.Refresh(item)
 end
 
--- The item is released: undo everything we changed.
+-- The item is released: undo everything changed on it.
 function Fx.Clear(item)
     if noSwipe[item] then
         noSwipe[item] = nil
@@ -1197,6 +1279,12 @@ function Fx.Clear(item)
         item:SetAlpha(1)
     end
     alphaNow[item] = nil
+    local wash = stanceWash[item]
+    if wash then
+        Motion.Tween(wash, 0, 0, 0)
+        wash.__on = nil
+        wash:SetAlpha(0)
+    end
     if mouseOff[item] then mouseOff[item] = nil; item:EnableMouse(true) end
     cdState[item], away[item], usable[item], castable[item], down[item] = nil, nil, nil, nil, nil
     short[item] = nil
@@ -1206,7 +1294,7 @@ function Fx.Clear(item)
     opts[item], kinds[item], own[item] = nil, nil, nil
 end
 
--- Cooldowns moved: update only the items we hold.
+-- Cooldowns moved: update only the held items.
 function Fx.UpdateAll()
     for item in pairs(opts) do Fx.Refresh(item) end
 end
@@ -1235,9 +1323,9 @@ casts:SetScript("OnEvent", function(_, _, _, _, sid)
 end)
 
 -- Runs once on the next frame however many events came in. A cast sends two to four
--- cooldown and charge events, and each one used to redo every held item (and our
--- own icons). For a proc, the game shows its alert in its own handler for the same
--- event, so ours reads it a frame later anyway.
+-- cooldown and charge events, so the held items (and Daylight UI's own icons) are
+-- redone once, not per event. For a proc, the game shows its alert in its own handler for the same
+-- event, so this reads it a frame later anyway.
 local wantFx, wantOwn, queued = false, false, false
 local function flush()
     queued = false
@@ -1255,18 +1343,18 @@ function Fx.Soon(own)
 end
 local function procSoon() Fx.Soon(false) end
 local function cooldownSoon() Fx.Soon(true) end
-pcall(DUI.RegisterEvent, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", procSoon)
-pcall(DUI.RegisterEvent, "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", procSoon)
+DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", procSoon)
+DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", procSoon)
 -- A spell turning castable or not (a block for Revenge, rage, the target's health).
-pcall(DUI.RegisterEvent, "SPELL_UPDATE_USABLE", procSoon)
-pcall(DUI.RegisterEvent, "PLAYER_MOUNT_DISPLAY_CHANGED", procSoon)
+DUI.RegisterEvent("SPELL_UPDATE_USABLE", procSoon)
+DUI.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", procSoon)
 
 DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", cooldownSoon)
 DUI.RegisterEvent("SPELL_UPDATE_CHARGES", cooldownSoon)
 -- Items added by ID (CdmCustom): their cooldown and their bag count, which shows on
--- our icons and bars (none left grays them).
-pcall(DUI.RegisterEvent, "BAG_UPDATE_COOLDOWN", cooldownSoon)
-pcall(DUI.RegisterEvent, "BAG_UPDATE_DELAYED", cooldownSoon)
+-- Daylight UI's icons and bars (none left grays them).
+DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", cooldownSoon)
+DUI.RegisterEvent("BAG_UPDATE_DELAYED", cooldownSoon)
 DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() Fx.UpdateAll() end)
 
 -- A new form, stance or stealth updates what's shown at once (fight info never
@@ -1279,5 +1367,5 @@ local function formChanged()
 end
 Fx.FormChanged = formChanged
 for _, e in ipairs({ "UPDATE_SHAPESHIFT_FORM", "UPDATE_SHAPESHIFT_FORMS", "UPDATE_STEALTH", "PLAYER_ENTERING_WORLD" }) do
-    pcall(DUI.RegisterEvent, e, function() DUI.SafeCall(formChanged) end)
+    DUI.RegisterEvent(e, function() DUI.SafeCall(formChanged) end)
 end

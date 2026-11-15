@@ -82,7 +82,7 @@ function Shape.Defaults()
     -- The totem bar takes the stance bar's spot (a shaman has no stance bar).
     d.totem = { point = d.stance.point, rel = d.stance.rel, x = d.stance.x, y = d.stance.y }
     -- The game's Extra Abilities button sits on top of the center bars at its own
-    -- default spot, so ours goes over the right grid.
+    -- default spot, so Daylight UI's goes over the right grid.
     local rightW, rightH = Shape.Extent(C("right"))
     d.extra = { point = "BOTTOM", x = inner + rightW / 2, y = bottom + rightH + Shape.SIDE_GAP }
     return d

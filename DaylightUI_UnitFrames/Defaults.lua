@@ -27,7 +27,7 @@ local function auraSlots(into)
     for _, k in ipairs(ns.AURA_SLOTS) do
         into[k] = { show = false, what = "debuffs", debuffWhich = "dispel", buffWhich = "heals", spot = "topleft",
                     grow = "right", size = 14, max = 3, rows = 1, spacing = 2, x = 0, y = 0, timers = false,
-                    shortTimers = false, swipe = false, tooltips = false }
+                    shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true }
     end
     return into
 end
@@ -46,34 +46,34 @@ local function indicators(size)
 end
 
 ns.DEFAULTS = {
-    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
-               slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitDragon = false, portraitDragonColor = "class",
+    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+               slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, portraitDragon = false, portraitDragonColor = "class",
                predictHeals = true, predictAbsorbs = true, showThreat = true,
-               showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
+               showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
                druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", fade = DaylightUI.Fade.Defaults({ fullHealth = false, target = true }) },
-    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
                showMarker = true, showClassification = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false,
-               portrait = "class", portraitRing = "class", predictHeals = true, predictAbsorbs = true, showThreat = true, threatTag = true,
+               portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true, showThreat = true, threatTag = true,
                -- The threat % tag (UF.LayoutThreatTag), on the frame or on its own
                -- mover. 0 height means the name tab's, 0 size fits the tag.
                threatTagAt = "frame", threatTagX = 0, threatTagY = 0, threatTagWidth = 36, threatTagHeight = 0,
                threatTagSize = 0, threatTagColor = "threat", threatTagBox = true, threatTagSlant = true,
                dotTint = true, dotSkull = true,
-               showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, fade = DaylightUI.Fade.Defaults() },
+               showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, fade = DaylightUI.Fade.Defaults() },
     targettarget = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 22, showName = true, slant = true, reverseFill = false,
                      -- Power bar off by default, since most people only glance to see who it is.
                      showPower = false, powerHeight = 4, powerTextPos = "inner", powerTextX = 0, powerTextY = 0,
-                     showPowerText = false, powerFormat = "value", hideFullPower = false,
+                     showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
                      predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults() },
     pet = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 20, powerHeight = 4, showPower = true, showName = true, slant = true,
-            reverseFill = false, showPowerText = false, powerFormat = "value", hideFullPower = false,
+            reverseFill = false, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
             predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults({ fullHealth = false }), happiness = true, happinessBar = false,
-            happinessLook = "square", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
+            happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
-    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
-              showMarker = true, slant = true, portrait = "class", portraitRing = "class", predictHeals = true, predictAbsorbs = true,
-              showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
+    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+              showMarker = true, slant = true, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true,
+              showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
     -- at: where it sits (CastBar.AT). "below" hangs under your frame, "above"
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
@@ -95,7 +95,9 @@ ns.DEFAULTS = {
               classColor = false, fill = "pair",
               -- Target and focus: an interrupt animation (Motion.KICKS) and
               -- "Kicked by <name>" to the right of the bar or "below" it.
-              kickStyle = "blade", kickedBy = true, kickedByPos = "right" },
+              -- kickMark: a thin line on an enemy's cast where your
+              -- interrupt comes off cooldown (DUI.Interrupt).
+              kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false },
     -- The focus cast bar: inside its frame over the power bar, or its own.
     focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the
@@ -120,9 +122,9 @@ ns.DEFAULTS = {
         colorMode = "color", fullAll = false, empty = 0.4, border = 2, slant = true, anchor = "target",
         side = "below", align = "inner", stretch = false },
     party = { enabled = true, texts = textSlots(), nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", width = 170, height = 34, showPower = true, powerHeight = 7, spacing = 38, showName = true, nameOnBar = false,
-              showPercent = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class",
+              showPercent = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true,
               showMarker = true, predictHeals = true, predictAbsorbs = true, showThreat = true,
-              showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, leaderPx = 11, showPowerText = false, powerFormat = "value", hideFullPower = false, healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0,
+              showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, leaderPx = 11, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0,
               fade = DaylightUI.Fade.Defaults(), showRole = true,
               -- Aura groups (AuraGroups.lua), matching the old party rows: debuffs
               -- under the frame from its right end, your buffs from its left.
@@ -131,19 +133,20 @@ ns.DEFAULTS = {
                   -- Debuff tooltips on: what's on a party member matters
                   -- more than a mouseover cast while the cursor is over an icon.
                   debuffs = { show = true, which = "all", spot = "below", grow = "left", size = 18, max = 4,
-                              rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true },
+                              rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 8, countSize = 10, counts = true },
                   cc = { show = false, spot = "center", grow = "center", size = 18, max = 1, rows = 1, spacing = 2,
-                         x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true },
+                         x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 9, countSize = 10, counts = true },
                   buffs = { show = true, which = "heals", spot = "below", grow = "right", size = 14, max = 4,
-                            rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false },
+                            rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
               }),
               -- Header layout: down or across, frames per line, sorting, you.
               direction = "columns", perLine = 5, groupSpacing = 4, sortBy = "role", hideSelf = true, showSolo = false,
               -- Grow from the bottom and/or the right (Group.Corner).
               growUp = false, growLeft = false,
               -- Tile look pieces, off or unused in the default look.
-              fillVertical = false, showPower = true, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0,
+              fillVertical = false, showPower = true, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
               rolePos = "home", roleSize = 11, roleX = 0, roleY = 0, markerPos = "home", markerX = 0, markerY = 0, leaderPos = "home", leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0,
+              showSummon = true, summonPos = "center", summonSize = 18, summonX = 0, summonY = 0,
               roleHideDamage = false, roleHideInCombat = false, leaderHideInCombat = false,
               showDispel = false, dispelSize = 14, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3,
               dispelOnlyMine = true, dispelPos = "topright", dispelX = 0, dispelY = 0,
@@ -157,35 +160,35 @@ ns.DEFAULTS = {
     partyPet = { enabled = false, spot = "right", x = 0, y = 0, width = 80, height = 18, fillVertical = false, showPower = true, powerHeight = 3,
                  slant = true, reverseFill = false, color = "owner", showName = true, nameColor = "global", nameCustom = { 1, 1, 1 },
                  nameLimitLen = 0, showPercent = false, healthText = "percent", percentSign = false, hideFullHealth = false,
-                 percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value",
+                 percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value", powerPercentSign = false,
                  hideFullPower = false, powerTextPos = "inner", predictHeals = true, predictAbsorbs = true },
     partyPetText = { name = 10, percent = 10, power = 0 },
     raid = { enabled = true, texts = textSlots(), showInParty = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
              nameColor = "global", nameCustom = { 1, 1, 1 }, nameLimitLen = 0,
              direction = "columns", sortBy = "group", groups = 8, growUp = false, growLeft = false,
-             perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0,
+             perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
              -- Aura groups (AuraGroups.lua), placed by Spots on the tile.
              indicators = indicators(8),
              auras = auraSlots({
                  -- Calm by default: two small debuffs in the corner, crowd control
                  -- in the middle only while it lasts, no timer numbers.
                  debuffs = { show = true, which = "all", spot = "bottomright", grow = "left", size = 12, max = 2,
-                             rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                             rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
                  cc = { show = true, spot = "center", grow = "center", size = 16, max = 1, rows = 1, spacing = 2,
-                        x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                        x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 9, countSize = 10, counts = true },
                  -- bottomleft matches the old tile buffs' "below". An upgrade step leaves an unsaved spot at this.
                  buffs = { show = false, which = "heals", spot = "bottomleft", grow = "right", size = 14, max = 4,
-                           rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false },
+                           rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
              }),
              showPercent = false, slant = false, showPower = true, powerHeight = 3, showMarker = true,
-             predictHeals = true, predictAbsorbs = true, showThreat = true, showDispel = true, dispelSize = 12, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3, dispelOnlyMine = true, dispelPos = "topright", dispelX = 0, dispelY = 0, rolePos = "bottomleft", roleSize = 11, roleX = 0, roleY = 0, markerPos = "bottomright", markerSize = 11, markerX = 0, markerY = 0, leaderPos = "topleft", leaderPx = 11, leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0, roleHideDamage = false, roleHideInCombat = false, leaderHideInCombat = false,
+             predictHeals = true, predictAbsorbs = true, showThreat = true, showDispel = true, dispelSize = 12, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3, dispelOnlyMine = true, dispelPos = "topright", dispelX = 0, dispelY = 0, rolePos = "bottomleft", roleSize = 11, roleX = 0, roleY = 0, markerPos = "bottomright", markerSize = 11, markerX = 0, markerY = 0, leaderPos = "topleft", leaderPx = 11, leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0,
+              showSummon = true, summonPos = "center", summonSize = 18, summonX = 0, summonY = 0, roleHideDamage = false, roleHideInCombat = false, leaderHideInCombat = false,
              showLeader = true, fade = DaylightUI.Fade.Defaults(), healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, showRole = true,
              targetMark = true, targetMarkColor = "accent", targetMarkCustom = { 1, 1, 1 },
              privateAuras = true },
     raidText = { name = 10, percent = 10 },
-    portraits = { icons = "daylight", classIcons = {},   -- a pick per class token
-                  ringWidth = "normal", ringLine = true }, -- every portrait ring: thin | normal | thick, and the groove around its middle
-    range = { enabled = true, alpha = 0.45, groupOwn = false, alphaGroup = 0.45 },
+    portraits = { icons = "daylight", classIcons = {} },   -- a pick per class token
+    range = { enabled = true, alpha = 0.45, groupOwn = false, alphaGroup = 0.45, spell = "none" },
     -- The leader drawer beside the group frames (Leader.lua).
     leader = { enabled = true, show = "tank" },
     -- The pull timer's big number (Pull.lua).
@@ -196,27 +199,52 @@ ns.DEFAULTS = {
                  powerHeight = 5, showHealth = true, showPower = true, combo = true, slant = true, castbar = false, swing = false,
                  comboStretch = true, comboSize = 14, comboHeight = 0, comboX = 0, comboY = 0,
                  predictHeals = true, predictAbsorbs = true,
-                 -- Its own rows, shaped like playerAuras: off, centered over the bars, buffs nearest.
-                 auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
-                           buffSpot = "above", buffGrow = "center", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
+                 -- Its own rows, shaped like playerAuras: off, over the bars, buffs from the left, debuffs from the right.
+                 auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                           buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                            buffSize = 20, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
-                           debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                           debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                           debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                           debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
                  fade = DaylightUI.Fade.Defaults({ mode = "ooc", target = true, delay = 2, mouseover = false }) },
-    -- Spot, grow and nudge (Spots.lua) for each row: debuffs over the name
-    -- tab, buffs under the frame, both from the outer end inward.
+    -- Spot, grow and nudge (Spots.lua) for each row. Both over the frame,
+    -- side by side: buffs from the left end, debuffs from the right, as on
+    -- every frame.
     targetAuras = { debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
-                    buffSpot = "below", buffGrow = "left", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
+                    buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
                     maxDebuffs = 8, maxOtherDebuffs = 4, buffSize = 16, buffs = true, maxBuffs = 6,
-                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 3, buffRows = 2,
-                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 4, buffRows = 3,
+                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                    debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
+    -- The focus's own rows, shaped like the target's but smaller: off by
+    -- default, and only your own debuffs once on, so it tracks what you put there.
+    focusAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                   buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 22, debuffFilter = "mine",
+                   maxDebuffs = 6, maxOtherDebuffs = 3, buffSize = 16, maxBuffs = 6,
+                   debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 1,
+                   debuffTimeSize = 11, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                   debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                   debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
+    -- The pet's own rows: off by default, small to suit its frame, under it
+    -- so they keep clear of the player frame above.
+    petAuras = { debuffs = false, buffs = false, debuffSpot = "below", debuffGrow = "left", debuffX = 0, debuffY = 0,
+                 buffSpot = "below", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 18, debuffFilter = "all",
+                 maxDebuffs = 4, buffSize = 14, maxBuffs = 4,
+                 debuffSpacing = 2, buffSpacing = 2, debuffRows = 1, buffRows = 1,
+                 debuffTimeSize = 10, buffTimeSize = 8, debuffCountSize = 9, buffCountSize = 9,
+                 debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                 debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
     -- The player frame's own aura rows, styled like the target's. Off by
     -- default, since the Buffs module shows yours. Both sit over the frame,
-    -- clear of the cast bar and swing timers below, buffs nearest, running from
-    -- the portrait end toward the angled one. All debuffs on you form one group.
-    playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "right", debuffX = 0, debuffY = 0,
+    -- clear of the cast bar and swing timers below, side by side: buffs from
+    -- the left end, debuffs from the right. All debuffs on you form one group.
+    playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                     buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
                     buffSize = 16, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
-                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10 },
+                    debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
+                    debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
+                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
     -- Text sizes per frame. Party and raid share theirs.
     playerText = { name = 12, percent = 11, big = 20, power = 0 },
     targetText = { name = 12, percent = 11, big = 20, power = 0 },
@@ -304,7 +332,7 @@ do
     -- The numbers on the bars, using the player frame's keys. Size 0 fits its bar.
     d.showPercent, d.healthText, d.percentSign, d.hideFullHealth = false, "percent", false, false
     d.healthTextPos, d.healthTextSize = "center", 0
-    d.showPowerText, d.powerFormat, d.hideFullPower = false, "value", false
+    d.showPowerText, d.powerFormat, d.powerPercentSign, d.hideFullPower = false, "value", false, false
     d.powerTextPos, d.powerTextSize = "center", 0
 end
 
@@ -342,6 +370,25 @@ for _, k in ipairs(ns.RIBBON_FRAMES) do
     d.sizes = { daylight = day, ribbon = RIBBON_SIZES[k] }
 end
 
+-- Aura lists (AuraLists.lua): spells shared by every frame's aura rows. Each
+-- row hides the Hidden list's spells and shows everything else until it picks
+-- a show-only list. Debuff rows can also show only boss debuffs or leave out
+-- the ones lasting longer than maxTime seconds (0 = any).
+-- Hidden starts with Boosted Rest, the hour before a Camp Tent gives rested
+-- experience again: a timer on a bonus, never something a frame needs.
+ns.DEFAULTS.auraLists = { hidden = { name = "Hidden", mode = "hide", spells = "1229451" },
+                          watch = { name = "Watch list", mode = "only", spells = "" } }
+for _, t in ipairs({ ns.DEFAULTS.targetAuras, ns.DEFAULTS.focusAuras, ns.DEFAULTS.petAuras, ns.DEFAULTS.playerAuras,
+                     ns.DEFAULTS.personal.auras }) do
+    t.debuffHide, t.buffHide, t.debuffOnly, t.buffOnly = "hidden", "hidden", "none", "none"
+    t.debuffBoss, t.debuffMaxTime = false, 0
+end
+for _, frame in ipairs({ "party", "raid" }) do
+    for _, g in pairs(ns.DEFAULTS[frame].auras) do
+        g.hide, g.only, g.boss, g.maxTime = "hidden", "none", false, 0
+    end
+end
+
 -- Raid setups by size (Raid.lua; the Raid 10, Raid 20 and Raid 40 pages).
 -- 11 to 20 players use raid20 / raid20Text and 21 to 40 use raid40 / raid40Text,
 -- built like the 10-player raid setup, unless follow is on (the default), in
@@ -374,6 +421,21 @@ do
     end
 end
 
+-- Each party member's target (PartyTargets.lua): set up like the target of
+-- target, off by default, beside its member (spot right|left|below|above,
+-- past a party pet on the same side).
+do
+    local t = deep(ns.DEFAULTS.targettarget)
+    t.enabled, t.width, t.height = false, 80, 20
+    t.spot, t.x, t.y = "right", 0, 0
+    ns.DEFAULTS.partyTarget = t
+    ns.DEFAULTS.partyTargetText = deep(ns.DEFAULTS.targettargetText)
+    ns.DEFAULTS.partyTargetText.name = 10
+    for _, list in ipairs({ ns.MEDIA_FRAMES, ns.LOOK_FRAMES }) do
+        list[#list + 1] = "partyTarget"
+    end
+end
+
 -- Enemy flag carriers (Arena.lua), which the game exposes as arena units in a
 -- battleground. One setup for all of them, built like the focus frame (its
 -- look, texts and sizes), stacked spacing apart.
@@ -393,7 +455,7 @@ end
 -- has always sat low, under the other frames.
 ns.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
 ns.STRATA_LABELS = { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialogue" }
-ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "raid", "arena",
+ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focustarget", "party", "partyTarget", "raid", "arena",
                      "personal", "playerCastbar", "targetCastbar", "focusCastbar", "swing" }
 for _, k in ipairs(ns.STRATA_FRAMES) do
     ns.DEFAULTS[k].strata = k == "personal" and "LOW" or "MEDIUM"

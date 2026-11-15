@@ -27,6 +27,7 @@ Donators.LIST = {
     "Torrent",
     "SPARQ",
     "Pownzerfaust",
+    "Somebody",
     "Tih Tahz",
     "Thorvald87",
     "Popatuna",
@@ -46,6 +47,13 @@ Donators.LIST = {
     "Bryan",
     "Derrick Bevan",
     "X Razer",
+    "Sebastian Reichmann",
+    "Alen Šabanagić",
+    "Lilith Pi",
+    "Chai",
+    "SKal",
+    "Fabrice",
+    "Extra Shmitty",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -58,6 +66,8 @@ Donators.LIST = {
     "Stefan Ilic",
     "FrostByghte",
     "Sukori",
+    "Steffen Krause",
+    "Hugo Romao PT",
     "sam",
     "Daniel",
     "Dragon Slayer",
@@ -74,6 +84,10 @@ Donators.MONTHLY = {
     "Derrick Bevan",
     "Stefan Ilic",
     "FrostByghte",
+    "Sebastian Reichmann",
+    "Steffen Krause",
+    "Alen Šabanagić",
+    "Hugo Romao PT",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -182,7 +196,7 @@ local function podiumCard(row, place)
     f.name:SetPoint("RIGHT", f, "RIGHT", -10, 0)
     f.name:SetWordWrap(false)
     f.name.english = true -- names aren't translated
-    -- A thin lit line along the card's top, like our windows have.
+    -- A thin lit line along the card's top, like Daylight UI's windows have.
     f.top = f:CreateTexture(nil, "ARTWORK")
     f.top:SetTexture(WHITE)
     f.top:SetHeight(1)

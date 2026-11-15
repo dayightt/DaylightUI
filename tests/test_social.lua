@@ -87,13 +87,11 @@ end
 
 T.test("social: on by default", function()
     stub.Load({ before = function() SW.world({})(); DaylightUIDB = nil end })
-    T.eq(DaylightUI.socialOwnWindow, true)
     T.truthy(stub.social.Window.frame, "built")
 end)
 
 T.test("social: switched off, the game's window stays the game's", function()
     local ns = load({ enabled = false })
-    T.eq(DaylightUI.socialOwnWindow, false)
     T.isnil(ns.Window.frame, "nothing built")
     SW.Toggle()
     frame(5)
@@ -290,6 +288,15 @@ T.test("social: friends show their faction; another game or ruleset is dimmed; c
     local page = ns.Friends.page
     local INK = DaylightUI.Style.INK
     local list = rows(page.stack, "friend")
+    T.falsy(list[1].name:GetText():find("|T", 1, true), "off as shipped: no faction")
+    T.rgb({ list[2].name:GetTextColor() }, INK.VALUE, "off as shipped: not dimmed")
+    T.falsy(page.chips.all:IsShown(), "off as shipped: no chips")
+    DaylightUI:Set("Social", "friendFactions", true)
+    DaylightUI:Set("Social", "friendDim", true)
+    DaylightUI:Set("Social", "friendChips", true)
+    frame(2)
+    list = rows(page.stack, "friend")
+    T.truthy(page.chips.all:IsShown(), "on: the chips")
     T.truthy(list[1].name:GetText():find("INV_BannerPVP_02", 1, true), "Alliance's banner")
     T.truthy(list[2].name:GetText():find("INV_BannerPVP_01", 1, true), "Horde's banner")
     T.falsy(list[3].name:GetText():find("|T", 1, true), "another game: no faction")
@@ -336,9 +343,10 @@ T.test("social: the right-click menu: note, favorite, remove asks first", functi
     m.pick("favorite")
     T.eq(SW.Calls("BNSetFriendFavoriteFlag")[1][2], true)
     m.pick("remove")
-    T.eq(stub.popup.which, "CONFIRM_REMOVE_BN_FRIEND", "the game's own question")
-    T.eq(stub.popup.data, 3)
+    T.eq(stub.Asked(), "removeFriend", "asked first")
     T.eq(#SW.Calls("BNRemoveFriend"), 0, "nothing removed yet")
+    stub.Answer(true)
+    T.eq(SW.Calls("BNRemoveFriend")[1][1], 3, "yes removes that friend")
 end)
 
 T.test("social: your status from the header (a click), and a broadcast", function()
@@ -355,8 +363,7 @@ end)
 
 -- The prompt's Accept, pressed by the player: a key or click of theirs around it.
 local function accept(text)
-    local dialog = StaticPopupDialogs[stub.popup.which]
-    stub.Key(dialog.OnAccept, { editBox = { GetText = function() return text end } }, stub.popup.data)
+    stub.Key(stub.Reply, text)
     stub.RunTimers()
 end
 

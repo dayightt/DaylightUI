@@ -305,7 +305,7 @@ end
 -- or nil while not shown. Only read, never anchored to: the buttons are protected.
 function Panel.BarsSpan(xp)
     local left, right, bottom
-    -- Our own bar 1 when the action bars draw their own, else the game's.
+    -- Daylight UI's own bar 1 when the action bars draw their own, else the game's.
     local own = DUI.ActionBarButtons and DUI.ActionBarButtons("main")
     for i = 1, 12 do
         local b = own and own[i] or _G["ActionButton" .. i]
@@ -532,6 +532,7 @@ function Panel.Layout(db)
         ma:SetSize(m.width, meterH)
     end
     DUI.Movers.Suspend("infopanel.meter", not detached)
+    Panel.PlaceMeterFade(db)
     Panel.UpdateGrip(db)
 
     -- The fold arrow: on the panel's edge on the meter's side whenever the
@@ -588,6 +589,21 @@ function Panel.PlaceXPFade(db)
     if was then DUI.Fade.Hold(owner == "own" and "InfoPanel.xp" or "InfoPanel.panel", false) end
 end
 
+-- The same for the damage meters: the panel's fade, or their own. Inside the
+-- panel the meter then ignores the panel's alpha, so the two fade apart; in
+-- its own window that window is faded instead.
+function Panel.PlaceMeterFade(db)
+    local own = db.meter.ownFade == true
+    local owner = not own and "panel" or db.meter.detached == true and "window" or "inside"
+    local was = Panel.meterFadeOwner
+    if owner == was then return end
+    Panel.meterFadeOwner = owner
+    local ma = Panel.meterArea
+    ma:SetIgnoreParentAlpha(owner == "inside")
+    if owner ~= "inside" then ma:SetAlpha(1) end
+    if was then DUI.Fade.Hold(own and "InfoPanel.meter" or "InfoPanel.panel", false) end
+end
+
 -- The first layout always jumps (nothing on screen to slide from).
 function Panel.SlideMeter(goal, glide)
     local s = Panel.slide
@@ -628,10 +644,13 @@ function ns.Build(mod)
         frames = function()
             for i = #list, 1, -1 do list[i] = nil end
             list[1] = Panel.holder
-            if Panel.meterFrame:IsShown() then list[#list + 1] = Panel.meterFrame end
-            -- The player's own meter windows fade with the panel too.
-            ns.MeterFrame.Frames("meter", list)
-            ns.MeterFrame.Frames("summary", list)
+            -- The meters, separate or not, fade with the panel unless they
+            -- have a fade of their own.
+            if not mod.db.meter.ownFade then
+                if Panel.meterFrame:IsShown() then list[#list + 1] = Panel.meterFrame end
+                ns.MeterFrame.Frames("meter", list)
+                ns.MeterFrame.Frames("summary", list)
+            end
             -- Attached, it fades with the panel (a child of it); detached, it's
             -- its own frame and needs listing separately. With its own fade
             -- it's InfoPanel.xp's.
@@ -646,10 +665,23 @@ function ns.Build(mod)
             xpList[1] = mod.db.xp.ownFade and Panel.xp:IsShown() and Panel.xp or nil
             return xpList
         end }
+    local meterList = {}
+    DUI.Fade.Register{ key = "InfoPanel.meter", scope = "InfoPanel", path = "meter.fade", page = ns.MeterOptions.PAGE,
+        frames = function()
+            for i = #meterList, 1, -1 do meterList[i] = nil end
+            if not mod.db.meter.ownFade then return meterList end
+            if Panel.meterFrame:IsShown() then
+                meterList[1] = Panel.meterFrame
+            elseif Panel.meterArea:IsShown() then
+                meterList[1] = Panel.meterArea
+            end
+            ns.MeterFrame.Frames("meter", meterList)
+            return ns.MeterFrame.Frames("summary", meterList)
+        end }
     -- Float: XP or money coming in (or going out) brings the panel
     -- back for a while; a reputation gain too (XP.RepGain).
     for _, e in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_MONEY" }) do
-        pcall(DUI.RegisterEvent, e, function()
+        DUI.RegisterEvent(e, function()
             DUI.Fade.Wake("InfoPanel.panel")
             if e ~= "PLAYER_MONEY" then DUI.Fade.Wake("InfoPanel.xp") end
         end)
@@ -665,18 +697,21 @@ function ns.Build(mod)
     -- The game draws minimap icons at full strength regardless of alpha, so
     -- once the panel fades fully out the map is made transparent too. Never
     -- hidden: a hidden minimap came back blank.
-    local mapHidden = false
+    -- The map skips the login fade-in. The game only takes a redraw of the
+    -- map while it can be seen, and a city's or dungeon's map, left waiting
+    -- at 0 for the fade-in, stayed empty. It shows from the loading screen on
+    -- (Minimap.lua redraws it then) and follows the panel's fade once the
+    -- panel has faded in. Map.Follow sets its alpha from the panel's.
+    local Map = ns.Minimap
+    Map.early = mod.db.map.enabled and DUI.Fade.intro == true and type(Minimap) == "table"
     hooksecurefunc(Panel.holder, "SetAlpha", function(_, a)
-        -- Shown and at full strength (most calls): nothing can change.
-        if not mapHidden and (type(a) ~= "number" or a >= 1 or not mod.db.map.enabled) then return end
-        -- Whatever took it there (its own fade, opacity 0, the campfire's hush).
-        local _, goal = DUI.Fade.State("InfoPanel.panel")
-        local faded = mod.db.map.enabled and type(a) == "number" and type(goal) == "number"
-            and goal <= 0.001 and a <= 0.001
-        if faded ~= mapHidden then
-            mapHidden = faded
-            DUI.Fade.MapAway("infopanel", faded)
+        if Map.early then
+            local now, goal = DUI.Fade.State("InfoPanel.panel")
+            local settled = not DUI.Fade.intro and type(now) == "number" and type(goal) == "number"
+                and math.abs(now - goal) < 0.001
+            if (type(a) == "number" and a >= 1) or settled then Map.early = false end
         end
+        if mod.db.map.enabled then DUI.SafeCall(Map.Follow) end
     end)
     ns.Tracker.Build(mod)
     -- The quest tracker hangs from a spot under the panel; moving the panel
@@ -710,9 +745,9 @@ function ns.Build(mod)
         if mod.db.xp.detached then C_Timer.After(0, relayout) end
     end
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", afterBars)
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", afterBars)
-    pcall(DUI.RegisterEvent, "PLAYER_SPECIALIZATION_CHANGED", afterBars)
-    -- Our own bars re-lay out live (a setting, a move): follow bar 1.
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", afterBars)
+    DUI.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", afterBars)
+    -- Daylight UI's own bars re-lay out live (a setting, a move): follow bar 1.
     DUI.On("ActionBarLaidOut", function(key) if key == "main" then afterBars() end end)
     -- Moving past the screen's middle (auto side) or a reset flips the meter
     -- and its threat meter to the other side. Detached windows do the same.

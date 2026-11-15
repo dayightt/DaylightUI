@@ -2,17 +2,17 @@
 -- bottom-right corner (it scales, keeping the top-left corner in place). The game
 -- re-docks the map on the left whenever it lays out its panels (the map opening,
 -- another window opening beside it, going back to small), so after each of those
--- it's put back where the player left it. We post-hook the global panel
+-- it's put back where the player left it. A post-hook on the global panel
 -- functions and the map's OnShow for that. When maximized it's the game's (its
 -- own size, scale 1). Right-click the title bar, or /dui reset, to restore it.
 --
--- Nothing of the game's is overwritten or called: just our own drag strip and
+-- Nothing of the game's is overwritten or called: just a drag strip and
 -- grip, SetPoint/SetScale/StartMoving on the map, post-hooks on globals, and
 -- EventRegistry callbacks.
 --
 -- With OpenMap loaded, it owns moving and sizing (its own title bar and grips),
 -- so this stands down: no strip, grip, saved spot or scale, the same way OpenMap
--- treats Move Any. The slim top row stays ours, since the skin draws it either
+-- treats Move Any. The slim top row stays the skin's, since the skin draws it either
 -- way (the game's two rows left a tall header and cut off the quest journal's
 -- search). It never sets the window size in that case.
 
@@ -26,9 +26,9 @@ MapMove.BAR_HEIGHT = 22
 MapMove.BUTTONS = 70 -- room at the bar's right end for maximize and close
 MapMove.MIN, MapMove.MAX = 0.6, 1.4 -- grip scale range
 MapMove.GRIP = 16
-MapMove.GRIP_LEVEL = 700 -- above the quest log's corner; our journal covers that side at 500 (Journal.LEVEL)
+MapMove.GRIP_LEVEL = 700 -- above the quest log's corner; the quest journal covers that side at 500 (Journal.LEVEL)
 -- The top in one row. The game reserves 67 px above the map
--- (TITLE_CANVAS_SPACER_FRAME_HEIGHT: title row, then the zone buttons). Ours is
+-- (TITLE_CANVAS_SPACER_FRAME_HEIGHT: title row, then the zone buttons). The skin's is
 -- SLIM, with the zone buttons NAV_Y down and NAV_H tall (the game's own bar
 -- height, 67 - 25 - 9).
 MapMove.TOP, MapMove.SLIM = 67, 37
@@ -69,11 +69,11 @@ end
 local function isFrame(x) return type(x) == "table" and type(x.SetPoint) == "function" end
 
 -- Moves the zone buttons up into the title row, and the map up and the window
--- shorter by the same amount, so the map keeps its size. We only hold on to what
+-- shorter by the same amount, so the map keeps its size. This only holds on to what
 -- the game never resets (the map's top anchor, the bar's right end, the title's
 -- alpha). The game resets the window height and the bar's top-left on every
 -- maximize/minimize, so each layout puts them back (maximized: the game's own
--- size, computed with our top). When unskinned, the game's anchors go back once.
+-- size, computed with the skin's top). When unskinned, the game's anchors go back once.
 -- LogBeside: extra width for the quest list beside a maximized map, or 0.
 function MapMove.LogBeside(f)
     if not (cfg and cfg.mapLogBeside ~= false) then return 0 end
@@ -100,7 +100,7 @@ function MapMove.Slim(f, on)
         if not sized then
             -- OpenMap owns the window size
         elseif maximized(f) then
-            -- The game's UpdateMaximizedSize, with our top in place of its 67.
+            -- The game's UpdateMaximizedSize, with the skin's top in place of its 67.
             -- With mapLogBeside on, the window grows by the quest list's width
             -- (as far as the screen allows) so the map keeps its size, like the
             -- windowed map does. The game's own version takes the room out of
@@ -143,7 +143,7 @@ function MapMove.Slim(f, on)
             bar:SetFrameLevel(bar.level)
             bar:SetHeight(MapMove.BAR_HEIGHT)
         end
-        -- Windowed and no longer ours: back to the game's height (maximized,
+        -- Windowed and no longer skinned: back to the game's height (maximized,
         -- the game sets its own).
         if sized and not maximized(f) then f:SetHeight(f.minimizedHeight) end
     end
@@ -230,7 +230,7 @@ local function makeGrip(f)
     grip:SetScript("OnLeave", function() if not grip.grab then grip.icon:SetVertexColor(0.62, 0.62, 0.65, 0.8) end end)
     grip:SetScript("OnMouseDown", function(_, button)
         if button ~= "LeftButton" or maximized(f) or (InCombatLockdown() and f:IsProtected()) then return end
-        -- From here on we place it: save the spot first, then scale from there.
+        -- From here on this file places it: save the spot first, then scale from there.
         if not savedSpot() then save(f) end
         local spot = savedSpot()
         if not spot then return end
@@ -268,7 +268,7 @@ local function makeBar(f)
     end)
     bar:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
-        -- Saved by us, not in the game's layout cache.
+        -- Saved in the addon's settings, not in the game's layout cache.
         f:SetUserPlaced(false)
         save(f)
     end)
@@ -292,7 +292,7 @@ local function hook(f)
     for _, name in ipairs({ "ShowUIPanel", "HideUIPanel", "UpdateUIPanelPositions" }) do
         if type(_G[name]) == "function" then hooksecurefunc(name, MapMove.Apply) end
     end
-    -- Maximized: back to the game's size and scale 1. Minimized: ours again.
+    -- Maximized: back to the game's size and scale 1. Minimized: the skin's again.
     -- These fire before the game sets its own size and the zone buttons' spot,
     -- so apply next frame too.
     local reg = _G.EventRegistry

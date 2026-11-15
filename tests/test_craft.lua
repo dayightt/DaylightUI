@@ -429,17 +429,20 @@ end
 T.test("craft: right-click the profession's name: Unlearn, the game's own confirm box", function()
     local ns = load()
     local f = open(ns)
+    local abandoned = {}
+    _G.C_SkillInfo = { AbandonSkill = function(id) abandoned[#abandoned + 1] = id end }
     T.falsy(f.unlearn, "no link in the header any more")
     f.who:GetScript("OnClick")(f.who, "RightButton")
     local rows = menuRows()
     T.eq(#rows, 1)
     rows[1]:GetScript("OnClick")(rows[1], "LeftButton")
-    T.eq(stub.popup.which, "UNLEARN_SKILL")
-    T.eq(stub.popup.text, "Tailoring")
-    T.eq(stub.popup.data, 197)
+    T.eq(stub.Asked(), "unlearn", "Daylight UI's box asks, with the game's sentence")
+    T.truthy(stub.AskText():find("Tailoring", 1, true), stub.AskText())
+    T.eq(#abandoned, 0, "nothing unlearned yet")
+    stub.Answer(true)
+    T.deq(abandoned, { 197 }, "yes unlearns it")
     f.tabs[2]:Click()
     frame(20)
-    stub.popup = nil
     f.who:GetScript("OnClick")(f.who, "RightButton")
     T.eq(#menuRows(), 0, "Cooking is secondary: no menu")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -500,9 +503,9 @@ T.test("craft: an Unlearn link at a primary profession's skill line, in red word
     T.truthy(all:find("learn it again", 1, true), "the tooltip says what it costs: " .. all)
     f.drop:GetScript("OnLeave")(f.drop)
     f.drop:Click()
-    T.eq(stub.popup.which, "UNLEARN_SKILL", "the game's own box still asks")
-    T.eq(stub.popup.text, "Tailoring")
-    T.eq(stub.popup.data, 197)
+    T.eq(stub.Asked(), "unlearn", "the box still asks")
+    T.truthy(stub.AskText():find("Tailoring", 1, true))
+    stub.Dismiss()
     f.tabs[2]:Click()
     frame(20)
     T.falsy(f.drop:IsShown(), "Cooking is secondary: no Unlearn")
@@ -520,6 +523,43 @@ T.test("craft: the spells under the list say what they are", function()
     local _, _, _, x = first:GetPoint(1)
     T.truthy(x >= ns.Spells.Lead() and ns.Spells.Lead() > 0, "the icons start after the label")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: no What's Training, no link", function()
+    local ns = load()
+    open(ns)
+    T.falsy(ns.Spells.row.training:IsShown())
+end)
+
+-- What's Training hangs its recipe tab on the game's window, which ours covers:
+-- the spell row links to its floating window, on its profession view.
+T.test("craft: with What's Training loaded, the link opens its recipe list", function()
+    local opened, view = 0, nil
+    local spec = PW.world()
+    local ns
+    stub.Load({ before = function()
+        spec()
+        stub.loadedAddOns.WhatsTraining = true
+        SLASH_WHATSTRAINING1 = "/wt"
+        SlashCmdList.WHATSTRAINING = function()
+            opened = opened + 1
+            local f = CreateFrame("Frame", "WhatsTrainingFloatingFrame", UIParent)
+            function f.SetProfessionView(_, on) view = on end
+            f:Show()
+        end
+    end })
+    ns = stub.craft
+    open(ns)
+    local link = ns.Spells.row.training
+    T.truthy(link:IsShown(), "the link shows")
+    T.eq(link.text:GetText(), "What's Training")
+    link:Click()
+    T.eq(opened, 1, "its window opened once")
+    T.eq(view, true, "on its recipe list")
+    link:Click()
+    T.eq(opened, 1, "already open: not toggled shut")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    SlashCmdList.WHATSTRAINING = nil
 end)
 
 T.test("craft: Unlearn still shows when the tabs crowd the header", function()
@@ -1332,4 +1372,36 @@ T.test("craft: tracked recipes show in a small panel of ours, have / need, only 
     T.falsy(h:IsShown(), "nothing tracked: the panel fades away")
     DaylightUI.questsOwnTracker = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: with SkillUp Forever on, its link hands the game's window back until it closes", function()
+    stub.Load({ before = function() PW.world({})(); stub.loadedAddOns.SkillUpForever = true end })
+    local ns = stub.craft
+    PW.Load()
+    frame(3)
+    local f = open(ns)
+    T.truthy(DaylightUI.Win.IsOpen(f))
+    local link = ns.Spells.row.skillup
+    T.truthy(link:IsShown(), "the link shows")
+    link:Click()
+    frame(10)
+    T.falsy(DaylightUI.Win.IsOpen(f), "ours steps aside")
+    T.eq(ProfessionsFrame:GetParent(), UIParent, "the game's window is back")
+    PW.Open(185)
+    frame(20)
+    T.falsy(DaylightUI.Win.IsOpen(f), "another profession stays in the game's window")
+    T.eq(ProfessionsFrame:GetParent(), UIParent)
+    PW.Close()
+    frame(10)
+    open(ns)
+    T.truthy(DaylightUI.Win.IsOpen(f), "the next open is ours again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: without SkillUp Forever, no SkillUp link", function()
+    local ns = load()
+    PW.Load()
+    frame(3)
+    open(ns)
+    T.falsy(ns.Spells.row.skillup:IsShown())
 end)

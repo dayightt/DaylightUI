@@ -88,6 +88,9 @@ ns.OPTIONS = { pages = {
         { label = "Experience bar", desc = "At the level cap it shows the reputation you're watching. Before that, it turns to that faction for a few seconds when you gain reputation, and while the mouse is over it.", items = {
             { type = "toggle", key = "xp.enabled", label = "Show the experience bar",
               desc = "The experience bar on top of the panel, or reputation at the level cap." },
+            { type = "toggle", key = "xp.gameBar", label = "Use the game's experience bar instead",
+              desc = "With the experience bar above off, show the game's own bar at the bottom of the screen. Off, there's no experience bar at all.",
+              hidden = function(get) return get("xp.enabled") == true end },
             { type = "toggle", key = "xpGain", label = "XP gain effects",
               disabled = function(get) return get("xp.enabled") ~= true or motionOff() end,
               desc = "The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
@@ -191,7 +194,7 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("rep.enabled") },
         } },
-        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter window, if used). So does the experience bar, unless you give it its own fade below." } }, nil, "Info panel"),
+        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade below. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
         xpFadeCard(),
       } },
     ns.MeterOptions.Page(),
@@ -204,6 +207,12 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "map.size", label = "Minimap size", min = 120, max = 2800, step = 2, unit = "px",
               desc = "How big the square minimap is.",
               disabled = off("map.enabled") },
+            { type = "slider", key = "map.iconScale", label = "Minimap icon size", since = "1.8.0", min = 0.5, max = 2, step = 0.1, unit = "%",
+              desc = "How big the icons on the map are: herbs and ore, party members, quest spots and the like. The map keeps its size. This is Edit Mode's own setting, kept in your Edit Mode layout.",
+              get = function() return ns.Minimap.GetIconScale() end,
+              set = function(v) ns.Minimap.SetIconScale(v) end,
+              default = function() return 1 end,
+              disabled = off("map.enabled") },
             { type = "toggle", label = "Rotate as you turn",
               desc = "The game's own setting: the map turns with you, so the way you face is always up. When off, north is always up.",
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true end,
@@ -215,11 +224,17 @@ ns.OPTIONS = { pages = {
                   if sys and set then
                       DaylightUI.EditMode.WriteSetting(sys.Minimap, nil, set.RotateMinimap, v and 1 or 0)
                   end
-                  -- Not one of our settings, so notify the options window directly.
+                  -- Not one of Daylight UI's settings, so notify the options window directly.
                   DaylightUI.Fire("SettingChanged", "InfoPanel", "map.rotate", v)
               end,
               default = function() return false end,
               disabled = off("map.enabled") },
+            { type = "dropdown", key = "map.shape", label = "Minimap shape", since = "1.8.0",
+              values = { square = "Square", round = "Round" }, order = { "square", "round" },
+              desc = "Round gives the map a thin ring with N at the top. While Rotate as you turn is on, the map is always round.",
+              disabled = function(get)
+                  return get("map.enabled") ~= true or (type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true)
+              end },
             { type = "toggle", key = "map.buttons", label = "Calendar and tracking buttons",
               desc = "Shows the calendar and tracking buttons on the map's right edge while the mouse is over the map.",
               disabled = off("map.enabled") },
@@ -309,6 +324,8 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "data.goldChars", label = "Gold characters",
               values = { all = "Every character", faction = "This faction" }, order = { "all", "faction" },
               desc = "Whose gold the Gold text's tooltip lists and adds up: every character, or only those of the faction you're playing. A character counts for its faction once it has logged in after this update." },
+            { type = "toggle", key = "data.soulBag", label = "Soul bag size", since = "1.7.2", disabled = noData,
+              desc = "Warlocks: the Soul Shards text shows how many your soul bag holds beside the count, and its tooltip the free slots." },
         } },
         { label = "Slots", desc = "What each slot shows, left to right. The clock, framerate and coordinates are on the minimap too.", items = {
             slotItem(1), slotItem(2), slotItem(3), slotItem(4), slotItem(5),

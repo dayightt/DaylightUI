@@ -1,5 +1,5 @@
 -- PreviewBar: /dui buffs test (and DaylightUI's frame preview) draws a sample
--- of known buffs with our own buttons, laid out by the same flow algorithm
+-- of known buffs with the module's own buttons, laid out by the same flow algorithm
 -- the client uses for the live bar, so the categorized look can be judged
 -- without a raid. The live bar is hidden underneath while it shows.
 
@@ -107,6 +107,8 @@ local function render()
     -- Same inputs the live bar gives the client.
     local clusters = Layout.ClusterEntries(entries, BL.DB.categories, BL.Categories.Order())
     local byKey, groups = {}, {}
+    local spot = {}
+    for index, id in ipairs(BL.Categories.Order()) do spot[id] = index end
     for _, cluster in ipairs(clusters) do
         local cat = BL.Categories.Get(cluster.categoryId)
         local collapsed = Layout.ConsolidateAllowed(cat, s, state) and #cluster.entries >= 2
@@ -115,7 +117,7 @@ local function render()
             key = cluster.categoryId, count = collapsed and 1 or #cluster.entries,
             elementWidth = size, elementHeight = height, elementSpacing = spacing,
             lineSpacing = spacing + room, groupSpacing = s.categoryGap or 0,
-            groupLineSpacing = spacing + room, forceNewLine = s.categoryRows == true,
+            groupLineSpacing = spacing + room, forceNewLine = s.categoryRows == true and BL.Categories.StartsRow(spot[cluster.categoryId] or 0),
         }
     end
     local columns = math.max(1, math.floor(tonumber(s.columns) or 1))

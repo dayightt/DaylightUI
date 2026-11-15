@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local Junk = {}
@@ -266,7 +267,7 @@ end
 Junk.TIP_ICON = "|A:bags-junkcoin:14:14|a "
 
 function Junk.TipText(itemID)
-    if type(itemID) ~= "number" or (issecretvalue and issecretvalue(itemID)) then return nil end
+    if type(itemID) ~= "number" or isSecret(itemID) then return nil end
     if not ns.Categories.IsMarkedJunk(itemID) then return nil end
     return Junk.TIP_ICON .. (ns.Setting("sellJunk") == true and L["Junk, sold at the next vendor"] or L["Junk"])
 end

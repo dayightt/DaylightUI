@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local CB = {}
@@ -102,10 +103,11 @@ local WHITE = CreateColor(1, 1, 1, 1)
 -- The colors and text settings, from db.casts (CB.Configure).
 CB.cfg = { cast = Style.CAST.normal, channel = Style.CAST.normal, locked = Style.CAST.locked,
            interrupted = { 0.52, 0.17, 0.15 }, flash = true,
-           kickStyle = "blade", kickedBy = true, kickedByPos = "right" }
+           kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false }
 -- Each bar's colors (class color, cast, channel, can't interrupt, interrupted):
 -- yours from db.casts, the target's from db.targetCasts.
 local palettes = {}          -- "player" / "target" -> { cfg, normal, channel, locked }
+local marked = {}            -- bars with an interrupt mark (target and focus)
 
 local function palette(c)
     return { cfg = c, normal = color(c.cast), channel = color(c.channel), locked = color(c.locked) }
@@ -232,6 +234,11 @@ function CB.Create(unit, attachTo, into, opts)
     if h.kind ~= "player" then
         h.blade = DUI.Motion.NewBlade(attachTo or home)
         h.kickTag = DUI.Motion.NewKickTag(attachTo or home, media.font)
+    end
+    -- Where your interrupt comes off cooldown (casts.kickMark), under the texts.
+    if (h.kind == "target" or h.kind == "focus") and DUI.Interrupt then
+        h.kickMark = DUI.Interrupt.NewMark(h.bar)
+        marked[h] = true
     end
     if type(unit) == "string" then
         for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
@@ -529,16 +536,20 @@ function CB.Layout(h, cfg, parentCfg)
         h.icon:Hide()
     end
     -- Each text has its own size, color, spot and nudge (cfg.spell, cfg.time).
-    -- Inside a power bar they have to fit it: capped by the power bar unless
-    -- the player picked an inside size, and lifted a pixel because the font
-    -- sits a little low in such a thin bar. The inside nudge moves both.
+    -- Inside a power bar a text left at its default size shrinks to fit the
+    -- bar; a size the player picked is kept, and the inside size wins over
+    -- both. They're lifted a pixel because the font sits a little low in such
+    -- a thin bar. The inside nudge moves both.
     local spell, time = type(cfg.spell) == "table" and cfg.spell or {}, type(cfg.time) == "table" and cfg.time or {}
     h.spellCfg, h.timeCfg = spell, time
     local lift, dx = 0, 0
+    local defaults = ns.DEFAULTS[(h.kind or "") .. "Castbar"]
     local function sizeOf(t, kind)
         local size = tonumber(textOpt(t, "size", kind)) or CB.TEXT_SIZE
         if h.into then
             if (cfg.insideTextSize or 0) > 0 then return cfg.insideTextSize end
+            local base = defaults and defaults[kind] and defaults[kind].size or CB.TEXT_SIZE
+            if size ~= base then return size end
             return math.min(size, math.floor(parentCfg.powerHeight * CB.INSET_TEXT + 0.5))
         end
         return size
@@ -618,9 +629,9 @@ end
 local function paintLockedBack(h, pal, ni)
     local back = backOf(h)
     if not back then return end
-    if not (issecretvalue and issecretvalue(ni)) then return end
+    if not isSecret(ni) then return end
     local r, g, b, a = back:GetVertexColor()
-    if issecretvalue(r) or type(r) ~= "number" then return end
+    if isSecret(r) or type(r) ~= "number" then return end
     local k = Style.BAR_BACK_DIM
     local lr, lg, lb = pal.locked.r, pal.locked.g, pal.locked.b
     if CB.cfg.fill == "pair" and DUI.Gradients then lr, lg, lb = DUI.Gradients.Mid("CAST_LOCKED") end
@@ -631,7 +642,7 @@ end
 local function paintLocked(h, pal)
     local ni = h.notInterruptible
     paintLockedBack(h, pal, ni)
-    local secretFlag = issecretvalue and issecretvalue(ni)
+    local secretFlag = isSecret(ni)
     -- A plugin's fill takes no locked color itself. A plain "can't be
     -- interrupted" is laid over it like a secret one, as a combat warning.
     local plainOverFill = not secretFlag and ni == true and owned("fill")
@@ -693,7 +704,7 @@ function paintColor(h)
     -- A cast you can't interrupt is a warning, so its color beats class color
     -- and gradients (a secret flag goes through paintLocked).
     local ni = h.notInterruptible
-    if not (issecretvalue and issecretvalue(ni)) and ni == true then
+    if not isSecret(ni) and ni == true then
         Style.SetBarGradient(h.bar, false)
         if CB.cfg.fill == "pair" and DUI.Gradients then
             DUI.Gradients.Paint(h.bar, "CAST_LOCKED")
@@ -716,9 +727,9 @@ function paintColor(h)
     -- In the caster's class color, when enabled (players only).
     if pal.cfg.classColor then
         local isPlayer = UnitIsPlayer(h.unit)
-        if not (issecretvalue and issecretvalue(isPlayer)) and isPlayer then
+        if not isSecret(isPlayer) and isPlayer then
             local _, token = UnitClass(h.unit)
-            if not (issecretvalue and issecretvalue(token)) and token then
+            if not isSecret(token) and token then
                 base = CreateColor(Style.ClassColor(token))
             end
         end
@@ -765,6 +776,7 @@ end
 -- of vanishing.
 function CB.Stop(h, glide)
     h.duration = nil
+    CB.UpdateKickMark(h)
     CB.SetUp(h, false)
     if glide and h.column and h:IsVisible() then
         h.slide:To(0)
@@ -803,7 +815,7 @@ function CB.OnEvent(h, event, ...)
     end
     if event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
         local b, id = h.batch, select(3, ...)
-        if b and not (issecretvalue and issecretvalue(id)) and id == b.spell then h.batch = nil end
+        if b and not isSecret(id) and id == b.spell then h.batch = nil end
     end
     local start = event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
     if start then CB.Unkick(h) end
@@ -859,7 +871,6 @@ end
 function CB.Kicked(h, by)
     local k = h.blade
     if not k then return end
-    local isSecret = issecretvalue or function() return false end
     local me = UnitGUID("player")
     local mine = type(by) ~= "nil" and not isSecret(by) and not isSecret(me) and by == me
     local r, g, b
@@ -884,6 +895,32 @@ function CB.Kicked(h, by)
     end
 end
 
+-- Only an enemy's cast: a friend's is never yours to interrupt.
+local function hostile(u)
+    if type(u) ~= "string" or type(UnitCanAttack) ~= "function" then return false end
+    local ok, v = pcall(UnitCanAttack, "player", u)
+    return ok and not isSecret(v) and v == true
+end
+
+-- Your interrupt's ready mark on a running cast (casts.kickMark). fade: the
+-- cooldown changed mid-cast.
+function CB.UpdateKickMark(h, fade)
+    local m = h.kickMark
+    if not m then return end
+    if CB.cfg.kickMark ~= true or h.test or not h.duration or not hostile(h.unit) then
+        DUI.Interrupt.HideMark(m)
+        return
+    end
+    DUI.Interrupt.ShowMark(m, h.duration, h.channel, fade)
+end
+
+-- Your interrupt went on or came off cooldown (or changed): the bars casting now.
+DUI.On("InterruptChanged", function()
+    for h in pairs(marked) do
+        if h.duration then DUI.SafeCall(CB.UpdateKickMark, h, true) end
+    end
+end)
+
 -- A new cast or unit ends the blade at once.
 function CB.Unkick(h)
     DUI.Motion.Unblade(h.blade)
@@ -891,6 +928,7 @@ end
 
 function CB.Interrupted(h)
     h.duration = nil
+    CB.UpdateKickMark(h)
     h.holding = true
     -- Each hold gets its own number so an earlier kick's timer leaves a newer one alone.
     h.holdN = (h.holdN or 0) + 1
@@ -898,7 +936,6 @@ function CB.Interrupted(h)
     -- The stop can arrive first and start it sliding back under, so bring it
     -- out again for the hold to show.
     if h.column and h.slide.goal == 0 then h.slide:To(1) end
-    if h.bar.ClearTimerDuration then pcall(h.bar.ClearTimerDuration, h.bar) end
     h.bar:SetMinMaxValues(0, 1)
     h.bar:SetValue(1)
     if not owned("fill") then
@@ -930,6 +967,15 @@ function CB.ShowSample(h, cast)
     h.time:SetText(mode == "none" and "" or mode == "total" and "1.2 / 2.5" or "1.2")
     if h.icon then h.icon:SetTexture(cast.icon) end
     h.notInterruptible = nil
+    -- Your interrupt back a little before the sample cast ends.
+    if h.kickMark then
+        if CB.cfg.kickMark == true and cast.kick then
+            DUI.Interrupt.PlaceMark(h.kickMark, 0, 1, cast.kick, false)
+            DUI.Motion.AlphaTo(h.kickMark.clip, 1, 0)
+        else
+            DUI.Interrupt.HideMark(h.kickMark)
+        end
+    end
     CB.ApplyColor(h)
     -- Sliding back under after a cast: bring it out again, or it would hide.
     if h.column and h:IsShown() and h.slide.goal == 0 then h.slide:To(1) end
@@ -955,7 +1001,7 @@ CB.BATCH_GAP = 1      -- seconds the bar waits between two crafts for the next o
 local function plain(...)
     for i = 1, select("#", ...) do
         local v = select(i, ...)
-        if type(v) ~= "number" or (issecretvalue and issecretvalue(v)) then return false end
+        if type(v) ~= "number" or isSecret(v) then return false end
     end
     return true
 end
@@ -1049,7 +1095,7 @@ function CB.Refresh(h, glide)
     -- A craft reports it can't be interrupted, but the locked gray is meant as
     -- a warning about casts you can't kick, so draw a craft like any other cast.
     local batch
-    if not (issecretvalue and issecretvalue(craft)) and craft == true then
+    if not isSecret(craft) and craft == true then
         notInterruptible = false
         batch = CB.Batch(h, spell, from, to)
     elseif type(name) ~= "nil" then
@@ -1078,6 +1124,7 @@ function CB.Refresh(h, glide)
     h.notInterruptible = notInterruptible
     h.channel = channel
     h.spellID = spell
+    CB.UpdateKickMark(h)
     -- With the name off, a batch still shows its progress.
     if showsName(h) then h.text:SetText(name) else h.text:SetText(count or "") end
     if h.icon then h.icon:SetTexture(texture) end

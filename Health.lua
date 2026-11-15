@@ -21,6 +21,7 @@ local function whole(n)
     if BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
     return AbbreviateNumbers(n)
 end
+Health.Whole = whole
 
 -- Gradient stops as { health fraction, color }, softened like the palette.
 Health.GRADIENT = {
@@ -29,7 +30,7 @@ Health.GRADIENT = {
     { 1, { 0.35, 0.8, 0.35 } },
 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- Number styles for health and power (General `numbers`): the game's
 -- shortener with custom break points, or its thousands separator. Both accept
@@ -61,9 +62,21 @@ local function configOf(style)
     return configs[style] or nil
 end
 
+-- The number style, read once and kept until a General setting changes: every
+-- health and power text runs through Health.Number.
+local numberStyle
+local function forgetStyle() numberStyle = nil end
+DUI.On("SettingChanged", function(scope) if scope == "general" then forgetStyle() end end)
+DUI.On("RepaintCore", forgetStyle)
+DUI.On("Login", forgetStyle)
+
 -- A health or power number in the player's chosen style. Secrets are fine.
 function Health.Number(n)
-    local style = DUI.DB.General().numbers
+    local style = numberStyle
+    if style == nil then
+        style = DUI.DB.General().numbers or false
+        numberStyle = style
+    end
     if style == "full" and BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
     local opts = style ~= "short" and configOf(style)
     if opts then
@@ -114,9 +127,9 @@ function Health.FullCurve()
 end
 
 local function hideAtFull(fs, u)
-    local fullCurve = Health.FullCurve()
-    if fullCurve and UnitHealthPercent then
-        local ok, a = pcall(UnitHealthPercent, u, true, fullCurve)
+    local curve = Health.FullCurve()
+    if curve and UnitHealthPercent then
+        local ok, a = pcall(UnitHealthPercent, u, true, curve)
         if ok then
             pcall(fs.SetAlpha, fs, a)
             return

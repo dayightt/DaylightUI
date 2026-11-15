@@ -1,7 +1,7 @@
 -- The game's micro menu and bag bar in the action buttons' look (a setting, on by
 -- default; a reload switches it). The buttons stay the game's (keybinds, tooltips,
 -- alerts); only their art changes.
---   * Micro buttons: a shell frames one of our line icons
+--   * Micro buttons: a shell frames one of Daylight UI's line icons
 --     (tools/make_micro_icons.py), painted along the accent so the whole row is one
 --     sweep (a single-color accent is just that color). The game's art is cut away
 --     by a mask, which also covers whatever atlas or alpha the game sets later.
@@ -58,6 +58,33 @@ local skinned = setmetatable({}, { __mode = "k" })     -- button -> its parts
 local function fade(tex)
     if type(tex) == "table" and tex.SetAlpha then tex:SetAlpha(0) end
 end
+
+-- The action buttons' look without its button shape. A shape turns the shell's own
+-- drawing off and only the action buttons lay the shape's pieces in its place, so
+-- these buttons keep the square shell or they'd have no background at all.
+local function squareLook()
+    local L = ns.Skin.LookFor(nil)
+    if not ns.Skin.ShapeOf(L) then return L end
+    return setmetatable({ shape = "square" }, { __index = L })
+end
+
+local function shellOpts()
+    local o = ns.Skin.SharedShellOpts()
+    ns.Skin.StyleShellOpts(o, squareLook())
+    return o
+end
+
+-- Follows a change of the action buttons' look (border style, corners, shadow).
+local function restyle()
+    local L = squareLook()
+    for _, parts in pairs(skinned) do
+        local s = parts.shell
+        if type(s) == "table" and type(s.opts) == "table" and ns.Skin.StyleShellOpts(s.opts, L) then
+            Style.LayoutShell(s)
+        end
+    end
+end
+DUI.On("ActionButtonLookChanged", restyle)
 
 -- ---------------------------------------------------------------------
 -- The micro row. Each shown button holds its slice of the accent so the sweep runs
@@ -155,10 +182,10 @@ local function followMicro()
         hooksecurefunc("UpdateMicroButtons", function() Menus.PaintMicro() end)
     end
     -- Edit Mode rotated or stacked the menu; repaint after it has laid it out.
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", function() C_Timer.After(0, Menus.PaintMicro) end)
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function() C_Timer.After(0, Menus.PaintMicro) end)
 end
 
--- A micro button: the shell on a box inside it, our icon on that, and the game's art
+-- A micro button: the shell on a box inside it, Daylight UI's icon on that, and the game's art
 -- masked away (the mask sits off the button, so all of the art is outside it).
 function Menus.SkinMicro(btn, name)
     if type(btn) ~= "table" or skinned[btn] or (btn.IsForbidden and btn:IsForbidden()) then return end
@@ -171,7 +198,7 @@ function Menus.SkinMicro(btn, name)
     box:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -x, y)
     box:SetFrameLevel(math.max(0, btn:GetFrameLevel() - 1))
     parts.box = box
-    parts.shell = Style.Shell(box, ns.Skin.SharedShellOpts())
+    parts.shell = Style.Shell(box, shellOpts())
     local o = parts.shell.opts
     parts.rest = { o.borderColor, o.bandColor, o.borderPair }
 
@@ -278,7 +305,7 @@ function Menus.SkinBag(btn)
     if type(btn) ~= "table" or skinned[btn] or (btn.IsForbidden and btn:IsForbidden()) then return end
     local parts = {}
     skinned[btn] = parts
-    parts.shell = Style.Shell(btn, ns.Skin.SharedShellOpts())
+    parts.shell = Style.Shell(btn, shellOpts())
     fade(btn.IconBorder)
     local icon = btn.icon or btn.Icon
     if type(icon) == "table" and icon.ClearAllPoints then

@@ -3,11 +3,11 @@
 -- and a low "nope" replaces the error voice lines QoL quiets (Errors.lua).
 -- One master switch (general.sounds), then one choice per kind (Sound.KINDS).
 -- The game plays UI sounds by kit (PlaySound). A post-hook on that global
--- (hooksecurefunc keeps it secure) plays ours for the kits in Sound.REPLACE,
+-- (hooksecurefunc keeps it secure) plays Daylight UI's for the kits in Sound.REPLACE,
 -- and the files those kits play are muted with MuteSoundFile, as the whisper
 -- sound does. A mute lasts until the game restarts, so it's redone at every
--- login, and an account flag tracks which mutes are ours so only those are
--- ever lifted. Ours play on the sound effects channel, so the game's volume
+-- login, and an account flag tracks which mutes are Daylight UI's so only those are
+-- ever lifted. They play on the sound effects channel, so the game's volume
 -- and mute settings apply.
 
 local _, DUI = ...
@@ -27,7 +27,7 @@ Sound.FILES = { open = DIR .. "open.ogg", close = DIR .. "close.ogg", toggle = D
 Sound.GAP = 0.1 -- min seconds between the same sound (a window and its game kit are heard once)
 
 -- Each sound's kind. One choice per kind (general.soundKinds.<kind>): "soft"
--- (ours, the game's muted), "game" (the game's own, unmuted, and ours play the
+-- (Daylight UI's, the game's muted), "game" (the game's own, unmuted, and Daylight UI's play the
 -- matching kit in Sound.GAME_KIT) or "none" (muted, nothing plays). A sound
 -- with no kind (nope has QoL's own switch, quest the tracker's) follows only
 -- the master switch.
@@ -36,13 +36,13 @@ Sound.GAP = 0.1 -- min seconds between the same sound (a window and its game kit
 -- spend, refund: a talent point spent or taken back.
 Sound.KINDS = { open = "windows", close = "windows", click = "clicks", toggle = "toggles", snap = "snaps",
                 spend = "clicks", refund = "clicks", apply = "confirms", done = "confirms", gone = "confirms" }
--- The game's kit for each of ours under "game" (none for snap or confirms, which stay ours or none).
+-- The game's kit for each of Daylight UI's under "game" (none for snap or confirms, which stay Daylight UI's or none).
 Sound.GAME_KIT = { open = "IG_CHARACTER_INFO_OPEN", close = "IG_CHARACTER_INFO_CLOSE",
                    click = "IG_MAINMENU_OPTION", toggle = "IG_MAINMENU_OPTION_CHECKBOX_ON",
                    spend = "IG_MAINMENU_OPTION", refund = "IG_MAINMENU_OPTION" }
 
--- Game sound files we mute, each with every kit that plays it. A muted file
--- goes silent for all of them, so each one plays ours instead. Kits are by
+-- Game sound files Daylight UI mutes, each with every kit that plays it. A muted file
+-- goes silent for all of them, so each one plays Daylight UI's instead. Kits are by
 -- SOUNDKIT name, or by number for the few without a name. Sources: wago.tools
 -- SoundKitEntry and the forever branch's SoundKitConstants.
 -- Left out: the checkbox file (567407, shared by 100+ kits, many not UI) and
@@ -126,14 +126,14 @@ end
 
 local last = {}
 local byKit = {}
-local mutedNow = {} -- [fileDataID] = true when muted by us this session
+local mutedNow = {} -- [fileDataID] = true when muted by Daylight UI this session
 
 function Sound.On()
     local g = DUI.DB and DUI.DB.General and DUI.DB.General()
     return not (g and g.sounds == false)
 end
 
--- "soft" | "game" | "none" for one of ours. Master switch off means "game".
+-- "soft" | "game" | "none" for one of Daylight UI's. Master switch off means "game".
 function Sound.Mode(name)
     if not Sound.On() then return "game" end
     local kind = Sound.KINDS[name]
@@ -158,8 +158,8 @@ function Sound.Play(name)
     local mode = Sound.Mode(name)
     if mode == "none" then return end
     if mode == "game" then
-        -- Our windows and buttons play the game's matching kit, but only while the
-        -- master switch is on. Off means we stay out of it entirely.
+        -- Daylight UI's windows and buttons play the game's matching kit, but only while the
+        -- master switch is on. Off means Daylight UI stays out of it entirely.
         local kit = Sound.On() and type(SOUNDKIT) == "table" and SOUNDKIT[Sound.GAME_KIT[name]]
         if type(kit) == "number" and type(PlaySound) == "function" and fresh(name) then
             pcall(PlaySound, kit)
@@ -170,9 +170,9 @@ function Sound.Play(name)
     pcall(PlaySoundFile, file, "SFX")
 end
 
--- The game's own sound for a moment its window had that ours took over (a
+-- The game's own sound for a moment its window had that Daylight UI's took over (a
 -- repair's anvil, the quill). The game code that plays it never runs behind
--- our window. name is its SOUNDKIT name. kind is a Sound.KINDS kind whose
+-- Daylight UI's window. name is its SOUNDKIT name. kind is a Sound.KINDS kind whose
 -- "none" silences it (nil means it always plays, like bag sorting). Called
 -- every frame, it still plays at most once per GAP.
 function Sound.Kit(name, kind)
@@ -185,7 +185,7 @@ function Sound.Kit(name, kind)
     if fresh("kit:" .. name) then pcall(PlaySound, kit) end
 end
 
--- Plays one of ours on repeat. Each copy fades in and out so a copy every
+-- Plays one of Daylight UI's sounds on repeat. Each copy fades in and out so a copy every
 -- `every` seconds blends into one continuous sound. Returns nil when it
 -- wouldn't play (Soft UI sounds off). Stop it with Sound.StopLoop(loop, fade).
 function Sound.Loop(name, every)
@@ -359,11 +359,11 @@ function Sound.StopLoop(loop, fade)
 end
 
 -- Mutes every replaced kit's files unless its kind is set to the game's own,
--- and unmutes the rest, right away. Only files we muted are ever unmuted,
+-- and unmutes the rest, right away. Only files Daylight UI muted are ever unmuted,
 -- never one another addon muted. The account's uiSoundsMuted ({ [file id] =
--- true }) carries ours over a /reload, since a mute lasts until the game
+-- true }) carries them over a /reload, since a mute lasts until the game
 -- restarts. Older versions saved just true, so in that case every replaced
--- file counts as ours this one time.
+-- file counts as Daylight UI's this one time.
 function Sound.ApplyMutes()
     local root = DUI.DB.Root()
     local saved = root.uiSoundsMuted
@@ -387,7 +387,7 @@ function Sound.ApplyMutes()
             saved[id] = nil
         end
     end
-    -- Lift our mutes on kits no longer replaced (an update dropped them).
+    -- Lift Daylight UI's mutes on kits no longer replaced (an update dropped them).
     for id in pairs(saved) do
         if want[id] == nil then
             if type(UnmuteSoundFile) == "function" then pcall(UnmuteSoundFile, id) end
@@ -398,9 +398,9 @@ function Sound.ApplyMutes()
     root.uiSoundsMuted = next(saved) and saved or nil
 end
 
--- The game played a replaced kit. Under "soft" play ours; otherwise just note
--- it so ours right after isn't heard twice. Never PlaySound from here: under
--- "game" ours plays a kit, which would land back in this hook.
+-- The game played a replaced kit. Under "soft" play Daylight UI's; otherwise just note
+-- it so Daylight UI's right after isn't heard twice. Never PlaySound from here: under
+-- "game" Daylight UI's plays a kit, which would land back in this hook.
 local function onPlaySound(kit)
     if type(kit) ~= "number" then return end
     local r = byKit[kit]

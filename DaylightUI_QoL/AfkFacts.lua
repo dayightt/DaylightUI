@@ -4,6 +4,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 
 local Facts = {}
@@ -22,7 +23,6 @@ local function call(fn, ...)
     if ok then return a, b, c, d end
 end
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
 local function number(v) return type(v) == "number" and not secret(v) end
 local function text(v) return type(v) == "string" and not secret(v) and v ~= "" end
 

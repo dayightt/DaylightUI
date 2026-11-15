@@ -393,8 +393,8 @@ function Layout.Register()
             ns.Relayout()
             ns.FillAll()
         end
-        pcall(DUI.RegisterEvent, show, function() set(true) end)
-        pcall(DUI.RegisterEvent, closed, function() set(false) end)
+        DUI.RegisterEvent(show, function() set(true) end)
+        DUI.RegisterEvent(closed, function() set(false) end)
     end
 end
 

@@ -8,7 +8,7 @@
 ## Notes-esMX: Marcos suaves y minimalistas de jugador, objetivo, objetivo del objetivo, mascota y foco, con barras de lanzamiento, temporizadores de golpe y perjuicios del objetivo.
 ## Notes-deDE: Sanfte, schlichte Rahmen für Spieler, Ziel, Ziel des Ziels, Begleiter und Fokus, mit Zauberleisten, Schlagtimern und Schwächungszaubern des Ziels.
 ## Author: Daylight
-## Version: 1.7.1
+## Version: 1.8.2
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 ## OptionalDeps: Clique
@@ -19,6 +19,7 @@ Colors.lua
 CastBar.lua
 Swing.lua
 HealSpells.lua
+AuraLists.lua
 Auras.lua
 AuraGroups.lua
 Indicators.lua
@@ -32,6 +33,7 @@ GroupPrivate.lua
 Group.lua
 Raid.lua
 PartyPets.lua
+PartyTargets.lua
 PartyCasts.lua
 Party.lua
 Arena.lua
@@ -40,6 +42,7 @@ Pull.lua
 ClickCast.lua
 ClickBinder.lua
 ClickCastPage.lua
+AuraListsPage.lua
 PowerBar.lua
 DruidBars.lua
 Personal.lua

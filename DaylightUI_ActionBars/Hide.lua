@@ -23,24 +23,46 @@ Hide.parent = hidden
 
 local home = setmetatable({}, { __mode = "k" })     -- frame -> its parent before it was parked
 
--- Edit Mode is moving things, so retry once it's closed.
-local function later(fn)
-    if EditModeManagerFrame and EditModeManagerFrame:IsShown() then
-        C_Timer.After(0.25, fn)
-        return true
+-- Edit Mode is moving things, so retry once it's closed. One wait for all of
+-- them, and only the latest ask per frame: Hide.Apply runs often while Edit Mode
+-- is open.
+local waiting = {}      -- frame -> park or unpark
+local retrying = false
+local function editing() return EditModeManagerFrame and EditModeManagerFrame:IsShown() end
+local function retry()
+    if editing() then C_Timer.After(0.25, retry); return end
+    retrying = false
+    local todo = {}
+    for frame, fn in pairs(waiting) do todo[frame] = fn end
+    for frame, fn in pairs(todo) do
+        waiting[frame] = nil
+        fn(frame)
     end
 end
+local function later(frame, fn)
+    if not editing() then
+        waiting[frame] = nil
+        return false
+    end
+    waiting[frame] = fn
+    if not retrying then
+        retrying = true
+        C_Timer.After(0.25, retry)
+    end
+    return true
+end
 
-local function park(frame)
-    if frame:GetParent() == hidden then return end
-    if later(function() park(frame) end) then return end
+local park, unpark
+function park(frame)
+    if frame:GetParent() == hidden then waiting[frame] = nil; return end
+    if later(frame, park) then return end
     home[frame] = frame:GetParent()
     frame:SetParent(hidden)
 end
 
-local function unpark(frame)
-    if frame:GetParent() ~= hidden then return end
-    if later(function() unpark(frame) end) then return end
+function unpark(frame)
+    if frame:GetParent() ~= hidden then waiting[frame] = nil; return end
+    if later(frame, unpark) then return end
     frame:SetParent(home[frame] or UIParent)
     frame:SetAlpha(1)
 end
@@ -92,7 +114,7 @@ Hide.EDGE = 12      -- distance from the screen's edges in the corner, same as t
 
 function Hide.MoverKey(key) return "actionbars." .. key end
 
-local gameSpot = {}     -- key -> { x, y }: where the game had it before we moved it
+local gameSpot = {}     -- key -> { x, y }: where the game had it before it was moved
 
 local function offset(f)
     local cx, cy = f:GetCenter()
@@ -143,15 +165,9 @@ function Hide.PlaceAll(cfg)
     for _, key in ipairs(Hide.MOVER_ORDER) do DUI.SafeCall(Hide.Place, cfg, key) end
 end
 
-local queued = false
-local function soon()
-    if queued then return end
-    queued = true
-    C_Timer.After(0, function()
-        queued = false
-        if ns.db then Hide.PlaceAll(ns.db) end
-    end)
-end
+local soon = DUI.Soon(function()
+    if ns.db then Hide.PlaceAll(ns.db) end
+end)
 
 function Hide.Movers(cfg)
     for _, key in ipairs(Hide.MOVER_ORDER) do
@@ -169,7 +185,7 @@ function Hide.Movers(cfg)
     end
     if Hide.wired then return end
     Hide.wired = true
-    for _, event in ipairs(Hide.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+    for _, event in ipairs(Hide.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
     -- The game puts the micro menu back at its Edit Mode spot when its override
     -- bar goes away (after a death, a vehicle), then runs its pass over the micro
     -- buttons. After that pass it goes back to its spot.
@@ -200,7 +216,7 @@ end
 -- ---------------------------------------------------------------------
 -- Size. Edit Mode stores it (a Size slider saved as its step; ranges in the game's
 -- EditModeSettingDisplayInfo.lua) and sets the frame's scale from it when it applies
--- the layout: Bags on BagsBar, the micro menu on MicroMenu (not its container). Our
+-- the layout: Bags on BagsBar, the micro menu on MicroMenu (not its container). Daylight UI's
 -- slider reads the active layout, writes it there (DUI.EditMode.WriteSetting) and
 -- scales the frame right away.
 -- ---------------------------------------------------------------------

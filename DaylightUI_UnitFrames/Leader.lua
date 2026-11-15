@@ -62,7 +62,7 @@ local sections = {}          -- the card's rows, top first
 local shown = {}             -- the rows currently on the card (layoutCard)
 local anim = { t = 0 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 local function plainFlag(fn, ...)
     if type(fn) ~= "function" then return false end
@@ -368,7 +368,7 @@ local function markerRow(sec, prefix, order, iconOf, setup, clearSetup)
     sec:SetHeight(sec.top + Leader.MARK)
 end
 
--- The tab's click in combat, in the restricted environment. "fight" is our own
+-- The tab's click in combat, in the restricted environment. "fight" is the tab's own
 -- flag (set on combat events), not the snippet's PlayerInCombat, which reads
 -- UnitAffectingCombat. That can differ from the lockdown the tab's own OnClick
 -- checks, and both would toggle.
@@ -411,7 +411,7 @@ local function build()
         Motion.Bump(self.crown, 0.85)
         DUI.Sound.Play("click")
         if InCombatLockdown() then
-            -- The snippet already did it, so just update our own flag.
+            -- The snippet already did it, so just update the flag here.
             Leader.open = card:IsShown()
             return paintTab()
         end
@@ -525,7 +525,7 @@ local function layoutCard()
     card:SetHeight(h)
 end
 
--- The game's countdown, remembered so the pull timer recognizes our own. In
+-- The game's countdown, remembered so the pull timer recognizes one you started. In
 -- practice mode (test mode, no group) the pull timer runs on its own.
 function Leader.Countdown(seconds)
     if Leader.Practicing() then return ns.Pull.Start(seconds) end

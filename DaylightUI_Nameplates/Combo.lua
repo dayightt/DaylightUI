@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local Combo = {}
@@ -116,7 +117,7 @@ local function wanted()
     if not (row and ns.cfg and ns.cfg.comboPoints) then return false end
     if row.class == "DRUID" then
         local _, token = UnitPowerType("player")
-        if not (issecretvalue and issecretvalue(token)) and token ~= "ENERGY" then return false end
+        if not isSecret(token) and token ~= "ENERGY" then return false end
     end
     return plain(UnitCanAttack, "player", "target") == true
 end

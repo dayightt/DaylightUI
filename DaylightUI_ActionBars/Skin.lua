@@ -1,6 +1,6 @@
--- Action buttons in the same icon look as the auras and buffs. Covers our own bars'
--- buttons and the game's stance, pet, possess and totem buttons we hold: the shell's
--- border around a square, cropped icon with a soft inner shadow, and our font for
+-- Action buttons in the same icon look as the auras and buffs. Covers Daylight UI's own bars'
+-- buttons and the game's stance, pet, possess and totem buttons it holds: the shell's
+-- border around a square, cropped icon with a soft inner shadow, and Daylight UI's font for
 -- keybinds, counts and macro names. The character is in how they behave:
 --   * empty slots can be hidden, and show again while something is dragged;
 --   * out of range, or short of rage, mana or energy, the icon fades (the keybind
@@ -12,11 +12,12 @@
 -- button reads its bar's look (parts.L). The module-wide values below (BORDER_PX,
 -- CROP, SWIPE, COUNT...) are the Cooldown Manager's look (barLooks.cdm on top of
 -- db.look), read by its files; the bag bar and micro menu read the shared look
--- (Skin.shared). Our buttons are painted by Buttons.lua's painters. On the game's
+-- (Skin.shared). Daylight UI's buttons are painted by Buttons.lua's painters. On the game's
 -- buttons the art is hidden by alpha, never replaced, and nothing is stored on them.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local Skin = {}
@@ -194,7 +195,7 @@ Skin.COUNT_COLOR = { 1, 1, 1 }
 Skin.NORMAL = { 0, 0, 0 }    -- the border at rest: the shell's own
 Skin.OUT_OF_RANGE = 0.4      -- icon opacity while out of range or short of power
 Skin.NO_POWER_COLOR = { 0.45, 0.55, 1 }   -- short of power, when out of range is shown by color
-Skin.UNUSABLE = { 0.4, 0.4, 0.4 }   -- an action that can't be used now (our own buttons), grayed like the game does
+Skin.UNUSABLE = { 0.4, 0.4, 0.4 }   -- an action that can't be used now (Daylight UI's own buttons), grayed like the game does
 -- The rest of the look comes from the settings (Skin.Configure).
 Skin.showKeybind, Skin.showMacro = true, true
 Skin.PRESSED = { 0, 0, 0, 0.3 }
@@ -219,10 +220,13 @@ Skin.COUNT_POS = { bottomright = { "BOTTOMRIGHT", -2, 3 }, bottomleft = { "BOTTO
 
 -- Shorter keybinds: modifiers as one letter, mouse buttons and the number pad as a
 -- letter and number.
+-- The client has no name for the number pad's = key and shows its raw code, with
+-- or without its own "N" in front.
 Skin.SHORT_KEYS = {
-    { "Mouse Wheel Up", "WU" }, { "Mouse Wheel Down", "WD" }, { "Middle Mouse", "M3" },
+    { "N?NUMPADEQUALS", "N=" }, { "Mouse Wheel Up", "WU" }, { "Mouse Wheel Down", "WD" }, { "Middle Mouse", "M3" },
     { "Mouse Button ", "M" }, { "Num Pad ", "N" }, { "Spacebar", "Sp" }, { "Backspace", "Bs" },
-    { "Capslock", "Cp" }, { "SHIFT%-", "S" }, { "CTRL%-", "C" }, { "ALT%-", "A" },
+    { "Capslock", "Cp" }, { "Page Up", "PU" }, { "Page Down", "PD" }, { "Insert", "Ins" }, { "Delete", "Del" },
+    { "SHIFT%-", "S" }, { "CTRL%-", "C" }, { "ALT%-", "A" },
     { "^s%-", "S" }, { "^c%-", "C" }, { "^a%-", "A" }, { "([SCA])s%-", "%1S" }, { "([SCA])c%-", "%1C" },
 }
 
@@ -230,8 +234,9 @@ Skin.SHORT_KEYS = {
 -- (KEY_NUMPAD5 is "5 du pavé num." in French) and modifiers.
 Skin.LOCAL_KEYS = {
     NUMPADDIVIDE = "N/", NUMPADMULTIPLY = "N*", NUMPADMINUS = "N-", NUMPADPLUS = "N+",
-    NUMPADDECIMAL = "N.", MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD", BUTTON3 = "M3",
+    NUMPADDECIMAL = "N.", NUMPADEQUALS = "N=", MOUSEWHEELUP = "WU", MOUSEWHEELDOWN = "WD", BUTTON3 = "M3",
     SPACE = "Sp", BACKSPACE = "Bs", CAPSLOCK = "Cp",
+    PAGEUP = "PU", PAGEDOWN = "PD", INSERT = "Ins", DELETE = "Del",
 }
 for i = 0, 9 do Skin.LOCAL_KEYS["NUMPAD" .. i] = "N" .. i end
 for i = 4, 31 do Skin.LOCAL_KEYS["BUTTON" .. i] = "M" .. i end
@@ -259,7 +264,7 @@ local function localRules()
 end
 
 function Skin.Shorten(text)
-    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return text end
+    if type(text) ~= "string" or isSecret(text) then return text end
     for _, pair in ipairs(localRules()) do text = string.gsub(text, pair[1], pair[2]) end
     for _, pair in ipairs(Skin.SHORT_KEYS) do text = string.gsub(text, pair[1], pair[2]) end
     return text
@@ -389,13 +394,13 @@ function Skin.PaintCdmShell(s)
     end
 end
 
--- The keybind: our own label (parts.key) shows the game's text, shortened if set, and
+-- The keybind: Daylight UI's own label (parts.key) shows the game's text, shortened if set, and
 -- the game's own text is invisible and left as the game writes it. No hooks on that
 -- text: the game's button code calls its SetText and SetVertexColor from its
 -- protected update (every range check), and with a hook on them the call fails
 -- ("attempt to call a nil value"). Instead it's copied over the frame after the
 -- events that change it, and by the watcher. An unbound button gets the game's range
--- dot instead, which our font has no glyph for (it draws a box), so it's blanked.
+-- dot instead, which Daylight UI's font has no glyph for (it draws a box), so it's blanked.
 function Skin.UpdateKey(btn)
     if Skin.IsPad(btn) then return end     -- the game's button picture shows it
     local parts, hk = Skin.GetParts(btn), btn.HotKey
@@ -426,7 +431,7 @@ Skin.STATE = {
 local skinned = setmetatable({}, { __mode = "k" })
 local dragging = false
 local hovered                  -- the skinned button under the mouse (its OnEnter/OnLeave)
-local others = {}              -- the game's buttons we dress (not our own), in skin order
+local others = {}              -- the game's buttons it dresses (not Daylight UI's own), in skin order
 
 -- A button whose height isn't its width (an action bar's Button height). Its icon
 -- is cropped to that shape; a change redoes the look.
@@ -448,7 +453,7 @@ local function call(fn, ...)
     if ok then return a, b end
 end
 
--- The slot a button shows. Our own buttons keep it in their "action" attribute (bar
+-- The slot a button shows. Daylight UI's own buttons keep it in their "action" attribute (bar
 -- 1's changes with the page), the game's in a field.
 local function actionOf(btn)
     local a = btn.GetAttribute and btn:GetAttribute("action")
@@ -473,7 +478,7 @@ function Skin.SetPet(btn) petButtons[btn] = true end
 local barOf = setmetatable({}, { __mode = "k" })
 function Skin.SetBar(btn, key) barOf[btn] = key end
 
--- Our own buttons. Nothing of the game's grays them, so the skin does
+-- Daylight UI's own buttons. Nothing of the game's grays them, so the skin does
 -- (Skin.UpdateState).
 local ownButtons = setmetatable({}, { __mode = "k" })
 function Skin.SetOwn(btn) ownButtons[btn] = true end
@@ -497,7 +502,7 @@ local function hasAction(btn, a)
     return has ~= false
 end
 
--- A button's icon. A game button that uses our own icon (the leave button's arrow)
+-- A button's icon. A game button that uses Daylight UI's own icon (the leave button's arrow)
 -- passes it through Skin.SetIcon, since a field on it would mark the game's frame
 -- (/dui taint).
 local ownIcon = setmetatable({}, { __mode = "k" })
@@ -539,7 +544,7 @@ end
 Skin.hideEmpty = true
 Skin.EMPTY_ALPHA = 0.45      -- a shown empty slot's backing is see-through; its keybind stays solid
 
--- Every change fades FAST from our own last-written alphas (never read back):
+-- Every change fades FAST from Daylight UI's own last-written alphas (never read back):
 -- something picked up or dropped (Skin.SetDragging), bar 1's paging (a stance or
 -- form, via the icon painter), a refresh. Asked again for the goal it's already
 -- heading to, it just continues. snap = a fresh skin (Apply) or motion off, so it's
@@ -593,11 +598,11 @@ end
 
 -- Out of range, or short of rage, mana or energy, the icon (and its edge shading)
 -- fades the same either way. Set to color instead, it's tinted: out of range in its
--- color, short of power blue. The keybind keeps our white, undoing the game's red,
+-- color, short of power blue. The keybind keeps Daylight UI's white, undoing the game's red,
 -- and when fading the icon drops the game's blue no-power tint.
--- The change glides FAST from our own last-written values (never read back from the
+-- The change glides FAST from Daylight UI's own last-written values (never read back from the
 -- icon). It snaps with motion off, on a fresh skin (Skin.Apply), and for an empty
--- slot. A color is only written while it's ours, since the game grays its own stance
+-- slot. A color is only written while it's Daylight UI's, since the game grays its own stance
 -- and pet buttons.
 local WHITE = { 1, 1, 1 }
 
@@ -616,10 +621,11 @@ local function tintGoal(parts)
     return a, nil
 end
 
--- r nil = no color of ours (one we had goes back to white, once).
+-- r nil = no Daylight UI color (a color set before goes back to white, once).
 local function setTint(btn, parts, a, r, g, b, shadeOn)
     local icon = iconOf(btn)
-    if icon then
+    -- An icon a plugin holds keeps its own color and opacity.
+    if icon and not Skin.Owned(btn, "icon") then
         if icon.SetVertexColor then
             if r then icon:SetVertexColor(r, g, b)
             elseif parts.tintR then icon:SetVertexColor(1, 1, 1) end
@@ -641,15 +647,16 @@ function Skin.UpdateRange(btn, has)
     local shadeOn
     if has ~= nil then shadeOn = has else shadeOn = hasAction(btn) end
     local same = parts.gA == a and parts.gR == r and parts.gG == g and parts.gB == b
-    -- Our own buttons already at this goal need no write (every usable and range
+    -- Daylight UI's own buttons already at this goal need no write (every usable and range
     -- pass asks). Nothing of the game's writes their icon, but the game's buttons
-    -- we dress still get ours reapplied over its writes.
+    -- it dresses still get theirs reapplied over its writes.
     if same and shadeOn == parts.gShade and ownButtons[btn] and not parts.tweening
         and not parts.snapTint and parts.tintA ~= nil then return end
     parts.gA, parts.gR, parts.gG, parts.gB, parts.gShade = a, r, g, b, shadeOn
     -- Already gliding there (an emptied slot or a fresh skin still snaps).
     if same and parts.tweening and shadeOn and not parts.snapTint then return end
     local snap = parts.snapTint or parts.tintA == nil or not shadeOn or not DUI.Motion.On()
+        or Skin.Owned(btn, "icon")
     parts.snapTint = nil
     if snap or same then
         if parts.tweening then
@@ -657,7 +664,7 @@ function Skin.UpdateRange(btn, has)
             DUI.Motion.Tween(parts, 0, 0, 0)               -- stop the glide
         end
         setTint(btn, parts, a, r, g, b, shadeOn)
-        return
+        return Skin.Painted(btn)
     end
     local a0, r0, g0, b0 = parts.tintA, parts.tintR or 1, parts.tintG or 1, parts.tintB or 1
     local colour = r ~= nil or parts.tintR ~= nil
@@ -672,6 +679,7 @@ function Skin.UpdateRange(btn, has)
     end, function()
         parts.tweening = nil
         setTint(btn, parts, a, r, g, b, shadeOn)
+        Skin.Painted(btn)
     end)
 end
 
@@ -694,7 +702,7 @@ function Skin.UpdateState(btn, a, usable, noMana)
     Skin.PaintBorder(btn, parts)
 end
 
--- The spell on one of our buttons that's queued or being cast (Heroic Strike waiting
+-- The spell on one of Daylight UI's buttons that's queued or being cast (Heroic Strike waiting
 -- for the swing), from the Buttons "checked" painter. Attacks and auto-repeat have
 -- their own blink and run all fight, so they don't count.
 local activeOf = setmetatable({}, { __mode = "k" })
@@ -728,33 +736,42 @@ local function plainOf(color)
     return color
 end
 function Skin.PaintBorder(btn, parts)
-    local L, color, lit = parts.L, nil, false
+    local L, color, lit, why = parts.L, nil, false, nil
     if parts.proc then
-        color = parts.procColor
+        color, why = parts.procColor, "proc"
     elseif (parts.pressed or parts.keyDown) and L.pressBorder then
-        color, lit = parts.pressLit, true
+        color, lit, why = parts.pressLit, true, "pressed"
     elseif parts.hover and L.hoverBorder then
-        color, lit = parts.hoverLit, true
+        color, lit, why = parts.hoverLit, true, "hover"
     elseif parts.formOn then
-        color, lit = L.checked == "custom" and L.checkedColor or Skin.STATE.lit, true
+        color, lit, why = L.checked == "custom" and L.checkedColor or Skin.STATE.lit, true, "form"
     elseif L.checkedBorder and activeOf[btn] then
-        color, lit = parts.activeLit, true
+        color, lit, why = parts.activeLit, true, "active"
     end
     color = color or (L.borderColor == "accent" and Skin.STATE.lit) or parts.rest or Skin.NORMAL
-    if parts.color == color then return end
+    if parts.color == color and parts.borderState == why then return end
     local was, wasLit = parts.color, parts.lit
-    parts.color, parts.lit = color, lit
+    parts.color, parts.lit, parts.borderState = color, lit, why
+    -- A border a plugin holds is its own: it reads why from the paint's info.
+    if Skin.Owned(btn, "border") then
+        DUI.Motion.Tween(parts.back, 0, 0, 0)          -- stop a Daylight UI glide
+        return Skin.Painted(btn)
+    end
+    if was == color then return Skin.Painted(btn) end
     if was == nil or not (lit or wasLit) or not DUI.Motion.On() then
         DUI.Motion.Tween(parts.back, 0, 0, 0)          -- stop a glide
         paintColor(parts, color)
-        return
+        return Skin.Painted(btn)
     end
     local a, b = plainOf(was), plainOf(color)
     DUI.Motion.Tween(parts.back, 0, 1, DUI.Motion.FAST, function(p)
         local c = { lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p) }
         local band = { c[1] * 0.45, c[2] * 0.45, c[3] * 0.45 }
         if parts.shape then Skin.PaintShape(parts, c, band) else Style.SetShellColors(parts.back, c, band) end
-    end, function() paintColor(parts, color) end)
+    end, function()
+        paintColor(parts, color)
+        Skin.Painted(btn)
+    end)
 end
 
 -- An active spell's border and glow, as the look says.
@@ -788,7 +805,60 @@ end
 
 function Skin.GetParts(btn) return skinned[btn] end
 
--- A real cooldown (not the global one) started or ended on one of our buttons
+-- Plugins (DaylightUI.API's Paint, kind "actionbutton"). Only the buttons of
+-- bars 1-8 are reported; the game's stance and pet buttons it dresses are not.
+-- A piece a plugin claimed ("icon", "border", "hotkey", "count", "macro") is
+-- never colored here. Every button is the same kind, so this is one table read.
+function Skin.Owned(btn, part)
+    if not ownButtons[btn] then return false end
+    local R = DUI.APIReport
+    return type(R) == "table" and R.Owned("actionbutton", part) == true
+end
+
+-- What a button shows and how it reads right now, for a plugin's paint. All
+-- plain: the slot, its contents, and states already worked out for the tint.
+function Skin.Info(btn)
+    local parts, def = skinned[btn], ns.Buttons and ns.Buttons.DefOf(btn)
+    if not (parts and def) then return nil end
+    local slot = actionOf(btn)
+    local kind, id
+    if slot then kind, id = call(GetActionInfo, slot) end
+    return {
+        bar = def.num, barKey = def.key, index = btn:GetAttribute("dui-index"), slot = slot,
+        type = kind, id = id, empty = not hasAction(btn, slot),
+        usable = not parts.unusable, noPower = parts.noPower == true,
+        outOfRange = parts.outOfRange == true, cooling = parts.cooling == true,
+        proc = parts.proc == true, checked = btn:GetChecked() == true,
+        border = parts.borderState,
+    }
+end
+
+-- btn was just painted (a new action, a tint or border change, a cooldown
+-- starting or ending, a setting), so plugins apply their look on top.
+-- A whole repaint (Buttons.Paint, Skin.Apply) holds these while it runs and
+-- paints once at its end, if anything asked.
+local paintHeld, paintAsked = nil, false
+function Skin.Painted(btn)
+    if not ownButtons[btn] then return end
+    if paintHeld == btn then paintAsked = true return end
+    local R = DUI.APIReport
+    if not (type(R) == "table" and R.Painting("actionbutton")) then return end
+    R.Painted("actionbutton", btn, Skin.Info(btn))
+end
+-- Returns what to hand Skin.Release.
+function Skin.Hold(btn)
+    local h, a = paintHeld, paintAsked
+    paintHeld, paintAsked = btn, false
+    return h, a
+end
+-- force: paint even if nothing asked during the hold.
+function Skin.Release(btn, wasHeld, wasAsked, force)
+    local asked = paintAsked
+    paintHeld, paintAsked = wasHeld, wasAsked
+    if asked or force then Skin.Painted(btn) end
+end
+
+-- A real cooldown (not the global one) started or ended on one of Daylight UI's buttons
 -- (tracked by Ping.lua, plain in combat too). The icon grays and dims as the look
 -- says, gliding FAST.
 function Skin.SetCooling(btn, on)
@@ -797,13 +867,16 @@ function Skin.SetCooling(btn, on)
     on = on == true
     if parts.cooling == on then return end
     parts.cooling = on
+    local h, a = Skin.Hold(btn)
     Skin.UpdateRange(btn)
     Skin.PaintGray(btn, parts)
+    Skin.Release(btn, h, a, true)
 end
 
 function Skin.PaintGray(btn, parts)
     local icon = iconOf(btn)
     if not (icon and icon.SetDesaturation) then return end
+    if Skin.Owned(btn, "icon") then return end
     local goal = ((parts.cooling and parts.L.cdGray) or parts.formOff) and 1 or 0
     if parts.gray == goal then return end
     local from = parts.gray or 0
@@ -816,12 +889,12 @@ end
 -- border in the "Active spell" color and the others go gray and dim, so a glance
 -- tells them apart even at the bar's small size. In no form at all nothing dims, so
 -- a druid in caster form still sees every form in color. It all glides FAST through
--- the border and tint above. Only the game's buttons' textures and our shell are
+-- the border and tint above. Only the game's buttons' textures and Daylight UI's shell are
 -- touched, so it works in a fight too.
 Skin.FORM_OFF = 0.5
 local function formActive(btn)
     local _, on = call(GetShapeshiftFormInfo, btn:GetID())
-    if issecretvalue and issecretvalue(on) then return nil, true end
+    if isSecret(on) then return nil, true end
     return on and true or false
 end
 function Skin.UpdateForms()
@@ -904,7 +977,7 @@ local function paintWashes(btn, L, icon)
     return hl, pushed, checked
 end
 
--- The game rewrote a controller button's art (PadSkin.lua), so put ours back over it
+-- The game rewrote a controller button's art (PadSkin.lua), so put Daylight UI's back over it
 -- in the same call. down = whether it's held now, when the game just said.
 function Skin.Redress(btn, down)
     local parts = skinned[btn]
@@ -915,7 +988,14 @@ function Skin.Redress(btn, down)
     if down ~= nil then Skin.SetKeyDown(btn, down) end
 end
 
+local applyLook
 function Skin.Apply(btn)
+    local h, a = Skin.Hold(btn)
+    applyLook(btn)
+    Skin.Release(btn, h, a, true)
+end
+
+applyLook = function(btn)
     local parts = skinned[btn]
     local L = Skin.LookFor(barOf[btn])
     if not parts then
@@ -933,11 +1013,11 @@ function Skin.Apply(btn)
         parts.shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
         parts.shade:SetTexture(Skin.SHADE_FILE)
         parts.shade:SetVertexColor(0, 0, 0, Skin.SHADE)
-        -- The pressed look for a key (Skin.SetKeyDown). Our buttons' keys press the
-        -- game's hidden buttons, so ours never enters its own pushed state.
+        -- The pressed look for a key (Skin.SetKeyDown). Daylight UI's buttons' keys press the
+        -- game's hidden buttons, so a Daylight UI button never enters its own pushed state.
         parts.press = btn:CreateTexture(nil, "OVERLAY", nil, 1)
         parts.press:SetAlpha(0)
-        -- Our keybind label (Skin.UpdateKey), where the game's text sits. The
+        -- Daylight UI's keybind label (Skin.UpdateKey), where the game's text sits. The
         -- game's is made invisible so its range tint never shows.
         local over = btn.TextOverlayContainer
         if not (type(over) == "table" and over.CreateFontString) then over = btn end
@@ -957,7 +1037,7 @@ function Skin.Apply(btn)
         -- events (Skin.Wire) and a watcher (Skin.Tick) instead.
         -- Tooltips: out of combat only, or never, when set to. Hidden by alpha,
         -- since hiding the game's tooltip from here runs its hide handlers under
-        -- our taint.
+        -- the addon's taint.
         btn:HookScript("OnEnter", function()
             hovered = btn
             parts.hover = true
@@ -1013,7 +1093,7 @@ function Skin.Apply(btn)
     local key = parts.key
     styleText(key, L.keybindSize)
     local c = L.keybindColor
-    key:SetTextColor(c[1], c[2], c[3])
+    if not Skin.Owned(btn, "hotkey") then key:SetTextColor(c[1], c[2], c[3]) end
     -- Keybind tucked into the icon's top-right corner, count in the bottom-right.
     local at = Skin.KEYBIND_POS[L.keybindPos] or Skin.KEYBIND_POS.topright
     key:ClearAllPoints()
@@ -1027,7 +1107,7 @@ function Skin.Apply(btn)
         btn.Count:ClearAllPoints()
         btn.Count:SetPoint(at[1], btn, at[1], at[2] + L.countX, at[3] + L.countY)
         local cc = L.countColor
-        btn.Count:SetTextColor(cc[1], cc[2], cc[3])
+        if not Skin.Owned(btn, "count") then btn.Count:SetTextColor(cc[1], cc[2], cc[3]) end
     end
     styleText(btn.Name, L.macroSize)
     if type(btn.Name) == "table" and btn.Name.SetAlpha then
@@ -1039,7 +1119,7 @@ function Skin.Apply(btn)
             btn.Name:SetPoint("BOTTOM", btn, "BOTTOM", L.macroX, Skin.MACRO_Y + L.macroY)
         end
         local mc = L.macroColor
-        btn.Name:SetTextColor(mc[1], mc[2], mc[3])
+        if not Skin.Owned(btn, "macro") then btn.Name:SetTextColor(mc[1], mc[2], mc[3]) end
     end
     local hl, pushed, checked = paintWashes(btn, L, icon)
     local pc = L.pressed
@@ -1066,7 +1146,7 @@ function Skin.StyleCooldown(cd, L)
     if type(cd) ~= "table" then return end
     L = L or Skin.LookFor("cdm")
     Skin.StyleSwipe(cd, L)
-    -- The game's countdown numbers: on or off, in our font at their size and color.
+    -- The game's countdown numbers: on or off, in Daylight UI's font at their size and color.
     if cd.SetHideCountdownNumbers then pcall(cd.SetHideCountdownNumbers, cd, L.cooldownNumbers == false) end
     local fs = cd.GetCountdownFontString and cd:GetCountdownFontString()
     if type(fs) == "table" and fs.SetFont then
@@ -1137,7 +1217,7 @@ end
 local procOn = setmetatable({}, { __mode = "k" })   -- buttons whose border shows a proc
 
 -- Rechecks one button's proc. Also called by the Buttons painter right after it
--- shows or hides the game's alert on one of ours.
+-- shows or hides the game's alert on a Daylight UI button.
 function Skin.UpdateProc(btn)
     local parts = skinned[btn]
     if not parts then return end
@@ -1154,8 +1234,8 @@ local function refreshProcs()
 end
 
 -- Redo everything on the next frame, since the game's own handlers for the same
--- event may run after ours and redraw its art, keybind and colors. A usable event
--- only redoes the game's buttons we dress (Buttons' usable painter does our own),
+-- event may run after this and redraw its art, keybind and colors. A usable event
+-- only redoes the game's buttons it dresses (Buttons' usable painter does Daylight UI's own),
 -- and a proc event only the procs.
 local queueRangeTouched
 local want = { full = false, usable = false, procs = false }
@@ -1211,20 +1291,15 @@ function Skin.RedoSoon(btn)
 end
 
 -- Buttons a range event touched: their art and key restored on the next frame.
-local rangeTouched, rangeQueued = {}, false
+local rangeTouched = {}
 local function redoTouched()
-    rangeQueued = false
     for btn in pairs(rangeTouched) do
         rangeTouched[btn] = nil
         Skin.Hide(btn)
         Skin.UpdateKey(btn)
     end
 end
-queueRangeTouched = function()
-    if rangeQueued then return end
-    rangeQueued = true
-    C_Timer.After(0, function() DUI.SafeCall(redoTouched) end)
-end
+queueRangeTouched = DUI.Soon(function() DUI.SafeCall(redoTouched) end)
 
 local afterQueued = false
 -- kind = "usable", "procs", or nil for everything.
@@ -1269,8 +1344,8 @@ function Skin.Tick(elapsed)
     slowIn = slowIn - (elapsed or Skin.SLOW_EVERY)
     if slowIn > 0 then return end
     slowIn = Skin.SLOW_EVERY
-    -- Only the game's buttons we dress (the pet and stance bars rewrite their own
-    -- art and keys). Ours only change on the events that already redo them
+    -- Only the game's buttons it dresses (the pet and stance bars rewrite their own
+    -- art and keys). Daylight UI's only change on the events that already redo them
     -- (Skin.QueueRefresh, the range touch). Only shown ones (no pet or stances means
     -- nothing to check); one that shows is checked on the next pass.
     for _, btn in ipairs(others) do
@@ -1280,8 +1355,8 @@ function Skin.Tick(elapsed)
             Skin.UpdateKey(btn)          -- the pet bar rewrites its keybinds on its own
         end
     end
-    -- A proc turning on comes with its event (Skin.QueueRefresh, and on our own
-    -- buttons the Buttons painter too). Here we only look for one ending, since the
+    -- A proc turning on comes with its event (Skin.QueueRefresh, and on Daylight UI's own
+    -- buttons the Buttons painter too). Here it only looks for one ending, since the
     -- alert fades out after its event.
     for btn in pairs(procOn) do Skin.UpdateProc(btn) end
 end
@@ -1290,29 +1365,29 @@ function Skin.Wire()
     -- The game shows every slot while something is on the cursor.
     DUI.RegisterEvent("ACTIONBAR_SHOWGRID", function() Skin.SetDragging(true) end)
     DUI.RegisterEvent("ACTIONBAR_HIDEGRID", function() Skin.SetDragging(false) end)
-    -- Once on the next frame however many came: a bar swap sends up to 120
-    -- ACTIONBAR_SLOT_CHANGED, and each used to redo every button at once.
+    -- Once on the next frame however many came, since a bar swap sends up to 120
+    -- ACTIONBAR_SLOT_CHANGED.
     local function full() Skin.QueueRefresh() end
     for _, e in ipairs({ "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR",
                          "PET_BAR_UPDATE", "UPDATE_BINDINGS", "PLAYER_ENTERING_WORLD", "EDIT_MODE_LAYOUTS_UPDATED",
                          "UPDATE_SHAPESHIFT_FORM", "UPDATE_SHAPESHIFT_FORMS" }) do
-        pcall(DUI.RegisterEvent, e, full)
+        DUI.RegisterEvent(e, full)
     end
-    -- Usable changes come with every cast and power tick. Our own buttons are
+    -- Usable changes come with every cast and power tick. Daylight UI's own buttons are
     -- repainted by Buttons' usable painter, so only the game's here.
     local function usable() Skin.QueueRefresh("usable") end
-    pcall(DUI.RegisterEvent, "ACTIONBAR_UPDATE_USABLE", usable)
-    pcall(DUI.RegisterEvent, "SPELL_UPDATE_USABLE", usable)
+    DUI.RegisterEvent("ACTIONBAR_UPDATE_USABLE", usable)
+    DUI.RegisterEvent("SPELL_UPDATE_USABLE", usable)
     local function procs() Skin.QueueRefresh("procs") end
-    pcall(DUI.RegisterEvent, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", procs)
-    pcall(DUI.RegisterEvent, "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", procs)
+    DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", procs)
+    DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", procs)
     -- Range: the client reports it per slot (a target change sends one for every
-    -- range-checked slot). Buttons handles our own through its slot index; the
-    -- game's buttons we dress are found here. The game reddens the keybind while
+    -- range-checked slot). Buttons handles Daylight UI's own through its slot index; the
+    -- game's buttons it dresses are found here. The game reddens the keybind while
     -- handling the same event, so those buttons' art and key are redone on the next
     -- frame. Only those: a full refresh of every button per target change caused a
     -- hitch.
-    pcall(DUI.RegisterEvent, "ACTION_RANGE_CHECK_UPDATE", function(_, slot, inRange, checksRange)
+    DUI.RegisterEvent("ACTION_RANGE_CHECK_UPDATE", function(_, slot, inRange, checksRange)
         local B = ns.Buttons
         local own = B and B.On and B.On(slot)
         if own then
@@ -1340,9 +1415,10 @@ end
 -- use the shared look (every bar's, Skin.LookFor(nil)) and the functions that paint
 -- it, read live. ActionButtonLookChanged fires after each Configure, so they follow
 -- option changes at once.
--- Tint(st): st = { L, outOfRange, noPower, unusable, cooling } -> alpha, color or
--- nil (tintGoal). PaintBorder(st, color): st = { back (the shell), shape, rest },
--- color = NORMAL, LIT or a color (paintColor).
+-- Tint(st) takes a button's state, a table with the look L and the flags
+-- outOfRange, noPower, unusable and cooling, and returns the alpha to show and
+-- the color, which is nil for none. PaintBorder(st, color) takes a table with the
+-- shell (back), shape and rest, and NORMAL, LIT or a color.
 DUI.ActionButtonLook = {
     Look = function() return Skin.LookFor(nil) end,
     BorderPx = Skin.BorderPx, StyleShellOpts = Skin.StyleShellOpts, BorderOf = Skin.BorderOf,
@@ -1355,3 +1431,43 @@ DUI.ActionButtonLook = {
     KEYBIND_POS = Skin.KEYBIND_POS, COUNT_POS = Skin.COUNT_POS,
     SHADE_FILE = Skin.SHADE_FILE, SHADE = Skin.SHADE,
 }
+
+-- What plugins get from one of the bars' buttons (DaylightUI.API's Paint, kind
+-- "actionbutton"), and how a button gets its own look back when a plugin lets
+-- go of a piece. With a shape picked the border and band are the shape's
+-- two pieces; otherwise the shell's lists of textures.
+if DUI.APIReport then
+    DUI.APIReport.Parts("actionbutton", function(btn)
+        local parts = skinned[btn]
+        if not parts then return nil end
+        local s = parts.back
+        local border, band
+        if parts.shape then
+            border, band = { parts.shapeOuter }, { parts.shapeBand }
+        else
+            border, band = s and s.border, s and s.band
+        end
+        return {
+            icon = iconOf(btn), border = border, band = band, hotkey = parts.key,
+            count = btn.Count, macro = btn.Name, cooldown = btn.cooldown,
+            highlight = btn:GetHighlightTexture(), pushed = btn:GetPushedTexture(),
+            checked = btn.GetCheckedTexture and btn:GetCheckedTexture() or nil, flash = btn.Flash,
+        }
+    end)
+    DUI.APIReport.Info("actionbutton", Skin.Info)
+    DUI.APIReport.Repainter("actionbutton", function(btn)
+        local parts = skinned[btn]
+        if not parts then return end
+        -- Daylight UI's look again from scratch: the icon back to white and full color, no
+        -- tint or gray remembered, then the look and every painter.
+        local icon = iconOf(btn)
+        if icon and not Skin.Owned(btn, "icon") then
+            icon:SetVertexColor(1, 1, 1)
+            if icon.SetDesaturation then icon:SetDesaturation(0) end
+            parts.tintA, parts.tintR, parts.tintG, parts.tintB = nil, nil, nil, nil
+            parts.gA, parts.gray = nil, nil
+        end
+        Skin.Apply(btn)
+        if ns.Buttons then ns.Buttons.Paint(btn) end
+    end)
+end

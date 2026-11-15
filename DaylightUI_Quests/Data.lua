@@ -240,6 +240,85 @@ function Data.Here(has)
     return real
 end
 
+local function mapKind(name, fallback)
+    local kinds = type(Enum) == "table" and Enum.UIMapType
+    return type(kinds) == "table" and kinds[name] or fallback
+end
+
+-- The player's map and the ones above it, up to the continent: every name on the
+-- way, the zone's map id and the continent's.
+local function mapChain()
+    local M = C_Map
+    local names, zoneMap, continent = {}, nil, nil
+    local id = call(api(M, "GetBestMapForUnit"), "player")
+    for _ = 1, 8 do
+        local info = type(id) == "number" and call(api(M, "GetMapInfo"), id)
+        if type(info) ~= "table" then break end
+        if type(info.name) == "string" then names[info.name] = true end
+        if info.mapType == mapKind("Zone", 3) and not zoneMap then zoneMap = id end
+        if info.mapType == mapKind("Continent", 2) then continent = id; break end
+        id = info.parentMapID
+    end
+    return names, zoneMap, continent
+end
+
+-- Names of every map on a continent (zones, cities, dungeons), kept per continent.
+local mapNames = {}
+local function continentMaps(continent)
+    if not continent then return nil end
+    if mapNames[continent] then return mapNames[continent] end
+    local list = call(api(C_Map, "GetMapChildrenInfo"), continent, nil, true)
+    if type(list) ~= "table" or #list == 0 then return nil end
+    local set = {}
+    for _, m in ipairs(list) do
+        if type(m) == "table" and type(m.name) == "string" then set[m.name] = true end
+    end
+    mapNames[continent] = set
+    return set
+end
+
+-- Every quest log header that counts as where the player is, as a set. The log
+-- files a starting area's quests under its own name (Northshire Valley) while the
+-- zone text says Elwynn Forest, and the subzone text names it only in the open
+-- valley. So a header also counts when it's the subzone, a map the player is on,
+-- or a part of the zone with no map of its own whose quests show on the zone's map.
+-- groups = { { name, quests = { { id } } } }. main = Data.Here's answer.
+function Data.HereSet(groups, main)
+    local here = {}
+    if type(main) == "string" then here[main] = true end
+    local names, zoneMap, continent = mapChain()
+    for _, fn in ipairs({ "GetRealZoneText", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText" }) do
+        local n = call(_G[fn])
+        if type(n) == "string" and n ~= "" then names[n] = true end
+    end
+    local known, onMap = continentMaps(continent), nil
+    for _, g in ipairs(groups) do
+        if names[g.name] then
+            here[g.name] = true
+        elseif known and zoneMap and not known[g.name] then
+            if not onMap then
+                onMap = {}
+                local list = call(api(C_QuestLog, "GetQuestsOnMap"), zoneMap)
+                for _, info in ipairs(type(list) == "table" and list or {}) do
+                    if type(info) == "table" and type(info.questID) == "number" then onMap[info.questID] = true end
+                end
+            end
+            for _, q in ipairs(g.quests) do
+                if onMap[q.id] then here[g.name] = true; break end
+            end
+        end
+    end
+    return here
+end
+
+-- The set as one string, to tell whether a move changed it.
+function Data.HereKey(here)
+    local list = {}
+    for name in pairs(here) do list[#list + 1] = name end
+    table.sort(list)
+    return table.concat(list, "\n")
+end
+
 function Data.Snapshot(filter)
     local QL = C_QuestLog
     local snap = { groups = {}, achievements = Data.Achievements() }
@@ -266,8 +345,11 @@ function Data.Snapshot(filter)
         end
     end
     snap.zone = Data.Here(function(name) return byZone[name] ~= nil end)
+    snap.here = Data.HereSet(snap.groups, snap.zone)
     table.sort(snap.groups, function(a, b)
-        local ah, bh = a.name == snap.zone, b.name == snap.zone
+        local am, bm = a.name == snap.zone, b.name == snap.zone
+        if am ~= bm then return am end
+        local ah, bh = snap.here[a.name] == true, snap.here[b.name] == true
         if ah ~= bh then return ah end
         return (rank[a.name] or math.huge) < (rank[b.name] or math.huge)
     end)

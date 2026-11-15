@@ -362,6 +362,37 @@ T.test("yourself and ungrouped allies never fade, whatever the game answers", fu
     T.isnil(f.__alphaFromBoolean)
 end)
 
+T.test("a picked range spell fades an enemy target out of its reach", function()
+    local DUI, ns = login()
+    local f = ns.frames.target
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", friend = true }
+    stub.units.target = { name = "Boar", friend = false, spellRange = false }
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 1, "nothing picked: strangers never fade")
+    stub.knownSpells[116] = true
+    DUI:Set("UnitFrames", "range.spell", "116")
+    T.eq(f.rangePick, 116)
+    stub.Advance(3)
+    DUI.Fade.Step()
+    for _ = 1, 120 do stub.RunOnUpdate(DUI.Fade.driver, 1 / 60) end
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 0.45, "out of the spell's reach")
+    stub.units.target.spellRange = true
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 1, "in reach")
+    stub.units.target.spellRange = stub.Secret(false)
+    ns.UF.UpdateRange(f)
+    T.eq(f.__alphaFromBoolean[3], 0.45, "a secret answer goes to the client's setter")
+    f.__alphaFromBoolean = nil
+    stub.units.target.spellRange = nil
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 1, "a spell that can't be cast on them leaves them alone")
+    stub.knownSpells[116] = nil
+    stub.units.target.spellRange = false
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 1, "a pick this character doesn't know does nothing")
+end)
+
 T.test("a healer's range follows their heal, not the game's fixed check", function()
     local DUI, ns = login()
     local f = ns.frames.target

@@ -33,13 +33,29 @@ local function chatWindow(i, docked)
     -- after r, g, b are in `extraData` (the event is 4th), and the arrival time
     -- is in `timestamp`.
     cf.lines = {}
-    function cf:AddMessage(msg, r, g, b, infoID, accessID, typeID, event)
-        table.insert(self.lines, { msg, event, r, g, b, timestamp = GetTime() })
+    function cf:AddMessage(msg, r, g, b, ...)
+        local extra = { n = select("#", ...), ... }
+        table.insert(self.lines, { msg, extra[4], r, g, b, timestamp = GetTime(), extra = extra })
     end
     function cf:GetNumMessages() return #self.lines end
+    -- As the game's UnpackageEntry: message, r, g, b, then AddMessage's extra values.
     function cf:GetMessageInfo(i)
         local l = self.lines[i]
-        if l then return l[1], l[3], l[4], l[5] end
+        if not l then return end
+        if l.extra then return l[1], l[3], l[4], l[5], unpack(l.extra, 1, l.extra.n) end
+        return l[1], l[3], l[4], l[5]
+    end
+    -- The game's TransformMessages: picked entries rewritten in place, no AddMessage.
+    function cf:TransformMessages(pred, fn)
+        for _, l in ipairs(self.lines) do
+            local x = l.extra or { n = 0 }
+            if pred(l[1], l[3], l[4], l[5], unpack(x, 1, x.n)) then
+                local out = (function(...) return { n = select("#", ...), ... } end)(fn(l[1], l[3], l[4], l[5], unpack(x, 1, x.n)))
+                l[1], l[3], l[4], l[5] = out[1], out[2], out[3], out[4]
+                l.extra = { n = math.max(out.n - 4, 0), unpack(out, 5, out.n) }
+                l.timestamp = GetTime()
+            end
+        end
     end
     function cf:GetID() return i end
     -- How long lines stay, as ScrollingMessageFrameMixin keeps it (120 s from
@@ -220,6 +236,18 @@ T.test("chat: class colors and timestamps are the game's own settings", function
     DaylightUI:Set("Chat", "timestamps", "%I:%M %p ")
     stub.RunTimers()
     T.eq(stub.cvars.showTimestamps, "%I:%M %p ", "a 12-hour clock with AM/PM")
+end)
+
+T.test("chat: whispers show their time in the Timestamps format", function()
+    login()
+    local Chat = stub.chatModule.Chat
+    local at = os.time({ year = 2026, month = 10, day = 5, hour = 21, min = 19 })
+    DaylightUI:Set("Chat", "timestamps", "%I:%M %p ")
+    stub.RunTimers()
+    T.eq(Chat.Clock(at), "09:19 PM", "a 12-hour clock, no trailing space")
+    DaylightUI:Set("Chat", "timestamps", "none")
+    stub.RunTimers()
+    T.eq(Chat.Clock(at), "21:19", "timestamps off: hours and minutes")
 end)
 
 T.test("chat: the Timestamps list has the game's six formats, 12-hour ones too", function()
@@ -1108,6 +1136,50 @@ T.test("chat: with The game's own picked, Play plays the game's whisper sound", 
     chatItem("Play whisper sound").func()
     T.eq(kits[1], 3081)
     _G.SOUNDKIT, _G.PlaySound = nil, nil
+    noSoundFakes()
+end)
+
+T.test("chat: the guild chat sound plays for others' guild lines, not yours, not on None, with a cooldown", function()
+    local played
+    login(function() played = soundFakes() end)
+    local W = stub.chatModule.Whisper
+    for k in pairs(played) do played[k] = nil end      -- the setup guide's open sound at login (Sound.lua)
+    local function guild(event, guid)
+        stub.FireEvent(event, "hi", "Someone", "", "", "", "", 0, 0, "", 0, 1, guid)
+    end
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, 0, "None by default: silent")
+    DaylightUI:Set("Chat", "guildSound", "bell")
+    stub.RunTimers()
+    T.eq(#played, 1, "picked in the options: heard once")
+    T.eq(played[1][1], W.SOUNDS.bell)
+    stub.Advance(W.COOLDOWN + 1)
+    guild("CHAT_MSG_GUILD", UnitGUID("player"))
+    T.eq(#played, 1, "not for your own line")
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, 2, "someone else's guild line")
+    T.eq(played[2][1], W.SOUNDS.bell); T.eq(played[2][2], "SFX")
+    guild("CHAT_MSG_OFFICER", "Player-1-OTHER")
+    T.eq(#played, 2, "not twice inside the cooldown")
+    stub.Advance(W.COOLDOWN + 1)
+    guild("CHAT_MSG_OFFICER", stub.Secret("Player-1-OTHER"))
+    T.eq(#played, 3, "officer chat too, and a secret GUID just plays")
+    stub.Advance(W.COOLDOWN + 1)
+    stub.FireEvent("CHAT_MSG_WHISPER", "hi", "Someone")
+    T.eq(played[#played][1], W.SOUNDS.soft, "the whisper sound keeps its own pick")
+    local play = chatItem("Play guild chat sound")
+    local get = function(k) return DaylightUI:Get("Chat", k) end
+    local n = #played
+    play.func()
+    T.eq(#played, n + 1, "Play plays it"); T.eq(played[#played][1], W.SOUNDS.bell)
+    DaylightUI:Set("Chat", "guildSound", "none")
+    stub.RunTimers()
+    T.truthy(play.disabled(get), "None: nothing to play")
+    stub.Advance(W.COOLDOWN + 1)
+    n = #played
+    guild("CHAT_MSG_GUILD", "Player-1-OTHER")
+    T.eq(#played, n, "None: silent again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     noSoundFakes()
 end)
 
@@ -2096,6 +2168,135 @@ T.test("chat daylight: a community invite never runs the game's click from the b
     click("item:19019", "[Thunderfury]")
     T.deq(reached, { "item:19019" }, "other links stay the game's")
     DaylightUI.Print, _G.SetItemRef, _G.ChatFrameUtil.InsertLink = print, ref, insert
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A profession link (and a recipe's) opens only from the game's own click: one
+-- passed on from the box's script reached SetItemRef and the game opened nothing
+-- (seen in game). Each shown line has an invisible twin over it on a frame made
+-- from the game's InlineHyperlinkFrameTemplate, whose click is the game's.
+local function twinOf(CH, box, i)
+    local m = CH.Links.Mirror(box)
+    local t = m and m.lines[i]
+    if t and t:IsShown() then return t end
+end
+
+T.test("chat daylight: a profession link is clicked through the game's own link frame", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local got = {}
+    _G.SetItemRef = function(link, text, button, frame)
+        got[#got + 1] = { link = link, game = (stub.gameClick or 0) > 0, frame = frame }
+    end
+    local link = "trade:Player-6928-01B3BE12:3100:164"
+    local text = "|cffffd000|H" .. link .. "|h[Tailoring]|h|r"
+    local name = "|Hplayer:Robb|h[Robb]|h"
+    box:AddMessage(name .. " says: " .. text)
+    box:FakeRefresh()
+    local m = CH.Links.Mirror(box)
+    T.truthy(m and m:IsShown(), "the lines' twins are up")
+    T.eq(m:GetParent(), box)
+    T.eq(m:GetAlpha(), 0, "never seen: the box's own lines show")
+    T.eq(m:IsMouseEnabled(), false, "the wheel, drags and names still reach the box")
+    T.eq(m:GetHyperlinksEnabled(), true)
+    local t = twinOf(CH, box, 1)
+    T.truthy(t, "the line with the link has its twin")
+    T.eq(select(2, t:GetPoint(1)), box.visibleLines[1], "laid exactly over its line")
+    T.eq(t:GetText(), "[Robb] says: " .. text, "the name is plain words, the profession a link")
+
+    -- Hovering the twin's link shows the box's tooltip.
+    local entered, left = {}, 0
+    local enter, leave = CH.LinkTips.OnEnter, CH.LinkTips.OnLeave
+    CH.LinkTips.OnEnter = function(f, l) entered[#entered + 1] = { f, l } end
+    CH.LinkTips.OnLeave = function() left = left + 1 end
+    m:GetScript("OnHyperlinkEnter")(m, link, text)
+    T.eq(entered[1] and entered[1][1], box)
+    T.eq(entered[1] and entered[1][2], link)
+
+    m:GetScript("OnHyperlinkClick")(m, link, text, "LeftButton")
+    T.eq(#got, 1)
+    T.eq(got[1].link, link)
+    T.truthy(got[1].game, "SetItemRef ran as the game's code")
+    T.truthy(m:IsShown(), "still there for the next click")
+    m:GetScript("OnHyperlinkLeave")(m)
+    T.eq(left, 1)
+    CH.LinkTips.OnEnter, CH.LinkTips.OnLeave = enter, leave
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game hides a message it thinks is inappropriate behind a "Show Message"
+-- link. Its click rewrites that line in the game's own windows only
+-- (ItemRefHandlersShared.lua: TransformMessages, no AddMessage), so the box has
+-- to take the shown message from there.
+T.test("chat daylight: Show Message on a hidden message shows it in the box", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local hidden = "Message from Robb is potentially inappropriate. |Hcensoredmessage:77|h[Show Message]|h"
+    said(ChatFrame1, "before", "CHAT_MSG_SAY", 76)
+    said(ChatFrame1, hidden, "CHAT_MSG_WHISPER", 77)
+    said(ChatFrame1, "after", "CHAT_MSG_SAY", 78)
+    -- The game's handler, as in its source: every window's line with this id rewritten.
+    _G.SetItemRef = function(link)
+        local id = tonumber(string.match(link, "^censoredmessage:(%d+)"))
+        if not id then return end
+        ChatFrame1:TransformMessages(function(_, _, _, _, _, _, _, _, args) return args[11] == id end,
+            function(_, r, g, b, infoID, accessID, typeID, event, args, ...)
+                return "[Robb] whispers: hello there |Hreportcensoredmessage:77|h[Report]|h", r, g, b,
+                    infoID, accessID, typeID, event, args, ...
+            end)
+    end
+    box:FakeRefresh()
+    local m = CH.Links.Mirror(box)
+    T.truthy(m and m:IsShown(), "clicked through the game's own link frame")
+    m:GetScript("OnHyperlinkClick")(m, "censoredmessage:77", "[Show Message]", "LeftButton")
+    local texts = boxTexts(box)
+    T.eq(#texts, 3, "still three lines")
+    T.eq(texts[1], "before")
+    T.truthy(string.find(texts[2], "hello there", 1, true), "the message shows in its place: " .. tostring(texts[2]))
+    T.eq(texts[3], "after", "in the same order")
+    -- Switching tabs fills the box from its kept lines: the message stays shown.
+    CH.Box.Pick(CH.Box.Picked())
+    T.truthy(string.find(boxTexts(box)[2], "hello there", 1, true), "kept")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: names, channels and Daylight UI's own links stay the box's click", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    for _, link in ipairs({ "player:Bob", "BNplayer:Bob:1", "channel:CHANNEL:2", "clubTicket:ABC",
+                            "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
+        box:AddMessage("|H" .. link .. "|h[x]|h")
+    end
+    -- A secret line (chat lockdown) is left alone too.
+    box:AddMessage(stub.Secret("|Hitem:19019|h[Thunderfury]|h"))
+    box:FakeRefresh()
+    for i = 1, 8 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
+    local m = CH.Links.Mirror(box)
+    T.falsy(m and m:IsShown(), "nothing for the game to click")
+    T.eq(CH.Links.Twin("|Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"), "[Bob]: |Hitem:1|h[A]|h")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- New lines in a busy channel and scrolling move the links: the twins follow, so
+-- the click always lands on the link that's shown.
+T.test("chat daylight: the twins follow new lines and scrolling", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local link = "|Henchant:3915|h[Tailoring: Bolt of Linen]|h"
+    box:AddMessage("recipe " .. link)
+    box:FakeRefresh()
+    T.eq(twinOf(CH, box, 1):GetText(), "recipe " .. link)
+    box:AddMessage("just talk")
+    box:FakeRefresh()
+    T.falsy(twinOf(CH, box, 1), "the bottom line has no link now")
+    T.eq(twinOf(CH, box, 2):GetText(), "recipe " .. link, "the link's twin moved up with it")
+    box:ScrollUp()
+    box:FakeRefresh()
+    T.eq(twinOf(CH, box, 1):GetText(), "recipe " .. link, "and back down when scrolled")
+    -- The box's font follows the style: the twin wraps the same way.
+    box:SetFont("Fonts/ARIALN.TTF", 18, "")
+    box:FakeRefresh()
+    T.eq(select(2, twinOf(CH, box, 1):GetFont()), 18)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4887,4 +5088,114 @@ T.test("chat daylight: a level beside names the game has told us, only with the 
     _G.UnitLevel, _G.UnitIsPlayer, _G.UnitFullName = realLevel, realIs, nil
     _G.GetNormalizedRealmName, _G.IsInGuild, _G.GetNumGuildMembers, _G.GetGuildRosterInfo = nil, nil, nil, nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat: another addon's channels on 1 to 4 move behind the world channels", function()
+    -- The game's slots: an addon joined its own channels before the world ones.
+    local slots = { "layer", "layer99d80872", "layer99fc0872", "layer99d20872",
+        "General - Elwynn Forest", "Trade - City", "LocalDefense - Elwynn Forest", "Services", "LookingForGroup" }
+    local zone = { General = 1, Trade = 2, LocalDefense = 22, Services = 42, LookingForGroup = 26 }
+    local was = { _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor }
+    _G.GetChannelList = function()
+        local out = {}
+        for id = 1, #slots do
+            if slots[id] then out[#out + 1] = id; out[#out + 1] = slots[id]; out[#out + 1] = false end
+        end
+        return unpack(out)
+    end
+    local swaps = 0
+    _G.C_ChatInfo = setmetatable({
+        GetChannelInfoFromIdentifier = function(name)
+            local base = string.match(name, "^(.-) %- ") or name
+            return { name = name, zoneChannelID = zone[base] or 0 }
+        end,
+        SwapChatChannelsByChannelIndex = function(a, b)
+            swaps = swaps + 1
+            slots[a], slots[b] = slots[b], slots[a]
+        end,
+    }, { __index = was[2] })
+    _G.ChangeChatColor = function() end
+    local Kinds = stub.chatModule.Kinds
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "General - Elwynn Forest", "General back on 1")
+    T.eq(slots[2], "Trade - City")
+    T.eq(slots[3], "LocalDefense - Elwynn Forest")
+    T.eq(slots[4], "Services")
+    T.eq(slots[5], "LookingForGroup")
+    T.eq(slots[6], "layer", "the addon's channels keep their own order after them")
+    T.eq(slots[9], "layer99d20872")
+    local done = swaps
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(swaps, done, "already in order: nothing more")
+    -- A player's own order is theirs with the switch off.
+    slots[1], slots[6] = slots[6], slots[1]
+    DaylightUI:Set("Chat", "worldChannelsFirst", false)
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "layer", "switched off: left as it is")
+    DaylightUI:Set("Chat", "worldChannelsFirst", true)
+    slots = { "layer", "General - Elwynn Forest", "Trade - City" }
+    stub.EnterCombat()
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[1], "layer", "not in a fight")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.eq(slots[1], "General - Elwynn Forest", "after it")
+    T.truthy(Kinds.WorldFirst, "Kinds.WorldFirst exists")
+    _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor = was[1], was[2], was[3]
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat: every options page is valid", function()
+    login()
+    local n = 0
+    for id, page in DaylightUI.Options.Pages() do
+        if page.scope == "Chat" then
+            local errors = DaylightUI.Options.ValidatePage(page)
+            T.eq(#errors, 0, id .. ": " .. tostring(errors[1]))
+            n = n + 1
+        end
+    end
+    T.truthy(n > 0, "found the chat pages")
+    T.falsy(stub.ChatContains("Options ("))
+end)
+
+T.test("chat daylight: a step of the watcher failing still keeps the game's window out of sight", function()
+    local Box, box = daylight()
+    local Chat = stub.chatModule.Chat
+    local hold = Chat.Hold
+    Chat.Hold = function() error("hold broke") end
+    ChatFrame1:SetAlpha(1)
+    Chat.Pass()
+    Chat.Hold = hold
+    T.eq(ChatFrame1:GetAlpha(), 0, "parked again")
+    T.truthy(#stub.errors > 0, "the failing step is still reported")
+    stub.errors = {}
+end)
+
+T.test("chat daylight: a plugin's formatter changes or drops a line; its links come back to it", function()
+    local Box, box = daylight()
+    local me = DaylightUI.API.For("Chatty")
+    local seen
+    local h = me.FormatChat(function(text, info)
+        seen = info
+        if info.body == "spam me" then return false end
+        return text .. " (ok)"
+    end)
+    said(ChatFrame1, "Bob: hi", "CHAT_MSG_GUILD", 21)
+    local texts = boxTexts(box)
+    T.truthy(string.find(texts[#texts], "(ok)", 1, true), "changed")
+    T.eq(seen.event, "CHAT_MSG_GUILD"); T.eq(seen.kind, "guild"); T.eq(seen.sender, "Bob"); T.eq(seen.body, "Bob: hi")
+    local n = #boxTexts(box)
+    said(ChatFrame1, "spam me", "CHAT_MSG_GUILD", 22)
+    T.eq(#boxTexts(box), n, "left out")
+    DaylightUI.API.Off(h)
+    said(ChatFrame1, "Bob: bye", "CHAT_MSG_GUILD", 23)
+    texts = boxTexts(box)
+    T.falsy(string.find(texts[#texts], "(ok)", 1, true), "stopped")
+    -- A link of the plugin's, clicked in the box.
+    local got
+    me.OnChatLink(function(data) got = data end)
+    local link = me.ChatLink("fish:42", "Show fish")
+    T.truthy(string.find(link, "|Hdaylightchat:plugin:Chatty:fish:42|h[Show fish]|h", 1, true))
+    stub.chatModule.Extras.OnLink("daylightchat:plugin:Chatty:fish:42")
+    T.eq(got, "fish:42")
 end)

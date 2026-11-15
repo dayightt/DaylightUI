@@ -33,7 +33,7 @@ local EASE = {
     both = function(p) if p < 0.5 then return 2 * p * p end return 1 - (-2 * p + 2) ^ 2 / 2 end,
 }
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local secret = DUI.IsSecret
 
 -- ---------------------------------------------------------------------
 -- Driver: one OnUpdate, running only while something moves.

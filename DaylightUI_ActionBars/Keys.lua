@@ -1,11 +1,12 @@
--- Keybinds on our bars. Your keybinds stay on the game's commands and press the
--- game's hidden buttons, which cast the same slot ours shows (Paging copies bar 1's
+-- Keybinds on Daylight UI's bars. Your keybinds stay on the game's commands and press the
+-- game's hidden buttons, which cast the same slot the Daylight UI button shows (Paging copies bar 1's
 -- page onto them). That keeps cast on key down, hold to keep casting and the
--- vehicle bar working as the game does. This file shows the key on our buttons and
+-- vehicle bar working as the game does. This file shows the key on Daylight UI's buttons and
 -- gives them the pressed look while a key is down.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Keys = {}
 ns.Keys = Keys
@@ -21,7 +22,7 @@ function Keys.UpdateText()
         local hk = btn.HotKey
         if type(hk) == "table" then
             -- The game's template hides this text itself when it thinks there's
-            -- no key. Our buttons never get that update, so show it.
+            -- no key. Daylight UI's buttons never get that update, so show it.
             hk:Show()
             local key = GetBindingKey(btn.commandName)
             if type(key) == "string" then
@@ -34,7 +35,7 @@ function Keys.UpdateText()
     end
 end
 
--- Our button standing in for a game bar's button. barName is the game's bar
+-- Daylight UI's button standing in for a game bar's button. barName is the game's bar
 -- (MainActionBar for bar 1), id the button's number.
 function Keys.ButtonFor(barName, id)
     for _, def in ipairs(ns.Bars.DEFS) do
@@ -58,7 +59,7 @@ local function polling()
     f:SetScript("OnUpdate", on and Keys.OnUpdate or nil)
 end
 
--- Our buttons are always skinned, so the pressed look is the skin's.
+-- Daylight UI's buttons are always skinned, so the pressed look is the skin's.
 function Keys.SetDown(btn, on)
     on = on == true
     down[btn] = on or nil
@@ -97,7 +98,7 @@ function Keys.Owner()
 end
 
 -- A key pressing the hidden twin of a flyout slot would open the flyout on a button
--- nobody sees, so those keys click our button instead. Rebuilt out of combat only,
+-- nobody sees, so those keys click Daylight UI's button instead. Rebuilt out of combat only,
 -- since override bindings are protected.
 function Keys.UpdateFlyouts()
     local owner = Keys.Owner()
@@ -155,18 +156,18 @@ end
 -- spell can be a different rank than the one on the bar, so never by id. Built on
 -- first use and dropped on Keys.EVENTS. The first bar with a key wins.
 local castKeys
-local function plain(v) return not (issecretvalue and issecretvalue(v)) end
+local function isPlain(v) return not isSecret(v) end
 
 local function nameIn(slot)
     local what, id = GetActionInfo(slot)
-    if not (plain(what) and plain(id)) then return false end
+    if not (isPlain(what) and isPlain(id)) then return false end
     if what == "item" then
         local get = type(C_Item) == "table" and C_Item.GetItemNameByID
         return type(get) == "function" and get(id) or nil
     end
     local sid = ns.Buttons.SpellOf(slot)
     if type(sid) == "nil" then return nil end
-    if not plain(sid) then return false end
+    if not isPlain(sid) then return false end
     return C_Spell.GetSpellName(sid)
 end
 
@@ -178,7 +179,7 @@ local function buildCastKeys()
         local slot = type(key) == "string" and ns.Buttons.SlotOf(btn)
         if slot then
             local name = nameIn(slot)
-            if name == false or not plain(name) then return out, true end
+            if name == false or not isPlain(name) then return out, true end
             if type(name) == "string" and not out[name] then out[name] = GetBindingText(key, true) end
         end
     end
@@ -232,7 +233,7 @@ local function buildPadKeys()
     if type(first) ~= "number" then return out, false end
     for offset = 0, Keys.PAD_PAGES * Keys.PAD_PAGE_SLOTS - 1 do
         local name = nameIn(first + offset)
-        if name == false or not plain(name) then return out, true end
+        if name == false or not isPlain(name) then return out, true end
         if type(name) == "string" and not out[name] then out[name] = Keys.PadKey(offset) end
     end
     return out, false
@@ -240,7 +241,7 @@ end
 
 -- The key that casts this spell or item name, as the game writes it, or nil.
 function Keys.CastKey(name)
-    if type(name) ~= "string" or not plain(name) then return nil end
+    if type(name) ~= "string" or not isPlain(name) then return nil end
     local map = castKeys
     if not map then
         local partial
@@ -256,7 +257,7 @@ Keys.EVENTS = { "UPDATE_BINDINGS", "PLAYER_ENTERING_WORLD", "ACTIONBAR_SLOT_CHAN
                 "ACTIONBAR_PAGE_CHANGED", "UPDATE_SHAPESHIFT_FORM", "UPDATE_VEHICLE_ACTIONBAR", "UPDATE_OVERRIDE_ACTIONBAR" }
 
 -- Rebuild the flyout keys once on the next frame, however many events came. A bar
--- swap sends up to 120 ACTIONBAR_SLOT_CHANGED, and each one used to rebuild them all.
+-- swap sends up to 120 ACTIONBAR_SLOT_CHANGED.
 local flyoutsQueued = false
 local function flyoutsSoon()
     flyoutsQueued = false
@@ -276,7 +277,7 @@ function Keys.OnEvent(event)
     C_Timer.After(0, flyoutsTimer)
 end
 
--- Quick Keybind mode: our buttons show the game's binding highlight, a click binds
+-- Quick Keybind mode: Daylight UI's buttons show the game's binding highlight, a click binds
 -- (the mixin's own handler, for mouse buttons) instead of casting, and it's all
 -- undone when the mode closes.
 Keys.quick = false
@@ -284,7 +285,7 @@ local strata = {}
 function Keys.QuickMode(on)
     Keys.quick = on == true
     -- The game's extra action frame is wider than its art and sits over a bar
-    -- placed under it, eating the mouse. Lift our bars above it while the mode
+    -- placed under it, eating the mouse. Lift Daylight UI's bars above it while the mode
     -- is open.
     for key, holder in pairs(ns.Bars.holders) do
         if Keys.quick then
@@ -302,9 +303,9 @@ function Keys.QuickMode(on)
 end
 
 -- The Action Bars page's Bind keys button opens the game's Quick Keybind mode the
--- same way its Settings button does, with our options window out of the way. Its
+-- same way its Settings button does, with Daylight UI's options window out of the way. Its
 -- Okay lands on the game's Settings, like the game's own: closing that panel from
--- our code would run its commits under our taint. Opened from our code, its OnShow
+-- Daylight UI's code would run its commits under the addon's taint. Opened from Daylight UI's code, its OnShow
 -- can't taint the game's buttons, since their SetShowGrid only writes when
 -- issecure().
 function Keys.OpenQuick()
@@ -351,7 +352,7 @@ function Keys.Wire()
     -- A different controller in use (a PS5 pad after an Xbox one) means new glyphs.
     -- The game's own glyph set follows the same events (InputDeviceIconSetManager).
     for _, e in ipairs({ "GAME_PAD_CONNECTED", "GAME_PAD_ACTIVE_CHANGED" }) do
-        pcall(DUI.RegisterEvent, e, function() Keys.OnEvent("PadChanged") end)
+        DUI.RegisterEvent(e, function() Keys.OnEvent("PadChanged") end)
     end
     polling()
     Keys.UpdateText()

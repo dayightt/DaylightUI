@@ -59,10 +59,9 @@ local function drawLight(f, v)
     cd:SetSwipeColor(1, 1, 1, Arrive.LIGHT * fade)
     cd:SetCooldown(GetTime() - math.min(v, 0.999) * LIGHT_D, LIGHT_D)
     cd:Show()
-    local turn = v * 2 * math.pi
-    local r = p.radius or 0
+    local x, y = ns.UF.RingPoint(p, v * 2 * math.pi)
     cd.head:ClearAllPoints()
-    cd.head:SetPoint("CENTER", p, "CENTER", math.sin(turn) * r, math.cos(turn) * r)
+    cd.head:SetPoint("CENTER", p, "CENTER", x, y)
     cd.head:SetAlpha(fade)
 end
 
@@ -216,7 +215,7 @@ function Arrive.Stop(f)
     DUI.Fade.Back(fadeKey(f))
 end
 
--- From UF.Wire, out of combat: install the snippet, then our own handler.
+-- From UF.Wire, out of combat: install the snippet, then the frame's own handler.
 function Arrive.Wire(f)
     local header = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
     SecureHandlerWrapScript(f, "OnAttributeChanged", header, Arrive.SNIPPET)

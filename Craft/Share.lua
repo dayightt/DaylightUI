@@ -20,7 +20,7 @@ local function ts(name)
 end
 
 local function isLink(v)
-    return type(v) == "string" and not (issecretvalue and issecretvalue(v)) and v ~= "" and v or nil
+    return type(v) == "string" and not DUI.IsSecret(v) and v ~= "" and v or nil
 end
 
 -- The open profession's link, or its spell's if the game gives no list link.

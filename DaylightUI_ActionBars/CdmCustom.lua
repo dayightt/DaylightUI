@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Custom = {}
 ns.CdmCustom = Custom
@@ -18,7 +19,7 @@ local added = {}   -- [key] = family of a spell or item added by ID
 local classSpells  -- [spell id] = true for every rank on any class list (built lazily)
 
 local function plain(v)
-    return not (issecretvalue and issecretvalue(v)) and v or nil
+    return not isSecret(v) and v or nil
 end
 
 -- Paladin "seal" piece: watches every rank of every seal and shows whichever is up.
@@ -49,8 +50,10 @@ Custom.AURA_ICON = "Interface/Icons/Spell_Holy_AuraMastery"
 -- short ones (Protection, Freedom, Sacrifice) don't count. By rank 1 id, from the
 -- generated list.
 Custom.BLESSINGS = { 19740, 19742, 20217, 1038, 19977, 25782, 25894, 25898, 25895, 25890 }
--- An icon no single Forever blessing uses.
-Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_BlessedLife"
+-- It wears Blessing of Might's icon, asked of the client when drawn. Until the
+-- client knows the spell, the file that icon comes from.
+Custom.BLESSING_SPELL = 19740
+Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_FistOfJustice"
 
 -- Hunter and warlock "pet" piece: up while your pet is out and alive, so Buff
 -- missing can glow when it isn't. Not an aura, so CdmAuras draws it itself. The
@@ -80,8 +83,10 @@ Custom.MORE_RANKS = { [20154] = { 21084 } }
 
 -- Spells whose buff or debuff has its own spell id, by the family's rank 1 id.
 -- Arcane Blast's stacking debuff is 400573 (up to 4 stacks, carries the damage
--- and mana cost increase; the casts themselves only deal damage).
-Custom.AURA_IDS = { [400574] = { 400573 } }
+-- and mana cost increase; the casts themselves only deal damage). A passive from
+-- the list is offered only once its buff is named here, as the passive itself
+-- never shows as a buff. A rogue's Poised buff is 1328826.
+Custom.AURA_IDS = { [400574] = { 400573 }, [1328825] = { 1328826 } }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -140,7 +145,7 @@ local function build()
     local function add(f, group)
         if type(f) ~= "table" or type(f[1]) ~= "number" then return end
         local k = "s" .. f[1]
-        if index[k] then return end
+        if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil }
@@ -153,7 +158,10 @@ local function build()
         if seal then index.seal = seal; order[#order + 1] = "seal" end
         index.aura = auraFamily(); order[#order + 1] = "aura"
         local blessing = mergedFamily(S.PALADIN or {}, Custom.BLESSINGS, DUI.L["Blessing"], Custom.BLESSING_ICON)
-        if blessing then index.blessing = blessing; order[#order + 1] = "blessing" end
+        if blessing then
+            blessing.iconSpell = Custom.BLESSING_SPELL
+            index.blessing = blessing; order[#order + 1] = "blessing"
+        end
     end
     if type(class) == "string" and Custom.PETS[class] then
         index.pet = { ids = Custom.PETS[class], aura = true, self = true, pet = true, name = DUI.L["Pet"] }
@@ -308,7 +316,7 @@ function Custom.ItemUsable(id)
     local can = item and type(C_Item) == "table" and C_Item.IsUsableItem
     if type(can) ~= "function" then return nil end
     local ok, yes, noMana = pcall(can, item)
-    if not ok or (issecretvalue and (issecretvalue(yes) or issecretvalue(noMana))) then return nil end
+    if not ok or isSecret(yes) or isSecret(noMana) then return nil end
     return yes, noMana
 end
 
@@ -392,7 +400,7 @@ function Custom.SelfDebuff(id)
 end
 
 -- Name and icon. The seal piece uses a generic name because which seal is up
--- can't be read in combat. The client draws the active seal's icon over ours.
+-- can't be read in combat. The client draws the active seal's icon over this one.
 function Custom.Look(id)
     local item = Custom.ItemOf(id)
     if item and type(C_Item) == "table" then
@@ -409,17 +417,23 @@ function Custom.Look(id)
     local okT, tex = pcall(C_Spell.GetSpellTexture, sid)
     name = okN and type(name) == "string" and plain(name) or nil
     local f = Custom.Family(id)
+    if f and f.iconSpell then
+        local okI, icon = pcall(C_Spell.GetSpellTexture, f.iconSpell)
+        if okI and type(icon) ~= "nil" then return f.name or name, icon end
+    end
     return f and f.name or name, f and f.icon or okT and type(tex) ~= "nil" and tex or nil
 end
 
--- A spell of your class with both a cooldown and a buff (Bloodrage).
+-- The card's What it shows can pick its cooldown, its buff or both. Not for
+-- someone else's buff on you, the merged families (seal, aura, blessing) or the pet,
+-- which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)
-    return f ~= nil and hasCd(id, f) and f.aura or false
+    return f ~= nil and not (f.group or f.merged or f.pet) and not worn(id, f)
 end
 
--- "cooldown" or "aura": the piece's saved choice (Data.SetTrack) if the spell
--- supports it, else its cooldown if it has one, else its buff.
+-- "cooldown", "aura" or "both": the piece's saved choice (Data.SetTrack) if the
+-- spell can pick, else its cooldown if it has one, else its buff.
 function Custom.Track(id, set)
     local f = Custom.Family(id)
     if not f then return nil end
@@ -428,8 +442,8 @@ function Custom.Track(id, set)
     local t = p and p.track
     -- Buff missing mode tracks the buff, shown only while it's up.
     if p and p.hideMissing == true and f.aura then return "aura" end
+    if (t == "aura" or t == "cooldown" or t == "both") and Custom.CanTrack(id) then return t end
     if t == "aura" and f.aura then return "aura" end
-    if t == "cooldown" and hasCd(id, f) then return "cooldown" end
     -- Spells added by ID: the cooldown if it has a real one, else the buff.
     if f.user and not f.item then
         if worn(id, f) then return "aura" end

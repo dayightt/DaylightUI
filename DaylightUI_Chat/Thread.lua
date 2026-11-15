@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 local L = DUI.L
 
@@ -45,7 +46,7 @@ end
 local function realmOf(c)
     if c.guid and type(GetPlayerInfoByGUID) == "function" then
         local realm = select(7, GetPlayerInfoByGUID(c.guid))
-        if type(realm) == "string" and not issecretvalue(realm) and realm ~= "" then return realm end
+        if type(realm) == "string" and not isSecret(realm) and realm ~= "" then return realm end
     end
     return string.match(c.name or "", "%-(.+)$")
 end
@@ -167,7 +168,7 @@ function Thread.Fill(t, slide)
             r.label:SetPoint("TOP" .. (m.me and "RIGHT" or "LEFT"), r, "TOP" .. (m.me and "RIGHT" or "LEFT"), 0, 0)
             r.label:SetJustifyH(m.me and "RIGHT" or "LEFT")
             local who = m.me and L["You"] or Thread.Name(c)
-            r.label:SetText(string.format("%s · %s", who, date("%H:%M", m.t or time())))
+            r.label:SetText(string.format("%s · %s", who, ns.Chat.Clock(m.t)))
             h = Style.SIZE.small + 4
         else
             r.label:Hide()

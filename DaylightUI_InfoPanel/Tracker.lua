@@ -37,7 +37,7 @@ anchor:SetSize(1, 1)
 anchor:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", Tracker.START[1], Tracker.START[2])
 Tracker.anchor = anchor
 
--- Our own tracker (DaylightUI_Quests) has stopped the game's: then only the
+-- Daylight UI's own tracker (DaylightUI_Quests) has stopped the game's: then only the
 -- anchor it hangs from is placed here; nothing of the game's is touched.
 function Tracker.Replaced() return DUI.questsOwnTracker == true end
 -- The frame behind the unlock handle (never shown). The real tracker can't be
@@ -98,7 +98,7 @@ local retrying = false
 -- Only spots this code wrote (marked `follows`) are adjusted. A spot the
 -- player placed by hand stays put, even right under the panel.
 -- Older saves without the mark: a spot exactly at the panel's corner is
--- assumed to be ours and gets the mark.
+-- assumed to be Daylight UI's and gets the mark.
 Tracker.OWN_MOVER = "quests.tracker"
 local last = {}       -- mover key -> { x, y }: the corner spot when last looked
 local function follows(key, saved, x, y)
@@ -172,7 +172,11 @@ function Tracker.PlaceAnchor()
     if not EditMode.Exists() then return end
     if Tracker.movedByHand then
         Tracker.movedByHand = false
-        if not EditMode.UpToDate() then
+        -- Saving activates the layout, so on a layout of the player's own the
+        -- spot is theirs to set in Edit Mode, as GameMovers does.
+        if not EditMode.IsActive() then
+            DUI.Print(DUI.L["The quest tracker's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."])
+        elseif not EditMode.UpToDate() then
             EditMode.Save(DUI.L["DaylightUI saved the quest tracker's position. Reload to put it in place?"])
         end
     elseif changed then
@@ -209,7 +213,7 @@ function Tracker.Fill(layout)
     if x then EditMode.Anchor(entry, "TOPRIGHT", "TOPRIGHT", x, y, "UIParent") end
 end
 
--- Whether the saved layout already puts the tracker at our spot (within a
+-- Whether the saved layout already puts the tracker at Daylight UI's spot (within a
 -- pixel). Before the panel has a place there is nothing to compare.
 function Tracker.Current(layout)
     if not (cfg and cfg.enabled) then return true end
@@ -241,7 +245,7 @@ function Tracker.Build(mod)
     -- bottom-left. Otherwise the saved spot would drift and the next login
     -- would ask for a reload. Done next frame, once the screen has its new size.
     for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED" }) do
-        pcall(DUI.RegisterEvent, e, placeSoon)
+        DUI.RegisterEvent(e, placeSoon)
     end
     if Tracker.Replaced() then return end
     local list, none = {}, {}   -- (kept: the fade asks often)

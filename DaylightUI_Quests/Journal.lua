@@ -122,10 +122,16 @@ function Journal.Read()
         end
     end
     if db.journalHereFirst ~= false then
-        local here = ns.Data.Here(function(name) return byZone[name] ~= nil end)
-        for i, g in ipairs(out.groups) do
-            if g.name == here and i > 1 then table.insert(out.groups, 1, table.remove(out.groups, i)); break end
+        local main = ns.Data.Here(function(name) return byZone[name] ~= nil end)
+        local here = ns.Data.HereSet(out.groups, main)
+        -- The zone itself first, then its parts (Northshire Valley in Elwynn
+        -- Forest), each keeping the log's order.
+        local function rank(g) return g.name == main and 1 or here[g.name] and 2 or 3 end
+        local sorted = {}
+        for r = 1, 3 do
+            for _, g in ipairs(out.groups) do if rank(g) == r then sorted[#sorted + 1] = g end end
         end
+        out.groups = sorted
     end
     for _, g in ipairs(out.groups) do ns.Layout.Sort(g.quests, { sort = db.journalSort }) end
     local _, numQuests = call(api(QL, "GetNumQuestLogEntries"))
@@ -858,19 +864,13 @@ end
 -- removes, no map or log needed (the journal may be off or folded). Checked again
 -- on yes, since the quest may be gone by then.
 function Journal.AbandonPopup(q)
-    if not (StaticPopupDialogs and StaticPopup_Show) then return end
-    local which = "DAYLIGHTUI_ABANDON_QUEST"
-    StaticPopupDialogs[which] = StaticPopupDialogs[which] or {
-        text = "%s", button1 = YES or L["Yes"], button2 = NO or L["No"],
-        OnAccept = function(_, d)
-            if d and Journal.CanAbandon(d) then Journal.Abandon(d) end
-        end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
     local text = L["Abandon \"%s\"?"]:format(q.title or "")
     local items = Journal.AbandonItems(q)
     if items then text = text .. "\n" .. alsoDestroys(items) end
-    StaticPopup_Show(which, text, nil, { id = q.id })
+    local d = { id = q.id }
+    DUI.Widgets.Ask({ key = "abandonQuest", text = text, onYes = function()
+        if Journal.CanAbandon(d) then Journal.Abandon(d) end
+    end })
 end
 
 -- Right-click menus. The game's quest log has them (QuestMapFrame.lua
@@ -1049,8 +1049,28 @@ local function padQuest(stop)
     if S.page == "quest" and S.quest then return find(S.quest), nil end
 end
 
+-- The map keeps its own controller footer under its bottom right corner (it
+-- says Back), so the journal's bar sits to its left instead of on top of it.
+Journal.PAD_FOOTERS = { "questLogFooter", "questDetailsFooter", "worldMapFooter" }
+function Journal.PadPlace(bar)
+    local map = _G.WorldMapFrame
+    if type(map) == "table" then
+        for _, name in ipairs(Journal.PAD_FOOTERS) do
+            local footer = map[name]
+            local legend = type(footer) == "table" and footer.inputLegend
+            if type(legend) == "table" and legend.IsVisible and legend:IsVisible() then
+                bar:SetPoint("TOPRIGHT", legend, "TOPLEFT", -DUI.Pad.HINT_GAP, 0)
+                return
+            end
+        end
+    end
+    bar:SetPoint("TOP", f, "BOTTOM", 0, -DUI.Pad.HINT_GAP)
+end
+
 function Journal.PadSetup()
     f.padNoDefaults = true
+    f.padGameBack = true
+    f.padHintsPlace = Journal.PadPlace
     f.padSelect = function(stop) if type(stop) == "table" and stop.quest then return L["Open"] end end
     f.padKeys = {
         { key = "X", follow = true, when = function(at) return padQuest(at) ~= nil end,

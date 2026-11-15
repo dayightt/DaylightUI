@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local Rows = {}
@@ -16,7 +17,6 @@ Rows.GAP = 3                  -- between the rank, the icon and the bar
 Rows.RANK_DIGITS = "40"       -- the rank column is as wide as this
 Rows.CUT = 0.45               -- the fill's angled edge, as a share of the bar's height
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Daylight UI's own class icons, used when the unit frames are off.
 local CLASS_ICON = {}

@@ -59,6 +59,11 @@ local TEXT_COLORS = { white = "White", class = "Class", custom = "Custom" }
 local TEXT_COLOR_ORDER = { "white", "class", "custom" }
 local function notCustom(key) return function(get) return get(key) ~= "custom" end end
 
+-- A "Show % sign" row: off with its text, and grayed while the format isn't Percent.
+local function signOff(off, formatKey)
+    return function(get) return off(get) or get(formatKey) ~= "percent" end
+end
+
 -- The shield texture picks (Colors page): stripes, plain, then every shared
 -- bar texture. The overshield's list starts with "Same as shields".
 local function shieldTextures(withShield)
@@ -254,6 +259,16 @@ local function iconItems(k, dis, skip, home)
     items[#items + 1] = { type = "slider", key = k("readySize"), label = "Ready check size", min = 6, max = 32, step = 1,
         desc = "How big the ready check answer is.", unit = "px", disabled = readyOff }
     nudges(items, "ready", "Ready check", readyOff)
+    local summonOff = function(get) return dis(get) or get(k("showSummon")) == false end
+    items[#items + 1] = { type = "toggle", key = k("showSummon"), label = "Summon icon",
+        desc = "A swirl on a member who's being summoned: in your accent while they decide, green once they accept, red if they decline.",
+        disabled = dis }
+    items[#items + 1] = { type = "dropdown", key = k("summonPos"), label = "Summon spot", values = SPOT_VALUES,
+        desc = "Where the summon icon sits on each frame, or just outside it.",
+        order = ns.Spots.ORDER, disabled = summonOff }
+    items[#items + 1] = { type = "slider", key = k("summonSize"), label = "Summon size", min = 6, max = 32, step = 1,
+        desc = "How big the summon icon is.", unit = "px", disabled = summonOff }
+    nudges(items, "summon", "Summon", summonOff)
     return items
 end
 
@@ -341,6 +356,9 @@ local function nameItems(k, dis, desc, big, small)
           values = { left = "Left", center = "Center", right = "Right" }, order = { "left", "center", "right" },
           desc = desc or "Where the name sits across the bar: left, center or right.", disabled = dis,
           hidden = function(get) local p = get(k("namePos")); return p ~= nil and p ~= "bar" end }
+        items[#items + 1] = { type = "toggle", key = k("nameTag"), label = "Name tab", since = "1.8.0",
+          desc = "A dark tab behind the name while it sits outside the tile, like the player frame's name. When off, the name floats on its own.",
+          disabled = dis, hidden = function(get) return not UF.TAG_SPOTS[get(k("namePos")) or ""] end }
     end
     items[#items + 1] = { type = "slider", key = k("nameX"), label = "Name left / right", min = -50, max = 50, step = 1,
         desc = "Nudges the name sideways from its position.", unit = "px", disabled = dis }
@@ -386,6 +404,13 @@ local function groupRows(items, g, dis, noTimers, gone)
           disabled = dis },
         { type = "toggle", key = g("shortTimers"), label = "Only under a minute",
           desc = "Hides the number while a minute or more is left, so long buffs stay quiet.", disabled = noTimers },
+        { type = "slider", key = g("timeSize"), label = "Time left text size", since = "1.8.0", min = 6, max = 16, step = 1,
+          desc = "How big the time left is on each icon.", disabled = noTimers },
+        { type = "toggle", key = g("counts"), label = "Stack count", since = "1.8.0",
+          desc = "The number of stacks in the corner of each icon.", disabled = dis },
+        { type = "slider", key = g("countSize"), label = "Stack count size", since = "1.8.0", min = 6, max = 16, step = 1,
+          desc = "How big the number of stacks is on each icon.",
+          disabled = function(get) return dis(get) or get(g("counts")) == false end },
         { type = "toggle", key = g("swipe"), label = "Cooldown swipe",
           desc = "Each icon darkens like a clock as its time runs out.", disabled = dis },
         { type = "toggle", key = g("tooltips"), label = "Tooltip on hover",
@@ -415,6 +440,40 @@ local function filterValues(def)
     return values, order
 end
 
+-- Aura list rows for one aura row (AuraLists.lua). keyOf(field) is the row's
+-- setting for hide | only | boss | maxTime. what = "buffs" | "debuffs" names
+-- the icons; only = the row may pick a show-only list (spell ids are matched
+-- there: buffs, or debuffs on an enemy); debuffs on yourself or your group get
+-- the boss and duration rows instead. Extra hidden/disabled rules come in.
+local LIST_SINCE = "1.8.1"
+local function auraListRows(keyOf, what, only, dis, hidden)
+    local AL = ns.AuraLists
+    local friendlyDebuffs = what == "debuffs" and not only
+    local items = {
+        { type = "dropdown", key = keyOf("hide"), label = "Hide list", since = LIST_SINCE,
+          choices = function() return AL.Choices("hide") end, disabled = dis, hidden = hidden,
+          desc = friendlyDebuffs
+              and "Debuffs on this list never show here. The game only lets addons hide a few harmless debuffs on you and your group, like Sated; the Aura Lists page marks which. Make and fill lists on Unit Frames > Aura Lists."
+              or "The " .. what .. " on this list never show here. Make and fill lists on Unit Frames > Aura Lists." },
+    }
+    if only then
+        items[#items + 1] = { type = "dropdown", key = keyOf("only"), label = "Show only list", since = LIST_SINCE,
+            choices = function() return AL.Choices("only") end, disabled = dis, hidden = hidden,
+            desc = what == "buffs"
+                and "Shows only the buffs on this list, with the filter above still applying. An empty list shows them all. Buffs on an enemy can't be matched, so none show there while a list is picked."
+                or "Shows only the debuffs on this list, with the filter above still applying. An empty list shows them all." }
+    end
+    if friendlyDebuffs and keyOf("boss") then
+        items[#items + 1] = { type = "toggle", key = keyOf("boss"), label = "Only boss debuffs", since = LIST_SINCE,
+            disabled = dis, hidden = hidden,
+            desc = "Shows only the debuffs a boss puts on you, the ones a fight is about." }
+        items[#items + 1] = { type = "slider", key = keyOf("maxTime"), label = "Longest debuff shown", since = LIST_SINCE,
+            min = 0, max = 600, step = 5, disabled = dis, hidden = hidden,
+            desc = "Leaves out debuffs that last longer than this many seconds, and ones that never run out, like long curses and Resurrection Sickness. 0 shows them all." }
+    end
+    return items
+end
+
 -- Add piece (Design mode): a card per extra aura group slot (party, raid),
 -- shown only while the slot is in use. frame: "raid"; gate: its Show key.
 local function extraAuraCards(frame, gate)
@@ -436,6 +495,9 @@ local function extraAuraCards(frame, gate)
             { type = "dropdown", key = g("buffWhich"), label = "Filter", values = bv, order = border,
               desc = "Which buffs this group shows.", hidden = isNot("buffs"), disabled = dis },
         }
+        for _, it in ipairs(auraListRows(g, "debuffs", false, dis, isNot("debuffs"))) do items[#items + 1] = it end
+        -- The buff rows share the slot's hide key with its debuff rows, one of them hidden.
+        for _, it in ipairs(auraListRows(g, "buffs", true, dis, isNot("buffs"))) do items[#items + 1] = it end
         groupRows(items, g, dis, offAny(gate, g("timers")), gone)
         items[#items + 1] = { type = "button", label = "Remove this aura group", text = "Remove", hidden = gone,
             desc = "Takes this extra aura group off the frame. Add another in Design mode.",
@@ -507,7 +569,38 @@ end
 -- square, shown while indicators are on.
 local function spellName(id)
     local ok, name = pcall(C_Spell.GetSpellName, id)
-    if ok and type(name) == "string" and not (issecretvalue and issecretvalue(name)) then return name end
+    if ok and type(name) == "string" and not DaylightUI.IsSecret(name) then return name end
+end
+
+-- Your spells with a range, highest rank, by name. A pick saved on another
+-- character stays listed so the menu never shows a blank.
+local function rangeSpellChoices()
+    local values, order = { none = "None, your group only" }, {}
+    local SD = DaylightUI.Book and DaylightUI.Book.SpellData
+    local seen, list = {}, {}
+    local data = SD and SD.Read(false)
+    for _, section in ipairs(data and data.sections or {}) do
+        for _, e in ipairs(section.spells) do
+            local id = e.spellID
+            if type(id) == "number" and not e.passive and not e.future and not e.pet and not seen[e.name]
+                and C_Spell.SpellHasRange and C_Spell.SpellHasRange(id) == true then
+                seen[e.name] = true
+                list[#list + 1] = { key = tostring(id), name = e.name }
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    local saved = DaylightUI:Get("UnitFrames", "range.spell")
+    local savedId = tonumber(saved)
+    if savedId and not values[saved] then
+        local listed = false
+        for _, e in ipairs(list) do if e.key == saved then listed = true end end
+        local name = not listed and spellName(savedId)
+        if name then list[#list + 1] = { key = saved, name = name } end
+    end
+    order[1] = "none"
+    for _, e in ipairs(list) do values[e.key], order[#order + 1] = e.name, e.key end
+    return values, order
 end
 
 local function indicatorCards(k, gate)
@@ -588,6 +681,9 @@ local function auraCards(k, gate)
             items[#items + 1] = { type = "dropdown", key = g("which"), label = "Filter", values = values,
                                   desc = "Which " .. string.lower(def.label) .. " show.", order = order, disabled = dis }
         end
+        local what = def.key == "buffs" and "buffs" or "debuffs"
+        local keyOf = def.key == "cc" and function(f) return f == "hide" and g(f) or nil end or g
+        for _, it in ipairs(auraListRows(keyOf, what, def.key == "buffs", dis)) do items[#items + 1] = it end
         groupRows(items, g, dis, offAny(gate, g("show"), g("timers")))
         if def.key == "cc" and AG.Refused(def, "cc") then
             for _, it in ipairs(items) do it.hidden = function() return true end end
@@ -613,7 +709,7 @@ end
 -- the page's settings key, hidden (optional) hides the card.
 local COPY_NAMES = { player = "Player", target = "Target", focus = "Focus", targettarget = "Target of Target", focustarget = "Focus Target",
                      pet = "Pet", party = "Party", raid = "Raid 10", raid20 = "Raid 20", raid40 = "Raid 40",
-                     arena = "PvP Frames" }
+                     arena = "PvP Frames", partyTarget = "Party Targets" }
 local copyPick = {}
 local function copyCard(id, hidden)
     local function others()
@@ -786,7 +882,8 @@ end
 
 -- A frame's buffs and debuffs: two cards at the bottom of its page. prefix is
 -- its settings. own: the player's own rows, where every debuff is one row
--- (no "mine, then others" on yourself).
+-- (no "mine, then others" on yourself). own = "pet": the same, with a buff
+-- filter of all or only yours.
 local function unitAuraCards(prefix, own, desc)
     local k = function(s) return prefix .. "." .. s end
     local dOff, bOff = off(k("debuffs")), off(k("buffs"))
@@ -796,10 +893,14 @@ local function unitAuraCards(prefix, own, desc)
           desc = "How big each debuff icon is.", disabled = dOff },
     }
     if own then
+        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter", since = "1.8.0",
+            values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
+            desc = own == "pet" and "Every debuff on your pet, or only the ones your class can remove."
+                or "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max shown", min = 1, max = 16, step = 1,
                                   desc = "The most debuff icons at once.", disabled = dOff }
     else
-        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter",
+        debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter", since = "1.8.0",
             values = { mine = "Only mine", all = "Mine first, then others" }, order = { "mine", "all" },
             desc = "Only the debuffs you put on it, or yours first and then everyone else's.", disabled = dOff }
         debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max of my debuffs", min = 1, max = 16, step = 1,
@@ -831,6 +932,39 @@ local function unitAuraCards(prefix, own, desc)
         { type = "slider", key = k("buffCountSize"), label = "Stack count size", min = 6, max = 20, step = 1,
           desc = "How big the number of stacks is on each buff icon.", disabled = bOff },
     }
+    if own == "pet" then
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter", since = "1.8.0",
+            values = { all = "All buffs", mine = "Only mine" }, order = { "all", "mine" }, disabled = bOff,
+            desc = "Every buff on your pet, or only the ones you cast on it." })
+    elseif not own then
+        table.insert(buffs, 3, { type = "dropdown", key = k("buffFilter"), label = "Buff filter", since = "1.8.0",
+            values = { all = "All buffs", purge = "Only ones I can purge or steal", mine = "Only mine" },
+            order = { "all", "purge", "mine" }, disabled = bOff,
+            desc = "Every buff, only the ones your class can take off an enemy, or only the ones you cast. A class that can't purge shows none with the second." })
+    end
+    -- Time numbers, sweep and tooltips: the same switches the party and raid icons have.
+    local function look(list, kind, show)
+        local dis = off(k(show))
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on icons", since = "1.8.0",
+                            desc = "The time left as a number on each icon.", disabled = dis }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = "Only under a minute", since = "1.8.0",
+                            desc = "Hides the number while a minute or more is left, so long ones stay quiet.",
+                            disabled = offAny(k(show), k(kind .. "Timers")) }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = "Cooldown swipe", since = "1.8.0",
+                            desc = "Each icon darkens like a clock as its time runs out.", disabled = dis }
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = "Tooltip on hover", since = "1.8.0",
+                            desc = "Hovering an icon says what it is. Off, the mouse goes straight through to what's behind it.",
+                            disabled = dis }
+    end
+    -- Aura lists right after each row's filter (the third row).
+    local function lists(list, kind, what, only)
+        local keyOf = function(f) return k(kind .. f:sub(1, 1):upper() .. f:sub(2)) end
+        for i, it in ipairs(auraListRows(keyOf, what, only, off(k(what)))) do table.insert(list, 3 + i, it) end
+    end
+    lists(debuffs, "debuff", "debuffs", not own)
+    lists(buffs, "buff", "buffs", true)
+    look(debuffs, "debuff", "debuffs")
+    look(buffs, "buff", "buffs")
     for _, it in ipairs(spotItems(prefix, "debuff", k("debuffs"))) do debuffs[#debuffs + 1] = it end
     for _, it in ipairs(spotItems(prefix, "buff", k("buffs"))) do buffs[#buffs + 1] = it end
     return { { label = "Debuffs", desc = desc.debuffs, items = debuffs },
@@ -838,12 +972,20 @@ local function unitAuraCards(prefix, own, desc)
 end
 
 local TARGET_AURA_GROUPS = unitAuraCards("targetAuras", false, {
-    debuffs = "Above the name tab by default, running inward. Yours come first.",
-    buffs = "Small icons in their own row, under the frame by default." })
+    debuffs = "Over the frame from its right end by default. Yours come first.",
+    buffs = "Small icons over the frame from its left end by default." })
 -- Off by default, since the buff bars by the info panel show the same.
 local PLAYER_AURA_GROUPS = unitAuraCards("playerAuras", true, {
-    debuffs = "Every debuff on you, over your frame. Off by default: your buff bars show them too.",
-    buffs = "Small icons over your frame, nearest it. Off by default: your buff bars show them too." })
+    debuffs = "Every debuff on you, over your frame from its right end. Off by default: your buff bars show them too.",
+    buffs = "Small icons over your frame from its left end. Off by default: your buff bars show them too." })
+
+local FOCUS_AURA_GROUPS = unitAuraCards("focusAuras", false, {
+    debuffs = "Over the focus from its right end. Only yours by default.",
+    buffs = "Small icons over the focus from its left end. Off by default." })
+
+local PET_AURA_GROUPS = unitAuraCards("petAuras", "pet", {
+    debuffs = "Every debuff on your pet, under its frame. Off by default.",
+    buffs = "Small icons under your pet's frame. Off by default." })
 
 -- The personal display's own rows, dimmed with the display.
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {
@@ -1035,7 +1177,7 @@ local function personalTextCard()
         { type = "dropdown", key = k("healthText"), label = "Health text format", values = UF.HEALTH_FORMATS,
           order = UF.HEALTH_FORMAT_ORDER, desc = "Missing health shows nothing while you're at full.", disabled = health },
         { type = "toggle", key = k("percentSign"), label = "Show % sign",
-          desc = "62% rather than 62, when the health text shows a percent.", disabled = health },
+          desc = "62% rather than 62, when the health text shows a percent.", disabled = signOff(health, k("healthText")) },
         { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
           desc = "The health text shows at full health too. When off, it disappears while you're at full.", disabled = health },
         { type = "dropdown", key = k("healthTextPos"), label = "Health text position", values = UF.POWER_TEXT_POS,
@@ -1048,6 +1190,8 @@ local function personalTextCard()
           disabled = offAny("personal.enabled", k("showPower")) },
         { type = "dropdown", key = k("powerFormat"), label = "Power text format", values = UF.POWER_FORMATS,
           order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.", disabled = power },
+        { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+          desc = "80% rather than 80, when the power text shows a percent.", disabled = signOff(power, k("powerFormat")) },
         { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
           desc = "The power text shows while mana, rage or energy is full too. When off, it disappears at full.", disabled = power },
         { type = "dropdown", key = k("powerTextPos"), label = "Power text position", values = UF.POWER_TEXT_POS,
@@ -1207,8 +1351,8 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Text", "Auras", "Extras" }
-local TAB_OF = { ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
+local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", ["Boss debuffs"] = "Auras", Dispels = "Auras" }
@@ -1241,18 +1385,25 @@ end
 -- A frame's own rows that cover its size and shape (Basics). The rest of its
 -- Frame card (bar textures and colors, power, heals and absorbs) becomes its
 -- "Health and power" card.
-local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true, portrait = true,
-    portraitRing = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true, tabHeight = true, slant = true, fillVertical = true,
+local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
+    tabHeight = true, slant = true, fillVertical = true,
     showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
+-- The portrait's own rows get a card (and tab) of their own.
+local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
+    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true }
 local function splitFrame(prefix, items, power)
-    local basic, bars = {}, {}
+    local basic, bars, portrait = {}, {}, {}
     for _, it in ipairs(items) do
         local field = type(it.key) == "string" and string.match(it.key, "^" .. prefix .. "%.([^%.]+)$")
-        if field and BASIC_FIELDS[field] then basic[#basic + 1] = it else bars[#bars + 1] = it end
+        if field and BASIC_FIELDS[field] then basic[#basic + 1] = it
+        elseif field and PORTRAIT_FIELDS[field] then portrait[#portrait + 1] = it
+        else bars[#bars + 1] = it end
     end
     return { label = "Frame", items = basic },
-           { label = power and "Health and power" or "Health bar", items = bars }
+           { label = power and "Health and power" or "Health bar", items = bars },
+           #portrait > 0 and { label = "Portrait", desc = "The picture at the frame's outer end: what it shows, its shape, size and ring.",
+                               items = portrait } or nil
 end
 
 local function framePage(id, label, desc, opts)
@@ -1353,9 +1504,30 @@ local function framePage(id, label, desc, opts)
             desc = "A ring over the outer end. Class icons show for players; NPCs show their face."
                 .. " Needs a frame at least " .. UF.MIN_PORTRAIT_HEIGHT .. " tall.",
             disabled = function(get) return shown(get) or tooShort(get) end }
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitShape"), label = "Shape", since = "1.8.1",
+            values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
+            desc = "A round ring, a square, or a square with its outer side angled like the frame's end. The aggro fill, arrival light and elite frame follow the shape.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+        if opts.portraitFree then
+            frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",
+                values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
+                desc = "On its own, the portrait leaves the frame and you can move it anywhere in unlock mode. The frame is then all bars.",
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            frame[#frame + 1] = { type = "toggle", key = k("portraitIconsStay"), label = "Icons stay on the frame",
+                desc = "With the portrait on its own, the crown, resting Zzz, PvP flag, level badge and DoT skull stay on the frame instead of going with it.",
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
+                    or get(k("portraitAt")) ~= "free" end }
+        end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRing"), label = "Ring color",
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness", since = "1.8.1",
+            values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
+            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+        frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
+            desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
         if opts.dragon then
             frame[#frame + 1] = { type = "toggle", key = k("portraitDragon"), label = "Dragon around the portrait",
@@ -1448,7 +1620,7 @@ local function framePage(id, label, desc, opts)
             disabled = offAny(k("enabled"), k("showPercent")) }
         text[#text + 1] = { type = "toggle", key = k("percentSign"), label = "Show % sign",
             desc = "62% rather than 62, when the health text shows a percent.",
-            disabled = offAny(k("enabled"), k("showPercent")) }
+            disabled = signOff(offAny(k("enabled"), k("showPercent")), k("healthText")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
             desc = "The health text shows at full health too. When off, it disappears while the unit is at full.",
             disabled = offAny(k("enabled"), k("showPercent")) }
@@ -1474,6 +1646,9 @@ local function framePage(id, label, desc, opts)
         text[#text + 1] = { type = "dropdown", key = k("powerFormat"), label = "Power text format",
             values = UF.POWER_FORMATS, order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.",
             disabled = powerTextOff }
+        text[#text + 1] = { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+            desc = "80% rather than 80, when the power text shows a percent.",
+            disabled = signOff(powerTextOff, k("powerFormat")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
             desc = "The power text shows while mana, rage or energy is full too. When off, it disappears at full.",
             disabled = powerTextOff }
@@ -1528,11 +1703,23 @@ local function framePage(id, label, desc, opts)
                 return shown(get) or (mode ~= "ooc" and mode ~= "always" and mode ~= "float")
             end } }
     end
-    local basic, bars = splitFrame(id, frame, opts.power or opts.powerToggle)
+    local basic, bars, portraitCard = splitFrame(id, frame, opts.power or opts.powerToggle)
     local groups = {
         basic, bars,
         shellCard(id, k("enabled")),
     }
+    if portraitCard then groups[#groups + 1] = portraitCard end
+    if opts.place then
+        -- Each frame sits beside its party member (PartyTargets.lua).
+        table.insert(groups, 2, { label = "Position", items = {
+            { type = "dropdown", key = k("spot"), label = "Position", since = "1.8.0", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
+              desc = "Which side of the party member's frame their target sits on. Past a party pet on the same side.", disabled = shown },
+            { type = "slider", key = k("x"), label = "Left / right", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges every party target sideways from its position.", disabled = shown },
+            { type = "slider", key = k("y"), label = "Up / down", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges every party target up or down from its position.", disabled = shown },
+        } })
+    end
     if opts.tab then groups[#groups + 1] = tabCard(id, ribbon) end
     groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
     groups[#groups + 1] = { label = "Text", items = text }
@@ -1663,16 +1850,24 @@ local function framePage(id, label, desc, opts)
             desc = "Your pet's mood beside the frame: red while it's unhappy, yellow while content, green while happy. Hover for its damage, loyalty and diet.",
             disabled = shown }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessLook"), label = "Happiness look",
-            values = { square = "Color square", icon = "Mood face" }, order = { "square", "icon" },
-            desc = "A square filled with the mood's color, or the pet's mood face edged in it.", disabled = happyOff }
+            values = { square = "Color square", icon = "Mood face", frame = "In the frame" },
+            order = { "square", "icon", "frame" },
+            desc = "A square filled with the mood's color, the pet's mood face, or a stripe inside the frame.",
+            disabled = happyOff }
+        local function besideOff(get) return happyOff(get) or get(k("happinessLook")) == "frame" end
+        local function stripeOff(get) return happyOff(get) or get(k("happinessLook")) ~= "frame" end
+        extras[#extras + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side", since = "1.8.0",
+            values = { left = "Left", right = "Right" }, order = { "left", "right" },
+            desc = "Which end of the frame the stripe sits in. On an angled end it follows the angle.",
+            disabled = stripeOff }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
-            order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = happyOff }
+            order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",
-            desc = "How big it is.", disabled = happyOff }
+            desc = "How big it is.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessX"), label = "Happiness left / right", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it sideways.", disabled = happyOff }
+            desc = "Nudges it sideways.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessY"), label = "Happiness up / down", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it up or down.", disabled = happyOff }
+            desc = "Nudges it up or down.", disabled = besideOff }
         extras[#extras + 1] = { type = "toggle", key = k("happinessBar"), label = "Color health bar by happiness",
             desc = "The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn Pet happiness off to have only this.",
             disabled = shown }
@@ -1818,7 +2013,7 @@ local function castTextCard(unit, who, whose, inside)
         local dis = offAny(bar .. ".enabled", k("show"))
         local lower = string.lower(name)
         items[#items + 1] = { type = "slider", key = k("size"), label = who .. " " .. lower .. " text size", min = 6, max = 24, step = 1,
-            desc = "The " .. lower .. " on " .. whose .. " cast bar." .. (unit ~= "player" and " Inside the frame it's kept small enough for the power bar." or ""),
+            desc = "The " .. lower .. " on " .. whose .. " cast bar." .. (unit ~= "player" and " Inside the frame, left at its default, it shrinks to fit the power bar." or ""),
             disabled = dis }
         items[#items + 1] = { type = "dropdown", key = k("pos"), label = who .. " " .. lower .. " position",
             values = TEXT_SPOTS, order = TEXT_SPOT_ORDER,
@@ -1844,7 +2039,7 @@ local function castTextCard(unit, who, whose, inside)
     rows("time", "Cast time", items)
     if inside then
         items[#items + 1] = { type = "slider", key = bar .. ".insideTextSize", label = who .. " text size inside the frame", min = 0, max = 20, step = 1,
-            desc = "The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 sizes them to fit the power bar.",
+            desc = "The spell name and time while the bar sits inside the frame, even past the power bar's height. 0 keeps each text's own size, shrinking a default one to fit the power bar.",
             disabled = notInside(unit) }
         if unit == "target" then
             items[#items + 1] = { type = "slider", key = bar .. ".insideTextX", label = "Target text left / right inside the frame", min = -100, max = 100, step = 1, unit = "px",
@@ -1949,7 +2144,8 @@ local function raidPage(size)
               desc = "How the tiles' health text is written. Missing health shows nothing while the member is at full.",
               disabled = offAny("raid.enabled", "raid.showPercent") },
             { type = "toggle", key = "raid.percentSign", label = "Show % sign",
-              desc = "62% rather than 62, when the health text shows a percent.", disabled = offAny("raid.enabled", "raid.showPercent") },
+              desc = "62% rather than 62, when the health text shows a percent.",
+              disabled = signOff(offAny("raid.enabled", "raid.showPercent"), "raid.healthText") },
             fontRow("raid.media.healthFont", "Health text font", "The raid tiles' health text", offAny("raid.enabled", "raid.showPercent")),
             { type = "slider", key = "raidText.name", label = "Name size", min = 6, max = 20, step = 1,
               desc = "How big the names on the tiles are.", disabled = off("raid.enabled") },
@@ -1999,13 +2195,14 @@ end
 
 ns.OPTIONS = { pages = {
     framePage("player", "Player", "Your own frame.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
           slantDesc = "Cuts the right end at an angle; the bars and an attached cast bar follow it." }),
     framePage("target", "Target", "Mirrors the player frame, with raid markers, the elite crest, and its buffs and debuffs.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
           slantDesc = "Cuts the left end at an angle; the bars follow it." }),
     framePage("focus", "Focus", "The unit you set as focus.",
-        { power = true, powerToggle = true, powerFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true }),
+        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
+          auras = FOCUS_AURA_GROUPS }),
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles. Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
@@ -2019,8 +2216,12 @@ ns.OPTIONS = { pages = {
         power = true, powerToggle = true, powerPos = true }),
     framePage("focustarget", "Focus Target", "Who your focus is looking at.", { healthText = true, textPos = true,
         power = true, powerToggle = true, powerPos = true }),
+    framePage("partyTarget", "Party Targets", "Who each party member is targeting, in a small frame beside them. Click one to target it too.",
+        { healthText = true, textPos = true, flip = true, power = true, powerToggle = true, powerPos = true, place = true,
+          strataWhat = "The layer the party targets draw in.",
+          showLabel = "Show party targets", showDesc = "A small frame beside each party member showing who they're targeting." }),
     framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
-        tab = true, small = true }),
+        tab = true, small = true, auras = PET_AURA_GROUPS }),
 
     { id = "colors", label = "Colors", desc = "The bars' and names' colors on every unit frame.", groups = {
         { label = "Health", items = {
@@ -2270,6 +2471,8 @@ ns.OPTIONS = { pages = {
               desc = "The bar's color while the cast can't be interrupted." },
         } },
         { label = "Target and focus interrupts", items = {
+            { type = "toggle", key = "casts.kickMark", label = "Interrupt ready mark", since = "1.7.2",
+              desc = "While your interrupt is on cooldown, a thin line on an enemy target's or focus's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
             { type = "dropdown", key = "casts.kickStyle", label = "Interrupt animation",
               values = DaylightUI.Motion.KICK_NAMES, order = DaylightUI.Motion.KICKS,
               desc = "What the target's or focus's cast bar does when its cast is interrupted. Your own interrupts light up in your accent color." },
@@ -2511,7 +2714,7 @@ ns.OPTIONS = { pages = {
         { label = "Class icons", desc = "On the portrait rings of the player, target and focus frames.", items = {
             { type = "dropdown", key = "portraits.icons", label = "Icon style",
               choices = UF.IconStyleChoices,
-              desc = "Daylight UI's own icons, the game's own round class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
+              desc = "Daylight UI's own icons, the Classic class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
                   .. "(art by JiberishUI and its artists, read from that addon's own folder)." },
             { type = "text", label = function()
                 if UF.HasIconPack() then
@@ -2521,16 +2724,13 @@ ns.OPTIONS = { pages = {
             end },
             classIconPicker,
         } },
-        { label = "Portrait rings", desc = "The ring round every portrait, on every frame. Each frame picks its ring's color on its own page.", items = {
-            { type = "dropdown", key = "portraits.ringWidth", label = "Ring thickness",
-              values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
-              desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it." },
-            { type = "toggle", key = "portraits.ringLine", label = "Line round the middle",
-              desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band." },
-        } },
-        { label = "Range fade", desc = "Dims friendly units that are out of reach: target, focus, target of target, party and raid frames, when they're in your group.", items = {
+        { label = "Range fade", desc = "Dims units that are out of reach: target, focus, target of target, party and raid frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",
-              desc = "The game only reports range for your group; anyone else stays at full opacity." },
+              desc = "Your group fades by your heal's range, or the game's own check without one. Anyone else fades only with a range spell picked below." },
+            { type = "dropdown", key = "range.spell", label = "Range spell", since = "1.8.0", fallback = "none",
+              desc = "Target, focus and the PvP frames fade when this spell can't reach someone outside your group, like an enemy you want to cast on. Units it can't be cast on stay as they are.",
+              disabled = function(get) return get("range.enabled") ~= true end,
+              choices = rangeSpellChoices },
             { type = "slider", key = "range.alpha", label = "Faded opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through a frame gets while its unit is out of range.", disabled = function(get) return get("range.enabled") ~= true end },
             { type = "toggle", key = "range.groupOwn", label = "Separate opacity for party and raid",
@@ -2542,4 +2742,6 @@ ns.OPTIONS = { pages = {
     } },
     -- Click-casting (ClickCastPage.lua).
     ns.ClickCastPage,
+    -- Aura lists (AuraListsPage.lua).
+    ns.AuraListsPage,
 } }

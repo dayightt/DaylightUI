@@ -11,6 +11,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, L = DUI.Style, DUI.L
 
 local GT = {
@@ -31,7 +32,7 @@ function GT.On()
 end
 
 local function plain(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 

@@ -13,12 +13,13 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Errors = {}
 ns.Errors = Errors
 ns.features[#ns.features + 1] = Errors
 
--- The game's message types we quiet, by the client's LE_GAME_ERR_<name>
+-- The game's message types that get quieted, by the client's LE_GAME_ERR_<name>
 -- constants. A name this client doesn't have is skipped.
 Errors.TYPES = {
     -- Not enough of a resource
@@ -49,8 +50,8 @@ local mod, listening, lastTick
 local function wanted() return mod and mod.db and mod.db.quietErrors == true end
 
 local function onError(_, errorType)
-    if issecretvalue and issecretvalue(errorType) then return end
-    -- Only the types we hide (not the game's own quiet one), and as the game
+    if isSecret(errorType) then return end
+    -- Only the types this hides (not the game's own quiet one), and as the game
     -- does, no sound while it holds its messages back.
     if DUI.MessageTypeOwner(errorType) ~= Errors.OWNER then return end
     if not (mod.db and mod.db.errorSound == true) or DUI.GameMessagesSuppressed() then return end
@@ -71,7 +72,7 @@ end
 function Errors.Enable(m)
     mod = m
     -- Always listening (the shared event frame has no unregister); nothing
-    -- is ours while quiet errors is off, so nothing plays then.
+    -- is handled while quiet errors is off, so nothing plays then.
     if not listening then
         listening = true
         DUI.RegisterEvent("UI_ERROR_MESSAGE", onError)

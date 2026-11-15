@@ -1,17 +1,17 @@
 -- Bar: the buff bar (and, through the same factory, the debuff bar).
 --
--- The bar is one of the client's own aura containers. We never read aura
--- data to draw it: we register one aura group per category, filtered by
+-- The bar is one of the client's own aura containers. No aura data is
+-- read to draw it. It registers one aura group per category, filtered by
 -- spell ID, tell the client how to lay the groups out (order, gaps, row
 -- width, growth direction) and hand each button a texture, a cooldown
 -- and two font strings. The client fills them, sorts them, moves them
--- and handles right-click canceling - in combat too, where addon code
+-- and handles right-click canceling, in combat too, where addon code
 -- is not allowed to look at auras at all.
 --
 -- The client also hides which of its buttons are live (their shown
 -- state, icon and geometry are secret or deliberately stale), so nothing
--- here asks a button anything. Interaction works from data instead: out
--- of combat we know each group's members and their client order, and
+-- here asks a button anything. Interaction works from data instead. Out
+-- of combat each group's members and their client order are known, and
 -- Layout.Flow is the client's own layout algorithm, so a cursor position
 -- maps to (group, index) and from there to a buff by name.
 --
@@ -20,6 +20,7 @@
 
 local _, BL = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -43,7 +44,7 @@ BL.DISPEL_COLORS = {
 }
 
 -- A dispel type's color: the one picked on the unit frames' Colors page
--- (colors.dispelMagic...) when that module is on, else ours.
+-- (colors.dispelMagic...) when that module is on, else the buffs' own.
 function BL.DispelColor(key)
     local c = DUI:Get("UnitFrames", "colors.dispel" .. key)
     if type(c) == "table" then return c end
@@ -72,7 +73,7 @@ local function cursorUI()
     return x / scale, y / scale
 end
 
--- Registers edge to be tinted by the aura's dispel type: our colors on a white
+-- Registers edge to be tinted by the aura's dispel type, the buffs' colors on a white
 -- square (using the enum style and color objects, since this client silently
 -- ignores the plain-string form), or the client's colors as a fallback.
 -- asset, coords: another texture (a corner cap) and its { left, right, top,
@@ -144,7 +145,7 @@ function BarMixin:Height() return W.Height(self:Setting("iconSize")) end
 
 -- Position -------------------------------------------------------------
 
--- The holder is our own plain frame that carries the position (unlock mode
+-- The holder is a plain addon frame that carries the position (unlock mode
 -- moves it). The imbue strip and the container both hang off its corner, with
 -- the container pushed past the strip. The client sets the container's own
 -- geometry with secret values, so it can't be moved and read back directly.
@@ -163,8 +164,8 @@ end
 -- strip couldn't grow then. The container's own anchor may change in combat,
 -- and the holder only moves out of combat (unlock mode, ApplyAttach).
 -- Where the container sits past the imbue strip, in bar units: beside it, or
--- with each category on its own row, one row below it so the imbues are a row
--- of their own.
+-- with each kind on its own row, one row below it so the imbues are a row of
+-- their own.
 function BarMixin:ContainerOffset()
     local weapons = self.weaponWidth or 0
     if weapons <= 0 then return 0, 0 end
@@ -260,6 +261,9 @@ function BarMixin:Create()
     local holder = CreateFrame("Frame", self.frameName .. "Holder", UIParent)
     holder:SetFrameStrata("LOW")
     self.holder = holder
+    -- Plugins find the bar by its scope ("buff" or "debuff") and attach to this
+    -- holder, not the container, since the client's aura buttons inside lock in fights.
+    DUI.APIReport.Made("buffbar", holder, self.scope, false)
     DUI.Movers.Register(holder, self.moverKey, self.label, self.default, {
         scale = function()
             if self.frame then self:ApplyScale() end
@@ -327,11 +331,12 @@ function BarMixin:GroupLayout(index)
         -- category's times run into the row above.
         groupLineSpacing = spacing + textRoom(size),
         groupSpacing = self:IsDebuff() and 0 or (self:Setting("categoryGap") or 0),
-        forceNewLine = self:Rows(),
+        forceNewLine = self:Rows() and BL.Categories.StartsRow(index),
     }
 end
 
--- Each category on its own row (buff bar only).
+-- Each kind on its own row (buff bar only): class buffs, then weapon,
+-- consumable and the rest.
 function BarMixin:Rows()
     return not self:IsDebuff() and self:Setting("categoryRows") == true
 end
@@ -349,6 +354,7 @@ function BarMixin:ApplyGroups()
     if self:IsDebuff() then
         if not self.groups.debuffs then
             local ok, err = pcall(c.AddAuraGroup, c, "debuffs", "HARMFUL", {
+                candidateFilters = { excludeSpellIDs = BL.QUIET_DEBUFFS },
                 sortMethod = AuraContainerSortMethod.ExpirationOnly,
                 sortDirection = AuraContainerSortDirection.Normal,
                 layout = self:GroupLayout(1),
@@ -373,7 +379,7 @@ function BarMixin:ApplyGroups()
         local cat = BL.Categories.Get(id)
         present[id] = true
         -- Weapon covers the weapon enchants (the container's own slots and
-        -- our imbue strip) plus a normal aura group for buffs a player moves
+        -- the imbue strip) plus a normal aura group for buffs a player moves
         -- into it.
         if id == ENCHANT_KEY then self.weaponLayoutDirty = true end
         if cat then
@@ -425,8 +431,8 @@ end
 --
 -- WoW Forever's shaman imbues (Rockbiter, Windfury...) are a different enchant
 -- type the container never sees (it reads C_PaperDollInfo's temporary enchant;
--- Auras.CollectWeapons asks that same read what it draws). Those are ours:
--- plain buttons fed by the weapon enchant API, which isn't aura data and stays
+-- Auras.CollectWeapons asks that same read what it draws). Those get plain
+-- buttons of the bar's own, fed by the weapon enchant API, which isn't aura data and stays
 -- readable in combat. They sit at the start of the bar with the container
 -- hanging off the strip's far edge, so only the strip's width moves (in combat
 -- too, unless the client marks the strip protected; see UpdateWeapons).
@@ -606,7 +612,7 @@ function BarMixin:UpdateWeapons()
     if restricted then
         entries = self.weaponEntries
     else
-        -- How many the container draws feeds our copy of its layout.
+        -- How many the container draws feeds the copy of its layout.
         drawn = self.enchantsOn and drawn or 0
         if drawn ~= self.enchantCount then
             self.enchantCount = drawn
@@ -647,8 +653,8 @@ end
 -- Buttons --------------------------------------------------------------
 
 -- Called by the client once per button it creates for a group. The button
--- belongs to the client: we only decorate it and register the pieces it should
--- drive, and never read anything back. edgeKey: the category whose color it
+-- belongs to the client. It's only decorated here, with the pieces it should
+-- drive, and nothing is ever read back. edgeKey: the category whose color it
 -- uses when that's not its group's (the weapon slots, kept apart from the
 -- Weapon group so its count badge stays off them).
 function BarMixin:InitButton(btn, groupKey, edgeKey)
@@ -667,7 +673,7 @@ function BarMixin:InitButton(btn, groupKey, edgeKey)
     btn:SetDurationCooldown(btn.Cooldown)
     btn:SetApplicationCount(btn.Count)
 
-    -- Our own badge for consolidated groups (member count).
+    -- A badge for consolidated groups (member count).
     btn.Badge = btn:CreateFontString(nil, "OVERLAY")
     DUI.Style.InkText(btn.Badge, "MONEY")
     btn.Badge:Hide()
@@ -858,7 +864,7 @@ end
 
 -- Whether the cursor is over the bar (icons, their times, the imbue strip). The
 -- container's geometry is secret so asking it always says no; the answer comes
--- from our own layout numbers instead. The size is the last one measured out of
+-- from the bar's own layout numbers instead. The size is the last one measured out of
 -- combat, so it still works in a fight.
 function BarMixin:CursorOver()
     local holder = self.holder
@@ -987,7 +993,7 @@ function BarMixin:OnShiftClick(x, y)
     if entry then self:OpenCategoryMenu(entry) end
 end
 
--- Hover for consolidated groups. The client's buttons can't tell us when the
+-- Hover for consolidated groups. The client's buttons can't say when the
 -- cursor enters them, so a light poll maps the cursor through the layout.
 function BarMixin:PollHover()
     if not next(self.consolidated) or inCombat() or self.previewActive then return end
@@ -1024,7 +1030,7 @@ function BarMixin:EnsurePopout()
         if bar then bar:OnPopoutShiftClick(x, y) end
     end)
     -- Keep the popout while the cursor is inside it or over its owner slot.
-    -- Both rectangles come from our own layout numbers, since the frames'
+    -- Both rectangles come from the bar's own layout numbers, since the frames'
     -- geometry derives from the container's secret size and can't be read.
     local function inside(rect, x, y)
         return rect and x >= rect.left and x <= rect.right and y >= rect.bottom and y <= rect.top
@@ -1033,8 +1039,8 @@ function BarMixin:EnsurePopout()
         if not popoutShown or not popoutLeaveAt then return end
         local x, y = cursorUI()
         -- The consolidated icon's tooltip is the client's own aura tooltip,
-        -- not GameTooltip, so nothing of ours hides it. GameTooltip is never
-        -- hidden from our code.
+        -- not GameTooltip, so nothing here hides it. GameTooltip is never
+        -- hidden by addon code.
         if inside(popoutRect, x, y) or inside(popoutOwner, x, y) then
             popoutLeaveAt = BL.Clock() + POPOUT_LEAVE_DELAY
             return
@@ -1327,7 +1333,7 @@ local function setStockFramesHidden(hidden)
     end
 end
 
--- Never trust our own Edit Mode flag alone; ask the client.
+-- Never trust the saved Edit Mode flag alone; ask the client.
 local function refreshEditModeFlag()
     if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive then
         local ok, active = pcall(EditModeManagerFrame.IsEditModeActive, EditModeManagerFrame)
@@ -1348,7 +1354,7 @@ function BL.ApplyBlizzardHiding()
         -- The game re-shows them with Show (Edit Mode) or SetShown
         -- (AuraFrameEditModeMixin:UpdateShownState). Both fire OnShow at once,
         -- so the re-hide lands in the same frame. Neither frame has an OnShow in
-        -- the game's XML, so HookScript just sets ours.
+        -- the game's XML, so HookScript just sets this one.
         for _, frame in ipairs({ BuffFrame, DebuffFrame }) do
             frame:HookScript("OnShow", guardShow)
         end
@@ -1364,8 +1370,8 @@ end
 
 -- ---------------------------------------------------------------------
 -- Edit Mode: while it's open the stock frames show (so the game's layout can be
--- edited as usual) and our bars step aside, then return on exit. Our bars are
--- moved in DaylightUI's unlock mode.
+-- edited as usual) and the Daylight UI bars step aside, then return on exit. Those
+-- are moved in Daylight UI's unlock mode.
 -- ---------------------------------------------------------------------
 
 local function onEditModeEnter()
@@ -1444,22 +1450,14 @@ DUI.RegisterEvent("WEAPON_ENCHANT_CHANGED", weaponsChanged)
 DUI.RegisterEvent("WEAPON_SLOT_CHANGED", weaponsChanged)
 
 local function learnAll() eachBar(function(bar) bar:Learn() end) end
--- Once next frame, however many came in: a pre-pull rebuff sends a burst.
-local learnQueued = false
-local function learnSoon()
-    if learnQueued then return end
-    learnQueued = true
-    C_Timer.After(0, function()
-        learnQueued = false
-        DUI.SafeCall(learnAll)
-    end)
-end
+-- Once next frame, however many came in, since a pre-pull rebuff sends a burst.
+local learnSoon = DUI.Soon(function() DUI.SafeCall(learnAll) end)
 
 BL.OnPlayer("UNIT_AURA", function(_, unit)
     -- Registered for the player only. Under restrictions the client sends the
     -- unit token itself as a secret (SecretWhenAurasRestricted in the game
     -- docs), so a secret one is the player too.
-    local secret = issecretvalue and issecretvalue(unit)
+    local secret = isSecret(unit)
     if (not secret and unit ~= "player") or inCombat() then return end
     -- Under a boss, keystone or PvP restriction the auras are secret, so read
     -- once when it lifts instead of failing on every change.
@@ -1480,7 +1478,7 @@ end)
 local auraBar = {}   -- auraInstanceID -> "buffs" | "debuffs"
 -- A table that's safe to look into: not a secret value or a secret table.
 local function readable(t)
-    return type(t) == "table" and not (issecretvalue and issecretvalue(t)) and BL.PlainTable(t) ~= nil
+    return type(t) == "table" and not isSecret(t) and BL.PlainTable(t) ~= nil
 end
 local function wakeAuras(info)
     local buffs, debuffs = false, false

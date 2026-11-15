@@ -43,6 +43,48 @@ function ns.GiveBackCVar(name)
     return v
 end
 
+-- The object glow, since removed, turned these on for every player: it gave
+-- every object you're near a nameplate and let soft targeting pick things all
+-- around you. Once per account each goes back to the value the player had
+-- before (if it was kept) or else the game's default.
+ns.GLOW_CVARS = { "SoftTargetInteract", "SoftTargetInteractArc", "SoftTargetInteractOnlyInRange",
+    "SoftTargetInteractRangeIsHard", "SoftTargetIconGameObject", "SoftTargetNameplateInteract",
+    "SoftTargetInteractRange", "nameplateGameObjectMaxDistance" }
+-- Only forgotten, never written: the game's nameplates keep their own copy of
+-- this one (CVarCallbackRegistry:SetCVarCachable), and a value an addon writes
+-- stays tainted in that copy until /reload, so every plate added reads it tainted.
+ns.GLOW_CVARS_FORGET = { "SoftTargetIconInteract" }
+
+local function gameDefault(name)
+    local fn = (C_CVar and C_CVar.GetCVarDefault) or GetCVarDefault
+    if type(fn) ~= "function" then return nil end
+    local ok, v = pcall(fn, name)
+    return ok and v ~= nil and tostring(v) or nil
+end
+
+local GlowGone = {}
+ns.features[#ns.features + 1] = GlowGone
+
+function GlowGone.Enable()
+    local root = DaylightUI.DB.Root()
+    if root.glowSettingsBack then return end
+    DaylightUI.AfterCombat(function()
+        if root.glowSettingsBack or type(SetCVar) ~= "function" then return end
+        for _, name in ipairs(ns.GLOW_CVARS) do
+            own()[name] = nil
+            local v = ns.GiveBackCVar(name) or gameDefault(name)
+            if v ~= nil and type(GetCVar) == "function" and GetCVar(name) ~= nil and tostring(GetCVar(name)) ~= v then
+                pcall(SetCVar, name, v)
+            end
+        end
+        for _, name in ipairs(ns.GLOW_CVARS_FORGET) do
+            own()[name] = nil
+            ns.GiveBackCVar(name)
+        end
+        root.glowSettingsBack = true
+    end, "qol:glowgone")
+end
+
 ns.DEFAULTS = {
     autoDelete = true,      -- fill in DELETE when destroying a good item
     fastLoot = false,       -- pick up every slot at once when auto loot is on
@@ -67,23 +109,13 @@ ns.DEFAULTS = {
     cursorRingGcd = true,
     cursorRingFlash = true,     -- the ring flashes as the global cooldown ends
     cursorRingCast = true,      -- your casts and channels fill a ring outside it
-    cursorRingGlow = true,
-    cursorRingMotion = "comet", -- comet | breathe | still
+    cursorRingGlow = false,
+    cursorRingMotion = "still", -- comet | breathe | still
     cursorRingTrail = false,
-    objectGlow = true,      -- chests, quest objects and your bobber light up as you come near (Glow.lua; changes game settings while on)
-    objectGlowLook = "sweep",  -- sweep | frame | daybreak | sunrise (Glow.LOOKS)
-    objectGlowColor = "accent", -- accent | object: each kind its own color (Glow.KINDS)
-    objectGlowHeight = 110,    -- how far under the object's name its light sits, once in reach
-    objectGlowQuest = true,
-    objectGlowChest = true,
-    objectGlowBobber = true,
-    objectGlowOther = false,   -- anything else you can use: doors, levers, mailboxes
-    objectGlowFight = false,   -- lights in a fight too
-    objectGlowInstance = false, -- lights in dungeons, raids and battlegrounds too
     keepTracking = true,    -- turn tracking (Find Minerals...) back on when the game drops it (Tracking.lua)
     quietErrors = true,     -- hide the red "not enough rage / not ready / out of range / no target" spam
     errorSound = true,      -- a soft "nope" in place of those errors' voice lines (Errors.lua)
-    errorText = true,       -- the errors that still show, in our font and colors, easing in and out (ErrorText.lua)
+    errorText = true,       -- the errors that still show, in the Daylight font and colors, easing in and out (ErrorText.lua)
     lootFeed = true,        -- what you loot slides in as ribbons at the bottom right (LootFeed.lua)
     lootFeedHold = 5,       -- seconds each loot feed line stays
     lootFeedTogether = false, -- every line leaves with the newest one instead of each on its own
@@ -118,8 +150,8 @@ ns.DEFAULTS = {
     zoneTitle = true,       -- the zone title animation, in place of the game's zone text (ZoneTitle.lua)
     repBanner = true,       -- a reputation standing gone up shows at the top of the screen (RepBanner.lua)
     campfire = true,        -- sitting by a campfire warms the screen and hushes bars and unit frames (Campfire.lua)
-    campfireAll = true,     -- the campfire fades every area of ours (buffs, info panel, quests, chat...), not just bars and unit frames
+    campfireAll = true,     -- the campfire fades every Daylight UI area (buffs, info panel, quests, chat...), not just bars and unit frames
     campfireRest = 10,      -- minutes after the flare before a new Welcoming Campfire fades the UI again (0 = every minute)
     campfireChat = true,    -- the campfire floats the chat: panel and tabs away, the lines stay (Chat.FloatWanted)
-    sleepingBag = true,     -- resting in a sleeping bag shows the time until Well-Rested is full (Campfire.lua)
+    sleepingBag = false,    -- resting in a sleeping bag shows the time until Well-Rested is full (Campfire.lua)
 }

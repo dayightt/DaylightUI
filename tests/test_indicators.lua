@@ -38,6 +38,9 @@ T.test("a priest's picks: Renew, Power Word: Shield, Prayer of Mending, each its
     T.truthy(g.opts.candidateFilters.includeSpellIDs[139] and g.opts.candidateFilters.includeSpellIDs[25315])
     T.eq(g.max, 1)
     T.truthy(c2.__groups.s17); T.truthy(c3.__groups.s401859)
+    -- Prayer of Mending's buff lands under its own ids, not the cast's.
+    local pom = c3.__groups.s401859.opts.candidateFilters.includeSpellIDs
+    T.truthy(pom[401877] and pom[1240848] and pom[1240849], "the buff Prayer of Mending leaves")
     T.eq(c1.__unit, "raid1")
     local p = c1:GetPoint(1)
     T.eq(p, "TOPLEFT")
@@ -138,7 +141,7 @@ T.test("group buffs: Mark of the Wild from any druid, every rank and Gift of the
     T.truthy(listed, "in the spell menu")
 end)
 
-T.test("a mage: Arcane Intellect to pick, but no heals, so the buff row falls back to Only mine", function()
+T.test("a mage: Arcane Intellect to pick, but no heals, so the buff row's Heals and shields shows none", function()
     local ns = setup("MAGE")
     T.isnil(ns.HealSpells.Ids())
     T.falsy(ns.HealSpells.Has())

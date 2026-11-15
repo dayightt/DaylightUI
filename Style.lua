@@ -64,7 +64,7 @@ end
 Style.DISPEL_KEYS = { "None", "Magic", "Curse", "Disease", "Poison", "Bleed", "Enrage" }
 
 -- Registers tex on a client aura button to be tinted by the aura's dispel
--- type. The client picks it, so a secret type works. Uses our colors on a
+-- type. The client picks it, so a secret type works. Uses Daylight UI's colors on a
 -- white square via the enum style and color objects (the plain string form is
 -- silently ignored by this client), else the client's own colors.
 -- colorOf(key) -> { r, g, b }. opts: helpful (buffs, not debuffs),
@@ -143,7 +143,7 @@ function Style.DispelEdge(btn, tex, colorOf, opts)
     end
     return nil
 end
--- The text size scale for our windows and panels. Pick by what the text is,
+-- The text size scale for Daylight UI's windows and panels. Pick by what the text is,
 -- never a number of your own.
 Style.SIZE = {
     tiny = 10, -- counts, badges, keybind text, small tags
@@ -154,7 +154,7 @@ Style.SIZE = {
 }
 -- One font everywhere, picked in Appearance. The bundled fonts are all free to
 -- share (Media/fonts/FONTS.txt). "Game font" is whatever the client uses, so a
--- player's own font override shows up there without us shipping it.
+-- player's own font override shows up there without Daylight UI shipping it.
 local FONTS = DUI.MEDIA .. "fonts\\"
 Style.FONTS = {
     expressway = { label = "Expressway", file = FONTS .. "ExpresswayFree.ttf" },
@@ -215,14 +215,14 @@ Style.FONT_ORDER[#Style.FONT_ORDER + 1] = "game"
 Style.FONT_ORDER[#Style.FONT_ORDER + 1] = "arialn"
 Style.FONT = Style.FONTS.expressway.file
 
--- Sets Style.FONT from the Appearance setting: one of ours, or a shared font
--- ("lsm:<name>", ours until its addon has registered it).
+-- Sets Style.FONT from the Appearance setting: one of Daylight UI's, or a shared font
+-- ("lsm:<name>", Daylight UI's until its addon has registered it).
 -- The client's own font, even after "Use this font for the game's text" replaced it.
 local function clientFont()
     return DUI.GameFonts and DUI.GameFonts.ClientFont() or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 end
 
--- The file for a font pick: one of ours, a shared one (ours until its addon
+-- The file for a font pick: one of Daylight UI's, a shared one (Daylight UI's until its addon
 -- registers it), or the client's (Game font, or "Use my language's font").
 function Style.FontFileOf(key)
     local shared = DUI.Media and DUI.Media.Fetch("font", key)
@@ -274,7 +274,7 @@ end
 Style.NEUTRAL = { 0.42, 0.42, 0.44 }
 Style.ACCENT = { 0.72, 0.7, 0.66 } -- #b8b3a8, a soft warm gray that's easy on the eyes
 
--- Text colors by meaning, the one set all our text paints from: tooltips,
+-- Text colors by meaning, the one set all Daylight UI's text paints from: tooltips,
 -- windows, panels and the options window alike. Brightest to dimmest: TITLE
 -- and VALUE white, TEXT soft white, LABEL tan, OFF dim, all warm and never a
 -- neutral gray. Color only where a glance needs it (Style.Pop) or when a thing
@@ -316,7 +316,7 @@ Style.POWER = { MANA = { 0.22, 0.42, 0.86 } }
 Style.POWER_FALLBACK = { 0.22, 0.42, 0.86 }
 
 local function general() return DUI.DB.General() end
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- Colors
 
@@ -411,11 +411,11 @@ function Style.ClockFormatter()
     return clockFormatter or nil
 end
 
--- Hands an aura button its time text, in our format when the client has the
+-- Hands an aura button its time text, in Daylight UI's format when the client has the
 -- formatter (the client's own otherwise).
 -- textColor (optional): the client's color curve on the time left
 -- (DurationTextBindingColorOptions). If refused, the time shows plain.
--- formatter (optional): another of ours (Style.ClockFormatter for bars).
+-- formatter (optional): another of Daylight UI's (Style.ClockFormatter for bars).
 function Style.SetAuraTime(btn, fs, textColor, formatter)
     local f = formatter or Style.DurationFormatter()
     if textColor and pcall(btn.SetDurationText, btn, fs, { textFormatter = f, textColor = textColor }) then return true end
@@ -486,7 +486,7 @@ Style.GRADIENT_SHAPE = { { 0.118, 0.565, 1 }, { 0.902, 0.353, 0.447 } }   -- #1e
 -- The class gradient accent: the player's class pair (General > Gradients,
 -- palette and edits included, unsoftened like the class color accent), with
 -- its dark end lifted CLASS_LIFT toward the light one so a line or word at
--- that end still reads on our dark frames. The same tables are kept until
+-- that end still reads on Daylight UI's dark frames. The same tables are kept until
 -- the pair's numbers change, so a painter caching on them stays valid.
 Style.CLASS_LIFT = 0.35
 local classPair = { raw = {} }
@@ -565,7 +565,7 @@ end
 -- secret name) is returned unchanged.
 function Style.AccentText(text)
     local kind = Style.AccentSweep()
-    if not kind or type(text) ~= "string" or (issecretvalue and issecretvalue(text)) or text == "" then
+    if not kind or type(text) ~= "string" or isSecret(text) or text == "" then
         return text, false
     end
     if kind == "daylight" then return DUI.GradientText(text), true end
@@ -1144,7 +1144,7 @@ function Style.LayoutShell(s)
     local ok, w = pcall(s.GetWidth, s)
     local okH, h = pcall(s.GetHeight, s)
     ok = ok and okH
-    local secret = ok and issecretvalue ~= nil and (issecretvalue(w) or issecretvalue(h))
+    local secret = ok and (isSecret(w) or isSecret(h))
     if ok and not secret and type(w) == "number" and type(h) == "number" and w > 0 and h > 0 then
         R = math.min(R, math.min(w, h) / 2)
     end
@@ -1371,7 +1371,7 @@ function Style.LayoutShell(s)
     if angled.left or angled.right then
         local owner = s:GetParent()
         local ok, h = pcall(owner.GetHeight, owner)
-        if ok and type(h) == "number" and not (issecretvalue and issecretvalue(h)) and h > 0 then H = h end
+        if ok and type(h) == "number" and not isSecret(h) and h > 0 then H = h end
     end
     local refH = (sl and sl.ref and sl.ref.height) or H
     local cutTop = cut * math.max(0, refH - H) / refH
@@ -1586,6 +1586,17 @@ function Style.Clip(frame, tex, inset, until_, only)
     clipOf[tex] = { frame = frame, clip = clip }
 end
 
+-- Move a texture's clip to other named lines. Pass only the fields that change.
+function Style.ClipSpan(tex, inset, until_, only)
+    local c = clipOf[tex]
+    if not c then return end
+    local clip = c.clip
+    if inset ~= nil then clip.inset = inset end
+    if until_ ~= nil then clip.until_ = until_ end
+    if only ~= nil then clip.only = only end
+    return clip.inset, clip.until_
+end
+
 -- Clips a texture laid over another (a bar's fill) the same way, now and at
 -- every layout. Does nothing if tex isn't clipped (yet).
 function Style.ClipLike(over, tex)
@@ -1670,7 +1681,7 @@ function Style.LayoutSlant(frame)
     local okW, W = pcall(frame.GetWidth, frame)
     local s = shellOf[frame]
     local reach = ((s and s.radius) or 0) + T + one
-    local roomy = okW and type(W) == "number" and not (issecretvalue and issecretvalue(W))
+    local roomy = okW and type(W) == "number" and not isSecret(W)
         and W > reach + 4 * cut + 2 * T * slope
     for _, clip in ipairs(sl.clips) do
         local owner = clip.tex:GetParent()
@@ -1728,7 +1739,8 @@ function Style.LayoutSlant(frame)
                     mask:SetPoint(bottom, frame, bottom, x, 0)
                     mask:SetWidth(4 * cut)
                 end
-                if not clip.masked[end_] then
+                if clip.masked[end_] ~= mask then
+                    if clip.masked[end_] then clip.tex:RemoveMaskTexture(clip.masked[end_]) end
                     clip.tex:AddMaskTexture(mask)
                     clip.masked[end_] = mask
                 end
@@ -1858,10 +1870,10 @@ end
 
 local barBack = setmetatable({}, { __mode = "k" })
 
--- Every bar's fill follows the Bar texture setting: ours by default, or a
+-- Every bar's fill follows the Bar texture setting: Daylight UI's by default, or a
 -- shared one. Bars are tracked weakly so they follow a change. "seamless" ones
--- (heal prediction, continuing another bar) keep our seamless fill while the
--- setting is ours.
+-- (heal prediction, continuing another bar) keep Daylight UI's seamless fill while the
+-- setting is Daylight UI's.
 local fills = setmetatable({}, { __mode = "k" }) -- bar or texture -> "fill" | "seamless"
 local slotOf = setmetatable({}, { __mode = "k" }) -- bar or texture -> its slot (Media.RegisterSlot)
 
@@ -1870,11 +1882,11 @@ local function pick(slot, generalKey)
 end
 
 -- The bar texture a slot shows: its own pick, else the Appearance one
--- ("daylight" = ours, or "lsm:<name>"). With no slot, the Appearance one.
+-- ("daylight" = Daylight UI's, or "lsm:<name>"). With no slot, the Appearance one.
 function Style.BarKey(slot) return pick(slot, "barTexture") end
 function Style.BackKey(slot) return pick(slot, "barBack") end
 
--- A shared texture picked for a slot's fill, or nil while it's ours.
+-- A shared texture picked for a slot's fill, or nil while it's Daylight UI's.
 function Style.SharedBar(slot)
     return DUI.Media and DUI.Media.Fetch("statusbar", Style.BarKey(slot))
 end
@@ -1888,7 +1900,7 @@ function Style.BarFile(kind, slot)
     return kind == "seamless" and Style.BAR.seamless or Style.BAR.fill
 end
 
--- The empty part behind a bar's fill: ours, or a shared texture.
+-- The empty part behind a bar's fill: Daylight UI's, or a shared texture.
 function Style.BackFile(slot)
     return Style.SharedBack(slot) or Style.BAR.back
 end
@@ -1898,7 +1910,7 @@ local gradGrain = setmetatable({}, { __mode = "k" }) -- bar -> the picked bar te
 
 -- The Daylight gradient keeps a shared bar texture the player picked, laid
 -- over the sweep and multiplied in (MOD) so its shading shows in the sweep's
--- colors, the way a single-color bar shows it in that color. Our own fill
+-- colors, the way a single-color bar shows it in that color. Daylight UI's own fill
 -- uses the image alone. The layer carries the fill's angled edge and clip.
 local function paintGrain(bar)
     local shared = gradFills[bar] and Style.SharedBar(slotOf[bar])
@@ -1941,7 +1953,7 @@ function Style.ResetBarFill(bar)
     pcall(paintGrain, bar)
 end
 
--- A status bar (or a plain fill texture) made elsewhere, given our fill.
+-- A status bar (or a plain fill texture) made elsewhere, given Daylight UI's fill.
 -- slot (optional): the area's own pick it follows (Media.RegisterSlot).
 function Style.TrackBar(obj, kind, slot)
     if type(obj) ~= "table" then return end
@@ -2022,12 +2034,12 @@ function Style.GlideBar(bar, value) glide(bar, value) end
 function Style.BarBack(bar) return barBack[bar] end
 
 -- Fills a bar with the Daylight gradient (the logo's blue to orange across it,
--- the empty part in its purple), or back to our fill (on = false, and the
+-- the empty part in its purple), or back to Daylight UI's fill (on = false, and the
 -- caller colors it again). The texture survives a bar texture change, and a
 -- picked shared one lies over it (paintGrain). With General > Gradients off,
--- on paints our fill flat in the sweep's purple (Style.FlatSweep). Returns
+-- on paints Daylight UI's fill flat in the sweep's purple (Style.FlatSweep). Returns
 -- whether the sweep is on; only then should the caller paint the fill white
--- (white over our plain fill would be a white bar).
+-- (white over Daylight UI's plain fill would be a white bar).
 function Style.FlatSweep()
     local m = Style.GRADIENT_MID
     return m[1], m[2], m[3]
@@ -2110,7 +2122,7 @@ local flagsOf = setmetatable({}, { __mode = "k" })
 
 local fontSlot = setmetatable({}, { __mode = "k" }) -- text -> its slot (Media.RegisterSlot)
 
--- Text inside a window (one with a window shell, ours or a skinned game one)
+-- Text inside a window (one with a window shell, Daylight UI's or a skinned game one)
 -- follows the window text font, determined once when the text is created.
 -- Stored here, never as a field, since writing on the game's frames taints them.
 Style.WINDOW_SLOT = "windows.font"
@@ -2138,12 +2150,133 @@ local gaveSize = setmetatable({}, { __mode = "k" })
 local gaveFlags = setmetatable({}, { __mode = "k" })
 local gaveShadow = setmetatable({}, { __mode = "k" })
 
+-- Other alphabets. A font file only draws the letters it has, and most of the
+-- bundled fonts have no Russian, Korean or Chinese ones, so a player's name in
+-- those showed as boxes. The game's own text uses font families, one font per
+-- alphabet, and Daylight UI does the same: the picked font draws Latin letters
+-- (and Russian ones when it has them), the game's own fonts draw the rest.
+-- A plain SetFont fixes a text's face for good (a font object set on it later
+-- no longer changes it), so text styled here always goes through Style.SetFace.
+Style.ALPHABETS = { "roman", "russian", "korean", "simplifiedchinese", "traditionalchinese" }
+Style.ALPHABET_FONTS = {
+    russian = "Fonts\\FRIZQT___CYR.TTF",
+    korean = "Fonts\\2002.ttf",
+    simplifiedchinese = "Fonts\\ARKai_T.ttf",
+    traditionalchinese = "Fonts\\blei00d.TTF",
+}
+-- Font files that have the Russian alphabet, by lower-case file name.
+Style.CYRILLIC = {}
+for _, name in ipairs({ "ArchivoNarrow-Bold", "Comfortaa-Bold", "ExpresswayFree", "FiraSans-Medium",
+    "MPLUSRounded-ExtraBold", "Nunito-Black", "Oswald-Bold", "PTSansNarrow-Bold", "PressStart2P", "Rubik-Bold",
+    "RubikGlitch", "RubikMonoOne", "RussoOne-Regular" }) do
+    Style.CYRILLIC[(name .. ".ttf"):lower()] = true
+end
+Style.CYRILLIC["arialn.ttf"], Style.CYRILLIC["frizqt___cyr.ttf"] = true, true
+
+-- On a Korean or Chinese client the picked font already draws that language
+-- (the "Use my language's font" switch decides which), so it keeps it.
+local CLIENT_ALPHABET = ({ koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" })[
+    type(GetLocale) == "function" and GetLocale() or ""]
+
+local function hasCyrillic(file)
+    local name = string.match(string.lower(file), "([^\\/]+)$")
+    return Style.CYRILLIC[name or ""] == true
+end
+
+-- The client may hand a path back with other slashes or case.
+local function samePath(a, b)
+    if type(a) ~= "string" or type(b) ~= "string" then return false end
+    return string.lower(string.gsub(a, "/", "\\")) == string.lower(string.gsub(b, "/", "\\"))
+end
+
+local families = {}   -- key -> family, or false when it couldn't be made
+local familyCount = 0
+local ourFamily = setmetatable({}, { __mode = "k" })
+
+-- The family for one font, size, outline and shadow, made once per session.
+-- Sizes are kept to a quarter point, so a slider drag makes only a few (the
+-- client never frees a font object). nil when the client can't make one.
+function Style.FontFamily(file, size, flags, shadow)
+    if type(CreateFontFamily) ~= "function" or type(file) ~= "string"
+        or type(size) ~= "number" or size <= 0 then return nil end
+    size = math.floor(size * 4 + 0.5) / 4
+    flags, shadow = flags or "", shadow or 0
+    local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow
+    local fam = families[key]
+    if fam ~= nil then return fam or nil end
+    local members = {}
+    for i, alphabet in ipairs(Style.ALPHABETS) do
+        local own = alphabet == "roman" or alphabet == CLIENT_ALPHABET
+            or (alphabet == "russian" and hasCyrillic(file))
+        members[i] = { alphabet = alphabet, file = own and file or Style.ALPHABET_FONTS[alphabet],
+                       height = size, flags = flags }
+    end
+    familyCount = familyCount + 1
+    local ok, made = pcall(CreateFontFamily, "DaylightUIFont" .. familyCount, members)
+    if not (ok and made) then
+        families[key] = false
+        return nil
+    end
+    -- A family's shadow is its own and each member's, as the game's are.
+    made:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+    made:SetShadowColor(0, 0, 0, shadow)
+    if made.GetFontObjectForAlphabet then
+        for _, alphabet in ipairs(Style.ALPHABETS) do
+            local okM, member = pcall(made.GetFontObjectForAlphabet, made, alphabet)
+            if okM and type(member) == "table" and member ~= made then
+                member:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+                member:SetShadowColor(0, 0, 0, shadow)
+            end
+        end
+    end
+    ourFamily[made] = true
+    families[key] = made
+    return made
+end
+
+-- Gives a text (or a message frame) a font through its family, so names in
+-- other alphabets draw. Keeps the text's justification and color, which a
+-- font object would reset. A text some other code already gave a plain
+-- SetFont keeps that face, so it gets a plain SetFont again.
+function Style.SetFace(fs, file, size, flags, shadow)
+    local fam = Style.FontFamily(file, size, flags, shadow)
+    if not (fam and fs.SetFontObject and fs.GetFontObject) then
+        fs:SetFont(file, size, flags or "")
+        return
+    end
+    if fs:GetFontObject() ~= fam then
+        local justifyH = fs.GetJustifyH and fs:GetJustifyH()
+        local justifyV = fs.GetJustifyV and fs:GetJustifyV()
+        -- The color may be secret: only its type is looked at, then it's handed back.
+        local r, g, b, a = fs:GetTextColor()
+        fs:SetFontObject(fam)
+        if type(justifyH) == "string" then fs:SetJustifyH(justifyH) end
+        if type(justifyV) == "string" then fs:SetJustifyV(justifyV) end
+        if type(r) == "number" then fs:SetTextColor(r, g, b, a) end
+    end
+    local now, height = fs:GetFont()
+    if isSecret(now) or isSecret(height) then return end
+    if not samePath(now, file) or type(height) ~= "number" or math.abs(height - size) > 0.3 then
+        fs:SetFont(file, size, flags or "")
+    end
+end
+
+-- Gives a text the same font as another text of Daylight UI's, family included.
+function Style.CopyFace(fs, from)
+    local obj = from.GetFontObject and from:GetFontObject()
+    if obj and ourFamily[obj] and fs.SetFontObject then
+        if fs:GetFontObject() ~= obj then fs:SetFontObject(obj) end
+        if samePath(fs:GetFont(), (from:GetFont())) then return end
+    end
+    fs:SetFont(from:GetFont())
+end
+
 function Style.ApplyFont(fs)
     local g = general()
     local file = fontOf[fs] or Style.FontFile(fontSlot[fs])
     local size, flags = (textSize[fs] or 12) * g.fontScale, flagsOf[fs] or Style.Outline()
     local shadow = g.textShadow == false and 0 or Style.TEXT_SHADOW[3]
-    fs:SetFont(file, size, flags)
+    Style.SetFace(fs, file, size, flags, shadow)
     fs:SetShadowColor(0, 0, 0, shadow)
     gaveFile[fs], gaveSize[fs], gaveFlags[fs], gaveShadow[fs] = file, size, flags, shadow
 end
@@ -2160,15 +2293,15 @@ local function repaintFont(fs)
     Style.ApplyFont(fs)
 end
 
--- Our drop shadow alone (the Shadow setting), for text whose font stays the game's.
+-- Daylight UI's drop shadow alone (the Shadow setting), for text whose font stays the game's.
 function Style.DressShadow(fs)
     fs:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
     fs:SetShadowColor(0, 0, 0, general().textShadow == false and 0 or Style.TEXT_SHADOW[3])
 end
 
--- Applies our font, size, outline and shadow to a text not made with
+-- Applies Daylight UI's font, size, outline and shadow to a text not made with
 -- Style.Text (the game's, a template's), and keeps them updated.
--- size nil keeps the size it had (ours or the game's). opts: outline (flags
+-- size nil keeps the size it had (Daylight UI's or the game's). opts: outline (flags
 -- instead of the Outline setting, "" for an edit box), slot (a slot's font,
 -- Media.RegisterSlot), untracked (set once, for text on the client's locked
 -- aura buttons that a repaint must not touch).
@@ -2191,7 +2324,7 @@ end
 
 -- font (optional): another font file, kept when the Appearance font changes,
 -- or a slot name (Media.RegisterSlot) to follow that area's own pick. Text
--- inside one of our windows follows the window text font automatically.
+-- inside one of Daylight UI's windows follows the window text font automatically.
 function Style.Text(parent, size, justify, font)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     textSize[fs] = size

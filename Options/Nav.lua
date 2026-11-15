@@ -421,7 +421,12 @@ local function buildList(nav, frame)
     nav.setup:Hide()
     function nav.SyncSetup()
         local show = DUI.DB.Unsaved()
-        nav.setup:SetShown(show)
+        if show then
+            nav.setup:SetAlpha(1)
+            nav.setup:Show()
+        elseif nav.setup:IsShown() then
+            DUI.Motion.AlphaTo(nav.setup, 0, DUI.Motion.FAST, true)
+        end
         nav.pagesScroll:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", 0, show and 86 or 52)
     end
 end

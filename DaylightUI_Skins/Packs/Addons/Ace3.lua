@@ -12,7 +12,7 @@
 -- (see tests/guards_allow.lua).
 -- The hooks go in as soon as the library exists: when this file loads and after
 -- every later addon load, because AceGUI is embedded in other addons and Questie
--- builds its options window while loading, before our settings can be read.
+-- builds its options window while loading, before the addon's settings can be read.
 -- Widgets made before the skin is switched on wait in a list, which is dropped
 -- if it's switched off. A newer copy of the library loaded later replaces the
 -- hooked functions, so they get hooked again.
@@ -65,7 +65,7 @@ local function pane(Kit, f)
 end
 
 -- A box with a dropdown arrow on its right (Ace's dropdown, a SharedMedia
--- picker): the input look on our own frame over the control, our chevron,
+-- picker): the input look on a separate frame over the control, the Daylight chevron,
 -- lighter on hover.
 local function dropBox(Kit, frame, arrow, hovers)
     local holder = CreateFrame("Frame", nil, frame)
@@ -137,7 +137,7 @@ TYPES.CheckBox = function(Kit, w)
     Kit.Hide(w.check)
     Kit.Hide(w.highlight)
     if not isTable(w.checkbg) then return end
-    -- Our switch replaces the box and follows its size (a radio's is smaller).
+    -- A W.Switch look replaces the box and follows its size (a radio's is smaller).
     local holder = CreateFrame("Frame", nil, w.frame)
     holder:SetAllPoints(w.checkbg)
     holder:EnableMouse(false)
@@ -269,8 +269,8 @@ TYPES.Keybinding = function(Kit, w)
     label(Kit, w, w.label)
 end
 
--- Tree buttons: our font, accent wash for hover and for the picked one (AceGUI
--- locks the highlight on the picked one), our chevron for the +/-.
+-- Tree buttons: the Daylight font, accent wash for hover and for the picked one (AceGUI
+-- locks the highlight on the picked one), the Daylight chevron for the +/-.
 local PLUS = { [130838] = true, [130836] = true }
 local function isPlus(tex)
     local t = kind(tex) == "Texture" and tex:GetTexture()
@@ -416,7 +416,7 @@ end
 -- Library hooks
 -- ---------------------------------------------------------------------
 
-local hooked = {} -- method name -> the function we hooked (our wrapper runs after)
+local hooked = {} -- method name -> the function that was hooked (the wrapper runs after)
 local function made(_, w)
     if not def then
         Ace.waiting[w] = true

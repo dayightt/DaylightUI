@@ -5,6 +5,7 @@
 -- Pure: text heights come from measure().
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Layout = {}
@@ -208,7 +209,7 @@ function Layout.Build(snap, o, measure)
         if not folds.quests then
             Layout.SortZones(snap.groups, o)
             for _, g in ipairs(snap.groups) do
-                if o.filter ~= "zone" or g.name == snap.zone then
+                if o.filter ~= "zone" or g.name == snap.zone or (snap.here and snap.here[g.name]) then
                     -- A zone can only be folded while its name shows, otherwise nothing could unfold it.
                     local folded = false
                     if o.zoneNames then
@@ -250,7 +251,6 @@ end
 
 -- Deep equality on plain data (no frames, no cycles). A secret value can't be
 -- compared, so it counts as changed.
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function same(a, b)
     if secret(a) or secret(b) then return false end
     if a == b then return true end

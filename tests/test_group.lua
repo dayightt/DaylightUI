@@ -216,6 +216,23 @@ T.test("a default party frame with its name on the bar keeps the bar-name placem
     T.eq(f.nameText:GetNumPoints(), 2, "both edges, as UF.PlaceTileName sets")
 end)
 
+T.test("a party button named outside the tile gets a name tab, like the player frame's", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "party.nameOnBar", true)
+    DUI:Set("UnitFrames", "party.portrait", "none")
+    DUI:Set("UnitFrames", "party.namePos", "above")
+    stub.RunTimers()
+    local f = partyButton(ns, 1, "party1")
+    stub.RunTimers()
+    T.truthy(f.nameTag and f.nameTag:IsShown(), "a tab over the tile")
+    T.eq(f.nameText:GetParent(), f.nameTag)
+    -- With the name off the bar, the frame's own name tab takes over.
+    DUI:Set("UnitFrames", "party.nameOnBar", false)
+    stub.RunTimers()
+    T.falsy(f.nameTag:IsShown())
+    T.eq(f.nameText:GetParent(), f.tab)
+end)
+
 T.test("a party button named like a tile keeps its name off the health text", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "party.nameOnBar", true)
@@ -535,7 +552,23 @@ T.test("sample buttons can be made, laid out and filled on another frame", funct
     T.truthy(list[1]:IsShown())
     T.truthy(string.find(list[1].nameText.__text, "Kaladin", 1, true), "the first sample member")
     T.falsy(list[2]:IsShown(), "past the count: hidden")
-    T.falsy(ns.Party.preview[1]:IsShown(), "the party's own samples untouched")
+    T.isnil(ns.Party.preview, "the party's own samples untouched, not even built")
+end)
+
+T.test("test mode samples are built the first time test mode shows them", function()
+    local DUI, ns = stub.Load({ module = true })
+    T.isnil(ns.Party.preview, "nothing built at login")
+    T.isnil(ns.Raid.preview)
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    T.eq(#ns.Party.preview, 5, "built when test mode shows them")
+    T.truthy(ns.Party.preview[1]:IsShown())
+    T.truthy(ns.Party.preview[1]:GetWidth() > 0, "laid out")
+    local first = ns.Party.preview[1]
+    DUI.SetTestMode(false)
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    T.eq(ns.Party.preview[1], first, "built once, then reused")
 end)
 
 -- ---------------------------------------------------------------------

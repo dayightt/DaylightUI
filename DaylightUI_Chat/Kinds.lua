@@ -9,12 +9,11 @@
 -- unless its plain id or event says otherwise.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Kinds = {}
 ns.Kinds = Kinds
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Chat type (event name minus "CHAT_MSG_") -> kind.
 Kinds.BY_TYPE = {
@@ -148,11 +147,19 @@ end
 
 -- A channel's kind from its name. World channels share a kind; any other channel
 -- gets its own ("ch:name") so a tab can pick it alone.
+-- Every channel line asks, so each name's kind is kept until channels change.
+-- A secret name can't be a table key and is worked out every time.
+local ofName = {}
 function Kinds.OfChannel(base)
+    local plain = not secret(base)
+    local kind = plain and ofName[base]
+    if kind then return kind end
     -- Strip " - Zone" and the number the game appends to some world channel names
     -- ("LookingForGroup 84").
     local name = string.lower(string.gsub(string.gsub(base, "%s*%-.*$", ""), "%s+%d+$", ""))
-    return Kinds.CHANNELS[name] or ("ch:" .. name)
+    kind = Kinds.CHANNELS[name] or ("ch:" .. name)
+    if plain then ofName[base] = kind end
+    return kind
 end
 
 -- A custom channel's kind (not in Kinds.ORDER)?
@@ -168,8 +175,14 @@ local function kindOfNumber(num)
     end
     return listKind[num]
 end
-function Kinds.ChannelsChanged() listKind = nil end
+Kinds.OfNumber = kindOfNumber
+function Kinds.ChannelsChanged()
+    listKind = nil
+    if next(ofName) then wipe(ofName) end
+end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
+-- Joining or leaving a channel.
+DaylightUI.RegisterEvent("CHAT_MSG_CHANNEL_NOTICE", Kinds.ChannelsChanged)
 
 -- A channel line's kind from the event's 9th argument, the channel base name, or
 -- "channel" if unreadable. A community uses one name in the channel list
@@ -207,6 +220,75 @@ function Kinds.Joined()
     if type(GetChannelList) ~= "function" then return {} end
     return joined(GetChannelList())
 end
+
+-- An addon that joins its own channels at login, before the game has joined
+-- General and Trade, takes their numbers, and /1 then talks in that addon's
+-- channel. The world channels are put back in front, in their own order, with the
+-- same swap the game's Channels settings make when you drag one.
+local function isWorld(name)
+    local C = C_ChatInfo
+    if type(C) == "table" and type(C.GetChannelInfoFromIdentifier) == "function" then
+        local info = C.GetChannelInfoFromIdentifier(name)
+        local zone = type(info) == "table" and info.zoneChannelID
+        if type(zone) == "number" and not secret(zone) then return zone ~= 0 end
+    end
+    local base = string.lower(string.gsub(string.gsub(name, "%s*%-.*$", ""), "%s+%d+$", ""))
+    return Kinds.CHANNELS[base] ~= nil
+end
+
+-- Moves left this session: enough for a login's joins one by one, but it stops if
+-- something keeps moving them back.
+Kinds.WORLD_MOVES = 30
+local moves, pending = 0, nil
+
+local function swapColors(a, b)
+    local Chat = ns.Chat
+    if not Chat then return end
+    local ca, cb = Chat.ColorOf("CHANNEL" .. a), Chat.ColorOf("CHANNEL" .. b)
+    if ca[1] == cb[1] and ca[2] == cb[2] and ca[3] == cb[3] then return end
+    Chat.SetColor("CHANNEL" .. a, cb)
+    Chat.SetColor("CHANNEL" .. b, ca)
+end
+
+function Kinds.WorldFirst()
+    pending = nil
+    if DaylightUI:Get("Chat", "worldChannelsFirst") == false or moves >= Kinds.WORLD_MOVES then return end
+    local C = C_ChatInfo
+    if type(GetChannelList) ~= "function" or type(C) ~= "table"
+        or type(C.SwapChatChannelsByChannelIndex) ~= "function" then return end
+    if InCombatLockdown() then return DaylightUI.AfterCombat(Kinds.WorldFirst, "chatWorldFirst") end
+    if DaylightUI.Restricted() then return DaylightUI.AfterRestrictions(Kinds.WorldFirst, "chatWorldFirst") end
+    local ids, world, other, at, here = {}, {}, {}, {}, {}
+    local list = { GetChannelList() }
+    for i = 1, #list, 3 do
+        local id, name = list[i], list[i + 1]
+        if type(id) ~= "number" or secret(id) or type(name) ~= "string" or secret(name) then return end
+        ids[#ids + 1] = id
+        local into = isWorld(name) and world or other
+        into[#into + 1] = name
+        at[name], here[id] = id, name
+    end
+    table.sort(ids)
+    local want = world
+    for _, name in ipairs(other) do want[#want + 1] = name end
+    for k, id in ipairs(ids) do
+        local name, from = want[k], at[want[k]]
+        if from ~= id then
+            local there = here[id]
+            C.SwapChatChannelsByChannelIndex(from, id)
+            swapColors(from, id)
+            moves = moves + 1
+            here[id], here[from], at[name], at[there] = name, there, id, from
+        end
+    end
+end
+
+-- The list changes several times while logging in: look once it settles.
+DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", function()
+    if pending and GetTime() - pending < 2 then return end
+    pending = GetTime()
+    C_Timer.After(1, Kinds.WorldFirst)
+end)
 
 -- The line's chat type ("GUILD", "CHANNEL"...) and kind.
 function Kinds.Of(id, event, args)

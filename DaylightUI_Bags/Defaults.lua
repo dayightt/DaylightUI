@@ -21,7 +21,7 @@ ns.DEFAULTS = {
     showSet = false,        -- mark items that are in an equipment set
     showLevel = false,      -- item level on gear, bottom left
     showJunk = false,       -- the game's gold coin on gray items
-    markCheapJunk = true,   -- a dot on the gray stack worth least (Junk.MarkCheapest)
+    markCheapJunk = false,  -- a dot on the gray stack worth least (Junk.MarkCheapest)
     -- Categories view (Categories.lua)
     sellJunk = true,        -- sell the Junk group when a vendor opens
     autoRepair = true,      -- repair all when a repair vendor opens

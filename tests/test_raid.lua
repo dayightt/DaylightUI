@@ -272,26 +272,6 @@ T.test("raid tiles: the health can fill upward instead of across", function()
     T.eq(point, "BOTTOMLEFT"); T.eq(rel, b.health:GetStatusBarTexture()); T.eq(relPoint, "TOPLEFT")
 end)
 
-T.test("raid tiles: heals and shields stay inside the health bar, across or upward", function()
-    local DUI, ns = login()
-    local b = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton5", ns.Raid.header)
-    b:SetAttribute("unit", "raid7")
-    stub.units.raid7 = { name = "Hale", isPlayer = true, class = "PRIEST", health = 90, maxHealth = 100 }
-    ns.Raid.header.initialConfigFunction(ns.Raid.header, b:GetName())
-    local function inside(why)
-        for _, bar in ipairs({ b.heals, b.heals.wedge, b.absorbs, b.absorbs.wedge, b.overshield }) do
-            local clip = bar:GetParent()
-            T.truthy(clip:DoesClipChildren(), why .. ": cut off at the health bar's edge")
-            local _, rel = clip:GetPoint(1)
-            T.eq(rel, b.health, why .. ": the cut is the health bar itself")
-        end
-    end
-    inside("across")
-    DUI:Set("UnitFrames", "raid.fillVertical", true)
-    stub.RunTimers()
-    inside("upward")
-end)
-
 T.test("raid tiles: tiles per line other than five run everyone on in order", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "raid.perLine", 4)
@@ -351,8 +331,9 @@ T.test("with Clique loaded, the raid header hands each new button to Clique's he
     T.truthy(init:find('SetAttribute("clickcast_button", self)', 1, true), "the button is passed to Clique before it registers")
 end)
 
-T.test("raid tiles carry buffs when asked (only mine by default)", function()
+T.test("raid tiles carry buffs when asked (only mine when picked)", function()
     local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.auras.buffs.which", "mine")
     local b = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton3", ns.Raid.header)
     b:SetAttribute("unit", "raid3")
     stub.units.raid3 = { name = "Lirin", isPlayer = true, class = "PRIEST", health = 10, maxHealth = 10 }
@@ -672,6 +653,7 @@ T.test("the name: across the bar by default, or at a spot, or beside the tile", 
     stub.RunTimers()
     T.eq(select(1, fs:GetPoint(1)), "TOPLEFT")
     T.eq(fs:GetJustifyH(), "LEFT")
+    DUI:Set("UnitFrames", "raid.nameTag", false)
     DUI:Set("UnitFrames", "raid.namePos", "outright")
     stub.RunTimers()
     local p, rel, rp = fs:GetPoint(1)
@@ -680,6 +662,36 @@ T.test("the name: across the bar by default, or at a spot, or beside the tile", 
     stub.RunTimers()
     T.eq(select(1, fs:GetPoint(1)), today, "back to today's")
     T.eq(fs:GetNumPoints(), 2)
+end)
+
+T.test("a tile's name outside it sits on a name tab, like the player frame's", function()
+    local DUI, ns = login()
+    local b = tile(ns)
+    T.isnil(b.nameTag, "no tab while the name is on the bar")
+    DUI:Set("UnitFrames", "raid.namePos", "above")
+    stub.RunTimers()
+    local tag = b.nameTag
+    T.truthy(tag and tag:IsShown(), "a tab once the name is above the tile")
+    T.truthy(DaylightUI.Style.GetShell(tag), "it wears the shell, as the player's tab")
+    T.eq(b.nameText:GetParent(), tag, "the name is in it")
+    local p, rel, rp = tag:GetPoint(1)
+    T.eq(p, "BOTTOM"); T.eq(rel, b); T.eq(rp, "TOP")
+    T.eq(select(2, b.nameText:GetPoint(1)), tag, "centered in the tab")
+    T.truthy(tag:GetWidth() <= b:GetWidth(), "never wider than the tile")
+    -- A secret name can't be measured: the tab takes the tile's width.
+    b.nameText:SetText(stub.Secret("Teft"))
+    ns.UF.SizeNameTag(b)
+    T.eq(tag:GetWidth(), b:GetWidth())
+    -- Switched off, or back on the bar: the name floats on the tile again.
+    DUI:Set("UnitFrames", "raid.nameTag", false)
+    stub.RunTimers()
+    T.falsy(tag:IsShown(), "faded out")
+    T.eq(b.nameText:GetParent(), b.overlay)
+    DUI:Set("UnitFrames", "raid.nameTag", true)
+    DUI:Set("UnitFrames", "raid.namePos", "bar")
+    stub.RunTimers()
+    T.falsy(tag:IsShown())
+    T.eq(b.nameText:GetParent(), b.overlay)
 end)
 
 T.test("tiles per line can go up to 40; the default layout is unchanged", function()

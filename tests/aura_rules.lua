@@ -5,7 +5,7 @@
 -- asks here.
 --
 -- group: what AddAuraGroup got, { filter, opts }.
--- aura: { spellId, harmful, duration, mine, cc, canApply, fromPlayer, neverSecret }.
+-- aura: { spellId, harmful, duration, mine, cc, canApply, fromPlayer, neverSecret, boss }.
 -- unit: { canAssist, groupMember }.
 
 local function identityAllowed(unit, aura)
@@ -32,6 +32,7 @@ return function(group, unit, aura)
     local cand = group.opts and group.opts.candidateFilters
     if not cand then return true end
     if identityAllowed(unit, aura) then
+        if cand.excludeSpellIDs and cand.excludeSpellIDs[aura.spellId] then return false end
         if cand.includeSpellIDs and not cand.includeSpellIDs[aura.spellId] then return false end
     elseif cand.includeSpellIDs then
         -- "Testing exact spell IDs isn't permitted on this unit."
@@ -39,6 +40,7 @@ return function(group, unit, aura)
     end
     if cand.canApplyAura ~= nil and (aura.canApply == true) ~= cand.canApplyAura then return false end
     if cand.isFromPlayerOrPlayerPet ~= nil and (aura.fromPlayer == true) ~= cand.isFromPlayerOrPlayerPet then return false end
+    if cand.isBossAura ~= nil and (aura.boss == true) ~= cand.isBossAura then return false end
     if cand.maxDuration and (aura.duration > cand.maxDuration or aura.duration == 0) then return false end
     return true
 end

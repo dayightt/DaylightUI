@@ -384,7 +384,7 @@ function Bank.Build()
     end)
     for _, e in ipairs({ "BANK_TABS_CHANGED", "PLAYERBANKSLOTS_CHANGED", "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED",
                          "BANK_TAB_SETTINGS_UPDATED" }) do
-        pcall(DUI.RegisterEvent, e, function()
+        DUI.RegisterEvent(e, function()
             if f:IsShown() then
                 W.Changed(f)
                 Bank.RefreshStrip()
@@ -393,7 +393,7 @@ function Bank.Build()
         end)
     end
     -- Account bank gold only appears in the footer.
-    pcall(DUI.RegisterEvent, "ACCOUNT_MONEY", function() W.UpdateFooter(f) end)
+    DUI.RegisterEvent("ACCOUNT_MONEY", function() W.UpdateFooter(f) end)
 end
 
 -- Tabs and slot counts arrive from the server a moment after BANKFRAME_OPENED,

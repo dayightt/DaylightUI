@@ -19,14 +19,14 @@ Engine.AddonSwitch({ key = "rxp", addon = "RXPGuides", label = "RestedXP Guides"
 
 local function isTable(x) return type(x) == "table" end
 
--- One of its own boxes: backdrop removed, ours instead.
+-- One of its own boxes: backdrop removed, a shell instead.
 local function box(Kit, f, look)
     if not isTable(f) or not f.CreateTexture then return end
     Kit.Backdrop(f)
     Kit.Shell(f, look or "window")
 end
 
--- Our font on every text region of a frame, keeping size and color.
+-- The Daylight font on every text region of a frame, keeping size and color.
 local function fonts(Kit, f)
     if not isTable(f) or not f.GetRegions then return end
     for _, r in ipairs({ f:GetRegions() }) do
@@ -53,7 +53,7 @@ local function steps(Kit, all)
                 box(Kit, stepframe.number, "control")
                 if isTable(stepframe.number) then fonts(Kit, stepframe.number) end
             end
-            -- Lines come and go with the step; give each new one our box once.
+            -- Lines come and go with the step; give each new one a box once.
             for _, el in pairs(stepframe.elements or {}) do
                 if isTable(el) and isTable(el.button) then Kit.Check(el.button) end
             end
@@ -107,12 +107,12 @@ end
 -- RXP.ui.v2:ApplyFrameBackdrop(frame, ...) gives a frame rxpBackground and
 -- rxpBorder (created once, recolored on every call: theme change, a step, a
 -- checkbox hover), and AddFrameShadow gives it rxpShadow. Post-hooking those,
--- every V2 frame loses that art and gets one of our shells, with the look picked
+-- every V2 frame loses that art and gets a shell, with the look picked
 -- by the dressers below (`V2.role`). Frames with no role (its party window, its
 -- importer) are windows; frames with no border of their own (inner panes) get
 -- nothing. The shell goes on next frame, once the widget is dressed and its
 -- role known. Its menus (the game's DropDownList, its "menu theme") are left as
--- RXP draws them. Text gets our font and ink: values white, quest names keep
+-- RXP draws them. Text gets the Daylight font and ink: values white, quest names keep
 -- their colors (Kit.Light only relights dark runs).
 -- ---------------------------------------------------------------------
 
@@ -127,7 +127,7 @@ local def -- the skin def, once it runs
 
 local function kind(x) return isTable(x) and x.GetObjectType and x:GetObjectType() or nil end
 
--- RXP resets its own font on every refresh, so put ours back, keeping the size.
+-- RXP resets its own font on every refresh, so put the Daylight one back, keeping the size.
 local function font(fs) ns.Kit.Refont(fs) end
 
 local function ink(Kit, fs, color)
@@ -191,7 +191,7 @@ local function made(Kit, frame)
     if isTable(frame.rxpShadow) then frame.rxpShadow:SetAlpha(0) end
 end
 
--- Its resize corner: our window kit's grip look, accent on hover.
+-- Its resize corner: the window kit's grip look, accent on hover.
 local function grip(Kit, btn)
     if not isTable(btn) or not btn.CreateTexture or V2.dressed[btn] then return end
     V2.dressed[btn] = true
@@ -215,8 +215,8 @@ local function grip(Kit, btn)
     btn:HookScript("OnLeave", function() light(false) end)
 end
 
--- The guide window: one window of ours around it all, with the header, name pane
--- and step pane plain inside. Tan title, white guide name, our X, our icon
+-- The guide window: one Daylight window around it all, with the header, name pane
+-- and step pane plain inside. Tan title, white guide name, a W.Close X, an icon
 -- buttons (its gear and guide list), its logo kept.
 local function windowTheme(Kit, w)
     hideArt(Kit, w.settingsButton)
@@ -278,8 +278,8 @@ function V2.Window(Kit, w)
     end
 end
 
--- A "Step N" box: our window with its number tab as an accent tab. Each line's
--- box is ours (V2.Backdrop), its text soft white.
+-- A "Step N" box: a Daylight window with its number tab as an accent tab. Each line's
+-- box is a shell too (V2.Backdrop), its text soft white.
 local function itemText(Kit, item)
     pop(item.titletext)
     for i = 1, item.activeElementRows or 0 do
@@ -360,7 +360,7 @@ Engine.Register({ key = "rxp", pack = "addons", addon = "RXPGuides", switch = "r
         V2.Hook(Kit, def)
         window(Kit)
         local again = Engine.Safe(def, function() window(Kit) end)
-        -- Its theme redrew its art, so put ours back on top.
+        -- Its theme redrew its art, so put the skin back on top.
         if type(f.UpdateVisuals) == "function" then hooksecurefunc(f, "UpdateVisuals", again) end
         if type(f.UpdateScrollBar) == "function" then hooksecurefunc(f, "UpdateScrollBar", again) end
         -- A new step came up (its boxes are created then), or the list was filled.
