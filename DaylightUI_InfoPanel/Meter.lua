@@ -38,7 +38,7 @@ Meter.MODES = {
     { key = "deaths", group = "utility", type = "Deaths", label = L["DEATHS"], name = "Deaths", icon = "deaths", empty = "No deaths yet." },
     -- Not the game's meter: who's closest to pulling your target, from the
     -- threat meter's list (ThreatMeter.lua's TM.Collect).
-    { key = "threat", group = "threat", threat = true, label = string.upper(L["Threat"]), name = "Threat", icon = "threat", empty = "No target" },
+    { key = "threat", group = "threat", threat = true, label = DUI.Style.Upper(L["Threat"]), name = "Threat", icon = "threat", empty = "No target" },
 }
 -- The groups' headings in the mode menu.
 Meter.GROUPS = { damage = "Damage", healing = "Healing", taken = "Taken", utility = "Utility", threat = "Threat" }

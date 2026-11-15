@@ -208,7 +208,7 @@ end
 
 local function heading(parent, words)
     local h = Style.Text(parent, Win.Parts.HEAD, "LEFT")
-    h:SetText(string.upper(words))
+    h:SetText(DUI.Style.Upper(words))
     Style.InkText(h, "pop")
     return h
 end

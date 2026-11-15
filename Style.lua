@@ -2395,6 +2395,24 @@ function Style.DressText(fs, size, opts)
     if opts and opts.untracked then textSize[fs] = nil end
 end
 
+-- string.upper only raises plain A to Z, so accented and Cyrillic letters stay
+-- small ("UNTERSTüTZER"). This raises the two-byte letters too: Latin-1
+-- (German, French, Spanish...) and Russian.
+local function raise(lead, b)
+    local n = b:byte()
+    if lead == "\195" and n >= 0xA0 and n <= 0xBE and n ~= 0xB7 then return lead .. string.char(n - 0x20) end
+    if lead == "\208" and n >= 0xB0 and n <= 0xBF then return lead .. string.char(n - 0x20) end
+    if lead == "\209" and n >= 0x80 and n <= 0x8F then return "\208" .. string.char(n + 0x20) end
+    if lead == "\209" and n >= 0x90 and n <= 0x9F then return "\208" .. string.char(n - 0x10) end
+    return lead .. b
+end
+
+-- Text in capitals, for headings shown in upper case.
+function Style.Upper(text)
+    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return text end
+    return (string.gsub(string.upper(text), "([\195\208\209])([\128-\191])", raise))
+end
+
 -- font (optional): another font file, kept when the Appearance font changes,
 -- or a slot name (Media.RegisterSlot) to follow that area's own pick. Text
 -- inside one of Daylight UI's windows follows the window text font automatically.

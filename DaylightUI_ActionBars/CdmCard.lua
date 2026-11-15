@@ -704,7 +704,7 @@ local function sectionHead(f, width)
     h.line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
     h.line:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
     function h.Set(text)
-        h.text:SetText(string.upper(text or ""))
+        h.text:SetText(DUI.Style.Upper(text or ""))
         DUI.Style.InkText(h.text, "pop")
     end
     return h

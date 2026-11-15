@@ -269,7 +269,7 @@ function Afk.ShowFact()
     local key, head, line = Facts.Next()
     if not key then return false end
     f.key = key
-    Style.PaintAccentText(f.head, string.upper(head))
+    Style.PaintAccentText(f.head, DUI.Style.Upper(head))
     f.line:SetText(line)
     f.since = 0
     return true

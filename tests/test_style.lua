@@ -1344,3 +1344,14 @@ T.test("fonts: on a Korean client with Daylight UI's own font picked, Korean let
             "the game's own font draws them itself")
     end)
 end)
+
+T.test("style: capitals raise accented and Russian letters too", function()
+    local DUI = stub.Load()
+    local Up = DUI.Style.Upper
+    T.eq(Up("Unterstützer"), "UNTERSTÜTZER")
+    T.eq(Up("Cette session à"), "CETTE SESSION À")
+    T.eq(Up("Esta sesión"), "ESTA SESIÓN")
+    T.eq(Up("Этот сеанс ёж"), "ЭТОТ СЕАНС ЁЖ")
+    T.eq(Up("利润 이익"), "利润 이익", "letters with no capitals stay as they are")
+    T.eq(Up(nil), nil)
+end)

@@ -212,7 +212,7 @@ function CharacterPage.RefreshStats(page)
             Motion.Glide(G.head, 0, y - G.y)
         end
         G.y = y
-        ns.Colors.HeadText(G.head.text, ns.Stats.COLOR[g] or g, string.upper(ns.Stats.LABEL[g]))
+        ns.Colors.HeadText(G.head.text, ns.Stats.COLOR[g] or g, DUI.Style.Upper(ns.Stats.LABEL[g]))
         ns.Colors.Line(G.head.line, CharacterPage.LINE_ALPHA)
         G.head.state:SetText(open and "" or "+")
         y = y + CharacterPage.GROUP_HEAD + 2

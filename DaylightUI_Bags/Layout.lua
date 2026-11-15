@@ -280,7 +280,7 @@ end
 function Layout.PaintHeading(h, folded)
     local Style, Motion = DUI.Style, DUI.Motion
     local lit = not folded or h.hover
-    local shown = h.name and string.upper(h.name) or ""
+    local shown = h.name and DUI.Style.Upper(h.name) or ""
     local gr, gg, gb
     if not folded then gr, gg, gb = ns.Categories.Color(h.key) end
     if lit and h.key == "recent" then

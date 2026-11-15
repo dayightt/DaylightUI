@@ -128,11 +128,11 @@ function Page.KindName(kind)
     return names[kind] or kind
 end
 
-local function rangeName(id)
-    if id == "session" then return L["This session"] end
+local function rangeName(id, inSentence)
+    if id == "session" then return inSentence and L["this session"] or L["This session"] end
     if id == "week" then return L["7 days"] end
     if id == "month" then return L["30 days"] end
-    return L["All time"]
+    return inSentence and L["all time"] or L["All time"]
 end
 
 -- "today", "yesterday", "3 days ago"
@@ -196,7 +196,7 @@ function Page.Render(page)
     local r
     r, src = read(src, "Range", Page.range, "auction")   -- the rest of the paint uses whichever source answered
     for id, b in pairs(page.chips) do b.SetOn(id == Page.range) end
-    page.rangeLabel:SetText(string.format(L["Profit, %s"], rangeName(Page.range):lower()))
+    page.rangeLabel:SetText(string.format(L["Profit, %s"], rangeName(Page.range, true)))
     paintNet(page, r.net)
     local sub
     if Page.range == "week" or Page.range == "month" then
@@ -270,7 +270,7 @@ local function section(left, text, y)
     local fs = Style.Text(left, Style.SIZE.tiny, "LEFT")
     fs:SetPoint("TOPLEFT", left, "TOPLEFT", Page.EDGE, -y)
     Style.InkText(fs, "pop")
-    fs:SetText(text:upper())
+    fs:SetText(DUI.Style.Upper(text))
     return fs
 end
 

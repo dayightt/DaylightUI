@@ -365,7 +365,7 @@ local function fillOpened(d, r, width, acts)
     end
     d.head:ClearAllPoints()
     d.head:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y)
-    d.head:SetText(string.upper(r.solo and L["Looking for a group"] or L["In the group"]))
+    d.head:SetText(DUI.Style.Upper(r.solo and L["Looking for a group"] or L["In the group"]))
     Style.InkText(d.head, "pop")
     y = y + 18
     local used = 0

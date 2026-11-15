@@ -526,7 +526,7 @@ end
 local function head(s, section, folded)
     local b = s:Piece("head", makeHead, 22, 12)
     b.section = section
-    b.text:SetText(string.upper(section.name or ""))
+    b.text:SetText(DUI.Style.Upper(section.name or ""))
     b.state:SetText(folded and "+" or "")
     color(b.text, Spells.QUIET)
     color(b.state, Spells.QUIET)

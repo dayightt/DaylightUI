@@ -69,7 +69,7 @@ end
 -- paint, run after a toggle.
 function Friends.Head(stack, key, label, count, folds, render)
     local b = stack:Piece("head", makeHead, 22, 12, "head:" .. tostring(key))
-    b.text:SetText(string.upper(label or ""))
+    b.text:SetText(DUI.Style.Upper(label or ""))
     b.count:SetText(count or "")
     local folded = folds and folds[key] == true
     b.state:SetText(folded and "+" or "")

@@ -174,7 +174,7 @@ local function makeCard(parent, g)
     c.drop:Hide()
     c.head = Style.Text(c, Style.SIZE.tiny, "LEFT")
     c.head:SetPoint("TOPLEFT", c, "TOPLEFT", 10, -6)
-    c.head:SetText(string.upper(string.format(L["Group %d"], g)))
+    c.head:SetText(DUI.Style.Upper(string.format(L["Group %d"], g)))
     c.group = g
     c.slots = {}
     for i = 1, Data().GROUP_SIZE do

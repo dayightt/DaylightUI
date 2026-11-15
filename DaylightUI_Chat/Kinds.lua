@@ -51,6 +51,9 @@ Kinds.CHANNELS = {
     ["buscar grupo"] = "lfg", defensamundial = "defense", ["defensa mundial"] = "defense",
     defensaglobal = "defense", ["defensa global"] = "defense", servicios = Kinds.SERVICES, novatos = "general",
     ["comercio (servicios)"] = Kinds.SERVICES, ["comercio (local)"] = Kinds.TRADE_LOCAL,
+    -- German clients name them in German.
+    allgemein = "general", handel = "trade", lokaleverteidigung = "defense", ["lokale verteidigung"] = "defense",
+    suchenachgruppe = "lfg", ["suche nach gruppe"] = "lfg",
 }
 
 -- Kinds that were misnamed: old -> correct. A switch or tag saved on the old

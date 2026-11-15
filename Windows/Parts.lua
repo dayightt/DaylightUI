@@ -348,7 +348,7 @@ function Stack:Section(label, opts)
     opts = opts or {}
     local b = take(self, "section", makeSection)
     b.opts = opts
-    b.text:SetText(string.upper(label or ""))
+    b.text:SetText(DUI.Style.Upper(label or ""))
     if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "pop") end
     b.value:SetText(opts.value or "")
     Style.InkText(b.value, "LABEL")

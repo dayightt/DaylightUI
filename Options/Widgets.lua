@@ -2737,7 +2737,7 @@ local function fillRow(r, n)
     if picked then Style.PaintAccent(r.check) end
     if title then
         r.text:SetFont(W.BODY, SIZE.small, "")
-        r.text:SetText(string.upper(values[k] or ""))
+        r.text:SetText(DUI.Style.Upper(values[k] or ""))
         W.TextAccent(r.text)
     elseif hint then
         r.text:SetFont(W.BODY, SIZE.small, "")

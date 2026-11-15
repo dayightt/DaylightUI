@@ -11,7 +11,17 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        changed = {
+            { "Languages", "Much more German text checked by native speakers, and every Spanish line translated" },
+        },
+        fixed = {
+            { "Loot", "Hovering or clicking anywhere on a loot row takes the item, not only its icon" },
+            { "Languages", "Headings in capitals keep their accented and Russian letters, and \"2 days ago\", the gold ledger and the PvP rank read right in every language" },
+            { "Chat", "Channels on a German game get their short tags and sort into the right tabs" },
+            { "Unlock mode", "The Move together button shows what it does when you hover it" },
+        },
+    },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",
         new = {
             { "Glows", "Five animated glows (or none) for main window buttons, your target's nameplate outline and Cooldown Manager glows" },
