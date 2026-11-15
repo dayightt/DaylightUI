@@ -16,6 +16,7 @@ TestBox.COLUMNS = 5
 TestBox.COL_W = 124
 TestBox.ROW_H = 22
 TestBox.PAD = 12
+TestBox.LABEL_PAD = 14 + 6 + 10   -- tick box, gap to the label, gap to the next column
 
 -- available() is optional. Returning false leaves the part out (its frame is off).
 function DUI.RegisterTestPart(key, label, order, available)
@@ -147,18 +148,34 @@ function TestBox.Make(spec)
             box.rows[i] = row
             row.key = p.key
             row.label:SetText(DUI.L[p.label])
-            local col, line = (i - 1) % TestBox.COLUMNS, math.floor((i - 1) / TestBox.COLUMNS)
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", f, "TOPLEFT", TestBox.PAD + col * TestBox.COL_W, -28 - line * TestBox.ROW_H)
-            row:Show()
         end
         for i = #items + 1, #box.rows do
             box.rows[i].key = nil
             box.rows[i]:Hide()
         end
-        local cols = math.max(1, math.min(TestBox.COLUMNS, #items))
-        local lines = math.max(1, math.ceil(#items / TestBox.COLUMNS))
-        f:SetSize(2 * TestBox.PAD + cols * TestBox.COL_W, 36 + lines * TestBox.ROW_H)
+        -- A column is as wide as its longest label (a language with longer words
+        -- would run into the next column), and fewer columns fit when the screen
+        -- is narrow.
+        local colW = TestBox.COL_W
+        for i = 1, #items do
+            local w = box.rows[i].label:GetStringWidth()
+            if type(w) == "number" then colW = math.max(colW, math.ceil(w) + TestBox.LABEL_PAD) end
+        end
+        local maxW = (UIParent:GetWidth() - 40) / math.max(f:GetEffectiveScale() / UIParent:GetEffectiveScale(), 0.1)
+        local perLine = math.max(1, math.min(TestBox.COLUMNS, math.floor((maxW - 2 * TestBox.PAD) / colW)))
+        for i = 1, #items do
+            local row = box.rows[i]
+            local col, line = (i - 1) % perLine, math.floor((i - 1) / perLine)
+            row:SetWidth(colW)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", f, "TOPLEFT", TestBox.PAD + col * colW, -28 - line * TestBox.ROW_H)
+            row:Show()
+        end
+        local cols = math.max(1, math.min(perLine, #items))
+        local lines = math.max(1, math.ceil(#items / perLine))
+        -- Never narrower than the title and its close button.
+        local titleW = (tonumber(f.title:GetStringWidth()) or 0) + 2 * 28
+        f:SetSize(math.max(2 * TestBox.PAD + cols * colW, titleW), 36 + lines * TestBox.ROW_H)
         box.Refresh()
     end
     return box
@@ -228,9 +245,14 @@ function UnlockBox.IsOpen()
     return DUI.DB.Root().unlockBoxClosed ~= true
 end
 
+-- Open and the bar it hangs from not folded away.
+function UnlockBox.Wanted()
+    return UnlockBox.IsOpen() and not DUI.Movers.barHidden
+end
+
 function UnlockBox.SetOpen(open)
     DUI.DB.Root().unlockBoxClosed = (not open) or nil
-    if open and DUI.Movers.unlocked then
+    if open and DUI.Movers.unlocked and UnlockBox.Wanted() then
         UnlockBox.Layout()
         UnlockBox.frame:Show()
     elseif UnlockBox.frame then
@@ -260,7 +282,11 @@ function TestBox.Place()
     if tb then
         tb:ClearAllPoints()
         -- Over the handles while unlocked, like the unlock box.
-        if unlocked and ub then
+        if unlocked and ub and DUI.Movers.barHidden then
+            -- Under the small tab, which the unlock box isn't hanging from.
+            tb:SetPoint("TOP", UIParent, "TOP", 0, -48)
+            tb:SetFrameStrata("FULLSCREEN_DIALOG")
+        elseif unlocked and ub then
             tb:SetPoint("TOP", ub, "BOTTOM", 0, -6)
             tb:SetFrameStrata("FULLSCREEN_DIALOG")
         else
@@ -283,7 +309,19 @@ DUI.On("TestModeChanged", function(on)
 end)
 
 DUI.On("UnlockChanged", function(on)
-    if on and UnlockBox.IsOpen() then
+    if on and UnlockBox.Wanted() then
+        UnlockBox.Layout()
+        UnlockBox.frame:Show()
+    elseif UnlockBox.frame then
+        DUI.Motion.Vanish(UnlockBox.frame)
+    end
+    if TestBox.frame then TestBox.Place() end
+end)
+
+-- The bar folded into its tab takes the unlock box with it, and brings it back.
+DUI.On("UnlockBarChanged", function()
+    if not DUI.Movers.unlocked then return end
+    if UnlockBox.Wanted() then
         UnlockBox.Layout()
         UnlockBox.frame:Show()
     elseif UnlockBox.frame then
@@ -300,7 +338,7 @@ end)
 -- area with no handles left loses its own.
 DUI.On("SettingChanged", function()
     if TestBox.frame and TestBox.frame:IsShown() then TestBox.Layout() end
-    if DUI.Movers.unlocked and UnlockBox.frame and UnlockBox.IsOpen() then UnlockBox.Layout() end
+    if DUI.Movers.unlocked and UnlockBox.frame and UnlockBox.Wanted() then UnlockBox.Layout() end
 end)
 -- Accent color for the ticks.
 DUI.On("StyleChanged", function()

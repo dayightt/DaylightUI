@@ -33,6 +33,21 @@ GM.FRAMES = {
     { name = "UIWidgetTopCenterContainerFrame", label = "Top Center Status", minW = 200, minH = 40 },
     { name = "UIErrorsFrame", label = "Error Messages", minW = 300, minH = 40 },
     { name = "TicketStatusFrame", label = "Ticket Status", minW = 200, minH = 40 },
+    -- Holds the breath, fatigue, feign death and release bars (Skins draws them
+    -- as children of each timer, so they follow it).
+    -- It's hidden (and empty) until a timer runs, so its handle stands where the
+    -- game hangs it: from the top, 170 down unless the game says otherwise.
+    { name = "MirrorTimerContainer", label = "Breath bar", minW = 220, minH = 30,
+      home = function(spec)
+          local f = _G[spec.name]
+          local s = DUI.Movers.Scale(GM.Key(spec.name))
+          local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+          local p, rel, rp, x, y = f:GetPoint(1)
+          if not (p == "TOP" and rp == "TOP" and (rel == nil or rel == UIParent) and type(x) == "number" and type(y) == "number") then
+              x, y = 0, -170
+          end
+          return x * r, UIParent:GetHeight() / 2 + y * r - spec.minH * s / 2
+      end },
     -- Battle.net friend toasts (logins, broadcasts, invites) stack from a corner
     -- of this small frame by the chat, so once moved it's sized to one toast
     -- (fit) and the toast fills the handle.
@@ -142,8 +157,29 @@ end
 GM.PLACE_EVENTS = { "PLAYER_ENTERING_WORLD", "EDIT_MODE_LAYOUTS_UPDATED", "PLAYER_SPECIALIZATION_CHANGED" }
 
 local editSized -- defined below with the Edit Mode pieces
+local soonRef -- the debounced placeAll, for the OnShow hooks made in register
+
+-- A handle for each frame that exists. Tried again on every placing event, since a
+-- frame the game makes late (the breath bar's container) isn't there at login.
+local function register()
+    for _, spec in ipairs(GM.FRAMES) do
+        local f = _G[spec.name]
+        local key = GM.Key(spec.name)
+        if type(f) == "table" and f.SetPoint and not DUI.Movers.Get(key) then
+            DUI.Movers.Register(f, key, spec.label, nil, { proxy = true,
+                minW = spec.minW, minH = spec.minH,
+                scale = function(s) sized(spec, s) end,
+                home = spec.home and function() return spec.home(spec) end
+                    or spec.fit and function() return fitHome(spec) end or nil,
+                onMoved = function() DUI.SafeCall(place, spec) end })
+            if f.HookScript then f:HookScript("OnShow", soonRef) end
+            DUI.SafeCall(place, spec)
+        end
+    end
+end
 
 local function placeAll()
+    DUI.SafeCall(register)
     for _, spec in ipairs(GM.FRAMES) do DUI.SafeCall(place, spec) end
     for _, spec in ipairs(GM.EDIT_FRAMES) do
         if spec.size then DUI.SafeCall(editSized, spec) end
@@ -151,6 +187,7 @@ local function placeAll()
 end
 
 local soon = DUI.Soon(placeAll)
+soonRef = soon
 
 -- The game's Edit Mode pieces (loot window, crowd control alert). Addon code
 -- never moves them because that would taint them. The handle records the
@@ -286,19 +323,7 @@ end
 
 function GM.Setup()
     DUI.SafeCall(setupEdit)
-    for _, spec in ipairs(GM.FRAMES) do
-        local f = _G[spec.name]
-        local key = GM.Key(spec.name)
-        if type(f) == "table" and f.SetPoint and not DUI.Movers.Get(key) then
-            DUI.Movers.Register(f, key, spec.label, nil, { proxy = true,
-                minW = spec.minW, minH = spec.minH,
-                scale = function(s) sized(spec, s) end,
-                home = spec.fit and function() return fitHome(spec) end or nil,
-                onMoved = function() DUI.SafeCall(place, spec) end })
-            if f.HookScript then f:HookScript("OnShow", soon) end
-            DUI.SafeCall(place, spec)
-        end
-    end
+    DUI.SafeCall(register)
     if type(_G.AlertFrame_ShowNewAlert) == "function" then
         hooksecurefunc("AlertFrame_ShowNewAlert", function(f) DUI.SafeCall(sizeToast, f) end)
     end

@@ -1294,8 +1294,30 @@ local function showLockButton(show)
         end)
         DUI.On("UnlockBoxChanged", areas.Sync)
         lockButton.areas = areas
+
+        -- Folds the bar (and the boxes under it) up into a small tab, for handles
+        -- that sit beneath it.
+        local fold = DUI.Widgets.Button(bar, L["Hide"], 30)
+        fold.FitWidth(80)
+        fold:SetFrameLevel(bar:GetFrameLevel() + 2)
+        fold:SetPoint("LEFT", areas, "RIGHT", 8, 0)
+        fold:SetScript("OnClick", function() Movers.SetBarHidden(true) end)
+        lockButton.fold = fold
         bar:SetWidth(PILL_PAD + lockButton:GetWidth() + 8 + snap:GetWidth()
-            + 8 + mag:GetWidth() + 8 + areas:GetWidth() + PILL_PAD)
+            + 8 + mag:GetWidth() + 8 + areas:GetWidth() + 8 + fold:GetWidth() + PILL_PAD)
+
+        -- The tab that brings it back, small and at the very top.
+        local tab = pill()
+        tab:SetPoint("TOP", UIParent, "TOP", 0, -4)
+        tab:SetHeight(22 + 2 * PILL_PAD)
+        local unfold = DUI.Widgets.Button(tab, L["Show"], 22)
+        unfold:SetFrameLevel(tab:GetFrameLevel() + 2)
+        unfold:SetPoint("CENTER", tab, "CENTER", 0, 0)
+        unfold.FitWidth(70)
+        unfold:SetScript("OnClick", function() Movers.SetBarHidden(false) end)
+        tab:SetWidth(unfold:GetWidth() + 2 * PILL_PAD)
+        tab:Hide()
+        lockButton.tab, lockButton.unfold = tab, unfold
 
         -- The setup guide was never finished, so moves are lost at logout. Shown lit
         -- under the bar, with the reason on hover. A click opens the guide.
@@ -1315,21 +1337,36 @@ local function showLockButton(show)
         lockButton.setup = setup
     end
     if lockButton then
-        lockButton.bar:SetShown(show)
-        lockButton:SetShown(show)
-        lockButton.snap:SetShown(show)
-        lockButton.magnet:SetShown(show)
-        lockButton.areas:SetShown(show)
-        local setup = show and DUI.DB.Unsaved()
+        -- Folded, only the small tab shows.
+        local bar = show and not Movers.barHidden
+        lockButton.bar:SetShown(bar)
+        lockButton:SetShown(bar)
+        lockButton.snap:SetShown(bar)
+        lockButton.magnet:SetShown(bar)
+        lockButton.areas:SetShown(bar)
+        lockButton.fold:SetShown(bar)
+        lockButton.tab:SetShown(show and Movers.barHidden == true)
+        lockButton.unfold:SetShown(show and Movers.barHidden == true)
+        local setup = bar and DUI.DB.Unsaved()
         if setup then lockButton.setup.bar:SetAlpha(1) end
         lockButton.setup.bar:SetShown(setup)
         lockButton.setup:SetShown(setup)
-        if show then
+        if bar then
             lockButton.snap.Sync()
             lockButton.magnet.Sync()
             lockButton.areas.Sync()
         end
     end
+end
+
+-- Folds the Lock bar into its small tab, or opens it again. Kept until the
+-- game closes, so a bar you put away stays away through lock and unlock.
+function Movers.SetBarHidden(hide)
+    hide = hide and true or false
+    if (Movers.barHidden or false) == hide then return end
+    Movers.barHidden = hide
+    if Movers.unlocked then showLockButton(true) end
+    DUI.Fire("UnlockBarChanged", hide)
 end
 
 function Movers.LockButton() return lockButton end
@@ -1363,6 +1400,7 @@ Movers.AREAS = {
     { id = "bags",       label = "Bags",          match = "^bags%." },
     { id = "tooltip",    label = "Tooltip",       match = "^tooltip" },
     { id = "combattext", label = "Combat Text",   match = "^combattext%." },
+    { id = "breath",     label = "Breath bar",    match = "^game%.MirrorTimerContainer" },
     { id = "game",       label = "Game Frames",   match = "^game%." },
     { id = "other",      label = "Other",         match = "" },
 }
