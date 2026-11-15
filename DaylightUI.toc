@@ -47,6 +47,7 @@ DotsDraw.lua
 PrivateAuras.lua
 Taint.lua
 BugReport.lua
+PlateReport.lua
 Gradients.lua
 Movers.lua
 Fade.lua

@@ -11,6 +11,7 @@
 local _, ns = ...
 local DUI = DaylightUI
 local isSecret = DUI.IsSecret
+local Report = DUI.PlateReport
 local L = DUI.L
 
 local Manager = {}
@@ -849,9 +850,6 @@ function Manager.Start()
     for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
         DUI.RegisterEvent(e, function() Manager.ApplySize() end)
     end
-    local changes = Manager.screenChanges
-    DUI.RegisterEvent("UI_SCALE_CHANGED", function() changes.scale = changes.scale + 1 end)
-    DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() changes.display = changes.display + 1 end)
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         Manager.UpdateTargets()
         Manager.QueueFocus()
@@ -1019,45 +1017,12 @@ end, L["/dui platedebug - your target's nameplate's click area"])
 -- it works in combat. Output stays in English.
 Manager.CHECK_DETAIL = 6 -- plates listed in full; a crowd would flood the chat
 
-local function asked(f, method)
-    local ok, v = pcall(function() return f[method](f) end)
-    if not ok then return "?" end
-    if isSecret(v) then return "secret" end
-    if type(v) == "number" then return string.format("%.2f", v) end
-    return tostring(v)
-end
-
-local function where(f)
-    local ok, l, b, w, h = pcall(function() return f:GetRect() end)
-    if not ok then return "can't measure" end -- the game refuses; says nothing about the plate
-    if type(l) == "nil" then return "no rect" end
-    if isSecret(l) or isSecret(b) or isSecret(w) or isSecret(h) then
-        return "secret"
-    end
-    return string.format("%.0f,%.0f %.0fx%.0f", l, b, w, h)
-end
-
-local function state(f)
-    return string.format("shown=%s visible=%s alpha=%s effective=%s strata=%s scale=%s rectValid=%s box=%s",
-        asked(f, "IsShown"), asked(f, "IsVisible"), asked(f, "GetAlpha"), asked(f, "GetEffectiveAlpha"),
-        asked(f, "GetFrameStrata"), asked(f, "GetEffectiveScale"), asked(f, "IsRectValid"), where(f))
-end
+local asked, state = Report.Asked, Report.State
 
 -- One plate's lines, and whether it looks wrong.
 function Manager.CheckOne(unit, np)
     if forbidden(np) then return { unit .. ": the game keeps this plate from addons (forbidden)" }, true end
-    local attack = plain(UnitCanAttack, "player", unit)
-    local kind = attack == true and "enemy" or attack == false and "friendly" or "unknown"
-    local player = plain(UnitIsPlayer, unit)
-    local head = string.format("%s: %s, player=%s, minion=%s, target=%s", unit, kind, tostring(player),
-        tostring(plain(UnitIsMinion, unit)), tostring(plain(UnitIsUnit, unit, "target")))
-    local lines = { head, "  game plate " .. state(np) }
-    local wrong = asked(np, "IsVisible") ~= "true" or asked(np, "GetAlpha") == "0.00"
-        or asked(np, "GetEffectiveAlpha") == "0.00"
-    local okUp, up = pcall(function() return np:GetParent() end)
-    if okUp and type(up) == "table" then
-        lines[#lines + 1] = "  above it " .. asked(up, "GetName") .. " " .. state(up)
-    end
+    local lines, wrong = Report.PlateHead(unit, np)
     local uf = np.UnitFrame
     if type(uf) == "table" then
         local okP, parent = pcall(uf.GetParent, uf)
@@ -1102,27 +1067,7 @@ function Manager.CheckLines(detail)
             tostring(c.offsetY), tostring(c.dimOthers), tostring(c.minions),
             tostring(type(c.friendly) == "table" and c.friendly.enabled)),
     }
-    local words = {}
-    for _, name in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateOccludedAlphaMult", "nameplateGlobalScale",
-        "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale", "nameplateMaxDistance" }) do
-        local ok, v = pcall(C_CVar.GetCVar, name)
-        words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. tostring(ok and v)
-    end
-    -- The stacking setting is a bitfield whose raw value isn't text (the copy box
-    -- showed nothing at all with it in), so it's read bit by bit.
-    local E = Enum and Enum.NamePlateStackType
-    local getBit = C_CVar and C_CVar.GetCVarBitfield
-    if E and type(getBit) == "function" then
-        local function bit(i) return tostring(plain(getBit, Manager.STACK_CVAR, i)) end
-        words[#words + 1] = "Stacking enemy=" .. bit(E.Enemy) .. " friendly=" .. bit(E.Friendly)
-    end
-    out[#out + 1] = "Game: " .. table.concat(words, " ")
-    local Bug = DUI.BugReport
-    if type(Bug) == "table" and type(Bug.PlateCache) == "function" then
-        local tainted = Bug.PlateCache()
-        out[#out + 1] = #tainted > 0 and ("Plate settings tainted: " .. table.concat(tainted, ", "))
-            or "Plate settings: clean"
-    end
+    for _, line in ipairs(Report.GameLines()) do out[#out + 1] = line end
     local left = detail or Manager.CHECK_DETAIL
     for _, list in ipairs({ wrongs, fine }) do
         for _, lines in ipairs(list) do
@@ -1295,93 +1240,10 @@ Manager.FIX = {
 -- enough for one Discord message.
 Manager.REPORT_PLATES = 2 -- plates listed in full (a report holds 4000 characters)
 Manager.REPORT_MAX = 3800
-Manager.REPORT_ADDONS = 40
-Manager.REPORT_CVARS = {
-    "nameplateShowAll", "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs",
-    "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale",
-    "nameplateSize", "nameplateStyle", "nameplateSimplifiedTypes", "nameplateMotionSpeed", "nameplateShowEnemyMinions",
-}
-
--- How the game is shown: screen, window mode, graphics card, frame caps, and the
--- UI scale three ways (the game's setting, whether it's used, and what UIParent
--- really has, which Daylight UI keeps at its own saved value), with how often
--- the scale and the screen changed this session. Lined up across reports, this
--- shows what the players who lose their plates have in common.
-Manager.screenChanges = { scale = 0, display = 0 }
-
-function Manager.ReportScreen()
-    local words = {}
-    local function add(label, v)
-        if v ~= nil then words[#words + 1] = label .. "=" .. tostring(v) end
-    end
-    if type(GetPhysicalScreenSize) == "function" then
-        local ok, w, h = pcall(GetPhysicalScreenSize)
-        if ok and type(w) == "number" and type(h) == "number" then words[#words + 1] = string.format("%dx%d", w, h) end
-    end
-    if type(GetMonitorCount) == "function" then
-        local ok, n = pcall(GetMonitorCount)
-        if ok then add("monitors", n) end
-    end
-    add("maximized", cvar("gxMaximize"))
-    add("windowed", cvar("gxWindow"))
-    add("api", cvar("gxapi"))
-    add("maxFPS", cvar("maxFPS"))
-    add("background", cvar("maxFPSBk"))
-    local V = C_VideoOptions
-    if type(V) == "table" and type(V.GetGxAdapterInfo) == "function" then
-        local ok, list = pcall(V.GetGxAdapterInfo)
-        if ok and type(list) == "table" then
-            local names = {}
-            for _, a in ipairs(list) do
-                if type(a) == "table" and type(a.name) == "string" then names[#names + 1] = a.name end
-            end
-            if #names > 0 then words[#words + 1] = "GPU " .. table.concat(names, " / ") end
-        end
-    end
-    local scale = {}
-    scale[#scale + 1] = "uiScale=" .. tostring(cvar("uiScale"))
-    scale[#scale + 1] = "useUiScale=" .. tostring(cvar("useUiScale"))
-    local ok, ui = pcall(UIParent.GetScale, UIParent)
-    scale[#scale + 1] = "UIParent=" .. (ok and type(ui) == "number" and string.format("%.2f", ui) or "?")
-    local c = Manager.screenChanges
-    return {
-        "Screen: " .. table.concat(words, " "),
-        string.format("Scale: %s, scale changes %d, display changes %d", table.concat(scale, " "), c.scale, c.display),
-    }
-end
-
--- Where the player is and what else is running, at the time of asking.
+-- Where the player is, how the game is shown, what of Daylight UI is on and
+-- the other addons (the core's report, DUI.PlateReport).
 function Manager.ReportWorld()
-    local out = {}
-    local up = Manager.startedAt and type(GetTime) == "function" and (GetTime() - Manager.startedAt) / 60
-    local zone = type(GetRealZoneText) == "function" and plain(GetRealZoneText) or nil
-    local kind
-    if type(GetInstanceInfo) == "function" then
-        local ok, _, instanceType = pcall(GetInstanceInfo)
-        kind = ok and instanceType or nil
-    end
-    out[#out + 1] = string.format("%s min since login or /reload, zone %s (%s), restricted=%s",
-        up and string.format("%.0f", up) or "?", tostring(zone), tostring(kind), tostring(DUI.Restricted() == true))
-    local words = {}
-    for _, name in ipairs(Manager.REPORT_CVARS) do
-        local v = cvar(name)
-        if v then words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. v end
-    end
-    out[#out + 1] = "More: " .. table.concat(words, " ")
-    for _, line in ipairs(Manager.ReportScreen()) do out[#out + 1] = line end
-    local A = C_AddOns
-    if A and A.GetNumAddOns and A.GetAddOnInfo and A.IsAddOnLoaded then
-        local names, more = {}, 0
-        for i = 1, A.GetNumAddOns() do
-            local ok, name = pcall(A.GetAddOnInfo, i)
-            if ok and type(name) == "string" and not name:find("^DaylightUI") and A.IsAddOnLoaded(name) then
-                if #names < Manager.REPORT_ADDONS then names[#names + 1] = name else more = more + 1 end
-            end
-        end
-        out[#out + 1] = "Other addons: " .. (#names > 0 and table.concat(names, ", ") or "none")
-            .. (more > 0 and string.format(" +%d more", more) or "")
-    end
-    return out
+    return Report.World(Manager.startedAt)
 end
 
 -- step: the one that brought them back, nil if none did.
@@ -1396,33 +1258,7 @@ function Manager.FixReport(step)
     return Manager.Printable(table.concat(out, "\n"), Manager.REPORT_MAX)
 end
 
--- Text an edit box shows as it is: control bytes become "?", a "|" is doubled
--- (else the box reads it as a color or link code), broken UTF-8 becomes "?", and
--- a cut at max bytes never splits a character. Any of these left the copy box empty.
-function Manager.Printable(text, max)
-    local out, len, i = {}, 0, 1
-    while i <= #text do
-        local b = text:byte(i)
-        local n = b < 0x80 and 1 or (b >= 0xF0 and b < 0xF5) and 4 or (b >= 0xE0 and b < 0xF0) and 3
-            or (b >= 0xC2 and b < 0xE0) and 2 or 0
-        local piece
-        if n == 1 then
-            piece = (b == 124 and "||") or (((b < 32 and b ~= 10) or b == 127) and "?") or string.char(b)
-        elseif n > 1 then
-            piece = text:sub(i, i + n - 1)
-            for k = 2, n do
-                local c = piece:byte(k)
-                if not c or c < 0x80 or c > 0xBF then piece = nil break end
-            end
-        end
-        if not piece then piece, n = "?", 1 end
-        if max and len + #piece > max then break end
-        out[#out + 1] = piece
-        len = len + #piece
-        i = i + n
-    end
-    return table.concat(out)
-end
+Manager.Printable = Report.Printable
 
 -- Shows the report in a copy box (the profiles' one) and ends the round.
 function Manager.FixDone(step)

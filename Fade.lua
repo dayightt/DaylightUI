@@ -283,6 +283,7 @@ end
 -- it. It only changes out of combat (bars and tiles are protected), so an
 -- area that can fade keeps it on even at full, ready for a fight.
 local wholeDue = {}
+local wholeOn = setmetatable({}, { __mode = "k" })
 
 local function setWhole(f, on)
     local flat, buffer = f.SetFlattensRenderLayers, f.SetIsFrameBuffer
@@ -290,7 +291,17 @@ local function setWhole(f, on)
     local ok
     if on then ok = pcall(flat, f, true) and pcall(buffer, f, true)
     else ok = pcall(buffer, f, false) and pcall(flat, f, false) end
-    if ok then f.fadeWhole = on end
+    if ok then
+        f.fadeWhole = on
+        wholeOn[f] = on or nil
+    end
+end
+
+-- How many frames are drawn to their own buffer right now (for reports).
+function Fade.WholeCount()
+    local n = 0
+    for _ in pairs(wholeOn) do n = n + 1 end
+    return n
 end
 
 local function wholeNow()

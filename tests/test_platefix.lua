@@ -246,3 +246,65 @@ T.test("platefix: the report is plain text the copy box can show, and goes to ch
     local chat = table.concat(printed, "\n")
     T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
 end)
+
+-- The report says which parts of Daylight UI were on, and the live state of the
+-- things only Daylight UI does outside its plates, so reports from players who
+-- lose their plates can be lined up.
+T.test("platefix: the report names Daylight UI's modules and its own global pieces as they are", function()
+    local NP = login()
+    local text = table.concat(NP.Manager.ReportWorld(), "\n")
+    T.truthy(text:find("Daylight UI modules on: Nameplates", 1, true), text)
+    T.truthy(text:find("off: UnitFrames", 1, true), text)
+    T.truthy(text:find("buffers drawn 0", 1, true), text)
+    T.truthy(text:find("UIParent alpha 1.00", 1, true), text)
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.SetFlattensRenderLayers = function() end
+    f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.Whole(f, "test", true)
+    stub.RunTimers()
+    text = table.concat(NP.Manager.ReportWorld(), "\n")
+    T.truthy(text:find("buffers drawn 1", 1, true), text)
+end)
+
+-- It happens with the Nameplates module off too, so the check and the fix
+-- steps that don't need it work without it.
+T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates module off", function()
+    local cvars = {}
+    stub.Load({ before = function()
+        local np = CreateFrame("Frame", nil, UIParent)
+        _G.C_NamePlate = { GetNamePlateForUnit = function(unit) if unit == "nameplate1" then return np end end }
+        _G.issecure = function() return false end
+        stub.units = {
+            player = { name = "Me", class = "PRIEST", isPlayer = true },
+            nameplate1 = { name = "Searing Whelp", hostile = true, reaction = 2, health = 60, maxHealth = 100 },
+        }
+    end })
+    _G.SetCVar = function(k, v) cvars[k] = v end
+    _G.GetCVar = function(k) return cvars[k] end
+    _G.C_CVar = _G.C_CVar or {}
+    C_CVar.GetCVarDefault = function(k) return "default:" .. k end
+    cvars.nameplateShowEnemies = "1"
+    local printed = {}
+    local was = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    DaylightUI.RunCommand("platecheck")
+    local check = table.concat(printed, "\n")
+    T.truthy(check:find("Nameplates module off", 1, true), check)
+    T.truthy(check:find("Game plates 1", 1, true), check)
+    T.truthy(check:find("nameplate1", 1, true), check)
+    printed = {}
+    DaylightUI.RunCommand("platefix")
+    T.eq(cvars.nameplateShowEnemies, "0", "the game's plates switched off")
+    stub.RunTimers()
+    stub.RunTimers()
+    T.eq(cvars.nameplateShowEnemies, "1", "and on again")
+    DaylightUI.RunCommand("platefix")
+    T.eq(cvars.nameplateMaxDistance, "default:nameplateMaxDistance", "plate settings to the game's defaults")
+    DaylightUI.RunCommand("platefix yes")
+    DaylightUI.Print = was
+    local text = shownText()
+    T.truthy(text and text:find("step 2 brought them back", 1, true), tostring(text))
+    T.truthy(text:find("Daylight UI modules on:", 1, true), text)
+    T.truthy(text:find("Nameplates module off", 1, true), text)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

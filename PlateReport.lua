@@ -1,0 +1,388 @@
+-- The pieces of /dui platecheck and /dui platefix that don't need the
+-- Nameplates module: the game's plates as they read, the player's screen and
+-- UI scale, which parts of Daylight UI are on, and the text cut safe for the
+-- copy box. The Nameplates module builds its check and report on these.
+-- Plates have gone invisible with that module switched off too, so with it off
+-- these commands are registered here, with the steps that don't need it.
+-- Chat output stays in English: it's read by whoever works on the bug.
+
+local _, DUI = ...
+local L = DUI.L
+
+local R = {}
+DUI.PlateReport = R
+
+local function plain(v)
+    if DUI.IsSecret(v) then return nil end
+    return v
+end
+
+function R.CVar(name)
+    if type(GetCVar) ~= "function" then return nil end
+    local ok, v = pcall(GetCVar, name)
+    return ok and type(v) == "string" and v or nil
+end
+
+-- Text an edit box shows as it is: control bytes become "?", a "|" is doubled
+-- (else the box reads it as a color or link code), broken UTF-8 becomes "?", and
+-- a cut at max bytes never splits a character. Any of these left the copy box empty.
+function R.Printable(text, max)
+    local out, len, i = {}, 0, 1
+    while i <= #text do
+        local b = text:byte(i)
+        local n = b < 0x80 and 1 or (b >= 0xF0 and b < 0xF5) and 4 or (b >= 0xE0 and b < 0xF0) and 3
+            or (b >= 0xC2 and b < 0xE0) and 2 or 0
+        local piece
+        if n == 1 then
+            piece = (b == 124 and "||") or (((b < 32 and b ~= 10) or b == 127) and "?") or string.char(b)
+        elseif n > 1 then
+            piece = text:sub(i, i + n - 1)
+            for k = 2, n do
+                local c = piece:byte(k)
+                if not c or c < 0x80 or c > 0xBF then piece = nil break end
+            end
+        end
+        if not piece then piece, n = "?", 1 end
+        if max and len + #piece > max then break end
+        out[#out + 1] = piece
+        len = len + #piece
+        i = i + n
+    end
+    return table.concat(out)
+end
+
+-- One answer from a frame, guarded: "?" if it errors, "secret" if it's secret.
+function R.Asked(f, method)
+    local ok, v = pcall(function() return f[method](f) end)
+    if not ok then return "?" end
+    if DUI.IsSecret(v) then return "secret" end
+    if type(v) == "number" then return string.format("%.2f", v) end
+    return tostring(v)
+end
+
+function R.Where(f)
+    local ok, l, b, w, h = pcall(function() return f:GetRect() end)
+    if not ok then return "can't measure" end -- the game refuses; says nothing about the plate
+    if type(l) == "nil" then return "no rect" end
+    if DUI.IsSecret(l) or DUI.IsSecret(b) or DUI.IsSecret(w) or DUI.IsSecret(h) then return "secret" end
+    return string.format("%.0f,%.0f %.0fx%.0f", l, b, w, h)
+end
+
+function R.State(f)
+    local asked = R.Asked
+    return string.format("shown=%s visible=%s alpha=%s effective=%s strata=%s scale=%s rectValid=%s box=%s",
+        asked(f, "IsShown"), asked(f, "IsVisible"), asked(f, "GetAlpha"), asked(f, "GetEffectiveAlpha"),
+        asked(f, "GetFrameStrata"), asked(f, "GetEffectiveScale"), asked(f, "IsRectValid"), R.Where(f))
+end
+
+-- A game plate's opening lines: the unit and the plate frame itself, and the
+-- frame above it. wrong = the plate reads hidden or see-through.
+function R.PlateHead(unit, np)
+    local function ask(fn, ...)
+        if type(fn) ~= "function" then return nil end
+        local ok, v = pcall(fn, ...)
+        return ok and plain(v) or nil
+    end
+    local attack = ask(UnitCanAttack, "player", unit)
+    local kind = attack == true and "enemy" or attack == false and "friendly" or "unknown"
+    local head = string.format("%s: %s, player=%s, minion=%s, target=%s", unit, kind, tostring(ask(UnitIsPlayer, unit)),
+        tostring(ask(UnitIsMinion, unit)), tostring(ask(UnitIsUnit, unit, "target")))
+    local lines = { head, "  game plate " .. R.State(np) }
+    local wrong = R.Asked(np, "IsVisible") ~= "true" or R.Asked(np, "GetAlpha") == "0.00"
+        or R.Asked(np, "GetEffectiveAlpha") == "0.00"
+    local okUp, up = pcall(function() return np:GetParent() end)
+    if okUp and type(up) == "table" then
+        lines[#lines + 1] = "  above it " .. R.Asked(up, "GetName") .. " " .. R.State(up)
+    end
+    return lines, wrong
+end
+
+-- The game's plate settings in a line, and whether its settings copy is tainted.
+R.GAME_CVARS = { "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateOccludedAlphaMult", "nameplateGlobalScale",
+    "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale", "nameplateMaxDistance" }
+R.STACK_CVAR = "nameplateStackingTypes"
+
+function R.GameLines()
+    local words = {}
+    for _, name in ipairs(R.GAME_CVARS) do
+        local ok, v = pcall(C_CVar.GetCVar, name)
+        words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. tostring(ok and v)
+    end
+    -- The stacking setting is a bitfield whose raw value isn't text (the copy box
+    -- showed nothing at all with it in), so it's read bit by bit.
+    local E = Enum and Enum.NamePlateStackType
+    local getBit = C_CVar and C_CVar.GetCVarBitfield
+    if E and type(getBit) == "function" then
+        local function bit(i)
+            local ok, v = pcall(getBit, R.STACK_CVAR, i)
+            return tostring(ok and plain(v))
+        end
+        words[#words + 1] = "Stacking enemy=" .. bit(E.Enemy) .. " friendly=" .. bit(E.Friendly)
+    end
+    local out = { "Game: " .. table.concat(words, " ") }
+    local Bug = DUI.BugReport
+    if type(Bug) == "table" and type(Bug.PlateCache) == "function" then
+        local tainted = Bug.PlateCache()
+        out[#out + 1] = #tainted > 0 and ("Plate settings tainted: " .. table.concat(tainted, ", "))
+            or "Plate settings: clean"
+    end
+    return out
+end
+
+-- How the game is shown: screen, window mode, graphics card, frame caps, and the
+-- UI scale three ways (the game's setting, whether it's used, and what UIParent
+-- really has, which Daylight UI keeps at its own saved value), with how often
+-- the scale and the screen changed this session.
+R.changes = { scale = 0, display = 0 }
+DUI.RegisterEvent("UI_SCALE_CHANGED", function() R.changes.scale = R.changes.scale + 1 end)
+DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() R.changes.display = R.changes.display + 1 end)
+
+function R.Screen()
+    local words = {}
+    local function add(label, v)
+        if v ~= nil then words[#words + 1] = label .. "=" .. tostring(v) end
+    end
+    if type(GetPhysicalScreenSize) == "function" then
+        local ok, w, h = pcall(GetPhysicalScreenSize)
+        if ok and type(w) == "number" and type(h) == "number" then words[#words + 1] = string.format("%dx%d", w, h) end
+    end
+    if type(GetMonitorCount) == "function" then
+        local ok, n = pcall(GetMonitorCount)
+        if ok then add("monitors", n) end
+    end
+    add("maximized", R.CVar("gxMaximize"))
+    add("windowed", R.CVar("gxWindow"))
+    add("api", R.CVar("gxapi"))
+    add("maxFPS", R.CVar("maxFPS"))
+    add("background", R.CVar("maxFPSBk"))
+    local V = C_VideoOptions
+    if type(V) == "table" and type(V.GetGxAdapterInfo) == "function" then
+        local ok, list = pcall(V.GetGxAdapterInfo)
+        if ok and type(list) == "table" then
+            local names = {}
+            for _, a in ipairs(list) do
+                if type(a) == "table" and type(a.name) == "string" then names[#names + 1] = a.name end
+            end
+            if #names > 0 then words[#words + 1] = "GPU " .. table.concat(names, " / ") end
+        end
+    end
+    local ok, ui = pcall(UIParent.GetScale, UIParent)
+    local scale = string.format("uiScale=%s useUiScale=%s UIParent=%s", tostring(R.CVar("uiScale")),
+        tostring(R.CVar("useUiScale")), ok and type(ui) == "number" and string.format("%.2f", ui) or "?")
+    return {
+        "Screen: " .. table.concat(words, " "),
+        string.format("Scale: %s, scale changes %d, display changes %d", scale, R.changes.scale, R.changes.display),
+    }
+end
+
+-- Which Daylight UI modules are on, and the state right now of the things only
+-- Daylight UI does outside its own plates: frames drawn to their own buffer,
+-- UIParent's alpha (the AFK screen and NPC scene fade it), the AFK screen and
+-- speech bubble settings, game windows held open out of sight (Win.Follow's
+-- veil), and a quest waypoint being tracked.
+function R.Daylight()
+    local on, off = {}, {}
+    local list = DUI.InstallerPages and DUI.InstallerPages.MODULES or {}
+    for _, m in ipairs(list) do
+        local into = DUI:GetModule(m.name) and on or off
+        into[#into + 1] = m.name
+    end
+    local function setting(module, key)
+        if not DUI:GetModule(module) then return module .. " off" end
+        local ok, v = pcall(DUI.Get, DUI, module, key)
+        return ok and (v and "on" or "off") or "?"
+    end
+    local Fade = DUI.Fade
+    local buffers = Fade and Fade.WholeCount and Fade.WholeCount() or "?"
+    local held = 0
+    local F = DUI.Win and DUI.Win.Followers
+    if F and F.veil then
+        for _, c in ipairs({ F.veil:GetChildren() }) do
+            if c.IsShown and c:IsShown() then held = held + 1 end
+        end
+    end
+    local waypoint = "?"
+    local S = C_SuperTrack
+    if type(S) == "table" and type(S.IsSuperTrackingUserWaypoint) == "function" then
+        local okW, w = pcall(S.IsSuperTrackingUserWaypoint)
+        waypoint = okW and tostring(plain(w)) or "?"
+    end
+    return {
+        string.format("Daylight UI modules on: %s; off: %s", #on > 0 and table.concat(on, " ") or "none",
+            #off > 0 and table.concat(off, " ") or "none"),
+        string.format("Daylight UI now: buffers drawn %s, UIParent alpha %s, AFK screen %s, bubble skin %s, "
+            .. "game windows held open %d, quest waypoint tracked %s", tostring(buffers), R.Asked(UIParent, "GetAlpha"),
+            setting("QoL", "afkScreen"), setting("Chat", "bubbles"), held, waypoint),
+    }
+end
+
+-- Where the player is, how the game is shown, what of Daylight UI is on, and
+-- the other addons loaded. startedAt: GetTime() when the plates started.
+R.REPORT_ADDONS = 40
+R.REPORT_CVARS = {
+    "nameplateShowAll", "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs",
+    "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale",
+    "nameplateSize", "nameplateStyle", "nameplateSimplifiedTypes", "nameplateMotionSpeed", "nameplateShowEnemyMinions",
+}
+
+function R.World(startedAt)
+    local out = {}
+    startedAt = startedAt or R.loggedInAt
+    local up = startedAt and type(GetTime) == "function" and (GetTime() - startedAt) / 60
+    local zone = type(GetRealZoneText) == "function" and plain(GetRealZoneText()) or nil
+    local kind
+    if type(GetInstanceInfo) == "function" then
+        local ok, _, instanceType = pcall(GetInstanceInfo)
+        kind = ok and instanceType or nil
+    end
+    out[#out + 1] = string.format("%s min since login or /reload, zone %s (%s), restricted=%s",
+        up and string.format("%.0f", up) or "?", tostring(zone), tostring(kind), tostring(DUI.Restricted() == true))
+    local words = {}
+    for _, name in ipairs(R.REPORT_CVARS) do
+        local v = R.CVar(name)
+        if v then words[#words + 1] = name:gsub("^nameplate", "") .. "=" .. v end
+    end
+    out[#out + 1] = "More: " .. table.concat(words, " ")
+    for _, line in ipairs(R.Screen()) do out[#out + 1] = line end
+    for _, line in ipairs(R.Daylight()) do out[#out + 1] = line end
+    local A = C_AddOns
+    if A and A.GetNumAddOns and A.GetAddOnInfo and A.IsAddOnLoaded then
+        local names, more = {}, 0
+        for i = 1, A.GetNumAddOns() do
+            local ok, name = pcall(A.GetAddOnInfo, i)
+            if ok and type(name) == "string" and not name:find("^DaylightUI") and A.IsAddOnLoaded(name) then
+                if #names < R.REPORT_ADDONS then names[#names + 1] = name else more = more + 1 end
+            end
+        end
+        out[#out + 1] = "Other addons: " .. (#names > 0 and table.concat(names, ", ") or "none")
+            .. (more > 0 and string.format(" +%d more", more) or "")
+    end
+    return out
+end
+
+DUI.RegisterEvent("PLAYER_LOGIN", function()
+    R.loggedInAt = type(GetTime) == "function" and GetTime() or nil
+    -- The Nameplates module registers its own, fuller commands when it's on.
+    if not DUI.HasCommand("platecheck") then R.RegisterFallback() end
+end)
+
+-- With the Nameplates module off: the game's plates as they read, and two
+-- steps that need nothing of it.
+R.CHECK_DETAIL = 6
+R.REPORT_MAX = 3800
+R.FIX_GAP = 0.5
+R.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
+R.PLATE_CVARS = { "nameplateMaxDistance", "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateShowEnemyMinions",
+    "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }
+R.OFF = "Nameplates module off"
+
+function R.CheckLines(detail)
+    local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
+    if not get then return { "No nameplate API." } end
+    local secure = issecure and issecure() or false
+    local plates = {}
+    for i = 1, 40 do
+        local unit = "nameplate" .. i
+        local ok, np = pcall(get, unit, secure)
+        if ok and type(np) == "table" then plates[#plates + 1] = { unit, np } end
+    end
+    local out = { string.format("Daylight UI %s. %s. Game plates %d", tostring(DUI.VERSION), R.OFF, #plates) }
+    for _, line in ipairs(R.GameLines()) do out[#out + 1] = line end
+    local left = detail or R.CHECK_DETAIL
+    for _, p in ipairs(plates) do
+        if left <= 0 then break end
+        left = left - 1
+        local okF, forbidden = pcall(function() return p[2]:IsForbidden() end)
+        if okF and forbidden == true then
+            out[#out + 1] = p[1] .. ": the game keeps this plate from addons (forbidden)"
+        else
+            for _, line in ipairs((R.PlateHead(p[1], p[2]))) do out[#out + 1] = line end
+        end
+    end
+    return out
+end
+
+local function gameDefault(name)
+    local fn = C_CVar and C_CVar.GetCVarDefault
+    if type(fn) ~= "function" then return nil end
+    local ok, v = pcall(fn, name)
+    return ok and type(v) == "string" and v or nil
+end
+
+R.FIX = {
+    -- 1. The game's show switches off and on, so it builds its plates again.
+    function()
+        local was = {}
+        for _, name in ipairs(R.FIX_SHOW_CVARS) do
+            local v = R.CVar(name)
+            if v then
+                was[name] = v
+                pcall(SetCVar, name, "0")
+            end
+        end
+        C_Timer.After(R.FIX_GAP, function()
+            for name, v in pairs(was) do pcall(SetCVar, name, v) end
+        end)
+        return "the game's plates switched off and on (" .. R.OFF .. ")"
+    end,
+    -- 2. The plate settings Daylight UI can change, back to the game's defaults.
+    function()
+        local done = 0
+        for _, name in ipairs(R.PLATE_CVARS) do
+            local v = gameDefault(name)
+            if v and pcall(SetCVar, name, v) then done = done + 1 end
+        end
+        return string.format("%d plate settings back to the game's defaults", done)
+    end,
+}
+
+local fixStep, fixRun
+
+function R.FixReport(step)
+    local run = fixRun or { did = {}, before = {} }
+    local out = { string.format("Daylight UI %s platefix (%s): %s", tostring(DUI.VERSION), R.OFF,
+        step and string.format("step %d brought them back", step) or "no step brought them back") }
+    for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
+    for _, line in ipairs(run.world or R.World()) do out[#out + 1] = line end
+    out[#out + 1] = "Before step 1:"
+    for _, line in ipairs(run.before) do out[#out + 1] = line end
+    return R.Printable(table.concat(out, "\n"), R.REPORT_MAX)
+end
+
+local function fixDone(step)
+    local text = R.FixReport(step)
+    fixStep, fixRun = nil, nil
+    DUI.Profiles.ShowText(L["Nameplate report"], L["Ctrl+C to copy, then paste it in a bug report on the Daylight UI Discord. "
+        .. "After that, /reload."], text)
+    for line in string.gmatch(text, "[^\n]+") do DUI.Print(line) end
+end
+
+function R.Fix()
+    if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
+    local n = (fixStep or 0) + 1
+    if n > #R.FIX then
+        fixDone(nil)
+        return "platefix: that was every step and none brought them back. Copy the text in the box and send it to the "
+            .. "Daylight UI team, then /reload."
+    end
+    if n == 1 then fixRun = { did = {}, before = R.CheckLines(2), world = R.World() } end
+    fixStep = n
+    local ok, did = pcall(R.FIX[n])
+    if not ok then did = "failed (" .. tostring(did) .. ")" end
+    fixRun.did[n] = did
+    return string.format("platefix %d/%d: %s. Are the nameplates back? Yes: /dui platefix yes. "
+        .. "No: /dui platefix again for the next step.", n, #R.FIX, did)
+end
+
+function R.RegisterFallback()
+    DUI.RegisterCommand("platecheck", function()
+        for _, line in ipairs(R.CheckLines()) do DUI.Print(line) end
+        for _, line in ipairs(R.Daylight()) do DUI.Print(line) end
+    end, L["/dui platecheck - run while a nameplate is missing, and send us what it prints"])
+    DUI.RegisterCommand("platefix", function(rest)
+        if string.lower(rest or "") ~= "yes" then return DUI.Print(R.Fix()) end
+        if not fixStep then return DUI.Print(L["Run /dui platefix first, while the nameplates are invisible."]) end
+        fixDone(fixStep)
+        DUI.Print(L["Copy the text in the box and send it to the Daylight UI team, then /reload."])
+    end, L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"])
+end
