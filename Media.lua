@@ -199,7 +199,11 @@ function Media.RegisterOwn()
         local f = DUI.Style.FONTS[key]
         -- Only the fonts the addon ships, not the client's.
         if f.file and string.find(f.file, DUI.MEDIA, 1, true) == 1 then
-            pcall(lsm.Register, lsm, "font", f.label, f.file)
+            -- With no language mask the library leaves a font out on a Russian client,
+            -- even one that has the letters.
+            local mask = f.cyrillic == true and lsm.LOCALE_BIT_ruRU and lsm.LOCALE_BIT_western
+                and lsm.LOCALE_BIT_ruRU + lsm.LOCALE_BIT_western or nil
+            pcall(lsm.Register, lsm, "font", f.label, f.file, mask)
         end
     end
 end

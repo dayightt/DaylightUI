@@ -656,9 +656,11 @@ local function fontChoices(withGeneral)
     end
     local own, sorted = {}, {}
     for _, key in ipairs(DUI.Style.FONT_ORDER) do
-        values[key] = DUI.Style.FONTS[key].label
+        local f, drawn = DUI.Style.FONTS[key], DUI.Style.FontEntry(key)
+        -- A font with no letters for this client's language says which one draws for it.
+        values[key] = drawn ~= f and string.format(L["%s (in Russian: %s)"], f.label, L[drawn.label]) or f.label
         sorted[#sorted + 1] = key
-        own[DUI.Style.FONTS[key].label] = true
+        own[f.label] = true
     end
     local shared, sharedOrder = DUI.Media.List("font", own)
     for _, key in ipairs(sharedOrder) do
@@ -1167,7 +1169,7 @@ Options.RegisterPage({
         { label = "Font", items = {
             { type = "dropdown", key = "font", label = "Font", choices = fontChoices, fallback = "expressway",
               preview = "font", fetch = function(key)
-                  return DUI.Media.Fetch("font", key) or (DUI.Style.FONTS[key] and DUI.Style.FONTS[key].file)
+                  return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
               desc = "Used by all DaylightUI text, except where a frame's own page picks another font. Game font is the client's own, "
                   .. "including a font you've replaced it with. Fonts other addons share (SharedMedia) are listed after ours." },
@@ -1374,7 +1376,7 @@ Options.RegisterPage({
             { type = "dropdown", key = "damage.font", label = "Font", choices = damageFontChoices, fallback = "auto",
               preview = "font", fetch = function(key)
                   if key == "auto" then return DUI.GameFonts.DamageWanted() or DUI.GameFonts.ClientFont() end
-                  return DUI.Media.Fetch("font", key) or (DUI.Style.FONTS[key] and DUI.Style.FONTS[key].file)
+                  return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
               restart = "You must restart the game for the new damage numbers font to take effect.",
               desc = "Automatic is your Appearance font. "

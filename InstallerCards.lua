@@ -537,7 +537,7 @@ end
 
 -- A sample written in the font itself.
 function Cards.Draw.font(card, key, w, h)
-    local def = Style.FONTS[key]
+    local def = Style.FontEntry(key)
     local file = def and def.file or STANDARD_TEXT_FONT or W.BODY
     local fs = card.inner:CreateFontString(nil, "OVERLAY")
     fs:SetFont(file, 16, "")

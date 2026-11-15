@@ -101,6 +101,7 @@ L["%s %d / %d. Time to visit a trainer."] = "%s %d / %d. Пора к учите�
 L["%s %d%%"] = "%s %d%%"
 L["%s %s"] = "%s %s"
 L["%s (%s)"] = "%s (%s)"
+L["%s (in Russian: %s)"] = "%s (для русского: %s)"
 L["%s (not installed)"] = "%s (не установлено)"
 L["%s (profession)"] = "%s (профессия)"
 L["%s (spec)"] = "%s (специализация)"

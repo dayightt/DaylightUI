@@ -27,6 +27,7 @@ DUI.PatchNotes = {
             { "Window skins", "The New Recipe Learned pop-up has the Daylight UI look" },
         },
         fixed = {
+            { "Fonts", "On a Russian client, picking a font without Russian letters no longer leaves text blank: a close-looking font that has them is used instead" },
             { "Window skins", "Opening the guild window with no guild or community no longer causes an error" },
             { "Action bars", "The shaman totem bar fades again when its bar is set to fade" },
             { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
