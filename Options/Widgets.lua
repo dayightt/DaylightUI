@@ -1272,18 +1272,36 @@ function W.ColumnHead(parent, cols, onSort)
         end
     end
 
+    -- The least a column takes: its heading's words whole, with room for the
+    -- chevron when it sorts, or what the caller asked for (col.min), if more.
+    -- A column of width 0 (an icon's) stays 0.
+    function head:Need(id)
+        local cell = self.cells[id]
+        if not cell then return 0 end
+        local col = cell.col
+        if (col.width or 0) <= 0 and not col.min then return 0 end
+        local tw = cell.text:GetStringWidth()
+        if type(tw) ~= "number" then tw = 0 end
+        local need = math.ceil(tw) + (col.sort and W.SORT_ARROW + 4 or 0)
+        return math.max(col.width or 0, col.min or 0, need)
+    end
+
     function head:Layout(width)
         width = type(width) == "number" and width or (self:GetWidth() or 0)
-        local fixed, fills, lastFill = 0, 0, nil
+        local fixed, fills, lastFill, widths = 0, 0, nil, {}
         for i, col in ipairs(self.cols) do
-            if col.fill then fills = fills + 1; lastFill = i else fixed = fixed + (col.width or 0) end
+            if col.fill then fills = fills + 1; lastFill = i
+            else
+                widths[i] = self:Need(col.id)
+                fixed = fixed + widths[i]
+            end
         end
         local gaps = W.COLUMN_GAP * math.max(0, #self.cols - 1)
         local room = math.max(0, width - fixed - gaps)
         local share = fills > 0 and math.floor(room / fills) or 0
         local at, x = {}, 0
         for i, col in ipairs(self.cols) do
-            local w = col.width or 0
+            local w = widths[i] or 0
             if col.fill then w = (i == lastFill) and (room - share * (fills - 1)) or share end
             at[col.id] = { x = x, w = w }
             local cell = self.cells[col.id]

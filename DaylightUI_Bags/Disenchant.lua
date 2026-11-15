@@ -13,7 +13,7 @@ local _, ns = ...
 local DUI = DaylightUI
 local L = DUI.L
 
--- One tool: spec { spell, icon (fallback), name (the secure button's), key
+-- One tool: spec { spell, icon (a flat Media icon, like the rest of the row), name (the secure button's), key
 -- (the tool row button's field on the window), title (fallback name) }.
 local function Tool(spec)
     local T = { SPELL = spec.spell, ICON = spec.icon, NAME = spec.name, KEY = spec.key }
@@ -36,16 +36,6 @@ local function Tool(spec)
         local get = C_Spell and C_Spell.GetSpellName
         local name = type(get) == "function" and get(T.SPELL)
         return type(name) == "string" and name or spec.title
-    end
-
-    -- The spell's own icon, so the button looks like it does on the bars.
-    function T.Icon()
-        local get = C_Spell and C_Spell.GetSpellTexture
-        if type(get) == "function" then
-            local ok, tex = pcall(get, T.SPELL)
-            if ok and (type(tex) == "number" or type(tex) == "string") then return tex end
-        end
-        return T.ICON
     end
 
     -- The tool row's visible button, or nil.
@@ -73,7 +63,6 @@ local function Tool(spec)
         local f, b = ns.window, visual()
         if not b then return end
         local known = T.Known()
-        if known and b.icon then b.icon:SetTexture(T.Icon()) end
         b:SetShown(known)
         if not known and T.caster then T.caster.Hide() end
         ns.Window.LayoutTools(f)
@@ -92,9 +81,9 @@ local function Tool(spec)
     return T
 end
 
-ns.Disenchant = Tool({ spell = 13262, icon = "Interface\\Icons\\INV_Enchant_Disenchant",
+ns.Disenchant = Tool({ spell = 13262, icon = "ui-disenchant.png",
     name = "DaylightUIBagDisenchant", key = "disenchantButton", title = L["Disenchant"] })
 
 -- A WoW: Forever spell, learned from a trainer, cast on a scroll in the bags.
-ns.Comprehend = Tool({ spell = 1296017, icon = "Interface\\Icons\\INV_Scroll_03",
+ns.Comprehend = Tool({ spell = 1296017, icon = "ui-micro-quests.png",
     name = "DaylightUIBagComprehend", key = "comprehendButton", title = L["Comprehend Scroll"] })

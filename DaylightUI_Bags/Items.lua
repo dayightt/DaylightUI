@@ -15,28 +15,68 @@ local Items = {}
 ns.Items = Items
 
 Items.TEMPLATE = "ContainerFrameItemButtonTemplate"
--- Same look as aura icons: shell border around a square cropped icon with a soft
--- inner shadow. No background, so an empty slot is only its outline.
-Items.BORDER_PX = 3
-Items.SHELL = { borderPx = Items.BORDER_PX, noBevel = true, noBackground = true }
+-- A slot is a colored ring between two thin black lines, all inside the button,
+-- around a square cropped icon with a soft inner shadow. The ring is one flat
+-- color (two pixels is too thin for the shell's heavy band) and casts no shadow,
+-- so slots sit as close as their spacing says. An empty slot has a thinner, dim
+-- ring around a dark well.
+Items.EDGE_PX = 1            -- black line outside the ring
+Items.BORDER_PX = 2          -- the ring
+Items.THIN_PX = 1            -- an empty slot's ring
+Items.GAP_PX = 1             -- black line between the ring and the icon
+Items.SHELL = { noBevel = true, noBackground = true, shadowPx = 0, shadowAlpha = 0 }
+Items.BLACK = Style.BORDER
 
 -- A shell keeps the opts table it's given and its border color is written into
 -- it, so each slot needs its own copy or coloring one colors them all.
 function Items.ShellOpts()
     local o = {}
     for k, v in pairs(Items.SHELL) do o[k] = v end
+    o.borderPx = function() return o.thin and Items.THIN_PX or Items.BORDER_PX end
     return o
+end
+
+-- How far in from the button's edge the icon (or an empty slot's well) starts.
+function Items.Inset(btn, thin)
+    return Pixel.Px(btn, Items.EDGE_PX + (thin and Items.THIN_PX or Items.BORDER_PX) + Items.GAP_PX)
+end
+
+-- The ring for a slot-looking button: a black backing the size of the button
+-- (it shows as the two black lines) under a ring shell one pixel in. Returns the
+-- shell and the backing.
+function Items.Frame(btn)
+    local shell = Style.Shell(btn, Items.ShellOpts())
+    local back = shell:CreateTexture(nil, "BACKGROUND", nil, -7)
+    back:SetAllPoints(btn)
+    local c = Items.BLACK
+    back:SetColorTexture(c[1], c[2], c[3], 1)
+    Items.FitRing(btn, shell)
+    return shell, back
+end
+
+-- Keeps the ring one pixel inside the button (the pixel depends on the button's
+-- scale, so this runs on every layout).
+function Items.FitRing(btn, shell)
+    local e = Pixel.Px(btn, Items.EDGE_PX)
+    if shell.dluiEdge == e then return end
+    shell.dluiEdge = e
+    shell:ClearAllPoints()
+    shell:SetPoint("TOPLEFT", btn, "TOPLEFT", e, -e)
+    shell:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -e, e)
+    Style.Shell(btn, shell.opts)
 end
 Items.CROP = DaylightUI.Style.ICON_CROP
 Items.SHADE = DUI.MEDIA .. "inner-shadow.png"
 Items.SHADE_ALPHA = 0.55
 Items.COUNT_SIZE = Style.SIZE.tiny
 Items.FREE_SIZE = Style.SIZE.small
--- Border colors for an empty slot, common, poor and the Hearthstone (light blue,
--- easy to spot). Everything else uses its quality color.
-Items.EMPTY = { 0.28, 0.28, 0.3 }
-Items.COMMON = { 0.55, 0.55, 0.58 }
-Items.POOR = { 0.36, 0.36, 0.38 }
+-- Ring colors for an empty slot (a dim warm line), common (a light gray, so
+-- every item reads as a slot), poor (a darker gray) and the Hearthstone (light
+-- blue, easy to spot). Everything else uses its quality color.
+Items.EMPTY = { 0.165, 0.149, 0.125 }
+Items.WELL = { 0.063, 0.063, 0.071 }   -- inside an empty slot, a shade under the window
+Items.COMMON = { 0.6, 0.6, 0.6 }
+Items.POOR = { 0.36, 0.36, 0.36 }
 Items.POOR_ALPHA = 0.5
 Items.HEARTH = { 0.45, 0.75, 1 }
 -- Profession bag colors by the bag type bit the game reports. Their empty slots
@@ -76,9 +116,9 @@ Items.BIND_SIZE = Style.SIZE.tiny
 Items.BIND_COLOR = { Style.INK.GOOD[1], Style.INK.GOOD[2], Style.INK.GOOD[3], 0.8 }   -- BoE can still be sold or traded
 Items.SET_SIZE = 5           -- equipment set mark, px
 Items.LOCK_SIZE = 11         -- lock mark, px
-Items.DOT_PX = 6            -- cheapest-junk dot, centered on the slot's bottom left corner
-Items.DOT_GLOW = 2.2        -- its glow, times the dot
+Items.DOT_GLOW = 2.2        -- glow size, times the dot
 Items.DOT_GLOW_ALPHA = 0.3
+Items.DOT_PX = 6            -- new-item dot, centered on the slot's top left corner
 Items.KEEP_PX = 2           -- line under a kept slot (Keep.lua)
 Items.LOCK_ATLAS = "QuestSharing-Padlock"   -- the game's own padlock (from its action button level lock)
 Items.LEVEL_SIZE = Style.SIZE.tiny   -- gear item level, bottom left (same size as the character window's)
@@ -87,7 +127,7 @@ Items.COOLDOWN_SIZE = Style.SIZE.body   -- the game's countdown text ("37m"), fi
 -- the button, so Items.Place scales it (ContainerFrame.xml).
 Items.GAME_SLOT = 37
 Items.GAME_SIZED = { "IconQuestTexture", "NewItemTexture", "BattlepayItemTexture" }
-Items.BAND_DIM = 0.45        -- heavy border band, as a dimmed border color
+Items.HOVER_MIX = 1          -- how far a hovered ring moves toward the accent
 -- Loot shine: a new item of uncommon or better gets one diagonal glint across
 -- its icon while its border flashes bright and settles back.
 Items.SHINE_QUALITY = 2      -- uncommon and up
@@ -133,6 +173,37 @@ function Items.InCombat() return InCombatLockdown and InCombatLockdown() end
 
 function Items.Parts(btn) return dressed[btn] end
 
+-- The template replaces its button's SetAlpha with one that only sets the icon,
+-- quality frame and count (ItemButtonMixin:SetAlpha), so a fade through it left
+-- the ring popping in, an empty slot's picture back and a grayed item bright.
+-- Slots fade through the frame's own SetAlpha instead.
+local function frameSetAlpha(btn)
+    local mt = getmetatable(btn)
+    local index = mt and mt.__index
+    if type(index) == "table" then return index.SetAlpha end
+    if type(index) == "function" then return index(btn, "SetAlpha") end
+end
+
+-- What to fade for a region in the bag: a slot's stand-in that sets the
+-- button's own alpha (one per slot, so tweens keep their key), else the region.
+local faders = setmetatable({}, { __mode = "k" })
+function Items.Fader(r)
+    if not dressed[r] then return r end
+    local f = faders[r]
+    if f then return f end
+    local set = frameSetAlpha(r)
+    if type(set) ~= "function" then return r end
+    f = {
+        SetAlpha = function(_, a) set(r, a) end,
+        GetAlpha = function() return r:GetAlpha() end,
+        IsShown = function() return r:IsShown() end,
+        Show = function() r:Show() end,
+        Hide = function() r:Hide() end,
+    }
+    faders[r] = f
+    return f
+end
+
 -- The window a slot belongs to (via its holder), and that window's settings.
 local function windowOf(btn)
     local h = btn:GetParent()
@@ -154,6 +225,13 @@ local function hideGameArt(btn)
     for _, key in ipairs(GAME_ART) do
         local r = btn[key]
         if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
+    end
+    -- The template's own SetAlpha also sets its quality border's alpha, so every
+    -- fade of a slot (new loot easing in, a bag hovered in the strip) brought back
+    -- the game's white frame. With no anchor it can't draw at all.
+    local border = btn.IconBorder
+    if type(border) == "table" and border.ClearAllPoints and border:GetNumPoints() > 0 then
+        border:ClearAllPoints()
     end
 end
 
@@ -181,12 +259,56 @@ function Items.Report(btn, bag, slot, info)
     if R.Painting("bagslot") then R.Painted("bagslot", btn, t) end
 end
 
+-- Paints the ring: one color for border and band. A lit slot (its bag hovered)
+-- is all accent; a hovered one eases toward it.
+function Items.Ring(p, color)
+    local c = color or p.color
+    if not c then return end
+    if p.lit then
+        Style.LightShell(p.shell, 1)
+        return
+    end
+    local t = p.hoverT or 0
+    if t > 0 then
+        local r, g, b = Style.Accent()
+        t = t * Items.HOVER_MIX
+        c = { c[1] + (r - c[1]) * t, c[2] + (g - c[2]) * t, c[3] + (b - c[3]) * t }
+    end
+    Style.SetShellColors(p.shell, c, c)
+end
+
+-- Eases a slot's ring toward the accent while the pointer is on it.
+function Items.Hover(btn, on, snap)
+    local p = dressed[btn]
+    if not p then return end
+    p.hover = on or nil
+    if snap then
+        if not on and (p.hoverT or 0) == 0 then return end
+        p.hoverT = 0
+        if p.hoverState then DUI.Motion.Tween(p.hoverState, 0, 0, 0) end
+        Items.Ring(p)
+        return
+    end
+    local from = p.hoverT or 0
+    local to = on and 1 or 0
+    if from == to then return end
+    p.hoverState = p.hoverState or {}
+    DUI.Motion.Tween(p.hoverState, from, to, DUI.Motion.FAST, function(t)
+        p.hoverT = t
+        if not p.flash then Items.Ring(p) end
+    end)
+end
+
 -- Restyles a new button (once).
 function Items.Dress(btn)
     if dressed[btn] then return dressed[btn] end
     local p = {}
     dressed[btn] = p
-    p.shell = Style.Shell(btn, Items.ShellOpts())
+    p.shell, p.back = Items.Frame(btn)
+    p.well = p.shell:CreateTexture(nil, "BACKGROUND", nil, -6)
+    local w = Items.WELL
+    p.well:SetColorTexture(w[1], w[2], w[3], 1)
+    p.well:Hide()
     hideGameArt(btn)
     -- Original size of each piece of the game's art (Items.ScaleArt).
     p.art = {}
@@ -224,6 +346,20 @@ function Items.Dress(btn)
     p.keep = btn:CreateTexture(nil, "OVERLAY", nil, 2)
     p.keep:SetColorTexture(1, 1, 1, 1)
     p.keep:Hide()
+    -- New item not looked at yet: a small accent dot on the top left corner (clear of
+    -- the bind text, which sits just inside it). Hovering the slot clears it.
+    p.newGlow = btn:CreateTexture(nil, "OVERLAY", nil, 4)
+    p.newGlow:SetColorTexture(1, 1, 1, 1)
+    p.newGlow:Hide()
+    p.newDot = btn:CreateTexture(nil, "OVERLAY", nil, 5)
+    p.newDot:SetColorTexture(1, 1, 1, 1)
+    p.newDot:Hide()
+    for _, t in ipairs({ p.newGlow, p.newDot }) do
+        local m = btn:CreateMaskTexture()
+        m:SetTexture(DUI.Win.MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        m:SetAllPoints(t)
+        t:AddMaskTexture(m)
+    end
     -- The game's upgrade arrow is always hidden; its junk coin is a setting.
     if type(btn.UpgradeIcon) == "table" and btn.UpgradeIcon.SetAlpha then btn.UpgradeIcon:SetAlpha(0) end
     -- Free slot count on a grouped section's free tile.
@@ -259,6 +395,19 @@ function Items.Dress(btn)
         end
     end)
     -- A locked item's slot takes no clicks at a vendor or while Disenchant is targeting.
+    -- Looking at a new item clears its dot.
+    -- Reaching for a slot mid-cleanup shows the real items first (Window.SortTouched).
+    btn:HookScript("OnEnter", function(self)
+        Items.Hover(self, true)
+        if ns.Window then ns.Window.SortTouched(windowOf(self)) end
+        if self.dluiNew then Items.SeeNew(self) end
+    end)
+    btn:HookScript("OnLeave", function(self) Items.Hover(self, false) end)
+    -- No leave comes when the slot hides under the pointer, so let go here.
+    btn:HookScript("OnHide", function(self) Items.Hover(self, false, true) end)
+    btn:HookScript("PreClick", function(self)
+        if ns.Window then ns.Window.SortTouched(windowOf(self)) end
+    end)
     btn:HookScript("OnMouseUp", function(self, button)
         if self.dluiGuarded then ns.Guard.Refused(self, button) end
     end)
@@ -279,12 +428,25 @@ function Items.ScaleArt(btn, p)
     for _, a in ipairs(p.art) do a[1]:SetSize(a[2] * k, a[3] * k) end
 end
 
+-- A corner dot's glow size. It never reaches more than a pixel past the gap
+-- into the next slot, so small spacing shrinks it, down to no glow at all.
+function Items.GlowSize(btn, dot)
+    local w = windowOf(btn)
+    local gap = w and w.Setting and tonumber(w.Setting("spacing")) or 2
+    return math.min(dot * Items.DOT_GLOW, math.max(dot, (gap - 1) * 2))
+end
+
 -- Icon inside the border, and everything positioned off it; text in the addon font.
 function Items.Place(btn)
     local p = dressed[btn]
     if not p then return end
     Items.ScaleArt(btn, p)
-    local T = Pixel.Px(btn, Items.BORDER_PX)
+    Items.FitRing(btn, p.shell)
+    local T = Items.Inset(btn)
+    local W = Items.Inset(btn, true)
+    p.well:ClearAllPoints()
+    p.well:SetPoint("TOPLEFT", btn, "TOPLEFT", W, -W)
+    p.well:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -W, W)
     local icon = btn.icon or btn.Icon
     if icon then
         icon:ClearAllPoints()
@@ -330,6 +492,14 @@ function Items.Place(btn)
     p.lock:ClearAllPoints()
     p.lock:SetSize(k, k)
     p.lock:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -T, -T)
+    local dot = Pixel.Px(btn, Items.DOT_PX)
+    p.newDot:ClearAllPoints()
+    p.newDot:SetSize(dot, dot)
+    p.newDot:SetPoint("CENTER", btn, "TOPLEFT", -2, 2)
+    local glow = Items.GlowSize(btn, dot)
+    p.newGlow:ClearAllPoints()
+    p.newGlow:SetSize(glow, glow)
+    p.newGlow:SetPoint("CENTER", p.newDot, "CENTER", 0, 0)
     p.keep:ClearAllPoints()
     p.keep:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", T, T)
     p.keep:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T, T)
@@ -337,7 +507,7 @@ function Items.Place(btn)
     font(btn.Count, Items.COUNT_SIZE)
     if type(btn.Count) == "table" and btn.Count.ClearAllPoints then
         btn.Count:ClearAllPoints()
-        btn.Count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 3)
+        btn.Count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T - 1, T)
     end
     font(p.free, Items.FREE_SIZE)
 end
@@ -374,8 +544,13 @@ function Items.Paint(btn, hasItem, quality, itemID, bag)
     if p.color ~= color then
         p.color = color
         p.flash = nil
-        local k = Items.BAND_DIM
-        Style.SetShellColors(p.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+        Items.Ring(p)
+    end
+    local thin = not hasItem
+    if (p.shell.opts.thin or false) ~= thin then
+        p.shell.opts.thin = thin
+        Style.Shell(btn, p.shell.opts)
+        Items.Ring(p)
     end
     local icon = btn.icon or btn.Icon
     local poor = hasItem and type(quality) == "number" and quality <= 0 and setting(btn, "greyPoor") == true
@@ -384,6 +559,7 @@ function Items.Paint(btn, hasItem, quality, itemID, bag)
         if poor then icon:SetDesaturated(true) end
     end
     p.shade:SetShown(hasItem and true or false)
+    p.well:SetShown(not hasItem)
 end
 
 -- Loot shine. While filling, a slot whose item is new and uncommon or better is
@@ -393,20 +569,64 @@ end
 -- shines once per session.
 local shone = {}
 
+local seen = {}   -- bag:slot:item keys whose dot was cleared by a hover
+
 function Items.NoteNew(btn, bag, slot, info)
-    btn.dluiShine = nil
+    btn.dluiShine, btn.dluiNew = nil, nil
     local quality = info and info.quality
-    if type(quality) ~= "number" or quality < Items.SHINE_QUALITY then return end
-    local id = info.itemID or info.hyperlink
-    if id == nil or not (C_NewItems and C_NewItems.IsNewItem) then return end
-    local ok, new = pcall(C_NewItems.IsNewItem, bag, slot)
-    if not ok or new ~= true then return end
-    local key = bag .. ":" .. slot .. ":" .. tostring(id)
-    if not shone[key] then btn.dluiShine = key end
+    local p = dressed[btn]
+    if type(quality) == "number" and quality >= Items.SHINE_QUALITY and not ns.Saved.Is(bag) then
+        local id = info.itemID or info.hyperlink
+        if id ~= nil and C_NewItems and C_NewItems.IsNewItem then
+            local ok, new = pcall(C_NewItems.IsNewItem, bag, slot)
+            if ok and new == true then
+                local key = bag .. ":" .. slot .. ":" .. tostring(id)
+                if not shone[key] then btn.dluiShine = key end
+                if not seen[key] then btn.dluiNew = key end
+            end
+        end
+    end
+    if p then Items.PaintDot(btn, p) end
 end
 
--- The cheapest junk in the bag (Junk.MarkCheapest): a small round dot with a soft
--- glow, in the warn color on the bottom left corner, so a full bag shows what to throw
+-- The dot follows btn.dluiNew; the accent is read each time it's painted.
+function Items.PaintDot(btn, p)
+    local on = btn.dluiNew ~= nil
+    if on then
+        local r, g, b = Style.Accent()
+        p.newDot:SetVertexColor(r, g, b, 1)
+        p.newGlow:SetVertexColor(r, g, b, Items.DOT_GLOW_ALPHA)
+    end
+    if on == (p.dotOn == true) then return end
+    p.dotOn = on
+    if on then
+        p.newDot:Show(); p.newGlow:Show()
+        p.newDot:SetAlpha(1); p.newGlow:SetAlpha(1)
+        if btn:IsVisible() and p.dotPainted then
+            DUI.Motion.Fade(p.newDot, 0, 1, DUI.Motion.FAST)
+            DUI.Motion.Fade(p.newGlow, 0, 1, DUI.Motion.FAST)
+        end
+    else
+        Items.HideDot(btn, p)
+    end
+    p.dotPainted = true
+end
+
+-- Fades the dot out, then hides it unless it came back meanwhile.
+function Items.HideDot(btn, p)
+    if btn:IsVisible() then
+        DUI.Motion.Fade(p.newDot, 1, 0, DUI.Motion.FAST)
+        DUI.Motion.Fade(p.newGlow, 1, 0, DUI.Motion.FAST)
+        C_Timer.After(DUI.Motion.FAST + 0.05, function()
+            if not p.dotOn then p.newDot:Hide(); p.newGlow:Hide() end
+        end)
+    else
+        p.newDot:Hide(); p.newGlow:Hide()
+    end
+end
+
+-- The cheapest junk in the bag (Junk.MarkCheapest): a dot like the new-item one,
+-- in the warn color on the bottom left corner, so a full bag shows what to throw
 -- away. Made the first time a slot gets it; only one slot has it at a time.
 function Items.PaintCheap(btn, on)
     local p = dressed[btn]
@@ -430,7 +650,8 @@ function Items.PaintCheap(btn, on)
         p.cheapDot:SetSize(dot, dot)
         p.cheapDot:SetPoint("CENTER", btn, "BOTTOMLEFT", -2, -2)
         p.cheapGlow:ClearAllPoints()
-        p.cheapGlow:SetSize(dot * Items.DOT_GLOW, dot * Items.DOT_GLOW)
+        local glow = Items.GlowSize(btn, dot)
+        p.cheapGlow:SetSize(glow, glow)
         p.cheapGlow:SetPoint("CENTER", p.cheapDot, "CENTER", 0, 0)
         local c = Style.INK.WARN
         p.cheapDot:SetVertexColor(c[1], c[2], c[3], 1)
@@ -456,6 +677,17 @@ function Items.PaintCheap(btn, on)
     else
         p.cheapDot:Hide(); p.cheapGlow:Hide()
     end
+end
+
+-- Hover: the item is seen, its dot fades out and stays gone for this bag:slot:item.
+function Items.SeeNew(btn)
+    local p = dressed[btn]
+    seen[btn.dluiNew] = true
+    btn.dluiNew = nil
+    if not p then return end
+    p.dotPainted = true
+    p.dotOn = false
+    Items.HideDot(btn, p)
 end
 
 -- Plays a marked slot's shine once. Nothing with motion off.
@@ -499,7 +731,7 @@ function Items.Shine(btn)
         p.glint:SetHeight(h)
         Motion.Sweep(p.glint, p.clip, { width = w, dur = Items.SHINE_DUR, alpha = Items.SHINE_ALPHA, inset = -w })
     end
-    local c, L, k = p.color, Items.SHINE_LIFT, Items.BAND_DIM
+    local c, L = p.color, Items.SHINE_LIFT
     local bright = { c[1] + (1 - c[1]) * L, c[2] + (1 - c[2]) * L, c[3] + (1 - c[3]) * L }
     p.flash = bright
     Motion.Tween(p, 0, 1, Motion.SLOW, function(t)
@@ -509,8 +741,13 @@ function Items.Shine(btn)
             bright[1] + (to[1] - bright[1]) * t,
             bright[2] + (to[2] - bright[2]) * t,
             bright[3] + (to[3] - bright[3]) * t }
-        Style.SetShellColors(p.shell, col, { col[1] * k, col[2] * k, col[3] * k })
-    end, function() if p.flash == bright then p.flash = nil end end)
+        Items.Ring(p, col)
+    end, function()
+        if p.flash == bright then
+            p.flash = nil
+            Items.Ring(p)
+        end
+    end)
 end
 
 -- Items the player can't use (level, class, skill or "Already known" shown in
@@ -695,7 +932,7 @@ function Items.Details(btn, info, bag, slot)
         if keptSlot and btn:IsVisible() and DUI.Motion then DUI.Motion.Fade(p.keep, 0, 1, DUI.Motion.FAST) end
     end
     if inSet and locked ~= (p.setBeside == true) then
-        local T = Pixel.Px(btn, Items.BORDER_PX)
+        local T = Items.Inset(btn)
         p.set:ClearAllPoints()
         if locked then p.set:SetPoint("TOPRIGHT", p.lock, "TOPLEFT", -1, -1)
         else p.set:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -T - 1, -T - 1) end
@@ -758,6 +995,8 @@ function Items.Fill(btn, tooltipOwner)
     run(ClearItemButtonOverlay, btn)
     ns.Guard.Apply(btn, info)
     btn.dluiTexture, btn.dluiShown = texture, shown
+    -- The item this slot shows on screen, so an eased layout can glide it from here.
+    btn.dluiKey = info and (info.itemID or info.hyperlink) or nil
     call(btn, "SetHasItem", shown)
     call(btn, "SetItemButtonTexture", shown)
     run(SetItemButtonQuality, btn, quality, link, false, bound)
@@ -769,12 +1008,13 @@ function Items.Fill(btn, tooltipOwner)
     call(btn, "UpdateExtended")
     call(btn, "UpdateQuestItem", q.isQuestItem, q.questID, q.isActive)
     call(btn, "UpdateNewItem", quality)
-    -- No shimmer: stop the sweep and pulse the game just started. The glow stays as
-    -- a still, quality-colored one (Stop resets its alpha to 0).
+    -- No shimmer and no glow frame: stop the sweep and pulse the game just started and
+    -- hide its glow (white on common items, a second frame around the ring). New loot is
+    -- marked by the Recent group and the small new-item dot instead.
     if type(btn.flashAnim) == "table" and btn.flashAnim.Stop then btn.flashAnim:Stop() end
     if type(btn.newitemglowAnim) == "table" and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
     if type(btn.flash) == "table" and btn.flash.Hide then btn.flash:Hide() end
-    if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.SetAlpha then btn.NewItemTexture:SetAlpha(1) end
+    if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.Hide then btn.NewItemTexture:Hide() end
     call(btn, "UpdateJunkItem", quality, noValue)
     call(btn, "UpdateItemContextMatching")
     call(btn, "UpdateCooldown", shown)
@@ -782,7 +1022,7 @@ function Items.Fill(btn, tooltipOwner)
     call(btn, "CheckUpdateTooltip", tooltipOwner)
     -- The addon's search decides (the game's own name search is kept empty).
     local w = windowOf(btn)
-    call(btn, "SetMatchesSearch", ns.Search.Matches(bag, slot, info, w and w.match, quest))
+    call(btn, "SetMatchesSearch", Items.Fits(bag, slot, info, w, quest))
 
     -- Keep the game's quality ring hidden (SetItemButtonQuality shows it).
     if type(btn.IconBorder) == "table" and btn.IconBorder.SetAlpha then btn.IconBorder:SetAlpha(0) end
@@ -826,10 +1066,13 @@ function Items.Fill(btn, tooltipOwner)
             item:ContinueOnItemLoad(function()
                 if btn.dluiWaiting == waitFor then btn.dluiWaiting = nil end
                 if loading and w and ns.Window then ns.Window.Changed(w, { [bag] = true })
+                elseif w and w.sorting and ns.Window then ns.Window.MarkDirty(w, bag)   -- filled when the cleanup ends
                 else Items.Fill(btn) end
             end)
         end
     end
+    -- In the list view the row beside the slot reads the same item.
+    if btn.dluiRow then ns.Layout.PaintRow(btn) end
     return shown ~= nil
 end
 
@@ -838,8 +1081,17 @@ end
 function Items.Match(btn)
     local holder = btn:GetParent()
     local bag, slot = holder and holder:GetID(), btn:GetID()
-    local w = windowOf(btn)
-    call(btn, "SetMatchesSearch", ns.Search.Matches(bag, slot, Items.InfoAt(bag, slot), w and w.match))
+    call(btn, "SetMatchesSearch", Items.Fits(bag, slot, Items.InfoAt(bag, slot), windowOf(btn)))
+end
+
+-- Whether a slot stands out: it matches the window's search and, in the grid view,
+-- sits in the picked chip's groups (the categories view hides those slots instead).
+function Items.Fits(bag, slot, info, w, quest)
+    local fits = ns.Search.Matches(bag, slot, info, w and w.match, quest)
+    if fits and info and w and w.chip and not ns.Layout.Grouped(w.Setting("view")) then
+        fits = ns.Window.ItemInChip(w, ns.Categories.Facts(bag, slot, info))
+    end
+    return fits
 end
 
 -- The slot now holds something other than its last fill: the bag update arrived
@@ -872,14 +1124,7 @@ function Items.Light(btn, on)
     local p = dressed[btn]
     if not p then return end
     p.lit = on or nil
-    if on then
-        Style.LightShell(p.shell, Items.BAND_DIM)
-        return
-    end
-    local color = p.color
-    if not color then return end
-    local k = Items.BAND_DIM
-    Style.SetShellColors(p.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+    Items.Ring(p)
 end
 
 -- Free count on a grouped section's tile (nil = none).

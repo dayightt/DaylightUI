@@ -307,6 +307,9 @@ function Widget:Hide()
     if was and parentsShown(self) then
         if self.__scripts.OnHide then self.__scripts.OnHide(self) end
         cascade(self, "OnHide")
+        -- Like the client, an edit box that can no longer be seen loses the keyboard.
+        local box = stub.focus
+        if box and not box:IsVisible() then box:ClearFocus() end
     end
 end
 function Widget:SetShown(v) if v then self:Show() else self:Hide() end end
@@ -598,6 +601,25 @@ function Widget:SetText(t)
     local fn = self.__scripts and self.__scripts.OnTextChanged
     if fn then fn(self, false) end
 end
+-- Like the client, one edit box has the keyboard at a time: giving it to one
+-- takes it from the other, and each runs its focus script.
+local function focusScript(box, name)
+    local fn = box.__scripts and box.__scripts[name]
+    if fn then fn(box) end
+end
+function Widget:SetFocus()
+    local was = stub.focus
+    if was == self then return end
+    stub.focus = self
+    if was then focusScript(was, "OnEditFocusLost") end
+    focusScript(self, "OnEditFocusGained")
+end
+function Widget:ClearFocus()
+    if stub.focus ~= self then return end
+    stub.focus = nil
+    focusScript(self, "OnEditFocusLost")
+end
+function Widget:HasFocus() return stub.focus == self end
 function Widget:SetAlpha(a) self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = nil end
 -- Like the client, the alpha it picks really lands (true -> t, false -> f).
 function Widget:SetAlphaFromBoolean(v, t, f)
@@ -2867,6 +2889,7 @@ function stub.Reset()
     stub.restrictions, stub.inRestrictionDispatch = {}, false
     stub.lockErrors, stub.lockSites = 0, {}
     stub.secure, stub.inSecure = false, 0
+    stub.focus = nil
     stub.conditions, stub.drivers, stub.frozenGroup = {}, {}, nil
     stub.TEMPLATES = {}
     for k, v in pairs(BASE_TEMPLATES) do stub.TEMPLATES[k] = v end
@@ -3299,7 +3322,7 @@ function stub.Load(opts)
     end
     if opts.bags then
         local BG = {}
-        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
+        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Move.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
                                         "Currency.lua", "MoneyRoll.lua",
                                         "OpenClose.lua", "Options.lua", "Module.lua" }, "DaylightUI_Bags", BG)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Bags")

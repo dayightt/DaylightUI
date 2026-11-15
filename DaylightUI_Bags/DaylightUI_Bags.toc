@@ -26,6 +26,7 @@ Stack.lua
 Keep.lua
 Swap.lua
 Window.lua
+Move.lua
 Disenchant.lua
 Guard.lua
 Prep.lua

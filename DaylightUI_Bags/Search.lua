@@ -187,6 +187,83 @@ function Search.Parse(text)
     end
 end
 
+-- Baganator's searches (Syndicator's language) turned into this one, for its
+-- category import. Its operators are the same (& | !, ~ also means not, same
+-- order), "#word" is a keyword, and a bare number or range is an item level.
+-- Each English keyword maps to one here, or to false when there's nothing like
+-- it: those terms are left out and named back to the player.
+Search.SYNDICATOR = {
+    gear = "gear", equipment = "gear", weapon = "weapon", armor = "armor", armour = "armor",
+    consumable = "consumable", food = "food", drink = "drink", potion = "potion",
+    reagent = "reagent", ["crafting reagent"] = "reagent", ["trade goods"] = "tradegoods", tradegoods = "tradegoods",
+    tradeskill = "tradegoods", recipe = "recipe", key = "key", keyring = "key", container = "container", bag = "container",
+    quest = "quest", ["quest item"] = "quest", junk = "junk", trash = "junk",
+    boe = "boe", bou = "bou", soulbound = "soulbound", bound = "soulbound", set = "set", ["equipment set"] = "set",
+    poor = "poor", common = "common", uncommon = "uncommon", rare = "rare", epic = "epic", legendary = "legendary",
+    boa = false, warbound = false, artifact = false, heirloom = false, toy = false, pet = false, ["battle pet"] = false,
+    mount = false, socket = false, cosmetic = false, reputation = false, manuscript = false, use = false, open = false,
+    ["tradeable loot"] = false, gem = false, ["item enhancement"] = false, miscellaneous = false, profession = false,
+    classic = false, vanilla = false, bc = false, tbc = false, ["burning crusade"] = false, wrath = false, wotlk = false,
+    cata = false, cataclysm = false, mop = false, pandaria = false, wod = false, draenor = false, legion = false,
+    bfa = false, shadowlands = false, dragonflight = false, ["war within"] = false, ["the war within"] = false,
+}
+
+-- One Syndicator term (lowercase, trimmed) as one of ours, or nil.
+local function fromSyndicatorTerm(text)
+    local no = ""
+    while true do
+        local first = string.sub(text, 1, 1)
+        if first ~= "!" and first ~= "~" then break end
+        no = no == "" and "!" or ""
+        text = trim(string.sub(text, 2))
+    end
+    if text == "" then return nil end
+    if string.match(text, "^%d+$") then return no .. "ilvl=" .. text end
+    local op, n = string.match(text, "^([<>]=?)%s*(%d+)$")
+    if op then return no .. "ilvl" .. op .. n end
+    local lo, hi = string.match(text, "^(%d+)%s*%-%s*(%d+)$")
+    if lo then return no .. "ilvl" .. lo .. "-" .. hi end
+    local keywordOnly = string.sub(text, 1, 1) == "#"
+    local word = keywordOnly and trim(string.sub(text, 2)) or text
+    local mapped = Search.SYNDICATOR[word]
+    if mapped then return no .. (keywordOnly and "#" or "") .. mapped end
+    -- Only keywords from the table above: a word that is a keyword here but not
+    -- one of Baganator's (locked) would mean something else.
+    if mapped == false or keywordOnly or K[word] then return nil end
+    return no .. word
+end
+
+-- The whole search, plus the parts left out. nil search = nothing left of it.
+-- A term with no match here drops its whole & part: leaving out just the term
+-- would let in more than the search meant to. Dropping a | part only lets in less.
+function Search.FromSyndicator(text)
+    local whole = string.lower(trim(text))
+    local dropped = {}
+    if whole == "" then return nil, dropped end
+    -- Brackets around the whole search change nothing; anywhere else they would.
+    local inner = string.match(whole, "^%((.*)%)$")
+    if inner and not string.find(inner, "[()]") then whole = trim(inner) end
+    if string.find(whole, "[();]") then
+        dropped[1] = whole
+        return nil, dropped
+    end
+    local any = {}
+    for _, part in ipairs(split(whole, "|")) do
+        local all, pieces, whole = {}, {}, true
+        for _, piece in ipairs(split(part, "&")) do
+            if piece ~= "" then
+                pieces[#pieces + 1] = piece
+                local ours = fromSyndicatorTerm(piece)
+                if ours then all[#all + 1] = ours else whole = false end
+            end
+        end
+        if not whole then dropped[#dropped + 1] = table.concat(pieces, " & ")
+        elseif #all > 0 then any[#any + 1] = table.concat(all, " & ") end
+    end
+    if #any == 0 then return nil, dropped end
+    return table.concat(any, " | "), dropped
+end
+
 -- Facts about the item in a slot, for matching. Cat.Facts adds to the same
 -- table for groups, so item info is read once for both. quest is the slot's
 -- quest info if the caller already has it.
