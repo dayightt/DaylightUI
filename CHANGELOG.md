@@ -3,14 +3,14 @@
 Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.
 
 ## New
-- Glows: Five animated glows (or none) for main window buttons, your target's nameplate outline and Cooldown Manager glows
+- Glows: Five animated glows (or none) for main window buttons, your target's nameplate outline and each Cooldown Manager spell
 - Windows: Swap any Daylight UI window for the game's own, now in the Daylight UI look, and back again
 - Windows: Pick a background color for windows and panels: Daylight, your class color or your own (General > Appearance)
 - Bags: Hide the bag's header for a shorter bag, or turn off comparing with your worn gear (Bags > Layout)
 
 ## Changed
 - Quests: A quest ready to hand in keeps its level color in the tracker, like the quest log
-- Languages: More German, Spanish and Chinese text translated and checked by native speakers
+- Languages: Much more German and Chinese text checked by native speakers, and every Spanish line translated
 
 ## Fixed
 - NPC window: Double-clicking a quest reward no longer hands the quest in: it only picks the reward
@@ -25,6 +25,9 @@ Five glow styles, the game's own windows if you prefer them, a background color 
 - Loot: The whole row in the loot window answers hover and click, not only the icon
 - Loot feed: Gaining a skill point while looting no longer causes a Lua error in some languages
 - Window skins: The Attune window no longer shows empty black boxes in its chains
+- Languages: Headings keep their accented and Russian letters, and dates, the gold ledger and PvP rank read right in every language
+- Chat: Channels on a German game get their short tags and sort into the right tabs
+- Unlock mode: The Move together button shows what it does when you hover it
 
 # DaylightUI 1.8.3
 

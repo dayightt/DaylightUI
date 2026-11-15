@@ -11,27 +11,17 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
-        changed = {
-            { "Languages", "Much more German text checked by native speakers, and every Spanish line translated" },
-        },
-        fixed = {
-            { "Loot", "Hovering or clicking anywhere on a loot row takes the item, not only its icon" },
-            { "Languages", "Headings in capitals keep their accented and Russian letters, and \"2 days ago\", the gold ledger and the PvP rank read right in every language" },
-            { "Chat", "Channels on a German game get their short tags and sort into the right tabs" },
-            { "Unlock mode", "The Move together button shows what it does when you hover it" },
-        },
-    },
+    { version = "Unreleased" },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",
         new = {
-            { "Glows", "Five animated glows (or none) for main window buttons, your target's nameplate outline and Cooldown Manager glows" },
+            { "Glows", "Five animated glows (or none) for main window buttons, your target's nameplate outline and each Cooldown Manager spell" },
             { "Windows", "Swap any Daylight UI window for the game's own, now in the Daylight UI look, and back again" },
             { "Windows", "Pick a background color for windows and panels: Daylight, your class color or your own (General > Appearance)" },
             { "Bags", "Hide the bag's header for a shorter bag, or turn off comparing with your worn gear (Bags > Layout)" },
         },
         changed = {
             { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log" },
-            { "Languages", "More German, Spanish and Chinese text translated and checked by native speakers" },
+            { "Languages", "Much more German and Chinese text checked by native speakers, and every Spanish line translated" },
         },
         fixed = {
             { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
@@ -46,6 +36,9 @@ DUI.PatchNotes = {
             { "Loot", "The whole row in the loot window answers hover and click, not only the icon" },
             { "Loot feed", "Gaining a skill point while looting no longer causes a Lua error in some languages" },
             { "Window skins", "The Attune window no longer shows empty black boxes in its chains" },
+            { "Languages", "Headings keep their accented and Russian letters, and dates, the gold ledger and PvP rank read right in every language" },
+            { "Chat", "Channels on a German game get their short tags and sort into the right tabs" },
+            { "Unlock mode", "The Move together button shows what it does when you hover it" },
         },
     },
     { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",
