@@ -240,9 +240,7 @@ end)
 -- values while Ribbon is on, with the frames laid out after each, raises no
 -- error. The rows' own tests check what each does. This checks they still
 -- work on the new shape.
-T.test("Ribbon: every option of the player, target, focus and party pages works", function()
-    local DUI, ns = login()
-    ribbon(DUI, ns)
+local function everyOption(DUI, ns)
     local O = DUI.Options
     local tried = 0
     for _, id in ipairs(ns.STYLE_FRAMES) do
@@ -287,6 +285,12 @@ T.test("Ribbon: every option of the player, target, focus and party pages works"
         end
     end
     T.truthy(tried > 200, "it went through the rows: " .. tried)
+end
+
+T.test("Ribbon: every option of the player, target, focus and party pages works", function()
+    local DUI, ns = login()
+    ribbon(DUI, ns)
+    everyOption(DUI, ns)
     T.eq(ns.frames.player.style, "ribbon", "still Ribbon at the end")
 end)
 
@@ -463,4 +467,137 @@ T.test("Ribbon party: the holder (the unlock handle) takes in the first row and 
     local cfg = DUI:Get("UnitFrames", "party")
     T.near(ns.Party.DefaultY(cfg), 160 + cfg.height / 2 + holder.padUp, 0.01, "the first frame stays where it starts")
     T.truthy(holder:GetHeight() ~= hDay)
+end)
+
+-- The backdrop piece (no shipped style uses it yet): the portrait fills the
+-- frame with the name on it, and health and power are strips along its foot.
+-- The ring is off, so everything that rides on it takes its place on a frame
+-- without one. These build a made-up style with it.
+local function backdrop(DUI, ns, style)
+    if not ns.STYLES.card then addStyle(ns, "card", { backdrop = true }) end
+    ns.SetStyle("look.style", style or "card")
+    stub.RunTimers()
+end
+
+T.test("a backdrop style: the picture fills the frame, the name on it, health and power strips along the foot", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    local f = ns.frames.player
+    T.eq(f.style, "card")
+    T.truthy(f.backdropOn)
+    T.truthy(f.backdrop:IsShown(), "the picture shows")
+    T.falsy(f.portrait:IsShown(), "no ring")
+    T.falsy(f.tab:IsShown(), "no name tab")
+    T.near(f.health:GetHeight(), DaylightUI.Pixel.Snap(f, DUI:Get("UnitFrames", "player.stripHeight")))
+    local p, rel, rp = f.health:GetPoint(1)
+    T.eq(p, "BOTTOMLEFT"); T.eq(rel, f.separator); T.eq(rp, "TOPLEFT")
+    T.eq(f.nameText:GetParent(), f.overlay, "the name on the art")
+    p, rel, rp = f.nameText:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(rel, f); T.eq(rp, "TOPLEFT")
+    p, rel, rp = f.percentText:GetPoint(1)
+    T.eq(p, "BOTTOMRIGHT"); T.eq(rel, f.health); T.eq(rp, "TOPRIGHT")
+    local _, rel3 = f.backdrop:GetPoint(3)
+    T.eq(rel3, f.health, "the picture stops at the strip")
+    -- The target is mirrored: its name at the right, its picture's face at the right.
+    local tf = ns.frames.target
+    p = tf.nameText:GetPoint(1)
+    T.eq(p, "TOPRIGHT")
+    p = tf.backdrop.art:GetPoint(1)
+    T.eq(p, "TOPRIGHT")
+end)
+
+T.test("a backdrop style: the portrait setting picks the picture, and the model stays clear of the angled end", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    local f = ns.frames.player
+    local b = f.backdrop
+    DUI:Set("UnitFrames", "player.portrait", "class")
+    stub.RunTimers()
+    T.truthy(b.art:IsShown()); T.falsy(b.model:IsShown())
+    DUI:Set("UnitFrames", "player.portrait", "3d")
+    stub.RunTimers()
+    T.falsy(b.art:IsShown()); T.truthy(b.model:IsShown())
+    local T2 = DaylightUI.Pixel.Px(f, DaylightUI.Style.BorderPx(f))
+    T.near(b.model:GetWidth(), f:GetWidth() - 2 * T2 - f.cut, 0.01, "stops before the angled end")
+    DUI:Set("UnitFrames", "player.portrait", "2d")
+    stub.RunTimers()
+    T.truthy(b.art:IsShown()); T.falsy(b.model:IsShown())
+    DUI:Set("UnitFrames", "player.portrait", "none")
+    stub.RunTimers()
+    T.falsy(b.art:IsShown()); T.falsy(b.model:IsShown())
+    T.truthy(b:IsShown(), "the unit's colors still fill the frame")
+end)
+
+T.test("a backdrop style: a secret name, class and health draw whole", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    stub.units.target = { name = stub.Secret("Boss"), isPlayer = stub.Secret(false), reaction = stub.Secret(2),
+        health = stub.Secret(50), maxHealth = stub.Secret(100), pct = stub.Secret(50) }
+    local f = ns.frames.target
+    T.noerror(function() ns.UF.UpdateAll(f, true) end)
+    T.eq(stub.Plain(stub.Text(f.nameText)), "Boss")
+end)
+
+T.test("a backdrop style: casts sit below it, threat colors its border, elites wear the crest on its corner", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    local CB, Style = ns.CastBar, DaylightUI.Style
+    T.eq(CB.At("target", DUI:Get("UnitFrames", "targetCastbar")), "below", "too thin a strip to sit inside")
+    local f = ns.frames.target
+    ns.UF.ApplyThreat(f, "aggro")
+    T.truthy(Style.GetShell(f).opts.borderColor, "the frame's border is red")
+    if f.crest then
+        local _, rel = f.crest:GetPoint(1)
+        T.eq(rel, f, "the crest on the frame's corner")
+        T.eq(f.crest:GetParent(), f.overlay, "out of the tab's clip")
+    end
+end)
+
+T.test("back to Daylight from a backdrop style puts the ring, tab and full health bar back", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    backdrop(DUI, ns, "daylight")
+    local f = ns.frames.player
+    T.eq(f.style, "daylight")
+    T.falsy(f.backdrop:IsShown())
+    T.truthy(f.portrait:IsShown())
+    T.truthy(f.tab:IsShown())
+    local _, rel = f.health:GetPoint(1)
+    T.eq(rel, f, "the health fills the frame again")
+    T.eq(f.nameText:GetParent(), f.tab)
+end)
+
+T.test("a backdrop style's options: the picture's rows, no ring or name tab rows", function()
+    local DUI, ns = login()
+    local O = DUI.Options
+    local page = O.GetPage("UnitFrames.player")
+    local rows = {}
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items) do rows[it.label] = rows[it.label] or {}; table.insert(rows[it.label], it) end
+    end
+    local function hidden(label) return O.IsHidden(page, rows[label][1]) end
+    T.truthy(hidden("Card picture")); T.truthy(hidden("Health strip height"))
+    backdrop(DUI, ns)
+    T.falsy(hidden("Card picture")); T.falsy(hidden("Health strip height"))
+    T.truthy(hidden("Ring color")); T.truthy(hidden("Portrait size")); T.truthy(hidden("Name tab height"))
+    T.truthy(hidden("Name on the bar"))
+    T.eq(#O.ValidatePage(page), 0)
+end)
+
+T.test("a backdrop style: every option of the player, target, focus and party pages works", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    everyOption(DUI, ns)
+    T.eq(ns.frames.player.style, "card", "still the backdrop style at the end")
+end)
+
+T.test("a backdrop style on party buttons, and as a setup guide card", function()
+    local DUI, ns = login()
+    backdrop(DUI, ns)
+    local b = partyButton(ns, 1)
+    T.eq(b.style, "card")
+    T.truthy(b.backdrop and b.backdrop:IsShown(), "a picture on the button")
+    local c = { inner = CreateFrame("Frame") }
+    T.noerror(function() DUI.InstallerCards.Draw.frameStyle(c, "card", 140, 70) end)
+    T.noerror(c.redraw)
 end)

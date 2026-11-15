@@ -357,6 +357,8 @@ end
 --   line   the power is a thin line hung under the frame instead of inside it
 --   ring   the portrait's radius as a share of the whole frame (row, bar and
 --          line), centered on it; nil = the frame's own size rule
+--   backdrop  the portrait fills the frame behind the name, and health and
+--          power are strips along its foot (stripHeight tall); the ring is off
 --   sizes  each frame's own heights in this style; missing ones are Daylight's
 -- style = "global" follows look.style. Each style keeps its own heights in
 -- sizes. The live keys (height...) hold the shown style's values and sizesFor
@@ -376,12 +378,15 @@ ns.STYLES = {
                } },
 }
 ns.STYLE_ORDER = { "daylight", "ribbon" }
+-- The health strip's height in a style with a backdrop.
+local STRIP_HEIGHT = { player = 8, target = 8, focus = 6, party = 6 }
 -- The frames that can take a style (spec.styled); the rest are always Daylight.
 ns.STYLE_FRAMES = { "player", "target", "focus", "party" }
 ns.SIZE_KEYS = { "height", "powerHeight", "tabHeight", "spacing" }
 for _, k in ipairs(ns.STYLE_FRAMES) do
     local d = ns.DEFAULTS[k]
     d.style, d.sizesFor, d.ribbonGap = "global", "daylight", 2
+    d.stripHeight = STRIP_HEIGHT[k]
     d.sizes = {}
     for _, style in ipairs(ns.STYLE_ORDER) do
         local own = ns.STYLES[style].sizes

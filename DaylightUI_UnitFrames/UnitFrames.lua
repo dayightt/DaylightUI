@@ -329,6 +329,15 @@ UF.LINE_GAP = 2           -- gap between the bar and its line, when unset
 UF.ROW_TEXT_LIFT = 1      -- the row's texts sit this far above the bar's top edge
 UF.ROW_NUMBER_INSET = 2   -- the health number's inset from the row's inner end
 UF.ROW_NAME_SHARE = 0.62  -- the fraction of the row the name may take (the number gets the rest)
+UF.STRIP_HEIGHT = 8       -- a backdrop's health strip, when unset
+UF.CARD_PAD = 5           -- the name's inset from a backdrop's top outer corner
+UF.CARD_TEXT_LIFT = 2     -- the health number sits this far above the strip
+UF.CARD_NAME_SHARE = 0.72 -- the fraction of the frame's width the name may take
+UF.CARD_FADE = 0.45       -- the inner share of a face or class icon that melts into the wash
+UF.CARD_SHADE = 0.5       -- how far down (and up) the shades for the name and number reach
+UF.CARD_SHADE_ALPHA = 0.7 -- how dark they start
+UF.CARD_WASH_ALPHA = 0.45 -- the unit's color behind the art
+UF.CARD_ZOOM = 0.85       -- the model's zoom: head and shoulders
 
 -- The style a frame's settings ask for: its own pick, or with "global" the one
 -- for every frame (look.style). Settings without a style key (raid tiles,
@@ -394,12 +403,23 @@ function UF.PortraitHeight(f, cfg)
     return h
 end
 
--- The portrait a frame shows: its setting, or none on a frame that's too short.
+-- The portrait ring a frame shows: its setting, or none on a frame that's too
+-- short, and none in a style whose portrait fills the frame instead (backdrop,
+-- UF.BackdropMode), so everything that rides on the ring finds its usual place
+-- on a frame without one.
 function UF.PortraitMode(f, cfg)
     if not f.portrait then return "none" end
+    if ns.STYLES[UF.FrameStyle(f, cfg)].backdrop then return "none" end
     local mode = UF.PORTRAIT_MODES[cfg.portrait] and cfg.portrait or "none"
     if mode ~= "none" and UF.PortraitHeight(f, cfg) < UF.MIN_PORTRAIT_HEIGHT then return "none" end
     return mode
+end
+
+-- What the backdrop shows (the portrait setting), or nil when the frame's style
+-- has none.
+function UF.BackdropMode(f, cfg)
+    if not (f.portrait and ns.STYLES[UF.FrameStyle(f, cfg)].backdrop) then return nil end
+    return UF.PORTRAIT_MODES[cfg.portrait] and cfg.portrait or "none"
 end
 
 -- Class icons: Daylight UI's own set, or a style from the Jiberish Fabled Icons
@@ -740,6 +760,8 @@ function UF.Build(f, spec)
     if spec.portrait then
         UF.CreatePortrait(f)
         UF.CreateStatus(f)
+        -- A style's backdrop (Card), made with the frame like the power line.
+        if spec.styled then UF.CreateBackdrop(f) end
     end
     if spec.classification and f.tab then
         UF.CreateCrest(f)
@@ -1244,6 +1266,7 @@ function UF.Layout(f, cfg, text, keepSize)
     f.nameRow = style.row == true
     f.powerLine = style.line == true
     f.ringShare = style.ring
+    f.backdropOn = style.backdrop == true and type(f.backdrop) == "table"
     f.foot = 0
     local rowOn = f.nameRow and type(f.tab) == "table"
         and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or cfg.showPercent == true)
@@ -1254,7 +1277,8 @@ function UF.Layout(f, cfg, text, keepSize)
     f.cut = cut
     -- Party buttons with neither a portrait nor a name tab showing carry their
     -- icons in the corners, like tiles.
-    local tabOn = f.tab and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or f.hitTop > 0) or false
+    -- A backdrop carries the name on its art, so there's no tab.
+    local tabOn = f.tab and not f.backdropOn and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or f.hitTop > 0) or false
     f.cornerMode = f.spec.cornerIcons == true and UF.PortraitMode(f, cfg) == "none" and not tabOn
 
     f.health:ClearAllPoints()
@@ -1298,6 +1322,20 @@ function UF.Layout(f, cfg, text, keepSize)
         f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", 0, 0)
     else
         f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
+    end
+    -- With a backdrop the health is a strip along the foot, over the power,
+    -- and the art takes the rest (UF.LayoutBackdrop).
+    if f.backdropOn then
+        f.health:ClearAllPoints()
+        local under = (showPower and where == "inside") and f.separator or nil
+        if under then
+            f.health:SetPoint("BOTTOMLEFT", under, "TOPLEFT", 0, 0)
+            f.health:SetPoint("BOTTOMRIGHT", under, "TOPRIGHT", 0, 0)
+        else
+            f.health:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T)
+            f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
+        end
+        f.health:SetHeight(Pixel.Snap(f, tonumber(cfg.stripHeight) or UF.STRIP_HEIGHT))
     end
 
     -- Where the marker, crown and role icon sit (UF.IconSpot). nil means home,
@@ -1374,7 +1412,7 @@ function UF.Layout(f, cfg, text, keepSize)
     -- its name on the bar at a spot (namePos) is named the same way, while at
     -- "bar" a frame with a portrait keeps UF.PlaceBarName. A small frame (the
     -- pet) with its name on the bar is named as before, regardless of its tab.
-    if f.tab and cfg.nameOnBar == true
+    if f.tab and cfg.nameOnBar == true and not f.backdropOn
         and ((f.spec.group and UF.PortraitMode(f, cfg) == "none") or f.spec.compact or ns.Spots.Valid(cfg.namePos)) then
         UF.SetTileName(f, cfg, text)
     end
@@ -1408,6 +1446,7 @@ function UF.Layout(f, cfg, text, keepSize)
         local H = f:GetHeight()
         local ph = (showPower and where == "inside") and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
         f.healthCut = cut * (H - 2 * T - ph) / H
+        if f.backdropOn then f.healthCut = cut * f.health:GetHeight() / H end
         -- The stripe owns the angled end, so the bars' fill stays square.
         local fillSide = (not f.flipped and cfg.fillVertical ~= true and not (band and band.along)) and side or nil
         Style.AngleFill(f.health, fillSide, f.healthCut)
@@ -1457,6 +1496,12 @@ function UF.Layout(f, cfg, text, keepSize)
         UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.tab, "BOTTOM" .. inner, dir * UF.ROW_NUMBER_INSET,
             UF.ROW_TEXT_LIFT, nx, ny)
         f.percentText:SetJustifyH(inner)
+    elseif f.backdropOn then
+        -- On the art at its inner bottom corner, just over the health strip.
+        Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
+        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.health, "TOP" .. inner, (cut + UF.BIG_NUMBER_INSET) * dir,
+            UF.CARD_TEXT_LIFT, nx, ny)
+        f.percentText:SetJustifyH(inner)
     elseif f.bigNumber then
         Style.SetTextSize(f.percentText, text.big)
         UF.PlaceText(f.percentText, inner, f.health, inner, (cut + UF.BIG_NUMBER_INSET) * dir, -UF.BIG_NUMBER_DROP, nx, ny)
@@ -1471,6 +1516,7 @@ function UF.Layout(f, cfg, text, keepSize)
     f.percentText:SetShown(cfg.showPercent == true)
 
     UF.LayoutPortrait(f, cfg)
+    if f.backdrop then UF.LayoutBackdrop(f, cfg, side, cut) end
     f.crestOnTab = not (f.portrait and f.portrait:IsShown())
     f.showLevel, f.showLeader, f.showResting = cfg.showLevel ~= false, cfg.showLeader ~= false, cfg.showResting ~= false
     f.showPvP = cfg.showPvP ~= false
@@ -1482,12 +1528,12 @@ function UF.Layout(f, cfg, text, keepSize)
         f.tabHeight = tonumber(cfg.tabHeight) or UF.TAB_HEIGHT
         f.nameOnBar = cfg.nameOnBar == true
         -- The name (and marker) move between the tab and the bar's overlay.
-        local home = (f.nameOnBar or f.cornerMode) and f.overlay or f.tab
+        local home = (f.nameOnBar or f.cornerMode or f.backdropOn) and f.overlay or f.tab
         f.nameText:SetParent(home)
         if f.marker then f.marker:SetParent(f.markerSpot and f.overlay or home) end
         -- A name row is the tab with its shell hidden. It shows while the
         -- name or the health number is on it.
-        f.tab:SetShown((cfg.showName ~= false and not f.nameOnBar) or f.hitTop > 0)
+        f.tab:SetShown(not f.backdropOn and ((cfg.showName ~= false and not f.nameOnBar) or f.hitTop > 0))
         Style.GetShell(f.tab):SetShown(not f.nameRow)
         if f.tabEdge then f.tabEdge:SetShown((f.crestShown and not f.nameRow) or false) end
         -- Everything above the body's top edge, outlines overlapping.
@@ -1513,8 +1559,12 @@ function UF.Layout(f, cfg, text, keepSize)
         -- ring shows elite status instead.
         local outerRight = f.spec.slant == "left"
         f.crest:ClearAllPoints()
+        -- A backdrop has no tab: the badge sits on the frame's own outer corner,
+        -- out of the tab's clip so none of it is cut off.
+        local on = f.backdropOn and f or f.tab
+        f.crest:SetParent(f.backdropOn and f.overlay or f.tabClip)
+        f.crest:SetPoint("CENTER", on, "TOP" .. (outerRight and "RIGHT" or "LEFT"), 0, 0)
         f.crest:SetFrameLevel(f.tab:GetFrameLevel() + 4)
-        f.crest:SetPoint("CENTER", f.tab, "TOP" .. (outerRight and "RIGHT" or "LEFT"), 0, 0)
         f.crest:SetSize(UF.CREST_SIZE, UF.CREST_SIZE)
     end
     -- Extra texts (Add piece), placed like any piece and written below.
@@ -2001,8 +2051,162 @@ function UF.PaintRing(f)
     UF.ApplyDragon(f)   -- your own dragon's class gradient follows the unit's
 end
 
+-- A backdrop style's art (Card): the portrait filling the frame above its
+-- strips, over a wash of the unit's color, with a shade at the top for the
+-- name and at the foot for the number. Hidden until a style needs it.
+function UF.CreateBackdrop(f)
+    local b = CreateFrame("Frame", nil, f)
+    b:SetFrameLevel(f.health:GetFrameLevel())
+    b.wash = b:CreateTexture(nil, "BACKGROUND")
+    b.wash:SetTexture("Interface\\Buttons\\WHITE8x8")
+    b.wash:SetAllPoints(b)
+    b.art = b:CreateTexture(nil, "ARTWORK")
+    -- The face or class icon's inner side melts into the wash.
+    b.fade = b:CreateTexture(nil, "ARTWORK", nil, 1)
+    b.fade:SetTexture("Interface\\Buttons\\WHITE8x8")
+    b.art:Hide()
+    b.fade:Hide()
+    b.model = CreateFrame("PlayerModel", nil, b)
+    b.model:SetFrameLevel(b:GetFrameLevel() + 1)
+    b.model:Hide()
+    b.top = CreateFrame("Frame", nil, b)
+    b.top:SetAllPoints(b)
+    b.top:SetFrameLevel(b:GetFrameLevel() + 2)
+    b.shadeTop = b.top:CreateTexture(nil, "ARTWORK")
+    b.shadeFoot = b.top:CreateTexture(nil, "ARTWORK")
+    for _, t in ipairs({ b.shadeTop, b.shadeFoot }) do t:SetTexture("Interface\\Buttons\\WHITE8x8") end
+    b.shadeTop:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.shadeTop:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    b.shadeFoot:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+    b.shadeFoot:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    if f.spec.slant then
+        for _, t in ipairs({ b.wash, b.shadeTop, b.shadeFoot }) do Style.Clip(f, t, "inner") end
+    end
+    b:Hide()
+    f.backdrop = b
+end
+
+-- Places the backdrop over the frame above its strips. The model can't be
+-- masked, so it stops before the angled end; the face or class icon is a
+-- square at the outer end, fading into the wash.
+function UF.LayoutBackdrop(f, cfg, side, cut)
+    local b = f.backdrop
+    local mode = f.backdropOn and UF.BackdropMode(f, cfg) or nil
+    f.backdropMode = mode
+    if not mode then
+        b:Hide()
+        return
+    end
+    local T = Pixel.Px(f, Style.BorderPx(f))
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
+    b:SetPoint("TOPRIGHT", f, "TOPRIGHT", -T, -T)
+    b:SetPoint("BOTTOM", f.health, "TOP", 0, 0)
+    local ph = (f.separator and f.separator:IsShown()) and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
+    local bh = math.max(1, f:GetHeight() - 2 * T - f.health:GetHeight() - ph)
+    local bw = math.max(1, f:GetWidth() - 2 * T)
+    local outerRight = f.spec.slant == "left"
+    local outer = outerRight and "RIGHT" or "LEFT"
+    local inward = outerRight and -1 or 1
+    b.art:ClearAllPoints()
+    b.art:SetPoint("TOP" .. outer, b, "TOP" .. outer, 0, 0)
+    b.art:SetSize(bh, bh)
+    b.fade:ClearAllPoints()
+    b.fade:SetPoint("TOP" .. outer, b.art, "TOP" .. outer, inward * bh * (1 - UF.CARD_FADE), 0)
+    b.fade:SetSize(bh * UF.CARD_FADE, bh)
+    b.model:ClearAllPoints()
+    b.model:SetPoint("TOP" .. outer, b, "TOP" .. outer, 0, 0)
+    b.model:SetSize(math.max(1, bw - (cut or 0)), bh)
+    b.shadeTop:SetHeight(bh * UF.CARD_SHADE)
+    b.shadeFoot:SetHeight(bh * UF.CARD_SHADE)
+    local k = Style.BACKGROUND
+    local dark, clear = CreateColor(k[1], k[2], k[3], UF.CARD_SHADE_ALPHA), CreateColor(k[1], k[2], k[3], 0)
+    b.shadeTop:SetVertexColor(1, 1, 1, 1)
+    b.shadeTop:SetGradient("VERTICAL", clear, dark)
+    b.shadeFoot:SetVertexColor(1, 1, 1, 1)
+    b.shadeFoot:SetGradient("VERTICAL", dark, clear)
+    b:Show()
+    UF.UpdateBackdrop(f)
+end
+
+-- The wash in the unit's color pair (a sample's sample class; a class the
+-- game hides comes as one secret color), then the face, class icon or model.
+function UF.UpdateBackdrop(f)
+    local b = f.backdrop
+    if not (b and f.backdropMode and b:IsShown()) then return end
+    local sample = f.test
+    local u = sample and "player" or f.unitToken
+    local Grad = DUI.Gradients
+    local lo, hi, sr, sg, sb
+    if sample then
+        lo, hi = Grad.Colors(sample.portraitClass or "HOSTILE")
+    else
+        sr, sg, sb = Grad.HiddenClassColor(u)
+        if type(sr) == "nil" then lo, hi = Grad.Colors(Grad.KeyFor(u)) end
+    end
+    local a = UF.CARD_WASH_ALPHA
+    local outerRight = f.spec.slant == "left"
+    if type(sr) ~= "nil" then
+        b.wash:SetVertexColor(sr, sg, sb, a)
+    elseif lo then
+        b.wash:SetVertexColor(1, 1, 1, 1)
+        local l, h = CreateColor(lo.r, lo.g, lo.b, a), CreateColor(hi.r, hi.g, hi.b, a * 0.4)
+        if outerRight then l, h = h, l end
+        b.wash:SetGradient("HORIZONTAL", l, h)   -- last, since a plain color clears it
+    else
+        local n = Style.NEUTRAL
+        b.wash:SetVertexColor(n[1], n[2], n[3], a)
+    end
+    local k = Style.BACKGROUND
+    local clear, solid = CreateColor(k[1], k[2], k[3], 0), CreateColor(k[1], k[2], k[3], 1)
+    b.fade:SetVertexColor(1, 1, 1, 1)
+    if outerRight then b.fade:SetGradient("HORIZONTAL", solid, clear) else b.fade:SetGradient("HORIZONTAL", clear, solid) end
+    local mode = f.backdropMode
+    if mode == "class" then
+        local isPlayer, token
+        if sample then
+            isPlayer, token = true, sample.portraitClass
+        else
+            isPlayer = UnitIsPlayer(u)
+            token = select(2, UnitClass(u))
+        end
+        local known = not isSecret(isPlayer) and isPlayer == true and not isSecret(token) and type(token) == "string"
+        local file, l, r, t, bt
+        if known then file, l, r, t, bt = UF.ClassIcon(token, f.iconStyle, f.classIcons) end
+        if file then
+            b.model:Hide()
+            b.art:SetTexture(file)
+            if outerRight then l, r = r, l end
+            b.art:SetTexCoord(l, r, t, bt)
+            b.art:Show()
+            b.fade:Show()
+            return
+        end
+        mode = "2d"
+    end
+    if mode == "3d" then
+        b.art:Hide()
+        b.fade:Hide()
+        b.model:Show()
+        pcall(b.model.SetUnit, b.model, u)
+        pcall(b.model.SetPortraitZoom, b.model, UF.CARD_ZOOM)
+        return
+    end
+    b.model:Hide()
+    if mode == "2d" then
+        pcall(SetPortraitTexture, b.art, u)
+        Style.CropIcon(b.art)
+        b.art:Show()
+        b.fade:Show()
+        return
+    end
+    b.art:Hide()
+    b.fade:Hide()
+end
+
 -- Class icons for players, faces for NPCs or when the class is secret.
 function UF.UpdatePortrait(f)
+    if f.backdrop then UF.UpdateBackdrop(f) end
     local p = f.portrait
     if not (p and p:IsShown()) then return end
     UF.PaintRing(f)
@@ -2092,6 +2296,28 @@ function UF.PlaceRowName(f)
     f.nameText:SetJustifyH(outer)
 end
 
+-- A backdrop: the name on the art at its top outer corner, after the raid
+-- marker (and past the crest there), cut short before the inner end.
+function UF.PlaceCardName(f)
+    local outerRight = f.spec.slant == "left"
+    local outer = outerRight and "RIGHT" or "LEFT"
+    local sign = outerRight and -1 or 1
+    local pad = UF.CARD_PAD
+    local markerW = f.markerShown and not f.markerSpot and ((f.markerSize or UF.MARKER_SIZE) + 3) or 0
+    local crestW = (f.crestShown and f.crestOnTab ~= false) and (UF.CREST_SIZE / 2) or 0
+    local T = Pixel.Px(f, Style.BorderPx(f))
+    if f.marker and not f.markerSpot then
+        f.marker:ClearAllPoints()
+        f.marker:SetPoint("TOP" .. outer, f, "TOP" .. outer, sign * (T + pad + crestW) + f.markerNudge.x,
+            -(T + pad - 1) + f.markerNudge.y)
+    end
+    f.nameText:ClearAllPoints()
+    f.nameText:SetPoint("TOP" .. outer, f, "TOP" .. outer, sign * (T + pad + crestW + markerW) + f.barNameX,
+        -(T + pad) + f.barNameY)
+    f.nameText:SetWidth(math.max(1, f:GetWidth() * UF.CARD_NAME_SHARE - crestW - markerW))
+    f.nameText:SetJustifyH(outer)
+end
+
 -- The tab fits the name, plus the raid marker before it and room for the crest
 -- at the outer corner. A secret name can't be measured, so it gets a fixed
 -- fraction of the frame instead.
@@ -2099,6 +2325,11 @@ function UF.SizeTab(f, name)
     if not f.tab then return end
     -- A name row runs from past the ring to the frame's inner end.
     if f.nameRow then f.tab:SetWidth(Pixel.Snap(f, math.max(30, f:GetWidth() - (f.tabInset or 0)))) end
+    if f.backdropOn then
+        UF.PlaceCardName(f)
+        if f.onTabSized then f.onTabSized(f) end
+        return
+    end
     if f.nameOnBar then
         if f.tileName then
             UF.PlaceTileName(f)
@@ -2746,7 +2977,7 @@ function UF.ApplyThreat(f, level, flag)
     -- (tiles, party buttons without a tab, and a name row, which has none).
     local tabOn = f.tab and f.tab:IsShown() and not f.nameRow or false
     local s = (tabOn and Style.GetShell(f.tab))
-        or ((f.spec.threatOnFrame or f.nameRow or (f.spec.group and not tabOn)) and Style.GetShell(f))
+        or ((f.spec.threatOnFrame or f.nameRow or f.backdropOn or (f.spec.group and not tabOn)) and Style.GetShell(f))
         or nil
     -- A style change can move it, so reset the shell it left.
     if f.threatShell and f.threatShell ~= s then

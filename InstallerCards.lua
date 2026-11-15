@@ -446,8 +446,10 @@ end
 -- Frame style (Unit frames, look.style), drawn from the style's pieces (the
 -- unit frames' STYLES): a frame with its name tab and the number inside, or a
 -- slim bar with the name and number on a row above (row) and the power as a
--- line below (line). A small sketch in the real frames' proportions (a bar 24
--- to its line 5), kept clear of the tick in the top right.
+-- line below (line), or a card (backdrop): your face filling the frame over
+-- your class color, the name on it and thin strips along its foot. A small
+-- sketch in the real frames' proportions (a bar 24 to its line 5), kept clear
+-- of the tick in the top right.
 Cards.STYLE_TICK = 22 -- room kept for the tick
 local function frameStyleOf(key)
     local mod = DUI:GetModule("UnitFrames")
@@ -462,7 +464,48 @@ function Cards.Draw.frameStyle(card, key, w, h)
     local k = tonumber(DUI:Get("UnitFrames", "look.slant")) or 0.21
     local name = DUI.UnitName("player", "player") or L["Name"]
     local fills = {}
-    if style.row or style.line then
+    if style.backdrop then
+        local H = math.max(12, math.floor(h * 0.72 + 0.5))
+        local body = styleBar(a, H)
+        body:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -math.floor(h * 0.1 + 0.5))
+        body:SetPoint("RIGHT", a, "RIGHT", 0, 0)
+        local T = DUI.Pixel.Px(body, Style.BorderPx(body))
+        local outerH = body:GetHeight()
+        local cut = math.floor(outerH * k + 0.5)
+        local bw = math.max(1, w - Cards.STYLE_TICK - 2 * T)
+        local strip, P = math.max(3, math.floor(H * 0.14 + 0.5)), math.max(2, math.floor(H * 0.07 + 0.5))
+        -- The bar's fill is the class color wash behind the picture.
+        body.fill:SetAlpha(0.35)
+        local art = H - strip - P - 1
+        local face = body:CreateTexture(nil, "ARTWORK", nil, 1)
+        face:SetPoint("TOPLEFT", body, "TOPLEFT", T, -T)
+        face:SetSize(art, art)
+        pcall(SetPortraitTexture, face, "player")
+        Style.CropIcon(face)
+        local hp = body:CreateTexture(nil, "ARTWORK", nil, 2)
+        hp:SetTexture(Style.BarFile())
+        local c = classColor()
+        hp:SetVertexColor(c[1], c[2], c[3], 1)
+        hp:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", T, T + P + 1)
+        hp:SetSize(math.floor(bw * 0.72 + 0.5), strip)
+        local mp = body:CreateTexture(nil, "ARTWORK", nil, 2)
+        mp:SetTexture(Style.BarFile())
+        local r, g, b = Style.PowerColor("MANA")
+        mp:SetVertexColor(r, g, b, 1)
+        mp:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", T, T)
+        mp:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -T, T)
+        mp:SetHeight(P)
+        Style.Clip(body, hp, "inner")
+        Style.Clip(body, mp, "inner")
+        Style.Slant(body, "right", cut)
+        local n = W.Font(body, W.BODY, SIZE.small, C.text)
+        n:SetPoint("TOPLEFT", body, "TOPLEFT", T + art * 0.55, -T - 3)
+        n:SetText(name)
+        local v = W.Font(body, W.BODY, SIZE.head, C.value)
+        v:SetPoint("BOTTOMRIGHT", hp, "TOPRIGHT", 0, 2)
+        v:SetText("72")
+        fills = { body.fill, hp, mp }
+    elseif style.row or style.line then
         local fillH = math.max(6, math.floor(h * 0.24 + 0.5))
         local P, gap = math.max(2, math.floor(fillH * 5 / 24 + 0.5)), 2
         local bar = styleBar(a, fillH)

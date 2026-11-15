@@ -65,7 +65,7 @@ function CB.At(unit, cfg)
     if found == "power" then
         local db = ns.module and ns.module.db
         local u = type(db) == "table" and db[unit]
-        if type(u) == "table" and (ns.UF.StyleDef(u).line or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
+        if type(u) == "table" and (ns.UF.StyleDef(u).line or ns.UF.StyleDef(u).backdrop or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
             -- A party bar has no "below" and hangs under its frame instead.
             return unit == "party" and "slide" or "below"
         end

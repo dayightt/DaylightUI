@@ -78,12 +78,15 @@ PageSample.PARTS = {
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.powerLine end },
     { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
+    { label = "Card picture", at = at("backdrop"), keys = { "%s.portrait", "%s.stripHeight" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On a name row it doesn't move.
     { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
                                                "%s.tab.at", "%s.tab.x", "%s.tab.y", "%s.tab.width", "%s.tab.own" },
       move = { spot = "%s.namePos", x = "%s.nameX", y = "%s.nameY" },
       tabMove = { spot = "%s.tab.at", x = "%s.tab.x", y = "%s.tab.y", dots = function(f) return UF.TabDots(f) end },
+      -- On a card the name has one place on the art, nudged from there.
+      cardMove = { home = true, x = "%s.nameX", y = "%s.nameY" },
       moveIf = function(f) return f.nameOnBar == true or not (f.tab and f.tab:IsShown()) end,
       tabIf = function(f) return f.nameOnBar ~= true and f.tab ~= nil and f.tab:IsShown() and not f.nameRow end },
     { label = "Health text", at = healthText, keys = { "%s.showPercent", "%s.healthText", "%sText.percent", "%s.healthTextX", "%s.healthTextY" },
@@ -346,7 +349,9 @@ local function collect(out, missing, part, owner, id, scale, cfg)
     end
     for _, r in ipairs(regions) do
         local move
-        if part.tabMove and part.tabIf(owner) then
+        if part.cardMove and owner.backdropOn then
+            move = moveOf(part, owner, id, have, cfg, r, part.cardMove)
+        elseif part.tabMove and part.tabIf(owner) then
             move = moveOf(part, owner, id, have, cfg, r, part.tabMove)
         elseif not part.moveIf or part.moveIf(owner) then
             move = moveOf(part, owner, id, have, cfg, r)

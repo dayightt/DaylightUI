@@ -1456,6 +1456,10 @@ local function framePage(id, label, desc, opts)
     local function noRow(get) return not has(get, "row") end
     local function onLine(get) return has(get, "line") end
     local function noLine(get) return not has(get, "line") end
+    local function onCard(get) return has(get, "backdrop") end
+    local function noCard(get) return not has(get, "backdrop") end
+    -- A name tab shows in neither a name row's style nor a card's.
+    local function noTabStyle(get) return has(get, "row") or has(get, "backdrop") end
     -- Too short for a portrait (UF.PortraitHeight; with a style's ring, the whole frame).
     local function tooShort(get)
         local cfg = { height = get(k("height")), tabHeight = get(k("tabHeight")), showPower = get(k("showPower")),
@@ -1475,6 +1479,9 @@ local function framePage(id, label, desc, opts)
         frame[#frame + 1] = { type = "slider", key = k("height"), label = "Bar height", min = 10, max = opts.maxHeight or 80,
             step = 1, desc = "The slim health bar. The name, the health number and the power line sit outside it.",
             disabled = shown, hidden = noLine }
+        frame[#frame + 1] = { type = "slider", key = k("stripHeight"), label = "Health strip height", min = 3, max = 20,
+            step = 1, unit = "px", desc = "The health bar along the card's foot. The picture takes the rest of the card.",
+            disabled = shown, hidden = noCard }
     end
     frame[#frame + 1] = strataRow(k("strata"), "Frame layer",
         opts.strataWhat or ("The layer the " .. string.lower(label) .. " frame draws in."), shown)
@@ -1531,41 +1538,47 @@ local function framePage(id, label, desc, opts)
             values = UF.PORTRAIT_MODES, order = UF.PORTRAIT_ORDER,
             desc = "A ring over the outer end. Class icons show for players; NPCs show their face."
                 .. " Needs a frame at least " .. UF.MIN_PORTRAIT_HEIGHT .. " tall.",
-            disabled = function(get) return shown(get) or tooShort(get) end }
+            disabled = function(get) return shown(get) or tooShort(get) end, hidden = onCard }
+        if styled then
+            frame[#frame + 1] = { type = "dropdown", key = k("portrait"), label = "Card picture",
+                values = UF.PORTRAIT_MODES, order = UF.PORTRAIT_ORDER,
+                desc = "What fills the card behind the name: the 3D model, the face, or the class icon (NPCs show their face). None leaves only the unit's colors.",
+                disabled = shown, hidden = noCard }
+        end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitShape"), label = "Shape", since = "1.8.1",
             values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
             desc = "A round ring, a square, or a square with its outer side angled like the frame's end. The aggro fill, arrival light and elite frame follow the shape.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         if opts.portraitFree then
             frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",
                 values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
                 desc = "On its own, the portrait leaves the frame and you can move it anywhere in unlock mode. The frame is then all bars.",
-                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
             frame[#frame + 1] = { type = "toggle", key = k("portraitIconsStay"), label = "Icons stay on the frame",
                 desc = "With the portrait on its own, the crown, resting Zzz, PvP flag, level badge and DoT skull stay on the frame instead of going with it.",
                 disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
-                    or get(k("portraitAt")) ~= "free" end }
+                    or get(k("portraitAt")) ~= "free" end, hidden = onCard }
         end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRing"), label = "Ring color",
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness", since = "1.8.1",
             values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
             desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
             desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         if opts.dragon then
             frame[#frame + 1] = { type = "toggle", key = k("portraitDragon"), label = "Dragon around the portrait",
                 desc = "The elite dragon wraps your own portrait too.",
-                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end }
+                disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
             frame[#frame + 1] = { type = "dropdown", key = k("portraitDragonColor"), label = "Dragon color",
                 values = UF.DRAGON_COLORS, order = UF.DRAGON_COLOR_ORDER,
                 desc = "Gold or silver like an elite's, your accent color, or your class colors.",
                 disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
-                    or not get(k("portraitDragon")) end }
+                    or not get(k("portraitDragon")) end, hidden = onCard }
         end
     end
     if opts.power or opts.flip then
@@ -1575,7 +1588,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.tab then
         frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name tab height", min = 10, max = 28, step = 1, unit = "px",
-            desc = "How tall the tab holding the name above the frame is.", disabled = shown, hidden = onRow }
+            desc = "How tall the tab holding the name above the frame is.", disabled = shown, hidden = noTabStyle }
         if styled then
             frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name row height", min = 10, max = 28, step = 1,
                 unit = "px", desc = "The row above the bar that holds the name and the health number.",
@@ -1585,7 +1598,7 @@ local function framePage(id, label, desc, opts)
     if opts.portrait then
         frame[#frame + 1] = { type = "slider", key = k("portraitScale"), label = "Portrait size", min = 0.6, max = 1.5, step = 0.05, unit = "%",
             desc = "How big the portrait ring is next to the frame's height.",
-            disabled = function(get) return shown(get) or tooShort(get) end }
+            disabled = function(get) return shown(get) or tooShort(get) end, hidden = onCard }
     end
     frame[#frame + 1] = { type = "toggle", key = k("slant"), label = "Angled end",
         desc = opts.slantDesc or "Cuts the frame's inner end at an angle; the bars follow it.", disabled = shown }
@@ -1604,7 +1617,7 @@ local function framePage(id, label, desc, opts)
         { type = "toggle", key = k("showName"), label = (opts.tab and not opts.small) and "Name tab" or "Name",
           desc = (opts.tab and not opts.small) and "The name sits in a small tab above the frame. Long names are cut short."
               or "Shows the unit's name on this frame.",
-          disabled = shown, hidden = onRow },
+          disabled = shown, hidden = noTabStyle },
         lastNames(id),
         { type = "dropdown", key = k("nameColor"), label = "Name color", values = NAME_COLORS, order = NAME_COLOR_ORDER,
           desc = "This frame's own name color. Same as the Colors page follows the name color every frame shares.",
@@ -1618,13 +1631,19 @@ local function framePage(id, label, desc, opts)
         table.insert(text, 2, { type = "toggle", key = k("nameOnBar"), label = "Name on the bar",
             desc = opts.small and "Keeps the name inside the bar. When off, it sits in a small tab above the frame, like the other frames' names."
                 or "Puts the name inside the health bar, beside the portrait, instead of in the tab above (which can cover a cast bar placed there).",
-            disabled = offAny(k("enabled"), k("showName")) })
-        -- Where the name sits on the bar (on a tile: across it, or a spot).
+            disabled = offAny(k("enabled"), k("showName")), hidden = onCard })
+        -- Where the name sits on the bar (on a tile: across it, or a spot). On
+        -- a card the name has one place, and only its nudges move it.
         local onBar = function(get)
+            if onCard(get) then return shown(get) or get(k("showName")) == false end
             return shown(get) or get(k("showName")) == false or get(k("nameOnBar")) ~= true
         end
         for n, it in ipairs(nameItems(k, onBar, "Where the name sits across the bar, while it's on the bar: left, center or right.",
             not opts.tile and not opts.small, opts.small)) do
+            if it.key ~= k("nameX") and it.key ~= k("nameY") then
+                local was = it.hidden
+                it.hidden = function(get) return onCard(get) or (was ~= nil and was(get)) end
+            end
             table.insert(text, 2 + n, it)
         end
     else
@@ -1637,6 +1656,9 @@ local function framePage(id, label, desc, opts)
         table.insert(text, 2, { type = "toggle", key = k("showName"), label = "Name",
             desc = "The name floats above the bar, at its outer end. Long names are cut short.",
             disabled = shown, hidden = noRow })
+        table.insert(text, 2, { type = "toggle", key = k("showName"), label = "Name",
+            desc = "The name sits on the card's picture, at its top outer corner. Long names are cut short.",
+            disabled = shown, hidden = noCard })
     end
     text[#text + 1] = fontRow(m("nameFont"), "Name font", "This frame's names, and its level badge", shown)
     if opts.healthText then
@@ -1754,7 +1776,7 @@ local function framePage(id, label, desc, opts)
               desc = "Nudges every party target up or down from its position.", disabled = shown },
         } })
     end
-    if opts.tab then groups[#groups + 1] = tabCard(id, onRow) end
+    if opts.tab then groups[#groups + 1] = tabCard(id, noTabStyle) end
     groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
     groups[#groups + 1] = { label = "Text", items = text }
     local extras = {}
@@ -1979,7 +2001,7 @@ local function atChoice(unit, desc)
     end
     local function outside()
         local cfg = liveGet(unit)
-        return UF.StyleDef(cfg).line or not UF.ShowsPower(cfg)
+        return UF.StyleDef(cfg).line or UF.StyleDef(cfg).backdrop or not UF.ShowsPower(cfg)
     end
     return { type = "dropdown", key = unit .. "Castbar.at", since = "1.5.1", label = "Position", values = values, order = CB.AT[unit],
              choices = function()
