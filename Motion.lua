@@ -156,7 +156,7 @@ end
 -- Motion.Window's hooks) cancels the fade at full alpha.
 function Motion.Vanish(frame)
     if not frame:IsShown() or frame.__duiVanishing then return end
-    if DUI.Sound then DUI.Sound.Play("close") end
+    if DUI.Sound then DUI.Sound.Play("close", frame.duiGameSounds and frame.duiGameSounds.close) end
     if DUI.Pad then DUI.Pad.Leaving(frame) end   -- before the Hide, see Pad.Leaving
     if not Motion.On() then frame:Hide(); return end
     frame.__duiVanishing = true
@@ -222,7 +222,7 @@ function Motion.Window(frame, rise, ownEscape)
     if DUI.Pad then DUI.Pad.Follow(frame, function() Motion.Vanish(frame) end) end
     frame:HookScript("OnShow", function(self)
         if esc then esc:Show() end
-        if DUI.Sound then DUI.Sound.Play("open") end
+        if DUI.Sound then DUI.Sound.Play("open", self.duiGameSounds and self.duiGameSounds.open) end
         Motion.Appear(self, rise)
     end)
     frame:HookScript("OnHide", function(self)

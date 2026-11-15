@@ -114,17 +114,29 @@ function Junk.ShardLimit()
     return nil
 end
 
--- Every slot in the bags holding a shard, last slot first (the ones deleted first).
+-- A Soul Bag's family bit: a bag only for shards.
+Junk.SOUL_BAG = 4
+
+local function soulBag(bag)
+    local _, family = ns.Items.FreeAt(bag)
+    return type(family) == "number" and family % (Junk.SOUL_BAG * 2) >= Junk.SOUL_BAG
+end
+
+-- Every slot in the bags holding a shard, in the order they get deleted: the
+-- plain bags' first, last slot first, then a soul bag's, so it stays full.
 function Junk.ShardSlots()
-    local out = {}
+    local plain, soul = {}, {}
     for _, s in ipairs(ns.Bags.Slots()) do
         if s.section ~= "keyring" then
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
-            if info and info.itemID == Junk.SHARD then table.insert(out, 1, { bag = s.bag, slot = slot }) end
+            if info and info.itemID == Junk.SHARD then
+                table.insert(soulBag(s.bag) and soul or plain, 1, { bag = s.bag, slot = slot })
+            end
         end
     end
-    return out
+    for _, at in ipairs(soul) do plain[#plain + 1] = at end
+    return plain
 end
 
 -- How many shards are over the limit (0 when none, or no limit).
