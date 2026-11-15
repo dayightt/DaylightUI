@@ -3459,6 +3459,69 @@ T.test("nameplates: Fade other plates dims every plate but your target and a cas
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: Fade out of range enemies by your class's attacks", function()
+    login()
+    DaylightUI.DB.General().motion = false
+    stub.units.player.class = "MAGE"
+    stub.knownSpells[133] = true -- Fireball
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.units.nameplate3 = { name = "Wolf", hostile = true, reaction = 2, spellRange = false }
+    local a, b, c = added("nameplate1"), added("nameplate2"), added("nameplate3")
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "off by default: nothing fades")
+    DaylightUI:Set("Nameplates", "rangeFade", true)
+    DaylightUI:Set("Nameplates", "rangeAlpha", 0.3)
+    stub.RunTimers()
+    stub.RunTickers()
+    T.near(c:GetAlpha(), 0.3, 1e-6, "Fireball can't reach it: faded")
+    T.eq(b:GetAlpha(), 1, "a friendly plate never fades")
+    -- Walks into range.
+    stub.units.nameplate3.spellRange = true
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "in reach: full")
+    stub.units.nameplate3.spellRange = false
+    stub.RunTickers()
+    -- Your target and a casting plate stay full.
+    stub.units.target = stub.units.nameplate3
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.eq(c:GetAlpha(), 1, "your target stays full")
+    stub.units.target = nil
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.near(c:GetAlpha(), 0.3, 1e-6)
+    stub.units.nameplate3.cast = { name = "Howl", texture = 1, notInterruptible = false, duration = stub.Duration(2) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate3")
+    T.eq(c:GetAlpha(), 1, "casting: full")
+    stub.units.nameplate3.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "nameplate3")
+    T.near(c:GetAlpha(), 0.3, 1e-6, "cast over: faded again")
+    -- Nothing known that can tell: no fade.
+    stub.knownSpells[133] = nil
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "no attack known: full")
+    -- A hunter: Auto Shot says no up close, Raptor Strike reaches.
+    stub.knownSpells[75], stub.knownSpells[2973] = true, true
+    stub.units.player.class = "HUNTER"
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.units.nameplate3.spellRange = { [75] = false, [2973] = true }
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "melee reach counts")
+    stub.units.nameplate3.spellRange = { [75] = false, [2973] = false }
+    stub.RunTickers()
+    T.near(c:GetAlpha(), 0.3, 1e-6, "neither reaches: faded")
+    -- Off again: every plate back to full, and a removed plate leaves full.
+    DaylightUI:Set("Nameplates", "rangeFade", false)
+    stub.RunTimers()
+    T.eq(c:GetAlpha(), 1, "off: full")
+    DaylightUI:Set("Nameplates", "rangeFade", true)
+    stub.RunTimers()
+    stub.RunTickers()
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
+    T.eq(c:GetAlpha(), 1, "reset for its next unit")
+    T.eq(a:GetAlpha(), 1)
+    stub.knownSpells[75], stub.knownSpells[2973] = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- As in the client, the curve is evaluated inside the game and the answer
 -- comes back secret. Runs fn(alpha) with that in place.
 local function withExecuteCurves(fn)

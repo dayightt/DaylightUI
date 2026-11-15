@@ -2651,13 +2651,18 @@ end
 -- Other plates fade while your target is on a plate (dimOthers, to dimAlpha); your
 -- target and any casting plate stay full. Plate.hasTarget is set by
 -- Manager.UpdateTargets. Back up FAST (a cast must be seen at once), down at
--- NORMAL; snaps for a freshly shown plate.
+-- NORMAL; snaps for a freshly shown plate. An enemy out of your reach fades the
+-- same way (rangeFade, p.outOfRange from Range.lua), to the lower of the two.
 Plate.hasTarget = false
 function Plate.Dim(p, snap)
     local c = cfg()
     local goal = 1
-    if c.dimOthers and Plate.hasTarget and not p.isTarget and not ns.Cast.Shown(p) then
+    local full = p.isTarget or ns.Cast.Shown(p)
+    if c.dimOthers and Plate.hasTarget and not full then
         goal = c.dimAlpha or 0.5
+    end
+    if c.rangeFade and p.outOfRange and not full then
+        goal = math.min(goal, c.rangeAlpha or 0.5)
     end
     if p.dimGoal == goal then return end
     local from = p.dimGoal or 1
@@ -3067,7 +3072,7 @@ function Plate.Uninstall(p)
     DUI.Motion.KickTagOff(p.kickTag)
     ns.Minion.Clear(p)
     DUI.Motion.Tween(p, 1, 1, 0) -- stops a fade in progress
-    p.dimGoal = nil
+    p.dimGoal, p.outOfRange = nil, nil
     p:SetAlpha(1)
     p.unit = nil
     p:Hide()

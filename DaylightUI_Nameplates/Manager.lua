@@ -407,6 +407,7 @@ Manager.Resize = sizePlate
 -- your target).
 function Manager.SizeOne(p)
     sizePlate(p)
+    ns.Range.Read(p)
     ns.Plate.Dim(p, true)
 end
 
@@ -599,6 +600,7 @@ function Manager.Refresh()
             DUI.APIReport.Styled("nameplate", p, false)
         end
     end)
+    ns.Range.Apply()
     Manager.UpdateTargets()
     Manager.CountFocus()
 end
@@ -873,7 +875,11 @@ function Manager.Start()
     -- Your level determines every level's color.
     DUI.RegisterEvent("PLAYER_LEVEL_UP", function() Manager.Each(ns.Plate.UpdateLevel) end)
     -- A finisher learned: execute range on "Your class" can start showing.
-    DUI.RegisterEvent("SPELLS_CHANGED", function() ns.Plate.ExecuteSpellsChanged() end)
+    -- Out of range fade asks your attacks by name, read again for a new spell.
+    DUI.RegisterEvent("SPELLS_CHANGED", function()
+        ns.Plate.ExecuteSpellsChanged()
+        ns.Range.SpellsChanged()
+    end)
     DUI.RegisterEvent("UPDATE_MOUSEOVER_UNIT", function()
         hoverChanged()
         watcher:Show()
@@ -922,6 +928,7 @@ function Manager.Start()
         if plain(UnitExists, unit) == true then DUI.SafeCall(Manager.Added, unit) end
     end
     C_Timer.NewTicker(Manager.SYNC_EVERY, function() DUI.SafeCall(Manager.Sync) end)
+    ns.Range.Apply()
 end
 
 -- /dui platefps hides the Daylight UI plates (the game's stay hidden too) or brings them back,

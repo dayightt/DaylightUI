@@ -19,6 +19,7 @@ Minion.lua
 Cast.lua
 Combo.lua
 Power.lua
+Range.lua
 Auras.lua
 Manager.lua
 Options.lua

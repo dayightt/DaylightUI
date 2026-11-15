@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Nameplates", "Enemy nameplates can fade while they're out of your class's attack range (Nameplates > Target)" },
+        },
         changed = {
             { "Window skins", "The flight map's title and close button line up like every other window, with even room round the map" },
         },

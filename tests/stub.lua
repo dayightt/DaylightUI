@@ -2308,8 +2308,9 @@ _G.UnitInRange = function(u)
     return false, false
 end
 -- Spells the player knows (stub.knownSpells[id] = true) and each unit's answer
--- to a spell's range check: x.spellRange (true/false/secret). nil means the check
--- is invalid, which is what the game answers for strangers and enemies.
+-- to a spell's range check: x.spellRange (true/false/secret), or a table of
+-- answers by spell id. nil means the check is invalid, which is what the game
+-- answers for strangers and enemies.
 stub.knownSpells = {}
 _G.C_SpellBook = _G.C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return stub.knownSpells[id] == true end
@@ -2322,7 +2323,9 @@ C_Spell.PickupSpell = function(id) stub.cursor = { "spell", id } end
 C_Spell.IsSpellInRange = function(id, u)
     local x = U(u)
     if not stub.knownSpells[id] or not x then return nil end
-    return x.spellRange
+    local r = x.spellRange
+    if type(r) == "table" and not isSecret(r) then return r[id] end
+    return r
 end
 _G.UnitIsPVP = function(u) local x = U(u); return x ~= nil and x.pvp == true end
 _G.UnitFactionGroup = function(u) local x = U(u); if x then return x.faction end end
@@ -3304,7 +3307,7 @@ function stub.Load(opts)
     end
     if opts.nameplates then
         local NP = {}
-        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
+        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Range.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
             "DaylightUI_Nameplates", NP)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Nameplates")
         stub.nameplates = NP
