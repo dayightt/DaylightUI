@@ -1,6 +1,6 @@
 -- Registers the mailbox window and its gold ledger with the core. It lives in the core
--- addon; the window is switched by the "enabled" setting (read at login) and the ledger
--- runs either way.
+-- addon; the window is switched by the "enabled" setting, from the options or either
+-- window, and the ledger runs either way.
 
 local _, DUI = ...
 DUI.Mail = DUI.Mail or {}
@@ -36,9 +36,11 @@ DUI:RegisterModule("Mailbox", {
         ns.Send.SaveOwnName()   -- so this character's alts can pick it as a recipient
         DUI.mailMogul = ns.MogulOwns()
         DUI.mailOwnWindow = mod.db.enabled == true and not DUI.mailMogul
+        ns.Window.InitSwap()
         if DUI.mailOwnWindow then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
+        if ns.Window and ns.Window.swap then ns.Window.swap.Apply() end
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()

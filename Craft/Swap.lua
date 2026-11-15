@@ -1,82 +1,14 @@
--- Which profession window opens: Daylight UI's or the game's own, for players who
--- prefer it or use addons that build on the game's window. It's the "enabled"
--- setting, switched from either window's header and kept for next time. The two
--- windows trade places at once (after a fight when in one), with no reload.
+-- Which profession window opens, Daylight UI's or the game's own (Win.Swap): the
+-- header's swap icon, a link on the game's window, the options switch.
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
 local ns = DUI.Craft
-local L = DUI.L
 
 local Swap = {}
 ns.Swap = Swap
 
-Swap.ICON = "ui-swap.png"
-Swap.GAP = 10   -- between the link on the game's window and its X
-
--- Daylight UI's window is the one to use (DaylightMogul's, when that's in use,
--- leaves this off).
-function Swap.Ours() return ns.Setting("enabled") == true and not DUI.craftMogul end
-
--- Picked from a button. Already Daylight UI's, with the game's lent for a while (the
--- SkillUp link): just take it back.
-function Swap.Use(ours)
-    local W = ns.Window
-    if ours and Swap.Ours() then
-        if W and W.follow then W.TakeBack() end
-        return
-    end
-    DUI:Set("Professions", "enabled", ours == true)
-end
-
-local function game() return ns.Window and ns.Window.Game() end
-
--- On the game's window: shown while it's the player's pick, or while Daylight UI's
--- has handed it over for a while (the SkillUp link), so there's always a way back.
-function Swap.Paint()
-    local b = Swap.button
-    if not b then return end
-    b:SetShown(not DUI.craftMogul and (not Swap.Ours() or (ns.Window and ns.Window.handed) == true))
-end
-
-local function tip(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-    DUI.Tips.Clear()
-    DUI.Tips.Title(L["Daylight UI window"])
-    DUI.Tips.Text(L["Use Daylight UI's profession window from now on. The button in its header brings this one back."])
-    DUI.Tips.Flush(GameTooltip)
-    GameTooltip:Show()
-end
-
--- Made once the game's window exists, as its child so it shows and moves with it.
-function Swap.Button()
-    local g = game()
-    if Swap.button or not g or DUI.craftMogul then return end
-    -- Quiet words beside the X: a boxed button was taller than the header.
-    local b = DUI.Widgets.Link(g, DUI.Style.SIZE.small)
-    b.SetLabel(L["Daylight UI window"])
-    local close = type(g.CloseButton) == "table" and g.CloseButton
-    if close then b:SetPoint("RIGHT", close, "LEFT", -Swap.GAP, 0)
-    else b:SetPoint("TOPRIGHT", g, "TOPRIGHT", -32, -4) end
-    b:SetFrameLevel(g:GetFrameLevel() + 510)   -- above the game's pages (level 100)
-    b:SetScript("OnClick", function() Swap.Use(true) end)
-    b:HookScript("OnEnter", tip)
-    b:HookScript("OnLeave", function(self)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
-    Swap.button = b
-    g:HookScript("OnShow", Swap.Paint)
-    Swap.Paint()
-end
-
--- The setting changed (here, from the options, or a profile switch): when it now
--- says the other window, they trade places.
-function Swap.Apply()
-    if DUI.craftMogul then return end
-    local ours = Swap.Ours()
-    if ours == Swap.was then return Swap.Paint() end
-    Swap.was = ours
+local function apply(ours)
     DUI.craftOwnWindow = ours
     local W = ns.Window
     if ours and W and not W.frame then W.Build(ns.module) end
@@ -84,14 +16,21 @@ function Swap.Apply()
     if W and W.follow then
         if ours then W.TakeBack() else W.GiveAway() end
     end
-    Swap.Paint()
-    if not ours then DUI.Fire("CraftGameWindow") end
 end
 
+function Swap.Ours() return Swap.it ~= nil and Swap.it.Ours() end
+function Swap.Use(ours) if Swap.it then Swap.it.Use(ours) end end
+function Swap.Apply() if Swap.it then Swap.it.Apply() end end
+function Swap.Paint() if Swap.it then Swap.it.Paint() end end
+
 function Swap.Init()
-    Swap.was = Swap.Ours()
-    Swap.Button()
-    DUI.RegisterEvent("ADDON_LOADED", function(_, name)
-        if name == "Blizzard_Professions" then DUI.AfterCombat(Swap.Button, "craft:swap") end
-    end)
+    Swap.it = DUI.Win.Swap({
+        scope = "Professions",
+        game = function() return ns.Window and ns.Window.Game() end,
+        addon = "Blizzard_Professions",
+        blocked = function() return DUI.craftMogul == true end,
+        lent = function() return ns.Window ~= nil and ns.Window.handed == true end,
+        take = function() if ns.Window and ns.Window.follow then ns.Window.TakeBack() end end,
+        apply = apply,
+    })
 end

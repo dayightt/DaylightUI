@@ -1,6 +1,6 @@
 -- Social pack: guild and communities, the calendar, trade and the guild bank.
--- Friends, mail and the group finder have Daylight UI windows of their own, so
--- with those switched off the game's stay as the game draws them. Each is
+-- Friends, mail and the group finder have Daylight UI windows of their own; the
+-- game's, when a player picks them instead, are in Packs/Game. Each is
 -- Engine.Window plus anything unique to it.
 
 local _, ns = ...

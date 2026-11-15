@@ -21,6 +21,8 @@ Follow.hidden:Hide()
 Follow.parked = false
 -- State held while the game's window can't follow (closed with the X in combat).
 Follow.override = nil
+-- True while the player picked the game's own window: it's never parked then.
+Follow.given = false
 
 function Follow.Game() return type(CharacterFrame) == "table" and CharacterFrame or nil end
 
@@ -57,7 +59,7 @@ end
 -- Out of combat only. Waits while the game's window is un-parked (currency transfer).
 function Follow.Park()
     local g = Follow.Game()
-    if not g or Follow.parked or g:IsShown() then return end
+    if not g or Follow.given or Follow.parked or g:IsShown() then return end
     g:SetParent(Follow.hidden)
     Follow.parked = true
     Follow.WriteWidth()
@@ -73,6 +75,7 @@ function Follow.Unpark(frameName)
     Follow.parked = false
     g:SetParent(UIParent)
     if g:IsShown() then ToggleCharacter(frameName, true) else ToggleCharacter(frameName) end
+    DUI.Fire("GameWindowBack", "character", "character", g)
     return true
 end
 
@@ -154,7 +157,7 @@ local wasOpen, wasPage = false, nil
 local seenShown, seenPage, seenParked, seenOverride, seen = nil, nil, nil, nil, false
 function Follow.Tick()
     local g = Follow.Game()
-    if not g then return end
+    if not g or Follow.given then return end
     local shown, page = g:IsShown(), g.activeSubframe
     if seen and Follow.parked and shown == seenShown and page == seenPage and Follow.parked == seenParked
         and Follow.override == seenOverride then
@@ -181,7 +184,7 @@ watcher:SetScript("OnUpdate", function() Follow.Tick() end)
 Follow.watcher = watcher
 
 function Follow.Start()
-    if not Follow.Game() then return false end
+    if not Follow.Game() or Follow.given then return false end
     DUI.AfterCombat(Follow.Park, "characterPark")
     if not Follow.hooked and type(ToggleCharacter) == "function" then
         Follow.hooked = true
@@ -189,4 +192,51 @@ function Follow.Start()
     end
     watcher:Show()
     return true
+end
+
+-- The player picked the game's own window. A parked one comes back for good, with
+-- its slot buttons and its own panel width; an open one shows as itself where
+-- this window was. Out of combat only (Win.Swap waits for the fight to end).
+function Follow.Release()
+    Follow.given = true
+    Follow.override = nil
+    watcher:Hide()
+    wasOpen, wasPage, seen = false, nil, false
+    if ns.Window then ns.Window.Close() end
+    local g = Follow.Game()
+    if not (g and Follow.parked) then return end
+    if ns.Slots then ns.Slots.Return() end
+    Follow.parked = false
+    g:SetParent(UIParent)
+    if type(SetUIPanelAttribute) == "function" then
+        local own = type(UIPanelWindows) == "table" and UIPanelWindows.CharacterFrame
+        pcall(SetUIPanelAttribute, g, "width", type(own) == "table" and own.width or nil)
+    end
+    if DUI.Pad then DUI.Pad.Remember(g) end
+    DUI.Fire("GameWindowBack", "character", "character", g)   -- the skins dress it now it shows as itself
+end
+
+-- Switched back to this window. An open game window goes out of sight at once and
+-- the next look opens this one on the same page; a closed one is parked as at login.
+function Follow.Reclaim()
+    Follow.given = false
+    local g = Follow.Game()
+    if not g then return end
+    if g:IsShown() and not Follow.parked and not InCombatLockdown() then
+        g:SetParent(Follow.hidden)
+        Follow.parked = true
+        Follow.WriteWidth()
+        if ns.Slots then ns.Slots.Lend() end
+    end
+    seen = false
+    Follow.Start()
+end
+
+-- The game's window sits out of sight under this one, or will when it opens, so
+-- the Skins leave it alone. Picked by the player, or lent for a currency transfer,
+-- it shows as itself.
+function Follow.Covers()
+    if Follow.given or DUI:Get("Character", "enabled") == false then return false end
+    local g = Follow.Game()
+    return not (g and g:IsShown() and not Follow.parked)
 end

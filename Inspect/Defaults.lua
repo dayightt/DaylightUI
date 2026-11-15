@@ -5,7 +5,7 @@ DUI.Inspect = DUI.Inspect or {}
 local ns = DUI.Inspect
 
 ns.DEFAULTS = {
-    enabled = true,   -- replaces the game's inspect window; needs a reload
+    enabled = true,   -- Daylight UI's window instead of the game's; switched from either window
     scale = 1,
     windowAlphaOwn = false,   -- off: follows the general window opacity
     windowAlpha = 0.85,

@@ -11,8 +11,8 @@ ns.OPTIONS = { pages = {
       desc = "Your Legacy Points, their rewards, the challenges that earn them and the Legacy trees, in one window, in DaylightUI style.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style Legacy window", reload = true,
-              desc = "The Legacy button shows DaylightUI's window: how far the next reward is, the challenges and the Legacy trees. Turn it off to use the game's window." },
+            { type = "toggle", key = "enabled", label = "DaylightUI style Legacy window",
+              desc = "The Legacy button shows DaylightUI's window: how far the next reward is, the challenges and the Legacy trees. Turn it off to use the game's own window, in Daylight UI's look. Each window also has a button to switch to the other." },
             { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is." },
             backRows[1], backRows[2],

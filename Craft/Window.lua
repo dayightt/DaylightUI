@@ -820,7 +820,7 @@ function Craft.Build(mod)
     Craft.DockPanes()
     -- Left of the X, before the tabs line up from it: the game's own window instead
     -- (Swap.lua), for addons that build on it.
-    f.swap = Win.HeaderIcon(f, ns.Swap.ICON, L["Use the game's profession window"], function() ns.Swap.Use(false) end)
+    ns.Swap.it.Icon(f)
     -- Over the icon and name: Shift-click links the profession into the open chat box
     -- (ns.Share, as the game's book does on its icon), right-click opens Unlearn
     -- (Craft.WhoMenu), and a left drag still moves the window.
@@ -873,7 +873,6 @@ function Craft.Build(mod)
     end)
     Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, veil = { craft = true },
         changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end,
-        onPark = function(_, _, parked) if not parked then DUI.Fire("CraftGameWindow") end end,
         width = function() return ((Craft.Size()) + Craft.PanesWidth()) * Win.Scale(ns.Setting("scale")) end })
     Craft.Apply()
     return f

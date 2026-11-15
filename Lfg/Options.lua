@@ -11,8 +11,8 @@ ns.OPTIONS = { pages = {
       desc = "Finding a group, listing yourself and the who list, in one window, in DaylightUI style.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style group finder", reload = true,
-              desc = "Opening the group finder shows DaylightUI's window: groups to join, listing yourself, and who's about. In a fight the game's own window opens. Turn it off to use the game's window." },
+            { type = "toggle", key = "enabled", label = "DaylightUI style group finder",
+              desc = "Opening the group finder shows DaylightUI's window: groups to join, listing yourself, and who's about. Turn it off to use the game's own window, in Daylight UI's look. Each window also has a button to switch to the other." },
             { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is." },
             { type = "dropdown", key = "activitySort", label = "Sort activities by", since = "1.6.4",

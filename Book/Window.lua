@@ -18,6 +18,10 @@
 --
 -- Inspecting someone else's talents and the spec tab are left to the game's
 -- frame; this window only covers your own spells and talents.
+--
+-- The player can pick the game's own book instead (Win.Swap, the "enabled"
+-- setting): the game's frame is then never parked, and the two trade places at
+-- once, out of combat.
 
 local _, DUI = ...
 DUI.Book = DUI.Book or {}   -- the book window's own namespace
@@ -204,7 +208,7 @@ end
 -- refused in combat.
 function Book.SideArea()
     local g = Book.Game()
-    if not g or InCombatLockdown() or type(SetUIPanelAttribute) ~= "function" then return end
+    if not g or not DUI.bookOwnWindow or InCombatLockdown() or type(SetUIPanelAttribute) ~= "function" then return end
     if not Book.Ours(g) then return end
     pcall(SetUIPanelAttribute, g, "area", "centerOrLeft")
 end
@@ -227,6 +231,53 @@ function Book.FightEnds()
     local open = f.current == "talents" and U.OpenToClassTalentsTab or U.OpenToSpellBookTab
     if type(open) == "function" then pcall(open) end
 end
+
+-- ---------------------------------------------------------------------
+-- Which book opens, Daylight UI's or the game's own (Win.Swap): the
+-- header's swap icon, a link on the game's frame, the options switch.
+-- ---------------------------------------------------------------------
+
+-- Switched to the game's book: an open one is handed over (ours closes), a
+-- closed one let go so it opens as itself.
+function Book.GiveAway()
+    if not Book.follow then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Book.GiveAway, "book:giveaway") end
+    if Win.IsOpen(Book.frame) then shut(Book.frame) end
+    Win.Followers.Release(Book.follow, "book")
+end
+
+-- Switched back: an open game book showing your own spells or talents goes
+-- under the veil again, and the follower's next look opens this one in its place.
+function Book.TakeBack()
+    local g = Book.Game()
+    if not (Book.follow and g and g:IsShown()) or Win.Followers.Parked(Book.follow, "book") then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Book.TakeBack, "book:takeback") end
+    if not DUI.bookOwnWindow or not Book.Ours(g) then return end
+    Win.Followers.Reclaim(Book.follow, "book")
+    Book.SideArea()
+end
+
+-- The game's book sits under this one (or will when it opens), so the Skins
+-- leave it alone. Shown on its own, lent out or picked by the player, it isn't.
+function Book.Covers()
+    if not (Book.follow and DUI.bookOwnWindow) then return false end
+    local g = Book.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Book.follow, "book"))
+end
+
+local function pick(ours)
+    DUI.bookOwnWindow = ours
+    if ours and not Book.frame and ns.module then Book.Build(ns.module) end
+    if not Book.follow then return end
+    if ours then Book.TakeBack() else Book.GiveAway() end
+end
+
+-- Made before the window, which is only built while it's the pick.
+function Book.SwapInit()
+    Book.swap = Win.Swap({ scope = "Book", game = Book.Game, addon = "Blizzard_PlayerSpells", apply = pick })
+end
+
+function Book.SwapApply() if Book.swap then Book.swap.Apply() end end
 
 -- Saved directly, without a SettingChanged, since nothing needs refilling.
 function Book.SaveSpot(x, y) Book.spot.Save(x, y) end
@@ -364,6 +415,8 @@ function Book.Build(mod)
         base = function(id) local s = S[id] or S.spells; return s[1], s[2] end,
         save = Book.SaveSpot, resized = Book.Resized, follow = function() return Book.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Book.ResetSpot   -- /dui reset
+    -- Left of the X, before the tabs line up from it: the game's own book instead.
+    if Book.swap then Book.swap.Icon(f) end
     Win.Tabs(f, tabs, Book.Show)
     if ns.Fight then ns.Fight.Build(f) end   -- after close and tabs exist, since the layer covers them
     Book.PadSetup(f)
@@ -378,6 +431,7 @@ function Book.Build(mod)
         if Win.IsOpen(f) then header(f, f.current) end
     end)
     Book.follow = Win.Follow({ key = "book", frames = { book = Book.Game }, veil = { book = true }, changed = Book.Changed,
+        leave = function() return not DUI.bookOwnWindow end,
         width = function() return (Book.PageSize(f.current or "spells")) * Win.Scale(ns.Setting("scale")) end })
     Book.Apply()
     return f

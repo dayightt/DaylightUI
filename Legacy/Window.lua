@@ -68,7 +68,7 @@ end
 -- Title and sub line stop short of the tabs.
 function Legacy.FitTitle()
     local f = Legacy.frame
-    local room = 40
+    local room = 40 + (f.headerRoom or 0)
     for _, b in ipairs(f.tabs or {}) do room = room + b:GetWidth() + Win.TAB_GAP end
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
     if f.sub then f.sub:SetPoint("RIGHT", f, "RIGHT", -room, 0) end
@@ -175,6 +175,49 @@ function Legacy.Changed(_, shown)
     Legacy.wanted = nil
     if want then ns.Challenges.Want(want) end
     Legacy.Open(want and "challenges" or Legacy.AskedPage())
+end
+
+-- Which Legacy window opens, Daylight UI's or the game's own (Win.Swap): the header's
+-- swap icon, a link on the game's window, the options switch.
+function Legacy.Ours() return Legacy.swap ~= nil and Legacy.swap.Ours() end
+
+-- The game's window sits under this one (or will when it opens), so the Skins leave it
+-- alone. Shown on its own or picked by the player, it isn't.
+function Legacy.Covers()
+    if not (Legacy.follow and Legacy.Ours()) then return false end
+    local g = Legacy.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Legacy.follow, "legacy"))
+end
+
+-- The pick changed (out of combat). To the game's: an open game window shows as itself
+-- and this one closes; a closed one is let go so it opens as itself. Back to this one:
+-- an open game window closes and this one opens on the same page. The game's is parked
+-- under a hidden frame, which would close it anyway, so it isn't kept open underneath;
+-- it's parked once closed and the next Legacy button opens this one as usual.
+local function pick(ours)
+    DUI.legacyOwnWindow = ours
+    if ours then
+        if not Legacy.frame then Legacy.Build(ns.module) end
+        local g = Legacy.Game()
+        if g and g:IsShown() and not Win.Followers.Parked(Legacy.follow, "legacy") then
+            local page = Legacy.AskedPage()
+            HideUIPanel(g)
+            Legacy.Open(page)
+        end
+        return
+    end
+    if not Legacy.follow then return end
+    Win.Followers.Release(Legacy.follow, "legacy")
+    if Win.IsOpen(Legacy.frame) then shut(Legacy.frame) end
+end
+
+function Legacy.InitSwap()
+    Legacy.swap = Win.Swap({
+        scope = "Legacy",
+        game = Legacy.Game,
+        addon = "Blizzard_LegacySystem",
+        apply = pick,
+    })
 end
 
 -- The game switching its own page while this window is open (the achievement key on an
@@ -291,6 +334,8 @@ function Legacy.Build(mod)
     f.onClose = Legacy.Close
     Legacy.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Legacy.ICON)
+    -- Left of the X, before the tabs line up from it: the game's own window instead.
+    Legacy.swap.Icon(f)
     for _, id in ipairs(Legacy.PAGES) do
         local P = pageOf(id)
         Win.AddPage(f, id, { Build = P.Build, Fill = P.Fill, pieces = P.Pieces, w = Legacy.W, h = Legacy.H })
@@ -315,6 +360,7 @@ function Legacy.Build(mod)
     hookAsk()
     DUI.RegisterEvent("ADDON_LOADED", function() hookAsk() end)
     Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, changed = Legacy.Changed,
+        leave = function() return not Legacy.Ours() end,
         width = function() return (Legacy.sizer and Legacy.sizer.Size(Legacy.page) or Legacy.W) * Win.Scale(ns.Setting("scale")) end })
     Legacy.Apply()
     return f

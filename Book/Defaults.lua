@@ -5,7 +5,7 @@ DUI.Book = DUI.Book or {}   -- the book window's own namespace
 local ns = DUI.Book
 
 ns.DEFAULTS = {
-    enabled = true,       -- read at login, so changing it needs a reload
+    enabled = true,       -- Daylight UI's window instead of the game's; switched from either window
     scale = 1,
     windowAlphaOwn = false,   -- false: use the shared General windowAlpha
     windowAlpha = 0.85,

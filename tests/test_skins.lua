@@ -239,6 +239,7 @@ end)
 T.test("skins: text the game colors again, or prints dark into the string, is light again as the game fills it", function()
     local contents
     login(function()
+        DaylightUIDB.modules.Skins = { packs = { npc = false } }   -- the game's quest window undressed
         local map = window("WorldMapFrame")
         local qm = CreateFrame("Frame", "QuestMapFrame", map)
         qm.DetailsFrame = CreateFrame("Frame", nil, qm)
@@ -470,18 +471,18 @@ T.test("skins: a window from a game addon that loads later is skinned when it lo
     T.eq(f.NineSlice:GetAlpha(), 0, "the game's art gone")
 end)
 
-T.test("skins: the game's windows Daylight UI rebuilt are left exactly as the game draws them", function()
+-- A game window the player picks over Daylight UI's (Win.Swap) wears the Daylight UI
+-- look. The bank, which the bags stand in for without a swap, stays as the game draws it.
+T.test("skins: the game's windows picked over Daylight UI's wear its look, the bank stays plain", function()
     local made = {}
     login(function()
-        _G.DaylightUIDB = { modules = { NPC = { enabled = false }, Character = { enabled = false }, Inspect = { enabled = false },
-            Social = { enabled = false }, Mail = { enabled = false }, GroupFinder = { enabled = false } } }
-        for _, name in ipairs({ "GossipFrame", "MerchantFrame", "BankFrame", "CharacterFrame", "FriendsFrame",
-                                "MailFrame", "OpenMailFrame", "LFGParentFrame" }) do
+        _G.DaylightUIDB = { modules = { Character = { enabled = false }, Inspect = { enabled = false },
+            Social = { enabled = false }, Mailbox = { enabled = false }, GroupFinder = { enabled = false } } }
+        for _, name in ipairs({ "BankFrame", "CharacterFrame", "MailFrame", "LFGParentFrame" }) do
             made[name] = window(name)
         end
     end)
-    made.QuestFrame = QuestFrame
-    for _, pair in ipairs({ { "ClassTrainerFrame", "Blizzard_TrainerUI" }, { "InspectFrame", "Blizzard_InspectUI" },
+    for _, pair in ipairs({ { "InspectFrame", "Blizzard_InspectUI" },
                             { "SocialUIFrame", "Blizzard_SocialUI" } }) do
         made[pair[1]] = window(pair[1])
         stub.loadedAddOns[pair[2]] = true
@@ -490,10 +491,14 @@ T.test("skins: the game's windows Daylight UI rebuilt are left exactly as the ga
     stub.RunTimers()
     for name, f in pairs(made) do
         f:Hide(); f:Show()
-        T.isnil(stub.skins.Kit.ShellOf(f), name .. ": no shell of ours")
-        T.eq(f.NineSlice:GetAlpha(), 1, name .. ": the game's art kept")
+        stub.RunTimers()
+        if name == "BankFrame" then
+            T.isnil(stub.skins.Kit.ShellOf(f), name .. ": no shell of ours")
+            T.eq(f.NineSlice:GetAlpha(), 1, name .. ": the game's art kept")
+        else
+            T.truthy(stub.skins.Kit.ShellOf(f), name .. ": in the Daylight UI look")
+        end
     end
-    T.isnil(stub.skins.Kit.ButtonOf(QuestFrameAcceptButton), "the game's own buttons too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1359,6 +1364,7 @@ end)
 
 T.test("skins: the game's quest window keeps its dark text after the map lit the same text", function()
     login(function()
+        DaylightUIDB.modules.Skins = { packs = { npc = false } }   -- the game's quest window undressed
         local map = window("WorldMapFrame")
         local qm = CreateFrame("Frame", "QuestMapFrame", map)
         qm.DetailsFrame = CreateFrame("Frame", nil, qm)
@@ -1883,7 +1889,7 @@ local function guildLogin()
 end
 
 T.test("skins: the quest and gossip skins step aside while our NPC window is on", function()
-    stub.Load({ skins = true, before = world })
+    stub.Load({ skins = true, before = function() world(); QuestFrame:Hide() end })
     stub.RunTimers()
     T.isnil(stub.skins.Kit.ShellOf(QuestFrame), "the parked quest window isn't dressed")
     T.isnil(stub.skins.Kit.ShellOf(GossipFrame))

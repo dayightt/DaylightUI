@@ -235,7 +235,8 @@ local function pullInspect(DUI)
     IW.Inspect(unit)
     stub.RunTimers()
     DUI.Win.Followers.Tick()
-    if not DUI.Win.IsOpen(I.frame) then error("the inspect window didn't open on " .. unit) end
+    -- The settings pass may have picked the game's window (the "enabled" switch).
+    if I.Ours() and not DUI.Win.IsOpen(I.frame) then error("the inspect window didn't open on " .. unit) end
     I.Show("talents")
     I.Show("gear")
     IW.Arrive(unit)

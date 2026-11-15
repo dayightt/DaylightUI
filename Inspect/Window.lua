@@ -127,6 +127,45 @@ function Insp.Close()
     HideUIPanel(g)
 end
 
+-- Which inspect window opens, Daylight UI's or the game's own (Win.Swap): the header's
+-- swap icon, a link on the game's window, the options switch.
+function Insp.Ours() return Insp.swap ~= nil and Insp.swap.Ours() end
+
+-- The game's window sits under this one (or will when it opens), so the Skins leave it
+-- alone. Shown on its own, lent out or picked by the player, it isn't.
+function Insp.Covers()
+    if not (Insp.follow and Insp.Ours()) then return false end
+    local g = Insp.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Insp.follow, "inspect"))
+end
+
+-- The pick changed (out of combat). To the game's: this one closes and an open game
+-- window shows as itself, a closed one is let go so it opens as itself. Back to this
+-- one: an open game window goes under the veil and the follower's next look opens this
+-- one in its place.
+local function pick(ours)
+    if ours then
+        if not Insp.frame then Insp.Build(ns.module) end
+        local g = Insp.Game()
+        if g and g:IsShown() and not Win.Followers.Parked(Insp.follow, "inspect") and Insp.UnitOf() then
+            Win.Followers.Reclaim(Insp.follow, "inspect")
+        end
+        return
+    end
+    if not Insp.follow then return end
+    Win.Followers.Release(Insp.follow, "inspect")
+    if Win.IsOpen(Insp.frame) then shut(Insp.frame) end
+end
+
+function Insp.InitSwap()
+    Insp.swap = Win.Swap({
+        scope = "Inspect",
+        game = Insp.Game,
+        addon = "Blizzard_InspectUI",
+        apply = pick,
+    })
+end
+
 -- Follower callback: the game's frame shown or hidden. Shown with no readable unit: use
 -- the game's own window for now, otherwise nothing would show at all.
 function Insp.Changed(_, shown)
@@ -234,6 +273,8 @@ function Insp.Build(mod)
         Win.Build(f, p.id)
         tabs[#tabs + 1] = { id = p.id, text = p.text }
     end
+    -- Left of the X, before the tabs line up from it: the game's own window instead.
+    Insp.swap.Icon(f)
     if #tabs > 1 then Win.Tabs(f, tabs, Insp.Show) end
     -- Controller: like the game's inspect window, Y opens the dressing room on a gear slot.
     local function link(b)
@@ -249,7 +290,7 @@ function Insp.Build(mod)
     DUI.RegisterEvent("INSPECT_READY", function(_, guid) Insp.Ready(guid) end)
     DUI.RegisterEvent("UNIT_INVENTORY_CHANGED", function(_, unit) Insp.ItemsChanged(unit) end)
     Insp.follow = Win.Follow({ key = "inspect", frames = { inspect = Insp.Game }, veil = { inspect = true },
-        changed = Insp.Changed, width = function() return Insp.W * Win.Scale(ns.Setting("scale")) end })
+        changed = Insp.Changed, leave = function() return not Insp.Ours() end, width = function() return Insp.W * Win.Scale(ns.Setting("scale")) end })
     Insp.Apply()
     return f
 end

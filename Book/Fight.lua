@@ -111,9 +111,10 @@ Fight.WHEEL = [[
     self:CallMethod("Scrolled", at)
 ]]
 
--- Off with the controller UI, which always uses the game's windows.
+-- Off with the controller UI, which always uses the game's windows, and while
+-- the player has picked the game's book.
 function Fight.On()
-    return Fight.h ~= nil and ns.Setting("fightBook") ~= false and not (DUI.Pad and DUI.Pad.On())
+    return Fight.h ~= nil and DUI.bookOwnWindow == true and ns.Setting("fightBook") ~= false and not (DUI.Pad and DUI.Pad.On())
 end
 
 -- True while the secure layer is in charge and the book is open.

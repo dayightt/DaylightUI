@@ -5,7 +5,7 @@ DUI.Char = DUI.Char or {}   -- the character window's own namespace
 local ns = DUI.Char
 
 ns.DEFAULTS = {
-    enabled = true,       -- replaces the game's window; read at login, so changing it needs a reload
+    enabled = true,       -- Daylight UI's window instead of the game's; switched from either window
     names = true,         -- item names beside the icons. Off gives the model the room
     itemLevel = true,     -- the dim line under each name
     scale = 1,

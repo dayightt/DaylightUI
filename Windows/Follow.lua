@@ -77,6 +77,7 @@ local function giveBack(def, kind, f)
         pcall(SetUIPanelAttribute, f, "width", type(own) == "table" and own.width or nil)
     end
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, false) end
+    DUI.Fire("GameWindowBack", def.key, kind, f)   -- the skins dress it now it shows as itself
 end
 
 local function park(def)
@@ -125,6 +126,16 @@ end
 function Follow.Unpark(def, kind)
     local f = frameOf(def, kind)
     if not (f and def.parked[kind]) or f:IsShown() then return false end
+    giveBack(def, kind, f)
+    return true
+end
+
+-- The player picked the game's window: a parked one goes back for good, lent if
+-- it's open (Daylight UI's closes), else simply let go. Out of combat only.
+function Follow.Release(def, kind)
+    local f = frameOf(def, kind)
+    if not (f and def.parked[kind]) or InCombatLockdown() then return false end
+    if f:IsShown() then return Follow.Lend(def, kind) end
     giveBack(def, kind, f)
     return true
 end

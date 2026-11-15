@@ -31,8 +31,8 @@ ns.OPTIONS = { pages = {
       desc = "Your character window: gear, model, stats and the other pages. It opens with C, as always.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style character window", reload = true,
-              desc = "Pressing C opens DaylightUI's character window. Turn it off to use the game's." },
+            { type = "toggle", key = "enabled", label = "DaylightUI style character window",
+              desc = "Pressing C opens DaylightUI's character window. Turn it off to use the game's own, in Daylight UI's look. Each window also has a button to switch to the other." },
         } },
         { label = "Look", items = {
             { type = "toggle", key = "lastNames.character", label = "First and last names",

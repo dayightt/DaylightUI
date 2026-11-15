@@ -11,8 +11,8 @@ ns.OPTIONS = { pages = {
       desc = "Your spellbook and talents in one window, in DaylightUI style.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style spellbook window", reload = true,
-              desc = "The spellbook and talent keys open DaylightUI's window. Turn it off to always use the game's window." },
+            { type = "toggle", key = "enabled", label = "DaylightUI style spellbook window",
+              desc = "The spellbook and talent keys open DaylightUI's window. Turn it off to use the game's own window, in Daylight UI's look, for addons that build on it. Each window also has a button to switch to the other." },
             { type = "toggle", key = "fightBook", label = "Keep the spellbook in a fight", disabled = function(get) return get("enabled") == false end,
               desc = "In a fight the window stays: scroll it, switch tabs and click a spell to cast it. The search and section buttons wait until the fight ends. Turn it off to get the game's own book in a fight, where you can drag spells to your bars." },
             { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",

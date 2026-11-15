@@ -13,7 +13,8 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
-            { "Professions", "Use the game's own profession window if you prefer it or your addons need it: a button in either window swaps to the other and remembers it, and the game's window has the Daylight UI look" },
+            { "Nameplates", "Your target's outline can have a soft light circling it, like the main buttons in Daylight UI windows" },
+            { "Windows", "Use the game's own windows if you prefer them or your addons need them: a button in each Daylight UI window (professions, spellbook, character, talking to NPCs, inspect, group finder, mailbox, social, Legacy) swaps to the game's, which now has the Daylight UI look, and a link there swaps back. It's remembered" },
         },
         changed = {
             { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log and the game's own tracker" },

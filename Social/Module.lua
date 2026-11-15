@@ -1,5 +1,5 @@
 -- Registers the social window with the core. It lives in the core addon and is switched
--- by the "enabled" setting, read at login.
+-- by the "enabled" setting, from the options or either window (Social.swap).
 
 local _, DUI = ...
 DUI.Social = DUI.Social or {}
@@ -15,10 +15,12 @@ DUI:RegisterModule("Social", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.module = mod
-        if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
+        ns.Window.SwapInit()
+        if ns.Window.Ours() then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
-        if ns.Window then ns.Window.Apply() end
+        if ns.Window.swap then ns.Window.swap.Apply() end
+        ns.Window.Apply()
     end,
     OnStyleChanged = function()
         if ns.Window then ns.Window.Apply() end

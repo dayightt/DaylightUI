@@ -1412,7 +1412,7 @@ T.test("craft: the header's swap button hands over to the game's window and it s
     T.falsy(DaylightUI.Win.IsOpen(f), "ours steps aside")
     T.eq(ProfessionsFrame:GetParent(), UIParent, "the game's window is back")
     T.truthy(ProfessionsFrame:IsVisible(), "and shows")
-    T.truthy(ns.Swap.button:IsShown(), "with its way back")
+    T.truthy(ns.Swap.it.link:IsShown(), "with its way back")
     T.falsy(ns.Window.Covers(), "the skins may dress it")
     T.isnil(ns.Key.Spell(), "the Professions key is the game's again")
     PW.Close()
@@ -1430,7 +1430,7 @@ T.test("craft: the game's window's button switches back to Daylight UI's, no rel
     PW.Open(197)
     frame(5)
     T.isnil(ns.Window.frame, "nothing built while the game's is picked")
-    local b = ns.Swap.button
+    local b = ns.Swap.it.link
     T.truthy(b and b:IsShown(), "the game's window has the switch")
     T.eq(b:GetParent(), ProfessionsFrame, "it rides on the game's window")
     b:Click()
@@ -1454,12 +1454,12 @@ T.test("craft: the game's window lent by the SkillUp link has the way back", fun
     local f = open(ns)
     ns.Spells.row.skillup:Click()
     frame(10)
-    T.truthy(ns.Swap.button:IsShown(), "shown while lent")
-    ns.Swap.button:Click()
+    T.truthy(ns.Swap.it.link:IsShown(), "shown while lent")
+    ns.Swap.it.link:Click()
     frame(20)
     T.truthy(DaylightUI.Win.IsOpen(f), "ours again")
     T.eq(DaylightUI:Get("Professions", "enabled"), true)
-    T.falsy(ns.Swap.button:IsShown())
+    T.falsy(ns.Swap.it.link:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

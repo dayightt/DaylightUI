@@ -87,15 +87,13 @@ local professions = Engine.Window({ key = "professions", pack = "system", addon 
     end })
 
 -- The game re-checks its side tabs when a profession opens or a skill changes,
--- with the window already open. And when Daylight UI's window hands it over, it's
--- already shown, so no OnShow says it needs its look.
+-- with the window already open.
 local function professionsAgain()
     local f = _G.ProfessionsFrame
     if type(f) ~= "table" or not f:IsShown() or professionsCovered() then return end
     if professions.again then professions.again() else Engine.Try(professions) end
     ns.Kit.RepaintSoon()
 end
-DaylightUI.On("CraftGameWindow", function() C_Timer.After(0, professionsAgain) end)
 DaylightUI.RegisterEvent("TRADE_SKILL_SHOW", professionsAgain)
 DaylightUI.RegisterEvent("SKILL_LINES_CHANGED", professionsAgain)
 

@@ -34,12 +34,12 @@ DUI:RegisterModule("Professions", {
         ns.module = mod
         DUI.craftMogul = ns.MogulOwns()
         DUI.craftOwnWindow = mod.db.enabled == true and not DUI.craftMogul
+        ns.Swap.Init()
         if ns.Window and DUI.craftOwnWindow then ns.Window.Build(mod) end
         if ns.Track then ns.Track.Init() end
-        if ns.Swap then ns.Swap.Init() end
     end,
     OnSettingChanged = function()
-        if ns.Swap then ns.Swap.Apply() end
+        ns.Swap.Apply()
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()
