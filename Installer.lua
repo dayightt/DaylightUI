@@ -94,6 +94,13 @@ function Installer.Needed()
     return state ~= "installed"
 end
 
+-- Changing something after closing the guide sets the character up the
+-- player's own way, so the guide stops asking. The next login puts the
+-- profile's Edit Mode layout in place with one reload (EditMode.lua).
+DUI.On("ProfileKept", function()
+    if Installer.State() ~= "installed" then Installer.Mark("installed") end
+end)
+
 -- A character with no saved answer is asked shortly after login, without
 -- waiting for Edit Mode: those checks need one of Daylight UI's parts loaded and the
 -- game's layouts ready, and a new character may have neither. A set-up
