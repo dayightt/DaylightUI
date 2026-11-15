@@ -503,6 +503,7 @@ L["As wide as the minimap above it, so their edges line up. When off, it uses th
 L["Ask to reset"] = "Demander la réinitialisation"
 L["Asking who you played with..."] = "Recherche des joueurs croisés récemment..."
 L["Asking who's about..."] = "Recherche des joueurs présents..."
+L["Asks everyone if they are ready."] = "Demande à tous s'ils sont prêts."
 L["Asks everyone to pick tank, healer or damage."] = "Demande à chacun de choisir tank, soigneur ou DPS."
 L["Assassination"] = "Assassinat"
 L["Assign a buff"] = "Assigner une amélioration"

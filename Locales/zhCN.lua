@@ -485,6 +485,7 @@ L["As wide as the minimap above it, so their edges line up. When off, it uses th
 L["Ask to reset"] = "询问是否重置"
 L["Asking who you played with..."] = "正在查询与你一起游戏过的人……"
 L["Asking who's about..."] = "正在查询附近的人……"
+L["Asks everyone if they are ready."] = "询问所有人是否已准备好。"
 L["Asks everyone to pick tank, healer or damage."] = "让所有人选择坦克、治疗者或伤害输出。"
 L["Assassination"] = "刺杀"
 L["Assign a buff"] = "指派增益"

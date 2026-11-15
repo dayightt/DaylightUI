@@ -56,6 +56,18 @@ Leader.WORLD_ORDER = { 8, 4, 1, 7, 2, 3, 6, 5 }
 Leader.WORLD_ICON = { 6, 4, 3, 7, 1, 2, 5, 8 }
 Leader.ICON = DUI.MEDIA .. "marker-%d.png"
 Leader.CLEAR_ICON = DUI.MEDIA .. "marker-clear.png"
+-- Our own flat icons for Ready (the tick, in the accent) and Role (the three
+-- role badges the group frames use), so no language can break them.
+Leader.READY_ICON = DUI.MEDIA .. "ui-check.png"
+function Leader.RoleIcons()
+    local UF = ns.UF
+    local out = {}
+    for _, role in ipairs({ "TANK", "HEALER", "DAMAGER" }) do
+        local c = UF.ROLE_COORDS[role]
+        out[#out + 1] = { UF.ROLE_ICON_TEXTURE, c[1], c[2], c[3], c[4] }
+    end
+    return out
+end
 
 local tab, card, clip, inner, driver
 local sections = {}          -- the card's rows, top first
@@ -301,14 +313,89 @@ local function newSection(text)
     return sec
 end
 
--- A row of plain buttons sharing the row's width.
+-- Plain buttons sized by their words, so a long text in another language gets
+-- the room it needs. Buttons that don't fit on one line wrap onto the next, and
+-- each line shares its spare width out equally.
+Leader.BUTTON_PAD = 16 -- room beside a button's text
+
+-- Splits widths (in order) into lines that fit in `room`, with `gap` between.
+function Leader.Wrap(widths, room, gap)
+    local lines, line, used = {}, {}, 0
+    for i, w in ipairs(widths) do
+        local add = (#line > 0) and (gap + w) or w
+        if #line > 0 and used + add > room then
+            lines[#lines + 1] = line
+            line, used, add = {}, 0, w
+        end
+        line[#line + 1] = i
+        used = used + add
+    end
+    if #line > 0 then lines[#lines + 1] = line end
+    return lines
+end
+
+-- Icons in place of words. The button's name lives in its tooltip. Returns
+-- the strip's width.
+Leader.ICON_SIZE = 16
+Leader.ICON_GAP = 6
+function Leader.iconStrip(b, icons)
+    local n, x = #icons, 0
+    local strip = CreateFrame("Frame", nil, b)
+    strip:SetSize(n * Leader.ICON_SIZE + (n - 1) * Leader.ICON_GAP, Leader.ICON_SIZE)
+    strip:SetPoint("CENTER", b, "CENTER", 0, 0)
+    for _, ic in ipairs(icons) do
+        local t = strip:CreateTexture(nil, "OVERLAY")
+        t:SetTexture(ic[1])
+        if ic[2] then t:SetTexCoord(ic[2], ic[3], ic[4], ic[5]) end
+        t:SetSize(Leader.ICON_SIZE, Leader.ICON_SIZE)
+        t:SetPoint("LEFT", strip, "LEFT", x, 0)
+        x = x + Leader.ICON_SIZE + Leader.ICON_GAP
+        -- A one-color icon follows the accent, painted again when shown.
+        if ic.accent then
+            Style.PaintAccent(t, 1)
+            b:HookScript("OnShow", function() Style.PaintAccent(t, 1) end)
+        end
+    end
+    -- Dims with the button.
+    local off = b.SetOff
+    function b.SetOff(on)
+        off(on)
+        strip:SetAlpha(on and 0.45 or 1)
+    end
+    return strip:GetWidth()
+end
+
 local function buttonRow(sec, list)
-    local n, w = #list, sec:GetWidth()
-    local bw = (w - (n - 1) * Leader.GAP) / n
+    local room = sec:GetWidth()
+    local widths = {}
     for i, it in ipairs(list) do
-        local b = W.Button(sec, it.text, Leader.BUTTON_H)
-        b:SetWidth(bw)
-        b:SetPoint("TOPLEFT", sec, "TOPLEFT", (i - 1) * (bw + Leader.GAP), -sec.top)
+        local b = W.Button(sec, it.icons and "" or it.text, Leader.BUTTON_H)
+        it.button = b
+        local tw = b.text:GetStringWidth()
+        if type(tw) ~= "number" then tw = 0 end
+        if it.icons then tw = Leader.iconStrip(b, it.icons) end
+        -- Never wider than the card, so a very long text is cut, not spilled.
+        widths[i] = math.min(room, math.ceil(tw) + Leader.BUTTON_PAD)
+        b.text:SetWordWrap(false)
+        b.text:ClearAllPoints()
+        b.text:SetPoint("LEFT", b, "LEFT", 4, 0)
+        b.text:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+    end
+    local lines = Leader.Wrap(widths, room, Leader.GAP)
+    for row, line in ipairs(lines) do
+        local used = (#line - 1) * Leader.GAP
+        for _, i in ipairs(line) do used = used + widths[i] end
+        local extra = (room - used) / #line
+        local x, y = 0, sec.top + (row - 1) * (Leader.BUTTON_H + Leader.GAP)
+        for _, i in ipairs(line) do
+            local b = list[i].button
+            b:SetWidth(widths[i] + extra)
+            b:SetPoint("TOPLEFT", sec, "TOPLEFT", x, -y)
+            x = x + widths[i] + extra + Leader.GAP
+        end
+    end
+    for _, it in ipairs(list) do
+        local b = it.button
         b:SetScript("OnClick", it.click)
         if it.tip then
             b:HookScript("OnEnter", function(self)
@@ -321,9 +408,8 @@ local function buttonRow(sec, list)
             end)
             b:HookScript("OnLeave", function() GameTooltip:Hide() end)
         end
-        it.button = b
     end
-    sec:SetHeight(sec.top + Leader.BUTTON_H)
+    sec:SetHeight(sec.top + #lines * Leader.BUTTON_H + (#lines - 1) * Leader.GAP)
 end
 
 local function markTip(self)
@@ -448,8 +534,11 @@ local function build()
 
     local ready = newSection(L["Ready"])
     Leader.readyButtons = {
-        { text = READY_CHECK or L["Ready check"], click = function() Leader.ReadyCheck() end },
-        { text = ROLE_POLL or L["Role check"], click = function() InitiateRolePoll() end,
+        { text = READY_CHECK or L["Ready check"], icons = { { Leader.READY_ICON, accent = true } },
+          click = function() Leader.ReadyCheck() end,
+          tip = L["Asks everyone if they are ready."] },
+        { text = ROLE_POLL or L["Role check"], icons = Leader.RoleIcons(),
+          click = function() InitiateRolePoll() end,
           tip = L["Asks everyone to pick tank, healer or damage."] },
     }
     buttonRow(ready, Leader.readyButtons)
