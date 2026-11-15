@@ -244,7 +244,7 @@ ns.OPTIONS = { pages = {
             color("count", "Count color", "The numbers in objectives, like 3/8."),
             color("done", "Done objective color", "An objective you've finished."),
             color("tick", "Done tick color", "The tick next to a finished objective."),
-            color("ready", "Ready to hand in", "The '?', the title and the hand-in line."),
+            color("ready", "Ready to hand in", "The '?' and the hand-in line."),
             color("elite", "Elite tag color", "The tag after an elite quest's title."),
             color("dungeon", "Dungeon tag color", "The tag after a dungeon quest's title."),
             color("raid", "Raid tag color", "The tag after a raid quest's title."),

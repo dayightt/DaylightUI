@@ -489,11 +489,14 @@ T.test("quests rows: a quest's title, icon and objectives", function()
     T.eq(o.tick:IsShown(), false)
 end)
 
-T.test("quests rows: a ready quest is gold with the '?' and its hand-in line", function()
-    local frames, ns, look = painted({ quests = { QW.quest(1, "A", { complete = true, turnIn = "Return to Salma" }) } })
+-- Like the game's tracker: the title keeps its level color, the gold "?" and
+-- the hand-in line say it's ready.
+T.test("quests rows: a ready quest keeps its level color, with the '?' and its hand-in line", function()
+    local frames, ns, look = painted({ quests = { QW.quest(1, "A", { complete = true, turnIn = "Return to Salma", difficulty = 1 }) } })
     local f = frames["quest:1"]
     T.eq(f.ready:IsShown(), true); T.eq(f.ring:IsShown(), false)
-    T.rgb(f.lines.title.label.__textColor, look.c.ready)
+    local c = QW.COLORS.standard
+    T.rgb(f.lines.title.label.__textColor, { DaylightUI.Style.Soften(c.r, c.g, c.b) })
     T.eq(f.lines.turnin.label:GetText(), "Return to Salma")
 end)
 

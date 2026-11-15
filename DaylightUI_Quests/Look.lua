@@ -216,14 +216,14 @@ function Look.PaintParty(m, n, animate)
     return on
 end
 
+-- A ready quest keeps its level color, as in the game's own tracker: the "?"
+-- and the hand-in line already say it's ready.
 function Look.TitleColor(look, q)
-    if q.state == "ready" then return Look.Color(look, "ready") end
     if q.state == "failed" then return Look.Color(look, "failed") end
     return Look.LevelColor(look, q)
 end
 
--- Title color by level only, ready or not. For the quest log's rows, where
--- "Ready" at the end of the row already says it.
+-- Title color by level only, failed or not.
 function Look.LevelColor(look, q)
     if look.c.titleMode == "one" then return Look.Color(look, "title") end
     local d = q.diff or { 1, 0.82, 0 }
