@@ -617,6 +617,45 @@ T.test("nameplates: your target's plate wears the accent", function()
     T.falsy(p.outline:IsShown())
 end)
 
+T.test("nameplates: the circling light runs round your target's outline when switched on", function()
+    login()
+    local p = added("nameplate1")
+    stub.units.target = stub.units.nameplate1
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.eq(p.outline.glowDriver, nil, "off by default: nothing made")
+    DaylightUI:Set("Nameplates", "targetCircle", true)
+    stub.RunTimers()
+    local ring = p.outline
+    T.truthy(ring.glowDriver and ring.glowDriver:IsShown(), "the lights run on the target")
+    T.eq(ring.glowFrame, p.hp, "round the health bar")
+    T.near(ring.glowCut, p.cut, 1e-6, "following its angled end")
+    -- Walk a light round: it stays on the outline, leaning in along the angled end.
+    local dot = ring.glowLights[1].dot
+    local W = DaylightUI.Widgets
+    local w, h = p.hp:GetWidth(), p.hp:GetHeight()
+    local seen = {}
+    for _ = 1, 40 do
+        ring.glowDriver.__scripts.OnUpdate(ring.glowDriver, W.GLOW.lap / 40)
+        local _, rel, _, x, y = dot:GetPoint(1)
+        T.eq(rel, p.hp)
+        T.truthy(x >= -3 and x <= w + 3 and y <= 3 and y >= -h - 3, "on the outline")
+        seen[#seen + 1] = x
+    end
+    T.truthy(math.max(unpack(seen)) > w - 2, "reaches the right end")
+    -- Untargeted: the lights go with the outline.
+    stub.units.target = nil
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    for _ = 1, 5 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.1) end
+    T.eq(ring.glowDriver:IsShown(), false, "gone with the target")
+    -- Only with the outline style.
+    stub.units.target = stub.units.nameplate1
+    DaylightUI:Set("Nameplates", "targetStyle", "glow")
+    stub.RunTimers()
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.eq(ring.glowDriver:IsShown(), false, "not with the glow style")
+    stub.units.target = nil
+end)
+
 T.test("nameplates: the target outline's corners follow the border's rounding", function()
     login()
     local p = added("nameplate1")

@@ -159,7 +159,7 @@ Sample.PARTS = {
                "predictHeals", "predictAbsorbs", "dotTint", "execute", "executePct", "executeStyle",
                "threat", "threatBar", "threatBorder", "threatGlow", "threatPulse", "threatFill",
                "threatAggro", "threatWarn", "threatLost",
-               "targetStyle", "targetAccent", "targetOutline", "targetGlow", "dimOthers",
+               "targetStyle", "targetAccent", "targetCircle", "targetOutline", "targetGlow", "dimOthers",
                "targetScale", "target.width", "target.height", "target.scale",
                "friendly.enabled", "friendly.width", "friendly.height", "friendly.healthColor", "friendly.healthCustom" },
       size = { w = { "width", "friendly.width" }, h = { "height", "friendly.height" } } },
