@@ -1,4 +1,4 @@
--- A fake Attune (Attune.lua, 16001-34), only what its skin reads. Attune_Frame
+-- A fake Attune (Attune.lua, 16001-41), only what its skin reads. Attune_Frame
 -- makes its AceGUI-style window with the bronze PortraitFrameTemplate
 -- "AttuneBronzeChrome" over it. Attune_Select draws a chain on "Attune_GraphRoot",
 -- each step through Attune_CreateNode: a BackdropTemplate button
@@ -24,11 +24,19 @@ AW.CHAIN = {
     { id = "5", state = "goal", from = "4", level = 0, title = "Not attuned" },
 }
 
+-- BackdropTemplate: no colors to read back until SetBackdrop has made its pieces.
 local function backdrop(f)
-    for _, k in ipairs({ "TopLeftCorner", "TopEdge", "Center" }) do f[k] = f[k] or f:CreateTexture() end
-    f.SetBackdrop = function() end
+    f.SetBackdrop = function(self, info)
+        self.__info = info
+        for _, k in ipairs({ "TopLeftCorner", "TopEdge", "Center" }) do self[k] = self[k] or self:CreateTexture() end
+    end
+    f.GetBackdrop = function(self) return self.__info end
     f.SetBackdropColor = function(self, r, g, b, a) self.__bd = { r, g, b, a or 1 } end
-    f.GetBackdropColor = function(self) local c = self.__bd or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] end
+    f.GetBackdropColor = function(self)
+        if not self.Center then return nil end
+        local c = self.__bd or { 1, 1, 1, 1 }
+        return c[1], c[2], c[3], c[4]
+    end
     f.SetBackdropBorderColor = function() end
 end
 
@@ -42,9 +50,14 @@ function AW.Install()
         node:SetSize(170, 48)
         node:ClearAllPoints()
         node:SetPoint("TOP", parent, "TOP", x, -y)
-        backdrop(node)
+        if not node.SetBackdrop then backdrop(node) end
         local state = AW.states[step.id] or step.state
-        node:SetBackdropColor(unpack(AW.COLORS[state]))
+        -- A Spacer step (a column's drop line) never gets a backdrop since 16001-41.
+        if step.kind ~= "Spacer" then
+            node:SetBackdrop({})
+            node:SetBackdropColor(unpack(AW.COLORS[state]))
+        end
+        if step.kind == "Spacer" then node:Show(); return end
         local icon = _G["Attune_Icon_" .. step.id] or CreateFrame("Button", "Attune_Icon_" .. step.id, node)
         icon:SetSize(32, 32)
         icon:SetPoint("TOPLEFT", node, "TOPLEFT", 8, -8)

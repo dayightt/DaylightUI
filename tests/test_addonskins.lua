@@ -1360,6 +1360,12 @@ T.test("attune: its window ours, each step a talent tile, its lines the talents'
     T.eq(_G.Attune_Line3_4_3.__color[1], A.OFF[1], "a line not lit yet: the arrows' dark")
     T.truthy(SK.Attune.tiles[_G.Attune_Node_2].head:IsShown(), "a chevron where a line comes in")
     T.falsy(SK.Attune.tiles[_G.Attune_Node_1].head:IsShown(), "none on the first step")
+    -- A Spacer step has no backdrop at all: no tile, no black box.
+    _G.Attune_CreateNode({ id = "9", kind = "Spacer" }, _G.Attune_GraphRoot, 0, 400)
+    SK.Attune.Chain("KARA")
+    T.eq(SK.Attune.StateOf(_G.Attune_Node_9), "spacer")
+    T.falsy(SK.Attune.tiles[_G.Attune_Node_9].well:IsShown(), "a spacer gets no tile")
+    _G.Attune_Node_9:Hide()
     -- The next step done: drawn again, its ring flashes like a talent filling.
     AW.states["3"] = "done"
     _G.Attune_Select("KARA")
