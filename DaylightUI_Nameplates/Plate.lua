@@ -131,8 +131,8 @@ end
 -- Corpses: a lootable mob keeps its plate (the engine leaves it for the loot
 -- sparkle and interact icon), and the game's plate then only shows its widgets
 -- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). The Daylight UI
--- plate shows nothing there; the game's widgets and soft-target icon stay visible over its hidden
--- frame (Manager.Silence). Dead players keep theirs.
+-- plate shows nothing there; the game's widgets and soft-target icon stay in view on its
+-- plate (Manager.HideGameFrame). Dead players keep theirs.
 function Plate.IsCorpse(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
     return plain(UnitIsDead, unit) == true and plain(UnitIsPlayer, unit) ~= true
@@ -186,6 +186,7 @@ function Plate.UpdateCorpse(p)
     if now == p.corpse then return end
     p.corpse = now
     Plate.ShowNow(p)
+    if ns.Manager then ns.Manager.OwnClicks(p) end -- a corpse's plate can't be clicked, as in the game
 end
 
 -- Name-only plates: game objects, and friendly plates while friendly bars are off.
@@ -425,10 +426,8 @@ function Plate.Create(parent, sample)
     end
 
     -- The frame the game uses to keep plates from overlapping. Where a plate is
-    -- clicked stays the game's (the plate size from Manager.ApplySize, with click
-    -- insets past the edges from Manager.ApplyClickable) and is never set here, the
-    -- same as EllesmereUI. Plates went invisible when the game's was pointed at
-    -- addon frames.
+    -- clicked is a frame that stays on the game's plate (Manager.OwnClicks), never
+    -- one of this plate's, which moves between game plates.
     p.stack = CreateFrame("Frame", nil, p)
     -- The game measures a stacking frame by what's drawn in it, not its size: an empty
     -- one counts as nothing and plates don't stack. So it carries an invisible fill
@@ -686,12 +685,12 @@ end
 -- addon frames, so nothing on one game plate depends on a frame that moves on to
 -- another (that made plates go invisible). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
--- A plate hands the game its stacking frame only while the game stacks that kind
--- of plate (and /dui platefix can try the plates with none at all).
-function Plate.NoStack(p)
+-- Every plate hands the game its stacking frame, as Platynator does, whether the
+-- game stacks that kind of plate or not (/dui platefix can try the plates with
+-- none at all).
+function Plate.NoStack()
     local M = ns.Manager
-    if not M then return false end
-    return M.fixWithout == "stack" or not M.Stacks(p.friendly == true)
+    return M ~= nil and M.fixWithout == "stack"
 end
 
 function Plate.PlaceStack(p)
