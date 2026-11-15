@@ -110,8 +110,8 @@ T.test("action bars: the totem bar goes back in its holder when the game hands i
     loginShaman()
     local mc = MultiCastActionBarFrame
     local holder = stub.actionbars.Bars.holders.totem
-    -- Edit Mode does this to a bar off its default spot (EditModeSystemMixin:BreakFromFrameManager),
-    -- and a load in a fight leaves it there. Outside the holder the bar's fade never reaches it.
+    -- A load in a fight leaves it on UIParent, and something else may move it out later.
+    -- Outside the holder the bar's fade never reaches it.
     mc:SetParent(UIParent)
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     stub.RunTimers()

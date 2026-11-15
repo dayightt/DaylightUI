@@ -493,8 +493,8 @@ Totems.KIND = {
             end)
         end
         pin(mc, function()
-            -- Edit Mode hands a bar off its default spot to UIParent, and a load in a
-            -- fight can't move it. Outside the holder the bar's fade never reaches it.
+            -- A load in a fight can't put the bar in its holder, and something else may
+            -- move it out later. Outside the holder the bar's fade never reaches it.
             if mc:GetParent() ~= holder then mc:SetParent(holder) end
             mc:ClearAllPoints()
             mc:SetPoint("CENTER", holder, "CENTER", 0, 0)
