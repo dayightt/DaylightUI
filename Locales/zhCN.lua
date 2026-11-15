@@ -2827,6 +2827,7 @@ L["Quiet, soft clicks for windows, menus and toggles, in place of the game's own
 L["Quivers"] = "箭袋"
 L["REPORT"] = "报告"
 L["RESET"] = "重置"
+L["Race"] = "种族"
 L["Rage"] = "怒气"
 L["Rage, mana and energy gains"] = "怒气、法力值和能量获取"
 L["Raid"] = "团队"

@@ -239,6 +239,7 @@ function Data.CanInviteFriend(f)
     return f ~= nil and f.inGame == true and f.gameAccountID ~= nil
         and f.realmID ~= 0 and f.region ~= false
         and Data.SameRuleset(f.realm) and Data.SameFaction(f)
+        and not Data.InGroup(f.char)
 end
 
 -- The game's FriendsFrame_InviteOrRequestToJoin: a friend who is already in a group is
@@ -324,7 +325,17 @@ local function ally(a)
     local last = type(i.interactions) == "table" and i.interactions[1] or nil
     local out = { guid = str(c.guid), name = str(c.fullName) or str(c.name), short = str(c.name), class = classToken(num(c.classID)),
         level = num(c.level), online = s.isOnline == true, pinned = num(s.pinExpirationDate) ~= nil,
-        legacy = s.isConvertedLegacyFriend == true, note = str(i.note), location = str(s.currentLocation) }
+        legacy = s.isConvertedLegacyFriend == true, note = str(i.note), location = str(s.currentLocation),
+        realm = str(c.realmName) }
+    -- The race and its faction, from the character's race id.
+    local raceID = num(c.raceID)
+    local C = type(C_CreatureInfo) == "table" and C_CreatureInfo or nil
+    if raceID and C then
+        local race = call(C.GetRaceInfo, raceID)
+        if type(race) == "table" then out.race = str(race.raceName) end
+        local faction = call(C.GetFactionInfo, raceID)
+        if type(faction) == "table" then out.faction = Data.FactionOf(faction.groupTag) or Data.FactionOf(faction.name) end
+    end
     if not (out.guid and out.name) then return nil end
     out.status = not out.online and "off" or s.isDND == true and "busy" or s.isAFK == true and "away" or "on"
     if type(last) == "table" then
@@ -359,6 +370,52 @@ function Data.Pin(a, on) local A = allies(); if A and a then call(A.SetRecentAll
 function Data.AllyNote(a, note) local A = allies(); if A and a then call(A.SetRecentAllyNote, a.guid, note or "") end end
 
 -- Whispers and invites by character name (shared with the group finder)
+
+-- Is this character already in the player's party or raid? By name ("Name" or
+-- "Name-Realm") against the members' own names.
+function Data.InGroup(name)
+    name = str(name)
+    if not name then return false end
+    local short = name:match("^[^%-]+")
+    local function same(unit)
+        local n, realm = call(UnitName, unit)
+        n, realm = str(n), str(realm)
+        return n ~= nil and (n == name or n == short or (realm ~= nil and n .. "-" .. realm == name))
+    end
+    if call(IsInRaid) == true then
+        for i = 1, num(call(GetNumGroupMembers)) or 0 do
+            if same("raid" .. i) then return true end
+        end
+    elseif call(IsInGroup) == true then
+        for i = 1, 4 do
+            if same("party" .. i) then return true end
+        end
+    end
+    return false
+end
+
+-- Is this character already a friend: the character of a Battle.net friend, or an old
+-- character friend.
+function Data.IsFriendName(name)
+    name = str(name)
+    if not name then return false end
+    local short = string.lower(name:match("^[^%-]+"))
+    for _, f in ipairs(Data.Friends()) do
+        if f.char and string.lower(f.char) == short then return true end
+    end
+    local FL = type(C_FriendList) == "table" and C_FriendList or nil
+    return FL ~= nil and type(call(FL.GetFriendInfo, short)) == "table"
+end
+
+-- A recent ally who's online and isn't in the group yet.
+function Data.CanInviteAlly(a)
+    return a ~= nil and a.online == true and not Data.InGroup(a.name)
+end
+
+-- A recent ally who isn't a friend yet (a legacy friend already is one).
+function Data.CanFriendAlly(a)
+    return a ~= nil and a.legacy ~= true and not Data.IsFriendName(a.name)
+end
 
 function Data.Whisper(name) DUI.Lfg.Data.Whisper(name) end
 function Data.Invite(name) DUI.Lfg.Data.Invite(name) end

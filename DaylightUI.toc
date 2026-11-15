@@ -176,6 +176,7 @@ Mail\Options.lua
 Mail\Module.lua
 Social\Defaults.lua
 Social\Data.lua
+Social\Detail.lua
 Social\Friends.lua
 Social\Allies.lua
 Social\Requests.lua

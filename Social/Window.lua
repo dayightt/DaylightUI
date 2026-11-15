@@ -266,7 +266,30 @@ function Social.Apply()
     if Social.follow then Win.Followers.WriteWidth(Social.follow) end
 end
 
-local function width(id) return id == "raid" and Social.RAID_W or Social.W end
+-- Friends and Recent allies grow by the detail card's room while a row is picked.
+Social.side = {}
+local function width(id)
+    return (id == "raid" and Social.RAID_W or Social.W) + (Social.side[id] and ns.Detail.SPAN or 0)
+end
+
+-- The detail card of a page opened or closed: the window makes room on its right (or
+-- gives it back), easing like a change of page. Pages lay out for the width they are
+-- going to have (goalW), as when a tab changes.
+function Social.SetSide(id, on)
+    on = on == true
+    if (Social.side[id] == true) == on then return end
+    Social.side[id] = on or nil
+    local f = Social.frame
+    if not f then return end
+    local def = f.defs and f.defs[id]
+    if def then def.w = width(id) end
+    if f.current ~= id then return end
+    local w, h = Social.sizer.Size(id)
+    f.goalW, f.goalH = w, h
+    if Win.IsOpen(f) then Win.Feel.Size(f, w, h) else f:SetSize(w, h) end
+    if Win.Room then Win.Room.Changed(f) end
+    if Social.follow then Win.Followers.WriteWidth(Social.follow) end
+end
 
 function Social.Build(mod)
     ns.module = mod

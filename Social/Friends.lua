@@ -2,8 +2,9 @@
 -- Online and Offline (collapsed), and ignored players (collapsed). Each row has a
 -- status dot, the friend's name in white and their character in class color, with
 -- level and zone, another game, or last-online time underneath. Hover shows a card
--- tooltip, click selects for the footer's Invite and Whisper, right-click opens a menu
--- (same as the group finder). A friend coming online gets a shine.
+-- tooltip, click picks a friend and opens the detail panel under the list (who, where,
+-- Invite and Whisper), right-click opens a menu (same as the group finder). A friend
+-- coming online gets a shine. A square button beside the search adds a friend.
 
 local _, DUI = ...
 DUI.Social = DUI.Social or {}
@@ -151,24 +152,81 @@ end
 local function pick(id)
     Friends.picked = id
     for _, b in ipairs(Friends.rows or {}) do Rows().Pick(b, b.spec.friend.id == id) end
-    Friends.PaintFooter()
+    Friends.PaintDetail()
 end
 
 local function picked()
     for _, f in ipairs(Friends.list or {}) do if f.id == Friends.picked then return f end end
 end
 
-function Friends.PaintFooter()
+-- A friend's line: the account, then their character (with the faction's banner when
+-- that's on). dim: gone or elsewhere, so the name goes quiet.
+function Friends.Title(f)
+    local dim = f.status == "off" or (ns.Setting("friendDim") == true and Friends.Away(f))
+    local text = f.account
+    if f.char then text = text .. "  " .. Friends.FactionIcon(f.faction) .. (dim and f.char or Rows().Named(f.char, f.class)) end
+    return text, dim
+end
+
+-- What the card beside the list shows for the picked friend: who, what they play and
+-- where, what they said, and only the buttons that apply (Invite when the game would let
+-- it, Whisper while they're online). A friend is already a friend, so no Add friend here:
+-- that one is the button beside the search box.
+function Friends.Spec(f)
+    local _, dim = Friends.Title(f)
+    local ink = Style.INK
+    local buttons = {}
+    if Data().CanInviteFriend(f) then
+        buttons[#buttons + 1] = { text = INVITE or L["Invite"], primary = true, onClick = function() Data().InviteFriend(picked()) end }
+    end
+    if f.status ~= "off" then
+        buttons[#buttons + 1] = { text = WHISPER or L["Whisper"], onClick = function() Data().WhisperFriend(picked()) end }
+    end
+    local rows = {}
+    local function add(label, value, color)
+        if value and value ~= "" then rows[#rows + 1] = { label = label, value = value, color = color } end
+    end
+    add(nil, ns.Window.STATUS_WORD[f.status], ns.Window.StatusColor(f.status))
+    if f.status == "off" then add(nil, f.lastOnline and string.format(L["Last online %s"], Data().Ago(f.lastOnline)) or nil, ink.LABEL) end
+    -- What the game gives for a friend with no character (Battle.net, another game,
+    -- offline): the game they're in, and their BattleTag under the name.
+    if not f.char and f.game and f.status ~= "off" then add(nil, string.format(L["Playing %s"], f.game), ink.LABEL) end
+    if f.char then
+        add(LEVEL or L["Level"], f.level and tostring(f.level))
+        add(L["Race"], f.race)
+        add(L["Zone"], f.zone)
+        local word = f.faction and (f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+        add(L["Faction"], word)
+        add(L["Server"], f.ruleset)
+    end
+    add(L["Note"], f.note)
+    if f.broadcast then add(nil, "\"" .. f.broadcast .. "\"", ink.LABEL) end
+    local icon
+    if f.class and DUI.ClassIcon then icon = { DUI.ClassIcon(f.class) } end
+    local r, g, b = 1, 1, 1
+    if f.char and not dim and f.class then r, g, b = Style.ClassTextColor(f.class) end
+    -- A Battle.net name can be a protected string, so the badge's letter comes from the
+    -- BattleTag before the #, which is plain.
+    local initial = f.char or (f.tag and f.tag:match("^[^#]+"))
+    return { icon = icon, initial = initial, title = f.char or f.account, color = f.char and not dim and { r, g, b } or (dim and ink.OFF or ink.VALUE),
+        sub = f.char and f.account or f.tag, rows = rows, buttons = buttons }
+end
+
+function Friends.PaintDetail()
     local page = Friends.page
-    if not page then return end
+    if not (page and page.detail) then return end
     local f = picked()
-    page.foot:Set({
-        { text = INVITE or L["Invite"], primary = true, off = not Data().CanInviteFriend(f), onClick = function() Data().InviteFriend(picked()) end },
-        { text = WHISPER or L["Whisper"], off = not (f and f.status ~= "off"), onClick = function() Data().WhisperFriend(picked()) end },
-        { text = L["Add friend"], onClick = function()
-            W().Prompt(L["Add a friend: a BattleTag (Name#1234) or a character's name."], "", function(text) Data().AddFriend(text) end, { now = true })
-        end },
-    })
+    return page.detail:Set(f and Friends.Spec(f) or nil)
+end
+
+-- The card open or closed: the search box and its Add friend button keep to the list's
+-- side, and the list's right edge moves off the card.
+function Friends.Fit(page, p)
+    local room = ns.Detail.SPAN * p
+    local right = Friends.EDGE + room
+    page.add:ClearAllPoints()
+    page.add:SetPoint("TOPRIGHT", page, "TOPRIGHT", -right, -10)
+    page.stack.scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -page.stack.side - room, ns.Detail.REST)
 end
 
 -- Someone you can't play with right now: in another game, or on another ruleset.
@@ -199,14 +257,12 @@ end
 
 local function friendRow(s, f)
     local off = f.status == "off"
-    local dim = off or (ns.Setting("friendDim") == true and Friends.Away(f))
-    local text = f.account
-    if f.char then text = text .. "  " .. Friends.FactionIcon(f.faction) .. (dim and f.char or Rows().Named(f.char, f.class)) end
+    local text, dim = Friends.Title(f)
     local b = Rows().Row(s, { kind = "friend", height = Friends.ROW, friend = f, text = text, id = "friend:" .. tostring(f.id),
         color = dim and Style.INK.OFF or Style.INK.VALUE, sub = Friends.Sub(f), subColor = dim and Style.INK.OFF or Style.INK.LABEL,
         dot = ns.Window.StatusColor(f.status), picked = f.id == Friends.picked,
         -- A quick Invite at the row's right end, when that friend can be invited now
-        -- (the footer's Invite does the same for the picked row).
+        -- (the panel's Invite does the same for the picked row).
         action = Data().CanInviteFriend(f) and { tip = INVITE or L["Invite"], onClick = function() Data().InviteFriend(f) end } or nil,
         onClick = function() pick(Friends.picked ~= f.id and f.id or nil) end,
         onMenu = function(row) Friends.Menu(row, f) end,
@@ -305,7 +361,7 @@ function Friends.Render(keep, ease)
     local none = #fav + #on + #off == 0
     page.note:SetShown(none)
     page.note:SetText(q ~= "" and L["No friends match."] or L["No friends yet."])
-    Friends.PaintFooter()
+    Friends.PaintDetail()
 end
 
 function Friends.Build(page)
@@ -313,8 +369,27 @@ function Friends.Build(page)
     Friends.seen = {}
     page.search = W().Input(page, { search = true, hint = L["Search friends..."], maxLetters = 64,
         onChange = function() Friends.Render(nil, true) end })
+    -- Add friend: a square button beside the search (it adds someone new, so it isn't
+    -- about the picked row).
+    page.add = W().Button(page, "+", W().INPUT_H)
+    page.add:SetWidth(W().INPUT_H)
+    page.add:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Friends.EDGE, -10)
+    page.add:SetScript("OnClick", function()
+        W().Prompt(L["Add a friend: a BattleTag (Name#1234) or a character's name."], "", function(text) Data().AddFriend(text) end, { now = true })
+    end)
+    page.add:HookScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        DUI.Tips.Clear()
+        DUI.Tips.Title(L["Add friend"])
+        DUI.Tips.Flush(GameTooltip)
+        GameTooltip:Show()
+    end)
+    page.add:HookScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
     page.search:SetPoint("TOPLEFT", page, "TOPLEFT", Friends.EDGE, -10)
-    page.search:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Friends.EDGE, -10)
+    page.search:SetPoint("TOPRIGHT", page.add, "TOPLEFT", -6, 0)
     page.chips = {}
     local x = Friends.EDGE
     for _, id in ipairs(Friends.FILTERS) do
@@ -326,14 +401,16 @@ function Friends.Build(page)
         page.chips[id] = b
         x = x + b:GetWidth() + W().CHIP_GAP
     end
-    page.stack = Win.Parts.Stack(page, { top = Friends.TOP, bottom = 52 })
+    page.stack = Win.Parts.Stack(page, { top = Friends.TOP, bottom = ns.Detail.REST })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
     Style.InkText(page.note, "LABEL")
     page.note:Hide()
-    page.foot = Win.Parts.Footer(page)
+    page.detail = ns.Detail.New(page, { refill = function() Friends.Render(true) end,
+        side = function(open) ns.Window.SetSide("friends", open) end, fit = function(p) Friends.Fit(page, p) end })
+    -- GROUP_ROSTER_UPDATE: a friend who joins the group has no Invite any more.
     for _, e in ipairs({ "BN_FRIEND_LIST_SIZE_CHANGED", "BN_FRIEND_INFO_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED",
-        "IGNORELIST_UPDATE", "BN_CUSTOM_MESSAGE_CHANGED", "FRIENDLIST_UPDATE" }) do
+        "IGNORELIST_UPDATE", "BN_CUSTOM_MESSAGE_CHANGED", "FRIENDLIST_UPDATE", "GROUP_ROSTER_UPDATE" }) do
         DUI.RegisterEvent(e, function() ns.Window.Refresh("friends") end)
     end
 end
@@ -343,7 +420,7 @@ function Friends.Fill(page)
 end
 
 function Friends.Pieces(page)
-    local out = { page.search }
+    local out = { page.search, page.add }
     if ns.Setting("friendChips") == true then
         for _, id in ipairs(Friends.FILTERS) do out[#out + 1] = page.chips[id] end
     end

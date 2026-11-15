@@ -2849,6 +2849,7 @@ L["Quiet, soft clicks for windows, menus and toggles, in place of the game's own
 L["Quivers"] = "화살통"
 L["REPORT"] = "보고"
 L["RESET"] = "초기화"
+L["Race"] = "종족"
 L["Rage"] = "분노"
 L["Rage, mana and energy gains"] = "분노, 마나, 기력 획득"
 L["Raid"] = "공격대"

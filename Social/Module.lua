@@ -10,7 +10,7 @@ DUI:RegisterModule("Social", {
     order = 131,
     section = "QoL", pageOrder = 135, windowCard = true,   -- a card on Extras > Windows
     ns = ns,
-    parts = { "Data", "Friends", "Allies", "Requests", "Raid", "Window" },
+    parts = { "Data", "Detail", "Friends", "Allies", "Requests", "Raid", "Window" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)

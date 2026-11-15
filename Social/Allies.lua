@@ -3,7 +3,8 @@
 -- friends show up there as "legacy friends"). A search box and chips (All, Grouped,
 -- Traded, Whispered), then Pinned and Recent. Each row has a status dot, the name in
 -- class color, level and the shared activity below, and how long ago on the right.
--- Click selects for the footer's Invite, Whisper and Pin; right-click opens a menu.
+-- Click picks one and opens the detail panel under the list (who, where, and the buttons
+-- that apply: Invite, Whisper, Pin, Add friend); right-click opens a menu.
 
 local _, DUI = ...
 DUI.Social = DUI.Social or {}
@@ -50,13 +51,11 @@ end
 function Allies.Menu(owner, a)
     local keys, values = {}, {}
     local function add(k, v) keys[#keys + 1] = k; values[k] = v end
-    if a.online then
-        add("whisper", WHISPER or L["Whisper"])
-        add("invite", INVITE or L["Invite"])
-    end
+    if a.online then add("whisper", WHISPER or L["Whisper"]) end
+    if Data().CanInviteAlly(a) then add("invite", INVITE or L["Invite"]) end
     add("pin", a.pinned and L["Unpin"] or L["Pin"])
     add("note", L["Set note..."])
-    add("friend", L["Add friend"])
+    if Data().CanFriendAlly(a) then add("friend", L["Add friend"]) end
     add("ignore", IGNORE or L["Ignore"])
     W().OpenMenu(owner, keys, values, nil, function(k)
         if k == "whisper" then Data().Whisper(a.name)
@@ -75,19 +74,60 @@ end
 local function pick(guid)
     Allies.picked = guid
     for _, b in ipairs(Allies.rows or {}) do Rows().Pick(b, b.spec.ally.guid == guid) end
-    Allies.PaintFooter()
+    Allies.PaintDetail()
 end
 
-function Allies.PaintFooter()
+-- What the card beside the list shows for the picked ally. Only the buttons that apply:
+-- Invite while they're online and not in the group, Whisper while they're online, Pin
+-- or Unpin, and Add friend unless they already are one.
+function Allies.Spec(a)
+    local ink = Style.INK
+    local buttons = {}
+    if Data().CanInviteAlly(a) then
+        buttons[#buttons + 1] = { text = INVITE or L["Invite"], primary = true, onClick = function() local x = picked(); if x then Data().Invite(x.name) end end }
+    end
+    if a.online then
+        buttons[#buttons + 1] = { text = WHISPER or L["Whisper"], onClick = function() local x = picked(); if x then Data().Whisper(x.name) end end }
+    end
+    buttons[#buttons + 1] = { text = a.pinned and L["Unpin"] or L["Pin"], onClick = function() local x = picked(); if x then Data().Pin(x, not x.pinned) end end }
+    if Data().CanFriendAlly(a) then
+        buttons[#buttons + 1] = { text = L["Add friend"], onClick = function() local x = picked(); if x then Data().AddFriend(x.name) end end }
+    end
+    local rows = {}
+    local function add(label, value, color)
+        if value and value ~= "" then rows[#rows + 1] = { label = label, value = value, color = color } end
+    end
+    add(nil, ns.Window.STATUS_WORD[a.status], ns.Window.StatusColor(a.status))
+    add(LEVEL or L["Level"], a.level and tostring(a.level))
+    add(L["Race"], a.race)
+    if a.online then add(L["Zone"], a.location) end
+    local word = a.faction and (a.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+    add(L["Faction"], word)
+    -- How you met, whole (it can be long): its own titled block, under the faction.
+    add(L["History"], a.what .. (a.when and (" · " .. Data().Ago(a.when)) or ""))
+    add(L["Note"], a.note)
+    if a.pinned then add(nil, L["Pinned: kept on your list"], ink.LABEL) end
+    local icon
+    if a.class and DUI.ClassIcon then icon = { DUI.ClassIcon(a.class) } end
+    local color = ink.OFF
+    if a.online then color = { Style.ClassTextColor(a.class) } end
+    return { icon = icon, title = a.short or a.name, color = color, sub = a.class and Rows().ClassWord(a.class) or nil,
+        rows = rows, buttons = buttons }
+end
+
+function Allies.PaintDetail()
     local page = Allies.page
-    if not page then return end
+    if not (page and page.detail) then return end
     local a = picked()
-    local on = a ~= nil and a.online
-    page.foot:Set({
-        { text = INVITE or L["Invite"], primary = true, off = not on, onClick = function() local x = picked(); if x then Data().Invite(x.name) end end },
-        { text = WHISPER or L["Whisper"], off = not on, onClick = function() local x = picked(); if x then Data().Whisper(x.name) end end },
-        { text = a and a.pinned and L["Unpin"] or L["Pin"], off = a == nil, onClick = function() local x = picked(); if x then Data().Pin(x, not x.pinned) end end },
-    })
+    return page.detail:Set(a and Allies.Spec(a) or nil)
+end
+
+-- The card open or closed: the list's right edge moves off it.
+function Allies.Fit(page, p)
+    local room = ns.Detail.SPAN * p
+    page.stack.scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -page.stack.side - room, ns.Detail.REST)
+    local right = Allies.EDGE + room
+    page.search:SetPoint("TOPRIGHT", page, "TOPRIGHT", -right, -10)
 end
 
 function Allies.Filter(id)
@@ -153,7 +193,7 @@ function Allies.Render(keepScroll)
     if not Data().AlliesReady() and #all == 0 then page.note:SetText(L["Asking who you played with..."])
     elseif #all == 0 then page.note:SetText(L["No allies yet. People you group, trade or talk with show here."])
     else page.note:SetText(L["No allies match."]) end
-    Allies.PaintFooter()
+    Allies.PaintDetail()
 end
 
 -- Don't request data: C_RecentAllies.TryRequestRecentAlliesData is refused to addon
@@ -177,13 +217,18 @@ function Allies.Build(page)
         page.chips[id] = b
         x = x + b:GetWidth() + W().CHIP_GAP
     end
-    page.stack = Win.Parts.Stack(page, { top = Allies.TOP, bottom = 52 })
+    page.stack = Win.Parts.Stack(page, { top = Allies.TOP, bottom = ns.Detail.REST })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 0)
     page.note:SetWidth(320)
     Style.InkText(page.note, "LABEL")
     page.note:Hide()
-    page.foot = Win.Parts.Footer(page)
+    page.detail = ns.Detail.New(page, { refill = function() Allies.Render(true) end,
+        side = function(open) ns.Window.SetSide("allies", open) end, fit = function(p) Allies.Fit(page, p) end })
+    -- A new friend or a new group member changes which buttons apply.
+    for _, e in ipairs({ "BN_FRIEND_LIST_SIZE_CHANGED", "FRIENDLIST_UPDATE", "GROUP_ROSTER_UPDATE" }) do
+        DUI.RegisterEvent(e, function() ns.Window.Refresh("allies") end)
+    end
     DUI.RegisterEvent("RECENT_ALLIES_CACHE_UPDATE", function() ns.Window.Refresh("allies") end)
     DUI.RegisterEvent("RECENT_ALLIES_DATA_READY", function() ns.Window.Refresh("allies") end)
     DUI.RegisterEvent("RECENT_ALLY_DATA_UPDATED", function(_, guid)

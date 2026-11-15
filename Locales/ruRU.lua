@@ -2850,6 +2850,7 @@ L["Quiet, soft clicks for windows, menus and toggles, in place of the game's own
 L["Quivers"] = "Колчаны"
 L["REPORT"] = "ОТЧЕТ"
 L["RESET"] = "СБРОС"
+L["Race"] = "Раса"
 L["Rage"] = "Ярость"
 L["Rage, mana and energy gains"] = "Восполнение ярости, маны и энергии"
 L["Raid"] = "Рейд"

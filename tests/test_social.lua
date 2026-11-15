@@ -77,10 +77,13 @@ local function menuOf(fn)
     return seen
 end
 
-local function footer(page)
+-- The detail panel under a list: "closed", or its buttons.
+local function panel(page)
+    local d = page.detail
+    if not d:IsOpen() then return "closed" end
     local out = {}
-    for _, b in ipairs(page.foot.buttons) do
-        if b:IsShown() then out[#out + 1] = b.text:GetText() .. (b.spec and b.spec.off and " (off)" or "") end
+    for _, b in ipairs(d.buttons) do
+        if b:IsShown() then out[#out + 1] = b.text:GetText() end
     end
     return table.concat(out, ", ")
 end
@@ -177,18 +180,21 @@ T.test("social: a friend picked: Invite (their game account) and Whisper (Battle
     local ns = load()
     open(ns)
     local page = ns.Friends.page
-    T.eq(footer(page), "Invite (off), Whisper (off), Add friend")
+    T.eq(panel(page), "closed", "nothing picked: no panel")
     local kit = rows(page.stack, "friend")[4]
     stub.Key(function() kit:Click() end)
-    T.eq(footer(page), "Invite, Whisper, Add friend")
-    stub.Key(function() page.foot.buttons[1]:Click() end)
+    T.eq(panel(page), "Invite, Whisper")
+    stub.Key(function() page.detail.buttons[1]:Click() end)
     T.eq(SW.Calls("InviteFriend")[1][1], 100 + #"Thessaly Moor")
-    stub.Key(function() page.foot.buttons[2]:Click() end)
+    stub.Key(function() page.detail.buttons[2]:Click() end)
     T.eq(SW.Calls("SendBNetTell")[1][1], "Kit")
     -- Sol plays another game: no invite.
     local sol = rows(page.stack, "friend")[6]
     stub.Key(function() sol:Click() end)
-    T.eq(footer(page), "Invite (off), Whisper, Add friend")
+    T.eq(panel(page), "Whisper", "no Invite where it can't be done: not dimmed, not there")
+    -- Picking it again closes the panel.
+    stub.Key(function() sol:Click() end)
+    T.eq(panel(page), "closed")
     clean()
 end)
 
@@ -217,7 +223,7 @@ T.test("social: a friend you can invite has a quick Invite button at the end of 
     stub.Key(function() kit.action:Click() end)
     T.eq(SW.Calls("InviteFriend")[1][1], 100 + #"Thessaly Moor", "their game account")
     T.isnil(ns.Friends.picked, "the row isn't picked by it")
-    T.eq(footer(page), "Invite (off), Whisper (off), Add friend")
+    T.eq(panel(page), "closed")
     -- The mouse on the button keeps the row lit; leaving it with the mouse off the row lets it go.
     kit.action:GetScript("OnEnter")(kit.action)
     frame(3)
@@ -337,9 +343,9 @@ T.test("social: a friend of the other faction can't be invited; a localized fact
     T.falsy(byName.Hordie.action:IsShown(), "the other faction: none")
     T.falsy(byName.Localized.action:IsShown(), "the other faction by its localized name: none")
     T.truthy(byName.Unknown.action:IsShown(), "no faction known: left to the game")
-    -- The footer's Invite agrees.
+    -- The panel's Invite agrees.
     stub.Key(function() byName.Hordie:Click() end)
-    T.eq(footer(page), "Invite (off), Whisper, Add friend")
+    T.eq(panel(page), "Whisper")
     -- A Horde player: it turns round.
     stub.SetUnits({ player = { name = "Me", class = "MAGE", faction = "Horde" } })
     T.truthy(D.CanInviteFriend(byName.Hordie.spec.friend))
@@ -533,7 +539,7 @@ T.test("social: Add friend and a broadcast reach the game inside the prompt's cl
     local ns = load()
     local f = open(ns)
     stub.errors = {}
-    stub.Key(function() ns.Friends.page.foot.buttons[3]:Click() end)
+    stub.Key(function() ns.Friends.page.add:Click() end)
     accept("Odessa Reed")
     T.eq(#stub.errors, 0, "the game refused it: " .. tostring(stub.errors[1]))
     T.eq(SW.Calls("SendTitleFriendInviteByName")[1][1], "Odessa Reed")
@@ -568,22 +574,22 @@ T.test("social: an ally picked: Invite and Whisper by name, Pin keeps them (a sh
     open(ns)
     tab(ns, "allies")
     local page = ns.Allies.page
-    T.eq(footer(page), "Invite (off), Whisper (off), Pin (off)")
+    T.eq(panel(page), "closed")
     local odessa = rows(page.stack, "ally")[4]
     stub.Key(function() odessa:Click() end)
-    T.eq(footer(page), "Invite, Whisper, Pin")
-    stub.Key(function() page.foot.buttons[1]:Click() end)
+    T.eq(panel(page), "Invite, Whisper, Pin, Add friend")
+    stub.Key(function() page.detail.buttons[1]:Click() end)
     T.eq(SW.Calls("InviteUnit")[1][1], "Odessa Reed")
     local shone = {}
     local real = DaylightUI.Win.Parts.Shine
     DaylightUI.Win.Parts.Shine = function(b) shone[#shone + 1] = b end
-    stub.Key(function() page.foot.buttons[3]:Click() end)
+    stub.Key(function() page.detail.buttons[3]:Click() end)
     frame(3)
     DaylightUI.Win.Parts.Shine = real
     T.eq(SW.Calls("SetRecentAllyPinned")[1][2], true)
     T.eq(heads(page.stack), "PINNED 3 / 3 | RECENT 1 / 3")
     T.eq(shone[1] and shone[1].spec.ally.name, "Odessa Reed")
-    T.eq(footer(page), "Invite, Whisper, Unpin", "still picked")
+    T.eq(panel(page), "Invite, Whisper, Unpin, Add friend", "still picked")
     clean()
 end)
 
@@ -806,5 +812,393 @@ T.test("social: the target buttons sit above our window's rows; our rows take th
     slot:GetScript("OnDragStart")(slot)
     T.eq(ns.Raid.dragging, slot.member.index)
     ns.Raid.Drop(true)
+    clean()
+end)
+
+-- The detail card: a row picked widens the window and opens it on the right, it says who
+-- and where, and it closes (the window goes back) when nothing is picked.
+T.test("social: a picked friend opens a detail card on the right and the window widens for it", function()
+    local ns = load()
+    local win = open(ns)
+    local page = ns.Friends.page
+    local d = page.detail
+    local Detail = ns.Detail
+    local function listRight() return select(4, page.stack.scroll:GetPoint(2)) end
+    T.eq(win:GetWidth(), ns.Window.W, "closed: the usual width")
+    T.falsy(d.frame:IsShown())
+    T.eq(listRight(), -page.stack.side)
+    local mara = rows(page.stack, "friend")[1]
+    stub.Key(function() mara:Click() end)
+    frame(30)
+    T.truthy(d.frame:IsShown(), "open")
+    T.eq(d.frame:GetAlpha(), 1, "faded in")
+    T.eq(win:GetWidth(), ns.Window.W + Detail.SPAN, "the window made room for it")
+    T.eq(listRight(), -page.stack.side - Detail.SPAN, "the list stops short of it")
+    T.eq(select(4, page.add:GetPoint(1)), -(ns.Friends.EDGE + Detail.SPAN), "the search and its button keep to the list")
+    T.eq(d.frame.title:GetText(), "Ysella Dawnwhisper", "their character")
+    T.eq(d.frame.sub:GetText(), "Mara", "and the account")
+    T.falsy(d.frame.dot, "no status dot: the status has its own line")
+    local seen = {}
+    for _, r in ipairs(d.rows) do
+        if r.value:IsShown() then seen[#seen + 1] = (r.label:IsShown() and (r.label:GetText() .. ": ") or "") .. r.value:GetText() end
+    end
+    local text = table.concat(seen, " | ")
+    T.truthy(text:find("Level: 44", 1, true), "their level: " .. text)
+    T.truthy(text:find("Race: Dwarf", 1, true), "their race: " .. text)
+    T.truthy(text:find("Zone: Tanaris", 1, true), "where they are: " .. text)
+    T.truthy(text:find("Note: Heals on Tuesdays", 1, true), "their note: " .. text)
+    T.truthy(text:find("\"Running ZF later\"", 1, true), "what they said: " .. text)
+    -- No Add friend on a friend: they are one already.
+    for _, b in ipairs(d.buttons) do
+        if b:IsShown() then T.truthy(b.text:GetText() ~= "Add friend", "no Add friend on a friend") end
+    end
+    -- Picked again: the card closes and the window goes back.
+    stub.Key(function() mara:Click() end)
+    frame(30)
+    T.falsy(d.frame:IsShown(), "closed again")
+    T.eq(win:GetWidth(), ns.Window.W)
+    T.eq(listRight(), -page.stack.side)
+    T.eq(select(4, page.add:GetPoint(1)), -ns.Friends.EDGE)
+    -- A friend who's offline (Pip, folded under Offline until unfolded): who and when, and
+    -- nothing to press.
+    ns.Friends.folds.offline = nil
+    stub.Key(function() ns.Friends.Render() end)
+    frame(20)
+    local pip
+    for _, b in ipairs(rows(page.stack, "friend")) do if b.spec.friend.account == "Pip" then pip = b end end
+    T.truthy(pip, "Pip is listed")
+    stub.Key(function() pip:Click() end)
+    frame(30)
+    T.eq(panel(page), "", "nothing to press")
+    T.eq(d.frame.title:GetText(), "Pip")
+    clean()
+end)
+
+-- Add friend: a square button beside the search, not a button about the picked row.
+T.test("social: Add friend is a square button beside the search", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    T.eq(page.add:GetWidth(), page.add:GetHeight(), "square")
+    local p, rel = page.search:GetPoint(2)
+    T.eq(rel, page.add, "the search stops short of it")
+    T.truthy(page.add:IsShown())
+    local q = ns.Friends.Pieces(page)
+    local found
+    for _, v in ipairs(q) do if v == page.add then found = true end end
+    T.truthy(found, "the controller reaches it")
+    clean()
+end)
+
+T.test("social: the quick Invite button is a square", function()
+    local Rows = DaylightUI.Lfg and DaylightUI.Lfg.Rows
+    load()
+    Rows = DaylightUI.Lfg.Rows
+    T.eq(Rows.ACTION_W, Rows.ACTION_H)
+end)
+
+-- A friend already in your group has no Invite: not on the row, not in the panel.
+T.test("social: a friend already in your group has no Invite, on the row or in the panel", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local kit = rows(page.stack, "friend")[4]
+    T.truthy(kit.action:IsShown(), "not grouped yet: a button")
+    stub.Key(function() kit:Click() end)
+    T.eq(panel(page), "Invite, Whisper")
+    -- Thessaly Moor joins the party.
+    stub.inGroup = true
+    stub.SetUnits({ party1 = { name = "Thessaly Moor" } })
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    frame(20)
+    kit = rows(page.stack, "friend")[4]
+    T.falsy(kit.action:IsShown(), "in the group: no quick button")
+    T.eq(panel(page), "Whisper", "and no Invite in the panel")
+    T.falsy(ns.Data.CanInviteFriend(kit.spec.friend))
+    -- A friend who isn't in it keeps theirs.
+    T.truthy(rows(page.stack, "friend")[3] and true, "other rows are still there")
+    stub.inGroup, stub.units = nil, {}
+    clean()
+end)
+
+T.test("social: a name in a party or raid is found by its name, with or without a realm", function()
+    local ns = load()
+    local D = ns.Data
+    stub.inGroup = true
+    stub.SetUnits({ party2 = { name = "Odessa Reed" } })
+    T.truthy(D.InGroup("Odessa Reed"))
+    T.truthy(D.InGroup("Odessa Reed-Realm"), "a name with its realm")
+    T.falsy(D.InGroup("Lirien Vale"))
+    T.falsy(D.InGroup(nil))
+    stub.inGroup, stub.inRaid, stub.groupSize = nil, true, 10
+    stub.SetUnits({ raid7 = { name = "Lirien Vale" } })
+    T.truthy(D.InGroup("Lirien Vale"), "in a raid too")
+    stub.inRaid, stub.groupSize, stub.units = nil, nil, {}
+    T.falsy(D.InGroup("Lirien Vale"), "not in a group at all")
+end)
+
+-- Recent allies: Invite only for someone online and not in your group, Add friend only
+-- for someone who isn't a friend (a legacy friend already is one).
+T.test("social: an ally's panel: Invite unless grouped or offline, Add friend unless a friend", function()
+    local list = SW.Allies()
+    -- An ally with the name of Kit's character: already a friend.
+    local twin = SW.Allies()[3]
+    twin.characterData.guid, twin.characterData.name, twin.characterData.fullName = "Player-9", "Thessaly Moor", "Thessaly Moor"
+    list[#list + 1] = twin
+    local ns = load({ allies = list })
+    open(ns)
+    tab(ns, "allies")
+    local page = ns.Allies.page
+    local function pickByName(name)
+        for _, b in ipairs(rows(page.stack, "ally")) do
+            if b.spec.ally.name == name then
+                if ns.Allies.picked == b.spec.ally.guid then stub.Key(function() b:Click() end) end
+                stub.Key(function() b:Click() end)
+                return
+            end
+        end
+        error("no ally " .. name)
+    end
+    pickByName("Odessa Reed")
+    T.eq(panel(page), "Invite, Whisper, Pin, Add friend", "online, alone, not a friend")
+    pickByName("Thessaly Moor")
+    T.eq(panel(page), "Invite, Whisper, Pin", "a friend already: no Add friend")
+    pickByName("Sabine Kett")
+    T.eq(panel(page), "Invite, Whisper, Pin", "a legacy friend is a friend")
+    pickByName("Fenwick Harrow")
+    T.eq(panel(page), "Pin, Add friend", "offline: neither Invite nor Whisper")
+    -- Odessa joins the party: no Invite for her.
+    stub.inGroup = true
+    stub.SetUnits({ party1 = { name = "Odessa Reed" } })
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    frame(20)
+    pickByName("Odessa Reed")
+    T.eq(panel(page), "Whisper, Pin, Add friend", "in the group: no Invite")
+    -- The menu agrees.
+    local row
+    for _, b in ipairs(rows(page.stack, "ally")) do if b.spec.ally.name == "Odessa Reed" then row = b end end
+    local m = menuOf(function() row.spec.onMenu(row) end)
+    T.eq(table.concat(m.keys, ","), "whisper,pin,note,friend,ignore")
+    stub.inGroup, stub.units = nil, {}
+    clean()
+end)
+
+-- Each page keeps its own card: Allies widens the window on its own, and a page change
+-- takes the window to that page's width.
+T.test("social: an ally's card widens the window; each page keeps its own, the raid never", function()
+    local ns = load()
+    local win = open(ns)
+    tab(ns, "allies")
+    local page = ns.Allies.page
+    local W = ns.Window
+    T.eq(win:GetWidth(), W.W)
+    local odessa
+    for _, b in ipairs(rows(page.stack, "ally")) do if b.spec.ally.name == "Odessa Reed" then odessa = b end end
+    stub.Key(function() odessa:Click() end)
+    frame(30)
+    T.eq(win:GetWidth(), W.W + ns.Detail.SPAN)
+    T.eq(page.detail.frame.title:GetText(), "Odessa Reed")
+    -- Friends has nothing picked: its width is the usual one.
+    tab(ns, "friends")
+    T.eq(win:GetWidth(), W.W, "Friends has no card")
+    tab(ns, "allies")
+    T.eq(win:GetWidth(), W.W + ns.Detail.SPAN, "Allies still does")
+    tab(ns, "raid")
+    T.eq(win:GetWidth(), W.RAID_W, "the raid keeps its own width")
+    -- The controller's X presses the card's main button.
+    tab(ns, "allies")
+    T.truthy(page.detail.frame.padFooter, "found through padFooter")
+    local main
+    for _, b in ipairs(page.detail.buttons) do if b:IsShown() and b.spec and b.spec.primary then main = b end end
+    T.eq(main and main.text:GetText(), "Invite")
+    clean()
+end)
+
+-- A friend with no character (Sol plays another game, Pip is offline): the card still has
+-- a name, their BattleTag under it, and a round badge with their initial where a class
+-- icon would be.
+T.test("social: a friend with no character: BattleTag under the name, an initial for the icon", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local d = page.detail
+    local sol
+    for _, b in ipairs(rows(page.stack, "friend")) do if b.spec.friend.account == "Sol" then sol = b end end
+    stub.Key(function() sol:Click() end)
+    frame(30)
+    T.eq(d.frame.title:GetText(), "Sol")
+    T.eq(d.frame.sub:GetText(), "Sol#5555", "their BattleTag")
+    T.falsy(d.frame.icon:IsShown(), "no class icon")
+    T.truthy(d.frame.avatar:IsShown() and d.frame.letter:IsShown(), "a badge instead")
+    T.eq(d.frame.letter:GetText(), "S")
+    local seen = {}
+    for _, r in ipairs(d.rows) do if r.value:IsShown() then seen[#seen + 1] = r.value:GetText() end end
+    T.truthy(table.concat(seen, "|"):find("Diablo IV", 1, true), "the game they play: " .. table.concat(seen, "|"))
+    clean()
+end)
+
+-- The titles over Zone, Faction and Server are in the accent with a rule under them, and
+-- each line has room.
+T.test("social: the card's titles are in the accent with a rule under them", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local d = page.detail
+    stub.Key(function() rows(page.stack, "friend")[1]:Click() end)
+    frame(30)
+    local titled
+    for _, r in ipairs(d.rows) do if r.label:IsShown() then titled = r; break end end
+    T.truthy(titled, "a titled line")
+    T.truthy(titled.rule:IsShown(), "with a rule")
+    local ar, ag, ab = DaylightUI.Style.Accent()
+    local lr, lg, lb = titled.label:GetTextColor()
+    T.truthy(math.abs(lr - ar) < 0.01 and math.abs(lg - ag) < 0.01 and math.abs(lb - ab) < 0.01, "in the accent")
+    -- Titled lines keep their room: the next one starts a full line lower.
+    local ys = {}
+    for _, r in ipairs(d.rows) do if r.label:IsShown() then ys[#ys + 1] = select(5, r.label:GetPoint(1)) end end
+    T.truthy(#ys >= 2 and ys[1] - ys[2] >= ns.Detail.ROW - 0.5, "room between titled lines")
+    clean()
+end)
+
+-- An ally's race, faction and realm come from the character's race id and realm.
+T.test("social: an ally's card has race, faction and server from the game's data", function()
+    _G.C_CreatureInfo = {
+        GetRaceInfo = function(id) return { raceName = id == 3 and "Dwarf" or "Human" } end,
+        GetFactionInfo = function(id) return { groupTag = "Alliance", name = "Alliance" } end,
+    }
+    local list = SW.Allies()
+    for _, a in ipairs(list) do a.characterData.realmName = "CAMWOW US1 Realm 8 PvP" end
+    local ns = load({ allies = list })
+    open(ns)
+    tab(ns, "allies")
+    local page = ns.Allies.page
+    local odessa
+    for _, b in ipairs(rows(page.stack, "ally")) do if b.spec.ally.name == "Odessa Reed" then odessa = b end end
+    T.eq(odessa.spec.ally.race, "Dwarf"); T.eq(odessa.spec.ally.faction, "Alliance")
+    stub.Key(function() odessa:Click() end)
+    frame(30)
+    local d = page.detail
+    T.eq(d.frame.sub:GetText(), "Shaman")
+    local seen = {}
+    for _, r in ipairs(d.rows) do if r.value:IsShown() then seen[#seen + 1] = (r.label:IsShown() and (r.label:GetText() .. ": ") or "") .. r.value:GetText() end end
+    local all = table.concat(seen, "|")
+    T.truthy(all:find("Level: 43", 1, true), "level: " .. all)
+    T.truthy(all:find("Race: Dwarf", 1, true), "race: " .. all)
+    T.truthy(all:find("Alliance", 1, true), "faction: " .. all)
+    T.falsy(all:find("CAMWOW", 1, true), "no Server block on an ally: " .. all)
+    T.falsy(all:find("Server", 1, true), "none: " .. all)
+    T.truthy(all:find("Faction: Alliance|History:", 1, true), "History comes under the faction: " .. all)
+    _G.C_CreatureInfo = nil
+    clean()
+end)
+
+-- The name and the line under it are one block centered on the icon, the initial fills the
+-- badge (so it sits in its middle), and the status has air under it before the titled lines.
+T.test("social: the card's header is centered on the icon; the status has air under it", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local d = page.detail
+    local Detail = ns.Detail
+    local sol
+    for _, b in ipairs(rows(page.stack, "friend")) do if b.spec.friend.account == "Sol" then sol = b end end
+    stub.Key(function() sol:Click() end)
+    frame(30)
+    local f = d.frame
+    -- Two lines (name, BattleTag): the block's middle is the icon's middle.
+    local top = -select(5, f.title:GetPoint(1))
+    local middle = top + (Detail.NAME + Detail.UNDER) / 2
+    T.truthy(math.abs(middle - (Detail.PAD + Detail.ICON / 2)) <= 1, "centered on the icon: " .. middle)
+    T.eq(-select(5, f.sub:GetPoint(1)), top + Detail.NAME, "the line under follows the name")
+    -- The badge's letter fills it.
+    T.eq(select(2, f.letter:GetPoint(1)), f.avatar, "the letter is anchored to the badge")
+    T.eq(f.letter:GetJustifyH(), "CENTER")
+    -- Mara: the status line, then room, then the first titled line.
+    stub.Key(function() sol:Click() end)
+    frame(30)
+    local mara = rows(page.stack, "friend")[1]
+    stub.Key(function() mara:Click() end)
+    frame(30)
+    local plainY, titledY
+    for _, r in ipairs(d.rows) do
+        if r.value:IsShown() then
+            local y = -select(5, (r.label:IsShown() and r.label or r.value):GetPoint(1))
+            if r.label:IsShown() then titledY = titledY or y elseif not titledY then plainY = y end
+        end
+    end
+    T.truthy(titledY - plainY >= Detail.PLAIN + Detail.GAP_AFTER - 0.5, "air under the status: " .. tostring(titledY) .. " vs " .. tostring(plainY))
+    clean()
+end)
+
+-- How you met, whole: its own titled block under the zone, wrapping onto more lines
+-- instead of being cut; and the badge's letter has a box of its own.
+T.test("social: an ally's History block shows the whole text under Zone; values wrap", function()
+    local list = SW.Allies()
+    local long = "You fought side by side in a long dungeon run and then traded a few things after it"
+    list[4].interactionData.interactions[1].description = long
+    list[4].stateData.currentLocation = "Stormwind City"
+    local ns = load({ allies = list })
+    open(ns)
+    tab(ns, "allies")
+    local page = ns.Allies.page
+    local odessa
+    for _, b in ipairs(rows(page.stack, "ally")) do if b.spec.ally.name == "Odessa Reed" then odessa = b end end
+    stub.Key(function() odessa:Click() end)
+    frame(30)
+    local d = page.detail
+    local order = {}
+    for _, r in ipairs(d.rows) do
+        if r.label:IsShown() then order[#order + 1] = r.label:GetText() .. "=" .. r.value:GetText() end
+    end
+    local all = table.concat(order, "|")
+    local zone, history = all:find("Zone=", 1, true), all:find("History=", 1, true)
+    T.truthy(zone and history and history > zone, "History comes after Zone: " .. all)
+    T.truthy(all:find("History=" .. long, 1, true), "the whole text, not cut: " .. all)
+    T.eq(d.frame.letter:GetWidth(), ns.Detail.ICON, "the letter's box is the badge's size")
+    T.eq(d.frame.letter:GetHeight(), ns.Detail.ICON)
+    clean()
+end)
+
+-- A Battle.net name can come as a protected string ("|K...|k") that only a FontString can
+-- draw: the badge's letter then comes from the plain BattleTag, never a "|".
+T.test("social: the badge's letter of a friend with a protected name comes from the BattleTag", function()
+    local friends = SW.Friends()
+    friends[5].accountName = "|Kq1|k0000005|k"
+    local ns = load({ friends = friends })
+    open(ns)
+    local page = ns.Friends.page
+    local sol
+    for _, b in ipairs(rows(page.stack, "friend")) do if b.spec.friend.tag == "Sol#5555" then sol = b end end
+    T.truthy(sol, "Sol is listed")
+    stub.Key(function() sol:Click() end)
+    frame(30)
+    T.eq(page.detail.frame.letter:GetText(), "S", "their initial, not the escape's bar")
+    clean()
+end)
+
+-- The list's right edge eases to and from the card's room like the window does, and the
+-- rows are laid out once it's there (CONTRIBUTING: what changes size eases).
+T.test("social: the list's edge eases when the card opens and closes", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    local side, span = page.stack.side, ns.Detail.SPAN
+    local function inset() return -select(4, page.stack.scroll:GetPoint(2)) end
+    T.eq(inset(), side)
+    local mara = rows(page.stack, "friend")[1]
+    stub.Key(function() mara:Click() end)
+    frame(3)
+    local mid = inset()
+    T.truthy(mid > side and mid < side + span, "on its way in: " .. mid)
+    local addMid = -select(4, page.add:GetPoint(1))
+    T.truthy(addMid > ns.Friends.EDGE and addMid < ns.Friends.EDGE + span, "the search's button goes with it: " .. addMid)
+    frame(30)
+    T.eq(inset(), side + span, "all the way")
+    stub.Key(function() mara:Click() end)
+    frame(3)
+    local back = inset()
+    T.truthy(back > side and back < side + span, "on its way out: " .. back)
+    frame(30)
+    T.eq(inset(), side, "back where it was")
     clean()
 end)
