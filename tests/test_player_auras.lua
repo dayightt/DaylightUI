@@ -340,12 +340,27 @@ T.test("upgrade step 19: a brand new profile gets the new rows", function()
 end)
 
 T.test("upgrade step 19: a player from 1.8.1 finds the target's buffs under the frame again", function()
-    -- The move check's saved player: what 1.8.1 left for someone who changed nothing.
+    -- The move check's saved player, who changed nothing, taken back to 1.8.1:
+    -- the same saved data, with the unit frames' upgrade counter where 1.8.1
+    -- left it (step 19 came in 1.8.2).
     local Check, data = require("release_check"), require("release_data")
-    local DUI = Check.Load(data.saved)
+    local function copy(v)
+        if type(v) ~= "table" then return v end
+        local out = {}
+        for k, x in pairs(v) do out[k] = copy(x) end
+        return out
+    end
+    local saved = copy(data.saved)
+    local uf = saved.profileData["DPS/Tank"].modules.UnitFrames
+    T.eq(uf.groupFrames, 19, "the snapshot is from 1.8.2")
+    uf.groupFrames = 18
+    local DUI = Check.Load(saved)
     T.eq(DUI:Get("UnitFrames", "targetAuras.buffSpot"), "below")
     T.eq(DUI:Get("UnitFrames", "targetAuras.buffGrow"), "left")
-    T.eq(DUI.DB.Active().modules.UnitFrames.groupFrames, 19)
+    T.eq(DUI.DB.Active().modules.UnitFrames.groupFrames, #DUI:GetModule("UnitFrames").ns.UPGRADE_STEPS)
+    -- A player from 1.8.2 already had the step: their rows stay as they were.
+    DUI = Check.Load(data.saved)
+    T.eq(DUI:Get("UnitFrames", "targetAuras.buffSpot"), "above")
 end)
 
 T.test("upgrade step 19: buffs a player put above the frame long ago stay above", function()
