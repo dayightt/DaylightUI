@@ -228,7 +228,11 @@ T.test("a portrait needs a frame at least UF.MIN_PORTRAIT_HEIGHT tall", function
     local O = DUI.Options
     local page = O.GetPage("UnitFrames.player")
     local item
-    for _, g in ipairs(page.groups) do for _, it in ipairs(g.items) do if it.key == "player.portrait" then item = it end end end
+    -- The card styles' picture row shares the key; take the ring's row, the one shown here.
+    for _, g in ipairs(page.groups) do for _, it in ipairs(g.items) do
+        if it.key == "player.portrait" and not O.IsHidden(page, it) then item = it end
+    end end
+    T.truthy(item, "the ring's portrait row")
     T.truthy(O.IsDisabled(page, item), "the option grays out")
     DUI:Set("UnitFrames", "player.height", 43)
     stub.RunTimers()
