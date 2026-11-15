@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Nameplates", "Enemy nameplates can fade while they're out of your class's attack range (Nameplates > Target)" },
+            { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
         },
         changed = {
             { "Window skins", "The flight map's title and close button line up like every other window, with even room round the map" },
