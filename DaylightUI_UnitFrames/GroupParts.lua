@@ -41,9 +41,9 @@ GP.GLOW_COORDS = {
 
 -- The whole-tile highlight: a tint over the health bar and a border around the
 -- tile, both colored by the debuff's dispel type. owner is the frame they
--- belong to: the aura button, so the client colors and shows them, or a sample
--- tile's own frame. The glow is made separately (GP.MakeGlow) because it sits
--- lower, under the portrait.
+-- belong to: the glow's aura button, so the client colors and shows them, or
+-- a sample tile's own frame. The border sits under the portrait with the glow
+-- (GP.MakeGlow); the tint has its own container over the health bar.
 function GP.MakeHighlight(owner)
     local function tex(layer)
         local t = owner:CreateTexture(nil, layer)
@@ -173,7 +173,6 @@ function GP.InitDispel(btn, b, withoutType)
     icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     btn:SetIcon(icon)
     btn.dispelEdge, btn.dispelIcon = edge, icon
-    btn.highlight = GP.MakeHighlight(btn)
     btn.withoutType = withoutType
     b.dispelBtns[#b.dispelBtns + 1] = btn
     -- Size and style now. The button locks once this returns, and a tile made
@@ -202,27 +201,26 @@ function GP.StyleDispelButton(btn, b, cfg)
 end
 
 function GP.StyleDispelParts(btn, b, cfg)
-    local hl = btn.highlight
-    GP.StyleHighlight(hl, b, cfg)
-    hl.tint:Hide()  -- the tint has its own container (CreateTint)
     if btn.ClearDispelTypeTextures then btn:ClearDispelTypeTextures() end
-    local reg, wt = ns.Auras.RegisterDispelEdge, btn.withoutType
     btn.dispelEdge:SetShown(cfg.showDispel == true)
     btn.dispelIcon:SetAlpha(cfg.showDispel and 1 or 0)
-    if cfg.showDispel then reg(btn, btn.dispelEdge, wt) end
-    -- From the settings, never IsShown: a registered strip's IsShown is secret.
-    local mode = cfg.dispelHighlight
-    if mode == "border" or mode == "both" then
-        for _, t in ipairs(hl.strips) do reg(btn, t, wt) end
-    end
+    if cfg.showDispel then ns.Auras.RegisterDispelEdge(btn, btn.dispelEdge, btn.withoutType) end
 end
 
--- One glow button (its group is added by LayoutDispel while the glow is on):
--- the glow's pieces around the tile, colored by the client.
+-- Whether the glow's container is needed: it carries the glow and the border.
+local function borderOn(cfg)
+    local mode = cfg.dispelHighlight
+    return mode == "border" or mode == "both"
+end
+
+-- One glow button (its group is added by LayoutDispel while the glow or the
+-- border is on): the glow's pieces and the border's strips round the tile,
+-- colored by the client, all under the portrait.
 function GP.InitGlow(btn, b, withoutType)
     ns.Auras.TileMouse(btn, false)
     btn:SetSize(8, 8)
     btn.glow = GP.MakeGlow(btn)
+    btn.highlight = GP.MakeHighlight(btn)
     btn.withoutType = withoutType
     b.glowBtns[#b.glowBtns + 1] = btn
     -- Style it now, like InitDispel, since the button locks when this returns.
@@ -233,12 +231,21 @@ end
 
 function GP.StyleGlowParts(btn, b, cfg)
     GP.StyleGlow(btn.glow, b, cfg)
+    local hl = btn.highlight
+    if hl then
+        GP.StyleHighlight(hl, b, cfg)
+        hl.tint:Hide()  -- the tint has its own container (CreateTint)
+    end
     if btn.ClearDispelTypeTextures then btn:ClearDispelTypeTextures() end
+    local reg, wt = ns.Auras.RegisterDispelEdge, btn.withoutType
+    -- From the settings, never IsShown: a registered strip's IsShown is secret.
+    if hl and borderOn(cfg) then
+        for _, t in ipairs(hl.strips) do reg(btn, t, wt) end
+    end
     if cfg.dispelGlow ~= true then return end
     for key, t in pairs(btn.glow) do
         local c = GP.GLOW_COORDS[key]
-        ns.Auras.RegisterDispelEdge(btn, t, btn.withoutType, GP.GLOW_ART,
-            { left = c[1], right = c[2], top = c[3], bottom = c[4] })
+        reg(btn, t, wt, GP.GLOW_ART, { left = c[1], right = c[2], top = c[3], bottom = c[4] })
     end
 end
 
@@ -290,9 +297,9 @@ function GP.CreateTint(b)
     b.tint = c
 end
 
--- The glow: a third container just above the tile (the target outline's level)
--- so the portrait and name tab lie over it. On the corner icon's container it
--- lit up over the portrait.
+-- The glow and the border: a third container just above the tile (the target
+-- outline's level) so the portrait and name tab lie over them. On the corner
+-- icon's container they drew over the portrait.
 GP.GLOW_GROUPS = { glow = { GP.DISPEL_FILTER, true }, glowAll = { GP.DISPEL_ALL_FILTER, false } }
 function GP.CreateGlow(b)
     local ok, c = pcall(CreateFrame, "AuraContainer", nil, b, "CustomAuraContainerTemplate")
@@ -327,9 +334,8 @@ function GP.LayoutDispel(b, cfg)
     c:SetSize(size, size)
     -- Before the counts below, since a count can build a button styled from this.
     b.dispelCfg = cfg
-    -- A group must exist for the highlight too, even with the icon off. Only
-    -- the one in use is added, and its buttons are built then from cfg.
-    local on = (cfg.showDispel or (cfg.dispelHighlight or "none") ~= "none") and 1 or 0
+    -- Only the group in use is added, and its buttons are built then from cfg.
+    local on = cfg.showDispel and 1 or 0
     local mine = cfg.dispelOnlyMine ~= false
     for key, n in pairs({ dispel = mine and on or 0, dispelAll = mine and 0 or on }) do
         local g = GP.DISPEL_GROUPS[key]
@@ -361,7 +367,7 @@ function GP.LayoutDispel(b, cfg)
     end
     local gb = b.glowBox
     if gb then
-        local glowOn = cfg.dispelGlow == true and 1 or 0
+        local glowOn = (cfg.dispelGlow == true or borderOn(cfg)) and 1 or 0
         gb:SetPoint("TOPLEFT", b, "TOPLEFT")
         gb:SetSize(8, 8)
         for key, n in pairs({ glow = mine and glowOn or 0, glowAll = mine and 0 or glowOn }) do

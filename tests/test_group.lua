@@ -130,6 +130,40 @@ T.test("the dispel glow: a soft light round the tile, in the sample and handed t
     T.truthy(found >= 1, "the top light is handed over")
 end)
 
+-- The border went round the tile from the corner icon's container, 8 levels up,
+-- so its left strip ran across a party tile's portrait (+6). It lives on the
+-- glow's container now, under the portrait, in the sample and on a real tile.
+T.test("the dispel border sits under the portrait, on the glow's container", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.dispelGlow", false)
+    DUI:Set("UnitFrames", "raid.showDispel", false)
+    DUI:Set("UnitFrames", "raid.dispelHighlight", "border")
+    stub.RunTimers()
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    local b = ns.Raid.preview[3]   -- carries a Magic debuff
+    local s = b.sampleHL.strips
+    T.truthy(s[1]:IsShown(), "the sample shows its border")
+    T.eq(s[1]:GetParent():GetFrameLevel(), b:GetFrameLevel() + 1, "the sample's border sits under the portrait")
+    local t = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton9", ns.Raid.header)
+    t:SetAttribute("unit", "raid9")
+    stub.units.raid9 = { name = "Syl", isPlayer = true, class = "PRIEST", health = 5, maxHealth = 10 }
+    ns.Raid.header.initialConfigFunction(ns.Raid.header, t:GetName())
+    stub.RunTimers()
+    local g = t.glowBox.__groups.glow
+    T.truthy(g, "the border alone gets the glow's container a group")
+    local btn = g.button
+    local handed = {}
+    for _, d in ipairs(btn.__dispels or {}) do
+        for i, strip in ipairs(btn.highlight.strips) do if d.tex == strip then handed[i] = true end end
+    end
+    T.truthy(handed[1] and handed[2] and handed[3] and handed[4], "its four strips are colored by the client")
+    for _, d in ipairs(btn.__dispels or {}) do
+        T.falsy(d.tex == btn.glow.TOP, "the glow is off, so its pieces aren't handed over")
+    end
+    T.isnil(t.dispel.__groups.dispel, "no corner icon group with the icon off")
+end)
+
 T.test("upgrade 1: a tile's corner crown size moves to leaderPx, once", function()
     local _, ns = login()
     local p = { modules = { UnitFrames = { raid = { leaderSize = 14 }, healer = { leaderSize = 9 },

@@ -41,6 +41,7 @@ DUI.PatchNotes = {
             { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat during a fight, on any bar" },
             { "Action bars", "A priest's bars no longer swap to an empty page in Spirit of Redemption, or when something turns you into an animal" },
             { "Minimap", "Your arrow and the map's dots no longer float on screen when the minimap fades away: on the AFK screen, at a campfire, while fishing or with the panel faded out" },
+            { "Party frames", "The dispel border no longer draws a line across a party member's portrait" },
             { "Chat", "Copy Character Name on a name in chat works again instead of being blocked by the game" },
             { "Leader tools", "Ready check and Role check no longer get cut off in other languages: they're icons now, with their names when you point at them" },
             { "Buffs", "In other languages, the missing buffs banner names Blessing of Light properly instead of calling it a light color" },

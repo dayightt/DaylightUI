@@ -61,7 +61,7 @@ T.test("raid tiles in a battleground: a setting change touches no locked part", 
     stub.units.raid5 = { name = "Lirin", isPlayer = true, class = "PRIEST", health = 10, maxHealth = 10 }
     ns.Raid.header.initialConfigFunction(ns.Raid.header, b:GetName())
     DUI:Set("UnitFrames", "raid.dispelHighlight", "both")
-    local hl = b.dispel.__groups.dispel.button.highlight
+    local hl = b.glowBox.__groups.glow.button.highlight
     stub.SetRestriction("PvPMatch", true)
     DUI:Set("UnitFrames", "raid.dispelAlpha", 0.6)
     DUI:Set("general", "cornerPx", 4)
@@ -95,10 +95,12 @@ T.test("raid tiles made in a battleground: the dispel icon and border are colore
     stub.RunTimers()
     T.eq(stub.lockErrors, 0, sites())
     local btn = b.dispel.__groups.dispel.button
-    local got = handed(btn)
-    T.truthy(got[btn.dispelEdge], "the corner icon's edge takes the debuff's color")
-    for i, s in ipairs(btn.highlight.strips) do T.truthy(got[s], "border strip " .. i) end
-    for key, t in pairs(btn.highlight.glow) do T.truthy(got[t], "glow piece " .. key .. " (on by default)") end
+    T.truthy(handed(btn)[btn.dispelEdge], "the corner icon's edge takes the debuff's color")
+    -- The border and the glow are on the glow's button, under the portrait.
+    local gb = b.glowBox.__groups.glow.button
+    local got = handed(gb)
+    for i, s in ipairs(gb.highlight.strips) do T.truthy(got[s], "border strip " .. i) end
+    for key, t in pairs(gb.glow) do T.truthy(got[t], "glow piece " .. key .. " (on by default)") end
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 

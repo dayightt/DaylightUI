@@ -580,16 +580,18 @@ function Group:NewSampleButton(parent, i, dress)
     b.sampleDispel.icon:SetPoint("BOTTOMRIGHT", b.sampleDispel, "BOTTOMRIGHT", -1, 1)
     b.sampleDispel.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     b.sampleDispel:Hide()
+    -- The tint just over the health bar, like the real one (GP.CreateTint).
     b.sampleHLFrame = CreateFrame("Frame", nil, b)
     b.sampleHLFrame:SetAllPoints(b)
-    b.sampleHLFrame:SetFrameLevel(b:GetFrameLevel() + 7)
+    b.sampleHLFrame:SetFrameLevel((b.health or b):GetFrameLevel() + 1)
     b.sampleHL = GP.MakeHighlight(b.sampleHLFrame)
     b.sampleHLFrame:Hide()
-    -- The glow sits under the portrait, like the real one (GP.CreateGlow).
+    -- The glow and the border sit under the portrait, like the real ones (GP.CreateGlow).
     b.sampleGlowFrame = CreateFrame("Frame", nil, b)
     b.sampleGlowFrame:SetAllPoints(b)
     b.sampleGlowFrame:SetFrameLevel(b:GetFrameLevel() + 1)
     b.sampleHL.glow = GP.MakeGlow(b.sampleGlowFrame)
+    for _, t in ipairs(b.sampleHL.strips) do t:SetParent(b.sampleGlowFrame) end
     b.sampleGlowFrame:Hide()
     GP.MakeTargetMark(b)
     if dress then dress(b) end
