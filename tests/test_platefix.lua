@@ -131,7 +131,8 @@ T.test("platefix: step 5 puts the plates back without the stacking frame", funct
     T.truthy(said:find("5/7", 1, true), said)
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
-    T.eq(np.stackSet, before, "the game was handed no stacking frame")
+    T.truthy(np.stackSet > before, "the game's plate was pointed somewhere new")
+    T.eq(np.stackFrame, np, "at itself: spaced by nothing of ours")
     T.falsy(p.stack:IsShown(), "and the stacking frame is put away")
     T.falsy(np.UnitFrame:GetParent() == np, "the game's own frame is still off its plate")
 end)
@@ -292,6 +293,7 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     T.truthy(check:find("Nameplates module off", 1, true), check)
     T.truthy(check:find("Game plates 1", 1, true), check)
     T.truthy(check:find("nameplate1", 1, true), check)
+    T.truthy(check:find("1 marker", 1, true), "the markers work without the module: " .. check)
     printed = {}
     DaylightUI.RunCommand("platefix")
     T.eq(cvars.nameplateShowEnemies, "0", "the game's plates switched off")

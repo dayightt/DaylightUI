@@ -78,15 +78,22 @@ end
 -- A game plate's opening lines: the unit and the plate frame itself, and the
 -- frame above it. wrong = the plate reads hidden or see-through.
 function R.PlateHead(unit, np)
+    -- nil for no answer or a secret one; a plain false stays false.
     local function ask(fn, ...)
         if type(fn) ~= "function" then return nil end
         local ok, v = pcall(fn, ...)
-        return ok and plain(v) or nil
+        if not ok then return nil end
+        return plain(v)
     end
     local attack = ask(UnitCanAttack, "player", unit)
     local kind = attack == true and "enemy" or attack == false and "friendly" or "unknown"
-    local head = string.format("%s: %s, player=%s, minion=%s, target=%s", unit, kind, tostring(ask(UnitIsPlayer, unit)),
-        tostring(ask(UnitIsMinion, unit)), tostring(ask(UnitIsUnit, unit, "target")))
+    -- The one look Lua gets at where the game thinks the unit is on screen: a
+    -- unit in front of the player that reads as behind the camera is misplaced.
+    local M = C_NamePlateManager
+    local behind = type(M) == "table" and ask(M.IsNamePlateUnitBehindCamera, unit)
+    local head = string.format("%s: %s, player=%s, minion=%s, target=%s, behindCamera=%s", unit, kind,
+        tostring(ask(UnitIsPlayer, unit)), tostring(ask(UnitIsMinion, unit)), tostring(ask(UnitIsUnit, unit, "target")),
+        tostring(behind))
     local lines = { head, "  game plate " .. R.State(np) }
     local wrong = R.Asked(np, "IsVisible") ~= "true" or R.Asked(np, "GetAlpha") == "0.00"
         or R.Asked(np, "GetEffectiveAlpha") == "0.00"
@@ -223,6 +230,10 @@ R.REPORT_CVARS = {
     "nameplateShowAll", "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs",
     "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale",
     "nameplateSize", "nameplateStyle", "nameplateSimplifiedTypes", "nameplateMotionSpeed", "nameplateShowEnemyMinions",
+    -- How far plates push each other apart and how near the screen edge they may
+    -- sit. Other nameplate addons write these, and they stay after one is removed.
+    "nameplateOverlapH", "nameplateOverlapV", "nameplateOtherTopInset", "nameplateOtherBottomInset",
+    "nameplateLargeTopInset", "nameplateLargeBottomInset",
 }
 
 function R.World(startedAt)
@@ -302,6 +313,96 @@ function R.CheckLines(detail)
     return out
 end
 
+-- Where the game has put each of its plates. Lua can't read a plate's place,
+-- and a plate that has gone invisible still reads as shown, so this draws it:
+-- a numbered dot pinned to each plate and a line to it from the middle of the
+-- screen, on a layer of the screen itself. They draw even when nothing on the
+-- plate does, and a screenshot then shows whether the plates are where their
+-- units are, somewhere else, or nowhere. Gone again after MARK_SECONDS.
+R.MARK_SECONDS = 20
+R.MARK_SIZE = 10
+R.MARK_LINE = 2
+R.marks = {}
+
+local function newMark(layer)
+    local m = {}
+    m.line = layer:CreateLine(nil, "ARTWORK")
+    m.line:SetThickness(R.MARK_LINE)
+    m.dot = layer:CreateTexture(nil, "OVERLAY")
+    m.dot:SetSize(R.MARK_SIZE, R.MARK_SIZE)
+    m.text = DUI.Style.Text(layer, DUI.Style.SIZE.small, "CENTER")
+    m.text:SetPoint("BOTTOM", m.dot, "TOP", 0, 2)
+    return m
+end
+
+local function showMark(m, on)
+    m.line:SetShown(on)
+    m.dot:SetShown(on)
+    m.text:SetShown(on)
+end
+
+function R.Unmark()
+    R.marksOn = false
+    if R.markLayer then DUI.Motion.AlphaTo(R.markLayer, 0, DUI.Motion.NORMAL, true) end
+end
+
+-- Returns how many plates were marked.
+function R.Mark()
+    local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
+    if not get then return 0 end
+    local layer = R.markLayer
+    if not layer then
+        layer = CreateFrame("Frame", nil, UIParent)
+        layer:SetAllPoints(UIParent)
+        layer:SetFrameStrata("TOOLTIP")
+        layer:Hide()
+        R.markLayer = layer
+    end
+    local secure = issecure and issecure() or false
+    local r, g, b = DUI.Style.Accent()
+    local n = 0
+    for i = 1, 40 do
+        local ok, np = pcall(get, "nameplate" .. i, secure)
+        local okF, closed = pcall(function() return np:IsForbidden() end)
+        if ok and type(np) == "table" and okF and closed ~= true then
+            local m = R.marks[n + 1] or newMark(layer)
+            R.marks[n + 1] = m
+            -- The game may refuse a pin to one of its plates; that plate goes unmarked.
+            local pinned = pcall(function()
+                m.dot:ClearAllPoints()
+                m.dot:SetPoint("CENTER", np, "CENTER", 0, 0)
+                m.line:SetStartPoint("CENTER", UIParent, 0, 0)
+                m.line:SetEndPoint("CENTER", np, 0, 0)
+            end)
+            if pinned then
+                n = n + 1
+                m.dot:SetColorTexture(r, g, b, 1)
+                m.line:SetColorTexture(r, g, b, 0.6)
+                m.text:SetText(tostring(i))
+                DUI.Style.InkText(m.text, "pop")
+            end
+            showMark(m, pinned)
+        end
+    end
+    for i = n + 1, #R.marks do showMark(R.marks[i], false) end
+    if n == 0 then return 0 end
+    R.marksOn = true
+    R.markRun = (R.markRun or 0) + 1
+    local run = R.markRun
+    DUI.Motion.AlphaTo(layer, 1, DUI.Motion.NORMAL)
+    C_Timer.After(R.MARK_SECONDS, function()
+        if R.markRun == run then R.Unmark() end
+    end)
+    return n
+end
+
+function R.MarkSaid(n)
+    if n == 0 then return "platecheck: no game nameplates to mark right now." end
+    return string.format("platecheck: %d marker%s on screen for %d seconds. Each numbered dot is where the game has "
+        .. "that nameplate, with a line to it from the middle of the screen. Take a screenshot now and send it "
+        .. "with these lines.", n, n == 1 and "" or "s", R.MARK_SECONDS)
+end
+
 local function gameDefault(name)
     local fn = C_CVar and C_CVar.GetCVarDefault
     if type(fn) ~= "function" then return nil end
@@ -378,6 +479,7 @@ function R.RegisterFallback()
     DUI.RegisterCommand("platecheck", function()
         for _, line in ipairs(R.CheckLines()) do DUI.Print(line) end
         for _, line in ipairs(R.Daylight()) do DUI.Print(line) end
+        DUI.Print(R.MarkSaid(R.Mark()))
     end, L["/dui platecheck - run while a nameplate is missing, and send us what it prints"])
     DUI.RegisterCommand("platefix", function(rest)
         if string.lower(rest or "") ~= "yes" then return DUI.Print(R.Fix()) end
