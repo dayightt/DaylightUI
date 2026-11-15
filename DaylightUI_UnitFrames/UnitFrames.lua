@@ -2190,6 +2190,7 @@ function UF.UpdateBackdrop(f)
         b.model:Show()
         pcall(b.model.SetUnit, b.model, u)
         pcall(b.model.SetPortraitZoom, b.model, UF.CARD_ZOOM)
+        UF.FollowModels(f)
         return
     end
     b.model:Hide()
@@ -2245,6 +2246,7 @@ function UF.UpdatePortrait(f)
         pcall(p.model.SetUnit, p.model, u)
         pcall(p.model.SetPortraitZoom, p.model, 1)
         pcall(p.model.SetCamDistanceScale, p.model, UF.MODEL_CLOSER)
+        UF.FollowModels(f)
         return
     end
     p.model:Hide()
@@ -3898,6 +3900,26 @@ end
 -- While the fade engine eases (every frame, every tile) the range isn't asked
 -- again. The alpha is reapplied with the answer the range ticker cached
 -- (UF.UpdateRange, 5 times a second; a secret answer is cached as is).
+-- 3D models ignore their parents' alpha, UIParent's too, so a shown model
+-- takes the alpha its frame really shows at: the fade, the range, a hush, the
+-- whole UI fading. A secret alpha (the range in a fight) is handed over whole.
+local function followModel(m, from)
+    if m and from and m:IsShown() then m:SetAlpha(from:GetEffectiveAlpha()) end
+end
+
+function UF.FollowModels(f)
+    local p, b = f.portrait, f.backdrop
+    if p then followModel(p.model, p) end
+    if type(b) == "table" then followModel(b.model, b) end
+end
+
+-- The whole UI fading (the AFK screen, the NPC scene) moves every model at once.
+DUI.On("UIAlpha", function()
+    for _, f in pairs(ns.frames or {}) do UF.FollowModels(f) end
+    if ns.Arena then for _, f in ipairs(ns.Arena.buttons) do UF.FollowModels(f) end end
+    if ns.Group then for _, b in ns.Group.Buttons() do UF.FollowModels(b) end end
+end)
+
 local paintRange
 function UF.PaintFade(f, a)
     f.fadeNow = a
@@ -4098,7 +4120,13 @@ local function readRange(f)
 end
 
 -- The fade's alpha times the kept range answer.
+local paintAlpha
 function paintRange(f)
+    paintAlpha(f)
+    UF.FollowModels(f.fadeOf or f)
+end
+
+function paintAlpha(f)
     local m = UF.CombatAlpha(f)
     local r = f.rangeRead
     -- A secret answer can't tell when it dims, so it's on for as long as it's asked.

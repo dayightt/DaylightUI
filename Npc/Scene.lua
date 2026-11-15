@@ -280,7 +280,7 @@ local ownIgnore = {}   -- frame -> its original ignore-parent-alpha while the UI
 
 local function paintUI(p)
     Scene.uiAt = p
-    UIParent:SetAlpha(1 - p)
+    DUI.Fade.SetUIAlpha(1 - p)
     -- Minimap blips ignore parent alpha, so hide the map once the UI is gone.
     DUI.Fade.MapAway("npc", p >= 1)
 end
@@ -302,7 +302,7 @@ local function uiBack(snap)
     Motion.Tween("npc:ui", Scene.uiAt, 0, snap and 0 or Motion.NORMAL, paintUI, function()
         if (Scene.uiAt or 0) > 0 then return end
         Scene.uiAt = nil
-        UIParent:SetAlpha(1)
+        DUI.Fade.SetUIAlpha(1)
         for f, own in pairs(ownIgnore) do
             f:SetIgnoreParentAlpha(own)
             ownIgnore[f] = nil
