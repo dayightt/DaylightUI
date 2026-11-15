@@ -1,5 +1,5 @@
 -- Skins Attune (attunement and quest chains for Forever): its window and quest
--- side panels get our look, and each chain is drawn like the talent and Legacy
+-- side panels get the Daylight look, and each chain is drawn like the talent and Legacy
 -- trees. Every step is a dark tile with the talent ring (gold = done, accent =
 -- next or in progress, dark = locked), its icon cropped and grayed while
 -- locked. Lines between steps are talent arrows (gold out of a done step,
@@ -22,6 +22,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style = DUI.Style
 local Motion = DUI.Motion
@@ -41,9 +42,9 @@ local AT = {
     NEXT = 0.851, -- yellow = next step, or in progress
 }
 ns.Attune = AT
-AT.tiles = setmetatable({}, { __mode = "k" }) -- node -> our pieces on it
+AT.tiles = setmetatable({}, { __mode = "k" }) -- node -> the pieces made on it
 AT.state = {} -- node name -> its state at the last draw
-AT.boxes = setmetatable({}, { __mode = "k" }) -- frames already given our shell
+AT.boxes = setmetatable({}, { __mode = "k" }) -- frames already given a shell
 
 local function talents() return DUI.Book and DUI.Book.Talents end
 local function arrows() return DUI.Book and DUI.Book.Arrows end
@@ -55,7 +56,7 @@ local function near(a, b) return type(a) == "number" and math.abs(a - b) < 0.02 
 function AT.StateOf(node)
     if type(node.GetBackdropColor) ~= "function" then return "locked" end
     local r, g, _, a = node:GetBackdropColor()
-    if type(r) ~= "number" or (issecretvalue and issecretvalue(r)) then return "locked" end
+    if type(r) ~= "number" or isSecret(r) then return "locked" end
     if a == 0 then return "spacer" end
     if near(r, AT.DONE[1]) or (near(r, AT.DONE[2]) and near(g, 0.306)) then return "done" end
     if near(r, AT.NEXT) then return "next" end
@@ -136,10 +137,10 @@ function AT.PaintTile(node)
     end
 end
 
--- Rewrites the type line's color codes (yellow, translucent gray) to our ink.
+-- Rewrites the type line's color codes (yellow, translucent gray) to Style.INK.
 local function inkRuns(fs)
     local text = fs:GetText()
-    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return end
+    if type(text) ~= "string" or isSecret(text) then return end
     local INK = Style.INK
     local new = text:gsub("|c[fF][fF][fF][fF][dD]100", hex(INK.LABEL)):gsub("|c%x%x808080", hex(INK.OFF))
     if new ~= text then fs:SetText(new) end
@@ -166,7 +167,7 @@ local function words(id, state)
     end
 end
 
--- One step, after it's drawn: backdrop hidden, our tile, our lines.
+-- One step, after it's drawn: backdrop hidden, a tile and lines added.
 function AT.Dress(node)
     local name = node:GetName()
     local id = type(name) == "string" and name:match(AT.NODE .. "(.+)$")
@@ -242,14 +243,14 @@ function AT.Chain(attuneId)
         Style.DressText(sideTitle, Style.SIZE.small, { slot = Style.WINDOW_SLOT })
         inkRuns(sideTitle)
     end
-    -- A different chain was picked, so it eases in like our pages.
+    -- A different chain was picked, so it eases in like a window page.
     if attuneId ~= AT.shown then
         AT.shown = attuneId
         Motion.FadeIn(root)
     end
 end
 
--- The window: our border instead of the bronze one, its game controls ours.
+-- The window: the Daylight border instead of the bronze one, its game controls restyled.
 function AT.Window()
     local Kit = ns.Kit
     local chrome = _G.AttuneBronzeChrome
@@ -267,7 +268,7 @@ local function textOf(f, key, size, color)
     ns.Kit.Light(f[key], color)
 end
 
--- Quest panels: our window look, X, buttons and ink.
+-- Quest panels: the Daylight window look, X, buttons and ink.
 function AT.Panels()
     local Kit, INK, SIZE = ns.Kit, Style.INK, Style.SIZE
     local detail = _G.AttuneQuestDetail

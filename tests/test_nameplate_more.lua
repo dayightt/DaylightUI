@@ -173,6 +173,33 @@ T.test("DUI.Interrupt: your class's interrupt, by rank and stance", function()
     _G.GetShapeshiftForm = nil
 end)
 
+T.test("DUI.Interrupt: a global cooldown alone doesn't wake the cast bars", function()
+    login()
+    local cd = { on = false }
+    kicker(cd)
+    stub.FireEvent("SPELLS_CHANGED")
+    local told = 0
+    DaylightUI.On("InterruptChanged", function() told = told + 1 end)
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.eq(told, 1, "still ready: told once")
+    cd.on = true
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.eq(told, 2, "used: told once more")
+    local saved = _G.C_Spell.GetSpellCooldown
+    _G.C_Spell.GetSpellCooldown = function()
+        return { isActive = true, isEnabled = true, startTime = stub.Secret(1), duration = stub.Secret(2) }
+    end
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.eq(told, 4, "secret times can't be compared: always told")
+    _G.C_Spell.GetSpellCooldown = saved
+    stub.knownSpells = {}
+    _G.GetShapeshiftForm = nil
+end)
+
 T.test("nameplates: the interrupt mark sits where your interrupt comes back, only while it's on cooldown", function()
     local NP = login()
     local cd = { on = true }

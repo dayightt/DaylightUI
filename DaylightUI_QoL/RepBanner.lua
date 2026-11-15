@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Motion = DUI.Style, DUI.Motion
 
@@ -41,11 +42,9 @@ local current           -- the show up now: { name, reaction, share }
 local queue = {}        -- standings waiting for the top of the screen
 local seen = {}         -- factionID -> its standing at the last look
 local gains = {}        -- faction name -> { amount, t } from the chat line
-local dirty, scanAll, pending = {}, false, false
+local dirty, scanAll = {}, false
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.repBanner == true end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 -- ---------------------------------------------------------------------
 -- The banner
@@ -326,7 +325,6 @@ end
 
 -- Looked at one frame later, so the chat line of the same gain is in.
 local function flush()
-    pending = false
     if not enabled() then dirty, scanAll = {}, false return end
     local all = scanAll
     local ids = dirty
@@ -335,11 +333,7 @@ local function flush()
     for id in pairs(ids) do check(id, false) end
 end
 
-local function soon()
-    if pending then return end
-    pending = true
-    C_Timer.After(0, flush)
-end
+local soon = DUI.Soon(flush)
 
 local function wire()
     if wired then return end

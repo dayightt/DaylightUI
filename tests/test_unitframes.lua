@@ -1380,6 +1380,117 @@ T.test("unit frames: player and pet can fade only at full health", function()
     if not ok then error(err, 0) end
 end)
 
+T.test("unit frames: the player frame can fade only at full mana", function()
+    local DUI, ns = stub.Load({ module = true })
+    -- Mana is plain out of a fight and secret in one (and under restrictions),
+    -- where the game reads it through a curve (UnitPowerPercent).
+    local function plain(v) if type(v) == "table" then return rawget(v, "__value") end return v end
+    local me = { name = "Me", class = "MAGE", isPlayer = true, health = stub.Secret(10), maxHealth = 10,
+                 powerType = 0, powerToken = "MANA", mana = 100, maxMana = 100, power = 100, maxPower = 100 }
+    stub.SetUnits({ player = me })
+    local saved = { curves = _G.C_CurveUtil, pct = _G.UnitPowerPercent, hpct = _G.UnitHealthPercent, kinds = Enum.PowerType }
+    Enum.PowerType = Enum.PowerType or { Mana = 0, Rage = 1 }   -- as in the client
+    _G.C_CurveUtil = { CreateCurve = function()
+        local c = { pts = {} }
+        function c:AddPoint(x, y) self.pts[#self.pts + 1] = { x, y } end
+        function c:Eval(x)
+            for i = 2, #self.pts do
+                local a, b = self.pts[i - 1], self.pts[i]
+                if x <= b[1] then return a[2] + (b[2] - a[2]) * (x - a[1]) / (b[1] - a[1]) end
+            end
+            return self.pts[#self.pts][2]
+        end
+        return c
+    end }
+    _G.UnitPowerPercent = function(u, kind, _, curve)
+        local x = stub.units[u]
+        if kind == 0 then return curve:Eval(x.mana / x.maxMana) end
+        return curve:Eval(x.power / x.maxPower)
+    end
+    _G.UnitHealthPercent = function(u, _, curve)
+        local x = stub.units[u]
+        return stub.Secret(curve:Eval(plain(x.health) / x.maxHealth))
+    end
+    stub.WrapSecrets()
+    local function alpha(f) return plain(f:GetAlpha()) end
+    local function setMana(v, kind)
+        me.mana, me.power = v, v
+        stub.FireEvent("UNIT_POWER_UPDATE", "player", kind or "MANA")
+    end
+    local function run() for _ = 1, 120 do stub.RunOnUpdate(DUI.Fade.driver, 1 / 60) end end
+    local function settle(secs)
+        stub.Advance(secs or 3)
+        DUI.Fade.Step()
+        run()
+    end
+    local ok, err = pcall(function()
+        T.eq(DUI:Get("UnitFrames", "player.fade.fullMana"), false, "off by default")
+        DUI:Set("UnitFrames", "player.fade.mode", "always")
+        DUI:Set("UnitFrames", "player.fade.delay", 2)
+        DUI:Set("UnitFrames", "player.fade.fullMana", true)
+        local f = ns.frames.player
+        settle()
+        T.eq(alpha(f), 0, "full mana: faded")
+        setMana(40)
+        settle(0)
+        T.eq(alpha(f), 1, "a spell's cost brings it back")
+        settle()
+        T.eq(alpha(f), 1, "short on mana and steady: stays shown past the delay")
+        setMana(100)
+        settle(0)
+        settle(1)
+        T.eq(alpha(f), 1, "refilled: waits for the delay")
+        settle()
+        T.eq(alpha(f), 0, "then fades")
+
+        -- A free power bar is part of the frame: it waits for the mana too.
+        DUI:Set("UnitFrames", "player.powerAt", "free")
+        settle()
+        local bar = f.pieces[2]
+        setMana(40)
+        settle()
+        T.eq(alpha(bar), 1, "its own power bar stays with it")
+        setMana(100)
+        settle()
+        T.eq(alpha(bar), 0, "and fades with it")
+        DUI:Set("UnitFrames", "player.powerAt", "inside")
+
+        -- In a fight mana is secret: the game's curve decides, nothing compared.
+        stub.EnterCombat()
+        setMana(40)
+        settle()
+        T.eq(ns.manaShort.player, nil, "in a fight mana reads secret: never compared")
+        T.eq(alpha(f), 1, "in a fight, short on mana (secret): shown")
+        setMana(100)
+        settle()
+        T.eq(alpha(f), 0, "in a fight, full mana (secret): faded")
+        -- With full health on too, two secrets can't be weighed together: shown.
+        DUI:Set("UnitFrames", "player.fade.fullHealth", true)
+        settle()
+        T.eq(alpha(f), 1, "both waits on in a fight: stays shown")
+        stub.LeaveCombat()
+        settle()
+        T.eq(alpha(f), 0, "out of the fight, full health and mana: faded")
+        DUI:Set("UnitFrames", "player.fade.fullHealth", false)
+
+        -- No mana on the bar (a warrior, a druid in a form): nothing to wait for.
+        me.powerType, me.powerToken, me.maxPower = 1, "RAGE", 100
+        stub.FireEvent("UNIT_DISPLAYPOWER", "player")
+        setMana(40, "RAGE")
+        settle()
+        T.eq(alpha(f), 0, "rage on the bar: fades as usual")
+        me.powerType, me.powerToken = 0, "MANA"
+
+        DUI:Set("UnitFrames", "player.fade.fullMana", false)
+        setMana(40)
+        settle()
+        T.eq(alpha(f), 0, "switched off: fades whatever the mana")
+    end)
+    _G.C_CurveUtil, _G.UnitPowerPercent, _G.UnitHealthPercent = saved.curves, saved.pct, saved.hpct
+    Enum.PowerType = saved.kinds
+    if not ok then error(err, 0) end
+end)
+
 T.test("role icons: each role is its own quarter of our roles sheet", function()
     local _, ns = make(TARGET, TCFG)
     T.eq(ns.UF.ROLE_ICON_TEXTURE, DaylightUI.MEDIA .. "roles.png")

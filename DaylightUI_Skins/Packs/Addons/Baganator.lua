@@ -3,8 +3,8 @@
 -- Uses Baganator's public skin API (API/Main.lua, Skins/*.lua, version 834).
 -- Every piece it creates goes through `Baganator.Skins.AddFrame(regionType,
 -- region, tags)`, which hands it to the current skin and then to each listener
--- (`Baganator.API.Skins.RegisterListener`). Pieces made before we registered
--- are in `Baganator.API.Skins.GetAllFrames()`. We only dress while Baganator's
+-- (`Baganator.API.Skins.RegisterListener`). Pieces made before registering
+-- are in `Baganator.API.Skins.GetAllFrames()`. Pieces are only dressed while Baganator's
 -- default look ("blizzard") is selected; any other look the player picks in its
 -- options (Dark, ElvUI, EllesmereUI...) is left alone. No hooks.
 -- Region types (see its Skins/EllesmereUI.lua): ButtonFrame a window
@@ -28,10 +28,10 @@ local function isTable(x) return type(x) == "table" end
 
 local BZ = {}
 ns.BaganatorSkin = BZ
-BZ.LOOK = "blizzard" -- Baganator's default look, the one we dress over
+BZ.LOOK = "blizzard" -- Baganator's default look, the one this dresses over
 BZ.ICON_PAD = 2 -- px between an icon button's icon and its outline
 
--- Whether Baganator is using its default look, the one we dress over.
+-- Whether Baganator is using its default look, the one this dresses over.
 function BZ.Ours()
     local api = isTable(_G.Baganator) and _G.Baganator.API
     local skins = isTable(api) and api.Skins
@@ -51,7 +51,7 @@ function BZ.Dressers(Kit)
         Dialog = function(f) Kit.Window(f) end,
         ItemButton = function(b)
             Kit.Item(b)
-            Kit.Erase(b.SlotBackground) -- slot art replaced by our dark square
+            Kit.Erase(b.SlotBackground) -- slot art replaced by a dark square
         end,
         Button = function(b) Kit.Button(b) end,
         IconButton = function(b) Kit.IconButton(b, BZ.ICON_PAD) end,

@@ -9,12 +9,11 @@
 -- unless its plain id or event says otherwise.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Kinds = {}
 ns.Kinds = Kinds
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Chat type (event name minus "CHAT_MSG_") -> kind.
 Kinds.BY_TYPE = {
@@ -148,11 +147,19 @@ end
 
 -- A channel's kind from its name. World channels share a kind; any other channel
 -- gets its own ("ch:name") so a tab can pick it alone.
+-- Every channel line asks, so each name's kind is kept until channels change.
+-- A secret name can't be a table key and is worked out every time.
+local ofName = {}
 function Kinds.OfChannel(base)
+    local plain = not secret(base)
+    local kind = plain and ofName[base]
+    if kind then return kind end
     -- Strip " - Zone" and the number the game appends to some world channel names
     -- ("LookingForGroup 84").
     local name = string.lower(string.gsub(string.gsub(base, "%s*%-.*$", ""), "%s+%d+$", ""))
-    return Kinds.CHANNELS[name] or ("ch:" .. name)
+    kind = Kinds.CHANNELS[name] or ("ch:" .. name)
+    if plain then ofName[base] = kind end
+    return kind
 end
 
 -- A custom channel's kind (not in Kinds.ORDER)?
@@ -168,8 +175,14 @@ local function kindOfNumber(num)
     end
     return listKind[num]
 end
-function Kinds.ChannelsChanged() listKind = nil end
+Kinds.OfNumber = kindOfNumber
+function Kinds.ChannelsChanged()
+    listKind = nil
+    if next(ofName) then wipe(ofName) end
+end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
+-- Joining or leaving a channel.
+DaylightUI.RegisterEvent("CHAT_MSG_CHANNEL_NOTICE", Kinds.ChannelsChanged)
 
 -- A channel line's kind from the event's 9th argument, the channel base name, or
 -- "channel" if unreadable. A community uses one name in the channel list

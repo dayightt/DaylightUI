@@ -187,7 +187,7 @@ function Allies.Build(page)
     DUI.RegisterEvent("RECENT_ALLIES_CACHE_UPDATE", function() ns.Window.Refresh("allies") end)
     DUI.RegisterEvent("RECENT_ALLIES_DATA_READY", function() ns.Window.Refresh("allies") end)
     DUI.RegisterEvent("RECENT_ALLY_DATA_UPDATED", function(_, guid)
-        if type(guid) == "string" and not (issecretvalue and issecretvalue(guid)) then Allies.shine = guid end
+        if type(guid) == "string" and not DUI.IsSecret(guid) then Allies.shine = guid end
         ns.Window.Refresh("allies")
     end)
 end

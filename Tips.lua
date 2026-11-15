@@ -1,7 +1,7 @@
 local _, DUI = ...
 local Style = DUI.Style
 
--- One look for every tooltip, both the ones we build and the game's that get
+-- One look for every tooltip, both Daylight UI's own and the game's that get
 -- repainted (Tooltip module's Tip.PaintSpell):
 --   title    INK.TITLE white, or the thing's own color (quality, quest
 --            difficulty, class): Tips.Title(text, r, g, b)
@@ -55,13 +55,13 @@ function Tips.Gap() add({ "gap" }) end
 -- a color of the thing's own (a quality) or none.
 Tips.SHORT_LINE = 30 -- longer than this reads as a sentence, not a cast time or range
 function Tips.GameColor(r, g, b)
-    if type(r) ~= "number" or (issecretvalue and issecretvalue(r)) then return nil end
+    if type(r) ~= "number" or DUI.IsSecret(r) then return nil end
     if r > 0.9 and g > 0.7 and g < 0.9 and b < 0.2 then return "yellow" end
     if r > 0.95 and g > 0.95 and b > 0.95 then return "white" end
     if r > 0.9 and g < 0.3 and b < 0.3 then return "red" end
 end
 
--- One side of a game tooltip line, repainted to our rules (Tip.PaintSpell
+-- One side of a game tooltip line, repainted to Daylight UI's rules (Tip.PaintSpell
 -- does the same for the game's lines). The yellow description becomes a
 -- sentence with colored numbers, a white cost takes its power color, other
 -- short white lines become labels (long ones sentences), red becomes BAD, and
@@ -69,7 +69,7 @@ end
 function Tips.GameSide(text, c)
     if type(text) ~= "string" or text == "" then return text, Tips.TEXT end
     local r, g, b
-    if type(c) == "table" and not (issecretvalue and issecretvalue(c)) then r, g, b = c.r or c[1], c.g or c[2], c.b or c[3] end
+    if type(c) == "table" and not DUI.IsSecret(c) then r, g, b = c.r or c[1], c.g or c[2], c.b or c[3] end
     local kind = Tips.GameColor(r, g, b)
     if text:find("|c", 1, true) then return text, kind and Tips.TEXT or { r, g, b } end
     if kind == "yellow" then return Tips.Numbers(text), Tips.TEXT end
@@ -202,19 +202,46 @@ function Tips.NumberColor(kind)
     return { Style.Pop() }
 end
 
+-- The spans of the game's escape codes that carry digits of their own: the
+-- plural and grammar codes (|4hour:hrs;), textures, atlases, links and key
+-- names. A color code put inside one breaks it, so numbers there stay as they are.
+local CODES = { "|%d[^;]*;", "|T.-|t", "|A.-|a", "|H.-|h", "|K.-|k" }
+function Tips.CodeSpans(text)
+    local spans
+    if text:find("|", 1, true) then
+        for _, p in ipairs(CODES) do
+            local from = 1
+            while true do
+                local a, b = text:find(p, from)
+                if not a then break end
+                spans = spans or {}
+                spans[#spans + 1] = { a, b }
+                from = b + 1
+            end
+        end
+    end
+    return function(at)
+        if spans then for _, s in ipairs(spans) do if at >= s[1] and at <= s[2] then return true end end end
+        return false
+    end
+end
+
 -- Returns text with its numbers colored. Only standalone numbers, and only on
 -- a line without its own color codes (a |r would end that color early). Plain
 -- strings only, never a secret.
 function Tips.Numbers(text)
-    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) or text:find("|c", 1, true) then return text end
+    if type(text) ~= "string" or DUI.IsSecret(text) or text:find("|c", 1, true) then return text end
     local W = words()
     local low = string.lower(text)
     local nums = {}
+    local inCode = Tips.CodeSpans(text)
     -- %f[%d], not %f[%w]: the game's text sometimes glues a number to the word
     -- before it ("inflicts32 to 35"), and that one gets its space back.
     for s, n, e in text:gmatch("()%f[%d](%d[%d,]*%.?%d*)()") do
         while n:sub(-1) == "." or n:sub(-1) == "," do n, e = n:sub(1, -2), e - 1 end -- trailing punctuation belongs to the sentence, not the number
-        nums[#nums + 1] = { s = s, e = e, n = n, glued = s > 1 and text:sub(s - 1, s - 1):find("%a") ~= nil }
+        if not inCode(s) then
+            nums[#nums + 1] = { s = s, e = e, n = n, glued = s > 1 and text:sub(s - 1, s - 1):find("%a") ~= nil }
+        end
     end
     if #nums == 0 then return text end
     local dmg = W.damage

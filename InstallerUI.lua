@@ -538,7 +538,7 @@ end
 -- Spotlight, Reload, combat
 
 -- A soft pulsing accent outline around each named frame that exists and is
--- shown. Ours hangs from theirs, never the other way around.
+-- shown. The outline hangs from the frame, never the other way around.
 function UI.Spotlight(names)
     for _, s in ipairs(spots) do s:Hide() end
     if not names then return end
@@ -606,7 +606,7 @@ end
 -- force: also hide as combat starts (PLAYER_REGEN_DISABLED fires just before
 -- lockdown, the last moment a secure frame can still hide). When hidden it
 -- lets go of the page it was laid over, since a secure frame left anchored to
--- ours ties the two together.
+-- Daylight UI's ties the two together.
 function UI.HideReload(force)
     if not reload then return end
     if force or not InCombatLockdown() then reload:Hide() end

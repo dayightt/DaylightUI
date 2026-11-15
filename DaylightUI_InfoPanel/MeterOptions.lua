@@ -420,7 +420,7 @@ function MO.Page()
               values = { class = "Class color", custom = "One color" }, order = { "class", "custom" },
               disabled = function(get) return get("win.classText") == true end,
               desc = "Each name in its player's class color, or all in one color. The numbers stay as they are, so a dark bar with class-colored names reads well." }),
-        win({ type = "color", key = "win.nameColor", label = "Custom name color", kinds = BARS,
+        win({ type = "color", key = "win.nameColor", label = "Custom name color", since = "1.7.4", kinds = BARS,
               hidden = function(get) return get("win.nameColorBy") == "class" end,
               disabled = function(get) return get("win.classText") == true end,
               desc = "The names' color when Name color is One color." }),

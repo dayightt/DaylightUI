@@ -6,6 +6,7 @@
 
 local _, BL = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 BL.MODULE = "Buffs"
 
@@ -19,7 +20,7 @@ function BL.Print(msg) DUI.Print(tostring(msg)) end
 -- ---------------------------------------------------------------------
 
 function BL.Plain(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -55,7 +56,7 @@ end
 
 -- ---------------------------------------------------------------------
 -- Client events go through the core's DUI.RegisterEvent. Unit events about the
--- player go through our own frame that the client filters to the player (the
+-- player go through a frame of the module's own that the client filters to the player (the
 -- core has no unit form): fn(event, unit, ...). The unit may be secret under
 -- restrictions, but it's always the player.
 -- ---------------------------------------------------------------------

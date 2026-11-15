@@ -88,16 +88,21 @@ end
 
 -- Every set-up button of every group, party and raid alike:
 --   for _, b in Group.Buttons() do ... end
-function Group.Buttons()
-    local gi, bi = 1, 0
-    return function()
-        while Group.all[gi] do
-            bi = bi + 1
-            local b = Group.all[gi].buttons[bi]
-            if b then return bi, b end
-            gi, bi = gi + 1, 0
-        end
+-- Stateless, so the range ticker and fight passes make no new closure per
+-- walk. The loop's first value packs the group and button numbers together.
+local SPAN = 4096
+local function nextButton(_, at)
+    local gi, bi = math.floor(at / SPAN), at % SPAN
+    while Group.all[gi] do
+        bi = bi + 1
+        local b = Group.all[gi].buttons[bi]
+        if b then return gi * SPAN + bi, b end
+        gi, bi = gi + 1, 0
     end
+end
+
+function Group.Buttons()
+    return nextButton, nil, SPAN
 end
 
 -- Tiles per line: a group's five by default (the header then keeps each group
@@ -428,7 +433,7 @@ end
 function Group:Resize(cfg)
     local holder = self.holder
     local rows, count
-    if self:Previewing() and self.preview then
+    if self:Previewing() and self:EnsurePreview() then
         rows = self:PreviewRows(cfg)
         count = self.opts.previewCount(cfg)
     else
@@ -482,8 +487,8 @@ end
 -- nothing. A header creates buttons for a negative startingIndex regardless of
 -- who's in the group (SecureGroupHeaders.lua, configureChildren; EllesmereUI,
 -- Grid2 and Cell do the same), and the second SetAttribute restores everyone.
--- Setting them all up here cost about 2 seconds at 3 fps after every load, so
--- Group:Take leaves that until the first member arrives.
+-- Setting them all up here would stall every load for seconds, so Group:Take
+-- leaves that until the first member arrives.
 function Group:MakeOn(h, want)
     if not h:GetAttribute("child" .. want) then
         local shown, first = h:IsShown(), h:GetAttribute("startingIndex")
@@ -591,13 +596,26 @@ function Group:NewSampleButton(parent, i, dress)
     return b
 end
 
+-- The samples are only built the first time test mode shows them. Forty raid
+-- tiles and five party tiles that most players never look at made every login
+-- slower and heavier.
 function Group:CreatePreview()
+    self.previewWanted = true
+end
+
+function Group:EnsurePreview()
+    if self.preview or not self.previewWanted then return self.preview end
     self.preview = {}
     for i = 1, self.opts.maxCount do
         local b = self:NewSampleButton(self.holder, i, self.opts.dress)
         b:Hide()
         self.preview[i] = b
     end
+    if self.opts.previewMade then self.opts.previewMade(self.preview) end
+    local cfg, text = self:Config()
+    local holder = self.holder
+    if cfg and holder.tileW then self:LayoutPreview(cfg, text, holder.tileW, holder.tileH) end
+    return self.preview
 end
 
 -- Lays sample buttons out from the holder's corner (Group.Corner) the same way
@@ -690,8 +708,9 @@ function Group:FillSamples(list, count, cfg)
 end
 
 function Group:ShowPreview(on)
-    if not self.preview then return end
     on = on and self:Previewing() and not (self.opts.hideInTest and self.opts.hideInTest())
+    if on then self:EnsurePreview() end
+    if not self.preview then return end
     local cfg = self:Config()
     local count = cfg and self.opts.previewCount(cfg) or #self.preview
     self:FillSamples(self.preview, on and count or 0, cfg)

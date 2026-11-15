@@ -45,7 +45,7 @@ function Buttons.DefOf(btn) return own[btn] end
 function Buttons.All() return list end
 
 -- The template adds every button to the game's event list and never removes it, so
--- the game's handlers would run on ours under our taint. Set the entry to nil in
+-- the game's handlers would run on these buttons under the addon's taint. Set the entry to nil in
 -- place (it's the last one right after creation); removing it would shift the
 -- game's own entries.
 function Buttons.Unlist(btn)
@@ -53,8 +53,9 @@ function Buttons.Unlist(btn)
     if type(frames) ~= "table" then return end
     local n = #frames
     if frames[n] == btn then frames[n] = nil return end
-    for i = 1, n do
-        if frames[i] == btn then frames[i] = nil return end
+    -- Walked whole: with holes left by earlier removals, the length can stop short.
+    for k, v in pairs(frames) do
+        if v == btn then frames[k] = nil return end
     end
 end
 
@@ -75,13 +76,13 @@ end
 
 -- The template's show, hover and slot-change code would put each button in the
 -- game's range and usable watchers, which run the game's button code on it (that
--- failed on ours), and its hide would turn the slot's range check off under our
--- painter. These no-ops keep our buttons out of all that.
+-- failed on these buttons), and its hide would turn the slot's range check off under Daylight UI's
+-- painter. These no-ops keep Daylight UI's buttons out of all that.
 local function stayOut() end
 
 -- A bar's twelve buttons. SecureActionButtonTemplate goes last on purpose so the
 -- click handler is the plain secure one, not the template's, which reads its own
--- fields under our taint and gets blocked in combat. Clicks act on release, like
+-- fields under the addon's taint and gets blocked in combat. Clicks act on release, like
 -- the game's buttons.
 function Buttons.Make(def, holder)
     local made = {}
@@ -94,7 +95,7 @@ function Buttons.Make(def, holder)
         local leave = btn.UnregisterActionBarButtonCheckFrames
         if type(btn.action) == "number" and type(leave) == "function" then leave(btn, btn.action) end
         -- That Update also tinted the icon for slot 1, graying every button when
-        -- slot 1 wasn't usable. Our tint only undoes colors it set itself, so
+        -- slot 1 wasn't usable. Daylight UI's tint only undoes colors it set itself, so
         -- reset it here.
         if type(btn.icon) == "table" then btn.icon:SetVertexColor(1, 1, 1) end
         -- Same for the autocast corners, shown on every button when slot 1 held a
@@ -107,7 +108,7 @@ function Buttons.Make(def, holder)
         btn.RegisterActionBarButtonCheckFrames = stayOut
         btn.UnregisterActionBarButtonCheckFrames = stayOut
         -- The game's UpdateAction (page change, show, hover) ends in these two,
-        -- which write attributes. Running tainted on our buttons, the write is
+        -- which write attributes. Running tainted on Daylight UI's buttons, the write is
         -- blocked in combat.
         btn.UpdatePressAndHoldAction = stayOut
         btn.UpdatePingAttributes = stayOut
@@ -152,7 +153,7 @@ Buttons.KIND = {
 }
 
 -- ---------------------------------------------------------------------
--- Painting. Our buttons are off the game's event list, so every part is drawn here
+-- Painting. Daylight UI's buttons are off the game's event list, so every part is drawn here
 -- from events. Painters run in order and each event runs only the ones it needs.
 -- Values the client may make secret in combat (counts, cooldown times) are passed
 -- whole to the engine (SetText, the cooldown's duration object), never compared
@@ -177,12 +178,18 @@ function Buttons.Tint(btn, slot, usable, noMana)
     ns.Skin.UpdateState(btn, slot, usable, noMana)
 end
 
-function Buttons.SetOutOfRange(btn, out)
-    out = out == true
+function Buttons.RangeChanged(btn, out)
     local st = Buttons.State(btn)
     local parts = ns.Skin.GetParts(btn)
+    return not (st.outOfRange == out and (not parts or parts.outOfRange == out))
+end
+
+function Buttons.SetOutOfRange(btn, out)
+    out = out == true
     -- Every target change asks every button, so bail when nothing changed.
-    if st.outOfRange == out and (not parts or parts.outOfRange == out) then return end
+    if not Buttons.RangeChanged(btn, out) then return end
+    local st = Buttons.State(btn)
+    local parts = ns.Skin.GetParts(btn)
     st.outOfRange = out
     if parts then
         parts.outOfRange = out
@@ -300,7 +307,7 @@ Buttons.PAINTERS = {
         sweep(btn.chargeCooldown, chOn, chOn and AB.GetActionChargeDuration(slot))
         if ns.Ping then ns.Ping.Note(btn, slot, info, charges) end
     end },
-    -- A proc shows the game's own glow on our button. The skin's border follows it.
+    -- A proc shows the game's own glow on Daylight UI's button. The skin's border follows it.
     { name = "proc", fn = function(btn, slot)
         local id = spellOf(slot)
         local O = C_SpellActivationOverlay
@@ -316,7 +323,7 @@ Buttons.PAINTERS = {
         ns.Skin.UpdateProc(btn)
     end },
     -- Range is checked here and by the range watch while there's a target. Never
-    -- call EnableActionRangeCheck ourselves: it unbalanced the client's internal
+    -- call EnableActionRangeCheck from addon code: it unbalanced the client's internal
     -- count, which survives a /reload, and the game's next enable crashed the
     -- client (BC_ASSERT). The game's twins don't turn it on either, since they're
     -- hidden and a hidden button turns its check off (ActionButton.lua OnHide).
@@ -339,15 +346,26 @@ local function paintFrom(btn, slot, names, from)
         end
     end
 end
+-- Painters that change what the button shows: plugins (DaylightUI.API's Paint)
+-- paint after any of these. The rest tell the skin, which asks when it changed.
+local CONTENTS = { icon = true, count = true, name = true, checked = true, equipped = true }
+local function shows(names)
+    if not names then return true end
+    for n in pairs(names) do if CONTENTS[n] then return true end end
+    return false
+end
 function Buttons.Paint(btn, names)
     local slot = Buttons.SlotOf(btn)
     if not slot then return end
+    local Skin = ns.Skin
+    local h, a = Skin.Hold(btn)
     local from = 1
     while true do
         at = from
-        if DUI.SafeCall(paintFrom, btn, slot, names, from) then return end
+        if DUI.SafeCall(paintFrom, btn, slot, names, from) then break end
         from = at + 1
     end
+    Skin.Release(btn, h, a, shows(names))
 end
 
 function Buttons.PaintAll(names)
@@ -367,7 +385,11 @@ local function rangeTick(_, dt)
     for _, btn in ipairs(list) do
         if btn:IsVisible() then
             local slot = Buttons.SlotOf(btn)
-            if slot and HasAction(slot) then Buttons.Paint(btn, RANGE) end
+            -- Ask first and paint only a change: most ticks change nothing, and a
+            -- spell with no range answers nil, which reads as in range.
+            if slot and HasAction(slot) and Buttons.RangeChanged(btn, IsActionInRange(slot) == false) then
+                Buttons.Paint(btn, RANGE)
+            end
         end
     end
 end
@@ -391,9 +413,8 @@ end
 
 -- Paint on the next frame, once: a button whose slot changed (bar 1 paging), or
 -- everything (several page events arrive together).
-local queued, queuedAll, pending = {}, false, false
+local queued, queuedAll = {}, false
 local function flush()
-    pending = false
     if queuedAll then
         -- Only visible buttons, as in flushWanted. A hidden one is painted in
         -- full when it shows (its OnShow in Buttons.Make).
@@ -409,18 +430,14 @@ local function flush()
         Buttons.Paint(btn)
     end
 end
-local function later()
-    if pending then return end
-    pending = true
-    C_Timer.After(0, function() DUI.SafeCall(flush) end)
-end
+local later = DUI.Soon(function() DUI.SafeCall(flush) end)
 function Buttons.Queue(btn) queued[btn] = true; later() end
 function Buttons.QueueAll() queuedAll = true; later() end
 
 -- Painters requested by events, collected and run once on the next frame. Cooldown
 -- events come in pairs and bursts (SPELL_UPDATE_COOLDOWN with
--- ACTIONBAR_UPDATE_COOLDOWN, charges, loss of control), and each one used to repaint
--- every button. Only visible buttons are painted: bars 5-8 start hidden, and a bar
+-- ACTIONBAR_UPDATE_COOLDOWN, charges, loss of control), and repainting every button for
+-- each would waste the frame. Only visible buttons are painted: bars 5-8 start hidden, and a bar
 -- shown only in or out of combat is hidden the rest of the time. A skipped button is
 -- marked and painted in full when it shows.
 local wanted, wantedPending = {}, false
@@ -496,8 +513,7 @@ Buttons.EVENTS = {
             end
         end
     end,
-    -- The skin used to repaint our buttons on this too; now the usable painter
-    -- handles them.
+    -- The usable painter covers these buttons; the skin skips them on this event.
     ACTIONBAR_UPDATE_USABLE = USABLE,
     ACTION_RANGE_CHECK_UPDATE = function(slot, inRange, checksRange)
         local on = Buttons.On(slot)

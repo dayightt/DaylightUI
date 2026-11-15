@@ -6,7 +6,7 @@ DaylightUI:RegisterModule("Bags", {
     -- What each file defines. If a file goes missing after an update, the module
     -- turns itself off with one line in chat (tests/test_guards.lua checks this list).
     ns = ns,
-    parts = { "Items", "Plugins", "Search", "Junk", "Repair", "Bags", "Layout", "Stack", "Keep", "Swap", "Window", "Disenchant", "Guard", "Prep",
+    parts = { "Items", "Plugins", "Search", "Junk", "Repair", "Bags", "Layout", "Stack", "Keep", "Swap", "Window", "Move", "Disenchant", "Guard", "Prep",
                "Slots", "Bank", "Saved", "Viewer", "Currency", "MoneyRoll", "Categories", "OpenClose" },
     label = "Bags",
     order = 125,

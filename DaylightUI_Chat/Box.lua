@@ -12,21 +12,22 @@
 --   game's history entries caused errors.
 --   A line that reaches several windows is kept once (by the event's line id, or
 --   the same plain text within DEDUPE seconds; a secret line without an id only
---   from the main window). Short tags go on our copy (Tags.Shorten).
--- * Tabs: our own (W.Tab) along the top of the panel, each showing its kinds of
+--   from the main window). Short tags go on the box's copy (Tags.Shorten).
+-- * Tabs: W.Tab buttons along the top of the panel, each showing its kinds of
 --   message (Kinds.lua). A tab with something new pulses (Feel).
 -- * The game's windows, tabs and dock stay put at alpha 0 with mouse off. Never
 --   hidden, moved or reparented: they still send, receive and feed whisper
---   replies. Typing uses the game's own edit box in our spot (Chat.Hold), as
+--   replies. Typing uses the game's own edit box, placed over the panel (Chat.Hold), as
 --   in Classic.
 -- * Links: clicks go to the game (SetItemRef, as its chat windows do; the ones it
---   only opens from its own click through Links.Hold). Hover
+--   only opens from its own click land on twins of the lines, Links.Sync). Hover
 --   shows the tooltip above the panel (LinkTips).
 -- * Floating, fading, the resize grip, history and Copy come from Chat.lua, with
---   our message list in place of the game's window.
+--   the box's message list in place of the game's window.
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style = DUI.Style
 
 local Box = {}
@@ -58,11 +59,9 @@ local panes = { main, side }
 Box.main, Box.side = main, side
 local foot -- footer where you type (main panel)
 local log = {}         -- every line kept, oldest first: { text, r, g, b, kind }
-local labels = {} -- our tabs, for Feel's pulse (tab -> tab)
+local labels = {} -- the box's tabs, for Feel's pulse (tab -> tab)
 local hooked = setmetatable({}, { __mode = "k" })
 local parked = setmetatable({}, { __mode = "k" }) -- game frame -> its original mouse setting
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- With the game's controller UI on, chat is Classic whatever the setting: the
 -- game's chat windows carry its own controller buttons, the Daylight box doesn't.
@@ -129,14 +128,20 @@ local function forget(now)
     end
 end
 
+-- The chat event's line id (its 11th argument), or nil: many events carry 0.
+local function lineOf(args)
+    local id = type(args) == "table" and args[11]
+    if type(id) == "number" and not secret(id) and id > 0 then return id end
+end
+
 -- First time this line is seen? Other windows may pass it along too.
 local function fresh(cf, text, args)
     local now = GetTime()
     forget(now)
     -- A line id identifies one line, but many events (system, loot) carry 0; those
     -- are matched by text.
-    local id = type(args) == "table" and args[11]
-    if type(id) == "number" and not secret(id) and id > 0 then
+    local id = lineOf(args)
+    if id then
         if seenId[id] then return false end
         seenId[id] = now
         return true
@@ -150,7 +155,7 @@ local function fresh(cf, text, args)
     return true
 end
 
--- Our copy of the line, with short tags and levels when enabled and chat
+-- The box's copy of the line, with short tags and levels when enabled and chat
 -- isn't locked down.
 local function shape(text, event)
     if secret(text) or not (ns.Tags.enabled or ns.Levels.on) or ns.Tags.Protected() then return text end
@@ -179,7 +184,7 @@ local function askedFrom(kind)
     if tab and not tab.combat then return tab end
 end
 
--- Adds a line to our list, flagging alerts and our spam note in its extra data
+-- Adds a line to the list, flagging alerts and the spam note in its extra data
 -- (the redraw puts a glow behind alerts, Box.Glows).
 local function show(P, e)
     if P.frame and Box.On() then P.frame:AddMessage(e[1], e[2], e[3], e[4], e.alert and "alert" or (e.note and "note") or nil) end
@@ -328,7 +333,7 @@ function Box.Glows(f)
     set.n = used
 end
 
--- The game fades lines itself with no redraw to tell us (UpdateFading), so each
+-- The game fades lines itself with no redraw to say so (UpdateFading), so each
 -- glow copies its line's alpha every frame, but only while a glow is showing.
 function Box.GlowStep()
     for _, set in pairs(glows) do
@@ -350,14 +355,15 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
     -- Locked (secret) whispers and away, busy and offline notices still show here.
     if (kind == "whisper" or kind == "bnet") and ns.Talk.On() and cfg.whispersIn == "window"
         and ns.Talk.Keeps(event, args) then return end
+    local line = lineOf(args)
     if secret(text) then
-        Box.Push({ text, r, g, b, kind })
+        Box.Push({ text, r, g, b, kind, line = line })
         return
     end
     -- Classic: kept as-is for a switch back. Spam, alerts and group links are
     -- Daylight box features.
     if not Box.On() then
-        Box.Push({ shape(text, event), r, g, b, kind })
+        Box.Push({ shape(text, event), r, g, b, kind, line = line })
         return
     end
     -- Plain line: drop spam, light alert words, add role icons to group lines.
@@ -371,9 +377,43 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
         Box.Spammed({ shape(text, event), r, g, b, kind })
         return
     end
-    local line, hit = ns.Extras.Decorate(shape(text, event), kind, sender, guid)
-    Box.Push({ line, r, g, b, kind, alert = hit or nil, here = askedFrom(kind) })
+    local shown, hit = ns.Extras.Decorate(shape(text, event), kind, sender, guid)
+    -- Plugins' formatters (DaylightUI.API: me.FormatChat) last: a new text, or
+    -- false to leave the line out.
+    local R = DUI.APIReport
+    if R.ChatFormatting() then
+        local ev = event
+        if secret(ev) then ev = nil end
+        shown = R.FormatChat(shown, { event = ev, kind = kind, sender = sender, guid = guid, body = body,
+            channel = type(args) == "table" and not secret(args[9]) and args[9] or nil, line = line })
+        if shown == false then return end
+    end
+    Box.Push({ shown, r, g, b, kind, alert = hit or nil, here = askedFrom(kind), line = line })
     if hit then ns.Feel.Shine() end
+end
+
+-- The game hides a message it finds inappropriate behind a "Show Message" link.
+-- Its click rewrites that line only in the game's own windows (TransformMessages,
+-- which no AddMessage hook sees), so the box takes the new text from there.
+function Box.Rewritten(id)
+    if type(id) ~= "number" or id <= 0 then return end
+    local text, event
+    for cf in pairs(hooked) do
+        local n = type(cf.GetNumMessages) == "function" and cf:GetNumMessages() or 0
+        for i = n, 1, -1 do
+            local t, _, _, _, _, _, _, ev, args = cf:GetMessageInfo(i)
+            if lineOf(args) == id then text, event = t, ev; break end
+        end
+        if text ~= nil then break end
+    end
+    if text == nil or (not secret(text) and type(text) ~= "string") then return end
+    if secret(event) or type(event) ~= "string" then event = nil end
+    local changed = false
+    for _, e in ipairs(log) do
+        if e.line == id then e[1] = shape(text, event); changed = true end
+    end
+    if not changed then return end
+    for _, P in ipairs(panes) do Box.Refill(P, true) end
 end
 
 -- Called from the watcher only, never inside the game's code. Windows opened
@@ -381,7 +421,7 @@ end
 function Box.Watch(cf)
     if hooked[cf] or type(cf) ~= "table" or type(cf.AddMessage) ~= "function" or ns.Tags.IsCombatLog(cf) then return end
     hooked[cf] = true
-    -- Report our own errors instead of throwing them into the game's AddMessage.
+    -- Report this file's own errors instead of throwing them into the game's AddMessage.
     hooksecurefunc(cf, "AddMessage", function(...) DUI.SafeCall(Box.Feed, ...) end)
 end
 
@@ -401,7 +441,7 @@ local function park(f)
     if f.IsMouseEnabled and f:IsMouseEnabled() then f:EnableMouse(false) end
     if f.IsMouseWheelEnabled and f:IsMouseWheelEnabled() then f:EnableMouseWheel(false) end
     -- A window's links still catch clicks with its mouse off: under the box, its long
-    -- [2. Trade - City] stole the click from our short line's name.
+    -- [2. Trade - City] stole the click from the short line's name.
     if f.GetHyperlinksEnabled and f:GetHyperlinksEnabled() then f:SetHyperlinksEnabled(false) end
 end
 
@@ -589,7 +629,7 @@ function Box.MoveStop(P)
     P.moving = nil
     local key = P == main and "chat" or "chat.side"
     P.holder:StopMovingOrSizing()
-    P.holder:SetUserPlaced(false) -- saved by us, not in the game's layout file
+    P.holder:SetUserPlaced(false) -- saved in the addon's settings, not in the game's layout file
     DUI.Movers.Save(key)
     DUI.Movers.Apply(key)
     if P == main then ns.Chat.sizing = nil else ns.Chat.sideSizing = nil end
@@ -631,6 +671,20 @@ function Box.SyncCombat()
 end
 
 -- The current tab on its own panel: its lines, newest at the bottom.
+-- Fills a pane's box again from the kept lines of its picked tab. stay: keep
+-- the place read to, else back to the newest.
+function Box.Refill(P, stay)
+    local frame, i = P.frame, pickedOf(P)
+    local tab = i and Box.Tabs()[i]
+    if not frame or not tab or tab.combat then return end
+    local at = stay and frame:GetScrollOffset() or 0
+    frame:Clear()
+    for _, e in ipairs(log) do
+        if belongs(tab, e) then show(P, e) end
+    end
+    if at > 0 then frame:SetScrollOffset(at) else frame:ScrollToBottom() end
+end
+
 function Box.Pick(i, animate)
     local tabs = Box.Tabs()
     if not tabs[i] then i = Box.FirstOf(main) or 1 end
@@ -649,16 +703,10 @@ function Box.Pick(i, animate)
     local frame = P.frame
     if not frame then return end
     local tab = tabs[i]
-    -- A combat log tab shows the game's own window in our place.
+    -- A combat log tab shows the game's own window in the box's place.
     frame:SetShown(Box.On() and not tab.combat)
     if tab.combat then return end
-    local function fill()
-        frame:Clear()
-        for _, e in ipairs(log) do
-            if belongs(tab, e) then show(P, e) end
-        end
-        frame:ScrollToBottom()
-    end
+    local function fill() Box.Refill(P) end
     -- Selected by the player: the old lines fade out, the tab's fade in.
     local M = DUI.Motion
     if not (animate and M.On()) then frame:SetAlpha(1); fill(); return end
@@ -903,7 +951,7 @@ function Box.Font()
         local frame = P.frame
         if frame then
             local size = P == side and ns.Chat.SideTextSize() or ns.Chat.TextSize()
-            frame:SetFont(Style.FontFile(ns.MEDIA.font), size, cfg.outline and "OUTLINE" or "")
+            Style.SetFace(frame, Style.FontFile(ns.MEDIA.font), size, cfg.outline and "OUTLINE" or "", 0.9)
             frame:SetShadowOffset(1, -1)
             frame:SetShadowColor(0, 0, 0, 0.9)
         end
@@ -920,7 +968,7 @@ end
 
 -- The game's scroll keys move its selected window, which is parked out of sight.
 -- Override bindings (never the player's saved binds) redirect whatever is bound
--- to them to buttons of ours, refreshed when bindings change. Only set out of
+-- to them to the box's own buttons, refreshed when bindings change. Only set out of
 -- combat; ones set before a fight keep working during it.
 Box.KEYS = { CHATPAGEUP = "PageUp", CHATPAGEDOWN = "PageDown", CHATBOTTOM = "ScrollToBottom" }
 
@@ -969,23 +1017,17 @@ local function buildPane(P, holder, panel, name)
             and IsModifiedClick and IsModifiedClick("CHATLINK") then Box.Asked() end
         SetItemRef(link, text, button, DEFAULT_CHAT_FRAME)
     end)
-    frame:SetScript("OnHyperlinkEnter", function(f, link, text)
-        ns.LinkTips.OnEnter(f, link)
-        ns.Links.Hold(f, link, text)
-    end)
-    -- The copy coming up over the link reads as leaving it: the tooltip stays.
-    frame:SetScript("OnHyperlinkLeave", function(f)
-        if not ns.Links.Holding(f) then ns.LinkTips.OnLeave(f) end
-    end)
+    frame:SetScript("OnHyperlinkEnter", function(f, link) ns.LinkTips.OnEnter(f, link) end)
+    frame:SetScript("OnHyperlinkLeave", function(f) ns.LinkTips.OnLeave(f) end)
     frame:EnableMouseWheel(true)
     frame:SetScript("OnMouseWheel", onWheel)
     frame:SetOnScrollChangedCallback(function(f)
-        DUI.SafeCall(ns.Links.Moved, f, true)
+        DUI.SafeCall(ns.Links.Sync, f)
         DUI.SafeCall(ns.Feel.Scrolled, f)
     end)
     ns.Feel.WatchLines(frame)
     frame:AddOnDisplayRefreshedCallback(function(f)
-        DUI.SafeCall(ns.Links.Moved, f)
+        DUI.SafeCall(ns.Links.Sync, f)
         DUI.SafeCall(Box.Glows, f)
     end)
     -- Tabs are parented to the panel, so they float away with it.
@@ -1048,8 +1090,8 @@ local function iconWanted(name)
 end
 
 -- The headset opens the game's voice chat and channels window, same as its hidden
--- side button. It's a plain, unprotected game window. We call its Toggle without
--- the game's sound, since the icon plays our click.
+-- side button. It's a plain, unprotected game window. Its Toggle is called without
+-- the game's sound, since the icon plays its own click.
 function Box.ToggleVoice()
     local f = _G.ChannelFrame
     if type(f) == "table" and f.Toggle then f:Toggle() end
@@ -1121,7 +1163,7 @@ local function typing() return ns.Chat.Typing() end
 
 -- The footer is the field the game's own edit box sits in while typing; it sends,
 -- keeps the channel and handles replies (Chat.Hold). Enter sends. There's no Send
--- button of ours: calling the game's Enter or OpenChat from addon code would send
+-- button here: calling the game's Enter or OpenChat from addon code would send
 -- the text tainted (a typed /cast or /target gets blocked) and write on its box.
 function Box.BuildFooter()
     local L = DUI.L

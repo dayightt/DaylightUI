@@ -305,7 +305,7 @@ end
 -- or nil while not shown. Only read, never anchored to: the buttons are protected.
 function Panel.BarsSpan(xp)
     local left, right, bottom
-    -- Our own bar 1 when the action bars draw their own, else the game's.
+    -- Daylight UI's own bar 1 when the action bars draw their own, else the game's.
     local own = DUI.ActionBarButtons and DUI.ActionBarButtons("main")
     for i = 1, 12 do
         local b = own and own[i] or _G["ActionButton" .. i]
@@ -681,7 +681,7 @@ function ns.Build(mod)
     -- Float: XP or money coming in (or going out) brings the panel
     -- back for a while; a reputation gain too (XP.RepGain).
     for _, e in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_MONEY" }) do
-        pcall(DUI.RegisterEvent, e, function()
+        DUI.RegisterEvent(e, function()
             DUI.Fade.Wake("InfoPanel.panel")
             if e ~= "PLAYER_MONEY" then DUI.Fade.Wake("InfoPanel.xp") end
         end)
@@ -697,35 +697,21 @@ function ns.Build(mod)
     -- The game draws minimap icons at full strength regardless of alpha, so
     -- once the panel fades fully out the map is made transparent too. Never
     -- hidden: a hidden minimap came back blank.
-    local mapHidden = false
     -- The map skips the login fade-in. The game only takes a redraw of the
     -- map while it can be seen, and a city's or dungeon's map, left waiting
     -- at 0 for the fade-in, stayed empty. It shows from the loading screen on
-    -- (Minimap.lua redraws it then) and follows the panel again once the
-    -- panel has faded in.
-    local mapEarly = mod.db.map.enabled and DUI.Fade.intro == true and type(Minimap) == "table"
-    if mapEarly then Minimap:SetIgnoreParentAlpha(true) end
+    -- (Minimap.lua redraws it then) and follows the panel's fade once the
+    -- panel has faded in. Map.Follow sets its alpha from the panel's.
+    local Map = ns.Minimap
+    Map.early = mod.db.map.enabled and DUI.Fade.intro == true and type(Minimap) == "table"
     hooksecurefunc(Panel.holder, "SetAlpha", function(_, a)
-        if mapEarly then
+        if Map.early then
             local now, goal = DUI.Fade.State("InfoPanel.panel")
             local settled = not DUI.Fade.intro and type(now) == "number" and type(goal) == "number"
                 and math.abs(now - goal) < 0.001
-            if (type(a) == "number" and a >= 1) or settled then
-                mapEarly = false
-                Minimap:SetIgnoreParentAlpha(false)
-            end
-            return
+            if (type(a) == "number" and a >= 1) or settled then Map.early = false end
         end
-        -- Shown and at full strength (most calls): nothing can change.
-        if not mapHidden and (type(a) ~= "number" or a >= 1 or not mod.db.map.enabled) then return end
-        -- Whatever took it there (its own fade, opacity 0, the campfire's hush).
-        local _, goal = DUI.Fade.State("InfoPanel.panel")
-        local faded = mod.db.map.enabled and type(a) == "number" and type(goal) == "number"
-            and goal <= 0.001 and a <= 0.001
-        if faded ~= mapHidden then
-            mapHidden = faded
-            DUI.Fade.MapAway("infopanel", faded)
-        end
+        if mod.db.map.enabled then DUI.SafeCall(Map.Follow) end
     end)
     ns.Tracker.Build(mod)
     -- The quest tracker hangs from a spot under the panel; moving the panel
@@ -759,9 +745,9 @@ function ns.Build(mod)
         if mod.db.xp.detached then C_Timer.After(0, relayout) end
     end
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", afterBars)
-    pcall(DUI.RegisterEvent, "EDIT_MODE_LAYOUTS_UPDATED", afterBars)
-    pcall(DUI.RegisterEvent, "PLAYER_SPECIALIZATION_CHANGED", afterBars)
-    -- Our own bars re-lay out live (a setting, a move): follow bar 1.
+    DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", afterBars)
+    DUI.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", afterBars)
+    -- Daylight UI's own bars re-lay out live (a setting, a move): follow bar 1.
     DUI.On("ActionBarLaidOut", function(key) if key == "main" then afterBars() end end)
     -- Moving past the screen's middle (auto side) or a reset flips the meter
     -- and its threat meter to the other side. Detached windows do the same.

@@ -1,6 +1,7 @@
 -- Train All button: learn every affordable spell at a class trainer in one click.
 
 local _, ns = ...
+local isSecret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Trainer = {}
@@ -31,7 +32,7 @@ end
 
 local function keyOf(name, sub) return tostring(name) .. "|" .. tostring(sub or "") end
 
--- Returns the first service we can buy now, how many there are, their total
+-- Returns the first service you can buy now, how many there are, their total
 -- cost and the first one's key. `budget` is the money still free to spend.
 -- `skip` is this run's already-asked list; without it nothing is skipped.
 local function scan(budget, skip)
@@ -45,7 +46,7 @@ local function scan(budget, skip)
             if type(GetTrainerServiceCost) == "function" then cost, isProfession = GetTrainerServiceCost(i) end
             -- Only a plain number is a gold cost. A new profession is never
             -- learned here: it uses up a profession slot (the game asks first).
-            if type(cost) == "number" and not (issecretvalue and issecretvalue(cost))
+            if type(cost) == "number" and not isSecret(cost)
                 and isProfession ~= true and total + cost <= budget then
                 total = total + cost
                 count = count + 1

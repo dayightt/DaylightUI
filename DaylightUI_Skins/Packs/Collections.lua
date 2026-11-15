@@ -3,13 +3,14 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style = DUI.Style
 
 
 -- Journal lists (mounts, pets, wardrobe sets): the gray bar behind each row
 -- (PetList-ButtonBackground) and the selection art are hidden and the row drawn
--- as a line, keeping its icon and text. The hidden selection art still tells us
+-- as a line, keeping its icon and text. The hidden selection art still says
 -- which row is picked; the game picks after the click.
 local journalHooked = setmetatable({}, { __mode = "k" })
 local function journalRow(row)
@@ -71,12 +72,12 @@ local function modelControls(Kit, scene)
     end
 end
 
--- Bottom buttons sit inside the border with the same gap as our footers
+-- Bottom buttons sit inside the border with the same gap as Parts.Footer
 -- (Footer.GAP in Windows/Parts.lua).
 local FOOTER_INSET, FOOTER_GAP = 6, 8
 
 -- An item list slot (DressUpCustomSetSlotFrameTemplate): icon outlined in the
--- item's quality (the game's ring hidden), name in our font. SetDetails colors
+-- item's quality (the game's ring hidden), name in the Daylight font. SetDetails colors
 -- the name by quality, so that color is kept and used for the outline.
 -- Uncollected items are dimmed, and slots that can't be worn say so.
 local dressedSlots = setmetatable({}, { __mode = "k" })
@@ -95,7 +96,7 @@ local function paintSlot(Kit, slot)
     elseif (state ~= nil and state == CUSTOM_SET_SLOT_STATE_UNCOLLECTED) or slot.isHiddenVisual then
         border, ink = Kit.EMPTY_ITEM_BORDER, INK.OFF
     elseif item == nil then
-        -- An illusion (no item of its own): the game's yellow becomes ours.
+        -- An illusion (no item of its own): the game's yellow becomes the Daylight ink.
         border, ink = Kit.EMPTY_ITEM_BORDER, INK.TEXT
     elseif type(quality) == "number" and quality <= 1 then
         -- Poor and common have no color worth showing (white and gray), so
@@ -103,7 +104,7 @@ local function paintSlot(Kit, slot)
         border, ink = Kit.EMPTY_ITEM_BORDER, quality == 1 and INK.TEXT or INK.OFF
     elseif type(name) == "table" and name.GetTextColor then
         local r, g, b = name:GetTextColor()
-        if type(r) == "number" and not (issecretvalue and issecretvalue(r)) then border = { r, g, b } end
+        if type(r) == "number" and not isSecret(r) then border = { r, g, b } end
     end
     if ink and type(name) == "table" and name.SetTextColor then name:SetTextColor(ink[1], ink[2], ink[3]) end
     Kit.Paint(Kit.ShellOf(slot), border or Kit.EMPTY_ITEM_BORDER)
@@ -127,7 +128,7 @@ local function itemSlots(Kit, panel)
 end
 
 -- A row in a set's list (DressUpFrameTransmogSetButtonTemplate): row look,
--- accent on picked rows (the game's SelectedTexture still tells us which), icon
+-- accent on picked rows (the game's SelectedTexture still says which), icon
 -- outlined in quality (red if you can't wear it), slot name in tan.
 local function setRow(Kit, row)
     if type(row) ~= "table" or not row.CreateTexture then return end
@@ -173,7 +174,7 @@ Engine.Window({ key = "dressup", pack = "collections", frame = "DressUpFrame", w
         local dropdown = f.CustomSetDropdown
         if type(dropdown) == "table" then Kit.Button(dropdown.SaveButton) end
         -- The game butts the bottom buttons against each other and the edge.
-        -- Move them inside the border with a gap, like our footers.
+        -- Move them inside the border with a gap, like Parts.Footer.
         local close, reset, link = _G.DressUpFrameCancelButton, f.ResetButton, f.LinkButton
         if type(close) == "table" and type(reset) == "table" and not dressedSlots[close] then
             dressedSlots[close] = true

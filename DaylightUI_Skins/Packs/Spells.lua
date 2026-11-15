@@ -7,7 +7,7 @@ local Engine = ns.Engine
 
 
 -- A profession panel on the overview page (name, spells, skill bar): art
--- removed, row look, our font.
+-- removed, row look, the Daylight font.
 local function professionPanel(Kit, panel)
     if not Kit.ShellOf(panel) then
         Kit.Strip(panel)
@@ -37,7 +37,7 @@ local function professionPanels(Kit, frame, depth)
     for _, c in ipairs({ frame:GetChildren() }) do professionPanels(Kit, c, depth + 1) end
 end
 
--- The professions book: each profession panel gets the row look and our font.
+-- The professions book: each profession panel gets the row look and the Daylight font.
 -- Its skill bars are drawn their own way and left alone.
 local PROFESSION_PANELS = { "PrimaryProfession1", "PrimaryProfession2",
                             "SecondaryProfession1", "SecondaryProfession2", "SecondaryProfession3" }
@@ -59,30 +59,23 @@ local STABLE_SLOTS = { "PetStableCurrentPet", "PetStableStabledPet1", "PetStable
 local STABLE_ART = { "currentBackground", "unlockedBackground", "lockedBackground", "currentGlow" }
 local STABLE_MONEY = { "PetStableMoneyFrame", "PetStableCostMoneyFrame" }
 local askHold = setmetatable({}, { __mode = "k" })
-local stableHooked = false
+local stableWatched = false
 local STABLE_W = 448 -- a little under the 480 pass; the game's panel is 384
 local STABLE_H = 570 -- the game's frame is 522; the extra is the gap under the pet
 local STABLE_MODEL_Y = -84 -- under the name and the two lines
 local STABLE_MODEL_BOTTOM = 182 -- was 150; keeps the pet's own height and opens the gap
 
-local function hex(c)
-    return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
-        math.floor(c[3] * 255 + 0.5))
-end
-
 -- The number is the part worth a glance. One flat accent color, not the
 -- gradient sweep: a two-digit level would show each digit in another shade.
 local function accent(value)
-    local r, g, b = DaylightUI.Style.Accent()
-    return string.format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5),
-        math.floor(b * 255 + 0.5), tostring(value))
+    return DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Accent() }) .. tostring(value) .. "|r"
 end
 
 local function join(a, b)
     a, b = a or "", b or ""
     if a == "" then return b end
     if b == "" then return a end
-    return a .. hex(DaylightUI.Style.INK.LABEL) .. " | |r" .. b
+    return a .. DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL) .. " | |r" .. b
 end
 
 local function sizeStable(f)
@@ -119,7 +112,7 @@ local function placeSlots(f)
 end
 
 -- Name on its own line, then level | family, then loyalty name | loyalty rank.
--- The frame's SelectPet writes one run-on line; this replaces it on each click.
+-- The game writes one run-on line; this replaces it each time a pet is picked.
 local function paintPet(frame, index)
     local api = _G.C_StableInfo
     if type(api) ~= "table" or type(api.GetStablePetInfo) ~= "function" then return end
@@ -143,6 +136,8 @@ local function paintPet(frame, index)
         level = (level:gsub(tostring(pet.level), function() return accent(pet.level) end, 1))
     end
     local family = type(pet.familyName) == "string" and pet.familyName or ""
+    -- A pet named after its family (a Wolf called "Wolf") says it once, as the game does.
+    if family == pet.name then family = "" end
     local loyal = type(pet.loyaltyName) == "string" and pet.loyaltyName or ""
     -- The game's loyalty name already carries the rank ("(Loyalty level 6) Best
     -- Friend"), so the number is colored where it is. Only a name without it
@@ -163,23 +158,56 @@ local function paintPet(frame, index)
     if detail.SetJustifyH then detail:SetJustifyH("CENTER") end
 end
 
+-- The pet's lines and the slots' places are redone a frame after anything that
+-- changes them, once however many arrive together, never inside the game's own
+-- call. Nothing hooks the game's methods: its callbacks, events and the frame's
+-- and slots' own scripts say when.
+local stableQueued = false
+local function refreshStable()
+    if stableQueued then return end
+    stableQueued = true
+    C_Timer.After(0, function()
+        stableQueued = false
+        local f = _G.PetStableFrame
+        if type(f) ~= "table" or not (f.IsShown and f:IsShown()) then return end
+        DaylightUI.SafeCall(paintPet, f)
+        DaylightUI.SafeCall(placeSlots, f)
+    end)
+end
+
+local function watchStable(f)
+    if stableWatched then return end
+    stableWatched = true
+    f:HookScript("OnShow", refreshStable)
+    -- A click on a pet slot picks it. The slots are ours to script, the frame's
+    -- method that writes the lines is not.
+    for _, name in ipairs(STABLE_SLOTS) do
+        local slot = _G[name]
+        if type(slot) == "table" and slot.HookScript then slot:HookScript("OnClick", refreshStable) end
+    end
+    local R = _G.EventRegistry
+    if type(R) == "table" and R.RegisterCallback then
+        for _, e in ipairs({ "StableFrameMixin.PetSelected", "StableFrameMixin.OnSelectedPetChanged" }) do
+            pcall(R.RegisterCallback, R, e, refreshStable, "DaylightUI.stable")
+        end
+    end
+    for _, e in ipairs({ "PET_STABLE_UPDATE", "PLAYER_MONEY" }) do
+        DaylightUI.RegisterEvent(e, refreshStable)
+    end
+    DaylightUI.RegisterUnitEvent("UNIT_PET", refreshStable, "player")
+end
+
 Engine.Window({ key = "stable", pack = "npc", addon = "Blizzard_StableUI", frame = "PetStableFrame", watch = true,
     after = function(Kit, f)
         local ink = DaylightUI.Style.INK
         local Win = DaylightUI.Win
-        -- Portrait frames hang the X off the corner and leave the title in the
-        -- portrait's old spot. Both sit in the header, like our own windows.
+        -- Portrait frames hang the X off the corner, so it sits in the header like
+        -- our own windows'. The title's spot is Kit.Window's, as for every window.
         local close = f.CloseButton
         if type(close) == "table" and close.SetPoint then
             close:SetSize(DaylightUI.Widgets.CLOSE, DaylightUI.Widgets.CLOSE)
             close:ClearAllPoints()
             close:SetPoint("TOPRIGHT", f, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(false))
-        end
-        local title = type(f.TitleContainer) == "table" and f.TitleContainer.TitleText
-        if type(title) == "table" and title.SetPoint then
-            title:ClearAllPoints()
-            title:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, Win.TITLE_Y)
-            title:SetPoint("RIGHT", f, "RIGHT", -40, 0)
         end
         for _, name in ipairs(STABLE_SLOTS) do
             local slot = _G[name]
@@ -225,22 +253,7 @@ Engine.Window({ key = "stable", pack = "npc", addon = "Blizzard_StableUI", frame
         Kit.Light(_G.PetStableCostLabel, ink.LABEL)
         paintPet(f)
         placeSlots(f)
-        if not stableHooked and type(hooksecurefunc) == "function" then
-            stableHooked = true
-            -- The frame keeps its own copy of the mixin methods, so hooking the
-            -- mixin table never sees a click.
-            -- Ours runs a frame later, not inside the game's own call.
-            if type(f.SelectPet) == "function" then
-                hooksecurefunc(f, "SelectPet", function(self, index)
-                    C_Timer.After(0, function() paintPet(self, index) end)
-                end)
-            end
-            if type(f.Update) == "function" then
-                hooksecurefunc(f, "Update", function(self)
-                    C_Timer.After(0, function() placeSlots(self) end)
-                end)
-            end
-        end
+        watchStable(f)
         -- The buy-a-slot line sits lower in the gap, in the same ink as the slot labels.
         local ask = _G.PetStableSlotText
         local above = _G.PetStableCurrentPet

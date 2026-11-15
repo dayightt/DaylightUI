@@ -4,6 +4,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Pixel = DUI.Pixel
 local CD = ns.Cooldowns
 
@@ -13,7 +14,7 @@ ns.BuffBars = BB
 BB.VIEWER = "BuffBarCooldownViewer"
 -- A number that is safe to do math on (never a secret).
 local function num(v)
-    if type(v) ~= "number" or (issecretvalue and issecretvalue(v)) then return nil end
+    if type(v) ~= "number" or isSecret(v) then return nil end
     return v
 end
 
@@ -104,7 +105,7 @@ end
 -- text can't be hooked (see BB.Attach). So each spell on a game bar gets a clock
 -- over the bar's right end: a holder with the client's aura container inside
 -- (CdmAuras.Setup), whose one button carries a time text the client updates itself,
--- in and out of combat, in our format. The game's text is hidden underneath. A bar
+-- in and out of combat, in Daylight UI's format. The game's text is hidden underneath. A bar
 -- timing a totem (no aura to find) or showing Edit Mode's sample keeps the game's
 -- text, as does a spell first seen in combat until the fight ends, since aura
 -- containers can only be made out of combat.
@@ -174,7 +175,7 @@ local function says(item, method)
     local get = item[method]
     if type(get) ~= "function" then return false end
     local ok, v = pcall(get, item)
-    return ok and type(v) ~= "nil" and not (issecretvalue and issecretvalue(v)) and v ~= false
+    return ok and type(v) ~= "nil" and not isSecret(v) and v ~= false
 end
 
 local function look(item)
@@ -220,7 +221,7 @@ local function syncOne(item)
     if text:IsShown() then text:SetShown(false) end
 end
 
--- Gives every visible game bar either our clock or the game's own time. Called from
+-- Gives every visible game bar either Daylight UI's clock or the game's own time. Called from
 -- the reclaim pass, the scan tick (a totem going up or down) and style changes.
 function BB.SyncClocks()
     local v = _G[BB.VIEWER]

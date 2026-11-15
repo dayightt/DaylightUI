@@ -1,5 +1,11 @@
 local stub = require("stub")
 
+-- The key of the question Daylight UI's own box is asking now, or nil.
+local function asked()
+    local spec = DaylightUI.Widgets and DaylightUI.Widgets.Asking()
+    return spec and spec.key
+end
+
 -- The fake world around the panel (slide, login, meter) lives in
 -- tests/panelworld.lua, shared with tests/test_meters.lua.
 local PW = require("panelworld")
@@ -512,7 +518,7 @@ end)
 T.test("info panel: the mode button opens a drop-down of every mode", function()
     local DUI = login()
     local M, area = stub.infopanel.Meter, stub.infopanel.Panel.meterArea
-    T.eq(#M.MODES, 11, "every mode the game keeps")
+    T.eq(#M.MODES, 12, "every mode the game keeps")
     area:GetScript("OnEnter")(area)
     local b = M.header.buttons.mode
     T.eq(b.kind, "mode")
@@ -765,7 +771,7 @@ T.test("info panel: joining a group keeps, asks about, or resets the fights", fu
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET"); T.falsy(stub.meter.reset)
+    T.eq(asked(), "meterReset"); T.falsy(stub.meter.reset)
     stub.FireEvent("GROUP_ROSTER_UPDATE")
     stub.inGroup = false
     stub.FireEvent("GROUP_ROSTER_UPDATE")
@@ -788,16 +794,16 @@ end
 T.test("info panel: entering an instance keeps, asks about, or resets the fights", function()
     local DUI = login()
     stub.meter.fights = { { sessionID = 1 } }
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     zoneTo(33)
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET", "asks by default"); T.falsy(stub.meter.reset)
-    stub.popup = nil
+    T.eq(asked(), "meterReset", "asks by default"); T.falsy(stub.meter.reset)
+    DaylightUI.Widgets.Answer(false)
     zoneTo(nil)
     DUI:Set("InfoPanel", "meter.onInstance", "nothing")
     zoneTo(34)
-    T.isnil(stub.popup, "keeps them"); T.falsy(stub.meter.reset)
+    T.isnil(asked(), "keeps them"); T.falsy(stub.meter.reset)
     zoneTo(nil)
-    T.isnil(stub.popup, "leaving isn't entering")
+    T.isnil(asked(), "leaving isn't entering")
     DUI:Set("InfoPanel", "meter.onInstance", "reset")
     zoneTo(36)
     T.truthy(stub.meter.reset)
@@ -830,18 +836,17 @@ end)
 
 T.test("info panel: both on Ask, answering yes on joining isn't asked again at the door", function()
     local DUI = login()
-    stub.popup = nil
+    DaylightUI.Widgets.Answer(false)
     DUI:Set("InfoPanel", "meter.onJoin", "ask")
     DUI:Set("InfoPanel", "meter.onInstance", "ask")
     stub.meter.fights = { { sessionID = 1 } }
     stub.inGroup = true
     stub.FireEvent("GROUP_ROSTER_UPDATE")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
-    stub.popup = nil
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    T.eq(asked(), "meterReset")
+    DaylightUI.Widgets.Answer(true)
     stub.meter.fights = {}
     zoneTo(33)
-    T.isnil(stub.popup, "nothing left to clear")
+    T.isnil(asked(), "nothing left to clear")
 end)
 
 T.test("info panel: a /reload or login inside and the run back after dying aren't entering", function()
@@ -1045,9 +1050,9 @@ T.test("info panel: reset asks first, then clears every fight", function()
     local b = M.header.buttons.reset
     T.eq(b.kind, "reset")
     b:GetScript("OnClick")(b, "LeftButton")
-    T.eq(stub.popup, "DAYLIGHTUI_METER_RESET")
+    T.eq(asked(), "meterReset")
     T.falsy(stub.meter.reset, "nothing cleared until confirmed")
-    StaticPopupDialogs.DAYLIGHTUI_METER_RESET.OnAccept()
+    DaylightUI.Widgets.Answer(true)
     T.truthy(stub.meter.reset)
     T.eq(DUI:Get("InfoPanel", "meter.session"), "current")
 end)
@@ -1389,7 +1394,7 @@ T.test("info panel: the minimap skips the login fade-in, so it's redrawn as the 
     stub.FireEvent("MINIMAP_UPDATE_ZOOM")
     for _ = 1, 15 do frames(60) end
     T.eq(P.holder:GetAlpha(), 1, "the panel came in")
-    T.eq(Minimap:IsIgnoringParentAlpha(), false, "the map follows the panel's fade again")
+    T.eq(stub.infopanel.Minimap.early, false, "the map follows the panel's fade again")
     T.eq(Minimap:GetEffectiveAlpha(), 1)
     T.eq(Minimap.__picture, "filled")
     stub.ResetTimers()
@@ -1421,7 +1426,13 @@ T.test("info panel: after a loading screen the minimap is redrawn unseen once it
     T.eq(Minimap.__zoomCalls, 0, "nothing while the map can't be seen: the game would ignore it")
     P.holder:SetAlpha(0.02)
     frames(60)
-    T.eq(Minimap.__picture, "filled", "drawn as the fade-in starts")
+    T.eq(Minimap.__picture, "empty", "barely there: the game would ignore it, so it waits")
+    P.holder:SetAlpha(0.5)
+    frames(60)
+    T.eq(Minimap.__picture, "empty", "still see-through")
+    P.holder:SetAlpha(1)
+    frames(60)
+    T.eq(Minimap.__picture, "filled", "drawn once the fade-in is done")
     T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
     local calls = Minimap.__zoomCalls
     T.eq(calls, 4, "two zooms out and back")
@@ -1435,6 +1446,55 @@ T.test("info panel: after a loading screen the minimap is redrawn unseen once it
     stub.FireEvent("LOADING_SCREEN_DISABLED")
     frames(60)
     T.eq(Minimap.__picture, "filled")
+    stub.ResetTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the game stops updating a see-through minimap. Players with
+-- the panel at 70% walked into a hut or a cave and the map went empty, and
+-- one faded out in a fight came back empty too. So the map stays solid at
+-- the panel's opacity, and solid again after a fade it's redrawn.
+T.test("info panel: the minimap faded out and back is redrawn, so walking indoors meanwhile doesn't leave it empty", function()
+    login()
+    stub.RunTimers()
+    local queue = {}
+    C_Timer.After = function(d, fn) queue[#queue + 1] = { at = GetTime() + (d or 0), fn = fn } end
+    local F = DaylightUI.Fade
+    local P = stub.infopanel.Panel
+    local function frames(n)
+        for _ = 1, n do
+            stub.Advance(1 / 60)
+            F.Step()
+            stub.RunOnUpdate(F.driver, 1 / 60)
+            local due = queue
+            queue = {}
+            for _, t in ipairs(due) do
+                if t.at <= GetTime() then t.fn() else queue[#queue + 1] = t end
+            end
+        end
+    end
+    DaylightUI:Set("InfoPanel", "fade.mode", "combat")
+    DaylightUI:Set("InfoPanel", "fade.delay", 0)
+    DaylightUI:Set("InfoPanel", "fade.opacity", 0.7)
+    frames(60)
+    stub.EnterCombat()
+    frames(120)
+    T.eq(Minimap:GetAlpha(), 0, "faded in the fight")
+    -- Into a cave while it can't be seen: the game leaves its picture empty.
+    Minimap.__picture, Minimap.__zoomCalls = "empty", 0
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(60)
+    T.eq(Minimap.__zoomCalls, 0, "nothing while it can't be seen")
+    stub.LeaveCombat()
+    frames(120)
+    T.near(P.holder:GetAlpha(), 0.7, 0.01, "the panel back at its opacity after the fight")
+    T.eq(Minimap:GetEffectiveAlpha(), 1, "the map solid: a see-through map isn't kept up to date")
+    T.eq(Minimap.__picture, "filled", "and drawn")
+    T.eq(Minimap:GetZoom(), 2, "at the zoom it had")
+    local calls = Minimap.__zoomCalls
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    frames(120)
+    T.eq(Minimap.__zoomCalls, calls, "never at a door while it shows")
     stub.ResetTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -1582,7 +1642,7 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     stub.Advance(3)
     settle()
     T.near(P.holder:GetAlpha(), 0.3, 0.01, "panel part faded")
-    T.eq(Minimap:GetAlpha(), 1, "part faded: map still shown")
+    T.near(Minimap:GetAlpha(), 0.3, 0.01, "part faded: the map fades with it")
     -- Opacity 0: gone for good, the map's icons too.
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     DaylightUI:Set("InfoPanel", "fade.opacity", 0)

@@ -44,8 +44,6 @@ function M.world()
             stub.RunTimers()
         end,
     }
-    _G.StaticPopupDialogs = {}
-    _G.StaticPopup_Show = function(which) stub.popup = which end
     local function preset(i)
         local systems = {}
         for idx = 1, 4 do systems[idx] = { system = 0, systemIndex = idx, settings = {}, anchorInfo = {} } end
@@ -197,18 +195,30 @@ function M.world()
         end
         bar:SetSize(300, 90)
         function bar:IsMouseOver() return self.__mouse == true end
+        bar.actionButtons = {}
         for i = 1, 12 do
-            local b = CreateFrame("Button", spec[2] .. i, bar)
+            -- As ActionBar_OnLoad makes them: each button in a container frame of
+            -- its bar, anchored to its center, and told its bar (b.bar, which a key
+            -- press reads its page through before the parent).
+            local c = CreateFrame("Frame", spec[1] .. "ButtonContainer" .. i, bar)
+            c:SetSize(45, 45)
+            local b = CreateFrame("Button", spec[2] .. i, c)
             b:SetSize(45, 45)
+            b:SetPoint("CENTER")
+            b.bar, b.container, b.index = bar, c, i
+            bar.actionButtons[i] = b
             -- The game's key press code (ActionButtonDown) ends with this mixin call.
             function b:UpdateState() end
             local o, grid = origin[spec[1]], spec[1] == "MultiBarBottomRight" or spec[1] == "MultiBarRight"
             local col, row = (i - 1) % (grid and 6 or 12), grid and math.floor((i - 1) / 6) or 0
             local x, y = o[1] + col * 47, o[2] + row * 47
-            function b:GetLeft() return x end
-            function b:GetRight() return x + 45 end
-            function b:GetBottom() return y end
-            function b:GetTop() return y + 45 end
+            -- Edit Mode lays out the containers; a button sits on its container.
+            for _, f in ipairs({ b, c }) do
+                function f:GetLeft() return x end
+                function f:GetRight() return x + 45 end
+                function f:GetBottom() return y end
+                function f:GetTop() return y + 45 end
+            end
             local tex = {}
             for _, k in ipairs({ "Normal", "Highlight", "Pushed", "Checked" }) do
                 tex[k] = b:CreateTexture()
@@ -277,8 +287,10 @@ function M.newWorld(opts)
     -- The simple slot functions of world() are replaced by the slot-aware ones.
     stub.ActionSlots(opts.slots)
     MainActionBar:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
+    -- Only the buttons are protected (ActionBarButtonTemplate is secure). The bars
+    -- aren't, in MultiActionBars.xml or MainActionBar.xml: they're protected only
+    -- while a protected button sits somewhere under them, as in the client.
     for _, spec in ipairs(GAME_BARS) do
-        _G[spec[1]].__protected = true
         for i = 1, 12 do _G[spec[2] .. i].__protected = true end
     end
     for i = 1, 10 do

@@ -1296,3 +1296,17 @@ T.test("buffs: with each category on its own row, imbues get the top row", funct
     T.truthy(y < -BL.Bar:Height(), "a row down, past the imbues and their times")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("buffs: Boosted Rest stays off the debuff bar, its count and its hover", function()
+    local shows = require("aura_rules")
+    local BL = login()
+    stub.neverSecretAuras[1229451] = true
+    local g = DaylightUIDebuffs.__groups.debuffs
+    local me = { canAssist = true, groupMember = true }
+    T.eq(shows(g, me, { spellId = 1229451, harmful = true, duration = 3600, neverSecret = true }), false)
+    T.eq(shows(g, me, { spellId = 589, harmful = true, duration = 18 }), true, "other debuffs stay")
+    stub.SetAuras("player", "HARMFUL", { { name = "Boosted Rest", spellId = 1229451 }, { name = "Shadow Word: Pain", spellId = 589 } })
+    local entries = BL.Auras.Collect("HARMFUL")
+    T.eq(#entries, 1)
+    T.eq(entries[1].spellId, 589)
+end)

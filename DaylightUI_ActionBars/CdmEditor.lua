@@ -3,13 +3,14 @@
 -- piece, with sample timers. A tray at the bottom lists every spell the Cooldown
 -- Manager tracks: click one (or drag it up) and pick Icon or Bar. Pieces drag with
 -- unlock mode's magnets and guide lines and land on its grid. A drag always moves a
--- whole group and never regroups anything; that used to group and ungroup at random.
+-- whole group and never regroups anything.
 -- The + on each free side of the selected piece is the only way into a group (the
 -- next spell picked goes there), and "Unhook it" on the card is the way out. Every
 -- change writes the saved layout (CdmData) and the live layout follows at once.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Data, Rows = ns.CdmData, ns.CdmRows
 
@@ -72,7 +73,7 @@ local function allListed()
             local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, true)
             if ok and type(ids) == "table" then
                 for _, id in ipairs(ids) do
-                    if type(id) == "number" and not (issecretvalue and issecretvalue(id)) and not out[id] then
+                    if type(id) == "number" and not isSecret(id) and not out[id] then
                         out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false }
                     end
                 end
@@ -179,7 +180,7 @@ function Ed.KeyForID(kind, text)
     end
     local ok, name = false, nil
     if type(C_Spell) == "table" and type(C_Spell.GetSpellName) == "function" then ok, name = pcall(C_Spell.GetSpellName, n) end
-    if not (ok and type(name) == "string" and not (issecretvalue and issecretvalue(name)) and name ~= "") then
+    if not (ok and type(name) == "string" and not isSecret(name) and name ~= "") then
         return nil, "spell"
     end
     for _, e in ipairs(Ed.Spells()) do
@@ -220,7 +221,7 @@ function Ed.OpenAddMenu(owner)
         function(k) Ed.AskID(k) end, 140)
 end
 
-pcall(DUI.RegisterEvent, "ITEM_DATA_LOAD_RESULT", function(_, item, success)
+DUI.RegisterEvent("ITEM_DATA_LOAD_RESULT", function(_, item, success)
     if waitingItem == nil or item ~= waitingItem then return end
     waitingItem = nil
     if not isOpen then return end
@@ -267,6 +268,8 @@ function Ed.Pill() return ui and ui.pill end
 function Ed.TrayHint() return ui and ui.hint end
 function Ed.PillButton(key) return ui and ui[key] end   -- "import", "reset", "live"...
 function Ed.PreviewOf(id) return ui and ui.pieces[id] end
+function Ed.Chooser() return ui and ui.chooser end
+function Ed.Plus(side) return ui and ui.plus[side] end
 
 -- After a layout change: update the live layout, then the editor.
 function Ed.Changed()
@@ -699,12 +702,14 @@ function Ed.Open(g)
     ui.overlay:Show()
     Ed.Draw()
     if DUI.Sound then DUI.Sound.Play("open") end
+    ns.CdmGuide.Offer()
     return true
 end
 
 function Ed.Close()
     if not isOpen then return end
     isOpen = false
+    ns.CdmGuide.Stop()
     if Ed.FlowCheck then Ed.FlowCheck() end   -- stop the outline colors from cycling
     selected, attach, pending, drag, trayMove = nil, nil, nil, nil, nil
     Data.SetViewing(nil)
@@ -1514,13 +1519,17 @@ end
 -- Opening it: /cdm, /dui cdm, the options page
 -- ---------------------------------------------------------------------
 
--- /cdm opens this editor instead of the game's Cooldown Manager settings. Whatever
+-- /cdm opens this editor instead of the game's Cooldown Manager settings, and
+-- /cdm tour walks through it. Whatever
 -- command owns "/cdm" gets its handler swapped, and the chat box's lookup cache is
--- pointed at ours too. Skipped while the module is switched off; the core's login
+-- pointed at Daylight UI's too. Skipped while the module is switched off; the core's login
 -- handler (which enables the modules) runs first.
 local function takeOverSlash()
     if not ns.Cooldowns.enabled then return end
-    local open = function() Ed.Open() end
+    local open = function(msg)
+        if type(msg) == "string" and string.lower(strtrim(msg)) == "tour" then return ns.CdmGuide.Start() end
+        Ed.Open()
+    end
     for key in pairs(SlashCmdList) do
         for i = 1, 9 do
             local s = _G["SLASH_" .. key .. i]

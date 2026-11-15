@@ -31,7 +31,7 @@ local L = DUI.L
 local Plugins = {}
 DUI.Plugins = Plugins
 
-DUI.API = { major = 1, minor = 4 }
+DUI.API = { major = 1, minor = 7 }
 
 Plugins.ORDER = 2000 -- plugin sections go after all built-in ones (News is 1000), under their heading
 Plugins.list, Plugins.order = {}, {}
@@ -179,9 +179,9 @@ end
 -- How each kind of frame reads in a sentence ("Paints cast bars.").
 Plugins.KIND_WORDS = { castbar = "cast bars", unit = "unit frames", party = "party frames", raid = "raid frames",
     partypet = "party pets", nameplate = "nameplates", actionbutton = "action buttons", shoptile = "the vendor's items",
-    craftrow = "recipes", questrow = "the quest tracker", bagslot = "bag slots" }
+    craftrow = "recipes", questrow = "the quest tracker", bagslot = "bag slots", meterrow = "the damage meters" }
 Plugins.KIND_ORDER = { "unit", "party", "raid", "partypet", "castbar", "nameplate", "actionbutton", "questrow",
-    "bagslot", "shoptile", "craftrow" }
+    "bagslot", "shoptile", "craftrow", "meterrow" }
 
 local function listed(words)
     if #words == 1 then return words[1] end
@@ -201,6 +201,23 @@ function Plugins.ChangesLine(name)
     if #kinds > 0 then out[#out + 1] = string.format(L["Paints %s."], listed(kinds)) end
     if c.texts > 0 then
         out[#out + 1] = string.format(c.texts == 1 and L["Adds %d text."] or L["Adds %d texts."], c.texts)
+    end
+    local function more(n, one, many)
+        if (n or 0) > 0 then out[#out + 1] = string.format(n == 1 and L[one] or L[many], n) end
+    end
+    more(c.tooltips, "Adds tooltip lines (%d).", "Adds tooltip lines (%d).")
+    more(c.steps, "Adds %d setup guide page.", "Adds %d setup guide pages.")
+    more(c.baggroups, "Adds %d bag group.", "Adds %d bag groups.")
+    more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
+    more(c.aurafilters, "Adds %d aura filter.", "Adds %d aura filters.")
+    more(c.chat, "Changes chat lines.", "Changes chat lines.")
+    more(c.filters, "Filters the vendor's items.", "Filters the vendor's items.")
+    local dt, dp = c.datatexts or 0, c.datapanels or 0
+    if dt > 0 then
+        out[#out + 1] = string.format(dt == 1 and L["Adds %d data text."] or L["Adds %d data texts."], dt)
+    end
+    if dp > 0 then
+        out[#out + 1] = string.format(dp == 1 and L["Adds %d data panel."] or L["Adds %d data panels."], dp)
     end
     if c.defaults > 0 then
         out[#out + 1] = string.format(c.defaults == 1 and L["Adds %d group of settings."] or L["Adds %d groups of settings."], c.defaults)
@@ -280,7 +297,7 @@ local function groups()
 end
 
 -- Built with the first plugin or pack (no page if none are installed) and
--- rebuilt as each one registers. Their addons load after ours but before the
+-- rebuilt as each one registers. Their addons load after Daylight UI but before the
 -- window first draws the page, same as the Profiles page's pack cards.
 local page
 local function rebuild()

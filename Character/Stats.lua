@@ -24,7 +24,7 @@ Stats.CLASS_OPEN = { WARRIOR = "attack", ROGUE = "attack", PALADIN = "attack", H
     WARLOCK = "spell", PRIEST = "spell", DRUID = "spell", SHAMAN = "spell" }
 Stats.NO_MANA = { WARRIOR = true, ROGUE = true }
 
-local function isSecret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
+local isSecret = DUI.IsSecret
 
 -- Calls a game function that may be missing or error. Returns nothing on failure.
 local function call(name, ...)

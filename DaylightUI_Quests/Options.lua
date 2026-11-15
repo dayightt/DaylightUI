@@ -169,6 +169,9 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("nav.arrow") ~= true or get("nav.arrowGlow") ~= true end },
             { type = "toggle", key = "nav.arrowDistance", label = "Yards under the arrow",
               desc = "How far away the spot is.", disabled = off("nav.arrow") },
+            { type = "toggle", key = "nav.arrowNodes", label = "Arrow to nearby gathering nodes",
+              desc = "When GatherMate2 knows a node within 100 yards, the arrow points there first, with its name under the yards, then goes back to your quest once you reach it. Which nodes count follows GatherMate2's own settings: the kinds it shows on your map and its node filter. Needs the GatherMate2 addon.",
+              disabled = function(get) return get("nav.arrow") ~= true or not (ns.Gather and ns.Gather.Loaded()) end },
             { type = "text", label = function()
                 if ns.Spots and ns.Spots.Ready() then
                     return DaylightUI.L["QuestieDB found: the arrow is ready."]

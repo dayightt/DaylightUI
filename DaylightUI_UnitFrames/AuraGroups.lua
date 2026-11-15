@@ -29,7 +29,8 @@ AuraGroups.CHOICE_LABELS = {
 }
 
 -- Every setting of a group. Looks.lua resets all of them.
-AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "spacing", "x", "y", "timers", "shortTimers", "swipe", "tooltips" }
+AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "spacing", "x", "y", "timers", "shortTimers", "swipe",
+                      "tooltips", "timeSize", "countSize", "counts" }
 
 -- Sample icons for stand-ins (options preview, /dui test), in the shape
 -- Auras.DrawSample expects.
@@ -84,6 +85,35 @@ local function usable(def, choice)
     return g.ids == nil or g.ids() ~= nil
 end
 AuraGroups.Usable = usable
+
+-- Plugins' spell lists (DaylightUI.API me.AddAuraFilter): each one is one
+-- more Filter choice for the buffs or debuffs rows, its own group matched by
+-- spell id. The client fixes a group's spells when it's added, so a list
+-- changed after it has shown takes effect after a reload.
+local NONE = {}
+function AuraGroups.TakePlugins()
+    local R = DUI.APIReport
+    for _, f in ipairs(type(R) == "table" and R.AuraFilters and R.AuraFilters() or NONE) do
+        local def = AuraGroups.BY_KEY[f.what]
+        local g = def and groupOf(def, f.key)
+        if def and not g then
+            g = { key = f.key, index = 1, plugin = f.owner }
+            local groups = ns.Auras.KINDS[def.kind].groups
+            groups[#groups + 1] = g
+            def.choices[#def.choices + 1] = f.key
+        end
+        if g then
+            g.filter = (f.what == "debuffs" and "HARMFUL" or "HELPFUL") .. (f.mine and "|PLAYER" or "")
+            g.yours = f.mine or nil
+            g.ids = function() return f.ids end
+            AuraGroups.CHOICE_LABELS[def.key][f.key] = f.label
+        end
+    end
+end
+DUI.On("AuraFiltersChanged", function()
+    DUI.SafeCall(AuraGroups.TakePlugins)
+    if ns.module then DUI.AfterCombat(function() ns.Refresh(ns.module) end, "UnitFrames.auraFilters") end
+end)
 
 -- The choice to show when the picked one can't. Only a filter the client
 -- refused falls back to another choice. "Heals and shields" on a class with no
@@ -257,6 +287,13 @@ function AuraGroups.Box(frame, cfg)
     elseif spot == "left" then box.outL = box.outL + pw + ns.PartyPets.GAP
     elseif spot == "below" then box.below = box.below + ph + ns.PartyPets.GAP
     elseif spot == "above" then box.above = box.above + ph + ns.PartyPets.GAP end
+    -- Party targets (PartyTargets.lua) the same way, past the pet.
+    spot, pw, ph = nil, 0, 0
+    if frame.spec and frame.spec.pets then spot, pw, ph = ns.PartyTargets.Room() end
+    if spot == "right" then box.outR = box.outR + pw + ns.PartyTargets.GAP
+    elseif spot == "left" then box.outL = box.outL + pw + ns.PartyTargets.GAP
+    elseif spot == "below" then box.below = box.below + ph + ns.PartyTargets.GAP
+    elseif spot == "above" then box.above = box.above + ph + ns.PartyTargets.GAP end
     return box
 end
 
@@ -293,15 +330,19 @@ local function placeOne(c, def, g, on, frame, box)
         { x = g.x, y = g.y, line = per * (s[1] + gap) - gap })
     -- Under the frame, the numbers on each icon's top edge need room.
     local spot = type(g.spot) == "string" and g.spot or ""
+    local timeSize = tonumber(g.timeSize) or ns.Auras.TIME_SIZE[def.kind]
     if g.timers == true and (spot == "below" or spot:find("^outbottom")) then
-        L.y = L.y - ns.Auras.TIME_SIZE[def.kind] * 0.6
+        L.y = L.y - timeSize * 0.6
     end
     local real = not ns.Auras.IsPlain(c)
     -- Settings first, since a group added now builds its buttons from them.
+    ns.Auras.SetTextSizes(c, timeSize, tonumber(g.countSize) or ns.Auras.COUNT_SIZE)
+    ns.Auras.SetCounts(c, g.counts ~= false)
     ns.Auras.SetTimers(c, g.timers == true)
     ns.Auras.SetShortTimers(c, g.shortTimers == true)
     ns.Auras.SetSwipe(c, g.swipe == true)
     ns.Auras.SetTips(c, g.tooltips == true)
+    ns.AuraLists.Use(c, ns.AuraLists.FromGroup(g))
     if real and on then ns.Auras.AddGroup(c, on) end
     if def.kind == "tilebuff" then
         ns.Auras.SetBuffCounts(c, { showBuffs = on ~= nil, buffFilter = on }, max)
@@ -318,7 +359,7 @@ local function placeOne(c, def, g, on, frame, box)
     c:SetSize(math.max(1, L.line), s[2])
     if real then pcall(c.UpdateAllAuras, c) end
     placed[c] = { L = L, on = on, max = max, per = per, s = s, gap = gap, timers = g.timers == true,
-                  shortTimers = g.shortTimers == true, swipe = g.swipe == true, def = def }
+                  shortTimers = g.shortTimers == true, swipe = g.swipe == true, counts = g.counts ~= false, def = def }
 end
 
 -- The parent is protected (a group button), so out of combat only. Extra group
@@ -366,7 +407,7 @@ function AuraGroups.ShowSample(set, frame, all, box, i)
             ns.Auras.DrawSample(c, list, n, def.kind, { anchor = p.L.flowAnchor, hDir = p.L.hDir,
                                                          vDir = p.L.vDir, perRow = math.min(p.per, fits),
                                                          timers = p.timers, shortTimers = p.shortTimers,
-                                                         swipe = p.swipe })
+                                                         swipe = p.swipe, counts = p.counts })
         end
     end
 end

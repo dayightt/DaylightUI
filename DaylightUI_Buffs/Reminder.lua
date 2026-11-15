@@ -382,15 +382,7 @@ end
 
 -- Once next frame, however many came in. A raid's roster and a pre-pull rebuff
 -- come in bursts, and each check reads every aura and member.
-local recheckQueued = false
-function Reminder.RecheckSoon()
-    if recheckQueued then return end
-    recheckQueued = true
-    C_Timer.After(0, function()
-        recheckQueued = false
-        DUI.SafeCall(Reminder.Recheck)
-    end)
-end
+Reminder.RecheckSoon = DUI.Soon(function() DUI.SafeCall(Reminder.Recheck) end)
 
 -- The sample: test mode (until it ends) or the options button (a few seconds).
 function Reminder.ShowSample(timed)

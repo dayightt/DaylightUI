@@ -1,6 +1,6 @@
 -- The small bars: stance (and paladin auras), pet and possess. They keep the game's
--- own buttons, moved into our holders, so their keybinds and updates stay the
--- game's. We only place, size and show them.
+-- own buttons, moved into Daylight UI's holders, so their keybinds and updates stay the
+-- game's. This file only places, sizes and shows them.
 
 local _, ns = ...
 
@@ -9,7 +9,7 @@ ns.Small = Small
 
 local base = {}          -- bar key -> one button's own width, measured before any scaling
 
--- Moves the game's buttons prefix1..n into our holder (at file load, out of combat).
+-- Moves the game's buttons prefix1..n into Daylight UI's holder (at file load, out of combat).
 -- They were anchored to the game's own container.
 local function adopt(def, holder, prefix, n)
     local list = {}

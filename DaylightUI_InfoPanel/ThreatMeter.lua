@@ -14,6 +14,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -36,7 +37,6 @@ TM.MOVER = "infopanel.threat"
 TM.FREE_MIN_W, TM.FREE_MAX_W = 100, 280   -- the Width slider's range
 TM.ROWS_RANGE = { 2, 10 }                 -- the Rows slider's range            -- under the meter: between the meter's last row and it
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- A sample group for test mode and the options page: a tank, you close to
 -- pulling, the rest below. Scaled percent and raw threat, as the game gives.
@@ -647,7 +647,7 @@ function TM.Build(mod)
     end)
     TM.tab = tab
 
-    -- Its own window (threat.at = "free"): a frame of ours the unlock mode
+    -- Its own window (threat.at = "free"): a Daylight UI frame the unlock mode
     -- moves, starting just left of the panel, and its resize grip.
     free = CreateFrame("Frame", "DaylightUIThreatMeterFrame", UIParent)
     free:SetFrameStrata("LOW")

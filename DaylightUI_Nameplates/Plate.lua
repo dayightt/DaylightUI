@@ -1,4 +1,4 @@
--- A nameplate in the Daylight UI look: our bar (border, angled right end, soft
+-- A nameplate in the Daylight UI look: a bar (border, angled right end, soft
 -- colors) with the health percent on it, the name under it, a gold mark on quest
 -- targets and the raid marker beside it, the cast bar under the name, and auras
 -- above (Auras.lua). Your target's plate gets the accent on its border; the one
@@ -35,7 +35,7 @@ Plate.SLANT = 0.6 -- angled end cut, as a fraction of bar height
 Plate.NAME_GAP = 2 -- gap between the bar and the name
 Plate.HOVER = 0.15 -- mouseover brighten
 Plate.MARKER = 16
--- A cell of our 4 x 2 raid marker sheet; SetSpriteSheetCell accepts a secret index.
+-- A cell of the 4 x 2 raid marker sheet; SetSpriteSheetCell accepts a secret index.
 Plate.MARKER_SHEET = DUI.MEDIA .. "markers.png"
 Plate.MARKER_ROWS, Plate.MARKER_COLS = 2, 4
 Plate.QUEST_COLOR = { 1, 0.82, 0.1 }
@@ -107,7 +107,7 @@ Plate.EXECUTE_LINE = 0.85 -- the line at its edge (executeLineSize px)
 -- pulse's slow speed).
 Plate.EXECUTE_PULSE = { low = 0.35, time = 0.7 }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 local NONE, WHITE = {}, { 1, 1, 1 } -- never written
 
 -- A call's plain first return, or nil (on an error or a secret result).
@@ -130,9 +130,9 @@ end
 
 -- Corpses: a lootable mob keeps its plate (the engine leaves it for the loot
 -- sparkle and interact icon), and the game's plate then only shows its widgets
--- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). Ours shows nothing
--- there; the game's widgets and soft-target icon stay visible over its hidden
--- frame (Manager.Silence). Dead players keep theirs.
+-- (UnitNameplateShowsWidgetsOnly, Blizzard_NamePlateUnitFrame). The Daylight UI
+-- plate shows nothing there; the game's widgets and soft-target icon stay in view on its
+-- plate (Manager.HideGameFrame). Dead players keep theirs.
 function Plate.IsCorpse(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
     return plain(UnitIsDead, unit) == true and plain(UnitIsPlayer, unit) ~= true
@@ -186,6 +186,7 @@ function Plate.UpdateCorpse(p)
     if now == p.corpse then return end
     p.corpse = now
     Plate.ShowNow(p)
+    if ns.Manager then ns.Manager.OwnClicks(p) end -- a corpse's plate can't be clicked, as in the game
 end
 
 -- Name-only plates: game objects, and friendly plates while friendly bars are off.
@@ -262,7 +263,7 @@ end
 -- Building
 -- ---------------------------------------------------------------------
 
--- Built away from the game's plates (under our own parent), then moved onto one
+-- Built away from the game's plates (under the manager's own parent), then moved onto one
 -- when needed (Plate.Attach): a frame created as a child of a game plate in combat
 -- comes out forbidden to addons.
 -- sample: the options preview (Sample.lua). It never has a unit, so no client aura
@@ -270,8 +271,8 @@ end
 function Plate.Create(parent, sample)
     local p = CreateFrame("Frame", nil, parent)
     p.isSample = sample == true
-    -- The game scales each plate its own way (simplified ones way down). Ours is the
-    -- UI scale times our Scale setting (Plate.ApplyScale).
+    -- The game scales each plate its own way (simplified ones way down). This one
+    -- is the UI scale times the Scale setting (Plate.ApplyScale).
     if p.SetIgnoreParentScale and not p.isSample then p:SetIgnoreParentScale(true) end
     p:SetSize(1, 1)
 
@@ -376,7 +377,14 @@ function Plate.Create(parent, sample)
     p.factionIcon:Hide()
     p.nameFrame = words
     p.name = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.name:SetWordWrap(false)
+    -- An unseen copy of the name with no width of its own, so it's exactly as wide
+    -- as the letters. The group mark and faction crest sit against its edges and
+    -- the name's width is never read, which may be secret.
+    p.nameEdge = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
+    p.nameEdge:SetAlpha(0)
     p.sub = Style.Text(words, 9, "CENTER", Plate.MEDIA.fonts.name)
+    p.sub:SetWordWrap(false)
     local sc = Plate.SUB_COLOR
     p.sub:SetTextColor(sc[1], sc[2], sc[3])
     p.quest = Style.Text(over, 14, "LEFT", Plate.MEDIA.font)
@@ -384,7 +392,7 @@ function Plate.Create(parent, sample)
     local q = Plate.QUEST_COLOR
     p.quest:SetTextColor(q[1], q[2], q[3])
     p.quest:Hide()
-    -- Quest mark using our objective symbols (questIcon): the symbol on a frame just
+    -- Quest mark using the quest tracker's objective symbols (questIcon): the symbol on a frame just
     -- over the text, which holds the mark's place with the symbol's dark edge drawn
     -- inline (Plate.UpdateQuest).
     p.questArt = CreateFrame("Frame", nil, over)
@@ -420,10 +428,8 @@ function Plate.Create(parent, sample)
     end
 
     -- The frame the game uses to keep plates from overlapping. Where a plate is
-    -- clicked stays the game's (the plate size from Manager.ApplySize, with click
-    -- insets past the edges from Manager.ApplyClickable) and is never set by us, the
-    -- same as EllesmereUI. Plates went invisible while ours pointed the game's at our
-    -- own frames.
+    -- clicked is a frame that stays on the game's plate (Manager.OwnClicks), never
+    -- one of this plate's, which moves between game plates.
     p.stack = CreateFrame("Frame", nil, p)
     -- The game measures a stacking frame by what's drawn in it, not its size: an empty
     -- one counts as nothing and plates don't stack. So it carries an invisible fill
@@ -603,13 +609,12 @@ end
 
 -- A plate's scale: the UI scale times the Scale setting, times its size group's
 -- zoom (Target: on your target, Others: on the rest while you have a target), set
--- in one step. Ours ignores the game plate's own scale: the game shrinks
+-- in one step. It ignores the game plate's own scale. The game shrinks
 -- "simplified" plates (minions, totems, minor mobs, friendlies:
 -- nameplateSimplifiedScale, 0.3) and the target's (nameplateSelectedScale), and
--- Manager.ApplyScales pins its scales to 1 so its frames never resize under ours.
--- No glide: SetScale re-lays out the whole plate, and the old glide (up to 60 a
--- second, through intermediate sizes) was the biggest cost of a target switch and
--- slowed the game over a session. The stacking box keeps its own fixed size (Layout).
+-- Manager.ApplyScales pins its scales to 1 so its frames never resize underneath.
+-- No glide: SetScale re-lays out the whole plate, and gliding through the sizes
+-- (up to 60 a second) made target switches costly and slowed the game over time. The stacking box keeps its own fixed size (Layout).
 local function setScale(p, v)
     if p.scaleSet == v then return end
     p.scaleSet = v
@@ -659,10 +664,10 @@ function Plate.ApplyScale(p)
     setScale(p, UIParent:GetEffectiveScale() * (c.scale or 1) * zoom)
 end
 
--- Attaches to the game's plate, our bar centered on it. The game's plate is sized
--- to our bar (Manager.ApplySize) and sits on the unit, so the bar sits just over
+-- Attaches to the game's plate, the bar centered on it. The game's plate is sized
+-- to the bar (Manager.ApplySize) and sits on the unit, so the bar sits just over
 -- the unit and the game's damage numbers (drawn under all UI) rise above it. The
--- game's own taller plate put its center, and our bar, up where they start. The
+-- game's own taller plate put its center, and the bar, up where they start. The
 -- Height setting offsets it from there.
 function Plate.Anchor(p)
     local nameplate = p.nameplate
@@ -679,19 +684,29 @@ end
 
 -- The frame the game uses to keep this plate apart from others (p.stack), hung
 -- like EllesmereUI's: directly on the game's plate and pinned to it, never through
--- our frames, so nothing on one game plate depends on a frame that moves on to
+-- addon frames, so nothing on one game plate depends on a frame that moves on to
 -- another (that made plates go invisible). Placed on every attach, since Layout
 -- returns early for a plate that looks the same.
+-- Every plate hands the game its stacking frame, as Platynator does, whether the
+-- game stacks that kind of plate or not (/dui platefix can try the plates with
+-- none at all).
+function Plate.NoStack()
+    local M = ns.Manager
+    return M ~= nil and M.fixWithout == "stack"
+end
+
 function Plate.PlaceStack(p)
     local np, s = p.nameplate, p.stack
     if type(np) ~= "table" or p.isSample or not s then return end
+    if Plate.NoStack(p) then return Plate.Detach(p) end
     if s:GetParent() ~= np then s:SetParent(np) end
     s:ClearAllPoints()
     s:SetPoint("CENTER", np, "CENTER", 0, p.stackY or 0)
     s:Show()
+    if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, s) end
 end
 
--- Off the game's plate: our stacking frame is hidden, unpinned and taken back, as
+-- Off the game's plate, the stacking frame is hidden, unpinned and taken back, as
 -- EllesmereUI clears its own. The game plate is never pointed at itself (the game
 -- never sets its stacking frame on its own).
 function Plate.Detach(p)
@@ -769,15 +784,18 @@ function Plate.Layout(p)
     local fillCut = ns.Body.FitBar(p.body, p.health, { p.hover })
     Plate.BackAlpha(p.health)
     Plate.LayoutMarks(p, cut)
-    -- Heals, then a shield, continuing where the health fill (or the previous bar)
-    -- ends, out to the fill's right end, their moving edges leaning like the fill's.
+    -- Heals, then a shield, starting where the health fill (or the previous bar)
+    -- ends, their moving edges leaning like the fill's. Each is as wide as the whole
+    -- health bar so an amount draws at the same scale as health; the heal
+    -- calculator keeps them inside the missing health (Plate.UpdatePrediction).
     local anchor = p.health:GetStatusBarTexture()
+    local full = p.health:GetWidth()
     for _, key in ipairs({ "heals", "absorbs" }) do
         local s = p[key]
         s:ClearAllPoints()
         s:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
         s:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 0, 0)
-        s:SetPoint("RIGHT", p.health, "RIGHT", 0, 0)
+        s:SetWidth(full)
         Style.AngleFill(s, fillCut > 0 and "right" or nil, fillCut)
         anchor = s:GetStatusBarTexture()
     end
@@ -801,6 +819,7 @@ function Plate.Layout(p)
     if not p.threatPctOn then p.threatPct:Hide() end
 
     Style.SetTextSize(p.name, nameSize)
+    Style.SetTextSize(p.nameEdge, nameSize)
     Plate.SizeSub(p, c)
     local qs = math.max(10, math.floor(h * 1.1 + 0.5))
     Style.SetTextSize(p.quest, qs)
@@ -819,10 +838,10 @@ function Plate.Layout(p)
     -- Either line can show up on this plate later, so reserve room for the larger.
     local subRoom = math.max(c.guild and Plate.SubSize(c) or 0, c.role and Plate.SubSize(c, true) or 0)
     if subRoom > 0 then subRoom = subRoom + 1 end
-    -- The stacking box uses the plate's normal size, never the target zoom: its own
-    -- scale (it ignores the plate's), its own size, one anchor. Pinned to the bar's
-    -- corners it shrank and grew with every plate on a target switch, and the game
-    -- restacked them all, sliding plates for seconds and costing ~50 fps in a crowd.
+    -- The stacking box keeps the plate's normal size, never the target zoom, with
+    -- its own scale and size and one anchor. Pinned to the bar's corners it would
+    -- resize with every plate on a target switch, and the game would restack them
+    -- all, sliding plates around for seconds in a crowd.
     local nameBlock = nameSize + subRoom + Plate.NAME_GAP
     local top, bottom = (over and nameBlock or 0) + 4, c.castHeight + 4 + powerRoom + (under and nameBlock or 0)
     p.stack:SetIgnoreParentScale(true)
@@ -876,11 +895,39 @@ local function amount(fn, u)
     return v
 end
 
+-- The plate's heal prediction calculator, filled for its unit, or nil when the
+-- client has none. Heals and shields are both held to the missing health, so
+-- neither runs past the end of the bar. One per plate, made the first time.
+local function filledCalc(p, u)
+    if type(CreateUnitHealPredictionCalculator) ~= "function" or type(UnitGetDetailedHealPrediction) ~= "function" then
+        return nil
+    end
+    local calc = p.healCalc
+    if not calc then
+        local ok, made = pcall(CreateUnitHealPredictionCalculator)
+        if not ok or not made then return nil end
+        calc = made
+        local mode = Enum.UnitDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode.MissingHealth
+        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
+        local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
+        if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
+        if calc.SetIncomingHealOverflowPercent then pcall(calc.SetIncomingHealOverflowPercent, calc, 1) end
+        p.healCalc = calc
+    end
+    if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
+    return calc
+end
+
+local function fromCalc(calc, method)
+    if not (calc and calc[method]) then return nil end
+    local ok, v = pcall(calc[method], calc)
+    if ok then return v end
+end
+
 -- Incoming heals and absorb shield: whole amounts (maybe secret) go straight into
--- the bars, never compared or tested. This runs on every health and prediction
--- event of every plate (~1,000 times a second on 40 plates in a fight), so no
--- tables, show/hide only when the setting changes, and nothing is read for a bar
--- that's off.
+-- the bars, never compared or tested. This runs on every prediction event of
+-- every plate, so no tables, show/hide only when the setting changes, and
+-- nothing is read for a bar that's off.
 function Plate.UpdatePrediction(p)
     local u = p.unit
     local c = cfg()
@@ -889,13 +936,18 @@ function Plate.UpdatePrediction(p)
     if p.absorbsOn ~= absorbs then p.absorbsOn = absorbs; p.absorbs:SetShown(absorbs) end
     if not (heals or absorbs) then return end
     local max = UnitHealthMax(u)
+    local calc = filledCalc(p, u)
     if heals then
+        local v = fromCalc(calc, "GetIncomingHeals")
+        if type(v) == "nil" then v = amount(UnitGetIncomingHeals, u) end
         p.heals:SetMinMaxValues(0, max)
-        p.heals:SetValue(amount(UnitGetIncomingHeals, u))
+        p.heals:SetValue(v)
     end
     if absorbs then
+        local v = fromCalc(calc, "GetDamageAbsorbs")
+        if type(v) == "nil" then v = amount(UnitGetTotalAbsorbs, u) end
         p.absorbs:SetMinMaxValues(0, max)
-        p.absorbs:SetValue(amount(UnitGetTotalAbsorbs, u))
+        p.absorbs:SetValue(v)
     end
 end
 
@@ -1267,8 +1319,10 @@ local function classText(p)
         inner:SetAllPoints(win)
         ct.name[token] = Style.Text(inner, 11, "CENTER", Plate.MEDIA.fonts.name)
         ct.name[token]:SetAllPoints(p.name)
+        ct.name[token]:SetWordWrap(false)
         ct.sub[token] = Style.Text(inner, 9, "CENTER", Plate.MEDIA.fonts.name)
         ct.sub[token]:SetAllPoints(p.sub)
+        ct.sub[token]:SetWordWrap(false)
         ct.wins[token] = win
     end
     p.classText = ct
@@ -1310,12 +1364,12 @@ function Plate.UpdateClassText(p)
     for token, win in pairs(ct.wins) do
         win:Show()
         local fs, sub = ct.name[token], ct.sub[token]
-        fs:SetFont(p.name:GetFont())
+        Style.CopyFace(fs, p.name)
         fs:SetJustifyH(p.nameJustify or "CENTER") -- the name's side of its spot (Plate.PlaceSpots)
         fs:SetText(DUI.Gradients.Text(token, name))
         fs:SetTextColor(1, 1, 1) -- the letters carry their own colors
         fs:Show()
-        sub:SetFont(p.sub:GetFont())
+        Style.CopyFace(sub, p.sub)
         sub:SetJustifyH(p.nameJustify or "CENTER")
         if subOn then pcall(sub.SetFormattedText, sub, "<%s>", p.guild[1]) end
         sub:SetTextColor(Style.ClassTextColor(token))
@@ -1826,8 +1880,12 @@ end
 -- whatever shares their spot and push nothing. The skull never takes space at
 -- all, since its frame shows with any DoT up and only a secret-safe clip decides
 -- whether you see it, so nothing can line up against it.
+-- The big defensive came later and goes after the older pieces: a row keeps its
+-- room with no aura up, so anywhere earlier it would push pieces players had
+-- already placed beside the bar. It still goes before the skull, which steps
+-- back over the rows' room.
 Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
-Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "skull" }
+Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "defensives", "skull" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
     quest = { spot = "questPos", x = "questX", y = "questY" },
@@ -1836,19 +1894,20 @@ Plate.SPOT_KEYS = {
     helps = { spot = "myBuffSpot", grow = "myBuffGrow", x = "myBuffX", y = "myBuffY", friendly = true },
     buffs = { spot = "buffSpot", grow = "buffGrow", x = "buffX", y = "buffY" },
     cc = { spot = "ccSpot", x = "ccX", y = "ccY" },
+    defensives = { spot = "defensiveSpot", x = "defensiveX", y = "defensiveY" },
     percent = { spot = "percentPos", x = "percentX", y = "percentY" },
     level = { spot = "levelPos", x = "levelX", y = "levelY" },
     threatPct = { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" },
     skull = { spot = "dotSkullPos", x = "dotSkullX", y = "dotSkullY" },
     execIcon = { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" },
 }
-Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true } -- outside spots only
+Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true, defensives = true } -- outside spots only
 Plate.OUTSIDE = {}
 for _, s in ipairs(ns.OUTSIDE_SPOTS) do Plate.OUTSIDE[s] = true end
 Plate.ABOVE = { above = true, outtopleft = true, outtopright = true }
 -- Distance from the bar's end to the first piece beside it (where the marks always
 -- were), and between pieces sharing a spot.
-Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4,
+Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4, defensives = 4,
                      percent = 3, level = 3, threatPct = 3, skull = 3, execIcon = 3 }
 Plate.CHAIN_GAP = 2
 
@@ -1898,8 +1957,7 @@ end
 
 -- Group member names marked (friendly.partyMark), since Group names replaces the
 -- class color: a small diamond before the name, or one on each side, in the group
--- color while the name keeps its own color. Placed by the name's measured width;
--- a name that can't be measured (a secret one) gets none.
+-- color while the name keeps its own color.
 function Plate.ShowGroupMark(p, on)
     local marks = p.groupMarks
     if not marks then return end
@@ -1921,33 +1979,42 @@ end
 Plate.GROUP_MARK_ART = DUI.MEDIA .. "shape-diamond.png"
 Plate.GROUP_MARK_SCALE = 0.6 -- size, as a fraction of the name's
 Plate.GROUP_MARK_GAP = 3
+-- The name's unseen copy (p.nameEdge), given the name's text and set on the same
+-- side of the name's box, so its edges are the letters' edges. The text may be
+-- secret: it's only handed on, never looked at.
+function Plate.PlaceNameEdge(p)
+    local edge, name = p.nameEdge, p.name
+    if not edge then return nil end
+    edge:SetText(name:GetText())
+    local H = p.nameJustify or "CENTER"
+    edge:ClearAllPoints()
+    if H == "LEFT" or H == "RIGHT" then
+        edge:SetPoint(H, name, H, 0, 0)
+    else
+        edge:SetPoint("CENTER", name, "CENTER", 0, 0)
+    end
+    return edge
+end
+
 function Plate.PlaceGroupMark(p)
-    local marks, name = p.groupMarks, p.name
-    local tw = textWidth(name, nil)
-    if not (marks and tw) then return false end
+    local marks = p.groupMarks
+    local edge = marks and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local size = math.max(6, math.floor(Plate.NameSize(p, Plate.Cfg(p)) * Plate.GROUP_MARK_SCALE + 0.5))
-    local gap, H = Plate.GROUP_MARK_GAP, p.nameJustify or "CENTER"
+    local gap = Plate.GROUP_MARK_GAP
     local before, after = marks.before, marks.after
     before:SetSize(size, size)
     after:SetSize(size, size)
     before:ClearAllPoints()
     after:ClearAllPoints()
-    if H == "LEFT" then
-        before:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-        after:SetPoint("LEFT", name, "LEFT", tw + gap, 0)
-    elseif H == "RIGHT" then
-        before:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-        after:SetPoint("LEFT", name, "RIGHT", gap, 0)
-    else
-        before:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-        after:SetPoint("LEFT", name, "CENTER", tw / 2 + gap, 0)
-    end
+    before:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
+    after:SetPoint("LEFT", edge, "RIGHT", gap, 0)
     return true
 end
 
 -- Opposite faction crest by a player's name (factionIcon): Alliance or Horde, using
 -- the game's own unit frame crests, so the other side is obvious at a glance,
--- flagged or not. A secret answer or an unmeasurable name gets none.
+-- flagged or not. A secret answer gets none.
 Plate.FACTION_ATLAS = {
     Alliance = "UI-HUD-UnitFrame-Player-PVP-AllianceIcon",
     Horde = "UI-HUD-UnitFrame-Player-PVP-HordeIcon",
@@ -1989,9 +2056,9 @@ end
 
 -- Left of the name (past the group mark when that sits before it).
 function Plate.PlaceFaction(p)
-    local icon, name = p.factionIcon, p.name
-    local tw = textWidth(name, nil)
-    if not (icon and tw) then return false end
+    local icon = p.factionIcon
+    local edge = icon and Plate.PlaceNameEdge(p)
+    if not edge then return false end
     local c = Plate.Cfg(p)
     local nameSize = Plate.NameSize(p, c)
     local size = math.max(8, math.floor(nameSize * Plate.FACTION_SCALE + 0.5))
@@ -2002,14 +2069,7 @@ function Plate.PlaceFaction(p)
     end
     icon:SetSize(size, size)
     icon:ClearAllPoints()
-    local H = p.nameJustify or "CENTER"
-    if H == "LEFT" then
-        icon:SetPoint("RIGHT", name, "LEFT", -gap, 0)
-    elseif H == "RIGHT" then
-        icon:SetPoint("RIGHT", name, "RIGHT", -(tw + gap), 0)
-    else
-        icon:SetPoint("RIGHT", name, "CENTER", -(tw / 2 + gap), 0)
-    end
+    icon:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
     return true
 end
 
@@ -2078,9 +2138,11 @@ local function placeName(p, L, rel, spot, nameOnly, w)
     local name, sub = p.name, p.sub
     name:ClearAllPoints()
     sub:ClearAllPoints()
+    -- Off the bar a name keeps its whole length on one line, even past the plate's
+    -- edges; on the bar it's held to the room there and cut short instead.
     if nameOnly then
-        name:SetWidth(w + 20)
-        sub:SetWidth(w + 20)
+        name:SetWidth(0)
+        sub:SetWidth(0)
         p.nameJustify = "CENTER"
         name:SetJustifyH("CENTER")
         sub:SetJustifyH("CENTER")
@@ -2091,7 +2153,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         return
     end
     local H = sideOf(L.point)
-    local width = Plate.OUTSIDE[spot] and w + 20 or L.line
+    local width = Plate.OUTSIDE[spot] and 0 or L.line
     name:SetWidth(width)
     sub:SetWidth(width)
     -- Kept to pass along (to the class text copies), since nothing should read it back
@@ -2589,13 +2651,18 @@ end
 -- Other plates fade while your target is on a plate (dimOthers, to dimAlpha); your
 -- target and any casting plate stay full. Plate.hasTarget is set by
 -- Manager.UpdateTargets. Back up FAST (a cast must be seen at once), down at
--- NORMAL; snaps for a freshly shown plate.
+-- NORMAL; snaps for a freshly shown plate. An enemy out of your reach fades the
+-- same way (rangeFade, p.outOfRange from Range.lua), to the lower of the two.
 Plate.hasTarget = false
 function Plate.Dim(p, snap)
     local c = cfg()
     local goal = 1
-    if c.dimOthers and Plate.hasTarget and not p.isTarget and not ns.Cast.Shown(p) then
+    local full = p.isTarget or ns.Cast.Shown(p)
+    if c.dimOthers and Plate.hasTarget and not full then
         goal = c.dimAlpha or 0.5
+    end
+    if c.rangeFade and p.outOfRange and not full then
+        goal = math.min(goal, c.rangeAlpha or 0.5)
     end
     if p.dimGoal == goal then return end
     local from = p.dimGoal or 1
@@ -2959,9 +3026,7 @@ function Plate.Install(p, unit)
     Plate.Layout(p)
     ns.Auras.SetUnit(p, unit)
     Plate.UpdateFirst(p)
-    local np = p.nameplate
     Plate.PlaceStack(p)
-    if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, p.stack) end
     p.corpse = Plate.IsCorpse(unit)
     p.softOnly = Plate.SoftOnly(p)
     Plate.ShowNow(p)
@@ -3007,7 +3072,7 @@ function Plate.Uninstall(p)
     DUI.Motion.KickTagOff(p.kickTag)
     ns.Minion.Clear(p)
     DUI.Motion.Tween(p, 1, 1, 0) -- stops a fade in progress
-    p.dimGoal = nil
+    p.dimGoal, p.outOfRange = nil, nil
     p:SetAlpha(1)
     p.unit = nil
     p:Hide()

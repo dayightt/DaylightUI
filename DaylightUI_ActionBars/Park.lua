@@ -1,9 +1,9 @@
--- Puts the game's own action bars away while ours run. Each one is reparented under
+-- Puts the game's own action bars away while Daylight UI's run. Each one is reparented under
 -- a hidden frame and never hidden itself: Show and Hide on the game's bars are its
 -- own Lua, and calling them from here leads to blocked actions later. Bar 1 keeps its
--- events, since the game still writes its page and our keybinds press its hidden
--- buttons. The twin buttons stay in place under the parked bar, which keeps them out
--- of sight. Nothing is written on them: an attribute an addon writes keeps the
+-- events, since the game still writes its page and Daylight UI's keybinds press its hidden
+-- buttons. Those twin buttons move out of their bars to the hidden frame (Park.Twins).
+-- Nothing is written on them: an attribute an addon writes keeps the
 -- addon's taint, so the game's own UpdateShownButtons, reading "statehidden" in a
 -- fight (a slot changing as you loot), had its SetShown on them blocked.
 
@@ -17,7 +17,7 @@ ns.Park = Park
 Park.MULTI = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
                "MultiBar5", "MultiBar6", "MultiBar7" }
 
-Park.LEAVE_GAP = 4          -- gap between the leave-vehicle button and our bar 1
+Park.LEAVE_GAP = 4          -- gap between the leave-vehicle button and Daylight UI's bar 1
 
 local parked
 function Park.Frame()
@@ -32,6 +32,49 @@ end
 -- Moves one game frame under the hidden one (out of combat).
 function Park.Bar(frame)
     if type(frame) == "table" and frame:GetParent() ~= Park.Frame() then frame:SetParent(Park.Frame()) end
+end
+
+local function twinPrefixes()
+    local prefixes = { "ActionButton" }
+    for _, name in ipairs(Park.MULTI) do prefixes[#prefixes + 1] = name .. "Button" end
+    return prefixes
+end
+
+-- The game's button events frame hands every event to each button on its list,
+-- the hidden twins too. On "slot changed" in a fight a twin works out its slot from
+-- its bar's page, which bar paging writes, and then shows or hides every button of
+-- its bar, so the game blocked that SetShown. A pressed key works out its slot when
+-- it's pressed and needs none of these updates, so the twins of every bar come off
+-- the list (set to nil in place, as Buttons.Unlist does).
+function Park.UnlistTwins()
+    for _, prefix in ipairs(twinPrefixes()) do
+        for i = 1, 12 do
+            local b = _G[prefix .. i]
+            if type(b) == "table" then ns.Buttons.Unlist(b) end
+        end
+    end
+end
+
+-- The game's bars aren't protected themselves, only through the secure buttons
+-- inside them. On a page, form or vehicle change the game shows, hides, scales and
+-- moves every bar in one pass, and once anything has tainted that pass each bar
+-- still holding a button was blocked in a fight ("MultiBarBottomLeft:ShowBase()",
+-- then every other bar). So the buttons live under the hidden frame instead and
+-- the bars hold nothing protected. A key press still finds the right page: the
+-- secure templates look it up through the button's own bar field before its parent.
+function Park.Twins()
+    local parked = Park.Frame()
+    for _, prefix in ipairs(twinPrefixes()) do
+        for i = 1, 12 do
+            local b = _G[prefix .. i]
+            if type(b) == "table" and b:GetParent() ~= parked then
+                b:SetParent(parked)
+                -- Anchored to the hidden frame too, so nothing ties it to its bar.
+                b:ClearAllPoints()
+                b:SetPoint("CENTER", parked, "CENTER")
+            end
+        end
+    end
 end
 
 -- Parks bars 1-8 and silences 2-8.
@@ -49,25 +92,27 @@ function Park.Apply()
         main:EnableMouse(false)
     end
     -- The game's per-action updates (cooldowns, alerts, animations) would run on
-    -- every button in its list under our taint. Ours are painted by Buttons.lua and
+    -- every button in its list under the addon's taint. Daylight UI's are painted by Buttons.lua and
     -- the twins are hidden.
     local events = _G.ActionBarActionEventsFrame
     if type(events) == "table" then events:UnregisterAllEvents() end
+    Park.UnlistTwins()
+    Park.Twins()
     if not Park.wired then
         Park.wired = true
         local function recheck() DUI.AfterCombat(Park.Recheck, "park:recheck") end
         DUI.RegisterEvent("PLAYER_ENTERING_WORLD", recheck)
-        pcall(DUI.RegisterEvent, "PLAYER_TALENT_UPDATE", recheck)
+        DUI.RegisterEvent("PLAYER_TALENT_UPDATE", recheck)
     end
 end
 
 -- The leave-vehicle button (also "land early" on a flight) is a child of the game's
--- bar 1, so parking the bar would take it along. It moves to UIParent beside our
+-- bar 1, so parking the bar would take it along. It moves to UIParent beside Daylight UI's
 -- bar 1 and is kept there, since the game's Edit Mode re-anchors it. Whether it
 -- shows stays up to the game: never Show, Hide or SetShown it from here.
 -- No hook on its SetPoint: Edit Mode calls that from protected code, and with a hook
 -- on the button the call failed ("attempt to call a nil value", on every layout
--- update). Instead it's moved back beside ours a frame after the events that move it.
+-- update). Instead it's moved back beside bar 1 a frame after the events that move it.
 -- It has its own unlock-mode handle (a proxy that stands in while the button is
 -- hidden); once moved, it's held at that spot instead.
 Park.LEAVE_EVENTS = { "EDIT_MODE_LAYOUTS_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "PLAYER_ENTERING_WORLD", "UPDATE_VEHICLE_ACTIONBAR",
@@ -94,7 +139,7 @@ function Park.PlaceLeave()
     b:SetPoint("BOTTOMRIGHT", holder, "BOTTOMLEFT", -Park.LEAVE_GAP, 0)
 end
 
--- Its default spot beside our bar 1, as a CENTER offset from UIParent's CENTER in
+-- Its default spot beside Daylight UI's bar 1, as a CENTER offset from UIParent's CENTER in
 -- UIParent units. The handle's spot while it was never moved.
 function Park.LeaveHome()
     local b, holder = Park.leave, Park.leaveHolder
@@ -120,17 +165,8 @@ function Park.LeaveButton(holder)
     end
     -- Once on the next frame however many events came (vehicle events arrive for
     -- every unit in the group).
-    local queued = false
-    local function later()
-        queued = false
-        now()
-    end
-    local function soon()
-        if queued then return end
-        queued = true
-        C_Timer.After(0, later)
-    end
-    for _, event in ipairs(Park.LEAVE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+    local soon = DUI.Soon(now)
+    for _, event in ipairs(Park.LEAVE_EVENTS) do DUI.RegisterEvent(event, soon) end
     -- The game shows it on its own events (a vehicle, a flight), and its OnShow puts
     -- it at its Edit Mode spot, so move it back right after.
     b:HookScript("OnShow", now)
@@ -139,12 +175,12 @@ function Park.LeaveButton(holder)
     if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
 end
 
--- The button in our Edit Mode layout. At the game's default spot it counts as one of
+-- The button in Daylight UI's Edit Mode layout. At the game's default spot it counts as one of
 -- the game's bottom bars (EditModeUtil.GetBottomActionBars), and the game restacks
 -- those whenever one shows or hides, including the pet bar on a vehicle or a fight
--- starting or ending. That pulled it off our spot with no event of its own. Off its
+-- starting or ending. That pulled it off Daylight UI's spot with no event of its own. Off its
 -- default, the game leaves it alone, as with the totem bar (Totems.FillLayout). The
--- spot written is the game's own; ours places it.
+-- spot written is the game's own; Daylight UI places it.
 local function leaveEntry(layout)
     local sys = Enum.EditModeSystem and Enum.EditModeSystem.VehicleLeaveButton
     return sys ~= nil and DUI.EditMode.FindSystem(layout, sys, nil) or nil
@@ -164,7 +200,7 @@ function Park.LayoutCurrent(layout)
 end
 
 -- It wears bar 1's look (Skin.SetBar). Its art is one picture, wood and arrow
--- together, so the arrow is ours, tinted like an icon. The game rewrites its
+-- together, so the arrow is Daylight UI's, tinted like an icon. The game rewrites its
 -- highlight on a click during a flight and whenever it can't be used (hidden by
 -- then), so the look's wash is reapplied after the first and when it shows. Called
 -- from Bars.SkinAll and again on every look change.
@@ -187,6 +223,7 @@ end
 function Park.Recheck()
     for _, name in ipairs(Park.MULTI) do Park.Bar(_G[name]) end
     Park.Bar(_G.MainActionBar)
+    Park.Twins()
     local b = Park.leave
     if b and b:GetParent() ~= UIParent then b:SetParent(UIParent) end
 end

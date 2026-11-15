@@ -57,6 +57,19 @@ local function rows(...)
     return list
 end
 
+-- A frame that is a callback registry, as CommunitiesFrame is (CallbackRegistryMixin).
+local function registry(frame, names)
+    frame.Event, frame.callbacks = {}, {}
+    for _, name in ipairs(names) do frame.Event[name] = name end
+    function frame:RegisterCallback(event, fn, owner)
+        self.callbacks[event] = self.callbacks[event] or {}
+        self.callbacks[event][owner] = fn
+    end
+    function frame:TriggerEvent(event, ...)
+        for owner, fn in pairs(self.callbacks[event] or {}) do fn(owner, ...) end
+    end
+end
+
 local function world()
     -- The game's item button border functions (ItemButtonTemplate.lua,
     -- SetItemButtonBorder_Base / SetItemButtonBorderVertexColor_Base).
@@ -67,34 +80,14 @@ local function world()
     _G.SetItemButtonBorderVertexColor = function(button, r, g, b)
         if button.IconBorder then button.IconBorder:SetVertexColor(r, g, b) end
     end
+    -- The game's quest window: Daylight UI has its own, so no skin touches it.
     local q = window("QuestFrame")
-    CreateFrame("Frame", "QuestFrameDetailPanel", q).parchment = nil
-    _G.QuestFrameDetailPanel:CreateTexture()
     button("QuestFrameAcceptButton", q)
-    button("QuestFrameDeclineButton", q)
     for _, n in ipairs({ "QuestInfoTitleHeader", "QuestInfoDescriptionText", "QuestInfoObjectivesText" }) do
         _G[n] = q:CreateFontString(n)
     end
     _G.QuestInfo_Display = function() end
-    local gsp = window("GossipFrame")
-    gsp.GreetingPanel = CreateFrame("Frame", nil, gsp)
-    gsp.GreetingPanel.GoodbyeButton = button(nil, gsp.GreetingPanel)
-    gsp.GreetingPanel.ScrollBox = list(gsp.GreetingPanel)
-    local m = window("MerchantFrame")
-    button("MerchantFrameTab1", m)
-    for _, n in ipairs({ "MerchantPrevPageButton", "MerchantNextPageButton" }) do
-        local pb = CreateFrame("Button", n, m)
-        local normal = pb:CreateTexture()
-        function pb:GetNormalTexture() return normal end
-        pb.label = pb:CreateFontString()
-        pb.label:SetTextColor(1, 0.82, 0)
-    end
-    local slot = CreateFrame("Frame", "MerchantItem1", m)
-    local ib = CreateFrame("Button", "MerchantItem1ItemButton", slot)
-    ib.icon = ib:CreateTexture()
-    ib.IconBorder = ib:CreateTexture()
-    slot:CreateTexture("MerchantItem1SlotTexture")
-    _G.MerchantItem1SlotTexture = slot:CreateTexture()
+    window("TabardFrame")
 
     local trade = window("TradeFrame")
     trade.TradeButton = button("TradeFrameTradeButton", trade)
@@ -104,15 +97,47 @@ local function world()
     trade.RecipientOverlay = CreateFrame("Frame", nil, trade)
     trade.RecipientOverlay.portrait = trade.RecipientOverlay:CreateTexture()
     trade.RecipientOverlay.portraitFrame = trade.RecipientOverlay:CreateTexture()
-    local ti = CreateFrame("Button", "TradePlayerItem1", trade)
-    ti.icon = ti:CreateTexture()
-    ti.IconBorder = ti:CreateTexture()
+    -- TradeItemTemplate: a plain row with the slot art, a name frame and the
+    -- item button inside (TradeFrame.xml).
+    local ti = CreateFrame("Frame", "TradePlayerItem1", trade)
+    ti:SetSize(153, 37)
+    ti.SlotTexture = ti:CreateTexture("TradePlayerItem1SlotTexture")
+    _G.TradePlayerItem1NameFrame = ti:CreateTexture("TradePlayerItem1NameFrame")
+    local slot = CreateFrame("Button", "TradePlayerItem1ItemButton", ti)
+    slot:SetSize(37, 37)
+    slot.icon = slot:CreateTexture()
+    slot.IconBorder = slot:CreateTexture()
+    -- MoneyInputFrameTemplate: three boxes, each with its coin (MoneyInputFrame.xml).
     local mf = CreateFrame("Frame", "TradePlayerInputMoneyFrame", trade)
     mf.Bg = mf:CreateTexture()
+    for _, coin in ipairs({ "gold", "silver", "copper" }) do
+        local box = CreateFrame("EditBox", "TradePlayerInputMoneyFrame" .. coin, mf)
+        box.left, box.right = box:CreateTexture(), box:CreateTexture()
+        box.Left, box.Right, box.Middle = box.left, box.right, box:CreateTexture()
+        box.texture = box:CreateTexture()
+        box.texture:SetAtlas("coin-" .. coin)
+        mf[coin] = box
+    end
+    -- TradeFrame_OnLoad: TradePlayerInputMoneyFrame:SetForbidden().
+    mf.__forbidden = true
+    -- TradeHighlightTemplate: green art, shown while that side has accepted.
+    local h = CreateFrame("Frame", "TradeHighlightRecipient", trade)
+    h.art = h:CreateTexture()
+    h:Hide()
+    -- The game's money redraw (MoneyFrame.lua); the skin post-hooks it.
+    _G.MoneyFrame_Update = function() end
+    -- SmallMoneyFrameTemplate: a coin button per coin (MoneyFrame.xml).
+    local rm = CreateFrame("Frame", "TradeRecipientMoneyFrame", trade)
+    for _, key in ipairs({ "GoldButton", "SilverButton", "CopperButton" }) do
+        local b = CreateFrame("Button", nil, rm)
+        local tex = b:CreateTexture()
+        tex:SetAtlas("coin-gold")
+        function b:GetNormalTexture() return tex end
+        rm[key] = b
+    end
 end
 
--- With the NPC window off, a player gets these skins on the game's own gossip
--- and quest windows. With it on, they are moved aside (see test_npc).
+-- Daylight UI's own windows off: the game's own ones are what a player sees.
 local function login(before)
     stub.Load({ skins = true, before = function()
         world()
@@ -126,7 +151,7 @@ end
 T.test("skins: a window gets our border and panel, the game's art goes, our close X", function()
     login()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local f = QuestFrame
+    local f = TradeFrame
     T.eq(f.NineSlice:GetAlpha(), 0, "the game's frame art gone")
     T.eq(f.Bg:GetAlpha(), 0)
     T.truthy(stub.skins.Kit.ShellOf(f), "our border and panel")
@@ -147,7 +172,7 @@ end)
 
 T.test("skins: buttons wear our one button look (W.Button's): the warm band and fill, the mouse traces it in the accent", function()
     login()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     T.eq(b.Left:GetAlpha(), 0); T.eq(b.Middle:GetAlpha(), 0); T.eq(b.Right:GetAlpha(), 0)
     local Kit, W = stub.skins.Kit, DaylightUI.Widgets
     local s = Kit.ButtonOf(b)
@@ -182,7 +207,7 @@ end)
 -- That removed the skin's hooks, so from the second opening on hover lit nothing.
 T.test("skins: a button whose OnEnter/OnLeave the game clears still lights when shown again", function()
     login()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     local Kit = stub.skins.Kit
     b:SetSize(100, 22)
     b:Hide()
@@ -212,19 +237,31 @@ T.test("skins: a button whose OnEnter/OnLeave the game clears still lights when 
 end)
 
 T.test("skins: text the game colors again, or prints dark into the string, is light again as the game fills it", function()
-    login()
+    local contents
+    login(function()
+        local map = window("WorldMapFrame")
+        local qm = CreateFrame("Frame", "QuestMapFrame", map)
+        qm.DetailsFrame = CreateFrame("Frame", nil, qm)
+        contents = CreateFrame("Frame", nil, qm.DetailsFrame)
+    end)
+    WorldMapFrame:Show()
+    stub.RunTimers()
     local body = QuestInfoDescriptionText
-    QuestInfo_Display()
     -- The game's next fill colors and fills the text, then the skin follows.
     body:SetTextColor(0.2, 0.1, 0)
     body:SetText("|cff000000Elmore's Task|r and |cffff2020red|r")
-    QuestInfo_Display()
+    QuestInfo_Display(nil, contents)
     T.truthy(body.__textColor[1] > 0.8, "put back")
     T.truthy(not body:GetText():find("|cff000000", 1, true), "the dark run rewritten")
     T.truthy(body:GetText():find("|cffff2020", 1, true), "other colors left")
     for _, m in ipairs({ "SetTextColor", "SetText", "SetFormattedText" }) do
         T.isnil(rawget(body, m), "no hook on the game's text: " .. m)
     end
+    -- The game's own quest window fills through the same function and keeps its
+    -- dark ink on its parchment.
+    body:SetTextColor(0.2, 0.1, 0)
+    QuestInfo_Display(nil, QuestFrame)
+    T.eq(body.__textColor[1], 0.2, "the game's quest window left as the game draws it")
 end)
 
 T.test("skins: a book's pages stay light after a page turn", function()
@@ -362,122 +399,113 @@ T.test("skins: a book's pages stay light after a page turn", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("skins: gossip text a few frames deep in a row is made light, also the frame after", function()
-    login()
-    local box = GossipFrame.GreetingPanel.ScrollBox
-    local row = CreateFrame("Frame", nil, box)
-    local inner = CreateFrame("Frame", nil, CreateFrame("Frame", nil, row))
-    local text = inner:CreateFontString()
-    box.rows[1] = row
-    box:Update()
-    text:SetTextColor(0.15, 0.09, 0.04)          -- the game fills it after its update
-    local late = CreateFrame("Frame", nil, box)
-    local lateText = late:CreateFontString()
-    lateText:SetTextColor(0, 0, 0)
-    box.rows[2] = late
-    stub.RunTimers()
-    T.truthy(text.__textColor[1] > 0.8, "kept light")
-    T.truthy(lateText.__textColor[1] > 0.8, "the next frame's pass")
-end)
-
-T.test("skins: quest text the game prints dark is made light, again each time it fills it", function()
-    login()
-    local body = QuestInfoDescriptionText
-    body:SetTextColor(0.2, 0.1, 0)     -- the game's parchment ink
-    QuestInfo_Display()
-    T.truthy(body.__textColor[1] > 0.8, "light text")
-    T.eq(QuestInfoTitleHeader.__textColor[1], stub.skins.Kit.HEADER[1], "titles in the accent")
-end)
-
-T.test("skins: gossip rows are made light as the list shows them", function()
-    login()
-    local panel = GossipFrame.GreetingPanel
-    local row = CreateFrame("Button", nil, panel.ScrollBox)
-    local text = row:CreateFontString()
-    text:SetTextColor(0, 0, 0)
-    panel.ScrollBox.rows[1] = row
-    panel.ScrollBox:Update()
-    stub.RunTimers()   -- rows are gone over the frame after the list updates
-    T.truthy(text.__textColor[1] > 0.8, "a row the list just made")
-end)
-
-T.test("skins: merchant slots and tabs", function()
-    login()
-    T.eq(MerchantItem1SlotTexture:GetAlpha(), 0, "the slot art gone")
-    T.eq(MerchantItem1ItemButton.icon.__texCoord[1], 0.08, "the icon cropped")
-    local ib = MerchantItem1ItemButton
-    ib.IconBorder:SetVertexColor(1, 1, 1); ib.IconBorder:Show()          -- a white item
-    T.eq(stub.skins.Kit.ShellOf(ib).opts.borderColor[1], 1, "outlined like the slots, white too")
-    T.eq(ib.IconBorder:GetAlpha(), 0, "the game's own border gone")
-    T.truthy(stub.skins.Kit.TabOf(MerchantFrameTab1), "our tab look")
-    local prev = MerchantPrevPageButton
-    T.eq(prev:GetNormalTexture():GetAlpha(), 0, "the page button's art gone")
-    T.truthy(stub.skins.Kit.ShellOf(prev), "outlined like the rest")
-    T.truthy(prev.label.__textColor[1] > 0.8, "its label light")
-end)
-
 T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function()
     login()
-    T.eq(TradePlayerItem1.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
-    T.truthy(stub.skins.Kit.ShellOf(TradePlayerItem1), "the item look")
-    T.eq(TradePlayerInputMoneyFrame.Bg:GetAlpha(), 0, "the money box's own art gone")
+    local Kit = stub.skins.Kit
+    local slot = TradePlayerItem1ItemButton
+    T.eq(slot.IconBorder:GetAlpha(), 0, "the slot's own border gone, our outline instead")
+    T.truthy(Kit.ShellOf(slot), "the slot wears the item look")
+    T.truthy(Kit.RowOf(TradePlayerItem1), "the row is a list line")
+    T.falsy(Kit.ShellOf(TradePlayerItem1), "no box round the row")
+    T.eq(TradePlayerItem1.SlotTexture:GetAlpha(), 0, "the row's slot art gone")
+    T.eq(TradePlayerItem1NameFrame:GetAlpha(), 0, "the row's name frame gone")
+    -- The same item edge as the bags: a full shell, the band a dimmer copy.
+    Kit.Paint(Kit.ShellOf(slot), { 0, 0.44, 0.87 })
+    local band = Kit.ShellOf(slot).opts.bandColor
+    T.truthy(band and math.abs(band[3] - 0.87 * DaylightUI.Char.Slots.BAND_DIM) < 1e-6, "the band dimmed like the bags'")
+    -- Your money boxes are forbidden in game: left alone, and nothing errors.
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(Kit.InputOf(rawget(TradePlayerInputMoneyFrame, "gold")), "the forbidden boxes untouched")
+    local gold = TradeRecipientMoneyFrame.GoldButton:GetNormalTexture()
+    T.truthy(tostring(gold:GetTexture()):find("coin-gold.png", 1, true), "their money in our coins")
     T.truthy(stub.skins.Kit.ButtonOf(TradeFrameTradeButton), "the Trade button, flat")
     T.truthy(stub.skins.Kit.ButtonOf(TradeFrameCancelButton), "the Cancel button, flat")
     -- the other player's portrait and its gold ring are erased (their own
     -- frame, over the names), and their name gets its whole side
     T.eq(TradeFrame.RecipientOverlay.portrait:GetAlpha(), 0, "their portrait gone")
     T.eq(TradeFrame.RecipientOverlay.portraitFrame:GetAlpha(), 0, "its gold ring gone")
-    local _, _, _, left = TradeFrameRecipientNameText:GetPoint(1)
-    T.eq(left, -166, "their name starts at their side, not after the portrait")
+    local Trade = stub.skins.Trade
+    local _, rel, relPoint, left = TradeFrameRecipientNameText:GetPoint(1)
+    T.eq(rel, TradeFrame); T.eq(relPoint, "TOPLEFT")
+    T.eq(left, Trade.THEIR_X, "their name heads their column, not after the portrait")
+    -- An empty slot is just its outline, as in the bags.
+    slot.icon:SetTexture(nil)
+    Kit.SlotQuality(slot)
+    local backs = 0
+    for _, r in ipairs({ slot:GetRegions() }) do
+        if r:GetObjectType() == "Texture" and r:GetDrawLayer() == "BACKGROUND" and r:IsShown() and r:GetAlpha() > 0 then backs = backs + 1 end
+    end
+    T.eq(backs, 0, "no black square under an empty slot")
+    -- Trade and Cancel: a footer, centered, the same width.
+    T.eq(select(3, TradeFrameTradeButton:GetPoint(1)), "BOTTOM")
+    T.eq(select(3, TradeFrameCancelButton:GetPoint(1)), "BOTTOM")
+    T.eq(TradeFrameTradeButton:GetWidth(), TradeFrameCancelButton:GetWidth())
+end)
+
+T.test("skins: trade shows the other side's accept in the good color, easing in", function()
+    login()
+    local h = TradeHighlightRecipient
+    local art = h.art
+    TradeFrame:Show()
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0, "the game's green art gone")
+    local ours = h:GetChildren()
+    T.truthy(ours, "a look of ours on it")
+    h:Show()
+    T.truthy(ours:GetAlpha() < 1, "eases in, never pops")
+    for _ = 1, 40 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.02) end
+    T.eq(ours:GetAlpha(), 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: a window from a game addon that loads later is skinned when it loads", function()
     login()
-    T.isnil(stub.skins.Kit.ShellOf(_G.ClassTrainerFrame or {}), "not there yet")
-    local f = window("ClassTrainerFrame")
-    button("ClassTrainerTrainButton", f)
-    f.FilterDropdown = CreateFrame("Button", nil, f)
-    f.FilterDropdown.Background = f.FilterDropdown:CreateTexture()
-    f.FilterDropdown.Text = f.FilterDropdown:CreateFontString()
-    f.ScrollBox = list(f)
-    local r = CreateFrame("Button", nil, f.ScrollBox)
-    r.icon, r.disabledBG, r.selectedTex = r:CreateTexture(), r:CreateTexture(), r:CreateTexture()
-    r.name = r:CreateFontString()
-    r.name:SetTextColor(1, 0.1, 0.1)             -- can't learn it yet
-    r.selectedTex:Hide()
-    f.ScrollBox.rows[1] = r
-    -- The game's (Blizzard_TrainerUI.lua): the only code showing or hiding a row's selection art.
-    _G.ClassTrainerFrame_InitServiceButton = function(b) end
-    stub.FireEvent("ADDON_LOADED", "Blizzard_TrainerUI")
-    stub.loadedAddOns.Blizzard_TrainerUI = true
-    stub.FireEvent("ADDON_LOADED", "Blizzard_TrainerUI")
+    T.isnil(stub.skins.Kit.ShellOf(_G.CalendarFrame or {}), "not there yet")
+    local f = window("CalendarFrame")
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Calendar")
+    stub.loadedAddOns.Blizzard_Calendar = true
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Calendar")
+    stub.RunTimers()
     T.truthy(stub.skins.Kit.ShellOf(f), "skinned once its addon is in")
-    T.truthy(stub.skins.Kit.ButtonOf(ClassTrainerTrainButton))
-    T.eq(f.FilterDropdown.Background:GetAlpha(), 0, "the dropdown's art gone")
-    T.truthy(stub.skins.Kit.ShellOf(f.FilterDropdown), "a button like the rest")
-    T.eq(r.disabledBG:GetAlpha(), 0, "the row's box art gone")
-    T.eq(r.icon:GetAlpha(), 1, "its icon kept")
-    T.eq(r.name.__textColor[1], 1, "the game's colors kept")
-    local s = stub.skins.Kit.ShellOf(r)
-    T.eq(s.opts.borderColor, stub.skins.Kit.ROW_BORDER, "not selected: the row's gray outline")
-    r.selectedTex:Show()
-    ClassTrainerFrame_InitServiceButton(r)
-    T.eq(s.opts.borderColor, stub.skins.Kit.SELECTED, "the soft light gray round the selected row")
-    for _, m in ipairs({ "Show", "Hide", "SetShown" }) do
-        T.isnil(rawget(r.selectedTex, m), "no hook on the selection art's " .. m)
+    T.eq(f.NineSlice:GetAlpha(), 0, "the game's art gone")
+end)
+
+T.test("skins: the game's windows Daylight UI rebuilt are left exactly as the game draws them", function()
+    local made = {}
+    login(function()
+        _G.DaylightUIDB = { modules = { NPC = { enabled = false }, Character = { enabled = false }, Inspect = { enabled = false },
+            Social = { enabled = false }, Mail = { enabled = false }, GroupFinder = { enabled = false } } }
+        for _, name in ipairs({ "GossipFrame", "MerchantFrame", "BankFrame", "CharacterFrame", "FriendsFrame",
+                                "MailFrame", "OpenMailFrame", "LFGParentFrame" }) do
+            made[name] = window(name)
+        end
+    end)
+    made.QuestFrame = QuestFrame
+    for _, pair in ipairs({ { "ClassTrainerFrame", "Blizzard_TrainerUI" }, { "InspectFrame", "Blizzard_InspectUI" },
+                            { "SocialUIFrame", "Blizzard_SocialUI" } }) do
+        made[pair[1]] = window(pair[1])
+        stub.loadedAddOns[pair[2]] = true
+        stub.FireEvent("ADDON_LOADED", pair[2])
     end
-    _G.ClassTrainerFrame_InitServiceButton = nil
+    stub.RunTimers()
+    for name, f in pairs(made) do
+        f:Hide(); f:Show()
+        T.isnil(stub.skins.Kit.ShellOf(f), name .. ": no shell of ours")
+        T.eq(f.NineSlice:GetAlpha(), 1, name .. ": the game's art kept")
+    end
+    T.isnil(stub.skins.Kit.ButtonOf(QuestFrameAcceptButton), "the game's own buttons too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: a pack switched off leaves its windows as the game draws them", function()
     login(function()
         _G.DaylightUIDB = { modules = { Skins = { packs = { npc = false } }, NPC = { enabled = false } } }
     end)
-    T.isnil(stub.skins.Kit.ShellOf(QuestFrame))
-    T.eq(QuestFrame.NineSlice:GetAlpha(), 1)
+    T.isnil(stub.skins.Kit.ShellOf(TabardFrame))
+    T.eq(TabardFrame.NineSlice:GetAlpha(), 1)
     DaylightUI:Set("Skins", "packs.npc", true)
     stub.RunTimers()
-    T.truthy(stub.skins.Kit.ShellOf(QuestFrame), "on again: skinned now")
+    T.truthy(stub.skins.Kit.ShellOf(TabardFrame), "on again: skinned now")
 end)
 
 -- A "Talking to NPCs" switch read as the switch for the NPC window, which it
@@ -497,198 +525,15 @@ T.test("skins: the Packs card has no switch named after a window Daylight UI reb
     end
 end)
 
-T.test("skins: the game's character window follows Menus, loot and items; an old Character switch does nothing", function()
-    local f
-    login(function()
-        _G.DaylightUIDB = { modules = { Skins = { packs = { character = false } }, Character = { enabled = false } } }
-        f = window("CharacterFrame")
-    end)
-    T.truthy(stub.skins.Kit.ShellOf(f), "the old switch left off doesn't strand it")
-    login(function()
-        _G.DaylightUIDB = { modules = { Skins = { packs = { system = false } }, Character = { enabled = false } } }
-        f = window("CharacterFrame")
-    end)
-    T.isnil(stub.skins.Kit.ShellOf(f))
-end)
-
--- The character window, as far as the skin touches it.
-local function character()
-    local f = window("CharacterFrame")
-    f.LeftPaneHost = CreateFrame("Frame", nil, f)
-    f.LeftPaneHost:CreateTexture()
-    f.RightPaneHost = CreateFrame("Frame", nil, f)
-    f.RightPaneHost.StoneBg = f.RightPaneHost:CreateTexture()
-    local collapsed = false
-    function f:IsRightPaneCollapsed() return collapsed end
-    -- As the game's (CharacterFrame.lua): RefreshRightPane shows or hides the pane.
-    function f:SetRightPaneCollapsed(v)
-        collapsed = v
-        self.RightPaneHost:SetShown(not v)
-    end
-    f.RightPaneToggleButton = CreateFrame("Button", nil, f)
-    _G.ToggleCharacter = function() end
-    CreateFrame("Frame", "PaperDollFrame", f)
-    _G.CharacterLevelText = f:CreateFontString()
-    local slot = CreateFrame("Button", "CharacterHeadSlot", f)
-    slot:SetID(1)
-    slot.BorderFrame = CreateFrame("Frame", nil, slot)
-    slot.BorderFrame.art = slot.BorderFrame:CreateTexture()
-    slot.IconBorder = slot:CreateTexture()
-    slot.icon = slot:CreateTexture()
-    _G.CharacterHeadSlotNormalTexture = slot:CreateTexture()
-    _G.PaperDollItemSlotButton_Update = function() end
-    local pane = CreateFrame("Frame", "CharacterStatsPaneScrollBox", f.RightPaneHost)
-    pane.ScrollBox = list(pane)
-    local header = CreateFrame("Frame", nil, pane.ScrollBox)
-    header.Background = header:CreateTexture()
-    header.Title = header:CreateFontString()
-    local stat = CreateFrame("Frame", nil, pane.ScrollBox)
-    stat.Background = stat:CreateTexture()
-    stat.Label, stat.Value = stat:CreateFontString(), stat:CreateFontString()
-    stat.Value:SetTextColor(0.1, 1, 0.1)         -- buffed: the game's green
-    pane.ScrollBox.rows = rows(header, stat)
-    -- A tab down the window's side: a frame, its selection a texture.
-    f.ModeTabs = CreateFrame("Frame", "CharacterFrameModeTabs", f)
-    local mode = CreateFrame("Frame", "CharacterFrameModeTab1", f.ModeTabs)
-    mode.Background = mode:CreateTexture()
-    mode.Icon = mode:CreateTexture()
-    mode.SelectedTexture = mode:CreateTexture()
-    function mode:SetChecked(on) self.SelectedTexture:SetShown(on) end
-    f.ModeTabs.Tabs = { mode }
-    -- A button over the stats: a check button.
-    local tab = CreateFrame("CheckButton", "PaperDollSidebarTab1", f)
-    tab.art = tab:CreateTexture()
-    tab.Icon = tab:CreateTexture()
-    local checked = true
-    function tab:GetChecked() return checked end
-    function tab:SetChecked(v) checked = v end
-    _G.PaperDollFrame_UpdateSidebarTabs = function() end
-    -- The model's buttons.
-    local scene = CreateFrame("Frame", "CharacterModelScene", f)
-    scene.ControlFrame = CreateFrame("Frame", nil, scene)
-    local zoom = CreateFrame("Button", nil, scene.ControlFrame)
-    zoom.Icon = zoom:CreateTexture()
-    local zn = zoom:CreateTexture()
-    function zoom:GetNormalTexture() return zn end
-    scene.ControlFrame.zoomInButton = zoom
-    return f
-end
-
-T.test("skins: the character window: slots outlined in their item's quality color, stats, side tabs", function()
-    local f
-    login(function()
-        f = character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)     -- the game: an epic
-        CharacterHeadSlot.IconBorder:Show()
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.truthy(stub.skins.Kit.ShellOf(f), "our window")
-    local slot = CharacterHeadSlot
-    T.eq(slot.BorderFrame.art:GetAlpha(), 0, "the slot's frame art gone")
-    T.eq(slot.IconBorder:GetAlpha(), 0, "the game's quality ring gone")
-    T.eq(slot.icon.__texCoord[1], 0.08, "the icon cropped")
-    local Kit = stub.skins.Kit
-    local s = Kit.ShellOf(slot)
-    T.eq(s.opts.borderColor[1], 0.64, "our outline in the item's quality color")
-    SetItemButtonBorderVertexColor(slot, 1, 1, 1)                         -- a white item
-    T.eq(s.opts.borderColor[1], 1, "a white item: a white outline")
-    SetItemButtonBorder(slot)                                             -- nothing in it
-    T.eq(s.opts.borderColor[1], stub.skins.Kit.EMPTY_ITEM_BORDER[1], "empty: dim, still there")
-    for _, m in ipairs({ "Show", "Hide", "SetShown", "SetVertexColor", "SetTexture", "SetAtlas" }) do
-        T.isnil(rawget(slot.IconBorder, m), "no hook on the border's " .. m .. " (it sits on secure item buttons)")
-    end
-    local rows = CharacterStatsPaneScrollBox.ScrollBox.rows
-    T.eq(rows[1].Background:GetAlpha(), 0, "the header's art gone")
-    T.eq(rows[1].Title.__font[1], DaylightUI.Style.FONT)
-    T.eq(rows[2].Value.__textColor[2], 1, "the game's value color kept")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.truthy(rows[2].Label.__textColor[1] < 0.8, "the label dim")
-    local selected = Kit.SELECTED[1]
-    local tab = PaperDollSidebarTab1
-    T.eq(tab.art:GetAlpha(), 0, "the button's art gone")
-    T.eq(tab.Icon:GetAlpha(), 1, "its icon kept")
-    local ts = Kit.ShellOf(tab)
-    T.eq(ts.opts.borderColor[1], selected, "the soft light gray round the selected one")
-    tab:SetChecked(false)
-    PaperDollFrame_UpdateSidebarTabs()
-    T.eq(ts.opts.borderColor, Kit.TAB_BORDER, "repainted as the game updates them: the dim outline")
-    local mode = CharacterFrameModeTab1
-    T.eq(mode.Background:GetAlpha(), 0, "the side tab's art gone")
-    local ms = Kit.ShellOf(mode)
-    mode:SetChecked(true)
-    ToggleCharacter("PaperDollFrame")                       -- the game checks the tabs in it
-    T.eq(ms.opts.borderColor[1], selected, "the selected side tab")
-    mode:SetChecked(false)
-    mode:GetScript("OnMouseUp")(mode, "LeftButton", true)   -- another tab clicked
-    T.eq(ms.opts.borderColor, Kit.TAB_BORDER)
-    for _, m in ipairs({ "Show", "Hide", "SetShown" }) do
-        T.isnil(rawget(mode.SelectedTexture, m), "no hook on the selection art's " .. m)
-    end
-    T.eq(mode.Icon.__texCoord[1], stub.skins.Engine.PORTRAIT_CROP, "the portrait cropped square")
-    T.eq(ms.opts.flat, true, "a control's flat outline, as our buttons")
-    mode.Icon:SetTexCoord(0.03, 0.97, 0.03, 0.97)            -- the game, on selecting it
-    T.eq(mode.Icon.__texCoord[1], stub.skins.Engine.PORTRAIT_CROP, "and kept so")
-    local zoom = CharacterModelScene.ControlFrame.zoomInButton
-    T.eq(zoom:GetNormalTexture():GetAlpha(), 0, "the model button's art gone")
-    T.eq(Kit.ShellOf(zoom).opts.borderColor, Kit.CONTROL_BORDER, "outlined like a button")
-    -- The stats pane's arrow follows the pane (shown or hidden by the game), no hook on the window.
-    local arrow
-    for _, r in ipairs({ f.RightPaneToggleButton:GetRegions() }) do
-        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then arrow = r end
-    end
-    T.eq(arrow.__rotation, Kit.ROTATION.left, "open: pointing to fold it away")
-    f:SetRightPaneCollapsed(true)
-    T.eq(arrow.__rotation, Kit.ROTATION.right, "folded: pointing to open it")
-    f:SetRightPaneCollapsed(false)
-    T.eq(arrow.__rotation, Kit.ROTATION.left)
-    _G.ToggleCharacter = nil
-end)
-
-T.test("skins: reputation: headers on our plates, bars in our look with the game's colors", function()
-    login(function()
-        character()
-        local rep = CreateFrame("Frame", "ReputationFrame", CharacterFrame)
-        rep.ScrollBox = list(rep)
-        local header = CreateFrame("Button", nil, rep.ScrollBox)
-        header.art = header:CreateTexture()
-        header.StateIcon = header:CreateTexture()
-        header.Name = header:CreateFontString()
-        local entry = CreateFrame("Button", nil, rep.ScrollBox)
-        entry.Content = CreateFrame("Frame", nil, entry)
-        local hl = CreateFrame("Frame", nil, entry.Content)
-        hl.TextureRegions = { hl:CreateTexture(), hl:CreateTexture() }
-        entry.Content.BackgroundHighlight = hl
-        local bar = CreateFrame("Frame", nil, entry.Content)
-        bar.bg = bar:CreateTexture()
-        bar.Fill = bar:CreateTexture()
-        bar.Fill:SetVertexColor(0, 0.6, 0.1)     -- friendly
-        bar.Text = bar:CreateFontString()
-        entry.Content.ReputationBar = bar
-        entry.Content.Name = entry.Content:CreateFontString()
-        rep.ScrollBox.rows = rows(header, entry)
-        rep.ReputationDetailFrame = CreateFrame("Frame", nil, rep)
-        local cb = CreateFrame("CheckButton", nil, rep.ReputationDetailFrame)
-        cb.Label = cb:CreateFontString()
-        rep.ReputationDetailFrame.AtWarCheckbox = cb
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local Kit = stub.skins.Kit
-    local header, entry = unpack(ReputationFrame.ScrollBox.rows)
-    T.eq(header.art:GetAlpha(), 0, "the header's art gone")
-    T.eq(header.StateIcon:GetAlpha(), 1, "its +/- kept")
-    T.truthy(Kit.ShellOf(header), "on our plate")
-    local bar = entry.Content.ReputationBar
-    T.eq(bar.bg:GetAlpha(), 0, "the bar's art gone")
-    T.eq(bar.Fill.__texture, DaylightUI.Style.BAR.fill, "our fill")
-    T.eq(bar.Fill.__vertex[2], 0.6, "the standing's color kept")
-    T.eq(entry.Content.BackgroundHighlight.TextureRegions[1].__color[1], 1, "a flat highlight")
-    T.truthy(Kit.SwitchOf(ReputationFrame.ReputationDetailFrame.AtWarCheckbox), "a checkbox as our switch")
-end)
-
 T.test("skins: /dui skins dump lists what a window is made of", function()
-    login(function() character() end)
-    DaylightUI.RunCommand("skins dump CharacterFrame.RightPaneHost 2")
-    T.truthy(stub.ChatContains("CharacterStatsPaneScrollBox"), "a named child")
+    login(function()
+        local host = CreateFrame("Frame", nil, window("DumpTestFrame"))
+        DumpTestFrame.RightPaneHost = host
+        CreateFrame("Frame", "DumpTestScrollBox", host)
+        host.StoneBg = host:CreateTexture()
+    end)
+    DaylightUI.RunCommand("skins dump DumpTestFrame.RightPaneHost 2")
+    T.truthy(stub.ChatContains("DumpTestScrollBox"), "a named child")
     T.truthy(stub.ChatContains(".StoneBg Texture"), "a keyed region")
     DaylightUI.RunCommand("skins dump NoSuchFrame")
     T.truthy(stub.ChatContains("no frame NoSuchFrame"))
@@ -829,29 +674,6 @@ T.test("skins: a window's template in one call, from a game addon that loads lat
     T.truthy(stub.skins.Kit.ButtonOf(p.ok), "its parts")
 end)
 
-T.test("skins: currency's list and transfer button are left as the game draws them", function()
-    login(function()
-        character()
-        local tok = CreateFrame("Frame", "TokenFrame", CharacterFrame)
-        tok.ScrollBox = list(tok)
-        local row = CreateFrame("Button", nil, tok.ScrollBox)
-        row.art = row:CreateTexture()
-        tok.ScrollBox.rows = rows(row)
-        tok.DetailFrame = CreateFrame("Frame", nil, tok)
-        local transfer = button(nil, tok.DetailFrame)
-        tok.DetailFrame.CurrencyTransferToggleButton = transfer
-        local cb = CreateFrame("CheckButton", nil, tok.DetailFrame)
-        cb.Label = cb:CreateFontString()
-        tok.DetailFrame.InactiveCheckbox = cb
-        stub.loadedAddOns.Blizzard_TokenUI = true
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local d = TokenFrame.DetailFrame
-    T.truthy(stub.skins.Kit.SwitchOf(d.InactiveCheckbox), "its pane's checkbox")
-    T.isnil(stub.skins.Kit.ShellOf(d.CurrencyTransferToggleButton), "the transfer button untouched")
-    T.eq(TokenFrame.ScrollBox.rows[1].art:GetAlpha(), 1, "its list rows untouched")
-end)
-
 T.test("skins: the confirm boxes: our window and buttons, the warning icon kept", function()
     local pop
     login(function()
@@ -950,35 +772,42 @@ T.test("skins: the stack split box: our window, arrows and buttons, the amount i
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("skins: a statistics sub-header's collapse button: ours, pointing the way the group is", function()
-    login()
+T.test("skins: the role check pop-ups: our window and buttons, the role icons kept", function()
+    local poll, check, tank
+    login(function()
+        -- RolePoll.xml and LFDFrame.xml: a DialogBorderTemplate box, an unnamed
+        -- title, role buttons with their own art, UIPanelButtonTemplate buttons.
+        poll = CreateFrame("Frame", "RolePollPopup", UIParent)
+        poll:SetSize(306, 160)
+        poll.title = poll:CreateFontString()
+        poll.Border = CreateFrame("Frame", nil, poll)
+        poll.Border.art = poll.Border:CreateTexture()
+        poll.CloseButton = button("RolePollPopupCloseButton", poll)
+        tank = CreateFrame("Button", "RolePollPopupRoleButtonTank", poll)
+        tank.icon = tank:CreateTexture()
+        poll.acceptButton = button("RolePollPopupAcceptButton", poll)
+        check = CreateFrame("Frame", "LFDRoleCheckPopup", UIParent)
+        check:SetSize(306, 180)
+        check.Text = check:CreateFontString()
+        check.Border = CreateFrame("Frame", nil, check)
+        button("LFDRoleCheckPopupAcceptButton", check)
+        button("LFDRoleCheckPopupDeclineButton", check)
+        local desc = CreateFrame("Frame", "LFDRoleCheckPopupDescription", check)
+        desc:CreateFontString("LFDRoleCheckPopupDescriptionText")
+        desc.SubText = desc:CreateFontString()
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit = stub.skins.Kit
-    local row = CreateFrame("Button", nil, UIParent)
-    row.Content = CreateFrame("Frame", nil, row)
-    local tcb = CreateFrame("Button", nil, row)
-    local normal = tcb:CreateTexture()
-    function tcb:GetNormalTexture() return normal end
-    row.ToggleCollapseButton = tcb
-    normal:SetAtlas("campaign_headericon_closed")
-    function normal:GetAtlas() return self.__atlas end
-    Kit.ListRow(row)
-    T.truthy(Kit.ShellOf(tcb), "our control")
-    T.eq(normal:GetAlpha(), 0, "the game's red art gone")
-    local chev
-    for _, r in ipairs({ tcb:GetRegions() }) do
-        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then chev = r end
-    end
-    T.eq(chev.__rotation, Kit.ROTATION.right, "closed: pointing right")
-    -- The game swaps the art as it fills the row (RefreshIcon from Initialize),
-    -- then the list's OnInitializedFrame runs Kit.RelightIn through Kit.EachRow.
-    normal:SetAtlas("campaign_headericon_open")
-    Kit.RelightIn(row, Kit.ROW_LIGHT_DEPTH)
-    T.eq(chev.__rotation, Kit.ROTATION.down, "open: pointing down")
-    normal:SetAtlas("campaign_headericon_closed")
-    Kit.ListRow(row)                                    -- the pass over the rows after an update
-    T.eq(chev.__rotation, Kit.ROTATION.right, "closed again")
-    T.truthy(Kit.Erased(normal), "the game's art erased for good")
-    T.isnil(rawget(normal, "SetAtlas"), "no hook on the game's art")
+    T.truthy(Kit.ShellOf(poll), "the role poll in our window")
+    T.eq(poll.Border:GetAlpha(), 0, "the game's gold border gone")
+    T.truthy(Kit.ButtonOf(poll.acceptButton), "Accept is our button")
+    T.eq(tank.icon:GetAlpha(), 1, "the role icons stay")
+    T.truthy(Kit.ShellOf(check), "the dungeon finder's role check too")
+    T.eq(check.Border:GetAlpha(), 0)
+    T.truthy(Kit.ButtonOf(LFDRoleCheckPopupAcceptButton))
+    T.truthy(Kit.ButtonOf(LFDRoleCheckPopupDeclineButton))
+    poll:Hide(); poll:Show()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: dropdowns: a plain outline, a down chevron, the game's text size; found by key too", function()
@@ -1110,7 +939,29 @@ T.test("skins: a big window is dressed over a few frames, not all at once, lists
     Kit.AUTO_BUDGET = budget
 end)
 
-T.test("skins: money (gold, silver, copper) keeps the game's coins", function()
+T.test("skins: a walk caught by a fight waits hidden, then finishes after it", function()
+    login()
+    local Kit = stub.skins.Kit
+    local budget = Kit.AUTO_BUDGET
+    Kit.AUTO_BUDGET = 5
+    local f = CreateFrame("Frame", nil, UIParent)
+    local buttons = {}
+    for i = 1, 30 do buttons[i] = button(nil, CreateFrame("Frame", nil, f)) end
+    Kit.Auto(f)
+    T.truthy(Kit.walker:IsShown(), "walking")
+    stub.EnterCombat()
+    stub.RunOnUpdate(Kit.walker, 1 / 60)
+    T.falsy(Kit.walker:IsShown(), "hidden for the fight, so no work per frame")
+    T.isnil(Kit.ButtonOf(buttons[30]), "paused")
+    stub.LeaveCombat()
+    T.truthy(Kit.walker:IsShown(), "back once the fight ends")
+    for _ = 1, 40 do stub.RunOnUpdate(Kit.walker, 1 / 60) end
+    T.truthy(Kit.ButtonOf(buttons[30]), "and the walk finishes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    Kit.AUTO_BUDGET = budget
+end)
+
+T.test("skins: money (gold, silver, copper) wears Daylight UI's coins, never a button look", function()
     login()
     local Kit = stub.skins.Kit
     local f = CreateFrame("Frame", nil, UIParent)
@@ -1136,10 +987,29 @@ T.test("skins: money (gold, silver, copper) keeps the game's coins", function()
     function loose:GetNormalTexture() return coin end
     function loose:GetFontString() return label end
     Kit.Auto(f)
-    T.eq(money.CopperButton.coin:GetAlpha(), 1, "the coin kept")
+    T.eq(money.CopperButton.coin:GetAlpha(), 1, "the coin shown")
+    T.truthy(tostring(money.CopperButton.coin:GetTexture()):find("coin-copper.png", 1, true), "our copper coin")
+    -- The game puts its coin back only when colorblind mode flips; ours follows.
+    money.GoldButton.coin:SetAtlas("coin-gold")
+    MoneyFrame_Update(money, 10000)
+    T.truthy(tostring(money.GoldButton.coin:GetTexture()):find("coin-gold.png", 1, true), "ours again after the game's redraw")
     T.isnil(stub.skins.Kit.ShellOf(money.GoldButton), "no button look on it")
     T.eq(coin:GetAlpha(), 1, "a coin beside an amount isn't button art")
     T.isnil(stub.skins.Kit.ShellOf(loose))
+    -- A money input that isn't forbidden (the auction house's): our boxes and coins.
+    local input = CreateFrame("Frame", nil, f)
+    for _, c in ipairs({ "gold", "silver", "copper" }) do
+        local box = CreateFrame("EditBox", nil, input)
+        box.Left, box.Right, box.Middle = box:CreateTexture(), box:CreateTexture(), box:CreateTexture()
+        box.texture = box:CreateTexture()
+        box.texture:SetAtlas("coin-" .. c)
+        input[c] = box
+    end
+    Kit.Auto(f)
+    for _, c in ipairs({ "gold", "silver", "copper" }) do
+        T.truthy(tostring(input[c].texture:GetTexture()):find("coin-" .. c .. ".png", 1, true), "our " .. c .. " coin in its box")
+        T.truthy(Kit.InputOf(input[c]), "the " .. c .. " box in our text box look")
+    end
 end)
 
 T.test("skins: a window is gone over again when its pages are shown, only what's shown, not on a timer", function()
@@ -1310,30 +1180,6 @@ T.test("skins: the world map: our window under the map, its border frame's butto
     T.eq(count.art:GetAlpha(), 0, "its own art gone")
 end)
 
-T.test("skins: a gossip option's quest name, set through its button in the game's black, is light at once", function()
-    login()
-    local box = GossipFrame.GreetingPanel.ScrollBox
-    local b = CreateFrame("Button", nil, box)
-    local fs = b:CreateFontString()
-    function b:GetFontString() return fs end
-    function b:SetText(text) fs.__text = text end          -- the client sets its label itself
-    local setText, update = b.SetText, box.Update
-    box.rows[1] = b
-    box:Update(function(row) row:SetText("|cff000000A Token of Good Faith|r") end)
-    stub.RunTimers()                                        -- a new row: made light the frame after
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "rewritten")
-    -- The row reused for another option is relit in the same frame the game
-    -- fills it, so there's no frame of black text.
-    box:Update(function(row)
-        row:SetText("|cff000000Another Quest|r")
-        fs:SetTextColor(0, 0, 0)
-    end)
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "rewritten at once")
-    T.truthy(fs.__textColor[1] > 0.8, "light at once")
-    T.eq(b.SetText, setText, "no hook on the button")
-    T.eq(box.Update, update, "no hook on the list")
-end)
-
 T.test("skins: a window that isn't there yet is skinned once a game addon brings it", function()
     login()
     local Engine = stub.skins.Engine
@@ -1352,7 +1198,7 @@ T.test("skins: window skins take the accent only on hover and selection", functi
     DaylightUI:Set("general", "accentColor", { 1, 0, 0 })
     DaylightUI:Set("general", "accent", "custom")
     stub.RunTimers()
-    local b = QuestFrameAcceptButton
+    local b = TradeFrameTradeButton
     local s = Kit.ButtonOf(b)
     T.rgb(s.band.__vertex, DaylightUI.Widgets.BUTTON.band, "a button at rest: still its quiet band")
     b:SetSize(100, 22)
@@ -1364,26 +1210,6 @@ T.test("skins: window skins take the accent only on hover and selection", functi
     local sel = row:CreateTexture()
     Kit.Row(row, nil, sel)
     T.eq(Kit.ShellOf(row).opts.borderColor, Kit.SELECTED, "a selected row: the soft light gray")
-end)
-
-T.test("skins: the quest greeting's quest buttons (from a pool, no names) are light, their quest names too", function()
-    login(function()
-        local panel = CreateFrame("Frame", "QuestFrameGreetingPanel", QuestFrame)
-        _G.QuestFrameGreetingPanel_OnShow = function() end
-        panel.child = CreateFrame("Frame", nil, panel)
-    end)
-    local b = CreateFrame("Button", nil, QuestFrameGreetingPanel.child)
-    local fs = b:CreateFontString()
-    function b:GetFontString() return fs end
-    function b:SetFormattedText(fmt, ...) fs.__text = string.format(fmt, ...) end
-    b:SetFormattedText("|cff000000%s|r", "Drive Them Out")
-    fs:SetTextColor(0, 0, 0)
-    QuestFrameGreetingPanel_OnShow()
-    T.truthy(fs.__textColor[1] > 0.8, "light")
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "its name's black rewritten")
-    b:SetFormattedText("|cff000000%s|r", "Dwarven Digging")          -- reused for another quest
-    QuestFrameGreetingPanel_OnShow()                                  -- (the game's greeting fill)
-    T.truthy(not fs:GetText():find("|cff000000", 1, true), "and again as it's reused")
 end)
 
 T.test("skins: the old flight map keeps its map (drawn into the window's inset background)", function()
@@ -1399,11 +1225,74 @@ T.test("skins: the old flight map keeps its map (drawn into the window's inset b
     T.eq(f.Bg:GetAlpha(), 0, "its frame art gone")
 end)
 
-
-
-
-
-
+-- TaxiFrame as the game builds it (dumped from a client): a 590 x 608 window, the map
+-- drawn into InsetBg (4 px from the left, 6 from the right and bottom, under a 24 px
+-- strip, 580 x 580), the route map anchored to InsetBg's corners and each flight point
+-- to its bottom left, the title and the X in the window's corners.
+T.test("skins: the flight map's title and X sit where our windows have them, with the same room round the map", function()
+    local f, route, button, title, close
+    login(function()
+        f = CreateFrame("Frame", "TaxiFrame", UIParent)
+        f:SetSize(590, 608)
+        f.InsetBg = f:CreateTexture("TaxiFrameInsetBg")
+        f.InsetBg:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -24)
+        f.InsetBg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 4)
+        f.InsetBg:SetSize(580, 580)   -- the fake game has no layout
+        f.Bg = f:CreateTexture()
+        title = f:CreateFontString()
+        f.TitleText = title
+        title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -6)
+        title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -40, -6)
+        close = CreateFrame("Button", nil, f)
+        f.CloseButton = close
+        close:SetSize(24, 24)
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 3)
+        route = CreateFrame("Frame", "TaxiRouteMap", f)
+        route:SetPoint("TOPLEFT", f.InsetBg, "TOPLEFT", 0, 0)
+        route:SetPoint("BOTTOMRIGHT", f.InsetBg, "BOTTOMRIGHT", 0, 0)
+        button = CreateFrame("Button", "TaxiButton1", f)
+        button:SetPoint("CENTER", f.InsetBg, "BOTTOMLEFT", 248, 434)
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Win = DaylightUI.Win
+    local m = 12
+    local function pointOf(frame, name)
+        for i = 1, frame:GetNumPoints() do
+            local p, rel, rp, x, y = frame:GetPoint(i)
+            if p == name then return rel, rp, x, y end
+        end
+    end
+    -- The map has the same room on every side: the header over it, the edges round it.
+    local rel, rp, x, y = pointOf(f.InsetBg, "TOPLEFT")
+    T.eq(rel, f); T.eq(x, m, "left"); T.eq(-y, Win.COMPACT + m, "under the header, with the room")
+    rel, rp, x, y = pointOf(f.InsetBg, "BOTTOMRIGHT")
+    T.eq(rel, f); T.eq(-x, m, "right"); T.eq(y, m, "bottom")
+    T.eq(f:GetWidth(), m + 580 + m, "the window grew to make the room")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    -- The route and the flight points still hang from the map, untouched.
+    rel, rp, x, y = pointOf(route, "TOPLEFT")
+    T.eq(rel, f.InsetBg); T.eq(x, 0); T.eq(y, 0)
+    rel, rp, x, y = pointOf(button, "CENTER")
+    T.eq(rel, f.InsetBg, "the flight point is still on the map"); T.eq(rp, "BOTTOMLEFT"); T.eq(x, 248); T.eq(y, 434)
+    -- The title and the X where every window has them.
+    rel, _, x, y = pointOf(close, "TOPRIGHT")
+    T.eq(rel, f); T.eq(x, Win.CLOSE_X); T.eq(y, Win.CloseY(true), "level with the title")
+    T.eq(close:GetWidth(), DaylightUI.Widgets.CLOSE, "the same size")
+    rel, _, x, y = pointOf(title, "TOPLEFT")
+    T.eq(rel, f); T.eq(x, Win.EDGE); T.eq(y, Win.TITLE_Y)
+    -- Opening it again changes nothing: no growing, nothing moved twice.
+    for _ = 1, 3 do f:Hide(); f:Show(); stub.RunTimers() end
+    T.eq(f:GetWidth(), m + 580 + m, "the same width after opening it again")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    rel, rp, x, y = pointOf(f.InsetBg, "TOPLEFT")
+    T.eq(x, m); T.eq(-y, Win.COMPACT + m)
+    -- The game sets the window's size again: the room is made again, from the same map.
+    f:SetSize(590, 608)
+    f:Hide(); f:Show(); stub.RunTimers()
+    T.eq(f:GetWidth(), m + 580 + m, "the room made again")
+    T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("skins: a quest opened from the map: parchment and frame gone, our buttons, rewards outlined", function()
     local d, rewards
@@ -1466,6 +1355,54 @@ T.test("skins: a quest opened from the map has light text, even with the NPC pac
     QuestMapFrame_ShowQuestDetails()
     T.truthy(QuestInfoDescriptionText.__textColor[1] > 0.8, "light text on our dark panel")
     T.eq(QuestInfoTitleHeader.__textColor[1], stub.skins.Kit.HEADER[1], "titles in the accent")
+end)
+
+T.test("skins: the game's quest window keeps its dark text after the map lit the same text", function()
+    login(function()
+        local map = window("WorldMapFrame")
+        local qm = CreateFrame("Frame", "QuestMapFrame", map)
+        qm.DetailsFrame = CreateFrame("Frame", nil, qm)
+        _G.QuestMapFrame_ShowQuestDetails = function() end
+        -- The game's rule (QuestInfo.lua, forever): the shared quest text moves to
+        -- whichever window shows it, and its colors are set again only when the
+        -- material changes. Map pages pass no material.
+        _G.QuestInfoFrame = CreateFrame("Frame", "QuestInfoFrame", UIParent)
+        _G.GetMaterialTextColors = function(material)
+            if material == "Stone" then return { 1, 1, 1 }, { 1, 0.8, 0 } end
+            return { 0.18, 0.12, 0.06 }, { 0, 0, 0 }
+        end
+        _G.QuestInfo_Display = function(_, parent, _, material)
+            for _, n in ipairs({ "QuestInfoTitleHeader", "QuestInfoDescriptionText" }) do _G[n]:SetParent(parent) end
+            if QuestInfoFrame.material ~= material then
+                QuestInfoFrame.material = material
+                local text, title = GetMaterialTextColors(material)
+                QuestInfoTitleHeader:SetTextColor(title[1], title[2], title[3])
+                QuestInfoDescriptionText:SetTextColor(text[1], text[2], text[3])
+            end
+        end
+    end)
+    WorldMapFrame:Show()
+    stub.RunTimers()
+    local body, title = QuestInfoDescriptionText, QuestInfoTitleHeader
+    -- A quest opened on the map: light text there.
+    QuestInfo_Display(nil, QuestMapFrame.DetailsFrame)
+    T.truthy(body.__textColor[1] > 0.8, "light on the map")
+    -- Then one from an NPC, twice (same material, so the game paints only once).
+    QuestFrame:Show()
+    QuestInfo_Display(nil, QuestFrame, nil, "Parchment")
+    T.eq(body.__textColor[1], 0.18, "the game's dark ink in its own window")
+    T.eq(title.__textColor[1], 0, "and its dark title")
+    QuestInfo_Display(nil, QuestFrame, nil, "Parchment")
+    -- The skin runs again (a /reload, a repaint, the map shown again).
+    WorldMapFrame:Hide(); WorldMapFrame:Show()
+    stub.skins.Kit.RepaintSoon(); stub.RunTimers()
+    stub.skins.Kit.RelightIn(QuestFrame, 3)
+    T.eq(body.__textColor[1], 0.18, "still the game's dark ink")
+    T.eq(title.__textColor[1], 0, "still its dark title")
+    -- Back on the map, light again.
+    QuestInfo_Display(nil, QuestMapFrame.DetailsFrame)
+    T.truthy(body.__textColor[1] > 0.8, "light on the map again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- A roll popup as the game's template makes it (GroupLootFrame.xml, forever).
@@ -1595,6 +1532,39 @@ T.test("skins: a loot toast gets our look as it shows, its icon outlined in the 
     T.eq(o.Background:GetAlpha(), 1, "another toast untouched")
     _G.LootAlertSystem, _G.MoneyWonAlertSystem, _G.AlertFrame_ShowNewAlert = nil, nil, nil
     _G.GetItemInfo, _G.GetItemQualityColor = nil, nil
+end)
+
+-- The game's NewRecipeLearnedAlertFrameTemplate: an unnamed gold atlas, a round
+-- profession icon (masked by the game on every SetUp), Title and Name.
+T.test("skins: the new recipe toast wears the window look, its gold art gone and its icon kept", function()
+    local S = login(function()
+        _G.NewRecipeLearnedAlertSystem = {}
+        _G.AlertFrame_ShowNewAlert = function(f) f:Show() end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Kit = S.Kit
+    local t = CreateFrame("Button", nil, UIParent)
+    t:SetSize(312, 89)
+    t.queue = NewRecipeLearnedAlertSystem
+    local art = t:CreateTexture(nil, "BACKGROUND"); art:SetAtlas("recipetoast-bg", true)
+    t.Icon = t:CreateTexture(nil, "BACKGROUND"); t.Icon:SetTexture("cooking")
+    t.glow, t.shine = t:CreateTexture(nil, "OVERLAY"), t:CreateTexture(nil, "OVERLAY")
+    t.Title, t.Name = t:CreateFontString(), t:CreateFontString()
+    t.Title:SetText("New Recipe Learned!"); t.Name:SetText("Seasoned Wolf Kabob")
+    AlertFrame_ShowNewAlert(t)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(art:GetAlpha(), 0, "the gold toast gone")
+    T.truthy(Kit.Erased(art), "erased for good, as the loot toast's background")
+    T.truthy(Kit.Erased(t.glow) and Kit.Erased(t.shine), "its glow and shine erased")
+    T.eq(t.Icon:GetAlpha(), 1, "the profession icon stays")
+    local box = S.RecipeToast.boxes[t]
+    T.truthy(box and Kit.ShellOf(box), "a window-look box behind it")
+    local c = DaylightUI.Style.INK.LABEL
+    T.near(select(1, t.Title:GetTextColor()), c[1], 0.01, "the heading tan")
+    -- The game reuses it: one box, however many recipes.
+    AlertFrame_ShowNewAlert(t)
+    T.eq(S.RecipeToast.boxes[t], box, "the same box")
+    _G.NewRecipeLearnedAlertSystem, _G.AlertFrame_ShowNewAlert = nil, nil
 end)
 
 -- The loot window (Packs/System.lua). The fake is the game's own template and
@@ -2277,7 +2247,12 @@ end)
 -- way on an addon frame over the canvas.
 T.test("skins: unexplored areas show dimmed on the map, from the game's pieces less the explored ones", function()
     local f
+    local mapSet = {}
     login(function()
+        -- The game's EventRegistry: callbacks get their owner first.
+        _G.EventRegistry = { RegisterCallback = function(_, event, fn, owner)
+            if event == "MapCanvas.MapSet" then mapSet[#mapSet + 1] = function(...) fn(owner, ...) end end
+        end }
         f = window("WorldMapFrame")
         f.ScrollContainer = CreateFrame("ScrollFrame", nil, f)
         f.ScrollContainer.Child = CreateFrame("Frame", nil, f.ScrollContainer)
@@ -2317,9 +2292,11 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     -- A piece 512 wide: two full tiles side by side at its offset.
     local p, rel, rp, x, y = first:GetPoint(1)
     T.eq(p, "TOPLEFT"); T.eq(rel, R.frame)
-    -- Another map is redrawn for it, since its id is read each frame.
+    -- Another map is redrawn for it when the game's canvas announces it, with
+    -- nothing polled per frame.
+    T.isnil(R.frame:GetScript("OnUpdate"), "no per-frame watcher")
     f.mapID = 947        -- Azeroth: no pieces
-    stub.RunOnUpdate(R.frame)
+    for _, fn in ipairs(mapSet) do fn(947) end
     shown = 0
     for _, r in ipairs({ R.frame:GetRegions() }) do if r:IsShown() then shown = shown + 1 end end
     T.eq(shown, 0)
@@ -2443,7 +2420,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
     T.truthy(kinds.raid)
     -- No pins on a map that isn't a zone.
     f.mapID = 947
-    stub.RunOnUpdate(P.frame)
+    P.MapSet()   -- the game's "MapCanvas.MapSet"
     T.eq(#shown(), 0)
     -- Forever's new dungeons have no corpse point. The addon's own list puts
     -- Excavation Site on the Wetlands, using the game's name when it has one.
@@ -2453,7 +2430,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
         return info(id)
     end
     f.mapID = 1437
-    stub.RunOnUpdate(P.frame)
+    P.MapSet()   -- the game's "MapCanvas.MapSet"
     local got = {}
     for _, b in ipairs(shown()) do
         if b.pin.family == "instance" then got[#got + 1] = b end
@@ -2548,44 +2525,6 @@ local function socialWindow()
     page.ScrollBox.rows = rows(card)
     return f, tab, card
 end
-
-T.test("skins: the rebuilt friends window: our window, its side tabs, friend cards as rows", function()
-    local f, tab, card
-    login(function()
-        f, tab, card = socialWindow()
-        stub.loadedAddOns.Blizzard_SocialUI = true
-    end)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local Kit = stub.skins.Kit
-    T.truthy(Kit.ShellOf(f), "our window")
-    T.eq(f.TopFade:GetAlpha(), 0, "the game's fades gone")
-    T.eq(f.BottomFade:GetAlpha(), 0)
-    T.eq(f.BattleNetBar.Background:GetAlpha(), 0, "the Battle.net bar's art gone")
-    T.eq(tab.Background:GetAlpha(), 0, "the side tab's art gone")
-    T.eq(tab.Icon:GetAlpha(), 1, "its icon kept")
-    T.truthy(Kit.ShellOf(tab), "the side tab look")
-    local ts = Kit.ShellOf(tab)
-    T.truthy(ts.host == tab or DaylightUI.Style.GetShell(tab) == ts, "the whole tab outlined, against the window (no gap to the icon)")
-    local search = f.FriendsList.FilterBar.SearchBar
-    T.eq(search.Background:GetAlpha(), 0, "the search box's own black art gone")
-    T.truthy(Kit.InputOf(search), "the input look")
-    T.truthy(Kit.ButtonOf(f.FriendsList.ActionButton), "Add New Friend, flat")
-    T.eq(card.Background:GetAlpha(), 0, "the card's art gone")
-    T.truthy(Kit.ShellOf(card), "the row look")
-    T.eq(card.PartyButton:GetNormalTexture():GetAlpha(), 0, "the invite button's art gone")
-    T.truthy(Kit.ShellOf(card.PartyButton), "an icon button like ours")
-    -- When the list adds more friends they're styled the frame after.
-    local more = CreateFrame("Button", nil, f.FriendsList.ScrollBox)
-    more.Background = more:CreateTexture()
-    more.PresenceHolder = CreateFrame("Frame", nil, more)
-    more.TextHolder = CreateFrame("Frame", nil, more)
-    function more:GetElementData() return {} end
-    table.insert(f.FriendsList.ScrollBox.rows, more)
-    f.FriendsList.ScrollBox:Update()
-    stub.RunTimers()
-    T.eq(more.Background:GetAlpha(), 0, "a new card dressed too")
-    T.truthy(Kit.ShellOf(more))
-end)
 
 -- The guild window (Blizzard_Communities, CommunitiesFrame.xml). Icon tabs down
 -- its right side (RightSideTabTemplate), guilds and communities as cards on the
@@ -2766,13 +2705,14 @@ end)
 -- ---------------------------------------------------------------------
 
 T.test("skins: an item's outline isn't painted again for the color it already has", function()
-    login(function()
-        character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
-        CharacterHeadSlot.IconBorder:Show()
-    end)
+    login()
     local Kit = stub.skins.Kit
-    local slot = CharacterHeadSlot
+    local slot = CreateFrame("Button", nil, UIParent)
+    slot.icon = slot:CreateTexture()
+    slot.IconBorder = slot:CreateTexture()
+    slot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
+    slot.IconBorder:Show()
+    Kit.Item(slot)
     local s = Kit.ShellOf(slot)
     local paints, paint = 0, Kit.Paint
     Kit.Paint = function(...) paints = paints + 1; return paint(...) end
@@ -2877,25 +2817,11 @@ end)
 
 T.test("skins: a window's title the game recolors is light again as the window opens", function()
     login()
-    local title = QuestFrame.TitleContainer.TitleText
-    QuestFrame:Hide()
+    local title = TradeFrame.TitleContainer.TitleText
+    TradeFrame:Hide()
     title:SetTextColor(1, 0.82, 0)                   -- the game, while it was closed
-    QuestFrame:Show()
+    TradeFrame:Show()
     T.truthy(title.__textColor[3] > 0.6, "light again, not the game's gold")
-end)
-
-T.test("skins: an equipment slot that hides its border by hand as it shows (ammo) is recolored after", function()
-    login(function()
-        character()
-        CharacterHeadSlot.IconBorder:SetVertexColor(0.64, 0.21, 0.93)
-        CharacterHeadSlot.IconBorder:Show()
-        CharacterHeadSlot:SetScript("OnShow", function(self) self.IconBorder:Hide() end)   -- the game's XML
-    end)
-    local Kit = stub.skins.Kit
-    local slot = CharacterHeadSlot
-    T.eq(Kit.ShellOf(slot).opts.borderColor[1], 0.64)
-    slot:Hide(); slot:Show()
-    T.eq(Kit.ShellOf(slot).opts.borderColor, Kit.EMPTY_ITEM_BORDER, "its border hidden: our outline dim")
 end)
 
 T.test("skins: the game's pop-up menus, every level, are dressed as they show (EventRegistry, no hooks)", function()
@@ -2927,6 +2853,47 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
         T.truthy(ours, "our look behind it")
         T.eq(m.text.__textColor[1], 0.5, "the game's colors kept")
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A row's focus glow (FocusEffectTemplates) can have secret anchoring, and
+-- then its size getters return secret numbers, as the API docs say. A player
+-- got "attempt to compare local 'h' (a secret number value)" 26 times.
+T.test("skins: a menu row whose glow has a secret height is checked without comparing it", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local Kit = stub.skins.Kit
+    local menu = CreateFrame("Frame", nil, UIParent)
+    menu.bg = menu:CreateTexture()
+    local row = CreateFrame("Frame", nil, menu)
+    row.GlowTexture = row:CreateTexture()
+    row.GlowTexture:SetTexture(130841)
+    function row.GlowTexture:GetHeight() return stub.Secret(12) end
+    function row.GlowTexture:GetWidth() return stub.Secret(120) end
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local holder
+    for _, c in ipairs({ menu:GetParent():GetChildren() }) do if Kit.ShellOf(c) then holder = c end end
+    T.truthy(holder, "our look behind it")
+    local tick = holder.__scripts and holder.__scripts.OnUpdate
+    T.truthy(tick, "it watches the menu")
+    -- In game a secret number answers type() with "number" and only errors
+    -- when compared. The fake secret is a table, so make it answer like the
+    -- game's for this one look.
+    local realType, realCheck = type, issecretvalue
+    local function fake(v) return realType(v) == "table" and rawget(v, "__secret") == true end
+    _G.issecretvalue = fake
+    _G.type = function(v)
+        if fake(v) and realType(rawget(v, "__value")) == "number" then return "number" end
+        return realType(v)
+    end
+    local ok, err = pcall(tick, holder, 0.2)
+    _G.type, _G.issecretvalue = realType, realCheck
+    T.truthy(ok, tostring(err))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3083,6 +3050,19 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     holder:GetScript("OnUpdate")(holder, 0.1)
     stub.RunTimers()
     T.eq(box.leftTexture2:GetTexture(), DaylightUI.MEDIA .. "ui-check.png", "a checkbox refresh keeps our tick")
+    -- A tick rebuilds every row with the game's own font (Compositor.lua,
+    -- SetFontStringToDefaults) while the menu stays open. Our font is back in
+    -- the same frame, before it is drawn, with the row's color kept.
+    T.eq((plain.text:GetFont()), Style.FONT, "the row starts in our font")
+    local gameFont = CreateFont("TestMenuGameFont")
+    gameFont:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
+    plain.text:SetFontObject(gameFont)
+    plain.text:SetTextColor(0.5, 0.6, 0.7, 1)
+    local gameFile = plain.text:GetFont()
+    T.truthy(gameFile ~= Style.FONT, "the fake game's default font is not ours")
+    holder:GetScript("OnUpdate")(holder, 0.016)
+    T.eq((plain.text:GetFont()), Style.FONT, "a refresh's text is back in our font at once")
+    T.eq(plain.text.__textColor[2], 0.6, "with the color the game gave it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3327,16 +3307,18 @@ T.test("skins: the dressing room in our look: model buttons, bare chevrons, the 
     _G.GetItemQualityColor, _G.CUSTOM_SET_SLOT_STATE_UNCOLLECTED, _G.CUSTOM_SET_SLOT_STATE_ERROR = nil, nil, nil
 end)
 
--- The guild window's round portrait (CommunitiesFrame.xml PortraitOverlay) and its
--- maximize/minimize pair beside the X. A guild with no tabard design gets the
--- "no logo" emblem with SetVertexColor(1, 1, 1, 1) on every UpdatePortrait
--- (GuildUtil.lua SetGuildTabardTextures), which brought it back behind the title.
-T.test("skins: the guild window's portrait stays gone after the game repaints it; maximize and minimize are bare chevrons", function()
-    local f, overlay
+-- The guild window's club icon (CommunitiesFrame.xml PortraitOverlay) and its
+-- maximize/minimize pair beside the X. The game hides the icon while the window
+-- is small and hangs it off the corner when large. It stays in the header, and
+-- a guild with no tabard can repaint the emblem (SetVertexColor 1,1,1,1) without
+-- it landing behind the title.
+T.test("skins: the guild window keeps its icon in the header; maximize and minimize sit level with the X", function()
+    local f, overlay, dragon
     login(function()
         f = guildWindow()
         overlay = CreateFrame("Frame", nil, f)
         overlay:SetFrameLevel(300)
+        overlay:Hide()
         for _, k in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
             overlay[k] = overlay:CreateTexture()
         end
@@ -3344,23 +3326,219 @@ T.test("skins: the guild window's portrait stays gone after the game repaints it
         f.MaximizeMinimizeFrame = CreateFrame("Frame", nil, f)
         f.MaximizeMinimizeFrame.MaximizeButton = artButton(f.MaximizeMinimizeFrame)
         f.MaximizeMinimizeFrame.MinimizeButton = artButton(f.MaximizeMinimizeFrame)
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        local disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        dragon = disabled:CreateTexture()
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled.Description:SetTextColor(1, 0.82, 0)
+        _G.ERR_GUILD_PLAYER_NOT_IN_GUILD = "No estás en una hermandad."
         stub.loadedAddOns.Blizzard_Communities = true
+        registry(f, { "ClubSelected", "DisplayModeChanged" })
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit = stub.skins.Kit
-    -- The game's UpdatePortrait for a guild without a design.
+    T.truthy(overlay:IsShown(), "the icon stays while the window is small")
+    T.eq(overlay.Portrait:GetWidth(), DaylightUI.Win.PORTRAIT, "the same size as our windows' portrait")
+    local point, rel, relPoint, x, y = overlay.Portrait:GetPoint(1)
+    T.eq(point, "TOPLEFT"); T.eq(rel, f); T.eq(relPoint, "TOPLEFT")
+    T.eq(x, DaylightUI.Win.EDGE); T.eq(y, -8, "in the header, not hanging off the corner")
+    local _, _, _, titleX, titleY = f.TitleContainer.TitleText:GetPoint(1)
+    T.eq(titleX, DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT + 12, "the title starts after the icon")
+    T.eq(titleY, DaylightUI.Win.TITLE_Y, "level with the portrait, like the spellbook")
+    local sub
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.GetText and r:GetText() == "No estás en una hermandad." then sub = r end
+    end
+    T.truthy(sub, "a line under the title when no guild is selected")
+    local sp, sr, srp, _, sy = sub:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(sr, f.TitleContainer.TitleText); T.eq(srp, "BOTTOMLEFT")
+    T.eq(sy, -2, "tucked under the title")
+    T.eq(sub.__font[2], DaylightUI.Style.SIZE.small)
+    T.eq(sub.__textColor[1], DaylightUI.Style.INK.LABEL[1])
+    T.eq(overlay.Portrait.__texCoord[1], DaylightUI.Style.ICON_CROP[1], "the icon's square border cropped off")
+    local rim
+    for _, r in ipairs({ overlay:GetRegions() }) do
+        if r.__texture == DaylightUI.MEDIA .. "portrait-rim.png" then rim = r end
+    end
+    T.truthy(rim, "the same rim as the spellbook portrait")
+    local cp, cr, crp, _, cy = f.CloseButton:GetPoint(1)
+    T.eq(cp, "TOPRIGHT"); T.eq(cr, f); T.eq(crp, "TOPRIGHT")
+    T.eq(cy, DaylightUI.Win.CloseY(false), "the close button sits in the header, not in the corner")
+    -- The game's UpdatePortrait for a guild without a design. The emblem stays put.
     overlay.TabardEmblem:SetShown(true)
     overlay.TabardEmblem:SetTexture("Interface\\GuildFrame\\GuildLogo-NoLogo")
     overlay.TabardEmblem:SetVertexColor(1, 1, 1, 1)
-    overlay.TabardBackground:SetVertexColor(0.2245, 0.2088, 0.1794)
-    for _, k in ipairs({ "Portrait", "TabardBackground", "TabardEmblem", "TabardBorder" }) do
-        T.truthy(Kit.Erased(overlay[k]), k .. " erased, so the game's vertex color can't bring it back")
-    end
+    T.eq(overlay.TabardEmblem:GetWidth(), DaylightUI.Win.PORTRAIT, "the tabard uses the same slot")
+    T.eq(dragon:GetAlpha(), 0, "the finder splash's dragon gone")
+    T.eq(f.GuildFinderFrame.DisabledFrame.Description.__textColor[1], DaylightUI.Style.INK.TEXT[1], "its text in our ink")
+    local mm = f.MaximizeMinimizeFrame
+    point, rel, relPoint, x, y = mm:GetPoint(1)
+    T.eq(point, "RIGHT"); T.eq(rel, f.CloseButton); T.eq(relPoint, "LEFT")
+    T.eq(y, 0, "level with the close button")
     for _, k in ipairs({ "MinimizeButton", "MaximizeButton" }) do
-        local b = f.MaximizeMinimizeFrame[k]
+        local b = mm[k]
         T.eq(b:GetNormalTexture():GetAlpha(), 0, k .. ": the game's art gone")
-        T.isnil(Kit.ShellOf(b), k .. ": a bare chevron by the X, no box over the top edge")
+        T.isnil(Kit.ShellOf(b), k .. ": a bare chevron, no box over the top edge")
     end
+    -- Shrinking the window hides the icon. The click puts it back.
+    overlay:Hide()
+    mm.MinimizeButton:Click()
+    T.truthy(overlay:IsShown(), "shrinking the window doesn't drop the icon")
+    -- The finder page disables minimize. The chevron goes dim so it doesn't look live.
+    local chev
+    for _, r in ipairs({ mm.MinimizeButton:GetRegions() }) do
+        if r.__texture == DaylightUI.MEDIA .. "ui-chevron.png" then chev = r end
+    end
+    mm.MinimizeButton:Disable()
+    T.eq(chev.__vertex[1], DaylightUI.Style.INK.OFF[1], "a disabled minimize chevron reads as off")
+    function f:GetSelectedClubId() return 7 end
+    _G.C_Club = { GetClubInfo = function() return { name = "Luz de Elune" } end }
+    f:Hide()
+    f:Show()
+    stub.RunTimers()
+    T.eq(sub:GetText(), "Luz de Elune", "the selected community replaces the empty line")
+    _G.C_Club.GetClubInfo = function() return { name = "Circulo de la Luna" } end
+    f:TriggerEvent("ClubSelected", 7)
+    T.eq(sub:GetText(), "Luz de Elune", "the line waits for the next frame, outside the game's own call")
+    stub.RunTimers()
+    T.eq(sub:GetText(), "Circulo de la Luna", "switching club while the window stays open updates the line")
+    -- A new display mode (the game moves the icon as the window grows) puts it back.
+    overlay.Portrait:ClearAllPoints()
+    overlay.Portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 99, -99)
+    f:TriggerEvent("DisplayModeChanged", 2)
+    stub.RunTimers()
+    T.eq(select(4, overlay.Portrait:GetPoint(1)), DaylightUI.Win.EDGE, "a new display mode puts the icon back in the header")
+end)
+
+T.test("skins: with no community the join action sits under the guild text", function()
+    local f, disabled
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        f = guildWindow()
+        f.CommunitiesList:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 170, 29)
+        -- The game has already filled the list (its own OnShow ran once).
+        f.CommunitiesList.ScrollBox.GetDataProvider = function()
+            return { GetSize = function() return #_G.C_Club.GetSubscribedClubs() + 1 end }
+        end
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled:Show()
+        _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local x
+    for i = 1, f.CommunitiesList:GetNumPoints() do
+        local p, _, _, px = f.CommunitiesList:GetPoint(i)
+        if p == "BOTTOMRIGHT" then x = px end
+    end
+    T.eq(x, 0, "the empty column closes")
+    T.eq(f.CommunitiesList:IsShown(), false, "the column, and the rule beside it, go")
+    local b
+    for _, child in ipairs({ disabled:GetChildren() }) do
+        if child.text and child.text.GetText and child.text:GetText() == "Unirse o crear una comunidad" then b = child end
+    end
+    T.truthy(b and b:IsShown(), "a button inside the window")
+    local p, rel, rp, _, y = b:GetPoint(1)
+    T.eq(p, "BOTTOM"); T.eq(rel, f); T.eq(rp, "BOTTOM")
+    T.eq(y, 22, "above the bottom edge, not outside the frame")
+    -- Already in a guild: the column comes back and the button does not stay.
+    _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
+    _G.IsInGuild = function() return true end
+    f:Hide()
+    f:Show()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true, "the club list is back")
+    local back
+    for i = 1, f.CommunitiesList:GetNumPoints() do
+        local point, _, _, px = f.CommunitiesList:GetPoint(i)
+        if point == "BOTTOMRIGHT" then back = px end
+    end
+    T.eq(back, 170, "the column has its width again")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "the empty-state button fades out")
+    -- A list rebuild while the window stays open does the same.
+    _G.C_Club.GetSubscribedClubs = function() return {} end
+    _G.IsInGuild = function() return false end
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), false, "the empty column closes again without reopening the window")
+    T.truthy(b:IsShown(), "the join button fades back in")
+    _G.C_Club.GetSubscribedClubs = function() return { { clubId = 1 } } end
+    _G.IsInGuild = function() return true end
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true, "the list returns on the rebuild")
+    T.truthy(not b:IsShown() or b:GetAlpha() == 0, "and the button fades out again")
+end)
+
+T.test("skins: a window with no community keeps its club list shown until the game has filled it", function()
+    -- The game fills the club list in the list's own OnShow, then the window's
+    -- OnShow scrolls it to the selected club. A list hidden before that has no
+    -- data, so the scroll fails with "attempt to index a nil value".
+    local f, provider, visible
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        f = guildWindow()
+        f.CommunitiesList:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", 170, 29)
+        f.CommunitiesList.ScrollBox.GetDataProvider = function() return provider end
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        _G.IsInGuild = function() return false end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    visible = f.CommunitiesList:IsShown()
+    T.eq(visible, true, "no data yet: the list is not hidden, so its OnShow still runs")
+    T.eq(f.CommunitiesList:GetAlpha(), 0, "but it can't be seen")
+    -- The game fills it; the next rebuild can close the empty column.
+    provider = { GetSize = function() return 1 end }
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), false, "with its data in place the empty column closes")
+    -- A club shows up: the column returns whole.
+    provider = { GetSize = function() return 2 end }
+    f.CommunitiesList.ScrollBox:Update()
+    stub.RunTimers()
+    T.eq(f.CommunitiesList:IsShown(), true)
+    T.eq(f.CommunitiesList:GetAlpha(), 1, "and fully visible")
+end)
+
+T.test("skins: joining a community opens the game's dialog, which we leave alone", function()
+    local opened, toggle
+    local f, disabled
+    login(function()
+        stub.loadedAddOns.Blizzard_Communities = true
+        _G.COMMUNITIES_JOIN_COMMUNITY = "Unirse o crear una comunidad"
+        function _G.AddCommunitiesFlow_Toggle() opened = true end
+        toggle = _G.AddCommunitiesFlow_Toggle
+        _G.C_Club = { GetSubscribedClubs = function() return {} end }
+        f = guildWindow()
+        local finder = CreateFrame("Frame", nil, f)
+        f.GuildFinderFrame = finder
+        disabled = CreateFrame("Frame", nil, finder)
+        finder.DisabledFrame = disabled
+        disabled.Title = disabled:CreateFontString()
+        disabled.Description = disabled:CreateFontString()
+        disabled:Show()
+        local locked = CreateFrame("Frame", "CommunitiesAddDialog", UIParent)
+        locked.__forbidden = true
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(_G.AddCommunitiesFlow_Toggle, toggle, "the game's toggle is still the game's")
+    T.isnil(_G.DaylightCommunitiesAdd, "we do not build a replacement window")
+    T.isnil(stub.skins.Kit.ShellOf(_G.CommunitiesAddDialog), "the locked dialog is not touched")
+    local b
+    for _, child in ipairs({ disabled:GetChildren() }) do
+        if child.text and child.text.GetText and child.text:GetText() == "Unirse o crear una comunidad" then b = child end
+    end
+    T.truthy(b, "the empty page still has the join button")
+    b:Click()
+    T.eq(opened, true, "that button opens the game's dialog")
 end)
 
 T.test("skins: the game's windows wear our header, tabs, text boxes, switches and text colors", function()
@@ -3789,13 +3967,129 @@ T.test("skins: the guild window drags by its title bar like the dressing room, i
     T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "back on its spot after the game lays out")
 end)
 
+-- Every game window the skins dress that stands on its own drags the same way,
+-- including the ones a game addon makes later (the auction house, macros...).
+T.test("skins: every skinned game window drags by its title bar, its spot kept after the game lays out", function()
+    login(function()
+        _G.ShowUIPanel = function(p) p:Show() end
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local Move = stub.skins.WindowMove
+    T.truthy(#Move.WINDOWS >= 25, "the skinned windows, not just a few")
+    local made = {}
+    for _, name in ipairs(Move.WINDOWS) do
+        if not _G[name] then made[name] = window(name) end
+    end
+    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local db = DaylightUI.DB.Active().modules.Skins
+    for _, name in ipairs(Move.WINDOWS) do
+        local f, bar = _G[name], Move.bars[name]
+        T.truthy(bar, name .. " gets a strip")
+        T.eq(bar:GetParent(), f, name)
+        local _, rel, rp, x, y = bar:GetPoint(1)
+        T.eq(rel, f); T.eq(rp, "TOPLEFT"); T.eq(x, 0); T.eq(y, 0, name .. ": along the top")
+        T.truthy(select(4, bar:GetPoint(2)) <= -Move.BUTTONS, name .. ": the close button left free")
+    end
+    -- The calendar's month arrows (about 226-433 px in from its left on its 659
+    -- px width, Blizzard_Calendar.xml) and filter button stay clickable.
+    T.eq(select(4, Move.bars.CalendarFrame:GetPoint(2)), -440, "the calendar drags by the left of its title row")
+    T.eq(Move.bars.FlightMapFrame:GetHeight(), 20, "the flight map's canvas starts 20 down")
+    for _, name in ipairs({ "AuctionHouseFrame", "GameMenuFrame", "TimeManagerFrame", "TaxiFrame" }) do
+        local f, bar = _G[name], Move.bars[name]
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+        f:Show()
+        bar:GetScript("OnDragStart")(bar, "LeftButton")
+        T.truthy(f.__moving, name .. " moves")
+        f.__center = { 640, 400 }
+        bar:GetScript("OnDragStop")(bar)
+        T.truthy(Move.Spot(name), name .. ": its spot saved under its own name")
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+        UpdateUIPanelPositions(f)
+        T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", name .. ": back on its spot after the game lays out")
+        f:Hide()
+    end
+    -- Scaled with Ctrl + wheel, a window that loaded after the scaler started keeps its corner too.
+    _G.IsControlKeyDown = function() return true end
+    _G.UIPanelWindows = { AuctionHouseFrame = { area = "doublewide" } }
+    stub.skins.WindowScale.Scan()
+    local ah = AuctionHouseFrame
+    ah:Show()
+    local x = select(4, ah:GetPoint(1))
+    ah:GetScript("OnMouseWheel")(ah, 1)
+    T.eq(ah:GetScale(), 1.05)
+    T.near(select(4, ah:GetPoint(1)) * 1.05, x, 0.01, "the corner stayed")
+    -- /dui reset forgets them all.
+    DaylightUI.Movers.ResetAll()
+    for name in pairs(made) do T.isnil(db.windowSpots[name], name) end
+end)
+
+-- Beast Training lends the game's trainer window back; for a class trainer the
+-- NPC window keeps it out of sight under a parent of its own, and it stays there.
+T.test("skins: the trainer window drags only while Beast Training lends it back", function()
+    login(function()
+        window("ClassTrainerFrame")
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local Move, f = stub.skins.WindowMove, ClassTrainerFrame
+    T.truthy(Move.bars.ClassTrainerFrame)
+    DaylightUI.DB.Active().modules.Skins.windowSpots.ClassTrainerFrame = { 300, 700 }
+    local veil = DaylightUI.Win.Followers.veil
+    f:SetParent(veil)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", veil, "TOPLEFT", 0, 0)
+    f:Show()
+    UpdateUIPanelPositions(f)
+    T.eq(select(2, f:GetPoint(1)), veil, "parked: left where the veil keeps it")
+    local bar = Move.bars.ClassTrainerFrame
+    bar:GetScript("OnDragStart")(bar, "LeftButton")
+    T.falsy(f.__moving, "and can't be dragged out")
+    f:SetParent(UIParent)
+    UpdateUIPanelPositions(f)
+    T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "lent: on its spot")
+end)
+
+-- The collections journal holds secure buttons (the toy box, mounts), so in a
+-- fight it can't be moved: it waits for the fight to end.
+T.test("skins: a window with secure buttons isn't moved in a fight, only after it", function()
+    login(function()
+        _G.UpdateUIPanelPositions = function() end
+    end)
+    local f = window("CollectionsJournal")
+    CreateFrame("CheckButton", nil, f, "SecureActionButtonTemplate")
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Collections")
+    stub.RunTimers()
+    local Move, bar = stub.skins.WindowMove, stub.skins.WindowMove.bars.CollectionsJournal
+    T.truthy(bar)
+    T.truthy(f:IsProtected(), "protected through its buttons")
+    DaylightUI.DB.Active().modules.Skins.windowSpots.CollectionsJournal = { 300, 700 }
+    -- Open as the fight starts, the game's spot not yet put back.
+    f:Show()
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -100)
+    stub.secure = true
+    stub.EnterCombat()
+    UpdateUIPanelPositions(f)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(select(3, f:GetPoint(1)), "TOPLEFT", "left where the game put it")
+    bar:GetScript("OnDragStart")(bar, "LeftButton")
+    T.falsy(f.__moving, "no drag in a fight")
+    stub.LeaveCombat()
+    stub.secure = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(select(3, f:GetPoint(1)), "BOTTOMLEFT", "on its spot once the fight ends")
+end)
+
 -- The hunter's stable on Forever is the Camelot one
 -- (Blizzard_StableUI/Camelot/Blizzard_StableUI.xml): PetStableFrame is a
 -- PortraitFrameTemplate whose pet slots are CheckButtons (PetStableSlotTemplate)
 -- with a named icon and their own current/unlocked/locked slot art. The gold
 -- rules and the coin box are their own frames.
 T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its pet slots our item look", function()
-    local f, slot, bar, stabled, panelAttr
+    local f, slot, bar, stabled, panelAttr, ownSelect, ownUpdate
     login(function()
         f = window("PetStableFrame")
         slot = CreateFrame("CheckButton", "PetStableCurrentPet", f)
@@ -3817,6 +4111,15 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
             slot:ClearAllPoints()
             slot:SetPoint("TOP", f.modelScene, "BOTTOM", -69, -34)
         end
+        ownSelect, ownUpdate = f.SelectPet, f.Update
+        -- The game's callback registry (only what the skin uses of it).
+        local cbs = {}
+        _G.EventRegistry = {
+            RegisterCallback = function(_, e, fn, owner) cbs[e] = cbs[e] or {}; cbs[e][#cbs[e] + 1] = { fn, owner } end,
+            TriggerEvent = function(_, e, ...) for _, c in ipairs(cbs[e] or {}) do c[1](c[2], ...) end end,
+        }
+        -- Clicking a slot runs the game's own OnClick, which picks the pet.
+        slot:SetScript("OnClick", function() f:SelectPet(2) end)
         f.TopDividerFrame = CreateFrame("Frame", nil, f)
         f.BottomDividerFrame = CreateFrame("Frame", nil, f)
         f.modelScene = CreateFrame("Frame", nil, f)
@@ -3882,12 +4185,35 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     stub.RunTimers()
     T.eq(bad, 0, "no pet picked yet: the game's call is never made without an index")
     T.eq(#stub.errors, 0)
-    f:SelectPet(2)
+    -- Nothing hooks the game's methods: its own are still the ones on the frame.
+    T.truthy(f.SelectPet == ownSelect and f.Update == ownUpdate, "no hooksecurefunc on the stable")
+    slot:Click()
     T.eq(_G.PetStableLevelText:GetText(), "run on", "ours waits for the next frame, not inside the game's call")
     stub.RunTimers()
-    T.eq(_G.PetStableLevelText:GetText(), "Lobo", "a click keeps the name on its own line")
-    T.eq(plain(_G.PetStableLoyaltyText:GetText()), "Nivel 10 | Lobo\n(Nivel de lealtad 3) Amigo")
+    T.eq(_G.PetStableLevelText:GetText(), "Lobo", "a click on a slot keeps the name on its own line")
+    -- A pet named after its family says it once.
+    T.eq(plain(_G.PetStableLoyaltyText:GetText()), "Nivel 10\n(Nivel de lealtad 3) Amigo", "the family not repeated when it's the name")
+    -- The game's callbacks and events redo the lines and the slots too.
+    f.selectedPet = 1
+    f:SelectPet(1)
+    EventRegistry:TriggerEvent("StableFrameMixin.PetSelected", 1)
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "its PetSelected callback")
+    f:SelectPet(2)
+    EventRegistry:TriggerEvent("StableFrameMixin.OnSelectedPetChanged")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Lobo", "its OnSelectedPetChanged callback")
+    f.selectedPet = 2
+    f:SelectPet(1); f.selectedPet = 1
+    stub.FireEvent("PET_STABLE_UPDATE")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "a stable update")
+    _G.PetStableLevelText:SetText("run on")
+    stub.FireEvent("PLAYER_MONEY")
+    stub.RunTimers()
+    T.eq(_G.PetStableLevelText:GetText(), "Kaelen", "money changing")
     f:Update()
+    stub.FireEvent("PET_STABLE_UPDATE")
     stub.RunTimers()
     local sp, sr, srp, sx, sy = slot:GetPoint(1)
     T.eq(sp, "TOPLEFT"); T.eq(sr, f.modelScene); T.eq(srp, "BOTTOMLEFT")
@@ -3901,7 +4227,7 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     T.eq(f.CloseButton:GetWidth(), DaylightUI.Widgets.CLOSE)
     local tp, tr, trp, tx, ty = f.TitleContainer.TitleText:GetPoint(1)
     T.eq(tp, "TOPLEFT"); T.eq(tr, f); T.eq(trp, "TOPLEFT")
-    T.eq(tx, DaylightUI.Win.EDGE); T.eq(ty, DaylightUI.Win.TITLE_Y, "the title lines up with the X")
+    T.eq(tx, stub.skins.Kit.TITLE_X); T.eq(ty, -stub.skins.Kit.TITLE_TOP, "the title where Kit.Window puts every window's")
     T.eq(_G.PetStableSlotText.__font[2], DaylightUI.Style.SIZE.body, "the buy-a-slot line is a step under the heading")
     T.eq(_G.PetStableSlotText.__textColor[1], DaylightUI.Style.INK.LABEL[1], "the same ink as the slot labels")
     local ap, ar = _G.PetStableSlotText:GetPoint(1)

@@ -1,26 +1,27 @@
 -- Skins NeedRoll (the loot browser for Forever): window, panes, lists, buttons,
--- scroll bars, dialogs and menus get our look, font and text colors. Its icons,
+-- scroll bars, dialogs and menus get the Daylight look, font and text colors. Its icons,
 -- maps, class badges and crests are kept.
 -- How (UI/Theme.lua, UI/MainFrame.lua, v0.16.2): NeedRoll has two looks. Native
 -- is the default (a ButtonFrameTemplate window, InsetFrameTemplate panes over
 -- Collections parchment, the game's buttons, checkboxes, edit boxes, tabs and
--- gold/white/gray text). Modern is flat panels in its own blues. We dress
+-- gold/white/gray text). Modern is flat panels in its own blues. This dresses
 -- Native (NeedRollNativeFrame); Modern is the author's own look and stays as is.
--- Its colors live in a private table (ns.Theme) we can't reach, so pieces are
+-- Its colors live in a private table (ns.Theme) out of reach, so pieces are
 -- recognized by what its builders create (Theme:Row's hover/selected/bar,
 -- Theme:Pill's fill/edge/text, Theme:ScrollBar's thumb and Update,
 -- Theme:Rounded's bg/border, a pane's parchment), never by color. Its text
 -- styles are named font objects (NeedRollFontNative*, created on load), which
--- get our font and ink once and again on style changes. Text it colors itself
+-- get the Daylight font and ink once and again on style changes. Text it colors itself
 -- (gray notes, link blue, done/not done) is re-inked on each pass.
 -- The window is created on first open (every path goes through its local
--- UI:Show), so we watch its slash command, key binding (the compartment
+-- UI:Show), so this watches its slash command, key binding (the compartment
 -- function), its API for other addons, and the first clicks until it exists.
 -- Any click or wheel in it triggers another pass, since that's when it fills
 -- its lists.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Engine = ns.Engine
 local Style = DUI.Style
 
@@ -42,7 +43,7 @@ NR.FONTS = { Title = "VALUE", Heading = "LABEL", Tab = "LABEL", Body = "TEXT", S
     Small = "LABEL", Source = "LABEL", Note = "LABEL", Label = "LABEL", Pane = "LABEL", Ruled = "LABEL",
     Instance = "VALUE", FactLabel = "LABEL", FactValue = "VALUE", Section = "pop", Hint = "LABEL" }
 
--- Colors it applies itself from its native palette, mapped to our ink (its gold
+-- Colors it applies itself from its native palette, mapped to Style.INK (its gold
 -- and the game's gray are handled by Kit.GAME_INK): muted gray, link blue (a
 -- clickable quest giver), quest done and not done.
 NR.INK = {
@@ -58,7 +59,7 @@ NR.NEAR = 0.03
 -- this dungeon"): its gold and similar become the accent.
 NR.CODES = { "|c[fF][fF][fF][fF][dD]100", "|c[fF][fF][fF][cC][dD]29[fF]", "|c[fF][fF][fF]2[dD]45[cC]" }
 
--- Our font and ink on its font objects (and the larger copies it makes for
+-- The Daylight font and ink on its font objects (and the larger copies it makes for
 -- Large text, NeedRollScaledFont1...), sizes kept.
 function NR.Fonts()
     local face = Style.FontFile(Style.WINDOW_SLOT)
@@ -81,7 +82,7 @@ end
 local function near(a, b) return math.abs(a - b) <= NR.NEAR end
 local function inkText(fs)
     local r, g, b = fs:GetTextColor()
-    if type(r) ~= "number" or (issecretvalue and (issecretvalue(r) or issecretvalue(g) or issecretvalue(b))) then return end
+    if type(r) ~= "number" or (isSecret(r) or isSecret(g) or isSecret(b)) then return end
     for _, c in ipairs(NR.INK) do
         if near(r, c[1]) and near(g, c[2]) and near(b, c[3]) then
             Style.InkText(fs, c[4])
@@ -89,7 +90,7 @@ local function inkText(fs)
         end
     end
     local text = fs:GetText()
-    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) or not text:find("|c", 1, true) then return end
+    if type(text) ~= "string" or isSecret(text) or not text:find("|c", 1, true) then return end
     local hex = DUI.Win.Parts.Hex({ Style.Accent() })
     local new = text
     for _, code in ipairs(NR.CODES) do new = new:gsub(code, hex) end
@@ -115,7 +116,7 @@ end
 
 local function picked(row) return row.isSelected == true end
 
--- Its list row (Theme:Row) drawn as a line like our lists: no box, just its own
+-- Its list row (Theme:Row) drawn as a line like Parts.Stack rows: no box, just its own
 -- alternating band, a hover wash and the accent wash on the picked one, with its
 -- icon and text kept. That way a list reads as one list and section headers
 -- (below) stand apart.
@@ -159,7 +160,7 @@ local function header(Kit, f)
     paintHeader(f)
 end
 
--- Its pill button (Theme:Pill): our button look, label re-inked after each of
+-- Its pill button (Theme:Pill): the W.Button look, label re-inked after each of
 -- its own paints (gold at rest, a tone while it's asking).
 NR.pills = setmetatable({}, { __mode = "k" })
 function NR.Pill(f) return NR.pills[f] end
@@ -187,9 +188,9 @@ local function pill(Kit, f)
     words()
 end
 
--- Its slim scroll bar (Theme:ScrollBar): our faint line and pill thumb. It sets
+-- Its slim scroll bar (Theme:ScrollBar): a faint line and pill thumb. It sets
 -- its own line's color and width when drawing, so that line is erased (a mask
--- survives whatever it sets) and ours is drawn beside it.
+-- survives whatever it sets) and the new one is drawn beside it.
 NR.thumbs = setmetatable({}, { __mode = "k" })
 function NR.Thumb(bar) return NR.thumbs[bar] end
 local function scrollBar(Kit, bar)
@@ -212,7 +213,7 @@ local function scrollBar(Kit, bar)
     bar.thumb:HookScript("OnLeave", function() W.Tint(p, S.thumb) end)
 end
 
--- Its rounded boxes in the Native look (Theme:Dialog, Theme:Menu) get our shell.
+-- Its rounded boxes in the Native look (Theme:Dialog, Theme:Menu) get a shell.
 NR.fills = setmetatable({}, { __mode = "k" })
 function NR.Fill(f) return NR.fills[f] end
 local function rounded(Kit, f)
@@ -231,14 +232,14 @@ local function rounded(Kit, f)
     Kit.Shell(f, kind(f) == "Button" and "control" or "window")
 end
 
--- Its pane (Theme:CreatePanel): parchment removed, our inset. A pane it shows
+-- Its pane (Theme:CreatePanel): parchment removed, an inset instead. A pane it shows
 -- unframed (nested in another pane, parchment hidden) stays clear.
 local function pane(Kit, f)
     if f.parchment:IsShown() then Kit.Inset(f) else Kit.Erase(f.parchment) end
 end
 
 -- Its gold accents ------------------------------------------------------
--- Lines become our faint rule, the open section's card a soft lifted block, and
+-- Lines become a faint rule, the open section's card a soft lifted block, and
 -- underlines and the picked word of its toggles the accent.
 NR.RULE = { 1, 1, 1, 0.06 }
 NR.ruled = setmetatable({}, { __mode = "k" }) -- lines and dividers already converted
@@ -264,9 +265,9 @@ local function divider(d)
 end
 
 -- Its section cards (Theme:SectionCard: textures laid out on a pane and redrawn
--- on each refresh and scroll) are erased, and our own card (faint fill, no
+-- on each refresh and scroll) are erased, and a separate card (faint fill, no
 -- outline) covers the same area, re-laid out after each of its draws.
-NR.cards = setmetatable({}, { __mode = "k" }) -- its card (table or canvas) -> ours
+NR.cards = setmetatable({}, { __mode = "k" }) -- its card (table or canvas) -> the replacement
 function NR.CardOf(key) return NR.cards[key] end
 
 local function syncCard(Kit, key, parent, textures)
@@ -331,7 +332,7 @@ local function listPane(Kit, pane)
             if kind(r) == "Texture" then texs[#texs + 1] = r end
         end
         if #texs > 0 then syncCard(Kit, canvas, canvas, texs) end
-        -- Rows it just recolored while filling them get ours in the same frame.
+        -- Rows it just recolored while filling them are re-inked in the same frame.
         for _, r in ipairs({ canvas:GetChildren() }) do
             if r:IsShown() then
                 Kit.InkGameText(r)
@@ -345,7 +346,7 @@ local function listPane(Kit, pane)
     sync()
 end
 
--- A list marker (Level 20): its two gold lines become our rule.
+-- A list marker (Level 20): its two gold lines become a faint rule.
 function NR.Marker(m)
     rule(m.left)
     rule(m.right)
@@ -362,7 +363,7 @@ local function chipLines(lines)
     end))
 end
 
--- Theme:LabelToggle (Overview / Details): our tab text, the picked one and its
+-- Theme:LabelToggle (Overview / Details): tab text, the picked one and its
 -- underline in the accent, the others dim. Reapplied after each SetActive.
 local function labelToggle(bar)
     local function paint()
@@ -402,9 +403,9 @@ local function statRule(f)
     end
 end
 
--- Its top tabs (CreateNativeTab, PanelTopTabButtonTemplate) become our text tabs,
+-- Its top tabs (CreateNativeTab, PanelTopTabButtonTemplate) become text tabs,
 -- selected per tab.active. The game sizes each to its font and raises the picked
--- one's text; ours are as wide as the text and level.
+-- one's text; these are as wide as the text and level.
 NR.tabs = setmetatable({}, { __mode = "k" })
 NR.TAB_PAD = 28
 local function fitTab(Kit, tab)
@@ -430,7 +431,7 @@ local function topTab(Kit, tab)
     if isTable(t) and t.Pick then t.Pick(tab.active == true) end
 end
 
--- A heading's long rule (Overview's Description): its gold becomes our faint
+-- A heading's long rule (Overview's Description): its gold becomes a faint
 -- rule after each SetColor.
 local function headingRule(f)
     local function paint()
@@ -444,7 +445,7 @@ local function headingRule(f)
     paint()
 end
 
--- Theme:Arrow (a fold chevron, a +): gold strokes become our label ink.
+-- Theme:Arrow (a fold chevron, a +): gold strokes become INK.LABEL.
 NR.arrows = setmetatable({}, { __mode = "k" })
 function NR.Arrow(f)
     if NR.arrows[f] then return end
@@ -554,7 +555,7 @@ end
 
 -- Its title: its own (icon and name centered in a holder over the emptied
 -- template title) is hidden, and the name goes in the template's title, which
--- our window places on the left like our headers.
+-- the skinned window places on the left like Win.Header titles.
 local function title(Kit, f)
     local tc = isTable(f.TitleContainer) and f.TitleContainer or f
     local text = isTable(f.TitleContainer) and f.TitleContainer.TitleText or f.TitleText
@@ -574,7 +575,7 @@ NR.def = { key = "needroll", pack = "addons", addon = ADDON, switch = "needroll"
 NR.def.after = function(Kit, f) title(Kit, f) end
 NR.reg = Engine.Window(NR.def)
 
--- Its fonts: ours as soon as it loads, and again on style changes.
+-- Its fonts: the Daylight font as soon as it loads, and again on style changes.
 NR.fonts = { key = "needrollFonts", pack = "addons", addon = ADDON, switch = "needroll", label = "NeedRoll",
     thirdParty = true, apply = function() NR.Fonts() end }
 Engine.Register(NR.fonts)

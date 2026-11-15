@@ -1,4 +1,4 @@
--- Restyles the speech bubbles over units' heads: a plain dark box, our border and
+-- Restyles the speech bubbles over units' heads: a plain dark box, the Daylight border and
 -- font. Addons can't touch bubbles inside instances, so those are left alone.
 -- The game hands out bubble frames a moment after each line that shows one, so
 -- this watches for them and skins each pooled bubble once.
@@ -12,7 +12,7 @@ ns.Bubbles = Bubbles
 
 local styled = setmetatable({}, { __mode = "k" })
 
--- One region of a bubble. The font is only set when it isn't ours yet: every line
+-- One region of a bubble. The font is only set when it isn't the Daylight font yet: every line
 -- checks every visible bubble, and most already have it.
 local function dressRegion(r, first, want, file, outline)
     local kind = r.GetObjectType and r:GetObjectType()
@@ -23,7 +23,7 @@ local function dressRegion(r, first, want, file, outline)
         local size = type(want) == "number" and want or now
         if type(size) ~= "number" then return end
         if had == file and now == size and (flags or "") == (outline or "") then return end
-        r:SetFont(file, size, outline)
+        Style.SetFace(r, file, size, outline)
     end
 end
 

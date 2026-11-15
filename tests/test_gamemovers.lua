@@ -203,7 +203,7 @@ T.test("loot window: a handle that never moves the frame; locking writes the spo
     DUI.Movers.Unlock()
     DUI.Movers.Lock()
     T.isnil(layouts.saves, "nothing moved: nothing written")
-    T.isnil(stub.popup and stub.popup.which, "and no reload asked")
+    T.isnil(stub.Asked(), "and no reload asked")
 
     DUI.Movers.Unlock()
     DUI.DB.Positions()["game.LootFrame"] = { -300, 120 }
@@ -215,7 +215,7 @@ T.test("loot window: a handle that never moves the frame; locking writes the spo
     T.eq(a.point, "CENTER"); T.eq(a.relativeTo, "UIParent"); T.eq(a.relativePoint, "CENTER")
     T.eq(a.offsetX, -300); T.eq(a.offsetY, 120)
     T.eq(lootEntry(layouts).isInDefaultPosition, false)
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_RELOAD", "asks for the reload that puts it there")
+    T.eq(stub.Asked(), "reload", "asks for the reload that puts it there")
     T.eq((LootFrame:GetPoint(1)), "LEFT", "still never moved by us")
 end)
 
@@ -260,7 +260,7 @@ T.test("cc alert: an unlock handle that never moves the frame; locking writes th
     local a = ccEntry(layouts).anchorInfo
     T.eq(a.point, "CENTER"); T.eq(a.offsetX, 40); T.eq(a.offsetY, -200)
     T.eq(ccEntry(layouts).isInDefaultPosition, false)
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_RELOAD")
+    T.eq(stub.Asked(), "reload")
     local p, _, _, x = LossOfControlFrame:GetPoint(1)
     T.eq(p, "CENTER"); T.eq(x, 0, "never moved by us")
 end)

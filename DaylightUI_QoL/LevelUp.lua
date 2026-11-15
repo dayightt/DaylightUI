@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Motion = DUI.Style, DUI.Motion
 
@@ -28,11 +29,9 @@ ns.features[#ns.features + 1] = LevelUp
 
 local mod, f, wired, watch
 local run = 0           -- each show's id: a newer one stops the older one's timers
-local blanked = false   -- the game's toast manager is at alpha 0 by us
+local blanked = false   -- the game's toast manager is at alpha 0 by this file
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.levelUp == true end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 local function build()
     if f then return f end

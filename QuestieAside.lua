@@ -1,12 +1,12 @@
--- Questie's tracker and its NPC tooltip quest lines step aside while ours are
+-- Questie's tracker and its NPC tooltip quest lines step aside while Daylight UI's are
 -- shown. Its map icons, minimap icons and coordinates stay Questie's (Skins
 -- dresses its icons). Each is one of Questie's own settings
 -- (Questie.db.profile.<key>), turned off before it draws (its tracker builds
 -- frames after login), so nothing doubles up and no reload is needed. Each
--- setting we turn off is remembered in DB.Root().questieOff[key], and when
--- ours goes away again (module off, setting off, another tracker addon)
+-- setting turned off this way is remembered in DB.Root().questieOff[key], and when
+-- Daylight UI's goes away again (module off, setting off, another tracker addon)
 -- Questie's comes back. Settings the player turned off themselves stay off.
--- While Skins' Questie option is on, its objective icons use our white symbols
+-- While Skins' Questie option is on, its objective icons use Daylight UI's white symbols
 -- (QA.ICONS, written the way Questie's own icon options write them), with each
 -- quest colored by Questie's "Unique Map Icon Colors". The player's own picks
 -- are saved in DB.Root().questieIcons and restored when it's off.
@@ -27,18 +27,18 @@ end
 local function never() return false end
 
 QA.LIST = {
-    -- Ours is shown unless the player picked Questie's (Quests `tracker`).
+    -- Daylight UI's is shown unless the player picked Questie's (Quests `tracker`).
     { key = "trackerEnabled", ours = function() return DUI.questsOwnTracker == true and DUI:Get("Quests", "tracker") ~= false end },
-    -- Our quest lines in NPC tooltips (Quests GiverTips.lua, on unless turned off).
+    -- Daylight UI's quest lines in NPC tooltips (Quests GiverTips.lua, on unless turned off).
     { key = "showQuestsInNpcTooltip", ours = function() return questsOn() and DUI:Get("Quests", "mapQuests.tooltip") ~= false end },
-    -- No longer ours, kept so settings we once turned off get turned back on.
+    -- No longer used, kept so settings once turned off here get turned back on.
     { key = "enableMapIcons", ours = never },
     { key = "enableMiniMapIcons", ours = never },
     { key = "mapCoordinatesEnabled", ours = never },
 }
 
 local ART = "Interface\\AddOns\\DaylightUI\\Media\\objective-%s.png"
--- Questie setting -> our value (files from tools/make_objective_icons.py).
+-- Questie setting -> Daylight UI's value (files from tools/make_objective_icons.py).
 QA.ICONS = {
     ICON_SLAY = ART:format("kill"), ICON_LOOT = ART:format("loot"), ICON_OBJECT = ART:format("use"),
     ICON_INTERACT = ART:format("use"), ICON_EVENT = ART:format("explore"),
@@ -106,7 +106,7 @@ local function safeRun() DUI.SafeCall(QA.Run) end
 -- OnSettingChanged).
 DUI.On("QuestMapsChanged", safeRun)
 
--- Questie's settings appear when AceDB loads, which may be after our login.
+-- Questie's settings appear when AceDB loads, which may be after Daylight UI's login.
 -- While it's loaded but they're missing, check again every QA.RETRY seconds,
 -- up to QA.TRIES times. Timers only, nothing per frame.
 QA.RETRY, QA.TRIES = 0.5, 20

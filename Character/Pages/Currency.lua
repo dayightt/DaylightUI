@@ -3,9 +3,9 @@
 -- "Show in the backpack", and "Transfer to another character".
 --
 -- The list is read with C_CurrencyInfo; the game's own currency page
--- (TokenFrame), its list and its transfer menu are never touched (spec
--- 6.8). A transfer un-parks the game's window on its currency page, where
--- the game's own transfer works untouched; ours steps aside until the game
+-- (TokenFrame), its list and its transfer menu are never touched.
+-- A transfer un-parks the game's window on its currency page, where
+-- the game's own transfer works untouched; this page steps aside until the game
 -- closes it.
 
 local _, DUI = ...

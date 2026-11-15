@@ -187,7 +187,7 @@ function Cards.Tile(parent, mod, width, get, set, installed)
     return t
 end
 
--- Another addon doing one of our modules' jobs, with the two ways out: ours
+-- Another addon doing one of Daylight UI's modules' jobs, with the two ways out: Daylight UI's
 -- (listed first) or theirs. get() -> "ours" | "theirs"; set(v).
 function Cards.Clash(parent, clash, width, get, set)
     local f = CreateFrame("Frame", nil, parent)
@@ -537,7 +537,7 @@ end
 
 -- A sample written in the font itself.
 function Cards.Draw.font(card, key, w, h)
-    local def = Style.FONTS[key]
+    local def = Style.FontEntry(key)
     local file = def and def.file or STANDARD_TEXT_FONT or W.BODY
     local fs = card.inner:CreateFontString(nil, "OVERLAY")
     fs:SetFont(file, 16, "")

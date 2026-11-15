@@ -1,14 +1,14 @@
 -- Chat in the Daylight UI look, on top of the game's own chat windows. They still
 -- do all the work (sending, receiving, links, whispers, the dock); only their art
--- is cleared and ours drawn alongside:
+-- is cleared and the Daylight look drawn alongside:
 -- * A framed panel in the bottom-left corner mirroring the info panel (its size
 --   by default) holding the docked chat and its tabs. The game sometimes moves
 --   the main window again; the watcher puts it back.
 -- * The edit box over the tab row, shown only while typing (the game's "IM" style).
 -- * A panel of its own behind each window pulled out of the dock.
--- * Restyled tabs: the game's art removed and its labels made transparent, our
+-- * Restyled tabs: the game's art removed and its labels made transparent, a
 --   W.Tab laid over each, with a faint line under the row.
--- * Chat text in our font; the size is still the game's setting.
+-- * Chat text in the Daylight font; the size is still the game's setting.
 -- * The menu, channel, voice and social side buttons hidden (their slash
 --   commands still work).
 -- * After a while with nothing new (10 seconds by default) the docked chat fades
@@ -34,6 +34,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local Chat = {}
@@ -63,9 +64,9 @@ Chat.BUTTONS = { "ChatFrameChannelButton", "ChatFrameToggleVoiceDeafenButton",
 local cfg
 local dressed = setmetatable({}, { __mode = "k" }) -- chat frame -> true
 local hidden = setmetatable({}, { __mode = "k" }) -- button kept hidden -> true
-local panels = setmetatable({}, { __mode = "k" }) -- undocked chat frame -> our panel
+local panels = setmetatable({}, { __mode = "k" }) -- undocked chat frame -> its panel
 local holder, panel, area -- the corner panel and the chat's spot inside it
-local tabRow, rule -- our tab label layer (on the dock) and the line under the tabs
+local tabRow, rule -- the tab label layer (on the dock) and the line under the tabs
 
 local function kind(obj)
     return type(obj) == "table" and obj.GetObjectType and obj:GetObjectType() or nil
@@ -84,7 +85,7 @@ local function keepHidden(f)
     f:HookScript("OnShow", function(self) self:Hide() end)
 end
 
--- Sets our font on a FontString or chat frame, keeping the game's size, and only
+-- Sets the Daylight font on a FontString or chat frame, keeping the game's size, and only
 -- touches what differs. On a chat frame every font or shadow call rebuilds all its
 -- lines and their links, so setting it repeatedly would swallow link clicks.
 local function font(obj, size, flags)
@@ -105,7 +106,7 @@ local function font(obj, size, flags)
     end
 end
 
--- The chat text size in use: ours if set, else the main window's (the game's).
+-- The chat text size in use: the chat setting if set, else the main window's (the game's).
 -- That way the Text size slider and tab menu show a real size, never the 0 saved
 -- for "use the game's".
 function Chat.TextSize()
@@ -116,12 +117,12 @@ function Chat.TextSize()
 end
 
 -- Tab label size (tabSize). In Classic it's also set on the game's labels under
--- ours so they line up.
+-- the W.Tab labels so they line up.
 function Chat.TabText()
     return cfg and type(cfg.tabSize) == "number" and cfg.tabSize or Chat.TAB_TEXT
 end
 
--- Sets one of our tab labels to that size. A changed size refits on the next layout.
+-- Sets one of the W.Tab labels to that size. A changed size refits on the next layout.
 function Chat.SizeTab(b)
     local size = Chat.TabText()
     if b.size == size then return end
@@ -188,7 +189,7 @@ end
 local function dressTab(tab)
     if type(tab) ~= "table" then return end
     for _, key in ipairs(Chat.TAB_ART) do clear(tab[key]) end
-    clear(tab.glow) -- the game's unread flash; ours pulses instead (Feel.Alert)
+    clear(tab.glow) -- the game's unread flash; the W.Tab label pulses instead (Feel.Alert)
     local text = tab.Text or (tab.GetFontString and tab:GetFontString())
     font(text, Chat.TabText())
 end
@@ -198,7 +199,7 @@ local function dressInput(eb)
     local name = eb:GetName()
     for _, key in ipairs(Chat.EDIT_ART) do clear(_G[name .. key]) end
     for _, key in ipairs(Chat.EDIT_KEYS) do clear(eb[key]) end
-    -- Our edit box backdrop, on a frame of our own under the box's text.
+    -- The edit box backdrop, on a separate frame under the box's text.
     local back = CreateFrame("Frame", nil, eb)
     back:SetAllPoints(eb)
     back:SetFrameLevel(math.max(0, eb:GetFrameLevel() - 1))
@@ -210,7 +211,7 @@ local function dressInput(eb)
 end
 
 -- A window pulled out of the dock gets its own panel (the corner panel covers the
--- dock). It's ours, attached to the window so it follows it. Its border matches
+-- dock). It's a new frame, attached to the window so it follows it. Its border matches
 -- the corner panel (Chat.DressPanels), with the margin grown by the border width:
 -- the heavy frame inside a plain FLOAT_PAD margin covered the window's bottom lines.
 local function placeFloat(p, cf)
@@ -320,7 +321,7 @@ function Chat.PanelOf(cf)
     return panel
 end
 
--- Reapplies our font to a window's tab and edit box (after a font change).
+-- Reapplies the Daylight font to a window's tab and edit box (after a font change).
 -- font() only sets what differs.
 local function fontParts(cf)
     local name = cf:GetName()
@@ -344,7 +345,7 @@ function Chat.Dress(cf)
     if cfg and cfg.hideButtons then keepHidden(cf.buttonFrame) end
     -- Move the game's scroll bar out of the way. The wheel still scrolls (Shift for a
     -- page, Ctrl for the ends). Its jump-to-bottom arrow loses its art and sits under
-    -- our "New messages" pill (Feel.Pill).
+    -- the "New messages" pill (Feel.Pill).
     keepHidden(cf.ScrollBar)
     ns.Feel.DressJump(cf.ScrollToBottomButton)
     ns.Feel.WatchLines(cf)
@@ -365,7 +366,7 @@ end
 
 -- The chat's size inside the panel. When set to match and the info panel exists,
 -- it's the info panel's size with its meter out (body height; meter width, gap
--- and minimap across). Otherwise our own settings.
+-- and minimap across). Otherwise the chat's own settings.
 function Chat.Size()
     local body = _G.DaylightUIInfoPanelBody
     if cfg.matchInfo and type(body) == "table" and (body:GetHeight() or 0) > 0 then
@@ -404,7 +405,7 @@ local function buildPanel()
     -- soft dark card.
     Style.Shell(panel, { flat = true, borderPx = 1 })
     area = CreateFrame("Frame", nil, panel)
-    -- Our tab labels are parented to the dock, so they fade and float with it.
+    -- The tab labels are parented to the dock, so they fade and float with it.
     local host = _G.GeneralDockManager or holder
     tabRow = CreateFrame("Frame", nil, host)
     tabRow:SetAllPoints(host)
@@ -420,7 +421,7 @@ local function buildPanel()
     DUI.Fade.RevealAlso(function() if not panel:IsShown() then return holder end end)
 end
 
--- The Scale slider (and the wheel over the chat's unlock handle) scales our panel
+-- The Scale slider (and the wheel over the chat's unlock handle) scales the panel
 -- and the game's docked windows with their tab row together, so the text grows
 -- with the box. Undocked windows keep the game's scale: the game saves their
 -- position in the window's own units relative to the screen
@@ -601,7 +602,7 @@ function Chat.Hold(force)
     local cf = _G.ChatFrame1
     if not (area and type(cf) == "table") then return end
     -- Chat windows are clamped away from the screen edge (room for the side buttons,
-    -- which are hidden). Ours sits in the corner panel, itself kept on screen, so the
+    -- which are hidden). This one sits in the corner panel, itself kept on screen, so the
     -- clamp would push the window across it.
     if cf.IsClampedToScreen and cf:IsClampedToScreen() then cf:SetClampedToScreen(false) end
     if not anchoredTo(cf, area, 2) then
@@ -716,16 +717,16 @@ function Chat.Pass()
 end
 
 -- ---------------------------------------------------------------------
--- Tabs: ours over the game's
+-- Tabs: W.Tab labels over the game's
 -- ---------------------------------------------------------------------
 
--- Each docked tab gets one of our W.Tab buttons laid over it. The game's label is
+-- Each docked tab gets a W.Tab button laid over it. The game's label is
 -- made transparent (alpha only, never its text, since the game sizes the tab from
--- it) and ours shows the same words: tan at rest, light on hover, the accent and
--- its underline once selected. Ours take no clicks, so the game's tab underneath
+-- it) and the W.Tab shows the same words: tan at rest, light on hover, the accent and
+-- its underline once selected. It takes no clicks, so the game's tab underneath
 -- still selects, drags and opens its menu, and the game's 0.2 resting alpha on
 -- its tabs no longer dims them.
-local labels = setmetatable({}, { __mode = "k" }) -- game tab -> ours
+local labels = setmetatable({}, { __mode = "k" }) -- game tab -> its W.Tab
 
 local function labelFor(tab)
     local b = labels[tab]
@@ -735,7 +736,7 @@ local function labelFor(tab)
     b = DUI.Widgets.Tab(tabRow, "", { size = Chat.TabText(), paintLine = function(t) t:SetAlpha(0) end })
     b:EnableMouse(false)
     b:SetAllPoints(tab)
-    -- Our label stays inside the tab and is truncated like the game's: whisper tabs
+    -- The label stays inside the tab and is truncated like the game's: whisper tabs
     -- get a fixed width when the row is full (FCFDock_UpdateTabs).
     b.text:ClearAllPoints()
     b.text:SetPoint("LEFT", b, "LEFT", Chat.TAB_PAD, 1)
@@ -750,7 +751,7 @@ local function labelFor(tab)
 end
 
 -- The game's whisper (non-static) tabs scroll inside the dock's scroll frame,
--- which clips the ones out of view. Ours for them sit on a clip frame over it, so
+-- which clips the ones out of view. Their W.Tab labels sit on a clip frame over it, so
 -- they're clipped the same way.
 local clip
 local function layerFor(cf)
@@ -768,12 +769,12 @@ end
 local function words(tab) return tab.Text or (tab.GetFontString and tab:GetFontString()) end
 
 -- The game puts its first tabs on the dock's bottom but centers the scrolling
--- ones in the dock's scroll frame, a few pixels higher (FCFDock_UpdateTabs). Ours
+-- ones in the dock's scroll frame, a few pixels higher (FCFDock_UpdateTabs). The labels
 -- follow each tab horizontally but all sit on the row's bottom, so labels and the
 -- underline line up. Left alone while the row isn't laid out yet.
 local function standOnRow(b, tab)
     local rowB, tabB = tabRow:GetBottom(), tab:GetBottom()
-    if issecretvalue and (issecretvalue(rowB) or issecretvalue(tabB)) then return end
+    if secret(rowB) or secret(tabB) then return end
     if type(rowB) ~= "number" or type(tabB) ~= "number" then return end
     local dy = rowB - tabB
     if math.abs(dy - (b.dy or 0)) < 0.01 then return end
@@ -806,7 +807,7 @@ function Chat.Tabs()
                     -- Only written when the label changes, not every watcher tick. A whisper tab's
                     -- name may be secret: SetText accepts it, so it's always written, never compared.
                     local t = text:GetText()
-                    if issecretvalue and issecretvalue(t) then
+                    if secret(t) then
                         b.words = nil
                         b.text:SetText(t)
                     elseif t ~= b.words or b.words == nil then
@@ -858,8 +859,6 @@ function Chat.HidesOf(isSide)
     if isSide and sideOwn() then return cfg.sideHides end
     return cfg.hides
 end
-
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Would the selected tab show this line? A window only shows a kind of line while
 -- it's registered for that event (that tab's chat settings). Every window gets
@@ -1058,7 +1057,7 @@ function Chat.FloatWanted(isSide)
         or Chat.camp == true
 end
 
--- The panel's own alpha and each undocked window's panel (ours). The tab row goes
+-- The panel's own alpha and each undocked window's panel. The tab row goes
 -- through the fade engine's paint (Chat.PaintFaded), since it owns that frame's alpha.
 local function paintFloat(k)
     Chat.float = k
@@ -1079,10 +1078,10 @@ function Chat.PaintFaded(f, a)
     f:SetAlpha(a)
 end
 
--- Eased. Ours always, the game's tab row only out of combat, where it snaps since
+-- Eased. The panels always, the game's tab row only out of combat, where it snaps since
 -- nothing of the game's fades in combat. Coming back it takes its time along with
 -- the lines (Feel.Reveal). In combat it's quick, but the Daylight box's panel and
--- tabs are ours, so they still ease.
+-- tabs are addon frames, so they still ease.
 local function floatTo(key, from, goal, snap, paint)
     local M = DUI.Motion
     local dur = goal == 1 and M.SLOW or M.NORMAL
@@ -1180,7 +1179,7 @@ end
 -- The edit box sits over the tab row: visible and clickable only while typing,
 -- otherwise invisible and letting clicks through to the tabs. The game keeps it
 -- shown in its classic chat style (and doesn't always honor the typing-only one),
--- so this relies on neither. Applies to every box in our spot (each docked tab
+-- so this relies on neither. Applies to every box over the panel (each docked tab
 -- has its own). Alpha is checked every frame (the game sets an idle box to 0.35),
 -- mouse only on a change. It eases in and out (FAST) out of combat and snaps in
 -- combat, where nothing of the game's fades. Its outline takes the channel color.
@@ -1253,7 +1252,7 @@ function Chat.Step(dt)
     ns.Box.GlowStep()
 end
 
--- Repaints our tab colors and the faint line under the tab row (style change:
+-- Repaints the W.Tab colors and the faint line under the tab row (style change:
 -- accent, text colors).
 local function paintTabs()
     for _, b in pairs(labels) do b.Paint(false); if b.picked then b.Pick(true) end end
@@ -1263,11 +1262,11 @@ local function paintTabs()
 end
 
 -- ---------------------------------------------------------------------
--- The game's own settings behind ours
+-- The game's own settings behind the chat settings
 -- ---------------------------------------------------------------------
 
 -- Class-colored names, timestamps and the typing-only ("IM") edit box are game
--- settings; only set when ours differs.
+-- settings; only set when the chat setting differs.
 local function setCVar(name, value)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     local ok, current = pcall(GetCVar, name)
@@ -1280,7 +1279,7 @@ function Chat.ApplySettings()
     setCVar("chatClassColorOverride", cfg.classColors and "0" or "1")
     if cfg.timestamps and cfg.timestamps ~= "game" then setCVar("showTimestamps", cfg.timestamps) end
     -- The edit box sits over the tab row, so it's only up while typing. Chat.Input
-    -- fades it; never Hide() the game's box, its OnHide would run under our taint.
+    -- fades it; never Hide() the game's box, its OnHide would run tainted.
     setCVar("chatStyle", "im")
     -- Whispers: each person in their own docked tab (flashing on new ones) plus the
     -- main tab, or only the main tab. The Daylight chat box shows whispers itself,
@@ -1352,7 +1351,7 @@ function Chat.Build(mod)
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() Chat.fight = nil; Chat.UpdateFloat() end)
     -- The campfire (QoL) floats it while you sit; combat wakes it at once.
     DUI.On("Campfire", function(on, snap) Chat.camp = on or nil; Chat.UpdateFloat(nil, snap) end)
-    -- The info panel is laid out after us at login and whenever its settings change,
+    -- The info panel is laid out after the chat at login and whenever its settings change,
     -- so match it again then.
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         Chat.Layout()

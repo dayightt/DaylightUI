@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF, CB, Auras, Blizzard = ns.UF, ns.CastBar, ns.Auras, ns.Blizzard
 
 ns.SPECS = {
@@ -36,7 +37,7 @@ end
 -- "Copy from" on each frame's page: the frames that can be copied, by settings
 -- key, and what a copy leaves alone: the frame's switch, fade, and group
 -- layout and sorting (plus a raid size's own follow).
-ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "raid", "raid20", "raid40", "arena" }
+ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "partyTarget", "raid", "raid20", "raid40", "arena" }
 ns.COPY_KEEP = { enabled = true, showInParty = true, fade = true, follow = true, own = true,
                  direction = true, perLine = true, groupSpacing = true, sortBy = true, groups = true,
                  hideSelf = true, showSolo = true, growUp = true, growLeft = true, ownSpot = true, strata = true }
@@ -226,6 +227,48 @@ function ns.PlacePlayerAuras(db)
     Auras.Place(set, f, db.player)
 end
 
+-- The focus's own buffs and debuffs (settings focusAuras, off by default),
+-- made the first time a row is on, like the player's. A cast bar above or
+-- below the focus pushes that side's rows out, as on the target.
+function ns.FocusAuraRoom(db)
+    local fc = db.focusCastbar
+    local at, room = CB.At("focus", fc), fc.height + CB.AT_GAP
+    if fc.enabled and at == "above" then return room, 0 end
+    if fc.enabled and at == "below" then return 0, room end
+    return 0, 0
+end
+
+-- Protected parent, so only call through DUI.AfterCombat.
+function ns.PlaceFocusAuras(db)
+    local a, f = db.focusAuras, ns.frames.focus
+    if not (a and f) then return end
+    if not ns.focusAuras and (a.debuffs or a.buffs) then
+        ns.focusAuras = Auras.Create(f, "right", "focus", a)
+        if ns.focusAuras then ns.RefitOnTab(f, function() return ns.focusAuras end) end
+    end
+    local set = ns.focusAuras
+    if not set then return end
+    Auras.Apply(set, a)
+    set.aboveLift, set.buffDrop = ns.FocusAuraRoom(db)
+    Auras.Place(set, f, db.focus)
+end
+
+-- The pet's own buffs and debuffs (settings petAuras, off by default), made
+-- the first time a row is on, like the player's.
+-- Protected parent, so only call through DUI.AfterCombat.
+function ns.PlacePetAuras(db)
+    local a, f = db.petAuras, ns.frames.pet
+    if not (a and f) then return end
+    if not ns.petAuras and (a.debuffs or a.buffs) then
+        ns.petAuras = Auras.Create(f, "right", "pet", a)
+        if ns.petAuras then ns.RefitOnTab(f, function() return ns.petAuras end) end
+    end
+    local set = ns.petAuras
+    if not set then return end
+    Auras.Apply(set, a)
+    Auras.Place(set, f, db.pet)
+end
+
 -- How far a changed setting reaches. A frame's own keys (player.*,
 -- playerText.*) only lay out that frame, since each layout reads only its own.
 -- Cast bar, swing, combo and aura row keys affect the five frames, and a party
@@ -234,9 +277,10 @@ end
 -- frame. A refresh queued during combat keeps the widest scope requested.
 local ONE, FRAMES, NO_RAID, ALL = 1, 2, 3, 4
 local REACH = { playerCastbar = FRAMES, targetCastbar = FRAMES, focusCastbar = FRAMES, swing = FRAMES,
-                targetAuras = FRAMES, playerAuras = FRAMES, combo = FRAMES, personal = ONE,
+                targetAuras = FRAMES, playerAuras = FRAMES, focusAuras = FRAMES, petAuras = FRAMES, combo = FRAMES, personal = ONE,
                 arena = FRAMES, arenaText = FRAMES,
-                party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID }
+                party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID,
+                partyTarget = NO_RAID, partyTargetText = NO_RAID }
 local UNIT_OF = {}
 for _, spec in ipairs(ns.SPECS) do
     UNIT_OF[spec.unit], UNIT_OF[spec.unit .. "Text"] = spec.unit, spec.unit
@@ -265,6 +309,7 @@ function ns.ApplyStrata(db)
         if h[1] then h[1]:SetFrameStrata(ns.StrataOf(h[2])) end
     end
     if ns.Personal.frame then ns.Personal.frame:SetFrameStrata(ns.StrataOf(db.personal, "LOW")) end
+    for _, p in ipairs(ns.PartyTargets.buttons) do p:SetFrameStrata(ns.StrataOf(db.partyTarget)) end
 end
 
 function ns.Refresh(mod, path)
@@ -306,6 +351,7 @@ function ns.Refresh(mod, path)
                 if b.restyled and b:IsShown() then ns.Arrive.Start(b, "UnitFrames.party") end
             end
         end
+        ns.WatchMana(db)
         ns.Leader.Apply(db)
         ns.Pull.Apply(db)
         -- The party's first frame starts at the same height regardless of its
@@ -347,6 +393,8 @@ function ns.Refresh(mod, path)
         end
         Auras.Place(ns.auras, ns.frames.target, db.target)
         ns.PlacePlayerAuras(db)
+        ns.PlaceFocusAuras(db)
+        ns.PlacePetAuras(db)
         ns.Combo.Layout(ns.combo, db.combo)
         ns.Happiness.Layout(ns.happiness, db.pet)
         ns.DruidBars.Layout(db.player.druidBars)
@@ -394,14 +442,14 @@ ns.RangeTicker = function() return rangeTicker end
 -- unit event once per token, so "target" arrives on its own.
 local OWN_UNITS = { player = true, pet = true, target = true, focus = true, targettarget = true, focustarget = true }
 function ns.OurUnit(unit)
-    if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) then return false end
+    if type(unit) ~= "string" or isSecret(unit) then return false end
     return OWN_UNITS[unit] == true or unit:find("^party%d") ~= nil or unit:find("^arena%d") ~= nil or unit:find("^raid%d") ~= nil
 end
 
 -- Who is on a unit token, as a plain string to compare with last time: the
 -- GUID, else name and realm (a GUID is secret in a battleground, a name isn't).
 -- nil when neither can be read.
-local function plain(v) return type(v) == "string" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "string" and not isSecret(v) end
 function ns.WhoOn(unit)
     local ok, guid = pcall(UnitGUID, unit)
     if ok and plain(guid) then return guid end
@@ -477,9 +525,13 @@ local function registerEvents()
         occupant("focustarget")
         CB.Refresh(ns.focusCastbar)
         CB.Refresh(ns.focusCastbarFree)
+        Auras.Refresh(ns.focusAuras)
     end)
     DUI.RegisterEvent("UNIT_PET", function(_, unit)
-        if unit == "player" then UF.UpdateAll(ns.frames.pet, true); occupant("pet") end
+        if unit == "player" then
+            UF.UpdateAll(ns.frames.pet, true); occupant("pet")
+            Auras.Refresh(ns.petAuras)
+        end
     end)
     DUI.RegisterEvent("UNIT_TARGET", function(_, unit)
         if unit == "target" then UF.UpdateAll(ns.frames.targettarget, true); occupant("targettarget") end
@@ -510,7 +562,7 @@ local function registerEvents()
         allDue = false
     end
     DUI.RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", function(_, unit)
-        if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) or unit == "player" then
+        if type(unit) ~= "string" or isSecret(unit) or unit == "player" then
             allDue = true
         else
             tilesDue[unit] = true
@@ -558,7 +610,7 @@ local function registerEvents()
     -- the frames' own units start a pass.
     DUI.RegisterEvent("UNIT_FACTION", function(_, unit)
         if not ns.OurUnit(unit) then return end
-        if type(unit) ~= "string" or (issecretvalue and issecretvalue(unit)) or unit == "player" then
+        if unit == "player" then
             statusAll = true
         else
             statusDue[unit] = true
@@ -601,6 +653,12 @@ local function registerEvents()
             ready()
         end)
     end)
+    -- A summon on its way, answered or gone (UF.UpdateSummon). Batched, so a
+    -- warlock's ritual reaching several tiles at once is one pass.
+    local function summons()
+        for _, b in ns.Group.Buttons() do UF.UpdateSummon(b) end
+    end
+    DUI.RegisterEvent("INCOMING_SUMMON_CHANGED", function() later(summons) end)
     -- A roster change can put someone new on a button that keeps its unit token
     -- ("party2"), so the header never re-sends it. Re-read them all, batched
     -- into one pass on the next frame since a filling raid sends dozens at
@@ -632,6 +690,7 @@ local function registerEvents()
                 UF.UpdateAll(b, true)   -- status, crown and role included
                 ns.GroupParts.UpdateTargetMark(b)
                 if b.pet then ns.PartyPets.Refresh(b.pet) end
+                if b.ptarget then ns.PartyTargets.Refresh(b.ptarget) end
             else
                 b.rosterWho = nil
                 ns.GroupParts.PointAuras(b)
@@ -640,6 +699,7 @@ local function registerEvents()
                 UF.UpdateRole(b)
                 ns.GroupParts.UpdateTargetMark(b)
                 if b.pet then ns.PartyPets.Refresh(b.pet) end
+                if b.ptarget then ns.PartyTargets.Refresh(b.ptarget) end
             end
         end
     end
@@ -667,7 +727,7 @@ ns.FADE_FULL_HEALTH = { player = true, pet = true }
 
 -- Frames that can't float (Fade.Register's float = false). They already come
 -- and go with their unit.
-ns.FLOAT = { target = false, targettarget = false, focus = false, focustarget = false }
+ns.FLOAT = { target = false, targettarget = false, focus = false, focustarget = false, partyTarget = false }
 
 -- Health is secret, so whether it's full is left to the game at paint time
 -- (UF.FullHealthAlpha). A change counts as activity instead: the frame comes
@@ -686,6 +746,65 @@ function ns.HealthWake(unit)
     return DUI:Get("UnitFrames", unit .. ".fade.fullHealth") == true
 end
 
+-- Units whose fade can wait for full mana (the Fade card's "fullMana").
+ns.FADE_FULL_MANA = { player = true }
+
+-- Mana is plain out of a fight, so there it's simply read on each change and
+-- the frame stays shown while it's short. In a fight (or under the client's
+-- restrictions) it reads secret: then whether it's full is left to the game at
+-- paint time (UF.FullManaAlpha) and a change counts as activity, as health
+-- does. The events are only on while the switch is.
+ns.manaShort, ns.manaAt = {}, {}   -- short: true, false, or nil while secret
+local manaWatch = CreateFrame("Frame")
+
+local function readMana(unit)
+    if not UF.ShowsMana(unit) then return false end
+    local okC, cur = pcall(UnitPower, unit, UF.MANA)
+    local okM, max = pcall(UnitPowerMax, unit, UF.MANA)
+    if not (okC and okM) or isSecret(cur) or isSecret(max) or type(cur) ~= "number" or type(max) ~= "number" then return nil end
+    return cur < max
+end
+
+manaWatch:SetScript("OnEvent", function(_, event, unit, kind)
+    unit = event == "PLAYER_REGEN_ENABLED" and "player" or unit
+    if isSecret(kind) or (kind ~= nil and kind ~= "MANA") then return end
+    ns.manaShort[unit] = readMana(unit)
+    ns.manaAt[unit] = GetTime()
+end)
+
+function ns.WatchMana(db)
+    local fade = db.player and db.player.fade
+    local on = type(fade) == "table" and fade.fullMana == true
+    if on == (manaWatch.on or false) then return end
+    manaWatch.on = on
+    if on then
+        manaWatch:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+        manaWatch:RegisterUnitEvent("UNIT_MAXPOWER", "player")
+        manaWatch:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+        manaWatch:RegisterEvent("PLAYER_REGEN_ENABLED")   -- plain again: read it
+        ns.manaShort.player = readMana("player")
+    else
+        manaWatch:UnregisterAllEvents()
+        ns.manaShort.player = nil
+    end
+end
+
+function ns.ManaWake(unit)
+    if DUI:Get("UnitFrames", unit .. ".fade.fullMana") ~= true then return false end
+    if ns.manaShort[unit] == true then return true end
+    local t = ns.manaAt[unit]
+    return t ~= nil and GetTime() - t <= ns.HEALTH_WAKE and UF.ShowsMana(unit)
+end
+
+-- The wake for a unit's fade entry: a health or mana change, or mana short.
+function ns.FadeWake(unit)
+    local health, mana = ns.FADE_FULL_HEALTH[unit], ns.FADE_FULL_MANA[unit]
+    if not (health or mana) then return nil end
+    return function()
+        return (health and ns.HealthWake(unit)) or (mana and ns.ManaWake(unit)) or false
+    end
+end
+
 -- Each standalone power bar's unlock handle: its name and first spot. The
 -- target's and focus's start just under their frame, clear of a cast bar there.
 local POWER_MOVERS = {
@@ -702,6 +821,7 @@ local PORTRAIT_MOVERS = {
 
 function ns.Build(mod)
     ns.module = mod
+    DUI.SafeCall(ns.AuraGroups.TakePlugins)
     ns.MigrateText(mod.db)
     ns.MigrateRaidText(mod.db)
     -- A failed upgrade is reported, but the frames still get built.
@@ -739,10 +859,12 @@ function ns.Build(mod)
                 local m = PORTRAIT_MOVERS[spec.unit]
                 DUI.Movers.Register(f.portraitHolder, UF.PORTRAIT_FREE[spec.unit], m[1], m[2])
             end
+            -- The pieces fade by the frame's own rules (its full health or mana wait).
+            for i = 2, #list do list[i].fadeOf = f end
             DUI.Fade.Register{ key = "UnitFrames." .. spec.unit, scope = "UnitFrames", path = spec.unit .. ".fade",
                 page = "UnitFrames." .. spec.unit, frames = function() return list end, paint = UF.PaintFade, whole = true,
                 float = ns.FLOAT[spec.unit],
-                wake = ns.FADE_FULL_HEALTH[spec.unit] and function() return ns.HealthWake(spec.unit) end or nil }
+                wake = ns.FadeWake(spec.unit) }
         end
         -- The target's cast bar covers its power bar and follows the angled end.
         local target = ns.frames.target
@@ -819,6 +941,7 @@ function ns.Build(mod)
                     page = "UnitFrames." .. g.key, frames = function() return g.buttons end, paint = UF.PaintFade, whole = true }
             end
         end
+        ns.PartyTargets.RegisterFade()
         ns.auras = Auras.Create(ns.frames.target, "left", nil, mod.db.targetAuras)
         ns.combo = ns.Combo.Create(ns.frames.target)
         ns.happiness = ns.Happiness.Create(ns.frames.pet)

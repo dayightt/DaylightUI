@@ -70,11 +70,10 @@ return {
         ["DaylightUI_ActionBars/CdmEffects.lua|icon|SetDesaturation"] = "KEEP (opt-in): only when a spell's gray-out option is set; re-applies it after RefreshIconDesaturation",
         ["DaylightUI_Skins/Kit.lua|tex|m"] = "KEEP: the game's side-tab icon textures (plain buttons, set on window refresh); keeps our crop",
         ["DaylightUI_Chat/Box.lua|cf|AddMessage"] = "KEEP: the Daylight chat box's lines. Read only (an earlier hook that also rewrote the game's history entries caused errors), never the combat log; other chat addons do the same and work",
-        ["DaylightUI_Skins/Packs/Spells.lua|f|SelectPet"] = "KEEP: the stable frame's own SelectPet writes the pet line after a click, with no event; the post-hook only rewrites those lines",
-        ["DaylightUI_Skins/Packs/Spells.lua|f|Update"] = "KEEP: Update puts the pet slots back in the middle after a click; the post-hook only places them at the two edges",
     },
     setscript = {
     },
     rules = {
+        ["DaylightUI_Bags/Bank.lua|static-popup"] = "the account bank's Withdraw and Deposit: the game's own gold boxes (BANK_MONEY_*), which hold its money entry; a click of the player's opens them",
     },
 }

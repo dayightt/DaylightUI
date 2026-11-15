@@ -10,6 +10,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 local L = DUI.L
 
@@ -45,7 +46,7 @@ end
 local function realmOf(c)
     if c.guid and type(GetPlayerInfoByGUID) == "function" then
         local realm = select(7, GetPlayerInfoByGUID(c.guid))
-        if type(realm) == "string" and not issecretvalue(realm) and realm ~= "" then return realm end
+        if type(realm) == "string" and not isSecret(realm) and realm ~= "" then return realm end
     end
     return string.match(c.name or "", "%-(.+)$")
 end

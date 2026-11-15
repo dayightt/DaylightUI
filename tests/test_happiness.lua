@@ -1,9 +1,9 @@
 local stub = require("stub")
 
 -- A hunter's pet, and how it feels.
-local function login(mood, hunter)
+local function login(mood, hunter, class)
     return stub.Load({ module = true, before = function()
-        stub.units.player = { name = "Hunts", isPlayer = true, class = "HUNTER" }
+        stub.units.player = { name = "Hunts", isPlayer = true, class = class or "HUNTER" }
         stub.mood = mood
         _G.HasPetUI = function() return true, hunter ~= false end
         _G.C_PetInfo = {
@@ -77,6 +77,75 @@ T.test("pet happiness: hidden without a hunter pet, and when turned off", functi
     DUI:Set("UnitFrames", "pet.happiness", false)
     stub.RunTimers()
     T.falsy(ns.happiness:IsShown(), "off")
+end)
+
+T.test("pet happiness: a stripe inside the frame, straight on the left and along the angle on the right", function()
+    local DUI, ns = login(2)
+    local f, h = ns.frames.pet, ns.happiness
+    local function anchorX(bar, point)
+        for i = 1, bar:GetNumPoints() do
+            local p, _, _, x = bar:GetPoint(i)
+            if p == point then return x end
+        end
+    end
+    local left0 = anchorX(f.health, "TOPLEFT")
+    local right0 = anchorX(f.power, "BOTTOMRIGHT")
+    DUI:Set("UnitFrames", "pet.happinessLook", "frame")
+    stub.RunTimers()
+    T.falsy(h:IsShown(), "the square steps aside")
+    T.truthy(h.band:IsShown() and h.stripe:IsShown(), "the stripe shows")
+    local lo, hi = DaylightUI.Gradients.PaintRGBOf(DaylightUI.Gradients.PairFrom(ns.Happiness.COLORS[2]))
+    local g = h.stripe.__gradient
+    T.truthy(g, "a gradient, like the bars")
+    T.eq(g[1], "VERTICAL")
+    T.rgb({ g[2].r, g[2].g, g[2].b }, lo, "darker at the bottom")
+    T.rgb({ g[3].r, g[3].g, g[3].b }, hi, "content yellow on top")
+    T.eq(anchorX(f.health, "TOPLEFT"), left0, "the other end stays put")
+    T.truthy(anchorX(f.power, "BOTTOMRIGHT") < right0, "the bars stop short of the stripe")
+    T.eq(DaylightUI.Style.ClipSpan(f.health:GetStatusBarTexture()), "inner", "the bars keep a straight end")
+    T.truthy(h.stripe:GetWidth() > DaylightUI.Pixel.Px(f, ns.Happiness.STRIPE), "the block covers the angled corner")
+    DUI:Set("UnitFrames", "pet.happinessSide", "left")
+    stub.RunTimers()
+    T.truthy(anchorX(f.health, "TOPLEFT") > left0, "the straight end gives the stripe a rectangle")
+    T.eq(DaylightUI.Style.ClipSpan(f.health:GetStatusBarTexture()), "inner", "the angle is the other end")
+    T.eq(h.stripe:GetWidth(), DaylightUI.Pixel.Px(f, ns.Happiness.STRIPE))
+end)
+
+T.test("pet happiness: the stripe fades in and out and slides to the next mood's color", function()
+    local DUI, ns = login(2)
+    local h = ns.happiness
+    local function run() local d = DaylightUI.Motion.Driver(); if d then stub.RunOnUpdate(d, 1) end end
+    local function top() local c = h.stripe.__gradient[3]; return { c.r, c.g, c.b } end
+    DUI:Set("UnitFrames", "pet.happinessLook", "frame")
+    stub.RunTimers()
+    run()
+    T.eq(h.band:GetAlpha(), 1, "faded in")
+    stub.mood = 3
+    stub.FireEvent("UNIT_HAPPINESS", "pet")
+    local _, hi = DaylightUI.Gradients.PaintRGBOf(DaylightUI.Gradients.PairFrom(ns.Happiness.COLORS[3]))
+    T.truthy(math.abs(top()[2] - hi[2]) > 0.001, "not there yet")
+    run()
+    T.rgb(top(), hi, "happy green once it settles")
+    stub.mood = nil
+    stub.FireEvent("UNIT_HAPPINESS", "pet")
+    run()
+    T.falsy(h.band:IsShown(), "gone once it has faded out")
+end)
+
+T.test("pet happiness: a warlock's demon keeps its whole frame with the stripe look on", function()
+    local DUI, ns = login(nil, false, "WARLOCK")
+    local f, h = ns.frames.pet, ns.happiness
+    local function anchorX(bar, point)
+        for i = 1, bar:GetNumPoints() do
+            local p, _, _, x = bar:GetPoint(i)
+            if p == point then return x end
+        end
+    end
+    local before = anchorX(f.power, "BOTTOMRIGHT")
+    DUI:Set("UnitFrames", "pet.happinessLook", "frame")
+    stub.RunTimers()
+    T.eq(anchorX(f.power, "BOTTOMRIGHT"), before, "no gap at the end of the frame")
+    T.falsy(h.band:IsShown(), "no stripe either")
 end)
 
 T.test("pet happiness: hovering says what the game says", function()

@@ -1,7 +1,7 @@
 -- Boss debuffs on you that addons can't read (private auras): up to three, drawn
--- by the client into our slots (DUI.PrivateAuras) in a row just under the debuff
+-- by the client into Daylight UI slots (DUI.PrivateAuras) in a row just under the debuff
 -- bar's first row, at its icon size and growing the same way. The game's own
--- debuff frame carries these anchors; when it's hidden (hideBlizzardFrames) ours
+-- debuff frame carries these anchors; when it's hidden (hideBlizzardFrames) these
 -- take over. Always at full opacity and never part of the debuff fade, since a
 -- boss mechanic must never be faded out.
 
@@ -28,7 +28,7 @@ function Private.Build()
     Private.Apply()
 end
 
--- Whether ours are needed: the switch is on and the game's frame is hidden
+-- Whether these slots are needed: the switch is on and the game's frame is hidden
 -- (otherwise its own anchors show them).
 function Private.Wanted()
     local d = BL.DB and BL.DB.settings

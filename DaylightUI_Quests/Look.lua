@@ -4,6 +4,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style = DUI.Style
 
 local Look = {}
@@ -149,7 +150,7 @@ function Look.NewTag(parent)
 end
 
 local function number(v)
-    return type(v) == "number" and not (issecretvalue and issecretvalue(v)) and v or nil
+    return type(v) == "number" and not isSecret(v) and v or nil
 end
 Look.Number = number
 

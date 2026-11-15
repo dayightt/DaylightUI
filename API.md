@@ -46,7 +46,7 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 4
+print(API.major, API.minor)   -- 1, 7
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
@@ -107,6 +107,21 @@ The same function with `"platecast"` does the nameplates' cast bars (1.4).
 me.Paint("nameplate", function(plate, parts, unit)
     parts.name:SetTextColor(1, 0.85, 0.4)
 end, { owns = { "name" } })
+```
+
+**Color action buttons your own way** (1.5), the job ElvUI plugins do on its bars:
+
+```lua
+me.Paint("actionbutton", function(button, parts, info)
+    if not info or info.empty then return end
+    if info.outOfRange then
+        parts.icon:SetVertexColor(0.9, 0.2, 0.2)
+    elseif info.noPower then
+        parts.icon:SetVertexColor(0.3, 0.4, 1)
+    else
+        parts.icon:SetVertexColor(1, 1, 1)
+    end
+end, { owns = { "icon" } })
 ```
 
 **Recolor every health bar** (unit frames, party and raid tiles):
@@ -172,6 +187,7 @@ plain gray.
 | `API.GetUnitFrame(unit)` | The frame showing that unit: a shown raid tile first, then party, then the single frames (player, target, focus...), then party pets. `nil` if none. |
 | `API.GetNameplate(unit)` | The nameplate for `"nameplate3"` and so on. |
 | `API.GetActionButton(bar, i)` | Button `i` of action bar `bar`: its number `1`-`8`, or its key `"main"`, `"bar2"`, `"left"`, `"right"`, `"bar5"`-`"bar8"`. |
+| `API.GetActionBar(bar)` (1.5) | The frame holding a whole bar: the same numbers and keys, plus `"stance"`, `"pet"`, `"possess"` and `"totem"`. |
 | `API.GetShopTile(tab, index)` | The vendor window's tile for an item: `tab` = `"buy"` or `"buyback"`, `index` = the game's index there. `nil` when it isn't on show. |
 | `API.GetCraftRow(recipeID)` | The profession window's line for a recipe, while it's on show. |
 | `API.GetQuestRow(questID)` | The quest tracker's row for a quest, while it's on show. |
@@ -196,6 +212,12 @@ Since 1.4:
 
 - `"platecast"`: a nameplate's cast bar. It comes and goes with its plate, and its `unit` is the
   plate's (`"nameplate3"`). Same pieces and `info` as `"castbar"`, so one function can paint both.
+
+Since 1.5:
+
+- `"actionbar"`: a bar's holder, the frame its buttons sit in. Its `unit` is the bar's key
+  (`"main"`, `"bar2"`... `"stance"`, `"pet"`). It gets `FrameStyled` each time the bar is laid out
+  again (size, rows, spacing). An `"actionbutton"`'s `unit` is `"<bar number>:<button>"`, `"1:5"`.
 
 Tiles and lines are reused as the list changes (a search, another vendor), so they work like
 nameplates: `FrameUnitChanged` when one shows another item, `FrameRemoved` when it's hidden or the
@@ -327,12 +349,19 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 |---|---|---|---|
 | `"castbar"` | `fill`, `bar`, `back`, `name`, `time`, `icon` | each cast or channel, an interrupt, a setting | `{ unit, spellID, channel, notInterruptible, interrupted }` |
 | `"platecast"` (1.4) | the same as `"castbar"` | each cast or channel, an interrupt, a setting | the same as `"castbar"` |
+| `"meterrow"` (1.6) | `bar`, `fill`, `back`, `name`, `amount`, `rank`, `icon` | someone else in the row, a class or mode change, a setting | a `API.MeterRows` entry |
+| `"actionbutton"` (1.5) | `icon`, `border`, `band` (tables of textures), `hotkey`, `count`, `macro` (the macro's name), `cooldown`, `highlight`, `pushed`, `checked`, `flash` | a new action in the slot, a change in how it reads (usable, short of power, out of range, a real cooldown starting or ending, a proc, hover or press lighting the border), a setting; never on a cooldown tick | `API.ButtonInfo`'s table (below) |
 | `"nameplate"` (1.4) | `health`, `healthFill`, `healthBack`, `healthText`, `power`, `powerFill`, `powerBack`, `name`, `guild` (the guild or title line), `level`, `dragon` (the elite mark), `marker` (the raid marker), `cast` (its cast bar's frame) | a new unit, a recolor (reaction, threat, tapped, a boss or rare color), the level, guild line or power type, a setting; never on each health tick | the unit |
 | `"unit"`, `"party"`, `"raid"`, `"partypet"` | `health`, `healthFill`, `healthBack`, `power`, `powerFill`, `powerBack`, `name`, `level`, `texts` (a list), `portrait`, `classIcon`, `border`, `band` (lists of textures) | a new unit, a recolor (class, reaction, dead, offline), a layout or setting; never on each health tick | the unit |
 | `"questrow"` | `title`, `objectives` (a list), `bar`, `icon` | each layout of the tracker | `{ questID }` |
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
 | `"shoptile"` | `icon`, `name` | each fill of the shelf | `{ tab, index, id, link }` |
 | `"craftrow"` | `icon`, `name` | each fill of the list | `{ recipeID }` |
+
+Action buttons: claims honored are `icon` (Daylight UI stops tinting, fading and graying it),
+`border` (the border and band stop changing color: read `info.border` to light it yourself),
+`hotkey`, `count` and `macro` (their text color). Only bars 1-8 are buttons of Daylight UI's; the
+stance and pet buttons are the game's.
 
 Pieces a unit frame doesn't have (a raid tile's portrait) are `nil`. Claims that are honored on
 every repaint, the per-tick health color too: `healthFill`, `healthBack`, `powerFill`, `powerBack`,
@@ -345,6 +374,24 @@ warning over a claimed fill (it's fight information), and `interrupted` says the
 interrupt. In a fight, another unit's `notInterruptible` and `spellID` may be secrets: hand them to
 setters that take them (a `...FromBoolean` setter, `SetText`), never compare or test them. A plugin that wants to follow health uses the game's events
 like any addon. `API.Parts(frame)` gives any frame's parts; `API.GetPart(frame, name)` one.
+
+### Action bars
+
+| Call | What it does |
+|---|---|
+| `API.ButtonInfo(button)` (1.5) | What a button shows and how it reads now, the same table its paint gets: `bar` (1-8), `barKey`, `index`, `slot`, `type` and `id` (the game's `GetActionInfo`), `empty`, `usable`, `noPower`, `outOfRange`, `cooling` (a real cooldown, not the global one), `proc`, `checked` (being cast, queued or repeating), `border` (why its border is lit: `"proc"`, `"pressed"`, `"hover"`, `"form"`, `"active"`, or `nil`). `nil` for any other frame. |
+| `API.BindKeys()` (1.5) | Opens the game's key binding mode on the bars, as the Action Bars page's Bind keys button does. `false` in a fight or with the bars switched off. |
+| `API.Glow(frame, on, r, g, b)` (1.5) | The glow the Cooldown Manager uses (the game's proc ring, easing in and out) on any of Daylight UI's frames, in your color or the accent. It sits on the frame's `API.Attach` holder, so it never fights Daylight UI's own glows. `false` for another frame or with the bars off. |
+
+```lua
+-- Light a button while your addon's buff is missing.
+local button = API.GetActionButton(1, 3)
+API.Glow(button, MyAddon:BuffMissing(), 1, 0.8, 0.2)
+```
+
+Where ElvUI plugins hook `StyleButton` or LibActionButton's `OnButtonUpdate`, `OnButtonUsable` and
+`OnButtonState`, use `Paint` on `"actionbutton"`: it runs at the same moments, with `info` saying
+what changed. Bars are made when the game loads, so a plugin can't add bars of its own.
 
 ### Your own texts on the unit frames
 
@@ -578,6 +625,223 @@ obj.text = "12"   -- every slot showing it redraws (changes are gathered a tenth
 - An object made after login (an addon loaded on demand) joins the menus then. A slot the player set
   to it stays empty until it's made, then fills.
 - `OnClick` runs from a plain button: no protected actions (casting, using items) from it.
+
+### A data text of Daylight UI's own kind (1.6)
+
+The way ElvUI's `DT:RegisterDatatext` works, without LibDataBroker: Daylight UI draws it, redraws
+it on your events and builds its tooltip in its own look.
+
+```lua
+local me = DaylightUI.API.For("Angler")
+me.AddDataText("fish", {
+    label = "Fish",                               -- its name in the slot menus
+    events = { "BAG_UPDATE_DELAYED" },            -- redrawn on these (or "BAG_UPDATE_DELAYED LOOT_CLOSED")
+    text = function() return "Fish", GetItemCount(6303) end,   -- label, value[, r, g, b]
+    tooltip = function(tip)                       -- tip.Title, tip.Line(label, value), tip.Text, tip.Hint
+        tip.Line("Raw Slitherskin", GetItemCount(6303))
+        tip.Hint("Click: open your bags")
+    end,
+    click = function(button, slot) ToggleAllBags() end,
+})
+me.UpdateDataText("fish")   -- redraw it now, from anywhere
+```
+
+| Field | What it does |
+|---|---|
+| `label` | Its name in the menus (needed). |
+| `text()` | Returns `label, value, r, g, b` (needed). The label is tan and drops first on a narrow strip; the value takes the accent at its slot unless you give a color. Plain strings or numbers only: a secret shows nothing. |
+| `events` | Game events that redraw it. `onEvent(event, ...)` runs first, to keep your own state. |
+| `poll` | `true`: redrawn twice a second (a clock). Use events when you can. |
+| `tooltip(tip)` | Your lines; the label is its title. |
+| `click(button, slot)`, `wheel(delta, slot)` | Plain buttons: no protected actions. |
+| `icon` | A texture (or a function returning one), shown where the player has icons on. |
+| `sample` | What it shows in test mode. |
+
+It's saved as `"Angler:fish"`, so a player's pick stays put across updates. An error in your
+functions is named once in chat and the other texts keep going.
+
+### Data panels of your own (1.6)
+
+The way ElvUI's `DT:RegisterPanel` works: slots on a frame of yours, drawn like Daylight UI's strip.
+The player Shift+right-clicks a slot to pick its text from every data text there is (Daylight UI's,
+yours, other plugins', broker objects); the picks are kept in their profile.
+
+```lua
+local strip = CreateFrame("Frame", nil, UIParent)
+strip:SetSize(360, 20)
+strip:SetPoint("BOTTOM", 0, 4)
+API.Skin(strip)
+me.AddDataPanel("bottom", strip, { count = 3, slots = { "gold", "Angler:fish", "bags" } })
+```
+
+`count` 1-5, `slots` the first picks, `labels` (`false` drops the words), `icons`, `textSize`. The
+slots follow the frame's size and show while it does. Needs the Info Panel module on.
+
+## The damage meter (1.6)
+
+Daylight UI's meter reads the game's own damage meter. These calls see what its windows show, and
+the meter rows take `Paint` like the other frames.
+
+| Call | What it does |
+|---|---|
+| `API.MeterWindows()` | Every meter window: `{ id, kind, name, mode }` each. `id` is `"main"` (the panel's meter), `"threat"`, or the player's own (`"w2"`...); `kind` is `"meter"`, `"threat"` or `"summary"`. |
+| `API.GetMeterWindow(id)` | The window's frame, to put something beside it. |
+| `API.MeterRows(id)` | Everyone it shows now, in order: `{ rank, name, class, amount, perSecond, isMine, guid, mode, window, sample }`. In a fight names and amounts can be secrets: hand them to `SetText` or a bar, never compare them. |
+| `API.MeterModes()` | Every mode: `{ key, name, group }` (`"damage"`, `"dps"`, `"healing"`, `"deaths"`...). |
+| `API.SetMeterMode(id, mode)` | Switches a meter window's mode, as its header's menu does. |
+| `API.ResetMeters()` | Clears every fight, as the reset button does, without asking. |
+| `API.OpenMeterBreakdown(id, rank)` | Opens the spells, targets and death log of the player at `rank`, as a click on their row does. |
+
+Events (`API.On`): `MeterFightStarted`, `MeterFightEnded` (seconds, once the game has filed the
+fight) and `MeterReset`.
+
+```lua
+-- Say your place after each fight.
+me.On("MeterFightEnded", function(seconds)
+    for _, row in ipairs(API.MeterRows("main") or {}) do
+        if row.isMine then print(("You were #%d"):format(row.rank)) end
+    end
+end)
+```
+
+Paint kind `"meterrow"`: parts `bar`, `fill`, `back`, `name`, `amount`, `rank`, `icon`; `info` is a
+`MeterRows` entry. It's painted when the row shows someone else, a class or mode changes, or a
+setting does, never on every redraw. Claims honored: `fill`, `name`, `amount`.
+
+```lua
+-- Your own row's bar in gold.
+me.Paint("meterrow", function(row, parts, info)
+    if info and info.isMine then parts.fill:SetVertexColor(1, 0.8, 0.2) end
+end)
+```
+
+## Tooltips (1.7)
+
+```lua
+me.AddTooltipLines("item", function(lines, data)
+    if data.itemID == 6303 then lines.Line("Fish caught", MyAddon.caught) end
+end)
+```
+
+`kind` is `"unit"` (`data.unit`), `"item"` (`data.link`, `data.itemID`) or `"spell"` (`data.spellID`,
+auras too). Your lines go after Daylight UI's own, in its look: `lines.Line(label, value, color)`,
+`lines.Text(text, color)` (wrapped), `lines.Hint(text)` (the accent), `lines.Gap()`. A line already
+there is never added twice, so it's fine that item tooltips refill several times a second. A value
+the game keeps secret comes as `nil`. `API.Off(handle)` stops it. Nothing runs while another addon
+(PrettyTooltip) styles the tooltips instead.
+
+## The setup guide (1.7)
+
+```lua
+me.AddSetupStep({
+    id = "look", title = "Angler", desc = "How the fishing bar looks.",
+    groups = { { label = "Size", rows = { { "Angler", "barSize" } } } },
+    onFinish = function() MyAddon:SetUpOtherAddons() end,
+})
+```
+
+Your page comes after Daylight UI's own pages, before Finish. `groups` are the guide's own: `rows`
+of `{ scope, key }` for settings on an options page (your module's, through `AddOptionsGroup` or
+your own page). The player's picks are a draft until Finish, and X takes them all back, yours
+included. `onFinish` runs on Finish (set up other addons there); Finish then asks for a reload.
+`quick = true` puts it in Quick setup too.
+
+## The Cooldown Manager (1.7)
+
+| Call | What it does |
+|---|---|
+| `API.GetCooldownPiece(spellID)` | The frame of the piece showing that spell, while it's placed and shown. |
+| `API.CooldownPieceInfo(frame)` | `{ key, spellID, shape ("icon" or "bar"), drawnBy }`. |
+
+Each placed piece is a frame of kind `"cdmpiece"` (its `unit` is the piece's key): `FrameMade`,
+`FrameUnitChanged`, `FrameRemoved` as pieces are placed and taken away, and `API.Attach` and
+`API.Glow` work on it. Events: `CooldownStarted` and `CooldownReady` (spellID, key), the moments
+Daylight UI's own light runs. Whatever draws inside the piece (often the game's own icon) is not
+yours to change.
+
+```lua
+me.On("CooldownReady", function(spellID)
+    if spellID == 12294 then API.Glow(API.GetCooldownPiece(12294), true) end
+end)
+```
+
+## The bags (1.7)
+
+```lua
+me.AddBagGroup("fishing", { label = "Fishing", match = function(item)
+    return item.itemID == 6256 or item.itemID == 6365   -- poles
+end })
+```
+
+Your group shows in the Categories view after the player's own groups, before Daylight UI's, and
+takes what `match` says (a pinned item and the player's own searches win). `item` has `itemID`,
+`link`, `name`, `quality`, `classID`, `subClassID`, `count`, `maxStack`, `bound`, `bindType`,
+`itemLevel`, `questItem`, `craftingReagent`, `recent`. The player can rename and move it but not
+delete it: it goes with your addon. `me.RemoveBagGroup(key)` takes it away; `API.RefreshBags()`
+sorts again when your `match` would answer differently.
+
+## The buffs (1.7)
+
+```lua
+me.AddBuffCategory("food", { label = "Well Fed", spells = { 24870, 25661 }, color = { 0.9, 0.6, 0.2 } })
+```
+
+A category of yours on the buff bar, made once in the player's list (then theirs: move, recolor, hide
+or delete it), holding those spells by id, so it sorts in fights too. Called again it updates the
+spells. A buff the player moved by hand stays where they put it. The bars' holders are frames of
+kind `"buffbar"` (`"buff"` and `"debuff"`) to attach to; the game's buttons inside lock in fights,
+so never touch those.
+
+## Aura filters on party and raid frames (1.7)
+
+```lua
+me.AddAuraFilter("walls", { label = "Big defensives", spells = { 871, 498, 642 } })
+me.AddAuraFilter("hots", { label = "My HoTs", spells = { 774, 8936 }, mine = true })
+```
+
+Your list shows up as one more choice in the Filter dropdown of the party and raid aura rows
+(Buffs, and the extra rows added in Design mode), next to "Heals and shields" and the others.
+`what` = `"buffs"` (the default) or `"debuffs"`; `mine = true` shows only the ones the player cast.
+The game matches by spell id, so list every rank. It works in fights too.
+
+On group members the game only lets addons pick out debuffs it marks as never secret (Sated,
+Exhaustion and the like), so a boss's debuffs can't be listed: any other debuff id is left out, and
+a list with none left returns `false`. Buffs are always fine. The game fixes a row's spells the
+first time it shows, so register your lists when your addon loads; a list changed after that applies
+after a `/reload`. Called again with the same key, it replaces the list.
+
+## Chat (1.7)
+
+```lua
+me.FormatChat(function(text, info)
+    if info.kind == "guild" and info.sender == "Bob" then return "|cffffd100*|r " .. text end
+end)
+local link = me.ChatLink("fish:42", "Show fish")   -- "[Show fish]" in the accent
+me.OnChatLink(function(data) MyAddon:Show(data) end)
+```
+
+Daylight UI's chat box only (the Chat module in Daylight style). Your function gets each line after
+Daylight UI's own touches: return a new text, `false` to leave it out, or nothing to keep it. `info`
+has `event`, `kind`, `sender`, `guid`, `body` (what they typed), `channel` and `line`. Lines the game
+keeps secret never reach you. A click on a link made by `me.ChatLink` calls your `OnChatLink`.
+
+## Fitting in around Daylight UI (1.7)
+
+| Call | What it does |
+|---|---|
+| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"` (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
+| `API.GetMoverFrame(key)` | The frame placed under a mover key: `"unitframes.player"`, `"actionbars.main"`, `"infopanel"`, yours `"plugin.<name>.<key>"`. |
+| `API.IsUnlocked()` | Unlock mode is on. |
+| `me.IsPreviewing(key)` | Your part should show its sample now: unlock mode, or test mode with its test part ticked. |
+| `me.SuspendMover(key, true)` | Daylight UI stops placing your mover while you dock it to something; `false` gives it back. |
+| `API.MotionOn()` | The player lets Daylight UI animate. |
+| `API.Media(file)` | A file in Daylight UI's media folder, used where it is. |
+| `API.IsAfkScreen()` | The AFK screen is up. Events `AfkScreenShown`, `AfkScreenHidden`. |
+| `me.Override(scope, path, value)` | One of Daylight UI's settings changed for a while (hide the fishing water while your mode runs). Never saved: `API.Off(handle)`, logging out or the player changing it puts theirs back. One plugin per setting. |
+| `me.FilterShop(fn(item))` | Return `false` to leave an item off the vendor window's shelf (`item.index`, `name`, `link`...). `API.RefreshShop()` fills it again. |
+
+Event `FramePlaced(key)`: a frame was put on its spot by its mover (a profile, a move). Follow a
+frame here instead of hooking its `SetPoint`.
 
 ## A plugin of your own
 

@@ -151,6 +151,15 @@ local function reload()
     return DUI
 end
 
+-- Runs the motion kit's tweens to their end.
+local function settle()
+    local d = DaylightUI.Motion.Driver()
+    for _ = 1, 60 do
+        if not (d and d:GetScript("OnUpdate")) then return end
+        stub.RunOnUpdate(d, 1 / 60)
+    end
+end
+
 local function me()
     stub.units.player = { name = "Kaladin", isPlayer = true, class = "WARRIOR" }
 end
@@ -249,9 +258,8 @@ T.test("profiles: a fresh install has no profile until it's installed", function
     local DUI = login()
     T.eq(DUI.DB.ActiveName(), "DPS/Tank", "runs on an unsaved stand-in")
     T.deq(DUI.Profiles.Names(), {}, "nothing listed")
-    DUI:Set("general", "softness", 0.5)
     stub.FireEvent("PLAYER_LOGOUT")
-    T.isnil(next(DaylightUIDB.profileData), "nothing saved")
+    T.isnil(next(DaylightUIDB.profileData), "nothing saved: nothing was changed")
     DUI = reload()
     T.truthy(DaylightUIDB.profileData["DPS/Tank"].unsaved, "a new stand-in")
     T.isnil(DaylightUIDB.profileData.Default)
@@ -259,6 +267,63 @@ T.test("profiles: a fresh install has no profile until it's installed", function
     T.deq(DUI.Profiles.Names(), { "DPS/Tank" }, "installed")
     DUI = reload()
     T.truthy(DaylightUIDB.profileData["DPS/Tank"], "kept now")
+end)
+
+-- A player report: moved frames and changed settings went back at every
+-- logout, for anyone who liked the look and never finished the setup guide.
+T.test("profiles: a change made before the setup guide makes the stand-in a real profile", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    T.truthy(DUI.DB.Unsaved())
+    DUI:Set("general", "softness", 0.5)
+    T.falsy(DUI.DB.Unsaved(), "kept from the first change")
+    T.deq(DUI.Profiles.Names(), { "DPS/Tank" })
+    stub.FireEvent("PLAYER_LOGOUT")
+    DUI = reload()
+    T.eq(DUI:Get("general", "softness"), 0.5, "still there after logging back in")
+    T.eq(DUI.DB.ActiveName(), "DPS/Tank")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("profiles: a frame moved before the setup guide stays where it was put", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    T.truthy(DUI.DB.Unsaved())
+    DUI.Movers.Unlock()
+    T.truthy(DUI.Movers.SetupButton():IsShown())
+    local key = "unitframes.player"
+    local e = DUI.Movers.Get(key)
+    T.truthy(e, "a mover to drag")
+    -- Dropped 120 right and 80 down from the screen's center.
+    e.frame.__center = { UIParent:GetWidth() / 2 + 120, UIParent:GetHeight() / 2 - 80 }
+    DUI.Movers.Save(key, true)
+    T.falsy(DUI.DB.Unsaved(), "kept from the first move")
+    settle()
+    T.falsy(DUI.Movers.SetupButton().bar:IsShown(), "the finish-setup button fades away")
+    DUI.Movers.Lock()
+    DUI.Movers.Unlock()
+    T.falsy(DUI.Movers.SetupButton():IsShown(), "the finish-setup button is gone")
+    DUI.Movers.Lock()
+    stub.FireEvent("PLAYER_LOGOUT")
+    DUI = reload()
+    local pos = DUI.DB.Positions()[key]
+    T.truthy(pos, "the spot was saved")
+    T.truthy(math.abs(pos[1] - 120) < 1 and math.abs(pos[2] + 80) < 1, "where it was put")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("profiles: the setup guide's preview doesn't keep the stand-in", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local D = DUI.InstallerDraft
+    local active = D.Active
+    D.Active = function() return true end
+    DUI:Set("general", "softness", 0.5)
+    D.Active = active
+    T.truthy(DUI.DB.Unsaved(), "a preview isn't a change of the player's")
 end)
 
 -- A player report: moved frames went back at every login. Nothing is saved
@@ -287,7 +352,8 @@ T.test("profiles: unsaved, unlock mode and the options window offer to finish th
     T.falsy(DUI.Movers.SetupButton():IsShown(), "saved: gone")
     DUI.Movers.Lock()
     DUI.OptionsPanel.Show("home")
-    T.falsy(nav.setup:IsShown())
+    settle()
+    T.falsy(nav.setup:IsShown(), "faded away")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -376,12 +442,12 @@ T.test("profiles: choosing one for this character asks to reload, and the reload
     local P = DUI.Profiles
     P.AddPreset("DPS/Tank")
     P.Create("Healer")
-    stub.popup = nil
+    stub.Dismiss()
     P.Choose("character", "Healer")
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_PROFILE", "asked")
-    T.eq(stub.popup.data, "Healer")
+    T.eq(stub.Asked(), "profile", "asked")
+    T.truthy(string.find(stub.AskText(), "Healer", 1, true))
     T.eq(DUI.DB.ActiveName(), "DPS/Tank", "not until the reload")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, stub.popup.data)
+    stub.ClickReload()
     stub.RunTimers()
     T.truthy(stub.reloaded, "reloaded")
     DUI = reload()
@@ -390,10 +456,10 @@ T.test("profiles: choosing one for this character asks to reload, and the reload
     T.eq(DaylightUIDB.profileData.Healer.modules.UnitFrames.swing.height, 44, "changes go into it")
     T.falsy(DUI.DB.Fill(DaylightUIDB.profileData[DUI.DB.DEFAULT]).modules.UnitFrames.swing.height == 44)
     -- Choosing the one in use again asks nothing.
-    stub.popup = nil
+    stub.Dismiss()
     P = DUI.Profiles
     P.Choose("character", "Healer")
-    T.isnil(stub.popup)
+    T.isnil(stub.Asked())
 end)
 
 T.test("profiles: with dual spec each talent set has its own, and swapping asks to switch", function()
@@ -405,11 +471,11 @@ T.test("profiles: with dual spec each talent set has its own, and swapping asks 
     P.Create("Healer")
     P.Choose(1, "DPS/Tank")
     P.Choose(2, "Healer")
-    stub.popup = nil
+    stub.Dismiss()
     stub.activeSpec = 2
     stub.FireEvent("ACTIVE_TALENT_GROUP_CHANGED", 2, 1)
-    T.eq(stub.popup and stub.popup.data, "Healer", "these talents' profile offered")
-    T.truthy(string.find(stub.popup.text, "talents", 1, true))
+    T.eq(stub.Asked(), "profile", "these talents' profile offered"); T.truthy(string.find(stub.AskText(), "Healer", 1, true))
+    T.truthy(string.find(stub.AskText(), "talents", 1, true))
     -- "Later": the next login picks it by the talents anyway.
     DUI = reload()
     T.eq(DUI.DB.ActiveName(), "Healer")
@@ -434,25 +500,25 @@ T.test("profiles: a controller mode profile is used while the controller UI is o
     P.AddPreset("DPS/Tank")
     P.Create("Couch")
     T.eq(P.Chosen("pad"), P.NONE, "none at first")
-    stub.popup = nil
+    stub.Dismiss()
     P.Choose("pad", "Couch")
-    T.isnil(stub.popup, "not in use while the controller UI is off")
+    T.isnil(stub.Asked(), "not in use while the controller UI is off")
     T.eq(P.UsersOf("Couch")[1] ~= nil, true, "counted as chosen")
     -- The game turns its controller UI on: offered, and taken without an Edit Mode layout.
     padUI(true)
     stub.FireEvent("INPUT_DEVICE_INTERFACE_TRANSITION", 1, 0)
-    T.eq(stub.popup and stub.popup.data, "Couch", "offered")
-    T.truthy(string.find(stub.popup.text, "Controller", 1, true))
+    T.eq(stub.Asked(), "profile", "offered"); T.truthy(string.find(stub.AskText(), "Couch", 1, true))
+    T.truthy(string.find(stub.AskText(), "Controller", 1, true))
     stub.reloaded = nil
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, stub.popup.data)
+    stub.ClickReload()
     T.truthy(stub.reloaded, "reloaded at once")
     DUI = reload()
     T.eq(DUI.DB.ActiveName(), "Couch", "over the talent set's")
     -- And off again: back to the talents' own.
     padUI(false)
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("INPUT_DEVICE_INTERFACE_TRANSITION", 0, 1)
-    T.eq(stub.popup and stub.popup.data, "DPS/Tank", "back offered")
+    T.eq(stub.Asked(), "profile", "back offered"); T.truthy(string.find(stub.AskText(), "DPS/Tank", 1, true))
     DUI = reload()
     T.eq(DUI.DB.ActiveName(), "DPS/Tank")
     -- Renamed and deleted with the others; None turns it off.
@@ -541,7 +607,7 @@ T.test("profiles: importing makes a new profile, chosen for this character", fun
     DUI:Set("UnitFrames", "swing.height", 30)
     local text = P.Encode(P.Snapshot())
     DUI:Set("UnitFrames", "swing.height", 12)
-    stub.popup = nil
+    stub.Dismiss()
     P.ShowImport()
     local box = _G.DaylightUIProfileBox
     box.edit:SetText(text)
@@ -550,7 +616,7 @@ T.test("profiles: importing makes a new profile, chosen for this character", fun
     T.eq(DaylightUIDB.profileData.Theirs.modules.UnitFrames.swing.height, 30, "the shared settings")
     T.eq(DUI:Get("UnitFrames", "swing.height"), 12, "yours untouched")
     T.eq(P.Chosen("character"), "Theirs")
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_PROFILE", "asked to reload into it")
+    T.eq(stub.Asked(), "profile", "asked to reload into it")
 end)
 
 T.test("profiles: the share window: export shows the text; import checks it as it's pasted", function()
@@ -583,13 +649,13 @@ T.test("profiles: if the talents weren't known at login, entering the world asks
     local DUI = login()
     DUI.Profiles.Create("Healer")
     DUI.Profiles.Choose(2, "Healer")
-    stub.popup = nil
+    stub.Dismiss()
     stub.activeSpec = 2
     stub.FireEvent("PLAYER_ENTERING_WORLD")
-    T.eq(stub.popup and stub.popup.data, "Healer")
-    stub.popup = nil
+    T.eq(stub.Asked(), "profile"); T.truthy(string.find(stub.AskText(), "Healer", 1, true))
+    stub.Dismiss()
     stub.FireEvent("PLAYER_ENTERING_WORLD")
-    T.isnil(stub.popup, "once")
+    T.isnil(stub.Asked(), "once")
 end)
 
 T.test("characters: one entry each, by first and last name and realm; old keys folded in", function()
@@ -694,28 +760,28 @@ T.test("profiles: a ready-made profile offers to bring the current one's action 
     local DUI = login()
     local P = DUI.Profiles
     -- DPS/Tank is the standard profile, there already: nothing to offer.
-    stub.popup = nil
+    stub.Dismiss()
     P.AddPresetOffering("DPS/Tank")
-    T.isnil(stub.popup, "nothing made, so nothing to bring")
+    T.isnil(stub.Asked(), "nothing made, so nothing to bring")
     -- Switch to a profile of our own with a moved bar.
     P.Create("Mine")
     P.Choose("character", "Mine")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, stub.popup.data)
+    stub.ClickReload()
     stub.RunTimers()
     DUI = reload()
     P = DUI.Profiles
     DUI.DB.Positions()["actionbars.main"] = { 10, 20 }
-    stub.popup = nil
+    stub.Dismiss()
     local made = P.AddPresetOffering("Healer")
     T.eq(made, "Healer")
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_PROFILE_BARS", "asked, since Mine moved a bar")
+    T.eq(stub.Asked(), "profileBars", "asked, since Mine moved a bar")
     T.isnil(DaylightUIDB.profileData.Healer.positions["actionbars.main"], "not yet")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE_BARS.OnAccept(nil, stub.popup.data)
+    stub.Answer(true)
     T.eq(DaylightUIDB.profileData.Healer.positions["actionbars.main"][2], 20, "brought along")
     -- Healer already exists now: nothing more to ask.
-    stub.popup = nil
+    stub.Dismiss()
     P.AddPresetOffering("Healer")
-    T.isnil(stub.popup, "already made")
+    T.isnil(stub.Asked(), "already made")
 end)
 
 T.test("the DPS/Tank and Healer setups show the micro menu in the corner, the Immersive Preset doesn't", function()

@@ -14,7 +14,7 @@ local DUI = DaylightUI
 local Style, Spots = DUI.Style, ns.Spots
 local INK = Style.INK
 local L = DUI.L
-local isSecret = issecretvalue or function() return false end
+local isSecret = DUI.IsSecret
 
 local Texts = {}
 ns.Texts = Texts

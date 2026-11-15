@@ -106,6 +106,28 @@ T.test("action bars: the totem bar sits in its holder after a reload, not at its
     T.eq(rel, holder, "on its holder, where the unlock handle is")
 end)
 
+T.test("action bars: the totem bar goes back in its holder when the game hands it to UIParent", function()
+    loginShaman()
+    local mc = MultiCastActionBarFrame
+    local holder = stub.actionbars.Bars.holders.totem
+    -- A load in a fight leaves it on UIParent, and something else may move it out later.
+    -- Outside the holder the bar's fade never reaches it.
+    mc:SetParent(UIParent)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), holder, "back in its holder")
+    -- In a fight the parent can't change: it waits for the fight to end.
+    stub.combat = true
+    mc:SetParent(UIParent)
+    stub.FireEvent("UPDATE_MULTI_CAST_ACTIONBAR")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), UIParent, "left alone in a fight")
+    stub.combat = false
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.RunTimers()
+    T.eq(mc:GetParent(), holder, "back after the fight")
+end)
+
 T.test("action bars: the totem buttons stay put when the game stacks its bottom bars in a fight (Ghost Wolf)", function()
     loginShaman()
     local mc = MultiCastActionBarFrame
@@ -1000,9 +1022,10 @@ T.test("profiles: switching to a new profile gives it its own layout, a copy of 
     DUI.Installer.Install()
     T.truthy(layoutNamed("DaylightUI - DPS/Tank"), "Default's layout")
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Choose("character", "Healer")
-    T.eq(stub.popup, "DAYLIGHTUI_PROFILE", "asked to reload")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, "Healer")
+    T.eq(stub.Asked(), "profile", "asked to reload")
+    stub.ClickReload()
     local l, index = layoutNamed("DaylightUI - Healer")
     T.truthy(l, "the profile's own layout")
     T.eq(C_EditMode.GetLayouts().activeLayout, index, "made active before the reload")
@@ -1017,13 +1040,14 @@ T.test("profiles: a switch made after combat (no click) asks for the reload clic
     _G.GetNumSpecGroups = function() return 1 end
     DUI.Installer.Install()
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Assign("character", "Healer")
     DUI.Profiles.SwitchNow("Healer")
     T.truthy(DUI.EditMode.IsActive("Healer"))
     stub.RunTimers()
     T.falsy(stub.reloaded, "a timer can't reload (blocked without a click)")
-    T.eq(stub.popup, "DAYLIGHTUI_PROFILE_RELOAD", "asks for the reload click instead")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE_RELOAD.OnAccept()
+    T.eq(stub.Asked(), "profileReload", "asks for the reload click instead")
+    stub.ClickReload()
     T.truthy(stub.reloaded)
 end)
 
@@ -1032,14 +1056,14 @@ T.test("profiles: the game's layout update after a switch neither undoes it nor 
     _G.GetNumSpecGroups = function() return 1 end
     DUI.Installer.Install()
     DUI.Profiles.Create("Healer")
+    if stub.Asked() then stub.Answer(false) end   -- the install's own reload question
     DUI.Profiles.Choose("character", "Healer")
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE.OnAccept(nil, "Healer")
-    stub.popup = nil
+    stub.ClickReload()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- the game, after the save
     T.truthy(DUI.EditMode.IsActive("Healer"), "the new profile's layout stays active")
-    T.isnil(stub.popup, "no second reload asked")
+    T.isnil(stub.Asked(), "no second reload asked")
     stub.RunTimers()
-    T.isnil(stub.popup, "nor after the save's moment")
+    T.isnil(stub.Asked(), "nor after the save's moment")
 end)
 
 T.test("profiles: renaming a profile renames its layout", function()
@@ -1060,12 +1084,12 @@ T.test("profiles: after switching without the layout, the next load puts it in p
     DUI.Profiles.Create("Healer")
     -- On the Healer profile now, but Default's layout is still active.
     DUI.DB.activeName = "Healer"
-    stub.popup = nil
+    if stub.Asked() then stub.Answer(false) end
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     local _, index = layoutNamed("DaylightUI - Healer")
     T.truthy(index, "made")
     T.eq(C_EditMode.GetLayouts().activeLayout, index, "and active")
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "asked to reload")
+    T.eq(stub.Asked(), "reload", "asked to reload")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "not the installer")
 end)
 
@@ -1588,6 +1612,26 @@ T.test("action bars: the bag bar and micro menu are skinned, unless turned off",
     T.eq(QuestLogMicroButton.Background:GetAlpha(), 1)
 end)
 
+T.test("action bars: a button shape leaves the micro menu and bag bar framed", function()
+    -- A shape is drawn only by the action buttons' own pieces, so these keep the
+    -- square shell, background and all (a player saw them go see-through).
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world(); menuButtons()
+        DaylightUIDB = { modules = { ActionBars = { look = { shape = "circle" } } } }
+    end })
+    local Menus = stub.actionbars.Menus
+    for _, btn in ipairs({ QuestLogMicroButton, CharacterBag0Slot }) do
+        local o = Menus.Parts(btn).shell.opts
+        T.falsy(o.noBackground, btn:GetName() .. ": its background stays")
+        T.falsy(o.noBorder, btn:GetName() .. ": its border stays")
+    end
+    -- A border style change reaches them at once.
+    DUI:Set("ActionBars", "look.borderStyle", "none")
+    stub.RunTimers()
+    T.truthy(Menus.Parts(QuestLogMicroButton).shell.opts.noBorder, "border style followed")
+    T.falsy(Menus.Parts(QuestLogMicroButton).shell.opts.noBackground, "background still there")
+end)
+
 T.test("action bars: the micro icons run along the accent, one sweep through the row", function()
     local DUI = stub.Load({ actionbars = true, before = function() world(); menuButtons() end })
     local Menus, Style = stub.actionbars.Menus, DUI.Style
@@ -1697,6 +1741,8 @@ T.test("action bars: keybind and count positions, short keybinds, macro name siz
     T.eq(select(1, b.Count:GetPoint(1)), "BOTTOMLEFT")
     T.eq(Skin.Shorten("s-Mouse Button 4"), "SM4")
     T.eq(Skin.Shorten("c-Num Pad 5"), "CN5")
+    T.eq(Skin.Shorten("NNUMPADEQUALS"), "N=", "the client's raw code for numpad =")
+    T.eq(Skin.Shorten("s-NUMPADEQUALS"), "SN=")
     T.eq(Skin.Shorten("Middle Mouse"), "M3")
     T.eq(Skin.Shorten("Page Up"), "PU")
     T.eq(Skin.Shorten("s-Page Down"), "SPD")
@@ -2211,13 +2257,13 @@ T.test("action bars: bag bar and micro menu size read and write the active Edit 
     T.truthy(bag, "a bag bar size slider"); T.truthy(micro, "a micro menu size slider")
     T.near(bag.get(), 1.5, 0.001, "the layout's 150%")
     T.near(micro.get(), 1.0, 0.001, "the layout's 100%")
-    stub.popup = nil           -- the login's own prompt
+    if stub.Asked() then stub.Answer(false) end   -- the login's own question
     bag.set(0.8)
     T.near(BagsBar:GetScale(), 0.8, 0.001, "smaller at once")
     stub.RunTimers()
     T.eq(saved.layouts[1].systems[1].settings[1].value, 1, "80% saved as step 1")
     T.eq(saved.activeLayout, 3, "the active layout stays")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
     T.near(bag.get(), 0.8, 0.001)
     micro.set(1.2)
     T.near(MicroMenu:GetScale(), 1.2, 0.001)

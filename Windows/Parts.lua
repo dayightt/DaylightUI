@@ -488,6 +488,10 @@ end
 
 Parts.LINE = 36
 Parts.LINE_ICON = 28
+-- Space between a line's name and its sub. The pair is this tall, centered
+-- on the row, so the selection wash has the same padding above and below.
+Parts.LINE_GAP = 3
+Parts.LINE_SUB = Parts.SMALL
 Parts.LATER = Style.INK.OFF   -- name color of a dim line
 
 local function makeLine(parent)
@@ -507,13 +511,17 @@ local function makeLine(parent)
     Style.CropIcon(b.icon)
     b.value = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-    b.name = Style.Text(b, Style.SIZE.body, "LEFT")
-    b.name:SetPoint("TOPLEFT", b.edge, "TOPRIGHT", 10, -2)
-    b.name:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    -- Name and sub as one block, centered on the icon. Pinning the name to
+    -- the icon's top left the sub sitting on the bottom edge of the wash.
+    b.block = CreateFrame("Frame", nil, b)
+    b.block:SetHeight(Parts.TEXT + Parts.LINE_GAP + Parts.LINE_SUB)
+    b.name = Style.Text(b.block, Style.SIZE.body, "LEFT")
+    b.name:SetPoint("TOPLEFT", b.block, "TOPLEFT", 0, 0)
+    b.name:SetPoint("TOPRIGHT", b.block, "TOPRIGHT", 0, 0)
     b.name:SetWordWrap(false)
-    b.sub = Style.Text(b, Parts.SMALL, "LEFT")
-    b.sub:SetPoint("TOPLEFT", b.name, "BOTTOMLEFT", 0, -3)
-    b.sub:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    b.sub = Style.Text(b.block, Parts.LINE_SUB, "LEFT")
+    b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
+    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     b.sub:SetWordWrap(false)
     -- Key hint, same as a Row's.
     b.key = Style.Text(b, Style.SIZE.tiny, "CENTER")
@@ -574,6 +582,16 @@ function Stack:Line(spec)
     b.Lit(b:IsMouseOver() == true)
     b.edge:ClearAllPoints()
     b.edge:SetPoint("LEFT", b, "LEFT", spec.key ~= nil and 6 + Parts.KEY + 8 or 4, 0)
+    local pair = spec.sub ~= nil and spec.sub ~= ""
+    b.block:ClearAllPoints()
+    b.block:SetPoint("LEFT", b.edge, "RIGHT", 10, 0)
+    b.block:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    b.block:SetHeight(pair and (Parts.TEXT + Parts.LINE_GAP + Parts.LINE_SUB) or Parts.TEXT)
+    -- A list can narrow the sub (Craft's skill-up chance); a reused frame starts
+    -- from the block's full width again.
+    b.sub:ClearAllPoints()
+    b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
+    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     local c = spec.color or (dim and Parts.LATER) or Style.INK.VALUE
     b.name:SetText(spec.text or "")
     b.name:SetTextColor(c[1], c[2], c[3])
@@ -620,17 +638,18 @@ function Parts.ItemIcon(b, size)
     b.well:SetDrawLayer("ARTWORK", 1)
     b.well:SetPoint("TOPLEFT", b.edge, "TOPLEFT", 1, -1)
     b.well:SetPoint("BOTTOMRIGHT", b.edge, "BOTTOMRIGHT", -1, 1)
-    -- The game snaps each texture to the pixel grid on its own. On a tile that
-    -- sits on a half pixel, the outline and the fill inside it could round apart
-    -- and one side of the ring vanished. Unsnapped, the one pixel between them
-    -- always covers exactly one pixel row.
-    for _, t in ipairs({ b.edge, b.well }) do
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
-        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
-    end
     b.icon = b:CreateTexture(nil, "OVERLAY")
     b.icon:SetAllPoints(b.well)
     Style.CropIcon(b.icon)
+    -- The game snaps each texture to the pixel grid on its own. On a tile that
+    -- sits on a half pixel, the outline, the fill and the icon could each round
+    -- their own way, and the icon, drawn on top, covered one side of the ring.
+    -- All three unsnapped, the icon lands exactly on the fill and the one pixel
+    -- between fill and outline always shows.
+    for _, t in ipairs({ b.edge, b.well, b.icon }) do
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    end
     return b
 end
 

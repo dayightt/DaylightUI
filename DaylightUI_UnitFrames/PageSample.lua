@@ -77,7 +77,7 @@ PageSample.PARTS = {
     { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.ribbon end },
-    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
+    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On Ribbon's row it doesn't move.
     { label = "Name", at = nameRegion, keys = { "%s.showName", "%s.namePos", "%s.nameOnBar", "%sText.name", "%s.tabHeight", "%s.nameTag",
@@ -109,7 +109,7 @@ PageSample.PARTS = {
     -- Only the pet page's sample has one (f.happiness). Hidden while the
     -- switch is off, so it drops out of Design mode with it.
     { label = "Pet happiness", at = function(f) return f.happiness end,
-      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
+      keys = { "%s.happiness", "%s.happinessLook", "%s.happinessSide", "%s.happinessSpot", "%s.happinessSize", "%s.happinessX", "%s.happinessY" },
       move = { spot = "%s.happinessSpot", x = "%s.happinessX", y = "%s.happinessY" },
       size = { s = "%s.happinessSize" } },
 }
@@ -136,11 +136,31 @@ local function auraRow(prefix, kind)
              move = { spot = p .. "Spot", x = p .. "X", y = p .. "Y" }, size = { s = p .. "Size" } }
 end
 -- Page id -> its aura settings and inner end (the side the rows grow toward).
-PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" } }
+PageSample.AURA_SETS = { target = { key = "targetAuras", side = "left" }, player = { key = "playerAuras", side = "right" },
+                         focus = { key = "focusAuras", side = "right" }, pet = { key = "petAuras", side = "right" } }
 PageSample.AURA_PARTS = {}
 for id, a in pairs(PageSample.AURA_SETS) do
     PageSample.AURA_PARTS[id] = { auraRow(a.key, "debuff"), auraRow(a.key, "buff") }
 end
+
+-- The personal display's pieces (Personal.lua). Its keys are its own, so no "%s".
+PageSample.PERSONAL_PARTS = {
+    { label = "Health bar", at = at("healthBar"),
+      keys = { "personal.width", "personal.height", "personal.showHealth", "personal.colorHealth",
+               "personal.predictHeals", "personal.predictAbsorbs", "personal.strata" },
+      size = { w = "personal.width", h = "personal.height" } },
+    { label = "Power bar", at = at("powerBar"), keys = { "personal.showPower", "personal.powerHeight", "personal.colorPower" },
+      size = { w = "personal.width", h = "personal.powerHeight" } },
+    { label = "Health text", at = at("healthText"),
+      keys = { "personal.showPercent", "personal.healthText", "personal.healthTextPos", "personal.healthTextSize" } },
+    { label = "Power text", at = at("powerText"),
+      keys = { "personal.showPowerText", "personal.powerFormat", "personal.powerTextPos", "personal.powerTextSize" } },
+    { label = "Combo points", at = at("combo"),
+      keys = { "personal.combo", "personal.comboStretch", "personal.comboSize", "personal.comboHeight", "personal.comboX", "personal.comboY" },
+      move = { home = true, x = "personal.comboX", y = "personal.comboY" } },
+    auraRow("personal.auras", "debuff"),
+    auraRow("personal.auras", "buff"),
+}
 
 -- A party member's or raid tile's own extras: its aura groups (stand-ins,
 -- AuraGroups.PlainSet) and the sample dispel icon. "%s" is the page's id.
@@ -164,6 +184,8 @@ PageSample.GROUP_PARTS = {
       move = { spot = "%s.dispelPos", x = "%s.dispelX", y = "%s.dispelY" }, size = { s = "%s.dispelSize" } },
     { label = "Ready check", at = at("readyIcon"), keys = { "%s.showReady", "%s.readyPos", "%s.readySize" },
       move = { spot = "%s.readyPos", x = "%s.readyX", y = "%s.readyY" }, size = { s = "%s.readySize" } },
+    { label = "Summon", at = at("summonIcon"), keys = { "%s.showSummon", "%s.summonPos", "%s.summonSize" },
+      move = { spot = "%s.summonPos", x = "%s.summonX", y = "%s.summonY" }, size = { s = "%s.summonSize" } },
 }
 -- Extra aura groups (Add piece): their stand-ins, debuffs or buffs.
 for i, key in ipairs(ns.AURA_SLOTS) do
@@ -206,6 +228,13 @@ PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
     keys = { "partyPet.enabled", "partyPet.spot", "partyPet.x", "partyPet.y", "partyPet.width", "partyPet.height" },
     move = { spot = "partyPet.spot", x = "partyPet.x", y = "partyPet.y", dots = function(b) return ns.PartyPets.Dots(b) end },
     size = { w = "partyPet.width", h = "partyPet.height" } }
+-- A party member's target (PartyTargets.lua), while they're on.
+PageSample.PARTY_PARTS[#PageSample.PARTY_PARTS + 1] = {
+    label = "Party target",
+    at = function(b) return b.ptarget and b.ptarget:IsShown() and b.ptarget or nil end,
+    keys = { "partyTarget.enabled", "partyTarget.spot", "partyTarget.x", "partyTarget.y", "partyTarget.width", "partyTarget.height" },
+    move = { spot = "partyTarget.spot", x = "partyTarget.x", y = "partyTarget.y", dots = function(b) return ns.PartyTargets.Dots(b) end },
+    size = { w = "partyTarget.width", h = "partyTarget.height" } }
 
 -- The keys on a unit frames page. A page doesn't change once registered.
 local pageKeys = {}
@@ -369,6 +398,7 @@ end
 
 local function specOf(unit)
     if unit == "arena" then return ns.Arena.Spec(1) end
+    if unit == "partyTarget" then return ns.PartyTargets.SPEC end
     for _, spec in ipairs(ns.SPECS) do
         if spec.unit == unit then return spec end
     end
@@ -378,6 +408,7 @@ end
 local function sampleUnit(id)
     if id == "player" then return ns.Sample.You() end
     if id == "arena" then return ns.Arena.SAMPLES[1] end
+    if id == "partyTarget" then return ns.PartyTargets.PageSample() end
     return ns.Test.SampleFor(id)
 end
 
@@ -463,6 +494,7 @@ local function refreshSingle(s, width, maxH)
         -- The frame's auras, from its page's own settings.
         local a = d[PageSample.AURA_SETS[s.id].key]
         if s.id == "target" then s.auras.aboveLift, s.auras.buffDrop = ns.TargetAuraRoom(d) end
+        if s.id == "focus" then s.auras.aboveLift, s.auras.buffDrop = ns.FocusAuraRoom(d) end
         Auras.Apply(s.auras, a)
         local top, bottom = Auras.Place(s.auras, f, cfg)
         Auras.ShowSample(s.auras, f, a, ns.Test.AURAS)
@@ -627,6 +659,9 @@ function PageSample.GroupReach(cfg, b)
     -- A party member's pet (PartyPets.lua).
     local pu, pd, pl, pr = ns.PartyPets.Reach(b)
     up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
+    -- And their target (PartyTargets.lua).
+    pu, pd, pl, pr = ns.PartyTargets.Reach(b)
+    up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
     local pos = cfg.namePos
     if type(pos) == "string" and pos:find("^out") and cfg.showName ~= false then
         local ok, w = pcall(b.nameText.GetStringWidth, b.nameText)
@@ -698,9 +733,65 @@ local function newRaid(parent, size)
     return s
 end
 
+-- The personal display: a copy built and laid out by Personal.lua's own code,
+-- with test mode's values. The real one sits under your character, often
+-- faded or behind this window, and is off by default.
+
+PageSample.PERSONAL_ZOOM = 2   -- a thin pair of bars, so start bigger (the strip's Zoom slider)
+PageSample.zoom.personal = PageSample.PERSONAL_ZOOM
+
+local function refreshPersonal(s, width, maxH)
+    local d = db()
+    if not d then return 0 end
+    local cfg, p = d.personal, s.p
+    local PR = ns.Personal
+    p:SetScale(1)
+    PR.Shape(p, cfg, true)
+    PR.LayoutCombo(p, cfg)
+    PR.FillSample(p, cfg)
+    p:SetAlpha(cfg.enabled == true and 1 or PageSample.OFF_ALPHA)
+    local up, down = 0, p.combo and p.combo:IsShown() and p.comboReach or 0
+    local a = cfg.auras
+    if type(a) == "table" then
+        -- Under the bars the rows start past the combo row, as on the real one.
+        s.auras.aboveLift, s.auras.buffDrop = 0, p.comboReach or 0
+        Auras.Apply(s.auras, a)
+        local top, bottom = Auras.Place(s.auras, p, cfg)
+        Auras.ShowSample(s.auras, p, a, ns.Test.AURAS)
+        up, down = math.max(up, top), math.max(down, bottom)
+    end
+    return fit(s.frame, p, p:GetWidth(), p:GetHeight(), 0, true, up, down, width, maxH, 0, s.Zoom())
+end
+
+local function newPersonal(parent)
+    local s = { id = "personal", missing = {} }
+    s.frame = CreateFrame("Frame", nil, parent)
+    zoomable(s)
+    local p = CreateFrame("Frame", nil, s.frame)
+    ns.Personal.Build(p)
+    -- Rogues and druids: their pips, a picture only, so it listens to nothing.
+    p.combo = ns.Combo.Create(p)
+    if p.combo then p.combo:UnregisterAllEvents() end
+    s.auras = Auras.PlainSet(p, "right")
+    p.sampleAuras = s.auras
+    s.p = p
+    function s.Refresh(width, maxH) return refreshPersonal(s, width, maxH) end
+    function s.Parts()
+        local out, missing = {}, {}
+        local cfg = db() and db().personal
+        for _, part in ipairs(PageSample.PERSONAL_PARTS) do
+            collect(out, missing, part, p, "personal", p:GetScale(), cfg)
+        end
+        s.missing = missing
+        return out
+    end
+    return s
+end
+
 -- The live sample for a unit frames page ("player", "target", ..., "party",
--- "raid") on parent. size is a raid page's size (10, 20 or 40).
+-- "raid", "personal") on parent. size is a raid page's size (10, 20 or 40).
 function PageSample.New(id, parent, size)
+    if id == "personal" then return newPersonal(parent) end
     if id == "party" then return newParty(parent) end
     if id == "raid" then return newRaid(parent, size) end
     return newSingle(id, parent)

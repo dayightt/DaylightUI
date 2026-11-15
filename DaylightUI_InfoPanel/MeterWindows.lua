@@ -48,11 +48,15 @@ Windows.PRESETS = {
     { key = "deaths", kind = "meter", label = "Deaths", icon = "deaths", set = { mode = "deaths" } },
     { key = "interrupts", kind = "meter", label = "Interrupts", icon = "interrupts", set = { mode = "interrupts" } },
     { key = "enemy", kind = "meter", label = "Enemy damage taken", icon = "enemy", set = { mode = "enemy" } },
-    { key = "threat", kind = "threat", label = "Threat", icon = "threat", set = {} },
+    { key = "threat", kind = "meter", label = "Threat", icon = "threat", set = { mode = "threat" } },
     { key = "summary", kind = "summary", label = "Fight summary", icon = "summary", set = {} },
 }
 Windows.PRESET = {}
 for _, p in ipairs(Windows.PRESETS) do Windows.PRESET[p.key] = p end
+-- The threat meter's own look in a window (mob, your percent, pull line).
+-- Not offered any more, since a meter window does threat as a mode, but
+-- windows made from it keep working.
+Windows.PRESET.threatwindow = { key = "threatwindow", kind = "threat", label = "Threat", icon = "threat", set = {} }
 
 local BUILTIN = {
     main = { kind = "meter", path = "meter" },

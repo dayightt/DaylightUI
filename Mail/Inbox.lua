@@ -43,7 +43,6 @@ local function call(fn, ...)
     local ok, a, b, c, d, e, f, g, h, i, j, k, l, m = pcall(fn, ...)
     if ok then return a, b, c, d, e, f, g, h, i, j, k, l, m end
 end
-local function now() return GetTime() end
 local function money(c) return DUI.Widgets.Money(c) end
 local function pending() return C_Mail and call(C_Mail.IsCommandPending) == true end
 
@@ -434,13 +433,13 @@ local function asking(what, l)
     return l and S.confirm and S.confirm.what == what and gapOf(l, S.confirm.id) ~= nil
 end
 local function confirmed(what, l)
-    if asking(what, l) and now() - S.confirm.at < Inbox.CONFIRM then
+    if asking(what, l) and GetTime() - S.confirm.at < Inbox.CONFIRM then
         S.confirm = nil
         return true
     end
-    S.confirm = { what = what, id = Inbox.Id(l), at = now() }
+    S.confirm = { what = what, id = Inbox.Id(l), at = GetTime() }
     Inbox.PaintFooter()
-    C_Timer.After(Inbox.CONFIRM, function() if S.confirm and now() - S.confirm.at >= Inbox.CONFIRM - 0.01 then S.confirm = nil; Inbox.PaintFooter() end end)
+    C_Timer.After(Inbox.CONFIRM, function() if S.confirm and GetTime() - S.confirm.at >= Inbox.CONFIRM - 0.01 then S.confirm = nil; Inbox.PaintFooter() end end)
     return false
 end
 
@@ -695,10 +694,7 @@ function Inbox.Build(page)
     list:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
     list:SetWidth(Inbox.LIST_W)
     Inbox.list = list
-    local rule = page:CreateTexture(nil, "ARTWORK")
-    rule:SetTexture("Interface\\Buttons\\WHITE8X8")
-    rule:SetVertexColor(1, 1, 1, 0.06)
-    rule:SetWidth(1)
+    local rule = Win.Parts.Rule(page, true)
     rule:SetPoint("TOPLEFT", list, "TOPRIGHT", 0, -12)
     rule:SetPoint("BOTTOMLEFT", list, "BOTTOMRIGHT", 0, 12)
     local letter = CreateFrame("Frame", nil, page)
@@ -753,15 +749,7 @@ end
 
 -- The inbox updates in bursts (several per letter during Collect all): redraw once,
 -- next frame, only while shown.
-function Inbox.Soon()
-    local list = Inbox.list
-    if not (list and list:IsVisible()) or Inbox.pending then return end
-    Inbox.pending = true
-    C_Timer.After(0, function()
-        Inbox.pending = nil
-        if list:IsVisible() then Inbox.Render() end
-    end)
-end
+Inbox.Soon = Win.Soon(function() return Inbox.list end, function() Inbox.Render() end)
 
 function Inbox.Fill()
     S.full = false

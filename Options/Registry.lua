@@ -315,11 +315,7 @@ end
 -- item.restart: the game only reads this at startup. Show the sentence
 -- with just an Okay so it can't be missed.
 local function tellRestart(item)
-    StaticPopupDialogs.DAYLIGHTUI_RESTART = StaticPopupDialogs.DAYLIGHTUI_RESTART or {
-        text = "%s", button1 = OKAY or L["Okay"],
-        timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
-    }
-    StaticPopup_Show("DAYLIGHTUI_RESTART", L[item.restart])
+    DUI.Widgets.Ask({ key = "restart", text = L[item.restart], yes = OKAY or L["Okay"], no = false })
 end
 
 function Options.Set(page, item, value)
@@ -343,7 +339,10 @@ end
 -- While a slider is dragged on a page with a preview (Options.previewer),
 -- write the value quietly so only the preview redraws. The caller Sets it
 -- on release. Returns false when there's no preview: Set as usual.
+-- item.onRelease: a slider whose every step would be costly (the UI scale
+-- resizes the whole interface) is set once, when it's let go.
 function Options.Preview(page, item, value)
+    if item.onRelease then return not Options.Locked(page, item) end
     if item.set or item.reload or not Options.previewer or Options.Locked(page, item) then return false end
     return Options.previewer(page, item, value) == true
 end
@@ -485,10 +484,15 @@ function Options.NewSinceChoices()
     return values, order
 end
 
+-- Typing "new" (any case, stray spaces too) also lists every row tagged NEW.
+local function asksForNew(query)
+    return string.lower(query):match("^%s*(.-)%s*$") == string.lower(L["NEW"])
+end
+
 -- Shared by results and counts: not a text item, matches, not hidden now.
 local function found(page, group, item, query)
     if item.type == "text" or Options.IsHidden(page, item) then return false end
-    return Options.Matches(group, item, query) or (query == string.lower(L["NEW"]) and Options.IsNew(item))
+    return Options.Matches(group, item, query) or (asksForNew(query) and Options.IsNew(item))
 end
 
 -- Every visible setting matching query, in window order, as
@@ -652,9 +656,11 @@ local function fontChoices(withGeneral)
     end
     local own, sorted = {}, {}
     for _, key in ipairs(DUI.Style.FONT_ORDER) do
-        values[key] = DUI.Style.FONTS[key].label
+        local f, drawn = DUI.Style.FONTS[key], DUI.Style.FontEntry(key)
+        -- A font with no letters for this client's language says which one draws for it.
+        values[key] = drawn ~= f and string.format(L["%s (in Russian: %s)"], f.label, L[drawn.label]) or f.label
         sorted[#sorted + 1] = key
-        own[DUI.Style.FONTS[key].label] = true
+        own[f.label] = true
     end
     local shared, sharedOrder = DUI.Media.List("font", own)
     for _, key in ipairs(sharedOrder) do
@@ -1163,7 +1169,7 @@ Options.RegisterPage({
         { label = "Font", items = {
             { type = "dropdown", key = "font", label = "Font", choices = fontChoices, fallback = "expressway",
               preview = "font", fetch = function(key)
-                  return DUI.Media.Fetch("font", key) or (DUI.Style.FONTS[key] and DUI.Style.FONTS[key].file)
+                  return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
               desc = "Used by all DaylightUI text, except where a frame's own page picks another font. Game font is the client's own, "
                   .. "including a font you've replaced it with. Fonts other addons share (SharedMedia) are listed after ours." },
@@ -1214,6 +1220,14 @@ Options.RegisterPage({
                 "The empty part behind the bars in DaylightUI's windows. General uses the bar background above."),
         } },
         { label = "Size", items = {
+            { type = "slider", label = "UI scale", min = DUI.Pixel.SCALE_MIN, max = DUI.Pixel.SCALE_MAX, step = 0.01,
+              unit = "%", since = "1.7.4", onRelease = true,
+              get = function() return DUI.Pixel.UIScale() or UIParent:GetScale() end,
+              set = function(v) DUI.Pixel.SetUIScale(v) end,
+              default = function() return DUI.Pixel.GameScale() or UIParent:GetScale() end,
+              desc = "The size of the whole interface, the game's windows too. Daylight UI keeps it the same when the game "
+                  .. "changes its own (a new resolution, another monitor), so your frames stay where you put them. "
+                  .. "It takes the place of the game's UI scale setting, for every character on this account." },
             { type = "slider", key = "scale", label = "Scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "Makes every DaylightUI frame and window bigger or smaller. To size one frame alone, unlock the frames and scroll over it." },
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",
@@ -1362,7 +1376,7 @@ Options.RegisterPage({
             { type = "dropdown", key = "damage.font", label = "Font", choices = damageFontChoices, fallback = "auto",
               preview = "font", fetch = function(key)
                   if key == "auto" then return DUI.GameFonts.DamageWanted() or DUI.GameFonts.ClientFont() end
-                  return DUI.Media.Fetch("font", key) or (DUI.Style.FONTS[key] and DUI.Style.FONTS[key].file)
+                  return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
               restart = "You must restart the game for the new damage numbers font to take effect.",
               desc = "Automatic is your Appearance font. "

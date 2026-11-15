@@ -1170,3 +1170,147 @@ T.test("the corner art never blends across its edges", function()
     Style.RingCorner(ring, "TOPLEFT", 4, "x")
     T.eq(ring.__wrap, "CLAMP", "a ring's corner")
 end)
+
+-- The client's font families (CreateFontFamily, Blizzard_Fonts_Shared's
+-- FontFamily): one font object per alphabet, read with GetFontObjectForAlphabet;
+-- the family's own GetFont is its first member's.
+local function fontFamilies()
+    local made = {}
+    _G.CreateFontFamily = function(name, members)
+        local fam = CreateFont(name)
+        local byAlphabet = {}
+        for _, m in ipairs(members) do
+            local obj = CreateFont(nil)
+            obj:SetFont(m.file, m.height, m.flags)
+            byAlphabet[m.alphabet] = obj
+        end
+        fam:SetFont(members[1].file, members[1].height, members[1].flags)
+        rawset(fam, "GetFontObjectForAlphabet", function(_, a) return byAlphabet[a] end)
+        made[#made + 1] = fam
+        return fam
+    end
+    return made
+end
+
+-- A text as the client keeps it: a plain SetFont fixes its face for good, and a
+-- font object set on it after that no longer changes it.
+local function clientText()
+    local fs = UIParent:CreateFontString()
+    rawset(fs, "SetFont", function(self, file, size, flags) self.__font = { file, size, flags } end)
+    rawset(fs, "SetFontObject", function(self, obj) self.__fontObject = obj end)
+    rawset(fs, "GetFontObject", function(self) return self.__fontObject end)
+    rawset(fs, "GetFont", function(self)
+        if self.__font then return self.__font[1], self.__font[2], self.__font[3] end
+        local obj = self.__fontObject
+        if obj then return obj:GetFont() end
+    end)
+    return fs
+end
+
+T.test("fonts: a name in Russian, Korean or Chinese draws with the game's font for those letters", function()
+    local DUI = stub.Load()
+    fontFamilies()
+    local Style = DUI.Style
+    local quick = Style.FONTS.quicksand.file
+    local fam = Style.FontFamily(quick, 12, "OUTLINE", 0.5)
+    T.eq(fam:GetFontObjectForAlphabet("roman"):GetFont(), quick, "Latin letters in the picked font")
+    T.eq(fam:GetFontObjectForAlphabet("russian"):GetFont(), "Fonts\\FRIZQT___CYR.TTF", "no Russian letters in it")
+    T.eq(fam:GetFontObjectForAlphabet("korean"):GetFont(), "Fonts\\2002.ttf")
+    local express = Style.FONTS.expressway.file
+    T.eq(Style.FontFamily(express, 12, "OUTLINE", 0.5):GetFontObjectForAlphabet("russian"):GetFont(), express,
+        "a font with Russian letters draws them itself")
+    T.eq(Style.FontFamily(quick, 12.05, "OUTLINE", 0.5), fam, "one family per font and size, not one per text")
+    _G.CreateFontFamily = nil
+end)
+
+T.test("fonts: text styled by Daylight UI wears the family and keeps its color and side", function()
+    local DUI = stub.Load()
+    fontFamilies()
+    local fs = clientText()
+    fs:SetJustifyH("RIGHT")
+    fs:SetTextColor(0.2, 0.4, 0.6, 1)
+    DUI.Style.DressText(fs, 13)
+    local fam = fs:GetFontObject()
+    T.truthy(fam and fam.GetFontObjectForAlphabet, "a family, so other alphabets draw")
+    T.eq(fs:GetFont(), DUI.Style.FONT)
+    T.eq(fs:GetJustifyH(), "RIGHT")
+    T.eq(select(3, fs:GetTextColor()), 0.6)
+    local copy = clientText()
+    DUI.Style.CopyFace(copy, fs)
+    T.eq(copy:GetFontObject(), fam, "a nameplate's class-colored name copies the family, not just the file")
+    _G.CreateFontFamily = nil
+end)
+
+T.test("fonts: a text that already got a plain font elsewhere still gets the picked font and size", function()
+    local DUI = stub.Load()
+    fontFamilies()
+    local fs = clientText()
+    fs:SetFont("Fonts\\ARIALN.TTF", 9, "")
+    DUI.Style.SetFace(fs, DUI.Style.FONT, 14, "OUTLINE", 0.5)
+    local file, size = fs:GetFont()
+    T.eq(file, DUI.Style.FONT)
+    T.eq(size, 14)
+    _G.CreateFontFamily = nil
+end)
+
+local function withLocale(locale, fn)
+    local before = _G.GetLocale
+    _G.GetLocale = function() return locale end
+    local ok, err = pcall(fn)
+    _G.GetLocale = before
+    _G.CreateFontFamily = nil
+    if not ok then error(err, 0) end
+end
+
+T.test("fonts: on a Russian client a font with no Russian letters hands over to one that has them", function()
+    withLocale("ruRU", function()
+        local DUI = stub.Load()
+        local Style = DUI.Style
+        DUI:Set("general", "font", "barlow")
+        Style.PickFont()
+        T.eq(Style.FONT, Style.FONTS.expressway.file, "Barlow has no Russian letters, Expressway does")
+        T.eq(Style.Text(UIParent, 13):GetFont(), Style.FONTS.expressway.file, "every text follows")
+        DUI:Set("general", "font", "fira")
+        Style.PickFont()
+        T.eq(Style.FONT, Style.FONTS.fira.file, "a font that has them stays")
+        DUI:Set("general", "font", "cinzel")
+        Style.PickFont()
+        T.eq(Style.FONT, DUI.GameFonts.ClientFont(), "an Azeroth font hands over to the game's own")
+        DUI:Set("general", "damage.font", "lato")
+        T.eq(DUI.GameFonts.DamageWanted(), Style.FONTS.fira.file, "a page's own pick too")
+        local values = DUI.Options.DamageFontChoices()
+        T.truthy(string.find(values.barlow, "Expressway", 1, true), "the picker says which font it shows as")
+        T.eq(values.fira, "Fira Sans")
+    end)
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "barlow")
+    DUI.Style.PickFont()
+    T.eq(DUI.Style.FONT, DUI.Style.FONTS.barlow.file, "other clients keep it")
+    T.eq(DUI.Options.DamageFontChoices().barlow, "Barlow Condensed")
+end)
+
+T.test("fonts: every font says whether it has Russian letters, and which one stands in when not", function()
+    local Style = stub.Load().Style
+    for key, f in pairs(Style.FONTS) do
+        if f.cyrillic ~= true then
+            local by = Style.FONTS[f.cyrillic]
+            T.truthy(by and by.cyrillic == true, key .. " names a stand-in that has them")
+        end
+    end
+    T.truthy(Style.CYRILLIC["expresswayfree.ttf"])
+    T.truthy(Style.CYRILLIC["arialn.ttf"])
+    T.falsy(Style.CYRILLIC["lato-regular.ttf"])
+end)
+
+T.test("fonts: on a Korean client with Daylight UI's own font picked, Korean letters still draw", function()
+    withLocale("koKR", function()
+        local DUI = stub.Load()
+        fontFamilies()
+        local express = DUI.Style.FONTS.expressway.file
+        T.eq(DUI.Style.FontFamily(express, 12, "", 0):GetFontObjectForAlphabet("korean"):GetFont(), DUI.Style.ALPHABET_FONTS.korean,
+            "Expressway has no Korean letters")
+        local client = DUI.GameFonts.ClientFont()
+        T.eq(DUI.Style.FontFamily(client, 12, "", 0):GetFontObjectForAlphabet("korean"):GetFont(), client,
+            "the game's own font draws them itself")
+    end)
+end)

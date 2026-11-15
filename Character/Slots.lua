@@ -1,6 +1,6 @@
 -- Gear slots: icon with a quality outline, name and one detail line.
 -- Clicks are handled by the game: its whole PaperDollItemsFrame is reparented
--- here with each button sitting invisibly over our icon. Moving the frame
+-- here with each button sitting invisibly over the slot's icon. Moving the frame
 -- rather than single buttons keeps their parent and swap-menu setup intact, so
 -- hover, the Alt menu and clicks work in combat. Borrowed and returned only
 -- out of combat.
@@ -361,7 +361,7 @@ function Slots.DoLend()
         local h = slotFor(b)
         if h then
             onIcon(b, h)
-            -- The controller should stop on our slot, not the game's button,
+            -- The controller should stop on the slot, not the game's button,
             -- since A on the game's picks the item up (ns.CharacterPage.PadSetup).
             DUI.Widgets.PadSkip(b)
             h.button = b
@@ -437,7 +437,7 @@ end
 local function yes(fn, ...)
     if type(fn) ~= "function" then return false end
     local ok, v = pcall(fn, ...)
-    return ok and not (issecretvalue and issecretvalue(v)) and v == true
+    return ok and not DUI.IsSecret(v) and v == true
 end
 
 -- A spell waiting for an item target (enchant, armor kit), from

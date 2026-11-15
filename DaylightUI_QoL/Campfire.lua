@@ -17,6 +17,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Motion = DUI.Motion
 
@@ -106,9 +107,7 @@ function Campfire.Waiting()
 end
 local function enabled() return on("campfire") end
 
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
-
--- Our own auras are plain only out of combat and out of restrictions.
+-- The player's own auras are plain only out of combat and out of restrictions.
 local function readable()
     if DUI.Restricted() then return false end
     local S = C_Secrets
@@ -162,7 +161,7 @@ local function spellCall(name, id)
 end
 
 -- Camp Benefits' description as lines: one per sentence, color codes out
--- (its numbers are colored our way, Tips.Numbers).
+-- (its numbers are colored by Tips.Numbers).
 function Campfire.Lines(desc)
     local out = {}
     if type(desc) ~= "string" or secret(desc) then return out end
@@ -539,7 +538,7 @@ end
 -- The beats
 ----------------------------------------------------------------------------
 
--- What sitting fades: the bars and unit frames, or every area of ours.
+-- What sitting fades: the bars and unit frames, or every Daylight UI area.
 function Campfire.Hushes()
     if not on("campfireAll") then return Campfire.HUSH end
     return on("campfireChat") and Campfire.HUSH_ALL_FLOAT or Campfire.HUSH_ALL

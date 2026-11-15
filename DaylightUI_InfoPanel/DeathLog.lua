@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 
 local DeathLog = {}
@@ -14,7 +15,6 @@ ns.DeathLog = DeathLog
 
 DeathLog.MAX = 12             -- events kept, the most recent
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Every field read below. If any is secret, wait.
 local FIELDS = { "event", "timestamp", "spellId", "spellName", "sourceName", "hideCaster", "amount", "overkill", "currentHP" }

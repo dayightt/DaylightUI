@@ -1,11 +1,11 @@
--- Replaces a game window with one of ours without touching the game's code.
+-- Replaces a game window with a Daylight UI one without touching the game's code.
 -- The game's window is reparented ("parked") under a hidden frame, so every
 -- way of opening and closing it still runs the game's own code, just out of
--- sight. A frame under a hidden parent gets no OnShow/OnHide, so we poll
+-- sight. A frame under a hidden parent gets no OnShow/OnHide, so this polls
 -- IsShown every frame and report changes.
 --
 --   Win.Follow({ key = "npc", frames = { gossip = function() return GossipFrame end, ... },
---                width = function() return 400 end,          -- panel width our window takes
+--                width = function() return 400 end,          -- panel width the window takes
 --                changed = function(kind, shown) ... end,    -- a game window was shown or hidden
 --                onPark = function(kind, frame, parked) ... end })  -- optional: parked (true) or given back
 --                pin = function(kind, frame) ... end      -- optional: each poll while parked and shown, out of combat
@@ -22,7 +22,7 @@
 --
 -- Another addon (TradeSkillMaster's vendor, say) may take over a parked window
 -- by moving it off screen, shrinking it, or reparenting it. That reads as
--- changed(kind, false, true): ours closes but leaves the game's session open.
+-- changed(kind, false, true): the Daylight UI window closes but leaves the game's session open.
 -- If it is given back, changed(kind, true).
 
 local _, DUI = ...
@@ -40,7 +40,7 @@ Follow.veil:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", -64, -64)
 Follow.veil:SetAlpha(0)
 Follow.veil:SetClipsChildren(true)
 Follow.veil:EnableMouse(false)
-Follow.GAP = 20   -- space between our window and the next game window
+Follow.GAP = 20   -- space between the window and the next game window
 Follow.AWAY = 10000    -- offsets this large mean the window was moved off screen on purpose
 Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
 
@@ -52,7 +52,7 @@ local function frameOf(def, kind)
     return type(f) == "table" and f or nil
 end
 
--- Tell the game's panel layout how wide our window is so the next panel opens
+-- Tell the game's panel layout how wide the Daylight UI window is so the next panel opens
 -- beside it. The game sets this in an OnShow that never runs while parked.
 -- In combat this is blocked (ADDON_ACTION_BLOCKED on SetAttributeNoHandler,
 -- which pcall doesn't catch), so it waits until after combat.
@@ -66,7 +66,7 @@ local function writeWidth(def, f)
 end
 
 -- Restore the game's own panel width (from UIPanelWindows, or nil for the
--- frame's own width) so it doesn't keep ours.
+-- frame's own width) so it doesn't keep the Daylight UI width.
 local function giveBack(def, kind, f)
     f:SetParent(UIParent)
     def.parked[kind] = nil
@@ -128,7 +128,7 @@ end
 
 function Follow.Parked(def, kind) return def.parked[kind] == true end
 
-local function plain(v) return type(v) == "number" and not (issecretvalue and issecretvalue(v)) end
+local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
 
 -- Has another addon taken this parked, shown window?
 function Follow.Away(def, kind)
@@ -188,7 +188,7 @@ function Win.Follow(def)
     return def
 end
 
--- Call when our window is resized or rescaled.
+-- Call when the window is resized or rescaled.
 function Follow.WriteWidth(def)
     for kind in pairs(def.frames) do
         local f = frameOf(def, kind)

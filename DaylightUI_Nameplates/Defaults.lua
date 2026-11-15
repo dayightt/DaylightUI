@@ -34,6 +34,8 @@ ns.DEFAULTS = {
     groupFocus = false, -- in a group, a double arrow over the enemy most of you are targeting (Manager.CountFocus)
     dimOthers = false, -- fade other plates while you have a target (casting ones stay full)
     dimAlpha = 0.5, -- ...to this opacity
+    rangeFade = false, -- fade enemy plates your class's attacks can't reach (Range.SPELLS)
+    rangeAlpha = 0.5, -- ...to this opacity
     backAlpha = 0.8, -- opacity of the empty part of health and power bars (Style.BAR_BACK_ALPHA = default); lower also thins the plate's dark backing (Plate.Clear)
     width = 170,
     height = 16,
@@ -81,6 +83,7 @@ ns.DEFAULTS = {
     threatPctPos = "outtopleft", threatPctX = 0, threatPctY = 0,
     debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
     ccSpot = "outright", ccX = 0, ccY = 0,
+    defensiveSpot = "outright", defensiveX = 0, defensiveY = 0,
     buffSpot = "above", buffGrow = "left", buffX = 0, buffY = 0,
     predictHeals = true,    -- incoming heals, on the health bar
     predictAbsorbs = true,  -- shields, on the health bar
@@ -116,6 +119,8 @@ ns.DEFAULTS = {
     minionSize = 30, -- ...badge size
     cc = true, -- crowd control as a larger icon beside the bar
     ccSize = 36,
+    defensives = true, -- an enemy's big defensive (Divine Shield, Ice Block...) as a larger icon past it
+    defensiveSize = 30,
     buffs = true, -- enemy buffs you can purge or steal
     buffSize = 18,
     maxBuffs = 3,
@@ -132,6 +137,7 @@ ns.DEFAULTS = {
     friendly = {
         enabled = false, height = 4, width = 170,
         hideInInstance = false, -- turn off the game's friendly plates in dungeons, raids and battlegrounds (Manager.ApplyInstanceFriends)
+        totems = true, -- friendly totems as a round badge in their element's color instead of their name
         percent = false, healthFormat = "percent", healthSize = 0,
         level = false,
         power = false, -- power bar under friendly health bars (who: shared powerShow)
@@ -177,7 +183,7 @@ ns.DEFAULTS = {
     castFill = "pair", -- "plain" (castColor), "daylight" (logo gradient), "pair" (Gradients page)
     slant = true, -- angled bar end
     clickPad = 4, -- extra click area around the name and bar
-    stacking = "game", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)
+    stacking = "stack", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)
     stackFriendly = false, -- stack friendly plates too
 }
 -- Threat % font: "general" uses the health text's (Plate.MEDIA).

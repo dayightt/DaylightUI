@@ -12,6 +12,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Motion = DUI.Style, DUI.Motion
 
 local Ring = {}
@@ -304,8 +305,6 @@ function Ring.Paint()
     for i = 1, Ring.TRAIL do f.trail[i].tex:SetVertexColor(tc[1], tc[2], tc[3], 1) end
     paint(0)
 end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 -- The global cooldown sweep. Uses start and duration when they're plain, and the
 -- duration object when they're secret (isActive stays plain). It's only ever

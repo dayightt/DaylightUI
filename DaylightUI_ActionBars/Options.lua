@@ -15,7 +15,7 @@ end
 local SHOW = { hidden = "Hidden", shown = "Shown" }
 local SHOW_ORDER = { "hidden", "shown" }
 -- The bag bar or micro menu size. It's the game's Edit Mode setting, stored in its
--- layout (Hide.SetSize), not in ours.
+-- layout (Hide.SetSize), not in Daylight UI's.
 local function menuSize(key, label)
     local s = ns.Hide.SIZE[key]
     return { type = "slider", label = label, min = s.min / 100, max = s.max / 100, step = s.step / 100, unit = "%",
@@ -333,8 +333,8 @@ local look = {
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of small buttons that open your character, spellbook, talents and other windows. Their keys still work when it's hidden." },
         menuSize("microMenu", "Micro menu size"),
-        { type = "toggle", key = "skinMenus", label = "Match the action bar look", reload = true,
-          desc = "Frames their buttons like the action buttons." },
+        { type = "toggle", key = "skinMenus", label = "Daylight UI style micro menu", reload = true,
+          desc = "Gives the micro menu and bag bar the Daylight UI look: square frames in your action button border style." },
     } },
     { label = "Bag bar fade", desc = "When the shown bag bar fades and how far.",
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },

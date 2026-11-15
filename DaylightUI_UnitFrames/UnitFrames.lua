@@ -66,11 +66,12 @@ for _, b in ipairs({ "health", "power" }) do
     Media.RegisterSlot(UF.MEDIA.personal.fonts[b], "UnitFrames", "personal.media." .. b .. "Font", "font", UF.MEDIA.player.fonts[b])
 end
 
--- The settings key a frame's spec reads (player... party, raid, partyPet).
+-- The settings key a frame's spec reads (player... party, raid, partyPet, partyTarget).
 function UF.FrameKey(spec)
     if spec.group then return spec.group end
     local u = spec.unit or "player"
     if string.find(u, "^partypet") then return "partyPet" end
+    if string.find(u, "^party%dtarget$") then return "partyTarget" end
     if string.find(u, "^arena%d") then return "arena" end
     return u
 end
@@ -125,18 +126,67 @@ UF.RING_COLORS = { light = "Light", dark = "Dark", class = "Class gradient",
 UF.RING_COLOR_ORDER = { "light", "dark", "class", "accent", "daylight" }
 UF.RING_FILE = DUI.MEDIA .. "portrait-band.png"
 UF.RING_LIT_FILE = DUI.MEDIA .. "portrait-band-lit.png"
--- The ring's thickness (portraits.ringWidth): its opening as a fraction of its
+-- The ring's thickness (<frame>.portraitRingWidth): its opening as a fraction of its
 -- outer edge, each with its own art (tools/make_elite_ring.py), with or without
--- the groove around its middle (portraits.ringLine). Every layer on the ring
+-- the groove around its middle (<frame>.portraitRingLine). Every layer on the ring
 -- (red band, sweep, pulse, arrival light) uses the same file, so each fits
 -- whichever ring is picked.
 UF.RING_WIDTHS = { thin = 0.85, normal = 0.772, thick = 0.68 }
 UF.RING_WIDTH_NAMES = { thin = "Thin", normal = "Normal", thick = "Thick" }
 UF.RING_WIDTH_ORDER = { "thin", "normal", "thick" }
-function UF.RingFiles(width, line)
+-- art: a square shape's art name (UF.ShapeArt), nil for the round ring.
+function UF.RingFiles(width, line, art)
     width = UF.RING_WIDTHS[width] and width or "normal"
-    local base = DUI.MEDIA .. "portrait-band" .. (width == "normal" and "" or "-" .. width) .. (line == false and "-smooth" or "")
+    local base = DUI.MEDIA .. "portrait-" .. (art and art .. "-" or "") .. "band"
+        .. (width == "normal" and "" or "-" .. width) .. (line == false and "-smooth" or "")
     return base .. ".png", base .. "-lit.png", UF.RING_WIDTHS[width]
+end
+-- The portrait's shape (portraits.shape). Square and angled have their own
+-- art (tools/make_square_portrait.py) in the round band's image size, so
+-- every layer on the ring (red band, sweep, pulse, arrival light) is sized
+-- the same way. A square's half-side is SQUARE of the ring's radius, which
+-- gives it the circle's area. Angled leans its outer side like the frames'
+-- ends (SQUARE_LEAN across per unit of height, top out), so it has art for a
+-- portrait on either end.
+UF.PORTRAIT_SHAPES = { round = "Round", square = "Square", angled = "Angled" }
+UF.PORTRAIT_SHAPE_ORDER = { "round", "square", "angled" }
+UF.SQUARE = 0.886
+UF.SQUARE_LEAN = 0.21
+function UF.ShapeArt(shape, outerRight)
+    if shape == "square" then return "square" end
+    if shape == "angled" then return outerRight and "angled-r" or "angled-l" end
+    return nil
+end
+-- The shape's corners, as fractions of its half-side (y up), for finding
+-- where a light running round it is (UF.RingPoint). nil = round.
+function UF.ShapeCorners(art)
+    local k = 2 * UF.SQUARE_LEAN
+    if art == "square" then return { { -1, 1 }, { 1, 1 }, { 1, -1 }, { -1, -1 } } end
+    if art == "angled-l" then return { { -1, 1 }, { 1, 1 }, { 1, -1 }, { -1 + k, -1 } } end
+    if art == "angled-r" then return { { -1, 1 }, { 1, 1 }, { 1 - k, -1 }, { -1, -1 } } end
+    return nil
+end
+-- Where the band's middle is at a turn clockwise from the top (radians),
+-- from the portrait's middle: on the circle, or where that direction leaves
+-- the square's outline. The aggro fill's head and the arrival light ride it.
+function UF.RingPoint(p, turn)
+    local dx, dy = math.sin(turn), math.cos(turn)
+    local r = p.radius or 0
+    local c = p.corners
+    if not c then return dx * r, dy * r end
+    local best
+    for i = 1, #c do
+        local a, b = c[i], c[i % #c + 1]
+        local ex, ey = b[1] - a[1], b[2] - a[2]
+        local den = dx * ey - dy * ex
+        if den ~= 0 then
+            local t = (a[1] * ey - a[2] * ex) / den
+            local u = (a[1] * dy - a[2] * dx) / den
+            if t > 0 and u >= -1e-9 and u <= 1 + 1e-9 and (not best or t < best) then best = t end
+        end
+    end
+    best = best or 1
+    return dx * best * r, dy * best * r
 end
 UF.ELITE_RING_COLORS = { gold = { 1.0, 0.8, 0.33 }, silver = { 0.84, 0.87, 0.92 } }
 -- Your own dragon's color (player.portraitDragonColor): an elite's gold or
@@ -161,6 +211,7 @@ UF.PULSE_TIME = 0.6    -- aggro pulse: half a breath in seconds, bouncing
 UF.PULSE_ALPHA = 0.75  -- its peak alpha
 UF.HALO_ALPHA = 0.9    -- the halo past the ring, at its peak
 UF.HALO_SIZE = 3.1     -- the halo's width, in ring radii
+UF.SQUARE_HALO = 5.0   -- a square's halo image, in half-sides (its shape fills half of it)
 UF.THREAT_BAND_DIM = 0.45   -- the tab's band, as a fraction of the color
 UF.THREAT_TAG_W = 36        -- the threat tag's width (fits "100%" and its angled end)
 
@@ -241,6 +292,11 @@ UF.READY = {
     waiting = { file = "status-waiting.png", ink = "WARN" },
 }
 UF.READY_SIZE = 14
+-- A summon on its way to a group member (UF.UpdateSummon), keyed by the
+-- client's Enum.SummonStatus: waiting in the accent, then the answer.
+UF.SUMMON = { [1] = "pop", [2] = "GOOD", [3] = "BAD" }
+UF.SUMMON_FILE = "status-summon.png"
+UF.SUMMON_SIZE = 18
 UF.READY_HOLD = 10
 UF.TAB_MAX = 0.6  -- fraction of the frame; longer names are cut short with "..."
 -- The name tab's border: half the frame's, but never too thin for the band.
@@ -348,7 +404,7 @@ UF.CLASS_ICONS = {
 -- The pack's folder names, newest first. It used to be ElvUI_JiberishIcons.
 UF.ICON_PACKS = { "JiberishIcons", "ElvUI_JiberishIcons" }
 UF.ICON_STYLES = {
-    daylight = "DaylightUI", game = "The game's own", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
+    daylight = "DaylightUI", game = "Classic", fabled = "Fabled", fabledcore = "Fabled Core", fableddimension = "Fabled Dimension",
     fabledmyth = "Fabled Myth", fabledpixels = "Fabled Pixels", fabledpixelsv2 = "Fabled Pixels v2",
     fabledrealm = "Fabled Realm", fabledrealmv2 = "Fabled Realm v2", intothevoid = "Into the Void",
     fabledclass = "Fabled Class", fabledregalia = "Fabled Regalia",
@@ -537,6 +593,7 @@ function UF.OnEnter(self)
     if type(unit) ~= "string" or not UnitExists(unit) then return end
     GameTooltip_SetDefaultAnchor(GameTooltip, self)
     GameTooltip:SetUnit(unit)
+    if ns.Happiness then ns.Happiness.AddTip(self) end
     GameTooltip:Show()
 end
 
@@ -658,6 +715,9 @@ function UF.Build(f, spec)
     if spec.group then
         f.readyIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
         f.readyIcon:Hide()
+        f.summonIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
+        f.summonIcon:SetTexture(DUI.MEDIA .. UF.SUMMON_FILE)
+        f.summonIcon:Hide()
     end
     -- A tile has no portrait to hang the role icon from, so it gets its own
     -- badge in a free corner. A portrait frame's lives in the status set below,
@@ -1184,7 +1244,15 @@ function UF.Layout(f, cfg, text, keepSize)
     f.cornerMode = f.spec.cornerIcons == true and UF.PortraitMode(f, cfg) == "none" and not tabOn
 
     f.health:ClearAllPoints()
-    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
+    -- A happiness stripe inside the pet frame takes a strip off one end
+    -- (Happiness.Prepare). The bars stop short of it on a straight edge.
+    local band = ns.Happiness and ns.Happiness.Prepare(f, cfg) or nil
+    local insetL, insetR = T, T
+    if band then
+        local reserve = band.w + band.gap + (band.cut or 0)
+        if band.side == "left" then insetL = T + reserve else insetR = T + reserve end
+    end
+    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", insetL, -T)
     -- Tiles can optionally fill health bottom to top instead of across.
     f.health:SetOrientation(cfg.fillVertical == true and "VERTICAL" or "HORIZONTAL")
     -- The player's power bar may stand on its own, and in Ribbon every power
@@ -1206,8 +1274,8 @@ function UF.Layout(f, cfg, text, keepSize)
     end
     if showPower and where == "inside" then
         f.power:ClearAllPoints()
-        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", T, T)
-        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T)
+        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
         f.power:SetHeight(Pixel.Snap(f, cfg.powerHeight))
         f.separator:ClearAllPoints()
         f.separator:SetPoint("BOTTOMLEFT", f.power, "TOPLEFT", 0, 0)
@@ -1215,7 +1283,7 @@ function UF.Layout(f, cfg, text, keepSize)
         f.separator:SetHeight(Pixel.Px(f, Style.SEPARATOR_PX))
         f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", 0, 0)
     else
-        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
+        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
     end
 
     -- Where the marker, crown and role icon sit (UF.IconSpot). nil means home,
@@ -1263,6 +1331,13 @@ function UF.Layout(f, cfg, text, keepSize)
         local pos = cfg.readyPos or "right"
         UF.PlaceSpot(f.readyIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.readyX, cfg.readyY)
         f.showReady = cfg.showReady ~= false
+    end
+    if f.summonIcon then
+        local size = cfg.summonSize or UF.SUMMON_SIZE
+        f.summonIcon:SetSize(size, size)
+        local pos = cfg.summonPos or "center"
+        UF.PlaceSpot(f.summonIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.summonX, cfg.summonY)
+        f.showSummon = cfg.showSummon ~= false
     end
     f.showRole = cfg.showRole ~= false
     f.roleHideDamage, f.roleHideFight = cfg.roleHideDamage == true, cfg.roleHideInCombat == true
@@ -1319,7 +1394,8 @@ function UF.Layout(f, cfg, text, keepSize)
         local H = f:GetHeight()
         local ph = (showPower and where == "inside") and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
         f.healthCut = cut * (H - 2 * T - ph) / H
-        local fillSide = (not f.flipped and cfg.fillVertical ~= true) and side or nil
+        -- The stripe owns the angled end, so the bars' fill stays square.
+        local fillSide = (not f.flipped and cfg.fillVertical ~= true and not (band and band.along)) and side or nil
         Style.AngleFill(f.health, fillSide, f.healthCut)
         if f.power and where == "inside" then Style.AngleFill(f.power, fillSide, cut * f.power:GetHeight() / H) end
     end
@@ -1545,10 +1621,9 @@ local function drawFill(p, v, a)
     -- A full cooldown would be finished and draw nothing, so stop just short.
     p.fill:SetCooldown(GetTime() - math.min(v, 0.999) * FILL_D, FILL_D)
     p.fill:Show()
-    local turn = v * 2 * math.pi
-    local r = p.radius or 0
+    local x, y = UF.RingPoint(p, v * 2 * math.pi)
     p.head:ClearAllPoints()
-    p.head:SetPoint("CENTER", p, "CENTER", math.sin(turn) * r, math.cos(turn) * r)
+    p.head:SetPoint("CENTER", p, "CENTER", x, y)
     p.head:SetAlpha(a)
     p.head:Show()
 end
@@ -1713,22 +1788,36 @@ function UF.LayoutPortrait(f, cfg)
         holder:SetSize(2 * R, 2 * R)
     end
     local off = R * UF.PORTRAIT_OUT
-    f.portraitOverlap = R - off  -- how far the ring reaches over the bar
-    local looks = ns.module and ns.module.db and ns.module.db.portraits or {}
+    local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
+    p.shapeArt = shapeArt
+    p.corners = UF.ShapeCorners(shapeArt)
+    -- A square's half-side, or the ring's radius: how far it reaches each way.
+    local half = shapeArt and R * UF.SQUARE or R
+    f.portraitOverlap = half - off  -- how far the ring reaches over the bar
     local ratio
-    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(looks.ringWidth, looks.ringLine)
+    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)
     local inner = R * ratio
     p:SetSize(2 * R, 2 * R)
     f.portraitEdge, f.portraitX = outerRight and "RIGHT" or "LEFT", outerRight and off or -off
     UF.PlacePortrait(f, 1)
     local art = 2 * R / UF.RING_OUTER
     p.ring:SetSize(art, art)
-    -- The dragon wraps the outer side. Drawn for a ring on the right, mirrored
-    -- for one on the left.
-    local dragon, l, r = art / UF.DRAGON_RING, 0, 1
-    if not outerRight then l, r = 1, 0 end
-    p.elite:SetSize(dragon, dragon)
-    p.elite:SetTexCoord(l, r, 0, 1)
+    if shapeArt then
+        -- A square elite wears a gold frame with corner thorns, drawn in the
+        -- band's image size, one for each end like the band.
+        p.elite:SetTexture(DUI.MEDIA .. "portrait-" .. shapeArt .. "-elite.png")
+        p.elite:SetSize(art, art)
+        p.elite:SetTexCoord(0, 1, 0, 1)
+    else
+        -- The dragon wraps the outer side. Drawn for a ring on the right, mirrored
+        -- for one on the left.
+        local dragon, l, r = art / UF.DRAGON_RING, 0, 1
+        if not outerRight then l, r = 1, 0 end
+        p.elite:SetTexture(UF.DRAGON_FILE)
+        p.elite:SetSize(dragon, dragon)
+        p.elite:SetTexCoord(l, r, 0, 1)
+    end
+    local dragon = art / UF.DRAGON_RING
     local E = UF.DRAGON_EYE
     local ex, ey = (outerRight and 1 or -1) * E.x * dragon, E.y * dragon
     for _, t in ipairs({ p.eye, p.pulseEye, p.eyeCore }) do
@@ -1743,17 +1832,57 @@ function UF.LayoutPortrait(f, cfg)
     p.pulse:SetSize(art, art)
     p.fill:SetSize(art, art)
     p.head:SetSize(0.8 * R, 0.8 * R)
-    p.radius = R * (1 + ratio) / 2   -- the band's middle
-    p.shadow:SetSize(2.6 * R, 2.6 * R)
-    p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
-    p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
+    p.radius = half * (1 + ratio) / 2   -- the band's middle
     p.rim:SetSize(2 * R * UF.RIM_OUTER, 2 * R * UF.RIM_OUTER)
-    p.mask:SetSize(2 * inner, 2 * inner)
-    -- The model's corners reach just under the ring's outer edge.
-    local side = 2 * R * 0.97 / math.sqrt(2)
-    p.model:SetSize(side, side)
-    p.classSize = UF.CLASS_ICON_FILL * inner
-    p.faceSize = 2 * inner
+    p.model:ClearAllPoints()
+    if shapeArt then
+        -- The opening is the outer shape scaled down, so one image of it
+        -- fills its box (the mask and the dark backing); the glow image holds
+        -- the shape at half its size.
+        local hole = DUI.MEDIA .. "portrait-" .. shapeArt .. "-hole.png"
+        local glow = DUI.MEDIA .. "portrait-" .. shapeArt .. "-glow.png"
+        local box = 2 * inner * UF.SQUARE
+        p.mask:SetTexture(hole, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.disc:SetTexture(hole)
+        p.shadow:SetTexture(glow)
+        p.halo:SetTexture(glow)
+        p.mask:SetSize(box, box)
+        p.disc:SetSize(box + 2, box + 2)
+        p.shadow:SetSize(4.2 * half, 4.2 * half)
+        p.halo:SetSize(UF.SQUARE_HALO * half, UF.SQUARE_HALO * half)
+        -- A model can't be masked: it fills the opening's straight part, its
+        -- edges under the band. Angled trims the tucked-in corner's side.
+        local trim = shapeArt == "square" and 0 or UF.SQUARE_LEAN * box
+        p.model:SetSize(box - trim, box)
+        p.model:SetPoint("CENTER", p, "CENTER", (outerRight and -trim or trim) / 2, 0)
+        p.classSize = UF.CLASS_ICON_FILL * inner * UF.SQUARE
+        p.faceSize = box
+    else
+        p.mask:SetTexture(DUI.MEDIA .. "crest-disc.png", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.disc:SetTexture(DUI.MEDIA .. "crest-disc.png")
+        p.shadow:SetTexture(DUI.MEDIA .. "crest-glow.png")
+        p.halo:SetTexture(DUI.MEDIA .. "crest-glow.png")
+        p.shadow:SetSize(2.6 * R, 2.6 * R)
+        p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
+        p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
+        p.mask:SetSize(2 * inner, 2 * inner)
+        -- The model's corners reach just under the ring's outer edge.
+        local side = 2 * R * 0.97 / math.sqrt(2)
+        p.model:SetSize(side, side)
+        p.model:SetPoint("CENTER", p, "CENTER", 0, 0)
+        p.classSize = UF.CLASS_ICON_FILL * inner
+        p.faceSize = 2 * inner
+    end
+    -- The band in the art just picked, even on a frame with no unit to paint
+    -- yet. UF.PaintRing colors it (and picks the lit art) on the next update.
+    if p.bandFile ~= f.ringFile then
+        p.bandFile = f.ringFile
+        p.ring:SetTexture(f.ringFile)
+        p.fillFile = f.ringFile
+        p.threatBand:SetTexture(f.ringFile)
+        p.pulse:SetTexture(f.ringFile)
+        p.fill:SetSwipeTexture(f.ringFile)
+    end
     p:Show()
     if f.portraitFree then
         -- On its own: the frame keeps its whole length and its own hit rect.
@@ -1762,16 +1891,18 @@ function UF.LayoutPortrait(f, cfg)
         return
     end
     -- The tab starts clear of the ring, and the ring is clickable like the frame.
-    f.ringInset = R - off
+    f.ringInset = half - off
     f.tabInset = f.ringInset + 8
-    local reach = R + off
+    local reach = half + off
     f.ringReach = reach   -- how far the ring reaches past the outer end
     -- The shell's corner caps sit above the ring (Style.Shell's s.over). At the
     -- ring's end they're removed once the ring reaches past the corner's curve
     -- along the bar's top and bottom edges (a small ring leaves them showing).
+    -- A square's inner side is straight, so it covers them all the way down.
     local edge = f:GetHeight() / 2 + math.abs(f.portraitY)
     local corner = Pixel.Px(f, shell and shell.opts.cornerPx or DUI:Get("general", "cornerPx") or 0)
-    if shell and R > edge and math.sqrt(R * R - edge * edge) - off >= corner then
+    local along = shapeArt and half or math.sqrt(math.max(0, R * R - edge * edge))
+    if shell and half > edge and along - off >= corner then
         shell.opts.coveredEnd = outerRight and "right" or "left"
     end
     UF.SetHitRect(f, outerRight and 0 or -reach, outerRight and -reach or 0)
@@ -1889,7 +2020,7 @@ function UF.UpdatePortrait(f)
     end
     if mode == "3d" then
         p.icon:Hide()
-        p.rim:Show()
+        p.rim:SetShown(not p.shapeArt)   -- a square's straight band already covers the model's edges
         p.model:Show()
         pcall(p.model.SetUnit, p.model, u)
         pcall(p.model.SetPortraitZoom, p.model, 1)
@@ -2511,7 +2642,7 @@ function UF.Pulse(p, on)
     local red = UF.THREAT_COLORS.aggro
     local r, g, b = math.min(1, red[1] + 0.3), math.min(1, red[2] + 0.3), math.min(1, red[3] + 0.3)
     p.pulse:SetVertexColor(r, g, b, 1)
-    p.pulseEye:SetShown(p.elite:IsShown())
+    p.pulseEye:SetShown(p.elite:IsShown() and not p.shapeArt)
     p.pulseHold:Show()
     if secret then p.pulseHold:SetAlphaFromBoolean(on, 1, 0) else p.pulseHold:SetAlpha(1) end
     if not p.pulseAnim:IsPlaying() then
@@ -2641,13 +2772,51 @@ end
 -- The dragon: an elite's gold or silver (its rank at a glance, whatever the
 -- ring's color), or your own (eliteColor "own") in your chosen color
 -- (UF.DRAGON_COLORS). Aggro never recolors it, its eyes catch fire instead (a
--- secret "is tanking" lights them through the client).
+-- secret "is tanking" lights them through the client). A square's elite
+-- frame has no eyes and keeps its color.
+local function paintEliteBase(f, p, rc)
+    if UF.Owned(f, "dragon") then return nil end
+    if rc ~= "own" then
+        p.elite:SetVertexColor(rc[1], rc[2], rc[3], 1)
+        return rc
+    end
+    local pick = UF.DRAGON_COLORS[f.dragonColor] and f.dragonColor or "class"
+    local metal = UF.ELITE_RING_COLORS[pick]
+    if metal then
+        p.elite:SetVertexColor(metal[1], metal[2], metal[3], 1)
+        return metal
+    end
+    if pick == "accent" then
+        local a, b = Style.AccentPair()
+        if a then
+            p.elite:SetVertexColor(1, 1, 1, 1)
+            p.elite:SetGradient("VERTICAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+            return b
+        end
+        local r, g, bl = Style.Accent()
+        p.elite:SetVertexColor(r, g, bl, 1)
+        return { r, g, bl }
+    end
+    local _, lo, hi, sr, sg, sb = ringColors(f, "class")
+    if type(sr) ~= "nil" then
+        p.elite:SetVertexColor(sr, sg, sb, 1)
+        return nil
+    elseif lo then
+        p.elite:SetVertexColor(1, 1, 1, 1)
+        p.elite:SetGradient("VERTICAL", lo, hi)   -- last, since a plain color clears it
+        return { hi.r, hi.g, hi.b }
+    end
+    local g = UF.RING_COLOR
+    p.elite:SetVertexColor(g[1], g[2], g[3], 1)
+    return g
+end
+
 function UF.PaintElite(f)
     local p = f.portrait
     local rc = p and p.eliteColor
     if not rc then return end
     for _, t in ipairs({ p.eye, p.eyeCore }) do
-        if not p.elite:IsShown() then
+        if not p.elite:IsShown() or p.shapeArt then
             t:Hide()
         elseif f.threatNow then
             t:SetAlpha(1)
@@ -2660,36 +2829,7 @@ function UF.PaintElite(f)
         end
     end
     if not p.elite:IsShown() then return end
-    if rc ~= "own" then
-        p.elite:SetVertexColor(rc[1], rc[2], rc[3], 1)
-        return
-    end
-    local pick = UF.DRAGON_COLORS[f.dragonColor] and f.dragonColor or "class"
-    local metal = UF.ELITE_RING_COLORS[pick]
-    if metal then
-        p.elite:SetVertexColor(metal[1], metal[2], metal[3], 1)
-        return
-    end
-    if pick == "accent" then
-        local a, b = Style.AccentPair()
-        if a then
-            p.elite:SetVertexColor(1, 1, 1, 1)
-            p.elite:SetGradient("VERTICAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
-        else
-            p.elite:SetVertexColor(Style.Accent())
-        end
-        return
-    end
-    local _, lo, hi, sr, sg, sb = ringColors(f, "class")
-    if type(sr) ~= "nil" then
-        p.elite:SetVertexColor(sr, sg, sb, 1)
-    elseif lo then
-        p.elite:SetVertexColor(1, 1, 1, 1)
-        p.elite:SetGradient("VERTICAL", lo, hi)   -- last, since a plain color clears it
-    else
-        local g = UF.RING_COLOR
-        p.elite:SetVertexColor(g[1], g[2], g[3], 1)
-    end
+    paintEliteBase(f, p, rc)
 end
 
 -- Your own frame's dragon (player.portraitDragon): no rank, your chosen color.
@@ -3019,6 +3159,49 @@ function UF.UpdateReady(f, sample, animate)
     end
 end
 
+-- A summon on its way to this member: the swirl in the accent while it waits,
+-- then green or red for their answer, until the client drops it. It fades in,
+-- bumps when the answer comes, and eases away, like the ready check answer.
+function UF.UpdateSummon(f, sample)
+    local icon = f.summonIcon
+    if not icon then return end
+    local status
+    if sample then
+        status = sample.summon
+    elseif C_IncomingSummon and plain(C_IncomingSummon.HasIncomingSummon, f.unitToken) then
+        status = plain(C_IncomingSummon.IncomingSummonStatus, f.unitToken)
+    end
+    local ink = f.showSummon ~= false and type(status) == "number" and UF.SUMMON[status]
+    if not ink then
+        if f.summonStatus and icon:IsShown() and not sample and DUI.Motion.On() then
+            f.summonStatus = nil
+            -- Its own alpha as last set: a range-faded tile reads GetAlpha as secret.
+            DUI.Motion.Tween(icon, f.summonAlpha or 1, 0, DUI.Motion.NORMAL, function(a) f.summonAlpha = a; icon:SetAlpha(a) end,
+                function() if not f.summonStatus then icon:Hide() end end)
+        else
+            f.summonStatus = nil
+            icon:Hide()
+        end
+        return
+    end
+    if f.summonStatus == status and icon:IsShown() then return end
+    local fresh = not icon:IsShown() or not f.summonStatus
+    f.summonStatus = status
+    local c = ink == "pop" and { Style.Pop() } or Style.INK[ink]
+    icon:SetVertexColor(c[1], c[2], c[3], 1)
+    icon:Show()
+    if sample or not DUI.Motion.On() then
+        f.summonAlpha = 1
+        icon:SetAlpha(1)
+    elseif fresh then
+        DUI.Motion.Tween(icon, 0, 1, DUI.Motion.FAST, function(a) f.summonAlpha = a; icon:SetAlpha(a) end)
+    else
+        f.summonAlpha = 1
+        icon:SetAlpha(1)
+        DUI.Motion.Bump(icon, 1.3)
+    end
+end
+
 -- Tank, healer or damage, from the role the member picked. Unknown or "NONE"
 -- shows nothing. Uses f.roleIcon (tiles) or f.status.icons.role (party frames),
 -- whichever this frame has.
@@ -3332,7 +3515,7 @@ function UF.UpdateIdentity(f)
     UF.PaintRing(f)   -- a tapped or changed reaction changes its pair
     UF.PaintName(f, r, g, b)
     -- A group button reads its group's switch (your own button included).
-    local element = f.spec and f.spec.group or nil
+    local element = f.spec and (f.spec.group or f.spec.names) or nil
     local name = UF.NameText(f, UF.LimitName(DUI.UnitName(u, element), f.nameLimitLen))
     f.nameText:SetText(name)
     UF.ApplyCrest(f, UnitClassification(u))
@@ -3479,8 +3662,7 @@ end
 -- over the health fraction: hi below full (the frame's opacity, 1 if not
 -- given) and a at full. One curve per step of a and hi.
 UF.fullCurves = {}
-function UF.FullHealthAlpha(u, a, hi)
-    hi = type(hi) == "number" and hi or 1
+local function fullCurve(a, hi)
     local lo, top = math.floor(a * 100 + 0.5), math.floor(hi * 100 + 0.5)
     local key = top * 1000 + lo
     local c = UF.fullCurves[key]
@@ -3498,6 +3680,12 @@ function UF.FullHealthAlpha(u, a, hi)
         end
         UF.fullCurves[key] = c
     end
+    return c
+end
+
+function UF.FullHealthAlpha(u, a, hi)
+    hi = type(hi) == "number" and hi or 1
+    local c = fullCurve(a, hi)
     if c and UnitHealthPercent then
         local ok, v = pcall(UnitHealthPercent, u, true, c)
         if ok then return v end
@@ -3508,21 +3696,58 @@ function UF.FullHealthAlpha(u, a, hi)
     return hp >= max and a or hi
 end
 
--- Sets a frame the range check leaves alone; m is the fade's alpha. The
--- full-health wait is only for the player and pet frames. A party or raid tile
--- on "player" fades by its group's settings.
-local fullPaths = {}   -- unit -> { "<unit>.fade.fullHealth", "<unit>.fade" }
+-- "Only at full mana" (player): the same wait over the mana, only while the
+-- frame shows mana (not for a warrior, a rogue or a druid in a form).
+UF.MANA = MANA
+function UF.ShowsMana(u)
+    local ok, kind = pcall(UnitPowerType, u)
+    return ok and not isSecret(kind) and kind == MANA
+end
+
+-- Mana is plain out of a fight and read as is. In one it's secret and goes
+-- through the curve like health. With the health wait on too, the two secret
+-- answers can't be weighed against each other, so the frame stays shown.
+function UF.FullManaAlpha(u, a, hi, health)
+    hi = type(hi) == "number" and hi or 1
+    local okC, cur = pcall(UnitPower, u, MANA)
+    local okM, max = pcall(UnitPowerMax, u, MANA)
+    if okC and okM and type(cur) == "number" and type(max) == "number" and not isSecret(cur) and not isSecret(max) then
+        if cur < max then return hi end
+        if health then return UF.FullHealthAlpha(u, a, hi) end
+        return a
+    end
+    if health then return hi end
+    local c = fullCurve(a, hi)
+    if c and UnitPowerPercent then
+        local ok, v = pcall(UnitPowerPercent, u, MANA, false, c)
+        if ok then return v end
+    end
+    return hi
+end
+
+-- Sets a frame the range check leaves alone; m is the fade's alpha. The full
+-- health and mana waits are only for the player and pet frames and the pieces
+-- that fade with them (f.fadeOf: a free power bar, a portrait on its own). A
+-- party or raid tile on "player" fades by its group's settings.
+local fullPaths = {}   -- unit -> { "<unit>.fade.fullHealth", "<unit>.fade", "<unit>.fade.fullMana" }
 local function setFaded(f, m)
-    local u = f.unitToken
-    if not f.test and not f.group and ns.FADE_FULL_HEALTH[u] then
+    local owner = f.fadeOf or f
+    local u = owner.unitToken
+    if not owner.test and not owner.group and type(u) == "string" and (ns.FADE_FULL_HEALTH[u] or ns.FADE_FULL_MANA[u]) then
         local paths = fullPaths[u]
         if not paths then
-            paths = { u .. ".fade.fullHealth", u .. ".fade" }
+            paths = { u .. ".fade.fullHealth", u .. ".fade", u .. ".fade.fullMana" }
             fullPaths[u] = paths
         end
-        if DUI:Get("UnitFrames", paths[1]) == true then
+        local health = ns.FADE_FULL_HEALTH[u] and DUI:Get("UnitFrames", paths[1]) == true
+        local mana = ns.FADE_FULL_MANA[u] and DUI:Get("UnitFrames", paths[3]) == true and UF.ShowsMana(u)
+        if health or mana then
             local hi = DUI.Fade.Opacity("UnitFrames", paths[2])
-            if m < hi and pcall(f.SetAlpha, f, UF.FullHealthAlpha(u, m, hi)) then return end
+            if m < hi then
+                local a
+                if mana then a = UF.FullManaAlpha(u, m, hi, health) else a = UF.FullHealthAlpha(u, m, hi) end
+                if pcall(f.SetAlpha, f, a) then return end
+            end
         end
     end
     f:SetAlpha(m)
@@ -3697,6 +3922,7 @@ function UF.ShowSample(f)
     UF.UpdateStatus(f, s)
     UF.UpdateLeader(f, s)
     UF.UpdateReady(f, s)
+    UF.UpdateSummon(f, s)
     UF.UpdateRole(f, s)
     ns.Texts.ShowSample(f, s)
     f:SetAlpha(1)
@@ -3724,6 +3950,7 @@ function UF.UpdateAll(f, instant)
     UF.UpdateStatus(f)
     UF.UpdateLeader(f)
     UF.UpdateReady(f)
+    UF.UpdateSummon(f)
     UF.UpdateRole(f)
 end
 

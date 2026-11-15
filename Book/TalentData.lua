@@ -318,7 +318,7 @@ end
 -- for blank lines, trimmed at both ends, or nil if there are none (use
 -- TD.Description then). The title line and any secret text are dropped.
 local function plainText(v)
-    if type(v) ~= "string" or (issecretvalue and issecretvalue(v)) or v == "" then return nil end
+    if type(v) ~= "string" or DUI.IsSecret(v) or v == "" then return nil end
     return v
 end
 function TD.EntryLines(node, rank)

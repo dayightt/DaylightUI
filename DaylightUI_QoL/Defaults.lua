@@ -115,7 +115,7 @@ ns.DEFAULTS = {
     keepTracking = true,    -- turn tracking (Find Minerals...) back on when the game drops it (Tracking.lua)
     quietErrors = true,     -- hide the red "not enough rage / not ready / out of range / no target" spam
     errorSound = true,      -- a soft "nope" in place of those errors' voice lines (Errors.lua)
-    errorText = true,       -- the errors that still show, in our font and colors, easing in and out (ErrorText.lua)
+    errorText = true,       -- the errors that still show, in the Daylight font and colors, easing in and out (ErrorText.lua)
     lootFeed = true,        -- what you loot slides in as ribbons at the bottom right (LootFeed.lua)
     lootFeedHold = 5,       -- seconds each loot feed line stays
     lootFeedTogether = false, -- every line leaves with the newest one instead of each on its own
@@ -150,7 +150,7 @@ ns.DEFAULTS = {
     zoneTitle = true,       -- the zone title animation, in place of the game's zone text (ZoneTitle.lua)
     repBanner = true,       -- a reputation standing gone up shows at the top of the screen (RepBanner.lua)
     campfire = true,        -- sitting by a campfire warms the screen and hushes bars and unit frames (Campfire.lua)
-    campfireAll = true,     -- the campfire fades every area of ours (buffs, info panel, quests, chat...), not just bars and unit frames
+    campfireAll = true,     -- the campfire fades every Daylight UI area (buffs, info panel, quests, chat...), not just bars and unit frames
     campfireRest = 10,      -- minutes after the flare before a new Welcoming Campfire fades the UI again (0 = every minute)
     campfireChat = true,    -- the campfire floats the chat: panel and tabs away, the lines stay (Chat.FloatWanted)
     sleepingBag = false,    -- resting in a sleeping bag shows the time until Well-Rested is full (Campfire.lua)

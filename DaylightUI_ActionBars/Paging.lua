@@ -1,16 +1,17 @@
 -- Bar 1's page, i.e. which 12 action slots it shows. The game pages its own bar 1
--- from Lua on events; ours uses a state driver built from macro conditions in the
+-- from Lua on events; Daylight UI uses a state driver built from macro conditions in the
 -- game's order (override bar, vehicle, possess, temporary shapeshift, a page picked
 -- by hand, then forms and stances). Each change is also written to the game's hidden
--- bar 1, so a keybind (which presses its hidden button) casts what our button shows.
+-- bar 1, so a keybind (which presses its hidden button) casts what Daylight UI's button shows.
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Paging = {}
 ns.Paging = Paging
 
--- The special pages when the game can't tell us (confirmed in game). Older addons
+-- The special pages when the game can't say (confirmed in game). Older addons
 -- use 12 and 14, which are wrong here.
 Paging.FALLBACK = { override = 33, vehicle = 31, temp = 32 }
 
@@ -43,7 +44,7 @@ function Paging.FormConds()
     local out, any = {}, false
     for i = 1, GetNumShapeshiftForms() or 0 do
         local ok, _, _, _, sid = pcall(GetShapeshiftFormInfo, i)
-        local bonus = ok and type(sid) == "number" and not (issecretvalue and issecretvalue(sid))
+        local bonus = ok and type(sid) == "number" and not isSecret(sid)
             and Paging.FORM_BONUS[sid] or nil
         if bonus then
             out[bonus] = out[bonus] and (out[bonus] .. "/" .. i) or ("form:" .. i)
@@ -144,7 +145,7 @@ end
 
 -- The holder's snippet: writes the page onto itself, its buttons and the game's
 -- hidden twin bar, whose buttons read their slot from its "actionpage" when a key
--- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what our
+-- presses them (SecureActionButtonMixin:CalculateAction), so the key casts what Daylight UI's
 -- button shows. Never CallMethod in a snippet; it would leave secure code.
 Paging.ON_STATE = [[
     local page = tonumber(string.match(newstate or "", "^%d+")) or 1
@@ -161,18 +162,20 @@ Paging.ON_STATE = [[
     end
     self:SetAttribute("actionpage", page)
     self:ChildUpdate("page", page)
-    -- Only a real change: a page written from addon code keeps its taint, and the
-    -- game's buttons work out their slot from it, so a needless write left their
-    -- cooldown update unable to take a fight's secret times.
-    local twin = self:GetFrameRef("game-twin")
-    if twin and tonumber(twin:GetAttribute("actionpage")) ~= page then twin:SetAttribute("actionpage", page) end
-    -- Bar 1's: on each of the game's hidden buttons too, which read their
-    -- own page before their bar's, so the game's own (stale) bar 1 write
-    -- can't change what a key casts.
+    -- The page a key casts from goes on each of the game's hidden buttons, which
+    -- read their own page before their bar's. Not on the game's bar: it holds no
+    -- protected button, so a handle to it is refused in a fight. Bar 1's always
+    -- (the game's own stale bar 1 write can't change what a key casts). Bars 2-8
+    -- only while paged away from the bar's own page, so a bar with no paging
+    -- writes nothing on them. Only a real change: a page written from addon code
+    -- keeps its taint.
+    local base = self:GetAttribute("dui-twinpage")
+    local want = page
+    if base and page == base then want = nil end
     for i = 1, 12 do
         local b = self:GetFrameRef("game-btn" .. i)
         if not b then break end
-        if tonumber(b:GetAttribute("actionpage")) ~= page then b:SetAttribute("actionpage", page) end
+        if tonumber(b:GetAttribute("actionpage")) ~= want then b:SetAttribute("actionpage", want) end
     end
 ]]
 
@@ -223,16 +226,24 @@ function Paging.LetGo()
 end
 
 local holdButtons = {}
+local function letGo() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end
+local function letGoSoon() C_Timer.After(Paging.HOLD_FOR, letGo) end
 local function makeHoldButtons(h)
     if #holdButtons > 0 or Paging.Class() ~= "DRUID" then return end
     for _, def in ipairs(Paging.HOLD) do
         local b = CreateFrame("Button", def.name, UIParent, "SecureActionButtonTemplate")
         b:RegisterForClicks("AnyUp", "AnyDown")
         SecureHandlerWrapScript(b, "OnClick", h, Paging.ON_HOLD)
-        b:HookScript("OnClick", function()
-            C_Timer.After(Paging.HOLD_FOR, function() DUI.AfterCombat(Paging.LetGo, "paging:letgo") end)
-        end)
+        b:HookScript("OnClick", letGoSoon)
         holdButtons[#holdButtons + 1] = { button = b, bonus = def.bonus }
+    end
+end
+
+-- The game's hidden buttons a bar's page goes on (Paging.ON_STATE).
+local function twinRefs(h, prefix)
+    for i = 1, 12 do
+        local b = _G[prefix .. i]
+        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
     end
 end
 
@@ -245,11 +256,7 @@ end
 function Paging.Setup(h, buttons)
     holder = h
     makeHoldButtons(h)
-    if type(MainActionBar) == "table" then h:SetFrameRef("game-twin", MainActionBar) end
-    for i = 1, 12 do
-        local b = _G["ActionButton" .. i]
-        if type(b) == "table" then h:SetFrameRef("game-btn" .. i, b) end
-    end
+    twinRefs(h, "ActionButton")
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.Apply()
@@ -287,7 +294,7 @@ end
 -- modifiers (Paging.HeldRule): its forms already page it, and the game writes its
 -- hidden bar 1's page itself on every form change (ActionBarController_UpdateAll).
 -- The game never writes bars 2-8's page (a fixed attribute in
--- MultiActionBars.xml), so ours holds.
+-- MultiActionBars.xml), so Daylight UI's holds.
 -- ---------------------------------------------------------------------
 
 -- In the order they're checked: a held modifier beats a form, Prowl comes before Cat
@@ -341,10 +348,13 @@ function Paging.BarRule(def)
     return table.concat(parts, "; ")
 end
 
--- At build: the same snippets as bar 1, onto the bar's own twin.
+-- At build: the same snippets as bar 1, onto the bar's own twin buttons, which
+-- fall back to the bar's fixed page.
 function Paging.SetupBar(def, h, buttons)
-    local twin = def.twin and _G[def.twin]
-    if type(twin) == "table" then h:SetFrameRef("game-twin", twin) end
+    if def.twinPrefix then
+        twinRefs(h, def.twinPrefix)
+        h:SetAttribute("dui-twinpage", def.page)
+    end
     h:SetAttribute("_onstate-page", Paging.ON_STATE)
     for _, btn in ipairs(buttons) do btn:SetAttribute("_childupdate-page", Paging.CHILD) end
     Paging.ApplyBar(def, h)

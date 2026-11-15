@@ -17,6 +17,8 @@ local function newPlate(i)
     function np:SetHitTestPoints() self.__hit = "the game's" end
     function np:ClearAllHitTestPoints() self.__hit = nil end
     function np:SetStackingBoundsFrame(f) self.__stack = f end
+    -- The game's own click area, hung from its frame's pieces (UpdateHitTestArea).
+    function np.UnitFrame.UpdateHitTestArea() np:SetHitTestPoints({}) end
     return np
 end
 
@@ -79,36 +81,38 @@ T.test("nameplates: the game's plate is put away and ours shows the unit", funct
     local p = added("nameplate1")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local np = plates[1]
-    T.eq(np.UnitFrame:GetAlpha(), 0, "the game's plate frame unseen")
-    T.eq(np.UnitFrame:GetParent(), np, "left where the game put it (never re-parented)")
+    local uf = np.UnitFrame
+    -- Platynator's way: the game's frame comes off its plate altogether, so none of
+    -- it draws or runs under ours.
+    T.falsy(uf:GetParent() == np, "the game's plate frame taken off its plate")
+    T.falsy(uf:IsVisible(), "where it can't be seen")
+    T.falsy(uf.castBar:IsVisible(), "nor any piece of it")
     -- Switched off, not just hidden. Left running under the addon's plate it
     -- answered ~46 events per plate and rebuilt its aura icons on every aura change.
-    T.falsy(np.UnitFrame:IsEventRegistered("UNIT_HEALTH"), "its events stopped")
-    T.falsy(np.UnitFrame.castBar:IsEventRegistered("UNIT_SPELLCAST_START"), "and its cast bar's")
-    T.falsy(np.UnitFrame:IsEventRegistered("PLAYER_TARGET_CHANGED"), "nothing at all (its soft-target icon is the game's driver's)")
-    -- Given back, it has what it registered when it was made. Its unit events
-    -- come back with the next unit the game gives it.
-    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
-    T.truthy(np.UnitFrame:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"), "given back: its own events again")
-    T.truthy(np.UnitFrame:IsEventRegistered("PLAYER_TARGET_CHANGED"))
-    p = added("nameplate1")
-    T.falsy(np.UnitFrame:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"), "and off again under ours")
-    T.truthy(np.UnitFrame.WidgetContainer:IsIgnoringParentAlpha(), "its widgets stay in view")
-    -- Alpha alone gets undone in combat, but its pieces are moved off it, so
-    -- nothing of it can be drawn even then.
-    T.falsy(np.UnitFrame.castBar:GetParent() == np.UnitFrame, "its pieces parked off it")
-    T.falsy(np.UnitFrame.castBar:IsVisible(), "where they can't be seen")
-    T.eq(np.UnitFrame.WidgetContainer:GetParent(), np.UnitFrame, "its widgets stay on it")
-    -- Its name text stays on it, see-through, because the game hangs the plate's
-    -- click area from it. Hiding it made plates invisible for EllesmereUI.
-    T.eq(np.UnitFrame.name:GetParent(), np.UnitFrame, "its name stays on it")
-    T.eq(np.UnitFrame.name:GetAlpha(), 0, "see-through")
+    T.falsy(uf:IsEventRegistered("UNIT_HEALTH"), "its events stopped")
+    T.falsy(uf.castBar:IsEventRegistered("UNIT_SPELLCAST_START"), "and its cast bar's")
+    T.falsy(uf:IsEventRegistered("PLAYER_TARGET_CHANGED"), "nothing at all (its soft-target icon is the game's driver's)")
+    T.eq(uf.WidgetContainer:GetParent(), np, "its widgets stay in view, on the game's plate")
+    T.truthy(uf.WidgetContainer:IsVisible())
+    -- Where it's clicked is a frame of ours covering the game's plate, since the
+    -- game hangs its own from the frame that's gone.
+    local click = NP.Manager.clickOf[np]
+    T.truthy(click, "a click frame for this game plate")
+    T.eq(np.__hit, click, "the plate is clicked on it")
+    T.eq(click:GetParent(), np, "on the game's plate itself")
+    T.eq(np.__stack, p.stack, "it stacks by our shape")
     T.truthy(p:IsShown())
     T.eq(p.name.__text, "Searing Whelp")
     T.eq(stub.Plain(p.health:GetValue()), 60)
     T.eq(stub.Text(p.percent), "60%")
-    T.isnil(np.__hit, "where it's clicked stays the game's (EllesmereUI's way)")
-    T.eq(np.__stack, p.stack, "it stacks by our shape")
+    -- Nothing is given back as the unit leaves: the game takes its frame back to
+    -- its pool, and the next plate it's handed to decides.
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    T.falsy(uf:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"), "still off")
+    T.truthy(NP.Manager.IsHeld(uf))
+    added("nameplate1")
+    T.falsy(uf:GetParent() == np, "off its plate again under ours")
+    T.eq(np.__hit, click, "the same click frame, which never left that game plate")
 end)
 
 T.test("nameplates: another nameplate addon loaded is warned about once in chat", function()
@@ -1153,6 +1157,7 @@ T.test("nameplates: every piece's default spot is where it always was", function
     T.eq(pointOf(p.auras.debuffs, names), "BOTTOM hp TOP 0 18", "your debuffs over the name")
     T.eq(pointOf(p.auras.buffs, names), "BOTTOMRIGHT hp TOPRIGHT 0 47", "the purgeable buffs over them, from the right")
     T.eq(pointOf(p.auras.cc, names), "LEFT hp RIGHT 4 0", "crowd control beside the bar's end")
+    T.eq(pointOf(p.auras.defensives, names), "LEFT hp RIGHT 42 0", "a big defensive past it")
     T.eq(pointOf(p.quest, names), "RIGHT hp LEFT -3 0", "the quest mark left of the bar")
     T.eq(pointOf(p.questCount, names), "RIGHT quest LEFT -1 0", "its count left of the !")
     T.truthy(p.marker:IsShown())
@@ -1238,6 +1243,22 @@ T.test("nameplates: pieces follow their spot settings", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: the big defensive never pushes what was placed beside the bar before it", function()
+    local ns = login()
+    local p = added("nameplate1")
+    local names = { [p.hp] = "hp" }
+    DaylightUI:Set("Nameplates", "level", true)
+    DaylightUI:Set("Nameplates", "levelPos", "outright")
+    DaylightUI:Set("Nameplates", "defensives", false)
+    stub.RunTimers()
+    local level, exec = pointOf(p.level, names), pointOf(p.execIcon, names)
+    DaylightUI:Set("Nameplates", "defensives", true)
+    stub.RunTimers()
+    T.eq(pointOf(p.level, names), level, "the level text stays where it was before big defensives existed")
+    T.eq(pointOf(p.execIcon, names), exec, "so does the execute icon")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: a mark showing or hiding moves only what lines up with it, once", function()
     local ns = login()
     local p = added("nameplate1")
@@ -1269,6 +1290,12 @@ T.test("nameplates: your debuffs, crowd control and purgeable buffs have their c
     T.eq(p.auras.debuffs.__groups.mine.max, DaylightUI:Get("Nameplates", "maxDebuffs"))
     T.eq(p.auras.cc.__groups.cc.filter, "HARMFUL|CROWD_CONTROL")
     T.eq(p.auras.cc.__groups.cc.max, 1, "one round icon")
+    T.eq(p.auras.defensives.__groups.big.filter, "HELPFUL|BIG_DEFENSIVE", "the client flags big defensives itself")
+    T.eq(p.auras.defensives.__groups.big.max, 1, "one big defensive icon")
+    T.eq(p.auras.defensives.__unit, "nameplate1")
+    DaylightUI:Set("Nameplates", "defensives", false)
+    T.eq(p.auras.defensives.__groups.big.max, 0, "switched off: none shown")
+    DaylightUI:Set("Nameplates", "defensives", true)
     T.eq(p.auras.buffs.__groups.steal.filter, "HELPFUL|RAID_PLAYER_DISPELLABLE", "the client picks them, so it works when enemy auras are secret")
     T.eq(p.auras.buffs.__groups.steal.opts.candidateFilters, nil, "a candidate filter reads aura data, secret in PvP: it would show nothing")
     T.eq(p.auras.debuffs.__unit, "nameplate1")
@@ -2037,7 +2064,7 @@ T.test("nameplates: the click margin widens the game's plate, in and out of comb
     stub.RunTimers()
     T.eq(size[1], before + 10 * stub.nameplates.cfg.scale, "5 more each side")
     added("nameplate1")
-    T.isnil(plates[1].__hit, "the plate's click points stay the game's")
+    T.eq(plates[1].__hit, stub.nameplates.Manager.clickOf[plates[1]], "clicked on the frame covering the game's plate")
 end)
 
 T.test("nameplates: stacking or overlapping, the game's own setting", function()
@@ -2051,6 +2078,54 @@ T.test("nameplates: stacking or overlapping, the game's own setting", function()
     T.eq(set["nameplateStackingTypes2"], false)
     DaylightUI:Set("Nameplates", "stacking", "overlap")
     T.eq(set["nameplateStackingTypes1"], false, "they overlap")
+end)
+
+-- The game's stacking setting, kept in a table the way the client keeps it.
+local function stackWorld(bits)
+    Enum.NamePlateStackType = { None = 0, Enemy = 1, Friendly = 2 }
+    _G.C_CVar = {
+        SetCVarBitfield = function(_, i, v) bits[i] = v end,
+        GetCVarBitfield = function(_, i) return bits[i] == true end,
+    }
+end
+
+T.test("nameplates: enemy plates stack unless you choose otherwise, friendly ones don't", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    T.eq(bits[1], true, "enemies stack as shipped")
+    T.eq(bits[2], false, "friendly plates overlap")
+end)
+
+T.test("nameplates: every plate hands the game its stacking frame, as Platynator does", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    local foe, friend = added("nameplate1"), added("nameplate2")
+    T.eq(plates[1].__stack, foe.stack, "an enemy plate hands its frame over")
+    T.truthy(foe.stack:IsShown())
+    T.eq(plates[2].__stack, friend.stack, "a friendly plate too, though the game doesn't stack those")
+    T.truthy(friend.stack:IsShown())
+end)
+
+T.test("nameplates: with plates set to overlap the game still has the stacking frame", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    DaylightUI:Set("Nameplates", "stacking", "overlap")
+    stub.RunTimers()
+    stub.units.nameplate3 = { name = "Scalding Whelp", hostile = true, reaction = 2, health = 60, maxHealth = 100, pct = 60 }
+    local foe = added("nameplate3")
+    T.eq(plates[3].__stack, foe.stack, "handed over")
+    T.truthy(foe.stack:IsShown())
+end)
+
+T.test("nameplates: stacking switched off in the game's own menu leaves the frames handed over", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    local foe = added("nameplate1")
+    bits[1] = false
+    stub.FireEvent("CVAR_UPDATE", "nameplateStackingTypes")
+    stub.RunTimers()
+    T.eq(plates[1].__stack, foe.stack)
+    T.truthy(foe.stack:IsShown())
 end)
 
 T.test("nameplates: a plate reused for another unit shows nothing of the last one, even for a frame", function()
@@ -2095,13 +2170,13 @@ T.test("nameplates: the game setting a new plate's click area keeps it (no hook 
     T.isnil(rawget(np, "__hooked_SetHitTestPoints"))
 end)
 
-T.test("nameplates: the game's click insets reach past the frame, so its whole area can be clicked", function()
+T.test("nameplates: the game's click insets are cleared, so the whole click frame can be clicked", function()
     local got = {}
     login(function()
         Enum.NamePlateType = { Enemy = 0, Friendly = 1 }
         _G.C_NamePlateManager = { SetNamePlateHitTestInsets = function(k, l, r, t, b) got[k] = { l, r, t, b } end }
     end)
-    T.eq(got[0][1], -10000); T.eq(got[1][4], -10000)
+    T.eq(got[0][1], 0); T.eq(got[1][4], 0)
     _G.C_NamePlateManager = nil
 end)
 
@@ -2113,42 +2188,55 @@ T.test("nameplates: the stacking frame carries an unseen fill, so the game can m
     T.eq(plates[1].__stack, p.stack)
 end)
 
-T.test("nameplates: the game's own plate is seen again when the unit leaves", function()
-    login()
-    added("nameplate1")
-    local uf = plates[1].UnitFrame
-    T.eq(uf:GetAlpha(), 0, "unseen while ours is up")
-    T.truthy(uf.castBar:GetParent() ~= uf, "its pieces parked off it")
-    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
-    T.eq(uf:GetAlpha(), 1, "back in view for the game's next unit")
-    T.eq(uf.castBar:GetParent(), uf, "with its pieces back")
-    T.eq(uf.name:GetParent(), uf, "and its name")
-    T.eq(uf.name:GetAlpha(), 1, "seen again")
-    T.falsy(uf.WidgetContainer:IsIgnoringParentAlpha())
+T.test("nameplates: a friendly player shown by name only, or a corpse, can't be clicked, as in the game", function()
+    local cv = {}
+    login(function() _G.GetCVar = function(k) return cv[k] end end)
+    cv.nameplateShowOnlyNameForFriendlyPlayerUnits = "1"
+    stub.units.nameplate2.friend = true
+    local friend = added("nameplate2")
+    T.truthy(friend)
+    T.isnil(plates[2].__hit, "no click area, as the game gives a name-only plate")
+    -- Friendly bars on: the game shows the whole plate, and it can be clicked.
+    cv.nameplateShowOnlyNameForFriendlyPlayerUnits = "0"
+    stub.FireEvent("CVAR_UPDATE", "nameplateShowOnlyNameForFriendlyPlayerUnits")
+    T.eq(plates[2].__hit, stub.nameplates.Manager.clickOf[plates[2]], "clickable once it's a whole plate")
+    -- A mob that dies with loot: the game shows only its widgets there.
+    local foe = added("nameplate1")
+    T.truthy(plates[1].__hit)
+    stub.units.nameplate1.widgetsOnly = true
+    stub.nameplates.Plate.UpdateCorpse(foe)
+    T.isnil(plates[1].__hit, "a lootable corpse's plate can't be clicked")
+    _G.GetCVar = nil
 end)
 
 -- The game shares plate frames from a pool and hands one out as a plate gets
 -- its unit, which can be after the addon's event handler ran. Its OnEvent
 -- hands the frame out. The last argument stands in for the pool's choice so
--- a test can pick the frame. As in the game's Blizzard_NamePlates and
--- CompactUnitFrame.lua, the only Lua that sets the frame's alpha is
--- CompactUnitFrame_UpdateCenterStatusIcon (SetAlpha(1), since plates don't
--- fade out of range). It's reached from this OnEvent: SetUnit -> UpdateAll
--- as a frame is handed out, and UpdateNamePlateOptions -> ApplyFrameOptions
--- on every plate (DISPLAY_SIZE_CHANGED, VARIABLES_LOADED, CVAR_UPDATE of its
--- option CVars). The frame's own events are stopped while the addon's plate
--- is on it.
+-- a test can pick the frame. As in the game's Blizzard_NamePlates: handing a
+-- frame out puts it on the plate (AcquireUnitFrame), its SetUnit registers its
+-- unit events and sets the plate's click area from its pieces; the options update
+-- (UpdateNamePlateOptions, on DISPLAY_SIZE_CHANGED, VARIABLES_LOADED and its
+-- option CVars) does the last two for every plate.
 local function driver()
     local d = CreateFrame("Frame")
     d.optionCVars = { nameplateShowClassColor = true, nameplateShowFriendlyClassColor = true }
+    for _, e in ipairs({ "NAME_PLATE_UNIT_REMOVED", "DISPLAY_SIZE_CHANGED", "VARIABLES_LOADED", "CVAR_UPDATE" }) do
+        d:RegisterEvent(e)
+    end
+    local function setUnit(np)
+        np.UnitFrame:RegisterEvent("UNIT_HEALTH")
+        np:SetHitTestPoints({})
+    end
     function d:OnNamePlateAdded(unit, uf)
         local np = C_NamePlate.GetNamePlateForUnit(unit)
         np.UnitFrame = uf or CreateFrame("Button", nil, np)
-        np.UnitFrame:SetAlpha(1)
+        np.UnitFrame:SetParent(np)
+        np.UnitFrame:SetAllPoints(np)
+        setUnit(np)
     end
     function d:UpdateNamePlateOptions()
         for _, np in pairs(plates) do
-            if np.UnitFrame then np.UnitFrame:SetAlpha(1) end
+            if np.UnitFrame then setUnit(np) end
         end
     end
     d:SetScript("OnEvent", function(self, event, unit, uf)
@@ -2166,31 +2254,53 @@ local function driverEvent(event, ...)
     NamePlateDriverFrame:GetScript("OnEvent")(NamePlateDriverFrame, event, ...)
 end
 
-T.test("nameplates: the frame the game hands a plate after our handler is hidden too", function()
+T.test("nameplates: the frame the game hands a plate after our handler is taken off too", function()
     login(driver)
     added("nameplate1")
     handOut("nameplate1")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.eq(plates[1].UnitFrame:GetAlpha(), 0, "the game's new frame unseen under ours")
-    -- The same frame handed to the same plate again: the game shows it, the addon doesn't.
-    handOut("nameplate1", plates[1].UnitFrame)
-    T.eq(plates[1].UnitFrame:GetAlpha(), 0, "and kept unseen")
+    local np, uf = plates[1], plates[1].UnitFrame
+    T.falsy(uf:GetParent() == np, "the game's new frame off its plate under ours")
+    T.falsy(uf:IsEventRegistered("UNIT_HEALTH"), "and quiet")
+    T.eq(np.__hit, stub.nameplates.Manager.clickOf[np], "the click area set by the game is ours again")
+    -- The same frame handed to the same plate again: the game puts it back, the addon doesn't.
+    handOut("nameplate1", uf)
+    T.falsy(uf:GetParent() == np, "and kept off")
+    T.eq(np.__hit, stub.nameplates.Manager.clickOf[np])
 end)
 
-T.test("nameplates: the game's options update showing its frames again leaves them unseen under ours", function()
-    login(driver)
+T.test("nameplates: the game's driver no longer redoes every plate on display or option changes", function()
+    local NP = login(driver)
+    T.falsy(NamePlateDriverFrame:IsEventRegistered("DISPLAY_SIZE_CHANGED"), "switched off, as Platynator does")
+    T.falsy(NamePlateDriverFrame:IsEventRegistered("CVAR_UPDATE"))
+    T.truthy(NamePlateDriverFrame:IsEventRegistered("NAME_PLATE_UNIT_REMOVED"), "the rest left to the game")
     added("nameplate1")
     added("nameplate2")
-    for _, e in ipairs({ { "DISPLAY_SIZE_CHANGED" }, { "CVAR_UPDATE", "nameplateShowClassColor" }, { "VARIABLES_LOADED" } }) do
-        driverEvent(e[1], e[2])
-        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-        T.eq(plates[1].UnitFrame:GetAlpha(), 0, e[1] .. ": unseen")
-        T.eq(plates[2].UnitFrame:GetAlpha(), 0, e[1] .. ": every one")
+    -- VARIABLES_LOADED still runs it once: every frame gets its events and click
+    -- area back, and is taken off again right after.
+    driverEvent("VARIABLES_LOADED")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    for i = 1, 2 do
+        T.falsy(plates[i].UnitFrame:IsEventRegistered("UNIT_HEALTH"), i .. ": quiet again")
+        T.eq(plates[i].__hit, NP.Manager.clickOf[plates[i]], i .. ": clicked on ours again")
+        T.falsy(plates[i].UnitFrame:GetParent() == plates[i], i .. ": still off its plate")
     end
-    -- A plate ours isn't on keeps the game's.
-    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate2")
-    driverEvent("DISPLAY_SIZE_CHANGED")
-    T.eq(plates[2].UnitFrame:GetAlpha(), 1, "the game's own plate left seen")
+end)
+
+T.test("nameplates: the plate size is set again when the screen or UI scale changes", function()
+    local sizes = 0
+    login(function() C_NamePlate.SetNamePlateSize = function() sizes = sizes + 1 end end)
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+        local before = sizes
+        stub.FireEvent(e)
+        stub.RunTimers()
+        T.truthy(sizes > before, e)
+    end
+    -- The game sets its own size again from these two settings (its CVar callbacks).
+    local before = sizes
+    stub.FireEvent("CVAR_UPDATE", "nameplateAuraScale")
+    stub.RunTimers()
+    T.truthy(sizes > before, "after the aura scale changed")
 end)
 
 T.test("nameplates: no hook on the game's plate frame's own methods", function()
@@ -2207,35 +2317,25 @@ T.test("nameplates: no hook on the game's plate frame's own methods", function()
     T.eq(#hooked, 0, "hooked: " .. tostring(hooked[1]))
 end)
 
-T.test("nameplates: the game's frame, switched off under ours, works again when the game hands it on", function()
+T.test("nameplates: a held frame handed to a plate without ours is the game's again", function()
     login(driver)
     added("nameplate1")
     local uf = plates[1].UnitFrame
     T.falsy(uf:IsEventRegistered("UNIT_HEALTH"), "off under ours")
-    -- The game's SetUnit registers the unit events again as it hands the frame
-    -- to a plate. One the addon doesn't take (the unit is gone) keeps them.
-    uf:RegisterEvent("UNIT_HEALTH")
+    T.eq(uf.WidgetContainer:GetParent(), plates[1])
+    -- The game takes the plate back before the addon hears of it, and gives its
+    -- frame to a plate the addon doesn't take (the unit is gone).
     stub.units.nameplate3 = { name = "Searing Whelp", hostile = true, reaction = 2, health = 50, maxHealth = 100 }
     handOut("nameplate3", uf)
     T.falsy(stub.nameplates.Manager.byUnit.nameplate3, "ours isn't on it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    T.truthy(uf:IsEventRegistered("UNIT_HEALTH"), "not ours: left running")
-    T.eq(uf:GetAlpha(), 1, "and seen")
-end)
-
-T.test("nameplates: a hidden frame handed to a plate without ours is seen again", function()
-    login(driver)
-    added("nameplate1")
-    local uf = plates[1].UnitFrame
-    T.eq(uf:GetAlpha(), 0)
-    -- The game takes the plate back before the addon hears of it, and gives
-    -- its frame to a plate the addon isn't on.
-    stub.units.nameplate3 = { name = "Searing Whelp", hostile = true, reaction = 2, health = 50, maxHealth = 100 }
-    handOut("nameplate3", uf)
-    T.falsy(stub.nameplates.Manager.byUnit.nameplate3, "ours isn't on it")
-    T.eq(uf:GetAlpha(), 1, "the game's plate drawn where ours isn't")
-    uf:SetAlpha(0.5)
-    T.eq(uf:GetAlpha(), 0.5, "and left to the game")
+    T.eq(uf:GetParent(), plates[3], "on the plate the game gave it")
+    T.truthy(uf:IsVisible(), "drawn")
+    T.truthy(uf:IsEventRegistered("UNIT_HEALTH"), "its unit events, from the game")
+    T.truthy(uf:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"), "and those it registered when it was made")
+    T.eq(uf.WidgetContainer:GetParent(), uf, "its widgets back on it")
+    T.eq(plates[3].__hit, "the game's", "clicked where the game says")
+    T.falsy(stub.nameplates.Manager.IsHeld(uf))
 end)
 
 T.test("options: nameplates are split into tabs and every setting has one home", function()
@@ -2289,6 +2389,7 @@ end)
 
 T.test("nameplates: the stacking box keeps its size when you target (the game re-stacks every plate when it changes)", function()
     login()
+    DaylightUI:Set("Nameplates", "stackFriendly", true) -- the second plate is a friendly player's
     local a = added("nameplate1")
     local b = added("nameplate2")
     local function box(p) return { p.stack:GetWidth(), p.stack:GetHeight(), p.stack:GetScale(), p.stack:GetNumPoints() } end
@@ -2890,14 +2991,15 @@ T.test("nameplates: a plate put up in a battleground touches no locked aura butt
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("nameplates: the game's frame comes back when the game took it off its plate before telling us", function()
+T.test("nameplates: a unit leaving after the game took its frame back is fine", function()
     login()
     added("nameplate1")
     local uf = plates[1].UnitFrame
     plates[1].UnitFrame = nil      -- the game releases its frame to its pool first
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
-    T.eq(uf:GetAlpha(), 1, "back in view")
-    T.truthy(uf:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"), "its own events again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(stub.nameplates.Manager.IsHeld(uf), "held until the game hands it out again")
+    T.isnil(stub.nameplates.Manager.byUnit.nameplate1)
 end)
 
 T.test("nameplates: an error while putting ours on leaves nothing half done", function()
@@ -2928,7 +3030,7 @@ T.test("nameplates: a game plate let go no longer points at our frames", functio
     T.eq(p.stack:GetNumPoints(), 0, "unpinned")
     T.eq(p.stack:GetParent(), p, "and taken back")
     T.falsy(np.__stack == np, "never pointed at itself")
-    T.isnil(np.__hit, "its click area was never ours")
+    T.eq(np.__hit:GetParent(), np, "its click frame stays on that game plate, never one that moves on")
 end)
 
 T.test("nameplates: a plate of ours that can't be used any more still takes its stacking frame off", function()
@@ -2944,6 +3046,7 @@ end)
 
 T.test("nameplates: the stacking frame moves with our plate onto its next game plate", function()
     login()
+    DaylightUI:Set("Nameplates", "stackFriendly", true) -- its next plate is a friendly player's
     local p = added("nameplate1")
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
     local NP = stub.nameplates
@@ -3172,6 +3275,11 @@ T.test("nameplates: an enemy totem is a round badge in its element's color, and 
     T.falsy(p.name:IsShown(), "no name")
     T.eq(p.badge.icon.__portraitUnit, "nameplate3", "its portrait, drawn by the game")
     T.rgb(p.badge.ring.__vertex, NP.Minion.COLORS.fire, "the fire color (any rank)")
+    -- The ring fills only RING_OUTER of its image: drawn at the badge's size, the
+    -- portrait stuck out past it.
+    local s = p.badge:GetWidth()
+    T.near(p.badge.ring:GetWidth() * NP.Minion.RING_OUTER, s, 0.01, "the ring's outer edge is the badge's edge")
+    T.truthy(p.badge.icon:GetWidth() < s, "the portrait sits inside the ring")
     local enemy = added("nameplate1")
     T.falsy(enemy.badge:IsShown(), "a mob keeps its bar")
     T.truthy(enemy.hp:IsShown())
@@ -3188,6 +3296,28 @@ T.test("nameplates: an enemy totem is a round badge in its element's color, and 
     T.falsy(p.badge:IsShown())
     T.truthy(p.hp:IsShown(), "a bar again")
     T.eq(cvars.nameplateShowEnemyMinions, "0")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: a friendly totem is a badge instead of its name, a friendly pet keeps its name", function()
+    login(function()
+        stub.spells = { [5394] = { name = "Healing Stream Totem" } }
+    end)
+    stub.units.nameplate3 = { name = "Healing Stream Totem III", minion = true, reaction = 5, health = 5, maxHealth = 5 }
+    stub.units.nameplate4 = { name = "Wolf", minion = true, reaction = 5, health = 50, maxHealth = 50 }
+    local NP = stub.nameplates
+    local p = added("nameplate3")
+    T.truthy(p.friendly, "friendly")
+    T.truthy(p.badge:IsShown(), "a badge")
+    T.falsy(p.name:IsShown(), "no long name")
+    T.rgb(p.badge.ring.__vertex, NP.Minion.COLORS.water, "ringed in its element's color")
+    local pet = added("nameplate4")
+    T.falsy(pet.badge:IsShown(), "a pet isn't a totem")
+    T.truthy(pet.name:IsShown(), "it keeps its name")
+    DaylightUI:Set("Nameplates", "friendly.totems", false)
+    stub.RunTimers()
+    T.falsy(p.badge:IsShown(), "switched off")
+    T.truthy(p.name:IsShown(), "the name again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3326,6 +3456,69 @@ T.test("nameplates: Fade other plates dims every plate but your target and a cas
     stub.FireEvent("PLAYER_TARGET_CHANGED")
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
     T.eq(c:GetAlpha(), 1, "reset for its next unit")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: Fade out of range enemies by your class's attacks", function()
+    login()
+    DaylightUI.DB.General().motion = false
+    stub.units.player.class = "MAGE"
+    stub.knownSpells[133] = true -- Fireball
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.units.nameplate3 = { name = "Wolf", hostile = true, reaction = 2, spellRange = false }
+    local a, b, c = added("nameplate1"), added("nameplate2"), added("nameplate3")
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "off by default: nothing fades")
+    DaylightUI:Set("Nameplates", "rangeFade", true)
+    DaylightUI:Set("Nameplates", "rangeAlpha", 0.3)
+    stub.RunTimers()
+    stub.RunTickers()
+    T.near(c:GetAlpha(), 0.3, 1e-6, "Fireball can't reach it: faded")
+    T.eq(b:GetAlpha(), 1, "a friendly plate never fades")
+    -- Walks into range.
+    stub.units.nameplate3.spellRange = true
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "in reach: full")
+    stub.units.nameplate3.spellRange = false
+    stub.RunTickers()
+    -- Your target and a casting plate stay full.
+    stub.units.target = stub.units.nameplate3
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.eq(c:GetAlpha(), 1, "your target stays full")
+    stub.units.target = nil
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.near(c:GetAlpha(), 0.3, 1e-6)
+    stub.units.nameplate3.cast = { name = "Howl", texture = 1, notInterruptible = false, duration = stub.Duration(2) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "nameplate3")
+    T.eq(c:GetAlpha(), 1, "casting: full")
+    stub.units.nameplate3.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "nameplate3")
+    T.near(c:GetAlpha(), 0.3, 1e-6, "cast over: faded again")
+    -- Nothing known that can tell: no fade.
+    stub.knownSpells[133] = nil
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "no attack known: full")
+    -- A hunter: Auto Shot says no up close, Raptor Strike reaches.
+    stub.knownSpells[75], stub.knownSpells[2973] = true, true
+    stub.units.player.class = "HUNTER"
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.units.nameplate3.spellRange = { [75] = false, [2973] = true }
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "melee reach counts")
+    stub.units.nameplate3.spellRange = { [75] = false, [2973] = false }
+    stub.RunTickers()
+    T.near(c:GetAlpha(), 0.3, 1e-6, "neither reaches: faded")
+    -- Off again: every plate back to full, and a removed plate leaves full.
+    DaylightUI:Set("Nameplates", "rangeFade", false)
+    stub.RunTimers()
+    T.eq(c:GetAlpha(), 1, "off: full")
+    DaylightUI:Set("Nameplates", "rangeFade", true)
+    stub.RunTimers()
+    stub.RunTickers()
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
+    T.eq(c:GetAlpha(), 1, "reset for its next unit")
+    T.eq(a:GetAlpha(), 1)
+    stub.knownSpells[75], stub.knownSpells[2973] = nil, nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3885,9 +4078,18 @@ T.test("nameplates: Group mark marks your group's friendly plates beside the nam
     T.rgb(p.name.__textColor, class, "the name keeps its class color")
     T.rgb({ m.before:GetVertexColor() }, DUI:Get("Nameplates", "friendly.partyCustom"), "in the group color")
     local _, rel = m.before:GetPoint(1)
-    T.eq(rel, p.name, "by the name")
+    T.eq(rel, p.nameEdge, "by the name's letters")
+    T.eq(stub.Text(p.nameEdge), stub.Text(p.name), "the unseen copy holds the name")
+    T.eq(p.nameEdge:GetAlpha(), 0, "and is never seen")
     set("friendly.partyMark", "around"); stub.RunTimers()
     T.truthy(m.before:IsShown() and m.after:IsShown(), "one each side")
+    -- A name that can't be measured (a secret one) keeps its marks: nothing reads its width.
+    local Plate = stub.nameplates.Plate
+    stub.units.nameplate2.name = stub.Secret("Jaina")
+    Plate.UpdateNameColor(p); stub.RunTimers()
+    T.truthy(m.before:IsShown() and m.after:IsShown(), "a secret name still gets its marks")
+    stub.units.nameplate2.name = "Jaina"
+    Plate.UpdateNameColor(p); stub.RunTimers()
     stub.units.nameplate2.party = nil
     stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.RunTimers()
     T.falsy(m.before:IsShown() or m.after:IsShown(), "left the group: no mark")
@@ -3921,7 +4123,7 @@ T.test("nameplates: a player of the other faction gets the faction crest by the 
     T.truthy(foe.factionIcon:IsShown(), "on by default, on the other faction's player")
     T.eq(foe.factionIcon.__atlas, "UI-HUD-UnitFrame-Player-PVP-AllianceIcon", "their faction's crest")
     local _, rel = foe.factionIcon:GetPoint(1)
-    T.eq(rel, foe.name, "by the name")
+    T.eq(rel, foe.nameEdge, "by the name's letters")
     T.falsy(friend.factionIcon:IsShown(), "none on your own faction")
     -- Not flagged for PvP, the other faction reads friendly, but the crest still says who they are.
     stub.units.nameplate2.faction = "Alliance"
@@ -3982,7 +4184,7 @@ T.test("nameplates: /dui platefix step 1 sets the plate size and click area agai
     size = nil
     local text = NP.Manager.Fix()
     T.truthy(size, "the size set again")
-    T.truthy(text:find("platefix 1/4", 1, true), text)
+    T.truthy(text:find("platefix 1/7", 1, true), text)
 end)
 
 T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none until step 3 is done", function()
@@ -4000,7 +4202,7 @@ T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none 
     T.isnil(NP.Manager.byUnit.nameplate1, "the 2 s check leaves them too")
     -- 3: off and on again, then ours back.
     local text = NP.Manager.Fix()
-    T.truthy(text:find("platefix 3/4", 1, true), text)
+    T.truthy(text:find("platefix 3/7", 1, true), text)
     T.eq(cvars.nameplateShowEnemies, "0", "off a moment")
     stub.RunTimers()
     T.eq(cvars.nameplateShowEnemies, "1", "back on")
@@ -4018,8 +4220,12 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
     T.eq(cvars.nameplateMaxDistance, "default:nameplateMaxDistance")
     T.eq(cvars.nameplateMinScale, "default:nameplateMinScale")
     T.eq(cvars.nameplateShowEnemyMinions, "default:nameplateShowEnemyMinions")
+    for _ = 5, NP.Manager.FIX_STEPS do
+        NP.Manager.Fix()
+        stub.RunTimers()
+    end
     T.truthy(NP.Manager.Fix():find("every step", 1, true), "the end")
-    T.truthy(NP.Manager.Fix():find("platefix 1/4", 1, true), "and round again")
+    T.truthy(NP.Manager.Fix():find("platefix 1/7", 1, true), "and round again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

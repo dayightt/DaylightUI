@@ -16,7 +16,7 @@ GameFonts.GLOBALS = { "STANDARD_TEXT_FONT", "UNIT_NAME_FONT", "NAMEPLATE_FONT" }
 
 local savedGlobals -- the client's own paths, saved the first time they're replaced
 local savedFaces = {} -- font object -> the { face, flags } it had before
-local clientDamage -- { the client's DAMAGE_TEXT_FONT } while ours is set
+local clientDamage -- { the client's DAMAGE_TEXT_FONT } while Daylight UI's is set
 
 -- The client's own font, even after STANDARD_TEXT_FONT has been replaced.
 function GameFonts.ClientFont()
@@ -34,7 +34,7 @@ end
 -- A font page's own pick, or nil for the game's.
 local function picked(key)
     if DUI.DB.UseLocalFont() then return nil end
-    local f = DUI.Style.FONTS[key]
+    local f = DUI.Style.FontEntry(key)
     local file = (DUI.Media and DUI.Media.Fetch("font", key)) or (f and f.file)
     if type(file) ~= "string" or file == GameFonts.ClientFont() then return nil end
     return file
@@ -55,7 +55,7 @@ function GameFonts.DamageWanted()
     return picked(key)
 end
 
--- Font for the scrolling combat text over you (ours and the game's
+-- Font for the scrolling combat text over you (Daylight UI's and the game's
 -- CombatTextFont), or nil for the game's. A font object, so it updates live.
 function GameFonts.CombatTextWanted()
     local key = DUI:Get("general", "damage.sctFont")
@@ -162,7 +162,7 @@ function GameFonts.Apply()
     end
 end
 
--- Ours first (Core has picked the font by then). Each game addon that loads
+-- Daylight UI's first (Core has picked the font by then). Each game addon that loads
 -- later brings its own font objects, so walk them once on the next frame no
 -- matter how many loaded (dozens at login, a few per window).
 local walkQueued = false

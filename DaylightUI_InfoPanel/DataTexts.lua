@@ -7,6 +7,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -98,7 +99,7 @@ end
 -- nil for secret values (chat lockdown can hide names). Secrets can't be
 -- compared or cut, so those lines are skipped.
 local function known(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 local function num(v) v = known(v) return type(v) == "number" and v or 0 end
@@ -456,7 +457,7 @@ end
 -- in combat, so those wait.
 -- ---------------------------------------------------------------------
 
--- Close our bag directly instead of calling ToggleAllBags. From addon code,
+-- Close Daylight UI's bag directly instead of calling ToggleAllBags. From addon code,
 -- ToggleAllBags taints the game's record of who opened the bags, and calls
 -- that read it afterwards get blocked.
 local function openBags()
@@ -615,7 +616,7 @@ end
 
 -- ---------------------------------------------------------------------
 -- Time played. Requested once, then counted forward locally. Chat frames
--- print every TIME_PLAYED_MSG, so they're unregistered while we ask and
+-- print every TIME_PLAYED_MSG, so they're unregistered while it asks and
 -- re-registered after the answer (or after PLAYED_WAIT seconds). A manual
 -- /played still prints normally.
 -- ---------------------------------------------------------------------
@@ -834,7 +835,7 @@ end
 -- last plain value is kept.
 DT.speedLast = nil
 local function plainNumber(v)
-    return type(v) == "number" and not (issecretvalue and issecretvalue(v)) and v or nil
+    return type(v) == "number" and not isSecret(v) and v or nil
 end
 function DT.ReadSpeed()
     local now, run, fly, swim = call(GetUnitSpeed, "player")
@@ -929,8 +930,9 @@ end
 -- The texts
 -- ---------------------------------------------------------------------
 
--- name shows in the slot menus. events trigger a redraw (poll = use the ticker).
--- text() returns the long version and the short one without the label.
+-- Each text's name shows in the slot menus, and its events trigger a redraw (poll
+-- means the ticker redraws it instead). text() returns the long version and the
+-- short one without the label.
 DT.TEXTS = {
     gold = { name = "Gold", events = { "PLAYER_MONEY" },
         text = function()
@@ -1457,6 +1459,8 @@ function DT.New(S, opts)
     end
 
     local function onClick(self, button)
+        -- A plugin's panel picks a slot's text this way, as ElvUI's panels do.
+        if opts.pick and button == "RightButton" and IsShiftKeyDown() then return opts.pick(self) end
         local t = DT.TEXTS[self.key]
         if t and t.click then DUI.SafeCall(t.click, button, self) end
     end
@@ -1748,9 +1752,13 @@ function DT.Build(parent, mod)
     DT.Attach(parent, mod.db.data)
     -- Save gold even when the gold text isn't shown, so the tooltip has
     -- every character once it is.
-    pcall(DUI.RegisterEvent, "PLAYER_MONEY", DT.SaveMoney)
-    if ns.Broker then ns.Broker.Watch() end
-    pcall(DUI.RegisterEvent, "PLAYER_ENTERING_WORLD", function()
+    DUI.RegisterEvent("PLAYER_MONEY", DT.SaveMoney)
+    if ns.Broker then
+        ns.Broker.Watch()
+        ns.Broker.TakePlugins()
+        ns.Broker.TakePanels()
+    end
+    DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         if ns.Broker then ns.Broker.Watch() end
         DT.SaveMoney()
         DT.Update()

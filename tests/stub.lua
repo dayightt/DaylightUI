@@ -307,6 +307,9 @@ function Widget:Hide()
     if was and parentsShown(self) then
         if self.__scripts.OnHide then self.__scripts.OnHide(self) end
         cascade(self, "OnHide")
+        -- Like the client, an edit box that can no longer be seen loses the keyboard.
+        local box = stub.focus
+        if box and not box:IsVisible() then box:ClearFocus() end
     end
 end
 function Widget:SetShown(v) if v then self:Show() else self:Hide() end end
@@ -566,7 +569,15 @@ function Widget:SetFont(path, size, flags, extra)
     end
     self.__font = { path, size, flags }
 end
-function Widget:GetFont() local f = self.__font; if f then return f[1], f[2], f[3] end end
+-- Like the client, a text given a font object reads that object's font back
+-- until it gets its own (SetFont), and a new font object replaces that.
+function Widget:GetFont()
+    local f = self.__font
+    if f then return f[1], f[2], f[3] end
+    local obj = self.__fontObject
+    if type(obj) == "string" then obj = _G[obj] end
+    if type(obj) == "table" and obj ~= self and obj.GetFont then return obj:GetFont() end
+end
 -- SimpleHTML:SetFontObject(textType, font). A FontString takes the font alone.
 function Widget:SetFontObject(font, obj)
     if rawget(self, "__type") == "SimpleHTML" and type(font) == "string" then
@@ -575,6 +586,7 @@ function Widget:SetFontObject(font, obj)
         return
     end
     self.__fontObject = font
+    if font ~= nil and rawget(self, "__type") == "FontString" then self.__font = nil end
 end
 -- Like the client, an edit box's text change runs its OnTextChanged.
 function Widget:SetText(t)
@@ -589,6 +601,25 @@ function Widget:SetText(t)
     local fn = self.__scripts and self.__scripts.OnTextChanged
     if fn then fn(self, false) end
 end
+-- Like the client, one edit box has the keyboard at a time: giving it to one
+-- takes it from the other, and each runs its focus script.
+local function focusScript(box, name)
+    local fn = box.__scripts and box.__scripts[name]
+    if fn then fn(box) end
+end
+function Widget:SetFocus()
+    local was = stub.focus
+    if was == self then return end
+    stub.focus = self
+    if was then focusScript(was, "OnEditFocusLost") end
+    focusScript(self, "OnEditFocusGained")
+end
+function Widget:ClearFocus()
+    if stub.focus ~= self then return end
+    stub.focus = nil
+    focusScript(self, "OnEditFocusLost")
+end
+function Widget:HasFocus() return stub.focus == self end
 function Widget:SetAlpha(a) self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = nil end
 -- Like the client, the alpha it picks really lands (true -> t, false -> f).
 function Widget:SetAlphaFromBoolean(v, t, f)
@@ -873,9 +904,26 @@ local function newAuraContainer(name, parent, template)
     c.__groups, c.__groupOrder = {}, {}
     function c:SetUnit(u) self.__unit = u end
     function c:UpdateAllAuras() self.__refreshes = (self.__refreshes or 0) + 1 end
+    -- The game's checks on a group's candidate filters (ValidateCandidateFilters,
+    -- Blizzard_CustomAuraContainer.lua): nil or a table, its spell and type lists
+    -- tables, maxDuration a number of 0 or more, the flags booleans.
+    local function validCandidates(cand)
+        assert(cand == nil or type(cand) == "table", "candidateFilters must be a table or nil.")
+        if cand == nil then return end
+        for _, f in ipairs({ "includeSpellIDs", "excludeSpellIDs", "includeDispelTypes", "excludeDispelTypes" }) do
+            assert(cand[f] == nil or type(cand[f]) == "table", f .. " must be a table or nil")
+        end
+        assert(cand.maxDuration == nil or (type(cand.maxDuration) == "number" and cand.maxDuration >= 0),
+            "maxDuration must be a non-negative number or nil.")
+        for _, f in ipairs({ "isFromPlayerOrPlayerPet", "isRoleAura", "isPriorityAura", "isStealable", "nameplateShowAll",
+                             "nameplateShowPersonal", "canApplyAura", "isBossAura", "isBossOrRoleAura" }) do
+            assert(cand[f] == nil or type(cand[f]) == "boolean", f .. " must be a boolean or nil.")
+        end
+    end
     function c:AddAuraGroup(key, filter, opts)
         if stub.refuseAuraFilters and stub.refuseAuraFilters[filter] then error("Invalid aura filter: " .. filter) end
         assert(not self.__groups[key], "duplicate group " .. key)
+        validCandidates(opts and opts.candidateFilters)
         local g = { filter = filter, opts = opts, max = opts and opts.maxFrameCount, layout = opts and opts.layout }
         self.__groups[key] = g
         self.__groupOrder[#self.__groupOrder + 1] = key
@@ -920,6 +968,17 @@ local function newAuraContainer(name, parent, template)
         self.__enchantSort = { method, dir }
     end
     function c:SetAuraGroupMaxFrameCount(key, n) assert(self.__groups[key], key); self.__groups[key].max = n end
+    -- Changes a group's candidate filters in place (SetAuraGroupCandidateFilters):
+    -- the group re-reads its auras at once, and nil clears them.
+    function c:SetAuraGroupCandidateFilters(key, cand)
+        assert(self.__groups[key], "aura group was not found with this key.")
+        validCandidates(cand)
+        local g = self.__groups[key]
+        g.opts = g.opts or {}
+        g.opts.candidateFilters = cand
+        self.__candidateSets = (self.__candidateSets or 0) + 1
+        self.__refreshes = (self.__refreshes or 0) + 1
+    end
     function c:SetAuraGroupLayout(key, l) assert(self.__groups[key], key); self.__groups[key].layout = l end
     function c:SetFlowLayoutAnchorPoint(p) self.__anchorPoint = p end
     function c:SetFlowLayoutGrowthDirection(h, v) self.__growth = { h, v } end
@@ -1071,9 +1130,28 @@ function stub.MessageFrame(f)
         self.lines = keep
     end
     function f:GetNumMessages() return #self.lines end
+    -- Like the mixin's UnpackageEntry: message, r, g, b, then what AddMessage got after them.
     function f:GetMessageInfo(i)
         local l = self.lines[i]
-        if l then return l[1], l[2], l[3], l[4] end
+        if not l then return end
+        local x = l.extra
+        if x then return l[1], l[2], l[3], l[4], unpack(x, 1, x.n) end
+        return l[1], l[2], l[3], l[4]
+    end
+    -- The mixin's TransformMessages: each entry the predicate picks is replaced by
+    -- what transformFunction returns for it, packaged again with a new timestamp.
+    function f:TransformMessages(pred, fn)
+        for i, l in ipairs(self.lines) do
+            local x = l.extra
+            local function args() if x then return l[1], l[2], l[3], l[4], unpack(x, 1, x.n) end return l[1], l[2], l[3], l[4] end
+            if pred(args()) then
+                local out = (function(...) return { n = select("#", ...), ... } end)(fn(args()))
+                local n = out.n
+                local extra = n > 4 and { unpack(out, 5, n) } or nil
+                if extra then extra.n = n - 4 end
+                self.lines[i] = { out[1], out[2], out[3], out[4], timestamp = GetTime(), extra = extra }
+            end
+        end
     end
     function f:Clear() self.lines = {}; self.scrollOffset = 0 end
     function f:GetMaxScrollRange() return math.max(#self.lines - 1, 0) end
@@ -1326,14 +1404,33 @@ end
 -- Screen
 -- ---------------------------------------------------------------------
 
+-- UIParent fills the screen, so its size in UI units follows its scale:
+-- 768 / scale tall, as wide as the screen's shape makes it.
+local function sizeUIParent(ui)
+    local s = ui.__scale or 1
+    ui.__w = stub.physW / stub.physH * 768 / s
+    ui.__h = 768 / s
+end
+
+-- The client changing the UI scale itself (its own slider, a new resolution).
 function stub.SetScreen(physW, physH, uiScale)
     stub.physW, stub.physH, stub.uiScale = physW, physH, uiScale
     local ui = _G.UIParent
     if ui then
         ui.__scale = uiScale
-        ui.__w = physW / physH * 768 / uiScale
-        ui.__h = 768 / uiScale
+        sizeUIParent(ui)
     end
+end
+
+-- An addon setting UIParent's scale resizes it the same way, but the client
+-- fires no UI_SCALE_CHANGED for it (that event follows the uiScale CVar).
+function stub.MakeUIParent()
+    local ui = new("Frame", "UIParent")
+    function ui:SetScale(s)
+        Widget.SetScale(self, s)
+        sizeUIParent(self)
+    end
+    return ui
 end
 _G.GetPhysicalScreenSize = function() return stub.physW, stub.physH end
 
@@ -1722,6 +1819,39 @@ stub.RESTRICTED_GLOBALS.GetShapeshiftForm = function()
     end
     return 0
 end
+-- Daylight UI's question box (DUI.Widgets.Ask): the key of the question it's
+-- asking now, or nil; answer it; or click its secure Reload as the player would.
+function stub.Asked()
+    local W = _G.DaylightUI and _G.DaylightUI.Widgets
+    local spec = W and W.Asking and W.Asking()
+    return spec and spec.key
+end
+function stub.Answer(yes) _G.DaylightUI.Widgets.Answer(yes) end
+-- Says No to every question up or waiting, so a test starts with none.
+function stub.Dismiss()
+    for _ = 1, 20 do
+        if not stub.Asked() then return end
+        stub.Answer(false)
+    end
+end
+-- Types text into the question box's text box, then says yes.
+function stub.Reply(text)
+    _G.DaylightUIAsk.input:SetText(text)
+    stub.Answer(true)
+end
+function stub.AskText()
+    local spec = _G.DaylightUI.Widgets.Asking()
+    return spec and spec.text or ""
+end
+function stub.ClickReload()
+    local b = _G.DaylightUIAskReload
+    assert(b and b:IsShown(), "no Reload button up")
+    stub.hardware = (stub.hardware or 0) + 1
+    local ok, err = pcall(stub.SecureClick, b, "LeftButton", false)
+    stub.hardware = stub.hardware - 1
+    if not ok then error(err, 0) end
+end
+
 -- A macro's /click on a SecureActionButtonTemplate button with type "attribute",
 -- as the game does it. "/click Name" with no more words is Click("LeftButton",
 -- false), the up half only (SlashCommands.lua). SecureActionButton_OnClick then
@@ -1730,15 +1860,22 @@ end
 -- it off), and on the up half otherwise (SecureTemplates.lua). The action is
 -- SECURE_ACTIONS.attribute: the name and value go onto attribute-frame (else the
 -- button itself) in the secure world. The button's OnClick scripts and hooks run
--- either way, as a wrapped script's snippet does.
+-- either way, as a wrapped script's snippet does. PreClick and PostClick run
+-- around it, as the client's Click does. Type "macro" runs its macrotext; only /reload is
+-- known here (ReloadUI, which a secure click may call).
 function stub.SecureClick(b, button, down)
     button = button or "LeftButton"
     down = down == true
+    local pre = b:GetScript("PreClick")
+    if pre then pre(b, button, down) end
     local keyDown = b:GetAttribute("useOnKeyDown")
     if keyDown == nil then keyDown = stub.keyDownCVar ~= false end
     local acts = (down and keyDown) or (not down and not keyDown)
     stub.inSecure = (stub.inSecure or 0) + 1
     local ok, err = pcall(function()
+        if acts and b:GetAttribute("type") == "macro" and b:GetAttribute("macrotext") == "/reload" then
+            ReloadUI()
+        end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")
@@ -1750,6 +1887,8 @@ function stub.SecureClick(b, button, down)
     if not ok then error(err, 0) end
     local fn = b:GetScript("OnClick")
     if fn then fn(b, button, down) end
+    local post = b:GetScript("PostClick")
+    if post then post(b, button, down) end
 end
 local SNIPPET_ARGS = { self = true, newstate = true, stateid = true, message = true, scriptid = true, name = true, value = true,
                        delta = true, button = true, down = true, owner = true }
@@ -2191,8 +2330,9 @@ _G.UnitInRange = function(u)
     return false, false
 end
 -- Spells the player knows (stub.knownSpells[id] = true) and each unit's answer
--- to a spell's range check: x.spellRange (true/false/secret). nil means the check
--- is invalid, which is what the game answers for strangers and enemies.
+-- to a spell's range check: x.spellRange (true/false/secret), or a table of
+-- answers by spell id. nil means the check is invalid, which is what the game
+-- answers for strangers and enemies.
 stub.knownSpells = {}
 _G.C_SpellBook = _G.C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return stub.knownSpells[id] == true end
@@ -2205,7 +2345,9 @@ C_Spell.PickupSpell = function(id) stub.cursor = { "spell", id } end
 C_Spell.IsSpellInRange = function(id, u)
     local x = U(u)
     if not stub.knownSpells[id] or not x then return nil end
-    return x.spellRange
+    local r = x.spellRange
+    if type(r) == "table" and not isSecret(r) then return r[id] end
+    return r
 end
 _G.UnitIsPVP = function(u) local x = U(u); return x ~= nil and x.pvp == true end
 _G.UnitFactionGroup = function(u) local x = U(u); if x then return x.faction end end
@@ -2267,6 +2409,21 @@ end
 _G.GetShapeshiftFormID = function() return stub.formID end
 -- The camera's own calls. The zoom keys and mouse wheel run MoveViewIn/OutStart
 -- (Blizzard_FrameXML/Bindings_Camelot.xml).
+-- A summon on its way: a unit's own summon = "Pending" | "Accepted" | "Declined"
+-- (Enum.SummonStatus names). Both calls refuse a secret unit token, as in game.
+_G.Enum.SummonStatus = { None = 0, Pending = 1, Accepted = 2, Declined = 3 }
+_G.C_IncomingSummon = {
+    HasIncomingSummon = function(u)
+        assert(not isSecret(u), "HasIncomingSummon: secret unit")
+        local x = U(u)
+        return x ~= nil and type(x.summon) == "string"
+    end,
+    IncomingSummonStatus = function(u)
+        assert(not isSecret(u), "IncomingSummonStatus: secret unit")
+        local x = U(u)
+        return Enum.SummonStatus[x and x.summon or "None"] or 0
+    end,
+}
 for _, n in ipairs({ "CameraZoomIn", "CameraZoomOut", "MoveViewInStart", "MoveViewOutStart", "SetView", "ResetView" }) do
     _G[n] = function() end
 end
@@ -2732,6 +2889,7 @@ function stub.Reset()
     stub.restrictions, stub.inRestrictionDispatch = {}, false
     stub.lockErrors, stub.lockSites = 0, {}
     stub.secure, stub.inSecure = false, 0
+    stub.focus = nil
     stub.conditions, stub.drivers, stub.frozenGroup = {}, {}, nil
     stub.TEMPLATES = {}
     for k, v in pairs(BASE_TEMPLATES) do stub.TEMPLATES[k] = v end
@@ -2778,7 +2936,7 @@ function stub.Reset()
         if stub.combat and (stub.inSecure or 0) == 0 then return end
         if type(f) == "table" and f.Hide then f:Hide() end
     end
-    _G.UIParent = new("Frame", "UIParent")
+    _G.UIParent = stub.MakeUIParent()
     stub.SetScreen(1920, 1080, 1)
     for _, n in ipairs({ "PlayerFrame", "TargetFrame", "FocusFrame", "PetFrame" }) do
         local f = new("Frame", n, _G.UIParent)
@@ -3055,7 +3213,7 @@ stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
                      "Options.lua", "Module.lua" }
 stub.QUESTS_FILES = { "Blizzard.lua", "Defaults.lua", "Data.lua", "Layout.lua", "Look.lua", "Rows.lua", "Animate.lua",
-                      "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
+                      "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Gather.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
 stub.CHARACTER_FILES = { "Defaults.lua", "Colors.lua", "Gear.lua", "Stats.lua", "StatText.lua", "Window.lua", "Follow.lua", "Slots.lua",
                          "Model.lua", "Pages/Character.lua", "Pages/Pet.lua", "Menus.lua", "List.lua", "Pages/Reputation.lua",
                          "Pages/Skills.lua", "Pages/PvP.lua", "Pages/Statistics.lua", "Pages/Currency.lua",
@@ -3071,9 +3229,9 @@ stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lu
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
-                          "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "Diag.lua", "Options.lua", "Module.lua" }
-stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
-                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
+                          "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "CdmGuide.lua", "Diag.lua", "Options.lua", "Module.lua" }
+stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
+                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
 
 -- Each file is read and compiled once per run (false = not on disk). Every Load
 -- runs the compiled chunk again, which gives fresh locals as a reload does.
@@ -3105,7 +3263,7 @@ end
 -- Another addon's tests load their own files the same way (DaylightMogul).
 stub.LoadFiles = loadFiles
 
-stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Character.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
+stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
 
 -- Loads the core (and optionally the unit frames module) into fresh namespaces
 -- the way the client does, then fires the load events.
@@ -3164,7 +3322,7 @@ function stub.Load(opts)
     end
     if opts.bags then
         local BG = {}
-        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
+        loadFiles("DaylightUI_Bags/", { "Defaults.lua", "Saved.lua", "Items.lua", "Plugins.lua", "Search.lua", "Categories.lua", "Junk.lua", "Repair.lua", "Bags.lua", "Layout.lua", "Stack.lua", "Keep.lua", "Swap.lua", "Window.lua", "Move.lua", "Disenchant.lua", "Guard.lua", "Prep.lua", "Slots.lua", "Bank.lua", "Viewer.lua",
                                         "Currency.lua", "MoneyRoll.lua",
                                         "OpenClose.lua", "Options.lua", "Module.lua" }, "DaylightUI_Bags", BG)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Bags")
@@ -3172,7 +3330,7 @@ function stub.Load(opts)
     end
     if opts.nameplates then
         local NP = {}
-        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
+        loadFiles("DaylightUI_Nameplates/", { "Defaults.lua", "Body.lua", "Plate.lua", "Minion.lua", "Cast.lua", "Combo.lua", "Power.lua", "Range.lua", "Auras.lua", "Manager.lua", "Options.lua", "Sample.lua", "Module.lua" },
             "DaylightUI_Nameplates", NP)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Nameplates")
         stub.nameplates = NP

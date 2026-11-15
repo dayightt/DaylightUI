@@ -15,12 +15,14 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local L = DUI.L
 
 local Saved = {}
 ns.Saved = Saved
 
 Saved.BASE = 1000            -- first fake container id (real ones are far below)
 Saved.view = {}              -- containers being shown, in order
+local tipHooked = false      -- the item tooltip counts are hooked once
 
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -146,6 +148,12 @@ function Saved.SaveBankSoon()
 end
 
 function Saved.Start()
+    DUI.On("BagsSaved", Saved.ForgetCounts)
+    local TDP, types = TooltipDataProcessor, Enum and Enum.TooltipDataType
+    if not tipHooked and type(TDP) == "table" and type(TDP.AddTooltipPostCall) == "function" and types and types.Item then
+        tipHooked = true
+        TDP.AddTooltipPostCall(types.Item, function(tip, data) DUI.SafeCall(Saved.OnTip, tip, data) end)
+    end
     -- Nothing new is saved while the viewer is off (Viewer.On).
     DUI.RegisterEvent("PLAYER_LOGOUT", function()
         if not ns.Viewer.On() then return end
@@ -154,6 +162,7 @@ function Saved.Start()
     end)
     -- Items moving in or out of the bags, or the bank while it's open.
     DUI.RegisterEvent("BAG_UPDATE_DELAYED", function()
+        Saved.ForgetBags()
         if not ns.Viewer.On() then return end
         Saved.SaveBagsSoon()
         if ns.Bank and ns.Bank.open then Saved.SaveBankSoon() end
@@ -163,6 +172,115 @@ function Saved.Start()
     end)
     -- Once at login or reload, when the bags are available.
     if ns.Viewer.On() then Saved.SaveBagsSoon() end
+end
+
+-- Item counts in tooltips
+
+-- Adds up a list of saved containers by item ID into into[id][field].
+local function tally(list, into, field)
+    for _, c in ipairs(type(list) == "table" and list or {}) do
+        for _, rec in pairs(type(c) == "table" and type(c.items) == "table" and c.items or {}) do
+            local link = type(rec) == "table" and rec[1]
+            local id = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+            if id then
+                local t = into[id] or {}
+                into[id] = t
+                t[field] = (t[field] or 0) + (tonumber(rec[2]) or 1)
+            end
+        end
+    end
+end
+
+-- The saved counts are made once and again after each save; this character's
+-- bags are counted from the bags themselves, again after each change.
+local saved, bagCounts
+function Saved.ForgetCounts() saved = nil end
+function Saved.ForgetBags() bagCounts = nil end
+
+local function savedCounts()
+    if saved then return saved end
+    saved = { others = {}, bank = {}, account = {} }
+    for _, c in ipairs(Saved.Characters()) do
+        if c.own then
+            tally(c.inv and c.inv.bank, saved.bank, "n")
+        elseif c.inv then
+            local t = {}
+            tally(c.inv.bags, t, "bags")
+            tally(c.inv.bank, t, "bank")
+            saved.others[#saved.others + 1] = { name = c.name, class = c.class, counts = t }
+        end
+    end
+    local a = Saved.Account()
+    if a then tally(a.tabs, saved.account, "n") end
+    return saved
+end
+
+local function bagCount(id)
+    if not bagCounts then
+        bagCounts = {}
+        for _, b in ipairs(ns.Bags.List()) do
+            local size = ns.Bags.NumSlots(b.id)
+            for slot = 1, type(size) == "number" and size or 0 do
+                local info = ns.Items.InfoAt(b.id, slot)
+                local link = type(info) == "table" and info.hyperlink
+                local item = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+                if item then bagCounts[item] = (bagCounts[item] or 0) + (tonumber(info.stackCount) or 1) end
+            end
+        end
+    end
+    return bagCounts[id] or 0
+end
+
+-- "Bags 12 · Bank 40", the words in the label color and the numbers left to
+-- the row's own color.
+local function where(bags, bank)
+    local lab = DUI.Win.Parts.Hex(DUI.Style.INK.LABEL)
+    local parts = {}
+    if bags > 0 then parts[#parts + 1] = { L["Bags"], bags } end
+    if bank > 0 then parts[#parts + 1] = { L["Bank"], bank } end
+    local out = ""
+    for i, p in ipairs(parts) do
+        out = out .. lab .. (i > 1 and " · " or "") .. p[1] .. "|r " .. p[2]
+    end
+    return out
+end
+
+-- How many of an item each character has, under its tooltip. Only when another
+-- character has some: for things just in this character's bags and bank the
+-- game's own tooltip says enough.
+function Saved.OnTip(tip, data)
+    if tip ~= GameTooltip or type(data) ~= "table" then return end
+    local id = data.id
+    if type(id) ~= "number" or (issecretvalue and issecretvalue(id)) then return end
+    local s = savedCounts()
+    local any = false
+    for _, c in ipairs(s.others) do if c.counts[id] then any = true end end
+    if not any then return end
+    local Tips, Style = DUI.Tips, DUI.Style
+    local own = DUI.DB.CharKey()
+    local _, class = UnitClass("player")
+    local bags, bank = bagCount(id), s.bank[id] and s.bank[id].n or 0
+    local total = bags + bank
+    Tips.Gap()
+    if total > 0 then
+        Tips.Person(own and own:match("^(.-)%-") or own, where(bags, bank), { Style.ClassTextColor(class) })
+    end
+    for _, c in ipairs(s.others) do
+        local t = c.counts[id]
+        if t then
+            Tips.Person(c.name, where(t.bags or 0, t.bank or 0), { Style.ClassTextColor(c.class) })
+            total = total + (t.bags or 0) + (t.bank or 0)
+        end
+    end
+    local account = s.account[id] and s.account[id].n or 0
+    if account > 0 then
+        Tips.Person(L["Account"], tostring(account), Tips.TEXT)
+        total = total + account
+    end
+    Tips.Person(L["Total"], tostring(total), Tips.LABEL)
+    Tips.Flush(tip)
+    -- Refit to the new lines, but only if the tooltip is already showing.
+    if tip.Show and tip:IsShown() then tip:Show() end
 end
 
 -- Who's saved

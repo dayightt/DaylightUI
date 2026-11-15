@@ -16,7 +16,7 @@ local Recipe = {}
 ns.Recipe = Recipe
 
 local function TS() return type(C_TradeSkillUI) == "table" and C_TradeSkillUI or nil end
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 
 local function call(name, ...)
     local ts = TS()

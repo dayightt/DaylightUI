@@ -21,6 +21,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 
 local ST = {}
@@ -88,7 +89,7 @@ function ST.Supported()
 end
 
 local function plain(v)
-    if issecretvalue and issecretvalue(v) then return nil end
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -123,7 +124,7 @@ end
 local function weaponInSlot(slot)
     if type(GetInventoryItemLink) ~= "function" or not (C_Item and C_Item.GetItemInfoInstant) then return nil end
     local ok, link = pcall(GetInventoryItemLink, "player", slot)
-    if not ok or (issecretvalue and issecretvalue(link)) then return nil end
+    if not ok or isSecret(link) then return nil end
     if type(link) == "nil" then return false end
     local okI, _, _, _, _, _, class = pcall(C_Item.GetItemInfoInstant, link)
     class = okI and plain(class) or nil

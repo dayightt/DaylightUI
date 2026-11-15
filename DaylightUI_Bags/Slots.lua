@@ -34,7 +34,7 @@ end
 function Slots.Light(slots, bag)
     for _, s in ipairs(slots) do
         local mine = bag ~= nil and s.bag == bag
-        s.button:SetAlpha((bag == nil or mine) and 1 or Slots.DIM)
+        ns.Items.Fader(s.button):SetAlpha((bag == nil or mine) and 1 or Slots.DIM)
         ns.Items.Light(s.button, mine)
     end
 end
@@ -46,8 +46,7 @@ function Slots.Paint(b, tex, quality)
     -- Colors are shared tables (Items.QualityColor), so compare by reference.
     if b.color == color then return end
     b.color = color
-    local k = ns.Items.BAND_DIM
-    Style.SetShellColors(b.shell, color, { color[1] * k, color[2] * k, color[3] * k })
+    Style.SetShellColors(b.shell, color, color)
 end
 
 -- The strip: a shell over the window's top-left corner.
@@ -64,7 +63,7 @@ end
 -- the window's slots.
 function Slots.NewButton(strip, o)
     local b = CreateFrame("Button", nil, strip)
-    b.shell = Style.Shell(b, ns.Items.ShellOpts())
+    b.shell = ns.Items.Frame(b)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     Style.CropIcon(b.icon)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
@@ -104,7 +103,8 @@ function Slots.LayoutStrip(strip, size, gap)
         b:SetSize(size, size)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", strip, "TOPLEFT", x, -E)
-        local T = DUI.Pixel.Px(b, ns.Items.BORDER_PX)
+        ns.Items.FitRing(b, b.shell)
+        local T = ns.Items.Inset(b)
         b.icon:ClearAllPoints()
         b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", T, -T)
         b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -T, T)
@@ -206,7 +206,7 @@ function Slots.Layout()
     if not Slots.strip then return end
     Slots.key:SetShown(ns.Bags.GameKeyring())
     Slots.PaintKey()
-    Slots.LayoutStrip(Slots.strip, ns.Setting("iconSize") or 35, ns.Setting("spacing") or 7)
+    Slots.LayoutStrip(Slots.strip, ns.Setting("iconSize") or 35, ns.Setting("spacing") or 2)
 end
 
 function Slots.Refresh()

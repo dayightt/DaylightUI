@@ -49,7 +49,6 @@ end
 
 T.test("inspect: ours opens in the game's place, its title their name in their class color", function()
     local ns = load()
-    T.eq(DaylightUI.inspectOwnWindow, true)
     IW.Inspect("target")
     frame(30)
     local f = ns.Window.frame
@@ -95,7 +94,6 @@ end)
 
 T.test("inspect: switched off, the game's frame is left alone", function()
     local ns = load({ enabled = false })
-    T.eq(DaylightUI.inspectOwnWindow, false)
     IW.Inspect("target")
     frame(30)
     T.isnil(ns.Window.frame)

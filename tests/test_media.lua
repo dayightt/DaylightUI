@@ -367,3 +367,26 @@ T.test("scroll bar: shows at rest whenever a list has more than fits, lit while 
     tick(bar, 1)
     T.eq(bar:GetAlpha(), 0, "it all fits: no pill")
 end)
+
+T.test("media: on a Russian client, the bundled fonts with Russian letters are shared with other addons", function()
+    local lsm = fakeLSM()
+    -- The library's own rule: on a non-Western client it leaves out a font with
+    -- no language mask, or one whose mask lacks that client's language.
+    lsm.LOCALE_BIT_ruRU, lsm.LOCALE_BIT_western = 2, 128
+    local register = lsm.Register
+    function lsm:Register(kind, name, file, mask)
+        if kind == "font" and (mask == nil or math.floor(mask / 2) % 2 == 0) then return false end
+        return register(self, kind, name, file)
+    end
+    local before = _G.GetLocale
+    _G.GetLocale = function() return "ruRU" end
+    local ok, err = pcall(function()
+        local DUI = stub.Load()
+        stub.FireEvent("PLAYER_LOGIN")
+        T.eq(lsm.media.font.Expressway, DUI.Style.FONTS.expressway.file)
+        T.eq(lsm.media.font.Oswald, DUI.Style.FONTS.oswald.file)
+        T.falsy(lsm.media.font.Lato, "no Russian letters: left out")
+    end)
+    _G.GetLocale = before
+    if not ok then error(err, 0) end
+end)

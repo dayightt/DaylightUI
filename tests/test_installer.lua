@@ -93,9 +93,9 @@ T.test("installer: a layout set up from the bundled one is up to date, so no sec
     DUI.Installer.Install()
     T.truthy(DUI.EditMode.UpToDate(), "nothing left out of date: " .. table.concat(DUI.EditMode.Stale() or {}, ", "))
     DUI = reload({ before = bundled })
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    T.isnil(stub.popup, "no second reload asked")
+    T.isnil(stub.Asked(), "no second reload asked")
 end)
 
 T.test("installer: the old debug log is cleared from the saved settings", function()
@@ -469,6 +469,26 @@ T.test("installer: a new character gets the guide; X closes it until the next lo
     T.truthy(DaylightUIInstaller:IsShown(), "asked again at the next login")
 end)
 
+-- A player who skipped the guide and then changed something has set the
+-- character up their own way: the guide stops asking, and the next login puts
+-- the profile's Edit Mode layout in place with one reload.
+T.test("installer: a change made after closing the guide counts as set up", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    closeGuide()
+    T.isnil(DUI.Installer.State())
+    DUI:Set("general", "softness", 0.5)
+    T.eq(DUI.Installer.State(), "installed", "set up from the first change")
+    T.eq(#saved.layouts, 0, "nothing written mid-session")
+    reload()
+    stub.RunTimers()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "the guide doesn't ask again")
+    T.truthy(layoutNamed("DaylightUI - DPS/Tank"), "the profile's layout went in")
+    T.eq(stub.Asked(), "reload", "one reload asked for it")
+    T.eq(DaylightUI:Get("general", "softness"), 0.5, "the change was kept")
+end)
+
 -- A new character's intro cinematic hides the whole UI; when the UI comes
 -- back the game closes every window (UIParent_OnShow: CloseAllWindows).
 -- Neither is the player closing the guide.
@@ -726,7 +746,7 @@ T.test("installer: another character on the account can use the first one's setu
     local DUI = login()
     DUI.Installer.Install()                            -- the first character
     DUI:Set("general", "accent", "class")              -- and a change of its own
-    stub.popup = nil
+    stub.Dismiss()
     saved.activeLayout = 1                             -- a new character: on the game's own layout
     DUI.DB.Root().characters = nil
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -738,7 +758,7 @@ T.test("installer: another character on the account can use the first one's setu
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank")
     T.eq(DaylightUIDB.profileData["DPS/Tank"].general.accent, "class", "as the first one left it")
     T.eq(saved.activeLayout, 3, "ours active for this character")
-    T.isnil(stub.popup, "no popup: the guide has its own Reload")
+    T.isnil(stub.Asked(), "no popup: the guide has its own Reload")
 end)
 
 T.test("installer: a set-up character sees the guide once per account, with Keep my setup first", function()
@@ -795,11 +815,11 @@ T.test("installer: a set-up character on the game's layout is put back on its ow
     DUI.Installer.Install()
     DUI = reload()
     saved.activeLayout = 1
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "no guide")
     T.eq(saved.activeLayout, 3, "its layout back in use")
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "asks for the reload")
+    T.eq(stub.Asked(), "reload", "asks for the reload")
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "nor on entering the world")
 end)
@@ -834,14 +854,14 @@ T.test("installer: a set-up character on a layout of its own keeps it through lo
     DUI = reload()
     local mine = ownLayout()
     DUI = reload()
-    stub.popup = nil
+    stub.Dismiss()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")       -- a loading screen
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     stub.RunTimers()
     T.eq(saved.activeLayout, mine, "still on its own layout")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "no guide")
 end)
 
@@ -866,10 +886,10 @@ T.test("installer: a part out of date never moves a character off a layout of it
     local mine = ownLayout()
     DUI = reload()
     DUI.EditMode.Add("stale", function() end, function() return false end)
-    stub.popup = nil
+    stub.Dismiss()
     DUI.EditMode.AutoSave("updated")
     T.eq(saved.activeLayout, mine, "still on its own layout")
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
 end)
 
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
@@ -929,11 +949,11 @@ end)
 T.test("installer: reload prompts wait while the guide is open", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    stub.popup = nil
+    stub.Dismiss()
     DUI.EditMode.AskReload("something changed")
-    T.isnil(stub.popup, "held")
+    T.isnil(stub.Asked(), "held")
     closeGuide()
-    T.eq(stub.popup, "DAYLIGHTUI_RELOAD", "shown once the guide closes")
+    T.eq(stub.Asked(), "reload", "shown once the guide closes")
 end)
 
 T.test("installer: how close a profile is to a ready-made setup, whatever its settings", function()
@@ -1836,4 +1856,29 @@ T.test("installer tour: the bars, plates and calm pages pick their presets throu
     DUI.InstallerDraft.Revert()
     T.eq(DUI:Get("ActionBars", "bars.bar2.visible"), "always")
     T.eq(DUI:Get("Nameplates", "scale"), 1)
+end)
+
+T.test("installer: a plugin's page comes after Daylight UI's own, and its onFinish runs on Finish", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local me = DUI.API.For("Guide")
+    local finished = 0
+    T.eq(me.AddSetupStep({ id = "look", title = "Guide's look", desc = "Pick a size.",
+        groups = { { label = "Size", rows = { { "general", "scale" } } } },
+        onFinish = function() finished = finished + 1 end }), true)
+    T.eq(me.AddSetupStep({ id = "bad" }), false, "a step needs a title and groups")
+    DUI.Installer.Start("tour")
+    local ids = {}
+    for _, def in ipairs(DUI.Installer.Steps()) do ids[#ids + 1] = def.id end
+    local at, last = nil, #ids
+    for i, id in ipairs(ids) do if id == "Guide:look" then at = i end end
+    T.truthy(at, "listed")
+    T.eq(ids[last], "finish")
+    T.eq(at, last - 1, "after Daylight UI's own pages, before Finish")
+    DUI.Installer.Go("Guide:look")
+    T.truthy(DUI.Installer.pages["Guide:look"], "its page is built")
+    DUI.Installer.Go("finish")
+    DUI.Installer.Finish()
+    T.eq(finished, 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

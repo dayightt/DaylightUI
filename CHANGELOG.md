@@ -1,3 +1,88 @@
+# DaylightUI 1.8.2
+
+Target buffs and nameplate pieces back where they sat before 1.8.0, another vanishing nameplate fix, and a Cooldown Manager tour.
+
+## New
+- Cooldown Manager: A short tour the first time you open the cooldown layout: adding spells, making groups and changing them. /cdm tour shows it again
+
+## Changed
+- Options: Little touches: the options tour shows the search box, and the Cooldowns tab is now called CDM
+
+## Fixed
+- Cooldown Manager: Arcane Blast's stacks no longer end a moment before the real debuff does and then drift out of step with it
+- Window skins: The hunter's Beast Training window has the Daylight UI look again
+- Window skins: Some right-click menus no longer cause an error about a secret number
+- Party and raid: Prayer of Mending shows as a heal indicator when you pick it
+- Window skins: With the NPC window off, the game's quest window keeps its dark text instead of turning white
+- Nameplates: The Group mark beside party members' names shows again, dungeons included
+- Unit frames: Your target's buffs are back under the frame where you had them before 1.8.0, and your own and the personal display's auras grow the way they used to. Spots you picked yourself stay
+- Nameplates: The level, health text, threat % and execute icon beside the plate are back where they sat before 1.8.0, instead of pushed far out by the new big defensive icon
+- Nameplates: Another fix for nameplates vanishing until a /reload
+- Nameplates: The report box at the end of /dui platefix is no longer empty, and the report also shows in chat
+
+# DaylightUI 1.8.1
+
+Another big push on the vanishing nameplate bug, plus aura lists, new portrait shapes and a round of fixes.
+
+## New
+- Unit frames: Aura lists to hide buffs and debuffs you never want, or show only the ones you care about: Unit frames > Aura Lists
+- Unit frames: Square or angled portraits, with ring thickness and line set per frame on a new Portrait tab
+- Party and raid: See when someone is being summoned, and whether they accepted or declined
+- Other addons: A SkillUp link in the profession window, for SkillUp Forever's skill-up chances and route
+
+## Changed
+- Window skins: Item slots and coins in loot, guild bank and other windows match the bags; a cleaner trade window
+- Moving frames: The unlock and test mode boxes have a close button
+
+## Fixed
+- Nameplates: Another fix for nameplates vanishing. The game's Stack Nameplates option is now on for enemies, since the reports came from players with it off. Still happening? /dui platefix has new steps that pin down the cause
+- Nameplates: Heal and shield bars fit the health bar again
+- Dungeons: Leaving a dungeon group no longer stops with a "DaylightUI has been blocked" message
+- Chat: Profession and recipe links open on the first click, even while Trade chat is busy
+- Fonts: Russian, Korean and Chinese names no longer show as boxes
+- Buffs: Boosted Rest from a Camp Tent no longer sits among your debuffs
+- Meters: Clearing the meter no longer flips it from Overall back to Current
+- Little touches: Buying stacks from a vendor stops if another item lands in the slot, and the controller hints on the map stay out of the way
+
+# DaylightUI 1.8.0
+
+See what your party is targeting, range fading, big enemy defensives on nameplates, a smarter Cooldown Manager, and a big round of fixes.
+
+## New
+- Party frames: See who each party member is targeting, in a small frame beside them. Off at first: Unit frames > Party Targets
+- Unit frames: Target and focus can fade while out of range of a spell you pick
+- Unit frames: More buff and debuff options on every frame: timers, a clock sweep, text sizes, only buffs you can purge
+- Nameplates: Enemy big defensives like Divine Shield show as a large icon; friendly totems as a small colored badge
+- Cooldown Manager: Any spell can show its cooldown, its buff or both; buffs and DoTs can glow when it's time to recast
+- Cooldown Manager: A warrior's stance icons light up while you're in that stance
+- Minimap: An icon size slider, and a round minimap that keeps north at the top
+- Meters: Names can show in class colors while the numbers keep theirs
+- Chat: A sound for guild and officer chat; General and Trade keep /1 and /2 when another addon joins channels first
+- Bags: Bags open when you trade, and a Comprehend Scroll button sits next to Disenchant
+- Moving frames: /dui unlock can hide whole groups of handles, so the ones under them are easy to grab
+- Pet frame: Hunter pet happiness as a colored stripe inside the frame. Thanks to Ángel
+- Other addons: An Open Clique link in the spellbook, a What's Training link for professions, and click-casting steps aside for CliqueForever
+- Plugins: Other addons can add to and restyle Daylight UI's action bars, meters, tooltips, bags, buffs, chat and more: daylightui.com/plugins
+
+## Changed
+- Unit frames: Buffs sit on the left and debuffs on the right on every frame. Spots you picked yourself stay
+- Window skins: Right-click menus, the guild window and the role check pop-up are in the Daylight UI look. Thanks to Ángel
+- Cursor ring: Cleaner, with a thin ring for the global cooldown and an outer ring for casts
+- Little touches: Names beside party and raid tiles sit on a dark tab, and the quest under your mouse gets a soft background
+
+## Fixed
+- Minimap: No longer goes empty indoors or after fading out in a fight
+- Action bars: Frames no longer slide off the bottom when the game changes its UI scale. UI scale is now on General > Size
+- Action bars: No more floods of errors or "blocked" warnings in dungeons and fights
+- Action bars: Shadowform and the cat, bear and moonkin /click macros switch bar 1 right away
+- Cooldown Manager: Sap, Blind, Polymorph, Poised and other missing spells can be added
+- Cooldown Manager: Icons and bars no longer come out squashed, wrongly faded or off-center, and the first debuff of a fight lights up
+- Unit frames: The focus and pet frames can show buffs and debuffs, like the game's own
+- Edit Mode: Logging in no longer switches your own layout back to Daylight UI's
+- Controller: The menu for the player you're targeting opens again
+- Windows: Turning off a Daylight UI window brings back the game's own window as the game draws it, and the character window shows your title
+- Little touches: Spell tooltips say "2 hours" instead of code, cast bar text sizes work again, rows no longer look cut off at the bottom, and Rune of Teleportation no longer shows as an empty square
+
 # DaylightUI 1.7.3
 
 Hopefully fixed the dreaded Nameplate bug and minimap blank bugs!

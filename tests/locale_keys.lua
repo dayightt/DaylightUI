@@ -56,6 +56,9 @@ end
 function K.Literals(src)
     local out = {}
     local pos = 1
+    -- The line is counted on from the last literal found. Counting from the top
+    -- of the file each time made the scan grow with the square of a file's size.
+    local line, counted = 1, 1
     while true do
         local s, e = src:find("%f[%w_]L%[", pos)
         if not s then break end
@@ -77,15 +80,29 @@ function K.Literals(src)
             end
         end
         if ok then
-            local _, line = src:sub(1, s):gsub("\n", "")
-            out[#out + 1] = { text = table.concat(parts), line = line + 1 }
+            local at = counted
+            while true do
+                local nl = src:find("\n", at, true)
+                if not nl or nl > s then break end
+                line, at = line + 1, nl + 1
+            end
+            counted = s + 1
+            out[#out + 1] = { text = table.concat(parts), line = line }
         end
     end
     return out
 end
 
--- Every L["..."] literal in shipped files: { [text] = "file:line" }.
+-- Every L["..."] literal in shipped files: { [text] = "file:line" }. The scan of
+-- every shipped file is kept for the run (a fresh copy each call, since callers
+-- add to it).
+local scanned
 function K.Scan(files)
+    if not files and scanned then
+        local copy = {}
+        for k, v in pairs(scanned) do copy[k] = v end
+        return copy
+    end
     local keys = {}
     for _, path in ipairs(files or K.ShippedFiles()) do
         local f = io.open(path)
@@ -94,6 +111,10 @@ function K.Scan(files)
         for _, lit in ipairs(K.Literals(src)) do
             keys[lit.text] = keys[lit.text] or (path .. ":" .. lit.line)
         end
+    end
+    if not files then
+        scanned = {}
+        for k, v in pairs(keys) do scanned[k] = v end
     end
     return keys
 end
@@ -135,6 +156,7 @@ function K.Walk(DUI, keys)
         for _, item in ipairs(type(list) == "table" and list or {}) do addItem(item, "module " .. name) end
     end
     for _, label in ipairs(DUI.Movers.Labels()) do add(label, "mover") end
+    for _, a in ipairs(DUI.Movers.AREAS) do if a.label then add(a.label, "unlock area") end end
     for _, part in ipairs(DUI.TestBox.parts) do add(part.label, "test part") end
     -- The unit frames' page samples. Each part's name shows in the strip's tooltip
     -- through Options.Text (the label is also the part's id there).

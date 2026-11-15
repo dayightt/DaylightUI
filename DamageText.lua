@@ -14,7 +14,7 @@ local L = DUI.L
 local DT = {}
 DUI.DamageText = DT
 
--- Our setting (damage.<key>) -> the game's CVar, and the client's own default.
+-- Daylight UI's setting (damage.<key>) -> the game's CVar, and the client's own default.
 DT.CVARS = {
     size = "WorldTextScale_v2",
     spread = "floatingCombatTextCombatDamageDirectionalScale_v2",
@@ -32,7 +32,7 @@ DT.PRESETS = {
 }
 DT.PRESET_ORDER = { "game", "soft", "punchy", "clean" }
 
--- The game's switches for which numbers show (stored by the game, not by us).
+-- The game's switches for which numbers show (stored by the game, not by Daylight UI).
 DT.SHOW = {
     damage = { "floatingCombatTextCombatDamage_v2" },
     healing = { "floatingCombatTextCombatHealing_v2" },
@@ -94,8 +94,8 @@ local function anyChanged()
     return false
 end
 
--- Writes the game's CVars from our settings. A player who never changed
--- anything keeps their own game settings. Once we've written them (a DB.Root
+-- Writes the game's CVars from Daylight UI's settings. A player who never changed
+-- anything keeps their own game settings. Once they've been written (a DB.Root
 -- flag), going back to the game's preset restores the client defaults.
 function DT.Apply()
     local root = DUI.DB.Root()
@@ -125,7 +125,7 @@ function DT.SetShown(what, on)
     for _, name in ipairs(DT.SHOW[what]) do
         if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
     end
-    -- Stored by the game, not our settings, so tell the window to slide the switch.
+    -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
     DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)
 end
 
@@ -147,7 +147,7 @@ DUI.On("SettingChanged", function(scope, path)
 end)
 
 -- Live sample for the options page: a dummy with numbers popping off it in the
--- chosen font and speed. Our own font strings, only moved and faded, never
+-- chosen font and speed. Daylight UI's own font strings, only moved and faded, never
 -- scaled (setting a new text size every frame is expensive). Two sizes per look.
 
 DT.SAMPLE_HEIGHT = 120
@@ -229,8 +229,9 @@ function DT.Sample(parent)
         end
     end
 
-    -- OnUpdate only runs while visible, so no OnShow is needed (a frame created
-    -- inside an already open page never gets one).
+    -- OnUpdate only runs while the frame is shown, so the sample stops by itself
+    -- when its page closes. OnShow re-reads the look; a frame made inside an
+    -- already open page never gets one, so the look is also read once below.
     f:SetScript("OnUpdate", step)
     f:SetScript("OnShow", s.Look)
     f:SetScript("OnHide", function()

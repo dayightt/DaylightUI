@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF, Style, Pixel = ns.UF, DUI.Style, DUI.Pixel
 
 local GP = {}
@@ -411,7 +412,7 @@ end
 function GP.UpdateBuffsSeen(b)
     if type(b.unitToken) ~= "string" then return end
     local ok, seen = pcall(UnitIsVisible, b.unitToken)
-    if not ok or (issecretvalue and issecretvalue(seen)) then return end
+    if not ok or isSecret(seen) then return end
     seen = seen == true
     ns.Auras.SetBuffsSeen(b.auraSet and b.auraSet.buffs, seen)
     ns.Indicators.SetSeen(b.auraSet, seen)
@@ -542,7 +543,7 @@ function GP.UpdateTargetMark(b)
     local unit = b.unitToken
     local ok, is = false, nil
     if type(unit) == "string" then ok, is = pcall(UnitIsUnit, unit, "target") end
-    if ok and issecretvalue and issecretvalue(is) then
+    if ok and isSecret(is) then
         b.markWas, b.markA = nil, nil
         DUI.Motion.Tween("tmark:" .. tostring(b), 0, 0, 0)   -- stops a plain fade
         f:Show()

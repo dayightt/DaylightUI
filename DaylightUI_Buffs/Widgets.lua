@@ -305,7 +305,7 @@ function Widgets.PaintButtonEdge(btn, id)
 end
 
 -- ---------------------------------------------------------------------
--- Our own icon buttons (weapon enchants, the preview)
+-- Plain icon buttons (weapon enchants, the preview)
 -- ---------------------------------------------------------------------
 
 local IconButtonMixin = {}

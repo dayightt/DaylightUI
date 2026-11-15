@@ -15,6 +15,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 
 local Fish = {}
 ns.Fishing = Fish
@@ -145,7 +146,7 @@ local function pointingAtThing()
     if UnitExists("mouseover") then return true end
     if not (GameTooltip and GameTooltip:IsShown()) then return false end
     local a = GameTooltip:GetAlpha()
-    return type(a) ~= "number" or (issecretvalue and issecretvalue(a)) or a > 0.9
+    return type(a) ~= "number" or secret(a) or a > 0.9
 end
 
 -- Something this press means already, or a cast that can't start.
@@ -348,7 +349,6 @@ local blow, struck = 0, false   -- s into the hammer's blow, it has landed this 
 local bubbleDebt = 0            -- bubbles owed to the tide
 local spun, kick = 0, 0         -- the gears' turn so far, what's left of a finished item's speed
 
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 local function ease(p) return 0.5 - 0.5 * math.cos(math.pi * p) end
 local function sceneOn(t) return mod and mod.db and mod.db[(t or theme).key] == true end
 
@@ -947,7 +947,7 @@ local function onScene(_, event, _, b, c, d)
     elseif event == "UNIT_SPELLCAST_START" then
         if secret(c) or not free() then return end
         local _, _, _, from, to, craft = UnitCastingInfo("player")
-        if (issecretvalue and issecretvalue(craft)) or craft ~= true or type(from) ~= "number" or type(to) ~= "number" or secret(from) or secret(to) then return end
+        if secret(craft) or craft ~= true or type(from) ~= "number" or type(to) ~= "number" or secret(from) or secret(to) then return end
         local name = themeOf(c, true)
         if name and sceneOn(Scene.THEMES[name]) then Scene.Craft(name, c, from, to) end
     elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then

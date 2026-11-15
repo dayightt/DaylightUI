@@ -12,6 +12,7 @@
 -- says so once.
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 
 local Recall = {}
 ns.Recall = Recall
@@ -25,9 +26,8 @@ local draft = "" -- box text when recall started
 local lastSet -- text recall last put in the box
 local noticed = false
 local enteredAt -- GetTime() of the Enter that kept a slash command
-local boxes = setmetatable({}, { __mode = "k" }) -- box -> its alt-arrow mode before ours
+local boxes = setmetatable({}, { __mode = "k" }) -- box -> its alt-arrow mode before Recall changed it
 
-local function secret(v) return issecretvalue and issecretvalue(v) end
 local function held(fn) return type(fn) == "function" and fn() end
 
 function Recall.Lines() return lines end

@@ -4,6 +4,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -28,7 +29,6 @@ Report.CHANNELS = {
     { key = "whisper", chat = "WHISPER", text = L["Whisper"], can = function() return true end },
 }
 
-local function secret(v) return issecretvalue and issecretvalue(v) end
 
 local function db()
     local mod = DUI:GetModule("InfoPanel")
@@ -53,12 +53,12 @@ local function spellLines(m, n, who)
     -- the meter now (by the GUID the meter knows), plain.
     local want = ns.Meter.GuidOf(who)
     local recap = who.deathRecapID
-    if issecretvalue(recap) or type(recap) ~= "number" or recap <= 0 then recap = nil end
+    if secret(recap) or type(recap) ~= "number" or recap <= 0 then recap = nil end
     local sources = (want or recap) and m.Sources()
     for _, s in ipairs(type(sources) == "table" and sources or {}) do
         -- (a death: that death, by its recap; anyone else: by GUID)
         local same
-        if recap then same = not issecretvalue(s.deathRecapID) and s.deathRecapID == recap
+        if recap then same = not secret(s.deathRecapID) and s.deathRecapID == recap
         else same = ns.Meter.GuidOf(s) == want end
         if same then who = s break end
     end

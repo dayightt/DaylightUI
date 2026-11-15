@@ -137,14 +137,15 @@ T.test("a reload item asks (the core's own reload prompt) only when its value ac
     } } })
     local page = DUI.Options.GetPage("Demo.main")
     local reloadItem, plainItem = page.groups[1].items[1], page.groups[1].items[2]
-    stub.popup = nil
+    local W = DUI.Widgets
     DUI.Options.Set(page, reloadItem, false)
-    T.eq(stub.popup.which, "DAYLIGHTUI_RELOAD", "changed: asks to reload")
-    stub.popup = nil
+    T.eq(W.Asking() and W.Asking().key, "reload", "changed: asks to reload")
+    T.truthy(W.Asking().reload)
+    W.Answer(false)
     DUI.Options.Set(page, reloadItem, false)
-    T.isnil(stub.popup, "unchanged: no second ask")
+    T.isnil(W.Asking(), "unchanged: no second ask")
     DUI.Options.Set(page, plainItem, false)
-    T.isnil(stub.popup, "no reload flag: never asks")
+    T.isnil(W.Asking(), "no reload flag: never asks")
 end)
 
 T.test("a restart item tells the player once, with only an Okay to click through", function()
@@ -156,17 +157,17 @@ T.test("a restart item tells the player once, with only an Okay to click through
     } } })
     local page = DUI.Options.GetPage("Demo.main")
     local item = page.groups[1].items[1]
-    stub.popup = nil
+    local W = DUI.Widgets
     DUI.Options.Set(page, item, false)
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_RESTART", "changed: says a restart is needed")
-    T.eq(stub.popup.text, "Restart to see it.")
-    local dialog = StaticPopupDialogs.DAYLIGHTUI_RESTART
-    T.truthy(dialog.button1, "an Okay button")
-    T.isnil(dialog.button2, "nothing else to click")
-    T.falsy(dialog.hideOnEscape, "Escape doesn't skip it")
-    stub.popup = nil
+    local spec = W.Asking()
+    T.eq(spec and spec.key, "restart", "changed: says a restart is needed")
+    T.eq(spec.text, "Restart to see it.")
+    T.truthy(spec.yes, "an Okay button")
+    T.eq(spec.no, false, "nothing else to click")
+    T.falsy(_G.DaylightUIAsk.foot.buttons[2] and _G.DaylightUIAsk.foot.buttons[2]:IsShown())
+    W.Answer(true)
     DUI.Options.Set(page, item, false)
-    T.isnil(stub.popup, "unchanged: no second notice")
+    T.isnil(W.Asking(), "unchanged: no second notice")
 end)
 
 T.test("the damage numbers font says a restart is needed", function()
@@ -177,9 +178,8 @@ T.test("the damage numbers font says a restart is needed", function()
         for _, it in ipairs(g.items) do if it.key == "damage.font" then item = it end end
     end
     T.truthy(item and item.restart, "the Font row")
-    stub.popup = nil
     DUI.Options.Set(page, item, "bangers")
-    T.eq(stub.popup and stub.popup.which, "DAYLIGHTUI_RESTART")
+    T.eq(DUI.Widgets.Asking() and DUI.Widgets.Asking().key, "restart")
 end)
 
 T.test("an invalid module page is reported in chat", function()
@@ -197,7 +197,7 @@ T.test("every unit frames page is valid", function()
         T.eq(#DUI.Options.ValidatePage(page), 0, id)
         if page.section == "UnitFrames" then n = n + 1 end
     end
-    T.eq(n, 17, "no Healer Frames page, no Target Auras page; Click-casting is one; Raid 10, 20 and 40; the Personal Display; PvP Frames; Focus Target")
+    T.eq(n, 19, "no Healer Frames page, no Target Auras page; Click-casting is one; Raid 10, 20 and 40; the Personal Display; PvP Frames; Focus Target; Party Targets; Aura Lists")
     T.falsy(stub.ChatContains("Options ("))
 end)
 
@@ -734,6 +734,10 @@ T.test("options: a row added since the version you count from says NEW; search f
         if hit.item.since then any = true end
     end
     T.truthy(any, "searching new lists the tagged rows")
+    DaylightUIDB.newSince = "1.7.3"
+    local labels = {}
+    for _, hit in ipairs(O.Search(" New ")) do labels[hit.item.label] = true end
+    T.truthy(labels["UI scale"], "any case and stray spaces still list what came after 1.7.3")
 end)
 
 T.test("options: the NEW tag sits after the label's words, clear of the reset arrow", function()
@@ -769,4 +773,99 @@ T.test("options: an update counts from the version you came from, a new characte
     O.NoteVersion()
     T.eq(DaylightUIDB.newSince, "1.0", "the same version: unchanged")
     DUI.VERSION = v
+end)
+
+-- The game's StaticPopup, opened from addon code, taints the game's shared
+-- pop-up state: Leave Instance Group was then refused and blamed on Daylight
+-- UI. Every question is asked in Daylight UI's own box instead.
+T.test("questions: asked in Daylight UI's own box, never the game's pop-ups", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    stub.popup = nil
+    local said
+    W.Ask({ key = "a", text = "Clear every fight?", onYes = function() said = "yes" end, onNo = function() said = "no" end })
+    local f = _G.DaylightUIAsk
+    T.truthy(f and f:IsShown(), "the box shows")
+    T.eq(f.text:GetText(), "Clear every fight?")
+    T.eq(W.Asking().key, "a")
+    T.isnil(stub.popup, "not the game's pop-up")
+    f.foot.buttons[2]:Click()
+    T.eq(said, "no")
+    T.isnil(W.Asking(), "answered")
+    W.Ask({ key = "a", text = "Again?", onYes = function() said = "yes" end })
+    f.foot:Press(1)
+    T.eq(said, "yes", "Yes runs inside the click")
+    T.isnil(stub.popup)
+end)
+
+T.test("questions: one box per key, others wait their turn", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    local f
+    W.Ask({ key = "a", text = "First" })
+    W.Ask({ key = "b", text = "Second" })
+    W.Ask({ key = "a", text = "First, changed" })
+    W.Ask({ key = "b", text = "Second, changed" })
+    f = _G.DaylightUIAsk
+    T.eq(f.text:GetText(), "First, changed", "the same key updates the box")
+    W.Answer(false)
+    T.eq(W.Asking().key, "b", "the waiting one comes next")
+    T.eq(f.text:GetText(), "Second, changed", "once, with its latest text")
+    T.truthy(f:IsShown())
+    W.Answer(true)
+    T.isnil(W.Asking(), "nothing left")
+    -- A question asked from an answer takes the box over.
+    W.Ask({ key = "c", text = "Third", onYes = function() W.Ask({ key = "d", text = "Fourth" }) end })
+    W.Answer(true)
+    T.eq(W.Asking().key, "d")
+    W.Answer(false)
+end)
+
+T.test("questions: a text prompt hands back the trimmed text, never empty", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    local got
+    W.Prompt("Name for the new profile:", "Healer", function(text) got = text end)
+    local f = _G.DaylightUIAsk
+    T.truthy(f.input:IsShown(), "a text box")
+    T.eq(f.input:GetText(), "Healer", "starts with the given text")
+    f.input:SetText("  Tank  ")
+    W.Answer(true)
+    T.eq(got, "Tank")
+    got = nil
+    W.Prompt("Name:", "", function(text) got = text end)
+    W.Answer(true)
+    T.isnil(got, "empty: nothing to do")
+    W.Prompt("Away message", "", function(text) got = text end, { empty = true })
+    W.Answer(true)
+    T.eq(got, "", "unless empty is fine")
+    W.Ask({ key = "q", text = "No box here" })
+    T.falsy(f.input:IsShown(), "a plain question has no text box")
+    W.Answer(false)
+end)
+
+T.test("questions: Reload is a secure /reload click, and waits out a fight", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    local ran = 0
+    W.Ask({ key = "reload", text = "Reload now?", reload = true, onYes = function() ran = ran + 1 end })
+    local r = _G.DaylightUIAskReload
+    T.truthy(r and r:IsShown(), "a secure button over Yes")
+    T.eq(r:GetAttribute("type"), "macro")
+    T.eq(r:GetAttribute("macrotext"), "/reload")
+    stub.EnterCombat()
+    T.falsy(r:IsShown(), "hidden as the fight starts")
+    T.isnil(W.Asking(), "the question steps aside")
+    stub.LeaveCombat()
+    T.eq(W.Asking() and W.Asking().key, "reload", "and comes back after")
+    T.truthy(r:IsShown())
+    r:Click()
+    T.eq(ran, 1, "the click runs onYes before its /reload")
+    W.Answer(false)
+    stub.EnterCombat()
+    W.Ask({ key = "reload", text = "Reload now?", reload = true })
+    T.isnil(W.Asking(), "asked in a fight: waits")
+    stub.LeaveCombat()
+    T.eq(W.Asking() and W.Asking().key, "reload")
+    W.Answer(false)
 end)

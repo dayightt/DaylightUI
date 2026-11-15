@@ -9,7 +9,7 @@ local Style = DUI.Style
 local Gradients = {}
 DUI.Gradients = Gradients
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 Gradients.ORIENTATIONS = { VERTICAL = "Vertical (light on top)", HORIZONTAL = "Horizontal (light at the full end)" }
 Gradients.ORIENTATION_ORDER = { "HORIZONTAL", "VERTICAL" }

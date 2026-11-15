@@ -8,7 +8,7 @@
 --    and counts down on a Cooldown frame's numbers, as M:SS.
 --  * Aura bar: the client's aura container (CdmAuras.Setup) with one button that
 --    carries a bar the client fills itself (SetDurationBar, emptying as the aura
---    runs out), plus the aura's time and stacks, laid over an empty bar of ours
+--    runs out), plus the aura's time and stacks, laid over an empty Daylight UI bar
 --    with the spell's name.
 -- No cooldown or aura value is read or compared; the client does the math. The
 -- aura button and everything on it lock whenever auras are secret, so it is only
@@ -16,6 +16,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style, Pixel = DUI.Style, DUI.Pixel
 local Skin = ns.Skin
 local CD = ns.Cooldowns
@@ -33,7 +34,6 @@ local auras = {}      -- [cooldownID] = aura bar holder
 local gen = 0         -- bumped on a style change so every aura bar lays out again
 DUI.On("StyleChanged", function() gen = gen + 1 end)
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function plainBool(v) if type(v) == "boolean" and not secret(v) then return v end end
 local function plainNum(v) if type(v) == "number" and not secret(v) then return v end end
 
@@ -375,10 +375,10 @@ local function shieldShown(h, btn, up)
     h.shieldUp = on
 end
 
--- Places our shield bar where the client's bar is (same numbers as LayoutButton), in
+-- Places Daylight UI's shield bar where the client's bar is (same numbers as LayoutButton), in
 -- the bar's color, with the amount on the right where the time was ("Show shield
 -- amount") and the name while the button wears the bar's look itself (h.bare). It's
--- our own frame so it never locks, but it's laid out together with the button.
+-- Daylight UI's own frame so it never locks, but it's laid out together with the button.
 local function layoutShield(h)
     local s = h.shield
     if not s then return end
@@ -503,7 +503,7 @@ function B.LayoutButton(h, btn, parts)
     local w, hh = h.w, h.h
     btn:SetSize(w, hh)
     local p = CD.Parts(h)
-    local block = ns.CdmRows and ns.CdmRows.BlockOf(h)
+    local block = ns.CdmRows and ns.CdmRows.BlockOf(h) or h.firstBlock
     local Look = ns.CdmData.Look
     local icon = not block or Look(block, "icon") ~= false
     local inset = Pixel.Px(h, Skin.BORDER_PX)
@@ -541,7 +541,7 @@ function B.LayoutButton(h, btn, parts)
     -- The fill: bar texture, then the block's or spell's color.
     local tex = parts.bar:GetStatusBarTexture()
     if tex then tex:SetTexture(Style.BarFile("fill", ns.MEDIA.bars.cdm)) end
-    -- Filled by the shield left (our h.shield on top), so the client's fill, time
+    -- Filled by the shield left (Daylight UI's h.shield on top), so the client's fill, time
     -- and name step aside.
     local shield = byShield(h)
     if tex then tex:SetAlpha(shield and 0 or 1) end
@@ -552,7 +552,7 @@ function B.LayoutButton(h, btn, parts)
     CD.ColourBase(h, parts.bar, parts, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button)
     -- No background color set: paint the empty part dark (ColourBase painted the cover).
     if not back then parts.backTex:SetVertexColor(parts.back:GetVertexColor()) end
-    -- With "Show missing buffs" off (h.bare) our empty bar is gone, so the button
+    -- With "Show missing buffs" off (h.bare) Daylight UI's empty bar is gone, so the button
     -- wears the whole bar look itself (background, borders, name) and nothing shows
     -- while the aura is down.
     local bare = h.bare == true
@@ -592,7 +592,7 @@ function B.LayoutButton(h, btn, parts)
 end
 
 local function relayout(h)
-    -- Ours and the button's switch together so there's never a frame with neither.
+    -- The empty bar and the button's switch together so there's never a frame with neither.
     h.bare = h.wantBare
     h.under:SetAlpha(h.bare and 0 or 1)
     h.over:SetAlpha(h.bare and 0 or 1)
@@ -602,7 +602,7 @@ local function relayout(h)
 end
 
 -- The pieces of an aura bar: icon, bar, time, stacks and the bar's look for when
--- our empty bar is off. Made inside the client's button, or on a frame of ours
+-- Daylight UI's empty bar is off. Made inside the client's button, or on a Daylight UI frame
 -- for a debuff on you (the self-debuff face).
 local function makeParts(btn)
     local function try(fn, ...) return pcall(fn, ...) end
@@ -626,7 +626,7 @@ local function makeParts(btn)
     try(parts.time.SetPoint, parts.time, "RIGHT", parts.bar, "RIGHT", -4, 0)
     parts.count = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     try(parts.count.SetPoint, parts.count, "BOTTOMRIGHT", parts.icon, "BOTTOMRIGHT", -1, 1)
-    -- The bar's look while our empty bar is off ("Show missing buffs" off): the
+    -- The bar's look while Daylight UI's empty bar is off ("Show missing buffs" off): the
     -- icon and bar borders and the name. Kept out of the style repaint because the
     -- client locks them, so LayoutButton (after restrictions) repaints them.
     parts.iconBox = CreateFrame("Frame", nil, btn)
@@ -647,7 +647,7 @@ local function makeParts(btn)
 end
 
 -- Built once inside the client's initializeFrame (the button locks once that
--- returns): our pieces, with the bar, time and stacks handed to the client.
+-- returns): Daylight UI's pieces, with the bar, time and stacks handed to the client.
 local function initButton(h, btn)
     local function try(fn, ...) return pcall(fn, ...) end
     local parts = makeParts(btn)
@@ -669,7 +669,7 @@ local function initButton(h, btn)
     try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
     try(btn.SetApplicationCount, btn, parts.count)
     ns.CdmEffects.MakeSlide(btn, h)
-    -- Shown and hidden, for the shield bar (ours, outside the button).
+    -- Shown and hidden, for the shield bar (Daylight UI's, outside the button).
     try(btn.HookScript, btn, "OnShow", function() shieldShown(h, btn, true) end)
     try(btn.HookScript, btn, "OnHide", function() shieldShown(h, btn, false) end)
     DUI.SafeCall(B.LayoutButton, h, btn, parts)
@@ -762,9 +762,9 @@ local function fitAura(h, w, hh, block, button)
     DUI.AfterRestrictions(function() relayout(h) end, "cdm:aurabar:" .. tostring(h.id))
 end
 
--- An aura bar with the spell's cooldown running underneath (Thunder Clap). Our bar
+-- An aura bar with the spell's cooldown running underneath (Thunder Clap). Daylight UI's bar
 -- shows the cooldown (full when ready) and the client's aura bar covers it while
--- the aura is up. Without it our bar stays empty with a dim icon.
+-- the aura is up. Without it Daylight UI's bar stays empty with a dim icon.
 local function setUnder(h, under)
     if h.cooldownUnder == under then return end
     h.cooldownUnder = under
@@ -772,7 +772,7 @@ local function setUnder(h, under)
     h.Icon.Icon:SetAlpha(under and 1 or B.UNDER_ALPHA)
     if under then
         if not h.Timer then addTimer(h) end
-        -- The client's bar over our cooldown and its time, the names over both.
+        -- The client's bar over Daylight UI's cooldown and its time, the names over both.
         local level = h.Timer:GetFrameLevel() + 1
         for _, k in ipairs(h.containers or {}) do pcall(k.c.SetFrameLevel, k.c, level) end
     else
@@ -785,14 +785,15 @@ local function setUnder(h, under)
     end
 end
 
--- always = "Show missing buffs": our empty bar shows while the aura is down. When
+-- always = "Show missing buffs": Daylight UI's empty bar shows while the aura is down. When
 -- off, only the client's button shows, wearing the bar's look.
-function B.Aura(id, parent, under, always)
+-- w, hh, block and button: the size and look it's about to be fitted to (CdmRows).
+function B.Aura(id, parent, under, always, w, hh, block, button)
     under = under == true
     local h = auras[id]
     if not h then
         h = CreateFrame("Frame", nil, parent)
-        -- Our empty bar (icon, bar and their borders) under the client's.
+        -- Daylight UI's empty bar (icon, bar and their borders) under the client's.
         h.under = CreateFrame("Frame", nil, h)
         h.under:SetAllPoints(h)
         -- The name sits over the client's bar.
@@ -810,15 +811,11 @@ function B.Aura(id, parent, under, always)
         makeShield(h)
         auras[id] = h
         DUI.SafeCall(CD.SkinItem, h)
-        -- The bar's border frame belongs with the rest of our empty bar.
+        -- The bar's border frame belongs with the rest of Daylight UI's empty bar.
         local p = CD.Parts(h)
         if p and p.slot then
             p.slot:SetParent(h.under)
             p.slot:SetFrameLevel(math.max(0, h.Bar:GetFrameLevel() - 1))
-        end
-        if ns.CdmAuras then
-            DUI.SafeCall(ns.CdmAuras.Setup, h, id)
-            ns.CdmAuras.Track(h)
         end
     elseif h:GetParent() ~= parent then
         h:SetParent(parent)
@@ -829,7 +826,27 @@ function B.Aura(id, parent, under, always)
     setUnder(h, under)
     -- Applied together with the button's layout (fitAura) so both change at once.
     h.wantBare = not (always == true or under)
-    -- The client's bar above our empty one (its frames sit a level under h.under's).
+    if not h.built then
+        h.built = true
+        -- The client makes the buttons and lays them out the moment the
+        -- containers exist, and in a fight or a dungeon they can't be laid out
+        -- again until it's over. So they're made at the size and look the bar is
+        -- about to get, never the starting one.
+        if w and hh then h.w, h.h = w, hh end
+        h.button, h.firstBlock = button, block
+        h.bare = h.wantBare
+        h.under:SetAlpha(h.bare and 0 or 1)
+        h.over:SetAlpha(h.bare and 0 or 1)
+        if ns.CdmAuras then
+            DUI.SafeCall(ns.CdmAuras.Setup, h, id)
+            ns.CdmAuras.Track(h)
+        end
+        if under and h.Timer then
+            local over = h.Timer:GetFrameLevel() + 1
+            for _, k in ipairs(h.containers or {}) do pcall(k.c.SetFrameLevel, k.c, over) end
+        end
+    end
+    -- The client's bar above Daylight UI's empty one (its frames sit a level under h.under's).
     local level = h.Bar:GetFrameLevel() + 2
     for _, k in ipairs(h.containers or {}) do
         if k.c:GetFrameLevel() < level then pcall(k.c.SetFrameLevel, k.c, level) end

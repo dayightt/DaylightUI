@@ -58,7 +58,7 @@ Fade.inInstance = false -- in a dungeon, raid, battleground or arena (from the z
 Fade.INSTANCE_KINDS = { party = true, raid = true, pvp = true, arena = true }
 Fade.intro = true -- areas registering now start at 0 (if the fade-in is on)
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
+local isSecret = DUI.IsSecret
 
 -- Is the mouse over f? Secure frames (the buffs header) can return a secret
 -- boolean from IsMouseOver. Then measure the cursor ourselves, and if even
@@ -424,7 +424,12 @@ function Fade.Step()
     if moving then driver:Show() end
 end
 
--- def: { key, scope, path, frames, page? (an id or a list), cap?, wake?, over? (mouse on it, when frames can't say), paint?, float? (false: no "Only when something changes" option), whole? (true: fades as one picture, Fade.Whole; only for Daylight UI frames with overlapping pieces) }
+-- def needs a key and a frames function, plus the scope and path of the area's
+-- fade setting. page is the options page (an id or a list) that shows it. The
+-- optional functions cap (an opacity limit), wake, over (whether the mouse is on
+-- it, when its frames can't tell) and paint (sets the alpha itself) tune it.
+-- float = false drops the "Only when something changes" choice, and whole = true
+-- fades the area as one picture (Fade.Whole), for frames with overlapping pieces.
 function Fade.Register(def)
     assert(type(def.key) == "string" and type(def.frames) == "function", "Fade.Register: key and frames")
     assert(def.float == nil or def.float == false, "Fade.Register: float")
@@ -611,14 +616,27 @@ function Fade.Hushed() return next(hushes) ~= nil end
 -- (UIParent's alpha). Never hide it: hidden and shown again, the game's map
 -- came back blank (at every login and after each NPC talk in town). Its own
 -- alpha is restored to what it was once nobody holds it.
+-- When the info panel holds the map, it sets the map's alpha itself
+-- (Fade.mapFollow): it's then asked again on every call, since the AFK
+-- screen and the NPC scene call this on each step of their fade.
 local mapAway, mapAlphaBefore = {}, nil
+function Fade.MapIsAway() return next(mapAway) ~= nil end
+
 function Fade.MapAway(name, on)
     on = on == true
-    if (mapAway[name] == true) == on then return end
+    local follow = Fade.mapFollow
+    if (mapAway[name] == true) == on then
+        if follow then follow() end
+        return
+    end
     local map = _G.Minimap
     if type(map) ~= "table" then return end
     local before = next(mapAway) ~= nil
     mapAway[name] = on or nil
+    if follow then
+        follow()
+        return
+    end
     local now = next(mapAway) ~= nil
     if now and not before then
         local a = map:GetAlpha()
@@ -717,7 +735,7 @@ end
 -- left to right. Modules join through the "LoginReveal" callback (action
 -- buttons light up in a wave, unit frames arrive, quests slide in), and a
 -- welcome line shows. Runs on login and /reload, not on zone changes or in
--- combat (fight info comes first). The traces are our own frames on UIParent
+-- combat (fight info comes first). The traces are Daylight UI's own frames on UIParent
 -- laid over the shells, never anchored to them, so no protected frame is
 -- touched and everything works from the first moment.
 
@@ -1138,7 +1156,7 @@ function Fade.HubShows(e)
 end
 
 -- Its own page disables it: raid frames off, the bag bar hidden, the game's
--- tracker while ours runs.
+-- tracker while the Quests module's runs.
 local function areaOff(a)
     local off = a.base.opacity.disabled
     return off ~= nil and off(a.get) == true

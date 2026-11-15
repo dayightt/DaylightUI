@@ -14,19 +14,44 @@ ns.Window = Window
 
 Window.NAME = "DaylightUIBag"
 Window.EDGE = 10             -- inner margin
-Window.TITLE = DUI.Win.COMPACT   -- title bar height, the window kit's compact header
+Window.TITLE = DUI.Win.HEADER   -- header height: portrait, title and sub line
 Window.ROW = 22              -- tool row height (search and buttons)
 Window.GAP = 6               -- between rows
-Window.FOOTER = 18
+Window.FOOTER_ROW = 18       -- the footer's text and button row
+Window.BAR_GAP = 2           -- between that row and the row above it
+Window.SELL_ROW = 18         -- the row holding the free-slots bar and Sell junk
+Window.BAR_W = 64            -- the free-slots bar's width
+Window.FOOTER = Window.FOOTER_ROW + Window.BAR_GAP + Window.SELL_ROW
+-- Filters under the search, words like the header tabs (still called chips in
+-- the code). One shows only the groups listed (keys of Cat.PRIORITY). They show
+-- while the search is in use or a filter is picked (Window.FiltersWanted).
+Window.CHIPS = {
+    { id = "all" },
+    { id = "gear", groups = { "sets", "weapon", "armor" } },
+    { id = "use", groups = { "hearthstone", "consumable" } },
+    { id = "trade", groups = { "reagent", "tradegoods", "recipe" } },
+    { id = "quest", groups = { "quest" } },
+    { id = "junk", groups = { "junk" } },
+}
+local CHIP_LABEL = {
+    all = function() return ALL or L["All"] end,
+    gear = function() return L["Gear"] end,
+    use = function() return L["Use"] end,
+    trade = function() return L["Trade"] end,
+    quest = function() return QUESTS_LABEL or L["Quest"] end,
+    junk = function() return L["Junk"] end,
+}
 Window.TEXT_SIZE = Style.SIZE.body
 Window.DIM = DUI.Style.INK.LABEL   -- hints, small icons, count labels
 -- Free slot thresholds for warn and bad colors, same as the InfoPanel bag
 -- data text (DT.BAGS_WARN/BAGS_BAD).
 Window.FREE_WARN, Window.FREE_BAD = 4, 0
 Window.DEFAULT_POINT = { "BOTTOMRIGHT", "BOTTOMRIGHT", -24, 220 }
-Window.SORT_ICON = "Interface\\Icons\\INV_Pet_Broom"
+-- Tool row icons (Media files, W.IconButton); the portrait keeps the game's bag.
+Window.SORT_ICON = "ui-sort.png"
+Window.SLOTS_ICON = "ui-section-bags.png"
+Window.VIEW_ICON = "ui-view.png"
 Window.BAGS_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
-Window.VIEW_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 
 ns.windows = {}              -- every window created, bag first
 
@@ -48,7 +73,8 @@ local function tip(owner, title, line, hint)
         Tips.Title(type(title) == "function" and title() or title)
         local l = type(line) == "function" and line() or line
         if l then Tips.Text(l) end
-        if hint then Tips.Hint(hint) end
+        local h = type(hint) == "function" and hint() or hint
+        if h then Tips.Hint(h) end
         Tips.Flush(GameTooltip)
         GameTooltip:Show()
     end)
@@ -59,19 +85,11 @@ local function tip(owner, title, line, hint)
 end
 Window.Tip = tip
 
--- Small square icon button built on W.Button with the icon over its fill.
--- tip() keeps the hover trace going through b.hover.
+-- A flat tool icon, as tall as the search. tip() takes over its tooltip (with
+-- a line saying what it does) and keeps the hover color going through b.hover.
 local function iconButton(parent, file)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(Window.ROW, Window.ROW)
-    DUI.Widgets.DressButton(b)
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetTexture(file)
-    Style.CropIcon(b.icon)
-    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 4, -4)
-    b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 4)
-    b.icon:SetAlpha(0.75)
-    b.hover = function(on) b.icon:SetAlpha(on and 1 or 0.75); b.Hover(on) end
+    local b = DUI.Widgets.IconButton(parent, file, nil, nil, Window.ROW)
+    b.hover = b.Paint
     return b
 end
 
@@ -79,7 +97,7 @@ end
 -- template: a game template to build from (the bank's Buy tab).
 function Window.TextButton(parent, label, template)
     local b = CreateFrame("Button", nil, parent, template)
-    b:SetHeight(Window.FOOTER)
+    b:SetHeight(Window.FOOTER_ROW)
     DUI.Widgets.DressButton(b)
     b.text:SetFont(b.text:GetFont(), Window.TEXT_SIZE, "")
     function b.SetLabel(s)
@@ -92,14 +110,37 @@ function Window.TextButton(parent, label, template)
     return b
 end
 
+-- The view the view button goes to next: Shelf, Grid, List, round again.
+Window.VIEWS = { "categories", "grid", "list" }
+function Window.NextView(view)
+    for i, v in ipairs(Window.VIEWS) do
+        if v == view then return Window.VIEWS[i % #Window.VIEWS + 1] end
+    end
+    return Window.VIEWS[1]
+end
+
 local function searchBox(f)
     -- Each window has its own search.
     local eb = DUI.Widgets.Input(f, { height = Window.ROW, size = Window.TEXT_SIZE, search = true,
         hint = L["Search, or try quest, food, rare"],
         onChange = function(t)
+            -- Mid-cleanup the icons still show what they held: end the hold
+            -- before matching, or the search dims them by the wrong items.
+            Window.SortTouched(f)
             f.match = ns.Search.Parse(t)
             Window.MatchAll(f)
+            Window.SyncFilters(f)
+            ns.Move.Queue()
         end })
+    -- The filters come with the search: shown while it has focus.
+    eb:HookScript("OnEditFocusGained", function()
+        Window.SortTouched(f)
+        Window.SyncFilters(f)
+    end)
+    eb:HookScript("OnEditFocusLost", function()
+        -- A click on a filter takes the focus first; that click decides instead.
+        if not Window.OverFilters(f) then Window.SyncFilters(f) end
+    end)
     -- Hovering the box shows the search syntax.
     eb:HookScript("OnEnter", function(self)
         GameTooltip:Hide()
@@ -210,10 +251,11 @@ function Window.Create(spec)
     Style.Shell(f, { window = "Bags" })
     local E = Window.EDGE
 
-    -- The window kit's compact header: title, X, accent line.
-    DUI.Win.Header(f, { compact = true, onClose = spec.onClose })
+    -- The window kit's header: portrait, title, sub line, X, accent line.
+    DUI.Win.Header(f, { portrait = true, onClose = spec.onClose })
     DUI.Win.WheelScale(f, function() return f.Setting("scale") end, function(v) f.Set("scale", v) end, 0.5, 1.5)
     f.title:SetText(L[spec.title])
+    Window.SetPortrait(f, spec.portrait)
 
     -- Dragged by the title bar (not over the X).
     local handle = CreateFrame("Frame", nil, f)
@@ -239,6 +281,7 @@ function Window.Create(spec)
         end)
     end
     f.handle = handle
+    if spec.portraitMenu then Window.PortraitMenu(f, spec.portraitMenu) end
 
     local moverKey = "bags." .. f.kind
     if not DUI.Movers.Get(moverKey) then
@@ -265,6 +308,7 @@ function Window.Create(spec)
     f.search:SetPoint("TOPLEFT", f, "TOPLEFT", E, top)
     Window.LayoutTools(f)
 
+    Window.Chips(f)
     f.items = CreateFrame("Frame", nil, f)
     f.items.dluiWindow = f
     f.items:SetPoint("TOPLEFT", f, "TOPLEFT", E, top - Window.ROW - Window.GAP)
@@ -272,27 +316,46 @@ function Window.Create(spec)
     f.free = text(f, Window.TEXT_SIZE, "LEFT")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E, E)
     DUI.Style.InkText(f.free, "VALUE")
+    -- A thin bar of used slots above the free count.
+    f.freeBar = DUI.Widgets.Bar(f, DUI.Widgets.BAR_H)
+    f.freeBar:SetWidth(Window.BAR_W)
+    f.freeBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", E,
+        E + Window.FOOTER_ROW + Window.BAR_GAP + (Window.SELL_ROW - DUI.Widgets.BAR_H) / 2)
     f.money = text(f, Window.TEXT_SIZE, "RIGHT")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E)
     if spec.kind == "bag" then
+        -- Shown only at a vendor with something to sell (Window.UpdateSell).
+        f.sellJunk = Window.TextButton(f, L["Sell junk"])
+        -- On the bar's row, away from the money and currencies below.
+        f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
+        f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
+        f.sellJunk:Hide()
         -- A warlock over their Soul Shard limit (Window.UpdateShards). Deletes only
         -- on a second click.
         f.dropShards = Window.TextButton(f, "")
         f.dropShards.fit = 1
-        f.dropShards:SetPoint("LEFT", f.free, "RIGHT", 14, 0)
         DUI.Widgets.Confirm(f.dropShards, function() return Window.ShardLabel(f.shardsExtra or 0) end, function()
             ns.Junk.DeleteShards()
             DUI.Widgets.EaseShown(f.dropShards, false)
         end)
         f.dropShards:Hide()
+        ns.Move.Build(f)
     end
     if spec.footer then spec.footer(f) end
 
     f:SetScript("OnHide", function(self)
+        -- Closed mid-cleanup: the rest fills while closed, and the next open lays it
+        -- out at once.
+        if self.sorting then
+            if self.sorting.changed then self.stale = true end
+            self.sorting = nil
+        end
         -- A search only lasts while the window is open.
         if self.search:GetText() ~= "" then self.search:SetText("") end
         self.match = nil
+        if self.chip then Window.PickChip(self, nil, true) end
         self.search:ClearFocus()
+        Window.SyncFilters(self)
     end)
     -- On open, lay out and fill whatever changed while closed and wasn't already
     -- done in the background (Prep.lua). New loot shines after the window has
@@ -458,11 +521,348 @@ function Window.LayoutTools(f)
     else f.search:SetPoint("RIGHT", f, "RIGHT", -Window.EDGE, 0) end
 end
 
+-- A chip shows only its groups; nothing picked shows everything. Custom groups
+-- belong to All only. Recent is judged item by item (Window.ItemInChip).
+function Window.InChip(f, key)
+    local id = f and f.chip
+    if not id then return true end
+    for _, c in ipairs(Window.CHIPS) do
+        if c.id == id then
+            for _, g in ipairs(c.groups or {}) do if g == key then return true end end
+        end
+    end
+    return false
+end
+
+-- Whether an item shows under the picked chip. New loot is judged by the group
+-- it falls in once it's no longer new, so a fresh weapon still shows under Gear.
+function Window.ItemInChip(f, facts, section)
+    if not (f and f.chip) then return true end
+    return Window.InChip(f, ns.Categories.Assign(facts, section, true))
+end
+
+-- animate: a click grows the picked word's underline in.
+function Window.PaintChips(f, animate)
+    for _, b in ipairs(f.chips or {}) do b.Pick(b.id == (f.chip or "all"), animate) end
+end
+
+-- The filters show while the search has focus or text, or a filter is picked.
+function Window.FiltersWanted(f)
+    if f.chip then return true end
+    local eb = f.search
+    if not eb then return false end
+    local t = eb:GetText()
+    return (type(t) == "string" and t ~= "") or eb:HasFocus() == true
+end
+
+function Window.OverFilters(f)
+    for _, b in ipairs(f.chips or {}) do
+        if b:IsVisible() and b:IsMouseOver() then return true end
+    end
+    return false
+end
+
+-- Shows or hides the filters when that changed, laying the window out again,
+-- eased as a fold is. Closed, it lays out at once so the next open has no room
+-- left for them.
+function Window.SyncFilters(f)
+    local want = Window.FiltersWanted(f)
+    if want == (f.filtersShown or false) then return end
+    f.filtersShown = want
+    if not f.items then return end
+    if not f:IsShown() then
+        if not f.stale then DUI.SafeCall(Window.Relayout, f, true, true) end
+        return
+    end
+    ns.Layout.easing = true
+    DUI.SafeCall(Window.Relayout, f, true, true)
+    ns.Layout.easing = false
+end
+
+-- Picks a chip (nil or "all" = everything). The grid view dims at once; the
+-- categories view lays out again, gliding like a fold. quiet: closing, so the
+-- categories view lays out on the next open instead of now.
+function Window.PickChip(f, id, quiet)
+    if id == "all" then id = nil end
+    if f.chip == id then return end
+    if not quiet then Window.SortTouched(f) end
+    f.chip = id
+    Window.PaintChips(f, not quiet)
+    if ns.Layout.Grouped(f.Setting("view")) then
+        -- One layout for both the filter and the filters' row.
+        f.filtersShown = Window.FiltersWanted(f)
+        if quiet then
+            f.stale = true
+            return
+        end
+        ns.Layout.easing = true
+        DUI.SafeCall(Window.Relayout, f)
+        ns.Layout.easing = false
+    else
+        Window.MatchAll(f)
+        Window.SyncFilters(f)
+    end
+end
+
+-- Places the filters in as many lines as the grid's width needs and moves the
+-- slots below them. Returns the room they take, 0 while hidden. When the layout
+-- eases they fade in dropping a little and fade out where they are; otherwise
+-- they come and go at once.
+function Window.LayoutChips(f, width)
+    local Wd, M = DUI.Widgets, DUI.Motion
+    local top = -(Window.TITLE + Window.GAP + Window.ROW + Window.GAP)
+    local on = f.filtersShown == true
+    local eases = ns.Layout.Eases(f)
+    local was = f.filtersLaid
+    f.filtersLaid = on
+    local h = 0
+    if on then
+        local x, line, lastX = 0, 0, 0
+        for _, b in ipairs(f.chips or {}) do
+            local bw = b:GetWidth()
+            if x > 0 and x + bw > width then x, line = 0, line + 1 end
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + x, top - line * Wd.TAB_H)
+            lastX = x + bw + Window.FILTER_GAP
+            x = lastX
+            if not was and eases then
+                b:SetAlpha(0)
+                M.AlphaTo(b, 1, M.NORMAL)
+                DUI.Win.Feel.Glide(b, 0, ns.Layout.FOLD_DROP, M.NORMAL)
+            elseif not was then
+                M.AlphaTo(b, 1, 0)
+            end
+        end
+        line = line + ns.Move.Place(f, true, lastX, line, top, width, eases)
+        h = (line + 1) * Wd.TAB_H + Window.GAP
+    else
+        ns.Move.Place(f, false, 0, 0, top, width, eases)
+        for _, b in ipairs(f.chips or {}) do
+            if was and eases then
+                M.AlphaTo(b, 0, M.FAST, true)
+            else
+                DUI.Win.Feel.Settle(b)
+                M.AlphaTo(b, 0, 0, true)
+            end
+        end
+    end
+    f.items:ClearAllPoints()
+    -- The list's column heads sit above its rows (listLead), outside what scrolls.
+    f.items:SetPoint("TOPLEFT", f, "TOPLEFT", Window.EDGE + Window.Inset(f), top - h - (f.listLead or 0))
+    return h
+end
+
+-- The Shelf starts a little in so a heading's chevron has room in the margin.
+function Window.Inset(f)
+    local cfg = f.Cfg and f.Cfg()
+    -- The list keeps its chevrons inside its own width, as it cuts off what's outside.
+    return cfg and cfg.view == "categories" and ns.Layout.SHELF_INSET or 0
+end
+
+-- The filter words under the search, one W.Tab per CHIPS entry, hidden at rest.
+Window.FILTER_GAP = DUI.Win.TAB_GAP
+function Window.Chips(f)
+    f.chips = {}
+    for _, c in ipairs(Window.CHIPS) do
+        local b = DUI.Widgets.Tab(f, CHIP_LABEL[c.id](), { size = DUI.Win.TAB_SIZE })
+        b.id = c.id
+        b.FitWidth()
+        b:SetScript("OnClick", function()
+            Window.PickChip(f, c.id)
+            Window.SyncFilters(f)
+            ns.Move.Queue()
+        end)
+        -- After Escape or Enter left the search with the mouse resting here, the
+        -- row waited for this word's click; the mouse leaving decides instead.
+        b:HookScript("OnLeave", function()
+            if not f.search:HasFocus() then Window.SyncFilters(f) end
+        end)
+        b:Hide()
+        f.chips[#f.chips + 1] = b
+    end
+    Window.PaintChips(f)
+end
+
+-- A right-click on the bag's portrait drops a small menu under it: the bank
+-- and, while the viewer is on, the alts. spec: title, hint (text or functions),
+-- items() returning the menu's keys and labels, pick(key).
+function Window.PortraitMenu(f, spec)
+    local b = CreateFrame("Button", nil, f)
+    b:SetAllPoints(f.portrait)
+    b:SetFrameLevel(f.handle:GetFrameLevel() + 2)
+    b:RegisterForClicks("RightButtonUp")
+    -- Dragging from the portrait still moves the window.
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function() local fn = f.handle:GetScript("OnDragStart"); if fn then fn(f.handle) end end)
+    b:SetScript("OnDragStop", function() local fn = f.handle:GetScript("OnDragStop"); if fn then fn(f.handle) end end)
+    b:SetScript("OnClick", function(self, button)
+        if button ~= "RightButton" then return end
+        local keys, values = spec.items()
+        DUI.Widgets.OpenMenu(self, keys, values, nil, spec.pick)
+    end)
+    -- The rim warms to the accent while the mouse is on it.
+    local over = 0
+    local function paint(p)
+        over = p
+        local lo, r, g, bl = Style.BAND, Style.Accent()
+        f.portraitRim:SetVertexColor(lo[1] + (r - lo[1]) * p, lo[2] + (g - lo[2]) * p, lo[3] + (bl - lo[3]) * p, 1)
+    end
+    b.hover = function(on)
+        local M = DUI.Motion
+        if M then M.Tween(f.portraitRim, over, on and 1 or 0, M.FAST, paint) else paint(on and 1 or 0) end
+    end
+    tip(b, spec.title, nil, spec.hint)
+    f.portraitButton = b
+    return b
+end
+
 function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
-    if ns.Keep.Any() then return ns.Keep.Sort() end
+    local f = ns.window
+    if ns.Keep.Any() then
+        -- Its own rounds: held until they're done, or SORT_MAX at most.
+        local hold = Window.BeginSort(f, false, true)
+        return ns.Keep.Sort(function() if hold then Window.EndSort(f, nil, hold) end end)
+    end
+    Window.BeginSort(f, false)
     pcall(C_Container.SortBags)
+end
+
+-- A cleanup moves items through many bag updates, a few at a time. Filling and
+-- laying out each one makes the icons flicker through every move, so an open
+-- window holds them (f.sorting) until the bags have been still for SORT_SETTLE
+-- seconds, or SORT_MAX at most, then plays it all as one glide: each item
+-- slides from where it was to its new slot. The game's sort only asks the
+-- server, so the first move can take a while: until one lands it waits up to
+-- SORT_FIRST.
+Window.SORT_SETTLE = 0.25
+Window.SORT_FIRST = 1
+Window.SORT_MAX = 3
+
+-- When a hold lets go: never past SORT_MAX; not while a run started by the bags
+-- (Keep, the merge on open) is still moving things (owners); SORT_FIRST after
+-- asking the server, until its first move lands; then SORT_SETTLE after the
+-- last move.
+local function sortDue(s)
+    local due = s.start + Window.SORT_MAX
+    if s.owners > 0 then return due end
+    if s.asked then return math.min(due, s.asked + Window.SORT_FIRST) end
+    return math.min(due, s.last + Window.SORT_SETTLE)
+end
+
+local function sortSettled(f, s)
+    if f.sorting ~= s then return end
+    local now = GetTime()
+    local due = sortDue(s)
+    if now >= due then return Window.EndSort(f) end
+    C_Timer.After(due - now, function() sortSettled(f, s) end)
+end
+
+local function checkSortIn(f, s, delay)
+    C_Timer.After(math.max(0, delay), function() sortSettled(f, s) end)
+end
+
+-- Starts holding an open window for a cleanup, or joins the one already held.
+-- quiet: lay it out at once at the end, no glide (the stacks merged as the bag
+-- opens, while it's still fading in); false asks for the glide even when a
+-- quiet one is held. owned: a run started by the bags (Keep, the merge on open) that
+-- ends its part with EndSort(f, nil, hold); otherwise it's the game's sort,
+-- which waits for the server. Returns the hold, nil when not holding: never in a
+-- fight or under the client's restrictions, where the bag has to be right at once.
+function Window.BeginSort(f, quiet, owned)
+    if not f or f.spec.still then return end
+    local now = GetTime()
+    local s = f.sorting
+    if not s then
+        if not f:IsShown() or ns.Items.InCombat() or DUI.Restricted() then return end
+        s = { start = now, last = now, quiet = quiet == true, owners = 0 }
+        f.sorting = s
+    elseif quiet == false then
+        s.quiet = false
+    end
+    if owned then
+        s.owners = s.owners + 1
+    else
+        s.start, s.asked, s.game = now, now, true
+    end
+    checkSortIn(f, s, sortDue(s) - now)
+    return s
+end
+
+-- Lays the window out again and fills what changed, gliding when eased. Spots
+-- held for items that left (Layout.Hold) close up too.
+local function relayoutNow(f, eased)
+    if not f:IsShown() then
+        f.stale = true
+        return
+    end
+    if InCombatLockdown and InCombatLockdown() then return Window.Changed(f) end
+    local changed = f.set.Sync(f.items)
+    ns.Layout.easing = eased
+    DUI.SafeCall(Window.Relayout, f, true, not changed)
+    ns.Layout.easing = false
+    Window.FillDirty(f)
+end
+
+-- An eased layout of an open window from where everything shows now, closing up
+-- the spots held for items that left.
+function Window.EaseRelayout(f) relayoutNow(f, true) end
+
+-- Ends a cleanup's hold: one layout and one fill. The slots still show what
+-- they held when it began (nothing was filled or laid out since), so the glide
+-- starts from there. With no bag changed, only fills held meanwhile are done.
+-- instant: no glide (a fight is starting). hold: a run started by the bags is done
+-- (BeginSort's owned); the hold waits on for any other run or the server.
+function Window.EndSort(f, instant, hold)
+    local s = f and f.sorting
+    if not s or (hold and hold ~= s) then return end
+    if hold then
+        s.owners = math.max(0, s.owners - 1)
+        if s.owners > 0 then return end
+        if s.game then return checkSortIn(f, s, sortDue(s) - GetTime()) end
+    end
+    f.sorting = nil
+    instant = instant or DUI.Restricted()
+    if not (s.changed or f.stale) then return Window.FillDirty(f) end
+    relayoutNow(f, not (s.quiet or instant))
+end
+
+-- Mid-cleanup a slot can still show the item it held before. The moment the
+-- player reaches for one, the hold ends, so what they click is what they see.
+function Window.SortTouched(f)
+    if f and f.sorting then Window.EndSort(f) end
+end
+
+-- Puts an icon in the header's round portrait, cropped like our other icons.
+function Window.SetPortrait(f, file, l, r, t, b)
+    if not f.portrait then return end
+    f.portrait:SetTexture(file)
+    if l then f.portrait:SetTexCoord(l, r, t, b) else DUI.Style.CropIcon(f.portrait) end
+    f.portrait:SetShown(file and true or false)
+    f.portraitRim:SetShown(file and true or false)
+end
+
+-- The sub line under the title. The bag reads "<name> · 12 of 32 free", the bank
+-- "12 of 32 free" (the number in the accent, warn or bad colors when low); the
+-- viewer paints its own through spec.updateSub.
+function Window.UpdateSub(f)
+    if not f or not f.sub then return end
+    DUI.Style.InkText(f.sub, "LABEL")
+    if f.spec.updateSub then return f.spec.updateSub(f) end
+    local bag = f.spec.kind == "bag"
+    local free, total = f.set.Free(bag)
+    if type(free) ~= "number" or type(total) ~= "number" or total == 0 then return f.sub:SetText("") end
+    local role = bag and ((free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN")) or nil
+    local hex = DUI.Win.Parts.Hex(role and DUI.Style.INK[role] or { DUI.Style.Pop() })
+    local count = hex .. free .. "|r"
+    local name = bag and DUI.UnitName("player", "player")
+    -- A name can be secret in combat; it is only shown when it is plain text.
+    if type(name) == "string" and not (issecretvalue and issecretvalue(name)) then
+        f.sub:SetText(string.format(L["%s · %s of %d free"], name, count, total))
+    else
+        f.sub:SetText(string.format(L["%s of %d free"], count, total))
+    end
 end
 
 -- Footer free slots and money (plus the window's own pieces). Only while shown;
@@ -492,24 +892,52 @@ function Window.UpdateFooter(f)
         role = (free <= Window.FREE_BAD and "BAD") or (free <= Window.FREE_WARN and "WARN") or "pop"
     end
     DUI.Style.InkText(f.free, role)
+    Window.UpdateFreeBar(f, free, total, role)
     if f.spec.updateFooter then
         f.spec.updateFooter(f)
     else
-        f.money:SetText(DUI.MoneyString(GetMoney and GetMoney() or 0))
+        f.money:SetText(DUI.Widgets.Money(GetMoney and GetMoney() or 0))
     end
     if ns.Currency then ns.Currency.Update(f) end
+    Window.UpdateSell(f)
     if bag then
         ns.Junk.MarkCheapest(f)
         Window.UpdateShards(f)
     end
+    Window.UpdateSub(f)
+end
+
+-- The bar fills with the slots in use and eases there; warn and bad colors
+-- when the bag is nearly full, the accent otherwise.
+function Window.UpdateFreeBar(f, free, total, role)
+    local W = DUI.Widgets
+    if type(free) ~= "number" or type(total) ~= "number" or total <= 0 then
+        return Style.SetBarValue(f.freeBar, 0, true)
+    end
+    local c = (role == "BAD" or role == "WARN") and Style.INK[role] or nil
+    if c then W.BarFrom(f.freeBar, c[1], c[2], c[3]) else W.BarAccent(f.freeBar) end
+    Style.SetBarValue(f.freeBar, (total - free) / total, not f.freeBar:IsVisible())
+end
+
+-- Sell junk shows at a vendor while something is worth selling, and says what
+-- it comes to.
+function Window.UpdateSell(f)
+    if not f.sellJunk then return end
+    local list = ns.Junk.vendorOpen and ns.Junk.Items() or {}
+    local total = 0
+    for _, item in ipairs(list) do total = total + item.value end
+    if #list > 0 then
+        f.sellJunk.SetLabel(string.format(L["Sell junk · %s"], DUI.Widgets.Money(total, { color = false })))
+    end
+    DUI.Widgets.EaseShown(f.sellJunk, #list > 0)
 end
 
 function Window.ShardLabel(n)
     return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete %d extra shards"], n)
 end
 
--- Delete extra shards shows beside the free slots while a warlock carries more
--- Soul Shards than their limit.
+-- Delete extra shards shows while a warlock carries more Soul Shards than their
+-- limit, left of Sell junk when that's up.
 function Window.UpdateShards(f)
     local b = f and f.dropShards
     if not b then return end
@@ -518,6 +946,13 @@ function Window.UpdateShards(f)
         f.shardsExtra = n
         if b.Disarm then b.Disarm() end
         b.Paint()
+    end
+    local E = Window.EDGE
+    b:ClearAllPoints()
+    if f.sellJunk and f.sellJunk:IsShown() then
+        b:SetPoint("BOTTOMRIGHT", f.sellJunk, "BOTTOMLEFT", -Window.GAP, 0)
+    else
+        b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
     end
     DUI.Widgets.EaseShown(b, n > 0)
 end
@@ -543,6 +978,11 @@ end
 local countBefore = {}
 function Window.Relayout(f, synced, moved)
     if not f or not ns.module then return end
+    if f.sorting then
+        -- A cleanup is moving things: its end lays everything out (Window.EndSort).
+        f.stale = true
+        return
+    end
     if not ns.CanLayout(f) then
         DUI.AfterCombat(function() Window.Relayout(f) end, "bags:layout:" .. f.kind)
         return
@@ -569,18 +1009,39 @@ function Window.Relayout(f, synced, moved)
     end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
-    local W, H = w + E * 2, Window.TITLE + Window.GAP + Window.ROW + Window.GAP + h + Window.GAP + Window.FOOTER + E
-    -- A fold (heading click) glides the window to its new size along with the slots
-    -- (Layout.Ease); anything else snaps.
+    -- Header, tool row, filters (when shown), slots and footer, a gap between
+    -- each; the footer sits on the edge.
+    local W = w + E * 2 + Window.Inset(f)
     local Feel = DUI.Win.Feel
-    if ns.Layout.easing and f:IsShown() then
+    local eases = ns.Layout.Eases(f)
+    if not eases and Feel.Moving(f.items) then Feel.Settle(f.items) end
+    local _, _, _, _, wasY = f.items:GetPoint(1)
+    local chipH = Window.LayoutChips(f, w)
+    local _, _, _, _, nowY = f.items:GetPoint(1)
+    local H = Window.TITLE + Window.GAP + Window.ROW + Window.GAP + chipH + (f.listLead or 0) + h + Window.GAP + Window.FOOTER + E
+    -- An eased layout glides the window to its new size along with the slots
+    -- (Layout.Ease); anything else snaps. When the filters come or go the grid
+    -- glides from where it was on the same curve, so it never jumps.
+    if eases then
         Feel.Size(f, W, H, DUI.Motion.NORMAL)   -- in step with the slots' Feel.Glide
+        if type(wasY) == "number" and type(nowY) == "number" and wasY ~= nowY then
+            Feel.Glide(f.items, 0, wasY - nowY, DUI.Motion.NORMAL)
+        end
     else
         if Feel.Moving(f) then Feel.Settle(f) end
         f:SetSize(W, H)
     end
     if f.kind == "bag" and ns.Slots then ns.Slots.Layout() end
     if f.spec.afterLayout then f.spec.afterLayout(f) end
+end
+
+-- Ends every glide and fade in a window at once: its slots, the grid, its size.
+function Window.Settle(f)
+    if not f then return end
+    ns.Layout.Settle(f)
+    local Feel = DUI.Win.Feel
+    if Feel.Moving(f.items) then Feel.Settle(f.items) end
+    if Feel.Moving(f) then Feel.Settle(f) end
 end
 
 -- Marks what a window still needs to fill: f.dirty[bag] = true for one bag, or
@@ -594,6 +1055,7 @@ end
 -- Fills slots of the dirty bags (all of them for dirtyAll), and cooldowns if
 -- one changed while closed.
 function Window.FillDirty(f)
+    if f.sorting then return end   -- filled when the cleanup ends
     local all, dirty = f.dirtyAll, f.dirty
     if all or next(dirty) then
         local owner = GameTooltip and GameTooltip:GetOwner()
@@ -614,7 +1076,7 @@ end
 function Window.FillAll(f)
     if not f then return end
     if not f:IsShown() then
-        if f.Setting("view") == "categories" then f.stale = true end
+        if ns.Layout.Grouped(f.Setting("view")) then f.stale = true end
         Window.MarkDirty(f)
         return
     end
@@ -635,10 +1097,35 @@ end
 -- grouped empty slots also depend on contents.
 function Window.Changed(f, bags)
     if not f or f.spec.still then return end
+    if f.sorting then
+        if f:IsShown() and not (InCombatLockdown and InCombatLockdown()) and not DUI.Restricted() then
+            -- Mid-cleanup: note it and wait for the bags to settle (Window.BeginSort).
+            local s = f.sorting
+            s.changed, s.last = true, GetTime()
+            if s.asked then
+                -- The server's first move: from now on it settles SORT_SETTLE after the last.
+                s.asked = nil
+                checkSortIn(f, s, Window.SORT_SETTLE)
+            end
+            if bags then
+                for bag in pairs(bags) do Window.MarkDirty(f, bag) end
+            else
+                Window.MarkDirty(f)
+            end
+            return
+        end
+        -- A fight or the client's restrictions started (or the window closed): what
+        -- was held is laid out and filled below, at once.
+        f.sorting = nil
+        f.stale = true
+    end
     local changed, synced = false, false
     if not (InCombatLockdown and InCombatLockdown()) then
         changed, synced = f.set.Sync(f.items), true
     else
+        -- The slots can't change in a fight (Sync waits for it to end), so the
+        -- layout below skips its own Sync and refills only what moved.
+        synced = true
         -- One cached function and key per window (loot in a fight calls this often).
         if not f.changedLater then
             f.changedLater = function() Window.Changed(f) end
@@ -647,7 +1134,7 @@ function Window.Changed(f, bags)
         DUI.AfterCombat(f.changedLater, f.changedKey)
     end
     local laidOut = false
-    local relay = changed or f.Setting("emptySlots") == "grouped" or f.Setting("view") == "categories"
+    local relay = changed or f.Setting("emptySlots") == "grouped" or ns.Layout.Grouped(f.Setting("view"))
     if relay and not changed and f:IsShown() and ns.Layout.Holds(f) then
         -- Open, and items only left (fast selling): slots stay put and the next open
         -- lays it out (Layout.Holds).
@@ -658,8 +1145,11 @@ function Window.Changed(f, bags)
     if relay then
         if f:IsShown() or changed then
             laidOut = ns.CanLayout(f)
-            -- Same slots: only the changed bags and moved counts refill.
-            Window.Relayout(f, synced, synced and not changed)
+            -- Same slots: only the changed bags and moved counts refill. Loot
+            -- while open glides the rest aside (never in a fight, see Layout.Eases).
+            ns.Layout.easing = true
+            DUI.SafeCall(Window.Relayout, f, synced, synced and not changed)
+            ns.Layout.easing = false
         else
             f.stale = true
         end
@@ -695,8 +1185,10 @@ end
 -- of these); closed ones are marked for later.
 local function fillCooldowns()
     for _, f in ipairs(ns.windows) do
-        if f:IsShown() then
+        if f:IsShown() and not f.sorting then
             for _, s in ipairs(f.set.Slots()) do ns.Items.FillCooldown(s.button) end
+        elseif f.sorting then
+            f.cdDirty = true    -- filled when the cleanup ends
         else
             f.cdDirty = true
             if ns.Prep then ns.Prep.CooldownsDirtied(f) end
@@ -704,19 +1196,7 @@ local function fillCooldowns()
     end
 end
 
--- Runs fn once on the next frame, however many times it's requested this frame.
-local function soon(fn)
-    local armed = false
-    local function run()
-        armed = false
-        fn()
-    end
-    return function()
-        if armed then return end
-        armed = true
-        C_Timer.After(0, run)
-    end
-end
+local soon = DUI.Soon
 
 local function registerEvents()
     -- Bags changed during a burst; only those get refilled.
@@ -754,11 +1234,19 @@ local function registerEvents()
         if type(slot) ~= "number" then return end
         for _, f in ipairs(ns.windows) do
             local btn = f.set.Button(bag, slot)
-            if btn and f:IsShown() then ns.Items.FillLocked(btn)
+            if btn and f:IsShown() and not f.sorting then ns.Items.FillLocked(btn)
             elseif btn then Window.MarkDirty(f, bag) end
         end
     end)
     DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", soon(fillCooldowns))
+    -- A fight needs the bag right at once: a cleanup still held lands now, and
+    -- anything still gliding or fading lands where it was going.
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        for _, f in ipairs(ns.windows) do
+            Window.EndSort(f, true)
+            Window.Settle(f)
+        end
+    end)
     DUI.RegisterEvent("PLAYER_MONEY", function() for _, f in ipairs(ns.windows) do Window.UpdateFooter(f) end end)
     DUI.RegisterEvent("CURRENCY_DISPLAY_UPDATE", function() if ns.window then Window.UpdateFooter(ns.window) end end)
 end
@@ -768,20 +1256,47 @@ end
 local function bagWindow()
     local f = Window.Create({
         kind = "bag", name = Window.NAME, title = "Bags", set = ns.Bags, prefix = "",
+        portrait = Window.BAGS_ICON,
         defaultPoint = Window.DEFAULT_POINT,
         onClose = function() ns.OpenClose.CloseAll() end,
-        onShow = function() ns.Stack.Run() end,
+        -- Stacks merged on open are held like a cleanup, but land without a glide:
+        -- the bag is still fading in.
+        onShow = function(f)
+            local hold = Window.BeginSort(f, true, true)
+            ns.Stack.Run(function() if hold then Window.EndSort(f, nil, hold) end end)
+        end,
         onTitleRightClick = function() ns.Viewer.ToggleBank() end,
+        portraitMenu = {
+            title = function() return L["Bags"] end,
+            hint = function()
+                return ns.Viewer.On() and L["Right-click: your bank and alts"] or L["Right-click: your bank"]
+            end,
+            items = function()
+                local keys, values = { "bank" }, { bank = BANK or L["Bank"] }
+                if ns.Viewer.On() then
+                    keys[2] = "alts"
+                    values.alts = L["Alts"]
+                end
+                return keys, values
+            end,
+            pick = function(key)
+                if key == "bank" then ns.Viewer.OpenBank()
+                elseif key == "alts" then ns.Viewer.OpenAlts() end
+            end,
+        },
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
-            { key = "viewerButton", icon = ns.Viewer.ICON, title = L["Bank and alts"],
-              desc = L["Your bank and your other characters' bags, from anywhere."], onClick = function(w) ns.Viewer.Menu(w.viewerButton) end,
-              hint = L["Right-click: your bank"], onRightClick = function() ns.Viewer.ToggleBank() end },
-            { key = "slotsButton", icon = Window.BAGS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
-              onClick = function(w) w.Set("showSlots", not w.Setting("showSlots")) end },
-            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Categories or bags"],
-              desc = L["Switch between items grouped by kind and the plain bag-by-bag grid."],
-              onClick = function(w) w.Set("view", w.Setting("view") == "categories" and "grid" or "categories") end },
+            { key = "slotsButton", icon = Window.SLOTS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
+              onClick = function(w)
+                  Window.SortTouched(w)
+                  w.Set("showSlots", not w.Setting("showSlots"))
+              end },
+            { key = "viewButton", icon = Window.VIEW_ICON, title = L["Shelf, grid or list"],
+              desc = L["Switch between Shelf, grouped by kind, Grid, bag by bag, and List, a row per item."],
+              onClick = function(w)
+                  Window.SortTouched(w)
+                  w.Set("view", Window.NextView(w.Setting("view")))
+              end },
             -- Last, next to the search. Each only shown to characters who know its
             -- spell (Disenchant.lua puts a secure button over it on hover).
             { key = "disenchantButton", icon = ns.Disenchant.ICON, title = ns.Disenchant.Title,
@@ -810,6 +1325,7 @@ function ns.Build(mod)
         ns.Comprehend.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
+        ns.Move.Register()
         ns.Guard.Register()
         ns.Repair.Register()
         ns.Layout.Register()
@@ -834,6 +1350,7 @@ function ns.Refresh(mod)
         for _, w in ipairs(ns.windows) do
             Window.Place(w)
             DUI.Win.Repaint(w)
+            Window.PaintChips(w)
             Window.Relayout(w)
             Window.FillAll(w)
         end
@@ -868,8 +1385,14 @@ DUI.Tour.Add("bags", {
         if not bagsOpen() then
             return string.format(L["Your bags sort items into groups by kind. Press %s to open them."], pop(bagKey()))
         end
-        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."],
-            pop(L["Alt-right-click"]), pop(L["Bank and alts"]))
+        -- Alts leaves the portrait's menu while the viewer is off, so the tour only
+        -- names what's there.
+        if not ns.Viewer.On() then
+            return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s."],
+                pop(L["Alt-right-click"]), pop(L["Right-click"]), pop(BANK or L["Bank"]))
+        end
+        return string.format(L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s the bag icon at the top to open your %s or your %s, from anywhere."],
+            pop(L["Alt-right-click"]), pop(L["Right-click"]), pop(BANK or L["Bank"]), pop(L["Alts"]))
     end,
     available = function() return ns.module ~= nil and DUI:Get("Bags", "enabled") ~= false end,
     wait = true,

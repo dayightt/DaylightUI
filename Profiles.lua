@@ -832,13 +832,8 @@ function Profiles.AddPresetOffering(key)
     local from = Profiles.Current()
     local made, why = Profiles.AddPreset(key)
     if made and isNew and from ~= DUI.DB.DEFAULT and Profiles.HasBarPositions(from) then
-        StaticPopupDialogs.DAYLIGHTUI_PROFILE_BARS = StaticPopupDialogs.DAYLIGHTUI_PROFILE_BARS or {
-            text = "%s", button1 = YES or L["Yes"], button2 = NO or L["No"],
-            OnAccept = function(_, d) Profiles.CopyActionBarPositions(d.from, d.to) end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-        StaticPopup_Show("DAYLIGHTUI_PROFILE_BARS",
-            string.format(L["Copy %s's action bar positions into %s too?"], from, made), nil, { from = from, to = made })
+        DUI.Widgets.Ask({ key = "profileBars", text = string.format(L["Copy %s's action bar positions into %s too?"], from, made),
+            onYes = function() Profiles.CopyActionBarPositions(from, made) end })
     end
     return made, why
 end
@@ -849,13 +844,9 @@ end
 function Profiles.CheckSwitch(text)
     local want = DUI.DB.Pick()
     if want == DUI.DB.ActiveName() then return end
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE = StaticPopupDialogs.DAYLIGHTUI_PROFILE or {
-        text = "%s", button1 = RELOADUI or L["Reload"], button2 = LATER or L["Later"],
-        OnAccept = function(_, name) Profiles.SwitchNow(name, true) end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
-    StaticPopup_Show("DAYLIGHTUI_PROFILE", string.format(text or L["Switch to the profile %s?"], want)
-        .. " " .. L["It takes a reload."], nil, want)
+    DUI.Widgets.Ask({ key = "profile", text = string.format(text or L["Switch to the profile %s?"], want)
+        .. " " .. L["It takes a reload."], yes = RELOADUI or L["Reload"], no = LATER or L["Later"], reload = true,
+        onYes = function() Profiles.SwitchNow(want, true) end })
 end
 
 -- ReloadUI is blocked unless a click calls it directly, so anything that had
@@ -863,22 +854,16 @@ end
 function Profiles.AskReload()
     local I = DUI.Installer
     if I and I.HoldReload and I.HoldReload(Profiles.AskReload) then return end
-    StaticPopupDialogs.DAYLIGHTUI_PROFILE_RELOAD = StaticPopupDialogs.DAYLIGHTUI_PROFILE_RELOAD or {
-        text = L["The profile is ready. Reload to use it."], button1 = RELOADUI or L["Reload"],
-        button2 = LATER or L["Later"], OnAccept = function() ReloadUI() end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
-    StaticPopup_Show("DAYLIGHTUI_PROFILE_RELOAD")
+    DUI.Widgets.Ask({ key = "profileReload", text = L["The profile is ready. Reload to use it."],
+        yes = RELOADUI or L["Reload"], no = LATER or L["Later"], reload = true })
 end
 
 -- Installs the profile's Edit Mode layout, then reloads, and the reload picks
 -- the profile itself (DB.Pick). A layout that can't be set now is set after
--- the reload instead (EditMode.lua). `clicked` means this was called straight
--- from one of the game's own popup buttons, so an instant reload is allowed
--- (the game blocks it from our buttons and from timers). It reloads in that
--- click with the layout just written (the game keeps it over a reload, and if
--- it didn't, the load check puts it in place). Otherwise a Reload button is
--- shown.
+-- the reload instead (EditMode.lua). `clicked` means this runs inside the
+-- question box's secure Reload click, whose /reload follows right after with
+-- the layout just written (the game keeps it over a reload, and if it didn't,
+-- the load check puts it in place). Otherwise a Reload button is shown.
 function Profiles.SwitchNow(name, clicked)
     if InCombatLockdown() then
         DUI.Print(L["Switching profile after combat."])
@@ -888,13 +873,13 @@ function Profiles.SwitchNow(name, clicked)
     -- The controller UI keeps its own Edit Mode layouts, and installing ours then
     -- crashes the game (EditMode.GamepadMode), so just reload.
     if DUI.DB.PadUI() then
-        if clicked then ReloadUI() return end
+        if clicked then return end
         C_Timer.After(0, Profiles.AskReload)
         return
     end
     local ok, why = EditMode.UseProfile(name)
     if not ok then DUI.Print(string.format(L["The profile's Edit Mode layout will be set after the reload (%s)."], tostring(why))) end
-    if clicked then ReloadUI() return end
+    if clicked then return end
     C_Timer.After(ok and Profiles.SWITCH_DELAY or 0, Profiles.AskReload)
 end
 

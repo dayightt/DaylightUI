@@ -1544,10 +1544,10 @@ T.test("quests clicks: the menu, with Share only in a group", function()
     T.deq(QW.Calls("share"), { q.logIndex })
     -- A yes/no box of its own, no map or journal needed; only the yes drops it.
     T.deq(QW.Calls("abandon"), {}, "nothing dropped yet")
-    T.eq(stub.popup.which, "DAYLIGHTUI_ABANDON_QUEST")
-    T.truthy(stub.popup.text:find(q.title, 1, true), "it names the quest")
+    T.eq(stub.Asked(), "abandonQuest")
+    T.truthy(stub.AskText():find(q.title, 1, true), "it names the quest")
     T.deq(QW.Calls("map"), {}, "no map opened")
-    StaticPopupDialogs.DAYLIGHTUI_ABANDON_QUEST.OnAccept(nil, stub.popup.data)
+    stub.Answer(true)
     T.deq(QW.Calls("abandon"), { q.id })
     T.eq(#QW.Calls("error"), 1, "only the refused Share in the fight said no")
 end)
@@ -1561,13 +1561,13 @@ T.test("quests clicks: Abandon's box works in a fight, names what it destroys, a
     local combat = _G.InCombatLockdown
     _G.InCombatLockdown = function() return true end
     ns.Clicks.Do("abandon", q)
-    T.truthy(stub.popup and stub.popup.text:find("Okra", 1, true), "the item is named")
+    T.truthy(stub.AskText():find("Okra", 1, true), "the item is named")
     T.deq(QW.Calls("error"), {}, "no refusal in a fight")
     _G.InCombatLockdown = combat
     local can = C_QuestLog.CanAbandonQuest
     C_QuestLog.CanAbandonQuest = function() return false end
     T.deq(ns.Clicks.MenuKeys(q), { "priority", "fold", "map", "details", "wowhead", "untrack" }, "no row when the game says no")
-    StaticPopupDialogs.DAYLIGHTUI_ABANDON_QUEST.OnAccept(nil, stub.popup.data)
+    stub.Answer(true)
     T.deq(QW.Calls("abandon"), {}, "gone meanwhile: nothing happens")
     C_QuestLog.CanAbandonQuest = can
     C_QuestLog.GetAbandonQuestItems, C_Item.GetItemNameByID = itemsWas, nameWas
@@ -1732,6 +1732,41 @@ T.test("quests clicks: the tooltip lists objectives and the hint", function()
         for _, l in ipairs(GameTooltip.lines) do if l:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") == h then found = true end end
         T.truthy(found, "each click hint on its own line: " .. h)
     end
+end)
+
+-- Moving from one quest straight down to the next: the leave lifted every dim
+-- and the enter skipped the quests already dim, so they all lit up again.
+T.test("quests clicks: moving from one quest to the next dims every other quest", function()
+    local Tr, ns = tracker({ quests = { STEW, QW.quest(2, "A Fishy Peril"), QW.quest(3, "Red Leather Bandanas") } })
+    local a, b, c = Tr.frames["quest:1"], Tr.frames["quest:2"], Tr.frames["quest:3"]
+    local function settle() for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 60) end end
+    a:GetScript("OnEnter")(a)
+    settle()
+    T.eq(b.dim, Tr.DIM)
+    a:GetScript("OnLeave")(a)
+    b:GetScript("OnEnter")(b)
+    settle()
+    T.eq(b.dim, 1, "the quest under the mouse is lit")
+    T.eq(a.dim, Tr.DIM, "the one left is dim")
+    T.eq(c.dim, Tr.DIM, "the one that was already dim stays dim")
+    b:GetScript("OnLeave")(b)
+    settle()
+    T.eq(c.dim, 1, "off the list: all lit")
+end)
+
+T.test("quests clicks: a hovered quest wears the list row wash, eased in and out", function()
+    local Tr = tracker({ quests = { STEW, QW.quest(2, "A Fishy Peril") } })
+    local a, b = Tr.frames["quest:1"], Tr.frames["quest:2"]
+    local function settle() for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 60) end end
+    T.falsy(a.hi:IsShown(), "nothing at rest")
+    a:GetScript("OnEnter")(a)
+    settle()
+    T.truthy(a.hi:IsShown(), "the hovered quest's wash")
+    T.near(a.hi:GetAlpha(), DaylightUI.Win.Parts.HI[4], 0.001, "the shared row wash's strength")
+    T.falsy(b.hi:IsShown(), "only that one")
+    a:GetScript("OnLeave")(a)
+    settle()
+    T.falsy(a.hi:IsShown(), "gone with the mouse")
 end)
 
 T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but still lights", function()

@@ -15,7 +15,7 @@ local function fontRow(Options)
     return row({ type = "dropdown", key = "damage.sctFont", label = "Combat text font", choices = Options.DamageFontChoices,
         fallback = "auto", preview = "font", fetch = function(key)
             if key == "auto" then return DUI.GameFonts.CombatTextWanted() or DUI.Style.FONT end
-            return DUI.Media.Fetch("font", key) or (DUI.Style.FONTS[key] and DUI.Style.FONTS[key].file)
+            return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
         end,
         desc = "Automatic uses your Appearance font." })
 end

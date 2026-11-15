@@ -1,14 +1,16 @@
 -- The public API other addons build on (DaylightUI.API; Plugins.lua creates
--- the table and handles which version a plugin needs). Find our frames, hear
+-- the table and handles which version a plugin needs). Find Daylight UI's frames, hear
 -- when they're created, change unit, go away or get restyled, and read
 -- settings.
 --
 -- Frame kinds (fixed): "unit" (player, target, targettarget, pet, focus,
 -- focustarget), "party", "raid", "partypet", "nameplate", "actionbutton".
--- List rows in our windows (1.2): "shoptile" (the vendor's shelf, unit =
+-- List rows in Daylight UI's windows (1.2): "shoptile" (the vendor's shelf, unit =
 -- "buy:<index>" or "buyback:<index>", see API.ShopItem) and "craftrow" (the
 -- profession window's recipe lines, unit = the recipe id). 1.4: "platecast",
--- a nameplate's cast bar (unit = its plate's).
+-- a nameplate's cast bar (unit = its plate's). 1.5: "actionbar", the action
+-- bars' holders (unit = the bar's key: "main", "bar2"... "stance", "pet").
+-- 1.6: "meterrow", a damage meter window's row (unit = "<window>:<place>").
 -- Frame events, args (kind, frame, unit, isPreview): FrameMade,
 -- FrameUnitChanged, FrameRemoved, FrameStyled. A frame that changes unit (a
 -- pooled plate) first gets FrameRemoved for the old one. Preview frames (test
@@ -20,7 +22,7 @@
 -- CraftStarted (recipeID, count), CraftMade (recipeID, done, count),
 -- CraftStopped (recipeID, done, count).
 --
--- Our frames call the reporters below (DUI.APIReport: Made, Unit, Back, Gone,
+-- Daylight UI's frames call the reporters below (DUI.APIReport: Made, Unit, Back, Gone,
 -- Occupant, Styled), each behind Report.Wants where it costs anything, so
 -- with nobody listening a report is just a table read. They're internal and
 -- not part of DaylightUI.API (another addon could break the lookups through
@@ -38,12 +40,18 @@ local Report = {}
 DUI.APIReport = Report
 
 local FRAME_EVENTS = { FrameMade = true, FrameUnitChanged = true, FrameRemoved = true, FrameStyled = true }
-local PASSED_ON = { "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }
+local PASSED_ON = { "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login",
+    -- 1.7
+    "AfkScreenShown", "AfkScreenHidden" }
 local passedOn = {}
 for _, name in ipairs(PASSED_ON) do passedOn[name] = true end
--- The only events our windows may send (Report.Event).
+-- The only events Daylight UI's windows may send (Report.Event).
 local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChanged = true,
-    CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true }
+    CraftRecipeSelected = true, CraftStarted = true, CraftMade = true, CraftStopped = true,
+    -- The damage meter's (1.6).
+    MeterFightStarted = true, MeterFightEnded = true, MeterReset = true,
+    -- The Cooldown Manager's (1.7): spellID, piece key.
+    CooldownReady = true, CooldownStarted = true }
 
 local lists = {} -- event -> array of listeners { fn, owner, event, dead }
 local counts = {} -- event -> listeners still alive
@@ -122,6 +130,16 @@ end
 local stopPainterRef -- the Paint section's stopper (defined below)
 
 function API.Off(handle)
+    if type(handle) == "table" and handle.tooltipLines == true then return Report.DropTooltipLines(handle) end
+    if type(handle) == "table" and handle.chatFormatter == true then return Report.DropFormatter(handle) end
+    if type(handle) == "table" and handle.shopFilter == true then
+        if Report.DropShopFilter then Report.DropShopFilter(handle) end
+        return
+    end
+    if type(handle) == "table" and handle.override == true then
+        if Report.DropOverride then Report.DropOverride(handle, true) end
+        return
+    end
     if type(handle) == "table" and handle.painter == true then
         if stopPainterRef then stopPainterRef(handle) end
         return
@@ -256,7 +274,7 @@ end
 -- A known row is a unit change when its key moved, or a new occupant when the
 -- same key now holds something else (info.id, like another shop's item at the
 -- same index). A row not in this fill lets go of its key. Then FrameStyled
--- fires for each, so a plugin repaints over our fresh paint. info (a table or
+-- fires for each, so a plugin repaints over Daylight UI's fresh paint. info (a table or
 -- nil) is what API.ShopItem returns.
 local fills = {} -- kind -> { now = { [frame] = isPreview }, was = {...}, order }
 
@@ -317,13 +335,14 @@ function Report.ListClear(kind)
     Report.ListDone(kind)
 end
 
--- Paint (1.3): a plugin's look applied to our frames right after each of our
+-- Paint (1.3): a plugin's look applied to Daylight UI's frames right after each of its
 -- own paints. A module that opens a kind provides its frames' named parts
 -- (Report.Parts), reports when it painted one (Report.Painted), checks before
 -- coloring a piece a plugin claimed (Report.Owned), and can repaint a frame
--- back to our look (Report.Repainter).
+-- back to Daylight UI's look (Report.Repainter).
 
 local partsOf = {} -- kind -> fn(frame) -> { name = region }
+local infoOf = {} -- kind -> fn(frame) -> what it shows now, for a paint with none given
 local repaint = {} -- kind -> fn(frame)
 local painters = {} -- kind -> array of { fn, owner, owns = { part = true }, dead, painter = true }
 local owners = {} -- kind -> { part -> the painter holding it }
@@ -334,6 +353,10 @@ function Report.Parts(kind, fn)
     partsOf[kind] = fn
     if not had and paintAsked then paintAsked(kind) end
 end
+-- A kind whose frames can say what they show at any time (action buttons):
+-- a painter started, stopped or caught up gets that instead of nothing.
+function Report.Info(kind, fn) infoOf[kind] = fn end
+
 -- Is anyone painting kind? A module skips gathering info when nobody is.
 function Report.Painting(kind) return painters[kind] ~= nil end
 
@@ -381,10 +404,14 @@ local function paintOne(e, kind, frame, info)
     if not get then return end
     local ok, parts = pcall(get, frame)
     if not ok or type(parts) ~= "table" then return end
+    if info == nil and infoOf[kind] then
+        local got, i = pcall(infoOf[kind], frame)
+        if got then info = i end
+    end
     DUI.SafeCallAs(e.owner or L["an addon"], e.fn, frame, parts, info)
 end
 
--- Right after we painted frame, runs every painter of its kind in the order
+-- Right after Daylight UI painted frame, runs every painter of its kind in the order
 -- they registered. With none it's just a table read. A painter stopped while
 -- its kind is being painted (by itself or another) is only marked, and the
 -- list is cleaned up after the loop.
@@ -423,7 +450,7 @@ local function eachMade(kind, fn)
     for _, frame in ipairs(list) do fn(frame) end
 end
 
--- Puts our own look back on every frame of kind (when a claim begins or ends).
+-- Puts Daylight UI's own look back on every frame of kind (when a claim begins or ends).
 local function repaintAll(kind)
     local back = repaint[kind]
     if not back then return end
@@ -447,7 +474,7 @@ local function claim(kind, e)
 end
 
 -- A painter stops: its pieces pass to the next painter that asked for them,
--- and every frame of the kind gets our own look back at once.
+-- and every frame of the kind gets Daylight UI's own look back at once.
 local function stopPainter(e)
     if e.dead then return end
     e.dead = true
@@ -471,7 +498,7 @@ local function stopPainter(e)
     end
     if (paintingNow[kind] or 0) > 0 then paintDirty[kind] = true else tidy(kind) end
     repaintAll(kind)
-    -- What the others paint goes back on top of our look.
+    -- What the others paint goes back on top of Daylight UI's look.
     for _, other in ipairs(painters[kind] or {}) do
         if not other.dead then
             eachMade(kind, function(frame) paintOne(other, kind, frame, rowInfo[frame]) end)
@@ -482,7 +509,7 @@ end
 stopPainterRef = stopPainter
 
 -- me.Paint(kind, fn, { owns = { "fill", ... } }) runs fn(frame, parts, info) on
--- every existing frame of kind, then after each of our paints. Returns a
+-- every existing frame of kind, then after each of Daylight UI's paints. Returns a
 -- handle (API.Off stops it). A kind whose module hasn't loaded yet (the
 -- plugin's name sorts first) is kept and painted once its parts are known.
 local function startPainter(owner, kind, fn, opts)
@@ -497,7 +524,7 @@ local function startPainter(owner, kind, fn, opts)
     if not list then list = {}; painters[kind] = list end
     list[#list + 1] = e
     claim(kind, e)
-    -- A claimed piece is no longer ours, so remove our look from it before the
+    -- A claimed piece is no longer Daylight UI's, so remove Daylight UI's look from it before the
     -- plugin paints (a gradient overlay, a vertex color).
     if partsOf[kind] then
         if next(e.owns) then repaintAll(kind) end
@@ -543,10 +570,10 @@ local function lookup(kind, unit)
     return u and u[unit] or nil
 end
 
--- Visible now (our own frames, so a plain read).
+-- Visible now (Daylight UI's own frames, so a plain read).
 local function shown(f)
     local v = f:IsVisible()
-    return not issecretvalue(v) and v == true
+    return not DUI.IsSecret(v) and v == true
 end
 
 -- A frame of kind showing unit: the visible one first when wantShown is set
@@ -572,13 +599,13 @@ local function playerTile(wantShown)
     for frame, tok in pairs(l) do
         if type(tok) == "string" and (not wantShown or shown(frame)) then
             local same = UnitIsUnit("player", tok)
-            if not issecretvalue(same) and same then return frame end
+            if not DUI.IsSecret(same) and same then return frame end
         end
     end
 end
 
 -- LibGetFrame-style lookup: a visible raid tile for that unit, else a party
--- tile, else our own frame for it (player, target, focus...), else a party
+-- tile, else Daylight UI's own frame for it (player, target, focus...), else a party
 -- pet. If none is visible, the same order including hidden ones.
 local ORDER = { "raid", "party", "player", "unit", "partypet" }
 function API.GetUnitFrame(unit)
@@ -608,6 +635,196 @@ function API.GetActionButton(bar, i)
     if bar == nil or i == nil then return nil end
     bar = BAR_NUM[bar] or bar
     return lookup("actionbutton", tostring(bar) .. ":" .. tostring(i))
+end
+
+-- A bar's holder (1.5): its number 1-8 or any key in Bars.DEFS ("stance",
+-- "pet", "possess", "totem" too).
+local BAR_KEY = {}
+for key, n in pairs(BAR_NUM) do BAR_KEY[n] = key end
+function API.GetActionBar(bar)
+    if bar == nil then return nil end
+    return lookup("actionbar", BAR_KEY[bar] or tostring(bar))
+end
+
+-- What one of the bars' buttons shows and how it reads right now (1.5): the
+-- same table its paint gets. Nil for anything else.
+function API.ButtonInfo(button)
+    local m, fn = made.actionbutton, infoOf.actionbutton
+    if type(button) ~= "table" or not (m and m[button] ~= nil) or not fn then return nil end
+    local ok, info = pcall(fn, button)
+    return ok and info or nil
+end
+
+local function barsNs()
+    local mod = DUI:GetModule("ActionBars")
+    return mod and mod.enabled and mod.ns or nil
+end
+
+-- Opens the game's key binding mode on the bars (1.5), as the Action Bars
+-- page's Bind keys button does. False in a fight or with the bars off.
+function API.BindKeys()
+    local ns = barsNs()
+    if not (ns and ns.Keys and ns.Keys.OpenQuick) then return false end
+    return ns.Keys.OpenQuick() == true
+end
+
+-- The Cooldown Manager's glow (1.5) on one of Daylight UI's frames: the game's
+-- proc ring, easing in and out. It sits on the frame's API.Attach holder, so
+-- it never fights Daylight UI's own glows. r, g, b: its color, else the accent.
+function API.Glow(frame, on, r, g, b)
+    local ns = barsNs()
+    local Fx = ns and ns.CdmEffects
+    if not (Fx and Fx.SetGlow) then return false end
+    local h = API.Attach(frame)
+    if not h then return false end
+    local c = type(r) == "number" and type(g) == "number" and type(b) == "number" and { r, g, b } or nil
+    Fx.SetGlow(h, on == true, c)
+    return true
+end
+
+-- The damage meter (1.6). Window ids are the Meters page's: "main" (the
+-- panel's meter), "threat", and "w<n>" for the player's own windows.
+local function panelNs()
+    local mod = DUI:GetModule("InfoPanel")
+    return mod and mod.enabled and mod.ns or nil
+end
+
+function API.MeterWindows()
+    local ns = panelNs()
+    local out = {}
+    if not (ns and ns.Windows) then return out end
+    for _, e in ipairs(ns.Windows.List()) do
+        out[#out + 1] = { id = e.id, kind = e.kind or "meter", name = ns.Windows.Name(e),
+                          mode = type(e.cfg) == "table" and e.cfg.mode or nil }
+    end
+    return out
+end
+
+function API.GetMeterWindow(id)
+    local ns = panelNs()
+    if not ns or type(id) ~= "string" then return nil end
+    local h = ns.MeterFrame and ns.MeterFrame.hosts[id]
+    if h and not h.dead then return h.frame end
+    if id == "main" and ns.Meter then return ns.Meter.Area() end
+end
+
+-- What a meter window shows now, in its order: { rank, name, class, amount,
+-- perSecond, isMine, guid, mode, window, sample } each. Names and amounts can
+-- be secret in a fight. Nil for a window that isn't a meter.
+function API.MeterRows(id)
+    local ns = panelNs()
+    if not (ns and ns.Meter) then return nil end
+    return ns.Meter.Read(type(id) == "string" and id or "main")
+end
+
+function API.MeterModes()
+    local ns = panelNs()
+    local out = {}
+    if not (ns and ns.Meter) then return out end
+    for _, md in ipairs(ns.Meter.MODES) do
+        out[#out + 1] = { key = md.key, name = L[md.name], group = md.group }
+    end
+    return out
+end
+
+-- Switches a meter window to another mode ("damage", "dps", "healing"...),
+-- as its header's menu does. True when it did.
+function API.SetMeterMode(id, mode)
+    local ns = panelNs()
+    if not (ns and ns.Meter and ns.Windows) or type(id) ~= "string" then return false end
+    local known = false
+    for _, md in ipairs(ns.Meter.MODES) do if md.key == mode then known = true end end
+    local e = known and ns.Windows.Get(nil, id)
+    if not (e and (e.kind or "meter") == "meter" and e.path) then return false end
+    DUI:Set("InfoPanel", e.path .. ".mode", mode)
+    return true
+end
+
+-- Clears every fight, as the meter's reset button does (without asking).
+function API.ResetMeters()
+    local ns = panelNs()
+    if not (ns and ns.Meter) then return false end
+    ns.Meter.ResetAll()
+    return true
+end
+
+-- Opens the breakdown window (spells, targets, deaths) for the player at
+-- rank in a meter window, as a click on their row does.
+function API.OpenMeterBreakdown(id, rank)
+    local ns = panelNs()
+    local m = ns and ns.Meter and ns.Meter.ViewOf(type(id) == "string" and id or "main")
+    if not (m and ns.BreakdownWindow and type(rank) == "number") then return false end
+    local sources = m.Sources()
+    local src = type(sources) == "table" and sources[rank]
+    if not src then return false end
+    ns.BreakdownWindow.Open(m, src)
+    return true
+end
+
+-- The Cooldown Manager (1.7). Its pieces are frames of kind "cdmpiece" (unit =
+-- the piece's key: the game's cooldown id, or "s<spell>" for Daylight UI's
+-- own), Attach and Glow work on them.
+local function cdmRows()
+    local ns = barsNs()
+    return ns and ns.Cooldowns and ns.Cooldowns.enabled and ns.CdmRows or nil
+end
+function API.GetCooldownPiece(spellID)
+    local Rows = cdmRows()
+    if not (Rows and type(spellID) == "number") then return nil end
+    return Rows.PieceOf(spellID)
+end
+-- What a piece shows: { key, spellID, shape ("icon" | "bar"), drawnBy }.
+function API.CooldownPieceInfo(frame)
+    local Rows = cdmRows()
+    local info = Rows and type(frame) == "table" and Rows.pieceInfo[frame]
+    if not info then return nil end
+    return { key = info.key, spellID = info.spellID, shape = info.shape, drawnBy = info.drawnBy }
+end
+
+-- Daylight UI's big frames by a fixed name (1.7), for a plugin to dock to or
+-- stay clear of. Nil when that part is off or not made yet.
+local NAMED = {
+    infopanel = "DaylightUIInfoPanelBody", minimap = "Minimap", meter = "DaylightUIDamageMeter",
+    threat = "DaylightUIThreatMeter", databar = "DaylightUIDataBar", chat = "DaylightUIChatPanel",
+    questtracker = "DaylightUIQuestTracker", bags = "DaylightUIBag", bank = "DaylightUIBank",
+    afk = "DaylightUIAfkScreen", npc = "DaylightUINpc",
+}
+API.FRAME_NAMES = {}
+for k in pairs(NAMED) do API.FRAME_NAMES[#API.FRAME_NAMES + 1] = k end
+table.sort(API.FRAME_NAMES)
+function API.GetFrame(name)
+    local g = type(name) == "string" and NAMED[name]
+    local f = g and _G[g]
+    if type(f) == "table" and type(f.GetObjectType) == "function" then return f end
+    return nil
+end
+
+-- The frame placed under a mover key (1.7): "unitframes.player",
+-- "actionbars.main", "infopanel", a plugin's "plugin.<name>.<key>".
+function API.GetMoverFrame(key)
+    local M = DUI.Movers
+    local e = type(key) == "string" and M and M.Get(key)
+    local f = type(e) == "table" and e.frame
+    if type(f) == "table" and type(f.GetObjectType) == "function" then return f end
+    return nil
+end
+
+-- Unlock mode on (/dui unlock).
+function API.IsUnlocked() return DUI.Movers ~= nil and DUI.Movers.unlocked == true end
+
+-- Whether the player lets Daylight UI animate (General > Motion).
+function API.MotionOn() return not (DUI.Motion and DUI.Motion.On) or DUI.Motion.On() ~= false end
+
+-- A file in Daylight UI's media folder, to use where it is ("ui-mail.png").
+function API.Media(file)
+    if type(file) ~= "string" or file == "" or string.find(file, "..", 1, true) then return nil end
+    return DUI.MEDIA .. file
+end
+
+-- The AFK screen is up (Quality of Life's), so the plugin can step aside.
+function API.IsAfkScreen()
+    local f = _G.DaylightUIAfkScreen
+    return type(f) == "table" and f.IsShown ~= nil and f:IsShown() == true
 end
 
 -- A visible shop tile: tab "buy" or "buyback", and the game's index there.
@@ -670,17 +887,17 @@ function API.IsModuleEnabled(name)
     return mod and mod.enabled and true or false
 end
 
--- Fitting in: our look for other addons. All wrappers, each reading the
+-- Fitting in: Daylight UI's look for other addons. All wrappers, each reading the
 -- player's font, accent and sizes when called, never cached.
 
 local HOLDER = "__duiApiHolder"
 
--- A plain child of our frame, above our art, to draw on. Created once and the
+-- A plain child of Daylight UI's frame, above its art, to draw on. Created once and the
 -- same one returned every call. It isn't protected, so it can be created on a
 -- secure tile in combat too (the game allows a plain child of a protected
--- frame, and nothing here moves, shows or resizes the tile). Only for our own
+-- frame, and nothing here moves, shows or resizes the tile). Only for Daylight UI's own
 -- frames (ones the reporters know, previews included). A game frame or
--- another addon's gets nothing, so no field of ours is ever written on it
+-- another addon's gets nothing, so no Daylight UI field is ever written on it
 -- (taint).
 local function isOurs(frame)
     for _, m in pairs(made) do
@@ -786,7 +1003,7 @@ API.Speed = { FAST = DUI.Motion.FAST, NORMAL = DUI.Motion.NORMAL, SLOW = DUI.Mot
 
 -- Eases a region of yours to toAlpha. speed is a number or "FAST"/"NORMAL"/"SLOW".
 -- Stepped from its current alpha (Motion.AlphaTo, no animation group). A
--- hidden region only gets its alpha set; we never show it (it may be protected).
+-- hidden region only gets its alpha set; it is never shown (it may be protected).
 function API.Fade(region, toAlpha, speed)
     if type(region) ~= "table" or type(toAlpha) ~= "number" then return end
     local Motion = DUI.Motion
@@ -858,7 +1075,7 @@ local function placeGroup(pageId, entry)
     if not page then return false end
     local scope = str(entry.group.scope) or entry.name
     if not DUI:GetModule(scope) then
-        -- Our pages are built before a plugin's addon loads (and registers its
+        -- Daylight UI's pages are built before a plugin's addon loads (and registers its
         -- module), so until login it waits. At login it's placed or rejected.
         if not DUI.loggedIn then return false end
         entry.done = true
@@ -872,7 +1089,7 @@ local function placeGroup(pageId, entry)
     card.label = string.format("%s - %s", tostring(entry.group.label or ""), string.format(L["From %s"], entry.name))
     local items = {}
     for i, src in ipairs(entry.group.items or {}) do
-        -- Validated like our own pages' rows (Options.Validate). A bad one is left
+        -- Validated like Daylight UI's own pages' rows (Options.Validate). A bad one is left
         -- out with one line in chat so it can't break the page.
         local item, bad
         if type(src) ~= "table" then
@@ -1002,6 +1219,329 @@ function View.RegisterFade(v, def)
     return DUI.SafeCallAs(name, DUI.Fade.Register, copy)
 end
 
+-- Chat (1.7), Daylight UI's chat box only (Chat module on, Daylight style):
+-- me.FormatChat(fn(text, info) -> text | false | nil) on every plain line
+-- after Daylight UI's own touches; nil keeps it, false leaves it out.
+-- info = { event, kind ("say", "guild", "whisper", "system"...), sender,
+-- guid, body (what they typed), channel, line }. Lines the game keeps secret
+-- never reach it. me.ChatLink(data, text) makes a link whose click runs the
+-- plugin's me.OnChatLink(fn(data)).
+local formatters = {}
+local chatLinks = {}
+function Report.ChatFormatting() return #formatters > 0 end
+local fmtOut
+local function fmtCall(fn, text, info) fmtOut = fn(text, info) end
+function Report.FormatChat(text, info)
+    for _, e in ipairs(formatters) do
+        fmtOut = nil
+        if DUI.SafeCallAs(e.owner, fmtCall, e.fn, text, info) then
+            if fmtOut == false then return false end
+            if type(fmtOut) == "string" then text = fmtOut end
+        end
+    end
+    return text
+end
+function View.FormatChat(v, fn)
+    if type(fn) ~= "function" then return nil end
+    local e = { fn = fn, owner = v.name, chatFormatter = true }
+    formatters[#formatters + 1] = e
+    Report.Count(v.name, "chat")
+    return e
+end
+function Report.DropFormatter(e)
+    for i, x in ipairs(formatters) do
+        if x == e then
+            table.remove(formatters, i)
+            Report.Count(e.owner, "chat", nil, -1)
+            return
+        end
+    end
+end
+function View.ChatLink(v, data, text)
+    if type(text) ~= "string" then return nil end
+    data = string.gsub(tostring(data or ""), "|", "")
+    local r, g, b = DUI.Style.Accent()
+    return string.format("|cff%02x%02x%02x|Hdaylightchat:plugin:%s:%s|h[%s]|h|r",
+        math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), v.name, data, text)
+end
+function View.OnChatLink(v, fn)
+    chatLinks[v.name] = type(fn) == "function" and fn or nil
+end
+function Report.ChatLinkClicked(name, data)
+    local fn = chatLinks[name]
+    if fn then DUI.SafeCallAs(name, fn, data) end
+end
+
+-- Buff categories (1.7): me.AddBuffCategory(key, { label, spells = { ids },
+-- color }) gives the buff bar a category of the plugin's, made once in the
+-- player's list (theirs after that to move, recolor, hide or delete) holding
+-- those spells by id, in fights too. Called again, it updates the spells.
+local buffCats = {}
+function Report.BuffCategories() return buffCats end
+function View.AddBuffCategory(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.spells) ~= "table" then
+        chat(L["%s: a buff category needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local spells = {}
+    for _, sid in ipairs(spec.spells) do if type(sid) == "number" then spells[#spells + 1] = sid end end
+    local color = type(spec.color) == "table" and type(spec.color[1]) == "number"
+        and { spec.color[1], spec.color[2], spec.color[3] } or nil
+    local entry
+    for _, x in ipairs(buffCats) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        buffCats[#buffCats + 1] = entry
+        Report.Count(v.name, "buffcats")
+    end
+    entry.label, entry.spells, entry.color = spec.label, spells, color
+    DUI.Fire("BuffCategoriesChanged")
+    return true
+end
+
+-- Bag groups (1.7): me.AddBagGroup(key, { label, match = fn(item) -> true })
+-- puts matching items in a group of the plugin's in the bags' Categories
+-- view, after the player's own groups and before Daylight UI's. item = the
+-- bags' facts: itemID, link, name, quality, classID, subClassID, count,
+-- maxStack, bound, bindType, itemLevel, questItem, craftingReagent, recent.
+local bagGroups = {}
+function Report.BagGroups() return bagGroups end
+function View.AddBagGroup(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.match) ~= "function" then
+        chat(L["%s: a bag group needs a key, a label and a match function."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local g = { key = full, name = spec.label, match = spec.match, owner = v.name }
+    local found = false
+    for i, x in ipairs(bagGroups) do
+        if x.key == full then bagGroups[i], found = g, true end
+    end
+    if not found then
+        bagGroups[#bagGroups + 1] = g
+        Report.Count(v.name, "baggroups")
+    end
+    DUI.Fire("BagGroupsChanged")
+    return true
+end
+function View.RemoveBagGroup(v, key)
+    local full = v.name .. ":" .. tostring(key)
+    for i, x in ipairs(bagGroups) do
+        if x.key == full then
+            table.remove(bagGroups, i)
+            Report.Count(v.name, "baggroups", nil, -1)
+            DUI.Fire("BagGroupsChanged")
+            return true
+        end
+    end
+    return false
+end
+-- Sorts the bags' groups again (what a plugin's match says changed).
+function API.RefreshBags() DUI.Fire("BagGroupsChanged") end
+
+-- Aura filters (1.7): me.AddAuraFilter(key, { label, what, spells, mine })
+-- adds a spell list to the Filter choices of the party and raid aura rows.
+-- The game's aura containers match by spell id, and on someone you can help
+-- they only allow it for buffs and for debuffs the game marks never secret,
+-- so any other debuff id is left out (a boss's debuffs could otherwise spell
+-- out "move now").
+local auraFilters = {}
+function Report.AuraFilters() return auraFilters end
+local function neverSecret(id)
+    local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
+    local levels = Enum and Enum.SecrecyLevel
+    if not (get and levels) then return false end
+    local ok, s = pcall(get, id)
+    return ok and s == levels.NeverSecret
+end
+function View.AddAuraFilter(v, key, spec)
+    local what = type(spec) == "table" and (spec.what or "buffs")
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.spells) ~= "table"
+       or (what ~= "buffs" and what ~= "debuffs") then
+        chat(L["%s: an aura filter needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local ids, any = {}, false
+    for _, id in ipairs(spec.spells) do
+        if type(id) == "number" and (what == "buffs" or neverSecret(id)) then ids[id], any = true, true end
+    end
+    if not any then
+        chat(L["%s: the game doesn't let aura filter %s pick out any of its spells on group members."], v.name, key)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local entry
+    for _, x in ipairs(auraFilters) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        auraFilters[#auraFilters + 1] = entry
+        Report.Count(v.name, "aurafilters")
+    end
+    entry.label, entry.what, entry.ids, entry.mine = spec.label, what, ids, spec.mine == true
+    DUI.Fire("AuraFiltersChanged")
+    return true
+end
+
+-- Setup guide pages (1.7): me.AddSetupStep({ id, title, desc, groups,
+-- onFinish, quick }), after Daylight UI's own pages. groups are the guide's
+-- own (rows = { { scope, key } }, cards...) over options of the plugin's
+-- module; onFinish runs on Finish (set up another addon there).
+function View.AddSetupStep(v, def)
+    local Pages = DUI.InstallerPages
+    if not Pages then return false end
+    local ok, why = Pages.AddStep(v.name, def)
+    if not ok then
+        chat(L["%s: the setup step was left out (%s)."], v.name, tostring(why))
+        return false
+    end
+    Report.Count(v.name, "steps")
+    return true
+end
+
+-- Tooltip lines (1.7): me.AddTooltipLines(kind, fn(lines, data)), kind
+-- "unit" (data.unit), "item" (data.link, data.itemID) or "spell"
+-- (data.spellID). lines.Line(label, value, color), lines.Text(text, color),
+-- lines.Hint(text), lines.Gap(). Runs after Daylight UI's own lines.
+local tooltipLines = { unit = {}, item = {}, spell = {} }
+function Report.TooltipLines(kind) return tooltipLines[kind] end
+function View.AddTooltipLines(v, kind, fn)
+    local list = tooltipLines[kind]
+    if not list or type(fn) ~= "function" then
+        chat(L["%s: tooltip lines need a kind (unit, item or spell) and a function."], v.name)
+        return nil
+    end
+    local e = { fn = fn, owner = v.name, kind = kind, tooltipLines = true }
+    list[#list + 1] = e
+    Report.Count(v.name, "tooltips")
+    return e
+end
+function Report.DropTooltipLines(e)
+    local list = tooltipLines[e.kind]
+    for i, x in ipairs(list or {}) do
+        if x == e then
+            table.remove(list, i)
+            Report.Count(e.owner, "tooltips", nil, -1)
+            return
+        end
+    end
+end
+
+-- Shop filters (1.7): me.FilterShop(fn(item) -> false to leave it out) on
+-- the vendor window's shelf, before its tiles are drawn. item = { index,
+-- name, link, texture, price, stack, quality, usable... } as the shelf has it.
+local shopFilters = {}
+function View.FilterShop(v, fn)
+    if type(fn) ~= "function" then return nil end
+    local e = { fn = fn, owner = v.name, shopFilter = true }
+    shopFilters[#shopFilters + 1] = e
+    Report.Count(v.name, "filters")
+    API.RefreshShop()
+    return e
+end
+function Report.FilterShop(list)
+    if #shopFilters == 0 or type(list) ~= "table" then return list end
+    local out = {}
+    for _, item in ipairs(list) do
+        local stay = true
+        for _, e in ipairs(shopFilters) do
+            box = nil
+            if DUI.SafeCallAs(e.owner, keep, e.fn, item) and box == false then stay = false break end
+        end
+        if stay then out[#out + 1] = item end
+    end
+    return out
+end
+local function dropShopFilter(e)
+    for i, x in ipairs(shopFilters) do
+        if x == e then
+            table.remove(shopFilters, i)
+            Report.Count(e.owner, "filters", nil, -1)
+            API.RefreshShop()
+            return
+        end
+    end
+end
+Report.DropShopFilter = dropShopFilter
+
+-- Fills the vendor window's shelf again (a plugin's filter changed).
+function API.RefreshShop()
+    local Npc = DUI.Npc
+    local Shop = type(Npc) == "table" and Npc.Shop
+    if type(Shop) == "table" and type(Shop.Refresh) == "function" then DUI.SafeCall(Shop.Refresh, true) end
+end
+
+-- Whether one of the plugin's parts shows its sample now (1.7): unlock mode,
+-- or test mode with its test part ticked.
+function View.IsPreviewing(v, key)
+    if API.IsUnlocked() then return true end
+    if DUI.testMode ~= true or not str(key) then return false end
+    return DUI.TestPartShown(prefixed(v, key)) == true
+end
+
+-- Stops Daylight UI placing one of the plugin's movers while the plugin docks
+-- it to something itself (1.7). Its saved spot stays, and unlock mode shows
+-- no handle for it until it's given back (suspended false).
+function View.SuspendMover(v, key, suspended)
+    if not str(key) then return false end
+    return DUI.SafeCallAs(v.name, DUI.Movers.Suspend, prefixed(v, key), suspended and true or false)
+end
+
+-- A temporary value for one of Daylight UI's settings (1.7), as a fishing
+-- mode hiding the fishing water while it runs. Never saved: the player's own
+-- value is back on API.Off(handle), at logout, and the moment the player
+-- changes that setting themself (they win).
+local overrides = {}       -- array of { scope, path, value, was, owner }
+local overriding = false
+local function overrideKey(o) return o.scope .. "\1" .. o.path end
+local function putBack(o)
+    overriding = true
+    DUI.SafeCall(DUI.Set, DUI, o.scope, o.path, o.was)
+    overriding = false
+end
+function View.Override(v, scope, path, value)
+    if not (str(scope) and str(path)) or not DUI:GetModule(scope) and scope ~= "general" then return nil end
+    local o = { scope = scope, path = path, value = value, owner = v.name, override = true }
+    -- Two plugins on one setting: the first keeps it.
+    for _, x in ipairs(overrides) do
+        if overrideKey(x) == overrideKey(o) then
+            chat(L["%s and %s both want to change %s; %s keeps it."], x.owner, v.name, path, x.owner)
+            return nil
+        end
+    end
+    o.was = DUI:Get(scope, path)
+    if type(o.was) == "table" then return nil end     -- only plain values
+    overrides[#overrides + 1] = o
+    overriding = true
+    local ok = DUI.SafeCallAs(v.name, DUI.Set, DUI, scope, path, value)
+    overriding = false
+    if not ok then
+        table.remove(overrides)
+        return nil
+    end
+    return o
+end
+local function dropOverride(o, restore)
+    for i, x in ipairs(overrides) do
+        if x == o then
+            table.remove(overrides, i)
+            if restore then putBack(o) end
+            return
+        end
+    end
+end
+Report.DropOverride = dropOverride
+DUI.On("SettingChanged", function(scope, path)
+    if overriding then return end
+    for i = #overrides, 1, -1 do
+        local o = overrides[i]
+        if o.scope == scope and o.path == path then table.remove(overrides, i) end
+    end
+end)
+DUI.RegisterEvent("PLAYER_LOGOUT", function()
+    for i = #overrides, 1, -1 do putBack(overrides[i]) end
+end)
+
 function View.RegisterTestPart(v, key, label, available)
     if not str(key) then return end
     -- Asked when /dui test lists its checkboxes. Guarded; an error leaves it out.
@@ -1053,7 +1593,7 @@ function View.AddOptionsGroup(v, pageId, group, after)
     return true
 end
 
--- Skins another addon's window in our look when that addon loads: fn(Kit)
+-- Skins another addon's window in Daylight UI's look when that addon loads: fn(Kit)
 -- runs once it's there (return false to be called again as more addons
 -- load). This is the Skins engine's third-party kind: an error in fn names
 -- the addon once in chat and stops it, and the player can't turn it off
@@ -1276,9 +1816,9 @@ end
 
 function View.Hook(v, tbl, name, after) return addHook(v, tbl, name, after, "after") end
 
--- Plugin settings on our modules (1.3): me.AddDefaults(module, tbl) adds new
+-- Plugin settings on Daylight UI's modules (1.3): me.AddDefaults(module, tbl) adds new
 -- top-level keys to a module's defaults (never one it already has), saved and
--- stripped like ours. DB.PluginKeys records their owner. A module not on yet
+-- stripped like Daylight UI's own. DB.PluginKeys records their owner. A module not on yet
 -- picks them up when it turns on (Core.lua's EnableModule).
 
 local waitingDefaults = {} -- module -> list of { owner, tbl }
@@ -1362,6 +1902,82 @@ function View.AddText(v, key, spec)
     if DUI.Fire then DUI.Fire("TextsChanged", full) end
     return true
 end
+-- Data texts and data panels (1.6), the way ElvUI's DT:RegisterDatatext and
+-- DT:RegisterPanel work: kept here, taken in by the Info Panel module (its
+-- Broker.lua) as it enables and whenever one is added.
+local dataTexts, dataOrder = {}, {}
+local dataPanels, panelOrder = {}, {}
+function Report.DataTexts() return dataOrder, dataTexts end
+function Report.DataPanels() return panelOrder, dataPanels end
+
+local function eventList(events)
+    if type(events) == "string" then
+        local out = {}
+        for e in string.gmatch(events, "[%w_]+") do out[#out + 1] = e end
+        return out
+    end
+    if type(events) ~= "table" then return nil end
+    local out = {}
+    for _, e in ipairs(events) do if type(e) == "string" then out[#out + 1] = e end end
+    return out
+end
+local function fnOrNil(f) return type(f) == "function" and f or nil end
+
+-- me.AddDataText(key, { label, text = fn() -> label, value, r, g, b, events,
+-- onEvent, poll, tooltip = fn(tip), click = fn(button, slot), wheel, icon,
+-- sample }). Players pick it in any data text slot. Saved as "<plugin>:<key>".
+function View.AddDataText(v, key, spec)
+    if type(key) ~= "string" or key == "" or type(spec) ~= "table" or type(spec.label) ~= "string"
+        or type(spec.text) ~= "function" then
+        chat(L["%s: a data text needs a key, a label and a text function."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    if not dataTexts[full] then dataOrder[#dataOrder + 1] = full end
+    dataTexts[full] = {
+        key = full, owner = v.name, label = spec.label, text = spec.text, events = eventList(spec.events),
+        onEvent = fnOrNil(spec.onEvent), poll = spec.poll == true, tooltip = fnOrNil(spec.tooltip),
+        click = fnOrNil(spec.click), wheel = fnOrNil(spec.wheel),
+        icon = (type(spec.icon) == "string" or type(spec.icon) == "number" or type(spec.icon) == "function") and spec.icon or nil,
+        sample = (type(spec.sample) == "string" or type(spec.sample) == "number") and spec.sample or nil,
+    }
+    Report.Count(v.name, "datatexts")
+    if DUI.Fire then DUI.Fire("DataTextsChanged", full) end
+    return true
+end
+
+-- Draws a data text again now (its value changed outside its events).
+function View.UpdateDataText(v, key)
+    if type(key) ~= "string" then return end
+    if DUI.Fire then DUI.Fire("DataTextRedraw", v.name .. ":" .. key) end
+end
+
+-- me.AddDataPanel(key, frame, { count = 1-5, slots = { "gold", "MyAddon:fish" },
+-- labels, icons, textSize }): data text slots on a frame of the plugin's.
+function View.AddDataPanel(v, key, frame, spec)
+    spec = type(spec) == "table" and spec or {}
+    if type(key) ~= "string" or key == "" or not isRegion(frame) then
+        chat(L["%s: a data panel needs a key and a frame."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local slots = {}
+    if type(spec.slots) == "table" then
+        for i, k in ipairs(spec.slots) do if type(k) == "string" then slots[i] = k end end
+    end
+    local count = math.max(1, math.min(5, math.floor(tonumber(spec.count) or #slots)))
+    if not dataPanels[full] then panelOrder[#panelOrder + 1] = full end
+    local size = DUI.Style and DUI.Style.SIZE
+    dataPanels[full] = {
+        key = full, owner = v.name, frame = frame, count = count, slots = slots,
+        labels = spec.labels ~= false, icons = spec.icons == true,
+        textSize = type(spec.textSize) == "number" and spec.textSize or (size and size.small or 12),
+    }
+    Report.Count(v.name, "datapanels")
+    if DUI.Fire then DUI.Fire("DataPanelsChanged", full) end
+    return true
+end
+
 function View.Wrap(v, tbl, name, fn) return addHook(v, tbl, name, fn, "wrap") end
 
 function View.Unhook(v, handle)
@@ -1383,3 +1999,7 @@ end
 for _, name in ipairs(PASSED_ON) do
     DUI.On(name, function(a, b, c, d) fire(name, a, b, c, d) end)
 end
+-- A frame put on its spot by its mover (1.7): a profile, a move, unlock mode.
+-- Plugins follow it here instead of hooking its SetPoint.
+passedOn.FramePlaced = true
+DUI.On("MoverApplied", function(key) fire("FramePlaced", key) end)

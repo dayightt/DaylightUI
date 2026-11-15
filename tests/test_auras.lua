@@ -447,7 +447,9 @@ T.test("golden: the target's debuffs and buffs stay where they were", function()
         for _, b in ipairs({ "below", "above" }) do
             local _, ns = stub.Load({ module = true, before = function()
                 DaylightUIDB = { version = 2, profileData = { Default = { general = {}, positions = {},
-                    modules = { UnitFrames = { groupFrames = 9, targetAuras = { debuffsAt = d, buffsAt = b } } } } } }
+                    modules = { UnitFrames = { groupFrames = 9, targetAuras = { debuffsAt = d, buffsAt = b,
+                    -- The old growth and rows, so only the upgrade's spots are tested.
+                    buffGrow = "left", debuffRows = 3, buffRows = 2 } } } } } }
             end })
             stub.RunTimers()
             local f = ns.frames.target
@@ -485,7 +487,7 @@ T.test("upgrade 10: the target's above/below become spots, growing toward the in
     step(uf)
     T.isnil(uf.targetAuras)
     local d = ns.DEFAULTS.targetAuras
-    T.eq(d.debuffSpot, "above"); T.eq(d.debuffGrow, "left"); T.eq(d.buffSpot, "below"); T.eq(d.buffGrow, "left")
+    T.eq(d.debuffSpot, "above"); T.eq(d.debuffGrow, "left"); T.eq(d.buffSpot, "above"); T.eq(d.buffGrow, "right")
     T.isnil(d.debuffsAt); T.isnil(d.buffsAt)
 end)
 

@@ -95,7 +95,7 @@ end)
 
 -- Flags a value taken from a secret-returning function (local a = UnitHealth(u))
 -- that is then truth-tested or compared in the same function without an
--- issecretvalue / isSecret / Plain() check first. type() is no check, since a
+-- issecretvalue / isSecret / DUI.IsSecret / secret / Plain() check first. type() is no check, since a
 -- secret number's type is still "number". Plain Lua can't fail on these at
 -- runtime, so the source is scanned. UnitClass and UnitName on "player" are
 -- never secret and aren't tracked. Exceptions need a reason:
@@ -134,7 +134,7 @@ T.test("no value from a secret API is truth-tested or compared without a secret 
             end
             for name, from in pairs(live) do
                 local e = esc(name)
-                if code:find("issecretvalue%(%s*" .. e .. "%s*%)") or code:find("isSecret%(%s*" .. e .. "%s*%)")
+                if code:find("issecretvalue%(%s*" .. e .. "%s*%)") or code:find("[Ss]ecret%(%s*" .. e .. "%s*%)")
                     or code:find("Plain%(%s*" .. e) then
                     live[name] = nil
                 elseif n > from and (code:find("if%s+not%s+" .. e .. "%f[^%w_]") or code:find("if%s+" .. e .. "%s+then")

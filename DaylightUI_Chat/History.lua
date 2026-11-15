@@ -9,6 +9,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 
 local History = {}
@@ -29,8 +30,6 @@ function History.SessionDivider(savedAt)
     local when = sameDay and ns.Chat.Clock(savedAt) or (date("%d %b ", savedAt) .. ns.Chat.Clock(savedAt))
     return History.LABEL .. "-- " .. string.format(L["last session, %s"], when) .. " --|r"
 end
-
-local function secret(v) return issecretvalue and issecretvalue(v) end
 
 -- Chat windows 1 to NUM_CHAT_WINDOWS, minus the combat log.
 function History.Windows()

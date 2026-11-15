@@ -16,7 +16,7 @@ function PB.Available()
 end
 
 local hooked = {}
-local hiddenByUs = {} -- frames we hid, kept here rather than on the game frame
+local hiddenByUs = {} -- frames this hid, kept here rather than on the game frame
 
 -- The frames to hide, whichever of them exist.
 function PB.Frames()
@@ -45,7 +45,7 @@ function PB.Apply()
         if wanted() then
             f:Hide()
         elseif hiddenByUs[f] then
-            f:Show() -- only restore what we hid
+            f:Show() -- only restore what this hid
         end
         hiddenByUs[f] = wanted() or nil
     end

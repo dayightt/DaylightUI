@@ -185,3 +185,72 @@ T.test("Tooltip on hover gives an icon the hover back, never the clicks, and is 
     T.eq(btn.__motion, false, "switched off later")
     T.eq(btn.__clicks, false)
 end)
+
+T.test("a group's time and stack sizes and its stack count switch are on its buttons from the start, and follow later", function()
+    local ns, tile, set = setup()
+    ns.AuraGroups.Place(set, tile, cfg({ debuffs = { timers = true, timeSize = 11, countSize = 13, counts = false } }), BOX)
+    local btn = set.debuffs.__groups.notcc.button
+    local _, time = btn.__time:GetFont()
+    local _, count = btn.__count:GetFont()
+    T.eq(time, 11); T.eq(count, 13)
+    T.eq(btn.__count:GetAlpha(), 0, "built with stacks off")
+    ns.AuraGroups.Place(set, tile, cfg({ debuffs = { timers = true, timeSize = 9, countSize = 12 } }), BOX)
+    T.eq(btn.__count:GetAlpha(), 1, "on again")
+    _, count = btn.__count:GetFont()
+    T.eq(count, 12)
+end)
+
+T.test("the party and raid pages list the new text rows on every group", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    for _, page in ipairs({ "UnitFrames.party", "UnitFrames.raid" }) do
+        local keys = {}
+        for _, g in ipairs(O.GetPage(page).groups) do
+            for _, it in ipairs(g.items or {}) do if it.key then keys[it.key] = true end end
+        end
+        local p = page == "UnitFrames.party" and "party" or "raid"
+        for _, k in ipairs({ "debuffs.timeSize", "debuffs.countSize", "debuffs.counts", "buffs.counts", "cc.timeSize" }) do
+            T.truthy(keys[p .. ".auras." .. k], page .. " " .. k)
+        end
+        T.eq(#O.ValidatePage(O.GetPage(page)), 0)
+    end
+end)
+
+T.test("a plugin's spell list is one more Filter choice, matched by spell id; debuffs only by ids the game allows", function()
+    local ns, tile, set = setup()
+    stub.neverSecretAuras = { [57724] = true }
+    local me = DaylightUI.API.For("Raidy")
+    T.eq(me.AddAuraFilter("walls", { label = "Big defensives", spells = { 871, 498 } }), true)
+    T.eq(me.AddAuraFilter("sated", { label = "Sated", what = "debuffs", spells = { 57724, 12345 } }), true)
+    T.eq(me.AddAuraFilter("boss", { label = "Boss", what = "debuffs", spells = { 12345 } }), false,
+         "no spell the game lets it pick out on a group member")
+    T.eq(me.AddAuraFilter("bad", { label = "X" }), false, "no spells")
+    stub.neverSecretAuras = {}
+    local AG = ns.AuraGroups
+    T.truthy(table.concat(AG.BY_KEY.buffs.choices, ","):find("Raidy:walls", 1, true))
+    T.isnil(table.concat(AG.BY_KEY.debuffs.choices, ","):find("Raidy:boss", 1, true))
+    T.eq(AG.CHOICE_LABELS.buffs["Raidy:walls"], "Big defensives")
+
+    AG.Place(set, tile, cfg({ buffs = { show = true, which = "Raidy:walls" } }), BOX)
+    local g = set.buffs.__groups["Raidy:walls"]
+    T.eq(g.filter, "HELPFUL"); T.eq(g.max, 4)
+    T.eq(shown(set.buffs, { spellId = 871 }), "Raidy:walls")
+    T.isnil(shown(set.buffs, { spellId = 1243 }), "not on the list")
+    ns.Auras.SetBuffsSeen(set.buffs, false)
+    T.eq(g.max, 4, "anyone's buffs: being out of sight changes nothing")
+    ns.Auras.SetBuffsSeen(set.buffs, true)
+
+    AG.Place(set, tile, cfg({ debuffs = { which = "Raidy:sated" }, cc = { show = false } }), BOX)
+    local d = set.debuffs.__groups["Raidy:sated"]
+    T.eq(d.filter, "HARMFUL"); T.eq(d.max, 3)
+    T.isnil(d.opts.candidateFilters.includeSpellIDs[12345], "a secret one is left out")
+    T.eq(shown(set.debuffs, { spellId = 57724, harmful = true, neverSecret = true }), "Raidy:sated")
+    T.eq((AG.ExtraActive({ show = true, what = "buffs", buffWhich = "Raidy:walls" })), AG.BY_KEY.buffs, "extra rows too")
+
+    T.eq(me.AddAuraFilter("hots", { label = "My HoTs", spells = { 774 }, mine = true }), true)
+    AG.Place(set, tile, cfg({ buffs = { show = true, which = "Raidy:hots" } }), BOX)
+    local h = set.buffs.__groups["Raidy:hots"]
+    T.eq(h.filter, "HELPFUL|PLAYER"); T.eq(h.max, 4); T.eq(g.max, 0, "one choice shows at a time")
+    ns.Auras.SetBuffsSeen(set.buffs, false)
+    T.eq(h.max, 0, "yours only: off out of sight, like Only mine")
+end)

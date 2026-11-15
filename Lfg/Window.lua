@@ -75,11 +75,7 @@ end
 
 -- Open, close, follow the game's frame
 
-local function spot()
-    local s = ns.module and ns.module.db and ns.module.db.spot
-    if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
-    return nil
-end
+local function spot() return Lfg.spot and Lfg.spot.Get() end
 
 local function place(f)
     local s = spot()
@@ -144,8 +140,7 @@ function Lfg.Changed(_, shown)
 end
 
 function Lfg.SaveSpot(x, y)
-    local db = ns.module and ns.module.db
-    if db then db.spot = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
+    if Lfg.spot then Lfg.spot.Save(x, y) end
 end
 
 
@@ -167,12 +162,9 @@ end
 
 -- Right-click on the header (or /dui reset): back to the game's spot and size.
 function Lfg.ResetSpot()
-    local db = ns.module and ns.module.db
-    if not db then return end
+    if not (ns.module and ns.module.db) then return end
     if Lfg.sizer then Lfg.sizer.Reset() end
-    if not db.spot then return end
-    db.spot = nil
-    if Lfg.frame and Win.IsOpen(Lfg.frame) then place(Lfg.frame) end
+    if Lfg.spot then Lfg.spot.Reset() end
 end
 
 function Lfg.Apply()
@@ -237,6 +229,7 @@ function Lfg.Build(mod)
     local f = Win.New({ name = Lfg.NAME, back = "GroupFinder", w = Lfg.W, h = Lfg.H, portrait = true })
     Lfg.frame = f
     f.onClose = Lfg.Close
+    Lfg.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Lfg.ICON)
     Win.AddPage(f, "find", { Build = ns.Browse.Build, Fill = ns.Browse.Fill, pieces = ns.Browse.Pieces, w = Lfg.W, h = Lfg.H })
     Win.AddPage(f, "list", { Build = ns.Listing.Build, Fill = ns.Listing.Fill, pieces = ns.Listing.Pieces, w = Lfg.W, h = Lfg.H })

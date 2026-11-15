@@ -193,10 +193,13 @@ function Craft.Plus(f, n)
     end)
 end
 
--- The game's own confirm popup (UNLEARN_SKILL; accepting calls AbandonSkill).
+-- Asked in Daylight UI's question box with the game's own sentence; yes
+-- unlearns it, as the game's UNLEARN_SKILL pop-up does.
 function Craft.Unlearn(name, skillLine)
-    if type(StaticPopup_Show) ~= "function" then return end
-    StaticPopup_Show("UNLEARN_SKILL", name, nil, skillLine)
+    local abandon = (C_SkillInfo and C_SkillInfo.AbandonSkill) or _G.AbandonSkill
+    if type(abandon) ~= "function" then return end
+    DUI.Widgets.Ask({ key = "unlearn", text = string.format(UNLEARN_SKILL or L["Do you really want to unlearn %s?"], name),
+        onYes = function() abandon(skillLine) end })
 end
 
 -- Tooltip for the Unlearn link, shown before the game's popup asks.
@@ -500,9 +503,24 @@ local function lend()
     end, "craft:lend")
 end
 
+-- SkillUp Forever draws its chances, costs and route on the game's profession
+-- window, which this one covers. Its link hands that window back until it closes,
+-- even across profession tabs.
+function Craft.HandBack()
+    local g = Craft.Game()
+    if not (Craft.follow and g and g:IsShown()) then return end
+    if InCombatLockdown() then
+        DUI.AfterCombat(function() if Win.IsOpen(Craft.frame) then Craft.HandBack() end end, "craft:handback")
+        return
+    end
+    Craft.handed = true
+    lend()
+end
+
 -- Follower callback: the game's frame shown or hidden.
 function Craft.Changed(_, shown)
     local f = Craft.frame
+    if shown then Craft.handed = nil end
     if not shown then
         if Win.IsOpen(f) then shut(f) end
         ns.View.Shut()
@@ -530,7 +548,7 @@ function Craft.TradeSkillShown()
     -- Was handed back (someone's recipes, the overview) and now the player's own
     -- profession opened: take over again (the follower's next look opens it).
     if g and g:IsShown() and not Win.Followers.Parked(Craft.follow, "craft") then
-        if Craft.Ours(g) then Win.Followers.Reclaim(Craft.follow, "craft") end
+        if Craft.Ours(g) and not Craft.handed then Win.Followers.Reclaim(Craft.follow, "craft") end
         return
     end
     if not Win.Followers.Shown(Craft.follow, "craft") then return end
@@ -551,7 +569,7 @@ function Craft.Settled()
     local g = Craft.Game()
     if not (g and g:IsShown()) then Craft.waiting = nil; return end
     if not Win.Followers.Parked(Craft.follow, "craft") then
-        if Craft.Ours(g) then Win.Followers.Reclaim(Craft.follow, "craft") end
+        if Craft.Ours(g) and not Craft.handed then Win.Followers.Reclaim(Craft.follow, "craft") end
         return
     end
     if not Craft.waiting then return end

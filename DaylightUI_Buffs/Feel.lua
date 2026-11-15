@@ -5,6 +5,7 @@
 
 local _, BL = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local Style, Motion = DUI.Style, DUI.Motion
 
 local Feel = {}
@@ -49,12 +50,12 @@ function Feel.TimeColor()
 end
 
 -- Buffs and debuffs slide in and out ------------------------------------
--- In: the client plays an animation group we give each button
+-- In: the client plays an animation group handed to each button
 -- (AddAuraShownAnimation) when it comes up for a new aura, so it works in combat
 -- and on the right icon (the client keeps one button per aura,
 -- Blizzard_AuraContainerGroups.lua). Out: the client hides a button instantly,
--- so a copy of ours (bar look, aura icon) lifts away from where it was. Out of
--- combat only, since that's the only time we know where an icon sat.
+-- so a copy in the bar's look lifts away from where it was. Out of combat only,
+-- since that's the only time an icon's spot is known.
 
 Feel.SLIDE = 6 -- px an icon drops in from and lifts out by
 Feel.GHOSTS = 8 -- max leaving copies at once; extras are skipped
@@ -62,7 +63,7 @@ Feel.SETTLE = 2 -- seconds after entering the world with no copies (a reload isn
 Feel.ghosts = {}
 local settleUntil = 0
 
-local function plain(v) return not (issecretvalue and issecretvalue(v)) and v or nil end
+local function plain(v) return not isSecret(v) and v or nil end
 
 local function wanted() return BL.GetSetting("newGlow") ~= false and Motion.On() end
 
@@ -200,15 +201,7 @@ local function snapAll()
     BL.EachBar(function(bar) DUI.SafeCall(Feel.Snap, bar) end)
 end
 -- Once, next frame, however many auras changed this frame.
-local snapQueued = false
-local function snapNext()
-    if snapQueued then return end
-    snapQueued = true
-    C_Timer.After(0, function()
-        snapQueued = false
-        snapAll()
-    end)
-end
+local snapNext = DUI.Soon(snapAll)
 
 -- UNIT_AURA for the player: each removed aura found in the last snapshot of its
 -- bar leaves a copy lifting away, then a fresh snapshot is taken next frame

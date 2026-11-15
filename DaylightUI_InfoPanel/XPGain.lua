@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local Style = DUI.Style
 
 local XPGain = {}
@@ -20,9 +21,6 @@ local function enabled()
     return not (db and db.xpGain == false) and DUI.Motion ~= nil and DUI.Motion.On()
 end
 
-local function secret(v)
-    return type(issecretvalue) == "function" and issecretvalue(v) == true
-end
 
 local function plain(bar, value)
     if secret(value) then bar:SetValue(value) else Style.SetBarValue(bar, value) end
@@ -63,7 +61,7 @@ function XPGain.TextColor(XP)
     return c[1] + (w[1] - c[1]) * k, c[2] + (w[2] - c[2]) * k, c[3] + (w[3] - c[3]) * k
 end
 
--- The rising number: a small frame of ours over the bar. A gain while it
+-- The rising number: a small Daylight UI frame over the bar. A gain while it
 -- still shows is added on and the climb starts again.
 local function rise(XP, gain)
     local f = XPGain.riser

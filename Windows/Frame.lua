@@ -505,7 +505,7 @@ function Win.Drag(f, opts)
         if not f.dragging then return end
         f.dragging = nil
         f:StopMovingOrSizing()
-        f:SetUserPlaced(false)   -- we save the position, not the game's layout cache
+        f:SetUserPlaced(false)   -- the position is saved here, not in the game's layout cache
         local x, y = Win.TopOf(f)
         if not x then return end
         Win.PlaceTop(f, x, y)   -- back to a single anchor so Feel can glide it
@@ -679,6 +679,19 @@ function Win.Close(f, done)
 end
 
 function Win.IsOpen(f) return Feel.IsOpen(f) end
+
+-- Refill events come in bursts. The returned caller runs fn(frame) once on the
+-- next frame, and only while frame() is shown, both when asked and when it runs.
+function Win.Soon(frame, fn)
+    local run = DUI.Soon(function()
+        local f = frame()
+        if f and f:IsVisible() then fn(f) end
+    end)
+    return function()
+        local f = frame()
+        if f and f:IsVisible() then run() end
+    end
+end
 
 -- Dim the current page while waiting for the next one.
 function Win.Dim(f, on)

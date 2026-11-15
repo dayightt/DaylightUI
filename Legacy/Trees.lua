@@ -317,17 +317,7 @@ function Trees.Render(keep)
 end
 
 -- Trait events come in bursts: re-read next frame, only while the page shows.
-function Trees.Soon()
-    local page = Trees.page
-    if not (page and page:IsVisible()) or Trees.pending then return end
-    Trees.pending = true
-    C_Timer.After(0, function()
-        Trees.pending = nil
-        if page:IsVisible() then Trees.Render(true) end
-    end)
-end
-
-function Trees.Stretch() end   -- the board refills when the grip drag ends
+Trees.Soon = Win.Soon(function() return Trees.page end, function() Trees.Render(true) end)
 
 function Trees.Build(page)
     Trees.page = page

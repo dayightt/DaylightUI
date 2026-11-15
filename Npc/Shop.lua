@@ -39,7 +39,6 @@ Shop.LAST_GAP = 6                   -- gap between the shelf and the strip
 
 local function fn(f) return type(f) == "function" end
 local function call(f, ...) if fn(f) then return f(...) end end
-local function now() return fn(GetTime) and GetTime() or 0 end
 
 local S = { tab = "shop", filter = "", confirm = nil }
 Shop.state = S
@@ -171,19 +170,23 @@ function Shop.MaxOf(it)
 end
 
 -- Buys n of an item, at most one stack per purchase, the next a moment after the last.
--- Stops if the shop closes on the way.
+-- Stops if the shop closes on the way, or if another item has moved into this
+-- slot (a limited one sold out), so it never buys the wrong thing.
 function Shop.BuyLots(it, n)
     local max = Shop.MaxOf(it)
     local per = math.max(1, it.stack)
     local chunk = math.max(per, math.floor(max / per) * per)
     local index = it.index
+    local link = call(GetMerchantItemLink, index)
     local function step(left)
         local take = math.min(left, chunk)
         BuyMerchantItem(index, take)
         if left > take then
             C_Timer.After(Shop.STACK_STEP, function()
                 local m = _G.MerchantFrame
-                if type(m) == "table" and m:IsShown() then step(left - take) end
+                if type(m) ~= "table" or not m:IsShown() then return end
+                if call(GetMerchantItemLink, index) ~= link then return end
+                step(left - take)
             end)
         end
     end
@@ -296,8 +299,8 @@ function Shop.Buy(it, tile, n)
     -- Expensive items or ones paid in something else need a second click. The game would
     -- ask with its own popup, but that reads its own frame. The Buy button in the
     -- quantity box counts as the second click, since it shows the cost.
-    if not n and (it.extended or it.price >= Shop.HIGH) and not (S.confirm and S.confirm.index == it.index and now() - S.confirm.at < Shop.CONFIRM) then
-        S.confirm = { index = it.index, at = now() }
+    if not n and (it.extended or it.price >= Shop.HIGH) and not (S.confirm and S.confirm.index == it.index and GetTime() - S.confirm.at < Shop.CONFIRM) then
+        S.confirm = { index = it.index, at = GetTime() }
         if tile then
             tile.sub:SetText(L["Click again to buy"])
             Style.InkText(tile.sub, "WARN")   -- same armed look as every "click again"
@@ -718,7 +721,8 @@ end
 
 function Shop.List()
     if ns.Window.state.sample then return Shop.SAMPLE end
-    return Shop.Items()
+    -- Plugins' shop filters (DaylightUI.API) may leave items out.
+    return DUI.APIReport.FilterShop(Shop.Items())
 end
 
 function Shop.PaintFooter(page)

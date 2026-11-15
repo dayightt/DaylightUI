@@ -46,7 +46,7 @@ local function trim(s) return ((s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 function Send.SaveOwnName()
     if type(UnitFullName) ~= "function" then return end
     local first, last = UnitFullName("player")
-    if type(first) ~= "string" or (issecretvalue and issecretvalue(first)) then return end
+    if type(first) ~= "string" or DUI.IsSecret(first) then return end
     local full = (type(last) == "string" and last ~= "") and (first .. " " .. last) or first
     DUI.DB.Character().mailName = full
 end
@@ -282,7 +282,7 @@ function Send.Suggested(text)
     local results = call(get, text, Send.SUGGEST, #text, true, 0xffffffff, Send.BNET)
     for _, r in ipairs(type(results) == "table" and results or {}) do
         local n = type(r) == "table" and r.name
-        if type(n) == "string" and not (issecretvalue and issecretvalue(n)) then
+        if type(n) == "string" and not DUI.IsSecret(n) then
             if type(Ambiguate) == "function" then n = call(Ambiguate, n, "mail") or n end
             out[#out + 1] = n
         end

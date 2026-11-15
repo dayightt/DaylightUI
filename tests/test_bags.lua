@@ -87,7 +87,14 @@ local function setup(opts)
         if template == "ContainerFrameItemButtonTemplate" then
             f.icon = f:CreateTexture()
             f.Count = f:CreateFontString()
+            -- The quality frame sits centered on the button (ItemButtonTemplate.xml).
             f.IconBorder = f:CreateTexture()
+            f.IconBorder:SetPoint("CENTER")
+            -- The template's own SetAlpha (ItemButtonMixin) passes the alpha on to its
+            -- icon, quality frame and count, never the button itself.
+            function f:SetAlpha(a)
+                self.icon:SetAlpha(a); self.IconBorder:SetAlpha(a); self.Count:SetAlpha(a)
+            end
             f.JunkIcon = f:CreateTexture()
             f.UpgradeIcon = f:CreateTexture()
             f.calls = {}
@@ -145,6 +152,10 @@ end
 
 -- The plain grid unless categories are asked for. Most of these tests are about
 -- the grid, and the categories view has its own.
+-- The game stops at logout. A test that plays on afterwards puts back the
+-- defaults the logout stripped from the saved profile.
+local function carryOn() DaylightUI.DB.Fill(DaylightUI.DB.Active()) end
+
 local function login(opts)
     stub.Load({ bags = true, before = function() setup(opts) end })
     stub.RunTimers()
@@ -161,6 +172,209 @@ local function open(ns)
     stub.RunTimers()
     return ns.window
 end
+
+T.test("bags: the window has a portrait header, its name and free slots in the sub line", function()
+    local ns = login()
+    local f = open(ns)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    T.eq(f.title:GetText(), "Bags")
+    local free, total = f.set.Free(true)
+    local sub = f.sub:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(string.find(sub, DaylightUI.UnitName("player", "player"), 1, true), "the player's name: " .. sub)
+    T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
+end)
+
+-- The fake game does no layout, so no text width is checked here: these read the
+-- anchors. inset = how far a right edge sits in from the window's right edge.
+local function anchorOf(obj, point)
+    for i = 1, obj:GetNumPoints() do
+        local p, rel, relPoint, x, y = obj:GetPoint(i)
+        if p == point then return rel, relPoint, x, y end
+    end
+end
+
+local function inset(obj, point)
+    local rel, _, x = anchorOf(obj, point)
+    return -x, rel
+end
+
+-- The header's text keeps clear of the X (and of the first header tab when there
+-- are tabs), and the sub line sits under the title, right of the portrait.
+local function headerFits(f, tabs)
+    T.truthy(f.portrait:IsShown(), "the portrait shows")
+    local first = tabs and tabs[1]
+    for _, fs in ipairs({ f.title, f.sub }) do
+        local rel, relPoint = anchorOf(fs, "RIGHT")
+        if first then
+            T.eq(rel, first, "stops at the first tab")
+            T.eq(relPoint, "LEFT")
+        else
+            local closeIn = inset(f.close, "TOPRIGHT") + f.close:GetWidth()
+            local textIn, textRel = inset(fs, "RIGHT")
+            T.eq(textRel, f)
+            T.truthy(textIn >= closeIn, "stops left of the X")
+        end
+    end
+    local subRel, subPoint = anchorOf(f.sub, "TOPLEFT")
+    T.eq(subRel, f.title, "the sub line hangs under the title")
+    T.eq(subPoint, "BOTTOMLEFT")
+    local _, _, titleX, titleY = anchorOf(f.title, "TOPLEFT")
+    T.truthy(titleX >= DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT, "the title starts right of the portrait")
+    T.eq(titleY, DaylightUI.Win.TITLE_Y, "on the header's title row")
+end
+
+-- Header tabs ride the X's row: anchored to the X or the tab beside it, no
+-- offset of their own, so they follow the taller header.
+local function tabsOnTitleRow(f, tabs)
+    local right = f.close
+    for i = #tabs, 1, -1 do
+        local rel, relPoint, x, y = anchorOf(tabs[i], "RIGHT")
+        T.eq(rel, right, "tab " .. i .. " sits beside the one to its right")
+        T.eq(relPoint, "LEFT"); T.eq(y, 0, "level with the X")
+        right = tabs[i]
+    end
+end
+
+T.test("bags: title and sub line stop left of the X at any width", function()
+    local ns = login()
+    local f = open(ns)
+    DaylightUI:Set("Bags", "columns", 4)
+    DaylightUI:Set("Bags", "iconSize", 26)
+    stub.RunTimers()
+    ns.Window.Relayout(f)
+    T.isnil(f.tabs, "no header tabs: the bank and alts are on the portrait")
+    headerFits(f)
+    T.eq(ns.Window.TITLE, DaylightUI.Win.HEADER)
+end)
+
+-- Right-clicks the bag's portrait and returns the menu it opened.
+local function portraitMenu(bag)
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
+        menu = { owner = owner, keys = keys, values = values, current = current, pick = onPick, opts = opts }
+    end
+    local b = bag.portraitButton
+    b:GetScript("OnClick")(b, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    return menu
+end
+
+T.test("viewer: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.viewTabs)
+    tabsOnTitleRow(f, f.viewTabs)
+    T.truthy(f.sub:GetText():find("Saved", 1, true), "when it was saved")
+end)
+
+-- Item counts in tooltips: what each character holds, from their saved bags and
+-- bank, and this character's bags as they are now.
+local function tipRows(ns, data)
+    local rows, addLine, addDouble = {}, GameTooltip.AddLine, GameTooltip.AddDoubleLine
+    GameTooltip.AddLine = function(_, text) rows[#rows + 1] = { text } end
+    GameTooltip.AddDoubleLine = function(_, l, r) rows[#rows + 1] = { l, r } end
+    ns.Saved.OnTip(GameTooltip, data)
+    GameTooltip.AddLine, GameTooltip.AddDoubleLine = addLine, addDouble
+    return rows
+end
+local function plainText(s) return (tostring(s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+
+local function countWorld()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", time = time(),
+        bags = { { section = "bags", size = 4, items = { [1] = { "|Hitem:1|h", 3 }, [2] = { "|Hitem:9|h", 1 } } } },
+        bank = { { section = "bank", size = 4, items = { [2] = { "|Hitem:1|h", 4 }, [3] = { "|Hitem:1|h", 3 } } } } } }
+    DaylightUI.DB.Root().accountBank = { time = time(), tabs = { { section = "account", size = 4,
+        items = { [1] = { "|Hitem:1|h", 2 }, [2] = { "|Hitem:4|h", 1 } } } } }
+    local own = DaylightUI.DB.Character()
+    own.inventory = own.inventory or {}
+    own.inventory.bank = { { section = "bank", size = 4, items = { [1] = { "|Hitem:1|h", 6 } } } }
+    stub.RunTimers()
+    return ns, alt
+end
+
+T.test("bags: item tooltips count each character's bags and bank, the account bank and a total", function()
+    local ns = countWorld()
+    local rows = tipRows(ns, { id = 1 })
+    T.eq(plainText(rows[1][1]), " ", "a gap above the counts")
+    local me = DaylightUI.DB.CharKey():match("^(.-)%-")
+    T.eq(rows[2][1], me, "this character first")
+    T.eq(plainText(rows[2][2]), "Bags 5 · Bank 6", "its bags as they are now and its bank as last seen")
+    T.eq(rows[3][1], "Alt")
+    T.eq(plainText(rows[3][2]), "Bags 3 · Bank 7", "stacks added up")
+    T.eq(rows[4][1], "Account")
+    T.eq(plainText(rows[4][2]), "2")
+    T.eq(rows[5][1], "Total")
+    T.eq(plainText(rows[5][2]), "23")
+    T.eq(#rows, 5)
+    -- Labels tan, the numbers in the accent the row is painted in.
+    T.truthy(rows[3][2]:find(DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL), 1, true), "Bags and Bank in the label color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: item counts show only when another character has some", function()
+    local ns = countWorld()
+    T.eq(#tipRows(ns, { id = 6 }), 0, "only in this character's bags: nothing added")
+    T.eq(#tipRows(ns, { id = 4 }), 0, "this character and the account bank: nothing either")
+    local rows = tipRows(ns, { id = 9 })
+    T.eq(rows[2][1], "Alt", "only on another character: just that one")
+    T.eq(plainText(rows[2][2]), "Bags 1")
+    T.eq(#rows, 3, "and the total")
+    T.eq(#tipRows(ns, { id = 77 }), 0, "nobody has it")
+    T.eq(#tipRows(ns, {}), 0, "no item")
+    T.eq(#tipRows(ns, { id = stub.Secret(1) }), 0, "a secret item id is left alone")
+end)
+
+T.test("bags: item counts follow this character's bags as they change", function()
+    local ns = countWorld()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bags 5 · Bank 6")
+    world.items[0][1].stackCount = 9
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bags 9 · Bank 6", "a new stack size counts at once")
+    world.items[0][1] = nil
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bank 6", "none left in the bags")
+end)
+
+T.test("viewer: same look, keeps its tabs and picker", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 123456, time = time() - 7200,
+        bags = { { section = "bags", size = 4, items = {} } }, bank = { { section = "bank", size = 4, items = {} } }, bankTime = time() - 60 } }
+    ns.Viewer.Open(alt, "bags")
+    stub.RunTimers()
+    local f = ns.Viewer.window
+    T.truthy(f.portrait:IsShown(), "portrait")
+    T.truthy(#f.chips > 1, "chip row")
+    T.truthy(f.freeBar:IsShown(), "free bar")
+    T.eq(f.sellJunk, nil, "no Sell junk")
+    T.eq(#f.viewTabs, 3, "Bags, Bank, Account")
+    T.truthy(f.charsButton, "the character picker")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "a saved character's gold in our coins")
+    for _, view in ipairs({ "grid", "categories" }) do
+        f.Set("view", view)
+        stub.RunTimers()
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("bags: a holder per bag carrying its bag, and exactly one button per real slot", function()
     local ns = login()
@@ -223,7 +437,7 @@ T.test("bags: the search hint stops at its box", function()
     T.eq(right, ns.window.search, "held to the box's right end, so a narrow bag cuts it short")
 end)
 
-T.test("bags: new items keep a still glow, no flash or pulse", function()
+T.test("bags: new items get no glow frame, flash or pulse from the game", function()
     local ns = login()
     open(ns)
     local rare = ns.Bags.buttons[0][1]
@@ -231,8 +445,7 @@ T.test("bags: new items keep a still glow, no flash or pulse", function()
     T.falsy(rare.flashAnim:IsPlaying(), "the sweep stopped")
     T.falsy(rare.newitemglowAnim:IsPlaying(), "the pulse stopped")
     T.falsy(rare.flash:IsShown(), "the flash texture hidden")
-    T.truthy(rare.NewItemTexture:IsShown(), "the glow itself stays")
-    T.eq(rare.NewItemTexture:GetAlpha(), 1, "still and fully lit (stopping the pulse had put it back to 0)")
+    T.falsy(rare.NewItemTexture:IsShown(), "the game's glow frame is hidden: Recent and the new-item dot mark new loot")
     -- A button without the animations (another client build) fills without errors.
     local plain = ns.Bags.buttons[0][2]
     plain.flashAnim, plain.newitemglowAnim, plain.flash, plain.NewItemTexture = nil, nil, nil, nil
@@ -293,6 +506,110 @@ T.test("bags: a new green shines once, seen: looted open, or on the first open a
     T.near(Items.Parts(still).shell.opts.borderColor[1], q[1], nil, "and no flash")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     _G.C_NewItems = nil
+end)
+
+T.test("bags: a new item keeps a small dot until hovered", function()
+    local ns = login()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function loot(slot, quality)
+        world.items[0][slot] = { iconFileID = 300 + slot, stackCount = 1, quality = quality,
+            hyperlink = "|Hitem:" .. (300 + slot) .. "|h", itemID = 300 + slot }
+        newSlots["0:" .. slot] = true
+        stub.FireEvent("BAG_UPDATE", 0)
+        stub.FireEvent("BAG_UPDATE_DELAYED")
+        stub.RunTimers()
+        return B.buttons[0][slot]
+    end
+    local green = loot(7, 2)
+    T.truthy(Items.Parts(green).newDot:IsShown(), "a new green has a dot")
+    T.falsy(Items.Parts(loot(8, 0)).newDot:IsShown(), "a gray one doesn't")
+    green:GetScript("OnEnter")(green)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "hovered: the dot is gone")
+    Items.Fill(green)
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    T.falsy(Items.Parts(green).newDot:IsShown(), "and stays gone after a refill")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: a slot's hover ring settles after a shine and when the bag closes", function()
+    local ns = login()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return slot == 7 end }
+    local f = open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function drive() stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2) end
+    world.items[0][7] = { iconFileID = 207, stackCount = 1, quality = 2, hyperlink = "|Hitem:207|h", itemID = 207 }
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    local green = B.buttons[0][7]
+    local q = Items.QualityColor(2)
+    local p = Items.Parts(green)
+    T.truthy(p.shell.opts.borderColor[1] > q[1] + 0.1, "flashing")
+    green:GetScript("OnEnter")(green)
+    drive()
+    local r = DaylightUI.Style.Accent()
+    T.near(p.shell.opts.borderColor[1], r, 1e-6, "hovered during the flash: the accent")
+    green:GetScript("OnLeave")(green)
+    drive()
+    T.near(p.shell.opts.borderColor[1], q[1], nil, "left: its quality color, not mid-flash")
+    -- The pointer is on a slot when its window hides: no leave comes.
+    local rare = B.buttons[0][1]
+    rare:GetScript("OnEnter")(rare)
+    drive()
+    f:Hide(); drive()
+    f:Show(); drive()
+    T.near(Items.Parts(rare).shell.opts.borderColor[1], 0.3, nil, "reopened: no stuck accent ring")
+end)
+
+T.test("bags: a slot is a ring between two black lines, with no shadow", function()
+    local ns = login()
+    open(ns)
+    local B, Items = ns.Bags, ns.Items
+    local Style, Pixel = DaylightUI.Style, DaylightUI.Pixel
+    local rare, poor, empty = B.buttons[0][1], B.buttons[0][2], B.buttons[0][3]
+    local function opts(b) return Items.Parts(b).shell.opts end
+    local p = Items.Parts(rare)
+    -- Outside in: a black backing the size of the button, the ring one pixel in,
+    -- then the icon one more pixel inside the ring.
+    T.eq(p.back:GetNumPoints(), 1); T.eq(select(2, p.back:GetPoint(1)), rare, "the black backing covers the button")
+    T.eq(p.back.__color[1], Items.BLACK[1]); T.eq(p.back.__color[4], 1)
+    local e = Pixel.Px(rare, 1)
+    local sp, srel, _, sx, sy = p.shell:GetPoint(1)
+    T.eq(sp, "TOPLEFT"); T.eq(srel, rare); T.near(sx, e, 1e-6, "the ring starts a pixel in"); T.near(sy, -e, 1e-6)
+    T.eq(Style.BorderPx(rare), 2, "a two pixel ring")
+    T.eq(Items.EDGE_PX, 1); T.eq(Items.GAP_PX, 1)
+    local _, irel, _, ix, iy = rare.icon:GetPoint(1)
+    T.eq(irel, rare); T.near(ix, Pixel.Px(rare, 4), 1e-6, "the icon starts past both black lines and the ring"); T.near(iy, -Pixel.Px(rare, 4), 1e-6)
+    T.eq(opts(rare).shadowPx, 0, "no shadow around a slot")
+    T.eq(opts(rare).shadowAlpha, 0)
+    -- Every item has a ring: common a light gray, poor a darker one, better ones their quality.
+    T.near(Items.COMMON[1], 0.6, 0.02, "common: light gray")
+    T.eq(Items.COMMON[1], Items.COMMON[2]); T.eq(Items.COMMON[2], Items.COMMON[3])
+    T.truthy(Items.POOR[1] < Items.COMMON[1], "poor: darker")
+    T.eq(opts(poor).borderColor, Items.POOR)
+    T.near(opts(rare).borderColor[1], 0.3, nil, "rare: its quality color")
+    for _, b in ipairs({ rare, poor, empty }) do
+        T.eq(opts(b).bandColor, opts(b).borderColor, "no second tone")
+    end
+    -- An empty slot: a thin dim ring around a dark well.
+    T.eq(Style.BorderPx(empty), Items.THIN_PX, "an empty slot: a thinner ring")
+    T.eq(opts(empty).borderColor, Items.EMPTY)
+    local well = Items.Parts(empty).well
+    T.truthy(well:IsShown(), "a dark well inside")
+    T.near(select(4, well:GetPoint(1)), Pixel.Px(empty, 3), 1e-6, "inside the thin ring's black line")
+    T.falsy(p.well:IsShown(), "none under an item")
+    -- Hover lights the ring in the accent and lets go.
+    local r = DaylightUI.Style.Accent()
+    rare:GetScript("OnEnter")(rare)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.near(opts(rare).borderColor[1], r, 1e-6, "hovered: the accent")
+    rare:GetScript("OnLeave")(rare)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.near(opts(rare).borderColor[1], 0.3, nil, "left: its quality color again")
 end)
 
 T.test("bags: slots filled the game's way, in our look", function()
@@ -409,6 +726,39 @@ T.test("bags: an item the slot still gives no icon after its wait shows the item
     stub.RunTimers()
     T.eq(slot.icon:GetAlpha(), 1, "picked up and put down: still shown")
     C_Item.GetItemIconByID = oldIcon
+    _G.Item = nil
+end)
+
+T.test("bags: a stack that loses its icon after one is used keeps its picture", function()
+    local ns = login()
+    _G.Item = { CreateFromBagAndSlot = function(_, bag, slot)
+        return { IsItemEmpty = function() return false end, ContinueOnItemLoad = function(_, fn) fn() end }
+    end }
+    local oldIcon, oldInstant = C_Item.GetItemIconByID, C_Item.GetItemInfoInstant
+    C_Item.GetItemIconByID = function() return nil end
+    C_Item.GetItemInfoInstant = function() return nil end
+    open(ns)
+    local slot = ns.Bags.buttons[0][3]
+    world.items[0][3] = { stackCount = 5, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031, iconFileID = 134419 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419)
+    -- one rune used: the slot reports the smaller stack with no icon
+    world.items[0][3] = { stackCount = 4, quality = 1, hyperlink = "|Hitem:17031|h", itemID = 17031 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(slot.calls.SetItemButtonTexture[1], 134419, "the same picture, not a blank tile")
+    T.eq(slot.icon:GetAlpha(), 1, "shown")
+    -- an item never seen with an icon: its basic info has one
+    C_Item.GetItemInfoInstant = function(id) return id, "", "", "", 999 end
+    world.items[0][4] = { stackCount = 1, quality = 1, hyperlink = "|Hitem:4|h", itemID = 4 }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(ns.Bags.buttons[0][4].calls.SetItemButtonTexture[1], 999, "the icon from the item's basic info")
+    C_Item.GetItemIconByID, C_Item.GetItemInfoInstant = oldIcon, oldInstant
     _G.Item = nil
 end)
 
@@ -648,7 +998,69 @@ T.test("bags: free slots and money in the footer", function()
     local f = open(ns)
     T.eq(freeText(f), "23 / 3", "the plain bags, then the profession bag's 3 free")
     T.eq(f.free:GetText(), "23 / " .. DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Pop() }) .. "3|r", "a profession bag without a color of its own: the accent")
-    T.eq(f.money:GetText(), "money:9592")
+    T.eq(f.money:GetText(), "money:9500 money:92", "our coins: silver and copper")
+end)
+
+T.test("bags: the footer bar fills with used slots and eases there", function()
+    local ns = login()
+    local f = open(ns)
+    local free, total = f.set.Free(true)
+    T.near(f.freeBar:GetValue(), (total - free) / total, 0.001, "used over total")
+    T.eq(f.free:GetText():find("23", 1, true) ~= nil, true, "the text keeps its counts")
+    world.items[0][3] = { iconFileID = 103, stackCount = 1, quality = 1, hyperlink = "|Hitem:3|h" }
+    ns.Window.UpdateFooter(f)
+    local free2, total2 = f.set.Free(true)
+    T.eq(free2, free - 1, "one more slot used")
+    stub.Advance(1); stub.RunTimers()
+    T.near(f.freeBar:GetValue(), (total2 - free2) / total2, 0.001, "settles on the new share")
+end)
+
+T.test("bags: Sell junk sits above the money row, clear of the tracked currencies", function()
+    local ns = login()
+    DaylightUI:Set("Bags", "columns", 7)
+    C_CurrencyInfo = { GetBackpackCurrencyInfo = function(i)
+        if i <= 3 then return { iconFileID = 100 + i, quantity = 123456 * i } end
+    end }
+    local f = open(ns)
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    ns.Window.UpdateFooter(f)
+    T.eq(#f.currencySlots >= 3 and f.currencySlots[3]:IsShown(), true, "currencies are drawn")
+    local _, _, _, _, sy = f.sellJunk:GetPoint()
+    local _, _, _, _, my = f.money:GetPoint()
+    T.truthy(sy >= my + ns.Window.FOOTER_ROW, "above the row the money and currencies sit on")
+    C_CurrencyInfo = nil
+end)
+
+T.test("bags: Sell junk shows at a vendor with junk and sells it", function()
+    local ns = login()
+    local f = open(ns)
+    local sold = {}
+    C_Container.UseContainerItem = function(bag, slot) sold[#sold + 1] = bag .. ":" .. slot end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][7] = { iconFileID = 107, stackCount = 1, quality = 0, hyperlink = "|Hitem:12|h", itemID = 12 }
+    local old = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:12|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return old(link)
+    end
+    ns.Categories.ToggleLock(12)
+    DaylightUI:Set("Bags", "sellJunk", false)
+    T.eq(f.sellJunk:IsShown(), false, "hidden away from a vendor")
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), true, "shown at a vendor with junk")
+    T.truthy(f.sellJunk.text:GetText():find("25", 1, true), "its label holds the junk's value")
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:2", "the gray slot only, not the locked one")
+    stub.FireEvent("MERCHANT_CLOSED")
+    stub.Advance(1); stub.RunTimers()
+    T.eq(f.sellJunk:IsShown(), false, "hidden when the vendor closes")
 end)
 
 T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line with its price, and a setting", function()
@@ -1051,13 +1463,29 @@ T.test("bags: the search joins terms: & all, | any, ! not; binding, item level a
     T.truthy(S.HELP:find("; works like |", 1, true), "the search's help teaches ;")
 end)
 
-T.test("bags: the tool row's icons keep their colors", function()
+T.test("bags: the tool row is flat icons in Daylight UI's own art", function()
     local ns = login()
     local f = open(ns)
+    local M = DaylightUI.MEDIA
     T.truthy(#f.tools > 0)
     for _, b in ipairs(f.tools) do
-        T.falsy(b.icon:IsDesaturated(), "in color, not gray")
+        T.truthy(b.SetIcon, "a W.IconButton")
+        T.eq(b.icon:GetTexture():sub(1, #M), M, "Media art, not a game icon")
     end
+    T.eq(f.sort.icon:GetTexture(), M .. "ui-sort.png")
+    T.eq(f.viewButton.icon:GetTexture(), M .. "ui-view.png")
+    T.eq(f.disenchantButton.icon:GetTexture(), M .. "ui-disenchant.png")
+    T.eq(f.slotsButton.icon:GetTexture(), M .. "ui-section-bags.png")
+    -- Tan at rest, the accent on hover, with the tooltip saying what it does.
+    local b = f.viewButton
+    T.near((b.icon:GetVertexColor()), DaylightUI.Style.INK.LABEL[1], 0.01, "tan at rest")
+    b:GetScript("OnEnter")(b)
+    T.truthy(GameTooltip:IsShown(), "its tooltip at once")
+    local Driver = DaylightUI.Motion.Driver()
+    if Driver then stub.RunOnUpdate(Driver, 1) end
+    T.near((b.icon:GetVertexColor()), (DaylightUI.Style.Accent()), 0.01, "the accent on hover")
+    b:GetScript("OnLeave")(b)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: the Disenchant button: shown to enchanters; hovered, the secure button lies over it above the bag", function()
@@ -1147,7 +1575,7 @@ T.test("bags: the Comprehend Scroll button: shown to those who know it, beside D
     T.truthy(b:IsShown())
     T.falsy(f.disenchantButton:IsShown(), "Disenchant still follows its own spell")
     T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
-    T.eq(b.icon:GetTexture(), 134937, "the spell's own icon")
+    T.truthy(tostring(b.icon:GetTexture()):find("ui%-micro%-quests%.png"), "a flat icon like the rest of the row")
     known[DE.SPELL] = true
     stub.FireEvent("SPELLS_CHANGED")
     T.truthy(f.disenchantButton:IsShown(), "both known: both shown")
@@ -1243,6 +1671,15 @@ local function catLogin()
     local f = open(ns)
     ns.Relayout()
     ns.FillAll()
+    return ns, f
+end
+
+-- A Shelf two slots wide: no two groups fit side by side, so each group sits
+-- over the next and folding or emptying one moves everything under it.
+local function narrowLogin()
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "columns", 2)
+    stub.RunTimers()
     return ns, f
 end
 
@@ -1464,7 +1901,7 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)   -- its items fade out
     T.truthy(Cat.IsCollapsed("weapon"))
     T.falsy(B.buttons[0][1]:IsShown(), "folded: its items out of sight")
-    T.truthy(string.find(h.text:GetText(), "(1)", 1, true), "its count on the heading")
+    T.eq(h.count:GetText(), "1", "its count on the heading")
     h:GetScript("OnClick")(h)
     stub.RunTimers()
     T.truthy(B.buttons[0][1]:IsShown(), "open again")
@@ -1482,36 +1919,399 @@ T.test("bags: groups flow with headings; a heading folds its group; dropping an 
     T.eq(groupOf(ns, B.buttons[1][2]), "consumable")
 end)
 
--- A folded heading beside open groups left a hole under it and pushed them about,
--- and since the fold is saved the odd shape stayed. Folded headings now take a line
--- of their own (side by side when they follow each other), and open groups keep theirs.
-T.test("bags: a folded group's heading takes its own line, never beside an open group", function()
+T.test("bags: group headings read upper case in the group's color with a count and chevron", function()
+    local ns, f = catLogin()
+    local Style, Cat = DaylightUI.Style, ns.Categories
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    T.truthy(h, "a heading for Weapons")
+    T.eq(h.text:GetText(), string.upper(h.name), "name in upper case")
+    local r, g, b = h.text:GetTextColor()
+    local wr, wg, wb = Cat.Color("weapon")
+    T.near(r, wr, 0.01); T.near(g, wg, 0.01); T.near(b, wb, 0.01)
+    T.eq(h.count:GetText(), "1")
+    T.eq(h.chev.__rotation or 0, 0, "open: the chevron points down")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    local lr, lg, lb = h.text:GetTextColor()
+    T.near(lr, Style.INK.LABEL[1], 0.01); T.near(lg, Style.INK.LABEL[2], 0.01); T.near(lb, Style.INK.LABEL[3], 0.01)
+    T.near(h.chev.__rotation or 0, math.pi / 2, 0.001, "folded: the chevron points right")
+    h:GetScript("OnClick")(h)
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
+    stub.now = 1000
+    _G.GetTime = function() return stub.now end
+    DaylightUI:Set("general", "accent", "gradient")
+    local ok, err = pcall(function()
+        ns.Relayout()
+        local rec = headOf("recent")
+        T.truthy(rec, "a Recent heading")
+        T.truthy(string.find(rec.text:GetText(), "|c", 1, true), "Recent paints letter by letter under a gradient accent")
+        local ar, ag, ab = DaylightUI.Style.Accent()
+        T.near(rec.rule.__color[1], ar, 0.01, "its line uses the accent")
+        T.near(rec.rule.__color[2], ag, 0.01); T.near(rec.rule.__color[3], ab, 0.01)
+    end)
+    DaylightUI:Set("general", "accent", nil)
+    _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
+    T.truthy(ok, tostring(err))
+end)
+
+-- A folded group collapses where it is: its heading keeps its spot and the width it
+-- has open, so nothing beside it moves. What's stacked under it in its column moves
+-- up, and a row shrinks only when its tallest column does.
+T.test("bags: a folded group keeps its spot and width; its row shrinks only once every group in it folds", function()
     local ns, f = catLogin()
     local Cat = ns.Categories
-    local function top(key)
+    local function spots()
+        local t = {}
         for _, x in ipairs(f.headings) do
-            if x:IsShown() and x.key == key then return select(5, x:GetPoint(1)) end
+            if x:IsShown() and x.key then
+                local _, _, _, px, py = x:GetPoint(1)
+                t[x.key] = { px, py, x:GetWidth() }
+            end
+        end
+        return t
+    end
+    local before = spots()
+    -- The groups on the first row, and the rows below it.
+    local topY, first, below = nil, {}, {}
+    for _, p in pairs(before) do topY = math.max(topY or p[2], p[2]) end
+    for k, p in pairs(before) do if p[2] == topY then first[#first + 1] = k else below[#below + 1] = k end end
+    T.truthy(#first > 1, "several groups share the first row")
+    T.truthy(#below > 0, "and there are rows below")
+    Cat.ToggleCollapsed(first[1])
+    stub.RunTimers()
+    local now = spots()
+    for k, p in pairs(before) do
+        T.eq(now[k][1], p[1], k .. " keeps its x")
+        T.eq(now[k][3], p[3], k .. " keeps its width")
+    end
+    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end   -- first[1] opens again, the rest fold
+    Cat.ToggleCollapsed(first[1])
+    stub.RunTimers()
+    now = spots()
+    for _, k in ipairs(below) do
+        T.truthy(now[k][2] > before[k][2], k .. " moves up once the whole row above is folded")
+        T.eq(now[k][1], before[k][1], k .. " only moves up")
+    end
+    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end
+    stub.RunTimers()
+    now = spots()
+    for k, p in pairs(before) do T.deq(now[k], p, k .. " back where it was, all open again") end
+end)
+
+-- The packer on its own, with the groups of a real bag (10 columns, 35 px slots).
+local function packWorld(L, f, counts)
+    local cfg = f.Cfg()
+    local size, gap, cols = 35, 2, 10
+    local top, headH = L.SlotTop(f, cfg), L.HeadH(f, cfg)
+    local inset = L.Ref(f, cfg, L.REF.inset)
+    local boxes = {}
+    for _, c in ipairs(counts) do
+        local key, n, headW = c[1], c[2], c[3] + 2 * inset
+        local function shape(across)
+            local rows = math.ceil(n / across)
+            return { w = math.max(across * size + (across - 1) * gap, headW), h = top + rows * size + (rows - 1) * gap,
+                     across = across, lines = rows }
+        end
+        boxes[#boxes + 1] = { key = key, n = n, cols = cols, shape = shape, drawnH = c.folded and headH or nil }
+    end
+    return boxes, cols * size + (cols - 1) * gap, L.GroupGap(f, cfg), L.RowGap(f, cfg)
+end
+
+-- The bag seen in game, with name widths about as wide as its headings read there.
+local USER_BAG = { { "recent", 1, 60 }, { "hearthstone", 1, 88 }, { "consumable", 4, 104 }, { "quest", 12, 98 },
+                   { "weapon", 4, 76 }, { "tradegoods", 1, 104 }, { "recipe", 1, 70 }, { "empty", 2, 50 } }
+
+local function rects(boxes, spots)
+    local out = {}
+    for i, b in ipairs(boxes) do
+        local sh = spots[i].shape
+        out[i] = { x = spots[i].x, y = spots[i].y, w = sh.w, h = b.drawnH or sh.h, key = b.key, lines = sh.lines }
+    end
+    return out
+end
+
+T.test("bags: the Shelf lays groups in level rows, in order, nothing overlapping", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
+    local spots = L.Pack(boxes, maxW, gx, gy)
+    local r = rects(boxes, spots)
+    for i, a in ipairs(r) do
+        T.truthy(a.x >= 0 and a.x + a.w <= maxW + 0.01, a.key .. " inside the bag's width")
+        for k = i + 1, #r do
+            local b = r[k]
+            local apart = a.x + a.w + gx <= b.x + 0.01 or b.x + b.w + gx <= a.x + 0.01
+                or a.y + a.h + gy <= b.y + 0.01 or b.y + b.h + gy <= a.y + 0.01
+            T.truthy(apart, a.key .. " and " .. b.key .. " keep their gap")
         end
     end
-    T.eq(top("consumable"), top("sets"), "open: side by side")
-    Cat.ToggleCollapsed("sets")
+    T.eq(r[1].y, r[2].y, "Recent shares its row with the Hearthstone")
+    -- Rows read top to bottom, each left to right, in group order.
+    for i = 2, #r do
+        local a, b = r[i - 1], r[i]
+        T.truthy(b.y > a.y or (b.y == a.y and b.x > a.x), b.key .. " comes after " .. a.key)
+    end
+    -- Quest items (12) wrap to more lines than one, never stacked under another group.
+    local quest = r[4]
+    T.truthy(quest.lines > 1 and quest.lines <= 3, "quest items fold into a few lines: " .. quest.lines)
+end)
+
+T.test("bags: the Shelf's groups on a row wrap to the same number of lines where they can", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local bag = { { "consumable", 9, 104 }, { "quest", 12, 98 }, { "tradegoods", 16, 104 } }
+    local boxes, maxW, gx, gy = packWorld(L, f, bag)
+    local r = rects(boxes, L.Pack(boxes, maxW, gx, gy))
+    for i = 2, #r do
+        if r[i].y == r[1].y then T.eq(r[i].lines, r[1].lines, r[i].key .. " as many lines as " .. r[1].key) end
+    end
+end)
+
+T.test("bags: the Shelf's packing is the same every time and moves little when a count changes", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
+    local a, ha = L.Pack(boxes, maxW, gx, gy)
+    local b, hb = L.Pack(boxes, maxW, gx, gy)
+    T.eq(ha, hb)
+    for i = 1, #boxes do T.eq(a[i].x, b[i].x); T.eq(a[i].y, b[i].y); T.eq(a[i].shape.w, b[i].shape.w) end
+    -- One more consumable.
+    local more = {}
+    for i, c in ipairs(USER_BAG) do more[i] = { c[1], c[2] + (c[1] == "consumable" and 1 or 0), c[3] } end
+    local boxes2 = packWorld(L, f, more)
+    local c = L.Pack(boxes2, maxW, gx, gy)
+    local kept = 0
+    for i = 1, #boxes do if c[i].x == a[i].x and c[i].y == a[i].y then kept = kept + 1 end end
+    T.truthy(kept >= #boxes / 2, "most groups keep their spots: " .. kept .. " of " .. #boxes)
+end)
+
+T.test("bags: a folded group packs where it would stand open", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
+    local open, h0 = L.Pack(boxes, maxW, gx, gy)
+    local folded = {}
+    for i, c in ipairs(USER_BAG) do folded[i] = { c[1], c[2], c[3], folded = c[1] == "quest" } end
+    local fb = packWorld(L, f, folded)
+    local now, h1 = L.Pack(fb, maxW, gx, gy)
+    T.truthy(h1 <= h0, "never taller")
+    for i, b in ipairs(fb) do
+        T.eq(now[i].x, open[i].x, b.key .. ": the same column")
+        T.eq(now[i].shape.w, open[i].shape.w, b.key .. ": the same width")
+    end
+end)
+
+T.test("bags: folding a group moves no other heading or slot while its row has an open group", function()
+    local ns, f = catLogin()
+    local B = ns.Bags
+    local function snapshot()
+        local t = {}
+        for _, x in ipairs(f.headings) do
+            if x:IsShown() and x.key and x.key ~= "sets" then t[x.key] = { select(4, x:GetPoint(1)), select(5, x:GetPoint(1)) } end
+        end
+        for _, s in ipairs(f.set.Slots()) do
+            if s.button:IsShown() and s.button ~= B.buttons[0][4] then t[s.button] = { select(4, s.button:GetPoint(1)), select(5, s.button:GetPoint(1)) } end
+        end
+        return t
+    end
+    local before = snapshot()
+    ns.Categories.ToggleCollapsed("sets")
     stub.RunTimers()
-    local foldTop = top("sets")
-    T.truthy(foldTop < top("consumable"), "below the open groups before it")
-    T.truthy(top("weapon") < foldTop, "the open groups after it on the next line")
-    T.eq(top("weapon"), top("armor"), "which still sit side by side")
-    T.eq(foldTop - top("weapon"), ns.Layout.HEAD + ns.Layout.ROW_GAP, "a folded line is only its heading tall")
-    Cat.ToggleCollapsed("weapon")
+    local after = snapshot()
+    local n = 0
+    for k, p in pairs(before) do
+        n = n + 1
+        T.truthy(after[k], "still there")
+        T.eq(after[k][1], p[1], "same x")
+        T.eq(after[k][2], p[2], "same y")
+    end
+    T.truthy(n > 5, "several headings and slots checked")
+end)
+
+-- Seen in game: each group's line ran along the top of its slots and the rings
+-- (with their shadow) drew over it, and the gaps between groups looked uneven.
+T.test("bags: the Shelf gives each heading's line room, and every gap between groups is the same", function()
+    local ns, f = catLogin()
+    local L, Pixel = ns.Layout, DaylightUI.Pixel
+    DaylightUI:Set("Bags", "columns", 4)
     stub.RunTimers()
-    T.eq(top("weapon"), top("sets"), "folded ones that follow each other share the line")
-    Cat.ToggleCollapsed("sets"); Cat.ToggleCollapsed("weapon")
+    ns.Categories.ToggleCollapsed("sets")
     stub.RunTimers()
-    T.eq(top("consumable"), top("weapon"), "all open: the flow as before")
+    local cfg = f.Cfg()
+    local size, gap = cfg.iconSize, cfg.spacing
+    local HEAD = L.HeadH(f, cfg)
+    local heads, buttons = {}, {}
+    for _, h in ipairs(f.headings) do if h:IsShown() and h.key then heads[#heads + 1] = h end end
+    for _, s in ipairs(f.set.Slots()) do if s.button:IsShown() then buttons[#buttons + 1] = s.button end end
+    for _, t in ipairs(f.tiles or {}) do if t.button:IsShown() then buttons[#buttons + 1] = t.button end end
+    local function spot(r) local _, _, _, x, y = r:GetPoint(1); return x, -y end
+    -- Rows of headings, top to bottom, each left to right.
+    local rows = {}
+    for _, h in ipairs(heads) do
+        local x, top = spot(h)
+        local row
+        for _, r in ipairs(rows) do if r.top == top then row = r end end
+        if not row then row = { top = top, heads = {} }; rows[#rows + 1] = row end
+        row.heads[#row.heads + 1] = { h = h, x = x }
+    end
+    table.sort(rows, function(a, b) return a.top < b.top end)
+    T.truthy(#rows >= 3, "several rows to compare")
+    local folded, measured = false, 0
+    -- A heading starts and ends this far inside its group's rings.
+    local inset = L.Ref(f, cfg, L.REF.inset)
+    for i, row in ipairs(rows) do
+        table.sort(row.heads, function(a, b) return a.x < b.x end)
+        row.bottom = row.top + HEAD
+        for k, e in ipairs(row.heads) do
+            local h = e.h
+            -- The line is the heading's bottom edge, as wide as the group.
+            local p, rel, relP = h.rule:GetPoint(1)
+            T.eq(rel, h); T.eq(p, "BOTTOMLEFT"); T.eq(relP, "BOTTOMLEFT")
+            T.eq(h:GetHeight(), HEAD)
+            if h.folded then folded = true end
+            local left = e.x - inset
+            local mine, right = {}, left
+            for _, b in ipairs(buttons) do
+                local bx, by = spot(b)
+                local nextTop = rows[i + 1] and rows[i + 1].top or math.huge
+                if by > row.top and by < nextTop and bx >= left - 0.01 and bx < left + h:GetWidth() + 2 * inset then
+                    mine[#mine + 1] = b
+                    right = math.max(right, bx + size)
+                    -- From the line down to the ring's outer edge (the button's).
+                    T.truthy(by - (row.top + HEAD) >= L.Ref(f, cfg, L.REF.toRing) - 0.01,
+                        h.key .. ": the rings stay clear of the line")
+                    row.bottom = math.max(row.bottom, by + size)
+                end
+            end
+            if #mine > 0 and h.text:GetStringWidth() + 5 + h.count:GetStringWidth() < right - left - 2 * inset then
+                T.near(h:GetWidth(), right - left - 2 * inset, 0.01, h.key .. ": the line spans its slots, inside the rings")
+                measured = measured + 1
+            end
+            local nxt = row.heads[k + 1]
+            if nxt then
+                T.near(nxt.x - (e.x + h:GetWidth()), L.GroupGap(f, cfg) + 2 * inset, 0.01, "the same gap beside every group")
+            end
+        end
+        if i > 1 then
+            T.near(row.top - rows[i - 1].bottom, L.RowGap(f, cfg), 0.01, "the same gap under every row")
+        end
+    end
+    T.truthy(folded, "a folded row among them")
+    T.truthy(measured > 0, "a group wider than its name")
+    -- The window holds the last row's rings.
+    local _, h = L.Categories(f, cfg)
+    T.near(h, rows[#rows].bottom, 0.01, "the height reaches the last ring's outer edge")
+end)
+
+-- The Shelf's spacing follows the approved picture (a 70 px slot, rings and all), scaled to the
+-- slot size, so a bigger slot keeps the same proportions.
+T.test("bags: the Shelf's gaps are the picture's, scaled to the slot size", function()
+    local ns, f = catLogin()
+    local L, Pixel = ns.Layout, DaylightUI.Pixel
+    local function want(px, size) return math.max(1, math.floor(px * size / 70 + 0.5)) end
+    for _, size in ipairs({ 24, 35, 50 }) do
+        DaylightUI:Set("Bags", "iconSize", size)
+        stub.RunTimers()
+        local cfg = f.Cfg()
+        T.eq(cfg.iconSize, size)
+        T.eq(L.Ref(f, cfg, 6), want(6, size), size .. ": the room under a heading's text")
+        T.eq(L.SlotTop(f, cfg) - L.HeadH(f, cfg), want(4, size), size .. ": line to the first ring")
+        T.eq(L.RowGap(f, cfg), want(10, size), size .. ": last ring to the next heading")
+        local clear = L.HEAD_REACH + L.HEAD_AIR - 2 * want(4, size)
+        T.eq(L.GroupGap(f, cfg), math.max(want(18, size), clear), size .. ": ring to ring between groups")
+        if size >= 35 then T.eq(L.GroupGap(f, cfg), want(18, size), size .. ": the picture's own gap") end
+        -- Heading to heading: the gap plus each heading's inset inside its rings.
+        local apart = L.GroupGap(f, cfg) + 2 * L.Ref(f, cfg, L.REF.inset)
+        T.truthy(apart - L.HEAD_REACH >= 2, size .. ": the click areas of headings side by side never overlap")
+        T.truthy(apart - (L.HEAD_CHEV + L.HEAD_CHEV_GAP) >= 2, size .. ": a count never meets the next chevron")
+        T.eq(cfg.spacing, 2, "slots nearly touch by default, as in the picture")
+        T.truthy(L.GroupGap(f, cfg) > cfg.spacing * 2, size .. ": groups stand clearly apart from their slots")
+        T.truthy(L.GroupGap(f, cfg) > L.HEAD_CHEV + L.HEAD_CHEV_GAP, size .. ": the next chevron never reaches the heading before it")
+        local line = L.LineH(f, cfg)
+        T.truthy(line >= Pixel.Px(f.items, 2) - 1e-6, size .. ": the line is at least two pixels")
+        T.truthy(line >= 2 * size / 70 - Pixel.Px(f.items, 1), size .. ": and grows with the slot")
+        T.eq(L.HeadH(f, cfg), L.HEAD_TEXT + want(6, size) + math.ceil(line - 0.001))
+        -- The first slot of a group sits right under its heading by that much.
+        local h
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "weapon" then h = x end end
+        local _, _, _, hx, hy = h:GetPoint(1)
+        local found
+        for _, s in ipairs(f.set.Slots()) do
+            local b = s.button
+            if b:IsShown() then
+                local _, _, _, bx, by = b:GetPoint(1)
+                if bx == hx - L.Ref(f, cfg, L.REF.inset) and by == hy - L.SlotTop(f, cfg) then found = true end
+            end
+        end
+        T.truthy(found, size .. ": a slot at the measured spot")
+    end
+end)
+
+-- Seen in game: new loot easing into Recent wore the game's bright white frame.
+-- The template's SetAlpha also sets its quality frame's alpha, so any fade of a
+-- slot showed it again.
+T.test("bags: a new item's ring matches every other slot's after it fades in", function()
+    local ns = login()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    local f = open(ns)
+    local Items, B = ns.Items, ns.Bags
+    world.items[0][7] = { iconFileID = 207, stackCount = 1, quality = 1, hyperlink = "|Hitem:207|h", itemID = 207 }
+    world.items[0][8] = { iconFileID = 208, stackCount = 1, quality = 2, hyperlink = "|Hitem:208|h", itemID = 208 }
+    newSlots["0:7"], newSlots["0:8"] = true, true
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    local common, green = B.buttons[0][7], B.buttons[0][8]
+    -- The ways a slot's alpha is set: a fade in, and a bag hovered in the strip.
+    common:SetAlpha(0); common:SetAlpha(1)
+    ns.Slots.Light(f.set.Slots(), 0); ns.Slots.Light(f.set.Slots(), nil)
+    for _, b in ipairs({ common, green }) do
+        local border = b.IconBorder
+        T.truthy(border:GetAlpha() == 0 or border:GetNumPoints() == 0, "the game's quality frame can't draw")
+        T.falsy(b.NewItemTexture:IsShown(), "nor its new-item glow")
+    end
+    T.eq(Items.Parts(common).shell.opts.borderColor, Items.COMMON, "a new common item: the common ring")
+    T.near(Items.Parts(green).shell.opts.borderColor[1], Items.QualityColor(2)[1], nil, "a new green ends on its quality ring")
+    _G.C_NewItems = nil
+end)
+
+-- The template's SetAlpha only reaches the icon and count, so fading slots
+-- through it left the ring popping in and undid an empty or greyed icon.
+T.test("bags: slots fade as a whole and keep their own icon look", function()
+    local ns = login()
+    DaylightUI:Set("Bags", "greyPoor", true)
+    local f = open(ns)
+    local B, Items = ns.Bags, ns.Items
+    local poor, empty = B.buttons[0][2], B.buttons[0][3]
+    Items.Fill(poor); Items.Fill(empty)
+    ns.Slots.Light(f.set.Slots(), 5)
+    T.near(poor:GetAlpha(), ns.Slots.DIM, 1e-6, "another bag hovered: the whole slot dims, ring and all")
+    ns.Slots.Light(f.set.Slots(), nil)
+    T.eq(poor:GetAlpha(), 1)
+    local fade = Items.Fader(empty)
+    fade:SetAlpha(0)
+    DaylightUI.Motion.AlphaTo(fade, 1, DaylightUI.Motion.NORMAL)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.05)
+    local mid = empty:GetAlpha()
+    T.truthy(mid > 0 and mid < 1, "a fading slot is part way, ring included")
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.eq(empty:GetAlpha(), 1)
+    T.eq(empty.icon:GetAlpha(), 0, "the empty slot keeps no picture")
+    T.eq(poor.icon:GetAlpha(), Items.POOR_ALPHA, "the poor item stays greyed")
 end)
 
 -- Folding a group should animate.
 T.test("bags: folding a group eases: its items fade out, the rest glide, the window glides to its size", function()
-    local ns, f = catLogin()
+    local ns, f = narrowLogin()
     local B = ns.Bags
     local Motion, Feel = DaylightUI.Motion, DaylightUI.Win.Feel
     local function settle()
@@ -1532,22 +2332,23 @@ T.test("bags: folding a group eases: its items fade out, the rest glide, the win
         end
     end
     settle()
-    local setItem, weapon = B.buttons[0][4], B.buttons[0][1]
+    -- Junk sits alone on its row: folding it lifts the row below and shrinks the window.
+    local setItem, weapon = B.buttons[0][2], B.buttons[0][3]
     local h0 = f:GetHeight()
     local y0 = select(5, weapon:GetPoint(1))
-    click("sets")
+    click("junk")
     T.truthy(setItem:IsShown(), "the folded item fades, it doesn't vanish")
-    T.truthy(gliding(weapon), "a group pushed down glides there")
+    T.truthy(gliding(weapon), "a group pushed up glides there")
     T.eq(select(5, weapon:GetPoint(1)), y0, "from where it was")
     T.eq(f:GetHeight(), h0, "the window starts from its old size")
     stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
     local midY, midH = select(5, weapon:GetPoint(1)), f:GetHeight()
-    T.truthy(midY < y0 and midH > h0, "halfway, slot and window both on their way")
+    T.truthy(midY > y0 and midH < h0, "halfway, slot and window both on their way")
     settle()
-    T.truthy(select(5, weapon:GetPoint(1)) < midY, "the slot at its new spot")
+    T.truthy(select(5, weapon:GetPoint(1)) > midY, "the slot at its new spot")
     T.falsy(setItem:IsShown(), "gone once faded")
-    T.truthy(f:GetHeight() > h0, "and the window got there")
-    click("sets")
+    T.truthy(f:GetHeight() < h0, "and the window got there")
+    click("junk")
     T.truthy(setItem:IsShown())
     T.eq(setItem:GetAlpha(), 0, "an opened group's items fade in")
     settle()
@@ -1559,12 +2360,728 @@ T.test("bags: folding a group eases: its items fade out, the rest glide, the win
     T.falsy(gliding(weapon), "no glide but a fold's")
     ns.Categories.Unpin(9)
     -- A fold mid-fade then laid out again: the faded item comes back whole.
-    click("sets")
+    click("junk")
     ns.Relayout()
-    click("sets")
+    click("junk")
     settle()
     T.eq(setItem:GetAlpha(), 1, "back at full")
     T.truthy(setItem:IsShown())
+end)
+
+-- An eased layout moves each item from where it was on screen, not each button:
+-- a button that now shows another item starts at that item's old spot.
+local function easedRelayout(ns)
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+end
+
+local function settleFeel()
+    local d = DaylightUI.Motion.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+    d = DaylightUI.Win.Feel.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+end
+
+local function at(btn)
+    local _, _, _, x, y = btn:GetPoint(1)
+    return x, y
+end
+
+T.test("bags: a swapped pair glides from each other's spot", function()
+    -- Grid: buttons keep their slots, so the items cross over.
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    open(ns)
+    ns.Relayout()
+    settleFeel()
+    local a, b = ns.Bags.buttons[0][1], ns.Bags.buttons[0][4]
+    local ax, ay = at(a)
+    local bx, by = at(b)
+    world.items[0][1], world.items[0][4] = world.items[0][4], world.items[0][1]
+    easedRelayout(ns)
+    T.truthy(Feel.Moving(a) and Feel.Moving(b), "grid: both glide")
+    T.eq(select(4, a:GetPoint(1)), bx, "grid: the first starts where its item was")
+    T.eq(select(5, a:GetPoint(1)), by)
+    T.eq(select(4, b:GetPoint(1)), ax, "grid: the second too")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    T.eq(select(4, a:GetPoint(1)), ax, "grid: each ends at its own slot")
+    T.eq(select(4, b:GetPoint(1)), bx)
+
+    -- Shelf: two items of one group swap slots. Each item stays where it is on
+    -- screen, so its new button starts on the item's old spot.
+    ns = catLogin()
+    settleFeel()
+    a, b = ns.Bags.buttons[0][5], ns.Bags.buttons[0][6]
+    ax, ay = at(a)
+    bx, by = at(b)
+    T.truthy(ax ~= bx or ay ~= by, "two spots")
+    world.items[0][5], world.items[0][6] = world.items[0][6], world.items[0][5]
+    easedRelayout(ns)
+    T.eq(select(4, a:GetPoint(1)), bx, "shelf: the first starts where its item was")
+    T.eq(select(5, a:GetPoint(1)), by)
+    T.eq(select(4, b:GetPoint(1)), ax, "shelf: the second too")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: grid view eases like the shelf", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local gray = ns.Bags.buttons[0][2]
+    local x0, y0 = at(gray)
+    local h0 = f:GetHeight()
+    -- The first item leaves: the rest close up, gliding there.
+    world.items[0][1] = nil
+    easedRelayout(ns)
+    T.truthy(Feel.Moving(gray), "a slot that moved glides")
+    T.falsy(gray.__duiMotion and gray.__duiMotion.glide and gray.__duiMotion.glide:IsPlaying(), "by its anchor, no Translation")
+    T.eq(select(4, gray:GetPoint(1)), x0, "from where it was")
+    T.eq(select(5, gray:GetPoint(1)), y0)
+    T.eq(f:GetHeight(), h0)
+    settleFeel()
+    local x1 = at(gray)
+    T.truthy(x1 < x0, "now at the front")
+    -- A layout that isn't eased places at once.
+    world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+    ns.Relayout()
+    T.falsy(Feel.Moving(gray), "no glide unless eased")
+    T.eq(at(gray), x0)
+    -- Motion off: at once too.
+    DaylightUI.DB.General().motion = false
+    world.items[0][1] = nil
+    easedRelayout(ns)
+    T.falsy(Feel.Moving(gray), "motion off: no glide")
+    T.eq(at(gray), x1)
+    DaylightUI.DB.General().motion = true
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a stack that grew keeps its spot, the merged-away one fades", function()
+    local ns = login({ view = "categories" })
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "combineStacks", false)
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
+    categoryWorld()
+    local f = open(ns)
+    ns.Relayout()
+    ns.FillAll()
+    settleFeel()
+    local first, second = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    T.truthy(first:IsShown() and second:IsShown(), "two stacks of Bread, apart")
+    local fx, fy = at(first)
+    -- The second stack of Bread merges into the first.
+    world.items[0][8].stackCount = 12
+    world.items[1][1] = nil
+    easedRelayout(ns)
+    T.eq(select(4, first:GetPoint(1)), fx, "the stack that grew starts from its own spot")
+    T.eq(select(5, first:GetPoint(1)), fy)
+    T.truthy(f.fading and f.fading[second], "the merged-away one fades out")
+    T.truthy(second:IsShown(), "where it was")
+    settleFeel()
+    T.falsy(second:IsShown(), "gone once faded")
+    -- Keys: the item, then its place among stacks of the same item.
+    world.items[1][1] = { iconFileID = 108, stackCount = 7, quality = 1, hyperlink = "|Hitem:8|h", itemID = 8 }
+    T.eq(ns.Layout.ItemKey(first), "8")
+    T.eq(ns.Layout.ItemKey(ns.Bags.buttons[0][3]), nil, "an empty slot has no key")
+    local seen = {}
+    T.eq(ns.Layout.ItemKey(first, seen), "8#1")
+    T.eq(ns.Layout.ItemKey(second, seen), "8#2")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Two stacks of one item in different groups: folding the group of one must not
+-- send the other off to the folded one's spot.
+T.test("bags: folding one of two stacks leaves the other's glide its own", function()
+    local ns, f = catLogin()
+    world.sets["0:8"] = true
+    ns.Relayout()
+    ns.FillAll()
+    settleFeel()
+    local inSet, other = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    T.eq(groupOf(ns, inSet), "sets")
+    T.eq(groupOf(ns, other), "consumable")
+    local ox, oy = at(other)
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "sets" then h:GetScript("OnClick")(h, "LeftButton") end
+    end
+    T.eq(select(4, other:GetPoint(1)), ox, "starts from its own spot")
+    T.eq(select(5, other:GetPoint(1)), oy)
+    settleFeel()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Loot with the bag open: a new weapon lands in bag 0 slot 3 (empty in this world).
+local function lootWeapon(itemID, slot)
+    itemID, slot = itemID or 10, slot or 3
+    if world.class then world.class[itemID] = 2 end
+    world.items[0][slot] = { iconFileID = 100 + itemID, stackCount = 1, quality = 2,
+        hyperlink = "|Hitem:" .. itemID .. "|h", itemID = itemID, itemName = "Axe " .. itemID }
+    stub.FireEvent("BAG_UPDATE", 0)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+end
+
+T.test("bags: loot arriving while open glides the rest aside", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 3 end }
+    local ok, err = pcall(function()
+        settleFeel()
+        local axe = ns.Bags.buttons[0][3]
+        local spots = {}
+        for _, s in ipairs(f.set.Slots()) do
+            if s.button:IsShown() and s.button ~= axe then spots[s.button] = { at(s.button) } end
+        end
+        local w0, h0 = f:GetWidth(), f:GetHeight()
+        local sized = 0
+        local realSize = Feel.Size
+        Feel.Size = function(...) sized = sized + 1 return realSize(...) end
+        lootWeapon()
+        Feel.Size = realSize
+        T.eq(groupOf(ns, axe), "recent", "new, it goes in Recent")
+        T.truthy(axe:IsShown(), "the new item shows")
+        T.eq(axe:GetAlpha(), 0, "and fades in")
+        T.truthy(Feel.Moving(axe), "dropping into place")
+        T.eq(sized, 1, "the window glides to its new size")
+        T.eq(f:GetWidth(), w0, "from its old one")
+        T.eq(f:GetHeight(), h0)
+        local moved = 0
+        for b, xy in pairs(spots) do
+            if b:IsShown() then
+                local x, y = at(b)
+                T.eq(x, xy[1], "every other slot starts where it was")
+                T.eq(y, xy[2])
+                if Feel.Moving(b) then moved = moved + 1 end
+            end
+        end
+        T.truthy(moved > 0, "the groups after it glide aside")
+        T.truthy(ns.Items.Parts(axe).glint:IsShown(), "the loot shine still plays")
+        T.truthy(ns.Items.Parts(axe).newDot:IsShown(), "and the new-item dot shows")
+        settleFeel()
+        T.eq(axe:GetAlpha(), 1)
+        local landed = 0
+        for b, xy in pairs(spots) do
+            local x, y = at(b)
+            if b:IsShown() and (x ~= xy[1] or y ~= xy[2]) then landed = landed + 1 end
+        end
+        T.eq(landed, moved, "each glide ends at the new layout's spot")
+    end)
+    _G.C_NewItems = nil
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: loot in a burst glides on from where things are", function()
+    local ns, f = catLogin()
+    local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+    settleFeel()
+    lootWeapon()
+    stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
+    local second = ns.Bags.buttons[0][7]
+    local mid, moving = {}, 0
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b ~= second then
+            mid[b] = { at(b) }
+            if Feel.Moving(b) then moving = moving + 1 end
+        end
+    end
+    T.truthy(moving > 0, "the first loot is still gliding")
+    local h = f:GetHeight()
+    lootWeapon(11, 7)
+    T.truthy(second:IsShown(), "the second loot is in")
+    for b, xy in pairs(mid) do
+        if b:IsShown() then
+            local x, y = at(b)
+            T.eq(x, xy[1], "no slot jumps when more loot lands mid-glide")
+            T.eq(y, xy[2])
+        end
+    end
+    T.eq(f:GetHeight(), h, "nor the window")
+    settleFeel()
+    local ends = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then ends[s.button] = { at(s.button) } end
+    end
+    ns.Relayout()
+    for b, xy in pairs(ends) do
+        T.eq(select(4, b:GetPoint(1)), xy[1], "and each lands on its spot")
+        T.eq(select(5, b:GetPoint(1)), xy[2])
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: an extra stack of an item you have fades in, the others keep their spots", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "combineStacks", false)
+    stub.RunTimers()
+    ns.Relayout()
+    settleFeel()
+    -- Bread sits in bag 0 slot 8 and bag 1 slot 1; a third stack lands in bag 0 slot 3, before both.
+    local a, b = ns.Bags.buttons[0][8], ns.Bags.buttons[1][1]
+    local ax, ay = at(a)
+    local bx, by = at(b)
+    world.items[0][3] = { iconFileID = 108, stackCount = 1, quality = 1, hyperlink = "|Hitem:8|h", itemID = 8, itemName = "Bread" }
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+    local extra = ns.Bags.buttons[0][3]
+    T.eq(extra:GetAlpha(), 0, "the new stack fades in")
+    T.eq(select(4, a:GetPoint(1)), ax, "the first stack starts from its own spot")
+    T.eq(select(5, a:GetPoint(1)), ay)
+    T.eq(select(4, b:GetPoint(1)), bx, "the second too")
+    T.eq(select(5, b:GetPoint(1)), by)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a section line no longer needed fades out", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local shown = 0
+    for _, l in ipairs(f.lines or {}) do if l:IsShown() then shown = shown + 1 end end
+    T.truthy(shown > 0, "lines between sections")
+    local last = f.lines[shown]
+    -- The profession bag goes: one section and its line less.
+    world.sizes[5] = 0
+    world.items[5] = {}
+    ns.Layout.easing = true
+    ns.Relayout()
+    ns.Layout.easing = false
+    T.truthy(last:IsShown(), "the line stays while it fades")
+    settleFeel()
+    T.falsy(last:IsShown(), "then it's gone")
+    ns.Relayout()
+    T.falsy(last:IsShown(), "and the next layout leaves it hidden")
+    T.eq(last:GetAlpha(), 1, "whole again for when it's needed")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: loot during a fold glide settles and glides on", function()
+    local ns, f = narrowLogin()
+    local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+    settleFeel()
+    local setItem = ns.Bags.buttons[0][2]
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "junk" then h:GetScript("OnClick")(h, "LeftButton") end
+    end
+    stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 2)
+    T.truthy(f.fading and f.fading[setItem], "the fold is still fading")
+    lootWeapon()
+    T.falsy(setItem:IsShown(), "the folded item put away at once")
+    local axe = ns.Bags.buttons[0][3]
+    T.truthy(Feel.Moving(axe), "the new item glides in")
+    settleFeel()
+    -- The same layout made at once ends in the same spots.
+    local ends = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then ends[s.button] = { at(s.button) } end
+    end
+    local hEnd = f:GetHeight()
+    ns.Relayout()
+    for b, xy in pairs(ends) do
+        T.truthy(b:IsShown())
+        T.eq(select(4, b:GetPoint(1)), xy[1], "glided to its spot")
+        T.eq(select(5, b:GetPoint(1)), xy[2])
+    end
+    T.eq(f:GetHeight(), hEnd)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: loot in a fight lays out at once", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    settleFeel()
+    local axe = ns.Bags.buttons[0][3]
+    stub.combat = true
+    lootWeapon()
+    stub.RunTimers()
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "no slot glides in a fight")
+    end
+    T.falsy(Feel.Moving(f), "nor the window")
+    stub.combat = false
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.RunTimers()
+    T.truthy(axe:IsShown(), "the new item is in")
+    T.eq(axe:GetAlpha(), 1, "whole")
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "the layout after the fight is at once too")
+    end
+    -- Under the client's restrictions, the same.
+    stub.SetRestriction("PvPMatch", true)
+    lootWeapon(11, 7)
+    for _, s in ipairs(f.set.Slots()) do
+        T.falsy(Feel.Moving(s.button), "no glide under restrictions")
+    end
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: grid with a free tile, loot glides the tile and the section line", function()
+    local ns = login()
+    local Feel = DaylightUI.Win.Feel
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    DaylightUI:Set("Bags", "columns", 6)
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local B = ns.Bags
+    -- Five items and the free tile fill one row; the loot needs a second one.
+    local tile = B.buttons[0][3]
+    T.truthy(tile:IsShown() and ns.Items.Parts(tile).free:IsShown(), "slot 3 is the free tile")
+    local tx, ty = at(tile)
+    local rule = f.lines[1]
+    T.truthy(rule:IsShown(), "a line before the next section")
+    local _, _, _, lx, ly = rule:GetPoint(1)
+    lootWeapon()
+    local newTile = B.buttons[0][7]
+    T.truthy(Feel.Moving(newTile), "the next empty slot is the tile now, gliding")
+    T.eq(select(4, newTile:GetPoint(1)), tx, "from where the tile was")
+    T.eq(select(5, newTile:GetPoint(1)), ty)
+    T.eq(tile:GetAlpha(), 0, "the loot fades in")
+    T.truthy(Feel.Moving(rule), "the line glides down with the rows")
+    T.eq(select(5, rule:GetPoint(1)), ly, "from its old spot")
+    T.eq(select(4, rule:GetPoint(1)), lx)
+    settleFeel()
+    T.truthy(select(5, rule:GetPoint(1)) < ly, "and lands a row lower")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A cleanup the game's way: SortBags only asks the server, and the moves come
+-- back over several bag updates. Each step swaps two slots of one bag.
+local function sortStep(a, b, bag)
+    bag = bag or 0
+    world.items[bag][a], world.items[bag][b] = world.items[bag][b], world.items[bag][a]
+    stub.FireEvent("BAG_UPDATE", bag)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+end
+
+-- Where each item sits on screen now, by its link.
+local function itemSpots(f)
+    local out = {}
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        local info = world.items[s.bag] and world.items[s.bag][b:GetID()]
+        if b:IsShown() and info then out[info.hyperlink] = { at(b) } end
+    end
+    return out
+end
+
+local function buttonOf(f, link)
+    for _, s in ipairs(f.set.Slots()) do
+        local info = world.items[s.bag] and world.items[s.bag][s.button:GetID()]
+        if s.button:IsShown() and info and info.hyperlink == link then return s.button end
+    end
+end
+
+-- Every shown slot's icon is what the bag holds now.
+local function filledRight(f)
+    for _, s in ipairs(f.set.Slots()) do
+        local info = world.items[s.bag] and world.items[s.bag][s.button:GetID()]
+        if s.button:IsShown() and (info and info.iconFileID) ~= s.button.dluiTexture then return false end
+    end
+    return true
+end
+
+T.test("bags: a cleanup holds its moves and glides once it settles", function()
+    for _, view in ipairs({ "grid", "categories" }) do
+        local ns, f
+        if view == "grid" then
+            ns = login()
+            f = open(ns)
+            ns.Relayout()
+        else
+            ns, f = catLogin()
+        end
+        local Feel, W = DaylightUI.Win.Feel, ns.Window
+        settleFeel()
+        local before = itemSpots(f)
+        local fills = 0
+        local realFill = ns.Items.Fill
+        ns.Items.Fill = function(...) fills = fills + 1 return realFill(...) end
+        local ok, err = pcall(function()
+            f.sort:GetScript("OnClick")(f.sort)
+            T.eq(world.sorted, 1, view .. ": the game sorts")
+            T.truthy(f.sorting, view .. ": the window holds")
+            sortStep(1, 4)
+            stub.Advance(0.1)
+            sortStep(5, 6)
+            stub.Advance(0.1)
+            sortStep(2, 3)
+            stub.RunTimers()
+            T.eq(fills, 0, view .. ": no fill while the server moves things")
+            for _, s in ipairs(f.set.Slots()) do
+                T.falsy(Feel.Moving(s.button), view .. ": nothing moves yet")
+            end
+            T.truthy(f.sorting, view .. ": still settling")
+            stub.Advance(W.SORT_SETTLE)
+            stub.RunTimers()
+            T.isnil(f.sorting, view .. ": settled")
+            T.truthy(fills > 0, view .. ": filled once")
+            T.truthy(filledRight(f), view .. ": every icon is what's there now")
+            local checked, moving = 0, 0
+            for _, link in ipairs({ "|Hitem:1|h", "|Hitem:4|h", "|Hitem:6|h", "|Hitem:7|h", "|Hitem:2|h" }) do
+                local b = buttonOf(f, link)
+                if b and before[link] then
+                    checked = checked + 1
+                    local x, y = at(b)
+                    T.eq(x, before[link][1], view .. ": " .. link .. " starts where it was")
+                    T.eq(y, before[link][2])
+                    if Feel.Moving(b) then moving = moving + 1 end
+                end
+            end
+            T.truthy(checked >= 4, view .. ": the moved items are shown")
+            T.truthy(moving >= 4, view .. ": and glide to their new slots")
+            settleFeel()
+            for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button)) end
+        end)
+        ns.Items.Fill = realFill
+        T.truthy(ok, tostring(err))
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
+
+T.test("bags: a cleanup that never settles is let go after SORT_MAX", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local W = ns.Window
+    f.sort:GetScript("OnClick")(f.sort)
+    for i = 1, math.floor(W.SORT_MAX / 0.2) - 1 do
+        sortStep(1, 4)
+        if i == 1 then T.falsy(filledRight(f), "the icons wait") end
+        stub.Advance(0.2)
+        stub.RunTimers()
+        T.truthy(f.sorting, "still moving: held")
+    end
+    sortStep(1, 4)
+    stub.Advance(0.3)
+    stub.RunTimers()
+    T.isnil(f.sorting, "let go")
+    T.truthy(filledRight(f), "the bag shows what's there")
+    -- From here bag updates fill as they come.
+    sortStep(1, 4)
+    T.truthy(filledRight(f), "the next move shows at once")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a cleanup waits for the server's first move", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel, W = DaylightUI.Win.Feel, ns.Window
+    local a, b = ns.Bags.buttons[0][1], ns.Bags.buttons[0][4]
+    local ax, ay = at(a)
+    f.sort:GetScript("OnClick")(f.sort)
+    -- The server is slow to answer: the first move lands well after SORT_SETTLE.
+    stub.Advance(0.4)
+    stub.RunTimers()
+    T.truthy(f.sorting, "still waiting for the first move")
+    sortStep(1, 4)
+    T.falsy(filledRight(f), "held")
+    stub.Advance(W.SORT_SETTLE)
+    stub.RunTimers()
+    T.isnil(f.sorting, "settled after the moves")
+    T.truthy(filledRight(f))
+    T.truthy(Feel.Moving(b), "played as one glide")
+    T.eq(select(4, b:GetPoint(1)), ax, "from where its item was")
+    T.eq(select(5, b:GetPoint(1)), ay)
+    settleFeel()
+    -- A cleanup with nothing to move lets go once the server has had its time.
+    f.sort:GetScript("OnClick")(f.sort)
+    stub.Advance(W.SORT_FIRST)
+    stub.RunTimers()
+    T.isnil(f.sorting, "nothing came: let go")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Timers that keep their due time: runDue() runs only those due by now
+-- (stub.RunTimers runs every one at once, however far off).
+local function timedTimers()
+    local pending = {}
+    C_Timer.After = function(d, fn) pending[#pending + 1] = { due = GetTime() + (d or 0), fn = fn } end
+    return function()
+        for _ = 1, 10 do
+            local ran = false
+            for i = #pending, 1, -1 do
+                local t = pending[i]
+                if t.due <= GetTime() + 1e-9 then
+                    table.remove(pending, i)
+                    t.fn()
+                    ran = true
+                end
+            end
+            if not ran then return end
+        end
+    end
+end
+
+T.test("bags: a quick cleanup glides as soon as it settles", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel, W = DaylightUI.Win.Feel, ns.Window
+    local ok, err = pcall(function()
+        local runDue = timedTimers()
+        local b = ns.Bags.buttons[0][4]
+        f.sort:GetScript("OnClick")(f.sort)
+        stub.Advance(0.05)
+        runDue()
+        sortStep(1, 4)
+        stub.Advance(0.2)
+        runDue()
+        T.truthy(f.sorting, "still moving")
+        sortStep(5, 6)
+        stub.Advance(W.SORT_SETTLE + 0.01)
+        runDue()
+        T.isnil(f.sorting, "played a moment after the last move, not at SORT_FIRST")
+        T.truthy(Feel.Moving(b), "as a glide")
+        T.truthy(filledRight(f))
+        settleFeel()
+        -- A game cleanup asked while the open's merge is held waits for the server too.
+        local hold = W.BeginSort(f, true, true)
+        f.sort:GetScript("OnClick")(f.sort)
+        W.EndSort(f, nil, hold)        -- the merge is done
+        T.truthy(f.sorting, "the cleanup still holds")
+        stub.Advance(0.1)
+        runDue()
+        sortStep(1, 4)
+        T.truthy(f.sorting, "its moves are held")
+        stub.Advance(W.SORT_SETTLE + 0.01)
+        runDue()
+        T.isnil(f.sorting, "and then played")
+        T.truthy(filledRight(f))
+    end)
+    stub.ResetTimers()
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: touching a slot mid-cleanup ends the hold before the click lands", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local btn = ns.Bags.buttons[0][4]
+    -- Hovering.
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    T.truthy(f.sorting)
+    T.falsy(filledRight(f), "held: the slot shows what it held")
+    btn:GetScript("OnEnter")(btn)
+    T.isnil(f.sorting, "a hover lets go")
+    T.truthy(filledRight(f), "every slot shows its real item")
+    settleFeel()
+    -- A click that never hovered (a key binding, a controller).
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    local trueAtClick
+    btn:HookScript("OnClick", function() trueAtClick = filledRight(f) end)
+    btn:Click("RightButton")
+    T.isnil(f.sorting, "a click lets go")
+    T.truthy(trueAtClick, "the slot was true before the click's use")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a fight or the client's restrictions end a cleanup's hold at once", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel = DaylightUI.Win.Feel
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    -- A cooldown starting mid-hold waits for its end too.
+    local cds = 0
+    local realCd = ns.Items.FillCooldown
+    ns.Items.FillCooldown = function(...) cds = cds + 1 return realCd(...) end
+    stub.FireEvent("BAG_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.eq(cds, 0, "no cooldown fill while held")
+    stub.EnterCombat()
+    stub.RunTimers()
+    T.isnil(f.sorting, "a fight lets go")
+    T.truthy(filledRight(f), "and fills at once")
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide in a fight") end
+    T.falsy(f.cdDirty, "the cooldowns filled with it")
+    ns.Items.FillCooldown = realCd
+    stub.LeaveCombat()
+    stub.RunTimers()
+    f.sort:GetScript("OnClick")(f.sort)
+    T.truthy(f.sorting)
+    stub.SetRestriction("PvPMatch", true)
+    sortStep(1, 4)
+    T.isnil(f.sorting, "restricted: let go")
+    T.truthy(filledRight(f))
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide under restrictions") end
+    stub.SetRestriction("PvPMatch", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: closing mid-cleanup opens with everything in place, no glide", function()
+    local ns = login()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local Feel = DaylightUI.Win.Feel
+    f.sort:GetScript("OnClick")(f.sort)
+    sortStep(1, 4)
+    f:Hide()
+    stub.RunTimers()
+    settleFeel()
+    T.falsy(f:IsShown())
+    T.isnil(f.sorting, "closing lets the cleanup go")
+    sortStep(5, 6)
+    stub.Advance(1)
+    stub.RunTimers()
+    open(ns)
+    T.truthy(f:IsShown())
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide on the open") end
+    T.truthy(filledRight(f), "every icon is what's there")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: stacks merged on open fill at once, no glide", function()
+    local ns, f = catLogin()
+    local Feel = DaylightUI.Win.Feel
+    cursorWorld()
+    -- The game's bag update for each merge, as it lands.
+    local pickup = C_Container.PickupContainerItem
+    C_Container.PickupContainerItem = function(bag, slot)
+        local held = world.held
+        pickup(bag, slot)
+        if held and not world.held then
+            stub.FireEvent("BAG_UPDATE", bag)
+            stub.FireEvent("BAG_UPDATE", held.bag)
+            stub.FireEvent("BAG_UPDATE_DELAYED")
+        end
+    end
+    f:Hide()
+    stub.RunTimers()
+    settleFeel()
+    open(ns)
+    T.isnil(world.items[1][1], "the Bread merged")
+    T.eq(world.items[0][8].stackCount, 12)
+    T.isnil(f.sorting, "let go when the merging is done")
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), "no glide while the bag fades in") end
+    T.truthy(filledRight(f), "every icon is what's there")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: your own groups, from a search, come first; rename and reorder", function()
@@ -1636,7 +3153,7 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     local row = CreateFrame("Frame")
     add.build(row)
     row.add:GetScript("OnClick")(row.add)
-    stub.popup.data.onAccept("Keepers")
+    stub.Reply("Keepers")
     stub.RunTimers()
     local key = Cat.Custom()[1] and Cat.Custom()[1].key
     T.truthy(key, "one box, and the group exists")
@@ -1655,7 +3172,10 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 1)
     local h = headingOf()
     T.truthy(h, "Shift with an item held shows it, to drop on")
-    T.truthy(string.find(h.text:GetText(), "drag items here", 1, true), "and says what it's for")
+    T.truthy(string.find(h.count:GetText(), "drag items here", 1, true), "and says what it's for")
+    local hr, hg, hb = h.count:GetTextColor()
+    local ink = DaylightUI.Style.INK.LABEL
+    T.near(hr, ink[1], 0.01); T.near(hg, ink[2], 0.01); T.near(hb, ink[3], 0.01)
     _G.GetCursorInfo = function() return "item", 9 end
     _G.ClearCursor = function() _G.CursorHasItem = nil end
     h:GetScript("OnReceiveDrag")(h)
@@ -1665,7 +3185,8 @@ T.test("bags: Add a group asks only its name, and the empty group waits in the b
     stub.FireEvent("MODIFIER_STATE_CHANGED", "LSHIFT", 0)
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[1][2]), key, "dropped in")
-    T.eq(headingOf().text:GetText(), "Keepers", "the hint goes once it holds something")
+    T.eq(headingOf().text:GetText(), "KEEPERS", "the hint goes once it holds something")
+    T.eq(headingOf().count:GetText(), "1", "and the count takes its place")
     -- A search can be set and taken away again.
     Cat.SetSearch(key, "q>=rare")
     T.eq(Cat.Get(key).search, "q>=rare")
@@ -1769,6 +3290,258 @@ T.test("bags: your own groups shared as text and imported back", function()
     _G.C_EncodingUtil = nil
 end)
 
+-- A small JSON reader standing in for the game's C_EncodingUtil.DeserializeJSON
+-- (it errors on bad text, as the game's does).
+local function readJSON(s)
+    local i = 1
+    local function ws() i = string.find(s, "%S", i) or #s + 1 end
+    local value
+    local function str()
+        local out = {}
+        i = i + 1
+        while true do
+            local c = string.sub(s, i, i)
+            if c == "" then error("unfinished string") end
+            if c == '"' then i = i + 1; return table.concat(out) end
+            if c == "\\" then
+                i = i + 1
+                c = string.sub(s, i, i)
+                if c == "n" then c = "\n" end
+            end
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    function value()
+        ws()
+        local c = string.sub(s, i, i)
+        if c == "{" then
+            local t = {}
+            i = i + 1; ws()
+            if string.sub(s, i, i) == "}" then i = i + 1; return t end
+            while true do
+                ws()
+                if string.sub(s, i, i) ~= '"' then error("key expected") end
+                local k = str(); ws()
+                if string.sub(s, i, i) ~= ":" then error("colon expected") end
+                i = i + 1
+                t[k] = value(); ws()
+                c = string.sub(s, i, i); i = i + 1
+                if c == "}" then return t end
+                if c ~= "," then error("comma expected") end
+            end
+        elseif c == "[" then
+            local t = {}
+            i = i + 1; ws()
+            if string.sub(s, i, i) == "]" then i = i + 1; return t end
+            while true do
+                t[#t + 1] = value(); ws()
+                c = string.sub(s, i, i); i = i + 1
+                if c == "]" then return t end
+                if c ~= "," then error("comma expected") end
+            end
+        elseif c == '"' then
+            return str()
+        end
+        local num = string.match(s, "^-?%d+%.?%d*", i)
+        if num then i = i + #num; return tonumber(num) end
+        if string.sub(s, i, i + 3) == "true" then i = i + 4; return true end
+        if string.sub(s, i, i + 4) == "false" then i = i + 5; return false end
+        if string.sub(s, i, i + 3) == "null" then i = i + 4; return nil end
+        error("bad JSON at " .. i)
+    end
+    local v = value(); ws()
+    if i <= #s then error("trailing text") end
+    return v
+end
+
+-- An export as Baganator's category options write it (one line, keys in any
+-- order, as its JSON encoder gives them).
+local BAGANATOR = '{"hidden":["default_toy"],"version":1,"order":["default_hearthstone","_Gear","My Gear","Shinies",'
+    .. '"__end","----","default_junk","Toys and Pets","default_other","default_special_empty"],'
+    .. '"categories":[{"name":"Shinies","priority":250,"search":"#epic|#rare&~#junk"},'
+    .. '{"name":"My Gear","search":"#gear&>40&#boe","priority":350},'
+    .. '{"search":"#toy|#socket|#locked","priority":50,"name":"Toys and Pets"},'
+    .. '{"search":"","priority":50,"name":"Keepers"}],'
+    .. '"modifications":[{"source":"Keepers","items":[6948,2589]},{"items":[4306],"source":"default_junk"},'
+    .. '{"source":"default_gem","items":[818]},{"source":"Toys and Pets","pets":[1234],"group":"expansion"}]}'
+
+T.test("bags: Baganator's categories come over as your own groups", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local list, said = Cat.ReadShared(BAGANATOR)
+    T.truthy(list, said)
+    -- Highest priority first, since the first group here that matches wins.
+    local names = {}
+    for _, g in ipairs(list) do if g.name then names[#names + 1] = g.name end end
+    T.eq(table.concat(names, ","), "My Gear,Shinies,Toys and Pets,Keepers")
+    local notes = table.concat(list.notes, "; ")
+    T.truthy(notes:find("Toys and Pets (left out: #toy, #socket, #locked)", 1, true), notes)
+    T.truthy(notes:find("items moved to Gems", 1, true), "the category by a name, not Baganator's key: " .. notes)
+    T.truthy(notes:find("battle pets", 1, true), notes)
+    T.truthy(notes:find("grouping", 1, true), notes)
+    T.truthy(notes:find("sections and dividers", 1, true), notes)
+    T.truthy(notes:find("hidden categories", 1, true), notes)
+
+    local mine = Cat.AddCustom("Shinies", "q=1")
+    local n, moved = Cat.ImportShared(list)
+    T.eq(n, 4, "four groups; the Junk pins aren't a group")
+    T.eq(moved.junk, 1)
+    local lines = table.concat(Cat.ImportLines(n, moved, list.notes), "\n")
+    T.truthy(lines:find("Imported 4 bag groups.", 1, true), lines)
+    T.truthy(lines:find("1 item marked as junk. It'll be sold at the next vendor.", 1, true), "said, since a vendor sells them: " .. lines)
+    T.truthy(lines:find("Not brought over from Baganator: ", 1, true), lines)
+    local by = {}
+    for _, g in ipairs(Cat.Custom()) do by[g.name] = g end
+    T.eq(#Cat.Custom(), 4, "Shinies updated, not doubled")
+    T.eq(by.Shinies.key, mine)
+    T.eq(by.Shinies.search, "#epic | #rare & !#junk")
+    T.eq(by["My Gear"].search, "#gear & ilvl>40 & #boe")
+    T.isnil(by["Toys and Pets"].search, "nothing of its search has a match here")
+    T.isnil(by.Keepers.search)
+    T.eq(Cat.PinOf(6948), by.Keepers.key, "its moved items pinned")
+    T.eq(Cat.PinOf(2589), by.Keepers.key)
+    T.eq(Cat.PinOf(4306), "junk", "moved to Baganator's Junk: the Junk group here")
+    T.isnil(Cat.PinOf(818))
+    -- The translated search works.
+    local m = ns.Search.Parse(by["My Gear"].search)
+    T.truthy(m({ classID = 4, itemLevel = 50, bindType = 2 }))
+    T.falsy(m({ classID = 4, itemLevel = 30, bindType = 2 }))
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: Syndicator searches turned into the bag search", function()
+    local S = catLogin().Search
+    local function as(text) return (S.FromSyndicator(text)) end
+    T.eq(as("#potion|#food"), "#potion | #food")
+    T.eq(as("~#junk&#trade goods"), "!#junk & #tradegoods")
+    T.eq(as("200-300"), "ilvl200-300")
+    T.eq(as("<=10"), "ilvl<=10")
+    T.eq(as("123"), "ilvl=123")
+    T.eq(as("(#armor|#weapon)"), "#armor | #weapon", "brackets around all of it")
+    T.eq(as("hearthstone"), "hearthstone", "a name stays a name")
+    local s, dropped = S.FromSyndicator("#armor&(#cloth|#leather)")
+    T.isnil(s, "brackets inside can't be followed")
+    T.eq(#dropped, 1)
+    -- Leaving out one term of an & would let in more than it should: the whole
+    -- & part goes. Leaving out one side of | only lets in less.
+    s, dropped = S.FromSyndicator("#gear&#boa")
+    T.isnil(s, "not every piece of gear")
+    T.eq(dropped[1], "#gear & #boa")
+    s, dropped = S.FromSyndicator("#potion|#boa")
+    T.eq(s, "#potion")
+    T.eq(dropped[1], "#boa")
+    T.isnil(as("#locked"), "a keyword only Daylight UI has isn't one of Baganator's")
+    T.isnil(as("locked"))
+    T.isnil(as(""))
+end)
+
+T.test("bags: a Baganator export with spaces survives the paste box", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local shown = DaylightUI.Profiles.Wrap(BAGANATOR)
+    T.falsy(shown:find("Toys and Pets", 1, true), "the box took the spaces out")
+    local list = Cat.ReadShared(Cat.Unwrapped(shown, BAGANATOR))
+    T.eq(list[3].name, "Toys and Pets")
+    T.eq(Cat.Unwrapped("other", BAGANATOR), "other", "text changed since: what's shown")
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: text that isn't a bag groups string is refused politely", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local list, why = Cat.ReadShared("{not json")
+    T.isnil(list)
+    T.eq(why, "that isn't a Daylight UI or Baganator bag groups string")
+    T.isnil(Cat.ReadShared('{"version":9,"layout":[1,2]}'), "a different export of Baganator's")
+    list, why = Cat.ReadShared('{"version":9,"categories":[{"priority":1}]}')
+    T.isnil(list, "no category with a name")
+    T.eq(why, "it has no groups in it")
+    -- A newer export with fields this doesn't know still brings its categories.
+    list = Cat.ReadShared('{"version":3,"categories":[{"name":"Ore","search":"ore","color":"ff0000","sections":[1]}]}')
+    T.eq(list[1].search, "ore")
+    _G.C_EncodingUtil = nil
+    list, why = Cat.ReadShared('{"categories":[]}')
+    T.isnil(list, "a client without the reader")
+    T.eq(why, "this game client can't read bag groups")
+end)
+
+T.test("bags: Baganator moves to built-in categories: game names, deleted groups and long names", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local long = string.rep("Long name ", 7)
+    Cat.Delete("weapon")
+    local had = C_Item.GetItemClassInfo
+    C_Item.GetItemClassInfo = function(id) return id == 3 and "Gem" or nil end
+    local list = Cat.ReadShared('{"categories":[{"name":"' .. long .. '","search":""}],"modifications":['
+        .. '{"source":"' .. long .. '","items":[25]},{"source":"default_weapon","items":[2589]},'
+        .. '{"source":"default_gem","items":[818]},{"source":"default_auto_inventory_slots","items":[17]},'
+        .. '{"source":"default_hearthstone","items":[6948]}]}')
+    C_Item.GetItemClassInfo = had
+    local notes = table.concat(list.notes, "; ")
+    T.truthy(notes:find("items moved to Gem, Gear by slot", 1, true), "the game's own word, else a plain one: " .. notes)
+    T.truthy(notes:find("items moved to Weapons, a group you deleted", 1, true), notes)
+    local n, moved = Cat.ImportShared(list)
+    T.eq(n, 1)
+    T.eq(Cat.PinOf(25), Cat.Custom()[1].key, "a name over 60 letters still finds its items")
+    T.isnil(Cat.PinOf(2589), "never pinned to a deleted group")
+    T.eq(moved.hearthstone, 1)
+    -- Only moves to built-in groups: nothing reads "Imported 0".
+    n, moved = Cat.ImportShared(Cat.ReadShared('{"categories":[],"modifications":[{"source":"default_hearthstone","items":[6948]}]}'))
+    local lines = table.concat(Cat.ImportLines(n, moved, {}), "\n")
+    T.falsy(lines:find("Imported 0", 1, true), lines)
+    T.truthy(lines:find("1 item moved to Hearthstone.", 1, true), lines)
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: Import groups in the options takes a Baganator export, spaces and all", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local printed = {}
+    local print0 = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = msg end
+    local share
+    for _, page in ipairs(ns.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, item in ipairs(card.items) do if item.label == "Share your groups" then share = item end end
+        end
+    end
+    local row = CreateFrame("Frame")
+    share.build(row)
+    row.inn:GetScript("OnClick")(row.inn)
+    local box = _G.DaylightUIProfileBox
+    local changed = box.edit:GetScript("OnTextChanged")
+    -- A paste: the box puts the long text in lines, taking its spaces out.
+    box.edit.__text = BAGANATOR
+    changed(box.edit, true)
+    T.falsy(box.edit:GetText():find("Toys and Pets", 1, true), "wrapped in the box")
+    local status = box.status.__text
+    T.truthy(status:find("Toys and Pets", 1, true), status)
+    T.truthy(status:find("Some Baganator rules have no match here.", 1, true), status)
+    -- Typing in the wrapped text can't bring the spaces back: say so.
+    box.edit.__text = string.gsub(box.edit:GetText(), "Keepers", "Keeper")
+    changed(box.edit, true)
+    T.truthy(box.status.__text:find("paste it again", 1, true), box.status.__text)
+    -- Pasted again whole, it imports with its spaces.
+    box.edit.__text = BAGANATOR
+    changed(box.edit, true)
+    box.go:GetScript("OnClick")()
+    local names = {}
+    for _, g in ipairs(Cat.Custom()) do names[g.name] = true end
+    T.truthy(names["Toys and Pets"], "its spaces kept")
+    local said = table.concat(printed, "\n")
+    T.truthy(said:find("Imported 4 bag groups.", 1, true), said)
+    T.truthy(said:find("marked as junk", 1, true), said)
+    T.truthy(said:find("Not brought over from Baganator:", 1, true), said)
+    DaylightUI.Print = print0
+    _G.C_EncodingUtil = nil
+end)
+
 T.test("bags: an empty group of yours can wait only in the bag, never in the bank or a saved copy", function()
     local ns = catLogin()
     local key = ns.Categories.AddCustom("Keepers")
@@ -1787,35 +3560,25 @@ T.test("bags: an empty group of yours can wait only in the bag, never in the ban
     ns.Categories.DeleteCustom(key)
 end)
 
-T.test("W.Prompt: what you accept runs after the box has closed, so a second box isn't closed with it", function()
+T.test("W.Prompt: a box asked from an accepted one stays open", function()
     catLogin()
     local W = DaylightUI.Widgets
-    local ran, data = 0, nil
-    W.Prompt("First", "", function() ran = ran + 1 end)
-    data = stub.popup.data
-    local box = { GetText = function() return " Keepers " end }
-    -- StaticPopup_OnClick hides the dialog after OnAccept if it still has the same
-    -- `which`, and a second W.Prompt reuses that same dialog.
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = box }, data)
-    T.eq(ran, 0, "not inside the game's click")
-    stub.RunTimers()
-    T.eq(ran, 1)
-    -- Empty is refused unless the question lets it be cleared.
-    W.Prompt("Second", "", function() ran = ran + 10 end)
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(ran, 1)
     local got
-    W.Prompt("Third", "old", function(v) got = v end, { empty = true })
-    StaticPopupDialogs.DAYLIGHTUI_PROMPT.OnAccept({ editBox = { GetText = function() return "" end } }, stub.popup.data)
-    stub.RunTimers()
-    T.eq(got, "")
+    W.Prompt("First", "", function(v)
+        got = v
+        W.Prompt("Second", "", function() end)
+    end)
+    stub.Reply(" Keepers ")
+    T.eq(got, "Keepers", "trimmed, inside the click")
+    T.truthy(stub.AskText() == "Second" and _G.DaylightUIAsk:IsShown(), "the second box is up")
+    stub.Dismiss()
 end)
 
 T.test("bags: recent items first, for a while", function()
     local ns = catLogin()
     local Cat = ns.Categories
     _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local now, getTime = stub.now, _G.GetTime
     stub.now = 1000
     _G.GetTime = function() return stub.now end
     ns.Relayout()
@@ -1825,6 +3588,7 @@ T.test("bags: recent items first, for a while", function()
     ns.Relayout()
     T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "after the timeout, its own group")
     _G.C_NewItems = nil
+    stub.now, _G.GetTime = now, getTime
 end)
 
 T.test("bags: right-clicking the Recent heading clears it", function()
@@ -1849,6 +3613,32 @@ T.test("bags: right-clicking the Recent heading clears it", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     T.eq(cleared, 1, "the game's new flags cleared too")
     T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "back in its own group")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: Recent can be turned off from its heading and back on", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    ns.Relayout()
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "recent")
+    local head
+    for _, h in ipairs(ns.window.headings) do if h.key == "recent" and h:IsShown() then head = h end end
+    local picked, keys
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(_, k, _, _, onPick) keys, picked = k, onPick end
+    head:GetScript("OnClick")(head, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.eq(keys and keys[2], "off")
+    picked("off")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(Cat.RecentShown(), "off")
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "armor", "a new item goes straight to its own group")
+    Cat.SetRecentShown(true)
+    stub.RunTimers()
+    T.truthy(Cat.RecentShown())
+    T.eq(groupOf(ns, ns.Bags.buttons[0][5]), "recent", "back on, new items gather again")
     _G.C_NewItems = nil
 end)
 
@@ -2102,6 +3892,81 @@ local function bankLogin(newCharacter)
     return ns, bank
 end
 
+T.test("bank: portrait header, sub line stops at the tabs, tabs on the title row", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    T.truthy(f.sub:GetText():find(" of ", 1, true), "free slots in the sub line")
+end)
+
+
+-- Same pieces as the bags: chips, free bar, plain-money footer, no Sell junk.
+local function sameLook(f, what)
+    T.truthy(f.portrait:IsShown(), what .. ": portrait shows")
+    T.truthy(f.sub:GetText() ~= nil, what .. ": sub line")
+    T.truthy(#f.chips > 1, what .. ": chip row")
+    T.truthy(f.freeBar:IsShown(), what .. ": free bar")
+    T.eq(f.sellJunk, nil, what .. ": no Sell junk")
+end
+
+T.test("bank: same header, chips and footer as the bags", function()
+    local ns = bankLogin()
+    local f = ns.bank
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    sameLook(f, "bank")
+    T.truthy(f.sub:GetText():find("of 12 free", 1, true), "N of M free")
+    headerFits(f, f.bankTabs)
+    tabsOnTitleRow(f, f.bankTabs)
+    for _, view in ipairs({ "grid", "categories" }) do
+        DaylightUI:Set("Bags", "bank.view", view)
+        stub.RunTimers()
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, f.chips[2].id)
+        ns.Window.Relayout(f)
+        ns.Window.PickChip(f, nil)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(f.buyTab:IsShown(), "a tab to buy")
+    local _, _, _, _, by = f.buyTab:GetPoint(1)
+    local _, _, _, _, my = f.money:GetPoint(1)
+    T.truthy(by > my, "Buy tab sits on the bar's row, above the money")
+    T.truthy(f.freeBar:GetWidth() > 0)
+end)
+
+T.test("bank: gold in the account bank is drawn in coins like the bags", function()
+    local ns, bank = bankLogin()
+    bank.gold = 123456
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local f = ns.bank
+    local account
+    for _, t in ipairs(f.bankTabs) do if t.bankType == 2 then account = t end end
+    account:GetScript("OnClick")(account)
+    stub.RunTimers()
+    T.truthy(f.deposit:IsShown(), "the account bank's gold buttons show")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123456), "the account bank's gold in our coins")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bank: before its first tab, the window still builds", function()
+    local ns = bankLogin(true)
+    local f = ns.bank
+    T.eq(ns.Bank.HasTab(), false)
+    ns.Window.Relayout(f)
+    f:Show()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(f.sub:GetText() or "", "", "no \"0 of 0 free\" before a tab")
+    sameLook(f, "bank, no tab")
+    local sub = (f.sub:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(sub == "" or sub:find("0 of 0 free", 1, true), "sub empty or 0 of 0: " .. sub)
+end)
+
 T.test("bank: opens with the bank, the character tabs' slots in our look; the game's bank out of sight", function()
     local ns, bank = bankLogin()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2218,6 +4083,40 @@ T.test("bank: its own settings, search, sort and deposit; closing ours closes th
     T.eq(bank.calls.close, 1, "our X closes the game's bank")
 end)
 
+T.test("bank: sorting the bank glides the bank, the open bag stays put", function()
+    local ns, bank = bankLogin()
+    local Feel = DaylightUI.Win.Feel
+    world.items[6][3] = { iconFileID = 603, stackCount = 1, quality = 1, hyperlink = "|Hitem:63|h", itemID = 63 }
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local f, bag = ns.bank, ns.window
+    T.truthy(f:IsShown() and bag:IsShown(), "the bank opens the bags too")
+    ns.Relayout()
+    settleFeel()
+    local one, three = ns.Bank.set.buttons[6][1], ns.Bank.set.buttons[6][3]
+    local x1, y1 = at(one)
+    local x3, y3 = at(three)
+    f.sort:GetScript("OnClick")(f.sort)
+    T.eq(bank.calls.sort, 0, "the game sorts the bank")
+    T.truthy(f.sorting, "the bank holds")
+    T.isnil(bag.sorting, "the bag doesn't")
+    sortStep(1, 3, 6)
+    stub.RunTimers()
+    T.falsy(Feel.Moving(three), "nothing moves while it's sorting")
+    stub.Advance(ns.Window.SORT_SETTLE)
+    stub.RunTimers()
+    T.isnil(f.sorting, "settled")
+    T.truthy(Feel.Moving(one) and Feel.Moving(three), "both bank slots glide")
+    T.eq(select(4, three:GetPoint(1)), x1, "the item that moved starts where it was")
+    T.eq(select(5, three:GetPoint(1)), y1)
+    T.eq(select(4, one:GetPoint(1)), x3)
+    T.eq(select(5, one:GetPoint(1)), y3)
+    T.truthy(filledRight(f), "the bank shows what's there")
+    for _, s in ipairs(bag.set.Slots()) do T.falsy(Feel.Moving(s.button), "the bag stays put") end
+    settleFeel()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bank: Same look as your bags: the shared settings follow the bags, columns stay its own", function()
     local ns = bankLogin()
     local f = ns.bank
@@ -2255,6 +4154,11 @@ T.test("bank: the categories view, empty slots and all", function()
     stub.FireEvent("BANKFRAME_OPENED")
     stub.RunTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    local heads = 0
+    for _, h in ipairs(ns.bank.headings or {}) do if h:IsShown() then heads = heads + 1 end end
+    T.truthy(heads > 0, "the bank's Shelf is packed like the bags'")
     local groups = ns.Layout.Groups(ns.module.db.bank, ns.bank)
     local keys = {}
     for _, g in ipairs(groups) do keys[#keys + 1] = g.key end
@@ -2866,7 +4770,12 @@ local function runDrivers(dt)
     end
 end
 
-local function amount(f) return tonumber((f.money:GetText():gsub("money:", ""))) end
+-- The footer's money is one part a coin ("money:9500 money:92"): add them up.
+local function amount(f)
+    local sum, any = 0, false
+    for n in f.money:GetText():gmatch("money:(%d+)") do sum = sum + tonumber(n); any = true end
+    return any and sum or nil
+end
 
 T.test("bags: the footer gold counts to a new amount, tinted on a gain", function()
     local ns = login()
@@ -3456,6 +5365,8 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     T.falsy(Keep.Any())
     f.sort:GetScript("OnClick")(f.sort)
     T.eq(world.sorted, 1, "nothing kept: the game's own sort")
+    stub.Advance(ns.Window.SORT_FIRST)
+    stub.RunTimers()
     Keep.Toggle(0, 3, 30)
     T.truthy(ns.Items.Parts(ns.Bags.buttons[0][3]).keep:IsShown(), "a line on the kept slot")
     T.falsy(ns.Items.Parts(ns.Bags.buttons[0][2]).keep:IsShown())
@@ -3500,6 +5411,9 @@ T.test("bags: Clean Up with kept slots stops in a fight and never moves a locked
     f.sort:GetScript("OnClick")(f.sort)
     stub.RunTimers()
     T.eq(world.items[0][9].itemName, "Apple", "a locked slot waits")
+    stub.Advance(1)
+    stub.RunTimers()
+    T.truthy(f.sorting, "the bag holds while Clean Up is still running")
     world.items[0][9].isLocked = nil
     stub.EnterCombat()
     stub.RunTimers()
@@ -3540,7 +5454,7 @@ T.test("bags: the item menu offers the slot only bag by bag; an empty kept slot 
     keys = nil
     Cat.Menu(btn)
     T.eq(#keys, 1, "empty: only the way to free it")
-    T.eq(values.keep, DaylightUI.L["Stop keeping in this slot"])
+    T.eq(values.keep, DaylightUI.L["Stop keeping"])
     pick("keep")
     T.isnil(Keep.At(0, 3))
     keys = nil
@@ -3660,6 +5574,7 @@ end)
 T.test("viewer: another character's bags, saved at their logout; tabs and gold follow", function()
     local ns = login()
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     local mine = DaylightUI.DB.Character().inventory
     T.truthy(mine and mine.bags, "your bags saved at logout")
     T.eq(mine.bags[1].items[1][1], "|Hitem:1|h")
@@ -3677,7 +5592,7 @@ T.test("viewer: another character's bags, saved at their logout; tabs and gold f
     T.eq(#ns.Viewer.set.Slots(), 4)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).dluiTexture, 909)
     T.eq(ns.Viewer.set.Button(ns.Saved.BASE + 1, 2).count, 3)
-    T.truthy(f.money:GetText():find("123"), "their gold")
+    T.eq(f.money:GetText(), DaylightUI.Widgets.Money(123), "their gold")
     T.truthy(f.free:GetText():find("3 / 4"), "free / all")
     -- Their bank was never seen, so one line says so and there are no slots.
     ns.Viewer.Show(alt, "bank")
@@ -3713,11 +5628,11 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick, _, opts)
         menu = { owner = owner, keys = keys, values = values, pick = onPick, opts = opts }
     end
-    bag.viewerButton:Click()
-    T.eq(menu.keys[#menu.keys], "remove", "the chest's list ends with the way to remove one")
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
+    T.eq(menu.keys[#menu.keys], "remove", "the picker's list ends with the way to remove one")
     T.truthy(menu.opts.more.remove, "a chevron: it opens another list")
     menu.pick("remove")
-    T.eq(menu.owner, bag.viewerButton)
+    T.eq(menu.owner, ns.Viewer.window.charsButton)
     T.truthy(menu.opts.confirm[alt], "asks first")
     menu.pick(alt)
     DaylightUI.Widgets.OpenMenu = openMenu
@@ -3729,7 +5644,7 @@ T.test("viewer: removing a character takes their bags, gold and mail name, and t
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: yourself can't be removed, and alone the chest's list has no such row", function()
+T.test("viewer: yourself can't be removed, and alone the picker's list has no such row", function()
     local ns = login()
     local own = DaylightUI.DB.CharKey()
     T.eq(DaylightUI.Alts.Forget(own), false)
@@ -3738,7 +5653,7 @@ T.test("viewer: yourself can't be removed, and alone the chest's list has no suc
     local menu
     local openMenu = DaylightUI.Widgets.OpenMenu
     DaylightUI.Widgets.OpenMenu = function(_, keys) menu = keys end
-    bag.viewerButton:Click()
+    ns.Viewer.PickMenu(ns.Viewer.window.charsButton)
     DaylightUI.Widgets.OpenMenu = openMenu
     for _, k in ipairs(menu) do T.truthy(k ~= "remove") end
 end)
@@ -3766,7 +5681,7 @@ T.test("viewer: switching to nothing saved glides the window and fades the line 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", function()
+T.test("viewer: the Alts tab opens it; the search dims a saved copy too", function()
     local ns = login()
     local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
     local alt = "Alt-" .. realm
@@ -3774,32 +5689,24 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
         bags = { { section = "bags", size = 2, items = { [1] = { "|cff1eff00|Hitem:9|h[Wand]|h|r", 1, 909, 2 },
                                                          [2] = { "|Hitem:8|h[Bread]|h", 5, 808, 1 } } } } } }
     local bag = open(ns)
-    -- The chest opens a list: your bank, then each other character in their class
-    -- color with their gold. Picking one opens the window on it.
-    local menu
-    local openMenu = DaylightUI.Widgets.OpenMenu
-    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
-    bag.viewerButton:Click()
-    DaylightUI.Widgets.OpenMenu = openMenu
-    T.truthy(menu, "a list, not the window")
+    -- The Alts tab opens the window on another character's bags; the picker in
+    -- the window lists everyone and switches between them.
     T.falsy(ns.Viewer.window:IsShown())
-    T.eq(menu.owner, bag.viewerButton)
-    T.eq(menu.keys[1], "bank")
-    T.eq(menu.values.bank, "Bank")
-    T.eq(menu.keys[#menu.keys - 1], alt, "the other characters after it, not you")
-    T.truthy(menu.values[alt]:find("Alt"), "by name")
-    T.truthy(menu.values[alt]:find("|c"), "in their class color")
-    T.truthy(menu.values[alt]:find("1"), "with their gold")
-    for _, k in ipairs(menu.keys) do T.truthy(k ~= DaylightUI.DB.CharKey(), "you're the Bank row") end
-    menu.pick(alt)
+    portraitMenu(bag).pick("alts")
     stub.RunTimers()
     local f = ns.Viewer.window
     T.truthy(f:IsShown(), "opened from the bag")
     T.eq(ns.Viewer.who, alt)
     T.eq(ns.Viewer.part, "bags", "on their bags")
-    menu.pick("bank")
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, _, onPick) menu = { owner = owner, keys = keys, values = values, pick = onPick } end
+    ns.Viewer.PickMenu(f.charsButton)
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.truthy(menu.values[alt]:find("Alt"), "by name")
+    T.truthy(menu.values[alt]:find("|c"), "in their class color")
+    menu.pick(DaylightUI.DB.CharKey())
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
-    T.eq(ns.Viewer.part, "bank", "Bank: yours")
     ns.Viewer.Show(alt, "bags")
     stub.RunTimers()
     f.search:SetText("wand")
@@ -3811,29 +5718,81 @@ T.test("viewer: the bag's tool row opens it; the search dims a saved copy too", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("viewer: switched off, the button goes (the tool row closes up), nothing new is saved", function()
+T.test("viewer: switched off, Alts leaves the portrait's menu, nothing new is saved", function()
     local ns = login()
     local bag = open(ns)
-    T.truthy(bag.viewerButton:IsShown())
-    local sortX = select(4, bag.sort:GetPoint(1))
+    T.falsy(bag.viewerButton, "no chest button in the tool row any more")
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank,alts")
     DaylightUI:Set("Bags", "viewer.enabled", false)
     stub.RunTimers()
-    T.falsy(bag.viewerButton:IsShown(), "the chest button goes")
-    local _, rel = bag.slotsButton:GetPoint(1)
-    T.eq(rel, bag.sort, "the next tool moves up beside Clean Up")
-    T.eq(select(4, bag.sort:GetPoint(1)), sortX)
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank", "only the bank while the viewer is off")
+    headerFits(bag)
     ns.Viewer.Toggle()
     stub.RunTimers()
     T.falsy(ns.Viewer.window:IsShown(), "/dui bank says it's off instead")
     T.truthy(stub.ChatContains("Bank and alts is off"))
     DaylightUI.DB.Character().inventory = nil
     stub.FireEvent("PLAYER_LOGOUT")
+    carryOn()
     T.falsy(DaylightUI.DB.Character().inventory, "nothing saved while off")
     DaylightUI:Set("Bags", "viewer.enabled", true)
     stub.RunTimers()
-    T.truthy(bag.viewerButton:IsShown(), "back on: the button's back")
-    local _, rel2 = bag.slotsButton:GetPoint(1)
-    T.eq(rel2, bag.viewerButton)
+    T.eq(table.concat(portraitMenu(bag).keys, ","), "bank,alts", "back on: Alts is back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a right-click on the portrait opens the bank and the alts viewer", function()
+    local ns = login()
+    local realm = DaylightUI.DB.CharKey():match("%-(.*)$")
+    local alt = "Alt-" .. realm
+    DaylightUI.DB.Root().characters[alt] = { inventory = { class = "MAGE", money = 1, time = time(),
+        bags = { { section = "bags", size = 4, items = {} } } } }
+    local bag = open(ns)
+    T.isnil(bag.tabs, "no header tabs")
+    headerFits(bag)
+    local b = bag.portraitButton
+    T.truthy(b, "a mouse frame over the portrait")
+    T.eq(select(2, b:GetPoint(1)), bag.portrait, "lying on the portrait")
+    T.truthy(b:GetFrameLevel() > bag.handle:GetFrameLevel(), "above the title bar's drag handle")
+    -- Hover: our tooltip names it and says what the right-click does.
+    b:GetScript("OnEnter")(b)
+    T.truthy(GameTooltip:IsShown(), "a tooltip on hover")
+    b:GetScript("OnLeave")(b)
+    local m = portraitMenu(bag)
+    T.eq(m.owner, b, "dropped under the portrait")
+    T.falsy(m.opts and m.opts.atCursor, "not at the cursor")
+    T.eq(table.concat(m.keys, ","), "bank,alts")
+    T.eq(m.values.bank, BANK or "Bank")
+    T.eq(m.values.alts, "Alts")
+    -- A left click opens nothing.
+    local opened
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function() opened = true end
+    b:GetScript("OnClick")(b, "LeftButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.falsy(opened, "only the right button")
+    -- Away from a banker: the saved bank, in the viewer.
+    m.pick("bank")
+    stub.RunTimers()
+    local v = ns.Viewer.window
+    T.truthy(v:IsShown(), "the saved bank opens")
+    T.eq(ns.Viewer.part, "bank")
+    T.eq(ns.Viewer.who, DaylightUI.DB.CharKey())
+    -- At a banker: the live bank.
+    ns.Viewer.Close()
+    stub.RunTimers()
+    ns.Bank.open = true
+    portraitMenu(bag).pick("bank")
+    stub.RunTimers()
+    T.truthy(ns.Bank.window:IsShown(), "the live bank opens")
+    T.falsy(DaylightUI.Motion.Shown(v), "not the viewer")
+    ns.Bank.open = false
+    -- Alts: another character's bags.
+    portraitMenu(bag).pick("alts")
+    stub.RunTimers()
+    T.truthy(v:IsShown())
+    T.eq(ns.Viewer.part, "bags")
+    T.eq(ns.Viewer.who, alt)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3962,7 +5921,7 @@ T.test("bags: on a controller the D-pad starts on the first item, once an openin
     _G.InputUtil, _G.GamepadMode, _G.SmartNavigation = nil, nil, nil
 end)
 
-T.test("viewer: a right-click on the bag's title bar or its chest button opens your bank, again closes it", function()
+T.test("viewer: a right-click on the bag's title bar opens your bank, again closes it", function()
     local ns = login()
     local bag = open(ns)
     local v = ns.Viewer.window
@@ -3974,12 +5933,9 @@ T.test("viewer: a right-click on the bag's title bar or its chest button opens y
     T.truthy(v:IsShown(), "the title bar's right-click: the bank")
     T.eq(ns.Viewer.part, "bank")
     T.eq(ns.Viewer.who, DaylightUI.DB.CharKey(), "your own")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
+    bag.handle:GetScript("OnMouseUp")(bag.handle, "RightButton")
     stub.RunTimers()
     T.falsy(DaylightUI.Motion.Shown(v), "again: it closes")
-    bag.viewerButton:GetScript("OnClick")(bag.viewerButton, "RightButton")
-    stub.RunTimers()
-    T.truthy(v:IsShown(), "the chest button's right-click opens it too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4157,4 +6113,1462 @@ T.test("bags on a controller: Destroy asks in the menu first, then deletes that 
     ns.Window.PadDestroy(ns.Bags.buttons[0][3])
     T.eq(deleted, nil, "an empty slot has nothing to destroy")
     _G.ItemLocation = made
+end)
+
+local function headingsShown(f)
+    local out = {}
+    for _, h in ipairs(f.headings or {}) do if h:IsShown() and h.key then out[h.key] = true end end
+    return out
+end
+
+T.test("bags: a chip shows only its groups in the categories view", function()
+    local ns, f = catLogin()
+    local W = ns.Window
+    local all = headingsShown(f)
+    T.truthy(all.junk and all.weapon and all.consumable, "everything with no chip")
+    W.PickChip(f, "junk")
+    stub.RunTimers()
+    local function going(key)
+        for _, h in ipairs(f.headings) do
+            if h.key == key and h:IsShown() and not (f.fading and f.fading[h]) then return false end
+        end
+        return true
+    end
+    T.truthy(headingsShown(f).junk, "the Junk heading stays")
+    T.truthy(going("weapon"), "other headings go (fading out)")
+    T.truthy(going("consumable"))
+    local weapon = ns.Bags.buttons[0][1]
+    T.truthy(not weapon:IsShown() or (f.fading and f.fading[weapon]), "the rare weapon's slot hides (or fades out)")
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.eq(weapon:IsShown(), false, "once the fade ends it is hidden and takes no clicks")
+    local only = headingsShown(f)
+    T.eq(only.weapon, nil, "faded headings are hidden")
+    T.eq(only.consumable, nil)
+    T.eq(ns.Bags.buttons[0][2]:IsShown(), true, "the gray one shows")
+    W.PickChip(f, "all")
+    stub.RunTimers()
+    T.truthy(headingsShown(f).weapon, "All brings everything back")
+end)
+
+T.test("bags: a chip dims the rest in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local B = ns.Bags
+    local seen = {}
+    for _, b in ipairs({ B.buttons[0][1], B.buttons[0][2] }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "junk")
+    T.eq(seen[B.buttons[0][2]], true, "the gray item stays lit")
+    T.eq(seen[B.buttons[0][1]], false, "the weapon dims")
+    f.match = function() return false end
+    ns.Window.MatchAll(f)
+    T.eq(seen[B.buttons[0][2]], false, "a search on top narrows further")
+    f.match = nil
+    -- A refill (loot, a bag update) keeps the chip's dimming.
+    ns.Window.MatchAll(f)
+    world.items[0][1].hyperlink = "|Hitem:1|h"
+    ns.Items.Fill(B.buttons[0][1])
+    T.eq(seen[B.buttons[0][1]], false, "a refilled non-junk slot stays dimmed")
+end)
+
+T.test("bags: a chip picked in the grid view leaves nothing dimmed after closing", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    ns.FillAll()
+    local weapon = ns.Bags.buttons[0][1]
+    local lit
+    local set = weapon.SetMatchesSearch
+    weapon.SetMatchesSearch = function(self, v) lit = v; if set then set(self, v) end end
+    ns.Window.PickChip(f, "junk")
+    T.eq(lit, false, "the weapon dims under Junk")
+    f:Hide()
+    stub.RunTimers()
+    f:Show()
+    stub.RunTimers()
+    T.eq(lit, true, "the weapon is lit again on the next open")
+end)
+
+-- New loot sits in Recent, but a chip still judges it by the group it would
+-- otherwise fall in, so a fresh weapon shows under Gear.
+T.test("bags: new loot stays in view under its chip", function()
+    local ns, f = catLogin()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    ns.Relayout()
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    T.eq(groupOf(ns, weapon), "recent")
+    T.eq(groupOf(ns, bread), "recent")
+    ns.Window.PickChip(f, "gear")
+    stub.RunTimers()
+    for _, fr in ipairs(stub.frames or {}) do
+        if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, 1) end
+    end
+    T.truthy(headingsShown(f).recent, "Recent stays with a new weapon in it")
+    T.eq(weapon:IsShown(), true, "the new weapon shows under Gear")
+    T.eq(bread:IsShown(), false, "new food doesn't")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: new loot stays lit under its chip in the grid view", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and (slot == 1 or slot == 8) end }
+    local f = open(ns)
+    ns.FillAll()
+    local seen = {}
+    local weapon, bread = ns.Bags.buttons[0][1], ns.Bags.buttons[0][8]
+    for _, b in ipairs({ weapon, bread }) do
+        local set = b.SetMatchesSearch
+        b.SetMatchesSearch = function(self, v) seen[self] = v; if set then set(self, v) end end
+    end
+    ns.Window.PickChip(f, "gear")
+    T.eq(seen[weapon], true, "the new weapon stays lit")
+    T.eq(seen[bread], false, "new food dims")
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: the chip row wraps when the grid is narrower than the chips", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    DaylightUI:Set("Bags", "columns", 3)
+    local f = open(ns)
+    f.search:SetFocus()
+    ns.Relayout()
+    local first, last = f.chips[1], f.chips[#f.chips]
+    local _, _, _, _, y1 = first:GetPoint(1)
+    local _, _, _, _, y2 = last:GetPoint(1)
+    T.truthy(y2 < y1, "the last chip is on a second line")
+    DaylightUI:Set("Bags", "columns", 14)
+    ns.Relayout()
+    _, _, _, _, y2 = last:GetPoint(1)
+    T.eq(y2, y1, "one line when the grid is wide")
+end)
+
+-- The window's top to the grid: the header, the tool row and, while shown, the filters.
+local function gridTop(f)
+    local _, _, _, _, y = f.items:GetPoint(1)
+    return -y
+end
+
+local function filtersShown(f)
+    for _, b in ipairs(f.chips) do if not b:IsShown() then return false end end
+    return true
+end
+
+local function runMotion(n, dt)
+    for _ = 1, n or 1 do
+        for _, fr in ipairs(stub.frames or {}) do
+            if fr.__scripts and fr.__scripts.OnUpdate then stub.RunOnUpdate(fr, dt or 1) end
+        end
+    end
+end
+
+T.test("bags: the filters are words like the header tabs, hidden until the search is used", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local W, Feel = ns.Window, DaylightUI.Win.Feel
+    for _, b in ipairs(f.chips) do
+        T.truthy(b.Pick and b.line, "a W.Tab, not a boxed chip")
+        T.isnil(b.SetOn, "no chip fill")
+    end
+    T.falsy(f.chips[1]:IsShown(), "at rest: no filters")
+    local rest, h0 = gridTop(f), f:GetHeight()
+    T.eq(rest, W.TITLE + W.GAP + W.ROW + W.GAP, "and no room kept for them")
+    -- Focus shows them, the window grows by their row.
+    f.search:SetFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "focus: the filters show")
+    Feel.Settle(f); Feel.Settle(f.items)
+    T.eq(gridTop(f), rest + DaylightUI.Widgets.TAB_H + W.GAP, "the grid moves down under them")
+    T.eq(f:GetHeight(), h0 + DaylightUI.Widgets.TAB_H + W.GAP, "the window grows by their row")
+    T.truthy(f.chips[1].picked, "All picked")
+    -- A filter picked keeps them after the search loses focus.
+    f.chips[6]:Click()
+    T.eq(f.chip, "junk")
+    T.truthy(f.chips[6].picked and not f.chips[1].picked, "the picked word in the accent")
+    f.search:ClearFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "a filter picked: they stay")
+    -- Back to All with an empty search and no focus: they go.
+    f.chips[1]:Click()
+    stub.RunTimers()
+    runMotion()
+    T.falsy(f.chips[1]:IsShown(), "All, nothing typed: hidden again")
+    Feel.Settle(f); Feel.Settle(f.items)
+    T.eq(gridTop(f), rest, "and they take no room")
+    T.eq(f:GetHeight(), h0)
+    -- Text typed keeps them after a blur too.
+    f.search:SetFocus()
+    f.search:SetText("bread")
+    f.search:ClearFocus()
+    stub.RunTimers()
+    runMotion()
+    T.truthy(filtersShown(f), "text in the search: they stay")
+    f.search:SetText("")
+    stub.RunTimers()
+    runMotion()
+    T.falsy(f.chips[1]:IsShown(), "emptied without focus: they go")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the filters fade in dropping a little, the window and grid glide with them", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local Feel = DaylightUI.Win.Feel
+    local rest = gridTop(f)
+    f.search:SetFocus()
+    local b = f.chips[2]
+    T.truthy(b:IsShown())
+    T.truthy(b:GetAlpha() < 1, "fading in")
+    T.truthy(Feel.Moving(b), "dropping in")
+    T.truthy(Feel.Moving(f), "the window eases to its new size")
+    T.eq(gridTop(f), rest, "the grid starts where it was")
+    runMotion(30, 0.05)
+    T.eq(b:GetAlpha(), 1)
+    T.falsy(Feel.Moving(f.items))
+    T.eq(gridTop(f), rest + DaylightUI.Widgets.TAB_H + ns.Window.GAP, "and ends under them")
+    -- Going, they fade out where they are.
+    f.search:ClearFocus()
+    T.truthy(b:IsShown(), "fading out")
+    runMotion(30, 0.05)
+    T.falsy(b:IsShown(), "then gone")
+    -- In a fight they come at once.
+    stub.EnterCombat()
+    f.search:SetFocus()
+    T.truthy(b:IsShown()); T.eq(b:GetAlpha(), 1, "at once in a fight")
+    T.falsy(Feel.Moving(f), "no glide in a fight")
+    f.search:ClearFocus()
+    T.falsy(b:IsShown(), "and go at once")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: closing hides the filters again", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local rest = gridTop(f)
+    f.search:SetFocus()
+    ns.Window.PickChip(f, "gear")
+    f:Hide()
+    stub.RunTimers()
+    T.falsy(f.chips[1]:IsShown(), "closed: no filters")
+    T.eq(gridTop(f), rest, "the next open starts without their row")
+    f:Show()
+    stub.RunTimers()
+    T.falsy(f.chips[1]:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: chips reset when the bag closes, and a chip in combat lays out nothing protected", function()
+    local ns, f = catLogin()
+    ns.Window.PickChip(f, "gear")
+    T.eq(f.chip, "gear")
+    f:Hide()
+    stub.RunTimers()
+    T.eq(f.chip, nil, "closing clears the chip")
+    f:Show()
+    stub.RunTimers()
+    local back = headingsShown(f)
+    T.truthy(back.weapon and back.junk and back.consumable, "every group is back on the next open")
+    stub.EnterCombat()
+    ns.Window.PickChip(f, "quest")
+    T.eq(#stub.errors, 0)
+    T.eq(f.chip, "quest", "the pick is kept in combat")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(headingsShown(f).weapon, nil, "the filter applies once combat ends")
+end)
+
+T.test("bags: a heading's name starts over its first slot, the chevron hangs to its left", function()
+    local ns, f = catLogin()
+    local Layout = ns.Layout
+    local h
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "weapon" then h = x end end
+    T.truthy(h, "a heading for Weapons")
+    local function point(r, i)
+        local p, rel, rp, x, y = r:GetPoint(i or 1)
+        return p, rel, rp, x, y
+    end
+    local p, rel, rp, x = point(h.text)
+    T.eq(rel, h, "the name hangs off the heading itself")
+    T.eq(p, "LEFT"); T.eq(rp, "TOPLEFT", "on the heading's text row")
+    T.eq(x, 0, "and starts at its left edge, where the group's first slot starts")
+    local _, hrel, _, hx = point(h)
+    local first
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() and s.button:GetNumPoints() == 1 then
+            local _, _, _, bx, by = s.button:GetPoint(1)
+            local _, _, _, ox, oy = h:GetPoint(1)
+            local inset = Layout.Ref(f, f.Cfg(), Layout.REF.inset)
+            if bx == ox - inset and by == oy - Layout.SlotTop(f) then first = s.button end
+        end
+    end
+    T.truthy(first, "a slot's ring sits just outside the heading's left edge, its icon right under the name")
+    local cp, crel, crp, cx = point(h.chev)
+    T.eq(crel, h.text, "the chevron hangs off the name")
+    T.eq(cp, "RIGHT"); T.eq(crp, "LEFT")
+    T.truthy(cx < 0, "to the left of it")
+    T.truthy(-cx + Layout.HEAD_CHEV <= ns.Window.EDGE + Layout.SHELF_INSET - 2, "and stays clear of the window edge")
+end)
+
+T.test("bags: the Shelf leaves room for the hanging chevron, the Grid keeps its margin", function()
+    local ns, f = catLogin()
+    local E = ns.Window.EDGE
+    local _, _, _, x = f.items:GetPoint(1)
+    T.eq(x, E + ns.Layout.SHELF_INSET, "the Shelf's items start a little in")
+    T.eq(f:GetWidth(), f.items:GetWidth() + E * 2 + ns.Layout.SHELF_INSET, "the window grows by the same")
+    ns.module.db.view = "grid"
+    ns.Relayout()
+    _, _, _, x = f.items:GetPoint(1)
+    T.eq(x, E, "the Grid is unchanged")
+    T.eq(f:GetWidth(), f.items:GetWidth() + E * 2)
+end)
+
+T.test("bags: a heading is underlined in its color, as wide as its group", function()
+    local ns, f = catLogin()
+    local Layout, INK = ns.Layout, DaylightUI.Style.INK
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    local c = h.rule.__color
+    T.truthy(c, "a solid line")
+    local gr, gg, gb = ns.Categories.Color("weapon")
+    T.near(c[1], gr, 0.01); T.near(c[2], gg, 0.01); T.near(c[3], gb, 0.01)
+    T.near(c[4], Layout.RULE_ALPHA, 0.001, "at about half strength")
+    local lp, lrel = h.rule:GetPoint(1)
+    local rp, rrel = h.rule:GetPoint(2)
+    T.eq(lrel, h); T.eq(rrel, h)
+    T.eq(lp, "BOTTOMLEFT"); T.eq(rp, "BOTTOMRIGHT")
+    local px = DaylightUI.Pixel.Px(f.items, 1)
+    T.truthy(h.rule:GetHeight() >= 2 * px - 1e-6, "never thinner than two pixels")
+    T.near(h.rule:GetHeight(), Layout.LineH(f), 1e-6)
+    local r, g, b, a = h.count:GetTextColor()
+    T.near(r, gr, 0.01, "the count is in the group's color")
+    T.truthy(a < 1, "a little dimmer")
+    ns.Categories.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    c = h.rule.__color
+    local want = ns.Items.EMPTY
+    T.near(c[1], want[1], 0.01, "folded: the plain dark line of an empty slot's ring")
+    T.near(c[2], want[2], 0.01); T.near(c[3], want[3], 0.01)
+    r, g, b = h.count:GetTextColor()
+    T.near(r, INK.LABEL[1], 0.01, "folded: the count reads label, not accent")
+    T.near(g, INK.LABEL[2], 0.01); T.near(b, INK.LABEL[3], 0.01)
+    ns.Categories.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+end)
+
+T.test("bags: the line is as wide as the group even when the name is wider", function()
+    local ns, f = catLogin()
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and not h.folded then
+            local w = h:GetWidth()
+            T.truthy(w >= h.text:GetStringWidth(), "the heading is at least as wide as its name")
+        end
+    end
+end)
+
+T.test("bags: Empty's count is the free slots, not the tiles", function()
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    ns.Relayout()
+    local h
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "empty" then h = x end end
+    T.truthy(h, "an Empty heading")
+    local free, tiles = 0, 0
+    for _, g in ipairs(ns.Layout.Groups(ns.module.db, f)) do
+        if g.key == "empty" then
+            for _, e in ipairs(g.entries) do free, tiles = free + (e.free or 1), tiles + 1 end
+        end
+    end
+    T.truthy(free > tiles, "the free tiles stand for more slots than there are tiles")
+    T.eq(h.count:GetText(), tostring(free), "and the heading says the same number")
+    DaylightUI:Set("Bags", "emptySlots", "all")
+    ns.Relayout()
+    for _, x in ipairs(f.headings) do if x:IsShown() and x.key == "empty" then h = x end end
+    T.eq(h.count:GetText(), tostring(free), "one tile per slot reads the same")
+end)
+
+T.test("bags: the corner dots' glow never spills into the next slot", function()
+    local ns = login()
+    open(ns)
+    local Items, B = ns.Items, ns.Bags
+    local function glowAt(spacing)
+        DaylightUI:Set("Bags", "spacing", spacing)
+        stub.RunTimers()
+        local p = Items.Parts(B.buttons[0][1])
+        return p.newGlow:GetWidth(), p.newDot:GetWidth()
+    end
+    local glow, dot = glowAt(7)
+    T.truthy(glow > dot, "a glow around the dot at the default spacing")
+    T.truthy(glow <= (7 - 1) * 2, "reaching at most a pixel past the gap")
+    glow, dot = glowAt(2)
+    T.eq(glow, dot, "no glow at all when the slots nearly touch")
+    -- The cheapest junk's dot follows the same rule.
+    glow, dot = glowAt(7)
+    ns.Items.PaintCheap(B.buttons[0][1], true)
+    local p = Items.Parts(B.buttons[0][1])
+    T.near(p.cheapGlow:GetWidth(), glow, 1e-6, "the junk dot's glow: the same size")
+    DaylightUI:Set("Bags", "spacing", 2)
+    stub.RunTimers()
+    ns.Items.PaintCheap(B.buttons[0][1], true)
+    T.near(p.cheapGlow:GetWidth(), p.cheapDot:GetWidth(), 1e-6, "and none when the slots nearly touch")
+    DaylightUI:Set("Bags", "spacing", nil)
+    stub.RunTimers()
+end)
+
+T.test("bags: the tour names the Alts tab only while it's there", function()
+    local ns = login()
+    open(ns)
+    local stop
+    for _, d in ipairs(DaylightUI.Tour.stops) do if d.id == "bags" then stop = d end end
+    T.truthy(stop, "the bags tour stop")
+    T.truthy(stop.text():find("Alts", 1, true), "Alts named while the viewer is on")
+    DaylightUI:Set("Bags", "viewer.enabled", false)
+    stub.RunTimers()
+    T.falsy(stop.text():find("Alts", 1, true), "not named once the tab is gone")
+    DaylightUI:Set("Bags", "viewer.enabled", true)
+    stub.RunTimers()
+end)
+
+T.test("bags: every group has a color; the player's wins and reset brings the default back", function()
+    local ns = catLogin()
+    local Cat, INK = ns.Categories, DaylightUI.Style.INK
+    local function is(key, c, why)
+        local r, g, b = Cat.Color(key)
+        T.near(r, c[1], 0.01, why); T.near(g, c[2], 0.01, why); T.near(b, c[3], 0.01, why)
+    end
+    is("weapon", { 0.96, 0.52, 0.42 }, "weapons")
+    is("hearthstone", { 0.45, 0.72, 1.0 }, "hearthstone")
+    is("misc", INK.LABEL, "misc reads label")
+    is("other", INK.LABEL, "other reads label")
+    is("empty", INK.LABEL, "empty reads label")
+    -- The fake game answers 0.1 * quality, 0.5, 0.9.
+    is("junk", { 0, 0.5, 0.9 }, "junk is the game's poor quality color")
+    T.isnil(Cat.Color("recent"), "recent keeps the accent")
+    local mine = Cat.AddCustom("Mine")
+    is(mine, INK.TEXT, "a custom group starts soft white")
+    Cat.SetColor("weapon", { 0.1, 0.2, 0.3 })
+    is("weapon", { 0.1, 0.2, 0.3 }, "the player's own color")
+    T.truthy(Cat.HasOwnColor("weapon"))
+    Cat.SetColor(mine, { 1, 0, 0 })
+    is(mine, { 1, 0, 0 }, "custom group's own color")
+    Cat.ResetColor("weapon")
+    is("weapon", { 0.96, 0.52, 0.42 }, "reset brings the default back")
+    T.falsy(Cat.HasOwnColor("weapon"))
+    Cat.DeleteCustom(mine)
+    T.isnil(ns.module.db.groupColors[mine], "a deleted group's color goes with it")
+end)
+
+T.test("bags: a heading wears its group's color, folded ones read label, the rule tints", function()
+    local ns, f = catLogin()
+    local Cat, INK = ns.Categories, DaylightUI.Style.INK
+    local function headOf(key)
+        for _, x in ipairs(f.headings) do if x:IsShown() and x.key == key then return x end end
+    end
+    local h = headOf("weapon")
+    local function is(fs, c, why)
+        local r, g, b = fs:GetTextColor()
+        T.near(r, c[1], 0.01, why); T.near(g, c[2], 0.01, why); T.near(b, c[3], 0.01, why)
+    end
+    is(h.text, { 0.96, 0.52, 0.42 }, "name")
+    is(h.count, { 0.96, 0.52, 0.42 }, "count")
+    T.near(h.rule.__color[1], 0.96, 0.01, "the line is in the group's color")
+    Cat.SetColor("weapon", { 0.2, 0.4, 0.6 })
+    ns.Relayout()
+    h = headOf("weapon")
+    is(h.text, { 0.2, 0.4, 0.6 }, "the player's color")
+    Cat.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    h = headOf("weapon")
+    is(h.text, INK.LABEL, "folded: label")
+    Cat.ToggleCollapsed("weapon")
+    stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+end)
+
+T.test("bags: the group menus list groups in their color and the lock row is short", function()
+    local ns = login({ view = "categories" })
+    categoryWorld()
+    open(ns)
+    ns.Relayout(); ns.FillAll()
+    local Cat = ns.Categories
+    local keys, values
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(_, k, v) keys, values = k, v end
+    Cat.Menu(ns.Bags.buttons[0][1])
+    DaylightUI.Widgets.OpenMenu = openMenu
+    local L = DaylightUI.L
+    T.eq(values.lock, L["Lock"], "a short lock row")
+    local hex = DaylightUI.Win.Parts.Hex({ Cat.Color("weapon") })
+    T.eq(values.weapon, hex .. Cat.Get("weapon").name .. "|r", "weapons in their color")
+    T.truthy(#L["Lock"] <= 10)
+end)
+
+T.test("bags: a group's color travels in a shared string", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local store = {}
+    _G.C_EncodingUtil = {
+        SerializeCBOR = function(v) store[#store + 1] = v; return "cbor" .. #store end,
+        DeserializeCBOR = function(s) local v = store[tonumber(string.match(s, "^cbor(%d+)$") or "")]
+            if not v then error("bad cbor") end; return v end,
+        CompressString = function(s) return s end, DecompressString = function(s) return s end,
+        EncodeBase64 = function(s) return s end, DecodeBase64 = function(s) return s end,
+    }
+    local a = Cat.AddCustom("Tinted")
+    Cat.AddCustom("Plain")
+    Cat.SetColor(a, { 0.3, 0.5, 0.7 })
+    local text = Cat.Export()
+    Cat.DeleteCustom(a)
+    local list = Cat.ReadShared(text)
+    T.eq(#list, 2)
+    Cat.ImportShared(list)
+    local key
+    for _, g in ipairs(Cat.Custom()) do if g.name == "Tinted" then key = g.key end end
+    local r, g, b = Cat.Color(key)
+    T.near(r, 0.3, 0.01); T.near(g, 0.5, 0.01); T.near(b, 0.7, 0.01)
+    for _, g2 in ipairs(Cat.Custom()) do
+        if g2.name == "Plain" then T.falsy(Cat.HasOwnColor(g2.key), "no color shared, none set") end
+    end
+    _G.C_EncodingUtil = nil
+end)
+
+-- A vendor that takes what's used: the item leaves its slot and the bag updates
+-- (late = the bag updates only when land() is called, as when the server is slow).
+local function sellingWorld(late)
+    local sold, pending = {}, {}
+    C_Container.UseContainerItem = function(bag, slot)
+        sold[#sold + 1] = bag .. ":" .. slot
+        if late then
+            pending[#pending + 1] = { bag, slot }
+        else
+            world.items[bag][slot] = nil
+            bagChanged(bag)
+        end
+    end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" or link == "|Hitem:9|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    local function land()
+        for _, p in ipairs(pending) do
+            world.items[p[1]][p[2]] = nil
+            bagChanged(p[1])
+        end
+        wipe(pending)
+    end
+    return sold, land
+end
+
+-- The bag with a gray weapon (0:2) and apples marked as junk (1:2), free slots
+-- grouped so a sold slot leaves the grid, a vendor open.
+local function junkAtVendor(late, narrow)
+    local ns, f = (narrow and narrowLogin or catLogin)()
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    DaylightUI:Set("Bags", "sellJunk", false)
+    stub.RunTimers()
+    ns.Categories.Pin(9, "junk")
+    ns.Relayout()
+    ns.FillAll()
+    settleFeel()
+    local sold, land = sellingWorld(late)
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    return ns, f, sold, land
+end
+
+local function nothingMoves(f, what)
+    local Feel = DaylightUI.Win.Feel
+    for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), what) end
+    for _, h in ipairs(f.headings or {}) do T.falsy(Feel.Moving(h), what) end
+end
+
+T.test("bags: Sell junk fades the junk out and glides the rest up", function()
+    local ns, f, sold = junkAtVendor(false, true)
+    local Feel = DaylightUI.Win.Feel
+    -- The weapon's slot becomes the free tile (the first free slot); the apples'
+    -- slot leaves the grid.
+    local gray, apple = ns.Bags.buttons[0][2], ns.Bags.buttons[1][2]
+    local gx, gy = at(gray)
+    local ax, ay = at(apple)
+    local before = itemSpots(f)
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    T.eq(#sold, 1, "one at a time")
+    T.truthy(gray:IsShown(), "mid-sale the sold slot keeps its spot")
+    T.deq({ at(gray) }, { gx, gy })
+    nothingMoves(f, "nothing moves mid-sale")
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:2,1:2")
+    T.truthy(f.fading and f.fading[apple], "a sold slot fades out")
+    T.truthy(apple:IsShown(), "where it was")
+    T.deq({ at(apple) }, { ax, ay })
+    T.truthy(f.tiles[1].button == gray and Feel.Moving(gray), "the other glides to be the free tile")
+    for link, spot0 in pairs(before) do
+        local b = buttonOf(f, link)
+        if b then T.deq({ at(b) }, spot0, link .. " starts from where it was") end
+    end
+    -- Junk was the last group here: what follows it (the free slots) glides up.
+    local up = 0
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() and h.key == "empty" and Feel.Moving(h) then up = up + 1 end
+    end
+    T.eq(up, 1, "the free slots' heading glides up")
+    local junkHead
+    for _, h in ipairs(f.headings) do if h.key == "junk" then junkHead = h end end
+    T.truthy(junkHead and f.fading and f.fading[junkHead], "the emptied Junk heading fades out")
+    T.truthy(junkHead:IsShown() and junkHead:GetAlpha() > 0, "where it was")
+    for _, h in ipairs(f.headings) do
+        if h ~= junkHead and h:IsShown() then T.truthy(h.key ~= "junk", "no other heading reads Junk") end
+    end
+    T.truthy(Feel.Moving(f), "the window glides to its new size")
+    settleFeel()
+    T.falsy(apple:IsShown(), "gone once faded")
+    T.falsy(junkHead:IsShown(), "and its heading")
+    T.falsy(f.stale, "laid out: nothing left for the next open")
+    nothingMoves(f, "all landed")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Sell junk waits for the last sale to leave the bag", function()
+    local ns, f, sold, land = junkAtVendor(true)
+    local Feel = DaylightUI.Win.Feel
+    local apple = ns.Bags.buttons[1][2]
+    local ax, ay = at(apple)
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(#sold, 2)
+    T.falsy(f.fading and f.fading[apple], "the server hasn't answered: nothing closes up yet")
+    T.deq({ at(apple) }, { ax, ay })
+    land()
+    T.truthy(apple:IsShown() and f.stale, "the sold slots hold their spots")
+    stub.RunTimers()
+    T.truthy(f.fading and f.fading[apple], "landed: now it closes up")
+    settleFeel()
+    nothingMoves(f, "settled")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    -- A sale that never lands is let go after SETTLE.
+    ns, f, sold = junkAtVendor(true)
+    local gray = ns.Bags.buttons[0][2]
+    f.sellJunk:GetScript("OnClick")(f.sellJunk)
+    for _ = 1, 5 do stub.RunTimers() end
+    local laid = 0
+    local relayout = ns.Window.EaseRelayout
+    ns.Window.EaseRelayout = function(...) laid = laid + 1 return relayout(...) end
+    stub.RunTimers()
+    T.eq(laid, 0, "still waiting")
+    stub.Advance(ns.Junk.SETTLE)
+    stub.RunTimers()
+    ns.Window.EaseRelayout = relayout
+    T.eq(laid, 1, "then lays out once")
+    T.falsy(Feel.Moving(gray))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a right-click sell still holds the spot", function()
+    local ns, f = junkAtVendor()
+    local spots = {}
+    for _, s in ipairs(f.set.Slots()) do
+        if s.button:IsShown() then spots[s.button] = { at(s.button) } end
+    end
+    local weapon = ns.Bags.buttons[0][1]
+    -- What the game's right-click does at a vendor.
+    C_Container.UseContainerItem(0, 1)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.truthy(weapon:IsShown(), "the sold slot stays")
+    for b, spot0 in pairs(spots) do T.deq({ at(b) }, spot0, "nothing else moved") end
+    nothingMoves(f, "no glide")
+    T.falsy(f.fading and next(f.fading), "nothing fades")
+    T.truthy(f.stale, "the next open lays it out")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: more than EASE_MAX moves cross-fade instead", function()
+    local ns = login()
+    local L, Motion = ns.Layout, DaylightUI.Motion
+    T.eq(L.EASE_MAX, 60)
+    DaylightUI:Set("Bags", "emptySlots", "grouped")
+    stub.RunTimers()
+    local f = open(ns)
+    ns.Relayout()
+    settleFeel()
+    local ok, err = pcall(function()
+        L.EASE_MAX = 2
+        local gray = ns.Bags.buttons[0][2]
+        local x0, y0 = at(gray)
+        world.items[0][1] = nil
+        easedRelayout(ns)
+        nothingMoves(f, "no slot glides")
+        T.truthy(f.crossing, "the grid cross-fades")
+        T.deq({ at(gray) }, { x0, y0 }, "the old picture fades out where it was")
+        stub.RunOnUpdate(Motion.Driver(), Motion.FAST + 0.01)
+        T.truthy(at(gray) < x0, "then each piece is at its new spot")
+        T.truthy(f.items:GetAlpha() < 0.5, "fading back in")
+        stub.RunOnUpdate(Motion.Driver(), Motion.NORMAL + 0.01)
+        T.eq(f.items:GetAlpha(), 1)
+        T.isnil(f.crossing, "done")
+        -- A layout made mid-way lands the cross-fade first.
+        world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+        easedRelayout(ns)
+        T.truthy(f.crossing)
+        stub.RunOnUpdate(Motion.Driver(), Motion.FAST / 2)
+        local mid = f.items:GetAlpha()
+        T.truthy(mid < 1, "half faded")
+        L.EASE_MAX = 60
+        world.items[0][1] = nil
+        easedRelayout(ns)
+        T.isnil(f.crossing, "the new layout glides")
+        T.truthy(f.items:GetAlpha() <= mid, "the grid comes back from where it was, no snap")
+        L.EASE_MAX = 2
+        settleFeel()
+        T.eq(f.items:GetAlpha(), 1)
+        T.isnil(f.crossing)
+        T.truthy(at(gray) < x0, "where the last layout put it")
+        -- Few moves still glide.
+        L.EASE_MAX = 60
+        world.items[0][1] = { iconFileID = 101, stackCount = 5, quality = 3, hyperlink = "|Hitem:1|h" }
+        easedRelayout(ns)
+        T.isnil(f.crossing)
+        T.truthy(DaylightUI.Win.Feel.Moving(gray), "glides")
+        settleFeel()
+    end)
+    L.EASE_MAX = 60
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: combat mid-glide settles everything at once", function()
+    local ns, f = narrowLogin()
+    local Feel, L = DaylightUI.Win.Feel, ns.Layout
+    settleFeel()
+    local function click(key)
+        for _, h in ipairs(f.headings) do
+            if h:IsShown() and h.key == key then return h:GetScript("OnClick")(h, "LeftButton") end
+        end
+    end
+    -- Fold a group, then open it again: its items fade in, the rest glide, the window resizes.
+    click("junk")
+    settleFeel()
+    click("junk")
+    local bread = ns.Bags.buttons[0][2]
+    T.truthy(bread:GetAlpha() < 1, "an opened group's items are fading in")
+    T.truthy(Feel.Moving(f), "the window is resizing")
+    local glided = false
+    for _, s in ipairs(f.set.Slots()) do glided = glided or Feel.Moving(s.button) end
+    T.truthy(glided, "slots glide")
+    stub.EnterCombat()
+    nothingMoves(f, "a fight lands every glide")
+    T.falsy(Feel.Moving(f), "and the window's size")
+    T.eq(bread:GetAlpha(), 1, "fading pieces are whole")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    -- Folding again: the folded group's items fade out where they were.
+    click("junk")
+    T.truthy(f.fading and f.fading[bread], "fading out")
+    stub.EnterCombat()
+    T.falsy(bread:IsShown(), "gone at once")
+    T.falsy(f.fading and next(f.fading))
+    stub.LeaveCombat()
+    stub.RunTimers()
+    -- A cross-fade lands too.
+    local ok, err = pcall(function()
+        L.EASE_MAX = 0
+        click("junk")
+        T.truthy(f.crossing)
+        stub.EnterCombat()
+        T.isnil(f.crossing)
+        T.eq(f.items:GetAlpha(), 1, "the grid shows whole")
+    end)
+    L.EASE_MAX = 60
+    stub.LeaveCombat()
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: motion off lays out at once", function()
+    local ns, f, sold = junkAtVendor()
+    local Feel = DaylightUI.Win.Feel
+    local apple = ns.Bags.buttons[1][2]
+    DaylightUI.DB.General().motion = false
+    local ok, err = pcall(function()
+        f.sellJunk:GetScript("OnClick")(f.sellJunk)
+        for _ = 1, 5 do stub.RunTimers() end
+        T.eq(#sold, 2)
+        T.falsy(apple:IsShown(), "the sold slot is gone at once")
+        T.falsy(f.fading and next(f.fading), "nothing fades")
+        nothingMoves(f, "nothing glides")
+        T.falsy(Feel.Moving(f), "the window takes its size at once")
+        T.isnil(f.crossing)
+        T.falsy(f.stale)
+    end)
+    DaylightUI.DB.General().motion = true
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the NPC window's own Sell junk closes up the bag too", function()
+    local ns, f = junkAtVendor()
+    local Feel = DaylightUI.Win.Feel
+    -- The game's sale: every gray item goes, a moment later.
+    C_MerchantFrame = C_MerchantFrame or {}
+    local gray = ns.Bags.buttons[0][2]
+    local laid = 0
+    local relayout = ns.Window.EaseRelayout
+    ns.Window.EaseRelayout = function(...) laid = laid + 1 return relayout(...) end
+    local ok, err = pcall(function()
+        T.falsy(DaylightUI.SellJunkAroundLocks(), "nothing locked: the game sells")
+        T.eq(laid, 0)
+        world.items[0][2] = nil
+        bagChanged(0)
+        T.truthy(f.stale, "the sold slot holds its spot first")
+        for _ = 1, 3 do stub.RunTimers() end
+        T.eq(laid, 1, "then one eased layout")
+        T.falsy(f.stale)
+        T.truthy(Feel.Moving(gray), "the emptied slot glides to the free tile")
+        settleFeel()
+    end)
+    ns.Window.EaseRelayout = relayout
+    T.truthy(ok, tostring(err))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: hovering Lock in the item menu says what it does, leaving hides it", function()
+    local ns, f = catLogin()
+    local W = DaylightUI.Widgets
+    local btn = ns.Bags.buttons[0][4]
+    local said, addLine = {}, GameTooltip.AddLine
+    GameTooltip.AddLine = function(self, text, ...) said[#said + 1] = text; return addLine(self, text, ...) end
+    local function lockRow()
+        for i = 1, 30 do
+            local r = W.MenuRow(i)
+            if not r then return end
+            if r.key == "lock" then return r end
+        end
+    end
+    GameTooltip:Hide()
+    ns.Categories.Menu(btn)
+    local r = lockRow()
+    T.truthy(r, "the menu has a Lock row")
+    r:GetScript("OnEnter")(r)
+    T.truthy(GameTooltip:IsShown(), "hovering Lock shows a tip")
+    local text = table.concat(said, "\n")
+    T.truthy(text:find(DaylightUI.L["Never sold or disenchanted."], 1, true), "it says what Lock does: " .. text)
+    r:GetScript("OnLeave")(r)
+    T.falsy(GameTooltip:IsShown(), "leaving the row hides it")
+    -- Hovering another row hides it too, and closing the menu.
+    r:GetScript("OnEnter")(r)
+    T.truthy(GameTooltip:IsShown())
+    local other = W.MenuRow(2)
+    if other and other ~= r then
+        other:GetScript("OnEnter")(other)
+        T.falsy(GameTooltip:IsShown(), "another row: no Lock tip")
+        r:GetScript("OnEnter")(r)
+    end
+    W.CloseMenu()
+    T.falsy(GameTooltip:IsShown(), "closing the menu hides it")
+    -- Locked, the row says Unlock and what that does.
+    ns.Categories.ToggleLock(C_Container.GetContainerItemInfo(0, 4).itemID)
+    stub.RunTimers()
+    wipe(said)
+    ns.Categories.Menu(btn)
+    r = lockRow()
+    r:GetScript("OnEnter")(r)
+    T.truthy(table.concat(said, "\n"):find(DaylightUI.L["Can be sold again."], 1, true), "Unlock says what it does")
+    W.CloseMenu()
+    GameTooltip.AddLine = addLine
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a heading, a filter, the tools and the search end a cleanup's hold at once", function()
+    local ns, f = catLogin()
+    settleFeel()
+    local function hold(what)
+        f.sort:GetScript("OnClick")(f.sort)
+        sortStep(1, 4)
+        T.truthy(f.sorting, what .. ": held")
+    end
+    hold("heading")
+    local h
+    for _, x in ipairs(f.headings) do
+        if x:IsShown() and x.key then h = x break end
+    end
+    local key = h.key
+    h:GetScript("OnClick")(h, "LeftButton")
+    T.isnil(f.sorting, "a heading click lets go")
+    T.truthy(ns.Categories.IsCollapsed(key), "the group folds")
+    T.truthy(h.folded, "and its heading shows folded at once")
+    T.truthy(filledRight(f), "every slot shows its real item")
+    ns.Categories.ToggleCollapsed(key)
+    settleFeel()
+    hold("filter")
+    f.chips[6]:Click()
+    T.isnil(f.sorting, "a filter word lets go")
+    f.chips[1]:Click()
+    settleFeel()
+    hold("view")
+    f.viewButton:GetScript("OnClick")(f.viewButton, "LeftButton")
+    T.isnil(f.sorting, "Shelf or grid lets go")
+    settleFeel()
+    hold("slots")
+    f.slotsButton:GetScript("OnClick")(f.slotsButton, "LeftButton")
+    T.isnil(f.sorting, "the slots tool lets go")
+    settleFeel()
+    hold("focus")
+    f.search:SetFocus()
+    T.isnil(f.sorting, "clicking into the search lets go")
+    f.search:ClearFocus()
+    settleFeel()
+    hold("typing")
+    local held
+    local parse = ns.Search.Parse
+    ns.Search.Parse = function(t) held = f.sorting ~= nil; return parse(t) end
+    f.search:SetText("bread")
+    ns.Search.Parse = parse
+    T.isnil(f.sorting, "typing lets go")
+    T.eq(held, false, "before the search matches anything")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the filters go once the mouse leaves them after Escape left the search", function()
+    local ns = login({ view = "grid" })
+    categoryWorld()
+    local f = open(ns)
+    local chip = f.chips[3]
+    f.search:SetFocus()
+    stub.RunTimers()
+    T.truthy(filtersShown(f))
+    chip.IsMouseOver = function() return true end
+    f.search:ClearFocus()   -- Escape with the mouse resting on a filter word
+    stub.RunTimers()
+    T.truthy(filtersShown(f), "the mouse on a word: they wait")
+    chip.IsMouseOver = function() return false end
+    chip:GetScript("OnLeave")(chip)
+    stub.RunTimers()
+    runMotion(30, 0.05)
+    T.falsy(chip:IsShown(), "the mouse left: they go")
+    chip.IsMouseOver = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Move what you searched for: the matches go where a right-click would send them.
+local function moveWorld(opts)
+    -- The client's switch for the mail's send page, there before any addon loads.
+    _G.SetSendMailShowing = _G.SetSendMailShowing or function() end
+    local ns = opts and opts.bank and bankLogin() or login()
+    world.items[0][1].itemName, world.items[0][1].itemID = "Copper Ore", 1
+    world.items[0][4].itemName, world.items[0][4].itemID = "Copper Bar", 4
+    world.items[0][5].itemName = "Linen Cloth"
+    local used = {}
+    C_Container.UseContainerItem = function(bag, slot)
+        used[#used + 1] = bag .. ":" .. slot
+        world.items[bag][slot] = nil
+        bagChanged(bag)
+    end
+    local f = open(ns)
+    f.search:SetText("copper")
+    stub.RunTimers()
+    return ns, f, used
+end
+
+local function moveButton(f)
+    runMotion(20, 0.05)
+    for _, b in ipairs({ f.move, f.moveSell }) do
+        if b and b:IsShown() and b:GetAlpha() > 0 then return b end
+    end
+end
+
+local function runMoves()
+    for _ = 1, 20 do stub.Advance(0.2); stub.RunTimers() end
+end
+
+T.test("bags: Move what you searched for shows while searching with a trade open", function()
+    local ns, f, used = moveWorld()
+    T.falsy(moveButton(f), "nowhere to move to: no button")
+    local offered = {}
+    _G.GetTradePlayerItemLink = function(i) return offered[i] end
+    stub.FireEvent("TRADE_SHOW")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.truthy(b, "a trade open: the button")
+    T.eq(b.text:GetText(), "Move 2 to trade")
+    T.eq(select(2, b:GetPoint(1)), f, "on the filter row")
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4", "each match, as a right-click would")
+    T.falsy(moveButton(f), "nothing left to move")
+    stub.FireEvent("TRADE_CLOSED")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for moves only what fits", function()
+    local ns, f, used = moveWorld()
+    local offered = { "a", "b", "c", "d", "e" }
+    _G.GetTradePlayerItemLink = function(i) return offered[i] end
+    stub.FireEvent("TRADE_SHOW")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 1 to trade", "one trade slot left")
+    offered[6] = "f"
+    stub.FireEvent("TRADE_PLAYER_ITEM_CHANGED", 6)
+    stub.RunTimers()
+    runMotion(20, 0.05)
+    T.falsy(moveButton(f), "a full trade: no button")
+    stub.FireEvent("TRADE_CLOSED")
+    stub.RunTimers()
+    -- The send page of the mail: the client takes right-clicked items while it shows.
+    local attached = {}
+    _G.HasSendMailItem = function(i) return attached[i] == true end
+    stub.FireEvent("MAIL_SHOW")
+    stub.RunTimers()
+    T.falsy(moveButton(f), "the inbox: nothing takes items")
+    SetSendMailShowing(true)
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 2 to mail")
+    for i = 1, 11 do attached[i] = true end
+    stub.FireEvent("MAIL_SEND_INFO_UPDATE")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Move 1 to mail", "one attachment left")
+    local b = moveButton(f)
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(#used, 1, "only what fits")
+    SetSendMailShowing(false)
+    stub.FireEvent("MAIL_CLOSED")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for sells at a vendor on a second click", function()
+    local ns, f, used = moveWorld()
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:1|h" or link == "|Hitem:4|h" then return "name", link, 2, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.eq(b, f.moveSell)
+    T.eq(b.text:GetText(), "Sell 2")
+    b:GetScript("OnClick")(b)
+    T.eq(#used, 0, "the first click only asks")
+    T.eq(b.text:GetText(), "Click again")
+    stub.Advance(1)
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4", "sold")
+    stub.FireEvent("MERCHANT_CLOSED")
+    C_Item.GetItemInfo = getInfo
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Move what you searched for keeps locked and priceless items from the vendor", function()
+    local ns, f, used = moveWorld()
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:1|h" then return "name", link, 2, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][4].hasNoValue = true
+    stub.FireEvent("MERCHANT_SHOW")
+    stub.RunTimers()
+    T.eq(moveButton(f).text:GetText(), "Sell 1", "no price: not sold")
+    ns.Categories.ToggleLock(1)
+    stub.RunTimers()
+    runMotion(20, 0.05)
+    T.falsy(moveButton(f), "locked: kept")
+    stub.FireEvent("MERCHANT_CLOSED")
+    C_Item.GetItemInfo = getInfo
+end)
+
+T.test("bags: Move what you searched for sends matches to the open bank", function()
+    local ns, f, used = moveWorld({ bank = true })
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local b = moveButton(f)
+    T.eq(b and b.text:GetText(), "Move 2 to bank")
+    b:GetScript("OnClick")(b)
+    runMoves()
+    T.eq(table.concat(used, ","), "0:1,0:4")
+    stub.FireEvent("BANKFRAME_CLOSED")
+    stub.RunTimers()
+    f.search:SetText("linen")
+    stub.RunTimers()
+    T.falsy(moveButton(f), "the bank closed: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Bag addons whose Baganator support lives inside Baganator itself, or only wakes
+-- when Baganator is really loaded, are hooked up by Daylight UI directly.
+local function loadAddon(name)
+    stub.FireEvent("ADDON_LOADED", name)
+    stub.RunTimers()
+end
+
+T.test("bags: Pawn's upgrade arrows show on gear and answer the upgrade search", function()
+    local ns, f = catLogin()
+    local registered
+    _G.PawnRegisterThirdPartyBag = function(name, o) registered = { name = name, o = o } end
+    _G.PawnShouldItemLinkHaveUpgradeArrow = function(link) return link == "|Hitem:6|h" end
+    loadAddon("Pawn")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local armor, weapon = P.Widget(B.buttons[0][5], "pawn"), P.Widget(B.buttons[0][1], "pawn")
+    T.truthy(armor and armor:IsShown(), "the upgrade gets Pawn's arrow")
+    T.eq((armor:GetPoint(1)), "TOPLEFT", "top left, as in Baganator")
+    T.falsy(weapon and weapon:IsShown(), "gear that isn't an upgrade: none")
+    T.truthy(P.IsUpgrade("|Hitem:6|h"), "the upgrade search asks Pawn")
+    T.eq(registered and registered.name, "Daylight UI", "Pawn knows these bags")
+    T.eq(type(registered.o.RefreshAll), "function", "so it refreshes them when gear or scales change")
+    _G.PawnRegisterThirdPartyBag, _G.PawnShouldItemLinkHaveUpgradeArrow = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Can I Mog It marks show on gear, told the bag and slot", function()
+    local ns, f = catLogin()
+    local asked = {}
+    _G.CIMI_AddToFrame = function(btn)
+        local o = CreateFrame("Frame", nil, btn)
+        o.CIMIIconTexture = o:CreateTexture(nil, "OVERLAY")
+        btn.CanIMogItOverlay = o
+    end
+    _G.CIMI_SetIcon = function(frame, _, text) frame.cimiText = text end
+    _G.CanIMogIt = { GetTooltipText = function(_, link, bag, slot)
+        asked[#asked + 1] = { link, bag, slot }
+        return "Learned"
+    end, RegisterMessage = function() end }
+    loadAddon("CanIMogIt")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "can_i_mog_it")
+    T.truthy(w and w:IsShown(), "a weapon gets its mark")
+    T.eq(w.cimiText, "Learned")
+    T.eq((w:GetPoint(1)), "TOPRIGHT")
+    local bread = P.Widget(B.buttons[0][8], "can_i_mog_it")
+    T.falsy(bread and bread:IsShown(), "food: nothing to collect")
+    local found = false
+    for _, a in ipairs(asked) do if a[1] == "|Hitem:1|h" and a[2] == 0 and a[3] == 1 then found = true end end
+    T.truthy(found, "asked with the item's bag and slot")
+    _G.CIMI_AddToFrame, _G.CIMI_SetIcon, _G.CanIMogIt = nil, nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Simple Item Levels shows its item level and answers the upgrade search", function()
+    local ns, f = catLogin()
+    _G.SimpleItemLevel = { API = {
+        ItemLevel = function(link) return link == "|Hitem:1|h" and 17 or nil end,
+        ItemIsUpgrade = function(link) return link == "|Hitem:1|h" end,
+    } }
+    loadAddon("SimpleItemLevel")
+    ns.FillAll()
+    stub.RunTimers()
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "simpleitemlevel-ilvl")
+    T.truthy(w and w:IsShown(), "gear with a level shows it")
+    T.eq(w:GetText(), "17")
+    T.truthy(P.IsUpgrade("|Hitem:1|h"))
+    T.falsy(P.IsUpgrade("|Hitem:6|h"))
+    _G.SimpleItemLevel = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: Caerdon Wardrobe draws through a Daylight UI feature of its own", function()
+    local ns, f = catLogin()
+    local features, updates = {}, {}
+    _G.CaerdonItem = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    _G.CaerdonWardrobe = {
+        RegisterFeature = function(self, m) features[m:GetName()] = setmetatable({}, { __index = m }) end,
+        GetFeature = function(self, name) return features[name] end,
+        UpdateButton = function(self, btn, item, feature, where)
+            updates[#updates + 1] = { btn = btn, item = item, feature = feature, where = where }
+            if not btn.caerdon then
+                btn.caerdon = { mogStatus = CreateFrame("Frame", nil, btn), bindsOnText = btn:CreateFontString() }
+            end
+        end,
+        GetCaerdonButton = function(self, btn) return btn.caerdon end,
+    }
+    loadAddon("CaerdonWardrobe")
+    ns.FillAll()
+    stub.RunTimers()
+    T.truthy(features["Daylight UI"], "registered as one of its bag features")
+    local P, B = ns.Plugins, ns.Bags
+    local w = P.Widget(B.buttons[0][1], "caerdon_wardrobe_status")
+    T.truthy(w and w:IsShown(), "its status shows on an item")
+    local told = false
+    for _, u in ipairs(updates) do
+        if u.btn == B.buttons[0][1] and u.item and u.where and u.where.bag == 0 and u.where.slot == 1 then
+            told = u.feature == features["Daylight UI"]
+        end
+    end
+    T.truthy(told, "updated with the item, its slot and the Daylight UI feature")
+    _G.CaerdonItem, _G.CaerdonWardrobe = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a corner asked for as default_position is honored, and plugins get itemLocation", function()
+    local ns = login()
+    local seen
+    local init, update = upArrow(function(d) seen = seen or d; return true end)
+    Baganator.API.RegisterCornerWidget("Low", "low", update, init, { default_position = "bottom_left", priority = 1 })
+    open(ns)
+    stub.RunTimers()
+    local w = ns.Plugins.Widget(ns.Bags.buttons[0][1], "low")
+    T.eq((w:GetPoint(1)), "BOTTOMLEFT")
+    T.eq(seen.itemLocation and seen.itemLocation.bagID, seen.bagID)
+    T.eq(seen.itemLocation.slotIndex, seen.slotID)
+    _G.Baganator = nil
+end)
+
+-- The list view: the Shelf's groups as headings, a row per item under each.
+local function listLogin()
+    local ns, f = catLogin()
+    DaylightUI:Set("Bags", "view", "list")
+    stub.RunTimers()
+    return ns, f
+end
+
+local function rowsOf(f)
+    local out = {}
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b.dluiRow and b.dluiRow:IsShown() then
+            local _, _, _, x, y = b:GetPoint(1)
+            out[#out + 1] = { b = b, x = x, y = -y, row = b.dluiRow }
+        end
+    end
+    table.sort(out, function(a, b) return a.y < b.y end)
+    return out
+end
+
+local function headingY(f, key)
+    for _, h in ipairs(f.headings or {}) do
+        if h:IsShown() and h.key == key then return -select(5, h:GetPoint(1)) end
+    end
+end
+
+T.test("bags: the list view puts a row per item under its group's heading", function()
+    local ns, f = listLogin()
+    local L = ns.Layout
+    L.ListView = function() return 10000 end
+    ns.Relayout()
+    local rows = rowsOf(f)
+    T.truthy(#rows >= 6, "a row per shown item: " .. #rows)
+    local icon = L.ListIcon(f.Cfg())
+    local width = f.items:GetWidth()
+    for i, r in ipairs(rows) do
+        T.eq(r.x, width - r.row:GetWidth(), "rows start at the left edge, past the chevrons' room")
+        T.eq(r.b:GetWidth(), icon, "the slot stays square, at the row's height")
+        local hit = r.b.__hitRect
+        T.deq(hit, { 0, -(r.row:GetWidth() - icon), 0, 0 }, "its click area covers the whole row")
+        if i > 1 then T.truthy(r.y >= rows[i - 1].y + icon, "rows never overlap") end
+    end
+    -- Every group's rows sit under its heading and above the next one.
+    local groups = ns.Layout.Groups(f.Cfg(), f)
+    local tops = {}
+    for _, g in ipairs(groups) do tops[#tops + 1] = { key = g.key, y = headingY(f, g.key), g = g } end
+    table.sort(tops, function(a, b) return a.y < b.y end)
+    for i, t in ipairs(tops) do
+        local below = tops[i + 1] and tops[i + 1].y or math.huge
+        for _, e in ipairs(t.g.entries) do
+            local _, _, _, _, y = e.button:GetPoint(1)
+            T.truthy(-y > t.y and -y < below, t.key .. ": its rows under its heading")
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: list rows read name, kind, level, count and sell value", function()
+    local ns, f = listLogin()
+    local B = ns.Bags
+    local getInfo, instant = C_Item.GetItemInfo, C_Item.GetItemInfoInstant
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:8|h" then return "Bread", link, 1, 5, 1, "Consumable", "Food", 20, "", 1, 25, 0, 0, 0 end
+        return getInfo(link)
+    end
+    C_Item.GetItemInfoInstant = function(id)
+        local itemID = type(id) == "number" and id or tonumber(string.match(tostring(id), "item:(%d+)"))
+        return itemID, itemID == 8 and "Consumable" or "", "", "", 0, world.class[itemID], 0
+    end
+    ns.Relayout()
+    ns.FillAll()
+    local row = B.buttons[0][8].dluiRow
+    T.eq(row.name:GetText(), "Bread")
+    T.eq(row.kind:GetText(), "Consumable")
+    T.eq(row.count:GetText(), "12", "both stacks of bread, combined")
+    T.truthy(row.value:GetText():find("3", 1, true), "12 x 25 copper: " .. tostring(row.value:GetText()))
+    T.eq(row.level:GetText(), "", "no item level on food")
+    C_Item.GetItemInfo, C_Item.GetItemInfoInstant = getInfo, instant
+end)
+
+T.test("bags: list columns sort inside each group, a second click flips", function()
+    local ns, f = listLogin()
+    local head = f.listHead
+    T.truthy(head and head:IsShown(), "column heads over the rows")
+    world.items[0][9] = { iconFileID = 109, stackCount = 1, quality = 1, hyperlink = "|Hitem:9|h", itemID = 9, itemName = "Apple" }
+    world.items[0][10] = { iconFileID = 108, stackCount = 2, quality = 1, hyperlink = "|Hitem:11|h", itemID = 11, itemName = "Cheese" }
+    world.class[11] = 0
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    local function order()
+        local names = {}
+        for _, r in ipairs(rowsOf(f)) do
+            for _, g in ipairs(ns.Layout.Groups(f.Cfg(), f)) do
+                if g.key == "consumable" then
+                    for _, e in ipairs(g.entries) do if e.button == r.b then names[#names + 1] = r.row.name:GetText() end end
+                end
+            end
+        end
+        return table.concat(names, ",")
+    end
+    head.cells.name:GetScript("OnClick")(head.cells.name)
+    stub.RunTimers()
+    T.eq(DaylightUI:Get("Bags", "listSort"), "name")
+    T.eq(order(), "Apple,Bread,Cheese", "by name")
+    head.cells.name:GetScript("OnClick")(head.cells.name)
+    stub.RunTimers()
+    T.eq(order(), "Cheese,Bread,Apple", "flipped")
+    head.cells.count:GetScript("OnClick")(head.cells.count)
+    stub.RunTimers()
+    T.eq(order(), "Bread,Apple,Cheese", "by count, most first (12, 3 with the other stack, 2)")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a folded group in the list is its heading alone; leaving the list squares the slots again", function()
+    local ns, f = listLogin()
+    local B = ns.Bags
+    local bread = B.buttons[0][8]
+    T.truthy(bread.dluiRow:IsShown())
+    ns.Categories.ToggleCollapsed("consumable")
+    stub.RunTimers()
+    T.falsy(bread:IsShown() and bread:GetAlpha() > 0 and bread.dluiRow:IsShown() and not (f.fading and f.fading[bread]),
+        "its rows go")
+    ns.Categories.ToggleCollapsed("consumable")
+    stub.RunTimers()
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        T.deq(b.__hitRect or { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, "square click areas again")
+        T.falsy(b.dluiRow and b.dluiRow:IsShown(), "no row text")
+    end
+    T.falsy(f.listHead:IsShown(), "no column heads")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: list columns fit their headings and their widest words", function()
+    local ns, f = listLogin()
+    local instant = C_Item.GetItemInfoInstant
+    C_Item.GetItemInfoInstant = function(id)
+        local itemID = type(id) == "number" and id or tonumber(string.match(tostring(id), "item:(%d+)"))
+        return itemID, "Miscellaneous", "", "", 0, world.class[itemID], 0
+    end
+    ns.Relayout()
+    local head = f.listHead
+    for id, cell in pairs(head.cells) do
+        if id ~= "icon" and id ~= "name" then
+            T.truthy(cell:GetWidth() >= cell.text:GetStringWidth() + DaylightUI.Widgets.SORT_ARROW + 4,
+                id .. ": its heading whole with the chevron")
+        end
+    end
+    T.truthy(head.cells.kind:GetWidth() >= #"Miscellaneous" * 7, "the kind column fits its widest word")
+    local row = ns.Bags.buttons[0][8].dluiRow
+    T.truthy(row.name:GetWidth() >= ns.Layout.LIST_NAME_MIN, "a name keeps its room")
+    C_Item.GetItemInfoInstant = instant
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a long list stops growing and scrolls, its column heads staying put", function()
+    local ns, f = listLogin()
+    local L = ns.Layout
+    local view = L.ListView
+    L.ListView = function() return 80 end
+    ns.Relayout()
+    T.eq(f.items:GetHeight(), 80, "the list's room stops at its height")
+    T.truthy(f.listContent > 80, "more rows than that: " .. tostring(f.listContent))
+    T.truthy(f.items.__clips, "rows past the room are cut off")
+    T.truthy(f.items.__wheel, "the wheel scrolls it")
+    local first = rowsOf(f)[1]
+    local y0 = first.y
+    local headY = select(5, f.listHead:GetPoint(1))
+    f.listBar.To(30)
+    T.eq(f.listOffset, 30)
+    local _, _, _, _, y = first.b:GetPoint(1)
+    T.eq(-y, y0 - 30, "rows move up")
+    T.eq(select(5, f.listHead:GetPoint(1)), headY, "the column heads stay")
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() and b.dluiEntry then
+            local _, _, _, _, by = b:GetPoint(1)
+            T.truthy(-by + b:GetHeight() > 0 and -by < 80, "only rows in view are shown")
+            local hit = b.__hitRect
+            T.truthy(hit[3] >= 0 and hit[4] >= 0, "a cut row clicks only where it shows")
+        end
+    end
+    f.listBar.To(10000)
+    T.eq(f.listOffset, f.listContent - 80, "never past the end")
+    f.items:GetScript("OnMouseWheel")(f.items, 1)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    T.truthy(f.listOffset < f.listContent - 80, "the wheel scrolls back up: " .. f.listOffset .. " of " .. f.listContent)
+    L.ListView = function() return 10000 end
+    ns.Relayout()
+    T.eq(f.listOffset, 0, "a list that fits sits at its top")
+    T.eq(f.items:GetHeight(), f.listContent)
+    L.ListView = view
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    T.falsy(f.items.__clips, "the Shelf never cuts its slots")
+    T.falsy(f.items.__wheel)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the view button goes Shelf, Grid, List and round again", function()
+    local ns, f = catLogin()
+    local b = f.viewButton
+    local seen = {}
+    for _ = 1, 3 do
+        b:GetScript("OnClick")(b)
+        stub.RunTimers()
+        seen[#seen + 1] = DaylightUI:Get("Bags", "view")
+    end
+    T.eq(table.concat(seen, ","), "grid,list,categories")
+end)
+
+T.test("bags: a plugin's group takes what its match says, after your own groups", function()
+    local ns = catLogin()
+    local B, Cat = ns.Bags, ns.Categories
+    local me = DaylightUI.API.For("Angler")
+    local asked
+    T.eq(me.AddBagGroup("food", { label = "Picnic", match = function(item)
+        asked = item
+        return item.itemID == 8 or item.itemID == 9
+    end }), true)
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[0][8]), "Angler:food", "bread in the plugin's group")
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "and the apple")
+    T.truthy(asked and asked.quality ~= nil, "the match gets the item's facts")
+    T.eq(Cat.Get("Angler:food").name, "Picnic")
+    T.falsy(Cat.CanDelete("Angler:food"), "it goes with its addon, not deleted by hand")
+    local mine = Cat.AddCustom("Bread only", "bread")
+    T.eq(groupOf(ns, B.buttons[0][8]), mine, "your own group wins")
+    me.AddBagGroup("broken", { label = "Broken", match = function() error("nope") end })
+    stub.RunTimers()
+    T.eq(groupOf(ns, B.buttons[1][2]), "Angler:food", "a broken one is skipped")
+    T.eq(me.RemoveBagGroup("food"), true)
+    stub.RunTimers()
+    T.isnil(Cat.Get("Angler:food"))
+    T.truthy(groupOf(ns, B.buttons[1][2]) ~= "Angler:food", "back where it was")
 end)

@@ -6,6 +6,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF = ns.UF
 
 local Raid = {}
@@ -53,12 +54,13 @@ function Raid.SampleFor(i)
 end
 
 -- The Raid page's single preview tile. Every piece that can show is on (marker,
--- crown, role, dispel, ready check), but no aggro border, and a mana bar.
+-- crown, role, dispel, ready check, summon), but no aggro border, and a mana bar.
 function Raid.FullSample()
     local s = Raid.SampleFor(1)
     s.class, s.portraitClass, s.powerToken = "PALADIN", "PALADIN", "MANA"
     s.health, s.healthValue = 70, 2100
     s.threat, s.dispel, s.target, s.ready = nil, "Magic", true, "ready"
+    s.summon = Enum.SummonStatus and Enum.SummonStatus.Pending or 1
     return s
 end
 
@@ -100,7 +102,7 @@ end
 -- Players in the group now, 0 when alone.
 function Raid.Members()
     local n = GetNumGroupMembers and GetNumGroupMembers()
-    if issecretvalue and issecretvalue(n) then return 0 end
+    if isSecret(n) then return 0 end
     return type(n) == "number" and n or 0
 end
 
@@ -240,6 +242,7 @@ Raid.group = ns.Group.New({
     dress = function(b) Raid.DressSample(b) end,
     showSample = function(b, i, cfg) Raid.ShowSample(b, i, cfg) end,
     hideSample = function(b) Raid.HideSample(b) end,
+    previewMade = function(list) Raid.preview = list end,
 })
 Raid.buttons = Raid.group.buttons   -- every button set up so far (Group:Take)
 
@@ -268,7 +271,6 @@ end
 
 function Raid.CreatePreview()
     Raid.group:CreatePreview()
-    Raid.preview = Raid.group.preview
 end
 
 -- "Use raid frames in a party": the raid tiles show in a party too and the

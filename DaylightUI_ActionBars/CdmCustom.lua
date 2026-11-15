@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 
 local Custom = {}
 ns.CdmCustom = Custom
@@ -18,7 +19,7 @@ local added = {}   -- [key] = family of a spell or item added by ID
 local classSpells  -- [spell id] = true for every rank on any class list (built lazily)
 
 local function plain(v)
-    return not (issecretvalue and issecretvalue(v)) and v or nil
+    return not isSecret(v) and v or nil
 end
 
 -- Paladin "seal" piece: watches every rank of every seal and shows whichever is up.
@@ -82,8 +83,10 @@ Custom.MORE_RANKS = { [20154] = { 21084 } }
 
 -- Spells whose buff or debuff has its own spell id, by the family's rank 1 id.
 -- Arcane Blast's stacking debuff is 400573 (up to 4 stacks, carries the damage
--- and mana cost increase; the casts themselves only deal damage).
-Custom.AURA_IDS = { [400574] = { 400573 } }
+-- and mana cost increase; the casts themselves only deal damage). A passive from
+-- the list is offered only once its buff is named here, as the passive itself
+-- never shows as a buff. A rogue's Poised buff is 1328826.
+Custom.AURA_IDS = { [400574] = { 400573 }, [1328825] = { 1328826 } }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -142,7 +145,7 @@ local function build()
     local function add(f, group)
         if type(f) ~= "table" or type(f[1]) ~= "number" then return end
         local k = "s" .. f[1]
-        if index[k] then return end
+        if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil }
@@ -313,7 +316,7 @@ function Custom.ItemUsable(id)
     local can = item and type(C_Item) == "table" and C_Item.IsUsableItem
     if type(can) ~= "function" then return nil end
     local ok, yes, noMana = pcall(can, item)
-    if not ok or (issecretvalue and (issecretvalue(yes) or issecretvalue(noMana))) then return nil end
+    if not ok or isSecret(yes) or isSecret(noMana) then return nil end
     return yes, noMana
 end
 
@@ -397,7 +400,7 @@ function Custom.SelfDebuff(id)
 end
 
 -- Name and icon. The seal piece uses a generic name because which seal is up
--- can't be read in combat. The client draws the active seal's icon over ours.
+-- can't be read in combat. The client draws the active seal's icon over this one.
 function Custom.Look(id)
     local item = Custom.ItemOf(id)
     if item and type(C_Item) == "table" then

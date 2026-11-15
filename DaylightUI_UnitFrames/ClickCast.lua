@@ -347,6 +347,7 @@ function CC.EachFrame(fn)
         for _, b in ns.Group.Buttons() do
             fn(b)
             if b.pet then fn(b.pet) end   -- a party member's pet (PartyPets.lua)
+            if b.ptarget then fn(b.ptarget) end   -- and their target (PartyTargets.lua)
         end
         for _, g in ipairs(ns.Group.all) do
             for _, b in ipairs(g.bare) do fn(b) end   -- made ahead, not set up yet

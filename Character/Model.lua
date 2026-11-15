@@ -20,7 +20,7 @@ local PET_SCENE = 1156
 function DUI.PlayerActor(scene)
     if type(scene) ~= "table" or type(scene.GetPlayerActor) ~= "function" then return nil end
     local form = type(GetShapeshiftFormID) == "function" and GetShapeshiftFormID() or nil
-    if issecretvalue and issecretvalue(form) then form = nil end
+    if DUI.IsSecret(form) then form = nil end
     local forms = rawget(_G, "ANIMAL_FORMS")
     local tag = form and type(forms) == "table" and type(forms[form]) == "table" and forms[form].actorTag
     local info = C_PlayerInfo

@@ -1,5 +1,5 @@
 -- Skins ForeverDungeonJournal: its journal, favorites and settings windows get
--- our window, buttons, tabs, lists, scroll bars, font and text colors. Each
+-- the Daylight window, buttons, tabs, lists, scroll bars, font and text colors. Each
 -- dungeon's picture stays (home page cards, the dungeon page's backdrop art);
 -- its per-dungeon tints and parchment go.
 -- How (Core/Journal.lua): ForeverDungeonJournalFrame is created at PLAYER_LOGIN
@@ -9,7 +9,7 @@
 -- (colors, font objects, parchment alpha) whenever you pick a dungeon, boss or
 -- quest. Those are locals and can't be hooked, so every click in its windows
 -- (and every page shown, and its exported refreshes) triggers a pass over
--- everything shown on the next frame: every backdrop hidden, every text our
+-- everything shown on the next frame: every backdrop hidden, every text in the Daylight
 -- font and ink. A step that fails on one frame only skips that frame, since its
 -- frames change between versions.
 -- It also repaints without a click, from its own events (item data arriving,
@@ -19,8 +19,8 @@
 -- later, since its quest refresh waits a frame itself.
 -- The picked boss or quest is read from the addon (FDJ.GetSelectedDungeon, its
 -- saved lastQuest), never from a color. Its Bosses / Quests / Map / Route
--- buttons are disabled while selected; they become our tabs, with the label it
--- draws itself (tab.text) in our ink. Its standard buttons, X, scroll bars,
+-- buttons are disabled while selected; they become W.Tab-style tabs, with the label it
+-- draws itself (tab.text) in Style.INK. Its standard buttons, X, scroll bars,
 -- checkboxes and input boxes are left to Kit.Auto.
 
 local _, ns = ...
@@ -39,7 +39,7 @@ local function forbidden(f) return isTable(f) and f.IsForbidden and f:IsForbidde
 
 local FDJ = {}
 ns.FDJ = FDJ
-FDJ.shelled = setmetatable({}, { __mode = "k" }) -- frame -> true (our shell or row on it)
+FDJ.shelled = setmetatable({}, { __mode = "k" }) -- frame -> true (a shell or row is on it)
 FDJ.clicks = setmetatable({}, { __mode = "k" }) -- button -> true (clicking it triggers a pass over the window)
 FDJ.DEPTH = 14 -- how deep its windows go
 
@@ -94,7 +94,7 @@ local function dropRuns(fs)
     fs:SetText((string.gsub(text, "|r", "")))
 end
 
--- A finished objective in its muted parchment brown becomes our dim ink.
+-- A finished objective in its muted parchment brown becomes INK.OFF.
 FDJ.DONE_RUN = "|cff6e5c40"
 local function dimDone(fs)
     local text = fs:GetText()
@@ -102,7 +102,7 @@ local function dimDone(fs)
     fs:SetText((string.gsub(text, FDJ.DONE_RUN, DUI.Win.Parts.Hex(Style.INK.OFF))))
 end
 
--- One frame: backdrop hidden, our shell (once), its texts ours.
+-- One frame: backdrop hidden, a shell (once), its texts restyled.
 local function dress(Kit, f, depth, again)
     if backdropped(f) then
         Kit.Backdrop(f)
@@ -126,7 +126,7 @@ local function dress(Kit, f, depth, again)
         end)
     end
     local keep = itemButton(f)
-    -- Our tabs and buttons paint their own labels (picked, hover, disabled).
+    -- The restyled tabs and buttons paint their own labels (picked, hover, disabled).
     local own = Kit.TabOf(f) or Kit.ButtonOf(f)
     for _, r in ipairs({ f:GetRegions() }) do
         if kind(r) == "FontString" then

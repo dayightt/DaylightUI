@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style = DUI.Style
 
@@ -57,15 +58,7 @@ local function placeAll()
     for frame, place in pairs(places) do placeOne(frame, place) end
 end
 
-local queued = false
-local function soon()
-    if queued then return end
-    queued = true
-    C_Timer.After(0, function()
-        queued = false
-        placeAll()
-    end)
-end
+local soon = DUI.Soon(placeAll)
 
 local function pin(frame, place)
     if type(frame) ~= "table" or not frame.SetPoint then return end
@@ -73,7 +66,7 @@ local function pin(frame, place)
     places[frame] = place
     if not Map.placeWired then
         Map.placeWired = true
-        for _, event in ipairs(Map.PLACE_EVENTS) do pcall(DUI.RegisterEvent, event, soon) end
+        for _, event in ipairs(Map.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
         -- Leaving Edit Mode puts frames back at their Edit Mode spots.
         local em = _G.EditModeManagerFrame
         if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end
@@ -84,6 +77,33 @@ Map.Pin = pin
 
 function Map.Turning()
     return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true
+end
+
+-- The size of the game's icons on the map (nodes, party members, quest spots),
+-- apart from the map's own size. Edit Mode stores it in its layout as a slider
+-- step and sets it again each time it applies one, so it's written there too.
+Map.ICON_SCALE = { min = 50, max = 200, step = 10 }
+
+local function iconSetting()
+    local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting
+    return sys and sys.Minimap, set and set.IconScale
+end
+
+function Map.GetIconScale()
+    local S, system, setting = Map.ICON_SCALE, iconSetting()
+    local stored = system ~= nil and setting ~= nil and DaylightUI.EditMode.ActiveSetting(system, nil, setting)
+    if type(stored) == "number" then return (stored * S.step + S.min) / 100 end
+    return 1
+end
+
+function Map.SetIconScale(scale)
+    local S, system, setting = Map.ICON_SCALE, iconSetting()
+    local pct = math.max(S.min, math.min(S.max, math.floor(scale * 100 / S.step + 0.5) * S.step))
+    if Minimap and Minimap.SetIconScale then Minimap:SetIconScale(pct / 100) end
+    if system ~= nil and setting ~= nil then
+        DaylightUI.EditMode.WriteSetting(system, nil, setting, (pct - S.min) / S.step)
+    end
+    DaylightUI.Fire("SettingChanged", "InfoPanel", "map.iconScale", pct / 100)
 end
 
 -- Round by choice, or because it turns: a turning square showed empty corners.
@@ -249,7 +269,7 @@ local function fpsTooltip(self)
         DUI.Tips.Flush(GameTooltip)
         GameTooltip:Show()
     end
-    -- The game's tooltip goes to its default corner; ours sits at the mouse.
+    -- The game's tooltip goes to its default corner; this one sits at the mouse.
     fpsAtCursor()
 end
 
@@ -263,7 +283,7 @@ local function ensureFps(mm)
     f:SetFrameLevel(mm:GetFrameLevel() + Map.TEXT_LIFT)   -- over the ring and the map's dots
     f:SetSize(50, 12)
     f:EnableMouse(true)
-    f.__duiOwnTooltipSpot = true   -- the Tooltip module leaves its tooltip to us
+    f.__duiOwnTooltipSpot = true   -- the Tooltip module leaves its tooltip to this frame
     f.text = Style.Text(f, 11, "CENTER", ns.MEDIA.font)
     Style.InkText(f.text, "VALUE")
     -- Left and right only: the text keeps its own height, so a big or tall
@@ -367,7 +387,7 @@ end
 -- ---------------------------------------------------------------------
 
 Map.LOCATION_INSET = 28      -- room left at each side for the corner buttons
--- The zone name wears its PvP color (the game's kinds, softened like our
+-- The zone name wears its PvP color (the game's kinds, softened like Daylight UI's
 -- tooltips'); no kind = a plain value.
 local INK = Style.INK
 Map.ZONE_COLORS = {
@@ -379,7 +399,7 @@ Map.ZONE_COLORS = {
 function Map.ZoneColor()
     local get = C_PvP and C_PvP.GetZonePVPInfo
     local kind = type(get) == "function" and get()
-    if type(kind) == "string" and not (issecretvalue and issecretvalue(kind)) and Map.ZONE_COLORS[kind] then
+    if type(kind) == "string" and not isSecret(kind) and Map.ZONE_COLORS[kind] then
         return Map.ZONE_COLORS[kind]
     end
     return INK.VALUE
@@ -412,7 +432,7 @@ local function ensureLocation(mm)
     if f.text.SetWordWrap then f.text:SetWordWrap(false) end
     Map.location = f
     for _, event in ipairs(Map.LOCATION_EVENTS) do
-        pcall(DUI.RegisterEvent, event, function() Map.UpdateLocation() end)
+        DUI.RegisterEvent(event, function() Map.UpdateLocation() end)
     end
     return f
 end
@@ -498,8 +518,14 @@ local function tick()
     Map.UpdateFps()
 end
 
+-- Runs only while the clock or the framerate is shown.
 local clockTicker
-local function startClockTicker()
+local function startClockTicker(on)
+    if not on then
+        if clockTicker then clockTicker:Cancel() end
+        clockTicker = nil
+        return
+    end
     if clockTicker then return end
     clockTicker = C_Timer.NewTicker(1, tick)
 end
@@ -609,8 +635,9 @@ function Map.PaintButton(d)
     end
 end
 
--- btn: the game's button (its clicks); frame: what is placed and faded
--- (the tracking button sits in a holder of the game's).
+-- Dresses one of the game's minimap buttons. btn is the button that takes the
+-- clicks, frame is what gets placed and faded (for the tracking button that's
+-- the game's holder around it).
 function Map.DressButton(btn, frame, kind)
     if type(btn) ~= "table" or not btn.CreateTexture then return end
     if dressed[btn] then return dressed[btn] end
@@ -734,13 +761,13 @@ function Map.PlaceTop(mm, location, coords)
     end
 end
 
--- Rotation toggled (by us, Edit Mode at login, or another addon). Apply
+-- Rotation toggled (by Daylight UI, Edit Mode at login, or another addon). Apply
 -- re-runs every pin so the map and everything on it follow. A protected map
 -- waits for combat to end.
 function Map.Fit()
     local cfg = Map.cfg
     if not (cfg and cfg.enabled and area) then return end
-    -- The game sets its own mask when the setting changes: ours goes on again.
+    -- The game sets its own mask when the setting changes: Daylight UI's goes on again.
     Map.maskSet = nil
     if InCombatLockdown() then
         DUI.AfterCombat(Map.Fit, "infopanel:mapFit")
@@ -774,16 +801,17 @@ function Map.Redraw()
     mm:SetZoom(z)
 end
 
+-- Solid and on screen: the game ignores a redraw of a see-through map.
 local function mapShows()
     local mm = Minimap
     if not (type(mm) == "table" and mm:IsVisible()) then return false end
     local a = mm:GetEffectiveAlpha()
-    return type(a) == "number" and a > 0
+    return type(a) == "number" and a > 0.999
 end
 
-local screens = 0
+local asks = 0
 local function redrawOnceShown(mine)
-    if mine ~= screens or not (Map.cfg and Map.cfg.enabled) then return end
+    if mine ~= asks or not (Map.cfg and Map.cfg.enabled) then return end
     if not mapShows() then
         C_Timer.After(Map.REDRAW_LOOK, function() redrawOnceShown(mine) end)
         return
@@ -792,11 +820,56 @@ local function redrawOnceShown(mine)
     C_Timer.After(Map.REDRAW_AGAIN, function() DUI.SafeCall(Map.Redraw) end)
 end
 
-DUI.RegisterEvent("LOADING_SCREEN_DISABLED", function()
-    screens = screens + 1
-    local mine = screens
+local function redrawSoon()
+    asks = asks + 1
+    local mine = asks
     C_Timer.After(0, function() redrawOnceShown(mine) end)
-end)
+end
+
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", redrawSoon)
+
+-- The game stops updating the minimap's picture while it's even slightly
+-- see-through: walk indoors meanwhile and it stays empty, at full alpha
+-- again too, until its zoom changes. So the map ignores the panel's opacity
+-- and stays solid at rest. It still fades out and in with the panel, the AFK
+-- screen and the NPC scene, and once it's solid again it gets the loading
+-- screen's redraw.
+Map.early = false   -- set by the panel while the map skips the login fade-in
+Map.dim = false     -- has been see-through since it was last redrawn
+
+function Map.Follow()
+    local mm, cfg = Minimap, Map.cfg
+    if not (cfg and cfg.enabled and area and type(mm) == "table") then return end
+    if not mm:IsIgnoringParentAlpha() then mm:SetIgnoreParentAlpha(true) end
+    local want
+    if DUI.Fade.MapIsAway() then
+        want = 0
+    elseif Map.early then
+        want = 1
+    else
+        -- How far the panel is through its fade: its alpha now over the
+        -- alpha it rests at (the panel's opacity setting). At full strength,
+        -- the most common case, there's nothing to ask.
+        local now = area:GetEffectiveAlpha()
+        if type(now) ~= "number" or now > 0.999 then
+            want = 1
+        else
+            local _, _, _, opacity = DUI.Fade.State("InfoPanel.panel")
+            local rest = type(opacity) == "number" and math.max(opacity, 0.01) or 1
+            want = math.min(1, now / rest)
+            if want > 0.999 then want = 1 elseif want < 0.001 then want = 0 end
+        end
+    end
+    local was = mm:GetAlpha()
+    if type(was) ~= "number" or math.abs(was - want) > 0.0001 then mm:SetAlpha(want) end
+    if want < 1 then
+        Map.dim = true
+    elseif Map.dim then
+        Map.dim = false
+        redrawSoon()
+    end
+end
+DUI.Fade.mapFollow = function() DUI.SafeCall(Map.Follow) end
 
 -- In dungeons the game uses Blizzard_HybridMinimap, which draws map art on its
 -- own BACKGROUND-strata frame under the map. That ended up under the panel's
@@ -916,7 +989,7 @@ function Map.Apply(cfg)
     -- The calendar and the tracking button, down the map's right edge. They
     -- are the game's own (their clicks and menus unchanged). Switched off,
     -- they go back into the hidden cluster, their parent, rather than under
-    -- a frame of ours.
+    -- a Daylight UI frame.
     local calendar = GameTimeFrame
     local tracking = cluster and cluster.Tracking or MiniMapTrackingButton
     local trackButton = type(tracking) == "table" and type(tracking.Button) == "table" and tracking.Button or tracking
@@ -954,7 +1027,7 @@ function Map.Apply(cfg)
         Map.buttonTicker = C_Timer.NewTicker(Map.WATCH, function() DUI.SafeCall(Map.WatchButtons) end)
     end
     -- The game's addon compartment (every addon that lists itself there,
-    -- ours included): the map's bottom-right corner, with the other buttons.
+    -- Daylight UI's included): the map's bottom-right corner, with the other buttons.
     -- With the drawer on, its entries are in the drawer and the drawer's
     -- button has that corner.
     pin(_G.AddonCompartmentFrame, function(f)
@@ -981,7 +1054,7 @@ function Map.Apply(cfg)
     end
     Map.PlaceBottom(mm)
     tick()
-    startClockTicker()
+    startClockTicker((cfg.clock and cfg.clock.enabled) or (cfg.fps and cfg.fps.enabled))
 
     -- Location, then coordinates, top middle of the map.
     local location = ensureLocation(mm)
@@ -999,4 +1072,5 @@ function Map.Apply(cfg)
 
     -- Addon buttons: gathered into the drawer in the map's corner.
     ns.Drawer.Apply(cfg)
+    Map.Follow()
 end

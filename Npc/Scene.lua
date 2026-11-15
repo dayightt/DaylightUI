@@ -188,7 +188,7 @@ Scene.PaintCamera = paintCamera
 local function zoomNow()
     if type(GetCameraZoom) ~= "function" then return nil end
     local z = GetCameraZoom()
-    if type(z) ~= "number" or (issecretvalue and issecretvalue(z)) then return nil end
+    if type(z) ~= "number" or DUI.IsSecret(z) then return nil end
     return z
 end
 

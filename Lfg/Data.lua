@@ -20,7 +20,7 @@ Data.ROLE_KEY = { TANK = "tank", HEALER = "healer", DAMAGER = "dps" }   -- C_LFG
 -- A dungeon's slots (LFGBROWSE_DUNGEON_NUM_*_EXPECTED): one tank, one healer, three damage.
 Data.DUNGEON = { TANK = 1, HEALER = 1, DAMAGER = 3 }
 
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+local secret = DUI.IsSecret
 function Data.Plain(v) if secret(v) then return nil end return v end
 local plain = Data.Plain
 

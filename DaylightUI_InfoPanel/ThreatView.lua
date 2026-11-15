@@ -8,6 +8,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local L = DUI.L
 local Style, Pixel = DUI.Style, DUI.Pixel
 
@@ -23,7 +24,6 @@ View.NOTCH = 7                -- the notch on its top
 -- Rows: no rank, the icon square for the tank's mark.
 View.ROW = { rank = false, icons = "mark", angled = true }
 
-local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 local LEVEL_INK = { safe = "GOOD", warn = "WARN", aggro = "BAD" }
 View.LEVEL_INK = LEVEL_INK

@@ -4,6 +4,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local isSecret = DUI.IsSecret
 local UF, Pixel = ns.UF, DUI.Pixel
 
 local Sample = {}
@@ -20,7 +21,7 @@ function Sample.You()
     local s = UF.You("player", Sample.YOU, "WARRIOR")
     s.powerToken = Sample.POWER[s.class] or "MANA"
     local level = UnitLevel("player")
-    if type(level) ~= "number" or (issecretvalue and issecretvalue(level)) then level = 60 end
+    if type(level) ~= "number" or isSecret(level) then level = 60 end
     s.level = level
     return s
 end

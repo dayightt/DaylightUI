@@ -17,6 +17,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local secret = DUI.IsSecret
 local L = DUI.L
 local Style, Motion = DUI.Style, DUI.Motion
 
@@ -53,8 +54,6 @@ local rows = {}
 Progress.rows = rows
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.progress == true end
-
-local function secret(v) return type(issecretvalue) == "function" and issecretvalue(v) == true end
 
 local function apply()
     local claim = enabled()

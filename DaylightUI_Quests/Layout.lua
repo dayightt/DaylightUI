@@ -5,6 +5,7 @@
 -- Pure: text heights come from measure().
 
 local _, ns = ...
+local secret = DaylightUI.IsSecret
 local L = DaylightUI.L
 
 local Layout = {}
@@ -250,7 +251,6 @@ end
 
 -- Deep equality on plain data (no frames, no cycles). A secret value can't be
 -- compared, so it counts as changed.
-local function secret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function same(a, b)
     if secret(a) or secret(b) then return false end
     if a == b then return true end

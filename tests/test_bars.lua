@@ -156,6 +156,18 @@ local function noBlocked()
     for _, e in ipairs(stub.errors) do T.falsy(string.find(e, "BLOCKED", 1, true), e) end
 end
 
+-- The page a key on one of the game's hidden buttons casts from, the way the
+-- secure templates look it up (SecureButton_GetModifiedAttribute): the button's
+-- own attribute, else its bar's, reached through frame.bar before the parent.
+local function pageOf(f)
+    local v = f:GetAttribute("actionpage")
+    if v == nil then
+        local up = f.bar or f:GetParent()
+        if up then return pageOf(up) end
+    end
+    return v
+end
+
 T.test("shape: a bar's size from its settings, count and button width", function()
     login()
     local Shape = stub.actionbars.Shape
@@ -213,7 +225,8 @@ T.test("world: the new bars' world has the button template and the game's frames
     T.truthy(joined, "joined the game's list")
     T.truthy(PossessButton1 and PossessButton2 and QuickKeybindFrame)
     T.truthy(MainMenuBarVehicleLeaveButton, "the leave-vehicle button (our build moves it off bar 1)")
-    T.truthy(ActionButton1:IsProtected() and MainActionBar:IsProtected())
+    T.truthy(ActionButton1:IsProtected())
+    T.falsy(MainActionBar:IsProtected(), "parked: its buttons moved out, so bar 1 holds nothing protected")
     T.eq(DaylightUIDB.newActionBars, false)
 end)
 
@@ -228,12 +241,12 @@ T.test("park: the game's bars go under a hidden frame, never hidden themselves",
     T.truthy(MainActionBar:IsShown(), "bar 1 never Hide()n either")
     T.truthy(MainActionBar.__events.ACTIONBAR_PAGE_CHANGED, "bar 1 keeps its events (the game writes its page)")
     T.falsy(MainActionBar:IsMouseEnabled())
-    T.eq(ActionButton1:GetParent(), MainActionBar, "twins stay where they are")
+    T.eq(ActionButton1:GetParent(), parked, "twins under the parking frame, out of their bar")
     -- Nothing written on them: an attribute written by an addon keeps its taint,
     -- and the game reads "statehidden" in its own fight-time pass.
     T.isnil(ActionButton1:GetAttribute("statehidden"), "no attribute written on a twin")
     T.isnil(MultiBarBottomLeftButton12:GetAttribute("statehidden"))
-    T.falsy(ActionButton1:IsVisible(), "the parked bar keeps it out of sight")
+    T.falsy(ActionButton1:IsVisible(), "the parking frame keeps it out of sight")
     T.isnil(next(ActionBarActionEventsFrame.__events), "the per-action events frame is silenced")
     T.truthy(ActionBarButtonEventsFrame.__events.ACTIONBAR_SLOT_CHANGED, "the button events frame isn't touched")
 end)
@@ -284,6 +297,23 @@ T.test("buttons: ours come off the game's events list in place; the game's entri
     for _, v in pairs(list) do
         for _, b in ipairs(made) do T.falsy(v == b, "none of ours left") end
     end
+end)
+
+-- A player on 1.7.3: "MultiBarBottomRightButton1:SetShown()" blocked while pressing
+-- keys in a fight. The game's button events frame hands "slot changed" to every
+-- button on its list, the hidden twins too, and each one's update shows or hides
+-- its bar's buttons, working out its slot from a page Daylight UI may have written.
+T.test("park: the game's hidden twins of every bar come off its button events list", function()
+    login()
+    local list = ActionBarButtonEventsFrame.frames
+    local twins = { ActionButton1, MultiBarBottomLeftButton6, MultiBarBottomRightButton1, MultiBarRightButton12,
+                    MultiBarLeftButton3, MultiBar5Button2, MultiBar6Button12 }
+    for _, b in ipairs(twins) do list[#list + 1] = b end
+    stub.actionbars.Park.Apply()
+    for _, v in pairs(list) do
+        for _, b in ipairs(twins) do T.falsy(v == b, "no twin left: " .. b:GetName()) end
+    end
+    T.eq(list[1], "game1"); T.eq(list[2], "game2"); T.eq(list[3], "game3")
 end)
 
 -- A /reload mid-swing: the template's first Update runs for slot 1 (its guess),
@@ -470,14 +500,14 @@ end)
 T.test("bars: a setting applies at once, no reload; fewer buttons hide the rest", function()
     login()
     if DaylightUIInstaller then DaylightUIInstaller:Hide() end   -- made the first time it shows
-    stub.popup = nil
+    stub.Dismiss()
     DaylightUI:Set("ActionBars", "bars.main.icons", 6)
     T.near(holder("main"):GetWidth(), 6 * 31.5 + 5 * 2)
     T.falsy(btn("main", 7):IsShown()); T.eq(btn("main", 7):GetAttribute("statehidden"), true)
     T.truthy(btn("main", 6):IsShown())
     DaylightUI:Set("ActionBars", "bars.main.icons", 12)
     T.truthy(btn("main", 7):IsShown()); T.isnil(btn("main", 7):GetAttribute("statehidden"))
-    T.isnil(stub.popup, "no reload asked")
+    T.isnil(stub.Asked(), "no reload asked")
 end)
 
 T.test("bars: a change in combat waits for combat to end", function()
@@ -684,7 +714,7 @@ T.test("paging: bar 1's form and page changes switched off keep it on its own bu
         stub.SetConditions(case[1] or {})
         local page = case[2] or 1
         T.eq(holder("main"):GetAttribute("actionpage"), page, "page " .. page)
-        T.eq(MainActionBar:GetAttribute("actionpage"), page, "the game's bar 1 too")
+        T.eq(pageOf(ActionButton1), page, "the game's hidden bar 1 too")
     end
     DaylightUI:Set("ActionBars", "bars.main.autoPage", true)
     stub.SetConditions({ ["bonusbar:1"] = true })
@@ -711,7 +741,7 @@ T.test("paging: bar 1 follows every clause, and the game's hidden bar 1 follows 
         T.eq(holder("main"):GetAttribute("actionpage"), page, where)
         T.eq(btn("main", 1):GetAttribute("action"), (page - 1) * 12 + 1, where)
         T.eq(btn("main", 12):GetAttribute("action"), (page - 1) * 12 + 12, where)
-        T.eq(MainActionBar:GetAttribute("actionpage"), page, where .. ": the game's bar 1 too")
+        T.eq(pageOf(ActionButton12), page, where .. ": the game's hidden bar 1 too")
     end
 end)
 
@@ -764,8 +794,12 @@ T.test("paging: bars 2-8 with no paging never write the game's bar page", functi
     T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 6)
     DaylightUI:Set("ActionBars", "bars.bar2.paging.shift", 3)
     stub.SetConditions({ ["mod:shift"] = true })
-    T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 3, "a page that does change still reaches the game's bar")
+    T.eq(pageOf(MultiBarBottomLeftButton1), 3, "a page that does change still reaches the game's buttons")
     T.eq(MultiBarRight:GetAttribute("actionpage"), 3)
+    T.eq(table.concat(writes, ", "), "", "never on the game's bar itself")
+    stub.SetConditions({})
+    T.isnil(MultiBarBottomLeftButton1:GetAttribute("actionpage"), "back on its own page: cleared, the bar's page again")
+    T.eq(pageOf(MultiBarBottomLeftButton12), 6)
 end)
 
 -- The player's class (the fake world starts with no player unit).
@@ -803,9 +837,10 @@ T.test("paging: a bar 5 page for Cat Form shows it in cat, and the game's bar 5 
         local page, where = case[2], "page " .. case[2]
         T.eq(btn("bar5", 1):GetAttribute("action"), (page - 1) * 12 + 1, where)
         T.eq(btn("bar5", 12):GetAttribute("action"), (page - 1) * 12 + 12, where)
-        T.eq(MultiBarLeft:GetAttribute("actionpage"), page, where .. ": the game's twin too")
+        T.eq(pageOf(MultiBarLeftButton12), page, where .. ": the game's twin too")
     end
-    T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 6, "other bars keep theirs")
+    T.eq(pageOf(MultiBarBottomLeftButton1), 6, "other bars keep theirs")
+    T.isnil(MultiBarBottomLeftButton1:GetAttribute("actionpage"), "nothing written on them")
     T.isnil(holder("bar2").__stateDriver.page)
     noBlocked()
 end)
@@ -820,7 +855,7 @@ T.test("paging: a held key beats a form; another class's states and a bar's own 
     T.eq(holder("right").__stateDriver.page, "[mod:shift] 12; [bonusbar:1] 7; 3")
     stub.SetConditions({ ["bonusbar:1"] = true, ["mod:shift"] = true })
     T.eq(btn("right", 1):GetAttribute("action"), 133)
-    T.eq(MultiBarRight:GetAttribute("actionpage"), 12)
+    T.eq(pageOf(MultiBarRightButton1), 12)
 end)
 
 T.test("paging: bar 1's Shift page shows while Shift is held, over a form, and the game's bar 1 is written back after its own form write", function()
@@ -834,13 +869,13 @@ T.test("paging: bar 1's Shift page shows while Shift is held, over a form, and t
         stub.SetConditions(case[1])
         local page, where = case[2], "page " .. case[2]
         T.eq(btn("main", 1):GetAttribute("action"), (page - 1) * 12 + 1, where)
-        T.eq(MainActionBar:GetAttribute("actionpage"), page, where .. ": the game's bar 1 too")
+        T.eq(pageOf(ActionButton12), page, where .. ": the game's hidden bar 1 too")
     end
     -- Shift held, then a form: the game writes its form page and the addon writes 13 back.
     stub.SetConditions({ ["mod:shift"] = true })
     MainActionBar:SetAttribute("actionpage", 9)
     stub.SetConditions({ ["mod:shift"] = true, ["bonusbar:3"] = true })
-    T.eq(MainActionBar:GetAttribute("actionpage"), 13, "written back after the form change")
+    T.eq(pageOf(ActionButton1), 13, "the game's own form write changes nothing")
     DaylightUI:Set("ActionBars", "bars.main.paging.shift", 0)
     T.falsy(holder("main").__stateDriver.page:find("mod:", 1, true), "no change: no held clause")
     noBlocked()
@@ -860,16 +895,16 @@ T.test("paging: a friendly or enemy target pages bars 2-8 and bar 1; a held key 
     for _, case in ipairs(cases) do
         stub.SetConditions(case[1])
         T.eq(btn("bar2", 1):GetAttribute("action"), (case[2] - 1) * 12 + 1, "page " .. case[2])
-        T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), case[2], "the game's twin too")
+        T.eq(pageOf(MultiBarBottomLeftButton1), case[2], "the game's twin too")
     end
     stub.SetConditions({})
     DaylightUI:Set("ActionBars", "bars.main.paging.harm", 13)
     stub.SetConditions({ harm = true, ["bonusbar:1"] = true })
     T.eq(btn("main", 1):GetAttribute("action"), 145, "bar 1 over its stance page")
-    T.eq(MainActionBar:GetAttribute("actionpage"), 13)
+    T.eq(pageOf(ActionButton1), 13)
     MainActionBar:SetAttribute("actionpage", 7)
     stub.SetConditions({ harm = true, ["bonusbar:2"] = true })
-    T.eq(MainActionBar:GetAttribute("actionpage"), 13, "written back after the game's own stance write")
+    T.eq(pageOf(ActionButton1), 13, "the game's own stance write changes nothing")
     stub.SetConditions({ ["bonusbar:2"] = true })
     T.eq(btn("main", 1):GetAttribute("action"), 85, "no target: the stance page again")
     noBlocked()
@@ -885,6 +920,8 @@ T.test("paging: back to no change drops the driver and gives the bar and its twi
     T.isnil(holder("bar2").__stateDriver.page)
     T.eq(btn("bar2", 1):GetAttribute("action"), 61)
     T.eq(MultiBarBottomLeft:GetAttribute("actionpage"), 6)
+    T.isnil(MultiBarBottomLeftButton1:GetAttribute("actionpage"), "its twins cleared")
+    T.eq(pageOf(MultiBarBottomLeftButton1), 6)
 end)
 
 T.test("paging: a pick made in combat lands after combat; a /reload keeps it", function()
@@ -1074,7 +1111,7 @@ T.test("paging: a druid's bars 2-8 page by the form too; forms learned build it 
     DaylightUI:Set("ActionBars", "bars.bar5.paging.prowl", 11)
     T.eq(holder("bar5").__stateDriver.page, "[form:3,stealth] 11; [form:3] 2; [form:1] 3; 4")
     stub.SetConditions({ ["form:3"] = true, stealth = true })
-    T.eq(MultiBarLeft:GetAttribute("actionpage"), 11)
+    T.eq(pageOf(MultiBarLeftButton1), 11)
     stub.SetConditions({})
     noBlocked()
 end)
@@ -2040,6 +2077,60 @@ T.test("small bars: a stance swap in a fight never runs the game's bar pass tain
     stub.LeaveCombat()
     T.eq(StanceButton3:GetParent(), DaylightUIParkedBars, "past the Buttons setting: out of sight all the same")
     noBlocked()
+end)
+
+-- Players saw "the game blocked MultiBarBottomLeft:ShowBase()" and then the same for
+-- every other bar in one fight: MultiBar5-7's HideBase, MultiBarRight's ShowBase and
+-- SetScaleBase. On a page, form or vehicle change the game shows, hides, scales and
+-- moves all its bars at once (ValidateActionBarTransition, MultiActionBar_Update,
+-- then Edit Mode's layout). Once anything has tainted that pass, every bar that
+-- still holds a protected button is blocked. The game's bars aren't protected
+-- themselves, so with no button left under them that pass can't be blocked on any
+-- bar, whatever tainted it.
+local PARKED_BARS = { { "MainActionBar", "ActionButton" }, { "MultiBarBottomLeft", "MultiBarBottomLeftButton" },
+                      { "MultiBarBottomRight", "MultiBarBottomRightButton" }, { "MultiBarRight", "MultiBarRightButton" },
+                      { "MultiBarLeft", "MultiBarLeftButton" }, { "MultiBar5", "MultiBar5Button" }, { "MultiBar6", "MultiBar6Button" } }
+
+T.test("park: the game's own bar pass in a fight, even tainted, is never blocked on any bar", function()
+    login()
+    stub.RunTimers()
+    stub.EnterCombat()
+    for _, spec in ipairs(PARKED_BARS) do
+        local bar = _G[spec[1]]
+        T.falsy(bar:IsProtected(), spec[1] .. " holds nothing protected")
+        -- Plain test code is tainted, like the game's pass after any addon touched it.
+        local ok, err = pcall(function()
+            bar:Show(); bar:Hide(); bar:Show()
+            bar:SetScale(0.9); bar:SetScale(1)
+            bar:ClearAllPoints()
+            bar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 100)
+        end)
+        T.truthy(ok, tostring(err))
+    end
+    stub.LeaveCombat()
+    for _, spec in ipairs(PARKED_BARS) do
+        for i = 1, 12 do
+            local b = _G[spec[2] .. i]
+            T.eq(b:GetParent(), DaylightUIParkedBars, spec[2] .. i .. " out of its bar")
+            T.eq(b.bar, _G[spec[1]], "still knows its bar")
+        end
+    end
+    T.falsy(ActionButton1:IsVisible(), "out of sight")
+    T.isnil(MultiBarBottomLeftButton1:GetAttribute("actionpage"), "nothing written on a twin")
+    T.eq(pageOf(MultiBarBottomLeftButton1), 6, "a key still presses bar 2's page")
+    T.eq(pageOf(MultiBar6Button12), 14)
+    noBlocked()
+end)
+
+T.test("park: the game taking a bar back after a loading screen leaves its buttons out", function()
+    login()
+    stub.RunTimers()
+    MultiBarBottomLeft:SetParent(UIParent)
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(MultiBarBottomLeft:GetParent(), DaylightUIParkedBars)
+    T.eq(MultiBarBottomLeftButton3:GetParent(), DaylightUIParkedBars)
+    T.falsy(MultiBarBottomLeft:IsProtected())
 end)
 
 T.test("small bars: the stance you're in is lit, the others gray and dim, also in a fight", function()

@@ -41,10 +41,6 @@ function Arena.Count()
     Arena.shown = n
 end
 
-function Arena.IsArenaUnit(unit)
-    return type(unit) == "string" and not (issecretvalue and issecretvalue(unit)) and unit:find("^arena%d") ~= nil
-end
-
 -- Built once, out of combat, since these are secure buttons.
 function Arena.Create()
     local holder = CreateFrame("Frame", "DaylightUIArenaHolder", UIParent)

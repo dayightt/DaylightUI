@@ -82,7 +82,7 @@ function Model.Paint(unit)
     local h = Model.holder
     if not h then return end
     local _, token = UnitClass(unit)
-    if type(token) == "string" and not (issecretvalue and issecretvalue(token)) then
+    if type(token) == "string" and not DUI.IsSecret(token) then
         local r, g, b = DUI.Style.ClassColor(token)
         h.glow:SetVertexColor(r, g, b, 1)
     else
