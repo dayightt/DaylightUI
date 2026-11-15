@@ -15,7 +15,7 @@ local Detail = {}
 Detail.__index = Detail
 ns.Detail = Detail
 
-Detail.W = 200          -- the card's width
+Detail.W = 264          -- the card's width (wide enough for a name with its level and a long value to wrap kindly)
 Detail.GAP = 12         -- between the list and the card
 Detail.SPAN = Detail.W + Detail.GAP   -- how much room the window makes for it
 Detail.EDGE = 16        -- from the page's right edge, like the list's
