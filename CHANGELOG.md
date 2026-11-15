@@ -1,3 +1,31 @@
+# DaylightUI 1.8.4
+
+Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.
+
+## New
+- Glows: Five animated glows (or none) for main window buttons, your target's nameplate outline and Cooldown Manager glows
+- Windows: Swap any Daylight UI window for the game's own, now in the Daylight UI look, and back again
+- Windows: Pick a background color for windows and panels: Daylight, your class color or your own (General > Appearance)
+- Bags: Hide the bag's header for a shorter bag, or turn off comparing with your worn gear (Bags > Layout)
+
+## Changed
+- Quests: A quest ready to hand in keeps its level color in the tracker, like the quest log
+- Languages: More German, Spanish and Chinese text translated and checked by native speakers
+
+## Fixed
+- NPC window: Double-clicking a quest reward no longer hands the quest in: it only picks the reward
+- Bags: Item groups and empty slots reach the right edge of the bag again
+- Bags: Folding an item group gives its room back instead of leaving a gap
+- Bags: The bags play the game's opening and closing sounds again when Soft UI sounds are off
+- Bags: Deleting extra Soul Shards takes them from your other bags first, so your Soul Bag stays full
+- General: No more "Can't measure restricted regions" error at login
+- Quests: The This zone filter no longer shows quests from zones on other continents
+- Quests: The buttons under a quest in the map's quest log no longer have their words cut off
+- Nameplates: Nameplates keep their proper spacing as mobs come and go, instead of sometimes stacking oddly
+- Loot: The whole row in the loot window answers hover and click, not only the icon
+- Loot feed: Gaining a skill point while looting no longer causes a Lua error in some languages
+- Window skins: The Attune window no longer shows empty black boxes in its chains
+
 # DaylightUI 1.8.3
 
 A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.

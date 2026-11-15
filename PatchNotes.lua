@@ -11,24 +11,29 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
+    { version = "Unreleased" },
+    { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",
         new = {
-            { "Glows", "Five animated glows to pick from for the main window buttons (or none), your target's nameplate outline and Cooldown Manager glows, and plugins can add their own" },
-            { "Bags", "Turn off the bag's header for a shorter bag: the search moves to the top, with a small bank button next to the close button (Bags > Layout)" },
-            { "Bags", "Turn off the side-by-side compare with your worn gear for items in your bags and bank, and still compare by holding Shift (Bags > Layout)" },
-            { "Windows", "Use the game's own windows if you prefer them or your addons need them: a button in each Daylight UI window (professions, spellbook, character, talking to NPCs, inspect, group finder, mailbox, social, Legacy) swaps to the game's, which now has the Daylight UI look, and a link there swaps back. It's remembered" },
+            { "Glows", "Five animated glows (or none) for main window buttons, your target's nameplate outline and Cooldown Manager glows" },
+            { "Windows", "Swap any Daylight UI window for the game's own, now in the Daylight UI look, and back again" },
+            { "Windows", "Pick a background color for windows and panels: Daylight, your class color or your own (General > Appearance)" },
+            { "Bags", "Hide the bag's header for a shorter bag, or turn off comparing with your worn gear (Bags > Layout)" },
         },
         changed = {
-            { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log and the game's own tracker" },
+            { "Quests", "A quest ready to hand in keeps its level color in the tracker, like the quest log" },
+            { "Languages", "More German, Spanish and Chinese text translated and checked by native speakers" },
         },
         fixed = {
             { "NPC window", "Double-clicking a quest reward no longer hands the quest in: it only picks the reward" },
-            { "Bags", "Item groups and empty slots reach the right edge of the bag again instead of stopping a slot or two short" },
-            { "Bags", "Folding an item group in the bag gives its room back again, instead of leaving a gap under its heading" },
-            { "Bags", "The bags make the game's opening and closing sounds again when Soft UI sounds are off" },
+            { "Bags", "Item groups and empty slots reach the right edge of the bag again" },
+            { "Bags", "Folding an item group gives its room back instead of leaving a gap" },
+            { "Bags", "The bags play the game's opening and closing sounds again when Soft UI sounds are off" },
             { "Bags", "Deleting extra Soul Shards takes them from your other bags first, so your Soul Bag stays full" },
             { "General", "No more \"Can't measure restricted regions\" error at login" },
+            { "Quests", "The This zone filter no longer shows quests from zones on other continents" },
             { "Quests", "The buttons under a quest in the map's quest log no longer have their words cut off" },
+            { "Nameplates", "Nameplates keep their proper spacing as mobs come and go, instead of sometimes stacking oddly" },
+            { "Loot", "The whole row in the loot window answers hover and click, not only the icon" },
             { "Loot feed", "Gaining a skill point while looting no longer causes a Lua error in some languages" },
             { "Window skins", "The Attune window no longer shows empty black boxes in its chains" },
         },
