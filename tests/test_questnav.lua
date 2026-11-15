@@ -613,3 +613,116 @@ T.test("plate kind: a mob your quest needs is a kill, in the accent", function()
     T.isnil(DaylightUI.QuestKindForUnit("Creature-0-1-2-3-99-0"), "one no quest needs")
     T.isnil(DaylightUI.QuestKindForUnit("Player-1-0001"), "a player")
 end)
+
+-- GatherMate2 as its source has it: GatherMate2.Visible[kind] (the kinds it shows,
+-- from its per-kind Show setting), FindNearbyNode iterating coord, nodeID within a
+-- radius in yards and only nodes its filter (db.profile.filter[kind][nodeID]) lets
+-- through, DecodeLoc, GetNameForNode, phasing.
+local function gatherMate(g)
+    local function encode(x, y) return math.floor(x * 10000 + 0.5) * 1000000 + math.floor(y * 10000 + 0.5) * 100 end
+    local nodes = {}
+    for _, n in ipairs(g.nodes) do
+        nodes[n.kind] = nodes[n.kind] or {}
+        nodes[n.kind][encode(n.x, n.y)] = n.id
+    end
+    local GM = {
+        db_types = { "Herb Gathering", "Mining", "Fishing", "Treasure" },
+        Visible = g.visible,
+        phasing = {},
+        db = { profile = { filter = g.filter } },
+    }
+    function GM:DecodeLoc(id) return math.floor(id / 1000000) / 10000, math.floor(id % 1000000 / 100) / 10000 end
+    function GM:GetNameForNode(kind, id) return g.names[id] end
+    function GM:FindNearbyNode(zone, x, y, kind, radius)
+        local data = zone == 52 and nodes[kind] or {}
+        local keys = {}
+        for coord, id in pairs(data) do
+            local nx, ny = GM:DecodeLoc(coord)
+            local dx, dy = (nx - x) * 1000, (ny - y) * 1000
+            if g.filter[kind][id] ~= false and dx * dx + dy * dy <= radius * radius then keys[#keys + 1] = coord end
+        end
+        local i = 0
+        return function() i = i + 1; local c = keys[i]; if c then return c, data[c] end end
+    end
+    _G.GatherMate2 = GM
+    stub.loadedAddOns["GatherMate2"] = true
+end
+
+-- Player at 50, 50 on a 1000 yard map. Peacebloom 50 yards east is filtered out
+-- in GatherMate, Copper 60 yards north is a kind it doesn't show, Silverleaf 70
+-- yards south is the one, and a Mageroyal far off is out of range.
+local GATHER = {
+    visible = { ["Herb Gathering"] = true, Mining = false },
+    filter = { ["Herb Gathering"] = { [401] = false }, Mining = {} },
+    names = { [401] = "Peacebloom", [402] = "Silverleaf", [403] = "Mageroyal", [201] = "Copper Vein" },
+    nodes = {
+        { kind = "Herb Gathering", id = 401, x = 0.55, y = 0.50 },
+        { kind = "Herb Gathering", id = 402, x = 0.50, y = 0.57 },
+        { kind = "Herb Gathering", id = 403, x = 0.90, y = 0.90 },
+        { kind = "Mining", id = 201, x = 0.50, y = 0.44 },
+    },
+}
+
+T.test("gathering nodes: the arrow points to the nearest node GatherMate shows, with its name", function()
+    local ns = load({ world = { quests = {} }, settings = { ["nav.arrow"] = true, ["nav.arrowNodes"] = true },
+        before = function() gatherMate(GATHER) end })
+    local a = ns.Arrow.Frame()
+    for _ = 1, 20 do stub.RunOnUpdate(a, 0.1) end
+    local t = ns.Arrow.Target()
+    T.truthy(t, "a node to point at")
+    T.near(t.x, 0.50, 0.001, "Silverleaf, not the filtered Peacebloom or the hidden Copper")
+    T.near(t.y, 0.57, 0.001)
+    T.near(math.abs(turnOf(ns)), math.pi, 0.01, "facing north, the herb due south: straight down")
+    T.eq(stub.Text(a.what), "Silverleaf")
+    T.truthy(stub.Text(a.dist):find("70"), "70 yards, got " .. tostring(stub.Text(a.dist)))
+    T.truthy(a:GetAlpha() > 0.9, "it shows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("gathering nodes: a nearby node comes first, then the arrow goes back to the quest", function()
+    local ns, _, map = load({ world = { quests = { KILL }, focus = 100 }, questie = DB,
+        settings = { ["nav.arrow"] = true, ["nav.arrowNodes"] = true }, before = function() gatherMate(GATHER) end })
+    local a = ns.Arrow.Frame()
+    for _ = 1, 5 do stub.RunOnUpdate(a, 0.3) end
+    T.near(ns.Arrow.Target().y, 0.57, 0.001, "the herb first")
+    -- At the herb: the arrow leaves it and goes back to the wolf.
+    map.px, map.py = 0.5, 0.567
+    for _ = 1, 10 do stub.RunOnUpdate(a, 0.3) end
+    T.near(ns.Arrow.Target().x, 0.6, 0.001, "the wolf again")
+    T.truthy(a:GetAlpha() > 0.9, "it shows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("gathering nodes: switched off, the arrow leads to the quest as before", function()
+    local ns = load({ world = { quests = { KILL }, focus = 100 }, questie = DB,
+        settings = { ["nav.arrow"] = true }, before = function() gatherMate(GATHER) end })
+    local a = ns.Arrow.Frame()
+    for _ = 1, 5 do stub.RunOnUpdate(a, 0.3) end
+    T.near(ns.Arrow.Target().x, 0.6, 0.001, "the wolf, not the herb")
+    T.eq(stub.Text(a.what) or "", "", "no node name")
+end)
+
+T.test("gathering nodes: without GatherMate the arrow leads to the quest, no error", function()
+    local ns = load({ world = { quests = { KILL }, focus = 100 }, questie = DB,
+        settings = { ["nav.arrow"] = true, ["nav.arrowNodes"] = true } })
+    local a = ns.Arrow.Frame()
+    for _ = 1, 5 do stub.RunOnUpdate(a, 0.3) end
+    T.near(ns.Arrow.Target().x, 0.6, 0.001, "the wolf")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("gathering nodes: asleep with nothing near, a slow look wakes it when a node comes in range", function()
+    local ns, _, map = load({ world = { quests = {} }, settings = { ["nav.arrow"] = true, ["nav.arrowNodes"] = true },
+        before = function() gatherMate(GATHER); end })
+    map.px, map.py = 0.2, 0.2
+    local a = ns.Arrow.Frame()
+    for _ = 1, 20 do stub.RunOnUpdate(a, 0.1) end
+    T.isnil(ns.Arrow.Target(), "nothing in range")
+    T.isnil(a:GetScript("OnUpdate"), "the arrow sleeps")
+    map.px, map.py = 0.5, 0.52
+    stub.RunTickers()
+    T.truthy(a:GetScript("OnUpdate"), "awake again")
+    for _ = 1, 20 do stub.RunOnUpdate(a, 0.1) end
+    T.near(ns.Arrow.Target().y, 0.57, 0.001, "the herb")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

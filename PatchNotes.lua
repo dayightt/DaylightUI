@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Bags", "Item tooltips show how many of that item each of your characters has, in their bags and bank" },
             { "Bags", "While you search, one button moves everything that matches to the bank, mail, trade window or vendor" },
             { "Bags", "Bring your Baganator categories over as bag groups" },
+            { "Quests", "With GatherMate2, the quest arrow can point you to a herb or ore node close by, then back to your quest (Quest Tracker > Navigation)" },
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
         },
         changed = {
