@@ -1862,53 +1862,45 @@ end)
 -- A folded group collapses where it is: its heading keeps its spot and the width it
 -- has open, so nothing beside it moves. What's stacked under it in its column moves
 -- up, and a row shrinks only when its tallest column does.
-T.test("bags: a folded group keeps its spot and width; what's under it moves up, nothing beside it", function()
+T.test("bags: a folded group keeps its spot and width; its row shrinks only once every group in it folds", function()
     local ns, f = catLogin()
-    local Cat, L = ns.Categories, ns.Layout
-    local function spot(key)
+    local Cat = ns.Categories
+    local function spots()
+        local t = {}
         for _, x in ipairs(f.headings) do
-            if x:IsShown() and x.key == key then
+            if x:IsShown() and x.key then
                 local _, _, _, px, py = x:GetPoint(1)
-                return px, py, x:GetWidth()
+                t[x.key] = { px, py, x:GetWidth() }
             end
         end
+        return t
     end
-    local keys = { "consumable", "sets", "weapon", "armor", "tradegoods", "junk", "empty" }
-    local before = {}
-    for _, k in ipairs(keys) do before[k] = { spot(k) } end
-    -- This bag packs in order as Consumables over Sets, Weapons over Armor, Trade
-    -- goods over Junk, then Empty on a row of its own.
-    T.eq(before.consumable[1], before.sets[1], "sets stack under consumables")
-    T.truthy(before.sets[2] < before.consumable[2])
-    T.eq(before.weapon[1], before.armor[1], "armor stacks under weapons")
-    T.eq(before.consumable[2], before.weapon[2], "consumables and weapons side by side")
-    T.truthy(before.empty[2] < before.junk[2], "Empty last, below")
-    local function unchanged(but, what)
-        for _, k in ipairs(keys) do
-            if not but[k] then
-                local x, y, w = spot(k)
-                T.eq(x, before[k][1], k .. " stays in its column " .. what)
-                T.eq(y, before[k][2], k .. " stays on its row " .. what)
-                T.eq(w, before[k][3], k .. " keeps its width " .. what)
-            end
-        end
+    local before = spots()
+    -- The groups on the first row, and the rows below it.
+    local topY, first, below = nil, {}, {}
+    for _, p in pairs(before) do topY = math.max(topY or p[2], p[2]) end
+    for k, p in pairs(before) do if p[2] == topY then first[#first + 1] = k else below[#below + 1] = k end end
+    T.truthy(#first > 1, "several groups share the first row")
+    T.truthy(#below > 0, "and there are rows below")
+    Cat.ToggleCollapsed(first[1])
+    stub.RunTimers()
+    local now = spots()
+    for k, p in pairs(before) do
+        T.eq(now[k][1], p[1], k .. " keeps its x")
+        T.eq(now[k][3], p[3], k .. " keeps its width")
     end
-    Cat.ToggleCollapsed("sets")
+    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end   -- first[1] opens again, the rest fold
+    Cat.ToggleCollapsed(first[1])
     stub.RunTimers()
-    unchanged({}, "(sets folded)")
-    Cat.ToggleCollapsed("consumable")
+    now = spots()
+    for _, k in ipairs(below) do
+        T.truthy(now[k][2] > before[k][2], k .. " moves up once the whole row above is folded")
+        T.eq(now[k][1], before[k][1], k .. " only moves up")
+    end
+    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end
     stub.RunTimers()
-    T.eq(select(2, spot("sets")), -(L.HeadH(f) + L.RowGap(f)), "sets move up under the folded heading")
-    unchanged({ sets = true }, "(consumables folded)")
-    Cat.ToggleCollapsed("weapon")
-    Cat.ToggleCollapsed("tradegoods")
-    stub.RunTimers()
-    local x, y = spot("empty")
-    T.truthy(y > before.empty[2], "the top row shrinks once every column does")
-    T.eq(x, before.empty[1], "and the row below only moves up")
-    for _, k in ipairs({ "sets", "weapon", "consumable", "tradegoods" }) do Cat.ToggleCollapsed(k) end
-    stub.RunTimers()
-    unchanged({}, "(all open again)")
+    now = spots()
+    for k, p in pairs(before) do T.deq(now[k], p, k .. " back where it was, all open again") end
 end)
 
 -- The packer on its own, with the groups of a real bag (10 columns, 35 px slots).
@@ -1923,56 +1915,31 @@ local function packWorld(L, f, counts)
         local function shape(across)
             local rows = math.ceil(n / across)
             return { w = math.max(across * size + (across - 1) * gap, headW), h = top + rows * size + (rows - 1) * gap,
-                     fill = n * (size + gap) ^ 2, across = across }
+                     across = across, lines = rows }
         end
-        local shapes = {}
-        if n <= cols then
-            shapes[1] = shape(n)
-        else
-            local least = math.ceil(n / cols)
-            shapes[1] = shape(math.ceil(n / least))
-            shapes[2] = shape(math.ceil(n / (least + 1)))
-        end
-        boxes[#boxes + 1] = { key = key, shapes = shapes, drawnH = c.folded and headH or nil, n = n, headW = headW }
+        boxes[#boxes + 1] = { key = key, n = n, cols = cols, shape = shape, drawnH = c.folded and headH or nil }
     end
-    return boxes, cols * size + (cols - 1) * gap, L.GroupGap(f, cfg), L.RowGap(f, cfg), top, size, gap, cols
-end
-
--- The flow before packing: left to right in order, a new row when the next group
--- doesn't fit, each group as wide as a full row allows.
-local function flowHeight(boxes, maxW, gapX, gapY, top, size, gap, cols)
-    local x, y, lineH = 0, 0, 0
-    for _, b in ipairs(boxes) do
-        local across = math.min(b.n, cols)
-        local rows = math.ceil(b.n / across)
-        local w = math.max(across * size + (across - 1) * gap, b.headW)
-        if x > 0 and x + w > maxW then y, x, lineH = y + lineH + gapY, 0, 0 end
-        lineH = math.max(lineH, top + rows * size + (rows - 1) * gap)
-        x = x + w + gapX
-    end
-    return y + lineH
+    return boxes, cols * size + (cols - 1) * gap, L.GroupGap(f, cfg), L.RowGap(f, cfg)
 end
 
 -- The bag seen in game, with name widths about as wide as its headings read there.
-local USER_BAG = { { "hearthstone", 1, 88 }, { "consumable", 8, 104 }, { "quest", 16, 98 }, { "weapon", 3, 76 },
-                   { "armor", 2, 50 }, { "tradegoods", 16, 104 }, { "junk", 5, 42 }, { "empty", 1, 50 } }
+local USER_BAG = { { "recent", 1, 60 }, { "hearthstone", 1, 88 }, { "consumable", 4, 104 }, { "quest", 12, 98 },
+                   { "weapon", 4, 76 }, { "tradegoods", 1, 104 }, { "recipe", 1, 70 }, { "empty", 2, 50 } }
 
 local function rects(boxes, spots)
     local out = {}
     for i, b in ipairs(boxes) do
-        local sh = b.shapes[spots[i].shape]
-        out[i] = { x = spots[i].x, y = spots[i].y, w = sh.w, h = b.drawnH or sh.h, key = b.key }
+        local sh = spots[i].shape
+        out[i] = { x = spots[i].x, y = spots[i].y, w = sh.w, h = b.drawnH or sh.h, key = b.key, lines = sh.lines }
     end
     return out
 end
 
-T.test("bags: the Shelf packs a real bag into less height, nothing overlapping", function()
+T.test("bags: the Shelf lays groups in level rows, in order, nothing overlapping", function()
     local ns, f = catLogin()
     local L = ns.Layout
-    local boxes, maxW, gx, gy, top, size, gap, cols = packWorld(L, f, USER_BAG)
-    local spots, height, memo = L.Pack(boxes, maxW, gx, gy)
-    local was = flowHeight(boxes, maxW, gx, gy, top, size, gap, cols)
-    T.truthy(height < was, "shorter than the old flow: " .. height .. " vs " .. was)
+    local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
+    local spots = L.Pack(boxes, maxW, gx, gy)
     local r = rects(boxes, spots)
     for i, a in ipairs(r) do
         T.truthy(a.x >= 0 and a.x + a.w <= maxW + 0.01, a.key .. " inside the bag's width")
@@ -1983,58 +1950,25 @@ T.test("bags: the Shelf packs a real bag into less height, nothing overlapping",
             T.truthy(apart, a.key .. " and " .. b.key .. " keep their gap")
         end
     end
-    local row = memo.hearthstone.row
-    local mates = 0
-    for k, m in pairs(memo) do if k ~= "hearthstone" and m.row == row then mates = mates + 1 end end
-    T.truthy(mates > 0, "the Hearthstone no longer takes a row alone")
-    -- Each row starts with the first group not yet placed: a group only ever moves
-    -- earlier, into a gap, never later than its turn.
-    local rows = {}
-    for i, b in ipairs(boxes) do
-        local n = memo[b.key].row
-        rows[n] = rows[n] or {}
-        table.insert(rows[n], i)
+    T.eq(r[1].y, r[2].y, "Recent shares its row with the Hearthstone")
+    -- Rows read top to bottom, each left to right, in group order.
+    for i = 2, #r do
+        local a, b = r[i - 1], r[i]
+        T.truthy(b.y > a.y or (b.y == a.y and b.x > a.x), b.key .. " comes after " .. a.key)
     end
-    local placed = {}
-    for n = 1, #rows do
-        local first
-        for i = 1, #boxes do if not placed[i] then first = i break end end
-        T.eq(rows[n][1], first, "row " .. n .. " starts with the earliest group left")
-        for _, i in ipairs(rows[n]) do placed[i] = true end
-    end
-    -- Side by side, groups read in their order.
-    for i, a in ipairs(r) do
-        for k = i + 1, #r do
-            if r[k].y == a.y then T.truthy(a.x < r[k].x, a.key .. " before " .. r[k].key .. " on its row") end
-        end
-    end
+    -- Quest items (12) wrap to more lines than one, never stacked under another group.
+    local quest = r[4]
+    T.truthy(quest.lines > 1 and quest.lines <= 3, "quest items fold into a few lines: " .. quest.lines)
 end)
 
--- Reading the Shelf like a page (rows top to bottom, a row's columns left to right,
--- each column top to bottom) gives the groups in their order: none jumps ahead to
--- fill a gap, so Junk and Empty stay last.
-local function readingOrder(boxes, memo, spots)
-    local list = {}
-    for i, b in ipairs(boxes) do list[i] = { i = i, row = memo[b.key].row, x = spots[i].x, y = spots[i].y } end
-    table.sort(list, function(a, b)
-        if a.row ~= b.row then return a.row < b.row end
-        if a.x ~= b.x then return a.x < b.x end
-        return a.y < b.y
-    end)
-    return list
-end
-
-T.test("bags: the Shelf keeps its groups in order, nothing jumps ahead", function()
+T.test("bags: the Shelf's groups on a row wrap to the same number of lines where they can", function()
     local ns, f = catLogin()
     local L = ns.Layout
-    local SEEN = { { "hearthstone", 1, 88 }, { "consumable", 12, 104 }, { "quest", 9, 98 }, { "weapon", 3, 76 },
-                   { "armor", 1, 50 }, { "tradegoods", 4, 104 }, { "junk", 3, 42 }, { "empty", 2, 50 } }
-    for _, bag in ipairs({ USER_BAG, SEEN }) do
-        local boxes, maxW, gx, gy = packWorld(L, f, bag)
-        local spots, _, memo = L.Pack(boxes, maxW, gx, gy)
-        for n, e in ipairs(readingOrder(boxes, memo, spots)) do
-            T.eq(boxes[e.i].key, boxes[n].key, "group " .. n .. " reads in its turn")
-        end
+    local bag = { { "consumable", 9, 104 }, { "quest", 12, 98 }, { "tradegoods", 16, 104 } }
+    local boxes, maxW, gx, gy = packWorld(L, f, bag)
+    local r = rects(boxes, L.Pack(boxes, maxW, gx, gy))
+    for i = 2, #r do
+        if r[i].y == r[1].y then T.eq(r[i].lines, r[1].lines, r[i].key .. " as many lines as " .. r[1].key) end
     end
 end)
 
@@ -2042,15 +1976,15 @@ T.test("bags: the Shelf's packing is the same every time and moves little when a
     local ns, f = catLogin()
     local L = ns.Layout
     local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
-    local a, ha, memo = L.Pack(boxes, maxW, gx, gy)
+    local a, ha = L.Pack(boxes, maxW, gx, gy)
     local b, hb = L.Pack(boxes, maxW, gx, gy)
     T.eq(ha, hb)
-    for i = 1, #boxes do T.deq(a[i], b[i], boxes[i].key .. ": the same spot") end
+    for i = 1, #boxes do T.eq(a[i].x, b[i].x); T.eq(a[i].y, b[i].y); T.eq(a[i].shape.w, b[i].shape.w) end
     -- One more consumable.
     local more = {}
     for i, c in ipairs(USER_BAG) do more[i] = { c[1], c[2] + (c[1] == "consumable" and 1 or 0), c[3] } end
     local boxes2 = packWorld(L, f, more)
-    local c = L.Pack(boxes2, maxW, gx, gy, memo)
+    local c = L.Pack(boxes2, maxW, gx, gy)
     local kept = 0
     for i = 1, #boxes do if c[i].x == a[i].x and c[i].y == a[i].y then kept = kept + 1 end end
     T.truthy(kept >= #boxes / 2, "most groups keep their spots: " .. kept .. " of " .. #boxes)
@@ -2068,7 +2002,7 @@ T.test("bags: a folded group packs where it would stand open", function()
     T.truthy(h1 <= h0, "never taller")
     for i, b in ipairs(fb) do
         T.eq(now[i].x, open[i].x, b.key .. ": the same column")
-        T.eq(now[i].shape, open[i].shape, b.key .. ": the same shape")
+        T.eq(now[i].shape.w, open[i].shape.w, b.key .. ": the same width")
     end
 end)
 
@@ -4129,7 +4063,9 @@ T.test("bank: the categories view, empty slots and all", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     DaylightUI:Set("Bags", "view", "categories")
     stub.RunTimers()
-    T.truthy(ns.bank.packed and next(ns.bank.packed), "the bank's Shelf is packed like the bags'")
+    local heads = 0
+    for _, h in ipairs(ns.bank.headings or {}) do if h:IsShown() then heads = heads + 1 end end
+    T.truthy(heads > 0, "the bank's Shelf is packed like the bags'")
     local groups = ns.Layout.Groups(ns.module.db.bank, ns.bank)
     local keys = {}
     for _, g in ipairs(groups) do keys[#keys + 1] = g.key end

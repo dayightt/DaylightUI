@@ -515,169 +515,93 @@ function Layout.WaitForStack(window, bag, slot, link)
     end)
 end
 
--- Packing the Shelf. Each group is a box with one or more shapes ({ w, h, fill }):
--- a group too big for one row may be laid out a row taller and narrower, and fill
--- is the room its items really take, so a half-empty last row isn't counted as used.
--- Rows are built one at a time. A row starts with the next group in order, and is
--- tried at each height a waiting group could need. The groups after it follow in
--- their order, each beside the last or stacked under it when it's short enough, so
--- the bag reads in group order like a page and none jumps ahead to fill a gap.
--- The row that wastes least is kept. Groups that must start or end a row
--- split the list into parts packed on their own. A box with `drawnH` is planned at
--- its shape's height and drawn at drawnH. `prev` (key -> { row, shape }) is
--- the last layout's answer: when two choices are equally good, the one that keeps
--- groups where they were wins, so a small change in counts moves little.
-Layout.PACK_EVEN = 0.02      -- choices this close count as equally good
+-- Packing the Shelf. Groups run left to right in rows, in their order, like words
+-- on a page. Every group in a row wraps to the same number of item lines (as far
+-- as its size allows: a small group stays one line), so the row ends level and a
+-- wide group grows wider rather than taller. A group joins the row while some
+-- number of lines lets the whole row fit; otherwise it starts the next row.
+-- Each box gives `n` (items), `cols` (the bag's width in slots) and
+-- `shape(across)` -> { w, h, across }. A box with `drawnH` is planned at its open
+-- height and drawn at drawnH (a folded group), so folding never reshuffles.
+-- Groups that must start or end a row carry breakBefore / breakAfter.
 
-local function better(a, b)
-    if not b then return true end
-    local even = Layout.PACK_EVEN * math.max(a.fill, b.fill, 1)
-    if a.fill > b.fill + even then return true end
-    if b.fill > a.fill + even then return false end
-    if a.kept ~= b.kept then return a.kept > b.kept end
-    if a.order ~= b.order then return a.order < b.order end
-    if a.shape ~= b.shape then return a.shape < b.shape end
-    return a.stack and not b.stack
+-- The most lines a group wraps to beside others: about a golden rectangle.
+local function lineCap(n)
+    return math.max(1, math.floor(math.sqrt(n / 1.618)))
 end
 
--- Fills one row of height `H` starting with box `lead` in shape `si`.
-local function fillRow(boxes, todo, lead, si, H, maxW, gapX, gapY, prev, rowNo)
-    local s = boxes[lead].shapes[si]
-    local cols = { { x = 0, w = s.w, used = s.h } }
-    local placed = { { i = lead, shape = si, x = 0, y = 0, col = 1 } }
-    local taken = { [lead] = true }
-    local fill, right = s.fill, s.w
-    local function keeps(i, shape)
-        local p = prev and prev[boxes[i].key]
-        return (p and p.row == rowNo and 1 or 0) + (p and p.shape == shape and 1 or 0)
-    end
-    local kept = keeps(lead, si)
-    while true do
-        local best, order, i = nil, nil, nil
-        for o, j in ipairs(todo) do
-            if not taken[j] then order, i = o, j break end
-        end
-        if i then
-            for k, sh in ipairs(boxes[i].shapes) do
-                if sh.h <= H then
-                    local kp = keeps(i, k)
-                    local c = cols[#cols]
-                    if sh.w <= maxW - c.x and c.used + gapY + sh.h <= H then
-                        local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = true,
-                                       i = i, col = #cols, x = c.x, y = c.used + gapY }
-                        if better(cand, best) then best = cand end
-                    end
-                    if right + gapX + sh.w <= maxW then
-                        local cand = { fill = sh.fill, kept = kp, order = order, shape = k, stack = false,
-                                       i = i, x = right + gapX, y = 0 }
-                        if better(cand, best) then best = cand end
-                    end
-                end
-            end
-        end
-        if not best then break end
-        local sh = boxes[best.i].shapes[best.shape]
-        taken[best.i] = true
-        placed[#placed + 1] = { i = best.i, shape = best.shape, x = best.x, y = best.y, col = best.col or #cols + 1 }
-        fill, kept = fill + sh.fill, kept + best.kept
-        if best.stack then
-            local c = cols[best.col]
-            c.used = best.y + sh.h
-            if best.col == #cols and sh.w > c.w then
-                c.w = sh.w
-                right = c.x + c.w
-            end
-        else
-            cols[#cols + 1] = { x = best.x, w = sh.w, used = sh.h }
-            right = best.x + sh.w
-        end
-    end
-    local rowH = 0
-    for _, c in ipairs(cols) do rowH = math.max(rowH, c.used) end
-    return { placed = placed, taken = taken, fill = fill, h = rowH, kept = kept, shape = si }
+local function linesFor(box, L)
+    if box.n <= 0 then return 1 end
+    local least = math.ceil(box.n / box.cols)
+    return math.max(least, math.min(L, lineCap(box.n)))
 end
 
--- Packs `boxes` into `maxW`. Returns each box's { x, y, shape } by index, the total
--- height, and the answer to hand back as `prev` next time.
-function Layout.Pack(boxes, maxW, gapX, gapY, prev)
-    local spots, memo, y, rowNo = {}, {}, 0, 0
-    local parts, part = {}, nil
+local function shapeAt(box, L)
+    if box.n <= 0 then return box.shape(0) end
+    return box.shape(math.ceil(box.n / linesFor(box, L)))
+end
+
+-- The row's shapes at L lines, and whether they fit maxW.
+local function tryRow(boxes, row, L, maxW, gapX)
+    local out, x = {}, 0
+    for k, i in ipairs(row) do
+        local s = shapeAt(boxes[i], L)
+        out[k] = s
+        if k > 1 then x = x + gapX end
+        x = x + s.w
+    end
+    return x <= maxW, out
+end
+
+-- The fewest lines at which the row fits, or nil.
+local function fitRow(boxes, row, maxW, gapX)
+    local most = 1
+    for _, i in ipairs(row) do most = math.max(most, linesFor(boxes[i], math.huge)) end
+    for L = 1, most do
+        local ok, shapes = tryRow(boxes, row, L, maxW, gapX)
+        if ok then return shapes end
+    end
+end
+
+-- Packs `boxes` into `maxW`. Returns each box's { x, y, shape } by index (shape
+-- is the box's chosen { w, h, across }), and the total height.
+function Layout.Pack(boxes, maxW, gapX, gapY)
+    local spots, y = {}, 0
+    local row, shapes = {}, nil
+    local function close()
+        if #row == 0 then return end
+        local x, rowH = 0, 0
+        for k, i in ipairs(row) do
+            local s = shapes[k]
+            spots[i] = { x = x, y = y, shape = s }
+            x = x + s.w + gapX
+            rowH = math.max(rowH, boxes[i].drawnH or s.h)
+        end
+        y = y + rowH + gapY
+        row, shapes = {}, nil
+    end
     for i, b in ipairs(boxes) do
-        if not part or b.breakBefore then
-            part = {}
-            parts[#parts + 1] = part
+        if b.breakBefore then close() end
+        row[#row + 1] = i
+        local fit = fitRow(boxes, row, maxW, gapX)
+        if fit then
+            shapes = fit
+        elseif #row > 1 then
+            row[#row] = nil
+            close()
+            row[1] = i
+            shapes = fitRow(boxes, row, maxW, gapX)
         end
-        part[#part + 1] = i
-        if b.breakAfter then part = nil end
-    end
-    for _, todo in ipairs(parts) do
-        while #todo > 0 do
-            rowNo = rowNo + 1
-            local lead = todo[1]
-            -- The heights a row could take: any waiting group's.
-            local hs, seen = {}, {}
-            for _, i in ipairs(todo) do
-                for _, sh in ipairs(boxes[i].shapes) do
-                    if not seen[sh.h] then seen[sh.h] = true; hs[#hs + 1] = sh.h end
-                end
-            end
-            table.sort(hs)
-            local best
-            for si, s in ipairs(boxes[lead].shapes) do
-                for _, H in ipairs(hs) do
-                    if H >= s.h then
-                        local r = fillRow(boxes, todo, lead, si, H, maxW, gapX, gapY, prev, rowNo)
-                        r.density = r.fill / (maxW * (r.h + gapY))
-                        local pick = not best
-                        if best then
-                            local even = Layout.PACK_EVEN * math.max(r.density, best.density)
-                            if r.density > best.density + even then pick = true
-                            elseif r.density >= best.density - even then
-                                if r.kept ~= best.kept then pick = r.kept > best.kept
-                                elseif r.h ~= best.h then pick = r.h < best.h
-                                else pick = r.shape < best.shape end
-                            end
-                        end
-                        if pick then best = r end
-                    end
-                end
-            end
-            -- The row's columns, and the groups stacked in each, read in group order;
-            -- only which groups share the row comes from the packing. A box drawn
-            -- shorter than planned (a folded group) collapses where it is: what's
-            -- under it in its column moves up, nothing beside it moves.
-            local byCol, list, rowH, cx = {}, {}, 0, 0
-            for _, p in ipairs(best.placed) do
-                local c = byCol[p.col]
-                if not c then
-                    c = { first = p.i, w = 0 }
-                    byCol[p.col] = c
-                    list[#list + 1] = c
-                end
-                c[#c + 1] = p
-                c.first = math.min(c.first, p.i)
-                c.w = math.max(c.w, boxes[p.i].shapes[p.shape].w)
-                memo[boxes[p.i].key] = { row = rowNo, shape = p.shape }
-            end
-            table.sort(list, function(a, b) return a.first < b.first end)
-            for _, c in ipairs(list) do
-                table.sort(c, function(a, b) return a.i < b.i end)
-                local cy = 0
-                for k, p in ipairs(c) do
-                    if k > 1 then cy = cy + gapY end
-                    spots[p.i] = { x = cx, y = y + cy, shape = p.shape }
-                    cy = cy + (boxes[p.i].drawnH or boxes[p.i].shapes[p.shape].h)
-                end
-                rowH = math.max(rowH, cy)
-                cx = cx + c.w + gapX
-            end
-            y = y + rowH + gapY
-            local left = {}
-            for _, i in ipairs(todo) do if not best.taken[i] then left[#left + 1] = i end end
-            todo = left
+        -- One group wider than the bag (a long name): it gets the row to itself.
+        if not shapes then
+            local s = shapeAt(b, math.huge)
+            s.w = math.min(s.w, maxW)
+            shapes = { s }
         end
+        if b.breakAfter then close() end
     end
-    return spots, math.max(0, y - gapY), memo
+    close()
+    return spots, math.max(0, y - gapY)
 end
 
 -- The groups the window shows now (chips and Recent applied), each with its
@@ -763,33 +687,21 @@ function Layout.Categories(window, cfg)
         local headW = textW + 2 * inset
         local total = #g.entries
         local function shape(across)
+            if total == 0 then return { w = headW, h = headH, across = 0 } end
             local rows = math.ceil(total / across)
             local slotsW = across * size + (across - 1) * gap
-            return { w = math.max(slotsW, headW), h = top + rows * size + (rows - 1) * gap,
-                     fill = total * (size + gap) * (size + gap), across = across }
-        end
-        local shapes = {}
-        if total == 0 then
-            shapes[1] = { w = headW, h = headH, fill = headW * headH, across = 0 }
-        elseif total <= cols then
-            shapes[1] = shape(total)
-        else
-            -- A row taller and narrower, if that fits the bag better.
-            local least = math.ceil(total / cols)
-            shapes[1] = shape(math.ceil(total / least))
-            local narrow = math.ceil(total / (least + 1))
-            if narrow < shapes[1].across then shapes[2] = shape(narrow) end
+            return { w = math.max(slotsW, headW), h = top + rows * size + (rows - 1) * gap, across = across }
         end
         -- A folded group is planned open and drawn one heading tall, so folding
         -- one never reshuffles the bag.
-        boxes[#boxes + 1] = { key = g.key, shapes = shapes, breakBefore = g.breakBefore, breakAfter = g.breakAfter,
+        boxes[#boxes + 1] = { key = g.key, n = total, cols = cols, shape = shape,
+                              breakBefore = g.breakBefore, breakAfter = g.breakAfter,
                               g = g, h = h, folded = folded, drawnH = folded and headH or nil }
     end
-    local spots, height, memo = Layout.Pack(boxes, maxW, groupGap, rowGap, window.packed)
-    window.packed = memo
+    local spots, height = Layout.Pack(boxes, maxW, groupGap, rowGap)
     for bi, box in ipairs(boxes) do
         local g, h, spot = box.g, box.h, spots[bi]
-        local sh = box.shapes[spot.shape]
+        local sh = spot.shape
         local x, y, w = spot.x, spot.y, sh.w
         local n = box.folded and 0 or #g.entries
         local across = math.max(1, sh.across)

@@ -28,7 +28,7 @@ Cat.HEARTHSTONE = 6948
 -- group's default heading color; ink names a Style.INK one instead and quality
 -- the item quality whose color the game uses (read when painting).
 Cat.BUILTIN = {
-    { key = "recent", name = L["Recent"], breakAfter = true },
+    { key = "recent", name = L["Recent"] },
     { key = "hearthstone", color = { 0.45, 0.72, 1.0 }, name = L["Hearthstone"] },
     { key = "consumable", color = { 0.45, 0.86, 0.5 }, name = L["Consumables"] },
     { key = "quest", color = { 1.0, 0.82, 0.25 }, name = L["Quest items"] },
