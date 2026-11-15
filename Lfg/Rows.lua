@@ -1,8 +1,7 @@
 -- List pieces shared by the group finder's three pages: a row (group, person or
 -- activity, with text and a sub line on the left and role badges or a value on the
--- right; hover lights it, selection gets an accent wash like Parts.PickLine), the group
--- opened in place (note, members, open spots, Whisper and Invite), the party tooltip
--- (DUI.Tips) and the right-click menu (W.OpenMenu at the cursor).
+-- right; hover lights it, selection gets an accent wash like Parts.PickLine), the party
+-- tooltip (DUI.Tips) and the right-click menu (W.OpenMenu at the cursor).
 
 local _, DUI = ...
 DUI.Lfg = DUI.Lfg or {}
@@ -14,14 +13,16 @@ local Win = DUI.Win
 local Rows = {}
 ns.Rows = Rows
 
-Rows.GROUP = 40       -- group row
-Rows.GROUP_NOTE = 56  -- group row with a note under the sub line
-Rows.PERSON = 36      -- who list row
-Rows.ACTIVITY = 28    -- activity row
+Rows.GROUP = 46       -- group row
+Rows.GROUP_NOTE = 62  -- group row with a note under the sub line
+Rows.PERSON = 44      -- who list row
+Rows.ACTIVITY = 34    -- activity row
+Rows.SEP = { 1, 1, 1, 0.07 }   -- the thin line under a row that asks for one (spec.sep)
+Rows.SEP_INSET = 8
+Rows.BOX = 14         -- the tick box of a row that is ticked rather than opened (spec.check)
+Rows.BOX_GAP = 8
 Rows.BADGES = 5       -- max role badges per row (a dungeon's five)
-Rows.MEMBER = 22      -- member row in an opened group
 Rows.MEMBERS = 5      -- members listed by name; bigger groups get counts
-Rows.BUTTON = 24
 Rows.ACTION_W, Rows.ACTION_H = 24, 24  -- a row's quick-action button (Invite on a friend), at its right end
 Rows.ACTION_INSET = 8                  -- from the row's right edge
 Rows.ACTION_ICON, Rows.ACTION_ICON_SIZE = "ui-data-social.png", 14
@@ -32,8 +33,8 @@ local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function W() return DUI.Widgets end
 local function sound(name) if DUI.Sound then DUI.Sound.Play(name) end end
 
-local function tex(parent, layer, c)
-    local t = parent:CreateTexture(nil, layer)
+local function tex(parent, layer, c, sub)
+    local t = parent:CreateTexture(nil, layer, nil, sub)
     t:SetTexture(WHITE)
     if c then t:SetVertexColor(c[1], c[2], c[3], c[4] or 1) end
     return t
@@ -72,6 +73,22 @@ local function makeRow(parent)
     b.pick = tex(b, "BORDER", Win.Parts.PICKED)
     b.pick:SetAllPoints(b)
     b.pick:Hide()
+    b.sep = tex(b, "BORDER", Rows.SEP)
+    b.sep:SetHeight(1)
+    b.sep:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", Rows.SEP_INSET, 0)
+    b.sep:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -Rows.SEP_INSET, 0)
+    b.sep:Hide()
+    -- A tick box: a light outline, a dark inside and the accent's mark when ticked.
+    b.boxEdge = tex(b, "ARTWORK", { 1, 1, 1, 0.3 })
+    b.boxEdge:SetSize(Rows.BOX, Rows.BOX)
+    b.boxEdge:SetPoint("LEFT", b, "LEFT", 10, 0)
+    b.boxIn = tex(b, "ARTWORK", { 0.09, 0.09, 0.09, 1 }, 1)
+    b.boxIn:SetSize(Rows.BOX - 2, Rows.BOX - 2)
+    b.boxIn:SetPoint("CENTER", b.boxEdge, "CENTER", 0, 0)
+    b.boxMark = tex(b, "ARTWORK", { 1, 1, 1, 1 }, 2)
+    b.boxMark:SetSize(Rows.BOX - 6, Rows.BOX - 6)
+    b.boxMark:SetPoint("CENTER", b.boxEdge, "CENTER", 0, 0)
+    for _, t in ipairs({ b.boxEdge, b.boxIn, b.boxMark }) do t:Hide() end
     b.value = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     b.age = Style.Text(b, Style.SIZE.tiny, "RIGHT")
@@ -178,7 +195,8 @@ local function badges(b, list, top)
 end
 
 -- spec: { kind (pool), height, text, color, sub, subColor, note (third line), value,
--- valueColor, age, roles = { { role, open } }, dot (status dot color), picked, dim,
+-- valueColor, age, roles = { { role, open } }, dot (status dot color), picked, dim, sep (a line
+-- under the row), check (a tick box at its left, ticked while picked),
 -- id (identity across refills, for Stack:Ease), onClick(b), onMenu(b), onEnter(b) }
 function Rows.Row(stack, spec)
     local h = spec.height or Rows.GROUP
@@ -209,6 +227,9 @@ function Rows.Row(stack, spec)
     local vw = b.value:GetStringWidth()
     if (spec.value or "") ~= "" and type(vw) == "number" then room = math.max(room, vw + 18) end
     local left = 8
+    b.sep:SetShown(spec.sep == true)
+    for _, t in ipairs({ b.boxEdge, b.boxIn }) do t:SetShown(spec.check == true) end
+    if spec.check then left = 10 + Rows.BOX + Rows.BOX_GAP end
     if spec.dot then
         b.dot:SetVertexColor(spec.dot[1], spec.dot[2], spec.dot[3], 1)
         left = 10 + Rows.DOT + 7
@@ -242,6 +263,9 @@ function Rows.Pick(b, on)
     if b.spec then b.spec.picked = on end
     b.pick:SetShown(on)
     if on then Style.PaintAccent(b.pick, 0.16) end
+    local ticked = on and b.spec ~= nil and b.spec.check == true
+    b.boxMark:SetShown(ticked)
+    if ticked then Style.PaintAccent(b.boxMark, 1) end
 end
 
 -- Group members: who's in, which roles are still needed
@@ -334,159 +358,4 @@ function Rows.Menu(owner, name, canInvite)
     W().OpenMenu(owner, keys, values, nil, function(k)
         if k == "whisper" then ns.Data.Whisper(name) elseif k == "invite" then ns.Data.Invite(name) end
     end, nil, { atCursor = true })
-end
-
--- Group opened in place: note, members, buttons
-
-local function memberLine(parent)
-    local m = CreateFrame("Frame", nil, parent)
-    m:SetHeight(Rows.MEMBER)
-    m.badge = W().Role(m, 14)
-    m.badge:SetPoint("LEFT", m, "LEFT", 0, 0)
-    m.name = Style.Text(m, Style.SIZE.body, "LEFT")
-    m.name:SetPoint("LEFT", m.badge, "RIGHT", 8, 0)
-    m.what = Style.Text(m, Style.SIZE.small, "RIGHT")
-    m.what:SetPoint("RIGHT", m, "RIGHT", 0, 0)
-    Style.InkText(m.what, "LABEL")
-    return m
-end
-
-local function makeOpened(parent)
-    local d = CreateFrame("Frame", nil, parent)
-    d:SetClipsChildren(true)
-    d.inner = CreateFrame("Frame", nil, d)
-    d.inner:SetPoint("TOPLEFT", d, "TOPLEFT", 0, 0)
-    d.inner:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, 0)
-    d.bar = tex(d.inner, "ARTWORK")
-    d.bar:SetWidth(2)
-    d.noteBg = tex(d.inner, "BACKGROUND", { 1, 1, 1, 0.03 })
-    d.note = Style.Text(d.inner, Style.SIZE.body, "LEFT")
-    d.note:SetWordWrap(true)
-    d.note:SetSpacing(3)
-    Style.InkText(d.note, "TEXT")
-    d.head = Style.Text(d.inner, Win.Parts.HEAD, "LEFT")
-    d.lines = {}
-    for i = 1, Rows.MEMBERS + 5 do d.lines[i] = memberLine(d.inner) end
-    d.count = Style.Text(d.inner, Style.SIZE.body, "LEFT")
-    d.countOf = Style.Text(d.inner, Style.SIZE.small, "RIGHT")
-    Style.InkText(d.countOf, "LABEL")
-    d.main = W().Button(d.inner, "", Rows.BUTTON)
-    d.second = W().Button(d.inner, "", Rows.BUTTON)
-    d.main:SetScript("OnClick", function(self) if self.act then self.act() end end)
-    d.second:SetScript("OnClick", function(self) if self.act then self.act() end end)
-    return d
-end
-
-local function setButton(b, text, act, off, main)
-    b.text:SetText(text)
-    b.act = act
-    b.FitWidth(90)
-    Win.Parts.Tone(b, main and "main" or nil)
-    b.SetOff(off == true)
-end
-
--- Fill the opened group for r and return its height. acts: { whisper, invite, edit,
--- unlist } functions.
-local function fillOpened(d, r, width, acts)
-    local y, x = 8, 10
-    local innerW = width - 2 * x
-    if r.note or r.mine then
-        local text = r.note or ""
-        if r.mine then text = r.text .. (r.note and ("\n" .. r.note) or "") end
-        d.note:SetWidth(innerW - 12)
-        d.note:SetText(text)
-        local h = d.note:GetStringHeight()
-        if type(h) ~= "number" or h <= 0 then h = 16 end
-        h = math.ceil(h)
-        d.noteBg:ClearAllPoints()
-        d.noteBg:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y)
-        d.noteBg:SetSize(innerW, h + 12)
-        d.bar:ClearAllPoints()
-        d.bar:SetPoint("TOPLEFT", d.noteBg, "TOPLEFT", 0, 0)
-        d.bar:SetPoint("BOTTOMLEFT", d.noteBg, "BOTTOMLEFT", 0, 0)
-        Style.PaintAccent(d.bar, 1)
-        d.note:ClearAllPoints()
-        d.note:SetPoint("TOPLEFT", d.noteBg, "TOPLEFT", 10, -6)
-        d.note:Show(); d.noteBg:Show(); d.bar:Show()
-        y = y + h + 12 + 10
-    else
-        d.note:Hide(); d.noteBg:Hide(); d.bar:Hide()
-    end
-    d.head:ClearAllPoints()
-    d.head:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y)
-    d.head:SetText(string.upper(r.solo and L["Looking for a group"] or L["In the group"]))
-    Style.InkText(d.head, "pop")
-    y = y + 18
-    local used = 0
-    local function line(role, name, what, open)
-        used = used + 1
-        local m = d.lines[used]
-        if not m then return end
-        m:ClearAllPoints()
-        m:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y)
-        m:SetWidth(innerW)
-        m.badge.Set(role, open)
-        m.name:SetText(name)
-        Style.InkText(m.name, open and "OFF" or "VALUE")
-        m.what:SetText(what or "")
-        m:Show()
-        y = y + Rows.MEMBER
-    end
-    local big = r.size > Rows.MEMBERS and not r.solo
-    if big then
-        local text, of = Rows.Counts(r)
-        d.count:ClearAllPoints()
-        d.count:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y - 4)
-        d.count:SetText(text)
-        Style.InkText(d.count, "VALUE")
-        d.countOf:ClearAllPoints()
-        d.countOf:SetPoint("TOPRIGHT", d.inner, "TOPRIGHT", -x, -y - 4)
-        d.countOf:SetText(of)
-        d.count:Show(); d.countOf:Show()
-        y = y + Rows.MEMBER
-    else
-        d.count:Hide(); d.countOf:Hide()
-        for _, m in ipairs(r.members) do
-            local what = (type(m.level) == "number" and (m.level .. " ") or "") .. Rows.ClassWord(m.class)
-            if m.zone then what = what .. "  ·  " .. m.zone end
-            line(m.role, Rows.Named(m.name, m.class), what)
-        end
-        if not r.solo then
-            local _, open = ns.Data.Places(r)
-            for _, role in ipairs(ns.Data.ROLES) do
-                for _ = 1, open[role] do line(role, L["Open spot"], "", true) end
-            end
-        end
-    end
-    for i = used + 1, #d.lines do d.lines[i]:Hide() end
-    y = y + 8
-    d.main:ClearAllPoints()
-    d.main:SetPoint("TOPLEFT", d.inner, "TOPLEFT", x, -y)
-    d.second:ClearAllPoints()
-    d.second:SetPoint("LEFT", d.main, "RIGHT", 8, 0)
-    if r.mine then
-        setButton(d.main, L["Edit listing"], acts.edit, not ns.Data.CanEdit(), true)
-        setButton(d.second, L["Unlist"], acts.unlist, not ns.Data.CanEdit())
-    else
-        local name = r.leader.name
-        setButton(d.main, string.format(L["Whisper %s"], name or ""), function() acts.whisper(r) end, type(name) ~= "string", true)
-        setButton(d.second, INVITE or L["Invite"], function() acts.invite(r) end, not ns.Data.CanInvite(r))
-    end
-    y = y + Rows.BUTTON + 12
-    d.inner:SetHeight(y)
-    return y
-end
-
--- The opened group as a stack piece at full height; Browse glides it open.
-function Rows.Opened(stack, r, acts)
-    local width = stack:Width()
-    local probe = stack.openedFrame
-    if not probe then
-        probe = makeOpened(stack.child)
-        stack.openedFrame = probe
-    end
-    local h = fillOpened(probe, r, width, acts)
-    local d = stack:Piece("opened", function() return probe end, h, 0)
-    d.full = h
-    return d
 end

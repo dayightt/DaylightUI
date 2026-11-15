@@ -188,6 +188,35 @@ function Lfg.Changed(_, shown)
     Lfg.showSearch = nil
 end
 
+-- Find a group and Who grow by the detail card's room (Social's, DUI.Social.Detail) while a
+-- row is picked.
+Lfg.side = {}
+Lfg.CARD_W = 264   -- wider than Social's card: a group's members each get a line to themselves
+function Lfg.Span() return Lfg.CARD_W + DUI.Social.Detail.GAP end
+local function width(id) return Lfg.W + (Lfg.side[id] and Lfg.Span() or 0) end
+
+-- The detail card of a page opened or closed: the window makes room on its right (or
+-- gives it back), easing like a change of page. Pages lay out for the width they are
+-- going to have (goalW), as when a tab changes.
+function Lfg.SetSide(id, on)
+    on = on == true
+    if (Lfg.side[id] == true) == on then return end
+    Lfg.side[id] = on or nil
+    local f = Lfg.frame
+    if not f then return end
+    local def = f.defs and f.defs[id]
+    if def then def.w = width(id) end
+    -- The controller finds a window's main button when the page changes or the window
+    -- gets the focus, and hidden pieces aren't found: look again now the card has shown.
+    if on and DUI.Pad and DUI.Pad.Scrolls then DUI.Pad.Scrolls(f) end
+    if f.current ~= id then return end
+    local w, h = Lfg.sizer.Size(id)
+    f.goalW, f.goalH = w, h
+    if Win.IsOpen(f) then Win.Feel.Size(f, w, h) else f:SetSize(w, h) end
+    if Win.Room then Win.Room.Changed(f) end
+    if Lfg.follow then Win.Followers.WriteWidth(Lfg.follow) end
+end
+
 function Lfg.SaveSpot(x, y)
     if Lfg.spot then Lfg.spot.Save(x, y) end
 end
@@ -280,9 +309,9 @@ function Lfg.Build(mod)
     f.onClose = Lfg.Close
     Lfg.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)
     Win.SetIcon(f, Lfg.ICON)
-    Win.AddPage(f, "find", { Build = ns.Browse.Build, Fill = ns.Browse.Fill, pieces = ns.Browse.Pieces, w = Lfg.W, h = Lfg.H })
+    Win.AddPage(f, "find", { Build = ns.Browse.Build, Fill = ns.Browse.Fill, pieces = ns.Browse.Pieces, w = width("find"), h = Lfg.H })
     Win.AddPage(f, "list", { Build = ns.Listing.Build, Fill = ns.Listing.Fill, pieces = ns.Listing.Pieces, w = Lfg.W, h = Lfg.H })
-    Win.AddPage(f, "who", { Build = ns.Who.Build, Fill = ns.Who.Fill, pieces = ns.Who.Pieces, w = Lfg.W, h = Lfg.H })
+    Win.AddPage(f, "who", { Build = ns.Who.Build, Fill = ns.Who.Fill, pieces = ns.Who.Pieces, w = width("who"), h = Lfg.H })
     for _, id in ipairs(Lfg.PAGES) do Win.Build(f, id) end
     f.gear = Win.HeaderIcon(f, Lfg.OPTIONS_ICON, OPTIONS or L["Options"], Lfg.OptionsMenu)
     if Lfg.swap then Lfg.swap.Icon(f) end   -- left of the gear: the game's own window instead
@@ -292,7 +321,8 @@ function Lfg.Build(mod)
     Win.Drag(f, { save = Lfg.SaveSpot, reset = Lfg.ResetSpot })
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("GroupFinder", "scale", v) end)
     Lfg.sizer = Win.Resizable(f, { db = function() return ns.module and ns.module.db end, shared = true,
-        base = function() return Lfg.W, Lfg.H end, minH = Lfg.MIN_H,
+        base = function(id) return width(id), Lfg.H end, minH = Lfg.MIN_H,
+        extra = function(id) return Lfg.side[id] and Lfg.Span() or 0 end,   -- the card's room isn't part of the size kept
         save = Lfg.SaveSpot, resized = Lfg.Resized, follow = function() return Lfg.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Lfg.ResetSpot   -- /dui reset
     DUI.RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", function() Lfg.Header() end)
@@ -308,7 +338,7 @@ function Lfg.Build(mod)
     end)
     Lfg.follow = Win.Follow({ key = "lfg", frames = { lfg = Lfg.Game }, changed = Lfg.Changed,
         leave = function() return not Lfg.Ours() end,
-        width = function() return (Lfg.sizer and Lfg.sizer.Size() or Lfg.W) * Win.Scale(ns.Setting("scale")) end })
+        width = function() return (Lfg.sizer and Lfg.sizer.Size(Lfg.page) or Lfg.W) * Win.Scale(ns.Setting("scale")) end })
     Lfg.Apply()
     return f
 end

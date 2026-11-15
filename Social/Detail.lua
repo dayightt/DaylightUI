@@ -30,8 +30,8 @@ Detail.PLAIN = 22       -- a line with no title
 Detail.LETTER_X = 1       -- the badge's letter, nudged to the right: the font sets its glyphs a little left of the box's middle
 Detail.LETTER_Y = 0
 Detail.LINE_H = 14      -- one line of a value
-Detail.MAX_LINES = 4
-Detail.ROWS = 8         -- most lines of information
+Detail.MAX_LINES = 4     -- of a value, unless its line asks for more (spec.rows[i].lines)
+Detail.ROWS = 10        -- most lines of information
 Detail.BUTTON = 28      -- a button's height (Parts.Footer's)
 Detail.BUTTON_GAP = 6
 Detail.BUTTONS = 4      -- most buttons
@@ -42,6 +42,10 @@ Detail.RULE_GAP = 3     -- a title's rule sits this far under its text
 Detail.VALUE_GAP = 7    -- and its value this far under the rule
 Detail.AFTER = 8        -- under each line
 Detail.FILL = { 1, 1, 1, 0.035 }
+Detail.PERSON = 26      -- a person's line (spec.rows[i].people): a role badge, the name, the level
+Detail.PEOPLE = 10      -- most of them
+Detail.BADGE = 16
+Detail.PERSON_RULE = { 1, 1, 1, 0.05 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function W() return DUI.Widgets end
@@ -60,13 +64,15 @@ local function tex(parent, layer, color)
     return t
 end
 
--- opts: side(open) (the window makes or gives back the room), fit(p) (the page's widgets
+-- opts: width (the card's width, Detail.W by default; the window makes room for that and
+-- Detail.GAP), side(open) (the window makes or gives back the room), fit(p) (the page's widgets
 -- move over by p of the card's room, p from 0 to 1, as the list's edge eases), refill()
 -- (lay the list out again at its new width, once it has got there).
 function Detail.New(page, opts)
     local d = setmetatable({ page = page, opts = opts, open = false, rows = {}, buttons = {} }, Detail)
+    d.w = opts.width or Detail.W
     local f = CreateFrame("Frame", nil, page)
-    f:SetWidth(Detail.W)
+    f:SetWidth(d.w)
     f:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Detail.EDGE, -Detail.TOP)
     f:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -Detail.EDGE, Detail.REST)
     f:SetAlpha(0)
@@ -119,6 +125,28 @@ function Detail.New(page, opts)
         b:Hide()
         d.buttons[i] = b
     end
+    -- People lines: a role's badge, a name and a level, each on its own line and all level
+    -- with each other (a line of text with a badge drawn in it sits crooked).
+    d.people = {}
+    for i = 1, Detail.PEOPLE do
+        local m = CreateFrame("Frame", nil, f)
+        m:SetHeight(Detail.PERSON)
+        m.badge = W().Role(m, Detail.BADGE)
+        m.badge:SetPoint("LEFT", m, "LEFT", 0, 0)
+        m.level = Style.Text(m, Style.SIZE.small, "RIGHT")
+        m.level:SetPoint("RIGHT", m, "RIGHT", 0, 0)
+        Style.InkText(m.level, "LABEL")
+        m.name = Style.Text(m, Style.SIZE.small, "LEFT")
+        m.name:SetWordWrap(false)
+        m.name:SetPoint("LEFT", m.badge, "RIGHT", 8, 0)
+        m.name:SetPoint("RIGHT", m.level, "LEFT", -8, 0)
+        m.line = tex(m, "ARTWORK", Detail.PERSON_RULE)
+        m.line:SetHeight(1)
+        m.line:SetPoint("BOTTOMLEFT", m, "BOTTOMLEFT", 0, 0)
+        m.line:SetPoint("BOTTOMRIGHT", m, "BOTTOMRIGHT", 0, 0)
+        m:Hide()
+        d.people[i] = m
+    end
     -- The controller's X presses the main button (Pad.FindParts finds it through this).
     f.padFooter = { frame = f, buttons = d.buttons }
     return d
@@ -126,7 +154,9 @@ end
 
 -- spec: { icon = { file, l, r, t, b } or nil, initial (the badge's letter's source, when
 -- the title can't be read), title, color, sub,
--- rows = { { label, value, color } }, buttons = { { text, primary, onClick } } }, or nil
+-- rows = { { label, value, color, lines (most lines of the value, default MAX_LINES),
+-- spacing (pixels between the value's lines), people = { { role, open, name, level } } (in
+-- place of the value: a line to each, the badge, the name and the level lined up) } }, buttons = { { text, primary, onClick } } }, or nil
 -- to close. Returns true when the card opened or closed (the list is laid out again at
 -- its new width next frame).
 function Detail:Set(spec)
@@ -160,7 +190,7 @@ function Detail:Set(spec)
     -- The name and what's under it, as one block centered on the icon (the header is as
     -- tall as the icon, or as the block if the text scale made that taller).
     local left = Detail.PAD * 2 + Detail.ICON
-    local textW = Detail.W - left - Detail.PAD
+    local textW = self.w - left - Detail.PAD
     local sub = (spec.sub or "") ~= ""
     f.title:SetText(spec.title or "")
     f.title:SetWidth(textW)
@@ -194,7 +224,7 @@ function Detail:Set(spec)
         if s and i <= n then
             b.spec = s
             b.text:SetText(s.text or "")
-            b:SetWidth(Detail.W - Detail.PAD * 2)
+            b:SetWidth(self.w - Detail.PAD * 2)
             b:ClearAllPoints()
             b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", Detail.PAD, Detail.PAD + (n - i) * (Detail.BUTTON + Detail.BUTTON_GAP))
             Win.Parts.Tone(b, s.primary == true and "main" or nil)
@@ -214,6 +244,7 @@ function Detail:Set(spec)
         room = height - Detail.TOP - Detail.REST - rowsTop - buttonsH - Detail.PAD
     end
     local rows = spec.rows or {}
+    for _, m in ipairs(self.people) do m:Hide() end
     local y = rowsTop
     local spent = 0
     local plainBefore = false
@@ -224,11 +255,17 @@ function Detail:Set(spec)
         if s then
             -- The texts first, at their width: their heights are what the line takes.
             r.label:SetText(s.label or "")
-            r.label:SetWidth(Detail.W - Detail.PAD * 2)
-            r.value:SetWidth(Detail.W - Detail.PAD * 2)
-            r.value:SetText(s.value or "")
+            r.label:SetWidth(self.w - Detail.PAD * 2)
+            r.value:SetWidth(self.w - Detail.PAD * 2)
+            local cap = s.lines or Detail.MAX_LINES
+            -- spacing: air between the value's lines (a list of people reads better apart).
+            local gap = s.spacing or 0
+            r.value:SetSpacing(gap)
+            if r.value.SetMaxLines then r.value:SetMaxLines(cap) end
+            r.value:SetText(s.people and "" or s.value or "")
             lh = tall(r.label, Detail.LINE_H)
-            vh = math.min(math.max(tall(r.value, lh), lh), lh * Detail.MAX_LINES)
+            vh = math.min(math.max(tall(r.value, lh), lh), (lh + gap) * cap)
+            if s.people then vh = math.min(#s.people, Detail.PEOPLE) * Detail.PERSON end
             -- A titled line: title, rule, value. An untitled one: the value alone.
             h = (hasLabel and (lh + Detail.RULE_GAP + Detail.VALUE_GAP) or 0) + vh + Detail.AFTER
             -- Some air between the untitled lines (the status) and the titled ones.
@@ -256,7 +293,8 @@ function Detail:Set(spec)
             r.value:SetTextColor(vc[1], vc[2], vc[3])
             r.value:ClearAllPoints()
             r.value:SetPoint("TOPLEFT", f, "TOPLEFT", Detail.PAD, -valueY)
-            r.value:Show()
+            r.value:SetShown(s.people == nil)
+            if s.people then self:Place(s.people, valueY) end
             y = y + h
         else
             r.label:Hide()
@@ -271,6 +309,25 @@ function Detail:Set(spec)
     self:Slide(true)
     if self.opts.side then self.opts.side(true) end
     return true
+end
+
+-- The people lines of a row, from y down: { { role, open, name, level } }. An open spot is a
+-- ring of the role and the name in the quiet color.
+function Detail:Place(list, y)
+    local n = math.min(#list, Detail.PEOPLE)
+    for i = 1, n do
+        local p, m = list[i], self.people[i]
+        m:ClearAllPoints()
+        m:SetPoint("TOPLEFT", self.frame, "TOPLEFT", Detail.PAD, -(y + (i - 1) * Detail.PERSON))
+        m:SetWidth(self.w - Detail.PAD * 2)
+        m.badge.Set(p.role, p.open)   -- (a function of the badge, not a method)
+        m.name:SetText(p.name or "")
+        local c = p.open and Style.INK.OFF or Style.INK.VALUE
+        m.name:SetTextColor(c[1], c[2], c[3])
+        m.level:SetText(p.level and tostring(p.level) or "")
+        m.line:SetShown(i < n)
+        m:Show()
+    end
 end
 
 -- The card's fade in and out (the window's width eases on its own).
