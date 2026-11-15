@@ -147,6 +147,7 @@ local function login(opts)
     return stub.Load({ actionbars = true, login = opts.login, before = function()
         ABW.newWorld(opts)
         if opts.class then stub.units = stub.units or {}; stub.units.player = { class = opts.class } end
+        if opts.before then opts.before() end
     end })
 end
 local function AB() return stub.actionbars end
@@ -1127,7 +1128,7 @@ end)
 -- GetNumShapeshiftForms() is 0 for a priest, yet the macro conditions call it
 -- form 1 ("/cast [noform:1] Shadowform" works in game).
 T.test("paging: a priest's Shadowform pages bar 1 with no stance bar and no bonus bar", function()
-    login({ class = "PRIEST", formSpells = {} })
+    login({ class = "PRIEST", formSpells = {}, before = function() stub.knownSpells[15473] = true end })
     local h = holder("main")
     T.eq(h:GetAttribute("actionpage"), 1)
     stub.SetConditions({ ["form:1"] = true })
@@ -1142,6 +1143,28 @@ T.test("paging: a priest's Shadowform pages bar 1 with no stance bar and no bonu
     stub.SetConditions({ ["form:1"] = true, ["mod:shift"] = true })
     T.eq(h:GetAttribute("actionpage"), 13, "a held page over it")
     stub.SetConditions({})
+    noBlocked()
+end)
+
+-- Any shapeshift aura is form 1 to a priest's macro conditions: Spirit of Redemption
+-- (form 32), a curse that turns you into an animal, a toy's form. Without Shadowform
+-- known, none of them may page the bars.
+T.test("paging: a priest without Shadowform keeps bar 1 in Spirit of Redemption", function()
+    login({ class = "PRIEST", formSpells = {}, before = function() stub.knownSpells[15473] = nil end })
+    local h = holder("main")
+    DaylightUI:Set("ActionBars", "bars.bar5.paging.shadowform", 3)
+    T.falsy(AB().Paging.Rule():find("form:1", 1, true), "no form page without Shadowform")
+    stub.SetConditions({ ["form:1"] = true })
+    T.eq(h:GetAttribute("actionpage"), 1, "Spirit of Redemption keeps the bar")
+    T.eq(keyPage(1), 1)
+    T.falsy((holder("bar5").__stateDriver.page or ""):find("form:1", 1, true), "bars 2-8 too")
+    stub.SetConditions({})
+    -- Shadowform learned later (a respec): the form page comes back without a reload.
+    stub.knownSpells[15473] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    T.truthy(AB().Paging.Rule():find("form:1", 1, true), "learned Shadowform pages again")
+    T.truthy(holder("bar5").__stateDriver.page:find("[form:1] 3", 1, true))
     noBlocked()
 end)
 

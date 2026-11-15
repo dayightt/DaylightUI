@@ -32,13 +32,26 @@ Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
 -- A priest's Shadowform is a real form, but as in Classic it has no bonus bar and
 -- no place on the stance bar (GetNumShapeshiftForms says 0). The macro conditions
 -- still call it form 1, so it pages bar 1 as [form:1], the page a druid's form 1 gets.
+-- Every other form a priest can be put in is form 1 as well (Spirit of Redemption,
+-- a curse that turns you into an animal), so only a priest who knows Shadowform
+-- pages at all. Spirit of Redemption and Shadowform sit at the bottom of two talent
+-- trees, so one character never has both.
 Paging.PRIEST_FORMS = { [1] = "form:1" }
+Paging.SHADOWFORM = 15473
+
+local function knowsShadowform()
+    local known = type(C_SpellBook) == "table" and C_SpellBook.IsSpellKnown
+    if type(known) ~= "function" then return false end
+    local ok, yes = pcall(known, Paging.SHADOWFORM)
+    return ok and not isSecret(yes) and yes == true
+end
 
 -- For a druid: bonus bar -> "form:N" (or "form:N/M"), from the current stance bar.
--- A priest's is fixed. nil for any other class, or a druid who knows none of the
--- forms (then the bonus bar is used, as before).
+-- A priest's is fixed, or empty without Shadowform (no form pages). nil for any
+-- other class, or a druid who knows none of the forms (then the bonus bar is used,
+-- as before).
 function Paging.FormConds()
-    if Paging.Class() == "PRIEST" then return Paging.PRIEST_FORMS end
+    if Paging.Class() == "PRIEST" then return knowsShadowform() and Paging.PRIEST_FORMS or {} end
     if Paging.Class() ~= "DRUID" then return nil end
     if type(GetNumShapeshiftForms) ~= "function" or type(GetShapeshiftFormInfo) ~= "function" then return nil end
     local out, any = {}, false
@@ -264,8 +277,10 @@ function Paging.Setup(h, buttons)
     local function again() DUI.AfterCombat(function() makeHoldButtons(h); Paging.Apply() end, "paging:rule") end
     DUI.RegisterEvent("PLAYER_LOGIN", again)
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", again)
-    -- A form learned or lost shifts a druid's form numbers.
-    DUI.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", function()
+    -- A form learned or lost shifts a druid's form numbers. A priest's Shadowform
+    -- comes from a talent, with no stance bar change, so a spell change asks too
+    -- (Apply does nothing when the rule is the same).
+    local function formsChanged()
         DUI.AfterCombat(function()
             Paging.Apply()
             if ns.Bars then
@@ -275,7 +290,9 @@ function Paging.Setup(h, buttons)
                 end
             end
         end, "paging:forms")
-    end)
+    end
+    DUI.RegisterEvent("UPDATE_SHAPESHIFT_FORMS", formsChanged)
+    DUI.RegisterEvent("SPELLS_CHANGED", formsChanged)
 end
 
 local lastRule
