@@ -11,12 +11,8 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
-        fixed = {
-            { "Bags", "Item icons no longer show a second frame inside their border after you use, loot or move an item" },
-        },
-    },
-    { version = "1.9.0", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",
+    { version = "Unreleased" },
+    { version = "1.8.3", date = "2026-11-15", summary = "A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.",
         new = {
             { "Bags", "A list view for the bags and bank: a row per item with its name, level, count and sell value" },
             { "Bags", "Item tooltips show how many of that item each of your characters has, in their bags and bank" },
@@ -42,6 +38,7 @@ DUI.PatchNotes = {
             { "Action bars", "A priest's bars no longer swap to an empty page in Spirit of Redemption or when turned into an animal" },
             { "Action bars", "The shaman totem bar fades with its bar again" },
             { "Bags", "Can I Mog It, Pawn, Simple Item Levels and Caerdon marks show on the bag slots" },
+            { "Bags", "Item icons no longer show a second frame inside their border after you use, loot or move an item" },
             { "Nameplates", "Long names stay on one line instead of breaking over the bar" },
             { "Minimap", "Your arrow and the map's dots no longer float on screen when the minimap fades away" },
             { "Unit frames", "3D portraits fade with their frame instead of staying on screen" },

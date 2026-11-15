@@ -1,4 +1,4 @@
-# DaylightUI 1.9.0
+# DaylightUI 1.8.3
 
 A calmer new look for the bags with a list view, out of range nameplate fading, buff and debuff filters, and a long round of fixes.
 
@@ -27,6 +27,7 @@ A calmer new look for the bags with a list view, out of range nameplate fading, 
 - Action bars: A priest's bars no longer swap to an empty page in Spirit of Redemption or when turned into an animal
 - Action bars: The shaman totem bar fades with its bar again
 - Bags: Can I Mog It, Pawn, Simple Item Levels and Caerdon marks show on the bag slots
+- Bags: Item icons no longer show a second frame inside their border after you use, loot or move an item
 - Nameplates: Long names stay on one line instead of breaking over the bar
 - Minimap: Your arrow and the map's dots no longer float on screen when the minimap fades away
 - Unit frames: 3D portraits fade with their frame instead of staying on screen
