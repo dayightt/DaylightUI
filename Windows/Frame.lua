@@ -222,13 +222,14 @@ function Win.PickTab(f, id)
 end
 
 -- A small icon button left of the close button, e.g. an options gear. Call
--- before Win.Tabs so the tabs and title make room for it.
+-- before Win.Tabs so the tabs and title make room for it. A second one goes left
+-- of the first.
 Win.HEADER_ICON_GAP = 6
 function Win.HeaderIcon(f, icon, tip, onClick)
     local b = DUI.Widgets.IconButton(f, icon, tip, onClick)
-    b:SetPoint("RIGHT", f.close, "LEFT", -Win.HEADER_ICON_GAP, 0)
+    b:SetPoint("RIGHT", f.headerRight or f.close, "LEFT", -Win.HEADER_ICON_GAP, 0)
     f.headerRight = b
-    f.headerRoom = b:GetWidth() + Win.HEADER_ICON_GAP
+    f.headerRoom = (f.headerRoom or 0) + b:GetWidth() + Win.HEADER_ICON_GAP
     local room = 40 + f.headerRoom
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
     if f.sub then f.sub:SetPoint("RIGHT", f, "RIGHT", -room, 0) end

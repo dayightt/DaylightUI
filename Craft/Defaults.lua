@@ -5,7 +5,7 @@ DUI.Craft = DUI.Craft or {}
 local ns = DUI.Craft
 
 ns.DEFAULTS = {
-    enabled = true,   -- replaces the game's crafting window; needs a reload
+    enabled = true,   -- Daylight UI's window instead of the game's; switched from either window
     scale = 1,
     windowAlphaOwn = false,   -- off: follows the general window opacity
     windowAlpha = 0.85,

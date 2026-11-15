@@ -72,7 +72,15 @@ end })
 
 local trainerHooked = false
 local beastTraining = { key = "trainer", pack = "npc",
-    skip = function() return not (DaylightUI.Npc and DaylightUI.Npc.trainerLent) end,
+    -- Dressed while it shows as itself: Beast Training lent back, the game's trainer
+    -- picked over Daylight UI's, or the trainer page switched off.
+    skip = function()
+        local N = DaylightUI.Npc
+        if not N then return true end
+        if N.trainerLent then return false end
+        local W = N.Window
+        return not (type(W) == "table" and type(W.Covers) == "function") or W.Covers("trainer") == true
+    end,
     apply = function(Kit)
         local f = g("ClassTrainerFrame")
         if not f then return false end

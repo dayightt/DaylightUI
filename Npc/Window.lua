@@ -654,8 +654,9 @@ end
 
 function Npc.Want(mode, event)
     if wasAnswered(event) then return end
-    S.want = { mode = mode, event = event }
     S.last[Npc.KIND[mode]] = mode
+    if not DUI.npcOwnWindow then return end   -- the game's own windows are the pick
+    S.want = { mode = mode, event = event }
     if not pending then
         pending = true
         C_Timer.After(0, apply)
@@ -681,7 +682,7 @@ function Npc.OnEvent(_, event, ...)
         S.closed.merchant = true
     elseif event == "TRAINER_SHOW" then
         S.closed.trainer = false
-        if not (Npc.frames and Npc.frames.trainer) then return end
+        if not (Npc.frames and Npc.frames.trainer and DUI.npcOwnWindow) then return end
         -- Beast Training (a hunter spell, no NPC) keeps the game's window.
         local T = Enum and Enum.TrainerType
         -- The Skins module hears "TrainerLent" and dresses the game's window then.
@@ -825,6 +826,15 @@ function Npc.Changed(kind, shown, away)
         return
     end
     S.aside[kind] = nil
+    -- Handed to the game's own window (the player picked it, or Beast Training): it's
+    -- still open, so the talk goes on there and only this window closes.
+    local get = Npc.frames and Npc.frames[kind]
+    local g = get and get()
+    if type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind) then
+        if kind == "trainer" then ns.Train.Closed() end
+        if S.mode and Npc.KIND[S.mode] == kind then Npc.Close() end
+        return
+    end
     -- The veiled vendor and trainer still run their own OnHide, which already told the server.
     if kind == "merchant" then S.closed.merchant = true end
     if kind == "trainer" then S.closed.trainer = true; ns.Train.Closed() end
@@ -964,6 +974,89 @@ local function padSetup(f)
     f.padKeys = Npc.PadKeys()
 end
 
+-- Daylight UI's window or the game's own ones (Win.Swap): one pick, the "enabled"
+-- setting, for every game window this one stands in for. The header's icon gives
+-- them all back; a link on each of the game's windows brings this one back.
+
+-- The game's trainer window shows as itself from now on. The Skins dress it the way
+-- they dress Beast Training, which the game's window always shows.
+function Npc.TrainerAsItself()
+    if ns.trainerLent then return end
+    ns.trainerLent = true
+    DUI.Fire("TrainerLent")
+end
+
+local function beastTraining()
+    local T = Enum and Enum.TrainerType
+    return T ~= nil and C_Trainer ~= nil and C_Trainer.GetTrainerType ~= nil and C_Trainer.GetTrainerType() == T.Pet
+end
+
+-- Switched to the game's windows: this one closes, an open game window is handed
+-- over as it is (the talk goes on there), a closed one simply let go.
+function Npc.GiveAway()
+    if not Npc.follow then return end
+    Npc.Close()
+    for kind in pairs(Npc.frames) do Win.Followers.Release(Npc.follow, kind) end
+end
+
+-- Switched back: an open vendor or trainer goes under the veil again and this window
+-- opens on it. An open gossip or quest window can't be parked without hiding it,
+-- which would end the talk, so it stays the game's until it closes.
+function Npc.TakeBack()
+    if not Npc.follow then return end
+    for kind, get in pairs(Npc.frames) do
+        local g = get()
+        if Npc.VEIL[kind] and type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind)
+            and not (kind == "trainer" and beastTraining()) then
+            if Win.Followers.Reclaim(Npc.follow, kind) then Npc.Want(S.last[kind] or kind, "swap") end
+        end
+    end
+end
+
+-- The game's window of this kind sits under this one (or will when it opens), so the
+-- Skins leave it alone. Shown on its own, handed over or picked, it isn't.
+function Npc.Covers(kind)
+    local get = Npc.follow and DUI.npcOwnWindow and Npc.frames and Npc.frames[kind]
+    if not get then return false end
+    local g = get()
+    return not (type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind))
+end
+
+local function swapTo(ours)
+    DUI.npcOwnWindow = ours
+    if ours and not Npc.frame then Npc.Build(ns.module) end
+    if Npc.frames then
+        DUI.npcOwnVendor = ours and Npc.frames.merchant ~= nil
+        DUI.npcOwnTrainer = ours and Npc.frames.trainer ~= nil
+    end
+    if ours then Npc.TakeBack() else
+        Npc.TrainerAsItself()
+        Npc.GiveAway()
+    end
+end
+
+-- The link back rides on every game window this one may stand in for. Gossip
+-- carries the pick; the others only show the way back. The trainer's comes last:
+-- it's the one made later, when its addon loads.
+function Npc.InitSwap()
+    if Npc.swap then return end
+    local function off(key) return function() return ns.Setting(key) == false end end
+    Npc.swap = Win.Swap({ scope = "NPC", game = Npc.FRAMES.gossip, apply = swapTo })
+    Npc.links = {
+        Win.Swap({ scope = "NPC", game = Npc.FRAMES.quest }),
+        Win.Swap({ scope = "NPC", game = Npc.FRAMES.merchant,
+            blocked = function() return DUI.vendorMogul == true or ns.Setting("vendor") == false end }),
+        Win.Swap({ scope = "NPC", game = Npc.FRAMES.trainer, addon = "Blizzard_TrainerUI", blocked = off("trainer") }),
+    }
+end
+
+-- From the module's OnSettingChanged: the options, a button or a profile switch.
+function Npc.SwapApply()
+    if not Npc.swap then return end
+    Npc.swap.Apply()
+    for _, s in ipairs(Npc.links) do s.Paint() end
+end
+
 function Npc.Build(mod)
     ns.module = mod
     if Npc.frame then return Npc.frame end
@@ -990,6 +1083,11 @@ function Npc.Build(mod)
     Win.AddPage(f, "talk", Npc.TALK)
     Win.Build(f, "talk")
     Npc.scene = ns.Scene.Build(Npc.SCENE_TALK)   -- the immersive look's own window (Scene.lua)
+    -- Left of the X in both: the game's own windows instead, for addons that build on them.
+    if Npc.swap then
+        Npc.swap.Icon(f)
+        Npc.swap.Icon(Npc.scene)
+    end
     padSetup(f)
     padSetup(Npc.scene)
     -- Game windows this one replaces. Vendor and trainer only with their settings on (read
@@ -1004,6 +1102,7 @@ function Npc.Build(mod)
     end
     DUI.npcOwnVendor = Npc.frames.merchant ~= nil
     DUI.npcOwnTrainer = Npc.frames.trainer ~= nil
+    if not Npc.frames.trainer then Npc.TrainerAsItself() end
     if Npc.frames.trainer then
         Win.AddPage(f, "train", { Build = ns.Train.Build, Fill = ns.Train.Fill, w = ns.Train.W,
             pieces = function(page) return page.pieces or {} end })
@@ -1016,7 +1115,7 @@ function Npc.Build(mod)
     end
     -- Player's money in the header while the shop is open.
     f.money = DUI.Style.Text(f, DUI.Style.SIZE.body, "RIGHT")
-    f.money:SetPoint("RIGHT", f.close, "LEFT", -10, 0)
+    f.money:SetPoint("RIGHT", f.headerRight or f.close, "LEFT", -10, 0)
     f.money:Hide()
     -- Plus what the player holds of the shelf's other costs (tokens, items), left of it.
     f.wallet = DUI.Style.Text(f, DUI.Style.SIZE.body, "RIGHT")
@@ -1028,7 +1127,8 @@ function Npc.Build(mod)
     ev:SetScript("OnEvent", Npc.OnEvent)
     Npc.events = ev
     Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, veil = Npc.VEIL, changed = Npc.Changed, onPark = Npc.Parked,
-        width = function() return (Npc.PageSize(f.current or "talk")) * Win.Scale(ns.Setting("scale")) end })
+        leave = function() return not DUI.npcOwnWindow end,
+        width =function() return (Npc.PageSize(f.current or "talk")) * Win.Scale(ns.Setting("scale")) end })
     Npc.Apply()
     return f
 end

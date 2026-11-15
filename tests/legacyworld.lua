@@ -118,6 +118,7 @@ local function load()
     function f:SelectPage(id)
         self.currentPage = id
     end
+    stub.loadedAddOns.Blizzard_LegacySystem = true
     stub.FireEvent("ADDON_LOADED", "Blizzard_LegacySystem")
     return f
 end

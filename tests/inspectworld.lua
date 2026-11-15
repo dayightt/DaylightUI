@@ -46,6 +46,7 @@ local function inspectFrame()
         end
     end)
     record("LoadAddOn", "Blizzard_InspectUI")
+    stub.loadedAddOns.Blizzard_InspectUI = true
     stub.FireEvent("ADDON_LOADED", "Blizzard_InspectUI")
     return f
 end

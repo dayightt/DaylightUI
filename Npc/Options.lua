@@ -11,8 +11,8 @@ ns.OPTIONS = { pages = {
       desc = "Talking to NPCs: gossip, quests to accept and hand in, rewards to choose, all in one window, in DaylightUI style.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style NPC window", reload = true,
-              desc = "Talking to an NPC opens DaylightUI's window for gossip, quests and rewards. Turn it off to use the game's own windows." },
+            { type = "toggle", key = "enabled", label = "DaylightUI style NPC window",
+              desc = "Talking to an NPC opens DaylightUI's window for gossip, quests, rewards, vendors and trainers. Turn it off to use the game's own windows, in Daylight UI's look, for addons that build on them. Each window also has a button to switch to the other." },
             { type = "text", label = "DaylightMogul's vendor window is in use.",
               hidden = function() return not DaylightUI.vendorMogul end },
             { type = "toggle", key = "vendor", label = "Vendor window", reload = true,

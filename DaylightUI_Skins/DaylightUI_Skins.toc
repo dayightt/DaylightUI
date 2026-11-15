@@ -22,6 +22,14 @@ Packs\Collections.lua
 Packs\System.lua
 Packs\Breath.lua
 Packs\LossOfControl.lua
+Packs\Game\Spellbook.lua
+Packs\Game\Character.lua
+Packs\Game\Npc.lua
+Packs\Game\Inspect.lua
+Packs\Game\Lfg.lua
+Packs\Game\Mail.lua
+Packs\Game\Social.lua
+Packs\Game\Legacy.lua
 Packs\Addons\Ace3.lua
 Packs\Addons\Questie.lua
 Packs\Addons\RXPGuides.lua

@@ -216,7 +216,7 @@ end
 function Engine.Window(def)
     Engine.WINDOWS[#Engine.WINDOWS + 1] = def.frame
     local reg
-    reg = { key = def.key, pack = def.pack, addon = def.addon, skip = def.skip,
+    reg = { key = def.key, pack = def.pack, addon = def.addon, skip = def.skip, frameName = def.frame,
         thirdParty = def.thirdParty, switch = def.switch, label = def.label, apply = function(Kit)
         local f = Engine.Find(def.frame)
         if type(f) ~= "table" or not f.GetObjectType then return false end
@@ -234,6 +234,8 @@ function Engine.Window(def)
         local ranThisFrame, askedAgain, shape = false, false, nil
         local function again(ifChanged)
             if InCombatLockdown and InCombatLockdown() then return end
+            -- Replaced by a Daylight UI window for now: nothing to dress while it's covered.
+            if def.skip and def.skip() then return end
             if ranThisFrame then
                 askedAgain = true
                 return
@@ -264,7 +266,7 @@ function Engine.Window(def)
             shape = not Kit.Walking(f) and Kit.Shape(f) or nil
             if t0 then Kit.Spent("window " .. def.key, debugprofilestop() - t0) end
         end
-        def.again = again
+        def.again, reg.again = again, again
         applyWindow(def, Kit, f, false, def.watch and again or nil)
         -- On open: run now and once more next frame, to catch whatever the
         -- game fills in right after.
@@ -276,6 +278,18 @@ function Engine.Window(def)
     Engine.Register(reg)
     return reg
 end
+
+-- A game window a Daylight UI window stood in for now shows as itself (lent, or
+-- the player picked it). It's already shown, so no OnShow says it needs its look.
+function Engine.Back(f)
+    if type(f) ~= "table" then return end
+    for _, reg in ipairs(Engine.skins) do
+        if reg.frameName and Engine.Find(reg.frameName) == f then
+            if reg.again then reg.again() else Engine.Try(reg) end
+        end
+    end
+end
+DUI.On("GameWindowBack", function(_, _, f) C_Timer.After(0, function() Engine.Back(f) end) end)
 
 function Engine.Start(c)
     cfg = c

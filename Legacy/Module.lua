@@ -1,5 +1,5 @@
 -- Registers the Legacy window with the core. It lives in the core addon and is switched
--- by the "enabled" setting, read at login.
+-- by the "enabled" setting, from the options or either window (Legacy.InitSwap).
 
 local _, DUI = ...
 DUI.Legacy = DUI.Legacy or {}
@@ -16,9 +16,11 @@ DUI:RegisterModule("Legacy", {
     OnEnable = function(mod)
         ns.module = mod
         DUI.legacyOwnWindow = mod.db.enabled == true
-        if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
+        ns.Window.InitSwap()
+        if mod.db.enabled == true then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
+        ns.Window.swap.Apply()
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()

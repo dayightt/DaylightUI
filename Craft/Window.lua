@@ -515,12 +515,48 @@ function Craft.HandBack()
     end
     Craft.handed = true
     lend()
+    if ns.Swap then ns.Swap.Paint() end
+end
+
+-- The game's window stays the game's: the player picked it (Swap.lua), or the SkillUp
+-- link lent it until it closes.
+local function kept() return Craft.handed == true or not DUI.craftOwnWindow end
+
+-- Switched to the game's window: an open one is handed over, a closed one let go so
+-- it opens as itself.
+function Craft.GiveAway()
+    local g = Craft.Game()
+    if not (Craft.follow and g and Win.Followers.Parked(Craft.follow, "craft")) then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Craft.GiveAway, "craft:giveaway") end
+    if g:IsShown() then return lend() end
+    Win.Followers.Unpark(Craft.follow, "craft")
+end
+
+-- Switched back: an open game window showing the player's own recipes goes under the
+-- veil again, and the follower's next look opens this one in its place.
+function Craft.TakeBack()
+    local g = Craft.Game()
+    if not (Craft.follow and g and g:IsShown()) or Win.Followers.Parked(Craft.follow, "craft") then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Craft.TakeBack, "craft:takeback") end
+    if not DUI.craftOwnWindow or not Craft.Ours(g) then return end
+    Craft.handed = nil
+    Win.Followers.Reclaim(Craft.follow, "craft")
+    if ns.Swap then ns.Swap.Paint() end
+end
+
+-- The game's window sits under this one (or will when it opens), so the Skins leave
+-- it alone. Shown on its own, lent out or picked by the player, it isn't.
+function Craft.Covers()
+    if not (Craft.follow and DUI.craftOwnWindow) then return false end
+    local g = Craft.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Craft.follow, "craft"))
 end
 
 -- Follower callback: the game's frame shown or hidden.
 function Craft.Changed(_, shown)
     local f = Craft.frame
     if shown then Craft.handed = nil end
+    if shown and not DUI.craftOwnWindow then return lend() end
     if not shown then
         if Win.IsOpen(f) then shut(f) end
         ns.View.Shut()
@@ -548,7 +584,7 @@ function Craft.TradeSkillShown()
     -- Was handed back (someone's recipes, the overview) and now the player's own
     -- profession opened: take over again (the follower's next look opens it).
     if g and g:IsShown() and not Win.Followers.Parked(Craft.follow, "craft") then
-        if Craft.Ours(g) and not Craft.handed then Win.Followers.Reclaim(Craft.follow, "craft") end
+        if Craft.Ours(g) and not kept() then Win.Followers.Reclaim(Craft.follow, "craft") end
         return
     end
     if not Win.Followers.Shown(Craft.follow, "craft") then return end
@@ -569,7 +605,7 @@ function Craft.Settled()
     local g = Craft.Game()
     if not (g and g:IsShown()) then Craft.waiting = nil; return end
     if not Win.Followers.Parked(Craft.follow, "craft") then
-        if Craft.Ours(g) and not Craft.handed then Win.Followers.Reclaim(Craft.follow, "craft") end
+        if Craft.Ours(g) and not kept() then Win.Followers.Reclaim(Craft.follow, "craft") end
         return
     end
     if not Craft.waiting then return end
@@ -782,6 +818,9 @@ function Craft.Build(mod)
     Win.AddPage(f, "recipes", { Build = build, Fill = fill, pieces = pieces, w = Craft.W, h = Craft.H })
     Win.Build(f, "recipes")
     Craft.DockPanes()
+    -- Left of the X, before the tabs line up from it: the game's own window instead
+    -- (Swap.lua), for addons that build on it.
+    ns.Swap.it.Icon(f)
     -- Over the icon and name: Shift-click links the profession into the open chat box
     -- (ns.Share, as the game's book does on its icon), right-click opens Unlearn
     -- (Craft.WhoMenu), and a left drag still moves the window.
@@ -833,7 +872,7 @@ function Craft.Build(mod)
         header(f, data and data.prof)
     end)
     Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, veil = { craft = true },
-        changed = Craft.Changed, pin = Craft.Pin,
+        changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end,
         width = function() return ((Craft.Size()) + Craft.PanesWidth()) * Win.Scale(ns.Setting("scale")) end })
     Craft.Apply()
     return f

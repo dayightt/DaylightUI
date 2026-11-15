@@ -15,6 +15,7 @@ ns.DEFAULTS = {
     greyPoor = true,        -- poor items grayed
     redUnusable = true,     -- tint items you can't use red
     showSlots = false,      -- bag slot strip above the window
+    compareItems = true,    -- an item's tooltip shows what you wear beside it (the game's compare setting)
     -- Item overlays, each in a fixed corner: bind type top left, equipment set
     -- top right, junk coin in its own spot.
     showBind = true,        -- "BoE" / "BoU" until bound

@@ -110,6 +110,8 @@ function Window.BuildHeader(f)
     -- Title is your name, the sub line is your level. The X closes through Follow.Close.
     DUI.Win.Header(f, { onClose = function() if ns.Follow then ns.Follow.Close() else Window.Close() end end })
     f.nameText = f.title
+    -- Left of the X, and the tabs line up from it: the game's own window instead.
+    if ns.swap then ns.swap.Icon(f) end
     -- Clicking your name opens the title menu. PaintHeader sizes it to the name.
     f.nameButton = CreateFrame("Button", nil, f)
     f.nameButton:SetPoint("TOPLEFT", f.nameText, "TOPLEFT", 0, 0)
@@ -124,7 +126,7 @@ end
 -- Lays out visible tabs right to left from the X.
 function Window.LayoutTabs()
     local f = ns.window
-    local right = f.close
+    local right = f.headerRight or f.close
     for i = #f.tabs, 1, -1 do
         local b = f.tabs[i]
         local on = Window.TabShown(b.id)
@@ -137,7 +139,7 @@ function Window.LayoutTabs()
         end
     end
     -- Keep the name and level line clear of the tabs.
-    if right ~= f.close then
+    if right ~= (f.headerRight or f.close) then
         f.title:SetPoint("RIGHT", right, "LEFT", -DUI.Win.TAB_GAP, 0)
         f.sub:SetPoint("RIGHT", right, "LEFT", -DUI.Win.TAB_GAP, 0)
     end

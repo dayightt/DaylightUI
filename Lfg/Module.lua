@@ -1,5 +1,5 @@
 -- Registers the group finder window with the core. It lives in the core addon and is
--- switched by the "enabled" setting, read at login.
+-- switched by the "enabled" setting, from the options or either window (Lfg.swap).
 
 local _, DUI = ...
 DUI.Lfg = DUI.Lfg or {}
@@ -15,10 +15,12 @@ DUI:RegisterModule("GroupFinder", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.module = mod
-        if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
+        ns.Window.SwapInit()
+        if ns.Window.Ours() then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
-        if ns.Window then ns.Window.Apply() end
+        if ns.Window.swap then ns.Window.swap.Apply() end
+        ns.Window.Apply()
     end,
     OnStyleChanged = function()
         if ns.Window then ns.Window.Apply() end

@@ -1,5 +1,5 @@
 -- Registers the NPC window with the core. It lives in the core addon and is
--- switched by the "enabled" setting, read at login.
+-- switched by the "enabled" setting, from the options or a button on either window.
 
 local _, DUI = ...
 DUI.Npc = DUI.Npc or {}
@@ -32,11 +32,13 @@ DUI:RegisterModule("NPC", {
         ns.module = mod
         DUI.vendorMogul = ns.MogulVendor()
         DUI.npcOwnWindow = mod.db.enabled ~= false
-        if ns.Window and mod.db.enabled ~= false then ns.Window.Build(mod) end
+        ns.Window.InitSwap()
+        if DUI.npcOwnWindow then ns.Window.Build(mod) else ns.Window.TrainerAsItself() end
         if ns.Popups then ns.Popups.Enable() end
     end,
     OnSettingChanged = function()
-        if ns.Window then ns.Window.Apply() end
+        ns.Window.SwapApply()
+        ns.Window.Apply()
         if ns.Popups then ns.Popups.Update() end
     end,
     OnStyleChanged = function()

@@ -25,6 +25,7 @@ ns.DEFAULTS = {
     hoverLight = 0.15, -- hover highlight strength (0 = none; Plate.HOVER)
     targetStyle = "outline", -- target plate highlight: outline, glow or none
     targetAccent = true, -- outline or glow in the accent color; off uses the colors below
+    targetCircle = false, -- two lights circling the target outline (W.GlowAround)
     targetOutline = { 0.72, 0.7, 0.66 }, -- outline color (Daylight gray)
     targetGlow = { 0.72, 0.7, 0.66 }, -- glow color
     targetArrows = "none", -- arrows at your target's plate: "none", "sides", "top" (Plate.TARGET_ARROWS)

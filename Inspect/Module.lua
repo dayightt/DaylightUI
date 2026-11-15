@@ -1,5 +1,5 @@
 -- Registers the inspect window with the core. It lives in the core addon and is switched
--- by the "enabled" setting, read at login.
+-- by the "enabled" setting, from the options or either window (Insp.InitSwap).
 
 local _, DUI = ...
 DUI.Inspect = DUI.Inspect or {}
@@ -15,9 +15,11 @@ DUI:RegisterModule("Inspect", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.module = mod
-        if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
+        ns.Window.InitSwap()
+        if mod.db.enabled == true then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
+        ns.Window.swap.Apply()
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()

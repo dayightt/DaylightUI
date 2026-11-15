@@ -1,5 +1,6 @@
 -- Registers the spellbook and talents window with the core. It ships inside
--- the core addon, so it is switched by the "enabled" setting, read at login.
+-- the core addon and is switched by the "enabled" setting, from the options or
+-- either window's swap button.
 
 local _, DUI = ...
 DUI.Book = DUI.Book or {}   -- the book window's own namespace
@@ -16,9 +17,11 @@ DUI:RegisterModule("Book", {
     OnEnable = function(mod)
         ns.module = mod
         DUI.bookOwnWindow = mod.db.enabled == true
+        if ns.Window then ns.Window.SwapInit() end
         if ns.Window and mod.db.enabled == true then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()
+        if ns.Window then ns.Window.SwapApply() end
         if ns.Window then ns.Window.Apply() end
     end,
     OnStyleChanged = function()

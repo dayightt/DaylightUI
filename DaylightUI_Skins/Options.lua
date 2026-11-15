@@ -18,13 +18,13 @@ ns.OPTIONS = { pages = {
       groups = {
         { label = "Packs", desc = "The game's windows Daylight UI didn't rebuild. Rebuilt windows have their own switches under Extras.", items = {
             { type = "toggle", key = "packs.npc", label = "Flight maps, stable and books", reload = true,
-              desc = "Flight maps, books and letters, tabards and petitions, the stable." },
+              desc = "Flight maps, books and letters, tabards and petitions, the stable, and the game's own talk, vendor and trainer windows when you pick them over Daylight UI's." },
             { type = "toggle", key = "packs.social", label = "Guild, calendar and trading", reload = true,
-              desc = "Guild and communities, the calendar, trading, the guild bank." },
+              desc = "Guild and communities, the calendar, trading, the guild bank, the game's mailbox, friends window and group finder." },
             { type = "toggle", key = "packs.collections", label = "Collections and journals", reload = true,
-              desc = "Collections, achievements, the dungeon journal, the dressing room." },
+              desc = "Collections, achievements, the dungeon journal, the game's Legacy window, the dressing room." },
             { type = "toggle", key = "packs.system", label = "Menus, loot and items", reload = true,
-              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the world map's frame, the breath bar, the box that splits a stack." },
+              desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the game's character, spellbook, profession and inspect windows, the world map's frame, the breath bar, the box that splits a stack." },
         } },
         { label = "Windows", items = {
             backRows[1], backRows[2],

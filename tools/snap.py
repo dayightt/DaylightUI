@@ -107,6 +107,8 @@ class Snap:
         L = R = B = T = cx = cy = None
         for p in pts:
             point, rel, relp, x, y = p
+            if not isinstance(relp, str):   # SetPoint(point, x, y): the parent, same point
+                rel, relp, x, y = None, point, relp, x
             if point == "ALL":
                 rr = self.rect(rel or n.get("parent"))
                 if not rr:

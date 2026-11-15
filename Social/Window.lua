@@ -82,7 +82,7 @@ end
 -- label changes).
 function Social.FitTitle()
     local f = Social.frame
-    local room = 40
+    local room = 40 + (f.headerRoom or 0)
     for _, b in ipairs(f.tabs or {}) do room = room + b:GetWidth() + Win.TAB_GAP end
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
 end
@@ -216,6 +216,50 @@ function Social.Close()
     HideUIPanel(g)
 end
 
+-- Which window opens, Daylight UI's or the game's own (Win.Swap): the header's swap
+-- icon, a link on the game's window and the options switch all set "enabled".
+function Social.Ours() return Social.swap ~= nil and Social.swap.Ours() end
+
+-- Switched to the game's window: an open one shows as itself (this one closes), a
+-- closed one is simply let go.
+function Social.GiveAway()
+    local f, g = Social.frame, Social.Game()
+    if f and Win.IsOpen(f) then shut(f) end
+    if Social.follow and g then Win.Followers.Release(Social.follow, "social") end
+end
+
+-- Switched back: an open game window closes, is parked, and opens again out of
+-- sight, so this one shows in its place on the same page. It parks under a hidden
+-- frame, so it can't be parked while shown.
+function Social.TakeBack()
+    local g = Social.Game()
+    if not (Social.follow and g and g:IsShown()) or Win.Followers.Parked(Social.follow, "social") then return end
+    local ok, tab = pcall(g.GetSelectedTab, g)
+    HideUIPanel(g)
+    Win.Followers.Tick()
+    if not Win.Followers.Parked(Social.follow, "social") then return end
+    if ok and Social.GAME_TAB[tab] then Social.page = Social.GAME_TAB[tab] end
+    ShowUIPanel(g)
+end
+
+-- The game's window sits under this one (or will when it opens), so the Skins
+-- leave it alone. Shown on its own, picked by the player, it isn't.
+function Social.Covers()
+    if not (Social.follow and Social.Ours()) then return false end
+    local g = Social.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Social.follow, "social"))
+end
+
+local function apply(ours)
+    if ours and not Social.frame then Social.Build(ns.module) end
+    if ours then Social.TakeBack() else Social.GiveAway() end
+end
+
+-- Made before the window is built: it's only built while it's the pick.
+function Social.SwapInit()
+    Social.swap = Win.Swap({ scope = "Social", game = Social.Game, addon = "Blizzard_SocialUI", apply = apply })
+end
+
 -- Follower callback: the game's frame shown or hidden.
 function Social.Changed(_, shown)
     local f = Social.frame
@@ -309,6 +353,7 @@ function Social.Build(mod)
         Win.AddPage(f, id, { Build = P.Build, Fill = P.Fill, pieces = P.Pieces, w = width(id), h = Social.H })
         Win.Build(f, id)
     end
+    if Social.swap then Social.swap.Icon(f) end   -- left of the X: the game's own window instead
     Win.Tabs(f, { { id = "friends", text = FRIENDS or L["Friends"] }, { id = "allies", text = L["Recent allies"] },
         { id = "requests", text = L["Requests"] }, { id = "raid", text = RAID or L["Raid"] } },
         function(id) Social.ShowTab(id, true) end)
@@ -329,6 +374,7 @@ function Social.Build(mod)
         DUI.RegisterEvent(e, function() Social.Refresh("requests") end)
     end
     Social.follow = Win.Follow({ key = "social", frames = { social = Social.Game }, changed = Social.Changed,
+        leave = function() return not Social.Ours() end,
         width = function() return (Social.sizer and Social.sizer.Size(Social.page) or Social.W) * Win.Scale(ns.Setting("scale")) end })
     Social.Apply()
     return f

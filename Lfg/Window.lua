@@ -128,6 +128,55 @@ function Lfg.Close()
     HideUIPanel(g)
 end
 
+-- Which window opens, Daylight UI's or the game's own (Win.Swap): the header's swap
+-- icon, a link on the game's window and the options switch all set "enabled".
+function Lfg.Ours() return Lfg.swap ~= nil and Lfg.swap.Ours() end
+
+-- Switched to the game's window: an open one shows as itself (this one closes and
+-- hands the note box back first), a closed one is simply let go.
+function Lfg.GiveAway()
+    local f, g = Lfg.frame, Lfg.Game()
+    if f and Win.IsOpen(f) then shut(f) end
+    if ns.Listing then ns.Listing.ReturnNote() end
+    if Lfg.follow and g then Win.Followers.Release(Lfg.follow, "lfg") end
+end
+
+-- The game's page shown, as one of this window's.
+local GAME_TABS = { "list", "find", "who" }
+
+-- Switched back: an open game window closes, is parked, and opens again out of
+-- sight, so this one shows in its place on the same page. It parks under a hidden
+-- frame, so it can't be parked while shown.
+function Lfg.TakeBack()
+    local g = Lfg.Game()
+    if not (Lfg.follow and g and g:IsShown()) or Win.Followers.Parked(Lfg.follow, "lfg") then return end
+    local tab = GAME_TABS[g.selectedTab]
+    HideUIPanel(g)
+    Win.Followers.Tick()
+    if not Win.Followers.Parked(Lfg.follow, "lfg") then return end
+    if tab then Lfg.page = tab end
+    ShowUIPanel(g)
+end
+
+-- The game's window sits under this one (or will when it opens), so the Skins
+-- leave it alone. Shown on its own, picked by the player, it isn't.
+function Lfg.Covers()
+    if not (Lfg.follow and Lfg.Ours()) then return false end
+    local g = Lfg.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Lfg.follow, "lfg"))
+end
+
+local function apply(ours)
+    if ours and not Lfg.frame then Lfg.Build(ns.module) end
+    if ours then Lfg.TakeBack() else Lfg.GiveAway() end
+end
+
+-- Made before the window is built: it's only built while it's the pick.
+function Lfg.SwapInit()
+    Lfg.swap = Win.Swap({ scope = "GroupFinder", game = Lfg.Game, addon = "Blizzard_GroupFinder_VanillaStyle",
+        apply = apply })
+end
+
 -- Follower callback: the game's frame shown or hidden.
 function Lfg.Changed(_, shown)
     local f = Lfg.frame
@@ -236,6 +285,7 @@ function Lfg.Build(mod)
     Win.AddPage(f, "who", { Build = ns.Who.Build, Fill = ns.Who.Fill, pieces = ns.Who.Pieces, w = Lfg.W, h = Lfg.H })
     for _, id in ipairs(Lfg.PAGES) do Win.Build(f, id) end
     f.gear = Win.HeaderIcon(f, Lfg.OPTIONS_ICON, OPTIONS or L["Options"], Lfg.OptionsMenu)
+    if Lfg.swap then Lfg.swap.Icon(f) end   -- left of the gear: the game's own window instead
     Win.Tabs(f, { { id = "list", text = L["List yourself"] }, { id = "find", text = L["Find a group"] },
         { id = "who", text = WHO or L["Who"] } }, function(id) Lfg.ShowTab(id, true) end)
     Lfg.PadKeys(f)
@@ -257,6 +307,7 @@ function Lfg.Build(mod)
         if Win.IsOpen(f) then Lfg.ShowTab("find") end
     end)
     Lfg.follow = Win.Follow({ key = "lfg", frames = { lfg = Lfg.Game }, changed = Lfg.Changed,
+        leave = function() return not Lfg.Ours() end,
         width = function() return (Lfg.sizer and Lfg.sizer.Size() or Lfg.W) * Win.Scale(ns.Setting("scale")) end })
     Lfg.Apply()
     return f

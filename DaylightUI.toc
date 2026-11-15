@@ -89,6 +89,7 @@ Windows\Feel.lua
 Windows\Frame.lua
 Windows\Room.lua
 Windows\Follow.lua
+Windows\Swap.lua
 Windows\Parts.lua
 Windows\Keys.lua
 Windows\Cast.lua
@@ -156,6 +157,7 @@ Craft\View.lua
 Craft\Key.lua
 Craft\Track.lua
 Craft\Window.lua
+Craft\Swap.lua
 Craft\Options.lua
 Craft\Module.lua
 Lfg\Defaults.lua

@@ -1,9 +1,18 @@
 -- Registers the character window with the core. It ships inside the core
--- addon, so the "enabled" setting (read at login) is its on/off switch.
+-- addon, so the "enabled" setting is its switch: Daylight UI's window or the
+-- game's own, picked from the options or a button on either window.
 
 local _, DUI = ...
 DUI.Char = DUI.Char or {}   -- the character window's own namespace
 local ns = DUI.Char
+
+-- The two windows trade places (out of combat): the game's comes back as itself,
+-- or goes out of sight again with this one open on its page.
+local function swap(ours)
+    if not ours then return ns.Follow.Release() end
+    if not ns.window then ns.Window.Build(ns.module) end
+    ns.Follow.Reclaim()
+end
 
 DUI:RegisterModule("Character", {
     label = "Character",
@@ -15,9 +24,16 @@ DUI:RegisterModule("Character", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.module = mod
-        if ns.Window and mod.db.enabled ~= false then ns.Window.Build(mod) end
+        ns.Follow.given = mod.db.enabled == false
+        ns.swap = DUI.Win.Swap({
+            scope = "Character",
+            game = ns.Follow.Game,
+            apply = swap,
+        })
+        if not ns.Follow.given then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function(_, path)
+        ns.swap.Apply()
         if ns.window then ns.Window.Apply(path) end
     end,
     OnStyleChanged = function()

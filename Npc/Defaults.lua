@@ -5,7 +5,7 @@ DUI.Npc = DUI.Npc or {}
 local ns = DUI.Npc
 
 ns.DEFAULTS = {
-    enabled = true,      -- replaces the gossip and quest frames; needs a reload
+    enabled = true,      -- Daylight UI's window instead of the game's talk windows; switched from either
     scale = 1,
     windowAlphaOwn = false,   -- off: follows the general window opacity
     windowAlpha = 0.85,

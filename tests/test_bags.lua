@@ -2085,6 +2085,27 @@ T.test("bags: the Shelf's groups on a row wrap to the same number of lines where
     end
 end)
 
+T.test("bags: a group alone on its row fills the bag's width", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local boxes, maxW, gx, gy = packWorld(L, f, { { "quest", 12, 98 }, { "empty", 32, 50 } })
+    boxes[2].breakBefore = true
+    local r = rects(boxes, L.Pack(boxes, maxW, gx, gy))
+    T.truthy(32 > boxes[2].cols, "more empty slots than the bag is wide")
+    T.eq(r[2].w, maxW, "the empty slots run the bag's whole width")
+end)
+
+T.test("bags: a shared row gives its spare width to the groups that wrap, adding no line", function()
+    local ns, f = catLogin()
+    local L = ns.Layout
+    local boxes, maxW, gx, gy = packWorld(L, f, { { "quest", 11, 98 }, { "weapon", 2, 76 } })
+    local r = rects(boxes, L.Pack(boxes, maxW, gx, gy))
+    T.eq(r[1].y, r[2].y, "both on one row")
+    local size = (maxW - (boxes[1].cols - 1) * gx) / boxes[1].cols
+    T.truthy(maxW - (r[2].x + r[2].w) < size + gx, "the row reaches the bag's edge, less than a slot short")
+    T.eq(r[1].lines, 2, "quest items still two lines")
+end)
+
 T.test("bags: the Shelf's packing is the same every time and moves little when a count changes", function()
     local ns, f = catLogin()
     local L = ns.Layout
@@ -7580,4 +7601,29 @@ T.test("bags: a plugin's group takes what its match says, after your own groups"
     stub.RunTimers()
     T.isnil(Cat.Get("Angler:food"))
     T.truthy(groupOf(ns, B.buttons[1][2]) ~= "Angler:food", "back where it was")
+end)
+
+T.test("bags: compare off keeps the worn item away from a bag item's tooltip", function()
+    local ns = login()
+    open(ns)
+    local btn = ns.Bags.buttons[0][1]
+    local hidden, suppressed = 0, nil
+    local saved = _G.GameTooltip
+    local tip = { shoppingTooltips = {}, GetOwner = function() return btn end }
+    _G.GameTooltip = tip
+    _G.GameTooltip_SuppressAutomaticCompareItem = function(t) suppressed = t end
+    _G.GameTooltip_HideShoppingTooltips = function() hidden = hidden + 1 end
+    ns.Items.NoCompare(btn)
+    T.isnil(suppressed, "on: the game's compare setting decides")
+    DaylightUI:Set("Bags", "compareItems", false)
+    stub.RunTimers()
+    ns.Items.NoCompare(btn)
+    T.eq(suppressed, tip, "off: the refresh won't bring it back")
+    T.eq(hidden, 1, "off: the one just shown goes")
+    _G.IsModifiedClick = function(k) return k == "COMPAREITEMS" end
+    ns.Items.NoCompare(btn)
+    T.eq(hidden, 1, "Shift held: it stays")
+    _G.IsModifiedClick = nil
+    _G.GameTooltip_SuppressAutomaticCompareItem, _G.GameTooltip_HideShoppingTooltips = nil, nil
+    _G.GameTooltip = saved
 end)

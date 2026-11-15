@@ -129,11 +129,65 @@ function Mail.Close()
     if g and g:IsShown() then HideUIPanel(g) end
 end
 
+-- Which mailbox opens, Daylight UI's or the game's own (Win.Swap): the header's
+-- swap icon, a link on the game's window, the options switch.
+
+-- Picked the game's: an open mailbox is handed over as it is (this one closes as
+-- the follower sees it go), a closed one simply let go so it opens as itself.
+function Mail.GiveAway()
+    local def = Mail.follow
+    if not def then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Mail.GiveAway, "mail:giveaway") end
+    Win.Followers.Release(def, "mail")
+    Win.Followers.Release(def, "letter")
+end
+
+-- Picked this one: an open game mailbox goes under the veil again and the
+-- follower's next look opens this window in its place. An open letter closes,
+-- since letters show on the inbox page here.
+function Mail.TakeBack()
+    local def = Mail.follow
+    if not (def and DUI.mailOwnWindow) then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Mail.TakeBack, "mail:takeback") end
+    local l = Mail.Letter()
+    if l and l:IsShown() and not Win.Followers.Parked(def, "letter") then HideUIPanel(l) end
+    local g = Mail.Game()
+    if g and g:IsShown() and not Win.Followers.Parked(def, "mail") then Win.Followers.Reclaim(def, "mail") end
+end
+
+-- The game's frame (MailFrame, or "letter" for OpenMailFrame) sits under this
+-- window, or will when it opens, so the Skins leave it alone.
+function Mail.Covers(kind)
+    if not (Mail.follow and DUI.mailOwnWindow) then return false end
+    kind = kind == "letter" and "letter" or "mail"
+    local g = kind == "letter" and Mail.Letter() or Mail.Game()
+    return not (g and g:IsShown() and not Win.Followers.Parked(Mail.follow, kind))
+end
+
+function Mail.Pick(ours)
+    DUI.mailOwnWindow = ours
+    if ours and not Mail.frame then Mail.Build(ns.module) end
+    if not Mail.follow then return end
+    if ours then Mail.TakeBack() else Mail.GiveAway() end
+end
+
+-- Made before the window, which is only built while it's the pick.
+function Mail.InitSwap()
+    if Mail.swap then return end
+    Mail.swap = Win.Swap({
+        scope = "Mailbox",
+        game = Mail.Game,
+        blocked = function() return DUI.mailMogul == true end,
+        apply = Mail.Pick,
+    })
+end
+
 -- Follower callback: the game's frame shown or hidden. Its letter frame stays parked,
 -- since letters show on the inbox page here.
 function Mail.Changed(kind, shown)
     if kind ~= "mail" then return end
     local f = Mail.frame
+    if shown and not DUI.mailOwnWindow then return Mail.GiveAway() end
     if shown then return Mail.Open() end
     if Win.IsOpen(f) then shut(f) end
 end
@@ -180,6 +234,9 @@ function Mail.Build(mod)
     Win.AddPage(f, "send", page("send", Mail.SEND_W))
     Win.AddPage(f, "ledger", page("ledger", Mail.W))
     for _, id in ipairs(Mail.PAGES) do Win.Build(f, id) end
+    -- Left of the X, before the tabs line up from it: the game's own mailbox instead,
+    -- for addons that build on it.
+    if Mail.swap then Mail.swap.Icon(f) end
     Win.Tabs(f, { { id = "inbox", text = INBOX or L["Inbox"] }, { id = "send", text = L["Send"] },
         { id = "ledger", text = L["Ledger"] } }, function(id) Mail.ShowTab(id) end)
     -- Controller, matching the game's mail buttons (MailFrame.lua footers): X opens all,
@@ -211,6 +268,7 @@ function Mail.Build(mod)
         end)
     end)
     Mail.follow = Win.Follow({ key = "mail", frames = { mail = Mail.Game, letter = Mail.Letter }, veil = { mail = true }, changed = Mail.Changed,
+        leave = function() return not DUI.mailOwnWindow end,
         width = function() return (Mail.sizer and Mail.sizer.Size(Mail.page) or Mail.W) * Win.Scale(ns.Setting("scale")) end })
     Mail.Apply()
     return f
