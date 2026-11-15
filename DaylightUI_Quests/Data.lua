@@ -246,34 +246,38 @@ local function mapKind(name, fallback)
 end
 
 -- The player's map and the ones above it, up to the continent: every name on the
--- way, the zone's map id and the continent's.
+-- way and the zone's map id. Past the continent it keeps going to the world map,
+-- so a zone on another continent is known as a zone too.
 local function mapChain()
     local M = C_Map
-    local names, zoneMap, continent = {}, nil, nil
+    local names, zoneMap, top = {}, nil, nil
     local id = call(api(M, "GetBestMapForUnit"), "player")
-    for _ = 1, 8 do
+    local continent = false
+    for _ = 1, 10 do
         local info = type(id) == "number" and call(api(M, "GetMapInfo"), id)
         if type(info) ~= "table" then break end
-        if type(info.name) == "string" then names[info.name] = true end
+        if not continent and type(info.name) == "string" then names[info.name] = true end
         if info.mapType == mapKind("Zone", 3) and not zoneMap then zoneMap = id end
-        if info.mapType == mapKind("Continent", 2) then continent = id; break end
+        if info.mapType == mapKind("Continent", 2) then continent = true end
+        if continent then top = id end
+        if info.mapType == mapKind("World", 1) or info.mapType == mapKind("Cosmic", 0) then break end
         id = info.parentMapID
     end
-    return names, zoneMap, continent
+    return names, zoneMap, top
 end
 
--- Names of every map on a continent (zones, cities, dungeons), kept per continent.
+-- Names of every map under a map (zones, cities, dungeons), kept per map.
 local mapNames = {}
-local function continentMaps(continent)
-    if not continent then return nil end
-    if mapNames[continent] then return mapNames[continent] end
-    local list = call(api(C_Map, "GetMapChildrenInfo"), continent, nil, true)
+local function mapsUnder(top)
+    if not top then return nil end
+    if mapNames[top] then return mapNames[top] end
+    local list = call(api(C_Map, "GetMapChildrenInfo"), top, nil, true)
     if type(list) ~= "table" or #list == 0 then return nil end
     local set = {}
     for _, m in ipairs(list) do
         if type(m) == "table" and type(m.name) == "string" then set[m.name] = true end
     end
-    mapNames[continent] = set
+    mapNames[top] = set
     return set
 end
 
@@ -281,17 +285,18 @@ end
 -- files a starting area's quests under its own name (Northshire Valley) while the
 -- zone text says Elwynn Forest, and the subzone text names it only in the open
 -- valley. So a header also counts when it's the subzone, a map the player is on,
--- or a part of the zone with no map of its own whose quests show on the zone's map.
+-- or a part of the zone that's no map's name anywhere and whose quests show on the
+-- zone's map.
 -- groups = { { name, quests = { { id } } } }. main = Data.Here's answer.
 function Data.HereSet(groups, main)
     local here = {}
     if type(main) == "string" then here[main] = true end
-    local names, zoneMap, continent = mapChain()
+    local names, zoneMap, top = mapChain()
     for _, fn in ipairs({ "GetRealZoneText", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText" }) do
         local n = call(_G[fn])
         if type(n) == "string" and n ~= "" then names[n] = true end
     end
-    local known, onMap = continentMaps(continent), nil
+    local known, onMap = mapsUnder(top), nil
     for _, g in ipairs(groups) do
         if names[g.name] then
             here[g.name] = true

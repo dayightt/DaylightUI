@@ -865,6 +865,37 @@ T.test("quests tracker: This zone counts a part of the zone whose quests are on 
     unElwynn()
 end)
 
+-- A zone on another continent is still a zone of its own: in the Riverglades
+-- (Eastern Kingdoms) a tracked Desolace quest showed under "This zone".
+T.test("quests tracker: This zone leaves out a zone on another continent", function()
+    local maps = { [2548] = { mapID = 2548, name = "Riverglades", mapType = 3, parentMapID = 1415 },
+                   [1415] = { mapID = 1415, name = "Eastern Kingdoms", mapType = 2, parentMapID = 947 },
+                   [1443] = { mapID = 1443, name = "Desolace", mapType = 3, parentMapID = 1414 },
+                   [1414] = { mapID = 1414, name = "Kalimdor", mapType = 2, parentMapID = 947 },
+                   [947] = { mapID = 947, name = "Azeroth", mapType = 1, parentMapID = 946 } }
+    local Tr, ns, settle = tracker({ zone = "Riverglades", quests = {
+            QW.quest(5, "Down the Scarlet Path", { zone = "Desolace" }),
+            QW.quest(6, "A Riverglades Errand", { zone = "Riverglades" }) } },
+        { before = function()
+            Enum.UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 }
+            C_Map.GetBestMapForUnit = function() return 2548 end
+            C_Map.GetMapInfo = function(id) return maps[id] end
+            C_Map.GetMapChildrenInfo = function(id)
+                if id == 1415 then return { maps[2548] } end
+                if id == 1414 then return { maps[1443] } end
+                if id == 947 then return { maps[1415], maps[2548], maps[1414], maps[1443] } end
+            end
+            C_QuestLog.GetQuestsOnMap = function(id)
+                if id == 2548 then return { { questID = 5, x = 0.5, y = 0.5 }, { questID = 6, x = 0.4, y = 0.4 } } end
+                return {}
+            end
+        end })
+    DaylightUI:Set("Quests", "filter", "zone")
+    settle()
+    T.truthy(Tr.frames["quest:6"])
+    T.isnil(Tr.frames["quest:5"], "Desolace is a zone in Kalimdor, not a part of the Riverglades")
+end)
+
 T.test("quests data: every header that counts as here comes first", function()
     local where = { sub = "Northshire Abbey", spots = true }
     local _, ns = load({ zone = "Elwynn Forest", quests = { STEW, QW.quest(2, "B", { zone = "Elwynn Forest" }), NORTHSHIRE } },
