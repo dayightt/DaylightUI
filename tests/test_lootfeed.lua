@@ -271,6 +271,11 @@ T.test("loot feed: a skill-up gets its own ribbon, more of them move it on", fun
     T.eq(name, "Tailoring") T.eq(rank, 152)
     T.isnil(F.ParseSkill("You receive loot: " .. SILK .. "."))
     T.isnil(F.ParseSkill(stub.Secret("Your skill in Tailoring has increased to 152.")), "a secret line is skipped")
+    -- Positional holes ("%1$s") once left a bare "%1" in the pattern: "invalid capture index".
+    local p = F.Pattern("Deine Fertigkeit '%1$s' hat sich auf %2$d erhöht.")
+    local ok, a, b = pcall(string.match, "Deine Fertigkeit 'Kräuterkunde' hat sich auf 70 erhöht.", "^" .. p .. "$")
+    T.truthy(ok, "a positional format makes a working pattern")
+    T.eq(a, "Kräuterkunde") T.eq(b, "70")
     skill("Your skill in Tailoring has increased to 152.")
     skill("Your skill in Tailoring has increased to 153.")
     T.truthy(live(F)[1].count:GetText():find("^152"), "the number counts up from the old rank")

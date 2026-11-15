@@ -110,7 +110,10 @@ end
 -- its holes as captures; positional holes ("%1$s") too.
 function Feed.Pattern(fmt)
     if type(fmt) ~= "string" then return nil end
-    local p = fmt:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
+    -- Drop the positions first: escaping the "$" below would leave a bare "%1",
+    -- which Lua reads as a back-reference.
+    local p = fmt:gsub("%%%d+%$", "%%")
+    p = p:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
     -- A decimal (the reputation bonus lines' "%.1f", its dot escaped above).
     p = p:gsub("%%%d?%$?%%%.%d+f", "([%%d%%.,]+)"):gsub("%%%d?%$?f", "([%%d%%.,]+)")
     p = p:gsub("%%%d?%$?s", "(.+)"):gsub("%%%d?%$?d", "(%%d+)")
