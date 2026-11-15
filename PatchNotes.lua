@@ -22,12 +22,15 @@ DUI.PatchNotes = {
             { "Quests", "With GatherMate2, the quest arrow can point you to a herb or ore node close by, then back to your quest (Quest Tracker > Navigation)" },
             { "Window skins", "Drag the game's windows anywhere by their title bar and they stay there: collections, achievements, the auction house, the guild bank, the calendar, macros and more" },
             { "Buffs", "The buff and debuff bars can use your aura lists to hide spells or show only some, and the debuff bar can show only what you can dispel, only boss debuffs, or leave out long ones (Buffs > Filter)" },
+            { "Windows", "The glow round a window's icon as it opens is now a soft round halo with embers, shows on the guild window too, and can be turned off (General > Appearance)" },
         },
         changed = {
             { "Unit frames", "The Personal Display page has a live preview at the top, like the other frame pages, so you can see your changes" },
             { "Bags", "The bags and bank have a fresh, calmer look: groups sit in tidy rows you can fold and color, and items glide into place when you loot, sort or sell" },
             { "Window skins", "The flight map's title and close button line up like every other window, with even room round the map" },
             { "Window skins", "The New Recipe Learned pop-up has the Daylight UI look" },
+            { "Window skins", "The hunter's stable has the Daylight UI look, with the pet's name on its own line and its level, family and loyalty under it" },
+            { "Window skins", "The loot window's title and close button line up like every other window, with even room round the items and a scroll bar only when the list is long" },
         },
         fixed = {
             { "Fonts", "On a Russian client, picking a font without Russian letters no longer leaves text blank: a close-looking font that has them is used instead" },
@@ -36,6 +39,7 @@ DUI.PatchNotes = {
             { "Nameplates", "Long names stay on one line instead of breaking onto a second line over the bar" },
             { "Action bars", "No more \"the game blocked MultiBar...\" messages in chat during a fight, on any bar" },
             { "Chat", "Copy Character Name on a name in chat works again instead of being blocked by the game" },
+            { "Leader tools", "Ready check and Role check no longer get cut off in other languages: they're icons now, with their names when you point at them" },
             { "Windows", "Item icons in the NPC window's rewards and other lists no longer lose the bottom of their colored outline at smaller interface scales" },
             { "Windows", "At a profession trainer, each recipe shows the level its item is for and the skill it needs again" },
             { "Setup", "Moved frames and changed settings no longer go back to the default every time you log out when you skipped the setup guide, and the guide stops popping up once you have" },
