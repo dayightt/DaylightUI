@@ -377,6 +377,7 @@ function TM.Layout()
     -- over it instead.
     local framed = cfg.border ~= false and not below
     s.opts.bgAlpha = below and 0 or ns.Panel.MeterBack(ns.module and ns.module.db or {}, cfg)
+    s.opts.panel = true
     s.opts.noBorder = not framed
     s.opts.shadowAlpha = not framed and 0 or nil
     s.opts.noBevel = not framed

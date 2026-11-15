@@ -233,7 +233,10 @@ function BarMixin:ApplyBackground()
     bg:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", BACKGROUND_PAD, -BACKGROUND_PAD)
     bg:SetShown(self:Setting("showBackground") and true or false)
     local s = Style.GetShell(bg)
-    if s then s.opts.bgAlpha = DUI.Style.BackAlpha(self:Setting("backgroundAlphaOwn"), self:Setting("backgroundAlpha")) end
+    if s then
+        s.opts.bgAlpha = DUI.Style.BackAlpha(self:Setting("backgroundAlphaOwn"), self:Setting("backgroundAlpha"))
+        s.opts.panel = true
+    end
     Style.LayoutShell(s)
 end
 

@@ -113,6 +113,36 @@ T.test("window background opacity follows the setting, other shells keep theirs"
     T.near(plain.bg.__color[4], DUI.Style.BACKGROUND_ALPHA)
 end)
 
+T.test("window background color: windows and panels follow it, other shells keep theirs", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local win = S.Shell(CreateFrame("Frame", nil, UIParent), { window = true })
+    local panel = S.Shell(CreateFrame("Frame", nil, UIParent), { bgAlpha = 0.5, panel = true })
+    local plain = S.Shell(CreateFrame("Frame", nil, UIParent))
+    T.near(win.bg.__color[1], S.BACKGROUND[1])
+
+    DUI:Set("general", "windowTintColor", { 0.2, 0.1, 0.05 })
+    DUI:Set("general", "windowTint", "custom")
+    stub.RunTimers()
+    T.near(win.bg.__color[1], 0.2)
+    T.near(panel.bg.__color[3], 0.05)
+    T.near(panel.bg.__color[4], 0.5)   -- the panel keeps its own opacity
+    T.near(plain.bg.__color[1], S.BACKGROUND[1])
+
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE" }
+    DUI:Set("general", "windowTint", "class")
+    stub.RunTimers()
+    local r, g, b = S.RawClassColor(select(2, UnitClass("player")))
+    T.truthy(r, "the fake player has a class")
+    local k = S.CLASS_BACK_MIX
+    T.near(win.bg.__color[1], S.BACKGROUND[1] + (r * 0.5 - S.BACKGROUND[1]) * k)
+    T.near(plain.bg.__color[2], S.BACKGROUND[2])
+
+    DUI:Set("general", "windowTint", "daylight")
+    stub.RunTimers()
+    T.near(win.bg.__color[1], S.BACKGROUND[1])
+end)
+
 T.test("a window can have its own opacity, and General's Apply brings every one back", function()
     local DUI = stub.Load()
     local Book = DUI.Style.Shell(CreateFrame("Frame", nil, UIParent), { window = "Book" })

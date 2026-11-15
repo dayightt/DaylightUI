@@ -86,7 +86,10 @@ local function sampleBackground(f, s, room)
     bg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", pad, -pad)
     bg:SetShown(s.showBackground and true or false)
     local shell = DUI.Style.GetShell(bg)
-    if shell then shell.opts.bgAlpha = DUI.Style.BackAlpha(s.backgroundAlphaOwn, s.backgroundAlpha) end
+    if shell then
+        shell.opts.bgAlpha = DUI.Style.BackAlpha(s.backgroundAlphaOwn, s.backgroundAlpha)
+        shell.opts.panel = true
+    end
     DUI.Style.LayoutShell(shell)
 end
 

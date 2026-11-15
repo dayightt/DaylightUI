@@ -1356,7 +1356,7 @@ function Box.SideLayout()
     panel:SetAllPoints(side.body)
     local s = Style.GetShell(panel)
     if s then
-        s.opts.bgAlpha = C.SideBack()
+        s.opts.bgAlpha, s.opts.panel = C.SideBack(), true
         Style.LayoutShell(s)
     end
     area:ClearAllPoints()

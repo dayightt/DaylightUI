@@ -247,9 +247,9 @@ end
 
 local function lookOf(back)
     local b = Chat.BorderStyle()
-    if b == "daylight" then return { bgAlpha = back } end
-    if b == "none" then return { flat = true, borderPx = 1, noBorder = true, bgAlpha = back } end
-    return { flat = true, borderPx = cfg and cfg.borderSize or 1, bgAlpha = back }
+    if b == "daylight" then return { bgAlpha = back, panel = true } end
+    if b == "none" then return { flat = true, borderPx = 1, noBorder = true, bgAlpha = back, panel = true } end
+    return { flat = true, borderPx = cfg and cfg.borderSize or 1, bgAlpha = back, panel = true }
 end
 
 -- A chat panel's resting border color, or nil for the shell's own (Default).
