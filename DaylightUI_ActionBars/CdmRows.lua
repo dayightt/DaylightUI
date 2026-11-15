@@ -304,12 +304,16 @@ local function claim(item)
     -- only (Rend, Thunder Clap). Daylight UI draws it below and the game's stays hidden.
     local cooldown = false
     local Own = ns.CdmOwn
+    -- An aura the game's item can't see (a buff on your pet, a trap's debuff past
+    -- its first rank, a summoned hawk): Daylight UI's holder shows it instead.
+    local blind = block and ns.CdmAuras ~= nil and ns.CdmAuras.GameBlind(id)
     if block and Own then
         local p = set.pieces[id]
         if AURA_VIEWERS[name] then
             local t = Own.Track(id, p, knownNow())
             -- The recast glow needs the aura's end, which only Daylight UI's holder keeps.
             cooldown = t == "cooldown" or t == "both" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
+                or (t ~= nil and blind)
         else
             -- Left unset it stays the game's icon (Rend, Moonfire too: shown all
             -- the time, with its aura while up).
@@ -325,7 +329,7 @@ local function claim(item)
             cooldown = t ~= nil and (pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
                 or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
                 or Fx.Get(p, "buffEndSound") ~= "none" or Fx.Get(p, "clipGlow") == true
-                or (t == "both" and (not follows or Own.Stacks(id))))
+                or (t == "both" and (not follows or Own.Stacks(id) or blind)))
         end
     end
     if block and ns.CdmAuras and ns.CdmAuras.SelfDebuff(id) then
@@ -342,8 +346,9 @@ local function claim(item)
         item:SetAlpha(0)
         item:EnableMouse(false)
         -- The game's aura item, though hidden, still shows only while the aura is
-        -- up, in a fight too. It's the one plain signal when the aura ends early.
-        if AURA_VIEWERS[name] then
+        -- up, in a fight too. It's the one plain signal when the aura ends early,
+        -- unless it can't see the aura at all.
+        if AURA_VIEWERS[name] and not blind then
             hook(item)
             auraItems[id] = item
         end

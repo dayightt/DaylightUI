@@ -86,7 +86,28 @@ Custom.MORE_RANKS = { [20154] = { 21084 } }
 -- and mana cost increase; the casts themselves only deal damage). A passive from
 -- the list is offered only once its buff is named here, as the passive itself
 -- never shows as a buff. A rogue's Poised buff is 1328826.
-Custom.AURA_IDS = { [400574] = { 400573 }, [1328825] = { 1328826 } }
+-- A hunter's trap is an object on the ground; the debuff on whatever walks into it
+-- is another spell: Freezing Trap's freeze, Immolation and Explosive Trap's burn,
+-- Frost Trap's slow.
+Custom.AURA_IDS = {
+    [400574] = { 400573 }, [1328825] = { 1328826 },
+    [1499] = { 3355, 14308, 14309, 1294353 },
+    [13795] = { 13797, 14298, 14299, 14300, 14301 },
+    [13813] = { 13812, 14314, 14315 },
+    [13809] = { 13810 },
+}
+-- Traps, by rank 1 id. Laying one down puts nothing up yet, so a cast never says
+-- the debuff is up; only the client's button does, once a mob walks in.
+Custom.TRAPS = { [1499] = true, [13795] = true, [13813] = true, [13809] = true }
+-- Spells whose buff lands on your pet (the game's data targets the pet): Bestial
+-- Wrath, Mend Pet, Intimidation, Eyes of the Beast, Health Funnel, and a pet's own
+-- Dash and Dive. Watched on your pet as well as on you.
+Custom.ON_PET = { [19574] = true, [136] = true, [19577] = true, [1002] = true, [755] = true,
+                  [23099] = true, [23145] = true }
+-- Spells that summon a helper for a while instead of putting up an aura, by rank 1
+-- id: Summon Hawk's hawk stays 18 s, two at most (the game's data). Timed from your
+-- own casts, the newest hawk's time shown with how many are out.
+Custom.SUMMONS = { [1293241] = { lasts = 18, most = 2 } }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -97,6 +118,14 @@ function Custom.SelfDebuffFacts(key)
     local f = Custom.Is(key) and Custom.Family(key)
     local first = f and f.ids and f.ids[1]
     local t = first and Custom.SELF_DEBUFF[first]
+    return type(t) == "table" and t or nil
+end
+
+-- How long a SUMMONS piece's helper stays and how many can be out, or nil.
+function Custom.SummonFacts(key)
+    local f = Custom.Is(key) and Custom.Family(key)
+    local first = f and f.ids and f.ids[1]
+    local t = first and Custom.SUMMONS[first]
     return type(t) == "table" and t or nil
 end
 
@@ -148,7 +177,8 @@ local function build()
         if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
-                     harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil }
+                     harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
+                     trap = Custom.TRAPS[f[1]], onPet = Custom.ON_PET[f[1]] }
         order[#order + 1] = k
     end
     local _, class = UnitClass("player")
@@ -397,6 +427,18 @@ end
 function Custom.SelfDebuff(id)
     local f = Custom.Family(id)
     return f ~= nil and f.harm == true
+end
+
+-- A trap: its debuff lands later, on whatever walks in.
+function Custom.Trap(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.trap == true
+end
+
+-- Its buff lands on your pet (Bestial Wrath).
+function Custom.OnPet(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.onPet == true
 end
 
 -- Name and icon. The seal piece uses a generic name because which seal is up

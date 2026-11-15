@@ -115,6 +115,32 @@ function A.SelfDebuffFacts(id)
     return own ~= nil and ns.CdmCustom.SelfDebuffFacts and ns.CdmCustom.SelfDebuffFacts(own) or nil
 end
 
+-- A trap: its cast puts nothing up, the debuff comes when a mob walks in.
+function A.Trap(id)
+    local own = ownKey(id)
+    return own ~= nil and ns.CdmCustom.Trap(own) or false
+end
+
+-- Its buff lands on your pet (Bestial Wrath).
+function A.OnPet(id)
+    local own = ownKey(id)
+    return own ~= nil and ns.CdmCustom.OnPet(own) or false
+end
+
+-- A helper summoned for a while (Summon Hawk): { lasts, most }, or nil.
+function A.SummonFacts(id)
+    local own = ownKey(id)
+    return own ~= nil and ns.CdmCustom.SummonFacts and ns.CdmCustom.SummonFacts(own) or nil
+end
+
+-- The game's own item can't show this aura: it looks on you and your target only,
+-- by the ids its data links (a trap's first rank, never your pet, never a summon).
+-- CdmRows hands such a spell to Daylight UI's holder whenever its aura is wanted.
+function A.GameBlind(id)
+    local own, C = ownKey(id), ns.CdmCustom
+    return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil)
+end
+
 -- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap).
 -- Same test as CooldownViewerItemDataMixin:CanUseAuraForDisplay: hasAura set
 -- and the HideAura flag clear.
@@ -304,6 +330,15 @@ local function setup(h, id)
         if k then k.shield = true; h.shieldUnit = k.unit end
         return
     end
+    h.trap, h.onPet = A.Trap(id) or nil, A.OnPet(id) or nil
+    h.summon, h.summons = A.SummonFacts(id), nil
+    if h.summon then
+        -- A summoned helper is no aura at all: drawn by the addon, timed from your casts.
+        makeFace(h)
+        A.IsUp(h)
+        paintFace(h)
+        return
+    end
     if h.selfDebuff then
         -- The client's container shows nothing for a debuff on yourself, whether
         -- matched by spell id (refused on a unit you can assist) or by caster and
@@ -316,6 +351,7 @@ local function setup(h, id)
         return
     end
     build(h, "player", "HELPFUL", ids)
+    if h.onPet then build(h, "pet", "HELPFUL", ids) end
     -- A spell added by ID can also be a debuff on you (Weakened Soul after a
     -- self-shield), so watch your debuffs as well as the target's.
     local added = custom and C.IsAdded(id)
@@ -883,6 +919,20 @@ function A.IsUp(h)
         h.up = A.PetOut()
         return h.up
     end
+    if h.summon then
+        -- Each helper leaves when its own time runs out.
+        local now, left, newest = GetTime(), {}, nil
+        for _, e in ipairs(h.summons or {}) do
+            if e > now then
+                left[#left + 1] = e
+                if not newest or e > newest then newest = e end
+            end
+        end
+        h.summons = left
+        h.up, h.endsAt = #left > 0, newest
+        h.selfStacks = #left > 0 and #left or nil
+        return h.up
+    end
     if found(h) then
         h.up = true
         h.castAt = nil
@@ -941,7 +991,7 @@ A.CAST_LANDS = 3
 function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or "player"
+    h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a
     -- dungeon fight.
@@ -986,14 +1036,49 @@ local function selfCast(h, sid)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
+-- A summon (Summon Hawk): each cast brings one more helper for its own time, the
+-- oldest leaving once there are as many as the game allows. Your casts stay plain
+-- in a fight, so this works anywhere.
+local function summonCast(h)
+    local facts, now = h.summon, GetTime()
+    local lasts = facts.lasts or 0
+    if lasts <= 0 then return end
+    local list = {}
+    for _, e in ipairs(h.summons or {}) do if e > now then list[#list + 1] = e end end
+    table.sort(list)
+    list[#list + 1] = now + lasts
+    while facts.most and #list > facts.most do table.remove(list, 1) end
+    h.summons, h.auraLasts = list, lasts
+    -- Each helper leaving changes the count, so look again when this one goes.
+    local ends = now + lasts
+    local function gone()
+        if not h.summons then return end
+        if GetTime() < ends then
+            C_Timer.After(ends - GetTime() + 0.05, gone)
+            return
+        end
+        local was, count = h.up, h.selfStacks
+        A.IsUp(h)
+        paintFace(h)
+        if (h.up ~= was or h.selfStacks ~= count) and h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
+    end
+    C_Timer.After(lasts + 0.05, gone)
+    A.IsUp(h)
+    paintFace(h)
+    if ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
 local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
     if type(sid) ~= "number" or isSecret(sid) then return end
     local plainNow = readable()
     each(function(h)
-        if type(h.ids) == "table" and h.ids[sid] then
-            if h.face then
+        -- Laying a trap down puts nothing up: only the client's button says the debuff landed.
+        if type(h.ids) == "table" and h.ids[sid] and not h.trap then
+            if h.summon then
+                summonCast(h)
+            elseif h.face then
                 selfCast(h, sid)
             elseif h.wantsUp and not plainNow then
                 A.Cast(h, sid)
@@ -1009,7 +1094,7 @@ end)
 DUI.RegisterEvent("PLAYER_DEAD", function()
     each(function(h)
         if h.face and h.up == true then
-            h.up, h.endsAt, h.selfStacks = false, nil, nil
+            h.up, h.endsAt, h.selfStacks, h.summons = false, nil, nil, nil
             paintFace(h)
             if h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
         end
@@ -1254,14 +1339,27 @@ function A.Rebuild()
 end
 
 -- The pet came, went or died: pet pieces show it at once.
-function A.PetChanged()
+function A.PetChanged(newPet)
     local moved = false
+    local out = A.PetOut()
     each(function(h)
         if h.petWatch then
             local was = h.up
             A.IsUp(h)
             paintFace(h)
             if h.up ~= was then moved = true end
+        end
+        -- Same unit token, maybe a new pet: the container reads it again when told.
+        for _, k in ipairs(newPet and h.containers or {}) do
+            if k.unit == "pet" then
+                pcall(k.c.SetUnit, k.c, "pet")
+                pcall(k.c.UpdateAllAuras, k.c)
+            end
+        end
+        -- A buff on a pet that's gone or dead is gone with it.
+        if not out and h.wantsUp and h.up == true and h.upUnit == "pet" then
+            h.up, h.endsAt = false, nil
+            moved = true
         end
     end)
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
@@ -1271,7 +1369,12 @@ local pets = CreateFrame("Frame")
 pets:RegisterUnitEvent("UNIT_PET", "player")
 pets:RegisterUnitEvent("UNIT_FLAGS", "pet")
 pets:RegisterUnitEvent("UNIT_HEALTH", "pet")
-pets:SetScript("OnEvent", function() DUI.SafeCall(A.PetChanged) end)
+-- Buffs on your pet (Bestial Wrath): holders that watch it look again.
+pets:RegisterUnitEvent("UNIT_AURA", "pet")
+pets:SetScript("OnEvent", function(_, event)
+    if event == "UNIT_AURA" then A.AuraChangedSoon() return end
+    DUI.SafeCall(A.PetChanged, event == "UNIT_PET")
+end)
 
 DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() A.Retarget(); A.TargetChanged(); A.AuraChanged() end)
 -- Out of combat, lookups are readable again.

@@ -2969,6 +2969,68 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's buff icon of Bestial Wrath looks on you and your target only, so it
+-- never lights up for the buff on your pet. Ours draws it, as an icon and as a bar.
+T.test("cdm rows: the game's buff icon of a buff on your pet gives way to ours, icon and bar", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "HUNTER" }, pet = { name = "Fang" } })
+    AB.CdmSpells.HUNTER = { { 19574, cd = true, aura = true } }
+    stub.knownSpells = { [19574] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 19574 or 100 + id, selfAura = true } end
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    icons[1]:Hide()   -- the game's item never finds it
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(31), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
+        T.eq(icons[1]:GetAlpha(), 0, shape .. ": the game's item out of sight")
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(31) or AB.CdmAuras.Frame(31)
+        local pet = false
+        for _, k in ipairs(h and h.containers or {}) do if k.unit == "pet" then pet = true end end
+        T.truthy(pet, shape .. ": watched on your pet")
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Summon Hawk's hawk is no aura the game's item could find. Ours draws it from
+-- your casts, as an icon and as a bar.
+T.test("cdm rows: Summon Hawk's hawk is drawn by ours from your casts, icon and bar", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "HUNTER" } })
+    AB.CdmSpells.HUNTER = { { 1293241, 1293525, cd = true, aura = true } }
+    stub.knownSpells = { [1293241] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 1293241 or 100 + id, selfAura = true } end
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    icons[1]:Hide()
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(31), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
+        T.eq(icons[1]:GetAlpha(), 0, shape .. ": the game's item out of sight")
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(31) or AB.CdmAuras.Frame(31)
+        T.truthy(h and h.face, shape .. ": our own face")
+        T.eq(h.face.alphaTo, 0, shape .. ": no hawk yet")
+        stub.combat = true
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "h" .. shape, 1293241); stub.RunTimers()
+        T.eq(h.face.alphaTo, 1, shape .. ": a hawk")
+        T.truthy(h.face.shownEnd, shape .. ": with its time")
+        stub.Advance(18.1); stub.RunTimers()
+        T.eq(h.face.alphaTo, 0, shape .. ": gone after 18 s")
+        stub.combat = false
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The same stack as a bar: drawn by ours too, with its time running down the bar.
 T.test("cdm rows: a spell whose debuff lands on you as a bar is drawn by ours", function()
     local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
@@ -6184,6 +6246,109 @@ T.test("cdm custom: a cast just after the stack's 18 s adds to it, as the game d
     T.truthy(math.abs(h.endsAt - GetTime() - 18) < 0.01, "with a fresh 18 s")
     stub.combat = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A trap is an object on the ground. The freeze or burn on whatever walks in is
+-- another spell (Freezing Trap's 3355, 14308, 14309), and laying the trap down puts
+-- nothing up yet, so a cast in a fight must not say it's up.
+T.test("cdm custom: a trap watches its debuff's own ids, and laying it down isn't the debuff", function()
+    local AB, C = customWorld("HUNTER")
+    AB.CdmSpells.HUNTER = { { 1499, 14310, 14311, cd = true, aura = true }, { 3044, cd = true, aura = true } }
+    stub.knownSpells = { [14311] = true, [3044] = true }
+    C.Forget()
+    T.truthy(C.Trap("s1499")); T.falsy(C.Trap("s3044"))
+    local ranks = C.Ranks("s1499")
+    for _, sid in ipairs({ 3355, 14308, 14309 }) do T.truthy(ranks[sid], "the freeze of each rank: " .. sid) end
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.size = 30
+    AB.CdmAuras.Setup(h, "s1499")
+    AB.CdmAuras.Track(h)
+    T.eq(h.containers[2].unit, "target"); T.eq(h.containers[2].c.__groups.a.filter, "HARMFUL|PLAYER")
+    T.truthy(h.containers[2].c.__groups.a.opts.candidateFilters.includeSpellIDs[14309], "the top rank's freeze on your target")
+    h.wantsUp = true
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "t1", 14311); stub.RunTimers()
+    T.falsy(h.up, "the trap is down, nothing frozen yet")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Bestial Wrath's buff is on your pet, where nothing looked: the game's own item
+-- only scans you and your target. Watched on the pet as well as on you.
+T.test("cdm custom: a buff that lands on your pet is watched on your pet", function()
+    local AB, C = customWorld("HUNTER")
+    stub.SetUnits({ player = { class = "HUNTER" }, pet = { name = "Fang" } })
+    AB.CdmSpells.HUNTER = { { 19574, cd = true, aura = true }, { 3045, cd = true, aura = true } }
+    stub.knownSpells = { [19574] = true, [3045] = true }
+    C.Forget()
+    T.truthy(C.OnPet("s19574")); T.falsy(C.OnPet("s3045"))
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.size = 30
+    AB.CdmAuras.Setup(h, "s19574")
+    AB.CdmAuras.Track(h)
+    local seen = {}
+    for _, k in ipairs(h.containers) do seen[k.unit .. " " .. k.c.__groups.a.filter] = true end
+    T.truthy(seen["player HELPFUL"], "you")
+    T.truthy(seen["pet HELPFUL"], "your pet")
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.size = 30
+    AB.CdmAuras.Setup(f, "s3045")
+    for _, k in ipairs(f.containers) do T.truthy(k.unit ~= "pet", "Rapid Fire stays on you") end
+    -- Read on the pet where auras are plain.
+    h.wantsUp = true
+    stub.auras.pet = { HELPFUL = { { spellId = 19574, duration = 18, expirationTime = GetTime() + 18,
+        sourceUnit = "player", isFromPlayerOrPlayerPet = true } } }
+    stub.FireEvent("UNIT_AURA", "pet", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(h.up, true, "up on the pet")
+    T.eq(h.upUnit, "pet")
+    stub.auras.pet = {}
+    -- In a fight your cast says it's up; your pet dying takes it down.
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "bw", 19574); stub.RunTimers()
+    T.eq(h.up, true, "your cast: up")
+    stub.units.pet.dead = true
+    stub.FireEvent("UNIT_HEALTH", "pet"); stub.RunTimers()
+    T.eq(h.up, false, "your pet died, and the buff with it")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Summon Hawk calls a hawk for 18 s, two at most (the game's data), and puts no
+-- aura up. Each cast is one more hawk; the newest one's time shows, with how many are out.
+T.test("cdm custom: Summon Hawk shows each hawk's 18 s and how many are out", function()
+    for _, shape in ipairs({ "icon" }) do
+        local AB, C = customWorld("HUNTER")
+        AB.CdmSpells.HUNTER = { { 1293241, 1293525, cd = true, aura = true } }
+        stub.knownSpells = { [1293525] = true }
+        C.Forget()
+        local h = CreateFrame("Frame", nil, UIParent)
+        h.size = 30
+        AB.CdmAuras.Setup(h, "s1293241")
+        AB.CdmAuras.Track(h)
+        T.eq(#h.containers, 0, shape .. ": no aura to watch")
+        T.truthy(h.face, shape .. ": drawn by ours")
+        T.falsy(h.up)
+        stub.combat = true
+        local first = GetTime()
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "h1", 1293525); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": a hawk")
+        T.truthy(math.abs(h.endsAt - first - 18) < 0.01, shape .. ": for 18 s")
+        stub.Advance(5)
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "h2", 1293525); stub.RunTimers()
+        T.eq(h.selfStacks, 2, shape .. ": two hawks")
+        stub.Advance(5)
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "h3", 1293525); stub.RunTimers()
+        T.eq(h.selfStacks, 2, shape .. ": still two, the first one left")
+        T.truthy(math.abs(h.endsAt - GetTime() - 18) < 0.01, shape .. ": the newest hawk's 18 s")
+        stub.Advance(13.1); stub.RunTimers()
+        T.eq(h.selfStacks, 1, shape .. ": the second hawk's time ran out (cast 5 s in)")
+        T.eq(h.face.alphaTo, 1, shape .. ": one still out")
+        stub.Advance(5); stub.RunTimers()
+        T.eq(h.up, false, shape .. ": all gone")
+        T.eq(h.face.alphaTo, 0, shape .. ": out of sight")
+        stub.combat = false
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
 end)
 
 -- Weakened Soul (6788), added by its ID: a debuff your own shield puts on you or
