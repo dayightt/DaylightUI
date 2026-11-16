@@ -212,8 +212,6 @@ ns.OPTIONS = { pages = {
               get = function() return DaylightUI.Movers.PieceScale(LOOT_MOVER) end,
               set = function(v) DaylightUI.Movers.SetPieceScale(LOOT_MOVER, v) end,
               default = function() return 1 end },
-            { type = "slider", key = "lootFeedTextSize", label = "Loot feed text size", min = 10, max = 18, step = 1, disabled = lootOff,
-              desc = "How big the item names, counts and skill-up text are in the loot feed." },
             { type = "slider", key = "lootFeedMax", label = "Loot feed max shown", min = 1, max = 10, step = 1, disabled = lootOff,
               desc = "Lines at once; the oldest makes room for a new one." },
             { type = "dropdown", key = "lootFeedGrow", label = "Loot feed grow direction", values = GROW, order = { "up", "down" },
@@ -223,6 +221,8 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Text", items = {
             DaylightUI.Options.FontRow("lootFeedFont", "Loot feed font", "Every text in the loot feed", lootOff),
+            { type = "slider", key = "lootFeedTextSize", label = "Loot feed text size", min = 10, max = 18, step = 1, disabled = lootOff,
+              desc = "How big the item names, counts and skill-up text are in the loot feed." },
             { type = "dropdown", key = "lootFeedNameColor", label = "Loot feed name color", values = NAME_COLOR, order = { "quality", "white" },
               disabled = lootOff, desc = "Item names in their quality color, or all white. The icon's edge keeps the quality color." },
         } },
