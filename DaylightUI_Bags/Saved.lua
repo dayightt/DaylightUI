@@ -63,7 +63,7 @@ end
 local function noBag(kind, i)
     local idx = Enum and Enum.BagIndex
     if kind ~= "Character" or not (idx and idx.Characterbanktab) then return false end
-    return call(C_Container.GetContainerItemInfo, idx.Characterbanktab, i) == nil
+    return call(C_Container.HasContainerItem, idx.Characterbanktab, i) ~= true
 end
 
 -- A bank's tabs. nil if they can't be read now or haven't all arrived yet:
