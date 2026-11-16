@@ -492,6 +492,22 @@ T.test("journal: a hovered or opened quest's area lights on the map, by a blob o
     T.eq(drawn[#drawn], "none")
     T.deq(QW.Calls("mapCode"), {}, "nothing of the map's own code ran")
     T.isnil(rawget(WorldMapFrame, "highlightedQuestID"))
+    -- The client draws a blob at its own alpha, so it follows the map's fade
+    -- (seen in game: the outline stayed while the map faded as you moved).
+    local fill, border
+    blob.SetFillAlpha = function(_, v) fill = v end
+    blob.SetBorderAlpha = function(_, v) border = v end
+    blob.dluiAlpha = nil
+    WorldMapFrame:SetAlpha(0.5)
+    blob:GetScript("OnUpdate")(blob, 0.016)
+    T.eq(fill, 64, "half faded map: half the fill")
+    T.eq(border, 96, "and half the outline")
+    WorldMapFrame:SetAlpha(0)
+    blob:GetScript("OnUpdate")(blob, 0.016)
+    T.eq(fill, 0, "map faded out: the blob too")
+    WorldMapFrame:SetAlpha(1)
+    blob:GetScript("OnUpdate")(blob, 0.016)
+    T.eq(fill, 128, "back with the map")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

@@ -681,16 +681,31 @@ function Journal.MapShowsQuests(mapID)
     return kind ~= kinds.World and kind ~= kinds.Continent and kind ~= kinds.Cosmic
 end
 
-local function makeBlob(child)
+Journal.BLOB_FILL_ALPHA, Journal.BLOB_BORDER_ALPHA = 128, 192
+
+-- The client draws a blob at its own fill and border alpha, whatever the map's
+-- alpha is (like the minimap's dots), so it stayed on screen while the map faded
+-- out as you moved. It follows the map's alpha here, only while it's shown.
+function Journal.BlobFollow(b, map)
+    local a = map and map:GetEffectiveAlpha()
+    if DUI.IsSecret(a) or type(a) ~= "number" then a = 1 end
+    a = math.floor(a * 100 + 0.5) / 100
+    if b.dluiAlpha == a then return end
+    b.dluiAlpha = a
+    pcall(b.SetFillAlpha, b, math.floor(Journal.BLOB_FILL_ALPHA * a + 0.5))
+    pcall(b.SetBorderAlpha, b, math.floor(Journal.BLOB_BORDER_ALPHA * a + 0.5))
+end
+
+local function makeBlob(child, map)
     local ok, b = pcall(CreateFrame, "QuestPOIFrame", nil, child)
     if not ok or type(b) ~= "table" then return nil end
     b:SetAllPoints(child)
     b:EnableMouse(false)
     pcall(b.SetFillTexture, b, Journal.BLOB_FILL)
     pcall(b.SetBorderTexture, b, Journal.BLOB_BORDER)
-    pcall(b.SetFillAlpha, b, 128)
-    pcall(b.SetBorderAlpha, b, 192)
+    Journal.BlobFollow(b, map)
     pcall(b.SetBorderScalar, b, 1)
+    b:SetScript("OnUpdate", function(self) Journal.BlobFollow(self, map) end)
     return b
 end
 
@@ -767,7 +782,7 @@ function Journal.Light(questID)
     ringOn(child, map, questID)
     if Journal.noBlob then return end
     if not blob then
-        blob = makeBlob(child)
+        blob = makeBlob(child, map)
         if not blob then Journal.noBlob = true; return end   -- this client can't create one; the ring and ping still work
         Journal.blob = blob
     end
