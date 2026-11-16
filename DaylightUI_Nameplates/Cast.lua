@@ -57,6 +57,7 @@ function Cast.Create(p)
     -- shell look, no masks).
     c.body = ns.Body.New(c, { borderPx = Cast.BORDER, flat = true, joined = true })
     c.bar = Style.Bar(c, nil, ns.Plate.MEDIA.bars.cast)
+    DUI.BarFx.Track(c.bar, "cast", "plate")
     -- Optional spell icon: a small bordered square left of the bar, clear of its
     -- rounded end.
     c.iconBox = CreateFrame("Frame", nil, c)

@@ -1327,6 +1327,63 @@ Options.RegisterPage({
     },
 })
 
+-- Bar styles: a living fill per kind of bar (BarFx.lua), a card per kind.
+local function barFxItems(kind, name)
+    local base = "barFx." .. kind .. "."
+    local function off(get) return get("motion") == false end
+    local function none(get) return off(get) or get(base .. "style") == "none" end
+    return {
+        { type = "dropdown", key = base .. "style", label = "Style", since = "1.8.5",
+          choices = function() return DUI.BarFx.Choices(kind == "power") end,
+          disabled = off,
+          desc = "How " .. name .. " move. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit. By power type picks one that suits mana, rage or energy. Needs Motion effects (General > Appearance)." },
+        { type = "slider", key = base .. "speed", label = "Speed", min = 0.25, max = 3, step = 0.05, unit = "x", since = "1.8.5",
+          disabled = none, desc = "How fast the style moves. 1x is its usual pace." },
+        { type = "slider", key = base .. "strength", label = "Strength", min = 0.1, max = 1, step = 0.05, unit = "%", since = "1.8.5",
+          disabled = none, desc = "How strongly the style shows over the bar's own fill. Lower blends it in softly." },
+        { type = "dropdown", key = base .. "colors", label = "Colors", since = "1.8.5",
+          values = { bar = "The bar's own", accent = "Accent color", class = "Class colors", custom = "Custom colors" },
+          order = { "bar", "accent", "class", "custom" },
+          disabled = none, desc = "The colors the style moves: the ones the bar already has, your accent, your class's pair, or two of your own." },
+        { type = "color", key = base .. "colorA", label = "First color", since = "1.8.5",
+          hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
+          desc = "One end of the custom pair." },
+        { type = "color", key = base .. "colorB", label = "Second color", since = "1.8.5",
+          hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
+          desc = "The other end of the custom pair." },
+        { type = "toggle", key = base .. "react", label = "React to hits and heals", since = "1.8.5",
+          disabled = none, desc = "Styles that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
+        { type = "slider", key = base .. "reactSize", label = "Reaction size", min = 0.25, max = 2, step = 0.05, unit = "x", since = "1.8.5",
+          disabled = function(get) return none(get) or get(base .. "react") == false end,
+          desc = "How big a reaction is. The game doesn't say how big a hit or heal was, so every one moves the same." },
+    }
+end
+
+Options.RegisterPage({
+    id = "barStyles", section = "core", label = "Bar Styles", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
+    desc = "Bars that move: their colors roll along them and react to the fight.",
+    sample = function(parent) return DUI.BarFx.Sample(parent) end,
+    groups = {
+        Options.PickCard({ label = "Bar styles", since = "1.8.5",
+            desc = "Pick a style for each kind of bar.",
+            pickDesc = "Which kind of bar the rows below set: health, power, cast bars or swing timers.",
+            lead = {
+                { type = "toggle", key = "barFx.plates", label = "On nameplates too", since = "1.8.5",
+                  disabled = function(get) return get("motion") == false end,
+                  desc = "Nameplates' health, power and cast bars wear the styles too. Off by default: many moving bars at once can be busy in a big fight." },
+                { type = "toggle", key = "barFx.raid", label = "On raid tiles too", since = "1.8.5",
+                  disabled = function(get) return get("motion") == false end,
+                  desc = "Raid tiles wear the health and power styles too. Off by default, for the same reason." },
+            },
+            choices = {
+                { id = "health", label = "Health bars", items = barFxItems("health", "health bars") },
+                { id = "power", label = "Power bars", items = barFxItems("power", "power bars") },
+                { id = "cast", label = "Cast bars", items = barFxItems("cast", "cast bars") },
+                { id = "swing", label = "Swing timers", items = barFxItems("swing", "swing timers") },
+            } }),
+    },
+})
+
 -- Fade page: global switches, then each module's fade rows (Fade.HubGroups,
 -- copies sharing the same settings), added once module pages exist.
 local fadePage = Options.RegisterPage({

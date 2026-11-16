@@ -49,6 +49,7 @@ Taint.lua
 BugReport.lua
 PlateReport.lua
 Gradients.lua
+BarFx.lua
 Movers.lua
 Fade.lua
 FadeUpgrade.lua

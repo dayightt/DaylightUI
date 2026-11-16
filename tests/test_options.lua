@@ -46,7 +46,7 @@ T.test("the core's pages are registered first, valid and in order (the character
         ids[#ids + 1] = id
         T.eq(#DUI.Options.ValidatePage(page), 0, id)
     end
-    T.eq(table.concat(ids, ","), "home,appearance,fade,damage,combattext,gradients,layout,profiles,donators,Character.window,NPC.window,windows,patchnotes")
+    T.eq(table.concat(ids, ","), "home,appearance,barStyles,fade,damage,combattext,gradients,layout,profiles,donators,Character.window,NPC.window,windows,patchnotes")
     T.eq(DUI.Options.Sections()[1].label, "General")
     T.falsy(stub.ChatContains("Options ("))
 end)
@@ -97,7 +97,7 @@ T.test("a module gets its own section of pages after the core's", function()
     } } })
     local ids = {}
     for id in DUI.Options.Pages() do ids[#ids + 1] = id end
-    T.eq(table.concat(ids, ","), "home,appearance,fade,damage,combattext,gradients,layout,profiles,donators,Demo.main,Demo.more,Character.window,NPC.window,windows,patchnotes")
+    T.eq(table.concat(ids, ","), "home,appearance,barStyles,fade,damage,combattext,gradients,layout,profiles,donators,Demo.main,Demo.more,Character.window,NPC.window,windows,patchnotes")
     local s = DUI.Options.Sections()[2]
     T.eq(s.label, "Demo Things")
     T.eq(DUI.Options.GetPage("Demo.more").scope, "Demo")

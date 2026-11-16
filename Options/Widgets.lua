@@ -4048,6 +4048,9 @@ end
 -- input = { initial, hint, empty, locked }: a text box. onYes gets its trimmed
 --   text and isn't called when it's empty unless `empty`; `locked` keeps the
 --   text as given, selected, for copying.
+-- preview = { height, show(holder), hide(holder) }: something to look at under
+--   the question (a live sample), full width; show fills the holder each time
+--   the question shows, hide runs when it goes.
 -- reload: Yes reloads the UI. Addon code can't call ReloadUI, so Yes is then a
 --   secure /reload button over the footer's, out of combat only, and onYes runs
 --   first in that click. In combat the question waits for the fight to end.
@@ -4083,6 +4086,8 @@ local function askNext()
 end
 
 local function askLetGo(f)
+    if f.shownPreview and f.shownPreview.hide then DUI.SafeCall(f.shownPreview.hide, f.preview) end
+    f.shownPreview = nil
     f.spec = nil
     f.input:ClearFocus()
     askHideReload()
@@ -4159,9 +4164,9 @@ local function askBuild()
     f.text:SetWidth(W.ASK_W - 2 * Win.EDGE)
     f.text:SetWordWrap(true)
     Style.InkText(f.text, "TEXT")
+    f.preview = CreateFrame("Frame", nil, f.host)
+    f.preview:Hide()
     f.input = W.Input(f.host)
-    f.input:SetPoint("TOPLEFT", f.text, "BOTTOMLEFT", 0, -W.ASK_GAP)
-    f.input:SetPoint("RIGHT", f, "RIGHT", -Win.EDGE, 0)
     f.input:SetScript("OnEnterPressed", function() askAnswer(true) end)
     f.input:SetScript("OnEscapePressed", function() askAnswer(false) end)
     f.foot = Win.Parts.Footer(f.host)
@@ -4185,8 +4190,26 @@ askShow = function(spec)
     f.text:SetText(spec.text or "")
     local textH = f.text:GetStringHeight()
     local h = Win.COMPACT + W.ASK_TOP + (type(textH) == "number" and math.ceil(textH) or SIZE.body) + W.ASK_FOOT
+    if f.shownPreview and f.shownPreview ~= spec.preview and f.shownPreview.hide then
+        DUI.SafeCall(f.shownPreview.hide, f.preview)
+    end
+    f.shownPreview = spec.preview
+    f.preview:SetShown(spec.preview ~= nil)
+    if spec.preview then
+        local ph = spec.preview.height or 40
+        f.preview:SetHeight(ph)
+        -- Placed from the top by the same sum the box is sized by.
+        f.preview:ClearAllPoints()
+        f.preview:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -(h - W.ASK_FOOT + W.ASK_GAP))
+        f.preview:SetPoint("RIGHT", f, "RIGHT", -Win.EDGE, 0)
+        h = h + 2 * W.ASK_GAP + ph
+        DUI.SafeCall(spec.preview.show, f.preview)
+    end
     local input = spec.input
     f.input:SetShown(input ~= nil)
+    f.input:ClearAllPoints()
+    f.input:SetPoint("TOPLEFT", spec.preview and f.preview or f.text, "BOTTOMLEFT", 0, -W.ASK_GAP)
+    f.input:SetPoint("RIGHT", f, "RIGHT", -Win.EDGE, 0)
     if input then
         f.input.Lock(nil)
         f.input:SetText(input.initial or "")

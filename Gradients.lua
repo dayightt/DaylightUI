@@ -444,6 +444,7 @@ function Gradients.Paint(bar, key, paintBack, mirror)
     local lo, hi = Gradients.Colors(key, mirror and Gradients.Orientation() == "HORIZONTAL")
     if type(tex) == "table" and tex.SetGradient and lo then
         tex:SetGradient(Gradients.Orientation(), lo, hi)
+        Style.NoteFill(tex, lo, hi)
     end
 end
 
@@ -495,6 +496,7 @@ function Gradients.PaintPair(tex, lo, hi, alpha)
     end
     tex:SetVertexColor(1, 1, 1, 1)
     tex:SetGradient(Gradients.Orientation(), CreateColor(a[1], a[2], a[3], al), CreateColor(b[1], b[2], b[3], al))
+    Style.NoteFill(tex, a, b)
 end
 
 -- Fills a status bar with a gradient built from one color { r, g, b }.

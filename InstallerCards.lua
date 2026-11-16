@@ -691,6 +691,16 @@ local function glowSample(card, key, w, h, shape)
     return s
 end
 function Cards.Draw.glowButton(card, key, w, h) return glowSample(card, key, w, h, "button") end
+
+-- Bar styles (BarFx): each card wears its style on a sample health bar.
+function Cards.Draw.barFx(card, key, w, h)
+    local s = DUI.BarFx.SampleBar(card.inner, "health", key)
+    s:SetSize(math.min(w - 16, 150), math.max(8, math.min(14, h - 20)))
+    s:SetPoint("TOP", card.inner, "TOP", 0, -10 - math.max(0, (h - s:GetHeight()) / 2))
+    card.sample = s
+    card.redraw = function() s.Paint() end
+    return s
+end
 function Cards.Draw.glowPlate(card, key, w, h) return glowSample(card, key, w, h, "plate") end
 
 -- Bars on a small screen: one or two rows at the bottom and side bars on the

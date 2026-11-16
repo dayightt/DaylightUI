@@ -655,6 +655,8 @@ function UF.Build(f, spec)
     local media = UF.MediaOf(spec)
     f.media = media
     f.health = Style.Bar(f, nil, media.bars.health)
+    f.fxWhere = spec.group == "raid" and "raid" or nil
+    DUI.BarFx.Track(f.health, "health", f.fxWhere, spec.unit)
     if spec.power then
         f.power = Style.Bar(f, nil, media.bars.power)
         f.separator = Style.Separator(f)
@@ -3635,6 +3637,7 @@ function UF.UpdatePower(f, instant)
     UF.FeedPower(f, UnitPower(u), instant)
     local _, token = UnitPowerType(u)
     UF.PaintPower(f.power, token, u, f)
+    DUI.BarFx.SetPower(f.power, token, f.fxWhere, u)
     if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower, f.powerPercentSign) end
     if f.altMana then
         -- Shown only while your power isn't mana (a form) and you have mana.
@@ -3753,6 +3756,7 @@ end
 
 function UF.UpdateIdentity(f)
     local u = f.unitToken
+    if f.health then DUI.BarFx.SetUnit(f.health, u) end
     if f.spec and f.spec.group then f.flagSig = UF.FlagSig(u) end
     identityUnit, identityToken = type(u) == "string" and u or nil, nil
     local r, g, b = UF.UnitColor(u)

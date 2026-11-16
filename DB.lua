@@ -53,6 +53,15 @@ DB.GENERAL_DEFAULTS = {
     magnet = true, -- unlock mode: frames snap to other frames' edges and centers (Movers.Magnet)
     hidePTRButton = false, -- beta/PTR only: hide Blizzard's Issue Reporter bug button
     smoothBars = true,
+    -- Bar styles (BarFx.lua): a living fill per kind of bar. style "none" or a
+    -- BarFx.STYLES key (power also "auto"); colors bar|accent|class|custom.
+    barFx = {
+        plates = false, raid = false,
+        health = { style = "none", speed = 1, strength = 1, colors = "bar", colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1 },
+        power = { style = "none", speed = 1, strength = 1, colors = "bar", colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1 },
+        cast = { style = "none", speed = 1, strength = 1, colors = "bar", colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1 },
+        swing = { style = "none", speed = 1, strength = 1, colors = "bar", colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1 },
+    },
     motion = true, -- windows glide in, spells ping, numbers count up. Off snaps everything
     buttonGlow = "circle", -- the main buttons' animated glow: "none" or a W.GLOW_STYLES key
     portraitFlare = true, -- the ring of embers round a window's icon as it opens (Win.PlayGlow). Needs motion
@@ -560,6 +569,13 @@ function DB.StandardStart()
              Chat = { hides = "always" } }
 end
 
+-- General settings a new setup starts with that differ from the defaults
+-- (which keep older profiles as they were): bars that move, in Flow.
+function DB.StandardGeneral()
+    local flow = function() return { style = "flow" } end
+    return { barFx = { health = flow(), power = flow(), cast = flow(), swing = flow() } }
+end
+
 -- Points every module at the active profile.
 local function point()
     local pd = DB.sv.profileData
@@ -567,8 +583,9 @@ local function point()
     if type(pd[DB.activeName]) ~= "table" then
         -- The account's first profile. Whatever the setup guide saves comes from this.
         pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, unsaved = true,
-                              general = { localFont = DB.NonLatinClient() or nil },
+                              general = DB.StandardGeneral(),
                               modules = DB.StandardStart() }
+        pd[DB.activeName].general.localFont = DB.NonLatinClient() or nil
     end
     local p = fill(pd[DB.activeName])
     for name in pairs(moduleDefaults) do

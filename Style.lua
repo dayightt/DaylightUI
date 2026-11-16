@@ -1858,7 +1858,7 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     m:SetPoint("TOP" .. p, anchor, "TOP" .. p, 0, 0)
     m:SetPoint("BOTTOM" .. p, anchor, "BOTTOM" .. p, 0, 0)
     m:SetWidth(4 * cut)
-    m.side, m.cut = side, cut
+    m.side, m.cut, m.under = side, cut, under == true
     if not m.added then
         tex:AddMaskTexture(m)
         m.added = true
@@ -1886,6 +1886,94 @@ function Style.AngleFill(bar, side, cut, under)
     if over then
         for tex in pairs(over) do shareEdge(tex, fillMask[bar]) end
     end
+    if Style.LayoutFillClip then Style.LayoutFillClip(bar) end
+end
+
+-- A frame covering exactly a bar's fill (it grows with it) that clips what's
+-- inside it, for layers that move through the fill (bar styles). A mask only
+-- works on textures of its own frame, so the clip has its own copy of the
+-- fill's angled edge, laid again at every AngleFill.
+local fillClip = setmetatable({}, { __mode = "k" }) -- bar -> clip frame
+function Style.FillClip(bar)
+    local c = fillClip[bar]
+    if c then return c end
+    c = CreateFrame("Frame", nil, bar)
+    c:SetAllPoints(bar:GetStatusBarTexture())
+    c:SetClipsChildren(true)
+    c.texes = {}
+    fillClip[bar] = c
+    Style.LayoutFillClip(bar)
+    return c
+end
+
+function Style.LayoutFillClip(bar)
+    local c = fillClip[bar]
+    if not c then return end
+    local fm = fillMask[bar]
+    local want = fm and fm.added
+    local m = c.mask
+    if want then
+        m = m or c:CreateMaskTexture()
+        c.mask = m
+        local p = fm.side == "right" and "RIGHT" or "LEFT"
+        local fill = bar:GetStatusBarTexture()
+        m:SetTexture(slantImage(false, fm.side, fm.under, false), "CLAMP", "CLAMP")
+        m:ClearAllPoints()
+        m:SetPoint("TOP" .. p, fill, "TOP" .. p, 0, 0)
+        m:SetPoint("BOTTOM" .. p, fill, "BOTTOM" .. p, 0, 0)
+        m:SetWidth(4 * fm.cut)
+    end
+    for tex, has in pairs(c.texes) do
+        if want and not has then tex:AddMaskTexture(m); c.texes[tex] = true
+        elseif not want and has then tex:RemoveMaskTexture(m); c.texes[tex] = false end
+    end
+end
+
+-- A texture made in Style.FillClip(bar) that should stop at the fill's
+-- angled edge.
+function Style.ClipToFill(bar, tex)
+    local c = Style.FillClip(bar)
+    if c.texes[tex] == nil then c.texes[tex] = false end
+    Style.LayoutFillClip(bar)
+end
+
+-- The colors a bar's fill was last painted with, kept for the bar styles
+-- (the game can't tell a texture's gradient back). lo, hi are color objects
+-- or { r, g, b }; a plain color is both ends.
+local fillColors = setmetatable({}, { __mode = "k" }) -- fill texture -> { lo, hi }
+local isSecret = DUI.IsSecret
+local function noteRGB(tex, r1, g1, b1, r2, g2, b2)
+    if type(tex) ~= "table" then return end
+    local kept = fillColors[tex]
+    if isSecret(r1) or isSecret(g1) or isSecret(b1) or isSecret(r2) or isSecret(g2) or isSecret(b2)
+        or type(r1) ~= "number" or type(r2) ~= "number" then
+        if not kept then return end
+        fillColors[tex] = nil
+    else
+        if kept then
+            local a, b = kept[1], kept[2]
+            if a[1] == r1 and a[2] == g1 and a[3] == b1 and b[1] == r2 and b[2] == g2 and b[3] == b2 then return end
+            a[1], a[2], a[3], b[1], b[2], b[3] = r1, g1, b1, r2, g2, b2
+        else
+            fillColors[tex] = { { r1, g1, b1 }, { r2, g2, b2 } }
+        end
+    end
+    if DUI.BarFx then DUI.BarFx.Painted(tex) end
+end
+local function unpackColor(c)
+    if type(c) ~= "table" then return end
+    if c.GetRGB then return c:GetRGB() end
+    return c[1], c[2], c[3]
+end
+function Style.NoteFill(tex, lo, hi)
+    local r1, g1, b1 = unpackColor(lo)
+    local r2, g2, b2 = unpackColor(hi or lo)
+    noteRGB(tex, r1, g1, b1, r2, g2, b2)
+end
+function Style.NoteFillRGB(tex, r, g, b) noteRGB(tex, r, g, b, r, g, b) end
+function Style.FillColors(tex)
+    local k = fillColors[tex]
+    if k then return k[1], k[2] end
 end
 
 -- A texture laid exactly over a bar's fill (it grows with it) and given the
@@ -2128,6 +2216,7 @@ function Style.SetBarGradient(bar, on)
     pcall(paintGrain, bar)
     if on then
         bar:SetStatusBarColor(1, 1, 1, 1)
+        Style.NoteFillRGB(bar:GetStatusBarTexture(), 1, 1, 1)
         local back, m = barBack[bar], Style.GRADIENT_MID
         if back then
             local k = Style.BAR_BACK_DIM
@@ -2140,6 +2229,7 @@ end
 -- Colors the fill, and the empty part as a dim, transparent version of it.
 function Style.SetBarColor(bar, r, g, b)
     bar:SetStatusBarColor(r, g, b, 1)
+    Style.NoteFillRGB(bar:GetStatusBarTexture(), r, g, b)
     local back = barBack[bar]
     if back then
         local k = Style.BAR_BACK_DIM
@@ -2169,6 +2259,7 @@ function Style.PaintAccentBar(bar, paintBack)
     if type(tex) ~= "table" or not tex.SetGradient then return false end
     bar:SetStatusBarColor(1, 1, 1, 1)
     tex:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+    Style.NoteFill(tex, lo, hi)
     return true
 end
 

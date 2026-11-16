@@ -270,7 +270,12 @@ T.test("health bars carry no hit or heal trail: just the fill, gliding", functio
     stub.units.player = { name = "X", isPlayer = true, class = "MAGE", health = 5, maxHealth = 10, pct = 50 }
     ns.UF.UpdateHealth(f)
     T.eq(stub.Plain(f.health:GetValue()), 5)
-    T.eq(select("#", f.health:GetChildren()), 0, "no trail bars on the health bar")
+    -- A trail would be a second bar; the bar style's clip frame is no bar.
+    local bars = 0
+    for _, child in ipairs({ f.health:GetChildren() }) do
+        if child:GetObjectType() == "StatusBar" then bars = bars + 1 end
+    end
+    T.eq(bars, 0, "no trail bars on the health bar")
 end)
 
 local TARGET = { unit = "target", label = "Target", power = true, slant = "left", tab = true, marker = true, classification = true }

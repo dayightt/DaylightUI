@@ -33,6 +33,7 @@ function Power.Create(p)
     -- shell look, no masks), like the cast bar.
     f.body = ns.Body.New(f, { borderPx = borderPx(Power.HEIGHT), flat = true, joined = true, clear = ns.Plate.Clear })
     f.bar = Style.Bar(f, nil, ns.Plate.MEDIA.bars.power)
+    DUI.BarFx.Track(f.bar, "power", "plate")
     f.bar:SetMinMaxValues(0, 1)
     f.bar:SetValue(0)
     f:Hide()

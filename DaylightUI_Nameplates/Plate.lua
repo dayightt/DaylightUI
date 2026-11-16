@@ -288,6 +288,7 @@ function Plate.Create(parent, sample)
     p.hover:SetAllPoints(bar)
     p.hover:Hide()
     p.hp, p.health = hp, bar
+    DUI.BarFx.Track(bar, "health", "plate")
     -- One layer per class over the fill, for hidden classes (Plate.PaintClassLayers).
     p.classLayers = DUI.Gradients.ClassLayers(bar)
 
@@ -3041,6 +3042,7 @@ end
 
 function Plate.Install(p, unit)
     p.unit = unit
+    DUI.BarFx.SetUnit(p.health, unit)
     p.friendly = Plate.IsFriendly(unit)
     p.object = Plate.IsObject(unit)
     listen(p, unit)

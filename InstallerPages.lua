@@ -108,6 +108,7 @@ Pages.TOUR = {
           { label = "Size", rows = { { "general", "scale" }, { "general", "fontScale" } } },
           { label = "Finishing touches", rows = { { "general", "heavyBorder" }, { "general", "gradientBorder" }, { "general", "smoothBars" } } },
           { label = "Main button glow", cards = { scope = "general", key = "buttonGlow", draw = "glowButton", cols = 3, height = 70 } },
+          { label = "Health bar style", cards = { scope = "general", key = "barFx.health.style", draw = "barFx", cols = 3, height = 56 } },
           { label = "Interrupts", needs = "Nameplates",
             cards = { scope = "Nameplates", key = "kickStyle", draw = "kick", cols = 4, height = 50 } },
           { label = "", needs = "Nameplates", rows = { { "Nameplates", "kickedBy" } } },
