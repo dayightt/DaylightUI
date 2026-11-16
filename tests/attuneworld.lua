@@ -57,7 +57,14 @@ function AW.Install()
             node:SetBackdrop({})
             node:SetBackdropColor(unpack(AW.COLORS[state]))
         end
-        if step.kind == "Spacer" then node:Show(); return end
+        -- Attune still makes a spacer transparent; the client's mixin ignores that
+        -- on a node with no backdrop, but a node reused from a real step keeps its
+        -- backdrop and takes the clear color.
+        if step.kind == "Spacer" then
+            if node:GetBackdrop() ~= nil then node:SetBackdropColor(0, 0, 0, 0) end
+            node:Show()
+            return
+        end
         local icon = _G["Attune_Icon_" .. step.id] or CreateFrame("Button", "Attune_Icon_" .. step.id, node)
         icon:SetSize(32, 32)
         icon:SetPoint("TOPLEFT", node, "TOPLEFT", 8, -8)

@@ -1366,6 +1366,13 @@ T.test("attune: its window ours, each step a talent tile, its lines the talents'
     T.eq(SK.Attune.StateOf(_G.Attune_Node_9), "spacer")
     T.falsy(SK.Attune.tiles[_G.Attune_Node_9].well:IsShown(), "a spacer gets no tile")
     _G.Attune_Node_9:Hide()
+    -- Step ids repeat across chains, so a node drawn as a step can come back as a
+    -- spacer in the next chain: its old tile goes with it.
+    _G.Attune_CreateNode({ id = "4", kind = "Spacer" }, _G.Attune_GraphRoot, 0, 300)
+    SK.Attune.Chain("KARA")
+    T.eq(SK.Attune.StateOf(_G.Attune_Node_4), "spacer")
+    T.falsy(SK.Attune.tiles[_G.Attune_Node_4].well:IsShown(), "a reused node as a spacer: no black box")
+    T.falsy(SK.Attune.tiles[_G.Attune_Node_4].ring:IsShown())
     -- The next step done: drawn again, its ring flashes like a talent filling.
     AW.states["3"] = "done"
     _G.Attune_Select("KARA")
