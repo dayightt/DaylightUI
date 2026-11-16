@@ -48,6 +48,23 @@ T.test("api info: a plugin's data text shows in a slot, redraws on its events an
     T.eq(me.AddDataText("bad", { label = "x" }), false, "a text function is needed")
 end)
 
+T.test("api info: a plugin's sample shows only in test mode", function()
+    local API, ns = load()
+    local me = API.For("Angler")
+    me.AddDataText("fish", { label = "Fish", sample = "Sampled", text = function() return "Fish", "Hooked" end })
+    DaylightUI:Set("InfoPanel", "data.enabled", true)
+    DaylightUI:Set("InfoPanel", "data.slot1", "Angler:fish")
+    stub.RunTimers()
+    PW.settle()
+    local s = ns.DataTexts.slots[1]
+    T.truthy(string.find(slotText(s), "Hooked", 1, true), "its own text out of test mode")
+    T.falsy(string.find(slotText(s), "Sampled", 1, true), "not the sample")
+    DaylightUI.testMode = true
+    me.UpdateDataText("fish")
+    T.truthy(string.find(slotText(s), "Sampled", 1, true), "the sample in test mode")
+    DaylightUI.testMode = nil
+end)
+
 T.test("api info: an error in a plugin's text is named and the strip keeps going", function()
     local API, ns = load()
     local me = API.For("Broken")
