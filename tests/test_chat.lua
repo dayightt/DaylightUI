@@ -834,6 +834,19 @@ T.test("chat: the copy window holds the tab's lines, secret ones left out", func
     T.eq(box.edit.__text, want)
 end)
 
+T.test("chat: the copy window is wide, and fits a small screen", function()
+    login()
+    local Copy = stub.chatModule.Copy
+    local w, h = Copy.Size()
+    T.truthy(w >= 700 and h >= 440 or (UIParent:GetWidth() * 0.9 < 700), "wide enough, unless the screen is small")
+    T.truthy(w <= UIParent:GetWidth() and h <= UIParent:GetHeight(), "never bigger than the screen")
+    local was = Copy.SIZE
+    Copy.SIZE = { 2000, 2000 }
+    w, h = Copy.Size()
+    Copy.SIZE = was
+    T.truthy(w <= math.floor(UIParent:GetWidth() * 0.9) and h <= math.floor(UIParent:GetHeight() * 0.9), "cut to 90% of the screen")
+end)
+
 T.test("chat: a line the edit box won't take doesn't blank the copy window", function()
     login()
     local Copy = stub.chatModule.Copy

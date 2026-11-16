@@ -13,7 +13,17 @@ local Copy = {}
 ns.Copy = Copy
 
 Copy.LINES = 300 -- newest lines shown
-Copy.SIZE = { 560, 360 }
+Copy.SIZE = { 760, 480 } -- wide enough for most chat lines, and never bigger than 90% of the screen
+
+-- The window's size: SIZE, or less on a small screen.
+function Copy.Size()
+    local w, h = Copy.SIZE[1], Copy.SIZE[2]
+    local sw = type(UIParent.GetWidth) == "function" and UIParent:GetWidth() or nil
+    local sh = type(UIParent.GetHeight) == "function" and UIParent:GetHeight() or nil
+    if type(sw) == "number" and sw > 0 then w = math.min(w, math.floor(sw * 0.9)) end
+    if type(sh) == "number" and sh > 0 then h = math.min(h, math.floor(sh * 0.9)) end
+    return w, h
+end
 
 -- Plain readable text: no color codes or icons, links as their words, "||" -> "|".
 function Copy.Plain(text)
@@ -70,7 +80,8 @@ local function buildBox()
     local W = DUI.Widgets
     box = CreateFrame("Frame", "DaylightUIChatCopy", UIParent)
     DUI.Movers.FollowScale(box)
-    box:SetSize(Copy.SIZE[1], Copy.SIZE[2])
+    local width, height = Copy.Size()
+    box:SetSize(width, height)
     box:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
     box:SetFrameStrata("DIALOG")
     box:SetToplevel(true)
@@ -83,6 +94,9 @@ local function buildBox()
     local function close() DUI.Motion.Vanish(box) end
     box.close = W.Close(box, close)
     box.close:SetPoint("TOPRIGHT", box, "TOPRIGHT", Win.CLOSE_X, Win.CloseY(true))
+    -- The hint stops short of the close button and wraps (it ran under it before).
+    box.title:SetPoint("RIGHT", box.close, "LEFT", -10, 0)
+    box.title:SetJustifyV("TOP")
     -- Escape closes this box alone, before any window under it, even after
     -- a click elsewhere took the text box's focus away.
     Win.Keys(box, function(key)
@@ -92,9 +106,9 @@ local function buildBox()
     box:HookScript("OnHide", function() Win.KeysOn(box, false) end)
     -- Follow the newest lines. The text can't change while open, so this never
     -- yanks the view away from the reader.
-    local area = W.TextArea(box, { width = Copy.SIZE[1] - 28, step = 40, follow = true,
+    local area = W.TextArea(box, { width = width - 28, step = 40, follow = true,
         onEscape = close })
-    area:SetPoint("TOPLEFT", box, "TOPLEFT", 14, -40)
+    area:SetPoint("TOPLEFT", box, "TOPLEFT", 14, -48)
     area:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -14, 14)
     box.area, box.edit = area, area.edit
     box:Hide()
