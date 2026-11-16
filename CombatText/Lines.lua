@@ -37,6 +37,13 @@ end
 local Stage = {}
 Stage.__index = Stage
 
+-- A stream's text size with General's Text scale on top, as every other text
+-- of Daylight UI's has it.
+local function sizeOf(s, crit)
+    local g = DUI.DB.General()
+    return (crit and s.critSize or s.size) * (type(g) == "table" and tonumber(g.fontScale) or 1)
+end
+
 local function setFace(line, size, outline)
     local face = DUI.GameFonts.CombatTextWanted() or Style.FONT
     if line.face ~= face or line.size ~= size or line.outline ~= outline then
@@ -208,7 +215,7 @@ function Stage:Add(id, r, g, b, crit, fmt, a, b2, c, d)
         end
     end
 
-    local size = crit and s.critSize or s.size
+    local size = sizeOf(s, crit)
     setFace(line, size * (self.fontScale or 1), CT.Get("outline") or "")
     dress(line, s, r, g, b, crit)
     line.fs:SetTextScale(line.pop and Motion.On() and line.pop or 1)
@@ -245,7 +252,7 @@ function Stage:Restyle()
         local s = CT.Get("streams." .. id)
         if type(s) == "table" then
             for _, l in ipairs(stream.live) do
-                local size = l.crit and s.critSize or s.size
+                local size = sizeOf(s, l.crit)
                 setFace(l, size * (self.fontScale or 1), CT.Get("outline") or "")
                 l.size = size
                 l.room = size + (l.ruled and CT.RULE_ROOM or 0)
