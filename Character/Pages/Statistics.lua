@@ -20,18 +20,21 @@ function Statistics.Categories()
         info[id] = { title = title or "", parent = parent }
         inList[id] = true
     end
-    -- Each top category in the header colors in turn, its sub-categories dimmer.
+    -- Each top category has a color of its own, in turn (the stat groups' palette), and its
+    -- sub-categories the same one, dimmer. The picked one's wash, bar and numbers wear it.
     local items, n = {}, 0
     for _, id in ipairs(ids) do
         if not inList[info[id].parent or -1] then
             n = n + 1
-            local color = { ns.Colors.Head(n) }
+            local order = ns.Colors.ORDER
+            local color = { ns.Colors.Custom(order[(n - 1) % #order + 1]) }
             local dim = { ns.Colors.Dim(color[1], color[2], color[3]) }
-            items[#items + 1] = { kind = "row", key = "c" .. id, text = info[id].title, indent = 0, data = id, color = color }
+            items[#items + 1] = { kind = "row", key = "c" .. id, text = info[id].title, indent = 0, data = id, color = color,
+                                  tint = color }
             for _, child in ipairs(ids) do
                 if info[child].parent == id then
                     items[#items + 1] = { kind = "row", key = "c" .. child, text = info[child].title, indent = 1, data = child,
-                                          color = dim }
+                                          color = dim, tint = color }
                 end
             end
         end
@@ -68,7 +71,7 @@ function Statistics.Build(page)
         page.right.offset = 0   -- a new category starts at its top
         Statistics.Refresh(page)
     end })
-    page.right = ns.List.Make(page, {})
+    page.right = ns.List.Make(page, { static = true })   -- the numbers: nothing to open
 end
 
 function Statistics.Place(page)
@@ -81,9 +84,9 @@ function Statistics.Refresh(page)
     local cats = Statistics.Categories()
     local L = page.list
     local picked, color
-    for _, item in ipairs(cats) do if item.key == L.selectedKey then picked, color = item.data, item.color end end
+    for _, item in ipairs(cats) do if item.key == L.selectedKey then picked, color = item.data, item.tint end end
     if not picked and cats[1] then
-        L.selectedKey, picked, color = cats[1].key, cats[1].data, cats[1].color
+        L.selectedKey, picked, color = cats[1].key, cats[1].data, cats[1].tint
     end
     ns.List.Set(L, cats)
     ns.List.Set(page.right, Statistics.Rows(picked, color))

@@ -399,13 +399,13 @@ local function shownTabs(ns)
     return out
 end
 
-T.test("character window: built hidden, 834x538 (the kit header, 56, over the same page room), hanging from the game's window", function()
+T.test("character window: built hidden, 960x596 (the kit header, 56, over the same page room), hanging from the game's window", function()
     local _, ns = win()
     local f = ns.window
     T.truthy(f, "built at login")
     T.eq(f:IsShown(), false)
-    T.eq(f:GetWidth(), 834)
-    T.eq(f:GetHeight(), 538)
+    T.eq(f:GetWidth(), 960)
+    T.eq(f:GetHeight(), 596)
     local point, rel, relPoint = f:GetPoint(1)
     T.eq(point, "TOPLEFT")
     T.eq(rel, CharacterFrame)
@@ -415,8 +415,8 @@ end)
 T.test("character window: icons only is narrower; the scale is the setting's", function()
     local W, ns, DUI = win()
     DUI:Set("Character", "names", false)
-    T.eq(W.Width(), 690)
-    T.eq(ns.window:GetWidth(), 690)
+    T.eq(W.Width(), 740)
+    T.eq(ns.window:GetWidth(), 740)
     DUI:Set("Character", "scale", 1.2)
     T.eq(ns.window:GetScale(), 1.2)
 end)
@@ -533,7 +533,7 @@ T.test("character follow: at login the game's window is parked and told our widt
     T.eq(CharacterFrame:GetParent(), F.hidden)
     T.eq(F.hidden:GetParent(), UIParent, "under UIParent: keeps its scale and spot")
     T.eq(F.parked, true)
-    T.eq(CW.state.panel.width, 854)
+    T.eq(CW.state.panel.width, 980)
 end)
 
 T.test("character follow: a /reload in combat parks once combat ends", function()
@@ -546,9 +546,9 @@ end)
 T.test("character follow: icons only and scale change the width the game is told", function()
     local _, _, DUI = following()
     DUI:Set("Character", "names", false)
-    T.eq(CW.state.panel.width, 710)
+    T.eq(CW.state.panel.width, 760)
     DUI:Set("Character", "scale", 1.2)
-    T.eq(CW.state.panel.width, 848)
+    T.eq(CW.state.panel.width, 908)
 end)
 
 T.test("character follow: the game opens, ours opens on the same page", function()
@@ -779,7 +779,8 @@ T.test("character slots: the ammo slot shows its count, item level line on or of
     T.eq(ammo.line:GetText(), "200 arrows", "the count is not an item level line")
     S.Layout(ammo, S.AMMO, false)
     S.Paint(ammo, ns.Gear.Read("Ammo"), { itemLevel = true })
-    T.eq(ammo.corner:GetText(), "200", "icons only: how many, not the item level")
+    T.eq(ammo.corner:GetText(), "", "icons only: no number in the small icon, the count is in the footer")
+    T.falsy(ammo.cornerBg:IsShown())
 end)
 
 T.test("character slots: painting an item, an empty slot and a broken one", function()
@@ -1054,15 +1055,14 @@ end
 
 T.test("character page: where everything goes, with names", function()
     local P = charPage()
-    local R = P.Rects(834, 482, true)
-    T.deq(R.left, { x = 16, y = -12, w = 176 })
-    T.deq(R.right, { x = 434, y = -12, w = 176 })
-    T.deq(R.model, { x = 200, y = -12, w = 226, h = 358 })
-    T.deq(R.stats, { x = 618, y = -12, w = 200, h = 422 })
-    T.deq(R.bottom, { { x = 127, y = -380, w = 160 }, { x = 295, y = -380, w = 160 }, { x = 463, y = -380, w = 147 } })
-    T.deq(R.footer, { x = 16, y = -438, w = 802, h = 36 })
-    T.deq(P.Rects(834, 482, true, 30).bottom, { { x = 97, y = -380, w = 160 }, { x = 265, y = -380, w = 160 }, { x = 433, y = -380, w = 177 } },
-        "with the ammo beside Ranged the row slides left, so Ranged keeps room for its words")
+    local R = P.Rects(960, 540, true)
+    T.deq(R.left, { x = 16, y = -12, w = 200 })
+    T.deq(R.right, { x = 486, y = -12, w = 200 })
+    T.deq(R.model, { x = 224, y = -12, w = 254, h = 414 })
+    T.deq(R.stats, { x = 694, y = -12, w = 250, h = 480 })
+    T.deq(R.bottom, { { x = 135, y = -444, w = 190 }, { x = 333, y = -444, w = 190 }, { x = 531, y = -444, w = 155 } })
+    T.deq(R.footer, { x = 16, y = -496, w = 928, h = 36 })
+    T.deq(P.Rects(960, 540, true, 30).bottom, { { x = 105, y = -444, w = 190 }, { x = 303, y = -444, w = 190 }, { x = 501, y = -444, w = 185 } }, "with the ammo beside Ranged the row slides left, so Ranged keeps room for its words")
 end)
 
 T.test("character page: the ammo is small, beside the ranged icon, only for a class that uses ammo", function()
@@ -1082,6 +1082,7 @@ T.test("character page: the ammo is small, beside the ranged icon, only for a cl
     T.eq(x, S.AMMO_GAP)
     _, _, _, nameX = ranged.name:GetPoint(1)
     T.eq(nameX, S.GAP + S.AMMO_GAP + S.AMMO, "Ranged's name moves over for it")
+    T.eq(ranged:GetWidth(), 187, "Ranged's words stop at the right column's edge")
     T.eq(ranged:GetWidth() - S.ICON - S.GAP - S.AMMO_GAP - S.AMMO >= 95, true, "room for its item level line")
     T.eq(CharacterAmmoSlot:IsMouseEnabled(), true)
     local _, brel = CharacterAmmoSlot:GetPoint(1)
@@ -1090,14 +1091,14 @@ end)
 
 T.test("character page: icons only gives the model the room", function()
     local P = charPage()
-    local R = P.Rects(690, 482, false)
+    local R = P.Rects(740, 540, false)
     T.deq(R.left, { x = 16, y = -12, w = 36 })
     T.deq(R.right, { x = 426, y = -12, w = 36 })
-    T.deq(R.model, { x = 64, y = -12, w = 350, h = 358 })
-    T.deq(R.stats, { x = 474, y = -12, w = 200, h = 422 })
+    T.deq(R.model, { x = 64, y = -12, w = 350, h = 414 })
+    T.deq(R.stats, { x = 474, y = -12, w = 250, h = 480 })
     T.eq(R.bottom[1].x, 173, "three icons, centered under the model")
     T.eq(R.bottom[3].x, 269)
-    local A = P.Rects(690, 482, false, 30)
+    local A = P.Rects(740, 540, false, 30)
     T.eq(A.bottom[1].x, 158, "with the ammo beside Ranged the row stays centered")
     T.eq(A.bottom[3].x, 254)
 end)
@@ -1367,7 +1368,7 @@ T.test("character page: icons only hides the names", function()
     openChar(ns)
     DUI:Set("Character", "names", false)
     T.eq(ns.Slots.frames.Head.name:IsShown(), false)
-    T.eq(ns.window:GetWidth(), 690)
+    T.eq(ns.window:GetWidth(), 740)
 end)
 local TITLES = { { name = "Private ", known = true }, { name = "Corporal", known = false }, { name = " Sergeant", known = true } }
 
@@ -1887,7 +1888,9 @@ T.test("character pvp: the tab shows with no rank yet", function()
     local page = openPage(ns, "PVPRankFrame")
     T.eq(ns.window.current, "pvp")
     T.eq(page.rankName:GetText(), PVP_RANK_0_NAME or "No rank yet")
-    T.falsy(page.emblem:IsShown())
+    T.truthy(page.emblem:IsShown(), "the first rank's badge stands there, so the card isn't just a word")
+    T.near(page.emblem:GetAlpha(), 0.2, 0.001, "faint")
+    T.truthy(page.emblem:GetTexture():find("pvp-rank-01.png", 1, true), "the first rank's badge")
     T.eq(page.blocks[1].main:GetText(), "Private")
     local _, ns2 = load({ pvp = PVP })
     T.eq(ns2.Window.TabShown("pvp"), true)
@@ -1981,7 +1984,7 @@ T.test("character currency: the transfer opens the game's own page, then ours co
     T.eq(ns.Follow.parked, true)
     T.eq(CharacterFrame:GetParent(), ns.Follow.hidden)
     T.eq(ns.Slots.lent, true)
-    T.eq(CW.state.panel.width, 854, "our width told again")
+    T.eq(CW.state.panel.width, 980, "our width told again")
 end)
 
 T.test("character currency: no transfer in combat", function()
@@ -2444,17 +2447,18 @@ T.test("character lists: your own progress bars wear the accent, plain with grad
     T.eq(seen, bar)
 end)
 
-T.test("character statistics: categories in the header color, sub-categories dimmer, numbers in the picked one's", function()
+T.test("character statistics: each category its own color, sub-categories the same dimmer, numbers in the picked one's", function()
     local _, ns = load({ statistics = {
         categories = { { id = 1, title = "Combat" }, { id = 2, title = "Kills", parent = 1 }, { id = 3, title = "Travel" } },
         stats = { [1] = { { id = 101, name = "Damage done", quantity = "5" } } } } })
-    T.rgb(ns.Statistics.Categories()[3].color, { DaylightUI.Style.Accent() })
+    T.rgb(ns.Statistics.Categories()[3].color, ns.DEFAULTS.colors.attack, "its own color whatever the header mode is")
     DaylightUI:Set("Character", "colors.headMode", "group")   -- each its own, in turn
     local cats = ns.Statistics.Categories()
     T.rgb(cats[1].color, ns.DEFAULTS.colors.attributes)
-    T.rgb(cats[2].color, { ns.Colors.Dim(unpack(ns.DEFAULTS.colors.attributes)) })
+    T.rgb(cats[2].color, { ns.Colors.Dim(unpack(ns.DEFAULTS.colors.attributes)) }, "a sub-category: its parent's color, dimmer")
+    T.rgb(cats[2].tint, ns.DEFAULTS.colors.attributes, "its wash, bar and numbers: the parent's own")
     T.rgb(cats[3].color, ns.DEFAULTS.colors.attack)
-    local rows = ns.Statistics.Rows(1, cats[1].color)
+    local rows = ns.Statistics.Rows(1, cats[1].tint)
     T.rgb(rows[1].rightColor, ns.DEFAULTS.colors.attributes)
 end)
 
@@ -2883,4 +2887,365 @@ T.test("character on a controller: place in bags puts a piece in the first plain
     T.eq(put, nil)
     T.eq(held, nil, "no room: it goes back on")
     _G.C_Container = was
+end)
+
+-- ---------------------------------------------------------------------
+-- The stats pane's rows fit their words; the lists' picked, hovered and striped rows differ
+-- ---------------------------------------------------------------------
+
+-- Measures text as the client does: 7 px a letter, wrapped to the width it is given.
+local function wrapMeasure()
+    stub.measure = function(fs, unbounded)
+        local text = (fs.__text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local w, set = #text * 7, fs:GetWidth() or 0
+        if unbounded then return w, 14 end
+        local lines = (set > 0 and fs.__wrap ~= false) and math.max(1, math.ceil(w / set)) or 1
+        return (set > 0 and math.min(w, set) or w), lines * 14
+    end
+end
+
+T.test("character page: a long stat name wraps beside its value instead of running under it", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    wrapMeasure()
+    local r = page.stats.groups.attributes.rows[1]
+    local w = P.STATS_W - 2 * P.STATS_PAD
+    r.label:SetText("Damage of the off hand weapon")
+    r.value:SetText("35 - 47")
+    local h = P.FitStat(r, w)
+    T.truthy(h > P.STAT_ROW, "taller for a second line")
+    T.eq(r:GetHeight(), h)
+    local inset = P.STAT_INSET
+    T.truthy(r.label:GetWidth() + r.value:GetStringWidth() + P.STAT_GAP <= w - 2 * inset, "the name stops short of the value")
+    r.label:SetText("Agility")
+    T.eq(P.FitStat(r, w), P.STAT_ROW, "a short name keeps the least height")
+    stub.measure = nil
+end)
+
+T.test("character page: the stats are laid out by their rows' heights", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    wrapMeasure()
+    P.RefreshStats(page)
+    local rows = page.stats.groups.attributes.rows
+    for i = 1, #rows - 1 do
+        if rows[i]:IsShown() and rows[i + 1]:IsShown() then
+            T.eq(rows[i + 1].y - rows[i].y, rows[i]:GetHeight(), "row " .. i .. " to the next")
+        end
+    end
+    stub.measure = nil
+end)
+
+T.test("character list: a picked row is the accent's wash, a hover is white, and a stripe is dark", function()
+    local DUI, ns = load({ factions = {
+        CW.faction("Alliance", 0, 0, 0, 0, { isHeader = true }),
+        CW.faction("Ash", 5, 3000, 3000, 9000, { isChild = true }),
+        CW.faction("Birch", 5, 3000, 3000, 9000, { isChild = true }),
+        CW.faction("Cedar tree", 5, 3000, 3000, 9000, { isChild = true }),
+    } })
+    setNow(DUI, "zebra", true)
+    DaylightUI:Set("general", "accent", "daylight")    -- a one-color accent gives a plain vertex color
+    local page = openPage(ns, "ReputationFrame")
+    local rows = page.list.rows
+    T.truthy(rows[2].pick:IsShown(), "the first faction is picked")
+    T.falsy(rows[3].pick:IsShown())
+    T.falsy(rows[2].hi:IsShown(), "the picked row is not lit as a hover")
+    local ar, ag, ab = DaylightUI.Style.Accent()
+    local pr, pg, pb = rows[2].pick:GetVertexColor()
+    T.truthy(math.abs(pr - ar) < 0.01 and math.abs(pg - ag) < 0.01 and math.abs(pb - ab) < 0.01, "in the accent")
+    T.eq(ns.Colors.STRIPE[1] + ns.Colors.STRIPE[2] + ns.Colors.STRIPE[3], 0, "a stripe is dark")
+    T.truthy(DaylightUI.Win.Parts.HI[1] > 0.9, "a hover is white")
+    -- Picking another moves it.
+    stub.Key(function() rows[3]:Click() end)
+    T.truthy(rows[3].pick:IsShown())
+    T.falsy(rows[2].pick:IsShown())
+end)
+
+T.test("character list: rows with a bar have room above the name, under the bar and between them", function()
+    local List = ns_List or nil
+    local _, ns = load({ factions = factions() })
+    List = ns.List
+    local text = math.ceil(DaylightUI.Style.SIZE.body * 1.3)
+    T.eq(List.BAR_ROW, text + List.BAR_GAP + List.BAR_H + 2 * List.PAD)
+    T.truthy(List.BAR_ROW >= 38, "more than the 30 px that left the bar touching the name")
+    local page = openPage(ns, "ReputationFrame")
+    local r = page.list.rows[2]
+    local _, _, _, _, y = r.text:GetPoint(1)
+    T.eq(-y, List.PAD, "room above the name")
+    local _, _, _, _, by = r.bar:GetPoint(1)
+    T.eq(by, List.PAD, "and under the bar")
+end)
+
+T.test("character slots: a long item name takes a second line", function()
+    local P, ns = charPage({ items = { Head = CW.item("The Crown of the Mountain Kings", { quality = 4, level = 66 }),
+                                        Neck = CW.item("Pendant", { quality = 3, level = 20 }) } })
+    wrapMeasure()
+    local page = openChar(ns)
+    local S = ns.Slots
+    local long, short = S.frames.Head, S.frames.Neck
+    T.truthy(long.wrap, "too long for one line: two")
+    T.falsy(short.wrap, "a short name stays on one line")
+    local _, rel, relPoint = long.name:GetPoint(1)
+    T.eq(rel, long.icon, "the lines span the icon's height")
+    local function plain(fs) return (fs:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    T.eq(plain(long.line), "Item level 66", "the item level line is never shortened")
+    stub.measure = nil
+end)
+
+T.test("character slots: the item level in the icon's corner leaves the name its own, centered", function()
+    local P, ns = charPage({ items = { Head = CW.item("Lionheart Helm", { quality = 4, level = 66 }),
+                                        Chest = CW.item("Chest", { cur = 20, max = 100 }) } })
+    local page = openChar(ns)
+    local h = ns.Slots.frames.Head
+    T.eq(h.corner:GetText(), "", "off by default: no number in the corner")
+    T.truthy(h.line:GetText():find("66", 1, true), "the line under the name")
+    T.falsy(h.lineless)
+    DaylightUI:Set("Character", "levelInIcon", true)
+    P.Refresh(page)
+    T.eq(h.corner:GetText(), "66", "the level in the corner")
+    T.truthy(h.cornerBg:IsShown() and h.cornerBg:GetWidth() > 0, "a dark square behind the number")
+    T.eq(h.cornerBg:GetWidth(), h.cornerBg:GetHeight(), "square")
+    T.eq(h.line:GetText(), "", "no line under the name")
+    T.truthy(h.lineless, "so the name is centered on the icon")
+    local p = h.name:GetPoint(1)
+    T.eq(p, "LEFT", "by its middle")
+    DaylightUI:Set("Character", "levelInIcon", false)
+    P.Refresh(page)
+    T.eq(h.corner:GetText(), "")
+    T.falsy(h.cornerBg:IsShown(), "and none with no number")
+    T.falsy(h.lineless)
+end)
+
+
+T.test("character list: a row with a bar has the same room on all four sides", function()
+    local _, ns = load({ factions = factions() })
+    local page = openPage(ns, "ReputationFrame")
+    local List = ns.List
+    local r = page.list.rows[2]
+    local _, _, _, tx, ty = r.text:GetPoint(1)
+    local _, _, _, rx, ry = r.right:GetPoint(1)
+    local _, _, _, bx, by = r.bar:GetPoint(1)
+    local _, _, _, bx2 = r.bar:GetPoint(2)
+    T.eq(tx, List.PAD + (r.item.indent or 0) * List.INDENT, "left")
+    T.eq(-ty, List.PAD, "top")
+    T.eq(-rx, List.PAD, "right")
+    T.eq(by, List.PAD, "bottom")
+    T.eq(-bx2, List.PAD, "the bar's right")
+    T.eq(bx, List.PAD, "the bar's left")
+end)
+
+T.test("character statistics: the picked category is marked with a wash and a bar in its color", function()
+    local _, ns = load({ statistics = {
+        categories = { { id = 1, title = "Combat" }, { id = 2, title = "Kills", parent = 1 }, { id = 3, title = "Travel" } },
+        stats = { [1] = { { id = 101, name = "Damage done", quantity = "5" } } } } })
+    local page = openPage(ns, "AchievementFrame")
+    if not page or not page.list then ns.Follow.Select("statistics"); page = ns.window.pages.statistics end
+    local rows = page.list.rows
+    T.eq(rows[1].text:GetText(), "Combat", "at the size of the others, not in capitals")
+    T.falsy(rows[1].line:IsShown(), "no rule under it")
+    T.falsy(rows[1].head:IsShown())
+    T.truthy(rows[1].pick:IsShown() and rows[1].mark:IsShown(), "the first is open: the wash and the bar")
+    T.falsy(rows[2].pick:IsShown() or rows[2].mark:IsShown(), "the others are not")
+    local r, g, b = rows[1].mark:GetVertexColor()
+    T.rgb({ r, g, b }, ns.DEFAULTS.colors.attributes, "the bar in its category's color")
+    stub.Key(function() rows[2]:Click() end)
+    T.truthy(rows[2].pick:IsShown() and rows[2].mark:IsShown(), "a sub-category picked is marked")
+    T.falsy(rows[1].pick:IsShown() or rows[1].mark:IsShown(), "and the one before no longer")
+    r, g, b = rows[2].mark:GetVertexColor()
+    T.rgb({ r, g, b }, ns.DEFAULTS.colors.attributes, "in its parent's color")
+    T.truthy(rows[1].pick:GetTexture() and rows[1].mark:GetTexture(), "textures to tint: a bare texture would show nothing in game")
+end)
+
+T.test("character list: every row has the same room on all four sides, with or without a bar", function()
+    local _, ns = load({ statistics = {
+        categories = { { id = 1, title = "Combat" }, { id = 2, title = "Kills", parent = 1 } },
+        stats = { [1] = { { id = 101, name = "Damage done", quantity = "5" } } } } })
+    local page = openPage(ns, "AchievementFrame")
+    if not page or not page.right then ns.Follow.Select("statistics"); page = ns.window.pages.statistics end
+    local List = ns.List
+    T.eq(List.ROW, math.ceil(DaylightUI.Style.SIZE.body * 1.3) + 2 * List.PAD, "a row is its text and the room above and under it")
+    for _, L in ipairs({ page.list, page.right }) do
+        local r = L.rows[1]
+        local _, _, _, tx, ty = r.text:GetPoint(1)
+        local _, _, _, rx, ry = r.right:GetPoint(1)
+        T.eq(-ty, List.PAD, "top")
+        T.eq(-ry, List.PAD, "the number's top")
+        T.eq(-rx, List.PAD, "right")
+        T.eq(tx - (r.item.indent or 0) * List.INDENT, List.PAD, "left")
+    end
+end)
+
+T.test("character skills: a row lights nothing and picks nothing (there is nothing to open), but a header still folds", function()
+    local _, ns = load({ skills = skills() })
+    local page = openPage(ns, "SkillsFrame")
+    local List = ns.List
+    local row
+    for _, r in ipairs(page.left.rows) do if r:IsShown() and r.item and r.item.kind == "row" then row = r; break end end
+    T.truthy(row, "a skill row")
+    row:GetScript("OnEnter")(row)
+    T.falsy(row.hi:IsShown(), "no hover wash")
+    stub.Key(function() row:Click() end)
+    T.falsy(row.pick:IsShown() or row.mark:IsShown(), "no pick")
+    T.isnil(page.left.selectedKey, "nothing selected")
+    T.truthy(page.left.opts.static and page.right.opts.static)
+end)
+
+T.test("character skills: a fold shows at once even when the game's list still reads the old state, and doesn't flip back", function()
+    local _, ns = load({ skills = skills() })
+    local page = openPage(ns, "SkillsFrame")
+    local C = C_SkillInfo
+    local realCollapse, realExpand = C.CollapseSkillHeader, C.ExpandSkillHeader
+    local late = {}
+    -- The game answers late: the call is made but the list changes a moment after.
+    C.CollapseSkillHeader = function(i) late[#late + 1] = function() realCollapse(i) end end
+    C.ExpandSkillHeader = function(i) late[#late + 1] = function() realExpand(i) end end
+    local function names(L)
+        local out = {}
+        for _, r in ipairs(L.rows) do if r:IsShown() and r.item then out[#out + 1] = r.item.text end end
+        return table.concat(out, ",")
+    end
+    local function click(name)
+        for _, r in ipairs(page.right.rows) do
+            if r:IsShown() and r.item and r.item.text == name then stub.Key(function() r:Click() end); return end
+        end
+        error("no row " .. name)
+    end
+    stub.RunTimers()
+    T.truthy(names(page.right):find("Swords", 1, true), "Weapon Skills starts open")
+    click("Weapon Skills")
+    stub.RunTimers()
+    T.falsy(names(page.right):find("Swords", 1, true), "folded at once, before the game's list changed")
+    for _, f in ipairs(late) do f() end
+    stub.FireEvent("SKILL_LINES_CHANGED")
+    stub.RunTimers()
+    T.falsy(names(page.right):find("Swords", 1, true), "and it stays folded when the game's answer comes")
+    late = {}
+    click("Weapon Skills")
+    stub.RunTimers()
+    T.truthy(names(page.right):find("Swords", 1, true), "opens at once")
+    for _, f in ipairs(late) do f() end
+    stub.FireEvent("SKILL_LINES_CHANGED")
+    stub.RunTimers()
+    T.truthy(names(page.right):find("Swords", 1, true), "and stays open")
+    C.CollapseSkillHeader, C.ExpandSkillHeader = realCollapse, realExpand
+end)
+
+T.test("character page: a stat row whose value can't be measured (a secret, in a fight) is fitted without working on it", function()
+    local P, ns = charPage()
+    local page = openChar(ns)
+    local r = page.stats.groups.attributes.rows[1]
+    r.label:SetText("Strength")
+    r.value:SetText("5")
+    local w = P.STATS_W - 2 * P.STATS_PAD
+    -- Measured once while it can be: that width is kept.
+    r.value.GetStringWidth = function() return 33 end
+    P.FitStat(r, w)
+    T.eq(r.valueW, 33)
+    -- A secret measure, as the client gives for a secret text: never compared or added.
+    r.value.GetStringWidth = function() return stub.Secret(40) end
+    r.value.GetStringHeight = function() return stub.Secret(14) end
+    local ok, h = pcall(P.FitStat, r, w)
+    T.truthy(ok, tostring(h))
+    T.eq(h, math.max(P.STAT_ROW, P.STAT_SIZE + 2 + 2 * P.STAT_PAD), "the height of a line, as when nothing is measured")
+    T.eq(r.valueW, 33, "the last width is kept for it")
+    -- Measuring errors outright (the fake game's secret text): the same.
+    r.value.GetStringWidth = function() error("attempt to measure secret text") end
+    ok, h = pcall(P.FitStat, r, w)
+    T.truthy(ok, tostring(h))
+    -- Never measured at all: a usual width.
+    local fresh = page.stats.groups.attributes.rows[2]
+    fresh.label:SetText("Agility"); fresh.valueW = nil
+    fresh.value.GetStringWidth = function() return stub.Secret(40) end
+    ok, h = pcall(P.FitStat, fresh, w)
+    T.truthy(ok, tostring(h))
+    T.isnil(fresh.valueW)
+end)
+
+T.test("character pvp: the honor card shows today, yesterday and in all; a dash where the client has none", function()
+    local pvp = {}
+    for k, v in pairs(PVP) do pvp[k] = v end
+    pvp.honor = { today = { 12, 1 }, yesterday = { 30, 0 }, lifetime = { 4500, 9 } }
+    local _, ns = load({ pvp = pvp })
+    local page = openPage(ns, "PVPRankFrame")
+    local rows = page.honor.rows
+    T.eq(page.cards.honor:IsShown(), true)
+    T.deq({ rows[1].cells[1]:GetText(), rows[1].cells[2]:GetText(), rows[1].cells[3]:GetText() }, { "12", "30", "4,500" }, "honorable kills")
+    T.deq({ rows[2].cells[1]:GetText(), rows[2].cells[2]:GetText(), rows[2].cells[3]:GetText() }, { "1", "0", "-" }, "dishonorable: none in all (that number is a rank)")
+    T.eq(page.honor.cols[3]:GetText(), "Lifetime")
+    local _, ns2 = load({ pvp = PVP })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.eq(page2.cards.honor:IsShown(), false, "the client has no honor numbers: no card")
+end)
+
+T.test("character pvp: soft cards, the same room on all four sides, the left as tall as the right", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    local P, C = ns.PvP, page.cards
+    local function top(c) return -select(5, c:GetPoint(1)) end
+    T.eq(C.rank:GetHeight(), C.week:GetHeight() + C.season:GetHeight() + C.honor:GetHeight() + 2 * P.GAP, "the left card reaches the right stack's foot")
+    T.eq(top(C.season) - top(C.week), C.week:GetHeight() + P.GAP, "a gap between cards")
+    -- A block sits in from its card by the same room at the sides, and in the middle of its height.
+    local b = page.blocks[2]
+    local _, _, _, bx, by = b:GetPoint(1)
+    local _, _, _, rx = b:GetPoint(2)
+    T.eq(bx, P.PAD, "left"); T.eq(-rx, P.PAD, "right")
+    T.eq(-by, math.floor((C.week:GetHeight() - b:GetHeight()) / 2), "in the middle, top to foot")
+    T.truthy(C.week:GetHeight() >= b:GetHeight() + 2 * P.PAD, "never closer than the room all round")
+    -- The cards reach the foot of the page.
+    T.truthy(C.rank:GetHeight() >= ns.List.Room(), "the cards reach the page's foot (or are as tall as their words need)")
+    -- The labels are tan; the accent is for numbers.
+    local r, g, bl = b.label.__textColor[1], b.label.__textColor[2], b.label.__textColor[3]
+    T.rgb({ r, g, bl }, DaylightUI.Style.INK.LABEL)
+    local hl = page.honor.label.__textColor
+    T.rgb({ hl[1], hl[2], hl[3] }, DaylightUI.Style.INK.LABEL, "HONOR is tan too")
+end)
+
+T.test("character pvp: the badge is our own, one for each rank, in the accent", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    T.truthy(page.emblem:GetTexture():find("pvp-rank-03.png", 1, true), "rank 3's badge")
+    T.near(page.emblem:GetAlpha(), 1, 0.001)
+    DaylightUI:Set("general", "accent", "daylight")    -- a one-color accent gives a plain vertex color
+    ns.PvP.Refresh(page)
+    local r, g, b = page.emblem:GetVertexColor()
+    T.rgb({ r, g, b }, { DaylightUI.Style.Accent() }, "tinted in the accent")
+    -- Past the last drawn badge, the last one.
+    local high = {}
+    for k, v in pairs(PVP) do high[k] = v end
+    high.renownLevel = 20
+    local _, ns2 = load({ pvp = high })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.truthy(page2.emblem:GetTexture():find("pvp-rank-14.png", 1, true))
+end)
+
+T.test("character pvp: the cards are the same dark inset as the other pages' side panels", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    local r, g, b, a = page.cards.week.fill:GetVertexColor()
+    T.deq({ r, g, b }, { ns.List.INSET[1], ns.List.INSET[2], ns.List.INSET[3] })
+    T.near(a, ns.List.INSET[4], 0.001)
+    T.deq(ns.PvP.CARD, ns.List.INSET, "the very same one")
+end)
+
+T.test("character footer: the ammo you carry beside the durability, only with ammo or a weapon that shoots it", function()
+    local function footOf(items, class)
+        local _, ns, DUI = charPage({ usesAmmo = true, class = class or "HUNTER", items = items })
+        DUI:Set("Character", "footColors", false)
+        return openChar(ns).foot
+    end
+    local arrows = CW.item("Jagged Arrow", { count = 1234, subType = "Arrow" })
+    T.eq(footOf({ Ranged = CW.item("Bow", { weapon = 2 }), Ammo = arrows }).ammo:GetText(), "Ammo 1234 (Jagged Arrow)", "the whole count, and which ammo")
+    local f = footOf({ Ranged = CW.item("Bow", { weapon = 2 }) })
+    T.eq(f.ammo:GetText(), "Ammo 0", "a bow and none in the slot: none")
+    T.eq(footOf({ Ranged = CW.item("Gun", { weapon = 3 }) }).ammo:GetText(), "Ammo 0")
+    T.eq(footOf({ Ranged = CW.item("Crossbow", { weapon = 18 }) }).ammo:GetText(), "Ammo 0")
+    T.eq(footOf({ Ammo = arrows }).ammo:GetText(), "Ammo 1234 (Jagged Arrow)", "ammo in the slot, no weapon yet")
+    T.eq(footOf({ Ranged = CW.item("Throwing Knife", { weapon = 16 }) }).ammo:GetText(), "", "thrown takes no ammo")
+    T.eq(footOf({}).ammo:GetText(), "", "nothing to shoot, nothing to count")
+    local _, ns, DUI = charPage({ usesAmmo = true, class = "HUNTER", items = { Ranged = CW.item("Bow", { weapon = 2 }) } })
+    local page = openChar(ns)
+    T.truthy(page.foot.ammo:GetText():find("Ammo", 1, true))
+    local x = select(4, page.foot.ammo:GetPoint(1))
+    T.eq(select(2, page.foot.ammo:GetPoint(1)), page.foot.dura, "right of the durability")
+    T.truthy(x > 0)
 end)

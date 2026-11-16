@@ -16,6 +16,12 @@ Skills.LEFT = { [11] = true, [9] = true }     -- professions, secondary skills
 Skills.HIDDEN = { [7] = true }                -- class skills: the game hides them too
 Skills.FOLD = { [8] = true, [10] = true }     -- armor, languages
 
+-- What a click asked for, by header name, until the game's list says the same (or WANT_FOR
+-- seconds pass): the game may not have changed the fold by the time the page reads it again,
+-- and the page would draw the old state, or flip back when the game's late answer arrives.
+Skills.want = {}
+Skills.WANT_FOR = 1.5
+
 function Skills.Read()
     local C, out = C_SkillInfo, {}
     if type(C) ~= "table" or type(C.GetNumSkillLines) ~= "function" then return out end
@@ -28,6 +34,12 @@ function Skills.Read()
             out[#out + 1] = { index = i, name = s.name or "", header = s.isHeader == true, child = s.isChild == true,
                 category = s.isHeader and s.skillID or s.skillLineCategoryID, rank = s.rank or 0, max = s.maxRank or 0,
                 modifier = s.modifier or 0, collapsed = s.isCollapsed == true }
+            local line = out[#out]
+            local w = line.header and Skills.want[line.name]
+            if w then
+                if w.collapsed == line.collapsed or GetTime() > w.till then Skills.want[line.name] = nil
+                else line.collapsed = w.collapsed end
+            end
         end
     end
     return out
@@ -89,13 +101,14 @@ end
 
 local function fold(item)
     local s = item.data
+    Skills.want[s.name] = { collapsed = not s.collapsed, till = GetTime() + Skills.WANT_FOR }
     if s.collapsed then C_SkillInfo.ExpandSkillHeader(s.index) else C_SkillInfo.CollapseSkillHeader(s.index) end
     ns.Window.Refresh()
 end
 
 function Skills.Build(page)
-    page.left = ns.List.Make(page, { onFold = fold, row = ns.List.BAR_ROW })
-    page.right = ns.List.Make(page, { onFold = fold, row = ns.List.BAR_ROW })
+    page.left = ns.List.Make(page, { onFold = fold, row = ns.List.BAR_ROW, static = true })
+    page.right = ns.List.Make(page, { onFold = fold, row = ns.List.BAR_ROW, static = true })
 end
 
 function Skills.Place(page)

@@ -43,6 +43,8 @@ ns.OPTIONS = { pages = {
               desc = "Each item's name and item level next to its icon. When off, only the icons show, with the item level in each corner and more room for the model." },
             { type = "toggle", key = "itemLevel", label = "Item level line",
               desc = "The dim line under each item's name. Repair warnings still show when it's off." },
+            { type = "toggle", key = "levelInIcon", label = "Item level in the icon",
+              desc = "The item level in the icon's corner instead of a line under the name, so long names have the room." },
             { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is. Other windows still open beside it when they fit." },
             backRows[1], backRows[2],

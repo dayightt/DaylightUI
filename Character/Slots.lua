@@ -19,7 +19,8 @@ Slots.AMMO = 22           -- ammo slot size, small as in the game's window
 Slots.AMMO_GAP = 10       -- ranged to ammo icon, clears both outlines with room to spare
 Slots.EDGE = 3            -- quality outline width
 Slots.GAP = 10            -- icon to name
-Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny
+Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny - 2
+Slots.CORNER_BG_ALPHA, Slots.CORNER_BG_PAD = 0.65, 1   -- the dark square behind the corner's number
 Slots.ENCHANT_SIZE = Style.SIZE.small
 Slots.ENCHANT = DUI.Style.INK.GOOD            -- enchant line
 Slots.MARK = 5                                -- enchant marker size in icons-only mode
@@ -147,8 +148,14 @@ function Slots.Make(parent, key, side, size, into)
     h.dot:SetSize(Slots.DOT, Slots.DOT)
     h.dot:SetPoint("TOPRIGHT", h.icon, "TOPRIGHT", -2, -2)
     h.dot:Hide()
-    h.corner = Style.Text(h.icon, Slots.CORNER_SIZE, "RIGHT")
-    h.corner:SetPoint("BOTTOMRIGHT", h.icon, "BOTTOMRIGHT", -1, 2)
+    -- A dark square behind the corner's number, so it doesn't melt into the icon's art.
+    h.cornerBg = h.icon:CreateTexture(nil, "OVERLAY")
+    h.cornerBg:SetTexture(Slots.WHITE)
+    h.cornerBg:SetVertexColor(0, 0, 0, Slots.CORNER_BG_ALPHA)
+    h.cornerBg:Hide()
+    h.corner = Style.Text(h.icon, Slots.CORNER_SIZE, "CENTER")
+    h.cornerBg:SetPoint("BOTTOMRIGHT", h.icon, "BOTTOMRIGHT", 0, 0)
+    h.corner:SetPoint("CENTER", h.cornerBg, "CENTER", 0, 0)   -- the number in the middle of its square
     local justify = side == "right" and "RIGHT" or "LEFT"
     h.name = Style.Text(h, Slots.NAME_SIZE, justify)
     h.name:SetWordWrap(false)
@@ -184,8 +191,21 @@ end
 -- Width the ammo slot adds beside the ranged icon.
 function Slots.AmmoRoom() return Slots.AMMO_GAP + Slots.AMMO end
 
+-- A text's width as it would run on one line, whatever room it has.
+local function natural(fs)
+    local ok, w = pcall(function()
+        local v = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+        if type(v) ~= "number" then v = fs:GetStringWidth() end
+        return v
+    end)
+    if ok and type(w) == "number" and not DUI.IsSecret(w) then return w end
+    return 0   -- not measurable (a secret): it is left on one line
+end
+
 -- Text beside the icon. Name and line are centered on it, or with an enchant
--- all three lines span its height.
+-- all three lines span its height. A name too long for one line (h.wrap) takes two and
+-- the lines span the icon's height the same way. With no line under it (the level is in
+-- the icon's corner, or the line is off) the name is centered on the icon.
 local function stack(h, three)
     h.three = three
     local right = h.side == "right"
@@ -198,9 +218,38 @@ local function stack(h, three)
         h.name:SetPoint("TOP" .. p, h.icon, "TOP" .. edge, x, 1)
         h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
         h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
+    elseif h.lineless then
+        h.name:SetPoint(p, h.icon, edge, x, 0)
+        h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
+        h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
+    elseif h.wrap then
+        h.name:SetPoint("TOP" .. p, h.icon, "TOP" .. edge, x, 1)
+        h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
+        h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
     else
         h.name:SetPoint("BOTTOM" .. p, h.icon, edge, x, 1)
         h.line:SetPoint("TOP" .. p, h.icon, edge, x, -1)
+    end
+end
+
+-- The words fit the room beside the icon: a long name takes a second line (a slot with an
+-- enchant has no room for one, and ends in dots). The whole name is in the tooltip.
+function Slots.FitText(h)
+    if not h.entry then return end
+    local lineless = h.lineFull == ""
+    if lineless ~= (h.lineless == true) then
+        h.lineless = lineless
+        stack(h, h.three == true)
+    end
+    if not h.names then return end
+    local width = h.name:GetWidth() or 0
+    if width <= 0 then return end
+    local wrap = h.three ~= true and h.entry.empty ~= true and natural(h.name) > width + 0.5
+    if wrap ~= (h.wrap == true) then
+        h.wrap = wrap
+        h.name:SetWordWrap(wrap)
+        h.name:SetMaxLines(wrap and 2 or 0)
+        stack(h, h.three == true)
     end
 end
 
@@ -225,6 +274,7 @@ function Slots.Layout(h, width, names, lead)
     h.name:SetShown(names)
     h.line:SetShown(names)
     h.names = names
+    Slots.FitText(h)
 end
 
 -- opts.itemLevel shows the item level line.
@@ -263,7 +313,10 @@ function Slots.Paint(h, e, opts)
     end
     local text, kind = ns.Gear.Line(e)
     if kind == "dim" and not e.empty and not e.ammo and not itemLevel then text = "" end
+    -- The level in the icon's corner: no line of it under the name (a shirt's own word stays).
+    if kind == "dim" and not e.empty and not e.ammo and opts.levelInIcon == true and not ns.Gear.NO_LEVEL[e.key] then text = "" end
     h.line:SetText(text)
+    h.lineFull = text
     local c = (kind == "red" and Slots.RED) or (kind == "amber" and Slots.AMBER) or (e.empty and Slots.OFF) or Slots.DIM
     h.line:SetTextColor(c[1], c[2], c[3])
     if swapped then arrive(h) end
@@ -274,12 +327,24 @@ function Slots.Paint(h, e, opts)
     end
     -- Icons-only mode shows the item level in the corner, or the ammo count.
     local corner = ""
-    if not h.names then
-        if e.ammo then corner = tostring(e.ammo)
+    if not h.names or opts.levelInIcon == true then
+        -- (the ammo's count is in the footer, whole, beside the durability)
+        if e.ammo then corner = ""
         elseif itemLevel and e.level and not ns.Gear.NO_LEVEL[e.key] then corner = tostring(e.level) end
     end
     h.corner:SetText(corner)
+    h.cornerBg:SetShown(corner ~= "")
+    if corner ~= "" then
+        -- A square, the same room all round the digits: as wide as the text (or as tall as its size,
+        -- if that is more) plus the pad on each side. The text gets the whole-pixel width it is
+        -- centered in, so a two-digit number does not sit off to one side.
+        local w = math.max(math.ceil(h.corner:GetStringWidth()), Slots.CORNER_SIZE)
+        h.corner:SetWidth(w)
+        local side = w + 2 * Slots.CORNER_BG_PAD
+        h.cornerBg:SetSize(side, side)
+    end
     Slots.PaintEnchant(h, e)
+    Slots.FitText(h)
     if h.over then Style.InkText(h.name, "VALUE") end
 end
 

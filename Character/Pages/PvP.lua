@@ -1,7 +1,7 @@
 -- The PvP page. In this client the rank is renown on
--- major faction 2800, with a weekly limit and a season end. Your
--- rank's emblem and name big on the left; three plain blocks on the right:
--- the next rank and how far, this week against its limit, the season.
+-- major faction 2800, with a weekly limit and a season end. In soft cards: your rank's
+-- emblem, name and the next rank on the left; on the right this week against its limit,
+-- the season, and your honorable kills (today, yesterday, in all).
 
 local _, DUI = ...
 DUI.Char = DUI.Char or {}   -- the character window's own namespace
@@ -13,12 +13,24 @@ local PvP = {}
 ns.PvP = PvP
 
 PvP.FACTION = 2800
-PvP.EMBLEM = "Interface\\PvPRankBadges\\PvPRank%02d"
-PvP.EMBLEM_SIZE = 96
-PvP.LEFT_W = 260
-PvP.BLOCK_H = 96
+-- Our own badges (Media/pvp-rank-NN.png), white so they take the accent: one to three chevrons,
+-- a ring from the fourth rank, and a star more for each three after that.
+PvP.EMBLEM = "pvp-rank-%02d.png"
+PvP.LAST_BADGE = 14
+PvP.EMBLEM_SIZE = 112
+PvP.LEFT_W = 300
+PvP.CARD = ns.List.INSET           -- a card's fill: the dark inset of the stats pane and the other pages' side panes
+PvP.PAD = 14                    -- the same room on all four sides of a card
+PvP.GAP = 12                    -- between cards
 PvP.RANK_SIZE, PvP.MAIN_SIZE, PvP.LABEL_SIZE = 20, Style.SIZE.head, Style.SIZE.small
 PvP.DAY, PvP.HOUR = 86400, 3600
+PvP.ROW = 24                    -- a line of the honor card
+-- A block's height, from its texts' (so a larger text scale keeps it): label, name, bar, line.
+local function line(size) return math.ceil(size * 1.3) end
+PvP.BLOCK_H = line(PvP.LABEL_SIZE) + 8 + line(PvP.MAIN_SIZE) + 10 + (ns.List.BAR_H + 2) + 6 + line(ns.List.SMALL)
+PvP.HONOR_H = line(PvP.LABEL_SIZE) + 10 + line(PvP.LABEL_SIZE) + 4 + 2 * PvP.ROW
+local isSecret = DUI.IsSecret
+local function plain(v) return type(v) == "number" and not isSecret(v) end
 
 local function rankText(rank)
     if type(GetPVPRankText) == "function" then
@@ -45,6 +57,16 @@ function PvP.Read()
     local prev, cap = total(p.previousWeekProgressiveMaxLevel), total(d.weekLevel)
     d.weekCap = math.max(0, cap - prev)
     d.weekValue = math.min(d.weekCap, math.max(0, total(d.rank) + d.earned - prev))
+    -- Honorable and dishonorable kills today and yesterday, and in all (nil where the client has none).
+    local function kills(fn)
+        if type(fn) ~= "function" then return nil end
+        local ok2, a, b = pcall(fn)
+        if ok2 and plain(a) then return { a, plain(b) and b or nil } end
+        return nil
+    end
+    d.today, d.yesterday = kills(GetPVPSessionStats), kills(GetPVPYesterdayStats)
+    d.lifetime = kills(GetPVPLifetimeStats)
+    if d.lifetime then d.lifetime[2] = nil end   -- its second number is your highest rank, not kills
     d.season = type(GetCurrentArenaSeason) == "function" and GetCurrentArenaSeason() or 0
     local ends = C_SeasonInfo and C_SeasonInfo.GetTimeUntilCurrentPVPSeasonEnd
     d.ends = type(ends) == "function" and ends() or 0
@@ -62,8 +84,8 @@ end
 -- A number in a sentence, in the accent (read now: follows an accent switch).
 function PvP.Pop(s) return DUI.Win.Parts.Hex({ Style.Pop() }) .. s .. "|r" end
 
-local function block(page, i)
-    local b = CreateFrame("Frame", nil, page)
+local function block(page, i, parent)
+    local b = CreateFrame("Frame", nil, parent)
     b.label = Style.Text(b, PvP.LABEL_SIZE, "LEFT")
     b.label:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
     b.main = Style.Text(b, PvP.MAIN_SIZE, "LEFT")
@@ -79,37 +101,152 @@ local function block(page, i)
     return b
 end
 
+-- A soft card: a faint fill.
+local function card(page)
+    local c = CreateFrame("Frame", nil, page)
+    c.fill = c:CreateTexture(nil, "BACKGROUND")
+    c.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    c.fill:SetAllPoints()
+    c.fill:SetVertexColor(PvP.CARD[1], PvP.CARD[2], PvP.CARD[3], PvP.CARD[4])
+    return c
+end
+
+-- The honor card: Today, Yesterday and in all, honorable and dishonorable kills.
+local function honor(c)
+    local h = { cols = {}, rows = {} }
+    h.label = Style.Text(c, PvP.LABEL_SIZE, "LEFT")
+    h.label:SetText(L["HONOR"])
+    for i, word in ipairs({ L["Today"], L["Yesterday"], L["Lifetime"] }) do
+        local t = Style.Text(c, PvP.LABEL_SIZE, "RIGHT")
+        t:SetText(word)
+        Style.InkText(t, "LABEL")
+        h.cols[i] = t
+    end
+    for r, word in ipairs({ L["Honorable kills"], L["Dishonorable kills"] }) do
+        local name = Style.Text(c, ns.List.TEXT, "LEFT")
+        name:SetText(word)
+        Style.InkText(name, "TEXT")
+        local cells = {}
+        for i = 1, 3 do cells[i] = Style.Text(c, ns.List.TEXT, "RIGHT") end
+        h.rows[r] = { name = name, cells = cells }
+    end
+    return h
+end
+
 function PvP.Build(page)
-    page.emblem = page:CreateTexture(nil, "ARTWORK")
+    page.cards = { rank = card(page), week = card(page), season = card(page), honor = card(page) }
+    local R = page.cards.rank
+    page.emblem = R:CreateTexture(nil, "ARTWORK")
     page.emblem:SetSize(PvP.EMBLEM_SIZE, PvP.EMBLEM_SIZE)
-    page.rankName = Style.Text(page, PvP.RANK_SIZE, "CENTER")
-    page.rankSub = Style.Text(page, ns.List.TEXT, "CENTER")
+    page.rankName = Style.Text(R, PvP.RANK_SIZE, "CENTER")
+    page.rankSub = Style.Text(R, ns.List.TEXT, "CENTER")
     page.blocks = {}
-    for i, label in ipairs({ L["NEXT RANK"], L["THIS WEEK"], L["SEASON"] }) do block(page, i).label:SetText(label) end
+    block(page, 1, R).label:SetText(L["NEXT RANK"])
+    block(page, 2, page.cards.week).label:SetText(L["THIS WEEK"])
+    block(page, 3, page.cards.season).label:SetText(L["SEASON"])
+    page.honor = honor(page.cards.honor)
 end
 
 function PvP.Place(page)
-    local E, W = ns.List.EDGE, ns.Window.Width()
+    local E, W, P, G = ns.List.EDGE, ns.Window.Width(), PvP.PAD, PvP.GAP
+    local C = page.cards
+    local blockCard = PvP.BLOCK_H + 2 * P
+    local honorCard = PvP.HONOR_H + 2 * P
+    -- The cards reach the foot of the page: what the page has beyond what they need is shared
+    -- by the three on the right, and their words sit in the middle of the room they get.
+    local least = 2 * blockCard + honorCard + 2 * G
+    local total = math.max(least, ns.List.Room())
+    local extra = total - least
+    local each = math.floor(extra / 3)
+    local weekH, seasonH, honorH = blockCard + each, blockCard + each, honorCard + extra - 2 * each
+    local x = E + PvP.LEFT_W + G
+    local w = W - x - E
+    local function put(c, cx, cy, cw, ch)
+        c:ClearAllPoints()
+        c:SetPoint("TOPLEFT", page, "TOPLEFT", cx, -cy)
+        c:SetSize(cw, ch)
+    end
+    local top = ns.List.TOP
+    put(C.rank, E, top, PvP.LEFT_W, total)
+    put(C.week, x, top, w, weekH)
+    put(C.season, x, top + weekH + G, w, seasonH)
+    put(C.honor, x, top + weekH + seasonH + 2 * G, w, honorH)
+    -- Left: the emblem, the name and the rank in the middle of what is above the next rank, which
+    -- is at the card's foot.
+    local R = C.rank
+    local blockTop = total - P - PvP.BLOCK_H
+    local group = PvP.EMBLEM_SIZE + 16 + line(PvP.RANK_SIZE) + 6 + line(ns.List.TEXT)
     page.emblem:ClearAllPoints()
-    page.emblem:SetPoint("TOP", page, "TOPLEFT", E + PvP.LEFT_W / 2, -60)
+    page.emblem:SetPoint("TOP", R, "TOP", 0, -(P + math.max(0, math.floor((blockTop - 2 * P - group) / 2))))
     page.rankName:ClearAllPoints()
     page.rankName:SetPoint("TOP", page.emblem, "BOTTOM", 0, -16)
     page.rankSub:ClearAllPoints()
     page.rankSub:SetPoint("TOP", page.rankName, "BOTTOM", 0, -6)
-    local x = E + PvP.LEFT_W + 2 * E
-    for i, b in ipairs(page.blocks) do
+    local function inCard(b, c, y)
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", page, "TOPLEFT", x, -ns.List.TOP - 24 - (i - 1) * (PvP.BLOCK_H + 24))
-        b:SetSize(W - x - E, PvP.BLOCK_H)
+        b:SetPoint("TOPLEFT", c, "TOPLEFT", P, -y)
+        b:SetPoint("TOPRIGHT", c, "TOPRIGHT", -P, -y)
+        b:SetHeight(PvP.BLOCK_H)
     end
+    inCard(page.blocks[1], R, blockTop)   -- at the card's foot
+    inCard(page.blocks[2], C.week, math.floor((weekH - PvP.BLOCK_H) / 2))
+    inCard(page.blocks[3], C.season, math.floor((seasonH - PvP.BLOCK_H) / 2))
+    -- The honor card: a title, the three columns, two lines.
+    local h, inner = page.honor, w - 2 * P
+    local nameW = math.floor(inner * 0.4)
+    local colW = math.floor((inner - nameW) / 3)
+    h.label:ClearAllPoints()
+    local lift = math.floor((honorH - PvP.HONOR_H) / 2)   -- its lines in the middle of the card
+    h.label:SetPoint("TOPLEFT", C.honor, "TOPLEFT", P, -lift)
+    local headY = lift + line(PvP.LABEL_SIZE) + 10
+    for i, t in ipairs(h.cols) do
+        t:ClearAllPoints()
+        t:SetWidth(colW - 6)
+        t:SetPoint("TOPRIGHT", C.honor, "TOPLEFT", P + nameW + colW * i - 6, -headY)
+    end
+    for r, row in ipairs(h.rows) do
+        local y = headY + line(PvP.LABEL_SIZE) + 4 + (r - 1) * PvP.ROW
+        row.name:ClearAllPoints()
+        row.name:SetPoint("TOPLEFT", C.honor, "TOPLEFT", P, -(y + 3))
+        row.name:SetWidth(nameW)
+        for i, cell in ipairs(row.cells) do
+            cell:ClearAllPoints()
+            cell:SetWidth(colW - 6)
+            cell:SetPoint("TOPRIGHT", C.honor, "TOPLEFT", P + nameW + colW * i - 6, -(y + 3))
+        end
+    end
+end
+
+-- The honor card's numbers: a dash where the client has none (or in all for the dishonorable).
+local function paintHonor(page, d)
+    local h = page.honor
+    local any = d.today or d.yesterday or d.lifetime
+    page.cards.honor:SetShown(any ~= nil)
+    local sets = { d.today, d.yesterday, d.lifetime }
+    for r, row in ipairs(h.rows) do
+        for i, cell in ipairs(row.cells) do
+            local v = sets[i] and sets[i][r]
+            cell:SetText(v and ns.List.Number(v) or "-")
+            if v then Style.InkText(cell, "pop") else Style.InkText(cell, "OFF") end
+        end
+    end
+    Style.InkText(h.label, "LABEL")
 end
 
 function PvP.Refresh(page)
     local d = PvP.Read()
     if not d then return end
     local key, rgb = ns.List.OwnBar()
-    page.emblem:SetShown(d.rank > 0)
-    if d.rank > 0 then page.emblem:SetTexture(string.format(PvP.EMBLEM, d.rank)) end
+    -- With no rank yet the first rank's badge stands there faint, so the card isn't just a word.
+    page.emblem:Show()
+    page.emblem:SetTexture(DUI.MEDIA .. string.format(PvP.EMBLEM, math.min(math.max(d.rank, 1), PvP.LAST_BADGE)))
+    if d.rank > 0 then
+        page.emblem:SetVertexColor(Style.Accent())   -- read now: follows an accent switch
+        page.emblem:SetAlpha(1)
+    else
+        page.emblem:SetVertexColor(1, 1, 1)
+        page.emblem:SetAlpha(0.2)
+    end
     page.rankName:SetText(d.name)
     Style.InkText(page.rankName, "VALUE")
     Style.InkText(page.rankSub, "pop")   -- read at paint time: follows an accent change
@@ -133,7 +270,8 @@ function PvP.Refresh(page)
     b3.sub:SetText(PvP.Ends(d.ends) or "")
     -- A season ending within the day reads amber.
     Style.InkText(b3.sub, (d.ends > 0 and d.ends < PvP.DAY) and "WARN" or "VALUE")
-    for _, b in ipairs(page.blocks) do Style.InkText(b.label, "pop") end
+    for _, b in ipairs(page.blocks) do Style.InkText(b.label, "LABEL") end   -- tan: the accent stays for numbers
+    paintHonor(page, d)
 end
 
 -- Rank 0 too, as the game's own window (its PvP tab always shows).

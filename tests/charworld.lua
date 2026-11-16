@@ -210,6 +210,11 @@ local function installInventory()
         else x = find(link) end
         if x then return x.name, link, x.quality, x.level, 1, "Armor", x.subType end
     end
+    -- An item's class and subclass ids (fields.weapon: 2 bow, 3 gun, 18 crossbow, 16 thrown).
+    C_Item.GetItemInfoInstant = function(link)
+        local x = find(link)
+        if x then return CW.ItemId(x), "Weapon", "", "", 0, x.weapon and 2 or 4, x.weapon or 0 end
+    end
     _G.ITEM_QUALITY_COLORS = { [0] = { r = 0.62, g = 0.62, b = 0.62 }, [1] = { r = 1, g = 1, b = 1 },
         [2] = { r = 0.12, g = 1, b = 0 }, [3] = { r = 0, g = 0.44, b = 0.87 }, [4] = { r = 0.64, g = 0.21, b = 0.93 },
         [5] = { r = 1, g = 0.5, b = 0 } }
@@ -462,6 +467,14 @@ local function installPvP(spec)
     _G.C_SeasonInfo = { GetTimeUntilCurrentPVPSeasonEnd = function() return p and p.seasonEnds or 0 end }
     _G.GetCurrentArenaSeason = function() return p and p.season or 0 end
     _G.GetPVPRankText = function(rank) return CW.PVP_RANKS[rank] or ("Rank " .. rank) end
+    -- spec.pvp.honor = { today = { honorable, dishonorable }, yesterday = { ... }, lifetime = { kills, highest rank } }
+    local h = p and p.honor
+    _G.GetPVPSessionStats, _G.GetPVPYesterdayStats, _G.GetPVPLifetimeStats = nil, nil, nil
+    if h then
+        _G.GetPVPSessionStats = function() return h.today[1], h.today[2] end
+        _G.GetPVPYesterdayStats = function() return h.yesterday[1], h.yesterday[2] end
+        _G.GetPVPLifetimeStats = function() return h.lifetime[1], h.lifetime[2] end
+    end
 end
 
 -- spec.statistics = { categories = { { id, title, parent } }, stats = { [category id] = { { id, name, quantity } } } }

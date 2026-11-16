@@ -14,17 +14,20 @@ ns.CharacterPage = CharacterPage
 
 CharacterPage.EDGE = 16
 CharacterPage.TOP = 12          -- under the header
-CharacterPage.ROW = 46          -- slot to slot
-CharacterPage.COL = 176         -- a slot column with names (snug to the model: the names sit close in)
+CharacterPage.ROW = 54          -- slot to slot
+CharacterPage.COL = 200         -- a slot column with names (snug to the model: the names sit close in)
 CharacterPage.GAP = 8
-CharacterPage.WEAPON_W = 160    -- a weapon slot with names (the row sits centered)
+CharacterPage.WEAPON_W = 190    -- a weapon slot with names (the row sits centered)
 CharacterPage.ICON_GAP = 12     -- icons only: icon column to model
-CharacterPage.STATS_W = 200
+CharacterPage.STATS_W = 250         -- wide enough for most stat names beside their values in the longer languages
 CharacterPage.STATS_PAD = 10
 CharacterPage.FOOTER = 36
 CharacterPage.FOOT_LIFT = 8     -- the footer up off the window's bottom edge, like the other windows' footers
-CharacterPage.STAT_ROW = 18
-CharacterPage.STAT_INSET = 4    -- a stat's words in from its stripe's edges
+CharacterPage.STAT_ROW = 20        -- a stat's least height; a name that wraps makes its row taller
+CharacterPage.STAT_PAD = 3      -- above and under a name that wraps
+CharacterPage.STAT_GAP = 10     -- between a stat's name and its value
+CharacterPage.STAT_SECRET_W = 56  -- the room kept for a value that can't be measured
+CharacterPage.STAT_INSET = 5    -- a stat's words in from its stripe's edges
 CharacterPage.GROUP_HEAD = 26
 CharacterPage.GROUP_GAP = 6
 CharacterPage.LINE_ALPHA = 0.85 -- the line under a group's header
@@ -95,6 +98,7 @@ end
 
 function CharacterPage.Place(page)
     local names = ns.Setting("names") ~= false
+
     local Slots, Gear = ns.Slots, ns.Gear
     page.usesAmmo = Gear.UsesAmmo()
     local room = page.usesAmmo and Slots.AmmoRoom() or 0
@@ -156,10 +160,12 @@ local function statRow(content, pool, i)
     r.stripe:Hide()
     local inset = CharacterPage.STAT_INSET
     r.label = Style.Text(r, CharacterPage.STAT_SIZE, "LEFT")
-    r.label:SetPoint("LEFT", r, "LEFT", inset, 0)
+    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", inset, 0)
+    r.label:SetWordWrap(true)   -- a long name wraps under itself rather than running under its value
     r.label:SetTextColor(CharacterPage.LABEL[1], CharacterPage.LABEL[2], CharacterPage.LABEL[3])
     r.value = Style.Text(r, CharacterPage.STAT_SIZE, "RIGHT")
-    r.value:SetPoint("RIGHT", r, "RIGHT", -inset, 0)
+    r.value:SetPoint("TOPRIGHT", r, "TOPRIGHT", -inset, 0)
+    r.value:SetWordWrap(false)
     r:EnableMouse(true)
     r:SetScript("OnEnter", CharacterPage.StatTip)
     r:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
@@ -186,6 +192,43 @@ function CharacterPage.BuildStats(page, groups)
     pane.groups = {}
     for _, g in ipairs(pane.list) do pane.groups[g] = { head = groupHead(pane.content, g), rows = {} } end
     return pane
+end
+
+-- A text's measure, or nil: in a fight a stat's value is a secret, and so is its measure; a secret
+-- number can't be compared or worked on (and measuring may error), so it is never used.
+local isSecret = DUI.IsSecret
+local function measure(fs, what)
+    local ok, v = pcall(fs[what], fs)
+    if ok and type(v) == "number" and not isSecret(v) then return v end
+    return nil
+end
+
+-- A text's height, or a guess from its size when the client has not measured it (or it is secret).
+local function tall(fs, size)
+    local h = measure(fs, "GetStringHeight")
+    if h and h > 0 then return h end
+    return size + 2
+end
+
+-- One stat's row, once its name and value are set: the name gets the room the value
+-- leaves and wraps when it needs more; the row is as tall as its lines, and a row of
+-- one line has them in the middle. Returns the row's height.
+function CharacterPage.FitStat(r, w)
+    local inset, size = CharacterPage.STAT_INSET, CharacterPage.STAT_SIZE
+    -- A value that cannot be measured (secret, in a fight) keeps the width it last had, or a usual one.
+    local vw = measure(r.value, "GetStringWidth")
+    if vw then r.valueW = vw else vw = r.valueW or CharacterPage.STAT_SECRET_W end
+    local room = math.max(20, w - 2 * inset - vw - CharacterPage.STAT_GAP)
+    r.label:SetWidth(room)
+    local lh, vh = tall(r.label, size), tall(r.value, size)
+    local h = math.max(CharacterPage.STAT_ROW, math.ceil(lh) + 2 * CharacterPage.STAT_PAD)
+    local wrapped = lh > vh * 1.5   -- the name takes more lines than the value does
+    r.label:ClearAllPoints()
+    r.value:ClearAllPoints()
+    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", inset, -(wrapped and CharacterPage.STAT_PAD or math.floor((h - lh) / 2)))
+    r.value:SetPoint("TOPRIGHT", r, "TOPRIGHT", -inset, -(wrapped and CharacterPage.STAT_PAD or math.floor((h - vh) / 2)))
+    r:SetHeight(h)
+    return h
 end
 
 -- A folded group's rows fade out where they were while the rest glides up.
@@ -248,11 +291,12 @@ function CharacterPage.RefreshStats(page)
                 ns.Colors.Stripe(r.stripe, i)
                 r.label:SetText(row.label)
                 ns.Stats.Paint(r.value, row)
+                local h = CharacterPage.FitStat(r, w)
                 local c = (row.stale and CharacterPage.STALE) or (row.buff == "up" and CharacterPage.UP)
                     or (row.buff == "down" and CharacterPage.DOWN) or nil
                 c = c or { Style.Pop() }   -- a plain value pops in the accent (read now)
                 r.value:SetTextColor(c[1], c[2], c[3])
-                y = y + CharacterPage.STAT_ROW
+                y = y + h
             end
         end
         for i = #rows + 1, #G.rows do G.rows[i]:Hide() end
@@ -317,9 +361,13 @@ function CharacterPage.BuildFooter(page)
     foot.dura = Style.Text(foot, CharacterPage.FOOT_SIZE, "LEFT")
     foot.dura:SetPoint("LEFT", foot.level, "RIGHT", 24, 0)
     foot.dura:SetTextColor(D[1], D[2], D[3])
+    foot.ammo = Style.Text(foot, CharacterPage.FOOT_SIZE, "LEFT")   -- how much ammo you carry, beside the durability
+    foot.ammo:SetPoint("LEFT", foot.dura, "RIGHT", 24, 0)
+    foot.ammo:SetTextColor(D[1], D[2], D[3])
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
     sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
+    foot.ammo:SetPoint("RIGHT", sets, "LEFT", -16, 0)   -- a long ammo name ends in dots before the button
     sets:SetScript("OnClick", function() if ns.Sets then ns.Sets.Toggle() end end)
     foot.sets = sets
     return foot
@@ -452,6 +500,15 @@ function CharacterPage.PaintFooter(page, sum, repairAt)
     local dura = sum.durability and string.format("%d%%", math.floor(sum.durability * 100 + 0.5))
     if dura and on then dura = C.Wrap(dura, C.Durability(sum.durability, repairAt)) end
     page.foot.dura:SetText(dura and string.format(L["Durability %s"], dura) or "")
+    -- Ammo: the whole count (never cut), red at none.
+    local ammo = sum.ammo and tostring(sum.ammo)
+    if ammo and on then
+        local r, g, b = unpack(sum.ammo == 0 and ns.Slots.RED or Style.INK.VALUE)
+        ammo = C.Wrap(ammo, r, g, b)
+    end
+    local text = ammo and string.format(L["Ammo %s"], ammo) or ""
+    if ammo and sum.ammoName then text = text .. " (" .. sum.ammoName .. ")" end   -- which ammo, if the game knows it yet
+    page.foot.ammo:SetText(text)
 end
 
 -- The average went up: the number nudges and a light runs across it.
@@ -468,7 +525,7 @@ function CharacterPage.Refresh(page)
     local cfg = ns.module and ns.module.db or {}
     if ns.Gear.UsesAmmo() ~= page.usesAmmo then CharacterPage.Place(page) end
     local all = ns.Gear.All(cfg.repairAt)
-    local opts = { itemLevel = cfg.itemLevel ~= false }
+    local opts = { itemLevel = cfg.itemLevel ~= false, levelInIcon = cfg.levelInIcon == true }
     for key, h in pairs(page.slots) do
         if all[key] then ns.Slots.Paint(h, all[key], opts) end
     end
