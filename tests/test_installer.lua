@@ -892,6 +892,23 @@ T.test("installer: a part out of date never moves a character off a layout of it
     T.isnil(stub.Asked(), "no reload asked")
 end)
 
+-- Seen in game: "updated its layout" on every dungeon or zeppelin, then again after
+-- each reload. The game fires its layouts event on loading screens too, when the
+-- active layout can read wrong for a moment, so only the session's first one checks.
+T.test("installer: a loading screen's layouts event never asks for a reload", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    stub.Dismiss()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- the login's
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "up to date at login")
+    DUI.EditMode.Add("glitch", function() end, function() return false end)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- a loading screen's
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "no reload asked")
+end)
+
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
     local DUI = login()
     DUI.Installer.Install("Healer")

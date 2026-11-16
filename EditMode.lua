@@ -147,6 +147,11 @@ end
 -- profile's layout is meant to be active, and the check would undo it.
 local profileChecked = false
 
+-- Whether the session's first layouts were checked for a part out of date. Later
+-- events come on loading screens, when the active layout can read wrong for a
+-- moment and would ask for a reload on every dungeon or boat.
+local staleChecked = false
+
 -- Whether a layout was written this session. Until the reload Edit Mode runs
 -- tainted, and the game fires its layouts event after each write. A part
 -- that never agrees with what the game stored (it rounds or clamps a value)
@@ -517,8 +522,11 @@ end
 
 DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
     if #parts == 0 then return end
-    local check = not profileChecked and layoutsGiven()
+    local given = layoutsGiven()
+    local check = not profileChecked and given
     if check then profileChecked = true end
+    local first = not staleChecked and given
+    if first then staleChecked = true end
     if (EditMode.AnyActive() or setUpElsewhere()) and not EditMode.IsActive() then
         if check and EditMode.UseProfile(DUI.DB.ActiveName()) then
             EditMode.AskReload(L["DaylightUI put this profile's Edit Mode layout in place. Reload to use it?"])
@@ -533,7 +541,7 @@ DUI.RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED", function()
         I.Show()
         if not EditMode.IsActive() then return end
     end
-    if not EditMode.IsActive() then return end
+    if not first or not EditMode.IsActive() then return end
     EditMode.AutoSave(L["DaylightUI updated its layout. Reload to put it in place?"])
 end)
 
