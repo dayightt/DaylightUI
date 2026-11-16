@@ -396,6 +396,11 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "casterColor", label = "Caster color", disabled = off("casterBar"),
               desc = "The health bar's color on a mob that uses mana." },
         }))) },
+        DaylightUI.Options.BarFxCard({ module = "Nameplates", choices = {
+            { id = "health", label = "Health bar", base = "barFx.health.", kind = "health" },
+            { id = "power", label = "Power bar", base = "barFx.power.", kind = "power",
+              gate = function(get) return get("power") ~= true and get("friendly.power") ~= true end },
+        } }),
       } },
     { id = "threat", label = "Threat",
       desc = "Warns you when a mob is about to change target, or has.",
@@ -506,6 +511,9 @@ ns.OPTIONS = { pages = {
               values = { right = "Right of the cast bar", below = "Under the cast bar" }, order = { "right", "below" },
               disabled = off("kickedBy") },
         } },
+        DaylightUI.Options.BarFxCard({ module = "Nameplates", choices = {
+            { id = "cast", label = "Cast bar", base = "barFx.cast.", kind = "cast" },
+        } }),
       } },
     { id = "auras", label = "Auras",
       desc = "Your debuffs, crowd control, big defensives and buffs you can remove, on enemy plates.",

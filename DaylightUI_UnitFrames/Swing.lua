@@ -413,7 +413,10 @@ local function createRow(holder, def)
     Style.Shell(row)
     Style.Slant(row, nil, 0)
     row.bar = Style.Bar(row, nil, ns.UF.MEDIA.swing.bar)
-    DUI.BarFx.Track(row.bar, "swing")
+    DUI.BarFx.Track(row.bar, "swing", nil, nil, nil, DUI.BarFx.Reader(function()
+        local d = ns.module and ns.module.db
+        return d and d.swing and d.swing.barFx
+    end))
     Style.Clip(row, row.bar:GetStatusBarTexture(), "inner")
     Style.Clip(row, Style.BarBack(row.bar), "inner")
     local overlay = CreateFrame("Frame", nil, row)

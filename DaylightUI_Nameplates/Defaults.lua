@@ -191,3 +191,7 @@ ns.DEFAULTS = {
 ns.DEFAULTS.media.threatPctFont = "general"
 -- Level font, same rule.
 ns.DEFAULTS.media.levelFont = "general"
+-- Bar animation (the core's BarFx.lua) on every plate's health, power and
+-- cast bars, friendly plates too. Off: forty moving bars in a fight is busy.
+ns.DEFAULTS.barFx = { health = DaylightUI.BarFx.Defaults(), power = DaylightUI.BarFx.Defaults(),
+                      cast = DaylightUI.BarFx.Defaults() }

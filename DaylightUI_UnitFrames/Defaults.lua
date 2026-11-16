@@ -495,3 +495,15 @@ ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focust
 for _, k in ipairs(ns.STRATA_FRAMES) do
     ns.DEFAULTS[k].strata = k == "personal" and "LOW" or "MEDIUM"
 end
+
+-- Bar animation (the core's BarFx.lua) per bar, set on each page: a frame's
+-- health and power, each cast bar, the swing timers. Off here; a new setup
+-- starts them in Flow (BarFx.HOMES), raid tiles and nameplates aside.
+ns.BARFX_FRAMES = { "player", "target", "focus", "pet", "targettarget", "focustarget", "party", "partyPet", "partyTarget",
+                    "raid", "raid20", "raid40", "arena", "personal" }
+for _, k in ipairs(ns.BARFX_FRAMES) do
+    ns.DEFAULTS[k].barFx = { health = DaylightUI.BarFx.Defaults(), power = DaylightUI.BarFx.Defaults() }
+end
+for _, k in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar", "partyCastbar", "swing" }) do
+    ns.DEFAULTS[k].barFx = DaylightUI.BarFx.Defaults()
+end

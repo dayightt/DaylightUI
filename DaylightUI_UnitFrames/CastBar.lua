@@ -195,7 +195,12 @@ function CB.Create(unit, attachTo, into, opts)
     end
     local media = ns.UF.MEDIA.cast[h.kind] or ns.UF.MEDIA.cast.target
     h.bar = Style.Bar(h, nil, media.bar)
-    DUI.BarFx.Track(h.bar, "cast")
+    -- Its bar animation is the cast bar's own (<kind>Castbar.barFx).
+    DUI.BarFx.Track(h.bar, "cast", nil, nil, nil, DUI.BarFx.Reader(function()
+        local d = ns.module and ns.module.db
+        local c = d and d[h.kind .. "Castbar"]
+        return c and c.barFx
+    end))
     if not into then
         Style.Clip(h, h.bar:GetStatusBarTexture(), "inner")
         Style.Clip(h, Style.BarBack(h.bar), "inner")

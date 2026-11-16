@@ -209,6 +209,16 @@ local friendlyCfg = setmetatable({}, { __index = function(_, k)
 end })
 function Plate.Cfg(p) return p and p.friendly and friendlyCfg or ns.cfg end
 
+-- A plate's bar animation settings for one bar (kind "health" | "power" |
+-- "cast"), read live so a friendly plate and a profile change are followed.
+function Plate.FxCfg(p, kind)
+    return DUI.BarFx.Reader(function()
+        local c = Plate.Cfg(p)
+        local fx = c and c.barFx
+        return type(fx) == "table" and fx[kind] or nil
+    end)
+end
+
 -- Name size: your target's own (target.nameSize, 0 = same as the rest; only while
 -- targetScale sizes it separately), else Name size.
 function Plate.NameSize(p, c)
@@ -288,7 +298,7 @@ function Plate.Create(parent, sample)
     p.hover:SetAllPoints(bar)
     p.hover:Hide()
     p.hp, p.health = hp, bar
-    DUI.BarFx.Track(bar, "health", "plate")
+    DUI.BarFx.Track(bar, "health", "plate", nil, nil, Plate.FxCfg(p, "health"))
     -- One layer per class over the fill, for hidden classes (Plate.PaintClassLayers).
     p.classLayers = DUI.Gradients.ClassLayers(bar)
 

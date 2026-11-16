@@ -656,9 +656,10 @@ function UF.Build(f, spec)
     f.media = media
     f.health = Style.Bar(f, nil, media.bars.health)
     f.fxWhere = spec.group == "raid" and "raid" or nil
-    DUI.BarFx.Track(f.health, "health", f.fxWhere, spec.unit)
+    DUI.BarFx.Track(f.health, "health", f.fxWhere, spec.unit, nil, UF.FxCfg(f, "health"))
     if spec.power then
         f.power = Style.Bar(f, nil, media.bars.power)
+        DUI.BarFx.Track(f.power, "power", f.fxWhere, spec.unit, nil, UF.FxCfg(f, "power"))
         f.separator = Style.Separator(f)
         -- Every power bar, however its frame is wired (unit events, a secure
         -- header's attributes...), see UF.PollPower. Your own polls every
@@ -1606,7 +1607,27 @@ function UF.Layout(f, cfg, text, keepSize)
     -- shape (ns.Refresh, Arrive.lua).
     f.restyled = type(f.styleSeen) == "string" and f.styleSeen ~= f.style
     f.styleSeen = f.style
+    -- Bar animation reads the settings the frame was laid out with, so a
+    -- preview or another raid size wears its own.
+    f.fxCfg = cfg
+    DUI.BarFx.Apply(f.health)
+    if f.power then DUI.BarFx.Apply(f.power) end
     UF.Painted(f)
+end
+
+-- The bar animation settings a frame's bar follows (kind "health" | "power"):
+-- those of its last layout.
+function UF.FxCfg(f, kind)
+    f.fxCfgs = f.fxCfgs or {}
+    local fn = f.fxCfgs[kind]
+    if not fn then
+        fn = DUI.BarFx.Reader(function()
+            local c = f.fxCfg
+            return c and c.barFx and c.barFx[kind]
+        end)
+        f.fxCfgs[kind] = fn
+    end
+    return fn
 end
 
 -- The name tab on the frame: at its outer end clear of any portrait, in the
@@ -3667,7 +3688,7 @@ function UF.UpdatePower(f, instant)
     UF.FeedPower(f, UnitPower(u), instant)
     local _, token = UnitPowerType(u)
     UF.PaintPower(f.power, token, u, f)
-    DUI.BarFx.SetPower(f.power, token, f.fxWhere, u)
+    DUI.BarFx.SetPower(f.power, token, f.fxWhere, u, UF.FxCfg(f, "power"))
     if f.powerText:IsShown() then UF.WritePower(f.powerText, f.powerFormat, u, f.hideFullPower, f.powerPercentSign) end
     if f.altMana then
         -- Shown only while your power isn't mana (a form) and you have mana.

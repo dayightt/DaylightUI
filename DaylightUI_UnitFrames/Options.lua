@@ -1401,7 +1401,7 @@ end
 local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
 local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
-    ["Border and shadow"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
+    ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", ["Boss debuffs"] = "Auras", Dispels = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
@@ -1451,6 +1451,25 @@ local function splitFrame(prefix, items, power)
            { label = power and "Health and power" or "Health bar", items = bars },
            #portrait > 0 and { label = "Portrait", desc = "The picture at the frame's outer end: what it shows, its shape, size and ring.",
                                items = portrait } or nil
+end
+
+-- The Bar animation card for a frame's bars (the core's Options.BarFxCard):
+-- health, and power when powerGate is given. pets adds the party pets' bars
+-- (Party page); read is where its previews read (a raid size's own setup),
+-- pickHidden hides its "Settings for" pick (a raid size following Raid 10).
+local function barFxCard(id, powerGate, gate, pets, read, pickHidden)
+    local function choice(key, what, kind, g)
+        return { id = key .. kind, label = what, base = key .. ".barFx." .. kind .. ".", kind = kind, gate = g }
+    end
+    local choices = { choice(id, "Health bar", "health", gate) }
+    if powerGate then choices[#choices + 1] = choice(id, "Power bar", "power", powerGate) end
+    if pets then
+        local petOff = function(get) return gate(get) or get("partyPet.enabled") ~= true end
+        choices[#choices + 1] = choice("partyPet", "Pets' health bar", "health", petOff)
+        choices[#choices + 1] = choice("partyPet", "Pets' power bar", "power",
+            function(get) return petOff(get) or get("partyPet.showPower") == false end)
+    end
+    return DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = choices, read = read, pickHidden = pickHidden })
 end
 
 local function framePage(id, label, desc, opts)
@@ -2005,6 +2024,7 @@ local function framePage(id, label, desc, opts)
     -- The page's "Test frame" switch shows just this frame (not for the player,
     -- which is always real). Its live sample sits above its settings.
     local preview = id ~= "player" and { id } or nil
+    groups[#groups + 1] = barFxCard(id, (opts.power or opts.powerToggle) and powerOff or nil, shown, opts.pets)
     groups[#groups + 1] = copyCard(id)
     return { id = id, label = label, desc = desc, groups = tabbed(groups), preview = preview,
              sample = function(parent) return ns.PageSample.New(id, parent) end }
@@ -2278,6 +2298,9 @@ local function raidPage(size)
     }, auraCards(function(s) return "raid." .. s end, "raid.enabled"), {
         { label = "Icon positions and sizes", desc = "Where the role, marker, crown and dispel icons sit on a tile.",
           items = iconItems(function(key) return "raid." .. key end, off("raid.enabled")) },
+        barFxCard("raid", offAny("raid.enabled", "raid.showPower"), off("raid.enabled"), false,
+                  function(key) return DaylightUI:Get("UnitFrames", ns.Raid.MapKey(key, size)) end,
+                  size ~= 10 and function() return ns.Raid.Locked(size) end or nil),
     }, extraTextCards("raid", "raid.enabled"), extraAuraCards("raid", "raid.enabled")), size),
         { copyCard(size == 10 and "raid" or "raid" .. size,
                    size ~= 10 and function() return ns.Raid.Locked(size) end or nil) })) }
@@ -2531,6 +2554,12 @@ ns.OPTIONS = { pages = {
               desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
         } },
         castTextCard("party", "Party", "each party member's", true),
+        DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
+            { id = "player", label = "Your cast bar", base = "playerCastbar.barFx.", kind = "cast", gate = off("playerCastbar.enabled") },
+            { id = "target", label = "Target cast bar", base = "targetCastbar.barFx.", kind = "cast", gate = off("targetCastbar.enabled") },
+            { id = "focus", label = "Focus cast bar", base = "focusCastbar.barFx.", kind = "cast", gate = off("focusCastbar.enabled") },
+            { id = "party", label = "Party cast bars", base = "partyCastbar.barFx.", kind = "cast", gate = off("partyCastbar.enabled") },
+        } }),
         { label = "Cast bar fill", items = {
             { type = "dropdown", key = "casts.fill", label = "Cast bar fill style", values = FILL_STYLES, order = FILL_ORDER,
               desc = "How every cast bar (yours, target's, focus's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set right here." },
@@ -2624,6 +2653,9 @@ ns.OPTIONS = { pages = {
                 off("swing.enabled"), " Hung under the player frame or the cast bar, it draws with them instead."),
         } },
         shellCard("swing", "swing.enabled", true),
+        DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
+            { id = "swing", label = "Swing timer", base = "swing.barFx.", kind = "swing", gate = off("swing.enabled") },
+        } }),
         { label = "Bars", items = {
             { type = "toggle", key = "swing.mainHand", label = "Main hand",
               desc = "Your main hand's bar. Turn it off to keep only your other bars, like a hunter's ranged bar.",
@@ -2737,6 +2769,12 @@ ns.OPTIONS = { pages = {
               desc = "Moves your cast bar under the personal display, as wide as it.", disabled = off("personal.enabled") },
         } },
         shellCard("personal", "personal.enabled"),
+        DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
+            { id = "health", label = "Health bar", base = "personal.barFx.health.", kind = "health",
+              gate = function(get) return get("personal.enabled") ~= true or get("personal.showHealth") == false end },
+            { id = "power", label = "Power bar", base = "personal.barFx.power.", kind = "power",
+              gate = function(get) return get("personal.enabled") ~= true or get("personal.showPower") == false end },
+        } }),
         personalTextCard(),
         PERSONAL_AURA_GROUPS[1],
         PERSONAL_AURA_GROUPS[2],

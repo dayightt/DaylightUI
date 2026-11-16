@@ -1675,7 +1675,14 @@ end
 function Style.ClipLike(over, tex)
     local c = clipOf[tex]
     if not c then return end
-    Style.Clip(c.frame, over, c.clip.inset, c.clip.until_, c.clip.only)
+    -- Asked again, it follows the fill's clip as it is now, without a second
+    -- entry (a texture takes at most three masks).
+    local had = clipOf[over]
+    if had and had.frame == c.frame then
+        had.clip.inset, had.clip.until_, had.clip.only = c.clip.inset, c.clip.until_, c.clip.only
+    else
+        Style.Clip(c.frame, over, c.clip.inset, c.clip.until_, c.clip.only)
+    end
     Style.LayoutSlant(c.frame)
 end
 
@@ -1838,8 +1845,6 @@ end
 local fillMask = setmetatable({}, { __mode = "k" })
 local fillOver = setmetatable({}, { __mode = "k" }) -- bar -> { [tex] = true } (Style.FollowFill)
 local overMask = setmetatable({}, { __mode = "k" }) -- overlay texture -> the fill's mask it carries
-local fillRect = setmetatable({}, { __mode = "k" })   -- bar -> mask over the fill
-local fillMasked = setmetatable({}, { __mode = "k" }) -- bar -> { [tex] = true }
 
 -- The angled moving edge on tex, following the edge of anchor (the fill whose
 -- rect tex shares). m is the mask from last time, or nil. Returns it.
@@ -1888,29 +1893,6 @@ function Style.AngleFill(bar, side, cut, under)
     if over then
         for tex in pairs(over) do shareEdge(tex, fillMask[bar]) end
     end
-    local masked = fillMasked[bar]
-    if masked then
-        for tex in pairs(masked) do shareEdge(tex, fillMask[bar]) end
-    end
-end
-
--- A texture on the bar itself that may move through the fill (bar styles)
--- but shows only inside it: a mask the fill's size (it grows with it) plus the
--- fill's angled edge, kept in step by AngleFill. Two masks per texture.
-function Style.MaskToFill(bar, tex)
-    local r = fillRect[bar]
-    if not r then
-        r = bar:CreateMaskTexture()
-        -- Daylight UI's own solid image: WHITE8X8 is loaded everywhere without
-        -- this wrap, and in game the mask then kept nothing out.
-        r:SetTexture(DUI.MEDIA .. "mask-solid.png", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        r:SetAllPoints(bar:GetStatusBarTexture())
-        fillRect[bar] = r
-    end
-    tex:AddMaskTexture(r)
-    fillMasked[bar] = fillMasked[bar] or {}
-    fillMasked[bar][tex] = true
-    shareEdge(tex, fillMask[bar])
 end
 
 -- The colors a bar's fill was last painted with, kept for the bar styles

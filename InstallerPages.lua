@@ -84,7 +84,8 @@ Pages.STYLE_FOLLOWERS = { "player.style", "target.style", "focus.style", "party.
 --   cards = one option as picture cards { scope, key, draw, cols, height,
 --     only (these keys, in this order), max (at most this many), more (adds
 --     a dropdown row of the same option with this label for the full list),
---     colorKey (picking "custom" opens the color picker for this key) }
+--     colorKey (picking "custom" opens the color picker for this key),
+--     along (these keys take the same pick) }
 --   rows = options as rows { { scope, key, label = optional } }; notes = true
 --     prints each one's help under it
 --   portraits = one choice for every frame's portrait (true), or another of
@@ -108,7 +109,10 @@ Pages.TOUR = {
           { label = "Size", rows = { { "general", "scale" }, { "general", "fontScale" } } },
           { label = "Finishing touches", rows = { { "general", "heavyBorder" }, { "general", "gradientBorder" }, { "general", "smoothBars" } } },
           { label = "Main button glow", cards = { scope = "general", key = "buttonGlow", draw = "glowButton", cols = 3, height = 70 } },
-          { label = "Health bar style", cards = { scope = "general", key = "barFx.health.style", draw = "barFx", cols = 3, height = 56 } },
+          -- One pick for every frame's bars (BarFx.HOMES), shown on a health bar.
+          { label = "Bar animation", needs = "UnitFrames",
+            cards = { scope = "UnitFrames", key = "player.barFx.health.style", draw = "barFx", cols = 3, height = 56,
+                      along = DUI.BarFx.StyleKeys("UnitFrames", "player.barFx.health.style") } },
           { label = "Interrupts", needs = "Nameplates",
             cards = { scope = "Nameplates", key = "kickStyle", draw = "kick", cols = 4, height = 50 } },
           { label = "", needs = "Nameplates", rows = { { "Nameplates", "kickedBy" } } },

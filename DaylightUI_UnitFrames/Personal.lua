@@ -61,8 +61,12 @@ local function makeBody(parent, media)
     Style.Slant(s, nil, 0)
     s.health = Style.Bar(s, nil, media.bars.health)
     s.power = Style.Bar(s, nil, media.bars.power)
-    DUI.BarFx.Track(s.health, "health", nil, "player")
-    DUI.BarFx.Track(s.power, "power", nil, "player")
+    for _, kind in ipairs({ "health", "power" }) do
+        DUI.BarFx.Track(s[kind], kind, nil, "player", nil, DUI.BarFx.Reader(function()
+            local d = db()
+            return d and d.barFx and d.barFx[kind]
+        end))
+    end
     s.separator = Style.Separator(s)
     for _, tex in ipairs({ s.health:GetStatusBarTexture(), Style.BarBack(s.health), s.power:GetStatusBarTexture(),
                            Style.BarBack(s.power), s.separator }) do

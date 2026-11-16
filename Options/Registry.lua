@@ -275,8 +275,9 @@ function Options.Key(page, key)
 end
 
 -- page may be nil for a standalone switch with its own get/set (Test frame).
+-- A row with no setting of its own (a preview) locks with item.lockWith's.
 function Options.Locked(page, item)
-    return page ~= nil and page.locked ~= nil and page.locked(item.key, item) == true
+    return page ~= nil and page.locked ~= nil and page.locked(item.key or item.lockWith, item) == true
 end
 
 -- One cached reader per page. A fresh closure on every IsHidden/IsDisabled
@@ -1327,24 +1328,50 @@ Options.RegisterPage({
     },
 })
 
--- Bar styles: a living fill per kind of bar (BarFx.lua), a card per kind.
-local function barFxItems(kind, name)
-    local base = "barFx." .. kind .. "."
-    local function off(get) return get("motion") == false end
+-- Bar animation (BarFx.lua): one card for the bars a page owns, each bar's
+-- settings in its own module. spec = { module, choices = { { id, label, base,
+-- kind, gate } }, gate = fn(get) (true = the bar is off; a choice's own gate
+-- wins), read = fn(key)
+-- (where a preview reads; the module's own settings when nil), pickHidden
+-- (hides the "Settings for" pick), tab }. One
+-- choice is a plain card, more get a "Settings for" pick. Each choice starts
+-- with a sample bar wearing its settings.
+local BARFX_PREVIEW_H = 14
+local function barFxItems(spec, c)
+    local base, gate = c.base, c.gate or spec.gate
+    local function off(get) return DUI:Get("general", "motion") == false or (gate ~= nil and gate(get) == true) end
     local function none(get) return off(get) or get(base .. "style") == "none" end
+    local read = spec.read or function(key) return DUI:Get(spec.module, key) end
+    local cfg = function(key) return read(base .. key) end
     return {
-        { type = "dropdown", key = base .. "style", label = "Style", since = "1.8.5",
-          choices = function() return DUI.BarFx.Choices(kind == "power") end,
+        { type = "custom", label = "", noSearch = true, lockWith = base .. "style",
+          build = function(row)
+              row.sample = DUI.BarFx.Sample(row, { c.kind }, { bare = true, height = BARFX_PREVIEW_H, cfg = function() return cfg end })
+              -- Spans the row by its anchors, so it fits any width.
+              local f, bar = row.sample.frame, row.sample.bars[1]
+              f:ClearAllPoints()
+              f:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -8)
+              f:SetPoint("TOPRIGHT", row, "TOPRIGHT", -12, -8)
+              f:SetHeight(BARFX_PREVIEW_H)
+              bar:ClearAllPoints()
+              bar:SetAllPoints(f)
+          end,
+          update = function(row) row.sample.Apply() end,
+          height = function() return BARFX_PREVIEW_H + 16 end },
+        { type = "dropdown", key = base .. "style", label = c.label .. " animation", since = "1.8.5",
+          choices = function() return DUI.BarFx.Choices(c.kind == "power") end,
           disabled = off,
-          desc = "How " .. name .. " move. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit. By power type picks one that suits mana, rage or energy. Needs Motion effects (General > Appearance)." },
-        { type = "slider", key = base .. "speed", label = "Speed", min = 0.25, max = 3, step = 0.05, unit = "x", since = "1.8.5",
-          disabled = none, desc = "How fast the style moves. 1x is its usual pace." },
-        { type = "slider", key = base .. "strength", label = "Strength", min = 0.1, max = 1, step = 0.05, unit = "%", since = "1.8.5",
-          disabled = none, desc = "How strongly the style shows over the bar's own fill. Lower blends it in softly." },
-        { type = "dropdown", key = base .. "colors", label = "Colors", since = "1.8.5",
+          desc = "How the bar moves. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit." ..
+                 (c.kind == "power" and " By power type picks one that suits mana, rage or energy." or "") ..
+                 " Needs Motion effects (General > Appearance)." },
+        { type = "slider", key = base .. "speed", label = "Animation speed", min = 0.25, max = 3, step = 0.05, unit = "x", since = "1.8.5",
+          disabled = none, desc = "How fast the animation moves. 1x is its usual pace." },
+        { type = "slider", key = base .. "strength", label = "Animation strength", min = 0.1, max = 1, step = 0.05, unit = "%", since = "1.8.5",
+          disabled = none, desc = "How strongly the animation shows over the bar's own fill. Lower blends it in softly." },
+        { type = "dropdown", key = base .. "colors", label = "Animation colors", since = "1.8.5",
           values = { bar = "The bar's own", accent = "Accent color", class = "Class colors", custom = "Custom colors" },
           order = { "bar", "accent", "class", "custom" },
-          disabled = none, desc = "The colors the style moves: the ones the bar already has, your accent, your class's pair, or two of your own." },
+          disabled = none, desc = "The colors the animation moves: the ones the bar already has, your accent, your class's pair, or two of your own." },
         { type = "color", key = base .. "colorA", label = "First color", since = "1.8.5",
           hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
           desc = "One end of the custom pair." },
@@ -1352,37 +1379,23 @@ local function barFxItems(kind, name)
           hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
           desc = "The other end of the custom pair." },
         { type = "toggle", key = base .. "react", label = "React to hits and heals", since = "1.8.5",
-          disabled = none, desc = "Styles that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
+          disabled = none, desc = "Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
         { type = "slider", key = base .. "reactSize", label = "Reaction size", min = 0.25, max = 2, step = 0.05, unit = "x", since = "1.8.5",
           disabled = function(get) return none(get) or get(base .. "react") == false end,
           desc = "How big a reaction is. The game doesn't say how big a hit or heal was, so every one moves the same." },
     }
 end
 
-Options.RegisterPage({
-    id = "barStyles", section = "core", label = "Bar Styles", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
-    desc = "Bars that move: their colors roll along them and react to the fight.",
-    sample = function(parent) return DUI.BarFx.Sample(parent) end,
-    groups = {
-        Options.PickCard({ label = "Bar styles", since = "1.8.5",
-            desc = "Pick a style for each kind of bar.",
-            pickDesc = "Which kind of bar the rows below set: health, power, cast bars or swing timers.",
-            lead = {
-                { type = "toggle", key = "barFx.plates", label = "On nameplates too", since = "1.8.5",
-                  disabled = function(get) return get("motion") == false end,
-                  desc = "Nameplates' health, power and cast bars wear the styles too. Off by default: many moving bars at once can be busy in a big fight." },
-                { type = "toggle", key = "barFx.raid", label = "On raid tiles too", since = "1.8.5",
-                  disabled = function(get) return get("motion") == false end,
-                  desc = "Raid tiles wear the health and power styles too. Off by default, for the same reason." },
-            },
-            choices = {
-                { id = "health", label = "Health bars", items = barFxItems("health", "health bars") },
-                { id = "power", label = "Power bars", items = barFxItems("power", "power bars") },
-                { id = "cast", label = "Cast bars", items = barFxItems("cast", "cast bars") },
-                { id = "swing", label = "Swing timers", items = barFxItems("swing", "swing timers") },
-            } }),
-    },
-})
+function Options.BarFxCard(spec)
+    local label, desc = "Bar animation", "Bars that move: their colors roll along them and react to the fight."
+    if #spec.choices == 1 then
+        return { label = label, desc = desc, tab = spec.tab, items = barFxItems(spec, spec.choices[1]) }
+    end
+    local choices = {}
+    for i, c in ipairs(spec.choices) do choices[i] = { id = c.id, label = c.label, items = barFxItems(spec, c) } end
+    return Options.PickCard({ label = label, desc = desc, tab = spec.tab, since = "1.8.5", choices = choices,
+        pickDesc = "Which of this page's bars the rows below set.", pickHidden = spec.pickHidden })
+end
 
 -- Fade page: global switches, then each module's fade rows (Fade.HubGroups,
 -- copies sharing the same settings), added once module pages exist.

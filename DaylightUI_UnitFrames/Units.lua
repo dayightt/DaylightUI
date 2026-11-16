@@ -353,8 +353,12 @@ function ns.ApplyStrata(db)
     for _, p in ipairs(ns.PartyTargets.buttons) do p:SetFrameStrata(ns.StrataOf(db.partyTarget)) end
 end
 
+-- A bar animation change (or a profile or style change) puts every animated
+-- bar in step, cast and swing bars and samples too (the core's BarFx).
+local pendingFx = false
 function ns.Refresh(mod, path)
     local top = type(path) == "string" and string.match(path, "^[^%.]+")
+    if not top or string.find(path, "barFx", 1, true) then pendingFx = true end
     local unit = top and UNIT_OF[top]
     if unit then pendingUnits[unit] = true end
     pendingReach = math.max(pendingReach, unit and ONE or (top and REACH[top]) or ALL)
@@ -442,6 +446,10 @@ function ns.Refresh(mod, path)
         Blizzard.Apply(db)
         DUI.Movers.ApplyAll()
         if ns.Test then ns.Test.Reapply() end
+        if pendingFx then
+            pendingFx = false
+            DUI.BarFx.Refresh()
+        end
     end, "unitframes:refresh")
 end
 

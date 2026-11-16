@@ -713,7 +713,7 @@ function Profiles.ReadyData(key)
     end
     local preset = Profiles.PRESETS[key]
     if not preset then return nil, string.format(L["there's no ready-made profile called %s"], tostring(key)) end
-    local t = Profiles.Build({ general = DUI.DB.StandardGeneral(), modules = DUI.DB.StandardStart(), positions = {},
+    local t = Profiles.Build({ general = {}, modules = DUI.DB.StandardStart(), positions = {},
                                layout = EditMode.Export(DUI.DB.DEFAULT) })
     merge(t.modules, preset)
     if Profiles.PRESET_GENERAL[key] then merge(t.general, Profiles.PRESET_GENERAL[key]) end

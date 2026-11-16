@@ -34,6 +34,7 @@ DaylightUI:RegisterModule("Nameplates", {
         else
             ns.Manager.Refresh()
         end
+        if type(path) ~= "string" or string.find(path, "barFx", 1, true) then DaylightUI.BarFx.Refresh() end
     end,
     OnStyleChanged = function(mod) ns.cfg = mod.db; ns.Manager.Refresh() end,
 })
