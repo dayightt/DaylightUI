@@ -58,21 +58,32 @@ local function readList(list)
     return out
 end
 
+-- A character tab is a bank bag in slot i of the Characterbanktab container.
+-- A bought slot with no bag in it reads 0 slots for good, not still arriving.
+local function noBag(kind, i)
+    local idx = Enum and Enum.BagIndex
+    if kind ~= "Character" or not (idx and idx.Characterbanktab) then return false end
+    return call(C_Container.GetContainerItemInfo, idx.Characterbanktab, i) == nil
+end
+
 -- A bank's tabs. nil if they can't be read now or haven't all arrived yet:
 -- right after BANKFRAME_OPENED the tabs and their slots come in one by one
 -- (Bank.Reread). saved is the previous copy. Bought tabs never go away, so a
--- read with fewer tabs is still arriving and never replaces it.
+-- tab list shorter than it is still arriving and never replaces it.
 local function readBank(kind, saved)
     local t = bankType(kind)
     if t == nil or call(C_Bank and C_Bank.CanViewBank, t) ~= true then return nil end
     local tabs = call(C_Bank.FetchPurchasedBankTabData, t)
+    tabs = type(tabs) == "table" and tabs or {}
     local list = {}
-    for _, tab in ipairs(type(tabs) == "table" and tabs or {}) do
-        if type(tab.ID) == "number" then list[#list + 1] = { id = tab.ID, section = "bank" } end
+    for i, tab in ipairs(tabs) do
+        local size = type(tab.ID) == "number" and ns.Bags.NumSlots(tab.ID)
+        local skip = not (type(size) == "number" and size > 0) and noBag(kind, i)
+        if type(tab.ID) == "number" and not skip then list[#list + 1] = { id = tab.ID, section = "bank" } end
     end
     local out = readList(list)
     if #out == 0 or #out < #list then return nil end         -- a tab still reports 0 slots
-    if type(saved) == "table" and #out < #saved then return nil end
+    if type(saved) == "table" and #tabs < #saved then return nil end -- tab list not all here
     return out
 end
 

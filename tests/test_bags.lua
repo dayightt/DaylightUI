@@ -5546,6 +5546,8 @@ end)
 
 T.test("viewer: a bank still arriving never replaces a fuller saved copy", function()
     local ns, bank = bankLogin()
+    local bag = { iconFileID = 5, stackCount = 1, hyperlink = "|Hitem:5|h", itemID = 5 }
+    world.items[-8] = { [1] = bag, [2] = bag }   -- both tabs are bags in their slots
     stub.FireEvent("BANKFRAME_OPENED")
     stub.RunTimers()
     local inv = DaylightUI.DB.Character().inventory
@@ -5566,6 +5568,46 @@ T.test("viewer: a bank still arriving never replaces a fuller saved copy", funct
     bank.tabs[0] = tabs
     ns.Saved.SaveBank()
     T.eq(#inv.bank, 2)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A bought bank bag slot with no bag in it reads 0 slots for good. It used to
+-- look like a tab still arriving, so the bank was never saved at all.
+T.test("viewer: a bought bank bag slot with no bag in it doesn't stop the save", function()
+    local ns = bankLogin()
+    local bag = { iconFileID = 5, stackCount = 1, hyperlink = "|Hitem:5|h", itemID = 5 }
+    world.items[-8] = { [1] = bag }          -- a bag in the first slot, none in the second
+    world.sizes[7] = 0
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local inv = DaylightUI.DB.Character().inventory
+    T.truthy(inv and inv.bank, "the bank saved without the empty slot")
+    T.eq(#inv.bank, 1, "only the tab with a bag")
+    T.eq(inv.bank[1].items[1][1], "|Hitem:61|h")
+    -- A bag goes in the second slot while the bank is open: saved with it.
+    world.items[-8][2] = bag
+    world.sizes[7] = 4
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(#inv.bank, 2, "both tabs once the second has a bag")
+    -- And taken out again: the saved copy drops that tab.
+    world.items[-8][2] = nil
+    world.sizes[7] = 0
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.eq(#inv.bank, 1, "the tab goes once its bag is taken out")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("viewer: a tab with a bag but no slots yet is still arriving, nothing saved", function()
+    local ns = bankLogin()
+    local bag = { iconFileID = 5, stackCount = 1, hyperlink = "|Hitem:5|h", itemID = 5 }
+    world.items[-8] = { [1] = bag, [2] = bag }
+    world.sizes[7] = 0
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local inv = DaylightUI.DB.Character().inventory
+    T.falsy(inv and inv.bank, "a half-read bank isn't saved")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
