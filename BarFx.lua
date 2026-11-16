@@ -328,6 +328,18 @@ function BarFx.SetPower(bar, token, where, unit, cfg)
     if BarFx.Get(s, "style") == "auto" then apply(s) end
 end
 
+-- Style.AngleFill tells us a fill's angled end changed: lights pinned to the
+-- end lean with it.
+function BarFx.Angled(bar)
+    local s = worn[bar]
+    if not (s and s.style and s.pieces) then return end
+    -- AngleFill runs at every layout of a frame; only a new angle matters.
+    local side, cut, under = Style.GetFillAngle(bar)
+    if s.angleSide == side and s.angleCut == cut and s.angleUnder == under then return end
+    s.angleSide, s.angleCut, s.angleUnder = side, cut, under
+    layoutPiece(s)
+end
+
 function BarFx.StyleOf(bar)
     local s = worn[bar]
     return s and s.style

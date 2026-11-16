@@ -233,11 +233,100 @@ T.test("every style sits over the fill, inside its shape, and comes off cleanly"
     end
 end)
 
+-- The textures a style lays on a bar, over its fill.
+local function lights(bar)
+    local fill, out = bar:GetStatusBarTexture(), {}
+    local _, fillSub = fill:GetDrawLayer()
+    for _, r in ipairs({ bar:GetRegions() }) do
+        local layer, sub = r:GetDrawLayer()
+        if r ~= fill and r:GetObjectType() == "Texture" and layer == "ARTWORK" and sub > fillSub and sub < 1 and r:IsShown() then
+            out[#out + 1] = r
+        end
+    end
+    return out
+end
+local function sheetOf(bar)
+    for _, r in ipairs(lights(bar)) do
+        local file = r:GetTexture()
+        if type(file) == "string" and (file:find("barfx%-comet") or file:find("barfx%-embers")) then return r, file end
+    end
+end
+
 T.test("a style that reacts flares on a hit and lets Lua rest after", function()
     local DUI, bar, cfg, read = setup({ style = "comet", react = true })
     DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    local flare
+    for _, r in ipairs(lights(bar)) do
+        if r:GetTexture() == DUI.BarFx.FLARE then flare = r end
+    end
+    T.truthy(flare, "a flash at the end")
+    T.eq(flare:GetAlpha(), 0, "dark until something happens")
     DUI.BarFx.Kick(bar, -1)
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.05)
+    T.truthy(flare:GetAlpha() > 0, "it lights on a hit")
+    DUI.Gradients.PaintUnit(bar, "player")
+    T.truthy(flare:GetAlpha() > 0, "a repaint mid-fade doesn't put it out or full on")
+    T.truthy(flare:GetAlpha() < 1, "nor full on")
+    for _ = 1, 10 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.eq(flare:GetAlpha(), 0, "and fades out")
+    T.isnil(DUI.Motion.Driver().__scripts.OnUpdate, "then no Lua runs")
     T.eq(DUI.BarFx.StyleOf(bar), "comet")
+end)
+
+T.test("Comet and Embers are pinned to the fill's end at a fixed size, never stretched over it", function()
+    for _, key in ipairs({ "comet", "embers" }) do
+        local DUI, bar, cfg, read = setup({ style = key })
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        local fill = bar:GetStatusBarTexture()
+        local sheet, file = sheetOf(bar)
+        T.truthy(sheet, key .. ": its sheet shows")
+        T.eq(file, DUI.MEDIA .. "barfx-" .. key .. ".png", key .. ": the sheet for a tall bar")
+        T.eq(sheet:GetWidth(), 20 * DUI.BarFx.SHEET_SPAN, key .. ": as wide as its art, whatever the bar's value")
+        for _, r in ipairs(lights(bar)) do
+            T.eq(r:GetNumPoints(), 2, key .. ": pinned by one side")
+            local point, rel = r:GetPoint(1)
+            T.eq(rel, fill, key .. ": to the fill")
+            T.eq(point, "TOPRIGHT", key .. ": at its moving end")
+            T.eq(r.__vertexOffsets[4][1], -8, key .. ": its bottom leans back with the angled end")
+            T.eq(r.__vertexOffsets[3][1], 0, key .. ": its top stays on the end")
+        end
+        -- A thin bar gets the art drawn for thin bars.
+        bar:SetSize(200, 8)
+        DUI.BarFx.Apply(bar)
+        local _, thin = sheetOf(bar)
+        T.eq(thin, DUI.MEDIA .. "barfx-" .. key .. "-thin.png", key .. ": the thin sheet on a thin bar")
+        -- A bar filling toward the left gets the art turned around, pinned to its left.
+        bar:SetReverseFill(true)
+        DUI.Style.AngleFill(bar, "left", 4)
+        local turned, back = sheetOf(bar)
+        T.eq(back, DUI.MEDIA .. "barfx-" .. key .. "-thin-l.png", key .. ": turned around")
+        T.eq((turned:GetPoint(1)), "TOPLEFT", key .. ": pinned to the left end")
+        T.eq(turned.__vertexOffsets[2][1], 4, key .. ": leaning the other way")
+    end
+end)
+
+T.test("a light pinned to the end is cut to the fill's rectangle, and never takes a fourth mask", function()
+    local DUI, bar, cfg, read = setup({ style = "comet" })
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    local fill = bar:GetStatusBarTexture()
+    T.eq(fill:GetNumMaskTextures(), 1, "the fill: its angled end")
+    for _, r in ipairs(lights(bar)) do
+        T.eq(r:GetNumMaskTextures(), 2, "the angled end and the fill's rectangle")
+    end
+    -- A square bar: only the rectangle. Angled later, the layers follow.
+    local square = DUI.Style.Bar(UIParent)
+    square:SetSize(200, 20)
+    DUI.Gradients.PaintUnit(square, "player")
+    DUI.BarFx.Track(square, "health", nil, "player", nil, read)
+    for _, r in ipairs(lights(square)) do
+        T.eq(r:GetNumMaskTextures(), 1, "a square fill: the rectangle alone")
+        T.eq((r.__vertexOffsets[4] or { 0 })[1], 0, "and no lean")
+    end
+    DUI.Style.AngleFill(square, "right", 6)
+    for _, r in ipairs(lights(square)) do
+        T.eq(r:GetNumMaskTextures(), 2, "angled later: both")
+        T.eq(r.__vertexOffsets[4][1], -6, "and leaning")
+    end
 end)
 
 T.test("by power type picks a style per power", function()

@@ -1868,7 +1868,7 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     m:SetPoint("TOP" .. p, anchor, "TOP" .. p, 0, 0)
     m:SetPoint("BOTTOM" .. p, anchor, "BOTTOM" .. p, 0, 0)
     m:SetWidth(4 * cut)
-    m.side, m.cut = side, cut
+    m.side, m.cut, m.under = side, cut, under == true
     if not m.added then
         tex:AddMaskTexture(m)
         m.added = true
@@ -1876,13 +1876,26 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     return m
 end
 
+-- A layer kept inside the fill's own rectangle wears one more mask for it
+-- (Style.SameMasks), while it has room for one.
+local insideMask = setmetatable({}, { __mode = "k" }) -- fill -> its rectangle as a mask
+local insideOn = setmetatable({}, { __mode = "k" })   -- layer -> the rectangle mask it wears
+
 -- An overlay carries the fill's mask while the fill has one.
 local function shareEdge(tex, m)
     local want = (m and m.added) and m or nil
     local has = overMask[tex]
     if has == want then return end
     if has then tex:RemoveMaskTexture(has) end
-    if want then tex:AddMaskTexture(want) end
+    if want then
+        -- The angled end comes first: with three masks already, the rectangle goes.
+        local inside = insideOn[tex]
+        if inside and tex:GetNumMaskTextures() >= 3 then
+            tex:RemoveMaskTexture(inside)
+            insideOn[tex] = nil
+        end
+        tex:AddMaskTexture(want)
+    end
     overMask[tex] = want
 end
 
@@ -1896,6 +1909,7 @@ function Style.AngleFill(bar, side, cut, under)
     if over then
         for tex in pairs(over) do shareEdge(tex, fillMask[bar]) end
     end
+    if DUI.BarFx then DUI.BarFx.Angled(bar) end
 end
 
 -- The colors a bar's fill was last painted with, kept for the bar styles
@@ -1962,14 +1976,31 @@ end
 
 -- Gives tex exactly the masks a bar's fill wears now, whatever made them (its
 -- angled end, the bar's clipped ends, a slant added later), so a layer laid
--- over the fill is cut the same way.
-function Style.SameMasks(tex, fill)
+-- over the fill is cut the same way. inside (true) is for a layer that isn't
+-- the fill's size, such as a light pinned to its moving end: it is also cut
+-- to the fill's rectangle, so it can't reach past a nearly empty fill. A fill
+-- with three masks is cut at both ends already and a texture takes no fourth.
+function Style.SameMasks(tex, fill, inside)
     sameOf[fill] = sameOf[fill] or {}
-    sameOf[fill][tex] = true
-    local want = {}
+    if inside == nil then inside = sameOf[fill][tex] == "inside" end
+    sameOf[fill][tex] = inside and "inside" or true
+    local want, n = {}, 0
     for i = 1, fill:GetNumMaskTextures() do
         local m = fill:GetMaskTexture(i)
-        if m then want[m] = true end
+        if m then want[m] = true; n = n + 1 end
+    end
+    insideOn[tex] = nil
+    if inside and n < 3 then
+        local m = insideMask[fill]
+        if not m then
+            m = fill:GetParent():CreateMaskTexture()
+            -- Clamped to black, so nothing shows beyond the mask itself.
+            m:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            m:SetAllPoints(fill)
+            insideMask[fill] = m
+        end
+        want[m] = true
+        insideOn[tex] = m
     end
     for i = tex:GetNumMaskTextures(), 1, -1 do
         local m = tex:GetMaskTexture(i)
@@ -1983,10 +2014,11 @@ function Style.SameMasks(tex, fill)
     overMask[tex] = (edge and edge.added) and edge or nil
 end
 
--- The fill's angled edge as AngleFill last set it: side, cut (nil when square).
+-- The fill's angled edge as AngleFill last set it: side, cut, and whether it
+-- leans under (its bottom ahead). nil when square.
 function Style.GetFillAngle(bar)
     local m = fillMask[bar]
-    if m and m.added then return m.side, m.cut end
+    if m and m.added then return m.side, m.cut, m.under end
 end
 
 -- The back edge of a bar growing toward side ("right" or "left"), cut at the
