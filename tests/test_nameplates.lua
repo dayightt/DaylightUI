@@ -4141,6 +4141,38 @@ T.test("nameplates: /dui platecheck marks on screen where the game has each plat
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A plate listed by the check with no dot on screen says nothing by itself:
+-- the check has to say that the game refused the marker, and why.
+T.test("nameplates: /dui platecheck says why when the game refuses a marker", function()
+    login()
+    added("nameplate1")
+    local R = DaylightUI.PlateReport
+    R.Mark()
+    R.marks[1].line.SetEndPoint = function() error("no line to a plate") end
+    R.marks[2].dot.SetPoint = function() error("no pin to a plate") end
+    local n, refused, why = R.Mark()
+    T.eq(n, 1, "a plate whose line is refused keeps its dot")
+    T.truthy(R.marks[1].dot:IsShown())
+    T.falsy(R.marks[1].line:IsShown(), "without the line")
+    T.falsy(R.marks[2].dot:IsShown(), "a refused dot isn't left on screen")
+    T.eq(refused, 2, "both plates had something refused")
+    T.truthy(tostring(why):find("no line to a plate", 1, true), tostring(why))
+    local said = R.MarkSaid(n, refused, why)
+    T.truthy(said:find("1 marker on screen", 1, true), said)
+    T.truthy(said:find("refused", 1, true), said)
+    T.truthy(said:find("no line to a plate", 1, true), said)
+
+    R.marks[1].dot.SetPoint = function() error("no pin to a plate") end
+    n, refused, why = R.Mark()
+    T.eq(n, 0)
+    T.eq(refused, 2)
+    said = R.MarkSaid(n, refused, why)
+    T.falsy(said:find("no game nameplates", 1, true), "the plates are there: " .. said)
+    T.truthy(said:find("no pin to a plate", 1, true), said)
+    T.truthy(R.ReleaseSaid(n, refused, why):find("no pin to a plate", 1, true), "platefix says it too")
+    T.eq(R.MarkSaid(0, 0), "platecheck: no game nameplates to mark right now.")
+end)
+
 T.test("nameplates: /dui platecheck says what the game answers about the camera, and who is friendly", function()
     local NP = login()
     added("nameplate1")

@@ -324,6 +324,7 @@ R.MARK_SECONDS = 20
 R.MARK_AFTER = 60 -- seconds they stay once a platefix run is over
 R.MARK_SIZE = 10
 R.MARK_LINE = 2
+R.MARK_WHY = 160 -- letters kept of what the game said when it refused a marker
 R.marks = {}
 
 local function newMark(layer)
@@ -348,8 +349,26 @@ function R.Unmark()
     if R.markLayer then DUI.Motion.AlphaTo(R.markLayer, 0, DUI.Motion.NORMAL, true) end
 end
 
--- Returns how many plates were marked. keep: how many seconds they stay
--- (MARK_SECONDS when left out), or true to leave them until R.Release.
+-- Pins one mark to a game plate. The dot and the line are tried apart, since
+-- the game may take one and refuse the other. Returns whether the dot is on,
+-- whether the line is, and what the game said about a refusal.
+local function pin(m, np)
+    local dotOn, dotSaid = pcall(function()
+        m.dot:ClearAllPoints()
+        m.dot:SetPoint("CENTER", np, "CENTER", 0, 0)
+    end)
+    if not dotOn then return false, false, dotSaid end
+    local lineOn, lineSaid = pcall(function()
+        m.line:SetStartPoint("CENTER", UIParent, 0, 0)
+        m.line:SetEndPoint("CENTER", np, 0, 0)
+    end)
+    return true, lineOn, not lineOn and lineSaid or nil
+end
+
+-- Returns how many plates were marked, how many had the dot or the line
+-- refused by the game, and what the game said the first time. keep: how many
+-- seconds they stay (MARK_SECONDS when left out), or true to leave them until
+-- R.Release.
 function R.Mark(keep)
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
     if not get then return 0 end
@@ -363,33 +382,32 @@ function R.Mark(keep)
     end
     local secure = issecure and issecure() or false
     local r, g, b = DUI.Style.Accent()
-    local n = 0
+    local n, refused, why = 0, 0, nil
     for i = 1, 40 do
         local ok, np = pcall(get, "nameplate" .. i, secure)
         local okF, closed = pcall(function() return np:IsForbidden() end)
         if ok and type(np) == "table" and okF and closed ~= true then
             local m = R.marks[n + 1] or newMark(layer)
             R.marks[n + 1] = m
-            -- The game may refuse a pin to one of its plates; that plate goes unmarked.
-            local pinned = pcall(function()
-                m.dot:ClearAllPoints()
-                m.dot:SetPoint("CENTER", np, "CENTER", 0, 0)
-                m.line:SetStartPoint("CENTER", UIParent, 0, 0)
-                m.line:SetEndPoint("CENTER", np, 0, 0)
-            end)
-            if pinned then
+            local dotOn, lineOn, said = pin(m, np)
+            if not (dotOn and lineOn) then
+                refused = refused + 1
+                why = why or R.Printable(tostring(said), R.MARK_WHY)
+            end
+            if dotOn then
                 n = n + 1
                 m.dot:SetColorTexture(r, g, b, 1)
                 m.line:SetColorTexture(r, g, b, 0.6)
                 m.text:SetText(tostring(i))
                 DUI.Style.InkText(m.text, "pop")
             end
-            showMark(m, pinned)
+            showMark(m, dotOn)
+            m.line:SetShown(lineOn)
         end
     end
     for i = n + 1, #R.marks do showMark(R.marks[i], false) end
     R.markRun = (R.markRun or 0) + 1
-    if n == 0 and keep ~= true then return 0 end
+    if n == 0 and keep ~= true then return 0, refused, why end
     R.marksOn = true
     local run = R.markRun
     DUI.Motion.AlphaTo(layer, 1, DUI.Motion.NORMAL)
@@ -398,7 +416,7 @@ function R.Mark(keep)
             if R.markRun == run then R.Unmark() end
         end)
     end
-    return n
+    return n, refused, why
 end
 
 -- Held through a /dui platefix run: the steps rebuild the game's plates, so
@@ -432,10 +450,20 @@ function R.HoldSaid()
         .. "the screen. They stay on until you're done."
 end
 
-function R.ReleaseSaid(n)
-    if n == 0 then return "platefix: please take a screenshot now and send it with the report." end
+-- What to add when the game refused a dot or a line: without it, a plate with
+-- no dot reads the same as a plate that isn't there.
+function R.RefusedSaid(refused, why)
+    if (refused or 0) == 0 then return "" end
+    return string.format(" The game refused the marker on %d nameplate%s: %s", refused, refused == 1 and "" or "s",
+        tostring(why))
+end
+
+function R.ReleaseSaid(n, refused, why)
+    if n == 0 then
+        return "platefix: please take a screenshot now and send it with the report." .. R.RefusedSaid(refused, why)
+    end
     return string.format("platefix: please take a screenshot now, with the numbered dots on screen, and send it with "
-        .. "the report. The dots stay for %d seconds.", R.MARK_AFTER)
+        .. "the report. The dots stay for %d seconds.", R.MARK_AFTER) .. R.RefusedSaid(refused, why)
 end
 
 function R.FixBegin()
@@ -447,11 +475,14 @@ function R.FixEnd()
     DUI.Print(R.ReleaseSaid(R.Release(R.MARK_AFTER)))
 end
 
-function R.MarkSaid(n)
-    if n == 0 then return "platecheck: no game nameplates to mark right now." end
+function R.MarkSaid(n, refused, why)
+    if n == 0 then
+        if (refused or 0) > 0 then return "platecheck: no marker on screen." .. R.RefusedSaid(refused, why) end
+        return "platecheck: no game nameplates to mark right now."
+    end
     return string.format("platecheck: %d marker%s on screen for %d seconds. Each numbered dot is where the game has "
         .. "that nameplate, with a line to it from the middle of the screen. Take a screenshot now and send it "
-        .. "with these lines.", n, n == 1 and "" or "s", R.MARK_SECONDS)
+        .. "with these lines.", n, n == 1 and "" or "s", R.MARK_SECONDS) .. R.RefusedSaid(refused, why)
 end
 
 local function gameDefault(name)
