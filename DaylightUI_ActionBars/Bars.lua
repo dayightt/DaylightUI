@@ -480,7 +480,9 @@ function Bars.Enable(mod)
     ns.UpgradeBars(DUI.DB.Active())      -- the login profile may differ from the one at load
     ns.module, ns.db = mod, mod.db
     ns.Migrate(mod.db)
-    DUI.WarnIfLoaded("EllesmereUIActionBars", "EllesmereUI Action Bars", "action bars")
+    for _, c in ipairs(DUI.InstallerPages.ClashesFor("ActionBars")) do
+        if c.what == "action bars" then DUI.WarnIfLoaded(c.addon, c.label, c.what) end
+    end
     ns.Skin.Wire()
     if mod.db.cooldowns then DUI.SafeCall(ns.Cooldowns.Apply) end
     -- An Edit Mode part with nothing to write. The core only maintains its Edit Mode

@@ -23,6 +23,7 @@ DUI.PatchNotes = {
             { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, and each piece says whether it's in your bags, the bank or missing" },
         },
         fixed = {
+            { "Action bars", "With Bartender4 or Dominos also on, Daylight UI now says so in chat and the setup guide asks which one keeps your bars, instead of the old bars staying on screen" },
             { "NPC window", "Currency rewards like Trade Commitment show in the quest window, not just the money and items" },
             { "NPC window", "Vendors show how many are left of items they only have a few of" },
             { "Chat", "No more error from the chat box after resizing it or changing its text size" },

@@ -40,6 +40,8 @@ Pages.MODULES = {
 -- DUI.WarnIfLoaded warns about in chat.
 Pages.CLASHES = {
     { module = "ActionBars", addon = "EllesmereUIActionBars", label = "EllesmereUI Action Bars", what = "action bars" },
+    { module = "ActionBars", addon = "Bartender4", label = "Bartender4", what = "action bars" },
+    { module = "ActionBars", addon = "Dominos", label = "Dominos", what = "action bars" },
     { module = "ActionBars", addon = "EllesmereUICooldownManager", label = "EllesmereUI Cooldown Manager", what = "Cooldown Manager icons" },
     { module = "Bags", addon = "Baganator", label = "Baganator", what = "bags" },
     { module = "Bags", addon = "Bagnon", label = "Bagnon", what = "bags" },
