@@ -46,7 +46,7 @@ T.test("Flow rolls the bar's own colors on a loop the client runs", function()
             T.truthy(#(r.__masks or {}) >= 1, "masked to the fill")
         end
     end
-    T.eq(strips, 5, "four strips and the bar texture over them, between the fill and its overlays")
+    T.eq(strips, 3, "a base, a soft wave and the bar texture over them, between the fill and its overlays")
     DUI:Set("general", "barFx.health.style", "none")
     DUI.Fire("StyleChanged")
     T.isnil(DUI.BarFx.StyleOf(bar), "picking none takes it off")
@@ -152,8 +152,7 @@ T.test("a Daylight sweep bar flows its own sweep, never plain white", function()
     DUI.BarFx.Track(bar, "health", nil, "player")
     local sweeps = 0
     for _, r in ipairs({ bar:GetRegions() }) do
-        if r:GetObjectType() == "Texture" and r.GetTexture and r:GetTexture() == Style.GRADIENT_FILE
-            and r ~= bar:GetStatusBarTexture() then sweeps = sweeps + 1 end
+        if r:GetObjectType() == "Texture" and r.GetTexture and r:GetTexture() == DUI.BarFx.SWEEP then sweeps = sweeps + 1 end
     end
-    T.eq(sweeps, 4, "every strip is the sweep image")
+    T.eq(sweeps, 1, "the sweep's own colors, looped")
 end)

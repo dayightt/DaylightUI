@@ -74,31 +74,35 @@ local function setSpeedOf(s)
     if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, s.speed or 1)) end
 end
 
--- Flow: the bar's own gradient there and back twice, as four strips two bars
--- wide in all that slide one bar width and start over, so it never seams.
--- They lie on the bar itself, just over the fill and under everything else
--- drawn on it (hidden-class colors, a cast's "can't interrupt" color), masked
--- to the fill's shape. Strips are flat colors, or the Daylight sweep's own
--- image, which is smooth, so its mirrored copies meet cleanly; the bar's
--- texture lies over them once, still, in MOD, as over the real fill.
+-- Flow: the bar's own two colors rolling along it. A base in the first color
+-- and a soft wave in the second over it (barfx-wave.png: two periods, eased on
+-- a cosine, so the turns have no crease), or on a Daylight sweep bar the sweep
+-- itself there and back (barfx-sweep.png). Each is two bars wide and slides one
+-- bar width, then starts over, so it never seams. They lie on the bar itself,
+-- just over the fill and under everything else drawn on it (hidden-class
+-- colors, a cast's "can't interrupt" color), masked to the fill's shape; the
+-- bar's texture lies over them once, still, in MOD, as over the real fill.
 BarFx.WHITE = "Interface\\Buttons\\WHITE8X8"
-BarFx.FILL_SUB = -3   -- the fill's sublevel while a style shows; strips and texture just above
+BarFx.WAVE = DUI.MEDIA .. "barfx-wave.png"
+BarFx.SWEEP = DUI.MEDIA .. "barfx-sweep.png"
+BarFx.FILL_SUB = -3   -- the fill's sublevel while a style shows; the layers just above
 
 local function buildFlow(s)
     local bar = s.bar
-    local h = { strips = {}, slides = {} }
+    local h = { slides = {} }
     h.anim = bar:CreateAnimationGroup()
     h.anim:SetLooping("REPEAT")
-    for i = 1, 4 do
-        local t = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
+    h.base = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
+    h.wave = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    h.layers = { h.base, h.wave }
+    for i, t in ipairs(h.layers) do
         Style.MaskToFill(bar, t)
-        h.strips[i] = t
         local a = h.anim:CreateAnimation("Translation")
         a:SetTarget(t)
         a:SetDuration(BarFx.FLOW_LOOP)
         h.slides[i] = a
     end
-    h.grain = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    h.grain = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 3)
     h.grain:SetBlendMode("MOD")
     Style.FollowFill(bar, h.grain)
     -- The game stops a frame's animations while it's hidden: start again on show.
@@ -110,7 +114,8 @@ end
 
 local function showFlow(h, on)
     h.shown = on
-    for _, t in ipairs(h.strips) do t:SetShown(on) end
+    h.base:SetShown(on)
+    h.wave:SetShown(on and h.waveOn == true)
     h.grain:SetShown(on and h.grainOn == true)
 end
 
@@ -123,11 +128,10 @@ local function layoutFlow(s)
     s.laidW, s.laidH = w, ht
     local was = h.anim:IsPlaying()
     h.anim:Stop()
-    for i, t in ipairs(h.strips) do
+    for i, t in ipairs(h.layers) do
         t:ClearAllPoints()
-        -- A pixel of overlap, so no gap shows where two strips meet.
-        t:SetPoint("TOPLEFT", bar, "TOPLEFT", -w + (i - 1) * w / 2, 0)
-        t:SetSize(w / 2 + 1, ht)
+        t:SetPoint("TOPLEFT", bar, "TOPLEFT", -w, 0)
+        t:SetSize(2 * w, ht)
         h.slides[i]:SetOffset(w, 0)
     end
     if (was or s.style) and h.shown then h.anim:Play(); setSpeedOf(s) end
@@ -148,20 +152,17 @@ local function paintFlow(s)
     end
     fill:SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
     local alpha = BarFx.Get(s.kind, "strength") or 1
-    for i, t in ipairs(h.strips) do
-        local back = i % 2 == 0
-        t:SetVertexColor(1, 1, 1, 1)
-        if sweep then
-            -- CLAMP, or the game blends each edge with the far one: a line at both ends.
-            t:SetTexture(Style.GRADIENT_FILE, "CLAMP", "CLAMP")
-            t:SetTexCoord(back and 1 or 0, back and 0 or 1, 0, 1)
-            t:SetVertexColor(1, 1, 1, alpha)
-        else
-            t:SetTexture(BarFx.WHITE)
-            t:SetTexCoord(0, 1, 0, 1)
-            local a, b = back and hi or lo, back and lo or hi
-            t:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], alpha), CreateColor(b[1], b[2], b[3], alpha))
-        end
+    -- CLAMP, or the game blends each edge with the far one: a line at both ends.
+    if sweep then
+        h.base:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
+        h.base:SetVertexColor(1, 1, 1, alpha)
+        h.waveOn = false
+    else
+        h.base:SetTexture(BarFx.WHITE)
+        h.base:SetVertexColor(lo[1], lo[2], lo[3], alpha)
+        h.wave:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
+        h.wave:SetVertexColor(hi[1], hi[2], hi[3], alpha)
+        h.waveOn = true
     end
     h.grainOn = grain ~= nil
     if grain then h.grain:SetTexture(grain, "CLAMP", "CLAMP") end

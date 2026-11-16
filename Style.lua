@@ -1901,7 +1901,9 @@ function Style.MaskToFill(bar, tex)
     local r = fillRect[bar]
     if not r then
         r = bar:CreateMaskTexture()
-        r:SetTexture("Interface\\Buttons\\WHITE8X8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        -- Daylight UI's own solid image: WHITE8X8 is loaded everywhere without
+        -- this wrap, and in game the mask then kept nothing out.
+        r:SetTexture(DUI.MEDIA .. "mask-solid.png", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         r:SetAllPoints(bar:GetStatusBarTexture())
         fillRect[bar] = r
     end
