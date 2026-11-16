@@ -395,3 +395,22 @@ T.test("after a loading screen every style starts its animation over", function(
         T.eq(stops, 0, key .. ": a repaint doesn't restart it")
     end
 end)
+
+-- A masked layer drawn in MOD wiped out what lay under it where its mask cut it
+-- away, so the world showed through past the fill's angled edge (seen in game).
+T.test("no style multiplies a layer over the bar", function()
+    for _, key in ipairs({ "flow", "tide", "comet", "embers" }) do
+        local DUI, bar, _, read = setup({ style = key })
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        for _, r in ipairs(lights(bar)) do
+            T.truthy(r:GetBlendMode() ~= "MOD", key .. ": " .. tostring(r:GetTexture()) .. " isn't MOD")
+        end
+        if key == "flow" then
+            local base
+            for _, r in ipairs(lights(bar)) do
+                if r:GetTexture() == DUI.Style.BarGrainOf(bar) then base = r end
+            end
+            T.truthy(base, "Flow's base wears the bar's own texture, so its shading stays")
+        end
+    end
+end)

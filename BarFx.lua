@@ -96,15 +96,18 @@ local function setSpeedOf(s)
     if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, s.speed or 1)) end
 end
 
--- Flow: the bar's own two colors rolling along it. A base in the first color
--- and a soft wave in the second over it (barfx-wave.png, eased on a cosine, so
--- the turns have no crease), or on a Daylight sweep bar the sweep itself there
--- and back (barfx-sweep.png). Both are flipbook sheets the game steps through,
--- so nothing moves out of the fill: each layer is laid exactly over it and
--- wears the fill's own masks (its moving angled edge, and the bar's still ends
--- through Style.ClipLike), as the bar's texture layer does. They sit just over
--- the fill and under everything else drawn on the bar (hidden-class colors, a
--- cast's "can't interrupt" color).
+-- Flow: the bar's own two colors rolling along it. A base of the bar's own
+-- texture in the first color and a soft wave in the second over it
+-- (barfx-wave.png, eased on a cosine, so the turns have no crease), or on a
+-- Daylight sweep bar the sweep itself there and back (barfx-sweep.png). Both
+-- are flipbook sheets the game steps through, so nothing moves out of the
+-- fill: each layer is laid exactly over it and wears the fill's own masks (its
+-- moving angled edge, and the bar's still ends), as the bar's texture layer
+-- does. They sit just over the fill and under everything else drawn on the bar
+-- (hidden-class colors, a cast's "can't interrupt" color).
+-- No layer is drawn in MOD: one with a mask wipes out what lies under it where
+-- the mask cuts it away, so the world showed through past the fill's angled
+-- edge (seen in game).
 BarFx.WHITE = "Interface\\Buttons\\WHITE8X8"
 BarFx.WAVE = DUI.MEDIA .. "barfx-wave.png"
 BarFx.SWEEP = DUI.MEDIA .. "barfx-sweep.png"
@@ -130,12 +133,11 @@ local function buildFlow(s)
     h.anim = bar:CreateAnimationGroup()
     h.anim:SetLooping("REPEAT")
     h.base = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
+    h.sweep = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
     h.wave = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
-    h.grain = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 3)
-    h.grain:SetBlendMode("MOD")
-    h.layers = { h.base, h.wave, h.grain }
+    h.layers = { h.base, h.sweep, h.wave }
     for _, t in ipairs(h.layers) do Style.FollowFill(bar, t) end
-    h.baseBook = flipbook(h.anim, h.base)
+    flipbook(h.anim, h.sweep)
     flipbook(h.anim, h.wave)
     -- The game stops a frame's animations while it's hidden: start again on show.
     bar:HookScript("OnShow", function()
@@ -150,9 +152,9 @@ end
 
 local function showFlow(h, on)
     h.shown = on
-    h.base:SetShown(on)
-    h.wave:SetShown(on and h.waveOn == true)
-    h.grain:SetShown(on and h.grainOn == true)
+    h.base:SetShown(on and not h.isSweep)
+    h.sweep:SetShown(on and h.isSweep == true)
+    h.wave:SetShown(on and not h.isSweep)
 end
 
 -- Laid over the fill, so a size change needs nothing.
@@ -177,21 +179,17 @@ local function paintFlow(s)
     for _, t in ipairs(h.layers) do Style.SameMasks(t, fill) end
     local alpha = BarFx.Get(s, "strength") or 1
     -- CLAMP, or the game blends each edge with the far one: a line at both ends.
+    h.isSweep = sweep
     if sweep then
-        h.base:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
-        h.baseBook:SetDuration(BarFx.FLOW_LOOP)
-        h.base:SetVertexColor(1, 1, 1, alpha)
-        h.waveOn = false
+        h.sweep:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
+        h.sweep:SetVertexColor(1, 1, 1, alpha)
     else
-        h.base:SetTexture(BarFx.WHITE)
-        h.base:SetTexCoord(0, 1, 0, 1)
+        -- The bar's own texture, so its shading stays.
+        h.base:SetTexture(grain or BarFx.WHITE, "CLAMP", "CLAMP")
         h.base:SetVertexColor(lo[1], lo[2], lo[3], alpha)
         h.wave:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
         h.wave:SetVertexColor(hi[1], hi[2], hi[3], alpha)
-        h.waveOn = true
     end
-    h.grainOn = grain ~= nil
-    if grain then h.grain:SetTexture(grain, "CLAMP", "CLAMP") end
     showFlow(h, true)
     return true
 end
