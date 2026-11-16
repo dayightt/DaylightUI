@@ -4996,6 +4996,28 @@ local function edWorld()
     return DUI, AB, Ed, AB.CdmData, ess, bars
 end
 
+T.test("cdm card: the glow Style row plays each style on the spell in the editor, then rests", function()
+    local DUI, AB, Ed, D = edWorld()
+    local set, Card, Fx = D.Current(), AB.CdmCard, AB.CdmEffects
+    D.AddChain(set, { 11 }, "icon", 0, 0)
+    Ed.Changed()
+    Ed.Select(11)
+    local style
+    for _, r in ipairs(Card.ROWS.look) do if r.item and r.item.key == "cdm.card.glowStyle" then style = r.item end end
+    T.truthy(style and style.hover, "the row previews on hover")
+    local f = Ed.PreviewOf(11)
+    style.hover("twinkle")
+    local host = Fx.PreviewHost(f)
+    T.truthy(host.glowDriver:IsShown(), "the lights run on the spell's preview")
+    T.eq(host.glowStyle, "twinkle")
+    style.hover("ring")
+    T.truthy(Fx.GlowShown(f), "the ring for Ring")
+    for _ = 1, 5 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.falsy(host.glowDriver:IsShown(), "the lights give way to it")
+    stub.RunTimers(Fx.PREVIEW_HOLD + 0.1)
+    T.falsy(Fx.GlowShown(f), "a preview rests after a moment")
+end)
+
 T.test("cdm card: Move back and Move forward trade places with the spell beside it", function()
     local DUI, AB, Ed, D = edWorld()
     local set, Card = D.Current(), AB.CdmCard

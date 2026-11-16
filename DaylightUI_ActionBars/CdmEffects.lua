@@ -413,6 +413,43 @@ function Fx.SetGlow(item, on, c)
     if on then lightGlow(item, c) else showGlow(item, false) end
 end
 
+-- A glow style shown for a moment on a frame of the layout editor (the card's
+-- Style row: a hover or a pick), in the color of a glow the spell has on.
+Fx.PREVIEW_HOLD = 2.5      -- seconds a preview runs
+local previewHosts = setmetatable({}, weak)
+local GLOW_KEYS = { "readyGlow", "usableGlow", "upGlow", "clipGlow", "missingGlow" }
+function Fx.PreviewGlow(frame, style, button)
+    if type(frame) ~= "table" then return end
+    local c
+    for _, key in ipairs(GLOW_KEYS) do
+        if c == nil and Fx.Get(button, key) == true then c = Fx.Get(button, key .. "Color") end
+    end
+    c = type(c) == "table" and c or nil
+    local host = previewHosts[frame]
+    if not host then host = {}; previewHosts[frame] = host end
+    local lights = DUI.Motion.GLOW_STYLES[style] and DUI.Motion.On()
+    if lights then
+        Fx.SetGlow(frame, false)
+        DUI.Widgets.GlowAround(host, true, {
+            style = style, frame = frame, parent = frame, layer = "OVERLAY", sub = 7,
+            inset = 0, thick = DUI.Pixel.Px(frame, 2), scale = Fx.GLOW_SCALE, lo = c,
+        })
+    else
+        DUI.Widgets.GlowAround(host, false)
+        Fx.SetGlow(frame, true, c)
+    end
+    local token = {}
+    host.previewToken = token
+    C_Timer.After(Fx.PREVIEW_HOLD, function()
+        if host.previewToken ~= token then return end
+        host.previewToken = nil
+        DUI.Widgets.GlowAround(host, false)
+        Fx.SetGlow(frame, false)
+    end)
+end
+
+function Fx.PreviewHost(frame) return previewHosts[frame] end
+
 -- The glow's frame (for tests).
 function Fx.GlowFrame(item) return glows[item] end
 

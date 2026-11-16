@@ -104,6 +104,14 @@ function Card.Fallback(key, set, id)
     if key == "nameColor" or key == "timeColor" then local c = DUI.Style.INK.VALUE; return { c[1], c[2], c[3] } end
 end
 
+-- Shows a glow style for a moment on the picked spell in the editor.
+function Card.PreviewGlow(style)
+    local _, id, p = picked()
+    if id and ns.CdmEditor and ns.CdmEffects then
+        ns.CdmEffects.PreviewGlow(ns.CdmEditor.PreviewOf(id), style, p)
+    end
+end
+
 -- A spell option (glow, on cooldown...) stored flat on the piece.
 local function spell(key, item)
     item.key = "cdm.card." .. key
@@ -380,6 +388,9 @@ Card.ROWS = {
         { head = L["Glow"], show = function() return true end },
         { show = function() return true end, item = spell("glowStyle", { type = "dropdown", label = "Style",
             choices = function() return DUI.Motion.GlowChoices(nil, { "ring", "Ring" }) end,
+            -- Each style plays on the spell in the editor as the mouse rests on it.
+            hover = function(k) Card.PreviewGlow(k) end,
+            onPick = function(k) Card.PreviewGlow(k) end,
             desc = "How this spell glows when its other settings ask for it (ready, usable, buff up or missing, time to recast): the game's spell alert ring, or a soft light moving round its edge." }) },
         { head = L["Swipe"], show = isIcon },
         { show = both(isIcon, isCooldown), item = spell("noSwipe", { type = "toggle", label = "Hide on cooldown",
