@@ -190,6 +190,66 @@ T.test("bags: the window has a portrait header, its name and free slots in the s
     T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
 end)
 
+T.test("bags: dragging the corner grip adds whole columns, saved on release", function()
+    local ns = login()
+    local f = open(ns)
+    local cfg = f.Cfg()
+    local step = cfg.iconSize + cfg.spacing
+    local cols, wide = cfg.columns, f:GetWidth()
+    f.GetLeft = function() return 300 end
+    f.GetTop = function() return 700 end
+    local cx = 1000
+    local old = GetCursorPosition
+    GetCursorPosition = function() return cx, 200 end
+    local grip = f.grip
+    T.truthy(grip, "the grip")
+    grip:GetScript("OnMouseDown")(grip, "LeftButton")
+    cx = 1000 + 3 * step + 2
+    grip:GetScript("OnUpdate")(grip, 0.01)
+    T.eq(f.Cfg().columns, cols + 3, "three more columns while dragging")
+    T.eq(DaylightUI:Get("Bags", "columns"), cols, "not saved yet")
+    T.eq(f:GetWidth(), wide + 3 * step, "the window widened by three slots")
+    grip:GetScript("OnMouseUp")(grip, "LeftButton")
+    stub.RunTimers()
+    GetCursorPosition = old
+    T.eq(DaylightUI:Get("Bags", "columns"), cols + 3, "saved on release")
+    T.eq(f.Cfg().columns, cols + 3)
+    grip:GetScript("OnMouseUp")(grip, "RightButton")
+    stub.RunTimers()
+    T.eq(DaylightUI:Get("Bags", "columns"), cols, "right-click puts the default back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: with the header off the search tops the window and a bank button sits by the X", function()
+    local ns = login()
+    local f = open(ns)
+    local _, _, _, _, withY = f.search:GetPoint(1)
+    local tall = f:GetHeight()
+    DaylightUI:Set("Bags", "showHeader", false)
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(f.portrait:IsShown(), "no portrait")
+    T.falsy(f.title:IsShown(), "no title")
+    T.falsy(f.sub:IsShown(), "no free count line")
+    T.truthy(f.bankButton and f.bankButton:IsShown(), "the bank button shows")
+    local _, rel = f.bankButton:GetPoint(1)
+    T.eq(rel, f.close, "beside the X")
+    local _, _, _, _, y = f.search:GetPoint(1)
+    T.truthy(y > withY, "the search moved up")
+    T.eq(f:GetHeight(), tall - (ns.Window.TITLE - ns.Window.Top(f)), "the window lost the header's height")
+    T.truthy(f:GetScript("OnDragStart"), "the window drags by itself")
+    local opened = 0
+    ns.Viewer.ToggleBank = function() opened = opened + 1 end
+    f.bankButton:GetScript("OnClick")(f.bankButton, "LeftButton")
+    T.eq(opened, 1, "a click opens the bank")
+    DaylightUI:Set("Bags", "showHeader", true)
+    stub.RunTimers()
+    T.truthy(f.portrait:IsShown() and f.title:IsShown(), "the header is back")
+    T.falsy(f.bankButton:IsShown(), "the bank button goes with it")
+    T.isnil(f:GetScript("OnDragStart"))
+    T.eq(f:GetHeight(), tall)
+end)
+
 -- The fake game does no layout, so no text width is checked here: these read the
 -- anchors. inset = how far a right edge sits in from the window's right edge.
 local function anchorOf(obj, point)
@@ -1176,6 +1236,20 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     T.eq(ns.Junk.DeleteShards(), 0)
     T.eq(#deleted, 0, "the cursor didn't hold a shard: put back, nothing deleted")
     T.isnil(stub.cursor)
+    -- A soul bag stays full: the extra shards go from the other bags first.
+    C_Container.PickupContainerItem = function(bag, slot)
+        local it = world.items[bag] and world.items[bag][slot]
+        stub.cursor = it and { "item", it.itemID, bag, slot } or nil
+    end
+    world.family = { [1] = 4 }
+    world.items[1][5] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    world.items[1][6] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
+    stub.FireEvent("BAG_UPDATE", 1); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
+    deleted = {}
+    T.eq(ns.Junk.DeleteShards(), 3)
+    T.truthy(world.items[1][5] and world.items[1][6], "the soul bag's shards stay")
+    T.truthy(not deleted[1]:find("^1:"), "the first one deleted is from a plain bag")
+    world.family = nil
     -- Not a warlock: no button, and the rows are hidden.
     stub.units.player.class = "MAGE"
     T.eq(ns.Junk.ExtraShards(), 0)
@@ -1972,10 +2046,10 @@ T.test("bags: group headings read upper case in the group's color with a count a
     T.truthy(ok, tostring(err))
 end)
 
--- A folded group collapses where it is: its heading keeps its spot and the width it
--- has open, so nothing beside it moves. What's stacked under it in its column moves
--- up, and a row shrinks only when its tallest column does.
-T.test("bags: a folded group keeps its spot and width; its row shrinks only once every group in it folds", function()
+-- Folding a group gives its room back: a folded heading never sits beside an
+-- open group (it left a hole under it there and saved no room), folded ones in a
+-- row share one, and opening them all again puts everything back.
+T.test("bags: a folded group gives its room back; folded headings share rows only with each other", function()
     local ns, f = catLogin()
     local Cat = ns.Categories
     local function spots()
@@ -1989,28 +2063,33 @@ T.test("bags: a folded group keeps its spot and width; its row shrinks only once
         return t
     end
     local before = spots()
-    -- The groups on the first row, and the rows below it.
-    local topY, first, below = nil, {}, {}
+    local h0 = f.items:GetHeight()
+    local topY, first = nil, {}
     for _, p in pairs(before) do topY = math.max(topY or p[2], p[2]) end
-    for k, p in pairs(before) do if p[2] == topY then first[#first + 1] = k else below[#below + 1] = k end end
+    for k, p in pairs(before) do if p[2] == topY then first[#first + 1] = k end end
+    table.sort(first, function(a, b) return before[a][1] < before[b][1] end)
     T.truthy(#first > 1, "several groups share the first row")
-    T.truthy(#below > 0, "and there are rows below")
-    Cat.ToggleCollapsed(first[1])
+    -- Fold the last group of the first row: it leaves the row of open groups.
+    local last = first[#first]
+    Cat.ToggleCollapsed(last)
     stub.RunTimers()
     local now = spots()
-    for k, p in pairs(before) do
-        T.eq(now[k][1], p[1], k .. " keeps its x")
-        T.eq(now[k][3], p[3], k .. " keeps its width")
+    for k, p in pairs(now) do
+        T.truthy(k == last or p[2] ~= now[last][2], k .. " never shares a row with the folded " .. last)
     end
-    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end   -- first[1] opens again, the rest fold
-    Cat.ToggleCollapsed(first[1])
+    -- Fold every group: all headings, packed together, and the bag gets shorter.
+    for k in pairs(before) do if not Cat.IsCollapsed(k) then Cat.ToggleCollapsed(k) end end
     stub.RunTimers()
     now = spots()
-    for _, k in ipairs(below) do
-        T.truthy(now[k][2] > before[k][2], k .. " moves up once the whole row above is folded")
-        T.eq(now[k][1], before[k][1], k .. " only moves up")
-    end
-    for _, k in ipairs(first) do Cat.ToggleCollapsed(k) end
+    local rows = {}
+    for _, p in pairs(now) do rows[p[2]] = true end
+    local n = 0
+    for _ in pairs(rows) do n = n + 1 end
+    local groups = 0
+    for _ in pairs(now) do groups = groups + 1 end
+    T.truthy(n < groups, "folded headings share rows")
+    T.truthy(f.items:GetHeight() < h0, "and the bag gets shorter")
+    for k in pairs(before) do Cat.ToggleCollapsed(k) end
     stub.RunTimers()
     now = spots()
     for k, p in pairs(before) do T.deq(now[k], p, k .. " back where it was, all open again") end
@@ -2020,7 +2099,7 @@ end)
 local function packWorld(L, f, counts)
     local cfg = f.Cfg()
     local size, gap, cols = 35, 2, 10
-    local top, headH = L.SlotTop(f, cfg), L.HeadH(f, cfg)
+    local top = L.SlotTop(f, cfg)
     local inset = L.Ref(f, cfg, L.REF.inset)
     local boxes = {}
     for _, c in ipairs(counts) do
@@ -2030,7 +2109,7 @@ local function packWorld(L, f, counts)
             return { w = math.max(across * size + (across - 1) * gap, headW), h = top + rows * size + (rows - 1) * gap,
                      across = across, lines = rows }
         end
-        boxes[#boxes + 1] = { key = key, n = n, cols = cols, shape = shape, drawnH = c.folded and headH or nil }
+        boxes[#boxes + 1] = { key = key, n = n, cols = cols, shape = shape }
     end
     return boxes, cols * size + (cols - 1) * gap, L.GroupGap(f, cfg), L.RowGap(f, cfg)
 end
@@ -2043,7 +2122,7 @@ local function rects(boxes, spots)
     local out = {}
     for i, b in ipairs(boxes) do
         local sh = spots[i].shape
-        out[i] = { x = spots[i].x, y = spots[i].y, w = sh.w, h = b.drawnH or sh.h, key = b.key, lines = sh.lines }
+        out[i] = { x = spots[i].x, y = spots[i].y, w = sh.w, h = sh.h, key = b.key, lines = sh.lines }
     end
     return out
 end
@@ -2124,47 +2203,36 @@ T.test("bags: the Shelf's packing is the same every time and moves little when a
     T.truthy(kept >= #boxes / 2, "most groups keep their spots: " .. kept .. " of " .. #boxes)
 end)
 
-T.test("bags: a folded group packs where it would stand open", function()
+-- Seen in game: Consumables folded beside an open Quest Items left a hole under
+-- its heading, and folding it saved no room at all.
+T.test("bags: a folded group packs as a heading on a row of folded ones", function()
     local ns, f = catLogin()
     local L = ns.Layout
     local boxes, maxW, gx, gy = packWorld(L, f, USER_BAG)
-    local open, h0 = L.Pack(boxes, maxW, gx, gy)
-    local folded = {}
-    for i, c in ipairs(USER_BAG) do folded[i] = { c[1], c[2], c[3], folded = c[1] == "quest" } end
-    local fb = packWorld(L, f, folded)
+    local _, h0 = L.Pack(boxes, maxW, gx, gy)
+    local headH = L.HeadH(f, f.Cfg())
+    local fb = packWorld(L, f, USER_BAG)
+    for _, b in ipairs(fb) do
+        if b.key == "consumable" or b.key == "weapon" or b.key == "tradegoods" then
+            b.folded, b.n = true, 0
+            local w = b.shape(1).w
+            b.shape = function() return { w = w, h = headH, across = 0 } end
+        end
+    end
     local now, h1 = L.Pack(fb, maxW, gx, gy)
-    T.truthy(h1 <= h0, "never taller")
+    T.truthy(h1 < h0, "folding gives room back")
     for i, b in ipairs(fb) do
-        T.eq(now[i].x, open[i].x, b.key .. ": the same column")
-        T.eq(now[i].shape.w, open[i].shape.w, b.key .. ": the same width")
-    end
-end)
-
-T.test("bags: folding a group moves no other heading or slot while its row has an open group", function()
-    local ns, f = catLogin()
-    local B = ns.Bags
-    local function snapshot()
-        local t = {}
-        for _, x in ipairs(f.headings) do
-            if x:IsShown() and x.key and x.key ~= "sets" then t[x.key] = { select(4, x:GetPoint(1)), select(5, x:GetPoint(1)) } end
+        for j, o in ipairs(fb) do
+            if i ~= j and now[i].y == now[j].y then
+                T.eq(b.folded or false, o.folded or false, b.key .. " and " .. o.key .. " share a row only when both fold or both open")
+            end
         end
-        for _, s in ipairs(f.set.Slots()) do
-            if s.button:IsShown() and s.button ~= B.buttons[0][4] then t[s.button] = { select(4, s.button:GetPoint(1)), select(5, s.button:GetPoint(1)) } end
-        end
-        return t
     end
-    local before = snapshot()
-    ns.Categories.ToggleCollapsed("sets")
-    stub.RunTimers()
-    local after = snapshot()
-    local n = 0
-    for k, p in pairs(before) do
-        n = n + 1
-        T.truthy(after[k], "still there")
-        T.eq(after[k][1], p[1], "same x")
-        T.eq(after[k][2], p[2], "same y")
+    local wpn, tg
+    for i, b in ipairs(fb) do
+        if b.key == "weapon" then wpn = now[i] elseif b.key == "tradegoods" then tg = now[i] end
     end
-    T.truthy(n > 5, "several headings and slots checked")
+    T.eq(wpn.y, tg.y, "folded groups next to each other share a row")
 end)
 
 -- Seen in game: each group's line ran along the top of its slots and the rings
@@ -7626,4 +7694,103 @@ T.test("bags: compare off keeps the worn item away from a bag item's tooltip", f
     _G.IsModifiedClick = nil
     _G.GameTooltip_SuppressAutomaticCompareItem, _G.GameTooltip_HideShoppingTooltips = nil, nil
     _G.GameTooltip = saved
+end)
+
+-- Folds, loot, use, chips, sorts, fights and reopening in a random mix, cut off
+-- mid-glide: once things settle every slot stands where a plain layout puts it.
+T.test("bags: eased layouts always land where a plain layout would", function()
+    for seed = 1, 12 do
+        math.randomseed(seed)
+        local ns, f = catLogin()
+        ns.Layout.EASE_MAX = (seed % 2 == 0) and 2 or 60
+        local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+        local log = {}
+        local function step(dt)
+            local d = Motion.Driver(); if d then stub.RunOnUpdate(d, dt) end
+            d = Feel.Driver(); if d then stub.RunOnUpdate(d, dt) end
+        end
+        for i = 1, 25 do
+            local r = math.random(12)
+            if r == 1 then
+                local hs = {}
+                for _, x in ipairs(f.headings) do if x:IsShown() and x.key then hs[#hs + 1] = x end end
+                local h = hs[math.random(math.max(1, #hs))]
+                if h then
+                    log[#log + 1] = "fold " .. tostring(h.key)
+                    h:GetScript("OnClick")(h, "LeftButton")
+                end
+            elseif r == 2 then
+                log[#log + 1] = "ease"
+                ns.Layout.easing = true; ns.Relayout(); ns.Layout.easing = false
+            elseif r == 3 then
+                log[#log + 1] = "plain"
+                ns.Relayout()
+            elseif r == 4 then
+                log[#log + 1] = "light"
+                ns.Slots.Light(f.set.Slots(), math.random(2) == 1 and 0 or nil)
+            elseif r == 5 then
+                log[#log + 1] = "easeRelayout"
+                ns.Window.EaseRelayout(f)
+            elseif r == 7 then
+                local bag = math.random(0, 1)
+                local slot = math.random(1, 8)
+                if world.items[bag] and world.items[bag][slot] and math.random(2) == 1 then
+                    log[#log + 1] = "use " .. bag .. ":" .. slot
+                    world.items[bag][slot] = nil
+                elseif world.items[bag] then
+                    log[#log + 1] = "loot " .. bag .. ":" .. slot
+                    local id = math.random(1, 9)
+                    world.items[bag][slot] = { iconFileID = 100 + id, stackCount = 1, quality = math.random(0, 3), hyperlink = "|Hitem:" .. id .. "|h", itemID = id, itemName = "I" .. id }
+                end
+                stub.FireEvent("BAG_UPDATE", bag)
+                stub.FireEvent("BAG_UPDATE_DELAYED")
+                if math.random(2) == 1 then stub.RunTimers() end
+            elseif r == 9 then
+                stub.combat = not stub.combat
+                log[#log + 1] = "combat " .. tostring(stub.combat)
+                stub.FireEvent(stub.combat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
+            elseif r == 10 then
+                log[#log + 1] = "reopen"
+                CloseAllBags(); f:Hide(); stub.RunTimers(); open(ns)
+            elseif r == 11 then
+                log[#log + 1] = "sort"
+                f.sort:GetScript("OnClick")(f.sort)
+                stub.Advance(1); stub.RunTimers()
+            elseif r == 12 then
+                local c = ({ 2, 4, 6, 10 })[math.random(4)]
+                log[#log + 1] = "columns " .. c
+                DaylightUI:Set("Bags", "columns", c)
+                if math.random(2) == 1 then stub.RunTimers() end
+            elseif r == 6 then
+                local ids = { nil, "gear", "trade", "junk" }
+                local c = ids[math.random(4)]
+                log[#log + 1] = "chip " .. tostring(c)
+                ns.Window.PickChip(f, c)
+            end
+            local dt = ({ 0, 0.03, 0.1, 0.3, 1 })[math.random(5)]
+            log[#log + 1] = "dt " .. dt
+            step(dt)
+        end
+        if stub.combat then stub.combat = false; stub.FireEvent("PLAYER_REGEN_ENABLED") end
+        stub.Advance(4)
+        stub.RunTimers()
+        if not f.sorting then ns.Window.EaseRelayout(f) end
+        step(2)
+        local got = {}
+        for _, s in ipairs(f.set.Slots()) do
+            local b = s.button
+            if b:IsShown() then got[b] = { select(4, b:GetPoint(1)) } end
+        end
+        ns.Relayout()
+        for _, s in ipairs(f.set.Slots()) do
+            local b = s.button
+            local want = b:IsShown() and { select(4, b:GetPoint(1)) } or nil
+            local g = got[b]
+            local same = (g == nil and want == nil) or (g and want and g[1] == want[1] and g[2] == want[2])
+            if not same then
+                error("seed " .. seed .. " slot " .. s.bag .. ":" .. b:GetID() .. " got " .. (g and (g[1] .. "," .. g[2]) or "hidden")
+                    .. " want " .. (want and (want[1] .. "," .. want[2]) or "hidden") .. "\n" .. table.concat(log, " | "))
+            end
+        end
+    end
 end)

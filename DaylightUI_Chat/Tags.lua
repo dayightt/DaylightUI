@@ -31,7 +31,9 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- Spanish clients name the channels in Spanish.
                   Comercio = "T", Defensalocal = "LD", Buscargrupo = "LFG", Defensamundial = "WD",
                   Defensaglobal = "WD", Reclutamiento = "GR", Novatos = "N", Servicios = "TS",
-                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL" }
+                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL",
+                  -- German clients name them in German.
+                  Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
 -- kind, written whole, set in a tab's Show window, Filter.lua). A custom tag wins;
 -- an empty box falls back to the standard one. Standard tags are also the edit

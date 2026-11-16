@@ -348,7 +348,7 @@ function Stack:Section(label, opts)
     opts = opts or {}
     local b = take(self, "section", makeSection)
     b.opts = opts
-    b.text:SetText(string.upper(label or ""))
+    b.text:SetText(DUI.Style.Upper(label or ""))
     if opts.lit then Style.InkText(b.text, "VALUE") else Style.InkText(b.text, "pop") end
     b.value:SetText(opts.value or "")
     Style.InkText(b.value, "LABEL")
@@ -1230,6 +1230,14 @@ function Parts.Footer(page, opts)
     f.line:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 10)
     foot.frame = f
     f.padFooter = foot   -- the controller's X finds the main button through it (Pad.FindParts)
+    -- Sized to the room the row has, so a row that changes width (a panel
+    -- beside a resized map) lays its buttons out again, or their text stays cut.
+    local lastW
+    f:SetScript("OnSizeChanged", function(self, w)
+        if type(w) ~= "number" or w == lastW then return end
+        lastW = w
+        if foot.last then foot:Set(foot.last) end
+    end)
     return foot
 end
 
@@ -1293,6 +1301,7 @@ function Footer.Share(foot, list, room)
     return sizes
 end
 function Footer:Set(list)
+    self.last = list
     for i, b in ipairs(self.buttons) do if not list[i] then b:Hide() end end
     local right
     local gap = self.equal and Footer.EQUAL_GAP or Footer.GAP

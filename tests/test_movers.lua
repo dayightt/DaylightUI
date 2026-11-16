@@ -369,6 +369,23 @@ T.test("clicking a handle (no drag) opens the editor for that frame", function()
     T.isnil(DaylightUIDB.profileData[DUI.DB.DEFAULT].positions.demo, "a click alone doesn't save a position")
 end)
 
+T.test("the editor's Move together button says what it does on hover", function()
+    local DUI = stub.Load()
+    demo(DUI)
+    DUI.Movers.OpenEditor("demo")
+    local lines = {}
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    function tip:AddLine(t) lines[#lines + 1] = tostring(t) end
+    function tip:AddDoubleLine(l, r) lines[#lines + 1] = tostring(l) .. " " .. tostring(r) end
+    local group = DUI.Movers.Editor().group
+    group:GetScript("OnEnter")(group)
+    _G.GameTooltip = nil
+    local text = table.concat(lines, "\n")
+    T.truthy(text:find(DUI.L["Move together"], 1, true), text)
+    T.truthy(text:find(DUI.L["another frame adds it to this group, or takes it out"], 1, true), text)
+end)
+
 T.test("the editor opens below a frame, or above it when the frame is near the bottom", function()
     local DUI = stub.Load()
     demo(DUI)

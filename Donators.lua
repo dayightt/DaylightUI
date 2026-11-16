@@ -68,6 +68,7 @@ Donators.LIST = {
     "Sukori",
     "Steffen Krause",
     "mattgif",
+    "Pradeesh",
     "Hugo Romao PT",
     "sam",
     "Daniel",
@@ -89,6 +90,7 @@ Donators.MONTHLY = {
     "Steffen Krause",
     "Alen Šabanagić",
     "Hugo Romao PT",
+    "Pradeesh",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -448,7 +450,7 @@ local function update(row)
     row.monthly:SetShown(#monthly > 0)
     if #monthly > 0 then
         placeCard(row.monthly, row, top, width, #monthly)
-        row.monthly.head:SetText(DUI.GradientText(string.upper(L["Monthly supporters"])))
+        row.monthly.head:SetText(DUI.GradientText(DUI.Style.Upper(L["Monthly supporters"])))
         W.TintDaylight(row.monthly.edge, 0.9)
         fill(row.monthly, monthly, 1, #monthly, width, "monthly")
         top = top + monthlyHeight(width)
@@ -458,7 +460,7 @@ local function update(row)
     row.list:SetShown(showTop)
     if showTop then
         placeCard(row.list, row, top, width, topCount())
-        row.list.head:SetText(DUI.GradientText(string.upper(L["Top 10"])))
+        row.list.head:SetText(DUI.GradientText(DUI.Style.Upper(L["Top 10"])))
         row.list.empty:SetShown(#names == 0)
         fill(row.list, names, 4, topCount(), width, true)
         last = row.list
@@ -467,7 +469,7 @@ local function update(row)
     if restCount() > 0 then
         local at = showTop and (top + cardHeight(topCount(), width) + LIST_GAP) or top
         placeCard(row.rest, row, at, width, restCount())
-        row.rest.head:SetText(DUI.GradientText(string.upper(L["Also supporting"])))
+        row.rest.head:SetText(DUI.GradientText(DUI.Style.Upper(L["Also supporting"])))
         fill(row.rest, names, TOP_N + 1, restCount(), width, false)
         last = row.rest
     end

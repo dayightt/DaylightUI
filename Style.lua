@@ -313,6 +313,37 @@ function Style.WindowBack(scope)
     if type(scope) ~= "string" then return Style.BackAlpha() end
     return Style.BackAlpha(DUI:Get(scope, "windowAlphaOwn"), DUI:Get(scope, "windowAlpha"))
 end
+
+-- How much of the class color a "class" window background takes. Kept low so
+-- the text on top stays easy to read.
+Style.CLASS_BACK_MIX = 0.2
+local backColor = { 0, 0, 0 }
+
+-- The color behind every window and panel that follows the shared opacity
+-- (General windowTint: the look's own, a dark class tint or a picked color).
+-- Read at paint time; one table is reused, so copy it before keeping it.
+function Style.BackColor()
+    local g = DUI.DB and DUI.DB.General and DUI.DB.General()
+    local base, mode = Style.BACKGROUND, g and g.windowTint
+    if mode == "custom" then
+        local c = g.windowTintColor
+        if type(c) == "table" and type(c[1]) == "number" then
+            backColor[1], backColor[2], backColor[3] = c[1], c[2], c[3]
+            return backColor
+        end
+    elseif mode == "class" then
+        local _, token = UnitClass("player")
+        local r, gr, b = Style.RawClassColor(token)
+        if r then
+            local k = Style.CLASS_BACK_MIX
+            backColor[1] = base[1] + (r * 0.5 - base[1]) * k
+            backColor[2] = base[2] + (gr * 0.5 - base[2]) * k
+            backColor[3] = base[3] + (b * 0.5 - base[3]) * k
+            return backColor
+        end
+    end
+    return base
+end
 Style.NEUTRAL = { 0.42, 0.42, 0.44 }
 Style.ACCENT = { 0.72, 0.7, 0.66 } -- #b8b3a8, a soft warm gray that's easy on the eyes
 
@@ -1155,9 +1186,9 @@ local function litFrom(angled, under, side, e, inset, insetUnder)
 end
 
 -- A shell's background color. A window (opts.window) gets its opacity from
--- Style.WindowBack.
+-- Style.WindowBack; windows and panels (opts.panel) take Style.BackColor.
 function Style.PaintBack(s)
-    local bgc = s.opts.bgColor or Style.BACKGROUND
+    local bgc = s.opts.bgColor or ((s.opts.window or s.opts.panel) and Style.BackColor()) or Style.BACKGROUND
     local bgA = s.opts.bgAlpha or (s.opts.window and Style.WindowBack(s.opts.window)) or Style.BACKGROUND_ALPHA
     s.bg:SetColorTexture(bgc[1], bgc[2], bgc[3], bgA)
 end
@@ -2362,6 +2393,24 @@ function Style.DressText(fs, size, opts)
     fs:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
     Style.ApplyFont(fs)
     if opts and opts.untracked then textSize[fs] = nil end
+end
+
+-- string.upper only raises plain A to Z, so accented and Cyrillic letters stay
+-- small ("UNTERSTüTZER"). This raises the two-byte letters too: Latin-1
+-- (German, French, Spanish...) and Russian.
+local function raise(lead, b)
+    local n = b:byte()
+    if lead == "\195" and n >= 0xA0 and n <= 0xBE and n ~= 0xB7 then return lead .. string.char(n - 0x20) end
+    if lead == "\208" and n >= 0xB0 and n <= 0xBF then return lead .. string.char(n - 0x20) end
+    if lead == "\209" and n >= 0x80 and n <= 0x8F then return "\208" .. string.char(n + 0x20) end
+    if lead == "\209" and n >= 0x90 and n <= 0x9F then return "\208" .. string.char(n - 0x10) end
+    return lead .. b
+end
+
+-- Text in capitals, for headings shown in upper case.
+function Style.Upper(text)
+    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return text end
+    return (string.gsub(string.upper(text), "([\195\208\209])([\128-\191])", raise))
 end
 
 -- font (optional): another font file, kept when the Appearance font changes,

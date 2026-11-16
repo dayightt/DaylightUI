@@ -278,7 +278,7 @@ function List.Draw(L)
                 r.head:ClearAllPoints()
                 r.head:SetPoint("LEFT", r, "LEFT", x, 0)
                 r.head:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
-                ns.Colors.HeadText(r.head, mark, (item.folded and "+  " or "-  ") .. string.upper(item.text or ""))
+                ns.Colors.HeadText(r.head, mark, (item.folded and "+  " or "-  ") .. DUI.Style.Upper(item.text or ""))
                 ns.Colors.Line(r.line, List.LINE_ALPHA)
                 r.stripe:Hide()
             else

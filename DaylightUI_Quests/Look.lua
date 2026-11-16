@@ -159,7 +159,7 @@ Look.Number = number
 function Look.PaintTag(tag, look, kind)
     local word = kind and Look.TAG_WORDS[kind]
     if not word then tag:Hide(); return false end
-    tag.text:SetText(string.upper(word()))
+    tag.text:SetText(DUI.Style.Upper(word()))
     local r, g, b = Look.Color(look, kind)
     tag.text:SetTextColor(r, g, b)
     tag.fill:SetVertexColor(r, g, b, Look.TAG_FILL)

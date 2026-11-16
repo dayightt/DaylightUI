@@ -287,6 +287,23 @@ T.test("windows: Parts.Tone gives any button the footer's main and refusal look"
     T.rgb({ foot.buttons[2].text:GetTextColor() }, Parts.NO)
 end)
 
+T.test("windows: a shared footer lays out again when its row changes width", function()
+    local DUI = stub.Load()
+    local Parts = DUI.Win.Parts
+    local page = CreateFrame("Frame", nil, UIParent)
+    page:SetSize(400, 300)
+    local foot = Parts.Footer(page, { equal = true })
+    foot.frame:SetWidth(120)   -- laid out while the panel was still narrow
+    foot:Set({ { text = "Show on map", primary = true }, { text = "Untrack" }, { text = "Share" }, { text = "Abandon" } })
+    local was = foot.buttons[3]:GetWidth()
+    foot.frame:SetWidth(360)
+    local onSize = foot.frame:GetScript("OnSizeChanged")
+    T.truthy(onSize, "the footer follows its width")
+    onSize(foot.frame, 360, 28)
+    T.truthy(foot.buttons[3]:GetWidth() > was, "the buttons take the new room")
+    T.truthy(foot.buttons[3].text:GetWidth() > was, "and so does their text")
+end)
+
 T.test("windows: the main action's glow circles while shown and rests when off", function()
     local DUI = stub.Load()
     local Parts, W = DUI.Win.Parts, DUI.Widgets
@@ -299,13 +316,37 @@ T.test("windows: the main action's glow circles while shown and rests when off",
     T.truthy(main.glowDriver and main.glowDriver:IsVisible(), "the main button glows")
     T.eq(other.glowDriver, nil, "a plain button makes no glow")
     -- The lights move round the band and stay on it.
-    local light = main.glowLights[1].dot
+    local light = main.glowDots[1]
     local _, _, _, x0, y0 = light:GetPoint(1)
     main.glowDriver.__scripts.OnUpdate(main.glowDriver, W.GLOW.lap / 3)
     local _, _, _, x1, y1 = light:GetPoint(1)
     T.truthy(x0 ~= x1 or y0 ~= y1, "the light moved")
     T.truthy(x1 >= 0 and x1 <= main:GetWidth() and y1 <= 0 and y1 >= -main:GetHeight(), "the light is on the button")
-    T.truthy(main.glowLights[1].tail[1]:IsShown(), "a tail follows the light")
+    T.truthy(main.glowStrips[1]:IsShown(), "a tail follows the light")
+    -- Every style draws, its lights on the button all the way round.
+    for _, style in ipairs(W.GLOW_STYLE_ORDER) do
+        DUI:Set("general", "buttonGlow", style)
+        main.RefreshGlow()
+        T.eq(main.glowStyle, style)
+        local lit = 0
+        for _ = 1, 24 do
+            main.glowDriver.__scripts.OnUpdate(main.glowDriver, W.GLOW_LAP[style] / 24)
+            for _, d in ipairs(main.glowDots) do
+                if d:IsShown() then
+                    lit = lit + 1
+                    local _, _, _, x, y = d:GetPoint(1)
+                    T.truthy(x >= 0 and x <= main:GetWidth() and y <= 0 and y >= -main:GetHeight(), style .. ": on the button")
+                end
+            end
+        end
+        T.truthy(lit > 0, style .. ": something lights")
+    end
+    -- Off: nothing glows.
+    DUI:Set("general", "buttonGlow", "none")
+    main.RefreshGlow()
+    T.eq(main.glowDriver:IsShown(), false, "Off stops it")
+    DUI:Set("general", "buttonGlow", "circle")
+    main.RefreshGlow()
     -- Hover hands over to the trace: the glow fades out.
     main.GlowHover(true)
     for _ = 1, 5 do

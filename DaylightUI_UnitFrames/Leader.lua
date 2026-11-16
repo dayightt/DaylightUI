@@ -300,7 +300,7 @@ function Leader.IsOpen() return Leader.open == true end
 local function title(sec, text)
     sec.title = Style.Text(sec, Style.SIZE.small, "LEFT")
     sec.title:SetPoint("TOPLEFT", sec, "TOPLEFT", 0, 0)
-    sec.title:SetText(string.upper(text))
+    sec.title:SetText(DUI.Style.Upper(text))
     Style.InkText(sec.title, "pop")
     return Style.SIZE.small + Leader.TITLE_GAP
 end

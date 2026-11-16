@@ -63,7 +63,9 @@ Plate.GLOW = DUI.MEDIA .. "glow.png"
 Plate.GLOW_REACH = 12 -- how far the glow spreads from the bar
 Plate.GLOW_ALPHA = 0.9
 Plate.OUTLINE_PX = 2 -- outline thickness in screen pixels
-Plate.CIRCLE_SIZE = 12 -- the circling lights on the target outline (targetCircle)
+-- The animated lights on the target outline (targetLight): a light's size as a
+-- share of the bar's height, so a taller plate gets bigger lights.
+Plate.CIRCLE_SCALE = { size = 0.9, thick = 0 }
 Plate.LINE = "Interface\\Buttons\\WHITE8x8"
 
 -- Target mark color: the accent (read each time so an accent change repaints it),
@@ -2722,7 +2724,7 @@ function Plate.UpdateTarget(p)
         end
     end
     Plate.ShowRing(p.outline, style == "outline")
-    Plate.ShowCircle(p, style == "outline" and c.targetCircle == true, c, threat)
+    Plate.ShowCircle(p, style == "outline" and c.targetLight ~= "none" and c.targetLight, c, threat)
     if style == "glow" then
         local r, g, b = Plate.TargetColor(c, c.targetGlow)
         for _, tex in pairs(p.glow.pieces) do tex:SetVertexColor(r, g, b, Plate.GLOW_ALPHA) end
@@ -2731,8 +2733,8 @@ function Plate.UpdateTarget(p)
     Plate.ShowArrows(p, marked)
 end
 
--- Two lights circling your target's outline, the main buttons' glow laid round
--- the bar's angled end. They take the threat color when the border shows threat,
+-- An animated light on your target's outline in the picked style (on = its key),
+-- the main buttons' glow laid round the bar's angled end. They take the threat color when the border shows threat,
 -- else the accent's two ends, or the outline color with the accent off.
 function Plate.ShowCircle(p, on, c, threat)
     local W = DUI.Widgets
@@ -2743,7 +2745,7 @@ function Plate.ShowCircle(p, on, c, threat)
     elseif not c.targetAccent then lo = c.targetOutline end
     local depth = Pixel.Px(p.hp, Plate.OUTLINE_PX)
     W.GlowAround(p.outline, true, {
-        frame = p.hp, inset = -depth, thick = depth, cut = p.cut or 0, size = Plate.CIRCLE_SIZE,
+        style = on, frame = p.hp, inset = -depth, thick = depth, cut = p.cut or 0, scale = Plate.CIRCLE_SCALE,
         lo = lo, parent = p.outline, layer = "OVERLAY", sub = 4,
     })
 end

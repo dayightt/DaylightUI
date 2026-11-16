@@ -517,14 +517,26 @@ function W.DressButton(b, text)
     return b
 end
 
--- The glow on a window's main action: two lights circle the button's band,
--- one in each end of the accent, each trailing a tail that fades out along
--- the band, a lap every lap seconds. They're stepped by hand while the button
+-- The glow on a window's main action: lights run round the button's band in
+-- the accent, in the style picked in General (circling by default: two lights,
+-- each trailing a tail that fades out along the band, a lap every lap seconds). They're stepped by hand while the button
 -- is shown (a Translation animation moves in whole pixels and stutters this
 -- slowly), so a hidden button costs nothing. The glow fades out on hover,
 -- where the trace takes over, and rests while the button is off or motion is
 -- switched off.
 W.GLOW = { lap = 3.6, size = 14, light = 0.6, tail = 0.22, tailAlpha = 0.85 }
+
+-- The styles (Motion.GLOW_STYLES) and the seconds one turn of each takes.
+W.GLOW_STYLES, W.GLOW_STYLE_ORDER = DUI.Motion.GLOW_STYLES, DUI.Motion.GLOW_STYLE_ORDER
+W.GlowChoices = DUI.Motion.GlowChoices
+W.GLOW_LAP = { circle = 3.6, comet = 2.2, breathe = 2.8, twinkle = 2.4, shine = 3.2 }
+
+-- The main buttons' style (General), "none" when switched off.
+function W.ButtonGlowStyle()
+    local s = DUI.Get and DUI:Get("general", "buttonGlow")
+    if s == "none" then return "none" end
+    return W.GLOW_STYLES[s] and s or "circle"
+end
 
 -- Split a distance round the band (clockwise from the top-left) into a side
 -- (1 top, 2 right, 3 bottom, 4 left) and how far along that side.
@@ -537,6 +549,46 @@ local function glowSide(b, d)
     return 4, d
 end
 
+-- The middle of the band at a distance round it.
+local function glowPoint(b, d)
+    local i, T, w, h, cut, L = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowCut, b.glowLen
+    local side, along = glowSide(b, d % b.glowAround)
+    if side == 1 then return i + along, -(i + T / 2) end
+    if side == 2 then
+        local s = along / L[2]
+        return i + w - cut * s - T / 2, -(i + h * s)
+    end
+    if side == 3 then return i + w - cut - along, -(i + h - T / 2) end
+    return i + T / 2, -(i + h - along)
+end
+
+-- Textures come from two pools made as needed and reused every frame: soft dots
+-- and plain strips. Whatever a frame doesn't use is hidden after it.
+local function glowTex(b, pool, isDot)
+    local t = pool[b.glowUse[pool] + 1]
+    if not t then
+        t = b.glowOn:CreateTexture(nil, b.glowLayer, nil, b.glowSub)
+        t:SetTexture(isDot and MEDIA .. "glow.png" or WHITE)
+        t:SetBlendMode("ADD")
+        if not isDot and CreateColor then t.glowFrom, t.glowTo = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1) end
+        pool[#pool + 1] = t
+    end
+    b.glowUse[pool] = b.glowUse[pool] + 1
+    return t
+end
+
+local function glowDot(b, d, size, c, alpha)
+    if alpha <= 0.01 then return end
+    local t = glowTex(b, b.glowDots, true)
+    local x, y = glowPoint(b, d)
+    t:ClearAllPoints()
+    t:SetPoint("CENTER", b.glowFrame or b, "TOPLEFT", x, y)
+    t:SetSize(size, size)
+    t:SetVertexColor(c[1], c[2], c[3], 1)
+    t:SetAlpha(alpha)
+    t:Show()
+end
+
 -- Lean a texture's lower corners left by lean (an angled right end); only on a change.
 local function glowLean(tex, lean)
     if tex.glowLean == lean or not tex.SetVertexOffset then return end
@@ -545,14 +597,14 @@ local function glowLean(tex, lean)
     pcall(tex.SetVertexOffset, tex, 4, -lean, 0)
 end
 
--- One piece of tail on a side, from p0 to p1 along it (p1 nearer the light),
--- fading from alpha a0 to a1. Its two colors are kept on the texture and
--- refilled, so a frame makes no new tables.
-local function glowPiece(b, tex, side, p0, p1, a0, a1, c)
-    local i, T, w, h, cut = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowCut or 0
-    local len = p1 - p0
-    if len < 0.5 or a1 <= 0.01 then tex:Hide(); return end
-    local x, y, lean = 0, 0, 0
+-- A strip on one side from p0 to p1 along it, alpha a0 and color c0 at p0 running
+-- to a1 and c1 at p1. Its two colors are kept on the texture and refilled, so a
+-- frame makes no new tables.
+local function glowPiece(b, side, p0, p1, a0, a1, c0, c1)
+    if p1 - p0 < 0.5 or (a0 <= 0.01 and a1 <= 0.01) then return end
+    local tex = glowTex(b, b.glowStrips)
+    local i, T, w, h, cut = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowCut
+    local len, x, y, lean = p1 - p0, 0, 0, 0
     local horiz = side == 1 or side == 3
     if side == 1 then x, y = i + p0, -i
     elseif side == 2 then
@@ -568,65 +620,198 @@ local function glowPiece(b, tex, side, p0, p1, a0, a1, c)
     if horiz then tex:SetSize(len, T) else tex:SetSize(T, len) end
     glowLean(tex, lean)
     tex:Show()
-    -- Gradients run left to right and bottom to top.
-    local lo, hi = a0, a1
-    if side == 2 or side == 3 then lo, hi = a1, a0 end
+    -- Gradients run left to right and bottom to top; the right and bottom sides
+    -- are walked the other way.
+    if side == 2 or side == 3 then a0, a1, c0, c1 = a1, a0, c1, c0 end
     if tex.SetGradient and CreateColor then
         local from, to = tex.glowFrom, tex.glowTo
-        from.r, from.g, from.b, from.a = c[1], c[2], c[3], lo
-        to.r, to.g, to.b, to.a = c[1], c[2], c[3], hi
+        from.r, from.g, from.b, from.a = c0[1], c0[2], c0[3], a0
+        to.r, to.g, to.b, to.a = c1[1], c1[2], c1[3], a1
         tex:SetVertexColor(1, 1, 1, 1)
         tex:SetGradient(horiz and "HORIZONTAL" or "VERTICAL", from, to)
     else
-        tex:SetVertexColor(c[1], c[2], c[3], math.max(lo, hi))
+        tex:SetVertexColor(c1[1], c1[2], c1[3], math.max(a0, a1))
     end
 end
 
--- Draw both lights and their tails where the clock says.
+local mixA, mixB, mixC = { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }
+local function mix(out, a, b, t)
+    out[1], out[2], out[3] = a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
+    return out
+end
+
+-- A tail walking back from head for long, round corners if it has to: top alpha
+-- and cHead at the head, fading to nothing and cTail at its end.
+local function glowTrail(b, head, long, top, cTail, cHead)
+    local around = b.glowAround
+    local left, at = long, head % around
+    for _ = 1, 5 do
+        if left <= 0.5 then return end
+        local s, a = glowSide(b, at)
+        local piece = math.min(left, a)
+        if piece > 0 then
+            local f0, f1 = (left - piece) / long, left / long
+            glowPiece(b, s, a - piece, a, top * f0, top * f1, mix(mixA, cTail, cHead, f0), mix(mixB, cTail, cHead, f1))
+        end
+        left = left - piece
+        at = at - piece - 0.001
+        if at < 0 then at = at + around end
+    end
+end
+
+local TAU = 2 * math.pi
+local STYLE = {}
+
+-- Two lights chase each other round, one in each end of the accent.
+function STYLE.circle(b, at, fade, lo, hi, size)
+    local G, around = W.GLOW, b.glowAround
+    for n = 1, 2 do
+        local c = n == 1 and lo or hi
+        local head = ((at + (n - 1) / 2) % 1) * around
+        glowTrail(b, head, G.tail * around, G.tailAlpha * fade, c, c)
+        glowDot(b, head, size, c, G.light * fade)
+    end
+end
+
+-- One bright light with a long tail running from one end of the accent to the other.
+function STYLE.comet(b, at, fade, lo, hi, size)
+    local head = at * b.glowAround
+    glowTrail(b, head, 0.5 * b.glowAround, 0.95 * fade, lo, hi)
+    glowDot(b, head, size * 1.25, hi, 0.75 * fade)
+end
+
+-- The whole edge lit, slowly brightening and dimming.
+function STYLE.breathe(b, at, fade, lo, hi, size)
+    local L = b.glowLen
+    local a = (0.2 + 0.6 * (0.5 - 0.5 * math.cos(at * TAU))) * fade
+    glowPiece(b, 1, 0, L[1], a, a, lo, hi)
+    glowPiece(b, 2, 0, L[2], a, a, hi, hi)
+    glowPiece(b, 3, 0, L[3], a, a, hi, lo)
+    glowPiece(b, 4, 0, L[4], a, a, lo, lo)
+    local x = b.glowAround
+    glowDot(b, L[1] + L[2] / 2, size, hi, a * 0.6)
+    glowDot(b, x - L[4] / 2, size, lo, a * 0.6)
+end
+
+-- Sparks wink on and off at a new spot round the edge each time.
+STYLE.SPARKS = 5
+function STYLE.twinkle(b, at, fade, lo, hi, size)
+    local around, N = b.glowAround, STYLE.SPARKS
+    for k = 1, N do
+        local t = at * 2 + (k - 1) / N
+        local turn = math.floor(t)
+        local f = t - turn
+        if f < 0.5 then
+            local spot = ((k * 0.618 + turn * 0.371) % 1) * around
+            local a = math.sin(f * TAU) * fade
+            local c = mix(mixC, lo, hi, (k - 1) / (N - 1))
+            glowTrail(b, spot, 0.06 * around, 0.7 * a, c, c)
+            glowDot(b, spot, size * 0.8, c, 0.9 * a)
+        end
+    end
+end
+
+-- A gleam crosses the top and bottom edges together, then a rest.
+function STYLE.shine(b, at, fade, lo, hi, size)
+    local p = at / 0.45
+    if p >= 1 then return end
+    local L = b.glowLen
+    local e = math.sin(p * math.pi) * fade
+    local top, long = p * L[1], 0.3 * L[1]
+    glowPiece(b, 1, math.max(0, top - long), top, 0, e, lo, hi)
+    glowDot(b, top, size, hi, 0.8 * e)
+    -- The bottom is walked right to left, so its light sits at the near end.
+    local bot = L[3] * (1 - p)
+    glowPiece(b, 3, bot, math.min(L[3], bot + long), e, 0, hi, lo)
+    glowDot(b, L[1] + L[2] + bot, size, hi, 0.8 * e)
+end
+
+-- Styles added by plugins (API AddGlowStyle): draw(g, at, lo, hi, size)
+-- with g's helpers below, which take distances as shares of the way round
+-- (clockwise from the top-left corner), so a style needs no sizes of its own.
+local ADDED, BROKEN = {}, {}
+local Ctx = {}
+Ctx.__index = Ctx
+local function color(c, fallback)
+    if type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number" then return c end
+    return fallback
+end
+function Ctx:Light(at, size, c, alpha)
+    if type(at) ~= "number" or type(size) ~= "number" or type(alpha) ~= "number" then return end
+    glowDot(self.b, (at % 1) * self.b.glowAround, size, color(c, self.lo), math.min(1, alpha) * self.fade)
+end
+function Ctx:Trail(at, length, alpha, tail, head)
+    if type(at) ~= "number" or type(length) ~= "number" or type(alpha) ~= "number" then return end
+    local a = self.b.glowAround
+    local c = color(head, self.lo)
+    glowTrail(self.b, (at % 1) * a, math.max(0, math.min(1, length)) * a, math.min(1, alpha) * self.fade, color(tail, c), c)
+end
+function Ctx:Edge(side, from, to, a0, a1, c0, c1)
+    local L = self.b.glowLen[side]
+    if not L or type(from) ~= "number" or type(to) ~= "number" or type(a0) ~= "number" then return end
+    from, to = math.max(0, math.min(1, from)), math.max(0, math.min(1, to))
+    if type(a1) ~= "number" then a1 = a0 end
+    c0 = color(c0, self.lo)
+    glowPiece(self.b, side, from * L, to * L, math.min(1, a0) * self.fade, math.min(1, a1) * self.fade, c0, color(c1, c0))
+end
+
+-- Adds a style to every glow menu. lap = seconds a turn; draw as above. A style
+-- that errors is reported once and drawn as Circling from then on.
+function W.AddGlowStyle(key, label, lap, draw)
+    local M = DUI.Motion
+    if not M.GLOW_STYLES[key] then M.GLOW_STYLE_ORDER[#M.GLOW_STYLE_ORDER + 1] = key end
+    M.GLOW_STYLES[key] = label
+    W.GLOW_LAP[key] = lap
+    ADDED[key], BROKEN[key] = draw, nil
+end
+
+local function drawAdded(b, draw, at, fade, lo, hi, size)
+    local g = b.glowCtx
+    if not g then g = setmetatable({ b = b }, Ctx); b.glowCtx = g end
+    -- The helpers apply the fade in and out, so a style's own alphas stay 0 to 1.
+    g.width, g.height, g.lo, g.hi, g.fade = b.glowW, b.glowH, lo, hi, fade
+    local ok, err = pcall(draw, g, at, lo, hi, size)
+    if not ok then
+        BROKEN[b.glowStyle] = true
+        if geterrorhandler then geterrorhandler()(err) end
+    end
+end
+
+local function glowHideRest(b)
+    for pool, used in pairs(b.glowUse) do
+        for k = used + 1, b.glowShown[pool] or 0 do pool[k]:Hide() end
+        b.glowShown[pool] = used
+        b.glowUse[pool] = 0
+    end
+end
+
+-- Draw the style where the clock says.
 local function glowPlace(b)
     local f = b.glowFrame or b
     local w, h = f:GetWidth(), f:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" then return end
+    -- Sized by what it's on (shape.scale), so it grows and shrinks with it.
+    local sc = b.glowScale
+    if sc then
+        local short = math.min(w, h)
+        b.glowThick = math.max(b.glowMinThick or 1, short * sc.thick)
+        b.glowSize = short * sc.size
+    end
     local i, T, cut = b.glowInset, b.glowThick, b.glowCut or 0
     w, h = w - 2 * i, h - 2 * i
     if w <= T + cut or h <= T then return end
-    b.glowW, b.glowH = w, h
+    b.glowW, b.glowH, b.glowCut = w, h, cut
     local L = b.glowLen
     L[1], L[2], L[3], L[4] = w, math.sqrt(h * h + cut * cut), w - cut, h
-    local G, fade = W.GLOW, b.glowFade
-    local around = L[1] + L[2] + L[3] + L[4]
-    local long = G.tail * around
-    for n, light in ipairs(b.glowLights) do
-        local c = b.glowColors[n]
-        local head = ((b.glowAt + (n - 1) / 2) % 1) * around
-        local side, along = glowSide(b, head)
-        local x, y
-        if side == 1 then x, y = i + along, -(i + T / 2)
-        elseif side == 2 then
-            local s = along / L[2]
-            x, y = i + w - cut * s - T / 2, -(i + h * s)
-        elseif side == 3 then x, y = i + w - cut - along, -(i + h - T / 2)
-        else x, y = i + T / 2, -(i + h - along) end
-        light.dot:ClearAllPoints()
-        light.dot:SetPoint("CENTER", f, "TOPLEFT", x, y)
-        light.dot:SetVertexColor(c[1], c[2], c[3], 1)
-        light.dot:SetAlpha(G.light * fade)
-        -- The tail walks back from the light, round corners if it has to.
-        local left, at = long, head
-        for k = 1, #light.tail do
-            local tex = light.tail[k]
-            if left <= 0 then tex:Hide()
-            else
-                local s, a = glowSide(b, at % around)
-                local piece = math.min(left, a)
-                local top = G.tailAlpha * fade
-                glowPiece(b, tex, s, a - piece, a, top * (left - piece) / long, top * left / long, c)
-                left = left - piece
-                at = (at % around) - piece - 0.001
-                if at < 0 then at = at + around end
-            end
-        end
+    b.glowAround = L[1] + L[2] + L[3] + L[4]
+    local lo, hi, size = b.glowColors[1], b.glowColors[2], b.glowSize or W.GLOW.size
+    local added = ADDED[b.glowStyle]
+    if added and not BROKEN[b.glowStyle] then
+        drawAdded(b, added, b.glowAt, b.glowFade, lo, hi, size)
+    else
+        (STYLE[b.glowStyle] or STYLE.circle)(b, b.glowAt, b.glowFade, lo, hi, size)
     end
+    glowHideRest(b)
 end
 
 local function glowPaint(b)
@@ -642,41 +827,26 @@ end
 local function glowFadeTo(b, to, dur, done)
     local M = DUI.Motion
     local function step(v) b.glowFade = v; glowPlace(b) end
-    if M then M.Tween(b.glowLights, b.glowFade, to, dur, step, done)
+    if M then M.Tween(b.glowDots, b.glowFade, to, dur, step, done)
     else step(to); if done then done() end end
 end
 
 -- b holds the lights and their clock; the textures go on b, or opts.parent,
 -- in opts.layer and opts.sub (BORDER 7 by default).
 local function glowMake(b, opts)
-    local G = W.GLOW
     local px = DUI.Pixel.Px
     local on = (opts and opts.parent) or b
-    local layer, sub = (opts and opts.layer) or "BORDER", (opts and opts.sub) or 7
+    b.glowOn = on
+    b.glowLayer, b.glowSub = (opts and opts.layer) or "BORDER", (opts and opts.sub) or 7
     b.glowInset, b.glowThick = px(on, 1), px(on, 3) - px(on, 1)
     b.glowAt, b.glowFade, b.glowLen = 0, 1, {}
-    b.glowLights = {}
-    for n = 1, 2 do
-        local light = { tail = {} }
-        light.dot = on:CreateTexture(nil, layer, nil, sub)
-        light.dot:SetTexture(MEDIA .. "glow.png")
-        light.dot:SetBlendMode("ADD")
-        light.dot:SetSize(G.size, G.size)
-        -- A tail can reach round two corners on a short button.
-        for k = 1, 3 do
-            local t = on:CreateTexture(nil, layer, nil, sub)
-            t:SetTexture(WHITE)
-            t:SetBlendMode("ADD")
-            if CreateColor then t.glowFrom, t.glowTo = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1) end
-            t:Hide()
-            light.tail[k] = t
-        end
-        b.glowLights[n] = light
-    end
+    b.glowDots, b.glowStrips = {}, {}
+    b.glowUse = { [b.glowDots] = 0, [b.glowStrips] = 0 }
+    b.glowShown = {}
     -- The clock, a frame of its own so it stops with what it's on.
     local d = CreateFrame("Frame", nil, on)
     d:SetScript("OnUpdate", function(_, dt)
-        b.glowAt = (b.glowAt + dt / W.GLOW.lap) % 1
+        b.glowAt = (b.glowAt + dt / (W.GLOW_LAP[b.glowStyle] or W.GLOW.lap)) % 1
         glowPlace(b)
     end)
     b.glowDriver = d
@@ -687,33 +857,35 @@ end
 
 local function glowShow(b, live)
     b.glowDriver:SetShown(live == true)
-    for _, light in ipairs(b.glowLights) do
-        light.dot:SetShown(live == true)
-        if not live then for _, t in ipairs(light.tail) do t:Hide() end end
-    end
+    if not live then glowHideRest(b) end
 end
 
 function W.Glow(b)
     local M = DUI.Motion
-    local live = b.glowWant and not b.off and (not M or M.On())
+    local style = W.ButtonGlowStyle()
+    local live = b.glowWant and not b.off and style ~= "none" and (not M or M.On())
     if not live and not b.glowDriver then return end
     if not b.glowDriver then glowMake(b) end
+    b.glowStyle = style
     glowShow(b, live)
     if live then
         glowPaint(b)
         -- Stop a hover fade left running, then start from the mouse as it is.
-        if M then M.Tween(b.glowLights, b.glowFade, b.glowFade, 0) end
+        if M then M.Tween(b.glowDots, b.glowFade, b.glowFade, 0) end
         b.glowFade = b:IsMouseOver() == true and 0 or 1
         glowPlace(b)
     end
 end
 
--- The same circling lights round anything else of Daylight UI's (a nameplate's
--- target outline). host holds them; shape says where they run:
---   frame   what they circle; inset  in from its edges (negative = outside it)
---   thick   how wide a tail is; cut  how far in the lower right corner sits
---   size    each light's size; lo, hi  the two lights' colors (default: the accent's ends)
---   parent, layer, sub  where the textures go (made the first time only)
+-- The same lights round anything else of Daylight UI's (the nameplate target
+-- outline, a Cooldown Manager glow). host holds them; shape says how:
+--   style   one of W.GLOW_STYLES (circle when left out)
+--   frame   what they run round; inset  in from its edges (negative = outside it)
+--   thick   how wide a strip is; cut  how far in the lower right corner sits
+--   size    a light's size; scale  { size, thick } as shares of the frame's
+--           short side instead, following it as it resizes (thick is then the least)
+--   lo, hi  the two colors (default: the accent's ends)
+--   parent, layer, sub  where the textures go (read the first time only)
 -- They ease in when switched on and out when off; motion off keeps them away.
 function W.GlowAround(host, on, shape)
     local M = DUI.Motion
@@ -732,12 +904,16 @@ function W.GlowAround(host, on, shape)
         return
     end
     shape = shape or {}
+    host.glowStyle = W.GLOW_STYLES[shape.style] and shape.style or "circle"
     host.glowFrame = shape.frame or host.glowFrame
     host.glowInset = shape.inset or host.glowInset
     host.glowThick = shape.thick or host.glowThick
     host.glowCut = shape.cut or 0
-    local size = shape.size or W.GLOW.size
-    for _, light in ipairs(host.glowLights) do light.dot:SetSize(size, size) end
+    host.glowSize = shape.size
+    -- scale = { size, thick }: a light's size and a strip's width as shares of
+    -- the frame's short side, read every frame.
+    host.glowScale = type(shape.scale) == "table" and shape.scale or nil
+    host.glowMinThick = shape.thick
     if shape.lo then host.glowColors = { shape.lo, shape.hi or shape.lo } else glowPaint(host) end
     if not host.glowDriver:IsShown() or host.glowFade < 1 then
         if not host.glowDriver:IsShown() then host.glowFade = 0 end
@@ -2574,7 +2750,7 @@ local function fillRow(r, n)
     if picked then Style.PaintAccent(r.check) end
     if title then
         r.text:SetFont(W.BODY, SIZE.small, "")
-        r.text:SetText(string.upper(values[k] or ""))
+        r.text:SetText(DUI.Style.Upper(values[k] or ""))
         W.TextAccent(r.text)
     elseif hint then
         r.text:SetFont(W.BODY, SIZE.small, "")

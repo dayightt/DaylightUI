@@ -74,7 +74,7 @@ function Layout.TitleRoom(width, tag, party, voice)
 end
 
 local function titleLine(lines, title, o, measure, level, tag, party, voice)
-    if o.caps then title = string.upper(title) end
+    if o.caps then title = DaylightUI.Style.Upper(title) end
     if o.levels and type(level) == "number" and level > 0 then title = "[" .. level .. "] " .. title end
     tag = o.tags and Layout.TAG_W[tag] and tag or nil
     party = o.party and type(party) == "number" and party > 0 and party or nil
@@ -197,7 +197,7 @@ function Layout.Build(snap, o, measure)
     end
     local function header(id, label, count)
         if #blocks > 0 then y = y + Layout.SECTION_GAP end
-        local textH = lineH(o.sizes.header, string.upper(label), o.width - 30, measure)
+        local textH = lineH(o.sizes.header, DaylightUI.Style.Upper(label), o.width - 30, measure)
         push({ key = "section:" .. id, kind = "header", id = id, label = label, count = count,
                folded = folds[id] == true, textH = textH,
                h = textH + Layout.HEADER_PAD + Layout.HEADER_LINE + Layout.HEADER_GAP })
@@ -215,7 +215,7 @@ function Layout.Build(snap, o, measure)
                     if o.zoneNames then
                         local key = "zone:" .. g.name
                         folded = folds[key] == true
-                        local h = Layout.ZONE_TOP + lineH(o.sizes.zone, string.upper(g.name), o.width - Layout.TITLE_X - 30, measure) + Layout.ZONE_GAP
+                        local h = Layout.ZONE_TOP + lineH(o.sizes.zone, DaylightUI.Style.Upper(g.name), o.width - Layout.TITLE_X - 30, measure) + Layout.ZONE_GAP
                         push({ key = key, kind = "zone", id = key, label = g.name, folded = folded, count = #g.quests, h = h })
                     end
                     if not folded then

@@ -617,20 +617,20 @@ T.test("nameplates: your target's plate wears the accent", function()
     T.falsy(p.outline:IsShown())
 end)
 
-T.test("nameplates: the circling light runs round your target's outline when switched on", function()
+T.test("nameplates: the outline light runs round your target's outline when picked", function()
     login()
     local p = added("nameplate1")
     stub.units.target = stub.units.nameplate1
     stub.FireEvent("PLAYER_TARGET_CHANGED")
     T.eq(p.outline.glowDriver, nil, "off by default: nothing made")
-    DaylightUI:Set("Nameplates", "targetCircle", true)
+    DaylightUI:Set("Nameplates", "targetLight", "circle")
     stub.RunTimers()
     local ring = p.outline
     T.truthy(ring.glowDriver and ring.glowDriver:IsShown(), "the lights run on the target")
     T.eq(ring.glowFrame, p.hp, "round the health bar")
     T.near(ring.glowCut, p.cut, 1e-6, "following its angled end")
     -- Walk a light round: it stays on the outline, leaning in along the angled end.
-    local dot = ring.glowLights[1].dot
+    local dot = ring.glowDots[1]
     local W = DaylightUI.Widgets
     local w, h = p.hp:GetWidth(), p.hp:GetHeight()
     local seen = {}
@@ -642,6 +642,7 @@ T.test("nameplates: the circling light runs round your target's outline when swi
         seen[#seen + 1] = x
     end
     T.truthy(math.max(unpack(seen)) > w - 2, "reaches the right end")
+    T.near(ring.glowSize, h * 0.9, 1e-6, "lights sized by the bar's height")
     -- Untargeted: the lights go with the outline.
     stub.units.target = nil
     stub.FireEvent("PLAYER_TARGET_CHANGED")

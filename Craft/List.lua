@@ -76,7 +76,7 @@ end
 local function head(s, section, folded)
     local b = s:Piece("head", makeHead, 22, 12, "section:" .. tostring(section.name))
     b.section = section
-    b.text:SetText(string.upper(section.name or ""))
+    b.text:SetText(DUI.Style.Upper(section.name or ""))
     b.state:SetText(folded and "+" or "")
     b.Lit(b:IsMouseOver() == true)
     return b

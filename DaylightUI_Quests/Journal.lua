@@ -407,7 +407,7 @@ function Journal.FillList(lift)
                 z.fitted = size
                 Style.SetTextSize(z.text, size + 2)
             end
-            z.text:SetText(db.journalZoneCaps ~= false and string.upper(g.name) or g.name)
+            z.text:SetText(db.journalZoneCaps ~= false and DUI.Style.Upper(g.name) or g.name)
             z.count:SetText(folded and tostring(#list) or "")
             z.count:SetTextColor(Journal.VALUE[1], Journal.VALUE[2], Journal.VALUE[3])
             z.chevron:SetRotation(folded and math.pi / 2 or 0)

@@ -42,6 +42,8 @@ DB.GENERAL_DEFAULTS = {
     borderAlpha = 1,
     shadowAlpha = 0.35,
     windowAlpha = 0.85, -- every window's background, Daylight UI's and skinned game ones (Shell opts.window)
+    windowTint = "daylight", -- their color: "daylight" (the look's own), "class" (a dark class tint), "custom"
+    windowTintColor = { 0.078, 0.078, 0.090 }, -- the color when windowTint is "custom"
     borderPx = 8,
     heavyBorder = true,
     gradientBorder = false, -- window borders sweep along a gradient accent (Daylight's or the class's)
@@ -52,6 +54,7 @@ DB.GENERAL_DEFAULTS = {
     hidePTRButton = false, -- beta/PTR only: hide Blizzard's Issue Reporter bug button
     smoothBars = true,
     motion = true, -- windows glide in, spells ping, numbers count up. Off snaps everything
+    buttonGlow = "circle", -- the main buttons' animated glow: "none" or a W.GLOW_STYLES key
     portraitFlare = true, -- the ring of embers round a window's icon as it opens (Win.PlayGlow). Needs motion
     sounds = true, -- soft UI sounds instead of the game's (Sound.lua). Off = the game's everywhere
     soundKinds = { -- per kind: "soft" (Daylight UI's) | "game" (the game's) | "none" (Sound.KINDS)

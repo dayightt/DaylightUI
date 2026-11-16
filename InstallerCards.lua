@@ -651,6 +651,48 @@ function Cards.Draw.kick(card, key, w, h)
     return a
 end
 
+-- The animated glows (Motion.GLOW_STYLES): each card runs its style on a small
+-- sample of what it lights, a main button or an enemy's nameplate. "none"
+-- shows the sample alone. The lights run only while the page shows.
+local function glowSample(card, key, w, h, shape)
+    local s
+    if shape == "button" then
+        s = W.Button(card.inner, L["Accept"], math.min(22, h))
+        s:SetWidth(math.min(w, 110))
+        s:EnableMouse(false)
+    else
+        s = CreateFrame("Frame", nil, card.inner)
+        s:SetSize(math.min(w, 120), math.max(1, math.min(10, h)))
+        s.back = s:CreateTexture(nil, "BACKGROUND")
+        s.back:SetAllPoints(s)
+        s.back:SetColorTexture(Style.BACKGROUND[1], Style.BACKGROUND[2], Style.BACKGROUND[3], 1)
+        s.fill = s:CreateTexture(nil, "ARTWORK")
+        s.fill:SetPoint("TOPLEFT", s, "TOPLEFT")
+        s.fill:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT")
+        s.fill:SetWidth(math.max(1, s:GetWidth() * 0.62))
+        s.fill:SetTexture(Style.BarFile())
+        s.fill:SetVertexColor(RED[1], RED[2], RED[3], 1)
+    end
+    s:SetPoint("TOP", card.inner, "TOP", 0, -10 - math.max(0, (h - s:GetHeight()) / 2))
+    local host = {}
+    local function light()
+        if DUI.Motion.GLOW_STYLES[key] then
+            local px = DUI.Pixel.Px(s, 2)
+            W.GlowAround(host, true, {
+                style = key, frame = s, parent = s, layer = "OVERLAY", sub = 7,
+                inset = shape == "plate" and -px or 0, thick = px,
+                size = shape == "plate" and 10 or nil,
+            })
+        end
+    end
+    light()
+    card.sample = s
+    card.redraw = light
+    return s
+end
+function Cards.Draw.glowButton(card, key, w, h) return glowSample(card, key, w, h, "button") end
+function Cards.Draw.glowPlate(card, key, w, h) return glowSample(card, key, w, h, "plate") end
+
 -- Bars on a small screen: one or two rows at the bottom and side bars on the
 -- right edge (the action bars step's presets).
 Cards.BAR_LAYOUTS = {

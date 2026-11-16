@@ -16,6 +16,22 @@ function Motion.On()
     return not (g and g.motion == false)
 end
 
+-- The animated glow styles a player picks from (main buttons, the nameplate target
+-- outline, the Cooldown Manager), drawn by Widgets' W.GlowAround. Kept here so the
+-- options list, built before the widgets load, knows them.
+Motion.GLOW_STYLES = { circle = "Circling", comet = "Comet", breathe = "Breathing", twinkle = "Twinkle", shine = "Shine" }
+Motion.GLOW_STYLE_ORDER = { "circle", "comet", "breathe", "twinkle", "shine" }
+
+-- A dropdown's values and order: first = { key, name } leads, then "none" named
+-- none (when given), then the styles.
+function Motion.GlowChoices(none, first)
+    local values, order = {}, {}
+    if first then values[first[1]], order[1] = first[2], first[1] end
+    if none then values.none = none; order[#order + 1] = "none" end
+    for _, k in ipairs(Motion.GLOW_STYLE_ORDER) do values[k] = Motion.GLOW_STYLES[k]; order[#order + 1] = k end
+    return values, order
+end
+
 -- Each region keeps its own animation groups, created once and reused.
 local function group(region, key)
     region.__duiMotion = region.__duiMotion or {}
@@ -140,7 +156,7 @@ end
 -- Motion.Window's hooks) cancels the fade at full alpha.
 function Motion.Vanish(frame)
     if not frame:IsShown() or frame.__duiVanishing then return end
-    if DUI.Sound then DUI.Sound.Play("close") end
+    if DUI.Sound then DUI.Sound.Play("close", frame.duiGameSounds and frame.duiGameSounds.close) end
     if DUI.Pad then DUI.Pad.Leaving(frame) end   -- before the Hide, see Pad.Leaving
     if not Motion.On() then frame:Hide(); return end
     frame.__duiVanishing = true
@@ -206,7 +222,7 @@ function Motion.Window(frame, rise, ownEscape)
     if DUI.Pad then DUI.Pad.Follow(frame, function() Motion.Vanish(frame) end) end
     frame:HookScript("OnShow", function(self)
         if esc then esc:Show() end
-        if DUI.Sound then DUI.Sound.Play("open") end
+        if DUI.Sound then DUI.Sound.Play("open", self.duiGameSounds and self.duiGameSounds.open) end
         Motion.Appear(self, rise)
     end)
     frame:HookScript("OnHide", function(self)

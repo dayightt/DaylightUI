@@ -318,7 +318,7 @@ end
 local function paintHeader(f, b, look)
     local s = look.s
     Style.SetTextSize(f.label, s.header)
-    Look.PaintText(f.label, look, "header", string.upper(b.label))
+    Look.PaintText(f.label, look, "header", DUI.Style.Upper(b.label))
     f.label:ClearAllPoints()
     f.label:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     Style.SetTextSize(f.count, s.header)
@@ -340,7 +340,7 @@ end
 
 local function paintZone(f, b, look)
     Style.SetTextSize(f.label, look.s.zone)
-    Look.PaintText(f.label, look, "zone", string.upper(b.label))
+    Look.PaintText(f.label, look, "zone", DUI.Style.Upper(b.label))
     place(f.label, f, Layout.TITLE_X, Layout.ZONE_TOP, look.width - Layout.TITLE_X - 30)
     -- A folded zone keeps its arrow and quest count; an open one only shows the arrow
     -- on hover. A row's first paint sets this instantly, so a new or reused row never

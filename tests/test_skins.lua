@@ -1683,6 +1683,16 @@ T.test("skins: the loot window's title and X sit where our windows have them, wi
     local hit = long.Item.__hitRect
     T.truthy(hit, "the item button's hit area was set")
     T.eq(long.Item:GetHeight() - hit[3] - hit[4], long:GetHeight(), "it reaches the row's top and bottom")
+    -- And across its whole width: hovering or clicking the name or the empty part of the
+    -- row takes the item and lights the row, not only the icon.
+    T.eq(hit[1], -L.ITEM_X, "from the row's left edge")
+    T.eq(long.Item:GetWidth() - hit[1] - hit[2], long:GetWidth(), "to its right edge")
+    -- The row's width changes (the bar showing or hiding): the hit area follows.
+    long:SetWidth(long:GetWidth() - 14)
+    local resized = long:GetScript("OnSizeChanged")
+    T.truthy(resized, "the row's size is watched")
+    resized(long, long:GetWidth(), long:GetHeight())
+    T.eq(long.Item:GetWidth() - long.Item.__hitRect[1] - long.Item.__hitRect[2], long:GetWidth(), "still to its right edge")
     LW.Close(f); stub.RunTimers()
     LW.Open(f, LW.Corpse())
     stub.RunTimers()

@@ -280,7 +280,7 @@ end
 function Layout.PaintHeading(h, folded)
     local Style, Motion = DUI.Style, DUI.Motion
     local lit = not folded or h.hover
-    local shown = h.name and string.upper(h.name) or ""
+    local shown = h.name and DUI.Style.Upper(h.name) or ""
     local gr, gg, gb
     if not folded then gr, gg, gb = ns.Categories.Color(h.key) end
     if lit and h.key == "recent" then
@@ -521,9 +521,9 @@ end
 -- wide group grows wider rather than taller. A group joins the row while some
 -- number of lines lets the whole row fit; otherwise it starts the next row.
 -- Each box gives `n` (items), `cols` (the bag's width in slots) and
--- `shape(across)` -> { w, h, across }. A box with `drawnH` is planned at its open
--- height and drawn at drawnH (a folded group), so folding never reshuffles.
--- Groups that must start or end a row carry breakBefore / breakAfter.
+-- `shape(across)` -> { w, h, across }. Folded groups (`folded`, heading only)
+-- share rows only with each other. Groups that must start or end a row carry
+-- breakBefore / breakAfter.
 
 -- The most lines a group wraps to beside others: about a golden rectangle.
 local function lineCap(n)
@@ -601,13 +601,15 @@ function Layout.Pack(boxes, maxW, gapX, gapY)
             local s = shapes[k]
             spots[i] = { x = x, y = y, shape = s }
             x = x + s.w + gapX
-            rowH = math.max(rowH, boxes[i].drawnH or s.h)
+            rowH = math.max(rowH, s.h)
         end
         y = y + rowH + gapY
         row, shapes = {}, nil
     end
     for i, b in ipairs(boxes) do
-        if b.breakBefore then close() end
+        -- Folded headings never share a row with open groups: beside a taller
+        -- group a fold would leave a hole and save no room.
+        if b.breakBefore or (#row > 0 and (boxes[row[1]].folded or false) ~= (b.folded or false)) then close() end
         row[#row + 1] = i
         local fit = fitRow(boxes, row, maxW, gapX)
         if fit then
@@ -689,8 +691,8 @@ function Layout.Headed(window, cfg)
     return out, taken
 end
 
--- The Shelf: each group's heading over its slots, packed by Layout.Pack. A folded
--- group keeps its spot and the width it has open: only its items go.
+-- The Shelf: each group's heading over its slots, packed by Layout.Pack. Folded
+-- groups line up as headings on rows of their own.
 function Layout.Categories(window, cfg)
     local Cat = ns.Categories
     local size, cols, gap = cfg.iconSize, math.max(1, math.floor(cfg.columns)), cfg.spacing
@@ -711,18 +713,17 @@ function Layout.Categories(window, cfg)
         -- The heading sits inside the rings' outer edges by inset at both ends, so
         -- its name starts over the first icon and the line spans the icons.
         local headW = textW + 2 * inset
-        local total = #g.entries
+        local total = folded and 0 or #g.entries
         local function shape(across)
             if total == 0 then return { w = headW, h = headH, across = 0 } end
             local rows = math.ceil(total / across)
             local slotsW = across * size + (across - 1) * gap
             return { w = math.max(slotsW, headW), h = top + rows * size + (rows - 1) * gap, across = across }
         end
-        -- A folded group is planned open and drawn one heading tall, so folding
-        -- one never reshuffles the bag.
+        -- A folded group is just its heading, so folding one gives its room back.
         boxes[#boxes + 1] = { key = g.key, n = total, cols = cols, shape = shape,
                               breakBefore = g.breakBefore, breakAfter = g.breakAfter,
-                              g = g, h = h, folded = folded, drawnH = folded and headH or nil }
+                              g = g, h = h, folded = folded }
     end
     local spots, height = Layout.Pack(boxes, maxW, groupGap, rowGap)
     for bi, box in ipairs(boxes) do

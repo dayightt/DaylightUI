@@ -25,7 +25,7 @@ local function rankText(rank)
         local ok, s = pcall(GetPVPRankText, rank)
         if ok and type(s) == "string" then return s end
     end
-    return "Rank " .. rank
+    return string.format(L["Rank %d"], rank)
 end
 
 function PvP.Read()
@@ -113,7 +113,7 @@ function PvP.Refresh(page)
     page.rankName:SetText(d.name)
     Style.InkText(page.rankName, "VALUE")
     Style.InkText(page.rankSub, "pop")   -- read at paint time: follows an accent change
-    page.rankSub:SetText(d.rank > 0 and ("Rank " .. d.rank) or "")
+    page.rankSub:SetText(d.rank > 0 and string.format(L["Rank %d"], d.rank) or "")
     local b1, b2, b3 = page.blocks[1], page.blocks[2], page.blocks[3]
     b1.main:SetText(d.nextName or L["The highest rank"])
     b1.bar:SetMinMaxValues(0, d.threshold > 0 and d.threshold or 1)

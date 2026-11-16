@@ -212,7 +212,7 @@ function CharacterPage.RefreshStats(page)
             Motion.Glide(G.head, 0, y - G.y)
         end
         G.y = y
-        ns.Colors.HeadText(G.head.text, ns.Stats.COLOR[g] or g, string.upper(ns.Stats.LABEL[g]))
+        ns.Colors.HeadText(G.head.text, ns.Stats.COLOR[g] or g, DUI.Style.Upper(ns.Stats.LABEL[g]))
         ns.Colors.Line(G.head.line, CharacterPage.LINE_ALPHA)
         G.head.state:SetText(open and "" or "+")
         y = y + CharacterPage.GROUP_HEAD + 2
@@ -313,7 +313,7 @@ function CharacterPage.BuildFooter(page)
     foot.dura:SetPoint("LEFT", foot.level, "RIGHT", 24, 0)
     foot.dura:SetTextColor(D[1], D[2], D[3])
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
-    sets:SetWidth(124)
+    sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
     sets:SetScript("OnClick", function(self) if ns.Menus then ns.Menus.Sets(self) end end)
     foot.sets = sets

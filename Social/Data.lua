@@ -42,26 +42,34 @@ local function ago(t)
     return math.max(0, time() - t)
 end
 
+-- A duration as a count and its unit: minutes, hours, days or weeks.
+local function span(seconds)
+    if seconds < 3600 then return math.max(1, math.floor(seconds / 60)), "min" end
+    if seconds < 86400 then return math.floor(seconds / 3600), "hour" end
+    if seconds < 86400 * 14 then return math.floor(seconds / 86400), "day" end
+    return math.floor(seconds / (86400 * 7)), "week"
+end
+
 -- A duration in words: "20 min", "2 hours", "3 days", "2 weeks".
 function Data.Span(seconds)
     if type(seconds) ~= "number" then return "" end
-    if seconds < 3600 then return string.format(L["%d min"], math.max(1, math.floor(seconds / 60))) end
-    if seconds < 86400 then
-        local h = math.floor(seconds / 3600)
-        return string.format(h == 1 and L["%d hour"] or L["%d hours"], h)
-    end
-    if seconds < 86400 * 14 then
-        local d = math.floor(seconds / 86400)
-        return string.format(d == 1 and L["%d day"] or L["%d days"], d)
-    end
-    return string.format(L["%d weeks"], math.floor(seconds / (86400 * 7)))
+    local n, unit = span(seconds)
+    local fmt = unit == "min" and L["%d min"] or unit == "week" and L["%d weeks"]
+        or unit == "hour" and (n == 1 and L["%d hour"] or L["%d hours"])
+        or (n == 1 and L["%d day"] or L["%d days"])
+    return string.format(fmt, n)
 end
 
--- "3 days ago", "just now" (lastOnline, interactions).
+-- "3 days ago", "just now" (lastOnline, interactions). Each is a whole sentence
+-- so a language can change the words around the number (German "vor 3 Tagen").
 function Data.Ago(seconds)
     if type(seconds) ~= "number" then return "" end
     if seconds < 60 then return L["just now"] end
-    return string.format(L["%s ago"], Data.Span(seconds))
+    local n, unit = span(seconds)
+    local fmt = unit == "min" and L["%d min ago"] or unit == "week" and L["%d weeks ago"]
+        or unit == "hour" and (n == 1 and L["%d hour ago"] or L["%d hours ago"])
+        or (n == 1 and L["%d day ago"] or L["%d days ago"])
+    return string.format(fmt, n)
 end
 
 -- Short age for a row's right edge: "20 min", "3 h", "2 d".

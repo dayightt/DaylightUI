@@ -418,7 +418,7 @@ end
 function Tracker.FitBox(h)
     if not box then return end
     box:SetShown(db.box == true and h > 1)
-    Style.Shell(box, { bgAlpha = Style.BackAlpha(db.boxAlphaOwn, db.boxAlpha), noBorder = db.boxBorder == false })
+    Style.Shell(box, { bgAlpha = Style.BackAlpha(db.boxAlphaOwn, db.boxAlpha), panel = true, noBorder = db.boxBorder == false })
     box:ClearAllPoints()
     local px, py = Tracker.BOX_PAD[1], Tracker.BOX_PAD[2]
     box:SetPoint("TOPLEFT", view, "TOPLEFT", -px, py)

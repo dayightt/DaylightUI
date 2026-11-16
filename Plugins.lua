@@ -31,7 +31,7 @@ local L = DUI.L
 local Plugins = {}
 DUI.Plugins = Plugins
 
-DUI.API = { major = 1, minor = 8 }
+DUI.API = { major = 1, minor = 9 }
 
 Plugins.ORDER = 2000 -- plugin sections go after all built-in ones (News is 1000), under their heading
 Plugins.list, Plugins.order = {}, {}
@@ -211,6 +211,7 @@ function Plugins.ChangesLine(name)
     more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
     more(c.aurafilters, "Adds %d aura filter.", "Adds %d aura filters.")
     more(c.framestyles, "Adds %d frame style.", "Adds %d frame styles.")
+    more(c.glowstyles, "Adds %d glow style.", "Adds %d glow styles.")
     more(c.chat, "Changes chat lines.", "Changes chat lines.")
     more(c.filters, "Filters the vendor's items.", "Filters the vendor's items.")
     local dt, dp = c.datatexts or 0, c.datapanels or 0

@@ -708,6 +708,12 @@ local function plain(v) return type(v) == "number" and not isSecret(v) end
 
 -- A frame's box in UIParent units, or nil if any part of it is unknown.
 local function boxOf(f)
+    -- The game refuses to measure a restricted frame (a nameplate's, at login)
+    -- and reports it as an error, so those are skipped.
+    if type(f.IsAnchoringRestricted) == "function" then
+        local ok, restricted = pcall(f.IsAnchoringRestricted, f)
+        if not ok or restricted == true then return nil end
+    end
     local l, b, w, h = f:GetLeft(), f:GetBottom(), f:GetWidth(), f:GetHeight()
     local es, us = f:GetEffectiveScale(), UIParent:GetEffectiveScale()
     if not (plain(l) and plain(b) and plain(w) and plain(h) and plain(es) and plain(us)) or us <= 0 then return nil end

@@ -51,7 +51,7 @@ print(API.major, API.minor)   -- 1, 8
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -161,7 +161,9 @@ UI's own settings with `me.AddDefaults("UnitFrames", { neonGlow = 0.5 })`.
 | `API.Text(parent, size, justify)` | A font string in the player's font, outline and shadow. `size`: `"tiny"` `"small"` `"body"` `"head"` `"title"` (10/12/13/15/18). |
 | `API.Bar(parent)` | A status bar with the Daylight gradient fill. Set it like any `StatusBar`. |
 | `API.Button(parent, text, height)` | A button. Hovering traces its edge in the accent; click sound built in. |
-| `API.MainButton(button, on)` (1.8) | Makes an `API.Button` your window's main action, like Daylight UI's Accept buttons: a lifted band, green text and two accent lights circling its edge (they rest while the button is off or the player has motion off). `on = false` makes it plain again. One per window. |
+| `API.MainButton(button, on)` (1.8) | Makes an `API.Button` your window's main action, like Daylight UI's Accept buttons: a lifted band, green text and lights moving round its edge in the glow style the player picked (they rest while the button is off, the player picked Off, or has motion off). `on = false` makes it plain again. One per window. |
+| `API.GlowStyles()` (1.9) | The glow styles a player can pick, yours and other plugins' included: a list of `{ key, label }`, Daylight UI's five first (`circle`, `comet`, `breathe`, `twinkle`, `shine`). |
+| `API.GlowAround(frame, on, opts)` (1.9) | Runs a glow style round any frame of yours. `opts`: `style` (a `GlowStyles` key; Circling when left out), `r, g, b` (one color, else the accent's two ends), `inset` (in from the edges, negative = outside), `thick` (a strip's width), `size` (a light's size). It eases in and out; the player's motion off keeps it away. `false` for something that isn't a frame. |
 | `API.Close(parent, onClick, size)` | The close X. |
 | `API.Switch(parent)` | An on/off switch. `sw.SetOn(true)`. |
 | `API.Input(parent, opts)` | A text or search box. `opts`: `search`, `hint`, `numeric`, `onChange = function(text) end`. |
@@ -864,6 +866,40 @@ Daylight UI's chat box only (the Chat module in Daylight style). Your function g
 Daylight UI's own touches: return a new text, `false` to leave it out, or nothing to keep it. `info`
 has `event`, `kind`, `sender`, `guid`, `body` (what they typed), `channel` and `line`. Lines the game
 keeps secret never reach you. A click on a link made by `me.ChatLink` calls your `OnChatLink`.
+
+## Glow styles (1.9)
+
+```lua
+me.AddGlowStyle("pulse", {
+    label = "Pulse",
+    lap = 2,  -- seconds a turn
+    draw = function(g, at, lo, hi, size)
+        g:Light(at, size, hi, 1)                -- a light a share of the way round
+        g:Trail(at, 0.3, 0.8, lo, hi)           -- its tail, fading behind it
+        g:Edge(1, 0, 1, 0.3 * at, 0.3 * at, lo, hi)  -- the whole top edge, brightening
+    end,
+})
+```
+
+Your style joins Daylight UI's five in every glow menu: the main window buttons (General), the
+target nameplate's outline light (Nameplates > Target) and each Cooldown Manager spell's glow style
+(its card's Look tab). Its key
+in those menus and in `API.GlowStyles` is `"YourPlugin:pulse"`.
+
+`draw` runs every frame while your glow shows. `at` goes from 0 to 1 through each turn; `lo` and `hi`
+are the two ends of the player's accent (or the color the glow was given), `size` a light's size for
+what it's on. Lay it out with three helpers, each taking places as a share of the way round,
+clockwise from the top-left corner, so your style fits a button, a plate or an icon alike:
+
+- `g:Light(at, size, color, alpha)`: a soft light.
+- `g:Trail(at, length, alpha, tailColor, headColor)`: a strip ending at `at` and reaching back
+  `length` of the way round, round the corners, fading to nothing at its far end.
+- `g:Edge(side, from, to, alphaFrom, alphaTo, colorFrom, colorTo)`: a strip along one side (1 top,
+  2 right, 3 bottom, 4 left) from `from` to `to` of it.
+
+Alphas are 0 to 1: Daylight UI eases the whole glow in and out on top of them. `g.width` and
+`g.height` say how big the edge is. A style whose `draw` errors is drawn as Circling from then on,
+with the error said once. Call `AddGlowStyle` again with the same key to change it.
 
 ## Fitting in around Daylight UI (1.7)
 

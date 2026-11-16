@@ -377,6 +377,10 @@ Card.ROWS = {
             desc = "This icon's own size. Whole group sizes every icon in the group." }) },
         { show = isShieldIcon, item = spell("shieldAmount", { type = "toggle", label = "Show shield amount",
             desc = "How much the shield can still soak, on the icon in place of its time. Its size and color are the cooldown numbers'." }) },
+        { head = L["Glow"], show = function() return true end },
+        { show = function() return true end, item = spell("glowStyle", { type = "dropdown", label = "Style",
+            choices = function() return DUI.Motion.GlowChoices(nil, { "ring", "Ring" }) end,
+            desc = "How this spell glows when its other settings ask for it (ready, usable, buff up or missing, time to recast): the game's spell alert ring, or a soft light moving round its edge." }) },
         { head = L["Swipe"], show = isIcon },
         { show = both(isIcon, isCooldown), item = spell("noSwipe", { type = "toggle", label = "Hide on cooldown",
             desc = "No dark sweep over the icon while the spell is on cooldown." }) },
@@ -704,7 +708,7 @@ local function sectionHead(f, width)
     h.line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 0)
     h.line:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
     function h.Set(text)
-        h.text:SetText(string.upper(text or ""))
+        h.text:SetText(DUI.Style.Upper(text or ""))
         DUI.Style.InkText(h.text, "pop")
     end
     return h

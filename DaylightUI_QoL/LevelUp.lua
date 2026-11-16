@@ -162,7 +162,7 @@ function LevelUp.Play(level, hp, power, talents, _, str, agi, sta, int)
         C_Timer.After(t, function() if id == run then fn() end end)
     end
 
-    Style.PaintAccentText(f.label, ((LEVEL or L["Level"]):upper()))
+    Style.PaintAccentText(f.label, DUI.Style.Upper(LEVEL or L["Level"]))
     f.old:SetText(tostring(level - 1))
     f.new:SetText(tostring(level))
     f.gains:SetText(LevelUp.GainsText(hp, power, str, agi, sta, int))

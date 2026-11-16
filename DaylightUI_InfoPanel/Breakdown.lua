@@ -296,7 +296,7 @@ function Breakdown.Refresh()
     if type(st) == "nil" then st = 0 end
     Breakdown.total:SetText(ns.Meter.Short(st))
     Style.InkText(Breakdown.total, "pop")
-    Breakdown.sub:SetText(string.format(L["%s · %s"], string.upper(L[meter.Mode().name]), (meter.FightTitle())))
+    Breakdown.sub:SetText(string.format(L["%s · %s"], DUI.Style.Upper(L[meter.Mode().name]), (meter.FightTitle())))
     Style.InkText(Breakdown.sub, "LABEL")
     local paint = function(bar) meter.Paint(bar, src) end
     local top = 1
@@ -362,7 +362,7 @@ function Breakdown.Refresh()
             Breakdown.targetsHead:ClearAllPoints()
             Breakdown.targetsHead:SetPoint("TOPLEFT", frame, "TOPLEFT", T + pad, -(bottom + 4))
         end
-        Breakdown.targetsHead:SetText(string.upper(L["Targets"]))
+        Breakdown.targetsHead:SetText(DUI.Style.Upper(L["Targets"]))
         Style.InkText(Breakdown.targetsHead, "pop")
         bottom = bottom + tiny + 6
     end

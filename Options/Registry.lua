@@ -1216,7 +1216,7 @@ Options.RegisterPage({
             Options.MediaPick("bar", "windowBar", "Window bar texture",
                 "The fill of the bars in DaylightUI's windows: reputation, skills, professions, pet experience, quest objectives. "
                     .. "They keep their round shape. General uses the bar texture above."),
-            Options.MediaPick("back", "windowBack", "Window bar background",
+            Options.MediaPick("back", "windowTint", "Window bar background",
                 "The empty part behind the bars in DaylightUI's windows. General uses the bar background above."),
         } },
         { label = "Size", items = {
@@ -1271,6 +1271,18 @@ Options.RegisterPage({
             { type = "slider", key = "windowAlpha", label = "Window background opacity", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How see-through every window and panel is: bags, character, spellbook, NPC, group finder, the game's windows we restyle, "
                   .. "chat, the info panel, the quest box and the buff bars. One with a separate opacity on its own page keeps that." },
+            { type = "dropdown", key = "windowTint", label = "Background color", since = "1.8.4",
+              values = { daylight = "Daylight", class = "Class tint", custom = "Custom color" },
+              order = { "daylight", "class", "custom" },
+              desc = "The color behind every window and panel: Daylight's own dark tone, a dark tint of your class color, or a color you pick.",
+              onPick = function(k)
+                  if k ~= "custom" or not DUI.Widgets then return end
+                  local c = DUI:Get("general", "windowTintColor") or { DUI.Style.BACKGROUND[1], DUI.Style.BACKGROUND[2], DUI.Style.BACKGROUND[3] }
+                  DUI.Widgets.PickCustom(c, function(col) DUI:Set("general", "windowTintColor", col) end)
+              end },
+            { type = "color", key = "windowTintColor", label = "Custom color", since = "1.8.4",
+              desc = "The background, when Background color is set to Custom color. Dark colors keep text easy to read.",
+              disabled = function(get) return get("windowTint") ~= "custom" end },
             { type = "button", since = "1.6.2", label = "Apply opacity to every window", text = "Apply", confirm = true,
               desc = "Turns off every separate background opacity, so every window and panel matches Window background opacity.",
               func = function() Options.ApplyWindowAlpha() end },
@@ -1278,6 +1290,10 @@ Options.RegisterPage({
         { label = "Motion", items = {
             { type = "toggle", key = "motion", label = "Motion effects",
               desc = "Windows glide in and out, tooltips fade in, a spell's icon pops when it's ready, gold and XP count up. When off, everything snaps into place." },
+            { type = "dropdown", key = "buttonGlow", label = "Main button glow",
+              choices = function() return DUI.Motion.GlowChoices("Off") end,
+              disabled = function(get) return get("motion") == false end,
+              desc = "The soft light moving round the main button of a Daylight UI window (Accept, Complete, Send...), in the style you pick, or Off for none. Needs Motion effects." },
             { type = "toggle", key = "portraitFlare", label = "Window icon flare", since = "1.8.3",
               disabled = function(get) return get("motion") == false end,
               desc = "A halo and a ring of embers light the round icon at the top of a window as it opens. Needs Motion effects (General > Appearance)." },

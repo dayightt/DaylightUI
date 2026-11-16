@@ -6,7 +6,7 @@
 -- accent into the next, dark otherwise) with a chevron where they enter a step.
 -- A step completed since the last draw flashes like a talent being filled.
 --
--- What Attune builds (Attune.lua, 16001-34): its window is an AceGUI Frame
+-- What Attune builds (Attune.lua, 16001-41): its window is an AceGUI Frame
 -- (dressed by the Ace3 skin) under a PortraitFrameTemplate "AttuneBronzeChrome",
 -- created in the global Attune_Frame. The global Attune_Select draws a chain.
 -- Each step is a BackdropTemplate button "Attune_Node_<id>" (from the global
@@ -55,6 +55,8 @@ local function near(a, b) return type(a) == "number" and math.abs(a - b) < 0.02 
 -- "done" | "next" | "goal" | "locked" | "spacer", from the step's backdrop color.
 function AT.StateOf(node)
     if type(node.GetBackdropColor) ~= "function" then return "locked" end
+    -- Since 16001-41 a Spacer step never gets a backdrop, so it has no color.
+    if type(node.GetBackdrop) == "function" and node:GetBackdrop() == nil then return "spacer" end
     local r, g, _, a = node:GetBackdropColor()
     if type(r) ~= "number" or isSecret(r) then return "locked" end
     if a == 0 then return "spacer" end

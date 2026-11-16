@@ -464,7 +464,7 @@ local function fillSide()
     local src = BW.src
     local md = BW.meter.Mode()
     DUI.Win.SetTitle(BW.frame, src.name, { Style.ClassTextColor(src.classFilename) },
-        string.format(L["%s · %s"], string.upper(L[md.name]), (BW.meter.FightTitle())))
+        string.format(L["%s · %s"], DUI.Style.Upper(L[md.name]), (BW.meter.FightTitle())))
     local tab = BW.frame.tabs and BW.frame.tabs[2]
     if tab and tab.text then
         tab.text:SetText(ATTACKERS[md.key] and L["Attackers"] or L["Targets"])

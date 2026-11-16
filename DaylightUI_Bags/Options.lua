@@ -304,6 +304,8 @@ ns.OPTIONS = { pages = {
               desc = "Gap between slots." },
             { type = "slider", key = "scale", label = "Scale", min = 0.5, max = 1.5, step = 0.05, unit = "x", disabled = off,
               desc = "The whole bag window, slots, text and buttons together." },
+            { type = "toggle", key = "showHeader", label = "Show the bag's header", disabled = off,
+              desc = "The bag's picture, name and free slots above the search box. Off, the search box sits at the top with a small bank button next to the close button, and you drag the window by any empty spot." },
             backRows[1], backRows[2],
             { type = "toggle", key = "autoStack", label = "Stack items when the bag opens", disabled = off,
               desc = "Opening your bag fills up part stacks of the same item (15 and 5 Linen Cloth become 20), so no slot is wasted. Not in combat, or while you trade or have the mailbox or auction house open." },

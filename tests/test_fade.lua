@@ -1189,6 +1189,23 @@ T.test("fade: the reveal skips a shown frame kept see-through (the Cooldown Mana
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("fade: the reveal never measures a restricted frame (a nameplate's shell at login)", function()
+    local DUI = stub.Load({ intro = true })
+    local F = DUI.Fade
+    local seen = placed(DUI, 100, 100, 300, 60)
+    local plate = placed(DUI, 500, 100, 200, 40)
+    -- The game's rule: measuring a restricted region fails with this error.
+    plate.IsAnchoringRestricted = function() return true end
+    plate.GetLeft = function()
+        error("Frame:GetLeft(): Action[FrameMeasurement] failed because[Can't measure restricted regions]")
+    end
+    login(true, F)
+    local ok, picks = pcall(F.RevealPicks)
+    T.truthy(ok, tostring(picks))
+    T.eq(#picks, 1, "only the frame it may measure")
+    T.eq(picks[1].frame, seen)
+end)
+
 T.test("fade: a /reload reveals too, a zone change doesn't; none in a fight or with motion off", function()
     local DUI = stub.Load({ intro = true })
     placed(DUI, 100, 100, 300, 60)

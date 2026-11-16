@@ -148,7 +148,7 @@ function Pull.Start(seconds)
     if type(seconds) ~= "number" or seconds <= 0 then return leave(Motion.FAST) end
     endAt = GetTime() + math.min(seconds, Pull.MAX)
     shownN = nil
-    label:SetText(string.upper(L["Pull"]))
+    label:SetText(DUI.Style.Upper(L["Pull"]))
     Style.InkText(label, "LABEL")
     label:SetAlpha(1)
     frame:Show()

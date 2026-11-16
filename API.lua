@@ -978,6 +978,39 @@ function API.MainButton(button, on)
     return true
 end
 
+-- Glow styles (1.9): the animated lights of the main buttons, the nameplate
+-- target outline and the Cooldown Manager, with any plugin's own.
+function API.GlowStyles()
+    local M, out = DUI.Motion, {}
+    for _, key in ipairs(M.GLOW_STYLE_ORDER) do out[#out + 1] = { key = key, label = M.GLOW_STYLES[key] } end
+    return out
+end
+
+-- Runs a glow style round any frame (1.9). opts: style (a GlowStyles key,
+-- Circling when left out), r, g, b (one color, else the accent's two ends),
+-- inset (in from the edges, negative = outside), thick (a strip's width),
+-- size (a light's size). Motion off keeps it away.
+local glowHosts = setmetatable({}, { __mode = "k" })
+function API.GlowAround(frame, on, opts)
+    if type(frame) ~= "table" or type(frame.CreateTexture) ~= "function" then return false end
+    opts = type(opts) == "table" and opts or {}
+    local host = glowHosts[frame]
+    if not host then
+        if on == false then return true end
+        host = {}
+        glowHosts[frame] = host
+    end
+    local num = function(x) return type(x) == "number" and x or nil end
+    local c
+    if num(opts.r) and num(opts.g) and num(opts.b) then c = { opts.r, opts.g, opts.b } end
+    DUI.Widgets.GlowAround(host, on ~= false, {
+        style = opts.style, frame = frame, parent = frame, layer = "OVERLAY", sub = 7,
+        inset = num(opts.inset) or 0, thick = num(opts.thick) or DUI.Pixel.Px(frame, 2),
+        size = num(opts.size), lo = c,
+    })
+    return true
+end
+
 function API.Accent() return DUI.Style.Accent() end
 
 local INK_KEYS = { "TITLE", "VALUE", "TEXT", "LABEL", "OFF", "GOOD", "WARN", "BAD", "DAMAGE", "MONEY" }
@@ -1432,6 +1465,23 @@ function View.AddFrameStyle(v, key, spec)
     entry.label, entry.desc = spec.label, str(spec.desc) and spec.desc or nil
     entry.row, entry.line, entry.ring, entry.sizes = spec.row == true, spec.line == true, ring, sizes
     DUI.Fire("FrameStylesChanged")
+    return true
+end
+
+-- Glow styles (1.9): me.AddGlowStyle(key, { label, lap, draw }) adds a style
+-- to every glow menu (main buttons, the nameplate outline, the Cooldown
+-- Manager) as "Plugin:key". draw(g, at, lo, hi, size) runs every frame while
+-- it shows: at = 0 to 1 through a turn of lap seconds; g:Light, g:Trail and
+-- g:Edge lay its lights (API.md). Called again, it updates the style.
+function View.AddGlowStyle(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.draw) ~= "function" then
+        chat(L["%s: a glow style needs a key, a label and a draw function."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local lap = type(spec.lap) == "number" and math.max(0.5, math.min(20, spec.lap)) or 3
+    if not DUI.Motion.GLOW_STYLES[full] then Report.Count(v.name, "glowstyles") end
+    DUI.Widgets.AddGlowStyle(full, spec.label, lap, spec.draw)
     return true
 end
 

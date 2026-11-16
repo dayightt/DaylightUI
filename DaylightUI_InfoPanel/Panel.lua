@@ -334,7 +334,7 @@ end
 function Panel.Look(f, alpha, border)
     local s = Style.GetShell(f)
     if s then
-        s.opts.bgAlpha = alpha
+        s.opts.bgAlpha, s.opts.panel = alpha, true
         s.opts.noBorder = border == false
         -- The shadow traces the frame's edge, so it reads as a ghost border.
         s.opts.shadowAlpha = border == false and 0 or nil

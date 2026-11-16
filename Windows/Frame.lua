@@ -359,6 +359,8 @@ end
 --     instead of saving a position
 --   resized(w, h, live) is called each frame with live = true (only stretch
 --     rows, Stack:Stretch), then once at the end to refill
+--   fit = true leaves the size to resized: a window that sizes itself from
+--     what it holds (the bags, whose width snaps to whole columns)
 -- Protected windows only resize out of combat. Win.Resizable wires this to a
 -- module's saved sizes.
 Win.GRIP = 12
@@ -404,7 +406,7 @@ function Win.Grip(f, opts)
         local h = math.floor(math.max(g.minH, math.min(g.maxH, g.h + g.y - cy)) + 0.5)
         if w == g.lastW and h == g.lastH then return end
         g.lastW, g.lastH = w, h
-        f:SetSize(w, h)
+        if not opts.fit then f:SetSize(w, h) end
         laidOut(w, h, true)
     end
     local function stop()
@@ -415,6 +417,7 @@ function Win.Grip(f, opts)
         grip:SetScript("OnUpdate", nil)
         if not grip:IsMouseOver() then light(false) end
         local w, h = f:GetWidth(), f:GetHeight()
+        if opts.fit then w, h = g.lastW or w, g.lastH or h end
         if opts.place then
             opts.place(f)
         else

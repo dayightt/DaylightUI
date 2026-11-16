@@ -17,7 +17,7 @@ end
 T.test("api: version 1.1 on the same table Plugins reads", function()
     local DUI = load()
     T.eq(DaylightUI.API.major, 1)
-    T.eq(DaylightUI.API.minor, 8)
+    T.eq(DaylightUI.API.minor, 9)
     T.eq(DaylightUI.API, DUI.API)
 end)
 
@@ -345,6 +345,40 @@ T.test("api kit: the rest is our own pieces", function()
     T.eq(API.MainButton(go, false), true)
     T.eq(go.glowDriver:IsShown(), false)
     T.eq(API.MainButton(CreateFrame("Button", nil, f)), false, "only API.Button's buttons")
+    -- Glow styles: the five, a plugin's own in every menu, and round any frame.
+    local styles = API.GlowStyles()
+    T.eq(#styles, 5); T.eq(styles[1].key, "circle")
+    local me = API.For("Glowy")
+    T.eq(me.AddGlowStyle("bad", { label = "Bad" }), false, "no draw")
+    local drew
+    T.eq(me.AddGlowStyle("dot", { label = "One dot", lap = 2, draw = function(g, at, lo)
+        drew = at
+        g:Light(at, 10, lo, 1)
+        g:Trail(at, 0.2, 0.8)
+        g:Edge(1, 0, 0.5, 0.5)
+    end }), true)
+    T.eq(API.GlowStyles()[6].key, "Glowy:dot")
+    local values, order = DUI.Motion.GlowChoices("Off")
+    T.eq(values["Glowy:dot"], "One dot", "in the menus"); T.eq(order[#order], "Glowy:dot")
+    local box = CreateFrame("Frame", nil, f)
+    box:SetSize(80, 30)
+    T.eq(API.GlowAround(box, true, { style = "Glowy:dot", r = 1, g = 0.5, b = 0 }), true)
+    local host
+    for _, child in ipairs({ box:GetChildren() }) do if child.__scripts and child.__scripts.OnUpdate then host = child end end
+    T.truthy(host and host:IsShown(), "its clock runs")
+    host.__scripts.OnUpdate(host, 0.5)
+    T.near(drew, 0.25, 1e-6, "a quarter of a 2 s turn")
+    -- A style that errors is drawn as Circling from then on, and said once.
+    local said = 0
+    local was = geterrorhandler
+    _G.geterrorhandler = function() return function() said = said + 1 end end
+    me.AddGlowStyle("dot", { label = "One dot", draw = function() error("oops") end })
+    host.__scripts.OnUpdate(host, 0.1)
+    host.__scripts.OnUpdate(host, 0.1)
+    _G.geterrorhandler = was
+    T.eq(said, 1)
+    T.eq(API.GlowAround(box, false), true)
+    T.eq(API.GlowAround("nope", true), false)
     -- Stepped from where it is (Motion.AlphaTo), with no animation group.
     local function settle() for _ = 1, 40 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.05) end end
     API.Fade(f, 0.5, "FAST")

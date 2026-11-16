@@ -1376,6 +1376,43 @@ end
 
 local function pass(AB) AB.CdmRows.Refresh(); stub.RunTimers() end
 
+T.test("cdm effects: a spell's own glow style runs lights round it in place of the ring, sized to it", function()
+    local DUI, AB, set, ess = fxWorld()
+    local Fx, M, D = AB.CdmEffects, _G.ActionButtonSpellAlertManager, AB.CdmData
+    T.eq(D.SetSpellValue(set, 11, "glowStyle", "nope"), false, "only a known style")
+    T.eq(D.SetSpellValue(set, 11, "glowStyle", "comet"), true)
+    pass(AB)
+    M:ShowAlert(ess[1])
+    local g = Fx.GlowFrame(ess[1])
+    T.truthy(Fx.GlowShown(ess[1]), "glows")
+    T.truthy(g.glowDriver and g.glowDriver:IsShown(), "the lights run")
+    T.eq(g.glowStyle, "comet")
+    T.falsy(g.parts.mid.clip:IsShown(), "no ring under them")
+    -- Sized by the icon, and following it when it grows.
+    g.glowDriver.__scripts.OnUpdate(g.glowDriver, 0.1)
+    local thick, size = g.glowThick, g.glowSize
+    T.near(size, math.min(ess[1]:GetWidth(), ess[1]:GetHeight()) * Fx.GLOW_SCALE.size, 1e-6)
+    ess[1]:SetSize(ess[1]:GetWidth() * 2, ess[1]:GetHeight() * 2)
+    g.glowDriver.__scripts.OnUpdate(g.glowDriver, 0.1)
+    T.truthy(g.glowThick > thick and g.glowSize > size, "grows with the icon")
+    local _, rel = g.glowDots[1]:GetPoint(1)
+    T.eq(rel, ess[1], "round the item")
+    -- Another spell keeps the ring.
+    M:ShowAlert(ess[2])
+    T.truthy(Fx.GlowFrame(ess[2]).parts.mid.clip:IsShown(), "the other spell's ring")
+    -- Back to the ring on this one: the lit glow changes on the next pass.
+    D.SetSpellValue(set, 11, "glowStyle", "ring")
+    pass(AB)
+    M:ShowAlert(ess[1])
+    T.truthy(g.parts.mid.clip:IsShown(), "the ring again")
+    for _ = 1, 5 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.falsy(g.glowDriver:IsShown(), "the lights stop")
+    -- Motion off keeps the ring whatever is picked.
+    DUI:Set("general", "motion", false)
+    T.eq(Fx.GlowStyle({ glowStyle = "twinkle" }), "ring")
+    M:HideAlert(ess[1]); M:HideAlert(ess[2])
+end)
+
 T.test("cdm effects: proc glow follows the game's alert on claimed items only", function()
     local DUI, AB, set, ess = fxWorld()
     local Fx, M = AB.CdmEffects, _G.ActionButtonSpellAlertManager

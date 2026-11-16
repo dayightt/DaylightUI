@@ -220,6 +220,17 @@ T.test("sound kinds: the master switch off wins over every kind, the game's own 
     DUI.Sound.Play("open"); DUI.Sound.Play("click")
     T.eq(#W.played, 0); T.eq(#W.kits, 0)
     T.isnil(W.muted[111]); T.isnil(DUI.DB.Root().uiSoundsMuted)
+    -- A window in place of one of the game's (the bags) plays that window's sound,
+    -- since the game's own never opens to play it.
+    DUI.Sound.Play("open", "IG_BACKPACK_OPEN")
+    T.deq(W.kits, { SOUNDKIT.IG_BACKPACK_OPEN }, "the game's bag sound")
+    T.eq(#W.played, 0, "none of Daylight UI's")
+    kind(DUI, "windows", "none")
+    DUI:Set("general", "sounds", true)
+    stub.RunTimers(); stub.Advance(1)
+    W.kits = {}
+    DUI.Sound.Play("open", "IG_BACKPACK_OPEN")
+    T.eq(#W.kits, 0, "Windows: None still keeps it quiet")
 end)
 
 T.test("sound kinds: a pick is heard once, a moment later, in the new choice", function()
