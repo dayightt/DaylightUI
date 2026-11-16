@@ -60,8 +60,8 @@ local function streamCard(id, tab)
             desc = "Seconds a line stays before it fades." }),
         r({ type = "slider", key = path .. "dist", label = name .. " travel distance", min = 0, max = 400, step = 5, unit = "px",
             desc = "How far a line travels. Stack ignores this." }),
-        r({ type = "slider", key = path .. "lines", label = name .. " most lines at once", min = 3, max = 20, step = 1,
-            desc = "Past this the oldest line leaves early, so a big pull never floods the screen." }),
+        r({ type = "slider", key = path .. "lines", label = name .. " max shown", min = 3, max = 20, step = 1,
+            desc = "How many lines show at once. Past this the oldest line leaves early, so a big pull never floods the screen." }),
     } }
 end
 
@@ -134,7 +134,7 @@ end
 function CT.Page(Options)
     return {
         id = "combattext", section = "core", label = "Combat text", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
-        desc = "The text scrolling around your character: hits you take, heals, procs and more.",
+        desc = "The text scrolling around your character: hits you take, heals, procs and more. Numbers over what you hit: General > Damage numbers.",
         sample = function(parent) return CT.Sample(parent) end,
         resetAll = resetKinds,
         groups = {
@@ -146,7 +146,7 @@ function CT.Page(Options)
                 row({ type = "dropdown", key = "sct.outline", label = "Combat text outline", values = CT.OUTLINES, order = CT.OUTLINE_ORDER,
                       desc = "An outline keeps the text readable over bright ground and spell effects." }),
                 row({ type = "toggle", key = "sct.shadow", label = "Combat text shadow", desc = "A soft shadow under each line." }),
-                row({ type = "toggle", key = "sct.tick", label = "Slanted mark", desc = "A small slanted mark beside each line, in its color." }),
+                row({ type = "toggle", key = "sct.tick", label = "Combat text slanted mark", desc = "A small slanted mark beside each line, in its color." }),
             } },
             { label = "Crits", desc = "How a big hit or heal, or a spell lighting up, lands.", items = {
                 row({ type = "dropdown", key = "sct.crit", label = "Crit style", values = CT.CRITS, order = CT.CRIT_ORDER,
@@ -157,7 +157,7 @@ function CT.Page(Options)
                 row({ type = "toggle", key = "sct.critMark", label = "Crit exclamation mark", desc = "A ! after each crit." }),
             } },
             { label = "Numbers", items = {
-                row({ type = "dropdown", key = "sct.numbers", label = "Number format", values = CT.NUMBERS, order = CT.NUMBER_ORDER,
+                row({ type = "dropdown", key = "sct.numbers", label = "Combat text numbers", values = CT.NUMBERS, order = CT.NUMBER_ORDER,
                      desc = "Full numbers, or short ones for high-level play." }),
                 row({ type = "toggle", key = "sct.signs", label = "Plus and minus signs", desc = "A - before damage and a + before heals." }),
                 row({ type = "toggle", key = "sct.schoolColors", label = "Color spell hits by school",
@@ -166,7 +166,7 @@ function CT.Page(Options)
                      desc = "The healer's name beside each heal. In a fight the game can hide who it was, so your own heals may show your name too." }),
             } },
             { label = "Move the text", tab = "Streams", wide = true, items = {
-                { type = "button", label = "Move the text streams", desc = "Shows a handle on every spot. Drag to move it.",
+                { type = "button", label = "Move the text streams", desc = "Unlocks every frame, so each text stream shows a handle too. Drag one to move it.",
                   text = function() return DUI.Movers.unlocked and DUI.L["Lock"] or DUI.L["Unlock"] end,
                   func = function()
                       if DUI.Movers.unlocked then DUI.Movers.Lock() else DUI.Movers.Unlock() end
@@ -176,7 +176,7 @@ function CT.Page(Options)
             messageCard("Hits on you", "Messages", { "hit", "spell", "avoid", "reduce" }),
             messageCard("Healing and power", nil, { "heal", "hot", "shield", "power", "powerTick" }),
             messageCard("Notices", nil, { "proc", "low", "buff", "debuff", "combat", "other", "rep", "honor" }, {
-                row({ type = "slider", key = "sct.warnAt", label = "Low health warning at", min = 0.1, max = 0.6, step = 0.05, unit = "%",
+                row({ type = "slider", key = "sct.warnAt", label = "Low health and mana warning at", min = 0.1, max = 0.6, step = 0.05, unit = "%",
                       desc = "How low your health or mana gets before the warning shows." }),
             }),
         },

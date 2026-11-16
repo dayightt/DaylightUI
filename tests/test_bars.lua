@@ -2338,7 +2338,7 @@ T.test("options: the Bar Layout page has one card for every bar (Settings for), 
     T.eq(#errors, 0, table.concat(errors, "\n"))
     local labels = {}
     for _, g in ipairs(page.groups) do labels[#labels + 1] = g.label end
-    T.deq(labels, { "Bars", "Totem Timers" })
+    T.deq(labels, { "Bars", "Totem timers" })
     local pick = page.groups[1].items[1]
     T.eq(pick.label, "Settings for")
     T.deq(pick.order, { "main", "bar2", "left", "right", "bar5", "bar6", "bar7", "bar8", "stance", "pet", "possess", "totem" })

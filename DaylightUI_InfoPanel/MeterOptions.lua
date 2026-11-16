@@ -353,13 +353,13 @@ function MO.Page()
         win({ type = "toggle", key = "win.inGroup", label = "Show only in a group", kinds = LISTS, disabled = off,
               desc = "The window hides while you play solo." }),
         win({ type = "toggle", key = "win.inCombat", label = "Show only in combat", kinds = LISTS, disabled = off,
-              desc = "With more than one of these on, it shows only when all of them hold." }),
+              desc = "The window hides out of combat. With more than one of these on, it shows only when all of them hold." }),
         win({ type = "toggle", key = "win.inInstance", label = "Show only in an instance", kinds = LISTS, disabled = off,
               desc = "The window hides outside dungeons, raids, battlegrounds and arenas." }),
         win({ type = "dropdown", key = "win.auto", label = "Slide out automatically", kinds = THREAT, disabled = off,
               values = { group = "In a group or with a pet", tank = "When I'm the tank", off = "Only from its tab" },
               order = { "group", "tank", "off" },
-              desc = "Never shown solo: then everything is on you. The threat meter beside the meter slides back once the fight ends, and a click on its tab overrides this until the next fight. A threat window of your own set to Never shows in every fight in a group." }),
+              desc = "When the threat meter slides out by itself in a fight: in a group or with a pet, only while you're the tank, or only when you click its tab. It never slides out by itself while you play solo, since all the threat is on you then. The threat meter beside the meter slides back once the fight ends, and a click on its tab overrides this until the next fight. A threat window of your own set to Only from its tab shows in every fight in a group." }),
         win({ type = "dropdown", key = "win.at", label = "Threat meter position", kinds = THREAT, only = "threat", disabled = off,
               values = { left = "Beside the meter", below = "Under the meter", free = "Its own window" },
               order = { "left", "below", "free" },
@@ -387,7 +387,7 @@ function MO.Page()
               desc = "How tall each bar is." }),
         win({ type = "slider", key = "win.rowGap", label = "Bar spacing", kinds = METER, min = 0, max = 8, step = 1, unit = "px",
               desc = "The space between two bars." }),
-        win({ type = "slider", key = "win.textSize", label = "Text size", kinds = ALL, min = 7, max = 18, step = 1,
+        win({ type = "slider", key = "win.textSize", label = "Meter text size", kinds = ALL, min = 7, max = 18, step = 1,
               desc = "Size of the names and numbers on the bars." }),
         win({ type = "toggle", key = "win.rank", label = "Rank numbers", kinds = METER,
               desc = "Each player's place, before their icon." }),
@@ -446,14 +446,14 @@ function MO.Page()
     -- The panel's meter inside the panel has no window of its own.
     local function ownWindow(e) return e.id ~= "main" or e.cfg.detached == true end
     local back = DUI.Options.BackAlphaRows("win.alpha", "Meter window")
-    back[1].desc = "Gives this window its own background opacity, set in the row below. When off, it's as see-through as the info panel's boxes (General page)."
+    back[1].desc = "Gives this window its own background opacity, set in the row below. When off, it's as see-through as the info panel's boxes (Info Panel > General)."
     back[2].desc = "How solid this window's background is: 0 is fully see-through, leaving only the bars."
     back[1].kinds, back[2].kinds, back[1].when, back[2].when = ALL, ALL, ownWindow, ownWindow
     local window = {
         picker(),
-        { type = "toggle", key = "meter.detached", label = "Separate window", only = "main",
+        { type = "toggle", key = "meter.detached", label = "Separate damage meter window", only = "main",
           desc = "Takes the damage meter out of the panel into its own window in the bottom-right corner; move it in unlock mode." },
-        win({ type = "slider", key = "win.width", label = "Width", kinds = ALL, min = 100, max = 600, step = 1, unit = "px",
+        win({ type = "slider", key = "win.width", label = "Window width", kinds = ALL, min = 100, max = 600, step = 1, unit = "px",
               hidden = function(get) return MO.picked == "threat" and get("win.at") == "below" end,
               desc = "How wide the window is. Dragging its corner in unlock mode sets it too." }),
         win({ type = "slider", key = "win.height", label = "Window height", kinds = LISTS, min = 80, max = 500, step = 1, unit = "px",
@@ -486,7 +486,7 @@ function MO.Page()
     local meterFade = DUI.Fade.Card("meter.fade.", nil, function(get) return get("meter.ownFade") ~= true end, "Damage meters")
     meterFade.label = "Damage meter fade"
     table.insert(meterFade.items, 1, { type = "toggle", key = "meter.ownFade", label = "Damage meters have their own fade",
-        desc = "Off, the damage meters fade with the info panel. On, every damage meter and summary window follows the settings here, the one in the panel too." })
+        desc = "When off, the damage meters fade with the info panel. When on, every damage meter and summary window follows the settings here, the one in the panel too." })
 
     local threatFade = DUI.Fade.Card("threat.fade.", { { type = "text", label = "The threat meter and your threat windows fade together, apart from the panel." } }, nil, "Threat meter")
     threatFade.label = "Threat meter fade"

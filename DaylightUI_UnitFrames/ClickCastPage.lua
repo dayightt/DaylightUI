@@ -21,7 +21,7 @@ end
 local function status()
     if CC.Stepped() then
         return L["Clique is on, so Clique does the click-casting and these bindings wait. "
-            .. "Clique keeps working on every DaylightUI unit frame."]
+            .. "Clique keeps working on every Daylight UI unit frame."]
     end
     local text
     if B.on then

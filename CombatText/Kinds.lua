@@ -30,13 +30,13 @@ CT.CRITS = { flare = "Flare", slam = "Slam", pop = "Pop", plain = "Plain" }
 CT.CRIT_ORDER = { "flare", "slam", "pop", "plain" }
 CT.CRIT_POP = { flare = 1.45, slam = 1.9, pop = 1.3 }   -- crit scale on landing, before it settles
 
-CT.OUTLINES = { [""] = "None", OUTLINE = "Outline", THICKOUTLINE = "Thick outline" }
+CT.OUTLINES = { [""] = "None", OUTLINE = "Thin", THICKOUTLINE = "Thick" }
 CT.OUTLINE_ORDER = { "", "OUTLINE", "THICKOUTLINE" }
 
 CT.ALIGNS = { RIGHT = "Right", CENTER = "Center", LEFT = "Left" }
 CT.ALIGN_ORDER = { "LEFT", "CENTER", "RIGHT" }
 
-CT.NUMBERS = { full = "Full (1,234)", short = "Short (1.2K)" }
+CT.NUMBERS = { full = "Full (1,230)", short = "Short (1.2K)" }
 CT.NUMBER_ORDER = { "full", "short" }
 
 -- Message kinds, each with its own switch and color.

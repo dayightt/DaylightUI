@@ -1168,7 +1168,7 @@ function Fade.Items(prefix, extra, disabled, name, opts)
     end
     local items = {
         { type = "slider", key = prefix .. "opacity", label = "Opacity", min = 0, max = 1, step = 0.05, unit = "%",
-          desc = "How see-through it is while shown, whatever the fade does. At 0 it never shows, even under the mouse or in a fight.", disabled = pageOff },
+          desc = "How solid it is while shown, whatever the fade does. At 0 it never shows, even under the mouse or in a fight.", disabled = pageOff },
         { type = "dropdown", key = prefix .. "mode", label = "Visible", values = values, order = order,
           fallback = "never", desc = Fade.MODE_DESC, disabled = pageOff },
         { type = "slider", key = prefix .. "alpha", label = "Faded opacity", min = 0, max = 0.9, step = 0.05, unit = "%",
@@ -1181,7 +1181,7 @@ function Fade.Items(prefix, extra, disabled, name, opts)
           desc = "Show with a target only for something you can attack: talking to a quest giver or a vendor leaves it faded.",
           disabled = function(get) return off(get) or get(prefix .. "target") ~= true end },
         { type = "slider", key = prefix .. "delay", label = "Delay", min = 0, max = 30, step = 0.5,
-          desc = "Seconds before it fades: after a fight ends, once a fight starts, after your mouse leaves it, after you clear your target, or after a change it shows.", disabled = off },
+          desc = "How long it waits before it fades, in seconds: after a fight ends, once a fight starts, after your mouse leaves it, after you clear your target, or after a change it shows.", disabled = off },
     }
     local area = { prefix = prefix, name = name, base = {}, extras = {} }
     for i, field in ipairs(Fade.FIELDS) do
@@ -1198,7 +1198,7 @@ function Fade.Items(prefix, extra, disabled, name, opts)
 end
 
 function Fade.Card(prefix, extra, disabled, name, opts)
-    return { label = Fade.CARD_LABEL, desc = "How see-through it is, when it fades and how far. Unlocked, in test mode or with this page open, it shows at its opacity.",
+    return { label = Fade.CARD_LABEL, desc = "How solid it is, when it fades and how far. Unlocked, in test mode or with this page open, it shows at its opacity.",
              items = Fade.Items(prefix, extra, disabled, name, opts) }
 end
 

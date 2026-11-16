@@ -21,6 +21,7 @@ DUI.PatchNotes = {
         },
         changed = {
             { "Options", "Settings that go together sit together: width by height, each text's size by its font, a bar's size before its colors" },
+            { "Options", "Clearer names and help for settings on every page, so each one makes sense on its own in a search" },
             { "Unit frames", "Your cast bar no longer has a spot between your frame and the target's. If you used it, it stays right there as its own bar with flipped angles" },
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
             { "Character", "A roomier character window where long item and stat names fit, your ammo count in the footer, and a new PvP page with your honor kills and rank badges" },

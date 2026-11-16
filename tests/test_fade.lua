@@ -970,7 +970,7 @@ T.test("fade page: a card per module, each listing its areas by name", function(
     DUI:Set("ActionBars", "bagBar", "shown"); DUI:Set("ActionBars", "microMenu", "shown")
     local uf, ab, ip = hubCard(DUI, "Unit Frames"), hubCard(DUI, "Action Bars"), hubCard(DUI, "Info Panel")
     for _, n in ipairs({ "Player", "Target", "Pet", "Focus", "Party", "Raid" }) do T.truthy(listed(uf, n), n) end
-    for _, n in ipairs({ "Action Bar 1", "Bag bar", "Micro menu", "Totem Timers" }) do T.truthy(listed(ab, n), n) end
+    for _, n in ipairs({ "Action Bar 1", "Bag bar", "Micro menu", "Totem timers" }) do T.truthy(listed(ab, n), n) end
     for _, n in ipairs({ "Info panel", "Threat meter" }) do T.truthy(listed(ip, n), n) end
     T.truthy(listed(hubCard(DUI, "Buffs & Debuffs"), "Debuffs"))
     T.truthy(DUI.Options.IsHidden(page, hubCard(DUI, "Chat").items[1]), "one area: no picker")

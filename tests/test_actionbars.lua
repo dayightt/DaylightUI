@@ -1166,7 +1166,7 @@ T.test("action bars: Settings for and Copy look from on the options page", funct
             for _, it in ipairs(g.items) do if it.label == label then return it end end
         end
     end
-    local pick, border, from, copy = find("Settings for"), find("Border"), find("Copy look from"), find("Copy the look")
+    local pick, border, from, copy = find("Settings for"), find("Border thickness"), find("Copy look from"), find("Copy the look")
     T.eq(pick.get(), "all", "every bar at first")
     T.truthy(from.hidden(function() end), "nothing to copy onto every bar")
     border.set(5)
@@ -1190,7 +1190,7 @@ T.test("action bars: Settings for and Copy look from on the options page", funct
     T.isnil(DUI:Get("ActionBars", "barLooks.left.border"), "copied from All bars: none of its own")
     T.eq(border.get(), 5)
     pick.set("cdm")
-    T.truthy(find("Keybinds").hidden(function() end), "keybind rows aren't the Cooldown Manager's")
+    T.truthy(find("Show keybinds").hidden(function() end), "keybind rows aren't the Cooldown Manager's")
     T.falsy(border.hidden(function() end), "its border is")
     pick.set("all")
 end)

@@ -612,7 +612,7 @@ local function moduleList()
     for _, mod in DUI.Modules() do
         if mod.enabled then names[#names + 1] = L[mod.label or mod.name] end
     end
-    if #names == 0 then return L["No modules loaded yet. Turn on DaylightUI modules in the AddOns list."] end
+    if #names == 0 then return L["No modules loaded yet. Turn on Daylight UI modules in the AddOns list."] end
     return string.format(L["Loaded modules: %s."], table.concat(names, ", "))
 end
 
@@ -634,14 +634,14 @@ local RESET_POSITIONS = { type = "button", label = "Reset all positions", text =
     func = function() movers().ResetAll() end }
 
 local SETUP = { type = "button", label = "Setup guide", text = "Open",
-    desc = "The guide that set this character up: a quick setup, a tour of everything DaylightUI does, or another profile.",
+    desc = "The guide that set this character up, to run again: a quick setup, every step page by page, or another profile.",
     func = function()
         if DUI.OptionsPanel and DUI.OptionsPanel.IsShown() then DUI.OptionsPanel.Toggle() end
         if DUI.Installer then DUI.Installer.Show() end
     end }
 
 local TOUR = { type = "button", since = "1.6.9", label = "Take the tour", text = "Start",
-    desc = "A one-minute walk past what DaylightUI adds: the damage meter, buff and bag groups, moving frames and these options.",
+    desc = "A one-minute walk past what Daylight UI adds: the damage meter, buff and bag groups, moving frames and these options.",
     func = function() if DUI.Tour then DUI.Tour.Start() end end }
 
 -- Font dropdown: ours plus shared fonts from other addons, sorted by name.
@@ -766,14 +766,17 @@ end
 -- Background opacity rows for a panel: a switch (key .. "Own") to override
 -- the General window opacity, and a slider shown while it's on
 -- (Style.BackAlpha). what: "Chat", "Quest box"... since: optional NEW version.
+local PROPER_NAMES = { Legacy = true }
 function Options.BackAlphaRows(key, what, dis, since)
     local own = key .. "Own"
-    local lower = what:gsub("^%u%l", string.lower)   -- leaves "NPC" alone
+    -- Lowercase the first word for the switch's label, but leave "NPC" and
+    -- proper names like "Legacy" alone.
+    local lower = PROPER_NAMES[what:match("^%a+")] and what or (what:gsub("^%u%l", string.lower))
     return {
         { type = "toggle", key = own, since = since, label = "Separate " .. lower .. " background opacity", disabled = dis,
           desc = "Gives it its own background opacity, set in the row below. When off, it's as see-through as every window (Window background opacity on General > Appearance)." },
         { type = "slider", key = key, since = since, label = what .. " background opacity", min = 0, max = 1, step = 0.05, unit = "%",
-          desc = "How solid its background is: 0 is fully see-through.",
+          desc = "How solid its background is: at 0 it's fully see-through.",
           disabled = dis, hidden = function(get) return get(own) ~= true end },
     }
 end
@@ -798,7 +801,7 @@ end
 -- Resets every area's own pick of a kind back to General. Always enabled,
 -- because a dimmed button looked broken when nothing had its own pick.
 local function resetPicks(kinds, label, desc)
-    return { type = "button", label = label, text = "Reset", confirm = true, desc = desc,
+    return { type = "button", label = label, text = "Apply", confirm = true, desc = desc,
              func = function() for _, k in ipairs(kinds) do DUI.Media.ApplyToAll(k) end end }
 end
 
@@ -1165,24 +1168,24 @@ Options.RegisterPage({
 
 Options.RegisterPage({
     id = "appearance", section = "core", label = "Appearance", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
-    desc = "The look shared by everything DaylightUI draws.",
+    desc = "The look shared by everything Daylight UI draws.",
     groups = {
         { label = "Font", items = {
             { type = "dropdown", key = "font", label = "Font", choices = fontChoices, fallback = "expressway",
               preview = "font", fetch = function(key)
                   return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
-              desc = "Used by all DaylightUI text, except where a frame's own page picks another font. Game font is the client's own, "
+              desc = "Used by all Daylight UI text, except where a frame's own page picks another font. Game font is the client's own, "
                   .. "including a font you've replaced it with. Fonts other addons share (SharedMedia) are listed after ours." },
-            resetPicks({ "font" }, "Reset area fonts",
+            resetPicks({ "font" }, "Use this font everywhere",
                 "The font above shows everywhere at once, except where a frame's own page or the window font below picks another. "
                     .. "This puts every one of those back on the font above."),
             Options.MediaPick("font", "windowFont", "Window font",
-                "The text in DaylightUI's windows (character, spellbook, professions, bags, quest journal) "
+                "The text in Daylight UI's windows (character, spellbook, professions, bags, quest journal) "
                     .. "and the game's windows it restyles. General uses the font above."),
             { type = "toggle", key = "localFont", label = "Use my language's font",
               hidden = function() return not DUI.DB.NonLatinClient() end,
-              desc = "Uses the game's own font in place of DaylightUI's fonts, which only have Latin letters. "
+              desc = "Uses the game's own font in place of Daylight UI's fonts, which only have Latin letters. "
                   .. "The options window changes after /reload." },
             { type = "toggle", key = "gameText", label = "Use this font for the game's text",
               hidden = function(get) return get("font") == "game" or DUI.DB.UseLocalFont() end,
@@ -1190,7 +1193,7 @@ Options.RegisterPage({
                   .. "Sizes and outlines stay the game's." },
             { type = "dropdown", key = "textOutline", label = "Text outline",
               values = { OUTLINE = "Thin", THICKOUTLINE = "Thick", [""] = "None" }, order = { "OUTLINE", "THICKOUTLINE", "" },
-              desc = "A dark edge around the letters on DaylightUI's frames, so text stays readable over a busy world." },
+              desc = "A dark edge around the letters on Daylight UI's frames, so text stays readable over a busy world." },
             { type = "toggle", key = "textShadow", label = "Text shadow", desc = "A small soft drop shadow under text." },
             { type = "dropdown", key = "numbers", label = "Health and power numbers",
               values = DUI.Health.NUMBERS, order = DUI.Health.NUMBER_ORDER,
@@ -1211,14 +1214,14 @@ Options.RegisterPage({
             { type = "dropdown", key = "barBack", label = "Bar background", choices = barChoices, fallback = "daylight",
               preview = "bar", fetch = function(key) return DUI.Media.Fetch("statusbar", key) or DUI.Style.BAR.back end,
               desc = "The empty part behind every bar's fill, tinted in the bar's color, except where a frame's own page picks another." },
-            resetPicks({ "bar", "back" }, "Reset area textures",
+            resetPicks({ "bar", "back" }, "Use these textures everywhere",
                 "The textures above show on every bar at once, except where a frame's own page or the window bars below pick another. "
                     .. "This puts every one of those back on the textures above."),
             Options.MediaPick("bar", "windowBar", "Window bar texture",
-                "The fill of the bars in DaylightUI's windows: reputation, skills, professions, pet experience, quest objectives. "
+                "The fill of the bars in Daylight UI's windows: reputation, skills, professions, pet experience, quest objectives. "
                     .. "They keep their round shape. General uses the bar texture above."),
             Options.MediaPick("back", "windowBack", "Window bar background",
-                "The empty part behind the bars in DaylightUI's windows. General uses the bar background above."),
+                "The empty part behind the bars in Daylight UI's windows. General uses the bar background above."),
         } },
         { label = "Size", items = {
             { type = "slider", label = "UI scale", min = DUI.Pixel.SCALE_MIN, max = DUI.Pixel.SCALE_MAX, step = 0.01,
@@ -1229,10 +1232,10 @@ Options.RegisterPage({
               desc = "The size of the whole interface, the game's windows too. Daylight UI keeps it the same when the game "
                   .. "changes its own (a new resolution, another monitor), so your frames stay where you put them. "
                   .. "It takes the place of the game's UI scale setting, for every character on this account." },
-            { type = "slider", key = "scale", label = "Scale", min = 0.5, max = 2, step = 0.05, unit = "x",
-              desc = "Makes every DaylightUI frame and window bigger or smaller. To size one frame alone, unlock the frames and scroll over it." },
+            { type = "slider", key = "scale", label = "Daylight UI scale", min = 0.5, max = 2, step = 0.05, unit = "x",
+              desc = "Makes every Daylight UI frame and window bigger or smaller. To size one frame alone, unlock the frames and scroll over it." },
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",
-              desc = "Makes all text on DaylightUI's frames bigger or smaller, on top of each frame's own text size." },
+              desc = "Makes all text on Daylight UI's frames bigger or smaller, on top of each frame's own text size." },
         } },
         { label = "Color", items = {
             { type = "dropdown", key = "accent", label = "Accent color", values = DUI.Style.ACCENTS,
@@ -1243,8 +1246,8 @@ Options.RegisterPage({
                   local c = DUI:Get("general", "accentColor") or { DUI.Style.ACCENT[1], DUI.Style.ACCENT[2], DUI.Style.ACCENT[3] }
                   DUI.Widgets.PickCustom(c, function(col) DUI:Set("general", "accentColor", col) end)
               end },
-            { type = "color", key = "accentColor", label = "Custom color",
-              desc = "Your accent, when the accent color is set to Custom color.",
+            { type = "color", key = "accentColor", label = "Custom accent color",
+              desc = "Your own accent, when Accent color is Custom color.",
               disabled = function(get) return get("accent") ~= "custom" end },
             { type = "slider", key = "softness", label = "Color softness", min = 0, max = 0.8, step = 0.05, unit = "%",
               desc = "Eases class, reaction and power colors toward gray for a gentler look." },
@@ -1255,25 +1258,25 @@ Options.RegisterPage({
             { type = "toggle", key = "heavyBorder", label = "Heavy border",
               desc = "Adds a warm band inside the black outline, lit along the top. When off, the border is a plain dark line." },
             { type = "toggle", key = "gradientBorder", label = "Gradient window borders",
-              desc = "When the accent color is a gradient (Daylight's or your class's), window borders run along it.",
+              desc = "When the accent color is a gradient (Daylight's or your class's), every Daylight UI border runs along it: windows, panels, frames and nameplates.",
               disabled = function(get) local a = get("accent") return a ~= "gradient" and a ~= "classGradient" end },
             { type = "slider", key = "borderPx", label = "Border thickness", min = 1, max = 16, step = 1, unit = "px",
               desc = "In screen pixels, so it stays sharp at any UI scale. Heavy border needs 3 or more." },
             { type = "slider", key = "cornerPx", label = "Corner rounding", min = 0, max = 24, step = 1, unit = "px",
               desc = "Rounds the corners, up to about three times the border thickness." },
             { type = "slider", key = "borderAlpha", label = "Border opacity", min = 0, max = 1, step = 0.05, unit = "%",
-              desc = "How see-through the borders around DaylightUI's frames and windows are." },
+              desc = "How solid the borders around Daylight UI's frames and windows are: at 0 they're fully see-through." },
             { type = "slider", key = "shadowPx", label = "Shadow size", min = 0, max = 12, step = 1, unit = "px",
-              desc = "How far the soft shadow around DaylightUI's frames and windows reaches." },
+              desc = "How far the soft shadow around Daylight UI's frames and windows reaches." },
             { type = "slider", key = "shadowAlpha", label = "Shadow opacity", min = 0, max = 1, step = 0.05, unit = "%",
-              desc = "How dark the shadow around DaylightUI's frames and windows is." },
+              desc = "How dark the shadow around Daylight UI's frames and windows is." },
         } },
         { label = "Windows", items = {
             { type = "slider", key = "windowAlpha", label = "Window background opacity", min = 0, max = 1, step = 0.05, unit = "%",
-              desc = "How see-through every window and panel is: bags, character, spellbook, NPC, group finder, the game's windows we restyle, "
-                  .. "chat, the info panel, the quest box and the buff bars. One with a separate opacity on its own page keeps that." },
-            { type = "dropdown", key = "windowTint", label = "Background color", since = "1.8.4",
-              values = { daylight = "Daylight", class = "Class tint", custom = "Custom color" },
+              desc = "How solid every window and panel is: bags, character, spellbook, NPC, group finder, the game's windows Daylight UI restyles, "
+                  .. "chat, the info panel, the quest box and the buff bars. At 0 they're fully see-through. One with a separate opacity on its own page keeps that." },
+            { type = "dropdown", key = "windowTint", label = "Window background color", since = "1.8.4",
+              values = { daylight = "Daylight", class = "Class tint", custom = "One color" },
               order = { "daylight", "class", "custom" },
               desc = "The color behind every window and panel: Daylight's own dark tone, a dark tint of your class color, or a color you pick.",
               onPick = function(k)
@@ -1281,8 +1284,8 @@ Options.RegisterPage({
                   local c = DUI:Get("general", "windowTintColor") or { DUI.Style.BACKGROUND[1], DUI.Style.BACKGROUND[2], DUI.Style.BACKGROUND[3] }
                   DUI.Widgets.PickCustom(c, function(col) DUI:Set("general", "windowTintColor", col) end)
               end },
-            { type = "color", key = "windowTintColor", label = "Custom color", since = "1.8.4",
-              desc = "The background, when Background color is set to Custom color. Dark colors keep text easy to read.",
+            { type = "color", key = "windowTintColor", label = "Custom window background color", since = "1.8.4",
+              desc = "The window background, when Window background color is One color. Dark colors keep text easy to read.",
               disabled = function(get) return get("windowTint") ~= "custom" end },
             { type = "button", since = "1.6.2", label = "Apply opacity to every window", text = "Apply", confirm = true,
               desc = "Turns off every separate background opacity, so every window and panel matches Window background opacity.",
@@ -1294,7 +1297,7 @@ Options.RegisterPage({
             { type = "dropdown", key = "buttonGlow", label = "Main button glow",
               choices = function() return DUI.Motion.GlowChoices("Off") end,
               disabled = function(get) return get("motion") == false end,
-              desc = "The soft light moving round the main button of a Daylight UI window (Accept, Complete, Send...), in the style you pick, or Off for none. Needs Motion effects." },
+              desc = "The soft light moving round the main button of a Daylight UI window (Accept, Complete, Send...), in the style you pick, or Off for none. Needs Motion effects (General > Appearance)." },
             { type = "toggle", key = "portraitFlare", label = "Window icon flare", since = "1.8.3",
               disabled = function(get) return get("motion") == false end,
               desc = "A halo and a ring of embers light the round icon at the top of a window as it opens. Needs Motion effects (General > Appearance)." },
@@ -1306,7 +1309,7 @@ Options.RegisterPage({
             { type = "toggle", key = "sounds", label = "Soft UI sounds",
               desc = "Quiet, soft clicks for windows, menus and toggles, in place of the game's own. When off, you hear the game's own sounds everywhere." },
             soundKind("windows", "Windows open & close",
-                "Opening and closing windows: bags, character, spellbook, quest log, the game menu and DaylightUI's own windows."),
+                "Opening and closing windows: bags, character, spellbook, quest log, the game menu and Daylight UI's own windows."),
             soundKind("clicks", "Menu & tab clicks",
                 "Clicking menu buttons, tabs and pages, in the game's windows and in /dui."),
             soundKind("toggles", "Option toggles",
@@ -1452,18 +1455,18 @@ end
 
 Options.RegisterPage({
     id = "damage", section = "core", label = "Damage numbers", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
-    desc = "The game's numbers that pop off what you hit.",
+    desc = "The game's numbers that pop off what you hit and heal. Hits and heals on you: General > Combat text.",
     sample = function(parent) return DT.Sample(parent) end,
     groups = {
         { label = "Style", items = {
-            { type = "dropdown", label = "Preset", values = PRESETS, order = DT.PRESET_ORDER,
+            { type = "dropdown", label = "Damage number preset", values = PRESETS, order = DT.PRESET_ORDER,
               get = function() return DT.Preset() end,
               set = function(v) DT.SetPreset(v) end,
               default = function() return "game" end,
               hidden = function() return DT.Has("spread") ~= true end,
               desc = "Game default sends the numbers straight up. Soft drifts them out to the sides, Punchy flings them wide off the target, "
                   .. "Clean keeps them tight and close, out of the way in a raid. Moving a slider below makes it Custom." },
-            { type = "dropdown", key = "damage.font", label = "Font", choices = damageFontChoices, fallback = "auto",
+            { type = "dropdown", key = "damage.font", label = "Damage number font", choices = damageFontChoices, fallback = "auto",
               preview = "font", fetch = function(key)
                   if key == "auto" then return DUI.GameFonts.DamageWanted() or DUI.GameFonts.ClientFont() end
                   return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
@@ -1471,16 +1474,16 @@ Options.RegisterPage({
               restart = "You must restart the game for the new damage numbers font to take effect.",
               desc = "Automatic is your Appearance font. "
                   .. "The sample above shows it at once; the numbers in the world change after you restart the game." },
-            motion("size", "Size", 0.5, 2.5, "How big the numbers are. 1 is the game's own size."),
+            motion("size", "Damage number size", 0.5, 2.5, "How big the numbers are. 1 is the game's own size."),
         } },
         { label = "Motion", desc = "The game's own settings for how the numbers leave the target.", items = {
-            motion("spread", "Spread", 0, 5, "How far the numbers fly out to the sides. At 0 they go straight up, the game's own way."),
-            motion("height", "Start distance", 0, 5, "How far from the target the numbers start."),
+            motion("spread", "Damage number spread", 0, 5, "How far the numbers fly out to the sides. At 0 they go straight up, the game's own way."),
+            motion("height", "Damage number start distance", 0, 5, "How far from the target the numbers start."),
         } },
         { label = "Which numbers", desc = "The game's own switches.", items = {
             show("damage", "Damage you deal", "The numbers over what you hit."),
             show("healing", "Healing you do", "The green numbers over who you heal."),
-            show("pet", "Your pet's damage", "Your pet's or totem's hits too."),
+            show("pet", "Your pet's damage", "The numbers over what your pet or totems hit."),
         } },
     },
 })
@@ -1524,7 +1527,7 @@ end
 
 local gradientPage = Options.RegisterPage({
     id = "gradients", section = "core", label = "Gradients", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
-    desc = "The two-color fills bars use when set to a gradient (Class gradient on unit frames and nameplates, power bars).",
+    desc = "The two-color pairs behind the gradient accent, bars, cast bars, reputation and more, wherever a gradient is picked.",
     groups = gradientGroups(),
 })
 DUI.On("GradientsRegistered", function() gradientPage.groups = gradientGroups() end)

@@ -171,7 +171,7 @@ T.test("damage numbers: a client without the spread settings shows no motion row
     local seen = 0
     for _, g in ipairs(page.groups) do
         for _, item in ipairs(g.items) do
-            if item.key == "damage.spread" or item.label == "Preset" then
+            if item.key == "damage.spread" or item.label == "Damage number preset" then
                 T.eq(item.hidden(get), true, item.label .. " hidden")
                 seen = seen + 1
             end

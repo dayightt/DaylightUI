@@ -78,7 +78,7 @@ T.test("the smaller windows share one More windows page, a card each, every row 
             end
         end
     end
-    local scale = row("Mailbox", "Window scale")
+    local scale = row("Mailbox", "Mailbox scale")
     O.Set(page, scale, 1.2)
     T.eq(DUI:Get("Mailbox", "scale"), 1.2, "writes the mailbox's own")
     T.eq(DUI:Get("Social", "scale"), 1, "and no other window's")

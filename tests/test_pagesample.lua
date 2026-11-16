@@ -475,7 +475,7 @@ T.test("the raid preview tile is calm: no aggro border, but it carries a dispel 
     T.isnil(b.test.threat, "no red aggro border on the preview")
     T.truthy(b.test.dispel, "a dispellable debuff, so its icon can be placed")
     T.truthy(b.sampleDispel:IsShown(), "the dispel icon shows")
-    T.truthy(byLabel(s.Parts())["Dispellable debuff"], "and can be clicked")
+    T.truthy(byLabel(s.Parts())["Dispel icon"], "and can be clicked")
 end)
 
 T.test("a switched-off aura group isn't on the raid preview", function()

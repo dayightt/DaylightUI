@@ -6,16 +6,16 @@ local ns = DUI.Char
 
 local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Character window", nil, "1.6.2")
 
-local MODES = { accent = "Accent", class = "Class color", gradient = "Class gradient", custom = "Custom" }
-local HEAD_MODES = { group = "Each its own", accent = "Accent", class = "Class color", gradient = "Class gradient",
-                     custom = "Custom" }
-local LINE_MODES = { tab = "Like the tab underline", accent = "Accent", class = "Class color", gradient = "Class gradient",
-                     custom = "Custom" }
+local MODES = { accent = "Accent color", class = "Class color", gradient = "Class gradient", custom = "One color" }
+local HEAD_MODES = { group = "Each its own", accent = "Accent color", class = "Class color", gradient = "Class gradient",
+                     custom = "One color" }
+local LINE_MODES = { tab = "Like the tab underline", accent = "Accent color", class = "Class color", gradient = "Class gradient",
+                     custom = "One color" }
 
 local function mode(key, label, values, order, desc)
     return { type = "dropdown", key = "colors." .. key .. "Mode", label = label, values = values, order = order, desc = desc }
 end
--- Color swatches only show while their menu is on "Custom", or "Each its own"
+-- Color swatches only show while their menu is on "One color", or "Each its own"
 -- for the group colors.
 local function color(key, label, when, desc)
     return { type = "color", key = "colors." .. key, label = label, desc = desc,
@@ -31,8 +31,8 @@ ns.OPTIONS = { pages = {
       desc = "Your character window: gear, model, stats and the other pages. It opens with C, as always.",
       groups = {
         { label = "Window", items = {
-            { type = "toggle", key = "enabled", label = "DaylightUI style character window",
-              desc = "Pressing C opens DaylightUI's character window. Turn it off to use the game's own, in Daylight UI's look. Each window also has a button to switch to the other." },
+            { type = "toggle", key = "enabled", label = "Daylight UI style character window",
+              desc = "Pressing C opens Daylight UI's character window. Turn it off to use the game's own, in Daylight UI's look. Each window also has a button to switch to the other." },
         } },
         { label = "Look", items = {
             { type = "toggle", key = "lastNames.character", label = "First and last names",
@@ -46,7 +46,7 @@ ns.OPTIONS = { pages = {
               desc = "The dim line under each item's name. Repair warnings still show when it's off." },
             { type = "toggle", key = "levelInIcon", label = "Item level in the icon",
               desc = "The item level in the icon's corner instead of a line under the name, so long names have the room." },
-            { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
+            { type = "slider", key = "scale", label = "Character window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is. Other windows still open beside it when they fit." },
             backRows[1], backRows[2],
         } },
@@ -72,22 +72,22 @@ ns.OPTIONS = { pages = {
             groupColor("spell", "Spell"),
             groupColor("defense", "Defense"),
             groupColor("resistances", "Resistances"),
-            color("head", "Header color", { key = "head", mode = "custom" }, "Every header in this one color."),
+            color("head", "Custom header color", { key = "head", mode = "custom" }, "Every header in this color, when Header colors is One color."),
             mode("line", "Header lines", LINE_MODES, { "tab", "accent", "class", "gradient", "custom" },
                  "The thin line under each header. Like the tab underline: whatever Tab underline below is set to. Class gradient uses your class's colors from the Gradients page."),
-            color("line", "Line color", { key = "line", mode = "custom" }, "The lines under the headers in this color."),
+            color("line", "Custom header line color", { key = "line", mode = "custom" }, "The lines under the headers in this color, when Header lines is One color."),
             { type = "toggle", key = "glow", label = "Glow behind your character",
               desc = "The soft light behind the model on the Character page. When off, only the window's background shows." },
             mode("glow", "Glow color", MODES, { "accent", "class", "gradient", "custom" },
                  "The soft light behind the model on the Character page."),
-            color("glow", "Glow custom color", { key = "glow", mode = "custom" }, "The glow behind your character in this color."),
+            color("glow", "Custom glow color", { key = "glow", mode = "custom" }, "The glow behind your character in this color, when Glow color is One color."),
             mode("tab", "Tab underline", MODES, { "accent", "gradient", "class", "custom" },
                  "The line under the open tab at the top (Character, Reputation, Skills...)."),
-            color("tab", "Underline color", { key = "tab", mode = "custom" }, "The line under the open tab in this color."),
+            color("tab", "Custom tab underline color", { key = "tab", mode = "custom" }, "The line under the open tab in this color, when Tab underline is One color."),
             { type = "toggle", key = "zebra", label = "Striped rows",
               desc = "Every other row on a faint stripe, in the stats and the long lists, so lines are easier to follow." },
             { type = "toggle", key = "footColors", label = "Colored item level and durability",
-              desc = "The item level at the bottom in your gear's quality color, durability green to yellow to red. When off, both are plain gray." },
+              desc = "The item level at the bottom in your gear's quality color, durability green to yellow to red. When off, both are plain white." },
         } },
     } },
 } }

@@ -942,7 +942,7 @@ T.test("Copy from: a frame takes another's setup, its switch, fade and layout st
     T.eq(#DUI.Options.ValidatePage(page), 0)
 end)
 
-T.test("Frames grow / Groups grow: two picks set direction, growUp and growLeft", function()
+T.test("Frames grow / Lines grow: two picks set direction, growUp and growLeft", function()
     local DUI, ns = login()
     local O = DUI.Options
     local function find(p, label)
@@ -951,7 +951,7 @@ T.test("Frames grow / Groups grow: two picks set direction, growUp and growLeft"
         end
     end
     local ten = O.GetPage("UnitFrames.raid")
-    local frames, groups = find(ten, "Frames grow"), find(ten, "Groups grow")
+    local frames, groups = find(ten, "Frames grow"), find(ten, "Lines grow")
     T.eq(frames.get(), "down"); T.eq(groups.get(), "right")
     frames.set("left")
     T.eq(DUI:Get("UnitFrames", "raid.direction"), "rows"); T.eq(DUI:Get("UnitFrames", "raid.growLeft"), true)

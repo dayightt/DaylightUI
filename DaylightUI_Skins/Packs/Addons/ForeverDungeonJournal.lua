@@ -30,7 +30,7 @@ local Style = DUI.Style
 
 local ADDON = "ForeverDungeonJournal"
 
-Engine.AddonSwitch({ key = "fdj", addon = ADDON, label = "Dungeon Journal",
+Engine.AddonSwitch({ key = "fdj", addon = ADDON, label = "Forever Dungeon Journal",
     desc = "The dungeon journal, its favorites and settings windows; each dungeon's picture kept." })
 
 local function isTable(x) return type(x) == "table" end

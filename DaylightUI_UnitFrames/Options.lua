@@ -53,10 +53,10 @@ end
 
 local SIZE = { min = 60, max = 400 }
 
-local NAME_COLORS = { global = "Same as the Colors page", white = "White", class = "Class",
-    classGradient = "Class gradient", custom = "Custom" }
+local NAME_COLORS = { global = "Same as the Colors page", white = "White", class = "Class and reaction",
+    classGradient = "Class gradient", custom = "One color" }
 local NAME_COLOR_ORDER = { "global", "white", "class", "classGradient", "custom" }
-local TEXT_COLORS = { white = "White", class = "Class", custom = "Custom" }
+local TEXT_COLORS = { white = "White", class = "Class color", custom = "One color" }
 local TEXT_COLOR_ORDER = { "white", "class", "custom" }
 local function notCustom(key) return function(get) return get(key) ~= "custom" end end
 
@@ -90,7 +90,7 @@ local RAID_SORT_ORDER = { "group", "grouprole", "role", "class", "name" }
 local SORT_DESC = "Group keeps each raid group together. Group, then role does too, with tanks, then healers, then damage at the top of each. The others list everyone in one order and wrap by tiles per line."
 
 -- An icon's spot: the nine on the frame, then the eight around it (Spots).
-local SPOT_VALUES = { topleft = "Top left", top = "Top", topright = "Top right", left = "Left", center = "Center",
+local SPOT_VALUES = { topleft = "Top left", top = "Top", topright = "Top right", left = "Left", center = "Middle",
     right = "Right", bottomleft = "Bottom left", bottom = "Bottom", bottomright = "Bottom right" }
 for _, s in ipairs(ns.Spots.ORDER) do SPOT_VALUES[s] = SPOT_VALUES[s] or ns.Spots.LABELS[s] end
 -- A party button's role, marker and crown: at home (UF.ICON_HOME), or any spot.
@@ -151,7 +151,7 @@ local function buildPickLine(parent, token)
             local style = DaylightUI:Get("UnitFrames", "portraits.icons")
             if key == "" then
                 W.Tooltip(self, DaylightUI.L["Same as Icon style"], string.format(DaylightUI.L["Follows the Icon style above (%s)."],
-                    UF.ICON_STYLES[style] or "DaylightUI"))
+                    UF.ICON_STYLES[style] or "Daylight UI"))
             else
                 W.Tooltip(self, UF.ClassIconName(key), className(token))
             end
@@ -205,7 +205,7 @@ local function iconItems(k, dis, skip, home)
     skip = skip or {}
     local cornerDis = dis
     local function spot(key, label, homed)
-        local item = { type = "dropdown", key = k(key), label = label .. " spot", values = SPOT_VALUES,
+        local item = { type = "dropdown", key = k(key), label = label .. " position", values = SPOT_VALUES,
                  desc = "Where the " .. string.lower(label) .. " sits on each frame, or just outside it.",
                  order = ns.Spots.ORDER, disabled = cornerDis }
         if homed then
@@ -223,11 +223,12 @@ local function iconItems(k, dis, skip, home)
     end
     -- The two nudges after a piece's spot and size (written by Design mode's
     -- drag and arrow keys).
-    local function nudges(items, key, label, disabled)
+    local function nudges(items, key, label, disabled, what)
+        what = what or string.lower(label)
         items[#items + 1] = { type = "slider", key = k(key .. "X"), label = label .. " left / right", min = -50, max = 50, step = 1,
-            unit = "px", desc = "Nudges it sideways from its spot.", disabled = disabled }
+            unit = "px", desc = "Nudges the " .. what .. " sideways from its position.", disabled = disabled }
         items[#items + 1] = { type = "slider", key = k(key .. "Y"), label = label .. " up / down", min = -50, max = 50, step = 1,
-            unit = "px", desc = "Nudges it up or down from its spot.", disabled = disabled }
+            unit = "px", desc = "Nudges the " .. what .. " up or down from its position.", disabled = disabled }
     end
     local items = { spot("rolePos", "Role icon", home), size("roleSize", "Role icon") }
     nudges(items, "role", "Role icon", cornerDis)
@@ -254,22 +255,22 @@ local function iconItems(k, dis, skip, home)
     items[#items + 1] = { type = "toggle", key = k("showReady"), label = "Ready check answers",
         desc = "During a ready check, a tick, a cross or a question mark on each member: ready, not ready, or no answer yet. They stay a few seconds after the check ends.",
         disabled = dis }
-    items[#items + 1] = { type = "dropdown", key = k("readyPos"), label = "Ready check spot", values = SPOT_VALUES,
+    items[#items + 1] = { type = "dropdown", key = k("readyPos"), label = "Ready check position", values = SPOT_VALUES,
         desc = "Where the ready check answer sits on each frame, or just outside it.",
         order = ns.Spots.ORDER, disabled = readyOff }
     items[#items + 1] = { type = "slider", key = k("readySize"), label = "Ready check size", min = 6, max = 32, step = 1,
         desc = "How big the ready check answer is.", unit = "px", disabled = readyOff }
-    nudges(items, "ready", "Ready check", readyOff)
+    nudges(items, "ready", "Ready check", readyOff, "ready check answer")
     local summonOff = function(get) return dis(get) or get(k("showSummon")) == false end
     items[#items + 1] = { type = "toggle", key = k("showSummon"), label = "Summon icon",
         desc = "A swirl on a member who's being summoned: in your accent while they decide, green once they accept, red if they decline.",
         disabled = dis }
-    items[#items + 1] = { type = "dropdown", key = k("summonPos"), label = "Summon spot", values = SPOT_VALUES,
+    items[#items + 1] = { type = "dropdown", key = k("summonPos"), label = "Summon position", values = SPOT_VALUES,
         desc = "Where the summon icon sits on each frame, or just outside it.",
         order = ns.Spots.ORDER, disabled = summonOff }
     items[#items + 1] = { type = "slider", key = k("summonSize"), label = "Summon size", min = 6, max = 32, step = 1,
         desc = "How big the summon icon is.", unit = "px", disabled = summonOff }
-    nudges(items, "summon", "Summon", summonOff)
+    nudges(items, "summon", "Summon", summonOff, "summon icon")
     return items
 end
 
@@ -294,10 +295,10 @@ end
 local function dispelItems(k, gate, sizeMax, what)
     local shown = off(gate)
     return {
-        { type = "toggle", key = k("showDispel"), label = "Dispellable debuff",
+        { type = "toggle", key = k("showDispel"), label = "Dispel icon",
           desc = "A small icon in a corner for a debuff you can remove, edged in its type's color.", disabled = shown },
         { type = "slider", key = k("dispelSize"), label = "Dispel icon size", min = 6, max = sizeMax, step = 1,
-          desc = "How big the dispellable debuff's icon is.", disabled = offAny(gate, k("showDispel")) },
+          desc = "How big the dispel icon is.", disabled = offAny(gate, k("showDispel")) },
         { type = "dropdown", key = k("dispelHighlight"), label = "Dispel highlight",
           values = DISPEL_HIGHLIGHTS, order = { "none", "border", "tint", "both" },
           desc = "Lights up the whole " .. what .. " in the debuff's type color: its border, a tint over the health bar, or both.",
@@ -318,11 +319,11 @@ local function targetItems(k, gate)
         { type = "toggle", key = k("targetMark"), label = "Target outline",
           desc = "Outlines the member you have targeted, so you can find them at a glance.", disabled = off(gate) },
         { type = "dropdown", key = k("targetMarkColor"), label = "Target outline color",
-          values = { accent = "Accent", custom = "Custom color" }, order = { "accent", "custom" },
-          desc = "Accent follows your accent color (General > Appearance), or pick your own.",
+          values = { accent = "Accent color", custom = "One color" }, order = { "accent", "custom" },
+          desc = "Accent color follows your accent (General > Appearance). One color uses the one you pick.",
           disabled = offAny(gate, k("targetMark")) },
         { type = "color", key = k("targetMarkCustom"), label = "Custom target outline color",
-          desc = "The outline's color when Target outline color is Custom color.",
+          desc = "The outline's color when Target outline color is One color.",
           disabled = offAny(gate, k("targetMark")), hidden = notCustom(k("targetMarkColor")) },
     }
 end
@@ -350,7 +351,7 @@ local function nameItems(k, dis, desc, big, small)
           values = big and BIG_NAME_POS_VALUES or NAME_POS_VALUES, order = NAME_POS_ORDER,
           desc = big and "Beside the portrait keeps it at the frame's outer end. Any other spot puts it there, on or round the frame. You can also drag it in Design mode."
               or small and "Across the bar keeps it inside. Any other spot puts it there, on or round the frame, so a long name has room. You can also drag it in Design mode."
-              or "Across the bar keeps the alignment below. Beside the tile needs space between tiles.", disabled = dis },
+              or "Across the bar keeps the name inside, with the alignment below. Any other spot puts it there, on or round the frame; outside spots need space between frames.", disabled = dis },
     }
     if not big and not small then
         items[#items + 1] = { type = "dropdown", key = k("nameAlign"), label = "Name alignment",
@@ -418,48 +419,52 @@ local BAR_ORDER = {
 
 -- An aura group's layout rows, added to items: position, size, count, timers
 -- and nudges. g maps a field to its key. dis grays it out, noTimers grays out
--- the "Only under a minute" row, gone hides it.
-local function groupRows(items, g, dis, noTimers, gone)
+-- the "Only under a minute" row, gone hides it. kind names the icons in the
+-- labels: one = "Debuff", many = "debuffs".
+local function groupRows(items, g, dis, noTimers, gone, kind)
     local Spots = ns.Spots
+    local one, many = kind.one, kind.many
+    local Many = many:sub(1, 1):upper() .. many:sub(2)
     local function also(fn)
         if not gone then return fn end
         return function(get) return gone(get) or (fn ~= nil and fn(get)) or false end
     end
     local rows = {
-        { type = "dropdown", key = g("spot"), label = "Position", values = Spots.LABELS,
-          order = Spots.ORDER, desc = "Outside spots may need more space between frames.", disabled = dis },
-        { type = "dropdown", key = g("grow"), label = "Grow direction", values = Spots.GROW_LABELS,
+        { type = "dropdown", key = g("spot"), label = one .. " position", values = Spots.LABELS,
+          order = Spots.ORDER, desc = "Where the " .. many .. " sit, on or around each frame. Outside spots may need more space between frames.",
+          disabled = dis },
+        { type = "dropdown", key = g("grow"), label = one .. " grow direction", values = Spots.GROW_LABELS,
           order = Spots.GROW_ORDER, disabled = dis,
           desc = "Which way the row of icons fills from its first icon.",
           hidden = also(function(get) local s = get(g("spot")); return s == "outleft" or s == "outright" end) },
-        { type = "slider", key = g("size"), label = "Icon size", min = 10, max = 32, step = 1, unit = "px",
+        { type = "slider", key = g("size"), label = one .. " icon size", min = 10, max = 32, step = 1, unit = "px",
           desc = "How big each icon is.", disabled = dis },
-        { type = "slider", key = g("max"), label = "Max shown", min = 1, max = 12, step = 1,
+        { type = "slider", key = g("max"), label = one .. " max shown", min = 1, max = 12, step = 1,
           desc = "The most icons this group shows at once.", disabled = dis },
-        { type = "slider", key = g("rows"), label = "Rows", min = 1, max = 4, step = 1,
-          desc = "Max shown is split over the rows.", disabled = dis },
-        { type = "slider", key = g("spacing"), label = "Spacing", min = 0, max = 12, step = 1, unit = "px",
+        { type = "slider", key = g("rows"), label = one .. " rows", min = 1, max = 4, step = 1,
+          desc = "The icons wrap onto up to this many rows.", disabled = dis },
+        { type = "slider", key = g("spacing"), label = one .. " spacing", min = 0, max = 12, step = 1, unit = "px",
           desc = "The gap between icons.", disabled = dis },
-        { type = "toggle", key = g("timers"), label = "Time left on icons", desc = "The time left as a number on each icon.",
+        { type = "toggle", key = g("timers"), label = "Time left on " .. many, desc = "The time left as a number on each icon.",
           disabled = dis },
-        { type = "toggle", key = g("shortTimers"), label = "Only under a minute",
-          desc = "Hides the number while a minute or more is left, so long buffs stay quiet.", disabled = noTimers },
-        { type = "slider", key = g("timeSize"), label = "Time left text size", since = "1.8.0", min = 6, max = 16, step = 1,
+        { type = "toggle", key = g("shortTimers"), label = one .. " time left only under a minute",
+          desc = "Hides the number while a minute or more is left, so long ones stay quiet.", disabled = noTimers },
+        { type = "slider", key = g("timeSize"), label = one .. " time left text size", since = "1.8.0", min = 6, max = 16, step = 1,
           desc = "How big the time left is on each icon.", disabled = noTimers },
-        { type = "toggle", key = g("counts"), label = "Stack count", since = "1.8.0",
+        { type = "toggle", key = g("counts"), label = one .. " stack count", since = "1.8.0",
           desc = "The number of stacks in the corner of each icon.", disabled = dis },
-        { type = "slider", key = g("countSize"), label = "Stack count size", since = "1.8.0", min = 6, max = 16, step = 1,
+        { type = "slider", key = g("countSize"), label = one .. " stack count size", since = "1.8.0", min = 6, max = 16, step = 1,
           desc = "How big the number of stacks is on each icon.",
           disabled = function(get) return dis(get) or get(g("counts")) == false end },
-        { type = "toggle", key = g("swipe"), label = "Cooldown swipe",
+        { type = "toggle", key = g("swipe"), label = one .. " cooldown swipe",
           desc = "Each icon darkens like a clock as its time runs out.", disabled = dis },
-        { type = "toggle", key = g("tooltips"), label = "Tooltip on hover",
+        { type = "toggle", key = g("tooltips"), label = one .. " tooltip on hover",
           desc = "Hovering an icon says what it is. While the mouse is on an icon, mouseover casting misses that player. Clicks always go through to the frame.",
           disabled = dis },
-        { type = "slider", key = g("x"), label = "Icons left / right", min = -50, max = 50, step = 1, unit = "px",
-          desc = "Nudges the icons sideways from their position.", disabled = dis },
-        { type = "slider", key = g("y"), label = "Icons up / down", min = -50, max = 50, step = 1, unit = "px",
-          desc = "Nudges the icons up or down from their position.", disabled = dis },
+        { type = "slider", key = g("x"), label = Many .. " left / right", min = -50, max = 50, step = 1, unit = "px",
+          desc = "Nudges the " .. many .. " sideways from their position.", disabled = dis },
+        { type = "slider", key = g("y"), label = Many .. " up / down", min = -50, max = 50, step = 1, unit = "px",
+          desc = "Nudges the " .. many .. " up or down from their position.", disabled = dis },
     }
     for _, it in ipairs(rows) do
         if gone and not it.hidden then it.hidden = gone end
@@ -485,28 +490,31 @@ end
 -- the icons; only = the row may pick a show-only list (spell ids are matched
 -- there: buffs, or debuffs on an enemy); debuffs on yourself or your group get
 -- the boss and duration rows instead. Extra hidden/disabled rules come in.
+-- name (optional) starts the labels ("Crowd control"); enemy: the frame can
+-- show an enemy, where buffs can't be matched.
 local LIST_SINCE = "1.8.1"
-local function auraListRows(keyOf, what, only, dis, hidden)
+local function auraListRows(keyOf, what, only, dis, hidden, name, enemy)
     local AL = ns.AuraLists
     local friendlyDebuffs = what == "debuffs" and not only
+    name = name or (what == "buffs" and "Buff" or "Debuff")
     local items = {
-        { type = "dropdown", key = keyOf("hide"), label = "Hide list", since = LIST_SINCE,
+        { type = "dropdown", key = keyOf("hide"), label = name .. " hide list", since = LIST_SINCE,
           choices = function() return AL.Choices("hide") end, disabled = dis, hidden = hidden,
           desc = friendlyDebuffs
               and "Debuffs on this list never show here. The game only lets addons hide a few harmless debuffs on you and your group, like Sated; the Aura Lists page marks which. Make and fill lists on Unit Frames > Aura Lists."
               or "The " .. what .. " on this list never show here. Make and fill lists on Unit Frames > Aura Lists." },
     }
     if only then
-        items[#items + 1] = { type = "dropdown", key = keyOf("only"), label = "Show only list", since = LIST_SINCE,
+        items[#items + 1] = { type = "dropdown", key = keyOf("only"), label = name .. " show-only list", since = LIST_SINCE,
             choices = function() return AL.Choices("only") end, disabled = dis, hidden = hidden,
-            desc = what == "buffs"
+            desc = what == "buffs" and enemy
                 and "Shows only the buffs on this list, with the filter above still applying. An empty list shows them all. Buffs on an enemy can't be matched, so none show there while a list is picked."
-                or "Shows only the debuffs on this list, with the filter above still applying. An empty list shows them all." }
+                or "Shows only the " .. what .. " on this list, with the filter above still applying. An empty list shows them all." }
     end
     if friendlyDebuffs and keyOf("boss") then
         items[#items + 1] = { type = "toggle", key = keyOf("boss"), label = "Only boss debuffs", since = LIST_SINCE,
             disabled = dis, hidden = hidden,
-            desc = "Shows only the debuffs a boss puts on you, the ones a fight is about." }
+            desc = "Shows only the debuffs bosses put on players, the ones a fight is about." }
         items[#items + 1] = { type = "slider", key = keyOf("maxTime"), label = "Longest debuff shown", since = LIST_SINCE,
             min = 0, max = 600, step = 5, disabled = dis, hidden = hidden,
             desc = "Leaves out debuffs that last longer than this many seconds, and ones that never run out, like long curses and Resurrection Sickness. 0 shows them all." }
@@ -530,15 +538,15 @@ local function extraAuraCards(frame, gate)
             { type = "dropdown", key = g("what"), label = "Debuffs or buffs",
               values = { debuffs = "Debuffs", buffs = "Buffs" }, order = { "debuffs", "buffs" },
               desc = "Whether this extra group shows debuffs or buffs.", hidden = gone, disabled = dis },
-            { type = "dropdown", key = g("debuffWhich"), label = "Filter", values = dv, order = dorder,
+            { type = "dropdown", key = g("debuffWhich"), label = "Extra aura filter", values = dv, order = dorder,
               desc = "Which debuffs this group shows.", hidden = isNot("debuffs"), disabled = dis },
-            { type = "dropdown", key = g("buffWhich"), label = "Filter", values = bv, order = border,
+            { type = "dropdown", key = g("buffWhich"), label = "Extra aura filter", values = bv, order = border,
               desc = "Which buffs this group shows.", hidden = isNot("buffs"), disabled = dis },
         }
-        for _, it in ipairs(auraListRows(g, "debuffs", false, dis, isNot("debuffs"))) do items[#items + 1] = it end
+        for _, it in ipairs(auraListRows(g, "debuffs", false, dis, isNot("debuffs"), "Extra aura")) do items[#items + 1] = it end
         -- The buff rows share the slot's hide key with its debuff rows, one of them hidden.
-        for _, it in ipairs(auraListRows(g, "buffs", true, dis, isNot("buffs"))) do items[#items + 1] = it end
-        groupRows(items, g, dis, offAny(gate, g("timers")), gone)
+        for _, it in ipairs(auraListRows(g, "buffs", true, dis, isNot("buffs"), "Extra aura")) do items[#items + 1] = it end
+        groupRows(items, g, dis, offAny(gate, g("timers")), gone, { one = "Extra aura", many = "extra auras" })
         items[#items + 1] = { type = "button", label = "Remove this aura group", text = "Remove", hidden = gone,
             desc = "Takes this extra aura group off the frame. Add another in Design mode.",
             func = function() ns.Texts.Remove(ns.Raid.PageFrame(frame), "auras", slot) end }
@@ -653,8 +661,8 @@ local function indicatorCards(k, gate)
         local function s(key) return n(slot .. "." .. key) end
         local sdis = offAny(gate, n("show"), s("show"))
         choices[#choices + 1] = { id = slot, label = "Heal indicator " .. i, items = {
-            { type = "toggle", key = s("show"), label = "Use this heal indicator", disabled = dis, hidden = gone,
-              desc = "Shows this square on each member while its spell is on them. Group buffs (Mark of the Wild, Fortitude, the Blessings) show from anyone, and count down their last minute." },
+            { type = "toggle", key = s("show"), label = "Heal indicator on", disabled = dis, hidden = gone,
+              desc = "Shows this indicator on each member while its spell is on them. Group buffs (Mark of the Wild, Fortitude, the Blessings) show from anyone, and count down their last minute." },
             { type = "dropdown", key = s("spell"), label = "Heal indicator spell", fallback = "auto", disabled = sdis,
               hidden = gone,
               desc = "Your class's pick follows your class on every character. Pick one to watch it instead.",
@@ -673,58 +681,62 @@ local function indicatorCards(k, gate)
                   return values, order
               end },
             { type = "dropdown", key = s("paint"), label = "Heal indicator color",
-              values = { spell = "The spell's own", custom = "Custom color" }, order = { "spell", "custom" },
+              values = { spell = "The spell's own", custom = "One color" }, order = { "spell", "custom" },
               desc = "The spell's own color (Renew green, a shield blue), or one you pick.",
               disabled = sdis, hidden = gone },
             { type = "color", key = s("custom"), label = "Custom heal indicator color", disabled = sdis,
-              desc = "The square's color when Heal indicator color is Custom color.",
+              desc = "The indicator's color when Heal indicator color is One color.",
               hidden = function(get) return gone(get) or get(s("paint")) ~= "custom" end },
             { type = "dropdown", key = s("spot"), label = "Heal indicator position", values = ns.Spots.LABELS,
-              desc = "Where on the frame this square sits.",
+              desc = "Where on the frame this indicator sits.",
               order = ns.Spots.ORDER, disabled = sdis, hidden = gone },
             { type = "slider", key = s("x"), label = "Heal indicator left / right", min = -50, max = 50, step = 1,
-              desc = "Nudges this square sideways from its position.",
+              desc = "Nudges this indicator sideways from its position.",
               unit = "px", disabled = sdis, hidden = gone },
             { type = "slider", key = s("y"), label = "Heal indicator up / down", min = -50, max = 50, step = 1,
-              desc = "Nudges this square up or down from its position.",
+              desc = "Nudges this indicator up or down from its position.",
               unit = "px", disabled = sdis, hidden = gone },
         } }
     end
     return { DaylightUI.Options.PickCard({ label = "Heal indicators",
-        desc = "Small colored squares on each member for your heals over time and shields, like Renew or Power Word: Shield. Each square shows while your spell is on them.",
+        desc = "Small colored squares or spell icons on each member for your heals over time and shields, like Renew or Power Word: Shield. Each one shows while your spell is on them.",
         lead = {
             { type = "toggle", key = n("show"), label = "Show heal indicators", disabled = off(gate),
-              desc = "On in the Healer setup. Each class has its own picks; change them below." },
+              desc = "A small square or icon on each member while one of your heals over time or shields is on them. On in the Healer setup. Each class has its own picks; change them below." },
             { type = "slider", key = n("size"), label = "Heal indicator size", min = 4, max = 20, step = 1, unit = "px",
-              desc = "How big every square is.", disabled = dis },
-            { type = "toggle", key = n("swipe"), label = "Heal indicator swipe",
-              desc = "Each square darkens like a clock as your spell runs out.", disabled = dis },
+              desc = "How big every indicator is.", disabled = dis },
+            { type = "toggle", key = n("swipe"), label = "Heal indicator cooldown swipe",
+              desc = "Each indicator darkens like a clock as your spell runs out.", disabled = dis },
             { type = "dropdown", key = n("look"), label = "Heal indicator look",
               values = { square = "Colored square", icon = "Spell icon" }, order = { "square", "icon" },
               desc = "A square in the spell's color, or the spell's own icon edged in that color.", disabled = dis },
         },
-        pickDesc = "Which of the six squares the rows below set.",
+        pickDesc = "Which of the six indicators the rows below set.",
         pickHidden = gone, disabled = dis,
         choices = choices }) }
 end
 
+-- Each group's name in its rows' labels.
+local GROUP_KINDS = { debuffs = { one = "Debuff", many = "debuffs" }, cc = { one = "Crowd control", many = "crowd control icons" },
+                      buffs = { one = "Buff", many = "buffs" } }
 local function auraCards(k, gate)
     local AG, Spots = ns.AuraGroups, ns.Spots
     local cards = {}
     for _, def in ipairs(AG.DEFS) do
         local function g(key) return k("auras." .. def.key .. "." .. key) end
         local dis = offAny(gate, g("show"))
+        local kind = GROUP_KINDS[def.key] or { one = def.label, many = string.lower(def.label) }
         local items = { { type = "toggle", key = g("show"), label = "Show " .. string.lower(def.label),
-            desc = "Shows " .. string.lower(def.label) .. " icons on each member.", disabled = off(gate) } }
+            desc = "Shows " .. string.lower(kind.one) .. " icons on each member.", disabled = off(gate) } }
         if #def.choices > 1 then
             local values, order = filterValues(def)
-            items[#items + 1] = { type = "dropdown", key = g("which"), label = "Filter", values = values,
+            items[#items + 1] = { type = "dropdown", key = g("which"), label = kind.one .. " filter", values = values,
                                   desc = "Which " .. string.lower(def.label) .. " show.", order = order, disabled = dis }
         end
         local what = def.key == "buffs" and "buffs" or "debuffs"
         local keyOf = def.key == "cc" and function(f) return f == "hide" and g(f) or nil end or g
-        for _, it in ipairs(auraListRows(keyOf, what, def.key == "buffs", dis)) do items[#items + 1] = it end
-        groupRows(items, g, dis, offAny(gate, g("show"), g("timers")))
+        for _, it in ipairs(auraListRows(keyOf, what, def.key == "buffs", dis, nil, kind.one)) do items[#items + 1] = it end
+        groupRows(items, g, dis, offAny(gate, g("show"), g("timers")), nil, kind)
         if def.key == "cc" and AG.Refused(def, "cc") then
             for _, it in ipairs(items) do it.hidden = function() return true end end
         end
@@ -734,10 +746,10 @@ local function auraCards(k, gate)
         end
     end
     -- Private auras (GroupPrivate.lua): the client draws them, this only provides the spot.
-    cards[#cards + 1] = { label = "Boss debuffs",
+    cards[#cards + 1] = { label = "Hidden boss debuffs",
         desc = "Some boss abilities put debuffs on players that addons can't see. The game draws them itself, in the middle of the frame.",
-        items = { { type = "toggle", key = k("privateAuras"), label = "Show boss debuffs",
-                    desc = "Up to two big icons in the middle, with a sweep for the time left. They only appear when a boss uses them.",
+        items = { { type = "toggle", key = k("privateAuras"), label = "Show hidden boss debuffs",
+                    desc = "The boss debuffs addons can't read, drawn by the game: up to two big icons in the middle, with a sweep for the time left. They only appear when a boss uses them.",
                     disabled = off(gate) } } }
     return cards
 end
@@ -820,12 +832,12 @@ local function raidSizeCard(size)
     local R = ns.Raid
     return { label = "Raid size", desc = string.format("Raid frames for %s players, swapped in as the raid grows.", size == 20 and "11 to 20" or "21 to 40"), items = {
         { type = "toggle", label = "Same as Raid 10", anySize = true, disabled = off("raid.enabled"),
-          desc = "Uses the Raid 10 frames, and the rows below are grayed out. Turn it off to give this raid size its own, starting from a copy of Raid 10.",
+          desc = "Uses the Raid 10 frames, and the rest of this page is hidden. Turn it off to give this raid size its own, starting from a copy of Raid 10.",
           get = function() return R.Locked(size) end,
           set = function(v) R.SetFollow(size, v == true) end,
           default = function() return true end },
-        { type = "toggle", key = "raid" .. size .. ".ownSpot", label = "Own spot", anySize = true, disabled = off("raid.enabled"),
-          desc = string.format("Raid %d frames sit in a spot of their own, with their own handle when you unlock (/dui unlock), so a bigger raid can go where it fits. Off, they sit where Raid 10's do.", size) },
+        { type = "toggle", key = "raid" .. size .. ".ownSpot", label = "Raid " .. size .. " own position", anySize = true, disabled = off("raid.enabled"),
+          desc = string.format("Raid %d frames sit in a spot of their own, with their own handle when you unlock (/dui unlock), so a bigger raid can go where it fits. When off, they sit where Raid 10's do.", size) },
         { type = "button", label = "Copy Raid 10", text = "Copy", confirm = true, anySize = true,
           desc = "Replaces this raid size's frames with a copy of Raid 10.",
           hidden = function() return R.Locked(size) end,
@@ -893,7 +905,7 @@ local function looksCard(frame)
     for _, look in ipairs(ns.Looks.ORDER) do
         local label = ns.Looks.LABELS[look]
         items[#items + 1] = { type = "button", label = label, text = "Use",
-            desc = "Change your raid frames' auras and name to the " .. label .. " look. Click twice to confirm.",
+            desc = "Sets the auras and name on this page's raid frames to the " .. label .. " look. Click twice to confirm.",
             confirm = true, func = function() ns.Looks.Apply(look, ns.Raid.PageFrame(frame)) end }
     end
     return { label = "Quick looks", desc = "One click sets where the auras and the name sit. Change anything after.",
@@ -905,11 +917,12 @@ end
 local function spotItems(prefix, kind, gate)
     local k = function(s) return prefix .. "." .. kind .. s end
     local dis = off(gate)
+    local one = kind == "buff" and "Buff" or "Debuff"
     return {
-        { type = "dropdown", key = k("Spot"), label = "Position", values = ns.Spots.LABELS, order = ns.Spots.ORDER,
-          desc = "Over or under the frame, the buffs sit nearest it when both share a spot. Outside spots may need room around the frame.",
+        { type = "dropdown", key = k("Spot"), label = one .. " position", values = ns.Spots.LABELS, order = ns.Spots.ORDER,
+          desc = "Where the " .. kind .. " icons sit, on or around the frame. When debuffs and buffs share a spot over or under the frame, the buffs sit nearest it. Outside spots may need room around the frame.",
           disabled = dis },
-        { type = "dropdown", key = k("Grow"), label = "Grow direction", values = ns.Spots.GROW_LABELS,
+        { type = "dropdown", key = k("Grow"), label = one .. " grow direction", values = ns.Spots.GROW_LABELS,
           order = ns.Spots.GROW_ORDER, disabled = dis,
           desc = "Which way the row of icons fills from its first icon.",
           hidden = function(get) local s = get(k("Spot")); return s == "outleft" or s == "outright" end },
@@ -937,7 +950,7 @@ local function unitAuraCards(prefix, own, desc)
             values = { all = "All debuffs", dispel = "Only ones I can dispel" }, order = { "all", "dispel" },
             desc = own == "pet" and "Every debuff on your pet, or only the ones your class can remove."
                 or "Every debuff on you, or only the ones your class can remove.", disabled = dOff }
-        debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Max shown", min = 1, max = 16, step = 1,
+        debuffs[#debuffs + 1] = { type = "slider", key = k("maxDebuffs"), label = "Debuff max shown", min = 1, max = 16, step = 1,
                                   desc = "The most debuff icons at once.", disabled = dOff }
     else
         debuffs[#debuffs + 1] = { type = "dropdown", key = k("debuffFilter"), label = "Debuff filter", since = "1.8.0",
@@ -949,27 +962,27 @@ local function unitAuraCards(prefix, own, desc)
             step = 1, desc = "The most debuffs from other players, shown after yours. Only with Mine first, then others.",
             disabled = function(get) return get(k("debuffs")) ~= true or get(k("debuffFilter")) ~= "all" end }
     end
-    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffSpacing"), label = "Spacing", min = 0, max = 12, step = 1,
+    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffSpacing"), label = "Debuff spacing", min = 0, max = 12, step = 1,
                               desc = "The gap between debuff icons.", unit = "px", disabled = dOff }
-    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffRows"), label = "Rows", min = 1, max = 6, step = 1,
+    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffRows"), label = "Debuff rows", min = 1, max = 6, step = 1,
                               desc = "The debuffs wrap onto up to this many rows.", disabled = dOff }
-    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffTimeSize"), label = "Time left text size", min = 6, max = 20, step = 1,
+    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffTimeSize"), label = "Debuff time left text size", min = 6, max = 20, step = 1,
                               desc = "How big the time left is on each debuff icon.", disabled = dOff }
-    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffCountSize"), label = "Stack count size", min = 6, max = 20, step = 1,
+    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffCountSize"), label = "Debuff stack count size", min = 6, max = 20, step = 1,
                               desc = "How big the number of stacks is on each debuff icon.", disabled = dOff }
     local buffs = {
         { type = "toggle", key = k("buffs"), label = "Show buffs", desc = "Buff icons by this frame." },
         { type = "slider", key = k("buffSize"), label = "Buff size", min = 12, max = 36, step = 1, unit = "px",
           desc = "How big each buff icon is.", disabled = bOff },
-        { type = "slider", key = k("maxBuffs"), label = "Max shown", min = 1, max = 12, step = 1,
+        { type = "slider", key = k("maxBuffs"), label = "Buff max shown", min = 1, max = 12, step = 1,
           desc = "The most buff icons at once.", disabled = bOff },
-        { type = "slider", key = k("buffSpacing"), label = "Spacing", min = 0, max = 12, step = 1, unit = "px",
+        { type = "slider", key = k("buffSpacing"), label = "Buff spacing", min = 0, max = 12, step = 1, unit = "px",
           desc = "The gap between buff icons.", disabled = bOff },
-        { type = "slider", key = k("buffRows"), label = "Rows", min = 1, max = 6, step = 1,
+        { type = "slider", key = k("buffRows"), label = "Buff rows", min = 1, max = 6, step = 1,
           desc = "The buffs wrap onto up to this many rows.", disabled = bOff },
-        { type = "slider", key = k("buffTimeSize"), label = "Time left text size", min = 6, max = 20, step = 1,
+        { type = "slider", key = k("buffTimeSize"), label = "Buff time left text size", min = 6, max = 20, step = 1,
           desc = "How big the time left is on each buff icon.", disabled = bOff },
-        { type = "slider", key = k("buffCountSize"), label = "Stack count size", min = 6, max = 20, step = 1,
+        { type = "slider", key = k("buffCountSize"), label = "Buff stack count size", min = 6, max = 20, step = 1,
           desc = "How big the number of stacks is on each buff icon.", disabled = bOff },
     }
     if own == "pet" then
@@ -985,21 +998,22 @@ local function unitAuraCards(prefix, own, desc)
     -- Time numbers, sweep and tooltips: the same switches the party and raid icons have.
     local function look(list, kind, show)
         local dis = off(k(show))
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on icons", since = "1.8.0",
+        local one = kind == "buff" and "Buff" or "Debuff"
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Timers"), label = "Time left on " .. show, since = "1.8.0",
                             desc = "The time left as a number on each icon.", disabled = dis }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = "Only under a minute", since = "1.8.0",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "ShortTimers"), label = one .. " time left only under a minute", since = "1.8.0",
                             desc = "Hides the number while a minute or more is left, so long ones stay quiet.",
                             disabled = offAny(k(show), k(kind .. "Timers")) }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = "Cooldown swipe", since = "1.8.0",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Swipe"), label = one .. " cooldown swipe", since = "1.8.0",
                             desc = "Each icon darkens like a clock as its time runs out.", disabled = dis }
-        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = "Tooltip on hover", since = "1.8.0",
-                            desc = "Hovering an icon says what it is. Off, the mouse goes straight through to what's behind it.",
+        list[#list + 1] = { type = "toggle", key = k(kind .. "Tips"), label = one .. " tooltip on hover", since = "1.8.0",
+                            desc = "Hovering an icon says what it is. When off, the mouse goes straight through to what's behind it.",
                             disabled = dis }
     end
     -- Aura lists right after each row's filter (the third row).
     local function lists(list, kind, what, only)
         local keyOf = function(f) return k(kind .. f:sub(1, 1):upper() .. f:sub(2)) end
-        for i, it in ipairs(auraListRows(keyOf, what, only, off(k(what)))) do table.insert(list, 3 + i, it) end
+        for i, it in ipairs(auraListRows(keyOf, what, only, off(k(what)), nil, nil, not own)) do table.insert(list, 3 + i, it) end
     end
     lists(debuffs, "debuff", "debuffs", not own)
     lists(buffs, "buff", "buffs", true)
@@ -1016,21 +1030,21 @@ local TARGET_AURA_GROUPS = unitAuraCards("targetAuras", false, {
     buffs = "Small icons over the frame from its left end by default." })
 -- Off by default, since the buff bars by the info panel show the same.
 local PLAYER_AURA_GROUPS = unitAuraCards("playerAuras", true, {
-    debuffs = "Every debuff on you, over your frame from its right end. Off by default: your buff bars show them too.",
-    buffs = "Small icons over your frame from its left end. Off by default: your buff bars show them too." })
+    debuffs = "Every debuff on you, over your frame from its right end. Your buff bars show them too.",
+    buffs = "Small icons over your frame from its left end. Your buff bars show them too." })
 
 local FOCUS_AURA_GROUPS = unitAuraCards("focusAuras", false, {
     debuffs = "Over the focus from its right end. Only yours by default.",
-    buffs = "Small icons over the focus from its left end. Off by default." })
+    buffs = "Small icons over the focus from its left end." })
 
 local PET_AURA_GROUPS = unitAuraCards("petAuras", "pet", {
-    debuffs = "Every debuff on your pet, under its frame. Off by default.",
-    buffs = "Small icons under your pet's frame. Off by default." })
+    debuffs = "Every debuff on your pet, under its frame.",
+    buffs = "Small icons under your pet's frame." })
 
 -- The personal display's own rows, dimmed with the display.
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {
-    debuffs = "Every debuff on you, by your personal display. Off by default.",
-    buffs = "Buff icons by your personal display. Off by default." })
+    debuffs = "Every debuff on you, by your personal display.",
+    buffs = "Buff icons by your personal display." })
 
 -- Each frame's aura rows dim with the frame itself, as its other cards do.
 local function dimWith(cards, key)
@@ -1062,7 +1076,7 @@ local GENERAL_FONT = " General uses the font on General > Appearance."
 -- A bar's two rows as a list, for keys like "player.media.health" (key, key .. "Back").
 local function barRows(key, what, label, dis)
     return { mediaRow("bar", key, label .. " texture", "The fill of " .. what .. "." .. GENERAL_BAR, dis),
-        mediaRow("back", key .. "Back", label .. " background", "The empty part of " .. what .. ", behind the fill." .. GENERAL_BACK, dis) }
+        mediaRow("back", key .. "Back", label .. " background texture", "The empty part of " .. what .. ", behind the fill." .. GENERAL_BACK, dis) }
 end
 local function fontRow(key, label, what, dis)
     return mediaRow("font", key, label, what .. "." .. GENERAL_FONT, dis)
@@ -1102,15 +1116,15 @@ local function swingBarCard()
             { type = "toggle", key = b("detach"), label = "Detach the " .. lower .. " bar",
               desc = "Takes the " .. lower .. " bar out of the group onto a handle of its own (/dui unlock), with the settings below. It rises into place as it fades in.",
               disabled = gone },
-            { type = "dropdown", key = b("visibility"), label = name .. ": when to show",
+            { type = "dropdown", key = b("visibility"), label = name .. " bar visibility",
               values = { swinging = "While swinging", combat = "In combat", always = "Always" },
               order = { "swinging", "combat", "always" },
               desc = "While swinging: only while its swing runs. In combat: while you're fighting. Only when detached on its own.",
               disabled = dis, hidden = attached },
             { type = "slider", key = b("width"), label = name .. " bar width", min = 80, max = 500, step = 1,
-              desc = "Only when detached on its own.", disabled = dis, hidden = attached },
+              desc = "How wide the " .. lower .. " bar is. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "slider", key = b("height"), label = name .. " bar height", min = 6, max = 30, step = 1, unit = "px",
-              desc = "Only when detached on its own.", disabled = dis, hidden = attached },
+              desc = "How tall the " .. lower .. " bar is. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "slider", key = b("textSize"), label = name .. " bar text size", min = 6, max = 24, step = 1,
               desc = "The hand and time on the bar. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "toggle", key = b("showName"), label = name .. " bar name",
@@ -1121,11 +1135,11 @@ local function swingBarCard()
             { type = "toggle", key = b("showIcon"), label = name .. " bar weapon icon",
               desc = "The weapon's picture at the start of the bar. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "toggle", key = b("slant"), label = name .. " bar angled right end",
-              desc = "Only when detached on its own.", disabled = dis, hidden = attached },
+              desc = "Cuts the " .. lower .. " bar's right end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "toggle", key = b("slantLeft"), label = name .. " bar angled left end",
-              desc = "Only when detached on its own.", disabled = dis, hidden = attached },
+              desc = "Cuts the " .. lower .. " bar's left end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "toggle", key = b("reverseFill"), label = name .. " bar fills right to left",
-              desc = "Only when detached on its own.", disabled = dis, hidden = attached },
+              desc = "The " .. lower .. " bar fills from the right. Only when detached on its own.", disabled = dis, hidden = attached },
         } }
     end
     return DaylightUI.Options.PickCard({ label = "Detached bars",
@@ -1217,7 +1231,7 @@ local function personalBarRows(bar, dis)
     local rows = {
         DaylightUI.Options.MediaPick("bar", key, label .. " texture", "The fill of the bar." .. follow,
             { disabled = dis, follows = { slot = slot, label = "Player frame" } }),
-        DaylightUI.Options.MediaPick("back", key .. "Back", label .. " background", "The empty part of the bar, behind the fill." .. follow,
+        DaylightUI.Options.MediaPick("back", key .. "Back", label .. " background texture", "The empty part of the bar, behind the fill." .. follow,
             { disabled = dis, follows = { slot = slot .. ".back", label = "Player frame" } }),
     }
     local values, order = { player = "Player frame" }, { "player" }
@@ -1246,34 +1260,34 @@ local function personalTextCard()
     local health = offAny("personal.enabled", k("showHealth"), k("showPercent"))
     local power = offAny("personal.enabled", k("showPower"), k("showPowerText"))
     return { label = "Text", items = {
-        { type = "toggle", key = k("showPercent"), label = "Health text",
+        { type = "toggle", key = k("showPercent"), label = "Personal health text",
           desc = "Your health written on the personal display's health bar.",
           disabled = offAny("personal.enabled", k("showHealth")) },
-        { type = "dropdown", key = k("healthText"), label = "Health text format", values = UF.HEALTH_FORMATS,
-          order = UF.HEALTH_FORMAT_ORDER, desc = "Missing health shows nothing while you're at full.", disabled = health },
-        { type = "toggle", key = k("percentSign"), label = "Show % sign",
+        { type = "dropdown", key = k("healthText"), label = "Personal health text format", values = UF.HEALTH_FORMATS,
+          order = UF.HEALTH_FORMAT_ORDER, desc = "How the health text is written. Missing health shows nothing while you're at full.", disabled = health },
+        { type = "toggle", key = k("percentSign"), label = "Personal health text % sign",
           desc = "62% rather than 62, when the health text shows a percent.", disabled = signOff(health, k("healthText")) },
-        { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
+        { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show personal health text at full",
           desc = "The health text shows at full health too. When off, it disappears while you're at full.", disabled = health },
-        { type = "dropdown", key = k("healthTextPos"), label = "Health text position", values = UF.POWER_TEXT_POS,
+        { type = "dropdown", key = k("healthTextPos"), label = "Personal health text position", values = UF.POWER_TEXT_POS,
           order = UF.POWER_TEXT_POS_ORDER, desc = "Where along the health bar the health text sits.", disabled = health },
-        { type = "slider", key = k("healthTextSize"), label = "Health text size", min = 0, max = 24, step = 1,
-          desc = "Set to 0 to fit the bar.", disabled = health },
-        font("health", "Health text font", health),
-        { type = "toggle", key = k("showPowerText"), label = "Power text",
+        { type = "slider", key = k("healthTextSize"), label = "Personal health text size", min = 0, max = 24, step = 1,
+          desc = "How big the health text is. 0 fits it to the bar.", disabled = health },
+        font("health", "Personal health text font", health),
+        { type = "toggle", key = k("showPowerText"), label = "Personal power text",
           desc = "Your mana, rage or energy written on the personal display's power bar.",
           disabled = offAny("personal.enabled", k("showPower")) },
-        { type = "dropdown", key = k("powerFormat"), label = "Power text format", values = UF.POWER_FORMATS,
+        { type = "dropdown", key = k("powerFormat"), label = "Personal power text format", values = UF.POWER_FORMATS,
           order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.", disabled = power },
-        { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+        { type = "toggle", key = k("powerPercentSign"), label = "Personal power text % sign",
           desc = "80% rather than 80, when the power text shows a percent.", disabled = signOff(power, k("powerFormat")) },
-        { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
+        { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show personal power text at full",
           desc = "The power text shows while mana, rage or energy is full too. When off, it disappears at full.", disabled = power },
-        { type = "dropdown", key = k("powerTextPos"), label = "Power text position", values = UF.POWER_TEXT_POS,
+        { type = "dropdown", key = k("powerTextPos"), label = "Personal power text position", values = UF.POWER_TEXT_POS,
           order = UF.POWER_TEXT_POS_ORDER, desc = "Where along the power bar the power text sits.", disabled = power },
-        { type = "slider", key = k("powerTextSize"), label = "Power text size", min = 0, max = 24, step = 1,
-          desc = "Set to 0 to fit the bar.", disabled = power },
-        font("power", "Power text font", power),
+        { type = "slider", key = k("powerTextSize"), label = "Personal power text size", min = 0, max = 24, step = 1,
+          desc = "How big the power text is. 0 fits it to the bar.", disabled = power },
+        font("power", "Personal power text font", power),
     } }
 end
 
@@ -1353,43 +1367,43 @@ local function petCard()
     return { label = "Pets", desc = "A small bar beside each party member who has a pet out. Your own pet keeps its own frame.", items = {
         { type = "toggle", key = p("enabled"), label = "Show pets", disabled = off("party.enabled"),
           desc = "A small pet bar beside each party member whose pet is out." },
-        { type = "dropdown", key = p("spot"), label = "Position", values = ns.PartyPets.SPOTS, order = ns.PartyPets.SPOT_ORDER,
+        { type = "dropdown", key = p("spot"), label = "Pet position", values = ns.PartyPets.SPOTS, order = ns.PartyPets.SPOT_ORDER,
           desc = "Which side of its owner's frame each pet bar sits on.", disabled = petOff },
         { type = "slider", key = p("x"), label = "Pets left / right", min = -50, max = 50, step = 1, unit = "px",
           desc = "Nudges the pet bars sideways from their position.", disabled = petOff },
         { type = "slider", key = p("y"), label = "Pets up / down", min = -50, max = 50, step = 1, unit = "px",
           desc = "Nudges the pet bars up or down from their position.", disabled = petOff },
-        { type = "slider", key = p("width"), label = "Width", min = 20, max = 200, step = 1,
+        { type = "slider", key = p("width"), label = "Pet width", min = 20, max = 200, step = 1,
           desc = "How wide each pet bar is.", disabled = petOff },
-        { type = "slider", key = p("height"), label = "Height", min = 10, max = 120, step = 1,
+        { type = "slider", key = p("height"), label = "Pet height", min = 10, max = 120, step = 1,
           desc = "How tall each pet bar is. It can be as tall as a party frame, for a narrow pet bar standing beside each member.", disabled = petOff },
         { type = "toggle", key = p("fillVertical"), label = "Pets fill upward",
           desc = "Each pet's health bar fills bottom to top instead of across, for tall, narrow pet bars.", disabled = petOff },
-        barRows(p("media.health"), "the pets' health bars", "Health bar", petOff)[1],
-        barRows(p("media.health"), "the pets' health bars", "Health bar", petOff)[2],
-        { type = "toggle", key = p("slant"), label = "Angled end",
+        barRows(p("media.health"), "the pets' health bars", "Pet health bar", petOff)[1],
+        barRows(p("media.health"), "the pets' health bars", "Pet health bar", petOff)[2],
+        { type = "toggle", key = p("slant"), label = "Pet angled end",
           desc = "Cuts one end of each pet bar at an angle. When off, the ends are straight.", disabled = petOff },
-        { type = "dropdown", key = p("color"), label = "Bar color", values = ns.PartyPets.COLORS, order = ns.PartyPets.COLOR_ORDER,
+        { type = "dropdown", key = p("color"), label = "Pet bar color", values = ns.PartyPets.COLORS, order = ns.PartyPets.COLOR_ORDER,
           desc = "Its owner's class tells at a glance whose pet it is.", disabled = petOff },
-        { type = "toggle", key = p("showPower"), label = "Power bar",
+        { type = "toggle", key = p("showPower"), label = "Pet power bar",
           desc = "A thin power bar under each pet's health.", disabled = offAny("party.enabled", p("enabled")) },
-        { type = "slider", key = p("powerHeight"), label = "Power bar height", min = 2, max = 12, step = 1,
+        { type = "slider", key = p("powerHeight"), label = "Pet power bar height", min = 2, max = 12, step = 1,
           desc = "How tall the pets' power bars are.", disabled = offAny("party.enabled", p("enabled"), p("showPower")) },
-        barRows(p("media.power"), "the pets' power bars", "Power bar", offAny("party.enabled", p("enabled"), p("showPower")))[1],
-        barRows(p("media.power"), "the pets' power bars", "Power bar", offAny("party.enabled", p("enabled"), p("showPower")))[2],
-        { type = "toggle", key = p("showName"), label = "Name",
+        barRows(p("media.power"), "the pets' power bars", "Pet power bar", offAny("party.enabled", p("enabled"), p("showPower")))[1],
+        barRows(p("media.power"), "the pets' power bars", "Pet power bar", offAny("party.enabled", p("enabled"), p("showPower")))[2],
+        { type = "toggle", key = p("showName"), label = "Pet name",
           desc = "Shows each pet's name.", disabled = petOff },
-        { type = "slider", key = "partyPetText.name", label = "Name size", min = 6, max = 24, step = 1,
+        { type = "slider", key = "partyPetText.name", label = "Pet name size", min = 6, max = 24, step = 1,
           desc = "How big the pets' names are.", disabled = offAny("party.enabled", p("enabled"), p("showName")) },
-        fontRow(p("media.nameFont"), "Name font", "The pets' names", offAny("party.enabled", p("enabled"), p("showName"))),
-        { type = "toggle", key = p("showPercent"), label = "Health text",
+        fontRow(p("media.nameFont"), "Pet name font", "The pets' names", offAny("party.enabled", p("enabled"), p("showName"))),
+        { type = "toggle", key = p("showPercent"), label = "Pet health text",
           desc = "Shows each pet's health as text.", disabled = petOff },
-        { type = "dropdown", key = p("healthText"), label = "Health text format",
+        { type = "dropdown", key = p("healthText"), label = "Pet health text format",
           values = UF.HEALTH_FORMATS, order = UF.HEALTH_FORMAT_ORDER, desc = "How the pets' health text is written.",
           disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
-        { type = "slider", key = "partyPetText.percent", label = "Health text size", min = 6, max = 24, step = 1,
+        { type = "slider", key = "partyPetText.percent", label = "Pet health text size", min = 6, max = 24, step = 1,
           desc = "How big the pets' health text is.", disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
-        fontRow(p("media.healthFont"), "Health text font", "The pets' health text", offAny("party.enabled", p("enabled"), p("showPercent"))),
+        fontRow(p("media.healthFont"), "Pet health text font", "The pets' health text", offAny("party.enabled", p("enabled"), p("showPercent"))),
     } }
 end
 
@@ -1421,7 +1435,7 @@ local function fillStyleRow(row)
         order[#order + 1] = s
     end
     row.desc = styleDesc() .. (row.ownPick
-        and " Default uses the style set for every frame (Extras > Frame style). Each style keeps its own heights."
+        and " Default uses the style set for every frame on Unit Frames > Extras. Each style keeps its own heights."
         or " Each frame can pick its own on its page.")
 end
 function ns.StyleRowsChanged()
@@ -1456,7 +1470,7 @@ local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
 local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
-    ["Heal indicators"] = "Auras", ["Boss debuffs"] = "Auras", Dispels = "Auras" }
+    ["Heal indicators"] = "Auras", ["Hidden boss debuffs"] = "Auras", Dispels = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
     if string.find(label, "^Extra text") then return "Text" end
@@ -1620,9 +1634,9 @@ local function framePage(id, label, desc, opts)
             desc = "On its own, the power bar leaves the frame and you can move it anywhere in unlock mode, like the middle of the screen. The frame is then all health.",
             disabled = powerOff }
         frame[#frame + 1] = { type = "slider", key = k("powerWidth"), label = "Power bar width", min = 40, max = 500, step = 1,
-            desc = "Only while the power bar is on its own.", disabled = notFree }
+            desc = "How wide the power bar is. Only while it's on its own.", disabled = notFree }
         frame[#frame + 1] = { type = "toggle", key = k("powerSlant"), label = "Power bar angled end",
-            desc = "Only while the power bar is on its own. When off, both ends are straight.", disabled = notFree }
+            desc = "Cuts the power bar's end at an angle, on the same side as the frame's. Only while it's on its own. When off, both ends are straight.", disabled = notFree }
         frame[#frame + 1] = { type = "toggle", key = k("powerSlantBoth"), label = "Power bar angled at both ends",
             desc = "Angles its other end too, and a cast bar hung under it follows both. Only while the power bar is on its own with its angled end on.",
             disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end }
@@ -1640,7 +1654,7 @@ local function framePage(id, label, desc, opts)
             desc = "The health bar fills bottom to top instead of across.", disabled = shown }
     end
     if opts.spacing then
-        frame[#frame + 1] = { type = "slider", key = k("spacing"), label = "Spacing", min = 0, max = 80, step = 1,
+        frame[#frame + 1] = { type = "slider", key = k("spacing"), label = "Frame spacing", min = 0, max = 80, step = 1,
             desc = id == "arena" and "The gap between one PvP frame and the next." or "The gap between one party frame and the next.", disabled = shown }
     end
     if opts.portrait then
@@ -1665,7 +1679,9 @@ local function framePage(id, label, desc, opts)
                 desc = "On its own, the portrait leaves the frame and you can move it anywhere in unlock mode. The frame is then all bars.",
                 disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
             frame[#frame + 1] = { type = "toggle", key = k("portraitIconsStay"), label = "Icons stay on the frame",
-                desc = "With the portrait on its own, the crown, resting Zzz, PvP flag, level badge and DoT skull stay on the frame instead of going with it.",
+                desc = "With the portrait on its own, " .. (opts.combat and "the crown, resting Zzz, PvP flag and level badge"
+                    or opts.dots and "the crown, PvP flag, level badge and DoT skull" or "the crown, PvP flag and level badge")
+                    .. " stay on the frame instead of going with it.",
                 disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
                     or get(k("portraitAt")) ~= "free" end, hidden = onCard }
         end
@@ -1723,8 +1739,8 @@ local function framePage(id, label, desc, opts)
 
     local nameOff = offAny(k("enabled"), k("showName"))
     local text = {
-        { type = "toggle", key = k("showName"), label = (opts.tab and not opts.small) and "Name tab" or "Name",
-          desc = (opts.tab and not opts.small) and "The name sits in a small tab above the frame. Long names are cut short."
+        { type = "toggle", key = k("showName"), label = "Name",
+          desc = (opts.tab and not opts.small) and "The unit's name, in a small tab above the frame. Long names are cut short."
               or "Shows the unit's name on this frame.",
           disabled = shown, hidden = noTabStyle },
         lastNames(id),
@@ -1732,7 +1748,7 @@ local function framePage(id, label, desc, opts)
           desc = "This frame's own name color. Same as the Colors page follows the name color every frame shares.",
           disabled = nameOff },
         { type = "color", key = k("nameCustom"), label = "Custom name color", hidden = notCustom(k("nameColor")),
-          desc = "The name's color when Name color is Custom.", disabled = nameOff },
+          desc = "The name's color when Name color is One color.", disabled = nameOff },
         { type = "slider", key = k("nameLimitLen"), label = "Max name length", min = 0, max = 24, step = 1,
           desc = "Letters shown before a long name is shortened. 0 shows names in full. In instances some names can't be shortened and show in full.", disabled = nameOff },
     }
@@ -1769,15 +1785,15 @@ local function framePage(id, label, desc, opts)
             desc = "The name sits on the card's picture, at its top outer corner. Long names are cut short.",
             disabled = shown, hidden = noCard })
     end
-    text[#text + 1] = fontRow(m("nameFont"), "Name font", "This frame's names, and its level badge", shown)
+    text[#text + 1] = fontRow(m("nameFont"), "Name font", opts.portrait and "This frame's names, and its level badge" or "This frame's names", shown)
     if opts.healthText then
         text[#text + 1] = { type = "toggle", key = k("showPercent"), label = "Health text",
             desc = "The unit's health written on this frame.", disabled = shown }
         text[#text + 1] = { type = "dropdown", key = k("healthText"), label = "Health text format",
             values = UF.HEALTH_FORMATS, order = UF.HEALTH_FORMAT_ORDER,
-            desc = "Missing health shows nothing while the unit is at full.",
+            desc = "How the health text is written. Missing health shows nothing while the unit is at full.",
             disabled = offAny(k("enabled"), k("showPercent")) }
-        text[#text + 1] = { type = "toggle", key = k("percentSign"), label = "Show % sign",
+        text[#text + 1] = { type = "toggle", key = k("percentSign"), label = "Health text % sign",
             desc = "62% rather than 62, when the health text shows a percent.",
             disabled = signOff(offAny(k("enabled"), k("showPercent")), k("healthText")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
@@ -1789,14 +1805,14 @@ local function framePage(id, label, desc, opts)
             values = TEXT_COLORS, order = TEXT_COLOR_ORDER, desc = "White, the unit's class color, or one you pick.",
             disabled = offAny(k("enabled"), k("showPercent")) }
         text[#text + 1] = { type = "color", key = k("percentCustom"), label = "Custom health text color",
-            desc = "The health text's color when Health text color is Custom.",
+            desc = "The health text's color when Health text color is One color.",
             hidden = notCustom(k("percentColor")), disabled = offAny(k("enabled"), k("showPercent")) }
-        text[#text + 1] = fontRow(m("healthFont"), "Health text font", "This frame's health text and large number",
+        text[#text + 1] = fontRow(m("healthFont"), "Health text font", opts.big and "This frame's health text and large number" or "This frame's health text",
             offAny(k("enabled"), k("showPercent")))
     end
     if opts.big then
         text[#text + 1] = { type = "toggle", key = k("bigNumber"), label = "Large health number",
-            desc = "Shows the health text large and white in the frame's inner corner (in Ribbon, at the inner end of the row above the bar).",
+            desc = "Shows the health text large in the frame's inner corner (in Ribbon, at the inner end of the row above the bar), in the Health text color.",
             disabled = offAny(k("enabled"), k("showPercent")) }
     end
     if opts.power then
@@ -1805,7 +1821,7 @@ local function framePage(id, label, desc, opts)
         text[#text + 1] = { type = "dropdown", key = k("powerFormat"), label = "Power text format",
             values = UF.POWER_FORMATS, order = UF.POWER_FORMAT_ORDER, desc = "How the power text is written.",
             disabled = powerTextOff }
-        text[#text + 1] = { type = "toggle", key = k("powerPercentSign"), label = "Show % sign",
+        text[#text + 1] = { type = "toggle", key = k("powerPercentSign"), label = "Power text % sign",
             desc = "80% rather than 80, when the power text shows a percent.",
             disabled = signOff(powerTextOff, k("powerFormat")) }
         text[#text + 1] = { type = "toggle", key = k("hideFullPower"), invert = true, label = "Show power text at full",
@@ -1834,7 +1850,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.powerPos then
         text[#text + 1] = { type = "slider", key = t("power"), label = "Power text size", min = 0, max = 24, step = 1,
-            desc = "Set to 0 to fit the bar.", disabled = powerTextOff }
+            desc = "How big the power text is. 0 fits it to the bar.", disabled = powerTextOff }
     end
     if opts.big then
         text[#text + 1] = { type = "slider", key = t("big"), label = "Large number size", min = 10, max = 40, step = 1,
@@ -1882,11 +1898,11 @@ local function framePage(id, label, desc, opts)
     if opts.place then
         -- Each frame sits beside its party member (PartyTargets.lua).
         table.insert(groups, 2, { label = "Position", items = {
-            { type = "dropdown", key = k("spot"), label = "Position", since = "1.8.0", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
+            { type = "dropdown", key = k("spot"), label = "Party target position", since = "1.8.0", values = ns.PartyTargets.SPOTS, order = ns.PartyTargets.SPOT_ORDER,
               desc = "Which side of the party member's frame their target sits on. Past a party pet on the same side.", disabled = shown },
-            { type = "slider", key = k("x"), label = "Left / right", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
+            { type = "slider", key = k("x"), label = "Party targets left / right", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
               desc = "Nudges every party target sideways from its position.", disabled = shown },
-            { type = "slider", key = k("y"), label = "Up / down", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
+            { type = "slider", key = k("y"), label = "Party targets up / down", since = "1.8.0", min = -100, max = 100, step = 1, unit = "px",
               desc = "Nudges every party target up or down from its position.", disabled = shown },
         } })
     end
@@ -1924,7 +1940,7 @@ local function framePage(id, label, desc, opts)
             disabled = homeDis }
         local levelOff = function(get) return homeDis(get) or get(k("showLevel")) == false end
         extras[#extras + 1] = { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
-            order = LEVEL_ORDER, desc = "Or drag the badge in Design mode.", disabled = levelOff }
+            order = LEVEL_ORDER, desc = "Where the level badge sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff }
         extras[#extras + 1] = { type = "slider", key = k("levelX"), label = "Level left / right", min = -50, max = 50, step = 1,
             desc = "Nudges the level badge sideways. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
         extras[#extras + 1] = { type = "slider", key = k("levelY"), label = "Level up / down", min = -50, max = 50, step = 1,
@@ -2031,13 +2047,13 @@ local function framePage(id, label, desc, opts)
             desc = "Which end of the frame the stripe sits in. On an angled end it follows the angle.",
             disabled = stripeOff }
         extras[#extras + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
-            order = ns.Spots.ORDER, desc = "Where on or around the frame it sits.", disabled = besideOff }
+            order = ns.Spots.ORDER, desc = "Where the happiness square or face sits, on or around the frame.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",
-            desc = "How big it is.", disabled = besideOff }
+            desc = "How big the happiness square or face is.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessX"), label = "Happiness left / right", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it sideways.", disabled = besideOff }
+            desc = "Nudges the happiness square or face sideways.", disabled = besideOff }
         extras[#extras + 1] = { type = "slider", key = k("happinessY"), label = "Happiness up / down", min = -50, max = 50, step = 1, unit = "px",
-            desc = "Nudges it up or down.", disabled = besideOff }
+            desc = "Nudges the happiness square or face up or down.", disabled = besideOff }
         extras[#extras + 1] = { type = "toggle", key = k("happinessBar"), label = "Color health bar by happiness",
             desc = "The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn Pet happiness off to have only this.",
             disabled = shown }
@@ -2057,7 +2073,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.pets then groups[#groups + 1] = petCard() end
     if opts.tile then
-        groups[#groups + 1] = { label = "Dispels", desc = "A debuff you can remove, as tiles show it.",
+        groups[#groups + 1] = { label = "Dispels", desc = "How a debuff you can remove shows on each party frame: an icon, a highlight or a glow.",
             items = dispelItems(k, k("enabled"), 32, "frame") }
         groups[#groups + 1] = { label = "Icon positions and sizes",
             desc = "The role, marker and crown ride with the name tab or portrait until you pick a spot for them. The dispel icon sits in a corner.",
@@ -2073,7 +2089,7 @@ local function framePage(id, label, desc, opts)
               desc = "At 5 the party is one line. Fewer makes a grid.", disabled = shown },
             { type = "slider", key = k("groupSpacing"), label = "Line spacing", min = 0, max = 80, step = 1,
               desc = "The gap between lines, when there's more than one.", disabled = shown },
-            { type = "dropdown", key = k("sortBy"), label = "Sort by", values = SORT_VALUES, order = SORT_ORDER,
+            { type = "dropdown", key = k("sortBy"), label = "Sort frames by", values = SORT_VALUES, order = SORT_ORDER,
               desc = "Group keeps the party's own order.", disabled = shown },
             { type = "toggle", key = k("hideSelf"), invert = true, label = "Show yourself",
               desc = "Your own frame sits with the party's. When off, only the rest of the party shows.", disabled = shown },
@@ -2102,6 +2118,8 @@ end
 -- The cast bar cards: where each bar sits (CastBar.AT) and what grays out
 -- there. ownSize: a bar of its own (not inside the frame, not hung under it).
 local CB = ns.CastBar
+-- Each cast bar's name at the start of its row labels.
+local CAST_WHO = { player = "Your cast bar", target = "Target cast bar", focus = "Focus cast bar", party = "Party cast bar" }
 local function atChoice(unit, desc)
     local values = {}
     for _, v in ipairs(CB.AT[unit]) do values[v] = CB.AT_LABELS[v] end
@@ -2118,7 +2136,7 @@ local function atChoice(unit, desc)
         local cfg = liveGet(unit)
         return UF.StyleDef(cfg).line or UF.StyleDef(cfg).backdrop or not UF.ShowsPower(cfg)
     end
-    return { type = "dropdown", key = unit .. "Castbar.at", since = "1.5.1", label = "Position", values = values, order = CB.AT[unit],
+    return { type = "dropdown", key = unit .. "Castbar.at", since = "1.5.1", label = CAST_WHO[unit] .. " position", values = values, order = CB.AT[unit],
              choices = function()
                  if outside() then return values, outsideOrder end
                  return values, CB.AT[unit]
@@ -2141,7 +2159,7 @@ end
 -- A nudge for a bar above or below its frame: axis "x" (sideways) or "y".
 local function nudge(unit, axis)
     local x = axis == "x"
-    return { type = "slider", key = unit .. "Castbar." .. axis, label = x and "Cast bar left / right" or "Cast bar up / down",
+    return { type = "slider", key = unit .. "Castbar." .. axis, label = CAST_WHO[unit] .. (x and " left / right" or " up / down"),
              min = x and -200 or -100, max = x and 200 or 100, step = 1, unit = "px",
              desc = x and "Above or below the frame: moves the bar sideways from the middle."
                  or "Above or below the frame: moves the bar up or down.",
@@ -2152,8 +2170,8 @@ local function nudge(unit, axis)
 end
 -- Above or below the frame, the bar can take the frame's width (fitFrame).
 local function fitRow(unit)
-    return { type = "toggle", key = unit .. "Castbar.fitFrame", label = "Match the frame's width",
-             desc = "Above or below the frame, the bar is as wide as the frame. Off: the Width below.",
+    return { type = "toggle", key = unit .. "Castbar.fitFrame", label = CAST_WHO[unit] .. " matches the frame's width",
+             desc = "Above or below the frame, the bar is as wide as the frame. When off, it takes the width below.",
              disabled = function(get)
                  local at = atOf(get, unit)
                  return get(unit .. "Castbar.enabled") ~= true or not (at == "above" or at == "below")
@@ -2225,9 +2243,10 @@ end
 local attached = notOwnSize("player")
 -- Flipping needs an angled end, on a bar with its own shape.
 local function flipRow(unit, who, notOwn)
-    return { type = "toggle", key = unit .. "Castbar.slantUnder", label = "Flip the angles", since = "1.9.1",
+    return { type = "toggle", key = unit .. "Castbar.slantUnder", label = unit == "player" and "Flip your cast bar's angles" or ("Flip the " .. string.lower(CAST_WHO[unit]) .. "'s angles"), since = "1.9.1",
              desc = "Tips the angled ends the other way, so " .. who .. " cast bar is wider at the bottom than the top. "
-                 .. (unit == "player" and "Not while under the frame or under the personal display." or "Not inside the frame or sliding out under it."),
+                 .. (unit == "player" and "Not while under the frame or under the personal display."
+                     or unit == "target" and "Not inside the frame or sliding out under it." or "Not inside the frame."),
              disabled = function(get)
                  return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
                      or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
@@ -2236,7 +2255,7 @@ end
 
 -- A raid page: Raid 10, 20 or 40 (Raid.lua's setups by raid size).
 local RAID_PAGE_DESC = {
-    [10] = "Small tiles for a raid of up to 10: one column per group, left to right. Show, fade, textures and fonts here count for every raid size; your party has its own page.",
+    [10] = "Small tiles for a raid of up to 10: one column per group, left to right. Raid 20 and Raid 40 use these too while they're Same as Raid 10. Show, fade, textures and fonts here count for every raid size; your party has its own page.",
     [20] = "The raid frames for 11 to 20 players. Show, fade, textures and fonts are on the Raid 10 page.",
     [40] = "The raid frames for 21 to 40 players. Show, fade, textures and fonts are on the Raid 10 page.",
 }
@@ -2246,11 +2265,11 @@ local function raidPage(size)
         { type = "toggle", key = "raid.enabled", label = "Show raid frames", desc = "Replaces the game's raid frames while you're in a raid." },
         { type = "toggle", key = "raid.showInParty", label = "Use raid frames in a party",
           desc = "Shows these raid frames in a party too, in place of the party frames.", disabled = off("raid.enabled") },
-        growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Groups", off("raid.enabled"),
+        growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Lines", off("raid.enabled"),
                  function(f) return "raid." .. f end)[1],
-        growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Groups", off("raid.enabled"),
+        growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Lines", off("raid.enabled"),
                  function(f) return "raid." .. f end)[2],
-        { type = "dropdown", key = "raid.sortBy", label = "Sort tiles by",
+        { type = "dropdown", key = "raid.sortBy", label = "Sort frames by",
           values = RAID_SORT_VALUES, order = RAID_SORT_ORDER, desc = SORT_DESC, disabled = off("raid.enabled") },
         { type = "slider", key = "raid.groups", label = "Show groups up to", min = 1, max = 8, step = 1,
           desc = "Hides the higher raid groups, e.g. 4 for a 20-player raid.", disabled = off("raid.enabled") },
@@ -2267,11 +2286,11 @@ local function raidPage(size)
         backColorRows("raid", "Health", off("raid.enabled"))[2],
         backColorRows("raid", "Health", off("raid.enabled"))[3],
         backColorRows("raid", "Health", off("raid.enabled"))[4],
-        { type = "slider", key = "raid.spacing", label = "Spacing", min = 0, max = 20, step = 1,
-          desc = "Gap between members of a group.", disabled = off("raid.enabled") },
-        { type = "slider", key = "raid.groupSpacing", label = "Group spacing", min = 0, max = 30, step = 1,
-          desc = "Gap between groups.", disabled = off("raid.enabled") },
-        { type = "slider", key = "raid.perLine", label = "Tiles per line", min = 1, max = 40, step = 1,
+        { type = "slider", key = "raid.spacing", label = "Frame spacing", min = 0, max = 20, step = 1,
+          desc = "The gap between one raid tile and the next in a line.", disabled = off("raid.enabled") },
+        { type = "slider", key = "raid.groupSpacing", label = "Line spacing", min = 0, max = 30, step = 1,
+          desc = "The gap between lines of tiles, like one raid group and the next.", disabled = off("raid.enabled") },
+        { type = "slider", key = "raid.perLine", label = "Frames per line", min = 1, max = 40, step = 1,
           desc = "At 5, each group gets its own line. Any other number lists everyone in order and wraps, up to 40 in one line.",
           disabled = off("raid.enabled") },
         { type = "toggle", key = "raid.hideSelf", invert = true, label = "Show yourself",
@@ -2314,7 +2333,7 @@ local function raidPage(size)
               desc = "The raid tiles' own name color. Same as the Colors page follows the name color every frame shares.",
               disabled = offAny("raid.enabled", "raid.showName") },
             { type = "color", key = "raid.nameCustom", label = "Custom name color", hidden = notCustom("raid.nameColor"),
-              desc = "The names' color when Name color is Custom.", disabled = offAny("raid.enabled", "raid.showName") },
+              desc = "The names' color when Name color is One color.", disabled = offAny("raid.enabled", "raid.showName") },
             { type = "slider", key = "raid.nameLimitLen", label = "Max name length", min = 0, max = 24, step = 1,
               desc = "Letters shown before a long name is shortened. 0 shows names in full. In instances some names can't be shortened and show in full.",
               disabled = offAny("raid.enabled", "raid.showName") },
@@ -2329,7 +2348,7 @@ local function raidPage(size)
               values = UF.HEALTH_FORMATS, order = UF.HEALTH_FORMAT_ORDER,
               desc = "How the tiles' health text is written. Missing health shows nothing while the member is at full.",
               disabled = offAny("raid.enabled", "raid.showPercent") },
-            { type = "toggle", key = "raid.percentSign", label = "Show % sign",
+            { type = "toggle", key = "raid.percentSign", label = "Health text % sign",
               desc = "62% rather than 62, when the health text shows a percent.",
               disabled = signOff(offAny("raid.enabled", "raid.showPercent"), "raid.healthText") },
             fontRow("raid.media.healthFont", "Health text font", "The raid tiles' health text", offAny("raid.enabled", "raid.showPercent")),
@@ -2392,7 +2411,7 @@ ns.OPTIONS = { pages = {
     framePage("focus", "Focus", "The unit you set as focus.",
         { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
           auras = FOCUS_AURA_GROUPS }),
-    framePage("party", "Party", "Your party: bars like your own frame, or square tiles. Set how they line up, what shows, and move them as one in unlock mode.",
+    framePage("party", "Party", "Your party: bars like your own frame, or square tiles (Portrait None and Name on the bar). Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
           layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it." }),
@@ -2424,21 +2443,21 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "colors.mirrorGradient", label = "Mirror the target's gradient",
               desc = "The target's and target of target's class and power gradients run the other way, so they mirror yours. Only for a horizontal gradient.",
               disabled = function(get) return get("colors.health") ~= "classGradient" and get("colors.power") ~= "gradient" end },
-            { type = "slider", key = "colors.backBrightness", label = "Missing health brightness", min = 0, max = 1,
-              step = 0.05, unit = "%", desc = "How much color the empty part of a bar keeps.",
+            { type = "slider", key = "colors.backBrightness", label = "Bar background brightness", min = 0, max = 1,
+              step = 0.05, unit = "%", desc = "How much color the empty part of every health and power bar keeps. Lower is darker.",
               disabled = function(get) return get("colors.backMode") == "custom" end },
-            { type = "dropdown", key = "colors.backMode", label = "Missing health color",
-              values = { dim = "Dimmed bar color", custom = "Custom color" }, order = { "dim", "custom" },
-              desc = "The empty part of every health bar: a dimmed copy of the bar's own color, or one you pick." },
-            { type = "color", key = "colors.backColor", label = "Custom missing health color",
-              desc = "The empty part's color when Missing health color is Custom color.", disabled = function(get) return get("colors.backMode") ~= "custom" end },
-            { type = "slider", key = "colors.backAlpha", label = "Missing health opacity", min = 0, max = 1,
+            { type = "dropdown", key = "colors.backMode", label = "Bar background color",
+              values = { dim = "Dimmed bar color", custom = "One color" }, order = { "dim", "custom" },
+              desc = "The empty part of every health and power bar: a dimmed copy of the bar's own color, or one you pick." },
+            { type = "color", key = "colors.backColor", label = "Custom bar background color",
+              desc = "The empty part's color when Bar background color is One color.", disabled = function(get) return get("colors.backMode") ~= "custom" end },
+            { type = "slider", key = "colors.backAlpha", label = "Bar background opacity", min = 0, max = 1,
               step = 0.05, unit = "%",
               desc = "How solid the empty part of every health and power bar is. Lower lets the world show through it, like the game's own frames." },
             { type = "color", key = "colors.dotTint", label = "DoT damage left color", alpha = true,
               desc = "The shade over the health your damage over time spells will still take, on the target and on enemy nameplates." },
         } },
-        { label = "Dead, offline and NPCs", desc = "The bar's color for dead and offline players and tapped NPCs, and for NPCs by how they feel about you.", items = {
+        { label = "Dead, offline and NPCs", desc = "The bar's color for dead and offline players and tapped NPCs, and for NPCs by how they feel about you. The NPC colors show with Class and reaction or Dark; Class gradient uses the pairs on General > Gradients.", items = {
             { type = "color", key = "colors.dead", label = "Dead", desc = "The health bar's color for a dead unit." },
             { type = "color", key = "colors.offline", label = "Offline", desc = "The health bar's color for a player who went offline." },
             { type = "color", key = "colors.tapped", label = "Tapped by someone else",
@@ -2447,7 +2466,7 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "colors.neutral", label = "Neutral", desc = "The health bar's color for an NPC that leaves you alone until you hit it." },
             { type = "color", key = "colors.friendly", label = "Friendly", desc = "The health bar's color for a friendly NPC." },
         } },
-        { label = "Dispel types", desc = "The border of a debuff you can dispel, and the raid tile's dispel icon. Debuffs already on screen change after /reload.", items = {
+        { label = "Dispel types", desc = "The border of a debuff you can dispel, and the raid tile's dispel icon.", items = {
             { type = "color", key = "colors.dispelMagic", label = "Magic", desc = "The color of a Magic debuff's border and dispel icon." },
             { type = "color", key = "colors.dispelCurse", label = "Curse", desc = "The color of a Curse debuff's border and dispel icon." },
             { type = "color", key = "colors.dispelDisease", label = "Disease", desc = "The color of a Disease debuff's border and dispel icon." },
@@ -2463,10 +2482,10 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Aggro", desc = "The ring (or name tab, or raid tile) that turns red while something is attacking the unit; an elite's dragon keeps its color, its eyes catch fire.", items = {
             { type = "dropdown", key = "colors.threat", label = "Aggro color",
-              values = { health = "Same red as health bars", custom = "Custom color" }, order = { "health", "custom" },
-              desc = "The red of a ring, name tab or raid tile while something is attacking the unit, or a color you pick." },
+              values = { health = "Same as Hostile", custom = "One color" }, order = { "health", "custom" },
+              desc = "The color of a ring, name tab or raid tile while something is attacking the unit: the Hostile color, or one you pick." },
             { type = "color", key = "colors.threatColor", label = "Custom aggro color",
-              desc = "The aggro color when Aggro color is Custom color.", disabled = function(get) return get("colors.threat") ~= "custom" end },
+              desc = "The aggro color when Aggro color is One color.", disabled = function(get) return get("colors.threat") ~= "custom" end },
             { type = "color", key = "colors.threatWarn", label = "Close to pulling",
               desc = "In a group or with a pet, the target's ring (and threat tag) turns this color as you get close to pulling it." },
         } },
@@ -2484,11 +2503,11 @@ ns.OPTIONS = { pages = {
               desc = "The overshield grows from where the health starts instead of from the frame's end.",
               disabled = function(get) return get("colors.overshield") == false end },
             { type = "dropdown", key = "colors.overshieldPaint", label = "Overshield color",
-              values = { shield = "Same as shields", custom = "Custom color" }, order = { "shield", "custom" },
+              values = { shield = "Same as shields", custom = "One color" }, order = { "shield", "custom" },
               desc = "The overshield in the absorb shields' color, or a color of its own.",
               disabled = function(get) return get("colors.overshield") == false end },
             { type = "color", key = "colors.overshieldColor", label = "Custom overshield color",
-              desc = "The overshield's color when Overshield color is Custom color.",
+              desc = "The overshield's color when Overshield color is One color.",
               disabled = function(get) return get("colors.overshield") == false or get("colors.overshieldPaint") ~= "custom" end },
             { type = "dropdown", key = "colors.overshieldStyle", label = "Overshield texture", fallback = "shield",
               choices = function() return shieldTextures(true) end,
@@ -2508,7 +2527,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "playerCastbar.enabled", label = "Show your cast bar",
               desc = "Replaces the game's own cast bar." },
             atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Above the frame or on its own it has its own size."),
-            { type = "dropdown", key = "playerCastbar.from", label = "Slides out from",
+            { type = "dropdown", key = "playerCastbar.from", label = "Your cast bar slides out from",
               values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
               desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
               disabled = function(get)
@@ -2517,25 +2536,25 @@ ns.OPTIONS = { pages = {
               end },
             nudge("player", "x"),
             nudge("player", "y"),
-            { type = "slider", key = "playerCastbar.width", label = "Width", min = 80, max = 500, step = 1,
+            { type = "slider", key = "playerCastbar.width", label = "Your cast bar width", min = 80, max = 500, step = 1,
               desc = "How wide your cast bar is. Not while under the frame: there it's as wide as the frame.", disabled = attached },
-            { type = "slider", key = "playerCastbar.height", label = "Height", min = 8, max = 40, step = 1,
+            { type = "slider", key = "playerCastbar.height", label = "Your cast bar height", min = 8, max = 40, step = 1,
               desc = "How tall your cast bar is.", disabled = off("playerCastbar.enabled") },
-            barRows("playerCastbar.media.bar", "your cast bar", "Cast bar", off("playerCastbar.enabled"))[1],
-            barRows("playerCastbar.media.bar", "your cast bar", "Cast bar", off("playerCastbar.enabled"))[2],
-            fontRow("playerCastbar.media.font", "Cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
-            { type = "toggle", key = "playerCastbar.showIcon", label = "Spell icon",
-              desc = "Not while under the frame: the portrait ring covers that spot.", disabled = attached },
-            { type = "toggle", key = "playerCastbar.slant", label = "Angled right end",
+            barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[1],
+            barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[2],
+            fontRow("playerCastbar.media.font", "Your cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
+            { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
+              desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot.", disabled = attached },
+            { type = "toggle", key = "playerCastbar.slant", label = "Your cast bar angled right end",
               desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle. When off, its ends are straight.",
               disabled = off("playerCastbar.enabled") },
-            { type = "toggle", key = "playerCastbar.slantLeft", label = "Angled left end",
-              desc = "Cuts the left end at an angle too, leaning like the target frame's end. Not while under the frame or under the personal display.",
+            { type = "toggle", key = "playerCastbar.slantLeft", label = "Your cast bar angled left end",
+              desc = "Cuts the left end at an angle, leaning like the target frame's end. Not while under the frame or under the personal display.",
               disabled = function(get) return attached(get) or atOf(get, "player") == "personal" end },
             flipRow("player", "your", attached),
-            { type = "toggle", key = "playerCastbar.reverseFill", label = "Fill right to left",
-              desc = "Not while under the frame.", disabled = attached },
-            strataRow("playerCastbar.strata", "Cast bar layer", "The layer your cast bar draws in.",
+            { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
+              desc = "Your cast bar fills from the right. Not while under the frame.", disabled = attached },
+            strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
                 function(get) return attached(get) or atOf(get, "player") == "personal" end,
                 " Under the frame or under the personal display, it draws with the frame instead."),
         } },
@@ -2548,26 +2567,26 @@ ns.OPTIONS = { pages = {
             nudge("target", "x"),
             nudge("target", "y"),
             fitRow("target"),
-            { type = "slider", key = "targetCastbar.width", label = "Width", min = 80, max = 500, step = 1,
+            { type = "slider", key = "targetCastbar.width", label = "Target cast bar width", min = 80, max = 500, step = 1,
               desc = "How wide your target's cast bar is. Not inside the frame, or while it matches the frame's width.",
               disabled = notOwnWidth("target") },
-            { type = "slider", key = "targetCastbar.height", label = "Height", min = 8, max = 40, step = 1,
+            { type = "slider", key = "targetCastbar.height", label = "Target cast bar height", min = 8, max = 40, step = 1,
               desc = "How tall your target's cast bar is. Not inside the frame, where it takes the power bar's place.",
               disabled = notOwnSize("target") },
-            barRows("targetCastbar.media.bar", "your target's cast bar", "Cast bar", off("targetCastbar.enabled"))[1],
-            barRows("targetCastbar.media.bar", "your target's cast bar", "Cast bar", off("targetCastbar.enabled"))[2],
-            fontRow("targetCastbar.media.font", "Cast bar font", "The spell name and time on your target's cast bar", off("targetCastbar.enabled")),
-            { type = "toggle", key = "targetCastbar.showIcon", label = "Spell icon",
+            barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[1],
+            barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[2],
+            fontRow("targetCastbar.media.font", "Target cast bar font", "The spell name and time on your target's cast bar", off("targetCastbar.enabled")),
+            { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
               desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
-            { type = "toggle", key = "targetCastbar.slant", label = "Angled right end",
+            { type = "toggle", key = "targetCastbar.slant", label = "Target cast bar angled right end",
               desc = "Cuts the right end of your target's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
-            { type = "toggle", key = "targetCastbar.slantLeft", label = "Angled left end",
+            { type = "toggle", key = "targetCastbar.slantLeft", label = "Target cast bar angled left end",
               desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
             flipRow("target", "your target's", notOwnBar("target")),
-            { type = "toggle", key = "targetCastbar.reverseFill", label = "Fill right to left",
+            { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
               desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
             strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
@@ -2581,26 +2600,26 @@ ns.OPTIONS = { pages = {
             nudge("focus", "x"),
             nudge("focus", "y"),
             fitRow("focus"),
-            { type = "slider", key = "focusCastbar.width", label = "Width", min = 80, max = 500, step = 1,
+            { type = "slider", key = "focusCastbar.width", label = "Focus cast bar width", min = 80, max = 500, step = 1,
               desc = "How wide your focus's cast bar is. Not inside the frame, or while it matches the frame's width.",
               disabled = notOwnWidth("focus") },
-            { type = "slider", key = "focusCastbar.height", label = "Height", min = 8, max = 40, step = 1,
+            { type = "slider", key = "focusCastbar.height", label = "Focus cast bar height", min = 8, max = 40, step = 1,
               desc = "How tall your focus's cast bar is. Not inside the frame, where it takes the power bar's place.",
               disabled = notOwnSize("focus") },
-            barRows("focusCastbar.media.bar", "your focus's cast bar", "Cast bar", off("focusCastbar.enabled"))[1],
-            barRows("focusCastbar.media.bar", "your focus's cast bar", "Cast bar", off("focusCastbar.enabled"))[2],
-            fontRow("focusCastbar.media.font", "Cast bar font", "The spell name and time on your focus's cast bar", off("focusCastbar.enabled")),
-            { type = "toggle", key = "focusCastbar.showIcon", label = "Spell icon",
+            barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[1],
+            barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[2],
+            fontRow("focusCastbar.media.font", "Focus cast bar font", "The spell name and time on your focus's cast bar", off("focusCastbar.enabled")),
+            { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
               desc = "The spell's icon at the end of your focus's cast bar. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
-            { type = "toggle", key = "focusCastbar.slant", label = "Angled right end",
+            { type = "toggle", key = "focusCastbar.slant", label = "Focus cast bar angled right end",
               desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
-            { type = "toggle", key = "focusCastbar.slantLeft", label = "Angled left end",
+            { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
               desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
             flipRow("focus", "your focus's", notOwnSize("focus")),
-            { type = "toggle", key = "focusCastbar.reverseFill", label = "Fill right to left",
+            { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
               desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
             strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
@@ -2611,26 +2630,26 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "partyCastbar.enabled", label = "Show party cast bars",
               desc = "Each party member's casts on their own frame, while they last. They use the target cast bar's colors." },
             atChoice("party", "Inside the frame it covers the power bar (in the Ribbon style, or with power bars off, it slides out under the frame instead). Under the frame it slides out during a cast: give it room with the party's spacing. Detached, it's a bar you size here, beside each frame."),
-            { type = "dropdown", key = "partyCastbar.spot", label = "Side", values = ns.PartyCasts.SPOTS, order = ns.PartyCasts.SPOT_ORDER,
+            { type = "dropdown", key = "partyCastbar.spot", label = "Party cast bar side", values = ns.PartyCasts.SPOTS, order = ns.PartyCasts.SPOT_ORDER,
               desc = "Which side of each party frame a detached cast bar sits on.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.x", label = "Cast bar left / right", min = -200, max = 200, step = 1, unit = "px",
+            { type = "slider", key = "partyCastbar.x", label = "Party cast bar left / right", min = -200, max = 200, step = 1, unit = "px",
               desc = "Moves the detached cast bars sideways from their side.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.y", label = "Cast bar up / down", min = -100, max = 100, step = 1, unit = "px",
+            { type = "slider", key = "partyCastbar.y", label = "Party cast bar up / down", min = -100, max = 100, step = 1, unit = "px",
               desc = "Moves the detached cast bars up or down from their side.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.width", label = "Width", min = 40, max = 400, step = 1,
+            { type = "slider", key = "partyCastbar.width", label = "Party cast bar width", min = 40, max = 400, step = 1,
               desc = "How wide each detached cast bar is. Under the frame it matches the frame's width.",
               disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.height", label = "Height", min = 6, max = 40, step = 1,
+            { type = "slider", key = "partyCastbar.height", label = "Party cast bar height", min = 6, max = 40, step = 1,
               desc = "How tall each party cast bar is. Not inside the frame, where it takes the power bar's place.",
               disabled = notOwnSize("party") },
-            barRows("partyCastbar.media.bar", "the party's cast bars", "Cast bar", off("partyCastbar.enabled"))[1],
-            barRows("partyCastbar.media.bar", "the party's cast bars", "Cast bar", off("partyCastbar.enabled"))[2],
-            fontRow("partyCastbar.media.font", "Cast bar font", "The spell name and time on the party's cast bars", off("partyCastbar.enabled")),
-            { type = "toggle", key = "partyCastbar.showIcon", label = "Spell icon",
+            barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[1],
+            barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[2],
+            fontRow("partyCastbar.media.font", "Party cast bar font", "The spell name and time on the party's cast bars", off("partyCastbar.enabled")),
+            { type = "toggle", key = "partyCastbar.showIcon", label = "Party cast bar spell icon",
               desc = "The spell's icon at the end of each detached cast bar.", disabled = notOwnBar("party") },
-            { type = "toggle", key = "partyCastbar.slant", label = "Angled end",
+            { type = "toggle", key = "partyCastbar.slant", label = "Party cast bar angled end",
               desc = "Cuts the end of each detached cast bar at an angle. When off, its end is straight.", disabled = notOwnBar("party") },
-            { type = "toggle", key = "partyCastbar.reverseFill", label = "Fill right to left",
+            { type = "toggle", key = "partyCastbar.reverseFill", label = "Party cast bar fills right to left",
               desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
         } },
         castTextCard("party", "Party", "each party member's", true),
@@ -2642,7 +2661,7 @@ ns.OPTIONS = { pages = {
         } }),
         { label = "Cast bar fill", items = {
             { type = "dropdown", key = "casts.fill", label = "Cast bar fill style", values = FILL_STYLES, order = FILL_ORDER,
-              desc = "How every cast bar (yours, target's, focus's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set right here." },
+              desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set right here." },
             { type = "toggle", key = "casts.flash", label = "Show interrupts",
               desc = "When a cast is interrupted, the bar stays full for a moment and says Interrupted." },
             gradientRow("CAST", "Casting gradient", fillIsNot("casts.fill", "pair")),
@@ -2664,28 +2683,28 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "casts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
         } },
-        { label = "Target and focus cast bars' colors", items = {
-            { type = "toggle", key = "targetCasts.classColor", label = "Class color on target and focus cast bars",
+        { label = "Other cast bars' colors", items = {
+            { type = "toggle", key = "targetCasts.classColor", label = "Class color on other cast bars",
               desc = "A player's casts in their class color, or their class's gradient with a two-color fill. Creatures' casts keep the fill style. Not with the Daylight gradient.",
               disabled = fillIs("casts.fill", "daylight") },
             { type = "color", key = "targetCasts.cast", label = "Casting color", hidden = fillIsNot("casts.fill", "plain"),
-              desc = "The target and focus cast bars' color while they cast." },
+              desc = "The target, focus and party cast bars' color while they cast." },
             { type = "color", key = "targetCasts.channel", label = "Channeling color", hidden = fillIsNot("casts.fill", "plain"),
-              desc = "The target and focus cast bars' color while they channel." },
+              desc = "The target, focus and party cast bars' color while they channel." },
             { type = "color", key = "targetCasts.interrupted", label = "Interrupted color", hidden = fillIs("casts.fill", "pair"),
-              desc = "The target and focus cast bars' color for a moment after their cast is interrupted.",
+              desc = "The target, focus and party cast bars' color for a moment after their cast is interrupted.",
               disabled = function(get) return get("casts.flash") ~= true end },
             { type = "color", key = "targetCasts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
         } },
-        { label = "Target and focus interrupts", items = {
+        { label = "Interrupts", items = {
             { type = "toggle", key = "casts.kickMark", label = "Interrupt ready mark", since = "1.7.2",
               desc = "While your interrupt is on cooldown, a thin line on an enemy target's or focus's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
             { type = "dropdown", key = "casts.kickStyle", label = "Interrupt animation",
               values = DaylightUI.Motion.KICK_NAMES, order = DaylightUI.Motion.KICKS,
-              desc = "What the target's or focus's cast bar does when its cast is interrupted. Your own interrupts light up in your accent color." },
+              desc = "What a target's, focus's or party member's cast bar does when its cast is interrupted. Your own interrupts light up in your accent color." },
             { type = "toggle", key = "casts.kickedBy", label = "Show who interrupted",
-              desc = "\"Kicked by\" and the player's name in their class color, beside the target's or focus's cast bar for a moment." },
+              desc = "\"Kicked by\" and the player's name in their class color, beside a target's, focus's or party member's cast bar for a moment." },
             { type = "dropdown", key = "casts.kickedByPos", label = "Who interrupted position",
               values = { right = "Right of the cast bar", below = "Under the cast bar" }, order = { "right", "below" },
               desc = "Where \"Kicked by\" and the name show: beside the cast bar or under it.",
@@ -2697,7 +2716,7 @@ ns.OPTIONS = { pages = {
         { label = "Swing timer", items = {
             { type = "toggle", key = "swing.enabled", label = "Show the swing timer",
               desc = "Replaces the game's own swing timer. A bar fills over each swing; when your target is out of range it dims and its time turns red." },
-            { type = "dropdown", key = "swing.visibility", label = "When to show",
+            { type = "dropdown", key = "swing.visibility", label = "Swing timer visibility",
               values = { swinging = "While swinging", combat = "In combat", always = "Always" },
               order = { "swinging", "combat", "always" },
               desc = "While swinging: each bar only while its swing runs, gone between swings. In combat: all your bars while you're fighting. A bar detached on its own has its own.",
@@ -2707,29 +2726,29 @@ ns.OPTIONS = { pages = {
               disabled = function(get)
                   return get("swing.enabled") ~= true or (get("personal.enabled") == true and get("personal.swing") == true)
               end },
-            { type = "slider", key = "swing.width", label = "Width", min = 80, max = 500, step = 1,
-              desc = "Only when detached as a group. Hung under the player frame, the bars match its width.",
+            { type = "slider", key = "swing.width", label = "Swing timer width", min = 80, max = 500, step = 1,
+              desc = "How wide the swing timer bars are. Only when detached as a group. Hung under the player frame, the bars match its width.",
               disabled = groupAttached },
-            { type = "slider", key = "swing.height", label = "Bar height", min = 6, max = 30, step = 1, unit = "px",
+            { type = "slider", key = "swing.height", label = "Swing timer height", min = 6, max = 30, step = 1, unit = "px",
               desc = "How tall each swing timer bar is.", disabled = off("swing.enabled") },
             barRows("swing.media.bar", "the swing timer", "Swing timer", off("swing.enabled"))[1],
             barRows("swing.media.bar", "the swing timer", "Swing timer", off("swing.enabled"))[2],
-            { type = "toggle", key = "swing.slant", label = "Angled right end",
-              desc = "Only when detached as a group. Under the personal display they're cut like it.", disabled = groupAttached },
-            { type = "toggle", key = "swing.slantLeft", label = "Angled left end",
-              desc = "Cuts the left end at an angle too. Only when detached as a group.", disabled = groupAttached },
-            { type = "toggle", key = "swing.showIcon", label = "Weapon icon",
-              desc = "Only when detached as a group.", disabled = groupAttached },
+            { type = "toggle", key = "swing.slant", label = "Swing timer angled right end",
+              desc = "Cuts the bars' right end at an angle. Only when detached as a group. Under the personal display they're cut like it.", disabled = groupAttached },
+            { type = "toggle", key = "swing.slantLeft", label = "Swing timer angled left end",
+              desc = "Cuts the bars' left end at an angle. Only when detached as a group.", disabled = groupAttached },
+            { type = "toggle", key = "swing.showIcon", label = "Swing timer weapon icon",
+              desc = "The weapon's picture at the start of each bar. Only when detached as a group.", disabled = groupAttached },
             { type = "slider", key = "swing.textSize", label = "Swing timer text size", min = 6, max = 24, step = 1,
               desc = "The hand and time on each bar. Attached under the cast bar, it's kept small enough for the bar.",
               disabled = off("swing.enabled") },
             fontRow("swing.media.font", "Swing timer font", "The swing timer's hand and time", off("swing.enabled")),
-            { type = "toggle", key = "swing.reverseFill", label = "Fill right to left",
-              desc = "Only when detached as a group.", disabled = groupAttached },
-            { type = "slider", key = "swing.spacing", label = "Space between bars", min = 0, max = 10, step = 1, unit = "px",
-              desc = "Only when detached as a group.", disabled = groupAttached },
-            { type = "toggle", key = "swing.growUp", label = "Stack upward",
-              desc = "Only when detached as a group. Main hand at the bottom, the others above it.",
+            { type = "toggle", key = "swing.reverseFill", label = "Swing timer fills right to left",
+              desc = "The bars fill from the right. Only when detached as a group.", disabled = groupAttached },
+            { type = "slider", key = "swing.spacing", label = "Swing timer spacing", min = 0, max = 10, step = 1, unit = "px",
+              desc = "The gap between the swing timer bars. Only when detached as a group.", disabled = groupAttached },
+            { type = "toggle", key = "swing.growUp", label = "Swing timers grow upward",
+              desc = "Main hand at the bottom, the others above it. Only when detached as a group.",
               disabled = groupAttached },
             strataRow("swing.strata", "Swing timer layer", "The layer the swing timer draws in when detached, as a group or a bar on its own.",
                 off("swing.enabled"), " Hung under the player frame or the cast bar, it draws with them instead."),
@@ -2832,18 +2851,18 @@ ns.OPTIONS = { pages = {
             PERSONAL_POWER[1], PERSONAL_POWER[2], PERSONAL_POWER[3], PERSONAL_POWER[4],
             { type = "toggle", key = "personal.combo", label = "Combo points on the personal display",
               desc = "Rogues and druids: your combo points under the bars, in the colors from Extras.", disabled = off("personal.enabled") },
-            { type = "toggle", key = "personal.comboStretch", label = "Personal pips fill the width",
+            { type = "toggle", key = "personal.comboStretch", label = "Personal combo points match the width",
               desc = "Spreads the combo point pips across the personal display. Turn it off to set the pips' own width.",
               disabled = offAny("personal.enabled", "personal.combo") },
-            { type = "slider", key = "personal.comboSize", label = "Personal pip width", min = 8, max = 40, step = 1, unit = "px",
+            { type = "slider", key = "personal.comboSize", label = "Personal combo point width", min = 8, max = 40, step = 1, unit = "px",
               desc = "How wide each combo point pip under the personal display is. Not while the pips match the display's width.",
               disabled = function(get) return get("personal.enabled") ~= true or get("personal.combo") == false or get("personal.comboStretch") ~= false end },
-            { type = "slider", key = "personal.comboHeight", label = "Personal pip height", min = 0, max = 30, step = 1, unit = "px",
+            { type = "slider", key = "personal.comboHeight", label = "Personal combo point height", min = 0, max = 30, step = 1, unit = "px",
               desc = "How tall the combo point pips under the personal display are. Set to 0 for automatic height.",
               disabled = offAny("personal.enabled", "personal.combo") },
-            { type = "slider", key = "personal.comboX", label = "Personal pips left / right", min = -50, max = 50, step = 1, unit = "px",
+            { type = "slider", key = "personal.comboX", label = "Personal combo points left / right", min = -50, max = 50, step = 1, unit = "px",
               desc = "Nudges the personal display's row of combo points sideways.", disabled = offAny("personal.enabled", "personal.combo") },
-            { type = "slider", key = "personal.comboY", label = "Personal pips up / down", min = -50, max = 50, step = 1, unit = "px",
+            { type = "slider", key = "personal.comboY", label = "Personal combo points up / down", min = -50, max = 50, step = 1, unit = "px",
               desc = "Nudges the personal display's row of combo points up or down. Docked cast and swing bars stay below it.", disabled = offAny("personal.enabled", "personal.combo") },
             { type = "toggle", key = "personal.swing", label = "Swing timers on the personal display",
               desc = "Moves your swing timers under the personal display, as wide as it.", disabled = off("personal.enabled") },
@@ -2865,23 +2884,23 @@ ns.OPTIONS = { pages = {
         DaylightUI.Fade.Card("personal.fade.", nil, off("personal.enabled"), "Personal display"),
     } },
 
-    { id = "extras", label = "Extras", desc = "Combo points, portrait icons and range fade.", groups = {
+    { id = "extras", label = "Extras", desc = "Frame shape, combo points, class icons and range fade.", groups = {
         { label = "Frame shape", items = {
             styleRow("look.style", false),
             { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 0.4, step = 0.01, unit = "%",
               desc = "How far the frames' angled ends lean, on every unit frame and cast bar. 21% is the usual look." },
         } },
-        { label = "Combo points", desc = "For rogues, and druids in cat form. Small pips on your target frame.", items = {
+        { label = "Combo points", desc = "For rogues, and druids in cat form. Small pips on your target or player frame.", items = {
             { type = "toggle", key = "combo.enabled", label = "Show combo points",
               desc = "Replaces the game's own combo points." },
             { type = "dropdown", key = "combo.anchor", label = "Attach to",
               values = { target = "Target frame", player = "Player frame" }, order = { "target", "player" },
               desc = "Which frame the pips sit on.", disabled = off("combo.enabled") },
-            { type = "dropdown", key = "combo.side", label = "Side",
+            { type = "dropdown", key = "combo.side", label = "Combo points side",
               values = { below = "Below the frame", above = "Above the frame" }, order = { "below", "above" },
               desc = "Under the frame, or over it, clear of the name. The target's buffs or debuffs on that side move out of the way.",
               disabled = off("combo.enabled") },
-            { type = "dropdown", key = "combo.align", label = "Alignment",
+            { type = "dropdown", key = "combo.align", label = "Combo points alignment",
               values = { inner = "Inner end", center = "Centered", outer = "Outer end" }, order = { "inner", "center", "outer" },
               desc = "Where along the frame the row starts: the angled end facing the middle of your screen, the middle, or the far end.",
               disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },
@@ -2896,17 +2915,17 @@ ns.OPTIONS = { pages = {
               desc = "How wide each combo point pip is. Not while the pips match the frame's width.", disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },
             { type = "slider", key = "combo.height", label = "Pip height", min = 0, max = 30, step = 1, unit = "px",
               desc = "How tall each combo point pip is. 0 picks a height to suit the frame.", disabled = off("combo.enabled") },
-            { type = "slider", key = "combo.gap", label = "Spacing", min = 0, max = 10, step = 1, unit = "px",
+            { type = "slider", key = "combo.gap", label = "Combo point spacing", min = 0, max = 10, step = 1, unit = "px",
               desc = "The gap between combo point pips.", disabled = off("combo.enabled") },
             barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[1],
             barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[2],
-            { type = "slider", key = "combo.border", label = "Outline", min = 0, max = 4, step = 1, unit = "px",
-              desc = "Set to 0 for no outline.", disabled = off("combo.enabled") },
+            { type = "slider", key = "combo.border", label = "Combo point border", min = 0, max = 4, step = 1, unit = "px",
+              desc = "How thick the border round each pip is. 0 leaves none.", disabled = off("combo.enabled") },
             { type = "toggle", key = "combo.slant", label = "Angled ends",
               desc = "Each pip leans like the frames' angled ends. When off, their ends are straight.", disabled = off("combo.enabled") },
-            { type = "dropdown", key = "combo.colorMode", label = "Colors",
+            { type = "dropdown", key = "combo.colorMode", label = "Combo point colors",
               values = { color = "One color", blend = "Color to full color", class = "Class color",
-                         gradient = "One gradient (Gradients page)", points = "A gradient per point (Gradients page)" },
+                         gradient = "One gradient", points = "A gradient per point" },
               order = { "color", "blend", "class", "gradient", "points" },
               desc = "One color on every pip; colors shading from Combo point color to Full color along the row; your class color; or two-color pairs from the Gradients page (Combo points), one for all pips or one each. Your nameplates' combo points use the same colors.",
               disabled = off("combo.enabled") },
@@ -2929,7 +2948,7 @@ ns.OPTIONS = { pages = {
               disabled = function(get)
                   return get("combo.enabled") ~= true or (get("combo.fullRed") ~= true and get("combo.colorMode") ~= "blend")
               end },
-            { type = "slider", key = "combo.empty", label = "Empty pips", min = 0, max = 1, step = 0.05, unit = "%",
+            { type = "slider", key = "combo.empty", label = "Empty pip brightness", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How bright the pips you haven't filled are, as a share of their color. Lower makes the filled ones stand out more.",
               disabled = off("combo.enabled") },
         } },
@@ -2946,19 +2965,19 @@ ns.OPTIONS = { pages = {
             end },
             classIconPicker,
         } },
-        { label = "Range fade", desc = "Dims units that are out of reach: target, focus, target of target, party and raid frames. Your group by your heal, anyone else by the spell you pick.", items = {
+        { label = "Range fade", desc = "Dims units that are out of reach: target, focus, their targets, party, party targets, raid and PvP frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",
               desc = "Your group fades by your heal's range, or the game's own check without one. Anyone else fades only with a range spell picked below." },
             { type = "dropdown", key = "range.spell", label = "Range spell", since = "1.8.0", fallback = "none",
               desc = "Target, focus and the PvP frames fade when this spell can't reach someone outside your group, like an enemy you want to cast on. Units it can't be cast on stay as they are.",
               disabled = function(get) return get("range.enabled") ~= true end,
               choices = rangeSpellChoices },
-            { type = "slider", key = "range.alpha", label = "Faded opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
+            { type = "slider", key = "range.alpha", label = "Out of range opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through a frame gets while its unit is out of range.", disabled = function(get) return get("range.enabled") ~= true end },
             { type = "toggle", key = "range.groupOwn", label = "Separate opacity for party and raid",
               desc = "Party and raid frames fade to their own opacity instead of the one above.",
               disabled = function(get) return get("range.enabled") ~= true end },
-            { type = "slider", key = "range.alphaGroup", label = "Party and raid faded opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
+            { type = "slider", key = "range.alphaGroup", label = "Party and raid out of range opacity", min = 0.1, max = 0.9, step = 0.05, unit = "%",
               desc = "How see-through party and raid frames get while a member is out of range.", disabled = function(get) return get("range.enabled") ~= true or get("range.groupOwn") ~= true end },
         } },
     } },

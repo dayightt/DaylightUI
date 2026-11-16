@@ -10,7 +10,7 @@ local Looks = {}
 ns.Looks = Looks
 
 Looks.ORDER = { "daylight", "healer", "dps", "battleground", "minimal" }
-Looks.LABELS = { daylight = "DaylightUI", healer = "Healer", dps = "DPS / Tank", battleground = "Battleground",
+Looks.LABELS = { daylight = "Daylight UI", healer = "Healer", dps = "DPS / Tank", battleground = "Battleground",
                  minimal = "Minimal" }
 
 Looks.KEYS = { "namePos" }

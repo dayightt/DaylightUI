@@ -192,7 +192,7 @@ UF.ELITE_RING_COLORS = { gold = { 1.0, 0.8, 0.33 }, silver = { 0.84, 0.87, 0.92 
 -- Your own dragon's color (player.portraitDragonColor): an elite's gold or
 -- silver, the accent (its pair, light end on top, for a gradient accent), or
 -- your class gradient like the class ring.
-UF.DRAGON_COLORS = { gold = "Gold", silver = "Silver", accent = "Accent", class = "Class gradient" }
+UF.DRAGON_COLORS = { gold = "Gold", silver = "Silver", accent = "Accent color", class = "Class gradient" }
 UF.DRAGON_COLOR_ORDER = { "gold", "silver", "accent", "class" }
 -- Aggro on a target or focus ring (and your own when entering combat) fills
 -- red clockwise behind a glowing head, and unwinds when it ends. Drawn with a

@@ -316,14 +316,14 @@ local function barItems(debuff)
         { type = "slider", key = p .. "iconSize", label = "Icon size", min = 12, max = 64, step = 1, unit = "px",
           desc = "Each icon's width and height." },
         { type = "slider", key = p .. "borderPx", label = "Border thickness", min = 0, max = 6, step = 1, unit = "px",
-          desc = "Border around each icon. Separate from the Appearance border setting." },
+          desc = "Border around each icon. Separate from the border setting on General > Appearance." },
         { type = "slider", key = p .. "spacing", label = "Spacing", min = 0, max = 12, step = 1, unit = "px",
           desc = "The gap between this bar's icons." },
         { type = "slider", key = p .. "columns", label = "Icons per row", min = 1, max = 40, step = 1,
           desc = "Icons on a row before it wraps to the next." },
         { type = "toggle", key = p .. "growLeft", label = "Grow to the left",
           desc = "Icons fill from the bar's right edge leftward, toward the middle of the screen." },
-        { type = "toggle", key = p .. "showBackground", label = "Background",
+        { type = "toggle", key = p .. "showBackground", label = "Bar background",
           desc = "A framed panel behind the bar." },
     }
     for _, item in ipairs(DaylightUI.Options.BackAlphaRows(p .. "backgroundAlpha", debuff and "Debuff bar" or "Buff bar",
@@ -334,7 +334,7 @@ local function barItems(debuff)
     if not debuff then
         table.insert(items, 3, { type = "slider", key = "settings.categoryGap", label = "Gap between categories",
             min = 0, max = 32, step = 1, unit = "px", desc = "Extra room between one category's buffs and the next." })
-        table.insert(items, 4, { type = "toggle", key = "settings.categoryRows", label = "Each kind on its own row", since = "1.7.2",
+        table.insert(items, 4, { type = "toggle", key = "settings.categoryRows", label = "Each category on its own row", since = "1.7.2",
             desc = "Class buffs share one row, then weapon, consumable, world and other buffs each start a row of their own, in the order set on the Categories page. A long row still wraps at Icons per row." })
     end
     return items
@@ -387,7 +387,7 @@ local function filterItems(debuff)
     }
 end
 
-local PREVIEW = { type = "button", label = "Preview",
+local PREVIEW = { type = "button", label = "Preview the buff bar",
     text = function() return BL.Preview.Active() and "Hide" or "Show" end,
     desc = "Fills the bar with a sample of every buff it knows, sorted and colored as they would be.",
     func = function()
@@ -409,12 +409,12 @@ BL.OPTIONS = { pages = {
               desc = "Where the time sits: on the icon's top edge, across its middle, or on its bottom edge.",
               disabled = function(get) return get("settings.showTimers") ~= true end },
             { type = "toggle", key = "settings.expiring", label = "Orange timer when running out",
-              desc = "A buff's time turns orange and gently pulses in its last 5 seconds.",
+              desc = "A buff's time turns orange and gently pulses in its last 5 seconds. Debuffs keep their usual time color.",
               disabled = function(get) return get("settings.showTimers") ~= true end },
             { type = "toggle", key = "settings.newGlow", label = "Slide icons in and out",
               desc = "Buffs and debuffs slide in as they land and lift away as they leave." },
             { type = "slider", key = "settings.timeSize", label = "Time left text size", min = 0, max = 20, step = 1,
-              desc = "Set to 0 to follow the icon's size.", disabled = function(get) return get("settings.showTimers") ~= true end },
+              desc = "Text size of the time left on each icon. At 0 it follows the icon's size.", disabled = function(get) return get("settings.showTimers") ~= true end },
             { type = "slider", key = "settings.countSize", label = "Stack count size", min = 6, max = 20, step = 1,
               desc = "The number on an icon showing how many stacks it has." },
             { type = "dropdown", key = "settings.textOutline", label = "Text outline",
@@ -427,10 +427,10 @@ BL.OPTIONS = { pages = {
           items = {
             { type = "toggle", key = "settings.reminder.enabled", label = "Show missing group buffs",
               desc = "Fortitude, Mark of the Wild, Arcane Intellect, a blessing per paladin and the like, by your class. Never in a fight, a boss encounter or a battleground, where buffs can't be read." },
-            { type = "slider", key = "settings.reminder.seconds", label = "Show for (seconds)", min = 3, max = 30, step = 1,
-              desc = "How long it stays before fading, unless the buffs land first.",
+            { type = "slider", key = "settings.reminder.seconds", label = "Missing buffs shown for", min = 3, max = 30, step = 1,
+              desc = "How many seconds the line stays before fading, unless the buffs land first.",
               disabled = off("settings.reminder.enabled") },
-            { type = "button", label = "Preview", text = "Show",
+            { type = "button", label = "Preview missing group buffs", text = "Show",
               desc = "Shows a sample of the line where it sits.",
               disabled = off("settings.reminder.enabled"),
               func = function() if BL.Reminder then BL.Reminder.ShowSample(true) end end },
@@ -444,7 +444,7 @@ BL.OPTIONS = { pages = {
         { label = "More", items = {
             PREVIEW,
             { type = "toggle", key = "settings.hideBlizzardFrames", invert = true, label = "Show the game's buff frames",
-              desc = "The game's own buff frames show beside DaylightUI's bars. When off, our bars replace them (they still show while Edit Mode is open)." },
+              desc = "The game's own buff frames show beside Daylight UI's bars. When off, Daylight UI's bars replace them (the game's still show while Edit Mode is open)." },
         } },
     } },
     { id = "debuffs", label = "Debuffs",
@@ -453,11 +453,11 @@ BL.OPTIONS = { pages = {
         { label = "Bar", items = barItems(true) },
         { label = "Position", items = { attachItem(true) } },
         { label = "Filter", desc = "Which debuffs show on this bar.", items = filterItems(true) },
-        { label = "Boss debuffs",
+        { label = "Hidden boss debuffs",
           desc = "Some boss abilities put debuffs on you that addons can't see. The game draws them itself, in a row under your debuffs.",
           items = {
-            { type = "toggle", key = "settings.debuff.privateAuras", label = "Show boss debuffs",
-              desc = "Up to three, at the debuffs' size, with a countdown. They only appear when a boss uses them. With the game's buff frames shown, the game shows them there instead.",
+            { type = "toggle", key = "settings.debuff.privateAuras", label = "Show hidden boss debuffs",
+              desc = "Boss debuffs that addons can't read, drawn by the game itself. Up to three, at the debuffs' size, with a countdown. They only appear when a boss uses them. With the game's buff frames shown, the game shows them there instead.",
               disabled = function(get) return get("settings.hideBlizzardFrames") == false end },
         } },
     } },

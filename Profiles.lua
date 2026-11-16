@@ -1296,7 +1296,7 @@ local profilesPage = DUI.Options.RegisterPage({
             chooser(1, "Primary talents", "The profile for your first talent set. Changing it asks to reload.", single),
             chooser(2, "Secondary talents", "The profile for your second talent set; swapping talents asks to switch.", single),
             { type = "dropdown", label = "Controller mode", since = "1.7.0",
-              desc = "The profile this character uses while the game's controller UI is on (Settings > Gameplay > Gamepad). Turning it on or off asks to switch. None: the same profile as without it.",
+              desc = "The profile this character uses while the game's controller UI is on (Settings > Gameplay > Gamepad). Turning it on or off asks to switch. With None, it uses the same profile as without it.",
               choices = function()
                   local values, keys = choices()
                   values[Profiles.NONE] = NONE or L["None"]
@@ -1311,7 +1311,7 @@ local profilesPage = DUI.Options.RegisterPage({
         { label = "Ready-made", desc = "Built from DPS/Tank (the standard profile) the first time you add one; after that, the one you have is used as it is.", items = {
             { type = "button", label = "Healer", text = "Add",
               desc = "DPS/Tank with your party and raid as square tiles under you (you included, missing health on them, dispels easy to see), and your frame and your target's raised a little. Everything it sets is on the Party and Raid pages; move any of them in unlock mode. Choose it above to use it. "
-                  .. "If the profile you're on has moved action bars, offers to bring them along.",
+                  .. "If the profile you're on has moved action bars, it offers to bring them along.",
               func = function()
                   local made, why = Profiles.AddPresetOffering("Healer")
                   if said(made, why, L["Couldn't add it: %s."]) then
@@ -1321,7 +1321,7 @@ local profilesPage = DUI.Options.RegisterPage({
               end },
             { type = "button", label = "Immersive Preset", text = "Add",
               desc = "DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Fade, Fade only in the open world). Choose it above to use it. "
-                  .. "If the profile you're on has moved action bars, offers to bring them along.",
+                  .. "If the profile you're on has moved action bars, it offers to bring them along.",
               func = function()
                   local made, why = Profiles.AddPresetOffering("Immersive Preset")
                   if said(made, why, L["Couldn't add it: %s."]) then

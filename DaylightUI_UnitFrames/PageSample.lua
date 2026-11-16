@@ -183,7 +183,7 @@ PageSample.GROUP_PARTS = {
       size = { s = "%s.auras.cc.size" } },
     { label = "Buffs", at = groupSet("buffs"), keys = groupKeys("buffs"), move = groupMove("buffs"),
       size = { s = "%s.auras.buffs.size" } },
-    { label = "Dispellable debuff", at = at("sampleDispel"), keys = { "%s.showDispel", "%s.dispelSize", "%s.dispelPos" },
+    { label = "Dispel icon", at = at("sampleDispel"), keys = { "%s.showDispel", "%s.dispelSize", "%s.dispelPos" },
       move = { spot = "%s.dispelPos", x = "%s.dispelX", y = "%s.dispelY" }, size = { s = "%s.dispelSize" } },
     { label = "Ready check", at = at("readyIcon"), keys = { "%s.showReady", "%s.readyPos", "%s.readySize" },
       move = { spot = "%s.readyPos", x = "%s.readyX", y = "%s.readyY" }, size = { s = "%s.readySize" } },

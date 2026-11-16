@@ -8,21 +8,21 @@ local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Profession window", f
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "Professions",
-      desc = "Your profession's recipes in one window, in DaylightUI style.",
+      desc = "Your profession's recipes in one window, in Daylight UI style.",
       groups = {
         { label = "Window", items = {
             { type = "text", label = "DaylightMogul's profession window is in use.",
               hidden = function() return not DaylightUI.craftMogul end },
-            { type = "toggle", key = "enabled", label = "DaylightUI style profession window",
+            { type = "toggle", key = "enabled", label = "Daylight UI style profession window",
               disabled = function() return DaylightUI.craftMogul == true end,
-              desc = "Opening a profession shows DaylightUI's window: your recipes on the left, the one you picked on the right. Turn it off to use the game's own window, in Daylight UI's look, for addons that build on it. Each window also has a button to switch to the other." },
+              desc = "Opening a profession shows Daylight UI's window: your recipes on the left, the one you picked on the right. Turn it off to use the game's own window, in Daylight UI's look, for addons that build on it. Each window also has a button to switch to the other." },
             { type = "toggle", key = "rarityNames", since = "1.5.1", label = "Rarity colors",
-              desc = "Recipe names take the rarity color of what they make. Off, they show how likely a skill-up is. The same switch sits beside the window's search.",
+              desc = "Recipe names take the rarity color of what they make. When off, they show how likely a skill-up is. The same switch sits beside the window's search.",
               disabled = function() return DaylightUI.craftMogul == true end },
             { type = "toggle", key = "skillUps", since = "1.7.2", label = "Skill-up chance",
               desc = "Each recipe shows its chance of giving a skill point, and the recipe you pick shows where it turns yellow, green and gray.",
               disabled = function() return DaylightUI.craftMogul == true end },
-            { type = "slider", key = "scale", label = "Window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
+            { type = "slider", key = "scale", label = "Profession window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is.", disabled = function() return DaylightUI.craftMogul == true end },
             backRows[1], backRows[2],
         } },

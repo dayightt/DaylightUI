@@ -4,14 +4,14 @@ local _, ns = ...
 
 ns.OPTIONS = { pages = {
     { id = "tooltip", label = "Tooltips",
-      desc = "The game's tooltips in the DaylightUI look.",
+      desc = "The game's tooltips in the Daylight UI look.",
       -- With PrettyTooltip on this module is off (Module.lua), so none of this would apply.
       hidden = function() return DaylightUI.PrettyAside.Draws() end,
       groups = {
         { label = "Placement", items = {
-            { type = "dropdown", key = "anchor", label = "Position",
-              values = { game = "Default spot", cursor = "At the cursor" }, order = { "game", "cursor" },
-              desc = "Default spot: where the game puts it, or where you dragged it in unlock mode. "
+            { type = "dropdown", key = "anchor", label = "Tooltip position",
+              values = { game = "Default position", cursor = "At the cursor" }, order = { "game", "cursor" },
+              desc = "Default position: where the game puts it, or where you dragged it in unlock mode. "
                   .. "Tooltips for bags, bars and other frames that place their own still sit beside what you hover." },
             { type = "slider", key = "cursorX", label = "Tooltip left / right of the cursor", min = -100, max = 100, step = 1, unit = "px",
               desc = "How far right of the cursor the tooltip's corner sits (below zero: to the left).",
@@ -21,21 +21,21 @@ ns.OPTIONS = { pages = {
               hidden = function(get) return get("anchor") ~= "cursor" end },
         } },
         { label = "Size", items = {
-            { type = "slider", key = "scale", label = "Scale", min = 0.6, max = 1.6, step = 0.05, unit = "x",
-              desc = "Makes tooltips bigger or smaller, text and all, on top of Scale (General > Appearance)." },
-            { type = "slider", key = "textSize", label = "Text size", min = 9, max = 18, step = 1,
+            { type = "slider", key = "scale", label = "Tooltip scale", min = 0.6, max = 1.6, step = 0.05, unit = "x",
+              desc = "Makes tooltips bigger or smaller, text and all, on top of Daylight UI scale (General > Appearance)." },
+            { type = "slider", key = "textSize", label = "Tooltip text size", min = 9, max = 18, step = 1,
               desc = "The tooltip text; titles are a little larger." },
             DaylightUI.Options.FontRow("media.font", "Tooltip font", "Every line in the tooltips"),
         } },
         { label = "Look", items = {
-            { type = "slider", key = "bgAlpha", label = "Background opacity", min = 0.3, max = 1, step = 0.05, unit = "%",
+            { type = "slider", key = "bgAlpha", label = "Tooltip background opacity", min = 0.3, max = 1, step = 0.05, unit = "%",
               desc = "How solid the dark background is." },
             { type = "toggle", key = "classColors", label = "Class-colored names",
               desc = "A player's name in their class color; other units in their reaction's color." },
             { type = "toggle", key = "classBorder", label = "Class-colored border",
-              desc = "The border in the same color as the name." },
+              desc = "The border in a player's class color, other units in their reaction color." },
             { type = "toggle", key = "borderGradient", label = "Gradient border",
-              desc = "That border in the unit's class (or reaction) gradient from the Gradients page, running left to right.",
+              desc = "The class-colored border in the unit's class (or reaction) gradient from General > Gradients, running left to right.",
               disabled = function(get) return get("classBorder") == false end },
             { type = "toggle", key = "qualityBorder", label = "Item quality border",
               desc = "Items that are uncommon or better get a border in their quality color." },
@@ -50,23 +50,23 @@ ns.OPTIONS = { pages = {
               values = { frames = "Same as unit frames", gradient = "Class gradient", flat = "Class and reaction" },
               order = { "frames", "gradient", "flat" },
               desc = "Same as unit frames: a class gradient when your unit frames' health bars use one. "
-                  .. "Class gradient uses the pairs from the Gradients page.",
+                  .. "Class gradient uses the pairs from General > Gradients.",
               disabled = function(get) return get("healthBar") ~= true end },
         } },
         { label = "Extra lines", items = {
             { type = "toggle", key = "showTarget", label = "Show who they're targeting",
               desc = "Who a player or creature is targeting, in their color (\">> You <<\" when it's you)." },
-            { type = "toggle", key = "guildRank", label = "Guild rank", desc = "After a player's guild name." },
-            { type = "toggle", key = "buffs", label = "Their buffs",
+            { type = "toggle", key = "guildRank", label = "Guild rank", desc = "A player's guild rank, after their guild name." },
+            { type = "toggle", key = "buffs", label = "Friendly players' buffs",
               desc = "A friendly player's buffs as a row of small icons, so you can see what they're missing before you rebuff. Not in combat: the game hides other players' buffs then." },
             { type = "toggle", key = "greenStats", label = "Short, colored item stats",
               desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Procs and use effects stay as they are." },
-            { type = "toggle", key = "itemLevel", label = "Item level",
+            { type = "toggle", key = "itemLevel", label = "Item level line",
               desc = "An Item Level line on weapon and armor tooltips, in soft gold." },
-            { type = "toggle", key = "stackSize", label = "Stack size",
+            { type = "toggle", key = "stackSize", label = "Stack size line",
               desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack." },
             { type = "toggle", key = "showIDs", label = "Spell and item IDs",
-              desc = "A small gray line at the bottom of spell and item tooltips with its ID: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
+              desc = "A small line at the bottom of spell and item tooltips with its ID, the word in your accent color: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
             { type = "toggle", key = "lastNames.tooltip", label = "First and last names",
               desc = "Players' last names after their first, on tooltips. Where the game hides names (in combat, in places) only the first name shows.",
               get = function() return DaylightUI:Get("general", "lastNames.tooltip") == true end,
@@ -86,7 +86,7 @@ ns.OPTIONS = { pages = {
               default = function() return true end },
         } },
         { label = "Hiding", items = {
-            { type = "toggle", key = "fadeOut", label = "Fade out",
+            { type = "toggle", key = "fadeOut", label = "Fade out world tooltips",
               desc = "A tooltip for something in the world (a creature, a player, a mailbox) fades away slowly after the mouse leaves it, as the game does. When off, it's gone at once." },
         } },
         { label = "In combat", items = {

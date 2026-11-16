@@ -18,9 +18,9 @@ local SORTS = { recent = "Most recent progress", zone = "Zone order", level = "L
 local INSTANCE_MODES = { zone = "This zone only", fold = "Fold to the header", hide = "Hide", none = "Leave as it is" }
 local JOURNAL_SORTS = { log = "Quest log order", level = "Level", ready = "Ready first", watched = "Tracked first" }
 local TITLE_MODES = { difficulty = "By difficulty", one = "One color" }
-local BAR_MODES = { accent = "Accent", class = "Class color", custom = "Custom" }
+local BAR_MODES = { accent = "Accent color", class = "Class color", custom = "One color" }
 local MARKER_LOOKS = { beacon = "Beacon", pillar = "Light pillar", minimal = "Minimal" }
-local FOCUS_MODES ={ accent = "Accent", daylight = "Daylight gradient", gradient = "Class gradient", class = "Class color", custom = "Custom" }
+local FOCUS_MODES ={ accent = "Accent color", daylight = "Daylight gradient", gradient = "Class gradient", class = "Class color", custom = "One color" }
 
 local function size(key, label, desc)
     return { type = "slider", key = "sizes." .. key, label = label, min = 8, max = 20, desc = desc }
@@ -30,15 +30,15 @@ local function color(key, label, desc, disabled)
 end
 
 -- Paint mode menu (custom / accent / class color / class gradient) plus its custom color.
-local PAINT_MODES = { custom = "Custom", accent = "Accent", class = "Class color", gradient = "Class gradient" }
+local PAINT_MODES = { custom = "One color", accent = "Accent color", class = "Class color", gradient = "Class gradient" }
 local function paintMode(key, label)
     return { type = "dropdown", key = "colors." .. key .. "Mode", label = label, values = PAINT_MODES,
              order = { "custom", "accent", "class", "gradient" },
-             desc = "One custom color, the accent, your class color, or your class's two colors as a gradient (from the Gradients page)." }
+             desc = "One color you pick, the accent color, your class color, or your class's two colors as a gradient (from the Gradients page)." }
 end
-local function paintColor(key, label)
+local function paintColor(key, label, modeLabel)
     return { type = "color", key = "colors." .. key, label = label,
-             desc = "The color used while the menu above is set to Custom.",
+             desc = "The color used while " .. modeLabel .. " is set to One color.",
              hidden = function(get) return get("colors." .. key .. "Mode") ~= "custom" end }
 end
 
@@ -52,33 +52,33 @@ ns.OPTIONS = { pages = {
         { label = "Layout", items = {
             { type = "toggle", key = "matchMap", label = "Match the minimap's width",
               desc = "As wide as the minimap above it, so their edges line up. When off, it uses the width below." },
-            { type = "slider", key = "width", label = "Width", min = 160, max = 400, unit = "px",
+            { type = "slider", key = "width", label = "Quest tracker width", min = 160, max = 400, unit = "px",
               desc = "How wide the list is.", disabled = isOn("matchMap") },
-            { type = "slider", key = "maxHeight", label = "Height limit", min = 200, max = 1200, step = 10, unit = "px",
-              desc = "Past this the list scrolls with the mouse wheel." },
-            { type = "toggle", key = "growUp", label = "Grow upward",
+            { type = "slider", key = "maxHeight", label = "Quest tracker height limit", min = 200, max = 1200, step = 10, unit = "px",
+              desc = "How tall the quest tracker can grow. Past this, the list scrolls with the mouse wheel." },
+            { type = "toggle", key = "growUp", label = "Quest tracker grows upward",
               desc = "The list grows up from its handle instead of down. For a tracker placed low on the screen." },
-            { type = "toggle", key = "zoneNames", label = "Zone names",
+            { type = "toggle", key = "zoneNames", label = "Zone names in the tracker",
               desc = "A small zone name over each group of quests, the zone you're in first." },
-            { type = "toggle", key = "compact", label = "Compact spacing",
+            { type = "toggle", key = "compact", label = "Compact quest tracker",
               desc = "Less room between quests. Fits more on a small screen." },
-            { type = "dropdown", key = "itemSide", label = "Item buttons", values = SIDES, order = { "left", "right" },
+            { type = "dropdown", key = "itemSide", label = "Quest item button side", values = SIDES, order = { "left", "right" },
               desc = "Which side of the list the quest item buttons sit on." },
-            { type = "toggle", key = "box", label = "Background",
+            { type = "toggle", key = "box", label = "Quest tracker background",
               desc = "The panel's framed box behind the list, as tall as what's shown." },
             backRows[1], backRows[2],
-            { type = "toggle", key = "boxBorder", label = "Border",
+            { type = "toggle", key = "boxBorder", label = "Quest tracker border",
               desc = "A border and shadow around the background.", disabled = off("box") },
         } },
         { label = "Text", items = {
             DaylightUI.Options.FontRow("media.font", "Quest tracker font", "Every text in the quest tracker"),
-            size("header", "Section header size", "Quests, Achievements."),
-            size("title", "Quest title size", "Each quest's title in the tracker."),
-            size("objective", "Objective size", "Objectives, counts, hand-in lines and timers."),
-            size("zone", "Zone name size", "The small zone names over each group of quests."),
+            size("header", "Section header text size", "The Quests and Achievements headings."),
+            size("title", "Quest title text size", "Each quest's title in the tracker."),
+            size("objective", "Objective text size", "Objectives, counts, hand-in lines and timers."),
+            size("zone", "Zone name text size", "The small zone names over each group of quests."),
             { type = "toggle", key = "capsTitles", label = "Titles in capitals",
-              desc = "Quest titles in capitals, like the DaylightUI unit frame names. Objectives stay as they are." },
-            { type = "toggle", key = "questLevels", label = "Quest levels",
+              desc = "Quest titles in capitals, like the Daylight UI unit frame names. Objectives stay as they are." },
+            { type = "toggle", key = "questLevels", label = "Quest levels in the tracker",
               desc = "Each quest's level in front of its title, like [15]." },
             { type = "toggle", key = "questTags", label = "Quest tags",
               desc = "A small tag after an elite, dungeon, raid or PvP quest's title, here and in the quest log on the map." },
@@ -88,17 +88,17 @@ ns.OPTIONS = { pages = {
               desc = "A done objective stays, dimmed with a tick. When off, it disappears once it's done." },
         } },
         { label = "Behavior", items = {
-            { type = "toggle", key = "tracker", label = "Use DaylightUI's quest tracker",
+            { type = "toggle", key = "tracker", label = "Use Daylight UI's quest tracker",
               desc = "Questie is on: when off, Questie's own tracker shows instead. Daylight UI's journal, marker and arrow stay either way.",
               hidden = function() return not (ns.Bridge and ns.Bridge.Loaded()) end },
             { type = "dropdown", key = "filter", label = "Quests to show", values = FILTERS, order = { "all", "zone", "log" },
               desc = "Every tracked quest, only the zone you're in, or every quest in your log without tracking them. The controls over the list switch the first two." },
             { type = "dropdown", key = "sort", label = "Quest order", values = SORTS, order = { "recent", "zone", "level", "near", "ready" },
-              desc = "Within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight." },
+              desc = "The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight." },
             { type = "toggle", key = "foldReady", label = "Fold ready quests",
               desc = "A quest ready to hand in shows its title alone. A timed quest never folds." },
             { type = "dropdown", key = "instances", label = "Tracker in dungeons and raids", values = INSTANCE_MODES, order = { "zone", "fold", "hide", "none" },
-              desc = "What the tracker does when you enter a dungeon, raid or battleground. It comes back as you leave. This zone only keeps the quests for where you are; All over the list shows the rest until you leave." },
+              desc = "What the tracker does when you enter a dungeon, raid or battleground. It comes back as you leave. This zone only keeps the quests for where you are; the All button over the list shows the rest until you leave." },
             { type = "toggle", key = "hoverDim", label = "Dim other quests on hover",
               desc = "The quest under the mouse stays bright, the others ease dimmer." },
             { type = "toggle", key = "rowTips", label = "Show quest tooltips",
@@ -106,8 +106,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "emptyHeader", label = "Show the header with no quests",
               desc = "The Quests header stays when nothing is tracked, so you can see where the tracker is." },
             clickPick("click", "Click on a quest", "What a click on a quest in the tracker does. Clicking its icon always makes it your priority, and right-click opens its menu."),
-            clickPick("shift", "Shift-click on a quest", "With chat open, Shift-click links the quest first."),
-            clickPick("ctrl", "Ctrl-click on a quest", "Your priority quest is the one the marker and arrow lead to."),
+            clickPick("shift", "Shift-click on a quest", "What Shift-click on a quest does. With chat open it links the quest first."),
+            clickPick("ctrl", "Ctrl-click on a quest", "What Ctrl-click on a quest does. Your priority quest is the one the marker and arrow lead to."),
             clickPick("alt", "Alt-click on a quest", "What Alt-click on a quest in the tracker does."),
             { type = "toggle", label = "Track new quests automatically",
               desc = "The game's own setting: a quest you accept goes straight into the tracker.",
@@ -118,11 +118,11 @@ ns.OPTIONS = { pages = {
         { label = "Quest progress pop-up", items = {
             { type = "toggle", key = "progress", label = "Quest progress pop-up",
               desc = "A kill or item for a quest shows for a moment at the top of the screen, small, with a progress bar. Turn it off to see the game's yellow line instead. Move it in unlock mode." },
-            { type = "slider", key = "progressScale", label = "Pop-up scale", min = 0.5, max = 2, step = 0.05, unit = "x",
+            { type = "slider", key = "progressScale", label = "Quest pop-up scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "The whole pop-up, text and bar together.",
               disabled = off("progress") },
-            { type = "slider", key = "progressHold", label = "Stays for (seconds)", min = 1, max = 8, step = 0.1,
-              desc = "How long a line stays on screen before it fades away.",
+            { type = "slider", key = "progressHold", label = "Quest pop-up time", min = 1, max = 8, step = 0.1,
+              desc = "How many seconds a line stays on screen before it fades away.",
               disabled = off("progress") },
             DaylightUI.Options.BarRow("media.progress", "Progress bar", "the progress bars in the tracker and the pop-up"),
             DaylightUI.Options.BackRow("media.progress", "Progress bar", "the progress bars in the tracker and the pop-up"),
@@ -133,20 +133,20 @@ ns.OPTIONS = { pages = {
       desc = "The marker in the world that leads you to your quest.",
       groups = {
         { label = "Quest marker", items = {
-            { type = "toggle", key = "nav.marker", label = "DaylightUI style quest marker",
-              desc = "The marker over the spot of the quest you picked (click its icon in the tracker) in DaylightUI style, with the distance. It fades away once you're in the quest's area on the map. Turn it off to see the game's own marker." },
+            { type = "toggle", key = "nav.marker", label = "Daylight UI style quest marker",
+              desc = "The marker over the spot of the quest you picked (click its icon in the tracker) in Daylight UI style, with the distance. It fades away once you're in the quest's area on the map. Turn it off to see the game's own marker." },
             { type = "dropdown", key = "nav.style", label = "Marker look", values = MARKER_LOOKS,
               order = { "beacon", "pillar", "minimal" }, disabled = off("nav.marker"),
               desc = "Beacon: a diamond with a soft light. Light pillar: a beam standing on the spot, easy to see from far away. Minimal: a small arrow and the distance." },
             { type = "slider", key = "nav.scale", label = "Marker scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "How big the quest marker is in the world, distance text included.",
               disabled = off("nav.marker") },
-            { type = "toggle", key = "nav.distance", label = "Distance under the marker",
-              desc = "How many yards away it is.", disabled = off("nav.marker") },
+            { type = "toggle", key = "nav.distance", label = "Marker distance",
+              desc = "How many yards away it is, under the marker.", disabled = off("nav.marker") },
             { type = "toggle", key = "nav.trail", label = "Breadcrumbs on the ground",
               desc = "A trail of small diamonds from your feet to the marker, drifting toward it. Like the marker, it fades away once you're in the quest's area on the map.",
               disabled = off("nav.marker") },
-            { type = "toggle", key = "nav.fightFade", label = "Softer in a fight",
+            { type = "toggle", key = "nav.fightFade", label = "Fade the marker and arrow in a fight",
               desc = "The marker and the arrow fade back while you're in combat, so they're never in the way." },
         } },
         { label = "Quest arrow", items = {
@@ -157,17 +157,17 @@ ns.OPTIONS = { pages = {
               disabled = off("nav.arrow") },
             { type = "dropdown", key = "nav.arrowColorMode", label = "Arrow color", values = BAR_MODES,
               order = { "accent", "class", "custom" }, disabled = off("nav.arrow"),
-              desc = "Accent follows the accent you picked on the General page, gradient and all." },
+              desc = "Accent color follows the accent on General > Appearance, gradient and all." },
             { type = "color", key = "nav.arrowColor", label = "Custom arrow color",
-              desc = "The arrow's color while Arrow color is set to Custom.",
+              desc = "The arrow's color while Arrow color is set to One color.",
               hidden = function(get) return get("nav.arrowColorMode") ~= "custom" end, disabled = off("nav.arrow") },
             { type = "toggle", key = "nav.arrowGlow", label = "Arrow glow",
               desc = "A soft light behind the arrow, in its color.", disabled = off("nav.arrow") },
             { type = "slider", key = "nav.arrowGlowAlpha", label = "Arrow glow strength", min = 0.1, max = 1, step = 0.05, unit = "%",
               desc = "How bright the light behind the arrow is.",
               disabled = function(get) return get("nav.arrow") ~= true or get("nav.arrowGlow") ~= true end },
-            { type = "toggle", key = "nav.arrowDistance", label = "Yards under the arrow",
-              desc = "How far away the spot is.", disabled = off("nav.arrow") },
+            { type = "toggle", key = "nav.arrowDistance", label = "Arrow distance",
+              desc = "How many yards away the spot is, under the arrow.", disabled = off("nav.arrow") },
             { type = "toggle", key = "nav.arrowNodes", label = "Arrow to nearby gathering nodes",
               desc = "When GatherMate2 knows a node within 100 yards, the arrow points there first, with its name under the yards, then goes back to your quest once you reach it. Which nodes count follows GatherMate2's own settings: the kinds it shows on your map and its node filter. Needs the GatherMate2 addon.",
               disabled = function(get) return get("nav.arrow") ~= true or not (ns.Gather and ns.Gather.Loaded()) end },
@@ -183,10 +183,10 @@ ns.OPTIONS = { pages = {
       desc = "The quest log on the world map.",
       groups = {
         { label = "Quest log", items = {
-            { type = "toggle", key = "journal", label = "DaylightUI style quest log on the map",
-              desc = "The world map's quest list and quest pages in DaylightUI style, with Track, Share and Abandon on each quest. Turn it off to use the game's own." },
+            { type = "toggle", key = "journal", label = "Daylight UI style quest log on the map",
+              desc = "The world map's quest list and quest pages in Daylight UI style, with Track, Share and Abandon on each quest. Turn it off to use the game's own." },
             { type = "toggle", key = "journalTipBeside", label = "Quest tooltips beside the log",
-              desc = "Hovering a quest in the quest log shows its tooltip beside the log, as the game's own log does. Off shows it at the mouse.",
+              desc = "Hovering a quest in the quest log shows its tooltip beside the log, as the game's own log does. When off, it shows at the mouse.",
               disabled = off("journal") },
             { type = "toggle", key = "journalHoverIcons", label = "Spotlight a quest's map icons on hover",
               desc = "Hovering a Questie icon on the map or minimap, or a quest in the quest log, makes that quest's icons a little bigger and fades the other quests' icons." },
@@ -204,7 +204,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "journalRowHeight", label = "Quest log row height", min = 18, max = 36, unit = "px",
               desc = "How tall each quest's row is in the quest log. Larger text keeps enough room however low this is set.",
               disabled = off("journal") },
-            { type = "slider", key = "journalOpacity", label = "Quest log opacity", min = 0.5, max = 1, step = 0.01, unit = "%",
+            { type = "slider", key = "journalOpacity", label = "Quest log background opacity", min = 0.5, max = 1, step = 0.01, unit = "%",
               desc = "How solid the quest log's background is. Lower lets the world show through behind the list.",
               disabled = off("journal") },
             { type = "toggle", key = "journalLevels", label = "Show quest levels in the quest log",
@@ -223,11 +223,11 @@ ns.OPTIONS = { pages = {
       groups = {
         { label = "Headers", items = {
             paintMode("header", "Section header color"),
-            paintColor("header", "Custom section header color"),
+            paintColor("header", "Custom section header color", "Section header color"),
             paintMode("headerLine", "Header line color"),
-            paintColor("headerLine", "Custom header line color"),
+            paintColor("headerLine", "Custom header line color", "Header line color"),
             paintMode("zone", "Zone name color"),
-            paintColor("zone", "Custom zone name color"),
+            paintColor("zone", "Custom zone name color", "Zone name color"),
         } },
         { label = "Quests", items = {
             { type = "dropdown", key = "colors.titleMode", label = "Quest title color", values = TITLE_MODES,
@@ -244,7 +244,7 @@ ns.OPTIONS = { pages = {
             color("done", "Done objective color", "An objective you've finished, while Objective progress color is The colors below.",
                 function(get) return (get("objColors") or "plain") ~= "plain" end),
             color("tick", "Done tick color", "The tick next to a finished objective."),
-            color("ready", "Ready to hand in", "The '?' and the hand-in line."),
+            color("ready", "Hand-in color", "The '?' and the hand-in line."),
             color("elite", "Elite tag color", "The tag after an elite quest's title."),
             color("dungeon", "Dungeon tag color", "The tag after a dungeon quest's title."),
             color("raid", "Raid tag color", "The tag after a raid quest's title."),
@@ -256,15 +256,15 @@ ns.OPTIONS = { pages = {
               order = { "accent", "daylight", "gradient", "class", "custom" },
               desc = "The icon of the quest the minimap arrow points to (click a quest's icon to pick it), and the light behind an icon under the mouse." },
             { type = "color", key = "colors.focus", label = "Custom priority quest color",
-              desc = "The priority quest's color while Priority quest color is set to Custom.",
+              desc = "The priority quest's color while Priority quest color is set to One color.",
               hidden = function(get) return get("colors.focusMode") ~= "custom" end },
         } },
         { label = "Progress bars", items = {
             { type = "dropdown", key = "colors.barMode", label = "Progress bar color", values = BAR_MODES,
               order = { "accent", "class", "custom" },
-              desc = "Accent follows Appearance, including the Daylight gradient." },
+              desc = "Accent color follows the accent on General > Appearance, including the Daylight gradient." },
             { type = "color", key = "colors.bar", label = "Custom progress bar color",
-              desc = "The progress bars' color while Progress bar color is set to Custom.",
+              desc = "The progress bars' color while Progress bar color is set to One color.",
               hidden = function(get) return get("colors.barMode") ~= "custom" end },
         } },
       } },

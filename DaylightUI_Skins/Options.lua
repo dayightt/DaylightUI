@@ -14,9 +14,9 @@ end
 
 ns.OPTIONS = { pages = {
     { id = "skins", label = "Game window skins",
-      desc = "The game's own windows in DaylightUI style: the info panel's background, DaylightUI borders, font, controls and scroll bars.",
+      desc = "The game's own windows in Daylight UI style: Daylight UI borders, window background, font, controls and scroll bars.",
       groups = {
-        { label = "Packs", desc = "The game's windows Daylight UI didn't rebuild. Rebuilt windows have their own switches under Extras.", items = {
+        { label = "Restyled game windows", desc = "The game's windows Daylight UI didn't rebuild. Rebuilt windows have their own switches under Extras.", items = {
             { type = "toggle", key = "packs.npc", label = "Flight maps, stable and books", reload = true,
               desc = "Flight maps, books and letters, tabards and petitions, the stable, and the game's own talk, vendor and trainer windows when you pick them over Daylight UI's." },
             { type = "toggle", key = "packs.social", label = "Guild, calendar and trading", reload = true,
@@ -39,7 +39,7 @@ ns.OPTIONS = { pages = {
               desc = "The alert in the middle of the screen when you're stunned, feared or silenced, as a light line in Daylight UI style. When off, the game's own alert shows instead.",
               disabled = function(get) return get("packs.system") == false end },
         } },
-        { label = "Other addons", desc = "Other addons' windows in DaylightUI style. One switch per addon you have installed.",
+        { label = "Other addons", desc = "Other addons' windows in Daylight UI style. One switch per addon you have installed.",
           items = addonItems },
         { label = "World map", items = {
             { type = "toggle", key = "mapLogBeside", label = "Quest list beside the map",
@@ -62,7 +62,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "mapPinScale", label = "Map symbol scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "The size of the entrance, flight master, boat and zeppelin symbols on the world map. They keep this size as you zoom." },
             { type = "slider", key = "mapPinAlpha", label = "Map symbol opacity", min = 0.2, max = 1, step = 0.05, unit = "%",
-              desc = "How see-through the world map's symbols are. Lower it to see more of the map under them." },
+              desc = "How solid the world map's symbols are. Lower it to see more of the map under them." },
         } },
     } },
 } }

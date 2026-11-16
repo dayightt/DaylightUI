@@ -98,14 +98,14 @@ R("TIMER_EXHAUSTION", { group = "timer", label = "Fatigue",      lo = { 0.55, 0.
 R("TIMER_FEIGNDEATH", { group = "timer", label = "Feign death",  lo = { 0.55, 0.42, 0.02 }, hi = { 1.00, 0.90, 0.40 } })
 R("TIMER_DEATH",      { group = "timer", label = "Release",      lo = { 0.30, 0.30, 0.34 }, hi = { 0.78, 0.80, 0.86 } })
 -- Reputation on the experience bar, one per standing (REP_<reaction>, 1 = Hated).
-R("REP_1",       { group = "reputation", label = "Hated",      lo = { 0.28, 0.02, 0.04 }, hi = { 0.80, 0.12, 0.16 } })
-R("REP_2",       { group = "reputation", label = "Hostile",    lo = { 0.45, 0.06, 0.04 }, hi = { 1.00, 0.32, 0.22 } })
-R("REP_3",       { group = "reputation", label = "Unfriendly", lo = { 0.50, 0.18, 0.02 }, hi = { 1.00, 0.58, 0.22 } })
-R("REP_4",       { group = "reputation", label = "Neutral",    lo = { 0.60, 0.45, 0.00 }, hi = { 1.00, 0.90, 0.35 } })
-R("REP_5",       { group = "reputation", label = "Friendly",   lo = { 0.10, 0.38, 0.10 }, hi = { 0.50, 0.92, 0.40 } })
-R("REP_6",       { group = "reputation", label = "Honored",    lo = { 0.00, 0.35, 0.28 }, hi = { 0.30, 0.95, 0.70 } })
-R("REP_7",       { group = "reputation", label = "Revered",    lo = { 0.02, 0.25, 0.50 }, hi = { 0.40, 0.80, 1.00 } })
-R("REP_8",       { group = "reputation", label = "Exalted",    lo = { 0.30, 0.10, 0.50 }, hi = { 0.85, 0.55, 1.00 } })
+R("REP_1",       { group = "reputation", label = "Hated reputation",      lo = { 0.28, 0.02, 0.04 }, hi = { 0.80, 0.12, 0.16 } })
+R("REP_2",       { group = "reputation", label = "Hostile reputation",    lo = { 0.45, 0.06, 0.04 }, hi = { 1.00, 0.32, 0.22 } })
+R("REP_3",       { group = "reputation", label = "Unfriendly reputation", lo = { 0.50, 0.18, 0.02 }, hi = { 1.00, 0.58, 0.22 } })
+R("REP_4",       { group = "reputation", label = "Neutral reputation",    lo = { 0.60, 0.45, 0.00 }, hi = { 1.00, 0.90, 0.35 } })
+R("REP_5",       { group = "reputation", label = "Friendly reputation",   lo = { 0.10, 0.38, 0.10 }, hi = { 0.50, 0.92, 0.40 } })
+R("REP_6",       { group = "reputation", label = "Honored reputation",    lo = { 0.00, 0.35, 0.28 }, hi = { 0.30, 0.95, 0.70 } })
+R("REP_7",       { group = "reputation", label = "Revered reputation",    lo = { 0.02, 0.25, 0.50 }, hi = { 0.40, 0.80, 1.00 } })
+R("REP_8",       { group = "reputation", label = "Exalted reputation",    lo = { 0.30, 0.10, 0.50 }, hi = { 0.85, 0.55, 1.00 } })
 
 local function settings()
     local g = DUI.DB.General().gradients
