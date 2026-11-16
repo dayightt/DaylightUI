@@ -1269,7 +1269,7 @@ Manager.FIX = {
 -- how long into the session, other loaded addons, the game's plate settings, and
 -- the plates as they were before step 1 while still invisible. One text, short
 -- enough for one Discord message.
-Manager.REPORT_PLATES = 2 -- plates listed in full (a report holds 4000 characters)
+Manager.REPORT_PLATES = 1 -- plates listed in full (a report holds 4000 characters, and the log needs room)
 Manager.REPORT_MAX = 3800
 -- Where the player is, how the game is shown, what of Daylight UI is on and
 -- the other addons (the core's report, DUI.PlateReport).
@@ -1284,6 +1284,8 @@ function Manager.FixReport(step)
         step and string.format("step %d brought them back", step) or "no step brought them back") }
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     for _, line in ipairs(run.world or Manager.ReportWorld()) do out[#out + 1] = line end
+    out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
+    for _, line in ipairs(run.log or {}) do out[#out + 1] = line end
     out[#out + 1] = "Before step 1:"
     for _, line in ipairs(run.before) do out[#out + 1] = line end
     return Manager.Printable(table.concat(out, "\n"), Manager.REPORT_MAX)
@@ -1315,7 +1317,8 @@ function Manager.Fix()
     end
     -- Snapshot the plates now, still invisible, before anything is undone.
     if n == 1 then
-        Manager.fixRun = { did = {}, before = Manager.CheckLines(Manager.REPORT_PLATES), world = Manager.ReportWorld() }
+        Manager.fixRun = { did = {}, before = Manager.CheckLines(Manager.REPORT_PLATES), world = Manager.ReportWorld(),
+            log = Report.LogLines() }
         Report.FixBegin()
     end
     Manager.fixStep = n

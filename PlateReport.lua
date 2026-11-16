@@ -144,6 +144,108 @@ R.changes = { scale = 0, display = 0 }
 DUI.RegisterEvent("UI_SCALE_CHANGED", function() R.changes.scale = R.changes.scale + 1 end)
 DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() R.changes.display = R.changes.display + 1 end)
 
+-- What happened in the game and in Daylight UI before a platefix, oldest
+-- first: fights, loading screens, zones, game settings changed, the screen
+-- and UI scale, cinematics, lost control, vehicles, the client's restrictions,
+-- the AFK screen, the UI faded out and back, frames drawn to their own buffer,
+-- and plates coming and going. Players can't say what they did before the
+-- plates went, so the report carries it. Only events feed it, nothing runs each
+-- frame, and the same thing twice in a row counts up instead of taking a line.
+R.LOG_SIZE = 24
+R.LOG_BUCKET = 60 -- seconds of plates coming and going counted on one line
+R.log = {}
+
+local function clock() return type(GetTime) == "function" and GetTime() or 0 end
+
+local function keep(entry)
+    local log = R.log
+    log[#log + 1] = entry
+    if #log > R.LOG_SIZE then table.remove(log, 1) end
+end
+
+-- Frames drawn to their own buffer change after combat with no event of their
+-- own, so the count is read each time something else is noted.
+local buffersWas
+local function buffers()
+    local F = DUI.Fade
+    local n = F and F.WholeCount and F.WholeCount()
+    if type(n) == "number" and n ~= buffersWas then
+        buffersWas = n
+        keep({ at = clock(), what = "buffers drawn " .. n, times = 1 })
+    end
+end
+
+function R.Note(what)
+    buffers()
+    local last = R.log[#R.log]
+    if last and last.what == what then
+        last.times, last.at = last.times + 1, clock()
+        return
+    end
+    keep({ at = clock(), what = what, times = 1 })
+end
+
+function R.LogSize() return #R.log end
+
+local platesNow
+local function plateMoved(added)
+    buffers()
+    local now = clock()
+    if not platesNow or now - platesNow.at >= R.LOG_BUCKET or R.log[#R.log] ~= platesNow then
+        platesNow = { at = now, added = 0, removed = 0, times = 1 }
+        keep(platesNow)
+    end
+    if added then platesNow.added = platesNow.added + 1 else platesNow.removed = platesNow.removed + 1 end
+end
+DUI.RegisterEvent("NAME_PLATE_UNIT_ADDED", function() plateMoved(true) end)
+DUI.RegisterEvent("NAME_PLATE_UNIT_REMOVED", function() plateMoved(false) end)
+
+local NOTES = {
+    PLAYER_REGEN_DISABLED = "fight", PLAYER_REGEN_ENABLED = "fight over",
+    LOADING_SCREEN_ENABLED = "loading screen", PLAYER_ENTERING_WORLD = "entered the world",
+    UI_SCALE_CHANGED = "UI scale changed", DISPLAY_SIZE_CHANGED = "screen size changed",
+    CINEMATIC_START = "cinematic", CINEMATIC_STOP = "cinematic over", PLAY_MOVIE = "movie", STOP_MOVIE = "movie over",
+    PLAYER_CONTROL_LOST = "lost control", PLAYER_CONTROL_GAINED = "control back",
+}
+for event, what in pairs(NOTES) do DUI.RegisterEvent(event, function() R.Note(what) end) end
+DUI.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+    R.Note("zone " .. tostring(type(GetRealZoneText) == "function" and plain(GetRealZoneText()) or "?"))
+end)
+DUI.RegisterEvent("CVAR_UPDATE", function(_, name, value)
+    R.Note(string.format("setting %s=%s", tostring(plain(name)), tostring(plain(value))))
+end)
+DUI.RegisterEvent("UNIT_ENTERED_VEHICLE", function(_, unit) if unit == "player" then R.Note("vehicle") end end)
+DUI.RegisterEvent("UNIT_EXITED_VEHICLE", function(_, unit) if unit == "player" then R.Note("vehicle over") end end)
+DUI.RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED", function(_, kind, state)
+    R.Note(string.format("restriction %s=%s", tostring(plain(kind)), tostring(plain(state))))
+end)
+DUI.On("AfkScreenShown", function() R.Note("AFK screen") end)
+DUI.On("AfkScreenHidden", function() R.Note("AFK screen over") end)
+-- The AFK screen and the NPC scene fade the whole UI a step each frame: only
+-- the ends are noted.
+local uiOut = false
+DUI.On("UIAlpha", function(a)
+    if type(a) ~= "number" then return end
+    if a <= 0.01 and not uiOut then uiOut = true; R.Note("UI faded out")
+    elseif a >= 0.99 and uiOut then uiOut = false; R.Note("UI back") end
+end)
+-- The log as report lines, each with how long before `at` (now when left out).
+function R.LogLines(at)
+    buffers()
+    at = at or clock()
+    local out = {}
+    for _, e in ipairs(R.log) do
+        if e.at <= at then
+            local ago = math.max(0, math.floor(at - e.at + 0.5))
+            local what = e.what or string.format("plates +%d -%d", e.added, e.removed)
+            out[#out + 1] = string.format("  -%d:%02d %s%s", math.floor(ago / 60), ago % 60, what,
+                e.times > 1 and string.format(" (x%d)", e.times) or "")
+        end
+    end
+    if #out == 0 then out[1] = "  nothing yet" end
+    return out
+end
+
 function R.Screen()
     local words = {}
     local function add(label, v)
@@ -514,6 +616,8 @@ function R.FixReport(step)
         step and string.format("step %d brought them back", step) or "no step brought them back") }
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     for _, line in ipairs(run.world or R.World()) do out[#out + 1] = line end
+    out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
+    for _, line in ipairs(run.log or {}) do out[#out + 1] = line end
     out[#out + 1] = "Before step 1:"
     for _, line in ipairs(run.before) do out[#out + 1] = line end
     return R.Printable(table.concat(out, "\n"), R.REPORT_MAX)
@@ -537,7 +641,7 @@ function R.Fix()
             .. "Daylight UI team, then /reload."
     end
     if n == 1 then
-        fixRun = { did = {}, before = R.CheckLines(2), world = R.World() }
+        fixRun = { did = {}, before = R.CheckLines(1), world = R.World(), log = R.LogLines() }
         R.FixBegin()
     end
     fixStep = n

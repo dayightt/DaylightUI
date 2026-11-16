@@ -102,11 +102,107 @@ T.test("platefix: yes with no step run asks for a run first, and opens nothing",
     T.isnil(NP.Manager.fixStep)
 end)
 
-T.test("platefix: the report fits one Discord report", function()
+T.test("platefix: the report fits one Discord report, log and all", function()
     local NP = login()
+    for i = 1, 200 do
+        stub.Advance(7)
+        stub.FireEvent("CVAR_UPDATE", "someLongSettingName" .. i, "1")
+    end
     NP.Manager.Fix()
-    T.truthy(#NP.Manager.FixReport(1) <= NP.Manager.REPORT_MAX)
-    T.eq(NP.Manager.REPORT_PLATES, 2)
+    local text = NP.Manager.FixReport(1)
+    T.truthy(#text <= NP.Manager.REPORT_MAX, #text)
+    T.truthy(text:find("Before step 1:", 1, true), "the log doesn't push the plates out")
+    T.truthy(text:find("nameplate1:", 1, true), text)
+    T.eq(NP.Manager.REPORT_PLATES, 1)
+end)
+
+-- Players can't say what they did before the plates went (their reasons have
+-- been wrong before), so the report carries a log of what happened in the
+-- game and in Daylight UI in the minutes before step 1. Events only: nothing
+-- runs each frame for it.
+T.test("platefix: the report carries a log of what happened before step 1", function()
+    local NP = login()
+    local R = DaylightUI.PlateReport
+    stub.Advance(30)
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    stub.Advance(20)
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.Advance(5)
+    stub.FireEvent("LOADING_SCREEN_ENABLED")
+    stub.FireEvent("ZONE_CHANGED_NEW_AREA")
+    stub.FireEvent("CVAR_UPDATE", "nameplateShowFriendlyNpcs", "1")
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.FireEvent("DISPLAY_SIZE_CHANGED")
+    stub.FireEvent("CINEMATIC_START")
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    stub.FireEvent("UNIT_ENTERED_VEHICLE", "party1")
+    stub.FireEvent("UNIT_ENTERED_VEHICLE", "player")
+    stub.FireEvent("ADDON_RESTRICTION_STATE_CHANGED", 1, 2)
+    DaylightUI.Fire("AfkScreenShown")
+    DaylightUI.Fade.SetUIAlpha(0.5)
+    DaylightUI.Fade.SetUIAlpha(0)
+    DaylightUI.Fade.SetUIAlpha(0)
+    DaylightUI.Fade.SetUIAlpha(1)
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.SetFlattensRenderLayers = function() end
+    f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.Whole(f, "test", true)
+    stub.RunTimers()
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    stub.Advance(90)
+    NP.Manager.Fix()
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    local text = NP.Manager.FixReport(1)
+    T.truthy(text:find("What happened before step 1", 1, true), text)
+    for _, want in ipairs({ "fight", "fight over", "loading screen", "zone ", "nameplateShowFriendlyNpcs=1",
+        "UI scale changed", "screen size changed", "cinematic", "lost control", "vehicle",
+        "restriction 1=2", "AFK screen", "UI faded out", "UI back", "buffers drawn 1", "plates +1 -1" }) do
+        T.truthy(text:find(want, 1, true), want .. " in: " .. text)
+    end
+    local log = text:match("What happened before step 1.-Before step 1:")
+    T.truthy(log, text)
+    local _, fights = log:gsub("fight\n", "")
+    T.eq(fights, 1, "the fight after step 1 isn't in it")
+    T.falsy(log:find("party1", 1, true), "another unit's vehicle isn't noted")
+    T.falsy(log:find("0.50", 1, true), "the UI's fade on the way isn't noted, only out and back")
+    T.truthy(log:find("-1:55 fight", 1, true), "minutes and seconds before step 1: " .. log)
+    T.truthy(R.LogSize() <= R.LOG_SIZE, "kept to a size")
+end)
+
+T.test("platefix: the log keeps only the latest moments, and the same thing again counts up", function()
+    login()
+    local R = DaylightUI.PlateReport
+    for i = 1, R.LOG_SIZE + 10 do
+        stub.FireEvent("CVAR_UPDATE", "setting" .. i, "1")
+    end
+    T.eq(R.LogSize(), R.LOG_SIZE)
+    local text = table.concat(R.LogLines(), "\n")
+    T.falsy(text:find("setting1=1\n", 1, true), "the oldest went")
+    T.truthy(text:find("setting" .. (R.LOG_SIZE + 10) .. "=1", 1, true), text)
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    stub.FireEvent("CVAR_UPDATE", "same", "1")
+    stub.FireEvent("CVAR_UPDATE", "same", "1")
+    text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("same=1 (x2)", 1, true), text)
+end)
+
+T.test("platefix: the log is in the report with the Nameplates module off too", function()
+    stub.Load({ before = function()
+        _G.C_NamePlate = { GetNamePlateForUnit = function() end }
+        stub.units = { player = { name = "Me", class = "PRIEST", isPlayer = true } }
+    end })
+    _G.SetCVar = function() end
+    _G.GetCVar = function() end
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    DaylightUI.RunCommand("platefix")
+    DaylightUI.RunCommand("platefix yes")
+    local text = shownText()
+    T.truthy(text and text:find("What happened before step 1", 1, true), tostring(text))
+    T.truthy(text:find("fight", 1, true), text)
 end)
 
 -- Steps 5 to 7 rebuild the game's plates like step 3, then put the Daylight UI
