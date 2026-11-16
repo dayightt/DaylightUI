@@ -1455,6 +1455,13 @@ function Tip.Build(mod)
                     end)
                 end
             end
+            -- A macro on an action bar shows its spell's lines under its own data
+            -- type. Its id is the macro's, so it gets the look but no Spell ID.
+            if types and types.Macro then
+                TDP.AddTooltipPostCall(types.Macro, function(tip, data)
+                    if skinned[tip] then DUI.SafeCall(Tip.PaintSpell, tip, data) end
+                end)
+            end
         end
         -- Post-hooks only (they run after the game's code). Re-owning the
         -- tooltip from a hook taints the game's world cursor tooltip code,

@@ -1279,6 +1279,26 @@ T.test("tooltip: a spell's cost in its power color, numbers popped, heals green,
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A macro on an action bar fills the tooltip with its spell's lines under the
+-- Macro data type (seen in game: it kept the game's blue and yellow).
+T.test("tooltip: a macro's spell lines get the same look as the spell's, without a Spell ID", function()
+    login(function() itemWorld(); Enum.TooltipDataType.Macro = 25 end)
+    _G.MANA = "Mana"
+    local at = withLines(GameTooltip)
+    local S, INK = DaylightUI.Style, DaylightUI.Style.INK
+    DaylightUI:Set("Tooltip", "showIDs", true)
+    stub.RunTimers()
+    fill(GameTooltip, Enum.TooltipDataType.Macro, { id = 3 }, {
+        { "Smite", "Rank 4", 1, 1, 1, 0.5, 0.5, 0.5 },
+        { "95 Mana", "30 yd range", 1, 1, 1, 1, 1, 1 },
+        { "Smite an enemy for 82 to 91 Holy damage.", nil, 1, 0.82, 0 },
+    })
+    T.rgb(at(2).__textColor, { S.PowerColor("MANA") }, "the cost in mana's color")
+    T.rgb(at(3).__textColor, INK.TEXT, "the yellow description: our text color")
+    T.eq(GameTooltip:NumLines(), 3, "no Spell ID: the id is the macro's")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Mend Pet: "while you focus" once painted its heal Focus orange. A power word
 -- only colors a number when it comes right after it.
 T.test("tooltip: a heal with 'focus' later in the sentence stays a heal; an aura's sentence our text color", function()
