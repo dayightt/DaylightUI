@@ -78,12 +78,20 @@ local function ownTag(num, name)
     return kind and Tags.own[kind] or nil
 end
 
+-- A world channel's standard tag from its kind, which the game's channel id decides
+-- (Kinds.OfChannel), so it doesn't depend on the channel's name in your language.
+function Tags.OfName(name)
+    if type(name) ~= "string" or secret(name) then return nil end
+    local kind = ns.Kinds.OfChannel(string.match(name, "^(.-) %- ") or name)
+    return Tags.KIND_TAGS[kind]
+end
+
 -- "[1. General - Zone]"
 local function channel(open, inner, close)
     local num, name = string.match(inner, "^(%d+)%. (.+)$")
     name = name or inner
     local base = string.gsub(string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", ""), "%s", "")
-    local tag = ownTag(num, name) or Tags.CHANNELS[base]
+    local tag = ownTag(num, name) or Tags.OfName(name) or Tags.CHANNELS[base]
     if tag and num and Tags.numbers then tag = num .. ". " .. tag end
     return open .. "[" .. (tag or num or name) .. "]" .. close
 end
@@ -168,7 +176,7 @@ function Tags.Own(kind) return Tags.own[kind] end
 -- Fallback tag for a channel: its word, else its number.
 function Tags.Standard(name, id)
     local base = string.gsub(string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", ""), "%s", "")
-    return Tags.CHANNELS[base] or tostring(id)
+    return Tags.OfName(name) or Tags.CHANNELS[base] or tostring(id)
 end
 
 -- Brackets and pipes would break the line's link. Empty means the standard tag.
