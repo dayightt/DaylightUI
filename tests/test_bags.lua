@@ -3465,7 +3465,7 @@ T.test("bags: any item marked as junk sells with the rest; the menu in any view,
     -- The key binding acts on the item under the mouse.
     _G.GetMouseFoci = function() return { bread } end
     T.truthy(BINDING_NAME_DAYLIGHTUI_BAGS_JUNK)
-    T.truthy(BINDING_HEADER_DAYLIGHTUI_BAGS, "its own key bindings heading")
+    T.eq(BINDING_HEADER_DAYLIGHTUI, "Daylight UI", "in the Daylight UI key bindings")
     DaylightUI.BagsMarkJunk()
     T.eq(Cat.PinOf(8), "junk")
     _G.GetMouseFoci = function() return { UIParent } end

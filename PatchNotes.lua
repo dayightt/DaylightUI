@@ -14,7 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Cooldown Manager", "Each cooldown bar can have its own bar animation, picked on its card in the layout editor" },
-            { "Fade", "A key to show everything that's faded, and press again to fade it all back. Set it in the game's Key Bindings under Daylight UI" },
+            { "Fade", "A Show All key brings back everything that's faded, and pressing it again fades it all back. Daylight UI's keys now have their own section in the game's Key Bindings" },
         },
         fixed = {
             { "General", "Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display" },

@@ -661,8 +661,7 @@ end
 -- Key binding (Bindings.xml): fold the whole list to its header.
 function Tracker.FoldAll() Tracker.ToggleFold("quests") end
 DUI.QuestsFoldAll = function() if Tracker.built then Tracker.FoldAll() end end
-_G.BINDING_HEADER_DAYLIGHTUI_QUESTS = string.format(DUI.L["Daylight UI: %s"], DUI.L["Quests"])
-_G.BINDING_NAME_DAYLIGHTUI_QUESTS_FOLD = DUI.L["Fold the quest tracker"]
+_G.BINDING_NAME_DAYLIGHTUI_QUESTS_FOLD = DUI.L["Fold Quests"]
 
 function Tracker.Apply(path)
     if not Tracker.built then return end

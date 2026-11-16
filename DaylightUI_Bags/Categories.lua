@@ -735,8 +735,7 @@ function Cat.JunkUnderMouse()
     if Cat.CanMarkJunk(info) then Cat.ToggleJunk(info.itemID, info.hyperlink) end
 end
 DUI.BagsMarkJunk = function() Cat.JunkUnderMouse() end
-_G.BINDING_NAME_DAYLIGHTUI_BAGS_JUNK = L["Mark the bag item under the mouse as junk"]
-_G.BINDING_HEADER_DAYLIGHTUI_BAGS = string.format(L["Daylight UI: %s"], L["Bags"])
+_G.BINDING_NAME_DAYLIGHTUI_BAGS_JUNK = L["Mark Junk"]
 
 -- What Lock or Unlock does, beside its row while the mouse is on it. The menu
 -- only says which row the mouse entered, so the row itself hides the tip when
