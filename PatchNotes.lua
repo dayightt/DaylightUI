@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "Bags", "Drag the bag's bottom-right corner to make it wider or narrower (the bank too)" },
+        },
+    },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",
         new = {
             { "Glows", "Five animated glows (or none) for main window buttons, your target's nameplate outline and each Cooldown Manager spell" },

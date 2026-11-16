@@ -345,6 +345,7 @@ function Window.Create(spec)
         ns.Move.Build(f)
     end
     if spec.footer then spec.footer(f) end
+    Window.Grip(f)
 
     f:SetScript("OnHide", function(self)
         -- Closed mid-cleanup: the rest fills while closed, and the next open lays it
@@ -383,6 +384,60 @@ function Window.Create(spec)
     if DUI.Motion then DUI.Motion.Window(f) end
     ns.windows[#ns.windows + 1] = f
     return f
+end
+
+-- The corner grip: dragging sideways adds or takes away whole columns (the
+-- Columns slider's setting), and the height keeps fitting the items, so nothing
+-- is ever hidden. The new count lays out live and is saved on release;
+-- right-click puts the default back.
+Window.COLUMNS_MIN = 6
+function Window.ColumnsMax(f) return f.prefix == "" and 20 or 24 end
+
+function Window.Grip(f)
+    local base   -- the drag's start: width and columns
+    local function cfg() return f.Cfg() end
+    -- While dragging, the layout reads the dragged count instead of the setting.
+    local plainCfg = f.Cfg
+    function f.Cfg()
+        local c = plainCfg()
+        if not f.dragColumns then return c end
+        return setmetatable({ columns = f.dragColumns }, { __index = c })
+    end
+    local function columnsAt(w)
+        local c = cfg()
+        local step = (tonumber(c.iconSize) or 37) + (tonumber(c.spacing) or 0)
+        local n = base.cols + math.floor((w - base.w) / step + 0.5)
+        return math.max(Window.COLUMNS_MIN, math.min(Window.ColumnsMax(f), n))
+    end
+    DUI.Win.Grip(f, {
+        fit = true, min = { 1, 1 },
+        place = function() save(f); Window.Place(f) end,
+        resized = function(w, _, live)
+            if not base then
+                base = { w = f:GetWidth(), cols = math.floor(tonumber(cfg().columns) or 10) }
+            end
+            local n = columnsAt(w)
+            if live then
+                -- A fight holds layouts until it ends, so the drag shows nothing then.
+                if n ~= (f.dragColumns or base.cols) and not InCombatLockdown() then
+                    f.dragColumns = n
+                    Window.Relayout(f, true, true)   -- same items, only their spots move
+                end
+                return
+            end
+            f.dragColumns, base = nil, nil
+            if n ~= math.floor(tonumber(cfg().columns) or 0) then f.Set("columns", n) end
+        end,
+        reset = function()
+            local d = ns.DEFAULTS
+            if f.prefix ~= "" then d = d[string.match(f.prefix, "^(.-)%.$")] end
+            if d and d.columns then f.Set("columns", d.columns) end
+        end,
+    })
+    -- Inside the corner's margin, clear of the money beside it.
+    f.grip:SetSize(Window.EDGE - 2, Window.EDGE - 2)
+    f.grip:ClearAllPoints()
+    f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 end
 
 -- ---------------------------------------------------------------------

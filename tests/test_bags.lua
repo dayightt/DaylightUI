@@ -190,6 +190,36 @@ T.test("bags: the window has a portrait header, its name and free slots in the s
     T.truthy(string.find(sub, free .. " of " .. total .. " free", 1, true), "free of total: " .. sub)
 end)
 
+T.test("bags: dragging the corner grip adds whole columns, saved on release", function()
+    local ns = login()
+    local f = open(ns)
+    local cfg = f.Cfg()
+    local step = cfg.iconSize + cfg.spacing
+    local cols, wide = cfg.columns, f:GetWidth()
+    f.GetLeft = function() return 300 end
+    f.GetTop = function() return 700 end
+    local cx = 1000
+    local old = GetCursorPosition
+    GetCursorPosition = function() return cx, 200 end
+    local grip = f.grip
+    T.truthy(grip, "the grip")
+    grip:GetScript("OnMouseDown")(grip, "LeftButton")
+    cx = 1000 + 3 * step + 2
+    grip:GetScript("OnUpdate")(grip, 0.01)
+    T.eq(f.Cfg().columns, cols + 3, "three more columns while dragging")
+    T.eq(DaylightUI:Get("Bags", "columns"), cols, "not saved yet")
+    T.eq(f:GetWidth(), wide + 3 * step, "the window widened by three slots")
+    grip:GetScript("OnMouseUp")(grip, "LeftButton")
+    stub.RunTimers()
+    GetCursorPosition = old
+    T.eq(DaylightUI:Get("Bags", "columns"), cols + 3, "saved on release")
+    T.eq(f.Cfg().columns, cols + 3)
+    grip:GetScript("OnMouseUp")(grip, "RightButton")
+    stub.RunTimers()
+    T.eq(DaylightUI:Get("Bags", "columns"), cols, "right-click puts the default back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: with the header off the search tops the window and a bank button sits by the X", function()
     local ns = login()
     local f = open(ns)
