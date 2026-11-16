@@ -257,23 +257,17 @@ function Sets.Delete(id)
     if api().GetEquipmentSetInfo(id) then C_EquipmentSet.DeleteEquipmentSet(id) end
 end
 
--- The set's icon (on the game's bars and macros): one of its own items'.
-function Sets.IconMenu(owner, id)
+-- The set's icon (on the game's bars and macros): any of the game's icons,
+-- the set's own items first.
+function Sets.PickIcon(id)
     local set = Sets.Read(id)
     if not set then return end
-    local keys, values, icons = {}, {}, {}
-    for _, e in ipairs(set.items) do
-        if e.icon and not icons[tostring(e.icon)] then
-            local k = tostring(e.icon)
-            icons[k] = e.icon
-            keys[#keys + 1] = k
-            values[k] = string.format("|T%s:16:16:0:0:64:64:5:59:5:59|t  %s", k, e.name or e.label)
-        end
-    end
-    if #keys == 0 then return end
-    DUI.Widgets.OpenMenu(owner, keys, values, tostring(set.icon), function(k)
-        C_EquipmentSet.ModifyEquipmentSet(id, set.name, icons[k])
-    end, Sets.MENU_W)
+    local first = {}
+    for _, e in ipairs(set.items) do first[#first + 1] = e.icon end
+    DUI.Widgets.PickIcon({ title = string.format(L["An icon for %s"], set.name), first = first, current = set.icon,
+        onPick = function(icon)
+            if C_EquipmentSet.GetEquipmentSetInfo(id) then C_EquipmentSet.ModifyEquipmentSet(id, set.name, icon) end
+        end })
 end
 
 -- ---------------------------------------------------------------------
@@ -311,10 +305,10 @@ function Sets.EditMenu(owner)
         if k == "new" then Sets.New()
         elseif k == "save" then Sets.AskSave(id)
         elseif k == "rename" then Sets.Rename(id)
-        elseif k == "icon" then Sets.IconMenu(owner, id)
+        elseif k == "icon" then Sets.PickIcon(id)
         elseif k == "bar" then Sets.PickUp(id)
         elseif k == "delete" then Sets.Delete(id) end
-    end, Sets.MENU_W, { confirm = { delete = true }, more = { icon = true } })
+    end, Sets.MENU_W, { confirm = { delete = true } })
 end
 
 -- ---------------------------------------------------------------------
@@ -518,6 +512,7 @@ end
 function Sets.Close()
     if not Sets.IsOpen() then return end
     DUI.Widgets.CloseMenu()
+    DUI.Widgets.CloseIcons()
     DUI.Win.Shut(Sets.panel)
 end
 
@@ -530,6 +525,7 @@ end
 function Sets.Hide()
     local f = Sets.panel
     if not (f and f:IsShown()) then return end
+    DUI.Widgets.CloseIcons()
     DUI.Win.Feel.Settle(f)
     f:Hide()
 end

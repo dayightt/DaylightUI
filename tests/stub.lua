@@ -2773,6 +2773,14 @@ C_PaperDollInfo.GetTemporaryEnchantmentInfo = function(inv)
     end
 end
 _G.GetInventoryItemTexture = function(_, slot) return "tex:" .. tostring(slot) end
+-- The game's icon lists: each call adds its icons to the table it's given,
+-- file ids or file names without the folder (Blizzard_FrameXMLBase/IconDataProvider.lua).
+stub.icons = { looseItem = {}, item = { "INV_Sword_04", 135274, 135275 }, looseSpell = {}, spell = { 136243, "Spell_Nature_Heal" } }
+local function iconFiller(kind)
+    return function(t) for _, icon in ipairs(stub.icons[kind]) do t[#t + 1] = icon end end
+end
+_G.GetLooseMacroItemIcons, _G.GetMacroItemIcons = iconFiller("looseItem"), iconFiller("item")
+_G.GetLooseMacroIcons, _G.GetMacroIcons = iconFiller("looseSpell"), iconFiller("spell")
 
 -- ---------------------------------------------------------------------
 -- Reset and load

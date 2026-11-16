@@ -1566,6 +1566,30 @@ T.test("character sets: leaving a slot out of the set you're wearing saves at on
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("character sets: Change its icon opens every game icon, the set's own first", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    panel.edit:Click()
+    clickRow("icon")
+    local W = DaylightUI.Widgets
+    local box = _G.DaylightUIIcons
+    T.truthy(W.PickingIcon())
+    T.eq(box.title:GetText(), "An icon for Fury")
+    local shown = {}
+    for _, b in ipairs(box.tiles) do if b:IsShown() then shown[#shown + 1] = b.iconValue end end
+    T.deq(shown, { 134400, "icon:201", "icon:202", "icon:203", "INV_Sword_04", 135274, 135275, 136243, "Spell_Nature_Heal" })
+    T.eq(box.tiles[5].icon:GetTexture(), [[INTERFACE\ICONS\INV_Sword_04]], "a bare file name gets the icons folder")
+    box.chips[3]:Click()
+    shown = {}
+    for _, b in ipairs(box.tiles) do if b:IsShown() then shown[#shown + 1] = b.iconValue end end
+    T.deq(shown, { 136243, "Spell_Nature_Heal" }, "the Spells chip")
+    box.tiles[2]:Click()
+    T.deq(CW.Calls("ModifyEquipmentSet"), { { 2, "Fury", "Spell_Nature_Heal" } })
+    T.isnil(W.PickingIcon(), "a pick closes it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("character sets: a new set never takes another's name", function()
     local _, ns = setsWorld()
     ns.Sets.Create("Tank")
