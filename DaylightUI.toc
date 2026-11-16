@@ -50,6 +50,7 @@ BugReport.lua
 PlateReport.lua
 Gradients.lua
 BarFx.lua
+BarFxStyles.lua
 Movers.lua
 Fade.lua
 FadeUpgrade.lua

@@ -252,6 +252,8 @@ local function apply(s)
     if not style then stop(s); return end
     s.style = style
     s.speed = BarFx.Get(s, "speed") or 1
+    -- The fill goes to the bottom of its layer, so every style's layers draw over it.
+    s.bar:GetStatusBarTexture():SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
     if flowFor(style) then
         if not s.flow then buildFlow(s) end
         s.laidW = nil

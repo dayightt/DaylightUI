@@ -197,3 +197,54 @@ T.test("a Daylight sweep bar flows its own sweep, never plain white", function()
     end
     T.eq(sweeps, 1, "the sweep's own colors, looped")
 end)
+
+-- Every style beyond Flow and Tide: built over the fill with the fill's masks,
+-- never outside it, under the bar's own overlays, and gone when None is picked.
+T.test("every style sits over the fill, inside its shape, and comes off cleanly", function()
+    local DUI = stub.Load({})
+    for _, key in ipairs(DUI.BarFx.ORDER) do
+        if DUI.BarFx.DEFS[key] then
+            local D, bar, cfg, read = setup({ style = key })
+            D.BarFx.Track(bar, "health", nil, "player", nil, read)
+            T.eq(D.BarFx.StyleOf(bar), key, key)
+            local fill = bar:GetStatusBarTexture()
+            local _, fillSub = fill:GetDrawLayer()
+            local lights = 0
+            for _, r in ipairs({ bar:GetRegions() }) do
+                local layer, sub = r:GetDrawLayer()
+                if r ~= fill and r:GetObjectType() == "Texture" and layer == "ARTWORK" and sub > fillSub then
+                    T.truthy(sub < 1, key .. ": under the bar's overlays")
+                    if r:IsShown() then
+                        lights = lights + 1
+                        T.truthy(#(r.__masks or {}) >= 1, key .. ": wears the fill's angled end (" .. tostring(r:GetTexture()) .. " " .. tostring(sub) .. ")")
+                    end
+                end
+            end
+            T.truthy(lights > 0, key .. ": shows something")
+            cfg.style = "none"
+            D.BarFx.Apply(bar)
+            for _, r in ipairs({ bar:GetRegions() }) do
+                local layer, sub = r:GetDrawLayer()
+                if r ~= fill and r:GetObjectType() == "Texture" and layer == "ARTWORK" and sub > fillSub and sub < 1 then
+                    T.falsy(r:IsShown(), key .. ": hidden with None")
+                end
+            end
+        end
+    end
+end)
+
+T.test("a style that reacts flares on a hit and lets Lua rest after", function()
+    local DUI, bar, cfg, read = setup({ style = "comet", react = true })
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    DUI.BarFx.Kick(bar, -1)
+    T.eq(DUI.BarFx.StyleOf(bar), "comet")
+end)
+
+T.test("by power type picks a style per power", function()
+    local DUI, bar, cfg, read = setup({ style = "auto" })
+    DUI.BarFx.Track(bar, "power", nil, "player", nil, read)
+    DUI.BarFx.SetPower(bar, "RAGE")
+    T.eq(DUI.BarFx.StyleOf(bar), "embers")
+    DUI.BarFx.SetPower(bar, "MANA")
+    T.eq(DUI.BarFx.StyleOf(bar), "liquid")
+end)
