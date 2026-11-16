@@ -207,11 +207,21 @@ function CD.TrackFx(item, bar, p, inBlock)
         return
     end
     p.fxBar, p.fxIn = bar, inBlock
-    DUI.BarFx.Track(bar, "cooldown", nil, nil, nil, DUI.BarFx.Reader(function()
+    DUI.BarFx.Track(bar, "cooldown", nil, nil, nil, function(key)
         local d = p.fxIn and ns.module and ns.module.db
-        return d and d.cdmBarFx
-    end))
+        if not d then return nil end
+        -- The spell's own choice first, then the one every bar shares.
+        local Fx = ns.CdmEffects
+        local b = Fx and Fx.ButtonOf(item) or item.button
+        local own = type(b) == "table" and b[CD.FX_KEYS[key]]
+        if own ~= nil and own ~= "group" then return own end
+        return type(d.cdmBarFx) == "table" and d.cdmBarFx[key] or nil
+    end)
 end
+
+-- A bar animation setting's name on a piece (the card's own rows).
+CD.FX_KEYS = { style = "fxStyle", speed = "fxSpeed", strength = "fxStrength", colors = "fxColors",
+    colorA = "fxColorA", colorB = "fxColorB" }
 
 -- Icon text (the card's Look > Text) ------------------------------------
 -- A piece's cooldown numbers (on or off, size), its stack / charge count (size,

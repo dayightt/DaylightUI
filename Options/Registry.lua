@@ -1340,7 +1340,7 @@ Options.RegisterPage({
 -- kind, gate } } (only a health bar reacts to hits and heals), gate = fn(get) (true = the bar is off; a choice's own gate
 -- wins), read = fn(key)
 -- (where a preview reads; the module's own settings when nil), pickHidden
--- (hides the "Settings for" pick), tab }. One
+-- (hides the "Settings for" pick), tab, desc (the card's own line) }. One
 -- choice is a plain card, more get a "Settings for" pick. Each choice starts
 -- with a sample bar wearing its settings.
 local BARFX_PREVIEW_H = 14
@@ -1394,7 +1394,7 @@ local function barFxItems(spec, c)
 end
 
 function Options.BarFxCard(spec)
-    local label, desc = "Bar animation", "Bars that move: their colors roll along them and react to the fight."
+    local label, desc = "Bar animation", spec.desc or "Bars that move: their colors roll along them and react to the fight."
     if #spec.choices == 1 then
         return { label = label, desc = desc, tab = spec.tab, items = barFxItems(spec, spec.choices[1]) }
     end

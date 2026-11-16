@@ -19,6 +19,7 @@ DUI.PatchNotes = {
             { "Tooltip", "Tooltips can use the same background opacity as your windows" },
             { "Info panel", "Your own colors for rested XP and for XP from quests ready to turn in" },
             { "Plugins", "Other addons can add their own pages to the setup guide" },
+            { "Cooldown Manager", "Each cooldown bar can have its own bar animation, picked on its card in the layout editor" },
         },
         changed = {
             { "Options", "Tidier options: settings that go together sit together, long pages split into tabs, clearer names, and settings that do nothing are grayed out" },
@@ -27,6 +28,7 @@ DUI.PatchNotes = {
             { "Unlock mode", "Drag the unlock bar anywhere on screen" },
         },
         fixed = {
+            { "General", "Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display" },
             { "Cooldown Manager", "Group buffs like Battle Shout, and debuffs like Sunder Armor or curses, light up when someone else cast them" },
             { "Edit Mode", "No more reload question every time you enter a dungeon or take a boat or zeppelin" },
             { "Nameplates", "Big defensives like Divine Shield, Ice Block and Evasion show on enemy players' nameplates" },

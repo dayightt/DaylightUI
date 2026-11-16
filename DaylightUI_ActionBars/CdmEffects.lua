@@ -45,7 +45,8 @@ Fx.DEFAULTS = { readySound = "none", usableSound = "none", buffSound = "none", b
     glow = true, size = 0, noSwipe = false, noGcd = false, reverse = false, desat = "game",
     onCd = "show", onReady = "show", onUnusable = "show", onShort = "show", cdAlpha = 0.4, readyGlow = false, usableGlow = false, activeGlow = true, noDurationSwipe = false,
     barMode = "block", backMode = "block", showName = true, nameAlign = "left", fillBy = "shield",
-    shieldAmount = true, glowStyle = "ring", inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true }
+    shieldAmount = true, glowStyle = "ring", inactiveFlash = false, missing = false, missingGlow = false, upGlow = false, clipGlow = false, hideActive = false, hideMissing = false, chargeLines = true,
+    fxStyle = "group", fxColors = "group" }
 
 -- Show in: each form, stance or stealth of the class the spell can be left out of
 -- (e.g. cat spells only in Cat Form), saved as hideIn<Key> (false = shown). In a

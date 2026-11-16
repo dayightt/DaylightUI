@@ -657,7 +657,8 @@ local cdmPages = {
                 desc = "The key that casts each spell, on its icon. It reads your action bars, so a spell on no bar shows none. Any icon can change this in the layout editor.",
                 disabled = cdmOff },
           } },
-          DaylightUI.Options.BarFxCard({ module = "ActionBars", gate = cdmOff, choices = {
+          DaylightUI.Options.BarFxCard({ module = "ActionBars", gate = cdmOff,
+              desc = "How every Cooldown Manager bar moves. A bar's own card in the layout editor can give it its own.", choices = {
               { id = "cdm", label = "Cooldown bar", base = "cdmBarFx.", kind = "cooldown" } } }),
           DaylightUI.Fade.Card("cdmFade.", nil, cdmOff, "Cooldown Manager"),
       } },

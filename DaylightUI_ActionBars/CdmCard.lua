@@ -72,6 +72,14 @@ function Card.Fallback(key, set, id)
         or key == "upGlowColor" or key == "clipGlowColor" then
         return { DUI.Style.Accent() }
     end
+    -- Bar animation: unset follows the one every bar shares.
+    if key == "fxSpeed" or key == "fxStrength" or key == "fxColorA" or key == "fxColorB" then
+        local d, k = ns.Settings().cdmBarFx, string.lower(string.sub(key, 3, 3)) .. string.sub(key, 4)
+        local v = type(d) == "table" and d[k]
+        if v == nil then v = DUI.BarFx.DEFAULTS[k] end
+        if type(v) == "table" then return { v[1], v[2], v[3] } end
+        return v
+    end
     if key == "barColor" then
         local m = DUI.Style.GRADIENT_MID
         return { m[1], m[2], m[3] }
@@ -184,6 +192,29 @@ local function hook(key, name, item)
 end
 
 local function opt(key) local _, _, p = picked(); return ns.CdmEffects.Get(p, key) end
+-- The picked bar's animation setting: its own, else the one every bar shares.
+local function fxOf(key)
+    local _, _, p = picked()
+    local own = p and p[ns.Cooldowns.FX_KEYS[key]]
+    if own ~= nil and own ~= "group" then return own end
+    local d = ns.Settings().cdmBarFx
+    local v = type(d) == "table" and d[key]
+    if v == nil then v = DUI.BarFx.DEFAULTS[key] end
+    return v
+end
+local function fxOn(_, _, p)
+    return p.shape == "bar" and DUI:Get("general", "motion") ~= false and fxOf("style") ~= "none"
+end
+-- A bar animation row: the spell's own, and the bars wear it at once.
+local function fx(key, item)
+    spell(key, item)
+    local set = item.set
+    item.set = function(v)
+        set(v)
+        DUI.BarFx.Refresh()
+    end
+    return item
+end
 -- The picked piece's look value: its own, its chain's, or the fallback.
 local function lookOf(key)
     local set, id = picked()
@@ -472,6 +503,27 @@ Card.ROWS = {
           item = look("timeSize", { type = "slider", label = "Size", min = 8, max = 20, step = 1 }) },
         { show = function(...) return isBar(...) and lookOf("time") ~= false end,
           item = look("timeColor", { type = "color", label = "Color" }) },
+        { head = L["Animation"], show = isBar },
+        { show = isBar, item = fx("fxStyle", { type = "dropdown", label = "Style",
+            choices = function()
+                local values, order = DUI.BarFx.Choices(false)
+                values.group = L["All bars"]
+                table.insert(order, 1, "group")
+                return values, order
+            end,
+            desc = "How this bar moves. All bars follows Cooldown Manager > Bar animation. Needs Motion effects (General > Appearance)." }) },
+        { show = fxOn, item = fx("fxSpeed", { type = "slider", label = "Speed", min = 0.25, max = 3, step = 0.05, unit = "x",
+            desc = "How fast this bar's animation moves. 1x is its usual pace." }) },
+        { show = fxOn, item = fx("fxStrength", { type = "slider", label = "Strength", min = 0.1, max = 1, step = 0.05, unit = "%",
+            desc = "How strongly the animation shows over the bar's own fill." }) },
+        { show = fxOn, item = fx("fxColors", { type = "dropdown", label = "Colors",
+            values = { group = "All bars", bar = "The bar's own", accent = "Accent color", class = "Class colors", custom = "Custom colors" },
+            order = { "group", "bar", "accent", "class", "custom" },
+            desc = "The colors the animation moves: the bar's own, your accent, your class's pair, or two of your own." }) },
+        { show = function(...) return fxOn(...) and fxOf("colors") == "custom" end,
+          item = fx("fxColorA", { type = "color", label = "First color" }) },
+        { show = function(...) return fxOn(...) and fxOf("colors") == "custom" end,
+          item = fx("fxColorB", { type = "color", label = "Second color" }) },
         { head = L["Whole group"], show = function(set, id) return several(set, id) or chainHas("bar")(set, id) end },
         { show = both(chainHas("icon"), several), item = look("size", { type = "slider", label = "Icon size",
             min = 16, max = 64, step = 1, unit = "px" }, true) },

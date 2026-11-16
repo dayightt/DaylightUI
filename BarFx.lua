@@ -74,6 +74,15 @@ function BarFx.Pick(s)
     return pick
 end
 
+-- A solid bar has one color twice, and rolling a color over itself shows no
+-- movement at all. Its wave then runs a lighter shade of that color.
+BarFx.LIFT = 0.4   -- how far toward white the lighter shade goes
+local function twoColors(lo, hi)
+    if not (lo and hi) or lo[1] ~= hi[1] or lo[2] ~= hi[2] or lo[3] ~= hi[3] then return lo, hi end
+    local k = BarFx.LIFT
+    return lo, { lo[1] + (1 - lo[1]) * k, lo[2] + (1 - lo[2]) * k, lo[3] + (1 - lo[3]) * k }
+end
+
 -- The two colors a style paints with: the bar's own (as last painted), the
 -- accent, your class's pair or the picked pair. nil when they can't be known.
 function BarFx.Colors(s)
@@ -82,13 +91,13 @@ function BarFx.Colors(s)
     if mode == "accent" then
         local lo, hi = Style.AccentPair()
         if lo then return lo, hi end
-        return G.PairFrom({ Style.Accent() })
+        return twoColors(G.PairFrom({ Style.Accent() }))
     elseif mode == "class" then
-        return G.PaintRGB(G.KeyFor("player"))
+        return twoColors(G.PaintRGB(G.KeyFor("player")))
     elseif mode == "custom" then
-        return BarFx.Get(s, "colorA"), BarFx.Get(s, "colorB")
+        return twoColors(BarFx.Get(s, "colorA"), BarFx.Get(s, "colorB"))
     end
-    return Style.FillColors(s.bar:GetStatusBarTexture())
+    return twoColors(Style.FillColors(s.bar:GetStatusBarTexture()))
 end
 
 local function setSpeedOf(s)

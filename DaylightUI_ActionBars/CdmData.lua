@@ -1057,6 +1057,11 @@ Data.SPELL_FIELDS = {
     showName = { bool = true, bar = true },
     nameAlign = { values = { "left", "center" }, bar = true },
     inactiveFlash = { bool = true, bar = true }, chargeLines = { bool = true, bar = true },
+    -- Bar animation (the core's BarFx); unset follows the page's setting for every bar.
+    fxStyle = { barFx = true, bar = true }, fxSpeed = { min = 0.25, max = 3, bar = true },
+    fxStrength = { min = 0.1, max = 1, bar = true },
+    fxColors = { values = { "group", "bar", "accent", "class", "custom" }, bar = true },
+    fxColorA = { color = true, bar = true }, fxColorB = { color = true, bar = true },
     missing = { bool = true }, missingGlow = { bool = true }, missingGlowColor = { color = true },
     upGlow = { bool = true }, upGlowColor = { color = true },
     clipGlow = { bool = true }, clipGlowColor = { color = true },
@@ -1195,6 +1200,8 @@ function Data.SetSpellValue(set, id, key, value)
         if not DUI.Sound.IsAlert(value) then return false end
     elseif spec.glow then
         if value ~= "ring" and not DUI.Motion.GLOW_STYLES[value] then return false end
+    elseif spec.barFx then
+        if value ~= "group" and value ~= "none" and not DUI.BarFx.STYLES[value] then return false end
     else
         if type(value) ~= "number" or value ~= value then return false end
         value = max(spec.min, min(spec.max, value))
