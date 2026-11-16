@@ -79,6 +79,7 @@ InstallerPages.lua
 InstallerCards.lua
 InstallerUI.lua
 InstallerSteps.lua
+InstallerPlugins.lua
 Profiles.lua
 Alts.lua
 Plugins.lua

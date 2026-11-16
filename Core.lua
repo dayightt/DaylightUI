@@ -13,7 +13,7 @@ DUI.ADDON_NAME = ADDON_NAME
 DUI.CORE_PARTS = { "DB", "Pixel", "Style", "Tips", "GameFonts", "DamageText", "Motion", "Sound", "Pad", "Media", "Health", "Threat", "Interrupt", "Spots", "Dots", "PrivateAuras", "Taint", "BugReport", "PlateReport", "Gradients", "BarFx", "Movers",
     "GameMovers", "PTRButton", "QuestieAside", "PrettyAside", "OpenMap", "CombatText", "Fade", "FadeUpgrade", "EditMode", "Options", "OptionsTheme", "Widgets", "SampleStrip",
     "OptionsNav", "OptionsResults", "OptionsPanel", "Installer", "InstallerDraft", "InstallerPages", "InstallerCards",
-    "InstallerUI", "InstallerSteps", "Profiles", "Alts", "Plugins", "APIReport", "Donators", "Notes", "TestBox", "Win", "Tour" }
+    "InstallerUI", "InstallerSteps", "InstallerPlugins", "Profiles", "Alts", "Plugins", "APIReport", "Donators", "Notes", "TestBox", "Win", "Tour" }
 DUI.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "dev"
 DUI.MEDIA = "Interface\\AddOns\\DaylightUI\\Media\\"
 

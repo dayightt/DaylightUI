@@ -389,7 +389,8 @@ local function button(b, on)
 end
 
 -- Puts a page in the window. opts: full (the welcome: banner, no sidebar,
--- header or footer), rail, veil, step and total ("Step 2 of 6"), title, desc,
+-- header or footer), rail, veil, step and total ("Step 2 of 6"), over (a
+-- plugin's name before the step), title, desc,
 -- later (an options page for "Change it later"), back (show Back), next
 -- (Next's text, nil hides it), dir (1 forward, -1 back).
 function UI.SetPage(page, opts)
@@ -429,7 +430,10 @@ function UI.SetPage(page, opts)
         frame.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -UI.PAD, UI.FOOTER)
     end
     local h = frame.header
-    say(h.step, opts.step and string.format(L["Step %d of %d"], opts.step, opts.total) or "")
+    -- A plugin's own guide names the plugin beside the title, before the step.
+    local step = opts.step and string.format(L["Step %d of %d"], opts.step, opts.total) or ""
+    if opts.over then step = step ~= "" and string.format(L["%s, %s"], opts.over, step) or opts.over end
+    say(h.step, step)
     say(h.title, T(opts.title or ""))
     say(h.desc, T(opts.desc or ""))
     frame.laterPage = opts.later

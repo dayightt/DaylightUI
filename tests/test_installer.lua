@@ -1882,3 +1882,74 @@ T.test("installer: a plugin's page comes after Daylight UI's own, and its onFini
     T.eq(finished, 1)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("installer: a plugin step can show its own text and buttons instead of settings", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local me = DUI.API.For("Guide")
+    local clicked = 0
+    T.eq(me.AddSetupStep({ id = "chat", title = "Chat", text = "Set up the chat the way Guide likes it.",
+        buttons = { { text = "Set up chat", onClick = function() clicked = clicked + 1 return "Chat set up" end } } }), true)
+    DUI.Installer.Start("tour")
+    DUI.Installer.Go("Guide:chat")
+    local page = DUI.Installer.pages["Guide:chat"]
+    T.truthy(page.text and page.buttons, "text and buttons drawn")
+    press(page.buttons.buttons[1])
+    T.eq(clicked, 1)
+    T.eq(page.buttons.status:GetText(), "Chat set up")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer: a plugin's own guide shows after Daylight UI's, once per version", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local PI = DUI.InstallerPlugins
+    local me = DUI.API.For("Guide")
+    local finished, drawn = 0, nil
+    T.eq(me.AddInstaller({ pages = {} }), false, "a guide needs pages")
+    T.eq(me.AddInstaller({ title = "Guide", pages = {
+        { title = "Welcome", text = "Thanks for using Guide." },
+        { title = "Size", groups = { { label = "Size", rows = { { "general", "scale" } } } } },
+        { title = "Yours", build = function(holder, width) drawn = width return 40 end },
+    }, onFinish = function() finished = finished + 1 end }), true)
+    T.eq(PI.ShowDue(), false, "not before Daylight UI is set up")
+    DUI.Installer.Mark("installed")
+    DUI.Installer.MarkSeen()
+    DUI.InstallerUI.QuietHide()   -- the main guide, up since login
+    T.eq(PI.ShowDue(), true)
+    T.truthy(DUI.InstallerUI.IsShown())
+    PI.Next()
+    local before = DUI:Get("general", "scale")
+    DUI.InstallerDraft.Set("general", "scale", 0.9)
+    PI.Next()
+    T.truthy(drawn and drawn > 0, "its own drawing got the page's width")
+    PI.Next()   -- Finish
+    T.eq(finished, 1)
+    T.eq(DUI:Get("general", "scale"), 0.9, "the pick stays")
+    T.falsy(DUI.InstallerUI.IsShown(), "closed after the last guide")
+    T.eq(#PI.Due(), 0, "seen")
+    T.truthy(before ~= nil)
+    -- A new version shows it again; X puts its picks back and counts as seen.
+    me.AddInstaller({ title = "Guide", version = 2, pages = {
+        { title = "Size", groups = { { label = "Size", rows = { { "general", "scale" } } } } } } })
+    T.eq(#PI.Due(), 1)
+    T.eq(PI.ShowDue(), true)
+    DUI.InstallerDraft.Set("general", "scale", 0.8)
+    closeGuide()
+    T.eq(DUI:Get("general", "scale"), 0.9, "put back")
+    T.eq(#PI.Due(), 0)
+    T.eq(me.ShowInstaller(), true, "opened again on request")
+    closeGuide()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer: finishing Daylight UI's guide without a reload goes on to the plugins' guides", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    DUI.API.For("Guide").AddInstaller({ pages = { { title = "Welcome", text = "Hi." } } })
+    DUI.Installer.Mark("installed")
+    DUI.Installer.MarkSeen()
+    DUI.Installer.Done()
+    T.truthy(DUI.InstallerPlugins.Running(), "the plugin's guide shows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

@@ -19,15 +19,24 @@ local builders = {}
 Steps.builders = builders
 
 -- Whether a page (an InstallerPages entry) can be built.
+-- A plugin's page may hold its own content instead of settings.
+local function ownContent(def)
+    return def.text ~= nil or def.image ~= nil or def.buttons ~= nil or def.build ~= nil
+end
+
 function Steps.Has(def)
-    return builders[def.id] ~= nil or (def.groups ~= nil and builders.groups ~= nil)
+    return builders[def.id] ~= nil or ((def.groups ~= nil or ownContent(def)) and builders.groups ~= nil)
         or (def.bundle ~= nil and builders.bundle ~= nil)
 end
 
 -- Builds a page by id, hidden until the window shows it.
 function Steps.Build(id, parent, width)
-    local def = DUI.InstallerPages.Get(id)
-    local make = builders[id] or (def and def.groups and builders.groups) or (def and def.bundle and builders.bundle)
+    return Steps.BuildDef(DUI.InstallerPages.Get(id) or { id = id }, parent, width)
+end
+
+-- Builds a page from its definition (plugins' own guides have no id in the tour).
+function Steps.BuildDef(def, parent, width)
+    local make = builders[def.id] or (def.bundle and builders.bundle) or builders.groups
     local page = make(parent, width, def)
     page:Hide()
     return page
@@ -785,6 +794,86 @@ local function samples(page, width, refreshers)
     page.samples = box
 end
 
+-- A plugin's own content, above any settings: a paragraph (text), a picture
+-- (image, imageHeight, imageCoords), a row of buttons that act at once
+-- (buttons = { { text, onClick, main, done } }) and anything it draws itself
+-- (build(holder, width) returns the height it used; holder.Refresh, when set,
+-- runs each time the page shows).
+Steps.IMAGE_H = 140
+Steps.BUTTON_H = 28
+local function ownParts(page, def, width, refreshers)
+    local who = def.plugin or L["an addon"]
+    if type(def.text) == "string" and def.text ~= "" then
+        local m = W.Font(page, W.BODY, SIZE.body, C.text)
+        m:SetWordWrap(true)
+        m:SetAlpha(0)
+        m:SetWidth(width)
+        m:SetText(T(def.text))
+        local h = m:GetStringHeight()
+        if type(h) ~= "number" or h <= 0 then h = 18 end
+        page.text = para(page, def.text, SIZE.body, C.text, math.ceil(h) + 4)
+    end
+    if def.image ~= nil then
+        local f = CreateFrame("Frame", nil, page)
+        DUI.Style.Shell(f, { noBackground = true })
+        f.tex = f:CreateTexture(nil, "ARTWORK")
+        f.tex:SetAllPoints(f)
+        f.tex:SetTexture(def.image)
+        local c = def.imageCoords
+        if type(c) == "table" and #c == 4 then f.tex:SetTexCoord(c[1], c[2], c[3], c[4]) end
+        local h = type(def.imageHeight) == "number" and def.imageHeight > 0 and def.imageHeight or Steps.IMAGE_H
+        page.Add(f, h, 14)
+        page.image = f
+    end
+    if type(def.buttons) == "table" and #def.buttons > 0 then
+        local row = CreateFrame("Frame", nil, page)
+        page.Add(row, Steps.BUTTON_H, 14)
+        row.buttons = {}
+        local left = row
+        for i, spec in ipairs(def.buttons) do
+            if type(spec) == "table" and type(spec.text) == "string" then
+                local b = W.Button(row, T(spec.text), Steps.BUTTON_H)
+                b.FitWidth(110)
+                if left == row then
+                    b:SetPoint("LEFT", row, "LEFT", 0, 0)
+                else
+                    b:SetPoint("LEFT", left, "RIGHT", 8, 0)
+                end
+                if spec.main then b.SetActive(true) end
+                b:SetScript("OnClick", function()
+                    if type(spec.onClick) ~= "function" then return end
+                    local said
+                    local ok = DUI.SafeCallAs(who, function() said = spec.onClick() end)
+                    said = type(said) == "string" and said or spec.done
+                    if ok and type(said) == "string" then
+                        row.status:SetText(T(said))
+                        DUI.Motion.Fade(row.status, 0, 1, DUI.Motion.FAST)
+                    end
+                end)
+                row.buttons[i] = b
+                left = b
+            end
+        end
+        -- What the last click did, after the buttons ("Chat set up").
+        row.status = W.Font(row, W.BODY, SIZE.small, C.text)
+        DUI.Style.InkText(row.status, "GOOD")
+        row.status:SetPoint("LEFT", left, left == row and "LEFT" or "RIGHT", 12, 0)
+        page.buttons = row
+    end
+    if type(def.build) == "function" then
+        local holder = CreateFrame("Frame", nil, page)
+        holder:SetSize(width, 1)
+        local h
+        DUI.SafeCallAs(who, function() h = def.build(holder, width) end)
+        if type(h) ~= "number" or h <= 0 then h = holder:GetHeight() end
+        page.Add(holder, math.max(1, h), 14)
+        if type(holder.Refresh) == "function" then
+            refreshers[#refreshers + 1] = function() DUI.SafeCallAs(who, holder.Refresh) end
+        end
+        page.holder = holder
+    end
+end
+
 -- A page of groups (InstallerPages.TOUR): each group's heading, then its
 -- samples, picture cards, portrait choice or rows. Groups whose module isn't
 -- loaded are left out.
@@ -793,7 +882,8 @@ builders.groups = function(parent, width, def)
     local page = stack(parent, width)
     page.rows, page.pickers, page.notes = {}, {}, {}
     local refreshers = {}
-    for _, g in ipairs(def.groups) do
+    ownParts(page, def, width, refreshers)
+    for _, g in ipairs(def.groups or {}) do
         if P.GroupAvailable(g) then
             if g.label and g.label ~= "" then heading(page, g.label) end
             if g.samples then samples(page, width, refreshers) end

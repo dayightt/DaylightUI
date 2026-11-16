@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 8
+print(API.major, API.minor)   -- 1, 10
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -748,6 +748,45 @@ of `{ scope, key }` for settings on an options page (your module's, through `Add
 your own page). The player's picks are a draft until Finish, and X takes them all back, yours
 included. `onFinish` runs on Finish (set up other addons there); Finish then asks for a reload.
 `quick = true` puts it in Quick setup too.
+
+Since 1.10 a page can show anything, with or without `groups` (drawn in this order, above them):
+
+| Field | What it shows |
+|---|---|
+| `text` | A paragraph, wrapped to the page. |
+| `image`, `imageHeight`, `imageCoords` | A picture (a file path or id) across the page, 140 high unless you say. |
+| `buttons = { { text, onClick, main, done } }` | A row of Daylight UI buttons. `onClick` runs at once (not a draft); return a short sentence, or give `done`, and it shows beside them ("Chat set up"). `main = true` lights one. |
+| `build = function(holder, width) ... return height end` | Anything else: draw into `holder` (a plain frame `width` wide) and return the height you used. Set `holder.Refresh` to run each time the page shows. Use `API.Button`, `API.Text` and the rest so it looks like the guide. |
+
+## Your own setup guide (1.10)
+
+Like ElvUI plugins' installers: your own pages in the setup guide's window, shown once Daylight UI
+is set up on the character (right after its guide, or at the next login after its reload).
+
+```lua
+me.AddInstaller({
+    version = 1,        -- raise it to show the guide again to characters that went through it
+    pages = {
+        { title = "Welcome to Angler", desc = "A few things before you fish.",
+          text = "Angler adds a fishing bar and a catch log.",
+          buttons = { { text = "Set up chat", onClick = function() MyAddon:SetUpChat() return "Chat set up" end } } },
+        { title = "Size", groups = { { label = "Size", rows = { { "Angler", "barSize" } } } } },
+    },
+    onFinish = function() MyAddon.db.installed = true end,   -- return true to ask for a reload
+})
+```
+
+Pages take the same fields as `AddSetupStep` (`groups`, `text`, `image`, `buttons`, `build`, plus
+`title` and `desc`). Several plugins' guides show one after another, each with its own steps, then
+one reload for all of them if any asked (`reload = true`, `true` back from `onFinish`, or a setting
+that needs one). The tour is offered after them.
+
+- `title` defaults to your plugin's; it shows beside each page's title.
+- Seen once per character at each `version`; `account = true` makes it once per account.
+- Settings rows are a draft until Finish. Closing the window takes them back and counts as seen,
+  so a player who closes it isn't asked at every login.
+- `me.ShowInstaller()` opens it again (from a command of yours, say). General > Plugins has a
+  "Setup guide" button for it too. False when the window is busy or no page can show.
 
 ## The Cooldown Manager (1.7)
 

@@ -30,7 +30,9 @@ local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "Regis
     -- 1.8
     "AddFrameStyle",
     -- 1.9
-    "AddGlowStyle" }
+    "AddGlowStyle",
+    -- 1.10
+    "AddInstaller", "ShowInstaller" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",

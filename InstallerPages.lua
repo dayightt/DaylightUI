@@ -361,12 +361,19 @@ local function allPages()
 end
 Pages.All = allPages
 
--- False (and why) when the step can't be taken: a missing id, title or
--- groups, or an id already used.
+-- Whether a plugin's page has something to show: settings (groups) or its
+-- own content (text, image, buttons, build).
+function Pages.HasContent(def)
+    return type(def.groups) == "table" or type(def.text) == "string" or def.image ~= nil
+        or type(def.buttons) == "table" or type(def.build) == "function"
+end
+
+-- False (and why) when the step can't be taken: a missing id or title,
+-- nothing to show, or an id already used.
 function Pages.AddStep(plugin, def)
     if type(def) ~= "table" or type(def.id) ~= "string" or def.id == "" or type(def.title) ~= "string"
-        or type(def.groups) ~= "table" then
-        return false, "a step needs an id, a title and groups"
+        or not Pages.HasContent(def) then
+        return false, "a step needs an id, a title, and groups, text, image, buttons or build"
     end
     local id = plugin .. ":" .. def.id
     if id == "welcome" or id == "finish" then return false, "that id is taken" end

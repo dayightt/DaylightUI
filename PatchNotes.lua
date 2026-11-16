@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Plugins", "Plugins can bring their own setup pages, shown right after Daylight UI's setup guide" },
+        },
         changed = {
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
         },
