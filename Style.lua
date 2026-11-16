@@ -930,9 +930,12 @@ function Style.Shells() return pairs(shells) end
 -- A shell's border thickness in screen pixels: its own (a number, or a
 -- function of the general one), else the general setting.
 local function shellBorderPx(s)
+    -- Another addon can leave the setting empty; the math below needs a number.
+    local g = general().borderPx
+    if type(g) ~= "number" then g = DUI.DB.GENERAL_DEFAULTS.borderPx end
     local own = s and s.opts.borderPx
-    if type(own) == "function" then return own(general().borderPx) end
-    return own or general().borderPx
+    if type(own) == "function" then return own(g) end
+    return own or g
 end
 
 function Style.BorderPx(frame) return shellBorderPx(shellOf[frame]) end

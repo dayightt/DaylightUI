@@ -577,6 +577,20 @@ T.test("a shell can take a thinner border than the general one", function()
     T.near(y, -4 * 768 / 1080)
 end)
 
+T.test("a border size missing from the settings falls back to its default", function()
+    -- Seen in game: another addon left General's borderPx empty, and the
+    -- flight timer's layout errored doing math on it.
+    local DUI = stub.Load()
+    local f = CreateFrame("Frame", nil, UIParent)
+    DUI.Style.Shell(f)
+    local half = CreateFrame("Frame", nil, UIParent)
+    DUI.Style.Shell(half, { borderPx = function(g) return math.floor(g / 2) end })
+    DUI.DB.General().borderPx = nil
+    T.eq(DUI.Style.BorderPx(f), DUI.DB.GENERAL_DEFAULTS.borderPx, "plain shell")
+    T.eq(DUI.Style.BorderPx(half), math.floor(DUI.DB.GENERAL_DEFAULTS.borderPx / 2), "a shell's own size from it")
+    T.truthy(DUI.Pixel.Px(f, DUI.Style.BorderPx(f)) > 0, "the math works")
+end)
+
 T.test("an angled end's layers are strips that stop short of the contents", function()
     local DUI = stub.Load()
     local f = CreateFrame("Frame", nil, UIParent)

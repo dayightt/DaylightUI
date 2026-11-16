@@ -20,6 +20,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "Bags", "Item counts, the gold tooltip and the alts viewer no longer show characters on another ruleset, like Hardcore, whose items and gold you can't reach" },
+            { "Flight timer", "No more error at login when another addon leaves the border size setting empty" },
         },
     },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",
