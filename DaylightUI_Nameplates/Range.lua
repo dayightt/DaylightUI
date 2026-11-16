@@ -14,11 +14,13 @@ local isSecret = DUI.IsSecret
 -- name, so whichever rank you know answers. A plate is in range when any of
 -- them reaches it, so a hunter's melee strikes cover the gap up close where
 -- Auto Shot can't be fired. alt = only asked when nothing else is known.
+-- Never an attack that goes off on your next swing (Heroic Strike, Raptor
+-- Strike, Maul, Cleave): the game says those are in range at any distance.
 Range.SPELLS = {
-    WARRIOR = { { 772 }, { 78 } },                    -- Rend, Heroic Strike
+    WARRIOR = { { 772 }, { 1715 }, { 7386 } },        -- Rend, Hamstring, Sunder Armor
     ROGUE   = { { 1752 } },                           -- Sinister Strike
     PALADIN = { { 679 }, { 20271, alt = true } },     -- Holy Strike, else Judgement
-    HUNTER  = { { 75 }, { 2973 }, { 2974 } },         -- Auto Shot, Raptor Strike, Wing Clip
+    HUNTER  = { { 75 }, { 2974 }, { 1495 } },         -- Auto Shot, Wing Clip, Mongoose Bite
     MAGE    = { { 133 }, { 116 } },                   -- Fireball, Frostbolt
     WARLOCK = { { 686 }, { 172 } },                   -- Shadow Bolt, Corruption
     PRIEST  = { { 585 }, { 589 } },                   -- Smite, Shadow Word: Pain
@@ -29,8 +31,8 @@ Range.SPELLS = {
 -- (GetShapeshiftFormID: 1 cat, 5 bear, 8 dire bear).
 Range.FORMS = {
     [1] = { { 1082 } },  -- Claw
-    [5] = { { 6807 } },  -- Maul
-    [8] = { { 6807 } },
+    [5] = { { 6795 }, { 5211 } },  -- Growl, Bash
+    [8] = { { 6795 }, { 5211 } },
 }
 Range.EVERY = 0.2 -- seconds between checks while it's on
 

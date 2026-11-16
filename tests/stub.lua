@@ -2437,9 +2437,13 @@ C_Spell.GetSpellDescription = function(id) local s = stub.spells and stub.spells
 -- stub.spells[id].rank is the game's rank text ("Rank 3"), nil for a spell with no ranks.
 C_Spell.GetSpellSubtext = function(id) local s = stub.spells and stub.spells[id]; return s and s.rank end
 C_Spell.PickupSpell = function(id) stub.cursor = { "spell", id } end
+-- Attacks that go off on your next swing (Heroic Strike, Raptor Strike, Maul,
+-- Cleave) answer true at any distance, seen in game.
+stub.NEXT_SWING = { [78] = true, [2973] = true, [6807] = true, [845] = true }
 C_Spell.IsSpellInRange = function(id, u)
     local x = U(u)
     if not stub.knownSpells[id] or not x then return nil end
+    if stub.NEXT_SWING[id] then return true end
     local r = x.spellRange
     if type(r) == "table" and not isSecret(r) then return r[id] end
     return r

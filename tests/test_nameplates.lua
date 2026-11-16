@@ -3593,16 +3593,29 @@ T.test("nameplates: Fade out of range enemies by your class's attacks", function
     stub.knownSpells[133] = nil
     stub.RunTickers()
     T.eq(c:GetAlpha(), 1, "no attack known: full")
-    -- A hunter: Auto Shot says no up close, Raptor Strike reaches.
-    stub.knownSpells[75], stub.knownSpells[2973] = true, true
+    -- A hunter: Auto Shot says no up close, Wing Clip reaches. Raptor Strike
+    -- goes off on the next swing and says yes at any distance, so it can't tell.
+    stub.knownSpells[75], stub.knownSpells[2973], stub.knownSpells[2974] = true, true, true
     stub.units.player.class = "HUNTER"
     stub.FireEvent("SPELLS_CHANGED")
-    stub.units.nameplate3.spellRange = { [75] = false, [2973] = true }
+    stub.units.nameplate3.spellRange = { [75] = false, [2974] = true }
     stub.RunTickers()
     T.eq(c:GetAlpha(), 1, "melee reach counts")
-    stub.units.nameplate3.spellRange = { [75] = false, [2973] = false }
+    stub.units.nameplate3.spellRange = { [75] = false, [2974] = false }
     stub.RunTickers()
-    T.near(c:GetAlpha(), 0.3, 1e-6, "neither reaches: faded")
+    T.near(c:GetAlpha(), 0.3, 1e-6, "neither reaches: faded, whatever Raptor Strike says")
+    stub.knownSpells[75], stub.knownSpells[2973], stub.knownSpells[2974] = nil, nil, nil
+    -- A warrior with Heroic Strike and Rend, far away: Rend says no.
+    stub.knownSpells[78], stub.knownSpells[772] = true, true
+    stub.units.player.class = "WARRIOR"
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.units.nameplate3.spellRange = { [772] = false }
+    stub.RunTickers()
+    T.near(c:GetAlpha(), 0.3, 1e-6, "warrior out of reach: faded, whatever Heroic Strike says")
+    stub.units.nameplate3.spellRange = { [772] = true }
+    stub.RunTickers()
+    T.eq(c:GetAlpha(), 1, "Rend reaches: full")
+    stub.knownSpells[78], stub.knownSpells[772] = nil, nil
     -- Off again: every plate back to full, and a removed plate leaves full.
     DaylightUI:Set("Nameplates", "rangeFade", false)
     stub.RunTimers()
@@ -3613,7 +3626,6 @@ T.test("nameplates: Fade out of range enemies by your class's attacks", function
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
     T.eq(c:GetAlpha(), 1, "reset for its next unit")
     T.eq(a:GetAlpha(), 1)
-    stub.knownSpells[75], stub.knownSpells[2973] = nil, nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
