@@ -35,6 +35,7 @@ Donators.LIST = {
     "Schmuddeljunge",
     "EZ",
     "Jin Rahk",
+    "Vlora",
     "Alcasan",
     "blukraken",
     "Fang",
