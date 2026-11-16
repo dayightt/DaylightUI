@@ -55,6 +55,29 @@ Custom.BLESSINGS = { 19740, 19742, 20217, 1038, 19977, 25782, 25894, 25898, 2589
 Custom.BLESSING_SPELL = 19740
 Custom.BLESSING_ICON = "Interface/Icons/Spell_Holy_FistOfJustice"
 
+-- Your class's buffs that another player can also put on you (another warrior's
+-- Battle Shout, a second hunter's Trueshot Aura), by rank 1 id. Every family on
+-- the GROUP list counts too. The game's own icon only finds a buff you cast.
+Custom.SHARED = { [6673] = true, [1299346] = true }
+
+-- Debuffs a target carries only one copy of, whoever cast it, so another player's
+-- counts as yours (Sunder Armor, the curses). A DoT each caster keeps their own of
+-- (Rend, Corruption) isn't here: only your copy counts. By rank 1 id.
+Custom.UNIQUE = {
+    [7386] = true,    -- Sunder Armor
+    [1160] = true,    -- Demoralizing Shout
+    [6343] = true,    -- Thunder Clap
+    [99] = true,      -- Demoralizing Roar
+    [770] = true,     -- Faerie Fire
+    [1130] = true,    -- Hunter's Mark
+    [8647] = true,    -- Expose Armor
+    [704] = true,     -- Curse of Recklessness
+    [1714] = true,    -- Curse of Tongues
+    [702] = true,     -- Curse of Weakness
+    [440892] = true,  -- Curse of the Elements
+    [18223] = true,   -- Curse of Exhaustion
+}
+
 -- Hunter and warlock "pet" piece: up while your pet is out and alive, so Buff
 -- missing can glow when it isn't. Not an aura, so CdmAuras draws it itself. The
 -- spells only say whether you have a pet at all; the last one you know is its look
@@ -171,11 +194,17 @@ local function build()
     if index then return end
     index, order = {}, {}
     local S = ns.CdmSpells or {}
+    local fromGroup = {}
+    for _, f in ipairs(S.GROUP or {}) do
+        if type(f) == "table" and type(f[1]) == "number" then fromGroup[f[1]] = true end
+    end
     local function add(f, group)
         if type(f) ~= "table" or type(f[1]) ~= "number" then return end
         local k = "s" .. f[1]
         if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
+        local shared = f.aura == true and (Custom.SHARED[f[1]] or fromGroup[f[1]]) or nil
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
+                     shared = shared, unique = f.aura == true and Custom.UNIQUE[f[1]] or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      trap = Custom.TRAPS[f[1]], onPet = Custom.ON_PET[f[1]] }
@@ -433,6 +462,18 @@ end
 function Custom.Trap(id)
     local f = Custom.Family(id)
     return f ~= nil and f.trap == true
+end
+
+-- Its buff can come from someone else too (Custom.SHARED).
+function Custom.Shared(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.shared == true
+end
+
+-- Its debuff counts whoever cast it (Custom.UNIQUE).
+function Custom.Unique(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.unique == true
 end
 
 -- Its buff lands on your pet (Bestial Wrath).

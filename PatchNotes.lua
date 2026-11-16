@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "Character", "A roomier character window where long item and stat names fit, your ammo count in the footer, and a new PvP page with your honor kills and rank badges" },
         },
         fixed = {
+            { "Cooldown Manager", "Battle Shout, Arcane Intellect and other group buffs light up when someone else cast them on you, and so do Sunder Armor, curses and other debuffs a target holds only one of" },
             { "Bags", "Item counts, the gold tooltip and the alts viewer no longer show characters on another ruleset, like Hardcore, whose items and gold you can't reach" },
             { "Flight timer", "No more error at login when another addon leaves the border size setting empty" },
             { "Tooltip", "A macro's spell tooltip on your action bars has the same Daylight UI look as the spell's" },

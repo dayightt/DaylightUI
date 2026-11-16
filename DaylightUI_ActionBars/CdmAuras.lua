@@ -135,11 +135,20 @@ function A.SummonFacts(id)
 end
 
 -- The game's own item can't show this aura: it looks on you and your target only,
--- by the ids its data links (a trap's first rank, never your pet, never a summon).
--- CdmRows hands such a spell to Daylight UI's holder whenever its aura is wanted.
+-- by the ids its data links (a trap's first rank, never your pet, never a summon),
+-- and only for auras you cast, so a group buff or a one-copy debuff from someone
+-- else stays dark. CdmRows hands such a spell to Daylight UI's holder whenever its
+-- aura is wanted.
 function A.GameBlind(id)
     local own, C = ownKey(id), ns.CdmCustom
-    return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil)
+    return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
+        or C.Shared(own) or C.Unique(own))
+end
+
+-- A debuff the target carries one copy of: anyone's counts (CdmCustom.UNIQUE).
+function A.Unique(id)
+    local own = ownKey(id)
+    return own ~= nil and ns.CdmCustom.Unique(own) or false
 end
 
 -- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap).
@@ -362,7 +371,8 @@ local function setup(h, id)
         h.mineOnly = filter == "HARMFUL|PLAYER" or nil
     end
     if self_ ~= true then
-        build(h, "target", "HARMFUL|PLAYER", ids)
+        h.unique = A.Unique(id) or nil
+        build(h, "target", h.unique and "HARMFUL" or "HARMFUL|PLAYER", ids)
     end
 end
 
@@ -857,13 +867,14 @@ local function found(h)
     for _, k in ipairs(h.selfDebuff and ON_YOU or h.containers or {}) do
         for sid in pairs(h.ids) do
             local ok, a = pcall(get, k.unit, sid)
-            -- On the target, only your own debuff counts (HARMFUL|PLAYER).
+            -- On the target, only your own debuff counts (HARMFUL|PLAYER), unless
+            -- the target carries one copy whoever cast it (h.unique).
             local fromOther = not isSecret(a and a.isFromPlayerOrPlayerPet)
                 and type(a) == "table" and a.isFromPlayerOrPlayerPet == false
             -- On you, someone else's debuff isn't shown by the HARMFUL|PLAYER group,
             -- so counting it would leave an empty spot.
             local otherDebuff = h.mineOnly and fromOther and type(a) == "table" and a.isHarmful == true
-            if ok and type(a) == "table" and not otherDebuff and (k.unit == "player" or not fromOther) then
+            if ok and type(a) == "table" and not otherDebuff and (k.unit == "player" or not fromOther or h.unique) then
                 learn(h, a, k.unit)
                 return true
             end

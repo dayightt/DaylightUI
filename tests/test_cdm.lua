@@ -3146,6 +3146,38 @@ T.test("cdm rows: the game's buff icon of a buff on your pet gives way to ours, 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's buff icon only finds buffs you cast (HELPFUL|PLAYER), so another
+-- warrior's Battle Shout on you never lit it. Ours watches any caster's. A DoT
+-- each caster keeps their own of (Rend) stays the game's: only yours counts there.
+T.test("cdm rows: a group buff someone else put on you is drawn by ours, icon and bar", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31, 41 })
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "WARRIOR" } })
+    AB.CdmSpells.WARRIOR = { { 6673, 5242, aura = true }, { 772, 6546, aura = true } }
+    stub.knownSpells = { [6673] = true, [772] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31, 41 } }, { [2] = { 31, 41 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = id == 31 and 6673 or id == 41 and 772 or 100 + id }
+    end
+    place(D, set, 31, 1, 1)
+    icons[1]:Hide()   -- the game's item never finds another warrior's shout
+    stub.auras.player = { HELPFUL = { { spellId = 5242, duration = 120, expirationTime = GetTime() + 100,
+        sourceUnit = "party1", isFromPlayerOrPlayerPet = false } } }
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(31), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
+        T.eq(icons[1]:GetAlpha(), 0, shape .. ": the game's item out of sight")
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(31) or AB.CdmAuras.Frame(31)
+        T.truthy(h and AB.CdmAuras.IsUp(h), shape .. ": the other warrior's shout counts as up")
+        T.eq(AB.CdmRows.DrawnBy(41), "game", shape .. ": Rend stays the game's")
+    end
+    stub.auras.player = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Summon Hawk's hawk is no aura the game's item could find. Ours draws it from
 -- your casts, as an icon and as a bar.
 T.test("cdm rows: Summon Hawk's hawk is drawn by ours from your casts, icon and bar", function()
@@ -6441,6 +6473,39 @@ T.test("cdm custom: a trap watches its debuff's own ids, and laying it down isn'
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "t1", 14311); stub.RunTimers()
     T.falsy(h.up, "the trap is down, nothing frozen yet")
     stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A target carries one Sunder Armor whoever put it there, so another warrior's
+-- counts. Each caster's Rend is their own, so another's doesn't.
+T.test("cdm auras: a one-copy debuff counts whoever cast it, a DoT only yours", function()
+    local AB, C = customWorld("WARRIOR")
+    stub.SetUnits({ player = { class = "WARRIOR" }, target = { name = "Boar", enemy = true } })
+    AB.CdmSpells.WARRIOR = { { 7386, 7405, aura = true }, { 772, 6546, aura = true } }
+    stub.knownSpells = { [7386] = true, [772] = true }
+    C.Forget()
+    T.truthy(AB.CdmAuras.GameBlind("s7386"), "the game's icon can't see another's Sunder")
+    T.falsy(AB.CdmAuras.GameBlind("s772"), "Rend stays the game's")
+    stub.auras.target = { HARMFUL = {
+        { spellId = 7405, duration = 30, expirationTime = GetTime() + 20, sourceUnit = "party1", isFromPlayerOrPlayerPet = false },
+        { spellId = 6546, duration = 21, expirationTime = GetTime() + 12, sourceUnit = "party1", isFromPlayerOrPlayerPet = false },
+    } }
+    -- Aura bars (CdmBars) set up through the same CdmAuras.Setup.
+    local function holder(id)
+        local h = CreateFrame("Frame", nil, UIParent)
+        h.size = 30
+        AB.CdmAuras.Setup(h, id)
+        return h
+    end
+    local sunder, rend = holder("s7386"), holder("s772")
+    local function targetFilter(h)
+        for _, k in ipairs(h.containers or {}) do if k.unit == "target" then return k.c.__groups.a.filter end end
+    end
+    T.eq(targetFilter(sunder), "HARMFUL", "Sunder watched from any caster")
+    T.eq(targetFilter(rend), "HARMFUL|PLAYER", "Rend only yours")
+    T.truthy(AB.CdmAuras.IsUp(sunder), "another warrior's Sunder counts")
+    T.falsy(AB.CdmAuras.IsUp(rend), "another warrior's Rend doesn't")
+    stub.auras.target = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
