@@ -26,6 +26,7 @@ DUI.PatchNotes = {
             { "Nameplates", "Big defensives like Divine Shield, Ice Block and Evasion now show on enemy players' nameplates" },
             { "Quests", "A quest's area outline on the world map fades away with the map while you move" },
             { "Chat", "Typing in a channel by its number, like /7, talks in the channel the game said it was, not in another addon's hidden channel" },
+            { "Window skins", "The game menu's buttons, and other windows' buttons, no longer switch to a bigger font when you point at them" },
         },
     },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",

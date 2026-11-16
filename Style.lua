@@ -2396,12 +2396,15 @@ local ourFamily = setmetatable({}, { __mode = "k" })
 -- The family for one font, size, outline and shadow, made once per session.
 -- Sizes are kept to a quarter point, so a slider drag makes only a few (the
 -- client never frees a font object). nil when the client can't make one.
-function Style.FontFamily(file, size, flags, shadow)
+-- color (optional, r g b) gives the family its own text color: a text takes a
+-- font object's color with it, so a family shared by many texts has none.
+function Style.FontFamily(file, size, flags, shadow, color)
     if type(CreateFontFamily) ~= "function" or type(file) ~= "string"
         or type(size) ~= "number" or size <= 0 then return nil end
     size = math.floor(size * 4 + 0.5) / 4
     flags, shadow = flags or "", shadow or 0
     local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow
+    if color then key = key .. "|" .. color[1] .. "," .. color[2] .. "," .. color[3] end
     local fam = families[key]
     if fam ~= nil then return fam or nil end
     local client = CLIENT_ALPHABET[type(GetLocale) == "function" and GetLocale() or ""]
@@ -2418,16 +2421,17 @@ function Style.FontFamily(file, size, flags, shadow)
         families[key] = false
         return nil
     end
-    -- A family's shadow is its own and each member's, as the game's are.
-    made:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
-    made:SetShadowColor(0, 0, 0, shadow)
+    -- A family's shadow and color are its own and each member's, as the game's are.
+    local function dress(obj)
+        obj:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+        obj:SetShadowColor(0, 0, 0, shadow)
+        if color then obj:SetTextColor(color[1], color[2], color[3]) end
+    end
+    dress(made)
     if made.GetFontObjectForAlphabet then
         for _, alphabet in ipairs(Style.ALPHABETS) do
             local okM, member = pcall(made.GetFontObjectForAlphabet, made, alphabet)
-            if okM and type(member) == "table" and member ~= made then
-                member:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
-                member:SetShadowColor(0, 0, 0, shadow)
-            end
+            if okM and type(member) == "table" and member ~= made then dress(member) end
         end
     end
     ourFamily[made] = true
@@ -2474,6 +2478,38 @@ function Style.CopyFace(fs, from)
         if samePath(fs:GetFont(), (from:GetFont())) then return end
     end
     fs:SetFont(from:GetFont())
+end
+
+-- A button from the game's templates carries a font object for each state,
+-- and the client puts the matching one back on its label whenever the mouse
+-- comes onto it or leaves, or it's enabled or disabled. This is one font
+-- object with the label's look right now (face, size, outline, shadow, color),
+-- for all three, so the label looks the same whichever one comes back.
+local plainFaces, plainCount = {}, 0
+function Style.ButtonFace(fs)
+    local file, size, flags = fs:GetFont()
+    local r, g, b = fs:GetTextColor()
+    if isSecret(file) or isSecret(size) or isSecret(r) or isSecret(g) or isSecret(b) then return nil end
+    if type(file) ~= "string" or type(size) ~= "number" or size <= 0 or type(r) ~= "number" then return nil end
+    local shadow = gaveShadow[fs] or Style.TEXT_SHADOW[3]
+    local color = { r, g, b }
+    local fam = Style.FontFamily(file, size, flags, shadow, color)
+    if fam then return fam end
+    -- No font families in this client: a plain font object, Latin letters only.
+    flags = flags or ""
+    local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow .. "|" .. r .. "," .. g .. "," .. b
+    local made = plainFaces[key]
+    if made then return made end
+    if type(CreateFont) ~= "function" then return nil end
+    plainCount = plainCount + 1
+    made = CreateFont("DaylightUIButtonFont" .. plainCount)
+    made:SetFont(file, size, flags)
+    made:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+    made:SetShadowColor(0, 0, 0, shadow)
+    made:SetTextColor(r, g, b)
+    ourFamily[made] = true
+    plainFaces[key] = made
+    return made
 end
 
 function Style.ApplyFont(fs)

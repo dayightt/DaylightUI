@@ -749,11 +749,48 @@ function stub.HardwareOnly(what)
     stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: " .. what .. " (no hardware event)"
     return false
 end
+-- A button's font objects, one per state. Like the client, each change of
+-- state (the mouse coming onto it or leaving, enabled or disabled) puts that
+-- state's font object back on its label, the object's color with it. The game
+-- menu's buttons carry GameFontHighlightLarge this way (MainMenuFrameTemplates.xml),
+-- and their label grew back to it on mouse over (seen in game).
+function Widget:SetNormalFontObject(f) self.__normalFont = f end
+function Widget:GetNormalFontObject() return self.__normalFont end
+function Widget:SetHighlightFontObject(f) self.__highlightFont = f end
+function Widget:GetHighlightFontObject() return self.__highlightFont end
+function Widget:SetDisabledFontObject(f) self.__disabledFont = f end
+function Widget:GetDisabledFontObject() return self.__disabledFont end
+local function stateFont(b, over)
+    local obj
+    if b.__disabled then obj = b.__disabledFont
+    elseif over then obj = b.__highlightFont
+    else obj = b.__normalFont end
+    if type(obj) == "string" then obj = _G[obj] end
+    local fs = type(obj) == "table" and type(b.GetFontString) == "function" and b:GetFontString()
+    if type(fs) ~= "table" then return end
+    fs:SetFontObject(obj)
+    local c = obj.__textColor or { 1, 1, 1, 1 }
+    fs.__textColor = { c[1], c[2], c[3], c[4] or 1 }
+end
+-- The mouse onto a button and off it: its state's font first, then its script.
+function stub.MouseEnter(b)
+    b.__over = true
+    stateFont(b, true)
+    local fn = b.__scripts and b.__scripts.OnEnter
+    if fn then fn(b) end
+end
+function stub.MouseLeave(b)
+    b.__over = nil
+    stateFont(b, false)
+    local fn = b.__scripts and b.__scripts.OnLeave
+    if fn then fn(b) end
+end
 -- Buttons are enabled unless disabled, and run OnEnable/OnDisable on a change.
 function Widget:IsEnabled() return self.__disabled ~= true end
 function Widget:SetEnabled(on)
     local was = self:IsEnabled()
     self.__disabled = not on
+    if was ~= (on and true or false) then stateFont(self, self.__over) end
     local fn = was ~= (on and true or false) and self.__scripts and self.__scripts[on and "OnEnable" or "OnDisable"]
     if fn then fn(self) end
 end

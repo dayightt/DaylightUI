@@ -202,6 +202,46 @@ T.test("skins: buttons wear our one button look (W.Button's): the warm band and 
     T.falsy(s.off)
 end)
 
+-- The game menu's buttons carry the game's GameFontHighlightLarge as their
+-- normal, highlight and disabled fonts, and the client puts it back on the
+-- label each time the mouse comes onto one or leaves it. The label grew to
+-- the game's large font under the mouse.
+T.test("skins: a button keeps the Daylight font under the mouse, after it and when disabled", function()
+    login(function()
+        local big = CreateFont("GameFontHighlightLarge")
+        big:SetFont("Fonts\\FRIZQT__.TTF", 16, "")
+        big:SetTextColor(1, 0.82, 0)
+        local b = TradeFrameTradeButton
+        b:SetNormalFontObject(big)
+        b:SetHighlightFontObject(big)
+        b:SetDisabledFontObject("GameFontHighlightLarge")
+    end)
+    local Style, W = DaylightUI.Style, DaylightUI.Widgets
+    local b = TradeFrameTradeButton
+    local label = b:GetFontString()
+    local file, size = label:GetFont()
+    T.eq(file, Style.FONT, "dressed in the Daylight font")
+    local function same(why)
+        local f, s = label:GetFont()
+        T.eq(f, file, why); T.eq(s, size, why .. ", same size")
+        T.rgb(label.__textColor, W.BUTTON.text, why .. ", the button's ink")
+    end
+    stub.MouseEnter(b); same("under the mouse")
+    stub.MouseLeave(b); same("after the mouse leaves")
+    b:Disable(); same("disabled")
+    b:Enable(); same("enabled again")
+    -- The player picks another font: the hover font follows it.
+    DaylightUI:Set("general", "font", "fira")
+    stub.RunTimers()
+    file = Style.FONTS.fira.file
+    T.eq((label:GetFont()), file, "the label takes the new font")
+    stub.MouseEnter(b); same("the new font under the mouse")
+    stub.MouseLeave(b)
+    DaylightUI:Set("general", "font", nil)
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game menu's buttons come from a pool. Each time the menu opens, AddButton
 -- (MainMenuFrameTemplates.lua) clears their OnEnter/OnLeave before showing them.
 -- That removed the skin's hooks, so from the second opening on hover lit nothing.

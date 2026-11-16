@@ -819,8 +819,22 @@ local THREE_PART = { "Left", "Middle", "Right", "Center", "Mid", "LeftSeparator"
 -- A text button: the game's three-piece art removed, the button look (same as
 -- W.Button), and the game's own label in the Daylight font. State lives in a local table
 -- (Kit.ButtonOf), never on the button; its scripts are hooked, not replaced.
--- A disabled button swaps its font object (SetDisabledFontObject), so the Daylight font is
--- put back.
+-- A button from the game's templates also carries a font object per state, which the
+-- client puts back on its label on every mouse over, mouse out, enable and disable (the
+-- game menu's are the game's large font). All three become the Daylight look of the label
+-- (Style.ButtonFace), again after each style change.
+local stateFaces = setmetatable({}, { __mode = "k" }) -- button -> fn that sets its state fonts
+local function hasStateFonts(btn)
+    if type(btn.GetNormalFontObject) ~= "function" then return false end
+    return (btn:GetNormalFontObject() or btn:GetHighlightFontObject() or btn:GetDisabledFontObject()) ~= nil
+end
+local function keepStateFonts(btn, fs)
+    local face = Style.ButtonFace(fs)
+    if not face then return end
+    btn:SetNormalFontObject(face)
+    btn:SetHighlightFontObject(face)
+    btn:SetDisabledFontObject(face)
+end
 
 -- Quiet controls: the same looks with no hooks that the game's own code can
 -- set off. Showing, hiding, resizing or enabling a frame runs the scripts of
@@ -876,14 +890,17 @@ function Kit.Button(btn, host)
     if kind(fs) ~= "FontString" then fs = nil end
     local s = W.ButtonLook(btn, {}, fs, host ~= nil)
     buttonOf[btn] = s
+    local faced = fs and hasStateFonts(btn)
     if host then
         local ink = W.BUTTON.text
         local function words()
             if not fs then return end
             Style.DressText(fs, Style.SIZE.body)
             fs:SetTextColor(ink[1], ink[2], ink[3])
+            if faced then keepStateFonts(btn, fs) end
         end
         words()
+        if faced then stateFaces[btn] = words end
         btn:HookScript("OnEnter", function() s.Hover(true) end)
         btn:HookScript("OnLeave", function() s.Hover(false) end)
         quietHost(host)[btn] = function(gone)
@@ -905,7 +922,9 @@ function Kit.Button(btn, host)
         if not fs then return end
         Style.DressText(fs, Style.SIZE.body)
         fs:SetTextColor(ink[1], ink[2], ink[3])
+        if faced then keepStateFonts(btn, fs) end
     end
+    if faced then stateFaces[btn] = words end
     local function state()
         s.off = (btn.IsEnabled and not btn:IsEnabled()) or nil
         words()
@@ -2273,6 +2292,7 @@ DUI.On("StyleChanged", function()
     for s in pairs(lites) do liteLayout(s) end
     for shade in pairs(shades) do shade:SetColorTexture(0, 0, 0, Kit.INSET_SHADE) end
     for btn in pairs(looks) do paintLook(btn) end
+    for _, words in pairs(stateFaces) do words() end
     for row in pairs(rows) do paintRow(row) end
     for btn in pairs(slots) do Kit.SlotQuality(btn) end
     -- Selected tabs' underline and text, and the windows' top line.
