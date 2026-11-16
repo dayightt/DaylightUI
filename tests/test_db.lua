@@ -177,3 +177,15 @@ T.test("panel backgrounds follow every window's opacity; one that looked differe
     T.eq(DUI.Style.BackAlpha(false, 0.4), DUI:Get("general", "windowAlpha"), "off: every window's")
     T.eq(DUI.Style.BackAlpha(true, 0.4), 0.4, "on: its own")
 end)
+
+T.test("a bar texture saved as the window color goes back to the window bar background", function()
+    local DUI = stub.Load({ before = function()
+        DaylightUIDB = { version = 2, profileData = { Mine = { general = { windowTint = "silk" }, modules = {} } } }
+    end })
+    T.eq(DUI:Get("general", "windowBack"), "silk", "the texture pick comes back")
+    T.eq(DUI:Get("general", "windowTint"), "daylight", "the window color is the default again")
+    local kept = { general = { windowTint = "class", windowBack = "glass" } }
+    DUI.DB.WindowBackFix(kept)
+    T.eq(kept.general.windowTint, "class", "a real color pick stays")
+    T.eq(kept.general.windowBack, "glass")
+end)

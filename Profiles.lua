@@ -1320,7 +1320,7 @@ local profilesPage = DUI.Options.RegisterPage({
                   end
               end },
             { type = "button", label = "Immersive Preset", text = "Add",
-              desc = "DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Appearance, Fade only in the open world). Choose it above to use it. "
+              desc = "DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Fade, Fade only in the open world). Choose it above to use it. "
                   .. "If the profile you're on has moved action bars, offers to bring them along.",
               func = function()
                   local made, why = Profiles.AddPresetOffering("Immersive Preset")

@@ -22,7 +22,7 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Size", items = {
             { type = "slider", key = "scale", label = "Scale", min = 0.6, max = 1.6, step = 0.05, unit = "x",
-              desc = "Makes tooltips bigger or smaller, text and all, on top of the Scale on the General page." },
+              desc = "Makes tooltips bigger or smaller, text and all, on top of Scale (General > Appearance)." },
             { type = "slider", key = "textSize", label = "Text size", min = 9, max = 18, step = 1,
               desc = "The tooltip text; titles are a little larger." },
             DaylightUI.Options.FontRow("media.font", "Tooltip font", "Every line in the tooltips"),
@@ -70,7 +70,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "lastNames.tooltip", label = "First and last names",
               desc = "Players' last names after their first, on tooltips. Where the game hides names (in combat, in places) only the first name shows.",
               get = function() return DaylightUI:Get("general", "lastNames.tooltip") == true end,
-              set = function(v) DaylightUI:Set("general", "lastNames.tooltip", v) end },
+              set = function(v) DaylightUI:Set("general", "lastNames.tooltip", v) end,
+              default = function() return true end },
             -- Lives in the Quests module (GiverTips.lua), which draws it even with this module off.
             { type = "toggle", key = "mapQuests.tooltip", scope = "Quests", label = "Quests in NPC tooltips",
               desc = "Point at a quest giver to see the quests you can pick up from them and the ones ready to hand in, each with its level in its difficulty color. Needs Questie.",

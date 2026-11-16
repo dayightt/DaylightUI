@@ -19,7 +19,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "lastNames.inspect", label = "First and last names",
               desc = "The window's title shows the player's last name after their first name.",
               get = function() return DUI:Get("general", "lastNames.inspect") == true end,
-              set = function(v) DUI:Set("general", "lastNames.inspect", v) end },
+              set = function(v) DUI:Set("general", "lastNames.inspect", v) end,
+              default = function() return true end },
         } },
     } },
 } }

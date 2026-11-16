@@ -1217,7 +1217,7 @@ Options.RegisterPage({
             Options.MediaPick("bar", "windowBar", "Window bar texture",
                 "The fill of the bars in DaylightUI's windows: reputation, skills, professions, pet experience, quest objectives. "
                     .. "They keep their round shape. General uses the bar texture above."),
-            Options.MediaPick("back", "windowTint", "Window bar background",
+            Options.MediaPick("back", "windowBack", "Window bar background",
                 "The empty part behind the bars in DaylightUI's windows. General uses the bar background above."),
         } },
         { label = "Size", items = {
@@ -1299,7 +1299,8 @@ Options.RegisterPage({
               disabled = function(get) return get("motion") == false end,
               desc = "A halo and a ring of embers light the round icon at the top of a window as it opens. Needs Motion effects (General > Appearance)." },
             { type = "toggle", key = "smoothBars", label = "Smooth bars",
-              desc = "Bars glide to their new value instead of jumping." },
+              disabled = function(get) return get("motion") == false end,
+              desc = "Bars glide to their new value instead of jumping. Needs Motion effects (General > Appearance)." },
         } },
         { label = "Sound", items = {
             { type = "toggle", key = "sounds", label = "Soft UI sounds",

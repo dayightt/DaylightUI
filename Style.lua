@@ -2243,11 +2243,14 @@ end
 -- Sets a bar's value, gliding to it when smooth bars are on. The client does
 -- the easing, so a secret value is fine. instant snaps (e.g. unit changed).
 function Style.SetBarValue(bar, value, instant)
-    if not instant and general().smoothBars then glide(bar, value) else bar:SetValue(value) end
+    local g = general()
+    if not instant and g.smoothBars and g.motion ~= false then glide(bar, value) else bar:SetValue(value) end
 end
 
--- Glides whenever smooth bars allows it (a fill growing in as its frame arrives).
-function Style.GlideBar(bar, value) glide(bar, value) end
+-- A fill growing in as its frame arrives. Motion effects off snaps it.
+function Style.GlideBar(bar, value)
+    if general().motion == false then bar:SetValue(value) else glide(bar, value) end
+end
 
 function Style.BarBack(bar) return barBack[bar] end
 

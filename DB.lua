@@ -533,6 +533,17 @@ function DB.BuffScales(p)
     if type(s.debuff) == "table" then move(s.debuff, "buffs.debuff") end
 end
 
+-- The window bar background row once saved into windowTint, the window
+-- background color. A texture name found there goes back where it belongs.
+local TINTS = { daylight = true, class = true, custom = true }
+function DB.WindowBackFix(p)
+    local g = type(p.general) == "table" and p.general
+    local v = g and g.windowTint
+    if type(v) ~= "string" or TINTS[v] then return end
+    if g.windowBack == nil then g.windowBack = v end
+    g.windowTint = nil
+end
+
 -- Makes sure a profile's tables exist with every default filled in.
 local function fill(p)
     -- Old fade settings migrate first, since the defaults would wipe chat's old
@@ -542,6 +553,7 @@ local function fill(p)
     if type(p.positions) ~= "table" then p.positions = {} end
     if type(p.modules) ~= "table" then p.modules = {} end
     DB.BuffScales(p)
+    DB.WindowBackFix(p)
     DB.MergeDefaults(p.general, DB.GENERAL_DEFAULTS)
     for name, defaults in pairs(moduleDefaults) do
         if type(p.modules[name]) ~= "table" then p.modules[name] = {} end
