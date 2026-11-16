@@ -46,7 +46,6 @@ Detail.PERSON = 26      -- a person's line (spec.rows[i].people): a role badge, 
 Detail.PEOPLE = 10      -- most of them
 Detail.BADGE = 16
 Detail.PERSON_RULE = { 1, 1, 1, 0.05 }
-Detail.RULE = { 1, 1, 1, 0.1 }    -- the thin line under a label
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function W() return DUI.Widgets end
@@ -282,7 +281,8 @@ function Detail:Set(spec)
             local valueY = y
             if hasLabel then
                 Style.InkText(r.label, "LABEL")   -- tan: the accent is for a word or two a glance needs
-                r.rule:SetVertexColor(Detail.RULE[1], Detail.RULE[2], Detail.RULE[3], Detail.RULE[4])
+                local rule = Win.Parts.RULE
+                r.rule:SetVertexColor(rule[1], rule[2], rule[3], rule[4])
                 local ruleY = y + lh + Detail.RULE_GAP
                 r.rule:ClearAllPoints()
                 r.rule:SetPoint("TOPLEFT", f, "TOPLEFT", Detail.PAD, -ruleY)

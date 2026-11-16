@@ -181,6 +181,13 @@ function Who.Build(page)
         -- Fresh results: rows lift in one after another.
         if page:IsVisible() then Who.fresh = true; Who.Render(page) end
     end)
+    -- Joining a group or losing the lead changes whether Invite can work, so the open
+    -- card shows its buttons again.
+    for _, event in ipairs({ "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED" }) do
+        DUI.RegisterEvent(event, function()
+            if page:IsVisible() then Who.PaintDetail() end
+        end)
+    end
 end
 
 function Who.Fill(page)
