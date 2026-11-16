@@ -137,12 +137,15 @@ function PB.Layout(f, cfg, text)
     -- Its other end can lean too, so the bar is cut like a cast bar angled at both ends.
     local both = side ~= nil and cfg.powerSlantBoth == true
     local cut = side and Pixel.Snap(h, H * UF.SLANT) or 0
-    Style.Slant(h, both and "both" or side, cut)
+    -- Flipped, each angled end leans under: wider at the bottom than the top.
+    local flip = side ~= nil and cfg.powerSlantUnder == true
+    Style.Slant(h, both and "both" or side, cut, nil, flip and (both and "both" or side) or nil)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
     -- the frame's spec (which side is angled), this bar's cut, both ends or
     -- one, and its mover.
     h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, h.key
     h.ends = both and "both" or nil
+    h.flip = flip or nil
     local p = h.set.power
     p:ClearAllPoints()
     p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
@@ -151,7 +154,7 @@ function PB.Layout(f, cfg, text)
     -- The fill's moving edge takes the angle of the end it runs toward.
     local edge = side
     if f.flipped then edge = both and (side == "left" and "right" or "left") or nil end
-    Style.AngleFill(p, edge, cut * (H - 2 * T) / H)
+    Style.AngleFill(p, edge, cut * (H - 2 * T) / H, flip or nil)
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
     h.want = show
     h:SetShown(show and (f.spec.unit == "player" or f:IsShown()))

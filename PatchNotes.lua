@@ -16,8 +16,11 @@ DUI.PatchNotes = {
             { "Plugins", "Plugins can bring their own setup pages, shown right after Daylight UI's setup guide" },
             { "Tooltip", "Quest rewards show how much they sell for, in the quest log and when you hand in" },
             { "Unit frames", "Swing timers, the power bar on its own and the personal display can be angled at both ends, like cast bars" },
+            { "Info panel", "Pick your own colors for rested XP and for the XP from quests ready to turn in (Info panel > General)" },
+            { "Unit frames", "Cast bars can flip their angles, so they're wider at the bottom than the top" },
         },
         changed = {
+            { "Unit frames", "Your cast bar no longer has a spot between your frame and the target's. If you used it, it stays right there as its own bar with flipped angles" },
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
             { "Character", "A roomier character window where long item and stat names fit, your ammo count in the footer, and a new PvP page with your honor kills and rank badges" },
         },

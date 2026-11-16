@@ -387,6 +387,62 @@ T.test("a cast bar of its own can angle its left end, its right end, or both", f
     T.eq(Style.GetSlant(ns.playerCastbar).side, "both", "yours, with its right end on by default")
 end)
 
+T.test("a cast bar of its own can flip its angles to lean under, wider at the bottom", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    DUI:Set("UnitFrames", "playerCastbar.slantLeft", true)
+    stub.RunTimers()
+    local h = ns.playerCastbar
+    T.isnil(Style.GetSlant(h).under, "leaning out by default")
+    DUI:Set("UnitFrames", "playerCastbar.slantUnder", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h).under, "both", "both ends lean under")
+    DUI:Set("UnitFrames", "playerCastbar.slantLeft", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h).under, "right", "just the angled end")
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.slantLeft", true)
+    DUI:Set("UnitFrames", "targetCastbar.slantUnder", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(ns.targetCastbarFree).under, "left", "the target's too")
+    DUI:Set("UnitFrames", "playerCastbar.at", "below")
+    stub.RunTimers()
+    T.isnil(Style.GetSlant(h).under, "hung under the frame it follows the frame's angle")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a cast bar left between the player and target frames stays there, on its own with flipped angles", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local pf, tf, h = ns.frames.player, ns.frames.target, ns.playerCastbar
+    -- The fake game has no screen layout: give the frames their spots (scale 1).
+    UIParent.__center = { 960, 540 }
+    function pf:GetRight() return 800 end
+    function pf:GetTop() return 400 end
+    function tf:GetLeft() return 1120 end
+    DUI:Set("UnitFrames", "playerCastbar.at", "middle")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local cfg = ns.module.db.playerCastbar
+    T.eq(cfg.at, "free", "on its own now")
+    T.eq(cfg.slant, true); T.eq(cfg.slantLeft, true); T.eq(cfg.slantUnder, true)
+    T.eq(DaylightUI.Style.GetSlant(h).under, "both", "wider at the bottom, as it was")
+    -- The same spot: centered in the gap, its top level with the frames', each
+    -- bottom corner CB.AT_GAP from the frame beside it.
+    local H = 2 * math.floor(cfg.height / 2 + 0.5)
+    local cut = H * ns.UF.SLANT
+    local dx = ns.CastBar.AT_GAP - cut
+    T.near(cfg.width, (1120 - dx) - (800 + dx), 0.5, "as wide as the gap")
+    local pos = DaylightUI.DB.Positions()[h.moverKey]
+    T.near(pos[1], 0, 0.01, "centered between the frames")
+    T.near(pos[2], 400 - H / 2 - 540, 0.01, "top level with the player frame")
+    -- Done once: picking another spot later sticks.
+    DUI:Set("UnitFrames", "playerCastbar.at", "below")
+    stub.RunTimers()
+    T.eq(cfg.at, "below")
+end)
+
 T.test("cast bars: with the Gradients page's pairs, an interrupt gets its own pair", function()
     local h, ns = setup()
     ns.CastBar.cfg.fill = "pair"
@@ -869,6 +925,19 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantBoth", false)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).side, "right")
+    -- Flipped, its angle can't be continued, so the cast bar hangs under the frame.
+    DUI:Set("UnitFrames", "player.powerSlantUnder", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).under, "right", "the power bar's end leans under")
+    T.eq(h.under, ns.frames.player, "the cast bar slides out from the frame instead")
+    DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).under, "both", "both ends lean under")
+    DUI:Set("UnitFrames", "player.powerSlantUnder", false)
+    DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+    stub.RunTimers()
+    T.isnil(Style.GetSlant(pb).under)
+    T.eq(h.under, pb, "unflipped: from the power bar again")
     DUI:Set("UnitFrames", "player.powerAt", "inside")
     stub.RunTimers()
     T.eq(h.under, ns.frames.player, "the power bar back inside: under the frame again")

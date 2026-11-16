@@ -528,7 +528,7 @@ function ST.UpdateShown(h)
         -- Sliding back under: bring it out again from where it is.
         if h:IsShown() and h.slide.goal == 0 then h.slide:To(1) end
         h:Show()
-    elseif h:IsShown() and (h.column or h.together or h.fan) and h:IsVisible() then
+    elseif h:IsShown() and (h.column or h.together) and h:IsVisible() then
         h.slide:To(0)
     else
         h:Hide()
@@ -767,7 +767,6 @@ function ST.Create()
     -- each of its steps already re-hangs these bars.
     h.slide = DUI.Motion.Slider(function(sl)
         if h.together then return ST.Unroll(h) end
-        if h.fan then return ST.Fan(h) end
         local cb = h.castbar
         if sl.t and cb and cb.column and cb:IsVisible() and cb.slide:Moving() then return end
         ST.Hang(h)
@@ -779,19 +778,12 @@ function ST.Create()
             end
         end })
     h:HookScript("OnShow", function(self)
-        if (self.column and self.column.f:IsVisible()) or self.together or self.fan then
+        if (self.column and self.column.f:IsVisible()) or self.together then
             self.slide:Jump(0)
             self.slide:To(1)
         end
     end)
     h:HookScript("OnHide", function(self) self.slide:Jump(1) end)
-    -- Under the cast bar between the frames: 1 while a cast is up, 0 while
-    -- none is and the first bar sits in the cast bar's own spot (ST.Fan).
-    h.room = DUI.Motion.Slider(function()
-        if not h.fan then return end
-        ST.FanShape(h)
-        ST.Fan(h)
-    end, { parent = h, dur = DUI.Motion.FAST, p = 0 })
     h:Hide()
     return h
 end
@@ -816,14 +808,14 @@ function ST.Restack(h)
     local cfg = h.cfg
     local step = height - T
     local up = false
-    if not h.attached and not h.fan then
+    if not h.attached then
         local gap = Pixel.Px(h, cfg.spacing or 0)
         step = gap > 0 and (height + gap) or (height - T)
         up = cfg.growUp == true
     end
     -- Leaving (the last swing is over): the visible bars stay as they are while
     -- they slide back under the frame or into their box.
-    local keep = (h.column ~= nil or h.together or h.fan) and h:IsVisible() and not wantShown(h)
+    local keep = (h.column ~= nil or h.together) and h:IsVisible() and not wantShown(h)
     local n, m = 0, 0
     local shown = {}
     for _, row in ipairs(h.rows) do
@@ -840,11 +832,7 @@ function ST.Restack(h)
             if usable(h, row) then m = m + 1 end
             if show then
                 row:ClearAllPoints()
-                if h.fan then
-                    -- Fanning out under the cast bar: each centered, with its
-                    -- width set by ST.Place (wider further down).
-                    row:SetPoint("TOP", h.inner, "TOP", 0, -n * step)
-                elseif up then
+                if up then
                     row:SetPoint("BOTTOMLEFT", h.inner, "BOTTOMLEFT", 0, n * step)
                     row:SetPoint("BOTTOMRIGHT", h.inner, "BOTTOMRIGHT", 0, n * step)
                 else
@@ -868,7 +856,7 @@ function ST.Restack(h)
     end
     -- Detached, the box is as tall as every bar that could show, so it (and the
     -- mover saved by its center) doesn't jump between swings.
-    if not h.attached and not h.fan then n = m end
+    if not h.attached then n = m end
     h:SetHeight(math.max(1, n * height + math.max(0, n - 1) * (step - height)))
     ST.Place(h)
     checkRange(h)
@@ -950,16 +938,7 @@ function ST.Place(h)
             shapeRow(h, row, row.cfg or h.cfg, row.rowHeight or height, Pixel.Px(row, borderOf(h)), ns.UF.SLANT)
         end
     end
-    if h.fan then
-        -- Under the cast bar between the frames: in a clip whose top is the
-        -- cast bar's bottom, so the bars fold out from under it.
-        h.column = nil
-        local clip = ST.FanClip(h, cb)
-        if h:GetParent() ~= clip then h:SetParent(clip) end
-        h.clipUnder = nil
-        ST.FanShape(h)
-        ST.Fan(h)
-    elseif f then
+    if f then
         -- In a separate clip inside the cast bar's, so it slides out from under
         -- the frame (and from under the cast bar while that shows). With the
         -- cast bar detached, its clip still starts under the frame.
@@ -988,91 +967,7 @@ function ST.Place(h)
     end
     for _, row in ipairs(h.rows) do
         row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", row.bar, "LEFT", ns.CastBar.PAD + (row.iconLead or 0) + (row.leftCut or 0) + (h.fan and row.endCut or 0), 0)
-    end
-end
-
--- Fanning out under the cast bar between the frames (CB.Middle): the clip the
--- bars fold out of, its top along the cast bar's bottom border, wide enough
--- for the widest bar's shadow.
-function ST.FanClip(h, cb)
-    local clip = h.fanClip
-    if not clip then
-        clip = CreateFrame("Frame", nil, UIParent)
-        clip:SetClipsChildren(true)
-        h.fanClip = clip
-    end
-    clip:SetFrameStrata(cb:GetFrameStrata())
-    clip:SetFrameLevel(math.max(0, cb:GetFrameLevel() - 1))
-    local cT = Pixel.Px(cb, Style.BorderPx(cb))
-    local top = cT * cb:GetEffectiveScale() / clip:GetEffectiveScale()
-    local M = 4 * ns.CastBar.CLIP_MARGIN
-    clip:ClearAllPoints()
-    clip:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", -M, top)
-    clip:SetPoint("TOPRIGHT", cb, "BOTTOMRIGHT", M, top)
-    clip:SetHeight(1000)
-    return clip
-end
-
--- Each bar under the cast bar continues its angled ends downward, both leaning
--- under at the cast bar's angle (h.fanRate), so each bar is wider than the one
--- above and the stack reads as one shape.
-function ST.FanShape(h)
-    local cb = h.castbar
-    local T = Pixel.Px(h, borderOf(h))
-    local cT = Pixel.Px(cb, Style.BorderPx(cb))
-    local r = cb.fanRate or 0
-    local W = cb:GetWidth()
-    if type(W) ~= "number" or W <= 0 then W = h.cfg.width end
-    h:SetWidth(W)
-    local height = h.rowHeight or 12
-    local step = height - T
-    local cut = r * height
-    local raise = ST.Raise(h)
-    local n = 0
-    for _, row in ipairs(h.rows) do
-        if row:IsShown() and not row.alone then
-            -- Its top border overlaps the one above, so the line there is the
-            -- cast bar's bottom width plus the angle down to it on each side
-            -- (raised into the cast bar's spot: its top width, and on down).
-            local depth = n * step - cT - raise
-            row:SetWidth(W + 2 * r * depth + 2 * cut)
-            Style.Slant(row, cut > 0 and "both" or nil, cut, nil, "both")
-            Style.AngleFill(row.bar, cut > 0 and "right" or nil, r * (height - 2 * T), true)
-            row.endCut = cut
-            n = n + 1
-        end
-    end
-    ST.PlaceTimes(h)
-end
-
--- How far the bars sit above their spot under the cast bar: with no cast up,
--- the first one takes the cast bar's own spot (its top level with the
--- frames'), and they scoot down as a cast starts.
-function ST.Raise(h)
-    local cb = h.castbar
-    if not (h.fan and cb and h.room) then return 0 end
-    local cT = Pixel.Px(cb, Style.BorderPx(cb))
-    return (1 - h.room.p) * math.max(0, cb:GetHeight() - cT)
-end
-
--- Folded out by the slide: tucked up under the top line (the cast bar's
--- bottom, or its top with no cast up) by what's left of it.
-function ST.Fan(h)
-    local cb = h.castbar
-    if not (h.fan and cb) then return end
-    local cT = Pixel.Px(cb, Style.BorderPx(cb))
-    local top = cT + ST.Raise(h)
-    h:ClearAllPoints()
-    h:SetPoint("TOP", cb, "BOTTOM", 0, top + (1 - h.slide.p) * h:GetHeight())
-    local clip = h.fanClip
-    if clip then
-        local M = 4 * ns.CastBar.CLIP_MARGIN
-        local y = top * cb:GetEffectiveScale() / clip:GetEffectiveScale()
-        clip:ClearAllPoints()
-        clip:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", -M, y)
-        clip:SetPoint("TOPRIGHT", cb, "BOTTOMRIGHT", M, y)
-        clip:SetHeight(1000)
+        row.label:SetPoint("LEFT", row.bar, "LEFT", ns.CastBar.PAD + (row.iconLead or 0) + (row.leftCut or 0), 0)
     end
 end
 
@@ -1199,11 +1094,8 @@ function ST.Layout(h, cfg, castbar)
     -- the swing bars hung. It can also go under the personal display (its
     -- page's switch, placed by Personal.Dock).
     h.docked = ns.Personal.Docks("swing")
-    -- With the cast bar between the frames (and shown), they fan out under it.
-    local fan = not h.docked and cfg.attach and castbar ~= nil and castbar.middle == true and castbar.enabled == true
-    local hung = not h.docked and not fan and cfg.attach and castbar ~= nil and castbar.under ~= nil
-    local fanKey = fan and ns.frames and ns.frames.player and ns.frames.player.moverKey
-    h:SetScale(DUI.Movers.Scale((h.docked and ns.Personal.KEY) or (hung and castbar.under.moverKey) or fanKey or "unitframes.swing"))
+    local hung = not h.docked and cfg.attach and castbar ~= nil and castbar.under ~= nil
+    h:SetScale(DUI.Movers.Scale((h.docked and ns.Personal.KEY) or (hung and castbar.under.moverKey) or "unitframes.swing"))
     -- Its own border, corners and shadow on every bar (swing.shell), else General's.
     local own = ns.UF.OwnShell(cfg)
     for _, row in ipairs(h.rows) do ns.UF.WriteShell(Style.GetShell(row), own) end
@@ -1214,14 +1106,12 @@ function ST.Layout(h, cfg, castbar)
     h.rowHeight = 2 * Pixel.Snap(h, cfg.height / 2) + 2 * T
     h.castbar = castbar
     h.attached = hung
-    h.fan = fan or nil
     -- Detached as a group, the bars slide out of their own box.
-    h.together = not hung and not h.docked and not fan
-    -- Hung under a frame, fanned under the cast bar or docked, the bars draw
-    -- with what they hang from. Detached they take their own strata.
+    h.together = not hung and not h.docked
+    -- Hung under a frame or docked, the bars draw with what they hang from.
+    -- Detached they take their own strata.
     local strata = ns.StrataOf(cfg)
     if h.docked and ns.Personal.frame then strata = ns.Personal.frame:GetFrameStrata()
-    elseif fan then strata = castbar:GetFrameStrata()
     elseif hung then strata = castbar.under:GetFrameStrata() end
     h:SetFrameStrata(strata)
     if h.boxClip then h.boxClip:SetFrameStrata(strata) end
@@ -1230,7 +1120,7 @@ function ST.Layout(h, cfg, castbar)
         h.inner:SetAllPoints(h)
         if h.boxClip then h.boxClip.cut = false; h.boxClip:SetClipsChildren(false) end
     end
-    if not h.attached and not h.fan then h:SetWidth(2 * Pixel.Snap(h, (h.docked and ns.Personal.frame:GetWidth() or cfg.width) / 2)) end
+    if not h.attached then h:SetWidth(2 * Pixel.Snap(h, (h.docked and ns.Personal.frame:GetWidth() or cfg.width) / 2)) end
     -- The column changes when a cast starts or ends, so re-hang then.
     if castbar and not h.hooked then
         h.hooked = true
@@ -1238,10 +1128,7 @@ function ST.Layout(h, cfg, castbar)
         castbar:HookScript("OnHide", function() ST.Place(h) end)
         -- And follow it as it slides.
         castbar.moved = function() ST.Hang(h) end
-        castbar.onUp = function(up) h.room:To(up and 1 or 0) end
     end
-    -- Laid out with no slide under way: straight to where a cast up or none puts them.
-    if not h.room:Moving() then h.room:Jump(castbar and castbar.up and 1 or 0) end
     -- Each bar detached on its own (not while docked) gets its own piece, mover
     -- and settings (swing.bars.<hand>).
     local bars = type(cfg.bars) == "table" and cfg.bars or {}
@@ -1273,14 +1160,14 @@ function ST.Layout(h, cfg, castbar)
         end
         DUI.Movers.Suspend(mover, not (alone and on))
     end
-    DUI.Movers.Suspend("unitframes.swing", h.attached or h.docked or h.fan or not grouped)
+    DUI.Movers.Suspend("unitframes.swing", h.attached or h.docked or not grouped)
     for _, row in ipairs(h.rows) do
         local rc = row.cfg or cfg
         local rT = row.alone and Pixel.Px(row.pod, borderOf(h)) or T
         local inner = (row.rowHeight or h.rowHeight) - 2 * rT
         -- Its own Text size. Hung under the cast bar, no taller than a row allows.
         local size = rc.textSize or 12
-        local hungRow = (h.attached or h.fan) and not row.alone
+        local hungRow = h.attached and not row.alone
         if hungRow then size = math.max(6, math.min(size, math.floor(inner * ST.TEXT_SHARE + 0.5))) end
         local iconSize = (not hungRow and rc.showIcon) and inner or 0
         row.iconLead = iconSize

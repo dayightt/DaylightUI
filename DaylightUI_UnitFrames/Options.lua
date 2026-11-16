@@ -1574,6 +1574,14 @@ local function framePage(id, label, desc, opts)
         frame[#frame + 1] = { type = "toggle", key = k("powerSlantBoth"), label = "Power bar angled at both ends",
             desc = "Angles its other end too, and a cast bar hung under it follows both. Only while the power bar is on its own with its angled end on.",
             disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end }
+        -- A cast bar sliding out from under it continues its angle, which a flipped end can't do.
+        local slidesOut = function(get)
+            return id == "player" and get("playerCastbar.enabled") == true and get("playerCastbar.at") == "below"
+                and get("playerCastbar.from") == "power"
+        end
+        frame[#frame + 1] = { type = "toggle", key = k("powerSlantUnder"), label = "Flip the power bar's angles", since = "1.9.1",
+            desc = "Tips the angled ends the other way, so the bar is wider at the bottom than the top. Only while the power bar is on its own, and not while your cast bar slides out from under it.",
+            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end }
     end
     if opts.tile then
         frame[#frame + 1] = { type = "toggle", key = k("fillVertical"), label = "Fill upward",
@@ -2083,7 +2091,6 @@ local function nudge(unit, axis)
                  or "Above or below the frame: moves the bar up or down.",
              disabled = function(get)
                  local at = atOf(get, unit)
-                 if not x and at == "middle" then return get(unit .. "Castbar.enabled") ~= true end
                  return get(unit .. "Castbar.enabled") ~= true or not (at == "above" or (at == "below" and unit ~= "player"))
              end }
 end
@@ -2160,8 +2167,16 @@ local function castTextCard(unit, who, whose, inside)
     return { label = who .. " cast bar text", items = items }
 end
 local attached = notOwnSize("player")
--- Between the frames, the bar takes the gap's width, has no icon, and fills left to right.
-local function notMiddleOwn(get) return attached(get) or atOf(get, "player") == "middle" end
+-- Flipping needs an angled end, on a bar with its own shape.
+local function flipRow(unit, who, notOwn)
+    return { type = "toggle", key = unit .. "Castbar.slantUnder", label = "Flip the angles", since = "1.9.1",
+             desc = "Tips the angled ends the other way, so " .. who .. " cast bar is wider at the bottom than the top. "
+                 .. (unit == "player" and "Not while under the frame or under the personal display." or "Not inside the frame or sliding out under it."),
+             disabled = function(get)
+                 return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
+                     or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
+             end }
+end
 
 -- A raid page: Raid 10, 20 or 40 (Raid.lua's setups by raid size).
 local RAID_PAGE_DESC = {
@@ -2436,12 +2451,13 @@ ns.OPTIONS = { pages = {
         { label = "Player cast bar", items = {
             { type = "toggle", key = "playerCastbar.enabled", label = "Show your cast bar",
               desc = "Replaces the game's own cast bar." },
-            atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Between your frame and the target's it fills the gap, both ends angled like the frames beside it, with the swing timers fanning out under it. Above the frame or on its own it has its own size."),
+            atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Above the frame or on its own it has its own size."),
             { type = "dropdown", key = "playerCastbar.from", label = "Slides out from",
               values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
-              desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame.",
+              desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
               disabled = function(get)
                   return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
+                      or get("player.powerSlantUnder") == true
               end },
             nudge("player", "x"),
             nudge("player", "y"),
@@ -2451,20 +2467,21 @@ ns.OPTIONS = { pages = {
             barRows("playerCastbar.media.bar", "your cast bar", "Cast bar", off("playerCastbar.enabled"))[2],
             fontRow("playerCastbar.media.font", "Cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
             { type = "toggle", key = "playerCastbar.showIcon", label = "Spell icon",
-              desc = "Not while under the frame (the portrait ring covers that spot) or between the frames.", disabled = notMiddleOwn },
+              desc = "Not while under the frame: the portrait ring covers that spot.", disabled = attached },
             { type = "slider", key = "playerCastbar.width", label = "Width", min = 80, max = 500, step = 1,
-              desc = "Not while under the frame or between the frames: there it fills the space it has.", disabled = notMiddleOwn },
+              desc = "Not while under the frame: there it's as wide as the frame.", disabled = attached },
             { type = "toggle", key = "playerCastbar.slant", label = "Angled right end",
-              desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle, and between the frames both ends lean. When off, its ends are straight.",
+              desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle. When off, its ends are straight.",
               disabled = off("playerCastbar.enabled") },
             { type = "toggle", key = "playerCastbar.slantLeft", label = "Angled left end",
-              desc = "Cuts the left end at an angle too, leaning like the target frame's end. Not while under the frame, between the frames or under the personal display.",
-              disabled = function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end },
+              desc = "Cuts the left end at an angle too, leaning like the target frame's end. Not while under the frame or under the personal display.",
+              disabled = function(get) return attached(get) or atOf(get, "player") == "personal" end },
+            flipRow("player", "your", attached),
             { type = "toggle", key = "playerCastbar.reverseFill", label = "Fill right to left",
-              desc = "Not while under the frame or between the frames.", disabled = notMiddleOwn },
+              desc = "Not while under the frame.", disabled = attached },
             strataRow("playerCastbar.strata", "Cast bar layer", "The layer your cast bar draws in.",
-                function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
-                " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
+                function(get) return attached(get) or atOf(get, "player") == "personal" end,
+                " Under the frame or under the personal display, it draws with the frame instead."),
         } },
         shellCard("playerCastbar", "playerCastbar.enabled", true),
         castTextCard("player", "Player", "your"),
@@ -2493,6 +2510,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "targetCastbar.slantLeft", label = "Angled left end",
               desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
+            flipRow("target", "your target's", notOwnBar("target")),
             { type = "toggle", key = "targetCastbar.reverseFill", label = "Fill right to left",
               desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
               disabled = notOwnBar("target") },
@@ -2525,6 +2543,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "focusCastbar.slantLeft", label = "Angled left end",
               desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
+            flipRow("focus", "your focus's", notOwnSize("focus")),
             { type = "toggle", key = "focusCastbar.reverseFill", label = "Fill right to left",
               desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
               disabled = notOwnSize("focus") },
@@ -2628,7 +2647,7 @@ ns.OPTIONS = { pages = {
               desc = "While swinging: each bar only while its swing runs, gone between swings. In combat: all your bars while you're fighting. A bar detached on its own has its own.",
               disabled = off("swing.enabled") },
             { type = "toggle", key = "swing.attach", invert = true, label = "Detach as group",
-              desc = "Takes the bars out from under the player frame so you can move them together (/dui unlock); they slide out of their own box. When off, they hang under the player frame, under the cast bar while it hangs there, even with the cast bar detached. With your cast bar between your frame and the target's, they fan out under it instead, each a little wider.",
+              desc = "Takes the bars out from under the player frame so you can move them together (/dui unlock); they slide out of their own box. When off, they hang under the player frame, under the cast bar while it hangs there, even with the cast bar detached.",
               disabled = function(get)
                   return get("swing.enabled") ~= true or (get("personal.enabled") == true and get("personal.swing") == true)
               end },
