@@ -107,6 +107,87 @@ local spamWordList = {
     end,
 }
 
+-- Your own short tags: one box per chat kind and channel, for the whole chat. The
+-- standard tag shows in the box until you type one.
+local TAG_LINE = 28
+local TAG_W = 56
+local TAG_TOP = 8
+
+local function tagLine(row, side)
+    local W, Style = DaylightUI.Widgets, DaylightUI.Style
+    local L = DaylightUI.L
+    local line = CreateFrame("Frame", nil, row)
+    line:SetHeight(TAG_LINE)
+    line.text = Style.Text(line, Style.SIZE.body, "LEFT")
+    line.text:SetWordWrap(false)
+    line.box = W.Input(line, { height = 22, size = Style.SIZE.small, justify = "CENTER",
+        maxLetters = ns.Tags.TAG_LETTERS,
+        onChange = function(text, user) if user and line.kind then ns.Tags.SetOwn(line.kind, text) end end })
+    line.box:SetWidth(TAG_W)
+    line.box.hint.english = true -- the standard tag's letters, not a text to translate
+    line.box:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+    line.text:SetPoint("LEFT", line, "LEFT", 0, 0)
+    line.text:SetPoint("RIGHT", line.box, "LEFT", -8, 0)
+    line.box:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        DaylightUI.Tips.Title(line.words or "")
+        DaylightUI.Tips.Text(string.format(L["The short tag before these messages. Left empty it stays [%s]."],
+            line.standard or ""))
+        DaylightUI.Tips.Flush()
+    end)
+    line.box:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    line.side = side
+    return line
+end
+
+local function placeTagLine(row, line, i)
+    local W = DaylightUI.Widgets
+    local y = -(TAG_TOP + (i - 1) * TAG_LINE)
+    line:ClearAllPoints()
+    if line.side == 1 then
+        line:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, y)
+        line:SetPoint("TOPRIGHT", row, "TOP", -12, y)
+    else
+        line:SetPoint("TOPLEFT", row, "TOP", 12, y)
+        line:SetPoint("TOPRIGHT", row, "TOPRIGHT", -W.PAD, y)
+    end
+end
+
+local function fillTagColumn(row, items, side)
+    local pool = row.columns[side]
+    for i, item in ipairs(items) do
+        local line = pool[i]
+        if not line then
+            line = tagLine(row, side)
+            pool[i] = line
+        end
+        placeTagLine(row, line, i)
+        line.kind, line.words, line.standard = item.kind, item.words, item.standard
+        line.text:SetText(item.words)
+        local c = ns.Filter.ColorOf(item.kind)
+        line.text:SetTextColor(c[1], c[2], c[3], 1)
+        line.box.hint:SetText(item.standard or "")
+        if not line.box:HasFocus() then line.box:SetText(ns.Tags.Own(item.kind) or "") end
+        line:Show()
+    end
+    for i = #items + 1, #pool do pool[i]:Hide() end
+    return #items
+end
+
+local shortTagList = {
+    type = "custom", label = "Your own short tags",
+    hidden = function(get) return get("shortTags") ~= true end,
+    build = function(row) row.columns = { {}, {} } end,
+    update = function(row)
+        local chat, channels = ns.Filter.TagItems()
+        row.count = math.max(fillTagColumn(row, chat, 1), fillTagColumn(row, channels, 2))
+    end,
+    height = function(row)
+        local chat, channels = ns.Filter.TagItems()
+        return TAG_TOP * 2 + math.max(#chat, #channels, row.count or 0) * TAG_LINE
+    end,
+}
+
 -- When the chat gets out of the way is one choice (hides), in the shared Opacity
 -- and fade card. It covers what the Fade, Faded opacity, mouseover, target and
 -- delay rows do for other areas, so only Opacity shows here (and on General > Fade).
@@ -301,10 +382,11 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags." },
+              desc = "[G] for General, [T] for Trade, [G] for guild (in guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. Set your own tags in the list below." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number with the short tag: [1. G] for General, [2. T] for Trade.",
               disabled = function(get) return get("shortTags") ~= true end },
+            shortTagList,
             { type = "toggle", key = "worldChannelsFirst", label = "General and Trade first", since = "1.8.0",
               desc = "When another addon joins its own channels before General and Trade, they take /1 and /2. This puts General, Trade and the other world channels back on the first numbers." },
             { type = "toggle", key = "classColors", label = "Class-colored names",

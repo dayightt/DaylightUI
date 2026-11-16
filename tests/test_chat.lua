@@ -2907,44 +2907,50 @@ T.test("chat daylight: a tab moved or removed with its Show window open stays th
     T.falsy(DaylightUI.Win.IsOpen(Filter.Frame()), "its tab removed: the window closes")
 end)
 
-T.test("chat daylight: a tab's Show has a tag box on each channel, not on Other channels", function()
+-- The short tags are set in the chat options, for the whole chat; a tab's Show window
+-- only holds switches and colors.
+T.test("chat daylight: the short tags page has a box per chat kind and channel, a tab's Show has none", function()
     daylight()
     local Tabs, Filter, Tags = stub.chatModule.Tabs, stub.chatModule.Filter, stub.chatModule.Tags
     local list = _G.GetChannelList
     _G.GetChannelList = function() return 1, "General", false, 5, "Heroes", false end
     Tabs.ShowMenu(UIParent, 2)
-    local rows = {}
-    for _, b in ipairs(Filter.Rows()) do
-        if b.tag and b:IsShown() then rows[b.kind] = b end
+    for _, b in ipairs(Filter.Rows()) do T.isnil(b.tag, "no tag box in a tab's Show window") end
+    Filter.Close()
+    -- The options row.
+    local item
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.label == "Your own short tags" then item = it end end
+        end
     end
-    T.truthy(rows["general"] and rows["ch:heroes"], "a box beside each channel")
-    T.eq(rows["general"].tag.hint:GetText(), "G", "the box shows the standard tag until you type")
-    T.eq(rows["ch:heroes"].tag.hint:GetText(), "5", "a channel with no standard tag shows its number")
-    T.truthy(rows["general"].tag:IsShown())
-    T.falsy(rows["channel"].tag:IsShown(), "Other channels are many channels: no one tag")
-    T.eq(rows["guild"].tag.hint:GetText(), "G", "a kind of chat has one too")
-    T.truthy(rows["guild"].tag:IsShown())
-    local emote
-    for _, b in ipairs(Filter.Rows()) do
-        if b.kind == "emote" then emote = b end
+    T.truthy(item, "the options have the row")
+    local row = CreateFrame("Frame")
+    item.build(row); item.update(row)
+    local boxes = {}
+    for side = 1, 2 do
+        for _, line in ipairs(row.columns[side]) do
+            if line:IsShown() then boxes[line.kind] = line end
+        end
     end
-    T.falsy(emote.tag:IsShown(), "emotes have no tag to change")
-    local box = rows["ch:heroes"].tag
+    T.truthy(boxes["general"] and boxes["ch:heroes"], "a box for each channel")
+    T.eq(boxes["general"].box.hint:GetText(), "G", "the box shows the standard tag until you type")
+    T.eq(boxes["ch:heroes"].box.hint:GetText(), "5", "a channel with no standard tag shows its number")
+    T.eq(boxes["guild"].box.hint:GetText(), "G", "a kind of chat has one too")
+    T.isnil(boxes["channel"], "Other channels are many channels: no one tag")
+    T.isnil(boxes["emote"], "emotes have no tag to change")
+    local box = boxes["ch:heroes"].box
     box:SetText("HE")
     box:GetScript("OnTextChanged")(box, true)
     T.eq(Tags.Own("ch:heroes"), "HE", "typing sets it")
     box:SetText("")
     box:GetScript("OnTextChanged")(box, false)
     T.eq(Tags.Own("ch:heroes"), "HE", "only typing does")
-    Tabs.ShowMenu(UIParent, 2)
-    T.eq(box:GetText(), "HE", "opened again it shows your tag")
-    Filter.Close()
-    DaylightUI:Set("Chat", "shortTags", false)
-    Tabs.ShowMenu(UIParent, 2)
-    T.falsy(box:IsShown(), "no short tags: no tag boxes")
-    DaylightUI:Set("Chat", "shortTags", true)
+    item.update(row)
+    T.eq(box:GetText(), "HE", "listed again it shows your tag")
+    T.truthy(item.hidden(function() return false end), "hidden with Short tags off")
+    T.falsy(item.hidden(function() return true end), "shown with Short tags on")
     Tags.SetOwn("ch:heroes", "")
-    Filter.Close()
     _G.GetChannelList = list
 end)
 
