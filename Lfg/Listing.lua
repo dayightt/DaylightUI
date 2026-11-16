@@ -333,7 +333,7 @@ end
 local function label(page, key, text, y)
     local fs = page[key]
     fs:SetText(text)
-    Style.InkText(fs, "pop")
+    Style.InkText(fs, "LABEL")
     fs:ClearAllPoints()
     fs:SetPoint("LEFT", page, "TOPLEFT", Listing.EDGE + Listing.IN, -(y + W().CHIP_HEIGHT / 2))
     fs:Show()
@@ -534,7 +534,7 @@ function Listing.Render(page)
         for _, g in ipairs(groups) do
             if g.name ~= "" and #groups > 1 then s:Section(g.name) end
             for _, a in ipairs(g.acts) do
-                Listing.rows[a.id] = ns.Rows.Row(s, { kind = "act", height = ns.Rows.ACTIVITY, text = a.name, sep = true, check = true,
+                Listing.rows[a.id] = ns.Rows.Row(s, { kind = "act", height = ns.Rows.ACTIVITY, text = a.name, sep = true,
                     color = Data().LevelColor(a.info), value = Data().Levels(a.info), valueColor = Style.INK.LABEL,
                     picked = Listing.sel[a.id] == true, dim = not Data().CanEdit(),
                     onClick = function() Listing.Toggle(a.id) end })
@@ -620,7 +620,7 @@ function Listing.Build(page)
     page.noteMissing:Hide()
     page.npfText = Style.Text(page, Style.SIZE.small, "LEFT")   -- like the other labels of the panel
     page.npfText:SetText(LFG_LIST_NEW_PLAYER_FRIENDLY or L["New player friendly"])
-    Style.InkText(page.npfText, "pop")
+    Style.InkText(page.npfText, "LABEL")
     page.npf = W().Switch(page)
     page.npf:SetScript("OnClick", function()
         Listing.npf = not Listing.npf

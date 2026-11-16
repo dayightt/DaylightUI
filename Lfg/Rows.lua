@@ -19,8 +19,6 @@ Rows.PERSON = 44      -- who list row
 Rows.ACTIVITY = 34    -- activity row
 Rows.SEP = { 1, 1, 1, 0.07 }   -- the thin line under a row that asks for one (spec.sep)
 Rows.SEP_INSET = 8
-Rows.BOX = 14         -- the tick box of a row that is ticked rather than opened (spec.check)
-Rows.BOX_GAP = 8
 Rows.BADGES = 5       -- max role badges per row (a dungeon's five)
 Rows.MEMBERS = 5      -- members listed by name; bigger groups get counts
 Rows.ACTION_W, Rows.ACTION_H = 24, 24  -- a row's quick-action button (Invite on a friend), at its right end
@@ -78,17 +76,6 @@ local function makeRow(parent)
     b.sep:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", Rows.SEP_INSET, 0)
     b.sep:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -Rows.SEP_INSET, 0)
     b.sep:Hide()
-    -- A tick box: a light outline, a dark inside and the accent's mark when ticked.
-    b.boxEdge = tex(b, "ARTWORK", { 1, 1, 1, 0.3 })
-    b.boxEdge:SetSize(Rows.BOX, Rows.BOX)
-    b.boxEdge:SetPoint("LEFT", b, "LEFT", 10, 0)
-    b.boxIn = tex(b, "ARTWORK", { 0.09, 0.09, 0.09, 1 }, 1)
-    b.boxIn:SetSize(Rows.BOX - 2, Rows.BOX - 2)
-    b.boxIn:SetPoint("CENTER", b.boxEdge, "CENTER", 0, 0)
-    b.boxMark = tex(b, "ARTWORK", { 1, 1, 1, 1 }, 2)
-    b.boxMark:SetSize(Rows.BOX - 6, Rows.BOX - 6)
-    b.boxMark:SetPoint("CENTER", b.boxEdge, "CENTER", 0, 0)
-    for _, t in ipairs({ b.boxEdge, b.boxIn, b.boxMark }) do t:Hide() end
     b.value = Style.Text(b, Style.SIZE.body, "RIGHT")
     b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     b.age = Style.Text(b, Style.SIZE.tiny, "RIGHT")
@@ -196,7 +183,7 @@ end
 
 -- spec: { kind (pool), height, text, color, sub, subColor, note (third line), value,
 -- valueColor, age, roles = { { role, open } }, dot (status dot color), picked, dim, sep (a line
--- under the row), check (a tick box at its left, ticked while picked),
+-- under the row),
 -- id (identity across refills, for Stack:Ease), onClick(b), onMenu(b), onEnter(b) }
 function Rows.Row(stack, spec)
     local h = spec.height or Rows.GROUP
@@ -228,8 +215,6 @@ function Rows.Row(stack, spec)
     if (spec.value or "") ~= "" and type(vw) == "number" then room = math.max(room, vw + 18) end
     local left = 8
     b.sep:SetShown(spec.sep == true)
-    for _, t in ipairs({ b.boxEdge, b.boxIn }) do t:SetShown(spec.check == true) end
-    if spec.check then left = 10 + Rows.BOX + Rows.BOX_GAP end
     if spec.dot then
         b.dot:SetVertexColor(spec.dot[1], spec.dot[2], spec.dot[3], 1)
         left = 10 + Rows.DOT + 7
@@ -263,9 +248,6 @@ function Rows.Pick(b, on)
     if b.spec then b.spec.picked = on end
     b.pick:SetShown(on)
     if on then Style.PaintAccent(b.pick, 0.16) end
-    local ticked = on and b.spec ~= nil and b.spec.check == true
-    b.boxMark:SetShown(ticked)
-    if ticked then Style.PaintAccent(b.boxMark, 1) end
 end
 
 -- Group members: who's in, which roles are still needed

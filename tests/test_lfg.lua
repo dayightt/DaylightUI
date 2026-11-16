@@ -530,6 +530,26 @@ T.test("lfg: a player listed alone can be invited", function()
     T.eq(LW.Calls("InviteUnit")[1][1], "Ularanu Seachaser")
 end)
 
+T.test("lfg: Who offers Invite only when it can work", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "who")
+    local d = ns.Who.page.detail
+    local function buttons() local _, b = card(d); return table.concat(b, ",") end
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(buttons(), "Whisper,Invite", "alone: you may invite")
+    LW.Group(3, false)
+    frame(2)
+    click(rows(ns.Who.page.stack, "person")[2])
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(buttons(), "Whisper", "in a group you don't lead: no Invite to press and fail")
+    LW.Group(3, true)
+    frame(2)
+    click(rows(ns.Who.page.stack, "person")[2])
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(buttons(), "Whisper,Invite", "leading it: Invite again")
+end)
+
 T.test("lfg: List yourself lends the game's note box into ours and gives it back", function()
     local ns = load()
     local f = open(ns)
@@ -934,7 +954,7 @@ T.test("lfg: the card is as wide as Social's, and the members each get their own
     T.eq(shown[#shown].name:GetText(), "Open spot", "the open spots come after the people")
 end)
 
-T.test("lfg: group and person rows have a line under them, and an activity a tick box", function()
+T.test("lfg: group and person rows have a line under them; a picked activity is carried by the wash", function()
     local ns = load()
     open(ns)
     tab(ns, "find")
@@ -944,10 +964,10 @@ T.test("lfg: group and person rows have a line under them, and an activity a tic
     tab(ns, "list")
     local acts = rows(ns.Listing.page.stack, "act")
     T.truthy(#acts > 0)
-    T.truthy(acts[1].boxEdge:IsShown(), "the box")
-    T.falsy(acts[1].boxMark:IsShown(), "not ticked")
+    T.isnil(acts[1].boxEdge, "no hand-built tick box")
+    T.falsy(acts[1].pick:IsShown(), "not picked")
     acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
-    T.truthy(acts[1].boxMark:IsShown(), "ticked")
+    T.truthy(acts[1].pick:IsShown(), "picked: the wash")
 end)
 
 T.test("lfg: the role squares keep the groups that still want that role", function()
@@ -988,6 +1008,8 @@ T.test("lfg: List yourself keeps its settings in one panel with a line between t
     local r, g, b = page.npfText:GetTextColor()
     local lr, lg, lb = page.rolesHead:GetTextColor()
     T.eq(r .. g .. b, lr .. lg .. lb, "the same color as the other labels")
+    local tr, tg, tb = ink.LABEL[1], ink.LABEL[2], ink.LABEL[3]
+    T.truthy(math.abs(r - tr) < 0.01 and math.abs(g - tg) < 0.01 and math.abs(b - tb) < 0.01, "tan, not the accent")
     local lines = 0
     for _, t in ipairs(page.rules) do if t:IsShown() then lines = lines + 1 end end
     T.eq(lines, 3, "roles | playstyle | note | switch")

@@ -68,11 +68,13 @@ function Who.Spec(p)
     if p.token and DUI.ClassIcon then icon = { DUI.ClassIcon(p.token) } end
     local r, g, b = 1, 1, 1
     if p.token then r, g, b = Style.ClassTextColor(p.token) end
+    -- Only the buttons that apply: Invite when the game would let you (alone, or leading or assisting).
+    local buttons = { { text = WHISPER or L["Whisper"], primary = true, onClick = function() Data().Whisper(Who.picked) end } }
+    if Data().CanInviteName(p.name) then
+        buttons[#buttons + 1] = { text = INVITE or L["Invite"], onClick = function() Data().Invite(Who.picked) end }
+    end
     return { icon = icon, initial = p.name, title = p.name, color = { r, g, b }, sub = p.class, rows = rows,
-        buttons = {
-            { text = WHISPER or L["Whisper"], primary = true, onClick = function() Data().Whisper(Who.picked) end },
-            { text = INVITE or L["Invite"], onClick = function() Data().Invite(Who.picked) end },
-        } }
+        buttons = buttons }
 end
 
 function Who.PaintDetail()
@@ -118,7 +120,7 @@ function Who.Render(page)
             text = ns.Rows.Named(p.name, p.token) .. guild, sub = sub,
             value = p.zone or "", valueColor = Style.INK.TEXT, picked = p.name == Who.picked,
             onClick = function() pick(p.name) end,
-            onMenu = function(row) ns.Rows.Menu(row, p.name, true) end })
+            onMenu = function(row) ns.Rows.Menu(row, p.name, Data().CanInviteName(p.name)) end })
         Who.rows[#Who.rows + 1] = b
         if p.name == Who.picked then still = true end
     end
