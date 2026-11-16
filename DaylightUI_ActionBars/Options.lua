@@ -76,6 +76,11 @@ local function lookGetter(get)
         return get(key)
     end
 end
+-- The Cooldown Manager shows keys by its own switch, not the bars'.
+local function keysOff(get)
+    if lookFor == "cdm" then return get("cdmKeybinds") ~= true end
+    return get("look.keybind") ~= true
+end
 local function perLook(group)
     for _, item in ipairs(group.items) do
         local field = type(item.key) == "string" and string.match(item.key, "^look%.(.+)$")
@@ -210,17 +215,16 @@ local look = {
         { type = "slider", key = "look.keybindSize", label = "Keybind size", min = 6, max = 18, step = 1,
           desc = "Text size of the key shown on each button.",
           disabled = function(get) return get("look.keybind") ~= true end },
-        { type = "color", key = "look.keybindColor", label = "Keybind color",
-          desc = "Color of the key shown on each button.",
-          disabled = function(get) return get("look.keybind") ~= true end },
+        { type = "color", key = "look.keybindColor", label = "Keybind color", cdm = true,
+          desc = "Color of the key shown on each button.", disabled = keysOff },
         { type = "dropdown", key = "look.keybindPos", label = "Keybind position",
           values = { topright = "Top right", topleft = "Top left", bottom = "Bottom" }, order = { "topright", "topleft", "bottom" },
           desc = "Where on the button its key shows.",
           disabled = function(get) return get("look.keybind") ~= true end },
         nudge("keybindX", "Keybind X offset", nil, "look.keybind"), nudge("keybindY", "Keybind Y offset", nil, "look.keybind"),
-        { type = "toggle", key = "look.shortKeys", label = "Short keybinds",
+        { type = "toggle", key = "look.shortKeys", label = "Short keybinds", cdm = true,
           desc = "Shift, Ctrl and Alt as S, C and A; mouse buttons as M4, M5; the number pad as N1...",
-          disabled = function(get) return get("look.keybind") ~= true end },
+          disabled = keysOff },
     } }),
     perLook({ label = "Text", items = {
         DaylightUI.Options.FontRow("media.font", "Button font", "Keybinds, stack counts, macro names and cooldown numbers on every bar, the Cooldown Manager and totems",

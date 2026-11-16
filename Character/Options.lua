@@ -61,7 +61,8 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Bars", items = {
             { type = "toggle", key = "gradient", label = "Gradient bars",
-              desc = "Reputation bars in their colors from the Gradients page, skill, PvP and currency bars in the accent's. When off, they're plain fills." },
+              desc = "Reputation bars in their colors from the Gradients page, skill, PvP and currency bars in the accent's. When off, they're plain fills. Needs Gradients on (General > Gradients).",
+              disabled = function() return DUI.Gradients.Flat() end },
         } },
         { label = "Colors", items = {
             mode("head", "Header colors", HEAD_MODES, { "accent", "group", "class", "gradient", "custom" },

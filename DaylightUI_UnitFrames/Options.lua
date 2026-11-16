@@ -1543,6 +1543,13 @@ end
 local function framePage(id, label, desc, opts)
     local k = function(s) return id .. "." .. s end
     local shown = off(k("enabled"))
+    -- In a party the raid frames can take the party frames' place, and then
+    -- nothing on the Party page shows.
+    if id == "party" then
+        shown = function(get)
+            return get(k("enabled")) ~= true or (get("raid.enabled") ~= false and get("raid.showInParty") == true)
+        end
+    end
     -- No power bar here, since the frame's own switch is off.
     local function powerOff(get)
         return shown(get) or get(k("showPower")) == false
@@ -1763,11 +1770,18 @@ local function framePage(id, label, desc, opts)
             if onCard(get) then return shown(get) or get(k("showName")) == false end
             return shown(get) or get(k("showName")) == false or get(k("nameOnBar")) ~= true
         end
-        for n, it in ipairs(nameItems(k, onBar, "Where the name sits across the bar, while it's on the bar: left, center or right.",
+        for n, it in ipairs(nameItems(k, onBar, "Where the name sits across the bar: left, center or right. With a portrait, the name sits beside it instead.",
             not opts.tile and not opts.small, opts.small)) do
             if it.key ~= k("nameX") and it.key ~= k("nameY") then
                 local was = it.hidden
                 it.hidden = function(get) return onCard(get) or (was ~= nil and was(get)) end
+            end
+            -- Beside a portrait the name keeps the frame's outer end (UF.PlaceBarName).
+            if it.key == k("nameAlign") and opts.portrait then
+                local dis = it.disabled
+                it.disabled = function(get)
+                    return dis(get) or (get(k("portrait")) ~= "none" and not tooShort(get))
+                end
             end
             table.insert(text, 2 + n, it)
         end
@@ -2414,7 +2428,8 @@ ns.OPTIONS = { pages = {
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles (Portrait None and Name on the bar). Set how they line up, what shows, and move them as one in unlock mode.",
         { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
-          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it." }),
+          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it.",
+          showDesc = "Turn the party frames on or off. While Use raid frames in a party (Unit Frames > Raid 10) is on, the raid frames show in a party instead and the rows on this page do nothing." }),
     raidPage(10), raidPage(20), raidPage(40),
     framePage("arena", "PvP Frames", "Enemy players carrying a flag in a battleground, one frame each. Right-click one to set it as your focus.",
         { power = true, powerToggle = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, spacing = true,

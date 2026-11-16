@@ -1193,8 +1193,8 @@ Options.RegisterPage({
                   .. "Sizes and outlines stay the game's." },
             { type = "dropdown", key = "textOutline", label = "Text outline",
               values = { OUTLINE = "Thin", THICKOUTLINE = "Thick", [""] = "None" }, order = { "OUTLINE", "THICKOUTLINE", "" },
-              desc = "A dark edge around the letters on Daylight UI's frames, so text stays readable over a busy world." },
-            { type = "toggle", key = "textShadow", label = "Text shadow", desc = "A small soft drop shadow under text." },
+              desc = "A dark edge around the letters on Daylight UI's frames, so text stays readable over a busy world. Combat text has its own (General > Combat text)." },
+            { type = "toggle", key = "textShadow", label = "Text shadow", desc = "A small soft drop shadow under text. Combat text has its own (General > Combat text)." },
             { type = "dropdown", key = "numbers", label = "Health and power numbers",
               values = DUI.Health.NUMBERS, order = DUI.Health.NUMBER_ORDER,
               desc = "How health and power numbers are written on unit frames, extra texts and nameplates. "
@@ -1258,8 +1258,11 @@ Options.RegisterPage({
             { type = "toggle", key = "heavyBorder", label = "Heavy border",
               desc = "Adds a warm band inside the black outline, lit along the top. When off, the border is a plain dark line." },
             { type = "toggle", key = "gradientBorder", label = "Gradient window borders",
-              desc = "When the accent color is a gradient (Daylight's or your class's), every Daylight UI border runs along it: windows, panels, frames and nameplates.",
-              disabled = function(get) local a = get("accent") return a ~= "gradient" and a ~= "classGradient" end },
+              desc = "When the accent color is a gradient (Daylight's or your class's), every Daylight UI border runs along it: windows, panels, frames and nameplates. Needs Gradients on (General > Gradients).",
+              disabled = function(get)
+                  local a = get("accent")
+                  return (a ~= "gradient" and a ~= "classGradient") or DUI.Gradients.Flat()
+              end },
             { type = "slider", key = "borderPx", label = "Border thickness", min = 1, max = 16, step = 1, unit = "px",
               desc = "In screen pixels, so it stays sharp at any UI scale. Heavy border needs 3 or more." },
             { type = "slider", key = "cornerPx", label = "Corner rounding", min = 0, max = 24, step = 1, unit = "px",
@@ -1411,7 +1414,7 @@ local fadePage = Options.RegisterPage({
         { label = "Everywhere", items = {
             -- Sets every part to "Only when something changes". Reads on only if all are.
             { type = "toggle", label = "Show everything only when something changes",
-              desc = "Sets Visible to Only when something changes on every part that has it: gone out of a fight, back in one, and back for a moment when it changes. Turned off, each goes back to its default. Each part's own Visible on its page still works on its own.",
+              desc = "Sets Visible to Only when something changes on every part that has it: gone out of a fight, back in one, and back for a moment when it changes. Turned off, each goes back to what it was before. Each part's own Visible on its page still works on its own.",
               get = function() return DUI.Fade.AllFloat() end,
               set = function(v) DUI.Fade.SetAllFloat(v == true) end,
               default = function() return false end },

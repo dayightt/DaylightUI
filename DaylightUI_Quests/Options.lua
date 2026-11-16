@@ -42,6 +42,12 @@ local function paintColor(key, label, modeLabel)
              hidden = function(get) return get("colors." .. key .. "Mode") ~= "custom" end }
 end
 
+-- Questie's own tracker picked (Use Daylight UI's quest tracker off): the
+-- tracker rows have nothing to change.
+local function questieTracker(get)
+    return get("tracker") == false and ns.Bridge ~= nil and ns.Bridge.Loaded() == true
+end
+
 -- Quest box background opacity: the general window opacity or its own.
 local backRows = DaylightUI.Options.BackAlphaRows("boxAlpha", "Quest box", function(get) return get("box") ~= true end)
 backRows[2].desc = backRows[2].desc or "How see-through the box behind the quest list is. Lower lets more of the world show through."
@@ -89,7 +95,7 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Behavior", items = {
             { type = "toggle", key = "tracker", label = "Use Daylight UI's quest tracker",
-              desc = "Questie is on: when off, Questie's own tracker shows instead. Daylight UI's journal, marker and arrow stay either way.",
+              desc = "Questie is on: when off, Questie's own tracker shows instead and the tracker rows on this page do nothing. Daylight UI's journal, marker and arrow stay either way.",
               hidden = function() return not (ns.Bridge and ns.Bridge.Loaded()) end },
             { type = "dropdown", key = "filter", label = "Quests to show", values = FILTERS, order = { "all", "zone", "log" },
               desc = "Every tracked quest, only the zone you're in, or every quest in your log without tracking them. The controls over the list switch the first two." },
@@ -127,7 +133,7 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.BarRow("media.progress", "Progress bar", "the progress bars in the tracker and the pop-up"),
             DaylightUI.Options.BackRow("media.progress", "Progress bar", "the progress bars in the tracker and the pop-up"),
         } },
-        DaylightUI.Fade.Card("fade.", nil, nil, "Quest tracker"),
+        DaylightUI.Fade.Card("fade.", nil, function(get) return questieTracker(get) end, "Quest tracker"),
       } },
     { id = "navigation", label = "Navigation",
       desc = "The marker in the world that leads you to your quest.",
@@ -189,7 +195,8 @@ ns.OPTIONS = { pages = {
               desc = "Hovering a quest in the quest log shows its tooltip beside the log, as the game's own log does. When off, it shows at the mouse.",
               disabled = off("journal") },
             { type = "toggle", key = "journalHoverIcons", label = "Spotlight a quest's map icons on hover",
-              desc = "Hovering a Questie icon on the map or minimap, or a quest in the quest log, makes that quest's icons a little bigger and fades the other quests' icons." },
+              desc = "Hovering a Questie icon on the map or minimap, or a quest in the quest log, makes that quest's icons a little bigger and fades the other quests' icons. Needs the Questie addon.",
+              disabled = function() return not (ns.Bridge and ns.Bridge.Loaded()) end },
         } },
         { label = "Quest list", items = {
             { type = "dropdown", key = "journalSort", label = "Quest log sort order", values = JOURNAL_SORTS,
@@ -269,3 +276,19 @@ ns.OPTIONS = { pages = {
         } },
       } },
 } }
+
+-- Rows that only change Daylight UI's tracker gray out while Questie's shows.
+-- Quest tags and party marks also show in the quest log on the map.
+do
+    local keep = { tracker = true, questTags = true, questParty = true }
+    for _, group in ipairs(ns.OPTIONS.pages[1].groups) do
+        if group.label == "Layout" or group.label == "Text" or group.label == "Behavior" then
+            for _, item in ipairs(group.items) do
+                if item.key and not keep[item.key] then
+                    local was = item.disabled
+                    item.disabled = function(get) return questieTracker(get) or (was ~= nil and was(get) == true) end
+                end
+            end
+        end
+    end
+end
