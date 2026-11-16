@@ -29,12 +29,10 @@ ns.OPTIONS = { pages = {
         { label = "Windows", items = {
             backRows[1], backRows[2],
         } },
-        { label = "Breath bar", items = {
+        { label = "Alerts and timers", items = {
             { type = "toggle", key = "breathSlant", label = "Breath bar angled end",
               desc = "Cuts the right end of the breath bar at an angle, on the fatigue and feign death bars too. When off, the end is straight.",
               disabled = function(get) return get("packs.system") == false end },
-        } },
-        { label = "Crowd control alert", items = {
             { type = "toggle", key = "ccAlert", label = "Crowd control alert", reload = true,
               desc = "The alert in the middle of the screen when you're stunned, feared or silenced, as a light line in Daylight UI style. When off, the game's own alert shows instead.",
               disabled = function(get) return get("packs.system") == false end },
