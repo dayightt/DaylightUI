@@ -24,7 +24,6 @@ DUI.PatchNotes = {
             { "Tooltip", "A macro's spell tooltip on your action bars has the same Daylight UI look as the spell's" },
             { "Quests", "A quest's area outline on the world map fades away with the map while you move" },
             { "Chat", "Typing in a channel by its number, like /7, talks in the channel the game said it was, not in another addon's hidden channel" },
-            { "Group finder", "The role you pick in a group stays picked after a /reload, instead of going back to the role you list with alone" },
         },
     },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",

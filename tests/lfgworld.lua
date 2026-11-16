@@ -173,12 +173,6 @@ function LW.Group(n, lead)
     stub.FireEvent("GROUP_ROSTER_UPDATE")
 end
 
--- What the game's listing page does each time it loads, so at every /reload
--- (LFGListingMixin:LoadSoloRolesOnStartup): your saved solo roles are sent again.
-function LW.GameLoadsRoles()
-    C_LFGListRoles.SetRoles(C_LFGListRoles.GetSavedRoles())
-end
-
 -- A listing out there changes (a member joins, it's delisted).
 function LW.Update(id, change)
     local r = result(id)
@@ -295,20 +289,6 @@ local function install()
             if S().rolesRefused then return false end
             S().roles = { tank = t.tank == true, healer = t.healer == true, dps = t.dps == true }
             stub.FireEvent("LFG_LIST_ROLE_UPDATE")
-            -- Seen in game: in a group, solo roles sent again reset your one role to one of
-            -- them (a tank went back to Damage at each reload). Which one the client keeps
-            -- out of several is a guess: yours if it's among them, else the first.
-            if S().group and S().group > 1 then
-                local key = { TANK = "tank", HEALER = "healer", DAMAGER = "dps" }
-                local now = S().role
-                if not (now and t[key[now]] == true) then
-                    local pick = t.tank and "TANK" or t.healer and "HEALER" or t.dps and "DAMAGER" or nil
-                    if pick and pick ~= now then
-                        S().role = pick
-                        stub.FireEvent("PLAYER_ROLES_ASSIGNED")
-                    end
-                end
-            end
             return true
         end,
     }
