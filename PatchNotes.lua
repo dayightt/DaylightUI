@@ -20,7 +20,7 @@ DUI.PatchNotes = {
             { "General", "Bar animations: your health, power, cast and swing bars can come alive. Their colors can roll along them, surge with every heal and hit, ride behind a bright comet or throw sparks, with your own colors, speed and strength for each frame and nameplate" },
         },
         changed = {
-            { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, and each piece says whether it's in your bags, the bank or missing" },
+            { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, each piece says whether it's in your bags, the bank or missing, and a click leaves a slot out of the set" },
         },
         fixed = {
             { "Action bars", "With Bartender4 or Dominos also on, Daylight UI now says so in chat and the setup guide asks which one keeps your bars, instead of the old bars staying on screen" },

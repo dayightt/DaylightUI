@@ -1447,6 +1447,9 @@ T.test("character sets: a set read as its items and where each one is", function
     T.eq(set.name, "Fury")
     T.eq(set.lost, 1)
     T.eq(#set.items, 3, "the empty neck and the ignored shirt are left out")
+    local kinds = {}
+    for _, e in ipairs(set.slots) do kinds[#kinds + 1] = e.key .. "=" .. e.kind end
+    T.deq(kinds, { "Head=item", "Neck=empty", "Chest=item", "Shirt=left", "Finger0=item" }, "every slot the set knows")
     T.deq({ set.items[1].key, set.items[1].where, set.items[1].name }, { "Head", "bags", "Fury Helm" })
     T.deq({ set.items[2].key, set.items[2].where }, { "Chest", "missing" })
     T.deq({ set.items[3].key, set.items[3].where }, { "Finger0", "bank" })
@@ -1463,7 +1466,8 @@ T.test("character sets: the button opens the panel beside the window, on the set
     T.truthy(panel.foot.buttons[1].spec.off, "already wearing it")
     ns.Sets.Pick(2)
     T.eq(panel.pick.text:GetText(), "Fury")
-    T.deq(lineTexts(panel), { "Fury Helm/Head/Bags", "Fury Chest/Chest/Missing", "Fury Ring/Ring/Bank" })
+    T.deq(lineTexts(panel), { "Fury Helm/Head/Bags", "Neck//Empty", "Fury Chest/Chest/Missing", "Shirt//Left out",
+        "Fury Ring/Ring/Bank" })
     T.deq(CW.Calls("TryOn"), { "|Hitem:201|h[Fury Helm]|h", "|Hitem:202|h[Fury Chest]|h", "|Hitem:203|h[Fury Ring]|h" },
         "the model wears the picked set")
     panel.foot.buttons[1]:Click()
@@ -1521,6 +1525,44 @@ T.test("character sets: the edit menu saves, renames and deletes the picked set"
     stub.Advance(1)   -- past W.CONFIRM_GAP, so a real second click rather than a double-click
     clickRow("delete")
     T.deq(CW.Calls("DeleteEquipmentSet"), { 2 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+local function lineOf(panel, key)
+    for _, b in ipairs(panel.stack.pieces) do
+        if b.lineSpec and b.lineSpec.id == key then return b end
+    end
+end
+
+T.test("character sets: a click leaves a slot out, and a set you aren't wearing waits for Save", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    lineOf(panel, "Head"):Click()
+    T.eq(lineOf(panel, "Head").value:GetText(), "Left out")
+    T.deq(CW.Calls("SaveEquipmentSet"), {}, "saving Fury now would put your own gear in it")
+    T.truthy(panel.foot.buttons[2].spec.primary, "Save is the main button until it's saved")
+    lineOf(panel, "Shirt"):Click()
+    T.eq(lineOf(panel, "Shirt").value:GetText(), "Yours on save", "put back in")
+    panel.foot.buttons[2]:Click()
+    DaylightUI.Widgets.Answer(true)
+    T.deq(CW.Calls("SaveEquipmentSet"), { { 2, 1 } })
+    T.deq(CW.state.ignoreForSave, { [1] = true }, "the head left out, the shirt back in")
+    T.truthy(panel.foot.buttons[1].spec.primary)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: leaving a slot out of the set you're wearing saves at once", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    T.eq(ns.Sets.picked, 1)
+    lineOf(panel, "Head"):Click()
+    T.deq(CW.Calls("SaveEquipmentSet"), { { 1, 1 } })
+    T.deq(CW.state.ignoreForSave, { [1] = true })
+    T.eq(lineOf(panel, "Head").value:GetText(), "Left out")
+    panel.edit:Click()
+    clickRow("bar")
+    T.deq(CW.Calls("PickupEquipmentSet"), { 1 }, "onto the cursor for an action bar")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
