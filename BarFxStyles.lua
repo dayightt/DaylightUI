@@ -95,7 +95,7 @@ end
 
 local function clip(s, p)
     local fill = s.bar:GetStatusBarTexture()
-    for _, t in ipairs(p.layers) do Style.ClipLike(t, fill) end
+    for _, t in ipairs(p.layers) do Style.SameMasks(t, fill) end
 end
 
 -- A hit or a heal: the flare light brightens and fades. A short Lua fade, only then.
@@ -140,79 +140,6 @@ local function def(key, d)
     return d
 end
 
--- A soft sheen crossing the bar now and then, like light on satin.
-BarFx.Add("silk", L["Silk"], def("silk", {
-    build = function(s, p)
-        p.sheen = layer(p, s, sheet("silk"))
-        book(p, p.sheen, 4.2)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.sheen, lighten(hi, 0.7), alpha)
-    end,
-}))
-
--- Light caught in glass: a thin band of colors crossing now and then.
-BarFx.PRISM = { { 1, 0.55, 0.7 }, { 1, 0.85, 0.45 }, { 0.6, 1, 0.75 }, { 0.55, 0.8, 1 }, { 0.8, 0.6, 1 } }
-BarFx.Add("prism", L["Prism"], def("prism", {
-    build = function(s, p)
-        p.slices = {}
-        for i = 1, #BarFx.PRISM do
-            local t = layer(p, s, sheet("prism"))
-            local a = book(p, t, 4.5)
-            a:SetStartDelay((i - 1) * 0.035)
-            p.slices[i] = t
-        end
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        for i, t in ipairs(p.slices) do tint(t, BarFx.PRISM[i], 0.8 * alpha) end
-    end,
-}))
-
--- Two soft veils of the bar's colors drifting past each other.
-BarFx.Add("aurora", L["Aurora"], def("aurora", {
-    build = function(s, p)
-        p.one = layer(p, s, BarFx.WAVE)
-        book(p, p.one, 11, BarFx.FRAMES)
-        p.two = layer(p, s, sheet("wave2"))
-        book(p, p.two, 7)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.one, lighten(lo, 0.45), 0.45 * alpha)
-        tint(p.two, lighten(hi, 0.45), 0.4 * alpha)
-    end,
-}))
-
--- Tiny stars twinkling inside the fill.
-BarFx.Add("stars", L["Starlight"], def("stars", {
-    build = function(s, p)
-        p.stars = layer(p, s, sheet("stars"))
-        book(p, p.stars, 4)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.stars, lighten(hi, 0.85), alpha)
-    end,
-}))
-
--- Flow's rolling colors with bubbles rising and a bright, breathing surface
--- at the end; a hit or heal makes the surface flare.
-BarFx.Add("liquid", L["Liquid"], def("liquid", {
-    flow = true,
-    build = function(s, p)
-        p.bubbles = layer(p, s, sheet("bubbles"))
-        book(p, p.bubbles, 3.5)
-        p.surface = edge(p, s, sheet("breathe"))
-        p.edgeW[#p.edges] = 1.1
-        book(p, p.surface, 1.8)
-        withFlare(p, s)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.bubbles, lighten(hi, 0.8), 0.8 * alpha)
-        tint(p.surface, lighten(hi, 0.7), 0.8 * alpha)
-        tint(p.flare, lighten(hi, 0.8), 1)
-    end,
-    kick = flare,
-}))
-
 -- A lit head riding the fill's end with a soft tail behind it; it flares on
 -- a hit or heal.
 BarFx.Add("comet", L["Comet"], def("comet", {
@@ -255,34 +182,8 @@ BarFx.Add("embers", L["Embers"], def("embers", {
     kick = flare,
 }))
 
--- A soft beat: the bar brightens twice and rests, its end glowing with it.
-BarFx.Add("heart", L["Heartbeat"], def("heart", {
-    build = function(s, p)
-        p.wash = layer(p, s, sheet("beatwash"))
-        book(p, p.wash, 1.2)
-        p.pulse = edge(p, s, sheet("beat"))
-        p.edgeW[#p.edges] = 1.8
-        book(p, p.pulse, 1.2)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.wash, lighten(hi, 0.5), alpha)
-        tint(p.pulse, lighten(hi, 0.6), alpha)
-    end,
-}))
-
--- Small arcs of lightning flickering along the fill.
-BarFx.Add("storm", L["Storm"], def("storm", {
-    build = function(s, p)
-        p.bolts = layer(p, s, sheet("storm"))
-        book(p, p.bolts, 3.2)
-        withFlare(p, s)
-    end,
-    paint = function(s, p, lo, hi, alpha)
-        tint(p.bolts, lighten(hi, 0.8), alpha)
-        tint(p.flare, lighten(hi, 0.8), 1)
-    end,
-    kick = flare,
-}))
-
 -- By power type: the style that suits each power.
-BarFx.AUTO.MANA, BarFx.AUTO.RAGE, BarFx.AUTO.ENERGY = "liquid", "embers", "storm"
+BarFx.AUTO.RAGE = "embers"
+
+-- Styles there once, now gone: a frame still set to one shows Flow.
+for _, key in ipairs({ "silk", "prism", "aurora", "stars", "liquid", "heart", "storm" }) do BarFx.RETIRED[key] = "flow" end

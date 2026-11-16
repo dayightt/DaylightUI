@@ -1836,6 +1836,9 @@ function Style.LayoutSlant(frame)
             end
         end
     end
+    for _, clip in ipairs(sl.clips) do
+        if Style.ResyncMasks then Style.ResyncMasks(clip.tex) end
+    end
 end
 
 -- Angles a bar fill's moving edge to match its frame's slant, so a partly
@@ -1947,6 +1950,38 @@ function Style.FollowFill(bar, tex)
 end
 
 function Style.GetFillMask(bar) return fillMask[bar] end
+
+-- Layers that copy a fill's masks (Style.SameMasks), copied again whenever the
+-- fill's masks change (its bar laid out, its angled end moved).
+local sameOf = setmetatable({}, { __mode = "k" }) -- fill -> { [tex] = true }
+function Style.ResyncMasks(fill)
+    local set = sameOf[fill]
+    if not set then return end
+    for tex in pairs(set) do Style.SameMasks(tex, fill) end
+end
+
+-- Gives tex exactly the masks a bar's fill wears now, whatever made them (its
+-- angled end, the bar's clipped ends, a slant added later), so a layer laid
+-- over the fill is cut the same way.
+function Style.SameMasks(tex, fill)
+    sameOf[fill] = sameOf[fill] or {}
+    sameOf[fill][tex] = true
+    local want = {}
+    for i = 1, fill:GetNumMaskTextures() do
+        local m = fill:GetMaskTexture(i)
+        if m then want[m] = true end
+    end
+    for i = tex:GetNumMaskTextures(), 1, -1 do
+        local m = tex:GetMaskTexture(i)
+        if m and not want[m] then tex:RemoveMaskTexture(m) else want[m or false] = nil end
+    end
+    for m in pairs(want) do
+        if m then tex:AddMaskTexture(m) end
+    end
+    -- AngleFill keeps moving the fill's own edge mask onto it from here.
+    local edge = fillMask[fill:GetParent()]
+    overMask[tex] = (edge and edge.added) and edge or nil
+end
 
 -- The fill's angled edge as AngleFill last set it: side, cut (nil when square).
 function Style.GetFillAngle(bar)

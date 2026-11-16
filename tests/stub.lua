@@ -851,6 +851,8 @@ function Widget:AddMaskTexture(m)
     if #self.__masks >= 3 then error("Texture already has the maximum number of mask textures (3)") end
     self.__masks[#self.__masks + 1] = m
 end
+function Widget:GetNumMaskTextures() return #(self.__masks or {}) end
+function Widget:GetMaskTexture(i) return (self.__masks or {})[i] end
 function Widget:RemoveMaskTexture(m)
     for i, x in ipairs(self.__masks or {}) do
         if x == m then table.remove(self.__masks, i) return end

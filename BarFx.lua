@@ -16,6 +16,7 @@ BarFx.ORDER = { "flow", "tide" }
 
 -- Power bars on "By power type": the style that suits each power. A style not
 -- built yet falls back to Flow.
+BarFx.RETIRED = {}   -- a style taken out -> the one shown instead (BarFxStyles.lua)
 BarFx.AUTO = { MANA = "flow", RAGE = "flow", ENERGY = "flow", FOCUS = "flow" }
 BarFx.FLOW_LOOP = 9      -- seconds for the colors to roll one bar width
 BarFx.TIDE_HEAL = 5      -- how fast the colors run right after a heal
@@ -70,6 +71,7 @@ function BarFx.Pick(s)
     if not (DUI.Motion and DUI.Motion.On()) then return nil end
     if s.force then return BarFx.STYLES[s.force] and s.force or nil end
     local pick = BarFx.Get(s, "style")
+    pick = BarFx.RETIRED[pick] or pick
     if pick == "auto" then pick = BarFx.AUTO[s.power or ""] or "flow" end
     if not BarFx.STYLES[pick] then return nil end
     return pick
@@ -169,8 +171,9 @@ local function paintFlow(s)
         if not lo then showFlow(h, false); return false end
     end
     fill:SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
-    -- The bar's still ends may be clipped only after it was first laid out.
-    for _, t in ipairs(h.layers) do Style.ClipLike(t, fill) end
+    -- Cut exactly like the fill: its angled end and the bar's still ends, which
+    -- may be set only after the bar was first laid out.
+    for _, t in ipairs(h.layers) do Style.SameMasks(t, fill) end
     local alpha = BarFx.Get(s, "strength") or 1
     -- CLAMP, or the game blends each edge with the far one: a line at both ends.
     if sweep then
