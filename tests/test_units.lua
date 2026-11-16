@@ -89,8 +89,10 @@ T.test("the target cast bar covers the target's power bar and follows the angle"
     local _, ns = login()
     local _, rel = ns.targetCastbar:GetPoint(1)
     T.eq(rel, ns.frames.target.power)
+    -- The power bar's empty part carries just the frame's cut (its fill also
+    -- has its own moving edge).
     local fill = ns.targetCastbar.bar:GetStatusBarTexture()
-    T.eq(#(fill.__masks or {}), #(ns.frames.target.power:GetStatusBarTexture().__masks or {}),
+    T.eq(#(fill.__masks or {}), #(DaylightUI.Style.BarBack(ns.frames.target.power).__masks or {}),
          "clipped to the angled end, as the power bar")
 end)
 

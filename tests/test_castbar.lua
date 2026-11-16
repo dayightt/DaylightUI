@@ -801,8 +801,10 @@ T.test("the target's cast bar inside its frame is cut to the frame's angle, as i
     local _, ns = stub.Load({ module = true })
     local h, f = ns.targetCastbar, ns.frames.target
     local Style = DaylightUI.Style
-    local n = #(f.power:GetStatusBarTexture().__masks or {})
-    T.truthy(n > 0, "the power fill is cut")
+    -- The frame's cut, as on the power bar's empty part (its fill also has its
+    -- own moving edge).
+    local n = #(Style.BarBack(f.power).__masks or {})
+    T.truthy(n > 0, "the power bar is cut")
     T.eq(#(h.bar:GetStatusBarTexture().__masks or {}), n, "the fill")
     T.eq(#(Style.BarBack(h.bar).__masks or {}), n, "the empty part")
     T.eq(#(h.bg.__masks or {}), n, "the backing")
@@ -980,4 +982,22 @@ T.test("cast bars: the interrupt mark in a boss fight, every time secret, goes i
     stub.SetRestriction("Encounter", false)
     stub.LeaveCombat()
     restore()
+end)
+
+-- A texture holds at most three masks, so the same mask added twice wastes a
+-- slot. The target's and focus's cast bars sit in their power bars and are cut
+-- like them, once.
+T.test("cast bars inside the target and focus frames hold each mask once", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "target.width", 250)
+    DUI:Set("UnitFrames", "focus.width", 210)
+    for _, h in ipairs({ ns.targetCastbar, ns.focusCastbar }) do
+        for _, tex in ipairs({ h.bg, h.bar:GetStatusBarTexture(), DUI.Style.BarBack(h.bar) }) do
+            local seen = {}
+            for _, m in ipairs(tex.__masks or {}) do
+                T.isnil(seen[m], h.kind .. ": a mask added twice")
+                seen[m] = true
+            end
+        end
+    end
 end)

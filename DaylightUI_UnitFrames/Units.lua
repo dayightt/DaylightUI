@@ -922,10 +922,6 @@ function ns.Build(mod)
         -- The focus's the same way, in its power bar.
         local focus = ns.frames.focus
         ns.focusCastbar = CB.Create("focus", focus, focus.power)
-        for _, tex in ipairs({ ns.focusCastbar.bg, ns.focusCastbar.bar:GetStatusBarTexture(),
-                               DUI.Style.BarBack(ns.focusCastbar.bar) }) do
-            DUI.Style.Clip(focus, tex, "inner")
-        end
         ns.focusCastbarFree = CB.Create("focus")
         ns.focusCastbarFree.near = focus
         ns.focusCastbarFree.moverKey = "unitframes.focusCastbar"
@@ -941,10 +937,6 @@ function ns.Build(mod)
         ns.targetCastbarFree.moverKey = "unitframes.targetCastbar"
         DUI.Movers.Register(ns.targetCastbarFree, "unitframes.targetCastbar", "Target Cast Bar",
             { "TOP", "DaylightUIFrame_target", "BOTTOM", 0, -40 })
-        for _, tex in ipairs({ ns.targetCastbar.bg, ns.targetCastbar.bar:GetStatusBarTexture(),
-                               DUI.Style.BarBack(ns.targetCastbar.bar) }) do
-            DUI.Style.Clip(target, tex, "inner")
-        end
         ns.playerCastbar = CB.Create("player")
         -- It hangs under the player frame unless detached in the options.
         ns.playerCastbar.under = ns.frames.player
