@@ -5229,6 +5229,7 @@ T.test("chat: another addon's channels on 1 to 4 move behind the world channels"
     }, { __index = was[2] })
     _G.ChangeChatColor = function() end
     local Kinds = stub.chatModule.Kinds
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
     stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
     T.eq(slots[1], "General - Elwynn Forest", "General back on 1")
     T.eq(slots[2], "Trade - City")
@@ -5252,6 +5253,18 @@ T.test("chat: another addon's channels on 1 to 4 move behind the world channels"
     T.eq(slots[1], "layer", "not in a fight")
     stub.LeaveCombat(); stub.RunTimers()
     T.eq(slots[1], "General - Elwynn Forest", "after it")
+    -- Later in the session the game joins LookingForGroup behind an addon's channel
+    -- and announces it as 7: it stays 7, or /7 would talk in the addon's channel.
+    stub.Advance(Kinds.WORLD_SETTLE + 1)
+    slots = { "General - Elwynn Forest", "Trade - City", "OOC", "Services", "TradeLocal", "NRDT",
+        "LookingForGroup" }
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[7], "LookingForGroup", "a channel joined after login keeps the number the game gave it")
+    T.eq(slots[6], "NRDT", "and nothing else moves")
+    -- A reload isn't a login: the numbers you've been typing all session stay.
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, true)
+    stub.FireEvent("CHANNEL_UI_UPDATE"); stub.RunTimers()
+    T.eq(slots[7], "LookingForGroup", "a reload moves nothing")
     T.truthy(Kinds.WorldFirst, "Kinds.WorldFirst exists")
     _G.GetChannelList, _G.C_ChatInfo, _G.ChangeChatColor = was[1], was[2], was[3]
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))

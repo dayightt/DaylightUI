@@ -286,8 +286,18 @@ function Kinds.WorldFirst()
     end
 end
 
+-- Only right after logging in. The game announces each channel with its number
+-- ("Changed Channel: [7. LookingForGroup]"), so a channel joined later, or after a
+-- reload, keeps that number: moving it then sent /7 into another addon's channel.
+Kinds.WORLD_SETTLE = 30
+local settleUntil = 0
+DaylightUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin)
+    if isLogin then settleUntil = GetTime() + Kinds.WORLD_SETTLE end
+end)
+
 -- The list changes several times while logging in: look once it settles.
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", function()
+    if GetTime() > settleUntil then return end
     if pending and GetTime() - pending < 2 then return end
     pending = GetTime()
     C_Timer.After(1, Kinds.WorldFirst)
