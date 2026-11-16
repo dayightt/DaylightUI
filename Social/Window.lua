@@ -310,7 +310,34 @@ function Social.Apply()
     if Social.follow then Win.Followers.WriteWidth(Social.follow) end
 end
 
-local function width(id) return id == "raid" and Social.RAID_W or Social.W end
+-- Friends and Recent allies grow by the detail card's room while a row is picked.
+Social.side = {}
+local function width(id)
+    return (id == "raid" and Social.RAID_W or Social.W) + (Social.side[id] and ns.Detail.SPAN or 0)
+end
+
+-- The detail card of a page opened or closed: the window makes room on its right (or
+-- gives it back), easing like a change of page. Pages lay out for the width they are
+-- going to have (goalW), as when a tab changes.
+function Social.SetSide(id, on)
+    on = on == true
+    if (Social.side[id] == true) == on then return end
+    Social.side[id] = on or nil
+    local f = Social.frame
+    if not f then return end
+    local def = f.defs and f.defs[id]
+    if def then def.w = width(id) end
+    -- The controller finds a window's search box and main button when the page changes or
+    -- the window gets the focus, and hidden pieces aren't found: the card has just shown,
+    -- so look again (X presses its Invite).
+    if on and DUI.Pad and DUI.Pad.Scrolls then DUI.Pad.Scrolls(f) end
+    if f.current ~= id then return end
+    local w, h = Social.sizer.Size(id)
+    f.goalW, f.goalH = w, h
+    if Win.IsOpen(f) then Win.Feel.Size(f, w, h) else f:SetSize(w, h) end
+    if Win.Room then Win.Room.Changed(f) end
+    if Social.follow then Win.Followers.WriteWidth(Social.follow) end
+end
 
 function Social.Build(mod)
     ns.module = mod
@@ -339,6 +366,7 @@ function Social.Build(mod)
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("Social", "scale", v) end)
     Social.sizer = Win.Resizable(f, { db = function() return ns.module and ns.module.db end,
         base = function(id) return width(id), Social.H end, minH = Social.MIN_H,
+        extra = function(id) return Social.side[id] and ns.Detail.SPAN or 0 end,   -- the card's room isn't part of the size kept
         save = Social.SaveSpot, resized = Social.Resized, follow = function() return Social.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Social.ResetSpot   -- /dui reset
     for _, e in ipairs({ "BN_INFO_CHANGED", "PLAYER_FLAGS_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED",
