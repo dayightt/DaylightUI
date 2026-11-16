@@ -7074,3 +7074,10 @@ L["& means all, | means any, ! means not"] = "& 表示全部，| 表示任一，
 L["Any other word searches names. Start with # to match the keyword only."] = "其他词语按名称搜索。以 # 开头则只匹配关键词。"
 L["Quality"] = "品质"
 L["Locked"] = "已锁定"
+
+
+-- DaylightUI translations from AI translation.
+L["Right-click: your alts"] = "右键点击：你的小号"
+L["Show the bag's header"] = "显示背包标题栏"
+L["The bag's picture, name and free slots above the search box. Off, the search box sits at the top with a small bank button next to the close button, and you drag the window by any empty spot."] = "搜索框上方的背包图案、名称和空余格数。关闭时，搜索框位于顶部，关闭按钮旁有一个小银行按钮，你可以通过任意空白处拖动窗口。"
+L["Your bank, from anywhere."] = "随时随地查看你的银行。"
