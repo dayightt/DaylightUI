@@ -155,6 +155,19 @@ local function fresh(cf, text, args)
     return true
 end
 
+-- An NPC's emote reaches the event as "intenta huir despavorido." with the NPC's name
+-- apart (arg 2), and the game is meant to put the name in front. When the line the
+-- game made has no name, the box's copy gets it, after any timestamp.
+local function named(text, event, args)
+    if event ~= "CHAT_MSG_MONSTER_EMOTE" or secret(text) or type(text) ~= "string" then return text end
+    local name = type(args) == "table" and args[2]
+    if type(name) ~= "string" or secret(name) or name == "" then return text end
+    if string.find(text, name, 1, true) then return text end
+    local stamp, rest = string.match(text, ns.Tags.STAMP .. "(.*)$")
+    if stamp then return stamp .. " " .. name .. " " .. rest end
+    return name .. " " .. text
+end
+
 -- The box's copy of the line, with short tags and levels when enabled and chat
 -- isn't locked down.
 local function shape(text, event)
@@ -350,6 +363,7 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
     if not secret(text) and (type(text) ~= "string" or text == "") then return end
     if not fresh(cf, text, args) then return end
     if type(event) == "nil" then event = ns.Kinds.Heard(cf) end
+    text = named(text, event, args)
     local _, kind = ns.Kinds.Of(id, event, args)
     -- Whispers that a conversation keeps go to their own window, not the chat.
     -- Locked (secret) whispers and away, busy and offline notices still show here.
