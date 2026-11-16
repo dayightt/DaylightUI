@@ -875,12 +875,24 @@ function ST.Restack(h)
     ST.UpdateShown(h)
 end
 
--- A detached bar's angled end and fill (its own height and settings).
+-- A detached bar's angled ends and fill (its own height and settings). Under
+-- the personal display the bars are cut like the display.
 local function shapeRow(h, row, rc, height, T, angle)
-    local cut = rc.slant and Pixel.Snap(row, height * angle) or 0
-    Style.Slant(row, cut > 0 and "right" or nil, cut)
-    Style.AngleFill(row.bar, (cut > 0 and not rc.reverseFill) and "right" or nil, cut * (height - 2 * T) / height)
-    row.endCut = cut
+    local right, left = rc.slant == true, rc.slantLeft == true
+    if h.docked and not row.alone then right, left = ns.Personal.Ends() end
+    local cut = (right or left) and Pixel.Snap(row, height * angle) or 0
+    if cut <= 0 then right, left = false, false end
+    Style.Slant(row, right and left and "both" or right and "right" or left and "left" or nil, cut)
+    -- The fill's moving edge takes the angle of the end it runs toward.
+    local edge
+    if rc.reverseFill == true then edge = left and "left" or nil else edge = right and "right" or nil end
+    Style.AngleFill(row.bar, edge, cut * (height - 2 * T) / height)
+    row.endCut, row.leftCut = right and cut or 0, left and cut or 0
+    -- The icon starts past a left angle.
+    if (row.iconLead or 0) > 0 then
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", T + row.leftCut, -T)
+    end
 end
 
 -- Detached together, the bars slide out of their own box and back. A clip
@@ -933,6 +945,7 @@ function ST.Place(h)
     local height = h.rowHeight or 12
     local angle = h.docked and ns.Personal.Angle() or ns.UF.SLANT
     for _, row in ipairs(h.rows) do
+        if not row.alone then row.leftCut = nil end
         if row.alone then
             shapeRow(h, row, row.cfg or h.cfg, row.rowHeight or height, Pixel.Px(row, borderOf(h)), ns.UF.SLANT)
         end
@@ -975,7 +988,7 @@ function ST.Place(h)
     end
     for _, row in ipairs(h.rows) do
         row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", row.bar, "LEFT", ns.CastBar.PAD + (row.iconLead or 0) + (h.fan and row.endCut or 0), 0)
+        row.label:SetPoint("LEFT", row.bar, "LEFT", ns.CastBar.PAD + (row.iconLead or 0) + (row.leftCut or 0) + (h.fan and row.endCut or 0), 0)
     end
 end
 
@@ -1149,7 +1162,9 @@ function ST.Hang(h)
             -- One reused shape table per bar, since this runs every frame of a slide.
             local ref = row.slantRef or {}
             row.slantRef, ref.frame, ref.height = ref, f, total
-            Style.Slant(row, side, cut, ref)
+            -- Under a bar angled at both ends (the free power bar) it continues both.
+            Style.Slant(row, side and (f.ends or side), cut, ref)
+            row.leftCut = side and f.ends and cut or nil
             Style.AngleFill(row.bar, side, cut * (height - 2 * T) / total)
             -- Each bar further down cuts further in, so its time stays clear of
             -- its own angled end, like the cast bar's.

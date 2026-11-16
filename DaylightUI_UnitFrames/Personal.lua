@@ -84,6 +84,14 @@ local function makeBody(parent, media)
     return s
 end
 
+-- Which ends are angled: the right one (on by default) and the left one.
+-- Bars docked under it are cut the same way.
+function PR.Ends(cfg)
+    cfg = cfg or db()
+    if not cfg then return true, false end
+    return cfg.slant ~= false, cfg.slantLeft == true
+end
+
 -- How far its angled end leans: its own angle, else the shared Slant angle.
 function PR.Angle()
     local cfg = db()
@@ -93,16 +101,19 @@ function PR.Angle()
 end
 
 -- Lays body s out w wide: health h tall (0 for none), then power p tall (0 for
--- none), angled on side. Returns its height and the cut.
-local function layBody(s, w, h, p, side)
+-- none), with its right and left ends angled or not. The fills run left to
+-- right, so their moving edge takes the right end's angle. Returns its height
+-- and the cut.
+local function layBody(s, w, h, p, right, left)
     local T = Pixel.Px(s, Style.BorderPx(s))
     local hh, ph = h > 0 and Pixel.Snap(s, h) or 0, p > 0 and Pixel.Snap(s, p) or 0
     local both = hh > 0 and ph > 0
     local line = both and Pixel.Px(s, Style.SEPARATOR_PX) or 0
     local H = hh + line + ph + 2 * T
     s:SetSize(2 * Pixel.Snap(s, w / 2), H)
-    local cut = side and Pixel.Snap(s, H * PR.Angle()) or 0
-    Style.Slant(s, side, cut)
+    local cut = (right or left) and Pixel.Snap(s, H * PR.Angle()) or 0
+    Style.Slant(s, right and left and "both" or right and "right" or left and "left" or nil, cut)
+    local side = right and cut > 0 and "right" or nil
     local health, power = s.health, s.power
     health:SetShown(hh > 0)
     s.healthCut = cut * hh / H
@@ -134,13 +145,13 @@ end
 
 -- One number on its bar: at the angled end (clear of the cut), the middle or
 -- the square end. Never read back, since a text showing a secret has secret anchoring.
-local function placeNumber(fs, bar, pos, endPad, y)
+local function placeNumber(fs, bar, pos, endPad, y, startPad)
     fs:ClearAllPoints()
     if pos == "inner" then
         ns.UF.PlaceText(fs, "RIGHT", bar, "RIGHT", -endPad, y)
         fs:SetJustifyH("RIGHT")
     elseif pos == "outer" then
-        ns.UF.PlaceText(fs, "LEFT", bar, "LEFT", PR.TEXT_PAD, y)
+        ns.UF.PlaceText(fs, "LEFT", bar, "LEFT", startPad or PR.TEXT_PAD, y)
         fs:SetJustifyH("LEFT")
     else
         ns.UF.PlaceText(fs, "CENTER", bar, "CENTER", 0, y)
@@ -155,6 +166,7 @@ local function numberSize(size, barHeight)
 end
 
 function PR.LayoutNumbers(h, cfg, cut, H, showHealth)
+    local right, left = PR.Ends(cfg)
     local s = h.body
     local function lay(fs, bar, on, pos, size, y)
         fs:SetShown(on)
@@ -162,7 +174,8 @@ function PR.LayoutNumbers(h, cfg, cut, H, showHealth)
         local hh = bar:GetHeight()
         Style.SetTextSize(fs, numberSize(size, hh))
         Style.InkText(fs, "VALUE")
-        placeNumber(fs, bar, pos, cut * hh / H + PR.TEXT_PAD, y)
+        local share = cut * hh / H
+        placeNumber(fs, bar, pos, (right and share or 0) + PR.TEXT_PAD, y, (left and share or 0) + PR.TEXT_PAD)
     end
     lay(s.healthText, s.health, showHealth and cfg.showPercent == true, cfg.healthTextPos, cfg.healthTextSize, 0)
     lay(s.powerText, s.power, cfg.showPower ~= false and cfg.showPowerText == true, cfg.powerTextPos,
@@ -490,6 +503,14 @@ function PR.UpdateAll()
     if PR.frame.combo then ns.Combo.Update(PR.frame.combo, true) end
 end
 
+-- The cost shade already carries two masks of its own (its leading and
+-- trailing edges) and a texture takes three. Its leading edge is the power
+-- fill's, which never passes the right end, so with the left end angled it
+-- only needs the display's left cut.
+local function clipCost(body, left)
+    if body.cost then Style.ClipSpan(body.cost:GetStatusBarTexture(), nil, nil, left and "left" or false) end
+end
+
 -- Lays out a display (the real one or the page's preview) from the settings:
 -- colors, border, bars, numbers, heal bars. made: create the heal bars if
 -- they're wanted and missing. Returns the angled side, the power bar's height
@@ -497,16 +518,18 @@ end
 function PR.Shape(h, cfg, made)
     PR.ReadColors(h, cfg)
     ns.UF.ApplyShell(h.body, cfg)
-    local side = cfg.slant ~= false and "right" or nil
+    local right, left = PR.Ends(cfg)
+    local side = right and "right" or nil
+    clipCost(h.body, left)
     local w = tonumber(cfg.width) or 150
     local p = cfg.showPower ~= false and (tonumber(cfg.powerHeight) or 5) or 0
     -- Never both off, since a display with no bars would be an empty shell.
     local showHealth = cfg.showHealth ~= false or p <= 0
-    local H, cut = layBody(h.body, w, showHealth and (tonumber(cfg.height) or 10) or 0, p, side)
+    local H, cut = layBody(h.body, w, showHealth and (tonumber(cfg.height) or 10) or 0, p, right, left)
     h.body:ClearAllPoints()
     h.body:SetPoint("TOP", h, "TOP", 0, 0)
     h:SetSize(h.body:GetWidth(), H)
-    h.cut, h.foot, h.cutSide = cut, 0, "right"
+    h.cut, h.foot, h.cutSide = cut, 0, (left and not right) and "left" or "right"
     PR.LayoutNumbers(h, cfg, cut, H, showHealth)
     -- Incoming heals and shields, using the player frame's bars and colors.
     local body = h.body
@@ -528,7 +551,8 @@ function PR.LayoutCombo(h, cfg)
     cc.size = tonumber(cfg.comboSize) or cc.size
     cc.height = tonumber(cfg.comboHeight) or 0
     cc.x, cc.y = tonumber(cfg.comboX) or 0, tonumber(cfg.comboY) or 0
-    cc.slant = cfg.slant ~= false
+    local right, left = PR.Ends(cfg)
+    cc.slant = right or left
     ns.Combo.Layout(h.combo, cc)
     -- Docked bars stack past the row, wherever it was nudged up or down.
     h.comboReach = cc.enabled and math.max(0, PR.DOCK_GAP + ns.Combo.Height(cc) - cc.y) or 0
@@ -543,7 +567,10 @@ function PR.Layout(cfg)
     -- The spell cost shade, the player frame's own (set on the Player page),
     -- created the first time the display is on.
     local body = h.body
-    if cfg.enabled and not body.cost then ns.UF.CreateCost(body, { slant = true }) end
+    if cfg.enabled and not body.cost then
+        ns.UF.CreateCost(body, { slant = true })
+        clipCost(body, select(2, PR.Ends(cfg)))
+    end
     if body.cost then
         ns.UF.LayoutCost(body, side, cut * body.power:GetHeight() / H, ns.module.db.player)
         if not cfg.enabled or p <= 0 then

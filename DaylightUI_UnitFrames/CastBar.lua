@@ -326,7 +326,8 @@ function CB.Hang(h)
     local ref = c.ref or {}
     c.ref, ref.frame, ref.height = ref, f, total
     local side = cut > 0 and c.side or nil
-    Style.Slant(h, side, cut, ref)
+    -- Under a bar angled at both ends (the free power bar) it continues both.
+    Style.Slant(h, side and (c.ends or side), cut, ref)
     -- The fill's moving edge carries the same angle.
     Style.AngleFill(h.bar, side, cut * (H - 2 * T) / total)
     if h.moved then h.moved() end
@@ -485,7 +486,8 @@ function CB.Layout(h, cfg, parentCfg)
         -- Drawn just above the frame (and below its portrait), so its straight
         -- border covers the rounded tip of the frame's angle where they meet.
         h:SetFrameLevel(f:GetFrameLevel() + 4)
-        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false }
+        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false,
+                     ends = f.ends }
         local total = fH + height - lift
         cut = cfg.slant == false and 0 or (f.cut or 0) * total / fH
         CB.Hang(h)
@@ -511,7 +513,7 @@ function CB.Layout(h, cfg, parentCfg)
         local right, left = cfg.slant == true, cfg.slantLeft == true
         if at == "personal" then
             width = ns.Personal.frame:GetWidth()
-            right, left = ns.module.db.personal.slant ~= false, false
+            right, left = ns.Personal.Ends()
         elseif f and (at == "above" or at == "below") and cfg.fitFrame == true then
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
         end
@@ -580,6 +582,7 @@ function CB.Layout(h, cfg, parentCfg)
     -- The text stays clear of angled ends: the frame's when inside it, the
     -- bar's own otherwise.
     local endCut, slant = cut, cut > 0 and side or nil
+    if slant and hang and h.under.ends then slant = h.under.ends end
     if h.into then
         endCut = h.attached.cut or 0
         slant = h.attached.spec and h.attached.spec.slant

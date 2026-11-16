@@ -1585,6 +1585,13 @@ end
 -- heavy border's layers between the two.
 
 local slantOf = setmetatable({}, { __mode = "k" })
+
+-- Whether a clip masks this end: the end is angled, the clip belongs to it,
+-- and on a wide frame a piece near the other end skips it.
+local function cutsAt(clip, side, roomy, end_)
+    return (side == end_ or side == "both") and (not clip.only or clip.only == end_)
+        and not (roomy and clip.near and clip.near ~= end_)
+end
 local masksOf = setmetatable({}, { __mode = "k" }) -- owner frame -> { outer = mask, inner = mask }
 local clipOf = setmetatable({}, { __mode = "k" }) -- texture -> { frame, clip }, its last Style.Clip
 
@@ -1772,9 +1779,22 @@ function Style.LayoutSlant(frame)
         clip.stopped = clip.stopped or {}
         local until_ = clip.until_
         if type(until_) == "function" then until_ = until_() end
+        -- Take off the masks of an end that stopped cutting first, so a texture
+        -- at its limit of three can trade one end's mask for the other's.
         for _, end_ in ipairs(ENDS) do
-            local active = (side == end_ or side == "both") and (not clip.only or clip.only == end_)
-                and not (roomy and clip.near and clip.near ~= end_)
+            if not cutsAt(clip, side, roomy, end_) then
+                if clip.stopped[end_] then
+                    clip.tex:RemoveMaskTexture(clip.stopped[end_])
+                    clip.stopped[end_] = nil
+                end
+                if clip.masked[end_] then
+                    clip.tex:RemoveMaskTexture(clip.masked[end_])
+                    clip.masked[end_] = nil
+                end
+            end
+        end
+        for _, end_ in ipairs(ENDS) do
+            local active = cutsAt(clip, side, roomy, end_)
             -- The far side of a strip, past the deeper line toward the edge. Clamped to
             -- black so nothing shows beyond the mask itself.
             local stop = until_ and maskFor(owner, "stop", until_, end_)

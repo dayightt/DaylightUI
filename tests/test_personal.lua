@@ -668,6 +668,26 @@ T.test("angle: its own lean, else the shared one, and docked bars lean with it",
     T.eq(h.cut, 0, "angled ends off: square, whatever the angle")
 end)
 
+T.test("its left end can be angled too, and docked bars are cut the same way", function()
+    local DUI, ns, PR = login()
+    local Style, h = DUI.Style, PR.frame
+    DUI:Set("UnitFrames", "personal.castbar", true)
+    DUI:Set("UnitFrames", "personal.swing", true)
+    DUI:Set("UnitFrames", "personal.slantLeft", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h.body).side, "both")
+    T.eq(Style.GetSlant(ns.playerCastbar).side, "both", "the docked cast bar")
+    for _, row in ipairs(ns.swing.rows) do
+        T.eq(Style.GetSlant(row).side, "both", "each docked swing bar")
+    end
+    DUI:Set("UnitFrames", "personal.slant", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h.body).side, "left", "the left end alone")
+    T.eq(h.cutSide, "left", "the combo row leans that way")
+    T.eq(Style.GetSlant(ns.playerCastbar).side, "left")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("incoming heals and shields hang off the health fill, the player frame's bars, secret amounts untouched", function()
     local DUI, ns, PR = login()
     local body = PR.frame.body

@@ -46,12 +46,12 @@ local function indicators(size)
 end
 
 ns.DEFAULTS = {
-    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, showName = true, nameOnBar = false, showPercent = true,
                slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, portraitDragon = false, portraitDragonColor = "class",
                predictHeals = true, predictAbsorbs = true, showThreat = true,
                showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
                druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", fade = DaylightUI.Fade.Defaults({ fullHealth = false, fullMana = false, target = true }) },
-    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, showName = true, nameOnBar = false, showPercent = true,
                showMarker = true, showClassification = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false,
                portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true, showThreat = true, threatTag = true,
                -- The threat % tag (UF.LayoutThreatTag), on the frame or on its own
@@ -71,7 +71,7 @@ ns.DEFAULTS = {
             happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
-    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, showName = true, nameOnBar = false, showPercent = true,
+    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, powerSlantBoth = false, showName = true, nameOnBar = false, showPercent = true,
               showMarker = true, slant = true, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true,
               showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
@@ -113,7 +113,7 @@ ns.DEFAULTS = {
     swing = { enabled = true, attach = true, mainHand = true, width = 204, height = 14, visibility = "swinging",
               shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 },   -- its own border (UF.OwnShell)
               offHand = true, ranged = true, stopCue = false, rangeText = false, showText = true, queue = true, classColor = false, fill = "pair",
-              slant = false, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
+              slant = false, slantLeft = false, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
               colors = { main = { 0.80, 0.68, 0.46 }, off = { 0.62, 0.56, 0.46 }, ranged = { 0.50, 0.66, 0.52 },
                          queued = { 0.86, 0.44, 0.32 } } },
     combo = { enabled = true, size = 14, fullRed = true,
@@ -196,7 +196,7 @@ ns.DEFAULTS = {
     -- Your bars at your feet, like Legion's personal resource display
     -- (Personal.lua). Shown in combat or with a target, hidden otherwise.
     personal = { enabled = false, follow = "feet", x = 0, y = -35, width = 150, height = 10,
-                 powerHeight = 5, showHealth = true, showPower = true, combo = true, slant = true, castbar = false, swing = false,
+                 powerHeight = 5, showHealth = true, showPower = true, combo = true, slant = true, slantLeft = false, castbar = false, swing = false,
                  comboStretch = true, comboSize = 14, comboHeight = 0, comboX = 0, comboY = 0,
                  predictHeals = true, predictAbsorbs = true,
                  -- Its own rows, shaped like playerAuras: off, over the bars, buffs from the left, debuffs from the right.
@@ -304,7 +304,7 @@ ns.SWING_BARS = { "main", "off", "ranged" }
 ns.DEFAULTS.swing.bars = {}
 for _, k in ipairs(ns.SWING_BARS) do
     ns.DEFAULTS.swing.bars[k] = { detach = false, visibility = "swinging", width = 204, height = 14, textSize = 12, showName = true,
-                                  showTime = true, showIcon = false, slant = false, reverseFill = false }
+                                  showTime = true, showIcon = false, slant = false, slantLeft = false, reverseFill = false }
 end
 
 -- Each frame's own look on top of the shared one, set on its page: bar colors

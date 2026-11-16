@@ -859,6 +859,16 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     T.eq(ns.swing.castbar.under, pb, "the swing timer hangs from it too")
     local clipPoint = { h.clip:GetPoint(1) }
     T.eq(clipPoint[2], pb, "its clip starts at the power bar's bottom")
+    DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).side, "both", "the power bar angled at both ends")
+    T.eq(Style.GetSlant(h).side, "both", "the cast bar under it follows both")
+    for _, row in ipairs(ns.swing.rows) do
+        if row:IsShown() then T.eq(Style.GetSlant(row).side, "both", "and the swing bars") end
+    end
+    DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).side, "right")
     DUI:Set("UnitFrames", "player.powerAt", "inside")
     stub.RunTimers()
     T.eq(h.under, ns.frames.player, "the power bar back inside: under the frame again")
