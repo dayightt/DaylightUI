@@ -382,7 +382,11 @@ local function installQuest()
     end
     _G.GetNumQuestItems = function() return #(Q().required or {}) end
     _G.IsQuestItemHidden = function() return 0 end
-    _G.GetQuestItemInfoLootType = function() return 0 end
+    -- A reward's `lootType` is what the client answers for it (0 = an item).
+    _G.GetQuestItemInfoLootType = function(kind, i)
+        local it = (list(kind) or {})[i]
+        return it and it.lootType or 0
+    end
     -- The quest's fixed currency rewards (a quest's `currencies`: { name, count, currencyID }),
     -- apart from its item rewards, as QuestInfo.lua reads them.
     _G.C_QuestInfoSystem = _G.C_QuestInfoSystem or {}

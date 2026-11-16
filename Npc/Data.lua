@@ -120,7 +120,9 @@ end
 local function items(kind, n)
     local out = {}
     for i = 1, n or 0 do
-        local loot = call(GetQuestItemInfoLootType, kind, i)
+        -- Only a choice can be a currency here. The game reads every fixed reward as an
+        -- item (its currencies come apart, Data.Currencies), so it never asks for those.
+        local loot = kind == "choice" and call(GetQuestItemInfoLootType, kind, i) or 0
         local it
         if loot == nil or loot == 0 then
             local name, texture, count, quality, usable, itemID = call(GetQuestItemInfo, kind, i)

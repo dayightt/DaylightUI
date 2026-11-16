@@ -590,6 +590,20 @@ T.test("npc: hand-in: a reward item that loads after the first seconds, with no 
     T.eq(#NW.Calls("ContinueOnItemLoad"), 1, "asked once for the page")
 end)
 
+-- The game's quest window reads every fixed reward as an item and only asks the loot
+-- type for choices. Asking it for a fixed reward too sent a plain item down the
+-- currency path, where it found nothing and stayed on "Retrieving item information".
+T.test("npc: hand-in: a fixed reward is always an item, whatever its loot type says", function()
+    local N = load()
+    NW.Quest("COMPLETE", NW.Candles({ choices = {}, rewards = { { name = "Linen Cloth", itemID = 2589, lootType = 1 } } }))
+    frame()
+    local names = {}
+    for _, p in ipairs(N.frame.pages[N.frame.current].pieces) do
+        if p.spec and p.name then names[#names + 1] = p.name:GetText() end
+    end
+    T.deq(names, { "Linen Cloth" })
+end)
+
 -- A reward item loading late refills the page: once a frame, where you scrolled it.
 T.test("npc: a late reward item refills the page once a frame and keeps the scroll", function()
     local N = load()

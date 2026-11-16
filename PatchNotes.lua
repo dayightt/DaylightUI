@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "General", "Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display" },
+            { "NPC window", "Quest rewards you always get no longer stay stuck on \"Retrieving item information\" when you hand in a quest" },
         },
     },
     { version = "1.9.1", date = "2026-11-16", summary = "Tidier options with tabs and clearer names, bars angled at both ends, and a round of fixes.",
