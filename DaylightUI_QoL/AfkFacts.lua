@@ -144,8 +144,10 @@ Facts.LIST = {
         local chars = DUI.DB.Root().characters
         if type(chars) ~= "table" then return end
         local total, n = 0, 0
-        for _, c in pairs(chars) do
-            if type(c) == "table" and number(c.money) then total, n = total + c.money, n + 1 end
+        for key, c in pairs(chars) do
+            if type(c) == "table" and number(c.money) and DUI.Alts.Reachable(key) then
+                total, n = total + c.money, n + 1
+            end
         end
         if n < 2 or total <= 0 then return end
         return L["Gold"], string.format(L["%s across your %d characters."], DUI.MoneyString(total), n)

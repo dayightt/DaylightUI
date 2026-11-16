@@ -274,7 +274,7 @@ function DT.GoldFaction()
     return type(mine) == "string" and mine or nil
 end
 
--- Gold of every character on the account, richest first. A character's
+-- Gold of every character on this ruleset, richest first. A character's
 -- faction is only known once it has logged in with this version.
 function DT.Characters()
     local chars = DUI.DB.Root().characters
@@ -282,7 +282,8 @@ function DT.Characters()
     if type(chars) ~= "table" then return out end
     local faction = DT.GoldFaction()
     for key, c in pairs(chars) do
-        if type(c) == "table" and type(c.money) == "number" and (not faction or c.faction == faction) then
+        if type(c) == "table" and type(c.money) == "number" and (not faction or c.faction == faction)
+            and DUI.Alts.Reachable(key) then
             out[#out + 1] = { key = key, money = c.money, class = c.class }
         end
     end

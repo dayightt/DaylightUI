@@ -285,8 +285,8 @@ end
 
 -- Who's saved
 
--- Every character with something saved: { key, name, realm, class, inv }, this
--- realm first, then by name. Includes the current character.
+-- Every character on this ruleset with something saved: { key, name, realm,
+-- class, inv }, this realm first, then by name. Includes the current character.
 function Saved.Characters()
     local own = DUI.DB.CharKey()
     local realm = own and own:match("%-(.*)$")
@@ -298,7 +298,9 @@ function Saved.Characters()
     end
     for key, c in pairs(type(chars) == "table" and chars or {}) do
         local inv = type(c) == "table" and c.inventory
-        if key ~= own and type(inv) == "table" and (inv.bags or inv.bank) then add(key, inv, inv.class) end
+        if key ~= own and type(inv) == "table" and (inv.bags or inv.bank) and DUI.Alts.Reachable(key) then
+            add(key, inv, inv.class)
+        end
     end
     -- Always include the current character (to switch back to), saved or not.
     -- On a first session nothing is saved until a banker visit or logout.

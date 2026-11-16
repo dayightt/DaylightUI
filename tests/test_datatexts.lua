@@ -436,6 +436,28 @@ T.test("data texts: the gold tooltip can count only the faction you're playing",
     DT().slots[1]:GetScript("OnLeave")(DT().slots[1])
 end)
 
+T.test("data texts: gold on another ruleset is never listed or added", function()
+    local was = _G.GetRealmName
+    _G.GetRealmName = function() return "CAMWOW US1 Realm 8 PvP" end
+    local DUI = login()
+    local chars = DUI.DB.Root().characters
+    chars["Twin-CAMWOW US2 Realm 3 PvP"] = { money = 40000, class = "MAGE" }
+    chars["Brave-CAMWOW US1 Realm 3 Hardcore"] = { money = 90000, class = "ROGUE" }
+    chars["Old-Sharpvale"] = { money = 20000, class = "PRIEST" }
+    hover(1)
+    local t = tipText()
+    T.truthy(t:find("Twin", 1, true), "another realm, the same ruleset: " .. t)
+    T.falsy(t:find("Brave", 1, true), "Hardcore can't reach your PvP gold: " .. t)
+    T.truthy(t:find("Old", 1, true), "a realm with no ruleset word is kept: " .. t)
+    for _, c in ipairs(stub.infopanel.DataTexts.Characters()) do
+        T.truthy(c.key ~= "Brave-CAMWOW US1 Realm 3 Hardcore", "not in the total either")
+    end
+    T.falsy(DUI.Alts.Reachable("Brave-CAMWOW US1 Realm 3 Hardcore"))
+    for _, c in ipairs(DUI.Alts.List()) do T.truthy(c.name ~= "Brave", "nor in Remove a character") end
+    DT().slots[1]:GetScript("OnLeave")(DT().slots[1])
+    _G.GetRealmName = was
+end)
+
 -- A right-click on the gold text: the menu it opens, as asked for.
 local function goldMenu(DUI)
     local menu

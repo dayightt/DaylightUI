@@ -412,6 +412,26 @@ T.test("bags: item counts show only when another character has some", function()
     T.eq(#tipRows(ns, { id = stub.Secret(1) }), 0, "a secret item id is left alone")
 end)
 
+T.test("bags: characters on another ruleset are left out of counts and the viewer", function()
+    local was = _G.GetRealmName
+    _G.GetRealmName = function() return "CAMWOW US1 Realm 8 PvP" end
+    local ns = login()
+    local chars = DaylightUI.DB.Root().characters
+    local bags = function(n) return { { section = "bags", size = 4, items = { [1] = { "|Hitem:9|h", n } } } } end
+    chars["Twin-CAMWOW US2 Realm 3 PvP"] = { inventory = { class = "MAGE", time = time(), bags = bags(2) } }
+    chars["Brave-CAMWOW US1 Realm 3 Hardcore"] = { inventory = { class = "ROGUE", time = time(), bags = bags(5) } }
+    ns.Saved.ForgetCounts()
+    local names = {}
+    for _, c in ipairs(ns.Saved.Characters()) do names[c.name] = true end
+    T.truthy(names.Twin, "the same ruleset on another realm is listed")
+    T.falsy(names.Brave, "Hardcore isn't, from a PvP character")
+    local rows = tipRows(ns, { id = 9 })
+    T.eq(rows[2][1], "Twin")
+    T.eq(#rows, 3, "Twin and the total, nothing from Hardcore")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.GetRealmName = was
+end)
+
 T.test("bags: item counts follow this character's bags as they change", function()
     local ns = countWorld()
     T.eq(plainText(tipRows(ns, { id = 1 })[2][2]), "Bags 5 · Bank 6")

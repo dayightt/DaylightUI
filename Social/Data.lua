@@ -82,29 +82,11 @@ end
 
 -- Friends (Battle.net, including title friends)
 
--- The ruleset part of a realm name: "CAMWOW US1 Realm 8 PvP" gives "PvP". C_GameRules
--- only answers for the player, so the realm name is all there is for a friend. A name
--- with no ruleset word is returned whole.
-local function rulesetWord(realm)
-    if not realm then return nil end
-    local s = string.lower(realm)
-    if s:find("%f[%a]hardcore%f[%A]") then return L["Hardcore"] end
-    if s:find("%f[%a]rp[%s%-]*p?vp%f[%A]") then return L["RP PvP"] end
-    if s:find("%f[%a]pvp%f[%A]") then return L["PvP"] end
-    if s:find("%f[%a]pve%f[%A]") then return L["PvE"] end
-    if s:find("%f[%a]rp%f[%A]") then return L["RP"] end
-end
+-- A friend's ruleset word ("PvP"), or the realm name whole when it has none.
+function Data.Ruleset(realm) return DUI.Alts.RulesetOf(realm) or realm end
 
-function Data.Ruleset(realm) return rulesetWord(realm) or realm end
-
--- Is this realm on the player's ruleset? Only the realm name can tell, so a name with no
--- ruleset word (on either side) gets the benefit of the doubt: the invite option stays
--- and the game has the final say.
-function Data.SameRuleset(realm)
-    local mine = rulesetWord(str(GetRealmName and GetRealmName()))
-    local theirs = rulesetWord(realm)
-    return mine == nil or theirs == nil or mine == theirs
-end
+-- An unknown ruleset keeps the invite option: the game has the final say.
+function Data.SameRuleset(realm) return DUI.Alts.SameRuleset(realm) end
 
 Data.FACTIONS = { Alliance = true, Horde = true }
 

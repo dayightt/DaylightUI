@@ -10,8 +10,38 @@ local L = DUI.L
 local Alts = {}
 DUI.Alts = Alts
 
--- Every other character that can be removed, as { key, name, realm, class,
--- money }. This realm first, then by name.
+-- The ruleset part of a realm name: "CAMWOW US1 Realm 8 PvP" gives "PvP", nil
+-- when the name has no ruleset word. C_GameRules only answers for the player,
+-- so for anyone else the realm name is all there is.
+function Alts.RulesetOf(realm)
+    if type(realm) ~= "string" or DUI.IsSecret(realm) then return nil end
+    local s = string.lower(realm)
+    if s:find("%f[%a]hardcore%f[%A]") then return L["Hardcore"] end
+    if s:find("%f[%a]rp[%s%-]*p?vp%f[%A]") then return L["RP PvP"] end
+    if s:find("%f[%a]pvp%f[%A]") then return L["PvP"] end
+    if s:find("%f[%a]pve%f[%A]") then return L["PvE"] end
+    if s:find("%f[%a]rp%f[%A]") then return L["RP"] end
+end
+
+-- Is this realm on the player's ruleset? Many numbered realms share one ruleset,
+-- so only the ruleset word can say. A name with no word (on either side) counts
+-- as the same, since there's no way to tell.
+function Alts.SameRuleset(realm)
+    local mine = Alts.RulesetOf(GetRealmName and GetRealmName())
+    local theirs = Alts.RulesetOf(realm)
+    return mine == nil or theirs == nil or mine == theirs
+end
+
+-- A saved character ("First Last-Realm") the player could reach from here.
+-- Bags and gold on another ruleset can never be traded or mailed over, so the
+-- bag viewer, item counts and the gold list leave those characters out.
+function Alts.Reachable(key)
+    if type(key) ~= "string" then return false end
+    return Alts.SameRuleset(key:match("%-(.*)$"))
+end
+
+-- Every other character on this ruleset that can be removed, as { key, name,
+-- realm, class, money }. This realm first, then by name.
 function Alts.List()
     local own = DUI.DB.CharKey()
     local here = own and own:match("%-(.*)$")
@@ -19,7 +49,8 @@ function Alts.List()
     local chars = DUI.DB.Root().characters
     for key, c in pairs(type(chars) == "table" and chars or {}) do
         local inv = type(c) == "table" and type(c.inventory) == "table" and c.inventory or nil
-        if key ~= own and type(c) == "table" and (type(c.money) == "number" or inv or type(c.mailName) == "string") then
+        if key ~= own and type(c) == "table" and Alts.Reachable(key)
+            and (type(c.money) == "number" or inv or type(c.mailName) == "string") then
             local name, realm = key:match("^(.-)%-(.*)$")
             local money = type(c.money) == "number" and c.money or (inv and type(inv.money) == "number" and inv.money) or nil
             out[#out + 1] = { key = key, name = name or key, realm = realm or "", class = c.class or (inv and inv.class), money = money }

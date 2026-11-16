@@ -18,6 +18,9 @@ DUI.PatchNotes = {
         changed = {
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
         },
+        fixed = {
+            { "Bags", "Item counts, the gold tooltip and the alts viewer no longer show characters on another ruleset, like Hardcore, whose items and gold you can't reach" },
+        },
     },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",
         new = {
