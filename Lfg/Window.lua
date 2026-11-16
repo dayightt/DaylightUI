@@ -243,11 +243,28 @@ function Lfg.AllLevels()
     return ok and on == true
 end
 
+-- The switch was flipped (here, or in the game's own window): the categories and activities
+-- are read again for the new filter and the open page is drawn again. The client says
+-- so with CVAR_UPDATE, but that is not relied on: the menu calls this itself, straight
+-- after SetCVar. What Find a group already shows was searched with the old filter's
+-- activities, and searching needs a click, so its Refresh lights up instead of searching.
+function Lfg.LevelsChanged()
+    ns.Data.Forget()
+    if ns.Browse and ns.Browse.searched then ns.Browse.stale = true end
+    local f = Lfg.frame
+    if f and Win.IsOpen(f) then Lfg.Apply() end
+end
+
+function Lfg.SetAllLevels(on)
+    SetCVar(Lfg.ALL_LEVELS, on and "1" or "0")
+    Lfg.LevelsChanged()
+end
+
 function Lfg.OptionsMenu(owner)
     local W = DUI.Widgets
     if W.menuOwner == owner then return W.CloseMenu() end
     W.OpenMenu(owner, { "all" }, { all = LFG_LIST_IGNORE_SUGGESTED_LEVEL or L["Show all levels"] }, nil,
-        function() SetCVar(Lfg.ALL_LEVELS, Lfg.AllLevels() and "0" or "1") end, Lfg.MENU_W,
+        function() Lfg.SetAllLevels(not Lfg.AllLevels()) end, Lfg.MENU_W,
         { keepOpen = true, rows = 1, checked = function() return Lfg.AllLevels() end })
 end
 
@@ -297,7 +314,7 @@ function Lfg.Build(mod)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Lfg.ResetSpot   -- /dui reset
     DUI.RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", function() Lfg.Header() end)
     DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
-        if name == Lfg.ALL_LEVELS and Win.IsOpen(f) then Lfg.Apply() end
+        if name == Lfg.ALL_LEVELS then Lfg.LevelsChanged() end
     end)
     -- The game shows its browse page for some activities (LFG_LIST_SHOW_SEARCH, and its own
     -- code searches them): open on Find a group.

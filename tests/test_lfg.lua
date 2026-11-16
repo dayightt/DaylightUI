@@ -877,3 +877,75 @@ T.test("lfg: the corner grip resizes the window: more room, the text its size", 
     T.near(f:GetWidth(), ns.Window.W, 0.5, "reset: its own width again")
     T.falsy(ns.module.db.sizes, "and the size forgotten")
 end)
+T.test("lfg: List yourself lays its buttons out for the width the window is about to have", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "list")
+    local page = ns.Listing.page
+    local function rowsOf()
+        local ys = {}
+        for _, c in ipairs(page.catChips) do
+            if c:IsShown() then local _, _, _, _, y = c:GetPoint(1); ys[y] = true end
+        end
+        local n = 0
+        for _ in pairs(ys) do n = n + 1 end
+        return n
+    end
+    -- On the first open the page is still at its old width while the window grows to the
+    -- saved, wider size: the four categories should fit in a row for the width coming.
+    page.GetWidth = function() return 200 end   -- narrow: the categories would wrap
+    f.goalW = f:GetWidth() + 500
+    ns.Listing.Render(page)
+    T.eq(rowsOf(), 1, "one row of categories")
+end)
+
+-- The gear's "Show all levels" switch.
+T.test("lfg: show all levels adds the activities past your level, without the client's event", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "list")
+    local function names()
+        local out = {}
+        for _, b in ipairs(rows(ns.Listing.page.stack, "act")) do out[#out + 1] = b.name:GetText() end
+        return table.concat(out, "|")
+    end
+    local cats = #ns.Data.Categories()
+    T.falsy(names():find("Scarlet Monastery", 1, true), "past your level: not listed")
+    -- The client's CVAR_UPDATE may not come for a change made from code: the menu doesn't wait for it.
+    local fire = stub.FireEvent
+    stub.FireEvent = function(e, ...) if e == "CVAR_UPDATE" then return end return fire(e, ...) end
+    local ok, err = pcall(function()
+        ns.Window.OptionsMenu(f.gear)
+        ns.Window.SetAllLevels(true)
+    end)
+    stub.FireEvent = fire
+    T.truthy(ok, tostring(err))
+    frame(5)
+    T.truthy(ns.Window.AllLevels(), "the switch reads on")
+    T.truthy(names():find("Scarlet Monastery", 1, true), "now listed: " .. names())
+    T.truthy(#ns.Data.Categories() > cats, "and a category that had nothing at your level shows")
+    ns.Window.SetAllLevels(false)
+    frame(5)
+    T.falsy(names():find("Scarlet Monastery", 1, true), "off again")
+    DaylightUI.Widgets.CloseMenu()
+end)
+
+T.test("lfg: show all levels lights Refresh on Find a group (the groups shown were searched without them)", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local B = ns.Browse
+    T.falsy(B.stale)
+    ns.Window.SetAllLevels(true)
+    frame(2)
+    T.truthy(B.stale, "the search is out of date")
+    stub.Key(function() B.Refresh() end)
+    frame(2)
+    T.falsy(B.stale, "searched again")
+    -- The new search asks for the activities past your level too.
+    local last = LW.Calls("Search")
+    local acts = last[#last][2]
+    local has = false
+    for _, id in ipairs(acts or {}) do if id == 800 then has = true end end
+    T.truthy(has, "Scarlet Monastery is in the search")
+end)
