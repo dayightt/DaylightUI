@@ -72,13 +72,15 @@ T.test("book spells: a section per skill line the game lists, shouldHide left ou
     T.truthy(d.anyLow)
 end)
 
-T.test("book spells: the warrior's Stances flyout opens into its spells, loose copies skipped", function()
+T.test("book spells: the warrior's Stances flyout has its row, its spells under it, loose copies skipped", function()
     local ns = load()
     local d = ns.SpellData.Read(false)
     T.deq(sectionNames(d), { "General", "Arms", "Fury", "Protection" })
     local general = {}
     for _, s in ipairs(d.sections[1].spells) do general[#general + 1] = s.name end
-    T.deq(general, { "Attack", "Battle Stance", "Defensive Stance", "Blood Fury", "Hardiness" })
+    T.deq(general, { "Attack", "Stances", "Battle Stance", "Defensive Stance", "Blood Fury", "Hardiness" })
+    T.eq(d.sections[1].spells[2].count, 2, "the flyout counts its spells")
+    T.eq(d.sections[1].spells[3].under, d.sections[1].spells[2], "its spells know their flyout")
     T.falsy(d.anyLow, "a warrior has no lower rank")
 end)
 
@@ -86,7 +88,7 @@ T.test("book spells: the page lists every spell, two to a line, chips per sectio
     local ns = load()
     local page = openBook(ns)
     T.truthy(page:IsVisible())
-    T.eq(#cells(page), 9)
+    T.eq(#cells(page), 10, "the Stances flyout has a row of its own")
     T.truthy(cellOf(page, "Rend", "Rank 1"))
     local shown = 0
     for _, c in ipairs(page.chips) do if c:IsShown() then shown = shown + 1 end end
@@ -230,11 +232,46 @@ T.test("book spells: a flyout's lower ranks (the Paladin's Blessings) hide too, 
     local ns = load({ book = book })
     local page = openBook(ns)
     T.deq(names(page), { "Attack", "Fireball Rank 3", "Fire Blast Rank 1",
-        "Blessing of Kings", "Blessing of Might Rank 3", "Blessing of Wisdom Rank 2" })
+        "Blessings", "Blessing of Kings", "Blessing of Might Rank 3", "Blessing of Wisdom Rank 2" })
+    T.eq(cellOf(page, "Blessings").rank:GetText(), "3 spells", "three blessings, ranks counted once")
     page.switch:Click()
     T.deq(names(page), { "Attack", "Fireball Rank 3", "Fireball Rank 2", "Fireball Rank 1", "Fire Blast Rank 1",
-        "Blessing of Kings", "Blessing of Might Rank 3", "Blessing of Might Rank 2", "Blessing of Might Rank 1",
+        "Blessings", "Blessing of Kings", "Blessing of Might Rank 3", "Blessing of Might Rank 2", "Blessing of Might Rank 1",
         "Blessing of Wisdom Rank 2", "Blessing of Wisdom Rank 1" })
+end)
+
+-- The mage's Portal flyout, as the game's book shows it: a row to drag onto a
+-- bar, its spells under it.
+local function portalBook()
+    local book = BW.MageBook()
+    table.insert(book.lines[2].items, { name = "Portal", icon = 31, flyout = { 11417, 11418 }, flyoutID = 3 })
+    table.insert(book.lines[2].items, { name = "Portal: Orgrimmar", spellID = 11417, icon = 32, loose = true })
+    table.insert(book.lines[2].items, { name = "Portal: Undercity", spellID = 11418, icon = 33, loose = true })
+    return book
+end
+
+T.test("book spells: a flyout row drags the whole flyout, a click folds its spells, a search finds both", function()
+    local ns = load({ book = portalBook() })
+    local page = openBook(ns)
+    T.deq(names(page), { "Attack", "Fireball Rank 3", "Fire Blast Rank 1", "Portal", "Portal: Orgrimmar", "Portal: Undercity" })
+    local b = cellOf(page, "Portal")
+    T.eq(b.rank:GetText(), "2 spells")
+    T.isnil(ns.Cast.Attributes(b.cell), "the row casts nothing itself")
+    T.falsy(b.glow:IsShown(), "not a new spell")
+    b:GetScript("OnDragStart")(b)
+    local up = BW.Calls("PickupSpellBookItem")
+    T.eq(#up, 1, "picked up from its book slot: the flyout itself")
+    T.eq(up[1][1], b.cell.slot)
+    b:GetScript("OnClick")(b, "LeftButton")
+    T.deq(names(page), { "Attack", "Fireball Rank 3", "Fire Blast Rank 1", "Portal" }, "folded")
+    T.eq(cellOf(page, "Portal").state:GetText(), "+")
+    page.search:SetText("por")
+    T.deq(names(page), { "Portal", "Portal: Orgrimmar", "Portal: Undercity" }, "a search shows its spells anyway")
+    page.search:SetText("")
+    b = cellOf(page, "Portal")
+    b:GetScript("OnClick")(b, "LeftButton")
+    T.deq(names(page), { "Attack", "Fireball Rank 3", "Fire Blast Rank 1", "Portal", "Portal: Orgrimmar", "Portal: Undercity" })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("book spells: a click on a section's header folds it, remembered per character; a search shows it anyway", function()

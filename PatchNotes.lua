@@ -28,6 +28,7 @@ DUI.PatchNotes = {
             { "NPC window", "Vendors show how many are left of items they only have a few of" },
             { "Chat", "No more error from the chat box after resizing it or changing its text size" },
             { "Chat", "Your name lit up in chat uses the same class color as names in chat" },
+            { "Spellbook", "Portal, Teleport and other drop-down spells are back as their own entries you can drag to your action bars" },
             { "Flight timer", "Learns your routes reliably, and counts down on a route you've flown the other way instead of saying Learning" },
             { "Unit frames", "3D portraits no longer throw an error in a group or while the whole screen fades (sleeping bag, campfire), and party portraits can be clicked again" },
             { "Unit frames", "The target's detached power bar, portrait and threat % draw on top of the frame like the player's" },
