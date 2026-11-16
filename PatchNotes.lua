@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         },
         changed = {
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
+            { "Character", "A roomier character window where long item and stat names fit, your ammo count in the footer, and a new PvP page with your honor kills and rank badges" },
         },
         fixed = {
             { "Bags", "Item counts, the gold tooltip and the alts viewer no longer show characters on another ruleset, like Hardcore, whose items and gold you can't reach" },

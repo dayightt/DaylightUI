@@ -500,11 +500,11 @@ function CharacterPage.PaintFooter(page, sum, repairAt)
     local dura = sum.durability and string.format("%d%%", math.floor(sum.durability * 100 + 0.5))
     if dura and on then dura = C.Wrap(dura, C.Durability(sum.durability, repairAt)) end
     page.foot.dura:SetText(dura and string.format(L["Durability %s"], dura) or "")
-    -- Ammo: the whole count (never cut), red at none.
+    -- Ammo: the whole count (never cut), in the accent, and red when you're out.
     local ammo = sum.ammo and tostring(sum.ammo)
     if ammo and on then
-        local r, g, b = unpack(sum.ammo == 0 and ns.Slots.RED or Style.INK.VALUE)
-        ammo = C.Wrap(ammo, r, g, b)
+        if sum.ammo == 0 then ammo = C.Wrap(ammo, unpack(Style.INK.BAD))
+        else ammo = C.Wrap(ammo, Style.Pop()) end
     end
     local text = ammo and string.format(L["Ammo %s"], ammo) or ""
     if ammo and sum.ammoName then text = text .. " (" .. sum.ammoName .. ")" end   -- which ammo, if the game knows it yet
