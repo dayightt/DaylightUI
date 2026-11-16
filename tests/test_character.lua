@@ -3126,3 +3126,12 @@ T.test("character pvp: the badge is our own, one for each rank, in the accent", 
     local page2 = openPage(ns2, "PVPRankFrame")
     T.truthy(page2.emblem:GetTexture():find("pvp-rank-14.png", 1, true))
 end)
+
+T.test("character pvp: the cards are the same dark inset as the other pages' side panels", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    local r, g, b, a = page.cards.week.fill:GetVertexColor()
+    T.deq({ r, g, b }, { ns.List.INSET[1], ns.List.INSET[2], ns.List.INSET[3] })
+    T.near(a, ns.List.INSET[4], 0.001)
+    T.deq(ns.PvP.CARD, ns.List.INSET, "the very same one")
+end)
