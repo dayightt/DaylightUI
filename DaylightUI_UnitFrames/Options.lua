@@ -377,6 +377,45 @@ local function cat(...)
     return out
 end
 
+-- Puts rows that belong together side by side: each text's rows from its
+-- switch to its nudges, each bar's size before its look. A row the table
+-- doesn't know stays right after the row it followed.
+local function fieldOf(key)
+    local size = string.match(key, "Text%.(%a+)$")
+    if size then return "size." .. size end
+    if string.match(key, "^lastNames%.") then return "lastNames" end
+    return string.match(key, "^[^%.]+%.(.+)$") or key
+end
+local function ordered(items, rank)
+    local list, last = {}, 0
+    for i, it in ipairs(items) do
+        last = (type(it.key) == "string" and rank[fieldOf(it.key)]) or last
+        list[i] = { it = it, r = last, i = i }
+    end
+    table.sort(list, function(a, b)
+        if a.r ~= b.r then return a.r < b.r end
+        return a.i < b.i
+    end)
+    for i, e in ipairs(list) do items[i] = e.it end
+    return items
+end
+local TEXT_ORDER = {
+    showName = 10, lastNames = 11, nameOnBar = 12, namePos = 13, nameAlign = 14, nameTag = 15, nameX = 16, nameY = 17,
+    nameColor = 18, nameCustom = 19, nameLimitLen = 20, ["media.nameFont"] = 21, ["size.name"] = 22,
+    showPercent = 30, healthText = 31, percentSign = 32, hideFullHealth = 33, percentColor = 34, percentCustom = 35,
+    ["media.healthFont"] = 36, ["size.percent"] = 37, bigNumber = 38, ["size.big"] = 39, healthTextX = 40, healthTextY = 41,
+    showPowerText = 50, powerFormat = 51, powerPercentSign = 52, hideFullPower = 53, powerTextPos = 54,
+    ["media.powerFont"] = 55, ["size.power"] = 56, powerTextX = 57, powerTextY = 58,
+}
+local BAR_ORDER = {
+    stripHeight = 1, ["media.health"] = 2, ["media.healthBack"] = 3, colorHealth = 4, colorHealthCustom = 5,
+    backHealth = 6, backHealthColor = 7, backHealthBright = 8, backHealthAlpha = 9,
+    showPower = 20, powerAt = 21, powerWidth = 22, powerHeight = 23, ribbonGap = 24,
+    powerSlant = 25, powerSlantBoth = 26, powerSlantUnder = 27, ["media.power"] = 28, ["media.powerBack"] = 29,
+    colorPower = 30, colorPowerCustom = 31, backPower = 32, backPowerColor = 33, backPowerBright = 34, backPowerAlpha = 35,
+    reverseFill = 40, predictHeals = 41, predictAbsorbs = 42,
+}
+
 -- An aura group's layout rows, added to items: position, size, count, timers
 -- and nudges. g maps a field to its key. dis grays it out, noTimers grays out
 -- the "Only under a minute" row, gone hides it.
@@ -1299,6 +1338,9 @@ local function tabCard(id, onRow)
               disabled = noTab, hidden = onRow },
             { type = "slider", key = k("widthPx"), label = "Fixed name tab width", min = 30, max = 400, step = 1,
               desc = "How wide the name tab is when Name tab width is Fixed width.", unit = "px", disabled = function(get) return noTab(get) or get(k("width")) ~= "fixed" end, hidden = onRow },
+            { type = "slider", key = f("tabHeight"), label = "Name tab height", min = 10, max = 28, step = 1, unit = "px",
+              desc = "How tall the tab holding the name above the frame is.",
+              disabled = function(get) return get(f("enabled")) ~= true end, hidden = onRow },
             { type = "dropdown", key = k("align"), label = "Name alignment in the tab", values = TAB_ALIGNS,
               desc = "Where the name sits inside its tab: left, center or right.",
               order = { "left", "center", "right" }, disabled = noTab, hidden = onRow },
@@ -1460,7 +1502,7 @@ local function splitFrame(prefix, items, power)
         else bars[#bars + 1] = it end
     end
     return { label = "Frame", items = basic },
-           { label = power and "Health and power" or "Health bar", items = bars },
+           { label = power and "Health and power" or "Health bar", items = ordered(bars, BAR_ORDER) },
            #portrait > 0 and { label = "Portrait", desc = "The picture at the frame's outer end: what it shows, its shape, size and ring.",
                                items = portrait } or nil
 end
@@ -1655,8 +1697,6 @@ local function framePage(id, label, desc, opts)
                 or "The health bar fills from the opposite side.", disabled = shown }
     end
     if opts.tab then
-        frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name tab height", min = 10, max = 28, step = 1, unit = "px",
-            desc = "How tall the tab holding the name above the frame is.", disabled = shown, hidden = noTabStyle }
         if styled then
             frame[#frame + 1] = { type = "slider", key = k("tabHeight"), label = "Name row height", min = 10, max = 28, step = 1,
                 unit = "px", desc = "The row above the bar that holds the name and the health number.",
@@ -1852,7 +1892,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.tab then groups[#groups + 1] = tabCard(id, noTabStyle) end
     groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
-    groups[#groups + 1] = { label = "Text", items = text }
+    groups[#groups + 1] = { label = "Text", items = ordered(text, TEXT_ORDER) }
     local extras = {}
     local needHome, homeDis = "", shown
     if opts.tile then
@@ -2266,7 +2306,7 @@ local function raidPage(size)
         shellCard("raid", "raid.enabled"),
         -- Shared by every size, so only on Raid 10 (false leaves it out).
         size == 10 and DaylightUI.Fade.Card("raid.fade.", nil, off("raid.enabled"), "Raid"),
-        { label = "Text", items = cat({
+        { label = "Text", items = ordered(cat({
             { type = "toggle", key = "raid.showName", label = "Name",
               desc = "Each member's name on their tile.", disabled = off("raid.enabled") },
             lastNames("raid"),
@@ -2303,7 +2343,7 @@ local function raidPage(size)
             { type = "slider", key = "raid.healthTextY", label = "Health text up / down", min = -50, max = 50, step = 1,
               desc = "Nudges the health text up or down from its place.",
               unit = "px", disabled = offAny("raid.enabled", "raid.showPercent") },
-        }) },
+        }), TEXT_ORDER) },
         { label = "Extras", items = cat({
             { type = "toggle", key = "raid.predictHeals", label = "Incoming heals",
               desc = "Heals on their way, as a soft green stretch past the health.", disabled = off("raid.enabled") },
@@ -2477,6 +2517,8 @@ ns.OPTIONS = { pages = {
               end },
             nudge("player", "x"),
             nudge("player", "y"),
+            { type = "slider", key = "playerCastbar.width", label = "Width", min = 80, max = 500, step = 1,
+              desc = "How wide your cast bar is. Not while under the frame: there it's as wide as the frame.", disabled = attached },
             { type = "slider", key = "playerCastbar.height", label = "Height", min = 8, max = 40, step = 1,
               desc = "How tall your cast bar is.", disabled = off("playerCastbar.enabled") },
             barRows("playerCastbar.media.bar", "your cast bar", "Cast bar", off("playerCastbar.enabled"))[1],
@@ -2484,8 +2526,6 @@ ns.OPTIONS = { pages = {
             fontRow("playerCastbar.media.font", "Cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
             { type = "toggle", key = "playerCastbar.showIcon", label = "Spell icon",
               desc = "Not while under the frame: the portrait ring covers that spot.", disabled = attached },
-            { type = "slider", key = "playerCastbar.width", label = "Width", min = 80, max = 500, step = 1,
-              desc = "Not while under the frame: there it's as wide as the frame.", disabled = attached },
             { type = "toggle", key = "playerCastbar.slant", label = "Angled right end",
               desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle. When off, its ends are straight.",
               disabled = off("playerCastbar.enabled") },
@@ -2764,8 +2804,13 @@ ns.OPTIONS = { pages = {
         { label = "Bars", items = {
             { type = "slider", key = "personal.width", label = "Personal display width", min = 60, max = 400, step = 1, unit = "px",
               desc = "How wide the bars are.", disabled = off("personal.enabled") },
-            strataRow("personal.strata", "Personal display layer", "The layer the personal display draws in. Low keeps it under your other frames.",
-                off("personal.enabled")),
+            { type = "toggle", key = "personal.slant", label = "Personal display angled right end",
+              desc = "Cuts the right end at an angle, docked cast and swing bars too. When off, it's square.", disabled = off("personal.enabled") },
+            { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
+              desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
+            { type = "slider", key = "personal.angle", label = "Personal display angle", min = 0, max = 0.6, step = 0.01, unit = "%",
+              desc = "How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Extras.",
+              disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end },
             { type = "toggle", key = "personal.showHealth", since = "1.6.0.2", label = "Personal health bar",
               desc = "Your health on the display. Turn it off to keep just your power bar. Needs the power bar on.",
               disabled = offAny("personal.enabled", "personal.showPower") },
@@ -2800,17 +2845,12 @@ ns.OPTIONS = { pages = {
               desc = "Nudges the personal display's row of combo points sideways.", disabled = offAny("personal.enabled", "personal.combo") },
             { type = "slider", key = "personal.comboY", label = "Personal pips up / down", min = -50, max = 50, step = 1, unit = "px",
               desc = "Nudges the personal display's row of combo points up or down. Docked cast and swing bars stay below it.", disabled = offAny("personal.enabled", "personal.combo") },
-            { type = "toggle", key = "personal.slant", label = "Personal display angled right end",
-              desc = "Cuts the right end at an angle, docked cast and swing bars too. When off, it's square.", disabled = off("personal.enabled") },
-            { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
-              desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
-            { type = "slider", key = "personal.angle", label = "Personal display angle", min = 0, max = 0.6, step = 0.01, unit = "%",
-              desc = "How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Extras.",
-              disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end },
             { type = "toggle", key = "personal.swing", label = "Swing timers on the personal display",
               desc = "Moves your swing timers under the personal display, as wide as it.", disabled = off("personal.enabled") },
             { type = "toggle", key = "personal.castbar", label = "Cast bar on the personal display",
               desc = "Moves your cast bar under the personal display, as wide as it.", disabled = off("personal.enabled") },
+            strataRow("personal.strata", "Personal display layer", "The layer the personal display draws in. Low keeps it under your other frames.",
+                off("personal.enabled")),
         } },
         shellCard("personal", "personal.enabled"),
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
@@ -2845,21 +2885,21 @@ ns.OPTIONS = { pages = {
               values = { inner = "Inner end", center = "Centered", outer = "Outer end" }, order = { "inner", "center", "outer" },
               desc = "Where along the frame the row starts: the angled end facing the middle of your screen, the middle, or the far end.",
               disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },
+            { type = "slider", key = "combo.x", label = "Combo points left / right", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the row of pips sideways.", disabled = off("combo.enabled") },
+            { type = "slider", key = "combo.y", label = "Combo points up / down", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the row of pips up or down.", disabled = off("combo.enabled") },
             { type = "toggle", key = "combo.stretch", label = "Match frame width",
               desc = "The pips widen to span the whole frame, so the row reads like a bar.",
               disabled = off("combo.enabled") },
             { type = "slider", key = "combo.size", label = "Pip width", min = 8, max = 40, step = 1, unit = "px",
               desc = "How wide each combo point pip is. Not while the pips match the frame's width.", disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },
-            barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[1],
-            barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[2],
             { type = "slider", key = "combo.height", label = "Pip height", min = 0, max = 30, step = 1, unit = "px",
-              desc = "Set to 0 for automatic height.", disabled = off("combo.enabled") },
+              desc = "How tall each combo point pip is. 0 picks a height to suit the frame.", disabled = off("combo.enabled") },
             { type = "slider", key = "combo.gap", label = "Spacing", min = 0, max = 10, step = 1, unit = "px",
               desc = "The gap between combo point pips.", disabled = off("combo.enabled") },
-            { type = "slider", key = "combo.x", label = "Combo points left / right", min = -50, max = 50, step = 1, unit = "px",
-              desc = "Nudges the row of pips sideways.", disabled = off("combo.enabled") },
-            { type = "slider", key = "combo.y", label = "Combo points up / down", min = -50, max = 50, step = 1, unit = "px",
-              desc = "Nudges the row of pips up or down.", disabled = off("combo.enabled") },
+            barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[1],
+            barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[2],
             { type = "slider", key = "combo.border", label = "Outline", min = 0, max = 4, step = 1, unit = "px",
               desc = "Set to 0 for no outline.", disabled = off("combo.enabled") },
             { type = "toggle", key = "combo.slant", label = "Angled ends",
