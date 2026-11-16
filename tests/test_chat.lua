@@ -1413,9 +1413,10 @@ T.test("chat: shortening a line makes no closures or patterns of its own", funct
     _G.CHAT_SAY_GET = "%s says: "
     local line = "|Hplayer:Bob|h[Bob]|h waves"   -- nothing to shorten, so no new text either
     Tags.Shorten(line, "CHAT_MSG_SAY")
-    -- LuaJIT's compiler allocates too, at moments that vary run to run (up to
-    -- 44 KB in a parallel run). With it paused, only the addon's own garbage counts.
-    if jit then jit.off() end
+    -- LuaJIT's compiler allocates too, at moments that vary run to run, and code
+    -- it compiled in earlier tests still runs after jit.off() unless flushed.
+    -- With both done, only the addon's own garbage counts.
+    if jit then jit.off(); jit.flush() end
     collectgarbage("collect")
     collectgarbage("stop")
     local before = collectgarbage("count")

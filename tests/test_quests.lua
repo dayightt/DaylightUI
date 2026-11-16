@@ -2226,7 +2226,7 @@ T.test("quests motion: a moving list makes no garbage each frame", function()
     A.Leave(f, function() end)
     A.Glide(f, 1000)
     for _, c in pairs(A.State(f).ch) do c.dur = 1e9 end     -- keeps moving
-    if jit then jit.off() end   -- the compiler's own allocations vary run to run (test_chat)
+    if jit then jit.off(); jit.flush() end   -- the compiler's own allocations vary run to run (test_chat)
     collectgarbage("collect")
     collectgarbage("stop")
     local before = collectgarbage("count")
