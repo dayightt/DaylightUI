@@ -267,6 +267,56 @@ T.test("platefix: the report names Daylight UI's modules and its own global piec
     T.truthy(text:find("buffers drawn 1", 1, true), text)
 end)
 
+-- Players send a screenshot with the platefix report, so the dots that show
+-- where the game has each plate go up with step 1 and stay to the end.
+T.test("platefix: the dots go up at step 1, follow new plates and stay until the run is over", function()
+    local NP = login()
+    local R = DaylightUI.PlateReport
+    local printed = {}
+    local was = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    NP.Manager.Fix()
+    T.truthy(R.marksOn, "up with the first step")
+    T.truthy(table.concat(printed, "\n"):find("numbered dot", 1, true), "and the player is told what they are")
+    local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
+    T.eq(select(2, R.marks[1].dot:GetPoint(1)), np, "pinned to the game's plate")
+    stub.RunTimers()
+    stub.RunTimers()
+    T.truthy(R.marksOn, "still up: they don't time out during a run")
+    stub.units.nameplate2 = { name = "Whelp", hostile = true, reaction = 2, health = 50, maxHealth = 100, pct = 50 }
+    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate2")
+    stub.RunTimers()
+    T.truthy(R.marks[2] and R.marks[2].dot:IsShown(), "a plate that shows up later gets its dot")
+    T.truthy(R.marksOn)
+    printed = {}
+    DaylightUI.RunCommand("platefix yes")
+    DaylightUI.Print = was
+    T.truthy(table.concat(printed, "\n"):find("screenshot", 1, true), "the end asks for the screenshot")
+    T.truthy(R.marksOn, "the dots are still there for it")
+    stub.RunTimers()
+    T.falsy(R.marksOn, "and go a while after")
+    stub.units.nameplate2 = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: a run where no step helped ends with the dots up for the screenshot", function()
+    local NP = login()
+    local R = DaylightUI.PlateReport
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
+    stub.RunTimers()
+    stub.RunTimers()
+    T.truthy(R.marksOn, "up through every step")
+    local printed = {}
+    local was = DaylightUI.Print
+    DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    DaylightUI.RunCommand("platefix")
+    DaylightUI.Print = was
+    T.truthy(table.concat(printed, "\n"):find("screenshot", 1, true), table.concat(printed, "\n"))
+    T.truthy(R.marksOn)
+    stub.RunTimers()
+    T.falsy(R.marksOn)
+end)
+
 -- It happens with the Nameplates module off too, so the check and the fix
 -- steps that don't need it work without it.
 T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates module off", function()
@@ -300,9 +350,12 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     stub.RunTimers()
     stub.RunTimers()
     T.eq(cvars.nameplateShowEnemies, "1", "and on again")
+    T.truthy(DaylightUI.PlateReport.marksOn, "the dots stay up through the run without the module too")
     DaylightUI.RunCommand("platefix")
     T.eq(cvars.nameplateMaxDistance, "default:nameplateMaxDistance", "plate settings to the game's defaults")
+    printed = {}
     DaylightUI.RunCommand("platefix yes")
+    T.truthy(table.concat(printed, "\n"):find("screenshot", 1, true), "the end asks for the screenshot")
     DaylightUI.Print = was
     local text = shownText()
     T.truthy(text and text:find("step 2 brought them back", 1, true), tostring(text))

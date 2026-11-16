@@ -318,8 +318,10 @@ end
 -- a numbered dot pinned to each plate and a line to it from the middle of the
 -- screen, on a layer of the screen itself. They draw even when nothing on the
 -- plate does, and a screenshot then shows whether the plates are where their
--- units are, somewhere else, or nowhere. Gone again after MARK_SECONDS.
+-- units are, somewhere else, or nowhere. Gone again after MARK_SECONDS, except
+-- during a /dui platefix run, which holds them to its end.
 R.MARK_SECONDS = 20
+R.MARK_AFTER = 60 -- seconds they stay once a platefix run is over
 R.MARK_SIZE = 10
 R.MARK_LINE = 2
 R.marks = {}
@@ -346,8 +348,9 @@ function R.Unmark()
     if R.markLayer then DUI.Motion.AlphaTo(R.markLayer, 0, DUI.Motion.NORMAL, true) end
 end
 
--- Returns how many plates were marked.
-function R.Mark()
+-- Returns how many plates were marked. keep: how many seconds they stay
+-- (MARK_SECONDS when left out), or true to leave them until R.Release.
+function R.Mark(keep)
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
     if not get then return 0 end
     local layer = R.markLayer
@@ -385,15 +388,63 @@ function R.Mark()
         end
     end
     for i = n + 1, #R.marks do showMark(R.marks[i], false) end
-    if n == 0 then return 0 end
-    R.marksOn = true
     R.markRun = (R.markRun or 0) + 1
+    if n == 0 and keep ~= true then return 0 end
+    R.marksOn = true
     local run = R.markRun
     DUI.Motion.AlphaTo(layer, 1, DUI.Motion.NORMAL)
-    C_Timer.After(R.MARK_SECONDS, function()
-        if R.markRun == run then R.Unmark() end
-    end)
+    if keep ~= true then
+        C_Timer.After(keep or R.MARK_SECONDS, function()
+            if R.markRun == run then R.Unmark() end
+        end)
+    end
     return n
+end
+
+-- Held through a /dui platefix run: the steps rebuild the game's plates, so
+-- the dots are pinned again whenever a plate comes or goes.
+function R.Hold()
+    R.markHeld = true
+    return R.Mark(true)
+end
+
+function R.Release(seconds)
+    R.markHeld = nil
+    return R.Mark(seconds)
+end
+
+local function remark()
+    if not R.markHeld or R.markQueued then return end
+    R.markQueued = true
+    C_Timer.After(0, function()
+        R.markQueued = nil
+        if R.markHeld then R.Mark(true) end
+    end)
+end
+DUI.RegisterEvent("NAME_PLATE_UNIT_ADDED", remark)
+DUI.RegisterEvent("NAME_PLATE_UNIT_REMOVED", remark)
+
+-- The first step of a platefix run puts the dots up, and its end asks for the
+-- screenshot while they're still there. In English like the rest of platefix,
+-- since players send these lines in.
+function R.HoldSaid()
+    return "platefix: each numbered dot is where the game has a nameplate, with a line to it from the middle of "
+        .. "the screen. They stay on until you're done."
+end
+
+function R.ReleaseSaid(n)
+    if n == 0 then return "platefix: please take a screenshot now and send it with the report." end
+    return string.format("platefix: please take a screenshot now, with the numbered dots on screen, and send it with "
+        .. "the report. The dots stay for %d seconds.", R.MARK_AFTER)
+end
+
+function R.FixBegin()
+    R.Hold()
+    DUI.Print(R.HoldSaid())
+end
+
+function R.FixEnd()
+    DUI.Print(R.ReleaseSaid(R.Release(R.MARK_AFTER)))
 end
 
 function R.MarkSaid(n)
@@ -456,6 +507,7 @@ local function fixDone(step)
     DUI.Profiles.ShowText(L["Nameplate report"], L["Ctrl+C to copy, then paste it in a bug report on the Daylight UI Discord. "
         .. "After that, /reload."], text)
     for line in string.gmatch(text, "[^\n]+") do DUI.Print(line) end
+    R.FixEnd()
 end
 
 function R.Fix()
@@ -466,7 +518,10 @@ function R.Fix()
         return "platefix: that was every step and none brought them back. Copy the text in the box and send it to the "
             .. "Daylight UI team, then /reload."
     end
-    if n == 1 then fixRun = { did = {}, before = R.CheckLines(2), world = R.World() } end
+    if n == 1 then
+        fixRun = { did = {}, before = R.CheckLines(2), world = R.World() }
+        R.FixBegin()
+    end
     fixStep = n
     local ok, did = pcall(R.FIX[n])
     if not ok then did = "failed (" .. tostring(did) .. ")" end

@@ -1299,6 +1299,7 @@ function Manager.FixDone(step)
         .. "After that, /reload."], text)
     -- In chat too, so a screenshot still carries it if the box can't be copied.
     for line in string.gmatch(text, "[^\n]+") do DUI.Print(line) end
+    Report.FixEnd()
     return text
 end
 
@@ -1315,6 +1316,7 @@ function Manager.Fix()
     -- Snapshot the plates now, still invisible, before anything is undone.
     if n == 1 then
         Manager.fixRun = { did = {}, before = Manager.CheckLines(Manager.REPORT_PLATES), world = Manager.ReportWorld() }
+        Report.FixBegin()
     end
     Manager.fixStep = n
     local ok, did = pcall(Manager.FIX[n])
