@@ -291,8 +291,8 @@ end
 -- order the game scans. Only self auras skip the target, since selfAura false
 -- doesn't mean "on the target" (Battle Shout reports false).
 local function setup(h, id)
-    h.id, h.containers, h.err = id, {}, nil
-    h.builtAt = GetTime()     -- a buff already up appears with the new container; not a proc
+    h.id, h.containers, h.err, h.clientUp = id, {}, nil, nil
+    h.builtAt = GetTime()    -- a buff already up appears with the new container; not a proc
     -- When auras can't be read, wait for a buff that's already up to show its
     -- button, then ask again. No button means down.
     if A.Readable and not A.Readable() then
@@ -760,7 +760,9 @@ local function watchEnd(h)
         if GetTime() < goneAt(h) then return watchEnd(h) end
         h.endsAt = nil
         local was = h.up
-        if readable() or h.selfDebuff then A.IsUp(h) elseif was then h.up = false end
+        -- The client's button still showing it means someone refreshed it: the
+        -- button goes away by itself when it really ends.
+        if readable() or h.selfDebuff then A.IsUp(h) elseif was and not h.clientUp then h.up = false end
         paintFace(h)
         if h.up ~= was and h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
     end)

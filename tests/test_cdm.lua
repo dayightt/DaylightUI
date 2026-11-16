@@ -7122,6 +7122,43 @@ T.test("cdm custom: in a dungeon a buff of ours is told up and down by its butto
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Battle Shout in a fight: another warrior shouts again while yours is still up.
+-- The client keeps the same button up with the new time and sends no signal, so
+-- the clock from your own cast must not take it down: the button decides.
+T.test("cdm custom: in a fight a buff someone else refreshed stays up while its button does", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    D.AddPiece(set, "s6673", "icon", 0, 0)
+    stub.auras.player = { HELPFUL = {} }
+    refresh(AB)
+    local h = AB.CdmAuras.Frame("s6673")
+    h.wantsUp = true
+    local btn = h.containers[1].c.__groups.a.button
+    stub.combat = true
+    stub.SetRestriction("Map", true)
+    h.auraLasts = 120
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 6673); stub.RunTimers()
+    stub.AuraVisible(btn, true); stub.RunTimers()
+    T.eq(h.up, true, "your shout: up")
+    -- Past your shout's end, the other warrior's is still on you.
+    stub.Advance(125); stub.RunTimers()
+    T.eq(h.up, true, "their shout keeps the button up: still up")
+    stub.AuraVisible(btn, false); stub.RunTimers()
+    T.eq(h.up, false, "their shout ran out: down")
+    -- With no button heard at all, your cast's clock still ends it.
+    local anims = btn.__shownAnims
+    btn.__shownAnims = {}
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 6673); stub.RunTimers()
+    T.eq(h.up, true, "cast again: up")
+    stub.Advance(125); stub.RunTimers()
+    T.eq(h.up, false, "no button heard: the clock ends it")
+    btn.__shownAnims = anims
+    stub.combat = false
+    stub.SetRestriction("Map", false)
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Shield Block in a dungeon fight: the client's button gave no sign at all, so
 -- after the cast it read as up for good and held an empty spot. Your cast is
 -- plain, and its length is the one the buff had the last time it could be read,

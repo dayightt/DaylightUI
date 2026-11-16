@@ -667,6 +667,14 @@ function Fx.AuraHeard(h, what)
     h.heard = h.heard or {}
     table.insert(h.heard, string.format("%s %.1f%s", what, GetTime(), InCombatLockdown() and " fight" or ""))
     if #h.heard > 8 then table.remove(h.heard, 1) end
+    -- Whether the client's button shows the aura. Someone else refreshing it keeps
+    -- the same button up and sends nothing, so this outlasts your own cast's clock.
+    -- A holder hidden with its chain stops the animations too, which isn't the aura ending.
+    if what == "play" then
+        h.clientUp = true
+    elseif DOWN[what] and (what ~= "stop" or h:IsVisible()) then
+        h.clientUp = nil
+    end
     local A = ns.CdmAuras
     if not A then return end
     if what == "play" then A.Shown(h) elseif DOWN[what] then A.Hidden(h) end
