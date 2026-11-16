@@ -3218,6 +3218,32 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     T.eq(marked.wash.__vertex[4], stub.skins.Kit.ROW_PICK, "that hover is the same accent as other rows")
     T.eq(star.highlight:GetTexture(), "Interface\\Buttons\\WHITE8x8", "a marker row's hover is the wash, not the icon")
     T.eq(track.icon:GetTexture(), 424242, "a tracking menu's icon is left alone")
+    -- The menu pools its textures, so the raid icon can come back still in ADD
+    -- blend from an earlier row's hover. It is still the icon, not the hover.
+    _G.RAID_TARGET_3 = "Diamante"
+    local reused = CreateFrame("Button", nil, menu)
+    reused.text = reused:CreateFontString()
+    reused.text:SetText("Diamante")
+    reused.text:SetTextColor(1, 1, 1)
+    reused.icon = reused:CreateTexture()
+    reused.icon:SetBlendMode("ADD")
+    reused.icon:SetSize(16, 16)
+    reused.icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    reused.icon:SetSpriteSheetCell(3, 4, 4)
+    _G.RAID_TARGET_NONE = "Ninguno"
+    local none = CreateFrame("Button", nil, menu)
+    none.text = none:CreateFontString()
+    none.text:SetText("Ninguno")
+    none.text:SetTextColor(1, 1, 1)
+    none.icon = none:CreateTexture()
+    none.icon:SetBlendMode("ADD")
+    none.icon:SetSize(16, 16)
+    none.icon:SetTexture("")
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(reused.icon:GetTexture(), DaylightUI.MEDIA .. "marker-3.png", "a reused raid icon still gets our marker")
+    T.eq(reused.icon:GetBlendMode(), "BLEND", "our marker draws plainly, not as a glow")
+    T.eq(none.icon:GetTexture(), "", "the None row's empty spot is not painted as a hover box")
     local holder
     for _, c in ipairs({ menu:GetParent():GetChildren() }) do
         if c.ignoreInLayout and c.GetScript and c:GetScript("OnUpdate") then holder = c end

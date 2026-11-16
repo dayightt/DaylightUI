@@ -30,6 +30,7 @@ DUI.PatchNotes = {
             { "Unit frames", "The player frame fades again with both \"Only at full health\" and \"Only at full mana\" on" },
             { "Chat", "Typing in a channel by its number, like /7, talks in the channel the game said it was, not in another addon's hidden channel" },
             { "Window skins", "The game menu's buttons, and other windows' buttons, no longer switch to a bigger font when you point at them" },
+            { "Window skins", "The raid marker menu shows the marker icons again instead of empty dark boxes" },
         },
     },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",

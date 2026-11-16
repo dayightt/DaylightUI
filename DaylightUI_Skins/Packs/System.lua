@@ -1238,7 +1238,6 @@ local function menuMarkerNumber(tex, frame)
         or frame.arrow == tex or frame.divider == tex or frame.Divider == tex) then
         return nil
     end
-    if tex.GetBlendMode and tex:GetBlendMode() == "ADD" then return nil end
     if not menuIconSized(tex) then return nil end
     local known = menuMarkerKnown(tex)
     local index = menuRaidLabel(frame)
@@ -1249,6 +1248,7 @@ local function menuMarkerArt(tex, frame)
     local index = menuMarkerNumber(tex, frame)
     if not index then return false end
     tex:SetTexture((DUI.MEDIA .. "marker-%d.png"):format(index))
+    if tex.SetBlendMode then tex:SetBlendMode("BLEND") end
     if tex.SetTexCoord then tex:SetTexCoord(0, 1, 0, 1) end
     tex:SetVertexColor(1, 1, 1, 1)
     return true
@@ -1268,6 +1268,9 @@ local function menuIsHighlight(owner, tex)
     if owner.highlight == tex or owner.Highlight == tex then return true end
     local name = menuAtlas(tex) .. " " .. menuPath(tex)
     if name:find("questtitlehighlight", 1, true) then return true end
+    -- The menu pools its textures, so a raid icon can come back still in ADD
+    -- blend from an earlier hover. A hover spans the row; an icon-sized one is no hover.
+    if menuIconSized(tex) then return false end
     if tex.GetBlendMode and tex:GetBlendMode() == "ADD" then return true end
     -- The hover is the texture stretched across the row. In game it often
     -- reports no width, so the icon's picture was ending up as the wash.
