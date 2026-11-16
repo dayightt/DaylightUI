@@ -34,13 +34,19 @@ T.test("Flow rolls the bar's own colors on a loop the client runs", function()
     DUI:Set("general", "barFx.health.style", "flow")
     DUI.BarFx.Track(bar, "health", nil, "player")
     T.eq(DUI.BarFx.StyleOf(bar), "flow")
-    local clip = DUI.Style.FillClip(bar)
-    T.truthy(clip.__clips, "the layers are clipped to the fill")
-    T.truthy(clip.mask, "with the fill's angled edge")
-    local n = 0
-    for _ in pairs(clip.texes) do n = n + 1 end
-    T.eq(n, 4, "four strips")
-    for tex, masked in pairs(clip.texes) do T.truthy(masked, "each strip takes the angled edge") end
+    -- On the bar itself, just over the fill, under anything laid over the fill
+    -- (hidden-class colors at sublevel 1, a cast's locked color at 2).
+    local _, fillSub = bar:GetStatusBarTexture():GetDrawLayer()
+    local strips = 0
+    for _, r in ipairs({ bar:GetRegions() }) do
+        local layer, sub = r:GetDrawLayer()
+        if r ~= bar:GetStatusBarTexture() and r:GetObjectType() == "Texture" and layer == "ARTWORK"
+            and sub > fillSub and sub < 1 then
+            strips = strips + 1
+            T.truthy(#(r.__masks or {}) >= 1, "masked to the fill")
+        end
+    end
+    T.eq(strips, 5, "four strips and the bar texture over them, between the fill and its overlays")
     DUI:Set("general", "barFx.health.style", "none")
     DUI.Fire("StyleChanged")
     T.isnil(DUI.BarFx.StyleOf(bar), "picking none takes it off")
@@ -135,4 +141,19 @@ end)
 T.test("a brand-new account isn't asked: its setup starts with them on", function()
     local DUI = stub.Load({})
     T.falsy(DUI.BarFx.ShouldAsk())
+end)
+
+T.test("a Daylight sweep bar flows its own sweep, never plain white", function()
+    local DUI = stub.Load({})
+    local Style = DUI.Style
+    local bar = Style.Bar(UIParent)
+    bar:SetSize(200, 20)
+    Style.SetBarGradient(bar, true)
+    DUI.BarFx.Track(bar, "health", nil, "player")
+    local sweeps = 0
+    for _, r in ipairs({ bar:GetRegions() }) do
+        if r:GetObjectType() == "Texture" and r.GetTexture and r:GetTexture() == Style.GRADIENT_FILE
+            and r ~= bar:GetStatusBarTexture() then sweeps = sweeps + 1 end
+    end
+    T.eq(sweeps, 4, "every strip is the sweep image")
 end)

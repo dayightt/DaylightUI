@@ -217,5 +217,6 @@ function Health.ApplyGradient(bar, u)
     local ok, col = pcall(UnitHealthPercent, u, true, c)
     if ok and type(col) == "table" and col.GetRGB then
         pcall(bar.SetStatusBarColor, bar, col:GetRGB())
+        DUI.Style.NoteFill(bar:GetStatusBarTexture(), col)
     end
 end

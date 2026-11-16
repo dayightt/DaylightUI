@@ -69,23 +69,49 @@ function BarFx.Colors(s)
     return Style.FillColors(s.bar:GetStatusBarTexture())
 end
 
--- Flow: four strips, the bar's two colors there and back twice, on a holder two
--- bars wide that slides one bar width and starts over, so it never seams.
+local function setSpeedOf(s)
+    local a = s.flow and s.flow.anim
+    if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, s.speed or 1)) end
+end
+
+-- Flow: the bar's own gradient there and back twice, as four strips two bars
+-- wide in all that slide one bar width and start over, so it never seams.
+-- They lie on the bar itself, just over the fill and under everything else
+-- drawn on it (hidden-class colors, a cast's "can't interrupt" color), masked
+-- to the fill's shape. Strips are flat colors, or the Daylight sweep's own
+-- image, which is smooth, so its mirrored copies meet cleanly; the bar's
+-- texture lies over them once, still, in MOD, as over the real fill.
+BarFx.WHITE = "Interface\\Buttons\\WHITE8X8"
+BarFx.FILL_SUB = -3   -- the fill's sublevel while a style shows; strips and texture just above
+
 local function buildFlow(s)
     local bar = s.bar
-    local clip = Style.FillClip(bar)
-    local h = CreateFrame("Frame", nil, clip)
-    h.strips = {}
-    for i = 1, 4 do
-        local t = h:CreateTexture(nil, "ARTWORK")
-        Style.ClipToFill(bar, t)
-        h.strips[i] = t
-    end
-    h.anim = h:CreateAnimationGroup()
+    local h = { strips = {}, slides = {} }
+    h.anim = bar:CreateAnimationGroup()
     h.anim:SetLooping("REPEAT")
-    h.slide = h.anim:CreateAnimation("Translation")
-    h.slide:SetDuration(BarFx.FLOW_LOOP)
+    for i = 1, 4 do
+        local t = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
+        Style.MaskToFill(bar, t)
+        h.strips[i] = t
+        local a = h.anim:CreateAnimation("Translation")
+        a:SetTarget(t)
+        a:SetDuration(BarFx.FLOW_LOOP)
+        h.slides[i] = a
+    end
+    h.grain = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    h.grain:SetBlendMode("MOD")
+    Style.FollowFill(bar, h.grain)
+    -- The game stops a frame's animations while it's hidden: start again on show.
+    bar:HookScript("OnShow", function()
+        if s.style and s.flow and s.flow.shown and not h.anim:IsPlaying() then h.anim:Play(); setSpeedOf(s) end
+    end)
     s.flow = h
+end
+
+local function showFlow(h, on)
+    h.shown = on
+    for _, t in ipairs(h.strips) do t:SetShown(on) end
+    h.grain:SetShown(on and h.grainOn == true)
 end
 
 local function layoutFlow(s)
@@ -95,38 +121,51 @@ local function layoutFlow(s)
     local ht = bar:GetHeight()
     if s.laidW == w and s.laidH == ht then return end
     s.laidW, s.laidH = w, ht
-    h:ClearAllPoints()
-    h:SetPoint("TOPLEFT", bar, "TOPLEFT", -w, 0)
-    h:SetSize(2 * w, ht)
-    for i, t in ipairs(h.strips) do
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", h, "TOPLEFT", (i - 1) * w / 2, 0)
-        t:SetSize(w / 2, ht)
-    end
     local was = h.anim:IsPlaying()
     h.anim:Stop()
-    h.slide:SetOffset(w, 0)
-    if was or s.style then h.anim:Play() end
+    for i, t in ipairs(h.strips) do
+        t:ClearAllPoints()
+        -- A pixel of overlap, so no gap shows where two strips meet.
+        t:SetPoint("TOPLEFT", bar, "TOPLEFT", -w + (i - 1) * w / 2, 0)
+        t:SetSize(w / 2 + 1, ht)
+        h.slides[i]:SetOffset(w, 0)
+    end
+    if (was or s.style) and h.shown then h.anim:Play(); setSpeedOf(s) end
 end
 
 local function paintFlow(s)
     local h, bar = s.flow, s.bar
     local fill = bar:GetStatusBarTexture()
-    local lo, hi = BarFx.Colors(s)
-    -- Colors the game keeps secret (a hidden class) can't be copied: the plain
-    -- fill stays.
-    if not lo then h:Hide(); return false end
-    local file = fill.GetTexture and fill:GetTexture()
+    local mode = BarFx.Get(s.kind, "colors")
+    local grain, sweep = Style.BarGrainOf(bar)
+    sweep = sweep and mode == "bar"
+    local lo, hi
+    if not sweep then
+        lo, hi = BarFx.Colors(s)
+        -- Colors the game keeps secret (a hidden class, health by percent in a
+        -- fight) can't be copied: the plain fill stays.
+        if not lo then showFlow(h, false); return false end
+    end
+    fill:SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
     local alpha = BarFx.Get(s.kind, "strength") or 1
     for i, t in ipairs(h.strips) do
-        t:SetTexture(file or "Interface\\Buttons\\WHITE8X8")
         local back = i % 2 == 0
-        t:SetTexCoord(back and 1 or 0, back and 0 or 1, 0, 1)
-        local a, b = back and hi or lo, back and lo or hi
         t:SetVertexColor(1, 1, 1, 1)
-        t:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], alpha), CreateColor(b[1], b[2], b[3], alpha))
+        if sweep then
+            -- CLAMP, or the game blends each edge with the far one: a line at both ends.
+            t:SetTexture(Style.GRADIENT_FILE, "CLAMP", "CLAMP")
+            t:SetTexCoord(back and 1 or 0, back and 0 or 1, 0, 1)
+            t:SetVertexColor(1, 1, 1, alpha)
+        else
+            t:SetTexture(BarFx.WHITE)
+            t:SetTexCoord(0, 1, 0, 1)
+            local a, b = back and hi or lo, back and lo or hi
+            t:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], alpha), CreateColor(b[1], b[2], b[3], alpha))
+        end
     end
-    h:Show()
+    h.grainOn = grain ~= nil
+    if grain then h.grain:SetTexture(grain, "CLAMP", "CLAMP") end
+    showFlow(h, true)
     return true
 end
 
@@ -138,7 +177,7 @@ end
 local function stop(s)
     if s.flow then
         s.flow.anim:Stop()
-        s.flow:Hide()
+        showFlow(s.flow, false)
     end
     s.style = nil
 end

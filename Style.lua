@@ -1838,6 +1838,8 @@ end
 local fillMask = setmetatable({}, { __mode = "k" })
 local fillOver = setmetatable({}, { __mode = "k" }) -- bar -> { [tex] = true } (Style.FollowFill)
 local overMask = setmetatable({}, { __mode = "k" }) -- overlay texture -> the fill's mask it carries
+local fillRect = setmetatable({}, { __mode = "k" })   -- bar -> mask over the fill
+local fillMasked = setmetatable({}, { __mode = "k" }) -- bar -> { [tex] = true }
 
 -- The angled moving edge on tex, following the edge of anchor (the fill whose
 -- rect tex shares). m is the mask from last time, or nil. Returns it.
@@ -1858,7 +1860,7 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     m:SetPoint("TOP" .. p, anchor, "TOP" .. p, 0, 0)
     m:SetPoint("BOTTOM" .. p, anchor, "BOTTOM" .. p, 0, 0)
     m:SetWidth(4 * cut)
-    m.side, m.cut, m.under = side, cut, under == true
+    m.side, m.cut = side, cut
     if not m.added then
         tex:AddMaskTexture(m)
         m.added = true
@@ -1886,55 +1888,27 @@ function Style.AngleFill(bar, side, cut, under)
     if over then
         for tex in pairs(over) do shareEdge(tex, fillMask[bar]) end
     end
-    if Style.LayoutFillClip then Style.LayoutFillClip(bar) end
-end
-
--- A frame covering exactly a bar's fill (it grows with it) that clips what's
--- inside it, for layers that move through the fill (bar styles). A mask only
--- works on textures of its own frame, so the clip has its own copy of the
--- fill's angled edge, laid again at every AngleFill.
-local fillClip = setmetatable({}, { __mode = "k" }) -- bar -> clip frame
-function Style.FillClip(bar)
-    local c = fillClip[bar]
-    if c then return c end
-    c = CreateFrame("Frame", nil, bar)
-    c:SetAllPoints(bar:GetStatusBarTexture())
-    c:SetClipsChildren(true)
-    c.texes = {}
-    fillClip[bar] = c
-    Style.LayoutFillClip(bar)
-    return c
-end
-
-function Style.LayoutFillClip(bar)
-    local c = fillClip[bar]
-    if not c then return end
-    local fm = fillMask[bar]
-    local want = fm and fm.added
-    local m = c.mask
-    if want then
-        m = m or c:CreateMaskTexture()
-        c.mask = m
-        local p = fm.side == "right" and "RIGHT" or "LEFT"
-        local fill = bar:GetStatusBarTexture()
-        m:SetTexture(slantImage(false, fm.side, fm.under, false), "CLAMP", "CLAMP")
-        m:ClearAllPoints()
-        m:SetPoint("TOP" .. p, fill, "TOP" .. p, 0, 0)
-        m:SetPoint("BOTTOM" .. p, fill, "BOTTOM" .. p, 0, 0)
-        m:SetWidth(4 * fm.cut)
-    end
-    for tex, has in pairs(c.texes) do
-        if want and not has then tex:AddMaskTexture(m); c.texes[tex] = true
-        elseif not want and has then tex:RemoveMaskTexture(m); c.texes[tex] = false end
+    local masked = fillMasked[bar]
+    if masked then
+        for tex in pairs(masked) do shareEdge(tex, fillMask[bar]) end
     end
 end
 
--- A texture made in Style.FillClip(bar) that should stop at the fill's
--- angled edge.
-function Style.ClipToFill(bar, tex)
-    local c = Style.FillClip(bar)
-    if c.texes[tex] == nil then c.texes[tex] = false end
-    Style.LayoutFillClip(bar)
+-- A texture on the bar itself that may move through the fill (bar styles)
+-- but shows only inside it: a mask the fill's size (it grows with it) plus the
+-- fill's angled edge, kept in step by AngleFill. Two masks per texture.
+function Style.MaskToFill(bar, tex)
+    local r = fillRect[bar]
+    if not r then
+        r = bar:CreateMaskTexture()
+        r:SetTexture("Interface\\Buttons\\WHITE8X8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        r:SetAllPoints(bar:GetStatusBarTexture())
+        fillRect[bar] = r
+    end
+    tex:AddMaskTexture(r)
+    fillMasked[bar] = fillMasked[bar] or {}
+    fillMasked[bar][tex] = true
+    shareEdge(tex, fillMask[bar])
 end
 
 -- The colors a bar's fill was last painted with, kept for the bar styles
@@ -1962,7 +1936,7 @@ local function noteRGB(tex, r1, g1, b1, r2, g2, b2)
 end
 local function unpackColor(c)
     if type(c) ~= "table" then return end
-    if c.GetRGB then return c:GetRGB() end
+    if c.r ~= nil then return c.r, c.g, c.b end
     return c[1], c[2], c[3]
 end
 function Style.NoteFill(tex, lo, hi)
@@ -2067,6 +2041,15 @@ function Style.BackFile(slot)
 end
 
 local gradFills = setmetatable({}, { __mode = "k" }) -- bar -> true when filled with the Daylight gradient
+
+-- What a bar style lays over flat colors so they keep the bar's texture (in
+-- MOD), or nil: a Daylight sweep bar shows its texture only when a shared one
+-- is picked. Whether the bar wears the sweep comes second.
+function Style.BarGrainOf(bar)
+    if gradFills[bar] then return Style.SharedBar(slotOf[bar]), true end
+    return Style.BarFile(fills[bar], slotOf[bar]), false
+end
+
 local gradGrain = setmetatable({}, { __mode = "k" }) -- bar -> the picked bar texture laid over its gradient
 
 -- The Daylight gradient keeps a shared bar texture the player picked, laid
