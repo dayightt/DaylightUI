@@ -77,7 +77,7 @@ ns.DEFAULTS = {
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
     -- at: where it sits (CastBar.AT). "below" hangs under your frame, "above"
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
-    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, reverseFill = false,
+    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, slantLeft = false, reverseFill = false,
                       from = "frame",   -- when hung "below": under the player frame, or "power" for under a free-standing power bar (player.powerAt free)
                       shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },   -- its own border (UF.OwnShell)
     -- The target's cast bar: inside its frame over the power bar (at = "power"),
@@ -85,7 +85,7 @@ ns.DEFAULTS = {
     -- x/y) or on its own mover ("free").
     -- insideText*: its text while inside the frame (size 0 fits the power bar,
     -- X/Y nudge both texts).
-    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, reverseFill = false,
+    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, slantLeft = false, reverseFill = false,
                       insideTextSize = 0, insideTextX = 0, insideTextY = 0 },
     -- Every cast bar's colors, fill and interrupts.
     casts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
@@ -99,7 +99,7 @@ ns.DEFAULTS = {
               -- interrupt comes off cooldown (DUI.Interrupt).
               kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false },
     -- The focus cast bar: inside its frame over the power bar, or its own.
-    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, reverseFill = false },
+    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the
     -- power bar ("power"), hung under it and sliding out ("slide"), or its own
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).

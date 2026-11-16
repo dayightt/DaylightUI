@@ -195,6 +195,7 @@ function CB.Create(unit, attachTo, into, opts)
     end
     local media = ns.UF.MEDIA.cast[h.kind] or ns.UF.MEDIA.cast.target
     h.bar = Style.Bar(h, nil, media.bar)
+    DUI.BarFx.Track(h.bar, "cast")
     if not into then
         Style.Clip(h, h.bar:GetStatusBarTexture(), "inner")
         Style.Clip(h, Style.BarBack(h.bar), "inner")
@@ -500,17 +501,23 @@ function CB.Layout(h, cfg, parentCfg)
         local width = cfg.width
         local f = h.near
         -- Under the personal display: as wide as it and cut the same way.
-        local slant = cfg.slant
+        -- Otherwise each end has its own switch; the left one leans like
+        -- the target frame's end, so a bar under it can match.
+        local right, left = cfg.slant == true, cfg.slantLeft == true
         if at == "personal" then
             width = ns.Personal.frame:GetWidth()
-            slant = ns.module.db.personal.slant ~= false
+            right, left = ns.module.db.personal.slant ~= false, false
         elseif f and (at == "above" or at == "below") and cfg.fitFrame == true then
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
         end
         h:SetSize(2 * Pixel.Snap(h, width / 2), height)
-        cut = slant and Pixel.Snap(h, cfg.height * (at == "personal" and ns.Personal.Angle() or ns.UF.SLANT)) or 0
-        Style.Slant(h, slant and "right" or nil, cut)
-        Style.AngleFill(h.bar, (slant and not cfg.reverseFill) and "right" or nil, cut * (height - 2 * T) / height)
+        cut = (right or left) and Pixel.Snap(h, cfg.height * (at == "personal" and ns.Personal.Angle() or ns.UF.SLANT)) or 0
+        side = right and left and "both" or right and "right" or left and "left" or nil
+        Style.Slant(h, side, cut)
+        -- The fill's moving edge takes the angle of the end it runs toward.
+        local edge
+        if cfg.reverseFill == true then edge = left and "left" or nil else edge = right and "right" or nil end
+        Style.AngleFill(h.bar, edge, cut * (height - 2 * T) / height)
         if h.near and at == "above" then
             CB.PlaceAt(h, h.near, at, cfg.x, cfg.y)
         elseif h.near and at == "below" then
@@ -527,11 +534,13 @@ function CB.Layout(h, cfg, parentCfg)
     local contentLead = h.lead
     if h.icon and cfg.showIcon and not hang and not middle then
         local s = cfg.height - 2 * T
+        -- An angled left end would cut the icon, so it starts past the angle.
+        local lead = h.lead + ((side == "left" or side == "both") and cut or 0)
         h.icon:ClearAllPoints()
-        h.icon:SetPoint("TOPLEFT", h, "TOPLEFT", T + h.lead, -T)
+        h.icon:SetPoint("TOPLEFT", h, "TOPLEFT", T + lead, -T)
         h.icon:SetSize(s, s)
         h.icon:Show()
-        contentLead = h.lead + s
+        contentLead = lead + s
     elseif h.icon then
         h.icon:Hide()
     end

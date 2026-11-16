@@ -408,14 +408,14 @@ function ns.Refresh(mod, path)
         CB.Layout(ns.targetCastbar, { enabled = tc.enabled and tAt == "power", spell = tc.spell, time = tc.time,
                                       insideTextSize = tc.insideTextSize, insideTextX = tc.insideTextX, insideTextY = tc.insideTextY }, db.target)
         CB.Layout(ns.targetCastbarFree, { enabled = tc.enabled and tAt ~= "power", at = tAt, x = tc.x, y = tc.y, drop = (tSlides or tAt == "below") and tPips or 0,
-                                          width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant,
+                                          width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant, slantLeft = tc.slantLeft,
                                           spell = tc.spell, time = tc.time, reverseFill = tc.reverseFill, strata = tc.strata })
         DUI.Movers.Suspend("unitframes.targetCastbar", tAt ~= "free")
         local fc = db.focusCastbar
         local fAt = CB.At("focus", fc)
         CB.Layout(ns.focusCastbar, { enabled = fc.enabled and fAt == "power", spell = fc.spell, time = fc.time }, db.focus)
         CB.Layout(ns.focusCastbarFree, { enabled = fc.enabled and fAt ~= "power", at = fAt, x = fc.x, y = fc.y,
-                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fc.slant,
+                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fc.slant, slantLeft = fc.slantLeft,
                                          spell = fc.spell, time = fc.time, reverseFill = fc.reverseFill, strata = fc.strata })
         DUI.Movers.Suspend("unitframes.focusCastbar", fAt ~= "free")
         -- The display first, since your cast bar and swing bars may stand under it.
