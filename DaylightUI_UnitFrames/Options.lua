@@ -9,7 +9,8 @@ local function lastNames(element)
         desc = "Players' last names after their first, on this frame only. "
             .. "Where the game hides names (in combat, in places) only the first name shows.",
         get = function() return DaylightUI:Get("general", path) == true end,
-        set = function(v) DaylightUI:Set("general", path, v) end }
+        set = function(v) DaylightUI:Set("general", path, v) end,
+        default = function() return DaylightUI.DB.GENERAL_DEFAULTS.lastNames[element] == true end }
 end
 
 local _, ns = ...
@@ -991,12 +992,21 @@ local PET_AURA_GROUPS = unitAuraCards("petAuras", "pet", {
 local PERSONAL_AURA_GROUPS = unitAuraCards("personal.auras", true, {
     debuffs = "Every debuff on you, by your personal display. Off by default.",
     buffs = "Buff icons by your personal display. Off by default." })
-for _, card in ipairs(PERSONAL_AURA_GROUPS) do
-    for _, item in ipairs(card.items) do
-        local was = item.disabled
-        item.disabled = function(get) return get("personal.enabled") ~= true or (was ~= nil and was(get)) end
+
+-- Each frame's aura rows dim with the frame itself, as its other cards do.
+local function dimWith(cards, key)
+    for _, card in ipairs(cards) do
+        for _, item in ipairs(card.items) do
+            local was = item.disabled
+            item.disabled = function(get) return get(key) ~= true or (was ~= nil and was(get)) end
+        end
     end
 end
+dimWith(PERSONAL_AURA_GROUPS, "personal.enabled")
+dimWith(PLAYER_AURA_GROUPS, "player.enabled")
+dimWith(TARGET_AURA_GROUPS, "target.enabled")
+dimWith(FOCUS_AURA_GROUPS, "focus.enabled")
+dimWith(PET_AURA_GROUPS, "pet.enabled")
 
 -- The Party page's pets (PartyPets.lua): one card, off by default.
 -- Bar textures and fonts are per frame (<frame>.media.*, UF.MEDIA), each row
@@ -1436,7 +1446,7 @@ end
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
     tabHeight = true, slant = true, fillVertical = true,
-    showInParty = true, direction = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
+    showInParty = true, direction = true, growLeft = true, growUp = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
 local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
@@ -1671,6 +1681,7 @@ local function framePage(id, label, desc, opts)
             desc = "A small skull on the portrait once your damage over time is enough to finish the target.", disabled = shown }
     end
 
+    local nameOff = offAny(k("enabled"), k("showName"))
     local text = {
         { type = "toggle", key = k("showName"), label = (opts.tab and not opts.small) and "Name tab" or "Name",
           desc = (opts.tab and not opts.small) and "The name sits in a small tab above the frame. Long names are cut short."
@@ -1679,11 +1690,11 @@ local function framePage(id, label, desc, opts)
         lastNames(id),
         { type = "dropdown", key = k("nameColor"), label = "Name color", values = NAME_COLORS, order = NAME_COLOR_ORDER,
           desc = "This frame's own name color. Same as the Colors page follows the name color every frame shares.",
-          disabled = shown },
+          disabled = nameOff },
         { type = "color", key = k("nameCustom"), label = "Custom name color", hidden = notCustom(k("nameColor")),
-          desc = "The name's color when Name color is Custom.", disabled = shown },
+          desc = "The name's color when Name color is Custom.", disabled = nameOff },
         { type = "slider", key = k("nameLimitLen"), label = "Max name length", min = 0, max = 24, step = 1,
-          desc = "Letters shown before a long name is shortened. 0 shows names in full. In instances some names can't be shortened and show in full.", disabled = shown },
+          desc = "Letters shown before a long name is shortened. 0 shows names in full. In instances some names can't be shortened and show in full.", disabled = nameOff },
     }
     if opts.tab then
         table.insert(text, 2, { type = "toggle", key = k("nameOnBar"), label = "Name on the bar",
@@ -1771,10 +1782,15 @@ local function framePage(id, label, desc, opts)
     -- Sizes: this frame's own (the party's are shared by all four).
     local t = function(s) return id .. "Text." .. s end
     text[#text + 1] = { type = "slider", key = t("name"), label = "Name size", min = 6, max = 24, step = 1,
-        desc = "How big the name is on this frame.", disabled = shown }
+        desc = "How big the name is on this frame.", disabled = nameOff }
     if opts.healthText then
+        -- The large health number is the same text, sized by Large number size.
         text[#text + 1] = { type = "slider", key = t("percent"), label = "Health text size", min = 6, max = 24, step = 1,
-            desc = "How big the health text is on this frame.", disabled = shown }
+            desc = opts.big and "How big the health text is on this frame, while Large health number is off."
+                or "How big the health text is on this frame.",
+            disabled = function(get)
+                return get(k("enabled")) ~= true or get(k("showPercent")) ~= true or (opts.big and get(k("bigNumber")) == true)
+            end }
     end
     if opts.powerPos then
         text[#text + 1] = { type = "slider", key = t("power"), label = "Power text size", min = 0, max = 24, step = 1,
@@ -1782,7 +1798,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.big then
         text[#text + 1] = { type = "slider", key = t("big"), label = "Large number size", min = 10, max = 40, step = 1,
-            desc = "How big the large health number is.", disabled = shown }
+            desc = "How big the large health number is.", disabled = offAny(k("enabled"), k("showPercent"), k("bigNumber")) }
     end
     if opts.textPos then
         text[#text + 1] = { type = "slider", key = k("healthTextX"), label = "Health text left / right",
@@ -2602,11 +2618,11 @@ ns.OPTIONS = { pages = {
               desc = "Your cast bar's color while you cast." },
             { type = "color", key = "casts.channel", label = "Channeling color", hidden = fillIsNot("casts.fill", "plain"),
               desc = "Your cast bar's color while you channel." },
-            { type = "color", key = "casts.interrupted", label = "Interrupted color", hidden = fillIsNot("casts.fill", "plain"),
+            { type = "color", key = "casts.interrupted", label = "Interrupted color", hidden = fillIs("casts.fill", "pair"),
               desc = "Your cast bar's color for a moment after your cast is interrupted.",
               disabled = function(get) return get("casts.flash") ~= true end },
-            { type = "color", key = "casts.locked", label = "Can't be interrupted",
-              desc = "The bar's color while the cast can't be interrupted, whatever the fill style." },
+            { type = "color", key = "casts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
+              desc = "The bar's color while the cast can't be interrupted." },
         } },
         { label = "Target and focus cast bars' colors", items = {
             { type = "toggle", key = "targetCasts.classColor", label = "Class color on target and focus cast bars",
@@ -2616,10 +2632,10 @@ ns.OPTIONS = { pages = {
               desc = "The target and focus cast bars' color while they cast." },
             { type = "color", key = "targetCasts.channel", label = "Channeling color", hidden = fillIsNot("casts.fill", "plain"),
               desc = "The target and focus cast bars' color while they channel." },
-            { type = "color", key = "targetCasts.interrupted", label = "Interrupted color", hidden = fillIsNot("casts.fill", "plain"),
+            { type = "color", key = "targetCasts.interrupted", label = "Interrupted color", hidden = fillIs("casts.fill", "pair"),
               desc = "The target and focus cast bars' color for a moment after their cast is interrupted.",
               disabled = function(get) return get("casts.flash") ~= true end },
-            { type = "color", key = "targetCasts.locked", label = "Can't be interrupted",
+            { type = "color", key = "targetCasts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
         } },
         { label = "Target and focus interrupts", items = {
