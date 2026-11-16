@@ -228,9 +228,14 @@ function UnlockBox.IsOpen()
     return DUI.DB.Root().unlockBoxClosed ~= true
 end
 
+-- Open and the bar it hangs from not folded away.
+function UnlockBox.Wanted()
+    return UnlockBox.IsOpen() and not DUI.Movers.barHidden
+end
+
 function UnlockBox.SetOpen(open)
     DUI.DB.Root().unlockBoxClosed = (not open) or nil
-    if open and DUI.Movers.unlocked then
+    if open and DUI.Movers.unlocked and UnlockBox.Wanted() then
         UnlockBox.Layout()
         UnlockBox.frame:Show()
     elseif UnlockBox.frame then
@@ -260,7 +265,11 @@ function TestBox.Place()
     if tb then
         tb:ClearAllPoints()
         -- Over the handles while unlocked, like the unlock box.
-        if unlocked and ub then
+        if unlocked and ub and DUI.Movers.barHidden then
+            -- Under the small tab, which the unlock box isn't hanging from.
+            tb:SetPoint("TOP", UIParent, "TOP", 0, -48)
+            tb:SetFrameStrata("FULLSCREEN_DIALOG")
+        elseif unlocked and ub then
             tb:SetPoint("TOP", ub, "BOTTOM", 0, -6)
             tb:SetFrameStrata("FULLSCREEN_DIALOG")
         else
@@ -283,13 +292,36 @@ DUI.On("TestModeChanged", function(on)
 end)
 
 DUI.On("UnlockChanged", function(on)
-    if on and UnlockBox.IsOpen() then
+    if on and UnlockBox.Wanted() then
         UnlockBox.Layout()
         UnlockBox.frame:Show()
     elseif UnlockBox.frame then
         DUI.Motion.Vanish(UnlockBox.frame)
     end
     if TestBox.frame then TestBox.Place() end
+end)
+
+-- The bar folded into its tab takes the unlock box with it, and brings it back.
+DUI.On("UnlockBarChanged", function()
+    if not DUI.Movers.unlocked then return end
+    if UnlockBox.Wanted() then
+        UnlockBox.Layout()
+        UnlockBox.frame:Show()
+    elseif UnlockBox.frame then
+        DUI.Motion.Vanish(UnlockBox.frame)
+    end
+    -- The test box moves to its new place while it's faded out, then back in, so it
+    -- doesn't jump.
+    local tb = TestBox.frame
+    if tb and tb:IsShown() then
+        local M = DUI.Motion
+        M.Tween("testbox:bar", 1, 0, M.FAST, function(a) tb:SetAlpha(a) end, function()
+            TestBox.Place()
+            M.Tween("testbox:bar", 0, 1, M.FAST, function(a) tb:SetAlpha(a) end)
+        end)
+    elseif tb then
+        TestBox.Place()
+    end
 end)
 
 DUI.On("UnlockAreaChanged", function()
@@ -300,7 +332,7 @@ end)
 -- area with no handles left loses its own.
 DUI.On("SettingChanged", function()
     if TestBox.frame and TestBox.frame:IsShown() then TestBox.Layout() end
-    if DUI.Movers.unlocked and UnlockBox.frame and UnlockBox.IsOpen() then UnlockBox.Layout() end
+    if DUI.Movers.unlocked and UnlockBox.frame and UnlockBox.Wanted() then UnlockBox.Layout() end
 end)
 -- Accent color for the ticks.
 DUI.On("StyleChanged", function()
