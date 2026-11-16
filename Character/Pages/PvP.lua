@@ -230,7 +230,7 @@ local function paintHonor(page, d)
             if v then Style.InkText(cell, "pop") else Style.InkText(cell, "OFF") end
         end
     end
-    Style.InkText(h.label, "pop")
+    Style.InkText(h.label, "LABEL")
 end
 
 function PvP.Refresh(page)

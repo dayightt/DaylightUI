@@ -50,7 +50,7 @@ T.test("character gear: name, quality, level, icon; empty slots", function()
     T.eq(e.level, 66)
     T.eq(e.icon, "icon:Lionheart Helm")
     T.eq(e.label, "Head")
-    T.eq(G.Line(e), "Level " .. DaylightUI.Char.Gear.Value(66))
+    T.eq(G.Line(e), "Item level " .. DaylightUI.Char.Gear.Value(66))
     local n = G.Read("Neck")
     T.eq(n.empty, true)
     T.eq(n.emptyIcon, "empty:Neck")
@@ -79,7 +79,7 @@ T.test("character gear: ammo has its own slot, with its count", function()
     local G = gear({ items = items })
     T.deq(G.BOTTOM, { "MainHand", "SecondaryHand", "Ranged" }, "the ammo is not a full slot in the row")
     T.eq(G.All().Ammo.name, "Jagged Arrow", "but it is read with the rest")
-    T.eq(G.Line(G.Read("Ranged")), "Level " .. DaylightUI.Char.Gear.Value(60), "the ranged line is the bow's own")
+    T.eq(G.Line(G.Read("Ranged")), "Item level " .. DaylightUI.Char.Gear.Value(60), "the ranged line is the bow's own")
     local a = G.Read("Ammo")
     T.eq(a.label, "Ammo")
     T.eq(a.name, "Jagged Arrow")
@@ -789,7 +789,7 @@ T.test("character slots: painting an item, an empty slot and a broken one", func
     local head = S.frames.Head
     S.Paint(head, G.Read("Head", 0.25), { itemLevel = true })
     T.eq(head.name:GetText(), "Lionheart Helm")
-    T.eq(head.line:GetText(), "Level " .. DaylightUI.Char.Gear.Value(66))
+    T.eq(head.line:GetText(), "Item level " .. DaylightUI.Char.Gear.Value(66))
     T.eq(head.tex.__texture, "icon:Lionheart Helm")
     T.eq(head.dot:IsShown(), false)
     local neck = S.frames.Neck
@@ -1116,7 +1116,7 @@ T.test("character page: opening paints the gear, the footer and the stats", func
     DUI:Set("Character", "statsOpen", "auto")
     local page = openChar(ns)
     T.eq(ns.Slots.frames.Head.name:GetText(), "Lionheart Helm")
-    T.eq(page.foot.level:GetText(), "Level 64")
+    T.eq(page.foot.level:GetText(), "Item level 64")
     T.eq(page.foot.dura:GetText(), "Durability 50%")
     local attack = page.stats.groups.attack
     T.eq(attack.rows[1]:IsShown(), true, "a warrior's Attack is open")
@@ -1585,7 +1585,7 @@ T.test("character options: the item level line switch applies at once", function
     local DUI, ns = load({ items = { Head = CW.item("Lionheart Helm", { level = 66 }) } })
     ToggleCharacter("PaperDollFrame")
     ns.Follow.Tick()
-    T.eq(ns.Slots.frames.Head.line:GetText(), "Level " .. DaylightUI.Char.Gear.Value(66))
+    T.eq(ns.Slots.frames.Head.line:GetText(), "Item level " .. DaylightUI.Char.Gear.Value(66))
     DUI:Set("Character", "itemLevel", false)
     stub.RunTimers()
     T.eq(ns.Slots.frames.Head.line:GetText(), "")
@@ -2094,10 +2094,10 @@ T.test("character page: the footer's numbers in color, plain when that's off", f
                                              Legs = CW.item("Legs", { quality = 4, cur = 80, max = 100 }) } })
     local page = openChar(ns)
     local C = ns.Colors
-    T.eq(page.foot.level:GetText(), "Level " .. C.Wrap("64", ns.Gear.QualityColor(4)))
+    T.eq(page.foot.level:GetText(), "Item level " .. C.Wrap("64", ns.Gear.QualityColor(4)))
     T.eq(page.foot.dura:GetText(), "Durability " .. C.Wrap("50%", C.Durability(0.5, 0.25)))
     setNow(DUI, "footColors", false)
-    T.eq(page.foot.level:GetText(), "Level 64")
+    T.eq(page.foot.level:GetText(), "Item level 64")
     T.eq(page.foot.dura:GetText(), "Durability 50%")
 end)
 
@@ -2902,7 +2902,7 @@ T.test("character slots: a long item name takes a second line", function()
     local _, rel, relPoint = long.name:GetPoint(1)
     T.eq(rel, long.icon, "the lines span the icon's height")
     local function plain(fs) return (fs:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
-    T.eq(plain(long.line), "Level 66", "the item level line is never shortened")
+    T.eq(plain(long.line), "Item level 66", "the item level line is never shortened")
     stub.measure = nil
 end)
 
@@ -3107,6 +3107,8 @@ T.test("character pvp: soft cards, the same room on all four sides, the left as 
     -- The labels are tan; the accent is for numbers.
     local r, g, bl = b.label.__textColor[1], b.label.__textColor[2], b.label.__textColor[3]
     T.rgb({ r, g, bl }, DaylightUI.Style.INK.LABEL)
+    local hl = page.honor.label.__textColor
+    T.rgb({ hl[1], hl[2], hl[3] }, DaylightUI.Style.INK.LABEL, "HONOR is tan too")
 end)
 
 T.test("character pvp: the badge is our own, one for each rank, in the accent", function()

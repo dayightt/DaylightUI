@@ -485,7 +485,7 @@ function CharacterPage.PaintFooter(page, sum, repairAt)
         if not n then return "" end
         local level = tostring(n)
         if color then level = C.Wrap(level, unpack(color)) end
-        return string.format(L["Level %s"], level)
+        return string.format(L["Item level %s"], level)
     end)
     if counts and was and sum.level > was then CharacterPage.Upgrade(foot) end
     local dura = sum.durability and string.format("%d%%", math.floor(sum.durability * 100 + 0.5))
