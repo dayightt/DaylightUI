@@ -4131,8 +4131,9 @@ T.test("nameplates: /dui platecheck marks on screen where the game has each plat
     local _, rel = m.dot:GetPoint(1)
     T.eq(rel, plates[1], "pinned to the game's plate")
     T.eq(R.markLayer:GetParent(), UIParent, "but drawn on the screen, not on the plate")
-    T.eq(m.line.__start[2], UIParent, "a line from the middle of the screen")
-    T.eq(m.line.__end[2], plates[1], "to the plate, wherever it is")
+    T.truthy(m.dot:IsShown(), "the dot is on")
+    local _, refused = R.Mark()
+    T.eq(refused, 0, "and nothing of it is something the game refuses on a plate")
     T.eq(m.text.__text, "1", "numbered like the check's lines")
     T.truthy(R.markLayer:IsShown())
     T.truthy(R.marksOn)
@@ -4148,19 +4149,17 @@ T.test("nameplates: /dui platecheck says why when the game refuses a marker", fu
     added("nameplate1")
     local R = DaylightUI.PlateReport
     R.Mark()
-    R.marks[1].line.SetEndPoint = function() error("no line to a plate") end
     R.marks[2].dot.SetPoint = function() error("no pin to a plate") end
     local n, refused, why = R.Mark()
-    T.eq(n, 1, "a plate whose line is refused keeps its dot")
+    T.eq(n, 1, "the other plate keeps its dot")
     T.truthy(R.marks[1].dot:IsShown())
-    T.falsy(R.marks[1].line:IsShown(), "without the line")
     T.falsy(R.marks[2].dot:IsShown(), "a refused dot isn't left on screen")
-    T.eq(refused, 2, "both plates had something refused")
-    T.truthy(tostring(why):find("no line to a plate", 1, true), tostring(why))
+    T.eq(refused, 1)
+    T.truthy(tostring(why):find("no pin to a plate", 1, true), tostring(why))
     local said = R.MarkSaid(n, refused, why)
     T.truthy(said:find("1 marker on screen", 1, true), said)
     T.truthy(said:find("refused", 1, true), said)
-    T.truthy(said:find("no line to a plate", 1, true), said)
+    T.truthy(said:find("no pin to a plate", 1, true), said)
 
     R.marks[1].dot.SetPoint = function() error("no pin to a plate") end
     n, refused, why = R.Mark()

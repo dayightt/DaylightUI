@@ -521,8 +521,18 @@ function Widget:CreateLine(name, layer, _, sublevel)
     t.__layer, t.__sublevel = layer, sublevel
     return t
 end
-function Widget:SetStartPoint(point, rel, x, y) self.__start = { point, rel, x or 0, y or 0 } end
-function Widget:SetEndPoint(point, rel, x, y) self.__end = { point, rel, x or 0, y or 0 } end
+-- The client refuses a line that ends on one of its nameplates (seen in game:
+-- "Line:SetEndPoint()(): Not allowed to depend on NamePlate8"). A texture
+-- pinned to a plate with SetPoint is allowed.
+local function lineEnd(self, method, point, rel, x, y)
+    local name = type(rel) == "table" and type(rel.GetName) == "function" and rel:GetName() or nil
+    if type(name) == "string" and name:find("^NamePlate%d+$") then
+        error(string.format("Line:%s()(): Not allowed to depend on %s", method, name), 3)
+    end
+    return { point, rel, x or 0, y or 0 }
+end
+function Widget:SetStartPoint(point, rel, x, y) self.__start = lineEnd(self, "SetStartPoint", point, rel, x, y) end
+function Widget:SetEndPoint(point, rel, x, y) self.__end = lineEnd(self, "SetEndPoint", point, rel, x, y) end
 function Widget:GetStartPoint() local p = self.__start or {} return p[1], p[2], p[3], p[4] end
 function Widget:GetEndPoint() local p = self.__end or {} return p[1], p[2], p[3], p[4] end
 function Widget:SetThickness(n) self.__thickness = n end

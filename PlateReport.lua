@@ -315,22 +315,20 @@ end
 
 -- Where the game has put each of its plates. Lua can't read a plate's place,
 -- and a plate that has gone invisible still reads as shown, so this draws it:
--- a numbered dot pinned to each plate and a line to it from the middle of the
--- screen, on a layer of the screen itself. They draw even when nothing on the
--- plate does, and a screenshot then shows whether the plates are where their
--- units are, somewhere else, or nowhere. Gone again after MARK_SECONDS, except
--- during a /dui platefix run, which holds them to its end.
+-- a numbered dot pinned to each plate, on a layer of the screen itself. The
+-- dots draw even when nothing on the plate does, and a screenshot then shows
+-- whether the plates are where their units are, somewhere else, or off the
+-- screen. Dots only, because the client refuses a line that ends on a
+-- nameplate. Gone again after MARK_SECONDS, except during a /dui platefix
+-- run, which holds them to its end.
 R.MARK_SECONDS = 20
 R.MARK_AFTER = 60 -- seconds they stay once a platefix run is over
 R.MARK_SIZE = 10
-R.MARK_LINE = 2
 R.MARK_WHY = 160 -- letters kept of what the game said when it refused a marker
 R.marks = {}
 
 local function newMark(layer)
     local m = {}
-    m.line = layer:CreateLine(nil, "ARTWORK")
-    m.line:SetThickness(R.MARK_LINE)
     m.dot = layer:CreateTexture(nil, "OVERLAY")
     m.dot:SetSize(R.MARK_SIZE, R.MARK_SIZE)
     m.text = DUI.Style.Text(layer, DUI.Style.SIZE.small, "CENTER")
@@ -339,7 +337,6 @@ local function newMark(layer)
 end
 
 local function showMark(m, on)
-    m.line:SetShown(on)
     m.dot:SetShown(on)
     m.text:SetShown(on)
 end
@@ -349,24 +346,17 @@ function R.Unmark()
     if R.markLayer then DUI.Motion.AlphaTo(R.markLayer, 0, DUI.Motion.NORMAL, true) end
 end
 
--- Pins one mark to a game plate. The dot and the line are tried apart, since
--- the game may take one and refuse the other. Returns whether the dot is on,
--- whether the line is, and what the game said about a refusal.
+-- Pins one mark to a game plate. Returns whether the game took it, and what
+-- it said if it didn't.
 local function pin(m, np)
-    local dotOn, dotSaid = pcall(function()
+    return pcall(function()
         m.dot:ClearAllPoints()
         m.dot:SetPoint("CENTER", np, "CENTER", 0, 0)
     end)
-    if not dotOn then return false, false, dotSaid end
-    local lineOn, lineSaid = pcall(function()
-        m.line:SetStartPoint("CENTER", UIParent, 0, 0)
-        m.line:SetEndPoint("CENTER", np, 0, 0)
-    end)
-    return true, lineOn, not lineOn and lineSaid or nil
 end
 
--- Returns how many plates were marked, how many had the dot or the line
--- refused by the game, and what the game said the first time. keep: how many
+-- Returns how many plates were marked, how many the game refused a dot on,
+-- and what it said the first time. keep: how many
 -- seconds they stay (MARK_SECONDS when left out), or true to leave them until
 -- R.Release.
 function R.Mark(keep)
@@ -389,20 +379,18 @@ function R.Mark(keep)
         if ok and type(np) == "table" and okF and closed ~= true then
             local m = R.marks[n + 1] or newMark(layer)
             R.marks[n + 1] = m
-            local dotOn, lineOn, said = pin(m, np)
-            if not (dotOn and lineOn) then
+            local dotOn, said = pin(m, np)
+            if not dotOn then
                 refused = refused + 1
                 why = why or R.Printable(tostring(said), R.MARK_WHY)
             end
             if dotOn then
                 n = n + 1
                 m.dot:SetColorTexture(r, g, b, 1)
-                m.line:SetColorTexture(r, g, b, 0.6)
                 m.text:SetText(tostring(i))
                 DUI.Style.InkText(m.text, "pop")
             end
             showMark(m, dotOn)
-            m.line:SetShown(lineOn)
         end
     end
     for i = n + 1, #R.marks do showMark(R.marks[i], false) end
@@ -446,12 +434,11 @@ DUI.RegisterEvent("NAME_PLATE_UNIT_REMOVED", remark)
 -- screenshot while they're still there. In English like the rest of platefix,
 -- since players send these lines in.
 function R.HoldSaid()
-    return "platefix: each numbered dot is where the game has a nameplate, with a line to it from the middle of "
-        .. "the screen. They stay on until you're done."
+    return "platefix: each numbered dot is where the game has a nameplate. They stay on until you're done."
 end
 
--- What to add when the game refused a dot or a line: without it, a plate with
--- no dot reads the same as a plate that isn't there.
+-- What to add when the game refused a dot: without it, a plate with no dot
+-- reads the same as a plate that isn't there.
 function R.RefusedSaid(refused, why)
     if (refused or 0) == 0 then return "" end
     return string.format(" The game refused the marker on %d nameplate%s: %s", refused, refused == 1 and "" or "s",
@@ -481,8 +468,8 @@ function R.MarkSaid(n, refused, why)
         return "platecheck: no game nameplates to mark right now."
     end
     return string.format("platecheck: %d marker%s on screen for %d seconds. Each numbered dot is where the game has "
-        .. "that nameplate, with a line to it from the middle of the screen. Take a screenshot now and send it "
-        .. "with these lines.", n, n == 1 and "" or "s", R.MARK_SECONDS) .. R.RefusedSaid(refused, why)
+        .. "that nameplate. Take a screenshot now and send it with these lines.", n, n == 1 and "" or "s",
+        R.MARK_SECONDS) .. R.RefusedSaid(refused, why)
 end
 
 local function gameDefault(name)
