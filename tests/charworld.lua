@@ -210,6 +210,11 @@ local function installInventory()
         else x = find(link) end
         if x then return x.name, link, x.quality, x.level, 1, "Armor", x.subType end
     end
+    -- An item's class and subclass ids (fields.weapon: 2 bow, 3 gun, 18 crossbow, 16 thrown).
+    C_Item.GetItemInfoInstant = function(link)
+        local x = find(link)
+        if x then return CW.ItemId(x), "Weapon", "", "", 0, x.weapon and 2 or 4, x.weapon or 0 end
+    end
     _G.ITEM_QUALITY_COLORS = { [0] = { r = 0.62, g = 0.62, b = 0.62 }, [1] = { r = 1, g = 1, b = 1 },
         [2] = { r = 0.12, g = 1, b = 0 }, [3] = { r = 0, g = 0.44, b = 0.87 }, [4] = { r = 0.64, g = 0.21, b = 0.93 },
         [5] = { r = 1, g = 0.5, b = 0 } }

@@ -356,6 +356,9 @@ function CharacterPage.BuildFooter(page)
     foot.dura = Style.Text(foot, CharacterPage.FOOT_SIZE, "LEFT")
     foot.dura:SetPoint("LEFT", foot.level, "RIGHT", 24, 0)
     foot.dura:SetTextColor(D[1], D[2], D[3])
+    foot.ammo = Style.Text(foot, CharacterPage.FOOT_SIZE, "LEFT")   -- how much ammo you carry, beside the durability
+    foot.ammo:SetPoint("LEFT", foot.dura, "RIGHT", 24, 0)
+    foot.ammo:SetTextColor(D[1], D[2], D[3])
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
     sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
@@ -491,6 +494,13 @@ function CharacterPage.PaintFooter(page, sum, repairAt)
     local dura = sum.durability and string.format("%d%%", math.floor(sum.durability * 100 + 0.5))
     if dura and on then dura = C.Wrap(dura, C.Durability(sum.durability, repairAt)) end
     page.foot.dura:SetText(dura and string.format(L["Durability %s"], dura) or "")
+    -- Ammo: the whole count (never cut), red at none.
+    local ammo = sum.ammo and tostring(sum.ammo)
+    if ammo and on then
+        local r, g, b = unpack(sum.ammo == 0 and ns.Slots.RED or Style.INK.VALUE)
+        ammo = C.Wrap(ammo, r, g, b)
+    end
+    page.foot.ammo:SetText(ammo and string.format(L["Ammo %s"], ammo) or "")
 end
 
 -- The average went up: the number nudges and a light runs across it.

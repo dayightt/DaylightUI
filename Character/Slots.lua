@@ -19,7 +19,8 @@ Slots.AMMO = 22           -- ammo slot size, small as in the game's window
 Slots.AMMO_GAP = 10       -- ranged to ammo icon, clears both outlines with room to spare
 Slots.EDGE = 3            -- quality outline width
 Slots.GAP = 10            -- icon to name
-Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny
+Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny - 2
+Slots.CORNER_BG_ALPHA, Slots.CORNER_BG_PAD = 0.65, 1   -- the dark square behind the corner's number
 Slots.ENCHANT_SIZE = Style.SIZE.small
 Slots.ENCHANT = DUI.Style.INK.GOOD            -- enchant line
 Slots.MARK = 5                                -- enchant marker size in icons-only mode
@@ -146,8 +147,14 @@ function Slots.Make(parent, key, side, size, into)
     h.dot:SetSize(Slots.DOT, Slots.DOT)
     h.dot:SetPoint("TOPRIGHT", h.icon, "TOPRIGHT", -2, -2)
     h.dot:Hide()
-    h.corner = Style.Text(h.icon, Slots.CORNER_SIZE, "RIGHT")
-    h.corner:SetPoint("BOTTOMRIGHT", h.icon, "BOTTOMRIGHT", -1, 2)
+    -- A dark square behind the corner's number, so it doesn't melt into the icon's art.
+    h.cornerBg = h.icon:CreateTexture(nil, "OVERLAY")
+    h.cornerBg:SetTexture(Slots.WHITE)
+    h.cornerBg:SetVertexColor(0, 0, 0, Slots.CORNER_BG_ALPHA)
+    h.cornerBg:Hide()
+    h.corner = Style.Text(h.icon, Slots.CORNER_SIZE, "CENTER")
+    h.cornerBg:SetPoint("BOTTOMRIGHT", h.icon, "BOTTOMRIGHT", 0, 0)
+    h.corner:SetPoint("CENTER", h.cornerBg, "CENTER", 0, 0)   -- the number in the middle of its square
     local justify = side == "right" and "RIGHT" or "LEFT"
     h.name = Style.Text(h, Slots.NAME_SIZE, justify)
     h.name:SetWordWrap(false)
@@ -320,10 +327,21 @@ function Slots.Paint(h, e, opts)
     -- Icons-only mode shows the item level in the corner, or the ammo count.
     local corner = ""
     if not h.names or opts.levelInIcon == true then
-        if e.ammo then corner = tostring(e.ammo)
+        -- (the ammo's count is in the footer, whole, beside the durability)
+        if e.ammo then corner = ""
         elseif itemLevel and e.level and not ns.Gear.NO_LEVEL[e.key] then corner = tostring(e.level) end
     end
     h.corner:SetText(corner)
+    h.cornerBg:SetShown(corner ~= "")
+    if corner ~= "" then
+        -- A square, the same room all round the digits: as wide as the text (or as tall as its size,
+        -- if that is more) plus the pad on each side. The text gets the whole-pixel width it is
+        -- centered in, so a two-digit number does not sit off to one side.
+        local w = math.max(math.ceil(h.corner:GetStringWidth()), Slots.CORNER_SIZE)
+        h.corner:SetWidth(w)
+        local side = w + 2 * Slots.CORNER_BG_PAD
+        h.cornerBg:SetSize(side, side)
+    end
     Slots.PaintEnchant(h, e)
     Slots.FitText(h)
     if h.over then Style.InkText(h.name, "VALUE") end

@@ -56,6 +56,16 @@ local function levelOf(link)
     return ok and type(level) == "number" and level or nil
 end
 
+-- A bow, a gun or a crossbow: the ranged weapons that shoot ammo (item class 2, subclasses 2, 3, 18).
+-- By ids, not by the localized name.
+Gear.AMMO_WEAPONS = { [2] = true, [3] = true, [18] = true }
+local function needsAmmo(link)
+    local get = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+    if not (link and get) then return false end
+    local ok, _, _, _, _, _, class, sub = pcall(get, link)
+    return ok and class == 2 and Gear.AMMO_WEAPONS[sub] == true
+end
+
 local function subTypeOf(link)
     local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
     if not (link and get) then return nil end
@@ -135,6 +145,7 @@ function Gear.Read(key, repairAt, unit)
         if cur <= 0 then e.wear = "broken"
         elseif e.pct <= (repairAt or 0.25) then e.wear = "low" end
     end
+    if key == "Ranged" then e.needsAmmo = needsAmmo(link) end
     if key == "Ammo" then
         e.ammo = GetInventoryItemCount(unit, id) or 0
         e.ammoWord = Gear.AMMO_WORD[subTypeOf(link) or ""] or "ammo"
@@ -173,8 +184,13 @@ function Gear.Summary(all, unit)
         local ok, overall, equipped = pcall(GetAverageItemLevel)
         if ok then avg = equipped or overall end
     end
+    -- The ammo you carry: its count, or 0 with a bow, gun or crossbow and none in the slot; nil with
+    -- neither (a mage's footer has no ammo in it).
+    local ammo
+    if all.Ammo and all.Ammo.ammo then ammo = all.Ammo.ammo
+    elseif all.Ranged and all.Ranged.needsAmmo then ammo = 0 end
     return { level = type(avg) == "number" and math.floor(avg) or nil, durability = max > 0 and cur / max or nil,
-             quality = qN > 0 and math.floor(qSum / qN + 0.5) or nil }
+             quality = qN > 0 and math.floor(qSum / qN + 0.5) or nil, ammo = ammo }
 end
 
 -- Colors a number inside a label line as a value, then restores the line color.
