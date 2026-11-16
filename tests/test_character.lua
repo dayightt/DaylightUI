@@ -1802,7 +1802,8 @@ T.test("character pvp: the tab shows with no rank yet", function()
     local page = openPage(ns, "PVPRankFrame")
     T.eq(ns.window.current, "pvp")
     T.eq(page.rankName:GetText(), PVP_RANK_0_NAME or "No rank yet")
-    T.falsy(page.emblem:IsShown())
+    T.truthy(page.emblem:IsShown(), "the first rank's badge stands there, so the card isn't just a word")
+    T.near(page.emblem:GetAlpha(), 0.35, 0.001, "grayed")
     T.eq(page.blocks[1].main:GetText(), "Private")
     local _, ns2 = load({ pvp = PVP })
     T.eq(ns2.Window.TabShown("pvp"), true)
@@ -3068,4 +3069,38 @@ T.test("character page: a stat row whose value can't be measured (a secret, in a
     ok, h = pcall(P.FitStat, fresh, w)
     T.truthy(ok, tostring(h))
     T.isnil(fresh.valueW)
+end)
+
+T.test("character pvp: the honor card shows today, yesterday and in all; a dash where the client has none", function()
+    local pvp = {}
+    for k, v in pairs(PVP) do pvp[k] = v end
+    pvp.honor = { today = { 12, 1 }, yesterday = { 30, 0 }, lifetime = { 4500, 9 } }
+    local _, ns = load({ pvp = pvp })
+    local page = openPage(ns, "PVPRankFrame")
+    local rows = page.honor.rows
+    T.eq(page.cards.honor:IsShown(), true)
+    T.deq({ rows[1].cells[1]:GetText(), rows[1].cells[2]:GetText(), rows[1].cells[3]:GetText() }, { "12", "30", "4,500" }, "honorable kills")
+    T.deq({ rows[2].cells[1]:GetText(), rows[2].cells[2]:GetText(), rows[2].cells[3]:GetText() }, { "1", "0", "-" }, "dishonorable: none in all (that number is a rank)")
+    T.eq(page.honor.cols[3]:GetText(), "Lifetime")
+    local _, ns2 = load({ pvp = PVP })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.eq(page2.cards.honor:IsShown(), false, "the client has no honor numbers: no card")
+end)
+
+T.test("character pvp: soft cards, the same room on all four sides, the left as tall as the right", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    local P, C = ns.PvP, page.cards
+    local function top(c) return -select(5, c:GetPoint(1)) end
+    T.eq(C.rank:GetHeight(), C.week:GetHeight() + C.season:GetHeight() + C.honor:GetHeight() + 2 * P.GAP, "the left card reaches the right stack's foot")
+    T.eq(top(C.season) - top(C.week), C.week:GetHeight() + P.GAP, "a gap between cards")
+    -- A block sits in from its card by the same room all round.
+    local b = page.blocks[2]
+    local _, _, _, bx, by = b:GetPoint(1)
+    local _, _, _, rx = b:GetPoint(2)
+    T.eq(bx, P.PAD, "left"); T.eq(-by, P.PAD, "top"); T.eq(-rx, P.PAD, "right")
+    T.eq(C.week:GetHeight() - b:GetHeight(), 2 * P.PAD, "and the card is the block and the room above and under it")
+    -- The labels are tan; the accent is for numbers.
+    local r, g, bl = b.label.__textColor[1], b.label.__textColor[2], b.label.__textColor[3]
+    T.rgb({ r, g, bl }, DaylightUI.Style.INK.LABEL)
 end)

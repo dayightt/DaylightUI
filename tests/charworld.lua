@@ -461,6 +461,14 @@ local function installPvP(spec)
     _G.C_SeasonInfo = { GetTimeUntilCurrentPVPSeasonEnd = function() return p and p.seasonEnds or 0 end }
     _G.GetCurrentArenaSeason = function() return p and p.season or 0 end
     _G.GetPVPRankText = function(rank) return CW.PVP_RANKS[rank] or ("Rank " .. rank) end
+    -- spec.pvp.honor = { today = { honorable, dishonorable }, yesterday = { ... }, lifetime = { kills, highest rank } }
+    local h = p and p.honor
+    _G.GetPVPSessionStats, _G.GetPVPYesterdayStats, _G.GetPVPLifetimeStats = nil, nil, nil
+    if h then
+        _G.GetPVPSessionStats = function() return h.today[1], h.today[2] end
+        _G.GetPVPYesterdayStats = function() return h.yesterday[1], h.yesterday[2] end
+        _G.GetPVPLifetimeStats = function() return h.lifetime[1], h.lifetime[2] end
+    end
 end
 
 -- spec.statistics = { categories = { { id, title, parent } }, stats = { [category id] = { { id, name, quantity } } } }
