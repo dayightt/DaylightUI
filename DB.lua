@@ -62,6 +62,7 @@ DB.GENERAL_DEFAULTS = {
     },
     fadeIn = true, -- the UI fades in on login and /reload
     fadeOpenWorldOnly = false, -- nothing fades in dungeons, raids, battlegrounds and arenas (Fade.Aside)
+    fadeAllWas = {}, -- each part's Visible pick from before the Fade page's "only when something changes" switch went on
     textOutline = "OUTLINE", -- text outline: "OUTLINE", "THICKOUTLINE" or "" (none)
     textShadow = true, -- a small soft drop shadow under text
     numbers = "short", -- health and power number style: short | exact | full | upto (Health.NUMBERS)

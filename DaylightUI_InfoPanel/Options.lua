@@ -11,13 +11,10 @@ local function ours() return DaylightUI.questsOwnTracker == true end
 -- XP bar fade card. Its rows are disabled until the "own fade" toggle on
 -- top is on; otherwise the bar fades with the panel.
 local function xpFadeCard()
-    local card = DaylightUI.Fade.Card("xp.fade.", nil, function(get)
-        return get("xp.enabled") ~= true or get("xp.ownFade") ~= true
-    end, "Experience bar")
+    local card = DaylightUI.Fade.Card("xp.fade.", nil, function(get) return get("xp.enabled") ~= true end, "Experience bar", { own =
+        { type = "toggle", key = "xp.ownFade", label = "Experience bar has its own fade",
+          desc = "When off, the experience bar fades with the panel. When on, it follows the settings here, attached or separate." } })
     card.label = "Experience bar fade"
-    table.insert(card.items, 1, { type = "toggle", key = "xp.ownFade", label = "Experience bar has its own fade",
-        desc = "When off, the experience bar fades with the panel. When on, it follows the settings here, attached or separate.",
-        disabled = function(get) return get("xp.enabled") ~= true end })
     return card
 end
 local function noClock(get) return get("map.enabled") ~= true or get("map.clock.enabled") ~= true end

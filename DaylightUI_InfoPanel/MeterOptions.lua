@@ -483,10 +483,10 @@ function MO.Page()
 
     -- Its rows wait for the switch on top; until then the meters fade with
     -- the panel (Info panel > General).
-    local meterFade = DUI.Fade.Card("meter.fade.", nil, function(get) return get("meter.ownFade") ~= true end, "Damage meters")
+    local meterFade = DUI.Fade.Card("meter.fade.", nil, nil, "Damage meters", { own =
+        { type = "toggle", key = "meter.ownFade", label = "Damage meters have their own fade",
+          desc = "When off, the damage meters fade with the info panel. When on, every damage meter and summary window follows the settings here, the one in the panel too." } })
     meterFade.label = "Damage meter fade"
-    table.insert(meterFade.items, 1, { type = "toggle", key = "meter.ownFade", label = "Damage meters have their own fade",
-        desc = "When off, the damage meters fade with the info panel. When on, every damage meter and summary window follows the settings here, the one in the panel too." })
 
     local threatFade = DUI.Fade.Card("threat.fade.", { { type = "text", label = "The threat meter and your threat windows fade together, apart from the panel." } }, nil, "Threat meter")
     threatFade.label = "Threat meter fade"

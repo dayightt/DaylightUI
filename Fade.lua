@@ -592,14 +592,39 @@ local function defaultMode(e)
     return m
 end
 
+-- Turning it on remembers each part's own pick, so turning it off puts that
+-- back instead of the default.
 function Fade.SetAllFloat(on)
+    local saved = DUI:Get("general", "fadeAllWas")
+    local was = {}
+    if not on and type(saved) == "table" then
+        for k, v in pairs(saved) do was[k] = v end
+    end
+    -- Every part was already on it before: off then means each part's default,
+    -- or the switch could never go off.
+    local allFloat = not on
+    if not on then
+        for _, key in ipairs(order) do
+            local e = entries[key]
+            if floatable(e) and was[e.scope .. ":" .. e.path] ~= "float" then allFloat = false end
+        end
+    end
     for _, key in ipairs(order) do
         local e = entries[key]
         if floatable(e) then
-            if on then DUI:Set(e.scope, e.path .. ".mode", "float")
-            elseif DUI:Get(e.scope, e.path .. ".mode") == "float" then DUI:Set(e.scope, e.path .. ".mode", defaultMode(e)) end
+            local id = e.scope .. ":" .. e.path
+            local mode = DUI:Get(e.scope, e.path .. ".mode")
+            if on then
+                if type(mode) == "string" then was[id] = mode end
+                DUI:Set(e.scope, e.path .. ".mode", "float")
+            elseif mode == "float" and (allFloat or was[id] ~= "float") then
+                local back = not allFloat and was[id]
+                if type(back) ~= "string" or Fade.MODES[back] == nil or back == "float" then back = defaultMode(e) end
+                DUI:Set(e.scope, e.path .. ".mode", back)
+            end
         end
     end
+    DUI:Set("general", "fadeAllWas", on and was or {})
 end
 
 -- A module takes over the alpha for a while (the buffs Edit Mode preview).
@@ -1154,9 +1179,13 @@ Fade.CARD_LABEL = "Opacity & fade"
 -- opts.noFloat: no "Only when something changes" (the area registers
 -- float = false). Every row carries fadeArea so the Fade page can find them
 -- (Fade.HubGroups).
+-- opts.own: a switch giving the area a fade of its own (the XP bar's, apart
+-- from its panel). It goes first, and the rows below it only count while it's on.
 function Fade.Items(prefix, extra, disabled, name, opts)
     local noFloat = opts ~= nil and opts.noFloat == true
-    local function pageOff(get) return disabled ~= nil and disabled(get) == true end
+    local own = opts ~= nil and opts.own or nil
+    local function areaOff(get) return disabled ~= nil and disabled(get) == true end
+    local function pageOff(get) return areaOff(get) or (own ~= nil and get(own.key) ~= true) end
     local function fades(get)
         local m = get(prefix .. "mode")
         return m == "ooc" or m == "combat" or m == "always" or (m == "float" and not noFloat)
@@ -1183,10 +1212,16 @@ function Fade.Items(prefix, extra, disabled, name, opts)
         { type = "slider", key = prefix .. "delay", label = "Delay", min = 0, max = 30, step = 0.5,
           desc = "How long it waits before it fades, in seconds: after a fight ends, once a fight starts, after your mouse leaves it, after you clear your target, or after a change it shows.", disabled = off },
     }
-    local area = { prefix = prefix, name = name, base = {}, extras = {} }
+    local area = { prefix = prefix, name = name, base = {}, extras = {}, areaOff = areaOff }
     for i, field in ipairs(Fade.FIELDS) do
         items[i].fadeArea = area
         area.base[field] = items[i]
+    end
+    if own then
+        if not own.disabled then own.disabled = areaOff end
+        own.fadeArea = area
+        area.own = own
+        table.insert(items, 1, own)
     end
     for _, item in ipairs(extra or {}) do
         if disabled and not item.disabled then item.disabled = pageOff end
@@ -1232,6 +1267,7 @@ end
 -- Its own page disables it: raid frames off, the bag bar hidden, the game's
 -- tracker while the Quests module's runs.
 local function areaOff(a)
+    if a.areaOff then return a.areaOff(a.get) == true end
     local off = a.base.opacity.disabled
     return off ~= nil and off(a.get) == true
 end
@@ -1325,6 +1361,14 @@ function Fade.HubGroups()
                   end,
                   hidden = function() return #card.areas < 2 end },
             }
+            -- An area's own-fade switch sits above the rows it opens.
+            for _, a in ipairs(card.areas) do
+                if a.own then
+                    local row = sharedRow(a.own, function() return a end)
+                    row.hidden = function() return pick() ~= a end
+                    items[#items + 1] = row
+                end
+            end
             for _, field in ipairs(Fade.FIELDS) do
                 local src = {}
                 for k, v in pairs(card.areas[1].base[field]) do src[k] = v end
@@ -1354,6 +1398,7 @@ function Fade.ResetAll()
         for _, a in ipairs(card.areas) do
             for _, field in ipairs(Fade.FIELDS) do Options.ResetItem(a.page, a.base[field]) end
             for _, item in ipairs(a.extras) do Options.ResetItem(a.page, item) end
+            if a.own then Options.ResetItem(a.page, a.own) end
         end
     end
 end

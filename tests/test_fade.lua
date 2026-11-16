@@ -685,6 +685,19 @@ T.test("fade: Float everything is on only while every area that can float does; 
     T.eq(DUI.DB.General().f2.mode, "combat", "one that wasn't floating keeps its pick")
 end)
 
+T.test("fade: Float everything off puts each area's own pick back", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    area(DUI, "g1", { mode = "ooc" }, { frame() })
+    area(DUI, "g2", { mode = "always" }, { frame() })
+    F.SetAllFloat(true)
+    T.eq(DUI.DB.General().g1.mode, "float")
+    F.SetAllFloat(false)
+    T.eq(DUI.DB.General().g1.mode, "ooc", "back to what it was, not the default")
+    T.eq(DUI.DB.General().g2.mode, "always")
+    T.eq(F.AllFloat(), false)
+end)
+
 T.test("fade: a bad float is refused", function()
     local DUI = stub.Load()
     local ok = pcall(DUI.Fade.Register, { key = "bad", scope = "general", path = "bad",
