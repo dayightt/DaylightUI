@@ -149,7 +149,13 @@ function PvP.Place(page)
     local C = page.cards
     local blockCard = PvP.BLOCK_H + 2 * P
     local honorCard = PvP.HONOR_H + 2 * P
-    local total = 2 * blockCard + honorCard + 2 * G
+    -- The cards reach the foot of the page: what the page has beyond what they need is shared
+    -- by the three on the right, and their words sit in the middle of the room they get.
+    local least = 2 * blockCard + honorCard + 2 * G
+    local total = math.max(least, ns.List.Room())
+    local extra = total - least
+    local each = math.floor(extra / 3)
+    local weekH, seasonH, honorH = blockCard + each, blockCard + each, honorCard + extra - 2 * each
     local x = E + PvP.LEFT_W + G
     local w = W - x - E
     local function put(c, cx, cy, cw, ch)
@@ -159,13 +165,16 @@ function PvP.Place(page)
     end
     local top = ns.List.TOP
     put(C.rank, E, top, PvP.LEFT_W, total)
-    put(C.week, x, top, w, blockCard)
-    put(C.season, x, top + blockCard + G, w, blockCard)
-    put(C.honor, x, top + 2 * (blockCard + G), w, honorCard)
-    -- Left: the emblem, the name, the rank, then the next rank, all in from the card's edges the same.
+    put(C.week, x, top, w, weekH)
+    put(C.season, x, top + weekH + G, w, seasonH)
+    put(C.honor, x, top + weekH + seasonH + 2 * G, w, honorH)
+    -- Left: the emblem, the name and the rank in the middle of what is above the next rank, which
+    -- is at the card's foot.
     local R = C.rank
+    local blockTop = total - P - PvP.BLOCK_H
+    local group = PvP.EMBLEM_SIZE + 16 + line(PvP.RANK_SIZE) + 6 + line(ns.List.TEXT)
     page.emblem:ClearAllPoints()
-    page.emblem:SetPoint("TOP", R, "TOP", 0, -(P + 8))
+    page.emblem:SetPoint("TOP", R, "TOP", 0, -(P + math.max(0, math.floor((blockTop - 2 * P - group) / 2))))
     page.rankName:ClearAllPoints()
     page.rankName:SetPoint("TOP", page.emblem, "BOTTOM", 0, -16)
     page.rankSub:ClearAllPoints()
@@ -176,16 +185,17 @@ function PvP.Place(page)
         b:SetPoint("TOPRIGHT", c, "TOPRIGHT", -P, -y)
         b:SetHeight(PvP.BLOCK_H)
     end
-    inCard(page.blocks[1], R, total - P - PvP.BLOCK_H)   -- at the card's foot
-    inCard(page.blocks[2], C.week, P)
-    inCard(page.blocks[3], C.season, P)
+    inCard(page.blocks[1], R, blockTop)   -- at the card's foot
+    inCard(page.blocks[2], C.week, math.floor((weekH - PvP.BLOCK_H) / 2))
+    inCard(page.blocks[3], C.season, math.floor((seasonH - PvP.BLOCK_H) / 2))
     -- The honor card: a title, the three columns, two lines.
     local h, inner = page.honor, w - 2 * P
     local nameW = math.floor(inner * 0.4)
     local colW = math.floor((inner - nameW) / 3)
     h.label:ClearAllPoints()
-    h.label:SetPoint("TOPLEFT", C.honor, "TOPLEFT", P, -P)
-    local headY = P + line(PvP.LABEL_SIZE) + 10
+    local lift = math.floor((honorH - PvP.HONOR_H) / 2)   -- its lines in the middle of the card
+    h.label:SetPoint("TOPLEFT", C.honor, "TOPLEFT", P, -lift)
+    local headY = lift + line(PvP.LABEL_SIZE) + 10
     for i, t in ipairs(h.cols) do
         t:ClearAllPoints()
         t:SetWidth(colW - 6)

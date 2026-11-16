@@ -3094,12 +3094,15 @@ T.test("character pvp: soft cards, the same room on all four sides, the left as 
     local function top(c) return -select(5, c:GetPoint(1)) end
     T.eq(C.rank:GetHeight(), C.week:GetHeight() + C.season:GetHeight() + C.honor:GetHeight() + 2 * P.GAP, "the left card reaches the right stack's foot")
     T.eq(top(C.season) - top(C.week), C.week:GetHeight() + P.GAP, "a gap between cards")
-    -- A block sits in from its card by the same room all round.
+    -- A block sits in from its card by the same room at the sides, and in the middle of its height.
     local b = page.blocks[2]
     local _, _, _, bx, by = b:GetPoint(1)
     local _, _, _, rx = b:GetPoint(2)
-    T.eq(bx, P.PAD, "left"); T.eq(-by, P.PAD, "top"); T.eq(-rx, P.PAD, "right")
-    T.eq(C.week:GetHeight() - b:GetHeight(), 2 * P.PAD, "and the card is the block and the room above and under it")
+    T.eq(bx, P.PAD, "left"); T.eq(-rx, P.PAD, "right")
+    T.eq(-by, math.floor((C.week:GetHeight() - b:GetHeight()) / 2), "in the middle, top to foot")
+    T.truthy(C.week:GetHeight() >= b:GetHeight() + 2 * P.PAD, "never closer than the room all round")
+    -- The cards reach the foot of the page.
+    T.truthy(C.rank:GetHeight() >= ns.List.Room(), "the cards reach the page's foot (or are as tall as their words need)")
     -- The labels are tan; the accent is for numbers.
     local r, g, bl = b.label.__textColor[1], b.label.__textColor[2], b.label.__textColor[3]
     T.rgb({ r, g, bl }, DaylightUI.Style.INK.LABEL)
