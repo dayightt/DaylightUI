@@ -506,6 +506,11 @@ T.test("tooltip: size, background and health bar height follow their options", f
     T.eq(ItemRefTooltip:GetScale(), 1.25)
     T.eq(Tip.Shell(GameTooltip).opts.bgAlpha, 0.6)
     T.eq(GameTooltipStatusBar:GetHeight(), 8)
+    -- With its own opacity off, it follows every window's.
+    DaylightUI:Set("Tooltip", "bgAlphaOwn", false)
+    DaylightUI:Set("general", "windowAlpha", 0.4)
+    stub.RunTimers()
+    T.eq(Tip.Shell(GameTooltip).opts.bgAlpha, 0.4)
     -- The game setting its own scale is undone when it shows.
     GameTooltip:SetScale(1)
     GameTooltip:GetScript("OnShow")(GameTooltip)

@@ -40,6 +40,12 @@ Tip.ANCHOR_SIZE = { 200, 80 }
 Tip.ANCHOR_DEFAULT = { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -100, 100 }
 
 local cfg
+
+-- Its own opacity while its "Separate tooltip background opacity" switch is
+-- on, else the one every window shares.
+local function backAlpha()
+    return Style.BackAlpha(cfg and cfg.bgAlphaOwn, cfg and cfg.bgAlpha)
+end
 local skinned = setmetatable({}, { __mode = "k" }) -- tooltip -> its shell
 
 -- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
@@ -120,7 +126,7 @@ function Tip.Skin(tip)
     -- frame (Tip.HideArt). No hook on its SetAlpha: the game's own calls to a
     -- hooked method failed with "attempt to call a nil value".
     Tip.HideArt(tip)
-    local s = Style.Shell(tip, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = cfg and cfg.bgAlpha })
+    local s = Style.Shell(tip, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = backAlpha() })
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
@@ -158,7 +164,7 @@ function Tip.SkinHeader(tip)
     for _, r in ipairs({ h:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
     end
-    local s = Style.Shell(h, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = cfg and cfg.bgAlpha })
+    local s = Style.Shell(h, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = backAlpha() })
     if not s then return end
     s:ClearAllPoints()
     -- The header's left edge is the tooltip's.
@@ -1592,7 +1598,7 @@ function Tip.StyleAuraTooltip()
             bgFile = Tip.WHITE, edgeFile = Tip.WHITE, edgeSize = edge,
             insets = { left = 0, right = 0, top = 0, bottom = 0 },
         },
-        centerColor = CreateColor(bg[1], bg[2], bg[3], cfg and cfg.bgAlpha or Style.BACKGROUND_ALPHA),
+        centerColor = CreateColor(bg[1], bg[2], bg[3], backAlpha()),
         borderColor = CreateColor(border[1], border[2], border[3], 1),
     })
 end
@@ -1610,12 +1616,12 @@ function Tip.Refresh(mod)
         end
     end
     for tip, s in pairs(skinned) do
-        s.opts.bgAlpha = cfg.bgAlpha
+        s.opts.bgAlpha = backAlpha()
         Style.LayoutShell(s)
         keepUnder(tip)
     end
     for _, s in pairs(headers) do
-        s.opts.bgAlpha = cfg.bgAlpha
+        s.opts.bgAlpha = backAlpha()
         Style.LayoutShell(s)
     end
     -- Following the cursor, there's nothing to place, so no handle.

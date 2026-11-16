@@ -364,7 +364,7 @@ DB.BACKS = { { "Chat", "panelAlpha" }, { "InfoPanel", "panelAlpha" }, { "Quests"
 -- Apply turns them all off (Options.ApplyWindowAlpha). Add new ones here.
 DB.ALL_BACKS = { { "InfoPanel", "databar.alpha" }, { "InfoPanel", "map.alpha" },
                  { "InfoPanel", "meter.alpha" }, { "QoL", "lootFeedAlpha" },
-                 { "Chat", "sideAlpha" } }
+                 { "Chat", "sideAlpha" }, { "Tooltip", "bgAlpha" } }
 for _, b in ipairs(DB.BACKS) do DB.ALL_BACKS[#DB.ALL_BACKS + 1] = b end
 for _, scope in ipairs({ "Bags", "Character", "NPC", "Book", "Inspect", "Professions", "GroupFinder",
                          "Mailbox", "Social", "Legacy", "Skins" }) do

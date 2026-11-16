@@ -170,12 +170,13 @@ T.test("a window can have its own opacity, and General's Apply brings every one 
 end)
 
 T.test("every separate background opacity is one Apply reaches", function()
-    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true })
+    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true, tooltip = true })
     T.truthy(#DUI.DB.ALL_BACKS >= 18, "panels and windows both listed")
     for _, b in ipairs(DUI.DB.ALL_BACKS) do
         local mod = DUI:GetModule(b[1])
         T.truthy(mod, b[1] .. " is a module")
-        T.eq(DUI.DB.GetPath(mod.defaults, b[2] .. "Own"), false, b[1] .. " " .. b[2])
+        -- Tooltips start on their own opacity, as solid as they always were.
+        T.eq(DUI.DB.GetPath(mod.defaults, b[2] .. "Own"), b[1] == "Tooltip", b[1] .. " " .. b[2])
         T.eq(type(DUI.DB.GetPath(mod.defaults, b[2])), "number", b[1] .. " " .. b[2])
     end
 end)

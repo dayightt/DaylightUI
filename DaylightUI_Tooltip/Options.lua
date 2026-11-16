@@ -2,6 +2,8 @@
 
 local _, ns = ...
 
+local backRows = DaylightUI.Options.BackAlphaRows("bgAlpha", "Tooltip")
+
 ns.OPTIONS = { pages = {
     { id = "tooltip", label = "Tooltips",
       desc = "The game's tooltips in the Daylight UI look.",
@@ -28,8 +30,7 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.FontRow("media.font", "Tooltip font", "Every line in the tooltips"),
         } },
         { label = "Look", items = {
-            { type = "slider", key = "bgAlpha", label = "Tooltip background opacity", min = 0.3, max = 1, step = 0.05, unit = "%",
-              desc = "How solid the dark background is." },
+            backRows[1], backRows[2],
             { type = "toggle", key = "classColors", label = "Class-colored names",
               desc = "A player's name in their class color; other units in their reaction's color." },
             { type = "toggle", key = "classBorder", label = "Class-colored border",
@@ -39,6 +40,8 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("classBorder") == false end },
             { type = "toggle", key = "qualityBorder", label = "Item quality border",
               desc = "Items that are uncommon or better get a border in their quality color." },
+        } },
+        { label = "Health bar", items = {
             { type = "toggle", key = "healthBar", label = "Health bar",
               desc = "A slim bar under the tooltip of a player or creature." },
             { type = "slider", key = "barHeight", label = "Health bar height", min = 2, max = 12, step = 1, unit = "px",
@@ -53,20 +56,12 @@ ns.OPTIONS = { pages = {
                   .. "Class gradient uses the pairs from General > Gradients.",
               disabled = function(get) return get("healthBar") ~= true end },
         } },
-        { label = "Extra lines", items = {
+        { label = "Player and creature lines", items = {
             { type = "toggle", key = "showTarget", label = "Show who they're targeting",
               desc = "Who a player or creature is targeting, in their color (\">> You <<\" when it's you)." },
             { type = "toggle", key = "guildRank", label = "Guild rank", desc = "A player's guild rank, after their guild name." },
             { type = "toggle", key = "buffs", label = "Friendly players' buffs",
               desc = "A friendly player's buffs as a row of small icons, so you can see what they're missing before you rebuff. Not in combat: the game hides other players' buffs then." },
-            { type = "toggle", key = "greenStats", label = "Short, colored item stats",
-              desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Procs and use effects stay as they are." },
-            { type = "toggle", key = "itemLevel", label = "Item level line",
-              desc = "An Item Level line on weapon and armor tooltips, in soft gold." },
-            { type = "toggle", key = "stackSize", label = "Stack size line",
-              desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack." },
-            { type = "toggle", key = "showIDs", label = "Spell and item IDs",
-              desc = "A small line at the bottom of spell and item tooltips with its ID, the word in your accent color: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
             { type = "toggle", key = "lastNames.tooltip", label = "First and last names",
               desc = "Players' last names after their first, on tooltips. Where the game hides names (in combat, in places) only the first name shows.",
               get = function() return DaylightUI:Get("general", "lastNames.tooltip") == true end,
@@ -85,11 +80,19 @@ ns.OPTIONS = { pages = {
               set = function(v) DaylightUI:Set("Quests", "mapQuests.tooltip", v) end,
               default = function() return true end },
         } },
+        { label = "Item and spell lines", items = {
+            { type = "toggle", key = "greenStats", label = "Short, colored item stats",
+              desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Procs and use effects stay as they are." },
+            { type = "toggle", key = "itemLevel", label = "Item level line",
+              desc = "An Item Level line on weapon and armor tooltips, in soft gold." },
+            { type = "toggle", key = "stackSize", label = "Stack size line",
+              desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack." },
+            { type = "toggle", key = "showIDs", label = "Spell and item IDs",
+              desc = "A small line at the bottom of spell and item tooltips with its ID, the word in your accent color: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
+        } },
         { label = "Hiding", items = {
             { type = "toggle", key = "fadeOut", label = "Fade out world tooltips",
               desc = "A tooltip for something in the world (a creature, a player, a mailbox) fades away slowly after the mouse leaves it, as the game does. When off, it's gone at once." },
-        } },
-        { label = "In combat", items = {
             { type = "toggle", key = "hideInCombat", invert = true, label = "Show unit tooltips in combat",
               desc = "Players' and creatures' tooltips show while you're fighting. When off, they stay hidden in a fight; hold Shift to see one." },
         } },

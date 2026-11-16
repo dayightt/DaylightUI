@@ -14,6 +14,9 @@ ns.DEFAULTS = {
     scale = 1,
     textSize = 12,
     bgAlpha = 0.92,
+    -- On by default, unlike the windows: tooltips stay a little more solid
+    -- than the shared window opacity, as they always were.
+    bgAlphaOwn = true,
     classColors = true,     -- players' names in their class color
     classBorder = true, -- class-colored border too
     borderGradient = false, -- border uses the unit's class (or reaction) gradient
