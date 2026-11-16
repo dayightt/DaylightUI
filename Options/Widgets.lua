@@ -3723,10 +3723,11 @@ end
 -- pair, or when its group sets wide = true. With a page given, currently
 -- hidden rows don't count, so a Custom color pair that only shows once
 -- Custom is picked leaves its card in a column.
+-- A custom row that stretches to any width (item.fits) leaves its card narrow.
 function W.IsWide(group, page)
     if group.wide then return true end
     for _, item in ipairs(group.items) do
-        if (item.type == "custom" or item.type == "gradient")
+        if ((item.type == "custom" and not item.fits) or item.type == "gradient")
             and not (page and Options.IsHidden(page, item)) then return true end
     end
     return false

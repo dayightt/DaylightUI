@@ -1344,7 +1344,7 @@ local function barFxItems(spec, c)
     local read = spec.read or function(key) return DUI:Get(spec.module, key) end
     local cfg = function(key) return read(base .. key) end
     return {
-        { type = "custom", label = "", noSearch = true, lockWith = base .. "style",
+        { type = "custom", label = "", noSearch = true, fits = true, lockWith = base .. "style",
           build = function(row)
               row.sample = DUI.BarFx.Sample(row, { c.kind }, { bare = true, height = BARFX_PREVIEW_H, cfg = function() return cfg end })
               -- Spans the row by its anchors, so it fits any width.
