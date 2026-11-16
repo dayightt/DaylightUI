@@ -42,6 +42,7 @@ Detail.RULE_GAP = 3     -- a title's rule sits this far under its text
 Detail.VALUE_GAP = 7    -- and its value this far under the rule
 Detail.AFTER = 8        -- under each line
 Detail.FILL = { 1, 1, 1, 0.035 }
+Detail.RULE = { 1, 1, 1, 0.1 }    -- the thin line under a label
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function W() return DUI.Widgets end
@@ -244,8 +245,8 @@ function Detail:Set(spec)
             r.label:SetPoint("TOPLEFT", f, "TOPLEFT", Detail.PAD, -y)
             local valueY = y
             if hasLabel then
-                Style.InkText(r.label, "pop")
-                Style.PaintAccent(r.rule, 0.3)
+                Style.InkText(r.label, "LABEL")   -- tan: the accent is for a word or two a glance needs
+                r.rule:SetVertexColor(Detail.RULE[1], Detail.RULE[2], Detail.RULE[3], Detail.RULE[4])
                 local ruleY = y + lh + Detail.RULE_GAP
                 r.rule:ClearAllPoints()
                 r.rule:SetPoint("TOPLEFT", f, "TOPLEFT", Detail.PAD, -ruleY)

@@ -377,23 +377,10 @@ function Friends.Build(page)
         onChange = function() Friends.Render(nil, true) end })
     -- Add friend: a square button beside the search (it adds someone new, so it isn't
     -- about the picked row).
-    page.add = W().Button(page, "+", W().INPUT_H)
-    page.add:SetWidth(W().INPUT_H)
-    page.add:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Friends.EDGE, -10)
-    page.add:SetScript("OnClick", function()
+    page.add = W().IconButton(page, "ui-plus.png", L["Add friend"], function()
         W().Prompt(L["Add a friend: a BattleTag (Name#1234) or a character's name."], "", function(text) Data().AddFriend(text) end, { now = true })
-    end)
-    page.add:HookScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        DUI.Tips.Clear()
-        DUI.Tips.Title(L["Add friend"])
-        DUI.Tips.Flush(GameTooltip)
-        GameTooltip:Show()
-    end)
-    page.add:HookScript("OnLeave", function(self)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
+    end, W().INPUT_H)
+    page.add:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Friends.EDGE, -10)
     page.search:SetPoint("TOPLEFT", page, "TOPLEFT", Friends.EDGE, -10)
     page.search:SetPoint("TOPRIGHT", page.add, "TOPLEFT", -6, 0)
     page.chips = {}

@@ -218,7 +218,8 @@ T.test("social: a friend you can invite has a quick Invite button at the end of 
     local p, rel, rp, x, y = kit.action:GetPoint(1)
     T.eq(p, "RIGHT"); T.eq(rel, kit); T.eq(rp, "RIGHT"); T.eq(y, 0, "in the middle")
     T.truthy(x < 0 and x > -12, "against the right edge")
-    T.eq(kit.action:GetWidth(), Rows.ACTION_W); T.eq(kit.action:GetHeight(), Rows.ACTION_H, "a button, not a bare icon")
+    T.eq(kit.action:GetWidth(), Rows.ACTION_W); T.eq(kit.action:GetHeight(), Rows.ACTION_W, "square")
+    T.truthy(kit.action.SetIcon and kit.action.icon, "W.IconButton: tan, accent on hover")
     -- Clicking invites that friend and doesn't pick the row.
     stub.Key(function() kit.action:Click() end)
     T.eq(SW.Calls("InviteFriend")[1][1], 100 + #"Thessaly Moor", "their game account")
@@ -890,11 +891,12 @@ T.test("social: Add friend is a square button beside the search", function()
     clean()
 end)
 
-T.test("social: the quick Invite button is a square", function()
-    local Rows = DaylightUI.Lfg and DaylightUI.Lfg.Rows
-    load()
-    Rows = DaylightUI.Lfg.Rows
-    T.eq(Rows.ACTION_W, Rows.ACTION_H)
+T.test("social: the add-friend button is a W.IconButton", function()
+    local ns = load()
+    open(ns)
+    local page = ns.Friends.page
+    T.truthy(page.add.SetIcon and page.add.icon, "W.IconButton")
+    T.eq(page.add:GetWidth(), page.add:GetHeight(), "square")
 end)
 
 -- A friend already in your group has no Invite: not on the row, not in the panel.
@@ -1037,9 +1039,9 @@ T.test("social: a friend with no character: BattleTag under the name, an initial
     clean()
 end)
 
--- The titles over Zone, Faction and Server are in the accent with a rule under them, and
+-- The titles over Zone, Faction and Server are tan (the accent is for a word or two) with a rule under them, and
 -- each line has room.
-T.test("social: the card's titles are in the accent with a rule under them", function()
+T.test("social: the card's titles are tan with a rule under them", function()
     local ns = load()
     open(ns)
     local page = ns.Friends.page
@@ -1052,7 +1054,8 @@ T.test("social: the card's titles are in the accent with a rule under them", fun
     T.truthy(titled.rule:IsShown(), "with a rule")
     local ar, ag, ab = DaylightUI.Style.Accent()
     local lr, lg, lb = titled.label:GetTextColor()
-    T.truthy(math.abs(lr - ar) < 0.01 and math.abs(lg - ag) < 0.01 and math.abs(lb - ab) < 0.01, "in the accent")
+    T.rgb({ lr, lg, lb }, DaylightUI.Style.INK.LABEL, "tan, like the other labels")
+    T.falsy(math.abs(lr - ar) < 0.01 and math.abs(lg - ag) < 0.01 and math.abs(lb - ab) < 0.01, "not the accent")
     -- Titled lines keep their room: the next one starts a full line lower.
     local ys = {}
     for _, r in ipairs(d.rows) do if r.label:IsShown() then ys[#ys + 1] = select(5, r.label:GetPoint(1)) end end

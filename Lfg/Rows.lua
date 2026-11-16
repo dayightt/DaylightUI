@@ -22,9 +22,9 @@ Rows.BADGES = 5       -- max role badges per row (a dungeon's five)
 Rows.MEMBER = 22      -- member row in an opened group
 Rows.MEMBERS = 5      -- members listed by name; bigger groups get counts
 Rows.BUTTON = 24
-Rows.ACTION_W, Rows.ACTION_H = 24, 24  -- a row's quick-action button (Invite on a friend), at its right end
-Rows.ACTION_INSET = 8                  -- from the row's right edge
-Rows.ACTION_ICON, Rows.ACTION_ICON_SIZE = "ui-data-social.png", 14
+Rows.ACTION_W = 24                          -- a row's quick-action button (Invite on a friend), at its right end
+Rows.ACTION_INSET = 8                   -- from the row's right edge
+Rows.ACTION_ICON = "ui-data-social.png"
 Rows.LINE_GAP = 3     -- space between a row's lines
 Rows.DOT = 7          -- status dot
 
@@ -104,35 +104,18 @@ local function makeRow(parent)
     b.note:SetPoint("TOPLEFT", b.sub, "BOTTOMLEFT", 0, -3)
     Style.InkText(b.note, "TEXT")
     -- A quick action at the row's right end (Invite on a friend), shown only when the
-    -- row's spec has one: a real button (W.Button's outline, trace and press) with
-    -- an icon in it. The row's own light follows the mouse onto it, so the row
-    -- doesn't go dark under its own button.
-    local act = W().Button(b, "", Rows.ACTION_H)
-    act:SetWidth(Rows.ACTION_W)
+    -- row's spec has one: W.IconButton (tan, accent on hover, its name after a short
+    -- rest). The row's own light follows the mouse onto it, so the row doesn't go dark
+    -- under its own button.
+    local act = W().IconButton(b, Rows.ACTION_ICON,
+        function() return b.spec and b.spec.action and b.spec.action.tip end,
+        function()
+            local a = b.spec and b.spec.action
+            if a and a.onClick then a.onClick(b) end
+        end, Rows.ACTION_W)
     act:SetPoint("RIGHT", b, "RIGHT", -Rows.ACTION_INSET, 0)
-    act.icon = W().Icon(act, Rows.ACTION_ICON, Rows.ACTION_ICON_SIZE, Style.INK.LABEL)
-    act.icon:SetPoint("CENTER", act, "CENTER", 0, 0)
-    act:SetScript("OnClick", function()
-        local a = b.spec and b.spec.action
-        if a and a.onClick then a.onClick(b) end
-    end)
-    act:HookScript("OnEnter", function(self)
-        W().Tint(self.icon, { Style.Accent() })
-        Win.Parts.Light(b.hi, true)
-        local words = b.spec and b.spec.action and b.spec.action.tip
-        if words and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            DUI.Tips.Clear()
-            DUI.Tips.Title(words)
-            DUI.Tips.Flush(GameTooltip)
-            GameTooltip:Show()
-        end
-    end)
-    act:HookScript("OnLeave", function(self)
-        W().Tint(self.icon, Style.INK.LABEL)
-        Win.Parts.Light(b.hi, b:IsMouseOver() == true)
-        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-    end)
+    act:HookScript("OnEnter", function() Win.Parts.Light(b.hi, true) end)
+    act:HookScript("OnLeave", function() Win.Parts.Light(b.hi, b:IsMouseOver() == true) end)
     act:Hide()
     b.action = act
     b:SetScript("OnEnter", function(self)
