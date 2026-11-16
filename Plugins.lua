@@ -31,7 +31,7 @@ local L = DUI.L
 local Plugins = {}
 DUI.Plugins = Plugins
 
-DUI.API = { major = 1, minor = 9 }
+DUI.API = { major = 1, minor = 10 }
 
 Plugins.ORDER = 2000 -- plugin sections go after all built-in ones (News is 1000), under their heading
 Plugins.list, Plugins.order = {}, {}
@@ -207,6 +207,7 @@ function Plugins.ChangesLine(name)
     end
     more(c.tooltips, "Adds tooltip lines (%d).", "Adds tooltip lines (%d).")
     more(c.steps, "Adds %d setup guide page.", "Adds %d setup guide pages.")
+    more(c.guides, "Adds its own setup guide.", "Adds its own setup guide.")
     more(c.baggroups, "Adds %d bag group.", "Adds %d bag groups.")
     more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
     more(c.aurafilters, "Adds %d aura filter.", "Adds %d aura filters.")
@@ -260,6 +261,14 @@ local function pluginGroup(p)
             desc = "Its own section in the list on the left, under Plugins.",
             hidden = function() return Plugins.FirstPage(p) == nil end,
             func = function() DUI.OptionsPanel.Show(Plugins.FirstPage(p)) end }
+        items[#items + 1] = { type = "button", label = "Setup guide", text = "Open",
+            desc = "Its own setup guide, shown once after Daylight UI's. Run it again any time.",
+            hidden = function() return not DUI.InstallerPlugins.Has(p.name) end,
+            func = function()
+                local O = DUI.OptionsPanel
+                if O and O.IsShown() then DUI.Motion.Vanish(O.Frame()) end
+                DUI.InstallerPlugins.Show(p.name)
+            end }
     end
     if p.website then
         items[#items + 1] = { type = "text", label = function() return string.format(L["Website: %s"], p.website) end }

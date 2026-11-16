@@ -358,16 +358,13 @@ function Bank.Build()
     Bank.Park()
     -- The game opens and closes the bags along with the bank in its bank frame's
     -- OnShow/OnHide (BankFrameTemplates.lua), which a frame under a hidden parent
-    -- never gets, so do the same here. Twice under the veil, since the game's
-    -- OpenAllBags does nothing with the bags already open. Don't pass the bank as
-    -- the opener: that goes in a game local and would be tainted if written from
-    -- here (see OC.CloseGame in OpenClose.lua). Remember who opened them instead.
+    -- never gets. The bag is shown here instead, never through the game's
+    -- OpenAllBags (OC.Hold says why), and closed with the bank if it was opened for it.
     DUI.RegisterEvent("BANKFRAME_OPENED", function()
         Bank.open = true
         Bank.Open()
         Bank.Reread()
-        Bank.openedBags = Bank.openedBags or not ns.OpenClose.AnyOpen()
-        if type(OpenAllBags) == "function" then pcall(OpenAllBags) end
+        Bank.openedBags = ns.OpenClose.Hold() or Bank.openedBags
     end)
     DUI.RegisterEvent("BANKFRAME_CLOSED", function()
         Bank.open = false

@@ -404,6 +404,8 @@ local function layoutShield(h)
     Style.SetBarGradient(s, false)
     s.spellColour = nil
     CD.ColourBase(h, s, s, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button)
+    s.fx = s.fx or {}
+    CD.TrackFx(h, s, s.fx, true)
     local t = CD.BarText(block)
     s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Outline())
     CD.Ink(s.text, t.timeColor)

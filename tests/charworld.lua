@@ -348,6 +348,7 @@ local function installModelAndMenus()
             S().ignoreForSave = S().ignoreForSave or {}
             S().ignoreForSave[slot] = true
         end,
+        PickupEquipmentSet = function(id) record("PickupEquipmentSet", id) end,
         CreateEquipmentSet = function(name, icon) record("CreateEquipmentSet", { name, icon }) end,
         GetEquipmentSetID = function(name)
             for _, s in ipairs(sets) do if s.name == name then return s.id end end

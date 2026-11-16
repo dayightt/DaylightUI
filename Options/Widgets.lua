@@ -4293,3 +4293,219 @@ function W.Prompt(text, initial, onAccept, opts)
         input = { initial = initial, empty = opts and opts.empty },
         onYes = onAccept })
 end
+
+-- ---------------------------------------------------------------------
+-- The icon picker: every icon the game offers for macros and equipment
+-- sets, in a grid. A click picks one and closes it.
+-- ---------------------------------------------------------------------
+
+W.ICONS = { cols = 8, rows = 6, size = 36, gap = 6, top = 10, chips = 34, bottom = 16, wheel = 84 }
+W.ICON_PATH = [[INTERFACE\ICONS\]]
+W.ICON_UNKNOWN = 134400   -- the question mark
+
+local iconBox
+local ICON_KINDS = { "all", "item", "spell" }
+
+-- The game hands out its icons through four fill-this-table calls, the loose
+-- files first, as its own picker reads them. An entry is a file id or a file
+-- name without its folder.
+local function iconFill(list, ...)
+    for i = 1, select("#", ...) do
+        local fn = _G[(select(i, ...))]
+        if type(fn) == "function" then pcall(fn, list) end
+    end
+    return list
+end
+
+-- first: icons to show ahead of the rest (a set's own items).
+local function iconLists(first)
+    local own, seen = { W.ICON_UNKNOWN }, { [W.ICON_UNKNOWN] = true }
+    for _, icon in ipairs(first or {}) do
+        if icon and not seen[icon] then
+            seen[icon] = true
+            own[#own + 1] = icon
+        end
+    end
+    local lists = { own = own }
+    lists.item = iconFill({}, "GetLooseMacroItemIcons", "GetMacroItemIcons")
+    lists.spell = iconFill({}, "GetLooseMacroIcons", "GetMacroIcons")
+    return lists
+end
+
+local function iconCount(f)
+    local l, n = f.lists, 0
+    if f.kind ~= "spell" then n = n + #l.own + #l.item end
+    if f.kind ~= "item" then n = n + #l.spell end
+    return n
+end
+
+-- The icon at a place in the grid, as the game wants it saved.
+local function iconAt(f, i)
+    local l = f.lists
+    if f.kind ~= "spell" then
+        if i <= #l.own then return l.own[i] end
+        i = i - #l.own
+        if i <= #l.item then return tonumber(l.item[i]) or l.item[i] end
+        i = i - #l.item
+    end
+    if f.kind ~= "item" then
+        local e = l.spell[i]
+        return tonumber(e) or e
+    end
+end
+
+-- What a texture takes: file ids and whole paths as they are, a bare file
+-- name under the icons folder.
+function W.IconFile(icon)
+    if type(icon) == "string" and not string.find(icon, "[\\/:]") then return W.ICON_PATH .. icon end
+    return icon
+end
+
+local function iconPaintTile(b)
+    local off = DUI.Win.Parts.FAINT
+    local r, g, bl = Style.Accent()
+    local k = math.max(b.glow or 0, b.current and 1 or 0)
+    b.edge:SetVertexColor(off[1] + (r - off[1]) * k, off[2] + (g - off[2]) * k, off[3] + (bl - off[3]) * k, 1)
+end
+
+local function iconTile(f)
+    local I, Parts, M = W.ICONS, DUI.Win.Parts, DUI.Motion
+    local b = CreateFrame("Button", nil, f.grid)
+    b:SetSize(I.size + 2, I.size + 2)
+    Parts.ItemIcon(b, I.size)
+    b.edge:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.glow = 0
+    local function ease(to)
+        if M then M.Tween(b, b.glow, to, M.FAST, function(v) b.glow = v; iconPaintTile(b) end)
+        else b.glow = to; iconPaintTile(b) end
+    end
+    b:SetScript("OnEnter", function() ease(1) end)
+    b:SetScript("OnLeave", function() ease(0) end)
+    b:SetScript("OnClick", function(self)
+        if DUI.Sound then DUI.Sound.Play("click") end
+        local spec, icon = f.spec, self.iconValue
+        W.CloseIcons()
+        if spec and spec.onPick and icon then DUI.SafeCall(spec.onPick, icon) end
+    end)
+    return b
+end
+
+local function iconPitch() return W.ICONS.size + 2 + W.ICONS.gap end
+
+local function iconRange(f)
+    local I = W.ICONS
+    local view = I.rows * iconPitch() - I.gap
+    local total = math.ceil(iconCount(f) / I.cols) * iconPitch() - I.gap
+    return f.at, math.max(0, total - view), view
+end
+
+-- Only the rows in view have tiles: the game has tens of thousands of icons.
+local function iconDraw(f)
+    local I, pitch = W.ICONS, iconPitch()
+    local _, max = iconRange(f)
+    f.at = math.max(0, math.min(f.at, max))
+    local row = math.floor(f.at / pitch)
+    local count, n = iconCount(f), 0
+    for r = 0, I.rows do
+        for c = 0, I.cols - 1 do
+            n = n + 1
+            local b = f.tiles[n]
+            if not b then
+                b = iconTile(f)
+                f.tiles[n] = b
+            end
+            local i = (row + r) * I.cols + c + 1
+            local icon = i <= count and iconAt(f, i) or nil
+            b.iconValue = icon
+            b:SetShown(icon ~= nil)
+            if icon then
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", f.grid, "TOPLEFT", c * pitch, -((row + r) * pitch - f.at))
+                b.icon:SetTexture(W.IconFile(icon))
+                b.current = f.spec ~= nil and icon == f.spec.current
+                DUI.Win.Parts.FitItemIcon(b)
+                iconPaintTile(b)
+            end
+        end
+    end
+end
+
+local function iconKind(f, kind)
+    f.kind, f.at = kind, 0
+    for _, chip in ipairs(f.chips) do chip.SetOn(chip.kind == kind) end
+    iconDraw(f)
+    f.bar.Update()
+    if DUI.Motion then DUI.Motion.Fade(f.grid, 0, 1, DUI.Motion.FAST) end
+end
+
+local function iconBuild()
+    local Win, I = DUI.Win, W.ICONS
+    local inner = I.cols * iconPitch() - I.gap
+    local view = I.rows * iconPitch() - I.gap
+    local w = inner + 2 * Win.EDGE + W.SCROLL.gap + W.SCROLL.width
+    local h = Win.COMPACT + I.top + I.chips + view + I.bottom
+    local f = Win.New({ name = "DaylightUIIcons", w = w, h = h, strata = "DIALOG", compact = true })
+    f.onClose = function() W.CloseIcons() end
+    f.tiles, f.chips, f.at, f.kind = {}, {}, 0, "all"
+    local names = { all = ALL or L["All"], item = ITEMS or L["Items"], spell = SPELLS or L["Spells"] }
+    local last
+    for _, kind in ipairs(ICON_KINDS) do
+        local chip = W.Chip(f.host, names[kind])
+        chip.kind = kind
+        chip.FitWidth()
+        if last then chip:SetPoint("LEFT", last, "RIGHT", W.CHIP_GAP, 0)
+        else chip:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -(Win.COMPACT + I.top)) end
+        chip:SetScript("OnClick", function() iconKind(f, kind) end)
+        f.chips[#f.chips + 1] = chip
+        last = chip
+    end
+    f.grid = CreateFrame("Frame", nil, f.host)
+    f.grid:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -(Win.COMPACT + I.top + I.chips))
+    f.grid:SetSize(inner, view)
+    f.grid:SetClipsChildren(true)
+    f.bar = W.Scroll(f.grid, { step = I.wheel,
+        read = function() return iconRange(f) end,
+        write = function(v) f.at = v; iconDraw(f) end })
+    Win.Drag(f, {})
+    Win.Keys(f, function(key)
+        if key == "ESCAPE" then W.CloseIcons(); return true end
+    end)
+    DUI.On("StyleChanged", function() if f:IsShown() and f.lists then iconDraw(f) end end)
+    return f
+end
+
+-- spec: title, first (icons shown ahead of the rest), current (lit),
+-- onPick(icon) with the icon as the game saves it: a file id or a file name.
+function W.PickIcon(spec)
+    local Win = DUI.Win
+    iconBox = iconBox or iconBuild()
+    local f = iconBox
+    f.spec = spec
+    f.title:SetText(spec.title or L["Choose an icon"])
+    f.lists = iconLists(spec.first)
+    if not Win.IsOpen(f) then
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+        f:SetScale(Win.Scale(1))
+        Win.Open(f)
+        Win.KeysOn(f, true)
+    end
+    f:Raise()
+    iconKind(f, "all")
+end
+
+-- The picker showing now (its spec), or nil.
+function W.PickingIcon()
+    return iconBox and iconBox.spec or nil
+end
+
+-- The lists are let go with the window: they're big.
+function W.CloseIcons()
+    local f = iconBox
+    if not (f and f.spec) then return end
+    f.spec = nil
+    DUI.Win.KeysOn(f, false)
+    DUI.Win.Close(f, function()
+        if not f.spec then f.lists = nil end
+    end)
+end

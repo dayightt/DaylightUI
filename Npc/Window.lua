@@ -266,6 +266,17 @@ local function tooltipFor(it)
     end
 end
 
+-- Shift-click link: a currency has its own, the quest item index means nothing for it.
+local function linkOf(it)
+    if it.currency then
+        if it.currencyID and C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyLink) == "function" then
+            return C_CurrencyInfo.GetCurrencyLink(it.currencyID, it.count)
+        end
+        return nil
+    end
+    return GetQuestItemLink(it.kind, it.index)
+end
+
 -- best: what the best-selling choice sells for (Data.BestSale); its tile gets the coin.
 local function tilesFor(list, choosing, best)
     local out = {}
@@ -279,7 +290,7 @@ local function tilesFor(list, choosing, best)
             nameColor = bad and ns.Shop.BAD or it.loading and DUI.Style.INK.LABEL or nil,
             tint = bad and ns.Shop.BAD_ICON or nil, picked = choosing and S.choice == (it.index or i),
             mark = best and ns.Data.SaleOf(it) == best and Npc.COIN or nil,
-            tooltip = tooltipFor(it), link = not S.sample and function() return GetQuestItemLink(it.kind, it.index) end or nil,
+            tooltip = tooltipFor(it), link = not S.sample and function() return linkOf(it) end or nil,
             onClick = choosing and function() Npc.Pick(i) end or nil }
     end
     return out

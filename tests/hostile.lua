@@ -201,7 +201,7 @@ local function pullSocial(DUI)
         local F = DUI.Social.Friends
         local first = F.rows and F.rows[1]
         if first then stub.Key(first.Click, first) end
-        stub.Key(function() local b = F.page.foot.buttons[1]; if b then b:Click() end end)
+        stub.Key(function() local b = F.page.detail.buttons[1]; if b and b:IsShown() then b:Click() end end)
         SW.Login(6)
         stub.RunTimers()
         stub.Key(G.ShowTab, "allies", true)

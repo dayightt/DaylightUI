@@ -1841,3 +1841,45 @@ T.test("npc shop on a controller: A buys, X buys a stack, as the game's vendor",
         if e.key == "Y" then T.falsy(e.when(), "the spellbook is the trainer's") end
     end
 end)
+
+-- Seen in game: a supply box hand-in gave 15 silver and 30 Trade Commitment, and the
+-- window showed only the silver. The game lists currencies apart from item rewards.
+T.test("npc: a quest's currency rewards show beside its items, on the offer and the hand-in", function()
+    local N = load()
+    local function names()
+        local out = {}
+        for _, p in ipairs(N.frame.pages[N.frame.current].pieces or {}) do
+            if p.name and p.spec then out[#out + 1] = p.name:GetText() end
+        end
+        return out
+    end
+    local q = NW.Candles({ choices = {}, rewards = { { name = "Linen Cloth", itemID = 2589 } },
+        currencies = { { name = "Trade Commitment", count = 30, currencyID = 3200 } } })
+    NW.Quest("DETAIL", q)
+    frame()
+    T.deq(names(), { "Linen Cloth", "Trade Commitment" }, "the offer")
+    NW.Quest("COMPLETE", q)
+    frame()
+    T.deq(names(), { "Linen Cloth", "Trade Commitment" }, "the hand-in")
+    local tile
+    for _, p in ipairs(N.frame.pages[N.frame.current].pieces) do
+        if p.spec and p.name:GetText() == "Trade Commitment" then tile = p end
+    end
+    T.eq(tile.count:GetText(), "30")
+    local before = #N.frame.pages[N.frame.current].pieces
+    for _ = 1, 20 do frame() end
+    T.eq(#N.frame.pages[N.frame.current].pieces, before, "the watch doesn't see it as a change and refill forever")
+end)
+
+T.test("npc shop: a limited item says how many the vendor has left, and you can't ask for more", function()
+    local N = load()
+    NW.Merchant({ items = { { name = "Raw Brilliant Smallfish", price = 18, available = 5 }, { name = "Tough Jerky", price = 25, stack = 5 } } })
+    frame(); settle()
+    local fish = shopTile(N.frame, "Raw Brilliant Smallfish")
+    local jerky = shopTile(N.frame, "Tough Jerky")
+    local plain = fish.sub:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(plain:find("5 left", 1, true), "its stock after the price")
+    T.falsy(jerky.sub:GetText():find("left", 1, true), "an unlimited one says nothing")
+    local _, afford = stub.npc.Shop.MaxOf(fish.spec.shopItem)
+    T.truthy(afford <= 5, "the amount box stops at the stock")
+end)

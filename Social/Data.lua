@@ -108,6 +108,32 @@ end
 
 Data.FACTIONS = { Alliance = true, Horde = true }
 
+-- A faction as the game's token ("Alliance" or "Horde"): the Battle.net info gives that,
+-- and a client that hands over the localized name gets it by the game's own words.
+function Data.FactionOf(name)
+    name = str(name)
+    if not name then return nil end
+    if Data.FACTIONS[name] then return name end
+    if name == _G.FACTION_ALLIANCE then return "Alliance" end
+    if name == _G.FACTION_HORDE then return "Horde" end
+    return nil
+end
+
+-- Whether this server lets the two factions group (retail's cross-faction parties). The
+-- game's party button asks this before it asks the friend's faction.
+function Data.CanCrossFaction()
+    local P = party()
+    return P ~= nil and call(P.CanFormCrossFactionParties) == true
+end
+
+-- Same faction as the player's, as the game's party button asks, unless the server lets
+-- the factions group. A friend whose faction isn't known is left to the game, like an
+-- unknown ruleset.
+function Data.SameFaction(f)
+    local mine = type(UnitFactionGroup) == "function" and Data.FactionOf(UnitFactionGroup("player")) or nil
+    return f == nil or f.faction == nil or mine == nil or f.faction == mine or Data.CanCrossFaction()
+end
+
 -- One friend: { id, account, tag, favorite, status ("on", "away", "busy", "off"),
 -- inGame (in this World of Warcraft), char, class, level, zone, race, faction
 -- ("Alliance" or "Horde"), ruleset, game (another game's name), lastOnline (seconds
@@ -131,7 +157,11 @@ local function friend(info)
     if f.inGame then
         f.char, f.class, f.level = str(g.characterName), str(g.classFilename), num(g.characterLevel)
         f.zone, f.race = str(g.areaName), str(g.raceName)
-        f.faction = Data.FACTIONS[str(g.factionName) or ""] and g.factionName or nil
+        f.faction = Data.FactionOf(g.factionName)
+        -- What the game's party button reads besides: the game account to invite, its
+        -- realm (0 = no info yet) and whether it's in this region.
+        f.guid, f.realmID, f.region = str(g.playerGuid), num(g.realmID), plainBool(g.isInCurrentRegion)
+        f.realmName = str(g.realmName)   -- to tell two players of one name apart
     end
     -- Like the game's own card: the display name, only within the player's region.
     if g.clientProgram == Data.CLIENT_WOW and g.isInCurrentRegion ~= false then
@@ -209,15 +239,35 @@ function Data.WhisperFriend(f)
     elseif type(ChatFrame_SendBNetTell) == "function" then ChatFrame_SendBNetTell(f.account) end
 end
 
--- Invite when they're in this game, on the same ruleset, and not already in the group
--- (like the game's party button).
+-- Invite when they're in this game, on the same ruleset and faction (or a server that
+-- lets them group), with their realm and region known, like the game's party button
+-- (FriendsFrame_GetInviteRestriction). That function can't be asked: its player's
+-- faction and realm are set only when the game's own friends window is shown, and
+-- ours takes its place.
 function Data.CanInviteFriend(f)
-    return f ~= nil and f.inGame == true and f.gameAccountID ~= nil and Data.SameRuleset(f.realm)
+    return f ~= nil and f.inGame == true and f.gameAccountID ~= nil
+        and f.realmID ~= 0 and f.region ~= false
+        and Data.SameRuleset(f.realm) and Data.SameFaction(f)
+        and not Data.InGroup(f.char, f.realmName)
+end
+
+-- The game's FriendsFrame_InviteOrRequestToJoin: a friend who is already in a group is
+-- asked to be invited ("request"), anyone else is invited. The type comes from the
+-- game's GetDisplayedInviteType when this client has it.
+-- What the button does for this friend: "INVITE", or "REQUEST_INVITE" (ask to join theirs).
+function Data.InviteKind(f)
+    local kind = (f and f.guid and type(GetDisplayedInviteType) == "function") and call(GetDisplayedInviteType, f.guid) or nil
+    return kind == "REQUEST_INVITE" and "REQUEST_INVITE" or "INVITE"
 end
 
 function Data.InviteFriend(f)
     local B = bn()
-    if B and Data.CanInviteFriend(f) then call(B.InviteFriend, f.gameAccountID) end
+    if not (B and Data.CanInviteFriend(f)) then return end
+    if Data.InviteKind(f) == "REQUEST_INVITE" and type(BNRequestInviteFriend) == "function" then
+        call(BNRequestInviteFriend, f.gameAccountID)
+    else
+        call(B.InviteFriend, f.gameAccountID)
+    end
 end
 
 function Data.SetNote(f, note) if f and f.id then call(BNSetFriendNote, f.id, note or "") end end
@@ -289,7 +339,17 @@ local function ally(a)
     local last = type(i.interactions) == "table" and i.interactions[1] or nil
     local out = { guid = str(c.guid), name = str(c.fullName) or str(c.name), short = str(c.name), class = classToken(num(c.classID)),
         level = num(c.level), online = s.isOnline == true, pinned = num(s.pinExpirationDate) ~= nil,
-        legacy = s.isConvertedLegacyFriend == true, note = str(i.note), location = str(s.currentLocation) }
+        legacy = s.isConvertedLegacyFriend == true, note = str(i.note), location = str(s.currentLocation),
+        realm = str(c.realmName) }
+    -- The race and its faction, from the character's race id.
+    local raceID = num(c.raceID)
+    local C = type(C_CreatureInfo) == "table" and C_CreatureInfo or nil
+    if raceID and C then
+        local race = call(C.GetRaceInfo, raceID)
+        if type(race) == "table" then out.race = str(race.raceName) end
+        local faction = call(C.GetFactionInfo, raceID)
+        if type(faction) == "table" then out.faction = Data.FactionOf(faction.groupTag) or Data.FactionOf(faction.name) end
+    end
     if not (out.guid and out.name) then return nil end
     out.status = not out.online and "off" or s.isDND == true and "busy" or s.isAFK == true and "away" or "on"
     if type(last) == "table" then
@@ -324,6 +384,84 @@ function Data.Pin(a, on) local A = allies(); if A and a then call(A.SetRecentAll
 function Data.AllyNote(a, note) local A = allies(); if A and a then call(A.SetRecentAllyNote, a.guid, note or "") end end
 
 -- Whispers and invites by character name (shared with the group finder)
+
+-- A realm as the game spells it in a unit's name (no spaces or hyphens), so a display name
+-- ("Area 52") and a unit's ("Area52") compare.
+local function realmKey(r)
+    r = str(r)
+    return r and (r:gsub("[%s%-]", "")) or nil
+end
+
+-- The player's own realm, which a unit's name leaves out when it's the same.
+local function myRealm()
+    return realmKey(call(GetNormalizedRealmName)) or realmKey(call(GetRealmName))
+end
+
+-- A name and its realm: "Name-Realm" says it itself, else the realm given (nil: not known).
+local function nameAndRealm(name, realm)
+    local short, inlined = name:match("^([^%-]+)%-(.+)$")
+    return short or name, realmKey(inlined) or realmKey(realm)
+end
+
+-- Is this character already in the player's party or raid? The name and, when the realm is
+-- known, the realm too: another player of the same name on another realm isn't them.
+function Data.InGroup(name, realm)
+    name = str(name)
+    if not name then return false end
+    local short
+    short, realm = nameAndRealm(name, realm)
+    local mine = myRealm()
+    local function same(unit)
+        local n, r = call(UnitName, unit)
+        n, r = str(n), str(r)
+        if n ~= short then return false end
+        if not realm then return true end
+        local theirs = realmKey(r) or mine
+        return theirs == nil or theirs == realm
+    end
+    if call(IsInRaid) == true then
+        for i = 1, num(call(GetNumGroupMembers)) or 0 do
+            if same("raid" .. i) then return true end
+        end
+    elseif call(IsInGroup) == true then
+        for i = 1, 4 do
+            if same("party" .. i) then return true end
+        end
+    end
+    return false
+end
+
+-- Is this character already a friend: the character of a Battle.net friend, or an old
+-- character friend. A name with no realm given is one of the player's own realm.
+function Data.IsFriendName(name, realm)
+    name = str(name)
+    if not name then return false end
+    local short
+    short, realm = nameAndRealm(name, realm)
+    local mine = myRealm()
+    realm = realm or mine
+    short = string.lower(short)
+    for _, f in ipairs(Data.Friends()) do
+        if f.char and string.lower(f.char) == short then
+            local theirs = realmKey(f.realmName)
+            if not (theirs and realm) or theirs == realm then return true end
+        end
+    end
+    -- The old character friends are all of the player's realm.
+    if realm ~= nil and mine ~= nil and realm ~= mine then return false end
+    local FL = type(C_FriendList) == "table" and C_FriendList or nil
+    return FL ~= nil and type(call(FL.GetFriendInfo, short)) == "table"
+end
+
+-- A recent ally who's online and isn't in the group yet.
+function Data.CanInviteAlly(a)
+    return a ~= nil and a.online == true and not Data.InGroup(a.name, a.realm)
+end
+
+-- A recent ally who isn't a friend yet (a legacy friend already is one).
+function Data.CanFriendAlly(a)
+    return a ~= nil and a.legacy ~= true and not Data.IsFriendName(a.name, a.realm)
+end
 
 function Data.Whisper(name) DUI.Lfg.Data.Whisper(name) end
 function Data.Invite(name) DUI.Lfg.Data.Invite(name) end

@@ -140,15 +140,6 @@ T.test("custom colors and strength paint the strips", function()
     T.eq(DUI.BarFx.StyleOf(bar), "flow")
 end)
 
-T.test("Tide eases back after a hit, then lets Lua rest", function()
-    local DUI, bar, _, read = setup({ style = "tide" })
-    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
-    DUI.BarFx.Kick(bar, -1)
-    for _ = 1, 30 do stub.RunOnUpdate(DUI.BarFx.ticker, 0.1) end
-    T.isnil(DUI.BarFx.ticker.__scripts.OnUpdate, "the ticker stops")
-    T.eq(DUI.BarFx.Easing(), 0, "nothing left easing")
-end)
-
 local function upgrader()
     return stub.Load({ module = true, before = function()
         DaylightUIDB = { version = "1.8.4", notesSeen = "1.8.4", installerSeen = true,
@@ -252,6 +243,35 @@ local function sheetOf(bar)
     end
 end
 
+T.test("Tide swells on its own, surges on a heal, ebbs on a hit, then lets Lua rest", function()
+    local DUI, bar, _, read = setup({ style = "tide", react = true })
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    local swell, surge, ebb
+    for _, r in ipairs(lights(bar)) do
+        if r:GetTexture() == DUI.BarFx.TIDE then swell = r
+        elseif r:GetBlendMode() == "ADD" then surge = r
+        else ebb = r end
+    end
+    T.truthy(swell, "its own swell, not Flow's rolling colors")
+    for _, r in ipairs(lights(bar)) do
+        T.truthy(r:GetTexture() ~= DUI.BarFx.WAVE and r:GetTexture() ~= DUI.BarFx.SWEEP, "no Flow under it")
+    end
+    T.eq(swell:GetNumPoints(), 1, "laid over the whole fill")
+    T.eq(surge:GetAlpha(), 0)
+    T.eq(ebb:GetAlpha(), 0)
+    DUI.BarFx.Kick(bar, 1)
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.05)
+    T.truthy(surge:GetAlpha() > 0, "a heal surges")
+    T.eq(ebb:GetAlpha(), 0)
+    DUI.BarFx.Kick(bar, -1)
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.05)
+    T.truthy(ebb:GetAlpha() > 0, "a hit ebbs")
+    for _ = 1, 10 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.eq(surge:GetAlpha(), 0)
+    T.eq(ebb:GetAlpha(), 0)
+    T.isnil(DUI.Motion.Driver().__scripts.OnUpdate, "then no Lua runs")
+end)
+
 T.test("a style that reacts flares on a hit and lets Lua rest after", function()
     local DUI, bar, cfg, read = setup({ style = "comet", react = true })
     DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
@@ -342,4 +362,55 @@ T.test("a frame still set to a style that was taken out shows Flow", function()
     local DUI, bar, cfg, read = setup({ style = "aurora" })
     DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
     T.eq(DUI.BarFx.StyleOf(bar), "flow")
+end)
+
+-- In game an animation started behind a loading screen stayed "playing"
+-- without moving, and Play did nothing to it, until another style was picked.
+T.test("after a loading screen every style starts its animation over", function()
+    for _, key in ipairs({ "flow", "tide", "comet", "embers" }) do
+        local DUI, bar, _, read = setup({ style = key })
+        local groups = {}
+        local make = bar.CreateAnimationGroup
+        bar.CreateAnimationGroup = function(self)
+            local g = make(self)
+            groups[#groups + 1] = g
+            return g
+        end
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        local playing, stops = {}, 0
+        for _, g in ipairs(groups) do
+            if g:IsPlaying() then
+                playing[#playing + 1] = g
+                local stop = g.Stop
+                g.Stop = function(self) stops = stops + 1; return stop(self) end
+            end
+        end
+        T.truthy(#playing > 0, key .. ": its animation plays")
+        stub.FireEvent("LOADING_SCREEN_DISABLED")
+        T.truthy(stops > 0, key .. ": stopped and")
+        for _, g in ipairs(playing) do T.truthy(g:IsPlaying(), key .. ": played again") end
+        -- A repaint keeps it going rather than starting it over.
+        stops = 0
+        DUI.Gradients.PaintPair(bar:GetStatusBarTexture(), { 1, 0, 0 }, { 0, 0, 1 })
+        T.eq(stops, 0, key .. ": a repaint doesn't restart it")
+    end
+end)
+
+-- A masked layer drawn in MOD wiped out what lay under it where its mask cut it
+-- away, so the world showed through past the fill's angled edge (seen in game).
+T.test("no style multiplies a layer over the bar", function()
+    for _, key in ipairs({ "flow", "tide", "comet", "embers" }) do
+        local DUI, bar, _, read = setup({ style = key })
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        for _, r in ipairs(lights(bar)) do
+            T.truthy(r:GetBlendMode() ~= "MOD", key .. ": " .. tostring(r:GetTexture()) .. " isn't MOD")
+        end
+        if key == "flow" then
+            local base
+            for _, r in ipairs(lights(bar)) do
+                if r:GetTexture() == DUI.Style.BarGrainOf(bar) then base = r end
+            end
+            T.truthy(base, "Flow's base wears the bar's own texture, so its shading stays")
+        end
+    end
 end)

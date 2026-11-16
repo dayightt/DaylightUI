@@ -1488,7 +1488,8 @@ end
 -- Setup guide pages (1.7): me.AddSetupStep({ id, title, desc, groups,
 -- onFinish, quick }), after Daylight UI's own pages. groups are the guide's
 -- own (rows = { { scope, key } }, cards...) over options of the plugin's
--- module; onFinish runs on Finish (set up another addon there).
+-- module; onFinish runs on Finish (set up another addon there). Since 1.10 a
+-- page may show its own text, image, buttons or build(holder, width) too.
 function View.AddSetupStep(v, def)
     local Pages = DUI.InstallerPages
     if not Pages then return false end
@@ -1499,6 +1500,26 @@ function View.AddSetupStep(v, def)
     end
     Report.Count(v.name, "steps")
     return true
+end
+
+-- A plugin's own setup guide (1.10): me.AddInstaller({ title, version,
+-- account, pages, onFinish, reload }), shown after Daylight UI's own guide,
+-- like ElvUI plugins' installers. pages are AddSetupStep's (groups, text,
+-- image, buttons, build). me.ShowInstaller() opens it again.
+function View.AddInstaller(v, spec)
+    local PI = DUI.InstallerPlugins
+    local had = PI.list[v.name] ~= nil
+    local ok, why = PI.Add(v.name, spec)
+    if not ok then
+        chat(L["%s: the setup guide was left out (%s)."], v.name, tostring(why))
+        return false
+    end
+    if not had then Report.Count(v.name, "guides") end
+    return true
+end
+
+function View.ShowInstaller(v)
+    return DUI.InstallerPlugins.Show(v.name)
 end
 
 -- Tooltip lines (1.7): me.AddTooltipLines(kind, fn(lines, data)), kind

@@ -1,8 +1,8 @@
 -- Bar styles: a living fill on health and power bars (Flow, Tide...), picked
 -- like the button glows. Nothing here reads a bar's value, so secret health
--- is fine: every layer sits in a clip frame that covers exactly the fill
--- (Style.FillClip) and the client runs the motion with animation groups, so
--- no Lua runs while a bar just sits there.
+-- is fine: every layer is laid over the fill and wears its masks, and the
+-- client runs the motion with animation groups, so no Lua runs while a bar
+-- just sits there.
 
 local _, DUI = ...
 local Style = DUI.Style
@@ -19,9 +19,6 @@ BarFx.ORDER = { "flow", "tide" }
 BarFx.RETIRED = {}   -- a style taken out -> the one shown instead (BarFxStyles.lua)
 BarFx.AUTO = { MANA = "flow", RAGE = "flow", ENERGY = "flow", FOCUS = "flow" }
 BarFx.FLOW_LOOP = 9      -- seconds for the colors to roll one bar width
-BarFx.TIDE_HEAL = 5      -- how fast the colors run right after a heal
-BarFx.TIDE_HIT = 0.15    -- and right after a hit
-BarFx.TIDE_BACK = 1.6    -- seconds to ease back to the usual speed
 
 local worn = setmetatable({}, { __mode = "k" })    -- bar -> its state
 local byFill = setmetatable({}, { __mode = "k" })  -- fill texture -> bar
@@ -99,15 +96,18 @@ local function setSpeedOf(s)
     if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, s.speed or 1)) end
 end
 
--- Flow: the bar's own two colors rolling along it. A base in the first color
--- and a soft wave in the second over it (barfx-wave.png, eased on a cosine, so
--- the turns have no crease), or on a Daylight sweep bar the sweep itself there
--- and back (barfx-sweep.png). Both are flipbook sheets the game steps through,
--- so nothing moves out of the fill: each layer is laid exactly over it and
--- wears the fill's own masks (its moving angled edge, and the bar's still ends
--- through Style.ClipLike), as the bar's texture layer does. They sit just over
--- the fill and under everything else drawn on the bar (hidden-class colors, a
--- cast's "can't interrupt" color).
+-- Flow: the bar's own two colors rolling along it. A base of the bar's own
+-- texture in the first color and a soft wave in the second over it
+-- (barfx-wave.png, eased on a cosine, so the turns have no crease), or on a
+-- Daylight sweep bar the sweep itself there and back (barfx-sweep.png). Both
+-- are flipbook sheets the game steps through, so nothing moves out of the
+-- fill: each layer is laid exactly over it and wears the fill's own masks (its
+-- moving angled edge, and the bar's still ends), as the bar's texture layer
+-- does. They sit just over the fill and under everything else drawn on the bar
+-- (hidden-class colors, a cast's "can't interrupt" color).
+-- No layer is drawn in MOD: one with a mask wipes out what lies under it where
+-- the mask cuts it away, so the world showed through past the fill's angled
+-- edge (seen in game).
 BarFx.WHITE = "Interface\\Buttons\\WHITE8X8"
 BarFx.WAVE = DUI.MEDIA .. "barfx-wave.png"
 BarFx.SWEEP = DUI.MEDIA .. "barfx-sweep.png"
@@ -133,25 +133,28 @@ local function buildFlow(s)
     h.anim = bar:CreateAnimationGroup()
     h.anim:SetLooping("REPEAT")
     h.base = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
+    h.sweep = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
     h.wave = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
-    h.grain = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 3)
-    h.grain:SetBlendMode("MOD")
-    h.layers = { h.base, h.wave, h.grain }
+    h.layers = { h.base, h.sweep, h.wave }
     for _, t in ipairs(h.layers) do Style.FollowFill(bar, t) end
-    h.baseBook = flipbook(h.anim, h.base)
+    flipbook(h.anim, h.sweep)
     flipbook(h.anim, h.wave)
     -- The game stops a frame's animations while it's hidden: start again on show.
     bar:HookScript("OnShow", function()
-        if s.style and s.flow and s.flow.shown and not h.anim:IsPlaying() then h.anim:Play(); setSpeedOf(s) end
+        if s.style and s.flow and s.flow.shown then
+            h.anim:Stop()
+            h.anim:Play()
+            setSpeedOf(s)
+        end
     end)
     s.flow = h
 end
 
 local function showFlow(h, on)
     h.shown = on
-    h.base:SetShown(on)
-    h.wave:SetShown(on and h.waveOn == true)
-    h.grain:SetShown(on and h.grainOn == true)
+    h.base:SetShown(on and not h.isSweep)
+    h.sweep:SetShown(on and h.isSweep == true)
+    h.wave:SetShown(on and not h.isSweep)
 end
 
 -- Laid over the fill, so a size change needs nothing.
@@ -176,21 +179,17 @@ local function paintFlow(s)
     for _, t in ipairs(h.layers) do Style.SameMasks(t, fill) end
     local alpha = BarFx.Get(s, "strength") or 1
     -- CLAMP, or the game blends each edge with the far one: a line at both ends.
+    h.isSweep = sweep
     if sweep then
-        h.base:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
-        h.baseBook:SetDuration(BarFx.FLOW_LOOP)
-        h.base:SetVertexColor(1, 1, 1, alpha)
-        h.waveOn = false
+        h.sweep:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
+        h.sweep:SetVertexColor(1, 1, 1, alpha)
     else
-        h.base:SetTexture(BarFx.WHITE)
-        h.base:SetTexCoord(0, 1, 0, 1)
+        -- The bar's own texture, so its shading stays.
+        h.base:SetTexture(grain or BarFx.WHITE, "CLAMP", "CLAMP")
         h.base:SetVertexColor(lo[1], lo[2], lo[3], alpha)
         h.wave:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
         h.wave:SetVertexColor(hi[1], hi[2], hi[3], alpha)
-        h.waveOn = true
     end
-    h.grainOn = grain ~= nil
-    if grain then h.grain:SetTexture(grain, "CLAMP", "CLAMP") end
     showFlow(h, true)
     return true
 end
@@ -213,7 +212,7 @@ end
 
 local function flowFor(style)
     local def = BarFx.DEFS[style]
-    return style == "flow" or style == "tide" or (def ~= nil and def.flow == true)
+    return style == "flow" or (def ~= nil and def.flow == true)
 end
 
 local function hidePieces(s, keep)
@@ -355,22 +354,7 @@ function BarFx.Painted(tex)
     if s and s.style then paintPiece(s) end
 end
 
--- Tide: a heal (dir > 0) speeds the roll up, a hit (dir < 0) nearly stops it,
--- then it eases back. Lua runs only while easing.
-local easing = {}
-local ticker
-local function tick(_, dt)
-    local any
-    for s in pairs(easing) do
-        s.easeT = s.easeT + dt
-        local k = math.min(1, s.easeT / BarFx.TIDE_BACK)
-        local e = 1 - (1 - k) * (1 - k)
-        setSpeed(s, s.speed * (s.easeFrom + (1 - s.easeFrom) * e))
-        if k >= 1 then easing[s] = nil else any = true end
-    end
-    if not any then ticker:SetScript("OnUpdate", nil) end
-end
-
+-- A heal (dir > 0) or a hit (dir < 0) on a style that reacts to them.
 function BarFx.Kick(bar, dir)
     local s = worn[bar]
     if not (s and s.style and type(dir) == "number" and dir ~= 0) then return end
@@ -380,15 +364,7 @@ function BarFx.Kick(bar, dir)
     if def and def.kick then
         local p = s.pieces and s.pieces[s.style]
         if p then def.kick(s, p, dir, size) end
-        return
     end
-    if not (s.style == "tide" and s.flow) then return end
-    s.easeFrom = dir > 0 and 1 + (BarFx.TIDE_HEAL - 1) * size or 1 - (1 - BarFx.TIDE_HIT) * math.min(1, size)
-    s.easeT = 0
-    easing[s] = true
-    ticker = ticker or CreateFrame("Frame")
-    BarFx.ticker = ticker
-    ticker:SetScript("OnUpdate", tick)
 end
 
 -- Hits and heals come with UNIT_COMBAT (its action is plain; the amount isn't).
@@ -397,7 +373,7 @@ DUI.RegisterEvent("UNIT_COMBAT", function(_, unit, action)
     local dir = KICK[action]
     if not dir or type(unit) ~= "string" then return end
     for bar, s in pairs(worn) do
-        local reacts = s.style == "tide" or (BarFx.DEFS[s.style or ""] and BarFx.DEFS[s.style].kick)
+        local reacts = BarFx.DEFS[s.style or ""] and BarFx.DEFS[s.style].kick
         if reacts and s.unit == unit and s.kind == "health" and bar:IsVisible() then BarFx.Kick(bar, dir) end
     end
 end)
@@ -406,14 +382,29 @@ function BarFx.Refresh()
     for _, s in pairs(worn) do apply(s) end
 end
 
-DUI.On("StyleChanged", BarFx.Refresh)
-
--- How many bars are easing back from a reaction (tests).
-function BarFx.Easing()
-    local n = 0
-    for _ in pairs(easing) do n = n + 1 end
-    return n
+-- An animation started behind a loading screen can stay "playing" without
+-- ever moving (seen in game after a /reload), and Play does nothing to one
+-- that thinks it's playing. Once the screen is gone, each one starts over.
+function BarFx.Restart()
+    for _, s in pairs(worn) do
+        if s.style then
+            local h = s.flow
+            if h and h.shown and flowFor(s.style) then
+                h.anim:Stop()
+                h.anim:Play()
+                setSpeed(s, s.speed)
+            end
+            local p = s.pieces and s.pieces[s.style]
+            if p and p.on and p.anim then
+                p.anim:Stop()
+                BarFx.DEFS[s.style].show(s, p, true)
+            end
+        end
+    end
 end
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", BarFx.Restart)
+
+DUI.On("StyleChanged", BarFx.Refresh)
 
 -- Samples: a bar of each kind in Daylight UI's look, following the picks
 -- (options page, the setup guide, the question after an update). A sample
@@ -518,15 +509,22 @@ BarFx.HOMES = {
         "personal.barFx.health", "personal.barFx.power",
         "playerCastbar.barFx", "targetCastbar.barFx", "focusCastbar.barFx", "partyCastbar.barFx", "swing.barFx",
     },
+    ActionBars = { "cdmBarFx" },
 }
 
--- The style keys of a module's homes, but for skip (the setup guide's card
--- sets one and these along with it).
+-- The style keys of every home but skip (the setup guide's card sets one and
+-- these along with it): a key of module itself, the others as { module, key }.
 function BarFx.StyleKeys(module, skip)
     local keys = {}
-    for _, path in ipairs(BarFx.HOMES[module] or {}) do
-        local key = path .. ".style"
-        if key ~= skip then keys[#keys + 1] = key end
+    for name, paths in pairs(BarFx.HOMES) do
+        for _, path in ipairs(paths) do
+            local key = path .. ".style"
+            if name ~= module then
+                keys[#keys + 1] = { name, key }
+            elseif key ~= skip then
+                keys[#keys + 1] = key
+            end
+        end
     end
     return keys
 end

@@ -44,7 +44,8 @@ CharacterPage.TIP = { title = Style.INK.VALUE, body = Style.INK.TEXT, value = "p
 
 -- Where everything goes, as { x, y (down is negative), w, h } from the
 -- page's top left. ammo: the room the small ammo slot takes beside the
--- ranged icon (0 or nil without), so icons only keeps the row centered.
+-- ranged icon (0 or nil without): icons only keeps the row centered, with
+-- names the row makes room for it.
 -- Pure: tested without frames.
 function CharacterPage.Rects(width, height, names, ammo)
     local E, T, G = CharacterPage.EDGE, CharacterPage.TOP, CharacterPage.GAP
@@ -68,12 +69,16 @@ function CharacterPage.Rects(width, height, names, ammo)
         -- the others evenly either side), in from the side columns: the main
         -- hand doesn't line up under the armor. The last one's words stop at
         -- the right column's edge.
+        -- With the ammo beside Ranged (the last), the row slides left by its
+        -- room so Ranged's words get as much space as the others'.
+        local room = ammo or 0
         local span = R.right.x + col - E
-        local w = math.min(CharacterPage.WEAPON_W, math.floor((span - (n - 1) * G) / n))
-        local mid = E + math.floor(span / 2) - math.floor(icon / 2)
+        local w = math.min(CharacterPage.WEAPON_W, math.floor((span - (n - 1) * G - room) / n))
+        local mid = E + math.floor(span / 2) - math.floor(icon / 2) - room
         for i = 1, n do
             local x = mid + math.floor((i - (n + 1) / 2) * (w + G))
-            R.bottom[i] = { x = x, y = rowY, w = math.min(w, E + span - x) }
+            local want = i == n and w + room or w
+            R.bottom[i] = { x = x, y = rowY, w = math.min(want, E + span - x) }
         end
     else
         local rowW = n * icon + (n - 1) * gap + (ammo or 0)
@@ -362,6 +367,7 @@ function CharacterPage.BuildFooter(page)
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
     sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
+    foot.ammo:SetPoint("RIGHT", sets, "LEFT", -16, 0)   -- a long ammo name ends in dots before the button
     sets:SetScript("OnClick", function() if ns.Sets then ns.Sets.Toggle() end end)
     foot.sets = sets
     return foot
@@ -500,7 +506,9 @@ function CharacterPage.PaintFooter(page, sum, repairAt)
         local r, g, b = unpack(sum.ammo == 0 and ns.Slots.RED or Style.INK.VALUE)
         ammo = C.Wrap(ammo, r, g, b)
     end
-    page.foot.ammo:SetText(ammo and string.format(L["Ammo %s"], ammo) or "")
+    local text = ammo and string.format(L["Ammo %s"], ammo) or ""
+    if ammo and sum.ammoName then text = text .. " (" .. sum.ammoName .. ")" end   -- which ammo, if the game knows it yet
+    page.foot.ammo:SetText(text)
 end
 
 -- The average went up: the number nudges and a light runs across it.

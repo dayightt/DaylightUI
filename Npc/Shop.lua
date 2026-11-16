@@ -165,6 +165,8 @@ function Shop.MaxOf(it)
             end
         end
     end
+    -- A limited item can't be bought past what the vendor has left (counted in lots).
+    if type(it.available) == "number" and it.available >= 0 then afford = math.min(afford, it.available * per) end
     local most = max > per and max * stacksRoom() or max
     return max, math.min(most, afford)
 end
@@ -546,6 +548,19 @@ local function tooltip(it)
     end
 end
 
+-- A limited item's stock after its price, as the game's shop shows "(5)" on it: the
+-- words tan and the count in the accent (soft red once it's sold out).
+function Shop.StockText(it)
+    local n = not it.buyback and it.available
+    if type(n) ~= "number" or n < 0 then return nil end
+    local said = string.format(L["%s left"], "")
+    local a, b = string.match(said, "^(.-)(.*)$")
+    if not a then return nil end
+    local label = Parts.Hex(Style.INK.LABEL)
+    local count = Parts.Hex(n > 0 and { Style.Pop() } or Style.INK.BAD) .. n .. "|r"
+    return (a ~= "" and label .. a .. "|r" or "") .. count .. (b ~= "" and label .. b .. "|r" or "")
+end
+
 local function tiles(list)
     local out, cash = {}, Shop.MoneyNow()
     local want = S.tab == "shop" and S.filter ~= "" and string.lower(S.filter) or nil   -- search only applies to the shelf
@@ -554,6 +569,8 @@ local function tiles(list)
             local dear = it.price > cash or (it.extended and not it.buyback and fn(CanAffordMerchantItem)
                 and not ns.Window.state.sample and CanAffordMerchantItem(it.index) == false)
             local sub = it.buyback and (it.price > 0 and short(it.price) or "") or Shop.CostText(it)
+            local stock = Shop.StockText(it)
+            if stock then sub = sub ~= "" and sub .. "   " .. stock or stock end
             out[#out + 1] = { index = it.index, name = it.name, texture = it.texture, count = it.stack, quality = it.quality,
                 sub = sub, subColor = (dear or not it.usable) and Shop.BAD or (it.price > 0 and Shop.PRICE) or nil,
                 tint = not it.usable and Shop.BAD_ICON or nil, nameColor = not it.usable and Shop.BAD or nil,
@@ -784,7 +801,7 @@ Shop.SAMPLE = {
     { index = 5, name = L["Flint and Tinder"], texture = SAMPLE_ICON, price = 135, stack = 1, quality = 1, usable = true },
     { index = 6, name = L["Coarse Thread"], texture = SAMPLE_ICON, price = 10, stack = 1, quality = 1, usable = true },
     { index = 7, name = L["Rough Arrow"], texture = SAMPLE_ICON, price = 10, stack = 200, quality = 1, usable = true },
-    { index = 8, name = L["Small Brown Pouch"], texture = SAMPLE_ICON, price = 500, stack = 1, quality = 1, usable = true },
+    { index = 8, name = L["Small Brown Pouch"], texture = SAMPLE_ICON, price = 500, stack = 1, quality = 1, usable = true, available = 3 },
     { index = 9, name = L["Traveler's Backpack"], texture = SAMPLE_ICON, price = 25000, stack = 1, quality = 2, usable = true },
 }
 

@@ -275,7 +275,12 @@ function Links.Sync(box)
         end
     end
     if not f then return end
-    for i = #box.visibleLines + 1, #f.lines do f.lines[i]:Hide() end
+    -- Only rows that held a link have a twin, so the list has holes and its
+    -- length can't be trusted: the game can also lay out fewer rows than before.
+    local rows = #box.visibleLines
+    for i, t in pairs(f.lines) do
+        if i > rows then t:Hide() end
+    end
     f:SetShown(used > 0)
 end
 

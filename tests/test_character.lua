@@ -1062,7 +1062,7 @@ T.test("character page: where everything goes, with names", function()
     T.deq(R.stats, { x = 694, y = -12, w = 250, h = 480 })
     T.deq(R.bottom, { { x = 135, y = -444, w = 190 }, { x = 333, y = -444, w = 190 }, { x = 531, y = -444, w = 155 } })
     T.deq(R.footer, { x = 16, y = -496, w = 928, h = 36 })
-    T.deq(P.Rects(960, 540, true, 30).bottom, R.bottom, "with names the ammo sits inside Ranged's own width")
+    T.deq(P.Rects(960, 540, true, 30).bottom, { { x = 105, y = -444, w = 190 }, { x = 303, y = -444, w = 190 }, { x = 501, y = -444, w = 185 } }, "with the ammo beside Ranged the row slides left, so Ranged keeps room for its words")
 end)
 
 T.test("character page: the ammo is small, beside the ranged icon, only for a class that uses ammo", function()
@@ -1082,7 +1082,8 @@ T.test("character page: the ammo is small, beside the ranged icon, only for a cl
     T.eq(x, S.AMMO_GAP)
     _, _, _, nameX = ranged.name:GetPoint(1)
     T.eq(nameX, S.GAP + S.AMMO_GAP + S.AMMO, "Ranged's name moves over for it")
-    T.eq(ranged:GetWidth(), 155, "Ranged's words stop at the right column's edge")
+    T.eq(ranged:GetWidth(), 187, "Ranged's words stop at the right column's edge")
+    T.eq(ranged:GetWidth() - S.ICON - S.GAP - S.AMMO_GAP - S.AMMO >= 95, true, "room for its item level line")
     T.eq(CharacterAmmoSlot:IsMouseEnabled(), true)
     local _, brel = CharacterAmmoSlot:GetPoint(1)
     T.eq(brel, ammo.icon, "the game's ammo button sits on the small icon")
@@ -1448,6 +1449,9 @@ T.test("character sets: a set read as its items and where each one is", function
     T.eq(set.name, "Fury")
     T.eq(set.lost, 1)
     T.eq(#set.items, 3, "the empty neck and the ignored shirt are left out")
+    local kinds = {}
+    for _, e in ipairs(set.slots) do kinds[#kinds + 1] = e.key .. "=" .. e.kind end
+    T.deq(kinds, { "Head=item", "Neck=empty", "Chest=item", "Shirt=left", "Finger0=item" }, "every slot the set knows")
     T.deq({ set.items[1].key, set.items[1].where, set.items[1].name }, { "Head", "bags", "Fury Helm" })
     T.deq({ set.items[2].key, set.items[2].where }, { "Chest", "missing" })
     T.deq({ set.items[3].key, set.items[3].where }, { "Finger0", "bank" })
@@ -1464,7 +1468,8 @@ T.test("character sets: the button opens the panel beside the window, on the set
     T.truthy(panel.foot.buttons[1].spec.off, "already wearing it")
     ns.Sets.Pick(2)
     T.eq(panel.pick.text:GetText(), "Fury")
-    T.deq(lineTexts(panel), { "Fury Helm/Head/Bags", "Fury Chest/Chest/Missing", "Fury Ring/Ring/Bank" })
+    T.deq(lineTexts(panel), { "Fury Helm/Head/Bags", "Neck//Empty", "Fury Chest/Chest/Missing", "Shirt//Left out",
+        "Fury Ring/Ring/Bank" })
     T.deq(CW.Calls("TryOn"), { "|Hitem:201|h[Fury Helm]|h", "|Hitem:202|h[Fury Chest]|h", "|Hitem:203|h[Fury Ring]|h" },
         "the model wears the picked set")
     panel.foot.buttons[1]:Click()
@@ -1522,6 +1527,86 @@ T.test("character sets: the edit menu saves, renames and deletes the picked set"
     stub.Advance(1)   -- past W.CONFIRM_GAP, so a real second click rather than a double-click
     clickRow("delete")
     T.deq(CW.Calls("DeleteEquipmentSet"), { 2 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+local function lineOf(panel, key)
+    for _, b in ipairs(panel.stack.pieces) do
+        if b.lineSpec and b.lineSpec.id == key then return b end
+    end
+end
+
+T.test("character sets: a click leaves a slot out, and a set you aren't wearing waits for Save", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    lineOf(panel, "Head"):Click()
+    T.eq(lineOf(panel, "Head").value:GetText(), "Left out")
+    T.deq(CW.Calls("SaveEquipmentSet"), {}, "saving Fury now would put your own gear in it")
+    T.truthy(panel.foot.buttons[2].spec.primary, "Save is the main button until it's saved")
+    lineOf(panel, "Shirt"):Click()
+    T.eq(lineOf(panel, "Shirt").value:GetText(), "Yours on save", "put back in")
+    panel.foot.buttons[2]:Click()
+    DaylightUI.Widgets.Answer(true)
+    T.deq(CW.Calls("SaveEquipmentSet"), { { 2, 1 } })
+    T.deq(CW.state.ignoreForSave, { [1] = true }, "the head left out, the shirt back in")
+    T.truthy(panel.foot.buttons[1].spec.primary)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: leaving a slot out of the set you're wearing saves at once", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    T.eq(ns.Sets.picked, 1)
+    lineOf(panel, "Head"):Click()
+    T.deq(CW.Calls("SaveEquipmentSet"), { { 1, 1 } })
+    T.deq(CW.state.ignoreForSave, { [1] = true })
+    T.eq(lineOf(panel, "Head").value:GetText(), "Left out")
+    panel.edit:Click()
+    clickRow("bar")
+    T.deq(CW.Calls("PickupEquipmentSet"), { 1 }, "onto the cursor for an action bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: Change its icon opens every game icon, the set's own first", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    panel.edit:Click()
+    clickRow("icon")
+    local W = DaylightUI.Widgets
+    local box = _G.DaylightUIIcons
+    T.truthy(W.PickingIcon())
+    T.eq(box.title:GetText(), "An icon for Fury")
+    local shown = {}
+    for _, b in ipairs(box.tiles) do if b:IsShown() then shown[#shown + 1] = b.iconValue end end
+    T.deq(shown, { 134400, "icon:201", "icon:202", "icon:203", "INV_Sword_04", 135274, 135275, 136243, "Spell_Nature_Heal" })
+    T.eq(box.tiles[5].icon:GetTexture(), [[INTERFACE\ICONS\INV_Sword_04]], "a bare file name gets the icons folder")
+    box.chips[3]:Click()
+    shown = {}
+    for _, b in ipairs(box.tiles) do if b:IsShown() then shown[#shown + 1] = b.iconValue end end
+    T.deq(shown, { 136243, "Spell_Nature_Heal" }, "the Spells chip")
+    box.tiles[2]:Click()
+    T.deq(CW.Calls("ModifyEquipmentSet"), { { 2, "Fury", "Spell_Nature_Heal" } })
+    T.isnil(W.PickingIcon(), "a pick closes it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: the slots a picked set will change light up on the sheet", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    local slots = ns.Slots.frames
+    T.falsy(slots.Head.swapping, "the set you wear changes nothing")
+    ns.Sets.Pick(2)
+    T.truthy(slots.Head.swapping, "the helm comes out of a bag")
+    T.truthy(slots.Finger0.swapping, "the ring comes from the bank")
+    T.falsy(slots.Chest.swapping, "a missing item can't be put on")
+    T.falsy(slots.Neck.swapping)
+    lineOf(panel, "Head"):Click()
+    T.falsy(slots.Head.swapping, "left out of the set: it stays as it is")
+    ns.Sets.Close()
+    DaylightUI.Win.Feel.Settle(panel)
+    T.falsy(slots.Finger0.swapping, "nothing stays lit once the panel is closed")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3149,12 +3234,12 @@ T.test("character footer: the ammo you carry beside the durability, only with am
         return openChar(ns).foot
     end
     local arrows = CW.item("Jagged Arrow", { count = 1234, subType = "Arrow" })
-    T.eq(footOf({ Ranged = CW.item("Bow", { weapon = 2 }), Ammo = arrows }).ammo:GetText(), "Ammo 1234", "the whole count, not cut")
+    T.eq(footOf({ Ranged = CW.item("Bow", { weapon = 2 }), Ammo = arrows }).ammo:GetText(), "Ammo 1234 (Jagged Arrow)", "the whole count, and which ammo")
     local f = footOf({ Ranged = CW.item("Bow", { weapon = 2 }) })
     T.eq(f.ammo:GetText(), "Ammo 0", "a bow and none in the slot: none")
     T.eq(footOf({ Ranged = CW.item("Gun", { weapon = 3 }) }).ammo:GetText(), "Ammo 0")
     T.eq(footOf({ Ranged = CW.item("Crossbow", { weapon = 18 }) }).ammo:GetText(), "Ammo 0")
-    T.eq(footOf({ Ammo = arrows }).ammo:GetText(), "Ammo 1234", "ammo in the slot, no weapon yet")
+    T.eq(footOf({ Ammo = arrows }).ammo:GetText(), "Ammo 1234 (Jagged Arrow)", "ammo in the slot, no weapon yet")
     T.eq(footOf({ Ranged = CW.item("Throwing Knife", { weapon = 16 }) }).ammo:GetText(), "", "thrown takes no ammo")
     T.eq(footOf({}).ammo:GetText(), "", "nothing to shoot, nothing to count")
     local _, ns, DUI = charPage({ usesAmmo = true, class = "HUNTER", items = { Ranged = CW.item("Bow", { weapon = 2 }) } })

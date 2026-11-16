@@ -1,6 +1,7 @@
 -- Flight timer: a bar at the top of the screen with the destination and time
 -- left while on a flight path. Times are learned from your own flights and
--- saved per account by route. An unknown route shows "Learning..." and counts up.
+-- saved per account by route. An unknown route counts down from the way back's
+-- time when that one is known, else shows "Learning..." and counts up.
 -- The destination comes from a post-hook on the global TakeTaxiNode.
 
 local _, ns = ...
@@ -37,7 +38,7 @@ end
 
 local mod, wired, holder
 local nodes, here = {}, nil   -- the open taxi map's points: slot -> { name, id }; where you are
-local pending                  -- { key, name, at }: picked, not in the air yet
+local pending                  -- { key, back, name, at }: picked, not in the air yet
 local flight                   -- { key, name, start, total?, early? }: in the air
 local vis = 0                  -- 0 hidden .. 1 fully in
 
@@ -235,11 +236,23 @@ local function land()
     Flight.Update()
 end
 
+-- A route flown only the other way shows that flight's time: close enough to
+-- count down from, and this one is learned on landing all the same.
+local function knownTime(key, back)
+    local routes = Flight.Routes()
+    return (key and routes[key]) or (back and routes[back]) or nil
+end
+
+local function remember()
+    saved({ key = flight.key, back = flight.back, name = flight.name, early = flight.early or nil,
+            wall = time() - (GetTime() - flight.start) })
+end
+
 local function takeOff(p, start)
-    flight = { key = p.key, name = p.name, start = start or GetTime() }
-    flight.total = p.key and Flight.Routes()[p.key] or nil
+    flight = { key = p.key, back = p.back, name = p.name, start = start or GetTime(), early = p.early }
+    flight.total = knownTime(p.key, p.back)
     pending = nil
-    saved({ key = p.key, name = p.name, wall = time() - (GetTime() - flight.start) })
+    remember()
     Flight.Update()
 end
 
@@ -304,17 +317,21 @@ end
 -- The player picked a flight point (after the game took it).
 function Flight.OnTake(slot)
     if not enabled() or type(slot) ~= "number" then return end
+    -- The map can open before the client has its points: read it again now,
+    -- while it's still open, or the route would have no start and never be learned.
+    if not (here and nodes[slot]) then Flight.ReadMap() end
     local to = nodes[slot]
     if not (to and to.name) and type(TaxiNodeName) == "function" then
         to = { name = TaxiNodeName(slot) }
     end
     if not (to and type(to.name) == "string" and to.name ~= "") then return end
-    pending = { key = Flight.Key(here, to), name = to.name, at = GetTime() }
+    pending = { key = Flight.Key(here, to), back = Flight.Key(to, here), name = to.name, at = GetTime() }
     startDriver()
 end
 
 -- After a /reload (or a login) mid-flight: carry on from the saved take-off.
-function Flight.Resume()
+-- After a login the time logged out counted as flying, so that flight isn't learned.
+function Flight.Resume(login)
     if flight or not enabled() then return end
     local s = saved()
     if type(s) ~= "table" then return end
@@ -323,7 +340,7 @@ function Flight.Resume()
         saved(false)
         return
     end
-    takeOff({ key = s.key, name = s.name }, GetTime() - ago)
+    takeOff({ key = s.key, back = s.back, name = s.name, early = s.early or login or nil }, GetTime() - ago)
     startDriver()
 end
 
@@ -340,10 +357,17 @@ function Flight.Enable(m)
         end
         -- Asking to land early: that flight's time isn't the route's.
         if type(TaxiRequestEarlyLanding) == "function" then
-            hooksecurefunc("TaxiRequestEarlyLanding", function() if flight then flight.early = true end end)
+            hooksecurefunc("TaxiRequestEarlyLanding", function() if flight then flight.early = true remember() end end)
         end
         DUI.RegisterEvent("TAXIMAP_OPENED", function() if enabled() then Flight.ReadMap() end end)
-        DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function() Flight.Resume() end)
+        DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin)
+            -- Enable resumed it already, not knowing yet whether this is a login.
+            if isLogin == true and flight and not flight.early then
+                flight.early = true
+                remember()
+            end
+            Flight.Resume(isLogin == true)
+        end)
         DUI.RegisterTestPart(Flight.TEST_PART, "Flight timer", 95, enabled)
         DUI.On("TestModeChanged", Flight.Update)
         DUI.On("TestPartChanged", function(key) if key == Flight.TEST_PART then Flight.Update() end end)

@@ -33,6 +33,7 @@ Slots.AMBER = { 1, 0.69, 0.25 }
 Slots.RED = { 1, 0.35, 0.35 }
 Slots.RING = { 1, 1, 1, 0.35 }               -- hover
 Slots.GLOW = { 1, 1, 1, 0.22 }               -- held item fits this slot
+Slots.SWAP_GLOW = { size = 0.7, thick = 0.08 }   -- the lights round a slot an equipment set will change
 Slots.HOLD_DIM = 0.55                         -- other slots while holding an item
 Slots.SOFT = 0.25                             -- how much to soften quality colors on names
 Slots.HOVER_TICK = 0.05
@@ -539,6 +540,26 @@ function Slots.Holding()
         local fits = id ~= nil and ((holding and can ~= nil and can(id) == true) or (test ~= nil and aimFits(test, id)))
         h.glow:Ease(fits)
         dim(h, (holding or test ~= nil) and not fits)
+    end
+end
+
+-- The slots an equipment set is about to change get the circling lights.
+-- slots: { [slot id] = true }, nil for none.
+function Slots.Swap(slots)
+    local W = DUI.Widgets
+    for key, h in pairs(Slots.frames) do
+        local id = ns.Gear.SlotId(key)
+        local on = slots ~= nil and id ~= nil and slots[id] == true and h:IsShown()
+        if on or h.swapGlow then
+            if not h.swapGlow then
+                h.swapGlow = CreateFrame("Frame", nil, h.icon)
+                h.swapGlow:SetAllPoints(h.icon)
+                h.swapGlow:SetFrameLevel(h.icon:GetFrameLevel() + 6)
+            end
+            h.swapping = on
+            W.GlowAround(h.swapGlow, on, { frame = h.icon, inset = -Slots.EDGE, thick = DUI.Pixel.Px(h.icon, 2),
+                scale = Slots.SWAP_GLOW, parent = h.swapGlow, layer = "OVERLAY", sub = 7 })
+        end
     end
 end
 

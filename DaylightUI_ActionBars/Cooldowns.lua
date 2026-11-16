@@ -172,6 +172,7 @@ function CD.StyleText(item)
         -- The others keep the game's, with just Daylight UI's font and border.
         local p = skinned[item]
         local block = p and ns.CdmRows and ns.CdmRows.BlockOf(item)
+        CD.TrackFx(item, bar, p, block ~= nil and block.kind == "bar")
         if not (block and block.kind == "bar") then
             styleText(bar.Name, CD.TEXT)
             styleText(bar.Duration, CD.TEXT)
@@ -191,6 +192,25 @@ function CD.StyleText(item)
         if p.host and p.host.SetAlpha then p.host:SetAlpha(Look(block, "icon") ~= false and 1 or 0) end
         CD.Colour(item, bar, p, Look(block, "color"), block)
     end
+end
+
+-- Bar animation (the core's BarFx) on a bar in one of the player's bar blocks.
+-- A bar left in the game's look stays as the game draws it, so it's taken off
+-- when the bar leaves the blocks. p remembers which it was.
+function CD.TrackFx(item, bar, p, inBlock)
+    if not (p and DUI.BarFx) then return end
+    if p.fxBar == bar then
+        if p.fxIn ~= inBlock then
+            p.fxIn = inBlock
+            DUI.BarFx.Apply(bar)
+        end
+        return
+    end
+    p.fxBar, p.fxIn = bar, inBlock
+    DUI.BarFx.Track(bar, "cooldown", nil, nil, nil, DUI.BarFx.Reader(function()
+        local d = p.fxIn and ns.module and ns.module.db
+        return d and d.cdmBarFx
+    end))
 end
 
 -- Icon text (the card's Look > Text) ------------------------------------
@@ -602,6 +622,7 @@ function CD.ColourBase(item, bar, p, mode, button)
         local c = b.barColor
         Style.SetBarGradient(bar, false)
         paint(p)(bar, c[1], c[2], c[3])
+        Style.NoteFillRGB(bar:GetStatusBarTexture(), c[1], c[2], c[3])
         return
     elseif own == "gradient" and type(Fx.Get(b, "barGradient")) == "table" and DUI.Gradients then
         local G, pair = DUI.Gradients, b.barGradient
@@ -637,6 +658,7 @@ function CD.ColourBase(item, bar, p, mode, button)
         end
         local c = p.spellColour or CD.PALETTE[1]
         paint(p)(bar, c[1], c[2], c[3])
+        Style.NoteFillRGB(bar:GetStatusBarTexture(), c[1], c[2], c[3])
     else
         local sweep = Style.SetBarGradient(bar, true)
         local m = Style.GRADIENT_MID

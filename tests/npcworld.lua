@@ -275,7 +275,7 @@ local function installMerchant()
             local it = M().items[i]
             if not it then return nil end
             return { name = it.name, texture = it.texture or 134400, price = it.price or 0, stackCount = it.stack or 1,
-                numAvailable = -1, isPurchasable = true, isUsable = it.usable ~= false, hasExtendedCost = it.extended == true }
+                numAvailable = it.available or -1, isPurchasable = true, isUsable = it.usable ~= false, hasExtendedCost = it.extended == true }
         end,
         GetNumJunkItems = function() return M().junk end,
         IsSellAllJunkEnabled = function() return true end,
@@ -383,6 +383,19 @@ local function installQuest()
     _G.GetNumQuestItems = function() return #(Q().required or {}) end
     _G.IsQuestItemHidden = function() return 0 end
     _G.GetQuestItemInfoLootType = function() return 0 end
+    -- The quest's fixed currency rewards (a quest's `currencies`: { name, count, currencyID }),
+    -- apart from its item rewards, as QuestInfo.lua reads them.
+    _G.C_QuestInfoSystem = _G.C_QuestInfoSystem or {}
+    _G.C_QuestInfoSystem.GetQuestRewardCurrencies = function(id)
+        local q = Q()
+        if not q or q.questID ~= id then return {} end
+        local out = {}
+        for i, c in ipairs(q.currencies or {}) do
+            out[i] = { name = c.name, texture = c.texture or 133784, totalRewardAmount = c.count or 1,
+                baseRewardAmount = c.count or 1, quality = c.quality or 1, currencyID = c.currencyID or 1000 + i }
+        end
+        return out
+    end
     _G.GetQuestItemInfo = function(kind, i)
         local it = (list(kind) or {})[i]
         if not it then return end

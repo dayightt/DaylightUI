@@ -625,7 +625,14 @@ function Widget:ClearFocus()
     focusScript(self, "OnEditFocusLost")
 end
 function Widget:HasFocus() return stub.focus == self end
-function Widget:SetAlpha(a) self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = nil end
+-- A secret alpha gives the frame the secret Alpha aspect (SecretArgumentsAddAspect).
+-- No number (nothing passed) errors as in the client.
+function Widget:SetAlpha(a)
+    if type(a) ~= "number" and not isSecret(a) then
+        error("bad argument #1 to 'SetAlpha' (Usage: self:SetAlpha(alpha))", 2)
+    end
+    self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = isSecret(a) or nil
+end
 -- Like the client, the alpha it picks really lands (true -> t, false -> f).
 function Widget:SetAlphaFromBoolean(v, t, f)
     self.__alphaFromBoolean = { v, t, f }
@@ -654,15 +661,24 @@ function Widget:GetAlpha()
     if a == nil then a = self.__alpha or 1 end
     local f = self
     while f do
-        if rawget(f, "__secretAlpha") then return stub.Secret(a) end
+        if rawget(f, "__secretAlpha") then return isSecret(a) and a or stub.Secret(a) end
         f = rawget(f, "__parent")
     end
     return a
 end
 -- Its own alpha times every parent's, up to (and including) the first frame
--- that ignores its parents' alpha, as in the client.
+-- that ignores its parents' alpha, as in the client. It needs alpha access
+-- (RequiresScriptObjectAlphaAccess, FailureMode ReturnWithError): asked from
+-- addon code while the frame or a parent has a secret alpha, it returns
+-- nothing at all, so SetAlpha(f:GetEffectiveAlpha()) errors "Usage".
 function Widget:GetEffectiveAlpha()
     local a, f = 1, self
+    while f do
+        if rawget(f, "__secretAlpha") and fromAddon(2) then return end
+        if f.__ignoreParentAlpha then break end
+        f = f.__parent
+    end
+    f = self
     while f do
         a = a * (f.__alpha or 1)
         if f.__ignoreParentAlpha then break end
@@ -2757,6 +2773,14 @@ C_PaperDollInfo.GetTemporaryEnchantmentInfo = function(inv)
     end
 end
 _G.GetInventoryItemTexture = function(_, slot) return "tex:" .. tostring(slot) end
+-- The game's icon lists: each call adds its icons to the table it's given,
+-- file ids or file names without the folder (Blizzard_FrameXMLBase/IconDataProvider.lua).
+stub.icons = { looseItem = {}, item = { "INV_Sword_04", 135274, 135275 }, looseSpell = {}, spell = { 136243, "Spell_Nature_Heal" } }
+local function iconFiller(kind)
+    return function(t) for _, icon in ipairs(stub.icons[kind]) do t[#t + 1] = icon end end
+end
+_G.GetLooseMacroItemIcons, _G.GetMacroItemIcons = iconFiller("looseItem"), iconFiller("item")
+_G.GetLooseMacroIcons, _G.GetMacroIcons = iconFiller("looseSpell"), iconFiller("spell")
 
 -- ---------------------------------------------------------------------
 -- Reset and load
@@ -3221,7 +3245,7 @@ function stub.WrapSecrets()
 end
 
 stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
-                    "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerUI.lua", "InstallerSteps.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
+                    "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerUI.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
                      "Options.lua", "Module.lua" }
@@ -3237,7 +3261,7 @@ stub.INSPECT_FILES = { "Defaults.lua", "Model.lua", "Gear.lua", "Talents.lua", "
 stub.CRAFT_FILES = { "Defaults.lua", "SkillUps.lua", "Data.lua", "Share.lua", "Spells.lua", "List.lua", "Recipe.lua", "Make.lua", "View.lua", "Key.lua", "Track.lua", "Window.lua", "Swap.lua", "Options.lua", "Module.lua" }
 stub.LFG_FILES = { "Defaults.lua", "Data.lua", "Rows.lua", "Browse.lua", "Listing.lua", "Who.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MAIL_FILES = { "Defaults.lua", "Ledger.lua", "Inbox.lua", "Send.lua", "LedgerPage.lua", "Window.lua", "Options.lua", "Module.lua" }
-stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
+stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lua", "Trees.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",

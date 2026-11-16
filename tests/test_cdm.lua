@@ -3006,6 +3006,118 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A mage pulling with Arcane Blast stacks still up from the last fight: that cast
+-- was left to a read of the debuff, but the fight it started hid the debuff first,
+-- so the count stayed one short for the whole chain (a player on 1.8.4: 2 on the
+-- bar, 3 on the game's debuff). Counted once the fight hides it, icon and bar.
+T.test("cdm self debuff: a pull's cast is counted when the fight hides the debuff first, icon and bar", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
+    stub.SetUnits({ player = { class = "MAGE" } })
+    AB.CdmSpells.MAGE = { { 400574, 1239696, aura = true } }
+    stub.knownSpells = { [400574] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 400574 or 100 + id, selfAura = true } end
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    icons[1]:Hide()
+    local function stacks(n)
+        stub.auras.player = { HARMFUL = { { spellId = 400573, duration = 18, expirationTime = GetTime() + 18,
+            applications = n, sourceUnit = "player", isHarmful = true, isFromPlayerOrPlayerPet = true } } }
+    end
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = AB.CdmAuras.Frame(31)
+        if shape == "bar" then h = AB.CdmBars.AuraFrame(31) end
+        T.truthy(h and h.face, shape .. ": drawn by ours")
+        -- Two stacks up from the last fight, read by id.
+        stacks(2)
+        stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+        T.eq(h.selfStacks, 2, shape .. ": read")
+        -- The pull: the cast goes off while auras can be read, the fight starts
+        -- before the third stack is read.
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pull-" .. shape, 400574)
+        stub.combat = true
+        stacks(3)
+        stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+        T.eq(h.selfStacks, 3, shape .. ": the pull's cast counted")
+        stub.combat = false
+        stub.auras.player = {}
+        stub.FireEvent("PLAYER_DEAD"); stub.RunTimers()
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A shaman's Lightning Shield (Buff up Hide, Buff missing Show) never came back
+-- when its charges ran out in a fight (a player on 1.8.4): the aura can't be read
+-- there, and nothing but the cast says it's up. The game's own cooldown icon of it
+-- holds the aura it shows and lets it go the moment the aura ends, fights too
+-- (CooldownViewerItemData.lua ClearAuraInstanceInfo), so that says down.
+T.test("cdm auras: a buff drawn by ours in place of the game's cooldown icon hears it end in a fight, icon and bar", function()
+    local DUI, AB, E, D, ess = editorWorld()
+    DUI.DB.General().motion = false
+    withCategories({ [1] = { 11, 12 } }, { [1] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id, hasAura = true, selfAura = true } end
+    _G.GetSpellBaseCooldown = function() return 0 end   -- no cooldown of its own
+    C_Spell.GetSpellTexture = function() return 1234 end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    local set = D.Current()
+    addBlock(D, set, "icon")
+    place(D, set, 11, 1, 1)
+    T.truthy(D.SetSpellValue(set, 11, "hideActive", true))
+    T.truthy(D.SetSpellValue(set, 11, "missing", true))
+    set.pieces[11].track = "buff"      -- Buff only, as the card's Show pins it
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 11, "bar") end
+        stub.auras.player = { HELPFUL = { { spellId = 111, duration = 600, expirationTime = GetTime() + 600 } } }
+        ess[1].auraInstanceID = 7
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(11), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(11) or AB.CdmAuras.Frame(11)
+        T.eq(h.up, true, shape .. ": up")
+        stub.EnterCombat()
+        stub.auras.player = { HELPFUL = {} }
+        ess[1].auraInstanceID = nil      -- the game's icon let it go
+        stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(h.up, false, shape .. ": the charges ran out in the fight: down")
+        stub.LeaveCombat()
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game lists a rogue's Venom by its buff (1310703), which nobody learns: the
+-- talent that procs it is 1329328. So the game calls it unknown even with the
+-- talent, and the tray said "Not known right now" (a player on 1.8.4). Known
+-- through the talent, it's drawn by ours, as an icon and as a bar.
+T.test("cdm own: a buff a talent procs is known once you have the talent, icon and bar", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    stub.SetUnits({ player = { class = "ROGUE" } })
+    withCategories({ [2] = {} }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 1310703 or 100 + id, selfAura = true } end
+    stub.knownSpells = {}
+    AB.CdmOwn.Forget()
+    T.isnil(AB.CdmOwn.Known()[31], "no talent: not known")
+    stub.knownSpells = { [1329328] = true }
+    stub.FireEvent("PLAYER_TALENT_UPDATE")
+    local k = AB.CdmOwn.Known()[31]
+    T.truthy(k and k.aura, "the talent: known, a buff")
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(31), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(31) or AB.CdmAuras.Frame(31)
+        T.truthy(h and h.ids and h.ids[1310703], shape .. ": watching the buff")
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game's buff icon of Bestial Wrath looks on you and your target only, so it
 -- never lights up for the buff on your pet. Ours draws it, as an icon and as a bar.
 T.test("cdm rows: the game's buff icon of a buff on your pet gives way to ours, icon and bar", function()
@@ -7751,4 +7863,26 @@ T.test("cdm tour: a fight ends it with the editor", function()
     T.eq(Ed.IsOpen(), false)
     stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm bars: a bar in the layout wears the Cooldown Manager's bar animation, a game bar outside it doesn't", function()
+    local DUI, AB, set, ess, bars = fxWorld()
+    local Fx = DUI.BarFx
+    T.eq(Fx.StyleOf(bars[1].Bar), "flow", "a new setup starts it in Flow")
+    DUI:Set("ActionBars", "cdmBarFx.style", "none")
+    T.isnil(Fx.StyleOf(bars[1].Bar), "None stills it")
+    DUI:Set("ActionBars", "cdmBarFx.style", "flow")
+    T.eq(Fx.StyleOf(bars[1].Bar), "flow", "the game's bar in a bar block")
+    T.isnil(Fx.StyleOf(bars[2].Bar), "a game bar outside the blocks keeps the game's look")
+    -- A cooldown laid out as a bar is drawn by a bar of Daylight UI's own.
+    set.pieces[11].shape = "bar"
+    pass(AB)
+    local own = AB.CdmBars.CooldownFrame(11)
+    T.truthy(own, "drawn as a cooldown bar")
+    T.eq(Fx.StyleOf(own.Bar), "flow", "a cooldown bar too, icon or bar alike")
+    DUI:Set("ActionBars", "cdmBarFx.style", "tide")
+    T.eq(Fx.StyleOf(own.Bar), "tide", "a new pick reaches it")
+    unplace(AB.CdmData, set, 21)
+    pass(AB)
+    T.isnil(Fx.StyleOf(bars[1].Bar), "taken out of the layout: back to the game's look")
 end)

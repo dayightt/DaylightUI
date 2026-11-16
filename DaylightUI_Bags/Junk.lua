@@ -123,14 +123,15 @@ local function soulBag(bag)
 end
 
 -- Every slot in the bags holding a shard, in the order they get deleted: the
--- plain bags' first, last slot first, then a soul bag's, so it stays full.
+-- plain bags' first, last slot first, then a soul bag's, so it stays full. A
+-- locked shard (being deleted, on the cursor, in a trade) isn't listed.
 function Junk.ShardSlots()
     local plain, soul = {}, {}
     for _, s in ipairs(ns.Bags.Slots()) do
         if s.section ~= "keyring" then
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
-            if info and info.itemID == Junk.SHARD then
+            if info and info.itemID == Junk.SHARD and not info.isLocked then
                 table.insert(soulBag(s.bag) and soul or plain, 1, { bag = s.bag, slot = slot })
             end
         end
@@ -139,37 +140,36 @@ function Junk.ShardSlots()
     return plain
 end
 
--- How many shards are over the limit (0 when none, or no limit).
+-- How many shards are over the limit (0 when none, or no limit). A shard whose
+-- delete is still on its way to the server reads locked and no longer counts, so
+-- quick clicks never go under the limit.
 function Junk.ExtraShards()
     local limit = Junk.ShardLimit()
     if not limit then return 0 end
     return math.max(0, #Junk.ShardSlots() - limit)
 end
 
--- Deletes the extra shards. Only from the button's click: each slot is checked
--- again right before, and the cursor must hold a shard before it's deleted.
+-- Deletes one extra shard. The game deletes one item per click, so this only
+-- runs from the button's click: the slot is checked again right before, and the
+-- cursor must hold a shard before it's deleted. Returns 1 when one went.
 function Junk.DeleteShards()
     if ns.Items.InCombat() or ns.Items.CursorBusy() then return 0 end
     if type(C_Container.PickupContainerItem) ~= "function" or type(DeleteCursorItem) ~= "function" then return 0 end
-    local extra, done = Junk.ExtraShards(), 0
+    if Junk.ExtraShards() <= 0 then return 0 end
     for _, at in ipairs(Junk.ShardSlots()) do
-        if done >= extra then break end
         local ok, info = pcall(C_Container.GetContainerItemInfo, at.bag, at.slot)
         if ok and type(info) == "table" and info.itemID == Junk.SHARD and not info.isLocked then
             C_Container.PickupContainerItem(at.bag, at.slot)
             local kind, id = GetCursorInfo()
             if kind ~= "item" or id ~= Junk.SHARD then
                 if type(ClearCursor) == "function" then ClearCursor() end
-                break
+                return 0
             end
             DeleteCursorItem()
-            done = done + 1
+            return 1
         end
     end
-    if done > 0 then
-        DUI.Print(done == 1 and L["Deleted 1 Soul Shard."] or string.format(L["Deleted %d Soul Shards."], done))
-    end
-    return done
+    return 0
 end
 
 local selling = false

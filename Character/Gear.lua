@@ -186,11 +186,11 @@ function Gear.Summary(all, unit)
     end
     -- The ammo you carry: its count, or 0 with a bow, gun or crossbow and none in the slot; nil with
     -- neither (a mage's footer has no ammo in it).
-    local ammo
-    if all.Ammo and all.Ammo.ammo then ammo = all.Ammo.ammo
+    local ammo, ammoName
+    if all.Ammo and all.Ammo.ammo then ammo, ammoName = all.Ammo.ammo, all.Ammo.name
     elseif all.Ranged and all.Ranged.needsAmmo then ammo = 0 end
     return { level = type(avg) == "number" and math.floor(avg) or nil, durability = max > 0 and cur / max or nil,
-             quality = qN > 0 and math.floor(qSum / qN + 0.5) or nil, ammo = ammo }
+             quality = qN > 0 and math.floor(qSum / qN + 0.5) or nil, ammo = ammo, ammoName = ammoName }
 end
 
 -- Colors a number inside a label line as a value, then restores the line color.

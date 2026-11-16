@@ -125,6 +125,43 @@ T.test("flight: without the client's flight point list, names are the key", func
     T.eq(F.Routes()["Stormwind, Elwynn>Ironforge, Dun Morogh"], 30)
 end)
 
+T.test("flight: a map opened before the client has its points still learns the route", function()
+    local F = login()
+    local later = mapNodes
+    mapNodes = {}
+    stub.FireEvent("TAXIMAP_OPENED", 1)
+    mapNodes = later
+    TakeTaxiNode(2)
+    onTaxi = true
+    F.Tick()
+    stub.Advance(40)
+    land(F)
+    T.eq(F.Routes()["2>6"], 40, "read again at the pick: from and to known")
+end)
+
+T.test("flight: a route flown only the other way counts down from that time", function()
+    local F = login()
+    F.Routes()["6>2"] = 90
+    fly(F)
+    T.eq(bar().box.time:GetText(), "1:30", "the way back's time, not Learning")
+    stub.Advance(95)
+    land(F)
+    T.eq(F.Routes()["2>6"], 95, "this way is learned on landing")
+    T.eq(F.Routes()["6>2"], 90, "the way back keeps its own")
+end)
+
+T.test("flight: a flight carried on after a login isn't learned", function()
+    local F = login()
+    DaylightUI.DB.Character().flight = { key = "2>6", name = "Ironforge", wall = time() - 30 }
+    onTaxi = true
+    F.Resume()
+    stub.FireEvent("PLAYER_ENTERING_WORLD", true, false)
+    T.truthy(shown(), "still shown")
+    stub.Advance(20)
+    land(F)
+    T.isnil(F.Routes()["2>6"], "the time logged out isn't flying")
+end)
+
 T.test("flight: an early landing and a hiccup aren't learned", function()
     local F = login()
     fly(F)

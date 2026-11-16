@@ -2102,6 +2102,27 @@ T.test("small bars: a stance swap in a fight never runs the game's bar pass tain
     noBlocked()
 end)
 
+-- A player on 1.8.4 saw "the game blocked StanceButton1:SetShown()" up to
+-- StanceButton10 as a fight started. The game's stance pass shows a button that
+-- comes back (a form usable again); a script of the addon's on that button ran
+-- inside the game's SetShown, and every SetShown after it was blocked.
+T.test("small bars: the game's stance pass in a fight runs none of the addon's scripts", function()
+    stub.Load({ actionbars = true, before = function()
+        ABW.newWorld({ forms = 3, ab = { bars = { stance = { icons = 3 } } } })
+    end })
+    stub.RunTimers()
+    stub.EnterCombat()
+    local real = GetShapeshiftFormInfo
+    _G.GetShapeshiftFormInfo = function(i) if i ~= 2 then return real(i) end end
+    stub.FireEvent("UPDATE_SHAPESHIFT_COOLDOWN")
+    T.falsy(StanceButton2:IsShown(), "the game hid the form it can't show")
+    _G.GetShapeshiftFormInfo = real
+    stub.FireEvent("UPDATE_SHAPESHIFT_COOLDOWN")
+    T.truthy(StanceButton2:IsShown(), "and showed it again")
+    stub.LeaveCombat()
+    noBlocked()
+end)
+
 -- Players saw "the game blocked MultiBarBottomLeft:ShowBase()" and then the same for
 -- every other bar in one fight: MultiBar5-7's HideBase, MultiBarRight's ShowBase and
 -- SetScaleBase. On a page, form or vehicle change the game shows, hides, scales and

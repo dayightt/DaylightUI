@@ -63,6 +63,7 @@ function Own.Read()
             end
         end
     end
+    Own.AddProcBuffs(out, CV, cats)
     -- The game files some cooldowns as buffs (Charge, which tracks the stun). An
     -- icon spell with a real cooldown is treated as a cooldown.
     for id, k in pairs(out) do
@@ -202,6 +203,47 @@ end
 
 local function plainNumber(v)
     if type(v) == "number" and not isSecret(v) then return v end
+end
+
+-- Buffs a talent procs. The game's Cooldown Manager lists the buff's own spell,
+-- which nobody learns, so it calls the buff unknown and never shows it even with the
+-- talent taken (a rogue's Venom). By the buff's spell id, the talents that proc it
+-- (the game's data: the talent's effect triggers the buff).
+Own.PROC_TALENTS = {
+    [1310703] = { 1329328 },   -- Venom
+    [1284536] = { 14909 },     -- Holy Purpose, from Searing Light
+}
+
+local function spellKnown(sid)
+    local known = type(C_SpellBook) == "table" and C_SpellBook.IsSpellKnown
+    if type(known) ~= "function" then return false end
+    local ok, yes = pcall(known, sid)
+    return ok and yes == true
+end
+
+-- Adds to out the game's buff ids it left out as unknown whose talent you have.
+function Own.AddProcBuffs(out, CV, cats)
+    for name, cat in pairs(cats) do
+        if AURA[name] and type(cat) == "number" then
+            local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, true)
+            if ok and type(ids) == "table" then
+                for _, id in ipairs(ids) do
+                    if type(id) == "number" and not isSecret(id) and out[id] == nil then
+                        local info = infoOf(id)
+                        local talents = info and Own.PROC_TALENTS[plainNumber(info.spellID) or 0]
+                        if talents then
+                            for _, t in ipairs(talents) do
+                                if spellKnown(t) then
+                                    out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = true, cat = name }
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 function Own.SpellOf(id)

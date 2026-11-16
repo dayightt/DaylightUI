@@ -1283,6 +1283,31 @@ T.test("fonts: a text that already got a plain font elsewhere still gets the pic
     _G.CreateFontFamily = nil
 end)
 
+-- A family is a named font object, so the game lists it with its own (GetFonts).
+-- "Use this font for the game's text" walked it on every addon that loaded (at
+-- login, opening the auction house) and put the Appearance font on it: the chat's
+-- own font, picked for its Russian letters, was gone again.
+T.test("game text: Daylight UI's own font families keep their font", function()
+    _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+    _G.GameFontNormal = fakeFont("Fonts\\FRIZQT__.TTF", 12, "")
+    local names = { "GameFontNormal" }
+    _G.GetFonts = function() return names end
+    local DUI = stub.Load()
+    fontFamilies()
+    local Style = DUI.Style
+    local comfortaa = Style.FONTS.comfortaa.file
+    local fam = Style.FontFamily(comfortaa, 12, "", 0.9)
+    names[#names + 1] = fam:GetName()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    stub.RunTimers()
+    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI"); stub.RunTimers()
+    T.eq(GameFontNormal.face, Style.FONTS.fira.file, "the game's text takes the font")
+    T.eq(fam:GetFont(), comfortaa, "the chat's family keeps its own")
+    _G.STANDARD_TEXT_FONT, _G.DAMAGE_TEXT_FONT, _G.GetFonts, _G.GameFontNormal = nil, nil, nil, nil
+    _G.CreateFontFamily = nil
+end)
+
 local function withLocale(locale, fn)
     local before = _G.GetLocale
     _G.GetLocale = function() return locale end

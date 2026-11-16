@@ -100,6 +100,59 @@ T.test("a 3D portrait fades with its frame and with the whole UI", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A secret range answer gives the frame a secret alpha, and then the client
+-- hands addon code no effective alpha at all: SetAlpha(nothing) errored on every
+-- range tick in a party and every step of a whole-UI fade (a sleeping bag).
+T.test("a 3D portrait follows a secret range fade and the whole UI", function()
+    local DUI, ns = login()
+    local f = ns.frames.target
+    stub.units.target = { name = "Pal", isPlayer = true, class = "MAGE", friend = true, party = true,
+        inRange = stub.Secret(false) }
+    DUI:Set("UnitFrames", "target.portrait", "3d")
+    ns.UF.UpdateAll(f, true)
+    local m = f.portrait.model
+    T.truthy(m:IsShown())
+    ns.UF.UpdateRange(f)
+    T.truthy(f.__alphaFromBoolean, "the frame's alpha came from the secret answer")
+    local how = m.__alphaFromBoolean
+    T.truthy(how, "the model takes the same secret answer")
+    local own = f.__alphaFromBoolean
+    T.eq(how[1], own[1])
+    T.near(how[2], own[2], 0.001); T.near(how[3], own[3], 0.001)
+    DUI.Fade.SetUIAlpha(0.5)
+    how = m.__alphaFromBoolean
+    T.near(how[2], own[2] * 0.5, 0.001, "times the whole UI's alpha")
+    T.near(how[3], own[3] * 0.5, 0.001)
+    DUI.Fade.SetUIAlpha(1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The full health wait hands the frame a secret alpha from a curve: the model
+-- gets its own from the same curve.
+T.test("a 3D portrait follows the full health wait's secret alpha", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE" }
+    end)
+    local f = ns.frames.player
+    DUI:Set("UnitFrames", "player.portrait", "3d")
+    DUI:Set("UnitFrames", "player.fade.fullHealth", true)
+    local m = f.portrait.model
+    stub.units.player.pct = stub.Secret(1)
+    local had = _G.C_CurveUtil
+    _G.C_CurveUtil = { CreateCurve = function()
+        return { AddPoint = function() end, SetType = function() end }
+    end }
+    ns.UF.fullCurves = {}
+    ns.UF.PaintFade(f, 0.3)
+    T.truthy(issecretvalue(f.__alpha), "the frame's alpha is the curve's secret answer")
+    T.truthy(issecretvalue(m.__alpha), "the model takes its own answer from the same curve")
+    DUI.Fade.SetUIAlpha(0.5)
+    T.truthy(issecretvalue(m.__alpha))
+    DUI.Fade.SetUIAlpha(1)
+    _G.C_CurveUtil = had
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("icon styles come from the icon pack only when it is installed", function()
     local _, ns = login()
     local UF = ns.UF

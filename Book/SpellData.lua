@@ -3,9 +3,10 @@
 -- skill line, then Pet if the pet has a spellbook. No spell lists of its own.
 --
 -- Lower ranks (IsSpellBookItemLowRank) are nested under the top rank with the
--- same name in the same section. Flyouts such as warrior stances are expanded
--- into their known spells, and the loose copies of those spells are skipped,
--- so every row is exactly one castable spell.
+-- same name in the same section. A flyout (warrior stances, the mage's Portal
+-- and Teleport) gets a row of its own, as in the game's book, to drag onto a
+-- bar, with its known spells listed under it; the loose copies of those spells
+-- are skipped.
 
 local _, DUI = ...
 DUI.Book = DUI.Book or {}   -- the book window's own namespace
@@ -42,19 +43,31 @@ local function entry(slot, bank, info)
         autocast = bank == SD.PET() and call(C_SpellBook.GetSpellBookItemAutoCast, slot, bank) == true or nil }
 end
 
--- Flyout spells have no book slot, so casting, dragging and tooltips use the
+-- The flyout's own row keeps its book slot (dragging it puts the whole flyout
+-- on a bar); its spells have no slot, so casting, dragging and tooltips use the
 -- spell id.
-local function flyout(out, info)
-    local _, _, slots, known = call(GetFlyoutInfo, info.actionID)
+local function flyout(out, info, slot, bank)
+    local name, _, slots, known = call(GetFlyoutInfo, info.actionID)
     if not (known and type(slots) == "number") then return end
+    local head = { slot = slot, bank = bank, flyout = info.actionID, name = info.name or name or "",
+        icon = info.iconID, lows = {}, count = 0 }
+    out[#out + 1] = head
     for i = 1, slots do
         local spellID, _, isKnown, name = call(GetFlyoutSlotInfo, info.actionID, i)
         if isKnown and type(spellID) == "number" then
             local s = call(C_Spell and C_Spell.GetSpellInfo, spellID)
             out[#out + 1] = { spellID = spellID, name = name or (s and s.name) or "", icon = s and s.iconID,
-                rank = rankText(call(C_Spell and C_Spell.GetSpellSubtext, spellID)), lows = {} }
+                rank = rankText(call(C_Spell and C_Spell.GetSpellSubtext, spellID)), lows = {}, under = head }
         end
     end
+    -- Its spells by name, lower ranks counted once.
+    local seen = {}
+    for k = #out, 1, -1 do
+        local e = out[k]
+        if e == head then break end
+        if not seen[e.name] then seen[e.name] = true; head.count = head.count + 1 end
+    end
+    if head.count == 0 then out[#out] = nil end
 end
 
 -- Sort key from the trailing number of the rank text ("Rank 2" in any
@@ -73,7 +86,7 @@ local function readRange(section, bank, first, count, showLow, data)
         local info = C_SpellBook.GetSpellBookItemInfo(slot, bank)
         if type(info) == "table" then
             if info.itemType == TYPE("Flyout", 4) then
-                flyout(tops, info)
+                flyout(tops, info, slot, bank)
             elseif not call(C_SpellBook.IsSpellBookItemLooseFlyoutMember, slot, bank) then
                 local e = entry(slot, bank, info)
                 if call(C_SpellBook.IsSpellBookItemLowRank, slot, bank) then
@@ -92,8 +105,10 @@ local function readRange(section, bank, first, count, showLow, data)
     local function ranked(e) return e.slot or e.rank end
     local byName, kept = {}, {}
     for _, e in ipairs(tops) do
-        local have = ranked(e) and byName[e.name]
-        if have and ranked(have) then
+        local have = not e.flyout and ranked(e) and byName[e.name]
+        if e.flyout then
+            kept[e] = true
+        elseif have and ranked(have) then
             local top, low = have, e
             if SD.RankOf(e) >= SD.RankOf(have) then top, low = e, have end
             low.low = true
@@ -134,7 +149,7 @@ local function readRange(section, bank, first, count, showLow, data)
 end
 
 -- { sections = { { name, icon, pet?, spells = { { slot, bank, spellID,
--- name, rank, icon, passive, future, pet, low, lows } } } }, anyLow }
+-- name, rank, icon, passive, future, pet, low, lows, flyout?, count?, under? } } } }, anyLow }
 function SD.Read(showLow)
     local data = { sections = {}, anyLow = false }
     if type(C_SpellBook) ~= "table" or type(C_SpellBook.GetNumSpellBookSkillLines) ~= "function" then return data end

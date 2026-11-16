@@ -2337,6 +2337,32 @@ T.test("chat daylight: channels and Daylight UI's own links stay the box's click
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Only rows that held a link get a twin, so the list of twins has holes. When the
+-- game lays the box out again (a resize, a new font) it keeps fewer rows
+-- (ScrollingMessageFrame RefreshLayout), and hiding the twins past the last row
+-- by counting them hit a hole: "attempt to index field '?'" (seen 10 times).
+T.test("chat daylight: twins past the last row hide even with rows that never had a link", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local link = "|Henchant:3915|h[Tailoring: Bolt of Linen]|h"
+    box:AddMessage("top " .. link)   -- row 4
+    box:AddMessage("plain words")    -- row 3, never a twin
+    box:AddMessage("two " .. link)   -- row 2
+    box:AddMessage("one " .. link)   -- row 1, the newest
+    box:FakeRefresh()
+    T.truthy(twinOf(CH, box, 4), "the top row's link has its twin")
+    T.falsy(CH.Links.Mirror(box).lines[3], "the plain row never got one")
+    -- The game's new layout keeps two rows, then redraws.
+    for i = #box.visibleLines, 3, -1 do
+        box.visibleLines[i]:Hide()
+        box.visibleLines[i] = nil
+    end
+    for _, fn in ipairs(box.onDisplayRefreshedCallbacks) do fn(box) end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(twinOf(CH, box, 4), "the twin of a row that's gone is hidden")
+    T.truthy(twinOf(CH, box, 1) and twinOf(CH, box, 2), "the rows still shown keep theirs")
+end)
+
 -- New lines in a busy channel and scrolling move the links: the twins follow, so
 -- the click always lands on the link that's shown.
 T.test("chat daylight: the twins follow new lines and scrolling", function()
@@ -2610,6 +2636,33 @@ T.test("chat daylight: your name lights up, its tab glows, the soft sound when s
     T.eq(#played, 1, "one soft sound: " .. table.concat(played, ","))
     said(ChatFrame1, "hello " .. me, "CHAT_MSG_GUILD", 2)
     T.eq(#played, 1, "not again right away")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- With a class accent the mention was lit in the class gradient's middle, and a
+-- warlock's name lit in chat didn't match the warlock color the game gives names.
+T.test("chat daylight: with a class accent a mention is lit in the class color names have", function()
+    local _, box = daylight()
+    local me = UnitName("player")
+    stub.units.player = stub.units.player or { name = me, isPlayer = true }
+    stub.units.player.class = "MAGE"
+    local c = RAID_CLASS_COLORS.MAGE
+    local want = DaylightUI.Win.Parts.Hex({ c.r, c.g, c.b })
+    for i, accent in ipairs({ "classGradient", "class" }) do
+        DaylightUI:Set("general", "accent", accent)
+        stub.RunTimers()
+        said(ChatFrame1, "is " .. me .. " coming? " .. i, "CHAT_MSG_GUILD", 10 + i)
+        local texts = boxTexts(box)
+        local text = texts[#texts]
+        T.truthy(string.find(text, " " .. i, 1, true), "the newest line")
+        T.truthy(string.find(text, want .. me, 1, true), accent .. ": the name in the class color: " .. text)
+    end
+    DaylightUI:Set("general", "accent", "daylight")
+    stub.RunTimers()
+    said(ChatFrame1, "is " .. me .. " here?", "CHAT_MSG_GUILD", 20)
+    local a = DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Accent() })
+    local texts = boxTexts(box)
+    T.truthy(string.find(texts[#texts], a .. me, 1, true), "any other accent: the accent")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

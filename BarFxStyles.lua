@@ -80,9 +80,12 @@ local function layout(s, p, w, h)
 end
 
 local function show(s, p, on)
+    local was = p.on
     p.on = on
     for _, t in ipairs(p.layers) do t:SetShown(on) end
     if on then
+        -- Coming on, it starts over; already on (a repaint), it keeps going.
+        if not was then p.anim:Stop() end
         p.anim:Play()
         if p.anim.SetAnimationSpeedMultiplier then
             p.anim:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1))
@@ -120,7 +123,10 @@ local function build(s, name)
     a:SetFlipBookFrameHeight(0)
     -- The game stops a frame's animations while it's hidden: start again on show.
     s.bar:HookScript("OnShow", function()
-        if p.on and s.style == name and not p.anim:IsPlaying() then show(s, p, true) end
+        if p.on and s.style == name then
+            p.anim:Stop()
+            show(s, p, true)
+        end
     end)
     return p
 end
@@ -169,6 +175,90 @@ BarFx.Add("embers", L["Embers"], def("embers", function(hi)
     local warm = mix(hi, BarFx.EMBER, 0.5)
     return mix(warm, BarFx.EMBER_HOT, 0.6), BarFx.EMBER_HOT, mix(warm, BarFx.EMBER_HOT, 0.4)
 end))
+
+-- Tide: a soft band of light swelling up and sinking back through the fill,
+-- the same all along it, so it never stretches with the value. A heal sends a
+-- bright surge over the fill, a hit makes it ebb dark for a moment.
+BarFx.TIDE = M .. "barfx-tide.png"
+BarFx.TIDE_FRAMES = 128
+BarFx.TIDE_LOOP = 5.5
+BarFx.TIDE_GLOW = 0.6     -- the band's strength at full
+BarFx.TIDE_EBB = 0.45     -- how dark a hit makes the fill at full
+
+local function tideShow(s, p, on)
+    local was = p.on
+    p.on = on
+    p.swell:SetShown(on)
+    p.surge:SetShown(on)
+    p.ebb:SetShown(on)
+    if on then
+        -- Coming on, it starts over; already on (a repaint), it keeps going.
+        if not was then p.anim:Stop() end
+        p.anim:Play()
+        if p.anim.SetAnimationSpeedMultiplier then
+            p.anim:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1))
+        end
+    else
+        p.anim:Stop()
+    end
+end
+
+local function over(s, blend)
+    local t = s.bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FX_SUB)
+    t:SetTexture(WHITE)
+    t:SetBlendMode(blend)
+    Style.FollowFill(s.bar, t)
+    return t
+end
+
+BarFx.Add("tide", L["Tide"], {
+    build = function(s)
+        local p = {}
+        p.swell = over(s, "ADD")
+        -- CLAMP, or the game blends the top edge with the bottom one.
+        p.swell:SetTexture(BarFx.TIDE, "CLAMP", "CLAMP")
+        p.surge = over(s, "ADD")
+        p.surge:SetAlpha(0)
+        p.ebb = over(s, "BLEND")
+        p.ebb:SetAlpha(0)
+        p.anim = s.bar:CreateAnimationGroup()
+        p.anim:SetLooping("REPEAT")
+        local a = p.anim:CreateAnimation("FlipBook")
+        a:SetTarget(p.swell)
+        a:SetDuration(BarFx.TIDE_LOOP)
+        a:SetFlipBookRows(BarFx.TIDE_FRAMES)
+        a:SetFlipBookColumns(1)
+        a:SetFlipBookFrames(BarFx.TIDE_FRAMES)
+        a:SetFlipBookFrameWidth(0)
+        a:SetFlipBookFrameHeight(0)
+        -- The game stops a frame's animations while it's hidden: start again on show.
+        s.bar:HookScript("OnShow", function()
+            if p.on and s.style == "tide" then
+                p.anim:Stop()
+                tideShow(s, p, true)
+            end
+        end)
+        return p
+    end,
+    -- Laid over the fill, so a size change needs nothing.
+    layout = function() end,
+    show = tideShow,
+    paint = function(s, p, lo, hi, alpha)
+        local fill = s.bar:GetStatusBarTexture()
+        -- Laid exactly over the fill, so its own masks are all it needs.
+        for _, t in ipairs({ p.swell, p.surge, p.ebb }) do Style.SameMasks(t, fill) end
+        local c = mix(lightOf(hi), WHITE_HOT, 0.35)
+        p.swell:SetVertexColor(c[1], c[2], c[3], alpha * BarFx.TIDE_GLOW)
+        p.surge:SetVertexColor(c[1], c[2], c[3])
+        p.ebb:SetVertexColor(0, 0, 0)
+    end,
+    kick = function(s, p, dir, size)
+        local Motion = DUI.Motion
+        local t = dir > 0 and p.surge or p.ebb
+        local peak = dir > 0 and 0.7 * size or BarFx.TIDE_EBB * size
+        Motion.Tween(t, math.min(1, peak), 0, Motion.SLOW, function(a) t:SetAlpha(a) end)
+    end,
+})
 
 -- By power type: the style that suits each power.
 BarFx.AUTO.RAGE = "embers"

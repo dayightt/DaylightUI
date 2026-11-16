@@ -73,12 +73,15 @@ local function locate(loc)
         return d.isBank and "bank" or "bags", link
     end
     if d.isBank then return "bank" end
-    if d.isPlayer then return "worn", d.slot and GetInventoryItemLink("player", d.slot) or nil end
+    if d.isPlayer then return "worn", d.slot and GetInventoryItemLink("player", d.slot) or nil, d.slot end
 end
 
 local function itemOf(key, slot, itemID, loc)
     local e = { key = key, slot = slot, itemID = itemID, label = ns.Gear.LABEL[key] or key }
-    e.where, e.link = locate(loc)
+    e.where, e.link, e.wornIn = locate(loc)
+    -- Putting the set on changes this slot: its item is in a bag, the bank
+    -- or another slot (a ring on the other finger).
+    e.swaps = e.where == "bags" or e.where == "bank" or (e.where == "worn" and e.wornIn ~= nil and e.wornIn ~= slot)
     if C_Item and type(C_Item.GetItemInfo) == "function" then
         local ok, name, link, quality, _, _, _, _, _, _, icon = pcall(C_Item.GetItemInfo, e.link or itemID)
         if ok then
@@ -90,25 +93,51 @@ local function itemOf(key, slot, itemID, loc)
     return e
 end
 
--- A set as plain data: its name, whether it's on, and its items in the
--- character window's slot order. Slots the set leaves alone are left out.
+-- A set as plain data: its name, whether it's on, and its slots in the
+-- character window's order. set.items holds only the slots with an item;
+-- set.slots holds every slot, the empty ones (kind "empty") and the ones the
+-- set leaves alone (kind "left") too.
 function Sets.Read(id)
     local C = api()
     if not (C and id) then return nil end
     local name, icon, _, worn, _, _, _, lost = C.GetEquipmentSetInfo(id)
     if not name then return nil end
-    local set = { id = id, name = name, icon = icon, worn = worn == true, lost = lost or 0, items = {} }
+    local set = { id = id, name = name, icon = icon, worn = worn == true, lost = lost or 0, items = {}, slots = {} }
     local ids = type(C.GetItemIDs) == "function" and C.GetItemIDs(id) or {}
     local where = type(C.GetItemLocations) == "function" and C.GetItemLocations(id) or {}
+    local ignored = type(C.GetIgnoredSlots) == "function" and C.GetIgnoredSlots(id) or {}
     for _, key in ipairs(slotKeys()) do
         local slot = ns.Gear.SlotId(key)
         local itemID = slot and ids[slot]
+        local e
         -- An item id of 0 is an empty slot and 1 one the set ignores.
-        if type(itemID) == "number" and itemID > Sets.IGNORED and where[slot] ~= Sets.IGNORED then
-            set.items[#set.items + 1] = itemOf(key, slot, itemID, where[slot])
+        if slot and (ignored[slot] or itemID == Sets.IGNORED or where[slot] == Sets.IGNORED) then
+            e = { key = key, slot = slot, label = ns.Gear.LABEL[key] or key, kind = "left" }
+        elseif type(itemID) == "number" and itemID > Sets.IGNORED then
+            e = itemOf(key, slot, itemID, where[slot])
+            e.kind = "item"
+            set.items[#set.items + 1] = e
+        elseif itemID == Sets.EMPTY then
+            e = { key = key, slot = slot, label = ns.Gear.LABEL[key] or key, kind = "empty" }
         end
+        set.slots[#set.slots + 1] = e
     end
     return set
+end
+
+-- The slots the picked set leaves alone, as the panel shows them. The game
+-- only takes a change to them with a save, so a change is held here until
+-- the game says the sets changed.
+function Sets.Marks(id)
+    if Sets.marksFor ~= id or not Sets.held then
+        local C = api()
+        Sets.marks, Sets.marksFor, Sets.held, Sets.unsaved = {}, id, false, false
+        local ignored = C and id and type(C.GetIgnoredSlots) == "function" and C.GetIgnoredSlots(id) or nil
+        for slot, on in pairs(ignored or {}) do
+            if on then Sets.marks[slot] = true end
+        end
+    end
+    return Sets.marks
 end
 
 -- A name no set has yet: "Set 1", "Set 2"...
@@ -135,13 +164,12 @@ function Sets.Equip(id)
 end
 
 -- A save takes the slots marked as ignored at that moment, so mark the ones
--- this set already ignores (none for a new set) or a save would fill them in.
+-- this set leaves alone (none for a new set) or a save would fill them in.
 local function keepIgnored(id)
     local C = api()
     if type(C.ClearIgnoredSlotsForSave) ~= "function" then return end
     C.ClearIgnoredSlotsForSave()
-    local ignored = id and type(C.GetIgnoredSlots) == "function" and C.GetIgnoredSlots(id) or nil
-    for slot, on in pairs(ignored or {}) do
+    for slot, on in pairs(id and Sets.Marks(id) or {}) do
         if on then C.IgnoreSlotForSave(slot) end
     end
 end
@@ -158,6 +186,26 @@ function Sets.Save(id)
     end
     keepIgnored(id)
     C.SaveEquipmentSet(id, icon)
+    if Sets.marksFor == id then Sets.unsaved = false end
+    Sets.Refresh()
+end
+
+-- Leave a slot out of a set, or put it back. A set you're wearing is saved
+-- at once, since that changes nothing else in it. Saving any other set would
+-- put the gear you have on into it, so there the change waits for Save.
+function Sets.Leave(id, slot, out)
+    local C = api()
+    local name, _, _, worn = C.GetEquipmentSetInfo(id)
+    if not name then return end
+    Sets.Marks(id)[slot] = out and true or nil
+    Sets.held, Sets.unsaved = true, true
+    if worn and not InCombatLockdown() then Sets.Save(id) else Sets.Refresh() end
+end
+
+-- Onto the cursor, to drop on an action bar.
+function Sets.PickUp(id)
+    local C = api()
+    if id and type(C.PickupEquipmentSet) == "function" and C.GetEquipmentSetInfo(id) then C.PickupEquipmentSet(id) end
 end
 
 function Sets.AskSave(id)
@@ -212,23 +260,17 @@ function Sets.Delete(id)
     if api().GetEquipmentSetInfo(id) then C_EquipmentSet.DeleteEquipmentSet(id) end
 end
 
--- The set's icon (on the game's bars and macros): one of its own items'.
-function Sets.IconMenu(owner, id)
+-- The set's icon (on the game's bars and macros): any of the game's icons,
+-- the set's own items first.
+function Sets.PickIcon(id)
     local set = Sets.Read(id)
     if not set then return end
-    local keys, values, icons = {}, {}, {}
-    for _, e in ipairs(set.items) do
-        if e.icon and not icons[tostring(e.icon)] then
-            local k = tostring(e.icon)
-            icons[k] = e.icon
-            keys[#keys + 1] = k
-            values[k] = string.format("|T%s:16:16:0:0:64:64:5:59:5:59|t  %s", k, e.name or e.label)
-        end
-    end
-    if #keys == 0 then return end
-    DUI.Widgets.OpenMenu(owner, keys, values, tostring(set.icon), function(k)
-        C_EquipmentSet.ModifyEquipmentSet(id, set.name, icons[k])
-    end, Sets.MENU_W)
+    local first = {}
+    for _, e in ipairs(set.items) do first[#first + 1] = e.icon end
+    DUI.Widgets.PickIcon({ title = string.format(L["An icon for %s"], set.name), first = first, current = set.icon,
+        onPick = function(icon)
+            if C_EquipmentSet.GetEquipmentSetInfo(id) then C_EquipmentSet.ModifyEquipmentSet(id, set.name, icon) end
+        end })
 end
 
 -- ---------------------------------------------------------------------
@@ -255,19 +297,21 @@ function Sets.EditMenu(owner)
     local id = Sets.picked
     local keys, values = { "new" }, { new = L["New set from what I'm wearing"] }
     if id and api().GetEquipmentSetInfo(id) then
-        for _, k in ipairs({ "save", "rename", "icon", "delete" }) do keys[#keys + 1] = k end
+        for _, k in ipairs({ "save", "rename", "icon", "bar", "delete" }) do keys[#keys + 1] = k end
         values.save = L["Save what I'm wearing to it"]
         values.rename = L["Rename..."]
         values.icon = L["Change its icon"]
+        values.bar = L["Pick it up for an action bar"]
         values.delete = DELETE or L["Delete"]
     end
     DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
         if k == "new" then Sets.New()
         elseif k == "save" then Sets.AskSave(id)
         elseif k == "rename" then Sets.Rename(id)
-        elseif k == "icon" then Sets.IconMenu(owner, id)
+        elseif k == "icon" then Sets.PickIcon(id)
+        elseif k == "bar" then Sets.PickUp(id)
         elseif k == "delete" then Sets.Delete(id) end
-    end, Sets.MENU_W, { confirm = { delete = true }, more = { icon = true } })
+    end, Sets.MENU_W, { confirm = { delete = true } })
 end
 
 -- ---------------------------------------------------------------------
@@ -323,6 +367,15 @@ function Sets.Preview(set)
         key = tostring(set.id)
         for _, e in ipairs(set.items) do key = key .. ":" .. e.itemID end
     end
+    -- The character page's slots that the set would change light up.
+    local swap = {}
+    if set and not set.worn then
+        local marks = Sets.Marks(set.id)
+        for _, e in ipairs(set.items) do
+            if e.swaps and not marks[e.slot] then swap[e.slot] = true end
+        end
+    end
+    ns.Slots.Swap(swap)
     if key == Sets.previewed then return end
     if Sets.previewed then Model.Redress() end
     Sets.previewed = key
@@ -333,6 +386,7 @@ end
 
 local function statusText(set)
     local Hex = DUI.Win.Parts.Hex
+    if Sets.unsaved and Sets.marksFor == set.id then return Hex(Style.INK.WARN) .. L["Not saved yet"] .. "|r" end
     if InCombatLockdown() and not set.worn then return L["After combat"] end
     local c = (set.worn and Style.INK.GOOD) or (set.lost > 0 and Style.INK.BAD) or Style.INK.LABEL
     return Hex(c) .. Sets.Status(set.worn, set.lost) .. "|r"
@@ -354,23 +408,42 @@ function Sets.Refresh(lift)
         s:Text(L["No sets yet."], { color = Style.INK.LABEL })
         s:Text(L["Save the gear you're wearing as a set, then put the whole outfit on with one click."])
     else
+        local marks = Sets.Marks(set.id)
         s:Section(L["Gear"], { value = statusText(set) })
-        for _, e in ipairs(set.items) do
-            local where = Sets.WHERE[e.where]
-            s:Line({ id = e.key, item = e, icon = e.icon, text = e.name or e.label, sub = e.label,
-                color = e.quality and { Parts.QualityColor(e.quality) } or nil,
-                value = where and where[1] or nil, valueColor = where and where[2] or nil,
-                tooltip = itemTip, link = function() return e.link end })
+        s:Text(L["Click a slot to leave it out of the set. Click it again to put it back."],
+            { size = Style.SIZE.small, color = Style.INK.LABEL })
+        for _, e in ipairs(set.slots) do
+            local out = marks[e.slot] == true
+            local toggle = function() Sets.Leave(set.id, e.slot, not out) end
+            if out then
+                s:Line({ id = e.key, text = e.label, color = Style.INK.OFF, value = L["Left out"],
+                    valueColor = Style.INK.OFF, onClick = toggle })
+            elseif e.kind == "item" then
+                local where = Sets.WHERE[e.where]
+                s:Line({ id = e.key, item = e, icon = e.icon, text = e.name or e.label, sub = e.label,
+                    color = e.quality and { Parts.QualityColor(e.quality) } or nil,
+                    value = where and where[1] or nil, valueColor = where and where[2] or nil,
+                    tooltip = itemTip, link = function() return e.link end, onClick = toggle })
+            elseif e.kind == "left" then
+                -- Put back but not saved yet: the save fills it with what you wear.
+                s:Line({ id = e.key, text = e.label, color = Style.INK.LABEL, value = L["Yours on save"],
+                    valueColor = Style.INK.WARN, onClick = toggle })
+            else
+                s:Line({ id = e.key, text = e.label, color = Style.INK.LABEL, value = EMPTY or L["Empty"],
+                    valueColor = Style.INK.LABEL, onClick = toggle })
+            end
         end
-        if #set.items == 0 then s:Text(L["Nothing in this set yet."], { color = Style.INK.LABEL }) end
+        if #set.slots == 0 then s:Text(L["Nothing in this set yet."], { color = Style.INK.LABEL }) end
     end
     local pieces = s:End()
     if lift then DUI.Win.Feel.Stagger(pieces, 0) else s:ScrollTo(at) end
     local combat = InCombatLockdown()
+    -- A change that still needs a save makes Save the main button.
+    local unsaved = set ~= nil and Sets.unsaved == true and Sets.marksFor == set.id
     f.foot:Set({
-        { text = combat and L["Equip after combat"] or (EQUIPSET_EQUIP or L["Equip"]), primary = true,
+        { text = combat and L["Equip after combat"] or (EQUIPSET_EQUIP or L["Equip"]), primary = not unsaved,
           off = not set or set.worn, onClick = function() Sets.Equip(set.id) end },
-        { text = SAVE or L["Save"], off = not set, onClick = function() Sets.AskSave(set.id) end },
+        { text = SAVE or L["Save"], primary = unsaved, off = not set, onClick = function() Sets.AskSave(set.id) end },
     })
     Sets.Preview(set)
 end
@@ -402,13 +475,20 @@ function Sets.Build()
     f.pick:SetScript("OnClick", function(self) Sets.PickMenu(self) end)
     f.stack = Win.Parts.Stack(f, { top = top + Sets.ROW_H + 10, bottom = 58 })
     f.foot = Win.Parts.Footer(f, { equal = true })
+    f.pick:RegisterForDrag("LeftButton")
+    f.pick:SetScript("OnDragStart", function() Sets.PickUp(Sets.picked) end)
     local soon = DUI.Soon(function() Sets.Refresh() end)
-    f:SetScript("OnEvent", soon)
+    f:SetScript("OnEvent", function(_, event)
+        -- The game has the saved set now, so its own list of left-out slots counts again.
+        if event == "EQUIPMENT_SETS_CHANGED" and not Sets.unsaved then Sets.held = false end
+        soon()
+    end)
     f:SetScript("OnShow", function(self)
         for _, e in ipairs(Sets.EVENTS) do pcall(self.RegisterEvent, self, e) end
     end)
     f:SetScript("OnHide", function(self)
         self:UnregisterAllEvents()
+        Sets.held, Sets.unsaved = false, false
         Sets.Preview(nil)
     end)
     return f
@@ -444,6 +524,7 @@ end
 function Sets.Close()
     if not Sets.IsOpen() then return end
     DUI.Widgets.CloseMenu()
+    DUI.Widgets.CloseIcons()
     DUI.Win.Shut(Sets.panel)
 end
 
@@ -456,6 +537,7 @@ end
 function Sets.Hide()
     local f = Sets.panel
     if not (f and f:IsShown()) then return end
+    DUI.Widgets.CloseIcons()
     DUI.Win.Feel.Settle(f)
     f:Hide()
 end

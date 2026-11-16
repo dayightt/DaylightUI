@@ -58,6 +58,8 @@ ns.DEFAULTS = {
     -- The Cooldown Manager layout's fade (CdmRows.FadeFrames). Shown by default; the
     -- campfire's hush reaches it like the bars.
     cdmFade = DaylightUI.Fade.Defaults(),
+    -- Bar animation (the core's BarFx.lua) on the Cooldown Manager's bars.
+    cdmBarFx = DaylightUI.BarFx.Defaults(),
     skinMenus = true,       -- bag bar and micro menu in the buttons' look (Menus.lua)
     cooldowns = true,       -- Cooldown Manager icons in the same look
     cdmKeybinds = false,    -- keybind on every icon (a piece's keyShown overrides it)

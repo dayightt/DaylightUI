@@ -229,13 +229,26 @@ function Extras.AlertPatterns()
     return list
 end
 
+-- A mention is lit in the accent. With a class accent that's the player's own
+-- class color as the game paints names in chat, so the word matches your name
+-- instead of the class gradient's softer middle.
+function Extras.MentionColor()
+    local accent = DUI:Get("general", "accent")
+    if accent == "class" or accent == "classGradient" then
+        local _, token = UnitClass("player")
+        local r, g, b = Style.RawClassColor(token)
+        if r then return r, g, b end
+    end
+    return Style.Accent()
+end
+
 local function alert(text, kind, sender, guid)
     if not Extras.TALK[kind] or isMe(sender, guid) then return text, false end
     local patterns = Extras.AlertPatterns()
     if #patterns == 0 then return text, false end
     -- Only count words that actually lit up. The sender's name and the channel are
     -- links, so they never count.
-    local on, lit = hex(Style.Accent()), 0
+    local on, lit = hex(Extras.MentionColor()), 0
     text = outsideLinks(text, function(seg)
         for _, p in ipairs(patterns) do
             local n

@@ -989,11 +989,12 @@ function Installer.ReloadPopup()
     EditMode.AskReload(L["DaylightUI is set up on this character. Reload to put it in place?"])
 end
 
--- Finished with nothing to reload.
+-- Finished with nothing to reload: plugins' own guides next, then the tour.
 function Installer.Done()
     DUI.InstallerUI.QuietHide()
     Installer.flow = nil
     Installer.ReleaseHeld()
+    if DUI.InstallerPlugins.ShowDue() then return end
     if DUI.Tour then DUI.Tour.Offer() end
 end
 
