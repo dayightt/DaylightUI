@@ -16,11 +16,12 @@ DUI.PatchNotes = {
             { "Plugins", "Plugins can bring their own setup pages, shown right after Daylight UI's setup guide" },
             { "Tooltip", "Quest rewards show how much they sell for, in the quest log and when you hand in" },
             { "Unit frames", "Swing timers, the power bar on its own and the personal display can be angled at both ends, like cast bars" },
+            { "Tooltip", "Tooltips can use the same background opacity as every window: turn off Separate tooltip background opacity" },
             { "Info panel", "Pick your own colors for rested XP and for the XP from quests ready to turn in (Info panel > General)" },
             { "Unit frames", "Cast bars can flip their angles, so they're wider at the bottom than the top" },
         },
         changed = {
-            { "Options", "Settings that go together sit together: width by height, each text's size by its font, a bar's size before its colors" },
+            { "Options", "Settings that go together sit together: width by height, each switch above the settings it turns on, long pages like Chat and Nameplates in tabs, and fishing and crafting scenes on their own Scenes page" },
             { "Options", "Clearer names and help for settings on every page, so each one makes sense on its own in a search" },
             { "Unit frames", "Your cast bar no longer has a spot between your frame and the target's. If you used it, it stays right there as its own bar with flipped angles" },
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },

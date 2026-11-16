@@ -227,9 +227,9 @@ T.test("party tiles follow the icon style and the class picks too", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("the Extras page has a line of icons per class, only with the pack", function()
+T.test("the Look page has a line of icons per class, only with the pack", function()
     local function picker(DUI)
-        DUI.OptionsPanel.Show("UnitFrames.extras")
+        DUI.OptionsPanel.Show("UnitFrames.colors")
         for _, card in ipairs(DUI.OptionsPanel.PageFrame().cards) do
             for _, row in ipairs(card.rows) do
                 if row.item.label == "Icon per class" then return row end

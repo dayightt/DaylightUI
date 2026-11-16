@@ -481,6 +481,8 @@ T.test("the Party page: layout, tile and dispel options, valid; level and PvP ne
     DUI:Set("UnitFrames", "party.nameOnBar", true)
     T.truthy(O.IsDisabled(page, items["party.showLevel"]), "no portrait and no tab: nowhere to show it")
     T.falsy(O.IsDisabled(page, items["party.rolePos"]), "corner spots in use now")
+    T.truthy(O.IsDisabled(page, items["party.dispelPos"]), "grayed while the dispel icon is off")
+    DUI:Set("UnitFrames", "party.showDispel", true)
     T.falsy(O.IsDisabled(page, items["party.dispelPos"]))
 end)
 
@@ -497,6 +499,7 @@ T.test("the Party page: a short frame has no portrait; the icon spots and sizes 
     end
     T.eq(items["party.rolePos"].order[1], "home", "with the name or portrait first")
     T.eq(DUI:Get("UnitFrames", "party.rolePos"), "home", "and the default")
+    DUI:Set("UnitFrames", "party.showDispel", true)
     T.falsy(O.IsDisabled(page, items["party.dispelPos"]), "the dispel spot works in bar mode too")
     T.falsy(O.IsDisabled(page, items["party.roleHideDamage"]), "so do the hide toggles")
     T.falsy(O.IsDisabled(page, items["party.leaderHideInCombat"]))

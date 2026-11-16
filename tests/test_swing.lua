@@ -535,7 +535,7 @@ T.test("swing timer: with the Gradients page's pairs, a queued attack gets its o
     T.near(lo(), (DUI.Gradients.Colors("SWING_MAIN")).r, 1e-6, "back when it's gone")
 end)
 
-T.test("swing timer options: one color shows the swatches, two-color the pairs (the Gradients page's own)", function()
+T.test("swing timer options: one color shows the swatches, two-color an Edit button to the Gradients page", function()
     local DUI = login()
     DaylightUI:Set("UnitFrames", "swing.fill", "plain")
     local O = DUI.Options
@@ -543,16 +543,15 @@ T.test("swing timer options: one color shows the swatches, two-color the pairs (
     local byLabel = {}
     for _, group in ipairs(page.groups) do
         for _, item in ipairs(group.items) do byLabel[item.type .. ":" .. item.label] = item end
+        for _, item in ipairs(group.items) do T.truthy(item.type ~= "gradient", "pairs live only on the Gradients page") end
     end
-    local swatch, pair = byLabel["color:Main hand color"], byLabel["gradient:Main hand gradient"]
-    T.truthy(swatch); T.truthy(pair)
+    local swatch, edit = byLabel["color:Main hand color"], byLabel["button:Swing timer gradients"]
+    T.truthy(swatch); T.truthy(edit)
     T.falsy(O.IsHidden(page, swatch))
-    T.truthy(O.IsHidden(page, pair))
+    T.truthy(O.IsHidden(page, edit))
     DaylightUI:Set("UnitFrames", "swing.fill", "pair")
     T.truthy(O.IsHidden(page, swatch))
-    T.falsy(O.IsHidden(page, pair))
-    pair.set({ lo = { 0.1, 0.2, 0.3 }, hi = { 0.4, 0.5, 0.6 } })
-    T.near((DUI.Gradients.RGB("SWING_MAIN"))[1], 0.1, 1e-6, "the same pair as the Gradients page")
+    T.falsy(O.IsHidden(page, edit))
     local errors = O.ValidatePage(page)
     T.eq(#errors, 0, errors[1])
 end)

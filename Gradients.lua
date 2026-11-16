@@ -24,7 +24,7 @@ Gradients.GROUPS = {
       desc = "Used when Nameplates > Threat > Threat color style is Two-color gradient." },
     { id = "swing", label = "Swing timers" },
     { id = "combo", label = "Combo points",
-      desc = "Used when Unit Frames > Extras > Combo points > Colors is a gradient: All points fills every pip with one pair, Point 1 to 5 give each pip its own." },
+      desc = "Used when the combo points color on Unit Frames > Combo Points & Range is a gradient: All points fills every pip with one pair, Point 1 to 5 give each pip its own." },
     { id = "timer", label = "Timers" },
     { id = "reputation", label = "Reputation" },
 }

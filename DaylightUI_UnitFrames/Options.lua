@@ -29,16 +29,11 @@ local function offAny(...)
 end
 
 -- The cast bars' and swing timer's Fill style. Its flat colors show with
--- "plain" and its pairs (the same ones as the Gradients page) with "pair".
+-- "plain"; with "pair" the bars take their pairs from the Gradients page.
 local FILL_STYLES = { plain = "One color", daylight = "Daylight gradient", pair = "Two-color gradient" }
 local FILL_ORDER = { "plain", "daylight", "pair" }
 local function fillIs(key, v) return function(get) return get(key) == v end end
 local function fillIsNot(key, v) return function(get) return get(key) ~= v end end
-local function gradientRow(pair, label, hidden)
-    local item = DaylightUI.Gradients.Item(pair, label)
-    item.hidden = hidden
-    return item
-end
 
 -- The dispel highlight's tint strength only matters for a tint.
 local DISPEL_HIGHLIGHTS = { none = "None", border = "Border", tint = "Tint", both = "Both" }
@@ -53,7 +48,7 @@ end
 
 local SIZE = { min = 60, max = 400 }
 
-local NAME_COLORS = { global = "Same as the Colors page", white = "White", class = "Class and reaction",
+local NAME_COLORS = { global = "Same as the Look page", white = "White", class = "Class and reaction",
     classGradient = "Class gradient", custom = "One color" }
 local NAME_COLOR_ORDER = { "global", "white", "class", "classGradient", "custom" }
 local TEXT_COLORS = { white = "White", class = "Class color", custom = "One color" }
@@ -65,7 +60,7 @@ local function signOff(off, formatKey)
     return function(get) return off(get) or get(formatKey) ~= "percent" end
 end
 
--- The shield texture picks (Colors page): stripes, plain, then every shared
+-- The shield texture picks (Look page): stripes, plain, then every shared
 -- bar texture. The overshield's list starts with "Same as shields".
 local function shieldTextures(withShield)
     local values, order = { stripes = "Stripes", plain = "Plain" }, { "stripes", "plain" }
@@ -195,19 +190,23 @@ local classIconPicker = {
     height = function() return #UF.ICON_CLASSES * PICK_LINE + 8 end,
 }
 
--- Where each tile icon sits and how big it is, for raid tiles and party frames.
--- k maps a key to its setting, dis is the "page is off" check. skip (optional)
--- leaves out items the page already has (markerSize) or relabels the px crown
--- (leaderPxLabel, leaderPxDesc). home (party): the role, marker and crown
--- spots offer "With the name or portrait" (UF.ICON_HOME), and their sizes say
--- they fit there until changed.
+-- Where each tile icon sits and how big it is, for raid tiles and party frames,
+-- one list per icon (role, marker, leader, dispel, ready, summon) so a page can
+-- put each with its own switch. k maps a key to its setting, dis is the "page
+-- is off" check. skip (optional) leaves out items the page already has
+-- (markerSize) or relabels the px crown (leaderPxLabel, leaderPxDesc). home
+-- (party): the role, marker and crown spots offer "With the name or portrait"
+-- (UF.ICON_HOME), and their sizes say they fit there until changed.
 local function iconItems(k, dis, skip, home)
     skip = skip or {}
-    local cornerDis = dis
-    local function spot(key, label, homed)
+    -- An icon's rows gray out while its own switch is off.
+    local function gated(switch)
+        return function(get) return dis(get) or get(k(switch)) == false end
+    end
+    local function spot(key, label, homed, disabled)
         local item = { type = "dropdown", key = k(key), label = label .. " position", values = SPOT_VALUES,
                  desc = "Where the " .. string.lower(label) .. " sits on each frame, or just outside it.",
-                 order = ns.Spots.ORDER, disabled = cornerDis }
+                 order = ns.Spots.ORDER, disabled = disabled }
         if homed then
             item.values, item.order = HOME_SPOTS, HOME_ORDER
             item.desc = "Where the " .. string.lower(label) .. " sits: with the name tab or portrait"
@@ -215,11 +214,11 @@ local function iconItems(k, dis, skip, home)
         end
         return item
     end
-    local function size(key, label, desc)
+    local function size(key, label, disabled, desc)
         return { type = "slider", key = k(key), label = label .. " size", min = 6, max = 32, step = 1, unit = "px",
                  desc = desc or ("How big the " .. string.lower(label) .. " is."
                      .. (home and " With the name or portrait it fits there until you change this." or "")),
-                 disabled = cornerDis }
+                 disabled = disabled }
     end
     -- The two nudges after a piece's spot and size (written by Design mode's
     -- drag and arrow keys).
@@ -230,48 +229,51 @@ local function iconItems(k, dis, skip, home)
         items[#items + 1] = { type = "slider", key = k(key .. "Y"), label = label .. " up / down", min = -50, max = 50, step = 1,
             unit = "px", desc = "Nudges the " .. what .. " up or down from its position.", disabled = disabled }
     end
-    local items = { spot("rolePos", "Role icon", home), size("roleSize", "Role icon") }
-    nudges(items, "role", "Role icon", cornerDis)
-    local more = {
-        { type = "toggle", key = k("roleHideDamage"), invert = true, label = "Show the damage role icon",
-          desc = "Damage dealers get a role icon too. When off, only tanks and healers get one.", disabled = dis },
-        { type = "toggle", key = k("roleHideInCombat"), invert = true, label = "Show role icon in combat",
-          desc = "The role icon stays in a fight. When off, it hides while you're fighting.", disabled = dis },
-        spot("markerPos", "Raid marker", home),
+    local roleOff = gated("showRole")
+    local role = { spot("rolePos", "Role icon", home, roleOff), size("roleSize", "Role icon", roleOff) }
+    nudges(role, "role", "Role icon", roleOff)
+    role[#role + 1] = { type = "toggle", key = k("roleHideDamage"), invert = true, label = "Show the damage role icon",
+        desc = "Damage dealers get a role icon too. When off, only tanks and healers get one.", disabled = roleOff }
+    role[#role + 1] = { type = "toggle", key = k("roleHideInCombat"), invert = true, label = "Show role icon in combat",
+        desc = "The role icon stays in a fight. When off, it hides while you're fighting.", disabled = roleOff }
+    local markerOff = gated("showMarker")
+    local marker = { spot("markerPos", "Raid marker", home, markerOff) }
+    if not skip.markerSize then marker[#marker + 1] = size("markerSize", "Raid marker", markerOff) end
+    nudges(marker, "marker", "Raid marker", markerOff)
+    local leaderOff = gated("showLeader")
+    local leader = { spot("leaderPos", "Leader crown", home, leaderOff),
+        size("leaderPx", skip.leaderPxLabel or "Leader crown", leaderOff, skip.leaderPxDesc) }
+    nudges(leader, "leader", "Leader crown", leaderOff)
+    leader[#leader + 1] = { type = "toggle", key = k("leaderHideInCombat"), invert = true, label = "Show leader crown in combat",
+        desc = "The leader's crown stays in a fight. When off, it hides while you're fighting.", disabled = leaderOff }
+    local dispelOff = gated("showDispel")
+    local dispel = { spot("dispelPos", "Dispel icon", false, dispelOff) }
+    nudges(dispel, "dispel", "Dispel icon", dispelOff)
+    local readyOff = gated("showReady")
+    local ready = {
+        { type = "toggle", key = k("showReady"), label = "Ready check answers",
+          desc = "During a ready check, a tick, a cross or a question mark on each member: ready, not ready, or no answer yet. They stay a few seconds after the check ends.",
+          disabled = dis },
+        { type = "dropdown", key = k("readyPos"), label = "Ready check position", values = SPOT_VALUES,
+          desc = "Where the ready check answer sits on each frame, or just outside it.",
+          order = ns.Spots.ORDER, disabled = readyOff },
+        { type = "slider", key = k("readySize"), label = "Ready check size", min = 6, max = 32, step = 1,
+          desc = "How big the ready check answer is.", unit = "px", disabled = readyOff },
     }
-    for _, item in ipairs(more) do items[#items + 1] = item end
-    if not skip.markerSize then items[#items + 1] = size("markerSize", "Raid marker") end
-    nudges(items, "marker", "Raid marker", cornerDis)
-    items[#items + 1] = spot("leaderPos", "Leader crown", home)
-    items[#items + 1] = size("leaderPx", skip.leaderPxLabel or "Leader crown", skip.leaderPxDesc)
-    nudges(items, "leader", "Leader crown", cornerDis)
-    items[#items + 1] = { type = "toggle", key = k("leaderHideInCombat"), invert = true, label = "Show leader crown in combat",
-                          desc = "The leader's crown stays in a fight. When off, it hides while you're fighting.", disabled = dis }
-    local dispelPos = spot("dispelPos", "Dispel icon")
-    dispelPos.disabled = dis
-    items[#items + 1] = dispelPos
-    nudges(items, "dispel", "Dispel icon", dis)
-    local readyOff = function(get) return dis(get) or get(k("showReady")) == false end
-    items[#items + 1] = { type = "toggle", key = k("showReady"), label = "Ready check answers",
-        desc = "During a ready check, a tick, a cross or a question mark on each member: ready, not ready, or no answer yet. They stay a few seconds after the check ends.",
-        disabled = dis }
-    items[#items + 1] = { type = "dropdown", key = k("readyPos"), label = "Ready check position", values = SPOT_VALUES,
-        desc = "Where the ready check answer sits on each frame, or just outside it.",
-        order = ns.Spots.ORDER, disabled = readyOff }
-    items[#items + 1] = { type = "slider", key = k("readySize"), label = "Ready check size", min = 6, max = 32, step = 1,
-        desc = "How big the ready check answer is.", unit = "px", disabled = readyOff }
-    nudges(items, "ready", "Ready check", readyOff, "ready check answer")
-    local summonOff = function(get) return dis(get) or get(k("showSummon")) == false end
-    items[#items + 1] = { type = "toggle", key = k("showSummon"), label = "Summon icon",
-        desc = "A swirl on a member who's being summoned: in your accent while they decide, green once they accept, red if they decline.",
-        disabled = dis }
-    items[#items + 1] = { type = "dropdown", key = k("summonPos"), label = "Summon position", values = SPOT_VALUES,
-        desc = "Where the summon icon sits on each frame, or just outside it.",
-        order = ns.Spots.ORDER, disabled = summonOff }
-    items[#items + 1] = { type = "slider", key = k("summonSize"), label = "Summon size", min = 6, max = 32, step = 1,
-        desc = "How big the summon icon is.", unit = "px", disabled = summonOff }
-    nudges(items, "summon", "Summon", summonOff, "summon icon")
-    return items
+    nudges(ready, "ready", "Ready check", readyOff, "ready check answer")
+    local summonOff = gated("showSummon")
+    local summon = {
+        { type = "toggle", key = k("showSummon"), label = "Summon icon",
+          desc = "A swirl on a member who's being summoned: in your accent while they decide, green once they accept, red if they decline.",
+          disabled = dis },
+        { type = "dropdown", key = k("summonPos"), label = "Summon position", values = SPOT_VALUES,
+          desc = "Where the summon icon sits on each frame, or just outside it.",
+          order = ns.Spots.ORDER, disabled = summonOff },
+        { type = "slider", key = k("summonSize"), label = "Summon size", min = 6, max = 32, step = 1,
+          desc = "How big the summon icon is.", unit = "px", disabled = summonOff },
+    }
+    nudges(summon, "summon", "Summon", summonOff, "summon icon")
+    return { role = role, marker = marker, leader = leader, dispel = dispel, ready = ready, summon = summon }
 end
 
 -- Whether a group frame has neither portrait nor name tab showing (so level
@@ -292,9 +294,9 @@ end
 
 -- The dispel items for a group page. gate is the page's on/off key, sizeMax the
 -- icon size ceiling, what is the thing a highlight lights up ("frame"/"tile").
-local function dispelItems(k, gate, sizeMax, what)
+local function dispelItems(k, gate, sizeMax, what, place)
     local shown = off(gate)
-    return {
+    local items = {
         { type = "toggle", key = k("showDispel"), label = "Dispel icon",
           desc = "A small icon in a corner for a debuff you can remove, edged in its type's color.", disabled = shown },
         { type = "slider", key = k("dispelSize"), label = "Dispel icon size", min = 6, max = sizeMax, step = 1,
@@ -311,6 +313,9 @@ local function dispelItems(k, gate, sizeMax, what)
           desc = "When off, any debuff with a type (Magic, Curse, Disease, Poison) shows, even one you can't remove.",
           disabled = shown },
     }
+    -- The icon's position and nudges sit right under its size.
+    for i, item in ipairs(place or {}) do table.insert(items, 2 + i, item) end
+    return items
 end
 
 -- Your target's outline on a group page. gate is the page's on/off key.
@@ -740,17 +745,18 @@ local function auraCards(k, gate)
         if def.key == "cc" and AG.Refused(def, "cc") then
             for _, it in ipairs(items) do it.hidden = function() return true end end
         end
+        -- Private auras (GroupPrivate.lua): the client draws them, this only
+        -- provides the spot. The switch sits with the debuffs.
+        if def.key == "debuffs" then
+            items[#items + 1] = { type = "toggle", key = k("privateAuras"), label = "Show hidden boss debuffs",
+                desc = "The boss debuffs addons can't read, drawn by the game: up to two big icons in the middle, with a sweep for the time left. They only appear when a boss uses them.",
+                disabled = off(gate) }
+        end
         cards[#cards + 1] = { label = def.label, desc = def.desc, items = items }
         if def.key == "buffs" then
             for _, card in ipairs(indicatorCards(k, gate)) do cards[#cards + 1] = card end
         end
     end
-    -- Private auras (GroupPrivate.lua): the client draws them, this only provides the spot.
-    cards[#cards + 1] = { label = "Hidden boss debuffs",
-        desc = "Some boss abilities put debuffs on players that addons can't see. The game draws them itself, in the middle of the frame.",
-        items = { { type = "toggle", key = k("privateAuras"), label = "Show hidden boss debuffs",
-                    desc = "The boss debuffs addons can't read, drawn by the game: up to two big icons in the middle, with a sweep for the time left. They only appear when a boss uses them.",
-                    disabled = off(gate) } } }
     return cards
 end
 
@@ -1157,8 +1163,8 @@ local function swingBarCard()
 end
 
 -- A frame's own bar colors (<frame>.colorHealth / colorPower), each next to its
--- bar's rows. "global" follows the Colors page.
-local HEALTH_COLORS = { global = "Same as the Colors page", class = "Class and reaction", classGradient = "Class gradient",
+-- bar's rows. "global" follows the Look page.
+local HEALTH_COLORS = { global = "Same as the Look page", class = "Class and reaction", classGradient = "Class gradient",
     gradient = "By health (green to red)", custom = "One color", dark = "Dark (missing health colored)" }
 local HEALTH_COLOR_ORDER = { "global", "class", "classGradient", "gradient", "custom", "dark" }
 -- Your own frame can also take the Daylight gradient or your accent.
@@ -1166,7 +1172,7 @@ local PLAYER_HEALTH_COLORS = { daylight = "Daylight gradient", accent = "Accent 
 local PLAYER_HEALTH_ORDER = { "global", "daylight", "accent" }
 for k, v in pairs(HEALTH_COLORS) do PLAYER_HEALTH_COLORS[k] = v end
 for i = 2, #HEALTH_COLOR_ORDER do PLAYER_HEALTH_ORDER[#PLAYER_HEALTH_ORDER + 1] = HEALTH_COLOR_ORDER[i] end
-local POWER_COLORS = { global = "Same as the Colors page", type = "By power type", gradient = "Power gradient",
+local POWER_COLORS = { global = "Same as the Look page", type = "By power type", gradient = "Power gradient",
     custom = "One color" }
 local POWER_COLOR_ORDER = { "global", "type", "gradient", "custom" }
 
@@ -1177,8 +1183,8 @@ local function healthColorRows(id, dis)
           values = id == "player" and PLAYER_HEALTH_COLORS or HEALTH_COLORS,
           order = id == "player" and PLAYER_HEALTH_ORDER or HEALTH_COLOR_ORDER, disabled = dis,
           desc = id == "player"
-              and "Your frame's own health color, so it can look unlike the others. Same as the Colors page follows the color every frame shares; Daylight gradient is the logo's blue to orange; Accent color follows your accent on General > Appearance, gradient included."
-              or "This frame's own health color, so it can look unlike the others. Same as the Colors page follows the color every frame shares." },
+              and "Your frame's own health color, so it can look unlike the others. Same as the Look page follows the color every frame shares; Daylight gradient is the logo's blue to orange; Accent color follows your accent on General > Appearance, gradient included."
+              or "This frame's own health color, so it can look unlike the others. Same as the Look page follows the color every frame shares." },
         { type = "color", key = k("colorHealthCustom"), label = "Custom health color", disabled = dis,
           desc = "The health bar's color when Health bar color is One color.",
           hidden = notCustom(k("colorHealth")) },
@@ -1190,7 +1196,7 @@ local function powerColorRows(id, dis)
     return {
         { type = "dropdown", key = k("colorPower"), label = "Power bar color", values = POWER_COLORS,
           order = POWER_COLOR_ORDER, disabled = dis,
-          desc = "This frame's own power color. Same as the Colors page follows the color every frame shares." },
+          desc = "This frame's own power color. Same as the Look page follows the color every frame shares." },
         { type = "color", key = k("colorPowerCustom"), label = "Custom power color", disabled = dis,
           desc = "The power bar's color when Power bar color is One color.",
           hidden = notCustom(k("colorPower")) },
@@ -1198,8 +1204,8 @@ local function powerColorRows(id, dis)
 end
 
 -- The empty part of one bar on this frame (bar "Health" or "Power"): its own
--- color and opacity, or the Colors page's.
-local BACK_COLORS = { global = "Same as the Colors page", dim = "Dimmed bar color", custom = "One color" }
+-- color and opacity, or the Look page's.
+local BACK_COLORS = { global = "Same as the Look page", dim = "Dimmed bar color", custom = "One color" }
 local BACK_COLOR_ORDER = { "global", "dim", "custom" }
 local function backColorRows(id, bar, dis)
     local key = id .. ".back" .. bar
@@ -1208,7 +1214,7 @@ local function backColorRows(id, bar, dis)
     return {
         { type = "dropdown", key = key, label = bar .. " background color", values = BACK_COLORS,
           order = BACK_COLOR_ORDER, disabled = dis,
-          desc = "The empty part of this frame's " .. what .. " bar, behind the fill: a darker copy of the bar's color, or one you pick. Same as the Colors page follows the look every frame shares." },
+          desc = "The empty part of this frame's " .. what .. " bar, behind the fill: a darker copy of the bar's color, or one you pick. Same as the Look page follows the look every frame shares." },
         { type = "slider", key = key .. "Bright", label = bar .. " background brightness", min = 0, max = 1, step = 0.05,
           unit = "%", disabled = dis, hidden = function(get) return get(key) ~= "dim" end,
           desc = "How much of the bar's color the empty part keeps. Lower is darker." },
@@ -1241,7 +1247,7 @@ local function personalBarRows(bar, dis)
     end
     local mode = bar == "health" and "personal.colorHealth" or "personal.colorPower"
     rows[3] = { type = "dropdown", key = mode, label = label .. " color", values = values, order = order, disabled = dis,
-                desc = "The bar's own color, so it can look unlike your player frame. Same as the Colors page follows the color every frame shares." }
+                desc = "The bar's own color, so it can look unlike your player frame. Same as the Look page follows the color every frame shares." }
     rows[4] = { type = "color", key = mode .. "Custom", label = "Custom " .. bar .. " color", disabled = dis,
                 desc = "The bar's color when it's set to One color.", hidden = notCustom(mode) }
     return rows
@@ -1409,7 +1415,7 @@ end
 
 -- The frames' style (Defaults.lua, UF.StyleOf). A pick writes through
 -- ns.SetStyle, so each frame takes that style's own heights before anything
--- redraws. own: a frame's pick, which can follow the Extras page's.
+-- redraws. own: a frame's pick, which can follow the Look page's.
 local function styleDesc()
     local parts = {}
     for _, key in ipairs(ns.STYLE_ORDER) do parts[#parts + 1] = ns.STYLES[key].desc end
@@ -1435,7 +1441,7 @@ local function fillStyleRow(row)
         order[#order + 1] = s
     end
     row.desc = styleDesc() .. (row.ownPick
-        and " Default uses the style set for every frame on Unit Frames > Extras. Each style keeps its own heights."
+        and " Default uses the style set for every frame on Unit Frames > Look. Each style keeps its own heights."
         or " Each frame can pick its own on its page.")
 end
 function ns.StyleRowsChanged()
@@ -1470,7 +1476,7 @@ local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
 local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
-    ["Heal indicators"] = "Auras", ["Hidden boss debuffs"] = "Auras", Dispels = "Auras" }
+    ["Heal indicators"] = "Auras", Dispels = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
     if string.find(label, "^Extra text") then return "Text" end
@@ -1752,7 +1758,7 @@ local function framePage(id, label, desc, opts)
           disabled = shown, hidden = noTabStyle },
         lastNames(id),
         { type = "dropdown", key = k("nameColor"), label = "Name color", values = NAME_COLORS, order = NAME_COLOR_ORDER,
-          desc = "This frame's own name color. Same as the Colors page follows the name color every frame shares.",
+          desc = "This frame's own name color. Same as the Look page follows the name color every frame shares.",
           disabled = nameOff },
         { type = "color", key = k("nameCustom"), label = "Custom name color", hidden = notCustom(k("nameColor")),
           desc = "The name's color when Name color is One color.", disabled = nameOff },
@@ -1936,11 +1942,15 @@ local function framePage(id, label, desc, opts)
         extras[#extras + 1] = { type = "slider", key = k("pvpSize"), label = "PvP flag size", min = 0.5, max = 2, step = 0.05, unit = "%",
             desc = "How big the PvP flag is.", disabled = homeDis }
     end
+    -- A party frame's role, marker and crown each get a card of their own,
+    -- headed by its switch (see the tile cards below); other frames keep them here.
+    local iconRows = {}
+    local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item else extras[#extras + 1] = item end end
     if opts.marker then
-        extras[#extras + 1] = { type = "toggle", key = k("showMarker"), label = "Raid marker",
-            desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
-            desc = "How big the raid marker is.", disabled = offAny(k("enabled"), k("showMarker")) }
+        iconRow({ type = "toggle", key = k("showMarker"), label = "Raid marker",
+            desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown })
+        iconRow({ type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
+            desc = "How big the raid marker is.", disabled = offAny(k("enabled"), k("showMarker")) })
     end
     if opts.crest then
         extras[#extras + 1] = { type = "toggle", key = k("showClassification"), label = "Elite and rare crest",
@@ -1959,10 +1969,10 @@ local function framePage(id, label, desc, opts)
             desc = "Nudges the level badge sideways. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
         extras[#extras + 1] = { type = "slider", key = k("levelY"), label = "Level up / down", min = -50, max = 50, step = 1,
             desc = "Nudges the level badge up or down. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
-        extras[#extras + 1] = { type = "toggle", key = k("showLeader"), label = "Leader crown",
-            desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the leader's crown is.", disabled = shown }
+        iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
+            desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })
+        iconRow({ type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
+            desc = "How big the leader's crown is.", disabled = opts.tile and offAny(k("enabled"), k("showLeader")) or shown })
     end
     if opts.combat then
         extras[#extras + 1] = { type = "toggle", key = k("druidMana"), label = "Druid mana in forms",
@@ -2073,9 +2083,9 @@ local function framePage(id, label, desc, opts)
             disabled = shown }
     end
     if opts.role then
-        extras[#extras + 1] = { type = "toggle", key = k("showRole"), label = "Role icon",
+        iconRow({ type = "toggle", key = k("showRole"), label = "Role icon",
             desc = "Tank, healer or damage, from the role they picked. Nothing shows for an unknown or unset role.",
-            disabled = shown }
+            disabled = shown })
     end
     if opts.targetMark then
         for _, item in ipairs(targetItems(k, k("enabled"))) do extras[#extras + 1] = item end
@@ -2087,13 +2097,21 @@ local function framePage(id, label, desc, opts)
     end
     if opts.pets then groups[#groups + 1] = petCard() end
     if opts.tile then
+        local icons = iconItems(k, shown, { markerSize = true, leaderPxLabel = "Leader crown pixel",
+            leaderPxDesc = "How big the leader's crown is, in pixels. With the name or portrait it fits there until you change this, and Leader crown size scales it." },
+            true)
         groups[#groups + 1] = { label = "Dispels", desc = "How a debuff you can remove shows on each party frame: an icon, a highlight or a glow.",
-            items = dispelItems(k, k("enabled"), 32, "frame") }
-        groups[#groups + 1] = { label = "Icon positions and sizes",
-            desc = "The role, marker and crown ride with the name tab or portrait until you pick a spot for them. The dispel icon sits in a corner.",
-            items = iconItems(k, shown, { markerSize = true, leaderPxLabel = "Leader crown pixel",
-                leaderPxDesc = "How big the leader's crown is, in pixels. With the name or portrait it fits there until you change this, and Leader crown size scales it." },
-                true) }
+            items = dispelItems(k, k("enabled"), 32, "frame", icons.dispel) }
+        local function row(key) for _, item in ipairs(iconRows) do if item.key == k(key) then return item end end end
+        local home = " It rides with the name tab or portrait until you pick a spot for it."
+        groups[#groups + 1] = { label = "Role icon", desc = "Tank, healer or damage on each party frame." .. home,
+            items = cat({ row("showRole") }, icons.role) }
+        groups[#groups + 1] = { label = "Raid marker", desc = "Skull, cross and the rest on a marked member's frame." .. home,
+            items = cat({ row("showMarker"), row("markerSize") }, icons.marker) }
+        groups[#groups + 1] = { label = "Leader crown", desc = "A crown on the party leader's frame." .. home,
+            items = cat({ row("showLeader"), row("leaderSize") }, icons.leader) }
+        groups[#groups + 1] = { label = "Ready check and summon", desc = "Answers to a ready check, and who's being summoned, on each party frame.",
+            items = cat(icons.ready, icons.summon) }
     end
     if opts.layout then
         table.insert(groups, 1, { label = "Layout", items = {
@@ -2275,6 +2293,7 @@ local RAID_PAGE_DESC = {
 }
 
 local function raidPage(size)
+    local raidIcons = iconItems(function(key) return "raid." .. key end, off("raid.enabled"))
     local frameCard, barsCard = splitFrame("raid", {
         { type = "toggle", key = "raid.enabled", label = "Show raid frames", desc = "Replaces the game's raid frames while you're in a raid." },
         { type = "toggle", key = "raid.showInParty", label = "Use raid frames in a party",
@@ -2344,7 +2363,7 @@ local function raidPage(size)
               desc = "Each member's name on their tile.", disabled = off("raid.enabled") },
             lastNames("raid"),
             { type = "dropdown", key = "raid.nameColor", label = "Name color", values = NAME_COLORS, order = NAME_COLOR_ORDER,
-              desc = "The raid tiles' own name color. Same as the Colors page follows the name color every frame shares.",
+              desc = "The raid tiles' own name color. Same as the Look page follows the name color every frame shares.",
               disabled = offAny("raid.enabled", "raid.showName") },
             { type = "color", key = "raid.nameCustom", label = "Custom name color", hidden = notCustom("raid.nameColor"),
               desc = "The names' color when Name color is One color.", disabled = offAny("raid.enabled", "raid.showName") },
@@ -2386,7 +2405,7 @@ local function raidPage(size)
               desc = "Skull, cross and the rest, on the tile of a marked member.", disabled = off("raid.enabled") },
             { type = "toggle", key = "raid.showLeader", label = "Leader crown",
               desc = "A small crown on the raid leader's tile.", disabled = off("raid.enabled") },
-        }, dispelItems(function(s) return "raid." .. s end, "raid.enabled", 24, "tile"), {
+        }, {
             { type = "toggle", key = "raid.showThreat", label = "Aggro colors",
               desc = "A member's border turns red while something is attacking them.", disabled = off("raid.enabled") },
             { type = "toggle", key = "raid.showRole", label = "Role icon",
@@ -2405,8 +2424,10 @@ local function raidPage(size)
               desc = "A big number in the middle of your screen counts down any pull your group starts, in place of the game's bar. Move it in unlock mode. In a dungeon or raid the game may keep its own bar for a countdown someone else starts." },
         } },
     }, auraCards(function(s) return "raid." .. s end, "raid.enabled"), {
-        { label = "Icon positions and sizes", desc = "Where the role, marker, crown and dispel icons sit on a tile.",
-          items = iconItems(function(key) return "raid." .. key end, off("raid.enabled")) },
+        { label = "Dispels", desc = "How a debuff you can remove shows on each raid tile: an icon, a highlight or a glow.",
+          items = dispelItems(function(s) return "raid." .. s end, "raid.enabled", 24, "tile", raidIcons.dispel) },
+        { label = "Icon positions and sizes", desc = "Where the role, marker and crown sit on a tile, and the ready check and summon icons.",
+          items = cat(raidIcons.role, raidIcons.marker, raidIcons.leader, raidIcons.ready, raidIcons.summon) },
         barFxCard("raid", offAny("raid.enabled", "raid.showPower"), off("raid.enabled"), false,
                   function(key) return DaylightUI:Get("UnitFrames", ns.Raid.MapKey(key, size)) end,
                   size ~= 10 and function() return ns.Raid.Locked(size) end or nil),
@@ -2446,8 +2467,13 @@ ns.OPTIONS = { pages = {
     framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
         tab = true, small = true, auras = PET_AURA_GROUPS }),
 
-    { id = "colors", label = "Colors", desc = "The bars' and names' colors on every unit frame.", groups = {
-        { label = "Health", items = {
+    { id = "colors", label = "Look", desc = "The frames' shape, class icons, and the bars' and names' colors on every unit frame.", groups = {
+        { label = "Frame shape", items = {
+            styleRow("look.style", false),
+            { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 0.4, step = 0.01, unit = "%",
+              desc = "How far the frames' angled ends lean, on every unit frame and cast bar. 21% is the usual look." },
+        } },
+        { label = "Health and names", items = {
             { type = "dropdown", key = "colors.health", label = "Health bar color",
               values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)",
                          custom = "One color", dark = "Dark (missing health colored)" },
@@ -2471,6 +2497,10 @@ ns.OPTIONS = { pages = {
               desc = "How solid the empty part of every health and power bar is. Lower lets the world show through it, like the game's own frames." },
             { type = "color", key = "colors.dotTint", label = "DoT damage left color", alpha = true,
               desc = "The shade over the health your damage over time spells will still take, on the target and on enemy nameplates." },
+            { type = "dropdown", key = "colors.name", label = "Name color",
+              values = { white = "White", class = "Class and reaction", classGradient = "Class gradient" },
+              order = { "white", "class", "classGradient" },
+              desc = "The names on every unit frame, unless a frame picks its own. Class and reaction: players by class color, others by friendly, neutral or hostile." },
         } },
         { label = "Dead, offline and NPCs", desc = "The bar's color for dead and offline players and tapped NPCs, and for NPCs by how they feel about you. The NPC colors show with Class and reaction or Dark; Class gradient uses the pairs on General > Gradients.", items = {
             { type = "color", key = "colors.dead", label = "Dead", desc = "The health bar's color for a dead unit." },
@@ -2529,11 +2559,18 @@ ns.OPTIONS = { pages = {
               desc = "The overshield's look: the same as the shield texture, or its own.",
               disabled = function(get) return get("colors.overshield") == false end },
         } },
-        { label = "Names", items = {
-            { type = "dropdown", key = "colors.name", label = "Name color",
-              values = { white = "White", class = "Class and reaction", classGradient = "Class gradient" },
-              order = { "white", "class", "classGradient" },
-              desc = "The names on every unit frame, unless a frame picks its own. Class and reaction: players by class color, others by friendly, neutral or hostile." },
+        { label = "Class icons", desc = "On the portrait rings of the player, target and focus frames.", items = {
+            { type = "dropdown", key = "portraits.icons", label = "Icon style",
+              choices = UF.IconStyleChoices,
+              desc = "Daylight UI's own icons, the Classic class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
+                  .. "(art by JiberishUI and its artists, read from that addon's own folder)." },
+            { type = "text", label = function()
+                if UF.HasIconPack() then
+                    return DaylightUI.L["Jiberish Fabled Icons is installed. Pick an icon for each class below, any style or one of its specs. The first icon on each line follows the Icon style."]
+                end
+                return DaylightUI.L["Install the Jiberish Fabled Icons addon to unlock more class icon styles."]
+            end },
+            classIconPicker,
         } },
     } },
 
@@ -2676,13 +2713,13 @@ ns.OPTIONS = { pages = {
         } }),
         { label = "Cast bar fill", items = {
             { type = "dropdown", key = "casts.fill", label = "Cast bar fill style", values = FILL_STYLES, order = FILL_ORDER,
-              desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set right here." },
+              desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set on the Gradients page." },
             { type = "toggle", key = "casts.flash", label = "Show interrupts",
               desc = "When a cast is interrupted, the bar stays full for a moment and says Interrupted." },
-            gradientRow("CAST", "Casting gradient", fillIsNot("casts.fill", "pair")),
-            gradientRow("CHANNEL", "Channeling gradient", fillIsNot("casts.fill", "pair")),
-            gradientRow("CAST_INTERRUPTED", "Interrupted gradient", fillIsNot("casts.fill", "pair")),
-            gradientRow("CAST_LOCKED", "Can't interrupt gradient", fillIsNot("casts.fill", "pair")),
+            { type = "button", label = "Cast bar gradients", text = "Edit",
+              desc = "Opens the Gradients page, where the Casts pairs are.",
+              hidden = fillIsNot("casts.fill", "pair"),
+              func = function() DaylightUI.OptionsPanel.Show("gradients") end },
         } },
         { label = "Your cast bar's colors", items = {
             { type = "toggle", key = "casts.classColor", label = "Class color on your cast bar",
@@ -2796,7 +2833,7 @@ ns.OPTIONS = { pages = {
         swingBarCard(),
         { label = "Colors", items = {
             { type = "dropdown", key = "swing.fill", label = "Swing timer fill style", values = FILL_STYLES, order = FILL_ORDER,
-              desc = "How each hand's bar is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per hand, set right here. A queued attack always keeps its own color.",
+              desc = "How each hand's bar is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per hand, set on the Gradients page. A queued attack always keeps its own color.",
               disabled = off("swing.enabled") },
             { type = "toggle", key = "swing.classColor", label = "Class color on the swing timer",
               desc = "Every hand's bar in your class color, or your class's gradient with a two-color fill. A queued attack keeps its own color. Not with the Daylight gradient.",
@@ -2812,10 +2849,10 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("swing.enabled") ~= true or get("swing.classColor") == true end },
             { type = "color", key = "swing.colors.queued", label = "Attack queued color", hidden = fillIs("swing.fill", "pair"),
               desc = "The melee bars' color while Heroic Strike, Cleave or Maul waits for your next swing.", disabled = off("swing.enabled") },
-            gradientRow("SWING_MAIN", "Main hand gradient", fillIsNot("swing.fill", "pair")),
-            gradientRow("SWING_OFF", "Off hand gradient", fillIsNot("swing.fill", "pair")),
-            gradientRow("SWING_RANGED", "Ranged gradient", fillIsNot("swing.fill", "pair")),
-            gradientRow("SWING_QUEUED", "Attack queued gradient", fillIsNot("swing.fill", "pair")),
+            { type = "button", label = "Swing timer gradients", text = "Edit",
+              desc = "Opens the Gradients page, where the Swing timers pairs are.",
+              hidden = fillIsNot("swing.fill", "pair"),
+              func = function() DaylightUI.OptionsPanel.Show("gradients") end },
         } },
     } },
 
@@ -2843,7 +2880,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
               desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
             { type = "slider", key = "personal.angle", label = "Personal display angle", min = 0, max = 0.6, step = 0.01, unit = "%",
-              desc = "How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Extras.",
+              desc = "How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Unit Frames > Look.",
               disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end },
             { type = "toggle", key = "personal.showHealth", since = "1.6.0.2", label = "Personal health bar",
               desc = "Your health on the display. Turn it off to keep just your power bar. Needs the power bar on.",
@@ -2864,8 +2901,12 @@ ns.OPTIONS = { pages = {
               desc = "How tall the power bar is.",
               disabled = function(get) return get("personal.enabled") ~= true or get("personal.showPower") ~= true end },
             PERSONAL_POWER[1], PERSONAL_POWER[2], PERSONAL_POWER[3], PERSONAL_POWER[4],
+            strataRow("personal.strata", "Personal display layer", "The layer the personal display draws in. Low keeps it under your other frames.",
+                off("personal.enabled")),
+        } },
+        { label = "Combo points", desc = "Rogues and druids: your combo points under the personal display's bars.", items = {
             { type = "toggle", key = "personal.combo", label = "Combo points on the personal display",
-              desc = "Rogues and druids: your combo points under the bars, in the colors from Extras.", disabled = off("personal.enabled") },
+              desc = "Rogues and druids: your combo points under the bars, in the colors from Unit Frames > Combo Points & Range.", disabled = off("personal.enabled") },
             { type = "toggle", key = "personal.comboStretch", label = "Personal combo points match the width",
               desc = "Spreads the combo point pips across the personal display. Turn it off to set the pips' own width.",
               disabled = offAny("personal.enabled", "personal.combo") },
@@ -2879,12 +2920,12 @@ ns.OPTIONS = { pages = {
               desc = "Nudges the personal display's row of combo points sideways.", disabled = offAny("personal.enabled", "personal.combo") },
             { type = "slider", key = "personal.comboY", label = "Personal combo points up / down", min = -50, max = 50, step = 1, unit = "px",
               desc = "Nudges the personal display's row of combo points up or down. Docked cast and swing bars stay below it.", disabled = offAny("personal.enabled", "personal.combo") },
+        } },
+        { label = "Docked bars", desc = "Your cast bar and swing timers under the personal display, as wide as it and cut like it.", items = {
             { type = "toggle", key = "personal.swing", label = "Swing timers on the personal display",
               desc = "Moves your swing timers under the personal display, as wide as it.", disabled = off("personal.enabled") },
             { type = "toggle", key = "personal.castbar", label = "Cast bar on the personal display",
               desc = "Moves your cast bar under the personal display, as wide as it.", disabled = off("personal.enabled") },
-            strataRow("personal.strata", "Personal display layer", "The layer the personal display draws in. Low keeps it under your other frames.",
-                off("personal.enabled")),
         } },
         shellCard("personal", "personal.enabled"),
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
@@ -2899,12 +2940,7 @@ ns.OPTIONS = { pages = {
         DaylightUI.Fade.Card("personal.fade.", nil, off("personal.enabled"), "Personal display"),
     } },
 
-    { id = "extras", label = "Extras", desc = "Frame shape, combo points, class icons and range fade.", groups = {
-        { label = "Frame shape", items = {
-            styleRow("look.style", false),
-            { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 0.4, step = 0.01, unit = "%",
-              desc = "How far the frames' angled ends lean, on every unit frame and cast bar. 21% is the usual look." },
-        } },
+    { id = "extras", label = "Combo Points & Range", desc = "Combo points for rogues and druids, and how frames fade out of range.", groups = {
         { label = "Combo points", desc = "For rogues, and druids in cat form. Small pips on your target or player frame.", items = {
             { type = "toggle", key = "combo.enabled", label = "Show combo points",
               desc = "Replaces the game's own combo points." },
@@ -2966,19 +3002,6 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "combo.empty", label = "Empty pip brightness", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How bright the pips you haven't filled are, as a share of their color. Lower makes the filled ones stand out more.",
               disabled = off("combo.enabled") },
-        } },
-        { label = "Class icons", desc = "On the portrait rings of the player, target and focus frames.", items = {
-            { type = "dropdown", key = "portraits.icons", label = "Icon style",
-              choices = UF.IconStyleChoices,
-              desc = "Daylight UI's own icons, the Classic class icons, or with the Jiberish Fabled Icons addon installed, its Fabled styles "
-                  .. "(art by JiberishUI and its artists, read from that addon's own folder)." },
-            { type = "text", label = function()
-                if UF.HasIconPack() then
-                    return DaylightUI.L["Jiberish Fabled Icons is installed. Pick an icon for each class below, any style or one of its specs. The first icon on each line follows the Icon style."]
-                end
-                return DaylightUI.L["Install the Jiberish Fabled Icons addon to unlock more class icon styles."]
-            end },
-            classIconPicker,
         } },
         { label = "Range fade", desc = "Dims units that are out of reach: target, focus, their targets, party, party targets, raid and PvP frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",

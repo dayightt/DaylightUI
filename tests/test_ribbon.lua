@@ -376,9 +376,9 @@ T.test("a plugin's frame style joins every Frame style menu, keeps its heights, 
     T.eq(style.ring, 1, "the ring share kept in range")
     T.isnil(ns.DEFAULTS.raid.sizes, "raid tiles take no style")
     local O = DUI.Options
-    local extras = O.GetPage("UnitFrames.extras")
+    local look = O.GetPage("UnitFrames.colors")
     local row
-    for _, page in ipairs({ extras, O.GetPage("UnitFrames.player") }) do
+    for _, page in ipairs({ look, O.GetPage("UnitFrames.player") }) do
         for _, g in ipairs(page and page.groups or {}) do
             for _, it in ipairs(g.items) do if it.label == "Frame style" then row = it end end
         end
