@@ -214,7 +214,9 @@ if par then
         h:close()
     end
     os.remove(base .. ".jobs")
-    local passed, failed, failures = 0, 0, {}
+    -- The failing files' output prints first and the summary last, so the end of
+    -- the output (what a `tail` keeps) always holds the pass/fail count.
+    local passed, failed, failures, failLines = 0, 0, {}, {}
     for _, job in ipairs(jobs) do
         local fh = io.open(base .. "." .. job.file .. ".out", "rb")
         local out = fh and fh:read("*a") or ""
@@ -224,18 +226,20 @@ if par then
         if not p then
             failed = failed + 1
             failures[#failures + 1] = job.file .. ": no result\n" .. out
+            failLines[#failLines + 1] = string.format("FAIL %s (no result)\n", job.file)
         else
             passed, failed = passed + tonumber(p), failed + tonumber(f)
             -- Only failing files are named. A line per file was ~70 lines of noise.
             if tonumber(f) > 0 then
-                io.write(string.format("FAIL %s (%d of %d)\n", job.file, tonumber(f), tonumber(p) + tonumber(f)))
+                failLines[#failLines + 1] = string.format("FAIL %s (%d of %d)\n", job.file, tonumber(f), tonumber(p) + tonumber(f))
                 failures[#failures + 1] = out
             end
         end
     end
-    io.write(string.format("%d passed, %d failed (%d files, in parallel)\n", passed, failed, #jobs))
+    for _, f in ipairs(failures) do io.write("--- ", f, "\n\n") end
+    for _, line in ipairs(failLines) do io.write(line) end
     if #skippedSlow > 0 then io.write("(the ", #skippedSlow, " slow sweeps skipped: --par --all runs them)\n") end
-    for _, f in ipairs(failures) do io.write("\n--- ", f, "\n") end
+    io.write(string.format("%d passed, %d failed (%d files, in parallel)\n", passed, failed, #jobs))
     os.exit(failed == 0 and 0 or 1)
 end
 
