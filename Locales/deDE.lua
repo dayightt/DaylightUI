@@ -4,6 +4,8 @@ if DUI.LOCALE ~= "deDE" then return end
 local L = DUI.L
 
 -- DaylightUI_Tooltip: checked by a native speaker.
+L["Item level in the icon"] = "Gegenstandsstufe im Symbol"
+L["The item level in the icon's corner instead of a line under the name, so long names have the room."] = "Die Gegenstandsstufe in der Ecke des Symbols statt in einer Zeile unter dem Namen, damit lange Namen mehr Platz haben."
 L["Tooltips"] = "Tooltips"
 L["Tooltip"] = "Tooltip"
 L["The game's tooltips in the DaylightUI look."] = "Die Tooltips des Spiels im Stil von DaylightUI."

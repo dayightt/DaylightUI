@@ -14,7 +14,7 @@ ns.Colors = Colors
 -- categories cycle through the same list.
 Colors.ORDER = { "attributes", "attack", "ranged", "spell", "defense", "resistances" }
 Colors.GOOD, Colors.WARN, Colors.BAD = { 0.45, 0.9, 0.45 }, { 1, 0.82, 0.3 }, { 1, 0.38, 0.33 }
-Colors.STRIPE = { 1, 1, 1, 0.04 }
+Colors.STRIPE = { 0, 0, 0, 0.16 }   -- dark: a hover or a picked row is light, so a stripe is never mistaken for one
 Colors.GREY = DUI.Style.INK.LABEL   -- sub-categories blend toward this warm tan
 Colors.DIM = 0.4   -- how far a sub-category blends toward it
 

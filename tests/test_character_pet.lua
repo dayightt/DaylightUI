@@ -281,10 +281,21 @@ end)
 
 T.test("pet page: where everything goes", function()
     local ns = load({ class = "HUNTER", pet = HUNTER_PET })
-    local R = ns.PetPage.Rects(834, 482)
-    T.deq(R.stats, { x = 618, y = -12, w = 200, h = 422 }, "the same spot as yours")
+    local R = ns.PetPage.Rects(960, 540)
+    T.deq(R.stats, { x = 694, y = -12, w = 250, h = 480 }, "the same spot as yours")
     T.eq(R.model.x, 16)
     T.eq(R.model.x + R.model.w + ns.PetPage.GAP, R.stats.x)
     T.eq(R.model.y - R.model.h - ns.PetPage.XP_GAP, R.xp.y, "the XP bar under the model")
-    T.eq(R.footer.y, -438)
+    T.eq(R.footer.y, -496)
+end)
+
+T.test("pet page: a loyalty the game already puts in brackets isn't bracketed again", function()
+    local pet = {}
+    for k, v in pairs(HUNTER_PET) do pet[k] = v end
+    pet.loyalty = "(Loyalty Level 6) Best Friend"
+    local ns = load({ class = "HUNTER", pet = pet })
+    local page = openPet(ns)
+    local sub = page.sub:GetText()
+    T.truthy(sub:find("(Loyalty Level 6) Best Friend", 1, true), sub)
+    T.falsy(sub:find("((", 1, true), "one bracket, not two: " .. sub)
 end)

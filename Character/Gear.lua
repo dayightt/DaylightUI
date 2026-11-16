@@ -187,7 +187,7 @@ function Gear.Line(e)
     if e.wear == "low" then return string.format(L["Repair soon · %d%% left"], math.floor(e.pct * 100 + 0.5)), "amber" end
     if e.ammo then return string.format("%d %s", e.ammo, e.ammoWord), "dim" end
     if Gear.NO_LEVEL[e.key] then return e.label, "dim" end
-    return e.level and string.format(L["Item level %s"], Gear.Value(e.level)) or "", "dim"
+    return e.level and string.format(L["Level %s"], Gear.Value(e.level)) or "", "dim"
 end
 
 function Gear.QualityColor(q)

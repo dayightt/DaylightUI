@@ -183,8 +183,21 @@ end
 -- Width the ammo slot adds beside the ranged icon.
 function Slots.AmmoRoom() return Slots.AMMO_GAP + Slots.AMMO end
 
+-- A text's width as it would run on one line, whatever room it has.
+local function natural(fs)
+    local ok, w = pcall(function()
+        local v = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+        if type(v) ~= "number" then v = fs:GetStringWidth() end
+        return v
+    end)
+    if ok and type(w) == "number" and not DUI.IsSecret(w) then return w end
+    return 0   -- not measurable (a secret): it is left on one line
+end
+
 -- Text beside the icon. Name and line are centered on it, or with an enchant
--- all three lines span its height.
+-- all three lines span its height. A name too long for one line (h.wrap) takes two and
+-- the lines span the icon's height the same way. With no line under it (the level is in
+-- the icon's corner, or the line is off) the name is centered on the icon.
 local function stack(h, three)
     h.three = three
     local right = h.side == "right"
@@ -197,9 +210,38 @@ local function stack(h, three)
         h.name:SetPoint("TOP" .. p, h.icon, "TOP" .. edge, x, 1)
         h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
         h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
+    elseif h.lineless then
+        h.name:SetPoint(p, h.icon, edge, x, 0)
+        h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
+        h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
+    elseif h.wrap then
+        h.name:SetPoint("TOP" .. p, h.icon, "TOP" .. edge, x, 1)
+        h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
+        h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
     else
         h.name:SetPoint("BOTTOM" .. p, h.icon, edge, x, 1)
         h.line:SetPoint("TOP" .. p, h.icon, edge, x, -1)
+    end
+end
+
+-- The words fit the room beside the icon: a long name takes a second line (a slot with an
+-- enchant has no room for one, and ends in dots). The whole name is in the tooltip.
+function Slots.FitText(h)
+    if not h.entry then return end
+    local lineless = h.lineFull == ""
+    if lineless ~= (h.lineless == true) then
+        h.lineless = lineless
+        stack(h, h.three == true)
+    end
+    if not h.names then return end
+    local width = h.name:GetWidth() or 0
+    if width <= 0 then return end
+    local wrap = h.three ~= true and h.entry.empty ~= true and natural(h.name) > width + 0.5
+    if wrap ~= (h.wrap == true) then
+        h.wrap = wrap
+        h.name:SetWordWrap(wrap)
+        h.name:SetMaxLines(wrap and 2 or 0)
+        stack(h, h.three == true)
     end
 end
 
@@ -224,6 +266,7 @@ function Slots.Layout(h, width, names, lead)
     h.name:SetShown(names)
     h.line:SetShown(names)
     h.names = names
+    Slots.FitText(h)
 end
 
 -- opts.itemLevel shows the item level line.
@@ -262,7 +305,10 @@ function Slots.Paint(h, e, opts)
     end
     local text, kind = ns.Gear.Line(e)
     if kind == "dim" and not e.empty and not e.ammo and not itemLevel then text = "" end
+    -- The level in the icon's corner: no line of it under the name (a shirt's own word stays).
+    if kind == "dim" and not e.empty and not e.ammo and opts.levelInIcon == true and not ns.Gear.NO_LEVEL[e.key] then text = "" end
     h.line:SetText(text)
+    h.lineFull = text
     local c = (kind == "red" and Slots.RED) or (kind == "amber" and Slots.AMBER) or (e.empty and Slots.OFF) or Slots.DIM
     h.line:SetTextColor(c[1], c[2], c[3])
     if swapped then arrive(h) end
@@ -273,12 +319,13 @@ function Slots.Paint(h, e, opts)
     end
     -- Icons-only mode shows the item level in the corner, or the ammo count.
     local corner = ""
-    if not h.names then
+    if not h.names or opts.levelInIcon == true then
         if e.ammo then corner = tostring(e.ammo)
         elseif itemLevel and e.level and not ns.Gear.NO_LEVEL[e.key] then corner = tostring(e.level) end
     end
     h.corner:SetText(corner)
     Slots.PaintEnchant(h, e)
+    Slots.FitText(h)
     if h.over then Style.InkText(h.name, "VALUE") end
 end
 

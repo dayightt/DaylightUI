@@ -77,7 +77,9 @@ function PetPage.SubLine(d)
     local text = string.format(L["Level %s %s"], level, d.family or "")
     if d.loyalty then
         local c = Style.INK.LABEL
-        text = text .. " " .. C.Wrap("(" .. d.loyalty .. ")", c[1], c[2], c[3])
+        -- The game's own words may come in brackets already ("(Loyalty Level 6) Best Friend").
+        local words = d.loyalty:find("(", 1, true) and d.loyalty or "(" .. d.loyalty .. ")"
+        text = text .. " " .. C.Wrap(words, c[1], c[2], c[3])
     end
     return text
 end

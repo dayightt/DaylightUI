@@ -8,6 +8,7 @@ ns.DEFAULTS = {
     enabled = true,       -- Daylight UI's window instead of the game's; switched from either window
     names = true,         -- item names beside the icons. Off gives the model the room
     itemLevel = true,     -- the dim line under each name
+    levelInIcon = false,  -- the item level in the icon's corner instead, so long names have the room
     scale = 1,
     windowAlphaOwn = false,   -- off follows the General windowAlpha
     windowAlpha = 0.85,

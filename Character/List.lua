@@ -13,8 +13,10 @@ ns.List = List
 
 List.EDGE = 16
 List.TOP = 12
-List.ROW = 24
-List.BAR_ROW = 30                   -- row height when a bar sits under the name
+-- A row has the same room (List.PAD) on all four sides, and is as tall as its text and that
+-- room: from the text's own height, so a larger text scale keeps it.
+List.PAD = 7
+List.ROW = math.ceil(Style.SIZE.body * 1.3) + 2 * List.PAD
 List.BAR_H = 8
 List.PANE_BAR = 12                  -- the detail pane's bar
 List.HEAD_SIZE = Style.SIZE.head
@@ -30,8 +32,13 @@ List.FOLD_DROP = 6
 List.FOLD_STAGGER, List.FOLD_STAGGER_MAX = 0.02, 0.1
 List.FOLD_WAIT = 1                  -- seconds to wait for the game's updated list
 List.TEXT, List.SMALL, List.TITLE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.head
+-- A row with a bar under its name: the same room all round and a gap between the two.
+List.BAR_GAP = 5
+List.BAR_ROW = math.ceil(Style.SIZE.body * 1.3) + List.BAR_GAP + List.BAR_H + 2 * List.PAD
 List.DIM = Style.INK.VALUE         -- text on bars
-List.HI = DUI.Win.Parts.HI         -- hovered or picked row, same as other lists
+List.HI = DUI.Win.Parts.HI         -- hovered row, same as other lists
+List.PICK_ALPHA = 0.2               -- the picked row's wash, in the accent (a stripe is dark, a hover is white)
+List.MARK_W = 3                     -- and the bar down its left edge
 List.INSET = { 0, 0, 0, 0.22 }
 List.WHITE = "Interface\\Buttons\\WHITE8X8"
 
@@ -93,6 +100,16 @@ local function rowFrame(L, i)
     r.hi:SetAllPoints()
     r.hi:SetColorTexture(List.HI[1], List.HI[2], List.HI[3], List.HI[4])
     r.hi:Hide()
+    r.pick = r:CreateTexture(nil, "BACKGROUND")   -- the picked row: the accent's wash, as in the other windows' lists
+    r.pick:SetTexture(List.WHITE)   -- a texture to tint: without one the wash would not show
+    r.pick:SetAllPoints()
+    r.pick:Hide()
+    r.mark = r:CreateTexture(nil, "ARTWORK")      -- and a bar down its left edge, so it is plain which one is open
+    r.mark:SetTexture(List.WHITE)
+    r.mark:SetWidth(List.MARK_W)
+    r.mark:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
+    r.mark:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
+    r.mark:Hide()
     r.line = r:CreateTexture(nil, "ARTWORK")   -- under a header; white so ns.Colors.Line can tint it
     r.line:SetTexture(List.WHITE)
     r.line:SetHeight(1)
@@ -106,7 +123,7 @@ local function rowFrame(L, i)
     r.head = Style.Text(r, List.HEAD_SIZE, "LEFT")   -- header text
     r.head:SetWordWrap(false)
     r.right = Style.Text(r, List.SMALL, "RIGHT")
-    r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -2, -5)
+    r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -2, -5)   -- Draw places these again for a row with a bar
     r.bar = newBar(r)
     r.bar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 3)
     r.bar:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2, 3)
@@ -115,8 +132,12 @@ local function rowFrame(L, i)
     -- list (List.PadEdge).
     r.OnSmartNavSelect = function() List.PadEdge(L, i) end
     local Light = DUI.Win.Parts.Light   -- shared row hover
-    r:SetScript("OnEnter", function(self) if self.item and self.item.kind ~= "head" then Light(self.hi, true) end end)
-    r:SetScript("OnLeave", function(self) Light(self.hi, self.item ~= nil and self.item.key == L.selectedKey) end)
+    -- A list with nothing to open (opts.static: the skills, a statistics category's numbers) lights no row:
+    -- a hover or a pick would promise a click that does nothing. Headers still fold.
+    r:SetScript("OnEnter", function(self)
+        if self.item and self.item.kind ~= "head" and not L.opts.static then Light(self.hi, true) end
+    end)
+    r:SetScript("OnLeave", function(self) Light(self.hi, false) end)
     L.rows[i] = r
     return r
 end
@@ -243,6 +264,7 @@ function List.Click(L, item)
         L.opts.onFold(item)
         return
     end
+    if L.opts.static then return end
     L.selectedKey = item.key
     if L.opts.onPick then L.opts.onPick(item) end
     List.Draw(L)
@@ -262,11 +284,18 @@ function List.Draw(L)
             r:SetPoint("TOPRIGHT", L.frame, "TOPRIGHT", 0, -(i - 1) * L.row)
             local head = item.kind == "head"
             local mark = L.marks[L.offset + i]
-            local x = (item.indent or 0) * List.INDENT
+            -- A row has the same room (List.PAD) on all four sides, in from the wash's edges.
+            local pad = not head and List.PAD or nil
+            local x = (item.indent or 0) * List.INDENT + (pad or 0)
+            r.right:ClearAllPoints()
+            r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -(pad or 2), -(pad or 5))
+            r.bar:ClearAllPoints()
+            r.bar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", pad or 0, pad or 3)
+            r.bar:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -(pad or 2), pad or 3)
             r.icon:SetShown(item.icon ~= nil)
             if item.icon then
                 r.icon:ClearAllPoints()
-                r.icon:SetPoint("TOPLEFT", r, "TOPLEFT", x, -4)
+                r.icon:SetPoint("TOPLEFT", r, "TOPLEFT", x, -(pad or 4))
                 r.icon:SetTexture(item.icon)
                 x = x + List.ICON + 6
             end
@@ -283,7 +312,7 @@ function List.Draw(L)
                 r.stripe:Hide()
             else
                 r.text:ClearAllPoints()
-                r.text:SetPoint("TOPLEFT", r, "TOPLEFT", x, -5)
+                r.text:SetPoint("TOPLEFT", r, "TOPLEFT", x, -(pad or 5))
                 r.text:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
                 r.text:SetText(item.text or "")
                 local c = item.color
@@ -302,7 +331,21 @@ function List.Draw(L)
                 r.barKey = item.key
                 List.PaintBar(r.bar, b.key, b.rgb)
             end
-            DUI.Win.Parts.Light(r.hi, not head and item.key == L.selectedKey, true)
+            local sel = not head and item.key == L.selectedKey
+            r.pick:SetShown(sel)
+            r.mark:SetShown(sel)
+            if sel then
+                local t = item.tint   -- a row may have a color of its own (a statistics category), else the accent
+                if t then
+                    r.pick:SetVertexColor(t[1], t[2], t[3], List.PICK_ALPHA)
+                    r.mark:SetVertexColor(t[1], t[2], t[3], 1)
+                else
+                    Style.PaintAccent(r.pick, List.PICK_ALPHA)
+                    local ar, ag, ab = Style.Accent()
+                    r.mark:SetVertexColor(ar, ag, ab, 1)
+                end
+            end
+            if not (r.IsMouseOver and r:IsMouseOver()) then DUI.Win.Parts.Light(r.hi, false, true) end
         end
     end
     if L.bar then L.bar.Update() end
