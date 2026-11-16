@@ -333,14 +333,22 @@ function Window.Create(spec)
         f.sellJunk:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
         f.sellJunk:SetScript("OnClick", function() ns.Junk.SellNow() end)
         f.sellJunk:Hide()
-        -- A warlock over their Soul Shard limit (Window.UpdateShards). Deletes only
-        -- on a second click.
+        -- A warlock over their Soul Shard limit (Window.UpdateShards). The first
+        -- shard goes only on a second click; after that each click deletes the next
+        -- one at once while the bag stays open, since the game deletes one a click.
         f.dropShards = Window.TextButton(f, "")
         f.dropShards.fit = 1
         DUI.Widgets.Confirm(f.dropShards, function() return Window.ShardLabel(f.shardsExtra or 0) end, function()
-            ns.Junk.DeleteShards()
-            DUI.Widgets.EaseShown(f.dropShards, false)
+            f.shardsSure = true
+            Window.DeleteShard(f)
+            return true   -- DeleteShard plays the sound
         end)
+        local confirm = f.dropShards:GetScript("OnClick")
+        f.dropShards:SetScript("OnClick", function(...)
+            if f.shardsSure then return Window.DeleteShard(f) end
+            return confirm(...)
+        end)
+        f.dropShards:HookScript("OnHide", function() Window.EndShards(f) end)
         f.dropShards:Hide()
         ns.Move.Build(f)
     end
@@ -1058,8 +1066,29 @@ function Window.UpdateSell(f)
     DUI.Widgets.EaseShown(f.sellJunk, #list > 0)
 end
 
+-- One shard a click, so the button says so and counts down.
 function Window.ShardLabel(n)
-    return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete %d extra shards"], n)
+    return n == 1 and L["Delete 1 extra shard"] or string.format(L["Delete 1 of %d extra shards"], n)
+end
+
+-- One click, one shard (Junk.DeleteShards). The total is said once the last
+-- extra one is gone or the button goes away.
+function Window.DeleteShard(f)
+    local done = ns.Junk.DeleteShards()
+    if done > 0 then
+        f.shardsDeleted = (f.shardsDeleted or 0) + done
+        if DUI.Sound then DUI.Sound.Play("gone") end
+    end
+    Window.UpdateShards(f)
+end
+
+function Window.EndShards(f)
+    f.shardsSure = nil
+    local done = f.shardsDeleted or 0
+    f.shardsDeleted = nil
+    if done > 0 then
+        DUI.Print(done == 1 and L["Deleted 1 Soul Shard."] or string.format(L["Deleted %d Soul Shards."], done))
+    end
 end
 
 -- Delete extra shards shows while a warlock carries more Soul Shards than their
@@ -1080,6 +1109,8 @@ function Window.UpdateShards(f)
     else
         b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E + Window.FOOTER_ROW + Window.BAR_GAP)
     end
+    if n == 0 and b.dluiShardsShown then Window.EndShards(f) end
+    b.dluiShardsShown = n > 0
     DUI.Widgets.EaseShown(b, n > 0)
 end
 
@@ -1150,7 +1181,7 @@ function Window.Relayout(f, synced, moved)
     -- glides from where it was on the same curve, so it never jumps.
     if eases then
         Feel.Size(f, W, H, DUI.Motion.NORMAL)   -- in step with the slots' Feel.Glide
-        if type(wasY) == "number" and type(nowY) == "number" and wasY ~= nowY then
+        if type(wasY) == "number" and type(nowY) == "number" and not ns.Layout.Near(wasY, nowY) then
             Feel.Glide(f.items, 0, wasY - nowY, DUI.Motion.NORMAL)
         end
     else

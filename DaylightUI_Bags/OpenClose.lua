@@ -96,7 +96,7 @@ function OC.Follow()
         pending = false
         local f = ns.window
         if not f then return end
-        if OC.AnyOpen() then f:Show()
+        if OC.AnyOpen() or OC.held then f:Show()
         elseif DUI.Motion then DUI.Motion.Vanish(f)
         else f:Hide() end
         if f:IsShown() then OC.MoveTips() end
@@ -121,8 +121,48 @@ function OC.CloseGame()
 end
 
 function OC.CloseAll()
+    OC.held = nil
     OC.CloseGame()
     OC.Follow()
+end
+
+-- Shows this bag at the bank or a trade without opening the game's bags. The game
+-- opens them there from its own frame's OnShow, which never runs here, and its
+-- OpenAllBags called from addon code runs all of its bag code tainted (its bag
+-- windows, their settings manager, their anchors). The game read that state at
+-- the auction house or bank later and refused SetPreferredGamepadInteractTarget.
+-- Returns true when the bag was opened for this (it was closed).
+function OC.Hold()
+    if OC.held or OC.AnyOpen() or (ns.window and ns.window:IsShown()) then return false end
+    OC.held = true
+    OC.Follow()
+    return true
+end
+
+-- What a game open/close/toggle call means for a bag held open by OC.Hold: an
+-- open hands it to the game, a close or a toggle closes it (the player sees it
+-- open, so a toggle means close). CloseAllBags(frame) only closes what that frame
+-- opened, so with a frame it leaves the held bag alone.
+local RELEASE = {
+    OpenAllBags = "open", OpenBackpack = "open", OpenBag = "open",
+    CloseAllBags = "close", CloseBackpack = "close",
+    ToggleAllBags = "toggle", ToggleBackpack = "toggle", ToggleBag = "toggle",
+}
+local function after(name)
+    local how = RELEASE[name]
+    return function(frame)
+        if OC.held and how then
+            if how == "open" then
+                if OC.AnyOpen() then OC.held = nil end
+            elseif how == "toggle" then
+                OC.held = nil
+                if OC.AnyOpen() then OC.CloseGame() end
+            elseif not (name == "CloseAllBags" and frame) then
+                OC.held = nil
+            end
+        end
+        OC.Follow()
+    end
 end
 
 local taken = false
@@ -131,7 +171,7 @@ function OC.Take()
     taken = true
     for _, f in ipairs(OC.GameWindows()) do f:SetParent(OC.hidden) end
     for _, name in ipairs(OC.FUNCTIONS) do
-        if type(_G[name]) == "function" then hooksecurefunc(name, OC.Follow) end
+        if type(_G[name]) == "function" then hooksecurefunc(name, after(name)) end
     end
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("ContainerFrame.CloseAllBags", OC.Follow, OC)
@@ -147,21 +187,20 @@ function OC.Take()
         if DUI.Pad.On() and OC.AnyOpen() then OC.CloseAll() end
     end)
     -- The game opens the bags at the mailbox and auction house, but at a trade only
-    -- on a controller. Open them there too, the way the bank does (no opener frame:
-    -- that would be written into a game local from addon code), and close them
-    -- with the trade if they were opened for it.
+    -- on a controller. Show this bag there too, the way the bank does (OC.Hold),
+    -- and close it with the trade if it was opened for it.
     DUI.RegisterEvent("TRADE_SHOW", function()
-        OC.tradeOpened = OC.tradeOpened or not OC.AnyOpen()
-        if type(OpenAllBags) == "function" then pcall(OpenAllBags) end
+        OC.tradeOpened = OC.Hold() or OC.tradeOpened
     end)
     DUI.RegisterEvent("TRADE_CLOSED", function()
-        if OC.tradeOpened and OC.AnyOpen() then OC.CloseAll() end
+        if OC.tradeOpened and (OC.held or OC.AnyOpen()) then OC.CloseAll() end
         OC.tradeOpened = nil
     end)
     -- This bag closed some other way (Escape): close the game's bags too.
     local f = ns.window
     if f then
         f:HookScript("OnHide", function()
+            OC.held = nil
             if OC.AnyOpen() then OC.CloseGame() end
         end)
     end

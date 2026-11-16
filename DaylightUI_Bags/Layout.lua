@@ -1214,7 +1214,7 @@ function Layout.Ease(window, was)
     local function from(r, old)
         if r:GetNumPoints() ~= 1 then return end
         local _, _, _, x, y = r:GetPoint(1)
-        if not old or x ~= old[1] or y ~= old[2] then
+        if not old or not Layout.Near(x, old[1]) or not Layout.Near(y, old[2]) then
             moves[#moves + 1] = { r = r, old = old, x = x, y = y }
         end
     end
@@ -1300,15 +1300,22 @@ end
 -- in where it's going, placing each piece only twice.
 Layout.EASE_MAX = 60
 
+-- Two spots read back from GetPoint count as the same within half a pixel: the
+-- client can hand back a hair off what was set (Feel's rest() allows the same).
+function Layout.Near(a, b)
+    return type(a) == "number" and type(b) == "number" and math.abs(a - b) <= 0.5
+end
+
 local function arrive(cross)
     if cross.arrived then return end
     cross.arrived = true
     for _, m in ipairs(cross.moves) do
         local r = m.r
         if m.old then
-            -- Unless something placed it since (a held spot taken by the next stack).
-            local _, _, _, x, y = r:GetPoint(1)
-            if x == m.old[1] and y == m.old[2] then
+            -- Unless something placed it since (a held spot taken by the next stack,
+            -- Layout.Hold). Comparing spots instead missed pieces whose spot read
+            -- back a hair off, and they stayed scattered where they were.
+            if not cross.placed[r] then
                 r:ClearAllPoints()
                 r:SetPoint(m.point, m.rel, m.relPoint, m.x, m.y)
             end
@@ -1331,7 +1338,7 @@ end
 
 function Layout.CrossFade(window, moves)
     local Motion, grid = DUI.Motion, window.items
-    local cross = { moves = moves }
+    local cross = { moves = moves, placed = {} }
     window.crossing = cross
     for _, m in ipairs(moves) do
         local r = m.r
@@ -1506,6 +1513,11 @@ function Layout.Hold(window)
         local moveTo = live[1]
         if moveTo and moveTo ~= b and not itemIn(bagOf(b), b:GetID()) then
             if ns.CanLayout(window) then
+                -- Mid cross-fade, its landing must leave these where they are now.
+                if window.crossing then
+                    window.crossing.placed[moveTo] = true
+                    window.crossing.placed[b] = true
+                end
                 moveTo:SetSize(e.size, e.size)
                 moveTo:ClearAllPoints()
                 moveTo:SetPoint("TOPLEFT", moveTo:GetParent(), "TOPLEFT", e.x, e.y)

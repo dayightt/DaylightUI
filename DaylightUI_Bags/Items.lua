@@ -1138,6 +1138,9 @@ function Items.FillCooldown(btn, onlyFull)
     local ok, has = pcall(C_Container.HasContainerItem, holder:GetID(), btn:GetID())
     if onlyFull and not (ok and has) then return end
     call(btn, "UpdateCooldown", ok and has)
+    -- The game's UpdateCooldown paints the icon white on every call, which took
+    -- the red off items that can't be used.
+    if btn.dluiUnusable then Items.Tint(btn, true) end
 end
 
 -- Lit (a bag hovered in the strip): accent border, empty or not, so the whole bag

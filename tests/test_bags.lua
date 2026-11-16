@@ -71,7 +71,12 @@ local function setup(opts)
     -- (UseAction and the controller code, in taint logs).
     local combined = ContainerFrameCombinedBags
     _G.IsAnyBagOpen = function() return combined:IsShown() end
+    -- Called from addon code, OpenAllBags runs all of the game's bag code tainted
+    -- (ContainerFrame_GenerateFrame: its windows, settings manager and anchors), and
+    -- the game later refused SetPreferredGamepadInteractTarget. Counted per call.
+    world.openAll = 0
     _G.OpenAllBags = function(frame)
+        world.openAll = world.openAll + 1
         if frame then world.opener = frame:GetName() end
         combined:Show()
     end
@@ -108,6 +113,12 @@ local function setup(opts)
             function f:SetItemButtonTexture(...)
                 self.calls.SetItemButtonTexture = { ... }
                 self.icon:SetTexCoord(0, 1, 0, 1)
+            end
+            -- The game's UpdateCooldown colors the icon on every call: white, or dim
+            -- gray while the item can't be used yet (ContainerFrame.lua, SetItemButtonTextureVertexColor).
+            function f:UpdateCooldown(...)
+                self.calls.UpdateCooldown = { ... }
+                if ... then self.icon:SetVertexColor(1, 1, 1) end
             end
             -- The new-item shimmer: UpdateNewItem starts the sweep and the pulse, like the game's.
             f.flash = f:CreateTexture()
@@ -1182,7 +1193,7 @@ T.test("bags: the cheapest junk gets a warn dot that fades in, a tooltip line wi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("bags: a warlock over their Soul Shard limit gets a button that deletes the extra ones, only on a second click", function()
+T.test("bags: a warlock over their Soul Shard limit gets a button that deletes the extra ones, one a click after a second click", function()
     local ns = login()
     stub.units.player = stub.units.player or {}
     stub.units.player.class = "WARLOCK"
@@ -1193,10 +1204,10 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     local f = open(ns)
     local b = f.dropShards
     T.falsy(b:IsShown(), "no limit set: no button")
-    DaylightUI:Set("Bags", "shardsKeep", 3)
+    DaylightUI:Set("Bags", "shardsKeep", 2)
     stub.Advance(1); stub.RunTimers()
-    T.truthy(b:IsShown(), "5 shards, keep 3")
-    T.eq(b.text:GetText(), "Delete 2 extra shards")
+    T.truthy(b:IsShown(), "5 shards, keep 2")
+    T.eq(b.text:GetText(), "Delete 1 of 3 extra shards", "one a click, and how many are over")
     -- In a raid its own limit counts.
     DaylightUI:Set("Bags", "shardsKeepRaid", 10)
     stub.inRaid = true
@@ -1205,17 +1216,26 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     stub.inRaid = false
     stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.Advance(1); stub.RunTimers()
     T.truthy(b:IsShown())
-    -- The game's cursor and delete, recorded.
-    local deleted, picked = {}, {}
+    -- The game's cursor and delete, recorded. Seen in game: one item deleted per
+    -- click; the delete reaches the server a moment later, the slot locked till then.
+    local deleted, pending = {}, {}
     C_Container.PickupContainerItem = function(bag, slot)
         local it = world.items[bag] and world.items[bag][slot]
-        picked[#picked + 1] = bag .. ":" .. slot
         stub.cursor = it and { "item", it.itemID, bag, slot } or nil
     end
     _G.DeleteCursorItem = function()
         local c = stub.cursor
-        if c then deleted[#deleted + 1] = c[3] .. ":" .. c[4]; world.items[c[3]][c[4]] = nil end
+        if c then
+            deleted[#deleted + 1] = c[3] .. ":" .. c[4]
+            world.items[c[3]][c[4]].isLocked = true
+            pending[#pending + 1] = c
+        end
         stub.cursor = nil
+    end
+    local function server()
+        for _, c in ipairs(pending) do world.items[c[3]][c[4]] = nil end
+        pending = {}
+        stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
     end
     _G.CursorHasItem = function() return stub.cursor ~= nil end
     b:GetScript("OnClick")(b)
@@ -1223,10 +1243,16 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     T.eq(b.text:GetText(), "Click again")
     stub.Advance(1)
     b:GetScript("OnClick")(b)
-    T.eq(table.concat(deleted, ","), "0:11,0:10", "two shards, from the last slot back, nothing else")
-    T.truthy(stub.ChatContains("Deleted 2 Soul Shards."))
-    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
+    T.eq(table.concat(deleted, ","), "0:11", "one shard, from the last slot back")
+    T.eq(b.text:GetText(), "Delete 1 of 2 extra shards", "the one on its way no longer counts")
+    -- Quick clicks before the server answers: each the next shard, never past the limit.
+    b:GetScript("OnClick")(b)
+    b:GetScript("OnClick")(b)
+    T.eq(table.concat(deleted, ","), "0:11,0:10,0:9", "no asking again, and never under the limit")
+    server()
     T.falsy(b:IsShown(), "at the limit: gone")
+    T.truthy(stub.ChatContains("Deleted 3 Soul Shards."), "the total said once")
+    T.truthy(world.items[0][7] and world.items[0][8], "the 2 kept stay")
     T.truthy(world.items[1][1], "the item that isn't a shard stays")
     -- Something else on the cursor after picking up: nothing deleted.
     world.items[0][12] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
@@ -1246,7 +1272,10 @@ T.test("bags: a warlock over their Soul Shard limit gets a button that deletes t
     world.items[1][6] = { iconFileID = 600, stackCount = 1, quality = 1, hyperlink = "|Hitem:6265|h", itemID = 6265 }
     stub.FireEvent("BAG_UPDATE", 1); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.Advance(1); stub.RunTimers()
     deleted = {}
-    T.eq(ns.Junk.DeleteShards(), 3)
+    T.eq(ns.Junk.DeleteShards(), 1)
+    T.eq(ns.Junk.DeleteShards(), 1)
+    T.eq(ns.Junk.DeleteShards(), 1)
+    T.eq(ns.Junk.DeleteShards(), 0, "at the limit")
     T.truthy(world.items[1][5] and world.items[1][6], "the soul bag's shards stay")
     T.truthy(not deleted[1]:find("^1:"), "the first one deleted is from a plain bag")
     world.family = nil
@@ -1384,6 +1413,12 @@ T.test("bags: an item you can't use wears the vendor's red, asked once per item 
     T.eq(tint(bad), RED_ICON, "can't use: the vendor's red")
     T.eq(tint(fine), "1.00 1.00 1.00", "usable: as it is")
     T.eq(Items.UNUSABLE, DaylightUI.Npc.Shop.BAD_ICON, "the NPC window's own red")
+    -- Seen in game: the cooldown update after login (the game's UpdateCooldown
+    -- whitens the icon) took the red off until the setting was switched.
+    stub.FireEvent("BAG_UPDATE_COOLDOWN")
+    stub.RunTimers()
+    T.eq(tint(bad), RED_ICON, "a cooldown update keeps the red")
+    T.eq(tint(fine), "1.00 1.00 1.00")
     local before = asked
     ns.FillAll()
     stub.RunTimers()
@@ -1931,17 +1966,28 @@ T.test("bags: a trade opens the bags and closes them again; bags already open st
     local ns = catLogin()
     if ns.window:IsShown() then ns.OpenClose.CloseAll(); stub.RunTimers(); stub.FinishFade(ns.window) end
     T.falsy(IsAnyBagOpen())
+    local calls = world.openAll
     stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
-    T.truthy(IsAnyBagOpen(), "the trade opens them")
-    T.truthy(ns.window:IsShown(), "and this bag with them")
-    T.eq(world.opener, nil, "with no opener: the game's local stays untouched")
+    T.truthy(ns.window:IsShown(), "the trade opens this bag")
+    T.eq(world.openAll, calls, "without the game's OpenAllBags (it would run tainted)")
+    T.eq(world.opener, nil, "the game's local stays untouched")
     stub.FireEvent("TRADE_CLOSED"); stub.RunTimers(); stub.FinishFade(ns.window)
-    T.falsy(IsAnyBagOpen(), "closed with the trade")
-    T.falsy(ns.window:IsShown())
+    T.falsy(ns.window:IsShown(), "closed with the trade")
     OpenAllBags(); stub.RunTimers()
     stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
     stub.FireEvent("TRADE_CLOSED"); stub.RunTimers()
     T.truthy(IsAnyBagOpen(), "open before the trade: still open after")
+    T.truthy(ns.window:IsShown())
+    -- Held open for a trade, the bag key closes it, and an NPC closing its own
+    -- window (CloseAllBags with a frame) leaves it be.
+    CloseAllBags(); stub.RunTimers(); stub.FinishFade(ns.window)
+    stub.FireEvent("TRADE_SHOW"); stub.RunTimers()
+    CloseAllBags(UIParent); stub.RunTimers()
+    T.truthy(ns.window:IsShown(), "another window's close leaves it")
+    ToggleAllBags(); stub.RunTimers(); stub.FinishFade(ns.window)
+    T.falsy(ns.window:IsShown(), "the bag key closes it")
+    T.falsy(IsAnyBagOpen())
+    stub.FireEvent("TRADE_CLOSED"); stub.RunTimers()
 end)
 
 T.test("bags: soul shards (which don't stack) show as one stack, with the count; apart with the setting off", function()
@@ -2717,6 +2763,58 @@ T.test("bags: loot in a burst glides on from where things are", function()
         T.eq(select(4, b:GetPoint(1)), xy[1], "and each lands on its spot")
         T.eq(select(5, b:GetPoint(1)), xy[2])
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- If GetPoint hands back a spot a hair off the one set (rounding in the client;
+-- Feel's rest() allows half a pixel for it), the cross-fade must still land every
+-- piece. Seen in game: after big eased layouts (loot, mail, a cleanup), slots and
+-- headings sat scattered over the new layout until the view was switched or the
+-- UI reloaded.
+T.test("bags: a cross-fade made mid-glide lands every piece on the new layout", function()
+    local real, realGet = stub.Widget.SetPoint, stub.Widget.GetPoint
+    stub.Widget.GetPoint = function(self, i)
+        local point, rel, relPoint, x, y = realGet(self, i)
+        if type(x) == "number" then x = x + 1e-4 end
+        if type(y) == "number" then y = y - 1e-4 end
+        return point, rel, relPoint, x, y
+    end
+    local ns, f = catLogin()
+    local max = ns.Layout.EASE_MAX
+    local ok, err = pcall(function()
+        local Feel, Motion = DaylightUI.Win.Feel, DaylightUI.Motion
+        settleFeel()
+        lootWeapon()
+        stub.RunOnUpdate(Feel.Driver(), Motion.NORMAL / 3)
+        -- Past this many moves the grid cross-fades; here the next loot does.
+        ns.Layout.EASE_MAX = 0
+        lootWeapon(11, 7)
+        T.truthy(f.crossing, "the second loot cross-fades")
+        settleFeel()
+        settleFeel()
+        local spots = {}
+        for _, s in ipairs(f.set.Slots()) do
+            if s.button:IsShown() then spots[s.button] = { at(s.button) } end
+        end
+        local heads = {}
+        for _, h in ipairs(f.headings or {}) do
+            if h:IsShown() then heads[h] = { at(h) } end
+        end
+        ns.Layout.EASE_MAX = max
+        ns.Relayout()
+        for b, xy in pairs(spots) do
+            local x, y = at(b)
+            T.truthy(math.abs(x - xy[1]) < 0.5 and math.abs(y - xy[2]) < 0.5,
+                "slot " .. b:GetID() .. " landed on its spot: " .. xy[1] .. "," .. xy[2] .. " vs " .. x .. "," .. y)
+        end
+        for h, xy in pairs(heads) do
+            local x, y = at(h)
+            T.truthy(math.abs(x - xy[1]) < 0.5 and math.abs(y - xy[2]) < 0.5, "heading " .. tostring(h.key) .. " landed on its spot")
+        end
+    end)
+    stub.Widget.SetPoint, stub.Widget.GetPoint = real, realGet
+    ns.Layout.EASE_MAX = max
+    T.truthy(ok, tostring(err))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4074,12 +4172,14 @@ T.test("bank: opens with the bank, the character tabs' slots in our look; the ga
     local f = ns.bank
     T.eq(BankFrame:GetParent() ~= UIParent, true, "the game's bank window hidden")
     T.falsy(f:IsShown())
+    local calls = world.openAll
     stub.FireEvent("BANKFRAME_OPENED")
     stub.RunTimers()
     T.truthy(f:IsShown(), "ours opens with the bank")
     T.noerror(rightClickSlot, "a right-click in your bags at the bank isn't blocked")
-    T.truthy(IsAnyBagOpen(), "your bags open with it, as the game's bank frame does")
-    T.eq(world.opener, nil, "with no name: the game's who-opened-them local stays untouched")
+    T.truthy(ns.window:IsShown(), "your bags open with it, as the game's bank frame does")
+    T.eq(world.openAll, calls, "without the game's OpenAllBags: called from addon code it runs tainted")
+    T.eq(world.opener, nil, "the game's who-opened-them local stays untouched")
     local set = ns.Bank.set
     T.eq(set.holders[6]:GetID(), 6, "a holder per tab: the tab's container")
     T.eq(#set.buttons[6], 8); T.eq(#set.buttons[7], 4)
@@ -4091,8 +4191,11 @@ T.test("bank: opens with the bank, the character tabs' slots in our look; the ga
     stub.FireEvent("BANKFRAME_CLOSED")
     stub.FinishFade(f)
     T.falsy(f:IsShown(), "and closes with it")
-    T.falsy(IsAnyBagOpen(), "your bags close with it too")
-    T.eq(world.closeAll, 0, "by hiding its windows")
+    stub.RunTimers()
+    stub.FinishFade(ns.window)
+    T.falsy(ns.window:IsShown(), "your bags close with it too")
+    T.falsy(IsAnyBagOpen())
+    T.eq(world.closeAll, 0, "never through the game's CloseAllBags")
     T.noerror(rightClickSlot, "nor after the bank (a drink, a potion)")
 end)
 
@@ -7830,3 +7933,4 @@ T.test("bags: eased layouts always land where a plain layout would", function()
         end
     end
 end)
+
