@@ -66,7 +66,9 @@ local LISTS = { meter = true, summary = true }
 local BARS = { meter = true, threat = true }
 local ALL = { meter = true, threat = true, summary = true }
 
-local function off(get) return get("win.enabled") ~= true end
+-- The panel's meter folded away still keeps its settings for when it opens,
+-- so only a window of the player's own grays its rows while switched off.
+local function off(get) return MO.picked ~= "main" and get("win.enabled") ~= true end
 
 -- The mode names, from the meter's own list.
 local function modeChoices()
@@ -341,6 +343,8 @@ function MO.Page()
         picker(),
         win({ type = "toggle", key = "win.enabled", label = "Show this window", notOnly = "main",
               desc = "Switched off, the window is gone (its settings stay). The threat meter beside the meter shows by its own rules below." }),
+        win({ type = "toggle", key = "meter.enabled", label = "Enable damage meter", only = "main",
+              desc = "Replaces the game's damage meter window. The tab on the panel's edge, on the meter's side, also shows or hides it." }),
         win({ type = "dropdown", key = "win.mode", label = "Meter mode", kinds = METER, choices = modeChoices, disabled = off,
               desc = "What this meter lists: damage, DPS, healing, absorbs, damage taken, interrupts, dispels, deaths and more. The button in its header changes it too." }),
         win({ type = "dropdown", key = "win.session", label = "Meter fight", kinds = LISTS, disabled = off,
@@ -371,10 +375,7 @@ function MO.Page()
               min = 2, max = 6, step = 1, disabled = off,
               hidden = function(get) return get("win.at") ~= "below" end,
               desc = "The most group members it lists under the damage meter." }),
-        { type = "toggle", key = "meter.enabled", label = "Enable damage meter", only = "main",
-          desc = "Replaces the game's damage meter window. The tab on the panel's edge, on the meter's side, also shows or hides it." },
     }
-    win(shows[#shows])
     for _, c in ipairs(SUMMARY_COLS) do
         shows[#shows + 1] = win({ type = "toggle", key = "win.columns." .. c[1], label = c[2], kinds = SUMMARY, disabled = off,
                                   desc = "Whether the summary shows this column." })

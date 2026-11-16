@@ -6,8 +6,6 @@ local _, ns = ...
 -- Effects that need General > Appearance > Motion effects on.
 local function motionOff() return DaylightUI:Get("general", "motion") == false end
 
-local function always() return true end
-
 local function unless(key, value)
     return function(get) return get(key) ~= value end
 end
@@ -120,9 +118,16 @@ local function refreshPanel()
 end
 local notAll = function() return lookFor == "all" end
 -- Opens the look rows for one target (the Cooldown Manager page's button).
+-- Opened any other way, the page starts back on All bars, so its later tabs
+-- never edit a bar picked earlier and out of sight.
+local keepPick = false
 function ns.ShowLook(target)
-    lookFor, copyFrom = target, nil
+    lookFor, copyFrom, keepPick = target, nil, true
     DUI.OptionsPanel.Show("ActionBars.bars")
+end
+local function lookShown()
+    if not keepPick then lookFor, copyFrom = "all", nil end
+    keepPick = false
 end
 local custom = function(key) return function(get) return get(key) ~= "custom" end end
 local COLOR_MODE = { shell = "Default", accent = "The accent", class = "Class color", custom = "Your own color" }
@@ -133,9 +138,10 @@ local EDGE = { off = "None", accent = "The accent", class = "Class color", custo
 local EDGE_ORDER = { "off", "accent", "class", "custom" }
 
 -- A text's offset in px from its spot. cdm = the Cooldown Manager has it too.
-local function nudge(field, label, cdm)
+local function nudge(field, label, cdm, show)
     return { type = "slider", key = "look." .. field, label = label, min = -20, max = 20, step = 1, unit = "px", cdm = cdm,
-             desc = "Nudges this text away from its spot on the button, in pixels." }
+             desc = "Nudges this text away from its spot on the button, in pixels.",
+             disabled = show and function(get) return get(show) ~= true end or nil }
 end
 
 local look = {
@@ -209,10 +215,12 @@ local look = {
           disabled = function(get) return get("look.keybind") ~= true end },
         { type = "dropdown", key = "look.keybindPos", label = "Keybind position",
           values = { topright = "Top right", topleft = "Top left", bottom = "Bottom" }, order = { "topright", "topleft", "bottom" },
-          desc = "Where on the button its key shows." },
-        nudge("keybindX", "Keybind X offset"), nudge("keybindY", "Keybind Y offset"),
+          desc = "Where on the button its key shows.",
+          disabled = function(get) return get("look.keybind") ~= true end },
+        nudge("keybindX", "Keybind X offset", nil, "look.keybind"), nudge("keybindY", "Keybind Y offset", nil, "look.keybind"),
         { type = "toggle", key = "look.shortKeys", label = "Short keybinds",
-          desc = "Shift, Ctrl and Alt as S, C and A; mouse buttons as M4, M5; the number pad as N1..." },
+          desc = "Shift, Ctrl and Alt as S, C and A; mouse buttons as M4, M5; the number pad as N1...",
+          disabled = function(get) return get("look.keybind") ~= true end },
     } }),
     perLook({ label = "Text", items = {
         DaylightUI.Options.FontRow("media.font", "Button font", "Keybinds, stack counts, macro names and cooldown numbers on every bar, the Cooldown Manager and totems",
@@ -233,7 +241,7 @@ local look = {
         { type = "color", key = "look.macroColor", label = "Macro name color",
           desc = "Color of the macro names on buttons.",
           disabled = function(get) return get("look.macroNames") ~= true end },
-        nudge("macroX", "Macro name X offset"), nudge("macroY", "Macro name Y offset"),
+        nudge("macroX", "Macro name X offset", nil, "look.macroNames"), nudge("macroY", "Macro name Y offset", nil, "look.macroNames"),
         { type = "toggle", key = "look.cooldownNumbers", label = "Cooldown numbers", cdm = true,
           desc = "Shows the game's countdown on buttons that are on cooldown." },
         { type = "slider", key = "look.cooldownSize", label = "Cooldown number size", min = 8, max = 28, step = 1, cdm = true,
@@ -242,7 +250,8 @@ local look = {
         { type = "color", key = "look.cooldownTextColor", label = "Cooldown number color", cdm = true,
           desc = "Color of the countdown on a button that's on cooldown.",
           disabled = function(get) return get("look.cooldownNumbers") ~= true end },
-        nudge("cooldownX", "Cooldown number X offset", true), nudge("cooldownY", "Cooldown number Y offset", true),
+        nudge("cooldownX", "Cooldown number X offset", true, "look.cooldownNumbers"),
+        nudge("cooldownY", "Cooldown number Y offset", true, "look.cooldownNumbers"),
         { type = "dropdown", key = "look.tooltips", label = "Button tooltips",
           values = { always = "Always", nocombat = "Out of combat only", never = "Never" },
           order = { "always", "nocombat", "never" },
@@ -303,11 +312,6 @@ local look = {
         { type = "color", key = "look.checkedBorderColor", label = "Custom active border and glow color",
           desc = "Their color when Active border and glow color is set to Your own color.",
           hidden = custom("look.checkedBorderMode") },
-        -- Hidden: WoW Forever has no proc glows (the code stays, idle).
-        { type = "dropdown", key = "look.proc", label = "Proc border", values = ACCENT, order = ACCENT_ORDER,
-          desc = "The glowing border on a button when its spell procs.", hidden = always },
-        { type = "color", key = "look.procColor", label = "Proc border color", hidden = always,
-          desc = "The proc border's color when Proc border is set to Your own color." },
         { type = "dropdown", key = "look.range", label = "Out of range", values = { fade = "Fade the icon", color = "Tint the icon" },
           order = { "fade", "color" }, desc = "What a button does while your target is out of range. Not enough mana, rage or energy does the same (blue when tinted)." },
         { type = "color", key = "look.rangeColor", label = "Out of range color", disabled = unless("look.range", "color"),
@@ -667,7 +671,7 @@ end
 
 ns.OPTIONS = { pages = {
     { id = "bars", label = "Action Bars", desc = "Button look, bag bar and micro menu. Each bar's size and shape is on the Bar Layout page.",
-      groups = look },
+      groups = look, onShow = lookShown },
     { id = "barlayout", label = "Bar Layout",
       desc = layoutDesc,
       groups = layoutGroups },

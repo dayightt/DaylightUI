@@ -3,6 +3,13 @@
 local _, ns = ...
 
 local function off(key) return function(get) return get(key) ~= true end end
+
+-- Friendly plates take the power bar's look from the enemy rows.
+local function noPower(get) return get("power") ~= true and get("friendly.power") ~= true end
+-- The threat number painted in the threat color reads these colors too.
+local function noThreatColors(get)
+    return get("threat") ~= true and not (get("threatPct") == true and get("threatPctColor") == "threat")
+end
 local function execOff(get) return get("execute") == "off" end
 -- Styles with no lit band: just the line, or the spell icon.
 local function noBand(get) local s = get("executeStyle"); return s == "line" or s == "icon" end
@@ -54,7 +61,7 @@ local function threatPair(pair, label)
     local item = DaylightUI.Gradients.Item(pair, label)
     item.since = "1.5.2"
     item.hidden = notPair
-    item.disabled = off("threat")
+    item.disabled = noThreatColors
     return item
 end
 
@@ -224,7 +231,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "lastNames.nameplates", label = "First and last names",
               desc = "Players' last names after their first, on nameplates. Where the game hides names (in combat, in places) only the first name shows.",
               get = function() return DaylightUI:Get("general", "lastNames.nameplates") == true end,
-              set = function(v) DaylightUI:Set("general", "lastNames.nameplates", v) end },
+              set = function(v) DaylightUI:Set("general", "lastNames.nameplates", v) end,
+              default = function() return true end },
             { type = "toggle", key = "quest", label = "Quest mark",
               desc = "A mark just left of the bar of anything your quests still need. Not inside instances." },
             { type = "toggle", key = "questIcon", label = "Quest mark symbols",
@@ -346,20 +354,20 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "powerShow", label = "Power bar on",
               values = ns.Power.SHOW, order = ns.Power.SHOW_ORDER,
               desc = "Players and mana users: every enemy player, and the mobs that cast. Everyone with power: warriors' rage and the like too. Your target only: just the one you have selected.",
-              disabled = off("power") },
+              disabled = noPower },
             { type = "slider", key = "powerHeight", label = "Power bar height", min = 2, max = 12, step = 1, unit = "px",
-              desc = "How tall the power bar is.", disabled = off("power") },
+              desc = "How tall the power bar is.", disabled = noPower },
             { type = "slider", key = "powerGap", label = "Power bar gap", min = 0, max = 8, step = 1, unit = "px",
-              desc = "The space between the health bar and the power bar. Set to 0 to join them.", disabled = off("power") },
+              desc = "The space between the health bar and the power bar. Set to 0 to join them.", disabled = noPower },
             { type = "dropdown", key = "powerColor", label = "Power bar color",
               values = { type = "By power type", custom = "One color" }, order = { "type", "custom" },
               desc = "By power type: mana blue, rage red, energy yellow, each as its gradient from General > Gradients. Or one color you pick.",
-              disabled = off("power") },
+              disabled = noPower },
             { type = "color", key = "powerCustom", label = "Custom power color",
               desc = "The power bar's color when Power bar color is One color.",
-              disabled = function(get) return get("power") ~= true or get("powerColor") ~= "custom" end },
-            DaylightUI.Options.BarRow("media.power", "Power bar", "the power bar on the nameplates", off("power")),
-            DaylightUI.Options.BackRow("media.power", "Power bar", "the power bar on the nameplates", off("power")),
+              disabled = function(get) return noPower(get) or get("powerColor") ~= "custom" end },
+            DaylightUI.Options.BarRow("media.power", "Power bar", "the power bar on the nameplates", noPower),
+            DaylightUI.Options.BackRow("media.power", "Power bar", "the power bar on the nameplates", noPower),
         }) },
         { label = "Colors", items = {
             { type = "dropdown", key = "healthColor", label = "Health bar color",
@@ -455,12 +463,12 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "threatFill", since = "1.5.2", label = "Threat color style",
               values = { plain = "One color", pair = "Two-color gradient" }, order = { "plain", "pair" },
               desc = "One color for each threat state, or a gradient for each. The gradients are also on General > Gradients.",
-              disabled = off("threat") },
-            { type = "color", key = "threatAggro", label = "Threat: attacking you", disabled = off("threat"), hidden = isPair,
+              disabled = noThreatColors },
+            { type = "color", key = "threatAggro", label = "Threat: attacking you", disabled = noThreatColors, hidden = isPair,
               desc = "The mob is attacking you." },
-            { type = "color", key = "threatWarn", label = "Threat: about to switch", disabled = off("threat"), hidden = isPair,
+            { type = "color", key = "threatWarn", label = "Threat: about to switch", disabled = noThreatColors, hidden = isPair,
               desc = "As a tank: you're about to lose the mob. As damage or healer: you're close to pulling it." },
-            { type = "color", key = "threatLost", since = "1.5.2", label = "Threat: not attacking you", disabled = off("threat"), hidden = isPair,
+            { type = "color", key = "threatLost", since = "1.5.2", label = "Threat: not attacking you", disabled = noThreatColors, hidden = isPair,
               desc = "The mob is in the fight, but attacking someone else." },
             threatPair("THREAT_ON", "Threat: attacking you gradient"),
             threatPair("THREAT_WARN", "Threat: about to switch gradient"),

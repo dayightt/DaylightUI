@@ -328,9 +328,6 @@ local function barItems(debuff)
     }
     for _, item in ipairs(DaylightUI.Options.BackAlphaRows(p .. "backgroundAlpha", debuff and "Debuff bar" or "Buff bar",
             function(get) return get(p .. "showBackground") ~= true end)) do
-        if item.type == "slider" then
-            item.desc = item.desc or "How see-through the panel behind this bar is."
-        end
         items[#items + 1] = item
     end
     for _, item in ipairs(DaylightUI.Fade.Items(p .. "fade.", nil, nil, debuff and "Debuffs" or "Buffs")) do items[#items + 1] = item end

@@ -16,7 +16,6 @@ end
 local FILTERS = { all = "All tracked quests", zone = "This zone only", log = "Every quest in your log" }
 local SORTS = { recent = "Most recent progress", zone = "Zone order", level = "Level", near = "Nearest first", ready = "Ready first" }
 local INSTANCE_MODES = { zone = "This zone only", fold = "Fold to the header", hide = "Hide", none = "Leave as it is" }
-local OBJ_COLORS = { plain = "Plain", done = "Green when done", count = "Red to green by count" }
 local JOURNAL_SORTS = { log = "Quest log order", level = "Level", ready = "Ready first", watched = "Tracked first" }
 local TITLE_MODES = { difficulty = "By difficulty", one = "One color" }
 local BAR_MODES = { accent = "Accent", class = "Class color", custom = "Custom" }
@@ -26,8 +25,8 @@ local FOCUS_MODES ={ accent = "Accent", daylight = "Daylight gradient", gradient
 local function size(key, label, desc)
     return { type = "slider", key = "sizes." .. key, label = label, min = 8, max = 20, desc = desc }
 end
-local function color(key, label, desc)
-    return { type = "color", key = "colors." .. key, label = label, desc = desc }
+local function color(key, label, desc, disabled)
+    return { type = "color", key = "colors." .. key, label = label, desc = desc, disabled = disabled }
 end
 
 -- Paint mode menu (custom / accent / class color / class gradient) plus its custom color.
@@ -240,9 +239,10 @@ ns.OPTIONS = { pages = {
               values = { plain = "The colors below", done = "Green once done", count = "Red to green as it fills" },
               order = { "plain", "done", "count" },
               desc = "How objective lines show their progress: in the colors below, green once done, or shading from red to green as the count fills." },
-            color("objective", "Objective color", "Each objective line under a quest."),
+            color("objective", "Objective color", "Each objective line under a quest. With Red to green as it fills, lines with a count shade instead."),
             color("count", "Count color", "The numbers in objectives, like 3/8."),
-            color("done", "Done objective color", "An objective you've finished."),
+            color("done", "Done objective color", "An objective you've finished, while Objective progress color is The colors below.",
+                function(get) return (get("objColors") or "plain") ~= "plain" end),
             color("tick", "Done tick color", "The tick next to a finished objective."),
             color("ready", "Ready to hand in", "The '?' and the hand-in line."),
             color("elite", "Elite tag color", "The tag after an elite quest's title."),

@@ -3,6 +3,8 @@
 local _, ns = ...
 
 local function off(key) return function(get) return get(key) ~= true end end
+-- The separate reputation bar takes the experience bar's texture and font.
+local function noBars(get) return get("xp.enabled") ~= true and get("rep.enabled") ~= true end
 local function motionOff() return DaylightUI:Get("general", "motion") == false end
 local function ours() return DaylightUI.questsOwnTracker == true end
 
@@ -105,7 +107,7 @@ ns.OPTIONS = { pages = {
               disabled = function(get)
                   return get("xp.enabled") ~= true or (get("xp.showText") ~= true and get("xp.showPercent") ~= true)
               end },
-            DaylightUI.Options.FontRow("media.xpFont", "Experience text font", "The experience bar's text and its +XP", off("xp.enabled")),
+            DaylightUI.Options.FontRow("media.xpFont", "Experience text font", "The experience bar's text and its +XP, and the separate reputation bar's", noBars),
             { type = "toggle", key = "xp.banked", label = "Show XP from finished quests",
               desc = "A colored part after your experience shows what the quests you can turn in will give. Hover the bar for the total.",
               disabled = off("xp.enabled") },
@@ -146,8 +148,8 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "xp.height", label = "Experience bar height", min = XP_MIN[2], max = XP_MAX[2], step = 1, unit = "px",
               desc = "How tall the experience bar is.",
               disabled = off("xp.enabled") },
-            DaylightUI.Options.BarRow("media.xp", "Experience bar", "the experience and reputation bar", off("xp.enabled")),
-            DaylightUI.Options.BackRow("media.xp", "Experience bar", "the experience and reputation bar", off("xp.enabled")),
+            DaylightUI.Options.BarRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
+            DaylightUI.Options.BackRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
         } },
         { label = "Separate experience bar", items = {
             { type = "toggle", key = "xp.detached", label = "Detach from the panel",
@@ -330,8 +332,8 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "data.goldChars", label = "Gold characters",
               values = { all = "Every character", faction = "This faction" }, order = { "all", "faction" },
               desc = "Whose gold the Gold text's tooltip lists and adds up: every character, or only those of the faction you're playing. A character counts for its faction once it has logged in after this update." },
-            { type = "toggle", key = "data.soulBag", label = "Soul bag size", since = "1.7.2", disabled = noData,
-              desc = "Warlocks: the Soul Shards text shows how many your soul bag holds beside the count, and its tooltip the free slots." },
+            { type = "toggle", key = "data.soulBag", label = "Soul bag size", since = "1.7.2",
+              desc = "Warlocks: the Soul Shards text shows how many your soul bag holds beside the count, and its tooltip the free slots. On the data bar too." },
         } },
         { label = "Slots", desc = "What each slot shows, left to right. The clock, framerate and coordinates are on the minimap too.", items = {
             slotItem(1), slotItem(2), slotItem(3), slotItem(4), slotItem(5),
