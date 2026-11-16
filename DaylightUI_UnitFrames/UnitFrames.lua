@@ -4104,9 +4104,10 @@ function UF.ShowsMana(u)
     return ok and not isSecret(kind) and kind == MANA
 end
 
--- Mana is plain out of a fight and read as is. In one it's secret and goes
--- through the curve like health. With the health wait on too, the two secret
--- answers can't be weighed against each other, so the frame stays shown.
+-- Plain mana is read as is. Secret mana (in a fight, and for some players
+-- out of one too) goes through the curve like health. With the health wait on
+-- too, two secret answers can't be combined into one alpha, so health takes
+-- the curve and the mana waits by its own changes instead (ns.ManaWake).
 function UF.FullManaAlpha(u, a, hi, health)
     hi = type(hi) == "number" and hi or 1
     local okC, cur = pcall(UnitPower, u, MANA)
@@ -4116,7 +4117,7 @@ function UF.FullManaAlpha(u, a, hi, health)
         if health then return UF.FullHealthAlpha(u, a, hi) end
         return a
     end
-    if health then return hi end
+    if health then return UF.FullHealthAlpha(u, a, hi) end
     local c = fullCurve(a, hi)
     if c and UnitPowerPercent then
         local ok, v = pcall(UnitPowerPercent, u, MANA, false, c)

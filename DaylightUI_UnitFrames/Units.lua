@@ -838,11 +838,22 @@ function ns.WatchMana(db)
     end
 end
 
+-- With full health on too and mana secret, the health curve sets the alpha
+-- and mana can only be judged by its changes: mana that is short keeps
+-- changing (spending, then regen ticks a few seconds apart), full mana goes
+-- quiet. So a change keeps the frame shown this long.
+ns.MANA_QUIET = 7
+
 function ns.ManaWake(unit)
     if DUI:Get("UnitFrames", unit .. ".fade.fullMana") ~= true then return false end
     if ns.manaShort[unit] == true then return true end
     local t = ns.manaAt[unit]
-    return t ~= nil and GetTime() - t <= ns.HEALTH_WAKE and UF.ShowsMana(unit)
+    if t == nil or not UF.ShowsMana(unit) then return false end
+    local wait = ns.HEALTH_WAKE
+    if ns.manaShort[unit] == nil and DUI:Get("UnitFrames", unit .. ".fade.fullHealth") == true then
+        wait = ns.MANA_QUIET
+    end
+    return GetTime() - t <= wait
 end
 
 -- The wake for a unit's fade entry: a health or mana change, or mana short.
