@@ -362,3 +362,20 @@ T.test("boxes: the X closes each, the Areas button brings the unlock box back", 
     T.truthy(areas.active)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("tick boxes: a column is as wide as its longest label", function()
+    local DUI = stub.Load({ module = true })
+    DUI.Movers.Unlock()
+    local rows = DUI.TestBox.Unlock.rows
+    T.truthy(#rows > 1)
+    local first = rows[1]
+    T.truthy(first:GetWidth() >= DUI.TestBox.COL_W)
+    first.label.GetStringWidth = function() return 300 end -- a long word in another language
+    DUI.TestBox.Unlock.box.Layout()
+    T.truthy(first:GetWidth() >= 300, "the row holds its label")
+    local second = rows[2]
+    local x1 = select(4, first:GetPoint(1))
+    local x2 = select(4, second:GetPoint(1))
+    T.truthy(x2 - x1 >= 300 or select(5, second:GetPoint(1)) ~= select(5, first:GetPoint(1)), "the next column starts after it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
