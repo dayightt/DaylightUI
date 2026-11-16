@@ -2074,3 +2074,37 @@ T.test("a frame's own bar background: color and opacity per frame, health and po
     stub.AlphaRule = nil
     if not ok then error(err, 0) end
 end)
+
+-- In a restricted instance names read secret and can't be cut by letters: the
+-- target of target showed "Sandfury Shadowhunter" whole with a limit of 8. The
+-- name's text gets the width of that many letters instead.
+T.test("a secret name keeps to the Max name length by width", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "targettarget.namePos", "above")
+    DUI:Set("UnitFrames", "targettarget.nameLimitLen", 8)
+    local f = ns.frames.targettarget
+    stub.units.targettarget = { name = "Sandfury Shadowhunter", isPlayer = false, reaction = 2 }
+    ns.UF.UpdateIdentity(f)
+    T.eq(f.nameText.__text, "Sandfury", "a plain name is cut by letters")
+    T.eq(f.nameText:GetWidth(), 0, "and needs no width")
+    stub.units.targettarget = { name = stub.Secret("Sandfury Shadowhunter"), isPlayer = false, reaction = 2 }
+    ns.UF.UpdateIdentity(f)
+    T.truthy(issecretvalue(f.nameText.__text), "a secret name goes in whole")
+    local w = f.nameText:GetWidth()
+    T.truthy(w > 8 * 7 - 1 and w < 8 * 7 + 6, "as wide as 8 letters, the client cuts the rest: " .. tostring(w))
+    stub.units.targettarget = { name = "Ann", isPlayer = false, reaction = 2 }
+    ns.UF.UpdateIdentity(f)
+    T.eq(f.nameText:GetWidth(), 0, "a plain name again: no width")
+    DUI:Set("UnitFrames", "targettarget.nameLimitLen", 0)
+    stub.units.targettarget = { name = stub.Secret("Sandfury Shadowhunter"), isPlayer = false, reaction = 2 }
+    ns.UF.UpdateIdentity(f)
+    T.eq(f.nameText:GetWidth(), 0, "no limit: whole")
+    -- A frame with a name tab: the tab keeps to the limit too.
+    DUI:Set("UnitFrames", "target.nameLimitLen", 4)
+    local t = ns.frames.target
+    stub.units.target = { name = stub.Secret("Sandfury Shadowhunter"), isPlayer = false, reaction = 2 }
+    ns.UF.UpdateIdentity(t)
+    T.truthy(t.tab:GetWidth() < t:GetWidth() * 0.5, "narrower than a secret name's usual half")
+    T.truthy(t.nameText:GetWidth() < 4 * 7 + 6, "the name as wide as 4 letters")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

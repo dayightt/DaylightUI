@@ -786,6 +786,15 @@ function UF.CreateThreatTag(f)
     f.threatTag = tag
 end
 
+-- A piece moved off its frame (a free power bar, portrait or threat tag) lives
+-- on UIParent at its default level. The target frame sits much higher (spec
+-- level 30), so one dragged over it drew underneath. It goes above the frame
+-- and everything on it, as on the player frame.
+UF.PIECE_LIFT = 15
+function UF.LiftPiece(h, f)
+    h:SetFrameLevel(f:GetFrameLevel() + UF.PIECE_LIFT)
+end
+
 -- The standalone tag (target.threatTagAt = "free"): a holder on UIParent with
 -- its own mover, the tag moved into it. Never anchored to the protected frame.
 -- It shows and hides with the frame through its scripts, and fades with it
@@ -793,6 +802,7 @@ end
 UF.THREAT_KEY = "unitframes.targetThreat"
 function UF.CreateThreatHolder(f)
     local h = CreateFrame("Frame", "DaylightUIThreatTag_target", UIParent)
+    UF.LiftPiece(h, f)
     h:SetSize(UF.THREAT_TAG_W, UF.TAB_HEIGHT)
     h:Hide()
     f.threatHolder = h
@@ -812,6 +822,7 @@ UF.PORTRAIT_FREE = { player = "unitframes.playerPortrait", target = "unitframes.
 function UF.CreatePortraitHolder(f)
     local unit = f.spec.unit
     local h = CreateFrame("Frame", "DaylightUIPortrait_" .. unit, UIParent)
+    UF.LiftPiece(h, f)
     h:SetSize(40, 40)
     h.key = UF.PORTRAIT_FREE[unit]
     h:Hide()
@@ -1042,6 +1053,35 @@ function UF.ShowNameTag(f, on)
     DUI.Motion.AlphaTo(tag, on and 1 or 0, DUI.Motion.NORMAL, true)
 end
 
+-- A secret name (anyone in a restricted instance or a PvP match) can't be cut
+-- to the Max name length, so its text gets the width of that many letters and
+-- the client cuts it short with "...". w is the width it has otherwise (0 =
+-- none). Plain names are cut by letters (UF.LimitName) and keep w.
+local measure
+function UF.NameCap(f, w)
+    local n = f.nameLimitLen
+    if not f.nameSecret or type(n) ~= "number" or n <= 0 then return w end
+    local fs = f.nameText
+    local font, size, flags = fs:GetFont()
+    local cap
+    if font then
+        -- Measured on a text of its own: a frame's text in an instance can
+        -- answer a secret width.
+        measure = measure or UIParent:CreateFontString(nil, "BACKGROUND")
+        measure:Hide()
+        local ok = pcall(measure.SetFont, measure, font, size, flags)
+        local sample = string.rep(UF.NAME_SAMPLE, math.ceil(n / #UF.NAME_SAMPLE)):sub(1, n)
+        measure:SetText(sample)
+        local okW, sw = pcall(measure.GetStringWidth, measure)
+        if ok and okW and type(sw) == "number" and not isSecret(sw) and sw > 0 then cap = sw end
+    end
+    cap = (cap or n * (size or 12) * 0.55) + 2
+    if w and w > 0 then return math.min(w, cap) end
+    return cap
+end
+-- Letters of an everyday width, to size n of them.
+UF.NAME_SAMPLE = "Sandfurh"
+
 -- The tab fits the name, up to the tile's width. A secret name can't be
 -- measured, so it takes the tile's width.
 function UF.SizeNameTag(f, name)
@@ -1052,6 +1092,8 @@ function UF.SizeNameTag(f, name)
     local fw = f:GetWidth()
     if not isSecret(name) and name == nil then name = f.nameText:GetText() end
     local w = fw
+    local cap = isSecret(name) and UF.NameCap(f, 0) or 0
+    if cap > 0 then w = math.min(fw, cap + extra) end
     if not isSecret(name) and name ~= nil then
         f.nameText:SetWidth(0)
         local ok, sw = pcall(f.nameText.GetStringWidth, f.nameText)
@@ -1093,7 +1135,7 @@ end
 local function placeNameAtSpot(f, t)
     local fs = f.nameText
     fs:ClearAllPoints()
-    fs:SetWidth(0)
+    fs:SetWidth(UF.NameCap(f, 0))
     if t.tag and f.nameTag then return placeNameTag(f, t) end
     if t.pos == "outleft" or t.pos == "outright" then
         local left = t.pos == "outleft"
@@ -2328,7 +2370,7 @@ function UF.PlaceBarName(f)
     end
     f.nameText:ClearAllPoints()
     UF.PlaceText(f.nameText, outer, f.health, outer, sign * (pad + markerW), 0, f.barNameX, f.barNameY)
-    f.nameText:SetWidth(math.max(1, f:GetWidth() * 0.5 - pad - markerW))
+    f.nameText:SetWidth(UF.NameCap(f, math.max(1, f:GetWidth() * 0.5 - pad - markerW)))
     f.nameText:SetJustifyH(outer)
 end
 
@@ -2347,7 +2389,7 @@ function UF.PlaceRowName(f)
     end
     f.nameText:ClearAllPoints()
     f.nameText:SetPoint("BOTTOM" .. outer, f.tab, "BOTTOM" .. outer, sign * (crestW + markerW), UF.ROW_TEXT_LIFT)
-    f.nameText:SetWidth(math.max(1, f.tab:GetWidth() * UF.ROW_NAME_SHARE - crestW - markerW))
+    f.nameText:SetWidth(UF.NameCap(f, math.max(1, f.tab:GetWidth() * UF.ROW_NAME_SHARE - crestW - markerW)))
     f.nameText:SetJustifyH(outer)
 end
 
@@ -2369,7 +2411,7 @@ function UF.PlaceCardName(f)
     f.nameText:ClearAllPoints()
     f.nameText:SetPoint("TOP" .. outer, f, "TOP" .. outer, sign * (T + pad + crestW + markerW) + f.barNameX,
         -(T + pad) + f.barNameY)
-    f.nameText:SetWidth(math.max(1, f:GetWidth() * UF.CARD_NAME_SHARE - crestW - markerW))
+    f.nameText:SetWidth(UF.NameCap(f, math.max(1, f:GetWidth() * UF.CARD_NAME_SHARE - crestW - markerW)))
     f.nameText:SetJustifyH(outer)
 end
 
@@ -2419,6 +2461,8 @@ function UF.SizeTab(f, name)
         w = math.min(f.tabWidthPx or 90, fw)
     elseif isSecret(name) or name == nil then
         w = fw * 0.5
+        local cap = UF.NameCap(f, 0)
+        if cap > 0 then w = math.min(w, cap + extra) end
     else
         -- Measure the name at its natural width, then fit it to the tab.
         f.nameText:SetWidth(0)
@@ -3821,9 +3865,15 @@ function UF.UpdateIdentity(f)
     -- A group button reads its group's switch (your own button included).
     local element = f.spec and (f.spec.group or f.spec.names) or nil
     local name = UF.NameText(f, UF.LimitName(DUI.UnitName(u, element), f.nameLimitLen))
+    f.nameSecret = isSecret(name)
     f.nameText:SetText(name)
     UF.ApplyCrest(f, UnitClassification(u))
     if f.tab then UF.SizeTab(f, name) elseif f.nameTag then UF.SizeNameTag(f, name) end
+    if f.nameCapped ~= f.nameSecret and not f.tab and f.tileName then
+        -- A small frame's name (target of target, pet, tiles) placed at a spot.
+        f.nameCapped = f.nameSecret
+        UF.PlaceTileName(f)
+    end
     ns.Texts.Update(f, "identity")
     identityUnit, identityToken = nil, nil
     UF.Painted(f)
@@ -3957,9 +4007,35 @@ end
 -- (UF.UpdateRange, 5 times a second; a secret answer is cached as is).
 -- 3D models ignore their parents' alpha, UIParent's too, so a shown model
 -- takes the alpha its frame really shows at: the fade, the range, a hush, the
--- whole UI fading. A secret alpha (the range in a fight) is handed over whole.
+-- whole UI fading.
+-- Once a frame's alpha came from a secret (a range answer, the full health
+-- curve), the client hands addon code no effective alpha at all for anything
+-- under it. Then the model is painted the way the frame was (paintAlpha keeps
+-- how on f.paintHow), times the alpha of everything above that frame.
+local function copyPaint(m, host)
+    local up = host:GetParent()
+    local k = up and up:GetEffectiveAlpha()
+    if isSecret(k) or type(k) ~= "number" then k = 1 end
+    local how = host.paintHow
+    if how == "bool" then
+        m:SetAlphaFromBoolean(host.paintA, host.paintB * k, host.paintC * k)
+    elseif how == "full" then
+        local u, a, hi = host.paintUnit, host.paintA * k, host.paintB * k
+        local v
+        if host.paintMana then v = UF.FullManaAlpha(u, a, hi, host.paintHealth) else v = UF.FullHealthAlpha(u, a, hi) end
+        m:SetAlpha(v)
+    elseif how == "plain" then
+        m:SetAlpha(host.paintA * k)
+    end
+end
+
 local function followModel(m, from)
-    if m and from and m:IsShown() then m:SetAlpha(from:GetEffectiveAlpha()) end
+    if not (m and from and m:IsShown()) then return end
+    local a = from:GetEffectiveAlpha()
+    if type(a) ~= "nil" then m:SetAlpha(a) return end
+    local host = from
+    while host and not host.paintHow do host = host:GetParent() end
+    if host then copyPaint(m, host) end
 end
 
 function UF.FollowModels(f)
@@ -4070,11 +4146,16 @@ local function setFaded(f, m)
             if m < hi then
                 local a
                 if mana then a = UF.FullManaAlpha(u, m, hi, health) else a = UF.FullHealthAlpha(u, m, hi) end
-                if pcall(f.SetAlpha, f, a) then return end
+                if pcall(f.SetAlpha, f, a) then
+                    f.paintHow, f.paintA, f.paintB = "full", m, hi
+                    f.paintUnit, f.paintMana, f.paintHealth = u, mana, health
+                    return
+                end
             end
         end
     end
     f:SetAlpha(m)
+    f.paintHow, f.paintA = "plain", m
 end
 
 -- Your party or raid, the units the game range-checks. Not you, and not your
@@ -4192,16 +4273,22 @@ function paintAlpha(f)
     end
     if r == "unchecked" then
         f:SetAlpha(m)
+        f.paintHow, f.paintA = "plain", m
         return
     end
     local inRange = f.rangeIn
     if isSecret(inRange) then
-        if not (f.SetAlphaFromBoolean and pcall(f.SetAlphaFromBoolean, f, inRange, m, m * f.rangeAlpha)) then
+        if f.SetAlphaFromBoolean and pcall(f.SetAlphaFromBoolean, f, inRange, m, m * f.rangeAlpha) then
+            f.paintHow, f.paintA, f.paintB, f.paintC = "bool", inRange, m, m * f.rangeAlpha
+        else
             f:SetAlpha(m)
+            f.paintHow, f.paintA = "plain", m
         end
         return
     end
-    f:SetAlpha(m * (inRange == true and 1 or f.rangeAlpha))
+    local a = m * (inRange == true and 1 or f.rangeAlpha)
+    f:SetAlpha(a)
+    f.paintHow, f.paintA = "plain", a
 end
 
 function UF.UpdateRange(f)
@@ -4234,6 +4321,7 @@ function UF.ShowSample(f)
     end
     UF.PaintName(f, r, g, b)
     local name = UF.NameText(f, UF.LimitName(s.name, f.nameLimitLen))
+    f.nameSecret = false
     f.nameText:SetText(name)
     if f.percentText:IsShown() then
         UF.WriteSampleHealth(f.percentText, f.healthFormat, s.health, s.healthValue, f.percentSign, f.hideFullHealth)

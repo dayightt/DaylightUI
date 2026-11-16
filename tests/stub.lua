@@ -625,7 +625,14 @@ function Widget:ClearFocus()
     focusScript(self, "OnEditFocusLost")
 end
 function Widget:HasFocus() return stub.focus == self end
-function Widget:SetAlpha(a) self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = nil end
+-- A secret alpha gives the frame the secret Alpha aspect (SecretArgumentsAddAspect).
+-- No number (nothing passed) errors as in the client.
+function Widget:SetAlpha(a)
+    if type(a) ~= "number" and not isSecret(a) then
+        error("bad argument #1 to 'SetAlpha' (Usage: self:SetAlpha(alpha))", 2)
+    end
+    self.__alpha = a; self.__vertexAlpha = nil; self.__secretAlpha = isSecret(a) or nil
+end
 -- Like the client, the alpha it picks really lands (true -> t, false -> f).
 function Widget:SetAlphaFromBoolean(v, t, f)
     self.__alphaFromBoolean = { v, t, f }
@@ -654,15 +661,24 @@ function Widget:GetAlpha()
     if a == nil then a = self.__alpha or 1 end
     local f = self
     while f do
-        if rawget(f, "__secretAlpha") then return stub.Secret(a) end
+        if rawget(f, "__secretAlpha") then return isSecret(a) and a or stub.Secret(a) end
         f = rawget(f, "__parent")
     end
     return a
 end
 -- Its own alpha times every parent's, up to (and including) the first frame
--- that ignores its parents' alpha, as in the client.
+-- that ignores its parents' alpha, as in the client. It needs alpha access
+-- (RequiresScriptObjectAlphaAccess, FailureMode ReturnWithError): asked from
+-- addon code while the frame or a parent has a secret alpha, it returns
+-- nothing at all, so SetAlpha(f:GetEffectiveAlpha()) errors "Usage".
 function Widget:GetEffectiveAlpha()
     local a, f = 1, self
+    while f do
+        if rawget(f, "__secretAlpha") and fromAddon(2) then return end
+        if f.__ignoreParentAlpha then break end
+        f = f.__parent
+    end
+    f = self
     while f do
         a = a * (f.__alpha or 1)
         if f.__ignoreParentAlpha then break end

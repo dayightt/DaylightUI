@@ -61,6 +61,7 @@ function PB.Create(f)
     keepInside(f)
     local unit = f.spec.unit
     local h = CreateFrame("Frame", "DaylightUIPowerBar_" .. unit, UIParent)
+    ns.UF.LiftPiece(h, f)   -- before its pieces are made, so they start above the frame too
     Style.Shell(h)
     Style.Slant(h, nil, 0)
     h.set = makeSet(h, f)

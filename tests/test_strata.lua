@@ -73,3 +73,18 @@ T.test("strata: a bad saved value falls back to the default", function()
     set("target.strata", "NOPE")
     T.eq(ns.frames.target:GetFrameStrata(), "MEDIUM")
 end)
+
+-- The target frame sits high (level 30) and the pieces it can drop sit on
+-- UIParent: a free power bar dragged over the target drew under it, while the
+-- player's drew on top.
+T.test("a frame's free pieces draw above the frame, the target's too", function()
+    local _, ns = login()
+    for _, u in ipairs({ "player", "target", "focus" }) do
+        local f = ns.frames[u]
+        local above = f:GetFrameLevel() + ns.UF.PIECE_LIFT
+        T.eq(f.freePower:GetFrameLevel(), above, u .. "'s free power bar")
+        if f.portraitHolder then T.eq(f.portraitHolder:GetFrameLevel(), above, u .. "'s free portrait") end
+        if f.threatHolder then T.eq(f.threatHolder:GetFrameLevel(), above, u .. "'s threat %") end
+    end
+    T.truthy(ns.frames.target:GetFrameLevel() > ns.frames.player:GetFrameLevel())
+end)
