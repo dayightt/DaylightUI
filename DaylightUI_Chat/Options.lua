@@ -107,11 +107,11 @@ local spamWordList = {
     end,
 }
 
--- Your own short tags: one box per chat kind and channel, for the whole chat. The
--- standard tag shows in the box until you type one.
+-- Your own short tags: a box per chat kind and channel, showing the default until you type.
 local TAG_LINE = 28
 local TAG_W = 56
 local TAG_TOP = 8
+local TAG_NOTE = 30 -- the note under the boxes
 
 local function tagLine(row, side)
     local W, Style = DaylightUI.Widgets, DaylightUI.Style
@@ -177,14 +177,22 @@ end
 local shortTagList = {
     type = "custom", label = "Your own short tags",
     hidden = function(get) return get("shortTags") ~= true end,
-    build = function(row) row.columns = { {}, {} } end,
+    build = function(row)
+        local W, Style = DaylightUI.Widgets, DaylightUI.Style
+        row.columns = { {}, {} }
+        row.note = W.Font(row, W.BODY, Style.SIZE.small, Style.INK.LABEL)
+        row.note:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", W.PAD, 8)
+        row.note:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -W.PAD, 8)
+        row.note:SetJustifyH("LEFT")
+        row.note:SetText(DaylightUI.L["Leave a field empty to use the default."])
+    end,
     update = function(row)
         local chat, channels = ns.Filter.TagItems()
         row.count = math.max(fillTagColumn(row, chat, 1), fillTagColumn(row, channels, 2))
     end,
     height = function(row)
         local chat, channels = ns.Filter.TagItems()
-        return TAG_TOP * 2 + math.max(#chat, #channels, row.count or 0) * TAG_LINE
+        return TAG_TOP + math.max(#chat, #channels, row.count or 0) * TAG_LINE + TAG_NOTE
     end,
 }
 
@@ -382,9 +390,9 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "[G] for General, [T] for Trade, [G] for guild (in guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. Set your own tags in the list below." },
+              desc = "Replaces the channel and chat names before each message with a short tag, made from the first letters of its name in your language. Lines already in chat stay as they were. Set your own tags in the list below." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
-              desc = "Numbered channels keep their number with the short tag: [1. G] for General, [2. T] for Trade.",
+              desc = "Numbered channels keep their number in front of the short tag.",
               disabled = function(get) return get("shortTags") ~= true end },
             shortTagList,
             { type = "toggle", key = "worldChannelsFirst", label = "General and Trade first", since = "1.8.0",

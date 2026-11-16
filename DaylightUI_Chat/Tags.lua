@@ -35,7 +35,7 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- German clients name them in German.
                   Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
--- kind, written whole, set in a tab's Show window, Filter.lua). A custom tag wins;
+-- kind, written whole, set in the chat options, Options.lua). A custom tag wins;
 -- an empty box falls back to the standard one. Standard tags are also the edit
 -- box hint when you're not in that channel. Group leaders get an L added (PL),
 -- sent whispers stay [To], emotes have no tag.
@@ -53,10 +53,10 @@ Tags.LEADERS = { CHAT_MSG_PARTY_LEADER = "PL", CHAT_MSG_RAID_LEADER = "RL", CHAT
 -- Speech by event: the game's format (CHAT_<key>_GET), the short tag, and the
 -- kind whose custom tag overrides it.
 Tags.SPEECH = {
-    CHAT_MSG_SAY = { "SAY", "S", "say" }, CHAT_MSG_YELL = { "YELL", "Y", "yell" },
-    CHAT_MSG_WHISPER = { "WHISPER", "W", "whisper" }, CHAT_MSG_WHISPER_INFORM = { "WHISPER_INFORM", "To" },
-    CHAT_MSG_BN_WHISPER = { "BN_WHISPER", "W", "bnet" }, CHAT_MSG_BN_WHISPER_INFORM = { "BN_WHISPER_INFORM", "To" },
-    CHAT_MSG_RAID_WARNING = { "RAID_WARNING", "RW", "warning" },
+    CHAT_MSG_SAY = { "SAY", "say", "say" }, CHAT_MSG_YELL = { "YELL", "yell", "yell" },
+    CHAT_MSG_WHISPER = { "WHISPER", "whisper", "whisper" }, CHAT_MSG_WHISPER_INFORM = { "WHISPER_INFORM", "to" },
+    CHAT_MSG_BN_WHISPER = { "BN_WHISPER", "bnet", "bnet" }, CHAT_MSG_BN_WHISPER_INFORM = { "BN_WHISPER_INFORM", "to" },
+    CHAT_MSG_RAID_WARNING = { "RAID_WARNING", "warning", "warning" },
 }
 
 local function esc(s) return (string.gsub(s, "%p", "%%%0")) end
@@ -78,43 +78,106 @@ local function ownTag(num, name)
     return kind and Tags.own[kind] or nil
 end
 
--- The letters of a channel's name as the game gives it: the first letter of one word,
--- or the first of each word of a longer name, where a capital inside a word starts a
--- new one ("DefensaLocal" -> DL, "Comercio local" -> CL, "General" -> G). Short
--- words ("de", "la") are left out unless they're all there is. nil for no letters.
-function Tags.Initials(name)
-    if type(name) ~= "string" or secret(name) then return nil end
+-- A name as pieces ("DefensaLocal" -> Defensa, Local) of UTF-8 characters; long is over two.
+local function pieces(name)
     local text = string.gsub(name, "(%l)(%u)", "%1 %2")
     text = string.gsub(string.gsub(text, "[%(%)%-:%d]", " "), "%s+", " ")
-    local words = {}
+    local out = {}
     for w in string.gmatch(text, "%S+") do
-        local first = string.match(w, "^[%z\1-\127\194-\244][\128-\191]*")
-        local n = 0
-        for _ in string.gmatch(w, "[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end
-        words[#words + 1] = { first = first, long = n > 2 }
+        local chars = {}
+        for c in string.gmatch(w, "[%z\1-\127\194-\244][\128-\191]*") do chars[#chars + 1] = c end
+        if #chars > 0 then out[#out + 1] = { chars = chars, long = #chars > 2 } end
     end
-    local out, any = {}, false
-    for _, w in ipairs(words) do if w.long then any = true end end
-    for _, w in ipairs(words) do
-        if w.long or not any then out[#out + 1] = string.upper(w.first) end
-    end
-    if #out == 0 then return nil end
-    return table.concat(#out > 1 and out or { out[1] })
+    return out
 end
 
--- A world channel's standard tag. A channel the game gives an id (Kinds.ZONE: General,
--- Trade, Local Defense, Looking For Group, Trade (Local)) is recognized in any language,
--- and its tag is the letters of its name in yours. Any other, or one the game can't
--- name, keeps the kind's own tag.
+-- The tags a name can take, best first: the initials of its long words, else its
+-- first one, two and three letters.
+local function candidates(name)
+    if type(name) ~= "string" or secret(name) then return {} end
+    local list = pieces(name)
+    local long = {}
+    for _, p in ipairs(list) do if p.long then long[#long + 1] = p end end
+    if #long == 0 then long = list end
+    local out = {}
+    if #long > 1 then
+        local t = {}
+        for _, p in ipairs(long) do t[#t + 1] = string.upper(p.chars[1]) end
+        out[#out + 1] = table.concat(t)
+    end
+    local first = long[1]
+    if first then
+        for n = 1, math.min(3, #first.chars) do
+            local t = { string.upper(first.chars[1]) }
+            for i = 2, n do t[#t + 1] = first.chars[i] end
+            local tag = table.concat(t)
+            if out[#out] ~= tag then out[#out + 1] = tag end
+        end
+    end
+    return out
+end
+
+-- A name's best tag: "DefensaLocal" -> DL, "Comercio local" -> CL, "General" -> G.
+function Tags.Initials(name)
+    return candidates(name)[1]
+end
+
+-- Each chat kind's default tag comes from the game's own word for it. When two start
+-- the same, the first in CHAT_ORDER keeps the short one (Hermandad H, Grupo G, Gritar
+-- Gr). No word: its English letter (CHAT_TAGS). English words give the English letters.
+Tags.CHAT_WORDS = { guild = "CHAT_MSG_GUILD", party = "CHAT_MSG_PARTY", raid = "CHAT_MSG_RAID",
+                    say = "CHAT_MSG_SAY", whisper = "WHISPER", yell = "CHAT_MSG_YELL",
+                    instance = "CHAT_MSG_INSTANCE_CHAT", officer = "CHAT_MSG_OFFICER",
+                    warning = "CHAT_MSG_RAID_WARNING" }
+Tags.CHAT_ORDER = { "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning" }
+
+local defaults
+function Tags.ResetDefaults() defaults = nil end
+
+local function built()
+    local out, used = {}, {}
+    for _, kind in ipairs(Tags.CHAT_ORDER) do
+        local word = _G[Tags.CHAT_WORDS[kind]]
+        local pick
+        for _, tag in ipairs(candidates(word)) do
+            if not used[tag] then pick = tag; break end
+        end
+        pick = pick or Tags.CHAT_TAGS[kind]
+        used[pick] = true
+        out[kind] = pick
+    end
+    out.bnet = out.whisper
+    -- Your own whispers: the word the game puts before the name ("To Name:", "A Name:").
+    local fmt = _G.CHAT_WHISPER_INFORM_GET
+    local pre = type(fmt) == "string" and not secret(fmt) and string.match(fmt, "^(.-)%%s")
+    pre = pre and string.gsub(pre, "^%s*(.-)%s*$", "%1")
+    out.to = (pre and pre ~= "" and pre) or "To"
+    return out
+end
+
+-- A chat kind's default tag; "to" is your sent whispers.
+function Tags.Default(kind)
+    defaults = defaults or built()
+    return defaults[kind]
+end
+
+-- A world channel's standard tag: the letters of its name when the game gives it an id
+-- (Kinds.ZONE), else the kind's own (KIND_TAGS).
+local ofName = {}
+function Tags.ResetNames() if next(ofName) then ofName = {} end end
+
 function Tags.OfName(name)
     if type(name) ~= "string" or secret(name) then return nil end
+    local tag = ofName[name]
+    if tag then return tag end
     local base = string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", "")
     local Kinds = ns.Kinds
     if Kinds.ZoneKind(base) then
-        local own = Tags.Initials(string.gsub(base, "%s*:.*$", ""))
-        if own then return own end
+        tag = Tags.Initials((string.gsub(base, "%s*:.*$", "")))
     end
-    return Tags.KIND_TAGS[Kinds.OfChannel(base)]
+    tag = tag or Tags.KIND_TAGS[Kinds.OfChannel(base)] or false
+    ofName[name] = tag
+    return tag or nil
 end
 
 -- "[1. General - Zone]"
@@ -129,10 +192,11 @@ end
 
 -- "[Guild]", "[Party Leader]"...
 local function group(open, ctype, _, close)
-    local own = Tags.own[Tags.TYPE_KINDS[ctype]]
-    local leader = Tags.LEADERS[lineEvent]
-    local tag = (own and (leader and own .. "L" or own)) or leader or Tags.TYPES[ctype]
-    if not tag then return nil end
+    local kind = Tags.TYPE_KINDS[ctype]
+    if not kind then return nil end
+    local base = Tags.own[kind] or Tags.Default(kind)
+    if not base then return nil end
+    local tag = Tags.LEADERS[lineEvent] and base .. "L" or base
     return open .. "[" .. tag .. "]" .. close
 end
 
@@ -183,7 +247,7 @@ function Tags.Shorten(msg, event)
     if type(fmt) == "string" then
         local pattern = speechPattern(fmt)
         if pattern then
-            lineTag = Tags.own[sp[3]] or sp[2]
+            lineTag = Tags.own[sp[3]] or Tags.Default(sp[2])
             out = string.gsub(out, pattern, speech, 1)
             lineTag = nil
         end

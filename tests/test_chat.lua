@@ -3231,6 +3231,48 @@ T.test("chat daylight: world channels are known by the game's id, not their name
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A chat kind's tag comes from the game's own word for it, the first in the order
+-- keeping the short one when two start the same.
+T.test("chat daylight: chat kinds take their default tag from the game's words", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    local saved = {}
+    local names = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "WHISPER", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_GUILD",
+        "CHAT_MSG_OFFICER", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_RAID_WARNING", "CHAT_WHISPER_INFORM_GET", "CHAT_SAY_GET" }
+    for _, n in ipairs(names) do saved[n] = _G[n] end
+    local function words(t) for n, v in pairs(t) do _G[n] = v end; Tags.ResetDefaults() end
+    -- Spanish, as the game gives it.
+    words({ CHAT_MSG_SAY = "Decir", CHAT_MSG_YELL = "Gritar", WHISPER = "Susurrar", CHAT_MSG_PARTY = "Grupo",
+        CHAT_MSG_RAID = "Banda", CHAT_MSG_GUILD = "Hermandad", CHAT_MSG_OFFICER = "Oficial",
+        CHAT_MSG_INSTANCE_CHAT = "Estancia", CHAT_MSG_RAID_WARNING = "Aviso de la banda",
+        CHAT_WHISPER_INFORM_GET = "A %s: ", CHAT_SAY_GET = "%s dice: " })
+    local got = {}
+    for _, k in ipairs({ "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning", "bnet", "to" }) do
+        got[#got + 1] = Tags.Default(k)
+    end
+    T.eq(table.concat(got, " "), "H G B D S Gr E O AB S A", "Spanish")
+    T.eq(Tags.Shorten("|Hplayer:Bob|h[Bob]|h dice: hola", "CHAT_MSG_SAY"), "[D] |Hplayer:Bob|h[Bob]|h: hola", "a say line")
+    -- English gives the letters it always had.
+    words({ CHAT_MSG_SAY = "Say", CHAT_MSG_YELL = "Yell", WHISPER = "Whisper", CHAT_MSG_PARTY = "Party",
+        CHAT_MSG_RAID = "Raid", CHAT_MSG_GUILD = "Guild", CHAT_MSG_OFFICER = "Officer",
+        CHAT_MSG_INSTANCE_CHAT = "Instance", CHAT_MSG_RAID_WARNING = "Raid Warning",
+        CHAT_WHISPER_INFORM_GET = "To %s: " })
+    got = {}
+    for _, k in ipairs({ "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning", "bnet", "to" }) do
+        got[#got + 1] = Tags.Default(k)
+    end
+    T.eq(table.concat(got, " "), "G P R S W Y I O RW W To", "English")
+    -- Nothing from the game: the English letters.
+    for _, n in ipairs(names) do _G[n] = nil end
+    Tags.ResetDefaults()
+    T.eq(Tags.Default("say"), "S")
+    T.eq(Tags.Default("warning"), "RW")
+    T.eq(Tags.Default("to"), "To")
+    for _, n in ipairs(names) do _G[n] = saved[n] end
+    Tags.ResetDefaults()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game prints "Changed Channel: [6. LookingForGroup 84]". The number after the
 -- name must not make it a channel of its own.
 T.test("chat daylight: LookingForGroup with a number after it is still LFG", function()

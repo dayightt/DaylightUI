@@ -149,16 +149,23 @@ function Kinds.TypeOfId(id)
     return byId[id]
 end
 
--- The game's own id for a world channel (zoneChannelID), the same in every language,
--- so the channel's name needn't be known in the player's. Seen on the 1.8.2 client:
--- General 1, Trade 2, Local Defense 22, Looking For Group 26, Trade (Local) 46.
--- Services, World Defense, Newcomer and Recruitment have no id (0), so they go by
--- their name (Kinds.CHANNELS).
+-- The game's id (zoneChannelID) for a world channel, the same in every language.
+-- Services, World Defense, Newcomer and Recruitment have none (0): they go by name.
 Kinds.ZONE = { [1] = "general", [2] = "trade", [22] = "defense", [26] = "lfg", [46] = Kinds.TRADE_LOCAL }
 
--- The kind the game's id gives a channel name ("DefensaLocal", "General: Vallefresno"
--- or "General - Elwynn Forest"), or nil if the game can't say or the id isn't known.
+-- Kept per name until channels change, like ofName.
+local ofZone = {}
 function Kinds.ZoneKind(base)
+    if secret(base) then return nil end
+    local kind = ofZone[base]
+    if kind == nil then
+        kind = Kinds.AskZone(base) or false
+        ofZone[base] = kind
+    end
+    return kind or nil
+end
+
+function Kinds.AskZone(base)
     local C = C_ChatInfo
     -- The game errors on a secret name, so a secret one has no id.
     if type(base) ~= "string" or secret(base) then return nil end
@@ -173,8 +180,7 @@ function Kinds.ZoneKind(base)
 end
 
 -- A channel's kind from its name. World channels share a kind; any other channel
--- gets its own ("ch:name") so a tab can pick it alone. The game's channel id decides
--- first, then the name.
+-- gets its own ("ch:name") so a tab can pick it alone. The game's id first, then the name.
 -- Every channel line asks, so each name's kind is kept until channels change.
 -- A secret name can't be a table key and is worked out every time.
 local ofName = {}
@@ -207,6 +213,8 @@ Kinds.OfNumber = kindOfNumber
 function Kinds.ChannelsChanged()
     listKind = nil
     if next(ofName) then wipe(ofName) end
+    if next(ofZone) then wipe(ofZone) end
+    if ns.Tags and ns.Tags.ResetNames then ns.Tags.ResetNames() end
 end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
 -- Joining or leaving a channel.

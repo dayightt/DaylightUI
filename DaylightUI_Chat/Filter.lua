@@ -5,8 +5,7 @@
 -- card). "Everything" is on top; switching one kind off from there keeps the rest.
 -- The channels column lists the channels you're in by their game names
 -- (Kinds.Joined), then world channels you're not in, then "Other channels".
--- The short tags are set in the chat options (Options.lua), not here: they're for
--- the whole chat, not this tab. Filter.TagItems lists the rows that page edits.
+-- Short tags are set in the chat options (Options.lua): they're for the whole chat.
 -- The tab name box beside "Everything" renames as you type; left empty it goes
 -- back to the old name.
 -- Opened from a tab's right-click "Channels" and for each new tab.
@@ -200,12 +199,11 @@ function Filter.ChannelList()
     return out
 end
 
--- What the short tags page edits, as { kind, words, standard } lists: the chat kinds
--- that carry a tag, and the channels you're in (then the world channels you're not).
+-- The rows of the short tags list in the options: chat kinds, then channels.
 function Filter.TagItems()
     local chat, channels = {}, {}
     for _, kind in ipairs(Filter.COLUMNS[1].kinds) do
-        local standard = ns.Tags.CHAT_TAGS[kind]
+        local standard = ns.Tags.CHAT_TAGS[kind] and ns.Tags.Default(kind)
         if standard then chat[#chat + 1] = { kind = kind, words = ns.Tabs.KIND_WORDS[kind] or kind, standard = standard } end
     end
     for _, item in ipairs(Filter.ChannelList()) do
