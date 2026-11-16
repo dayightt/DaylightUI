@@ -6,11 +6,12 @@
 --
 -- group: what AddAuraGroup got, { filter, opts }.
 -- aura: { spellId, harmful, duration, mine, cc, canApply, fromPlayer, neverSecret, boss }.
--- unit: { canAssist, groupMember }.
+-- unit: { canAssist, groupMember, playerControlled } (playerControlled: a player
+-- or a player's pet, enemies too: UnitIsPlayerControlledOrGroupMember).
 
 local function identityAllowed(unit, aura)
     if aura.neverSecret then return true end
-    if not aura.harmful and unit.groupMember then return true end
+    if not aura.harmful and (unit.groupMember or unit.playerControlled) then return true end
     if aura.harmful and unit.canAssist then return false end
     if not aura.harmful and not unit.canAssist then return false end
     return true

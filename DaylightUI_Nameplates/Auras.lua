@@ -40,11 +40,32 @@ function Auras.DispelColor(key)
     if type(c) == "table" then return c end
     return Auras.DISPEL_COLORS[key]
 end
+-- Big defensives, every rank. The client's BIG_DEFENSIVE filter tags none of
+-- these on this client (seen in game), so the row names them. It may match
+-- buffs by spell on any player or player's pet, enemies included, which is
+-- where they matter: duels, battlegrounds, world PvP.
+Auras.BIG_DEFENSIVES = {}
+for _, id in ipairs({
+    642, 1020,              -- Divine Shield
+    498, 5573,              -- Divine Protection
+    1022, 5599, 10278,      -- Blessing of Protection
+    19752,                  -- Divine Intervention
+    11958, 45438,           -- Ice Block
+    5277, 26669,            -- Evasion
+    31224,                  -- Cloak of Shadows
+    871,                    -- Shield Wall
+    12975,                  -- Last Stand
+    23920,                  -- Spell Reflection
+    22812,                  -- Barkskin
+    19263,                  -- Deterrence
+    33206,                  -- Pain Suppression
+    3169,                   -- Limited Invulnerability Potion
+}) do Auras.BIG_DEFENSIVES[id] = true end
+
 Auras.KINDS = {
     debuffs = { key = "mine", filter = "HARMFUL|PLAYER|!CROWD_CONTROL" },
     cc = { key = "cc", filter = "HARMFUL|CROWD_CONTROL" },
-    -- The client flags big defensives itself, so no spell list here either.
-    defensives = { key = "big", filter = "HELPFUL|BIG_DEFENSIVE" },
+    defensives = { key = "big", filter = "HELPFUL", candidateFilters = { includeSpellIDs = Auras.BIG_DEFENSIVES } },
     -- The client picks these from what you (and your group) can remove, so no spell
     -- list here. Use a filter string, never candidateFilters: those read aura data,
     -- which is secret on enemies in PvP, and the row would show nothing.

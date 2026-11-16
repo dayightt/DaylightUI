@@ -1330,8 +1330,19 @@ T.test("nameplates: your debuffs, crowd control and purgeable buffs have their c
     T.eq(p.auras.debuffs.__groups.mine.max, DaylightUI:Get("Nameplates", "maxDebuffs"))
     T.eq(p.auras.cc.__groups.cc.filter, "HARMFUL|CROWD_CONTROL")
     T.eq(p.auras.cc.__groups.cc.max, 1, "one round icon")
-    T.eq(p.auras.defensives.__groups.big.filter, "HELPFUL|BIG_DEFENSIVE", "the client flags big defensives itself")
-    T.eq(p.auras.defensives.__groups.big.max, 1, "one big defensive icon")
+    -- The client tags none of the classic defensives as BIG_DEFENSIVE (seen in
+    -- game: Divine Shield, Ice Block, Evasion... all false), so the row names them.
+    local big = p.auras.defensives.__groups.big
+    T.eq(big.filter, "HELPFUL", "every buff, narrowed by the list")
+    local shows = require("aura_rules")
+    local group = { filter = big.filter, opts = big.opts }
+    local enemyPlayer = { canAssist = false, groupMember = false, playerControlled = true }
+    local mob = { canAssist = false, groupMember = false, playerControlled = false }
+    T.truthy(shows(group, enemyPlayer, { spellId = 1020 }), "Divine Shield rank 2 on a duel opponent")
+    T.truthy(shows(group, enemyPlayer, { spellId = 11958 }), "Ice Block")
+    T.falsy(shows(group, enemyPlayer, { spellId = 1459 }), "Arcane Intellect is not a big defensive")
+    T.falsy(shows(group, mob, { spellId = 642 }), "a mob: the client won't match buffs by id there")
+    T.eq(big.max, 1, "one big defensive icon")
     T.eq(p.auras.defensives.__unit, "nameplate1")
     DaylightUI:Set("Nameplates", "defensives", false)
     T.eq(p.auras.defensives.__groups.big.max, 0, "switched off: none shown")

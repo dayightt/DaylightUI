@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "Bags", "Item counts, the gold tooltip and the alts viewer no longer show characters on another ruleset, like Hardcore, whose items and gold you can't reach" },
             { "Flight timer", "No more error at login when another addon leaves the border size setting empty" },
             { "Tooltip", "A macro's spell tooltip on your action bars has the same Daylight UI look as the spell's" },
+            { "Nameplates", "Big defensives like Divine Shield, Ice Block and Evasion now show on enemy players' nameplates" },
             { "Quests", "A quest's area outline on the world map fades away with the map while you move" },
             { "Chat", "Typing in a channel by its number, like /7, talks in the channel the game said it was, not in another addon's hidden channel" },
         },
