@@ -25,6 +25,9 @@ DUI.PatchNotes = {
         fixed = {
             { "NPC window", "Currency rewards like Trade Commitment show in the quest window, not just the money and items" },
             { "NPC window", "Vendors show how many are left of items they only have a few of" },
+            { "Chat", "No more error from the chat box after resizing it or changing its text size" },
+            { "Chat", "Your name lit up in chat uses the same class color as names in chat" },
+            { "Chat", "The chat keeps its own font at login and when the auction house opens, so Russian letters keep showing" },
         },
     },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",

@@ -2432,6 +2432,10 @@ function Style.FontFamily(file, size, flags, shadow)
     return made
 end
 
+-- True for a font family Daylight UI made. The game lists them with its own
+-- font objects (GetFonts), and GameFonts leaves them alone.
+function Style.OwnFamily(obj) return ourFamily[obj] == true end
+
 -- Gives a text (or a message frame) a font through its family, so names in
 -- other alphabets draw. Keeps the text's justification and color, which a
 -- font object would reset. A text some other code already gave a plain

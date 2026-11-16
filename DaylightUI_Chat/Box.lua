@@ -295,7 +295,7 @@ local function paintGlow(g, a, again)
     if g.a == a and not again then return end
     g.a = a
     if a <= 0 then g:Hide(); return end
-    local ar, ag, ab = Style.Accent()
+    local ar, ag, ab = ns.Extras.MentionColor()
     g:SetGradient("HORIZONTAL", CreateColor(ar, ag, ab, Box.GLOW * a), CreateColor(ar, ag, ab, 0))
     g:Show()
 end

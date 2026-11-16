@@ -132,8 +132,11 @@ function GameFonts.Apply()
             for _, k in ipairs(GameFonts.GLOBALS) do savedGlobals[k] = _G[k] end
         end
         for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = font end
+        -- Daylight UI's own families are named fonts too: each carries a face picked
+        -- for its own text (the chat's, for one) and keeps it.
+        local own = DUI.Style.OwnFamily
         for _, obj in ipairs(fontObjects()) do
-            if obj ~= CombatTextFont then setFace(obj, font) end
+            if obj ~= CombatTextFont and not own(obj) then setFace(obj, font) end
         end
     elseif savedGlobals then
         for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = savedGlobals[k] end
