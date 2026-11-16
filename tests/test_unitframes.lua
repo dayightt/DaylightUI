@@ -1992,30 +1992,85 @@ T.test("unitframes: a thick border never eats a small frame's health bar", funct
 end)
 
 T.test("missing health opacity: the empty part of health and power, and the frame's dark inside, thin together", function()
-    local DUI, ns = stub.Load({ module = true })
-    stub.RunTimers()
-    local Style = DUI.Style
-    local f = ns.frames.player
-    local back = Style.BarBack(f.health)
-    local s = Style.GetShell(f)
-    T.near(back:GetAlpha(), 1, 0.001, "as ever by default")
-    T.isnil(s.opts.bgAlpha, "the frame's own background as ever")
-    for _, key in ipairs({ "player", "target", "party", "raid" }) do
-        local g = ns.frames[key]
-        if type(g) == "table" and g.GetObjectType and Style.GetShell(g) then T.isnil(Style.GetShell(g).opts.bgAlpha, key .. " untouched by default") end
-    end
-    DUI:Set("UnitFrames", "colors.backAlpha", 0)
-    stub.RunTimers()
-    T.near(back:GetAlpha(), 0, 0.001, "see-through")
-    if f.power then T.near(Style.BarBack(f.power):GetAlpha(), 0, 0.001, "the power bar's too") end
-    T.eq(s.opts.bgAlpha, 0, "the frame's dark inside goes with it")
-    T.near(s.bg.__color[4], 0, 0.001, "painted at once")
-    DUI:Set("UnitFrames", "colors.backAlpha", 0.4)
-    stub.RunTimers()
-    T.near(back:GetAlpha(), 0.5, 0.001, "half of the usual")
-    T.eq(s.opts.bgAlpha, 0.4)
-    DUI:Set("UnitFrames", "colors.backAlpha", 0.8)
-    stub.RunTimers()
-    T.isnil(s.opts.bgAlpha, "back to the usual")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.AlphaRule = true    -- a texture's one alpha, as in game
+    local ok, err = pcall(function()
+        local DUI, ns = stub.Load({ module = true })
+        stub.RunTimers()
+        local Style = DUI.Style
+        stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", health = 50, maxHealth = 100, pct = 50, power = 50, maxPower = 100 }
+        for _, u in ipairs({ "player" }) do ns.UF.UpdateAll(ns.frames[u], true) end
+        local f = ns.frames.player
+        local back = Style.BarBack(f.health)
+        local s = Style.GetShell(f)
+        T.near(back:GetAlpha(), Style.BAR_BACK_ALPHA, 0.001, "as ever by default")
+        T.isnil(s.opts.bgAlpha, "the frame's own background as ever")
+        for _, key in ipairs({ "player", "target", "party", "raid" }) do
+            local g = ns.frames[key]
+            if type(g) == "table" and g.GetObjectType and Style.GetShell(g) then T.isnil(Style.GetShell(g).opts.bgAlpha, key .. " untouched by default") end
+        end
+        DUI:Set("UnitFrames", "colors.backAlpha", 0)
+        stub.RunTimers()
+        T.near(back:GetAlpha(), 0, 0.001, "see-through")
+        if f.power then T.near(Style.BarBack(f.power):GetAlpha(), 0, 0.001, "the power bar's too") end
+        T.eq(s.opts.bgAlpha, 0, "the frame's dark inside goes with it")
+        T.near(s.bg.__color[4], 0, 0.001, "painted at once")
+        DUI:Set("UnitFrames", "colors.backAlpha", 0.4)
+        stub.RunTimers()
+        T.near(back:GetAlpha(), 0.4, 0.001, "the opacity picked")
+        T.eq(s.opts.bgAlpha, 0.4)
+        DUI:Set("UnitFrames", "colors.backAlpha", 0.8)
+        stub.RunTimers()
+        T.isnil(s.opts.bgAlpha, "back to the usual")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+    stub.AlphaRule = nil
+    if not ok then error(err, 0) end
+end)
+
+T.test("a frame's own bar background: color and opacity per frame, health and power apart", function()
+    stub.AlphaRule = true    -- a texture's one alpha, as in game
+    local ok, err = pcall(function()
+        local DUI, ns = stub.Load({ module = true })
+        stub.RunTimers()
+        local Style = DUI.Style
+        stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", health = 50, maxHealth = 100, pct = 50, power = 50, maxPower = 100 }
+        stub.units.target = { name = "Them", isPlayer = true, class = "ROGUE", health = 50, maxHealth = 100, pct = 50 }
+        for _, u in ipairs({ "player", "target" }) do ns.UF.UpdateAll(ns.frames[u], true) end
+        local f, t = ns.frames.player, ns.frames.target
+        local back, tback = Style.BarBack(f.health), Style.BarBack(t.health)
+        DUI:Set("UnitFrames", "player.backHealth", "custom")
+        DUI:Set("UnitFrames", "player.backHealthColor", { 0.2, 0.1, 0.3 })
+        DUI:Set("UnitFrames", "player.backHealthAlpha", 1)
+        stub.RunTimers()
+        local c = back.__vertex
+        T.near(c[1], 0.2, 0.001, "its own color")
+        T.near(c[3], 0.3, 0.001)
+        T.near(c[4], 1, 0.001, "painted solid")
+        T.near(back:GetAlpha(), 1, 0.001, "its own opacity, fully solid")
+        T.near(tback:GetAlpha(), Style.BAR_BACK_ALPHA, 0.001, "the target keeps the shared look")
+        T.near(tback.__vertex[4], Style.BAR_BACK_ALPHA, 0.001)
+        if f.power then
+            local p = Style.BarBack(f.power)
+            T.near(p.__vertex[4], Style.BAR_BACK_ALPHA, 0.001, "power still follows the Colors page")
+            DUI:Set("UnitFrames", "player.backPower", "dim")
+            DUI:Set("UnitFrames", "player.backPowerAlpha", 0.3)
+            stub.RunTimers()
+            T.near(p:GetAlpha(), 0.3, 0.001, "power's own opacity")
+            T.near(back:GetAlpha(), 1, 0.001, "health keeps its own")
+            T.eq(Style.GetShell(f).opts.bgAlpha, 0.3, "the dark inside thins under the lowest")
+        end
+        -- Dark health mode: an own look wins over the full unit color.
+        DUI:Set("UnitFrames", "player.colorHealth", "dark")
+        stub.RunTimers()
+        T.near(back.__vertex[1], 0.2, 0.001, "dark mode keeps the frame's own color")
+        DUI:Set("UnitFrames", "player.backHealth", "global")
+        DUI:Set("UnitFrames", "player.backPower", "global")
+        stub.RunTimers()
+        T.near(back:GetAlpha(), Style.BAR_BACK_ALPHA, 0.001, "shared again")
+        T.near(back.__vertex[4], Style.BAR_BACK_ALPHA, 0.001)
+        T.isnil(Style.GetShell(f).opts.bgAlpha)
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+    stub.AlphaRule = nil
+    if not ok then error(err, 0) end
 end)

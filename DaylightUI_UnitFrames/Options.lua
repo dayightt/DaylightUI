@@ -1132,6 +1132,30 @@ local function powerColorRows(id, dis)
     }
 end
 
+-- The empty part of one bar on this frame (bar "Health" or "Power"): its own
+-- color and opacity, or the Colors page's.
+local BACK_COLORS = { global = "Same as the Colors page", dim = "Dimmed bar color", custom = "One color" }
+local BACK_COLOR_ORDER = { "global", "dim", "custom" }
+local function backColorRows(id, bar, dis)
+    local key = id .. ".back" .. bar
+    local what = string.lower(bar)
+    local shared = function(get) return get(key) ~= "dim" and get(key) ~= "custom" end
+    return {
+        { type = "dropdown", key = key, label = bar .. " background color", values = BACK_COLORS,
+          order = BACK_COLOR_ORDER, disabled = dis,
+          desc = "The empty part of this frame's " .. what .. " bar, behind the fill: a darker copy of the bar's color, or one you pick. Same as the Colors page follows the look every frame shares." },
+        { type = "slider", key = key .. "Bright", label = bar .. " background brightness", min = 0, max = 1, step = 0.05,
+          unit = "%", disabled = dis, hidden = function(get) return get(key) ~= "dim" end,
+          desc = "How much of the bar's color the empty part keeps. Lower is darker." },
+        { type = "color", key = key .. "Color", label = "Custom " .. what .. " background color", disabled = dis,
+          hidden = notCustom(key),
+          desc = "The empty part's color when " .. bar .. " background color is One color." },
+        { type = "slider", key = key .. "Alpha", label = bar .. " background opacity", min = 0, max = 1, step = 0.05,
+          unit = "%", disabled = dis, hidden = shared,
+          desc = "How solid the empty part of this frame's " .. what .. " bar is. Lower lets the world show through it." },
+    }
+end
+
 -- The personal display's rows for one bar: texture, background and color, each
 -- using the player frame's until given its own. bar: "health" | "power".
 local function personalBarRows(bar, dis)
@@ -1488,6 +1512,7 @@ local function framePage(id, label, desc, opts)
     local m = function(s) return id .. ".media." .. s end
     for _, it in ipairs(barRows(m("health"), "this frame's health bar", "Health bar", shown)) do frame[#frame + 1] = it end
     for _, it in ipairs(healthColorRows(id, shown)) do frame[#frame + 1] = it end
+    for _, it in ipairs(backColorRows(id, "Health", shown)) do frame[#frame + 1] = it end
     if opts.powerToggle then
         frame[#frame + 1] = { type = "toggle", key = k("showPower"), label = "Power bar",
             desc = "A mana, rage or energy bar under the health. When off, the frame is all health.",
@@ -1507,6 +1532,7 @@ local function framePage(id, label, desc, opts)
     if opts.power or opts.powerToggle then
         for _, it in ipairs(barRows(m("power"), "this frame's power bar", "Power bar", powerOff)) do frame[#frame + 1] = it end
         for _, it in ipairs(powerColorRows(id, powerOff)) do frame[#frame + 1] = it end
+        for _, it in ipairs(backColorRows(id, "Power", powerOff)) do frame[#frame + 1] = it end
     end
     if opts.powerFree then
         local notFree = function(get) return powerOff(get) or get(k("powerAt")) ~= "free" end
@@ -2141,6 +2167,10 @@ local function raidPage(size)
         barRows("raid.media.health", "the raid tiles' health bars", "Health bar", off("raid.enabled"))[2],
         healthColorRows("raid", off("raid.enabled"))[1],
         healthColorRows("raid", off("raid.enabled"))[2],
+        backColorRows("raid", "Health", off("raid.enabled"))[1],
+        backColorRows("raid", "Health", off("raid.enabled"))[2],
+        backColorRows("raid", "Health", off("raid.enabled"))[3],
+        backColorRows("raid", "Health", off("raid.enabled"))[4],
         { type = "slider", key = "raid.spacing", label = "Spacing", min = 0, max = 20, step = 1,
           desc = "Gap between members of a group.", disabled = off("raid.enabled") },
         { type = "slider", key = "raid.groupSpacing", label = "Group spacing", min = 0, max = 30, step = 1,
@@ -2163,6 +2193,10 @@ local function raidPage(size)
         barRows("raid.media.power", "the raid tiles' power bars", "Power bar", offAny("raid.enabled", "raid.showPower"))[2],
         powerColorRows("raid", offAny("raid.enabled", "raid.showPower"))[1],
         powerColorRows("raid", offAny("raid.enabled", "raid.showPower"))[2],
+        backColorRows("raid", "Power", offAny("raid.enabled", "raid.showPower"))[1],
+        backColorRows("raid", "Power", offAny("raid.enabled", "raid.showPower"))[2],
+        backColorRows("raid", "Power", offAny("raid.enabled", "raid.showPower"))[3],
+        backColorRows("raid", "Power", offAny("raid.enabled", "raid.showPower"))[4],
     }, true)
     return { id = size == 10 and "raid" or "raid" .. size, label = "Raid " .. size, preview = { "raid" },
       mapKey = function(key) return ns.Raid.MapKey(key, size) end, locked = raidLocked(size),

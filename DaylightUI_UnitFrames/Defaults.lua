@@ -316,6 +316,12 @@ for _, k in ipairs(ns.LOOK_FRAMES) do
     local d = ns.DEFAULTS[k]
     d.colorHealth, d.colorHealthCustom = "global", { 0.35, 0.75, 0.35 }
     if d.powerHeight then d.colorPower, d.colorPowerCustom = "global", { 0.3, 0.5, 0.95 } end
+    -- The empty part of each bar: "global" follows the Colors page, "dim" a
+    -- darker copy of the bar's color, "custom" one color. Opacity 0 to 1.
+    for _, bar in ipairs(d.powerHeight and { "Health", "Power" } or { "Health" }) do
+        d["back" .. bar], d["back" .. bar .. "Color"] = "global", { 0.14, 0.14, 0.14 }
+        d["back" .. bar .. "Bright"], d["back" .. bar .. "Alpha"] = 0.4, 0.8
+    end
     d.shell = { own = false, borderPx = k == "raid" and 4 or 8, cornerPx = 6, shadowPx = 4 }
 end
 

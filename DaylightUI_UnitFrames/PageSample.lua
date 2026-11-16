@@ -68,13 +68,13 @@ end
 -- (spot, nudge x and y; home = true means no spot, a single place it's nudged
 -- from). size: the ones a grip writes (w and h, or s).
 PageSample.PARTS = {
-    { label = "Health bar", at = at("health"), keys = { "%s.width", "%s.height", "%s.strata", "%s.dotTint", "%s.dotSkull" },
+    { label = "Health bar", at = at("health"), keys = { "%s.width", "%s.height", "%s.strata", "%s.dotTint", "%s.dotSkull", "%s.backHealth", "%s.backHealthAlpha" },
       size = { w = "%s.width", h = "%s.height" } },
     -- The power bar's height grip thickens both it and the frame (link), so it
     -- grows down toward the grip and the health bar keeps its size. Its width
     -- is the frame's. A style's power line is under the frame, so it grows on its own
     -- (linkIf).
-    { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep" },
+    { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep", "%s.backPower", "%s.backPowerAlpha" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.powerLine end },
     { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },

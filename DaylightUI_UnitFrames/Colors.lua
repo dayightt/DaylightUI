@@ -121,17 +121,21 @@ function UF.Painted(f)
     if type(R) == "table" then R.PaintedFrame(f, type(f.unitToken) == "string" and f.unitToken or nil) end
 end
 
--- Only a bar's background, at the Colors page's brightness, when a plugin
--- holds the fill (UF.PaintHealth).
+-- Only a bar's background, when a plugin holds the fill (UF.PaintHealth).
+-- Its frame's own look (bar.backLook, from UF.ApplyBack) wins over the Colors
+-- page's, opacity included.
 function UF.SetBackColor(bar, r, g, b)
     local back = Style.BarBack(bar)
     if not back then return end
-    local c = UF.colors
-    if c and c.backMode == "custom" and type(c.backColor) == "table" then
-        back:SetVertexColor(c.backColor[1], c.backColor[2], c.backColor[3], Style.BAR_BACK_ALPHA)
+    local own, c = bar.backLook, UF.colors
+    local a = own and own.alpha or UF.BackAlpha()
+    local mode = own and own.mode or (c and c.backMode)
+    local color = own and own.color or (c and c.backColor)
+    if mode == "custom" and type(color) == "table" then
+        back:SetVertexColor(color[1], color[2], color[3], a)
     else
-        local k = c and c.backBrightness or Style.BAR_BACK_DIM
-        back:SetVertexColor(r * k, g * k, b * k, Style.BAR_BACK_ALPHA)
+        local k = own and own.bright or (c and c.backBrightness) or Style.BAR_BACK_DIM
+        back:SetVertexColor(r * k, g * k, b * k, a)
     end
 end
 
@@ -139,16 +143,8 @@ end
 -- brightness.
 function UF.SetBarColor(bar, r, g, b)
     bar:SetStatusBarColor(r, g, b, 1)
-    local back = Style.BarBack(bar)
-    if back then
-        local c = UF.colors
-        if c and c.backMode == "custom" and type(c.backColor) == "table" then
-            back:SetVertexColor(c.backColor[1], c.backColor[2], c.backColor[3], Style.BAR_BACK_ALPHA)
-        else
-            local k = c and c.backBrightness or Style.BAR_BACK_DIM
-            back:SetVertexColor(r * k, g * k, b * k, Style.BAR_BACK_ALPHA)
-        end
-    end
+    Style.NoteFillRGB(bar:GetStatusBarTexture(), r, g, b)
+    UF.SetBackColor(bar, r, g, b)
 end
 
 -- Gradient mode: the fill color for the unit's current health.
@@ -243,13 +239,18 @@ function UF.PaintHealth(f, r, g, b, pct)
     elseif mode == "dark" then
         local d = UF.DARK_FILL
         f.health:SetStatusBarColor(d[1], d[2], d[3], 1)
+        Style.NoteFillRGB(f.health:GetStatusBarTexture(), d[1], d[2], d[3])
+        -- Dark: the missing health in the unit's full color, unless the
+        -- frame's page gives the empty part its own look.
         local back = Style.BarBack(f.health)
-        if back then back:SetVertexColor(r, g, b, Style.BAR_BACK_ALPHA) end
+        if f.health.backLook then UF.SetBackColor(f.health, r, g, b)
+        elseif back then back:SetVertexColor(r, g, b, UF.BackAlpha()) end
     else
         -- Dark, plain background. The fill follows the health.
         UF.SetBarColor(f.health, Style.Neutral())
         if pct then
             f.health:SetStatusBarColor(Health.GradientAt(pct / 100))
+            Style.NoteFillRGB(f.health:GetStatusBarTexture(), Health.GradientAt(pct / 100))
         else
             UF.ApplyGradient(f)
         end

@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Bags", "Drag the bag's bottom-right corner to make it wider or narrower (the bank too)" },
+            { "Unit frames", "Give each frame's empty health and power bar its own color and opacity, on the frame's own page" },
             { "Unit frames", "Cast bars can angle their left end too, so a target cast bar under the target frame can match its angle" },
             { "General", "Bar styles: your health, power, cast and swing bars can come alive, their colors rolling slowly along them (Flow) or surging with every heal and hit (Tide), with your own colors, speed and strength" },
         },

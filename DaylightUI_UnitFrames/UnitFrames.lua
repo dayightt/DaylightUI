@@ -1135,20 +1135,50 @@ end
 -- Also applies the Colors page's empty part opacity (colors.backAlpha) to the
 -- frame's own dark inside. Below Style.BAR_BACK_ALPHA (the default) both thin
 -- together, so the world shows through the missing health and power, like the
--- classic UI. The bar backgrounds take it as their own alpha, under whatever
--- color they're painted (UF.SetBarColor, gradients, Dark mode).
+-- classic UI. The bar backgrounds are painted at it (UF.SetBackColor, used by
+-- gradients and Dark mode too) unless the frame's page gives them their own.
 function UF.BackAlpha()
     local a = UF.colors and tonumber(UF.colors.backAlpha)
     if not a then return Style.BAR_BACK_ALPHA end
     return math.max(0, math.min(1, a))
 end
 
-function UF.ApplyBack(f, s)
+-- A frame's own empty-part look for one bar ("Health" or "Power"), or nil
+-- when its page leaves it to the Colors page.
+function UF.BackLook(cfg, bar)
+    local mode = type(cfg) == "table" and cfg["back" .. bar]
+    if mode ~= "dim" and mode ~= "custom" then return nil end
+    local alpha = tonumber(cfg["back" .. bar .. "Alpha"]) or Style.BAR_BACK_ALPHA
+    local color = cfg["back" .. bar .. "Color"]
+    return { mode = mode, color = type(color) == "table" and color or nil,
+             bright = tonumber(cfg["back" .. bar .. "Bright"]) or Style.BAR_BACK_DIM,
+             alpha = math.max(0, math.min(1, alpha)) }
+end
+
+-- Every power bar the frame may show (inside, on its own, Ribbon's line), so
+-- the look is there whichever one PowerBar.Pick hands out later.
+local function powerBars(f)
+    local list, seen = {}, {}
+    local function add(bar)
+        if type(bar) == "table" and not seen[bar] then seen[bar] = true; list[#list + 1] = bar end
+    end
+    add(f.power)
+    add(type(f.insidePower) == "table" and f.insidePower.power)
+    add(type(f.freePower) == "table" and type(f.freePower.set) == "table" and f.freePower.set.power)
+    add(type(f.line) == "table" and type(f.line.set) == "table" and f.line.set.power)
+    return list
+end
+
+-- The backs' opacity rides in their vertex color (UF.SetBackColor): a texture
+-- has one alpha in this client, so SetAlpha and the color's alpha overwrite
+-- each other. The frame's repaint after a layout puts it on.
+function UF.ApplyBack(f, s, cfg)
     local a = UF.BackAlpha()
-    local k = math.min(1, a / Style.BAR_BACK_ALPHA)
-    for _, bar in ipairs({ f.health or false, f.power or false }) do
-        local back = bar and Style.BarBack(bar)
-        if back then back:SetAlpha(k) end
+    local parts = { { "Health", { f.health } }, { "Power", powerBars(f) } }
+    for _, part in ipairs(parts) do
+        local look = UF.BackLook(cfg, part[1])
+        for _, bar in ipairs(part[2]) do bar.backLook = look end
+        if look and #part[2] > 0 then a = math.min(a, look.alpha) end
     end
     if s then
         local clear = a < Style.BAR_BACK_ALPHA and math.min(Style.BACKGROUND_ALPHA, a) or nil
@@ -1180,7 +1210,7 @@ end
 function UF.ApplyShell(f, cfg)
     local s = Style.GetShell(f)
     if not s then return end
-    UF.ApplyBack(f, s)
+    UF.ApplyBack(f, s, cfg)
     local own = type(cfg.shell) == "table" and cfg.shell.own == true and cfg.shell or nil
     local base = f.spec.shell or {}   -- none for the personal display's body
     s.opts.borderPx = own and tonumber(own.borderPx) or base.borderPx
