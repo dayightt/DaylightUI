@@ -1546,7 +1546,12 @@ T.test("bags: the search joins terms: & all, | any, ! not; binding, item level a
     T.isnil(S.Parse(" ! & | "), "nothing but joins: no search")
     T.truthy(m("food; boe", bread)); T.truthy(m("food;boe", boe)); T.falsy(m("food; boe", mine), "; is | too")
     T.truthy(m("weapon & set; food", bread), "& binds tighter than ;")
-    T.truthy(S.HELP:find("; works like |", 1, true), "the search's help teaches ;")
+    local help = {}
+    local tip = {}
+    function tip:AddLine(text) help[#help + 1] = text end
+    function tip:AddDoubleLine() end
+    S.Tip(tip)
+    T.truthy(table.concat(help, "\n"):find("; works like |", 1, true), "the search's help teaches ;")
 end)
 
 T.test("bags: the tool row is flat icons in Daylight UI's own art", function()
@@ -7829,4 +7834,51 @@ T.test("bags: eased layouts always land where a plain layout would", function()
             end
         end
     end
+end)
+
+T.test("bags: the search tooltip lists what to type, one labeled row each, with a gap between groups", function()
+    local ns = login()
+    local S = ns.Search
+    local lines = {}
+    local tip = { SetMinimumWidth = function(self, w) self.minW = w end }
+    function tip:AddLine(text, r, g, b, wrap) lines[#lines + 1] = { text = text, wrap = wrap } end
+    function tip:AddDoubleLine() end
+    S.Tip(tip)
+    local function plain(i) return (lines[i].text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    T.eq(lines[1].text, (_G.SEARCH or "Search"), "the title")
+    T.eq(plain(2), "Type a name or a keyword. You can combine several.", "what to do first")
+    T.eq(plain(3):match("^[^:]+"), (_G.TYPE or "Type"), "the game's own word for Type")
+    T.truthy(plain(3):find("gear, weapon, armor", 1, true))
+    T.eq(plain(4), "Binding: boe (binds on equip), bou (binds on use), soulbound")
+    T.eq(plain(5), "Equipment set: set, or the set's name")
+    T.truthy(plain(7):find("poor, common, uncommon, rare, epic, legendary", 1, true))
+    T.eq(plain(8), "Compare: q>rare, q>=uncommon, q<epic")
+    T.eq(plain(9), "Item level: ilvl>20, ilvl<=10, ilvl20-30")
+    T.eq(lines[10].text, " ", "a gap between the things to type and how to join them")
+    T.eq(plain(11), "Combine terms: & means all, | means any, ! means not")
+    T.eq(plain(12), "Example: boe & q>common, food | potion, gear & !set")
+    T.eq(lines[13].text, " ")
+    T.truthy(lines[14].text:find("Any other word searches names", 1, true))
+    T.truthy(lines[#lines].text:find("; works like |", 1, true))
+    T.truthy(lines[3].text:find("|c", 1, true), "the label is colored")
+    T.truthy(lines[3].wrap, "rows wrap")
+    T.eq(tip.minW, S.TIP_WIDTH, "wide enough")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: the search tooltip shows the player's own keywords, the ones the box accepts", function()
+    local ns = login()
+    local S = ns.Search
+    local saved = { potion = S.WORD.potion, common = S.WORD.common, food = S.WORD.food, set = S.WORD.set }
+    rawset(S.WORD, "potion", "poción"); rawset(S.WORD, "common", "común"); rawset(S.WORD, "food", "comida"); rawset(S.WORD, "set", "conjunto")
+    local lines = {}
+    local tip = {}
+    function tip:AddLine(text) lines[#lines + 1] = text end
+    function tip:AddDoubleLine() end
+    S.Tip(tip)
+    local all = table.concat(lines, "\n")
+    T.truthy(all:find("comida, bebida", 1, true) or all:find("comida, drink", 1, true), "kinds in Spanish")
+    T.truthy(all:find("poción", 1, true), "with its accent")
+    T.truthy(all:find("boe & q>común, comida | poción, gear & !conjunto", 1, true), "the example uses them")
+    for k, v in pairs(saved) do rawset(S.WORD, k, v) end
 end)

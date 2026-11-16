@@ -59,14 +59,8 @@ for name, q in pairs(Search.QUALITY) do
     K[name] = function(f) return f.quality == q end
 end
 
--- Keyword list for the search box's tooltip.
-Search.HELP = L["Kinds: gear, weapon, armor, consumable, food, drink, potion, reagent, tradegoods, recipe, key, container, quest, junk\n"
-    .. "Binding: boe, bou, soulbound. In an equipment set: set, or the set's name. Locked: locked\n"
-    .. "Quality: poor, common, uncommon, rare, epic, legendary, or q>rare, q>=uncommon, q<epic\n"
-    .. "Item level: ilvl>20, ilvl<=10, ilvl20-30\n"
-    .. "Join with & (all) or | (any), ! for not: boe & q>common, food | potion, gear & !set\n"
-    .. "A word that isn't one of these finds names. Start with # for the keyword only."]
-    .. "\n" .. L["; works like |, so one search can list several words: ore; bar; stone"]
+-- The search box's tooltip (Search.Tip, below the word list it reads from).
+Search.TIP_WIDTH = 380
 
 local function trim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 
@@ -91,6 +85,8 @@ Search.FIELDS = { q = "quality", quality = "quality", ilvl = "itemLevel", level 
 -- Search words in the player's language. A translation gives the same words in
 -- the same order, one word each; "a/b" lets either spelling work (poción/pocion).
 -- The English list is written twice so the translation key stays a plain string.
+-- English keyword -> the player's first spelling, for the tooltip (itself if none).
+Search.WORD = setmetatable({}, { __index = function(_, k) return k end })
 do
     local english, i = {}, 0
     for w in string.gmatch("gear weapon armor consumable food drink potion reagent tradegoods recipe key container bag quest junk soulbound set locked poor common uncommon rare epic legendary quality level", "%S+") do english[#english + 1] = w end
@@ -98,6 +94,7 @@ do
         i = i + 1
         local en = english[i]
         if not en then break end
+        Search.WORD[en] = string.match(string.lower(spellings), "[^/]+")
         for w in string.gmatch(string.lower(spellings), "[^/]+") do
             if w ~= en then
                 if K[en] and not K[w] then K[w] = K[en] end
@@ -106,6 +103,39 @@ do
             end
         end
     end
+end
+
+-- Fills the search box's tooltip. One row per thing you can type, as "Label: what
+-- fits" with the label in the label color, a blank line between the groups, and
+-- the keywords in the player's own language (the words the box accepts, from the
+-- list above, so the help can't drift from what works). boe, bou, q, ilvl and
+-- the operators are the same in every language. Meaning never rests on color
+-- alone: every row has its label in words.
+function Search.Tip(tip)
+    local DUI = DaylightUI
+    local Tips, W = DUI.Tips, Search.WORD
+    local function list(...) return table.concat({ ... }, ", ") end
+    local hex = DUI.Win.Parts.Hex(Tips.LABEL)
+    local function row(label, value) Tips.Text(hex .. label .. ":|r " .. value) end
+    Tips.Clear()
+    Tips.Title(SEARCH or L["Search"])
+    Tips.Sub(L["Type a name or a keyword. You can combine several."])
+    row(TYPE or L["Type"], list(W.gear, W.weapon, W.armor, W.consumable, W.food, W.drink, W.potion, W.reagent,
+        W.tradegoods, W.recipe, W.key, W.container, W.quest, W.junk))
+    row(L["Binding"], string.format(L["boe (binds on equip), bou (binds on use), %s"], W.soulbound))
+    row(L["Equipment set"], string.format(L["%s, or the set's name"], W.set))
+    row(LOCKED or L["Locked"], W.locked)
+    row(QUALITY or L["Quality"], list(W.poor, W.common, W.uncommon, W.rare, W.epic, W.legendary))
+    row(L["Compare"], list("q>" .. W.rare, "q>=" .. W.uncommon, "q<" .. W.epic))
+    row(L["Item level"], "ilvl>20, ilvl<=10, ilvl20-30")
+    Tips.Gap()
+    row(L["Combine terms"], L["& means all, | means any, ! means not"])
+    row(L["Example"], string.format("boe & q>%s, %s | %s, %s & !%s", W.common, W.food, W.potion, W.gear, W.set))
+    Tips.Gap()
+    Tips.Text(L["Any other word searches names. Start with # to match the keyword only."])
+    Tips.Text(L["; works like |, so one search can list several words: ore; bar; stone"])
+    Tips.Flush(tip)
+    if tip.SetMinimumWidth then tip:SetMinimumWidth(Search.TIP_WIDTH) end
 end
 
 -- Turns one term (lowercase, trimmed, non-empty) into a test on item facts.
