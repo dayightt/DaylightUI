@@ -296,7 +296,10 @@ end
 local function layoutRow(list, y, x0, room)
     x0 = x0 or Listing.EDGE
     local x, top = x0, y
-    local right = (Listing.page:GetWidth() or 0) - Listing.EDGE - (room or 0)
+    -- The width the page is about to have, not the one it has (the first open is still at the old size).
+    local page = Listing.page
+    local wide = (page:GetWidth() or 0) + (Win.GoalGrowth and Win.GoalGrowth(page) or 0)
+    local right = wide - Listing.EDGE - (room or 0)
     for _, b in ipairs(list) do
         if b:IsShown() then
             -- Tight chip padding so four playstyles fit beside their label.

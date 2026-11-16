@@ -22,6 +22,10 @@ Rows.BADGES = 5       -- max role badges per row (a dungeon's five)
 Rows.MEMBER = 22      -- member row in an opened group
 Rows.MEMBERS = 5      -- members listed by name; bigger groups get counts
 Rows.BUTTON = 24
+Rows.ACTION_W = 24                          -- a row's quick-action button (Invite on a friend), at its right end
+Rows.ACTION_INSET = 8                   -- from the row's right edge
+Rows.ACTION_ICON = "ui-data-social.png"
+Rows.LINE_GAP = 3     -- space between a row's lines
 Rows.DOT = 7          -- status dot
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
@@ -99,6 +103,21 @@ local function makeRow(parent)
     b.note:SetWordWrap(false)
     b.note:SetPoint("TOPLEFT", b.sub, "BOTTOMLEFT", 0, -3)
     Style.InkText(b.note, "TEXT")
+    -- A quick action at the row's right end (Invite on a friend), shown only when the
+    -- row's spec has one: W.IconButton (tan, accent on hover, its name after a short
+    -- rest). The row's own light follows the mouse onto it, so the row doesn't go dark
+    -- under its own button.
+    local act = W().IconButton(b, Rows.ACTION_ICON,
+        function() return b.spec and b.spec.action and b.spec.action.tip end,
+        function()
+            local a = b.spec and b.spec.action
+            if a and a.onClick then a.onClick(b) end
+        end, Rows.ACTION_W)
+    act:SetPoint("RIGHT", b, "RIGHT", -Rows.ACTION_INSET, 0)
+    act:HookScript("OnEnter", function() Win.Parts.Light(b.hi, true) end)
+    act:HookScript("OnLeave", function() Win.Parts.Light(b.hi, b:IsMouseOver() == true) end)
+    act:Hide()
+    b.action = act
     b:SetScript("OnEnter", function(self)
         Win.Parts.Light(self.hi, true)
         if self.spec and self.spec.onEnter then self.spec.onEnter(self) end
@@ -167,6 +186,9 @@ function Rows.Row(stack, spec)
     -- Text stops short of whatever is on the right.
     local room = 10
     if n > 0 then room = room + n * (W().ROLE + 3) end
+    local action = spec.action ~= nil
+    b.action:SetShown(action)
+    if action then room = room + Rows.ACTION_W + Rows.ACTION_INSET - 4 end
     local vw = b.value:GetStringWidth()
     if (spec.value or "") ~= "" and type(vw) == "number" then room = math.max(room, vw + 18) end
     local left = 8
@@ -176,7 +198,17 @@ function Rows.Row(stack, spec)
     end
     b.dot:SetShown(spec.dot ~= nil)
     b.name:ClearAllPoints()
-    if b.sub:IsShown() then b.name:SetPoint("TOPLEFT", b, "TOPLEFT", left, -(h - (spec.note and 46 or 30)) / 2 - 2)
+    if b.sub:IsShown() then
+        -- The lines as one block, centered on the row, so the wash has the same room
+        -- above and below (the name was pinned for a block of fixed height, and a
+        -- sub sat on the bottom edge).
+        local function line(fs, size)
+            local v = fs:GetStringHeight()
+            return (type(v) == "number" and v > 0) and v or size + 2
+        end
+        local block = line(b.name, Style.SIZE.body) + Rows.LINE_GAP + line(b.sub, Style.SIZE.small)
+        if spec.note then block = block + Rows.LINE_GAP + line(b.note, Style.SIZE.small) end
+        b.name:SetPoint("TOPLEFT", b, "TOPLEFT", left, -math.floor((h - block) / 2 + 0.5))
     else b.name:SetPoint("LEFT", b, "LEFT", left, 0) end
     b.name:SetPoint("RIGHT", b, "RIGHT", -room, 0)
     b.sub:SetPoint("RIGHT", b, "RIGHT", -room, 0)
