@@ -234,6 +234,7 @@ function UnlockBox.Layout()
         })
         UnlockBox.frame, UnlockBox.rows = UnlockBox.box.frame, UnlockBox.box.rows
         UnlockBox.frame:EnableMouse(true)
+        DUI.Movers.DragBar(UnlockBox.frame)
     end
     UnlockBox.box.Layout()
     TestBox.Place()

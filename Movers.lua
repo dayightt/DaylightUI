@@ -1265,10 +1265,71 @@ local function pill()
     return p
 end
 
+-- The Lock bar can be dragged by its edges, and the area box by its
+-- background. The box and the Finish setup button hang under the bar, so
+-- dragging either moves them all. The spot is kept account-wide as an offset
+-- from the top middle of the screen, so a UI scale change can't lose it.
+local function barSpot()
+    local spot = DUI.DB.Root().unlockBarSpot
+    if type(spot) == "table" and type(spot[1]) == "number" and type(spot[2]) == "number" then
+        return spot[1], spot[2]
+    end
+    return 0, -16
+end
+
+local function placeBar(bar, y)
+    local x, home = barSpot()
+    bar:ClearAllPoints()
+    bar:SetPoint("TOP", UIParent, "TOP", x, y or home)
+end
+
+-- Folding slides the bar (and what hangs under it) up into the tab at the top
+-- of the screen as it fades, and opening slides it back down to its spot.
+local TAB_Y = -4
+local slideKey = {}
+local function slideBar(bar, open)
+    local _, home = barSpot()
+    local from = bar.slideY or (open and TAB_Y or home)
+    local M = DUI.Motion
+    M.Tween(slideKey, from, open and home or TAB_Y, M.NORMAL, function(y)
+        bar.slideY = y
+        placeBar(bar, y)
+    end, function()
+        bar.slideY = nil
+        placeBar(bar)
+    end)
+end
+
+function Movers.DragBar(handle)
+    local function stop()
+        local bar = lockButton and lockButton.bar
+        if not (bar and bar.dragging) then return end
+        bar.dragging = nil
+        bar:StopMovingOrSizing()
+        bar:SetUserPlaced(false)
+        local l, t, w = bar:GetLeft(), bar:GetTop(), bar:GetWidth()
+        if type(l) == "number" and type(t) == "number" and type(w) == "number" then
+            DUI.DB.Root().unlockBarSpot = { l + w / 2 - UIParent:GetWidth() / 2, t - UIParent:GetHeight() }
+        end
+        placeBar(bar)
+    end
+    handle:RegisterForDrag("LeftButton")
+    handle:SetScript("OnDragStart", function()
+        local bar = lockButton and lockButton.bar
+        if not (bar and Movers.unlocked) or bar.slideY then return end
+        bar.dragging = true
+        bar:StartMoving()
+    end)
+    handle:SetScript("OnDragStop", stop)
+    handle:HookScript("OnHide", stop)
+end
+
 local function showLockButton(show)
     if show and not lockButton then
         local bar = pill()
-        bar:SetPoint("TOP", UIParent, "TOP", 0, -16)
+        bar:SetMovable(true)
+        bar:SetClampedToScreen(true)
+        placeBar(bar)
         bar:SetHeight(30 + 2 * PILL_PAD)
         lockButton = DUI.Widgets.Button(bar, L["Lock"], 30)
         lockButton:SetFrameLevel(bar:GetFrameLevel() + 2)
@@ -1310,7 +1371,7 @@ local function showLockButton(show)
 
         -- The tab that brings it back, small and at the very top.
         local tab = pill()
-        tab:SetPoint("TOP", UIParent, "TOP", 0, -4)
+        tab:SetPoint("TOP", UIParent, "TOP", 0, TAB_Y)
         tab:SetHeight(22 + 2 * PILL_PAD)
         local unfold = DUI.Widgets.Button(tab, L["Show"], 22)
         unfold:SetFrameLevel(tab:GetFrameLevel() + 2)
@@ -1338,6 +1399,8 @@ local function showLockButton(show)
         setup:HookScript("OnLeave", DUI.Widgets.HideTooltip)
         setup:SetScript("OnClick", function() DUI.Installer.OpenToSave() end)
         lockButton.setup = setup
+        Movers.DragBar(bar)
+        Movers.DragBar(under)
     end
     if lockButton then
         local parts = { lockButton.bar, lockButton.tab, lockButton.setup.bar }
@@ -1347,6 +1410,9 @@ local function showLockButton(show)
             -- Locking puts everything away at once.
             for _, p in ipairs(parts) do p:Hide(); p:SetAlpha(1) end
             for _, c in ipairs(children) do c:Hide() end
+            DUI.Motion.Tween(slideKey, 0, 0, 0)
+            lockButton.bar.slideY, lockButton.folded = nil, nil
+            placeBar(lockButton.bar)
             return
         end
         -- Folded, only the small tab shows. Each pill eases in or out, and its
@@ -1355,7 +1421,12 @@ local function showLockButton(show)
         local setup = bar and DUI.DB.Unsaved() and true or false
         for _, child in ipairs(children) do child:SetShown(child ~= lockButton.setup or setup) end
         local M = DUI.Motion
-        M.AlphaTo(lockButton.bar, bar and 1 or 0, M.FAST, not bar)
+        -- Slides only when it folds or opens, not when unlock mode starts.
+        local folded = not bar
+        local slides = lockButton.folded ~= nil and lockButton.folded ~= folded
+        lockButton.folded = folded
+        if slides then slideBar(lockButton.bar, bar) end
+        M.AlphaTo(lockButton.bar, bar and 1 or 0, slides and M.NORMAL or M.FAST, not bar)
         M.AlphaTo(lockButton.tab, bar and 0 or 1, M.FAST, bar)
         M.AlphaTo(lockButton.setup.bar, setup and 1 or 0, M.FAST, not setup)
         if bar then

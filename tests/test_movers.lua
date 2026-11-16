@@ -146,6 +146,40 @@ T.test("the Snap to frames button beside Snap to grid flips the magnet and shows
     T.falsy(mag:IsShown(), "hidden again once locked")
 end)
 
+T.test("the Lock bar and the area box drag the bar, and its spot is kept", function()
+    local DUI = stub.Load()
+    demo(DUI)
+    DUI.DB.Root().unlockBarSpot = { 120, -60 }
+    DUI.Movers.Unlock()
+    local bar = DUI.Movers.LockButton().bar
+    local _, _, _, x, y = bar:GetPoint(1)
+    T.eq(x, 120, "placed at the kept spot")
+    T.eq(y, -60)
+    DUI.DB.Root().unlockBarSpot = nil
+    DUI.TestBox.Unlock.Layout()
+    local box = DUI.TestBox.Unlock.frame
+    box:GetScript("OnDragStart")(box)
+    T.truthy(bar.dragging, "dragging the box moves the bar")
+    -- Where the fake game says the bar was let go.
+    bar.GetLeft, bar.GetTop = function() return 300 end, function() return 500 end
+    box:GetScript("OnDragStop")(box)
+    T.falsy(bar.dragging)
+    local spot = DUI.DB.Root().unlockBarSpot
+    T.eq(type(spot), "table", "the new spot is saved")
+    T.eq(spot[2], 500 - UIParent:GetHeight(), "kept as an offset from the top")
+    -- Hide slides it up into the tab, Show back down to the dragged spot.
+    DUI.Movers.SetBarHidden(true)
+    DUI.Movers.SetBarHidden(false)
+    for _ = 1, 30 do
+        local d = DUI.Motion.Driver()
+        if d then stub.RunOnUpdate(d, 0.05) end
+    end
+    _, _, _, x, y = bar:GetPoint(1)
+    T.eq(y, spot[2], "back at its spot after folding and opening")
+    T.isnil(bar.slideY)
+    DUI.Movers.Lock()
+end)
+
 T.test("a mover whose frame isn't in use (active says no) gets no handle when unlocked", function()
     local DUI = stub.Load()
     local f = CreateFrame("Frame", nil, UIParent)

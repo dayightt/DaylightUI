@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        changed = {
+            { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
+        },
+    },
     { version = "1.9.0", date = "2026-11-16", summary = "Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.",
         new = {
             { "General", "Bar animations: health, power, cast, swing and Cooldown Manager bars that roll, surge, spark or chase a comet" },
