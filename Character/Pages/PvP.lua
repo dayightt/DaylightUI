@@ -13,8 +13,11 @@ local PvP = {}
 ns.PvP = PvP
 
 PvP.FACTION = 2800
-PvP.EMBLEM = "Interface\\PvPRankBadges\\PvPRank%02d"
-PvP.EMBLEM_SIZE = 96
+-- Our own badges (Media/pvp-rank-NN.png), white so they take the accent: one to three chevrons,
+-- a ring from the fourth rank, and a star more for each three after that.
+PvP.EMBLEM = "pvp-rank-%02d.png"
+PvP.LAST_BADGE = 14
+PvP.EMBLEM_SIZE = 112
 PvP.LEFT_W = 300
 PvP.CARD = { 1, 1, 1, 0.035 }   -- a card's fill
 PvP.PAD = 14                    -- the same room on all four sides of a card
@@ -234,11 +237,16 @@ function PvP.Refresh(page)
     local d = PvP.Read()
     if not d then return end
     local key, rgb = ns.List.OwnBar()
-    -- With no rank yet the first rank's badge stands there grayed, so the card isn't just a word.
+    -- With no rank yet the first rank's badge stands there faint, so the card isn't just a word.
     page.emblem:Show()
-    page.emblem:SetTexture(string.format(PvP.EMBLEM, math.max(d.rank, 1)))
-    page.emblem:SetDesaturated(d.rank == 0)
-    page.emblem:SetAlpha(d.rank == 0 and 0.35 or 1)
+    page.emblem:SetTexture(DUI.MEDIA .. string.format(PvP.EMBLEM, math.min(math.max(d.rank, 1), PvP.LAST_BADGE)))
+    if d.rank > 0 then
+        page.emblem:SetVertexColor(Style.Accent())   -- read now: follows an accent switch
+        page.emblem:SetAlpha(1)
+    else
+        page.emblem:SetVertexColor(1, 1, 1)
+        page.emblem:SetAlpha(0.2)
+    end
     page.rankName:SetText(d.name)
     Style.InkText(page.rankName, "VALUE")
     Style.InkText(page.rankSub, "pop")   -- read at paint time: follows an accent change

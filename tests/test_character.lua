@@ -1803,7 +1803,8 @@ T.test("character pvp: the tab shows with no rank yet", function()
     T.eq(ns.window.current, "pvp")
     T.eq(page.rankName:GetText(), PVP_RANK_0_NAME or "No rank yet")
     T.truthy(page.emblem:IsShown(), "the first rank's badge stands there, so the card isn't just a word")
-    T.near(page.emblem:GetAlpha(), 0.35, 0.001, "grayed")
+    T.near(page.emblem:GetAlpha(), 0.2, 0.001, "faint")
+    T.truthy(page.emblem:GetTexture():find("pvp-rank-01.png", 1, true), "the first rank's badge")
     T.eq(page.blocks[1].main:GetText(), "Private")
     local _, ns2 = load({ pvp = PVP })
     T.eq(ns2.Window.TabShown("pvp"), true)
@@ -3106,4 +3107,22 @@ T.test("character pvp: soft cards, the same room on all four sides, the left as 
     -- The labels are tan; the accent is for numbers.
     local r, g, bl = b.label.__textColor[1], b.label.__textColor[2], b.label.__textColor[3]
     T.rgb({ r, g, bl }, DaylightUI.Style.INK.LABEL)
+end)
+
+T.test("character pvp: the badge is our own, one for each rank, in the accent", function()
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    T.truthy(page.emblem:GetTexture():find("pvp-rank-03.png", 1, true), "rank 3's badge")
+    T.near(page.emblem:GetAlpha(), 1, 0.001)
+    DaylightUI:Set("general", "accent", "daylight")    -- a one-color accent gives a plain vertex color
+    ns.PvP.Refresh(page)
+    local r, g, b = page.emblem:GetVertexColor()
+    T.rgb({ r, g, b }, { DaylightUI.Style.Accent() }, "tinted in the accent")
+    -- Past the last drawn badge, the last one.
+    local high = {}
+    for k, v in pairs(PVP) do high[k] = v end
+    high.renownLevel = 20
+    local _, ns2 = load({ pvp = high })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.truthy(page2.emblem:GetTexture():find("pvp-rank-14.png", 1, true))
 end)
