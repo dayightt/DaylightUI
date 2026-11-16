@@ -158,7 +158,7 @@ Kinds.ZONE = { [1] = "general", [2] = "trade", [22] = "defense", [26] = "lfg", [
 
 -- The kind the game's id gives a channel name ("DefensaLocal", "General: Vallefresno"
 -- or "General - Elwynn Forest"), or nil if the game can't say or the id isn't known.
-local function kindOfZone(base)
+function Kinds.ZoneKind(base)
     local C = C_ChatInfo
     -- The game errors on a secret name, so a secret one has no id.
     if type(base) ~= "string" or secret(base) then return nil end
@@ -185,7 +185,7 @@ function Kinds.OfChannel(base)
     -- Strip " - Zone" and the number the game appends to some world channel names
     -- ("LookingForGroup 84").
     local name = string.lower(string.gsub(string.gsub(base, "%s*%-.*$", ""), "%s+%d+$", ""))
-    kind = (plain and kindOfZone(base)) or Kinds.CHANNELS[name] or ("ch:" .. name)
+    kind = (plain and Kinds.ZoneKind(base)) or Kinds.CHANNELS[name] or ("ch:" .. name)
     if plain then ofName[base] = kind end
     return kind
 end

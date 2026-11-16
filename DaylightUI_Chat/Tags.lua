@@ -78,12 +78,43 @@ local function ownTag(num, name)
     return kind and Tags.own[kind] or nil
 end
 
--- A world channel's standard tag from its kind, which the game's channel id decides
--- (Kinds.OfChannel), so it doesn't depend on the channel's name in your language.
+-- The letters of a channel's name as the game gives it: the first letter of one word,
+-- or the first of each word of a longer name, where a capital inside a word starts a
+-- new one ("DefensaLocal" -> DL, "Comercio local" -> CL, "General" -> G). Short
+-- words ("de", "la") are left out unless they're all there is. nil for no letters.
+function Tags.Initials(name)
+    if type(name) ~= "string" or secret(name) then return nil end
+    local text = string.gsub(name, "(%l)(%u)", "%1 %2")
+    text = string.gsub(string.gsub(text, "[%(%)%-:%d]", " "), "%s+", " ")
+    local words = {}
+    for w in string.gmatch(text, "%S+") do
+        local first = string.match(w, "^[%z\1-\127\194-\244][\128-\191]*")
+        local n = 0
+        for _ in string.gmatch(w, "[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end
+        words[#words + 1] = { first = first, long = n > 2 }
+    end
+    local out, any = {}, false
+    for _, w in ipairs(words) do if w.long then any = true end end
+    for _, w in ipairs(words) do
+        if w.long or not any then out[#out + 1] = string.upper(w.first) end
+    end
+    if #out == 0 then return nil end
+    return table.concat(#out > 1 and out or { out[1] })
+end
+
+-- A world channel's standard tag. A channel the game gives an id (Kinds.ZONE: General,
+-- Trade, Local Defense, Looking For Group, Trade (Local)) is recognized in any language,
+-- and its tag is the letters of its name in yours. Any other, or one the game can't
+-- name, keeps the kind's own tag.
 function Tags.OfName(name)
     if type(name) ~= "string" or secret(name) then return nil end
-    local kind = ns.Kinds.OfChannel(string.match(name, "^(.-) %- ") or name)
-    return Tags.KIND_TAGS[kind]
+    local base = string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", "")
+    local Kinds = ns.Kinds
+    if Kinds.ZoneKind(base) then
+        local own = Tags.Initials(string.gsub(base, "%s*:.*$", ""))
+        if own then return own end
+    end
+    return Tags.KIND_TAGS[Kinds.OfChannel(base)]
 end
 
 -- "[1. General - Zone]"
