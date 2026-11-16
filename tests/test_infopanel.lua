@@ -193,6 +193,15 @@ T.test("info panel: the XP bar shows the XP waiting in finished quests, rested a
     T.eq(XP.banked:GetValue(), 700, "right after the fill (300 + 400)")
     T.eq(XP.rested:GetValue(), 1100, "rested runs on past it")
     T.rgb(XP.banked.__barColor, DUI.Style.INK.GOOD, "green: done")
+    -- Both colors can be picked.
+    DUI:Set("InfoPanel", "xp.bankedColor", { 0.9, 0.5, 0.1 })
+    DUI:Set("InfoPanel", "xp.restedColor", { 0.1, 0.6, 0.9 })
+    T.rgb(XP.banked.__barColor, { 0.9, 0.5, 0.1 }, "the picked finished quests color")
+    T.rgb(XP.rested.__barColor, { 0.1, 0.6, 0.9 }, "the picked rested color")
+    T.eq(DUI.Style.INK.GOOD[1] ~= 0.9, true, "the shared green is left alone")
+    DUI:Set("InfoPanel", "xp.bankedColor", nil)
+    DUI:Set("InfoPanel", "xp.restedColor", nil)
+    T.rgb(XP.banked.__barColor, DUI.Style.INK.GOOD, "back to green")
     -- A quest done: it grows; turned in, it shrinks.
     log[3].done = true
     stub.FireEvent("QUEST_LOG_UPDATE")

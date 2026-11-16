@@ -20,6 +20,7 @@ ns.DEFAULTS = {
           customLo = { 0.55, 0.38, 0.12 }, customHi = { 0.98, 0.78, 0.35 },
           ticks = false,        -- 20 segments per level
           banked = true,        -- show XP from completed quests ahead of the fill
+          bankedColor = ink(INK.GOOD), restedColor = { 0.58, 0.32, 0.88 },
           tipSide = "auto",     -- auto | left | right | above | below
           orientation = "horizontal",   -- horizontal | vertical (only when detached)
           ownFade = false,      -- false: fades with the panel; true: uses the fade below

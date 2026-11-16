@@ -13,7 +13,8 @@ local XP = {}
 ns.XP = XP
 
 XP.COLOR = { 0.26, 0.45, 0.95 }
-XP.RESTED = { 0.58, 0.32, 0.88, 1 }     -- rested: purple, seen at a glance
+XP.RESTED_DEFAULT = { 0.58, 0.32, 0.88, 1 }   -- rested: purple, seen at a glance
+XP.RESTED = XP.RESTED_DEFAULT           -- both follow xp.restedColor / xp.bankedColor
 XP.BANKED = Style.INK.GOOD              -- finished quests' XP: green, done and waiting
 XP.GAIN = Style.INK.MONEY               -- the text counting up to a gain wears this
 XP.SHIMMER = { dur = 1.0, alpha = 0.6 }  -- the light along the rested part as you start resting
@@ -536,6 +537,13 @@ function XP.Apply(cfg, T)
         and { lo = cfg.customLo, hi = cfg.customHi } or nil
     XP.ticks = cfg.ticks == true
     XP.showBanked = cfg.banked ~= false
+    -- Fresh tables: the defaults stand in for a missing or broken saved color.
+    local function pick(c, fallback)
+        c = type(c) == "table" and type(c[1]) == "number" and c or fallback
+        return { c[1], c[2], c[3], 1 }
+    end
+    XP.RESTED = pick(cfg.restedColor, XP.RESTED_DEFAULT)
+    XP.BANKED = pick(cfg.bankedColor, Style.INK.GOOD)
     XP.tipSide = cfg.tipSide or "auto"
     -- With the bar off, the game's stays hidden too unless the player asks for it.
     local wasHidden = XP.hideGame
