@@ -73,12 +73,15 @@ local function locate(loc)
         return d.isBank and "bank" or "bags", link
     end
     if d.isBank then return "bank" end
-    if d.isPlayer then return "worn", d.slot and GetInventoryItemLink("player", d.slot) or nil end
+    if d.isPlayer then return "worn", d.slot and GetInventoryItemLink("player", d.slot) or nil, d.slot end
 end
 
 local function itemOf(key, slot, itemID, loc)
     local e = { key = key, slot = slot, itemID = itemID, label = ns.Gear.LABEL[key] or key }
-    e.where, e.link = locate(loc)
+    e.where, e.link, e.wornIn = locate(loc)
+    -- Putting the set on changes this slot: its item is in a bag, the bank
+    -- or another slot (a ring on the other finger).
+    e.swaps = e.where == "bags" or e.where == "bank" or (e.where == "worn" and e.wornIn ~= nil and e.wornIn ~= slot)
     if C_Item and type(C_Item.GetItemInfo) == "function" then
         local ok, name, link, quality, _, _, _, _, _, _, icon = pcall(C_Item.GetItemInfo, e.link or itemID)
         if ok then
@@ -364,6 +367,15 @@ function Sets.Preview(set)
         key = tostring(set.id)
         for _, e in ipairs(set.items) do key = key .. ":" .. e.itemID end
     end
+    -- The character page's slots that the set would change light up.
+    local swap = {}
+    if set and not set.worn then
+        local marks = Sets.Marks(set.id)
+        for _, e in ipairs(set.items) do
+            if e.swaps and not marks[e.slot] then swap[e.slot] = true end
+        end
+    end
+    ns.Slots.Swap(swap)
     if key == Sets.previewed then return end
     if Sets.previewed then Model.Redress() end
     Sets.previewed = key
