@@ -1,3 +1,33 @@
+# DaylightUI 1.9.1
+
+Tidier options with tabs and clearer names, bars angled at both ends, and a round of fixes.
+
+## New
+- Unit frames: Cast bars, swing timers, the power bar and the personal display can be angled at both ends, or flipped
+- Tooltip: Quest rewards show how much they sell for, in the quest log and when you hand in
+- Tooltip: Tooltips can use the same background opacity as your windows
+- Info panel: Your own colors for rested XP and for XP from quests ready to turn in
+- Plugins: Other addons can add their own pages to the setup guide
+
+## Changed
+- Options: Tidier options: settings that go together sit together, long pages split into tabs, clearer names, and settings that do nothing are grayed out
+- Unit frames: Your cast bar no longer has a spot between your frame and the target's. If you used it, it stays right there as its own bar
+- Character: A roomier character window, your ammo count in the footer, and a new PvP page with your honor kills and rank
+- Unlock mode: Drag the unlock bar anywhere on screen
+
+## Fixed
+- Cooldown Manager: Group buffs like Battle Shout, and debuffs like Sunder Armor or curses, light up when someone else cast them
+- Edit Mode: No more reload question every time you enter a dungeon or take a boat or zeppelin
+- Nameplates: Big defensives like Divine Shield, Ice Block and Evasion show on enemy players' nameplates
+- Bags: Item counts and gold no longer include characters on another ruleset, like Hardcore
+- Chat: Typing in a channel by its number, like /7, talks in the right channel again
+- Unit frames: Faded frames no longer stay on the AFK screen, and the player frame fades again with both full health and full mana on
+- General: The window background settings no longer undo each other, and bars stop gliding when Motion effects is off
+- Fade: Turning off "Show everything only when something changes" puts each part back to the fade it had
+- Cooldown Manager: Keybind color and short keybinds can be set for the Cooldown Manager on its own
+- Options: Reset page now also resets First and last names
+- Little touches: Macro tooltips in the Daylight UI look, raid marker icons back in their menu, combat text follows Text scale, quest outlines fade with the map, and no more login error in the flight timer
+
 # DaylightUI 1.9.0
 
 Bar animations, an equipment sets panel, detail cards in Social and the group finder, and a long round of fixes.
