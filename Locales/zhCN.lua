@@ -7092,10 +7092,7 @@ L["The bag's picture, name and free slots above the search box. Off, the search 
 L["Your bank, from anywhere."] = "随时随地查看你的银行。"
 
 -- DaylightUI translations from merged zhcn-fork.lua.
-L["%s ago"] = "%s前"
 L["Delete %d extra shards"] = "删除 %d 个多余碎片"
-L["Kinds: gear, weapon, armor, consumable, food, drink, potion, reagent, tradegoods, recipe, key, container, quest, junk\nBinding: boe, bou, soulbound. In an equipment set: set, or the set's name. Locked: locked\nQuality: poor, common, uncommon, rare, epic, legendary, or q>rare, q>=uncommon, q<epic\nItem level: ilvl>20, ilvl<=10, ilvl20-30\nJoin with & (all) or | (any), ! for not: boe & q>common, food | potion, gear & !set\nA word that isn't one of these finds names. Start with # for the keyword only."] = "类型：装备、武器、护甲、消耗品、食物、饮料、药水、材料、商品、配方、钥匙、容器、任务、垃圾\n绑定：装绑、用绑、灵魂绑定。装备方案：set，或方案名称。已锁定：已锁定\n品质：粗糙、普通、优秀、稀有、史诗、传说，或 q>稀有、q>=优秀、q<史诗\n物品等级：ilvl>20、ilvl<=10、ilvl20-30\n用 &（同时满足）或 |（任一匹配）连接，! 表示排除：装绑 & q>普通、食物 | 药水、装备 & !套装\n不属于以上关键词的文字会按名称搜索。以 # 开头时只匹配关键词。"
-L["The '?', the title and the hand-in line."] = "“?”、标题和交付行。"
 
 -- DaylightUI translations from AI translation.
 L["%d spells"] = "%d 个法术"
@@ -7148,7 +7145,7 @@ L["How solid the empty part of this frame's power bar is. Lower lets the world s
 L["How strongly the animation shows over the bar's own fill. Lower blends it in softly."] = "动画覆盖在计量条自身填充上的强度。越低融合得越柔和。"
 L["How the bar moves. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit. By power type picks one that suits mana, rage or energy. Needs Motion effects (General > Appearance)."] = "计量条的动态效果。“流动”让计量条上的颜色沿条滚动；“潮汐”同样滚动，并会在每次治疗和命中时涌动。“按资源类型”会选用适合法力、怒气或能量的效果。需要开启动画效果（综合 > 外观）。"
 L["How the bar moves. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit. Needs Motion effects (General > Appearance)."] = "计量条的移动方式。流动让计量条的颜色沿条滚动；潮汐同样如此，并会随每次治疗和命中涌动。需要动态效果（综合 > 外观）。"
-L["How the bar moves. Flow rolls the bar's colors along it; Tide swells softly through it and surges with every heal and hit. By power type picks one that suits mana, rage or energy. Needs Motion effects (General > Appearance)."] = "计量条的动态效果。流彩会让计量条的颜色沿条身滚动；潮汐会柔和地涨落，并在每次治疗和命中时涌动。按资源类型会选用适合法力、怒气或能量的效果。需要开启动画效果（综合 > 外观）。"
+L["How the bar moves. Flow rolls the bar's colors along it; Tide swells softly through it and surges with every heal and hit. By power type picks one that suits mana, rage or energy. Needs Motion effects (General > Appearance)."] = "计量条的动态效果。流动会让计量条的颜色沿条身滚动；潮汐会柔和地涨落，并在每次治疗和命中时涌动。按资源类型会选用适合法力、怒气或能量的效果。需要开启动画效果（综合 > 外观）。"
 L["How the bar moves. Flow rolls the bar's colors along it; Tide swells softly through it and surges with every heal and hit. Needs Motion effects (General > Appearance)."] = "条的运动方式。流动让颜色沿条滚动；潮汐让它柔和起伏，并在每次治疗和命中时涌动。需要开启动画效果（综合 > 外观）。"
 L["How this spell glows when its other settings ask for it (ready, usable, buff up or missing, time to recast): the game's spell alert ring, or a soft light moving round its edge."] = "当其他设置要求此法术发光时（就绪、可用、增益存在或缺失、可重新施放）的发光方式：游戏的技能警报光环，或沿其边缘移动的柔和光效。"
 L["Left out"] = "已略过"
