@@ -36,7 +36,8 @@ end
 
 -- All of a stream's settings in one card. Search can show a row without its
 -- card, so every label names its stream.
-local function streamCard(id, tab)
+-- lead: rows put above the stream's own, like the button that moves them all.
+local function streamCard(id, tab, lead)
     local path = "sct.streams." .. id .. "."
     local name = CT.STREAMS[id].label
     local function dim() return off() or CT.Get("streams." .. id .. ".on") == false end
@@ -44,7 +45,7 @@ local function streamCard(id, tab)
         item.disabled = dim
         return item
     end
-    return { label = name, tab = tab, items = {
+    local items = {
         { type = "toggle", key = path .. "on", label = "Show the " .. CT.STREAMS[id].word .. " stream", disabled = off,
           desc = "When off, nothing shows here, even for the messages that go to it." },
         r({ type = "dropdown", key = path .. "motion", label = name .. " motion", values = CT.MOTIONS, order = CT.MOTION_ORDER,
@@ -62,7 +63,9 @@ local function streamCard(id, tab)
             desc = "How far a line travels. Stack ignores this." }),
         r({ type = "slider", key = path .. "lines", label = name .. " max shown", min = 3, max = 20, step = 1,
             desc = "How many lines show at once. Past this the oldest line leaves early, so a big pull never floods the screen." }),
-    } }
+    }
+    for i, item in ipairs(lead or {}) do table.insert(items, i, item) end
+    return { label = name, tab = tab, items = items }
 end
 
 local BESIDE_W = 190    -- room for the stream menu and color swatch on each message row
@@ -165,14 +168,14 @@ function CT.Page(Options)
                 row({ type = "toggle", key = "sct.healerNames", label = "Names of who heals you",
                      desc = "The healer's name beside each heal. In a fight the game can hide who it was, so your own heals may show your name too." }),
             } },
-            { label = "Move the text", tab = "Streams", wide = true, items = {
+            streamCard("hits", "Streams", {
                 { type = "button", label = "Move the text streams", desc = "Unlocks every frame, so each text stream shows a handle too. Drag one to move it.",
                   text = function() return DUI.Movers.unlocked and DUI.L["Lock"] or DUI.L["Unlock"] end,
                   func = function()
                       if DUI.Movers.unlocked then DUI.Movers.Lock() else DUI.Movers.Unlock() end
                   end },
-            } },
-            streamCard("hits"), streamCard("heals"), streamCard("notes"),
+            }),
+            streamCard("heals"), streamCard("notes"),
             messageCard("Hits on you", "Messages", { "hit", "spell", "avoid", "reduce" }),
             messageCard("Healing and power", nil, { "heal", "hot", "shield", "power", "powerTick" }),
             messageCard("Notices", nil, { "proc", "low", "buff", "debuff", "combat", "other", "rep", "honor" }, {

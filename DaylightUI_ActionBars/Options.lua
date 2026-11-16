@@ -157,6 +157,11 @@ local look = {
           desc = "A spell's icon pops and lights up once when it comes off a real cooldown (never for the global cooldown). Needs Motion effects (General > Appearance)." },
         { type = "toggle", key = "rankUp", label = "New ranks on your bars",
           desc = "When you learn a new rank of a spell, it takes the place of the rank before it on your bars. A lower rank you keep on purpose, like rank 1 to save mana, stays. Not macros." },
+        { type = "button", label = "Reset bar positions",
+          desc = "Puts every bar back in the default arrangement.",
+          func = function()
+              ns.Bars.ResetPositions()
+          end },
     } },
     perLook({ label = "Look", desc = "Pick All bars to change every bar at once, or one bar to give it a look of its own.", items = {
         { type = "dropdown", label = "Settings for", noSearch = true, cdm = true,
@@ -274,7 +279,7 @@ local look = {
           desc = "How far the panel reaches past the buttons on every side.",
           disabled = function(get) return get("look.back") ~= true end },
     } }),
-    perLook({ label = "Colors", items = {
+    perLook({ label = "Press and mouseover", items = {
         { type = "color", key = "look.pressed", label = "Pressed color", desc = "A color over the icon while you press it." },
         { type = "toggle", key = "look.pressBorder", label = "Light the border when pressed",
           desc = "The button's border lights up while you press it." },
@@ -300,6 +305,8 @@ local look = {
           hidden = custom("look.hoverBorderMode") },
         { type = "slider", key = "look.highlightAlpha", label = "Mouseover opacity", min = 0, max = 1, step = 0.05,
           unit = "%", desc = "How strong the mouseover color over the icon is." },
+    } }),
+    perLook({ label = "Active spell", items = {
         { type = "dropdown", key = "look.checked", label = "Active spell color", values = ACCENT, order = ACCENT_ORDER,
           desc = "Highlights a spell that is active (an aura, auto attack, a stance) or being cast." },
         { type = "color", key = "look.checkedColor", label = "Custom active spell color", disabled = unless("look.checked", "custom"),
@@ -316,6 +323,8 @@ local look = {
         { type = "color", key = "look.checkedBorderColor", label = "Custom active border and glow color",
           desc = "Their color when Active border and glow color is One color.",
           hidden = custom("look.checkedBorderMode") },
+    } }),
+    perLook({ label = "Range and cooldown", items = {
         { type = "dropdown", key = "look.range", label = "Out of range", values = { fade = "Fade the icon", color = "Tint the icon" },
           order = { "fade", "color" }, desc = "What a button does while your target is out of range. Not enough mana, rage or energy does the same (blue when tinted)." },
         { type = "color", key = "look.rangeColor", label = "Out of range color", disabled = unless("look.range", "color"),
@@ -348,13 +357,6 @@ local look = {
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },
     { label = "Micro menu fade", desc = "When the shown micro menu fades and how far.",
       items = DaylightUI.Fade.Items("microMenuFade.", nil, unless("microMenu", "shown"), "Micro menu") },
-    { label = "Positions", tab = "Basics", items = {
-        { type = "button", label = "Reset bar positions",
-          desc = "Puts every bar back in the default arrangement.",
-          func = function()
-              ns.Bars.ResetPositions()
-          end },
-    } },
 }
 -- A bar's single Visible row combines its fade choices (bars.<bar>.fade.mode) and its
 -- hiding ones (bars.<bar>.visible; a hidden bar can't be clicked, unlike a faded

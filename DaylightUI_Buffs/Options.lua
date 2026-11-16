@@ -310,9 +310,19 @@ local history = {
 -- Pages
 -- ---------------------------------------------------------------------
 
+-- Per bar: when attached, it sits beside the info panel and follows it.
+local function attachItem(debuff)
+    return { type = "toggle", key = debuff and "settings.debuff.attach" or "settings.attach",
+        label = "Attach to the info panel",
+        desc = (debuff and "Just left of the panel, the first row resting on its bottom edge"
+                or "Just left of the panel, level with its top")
+            .. ", following it as the minimap or damage meter changes size. Turn it off to move the bar yourself in unlock mode." }
+end
+
 local function barItems(debuff)
     local p = debuff and "settings.debuff." or "settings."
     local items = {
+        attachItem(debuff),
         { type = "slider", key = p .. "iconSize", label = "Icon size", min = 12, max = 64, step = 1, unit = "px",
           desc = "Each icon's width and height." },
         { type = "slider", key = p .. "borderPx", label = "Border thickness", min = 0, max = 6, step = 1, unit = "px",
@@ -332,21 +342,12 @@ local function barItems(debuff)
     end
     for _, item in ipairs(DaylightUI.Fade.Items(p .. "fade.", nil, nil, debuff and "Debuffs" or "Buffs")) do items[#items + 1] = item end
     if not debuff then
-        table.insert(items, 3, { type = "slider", key = "settings.categoryGap", label = "Gap between categories",
+        table.insert(items, 4, { type = "slider", key = "settings.categoryGap", label = "Gap between categories",
             min = 0, max = 32, step = 1, unit = "px", desc = "Extra room between one category's buffs and the next." })
-        table.insert(items, 4, { type = "toggle", key = "settings.categoryRows", label = "Each category on its own row", since = "1.7.2",
+        table.insert(items, 5, { type = "toggle", key = "settings.categoryRows", label = "Each category on its own row", since = "1.7.2",
             desc = "Class buffs share one row, then weapon, consumable, world and other buffs each start a row of their own, in the order set on the Categories page. A long row still wraps at Icons per row." })
     end
     return items
-end
-
--- Per bar: when attached, it sits beside the info panel and follows it.
-local function attachItem(debuff)
-    return { type = "toggle", key = debuff and "settings.debuff.attach" or "settings.attach",
-        label = "Attach to the info panel",
-        desc = (debuff and "Just left of the panel, the first row resting on its bottom edge"
-                or "Just left of the panel, level with its top")
-            .. ", following it as the minimap or damage meter changes size. Turn it off to move the bar yourself in unlock mode." }
 end
 
 -- The aura lists live in the Unit Frames module: with it off there are none to
@@ -394,35 +395,39 @@ local PREVIEW = { type = "button", label = "Preview the buff bar",
         if BL.Preview.Active() then BL.Preview.Set(nil) else BL.Preview.Set(BL.PREVIEW_SHARE, BL.PREVIEW_MAX) end
     end }
 
+-- Time left and stack count rows cover both bars, so the same rows sit on the
+-- Buffs and the Debuffs page.
+local TEXT_DESC = "Applies to both the buff and debuff bars."
+local TEXT_ITEMS = {
+    { type = "toggle", key = "settings.showTimers", label = "Show time left",
+      desc = "How long each buff and debuff has left, on its icon." },
+    { type = "dropdown", key = "settings.timePos", label = "Time left position",
+      values = { top = "Top", middle = "Middle", bottom = "Bottom" }, order = { "top", "middle", "bottom" },
+      desc = "Where the time sits: on the icon's top edge, across its middle, or on its bottom edge.",
+      disabled = function(get) return get("settings.showTimers") ~= true end },
+    { type = "toggle", key = "settings.expiring", label = "Orange timer when running out",
+      desc = "A buff's time turns orange and gently pulses in its last 5 seconds. Debuffs keep their usual time color.",
+      disabled = function(get) return get("settings.showTimers") ~= true end },
+    { type = "toggle", key = "settings.newGlow", label = "Slide icons in and out",
+      desc = "Buffs and debuffs slide in as they land and lift away as they leave. Needs Motion effects (General > Appearance).",
+      disabled = function() return DaylightUI:Get("general", "motion") == false end },
+    { type = "slider", key = "settings.timeSize", label = "Time left text size", min = 0, max = 20, step = 1,
+      desc = "Text size of the time left on each icon. At 0 it follows the icon's size.", disabled = function(get) return get("settings.showTimers") ~= true end },
+    { type = "slider", key = "settings.countSize", label = "Stack count size", min = 6, max = 20, step = 1,
+      desc = "The number on an icon showing how many stacks it has." },
+    { type = "dropdown", key = "settings.textOutline", label = "Text outline",
+      values = { general = "Same as General", none = "None", thin = "Thin", thick = "Thick" },
+      order = { "general", "none", "thin", "thick" },
+      desc = "The outline round the time and stack count on buffs and debuffs, apart from General > Appearance's, so the time stays easy to read over any icon." },
+}
+
 BL.OPTIONS = { pages = {
     { id = "buffs", label = "Buffs",
       desc = "Your buffs, sorted into colored categories. Right-click a buff to cancel it; shift-click to move it to another category. The bar sits beside the info panel; to move it, turn off Attach to the info panel.",
       groups = {
         { label = "Bar", items = barItems(false) },
-        { label = "Position", items = { attachItem(false) } },
         { label = "Filter", desc = "Which buffs show, from the lists on Unit Frames > Aura Lists.", items = filterItems(false) },
-        { label = "Text", desc = "Applies to both the buff and debuff bars.", items = {
-            { type = "toggle", key = "settings.showTimers", label = "Show time left",
-              desc = "How long each buff and debuff has left, on its icon." },
-            { type = "dropdown", key = "settings.timePos", label = "Time left position",
-              values = { top = "Top", middle = "Middle", bottom = "Bottom" }, order = { "top", "middle", "bottom" },
-              desc = "Where the time sits: on the icon's top edge, across its middle, or on its bottom edge.",
-              disabled = function(get) return get("settings.showTimers") ~= true end },
-            { type = "toggle", key = "settings.expiring", label = "Orange timer when running out",
-              desc = "A buff's time turns orange and gently pulses in its last 5 seconds. Debuffs keep their usual time color.",
-              disabled = function(get) return get("settings.showTimers") ~= true end },
-            { type = "toggle", key = "settings.newGlow", label = "Slide icons in and out",
-              desc = "Buffs and debuffs slide in as they land and lift away as they leave. Needs Motion effects (General > Appearance).",
-              disabled = function() return DaylightUI:Get("general", "motion") == false end },
-            { type = "slider", key = "settings.timeSize", label = "Time left text size", min = 0, max = 20, step = 1,
-              desc = "Text size of the time left on each icon. At 0 it follows the icon's size.", disabled = function(get) return get("settings.showTimers") ~= true end },
-            { type = "slider", key = "settings.countSize", label = "Stack count size", min = 6, max = 20, step = 1,
-              desc = "The number on an icon showing how many stacks it has." },
-            { type = "dropdown", key = "settings.textOutline", label = "Text outline",
-              values = { general = "Same as General", none = "None", thin = "Thin", thick = "Thick" },
-              order = { "general", "none", "thin", "thick" },
-              desc = "The outline round the time and stack count on buffs and debuffs, apart from General > Appearance's, so the time stays easy to read over any icon." },
-        } },
+        { label = "Text", desc = TEXT_DESC, items = TEXT_ITEMS },
         { label = "Missing group buffs",
           desc = "On a ready check, and when you enter a dungeon or raid in a group, a short line shows the group buffs you don't have yet: only ones someone in your group can give. It fades once they land. Move it in unlock mode.",
           items = {
@@ -452,8 +457,8 @@ BL.OPTIONS = { pages = {
       desc = "Debuffs on you, soonest to expire first, with a border colored by dispel type.",
       groups = {
         { label = "Bar", items = barItems(true) },
-        { label = "Position", items = { attachItem(true) } },
         { label = "Filter", desc = "Which debuffs show on this bar.", items = filterItems(true) },
+        { label = "Text", desc = TEXT_DESC, items = TEXT_ITEMS },
         { label = "Hidden boss debuffs",
           desc = "Some boss abilities put debuffs on you that addons can't see. The game draws them itself, in a row under your debuffs.",
           items = {

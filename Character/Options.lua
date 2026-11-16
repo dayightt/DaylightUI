@@ -33,6 +33,12 @@ ns.OPTIONS = { pages = {
         { label = "Window", items = {
             { type = "toggle", key = "enabled", label = "Daylight UI style character window",
               desc = "Pressing C opens Daylight UI's character window. Turn it off to use the game's own, in Daylight UI's look. Each window also has a button to switch to the other." },
+            { type = "slider", key = "scale", label = "Character window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
+              desc = "How big the window is. Other windows still open beside it when they fit." },
+            backRows[1], backRows[2],
+            { type = "dropdown", key = "statsOpen", label = "Open stat groups", values = { auto = "By class and spec", all = "All" },
+              order = { "auto", "all" },
+              desc = "Which stat groups start open. By class and spec: Attributes and the one that matters for you. Groups you open or fold yourself are remembered for each character." },
         } },
         { label = "Look", items = {
             { type = "toggle", key = "lastNames.character", label = "First and last names",
@@ -46,23 +52,8 @@ ns.OPTIONS = { pages = {
               desc = "The dim line under each item's name. Repair warnings still show when it's off." },
             { type = "toggle", key = "levelInIcon", label = "Item level in the icon",
               desc = "The item level in the icon's corner instead of a line under the name, so long names have the room." },
-            { type = "slider", key = "scale", label = "Character window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
-              desc = "How big the window is. Other windows still open beside it when they fit." },
-            backRows[1], backRows[2],
-        } },
-        { label = "Gear", items = {
             { type = "slider", key = "repairAt", label = "Repair warning at", min = 0.05, max = 0.5, step = 0.05, unit = "%",
               desc = "A slot at or under this much durability gets an amber dot and says Repair soon." },
-        } },
-        { label = "Stats", items = {
-            { type = "dropdown", key = "statsOpen", label = "Open stat groups", values = { auto = "By class and spec", all = "All" },
-              order = { "auto", "all" },
-              desc = "Which stat groups start open. By class and spec: Attributes and the one that matters for you. Groups you open or fold yourself are remembered for each character." },
-        } },
-        { label = "Bars", items = {
-            { type = "toggle", key = "gradient", label = "Gradient bars",
-              desc = "Reputation bars in their colors from the Gradients page, skill, PvP and currency bars in the accent's. When off, they're plain fills. Needs Gradients on (General > Gradients).",
-              disabled = function() return DUI.Gradients.Flat() end },
         } },
         { label = "Colors", items = {
             mode("head", "Header colors", HEAD_MODES, { "accent", "group", "class", "gradient", "custom" },
@@ -85,6 +76,9 @@ ns.OPTIONS = { pages = {
             mode("tab", "Tab underline", MODES, { "accent", "gradient", "class", "custom" },
                  "The line under the open tab at the top (Character, Reputation, Skills...)."),
             color("tab", "Custom tab underline color", { key = "tab", mode = "custom" }, "The line under the open tab in this color, when Tab underline is One color."),
+            { type = "toggle", key = "gradient", label = "Gradient bars",
+              desc = "Reputation bars in their colors from the Gradients page, skill, PvP and currency bars in the accent's. When off, they're plain fills. Needs Gradients on (General > Gradients).",
+              disabled = function() return DUI.Gradients.Flat() end },
             { type = "toggle", key = "zebra", label = "Striped rows",
               desc = "Every other row on a faint stripe, in the stats and the long lists, so lines are easier to follow." },
             { type = "toggle", key = "footColors", label = "Colored item level and durability",
