@@ -1208,6 +1208,53 @@ T.test("tooltip: the game's money lines wear Daylight UI's coins, digits in the 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client leaves the sell price out of a quest reward's data, so the game
+-- prints none (TooltipDataRules.SellPrice only paints a SellPrice line it's given).
+T.test("tooltip: quest rewards show their sell price, the whole stack, once", function()
+    login(itemWorld)
+    local at = withLines(GameTooltip)
+    local was = { Enum.TooltipDataLineType, C_Item.GetItemInfo, _G.GetQuestLogChoiceInfo, _G.GetQuestItemInfo }
+    _G.SELL_PRICE = "Sell Price"
+    Enum.TooltipDataLineType = { SellPrice = 11 }   -- the game's TooltipInfoSharedDocumentation
+    local prices = { sword = 1554, potion = 25 }
+    C_Item.GetItemInfo = function(link)
+        if prices[link] then return link, link, 2, 10, 1, "", "", 1, "", 1, prices[link] end
+    end
+    _G.GetQuestLogChoiceInfo = function(i, id) return "Sword", 1, 1, 2, true, 1001 end
+    _G.GetQuestItemInfo = function(kind, i) return "Potion", 1, 5, 1, true, 1003 end
+    local W = DaylightUI.Widgets
+    local function asked(getter, ...)
+        GameTooltip.infoList = { { getterName = getter, getterArgs = { n = select("#", ...), ... } } }
+    end
+
+    asked("GetQuestLogItem", "choice", 1, 99)
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "sword" }, { "Sword" })
+    T.eq(GameTooltip:NumLines(), 2, "the price added")
+    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(1554), "in the quest log")
+
+    asked("GetQuestItem", "reward", 1)
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1003, hyperlink = "potion" }, { "Potion" })
+    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(125), "at the NPC, five potions")
+
+    local coin = function(n, what) return n .. "|A:coin-" .. what .. ":14:14:2:0|a" end
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1003, hyperlink = "potion",
+        lines = { { type = Enum.TooltipDataLineType.SellPrice, price = 125 } } },
+        { "Potion", "Sell Price: " .. coin(25, "copper") })
+    T.eq(GameTooltip:NumLines(), 2, "never twice when the game sent one")
+
+    asked("GetBagItem", 0, 1)
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "sword" }, { "Sword" })
+    T.eq(GameTooltip:NumLines(), 1, "other items keep the game's own lines")
+
+    prices.sword = 0
+    asked("GetQuestLogItem", "choice", 1, 99)
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "sword" }, { "Sword" })
+    T.eq(GameTooltip:NumLines(), 1, "nothing for an item vendors won't buy")
+    GameTooltip.infoList = nil
+    Enum.TooltipDataLineType, C_Item.GetItemInfo, _G.GetQuestLogChoiceInfo, _G.GetQuestItemInfo = unpack(was, 1, 4)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("tooltip: spell, aura and item IDs at the bottom, the label in the accent, secret ones left out", function()
     login(itemWorld)
     local at = withLines(GameTooltip)

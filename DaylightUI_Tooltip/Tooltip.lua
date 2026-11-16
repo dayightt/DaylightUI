@@ -793,10 +793,67 @@ function Tip.AddStack(tip, link)
     tip:AddLine(text, c[1], c[2], c[3])
 end
 
--- An item: its level (gear only) with Item level on, how many fit in a stack,
--- its ID with IDs on.
+-- The client leaves the sell price out of a quest reward's tooltip data (in the
+-- quest log and at the NPC), and the game only prints a price it's given.
+Tip.QUEST_GETTERS = { GetQuestItem = true, GetQuestLogItem = true }
+
+local function questCount(info)
+    local args = type(info.getterArgs) == "table" and info.getterArgs or {}
+    local kind, i, questID = args[1], args[2], args[3]
+    local read, ok, n
+    if info.getterName == "GetQuestItem" then
+        read = GetQuestItemInfo
+        if type(read) == "function" then ok, _, _, n = pcall(read, kind, i) end
+    else
+        read = kind == "choice" and GetQuestLogChoiceInfo or GetQuestLogRewardInfo
+        if type(read) == "function" then ok, _, _, n = pcall(read, i, questID) end
+    end
+    n = ok and plain(n) or nil
+    return (type(n) == "number" and n > 1) and n or 1
+end
+
+local function hasSellLine(data)
+    local kind = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice
+    if not (kind and type(data) == "table" and type(data.lines) == "table") then return false end
+    for _, line in ipairs(data.lines) do
+        if type(line) == "table" and plain(line.type) == kind then return true end
+    end
+    return false
+end
+
+-- A quest reward's vendor value for the whole stack, as the bags show it, or nil.
+function Tip.QuestPrice(tip, data)
+    local info
+    if type(tip.GetPrimaryTooltipInfo) == "function" then
+        local ok, v = pcall(tip.GetPrimaryTooltipInfo, tip)
+        info = ok and v or nil
+    elseif type(tip.infoList) == "table" then
+        info = tip.infoList[1]
+    end
+    if not (type(info) == "table" and Tip.QUEST_GETTERS[info.getterName]) then return nil end
+    if hasSellLine(data) or not (C_Item and C_Item.GetItemInfo) then return nil end
+    local key = Tip.ItemLink(tip, data) or (type(data) == "table" and plain(data.id))
+    if not key then return nil end
+    local ok, price = pcall(function() return select(11, C_Item.GetItemInfo(key)) end)
+    price = ok and plain(price) or nil
+    if type(price) ~= "number" or price <= 0 then return nil end
+    return price * questCount(info)
+end
+
+function Tip.AddQuestPrice(tip, data)
+    local price = Tip.QuestPrice(tip, data)
+    if not (price and type(SELL_PRICE) == "string") then return end
+    local text = ("%s: %s"):format(SELL_PRICE, DUI.Widgets.Money(price))
+    if Tip.HasLine(tip, text) then return end
+    local c = Style.INK.VALUE
+    tip:AddLine(text, c[1], c[2], c[3])
+end
+
+-- An item: a quest reward's sell price, its level (gear only) with Item level
+-- on, how many fit in a stack, its ID with IDs on.
 function Tip.OnItemLines(tip, data)
     if skinned[tip] then Tip.PaintCoins(tip) end
+    if skinned[tip] then Tip.AddQuestPrice(tip, data) end
     if skinned[tip] and cfg and cfg.greenStats then Tip.ShortenStats(tip) end
     if not (skinned[tip] and cfg and (cfg.itemLevel or cfg.showIDs or cfg.stackSize)) then return end
     local link = Tip.ItemLink(tip, data)

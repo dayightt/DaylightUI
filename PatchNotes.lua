@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Plugins", "Plugins can bring their own setup pages, shown right after Daylight UI's setup guide" },
+            { "Tooltip", "Quest rewards show how much they sell for, in the quest log and when you hand in" },
         },
         changed = {
             { "Unlock mode", "Drag the unlock bar and its list of areas anywhere on screen, and Hide slides it up into its tab" },
