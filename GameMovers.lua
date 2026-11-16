@@ -179,6 +179,24 @@ GM.EDIT_FRAMES = {
       end,
       savedText = L["DaylightUI saved the crowd control alert's position. Reload to put it in place?"],
       ownText = L["The crowd control alert's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] },
+    -- The breath bar's container, which holds the breath, fatigue, feign death and
+    -- release bars: the game's Timer Bars piece. The Skins look is a child of each
+    -- bar (Packs/Breath.lua), so it follows. Its bars hang down from the top, so
+    -- the spot is kept by the top edge (top). It's hidden and empty until a timer
+    -- runs and has no spot to read, so its handle starts at the game's default,
+    -- the top of the screen and 100 down (home).
+    { name = "MirrorTimerContainer", system = "TimerBars", label = "Breath bar", minW = 220, minH = 30, top = true,
+      home = function(spec)
+          local s = DUI.Movers.Scale(GM.Key(spec.name))
+          return 0, UIParent:GetHeight() / 2 - 100 - spec.minH * s / 2
+      end,
+      size = function(f)
+          local set = Enum.EditModeTimerBarsSetting
+          local v = set and type(f.GetSettingValue) == "function" and f:GetSettingValue(set.Size)
+          return type(v) == "number" and v > 0 and v / 100 or 1
+      end,
+      savedText = L["DaylightUI saved the breath bar's position. Reload to put it in place?"],
+      ownText = L["The breath bar's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] },
 }
 
 local editMoved = {} -- name -> spec: handle moved or reset since unlocking
@@ -195,6 +213,16 @@ local function copy(t)
     return c
 end
 
+-- Where the layout anchors a piece for a handle at saved = { x, y } from the screen's
+-- center: the piece's center, or its top edge for one that hangs from the top.
+local function anchorOf(spec, saved)
+    if spec.top then
+        local h = (spec.minH or 0) * DUI.Movers.Scale(GM.Key(spec.name))
+        return "TOP", saved[1], saved[2] - UIParent:GetHeight() / 2 + h / 2
+    end
+    return "CENTER", saved[1], saved[2]
+end
+
 -- Offsets are in UIParent units, as Edit Mode stores them (its
 -- ApplySystemAnchor divides by the frame's own scale).
 function GM.FillEdit(layout)
@@ -202,7 +230,8 @@ function GM.FillEdit(layout)
         local entry, sys = editEntry(layout, spec)
         local saved = DUI.DB.Positions()[GM.Key(spec.name)]
         if entry and saved then
-            DUI.EditMode.Anchor(entry, "CENTER", "CENTER", saved[1], saved[2])
+            local point, x, y = anchorOf(spec, saved)
+            DUI.EditMode.Anchor(entry, point, point, x, y)
         elseif entry and editReset[spec.name] then
             local preset = DUI.EditMode.PresetSystem(sys, nil)
             if preset and type(preset.anchorInfo) == "table" then
@@ -221,9 +250,10 @@ function GM.EditCurrent(layout)
         local saved = DUI.DB.Positions()[GM.Key(spec.name)]
         local a = entry and entry.anchorInfo
         if entry and saved then
-            if entry.isInDefaultPosition or type(a) ~= "table" or a.point ~= "CENTER" or a.relativePoint ~= "CENTER"
-                or a.relativeTo ~= "UIParent" or math.abs((a.offsetX or 0) - saved[1]) > 1
-                or math.abs((a.offsetY or 0) - saved[2]) > 1 then
+            local point, x, y = anchorOf(spec, saved)
+            if entry.isInDefaultPosition or type(a) ~= "table" or a.point ~= point or a.relativePoint ~= point
+                or a.relativeTo ~= "UIParent" or math.abs((a.offsetX or 0) - x) > 1
+                or math.abs((a.offsetY or 0) - y) > 1 then
                 return false
             end
         elseif entry and editReset[spec.name] and not entry.isInDefaultPosition then
@@ -273,6 +303,7 @@ local function setupEdit()
         if type(f) == "table" and f.GetCenter and sys ~= nil and not DUI.Movers.Get(key) then
             DUI.Movers.Register(f, key, spec.label, nil, { proxy = true,
                 minW = spec.minW, minH = spec.minH, active = spec.active,
+                home = spec.home and function() return spec.home(spec) end or nil,
                 scale = function() editSized(spec) end,
                 onMoved = function()
                     editMoved[spec.name] = spec

@@ -7056,3 +7056,6 @@ L["Twinkle"] = "闪烁"
 L["Use Daylight UI's window from now on. The button in its header brings this one back."] = "从现在起使用 Daylight UI 的窗口。其标题栏中的按钮可恢复此窗口。"
 L["Use the game's own window"] = "使用游戏自带的窗口"
 L["What fills the card behind the name: the 3D model, the face, or the class icon (NPCs show their face). None leaves only the unit's colors."] = "名称背后卡片中显示的内容：3D 模型、头像或职业图标（NPC 显示其头像）。选择“无”则仅保留单位颜色。"
+-- Breath bar's Edit Mode texts (machine draft, not yet checked by a native speaker).
+L["DaylightUI saved the breath bar's position. Reload to put it in place?"] = "DaylightUI 已保存呼吸条的位置。要重载界面以应用吗？"
+L["The breath bar's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] = "呼吸条的位置由游戏的编辑模式保存，而你正在使用自己的编辑模式布局：请在那里移动它（Esc > 编辑模式）。"

@@ -137,8 +137,9 @@ local function lootWorld(opts)
     opts = opts or {}
     local layouts = {}
     local DUI = stub.Load({ before = function()
-        Enum.EditModeSystem = { ActionBar = 0, LootFrame = 10, LossOfControl = 28 }
+        Enum.EditModeSystem = { ActionBar = 0, LootFrame = 10, LossOfControl = 28, TimerBars = 17 }
         Enum.EditModeLossOfControlSetting = { Size = 0 }
+        Enum.EditModeTimerBarsSetting = { Size = 0 }
         Enum.EditModeLayoutType = { Preset = 0, Account = 1 }
         _G.CopyTable = function(t)
             local c = {}
@@ -154,10 +155,15 @@ local function lootWorld(opts)
             return { system = 28, isInDefaultPosition = true, settings = {},
                      anchorInfo = { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", offsetX = 0, offsetY = 0 } }
         end
+        -- The Timer Bars piece (the breath bar): hangs from the top, 100 down.
+        local function timers()
+            return { system = 17, isInDefaultPosition = true, settings = {},
+                     anchorInfo = { point = "TOP", relativeTo = "UIParent", relativePoint = "TOP", offsetX = 0, offsetY = -100 } }
+        end
         _G.EditModePresetLayoutManager = { GetCopyOfPresetLayouts = function()
-            return { { layoutIndex = 1, layoutType = 0, layoutName = "Modern", systems = { loot(), cc() } } }
+            return { { layoutIndex = 1, layoutType = 0, layoutName = "Modern", systems = { loot(), cc(), timers() } } }
         end }
-        layouts.list = { { layoutType = 1, layoutName = opts.layoutName or "DaylightUI - DPS/Tank", systems = { loot(opts.movedInEditMode), cc() } } }
+        layouts.list = { { layoutType = 1, layoutName = opts.layoutName or "DaylightUI - DPS/Tank", systems = { loot(opts.movedInEditMode), cc(), timers() } } }
         layouts.active = 2
         _G.C_EditMode = {
             GetLayouts = function() return { layouts = CopyTable(layouts.list), activeLayout = layouts.active } end,
@@ -187,6 +193,10 @@ local function lootWorld(opts)
         c.GetSettingValue = function(self, setting)
             return setting == Enum.EditModeLossOfControlSetting.Size and self.editSize or 0
         end
+        -- The breath bar's container: empty and hidden until a timer runs, so it has no size.
+        local t = CreateFrame("Frame", "MirrorTimerContainer", UIParent)
+        t:SetPoint("TOP", UIParent, "TOP", 0, -100)
+        t:Hide()
     end })
     stub.RunTimers()
     return DUI, layouts
@@ -194,6 +204,7 @@ end
 
 local function lootEntry(layouts) return layouts.list[1].systems[1] end
 local function ccEntry(layouts) return layouts.list[1].systems[2] end
+local function timersEntry(layouts) return layouts.list[1].systems[3] end
 
 T.test("loot window: a handle that never moves the frame; locking writes the spot into our layout and asks for a reload", function()
     local DUI, layouts = lootWorld()
@@ -426,4 +437,61 @@ T.test("loot window: follows General Scale, the Edit Mode spot left to the game"
     local p, _, _, x = LootFrame:GetPoint(1)
     T.eq(p, before[1], "never moved by our code: that taints it")
     T.eq(x, before[4])
+end)
+
+T.test("breath bar: a handle at the game's default spot that never moves the container", function()
+    local DUI = lootWorld()
+    local e = DUI.Movers.Get("game.MirrorTimerContainer")
+    T.truthy(e and e.proxy, "a proxy handle, not a SetPoint mover")
+    T.isnil(rawget(MirrorTimerContainer, "SetPoint"), "no hook on its SetPoint")
+    local x, y = e.home()
+    T.eq(x, 0)
+    T.eq(y, UIParent:GetHeight() / 2 - 100 - 15, "the top of the screen, 100 down, by the handle's top edge")
+    DUI.Movers.Unlock()
+    local _, _, _, hx, hy = DUI.Movers.Handle("game.MirrorTimerContainer"):GetPoint(1)
+    T.eq(hx, x); T.eq(hy, y, "not stuck in the screen's corner")
+    DUI.Movers.Lock()
+    T.eq((MirrorTimerContainer:GetPoint(1)), "TOP")
+end)
+
+T.test("breath bar: locking writes its top edge into our layout and asks for a reload", function()
+    local DUI, layouts = lootWorld()
+    local e = DUI.Movers.Get("game.MirrorTimerContainer")
+    DUI.Movers.Unlock()
+    DUI.DB.Positions()["game.MirrorTimerContainer"] = { 60, 200 }
+    e.onMoved("game.MirrorTimerContainer")
+    DUI.Movers.Lock()
+    T.eq(layouts.saves, 1, "written once, on lock")
+    local a = timersEntry(layouts).anchorInfo
+    T.eq(a.point, "TOP"); T.eq(a.relativePoint, "TOP"); T.eq(a.relativeTo, "UIParent")
+    T.eq(a.offsetX, 60)
+    T.eq(a.offsetY, 200 - UIParent:GetHeight() / 2 + 15, "from the top edge, not the middle")
+    T.eq(timersEntry(layouts).isInDefaultPosition, false)
+    T.eq(stub.Asked(), "reload")
+    T.eq(select(5, MirrorTimerContainer:GetPoint(1)), -100, "never moved by us")
+    -- Unchanged on the next lock: nothing to write again.
+    local saves = layouts.saves
+    DUI.Movers.Unlock(); DUI.Movers.Lock()
+    T.eq(layouts.saves, saves)
+end)
+
+T.test("breath bar: a reset puts the game's own spot back; on a layout of the player's own it says where to move it", function()
+    local DUI, layouts = lootWorld()
+    DUI.DB.Positions()["game.MirrorTimerContainer"] = { 60, 200 }
+    DUI.Movers.Unlock()
+    DUI.Movers.Get("game.MirrorTimerContainer").onMoved("game.MirrorTimerContainer")
+    DUI.Movers.Lock()
+    DUI.Movers.Unlock()
+    DUI.Movers.Reset("game.MirrorTimerContainer")
+    DUI.Movers.Lock()
+    T.eq(timersEntry(layouts).isInDefaultPosition, true)
+    T.eq(timersEntry(layouts).anchorInfo.offsetY, -100, "the preset's spot")
+
+    local DUI2, layouts2 = lootWorld({ layoutName = "My Layout" })
+    DUI2.Movers.Unlock()
+    DUI2.DB.Positions()["game.MirrorTimerContainer"] = { 60, 200 }
+    DUI2.Movers.Get("game.MirrorTimerContainer").onMoved("game.MirrorTimerContainer")
+    DUI2.Movers.Lock()
+    T.isnil(layouts2.saves, "the player's own layout is left alone")
+    T.truthy(stub.ChatContains("breath bar"))
 end)
