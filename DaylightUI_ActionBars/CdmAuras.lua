@@ -15,6 +15,7 @@ ns.CdmAuras = A
 
 local holders = {}   -- [id] = holder frame
 local makeFace, placeFace, paintFace   -- self-debuff face, defined below
+local selfCast                          -- counts a self debuff from your casts, below
 
 local function plain(v)
     return type(v) == "number" and not isSecret(v) and v or nil
@@ -936,7 +937,7 @@ function A.IsUp(h)
     if found(h) then
         h.up = true
         h.castAt = nil
-    elseif h.castAt and not readable() and h.up ~= true and GetTime() - h.castAt <= A.CAST_LANDS then
+    elseif h.castAt and not h.face and not readable() and h.up ~= true and GetTime() - h.castAt <= A.CAST_LANDS then
         -- Cast while auras could still be read, and they went secret before it was
         -- seen landing: the pull that started this fight.
         local sid, at = h.castSpell, h.castAt
@@ -967,7 +968,15 @@ function A.AuraChanged()
         if h.face and h:IsShown() then
             -- Self-debuff faces always update, including time and stacks.
             local was = h.up
-            if readable() or h.petWatch then A.IsUp(h) end
+            if readable() or h.petWatch then
+                A.IsUp(h)
+            elseif h.castAt then
+                -- Cast while auras could still be read and not seen landing before
+                -- the fight hid them (the pull): count it now.
+                local sid, at = h.castSpell, h.castAt
+                h.castSpell, h.castAt = nil, nil
+                if GetTime() - at <= A.CAST_LANDS then selfCast(h, sid) end
+            end
             paintFace(h)
             if h.wantsUp and h.up ~= was then moved = true end
         elseif h.wantsUp and h:IsShown() then
@@ -1013,10 +1022,12 @@ end
 -- can't be tracked by spell id. The first cast starts the timer and each later one
 -- adds a stack. The duration runs from the first application, so recasts don't
 -- extend it. Dying clears it.
-local function selfCast(h, sid)
+selfCast = function(h, sid)
     -- If it was just read by id, trust the read over the count. The aura event
-    -- can arrive before the cast and would be counted twice.
+    -- can arrive before the cast and would be counted twice. The cast is kept in
+    -- case the fight it starts hides the aura before it's read (A.AuraChanged).
     if h.selfRead and readable() then
+        h.castSpell, h.castAt = sid, GetTime()
         A.AuraChangedSoon()
         return
     end

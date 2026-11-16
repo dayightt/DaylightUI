@@ -269,6 +269,10 @@ end
 local mine, elsewhere, elsewhereAura = {}, {}, {}
 -- id -> the game's aura item for a spell drawn as "Cooldown and buff".
 local auraItems = {}
+-- id -> the game's cooldown item of a spell with an aura that Daylight UI draws
+-- instead (Lightning Shield). It stays shown, but it keeps the aura it's showing
+-- and lets go of it the moment the aura ends, in a fight too.
+local auraHolders = {}
 local usedOwn, usedHolders, usedHolds, usedBars = {}, {}, {}, {}
 local shown, downs, told = {}, {}, {}
 -- id -> Daylight UI's aura holder whose buff is down and gave up its spot (slide over).
@@ -351,6 +355,8 @@ local function claim(item)
         if AURA_VIEWERS[name] and not blind then
             hook(item)
             auraItems[id] = item
+        elseif not blind and ns.CdmAuras and ns.CdmAuras.Follows(id) then
+            auraHolders[id] = item
         end
     elseif block and (not Data.Native(block, kind) or byShield(set, id, kind)
         or (AURA_VIEWERS[name] and shieldIcon(set, id))) then
@@ -475,7 +481,7 @@ function Rows.Update()
     end
 
     -- Claim items by piece.
-    wipe(mine); wipe(elsewhere); wipe(elsewhereAura); wipe(auraItems)
+    wipe(mine); wipe(elsewhere); wipe(elsewhereAura); wipe(auraItems); wipe(auraHolders)
     for k in pairs(ours) do ours[k] = nil end
     for k in pairs(drawn) do drawn[k] = nil end
     passSet, passOn, passHide, passKnown = set, on, hide, nil
@@ -577,7 +583,14 @@ function Rows.Update()
                 holder.soundPiece, holder.soundItem = sound and p or nil, sound and item or nil
                 if holder.wantsUp then
                     local seen = auraItems[id] or (awayAura and away)
-                    local up = seen and ns.CdmAuras.Told(holder, seen:IsShown()) or ns.CdmAuras.IsUp(holder)
+                    local up
+                    if seen then
+                        up = ns.CdmAuras.Told(holder, seen:IsShown())
+                    elseif auraHolders[id] then
+                        -- Only whether it holds one: the id itself may be secret.
+                        up = ns.CdmAuras.Told(holder, type(auraHolders[id].auraInstanceID) ~= "nil")
+                    end
+                    up = up or ns.CdmAuras.IsUp(holder)
                     if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or clip or cdFx))) then downs[id] = not up end
                     if clip and up == true then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
                     -- Only a known "down"; an unknown one keeps its spot.

@@ -361,6 +361,46 @@ function M.newWorld(opts)
             stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: MultiBarBottomLeft:ShowBase()"
         end
     end)
+    -- The game's own stance pass (StanceBar.lua UpdateState -> ActionBar.lua
+    -- UpdateShownButtons), run on UPDATE_SHAPESHIFT_COOLDOWN (every global cooldown,
+    -- in a fight too) and the controller's form events: it shows each button that has
+    -- a form and hides the rest. Its code is secure, but an addon's script run inside
+    -- one of its SetShown calls (an OnShow or OnHide on the button or a shown frame
+    -- under it) leaves the rest of the pass tainted, so in a fight every SetShown after
+    -- it is blocked ("the game blocked StanceButton5:SetShown()", a player on 1.8.4).
+    local function addonScript(f, script)
+        local parts = rawget(f, "__hookParts")
+        local function has(fn)
+            if not fn then return false end
+            local pair = parts and parts[fn]
+            if pair then return has(pair[1]) or has(pair[2]) end
+            return stub.IsAddonHandler(fn)
+        end
+        if has(f:GetScript(script)) then return true end
+        for _, child in ipairs({ f:GetChildren() }) do
+            if child:IsShown() and addonScript(child, script) then return true end
+        end
+        return false
+    end
+    StanceBar:RegisterEvent("UPDATE_SHAPESHIFT_COOLDOWN")
+    StanceBar:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+    StanceBar:SetScript("OnEvent", function()
+        local tainted = false
+        for i = 1, 10 do
+            local b = _G["StanceButton" .. i]
+            local show = GetShapeshiftFormInfo(i) ~= nil
+            if tainted and stub.combat then
+                stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: StanceButton" .. i .. ":SetShown()"
+            else
+                local runs = b:IsVisible() ~= show and b:GetParent():IsVisible()
+                    and addonScript(b, show and "OnShow" or "OnHide")
+                stub.inSecure = (stub.inSecure or 0) + 1
+                b:SetShown(show)
+                stub.inSecure = stub.inSecure - 1
+                if runs then tainted = true end
+            end
+        end
+    end)
     return saved
 end
 

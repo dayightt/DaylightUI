@@ -1007,6 +1007,9 @@ applyLook = function(btn)
         -- comes from the button's own look.
         local opts = Skin.ShellOpts()
         opts.borderPx = function() return Skin.BorderPx(parts.L) end
+        -- The game's stance and pet buttons: no OnShow on the shell, since the
+        -- game shows them in its own pass and a script there taints the rest of it.
+        if not ownButtons[btn] then opts.quiet = true end
         Skin.StyleShellOpts(opts, L)
         parts.opts = opts
         parts.back = Style.Shell(btn, opts)
@@ -1048,10 +1051,16 @@ applyLook = function(btn)
                 parts.mutedTip = true
             end
         end)
-        -- Skipped by a full refresh while hidden, so redo it when it shows.
-        btn:HookScript("OnShow", function()
-            if parts.redoStale then Skin.RedoSoon(btn) end
-        end)
+        -- Skipped by a full refresh while hidden, so redo it when it shows. Only on
+        -- Daylight UI's own buttons: the game shows and hides its stance and pet
+        -- buttons in its own pass, in fights too, and a script of ours running inside
+        -- that pass got every SetShown after it blocked. Those are caught by the
+        -- slow pass in Skin.Tick instead.
+        if ownButtons[btn] then
+            btn:HookScript("OnShow", function()
+                if parts.redoStale then Skin.RedoSoon(btn) end
+            end)
+        end
         btn:HookScript("OnLeave", function()
             if hovered == btn then hovered = nil end
             parts.hover = nil
@@ -1350,6 +1359,7 @@ function Skin.Tick(elapsed)
     -- nothing to check); one that shows is checked on the next pass.
     for _, btn in ipairs(others) do
         if btn:IsVisible() then
+            if skinned[btn].redoStale then Skin.RedoSoon(btn) end
             local nt = btn:GetNormalTexture()
             if nt and nt:GetAlpha() > 0 then Skin.Hide(btn) end
             Skin.UpdateKey(btn)          -- the pet bar rewrites its keybinds on its own
