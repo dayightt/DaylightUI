@@ -1,8 +1,10 @@
 -- Find a group: category buttons and an activity button with Refresh on top, then the
 -- last search's listings in the game's order. The player's own first, then groups and
 -- solo players (reversed while in a group). Hovering a listing shows the whole party in
--- a tooltip. Clicking opens it in place (note, members, open spots, Whisper, Invite)
--- and the rows below glide down. Right-click gives Whisper / Invite at the cursor.
+-- a tooltip. Clicking picks it and opens a detail card beside the list (Social's,
+-- DUI.Social.Detail: the leader, the activity, the note, the members and open spots,
+-- Whisper and Invite); click again to close it. Right-click gives Whisper / Invite at
+-- the cursor.
 --
 -- C_LFGList.Search is allowed from addon code. Results come from the client's single
 -- list (GetFilteredSearchResults), so a search the game makes itself (after listing)
@@ -25,11 +27,14 @@ Browse.TOP = 76
 Browse.SEEK = 0.8        -- s for the searching bar to fill, repeated
 Browse.SEEK_W = 140
 Browse.WAIT = 3          -- s to wait for the game's own search first
+Browse.need = {}         -- role -> true: only the groups that still want it (or the players who offer it)
 Browse.EVENTS = { "LFG_LIST_SEARCH_RESULTS_RECEIVED", "LFG_LIST_SEARCH_FAILED", "LFG_LIST_SEARCH_RESULT_UPDATED",
     "LFG_LIST_AVAILABILITY_UPDATE", "GROUP_ROSTER_UPDATE", "LFG_LIST_ACTIVE_ENTRY_UPDATE" }
 
 local function W() return DUI.Widgets end
 local function Data() return ns.Data end
+local function Card() return DUI.Social.Detail end
+local ROLE_ICON = 16   -- a role square's badge
 
 -- Searching
 
@@ -156,10 +161,18 @@ local function layoutChips(page)
         end
     end
     local down = y - Browse.CHIPS_Y
+    Browse.down = down
     page.act:ClearAllPoints()
     page.act:SetPoint("TOPLEFT", page, "TOPLEFT", Browse.EDGE, -(Browse.TOOLS_Y + down))
     page.refresh:ClearAllPoints()
-    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE, -(Browse.TOOLS_Y + down))
+    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - (Browse.room or 0), -(Browse.TOOLS_Y + down))
+    local after = page.refresh
+    for i = #page.needs, 1, -1 do
+        local b = page.needs[i]
+        b:ClearAllPoints()
+        b:SetPoint("RIGHT", after, "LEFT", -(after == page.refresh and W_.CHIP_GAP * 2 or W_.CHIP_GAP / 2), 0)
+        after = b
+    end
     page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Win.Parts.EDGE, -(Browse.TOP + down))
 end
 
@@ -229,6 +242,20 @@ function acts.invite(r) Data().Invite(r.leader.name) end
 function acts.edit() if ns.Window then ns.Window.ShowTab("list") end end
 function acts.unlist() if ns.Listing then ns.Listing.Unlist() end end
 
+-- Does a listing pass the role filter: a group with an open spot for one of the roles asked
+-- for, a player listed alone who can be one of them.
+local function wanted(r)
+    if next(Browse.need) == nil or r.mine then return true end
+    if r.solo then
+        local can = r.roles or {}
+        for role in pairs(Browse.need) do if can[Data().ROLE_KEY[role]] then return true end end
+        return false
+    end
+    local _, open = Data().Places(r)
+    for role in pairs(Browse.need) do if (open[role] or 0) > 0 then return true end end
+    return false
+end
+
 local function rowOf(s, r)
     local who = ns.Rows.Named(r.leader.name, r.leader.class)
     local sub = who
@@ -236,7 +263,7 @@ local function rowOf(s, r)
     if type(r.leader.level) == "number" then sub = sub .. "  " .. hex({ Style.Accent() }) .. r.leader.level .. "|r" end
     if r.leader.zone then sub = sub .. "  ·  " .. hex(Style.INK.WARN) .. r.leader.zone .. "|r" end
     if r.style then sub = sub .. "  ·  " .. hex(r.styleInk or Style.INK.LABEL) .. r.style .. "|r" end
-    return ns.Rows.Row(s, { kind = "group", height = r.note and ns.Rows.GROUP_NOTE or ns.Rows.GROUP, result = r,
+    return ns.Rows.Row(s, { kind = "group", height = r.note and ns.Rows.GROUP_NOTE or ns.Rows.GROUP, result = r, sep = true,
         text = r.mine and (L["Your listing"] .. ": " .. r.text) or r.text,
         color = Style.INK.VALUE,
         sub = sub, note = r.note, roles = ns.Rows.Badges(r), age = ns.Rows.Age(r.age), dim = r.delisted,
@@ -246,16 +273,96 @@ local function rowOf(s, r)
         onMenu = function(b) if not r.mine then ns.Rows.Menu(b, r.leader.name, Data().CanInvite(r)) end end })
 end
 
--- keep: keep the scroll (a refill); glide: the opened group glides open.
-function Browse.Render(page, keep, glide)
+-- What the card shows for a listing: its leader, the activity, where and how they play,
+-- the note, who is in and what is still open, and only the buttons that apply (Invite for
+-- a player listed alone when the game would allow it; Edit and Unlist for your own).
+function Browse.Spec(r)
+    local ink = Style.INK
+    local hex = Win.Parts.Hex
+    local rows = {}
+    local function add(label, value, color, lines)
+        if value == nil or value == "" then return nil end
+        local row = { label = label, value = tostring(value), color = color, lines = lines }
+        rows[#rows + 1] = row
+        return row
+    end
+    if r.delisted then add(nil, L["No longer listed"], ink.WARN) end
+    if r.newcomers then add(nil, L["New players welcome"], ink.GOOD) end
+    add(L["Activity"], r.text, nil, 3)
+    add(LEVEL or L["Level"], r.leader.level)
+    add(L["Zone"], r.leader.zone)
+    add(L["Playstyle"], r.style, r.styleInk)
+    add(L["Note"], r.note)
+    -- Who is in, one to a line (a role badge, the name, the level), the open spots after them
+    -- as rings of the role; a player listed alone shows the roles they can be.
+    local people = {}
+    if r.solo then
+        for _, item in ipairs(ns.Rows.Badges(r)) do
+            people[#people + 1] = { role = item.role, name = ns.Listing.ROLE_WORD[item.role]() }
+        end
+        if #people > 0 then rows[#rows + 1] = { label = L["Can be"], people = people } end
+    elseif r.size > ns.Rows.MEMBERS then
+        local text, of = ns.Rows.Counts(r)
+        add(L["In the group"], text .. "   " .. of, nil, 2)
+    else
+        for _, m in ipairs(r.members) do
+            people[#people + 1] = { role = m.role, name = ns.Rows.Named(m.name, m.class), level = m.level }
+        end
+        local _, open = Data().Places(r)
+        for _, role in ipairs(Data().ROLES) do
+            for _ = 1, open[role] do people[#people + 1] = { role = role, open = true, name = L["Open spot"] } end
+        end
+        if #people > 0 then rows[#rows + 1] = { label = L["In the group"], people = people } end
+    end
+    local buttons = {}
+    if r.mine then
+        buttons[1] = { text = L["Edit listing"], primary = true, off = not Data().CanEdit(), onClick = acts.edit }
+        buttons[2] = { text = L["Unlist"], off = not Data().CanEdit(), onClick = acts.unlist }
+    elseif type(r.leader.name) == "string" then
+        local can = Data().CanInvite(r)
+        if can then buttons[#buttons + 1] = { text = INVITE or L["Invite"], primary = true, onClick = function() acts.invite(r) end } end
+        buttons[#buttons + 1] = { text = WHISPER or L["Whisper"], primary = not can, onClick = function() acts.whisper(r) end }
+    end
+    local icon
+    if r.leader.class and DUI.ClassIcon then icon = { DUI.ClassIcon(r.leader.class) } end
+    local red, green, blue = 1, 1, 1
+    if r.leader.class then red, green, blue = Style.ClassTextColor(r.leader.class) end
+    local sub = {}
+    if r.leader.class then sub[#sub + 1] = ns.Rows.ClassWord(r.leader.class) end
+    local age = ns.Rows.Age(r.age)
+    if age ~= "" then sub[#sub + 1] = age end
+    return { icon = icon, initial = r.leader.name, title = r.leader.name or r.text, color = { red, green, blue },
+        sub = table.concat(sub, "  ·  "), rows = rows, buttons = buttons }
+end
+
+function Browse.PaintDetail()
+    local page = Browse.page
+    if not (page and page.detail) then return end
+    local r = Browse.open and Browse.shown and Browse.shown[Browse.open]
+    local changed = page.detail:Set(r and Browse.Spec(r) or nil)
+    if ns.Window.PadChanged then ns.Window.PadChanged() end   -- the controller's X follows the card's button
+    return changed
+end
+
+-- The card open or closed: Refresh keeps to the list's side, and the list's right edge
+-- moves off the card.
+function Browse.Fit(page, p)
+    local room = ns.Window.Span() * p
+    Browse.room = room
+    page.refresh:ClearAllPoints()
+    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - room, -(Browse.TOOLS_Y + (Browse.down or 0)))
+    page.stack.scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -page.stack.side - room, Card().REST)
+end
+
+-- keep: keep the scroll (a refill).
+function Browse.Render(page, keep)
     page = page or Browse.page
     if not page then return end
-    local after = Browse.StopGlide()
     Browse.PaintChips(page)
     local s = page.stack
     local at = keep and s:Scrolled() or 0
     s:Begin()
-    local opened
+    Browse.shown, Browse.rowList = {}, {}
     local list = Browse.searching and {} or (Browse.results or {})
     local mine, groups, solo = {}, {}, {}
     -- Delisted: the last search still includes the player's listing until the next one.
@@ -263,13 +370,15 @@ function Browse.Render(page, keep, glide)
     for _, r in ipairs(list) do
         if Browse.act and not tContains(r.acts, Browse.act) then
             -- not the selected activity
+        elseif not wanted(r) then
+            -- not a role asked for
         elseif r.mine and not listed then
             if Browse.open == r.id then Browse.open = nil end
         elseif r.mine then mine[#mine + 1] = r elseif r.solo then solo[#solo + 1] = r else groups[#groups + 1] = r end
     end
     local function put(r)
-        rowOf(s, r)
-        if Browse.open == r.id then opened = ns.Rows.Opened(s, r, acts) end
+        Browse.shown[r.id] = r
+        Browse.rowList[#Browse.rowList + 1] = rowOf(s, r)
     end
     for _, r in ipairs(mine) do put(r) end
     local inGroup = IsInGroup and IsInGroup() == true
@@ -283,21 +392,19 @@ function Browse.Render(page, keep, glide)
     page.pieces = s:End()
     if Browse.fresh then Win.Feel.Stagger(page.pieces, 0) end
     Browse.fresh = nil
-    Browse.opened = opened
+    if Browse.open and not Browse.shown[Browse.open] then Browse.open = nil end
     -- Nothing to show: explain why, in the label color.
     local note
     if Browse.searching then note = L["Searching..."]
     elseif Browse.failed then note = L["The search failed. Try Refresh."]
     elseif not Browse.cat then note = L["Nothing to find at your level yet."]
-    elseif #list == 0 and Browse.searched then note = L["No groups match."]
+    elseif #mine + #groups + #solo == 0 and Browse.searched then note = L["No groups match."]
     elseif #list == 0 then note = L["Pick a category to look for groups."] end
     page.note:SetText(note or "")
     page.note:SetShown(note ~= nil)
     Browse.Seek(page, Browse.searching == true)
     s:ScrollTo(at)
-    if glide and opened then Browse.Glide(s, opened, true) end
-    -- A glide cut short still finishes its job (closing one opens the next) once this list is drawn.
-    if after then after() end
+    Browse.PaintDetail()
 end
 
 -- Searching bar: fills repeatedly while a search is pending.
@@ -314,67 +421,11 @@ function Browse.Seek(page, on)
     loop()
 end
 
--- The opened group glides open (or closed): its height grows from zero and the rows
--- below slide down with it.
-function Browse.Glide(s, d, opening, done)
-    local followers, after = {}, false
-    for _, p in ipairs(s.pieces) do
-        if after then
-            local _, _, _, _, y = p:GetPoint(1)
-            followers[#followers + 1] = { p, type(y) == "number" and y or 0 }
-        elseif p == d then
-            after = true
-        end
-    end
-    local full = d.full or d:GetHeight() or 0
-    local function step(t)
-        d:SetHeight(math.max(0.01, full * t))
-        for _, f in ipairs(followers) do
-            f[1]:ClearAllPoints()
-            f[1]:SetPoint("TOPLEFT", s.child, "TOPLEFT", 0, f[2] + (1 - t) * full)
-        end
-    end
-    local M = DUI.Motion
-    if M then
-        Browse.gliding, Browse.glideDone = d, done
-        M.Tween(d, opening and 0 or 1, opening and 1 or 0, M.NORMAL, step, function()
-            Browse.gliding, Browse.glideDone = nil, nil
-            if done then done() end
-        end)
-    else
-        step(opening and 1 or 0)
-        if done then done() end
-    end
-end
-
--- The list was redrawn, so stop any glide where it is (its rows are pooled stack
--- pieces that just got placed again; Parts.Light stops an ease the same way).
--- Returns the glide's end action for the caller to run.
-function Browse.StopGlide()
-    local d, done = Browse.gliding, Browse.glideDone
-    Browse.gliding, Browse.glideDone = nil, nil
-    if d and DUI.Motion then DUI.Motion.Tween(d, 0, 0, 0) end
-    return done
-end
-
--- Click on a listing: open it (closing any other first), or close it.
+-- Click on a listing: pick it (and open the card), or close the card when it is the picked one.
 function Browse.Toggle(id)
-    local s = Browse.page and Browse.page.stack
-    if not s then return end
-    local was = Browse.open
-    Browse.glideDone = nil   -- this click is the newest; drop any earlier pending open
-    local function openNew()
-        Browse.open = (was ~= id) and id or nil
-        Browse.Render(nil, true, Browse.open ~= nil)
-    end
-    if was and Browse.opened then
-        Browse.open = nil
-        if was == id then
-            return Browse.Glide(s, Browse.opened, false, function() Browse.Render(nil, true) end)
-        end
-        return Browse.Glide(s, Browse.opened, false, openNew)
-    end
-    openNew()
+    Browse.open = (Browse.open ~= id) and id or nil
+    for _, b in ipairs(Browse.rowList or {}) do ns.Rows.Pick(b, b.spec.result.id == Browse.open) end
+    Browse.PaintDetail()
 end
 
 -- The page
@@ -392,7 +443,28 @@ function Browse.Build(page)
     page.refresh = W().Button(page, REFRESH or L["Refresh"], W().CHIP_HEIGHT)
     page.refresh.FitWidth(80)
     page.refresh:SetScript("OnClick", function() Browse.Refresh() end)
-    page.stack = Win.Parts.Stack(page, { top = Browse.TOP, bottom = 12 })
+    -- Role squares: show only the groups that still want a tank, a healer or damage (any of
+    -- those lit), or the players who offer it.
+    page.needs = {}
+    for i, role in ipairs(Data().ROLES) do
+        local b = W().Button(page, "", W().CHIP_HEIGHT)
+        b:SetWidth(W().CHIP_HEIGHT + 6)
+        b.icon = W().Role(b, ROLE_ICON)
+        b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+        b.icon.Set(role)
+        b.role = role
+        b:SetScript("OnClick", function(self)
+            Browse.need[role] = (not Browse.need[role]) or nil
+            self.SetActive(Browse.need[role] == true)
+            Browse.Render(nil, true)
+        end)
+        b:HookScript("OnEnter", function(self)
+            W().Tooltip(self, ns.Listing.ROLE_WORD[role](), L["Open spot"])
+        end)
+        b:HookScript("OnLeave", function() W().HideTooltip() end)
+        page.needs[i] = b
+    end
+    page.stack = Win.Parts.Stack(page, { top = Browse.TOP, bottom = Card().REST })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("CENTER", page, "CENTER", 0, 10)
     Style.InkText(page.note, "LABEL")
@@ -403,6 +475,8 @@ function Browse.Build(page)
     page.seek:SetMinMaxValues(0, 1)
     W().BarAccent(page.seek)
     page.seek:Hide()
+    page.detail = Card().New(page, { refill = function() Browse.Render(nil, true) end,
+        side = function(open) ns.Window.SetSide("find", open) end, fit = function(p) Browse.Fit(page, p) end })
     for _, e in ipairs(Browse.EVENTS) do
         DUI.RegisterEvent(e, function(event)
             if event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then received(false)
@@ -436,6 +510,7 @@ function Browse.Pieces(page)
     for _, b in ipairs(page.chips) do if b:IsShown() then out[#out + 1] = b end end
     out[#out + 1] = page.act
     if page.all:IsShown() then out[#out + 1] = page.all end
+    for _, b in ipairs(page.needs) do out[#out + 1] = b end
     out[#out + 1] = page.refresh
     for i, p in ipairs(page.pieces or {}) do
         if i > 10 then break end

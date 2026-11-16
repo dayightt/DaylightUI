@@ -4,6 +4,7 @@ if DUI.LOCALE ~= "deDE" then return end
 local L = DUI.L
 
 -- DaylightUI_Tooltip: checked by a native speaker.
+L["Activity"] = "Aktivität"
 L["Tooltips"] = "Tooltips"
 L["Tooltip"] = "Tooltip"
 L["The game's tooltips in the DaylightUI look."] = "Die Tooltips des Spiels im Stil von DaylightUI."

@@ -372,6 +372,11 @@ T.test("pseudo sweep: the group finder window", function()
             if m.areaName then allow(what .. "  ·  " .. m.areaName) end
         end
     end
+    -- The card's header: the leader's class word, with how long ago it was listed.
+    for _, r in ipairs(LW.Sample()) do
+        local lead = r.members[1]
+        if lead then allow(DUI.Lfg.Rows.ClassWord(lead.classFilename)) end
+    end
     local bad = {}
     LW.Toggle(1)
     stub.RunTimers()
