@@ -426,10 +426,22 @@ end
 
 -- Invite: a solo listed player, when the player is alone, leads or assists
 -- (LFGBrowseUtil_GetInviteActionForResult).
-function Data.CanInvite(r)
-    if not (r and r.solo and not r.mine and r.leader.name) then return false end
+-- The player's own side of it: alone, or leading or assisting a group.
+function Data.MayInvite()
     if not (IsInGroup and IsInGroup()) then return true end
     return (UnitIsGroupLeader and UnitIsGroupLeader("player") == true) or (UnitIsGroupAssistant and UnitIsGroupAssistant("player") == true) or false
+end
+
+function Data.CanInvite(r)
+    if not (r and r.solo and not r.mine and r.leader.name) then return false end
+    return Data.MayInvite()
+end
+
+-- Invite someone from the Who list: the same side of it, and not yourself.
+function Data.CanInviteName(name)
+    if type(name) ~= "string" or name == "" then return false end
+    if UnitName and name == UnitName("player") then return false end
+    return Data.MayInvite()
 end
 
 -- Whispers and invites, done the game's way

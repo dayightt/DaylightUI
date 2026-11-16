@@ -47,6 +47,31 @@ local function texts(list, field)
     return table.concat(out, " | ")
 end
 
+-- What a detail card shows: its shown lines as { label = value } (a line with no title is
+-- keyed by its position), and its shown buttons' texts.
+local function card(detail)
+    local lines, buttons = {}, {}
+    local people = {}
+    for _, m in ipairs(detail.people) do
+        if m:IsShown() then people[#people + 1] = m.name:GetText() .. " " .. m.level:GetText() end
+    end
+    for i, r in ipairs(detail.rows) do
+        if r.value:IsShown() then
+            local label = r.label:IsShown() and r.label:GetText() or ("#" .. i)
+            lines[label] = r.value:GetText()
+        elseif r.label:IsShown() and #people > 0 then
+            lines[r.label:GetText()] = table.concat(people, string.char(10))   -- a row of people: one line each
+        end
+    end
+    for _, b in ipairs(detail.buttons) do if b:IsShown() then buttons[#buttons + 1] = b.text:GetText() end end
+    return lines, buttons
+end
+
+local function click(row)
+    stub.Key(function() row:GetScript("OnClick")(row, "LeftButton") end)
+    frame(20)
+end
+
 local function blocked()
     for _, e in ipairs(stub.errors) do if tostring(e):find("ADDON_ACTION_BLOCKED", 1, true) then return e end end
     return nil
@@ -304,7 +329,7 @@ T.test("lfg: hovering a group shows the whole party", function()
     T.truthy(row.sub:GetText():find("Relaxed", 1, true), "on the row too, at a glance")
 end)
 
-T.test("lfg: the leader's zone shows on the row, the tooltip and the opened group", function()
+T.test("lfg: the leader's zone shows on the row, the tooltip and the card", function()
     local ns = load()
     open(ns)
     tab(ns, "find")
@@ -318,9 +343,9 @@ T.test("lfg: the leader's zone shows on the row, the tooltip and the opened grou
     T.falsy(ns.Browse.results[3].leader.zone, "no zone from the client: no word for it")
     ns.Browse.Toggle(ns.Browse.results[1].id)
     frame(20)
-    local d = ns.Browse.page.stack.openedFrame
-    T.truthy(d.lines[1].what:GetText():find("Westfall", 1, true), "beside the leader in the opened group")
-    T.falsy(d.lines[2].what:GetText():find("Westfall", 1, true), "the zone is the leader's alone")
+    local lines = card(ns.Browse.page.detail)
+    T.eq(lines.Zone, "Westfall", "the leader's zone on the card")
+    T.falsy(lines["In the group"]:find("Westfall", 1, true), "the zone is the leader's alone")
 end)
 
 T.test("lfg: the sub line colors level, zone and playstyle; the note has its own line", function()
@@ -430,77 +455,65 @@ T.test("lfg: unlisting from Find takes your row away at once", function()
     T.truthy(mine(), "your listing shows")
     B.Toggle(99)
     frame(20)
-    local d = B.opened
-    T.eq(d.second.text:GetText(), "Unlist")
-    d.second:GetScript("OnClick")(d.second)
+    local _, buttons = card(B.page.detail)
+    T.eq(buttons[2], "Unlist")
+    local b = B.page.detail.buttons[2]
+    b:GetScript("OnClick")(b)
     frame(20)
     T.eq(#LW.Calls("RemoveListing"), 1)
     T.isnil(mine(), "your row is gone without a Refresh")
     T.isnil(B.open, "nothing of yours left open")
 end)
 
-T.test("lfg: a click opens the group in place: Whisper the leader, no Invite for a group", function()
+T.test("lfg: a click opens the group's card beside the list: Whisper the leader, no Invite for a group", function()
     local ns = load()
-    open(ns)
+    local f = open(ns)
     tab(ns, "find")
     local row = rows(ns.Browse.page.stack, "group")[1]
-    stub.Key(function() row:GetScript("OnClick")(row, "LeftButton") end)
-    frame(20)
+    local narrow = f:GetWidth()
+    click(row)
     T.eq(ns.Browse.open, 17)
-    local d = ns.Browse.opened
-    T.truthy(d and d:IsShown(), "opened")
-    T.near(d:GetHeight(), d.full, 0.5, "glided fully open")
-    T.eq(d.main.text:GetText(), "Whisper Gorrak Stonefist")
-    T.truthy(d.second.off, "only a player listed alone can be invited")
-    d.main:GetScript("OnClick")(d.main)
+    local d = ns.Browse.page.detail
+    T.truthy(d:IsOpen() and d.frame:IsShown(), "opened")
+    T.near(f:GetWidth(), narrow + ns.Window.Span(), 0.5, "the window made room for it")
+    local lines, buttons = card(d)
+    T.eq(d.frame.title:GetText(), "Gorrak Stonefist")
+    T.truthy(lines.Activity and lines.Activity:find("Deadmines", 1, true) or lines.Activity, "the activity")
+    T.truthy(lines["In the group"]:find("Mira Dawnsong", 1, true), "who is in")
+    T.truthy(lines["In the group"]:find("Open spot", 1, true), "what is still open")
+    T.eq(lines.Playstyle, "Relaxed")
+    T.truthy(lines.Note and lines.Note:find("need dps", 1, true), "the leader's note")
+    T.eq(table.concat(buttons, ","), "Whisper", "only a player listed alone can be invited: no Invite here")
+    d.buttons[1]:GetScript("OnClick")(d.buttons[1])
     T.eq(LW.Calls("SendTell")[1][1], "Gorrak Stonefist")
-    -- Clicked again: it glides shut.
-    stub.Key(function() row:GetScript("OnClick")(row, "LeftButton") end)
-    frame(20)
+    T.truthy(row.pick:IsShown(), "the row is the picked one")
+    -- Clicked again: the card closes and the window goes back.
+    click(row)
     T.isnil(ns.Browse.open)
+    T.falsy(d:IsOpen())
+    T.near(f:GetWidth(), narrow, 0.5, "the room is given back")
+    T.falsy(row.pick:IsShown())
 end)
 
--- With one row open, clicking another glides the first shut, then opens the
--- second, even when a listing change redraws the list mid-glide.
-T.test("lfg: another group clicked opens once the first has shut, a refill midway or not", function()
+-- With one group picked, clicking another moves the card to it.
+T.test("lfg: another group clicked takes the card, a refill midway or not", function()
     local ns = load()
     open(ns)
     tab(ns, "find")
     local list = rows(ns.Browse.page.stack, "group")
-    stub.Key(function() list[1]:GetScript("OnClick")(list[1], "LeftButton") end)
-    frame(20)
+    click(list[1])
     T.eq(ns.Browse.open, 17)
     list = rows(ns.Browse.page.stack, "group")
-    stub.Key(function() list[2]:GetScript("OnClick")(list[2], "LeftButton") end)
-    frame(2)   -- the first gliding shut
+    click(list[2])
     LW.Update(17, {})
     frame(20)
-    T.truthy(ns.Browse.open and ns.Browse.open ~= 17, "the second one open")
-    local d = ns.Browse.opened
-    T.truthy(d and d:IsShown(), "drawn open")
-    T.near(d:GetHeight(), d.full, 0.5, "glided fully open")
-end)
-
--- The list redrawn mid-glide by a listing change. The old glide's rows are pooled
--- and placed anew, so the glide must stop moving them.
-T.test("lfg: drawn again while a group glides open, the rows land where the new list puts them", function()
-    local ns = load()
-    open(ns)
-    tab(ns, "find")
-    local row = rows(ns.Browse.page.stack, "group")[1]
-    stub.Key(function() row:GetScript("OnClick")(row, "LeftButton") end)
-    frame(2)   -- gliding
-    ns.Browse.open = nil
-    ns.Browse.Render(nil, true)
-    frame(20)
-    local function ys()
-        local out = {}
-        for _, p in ipairs(ns.Browse.page.pieces) do local _, _, _, _, y = p:GetPoint(1); out[#out + 1] = tostring(y) end
-        return table.concat(out, " ")
-    end
-    local after = ys()
-    ns.Browse.Render(nil, true)
-    T.eq(after, ys())
+    T.truthy(ns.Browse.open and ns.Browse.open ~= 17, "the second one picked")
+    local d = ns.Browse.page.detail
+    T.truthy(d:IsOpen(), "still one card")
+    T.eq(d.frame.title:GetText(), ns.Browse.shown[ns.Browse.open].leader.name)
+    local picked = 0
+    for _, b in ipairs(rows(ns.Browse.page.stack, "group")) do if b.pick:IsShown() then picked = picked + 1 end end
+    T.eq(picked, 1, "one row picked")
 end)
 
 T.test("lfg: a player listed alone can be invited", function()
@@ -508,12 +521,29 @@ T.test("lfg: a player listed alone can be invited", function()
     open(ns)
     tab(ns, "find")
     local solo = rows(ns.Browse.page.stack, "group")[3]
-    stub.Key(function() solo:GetScript("OnClick")(solo, "LeftButton") end)
-    frame(20)
-    local d = ns.Browse.opened
-    T.falsy(d.second.off)
-    d.second:GetScript("OnClick")(d.second)
+    click(solo)
+    local d = ns.Browse.page.detail
+    local lines, buttons = card(d)
+    T.eq(table.concat(buttons, ","), "Invite,Whisper")
+    T.truthy(lines["Can be"], "the roles they can fill")
+    d.buttons[1]:GetScript("OnClick")(d.buttons[1])
     T.eq(LW.Calls("InviteUnit")[1][1], "Ularanu Seachaser")
+end)
+
+T.test("lfg: Who offers Invite only when it can work", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "who")
+    local d = ns.Who.page.detail
+    local function buttons() local _, b = card(d); return table.concat(b, ",") end
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(buttons(), "Whisper,Invite", "alone: you may invite")
+    LW.Group(3, false)
+    frame(2)
+    T.eq(buttons(), "Whisper", "joining a group you don't lead: the open card drops Invite at once")
+    LW.Group(3, true)
+    frame(2)
+    T.eq(buttons(), "Whisper,Invite", "made leader: Invite again")
 end)
 
 T.test("lfg: List yourself lends the game's note box into ours and gives it back", function()
@@ -532,10 +562,10 @@ T.test("lfg: List yourself lends the game's note box into ours and gives it back
         local p, _, _, _, py = page.stack.scroll:GetPoint(n)
         if p == "TOPLEFT" then oy = py end
     end
-    T.truthy(-oy <= 180, "the activities start high: " .. tostring(-oy))
+    T.truthy(-oy <= 210, "the activities start high: " .. tostring(-oy))
     T.eq(page.rolesHead:GetText(), "Roles")
     local _, _, _, rx = page.roleChips[1]:GetPoint(1)
-    T.eq(rx, ns.Listing.EDGE + ns.Listing.LABEL_W, "the buttons beside their label")
+    T.eq(rx, ns.Listing.EDGE + ns.Listing.IN + ns.Listing.LABEL_W, "the buttons beside their label")
     ns.Window.Close()
     frame(20)
     T.eq(LFGListingComment:GetParent(), LFGListingFrame.ActivityView, "given back")
@@ -774,11 +804,28 @@ T.test("lfg: Who asks who's your level and lists them; Whisper the one picked", 
     T.eq(#list, 2)
     T.truthy(list[2].name:GetText():find("Stormcallers", 1, true), "the guild")
     T.eq(list[2].value:GetText(), "Boulder Lode Mine")
-    T.truthy(ns.Who.page.foot.buttons[1].spec.off, "no one picked")
-    list[1]:GetScript("OnClick")(list[1], "LeftButton")
-    T.falsy(ns.Who.page.foot.buttons[1].spec.off)
-    ns.Who.page.foot.buttons[1]:GetScript("OnClick")(ns.Who.page.foot.buttons[1])
+    local d = ns.Who.page.detail
+    T.falsy(d:IsOpen(), "no one picked: no card")
+    local narrow = ns.Window.frame:GetWidth()
+    click(list[1])
+    T.truthy(d:IsOpen(), "a card for the one picked")
+    T.near(ns.Window.frame:GetWidth(), narrow + ns.Window.Span(), 0.5)
+    local lines, buttons = card(d)
+    T.eq(d.frame.title:GetText(), "Daemon Process")
+    T.eq(lines.Level, "14")
+    T.eq(lines.Race, "Orc")
+    T.eq(lines.Zone, "Agama'gor")
+    T.falsy(lines.Guild, "no guild, no line for it")
+    T.eq(table.concat(buttons, ","), "Whisper,Invite")
+    d.buttons[1]:GetScript("OnClick")(d.buttons[1])
     T.eq(LW.Calls("SendTell")[1][1], "Daemon Process")
+    list = rows(ns.Who.page.stack, "person")
+    click(list[2])
+    T.eq(d.frame.title:GetText(), "Lava Flows")
+    T.eq(card(d).Guild, "Stormcallers")
+    click(rows(ns.Who.page.stack, "person")[2])
+    T.falsy(d:IsOpen(), "picked again: the card closes")
+    T.near(ns.Window.frame:GetWidth(), narrow, 0.5)
     ns.Window.Close()
     frame(20)
     local calls = LW.Calls("SetWhoToUi")
@@ -810,9 +857,12 @@ T.test("lfg: motion off, everything still lands", function()
     DaylightUI:Set("general", "motion", false)
     open(ns)
     tab(ns, "find")
+    local f = ns.Window.frame
+    local narrow = f:GetWidth()
     local row = rows(ns.Browse.page.stack, "group")[1]
     stub.Key(function() row:GetScript("OnClick")(row, "LeftButton") end)
-    T.near(ns.Browse.opened:GetHeight(), ns.Browse.opened.full, 0.5)
+    T.truthy(ns.Browse.page.detail:IsOpen())
+    T.near(f:GetWidth(), narrow + ns.Window.Span(), 0.5)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -877,6 +927,95 @@ T.test("lfg: the corner grip resizes the window: more room, the text its size", 
     T.near(f:GetWidth(), ns.Window.W, 0.5, "reset: its own width again")
     T.falsy(ns.module.db.sizes, "and the size forgotten")
 end)
+
+T.test("lfg: the card is as wide as Social's, and the members each get their own line", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "find")
+    local narrow = f:GetWidth()
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local d = ns.Browse.page.detail
+    T.eq(d.frame:GetWidth(), DaylightUI.Social.Detail.W)
+    T.eq(f:GetWidth(), narrow + DaylightUI.Social.Detail.SPAN)
+    -- Each person is a line of their own: badge, name and level, all on one middle line.
+    local shown = {}
+    for _, m in ipairs(d.people) do if m:IsShown() then shown[#shown + 1] = m end end
+    T.truthy(#shown >= 3, "the members and the open spot")
+    T.truthy(shown[2].name:GetText():find("Mira Dawnsong", 1, true), "name")
+    T.eq(shown[1].level:GetText(), "15", "level")
+    for _, m in ipairs(shown) do T.truthy(m.badge:IsShown(), "each line has its role's badge") end
+    local _, _, _, _, y1 = shown[1]:GetPoint(1)
+    local _, _, _, _, y2 = shown[2]:GetPoint(1)
+    T.eq(y1 - y2, d.PERSON or DaylightUI.Social.Detail.PERSON, "one line apart")
+    T.eq(shown[#shown].name:GetText(), "Open spot", "the open spots come after the people")
+end)
+
+T.test("lfg: group and person rows have a line under them; a picked activity is carried by the wash", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    for _, b in ipairs(rows(ns.Browse.page.stack, "group")) do T.truthy(b.sep:IsShown(), "a group row's line") end
+    tab(ns, "who")
+    for _, b in ipairs(rows(ns.Who.page.stack, "person")) do T.truthy(b.sep:IsShown(), "a person row's line") end
+    tab(ns, "list")
+    local acts = rows(ns.Listing.page.stack, "act")
+    T.truthy(#acts > 0)
+    T.isnil(acts[1].boxEdge, "no hand-built tick box")
+    T.falsy(acts[1].pick:IsShown(), "not picked")
+    acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
+    T.truthy(acts[1].pick:IsShown(), "picked: the wash")
+end)
+
+T.test("lfg: the role squares keep the groups that still want that role", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local B = ns.Browse
+    local all = #rows(B.page.stack, "group")
+    T.truthy(all >= 3)
+    local function names() local out = {} for _, b in ipairs(rows(B.page.stack, "group")) do out[#out + 1] = b.spec.result.id end return out end
+    local seen = {}
+    for _, id in ipairs(names()) do seen[id] = true end
+    -- Ask for a role nobody wants: only your own listing (none here) would stay.
+    local tank = B.page.needs[1]
+    tank:GetScript("OnClick")(tank)
+    frame(2)
+    local some = #rows(B.page.stack, "group")
+    T.truthy(some < all, "fewer groups with a tank wanted: " .. some .. " of " .. all)
+    for _, b in ipairs(rows(B.page.stack, "group")) do
+        local r = b.spec.result
+        local ok
+        if r.solo then ok = (r.roles or {}).tank else local _, open = ns.Data.Places(r); ok = open.TANK > 0 end
+        T.truthy(ok, "a row that wants or offers a tank")
+    end
+    tank:GetScript("OnClick")(tank)
+    frame(2)
+    T.eq(#rows(B.page.stack, "group"), all, "off again: all of them")
+end)
+
+T.test("lfg: List yourself keeps its settings in one panel with a line between the rows", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    local page = ns.Listing.page
+    T.truthy(page.saved.fill:IsShown(), "the panel")
+    local ink = DaylightUI.Style.INK
+    T.truthy(page.npfText:GetText() ~= nil, "the switch's label")
+    local r, g, b = page.npfText:GetTextColor()
+    local lr, lg, lb = page.rolesHead:GetTextColor()
+    T.eq(r .. g .. b, lr .. lg .. lb, "the same color as the other labels")
+    local tr, tg, tb = ink.LABEL[1], ink.LABEL[2], ink.LABEL[3]
+    T.truthy(math.abs(r - tr) < 0.01 and math.abs(g - tg) < 0.01 and math.abs(b - tb) < 0.01, "tan, not the accent")
+    local lines = 0
+    for _, t in ipairs(page.rules) do if t:IsShown() then lines = lines + 1 end end
+    T.eq(lines, 3, "roles | playstyle | note | switch")
+    local _, _, _, _, panelTop = page.saved:GetPoint(1)
+    local _, _, _, x = page.roleChips[1]:GetPoint(1)
+    T.truthy(x >= ns.Listing.EDGE + ns.Listing.IN, "the chips sit inside the panel")
+    local _, _, _, _, boxY = page.noteBox:GetPoint(1)
+    T.truthy(-boxY > -panelTop and -boxY < -panelTop + page.saved:GetHeight(), "the note box is inside it")
+end)
+
 T.test("lfg: List yourself lays its buttons out for the width the window is about to have", function()
     local ns = load()
     local f = open(ns)
@@ -897,10 +1036,32 @@ T.test("lfg: List yourself lays its buttons out for the width the window is abou
     f.goalW = f:GetWidth() + 500
     ns.Listing.Render(page)
     T.eq(rowsOf(), 1, "one row of categories")
+    f.goalW = ns.Window.W
+    ns.Listing.Render(page)
+    T.truthy(rowsOf() >= 1)
+end)
+
+T.test("lfg: List yourself's role buttons carry a badge, and the panel is padded the same all round", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    local page = ns.Listing.page
+    local b = page.roleChips[1]
+    T.truthy(b.icon:IsShown(), "the badge")
+    T.falsy((b.text:GetText() or ""):find("|T", 1, true) or (b.text:GetText() or ""):find("|A", 1, true), "none drawn inside the text")
+    local pad = ns.Listing.IN
+    local _, _, _, _, top = page.saved:GetPoint(1)
+    local _, _, _, cx, cy = page.roleChips[1]:GetPoint(1)
+    T.eq(-cy - (-top), pad, "the same room above the first row")
+    T.eq(cx - ns.Listing.EDGE - ns.Listing.LABEL_W, pad, "and at the left (the label's edge)")
+    local _, _, _, rx = page.npf:GetPoint(1)
+    T.eq(-rx - ns.Listing.EDGE, pad, "and at the right")
+    local _, _, _, _, ny = page.npf:GetPoint(1)
+    T.near(-ny + page.npf:GetHeight() + pad, -top + page.saved:GetHeight(), 0.5, "and under the last row")
 end)
 
 -- The gear's "Show all levels" switch.
-T.test("lfg: show all levels adds the activities past your level, without the client's event", function()
+T.test("lfg: show all levels adds the activities past your level, to List yourself and the categories, without the client's event", function()
     local ns = load()
     local f = open(ns)
     tab(ns, "list")
@@ -948,4 +1109,56 @@ T.test("lfg: show all levels lights Refresh on Find a group (the groups shown we
     local has = false
     for _, id in ipairs(acts or {}) do if id == 800 then has = true end end
     T.truthy(has, "Scarlet Monastery is in the search")
+end)
+
+-- The controller: X presses the card's main button on Find a group and Who. The window binds X for
+-- List me itself, so the controller's own footer lookup never applies here.
+T.test("lfg: on a controller X presses the card's main button on Find a group and on Who", function()
+    local ns = load()
+    local f = open(ns)
+    local function entry(key)
+        for _, e in ipairs(f.padKeys) do
+            if e.key == key and (not e.when or e.when()) then return e end
+        end
+    end
+    tab(ns, "find")
+    T.isnil(entry("X"), "no card: no X")
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local x = entry("X")
+    T.truthy(x, "X with the card open")
+    T.eq(x.label(), "Whisper", "it says what it does")
+    stub.Key(function() x.run() end)
+    T.eq(LW.Calls("SendTell")[1][1], "Gorrak Stonefist")
+    -- A player listed alone: Invite is the main button.
+    click(rows(ns.Browse.page.stack, "group")[3])
+    T.eq(entry("X").label(), "Invite")
+    stub.Key(function() entry("X").run() end)
+    T.eq(LW.Calls("InviteUnit")[1][1], "Ularanu Seachaser")
+    tab(ns, "who")
+    T.isnil(entry("X"), "Who has no card open yet (the one on Find belongs to Find)")
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.eq(entry("X").label(), "Whisper")
+    stub.Key(function() entry("X").run() end)
+    T.eq(LW.Calls("SendTell")[2][1], "Daemon Process")
+    click(rows(ns.Who.page.stack, "person")[1])
+    T.isnil(entry("X"), "card closed: X gone")
+    tab(ns, "list")
+    T.isnil(entry("X"), "and on List yourself, nothing ticked")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: the controller's hints are refreshed as the card opens, moves and closes", function()
+    local ns = load()
+    local f = open(ns)
+    tab(ns, "find")
+    local P = DaylightUI.Pad
+    local calls = 0
+    local real = P.Refresh
+    P.Refresh = function(fr) if fr == f then calls = calls + 1 end return real(fr) end
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local opened = calls
+    T.truthy(opened > 0, "refreshed when the card opened")
+    click(rows(ns.Browse.page.stack, "group")[3])
+    T.truthy(calls > opened, "and when it moved to another group")
+    P.Refresh = real
 end)
