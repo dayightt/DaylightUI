@@ -1407,6 +1407,29 @@ T.test("fade: a whole area fades as one picture while it can fade, never its lay
     T.falsy(h.buffer, "only areas that ask")
 end)
 
+-- Seen in game: the AFK screen (and DialogueUI) fade UIParent away, yet a frame drawn
+-- to its own buffer kept showing over them. While the whole UI is faded, buffers
+-- come off so those frames fade with everything else.
+T.test("fade: buffers come off while the whole UI is faded away, and back after", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local f = counted(frame(false))
+    area(DUI, "w1", { mode = "ooc", alpha = 0.4, delay = 0, mouseover = true }, { f }, { whole = true })
+    settle(F)
+    T.eq(f.buffer, true, "faded: one picture")
+    F.SetUIAlpha(0.5)
+    T.eq(f.buffer, false, "the UI fading: follows it")
+    F.SetUIAlpha(1)
+    T.eq(f.buffer, true, "the UI back: one picture again")
+    -- Another addon fading the UI by itself is seen on the next step.
+    UIParent:SetAlpha(0)
+    F.Step()
+    T.eq(f.buffer, false, "someone else's fade too")
+    UIParent:SetAlpha(1)
+    F.Step()
+    T.eq(f.buffer, true)
+end)
+
 T.test("fade: a frame's buffer only changes out of combat, and waits for the fight's end", function()
     local DUI = stub.Load()
     local F = DUI.Fade

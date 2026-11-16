@@ -284,6 +284,12 @@ end
 -- area that can fade keeps it on even at full, ready for a fight.
 local wholeDue = {}
 local wholeOn = setmetatable({}, { __mode = "k" })
+local wholeAll = setmetatable({}, { __mode = "k" })
+
+-- A frame drawn to its own buffer keeps its own opacity, not UIParent's (seen in
+-- game: unit frames stayed over the AFK screen). While the whole UI is faded,
+-- by the AFK screen or another addon, buffers come off so everything fades together.
+local uiAway = false
 
 local function setWhole(f, on)
     local flat, buffer = f.SetFlattensRenderLayers, f.SetIsFrameBuffer
@@ -307,12 +313,24 @@ end
 local function wholeNow()
     for f in pairs(wholeDue) do
         wholeDue[f] = nil
-        local on = next(f.fadeWhy) ~= nil
+        local on = next(f.fadeWhy) ~= nil and not uiAway
         if (f.fadeWhole == true) ~= on then setWhole(f, on) end
     end
 end
 
+-- Checks whether UIParent is faded and moves the buffers with it.
+function Fade.CheckUIAway()
+    local a = UIParent:GetAlpha()
+    if type(a) ~= "number" or (issecretvalue and issecretvalue(a)) then return end
+    local away = a < 0.999
+    if away == uiAway then return end
+    uiAway = away
+    for f in pairs(wholeAll) do wholeDue[f] = true end
+    DUI.AfterCombat(wholeNow, "fade:whole")
+end
+
 function Fade.Whole(f, why, on)
+    wholeAll[f] = true
     local whys = f.fadeWhy
     if not whys then
         if not on then return end
@@ -403,6 +421,7 @@ function Fade.Step()
         Fade.StartIntro()
     end
     tick = tick + 1
+    Fade.CheckUIAway()
     local moving, snap = false, not motionOn()
     for _, key in ipairs(order) do
         local e = entries[key]
@@ -654,6 +673,7 @@ end
 -- tells everyone ("UIAlpha") and whoever draws a model sets the model's own.
 function Fade.SetUIAlpha(a)
     UIParent:SetAlpha(a)
+    Fade.CheckUIAway()
     DUI.Fire("UIAlpha", a)
 end
 

@@ -35,6 +35,7 @@ DUI.PatchNotes = {
             { "Chat", "Typing in a channel by its number, like /7, talks in the channel the game said it was, not in another addon's hidden channel" },
             { "Window skins", "The game menu's buttons, and other windows' buttons, no longer switch to a bigger font when you point at them" },
             { "Window skins", "The raid marker menu shows the marker icons again instead of empty dark boxes" },
+            { "Unit frames", "Faded unit frames no longer stay on screen over the AFK screen or over DialogueUI's talk screen" },
             { "Edit Mode", "No more \"DaylightUI updated its layout\" reload question every time you enter a dungeon or take a boat or zeppelin" },
         },
     },
