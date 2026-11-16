@@ -363,3 +363,35 @@ T.test("a frame still set to a style that was taken out shows Flow", function()
     DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
     T.eq(DUI.BarFx.StyleOf(bar), "flow")
 end)
+
+-- In game an animation started behind a loading screen stayed "playing"
+-- without moving, and Play did nothing to it, until another style was picked.
+T.test("after a loading screen every style starts its animation over", function()
+    for _, key in ipairs({ "flow", "tide", "comet", "embers" }) do
+        local DUI, bar, _, read = setup({ style = key })
+        local groups = {}
+        local make = bar.CreateAnimationGroup
+        bar.CreateAnimationGroup = function(self)
+            local g = make(self)
+            groups[#groups + 1] = g
+            return g
+        end
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        local playing, stops = {}, 0
+        for _, g in ipairs(groups) do
+            if g:IsPlaying() then
+                playing[#playing + 1] = g
+                local stop = g.Stop
+                g.Stop = function(self) stops = stops + 1; return stop(self) end
+            end
+        end
+        T.truthy(#playing > 0, key .. ": its animation plays")
+        stub.FireEvent("LOADING_SCREEN_DISABLED")
+        T.truthy(stops > 0, key .. ": stopped and")
+        for _, g in ipairs(playing) do T.truthy(g:IsPlaying(), key .. ": played again") end
+        -- A repaint keeps it going rather than starting it over.
+        stops = 0
+        DUI.Gradients.PaintPair(bar:GetStatusBarTexture(), { 1, 0, 0 }, { 0, 0, 1 })
+        T.eq(stops, 0, key .. ": a repaint doesn't restart it")
+    end
+end)

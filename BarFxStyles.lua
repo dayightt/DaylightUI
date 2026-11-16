@@ -80,9 +80,12 @@ local function layout(s, p, w, h)
 end
 
 local function show(s, p, on)
+    local was = p.on
     p.on = on
     for _, t in ipairs(p.layers) do t:SetShown(on) end
     if on then
+        -- Coming on, it starts over; already on (a repaint), it keeps going.
+        if not was then p.anim:Stop() end
         p.anim:Play()
         if p.anim.SetAnimationSpeedMultiplier then
             p.anim:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1))
@@ -120,7 +123,10 @@ local function build(s, name)
     a:SetFlipBookFrameHeight(0)
     -- The game stops a frame's animations while it's hidden: start again on show.
     s.bar:HookScript("OnShow", function()
-        if p.on and s.style == name and not p.anim:IsPlaying() then show(s, p, true) end
+        if p.on and s.style == name then
+            p.anim:Stop()
+            show(s, p, true)
+        end
     end)
     return p
 end
@@ -180,11 +186,14 @@ BarFx.TIDE_GLOW = 0.6     -- the band's strength at full
 BarFx.TIDE_EBB = 0.45     -- how dark a hit makes the fill at full
 
 local function tideShow(s, p, on)
+    local was = p.on
     p.on = on
     p.swell:SetShown(on)
     p.surge:SetShown(on)
     p.ebb:SetShown(on)
     if on then
+        -- Coming on, it starts over; already on (a repaint), it keeps going.
+        if not was then p.anim:Stop() end
         p.anim:Play()
         if p.anim.SetAnimationSpeedMultiplier then
             p.anim:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1))
@@ -224,7 +233,10 @@ BarFx.Add("tide", L["Tide"], {
         a:SetFlipBookFrameHeight(0)
         -- The game stops a frame's animations while it's hidden: start again on show.
         s.bar:HookScript("OnShow", function()
-            if p.on and s.style == "tide" and not p.anim:IsPlaying() then tideShow(s, p, true) end
+            if p.on and s.style == "tide" then
+                p.anim:Stop()
+                tideShow(s, p, true)
+            end
         end)
         return p
     end,

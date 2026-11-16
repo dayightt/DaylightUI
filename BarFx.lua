@@ -139,7 +139,11 @@ local function buildFlow(s)
     flipbook(h.anim, h.wave)
     -- The game stops a frame's animations while it's hidden: start again on show.
     bar:HookScript("OnShow", function()
-        if s.style and s.flow and s.flow.shown and not h.anim:IsPlaying() then h.anim:Play(); setSpeedOf(s) end
+        if s.style and s.flow and s.flow.shown then
+            h.anim:Stop()
+            h.anim:Play()
+            setSpeedOf(s)
+        end
     end)
     s.flow = h
 end
@@ -379,6 +383,28 @@ end)
 function BarFx.Refresh()
     for _, s in pairs(worn) do apply(s) end
 end
+
+-- An animation started behind a loading screen can stay "playing" without
+-- ever moving (seen in game after a /reload), and Play does nothing to one
+-- that thinks it's playing. Once the screen is gone, each one starts over.
+function BarFx.Restart()
+    for _, s in pairs(worn) do
+        if s.style then
+            local h = s.flow
+            if h and h.shown and flowFor(s.style) then
+                h.anim:Stop()
+                h.anim:Play()
+                setSpeed(s, s.speed)
+            end
+            local p = s.pieces and s.pieces[s.style]
+            if p and p.on and p.anim then
+                p.anim:Stop()
+                BarFx.DEFS[s.style].show(s, p, true)
+            end
+        end
+    end
+end
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", BarFx.Restart)
 
 DUI.On("StyleChanged", BarFx.Refresh)
 
