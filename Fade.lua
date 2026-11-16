@@ -222,6 +222,7 @@ function Fade.Goal(e, now)
     local mode, alpha, mouseover, delay, opacity, target = Fade.Read(e)
     -- Stepped aside: shown, and back in the world the delay runs first.
     if Fade.Aside() then e.lastNear = now; return opacity end
+    if Fade.showAll then e.lastNear = now; return opacity end
     if e.peeking then
         if Fade.Held() then return mode == "never" and opacity or alpha end
         e.peeking = nil
@@ -663,6 +664,21 @@ function Fade.Unhush(name, snap)
 end
 
 function Fade.Hushed() return next(hushes) ~= nil end
+
+-- The "Show everything" key: every area shows at its opacity until pressed
+-- again, then whatever is set to fade goes back to it right away instead of
+-- waiting out its delay. Only alpha changes, so it works in a fight too.
+function Fade.ToggleShowAll()
+    Fade.showAll = not Fade.showAll or nil
+    if not Fade.showAll then
+        for _, key in ipairs(order) do entries[key].lastNear = -math.huge end
+    end
+    Fade.Step()
+end
+
+DUI.FadeShowAll = Fade.ToggleShowAll
+_G.BINDING_HEADER_DAYLIGHTUI = "Daylight UI"
+_G.BINDING_NAME_DAYLIGHTUI_SHOWALL = DUI.L["Show everything, press again to fade"]
 
 -- The game draws the minimap's dots (your arrow, quest marks, tracking,
 -- party) at full strength regardless of its parents' alpha. So whoever fades

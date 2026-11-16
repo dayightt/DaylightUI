@@ -1474,6 +1474,7 @@ L["Focus cast bar text size"] = "Tamaño del texto de la barra de lanzamiento de
 L["Fold it"] = "Plegar"
 L["Fold ready quests"] = "Plegar las misiones listas"
 L["Fold the quest tracker"] = "Plegar el seguimiento de misiones"
+L["Show everything, press again to fade"] = "Mostrarlo todo, pulsa otra vez para atenuar"
 L["Fold this quest"] = "Plegar esta misión"
 L["Fold to the header"] = "Plegar hasta el encabezado"
 L["Follows the Icon style above (%s)."] = "Sigue el estilo de icono de arriba (%s)."

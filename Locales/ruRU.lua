@@ -1461,6 +1461,7 @@ L["Focus cast bar text size"] = "Размер текста индикатора 
 L["Fold it"] = "Свернуть"
 L["Fold ready quests"] = "Сворачивать готовые задания"
 L["Fold the quest tracker"] = "Свернуть список заданий"
+L["Show everything, press again to fade"] = "Показать всё, нажмите снова, чтобы скрыть"
 L["Fold this quest"] = "Свернуть это задание"
 L["Fold to the header"] = "Свернуть до заголовка"
 L["Follows the Icon style above (%s)."] = "Следует стилю значков выше (%s)."

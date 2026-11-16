@@ -1496,6 +1496,7 @@ L["Focus cast bar text size"] = "Taille du texte de la barre de sorts de la foca
 L["Fold it"] = "Replier"
 L["Fold ready quests"] = "Replier les quêtes prêtes"
 L["Fold the quest tracker"] = "Replier le suivi de quêtes"
+L["Show everything, press again to fade"] = "Tout afficher, appuyez de nouveau pour estomper"
 L["Fold this quest"] = "Replier cette quête"
 L["Fold to the header"] = "Replier jusqu'à l'en-tête"
 L["Follows the Icon style above (%s)."] = "Suit le style d'icône ci-dessus (%s)."

@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- Shows every faded part of Daylight UI, or sends it back to its fade (Fade.ToggleShowAll). Named in Fade.lua. -->
+    <Binding name="DAYLIGHTUI_SHOWALL" header="DAYLIGHTUI" category="ADDONS">
+        if DaylightUI and DaylightUI.FadeShowAll then DaylightUI.FadeShowAll() end
+    </Binding>
+</Bindings>
