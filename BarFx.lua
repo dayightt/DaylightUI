@@ -1,8 +1,8 @@
 -- Bar styles: a living fill on health and power bars (Flow, Tide...), picked
 -- like the button glows. Nothing here reads a bar's value, so secret health
--- is fine: every layer sits in a clip frame that covers exactly the fill
--- (Style.FillClip) and the client runs the motion with animation groups, so
--- no Lua runs while a bar just sits there.
+-- is fine: every layer is laid over the fill and wears its masks, and the
+-- client runs the motion with animation groups, so no Lua runs while a bar
+-- just sits there.
 
 local _, DUI = ...
 local Style = DUI.Style
@@ -19,9 +19,6 @@ BarFx.ORDER = { "flow", "tide" }
 BarFx.RETIRED = {}   -- a style taken out -> the one shown instead (BarFxStyles.lua)
 BarFx.AUTO = { MANA = "flow", RAGE = "flow", ENERGY = "flow", FOCUS = "flow" }
 BarFx.FLOW_LOOP = 9      -- seconds for the colors to roll one bar width
-BarFx.TIDE_HEAL = 5      -- how fast the colors run right after a heal
-BarFx.TIDE_HIT = 0.15    -- and right after a hit
-BarFx.TIDE_BACK = 1.6    -- seconds to ease back to the usual speed
 
 local worn = setmetatable({}, { __mode = "k" })    -- bar -> its state
 local byFill = setmetatable({}, { __mode = "k" })  -- fill texture -> bar
@@ -213,7 +210,7 @@ end
 
 local function flowFor(style)
     local def = BarFx.DEFS[style]
-    return style == "flow" or style == "tide" or (def ~= nil and def.flow == true)
+    return style == "flow" or (def ~= nil and def.flow == true)
 end
 
 local function hidePieces(s, keep)
@@ -355,22 +352,7 @@ function BarFx.Painted(tex)
     if s and s.style then paintPiece(s) end
 end
 
--- Tide: a heal (dir > 0) speeds the roll up, a hit (dir < 0) nearly stops it,
--- then it eases back. Lua runs only while easing.
-local easing = {}
-local ticker
-local function tick(_, dt)
-    local any
-    for s in pairs(easing) do
-        s.easeT = s.easeT + dt
-        local k = math.min(1, s.easeT / BarFx.TIDE_BACK)
-        local e = 1 - (1 - k) * (1 - k)
-        setSpeed(s, s.speed * (s.easeFrom + (1 - s.easeFrom) * e))
-        if k >= 1 then easing[s] = nil else any = true end
-    end
-    if not any then ticker:SetScript("OnUpdate", nil) end
-end
-
+-- A heal (dir > 0) or a hit (dir < 0) on a style that reacts to them.
 function BarFx.Kick(bar, dir)
     local s = worn[bar]
     if not (s and s.style and type(dir) == "number" and dir ~= 0) then return end
@@ -380,15 +362,7 @@ function BarFx.Kick(bar, dir)
     if def and def.kick then
         local p = s.pieces and s.pieces[s.style]
         if p then def.kick(s, p, dir, size) end
-        return
     end
-    if not (s.style == "tide" and s.flow) then return end
-    s.easeFrom = dir > 0 and 1 + (BarFx.TIDE_HEAL - 1) * size or 1 - (1 - BarFx.TIDE_HIT) * math.min(1, size)
-    s.easeT = 0
-    easing[s] = true
-    ticker = ticker or CreateFrame("Frame")
-    BarFx.ticker = ticker
-    ticker:SetScript("OnUpdate", tick)
 end
 
 -- Hits and heals come with UNIT_COMBAT (its action is plain; the amount isn't).
@@ -397,7 +371,7 @@ DUI.RegisterEvent("UNIT_COMBAT", function(_, unit, action)
     local dir = KICK[action]
     if not dir or type(unit) ~= "string" then return end
     for bar, s in pairs(worn) do
-        local reacts = s.style == "tide" or (BarFx.DEFS[s.style or ""] and BarFx.DEFS[s.style].kick)
+        local reacts = BarFx.DEFS[s.style or ""] and BarFx.DEFS[s.style].kick
         if reacts and s.unit == unit and s.kind == "health" and bar:IsVisible() then BarFx.Kick(bar, dir) end
     end
 end)
@@ -407,13 +381,6 @@ function BarFx.Refresh()
 end
 
 DUI.On("StyleChanged", BarFx.Refresh)
-
--- How many bars are easing back from a reaction (tests).
-function BarFx.Easing()
-    local n = 0
-    for _ in pairs(easing) do n = n + 1 end
-    return n
-end
 
 -- Samples: a bar of each kind in Daylight UI's look, following the picks
 -- (options page, the setup guide, the question after an update). A sample
@@ -518,15 +485,22 @@ BarFx.HOMES = {
         "personal.barFx.health", "personal.barFx.power",
         "playerCastbar.barFx", "targetCastbar.barFx", "focusCastbar.barFx", "partyCastbar.barFx", "swing.barFx",
     },
+    ActionBars = { "cdmBarFx" },
 }
 
--- The style keys of a module's homes, but for skip (the setup guide's card
--- sets one and these along with it).
+-- The style keys of every home but skip (the setup guide's card sets one and
+-- these along with it): a key of module itself, the others as { module, key }.
 function BarFx.StyleKeys(module, skip)
     local keys = {}
-    for _, path in ipairs(BarFx.HOMES[module] or {}) do
-        local key = path .. ".style"
-        if key ~= skip then keys[#keys + 1] = key end
+    for name, paths in pairs(BarFx.HOMES) do
+        for _, path in ipairs(paths) do
+            local key = path .. ".style"
+            if name ~= module then
+                keys[#keys + 1] = { name, key }
+            elseif key ~= skip then
+                keys[#keys + 1] = key
+            end
+        end
     end
     return keys
 end

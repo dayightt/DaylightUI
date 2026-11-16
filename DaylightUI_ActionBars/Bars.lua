@@ -453,6 +453,7 @@ function Bars.SettingChanged(mod, path)
     local picked = type(path) == "string" and string.match(path, "^bars%.([^%.]+)%.visible$")
     if picked and type(mod.db.checkEmptyBars) == "table" then mod.db.checkEmptyBars[picked] = nil end
     if type(path) == "string" and string.match(path, "^bars%.") then Bars.Relayout() end
+    if type(path) ~= "string" or string.find(path, "^cdmBarFx") then DUI.BarFx.Refresh() end
     Bars.Refresh(mod)
 end
 

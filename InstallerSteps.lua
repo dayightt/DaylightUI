@@ -689,7 +689,14 @@ local function cards(page, group, width, refreshers)
                 if v ~= nil and v ~= "global" then DUI.InstallerDraft.Set(spec.scope, key, "global") end
             end
             it.set(k)
-            for _, key in ipairs(spec.along or {}) do DUI.InstallerDraft.Set(spec.scope, key, k) end
+            -- A key of another module comes as { module, key }.
+            for _, key in ipairs(spec.along or {}) do
+                if type(key) == "table" then
+                    if DUI:GetModule(key[1]) then DUI.InstallerDraft.Set(key[1], key[2], k) end
+                else
+                    DUI.InstallerDraft.Set(spec.scope, key, k)
+                end
+            end
             if k == "custom" and spec.colorKey then
                 W.PickCustom(DUI:Get(spec.scope, spec.colorKey), function(rgb)
                     DUI.InstallerDraft.Set(spec.scope, spec.colorKey, rgb)

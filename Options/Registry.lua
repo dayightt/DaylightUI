@@ -1330,7 +1330,7 @@ Options.RegisterPage({
 
 -- Bar animation (BarFx.lua): one card for the bars a page owns, each bar's
 -- settings in its own module. spec = { module, choices = { { id, label, base,
--- kind, gate } }, gate = fn(get) (true = the bar is off; a choice's own gate
+-- kind, gate } } (only a health bar reacts to hits and heals), gate = fn(get) (true = the bar is off; a choice's own gate
 -- wins), read = fn(key)
 -- (where a preview reads; the module's own settings when nil), pickHidden
 -- (hides the "Settings for" pick), tab }. One
@@ -1361,7 +1361,7 @@ local function barFxItems(spec, c)
         { type = "dropdown", key = base .. "style", label = c.label .. " animation", since = "1.8.5",
           choices = function() return DUI.BarFx.Choices(c.kind == "power") end,
           disabled = off,
-          desc = "How the bar moves. Flow rolls the bar's colors along it; Tide does too and surges with every heal and hit." ..
+          desc = "How the bar moves. Flow rolls the bar's colors along it; Tide swells softly through it and surges with every heal and hit." ..
                  (c.kind == "power" and " By power type picks one that suits mana, rage or energy." or "") ..
                  " Needs Motion effects (General > Appearance)." },
         { type = "slider", key = base .. "speed", label = "Animation speed", min = 0.25, max = 3, step = 0.05, unit = "x", since = "1.8.5",
@@ -1379,9 +1379,9 @@ local function barFxItems(spec, c)
           hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
           desc = "The other end of the custom pair." },
         { type = "toggle", key = base .. "react", label = "React to hits and heals", since = "1.8.5",
-          disabled = none, desc = "Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
+          hidden = function() return c.kind ~= "health" end, disabled = none, desc = "Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
         { type = "slider", key = base .. "reactSize", label = "Reaction size", min = 0.25, max = 2, step = 0.05, unit = "x", since = "1.8.5",
-          disabled = function(get) return none(get) or get(base .. "react") == false end,
+          hidden = function() return c.kind ~= "health" end, disabled = function(get) return none(get) or get(base .. "react") == false end,
           desc = "How big a reaction is. The game doesn't say how big a hit or heal was, so every one moves the same." },
     }
 end

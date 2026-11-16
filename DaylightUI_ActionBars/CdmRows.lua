@@ -190,6 +190,8 @@ end
 local function release(item)
     Fx.Clear(item)
     DUI.SafeCall(CD.ClearIconText, item)
+    -- A bar goes back to the game's look, its animation off.
+    if type(item.Bar) == "table" then DUI.SafeCall(CD.StyleText, item) end
     if claimed[item] or faded[item] or sizes[item] then
         claimed[item], faded[item], sizes[item] = nil, nil, nil
         item:SetAlpha(1)

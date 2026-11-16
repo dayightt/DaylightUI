@@ -87,7 +87,7 @@ Pages.STYLE_FOLLOWERS = { "player.style", "target.style", "focus.style", "party.
 --     only (these keys, in this order), max (at most this many), more (adds
 --     a dropdown row of the same option with this label for the full list),
 --     colorKey (picking "custom" opens the color picker for this key),
---     along (these keys take the same pick) }
+--     along (these keys take the same pick; another module's as { module, key }) }
 --   rows = options as rows { { scope, key, label = optional } }; notes = true
 --     prints each one's help under it
 --   portraits = one choice for every frame's portrait (true), or another of

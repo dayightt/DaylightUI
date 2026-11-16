@@ -140,15 +140,6 @@ T.test("custom colors and strength paint the strips", function()
     T.eq(DUI.BarFx.StyleOf(bar), "flow")
 end)
 
-T.test("Tide eases back after a hit, then lets Lua rest", function()
-    local DUI, bar, _, read = setup({ style = "tide" })
-    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
-    DUI.BarFx.Kick(bar, -1)
-    for _ = 1, 30 do stub.RunOnUpdate(DUI.BarFx.ticker, 0.1) end
-    T.isnil(DUI.BarFx.ticker.__scripts.OnUpdate, "the ticker stops")
-    T.eq(DUI.BarFx.Easing(), 0, "nothing left easing")
-end)
-
 local function upgrader()
     return stub.Load({ module = true, before = function()
         DaylightUIDB = { version = "1.8.4", notesSeen = "1.8.4", installerSeen = true,
@@ -251,6 +242,35 @@ local function sheetOf(bar)
         if type(file) == "string" and (file:find("barfx%-comet") or file:find("barfx%-embers")) then return r, file end
     end
 end
+
+T.test("Tide swells on its own, surges on a heal, ebbs on a hit, then lets Lua rest", function()
+    local DUI, bar, _, read = setup({ style = "tide", react = true })
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    local swell, surge, ebb
+    for _, r in ipairs(lights(bar)) do
+        if r:GetTexture() == DUI.BarFx.TIDE then swell = r
+        elseif r:GetBlendMode() == "ADD" then surge = r
+        else ebb = r end
+    end
+    T.truthy(swell, "its own swell, not Flow's rolling colors")
+    for _, r in ipairs(lights(bar)) do
+        T.truthy(r:GetTexture() ~= DUI.BarFx.WAVE and r:GetTexture() ~= DUI.BarFx.SWEEP, "no Flow under it")
+    end
+    T.eq(swell:GetNumPoints(), 1, "laid over the whole fill")
+    T.eq(surge:GetAlpha(), 0)
+    T.eq(ebb:GetAlpha(), 0)
+    DUI.BarFx.Kick(bar, 1)
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.05)
+    T.truthy(surge:GetAlpha() > 0, "a heal surges")
+    T.eq(ebb:GetAlpha(), 0)
+    DUI.BarFx.Kick(bar, -1)
+    stub.RunOnUpdate(DUI.Motion.Driver(), 0.05)
+    T.truthy(ebb:GetAlpha() > 0, "a hit ebbs")
+    for _ = 1, 10 do stub.RunOnUpdate(DUI.Motion.Driver(), 0.1) end
+    T.eq(surge:GetAlpha(), 0)
+    T.eq(ebb:GetAlpha(), 0)
+    T.isnil(DUI.Motion.Driver().__scripts.OnUpdate, "then no Lua runs")
+end)
 
 T.test("a style that reacts flares on a hit and lets Lua rest after", function()
     local DUI, bar, cfg, read = setup({ style = "comet", react = true })
