@@ -340,6 +340,8 @@ ns.OPTIONS = { pages = {
               desc = "Opening a vendor sells everything in the Junk group: gray items, and anything you've moved to Junk yourself. Chat shows how much you got." },
             { type = "toggle", key = "autoRepair", label = "Repair automatically", disabled = off,
               desc = "Opening a vendor that repairs fixes all your gear, and chat shows the cost. Not in combat." },
+            { type = "toggle", key = "lockSets", label = "Lock equipment set items", disabled = off,
+              desc = "Gear in one of your equipment sets can't be sold to a vendor or disenchanted by accident. Clicking it there tells you why." },
             { type = "toggle", key = "repairGuild", label = "Use guild money first",
               disabled = function(get) return get("enabled") ~= true or get("autoRepair") ~= true end,
               desc = "Pays for repairs from the guild bank when your guild allows it. Otherwise you pay." },

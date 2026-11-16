@@ -8,7 +8,10 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {},
+    values = {
+        ["Bags.showSet"] = "equipment set items are marked in the bags for everyone now; a corner dot, nothing moves",
+        ["Bags.bank.showSet"] = "the bank's copy of the same mark",
+    },
     frames = {},
     plates = {},
 }

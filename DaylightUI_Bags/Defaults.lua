@@ -20,7 +20,8 @@ ns.DEFAULTS = {
     -- Item overlays, each in a fixed corner: bind type top left, equipment set
     -- top right, junk coin in its own spot.
     showBind = true,        -- "BoE" / "BoU" until bound
-    showSet = false,        -- mark items that are in an equipment set
+    showSet = true,         -- mark items that are in an equipment set
+    lockSets = true,        -- equipment set items can't be sold or disenchanted (Guard.lua)
     showLevel = false,      -- item level on gear, bottom left
     showJunk = false,       -- the game's gold coin on gray items
     markCheapJunk = false,  -- a dot on the gray stack worth least (Junk.MarkCheapest)
@@ -45,7 +46,7 @@ ns.DEFAULTS = {
     -- Bank (Bank.lua): its own columns and bag slot row. Everything else follows
     -- the bags (ns.BANK_SHARED) unless ownLook gives it its own copy.
     bank = { columns = 14, ownLook = false, iconSize = 35, spacing = 2, scale = 1, view = "categories", emptySlots = "all",
-             greyPoor = true, redUnusable = true, showBind = true, showSet = false, showLevel = false, showJunk = false, showSlots = false },
+             greyPoor = true, redUnusable = true, showBind = true, showSet = true, showLevel = false, showJunk = false, showSlots = false },
     -- Viewer (Viewer.lua: the bank from anywhere, other characters' bags). When off,
     -- nothing new is saved. Own columns and position; the rest follows the bags
     -- unless ownLook. redUnusable, showSet and showJunk are left out on purpose: with

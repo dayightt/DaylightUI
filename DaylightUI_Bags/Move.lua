@@ -63,7 +63,7 @@ function Move.Matches(f, where)
                 and (not f.chip or ns.Window.ItemInChip(f, Cat.Facts(s.bag, slot, info))) then
                 local value = 0
                 if where == "vendor" then value = ns.Junk.PriceOf(info) * (info.stackCount or 1) end
-                if where ~= "vendor" or (not info.hasNoValue and value > 0 and not Cat.IsLocked(info.itemID)) then
+                if where ~= "vendor" or (not info.hasNoValue and value > 0 and not Cat.Guarded(s.bag, slot, info)) then
                     out[#out + 1] = { bag = s.bag, slot = slot, link = info.hyperlink, value = value }
                 end
             end

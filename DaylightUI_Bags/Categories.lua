@@ -653,6 +653,23 @@ function Cat.ToggleLock(itemID)
     DUI.Fire("ItemLockChanged")
 end
 
+-- With "lockSets" on, an item in one of your equipment sets is kept from
+-- vendors and Disenchant the same way. A set holds one copy of an item, not
+-- every copy, so this asks about the slot rather than the item ID.
+function Cat.InSet(bag, slot)
+    if type(bag) ~= "number" or (ns.Saved and ns.Saved.Is(bag)) then return false end
+    if not C_Container.GetContainerItemEquipmentSetInfo then return false end
+    local ok, yes = pcall(C_Container.GetContainerItemEquipmentSetInfo, bag, slot)
+    return ok and yes == true
+end
+
+-- Locked by hand, or in a set while set items are locked.
+function Cat.Guarded(bag, slot, info)
+    if not info then return false end
+    if Cat.IsLocked(info.itemID) then return true end
+    return db().lockSets ~= false and Cat.InSet(bag, slot)
+end
+
 -- Recent
 
 -- Items the game flags as new, remembered per item until the timeout (the

@@ -1,5 +1,5 @@
--- Locked items (Alt-right-click, see Categories.lua) can't be sold or
--- disenchanted by accident. While a vendor is open or Disenchant is on the
+-- Locked items (Alt-right-click, see Categories.lua) and, with "lockSets" on,
+-- items in an equipment set can't be sold or disenchanted by accident. While a vendor is open or Disenchant is on the
 -- cursor, a locked item's slot ignores clicks and drags. The game's click
 -- handler is left alone, replacing it would taint every item use. The slot
 -- just stops registering for clicks. The mouse still reaches it, so the tooltip
@@ -21,7 +21,7 @@ function Guard.Active() return Guard.vendor or Guard.disenchanting end
 function Guard.Apply(btn, info)
     local holder = btn:GetParent()
     if ns.Saved.Is(holder:GetID()) then return end      -- saved copies (viewer) can't be sold anyway
-    local want = Guard.Active() and info ~= nil and ns.Categories.IsLocked(info.itemID)
+    local want = Guard.Active() and ns.Categories.Guarded(holder:GetID(), btn:GetID(), info)
     if want == (btn.dluiGuarded == true) then return end
     btn.dluiGuarded = want or nil
     if want then
@@ -48,7 +48,12 @@ end
 function Guard.Refused(btn, button)
     if button == "RightButton" and IsAltKeyDown and IsAltKeyDown() then return ns.Categories.Menu(btn) end
     local info = ns.Items.InfoAt(btn:GetParent():GetID(), btn:GetID())
-    if info then DUI.Print(string.format(L["%s is locked. Alt-right-click it to unlock it."], info.hyperlink or "")) end
+    if not info then return end
+    if ns.Categories.IsLocked(info.itemID) then
+        DUI.Print(string.format(L["%s is locked. Alt-right-click it to unlock it."], info.hyperlink or ""))
+    else
+        DUI.Print(string.format(L["%s is in an equipment set, so it can't be sold or disenchanted. Take it out of the set first."], info.hyperlink or ""))
+    end
 end
 
 local function disenchanting()

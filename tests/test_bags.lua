@@ -1344,15 +1344,18 @@ T.test("bags: BoE and BoU in the corner until bound; the set mark and junk coin 
     T.truthy(Items.Parts(boe).bind:IsShown())
     T.falsy(Items.Parts(bound).bind:IsShown(), "bound already: nothing")
     T.falsy(Items.Parts(rare).bind:IsShown(), "bind on pickup: nothing")
-    T.falsy(Items.Parts(boe).set:IsShown(), "the set mark is off by default")
+    T.truthy(Items.Parts(boe).set:IsShown(), "in a set: marked")
+    T.falsy(Items.Parts(rare).set:IsShown())
     T.eq(boe.JunkIcon:GetAlpha(), 0, "the junk coin off by default")
     T.eq(boe.UpgradeIcon:GetAlpha(), 0, "no upgrade arrow")
+    DaylightUI:Set("Bags", "showSet", false)
+    stub.RunTimers()
+    T.falsy(Items.Parts(boe).set:IsShown(), "the set mark switched off")
     DaylightUI:Set("Bags", "showSet", true)
     DaylightUI:Set("Bags", "showJunk", true)
     DaylightUI:Set("Bags", "showBind", false)
     stub.RunTimers()
-    T.truthy(Items.Parts(boe).set:IsShown(), "in a set: marked")
-    T.falsy(Items.Parts(rare).set:IsShown())
+    T.truthy(Items.Parts(boe).set:IsShown())
     T.eq(boe.JunkIcon:GetAlpha(), 1, "the junk coin when asked")
     T.falsy(Items.Parts(boe).bind:IsShown(), "bind type off")
 end)
@@ -5398,6 +5401,38 @@ T.test("bags: a locked item's slot takes no clicks at a vendor or under Disencha
     stub.FireEvent("MERCHANT_CLOSED")
 end)
 
+T.test("bags: an equipment set item can't be sold or disenchanted unless that lock is switched off", function()
+    local ns = catLogin()
+    local gear, other = ns.Bags.buttons[0][2], ns.Bags.buttons[0][1]
+    world.sets["0:2"] = true
+    local clicks = function(b) return #(b.__clicks or {}) end
+    T.truthy(ns.Categories.Guarded(0, 2, C_Container.GetContainerItemInfo(0, 2)))
+    T.falsy(ns.Categories.IsLocked(C_Container.GetContainerItemInfo(0, 2).itemID), "not locked by hand")
+    stub.FireEvent("MERCHANT_SHOW")
+    T.truthy(gear.dluiGuarded)
+    T.eq(clicks(gear), 0, "at a vendor no click reaches the game's sale")
+    T.falsy(other.dluiGuarded, "the item beside it sells as ever")
+    gear:GetScript("OnMouseUp")(gear, "RightButton")
+    T.truthy(stub.ChatContains("is in an equipment set"), "a click says why nothing happened")
+    stub.FireEvent("MERCHANT_CLOSED")
+    T.falsy(gear.dluiGuarded)
+
+    local current = true
+    C_Spell.IsCurrentSpell = function(id) return current and id == ns.Disenchant.SPELL end
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    T.eq(clicks(gear), 0, "Disenchant on the cursor: no click reaches the game")
+    current = false
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    T.eq(clicks(gear), 2)
+
+    DaylightUI:Set("Bags", "lockSets", false)
+    stub.RunTimers()
+    stub.FireEvent("MERCHANT_SHOW")
+    T.falsy(gear.dluiGuarded, "switched off: it sells like any other item")
+    stub.FireEvent("MERCHANT_CLOSED")
+    world.sets["0:2"] = nil
+end)
+
 T.test("bags: Sell junk leaves a locked gray item, and the game's sell-all button stays off for it", function()
     local game = 0
     local ns = catLogin()
@@ -7251,6 +7286,7 @@ end)
 
 T.test("bags: Move what you searched for sells at a vendor on a second click", function()
     local ns, f, used = moveWorld()
+    world.sets = {}   -- an equipment set item would be kept back
     local getInfo = C_Item.GetItemInfo
     C_Item.GetItemInfo = function(link)
         if link == "|Hitem:1|h" or link == "|Hitem:4|h" then return "name", link, 2, 1, 1, "", "", 20, "", 1, 25, 0, 0, 0 end

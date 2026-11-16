@@ -54,7 +54,7 @@ function Junk.Grays()
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
             if info and info.quality == 0 and not info.hasNoValue then
-                if ns.Categories.IsLocked(info.itemID) then kept = true
+                if ns.Categories.Guarded(s.bag, slot, info) then kept = true
                 else
                     out[#out + 1] = { bag = s.bag, slot = slot, link = info.hyperlink,
                                       value = priceOf(info) * (info.stackCount or 1) }
@@ -74,7 +74,7 @@ function Junk.Cheapest()
         local btn = s.button
         if s.section ~= "keyring" and btn:IsShown() then
             local info = ns.Items.InfoAt(s.bag, btn:GetID())
-            if info and info.quality == 0 and not info.hasNoValue and not ns.Categories.IsLocked(info.itemID) then
+            if info and info.quality == 0 and not info.hasNoValue and not ns.Categories.Guarded(s.bag, btn:GetID(), info) then
                 local value = priceOf(info) * (btn.dluiCount or info.stackCount or 1)
                 if value > 0 and (not best or value < best.value) then
                     best = { button = btn, value = value }
