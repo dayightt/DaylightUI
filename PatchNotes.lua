@@ -18,11 +18,18 @@ DUI.PatchNotes = {
             { "Unit frames", "Give each frame's empty health and power bar its own color and opacity, on the frame's own page" },
             { "Unit frames", "Cast bars can angle their left end too, so a target cast bar under the target frame can match its angle" },
             { "General", "Bar animations: your health, power, cast and swing bars can come alive. Their colors can roll along them, surge with every heal and hit, ride behind a bright comet or throw sparks, with your own colors, speed and strength for each frame and nameplate" },
+            { "Unlock mode", "Hide folds the unlock bar into a small tab at the top of the screen, so you can reach the frames under it" },
         },
         changed = {
             { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, each piece says whether it's in your bags, the bank or missing, and a click leaves a slot out of the set" },
+            { "Social", "Click a friend or someone you played with to see a card beside the list: where they are, their note, and only the buttons that will work" },
+            { "Group finder", "Find a group and Who show the group or player you pick in a card beside the list" },
+            { "Bags", "The search box's help is easier to read, with the search words of your own language" },
         },
         fixed = {
+            { "Unlock mode", "The breath bar can be moved like the rest of the game's frames" },
+            { "Unlock mode", "Longer words in other languages fit in the Areas box" },
+            { "Group finder", "Show all levels updates the list right away, and List yourself no longer wraps its buttons the first time it opens" },
             { "Action bars", "With Bartender4 or Dominos also on, Daylight UI now says so in chat and the setup guide asks which one keeps your bars, instead of the old bars staying on screen" },
             { "NPC window", "Currency rewards like Trade Commitment show in the quest window, not just the money and items" },
             { "NPC window", "Vendors show how many are left of items they only have a few of" },

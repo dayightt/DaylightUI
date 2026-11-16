@@ -1407,7 +1407,6 @@ Movers.AREAS = {
     { id = "bags",       label = "Bags",          match = "^bags%." },
     { id = "tooltip",    label = "Tooltip",       match = "^tooltip" },
     { id = "combattext", label = "Combat Text",   match = "^combattext%." },
-    { id = "breath",     label = "Breath bar",    match = "^game%.MirrorTimerContainer" },
     { id = "game",       label = "Game Frames",   match = "^game%." },
     { id = "other",      label = "Other",         match = "" },
 }
