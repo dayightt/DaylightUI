@@ -3,7 +3,8 @@
 -- angled on the right end unless breathSlant is off, label inside, and filled
 -- with its gradient pair (TIMER_<timer>). The game's bar keeps working,
 -- invisible underneath; the new bar copies its range, value and label every frame
--- while it's shown. Positioning stays the game's.
+-- while it's shown. Its place is the game's Edit Mode (Timer Bars), which unlock mode
+-- writes to (GameMovers.lua, Breath bar), so nothing here moves it.
 
 local _, ns = ...
 local DUI = DaylightUI

@@ -7044,3 +7044,6 @@ L["Which debuffs show on this bar."] = "Qué perjuicios se muestran en esta barr
 L["You can also switch with the button next to its search box."] = "También puedes cambiar con el botón junto a su cuadro de búsqueda."
 L["You can also switch with the button next to the bank's search box."] = "También puedes cambiar con el botón junto al cuadro de búsqueda del banco."
 L["You can also switch with the button next to the search box. Bag by bag, Alt-right-click an item to keep it in its slot when you clean up."] = "También puedes cambiar con el botón junto al cuadro de búsqueda. Bolsa por bolsa, Alt + clic derecho en un objeto para mantenerlo en su hueco al ordenar."
+-- Breath bar's Edit Mode texts (machine draft, not yet checked by a native speaker).
+L["DaylightUI saved the breath bar's position. Reload to put it in place?"] = "DaylightUI ha guardado la posición de la barra de respiración. ¿Recargar para colocarla?"
+L["The breath bar's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] = "La posición de la barra de respiración la gestiona el Modo de edición del juego, y usas un diseño propio del Modo de edición: muévela allí (Esc > Modo de edición)."
