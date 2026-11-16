@@ -237,7 +237,7 @@ local function initButton(h, btn)
         -- The countdown ending is the one signal that the buff expired when
         -- auras can't be read (combat, dungeons). Hooked here during creation
         -- because the client refuses show/hide scripts on the button.
-        try(cd.HookScript, cd, "OnCooldownDone", function() DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "time out") end)
+        try(cd.HookScript, cd, "OnCooldownDone", function() DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "time out", btn) end)
     end
     local shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
     parts.shade = shade
@@ -291,7 +291,7 @@ end
 -- order the game scans. Only self auras skip the target, since selfAura false
 -- doesn't mean "on the target" (Battle Shout reports false).
 local function setup(h, id)
-    h.id, h.containers, h.err, h.clientUp = id, {}, nil, nil
+    h.id, h.containers, h.err, h.clientUp, h.clientBtns = id, {}, nil, nil, nil
     h.builtAt = GetTime()    -- a buff already up appears with the new container; not a proc
     -- When auras can't be read, wait for a buff that's already up to show its
     -- button, then ask again. No button means down.

@@ -7145,7 +7145,20 @@ T.test("cdm custom: in a fight a buff someone else refreshed stays up while its 
     T.eq(h.up, true, "their shout keeps the button up: still up")
     stub.AuraVisible(btn, false); stub.RunTimers()
     T.eq(h.up, false, "their shout ran out: down")
+    -- Their shout replaces yours on the shown button: only the assigned animation
+    -- plays, after your old timer was heard ending.
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 6673); stub.RunTimers()
+    stub.AuraAssign(btn, true); stub.RunTimers()
+    T.eq(h.up, true, "your shout again: up")
+    h.parts[btn].cd:GetScript("OnCooldownDone")(); stub.RunTimers()
+    stub.AuraAssign(btn, true); stub.RunTimers()
+    T.eq(h.up, true, "their shout replaced yours on the same button: up")
+    -- Theirs lands on another button before yours clears.
+    AB.CdmEffects.AuraHeard(h, "assign", {}); stub.RunTimers()
+    stub.AuraAssign(btn, false); stub.RunTimers()
+    T.eq(h.up, true, "yours cleared after theirs came up elsewhere: still up")
     -- With no button heard at all, your cast's clock still ends it.
+    h.clientBtns, h.clientUp = nil, nil
     local anims = btn.__shownAnims
     btn.__shownAnims = {}
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 6673); stub.RunTimers()

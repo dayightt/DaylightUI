@@ -625,7 +625,7 @@ function Fx.MakeSlide(btn, h)
     if type(btn.AddAuraShownAnimation) ~= "function" then return end
     local ag = btn:CreateAnimationGroup()
     -- Set here while the button can still be written to; it runs in fights.
-    if h then ag:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraShown, h) end) end
+    if h then ag:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraShown, h, btn) end) end
     local s = {}
     s.up = ag:CreateAnimation("Translation")
     s.up:SetOrder(1); s.up:SetDuration(0)
@@ -648,12 +648,22 @@ function Fx.MakeSlide(btn, h)
         sig:SetLooping("REPEAT")
         local hold = sig:CreateAnimation("Translation")
         hold:SetOffset(0, 0); hold:SetDuration(1)
-        sig:SetScript("OnStop", function() DUI.SafeCall(Fx.AuraHeard, h, "stop") end)
+        sig:SetScript("OnStop", function() DUI.SafeCall(Fx.AuraHeard, h, "stop", btn) end)
         -- Only logged in the report: whether the client ends the loop this way
         -- instead when it hides the button.
         sig:SetScript("OnFinished", function() DUI.SafeCall(Fx.AuraHeard, h, "finish") end)
         sig:SetScript("OnPause", function() DUI.SafeCall(Fx.AuraHeard, h, "pause") end)
         pcall(btn.AddAuraShownAnimation, btn, sig)
+        -- The client plays these each time the button is given an aura, also when
+        -- one aura replaces another on a button already shown (another warrior's
+        -- Battle Shout over yours), where no shown animation plays.
+        if type(btn.AddAuraAssignedAnimation) == "function" then
+            local got = btn:CreateAnimationGroup()
+            local mark = got:CreateAnimation("Translation")
+            mark:SetOffset(0, 0); mark:SetDuration(0)
+            got:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraHeard, h, "assign", btn) end)
+            pcall(btn.AddAuraAssignedAnimation, btn, got)
+        end
     end
 end
 
@@ -663,21 +673,27 @@ end
 -- kept for /dui cdm report, to see which ones the client really sends in a fight
 -- or a dungeon.
 local DOWN = { stop = true, ["time out"] = true, blocked = true }
-function Fx.AuraHeard(h, what)
+function Fx.AuraHeard(h, what, btn)
     h.heard = h.heard or {}
     table.insert(h.heard, string.format("%s %.1f%s", what, GetTime(), InCombatLockdown() and " fight" or ""))
     if #h.heard > 8 then table.remove(h.heard, 1) end
-    -- Whether the client's button shows the aura. Someone else refreshing it keeps
-    -- the same button up and sends nothing, so this outlasts your own cast's clock.
+    -- Which of the client's buttons show the aura, each on its own: when another
+    -- player's aura replaces yours it can land on a new button before the old one
+    -- clears, and the old one ending mustn't take the new one down. Someone else
+    -- refreshing it sends nothing at all, so this outlasts your own cast's clock.
     -- A holder hidden with its chain stops the animations too, which isn't the aura ending.
-    if what == "play" then
-        h.clientUp = true
-    elseif DOWN[what] and (what ~= "stop" or h:IsVisible()) then
-        h.clientUp = nil
+    h.clientBtns = h.clientBtns or setmetatable({}, { __mode = "k" })
+    local up = what == "play" or what == "assign"
+    local down = DOWN[what] and (what ~= "stop" or h:IsVisible())
+    if up then
+        h.clientBtns[btn or h] = true
+    elseif down then
+        if btn then h.clientBtns[btn] = nil else wipe(h.clientBtns) end
     end
+    h.clientUp = next(h.clientBtns) ~= nil or nil
     local A = ns.CdmAuras
     if not A then return end
-    if what == "play" then A.Shown(h) elseif DOWN[what] then A.Hidden(h) end
+    if up then A.Shown(h) elseif DOWN[what] and not h.clientUp then A.Hidden(h) end
 end
 
 local function tune(s, on, drop)
@@ -750,9 +766,9 @@ end
 
 -- The client's aura button came up for a new aura (the slide's OnPlay). In a fight
 -- that's the only signal of a proc when no game item shows that buff.
-function Fx.AuraShown(h)
+function Fx.AuraShown(h, btn)
     -- A buff that slid out of its group comes back (CdmRows).
-    Fx.AuraHeard(h, "play")
+    Fx.AuraHeard(h, "play", btn)
     local p = h.soundPiece
     if not p or not h:IsShown() then return end
     local now = GetTime()

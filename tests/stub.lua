@@ -1072,6 +1072,18 @@ function stub.AuraVisible(btn, on)
     end
 end
 
+-- The client handing a button an aura (on = true) or clearing it, as in
+-- OnAuraInstanceAssigned / OnAuraInstanceCleared: the assigned animations stop and
+-- play again for the new aura (ApplyAuraAssignmentAnimations), then ApplyVisibility.
+-- One aura replacing another on a shown button plays no shown animation.
+function stub.AuraAssign(btn, on)
+    for _, g in ipairs(btn.__assignedAnims or {}) do g:Stop() end
+    if on then
+        for _, g in ipairs(btn.__assignedAnims or {}) do g:Play() end
+    end
+    stub.AuraVisible(btn, on)
+end
+
 -- A button the client makes for a group or a weapon slot. Its initializeFrame
 -- runs once, then it's locked like the game's (see isLocked).
 function newAuraButton(c, initializeFrame)
@@ -1100,6 +1112,13 @@ function newAuraButton(c, initializeFrame)
         inbound(self, g, "AnimationGroup")
         self.__shownAnims = self.__shownAnims or {}
         table.insert(self.__shownAnims, g)
+    end
+    -- Played by the client each time the button is given an aura, also one aura
+    -- replacing another on a button already shown. Kept in __assignedAnims.
+    function btn:AddAuraAssignedAnimation(g)
+        inbound(self, g, "AnimationGroup")
+        self.__assignedAnims = self.__assignedAnims or {}
+        table.insert(self.__assignedAnims, g)
     end
     -- From AuraButtonSharedMixin (Blizzard_AuraButton.lua), part of the game's template.
     function btn:SetCancelAuraButtons(b) self.__cancelButtons = b end
