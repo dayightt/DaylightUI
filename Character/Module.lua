@@ -19,7 +19,7 @@ DUI:RegisterModule("Character", {
     order = 124,
     section = "QoL", pageOrder = 110,   -- its options page sits under Extras
     ns = ns,
-    parts = { "Colors", "Gear", "Stats", "StatText", "Window", "Follow", "Slots", "Model", "CharacterPage", "PetPage", "Menus", "List", "Reputation", "Skills", "PvP", "Statistics", "Currency" },
+    parts = { "Colors", "Gear", "Stats", "StatText", "Window", "Follow", "Slots", "Model", "CharacterPage", "PetPage", "Menus", "Sets", "List", "Reputation", "Skills", "PvP", "Statistics", "Currency" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)

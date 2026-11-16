@@ -154,6 +154,19 @@ local function make(kind)
         if a and type(a.DressPlayerSlot) == "function" and type(slot) == "number" then pcall(a.DressPlayerSlot, a, slot) end
     end
 
+    -- Shows an item on the model without putting it on. A bare number would be
+    -- read as an appearance, so it takes an item link.
+    function Model.TryOn(link)
+        local a = Model.Actor()
+        if a and type(a.TryOn) == "function" and type(link) == "string" then pcall(a.TryOn, a, link) end
+    end
+
+    -- Back to the gear you have on.
+    function Model.Redress()
+        local a = Model.Actor()
+        if a and type(a.Dress) == "function" then pcall(a.Dress, a) end
+    end
+
     -- Frames closer than the game does, starting from the distance it set. The
     -- base is kept per setup so re-framing never compounds. The camera frames by
     -- width (a box 2.6x wider drew the model 2.6x bigger), so the spread pulls

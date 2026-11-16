@@ -3228,7 +3228,7 @@ stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "
 stub.QUESTS_FILES = { "Blizzard.lua", "Defaults.lua", "Data.lua", "Layout.lua", "Look.lua", "Rows.lua", "Animate.lua",
                       "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Gather.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
 stub.CHARACTER_FILES = { "Defaults.lua", "Colors.lua", "Gear.lua", "Stats.lua", "StatText.lua", "Window.lua", "Follow.lua", "Slots.lua",
-                         "Model.lua", "Pages/Character.lua", "Pages/Pet.lua", "Menus.lua", "List.lua", "Pages/Reputation.lua",
+                         "Model.lua", "Pages/Character.lua", "Pages/Pet.lua", "Menus.lua", "Sets.lua", "List.lua", "Pages/Reputation.lua",
                          "Pages/Skills.lua", "Pages/PvP.lua", "Pages/Statistics.lua", "Pages/Currency.lua",
                          "Options.lua", "Module.lua" }
 stub.NPC_FILES = { "Defaults.lua", "Data.lua", "Shop.lua", "Train.lua", "Window.lua", "Scene.lua", "Popups.lua", "Options.lua", "Module.lua" }

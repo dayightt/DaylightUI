@@ -14,9 +14,13 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Bags", "Drag the bag's bottom-right corner to make it wider or narrower (the bank too)" },
+            { "Bags", "Gear in one of your equipment sets is marked in your bags and can't be sold or disenchanted by accident (Bags > Layout)" },
             { "Unit frames", "Give each frame's empty health and power bar its own color and opacity, on the frame's own page" },
             { "Unit frames", "Cast bars can angle their left end too, so a target cast bar under the target frame can match its angle" },
             { "General", "Bar animations: your health, power, cast and swing bars can come alive. Their colors can roll along them, surge with every heal and hit, ride behind a bright comet or throw sparks, with your own colors, speed and strength for each frame and nameplate" },
+        },
+        changed = {
+            { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, and each piece says whether it's in your bags, the bank or missing" },
         },
     },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",

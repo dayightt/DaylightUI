@@ -300,6 +300,8 @@ local function installModelAndMenus()
         local a = { yaw = 0, dressed = {} }
         function a:IsLoaded() return S().modelLoaded ~= false end
         function a:DressPlayerSlot(slot) self.dressed[#self.dressed + 1] = slot end
+        function a:TryOn(link) record("TryOn", link) end
+        function a:Dress() record("Dress", true) end
         function a:SetYaw(y) self.yaw = y end
         function a:GetYaw() return self.yaw end
         S().actor = a
@@ -325,6 +327,22 @@ local function installModelAndMenus()
             end
         end,
         GetNumEquipmentSets = function() return #sets end,
+        -- A set's items = { [slot id] = item id } (0 empty, 1 ignored) and
+        -- where = { [slot id] = location } (-1 missing, 0 empty, 1 ignored).
+        GetItemIDs = function(id)
+            for _, s in ipairs(sets) do if s.id == id then return s.items or {} end end
+        end,
+        GetItemLocations = function(id)
+            for _, s in ipairs(sets) do if s.id == id then return s.where or {} end end
+        end,
+        GetIgnoredSlots = function(id)
+            for _, s in ipairs(sets) do if s.id == id then return s.ignored or {} end end
+        end,
+        ClearIgnoredSlotsForSave = function() S().ignoreForSave = {} end,
+        IgnoreSlotForSave = function(slot)
+            S().ignoreForSave = S().ignoreForSave or {}
+            S().ignoreForSave[slot] = true
+        end,
         CreateEquipmentSet = function(name, icon) record("CreateEquipmentSet", { name, icon }) end,
         GetEquipmentSetID = function(name)
             for _, s in ipairs(sets) do if s.name == name then return s.id end end
@@ -334,6 +352,29 @@ local function installModelAndMenus()
         DeleteEquipmentSet = function(id) record("DeleteEquipmentSet", id) end,
     }
     _G.EquipmentManager_EquipSet = function(id) record("EquipSet", id) end
+    -- The game's own, from Blizzard_FrameXML/Shared/EquipmentManager.lua and its constants.
+    _G.ITEM_INVENTORY_LOCATION_PLAYER, _G.ITEM_INVENTORY_LOCATION_BAGS, _G.ITEM_INVENTORY_LOCATION_BANK = 0x00100000, 0x00200000, 0x00400000
+    _G.ITEM_INVENTORY_BAG_BIT_OFFSET, _G.ITEM_INVENTORY_BANK_BAG_OFFSET = 8, 5
+    _G.EquipmentManager_GetLocationData = function(location)
+        local locationData = {}
+        if location < 0 then return locationData end
+        locationData.isPlayer = (bit.band(location, ITEM_INVENTORY_LOCATION_PLAYER) ~= 0)
+        locationData.isBank = (bit.band(location, ITEM_INVENTORY_LOCATION_BANK) ~= 0)
+        locationData.isBags = (bit.band(location, ITEM_INVENTORY_LOCATION_BAGS) ~= 0)
+        locationData.slot = location
+        if locationData.isPlayer then
+            locationData.slot = locationData.slot - ITEM_INVENTORY_LOCATION_PLAYER
+        elseif locationData.isBank then
+            locationData.slot = locationData.slot - ITEM_INVENTORY_LOCATION_BANK
+        end
+        if locationData.isBags then
+            locationData.slot = locationData.slot - ITEM_INVENTORY_LOCATION_BAGS
+            locationData.bag = bit.rshift(locationData.slot, ITEM_INVENTORY_BAG_BIT_OFFSET)
+            locationData.slot = locationData.slot - bit.lshift(locationData.bag, ITEM_INVENTORY_BAG_BIT_OFFSET)
+            if locationData.isBank then locationData.bag = locationData.bag + ITEM_INVENTORY_BANK_BAG_OFFSET end
+        end
+        return locationData
+    end
     _G.UnitRace = function() return "Human", "Human" end
     _G.GetRealmName = function() return "Forever" end
     _G.PlaySound = function(id) record("PlaySound", id) end

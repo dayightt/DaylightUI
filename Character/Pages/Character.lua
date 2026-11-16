@@ -315,7 +315,7 @@ function CharacterPage.BuildFooter(page)
     local sets = DUI.Widgets.Button(foot, L["Equipment sets"], 24)
     sets.FitWidth(124)   -- at least 124, wider when a language's words need it
     sets:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
-    sets:SetScript("OnClick", function(self) if ns.Menus then ns.Menus.Sets(self) end end)
+    sets:SetScript("OnClick", function() if ns.Sets then ns.Sets.Toggle() end end)
     foot.sets = sets
     return foot
 end

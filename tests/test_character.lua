@@ -1369,7 +1369,6 @@ T.test("character page: icons only hides the names", function()
     T.eq(ns.window:GetWidth(), 690)
 end)
 local TITLES = { { name = "Private ", known = true }, { name = "Corporal", known = false }, { name = " Sergeant", known = true } }
-local SETS = { { id = 1, name = "Tank", worn = true }, { id = 2, name = "Fury", lost = 2 }, { id = 3, name = "PvP" } }
 
 T.test("character menus: the titles you know, the current one picked", function()
     local _, ns = load({ titles = TITLES, title = 3 })
@@ -1391,39 +1390,6 @@ T.test("character menus: no title shows as No title", function()
     T.deq(CW.Calls("SetCurrentTitle"), { -1 })
 end)
 
-T.test("character menus: sets with where they stand, and a new one", function()
-    local _, ns = load({ sets = SETS })
-    local keys, values = ns.Menus.SetList()
-    T.deq(keys, { "1", "2", "3", "new", "hint" })
-    T.eq(values.hint, "Right-click a set to change it")
-    T.eq(values["1"], "Tank  ·  Wearing it")
-    T.eq(values["2"], "Fury  ·  2 items are missing")
-    T.eq(values["3"], "PvP  ·  Ready")
-    T.eq(values.new, "Save what I'm wearing as a new set")
-    ns.Menus.PickSet("2")
-    T.deq(CW.Calls("EquipSet"), { 2 })
-    ns.Menus.PickSet("new")
-    T.eq(CW.Calls("CreateEquipmentSet")[1][1], "Set 1")
-end)
-
-T.test("character menus: in combat the sets wait", function()
-    local _, ns = load({ sets = SETS })
-    stub.EnterCombat()
-    local _, values = ns.Menus.SetList()
-    T.eq(values["3"], "PvP  ·  After combat")
-    ns.Menus.PickSet("3")
-    ns.Menus.PickSet("1")
-    T.deq(CW.Calls("EquipSet"), {})
-    stub.LeaveCombat()
-    T.deq(CW.Calls("EquipSet"), { 1 }, "the last pick, once the fight ends")
-end)
-
-T.test("character menus: no sets, no right-click hint", function()
-    local _, ns = load({})
-    local keys = ns.Menus.SetList()
-    T.deq(keys, { "new" })
-end)
-
 -- The open menu's row holding a key (W.MenuRow), clicked with a button.
 local function clickRow(key, button)
     local W = DaylightUI.Widgets
@@ -1434,20 +1400,121 @@ local function clickRow(key, button)
     error("no row " .. tostring(key))
 end
 
-T.test("character menus: right-click a set to save, rename or delete it", function()
-    local _, ns = load({ sets = SETS })
-    ns.Menus.Sets(ns.window)
-    clickRow("new", "RightButton")
-    T.deq(CW.Calls("CreateEquipmentSet"), {}, "a right-click on 'new' does nothing")
-    clickRow("hint")
-    T.deq(CW.Calls("EquipSet"), {}, "the hint is not a choice")
-    clickRow("2", "RightButton")
-    T.deq(CW.Calls("EquipSet"), {}, "a right-click never swaps")
+-- Fury: a helm in bag 1 slot 3, a ring in the bank, a missing chest, the shirt
+-- left alone and an empty neck.
+local PLAYER, BAGS = 0x00100000, 0x00200000
+local function furySets()
+    return { { id = 1, name = "Tank", worn = true, items = { [1] = 101 }, where = { [1] = PLAYER + 1 } },
+        { id = 2, name = "Fury", lost = 1,
+          items = { [1] = 201, [2] = 0, [4] = 1, [5] = 202, [11] = 203 },
+          where = { [1] = PLAYER + BAGS + 256 + 3, [2] = 0, [4] = 1, [5] = -1, [11] = 0x00400000 + 40 },
+          ignored = { [4] = true } },
+        { id = 3, name = "PvP" } }
+end
+
+local function setsWorld(spec)
+    spec = spec or { sets = furySets() }
+    local DUI, ns = load(spec)
+    local info = C_Item.GetItemInfo
+    local known = { [201] = "Fury Helm", [202] = "Fury Chest", [203] = "Fury Ring" }
+    C_Item.GetItemInfo = function(item)
+        local id = type(item) == "number" and item or tonumber(string.match(item, "item:(%d+)"))
+        if known[id] then return known[id], "|Hitem:" .. id .. "|h[" .. known[id] .. "]|h", 4, 60, 1, "Armor", "Plate", 1, "", "icon:" .. id end
+        return info(item)
+    end
+    _G.C_Container = _G.C_Container or {}
+    C_Container.GetContainerItemLink = function(bag, slot) return bag == 1 and slot == 3 and "|Hitem:201|h[Fury Helm]|h" or nil end
+    return DUI, ns
+end
+
+local function openSets(ns)
+    openChar(ns)
+    ns.window.pages.character.foot.sets:Click()
+    return ns.Sets.panel
+end
+
+local function lineTexts(panel)
+    local out = {}
+    for _, b in ipairs(panel.stack.pieces) do
+        if b.lineSpec then out[#out + 1] = b.name:GetText() .. "/" .. b.sub:GetText() .. "/" .. (b.value:GetText() or "") end
+    end
+    return out
+end
+
+T.test("character sets: a set read as its items and where each one is", function()
+    local _, ns = setsWorld()
+    local set = ns.Sets.Read(2)
+    T.eq(set.name, "Fury")
+    T.eq(set.lost, 1)
+    T.eq(#set.items, 3, "the empty neck and the ignored shirt are left out")
+    T.deq({ set.items[1].key, set.items[1].where, set.items[1].name }, { "Head", "bags", "Fury Helm" })
+    T.deq({ set.items[2].key, set.items[2].where }, { "Chest", "missing" })
+    T.deq({ set.items[3].key, set.items[3].where }, { "Finger0", "bank" })
+    T.isnil(ns.Sets.Read(9))
+end)
+
+T.test("character sets: the button opens the panel beside the window, on the set you wear", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    T.truthy(ns.Sets.IsOpen())
+    local point, rel, relPoint = panel:GetPoint(1)
+    T.deq({ point, rel == ns.window, relPoint }, { "TOPLEFT", true, "TOPRIGHT" })
+    T.eq(panel.pick.text:GetText(), "Tank")
+    T.truthy(panel.foot.buttons[1].spec.off, "already wearing it")
+    ns.Sets.Pick(2)
+    T.eq(panel.pick.text:GetText(), "Fury")
+    T.deq(lineTexts(panel), { "Fury Helm/Head/Bags", "Fury Chest/Chest/Missing", "Fury Ring/Ring/Bank" })
+    T.deq(CW.Calls("TryOn"), { "|Hitem:201|h[Fury Helm]|h", "|Hitem:202|h[Fury Chest]|h", "|Hitem:203|h[Fury Ring]|h" },
+        "the model wears the picked set")
+    panel.foot.buttons[1]:Click()
+    T.deq(CW.Calls("EquipSet"), { 2 })
+    ns.window.pages.character.foot.sets:Click()
+    T.falsy(ns.Sets.IsOpen(), "the button closes it again")
+    DaylightUI.Win.Feel.Settle(panel)   -- the fade out, finished
+    T.falsy(panel:IsShown())
+    T.eq(#CW.Calls("Dress"), 1, "the model is back in your own gear")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: the pick menu lists every set with where it stands", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    panel.pick:Click()
+    local W = DaylightUI.Widgets
+    T.eq(W.MenuRow(1).text:GetText(), "Tank  ·  Wearing it")
+    T.eq(W.MenuRow(2).text:GetText(), "Fury  ·  1 item is missing")
+    T.eq(W.MenuRow(3).text:GetText(), "PvP  ·  Ready")
+    clickRow("3")
+    T.eq(ns.Sets.picked, 3)
+    T.eq(panel.pick.text:GetText(), "PvP")
+end)
+
+T.test("character sets: no sets yet", function()
+    local _, ns = setsWorld({})
+    local panel = openSets(ns)
+    T.eq(panel.pick.text:GetText(), "No sets yet")
+    T.truthy(panel.foot.buttons[1].spec.off)
+    panel.edit:Click()
+    T.eq(DaylightUI.Widgets.MenuRow(1).key, "new")
+    T.isnil(DaylightUI.Widgets.MenuRow(2), "nothing to change yet")
+    clickRow("new")
+    T.eq(_G.DaylightUIAsk.input:GetText(), "Set 1")
+    stub.Reply("Raid")
+    T.eq(CW.Calls("CreateEquipmentSet")[1][1], "Raid")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character sets: the edit menu saves, renames and deletes the picked set", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    panel.edit:Click()
     clickRow("save")
+    T.deq(CW.Calls("SaveEquipmentSet"), {}, "it asks first")
+    DaylightUI.Widgets.Answer(true)
     T.deq(CW.Calls("SaveEquipmentSet"), { { 2, 1 } }, "saved over, its icon kept")
-    -- Delete asks first.
-    ns.Menus.Sets(ns.window)
-    clickRow("2", "RightButton")
+    T.deq(CW.state.ignoreForSave, { [4] = true }, "the slot it leaves alone stays left alone")
+    panel.edit:Click()
     local row = clickRow("delete")
     T.deq(CW.Calls("DeleteEquipmentSet"), {}, "the first click only asks")
     T.eq(row.text:GetText(), "Click again")
@@ -1457,30 +1524,55 @@ T.test("character menus: right-click a set to save, rename or delete it", functi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("character menus: rename a set, never onto another's name", function()
-    local _, ns = load({ sets = SETS })
-    ns.Menus.ChangeSet(3, "rename")
+T.test("character sets: a new set never takes another's name", function()
+    local _, ns = setsWorld()
+    ns.Sets.Create("Tank")
+    T.deq(CW.Calls("CreateEquipmentSet"), {}, "Tank is taken")
+    ns.Sets.Create("Healing")
+    T.eq(CW.Calls("CreateEquipmentSet")[1][1], "Healing")
+    T.eq(ns.Sets.FreeName(), "Set 1")
+end)
+
+T.test("character sets: rename a set, never onto another's name", function()
+    local _, ns = setsWorld()
+    ns.Sets.Rename(3)
     T.eq(_G.DaylightUIAsk.input:GetText(), "PvP")
     stub.Reply("Arena")
     T.deq(CW.Calls("ModifyEquipmentSet"), { { 3, "Arena", 1 } })
-    ns.Menus.ChangeSet(3, "rename")
+    ns.Sets.Rename(3)
     stub.Reply("Tank")
     T.eq(#CW.Calls("ModifyEquipmentSet"), 1, "Tank is taken")
 end)
 
-T.test("character menus: saving over a set waits for the fight", function()
-    local _, ns = load({ sets = SETS })
+T.test("character sets: in combat a swap and a save wait for the fight to end", function()
+    local _, ns = setsWorld()
     stub.EnterCombat()
-    ns.Menus.ChangeSet(1, "save")
+    ns.Sets.Equip(3)
+    ns.Sets.Equip(2)
+    ns.Sets.Save(1)
+    T.deq(CW.Calls("EquipSet"), {})
     T.deq(CW.Calls("SaveEquipmentSet"), {})
     stub.LeaveCombat()
+    T.deq(CW.Calls("EquipSet"), { 2 }, "the last pick, once the fight ends")
     T.deq(CW.Calls("SaveEquipmentSet"), { { 1, 1 } })
 end)
 
-T.test("character menus: they open without errors", function()
-    local _, ns = load({ titles = TITLES, sets = SETS })
+T.test("character sets: the panel goes with the page and the window", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Window.ShowPage("reputation")
+    T.falsy(ns.Sets.IsOpen(), "another tab closes it")
+    ns.Window.ShowPage("character")
+    openSets(ns)
+    T.truthy(ns.Sets.IsOpen())
+    ns.window:Hide()
+    ns.window:Show()
+    T.falsy(panel:IsShown(), "it doesn't come back by itself with the window")
+end)
+
+T.test("character menus: the title menu opens without errors", function()
+    local _, ns = load({ titles = TITLES })
     ns.Menus.Titles(ns.window.nameButton)
-    ns.Menus.Sets(ns.window)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 T.test("character options: the page loads clean", function()

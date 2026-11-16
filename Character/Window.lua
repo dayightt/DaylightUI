@@ -193,6 +193,7 @@ function Window.ShowPage(id, force)
     local old = f.current and f.pages[f.current]
     if old and old ~= page then old:Hide() end
     f.current = id
+    if id ~= "character" and ns.Sets then ns.Sets.Close() end   -- the sets panel belongs to the Character page
     page:Show()
     Window.PaintTabs()
     if def.Open then def.Open(page) end

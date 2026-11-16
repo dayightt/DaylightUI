@@ -108,6 +108,7 @@ Character\Model.lua
 Character\Pages\Character.lua
 Character\Pages\Pet.lua
 Character\Menus.lua
+Character\Sets.lua
 Character\List.lua
 Character\Pages\Reputation.lua
 Character\Pages\Skills.lua
