@@ -1638,6 +1638,28 @@ T.test("chat: whisper tabs' words cut short in the tab, cut off with the dock's 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat: a whisper tab's name starts after the game's conversation icon", function()
+    login()
+    local Chat = stub.chatModule.Chat
+    ChatFrame1Tab:Show(); ChatFrame2Tab:Show()
+    -- The game adds the icon to a whisper tab, just left of its words (FCF_OpenTemporaryWindow).
+    local icon = ChatFrame2Tab:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(16, 16)
+    ChatFrame2Tab.conversationIcon = icon
+    ChatFrame2Tab.Left = ChatFrame2Tab:CreateTexture(nil, "BACKGROUND")
+    ChatFrame2Tab.Left:SetWidth(16)
+    Chat.Pass()
+    local _, _, _, plain = Chat.Label(ChatFrame1Tab).text:GetPoint(1)
+    local _, _, _, x = Chat.Label(ChatFrame2Tab).text:GetPoint(1)
+    T.eq(plain, Chat.TAB_PAD, "a plain tab's name keeps its padding")
+    T.truthy(x >= 16 + Chat.ICON_GAP, "the whisper tab's name clears the icon: " .. tostring(x))
+    icon:Hide()
+    Chat.Pass()
+    _, _, _, x = Chat.Label(ChatFrame2Tab).text:GetPoint(1)
+    T.eq(x, Chat.TAB_PAD, "with no icon it goes back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat: every tab's words on one line, though the game sets its scrolling tabs higher", function()
     login()
     local Chat = stub.chatModule.Chat

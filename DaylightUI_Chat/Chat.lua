@@ -48,6 +48,7 @@ Chat.TAB_ROOM = 24 -- space above the chat for its tabs (and the edit box)
 Chat.FLOAT_PAD = 4 -- panel margin around an undocked window
 Chat.WATCH = 0.25 -- watcher interval, seconds
 Chat.TAB_PAD = 6 -- padding each side of a tab label
+Chat.ICON_GAP = 10 -- the game's gap between a whisper tab's left cap and its words
 Chat.TAB_TEXT = Style.SIZE.body -- tab label size before settings load (tabSize after)
 Chat.GRIP = 16 -- resize grip size
 Chat.MIN = { 250, 100 } -- resize limits (same range as the Width and Height sliders)
@@ -784,6 +785,26 @@ local function standOnRow(b, tab)
     b:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 0, dy)
 end
 
+-- A whisper tab carries the game's conversation icon just left of the game's own
+-- words, which start past the tab's left cap. The label starts where those words
+-- do, so the icon sits beside it instead of on top of it.
+local function labelInset(tab)
+    local icon, cap = tab.conversationIcon, tab.Left
+    if type(icon) ~= "table" or not icon:IsShown() then return Chat.TAB_PAD end
+    local w = type(cap) == "table" and cap.GetWidth and cap:GetWidth()
+    if type(w) ~= "number" or secret(w) then w = 16 end
+    return math.max(Chat.TAB_PAD, w + Chat.ICON_GAP)
+end
+
+local function placeWords(b, tab)
+    local inset = labelInset(tab)
+    if b.inset == inset then return end
+    b.inset = inset
+    b.text:ClearAllPoints()
+    b.text:SetPoint("LEFT", b, "LEFT", inset, 1)
+    b.text:SetPoint("RIGHT", b, "RIGHT", -Chat.TAB_PAD, 1)
+end
+
 function Chat.Tabs()
     if not tabRow then return end
     -- The Daylight chat box has its own tabs (Box.lua).
@@ -803,6 +824,7 @@ function Chat.Tabs()
                 local layer = layerFor(cf)
                 if b:GetParent() ~= layer then b:SetParent(layer) end
                 standOnRow(b, tab)
+                placeWords(b, tab)
                 if type(text) == "table" then
                     -- Only written when the label changes, not every watcher tick. A whisper tab's
                     -- name may be secret: SetText accepts it, so it's always written, never compared.
