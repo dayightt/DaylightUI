@@ -40,8 +40,11 @@ CharacterPage.STALE = Style.INK.OFF    -- a value not read yet
 CharacterPage.TIP = { title = Style.INK.VALUE, body = Style.INK.TEXT, value = "pop", up = CharacterPage.UP, down = CharacterPage.DOWN }
 
 -- Where everything goes, as { x, y (down is negative), w, h } from the
--- page's top left. Pure: tested without frames.
-function CharacterPage.Rects(width, height, names)
+-- page's top left. ammo: the room the small ammo slot takes beside the
+-- ranged icon (0 or nil without): icons only keeps the row centered, with
+-- names the row makes room for it.
+-- Pure: tested without frames.
+function CharacterPage.Rects(width, height, names, ammo)
     local E, T, G = CharacterPage.EDGE, CharacterPage.TOP, CharacterPage.GAP
     local icon = ns.Slots.ICON
     local col = names and CharacterPage.COL or icon
@@ -63,15 +66,19 @@ function CharacterPage.Rects(width, height, names)
         -- the others evenly either side), in from the side columns: the main
         -- hand doesn't line up under the armor. The last one's words stop at
         -- the right column's edge.
+        -- With the ammo beside Ranged (the last), the row slides left by its
+        -- room so Ranged's words get as much space as the others'.
+        local room = ammo or 0
         local span = R.right.x + col - E
-        local w = math.min(CharacterPage.WEAPON_W, math.floor((span - (n - 1) * G) / n))
-        local mid = E + math.floor(span / 2) - math.floor(icon / 2)
+        local w = math.min(CharacterPage.WEAPON_W, math.floor((span - (n - 1) * G - room) / n))
+        local mid = E + math.floor(span / 2) - math.floor(icon / 2) - room
         for i = 1, n do
             local x = mid + math.floor((i - (n + 1) / 2) * (w + G))
-            R.bottom[i] = { x = x, y = rowY, w = math.min(w, E + span - x) }
+            local want = i == n and w + room or w
+            R.bottom[i] = { x = x, y = rowY, w = math.min(want, E + span - x) }
         end
     else
-        local rowW = n * icon + (n - 1) * gap
+        local rowW = n * icon + (n - 1) * gap + (ammo or 0)
         local x0 = R.model.x + math.floor((R.model.w - rowW) / 2)
         for i = 1, n do R.bottom[i] = { x = x0 + (i - 1) * (icon + gap), y = rowY, w = icon } end
     end
@@ -90,7 +97,8 @@ function CharacterPage.Place(page)
     local names = ns.Setting("names") ~= false
     local Slots, Gear = ns.Slots, ns.Gear
     page.usesAmmo = Gear.UsesAmmo()
-    local R = CharacterPage.Rects(ns.Window.Width(), ns.Window.H - ns.Window.HEADER, names)
+    local room = page.usesAmmo and Slots.AmmoRoom() or 0
+    local R = CharacterPage.Rects(ns.Window.Width(), ns.Window.H - ns.Window.HEADER, names, room)
     for i, key in ipairs(Gear.LEFT) do
         Slots.Layout(page.slots[key], R.left.w, names)
         put(page, page.slots[key], { x = R.left.x, y = R.left.y - (i - 1) * CharacterPage.ROW })
@@ -101,28 +109,15 @@ function CharacterPage.Place(page)
     end
     for i, key in ipairs(Gear.BOTTOM) do
         local r = R.bottom[i]
-        Slots.Layout(page.slots[key], r.w, names)
+        Slots.Layout(page.slots[key], r.w, names, key == "Ranged" and room or 0)
         put(page, page.slots[key], { x = r.x, y = r.y })
     end
-    -- The ammo: a small badge on the ranged icon's bottom-right corner, so the
-    -- ranged slot keeps the same room for its words as the other weapons.
+    -- The ammo: small, right beside the ranged icon, as in the game's window.
     local ammo = page.slots.Ammo
     ammo:SetShown(page.usesAmmo)
     Slots.Layout(ammo, Slots.AMMO, false)
     ammo:ClearAllPoints()
-    ammo:SetPoint("BOTTOMRIGHT", page.slots.Ranged.icon, "BOTTOMRIGHT", Slots.AMMO_OUT, -Slots.AMMO_OUT)
-    Slots.Over(ammo, page.slots.Ranged)
-    -- The badge covers the ranged icon's bottom-right, so its corner number
-    -- (icons only) moves to the bottom-left while the ammo shows.
-    local rc, ricon = page.slots.Ranged.corner, page.slots.Ranged.icon
-    rc:ClearAllPoints()
-    if page.usesAmmo then
-        rc:SetPoint("BOTTOMLEFT", ricon, "BOTTOMLEFT", 2, 2)
-        rc:SetJustifyH("LEFT")
-    else
-        rc:SetPoint("BOTTOMRIGHT", ricon, "BOTTOMRIGHT", -1, 2)
-        rc:SetJustifyH("RIGHT")
-    end
+    ammo:SetPoint("LEFT", page.slots.Ranged.icon, "RIGHT", Slots.AMMO_GAP, 0)
     put(page, page.model, R.model)
     ns.Model.Spread(R.model.x - R.left.x)   -- the model's box out under the slot columns
     put(page, page.stats, R.stats)

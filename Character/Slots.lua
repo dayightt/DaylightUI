@@ -16,7 +16,7 @@ ns.Slots = Slots
 
 Slots.ICON = 36
 Slots.AMMO = 22           -- ammo slot size, small as in the game's window
-Slots.AMMO_OUT = 6        -- how far the ammo badge hangs past the ranged icon's corner, less than GAP
+Slots.AMMO_GAP = 10       -- ranged to ammo icon, clears both outlines with room to spare
 Slots.EDGE = 3            -- quality outline width
 Slots.GAP = 10            -- icon to name
 Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny
@@ -174,12 +174,15 @@ function Slots.MakeAll(parent, into, unit)
     for _, key in ipairs(ns.Gear.LEFT) do Slots.Make(parent, key, "left", nil, into) end
     for _, key in ipairs(ns.Gear.RIGHT) do Slots.Make(parent, key, "right", nil, into) end
     for _, key in ipairs(ns.Gear.BOTTOM) do Slots.Make(parent, key, "left", nil, into) end
-    -- Small ammo slot on the ranged icon's corner, placed by the page. Shown from the
+    -- Small ammo slot beside the ranged icon, placed by the page. Shown from the
     -- start so the game's ammo button gets borrowed correctly.
     Slots.Make(parent, "Ammo", "left", Slots.AMMO, into)
     into.Ammo:SetShown(ns.Gear.UsesAmmo(unit))
     return into
 end
+
+-- Width the ammo slot adds beside the ranged icon.
+function Slots.AmmoRoom() return Slots.AMMO_GAP + Slots.AMMO end
 
 -- Text beside the icon. Name and line are centered on it, or with an enchant
 -- all three lines span its height.
@@ -201,9 +204,11 @@ local function stack(h, three)
     end
 end
 
--- width is the slot's full width. names toggles text beside the icon.
-function Slots.Layout(h, width, names)
-    local gap = Slots.GAP
+-- width is the slot's full width. names toggles text beside the icon. lead is
+-- extra space between icon and text (Ranged uses it for the ammo slot).
+function Slots.Layout(h, width, names, lead)
+    lead = lead or 0
+    local gap = Slots.GAP + lead
     h:SetSize(width, h.size)
     h.gap = gap
     h.icon:ClearAllPoints()
@@ -362,7 +367,6 @@ function Slots.DoLend()
             DUI.Widgets.PadSkip(b)
             h.button = b
             Slots.byButton[b] = h
-            if h.key == "Ammo" then Slots.Over(b, _G.CharacterRangedSlot) end
             Slots.Catch(b, h)
         else
             -- No matching slot here, so move it aside and stop it catching clicks.
@@ -492,11 +496,6 @@ function Slots.Swap(slots)
                 scale = Slots.SWAP_GLOW, parent = h.swapGlow, layer = "OVERLAY", sub = 7 })
         end
     end
-end
-
--- The ammo lies over the ranged icon's corner, so it draws and clicks above it.
-function Slots.Over(f, under)
-    if type(under) == "table" then f:SetFrameLevel(under:GetFrameLevel() + 2) end
 end
 
 -- A borrowed button only takes clicks while its slot shows, so a hidden ammo
