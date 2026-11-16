@@ -752,7 +752,28 @@ T.test("lfg: in a group you pick your one role, leader or not", function()
     frame(2)
     T.falsy(page.roleChips[2].active, "one role: healer went off")
     T.truthy(page.roleChips[3].active)
-    T.eq(#LW.Calls("SetRoles"), 0, "your solo roles stay as you left them")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "; "))
+end)
+
+-- The game's listing page sends your saved solo roles again at every reload, and in a
+-- group that resets your role to one of them: a tank listed with a group came back as
+-- Damage after each /reload.
+T.test("lfg: your group role survives a reload", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    C_LFGListRoles.SetRoles({ dps = true })   -- alone you listed as damage
+    LW.Group(3, true)
+    frame(2)
+    local page = ns.Listing.page
+    stub.Key(function() page.roleChips[1]:GetScript("OnClick")(page.roleChips[1]) end)
+    frame(2)
+    T.eq(UnitGroupRolesAssigned("player"), "TANK")
+    LW.GameLoadsRoles()
+    frame(2)
+    T.eq(UnitGroupRolesAssigned("player"), "TANK", "still the tank after the game's reload")
+    T.truthy(page.roleChips[1].active)
+    T.falsy(page.roleChips[3].active)
     T.eq(#stub.errors, 0, table.concat(stub.errors, "; "))
 end)
 

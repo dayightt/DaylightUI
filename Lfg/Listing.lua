@@ -647,6 +647,7 @@ function Listing.Build(page)
         DUI.RegisterEvent(e, function(event, ...)
             if event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then return Listing.EntryChanged(...) end
             if event == "LFG_LIST_ROLE_UPDATE" then Listing.roles = nil end
+            if event == "PLAYER_ROLES_ASSIGNED" or event == "GROUP_ROSTER_UPDATE" then Data().KeepGroupRole() end
             if event == "LFG_LIST_ENTRY_CREATION_FAILED" then Listing.posting = nil end
             if event == "LFG_LIST_AVAILABILITY_UPDATE" then Data().Forget() end
             -- Leadership changed: the rows above the list change, and whether activities can be ticked.

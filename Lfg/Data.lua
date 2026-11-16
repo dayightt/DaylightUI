@@ -265,6 +265,18 @@ function Data.SetGroupRole(role)
     if type(UnitSetRole) == "function" then pcall(UnitSetRole, "player", role) end
 end
 
+-- The game's listing page sends the saved solo roles again every time it loads, and in a
+-- group that resets the player's role to one of them, so a tank came back as Damage after
+-- each reload. Keeping the solo roles to just the group role makes that a no-op.
+function Data.KeepGroupRole()
+    if not Data.Grouped() then return end
+    local key = Data.ROLE_KEY[Data.GroupRole() or ""]
+    if not key then return end
+    local now = Data.Roles()
+    if now[key] and (now.tank and 1 or 0) + (now.healer and 1 or 0) + (now.dps and 1 or 0) == 1 then return end
+    Data.SetRoles({ [key] = true })
+end
+
 function Data.Recommended()
     local t, h, d
     if type(UnitGetAvailableRoles) == "function" then t, h, d = UnitGetAvailableRoles("player") end
