@@ -133,11 +133,35 @@ local function items(kind, n)
         elseif C_QuestOffer and fn(C_QuestOffer.GetQuestRewardCurrencyInfo) then
             local ok, c = pcall(C_QuestOffer.GetQuestRewardCurrencyInfo, kind, i)
             if ok and type(c) == "table" then
-                it = { kind = kind, index = i, currency = true, name = c.name, texture = c.texture,
+                it = { kind = kind, index = i, currency = true, currencyID = c.currencyID, name = c.name, texture = c.texture,
                     count = c.totalRewardAmount or c.baseRewardAmount, quality = c.quality }
             end
         end
         out[#out + 1] = it or { kind = kind, index = i, loading = true }
+    end
+    return out
+end
+
+-- Currencies the quest always gives (not a choice). The game lists them apart from
+-- its item rewards (QuestInfo.lua's C_QuestInfoSystem.GetQuestRewardCurrencies), and
+-- its tooltip reads them by this order: SetQuestCurrency("reward", i).
+function Data.Currencies(questID)
+    if type(questID) ~= "number" or questID <= 0 or not (C_QuestInfoSystem and fn(C_QuestInfoSystem.GetQuestRewardCurrencies)) then return {} end
+    local ok, list = pcall(C_QuestInfoSystem.GetQuestRewardCurrencies, questID)
+    local out = {}
+    if not ok or type(list) ~= "table" then return out end
+    for i, c in ipairs(list) do
+        if type(c) == "table" then
+            local name, texture, count, quality = c.name, c.texture, c.totalRewardAmount or c.baseRewardAmount, c.quality
+            -- Some currencies show as a container (a bag of them), as the game's window does.
+            local util = CurrencyContainerUtil
+            if c.currencyID and type(util) == "table" and fn(util.GetCurrencyContainerInfo) then
+                local okC, n2, t2, a2, q2 = pcall(util.GetCurrencyContainerInfo, c.currencyID, count, name, texture, quality)
+                if okC and n2 then name, texture, count, quality = n2, t2, a2, q2 end
+            end
+            out[#out + 1] = { kind = "reward", index = i, currency = true, currencyID = c.currencyID,
+                name = name, texture = texture, count = count, quality = quality }
+        end
     end
     return out
 end
@@ -167,7 +191,8 @@ end
 -- Has the game changed since this quest page was read? Counts, money, or a loading
 -- reward tile that now has its item. No single event covers all of these.
 function Data.QuestMoved(d)
-    if (call(GetNumQuestChoices) or 0) ~= #d.choices or (call(GetNumQuestRewards) or 0) ~= #d.rewards then return true end
+    local fixed = (call(GetNumQuestRewards) or 0) + #Data.Currencies(d.questID)
+    if (call(GetNumQuestChoices) or 0) ~= #d.choices or fixed ~= #d.rewards then return true end
     if (call(GetRewardMoney) or 0) ~= d.money or (call(GetRewardXP) or 0) ~= d.xp then return true end
     for _, list in ipairs({ d.choices, d.rewards }) do
         for _, it in ipairs(list) do
@@ -221,6 +246,7 @@ function Data.Quest(mode)
     if mode ~= "progress" then
         t.choices = items("choice", call(GetNumQuestChoices))
         t.rewards = items("reward", call(GetNumQuestRewards))
+        for _, c in ipairs(Data.Currencies(t.questID)) do t.rewards[#t.rewards + 1] = c end
         t.money = call(GetRewardMoney) or 0
         t.xp = call(GetRewardXP) or 0
     end

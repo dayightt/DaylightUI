@@ -22,6 +22,10 @@ DUI.PatchNotes = {
         changed = {
             { "Character", "Equipment sets open in a panel beside the character window: your model wears the set you pick, and each piece says whether it's in your bags, the bank or missing" },
         },
+        fixed = {
+            { "NPC window", "Currency rewards like Trade Commitment show in the quest window, not just the money and items" },
+            { "NPC window", "Vendors show how many are left of items they only have a few of" },
+        },
     },
     { version = "1.8.4", date = "2026-11-15", summary = "Five glow styles, the game's own windows if you prefer them, a background color for windows and two new bag options.",
         new = {
