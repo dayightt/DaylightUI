@@ -3387,6 +3387,7 @@ function UF.UpdateStatus(f, sample, animate)
     if sample then
         leader = sample.leader == true
         pvp = sample.pvp == true
+        faction = sample.faction
     else
         leader = plainFlag(UnitIsGroupLeader, u)
         resting = u == "player" and plainFlag(IsResting)
