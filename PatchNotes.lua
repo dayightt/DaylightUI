@@ -18,8 +18,10 @@ DUI.PatchNotes = {
             { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
         },
         fixed = {
+            { "Unit Frames", "Your cast bar's spot between your frame and the target's is back, with the swing timers fanning out under it again. If 1.9.1 moved yours, it goes back there" },
             { "Spellbook", "Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook, instead of as a group that didn't open on a bar" },
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
+            { "Cooldown Manager", "Slice and Dice's glow goes out when the buff ends, however many combo points it was cast with" },
             { "Skins", "The button that brings back the \"world around you will refresh\" notice is in the Daylight UI look, not the game's red arrow" },
             { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
             { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },

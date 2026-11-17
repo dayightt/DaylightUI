@@ -15,7 +15,12 @@ local Style, Pixel = DUI.Style, DUI.Pixel
 local CB = {}
 ns.CastBar = CB
 
-CB.INSET_TEXT = 0.85  -- cast text height as a share of the bar it sits in
+-- Text inside a power bar is as tall as the bar, never under the smallest
+-- text size: a smaller one was hard to read mid-fight, and the outline keeps
+-- a letter that pokes past a thin bar readable.
+function CB.FitText(barHeight)
+    return math.max(DUI.Style.SIZE.tiny, math.floor(barHeight + 0.5))
+end
 CB.TEXT_SIZE = 12    -- a text's size when it has none saved
 CB.PAD = 3            -- the text's distance from the bar's ends
 
@@ -34,16 +39,19 @@ CB.AT_GAP = 6         -- gap between a frame and a cast bar above or below it
 -- under its frame ("below", sliding out), the target's and focus's cover the
 -- power bar ("power"). Any of them can sit above or below its frame at its own
 -- size ("above", "below") or stand on its own mover ("free"). The target's can
--- also hang under its frame ("slide"), mirroring the player's.
+-- also hang under its frame ("slide"), mirroring the player's. The player's
+-- can sit between its frame and the target's ("middle"): both ends angled,
+-- wider at the bottom, each end parallel to the frame beside it, with the
+-- swing timers fanning out underneath (Swing.lua).
 CB.AT = {
-    player = { "below", "above", "free" },
+    player = { "below", "above", "middle", "free" },
     target = { "power", "above", "below", "slide", "free" },
     focus = { "power", "above", "below", "free" },
     -- Each party member's (PartyCasts.lua): "free" sits beside its frame.
     party = { "power", "slide", "free" },
 }
 CB.AT_LABELS = { power = "Inside the frame", above = "Above the frame", below = "Below the frame",
-                 slide = "Under the frame (slides out)",
+                 slide = "Under the frame (slides out)", middle = "Between your frame and the target's",
                  free = "On its own (unlock to move)" }
 
 -- The spot a bar's settings ask for, or the unit's default. In a style whose
@@ -367,44 +375,40 @@ function CB.Depth(h)
     return c.fH - c.lift + c.height * h.slide.p
 end
 
--- The player's bar could once sit between the player frame and the target's
--- ("middle"), filling the gap with both ends leaning under. A bar left there
--- becomes a bar on its own in the same spot and size, angled the same way.
--- Waits until the frames have a place on screen; until then it hangs below.
-function CB.FromMiddle(h, cfg)
-    local pf, tf = ns.frames and ns.frames.player, ns.frames and ns.frames.target
-    if type(pf) ~= "table" or not h.moverKey then return end
-    local pr, pt = pf:GetRight(), pf:GetTop()
-    local ux, uy = UIParent:GetCenter()
-    if not (pr and pt and ux and uy) then return end
+-- Between the player frame and the target's ("middle"): from the player frame's
+-- right end to the target frame's left end, tops level with them. Both ends are
+-- angled at the frames' own angle but lean under (wider at the bottom), so each
+-- end runs parallel to the frame beside it, CB.AT_GAP apart. Without a target
+-- frame it uses its own Width from the player frame. Anchored to the frames so
+-- it follows them as they move. Returns the cut.
+-- h.fanRate: the angle (cut per height) the swing timers fan out at.
+function CB.Middle(h, cfg, T, tall)
+    local pf = ns.frames.player
+    local tf = ns.frames.target
     local db = ns.module and ns.module.db
-    local ui = UIParent:GetEffectiveScale()
-    local pS = pf:GetEffectiveScale()
-    -- The old bar took the player frame's size.
-    local s = ui * DUI.Movers.Scale(pf.moverKey)
-    local height = 2 * math.floor((tonumber(cfg.height) or 27) / 2 + 0.5)
-    local cut = cfg.slant ~= false and height * ns.UF.SLANT or 0
-    local dx = (CB.AT_GAP - cut) * s
-    local left = pr * pS + dx
-    local right
-    local tl = type(tf) == "table" and not (type(db) == "table" and db.target.enabled == false) and tf:GetLeft()
-    if tl then right = tl * tf:GetEffectiveScale() - dx
-    else right = left + (tonumber(cfg.width) or 285) * s end
-    local top = pt * pS + (tonumber(cfg.y) or 0) * s
-    local cx, cy = (left + right) / 2, top - height * s / 2
-    DUI.DB.Positions()[h.moverKey] = { cx / ui - ux, cy / ui - uy }
-    DUI.Movers.SetPieceScale(h.moverKey, DUI.Movers.PieceScale(pf.moverKey))
-    cfg.at, cfg.y = "free", 0
-    local own = ui * DUI.Movers.Scale(h.moverKey)
-    cfg.width = math.max(1, math.floor((right - left) / own + 0.5))
-    if cfg.slant ~= false then cfg.slant, cfg.slantLeft, cfg.slantUnder = true, true, true end
-    DUI.DB.Keep()
+    local height = tall
+    local cut = cfg.slant ~= false and Pixel.Snap(h, tall * ns.UF.SLANT) or 0
+    -- Measured where the edges are parallel: the frame's end is its top corner
+    -- and this bar's is its bottom one, so the box comes in by this bar's cut.
+    local dx = CB.AT_GAP - cut
+    local y = tonumber(cfg.y) or 0
+    h:ClearAllPoints()
+    h:SetPoint("TOPLEFT", pf, "TOPRIGHT", dx, y)
+    if type(tf) == "table" and not (type(db) == "table" and db.target.enabled == false) then
+        h:SetPoint("TOPRIGHT", tf, "TOPLEFT", -dx, y)
+    else
+        h:SetWidth(2 * Pixel.Snap(h, cfg.width / 2))
+    end
+    h:SetHeight(height)
+    Style.Slant(h, cut > 0 and "both" or nil, cut, nil, "both")
+    Style.AngleFill(h.bar, cut > 0 and "right" or nil, cut * (height - 2 * T) / height, true)
+    h.fanRate = height > 0 and cut / height or 0
+    return cut
 end
 
 -- Protected, so only call through DUI.AfterCombat.
 function CB.Layout(h, cfg, parentCfg)
     local g = DUI.DB.General()
-    if h.kind == "player" and cfg.at == "middle" then CB.FromMiddle(h, cfg) end
     h.enabled = cfg.enabled
     -- under: the frame it can hang below, sliding out, at h.hangAt (the
     -- player's "below", which the swing timers hang from, or the target's
@@ -429,7 +433,8 @@ function CB.Layout(h, cfg, parentCfg)
     if h.inFrame then
         h:SetScale(1)
     elseif not h.attached then
-        local key = (hang and h.under.moverKey) or (at == "personal" and ns.Personal.KEY) or h.moverKey
+        local key = (hang and h.under.moverKey) or (at == "personal" and ns.Personal.KEY)
+            or (at == "middle" and ns.frames and ns.frames.player and ns.frames.player.moverKey) or h.moverKey
         h:SetScale(key and DUI.Movers.Scale(key) or DUI.Movers.Scale())
     end
     -- Its own border, corners and shadow (playerCastbar.shell), else General's.
@@ -444,13 +449,18 @@ function CB.Layout(h, cfg, parentCfg)
     local cut = 0
     h.lead = 0
     h.room, h.belowAt = cfg.drop, nil
-    local free = not h.into and not hang
-    -- Hung under a frame it draws with that frame, so it can tuck under it. A
-    -- party bar lives in its frame and a bar inside a frame is part of it.
-    -- Otherwise it takes its own strata.
+    -- Between the frames: a trapezoid with both ends leaning under (CB.Middle).
+    local middle = at == "middle" and not h.into and not hang and type(ns.frames) == "table" and type(ns.frames.player) == "table"
+    h.middle = middle or nil
+    local free = not h.into and not hang and not middle
+    -- Hung under a frame or standing between the frames it draws with that
+    -- frame, so it can tuck under it. A party bar lives in its frame and a bar
+    -- inside a frame is part of it. Otherwise it takes its own strata.
     if not h.into and not h.inFrame then
+        local pf = ns.frames and ns.frames.player
         local s
         if hang then s = h.under:GetFrameStrata()
+        elseif middle then s = pf:GetFrameStrata()
         elseif at == "personal" and ns.Personal.frame then s = ns.Personal.frame:GetFrameStrata()
         elseif type(cfg.strata) == "string" then s = ns.StrataOf(cfg) end
         if s then h:SetFrameStrata(s) end
@@ -481,6 +491,7 @@ function CB.Layout(h, cfg, parentCfg)
         -- from under the frame (and the swing bars from under it).
         local clip = CB.Clip(h, f, lift)
         if h:GetParent() ~= clip then h:SetParent(clip) end
+        h.fanRate = nil
         h:SetSize(f:GetWidth(), height)
         -- Drawn just above the frame (and below its portrait), so its straight
         -- border covers the rounded tip of the frame's angle where they meet.
@@ -490,8 +501,14 @@ function CB.Layout(h, cfg, parentCfg)
         local total = fH + height - lift
         cut = cfg.slant == false and 0 or (f.cut or 0) * total / fH
         CB.Hang(h)
-    else
+    elseif middle then
         h.column = nil
+        if h.slide then h.slide:Jump(1) end
+        if h.clip and h:GetParent() == h.clip then h:SetParent(h.home) end
+        cut = CB.Middle(h, cfg, T, tall)
+        side = cut > 0 and "both" or nil
+    else
+        h.column, h.fanRate = nil, nil
         if h.slide then h.slide:Jump(1) end
         if h.clip and h:GetParent() == h.clip then h:SetParent(h.home) end
         -- Free-standing: its own size and optionally the player's angle. Above
@@ -535,7 +552,7 @@ function CB.Layout(h, cfg, parentCfg)
     h.bar:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     h.bar:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     local contentLead = h.lead
-    if h.icon and cfg.showIcon and not hang then
+    if h.icon and cfg.showIcon and not hang and not middle then
         local s = tall - 2 * T
         -- An angled left end would cut the icon, so it starts past the angle.
         local lead = h.lead + ((side == "left" or side == "both") and cut or 0)
@@ -562,7 +579,7 @@ function CB.Layout(h, cfg, parentCfg)
             if (cfg.insideTextSize or 0) > 0 then return cfg.insideTextSize end
             local base = defaults and defaults[kind] and defaults[kind].size or CB.TEXT_SIZE
             if size ~= base then return size end
-            return math.min(size, math.floor(parentCfg.powerHeight * CB.INSET_TEXT + 0.5))
+            return math.min(size, CB.FitText(parentCfg.powerHeight))
         end
         return size
     end
@@ -790,6 +807,7 @@ end
 function CB.Stop(h, glide)
     h.duration = nil
     CB.UpdateKickMark(h)
+    CB.SetUp(h, false)
     if glide and h.column and h:IsVisible() then
         h.slide:To(0)
     elseif glide and h:IsVisible() then
@@ -804,6 +822,15 @@ end
 -- Show the bar at once, cancelling a fade out in progress.
 local function showBar(h)
     DUI.Motion.AlphaTo(h, 1, 0)
+    CB.SetUp(h, true)
+end
+
+-- Whether a cast is up (h.up), told to h.onUp when it changes: the swing bars
+-- under the bar between the frames move up into its spot while none is.
+function CB.SetUp(h, up)
+    if h.up == up then return end
+    h.up = up
+    if h.onUp then h.onUp(up) end
 end
 
 -- An event. An interrupt holds the bar for a moment (if enabled), and while

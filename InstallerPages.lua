@@ -134,6 +134,14 @@ Pages.TOUR = {
           { label = "", needs = "UnitFrames", rows = { { "UnitFrames", "colors.healthColor" } } },
           { label = "Portraits", needs = "UnitFrames", portraits = true },
           { label = "Ring color", needs = "UnitFrames", portraits = "portraitRing", draw = "portraitRing", cols = 3, height = 90 },
+          -- Where your cast bar sits: under your frame, or between your frame and the
+          -- target's with the swing timers fanning out below it.
+          { label = "Cast bar", needs = "UnitFrames", draw = "castbar", cols = 2, height = 104, presets = {
+              { id = "below", label = "Under your frame", sub = "Slides out from under your frame as you cast.", set = {
+                  { "UnitFrames", "playerCastbar.at", "below" } } },
+              { id = "middle", label = "Between the frames", sub = "In the middle, the swing timers fanning out under it.", set = {
+                  { "UnitFrames", "playerCastbar.at", "middle" }, { "UnitFrames", "swing.attach", true } } },
+          } },
       } },
     -- What players notice first: the bars, the plates, and whether the UI steps
     -- aside out of combat.
