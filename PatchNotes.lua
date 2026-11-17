@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
+            { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
         },
     },
     { version = "1.9.2", date = "2026-11-16", summary = "An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.",

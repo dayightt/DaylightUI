@@ -394,7 +394,13 @@ T.test("a light pinned to the end is cut to the fill's rectangle, and never take
     local fill = bar:GetStatusBarTexture()
     T.eq(fill:GetNumMaskTextures(), 1, "the fill: its angled end")
     for _, r in ipairs(lights(bar)) do
-        T.eq(r:GetNumMaskTextures(), 2, "the angled end and the fill's rectangle")
+        T.eq(r:GetNumMaskTextures(), 2, "the angled end and the bar's rectangle")
+        -- An empty bar's fill has no width (seen in game: a rage bar at 0 showed
+        -- its light past its end), so the cut is the bar's rectangle, which the
+        -- fill always reaches.
+        local rect = r:GetMaskTexture(2)
+        local _, rel = rect:GetPoint(1)
+        T.eq(rel, bar, "cut to the bar, never to the empty fill")
     end
     -- A square bar: only the rectangle. Angled later, the layers follow.
     local square = DUI.Style.Bar(UIParent)

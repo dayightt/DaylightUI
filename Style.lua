@@ -1961,7 +1961,7 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     return m
 end
 
--- A layer kept inside the fill's own rectangle wears one more mask for it
+-- A layer kept inside its bar's rectangle wears one more mask for it
 -- (Style.SameMasks), while it has room for one.
 local insideMask = setmetatable({}, { __mode = "k" }) -- fill -> its rectangle as a mask
 local insideOn = setmetatable({}, { __mode = "k" })   -- layer -> the rectangle mask it wears
@@ -2075,7 +2075,7 @@ end
 -- angled end, the bar's clipped ends, a slant added later), so a layer laid
 -- over the fill is cut the same way. inside (true) is for a layer that isn't
 -- the fill's size, such as a light pinned to its moving end: it is also cut
--- to the fill's rectangle, so it can't reach past a nearly empty fill. A fill
+-- to the bar's rectangle, so it can't reach past a nearly empty fill. A fill
 -- with three masks is cut at both ends already and a texture takes no fourth.
 function Style.SameMasks(tex, fill, inside)
     sameOf[fill] = sameOf[fill] or {}
@@ -2093,7 +2093,11 @@ function Style.SameMasks(tex, fill, inside)
             m = fill:GetParent():CreateMaskTexture()
             -- Clamped to black, so nothing shows beyond the mask itself.
             m:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            m:SetAllPoints(fill)
+            -- The bar's rectangle, not the fill's: an empty fill has no width,
+            -- and a light pinned to an empty bar's end showed past it in game.
+            -- The fill always reaches the bar's far side, so the cut is the
+            -- same while there is any fill.
+            m:SetAllPoints(fill:GetParent())
             insideMask[fill] = m
         end
         want[m] = true
