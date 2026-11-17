@@ -3384,6 +3384,23 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat daylight: line spacing spreads the box's lines, and 0 is the game's own", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    local gap
+    box.SetSpacing = function(_, v) gap = v end
+    Box.Font()
+    T.eq(gap, 0, "untouched: the game's own spacing")
+    DUI:Set("Chat", "lineSpacing", 6)
+    stub.RunTimers()
+    T.eq(gap, 6, "the chosen pixels")
+    DUI:Set("Chat", "lineSpacing", -3)
+    stub.RunTimers()
+    T.eq(gap, 0, "never negative")
+    DUI:Set("Chat", "lineSpacing", 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a combat log tab shows the game's combat log in the chat's place", function()
     local selected
     local Box, box = daylight(function()

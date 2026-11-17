@@ -66,6 +66,7 @@ ns.DEFAULTS = {
     boxInputAt = "bottom", -- same for the Daylight chat box: inside its bottom, lines rising over it
     textSize = 0, -- text size for every chat window (0 = the game's per-window size)
     outline = false,        -- an outline on chat text
+    lineSpacing = 0,        -- extra pixels between the lines of the Daylight chat box
     tabSize = 13, -- tab label size
     inputSizeOwn = false, -- off: edit box text matches the message size
     inputSize = 14, -- used when inputSizeOwn is on
