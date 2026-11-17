@@ -27,7 +27,7 @@ DUI.PatchNotes = {
             { "Social", "Setting yourself to Away or Available in the Social window works again, instead of getting stuck on Busy" },
             { "Character", "In Spanish, the main hand and off hand use the game's own names (mano principal, mano secundaria) in the stats and the swing timer" },
             { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
-            { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },
+            { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI. A bar or frame set to never fade, or no longer shown, also goes fully back to normal instead of staying ready to fade" },
             { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
             { "Controller", "Whispering a friend or sharing an item in chat no longer leaves the controller dead until a reload. With a controller you type the whisper in a small box, and a shared item goes to the chat you pick" },
         },
