@@ -224,7 +224,7 @@ T.test("platefix: step 5 puts the plates back without the stacking frame", funct
     local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
     local before = np.stackSet
     local said = runTo(NP, 1)
-    T.truthy(said:find("5/7", 1, true), said)
+    T.truthy(said:find("5/8", 1, true), said)
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
     T.truthy(np.stackSet > before, "the game's plate was pointed somewhere new")
@@ -458,4 +458,95 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     T.truthy(text:find("Daylight UI modules on:", 1, true), text)
     T.truthy(text:find("Nameplates module off", 1, true), text)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Speech bubbles vanish with the plates, and /reload brings both back. The
+-- client hides both under one switch of its own (SetUIVisibility on Alt+Z,
+-- SetInWorldUIVisibility alone), which Lua can't read. So the log notes every
+-- call and who made it, the report counts bubbles, and the last step turns the
+-- switch back on.
+local function withStack(text, fn)
+    local was = _G.debugstack
+    _G.debugstack = function() return text end
+    local ok, err = pcall(fn)
+    _G.debugstack = was
+    if not ok then error(err, 0) end
+end
+
+T.test("platefix: the log names who switched the plates and bubbles off", function()
+    local NP = login()
+    withStack('[string "@Interface/AddOns/DaylightUI/PlateReport.lua"]:1: in function\n'
+        .. '[string "@Interface/AddOns/SomeAfkAddon/Afk.lua"]:40: in function', function()
+        SetUIVisibility(false)
+    end)
+    UIParent:Show()
+    withStack("", function() SetInWorldUIVisibility(false) end)
+    NP.Manager.Fix()
+    local text = NP.Manager.FixReport(1)
+    local log = text:match("What happened before step 1.-Before step 1:")
+    T.truthy(log, text)
+    for _, want in ipairs({ "whole UI and plates off by SomeAfkAddon", "UI hidden", "UI shown",
+        "plates and bubbles off by a key or the client" }) do
+        T.truthy(log:find(want, 1, true), want .. " in: " .. log)
+    end
+    T.truthy(text:find("World UI: plates and bubbles switch last set off by a key or the client, UI shown true", 1, true),
+        text)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: the report counts speech bubbles", function()
+    login()
+    local shown, hidden = CreateFrame("Frame", nil, UIParent), CreateFrame("Frame", nil, UIParent)
+    hidden:Hide()
+    stub.SetBubbles({ shown, hidden })
+    local line = DaylightUI.PlateReport.WorldUI()
+    T.truthy(line:find("speech bubbles 2 (1 visible)", 1, true), line)
+    T.truthy(line:find("never set this session", 1, true), line)
+end)
+
+T.test("platefix: the last step turns the game's switch for plates and bubbles back on", function()
+    local NP = login()
+    SetUIVisibility(false)
+    UIParent:Show()
+    T.falsy(stub.inWorldUI, "the UI is back, plates and bubbles aren't")
+    local said
+    for _ = 1, NP.Manager.FIX_STEPS do
+        said = NP.Manager.Fix()
+        stub.RunTimers()
+        stub.RunTimers()
+    end
+    T.truthy(said:find("8/8", 1, true) and said:find("speech bubbles turned on", 1, true), said)
+    T.truthy(stub.inWorldUI, "plates and bubbles back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: with the Nameplates module off, the last step turns the switch back on too", function()
+    stub.Load({ before = function()
+        _G.C_NamePlate = { GetNamePlateForUnit = function() end }
+        stub.units = { player = { name = "Me", class = "PRIEST", isPlayer = true } }
+    end })
+    _G.SetCVar = function() end
+    _G.GetCVar = function() end
+    SetInWorldUIVisibility(false)
+    local R = DaylightUI.PlateReport
+    for _ = 1, #R.FIX do R.Fix(); stub.RunTimers() end
+    T.truthy(stub.inWorldUI)
+end)
+
+T.test("platefix: a refused switch says why, and tries the whole UI's switch", function()
+    login()
+    local was = _G.SetInWorldUIVisibility
+    _G.SetInWorldUIVisibility = function() error("blocked") end
+    SetUIVisibility(false)
+    UIParent:Show()
+    local said = DaylightUI.PlateReport.InWorldBack()
+    _G.SetInWorldUIVisibility = was
+    T.truthy(said:find("UI switch turned on", 1, true), said)
+    T.truthy(stub.inWorldUI)
+    _G.SetUIVisibility, was = function() error("no") end, _G.SetUIVisibility
+    _G.SetInWorldUIVisibility = function() error("blocked") end
+    said = DaylightUI.PlateReport.InWorldBack()
+    _G.SetUIVisibility = was
+    _G.SetInWorldUIVisibility = function(v) stub.inWorldUI = v == true end
+    T.truthy(said:find("refused", 1, true) and said:find("blocked", 1, true), said)
 end)

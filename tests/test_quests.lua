@@ -1563,6 +1563,25 @@ T.test("quests tracker: the priority quest's icon is painted in our gradient", f
     T.rgb(ring1.__vertex, ns.Look.RING)
 end)
 
+T.test("quests tracker: with the switch on, the priority quest's title takes the priority color", function()
+    local Tr, ns, settle = tracker({ quests = { STEW, QW.quest(2, "B") }, focus = 1 })
+    local function title(id) return Tr.frames["quest:" .. id].lines.title.label.__textColor end
+    local level = { title(1)[1], title(1)[2], title(1)[3] }
+    DaylightUI:Set("Quests", "colors.focusMode", "custom")
+    DaylightUI:Set("Quests", "colors.focus", { 0.2, 0.4, 0.6 })
+    settle()
+    T.rgb(title(1), level, "off by default: its level color")
+    DaylightUI:Set("Quests", "colors.focusTitle", true)
+    settle()
+    T.rgb(title(1), { 0.2, 0.4, 0.6 }, "the priority color")
+    QW.state.focus = 2
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); settle()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)   -- the title eases to its new color
+    T.rgb(title(2), { 0.2, 0.4, 0.6 }, "follows the new priority")
+    T.rgb(title(1), level, "the old one back to its level color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("quests clicks: the menu, with Share only in a group", function()
     local Tr, ns = tracker({ quests = { STEW } })
     local q = Tr.shown[3].quest

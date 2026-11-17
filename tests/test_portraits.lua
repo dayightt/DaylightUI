@@ -1367,3 +1367,45 @@ T.test("a portrait on its own can leave its icons on the frame", function()
     T.eq(rel, f.portrait)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("no portrait and no name tab: icons beside the frame, combat and elite on its border", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", leader = true, pvp = true,
+                              faction = "Alliance" }
+        stub.resting = true
+    end)
+    for _, u in ipairs({ "player", "target" }) do
+        DUI:Set("UnitFrames", u .. ".portrait", "none")
+        DUI:Set("UnitFrames", u .. ".nameOnBar", true)
+    end
+    stub.RunTimers()
+    local f = ns.frames.player
+    T.falsy(f.tab:IsShown())
+    local icons = f.status.icons
+    for _, key in ipairs({ "leader", "rest", "pvp" }) do
+        local pt, rel, rp = icons[key]:GetPoint(1)
+        T.eq(rel, f, key .. " hangs off the frame, not the hidden tab")
+        T.truthy(pt:find("RIGHT") and rp:find("LEFT"), key .. " beside the outer end")
+    end
+    local shell = DaylightUI.Style.GetShell(f)
+    stub.units.player.combat = true
+    ns.UF.UpdateCombat(f)
+    T.rgb(shell.opts.borderColor, ns.UF.THREAT_COLORS.aggro, "in a fight the frame's border goes red")
+    stub.units.player.combat = false
+    ns.UF.UpdateCombat(f)
+    T.isnil(shell.opts.borderColor, "and back")
+
+    local t = ns.frames.target
+    stub.units.target = { name = "Grell", isPlayer = false, reaction = 2, classification = "elite", level = 20 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    ns.UF.UpdateAll(t, true)
+    local ts = DaylightUI.Style.GetShell(t)
+    T.falsy(t.crest:IsShown(), "no tab for the badge")
+    T.rgb(ts.opts.borderColor, ns.UF.CREST_COLORS.gold, "the elite's gold on the border instead")
+    DUI:Set("UnitFrames", "target.nameOnBar", false)
+    stub.RunTimers()
+    ns.UF.UpdateAll(t, true)
+    T.truthy(t.crest:IsShown(), "with the tab back, the badge is back")
+    T.isnil(ts.opts.borderColor, "and the border is plain")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

@@ -46,6 +46,14 @@ local RULES = {
           return l:find("poiButton:Show(", 1, true) or l:find("poiButton:Hide(", 1, true)
               or l:find("poiButton:SetShown(", 1, true)
       end },
+    -- Opening the game's chat box from addon code runs its controller focus
+    -- under our taint, and with the controller UI on the pad then stays dead
+    -- until a reload (SetPreferredGamepadInteractTarget refused). Pad.Whisper
+    -- and Pad.Share are the one place that may, and only without a controller.
+    { "open-chat", "opening the game's chat box from addon code taints the controller: use DUI.Pad.Whisper / DUI.Pad.Share",
+      function(l)
+          return l:find("OpenChat", 1, true) or l:find("SendTell", 1, true) or l:find("SendBNetTell", 1, true)
+      end },
     -- DELETE_ITEM_CONFIRM is a synchronous event, so the game's delete pop-up
     -- opens inside our call and carries our taint. With the controller UI on,
     -- that pop-up's focus then taints the controller's bindings for the rest

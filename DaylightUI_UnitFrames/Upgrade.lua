@@ -546,6 +546,17 @@ ns.UPGRADE_STEPS[19] = function(uf, _, _, run)
     keep(uf.personal.auras, "personal.auras", D.personal.auras, { debuffGrow = "center", buffGrow = "center" })
 end
 
+-- 20: 1.9.1 dropped the player's cast bar spot between the frames and turned a
+-- bar there into a free one with every end angled and flipped, which left the
+-- swing bars hanging under the player frame. The spot is back: a bar moved
+-- off it that way goes back, and the swing bars fan out under it again.
+ns.UPGRADE_STEPS[20] = function(uf)
+    local c = uf.playerCastbar
+    if type(c) ~= "table" or c.at ~= "free" then return end
+    if c.slant == false or c.slantLeft ~= true or c.slantUnder ~= true then return end
+    c.at, c.slantLeft, c.slantUnder = "middle", nil, nil
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

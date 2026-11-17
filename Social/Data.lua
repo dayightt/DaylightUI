@@ -201,12 +201,18 @@ function Data.Me()
     return status, str(broadcast), str(tag)
 end
 
--- Only from a click (the calls are HasRestrictions). Available clears both.
+-- Only from a click (the calls are HasRestrictions). One call per click: two in a row (set Away, then
+-- clear Busy) leave the game on Busy, and a later click can't undo it. Available clears the one that is on.
 function Data.SetStatus(status)
     local B = bn()
     if not B then return end
-    call(B.SetAFK, status == "away")
-    call(B.SetDND, status == "busy")
+    if status == "away" then call(B.SetAFK, true)
+    elseif status == "busy" then call(B.SetDND, true)
+    else
+        local now = Data.Me()
+        if now == "away" then call(B.SetAFK, false)
+        elseif now == "busy" then call(B.SetDND, false) end
+    end
 end
 
 function Data.Broadcast(text)
@@ -216,9 +222,7 @@ end
 
 function Data.WhisperFriend(f)
     if not (f and f.account) then return end
-    local C = type(ChatFrameUtil) == "table" and ChatFrameUtil
-    if C and type(C.SendBNetTell) == "function" then C.SendBNetTell(f.account)
-    elseif type(ChatFrame_SendBNetTell) == "function" then ChatFrame_SendBNetTell(f.account) end
+    DUI.Pad.Whisper({ bn = f.id, name = f.account })
 end
 
 -- Invite when they're in this game, on the same ruleset and faction (or a server that

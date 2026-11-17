@@ -9,11 +9,7 @@
 -- Out of combat, clicks cast through the single secure button from Cast.lua.
 -- In combat, Fight.lua lays a cast button over every row and search, chips
 -- and folds are frozen (Spells.Freeze). Dragging picks the spell up, which
--- the game blocks for addon code in combat. A flyout (Portal, Teleport,
--- stances) has a row of its own like in the game's book: dragging it puts the
--- whole flyout on a bar, a click folds its spells under it. Opening the game's
--- spell flyout from here isn't possible: it needs one of the game's own action
--- buttons, and its spells cast only from there. Shift-click links the spell, or
+-- the game blocks for addon code in combat. Shift-click links the spell, or
 -- inserts its name into the macro being edited. Spells learned since the book
 -- was last opened glow until hovered (DB.Character().spellsSeen).
 
@@ -65,7 +61,7 @@ end
 function Spells.IsNew(cell)
     local seen = Spells.Seen()
     -- Lower ranks are never new, even if they only now appear in the list.
-    if not seen or cell.passive or cell.future or cell.low or cell.flyout then return false end
+    if not seen or cell.passive or cell.future or cell.low then return false end
     local key = seenKey(cell)
     if key == nil then return false end
     if Spells.seeding then seen[key] = true; return false end
@@ -113,9 +109,6 @@ local function makeCell(parent)
     b.rank:SetPoint("BOTTOMLEFT", b.well, "BOTTOMRIGHT", 8, 2)
     b.rank:SetPoint("RIGHT", b, "RIGHT", -4, 0)
     b.rank:SetWordWrap(false)
-    -- A folded flyout shows "+", like a folded section.
-    b.state = Style.Text(b, Style.SIZE.body, "RIGHT")
-    b.state:SetPoint("RIGHT", b, "RIGHT", -6, 0)
     b.shine = b:CreateTexture(nil, "OVERLAY")
     b.shine:SetTexture(WHITE)
     b.shine:SetBlendMode("ADD")
@@ -128,9 +121,6 @@ local function makeCell(parent)
     b:SetScript("OnDragStart", function(self) if not Spells.binding then Spells.Drag(self) end end)
     b:SetScript("OnClick", function(self, button)
         if Spells.binding then Spells.BindClick(self, button)
-        elseif self.cell and self.cell.flyout and button == "LeftButton"
-            and not (type(IsModifiedClick) == "function" and IsModifiedClick("CHATLINK")) then
-            Spells.FoldFlyout(self.cell)
         else Spells.Modified(self, button) end
     end)
     return b
@@ -168,7 +158,7 @@ function Spells.PaintCooldown(b)
     elseif c and c.spellID and C_Spell and type(C_Spell.GetSpellCooldownDuration) == "function" then
         d = C_Spell.GetSpellCooldownDuration(c.spellID)
     end
-    if type(d) == "nil" or c.passive or c.flyout then
+    if type(d) == "nil" or c.passive then
         if b.cd.Clear then b.cd:Clear() end
         return
     end
@@ -188,10 +178,8 @@ function Spells.PaintCell(b, cell)
     b.icon:SetAlpha(1)
     b.name:SetText(cell.name)
     color(b.name, off and Spells.QUIET or Spells.NAME)
-    b.rank:SetText(cell.flyout and Spells.FlyoutText(cell) or cell.rank or "")
+    b.rank:SetText(cell.rank or "")
     color(b.rank, off and Spells.QUIET or Spells.SOFT)
-    b.state:SetText(cell.flyout and Spells.IsFlyoutFolded(cell) and "+" or "")
-    color(b.state, Spells.SOFT)
     -- In click-cast mode the rank line shows the bound clicks instead, and
     -- spells that can't be bound are dimmed.
     if Spells.binding then
@@ -235,13 +223,7 @@ function Spells.Enter(b)
     elseif cell.spellID and type(tip.SetSpellByID) == "function" then
         tip:SetSpellByID(cell.spellID)
     end
-    if cell.flyout and not InCombatLockdown() then
-        local Tips = DUI.Tips
-        Tips.Clear()
-        Tips.Hint(Spells.IsFlyoutFolded(cell) and L["Click: show its spells"] or L["Click: hide its spells"])
-        Tips.Hint(L["Drag: put it on a bar"])
-        Tips.Flush(tip)
-    elseif InCombatLockdown() and not cell.passive then
+    if InCombatLockdown() and not cell.passive then
         local Tips = DUI.Tips   -- appended under the spell's own lines
         Tips.Clear()
         -- When frozen, Fight.lua's buttons still cast; only dragging is blocked.
@@ -513,23 +495,6 @@ end
 
 function Spells.IsFolded(section) return Spells.Folds()[section.name] == true end
 
--- A flyout's spells fold under its row, kept with the sections' folds.
-local function flyoutKey(cell) return "flyout:" .. tostring(cell.flyout) end
-function Spells.IsFlyoutFolded(cell) return Spells.Folds()[flyoutKey(cell)] == true end
-
-function Spells.FoldFlyout(cell)
-    if Spells.frozen or Spells.filter then return end
-    local folds = Spells.Folds()
-    folds[flyoutKey(cell)] = not Spells.IsFlyoutFolded(cell) or nil
-    if DUI.Sound then DUI.Sound.Play("toggle") end
-    if Spells.page then Spells.Fill(Spells.page, true) end
-end
-
-function Spells.FlyoutText(cell)
-    local n = cell.count or 0
-    return n == 1 and L["1 spell"] or L["%d spells"]:format(n)
-end
-
 function Spells.Fold(section, folded)
     if Spells.frozen then return end
     Spells.Folds()[section.name] = folded or nil
@@ -586,13 +551,10 @@ function Spells.Render(page)
     for _, section in ipairs(data.sections) do
         local cells = {}
         for _, cell in ipairs(section.spells) do
-            local hidden = not want and cell.under and Spells.IsFlyoutFolded(cell.under)
             local lows = {}
             for _, low in ipairs(cell.lows) do if matches(low, want) then lows[#lows + 1] = low end end
-            if not hidden then
-                if matches(cell, want) or #lows > 0 then cells[#cells + 1] = cell end
-                for _, low in ipairs(lows) do cells[#cells + 1] = low end
-            end
+            if matches(cell, want) or #lows > 0 then cells[#cells + 1] = cell end
+            for _, low in ipairs(lows) do cells[#cells + 1] = low end
         end
         if #cells > 0 then
             any = true

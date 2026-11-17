@@ -434,6 +434,7 @@ T.test("action bars: a totem just put down sits at the tighter gap at once", fun
             second = CreateFrame("Button", nil, self)
             second:SetSize(37, 37)
             second.Icon = CreateFrame("Frame", nil, second)
+            second.Icon:SetSize(22, 22)
             second.Icon.Texture = second.Icon:CreateTexture()
             second.Duration = second:CreateFontString()
             second.slot, second.layoutIndex = 2, 0     -- earth before fire, by their priorities
@@ -443,9 +444,56 @@ T.test("action bars: a totem just put down sits at the tighter gap at once", fun
     tf:GetScript("OnEvent")(tf, "PLAYER_TOTEM_UPDATE")
     local _, _, _, x1 = first:GetPoint(1)
     local _, _, _, x2 = second:GetPoint(1)
-    T.eq(second:GetWidth(), 37 - stub.actionbars.Totems.TIMER_TIGHTEN, "the new one narrowed")
+    local Totems = stub.actionbars.Totems
+    T.eq(second:GetWidth(), Totems.TimerWidth(tf, 22, _G.DaylightUI.Pixel.Px(second, 2), 2), "the new one narrowed")
+    T.truthy(second:GetWidth() < 37, "narrower than the game's")
     T.eq(x1 - x2, second:GetWidth() + tf.spacing, "the one after it at the tighter gap, not the game's first one")
     T.eq(tf:GetWidth(), 15 + first:GetWidth() + tf.spacing + second:GetWidth(), "the frame as wide as its next layout")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The Totem timers card: size, spacing, time text, sweep and element colors, live.
+T.test("action bars: totem timer options apply at once", function()
+    local DUI = login()
+    stub.RunTimers()
+    local tf = _G.TotemFrame
+    local totem = select(1, tf:GetChildren())
+    local cd = totem.Icon.Cooldown
+    local Totems = stub.actionbars.Totems
+    T.eq(cd.__swipe, "Interface\\Buttons\\WHITE8X8", "a square sweep, not the game's circle")
+    T.eq(cd.__range[2].x, 1, "the whole texture")
+    local _, crel = cd:GetPoint(1)
+    T.eq(crel, totem.Icon.Texture, "the sweep covers the cropped icon")
+
+    DUI:Set("ActionBars", "totemTimersSize", 150)
+    stub.RunTimers()
+    T.near(tf:GetScale(), 1.5, 0.001, "bigger")
+
+    local w = totem:GetWidth()
+    DUI:Set("ActionBars", "totemTimersGap", 10)
+    stub.RunTimers()
+    T.eq(totem:GetWidth(), w + 8, "spaced further apart")
+    T.eq(tf.spacing, -6, "the game's spacing untouched")
+
+    DUI:Set("ActionBars", "totemTimersTimePos", "bottom")
+    DUI:Set("ActionBars", "totemTimersTimeSize", 15)
+    stub.RunTimers()
+    local _, rel, relPoint = totem.Duration:GetPoint(1)
+    T.eq(rel, totem.Icon.Texture); T.eq(relPoint, "BOTTOM", "time on the bottom edge")
+    local _, size = totem.Duration:GetFont()
+    T.eq(size, 15, "time text size")
+
+    DUI:Set("ActionBars", "totemTimersShowTime", false)
+    DUI:Set("ActionBars", "totemTimersSwipe", false)
+    stub.RunTimers()
+    T.eq(totem.Duration:GetAlpha(), 0, "no time shown")
+    T.falsy(cd:GetDrawSwipe(), "no sweep")
+
+    DUI:Set("ActionBars", "totemTimersElements", false)
+    stub.RunTimers()
+    local shell
+    for _, child in ipairs({ totem:GetChildren() }) do shell = shell or DUI.Style.GetShell(child) end
+    T.isnil(shell.opts.borderColor, "the usual border color")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -488,18 +536,16 @@ T.test("action bars: totem timers get a mover, a saved spot, and the buff-bar lo
     -- taints its layout (and PlayerFrame_AdjustAttachments after it).
     T.eq(tf.spacing, -6, "the game's spacing untouched")
     T.isnil(rawget(tf, "dirty"), "its layout never run by us")
-    T.eq(totem:GetWidth(), 37 - 4, "each timer a little narrower")
+    T.truthy(totem:GetWidth() < 37, "each timer a little narrower")
     local point, rel, relPoint = totem.Duration:GetPoint(1)
     T.eq(point, "CENTER"); T.eq(relPoint, "TOP"); T.eq(rel, totem.Icon.Texture, "time on the icon's top edge")
     local r, g, b = DUI.Style.Soften(0.9, 0.35, 0.15)
-    local edge
-    for _, reg in ipairs({ totem:GetRegions() }) do
-        if rawget(reg, "__texture") == "Interface\\Buttons\\WHITE8X8" then edge = reg end
-    end
-    T.truthy(edge, "an edge texture")
-    if edge then
-        local er, eg, eb = edge:GetVertexColor()
-        T.near(er, r, 0.001); T.near(eg, g, 0.001); T.near(eb, b, 0.001)
+    local shell
+    for _, child in ipairs({ totem:GetChildren() }) do shell = shell or DUI.Style.GetShell(child) end
+    T.truthy(shell, "a Daylight UI shell round the icon")
+    if shell then
+        local c = shell.opts.borderColor
+        T.near(c[1], r, 0.001); T.near(c[2], g, 0.001); T.near(c[3], b, 0.001)
     end
     -- The time is written the buff bar's way, not the game's "55 s".
     local oldInfo, oldTime = _G.GetTotemInfo, _G.GetTime

@@ -2705,6 +2705,17 @@ _G.GetCursorPosition = function() return stub.cursorPos[1], stub.cursorPos[2] en
 _G.C_ChatBubbles = { GetAllChatBubbles = function() return stub.bubbles or {} end }
 function stub.SetBubbles(list) stub.bubbles = list end
 
+-- The client's switch for what it draws in the world: nameplates and speech
+-- bubbles. SetUIVisibility (Alt+Z) hides it along with UIParent, and the game
+-- always calls SetUIVisibility(true) beside UIParent:Show() to bring both back.
+-- SetInWorldUIVisibility flips it alone (Blizzard_Commentator). Lua can't read it.
+stub.inWorldUI = true
+_G.SetInWorldUIVisibility = function(v) stub.inWorldUI = v == true end
+_G.SetUIVisibility = function(v)
+    stub.inWorldUI = v == true
+    if v then UIParent:Show() else UIParent:Hide() end
+end
+
 -- stub.SetAuras("player", "HELPFUL", { { name=, icon=, spellId=, expirationTime=, ... }, ... }).
 -- Each read hands out a fresh copy, as the client does.
 function stub.SetAuras(unit, filter, list)
@@ -3007,6 +3018,7 @@ function stub.Reset()
     stub.units, stub.loadedAddOns, stub.unknownEvents = {}, {}, {}
     stub.spells = {}
     stub.keyDownCVar = nil
+    stub.inWorldUI, stub.bubbles = true, nil
     stub.installedAddOns = {}
     stub.addonMeta = {}
     stub.addonState = {}

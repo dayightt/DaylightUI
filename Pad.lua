@@ -1261,3 +1261,81 @@ DUI.RegisterEvent("INPUT_DEVICE_INTERFACE_TRANSITION", function()
     end
     DUI.Fire("PadChanged")
 end)
+
+-- Whispers and links
+
+-- Opening the game's chat box from addon code (OpenChat, SendTell) hands its
+-- controller focus Daylight UI's taint when the controller UI is on: the chat's
+-- buttons go on the game's binding stack tainted, and from then on the game
+-- refuses its own SetPreferredGamepadInteractTarget, so the pad stops working
+-- until a reload. On a controller these two never open the box: a whisper is
+-- typed in Daylight UI's own box and sent from there, and a link goes into a
+-- box that's already open or straight to the channel picked.
+
+local function locked()
+    local C = C_ChatInfo
+    if C and type(C.InChatMessagingLockdown) == "function" and C.InChatMessagingLockdown() == true then
+        DUI.Print(L["Chat is locked during this fight: whispers can be sent again after it."])
+        return true
+    end
+    return false
+end
+
+-- who = { name = "Name-Realm" } or a Battle.net friend { bn = bnetAccountID,
+-- name = their account name }.
+function Pad.Whisper(who)
+    if type(who) ~= "table" or type(who.name) ~= "string" or who.name == "" then return end
+    local U = type(ChatFrameUtil) == "table" and ChatFrameUtil or nil
+    if not Pad.On() then
+        if who.bn then
+            if U and type(U.SendBNetTell) == "function" then U.SendBNetTell(who.name)
+            elseif type(ChatFrame_SendBNetTell) == "function" then ChatFrame_SendBNetTell(who.name) end
+        elseif U and type(U.SendTell) == "function" then U.SendTell(who.name)
+        elseif type(ChatFrame_SendTell) == "function" then ChatFrame_SendTell(who.name) end
+        return
+    end
+    DUI.Widgets.Prompt(string.format(L["Whisper %s"], who.name), "", function(text)
+        if locked() then return end
+        if who.bn then
+            if type(BNSendWhisper) == "function" then BNSendWhisper(who.bn, text) end
+        else
+            C_ChatInfo.SendChatMessage(text, "WHISPER", nil, who.name)
+        end
+    end)
+end
+
+-- The channels a link can go to right now, in the game's own words.
+local function channels()
+    local keys, values = { "SAY" }, { SAY = SAY or L["Say"] }
+    local function add(key, label, ok)
+        if ok then keys[#keys + 1] = key; values[key] = label end
+    end
+    local home = type(LE_PARTY_CATEGORY_HOME) == "number" and LE_PARTY_CATEGORY_HOME or nil
+    local inst = type(LE_PARTY_CATEGORY_INSTANCE) == "number" and LE_PARTY_CATEGORY_INSTANCE or nil
+    add("INSTANCE_CHAT", INSTANCE_CHAT or L["Instance"], inst ~= nil and IsInGroup and IsInGroup(inst))
+    add("RAID", RAID or L["Raid"], IsInRaid and IsInRaid(home))
+    add("PARTY", PARTY or L["Party"], IsInGroup and IsInGroup(home) and not (IsInRaid and IsInRaid(home)))
+    add("GUILD", GUILD or L["Guild"], IsInGuild and IsInGuild())
+    return keys, values
+end
+Pad.Channels = channels
+
+-- Puts a link in the open chat box; with none open, a mouse player gets a new
+-- box with it, as the game does, and a controller player picks a channel.
+-- owner is what the channel menu opens beside.
+function Pad.Share(link, owner)
+    if type(link) ~= "string" or link == "" then return end
+    local U = type(ChatFrameUtil) == "table" and ChatFrameUtil or nil
+    local insert = U and U.InsertLink or ChatEdit_InsertLink
+    if type(insert) == "function" and insert(link) then return end
+    if not Pad.On() then
+        local open = U and U.OpenChat or ChatFrame_OpenChat
+        if type(open) == "function" then open(link) end
+        return
+    end
+    local keys, values = channels()
+    DUI.Widgets.OpenMenu(owner or UIParent, keys, values, nil, function(chatType)
+        if locked() then return end
+        C_ChatInfo.SendChatMessage(link, chatType)
+    end, nil, { atCursor = owner == nil })
+end

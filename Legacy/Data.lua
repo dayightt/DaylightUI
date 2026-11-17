@@ -286,6 +286,20 @@ function Data.MarkViewed(catID)
     if type(U) == "table" then call(U.MarkCategoryViewed, catID) end
 end
 
+-- The categories holding them, each once.
+function Data.UnviewedCategories()
+    local t, out, seen = _G.LegacyChallengesUnviewed, {}, {}
+    if type(t) == "table" then
+        for _, cat in pairs(t) do
+            if type(cat) == "number" and not seen[cat] then
+                seen[cat] = true
+                out[#out + 1] = cat
+            end
+        end
+    end
+    return out
+end
+
 -- How many; the game keeps them per character (LegacyChallengesUnviewed).
 function Data.UnviewedCount()
     local t = _G.LegacyChallengesUnviewed
@@ -346,12 +360,12 @@ function Data.SetTracked(id, on)
 end
 
 -- Shift-click: link the challenge in chat.
-function Data.Link(id, open)
+-- With open (the controller's share key, which has no shift-click) and no chat
+-- line open, Pad.Share finds it a way out.
+function Data.Link(id, open, owner)
     local link = call(GetAchievementLink, id)
+    if type(link) ~= "string" then return end
+    if open then DUI.Pad.Share(link, owner) return end
     local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
-    if not link then return end
-    if insert and call(insert, link) then return end
-    -- No chat line open (controllers have no shift-click): open one with it, like the game.
-    local openChat = open and ((ChatFrameUtil and ChatFrameUtil.OpenChat) or ChatFrame_OpenChat)
-    if openChat then call(openChat, link) end
+    if insert then call(insert, link) end
 end

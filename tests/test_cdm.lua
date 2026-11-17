@@ -3645,6 +3645,57 @@ T.test("cdm hide up: in a fight your cast says it's up, its length when it runs 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Slice and Dice lasts 9 to 21 sec by its combo points, which are secret in a
+-- fight: one length kept for every cast left its Buff up glow on an empty spot
+-- after a short one ran out, and the client's button never said it ended.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm hide up: a finisher's buff runs out by the combo points it used (" .. shape .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(true)
+    DUI.DB.General().motion = false
+    if shape == "bar" then set.pieces[41].shape = "bar" end
+    T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
+    local SND = "Finishing move that increases melee attack speed by 20%. Lasts longer per combo point:\n"
+        .. " 1 point : 9 seconds\n 2 points: 12 seconds\n 3 points: 15 seconds\n 4 points: 18 seconds\n 5 points: 21 seconds"
+    local name = C_Spell.GetSpellName
+    C_Spell.GetSpellName = function(sid)
+        if sid == 141 then return "Slice and Dice" end
+        if sid == 500 then return "Sinister Strike" end
+        return name(sid)
+    end
+    local descs = { [141] = SND, [500] = "An instant strike. Awards 1 combo point." }
+    local describe = C_Spell.GetSpellDescription
+    C_Spell.GetSpellDescription = function(sid) return descs[sid] or "" end
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+    T.eq(AB.CdmAuras.PointLasts(141, 1), 9); T.eq(AB.CdmAuras.PointLasts(141, 4), 18)
+    T.eq(AB.CdmAuras.PointLasts(141, 7), 21, "past the list: the last entry")
+    T.isnil(AB.CdmAuras.PointLasts(500, 1), "no list, no length")
+    DUI.DB.Character().cdmAuraLasts = { [41] = 15 }   -- last read at 3 points
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+    T.falsy(AB.CdmEffects.GlowShown(h), "down: no glow")
+    stub.combat = true
+    local function send(sid, guid)
+        stub.FireEvent("UNIT_SPELLCAST_SENT", "player", "", guid, sid)
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", guid, sid)
+    end
+    send(500, "cast-1"); stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+    send(141, "cast-2")
+    AB.CdmEffects.AuraHeard(h, "play", h.containers[1].c.__groups.a.button)
+    stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "cast: glowing")
+    stub.Advance(8.5); stub.RunTimers()
+    T.truthy(AB.CdmEffects.GlowShown(h), "one point lasts 9 sec: still up")
+    stub.Advance(1); stub.RunTimers()
+    T.falsy(AB.CdmEffects.GlowShown(h), "ran out at 9 sec, though the button never said so")
+    stub.combat = false
+    C_Spell.GetSpellName, C_Spell.GetSpellDescription = name, describe
+    noCategories()
+    T.eq(stub.lockErrors, 0, "no locked button touched")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
     local DUI, AB, E, D, set = auraWorld(false)
     DUI.DB.General().motion = false

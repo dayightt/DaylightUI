@@ -1203,3 +1203,92 @@ T.test("pad: a box under a game footer puts its bar beside it, and leaves Back t
     DUI.Pad.Release(f)
     clearAll()
 end)
+
+-- Opening the game's chat box from addon code hands its controller focus Daylight
+-- UI's taint, and the game then refuses SetPreferredGamepadInteractTarget for
+-- the rest of the session. These stand in for the game's chat calls and record
+-- which ran.
+local function chatWorld()
+    local calls = {}
+    local function rec(name) return function(...) calls[#calls + 1] = { name, ... } end end
+    _G.ChatFrameUtil = { OpenChat = rec("OpenChat"), SendTell = rec("SendTell"), SendBNetTell = rec("SendBNetTell"),
+        InsertLink = function(link) calls[#calls + 1] = { "InsertLink", link }; return false end }
+    _G.C_ChatInfo = _G.C_ChatInfo or {}
+    local send = _G.C_ChatInfo.SendChatMessage
+    _G.C_ChatInfo.SendChatMessage = rec("SendChatMessage")
+    _G.BNSendWhisper = rec("BNSendWhisper")
+    local function opened()
+        for _, c in ipairs(calls) do
+            if c[1] == "OpenChat" or c[1] == "SendTell" or c[1] == "SendBNetTell" then return true end
+        end
+        return false
+    end
+    local function done()
+        _G.ChatFrameUtil, _G.BNSendWhisper = nil, nil
+        _G.C_ChatInfo.SendChatMessage = send
+    end
+    return calls, opened, done
+end
+
+T.test("pad chat: on a controller a whisper never opens the game's chat box; it's typed in Daylight UI's own and sent", function()
+    local DUI = stub.Load()
+    controller(true)
+    local calls, opened, done = chatWorld()
+    local W = DUI.Widgets
+    local prompt = W.Prompt
+    local accept
+    W.Prompt = function(_, _, onAccept) accept = onAccept end
+    DUI.Pad.Whisper({ name = "Arthas-Lordaeron" })
+    T.falsy(opened(), "the game's box stays shut")
+    T.truthy(accept, "asked for the message")
+    accept("hi")
+    T.deq(calls[#calls], { "SendChatMessage", "hi", "WHISPER", nil, "Arthas-Lordaeron" })
+    DUI.Pad.Whisper({ bn = 7, name = "Jaina" })
+    accept("hey")
+    T.deq(calls[#calls], { "BNSendWhisper", 7, "hey" })
+    T.falsy(opened())
+    W.Prompt = prompt
+    done(); clear()
+end)
+
+T.test("pad chat: without a controller a whisper opens the game's box as before", function()
+    local DUI = stub.Load()
+    controller(false)
+    local calls, _, done = chatWorld()
+    DUI.Pad.Whisper({ name = "Arthas" })
+    DUI.Pad.Whisper({ bn = 7, name = "Jaina" })
+    T.deq(calls, { { "SendTell", "Arthas" }, { "SendBNetTell", "Jaina" } })
+    done(); clear()
+end)
+
+T.test("pad chat: sharing on a controller with no box open picks a channel instead of opening one", function()
+    local DUI = stub.Load()
+    controller(true)
+    local calls, opened, done = chatWorld()
+    local W = DUI.Widgets
+    local openMenu = W.OpenMenu
+    local keys, pick
+    W.OpenMenu = function(_, k, _, _, onPick) keys, pick = k, onPick end
+    local owner = CreateFrame("Button", nil, UIParent)
+    DUI.Pad.Share("|Hitem:6948|h[Hearthstone]|h", owner)
+    T.falsy(opened(), "the game's box stays shut")
+    T.eq(keys and keys[1], "SAY")
+    pick("SAY")
+    T.deq(calls[#calls], { "SendChatMessage", "|Hitem:6948|h[Hearthstone]|h", "SAY" })
+    -- A box already open takes the link, controller or not.
+    keys = nil
+    _G.ChatFrameUtil.InsertLink = function() return true end
+    DUI.Pad.Share("|Hitem:6948|h[Hearthstone]|h", owner)
+    T.falsy(keys, "no menu when it went in")
+    W.OpenMenu = openMenu
+    done(); clear()
+end)
+
+T.test("pad chat: sharing with a mouse and no box open opens one with the link, as the game does", function()
+    local DUI = stub.Load()
+    controller(false)
+    local calls, _, done = chatWorld()
+    DUI.Pad.Share("|Hitem:6948|h[Hearthstone]|h")
+    T.deq(calls[#calls], { "OpenChat", "|Hitem:6948|h[Hearthstone]|h" })
+    done(); clear()
+end)

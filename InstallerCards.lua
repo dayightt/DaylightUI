@@ -720,6 +720,19 @@ function Cards.Draw.bars(card, key, w, h)
     return screen(card, w, h, Cards.BAR_LAYOUTS[key] or Cards.BAR_LAYOUTS.two)
 end
 
+-- Your cast bar under your frame, or between your frame and the target's with
+-- the swing timers below it, each a little wider (the Frames step's presets).
+Cards.CAST_LAYOUTS = {
+    below = { { 0.08, 0.30, 0.34, 0.20, GREEN }, { 0.58, 0.30, 0.34, 0.20, RED },
+              { 0.08, 0.50, 0.34, 0.10, GOLD } },
+    middle = { { 0.04, 0.30, 0.30, 0.20, GREEN }, { 0.66, 0.30, 0.30, 0.20, RED },
+               { 0.38, 0.30, 0.24, 0.12, GOLD },
+               { 0.37, 0.43, 0.26, 0.07, STRIP }, { 0.36, 0.51, 0.28, 0.07, STRIP }, { 0.35, 0.59, 0.30, 0.07, STRIP } },
+}
+function Cards.Draw.castbar(card, key, w, h)
+    return screen(card, w, h, Cards.CAST_LAYOUTS[key] or Cards.CAST_LAYOUTS.below)
+end
+
 -- A nameplate at each size: an enemy's red bar at the picked width and height.
 Cards.PLATE_SIZES = { small = { 0.55, 7 }, medium = { 0.7, 9 }, large = { 0.88, 12 } }
 function Cards.Draw.plates(card, key, w, h)

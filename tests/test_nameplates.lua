@@ -4358,7 +4358,7 @@ T.test("nameplates: /dui platefix step 1 sets the plate size and click area agai
     size = nil
     local text = NP.Manager.Fix()
     T.truthy(size, "the size set again")
-    T.truthy(text:find("platefix 1/7", 1, true), text)
+    T.truthy(text:find("platefix 1/8", 1, true), text)
 end)
 
 T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none until step 3 is done", function()
@@ -4376,7 +4376,7 @@ T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none 
     T.isnil(NP.Manager.byUnit.nameplate1, "the 2 s check leaves them too")
     -- 3: off and on again, then ours back.
     local text = NP.Manager.Fix()
-    T.truthy(text:find("platefix 3/7", 1, true), text)
+    T.truthy(text:find("platefix 3/8", 1, true), text)
     T.eq(cvars.nameplateShowEnemies, "0", "off a moment")
     stub.RunTimers()
     T.eq(cvars.nameplateShowEnemies, "1", "back on")
@@ -4399,7 +4399,7 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
         stub.RunTimers()
     end
     T.truthy(NP.Manager.Fix():find("every step", 1, true), "the end")
-    T.truthy(NP.Manager.Fix():find("platefix 1/7", 1, true), "and round again")
+    T.truthy(NP.Manager.Fix():find("platefix 1/8", 1, true), "and round again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

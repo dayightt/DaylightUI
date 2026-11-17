@@ -512,8 +512,7 @@ function Window.PadMore(b)
         elseif k == "destroy" then
             Window.PadDestroy(b)
         elseif k == "share" then
-            local U = ChatFrameUtil
-            if U and not U.InsertLink(info.hyperlink) then U.OpenChat(info.hyperlink) end
+            DUI.Pad.Share(info.hyperlink, b)
         end
     end, nil, { confirm = { destroy = true } })
 end

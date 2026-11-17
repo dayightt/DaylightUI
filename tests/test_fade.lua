@@ -1486,3 +1486,14 @@ T.test("fade: a frame's buffer only changes out of combat, and waits for the fig
     T.eq(f.buffer, false, "off again")
     T.eq(f.flat, false, "flat off last")
 end)
+
+T.test("fade: the UI fading skips a frame that never faded", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local f = counted(frame(false))
+    F.Whole(f, "range", false)
+    F.SetUIAlpha(0.5)
+    T.falsy(f.buffer, "no buffer for a frame that never faded")
+    F.SetUIAlpha(1)
+    T.falsy(f.buffer)
+end)

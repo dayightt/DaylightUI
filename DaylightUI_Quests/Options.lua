@@ -265,6 +265,8 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "colors.focus", label = "Custom priority quest color",
               desc = "The priority quest's color while Priority quest color is set to One color.",
               hidden = function(get) return get("colors.focusMode") ~= "custom" end },
+            { type = "toggle", key = "colors.focusTitle", label = "Priority quest title in its color",
+              desc = "The priority quest's title takes the Priority quest color too, so it stands out in the tracker and the quest log." },
         } },
         { label = "Progress bars", items = {
             { type = "dropdown", key = "colors.barMode", label = "Progress bar color", values = BAR_MODES,

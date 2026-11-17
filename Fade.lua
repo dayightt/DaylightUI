@@ -314,7 +314,9 @@ end
 local function wholeNow()
     for f in pairs(wholeDue) do
         wholeDue[f] = nil
-        local on = next(f.fadeWhy) ~= nil and not uiAway
+        -- A frame asked once to stay whole-off never made its list of reasons.
+        local whys = f.fadeWhy
+        local on = whys ~= nil and next(whys) ~= nil and not uiAway
         if (f.fadeWhole == true) ~= on then setWhole(f, on) end
     end
 end

@@ -354,6 +354,16 @@ function Challenges.Render(keep)
     Challenges.tree = Data().Categories(filtered())
     settle()
     if Challenges.cat then Data().MarkViewed(Challenges.cat) end
+    -- A new challenge in a category the list doesn't show (hidden by the Done
+    -- or To do chips, or one the game files outside the Legacy list) could never
+    -- be opened, so the game's new mark on the Legacy button would stay for good.
+    if not filtered() then
+        local listed = {}
+        for _, c in ipairs(flat(Challenges.tree, {})) do listed[c.id] = true end
+        for _, cat in ipairs(Data().UnviewedCategories()) do
+            if not listed[cat] then Data().MarkViewed(cat) end
+        end
+    end
     Challenges.RenderCats(keep)
     local open = Challenges.RenderList(keep)
     if Challenges.scrollTo and open then
