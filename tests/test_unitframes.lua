@@ -1921,6 +1921,30 @@ T.test("power bar off: a power bar on its own goes too, and its unlock handle wi
     T.falsy(DUI.Movers.Get(key).suspended)
 end)
 
+-- The cost shade's fill has its own angled lead and back edges. Clipped at both
+-- ends too it would need four masks, and a texture takes three.
+T.test("a power bar on its own angled at both ends keeps its cost shade to three masks", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    DUI:Set("UnitFrames", "player.powerAt", "free")
+    stub.RunTimers()
+    local pb = ns.frames.player.freePower
+    -- The fake game doesn't size a bar from its anchors; the angle needs a height.
+    pb.set.power:SetHeight(11)
+    for _, flip in ipairs({ false, true, false }) do
+        DUI:Set("UnitFrames", "player.powerSlantUnder", flip)
+        DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+        stub.RunTimers()
+        T.eq(DUI.Style.GetSlant(pb).side, "both")
+        DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+        stub.RunTimers()
+        DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+        stub.RunTimers()
+    end
+    T.truthy(DUI.Style.GetFillAngle(pb.set.cost), "the shade's edge is angled")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("power bar off: the Ribbon line goes and nothing keeps room for it", function()
     local DUI, ns = stub.Load({ module = true })
     stub.RunTimers()
