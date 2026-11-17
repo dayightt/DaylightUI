@@ -2061,10 +2061,17 @@ T.test("skins: the layering notice keeps the game's own fade in and stays at ful
         f.Text = f:CreateFontString("ShardTransferImminentFrameText")
         f.glow = f:CreateTexture("ShardTransferImminentFrameGlowFrame")
         f:Hide()
+        local m = CreateFrame("Button", "ShardTransferImminentMinimizeButton", UIParent)
+        m:SetSize(24, 24)
+        m.red = m:CreateTexture()
+        m.red:SetAtlas("RedButton-Expand")
+        m:SetNormalTexture(m.red)
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     local Kit, M, f = stub.skins.Kit, DaylightUI.Motion, ShardTransferImminentFrame
     T.truthy(Kit.ShellOf(f), "skinned")
+    local red = ShardTransferImminentMinimizeButton.red
+    T.falsy(red:IsShown() and red:GetAlpha() > 0, "the game's red arrow is gone from the minimize button")
     local ghosted = false
     local real = M.Ghost
     M.Ghost = function() ghosted = true end

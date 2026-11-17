@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
+            { "Skins", "The button that brings back the \"world around you will refresh\" notice is in the Daylight UI look, not the game's red arrow" },
             { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },
             { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
         },

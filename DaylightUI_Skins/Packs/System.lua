@@ -647,8 +647,9 @@ Engine.Window({ key = "auction", pack = "system", addon = "Blizzard_AuctionHouse
 
 -- The layering notice (the game is about to move you to another copy of the
 -- zone, and you can delay it): the window look and font, the gold glow removed. Its
--- minimize button keeps its icon on the new box. It fades in with the game's own
--- alert animation, not Motion (Kit.Window ownFade).
+-- It fades in with the game's own
+-- alert animation, not Motion (Kit.Window ownFade). Its minimize button, the
+-- notice folded away, is a small control with a chevron.
 Engine.Window({ key = "layering", pack = "system", addon = "Blizzard_SocialToast", frame = "ShardTransferImminentFrame",
     auto = false,
     window = { ownFade = true },
@@ -661,7 +662,8 @@ Engine.Window({ key = "layering", pack = "system", addon = "Blizzard_SocialToast
                 "TopEdge", "BottomEdge", "LeftEdge", "RightEdge" }) do
                 Kit.Hide(m[key])
             end
-            Kit.Shell(m, "window")
+            -- The game's red expand arrow becomes a small control with a chevron.
+            Kit.PageButton(m, "right")
         end
     end })
 
