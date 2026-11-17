@@ -269,6 +269,11 @@ T.test("character stats: groups open by class, and by role where known", functio
     T.isnil(S.Role(), "no role in this world")
     local R = stats({ role = "TANK" })
     T.eq(R.Role(), "TANK")
+    -- Enhancement fights in melee, so Attack opens for it, not Spell.
+    local E = stats({ class = "SHAMAN", role = "DAMAGER", specId = 263 })
+    T.eq(E.Role(), "MELEE")
+    T.deq(E.DefaultOpen("SHAMAN", E.Role()), { attributes = true, attack = true })
+    T.eq(stats({ class = "SHAMAN", role = "DAMAGER", specId = 262 }).Role(), "DAMAGER")
 end)
 
 T.test("character stats: a group you fold or open is remembered per character", function()

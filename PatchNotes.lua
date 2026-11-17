@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
+        },
+    },
     { version = "1.9.2", date = "2026-11-16", summary = "An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.",
         new = {
             { "General", "Accent color can be a gradient of your own, running through two to five colors you pick" },

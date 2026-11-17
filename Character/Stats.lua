@@ -19,7 +19,9 @@ Stats.LABEL = { attributes = L["Attributes"], attack = L["Attack"], ranged = L["
     defense = L["Defense"], resistances = L["Resistances"] }
 
 -- The group that opens beside Attributes, by role if known, else by class.
-Stats.ROLE_OPEN = { TANK = "defense", HEALER = "spell" }
+Stats.ROLE_OPEN = { TANK = "defense", HEALER = "spell", MELEE = "attack" }
+-- Damage specs of a caster class that fight in melee: Enhancement and Feral.
+Stats.MELEE_SPECS = { [263] = true, [103] = true }
 Stats.CLASS_OPEN = { WARRIOR = "attack", ROGUE = "attack", PALADIN = "attack", HUNTER = "ranged", MAGE = "spell",
     WARLOCK = "spell", PRIEST = "spell", DRUID = "spell", SHAMAN = "spell" }
 Stats.NO_MANA = { WARRIOR = true, ROGUE = true }
@@ -335,12 +337,17 @@ function Stats.Paint(fs, row)
 end
 
 -- Your role if the client knows it (same calls as Installer.lua), else nil.
+-- A melee damage spec of a caster class says "MELEE", so Attack opens for it.
 function Stats.Role()
     if type(GetSpecialization) ~= "function" or type(GetSpecializationRole) ~= "function" then return nil end
     local ok, spec = pcall(GetSpecialization)
     if not ok or isSecret(spec) or type(spec) ~= "number" then return nil end
     local ok2, role = pcall(GetSpecializationRole, spec)
     if not ok2 or isSecret(role) or type(role) ~= "string" then return nil end
+    if role == "DAMAGER" and type(GetSpecializationInfo) == "function" then
+        local ok3, id = pcall(GetSpecializationInfo, spec)
+        if ok3 and not isSecret(id) and Stats.MELEE_SPECS[id] then return "MELEE" end
+    end
     return role
 end
 

@@ -298,6 +298,7 @@ local function installStats()
     _G.BASE_MOVEMENT_SPEED = 7
     _G.GetSpecialization = function() return S().role and 1 or nil end
     _G.GetSpecializationRole = function() return S().role end
+    _G.GetSpecializationInfo = function() return S().specId or 0 end
 end
 
 local function installModelAndMenus()
@@ -580,7 +581,7 @@ function CW.world(spec)
     return function()
         CW.state = {
             calls = {}, panel = {}, items = {}, stats = CW.defaultStats(), usesAmmo = spec.usesAmmo,
-            titles = spec.titles or {}, sets = spec.sets or {}, title = spec.title, role = spec.role,
+            titles = spec.titles or {}, sets = spec.sets or {}, title = spec.title, role = spec.role, specId = spec.specId,
             secret = false, spec = spec, petStats = CW.defaultPetStats(),
         }
         for key, item in pairs(spec.items or {}) do CW.state.items[CW.SLOT_IDS[key]] = item end
