@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "World map", "Hover a zone on the world map to see its level range next to its name, colored by how hard it is for you" },
+        },
+    },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",
         new = {
             { "Unit Frames", "An Overheal switch, so incoming heals can stop where the health bar is full (Unit Frames, Look)" },

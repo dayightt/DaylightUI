@@ -48,6 +48,8 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "mapRevealDim", label = "Unexplored area brightness", min = 0.2, max = 1, step = 0.05, unit = "%",
               desc = "How bright the unexplored areas are. At 100% they look like the parts you've explored.",
               disabled = function(get) return get("mapReveal") ~= true end },
+            { type = "toggle", key = "mapLevels", label = "Zone levels",
+              desc = "Hover a zone on the world map to see its level range after its name, colored by how hard it is for you: green is easy, yellow is right for you, red is too high." },
             { type = "toggle", key = "mapDungeons", label = "Dungeon and raid entrances",
               desc = "A symbol on the world map at each dungeon and raid entrance. Hover it for the name." },
             { type = "toggle", key = "mapFlights", label = "Flight masters",

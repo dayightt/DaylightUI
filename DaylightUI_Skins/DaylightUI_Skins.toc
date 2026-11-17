@@ -47,6 +47,7 @@ MapRevealData.lua
 MapReveal.lua
 MapPinsData.lua
 MapPins.lua
+MapLevels.lua
 WindowScale.lua
 WindowMove.lua
 Options.lua
