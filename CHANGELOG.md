@@ -1,3 +1,31 @@
+# DaylightUI 1.9.2
+
+An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.
+
+## New
+- General: Accent color can be a gradient of your own, running through two to five colors you pick
+- Cooldown Manager: Each cooldown bar can have its own bar animation, picked on its card in the layout editor
+- Fade: A Fade Toggle key brings back everything that's faded, and pressing it again fades it all back. Daylight UI's keys now have their own section in the game's Key Bindings
+- Nameplates: The % sign on nameplate health text can be turned off, so it reads 62 instead of 62%
+
+## Changed
+- Chat: The Copy window is bigger, so most lines fit on one row, and its hint no longer runs under the close button
+
+## Fixed
+- Unit frames: No more Lua errors when the power bar stands on its own, angled at both ends
+- Bags: Your bank is saved again for viewing anywhere when you have a bought bank bag slot with no bag in it
+- Chat: NPC emotes show the NPC's name again in the Daylight chat box, on clients whose text left it out
+- Info panel: Data texts from other addons show their real text again, not their test mode sample
+- Unit frames: The PvP flag shows in frame previews and test mode, and previews drop the extra power bar when yours stands on its own
+- General: Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display
+- NPC window: Quest rewards you always get no longer stay stuck on "Retrieving item information" when you hand in a quest
+- Nameplates: Fade out of range enemies works again for warriors, hunters and druids in bear form
+- Party frames: Party cast bars under or beside the frame show a full bar again, with the spell name inside it instead of spilling below the frame
+- Character: The PvP page keeps up with your kills and honor while it's open
+- Professions: The profession window closes again when you're attacked while it's open, instead of the game blocking it
+- Bags: In the list view, an item you sell or use up no longer stays listed until you close and open your bags
+- Tooltip: Talent tooltips no longer show broken color text in red requirement lines, like Feral Charge's "Requires Bear Form"
+
 # DaylightUI 1.9.1
 
 Tidier options with tabs and clearer names, bars angled at both ends, and a round of fixes.
