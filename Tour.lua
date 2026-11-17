@@ -154,6 +154,9 @@ end
 
 local function fitCard()
     local c = Tour.card
+    -- Let go of the last step's height first: text held to a height measures
+    -- only the lines that fit, so a longer step would come out cut.
+    c.text:SetHeight(0)
     local th = c.text:GetStringHeight() or 0
     c.text:SetHeight(math.max(1, th)) -- grows down from its top, whatever measures it
     local h = Tour.EDGE * 2 + Style.SIZE.small + Tour.TITLE_H + th + Tour.ROW_GAP * 3 + Tour.BTN_H

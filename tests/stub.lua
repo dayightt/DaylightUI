@@ -983,8 +983,15 @@ end
 function Widget:GetUnboundedStringWidth()
     if stub.measure and type(self.__text) == "string" then return (stub.measure(self, true)) end
 end
+-- Like the client, a text held to a height measures only the lines that fit in
+-- it (the rest is cut with "..."); a height of 0 lets it grow again.
 function Widget:GetStringHeight()
-    if stub.measure and type(self.__text) == "string" then return select(2, stub.measure(self)) end
+    if stub.measure and type(self.__text) == "string" then
+        local h = select(2, stub.measure(self))
+        local cap = self.__h
+        if type(h) == "number" and type(cap) == "number" and cap > 0 and h > cap then return cap end
+        return h
+    end
 end
 
 -- The client's custom aura container. It records groups and, like the game
