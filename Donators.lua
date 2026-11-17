@@ -37,6 +37,7 @@ Donators.LIST = {
     "Jin Rahk",
     "Vlora",
     "scoobydoomh",
+    "tanglies",
     "Alcasan",
     "blukraken",
     "Fang",
