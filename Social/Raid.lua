@@ -27,6 +27,7 @@ local Raid = {}
 ns.Raid = Raid
 
 Raid.EDGE = 16
+Raid.ABOUT_W = 400      -- the game's explanation of raids, under Convert to raid
 Raid.TOP = 12          -- counts line
 Raid.GRID = 44         -- where the groups start
 Raid.COLS = 4
@@ -497,20 +498,36 @@ function Raid.Build(page)
     page.noRaid:SetAllPoints(page)
     page.noRaid:Hide()
     local title = Style.Text(page.noRaid, Style.SIZE.head, "CENTER")
-    title:SetPoint("CENTER", page.noRaid, "CENTER", 0, 40)
+    -- The game's own explanation of raids (RAID_DESCRIPTION) goes under the button and takes the place of our
+    -- one line, so the block starts higher.
+    local about = type(RAID_DESCRIPTION) == "string" and RAID_DESCRIPTION ~= "" and RAID_DESCRIPTION or nil
+    title:SetPoint("CENTER", page.noRaid, "CENTER", 0, about and 110 or 40)
     title:SetText(L["You're not in a raid."])
     Style.InkText(title, "LABEL")
-    local says = Style.Text(page.noRaid, Style.SIZE.body, "CENTER")
-    says:SetPoint("TOP", title, "BOTTOM", 0, -10)
-    says:SetWidth(340)
-    says:SetText(L["Make your party a raid to bring up to 40 players. Only the party leader can."])
-    Style.InkText(says, "TEXT")
+    local says
+    if not about then
+        says = Style.Text(page.noRaid, Style.SIZE.body, "CENTER")
+        says:SetPoint("TOP", title, "BOTTOM", 0, -10)
+        says:SetWidth(340)
+        says:SetText(L["Make your party a raid to bring up to 40 players. Only the party leader can."])
+        Style.InkText(says, "TEXT")
+    end
     page.convert = W().Button(page.noRaid, CONVERT_TO_RAID or L["Convert to raid"], 28)
     page.convert.FitWidth(140)
     page.convert.text:SetTextColor(Win.Parts.YES[1], Win.Parts.YES[2], Win.Parts.YES[3], 1)
-    page.convert:SetPoint("TOP", says, "BOTTOM", 0, -16)
+    page.convert:SetPoint("TOP", says or title, "BOTTOM", 0, -16)
     page.convert:SetScript("OnClick", function() Data().Convert() end)
-    page.noRaidPieces = { title, says, page.convert }
+    page.noRaidPieces = { title }
+    if says then page.noRaidPieces[2] = says end
+    page.noRaidPieces[#page.noRaidPieces + 1] = page.convert
+    if about then
+        page.about = Style.Text(page.noRaid, Style.SIZE.small, "LEFT")
+        page.about:SetPoint("TOP", page.convert, "BOTTOM", 0, -22)
+        page.about:SetWidth(Raid.ABOUT_W)
+        page.about:SetText(about)
+        Style.InkText(page.about, "LABEL")
+        page.noRaidPieces[#page.noRaidPieces + 1] = page.about
+    end
     page:HookScript("OnShow", function() Raid.at = nil end)
     page:HookScript("OnHide", function() Raid.Closed() end)
     page:HookScript("OnUpdate", function() Raid.Watch() end)
