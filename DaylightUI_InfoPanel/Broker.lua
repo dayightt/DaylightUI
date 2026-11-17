@@ -183,7 +183,7 @@ end
 -- the value takes the accent at its slot unless the plugin colored it.
 local function pluginText(spec)
     return function()
-        local inSample = DUI.TestPartShown and DUI.TestPartShown("datatexts")
+        local inSample = DT.Sample()
         local label, val, r, g, b
         if inSample and spec.sample ~= nil then
             val = spec.sample
