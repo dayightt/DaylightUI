@@ -1497,3 +1497,97 @@ T.test("fade: the UI fading skips a frame that never faded", function()
     F.SetUIAlpha(1)
     T.falsy(f.buffer)
 end)
+
+T.test("fade: replacing and emptying a mutable frame list releases departed buffers", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local a, b = counted(frame(false)), counted(frame(false))
+    local list = { a }
+    area(DUI, "whole", { mode = "always", alpha = 0.4, delay = 0, mouseover = false }, list, { whole = true })
+    settle(F)
+    T.eq(a.buffer, true)
+    a:Hide()
+    list[1] = b
+    F.Step()
+    T.eq(a.buffer, false, "the departed frame releases its buffer")
+    T.eq(a.flat, false)
+    T.eq(b.buffer, true, "the replacement fades whole")
+    list[1] = nil
+    F.Step()
+    T.eq(b.buffer, false)
+    T.eq(F.WholeCount(), 0)
+    F.SetUIAlpha(0.5)
+    F.SetUIAlpha(1)
+    T.eq(F.WholeCount(), 0, "restoring the UI cannot revive departed requests")
+end)
+
+T.test("fade: whole ownership follows list and setting changes while resting at full opacity", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local a, b = counted(frame(false)), counted(frame(false))
+    local list = { a }
+    local settings = { mode = "ooc", alpha = 0.4, delay = 0, mouseover = false }
+    area(DUI, "whole", settings, list, { whole = true })
+    settle(F)
+    stub.EnterCombat()
+    settle(F)
+    T.eq(a:GetAlpha(), 1)
+    list[1] = b
+    F.Step()
+    T.eq(a.buffer, true, "buffer changes wait for combat to end")
+    stub.LeaveCombat()
+    T.eq(a.buffer, false, "membership was reconciled even without an alpha change")
+    T.eq(b.buffer, true)
+    settings.mode = "never"
+    F.Step()
+    T.eq(b.buffer, false, "Never releases the request even while already at full opacity")
+end)
+
+T.test("fade: re-registering an area releases old frames and keeps an independent range request", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local a, b = counted(frame(false)), counted(frame(false))
+    local settings = { mode = "always", alpha = 0.4, delay = 0, mouseover = false }
+    area(DUI, "whole", settings, { a, b }, { whole = true })
+    settle(F)
+    F.Whole(b, "range", true)
+    area(DUI, "whole", settings, {}, { whole = false })
+    T.eq(a.buffer, false, "the replaced registration releases its old membership")
+    T.eq(b.buffer, true, "the range owner still needs its buffer")
+    F.Whole(b, "range", false)
+    T.eq(b.buffer, false, "the replaced area left no stale request")
+end)
+
+T.test("fade: overlapping areas release only their own whole request", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local f = counted(frame(false))
+    local settings = { mode = "always", alpha = 0.4, delay = 0, mouseover = false }
+    local left, right = { f }, { f }
+    area(DUI, "left", settings, left, { whole = true })
+    area(DUI, "right", settings, right, { whole = true })
+    settle(F)
+    local calls = #f.calls
+    left[1] = nil
+    F.Step()
+    T.eq(f.buffer, true, "the other area keeps the buffer")
+    T.eq(#f.calls, calls, "changing owners does not cycle the buffer")
+    right[1] = nil
+    F.Step()
+    T.eq(f.buffer, false, "the last owner releases it")
+end)
+
+T.test("fade: a departed request queued in combat never enables a buffer afterwards", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local f = counted(frame(false))
+    local list = { f }
+    stub.EnterCombat()
+    area(DUI, "whole", { mode = "always", alpha = 0.4, delay = 0, mouseover = false }, list, { whole = true })
+    settle(F)
+    list[1] = nil
+    F.Step()
+    stub.LeaveCombat()
+    T.falsy(f.buffer, "the queued enable was withdrawn before it could run")
+    T.eq(F.WholeCount(), 0)
+end)
