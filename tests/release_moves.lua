@@ -8,9 +8,7 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {
-        ["UnitFrames.partyCastbar.height"] = "The height no longer counts the border: 16 left a party bar of its own about 4 px of fill, its text spilling out. 10 inside is about the old size outside.",
-    },
+    values = {},
     frames = {},
     plates = {},
 }
