@@ -216,9 +216,7 @@ end
 
 function Data.WhisperFriend(f)
     if not (f and f.account) then return end
-    local C = type(ChatFrameUtil) == "table" and ChatFrameUtil
-    if C and type(C.SendBNetTell) == "function" then C.SendBNetTell(f.account)
-    elseif type(ChatFrame_SendBNetTell) == "function" then ChatFrame_SendBNetTell(f.account) end
+    DUI.Pad.Whisper({ bn = f.id, name = f.account })
 end
 
 -- Invite when they're in this game, on the same ruleset and faction (or a server that

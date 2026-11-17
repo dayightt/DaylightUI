@@ -449,8 +449,7 @@ function CharacterPage.More(h)
             CharacterPage.Bind(item, id)
         else
             local link = GetInventoryItemLink("player", id)
-            local U = ChatFrameUtil
-            if link and U and not U.InsertLink(link) then U.OpenChat(link) end
+            if link then DUI.Pad.Share(link, h) end
         end
     end, nil, { checked = function(k) return k == "compare" and C_CVar.GetCVarBool("alwaysCompareItems") end })
 end

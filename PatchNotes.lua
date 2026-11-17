@@ -23,6 +23,7 @@ DUI.PatchNotes = {
             { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
             { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },
             { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
+            { "Controller", "Whispering a friend or sharing an item in chat no longer leaves the controller dead until a reload. With a controller you type the whisper in a small box, and a shared item goes to the chat you pick" },
         },
     },
     { version = "1.9.2", date = "2026-11-16", summary = "An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.",
