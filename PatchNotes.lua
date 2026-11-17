@@ -23,6 +23,8 @@ DUI.PatchNotes = {
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
             { "Cooldown Manager", "Slice and Dice's glow goes out when the buff ends, however many combo points it was cast with" },
             { "Skins", "The button that brings back the \"world around you will refresh\" notice is in the Daylight UI look, not the game's red arrow" },
+            { "Social", "Setting yourself to Away or Available in the Social window works again, instead of getting stuck on Busy" },
+            { "Character", "In Spanish, the main hand and off hand use the game's own names (mano principal, mano secundaria) in the stats and the swing timer" },
             { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
             { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },
             { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
