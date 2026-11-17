@@ -572,7 +572,7 @@ function PR.Layout(cfg)
         clipCost(body, select(2, PR.Ends(cfg)))
     end
     if body.cost then
-        ns.UF.LayoutCost(body, side, cut * body.power:GetHeight() / H, ns.module.db.player)
+        ns.UF.LayoutCost(body, ns.module.db.player)
         if not cfg.enabled or p <= 0 then
             body.costPreview = false
             body.cost:Hide()
