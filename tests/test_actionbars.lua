@@ -2221,12 +2221,19 @@ end)
 T.test("action bars: a burst of totem events re-places the totem bar once, not a timer per event", function()
     loginShaman()
     stub.RunTimers()
+    -- Timers for one event (the totem bar, and the Cooldown Manager's totem pieces),
+    -- then for a burst of five: the same.
     local n = 0
     local real = C_Timer.After
     C_Timer.After = function(d, fn) n = n + 1; return real(d, fn) end
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 1)
+    local one = n
+    stub.RunTimers()
+    n = 0
     for _ = 1, 5 do stub.FireEvent("PLAYER_TOTEM_UPDATE", 1) end
     C_Timer.After = real
-    T.eq(n, 1, "once, the frame after")
+    T.truthy(one >= 1, "the totem bar re-places")
+    T.eq(n, one, "once, the frame after")
     stub.RunTimers()
 end)
 

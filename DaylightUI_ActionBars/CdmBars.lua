@@ -170,11 +170,14 @@ function B.UpdateCooldown(f)
     local d, active, count = nil, false, ""
     local C = ns.CdmCustom
     local item = C and C.ItemOf(f.cooldownID)
-    local charges = not item and spellAPI("GetSpellCharges")
+    local charges = not item and not f.totem and spellAPI("GetSpellCharges")
     local okC, ch = false, nil
     if charges then okC, ch = pcall(charges, sid) end
     local most = okC and type(ch) == "table" and plainNum(ch.maxCharges)
-    if most and most > 1 then
+    if f.totem and C then   -- a totem: its time while it stands
+        d = C.TotemUp(sid)
+        active = type(d) ~= "nil"
+    elseif most and most > 1 then
         active = plainBool(ch.isActive) == true
         -- currentCharges may be secret, so it only goes to SetText.
         if type(ch.currentCharges) ~= "nil" then count = ch.currentCharges end

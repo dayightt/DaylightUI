@@ -96,6 +96,12 @@ function Own.Track(id, p, known)
     end
     local k = (known or Own.Known())[id]
     if not k then return nil end
+    -- A totem with no buff (CdmCustom.TOTEMS) shows the totem's time while it
+    -- stands, or with Cooldown picked stays the game's icon. A pick from before
+    -- (Both, Buff only) reads as Totem.
+    if C and C.Totem(Own.SpellOf(id)) then
+        return not (type(p) == "table" and p.track == "cooldown") and "totem" or nil
+    end
     -- No buff known yet: a plain cooldown, unless the player picked something else.
     -- The buff is watched by the spell's own id until a cast teaches the real one.
     if not Own.HasAura(id, k) then
@@ -441,7 +447,9 @@ function Own.Update(f)
     if not sid or type(f.Cooldown) ~= "table" then return end
     local ok, dur
     local C = ns.CdmCustom
-    if C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
+    if f.totem and C then                  -- a totem: its time while it stands
+        ok, dur = true, C.TotemUp(sid)
+    elseif C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
         local _, d = C.ItemCooldown(f.cooldownID)
         ok, dur = true, d
         local n = C.ItemCount(f.cooldownID)

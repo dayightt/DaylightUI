@@ -236,8 +236,14 @@ local function always() return true end
 local function isBuff(_, id, p) return ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, p) ~= nil end
 -- Every game spell can pick what it shows, a buff known yet or not: the buff of one
 -- picked blind is watched by the spell's own id until a cast teaches the real one.
+-- A totem with no buff (CdmCustom.TOTEMS) picks Totem or Cooldown instead.
+local function totemSpell(_, id)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    return C ~= nil and Own ~= nil and not C.Is(id) and Own.Entry(id) ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
+end
 local function gameSpell(_, id)
     return ns.CdmOwn ~= nil and not (ns.CdmCustom and ns.CdmCustom.Is(id)) and ns.CdmOwn.Entry(id) ~= nil
+        and not totemSpell(_, id)
 end
 -- A cooldown, or a buff tracked with its cooldown (matches the card's header).
 local function isCooldown(_, id, p)
@@ -308,7 +314,7 @@ local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What 
         if id and Data.SetTrack(set, id, v) then changed() end
     end }
 -- The header's word for what the piece shows.
-local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], buff = L["Buff or debuff"] }
+local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], buff = L["Buff or debuff"], totem = L["Totem"] }
 
 -- Track: what a buff spell shows (CdmOwn.Track; unset means its guess).
 local function track(item)
@@ -333,6 +339,11 @@ local function track(item)
     end
     return item
 end
+-- A totem with no buff: its time while it stands, or the game's own icon.
+local TOTEM_TRACK = track({ type = "dropdown", label = "What it shows",
+    values = { totem = "Totem", cooldown = "Cooldown" }, order = { "totem", "cooldown" },
+    desc = "Totem shows the totem's time while it stands. Cooldown shows the game's own icon." })
+TOTEM_TRACK.key = "cdm.card.totemTrack"
 -- A sound row: the game's Cooldown Manager list plus more (Sound.AlertChoices).
 -- Plays when the mouse rests on a row and again when it's picked.
 local function soundRow(key, label, desc)
@@ -552,6 +563,7 @@ Card.ROWS = {
             values = { both = "Both", cooldown = "Cooldown", buff = "Buff only" },
             order = { "both", "cooldown", "buff" },
             desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up." }) },
+        { show = totemSpell, item = TOTEM_TRACK },
         { show = canTrack, item = OWN_TRACK },
         { head = L["When ready"], show = isCooldown },
         { show = isCooldown, item = spell("onReady", { type = "dropdown", label = "Visibility",

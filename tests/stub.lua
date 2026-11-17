@@ -968,6 +968,8 @@ function Widget:SetCooldown(start, duration, modRate)
 end
 -- A Cooldown fed a duration object, which the client then runs by itself.
 function Widget:SetCooldownFromDurationObject(d, clearIfZero) self.__duration = d end
+-- A Cooldown cleared: no time left on it, as in the client.
+function Widget:Clear() self.__cooldown, self.__duration = nil, nil end
 function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__type) .. ">") end
 -- Measuring text errors on a secret, as in the client.
 -- stub.measure(fs) returns width, height from real font metrics when a tool sets

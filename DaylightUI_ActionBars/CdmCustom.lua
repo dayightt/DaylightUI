@@ -131,6 +131,10 @@ Custom.ON_PET = { [19574] = true, [136] = true, [19577] = true, [1002] = true, [
 -- id: Summon Hawk's hawk stays 18 s, two at most (the game's data). Timed from your
 -- own casts, the newest hawk's time shown with how many are out.
 Custom.SUMMONS = { [1293241] = { lasts = 18, most = 2 } }
+-- Totems that put no buff on you, by rank 1 id, with their totem slot (1 is fire):
+-- Searing and Magma Totem. The spell list flags them as buffs. Their pieces show
+-- the totem's time while it stands (Custom.TotemUp).
+Custom.TOTEMS = { [3599] = 1, [8190] = 1 }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -203,7 +207,8 @@ local function build()
         local k = "s" .. f[1]
         if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
         local shared = f.aura == true and (Custom.SHARED[f[1]] or fromGroup[f[1]]) or nil
-        index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = group or f.aura == true, group = group or nil,
+        local aura = group or (f.aura == true and Custom.TOTEMS[f[1]] == nil)
+        index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = aura, group = group or nil,
                      shared = shared, unique = f.aura == true and Custom.UNIQUE[f[1]] or nil,
                      auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
@@ -323,6 +328,61 @@ function Custom.KeyOfSpell(sid)
         end
     end
 end
+
+-- Any rank of a TOTEMS totem: its slot and family key, or nil.
+function Custom.Totem(sid)
+    local k = type(sid) == "number" and not isSecret(sid) and Custom.KeyOfSpell(sid)
+    local f = k and index[k]
+    local slot = f and Custom.TOTEMS[f.ids[1]]
+    if slot then return slot, k end
+end
+
+-- Which TOTEMS totem stands in each slot: [slot] = family key. The slot's spell is
+-- secret in a fight, but your own casts aren't, so a cast says which totem went in.
+local standing = {}
+local castAt = {}   -- [slot] = when a TOTEMS totem was last cast into it
+Custom.TOTEM_CAST_WINDOW = 1   -- seconds from the cast to its slot's update
+
+-- The totem's duration while this spell's totem stands, else nil. Whether the
+-- slot returns a duration at all is never secret.
+function Custom.TotemUp(sid)
+    local slot, k = Custom.Totem(sid)
+    if not slot or type(GetTotemDuration) ~= "function" then return nil end
+    local ok, d = pcall(GetTotemDuration, slot)
+    if not ok or type(d) == "nil" then return nil end
+    if standing[slot] == nil and type(GetTotemInfo) == "function" then
+        -- After a reload with a totem down: its spell, where it can be read.
+        local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
+        local _, key = Custom.Totem(okI and plain(spell) or nil)
+        standing[slot] = key or false
+    end
+    if standing[slot] == k then return d end
+end
+
+local totems = CreateFrame("Frame")
+totems:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+totems:RegisterEvent("PLAYER_TOTEM_UPDATE")
+totems:SetScript("OnEvent", function(_, event, a, _, sid)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local slot, k = Custom.Totem(sid)
+        if slot then standing[slot], castAt[slot] = k, GetTime() end
+        return
+    end
+    local slot = plain(a)
+    if type(slot) ~= "number" then return end
+    local ok, d = pcall(GetTotemDuration, slot)
+    if not ok or type(d) == "nil" then
+        standing[slot] = nil
+        return
+    end
+    -- A totem went in that wasn't just cast from the list (another fire totem):
+    -- read its spell where it can be, else it isn't one of ours.
+    if GetTime() - (castAt[slot] or 0) > Custom.TOTEM_CAST_WINDOW then
+        local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
+        local _, key = Custom.Totem(okI and plain(spell) or nil)
+        standing[slot] = key or false
+    end
+end)
 
 -- An item piece's cooldown in the same shape the spell calls return: whether it's
 -- on a real cooldown (not the GCD), and a client duration object for the swipe and

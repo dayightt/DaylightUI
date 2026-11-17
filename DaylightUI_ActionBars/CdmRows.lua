@@ -318,7 +318,7 @@ local function claim(item)
         if AURA_VIEWERS[name] then
             local t = Own.Track(id, p, knownNow())
             -- The recast glow needs the aura's end, which only Daylight UI's holder keeps.
-            cooldown = t == "cooldown" or t == "both" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
+            cooldown = t == "cooldown" or t == "both" or t == "totem" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
                 or (t ~= nil and blind)
         else
             -- Left unset it stays the game's icon (Rend, Moonfire too: shown all
@@ -332,7 +332,8 @@ local function claim(item)
             -- land or end; and a buff's charges (Shield Block, Holy Shield;
             -- Own.Stacks).
             local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
-            cooldown = t ~= nil and (pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
+            -- A totem (Track "totem") is timed by Daylight UI from its slot.
+            cooldown = t ~= nil and (t == "totem" or pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
                 or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
                 or Fx.Get(p, "buffEndSound") ~= "none" or Fx.Get(p, "clipGlow") == true
                 or (t == "both" and (not follows or Own.Stacks(id) or blind)))
@@ -453,6 +454,17 @@ local function drawOurs(id, p, block, f, always, aura, track)
         usedOwn[id] = true
         drawn[id] = "own icon"
     end
+    -- A totem's icon or bar runs on the totem's time (CdmCustom.TotemUp).
+    local totem = track == "totem" or nil
+    if item and item.totem ~= totem then
+        item.totem = totem
+        if block.kind == "bar" then
+            if ns.CdmBars then ns.CdmBars.UpdateCooldown(item) end
+        else
+            Own.Update(item)
+        end
+    end
+    if totem and item then drawn[id] = block.kind == "bar" and "totem bar" or "totem icon" end
     return item
 end
 
