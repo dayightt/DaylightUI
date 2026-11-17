@@ -286,6 +286,20 @@ function Data.MarkViewed(catID)
     if type(U) == "table" then call(U.MarkCategoryViewed, catID) end
 end
 
+-- The categories holding them, each once.
+function Data.UnviewedCategories()
+    local t, out, seen = _G.LegacyChallengesUnviewed, {}, {}
+    if type(t) == "table" then
+        for _, cat in pairs(t) do
+            if type(cat) == "number" and not seen[cat] then
+                seen[cat] = true
+                out[#out + 1] = cat
+            end
+        end
+    end
+    return out
+end
+
 -- How many; the game keeps them per character (LegacyChallengesUnviewed).
 function Data.UnviewedCount()
     local t = _G.LegacyChallengesUnviewed

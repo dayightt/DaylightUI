@@ -296,6 +296,18 @@ T.test("legacy challenges: a newly earned one marks its category and the tab unt
     clean()
 end)
 
+-- Seen in game: the Legacy button kept its new mark for good. The game marks any
+-- achievement earned as an unread challenge, in its own category, and only opening
+-- that category clears it, but one the list doesn't show can't be opened.
+T.test("legacy challenges: an unread one in a category the list doesn't show is cleared on Challenges", function()
+    local ns = load()
+    LegacyChallengesUnviewed[9001] = 777
+    local f = open(ns, "challenges")
+    T.falsy(LegacyChallengeViewedUtil.HasAnyUnviewedChallenges(), "the game's mark is gone once Challenges opens")
+    T.eq(plain(f.tabs[2].text:GetText()), "Challenges")
+    clean()
+end)
+
 T.test("legacy challenges: a tracked challenge's click opens ours on it", function()
     local ns = load()
     local f = open(ns)
