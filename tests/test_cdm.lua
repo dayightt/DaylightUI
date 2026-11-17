@@ -1727,10 +1727,21 @@ end)
 T.test("cdm effects: When ready Hide shows a totem only while it's down", function()
     local DUI, AB, set, ess = fxWorld()
     local cds = withCooldowns(ess)
+    -- 111 is a totem with no buff (CdmCustom.TOTEMS, fire slot); 112 a totem that
+    -- isn't on that list, which keeps its own cooldown.
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    local class = "SHAMAN"
+    local realSpells = AB.CdmSpells[class]
+    AB.CdmSpells[class] = { { 111, aura = true }, { 112, aura = true } }
+    AB.CdmCustom.TOTEMS[111] = 1
+    AB.CdmCustom.Forget()
     -- The game's item data, and whether slot 1 holds a totem (GetTotemDuration
     -- returns nothing once it's gone).
     local totem, standing
     ess[1].GetTotemData = function() return totem end
+    ess[2].GetTotemData = function() return totem end
+    set.pieces[12].onReady = "hide"
+    cds[112] = { duration = 0 }
     local realDuration = _G.GetTotemDuration
     _G.GetTotemDuration = function(slot) if slot == 1 and standing then return {} end end
     set.pieces[11].onReady = "hide"
@@ -1740,6 +1751,7 @@ T.test("cdm effects: When ready Hide shows a totem only while it's down", functi
     totem, standing = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }, true
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 1, "totem down: shown, the game's icon timing it")
+    T.eq(ess[2]:GetAlpha(), 0, "a totem not on the list: its own cooldown (ready), as before")
     -- Right-clicked away: the item keeps the emptied slot as its totem.
     totem, standing = { slot = 1, spellID = 0, expirationTime = 0, duration = 0, modRate = 1 }, false
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
@@ -1757,8 +1769,11 @@ T.test("cdm effects: When ready Hide shows a totem only while it's down", functi
     totem = stub.Secret({ slot = 1 })
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 1, "secret totem data: stays as it was")
-    ess[1].GetTotemData = nil
+    ess[1].GetTotemData, ess[2].GetTotemData = nil, nil
     _G.GetTotemDuration = realDuration
+    AB.CdmCustom.TOTEMS[111] = nil
+    AB.CdmSpells[class] = realSpells
+    AB.CdmCustom.Forget()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

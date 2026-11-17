@@ -955,19 +955,21 @@ local function blindShot(item)
     return ok and ns.Ping.ShotBlind(info)
 end
 
--- A totem standing: true, false, or nil when the game won't say. Daylight UI's own
--- totem icons and bars (item.totem) ask CdmCustom.TotemUp. The game's item keeps
--- an emptied slot as its totem (the client reports an empty slot as having one),
--- so its slot is asked whether it still returns a duration, which is never secret.
--- In a fight the item's totem data is a secret table: no telling.
+-- A totem standing: true, false, or nil when the game won't say. Only for the
+-- totems with no buff (CdmCustom.TOTEMS); other totems keep their own cooldown.
+-- Daylight UI's own totem icons and bars (item.totem) ask CdmCustom.TotemUp. The
+-- game's item keeps an emptied slot as its totem (the client reports an empty slot
+-- as having one), so its slot is asked whether it still returns a duration, which
+-- is never secret. In a fight the item's totem data is a secret table: no telling.
 local totemCheck = false
 local function totemUp(item)
     if type(GetTotemDuration) ~= "function" then return false end
+    local C = ns.CdmCustom
     if item.totem then
-        local C = ns.CdmCustom
         local d = C and C.TotemUp(Fx.SpellOf(item))
         if type(d) == "nil" or d == false then return false end
     else
+        if not (C and C.Totem(Fx.SpellOf(item))) then return false end
         if type(item.GetTotemData) ~= "function" then return false end
         local ok, totem = pcall(item.GetTotemData, item)
         if not ok or type(totem) == "nil" then return false end
