@@ -104,7 +104,7 @@ ns.DEFAULTS = {
     -- power bar ("power"), hung under it and sliding out ("slide"), or its own
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).
     -- insideTextSize: its text inside the frame (0 fits the power bar).
-    partyCastbar = { enabled = true, at = "power", spot = "right", x = 0, y = 0, width = 140, height = 16, showIcon = true,
+    partyCastbar = { enabled = true, at = "power", spot = "right", x = 0, y = 0, width = 140, height = 10, showIcon = true,
                      slant = false, insideTextSize = 0, reverseFill = false },
     -- The target's and focus's own cast bar colors.
     targetCasts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },

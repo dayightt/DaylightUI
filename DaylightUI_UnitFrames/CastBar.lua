@@ -437,6 +437,10 @@ function CB.Layout(h, cfg, parentCfg)
     h.ownBorder = own and tonumber(own.borderPx) or nil
     local px = h.into and 0 or ns.UF.WriteShell(Style.GetShell(h), own)
     local T = h.into and 0 or Pixel.Px(h, px)
+    -- A party bar's height is the bar itself, with the border around it: a
+    -- short bar that counted its border had almost no room left for the fill
+    -- and its text.
+    local tall = 2 * Pixel.Snap(h, (tonumber(cfg.height) or 0) / 2) + (cfg.borderOutside and 2 * T or 0)
     local cut = 0
     h.lead = 0
     h.room, h.belowAt = cfg.drop, nil
@@ -467,7 +471,7 @@ function CB.Layout(h, cfg, parentCfg)
         local base = CB.Lift(f, Pixel.Px(f, g.borderPx))
         local lift = base - pipRoom(h)
         local fH = f:GetHeight()
-        local height = 2 * Pixel.Snap(h, cfg.height / 2)
+        local height = tall
         -- The frame's full width, its left end tucked under the portrait ring
         -- like the frame's own bars. Its text starts at the bar's own edge (the
         -- ring is allowed to overlap it), and there's no spell icon since that
@@ -493,7 +497,7 @@ function CB.Layout(h, cfg, parentCfg)
         -- Free-standing: its own size and optionally the player's angle. Above
         -- or below its frame it takes the frame's width (in its own scale) when
         -- fitFrame is on (target, focus; off means their own width).
-        local height = 2 * Pixel.Snap(h, cfg.height / 2)
+        local height = tall
         local width = cfg.width
         local f = h.near
         -- Under the personal display: as wide as it and cut the same way.
@@ -510,7 +514,7 @@ function CB.Layout(h, cfg, parentCfg)
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
         end
         h:SetSize(2 * Pixel.Snap(h, width / 2), height)
-        cut = (right or left) and Pixel.Snap(h, cfg.height * (at == "personal" and ns.Personal.Angle() or ns.UF.SLANT)) or 0
+        cut = (right or left) and Pixel.Snap(h, tall * (at == "personal" and ns.Personal.Angle() or ns.UF.SLANT)) or 0
         side = right and left and "both" or right and "right" or left and "left" or nil
         Style.Slant(h, side, cut, nil, flip and side or nil)
         -- The fill's moving edge takes the angle of the end it runs toward.
@@ -532,7 +536,7 @@ function CB.Layout(h, cfg, parentCfg)
     h.bar:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     local contentLead = h.lead
     if h.icon and cfg.showIcon and not hang then
-        local s = cfg.height - 2 * T
+        local s = tall - 2 * T
         -- An angled left end would cut the icon, so it starts past the angle.
         local lead = h.lead + ((side == "left" or side == "both") and cut or 0)
         h.icon:ClearAllPoints()

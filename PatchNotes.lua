@@ -20,6 +20,7 @@ DUI.PatchNotes = {
             { "General", "Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display" },
             { "NPC window", "Quest rewards you always get no longer stay stuck on \"Retrieving item information\" when you hand in a quest" },
             { "Nameplates", "Fade out of range enemies works again for warriors, hunters and druids in bear form" },
+            { "Party frames", "Party cast bars under or beside the frame show a full bar again, with the spell name inside it instead of spilling below the frame" },
         },
     },
     { version = "1.9.1", date = "2026-11-16", summary = "Tidier options with tabs and clearer names, bars angled at both ends, and a round of fixes.",

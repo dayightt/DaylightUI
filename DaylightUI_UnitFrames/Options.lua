@@ -2692,7 +2692,7 @@ ns.OPTIONS = { pages = {
               desc = "How wide each detached cast bar is. Under the frame it matches the frame's width.",
               disabled = notOwnBar("party") },
             { type = "slider", key = "partyCastbar.height", label = "Party cast bar height", min = 6, max = 40, step = 1,
-              desc = "How tall each party cast bar is. Not inside the frame, where it takes the power bar's place.",
+              desc = "How tall each party cast bar is, inside its border. Not inside the frame, where it takes the power bar's place.",
               disabled = notOwnSize("party") },
             barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[1],
             barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[2],
