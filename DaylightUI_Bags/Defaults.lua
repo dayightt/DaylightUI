@@ -21,7 +21,7 @@ ns.DEFAULTS = {
     -- top right, junk coin in its own spot.
     showBind = true,        -- "BoE" / "BoU" until bound
     showSet = true,         -- mark items that are in an equipment set
-    lockSets = true,        -- equipment set items can't be sold or disenchanted (Guard.lua)
+    lockSets = false,       -- equipment set items can't be sold or disenchanted (Guard.lua)
     showLevel = false,      -- item level on gear, bottom left
     showJunk = false,       -- the game's gold coin on gray items
     markCheapJunk = false,  -- a dot on the gray stack worth least (Junk.MarkCheapest)

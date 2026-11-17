@@ -20,6 +20,7 @@ DUI.PatchNotes = {
             { "Nameplates", "The % sign on nameplate health text can be turned off, so it reads 62 instead of 62%" },
         },
         changed = {
+            { "Bags", "Gear in an equipment set can be sold and disenchanted again unless you switch on Lock equipment set items (Bags, Vendors)" },
             { "Chat", "The Copy window is bigger, so most lines fit on one row, and its hint no longer runs under the close button" },
         },
         fixed = {

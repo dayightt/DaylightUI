@@ -667,7 +667,7 @@ end
 function Cat.Guarded(bag, slot, info)
     if not info then return false end
     if Cat.IsLocked(info.itemID) then return true end
-    return db().lockSets ~= false and Cat.InSet(bag, slot)
+    return db().lockSets == true and Cat.InSet(bag, slot)
 end
 
 -- Recent

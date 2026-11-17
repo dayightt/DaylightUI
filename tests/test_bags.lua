@@ -5529,10 +5529,13 @@ T.test("bags: a locked item's slot takes no clicks at a vendor or under Disencha
     stub.FireEvent("MERCHANT_CLOSED")
 end)
 
-T.test("bags: an equipment set item can't be sold or disenchanted unless that lock is switched off", function()
+T.test("bags: with the lock on, an equipment set item can't be sold or disenchanted", function()
     local ns = catLogin()
     local gear, other = ns.Bags.buttons[0][2], ns.Bags.buttons[0][1]
     world.sets["0:2"] = true
+    T.falsy(ns.Categories.Guarded(0, 2, C_Container.GetContainerItemInfo(0, 2)), "off by default")
+    DaylightUI:Set("Bags", "lockSets", true)
+    stub.RunTimers()
     local clicks = function(b) return #(b.__clicks or {}) end
     T.truthy(ns.Categories.Guarded(0, 2, C_Container.GetContainerItemInfo(0, 2)))
     T.falsy(ns.Categories.IsLocked(C_Container.GetContainerItemInfo(0, 2).itemID), "not locked by hand")

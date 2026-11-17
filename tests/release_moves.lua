@@ -8,7 +8,9 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {},
+    values = {
+        ["Bags.lockSets"] = "Off for everyone: blocking set gear at vendors got in the way while leveling. The switch is still in Bags, Vendors.",
+    },
     frames = {},
     plates = {},
 }
