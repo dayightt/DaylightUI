@@ -2389,6 +2389,21 @@ T.test("nameplates: a held frame handed to a plate without ours is the game's ag
     T.falsy(stub.nameplates.Manager.IsHeld(uf))
 end)
 
+T.test("nameplates: giving an active frame back restores its nameplate-specific events", function()
+    local NP = login()
+    local p = added("nameplate1")
+    local np, uf = p.nameplate, p.gameFrame
+    uf.unit = "nameplate1"
+    NP.Manager.GiveBackFrame(uf, np)
+    T.truthy(uf:IsEventRegistered("UNIT_FACTION"), "faction changes are observed again")
+    T.eq(uf.__unitEvents.UNIT_FACTION[1], "nameplate1", "filtered to this unit")
+    T.eq(uf.__unitEvents.UNIT_FACTION[2], "player", "and the player")
+    T.truthy(uf:IsEventRegistered("NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED"), "camera changes are observed again")
+    T.eq(uf.__unitEvents.NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED[1], "nameplate1", "filtered to this unit")
+    T.truthy(uf:IsEventRegistered("PLAYER_FOCUS_CHANGED"), "focus changes are observed again")
+    T.truthy(uf:IsEventRegistered("RAID_TARGET_UPDATE"), "raid target changes are observed again")
+end)
+
 T.test("options: nameplates are split into tabs and every setting has one home", function()
     login()
     local section

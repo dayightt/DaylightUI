@@ -165,6 +165,22 @@ function Manager.GiveBackFrame(uf, nameplate)
     if quieted[uf] then
         quieted[uf] = nil
         for _, e in ipairs(Manager.LOAD_EVENTS) do pcall(uf.RegisterEvent, uf, e) end
+        -- CompactUnitFrame_OnLoad is only the frame's baseline. The nameplate
+        -- adds two unit events and two global events in OnUnitSet, while
+        -- CompactUnitFrame_SetUnit registers its per-unit events. If a held
+        -- frame is returned without being recycled through SetUnit first (the
+        -- failed-install and platefix paths), restore those as well. Only the
+        -- event list is redone: CompactUnitFrame_RegisterEvents would also set
+        -- the game frame's OnEvent script from addon code.
+        if uf.unit then
+            if type(CompactUnitFrame_UpdateUnitEvents) == "function" then
+                pcall(CompactUnitFrame_UpdateUnitEvents, uf)
+            end
+            pcall(uf.RegisterUnitEvent, uf, "UNIT_FACTION", uf.unit, "player")
+            pcall(uf.RegisterUnitEvent, uf, "NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED", uf.unit)
+            pcall(uf.RegisterEvent, uf, "PLAYER_FOCUS_CHANGED")
+            pcall(uf.RegisterEvent, uf, "RAID_TARGET_UPDATE")
+        end
     end
     moveKeepers(uf, uf)
     if type(nameplate) == "table" and nameplate.UnitFrame == uf and not forbidden(nameplate) then
