@@ -1,3 +1,28 @@
+# DaylightUI 1.9.3
+
+Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.
+
+## New
+- Unit Frames: An Overheal switch, so incoming heals can stop where the health bar is full (Unit Frames, Look)
+- Quests: The priority quest's title can wear the priority quest color too (Quests, Colors)
+- Action bars: Totem timers in the Daylight UI look, with their own options (Action Bars > Bar Layout)
+
+## Changed
+- Bags: Gear in an equipment set can be sold and disenchanted again, unless you switch on Lock equipment set items (Bags, Vendors)
+
+## Fixed
+- Unit Frames: Frames with no portrait show resting, PvP and leader icons, the red combat border and elite outlines again
+- Unit Frames: Your cast bar's spot between your frame and the target's is back, swing timers under it. If 1.9.1 moved it, it goes back
+- Spellbook: Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook
+- Character: The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell
+- Cooldown Manager: Slice and Dice's glow goes out when the buff ends, however many combo points it used
+- Social: Setting yourself to Away or Available works again, instead of getting stuck on Busy
+- Fade: No more Fade.lua error when the whole screen fades, like talking to an NPC with DialogueUI
+- Nameplates: Nameplates coming back into view no longer miss raid marker, focus or faction color updates
+- Controller: Whispering a friend or sharing an item in chat no longer leaves the controller dead until a reload
+- Legacy: The Legacy button's new mark goes away once you open Challenges
+- Little touches: Spanish hand names in stats, Embers and Comet stay inside an empty bar, a Daylight UI button on the layering notice
+
 # DaylightUI 1.9.2
 
 An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.

@@ -11,25 +11,28 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
+    { version = "Unreleased" },
+    { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",
         new = {
-            { "Unit Frames", "An Overheal switch on the Look page: turn it off and incoming heals stop where the health bar is full" },
-            { "Quests", "The priority quest's title can wear the priority quest color too, so it stands out (Quests, Colors)" },
-            { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
+            { "Unit Frames", "An Overheal switch, so incoming heals can stop where the health bar is full (Unit Frames, Look)" },
+            { "Quests", "The priority quest's title can wear the priority quest color too (Quests, Colors)" },
+            { "Action bars", "Totem timers in the Daylight UI look, with their own options (Action Bars > Bar Layout)" },
+        },
+        changed = {
+            { "Bags", "Gear in an equipment set can be sold and disenchanted again, unless you switch on Lock equipment set items (Bags, Vendors)" },
         },
         fixed = {
-            { "Unit Frames", "With the portrait off and the name on the bar, the player, target and focus frames still show resting, PvP and leader icons beside the frame, turn their border red in a fight, and outline elites and rares in gold or silver" },
-            { "Unit Frames", "Your cast bar's spot between your frame and the target's is back, with the swing timers fanning out under it again. If 1.9.1 moved yours, it goes back there" },
-            { "Spellbook", "Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook, instead of as a group that didn't open on a bar" },
+            { "Unit Frames", "Frames with no portrait show resting, PvP and leader icons, the red combat border and elite outlines again" },
+            { "Unit Frames", "Your cast bar's spot between your frame and the target's is back, swing timers under it. If 1.9.1 moved it, it goes back" },
+            { "Spellbook", "Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook" },
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
-            { "Cooldown Manager", "Slice and Dice's glow goes out when the buff ends, however many combo points it was cast with" },
-            { "Skins", "The button that brings back the \"world around you will refresh\" notice is in the Daylight UI look, not the game's red arrow" },
-            { "Social", "Setting yourself to Away or Available in the Social window works again, instead of getting stuck on Busy" },
-            { "Character", "In Spanish, the main hand and off hand use the game's own names (mano principal, mano secundaria) in the stats and the swing timer" },
-            { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
-            { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI. A bar or frame set to never fade, or no longer shown, also goes fully back to normal instead of staying ready to fade" },
-            { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
-            { "Controller", "Whispering a friend or sharing an item in chat no longer leaves the controller dead until a reload. With a controller you type the whisper in a small box, and a shared item goes to the chat you pick" },
+            { "Cooldown Manager", "Slice and Dice's glow goes out when the buff ends, however many combo points it used" },
+            { "Social", "Setting yourself to Away or Available works again, instead of getting stuck on Busy" },
+            { "Fade", "No more Fade.lua error when the whole screen fades, like talking to an NPC with DialogueUI" },
+            { "Nameplates", "Nameplates coming back into view no longer miss raid marker, focus or faction color updates" },
+            { "Controller", "Whispering a friend or sharing an item in chat no longer leaves the controller dead until a reload" },
+            { "Legacy", "The Legacy button's new mark goes away once you open Challenges" },
+            { "Little touches", "Spanish hand names in stats, Embers and Comet stay inside an empty bar, a Daylight UI button on the layering notice" },
         },
     },
     { version = "1.9.2", date = "2026-11-16", summary = "An accent of your own colors, a key to bring back faded bars, and a round of fixes, including Lua errors on angled power bars.",
@@ -40,7 +43,6 @@ DUI.PatchNotes = {
             { "Nameplates", "The % sign on nameplate health text can be turned off, so it reads 62 instead of 62%" },
         },
         changed = {
-            { "Bags", "Gear in an equipment set can be sold and disenchanted again unless you switch on Lock equipment set items (Bags, Vendors)" },
             { "Chat", "The Copy window is bigger, so most lines fit on one row, and its hint no longer runs under the close button" },
         },
         fixed = {
