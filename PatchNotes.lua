@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Unit Frames", "An Overheal switch on the Look page: turn it off and incoming heals stop where the health bar is full" },
+            { "Quests", "The priority quest's title can wear the priority quest color too, so it stands out (Quests, Colors)" },
             { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
         },
         fixed = {

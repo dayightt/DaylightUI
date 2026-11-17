@@ -217,10 +217,21 @@ function Look.PaintParty(m, n, animate)
 end
 
 -- A ready quest keeps its level color, as in the game's own tracker: the "?"
--- and the hand-in line already say it's ready.
+-- and the hand-in line already say it's ready. The priority quest can take its
+-- own color (colors.focusTitle).
 function Look.TitleColor(look, q)
     if q.state == "failed" then return Look.Color(look, "failed") end
+    if q.focus and look.c.focusTitle then return Look.FocusColor(look) end
     return Look.LevelColor(look, q)
+end
+
+-- The priority quest's color as one color, for text: a gradient's middle.
+function Look.FocusColor(look)
+    local mode = look and look.c.focusMode or "accent"
+    if mode == "custom" then return Look.Color(look, "focus") end
+    if mode == "daylight" then return unpack(Style.GRADIENT_MID) end
+    if mode == "accent" then return Style.Accent() end
+    return Style.ClassTextColor(select(2, UnitClass("player")))
 end
 
 -- Title color by level only, failed or not.

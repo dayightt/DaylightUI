@@ -98,6 +98,7 @@ ns.DEFAULTS = {
         timerUrgent = { 0.89, 0.33, 0.30 },
         focusMode = "accent",       -- priority quest icon: accent | daylight | gradient | class | custom
         focus = { 0.64, 0.37, 0.78 },
+        focusTitle = false,         -- the priority quest's title in that color too
         barMode = "accent",         -- accent | class | custom
         bar = { 0.72, 0.70, 0.66 },
     },
