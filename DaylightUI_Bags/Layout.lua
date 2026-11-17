@@ -873,11 +873,35 @@ local function rowOf(btn, width, icon, at)
     return row
 end
 
+-- How many are still in an entry's slots right now. A row keeps its spot when
+-- its item leaves (sold, used up) until the next layout, so it reads the slots
+-- again instead of the count it was laid out with.
+function Layout.LiveTotal(e)
+    local total = 0
+    local function add(b)
+        local holder = b and b:GetParent()
+        local info = holder and ns.Items.InfoAt(holder:GetID(), b:GetID())
+        if info then total = total + (info.stackCount or 1) end
+    end
+    add(e.button)
+    for _, b in ipairs(e.extra or {}) do add(b) end
+    return total
+end
+
 -- Paints a row from its entry (at layout, and after each fill of its slot).
 function Layout.PaintRow(btn)
     local row, e = btn.dluiRow, btn.dluiEntry
     if not (row and e and row:IsShown()) then return end
     local Style = DUI.Style
+    if not e.empty then
+        local live = Layout.LiveTotal(e)
+        if live == 0 then
+            -- Gone from the bag: the row holds its spot blank, as an emptied slot does.
+            for _, k in ipairs({ "name", "kind", "level", "count", "value" }) do row[k]:SetText("") end
+            return
+        end
+        e.total = live
+    end
     local d = Layout.RowFacts(e)
     row.name:SetText(d.name)
     local r, g, b

@@ -7677,6 +7677,25 @@ T.test("bags: list rows read name, kind, level, count and sell value", function(
     C_Item.GetItemInfo, C_Item.GetItemInfoInstant = getInfo, instant
 end)
 
+T.test("bags: a sold item's list row no longer reads its name", function()
+    local ns, f = listLogin()
+    world.items[0][9] = { iconFileID = 109, stackCount = 1, quality = 1, hyperlink = "|Hitem:777|h", itemID = 777, itemName = "Iron Star" }
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    ns.Relayout()
+    local b = ns.Bags.buttons[0][9]
+    T.truthy(b.dluiRow and b.dluiRow:IsShown(), "the item has a row")
+    T.eq(b.dluiRow.name:GetText(), "Iron Star")
+    -- sold to a vendor: the slot empties, items only leaving hold their spots
+    world.items[0][9] = nil
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    -- The row keeps its spot until the next layout, and reads the slot again
+    -- each time it's painted (the slot's fill paints it).
+    ns.Layout.PaintRow(b)
+    T.eq(b.dluiRow.name:GetText(), "", "the row reads blank, not the sold item")
+    T.eq(b.dluiRow.count:GetText(), "")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: list columns sort inside each group, a second click flips", function()
     local ns, f = listLogin()
     local head = f.listHead

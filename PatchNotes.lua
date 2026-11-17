@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "NPC window", "Quest rewards you always get no longer stay stuck on \"Retrieving item information\" when you hand in a quest" },
             { "Nameplates", "Fade out of range enemies works again for warriors, hunters and druids in bear form" },
             { "Party frames", "Party cast bars under or beside the frame show a full bar again, with the spell name inside it instead of spilling below the frame" },
+            { "Bags", "In the list view, an item you sell or use up no longer stays listed until you close and open your bags" },
             { "Unit frames", "The PvP flag shows on the frame previews in the options and in test mode" },
             { "Tooltip", "Talent tooltips no longer show broken color text in red requirement lines, like Feral Charge's \"Requires Bear Form\"" },
         },
