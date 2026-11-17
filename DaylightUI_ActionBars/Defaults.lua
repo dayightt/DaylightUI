@@ -55,6 +55,13 @@ ns.DEFAULTS = {
     -- The totem timers above the player frame (Totems.lua): shown, and how they fade.
     totemTimers = true,
     totemTimersFade = DaylightUI.Fade.Defaults(),
+    totemTimersSize = 100,          -- % of the game's size
+    totemTimersGap = 2,             -- space between two timers' borders
+    totemTimersShowTime = true,
+    totemTimersTimePos = "top",     -- top | middle | bottom, as on the buff bar
+    totemTimersTimeSize = 11,
+    totemTimersSwipe = true,        -- the dark sweep as time runs out
+    totemTimersElements = true,     -- each edge in its element's color
     -- The Cooldown Manager layout's fade (CdmRows.FadeFrames). Shown by default; the
     -- campfire's hush reaches it like the bars.
     cdmFade = DaylightUI.Fade.Defaults(),

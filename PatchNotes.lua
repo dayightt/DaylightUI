@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Unit Frames", "An Overheal switch on the Look page: turn it off and incoming heals stop where the health bar is full" },
+            { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
         },
         fixed = {
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },

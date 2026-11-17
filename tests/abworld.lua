@@ -95,7 +95,15 @@ function M.world()
     local totem = CreateFrame("Button", nil, tf)
     totem:SetSize(37, 37)
     totem.Icon = CreateFrame("Frame", nil, totem)
+    totem.Icon:SetSize(22, 22)
+    totem.Icon:SetPoint("CENTER")
     totem.Icon.Texture = totem.Icon:CreateTexture()
+    -- The game gives its sweep a circle atlas (TotemButtonMixin:OnLoad).
+    local cd = CreateFrame("Cooldown", nil, totem.Icon)
+    function cd:SetSwipeTexture(t) self.__swipe = t end
+    function cd:SetTexCoordRange(lo, hi) self.__range = { lo, hi } end
+    cd.__swipe = "CircleMask"
+    totem.Icon.Cooldown = cd
     totem.Border = totem:CreateTexture()
     totem.Duration = totem:CreateFontString()
     totem.slot = 1
