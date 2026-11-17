@@ -1195,9 +1195,10 @@ end
 -- tooltip. icon is a Media file, tip is text or a function returning text,
 -- size is the hit box (W.ICON_BUTTON, icon drawn at 14). b.SetIcon(file)
 -- swaps the icon, e.g. the lock's open and closed states.
+-- desc is an optional line under the name (text or a function); a tip function
+-- may also return it as a second value.
 W.ICON_BUTTON, W.ICON_BUTTON_ICON = 20, 14
-W.ICON_TIP_WAIT = 1   -- seconds the mouse rests on an icon before its name shows
-function W.IconButton(parent, icon, tip, onClick, size)
+function W.IconButton(parent, icon, tip, onClick, size, desc)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(size or W.ICON_BUTTON, size or W.ICON_BUTTON)
     b.icon = b:CreateTexture(nil, "ARTWORK")
@@ -1215,28 +1216,23 @@ function W.IconButton(parent, icon, tip, onClick, size)
         local M = DUI.Motion
         if M then M.Tween(b.icon, b.over, over and 1 or 0, M.FAST, paint) else paint(over and 1 or 0) end
     end
-    -- Name shows only after a short rest (W.ICON_TIP_WAIT), so sweeping across
-    -- the icons doesn't flash tooltips.
-    local token = 0
+    -- Shows at once, like the other tooltips.
     b:SetScript("OnEnter", function(self)
         b.Paint(true)
-        token = token + 1
-        local mine = token
-        C_Timer.After(W.ICON_TIP_WAIT, function()
-            if mine ~= token or not self:IsMouseOver() then return end
-            local words = type(tip) == "function" and tip() or tip
-            if words and GameTooltip then
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                DUI.Tips.Clear()
-                DUI.Tips.Title(words)
-                DUI.Tips.Flush()
-                GameTooltip:Show()
-            end
-        end)
+        local words, more
+        if type(tip) == "function" then words, more = tip() else words = tip end
+        if more == nil then more = type(desc) == "function" and desc() or desc end
+        if words and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            DUI.Tips.Clear()
+            DUI.Tips.Title(words)
+            if more then DUI.Tips.Text(more) end
+            DUI.Tips.Flush()
+            GameTooltip:Show()
+        end
     end)
     b:SetScript("OnLeave", function(self)
         b.Paint(false)
-        token = token + 1
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
     b:SetScript("OnMouseDown", function() DUI.Motion.Bump(b.icon, 0.85) end)
