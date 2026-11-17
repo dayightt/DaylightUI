@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
         },
         fixed = {
+            { "Unit Frames", "With the portrait off and the name on the bar, the player, target and focus frames still show resting, PvP and leader icons beside the frame, turn their border red in a fight, and outline elites and rares in gold or silver" },
             { "Unit Frames", "Your cast bar's spot between your frame and the target's is back, with the swing timers fanning out under it again. If 1.9.1 moved yours, it goes back there" },
             { "Spellbook", "Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook, instead of as a group that didn't open on a bar" },
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
