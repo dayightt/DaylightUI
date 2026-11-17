@@ -203,6 +203,25 @@ T.test("the preview's rows sit where the game's do", function()
     T.eq(sampleY, liveY)
 end)
 
+-- The preview has no power bar of its own to put on the screen, so with the
+-- power bar on its own the preview's frame is all health, as the game's is.
+T.test("with the power bar on its own, the preview's frame is all health", function()
+    local DUI, ns = login()
+    for _, unit in ipairs({ "player", "target", "focus" }) do
+        DUI:Set("UnitFrames", unit .. ".powerAt", "free")
+        local s = ns.PageSample.New(unit, UIParent)
+        s.Refresh(600, 160)
+        local f = s.f
+        T.falsy(f.power:IsShown(), unit .. ": no power bar inside")
+        T.falsy(f.separator:IsShown(), unit)
+        local hp, rel = f.health:GetPoint(2)
+        T.eq(hp, "BOTTOMRIGHT", unit); T.eq(rel, f, unit .. ": health to the bottom")
+        DUI:Set("UnitFrames", unit .. ".powerAt", "inside")
+        s.Refresh(600, 160)
+        T.truthy(f.power:IsShown(), unit .. ": back inside")
+    end
+end)
+
 T.test("the target's preview keeps the room its cast bar takes in game", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "targetCastbar.at", "below")

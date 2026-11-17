@@ -92,10 +92,10 @@ end
 -- Where the frame's power bar is: "free" (the player's standalone bar), "line"
 -- (a style's line under the frame) or "inside". Points f's power fields at that bar's pieces and hides
 -- the others. A frame without the requested holder (an options sample has no
--- free bar) only reads the choice.
+-- free bar) only reads the choice, so its preview is all health like the game's.
 function PB.Pick(f, cfg)
     local where = "inside"
-    if f.freePower and cfg.powerAt == "free" then
+    if cfg.powerAt == "free" and (f.freePower or PB.FREE[f.spec.unit]) then
         where = "free"
     elseif f.powerLine then
         where = "line"
@@ -139,6 +139,15 @@ function PB.Layout(f, cfg, text)
     local cut = side and Pixel.Snap(h, H * UF.SLANT) or 0
     -- Flipped, each angled end leans under: wider at the bottom than the top.
     local flip = side ~= nil and cfg.powerSlantUnder == true
+    -- The cost shade cuts both its own ends at the angle (UF.LayoutCost), so with both
+    -- of the bar's ends angled it keeps only the clip at the empty end, where a big
+    -- cost runs past the bar. A texture takes three masks, and this saves the fourth.
+    -- Set before the slant lays out, since that adds the clips.
+    local cost = h.set.cost
+    if cost then
+        local shaded = both and not f.flipped
+        Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, shaded and (f.growLeft == true and "right" or "left") or false)
+    end
     Style.Slant(h, both and "both" or side, cut, nil, flip and (both and "both" or side) or nil)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
     -- the frame's spec (which side is angled), this bar's cut, both ends or
