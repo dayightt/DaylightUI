@@ -2985,7 +2985,8 @@ function stub.ActionSlots(slots)
         GetActionCooldownDuration = function(slot) return duration(slot, "cooldown") end,
         GetActionCharges = function(slot)
             local s = S(slot)
-            return { isActive = s ~= nil and s.charges == true, currentCharges = secret(1), maxCharges = secret(2) }
+            local has = s ~= nil and s.charges == true
+            return { isActive = has, currentCharges = secret(1), maxCharges = secret(has and 2 or 0) }
         end,
         GetActionChargeDuration = function(slot) return duration(slot, "charges") end,
         GetActionLossOfControlCooldownInfo = function(slot)
@@ -2996,6 +2997,13 @@ function stub.ActionSlots(slots)
         GetActionLossOfControlCooldownDuration = function(slot) return duration(slot, "loc") end,
         EnableActionRangeCheck = function(slot, on) stub.rangeChecks[slot] = on end,
     }
+    -- One loss of control on you per slot it locks (plain, no secret flag in the docs).
+    _G.C_LossOfControl = _G.C_LossOfControl or {}
+    C_LossOfControl.GetActiveLossOfControlDataCount = function()
+        local n = 0
+        for _, s in pairs(stub.slots) do if s.loc then n = n + 1 end end
+        return n
+    end
     -- A GCD gives a plain isOnGCD = true. A real cooldown leaves it out.
     _G.C_Spell = _G.C_Spell or {}
     C_Spell.GetSpellCooldown = function(id)
