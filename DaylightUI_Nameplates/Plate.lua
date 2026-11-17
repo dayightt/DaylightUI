@@ -2709,7 +2709,7 @@ function Plate.UpdateTarget(p)
         if threat then r, g, b = threat[1], threat[2], threat[3] end
         local sweep = not threat and c.targetAccent and Style.AccentSweep()
         local lo, hi
-        if sweep == "class" then lo, hi = Style.AccentPair() end
+        if sweep and sweep ~= "daylight" then lo, hi = Style.AccentPair() end
         local round = p.outline.round or NONE
         for key, tex in pairs(p.outline.pieces) do
             local long = key == "TOP" or key == "BOTTOM"

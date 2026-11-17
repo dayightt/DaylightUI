@@ -573,6 +573,11 @@ function Cards.Draw.swatch(card, key, w, h)
             local a, b = Style.ClassAccentPair()
             s:SetVertexColor(1, 1, 1, 1)
             s:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+        elseif key == "customGradient" and s.SetGradient and CreateColor and Style.CustomAccentStops() then
+            local stops = Style.CustomAccentStops()
+            local a, b = stops[1], stops[#stops]
+            s:SetVertexColor(1, 1, 1, 1)
+            s:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
         elseif key == "class" or key == "classGradient" then
             local c = classColor()
             s:SetVertexColor(c[1], c[2], c[3], 1)

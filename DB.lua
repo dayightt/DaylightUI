@@ -34,6 +34,11 @@ DB.GENERAL_DEFAULTS = {
     },
     rpNames = true, -- Total RP 3 roleplay names instead of the game's (DUI.UnitName)
     accentColor = { 0.412, 0.365, 0.667 }, -- the accent when set to a custom color
+    accentGradient = { -- the accent when set to a custom gradient: the first `count` colors, left to right
+        count = 3,
+        c1 = { 0.200, 0.820, 0.760 }, c2 = { 0.560, 0.420, 0.950 }, c3 = { 1.000, 0.450, 0.600 },
+        c4 = { 1.000, 0.760, 0.330 }, c5 = { 0.960, 0.930, 0.820 },
+    },
     fontScale = 1,
     scale = 1, -- every DaylightUI frame and window (Movers.Scale, Win.Scale)
     frameScales = {}, -- [mover key] = one piece's own size, set with the wheel in unlock mode

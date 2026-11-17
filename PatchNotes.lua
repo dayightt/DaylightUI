@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
+            { "General", "Accent color can be a gradient of your own, running through two to five colors you pick" },
             { "Cooldown Manager", "Each cooldown bar can have its own bar animation, picked on its card in the layout editor" },
             { "Fade", "A Fade Toggle key brings back everything that's faded, and pressing it again fades it all back. Daylight UI's keys now have their own section in the game's Key Bindings" },
         },

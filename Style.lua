@@ -543,8 +543,8 @@ end
 -- custom color (the Appearance setting). Everything that highlights asks for
 -- it here, so a change repaints them all.
 Style.ACCENTS = { daylight = "Daylight", gradient = "Daylight gradient", class = "Class color",
-    classGradient = "Class gradient", custom = "Custom color" }
-Style.ACCENT_ORDER = { "daylight", "gradient", "class", "classGradient", "custom" }
+    classGradient = "Class gradient", custom = "Custom color", customGradient = "Custom gradient" }
+Style.ACCENT_ORDER = { "daylight", "gradient", "class", "classGradient", "custom", "customGradient" }
 -- The Daylight gradient (the logo's, blue to orange). Filled shapes sweep
 -- across it, while text and thin lines take its middle purple, or in a list
 -- each row takes its own spot along the sweep (Style.AccentAt).
@@ -581,6 +581,60 @@ local function classAccent()
     return c
 end
 
+-- The custom gradient accent: two to five colors the player picks
+-- (General `accentGradient`, its `count` and colors c1 to c5). Kept in the
+-- same tables until a number changes, like the class pair.
+Style.CUSTOM_STOPS_MAX = 5
+local customPair = { key = "" }
+
+local function customAccent()
+    local s = general().accentGradient
+    if type(s) ~= "table" then return nil end
+    local n = math.max(2, math.min(Style.CUSTOM_STOPS_MAX, math.floor(tonumber(s.count) or 2)))
+    local stops, parts = {}, {}
+    for i = 1, n do
+        local c = s["c" .. i]
+        if type(c) ~= "table" or type(c[1]) ~= "number" or type(c[2]) ~= "number" or type(c[3]) ~= "number" then
+            return nil
+        end
+        stops[i] = c
+        parts[#parts + 1] = string.format("%.4f,%.4f,%.4f", c[1], c[2], c[3])
+    end
+    local key = table.concat(parts, ";")
+    local p = customPair
+    if p.key ~= key then
+        p.key = key
+        p.stops = {}
+        for i, c in ipairs(stops) do p.stops[i] = { c[1], c[2], c[3] } end
+        p.lo, p.hi = p.stops[1], p.stops[n]
+        p.mid = { Style.StopsAt(p.stops, 0.5) }
+    end
+    return p
+end
+
+-- The spot t (0 to 1) along a list of { r, g, b } stops, evenly spaced.
+function Style.StopsAt(stops, t)
+    t = math.max(0, math.min(1, t)) * (#stops - 1)
+    local i = math.min(#stops - 1, math.floor(t) + 1)
+    local f, a, b = t - (i - 1), stops[i], stops[i + 1]
+    return a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f
+end
+
+-- Every color of a custom gradient accent with more than two, left to right
+-- (shared tables, don't modify), or nil.
+function Style.AccentStops()
+    if Style.AccentSweep() ~= "custom" then return nil end
+    local stops = customAccent().stops
+    return #stops > 2 and stops or nil
+end
+
+-- The custom gradient's colors regardless of the current accent (the setup
+-- guide's swatch), or nil.
+function Style.CustomAccentStops()
+    local p = customAccent()
+    return p and p.stops
+end
+
 -- The class gradient accent's two ends regardless of the current accent (the
 -- setup guide's swatch). Nil while the class isn't known.
 function Style.ClassAccentPair()
@@ -589,13 +643,15 @@ function Style.ClassAccentPair()
 end
 
 -- Which gradient the accent is: "daylight" (the logo's sweep), "class" (the
--- class pair) or nil (a single color). The class one falls back to a single
--- color while the class isn't known.
+-- class pair), "custom" (the player's own colors) or nil (a single color).
+-- The class one falls back to a single color while the class isn't known.
+-- Anything but "daylight" is drawn from AccentPair across a shape.
 function Style.AccentSweep()
     if DUI.Gradients and DUI.Gradients.Flat() then return nil end -- General > Gradients off means one color
     local a = general().accent
     if a == "gradient" then return "daylight" end
     if a == "classGradient" and classAccent() then return "class" end
+    if a == "customGradient" and customAccent() then return "custom" end
     return nil
 end
 
@@ -609,6 +665,10 @@ function Style.AccentPair()
     if kind == "daylight" then return Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2] end
     if kind == "class" then
         local c = classAccent()
+        return c.lo, c.hi
+    end
+    if kind == "custom" then
+        local c = customAccent()
         return c.lo, c.hi
     end
     return nil
@@ -629,6 +689,7 @@ function Style.AccentAt(t)
         t = math.max(0, math.min(1, t))
         return lo[1] + (hi[1] - lo[1]) * t, lo[2] + (hi[2] - lo[2]) * t, lo[3] + (hi[3] - lo[3]) * t
     end
+    if kind == "custom" then return Style.StopsAt(customAccent().stops, t) end
     return Style.Accent()
 end
 
@@ -664,7 +725,8 @@ end
 -- A showpiece's sweep (the level-up light): the class pair when the class
 -- gradient is the accent, else the Daylight sweep regardless of accent.
 function Style.SplashAt(t)
-    if Style.AccentSweep() == "class" then return Style.AccentAt(t) end
+    local kind = Style.AccentSweep()
+    if kind == "class" or kind == "custom" then return Style.AccentAt(t) end
     return Style.SweepAt(t)
 end
 
@@ -675,11 +737,7 @@ function Style.SweepAt(t)
         local m = Style.GRADIENT_MID
         return m[1], m[2], m[3]
     end
-    local stops = Style.SWEEP
-    t = math.max(0, math.min(1, t)) * (#stops - 1)
-    local i = math.min(#stops - 1, math.floor(t) + 1)
-    local f, a, b = t - (i - 1), stops[i], stops[i + 1]
-    return a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f
+    return Style.StopsAt(Style.SWEEP, t)
 end
 
 function Style.Accent()
@@ -694,6 +752,10 @@ function Style.Accent()
     end
     if g.accent == "classGradient" then
         local c = classAccent()
+        if c then return c.mid[1], c.mid[2], c.mid[3] end
+    end
+    if g.accent == "customGradient" then
+        local c = customAccent()
         if c then return c.mid[1], c.mid[2], c.mid[3] end
     end
     if g.accent == "class" or g.accent == "classGradient" then
@@ -1940,17 +2002,25 @@ end
 -- or { r, g, b }; a plain color is both ends.
 local fillColors = setmetatable({}, { __mode = "k" }) -- fill texture -> { lo, hi }
 local isSecret = DUI.IsSecret
-local function noteRGB(tex, r1, g1, b1, r2, g2, b2)
+-- A fill painted in more than two colors (the custom gradient accent) also
+-- keeps the whole list, so Flow can roll every one of them.
+local fillStops = setmetatable({}, { __mode = "k" })
+local function noteRGB(tex, r1, g1, b1, r2, g2, b2, stops)
     if type(tex) ~= "table" then return end
     local kept = fillColors[tex]
+    -- The ends may match while the colors between them changed.
+    local changed = fillStops[tex] ~= stops
+    fillStops[tex] = stops
     if isSecret(r1) or isSecret(g1) or isSecret(b1) or isSecret(r2) or isSecret(g2) or isSecret(b2)
         or type(r1) ~= "number" or type(r2) ~= "number" then
-        if not kept then return end
+        if not kept and not changed then return end
         fillColors[tex] = nil
     else
         if kept then
             local a, b = kept[1], kept[2]
-            if a[1] == r1 and a[2] == g1 and a[3] == b1 and b[1] == r2 and b[2] == g2 and b[3] == b2 then return end
+            if not changed and a[1] == r1 and a[2] == g1 and a[3] == b1 and b[1] == r2 and b[2] == g2 and b[3] == b2 then
+                return
+            end
             a[1], a[2], a[3], b[1], b[2], b[3] = r1, g1, b1, r2, g2, b2
         else
             fillColors[tex] = { { r1, g1, b1 }, { r2, g2, b2 } }
@@ -1963,15 +2033,19 @@ local function unpackColor(c)
     if c.r ~= nil then return c.r, c.g, c.b end
     return c[1], c[2], c[3]
 end
-function Style.NoteFill(tex, lo, hi)
+function Style.NoteFill(tex, lo, hi, stops)
     local r1, g1, b1 = unpackColor(lo)
     local r2, g2, b2 = unpackColor(hi or lo)
-    noteRGB(tex, r1, g1, b1, r2, g2, b2)
+    noteRGB(tex, r1, g1, b1, r2, g2, b2, stops)
 end
 function Style.NoteFillRGB(tex, r, g, b) noteRGB(tex, r, g, b, r, g, b) end
 function Style.FillColors(tex)
     local k = fillColors[tex]
     if k then return k[1], k[2] end
+end
+-- Every color of a fill painted in more than two, left to right, or nil.
+function Style.FillStops(tex)
+    return fillColors[tex] and fillStops[tex] or nil
 end
 
 -- A texture laid exactly over a bar's fill (it grows with it) and given the
@@ -2319,7 +2393,7 @@ function Style.PaintAccentBar(bar, paintBack)
     if type(tex) ~= "table" or not tex.SetGradient then return false end
     bar:SetStatusBarColor(1, 1, 1, 1)
     tex:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
-    Style.NoteFill(tex, lo, hi)
+    Style.NoteFill(tex, lo, hi, Style.AccentStops())
     return true
 end
 

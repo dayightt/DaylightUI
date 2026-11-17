@@ -119,6 +119,60 @@ T.test("a one-color bar flows a lighter shade of its color, so it visibly moves"
     T.truthy(hi[2] > lo[2] and hi[3] > lo[3], "the wave is lighter than the fill")
 end)
 
+-- The shown wave layers' colors, as "r,g,b" strings.
+local function waveColors(bar)
+    local out = {}
+    for _, r in ipairs({ bar:GetRegions() }) do
+        if r:GetObjectType() == "Texture" and r:IsShown() and r.__texture == DaylightUI.BarFx.WAVE and r.__vertex then
+            local v = r.__vertex
+            out[#out + 1] = string.format("%g,%g,%g", v[1], v[2], v[3])
+        end
+    end
+    table.sort(out)
+    return out
+end
+
+T.test("Flow rolls every color of a custom gradient accent, each wave a share of the loop apart", function()
+    local DUI, bar, cfg, read = setup({ style = "flow" })
+    DUI:Set("general", "accent", "customGradient")
+    DUI:Set("general", "accentGradient.count", 4)
+    DUI:Set("general", "accentGradient.c1", { 1, 0, 0 })
+    DUI:Set("general", "accentGradient.c2", { 0, 1, 0 })
+    DUI:Set("general", "accentGradient.c3", { 0, 0, 1 })
+    DUI:Set("general", "accentGradient.c4", { 1, 1, 0 })
+    stub.RunTimers()
+    local groups = {}
+    local make = bar.CreateAnimationGroup
+    bar.CreateAnimationGroup = function(self)
+        local g = make(self)
+        groups[#groups + 1] = g
+        return g
+    end
+    DUI.Style.PaintAccentBar(bar)
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    T.eq(#groups, 3, "the main loop and one for each extra wave")
+    T.truthy(groups[1]:IsPlaying())
+    T.falsy(groups[2]:IsPlaying(), "the next wave waits its turn")
+    T.deq(waveColors(bar), { "0,1,0" }, "hidden while it waits: a still flipbook draws its whole sheet")
+    stub.RunTimers()
+    T.truthy(groups[2]:IsPlaying() and groups[3]:IsPlaying(), "then joins in")
+    T.deq(waveColors(bar), { "0,0,1", "0,1,0", "1,1,0" }, "a bar in the accent rolls a wave of each color after the first")
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    T.deq(waveColors(bar), { "0,1,0" }, "after a reload the waves wait their turn again, out of sight")
+    stub.RunTimers()
+
+    cfg.colors = "accent"
+    DUI.BarFx.Apply(bar)
+    stub.RunTimers()
+    T.deq(waveColors(bar), { "0,0,1", "0,1,0", "1,1,0" }, "Flow colored by the accent too")
+
+    DUI:Set("general", "accentGradient.count", 2)
+    stub.RunTimers()
+    DUI.Style.PaintAccentBar(bar)
+    T.deq(waveColors(bar), { "0,1,0" }, "back to two colors: one wave, the extra ones hidden")
+    T.falsy(groups[2]:IsPlaying(), "and still")
+end)
+
 T.test("motion off stills every bar style", function()
     local DUI, bar, _, read = setup({ style = "flow" })
     DUI:Set("general", "motion", false)

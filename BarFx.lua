@@ -100,9 +100,65 @@ function BarFx.Colors(s)
     return twoColors(Style.FillColors(s.bar:GetStatusBarTexture()))
 end
 
-local function setSpeedOf(s)
-    local a = s.flow and s.flow.anim
-    if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, s.speed or 1)) end
+-- Every color Flow rolls when there are more than two (a custom gradient
+-- accent), left to right, or nil.
+function BarFx.Stops(s)
+    local mode = BarFx.Get(s, "colors")
+    if mode == "accent" then return Style.AccentStops() end
+    if mode == "bar" then return Style.FillStops(s.bar:GetStatusBarTexture()) end
+end
+
+-- Flow's animation groups: the main one, then one per extra wave.
+local function groupsOf(h)
+    local list = { h.anim }
+    for i = 1, h.waves or 0 do list[#list + 1] = h.extra[i].anim end
+    return list
+end
+
+local function setSpeed(s, k)
+    if not s.flow then return end
+    for _, a in ipairs(groupsOf(s.flow)) do
+        if a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, k)) end
+    end
+end
+
+local function setSpeedOf(s) setSpeed(s, s.speed or 1) end
+
+local function stopFlow(h)
+    h.playing = (h.playing or 0) + 1   -- drops the extra waves still waiting to start
+    h.anim:Stop()
+    for i = 1, #(h.extra or {}) do
+        local e = h.extra[i]
+        e.anim:Stop()
+        -- A flipbook that isn't playing draws its whole sheet squashed into
+        -- the bar, so a wave stays hidden until its turn to start.
+        e.live = nil
+        e.tex:Hide()
+    end
+end
+
+-- Starts Flow over. Each extra wave starts its share of the loop later, so
+-- the colors chase each other evenly along the bar; the client then keeps
+-- them in step, at the same speed, with no Lua running.
+local function playFlow(s)
+    local h = s.flow
+    stopFlow(h)
+    h.anim:Play()
+    setSpeedOf(s)
+    local n, token = h.waves or 0, h.playing
+    for i = 1, n do
+        local e = h.extra[i]
+        local wait = BarFx.FLOW_LOOP * i / (n + 1) / math.max(0.01, s.speed or 1)
+        C_Timer.After(wait, function()
+            if h.playing ~= token or not h.shown or h.isSweep or i > (h.waves or 0) then return end
+            e.anim:Play()
+            setSpeedOf(s)
+            e.live = true
+            e.tex:SetAlpha(0)
+            e.tex:Show()
+            DUI.Motion.AlphaTo(e.tex, 1, DUI.Motion.SLOW)
+        end)
+    end
 end
 
 -- Flow: the bar's own two colors rolling along it. A base of the bar's own
@@ -149,14 +205,27 @@ local function buildFlow(s)
     flipbook(h.anim, h.sweep)
     flipbook(h.anim, h.wave)
     -- The game stops a frame's animations while it's hidden: start again on show.
+    h.extra, h.waves = {}, 0
     bar:HookScript("OnShow", function()
-        if s.style and s.flow and s.flow.shown then
-            h.anim:Stop()
-            h.anim:Play()
-            setSpeedOf(s)
-        end
+        if s.style and s.flow and s.flow.shown then playFlow(s) end
     end)
     s.flow = h
+end
+
+-- The i-th extra wave (a color after the second), made the first time a bar
+-- needs it, then kept.
+local function extraWave(s, i)
+    local h = s.flow
+    local e = h.extra[i]
+    if e then return e end
+    e = { anim = s.bar:CreateAnimationGroup() }
+    e.anim:SetLooping("REPEAT")
+    e.tex = s.bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    Style.FollowFill(s.bar, e.tex)
+    flipbook(e.anim, e.tex)
+    h.extra[i] = e
+    h.layers[#h.layers + 1] = e.tex
+    return e
 end
 
 local function showFlow(h, on)
@@ -164,6 +233,9 @@ local function showFlow(h, on)
     h.base:SetShown(on and not h.isSweep)
     h.sweep:SetShown(on and h.isSweep == true)
     h.wave:SetShown(on and not h.isSweep)
+    for i, e in ipairs(h.extra or {}) do
+        e.tex:SetShown(on and not h.isSweep and i <= (h.waves or 0) and e.live == true)
+    end
 end
 
 -- Laid over the fill, so a size change needs nothing.
@@ -175,13 +247,21 @@ local function paintFlow(s)
     local mode = BarFx.Get(s, "colors")
     local grain, sweep = Style.BarGrainOf(bar)
     sweep = sweep and mode == "bar"
-    local lo, hi
+    local lo, hi, stops
     if not sweep then
         lo, hi = BarFx.Colors(s)
         -- Colors the game keeps secret (a hidden class, health by percent in a
         -- fight) can't be copied: the plain fill stays.
         if not lo then showFlow(h, false); return false end
+        stops = BarFx.Stops(s)
+        if stops then lo, hi = stops[1], stops[2] end
     end
+    -- Past two colors, each one more rolls as a wave of its own.
+    local waves = stops and #stops - 2 or 0
+    for i = 1, waves do extraWave(s, i) end
+    local more = waves ~= (h.waves or 0)
+    if more then stopFlow(h) end
+    h.waves = waves
     fill:SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
     -- Cut exactly like the fill: its angled end and the bar's still ends, which
     -- may be set only after the bar was first laid out.
@@ -198,14 +278,14 @@ local function paintFlow(s)
         h.base:SetVertexColor(lo[1], lo[2], lo[3], alpha)
         h.wave:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
         h.wave:SetVertexColor(hi[1], hi[2], hi[3], alpha)
+        for i = 1, waves do
+            local t, c = h.extra[i].tex, stops[i + 2]
+            t:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
+            t:SetVertexColor(c[1], c[2], c[3], alpha)
+        end
     end
     showFlow(h, true)
-    return true
-end
-
-local function setSpeed(s, k)
-    local a = s.flow and s.flow.anim
-    if a and a.SetAnimationSpeedMultiplier then a:SetAnimationSpeedMultiplier(math.max(0.01, k)) end
+    return true, more
 end
 
 -- More styles plug in here (BarFxStyles.lua): BarFx.Add(key, label, def), def =
@@ -249,7 +329,7 @@ end
 
 local function stop(s)
     if s.flow then
-        s.flow.anim:Stop()
+        stopFlow(s.flow)
         showFlow(s.flow, false)
     end
     hidePieces(s)
@@ -269,12 +349,9 @@ local function apply(s)
         if not s.flow then buildFlow(s) end
         s.laidW = nil
         layoutFlow(s)
-        if paintFlow(s) then
-            s.flow.anim:Play()
-            setSpeed(s, s.speed)
-        end
+        if paintFlow(s) then playFlow(s) end
     elseif s.flow then
-        s.flow.anim:Stop()
+        stopFlow(s.flow)
         showFlow(s.flow, false)
     end
     hidePieces(s, style)
@@ -358,7 +435,8 @@ function BarFx.Painted(tex)
     local bar = byFill[tex]
     local s = bar and worn[bar]
     if s and s.style and s.flow and flowFor(s.style) then
-        if paintFlow(s) and not s.flow.anim:IsPlaying() then s.flow.anim:Play() end
+        local on, more = paintFlow(s)
+        if on and (more or not s.flow.anim:IsPlaying()) then playFlow(s) end
     end
     if s and s.style then paintPiece(s) end
 end
@@ -398,11 +476,7 @@ function BarFx.Restart()
     for _, s in pairs(worn) do
         if s.style then
             local h = s.flow
-            if h and h.shown and flowFor(s.style) then
-                h.anim:Stop()
-                h.anim:Play()
-                setSpeed(s, s.speed)
-            end
+            if h and h.shown and flowFor(s.style) then playFlow(s) end
             local p = s.pieces and s.pieces[s.style]
             if p and p.on and p.anim then
                 p.anim:Stop()

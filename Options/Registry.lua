@@ -1248,7 +1248,33 @@ Options.RegisterPage({
               end },
             { type = "color", key = "accentColor", label = "Custom accent color",
               desc = "Your own accent, when Accent color is Custom color.",
+              hidden = function(get) return get("accent") == "customGradient" end,
               disabled = function(get) return get("accent") ~= "custom" end },
+            { type = "slider", key = "accentGradient.count", label = "Gradient colors", min = 2,
+              max = DUI.Style.CUSTOM_STOPS_MAX, step = 1, since = "1.9.2",
+              desc = "How many colors your custom gradient runs through, left to right.",
+              hidden = function(get) return get("accent") ~= "customGradient" end },
+            { type = "color", key = "accentGradient.c1", label = "First color", since = "1.9.2",
+              desc = "Where your custom gradient starts.",
+              hidden = function(get) return get("accent") ~= "customGradient" end },
+            { type = "color", key = "accentGradient.c2", label = "Second color", since = "1.9.2",
+              desc = "The next color along your custom gradient.",
+              hidden = function(get) return get("accent") ~= "customGradient" end },
+            { type = "color", key = "accentGradient.c3", label = "Third color", since = "1.9.2",
+              desc = "The next color along your custom gradient.",
+              hidden = function(get)
+                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 3
+              end },
+            { type = "color", key = "accentGradient.c4", label = "Fourth color", since = "1.9.2",
+              desc = "The next color along your custom gradient.",
+              hidden = function(get)
+                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 4
+              end },
+            { type = "color", key = "accentGradient.c5", label = "Fifth color", since = "1.9.2",
+              desc = "The next color along your custom gradient.",
+              hidden = function(get)
+                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 5
+              end },
             { type = "slider", key = "softness", label = "Color softness", min = 0, max = 0.8, step = 0.05, unit = "%",
               desc = "Eases class, reaction and power colors toward gray for a gentler look." },
             { type = "slider", key = "brightness", label = "Bar brightness", min = 0.4, max = 1, step = 0.05, unit = "%",
@@ -1258,10 +1284,10 @@ Options.RegisterPage({
             { type = "toggle", key = "heavyBorder", label = "Heavy border",
               desc = "Adds a warm band inside the black outline, lit along the top. When off, the border is a plain dark line." },
             { type = "toggle", key = "gradientBorder", label = "Gradient window borders",
-              desc = "When the accent color is a gradient (Daylight's or your class's), every Daylight UI border runs along it: windows, panels, frames and nameplates. Needs Gradients on (General > Gradients).",
+              desc = "When the accent color is a gradient (Daylight's, your class's or your own), every Daylight UI border runs along it: windows, panels, frames and nameplates. Needs Gradients on (General > Gradients).",
               disabled = function(get)
                   local a = get("accent")
-                  return (a ~= "gradient" and a ~= "classGradient") or DUI.Gradients.Flat()
+                  return (a ~= "gradient" and a ~= "classGradient" and a ~= "customGradient") or DUI.Gradients.Flat()
               end },
             { type = "slider", key = "borderPx", label = "Border thickness", min = 1, max = 16, step = 1, unit = "px",
               desc = "In screen pixels, so it stays sharp at any UI scale. Heavy border needs 3 or more." },
