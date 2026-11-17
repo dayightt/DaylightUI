@@ -1746,6 +1746,14 @@ T.test("unit frames: a Cast bar tab on the player, target, focus and party pages
         T.truthy(keys[bar .. ".enabled"] and keys[bar .. ".at"] and keys[bar .. ".height"], id .. ": the bar's own rows")
         T.truthy(keys[bar .. ".spell.size"] and keys[bar .. ".time.size"], id .. ": and its text sizes")
     end
+    -- The test shows the casts while one of these pages is open.
+    for id in pairs(BAR) do
+        if id == "player" then goto skip end
+        local shows = false
+        for _, part in ipairs(O.GetPage("UnitFrames." .. id).preview or {}) do shows = shows or part == "castbars" end
+        T.truthy(shows, id .. ": the test shows its cast bar")
+        ::skip::
+    end
     -- The player's cast bar border says whose it is, apart from the frame's own.
     local labels = {}
     for _, g in ipairs(O.GetPage("UnitFrames.player").groups) do labels[g.label] = (labels[g.label] or 0) + 1 end

@@ -2174,6 +2174,9 @@ local function framePage(id, label, desc, opts)
     -- The page's "Test frame" switch shows just this frame (not for the player,
     -- which is always real). Its live sample sits above its settings.
     local preview = id ~= "player" and { id } or nil
+    -- A page with a Cast bar tab shows its cast in the test, so the tab has something to look at
+    -- (your own frame has no test switch: it is always real).
+    if opts.castCards and preview then preview[#preview + 1] = "castbars" end
     -- Its cast bar's cards: their own tab.
     if opts.castCards then
         for _, card in ipairs(opts.castCards) do
