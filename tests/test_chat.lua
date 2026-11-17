@@ -2026,6 +2026,30 @@ local function boxTexts(box)
     return out
 end
 
+-- An NPC's emote is its text with the name apart (arg 2). A line the game made without
+-- the name gets it in the box, after the timestamp.
+T.test("chat daylight: an NPC emote the game made without its name gets the name", function()
+    local Box, box = daylight()
+    local function emote(text, name, id)
+        ChatFrame1:AddMessage(text, 1, 0.5, 0.25, id, nil, nil, "CHAT_MSG_MONSTER_EMOTE", { "intenta huir.", name, n = 14, [11] = id })
+    end
+    emote("intenta huir.", "Guerrero", 41)
+    emote("11:50 intenta huir.", "Guerrero", 42)
+    emote("Guerrero intenta huir.", "Guerrero", 43)
+    emote("intenta huir.", stub.Secret("Guerrero"), 44)
+    emote("intenta huir.", "", 45)
+    ChatFrame1:AddMessage("intenta huir.", 1, 0.5, 0.25, 46, nil, nil, "CHAT_MSG_MONSTER_SAY", { "intenta huir.", "Guerrero", n = 14, [11] = 46 })
+    local texts = boxTexts(box)
+    T.eq(texts[1], "Guerrero intenta huir.", "the name in front")
+    T.truthy(string.find(texts[2], "11:50|r Guerrero intenta huir.", 1, true), "after the timestamp: " .. texts[2])
+    T.eq(texts[3], "Guerrero intenta huir.", "a line that has it already stays as it was")
+    T.eq(texts[4], "intenta huir.", "a secret name can't be read: left alone")
+    T.eq(texts[5], "intenta huir.", "no name: left alone")
+    T.eq(texts[6], "intenta huir.", "only emotes")
+    T.eq(ChatFrame1.lines[1][1], "intenta huir.", "the game's own line untouched")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: every window's line lands in the box once; the game's chat out of sight", function()
     local Box, box = daylight()
     T.truthy(box and box:IsShown(), "the box shown")
