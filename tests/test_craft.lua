@@ -125,6 +125,32 @@ T.test("craft: in a fight the game's parked window is left where it is, pinned a
     stub.secure = nil
 end)
 
+-- From a player's report: "the game blocked DaylightUICraft:Hide()", closing it
+-- when attacked while tailoring. The game's protected window was pinned to this one,
+-- which made this one protected too.
+T.test("craft: closes in a fight, the game's window let go of it as the fight starts", function()
+    local ns = load()
+    local f = open(ns)
+    local g = ProfessionsFrame
+    g.__protected = true
+    g.GetRight = function() return 900 end
+    g.GetTop = function() return 700 end
+    ns.Window.Pin(nil, g)
+    local _, rel = g:GetPoint(1)
+    T.eq(rel, f, "pinned out of a fight")
+    stub.secure = true
+    stub.EnterCombat()
+    local p, rel2, rp, x, y = g:GetPoint(1)
+    T.deq({ p, rel2, rp, x, y }, { "TOPRIGHT", UIParent, "BOTTOMLEFT", 900, 700 }, "let go as the fight starts, staying where it was")
+    T.falsy(f:IsProtected(), "this window isn't protected in the fight")
+    ns.Window.Close()
+    frame(30)
+    T.falsy(f:IsShown(), "closed")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.LeaveCombat()
+    stub.secure = nil
+end)
+
 T.test("craft: a tab for each profession with a crafting window, the open one picked", function()
     local ns = load()
     local f = open(ns)

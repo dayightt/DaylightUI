@@ -391,6 +391,19 @@ function Craft.Pin(_, g)
     g:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, lift)
 end
 
+-- The game's window is protected, and a protected window anchored to this one
+-- makes this one protected too: in a fight it couldn't close. So as a fight starts
+-- (the last moment protected frames can still move) the game's window lets go and
+-- stays where it is on screen. Craft.Pin pins it again once the fight is over.
+function Craft.Unpin()
+    local g = Craft.Game()
+    if not (g and pinnedTo(g)) then return end
+    local r, t = g:GetRight(), g:GetTop()
+    if type(r) ~= "number" or type(t) ~= "number" then return end
+    g:ClearAllPoints()
+    g:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", r, t)
+end
+
 -- Its own spot, else the game's left panel spot, read before the game's window is
 -- pinned to this one. Never anchored to it, which would loop.
 local function place(f)
@@ -860,6 +873,7 @@ function Craft.Build(mod)
         base = function() return Craft.W, Craft.H end, minH = Craft.MIN_H,
         save = Craft.SaveSpot, resized = Craft.Resized, follow = function() return Craft.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Craft.ResetSpot   -- /dui reset
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", Craft.Unpin)
     DUI.RegisterEvent("TRADE_SKILL_SHOW", function() C_Timer.After(0, Craft.TradeSkillShown) end)
     DUI.RegisterEvent("TRADE_SKILL_LIST_UPDATE", function() C_Timer.After(0, Craft.Settled) end)
     -- A skill point can arrive without a list update, so re-read the skill for the header.

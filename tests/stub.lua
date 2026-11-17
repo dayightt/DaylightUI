@@ -247,10 +247,25 @@ function Widget:GetParent() return self.__parent end
 -- As in the client, a frame holding a protected frame anywhere under it is
 -- protected too. Seen in game: a secure button inside the bag blocked the bag's
 -- own close in a fight, and the minimap's SetParent was blocked the same way.
-local function protectedTree(w)
+-- A frame a protected frame hangs from is protected too (the client's anchor
+-- family). Seen in game: the game's profession window pinned to Daylight UI's blocked
+-- that window's Hide in a fight. hangers[rel] = the frames anchored to rel.
+local hangers = setmetatable({}, { __mode = "k" })
+local function protectedTree(w, seen)
     if rawget(w, "__protected") then return true end
+    seen = seen or {}
+    if seen[w] then return false end
+    seen[w] = true
     local s = kids[w]
-    if s then for c in pairs(s) do if protectedTree(c) then return true end end end
+    if s then for c in pairs(s) do if protectedTree(c, seen) then return true end end end
+    local h = hangers[w]
+    if h then
+        for a in pairs(h) do
+            local still = false
+            for _, pt in ipairs(rawget(a, "__points") or {}) do if pt[2] == w then still = true end end
+            if still and protectedTree(a, seen) then return true end
+        end
+    end
     return false
 end
 stub.ProtectedTree = protectedTree
@@ -408,6 +423,11 @@ end
 function Widget:SetPoint(...)
     guard(self, "SetPoint")
     checkAnchor(self, select(2, ...))
+    local rel = select(2, ...)
+    if type(rel) == "table" then
+        hangers[rel] = hangers[rel] or setmetatable({}, { __mode = "k" })
+        hangers[rel][self] = true
+    end
     -- As in game: setting a point the frame already has replaces it in place.
     local point = ...
     for i, p in ipairs(self.__points) do
