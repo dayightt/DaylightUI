@@ -18,7 +18,14 @@ DUI.PatchNotes = {
             { "Fade", "A Fade Toggle key brings back everything that's faded, and pressing it again fades it all back. Daylight UI's keys now have their own section in the game's Key Bindings" },
             { "Nameplates", "The % sign on nameplate health text can be turned off, so it reads 62 instead of 62%" },
         },
+        changed = {
+            { "Chat", "The Copy window is bigger, so most lines fit on one row" },
+        },
         fixed = {
+            { "Bags", "Your bank is saved again for viewing anywhere when you have a bought bank bag slot with no bag in it" },
+            { "Chat", "NPC emotes show the NPC's name again in the Daylight chat box, on clients whose text left it out" },
+            { "Chat", "The Copy window's hint no longer runs under its close button" },
+            { "Info panel", "Data texts from other addons show their real text again, not their test mode sample" },
             { "Unit frames", "With the power bar on its own, the frame preview in the options no longer shows a power bar inside the frame" },
             { "General", "Bar animations now show on bars of a single color, like a power bar colored by power type on the personal display" },
             { "NPC window", "Quest rewards you always get no longer stay stuck on \"Retrieving item information\" when you hand in a quest" },
