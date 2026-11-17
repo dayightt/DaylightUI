@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         fixed = {
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
+            { "Fade", "No more Lua error from Fade.lua when the whole screen fades, like while talking to an NPC with DialogueUI" },
             { "General", "Embers and Comet bar animations no longer show a streak past the end of an empty bar, like a target with no rage" },
         },
     },
