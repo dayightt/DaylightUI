@@ -16,9 +16,11 @@ PvP.FACTION = 2800
 -- Our own badges (Media/pvp-rank-NN.png), white so they take the accent: one to three chevrons,
 -- a ring from the fourth rank, and a star more for each three after that.
 PvP.EMBLEM = "pvp-rank-%02d.png"
--- The game's own crest for your faction (an atlas of its PvP tab). It is used when the client has it,
--- and our badges stand in when it doesn't.
+-- The game's own art for the rank (atlases of its PvP tab): your faction's crest with no rank yet, and from
+-- rank 1 that rank's own badge. They are used when the client has them, and our badges stand in when it
+-- doesn't.
 PvP.CRESTS = { Alliance = "UI-Character-Info-Honor-Icon-Alliance", Horde = "UI-Character-Info-Honor-Icon-Horde" }
+PvP.BADGE = "UI-Character-Info-Honor-Icon-%d"
 PvP.LAST_BADGE = 14
 PvP.REWARD_ICON = 40               -- the next reward's icon
 PvP.REWARD_H = PvP.REWARD_ICON + 4  -- its row; the room is kept even with no reward, so the card doesn't jump
@@ -38,10 +40,16 @@ PvP.HONOR_H = line(PvP.LABEL_SIZE) + 10 + line(PvP.LABEL_SIZE) + 4 + 2 * PvP.ROW
 local isSecret = DUI.IsSecret
 local function plain(v) return type(v) == "number" and not isSecret(v) end
 
--- The game's crest atlas for your faction, and its size, or nil if the client has none.
-local function crest()
-    local faction = type(UnitFactionGroup) == "function" and UnitFactionGroup("player")
-    local atlas = type(faction) == "string" and not isSecret(faction) and PvP.CRESTS[faction]
+-- The game's atlas for your rank (the faction crest at rank 0, that rank's badge after), and its
+-- aspect ratio, or nil if the client has none.
+local function crest(rank)
+    local atlas
+    if rank > 0 then
+        atlas = string.format(PvP.BADGE, rank)
+    else
+        local faction = type(UnitFactionGroup) == "function" and UnitFactionGroup("player")
+        atlas = type(faction) == "string" and not isSecret(faction) and PvP.CRESTS[faction]
+    end
     local info = atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
     if type(info) ~= "table" or not plain(info.width) or not plain(info.height) or info.height <= 0 then return nil end
     return atlas, info.width / info.height
@@ -100,17 +108,22 @@ function PvP.NextReward(rank, max)
         local r = ok and type(list) == "table" and list[1]
         if type(r) == "table" then
             for _, o in ipairs(list) do if type(o.uiOrder) == "number" and type(r.uiOrder) == "number" and o.uiOrder < r.uiOrder then r = o end end
-            -- The reward's own name is a general one ("Rank 1 rewards"); the item's is what the game shows
-            -- ("Faction Tabard"). An item the client hasn't loaded yet is asked for, and the general name stands in.
-            local name, icon = r.name, r.icon
+            -- The game's tab lists a reward by its description, which is there at once. The reward's own
+            -- name is a general one ("Rank 1 rewards"), so the item's name stands in for a reward with no
+            -- description, and an item the client hasn't loaded yet is asked for.
+            local name, icon, quality = r.name, r.icon, nil
             if plain(r.itemID) then
-                local item = type(GetItemInfo) == "function" and GetItemInfo(r.itemID)
+                local item, _, q = nil, nil, nil
+                if type(GetItemInfo) == "function" then item, _, q = GetItemInfo(r.itemID) end
+                if plain(q) then quality = q end
                 if type(item) == "string" and not isSecret(item) and item ~= "" then name = item
                 elseif C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, r.itemID) end
             end
+            local words = r.description
+            if type(words) == "string" and not isSecret(words) and words ~= "" then name = words end
             if type(icon) ~= "number" and plain(r.itemID) and type(GetItemIcon) == "function" then icon = GetItemIcon(r.itemID) end
             if type(name) == "string" and not isSecret(name) and name ~= "" then
-                return { rank = level, name = name, icon = type(icon) == "number" and not isSecret(icon) and icon or nil,
+                return { rank = level, name = name, quality = quality, icon = type(icon) == "number" and not isSecret(icon) and icon or nil,
                          itemID = plain(r.itemID) and r.itemID or nil,
                          text = type(r.description) == "string" and not isSecret(r.description) and r.description or nil }
             end
@@ -188,17 +201,15 @@ function PvP.Build(page)
     page.rankSub = Style.Text(R, ns.List.TEXT, "CENTER")
     local W = CreateFrame("Button", nil, R)
     page.reward = W
-    W.icon = W:CreateTexture(nil, "ARTWORK")
-    W.icon:SetSize(PvP.REWARD_ICON, PvP.REWARD_ICON)
-    W.icon:SetPoint("LEFT", W, "LEFT", 0, 0)
+    DUI.Win.Parts.ItemIcon(W, PvP.REWARD_ICON)   -- the same edge and crop as the windows' other item icons
+    W.edge:SetPoint("LEFT", W, "LEFT", 0, 0)
     W.label = Style.Text(W, PvP.LABEL_SIZE, "LEFT")
     W.label:SetText(L["NEXT REWARD"])
     W.name = Style.Text(W, ns.List.TEXT, "LEFT")
     W.sub = Style.Text(W, ns.List.SMALL, "LEFT")
-    W.sub:SetTextColor(ns.List.DIM[1], ns.List.DIM[2], ns.List.DIM[3])
-    W.label:SetPoint("TOPLEFT", W.icon, "TOPRIGHT", 10, 2)
-    W.name:SetPoint("LEFT", W.icon, "RIGHT", 10, 0)
-    W.sub:SetPoint("BOTTOMLEFT", W.icon, "BOTTOMRIGHT", 10, -2)
+    W.label:SetPoint("TOPLEFT", W.edge, "TOPRIGHT", 10, 2)
+    W.name:SetPoint("LEFT", W.edge, "RIGHT", 10, 0)
+    W.sub:SetPoint("BOTTOMLEFT", W.edge, "BOTTOMRIGHT", 10, -2)
     W.name:SetPoint("RIGHT", W, "RIGHT", 0, 0)
     W:SetScript("OnEnter", function(self)
         local r = self.data
@@ -206,8 +217,11 @@ function PvP.Build(page)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if r.itemID and type(GameTooltip.SetItemByID) == "function" then GameTooltip:SetItemByID(r.itemID)
         else
-            GameTooltip:SetText(r.name)
-            if r.text then GameTooltip:AddLine(r.text, 1, 1, 1, true) end
+            local Tips = DUI.Tips
+            Tips.Clear()
+            Tips.Title(r.name)
+            if r.text and r.text ~= r.name then Tips.Text(r.text) end
+            Tips.Flush(GameTooltip)
         end
         GameTooltip:Show()
     end)
@@ -317,7 +331,7 @@ function PvP.Refresh(page)
     local key, rgb = ns.List.OwnBar()
     -- With no rank yet the first rank's badge stands there faint, so the card isn't just a word.
     page.emblem:Show()
-    local atlas, ratio = crest()
+    local atlas, ratio = crest(d.rank)
     if atlas then
         -- The game's crest, in its own colors (the accent doesn't tint it), faint with no rank yet.
         page.emblem:SetAtlas(atlas)
@@ -343,11 +357,16 @@ function PvP.Refresh(page)
     W.data = rw
     W:SetShown(rw ~= nil)
     if rw then
-        if rw.icon then W.icon:SetTexture(rw.icon) end
+        local Parts = DUI.Win.Parts
+        Parts.FitItemIcon(W)
+        if rw.icon then Parts.SetItemIcon(W, rw.icon, rw.quality) end
+        W.edge:SetShown(rw.icon ~= nil)
+        W.well:SetShown(rw.icon ~= nil)
         W.icon:SetShown(rw.icon ~= nil)
         W.name:SetText(rw.name)
         Style.InkText(W.name, "VALUE")
         W.sub:SetText(string.format(L["At rank %d"], rw.rank))
+        Style.InkText(W.sub, "LABEL")   -- tan, a sub line
     end
     Style.InkText(W.label, "LABEL")
     local b1, b2, b3 = page.blocks[1], page.blocks[2], page.blocks[3]

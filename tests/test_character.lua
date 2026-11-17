@@ -3203,15 +3203,23 @@ T.test("character pvp: kills and honor coming in repaint the open page", functio
     T.eq(page.blocks[1].sub:GetText(), P("450") .. " of " .. P("1,000") .. " points", "the honor toward the next rank")
 end)
 
-T.test("character pvp: the game's own crest for your faction, our badge when the client has none", function()
+T.test("character pvp: the game's crest with no rank, that rank's own badge after, ours when the client has none", function()
     local old = { C_Texture = _G.C_Texture, faction = _G.UnitFactionGroup }
-    _G.C_Texture = { GetAtlasInfo = function(a) return a == "UI-Character-Info-Honor-Icon-Horde" and { width = 80, height = 100 } or nil end }
+    local atlases = { ["UI-Character-Info-Honor-Icon-Horde"] = { width = 80, height = 100 },
+                      ["UI-Character-Info-Honor-Icon-3"] = { width = 100, height = 100 } }
+    _G.C_Texture = { GetAtlasInfo = function(a) return atlases[a] end }
     _G.UnitFactionGroup = function() return "Horde" end
+    local none = {}
+    for k, v in pairs(PVP) do none[k] = v end
+    none.renownLevel = 0
+    local _, ns0 = load({ pvp = none })
+    local page0 = openPage(ns0, "PVPRankFrame")
+    T.eq(page0.emblem.__atlas, "UI-Character-Info-Honor-Icon-Horde", "the Horde crest with no rank")
+    T.eq(page0.emblem:GetWidth(), math.floor(ns0.PvP.EMBLEM_SIZE * 0.8 + 0.5), "kept in its own proportions")
+    T.eq(page0.emblem:GetHeight(), ns0.PvP.EMBLEM_SIZE)
     local _, ns = load({ pvp = PVP })
     local page = openPage(ns, "PVPRankFrame")
-    T.eq(page.emblem.__atlas, "UI-Character-Info-Honor-Icon-Horde", "the Horde crest")
-    T.eq(page.emblem:GetWidth(), math.floor(ns.PvP.EMBLEM_SIZE * 0.8 + 0.5), "kept in its own proportions")
-    T.eq(page.emblem:GetHeight(), ns.PvP.EMBLEM_SIZE)
+    T.eq(page.emblem.__atlas, "UI-Character-Info-Honor-Icon-3", "rank 3's own badge, not the faction's")
     local r, g, b = page.emblem:GetVertexColor()
     T.eq(r + g + b, 3, "not tinted by the accent")
     -- The client has no atlas for it: our badge.
@@ -3222,7 +3230,7 @@ T.test("character pvp: the game's own crest for your faction, our badge when the
     _G.C_Texture, _G.UnitFactionGroup = old.C_Texture, old.faction
 end)
 
-T.test("character pvp: the next reward (the faction tabard) shows its icon, name and rank", function()
+T.test("character pvp: the next reward (the faction tabard) shows its icon, description and rank", function()
     local pvp = {}
     for k, v in pairs(PVP) do pvp[k] = v end
     pvp.rewards = { [4] = { { uiOrder = 2, name = "Other" },
@@ -3231,14 +3239,22 @@ T.test("character pvp: the next reward (the faction tabard) shows its icon, name
     local page = openPage(ns, "PVPRankFrame")
     local W = page.reward
     T.truthy(W:IsShown(), "shown")
-    T.eq(W.name:GetText(), "Rank 4 rewards", "the first by its order, by its own name until the item is known")
+    T.eq(W.name:GetText(), "Buy rewards.", "the first by its order, by its description, there before the item loads")
+    T.eq(W.icon:GetTexture(), 135026)
+    T.truthy(W.edge:IsShown(), "in the windows' item icon")
+    T.truthy(W.sub:GetText():find("4", 1, true), "the rank it comes at")
+    local c = DaylightUI.Style.INK.LABEL
+    local r, g, b = W.sub:GetTextColor()
+    T.near(r, c[1], 0.01, "the sub line is tan")
+    T.near(g, c[2], 0.01)
+    T.near(b, c[3], 0.01)
+    -- With no description the item's name, else the general one.
+    pvp.rewards[4][2].description = nil
     local oldInfo = _G.GetItemInfo
     _G.GetItemInfo = function(id) if id == 5976 then return "Faction Tabard" end end
     ns.PvP.Refresh(page)
-    T.eq(W.name:GetText(), "Faction Tabard", "the item's name, which the game shows")
+    T.eq(W.name:GetText(), "Faction Tabard", "the item's name when there is no description")
     _G.GetItemInfo = oldInfo
-    T.eq(W.icon:GetTexture(), 135026)
-    T.truthy(W.sub:GetText():find("4", 1, true), "the rank it comes at")
     -- No reward ahead: hidden.
     local _, ns2 = load({ pvp = PVP })
     local page2 = openPage(ns2, "PVPRankFrame")
