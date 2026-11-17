@@ -7065,6 +7065,7 @@ L["How tall the ranged bar is. Only when detached on its own."] = "Altura de la 
 L["How the health text is written. Missing health shows nothing while the unit is at full."] = "Cómo se escribe el texto de salud. La salud que falta no muestra nada cuando la unidad está al máximo."
 L["How the health text is written. Missing health shows nothing while you're at full."] = "Cómo se escribe el texto de salud. La salud que falta no muestra nada mientras estás al máximo."
 L["How thick the border round each pip is. 0 leaves none."] = "Grosor del borde alrededor de cada punto. En 0 no hay ninguno."
+L["How this frame's name looks and where it sits: its text, color and size, and the tab behind it."] = "Cómo se ve el nombre de este marco y dónde está: su texto, color y tamaño, y la pestaña que tiene detrás."
 L["How wide every other plate is while you have a target, as a share of Health bar width. Plate size by threat (Nameplates > Threat) wins while it's on."] = "Anchura de las demás placas de nombre mientras tengas un objetivo, como proporción de Anchura de la barra de salud. Tamaño de la placa según la amenaza (Placas de nombre > Amenaza) tiene prioridad mientras está activado."
 L["How wide the main hand bar is. Only when detached on its own."] = "Anchura de la barra de mano principal. Solo cuando está separada por su cuenta."
 L["How wide the off hand bar is. Only when detached on its own."] = "Anchura de la barra de mano secundaria. Solo cuando está separada por su cuenta."

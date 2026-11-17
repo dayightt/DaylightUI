@@ -4993,6 +4993,7 @@ L["How tall every other plate's health bar is while you have a target, as a shar
 L["How tall the quest tracker can grow. Past this, the list scrolls with the mouse wheel."] = "Wie hoch der Questverfolger wachsen kann. Darüber hinaus scrollt die Liste mit dem Mausrad."
 L["How the health text is written. Missing health shows nothing while the unit is at full."] = "Wie der Gesundheitstext geschrieben wird. Fehlende Gesundheit zeigt nichts, während die Einheit voll ist."
 L["How thick the border round each pip is. 0 leaves none."] = "Wie dick der Rand um jeden Punkt ist. Bei 0 gibt es keinen."
+L["How this frame's name looks and where it sits: its text, color and size, and the tab behind it."] = "Wie der Name dieses Rahmens aussieht und wo er sitzt: Text, Farbe und Größe sowie der Reiter dahinter."
 L["How wide every other plate is while you have a target, as a share of Health bar width. Plate size by threat (Nameplates > Threat) wins while it's on."] = "Wie breit jede andere Plakette ist, während du ein Ziel hast, als Anteil der Breite der Gesundheitsleiste. Plakettengröße nach Bedrohung (Namensplaketten > Bedrohung) hat Vorrang, solange sie an ist."
 L["How wide the power bar is. Only while it's on its own."] = "Wie breit die Ressourcenleiste ist. Nur während sie für sich allein steht."
 L["How wide your target's plate is, as a share of Health bar width."] = "Wie breit die Plakette deines Ziels ist, als Anteil der Breite der Gesundheitsleiste."

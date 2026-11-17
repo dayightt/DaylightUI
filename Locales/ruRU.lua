@@ -4595,6 +4595,7 @@ L["How tall every other plate's health bar is while you have a target, as a shar
 L["How tall the quest tracker can grow. Past this, the list scrolls with the mouse wheel."] = "Насколько высоким может стать список заданий. Дальше список прокручивается колесом мыши."
 L["How the health text is written. Missing health shows nothing while the unit is at full."] = "Как записывается текст здоровья. «Недостающее здоровье» ничего не показывает, пока здоровье полное."
 L["How thick the border round each pip is. 0 leaves none."] = "Толщина каймы вокруг каждого деления. 0 — без каймы."
+L["How this frame's name looks and where it sits: its text, color and size, and the tab behind it."] = "Как выглядит имя на этой рамке и где оно находится: текст, цвет и размер, а также вкладка за ним."
 L["How wide every other plate is while you have a target, as a share of Health bar width. Plate size by threat (Nameplates > Threat) wins while it's on."] = "Ширина всех остальных индикаторов, пока у вас есть цель, как доля «Ширины шкалы здоровья». Пока включен размер индикатора по угрозе (Индикаторы > Угроза), он важнее."
 L["How wide the power bar is. Only while it's on its own."] = "Ширина шкалы ресурса. Только когда она отдельно."
 L["How wide your target's plate is, as a share of Health bar width."] = "Ширина индикатора цели как доля «Ширины шкалы здоровья»."

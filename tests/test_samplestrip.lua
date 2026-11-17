@@ -356,7 +356,7 @@ T.test("Design mode: the cards show only the picked piece's settings; nothing pi
     T.falsy(P.Chips():IsShown(), "no card chips in Design mode")
     spot(P, "Name"):Click()
     shown = shownCards(P)
-    T.truthy(shown["Text"], "the name's card")
+    T.truthy(shown["Name"], "the name's card, on the Name tab")
 end)
 
 T.test("Design mode: 'Every setting for this piece' goes back to Settings at that piece", function()

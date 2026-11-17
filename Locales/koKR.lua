@@ -4594,6 +4594,7 @@ L["How tall every other plate's health bar is while you have a target, as a shar
 L["How tall the quest tracker can grow. Past this, the list scrolls with the mouse wheel."] = "퀘스트 추적기가 늘어날 수 있는 높이. 이보다 길면 마우스 휠로 목록을 스크롤합니다."
 L["How the health text is written. Missing health shows nothing while the unit is at full."] = "생명력 텍스트를 표시하는 방식. 손실량은 대상의 생명력이 가득하면 아무것도 표시하지 않습니다."
 L["How thick the border round each pip is. 0 leaves none."] = "각 칸 둘레 테두리의 두께. 0이면 테두리가 없습니다."
+L["How this frame's name looks and where it sits: its text, color and size, and the tab behind it."] = "이 개체창 이름의 모양과 위치: 글자, 색상, 크기, 그리고 뒤에 있는 탭입니다."
 L["How wide every other plate is while you have a target, as a share of Health bar width. Plate size by threat (Nameplates > Threat) wins while it's on."] = "대상이 있을 때 다른 모든 이름표의 너비입니다 (생명력 막대 너비 대비 비율). 위협 수준별 이름표 크기(이름표 > 위협)가 켜져 있으면 그것이 우선합니다."
 L["How wide the power bar is. Only while it's on its own."] = "자원 바의 너비. 자원 바가 따로 있을 때만."
 L["How wide your target's plate is, as a share of Health bar width."] = "대상 이름표의 너비입니다 (생명력 막대 너비 대비 비율)."
