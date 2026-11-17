@@ -1150,7 +1150,7 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 -- names the cause and fixes it without a reload. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
-Manager.FIX_STEPS = 7
+Manager.FIX_STEPS = 8
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
 Manager.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
@@ -1263,6 +1263,9 @@ Manager.FIX = {
         backWithout("pool")
         return "the game's plates rebuilt, Daylight UI's back on with newly built plates (wait two seconds)"
     end,
+    -- 8. The game's own switch for nameplates and speech bubbles back on. Last,
+    -- so the earlier steps keep the numbers older reports used.
+    function() return Report.InWorldBack() end,
 }
 
 -- The report once a step brought them back (or none did): which step, where and

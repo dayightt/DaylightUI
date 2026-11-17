@@ -51,6 +51,14 @@ function R.Printable(text, max)
     return table.concat(out)
 end
 
+-- text cut to max bytes, never inside a character.
+function R.Cut(text, max)
+    if #text <= max then return text end
+    local i = max + 1
+    while i > 1 and text:byte(i) and text:byte(i) >= 0x80 and text:byte(i) < 0xC0 do i = i - 1 end
+    return text:sub(1, i - 1)
+end
+
 -- One answer from a frame, guarded: "?" if it errors, "secret" if it's secret.
 function R.Asked(f, method)
     local ok, v = pcall(function() return f[method](f) end)
@@ -229,6 +237,82 @@ DUI.On("UIAlpha", function(a)
     if a <= 0.01 and not uiOut then uiOut = true; R.Note("UI faded out")
     elseif a >= 0.99 and uiOut then uiOut = false; R.Note("UI back") end
 end)
+
+-- The client draws nameplates and speech bubbles under one switch of its own,
+-- apart from UIParent. Alt+Z (SetUIVisibility) turns it off along with the UI,
+-- and the game turns it back on wherever it shows UIParent again. If something
+-- shows the UI without it, plates and bubbles stay gone while the rest is back,
+-- and Lua can't read the switch. So every call is noted with who made it.
+R.inWorld, R.inWorldBy = nil, nil -- the last value anyone set; nil while nobody has
+
+-- The first addon on the stack that isn't this file: the game's own code shows
+-- as its Blizzard_ folder. No addon at all is a key binding or the client.
+function R.Caller()
+    if type(debugstack) ~= "function" then return "?" end
+    local ok, stack = pcall(debugstack, 2, 12, 0)
+    if not ok or type(stack) ~= "string" or DUI.IsSecret(stack) then return "?" end
+    for line in stack:gmatch("[^\n]+") do
+        if not line:find("PlateReport.lua", 1, true) then
+            local name = line:match("AddOns[/\\]([^/\\]+)[/\\]")
+            if name then return name end
+        end
+    end
+    return "a key or the client"
+end
+
+local function watchSwitch(fn, label)
+    if type(_G[fn]) ~= "function" then return end
+    hooksecurefunc(fn, function(v)
+        local on
+        if not DUI.IsSecret(v) then on = v == true end
+        local by = R.Caller()
+        R.inWorld, R.inWorldBy = on, by
+        R.Note(string.format("%s %s by %s", label, on == nil and "?" or on and "on" or "off", by))
+    end)
+end
+watchSwitch("SetUIVisibility", "whole UI and plates")
+watchSwitch("SetInWorldUIVisibility", "plates and bubbles")
+UIParent:HookScript("OnHide", function() R.Note("UI hidden") end)
+UIParent:HookScript("OnShow", function() R.Note("UI shown") end)
+
+-- Speech bubbles go with the plates, so the report counts them too (only
+-- anyone talking nearby gives one), with the game's bubble settings.
+function R.WorldUI()
+    local set = R.inWorld == nil and "never set this session"
+        or string.format("last set %s by %s", R.inWorld and "on" or "off", tostring(R.inWorldBy))
+    local bubbles, shown = "?", 0
+    local B = C_ChatBubbles
+    if type(B) == "table" and type(B.GetAllChatBubbles) == "function" then
+        local ok, list = pcall(B.GetAllChatBubbles, false)
+        if ok and type(list) == "table" then
+            bubbles = 0
+            for _, b in pairs(list) do
+                bubbles = bubbles + 1
+                if R.Asked(b, "IsVisible") == "true" then shown = shown + 1 end
+            end
+        end
+    end
+    return string.format("World UI: plates and bubbles switch %s, UI shown %s; speech bubbles %s (%d visible), "
+        .. "chatBubbles=%s chatBubblesParty=%s", set, R.Asked(UIParent, "IsShown"), tostring(bubbles), shown,
+        tostring(R.CVar("chatBubbles")), tostring(R.CVar("chatBubblesParty")))
+end
+
+-- A platefix step: the switch back on. Harmless when it's on already.
+function R.InWorldBack()
+    local why
+    if type(SetInWorldUIVisibility) == "function" then
+        local ok, err = pcall(SetInWorldUIVisibility, true)
+        if ok then return "the game's switch for nameplates and speech bubbles turned on" end
+        why = err
+    end
+    if type(SetUIVisibility) == "function" and UIParent:IsShown() then
+        local ok, err = pcall(SetUIVisibility, true)
+        if ok then return "the game's UI switch turned on, nameplates and speech bubbles with it" end
+        why = why or err
+    end
+    return "the game refused to turn nameplates and speech bubbles on (" .. R.Printable(tostring(why), R.MARK_WHY) .. ")"
+end
+
 -- The log as report lines, each with how long before `at` (now when left out).
 function R.LogLines(at)
     buffers()
@@ -328,6 +412,7 @@ end
 -- Where the player is, how the game is shown, what of Daylight UI is on, and
 -- the other addons loaded. startedAt: GetTime() when the plates started.
 R.REPORT_ADDONS = 40
+R.ZONE_MAX = 80 -- bytes of the zone name kept, so the report's room goes to the plates
 R.REPORT_CVARS = {
     "nameplateShowAll", "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs",
     "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale",
@@ -349,7 +434,8 @@ function R.World(startedAt)
         kind = ok and instanceType or nil
     end
     out[#out + 1] = string.format("%s min since login or /reload, zone %s (%s), restricted=%s",
-        up and string.format("%.0f", up) or "?", tostring(zone), tostring(kind), tostring(DUI.Restricted() == true))
+        up and string.format("%.0f", up) or "?", R.Cut(tostring(zone), R.ZONE_MAX), tostring(kind),
+        tostring(DUI.Restricted() == true))
     local words = {}
     for _, name in ipairs(R.REPORT_CVARS) do
         local v = R.CVar(name)
@@ -358,6 +444,7 @@ function R.World(startedAt)
     out[#out + 1] = "More: " .. table.concat(words, " ")
     for _, line in ipairs(R.Screen()) do out[#out + 1] = line end
     for _, line in ipairs(R.Daylight()) do out[#out + 1] = line end
+    out[#out + 1] = R.WorldUI()
     local A = C_AddOns
     if A and A.GetNumAddOns and A.GetAddOnInfo and A.IsAddOnLoaded then
         local names, more = {}, 0
@@ -606,6 +693,8 @@ R.FIX = {
         end
         return string.format("%d plate settings back to the game's defaults", done)
     end,
+    -- 3. The game's own switch for nameplates and speech bubbles back on.
+    function() return R.InWorldBack() end,
 }
 
 local fixStep, fixRun
