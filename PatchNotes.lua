@@ -18,6 +18,7 @@ DUI.PatchNotes = {
             { "Action bars", "Totem timers in the Daylight UI look, with their own size, spacing, time text, sweep and element colors (Action Bars > Bar Layout)" },
         },
         fixed = {
+            { "Spellbook", "Summon Demon, Portal, stances and Blessings are listed one by one again, like the game's own spellbook, instead of as a group that didn't open on a bar" },
             { "Character", "The character window opens the Attack stats for Enhancement shamans and Feral druids, not Spell" },
             { "Skins", "The button that brings back the \"world around you will refresh\" notice is in the Daylight UI look, not the game's red arrow" },
             { "Legacy", "The Legacy button's new mark goes away once you open Challenges, even for a challenge the list doesn't show" },
