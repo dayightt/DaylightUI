@@ -546,6 +546,7 @@ local function registerEvents()
         for _, f in pairs(ns.frames) do one(f) end
         for _, b in ipairs(ns.Party.group.buttons) do one(b) end
         for _, b in ipairs(ns.Raid.buttons) do one(b) end
+        for _, b in ipairs(ns.RaidPets.buttons) do one(b) end
         for _, b in ipairs(ns.Arena.buttons) do one(b) end
     end)
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
@@ -991,6 +992,8 @@ function ns.Build(mod)
                 { scale = false, active = function() return ns.Raid.OwnSpot(n) end })
         end
         ns.Raid.CreatePreview()
+        -- The raid's pets, hung off the raid (RaidPets.lua).
+        ns.RaidPets.Create()
         -- The party: a header of buttons in a plain holder that carries the
         -- mover. Its first frame starts where the first party frame always did
         -- (LEFT 70, 160, by its center).
@@ -1003,7 +1006,7 @@ function ns.Build(mod)
         for _, g in ipairs(ns.Group.all) do
             if g.key == "party" or g.key == "raid" then
                 DUI.Fade.Register{ key = "UnitFrames." .. g.key, scope = "UnitFrames", path = g.key .. ".fade",
-                    page = "UnitFrames." .. g.key, frames = function() return g.buttons end, paint = UF.PaintFade, whole = true }
+                    page = "UnitFrames." .. g.key, frames = function() return g.key == "raid" and ns.Raid.FadeFrames() or g.buttons end, paint = UF.PaintFade, whole = true }
             end
         end
         ns.PartyTargets.RegisterFade()

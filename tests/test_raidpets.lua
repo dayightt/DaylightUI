@@ -1,0 +1,94 @@
+local stub = require("stub")
+
+local function login() return stub.Load({ module = true }) end
+
+local function petTile(ns, unit)
+    local h = ns.RaidPets.header
+    local b = CreateFrame("Button", "DaylightUIRaidPetHeaderUnitButton1", h)
+    b:SetAttribute("unit", unit)
+    h.initialConfigFunction(h, b:GetName())
+    return b
+end
+
+T.test("raid pets: the game's pet header, off until switched on", function()
+    local DUI, ns = login()
+    local h = ns.RaidPets.header
+    T.eq(h.__template, "SecureGroupPetHeaderTemplate")
+    T.eq(h:GetAttribute("useOwnerUnit"), false)
+    T.eq(h:GetAttribute("filterOnPet"), false, "groups shown filter by the owner's group")
+    T.isnil(h.__stateDriver and h.__stateDriver.visibility, "off by default")
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    T.eq(h.__stateDriver.visibility, "[@raid1,exists] show; hide")
+    T.isnil(h:GetAttribute("groupBy"), "roster order")
+    T.eq(h:GetAttribute("sortMethod"), "INDEX")
+    T.eq(h:GetAttribute("unitWidth"), ns.Raid.header:GetAttribute("unitWidth"), "raid tile size")
+    DUI:Set("UnitFrames", "raid.enabled", false)
+    stub.RunTimers()
+    T.isnil(h.__stateDriver.visibility, "raid frames off: no pets either")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("raid pets: one switch for every raid size", function()
+    local _, ns = login()
+    T.truthy(ns.RAID_SHARED.showPets)
+    T.eq(ns.DEFAULTS.raid.showPets, false)
+end)
+
+T.test("raid pets: the block hangs off the raid header's far edge", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    local holder = ns.RaidPets.holder
+    local p, to, rel, x = holder:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(to, ns.Raid.header); T.eq(rel, "TOPRIGHT")
+    T.eq(x, DUI:Get("UnitFrames", "raid.groupSpacing"))
+    DUI:Set("UnitFrames", "raid.direction", "rows")
+    stub.RunTimers()
+    p, to, rel = holder:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(to, ns.Raid.header); T.eq(rel, "BOTTOMLEFT", "rows: under the last row")
+    DUI:Set("UnitFrames", "raid.sortBy", "grouprole")
+    DUI:Set("UnitFrames", "raid.groups", 4)
+    stub.RunTimers()
+    _, to = holder:GetPoint(1)
+    T.eq(to, ns.Raid.group.headers[4], "group, then role: after the last shown group")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("raid pets: a pet tile is a raid tile that reports as a party pet", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    stub.units.raidpet2 = { name = "Wolf", friend = true, health = 30, maxHealth = 60, inRange = false }
+    local made
+    DUI.API.On("FrameMade", function(kind, _, unit) if unit == "raidpet2" then made = kind end end)
+    local b = petTile(ns, "raidpet2")
+    T.eq(b.nameText.__text, "Wolf")
+    T.eq(made, "partypet")
+    T.isnil(b.roleIcon); T.isnil(b.leaderIcon)
+    -- A pet is in your group, so the game's range check fades it.
+    ns.UF.UpdateRange(b)
+    T.eq(stub.Plain(b:GetAlpha()), b.rangeAlpha, "out of range fades")
+    stub.units.raidpet2.inRange = true
+    ns.UF.UpdateRange(b)
+    T.eq(stub.Plain(b:GetAlpha()), 1)
+    stub.units.raidpet2 = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("raid pets: test mode shows sample pets beside the sample raid", function()
+    local DUI, ns = login()
+    DUI.SetTestMode(true)
+    T.isnil(ns.RaidPets.group.preview, "switch off: no samples built")
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    local shown = 0
+    for _, b in ipairs(ns.RaidPets.group.preview) do if b:IsShown() then shown = shown + 1 end end
+    T.eq(shown, #ns.RaidPets.SAMPLES)
+    T.eq(ns.RaidPets.group.preview[1].nameText.__text, "Wolf")
+    local _, to = ns.RaidPets.holder:GetPoint(1)
+    T.eq(to, ns.Raid.holder, "beside the sample raid")
+    DUI.SetTestMode(false)
+    T.falsy(ns.RaidPets.group.preview[1]:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

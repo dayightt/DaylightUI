@@ -6,7 +6,7 @@ DaylightUI:RegisterModule("UnitFrames", {
     -- Every file that defines a part. If one is missing after an update, the
     -- module turns itself off with a single line in chat.
     ns = ns,
-    parts = { "UF", "HealSpells", "AuraLists", "Auras", "Spots", "AuraGroups", "Indicators", "Texts", "Looks", "Combo", "Happiness", "DruidBars", "Blizzard", "Group", "Raid", "PartyPets", "PartyTargets", "PartyCasts", "Party", "Arena", "Leader", "Pull", "Test", "Sample",
+    parts = { "UF", "HealSpells", "AuraLists", "Auras", "Spots", "AuraGroups", "Indicators", "Texts", "Looks", "Combo", "Happiness", "DruidBars", "Blizzard", "Group", "Raid", "RaidPets", "PartyPets", "PartyTargets", "PartyCasts", "Party", "Arena", "Leader", "Pull", "Test", "Sample",
                "PageSample", "Sweep", "CastBar", "PowerBar", "Personal", "Arrive", "Moments", "Socket", "Swing", "GroupParts", "GroupPrivate",
                "ClickCast", "ClickBinder", "ClickCastPage", "AuraListsPage" },
     label = "Unit Frames",

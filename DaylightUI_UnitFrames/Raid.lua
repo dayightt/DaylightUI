@@ -294,6 +294,7 @@ function Raid.LayoutNow(d)
     Raid.laidKey = key
     Raid.Layout(cfg, text, d.range)
     Raid.PlaceHolder(Raid.ShownSize())
+    ns.RaidPets.Layout(cfg, text, d.range)
 end
 
 -- An optional spot per raid size (raid20.ownSpot / raid40.ownSpot, off by
@@ -361,7 +362,21 @@ function Raid.SpotDefault()
     if type(x) ~= "number" or type(y) ~= "number" then return { "TOPLEFT", nil, "TOPLEFT", 20, -220 } end
     return { "CENTER", nil, "CENTER", x, y }
 end
-function Raid.ShowPreview(on) Raid.group:ShowPreview(on) end
+-- The raid's fade covers its pets too (RaidPets.lua).
+local fadeList = {}
+function Raid.FadeFrames()
+    local n = 0
+    for _, list in ipairs({ Raid.buttons, ns.RaidPets.buttons }) do
+        for _, b in ipairs(list) do n = n + 1; fadeList[n] = b end
+    end
+    for i = #fadeList, n + 1, -1 do fadeList[i] = nil end
+    return fadeList
+end
+
+function Raid.ShowPreview(on)
+    Raid.group:ShowPreview(on)
+    ns.RaidPets.group:ShowPreview(on and ns.RaidPets.IsOn())
+end
 
 local function preview(on)
     local d = db()

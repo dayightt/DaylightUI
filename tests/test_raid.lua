@@ -326,10 +326,11 @@ T.test("with Clique loaded, the raid header hands each new button to Clique's he
     end })
     -- The game's own helper back: the spellbook's fight cover (Book/Fight.lua) uses it too.
     ClickCastHeader, SecureHandlerSetFrameRef = nil, gameSetRef
-    T.eq(#refs, 10, "each header (the raid's, its eight group headers, the party's) was pointed at Clique once")
+    T.eq(#refs, 11, "each header (the raid's, its eight group headers, the raid pets', the party's) was pointed at Clique once")
     T.eq(refs[1][1], ns.Raid.header); T.eq(refs[1][2], "clickcast_header"); T.eq(refs[1][3], cliqueHeader)
     for i = 1, 8 do T.eq(refs[1 + i][1], ns.Raid.group.headers[i]); T.eq(refs[1 + i][3], cliqueHeader) end
-    T.eq(refs[10][1], ns.Party.header); T.eq(refs[10][3], cliqueHeader)
+    T.eq(refs[10][1], ns.RaidPets.header); T.eq(refs[10][3], cliqueHeader)
+    T.eq(refs[11][1], ns.Party.header); T.eq(refs[11][3], cliqueHeader)
     local init = ns.Raid.header:GetAttribute("initialConfigFunction")
     T.truthy(init:find('SetAttribute("clickcast_button", self)', 1, true), "the button is passed to Clique before it registers")
 end)
