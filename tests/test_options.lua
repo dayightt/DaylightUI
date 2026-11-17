@@ -204,8 +204,9 @@ end)
 T.test("defaults, resets and dependencies", function()
     local DUI = stub.Load({ module = true })
     local O = DUI.Options
-    local page = O.GetPage("UnitFrames.castbars")
-    local items = page.groups[1].items
+    local page = O.GetPage("UnitFrames.player")
+    local items
+    for _, g in ipairs(page.groups) do if g.label == "Player cast bar" then items = g.items end end
     local by = {}
     for _, item in ipairs(items) do by[item.key] = item end
     local attach, width = by["playerCastbar.at"], by["playerCastbar.width"]
@@ -381,7 +382,7 @@ T.test("dropdowns pick from their list", function()
 end)
 
 T.test("disabled rows ignore input", function()
-    local DUI, pf = open("UnitFrames.castbars")
+    local DUI, pf = open("UnitFrames.player")
     local width = rowFor(pf, "playerCastbar.width")
     T.truthy(width.disabled)
     local s = width.control.slider

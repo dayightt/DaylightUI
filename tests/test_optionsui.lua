@@ -643,12 +643,12 @@ T.test("Reset page armed on one page is plain again on the next", function()
     T.falsy(b.armed, "hidden: disarmed")
 end)
 
-T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Text, Auras and Extras", function()
+T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Text, Cast bar, Auras and Extras", function()
     local DUI = stub.Load({ module = true })
     local P = DUI.OptionsPanel
     P.Show("UnitFrames.party")
     local pf = P.PageFrame()
-    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Name", "Text", "Auras", "Extras" })
+    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras" })
     T.eq(pf.tab, "Basics")
     T.eq(pf.Find("party.width").tab, "Basics", "size in Basics")
     T.eq(pf.Find("party.direction").tab, "Basics", "layout in Basics")
@@ -656,6 +656,7 @@ T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Text, Aura
     T.eq(pf.Find("party.media.health").tab, "Bars", "bar texture out of Basics")
     T.eq(pf.Find("party.showPercent").tab, "Text")
     T.eq(pf.Find("party.nameColor").tab, "Name", "the name's rows on their own tab")
+    T.eq(pf.Find("partyCastbar.at").tab, "Cast bar", "the cast bar's rows on theirs")
     T.eq(pf.Find("party.indicators.show").tab, "Auras")
     local rows = 0
     for _, card in ipairs(pf.cards) do
