@@ -276,6 +276,8 @@ end
 
 -- Rank 0 too, as the game's own window (its PvP tab always shows).
 PvP.Available = function() return PvP.Read() ~= nil end
-PvP.events = { "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "UPDATE_FACTION" }
+-- Kills and honor each fire their own event; the rank's events only cover a new rank.
+PvP.events = { "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "UPDATE_FACTION", "PLAYER_PVP_KILLS_CHANGED",
+    "PLAYER_PVP_RANK_CHANGED", "HONOR_XP_UPDATE", "CHAT_MSG_COMBAT_HONOR_GAIN" }
 
 ns.Window.Register("pvp", PvP)

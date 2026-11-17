@@ -3177,6 +3177,27 @@ T.test("character pvp: the honor card shows today, yesterday and in all; a dash 
     T.eq(page2.cards.honor:IsShown(), false, "the client has no honor numbers: no card")
 end)
 
+-- From a player's report: the PvP page didn't change after killing players and
+-- gaining honor. Kills and honor fire their own events, not the rank's.
+T.test("character pvp: kills and honor coming in repaint the open page", function()
+    local pvp = {}
+    for k, v in pairs(PVP) do pvp[k] = v end
+    pvp.honor = { today = { 12, 1 }, yesterday = { 30, 0 }, lifetime = { 4500, 9 } }
+    local _, ns = load({ pvp = pvp })
+    local page = openPage(ns, "PVPRankFrame")
+    pvp.honor.today[1] = 13
+    pvp.honor.lifetime[1] = 4501
+    stub.FireEvent("PLAYER_PVP_KILLS_CHANGED", "player")
+    stub.RunTimers()
+    T.eq(page.honor.rows[1].cells[1]:GetText(), "13", "today's kills")
+    T.eq(page.honor.rows[1].cells[3]:GetText(), "4,501")
+    pvp.renownReputationEarned = 450
+    stub.FireEvent("CHAT_MSG_COMBAT_HONOR_GAIN", "You have been awarded 50 honor points.")
+    stub.RunTimers()
+    local P = function(s) return DaylightUI.Win.Parts.Hex({ DaylightUI.Style.Pop() }) .. s .. "|r" end
+    T.eq(page.blocks[1].sub:GetText(), P("450") .. " of " .. P("1,000") .. " points", "the honor toward the next rank")
+end)
+
 T.test("character pvp: soft cards, the same room on all four sides, the left as tall as the right", function()
     local _, ns = load({ pvp = PVP })
     local page = openPage(ns, "PVPRankFrame")
