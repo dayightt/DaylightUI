@@ -583,6 +583,33 @@ T.test("social: your status from the header (a click), and a broadcast", functio
     clean()
 end)
 
+T.test("social: a status change sends one call, never two in a row", function()
+    local ns = load()
+    local f = open(ns)
+    local function pick(key)
+        local m = menuOf(function() f.status:Click() end)
+        stub.Key(function() m.pick(key) end)
+        frame(3)
+    end
+    local function sent()
+        local out = {}
+        for _, kind in ipairs({ "SetAFK", "SetDND" }) do
+            for _, a in ipairs(SW.Calls(kind)) do out[#out + 1] = kind .. "=" .. tostring(a[1]) end
+        end
+        return table.concat(out, ",")
+    end
+    pick("away")
+    T.eq(sent(), "SetAFK=true", "Away sets Away and leaves Busy alone")
+    pick("on")
+    T.eq(sent(), "SetAFK=true,SetAFK=false", "Available clears Away only")
+    pick("busy")
+    T.eq(sent(), "SetAFK=true,SetAFK=false,SetDND=true", "Busy sets Busy and leaves Away alone")
+    pick("on")
+    T.eq(sent(), "SetAFK=true,SetAFK=false,SetDND=true,SetDND=false", "Available clears Busy only")
+    T.eq(f.status.text:GetText(), "Available")
+    clean()
+end)
+
 -- The prompt's Accept, pressed by the player: a key or click of theirs around it.
 local function accept(text)
     stub.Key(stub.Reply, text)

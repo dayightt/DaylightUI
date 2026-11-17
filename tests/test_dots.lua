@@ -300,6 +300,21 @@ T.test("dots: Rip counts the combo points the builders gave", function()
     T.eq(Dots.Left("target"), 90)
 end)
 
+-- Slice and Dice lasts by its points, secret in a fight: the Cooldown Manager asks
+-- from the same cast event, before or after this file has heard it.
+T.test("dots: a finisher's combo points can be asked from its own cast", function()
+    local _, Dots = world()
+    stub.combat = true
+    cast(CLAW); hit(30, PHYSICAL)
+    cast(CLAW); hit(30, PHYSICAL)
+    T.eq(Dots.Combo(RIP), 2, "before the finisher: the count so far")
+    cast(RIP)
+    T.eq(Dots.Combo(RIP), 2, "just after: the points it used")
+    stub.Advance(2)
+    T.isnil(Dots.Combo(RIP), "later: spent, none counted")
+    stub.combat = false
+end)
+
 T.test("dots: a builder that's dodged gives no point", function()
     local _, Dots = world()
     cast(CLAW); hit(30, PHYSICAL)
