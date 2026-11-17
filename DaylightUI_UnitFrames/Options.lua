@@ -2537,6 +2537,8 @@ ns.OPTIONS = { pages = {
         { label = "Heals and shields", desc = "The bars that hang off the end of the health for incoming heals and absorb shields. An overshield (a shield bigger than the health missing) follows the shield.", items = {
             { type = "color", key = "colors.healColor", label = "Incoming heals",
               desc = "The color of the stretch past the health for heals on their way." },
+            { type = "toggle", key = "colors.overheal", label = "Overheal",
+              desc = "A heal bigger than the health missing runs a little past the health's end, so you see it would overheal. When off, the heal stops where the health is full." },
             { type = "color", key = "colors.absorbColor", label = "Absorb shields",
               desc = "The color of the stretch for damage shields." },
             { type = "dropdown", key = "colors.absorbStyle", label = "Shield texture", fallback = "stripes",

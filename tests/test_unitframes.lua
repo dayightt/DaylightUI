@@ -728,6 +728,17 @@ T.test("an overheal shows past the health's end, capped by the client at a quart
     T.eq(ns.UF.HEAL_OVERFLOW, 1.25)
     T.eq(f.heals.__value, fits, "the capped heal, never the whole one")
     T.eq(f.heals.wedge.__value, fits)
+    -- Overheal switched off: the same calculator stops at the health missing,
+    -- and back on it runs past again.
+    local saved = ns.UF.colors
+    ns.UF.colors = { overheal = false }
+    ns.UF.StylePrediction(f)
+    ns.UF.UpdatePrediction(f)
+    T.eq(overflow, 1, "overheal off: no heal past the health's end")
+    ns.UF.colors = saved
+    ns.UF.StylePrediction(f)
+    ns.UF.UpdatePrediction(f)
+    T.eq(overflow, ns.UF.HEAL_OVERFLOW, "back on")
     -- Shields switched off on this frame: heals still come clamped.
     f.predictAbsorbs = false
     f.heals:SetValue(0)

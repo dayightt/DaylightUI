@@ -2702,6 +2702,7 @@ function UF.StylePrediction(f)
     local ac = type(c.absorbColor) == "table" and c.absorbColor or P.absorbs.color
     local oc = c.overshieldPaint == "custom" and type(c.overshieldColor) == "table" and c.overshieldColor or ac
     f.overshieldOn = c.overshield ~= false
+    f.overhealOn = c.overheal ~= false
     f.overshieldReverse = c.overshieldReverse == true
     if f.heals then
         f.heals:SetStatusBarColor(hc[1], hc[2], hc[3], P.heals.alpha)
@@ -2873,8 +2874,9 @@ end
 -- capped by the client at the missing health plus UF.HEAL_OVERFLOW's fraction
 -- of the bar (the game's raid frames use 1.05), so an overheal still shows past
 -- the health's end but never longer than that (a 5 health totem once showed
--- one a whole frame long). Absorbs fit in the missing health, and what doesn't
--- fit is the overshield.
+-- one a whole frame long). With overheal off the heal stops at the missing
+-- health. Absorbs fit in the missing health, and what doesn't fit is the
+-- overshield.
 UF.HEAL_OVERFLOW = 1.25
 local function filledCalc(f, u)
     if type(CreateUnitHealPredictionCalculator) ~= "function" or type(UnitGetDetailedHealPrediction) ~= "function" then
@@ -2889,8 +2891,12 @@ local function filledCalc(f, u)
         if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
         local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
         if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
-        if calc.SetIncomingHealOverflowPercent then pcall(calc.SetIncomingHealOverflowPercent, calc, UF.HEAL_OVERFLOW) end
         f.healCalc = calc
+    end
+    local overflow = f.overhealOn == false and 1 or UF.HEAL_OVERFLOW
+    if f.healOverflow ~= overflow and calc.SetIncomingHealOverflowPercent then
+        pcall(calc.SetIncomingHealOverflowPercent, calc, overflow)
+        f.healOverflow = overflow
     end
     if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
     return calc
