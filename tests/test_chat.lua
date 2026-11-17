@@ -3202,12 +3202,18 @@ T.test("chat daylight: world channels are known by the game's id, not their name
     T.eq(Tags.Standard("DefensaLocal", 3), "LD", "its tag, not the bare number")
     T.eq(Tags.Standard("Comercio local", 4), "TL")
     T.eq(Tags.Standard("Comercio", 2), "T")
+    -- World Defense and Newcomer have no id and share a kind with Local Defense and
+    -- General, but keep their own tags.
+    T.eq(Tags.Standard("WorldDefense", 7), "WD")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N")
     -- The game can't say: the names still work, in any case.
     _G.C_ChatInfo = nil
     Kinds.ChannelsChanged()
     T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "by name without the game's help")
     T.eq(Tags.Standard("DefensaLocal", 3), "LD")
     T.eq(Tags.Standard("Comercio local", 4), "TL", "Trade (Local) in Spanish, by name")
+    T.eq(Tags.Standard("WorldDefense", 7), "WD", "World Defense by name")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N", "Newcomer by name")
     -- A secret name is never sent to the game, which errors on one.
     local asked = false
     _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function() asked = true end }

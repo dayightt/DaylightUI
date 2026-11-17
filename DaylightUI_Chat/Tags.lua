@@ -31,7 +31,7 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- Spanish clients name the channels in Spanish.
                   Comercio = "T", Defensalocal = "LD", Buscargrupo = "LFG", Defensamundial = "WD",
                   Defensaglobal = "WD", Reclutamiento = "GR", Novatos = "N", Servicios = "TS",
-                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL",
+                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL", Comerciolocal = "TL",
                   -- German clients name them in German.
                   Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
@@ -78,12 +78,26 @@ local function ownTag(num, name)
     return kind and Tags.own[kind] or nil
 end
 
--- A world channel's standard tag from its kind, which the game's channel id decides
--- (Kinds.OfChannel), so it doesn't depend on the channel's name in your language.
+-- Tags.CHANNELS by lower-case word, built on first use.
+local byWord
+local function standardByName(base)
+    if not byWord then
+        byWord = {}
+        for k, v in pairs(Tags.CHANNELS) do byWord[string.lower(k)] = v end
+    end
+    return byWord[string.lower(base)]
+end
+
+-- A world channel's standard tag. The game's id decides when it has one (the same
+-- in every language); otherwise the channel's name does, in any letter case. The
+-- channel's kind isn't used: World Defense and Newcomer share a kind with Local
+-- Defense and General but have their own tags.
 function Tags.OfName(name)
     if type(name) ~= "string" or secret(name) then return nil end
-    local kind = ns.Kinds.OfChannel(string.match(name, "^(.-) %- ") or name)
-    return Tags.KIND_TAGS[kind]
+    local base = string.match(name, "^(.-) %- ") or name
+    local zone = ns.Kinds.OfZone(base)
+    if zone then return Tags.KIND_TAGS[zone] end
+    return standardByName((string.gsub(string.gsub(base, "%s+%d+$", ""), "%s", "")))
 end
 
 -- "[1. General - Zone]"

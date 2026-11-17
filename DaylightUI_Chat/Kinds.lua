@@ -171,6 +171,7 @@ local function kindOfZone(base)
     end
     return nil
 end
+Kinds.OfZone = kindOfZone
 
 -- A channel's kind from its name. World channels share a kind; any other channel
 -- gets its own ("ch:name") so a tab can pick it alone. The game's channel id decides
