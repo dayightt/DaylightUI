@@ -236,6 +236,9 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "healthFormat", label = "Health text format", values = DaylightUI.Health.FORMATS,
               order = DaylightUI.Health.FORMAT_ORDER, disabled = off("percent"),
               desc = "How the health text reads: a percent, the health itself, health out of max, both, or what's missing." },
+            { type = "toggle", key = "percentSign", label = "Health text % sign", since = "1.9.2",
+              desc = "62% rather than 62, when the health text shows a percent.",
+              disabled = function(get) return get("percent") ~= true or get("healthFormat") ~= "percent" end },
             { type = "slider", key = "healthSize", label = "Health text size", min = 0, max = 20, step = 1,
               desc = "How big the health text is. Set to 0 to match the bar height.", disabled = off("percent") },
             DaylightUI.Options.FontRow("media.healthFont", "Health text font", "The health numbers on the nameplates, and the level and threat % when they follow it", off("percent")),
@@ -584,6 +587,11 @@ ns.OPTIONS = { pages = {
               desc = "How the health text on friendly plates reads: a percent, the health itself, health out of max, both, or what's missing.",
               order = DaylightUI.Health.FORMAT_ORDER,
               disabled = function(get) return not get("friendly.enabled") or not get("friendly.percent") end },
+            { type = "toggle", key = "friendly.percentSign", label = "Friendly health text % sign", since = "1.9.2",
+              desc = "62% rather than 62 on friendly plates, when their health text shows a percent.",
+              disabled = function(get)
+                  return not get("friendly.enabled") or not get("friendly.percent") or get("friendly.healthFormat") ~= "percent"
+              end },
             { type = "slider", key = "friendly.healthSize", label = "Friendly health text size", min = 0, max = 20, step = 1,
               desc = "How big the health text on friendly plates is. Set to 0 to match the bar height.",
               disabled = function(get) return not get("friendly.enabled") or not get("friendly.percent") end },

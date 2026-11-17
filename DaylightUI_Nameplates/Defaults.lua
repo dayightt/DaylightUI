@@ -139,7 +139,7 @@ ns.DEFAULTS = {
         enabled = false, height = 4, width = 170,
         hideInInstance = false, -- turn off the game's friendly plates in dungeons, raids and battlegrounds (Manager.ApplyInstanceFriends)
         totems = true, -- friendly totems as a round badge in their element's color instead of their name
-        percent = false, healthFormat = "percent", healthSize = 0,
+        percent = false, healthFormat = "percent", percentSign = true, healthSize = 0,
         level = false,
         power = false, -- power bar under friendly health bars (who: shared powerShow)
         nameSize = 13, nameColor = "class", guild = true, role = true,
@@ -170,6 +170,7 @@ ns.DEFAULTS = {
     questBar = false, questColor = { 0.95, 0.85, 0.3 }, -- a mob your quests still need
     casterBar = false, casterColor = { 0.42, 0.45, 0.95 }, -- mana-using mob
     healthFormat = "percent",
+    percentSign = true, -- "62%" rather than "62" when the health text is a percent
     healthSize = 0, -- 0 = scale with bar height
     -- Enemy names: "reaction", "class" (class and reaction), "classGradient", or
     -- "white". Enemy players in class color read like friends, so reaction is the

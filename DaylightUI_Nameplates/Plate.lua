@@ -894,7 +894,7 @@ function Plate.UpdateHealth(p, instant)
         and not Plate.Owned("healthFill") then
         DUI.Health.ApplyGradient(p.health, u)
     end
-    if p.percent:IsShown() then DUI.Health.Write(p.percent, c.healthFormat or "percent", u, true) end
+    if p.percent:IsShown() then DUI.Health.Write(p.percent, c.healthFormat or "percent", u, c.percentSign ~= false) end
     -- The skull compares against current health, so feed it again, but only while
     -- something of your DoTs shows (~1,000 health events a second in a fight).
     if p.dotVeil:IsShown() or p.dotSkull:IsShown() then Plate.UpdateDots(p) end

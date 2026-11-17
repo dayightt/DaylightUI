@@ -164,8 +164,8 @@ Sample.PARTS = {
                "friendly.enabled", "friendly.width", "friendly.height", "friendly.healthColor", "friendly.healthCustom" },
       size = { w = { "width", "friendly.width" }, h = { "height", "friendly.height" } } },
     { label = "Health text", at = at("percent"),
-      keys = { "percent", "healthFormat", "healthSize", "media.healthFont",
-               "friendly.percent", "friendly.healthFormat", "friendly.healthSize",
+      keys = { "percent", "healthFormat", "percentSign", "healthSize", "media.healthFont",
+               "friendly.percent", "friendly.healthFormat", "friendly.percentSign", "friendly.healthSize",
                "percentPos", "percentX", "percentY", "friendly.percentPos", "friendly.percentX", "friendly.percentY" },
       move = { spot = PERCENT("Pos"), x = PERCENT("X"), y = PERCENT("Y") } },
     { label = "Level", at = at("level"),
@@ -574,7 +574,7 @@ local function refresh(s, width, maxH)
             tex:SetAlpha(to)
         end
     end
-    if p.percent:IsShown() then DUI.Health.WriteSample(p.percent, pc.healthFormat or "percent", pct, value, true) end
+    if p.percent:IsShown() then DUI.Health.WriteSample(p.percent, pc.healthFormat or "percent", pct, value, pc.percentSign ~= false) end
     if p.level:IsShown() then Plate.PaintLevel(p, u.level, u.classification) end
     Plate.PaintDragon(p, u.classification)
 
