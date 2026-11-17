@@ -1125,7 +1125,7 @@ T.test("installer tour: the frames page shows your frame and a target in the win
     T.eq(you:GetParent(), samples, "inside the window")
     T.falsy(you:IsMouseEnabled(), "only to look at")
     T.truthy(you.test and them.test, "filled with samples")
-    T.eq(them.test.name, "Sadeas", "the test mode's target")
+    T.eq(them.test.name, "Torol Sadeas", "the test mode's target")
 end)
 
 T.test("installer tour: the frames page's samples stay pinned at the top while its options scroll", function()

@@ -15,7 +15,7 @@ T.test("preview shows every frame with sample units and both casts", function()
         T.truthy(f:IsShown(), unit)
         T.falsy(f.__unitWatch, unit .. " watch off while previewing")
     end
-    T.eq(target.nameText.__text, "Sadeas")
+    T.eq(target.nameText.__text, "Torol Sadeas")
     T.eq(target.percentText.__text, "62")
     T.truthy(target.portrait.elite:IsShown(), "elite sample shows the dragon")
     T.eq(target.marker.__cell, 8, "skull")
@@ -54,7 +54,7 @@ T.test("changing a setting mid-preview keeps the sample frames", function()
         T.truthy(f:IsShown(), unit)
         T.falsy(f.__unitWatch, unit .. " watch stays off")
     end
-    T.eq(ns.frames.target.nameText.__text, "Sadeas")
+    T.eq(ns.frames.target.nameText.__text, "Torol Sadeas")
     ns.module.db.target.enabled = false
     ns.Refresh(ns.module)
     T.falsy(ns.frames.target:IsShown(), "a frame turned off leaves the preview")

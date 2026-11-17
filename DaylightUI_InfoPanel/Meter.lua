@@ -52,7 +52,7 @@ local function isSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 
 -- Past fights in test mode, most recent first (the first is the current one).
 Meter.SAMPLE_FIGHTS = {
-    { sessionID = 105, name = "Sadeas", durationSeconds = 94 },
+    { sessionID = 105, name = "Torol Sadeas", durationSeconds = 94 },
     { sessionID = 104, name = "Chasmfiend", durationSeconds = 211 },
     { sessionID = 103, name = "Parshendi Warform", durationSeconds = 48 },
     { sessionID = 102, name = "Thunderclast", durationSeconds = 163 },

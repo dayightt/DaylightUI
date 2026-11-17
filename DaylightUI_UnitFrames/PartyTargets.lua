@@ -187,8 +187,8 @@ end)
 -- frame on each sample member, for the members who have a target.
 
 PT.SAMPLES = {
-    { name = "Sadeas", reaction = 2, health = 72, healthValue = 1450, power = 60, powerValue = 900, powerToken = "MANA" },
-    { name = "Sadeas", reaction = 2, health = 72, healthValue = 1450, power = 60, powerValue = 900, powerToken = "MANA" },
+    { name = "Torol Sadeas", reaction = 2, health = 72, healthValue = 1450, power = 60, powerValue = 900, powerToken = "MANA" },
+    { name = "Torol Sadeas", reaction = 2, health = 72, healthValue = 1450, power = 60, powerValue = 900, powerToken = "MANA" },
     { name = "Vivenna", reaction = 2, health = 35, healthValue = 380, power = 40, powerValue = 600, powerToken = "MANA" },
 }
 

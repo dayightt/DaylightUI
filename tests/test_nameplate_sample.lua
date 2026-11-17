@@ -76,7 +76,7 @@ T.test("nameplate sample: the enemy is your target, carrying every piece", funct
     local _, ns = load()
     local s = sample(ns, "plates")
     local p = s.p
-    T.eq(stub.Text(p.name), "Sadeas")
+    T.eq(stub.Text(p.name), "Torol Sadeas")
     T.truthy(p.outline:IsShown(), "your target's outline")
     T.truthy(p.cast:IsShown(), "a cast part way")
     T.eq(stub.Text(p.cast.text), DaylightUI.L["Shadow Bolt"])

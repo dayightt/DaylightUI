@@ -48,7 +48,7 @@ TM.SAMPLE = {
     { name = "Lift", class = "ROGUE", scaled = 48, value = 6547 },
     { name = "Navani", class = "PRIEST", scaled = 20, value = 3224 },
 }
-TM.SAMPLE_TARGET = "Sadeas"
+TM.SAMPLE_TARGET = "Torol Sadeas"
 TM.SAMPLE_PULL = 13640       -- your pull line in the sample: the tank's threat x 1.1
 
 DUI.RegisterTestPart("threat", "Threat meter", 91, function()
