@@ -1474,6 +1474,7 @@ T.test("tooltip: numbers in a sentence by what they are (Tips.Numbers)", functio
     T.eq(Tips.Numbers("Heals 30 every 3 sec."), "Heals " .. good .. "30|r every " .. pop .. "3|r sec.", "a HoT: the tick green, the time the accent")
     T.eq(Tips.Numbers("Restores 100 Mana."), "Restores " .. H({ DaylightUI.Style.PowerColor("MANA") }) .. "100|r Mana.", "mana in its color")
     T.eq(Tips.Numbers("|cffff0000Red 5|r"), "|cffff0000Red 5|r", "a line with its own code left")
+    T.eq(Tips.Numbers("|CFFFF2020Requires Bear Form|r"), "|CFFFF2020Requires Bear Form|r", "an upper case color code is a code too")
     -- the game's plural code (|4hour:hrs;) and textures carry digits of their own
     T.eq(Tips.Numbers("an effect that lasts 2 |4hour:hrs;."), "an effect that lasts " .. pop .. "2|r |4hour:hrs;.", "the plural code stays whole")
     T.eq(Tips.Numbers("Costs |TInterface\\Icons\\Coin:14:14|t 5"), "Costs |TInterface\\Icons\\Coin:14:14|t " .. pop .. "5|r", "a texture's size stays whole")

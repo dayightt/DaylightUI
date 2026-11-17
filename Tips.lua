@@ -71,7 +71,7 @@ function Tips.GameSide(text, c)
     local r, g, b
     if type(c) == "table" and not DUI.IsSecret(c) then r, g, b = c.r or c[1], c.g or c[2], c.b or c[3] end
     local kind = Tips.GameColor(r, g, b)
-    if text:find("|c", 1, true) then return text, kind and Tips.TEXT or { r, g, b } end
+    if text:find("|[cC]") then return text, kind and Tips.TEXT or { r, g, b } end
     if kind == "yellow" then return Tips.Numbers(text), Tips.TEXT end
     if kind == "red" then return text, Tips.BAD end
     if kind == "white" then
@@ -230,7 +230,7 @@ end
 -- a line without its own color codes (a |r would end that color early). Plain
 -- strings only, never a secret.
 function Tips.Numbers(text)
-    if type(text) ~= "string" or DUI.IsSecret(text) or text:find("|c", 1, true) then return text end
+    if type(text) ~= "string" or DUI.IsSecret(text) or text:find("|[cC]") then return text end
     local W = words()
     local low = string.lower(text)
     local nums = {}

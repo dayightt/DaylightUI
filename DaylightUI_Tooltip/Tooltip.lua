@@ -943,7 +943,7 @@ function Tip.PaintSpell(tip, data)
             if isSecret(r) then r = nil end
             -- a line the game drew in its own color (not white, yellow or
             -- requirement red): a recipe's item in its quality
-            if type(r) == "number" and (hidden or (lt ~= "" and not lt:find("|c", 1, true)))
+            if type(r) == "number" and (hidden or (lt ~= "" and not lt:find("|[cC]")))
                 and not (isWhite(r, g, b) or isYellow(r, g, b) or isRed(r, g, b)) then return end
         end
         for _, side in ipairs(SIDES) do
@@ -959,7 +959,7 @@ function Tip.PaintSpell(tip, data)
                     if yellow == nil then yellow = isSpell and i == lastData end
                 end
                 if yellow then fs:SetTextColor(INK.TEXT[1], INK.TEXT[2], INK.TEXT[3]) end
-            elseif type(text) == "string" and text ~= "" and not text:find("|c", 1, true) then
+            elseif type(text) == "string" and text ~= "" and not text:find("|[cC]") then
                 local r, g, b = fs:GetTextColor()
                 if isSecret(r) then r = nil end
                 if isYellow(r, g, b) then
