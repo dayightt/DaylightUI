@@ -3203,6 +3203,48 @@ T.test("character pvp: kills and honor coming in repaint the open page", functio
     T.eq(page.blocks[1].sub:GetText(), P("450") .. " of " .. P("1,000") .. " points", "the honor toward the next rank")
 end)
 
+T.test("character pvp: the game's own crest for your faction, our badge when the client has none", function()
+    local old = { C_Texture = _G.C_Texture, faction = _G.UnitFactionGroup }
+    _G.C_Texture = { GetAtlasInfo = function(a) return a == "UI-Character-Info-Honor-Icon-Horde" and { width = 80, height = 100 } or nil end }
+    _G.UnitFactionGroup = function() return "Horde" end
+    local _, ns = load({ pvp = PVP })
+    local page = openPage(ns, "PVPRankFrame")
+    T.eq(page.emblem.__atlas, "UI-Character-Info-Honor-Icon-Horde", "the Horde crest")
+    T.eq(page.emblem:GetWidth(), math.floor(ns.PvP.EMBLEM_SIZE * 0.8 + 0.5), "kept in its own proportions")
+    T.eq(page.emblem:GetHeight(), ns.PvP.EMBLEM_SIZE)
+    local r, g, b = page.emblem:GetVertexColor()
+    T.eq(r + g + b, 3, "not tinted by the accent")
+    -- The client has no atlas for it: our badge.
+    _G.C_Texture = { GetAtlasInfo = function() return nil end }
+    local _, ns2 = load({ pvp = PVP })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.truthy(page2.emblem:GetTexture():find("pvp-rank-", 1, true), "our badge stands in")
+    _G.C_Texture, _G.UnitFactionGroup = old.C_Texture, old.faction
+end)
+
+T.test("character pvp: the next reward (the faction tabard) shows its icon, name and rank", function()
+    local pvp = {}
+    for k, v in pairs(PVP) do pvp[k] = v end
+    pvp.rewards = { [4] = { { uiOrder = 2, name = "Other" },
+                            { uiOrder = 1, name = "Rank 4 rewards", icon = 135026, itemID = 5976, description = "Buy rewards." } } }
+    local _, ns = load({ pvp = pvp })
+    local page = openPage(ns, "PVPRankFrame")
+    local W = page.reward
+    T.truthy(W:IsShown(), "shown")
+    T.eq(W.name:GetText(), "Rank 4 rewards", "the first by its order, by its own name until the item is known")
+    local oldInfo = _G.GetItemInfo
+    _G.GetItemInfo = function(id) if id == 5976 then return "Faction Tabard" end end
+    ns.PvP.Refresh(page)
+    T.eq(W.name:GetText(), "Faction Tabard", "the item's name, which the game shows")
+    _G.GetItemInfo = oldInfo
+    T.eq(W.icon:GetTexture(), 135026)
+    T.truthy(W.sub:GetText():find("4", 1, true), "the rank it comes at")
+    -- No reward ahead: hidden.
+    local _, ns2 = load({ pvp = PVP })
+    local page2 = openPage(ns2, "PVPRankFrame")
+    T.eq(page2.reward:IsShown(), false, "none ahead")
+end)
+
 T.test("character pvp: soft cards, the same room on all four sides, the left as tall as the right", function()
     local _, ns = load({ pvp = PVP })
     local page = openPage(ns, "PVPRankFrame")

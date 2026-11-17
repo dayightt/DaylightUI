@@ -7478,3 +7478,5 @@ L["Your spellbook and talents in one window, in Daylight UI style."] = "你的�
 L["Your stances, forms, stealth and the page keys swap this bar's buttons, as in the game. When off, it always shows its own buttons. Vehicles still take it over."] = "你的姿态、形态、潜行和翻页键会像游戏中一样切换此动作条的按钮。关闭时始终显示自己的按钮。载具仍会接管此动作条。"
 L["Zone names in the tracker"] = "追踪器中的区域名称"
 L["[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags."] = "[G] 综合、[T] 交易、[G] 公会（以公会绿与综合区分）、[P] 小队、[S] 说、[Y] 大喊、[W] 密语。聊天中已有的行保持原样。聊天标签的“显示窗口”可设置你自己的标签。"
+L["NEXT REWARD"] = "下一个奖励"
+L["At rank %d"] = "%d级时获得"
