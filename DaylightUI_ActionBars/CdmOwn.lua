@@ -88,28 +88,37 @@ function Own.HasAura(id, k)
     return (ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)) or Own.QuietAura(id)
 end
 
+-- A totem piece's track (CdmCustom.TOTEMS and TOTEM_SLOTS), from the game's list or
+-- Daylight UI's own (custom). nil leaves the piece to its plain path: the game's
+-- icon, or for Daylight UI's own a cooldown or buff by CdmCustom.Track.
+local function totemTrack(sid, p, custom)
+    local pick = type(p) == "table" and p.track or nil
+    if type(p) == "table" and p.hideMissing == true then pick = "buff" end
+    -- No buff: the totem's time while it stands. A pick from before (Both, Buff
+    -- only) reads as Totem.
+    if ns.CdmCustom.TotemNoBuff(sid) then return pick ~= "cooldown" and "totem" or nil end
+    -- A buff: the totem's time with the buff covering the icon while you have it,
+    -- so the icon shows when you're out of range. Buff only and Cooldown stay as picked.
+    if pick == "cooldown" or pick == "buff" or pick == "aura" then
+        if custom then return nil end
+        return pick == "aura" and "buff" or pick
+    end
+    return "both"
+end
+
 function Own.Track(id, p, known)
     local C = ns.CdmCustom
-    if C and C.Is(id) then
+    local custom = C ~= nil and C.Is(id)
+    if C and not (custom and C.IsPet(id)) and C.Totem(Own.SpellOf(id)) then
+        if not custom and not (known or Own.Known())[id] then return nil end
+        return totemTrack(Own.SpellOf(id), p, custom)
+    end
+    if custom then
         -- A spell of the addon's own list shows one thing (CdmCustom.Track), or both.
         return C.Track(id) == "both" and "both" or nil
     end
     local k = (known or Own.Known())[id]
     if not k then return nil end
-    -- A totem with no buff (CdmCustom.TOTEMS) shows the totem's time while it
-    -- stands, or with Cooldown picked stays the game's icon. A pick from before
-    -- (Both, Buff only) reads as Totem.
-    if C and C.TotemNoBuff(Own.SpellOf(id)) then
-        return not (type(p) == "table" and p.track == "cooldown") and "totem" or nil
-    end
-    -- Every other totem is Totem and buff ("both"): the totem's time, with its buff
-    -- covering the icon while you have it, so the icon shows when you're out of
-    -- range. Buff only and Cooldown stay as picked.
-    if C and C.Totem(Own.SpellOf(id)) then
-        local t = Own.Picked(p)
-        if t == "cooldown" or t == "buff" then return t end
-        return "both"
-    end
     -- No buff known yet: a plain cooldown, unless the player picked something else.
     -- The buff is watched by the spell's own id until a cast teaches the real one.
     if not Own.HasAura(id, k) then

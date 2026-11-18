@@ -1737,40 +1737,38 @@ T.test("cdm effects: When ready Hide shows a totem only while it's down", functi
     AB.CdmCustom.Forget()
     -- The game's item data, and whether slot 1 holds a totem (GetTotemDuration
     -- returns nothing once it's gone).
-    local totem, standing
+    local totem
     ess[1].GetTotemData = function() return totem end
     ess[2].GetTotemData = function() return totem end
     set.pieces[12].onReady = "hide"
     cds[112] = { duration = 0 }
-    local realDuration = _G.GetTotemDuration
-    _G.GetTotemDuration = function(slot) if slot == 1 and standing then return {} end end
+    local function stand(on) stub.totems[1] = on and { spell = 111, duration = {} } or nil end
     set.pieces[11].onReady = "hide"
     cds[111] = { duration = 0 }
     pass(AB)
     T.eq(ess[1]:GetAlpha(), 0, "no totem: hidden")
-    totem, standing = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }, true
+    totem = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }; stand(true)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 1, "totem down: shown, the game's icon timing it")
     T.eq(ess[2]:GetAlpha(), 0, "a totem not on the list: its own cooldown (ready), as before")
     -- Right-clicked away: the item keeps the emptied slot as its totem.
-    totem, standing = { slot = 1, spellID = 0, expirationTime = 0, duration = 0, modRate = 1 }, false
+    totem = { slot = 1, spellID = 0, expirationTime = 0, duration = 0, modRate = 1 }; stand(false)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 0, "destroyed: hidden though the item still holds the slot")
     -- Run out: no event, the next look finds the slot empty.
-    totem, standing = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }, true
+    totem = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }; stand(true)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 1, "down again")
-    standing = false
+    stand(false)
     stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 0, "ran out with no event: hidden at the next look")
     -- In a fight the item's totem data is a secret table: no error, keeps its state.
-    totem, standing = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }, true
+    totem = { slot = 1, expirationTime = GetTime() + 60, duration = 60, modRate = 1 }; stand(true)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     totem = stub.Secret({ slot = 1 })
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
     T.eq(ess[1]:GetAlpha(), 1, "secret totem data: stays as it was")
     ess[1].GetTotemData, ess[2].GetTotemData = nil, nil
-    _G.GetTotemDuration = realDuration
     AB.CdmCustom.TOTEMS[111] = nil
     AB.CdmSpells[class] = realSpells
     AB.CdmCustom.Forget()
@@ -5018,66 +5016,148 @@ end)
 -- its piece showed nothing. It now shows the totem's time while it stands, timed
 -- from its totem slot. Which totem is in the slot comes from your own casts, since
 -- the slot's spell is secret in a fight.
-T.test("cdm: a totem with no buff shows the totem's time while it stands (Searing Totem)", function()
+-- The time a totem piece runs on: the icon's cooldown, or the bar's timer.
+local function totemTime(AB, id, shape)
+    if shape == "bar" then
+        local b = AB.CdmBars.CooldownFrame(id)
+        return b and b.Timer.__duration
+    end
+    return AB.CdmOwn.Frame(id).Cooldown.__duration
+end
+
+T.test("cdm: a totem with no buff shows the totem's time while it stands (Searing Totem), icon and bar", function()
+    for _, shape in ipairs({ "icon", "bar" }) do
+        local DUI, AB, set = barsWorld()
+        local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+        stub.SetUnits({ player = { class = "SHAMAN" } })
+        set = D.Current()
+        AB.CdmSpells.SHAMAN = { { 3599, 6363, 6364, aura = true }, { 8190, 10585, aura = true } }
+        AB.CdmCustom.Forget()
+        withCategories({ [0] = { 11 } }, { [0] = { 11 } })
+        _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+            return { spellID = 6364, selfAura = false, hasAura = false }
+        end
+        _G.GetSpellBaseCooldown = function() return 0 end
+        local n = 0
+        -- Slot 1 (fire), in a fight so its spell is secret: the cast says which totem.
+        local function drop(sid)
+            stub.combat = true
+            stub.totems[1] = sid and { spell = sid, duration = { sid = sid } } or nil
+            if sid then
+                n = n + 1
+                stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-" .. n, sid)
+            end
+            stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
+            stub.combat = false
+        end
+        Own.Forget()
+        D.AddPiece(set, 11, shape, 0, 0)
+        R.Refresh(); stub.RunTimers()
+        T.eq(Own.Track(11, set.pieces[11]), "totem", shape .. ": Totem unless picked otherwise")
+        T.eq(R.DrawnBy(11), "totem " .. shape, shape .. ": Daylight UI's, timed from the totem")
+        T.isnil(totemTime(AB, 11, shape), shape .. ": no totem, no time")
+        drop(6364)
+        T.eq(totemTime(AB, 11, shape), stub.totems[1].duration, shape .. ": dropped, the totem's time")
+        -- Magma Totem takes the fire slot.
+        drop(10585)
+        T.isnil(totemTime(AB, 11, shape), shape .. ": another fire totem, not Searing's time")
+        -- Searing again, then right-clicked away.
+        drop(6364)
+        T.eq(totemTime(AB, 11, shape), stub.totems[1].duration, shape .. ": dropped again")
+        drop(nil)
+        T.isnil(totemTime(AB, 11, shape), shape .. ": destroyed, no time")
+        if shape == "icon" then
+            local icon = Own.Frame(11)
+            T.eq(Fx.OnCooldown(icon), false, "no totem: ready (When ready Hide hides it)")
+            drop(6364)
+            T.eq(Fx.OnCooldown(icon), true, "dropped: counts as on cooldown")
+            drop(nil)
+            -- Cooldown picked: the game's own icon.
+            T.truthy(D.SetSpellValue(set, 11, "track", "cooldown"))
+            R.Refresh(); stub.RunTimers()
+            T.isnil(Own.Track(11, set.pieces[11]), "Cooldown: the game's icon")
+            T.eq(R.DrawnBy(11), "game", "Cooldown: drawn by the game")
+            -- A pick saved before, when it looked like a buff, reads as Totem.
+            set.pieces[11].track = "both"
+            R.Refresh(); stub.RunTimers()
+            T.eq(Own.Track(11, set.pieces[11]), "totem", "an old Both pick: Totem")
+        end
+        _G.GetSpellBaseCooldown = nil
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
+
+-- Searing Totem from Daylight UI's own spell list (key s3599) read as a buff and
+-- stayed empty: the totem check came after the own list's early return.
+T.test("cdm: Searing Totem from Daylight UI's own spell list shows the totem's time", function()
     local DUI, AB, set = barsWorld()
-    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
     stub.SetUnits({ player = { class = "SHAMAN" } })
     set = D.Current()
-    AB.CdmSpells.SHAMAN = { { 3599, 6363, 6364, aura = true }, { 8190, 10585, aura = true } }
+    AB.CdmSpells.SHAMAN = { { 3599, 6363, 6364, aura = true } }
+    stub.knownSpells[6364] = true
     AB.CdmCustom.Forget()
-    withCategories({ [0] = { 11 } }, { [0] = { 11 } })
+    Own.Forget()
+    D.AddPiece(set, "s3599", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(Own.Track("s3599", set.pieces["s3599"]), "totem", "Totem, not a buff")
+    T.eq(R.DrawnBy("s3599"), "totem icon")
+    stub.totems[1] = { spell = 6364, duration = { sid = 6364 } }
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-s", 6364)
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers()
+    T.eq(Own.Frame("s3599").Cooldown.__duration, stub.totems[1].duration, "the totem's time")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Grounding and Earthbind stay up 45 s on a 15 s cooldown, and Stoneclaw and Mana
+-- Tide end before their cooldown does, so a totem with a cooldown shows the cooldown.
+T.test("cdm: a totem with a cooldown keeps showing its cooldown (Grounding Totem)", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = D.Current()
+    AB.CdmSpells.SHAMAN = { { 8177, cd = true, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 14 } }, { [0] = { 14 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
-        return { spellID = 6364, selfAura = false, hasAura = false }
+        return { spellID = 8177, selfAura = false, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function() return 15000 end
+    Own.Forget()
+    D.AddPiece(set, 14, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.isnil(AB.CdmCustom.Totem(8177), "not timed from its slot")
+    T.falsy(tostring(R.DrawnBy(14)):find("totem"), "its cooldown, not the totem's time: " .. tostring(R.DrawnBy(14)))
+    T.falsy(Own.Track(14, set.pieces[14]) == "totem" or Own.Track(14, set.pieces[14]) == "both")
+    _G.GetSpellBaseCooldown = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Tremor, Healing Stream, the Cleansing totems and Sentry put no buff on you: their
+-- card offers Totem or Cooldown, not Buff only or the out-of-range line.
+T.test("cdm card: a totem with no buff offers Totem or Cooldown (Tremor Totem)", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = D.Current()
+    AB.CdmSpells.SHAMAN = { { 8143, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 15 } }, { [0] = { 15 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 8143, selfAura = false, hasAura = false }
     end
     _G.GetSpellBaseCooldown = function() return 0 end
-    -- Slot 1 (fire): its duration while a totem stands, its spell secret as in a fight.
-    local fire
-    local realDur, realInfo = _G.GetTotemDuration, _G.GetTotemInfo
-    _G.GetTotemDuration = function(slot) if slot == 1 then return fire end end
-    _G.GetTotemInfo = function(slot)
-        return slot == 1 and fire ~= nil, "", 0, 0, 0, 1, stub.Secret(slot == 1 and fire and fire.spell or 0)
-    end
-    local n = 0
-    local function cast(sid)
-        n = n + 1
-        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-" .. n, sid)
-    end
-    local function totemUpdate() stub.FireEvent("PLAYER_TOTEM_UPDATE", 1); stub.RunTimers() end
     Own.Forget()
-    D.AddPiece(set, 11, "icon", 0, 0)
+    D.AddPiece(set, 15, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
-    T.eq(Own.Track(11, set.pieces[11]), "totem", "Totem unless picked otherwise")
-    T.eq(R.DrawnBy(11), "totem icon", "Daylight UI's icon, timed from the totem")
-    local icon = Own.Frame(11)
-    T.isnil(icon.Cooldown.__duration, "no totem: no time")
-    T.eq(Fx.OnCooldown(icon), false, "no totem: ready (When ready Hide hides it)")
-    -- Dropped.
-    fire = { spell = 6364 }
-    cast(6364); totemUpdate()
-    T.eq(icon.Cooldown.__duration, fire, "dropped: the totem's time")
-    T.eq(Fx.OnCooldown(icon), true, "dropped: counts as on cooldown")
-    -- Magma Totem takes the fire slot.
-    fire = { spell = 10585 }
-    cast(10585); totemUpdate()
-    T.isnil(icon.Cooldown.__duration, "another fire totem: not Searing's time")
-    T.eq(Fx.OnCooldown(icon), false, "another fire totem: ready")
-    -- Searing again, then right-clicked away.
-    fire = { spell = 6364 }
-    cast(6364); totemUpdate()
-    T.eq(icon.Cooldown.__duration, fire, "dropped again")
-    fire = nil
-    totemUpdate()
-    T.isnil(icon.Cooldown.__duration, "destroyed: no time")
-    -- Cooldown picked: the game's own icon.
-    T.truthy(D.SetSpellValue(set, 11, "track", "cooldown"))
-    R.Refresh(); stub.RunTimers()
-    T.isnil(Own.Track(11, set.pieces[11]), "Cooldown: the game's icon")
-    T.eq(R.DrawnBy(11), "game", "Cooldown: drawn by the game")
-    -- A pick saved before, when it looked like a buff, reads as Totem.
-    set.pieces[11].track = "both"
-    R.Refresh(); stub.RunTimers()
-    T.eq(Own.Track(11, set.pieces[11]), "totem", "an old Both pick: Totem")
-    _G.GetTotemDuration, _G.GetTotemInfo = realDur, realInfo
+    T.eq(Own.Track(15, set.pieces[15]), "totem")
+    local shown = {}
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.item and r.item.key and r.show then shown[r.item.key] = r.show(set, 15, set.pieces[15]) and true or false end
+    end
+    T.truthy(shown["cdm.card.totemTrack"], "Totem or Cooldown")
+    T.falsy(shown["cdm.card.buffTotemTrack"], "no Totem and buff")
+    T.falsy(shown["cdm.card.track"], "no Buff only")
     _G.GetSpellBaseCooldown = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -5097,13 +5177,6 @@ T.test("cdm: a totem with a buff shows the totem's time, dimmed out of range of 
         return { spellID = 10614, selfAura = true, hasAura = true }
     end
     _G.GetSpellBaseCooldown = function() return 0 end
-    -- Slot 4 (air): its duration while a totem stands.
-    local air
-    local realDur, realInfo = _G.GetTotemDuration, _G.GetTotemInfo
-    _G.GetTotemDuration = function(slot) if slot == 4 then return air end end
-    _G.GetTotemInfo = function(slot)
-        return slot == 4 and air ~= nil, "", 0, 0, 0, 1, stub.Secret(slot == 4 and air and air.spell or 0)
-    end
     local function cast(sid) stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-" .. sid, sid) end
     local function totemUpdate() stub.FireEvent("PLAYER_TOTEM_UPDATE", 4); stub.RunTimers() end
     Own.Forget()
@@ -5127,13 +5200,13 @@ T.test("cdm: a totem with a buff shows the totem's time, dimmed out of range of 
     T.isnil(icon.Cooldown.__duration, "no totem: no time")
     T.eq(icon.Icon:GetAlpha(), 1, "no totem: full")
     -- Dropped: the totem's time, the icon dimmed under the buff's button, the time on top.
-    air = { spell = 10614 }
+    stub.totems[4] = { spell = 10614, duration = {} }
     cast(10614); totemUpdate()
-    T.eq(icon.Cooldown.__duration, air, "dropped: the totem's time")
+    T.eq(icon.Cooldown.__duration, stub.totems[4].duration, "dropped: the totem's time")
     T.eq(icon.Icon:GetAlpha(), Own.TOTEM_DIM, "dimmed: shows when the buff isn't covering it")
     T.truthy(icon.Cooldown:GetFrameLevel() > holder:GetFrameLevel(), "the time over the buff's button")
     -- Gone: full again.
-    air = nil
+    stub.totems[4] = nil
     totemUpdate()
     T.eq(icon.Icon:GetAlpha(), 1)
     -- The card offers Totem and buff, and the header says so.
@@ -5150,7 +5223,6 @@ T.test("cdm: a totem with a buff shows the totem's time, dimmed out of range of 
     T.eq(Own.Track(12, set.pieces[12]), "buff")
     T.truthy(D.SetSpellValue(set, 12, "track", "cooldown"))
     T.eq(Own.Track(12, set.pieces[12]), "cooldown")
-    _G.GetTotemDuration, _G.GetTotemInfo = realDur, realInfo
     _G.GetSpellBaseCooldown = nil
     DUI.DB.Character().cdmAuraIDs = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -5397,30 +5469,23 @@ T.test("cdm track: a totem dropped in a fight learns its buff when the fight end
         if id == 8075 or id == 8160 then return "Strength of Earth Totem" end
         return realName(id)
     end
-    -- Slot 2 (earth).
-    local earth
-    local realDur, realInfo = _G.GetTotemDuration, _G.GetTotemInfo
-    _G.GetTotemDuration = function(slot) if slot == 2 then return earth end end
-    _G.GetTotemInfo = function(slot)
-        return slot == 2 and earth ~= nil, "", 0, 0, 0, 1, stub.Secret(slot == 2 and earth and earth.spell or 0)
-    end
     Own.Forget()
     D.AddPiece(set, 13, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
     stub.SetAuras("player", "HELPFUL", { { name = "Strength of Earth", spellId = 8076 } })
     -- Dropped in a fight, then the totem gone before it ends: nothing learned.
     stub.EnterCombat()
-    earth = { spell = 8075 }
+    stub.totems[2] = { spell = 8075, duration = {} }
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8075)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 2); stub.RunTimers()
     T.isnil(Own.AuraOf(8075), "in a fight: not read")
-    earth = nil
+    stub.totems[2] = nil
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 2)
     stub.LeaveCombat(); stub.RunTimers()
     T.isnil(Own.AuraOf(8075), "gone by the end of the fight: nothing to read")
     -- Dropped in a fight and still standing when it ends: learned then.
     stub.EnterCombat()
-    earth = { spell = 8075 }
+    stub.totems[2] = { spell = 8075, duration = {} }
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 8075)
     stub.FireEvent("PLAYER_TOTEM_UPDATE", 2); stub.RunTimers()
     T.isnil(Own.AuraOf(8075), "still in the fight")
@@ -5430,7 +5495,6 @@ T.test("cdm track: a totem dropped in a fight learns its buff when the fight end
     T.truthy(Own.Frame(13).totemBuff, "and the piece dims out of range from now on")
     T.eq(Own.Frame(13).Icon:GetAlpha(), Own.TOTEM_DIM, "this same totem included")
     C_Spell.GetSpellName = realName
-    _G.GetTotemDuration, _G.GetTotemInfo = realDur, realInfo
     _G.GetSpellBaseCooldown = nil
     DUI.DB.Character().cdmAuraIDs = nil
     noCategories()

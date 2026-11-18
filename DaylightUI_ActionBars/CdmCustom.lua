@@ -11,6 +11,7 @@ local Custom = {}
 ns.CdmCustom = Custom
 
 local index        -- [key] = { ids, cd, aura, group }, class spells then GROUP
+local totemRanks   -- [any rank id] = { slot, key, noBuff } for TOTEMS and TOTEM_SLOTS (build)
 local order        -- keys in list order
 local learned = {} -- [key] = highest known rank, or false
 local entries = {} -- [key] = cached Custom.Entry table
@@ -131,17 +132,25 @@ Custom.ON_PET = { [19574] = true, [136] = true, [19577] = true, [1002] = true, [
 -- id: Summon Hawk's hawk stays 18 s, two at most (the game's data). Timed from your
 -- own casts, the newest hawk's time shown with how many are out.
 Custom.SUMMONS = { [1293241] = { lasts = 18, most = 2 } }
--- Totems that put no buff on you, by rank 1 id, with their totem slot (1 is fire):
--- Searing and Magma Totem. The spell list flags them as buffs. Their pieces show
--- the totem's time while it stands (Custom.TotemUp).
-Custom.TOTEMS = { [3599] = 1, [8190] = 1 }
--- Every totem's slot, by rank 1 id (1 fire, 2 earth, 3 water, 4 air). A totem whose
--- buff is known shows the totem's time with the buff over it (Totem and buff).
+-- Totem slots: 1 fire, 2 earth, 3 water, 4 air. Totems with a cooldown (Grounding,
+-- Earthbind, Stoneclaw, Mana Tide) are on neither list: their piece shows the
+-- cooldown, since the totem can outlast it or end before it.
+-- Totems that put no buff on you and have no cooldown, by rank 1 id, with their
+-- slot. The spell list flags them as buffs. Their pieces show the totem's time
+-- while it stands (Custom.TotemUp): Totem, or the game's icon with Cooldown.
+Custom.TOTEMS = {
+    [3599] = 1, [8190] = 1,             -- Searing, Magma
+    [8143] = 2,                         -- Tremor
+    [5394] = 3, [8166] = 3, [8170] = 3, -- Healing Stream, Poison Cleansing, Disease Cleansing
+    [6495] = 4,                         -- Sentry
+}
+-- Totems that put a buff on you while you're in range, by rank 1 id, with their
+-- slot. Their pieces show the totem's time with the buff over it (Totem and buff).
 Custom.TOTEM_SLOTS = {
-    [3599] = 1, [8190] = 1, [8227] = 1, [8181] = 1,                      -- Searing, Magma, Flametongue, Frost Resistance
-    [2484] = 2, [5730] = 2, [8071] = 2, [8075] = 2, [8143] = 2,          -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor
-    [8170] = 3, [8184] = 3, [5394] = 3, [5675] = 3, [16190] = 3, [8166] = 3, -- Disease Cleansing, Fire Resistance, Healing Stream, Mana Spring, Mana Tide, Poison Cleansing
-    [8835] = 4, [8177] = 4, [10595] = 4, [6495] = 4, [8512] = 4, [15107] = 4, -- Grace of Air, Grounding, Nature Resistance, Sentry, Windfury, Windwall
+    [8227] = 1, [8181] = 1,                         -- Flametongue, Frost Resistance
+    [8071] = 2, [8075] = 2,                         -- Stoneskin, Strength of Earth
+    [8184] = 3, [5675] = 3,                         -- Fire Resistance, Mana Spring
+    [8835] = 4, [10595] = 4, [8512] = 4, [15107] = 4, -- Grace of Air, Nature Resistance, Windfury, Windwall
 }
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
@@ -243,11 +252,21 @@ local function build()
         for _, f in ipairs(S[class] or {}) do add(f, false) end
     end
     for _, f in ipairs(S.GROUP or {}) do add(f, true) end
+    -- Every rank of every totem, for a one-lookup Custom.Totem.
+    totemRanks = {}
+    for k, f in pairs(index) do
+        local first = f.ids and f.ids[1]
+        local slot = first and (Custom.TOTEMS[first] or Custom.TOTEM_SLOTS[first])
+        if slot then
+            local t = { slot = slot, key = k, noBuff = Custom.TOTEMS[first] ~= nil }
+            for _, s in ipairs(f.ids) do totemRanks[s] = t end
+        end
+    end
 end
 
 -- Rebuild everything when spells or talents change.
 function Custom.Forget()
-    index, order, auraKeys, classSpells = nil, nil, nil, nil
+    index, order, auraKeys, classSpells, totemRanks = nil, nil, nil, nil, nil
     for k in pairs(learned) do learned[k] = nil end
     for k in pairs(added) do added[k] = nil end
 end
@@ -337,12 +356,12 @@ function Custom.KeyOfSpell(sid)
     end
 end
 
--- Any rank of any totem: its slot and family key, or nil.
+-- Any rank of a totem on TOTEMS or TOTEM_SLOTS: its slot and family key, or nil.
 function Custom.Totem(sid)
-    local k = type(sid) == "number" and not isSecret(sid) and Custom.KeyOfSpell(sid)
-    local f = k and index[k]
-    local slot = f and (Custom.TOTEM_SLOTS[f.ids[1]] or Custom.TOTEMS[f.ids[1]])
-    if slot then return slot, k end
+    if type(sid) ~= "number" or isSecret(sid) then return nil end
+    build()
+    local t = totemRanks[sid]
+    if t then return t.slot, t.key end
 end
 
 -- Whether a cast of any rank of this totem has taught its buff (CdmOwn.AuraOf).
@@ -359,8 +378,10 @@ end
 
 -- Any rank of a totem that puts no buff on you (TOTEMS): its slot and family key.
 function Custom.TotemNoBuff(sid)
-    local slot, k = Custom.Totem(sid)
-    if slot and Custom.TOTEMS[index[k].ids[1]] then return slot, k end
+    if type(sid) ~= "number" or isSecret(sid) then return nil end
+    build()
+    local t = totemRanks[sid]
+    if t and t.noBuff then return t.slot, t.key end
 end
 
 -- Which totem stands in each slot: [slot] = family key. The slot's spell is

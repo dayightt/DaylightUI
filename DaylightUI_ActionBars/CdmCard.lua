@@ -237,14 +237,15 @@ local function isBuff(_, id, p) return ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, 
 -- Every game spell can pick what it shows, a buff known yet or not: the buff of one
 -- picked blind is watched by the spell's own id until a cast teaches the real one.
 -- A totem with no buff (CdmCustom.TOTEMS) picks Totem or Cooldown instead.
+-- Both from the game's list or Daylight UI's own.
 local function totemSpell(_, id)
     local C, Own = ns.CdmCustom, ns.CdmOwn
-    return C ~= nil and Own ~= nil and not C.Is(id) and Own.Entry(id) ~= nil and C.TotemNoBuff(Own.SpellOf(id)) ~= nil
+    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.TotemNoBuff(Own.SpellOf(id)) ~= nil
 end
 -- Any other totem picks Totem and buff, Buff only or Cooldown.
 local function buffTotem(_, id)
     local C, Own = ns.CdmCustom, ns.CdmOwn
-    return C ~= nil and Own ~= nil and not C.Is(id) and Own.Entry(id) ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
+    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
         and C.TotemNoBuff(Own.SpellOf(id)) == nil
 end
 local function gameSpell(_, id)
@@ -307,7 +308,11 @@ local BUFF_DOWN = { type = "dropdown", key = "cdm.card.buffDown", label = "Visib
     end }
 -- A custom spell with both a cooldown and a buff (Bloodrage) shows one of them
 -- (CdmCustom.Track). The game's spells use Track above.
-local function canTrack(_, id) return ns.CdmCustom ~= nil and ns.CdmCustom.CanTrack(id) == true end
+-- Totems pick from their own rows (TOTEM_TRACK, BUFF_TOTEM_TRACK).
+local function canTrack(_, id)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    return C ~= nil and C.CanTrack(id) == true and not (Own and C.Totem(Own.SpellOf(id)))
+end
 local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What it shows",
     values = { both = "Both", cooldown = "Cooldown", aura = "Buff only" }, order = { "both", "cooldown", "aura" },
     desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up.",
