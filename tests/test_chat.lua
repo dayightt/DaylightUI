@@ -3185,6 +3185,47 @@ T.test("chat daylight: a tab remembers the channel you last talked in, whispers 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's own channel id names a world channel, whatever the language calls it.
+T.test("chat daylight: world channels are known by the game's id, not their name", function()
+    daylight()
+    local CH = stub.chatModule
+    local Kinds, Tags = CH.Kinds, CH.Tags
+    local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
+    local old = _G.C_ChatInfo
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function(n) return ids[n] and { zoneChannelID = ids[n] } or nil end }
+    Kinds.ChannelsChanged()
+    T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "Spanish Local Defense")
+    T.eq(Kinds.OfChannel("Comercio local - Ventormenta"), Kinds.TRADE_LOCAL, "Spanish Trade (Local)")
+    T.eq(Kinds.OfChannel("General: Vallefresno"), "general", "a colon zone")
+    T.eq(Kinds.OfChannel("BuscarGrupo"), "lfg", "Spanish Looking For Group")
+    T.eq(Tags.Standard("BuscarGrupo", 5), "LFG")
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD", "its tag, not the bare number")
+    T.eq(Tags.Standard("Comercio local", 4), "TL")
+    T.eq(Tags.Standard("Comercio", 2), "T")
+    -- World Defense and Newcomer have no id and share a kind with Local Defense and
+    -- General, but keep their own tags.
+    T.eq(Tags.Standard("WorldDefense", 7), "WD")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N")
+    -- The game can't say: the names still work, in any case.
+    _G.C_ChatInfo = nil
+    Kinds.ChannelsChanged()
+    T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "by name without the game's help")
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD")
+    T.eq(Tags.Standard("Comercio local", 4), "TL", "Trade (Local) in Spanish, by name")
+    T.eq(Tags.Standard("WorldDefense", 7), "WD", "World Defense by name")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N", "Newcomer by name")
+    -- A secret name is never sent to the game, which errors on one.
+    local asked = false
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function() asked = true end }
+    local name = stub.Secret("Comercio")
+    Kinds.ChannelsChanged()
+    T.eq(Tags.OfName(name), nil)
+    T.eq(asked, false, "the game was not asked about a secret name")
+    _G.C_ChatInfo = old
+    Kinds.ChannelsChanged()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game prints "Changed Channel: [6. LookingForGroup 84]". The number after the
 -- name must not make it a channel of its own.
 T.test("chat daylight: LookingForGroup with a number after it is still LFG", function()
