@@ -543,3 +543,153 @@ both("counts and lists take Daylight UI's text colors as they are when drawn", f
     T.rgb(color, { 0.8, 0.9, 1 }, "the count")
     T.rgb(row.color, { 0.9, 0.85, 0.8 }, "a tooltip line")
 end)
+
+-- Sample loot rolls: test mode, unlock mode, /dui rolls and the Preview button
+
+local function sample(i) return _G["DaylightUIRollSample" .. i] end
+local function sampleButton(i, name) return _G["DaylightUIRollSample" .. i .. name] end
+
+local function shown()
+    local n = 0
+    for i = 1, 3 do
+        if sample(i) and sample(i):IsVisible() then n = n + 1 end
+    end
+    return n
+end
+
+local function sampleCounts(i)
+    return { need = (RW.Count(sampleButton(i, "Need"))), greed = (RW.Count(sampleButton(i, "Greed"))),
+        pass = (RW.Count(sampleButton(i, "Pass"))) }
+end
+
+-- The item's name on sample i: the text on the popup itself, not on a button.
+local function itemName(i)
+    for _, fs in ipairs(RW.Texts(sample(i))) do
+        if fs:GetParent() == sample(i) then return fs:GetText(), { fs:GetTextColor() } end
+    end
+end
+
+local function command(word) DaylightUI.RunCommand(word) end
+
+local function previewRow()
+    for _, g in ipairs(DaylightUI.Options.GetPage("QoL.qol").groups) do
+        for _, item in ipairs(g.items) do
+            if item.type == "button" and item.label == "Preview the loot rolls" then return item, g end
+        end
+    end
+end
+
+T.test("loot rolls: a Loot rolls box in test mode shows three sample loot rolls stacked at the Loot Rolls spot", function()
+    login(false)
+    local part
+    for _, p in ipairs(DaylightUI.TestBox.parts) do if p.key == "lootrolls" then part = p end end
+    T.eq(part and part.label, "Loot rolls", "the box")
+    T.eq(shown(), 0, "before test mode")
+    DaylightUI.SetTestMode(true)
+    T.eq(shown(), 3, "in test mode")
+    local point, rel, relPoint = sample(1):GetPoint(1)
+    T.deq({ point, relPoint }, { "BOTTOM", "BOTTOM" })
+    T.eq(rel, GroupLootContainer, "the first where the game's loot rolls show")
+    for i = 2, 3 do
+        point, rel, relPoint = sample(i):GetPoint(1)
+        T.deq({ point, relPoint }, { "BOTTOM", "TOP" })
+        T.eq(rel, sample(i - 1), "each above the last")
+    end
+    DaylightUI.SetTestMode(false)
+    T.eq(shown(), 0, "after test mode")
+end)
+
+T.test("loot rolls: with the Loot rolls box unticked, test mode shows no samples", function()
+    login(false)
+    DaylightUI.SetTestPartShown("lootrolls", false)
+    DaylightUI.SetTestMode(true)
+    T.eq(shown(), 0)
+end)
+
+T.test("loot rolls: unlocking frames shows the samples at the Loot Rolls size, locking hides them", function()
+    login(false)
+    DaylightUI.Movers.SetPieceScale("game.GroupLootContainer", 1.5)
+    DaylightUI.Movers.Unlock()
+    T.eq(shown(), 3, "unlocked")
+    T.near(sample(1):GetScale(), DaylightUI.Movers.Scale("game.GroupLootContainer"), 1e-6, "the handle's size")
+    T.near(sample(1):GetScale(), 1.5 * DaylightUI.Movers.Scale(), 1e-6)
+    DaylightUI.Movers.Lock()
+    T.eq(shown(), 0, "locked")
+end)
+
+T.test("loot rolls: /dui rolls and the Preview button show the samples and hide them again", function()
+    login(false)
+    command("rolls")
+    T.eq(shown(), 3, "on")
+    command("rolls")
+    T.eq(shown(), 0, "off")
+    local row = previewRow()
+    T.truthy(row, "a Preview button in the Loot rolls group")
+    T.eq(row.since, "1.9.6")
+    row.func()
+    T.eq(shown(), 3, "the button")
+    DaylightUI.SetTestMode(true)
+    DaylightUI.SetTestMode(false)
+    T.eq(shown(), 3, "still on after test mode")
+    row.func()
+    T.eq(shown(), 0, "off again")
+    local helped
+    for _, l in ipairs(stub.chat) do if l:find("/dui rolls", 1, true) then helped = true end end
+    command("all")
+    for _, l in ipairs(stub.chat) do if l:find("/dui rolls", 1, true) then helped = true end end
+    T.truthy(helped, "listed in /dui all")
+end)
+
+T.test("loot rolls: the samples are a busy epic, a rare of mostly Greed and Pass, and one with no roll data yet", function()
+    login(false)
+    command("rolls")
+    local name, color = itemName(1)
+    T.eq(name, "Cloak of the Sleeping Wyrm")
+    T.rgb(color, { C_Item.GetItemQualityColor(4) }, "epic")
+    T.deq(sampleCounts(1), { need = "3", greed = "1", pass = "1" })
+    name, color = itemName(2)
+    T.eq(name, "Bracers of the Tidecaller")
+    T.rgb(color, { C_Item.GetItemQualityColor(3) }, "rare")
+    T.deq(sampleCounts(2), { need = "1", greed = "3", pass = "3" })
+    T.eq(itemName(3), "Signet of the Fallen")
+    T.deq(sampleCounts(3), { need = "", greed = "", pass = "" }, "no data yet")
+    for i = 1, 3 do T.truthy(DaylightUI.Style.GetShell(sample(i)), "Daylight UI's window look") end
+end)
+
+T.test("loot rolls: a sample's buttons show its tooltip, drawn like a real popup's", function()
+    login(false)
+    command("rolls")
+    local lines = RW.Hover(sampleButton(1, "Need"))
+    T.deq(texts(lines), { "Need", " ", "Need (3)", "Brannoc | 87", "Corvina (Off Spec) | 64", "Isolde (you) | 41",
+        " ", "Undecided (2)", "Aelwyn", "Garrow" })
+    T.rgb(line(lines, "Brannoc").color, ink("GOOD"), "the winner")
+    RW.Unhover(sampleButton(1, "Need"))
+    T.deq(RW.Lines(), {}, "gone on leave")
+    T.deq(texts(RW.Hover(sampleButton(2, "Pass"))), { "Pass", " ", "Pass (3)", "Corvina", "Fenwick", "Isolde (you)" })
+    T.deq(texts(RW.Hover(sampleButton(3, "Greed"))), { "Greed", " ", "No roll data yet." })
+end)
+
+T.test("loot rolls: the samples follow the two switches at once, an open tooltip too", function()
+    login(false)
+    command("rolls")
+    RW.Hover(sampleButton(1, "Need"))
+    set("rollTooltip", false)
+    T.deq(texts(RW.Lines()), { "Need" }, "the open tooltip")
+    set("rollCounts", false)
+    T.eq(shown(), 0, "both off: nothing to show")
+    local row = previewRow()
+    T.truthy(row.disabled(function(key) return DaylightUI:Get("QoL", key) end), "the Preview button is off")
+    set("rollCounts", true)
+    T.eq(shown(), 3, "back with a switch on")
+    T.deq(sampleCounts(1), { need = "3", greed = "1", pass = "1" })
+end)
+
+T.test("loot rolls: the samples' buttons never roll", function()
+    login(false)
+    command("rolls")
+    for i = 1, 3 do
+        for _, name in ipairs({ "Need", "Greed", "Pass" }) do sampleButton(i, name):Click() end
+    end
+    T.deq(RW.rollCalls, {})
+    T.eq(shown(), 3, "still shown")
+end)

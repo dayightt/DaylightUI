@@ -46,6 +46,10 @@ ns.OPTIONS = { pages = {
               desc = "Each button on a group loot roll shows how many players picked it so far: Need (with off-spec Need), Greed or Pass. Blank while nobody has." },
             { type = "toggle", key = "rollTooltip", since = "1.9.6", label = "Who rolled what in the button tooltip",
               desc = "Pointing at a loot roll's button lists who picked it, in class colors with their roll and the winner in green, then who hasn't picked yet." },
+            { type = "button", since = "1.9.6", label = "Preview the loot rolls", text = "Preview",
+              desc = "Shows three sample loot rolls where yours appear, or hides them again. Point at their buttons to see the tooltip. Also /dui rolls.",
+              disabled = function(get) return get("rollCounts") == false and get("rollTooltip") == false end,
+              func = function() if ns.RollSample then ns.RollSample.Toggle() end end },
         } },
         { label = "Cursor ring", items = {
             { type = "toggle", key = "cursorRing", label = "Ring around the cursor",
