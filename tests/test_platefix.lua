@@ -506,7 +506,7 @@ T.test("platefix: the report counts speech bubbles", function()
     T.truthy(line:find("never set this session", 1, true), line)
 end)
 
-T.test("platefix: the last step turns the game's switch for plates and bubbles back on", function()
+T.test("platefix: the last step brings the switch for plates and bubbles back", function()
     local NP = login()
     SetUIVisibility(false)
     UIParent:Show()
@@ -517,8 +517,28 @@ T.test("platefix: the last step turns the game's switch for plates and bubbles b
         stub.RunTimers()
         stub.RunTimers()
     end
-    T.truthy(said:find("8/8", 1, true) and said:find("speech bubbles turned on", 1, true), said)
+    T.truthy(said:find("8/8", 1, true) and said:find("off and back on", 1, true), said)
     T.truthy(stub.inWorldUI, "plates and bubbles back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Caught live once: the plates and a fresh bubble were there and "visible" to
+-- Lua, the switch was never touched, and nothing drew. Setting it on when it's
+-- already on may do nothing, so the step switches it off and then back on.
+T.test("platefix: the last step switches plates and bubbles off, then back on", function()
+    local NP = login()
+    local calls, was = {}, _G.SetInWorldUIVisibility
+    _G.SetInWorldUIVisibility = function(v) calls[#calls + 1] = v; was(v) end
+    for _ = 1, NP.Manager.FIX_STEPS - 1 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    local said = NP.Manager.Fix()
+    T.eq(calls[1], false, "off first")
+    T.eq(#calls, 1, "on only after a moment")
+    stub.RunTimers()
+    _G.SetInWorldUIVisibility = was
+    T.eq(calls[2], true, "then back on")
+    T.truthy(stub.inWorldUI)
+    T.truthy(said:find("off and back on", 1, true), said)
+    T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
