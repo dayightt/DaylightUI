@@ -392,3 +392,16 @@ T.test("upgrade step 19: buffs a player put above the frame long ago stay above"
     T.eq(t.buffSpot, "above", "their own pick")
     T.eq(t.buffGrow, "left", "the rest goes back as it was")
 end)
+
+T.test("icons per row: a set number shapes the row and caps it by rows; 0 fits the frame", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "playerAuras.debuffs", true)
+    local set = ns.playerAuras
+    local fits = set.debuffRow
+    DUI:Set("UnitFrames", "playerAuras.debuffPerRow", 3)
+    local d = ns.DEFAULTS.playerAuras
+    T.eq(set.debuffRow, 3 * (d.debuffSize + d.debuffSpacing) - d.debuffSpacing)
+    T.eq(set.counts.debuff[1], 3 * d.debuffRows, "rows times icons per row")
+    DUI:Set("UnitFrames", "playerAuras.debuffPerRow", 0)
+    T.eq(set.debuffRow, fits, "back to the frame's width")
+end)

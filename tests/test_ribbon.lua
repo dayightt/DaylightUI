@@ -225,9 +225,8 @@ T.test("Ribbon options: its own words for the heights, no cast inside the frame"
     T.falsy(O.IsHidden(page, rows["Bar height"]))
     T.falsy(O.IsHidden(page, rows["Name row height"]))
     T.truthy(O.IsHidden(page, rows["Name tab height"]))
-    local cast = O.GetPage("UnitFrames.castbars")
     local at
-    for _, g in ipairs(cast and cast.groups or {}) do
+    for _, g in ipairs(O.GetPage("UnitFrames.target").groups) do
         for _, it in ipairs(g.items) do if it.key == "targetCastbar.at" then at = it end end
     end
     T.truthy(at, "the target's cast bar position row")

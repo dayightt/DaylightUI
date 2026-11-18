@@ -1036,11 +1036,13 @@ end
 
 -- Telling the game
 
-local function sync(frame)
+-- focus: a padSecond frame takes the focus anyway (synced after a fight with
+-- no other Daylight UI window open, so the controller can reach it).
+local function sync(frame, focus)
     local m = manager()
     if not m or fight then return end
     if InCombatLockdown() then
-        DUI.AfterCombat(function() sync(frame) end, frame)
+        DUI.AfterCombat(function() sync(frame, focus) end, frame)
         return
     end
     local open = frame:IsShown()
@@ -1049,7 +1051,7 @@ local function sync(frame)
     if not open then
         Pad.aimed[frame] = nil
         m:FrameHidden(frame)
-    elseif frame.padSecond and m.GetActiveFrame and m:GetActiveFrame() then
+    elseif frame.padSecond and not focus and m.GetActiveFrame and m:GetActiveFrame() then
         m:FrameShown(frame, nil, false)
     else
         m:FrameShown(frame)
@@ -1089,7 +1091,7 @@ function Pad.Follow(frame, close)
     -- One frame later, because a game window Daylight UI replaces opens in the same moment
     -- and the D-pad goes to whichever was announced last.
     frame:HookScript("OnShow", function(self) C_Timer.After(0, function() sync(self) end) end)
-    frame:HookScript("OnHide", sync)
+    frame:HookScript("OnHide", function(self) sync(self) end)
     if frame:IsShown() then sync(frame) end
 end
 
@@ -1257,7 +1259,18 @@ local function takeBack()
             if f:IsShown() and not followed[f] and not forgetting[f] then m:FrameShown(f) end
         end
     end
-    for frame in pairs(followed) do sync(frame) end
+    -- padSecond frames last, with focus unless another Daylight UI window is open.
+    local second = {}
+    for frame in pairs(followed) do
+        if frame.padSecond then second[#second + 1] = frame else sync(frame) end
+    end
+    for _, frame in ipairs(second) do
+        local other = false
+        for f in pairs(told) do
+            if f ~= frame and followed[f] then other = true; break end
+        end
+        sync(frame, not other)
+    end
     -- A box still taken (the quest journal open through the fight) gets its keys back.
     local t = Pad.taken
     if t and not Pad.focused and not InCombatLockdown() and manager() then

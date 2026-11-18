@@ -358,6 +358,12 @@ local function setup(h, id)
         -- duration. So it's drawn by the addon: read by spell id where auras are
         -- plain, counted from your own casts where they aren't.
         h.mineOnly = true
+        local facts = A.SelfDebuffFacts(id)
+        h.selfFrom = nil
+        if facts and type(facts.from) == "table" then
+            h.selfFrom = {}
+            for _, sid in ipairs(facts.from) do h.selfFrom[sid] = true end
+        end
         makeFace(h)
         if A.Readable() then A.IsUp(h) end
         paintFace(h)
@@ -889,9 +895,13 @@ end
 local function learn(h, a, unit)
     h.upUnit = unit
     local n = plain(a.applications)
-    if n and h.selfDebuff then
-        h.selfStacks, h.selfRead = n, true
-        if n > (h.selfMax or 0) then h.selfMax = n end
+    if h.selfDebuff then
+        -- Read by id, so its going says it's down (a debuff that never stacks has no count).
+        h.selfRead = true
+        if n then
+            h.selfStacks = n
+            if n > (h.selfMax or 0) then h.selfMax = n end
+        end
     end
     if n and n > 0 and h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) then
         local was = charges()[h.id]
@@ -1166,7 +1176,11 @@ casts:SetScript("OnEvent", function(_, _, _, _, sid)
     local plainNow = readable()
     each(function(h)
         -- Laying a trap down puts nothing up: only the client's button says the debuff landed.
-        if type(h.ids) == "table" and h.ids[sid] and not h.trap then
+        if h.selfFrom and h.selfFrom[sid] and h.face and A.ShieldUnit() == "player" then
+            -- Another spell puts this debuff on you (Weakened Soul from your own
+            -- shield), so count it under the debuff's own id.
+            selfCast(h, next(h.ids))
+        elseif type(h.ids) == "table" and h.ids[sid] and not h.trap then
             if h.summon then
                 summonCast(h)
             elseif h.face then

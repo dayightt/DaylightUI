@@ -330,6 +330,49 @@ T.test("game text: the font goes on the game's font objects and comes back off",
     _G.GameFontNormal, _G.LaterFont = nil, nil
 end)
 
+-- The game's nameplate and speech bubble fonts are families (one font per
+-- alphabet, Blizzard_Fonts_Shared GameFonts.xml), made with "slug" rendering
+-- for text drawn in the world. Each member keeps its own flags, an alphabet the
+-- picked font can't draw keeps the game's face, and NAMEPLATE_FONT stays the
+-- game's, the way EllesmereUI's game text pass does it.
+T.test("game text: a font family changes member by member and keeps its flags", function()
+    _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+    _G.NAMEPLATE_FONT = "Fonts\\FRIZQT__.TTF"
+    local members = {
+        roman = fakeFont("Fonts\\FRIZQT__.TTF", 9, "SLUG"),
+        russian = fakeFont("Fonts\\FRIZQT___CYR.TTF", 9, "SLUG"),
+        korean = fakeFont("Fonts\\2002.TTF", 9, "SLUG"),
+    }
+    local fam = fakeFont("Fonts\\FRIZQT__.TTF", 9, "SLUG")
+    function fam:GetFontObjectForAlphabet(a) return members[a] end
+    _G.SystemFont_NamePlate = fam
+    _G.GetFonts = function() return { "SystemFont_NamePlate" } end
+    local DUI = stub.Load()
+    local quick = DUI.Style.FONTS.quicksand.file
+    DUI:Set("general", "font", "quicksand")
+    DUI:Set("general", "gameText", true)
+    stub.RunTimers()
+    T.eq(members.roman.face, quick, "Latin letters in the picked font")
+    T.eq(members.roman.flags, "SLUG", "the member's own flags kept")
+    T.eq(members.roman.size, 9)
+    T.eq(members.russian.face, "Fonts\\FRIZQT___CYR.TTF", "no Russian letters in it: the game's face stays")
+    T.eq(members.korean.face, "Fonts\\2002.TTF", "other alphabets keep theirs")
+    T.eq(fam.face, quick, "the family's own font too")
+    T.eq(NAMEPLATE_FONT, "Fonts\\FRIZQT__.TTF", "the nameplate global stays the game's")
+
+    DUI:Set("general", "font", "fira")   -- has Russian letters
+    stub.RunTimers()
+    T.eq(members.russian.face, DUI.Style.FONTS.fira.file, "a font with Russian letters draws them")
+
+    DUI:Set("general", "gameText", false)
+    stub.RunTimers()
+    T.eq(members.roman.face, "Fonts\\FRIZQT__.TTF", "off puts each member back")
+    T.eq(members.russian.face, "Fonts\\FRIZQT___CYR.TTF")
+    T.eq(fam.face, "Fonts\\FRIZQT__.TTF")
+    T.eq(members.roman.flags, "SLUG")
+    _G.STANDARD_TEXT_FONT, _G.NAMEPLATE_FONT, _G.GetFonts, _G.SystemFont_NamePlate = nil, nil, nil, nil
+end)
+
 -- The scrolling combat text over the player: the client makes CombatTextFont at
 -- 120 with "FILTER, FIXEDHEIGHT" and shrinks each line with SetTextHeight. Any
 -- other face keeping those flags spaced every letter out ("B l o c k") in game;

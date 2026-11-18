@@ -29,7 +29,7 @@ AuraGroups.CHOICE_LABELS = {
 }
 
 -- Every setting of a group. Looks.lua resets all of them.
-AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "spacing", "x", "y", "timers", "shortTimers", "swipe",
+AuraGroups.FIELDS = { "show", "which", "spot", "grow", "size", "max", "rows", "perRow", "spacing", "x", "y", "timers", "shortTimers", "swipe",
                       "tooltips", "timeSize", "countSize", "counts" }
 
 -- Sample icons for stand-ins (options preview, /dui test), in the shape
@@ -325,7 +325,9 @@ local function placeOne(c, def, g, on, frame, box)
     local s = ns.Auras.SetOwnSize(c, tonumber(g.size) or 14, gap)
     local max = on and math.max(0, math.floor(tonumber(g.max) or 0)) or 0
     local rows = math.max(1, math.floor(tonumber(g.rows) or 1))
-    local per = math.max(1, math.ceil(math.max(max, 1) / rows))
+    -- A set number per row wins over rows; 0 spreads max over the rows.
+    local perRow = math.floor(tonumber(g.perRow) or 0)
+    local per = perRow > 0 and perRow or math.max(1, math.ceil(math.max(max, 1) / rows))
     local L = ns.Spots.Layout(g.spot, g.grow, box,
         { x = g.x, y = g.y, line = per * (s[1] + gap) - gap })
     -- Under the frame, the numbers on each icon's top edge need room.
