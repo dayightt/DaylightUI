@@ -253,13 +253,17 @@ end
 -- Whether opening a challenge shows anything more: steps, a track switch, or a
 -- description the closed row cuts to one line. One with none stays as it is.
 function Challenges.HasMore(page, c, w)
-    if #Data().Steps(c.id) > 0 then return true end
+    if Data().HasSteps(c.id) then return true end
     if not c.done and Data().Trackable(c.id) then return true end
+    -- Measured against one line in the same font, so a bigger font or text
+    -- scale doesn't make every one-line description look wrapped.
     local m = page.measure
     m:SetWidth(w - (8 + Challenges.ICON + 10) - 70)
+    m:SetText("X")
+    local one = m:GetStringHeight()
     m:SetText(c.desc)
     local h = m:GetStringHeight()
-    return type(h) == "number" and h > 18
+    return type(h) == "number" and type(one) == "number" and h > one * 1.5
 end
 
 local function fillRow(b, c, open, steps, dh, w)
