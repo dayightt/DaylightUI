@@ -982,7 +982,11 @@ function Journal.Menu(q, owner)
     local W = DUI.Widgets
     if not (W and W.OpenMenu) then return end
     local keys, text = Journal.MenuKeys(q)
-    W.OpenMenu(owner, keys, text, nil, function(k) DUI.SafeCall(Journal.Do, k, q) end)
+    ns.Clicks.PluginRows(q, keys, text)
+    W.OpenMenu(owner, keys, text, nil, function(k)
+        if k:sub(1, 7) == "plugin:" then DUI.SafeCall(ns.Clicks.Do, k, q)
+        else DUI.SafeCall(Journal.Do, k, q) end
+    end)
 end
 
 -- Zone menu: track or untrack every quest in it (like the game's header menu).

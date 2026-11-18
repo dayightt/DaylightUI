@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        new = {
+            { "Plugins", "Other addons can add their own choices to a quest's right-click menu" },
+        },
+    },
     { version = "1.9.4", date = "2026-11-18", summary = "Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.",
         new = {
             { "World map", "Hover a zone on the world map to see its level range, colored by how hard it is for you" },

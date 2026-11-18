@@ -181,7 +181,25 @@ function Clicks.MenuText(q)
     return t
 end
 
+-- Rows other addons add (DaylightUI.API's AddQuestMenu), before Stop tracking and
+-- Abandon so those two stay at the bottom.
+function Clicks.PluginRows(q, keys, text)
+    local R = DUI.APIReport
+    if type(R) ~= "table" or not R.QuestMenu then return end
+    local tail = {}
+    while keys[#keys] == "untrack" or keys[#keys] == "abandon" do
+        table.insert(tail, 1, table.remove(keys))
+    end
+    R.QuestMenu(q, keys, text)
+    for _, k in ipairs(tail) do keys[#keys + 1] = k end
+end
+
 function Clicks.Do(k, q)
+    local R = DUI.APIReport
+    if type(k) == "string" and k:sub(1, 7) == "plugin:" then
+        if type(R) == "table" and R.QuestMenuClick then R.QuestMenuClick(k, q) end
+        return
+    end
     if k == "map" then ns.Journal.OpenTo(q.id)
     elseif k == "details" then ns.Details.Toggle(q)
     elseif k == "priority" then Clicks.Focus(q)
@@ -208,7 +226,9 @@ end
 function Clicks.Menu(q, f)
     local W = DUI.Widgets
     if not (W and W.OpenMenu) then return end
-    W.OpenMenu(f, Clicks.MenuKeys(q), Clicks.MenuText(q), nil, function(k) DUI.SafeCall(Clicks.Do, k, q) end)
+    local keys, text = Clicks.MenuKeys(q), Clicks.MenuText(q)
+    Clicks.PluginRows(q, keys, text)
+    W.OpenMenu(f, keys, text, nil, function(k) DUI.SafeCall(Clicks.Do, k, q) end)
 end
 
 -- An objective's count as a color: red, amber, green once done.

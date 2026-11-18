@@ -32,7 +32,7 @@ local L = DUI.L
 local Plugins = {}
 DUI.Plugins = Plugins
 
-DUI.API = { major = 1, minor = 10 }
+DUI.API = { major = 1, minor = 11 }
 
 Plugins.ORDER = 2000 -- plugin sections go after all built-in ones (News is 1000), under their heading
 Plugins.list, Plugins.order = {}, {}
@@ -226,6 +226,7 @@ function Plugins.ChangesLine(name)
     more(c.steps, "Adds %d setup guide page.", "Adds %d setup guide pages.")
     more(c.guides, "Adds its own setup guide.", "Adds its own setup guide.")
     more(c.baggroups, "Adds %d bag group.", "Adds %d bag groups.")
+    more(c.questmenu, "Adds %d quest menu row.", "Adds %d quest menu rows.")
     more(c.buffcats, "Adds %d buff category.", "Adds %d buff categories.")
     more(c.aurafilters, "Adds %d aura filter.", "Adds %d aura filters.")
     more(c.framestyles, "Adds %d frame style.", "Adds %d frame styles.")
