@@ -662,6 +662,25 @@ T.test("journal: hovering a quest's icon on the map lights its row", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- With a controller the map "leaves" every quest pin it takes off
+-- (MapCanvasMixin:UnregisterPin), and the game's list under the journal rebuilt
+-- itself for each one: half a second per open and close with 19 pins.
+T.test("journal: the game's hidden list stops rebuilding for the map's quest pins", function()
+    local J = load()
+    DaylightUI.DB.General().motion = false
+    local f = open(J)
+    for _ = 1, 19 do EventRegistry:TriggerEvent("MapCanvas.QuestPin.OnLeave", 3) end
+    EventRegistry:TriggerEvent("MapCanvas.QuestPin.OnEnter", nil, 3)
+    T.eq(QW.state.listRebuilds, 0, "the game's list, unseen under the journal, not rebuilt")
+    -- The journal's own light on a hovered pin still works.
+    local pin
+    for p in pairs(WorldMapFrame.pinPools.QuestPinTemplate.activeObjects) do if p.questID == 3 then pin = p end end
+    EventRegistry:TriggerEvent("MapCanvas.QuestPin.OnEnter", pin, 3)
+    stub.RunTimers()
+    T.eq(row(f, 3).hi:IsShown(), true, "its row lit")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("journal: a quest name under the mouse spotlights it on the map, the names stay", function()
     local J = load()
     DaylightUI.DB.General().motion = false   -- the list's lift snaps
