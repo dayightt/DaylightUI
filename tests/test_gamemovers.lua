@@ -77,6 +77,45 @@ T.test("game frames: a reset puts a frame outside the column back on its own spo
     T.eq(p, "TOP"); T.eq(rel, UIParent); T.eq(rp, "TOP"); T.eq(x, 0); T.eq(y, -122)
 end)
 
+-- Every loading screen, Edit Mode change and toast showing places the moved
+-- frames again. One the game didn't touch is already there and isn't written.
+T.test("game frames: a moved frame already on its spot isn't placed again", function()
+    local DUI = stub.Load({ before = function()
+        CreateFrame("Frame", "UIErrorsFrame", UIParent):SetPoint("TOP", UIParent, "TOP", 0, -122)
+        local c = CreateFrame("Frame", "ChatAlertFrame", UIParent)
+        c:SetSize(30, 10)
+        c:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 40, 300)
+    end })
+    stub.RunTimers()
+    local e, c = _G.UIErrorsFrame, _G.ChatAlertFrame
+    DUI.DB.Positions()["game.UIErrorsFrame"] = { 0, 200 }
+    DUI.DB.Positions()["game.ChatAlertFrame"] = { 300, -100 }
+    DUI.Movers.Get("game.UIErrorsFrame").onMoved("game.UIErrorsFrame")
+    DUI.Movers.Get("game.ChatAlertFrame").onMoved("game.ChatAlertFrame")
+    local writes = 0
+    for _, f in ipairs({ e, c }) do
+        for _, m in ipairs({ "ClearAllPoints", "SetPoint", "SetParent", "SetSize" }) do
+            local real = f[m]
+            rawset(f, m, function(...) writes = writes + 1; return real(...) end)
+        end
+    end
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, false)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    e:Hide(); e:Show()
+    stub.RunTimers()
+    T.eq(writes, 0, "nothing changed, nothing written")
+    -- The game puts one back on its own spot: it's held at the moved one again.
+    for _, m in ipairs({ "ClearAllPoints", "SetPoint", "SetParent", "SetSize" }) do rawset(e, m, nil); rawset(c, m, nil) end
+    e:ClearAllPoints(); e:SetPoint("TOP", UIParent, "TOP", 0, -122)
+    c:SetSize(30, 10)
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, false)
+    stub.RunTimers()
+    local p, rel, _, x, y = e:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, UIParent); T.eq(x, 0); T.eq(y, 200)
+    T.eq(c:GetWidth(), 250, "a fit frame's size put back too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("game frames: a damaged saved spot is ignored, the frame keeps the game's", function()
     local DUI = load()
     local f = _G.GroupLootContainer

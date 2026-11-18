@@ -117,13 +117,13 @@ local function setFace(obj, face)
             flags = ourFlags(flags)
         else
             -- Already set (the combat text font comes back on every repaint). SetFont
-            -- redraws every text using the object, so skip it.
-            local want = ourFlags(saved[2])
-            if current == face and flags == want then return end
-            flags = want
+            -- redraws every text using the object, so skip it. Compared with what
+            -- was set here: the client may hand the path back in another form.
+            if saved.face == face then return end
+            flags = ourFlags(saved[2])
         end
     end
-    pcall(obj.SetFont, obj, face, size, flags)
+    if pcall(obj.SetFont, obj, face, size, flags) and savedFaces[obj] then savedFaces[obj].face = face end
 end
 
 -- The game's fonts the pass leaves whole. The combat text over you draws with
@@ -230,9 +230,16 @@ end
 -- Gives one of the game's font objects a face, size and flags, member by member
 -- when it's a family (each member keeps its own face where the face can't draw
 -- its letters). Only what differs is set: a SetFont redraws every text using it.
+-- What was last set on each object here. The client may hand a path back in
+-- another form, so this is what's compared, not GetFont.
+local setOn = setmetatable({}, { __mode = "k" })
+
 function GameFonts.SetObjectFont(obj, face, size, flags)
     if type(obj) ~= "table" or type(obj.SetFont) ~= "function" then return end
     flags = flags or ""
+    local spec = tostring(face) .. "|" .. tostring(size) .. "|" .. flags
+    if setOn[obj] == spec then return end
+    setOn[obj] = spec
     local function one(member, f)
         local ok, current, currentSize, currentFlags = pcall(member.GetFont, member)
         if not ok then return end
@@ -291,7 +298,7 @@ function GameFonts.Apply()
     end
     if damage then
         clientDamage = clientDamage or { DAMAGE_TEXT_FONT }
-        DAMAGE_TEXT_FONT = damage
+        if DAMAGE_TEXT_FONT ~= damage then DAMAGE_TEXT_FONT = damage end
     elseif clientDamage then
         DAMAGE_TEXT_FONT = clientDamage[1]
         clientDamage = nil

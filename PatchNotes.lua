@@ -18,6 +18,9 @@ DUI.PatchNotes = {
         },
         fixed = {
             { "General", "\"Use this font for the game's text\" no longer changes the combat text over you or the names over people's heads, and the range dot on hotkeys stays a dot" },
+            { "General", "Alt-tabbing, loading screens and screen or UI scale changes no longer make Daylight UI set up the game's nameplates, minimap, chat and tooltips all over again" },
+            { "General", "Daylight UI no longer changes your max camera distance setting every time you log in" },
+            { "QoL", "Closing the AFK screen while an NPC conversation has the UI faded no longer brings the UI back early" },
         },
     },
     { version = "1.9.4.4", date = "2026-11-18", summary = "A small fix for using your font on the game's text.",
