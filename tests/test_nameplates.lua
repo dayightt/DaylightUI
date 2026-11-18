@@ -492,6 +492,10 @@ T.test("nameplates: a plate that makes ours unusable once it's on is given up, a
     stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate4")
     T.isnil(NP.Manager.byUnit.nameplate4, "not ours")
     T.eq(np.UnitFrame:GetAlpha(), 1, "the game's plate still showing")
+    T.eq(np.UnitFrame:GetParent(), np, "the never-held frame stays on its plate")
+    T.truthy(np.UnitFrame:IsVisible(), "the native frame remains visible")
+    T.truthy(np.UnitFrame:IsEventRegistered("UNIT_HEALTH"), "its events stay registered")
+    T.falsy(NP.Manager.IsHeld(np.UnitFrame), "the rejected attach never claimed it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2305,37 +2309,6 @@ local function driverEvent(event, ...)
     NamePlateDriverFrame:GetScript("OnEvent")(NamePlateDriverFrame, event, ...)
 end
 
-T.test("nameplates: a rejected reattach gives back the frame the driver just handed out", function()
-    local NP = login(driver)
-    local p = added("nameplate1")
-    local np = p.nameplate
-    local uf = np.UnitFrame
-    handOut("nameplate1", uf)
-    T.falsy(uf:IsVisible(), "the driver ran first and ours still owns the plate")
-
-    -- On its next attachment the client lets us parent the frame but refuses to measure it.
-    local setParent = p.SetParent
-    function p:SetParent(parent)
-        setParent(self, parent)
-        if parent == np then
-            function self:GetEffectiveScale() error("unusable on this plate") end
-        end
-    end
-    local oldOptions = NamePlateSetupOptions
-    _G.NamePlateSetupOptions = {} -- the driver's options for UpdateHitTestArea
-    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
-    _G.NamePlateSetupOptions = oldOptions
-    NP.Manager.Sync()
-    T.isnil(NP.Manager.byUnit.nameplate1)
-    T.truthy(uf:IsVisible(), "the game's plate is visible after the refused attachment")
-    T.eq(uf:GetParent(), np)
-    T.eq(uf.WidgetContainer:GetParent(), uf)
-    T.truthy(uf:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"))
-    T.falsy(NP.Manager.IsHeld(uf))
-    T.eq(np.__hit, "the game's")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 T.test("nameplates: the frame the game hands a plate after our handler is taken off too", function()
     login(driver)
     added("nameplate1")
@@ -2418,6 +2391,53 @@ T.test("nameplates: a held frame handed to a plate without ours is the game's ag
     T.eq(uf.WidgetContainer:GetParent(), uf, "its widgets back on it")
     T.eq(plates[3].__hit, "the game's", "clicked where the game says")
     T.falsy(stub.nameplates.Manager.IsHeld(uf))
+end)
+
+T.test("nameplates: refusing an attach gives back a native frame held by an earlier handout", function()
+    local NP = login(function()
+        stub.units.nameplate2 = nil -- one game plate and one existing assignment
+        driver()
+    end)
+    local M, P = NP.Manager, NP.Plate
+    local old = M.byUnit.nameplate1
+    T.truthy(old and old:IsVisible(), "an assignment is still present at handout")
+    local np = plates[1]
+    handOut("nameplate1")
+    local uf = np.UnitFrame
+    T.eq(M.byUnit.nameplate1, old, "the driver handout has not replaced our assignment yet")
+    T.truthy(M.IsHeld(uf), "the handout parked the current native frame under ours")
+    T.falsy(uf:IsVisible())
+
+    -- Attach succeeds, but its usability check fails without reporting an error.
+    -- Inject only after attach: removal must first return the old frame to the pool.
+    local attach, attempts = P.Attach, 0
+    local rejected, getScale
+    P.Attach = function(p, nameplate)
+        attempts = attempts + 1
+        attach(p, nameplate)
+        if attempts == 1 then
+            rejected, getScale = p, p.GetEffectiveScale
+            function p:GetEffectiveScale()
+                if self:GetParent() == nameplate then error("forbidden") end
+                return getScale(self)
+            end
+        end
+    end
+    M.Added("nameplate1")
+    -- End the refusal before Sync: the refusal cache, not an ongoing API failure,
+    -- must prevent retrying this game plate on every reconciliation pass.
+    if rejected then rejected.GetEffectiveScale = getScale end
+    M.Sync()
+    M.Sync()
+    P.Attach = attach
+
+    T.eq(rejected, old, "the previous assignment was removed and its frame reused")
+    T.eq(attempts, 1, "two sync passes do not retry a refused plate")
+    T.isnil(M.byUnit.nameplate1, "no own plate was installed")
+    T.truthy(uf:IsVisible(), "the held native frame is visible after the rejected attach")
+    T.eq(uf:GetParent(), np, "the current native frame is back on its game plate")
+    T.falsy(M.IsHeld(uf), "ownership was returned to the game")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("nameplates: giving an active frame back restores its nameplate-specific events", function()
