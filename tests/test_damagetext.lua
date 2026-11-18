@@ -197,6 +197,17 @@ T.test("damage numbers: the show switches are the game's own", function()
     clear()
 end)
 
+T.test("damage numbers: a show switch flipped in a fight is written after it", function()
+    local cvars = fakeCVars(DEFAULTS)
+    local DUI = stub.Load()
+    stub.EnterCombat()
+    DUI.DamageText.SetShown("damage", false)
+    T.eq(cvars.floatingCombatTextCombatDamage_v2, "1", "never written in a fight")
+    stub.LeaveCombat()
+    T.eq(cvars.floatingCombatTextCombatDamage_v2, "0")
+    clear()
+end)
+
 T.test("damage numbers: the combat text font goes on the game's font object at once", function()
     _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
     local f = { face = "Fonts\\FRIZQT__.TTF", size = 120, flags = "FILTER, FIXEDHEIGHT" }

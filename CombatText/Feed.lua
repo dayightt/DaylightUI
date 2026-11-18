@@ -236,14 +236,19 @@ end
 CT.SWITCH_TRIES = 3
 local switchTries = 0
 
+-- Written out of a fight only: the game's own combat text reacts to this switch
+-- right away, and that shouldn't run from addon code mid-fight.
 local function gameSwitchOn(counted)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     if GetCVar(CT.GAME_SWITCH) ~= "0" then return end
-    if counted then
-        if switchTries >= CT.SWITCH_TRIES then return end
-        switchTries = switchTries + 1
-    end
-    pcall(SetCVar, CT.GAME_SWITCH, "1")
+    DUI.AfterCombat(function()
+        if GetCVar(CT.GAME_SWITCH) ~= "0" or CT.Get("enabled") == false then return end
+        if counted then
+            if switchTries >= CT.SWITCH_TRIES then return end
+            switchTries = switchTries + 1
+        end
+        pcall(SetCVar, CT.GAME_SWITCH, "1")
+    end, "combattext:switch")
 end
 
 local function onEvent(_, event, a1, a2, a3, a4, a5)

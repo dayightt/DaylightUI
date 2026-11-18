@@ -1,8 +1,11 @@
 -- Max camera distance, as a share of the game's normal one (100%). The
--- slider's top end is the highest value the client accepts, found at login by
--- asking for far too much and reading back what it kept.
+-- slider's top end is the highest value the client accepts. Finding it means
+-- asking for far too much and reading back what the client kept, so that is
+-- only done when the options page opens, never at login: a player who never
+-- opens it keeps their game setting untouched.
 
 local _, ns = ...
+local DUI = DaylightUI
 
 local Camera = {}
 ns.Camera = Camera
@@ -47,24 +50,32 @@ function Camera.FindTop()
     return top > 1 and top or Camera.TOP
 end
 
+-- Asked once a session, when the options page opens, and never in a fight.
+function Camera.Ask()
+    if Camera.top or (type(InCombatLockdown) == "function" and InCombatLockdown()) then return end
+    Camera.top = Camera.FindTop()
+    if ns.CAMERA_SLIDER then ns.CAMERA_SLIDER.max = Camera.top end
+end
+
 function Camera.Top() return Camera.top or Camera.TOP end
 
+-- Before the client was asked there is no known top: the client clamps the
+-- value itself, so a saved distance past 200% isn't cut short.
 local function zoom()
     local v = mod and mod.db and tonumber(mod.db.cameraZoom) or 1
-    return math.max(ns.CAMERA_SLIDER and ns.CAMERA_SLIDER.min or 0.5, math.min(Camera.Top(), v))
+    v = math.max(ns.CAMERA_SLIDER and ns.CAMERA_SLIDER.min or 0.5, v)
+    return Camera.top and math.min(Camera.top, v) or v
 end
 
 local function apply(z)
     applied = z
-    set(z * Camera.Base())
+    DUI.AfterCombat(function() set(z * Camera.Base()) end, "qol:camera")
 end
 
 -- Only acts when the setting changes (or on login while it isn't 100%), so a
 -- player who never touches it keeps their own game setting.
 function Camera.Enable(m)
     mod = m
-    Camera.top = Camera.FindTop()
-    if ns.CAMERA_SLIDER then ns.CAMERA_SLIDER.max = Camera.top end   -- before the window is first built
     local z = zoom()
     if z ~= 1 then apply(z) else applied = 1 end
 end

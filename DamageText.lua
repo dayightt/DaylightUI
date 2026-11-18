@@ -120,13 +120,16 @@ function DT.Shown(what)
     return v ~= 0
 end
 
+-- Like every game setting Daylight UI writes, never from inside a fight.
 function DT.SetShown(what, on)
     if type(SetCVar) ~= "function" then return end
-    for _, name in ipairs(DT.SHOW[what]) do
-        if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
-    end
-    -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
-    DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)
+    DUI.AfterCombat(function()
+        for _, name in ipairs(DT.SHOW[what]) do
+            if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
+        end
+        -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
+        DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)
+    end, "damagetext:show:" .. what)
 end
 
 function DT.ShownDefault(what)

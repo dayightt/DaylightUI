@@ -2,7 +2,7 @@
 
 local _, ns = ...
 
--- Its top end becomes the client's own limit at login (Camera.lua).
+-- Its top end becomes the client's own limit when the page first opens (Camera.lua).
 ns.CAMERA_SLIDER = { type = "slider", key = "cameraZoom", label = "Max camera distance",
     min = 0.5, max = 2, step = 0.05, unit = "%",
     desc = "How far the camera can zoom out. 100% is the game's normal limit; the far right end is as far as this client allows. At 100% the game's own setting is left alone." }
@@ -25,6 +25,7 @@ end
 ns.OPTIONS = { pages = {
     { id = "qol", label = "Quality of Life",
       desc = "Small helpers for looting, quests, trainers and more.",
+      onShow = function() ns.Camera.Ask() end,
       groups = {
         { label = "Items and loot", items = {
             { type = "toggle", key = "autoDelete", label = "Type DELETE for me",

@@ -361,7 +361,7 @@ T.test("qol: turning tutorials back on gives the player's own setting back", fun
     m:OnSettingChanged()
     m.db.hideTutorials = false
     m:OnSettingChanged()
-    T.eq(table.concat(cvars, ","), "showTutorials=0,showTutorials=0", "they had tips off already")
+    T.eq(table.concat(cvars, ","), "", "they had tips off already: nothing to write either way")
     T.eq(DaylightUI.DB.Root().qolCVars.showTutorials, nil, "forgotten once handed back")
     _G.SetCVar, _G.GetCVar, _G.TutorialFrame = nil, nil, nil
 end)
@@ -379,10 +379,14 @@ end)
 
 local function camSetup(limit, zoom)
     local cvars = { cameraDistanceMaxZoomFactor = "1.5" }
+    cvars.writes = 0
     stub.Load({ qol = true, before = function()
         _G.GetCVar = function(k) return cvars[k] end
         _G.SetCVar = function(k, v)
-            if k == "cameraDistanceMaxZoomFactor" then v = tostring(math.min(limit, tonumber(v))) end
+            if k == "cameraDistanceMaxZoomFactor" then
+                v = tostring(math.min(limit, tonumber(v)))
+                cvars.writes = cvars.writes + 1
+            end
             cvars[k] = v
         end
         _G.GetCVarDefault = function() return "2" end
@@ -393,10 +397,34 @@ end
 
 local function camDone() _G.GetCVar, _G.SetCVar, _G.GetCVarDefault = nil, nil, nil end
 
-T.test("qol: camera slider's top end is the client's limit, and 100% leaves the game setting alone", function()
+T.test("qol: at 100% a login never writes the camera setting", function()
     local _, cvars = camSetup(3.4)
+    T.eq(cvars.writes, 0, "no probe at login")
+    T.eq(cvars.cameraDistanceMaxZoomFactor, "1.5")
+    T.eq(stub.qol.CAMERA_SLIDER.max, 2, "the slider's top is only found when the page opens")
+    camDone()
+end)
+
+T.test("qol: camera slider's top end is the client's limit, found when its page opens", function()
+    local _, cvars = camSetup(3.4)
+    local page = stub.qol.OPTIONS.pages[1]
+    T.eq(page.id, "qol")
+    page.onShow()
     T.eq(stub.qol.CAMERA_SLIDER.max, 1.7, "3.4 of a normal 2.0 is 170%")
     T.eq(cvars.cameraDistanceMaxZoomFactor, "1.5", "the player's own value is put back")
+    local writes = cvars.writes
+    page.onShow()
+    T.eq(cvars.writes, writes, "asked once a session")
+    camDone()
+end)
+
+T.test("qol: the camera's top is never asked in a fight", function()
+    local _, cvars = camSetup(3.4)
+    stub.combat = true
+    stub.qol.OPTIONS.pages[1].onShow()
+    T.eq(cvars.writes, 0)
+    T.eq(stub.qol.CAMERA_SLIDER.max, 2)
+    stub.combat = false
     camDone()
 end)
 
