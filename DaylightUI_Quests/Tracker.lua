@@ -20,7 +20,7 @@ Tracker.HOLDER = { 226, 160 }     -- the handle; the list hangs from its top-rig
 Tracker.OLD_MOVER = "infopanel.tracker"
 Tracker.OLD_W = 248               -- the info panel's handle width (its position is a CENTER)
 Tracker.FALLBACK = { "TOPRIGHT", "UIParent", "TOPRIGHT", -24, -300 }
-Tracker.BOX_PAD = { 8, 6 }        -- box padding around the list: sides, then top and bottom
+Tracker.BOX_PAD = { 8, 10, 6 }    -- box padding around the list: sides, top, bottom (the top clears the header's buttons)
 Tracker.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_TURNED_IN",
     "QUEST_REMOVED", "QUEST_AUTOCOMPLETE", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
     "CONTENT_TRACKING_UPDATE", "TRACKED_ACHIEVEMENT_UPDATE", "PLAYER_REGEN_ENABLED", "SUPER_TRACKING_CHANGED",
@@ -420,9 +420,9 @@ function Tracker.FitBox(h)
     box:SetShown(db.box == true and h > 1)
     Style.Shell(box, { bgAlpha = Style.BackAlpha(db.boxAlphaOwn, db.boxAlpha), panel = true, noBorder = db.boxBorder == false })
     box:ClearAllPoints()
-    local px, py = Tracker.BOX_PAD[1], Tracker.BOX_PAD[2]
-    box:SetPoint("TOPLEFT", view, "TOPLEFT", -px, py)
-    box:SetPoint("BOTTOMRIGHT", view, "BOTTOMRIGHT", px, -py)
+    local px, top, bottom = Tracker.BOX_PAD[1], Tracker.BOX_PAD[2], Tracker.BOX_PAD[3]
+    box:SetPoint("TOPLEFT", view, "TOPLEFT", -px, top)
+    box:SetPoint("BOTTOMRIGHT", view, "BOTTOMRIGHT", px, -bottom)
 end
 
 -- The list's height. The view shows up to the height limit (Scroll) and glides
