@@ -25,6 +25,7 @@ DUI.PatchNotes = {
             { "Chat", "Local Defense and Trade (Local) get their short tag in every language, not only English" },
             { "General", "Daylight UI's questions no longer push open windows aside" },
             { "Quests", "The quest tracker's box leaves room for the All and This zone buttons" },
+            { "General", "Taking a boat, zeppelin or hearth, or entering a dungeon, no longer asks you to reload Daylight UI's layout" },
         },
     },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",
