@@ -555,7 +555,10 @@ T.test("a slider dragged on a frame's page: the preview follows each step, the r
     s:GetScript("OnMouseDown")(s, "LeftButton")
     for i = 1, 5 do s:GetScript("OnValueChanged")(s, start + i * 4) end
     T.eq(layouts, 0, "the real frame waits")
-    T.truthy(sample:GetWidth() - was > 15, "the preview follows (drawn at its own scale)")
+    -- The preview redraws at most every Panel.REDRAW_EVERY: the first step at once, the rest in one trailing redraw.
+    T.truthy(sample:GetWidth() - was < 15, "the steps in between are coalesced")
+    stub.RunTimers()
+    T.truthy(sample:GetWidth() - was > 15, "the preview ends on the last value (drawn at its own scale)")
     T.eq(DUI:Get("UnitFrames", "player.width"), start + 20)
     s:GetScript("OnMouseUp")(s, "LeftButton")
     stub.RunTimers()

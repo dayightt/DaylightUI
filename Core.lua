@@ -777,7 +777,14 @@ end
 -- once a frame, since dragging a slider changes the style on every step and
 -- each repaint touches every frame.
 local stylePending = false
+-- A General setting repaints every window, frame and panel: tens of milliseconds a time. While a
+-- slider is held down it waits, once, for the slider to be let go (FlushHeldStyle).
+local styleHeld = false
 function DUI.NotifyStyleChanged()
+    if DUI.Options and DUI.Options.sliderHeld then
+        styleHeld = true
+        return
+    end
     if stylePending then return end
     stylePending = true
     C_Timer.After(0, function()
@@ -801,6 +808,36 @@ end
 -- waiting on the repaint (the options window) handles it itself.
 function DUI.NoRepaint(path) return path:sub(1, 4) == "sct." end
 
+-- A slider held down in the options changes its setting at every step, many times a frame on a fast
+-- machine, and most modules answer with a full refresh of everything they draw (the chat's fade
+-- time re-dresses every chat frame). While one is held, a module hears about each setting at most
+-- HELD_EVERY seconds apart, with the last value, so it ends on where the slider was let go.
+DUI.HELD_EVERY = 0.1
+local heldLast, heldQueued = {}, {}
+local function tellModule(scope, mod, path, value)
+    DUI.AfterCombat(function() moduleCall(mod, mod.OnSettingChanged, mod, path, value) end,
+        "setting:" .. scope .. ":" .. path)
+end
+local function tellModuleHeld(scope, mod, path, value)
+    local key = scope .. ":" .. path
+    heldLast[key] = { value = value }
+    if heldQueued[key] then return end
+    heldQueued[key] = true
+    C_Timer.After(DUI.HELD_EVERY, function()
+        heldQueued[key] = nil
+        local last = heldLast[key]
+        heldLast[key] = nil
+        if last then tellModule(scope, mod, path, last.value) end
+    end)
+end
+
+-- The slider was let go: the repaint it held back.
+function DUI.FlushHeldStyle()
+    if not styleHeld then return end
+    styleHeld = false
+    DUI.NotifyStyleChanged()
+end
+
 function DUI:Set(scope, path, value)
     local t = scopeTable(scope)
     if not t then return false end
@@ -811,8 +848,11 @@ function DUI:Set(scope, path, value)
     else
         local mod = modules[scope]
         if mod.OnSettingChanged then
-            DUI.AfterCombat(function() moduleCall(mod, mod.OnSettingChanged, mod, path, value) end,
-                "setting:" .. scope .. ":" .. path)
+            if DUI.Options and DUI.Options.sliderHeld and C_Timer then
+                tellModuleHeld(scope, mod, path, value)
+            else
+                tellModule(scope, mod, path, value)
+            end
         end
     end
     DUI.Fire("SettingChanged", scope, path, value)
