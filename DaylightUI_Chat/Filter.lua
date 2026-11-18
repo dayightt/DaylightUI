@@ -5,9 +5,7 @@
 -- card). "Everything" is on top; switching one kind off from there keeps the rest.
 -- The channels column lists the channels you're in by their game names
 -- (Kinds.Joined), then world channels you're not in, then "Other channels".
--- Each channel and chat kind has a small box for a custom short tag (Tags.lua),
--- showing the standard tag until you type. Emotes have no tag, and with Short
--- tags off there are no boxes.
+-- Short tags are set in the chat options (Options.lua): they're for the whole chat.
 -- The tab name box beside "Everything" renames as you type; left empty it goes
 -- back to the old name.
 -- Opened from a tab's right-click "Channels" and for each new tab.
@@ -23,10 +21,8 @@ ns.Filter = Filter
 
 Filter.COL_W = 200
 Filter.GAP = 20
-Filter.TAG_W = 44
-Filter.TAG_H = 20
 Filter.NAME_H = 26
-Filter.WIDE = Filter.COL_W + Filter.TAG_W + 6 -- column with tag boxes
+Filter.WIDE = Filter.COL_W
 Filter.ROW = 26
 Filter.EDGE = 20
 Filter.W = 2 * Filter.EDGE + 2 * Filter.GAP + 2 * Filter.WIDE + Filter.COL_W
@@ -57,7 +53,7 @@ Filter.COLOR_OF = {
 }
 
 local f, everything, nameBox
-local rows, channelRows, tagHeads = {}, {}, {}
+local rows, channelRows = {}, {}
 local tabIndex
 
 -- A channel kind's color: the joined channel of that kind (CHANNELn, which the
@@ -95,9 +91,9 @@ end
 
 -- A switch row: switch on the left, name beside it. Clicking anywhere on the row
 -- toggles it.
-local function makeRow(parent, kind, words, tagged)
+local function makeRow(parent, kind, words)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(tagged and Filter.WIDE or Filter.COL_W, Filter.ROW)
+    b:SetSize(Filter.COL_W, Filter.ROW)
     b.hi = b:CreateTexture(nil, "BACKGROUND")
     b.hi:SetTexture(Win.Parts.WHITE)
     local hi = Win.Parts.HI
@@ -125,26 +121,7 @@ local function makeRow(parent, kind, words, tagged)
             Win.Parts.Light(b.hi, false)
             GameTooltip:Hide()
         end)
-        if tagged then
-            b.tag = DUI.Widgets.Input(b, { height = Filter.TAG_H, size = Style.SIZE.small, justify = "CENTER",
-                maxLetters = ns.Tags.TAG_LETTERS,
-                onChange = function(text, user) if user then ns.Tags.SetOwn(b.kind, text) end end })
-            b.tag:SetWidth(Filter.TAG_W)
-            b.tag:SetPoint("RIGHT", b.swatch, "LEFT", -6, 0)
-            b.tag:HookScript("OnEnter", function(self)
-                Win.Parts.Light(b.hi, true)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                DUI.Tips.Title(b.words)
-                DUI.Tips.Text(string.format(L["The short tag before these messages. Left empty it stays [%s]."],
-                    b.standard or ""))
-                DUI.Tips.Flush()
-            end)
-            b.tag:HookScript("OnLeave", function()
-                Win.Parts.Light(b.hi, false)
-                GameTooltip:Hide()
-            end)
-        end
-        b.text:SetPoint("RIGHT", b.tag or b.swatch, "LEFT", -6, 0)
+        b.text:SetPoint("RIGHT", b.swatch, "LEFT", -6, 0)
     else
         b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
     end
@@ -173,10 +150,6 @@ local function paint(b)
         local c = Filter.ColorOf(b.kind)
         b.text:SetTextColor(c[1], c[2], c[3], 1)
     end
-    if b.tag then
-        DUI.Motion.AlphaTo(b.tag, (b.standard and ns.Tags.enabled) and 1 or 0,
-            Win.IsOpen(f) and DUI.Motion.FAST or 0, true)
-    end
     local M = DUI.Motion
     local goal = (on or b.kind == "all") and 1 or 0.55
     if M and M.On() and b.text:IsVisible() then
@@ -192,9 +165,6 @@ function Filter.Paint()
     if t then
         Win.SetTitle(f, string.format(L["Show in %s"], t.name or ""))
         if not nameBox:HasFocus() then nameBox:SetText(t.name or "") end
-    end
-    for _, head in ipairs(tagHeads) do
-        DUI.Motion.AlphaTo(head, ns.Tags.enabled and 1 or 0, Win.IsOpen(f) and DUI.Motion.FAST or 0, true)
     end
     paint(everything)
     for _, b in ipairs(rows) do paint(b) end
@@ -229,6 +199,19 @@ function Filter.ChannelList()
     return out
 end
 
+-- The rows of the short tags list in the options: chat kinds, then channels.
+function Filter.TagItems()
+    local chat, channels = {}, {}
+    for _, kind in ipairs(Filter.COLUMNS[1].kinds) do
+        local standard = ns.Tags.CHAT_TAGS[kind] and ns.Tags.Default(kind)
+        if standard then chat[#chat + 1] = { kind = kind, words = ns.Tabs.KIND_WORDS[kind] or kind, standard = standard } end
+    end
+    for _, item in ipairs(Filter.ChannelList()) do
+        if item.standard then channels[#channels + 1] = item end
+    end
+    return chat, channels
+end
+
 local function heightFor(most)
     return Win.HEADER + Filter.LIST_TOP + 22 + most * Filter.ROW + 70
 end
@@ -242,13 +225,13 @@ function Filter.Fill()
     for r, item in ipairs(list) do
         local b = channelRows[r]
         if not b then
-            b = makeRow(f.host, item.kind, item.words, true)
+            b = makeRow(f.host, item.kind, item.words)
             b:SetPoint("TOPLEFT", f.host, "TOPLEFT", x, -(Filter.LIST_TOP + 22 + (r - 1) * Filter.ROW))
             b:Hide()
             channelRows[r] = b
             rows[#rows + 1] = b
         end
-        b.kind, b.words, b.standard = item.kind, item.words, item.standard
+        b.kind, b.words = item.kind, item.words
         b.text:SetText(item.words)
         if not b:IsShown() or b.leaving then
             b.leaving = nil
@@ -268,12 +251,6 @@ function Filter.Fill()
                         b:SetAlpha(0)
                     end
                 end)
-        end
-    end
-    for _, b in ipairs(rows) do
-        if b.tag then
-            b.tag.hint:SetText(b.standard or "")
-            if not b.tag:HasFocus() then b.tag:SetText(ns.Tags.Own(b.kind) or "") end
         end
     end
     local most = #list
@@ -319,17 +296,9 @@ local function build()
         local line = Win.Parts.Rule(host)
         line:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 0, -4)
         line:SetWidth(c == 3 and Filter.COL_W or Filter.WIDE)
-        if c < 3 then
-            local tagHead = Style.Text(host, Style.SIZE.small, "RIGHT")
-            tagHead:SetText(L["Short tag"])
-            Style.InkText(tagHead, "LABEL")
-            tagHead:SetPoint("RIGHT", host, "TOPLEFT", x + Filter.WIDE, -(Filter.LIST_TOP + 7))
-            tagHeads[c] = tagHead
-        end
         if c ~= 2 then
             for r, kind in ipairs(col.kinds) do
-                local b = makeRow(host, kind, ns.Tabs.KIND_WORDS[kind] or kind, c == 1)
-                b.standard = ns.Tags.CHAT_TAGS[kind]
+                local b = makeRow(host, kind, ns.Tabs.KIND_WORDS[kind] or kind)
                 b:SetPoint("TOPLEFT", host, "TOPLEFT", x, -(Filter.LIST_TOP + 22 + (r - 1) * Filter.ROW))
                 rows[#rows + 1] = b
             end
@@ -365,9 +334,6 @@ end
 function Filter.Close()
     if not (f and Win.IsOpen(f)) then return end
     nameBox:ClearFocus()
-    for _, b in ipairs(rows) do
-        if b.tag then b.tag:ClearFocus() end
-    end
     Win.KeysOn(f, false)
     Win.Close(f)
 end

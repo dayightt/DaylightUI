@@ -155,7 +155,11 @@ Custom.TOTEM_SLOTS = {
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
-Custom.SELF_DEBUFF = { [400574] = { lasts = 18, stacks = 4 } }
+Custom.SELF_DEBUFF = {
+    [400574] = { lasts = 18, stacks = 4 },
+    -- Weakened Soul, added by its ID: put on you by your own Power Word: Shield (`from`).
+    [6788] = { lasts = 15, stacks = 1, from = { 17, 592, 600, 3747, 6065, 6066, 10898, 10899, 10900, 10901 } },
+}
 
 -- Duration and stacks for a SELF_DEBUFF piece, or nil.
 function Custom.SelfDebuffFacts(key)
@@ -318,7 +322,9 @@ local function addedFamily(id)
     else
         local sid = tonumber(id:match("^s(%d+)$"))
         if not sid then return nil end
-        f = { ids = { sid }, cd = true, aura = true, user = true, onYou = not classSpell(sid) or nil }
+        local harm = Custom.SELF_DEBUFF[sid] ~= nil or nil
+        f = { ids = { sid }, cd = true, aura = true, user = true, onYou = not classSpell(sid) or nil,
+              self = harm, harm = harm }
     end
     added[id] = f
     return f

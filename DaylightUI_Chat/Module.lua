@@ -19,7 +19,11 @@ DaylightUI:RegisterModule("Chat", {
         ns.History.Restore(mod.db)
         ns.Bubbles.Build(mod)
     end,
-    OnSettingChanged = function(mod) ns.Chat.Refresh(mod) end,
+    OnSettingChanged = function(mod)
+        ns.Chat.Refresh(mod)
+        ns.Bubbles.Refresh()
+    end,
+    OnStyleChanged = function() ns.Bubbles.Refresh() end,
 })
 
 -- The newest chat lines, saved for the next reload (History.lua).

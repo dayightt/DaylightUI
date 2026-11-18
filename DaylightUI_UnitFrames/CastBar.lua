@@ -251,16 +251,19 @@ function CB.Create(unit, attachTo, into, opts)
         h.kickMark = DUI.Interrupt.NewMark(h.bar)
         marked[h] = true
     end
-    if type(unit) == "string" then
+    -- A preview (the options' sample) only draws the test cast: it listens to nothing, and
+    -- CB.Layout keeps it off the real frames.
+    h.preview = opts.preview or nil
+    if type(unit) == "string" and not opts.preview then
         for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
     end
     -- Yours counts a batch of crafts (CB.Batch).
-    if h.kind == "player" then
+    if h.kind == "player" and not opts.preview then
         pcall(h.RegisterUnitEvent, h, "UNIT_SPELLCAST_SUCCEEDED", unit)
         pcall(h.RegisterEvent, h, "UPDATE_TRADESKILL_CAST_STOPPED")
     end
     -- Something else is showing your cast (QoL's fishing water).
-    if h.kind == "player" then
+    if h.kind == "player" and not opts.preview then
         DUI.On("CastElsewhere", function(on)
             CB.elsewhere = on == true
             CB.Refresh(h)
@@ -268,7 +271,7 @@ function CB.Create(unit, attachTo, into, opts)
     end
     h:SetScript("OnEvent", function(self, event, ...) CB.OnEvent(self, event, ...) end)
     -- A frame plugins can find and paint (DaylightUI.API, kind "castbar").
-    if DUI.APIReport then DUI.APIReport.Made("castbar", h, type(unit) == "string" and unit or nil, false) end
+    if DUI.APIReport then DUI.APIReport.Made("castbar", h, type(unit) == "string" and unit or nil, opts.preview == true) end
     h:SetScript("OnUpdate", function(self, dt)
         self.elapsed = (self.elapsed or 0) + dt
         if self.elapsed < 0.05 then return end
@@ -410,6 +413,9 @@ end
 function CB.Layout(h, cfg, parentCfg)
     local g = DUI.DB.General()
     h.enabled = cfg.enabled
+    -- A preview (the options' sample) never reaches for the real frames: its player bar would hang
+    -- under the real player frame, and "middle" would stretch between the real ones.
+    local frames = not h.preview and ns.frames or nil
     -- under: the frame it can hang below, sliding out, at h.hangAt (the
     -- player's "below", which the swing timers hang from, or the target's
     -- "slide"). near: the frame it sits above or below ("above", "below").
@@ -417,8 +423,8 @@ function CB.Layout(h, cfg, parentCfg)
     -- The player's bar hangs under its frame, or under its power bar when that
     -- stands on its own (playerCastbar.from "power"), with the swing timers
     -- hanging from it too.
-    if h.kind == "player" and ns.frames and ns.frames.player then
-        local pf = ns.frames.player
+    if h.kind == "player" and frames and frames.player then
+        local pf = frames.player
         local pb = pf.freePower
         local db = ns.module and ns.module.db
         -- Not from a power bar with flipped angles: its line can't be continued.
@@ -434,7 +440,7 @@ function CB.Layout(h, cfg, parentCfg)
         h:SetScale(1)
     elseif not h.attached then
         local key = (hang and h.under.moverKey) or (at == "personal" and ns.Personal.KEY)
-            or (at == "middle" and ns.frames and ns.frames.player and ns.frames.player.moverKey) or h.moverKey
+            or (at == "middle" and frames and frames.player and frames.player.moverKey) or h.moverKey
         h:SetScale(key and DUI.Movers.Scale(key) or DUI.Movers.Scale())
     end
     -- Its own border, corners and shadow (playerCastbar.shell), else General's.
@@ -450,14 +456,14 @@ function CB.Layout(h, cfg, parentCfg)
     h.lead = 0
     h.room, h.belowAt = cfg.drop, nil
     -- Between the frames: a trapezoid with both ends leaning under (CB.Middle).
-    local middle = at == "middle" and not h.into and not hang and type(ns.frames) == "table" and type(ns.frames.player) == "table"
+    local middle = at == "middle" and not h.into and not hang and type(frames) == "table" and type(frames.player) == "table"
     h.middle = middle or nil
     local free = not h.into and not hang and not middle
     -- Hung under a frame or standing between the frames it draws with that
     -- frame, so it can tuck under it. A party bar lives in its frame and a bar
     -- inside a frame is part of it. Otherwise it takes its own strata.
     if not h.into and not h.inFrame then
-        local pf = ns.frames and ns.frames.player
+        local pf = frames and frames.player
         local s
         if hang then s = h.under:GetFrameStrata()
         elseif middle then s = pf:GetFrameStrata()

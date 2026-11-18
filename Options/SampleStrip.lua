@@ -289,7 +289,9 @@ function Strip.New(parent, onJump, onMove, onAll)
                 c:SetScript("OnClick", function(self)
                     if not (sample and sample.SetView) then return end
                     sample.SetView(self.viewKey, not self.viewOn)
-                    if strip.lastWidth then strip.Redraw(strip.lastWidth, strip.lastRoom) end
+                    -- A view can change the sample's height: relayout the page below it too.
+                    if strip.onZoom then strip.onZoom()
+                    elseif strip.lastWidth then strip.Redraw(strip.lastWidth, strip.lastRoom) end
                 end)
                 strip.views[i] = c
             end

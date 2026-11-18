@@ -7086,23 +7086,55 @@ T.test("cdm custom: Summon Hawk shows each hawk's 18 s and how many are out", fu
     end
 end)
 
--- Weakened Soul (6788), added by its ID: a debuff your own shield puts on you or
--- on the friend you shielded. Watched among your debuffs too.
-T.test("cdm custom: a spell added by its ID is watched among your own debuffs too", function()
+-- Weakened Soul (6788), added by its ID. The client's containers showed nothing
+-- for it in game (as for Arcane Blast's stack), so it's drawn by the addon: read
+-- by id where auras are plain, else counted from your own Power Word: Shield.
+T.test("cdm custom: Weakened Soul is drawn by ours, from your read debuff or your shield on you", function()
     local AB, C = customWorld("PRIEST")
     C.Forget()
     T.truthy(C.IsAdded("s6788"))
+    local h = AB.CdmAuras.Acquire("s6788", UIParent, false, 30)
+    T.truthy(h.face, "drawn by ours, no container")
+    T.eq(#(h.containers or {}), 0)
+    -- Out of a fight it's read by its id.
+    stub.auras.player = { HARMFUL = { { spellId = 6788, duration = 15, expirationTime = GetTime() + 15,
+        sourceUnit = "player", isHarmful = true, isFromPlayerOrPlayerPet = true } } }
+    stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(AB.CdmAuras.IsUp(h), true, "read on you")
+    stub.auras.player = {}
+    stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(AB.CdmAuras.IsUp(h), false, "gone")
+    -- In a fight: your shield on yourself puts it up for 15 s.
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pws-1", 10901); stub.RunTimers()
+    T.eq(h.up, true, "your shield on you: up")
+    T.truthy(h.endsAt and math.abs(h.endsAt - GetTime() - 15) < 0.01, "for 15 s")
+    stub.Advance(16.2); stub.RunTimers()
+    T.eq(AB.CdmAuras.IsUp(h), false, "15 s later: gone")
+    -- A shield on a friend puts it on them, not you.
+    stub.SetUnits({ player = { class = "PRIEST" }, target = { friend = true } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pws-2", 10901); stub.RunTimers()
+    T.falsy(h.up, "your shield on a friend: not on you")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Forbearance (25771), added by its ID: a debuff on you. Watched among your debuffs too.
+T.test("cdm custom: a spell added by its ID is watched among your own debuffs too", function()
+    local AB, C = customWorld("PRIEST")
+    C.Forget()
+    T.truthy(C.IsAdded("s25771"))
     local h = CreateFrame("Frame", nil, UIParent)
     h.size = 30
-    AB.CdmAuras.Setup(h, "s6788")
+    AB.CdmAuras.Setup(h, "s25771")
     local seen = {}
     for _, k in ipairs(h.containers) do seen[k.unit .. " " .. k.c.__groups.a.filter] = true end
     T.truthy(seen["player HELPFUL"], "your buffs")
-    T.truthy(seen["player HARMFUL|PLAYER"], "your debuffs: a self-shield's Weakened Soul")
+    T.truthy(seen["player HARMFUL|PLAYER"], "your debuffs: an added debuff")
     T.truthy(seen["target HARMFUL|PLAYER"], "your target's, from you")
 end)
 
--- The spot opened while Weakened Soul was up but stayed empty. The client's
+-- An added debuff on you. The client's
 -- containers refuse to pick a debuff on you (or any friend) by spell id unless
 -- the spell is never secret (AuraContainerUtil.CanApplyIdentityCandidateFilters,
 -- tests/aura_rules.lua), so the debuff group goes by what's left: yours, and no
@@ -7119,26 +7151,26 @@ T.test("cdm custom: a debuff on you really shows in its container (never picked 
         end
     end
     C_Spell.GetSpellDescription = function(sid)
-        if sid == 6788 then return "Cannot be shielded again for 15 sec." end
+        if sid == 25771 then return "Cannot be shielded again for 15 sec." end
     end
     local h = CreateFrame("Frame", nil, UIParent)
     h.size = 30
-    AB.CdmAuras.Setup(h, "s6788")
+    AB.CdmAuras.Setup(h, "s25771")
     local g = debuffGroup(h)
     T.truthy(g, "a debuff group on you")
-    T.truthy(shows(g, you, { spellId = 6788, harmful = true, mine = true, duration = 15 }),
-        "your Weakened Soul shows")
+    T.truthy(shows(g, you, { spellId = 25771, harmful = true, mine = true, duration = 15 }),
+        "yours shows")
     T.falsy(shows(g, you, { spellId = 115, harmful = true, mine = false, duration = 15 }),
         "a mob's debuff on you doesn't")
     T.falsy(shows(g, you, { spellId = 2096, harmful = true, mine = true, duration = 60 }),
         "a longer one of yours (Recently Bandaged) doesn't")
     -- A spell the client calls never secret may still go by its id.
-    stub.neverSecretAuras = { [6788] = true }
+    stub.neverSecretAuras = { [25771] = true }
     local n = CreateFrame("Frame", nil, UIParent)
     n.size = 30
-    AB.CdmAuras.Setup(n, "s6788")
+    AB.CdmAuras.Setup(n, "s25771")
     local ng = debuffGroup(n)
-    T.truthy(shows(ng, you, { spellId = 6788, harmful = true, mine = true, duration = 15, neverSecret = true }))
+    T.truthy(shows(ng, you, { spellId = 25771, harmful = true, mine = true, duration = 15, neverSecret = true }))
     T.falsy(shows(ng, you, { spellId = 2096, harmful = true, mine = true, duration = 15, neverSecret = true }),
         "by its id: nothing else")
     stub.neverSecretAuras = {}

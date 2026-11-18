@@ -1451,6 +1451,10 @@ local function passOne(cf)
         if type(name) == "string" then
             park(_G[name .. "Tab"])
             ownAlpha(_G[name .. "EditBox"] or cf.editBox)
+            -- In the IM chat style this invisible button covers the window and a click
+            -- on it makes the window's own box the one you type in. Parked windows
+            -- still have it, so it caught clicks meant for the Daylight box.
+            if type(cf.clickAnywhereButton) == "table" then park(cf.clickAnywhereButton) end
         end
     end
 end
