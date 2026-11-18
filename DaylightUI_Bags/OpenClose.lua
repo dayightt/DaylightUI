@@ -203,17 +203,6 @@ function OC.Take()
         if OC.tradeOpened and (OC.held or OC.AnyOpen()) then OC.CloseAll() end
         OC.tradeOpened = nil
     end)
-    -- On a controller the bag closes as a fight starts, so the D-pad goes to the
-    -- fight. Hidden at once, not faded: the fade's Hide would land after lockdown
-    -- starts, refused with protected item slots.
-    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-        local w = ns.window
-        if not (w and w:IsShown() and DUI.Pad and DUI.Pad.On()) then return end
-        DUI.Pad.LeavingForFight(w)
-        OC.held = nil
-        OC.CloseGame()
-        w:Hide()
-    end)
     -- This bag closed some other way (Escape): close the game's bags too.
     local f = ns.window
     if f then
