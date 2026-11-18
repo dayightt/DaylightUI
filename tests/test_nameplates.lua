@@ -2305,6 +2305,37 @@ local function driverEvent(event, ...)
     NamePlateDriverFrame:GetScript("OnEvent")(NamePlateDriverFrame, event, ...)
 end
 
+T.test("nameplates: a rejected reattach gives back the frame the driver just handed out", function()
+    local NP = login(driver)
+    local p = added("nameplate1")
+    local np = p.nameplate
+    local uf = np.UnitFrame
+    handOut("nameplate1", uf)
+    T.falsy(uf:IsVisible(), "the driver ran first and ours still owns the plate")
+
+    -- On its next attachment the client lets us parent the frame but refuses to measure it.
+    local setParent = p.SetParent
+    function p:SetParent(parent)
+        setParent(self, parent)
+        if parent == np then
+            function self:GetEffectiveScale() error("unusable on this plate") end
+        end
+    end
+    local oldOptions = NamePlateSetupOptions
+    _G.NamePlateSetupOptions = {} -- the driver's options for UpdateHitTestArea
+    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    _G.NamePlateSetupOptions = oldOptions
+    NP.Manager.Sync()
+    T.isnil(NP.Manager.byUnit.nameplate1)
+    T.truthy(uf:IsVisible(), "the game's plate is visible after the refused attachment")
+    T.eq(uf:GetParent(), np)
+    T.eq(uf.WidgetContainer:GetParent(), uf)
+    T.truthy(uf:IsEventRegistered("UPDATE_MOUSEOVER_UNIT"))
+    T.falsy(NP.Manager.IsHeld(uf))
+    T.eq(np.__hit, "the game's")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: the frame the game hands a plate after our handler is taken off too", function()
     login(driver)
     added("nameplate1")

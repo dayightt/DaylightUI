@@ -300,6 +300,8 @@ function Manager.Added(unit)
     -- its own plate for this unit.
     if not DUI.SafeCall(ns.Plate.Attach, p, nameplate) or not Manager.Usable(p) then
         refused[nameplate] = true
+        -- The driver's handout may already have hidden this frame under the previous plate.
+        DUI.SafeCall(Manager.GiveBackFrame, nameplate.UnitFrame, nameplate)
         Manager.Abandon(p)
         return
     end

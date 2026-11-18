@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         fixed = {
             { "Chat", "The typing box no longer opens in the middle of the Daylight chat box, over your messages, after clicking the chat" },
             { "Cooldown Manager", "Weakened Soul added to the Cooldown Manager shows again after you shield yourself" },
+            { "Nameplates", "The game's nameplate shows again if Daylight can't attach its frame to a reused plate" },
             { "Unit frames", "Party and raid frames show an angel on a dead player who's being rezzed, so two healers don't rez the same person" },
         },
     },
