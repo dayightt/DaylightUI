@@ -892,14 +892,11 @@ T.test("lfg: Who filters by race, class and zone in the /who itself, each a labe
     end
     T.eq(page.race.text:GetText(), "All", "no filter: everyone")
     T.eq(W.Query(""), "14", "nothing set: your level, as before")
-    -- Several of each may be ticked; they go to the game as id lists, the text stays the text.
+    -- Several of each may be ticked; each pick is a term of the /who text (checked in game: the
+    -- same term repeated asks for either).
     W.races, W.classes, W.zones = { [2] = true, [1] = true }, { [9] = true }, { [1411] = true, [1454] = true }
-    T.eq(W.Query("dae"), "dae")
-    local f = W.Filters()
-    T.eq(table.concat(f.raceIDs, ","), "1,2")
-    T.eq(table.concat(f.classIDs, ","), "9")
-    T.eq(table.concat(f.uiMapIDs, ","), "1411,1454")
-    T.eq(W.Query(""), "", "filters and no text: no level search")
+    T.eq(W.Query("dae"), 'dae r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"')
+    T.eq(W.Query(""), 'r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"', "filters and no text: no level search")
     W.races, W.classes, W.zones = {}, {}, {}
     -- Picking a race only sets it: nothing goes to the game until Search.
     local before = #LW.Calls("SendWho")
@@ -911,10 +908,8 @@ T.test("lfg: Who filters by race, class and zone in the /who itself, each a labe
     stub.Key(function() page.go:GetScript("OnClick")(page.go) end)
     T.eq(#LW.Calls("SendWho"), before + 1, "Search asks once, with both filters")
     local sent1 = LW.Calls("SendWho")[before + 1]
-    T.eq(sent1[1], "", "the text is empty")
-    T.eq(table.concat(sent1[3].raceIDs, ","), "2")
-    T.eq(table.concat(sent1[3].classIDs, ","), "9")
-    T.eq(#sent1[3].uiMapIDs, 0, "all three lists go, the empty one empty")
+    T.eq(sent1[1], 'r-"Orc" c-"Warlock"', "the picks as terms")
+    T.isnil(sent1[3], "nothing in SendWho's third argument: the game ignores it")
     W.classes = {}
     T.eq(page.race.text:GetText(), "Orc", "the drop-down shows what is picked")
     W.races[4] = true; W.Changed()
@@ -1105,6 +1100,23 @@ T.test("lfg: the filters list the game's own races, classes and zones, ticked ma
     if not ok then error(err, 0) end
     T.eq(W.Summary(W.races, W.Races()), "All")
     T.eq(W.Summary({ [1] = true, [2] = true }, W.Races()), "Human +1")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: Who lists the answer in the order Sort by says, not the game's order by zone", function()
+    local ns = load()
+    open(ns)
+    local W = ns.Who
+    local list = { { name = "Bo", level = 30, class = "Mage" }, { name = "Al", level = 9, class = "Warrior" }, { name = "Cy", level = 30, class = "Druid" } }
+    local function names(l) local t = {} for _, p in ipairs(l) do t[#t + 1] = p.name end return table.concat(t, ",") end
+    W.sort = nil
+    T.eq(names(W.Sorted(list)), "Al,Bo,Cy", "level (the default) low to high, ties by name")
+    W.sort = "name"
+    T.eq(names(W.Sorted(list)), "Al,Bo,Cy")
+    W.sort = "class"
+    T.eq(names(W.Sorted(list)), "Cy,Bo,Al", "class A to Z")
+    T.eq(names(list), "Bo,Al,Cy", "the game's list is left as it was")
+    W.sort = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

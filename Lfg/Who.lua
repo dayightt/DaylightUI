@@ -1,6 +1,6 @@
 -- Who page: a search box (the game's /who syntax: name, zone, class, guild, level or a
 -- range like "20-25"), drop-downs to tick any number of races, classes and zones (the game's
--- own lists; they go to SendWho as ids) and a Sort by drop-down (name, class, level via
+-- own lists; they go in the /who text, one term for each pick) and a Sort by drop-down (name, class, level via
 -- C_FriendList.SortWho), Search and Reset, how many the server found, then the results: name in class color with guild, level, race
 -- and class below and zone on the right. Click picks one and opens a detail card beside
 -- the list (Social's, DUI.Social.Detail) with what is known of them and Whisper and
@@ -42,8 +42,7 @@ local function Data() return ns.Data end
 local function friends() return type(C_FriendList) == "table" and C_FriendList or nil end
 
 -- The filters: any number of races, classes and zones, as the game's own who filter lets you
--- tick. They go to the game with the search (SendWho's third argument), so the server's 50 are
--- all of that kind. Each is a set of the game's ids (Who.races[2] = true).
+-- tick. They go in the /who text, one term for each pick, so the server's 50 are all of that kind. Each is a set of the game's ids (Who.races[2] = true).
 Who.races, Who.classes, Who.zones = {}, {}, {}
 
 -- The three filters: the drop-down's key and the set it edits.
@@ -62,10 +61,30 @@ function Who.Picked(key)
     end
 end
 
+-- The picked filters as /who terms, the same one repeated for each pick (r-"Dwarf" r-"Human"
+-- asks for either): the game's server takes them in the text; SendWho's own filter lists are
+-- ignored (checked in game).
+function Who.Terms()
+    local out = {}
+    local sources = { race = Who.Races, class = Who.Classes, zone = function() return Who.ZoneTree().all end }
+    local letter = { race = "r", class = "c", zone = "z" }
+    for _, f in ipairs(Who.FILTERS) do
+        local set = Who[f[2]]
+        if next(set) ~= nil then
+            for _, it in ipairs(sources[f[1]]()) do
+                if set[it[1]] then out[#out + 1] = letter[f[1]] .. '-"' .. it[2]:gsub('"', "") .. '"' end
+            end
+        end
+    end
+    return out
+end
+
 function Who.Query(text)
     text = type(text) == "string" and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
-    if text == "" and not Who.AnyFilter() then return tostring(Data().Level()) end
-    return text
+    local parts = Who.Terms()
+    if text ~= "" then table.insert(parts, 1, text) end
+    if #parts == 0 then return tostring(Data().Level()) end
+    return table.concat(parts, " ")
 end
 
 function Who.AnyFilter()
@@ -73,13 +92,6 @@ function Who.AnyFilter()
         if next(Who[f[2]]) ~= nil then return true end
     end
     return false
-end
-
--- The third argument of SendWho: the three id lists (the game wants all three).
-function Who.Filters()
-    local out = {}
-    for _, f in ipairs(Who.FILTERS) do out[f[3]] = ids(Who[f[2]]) end
-    return out
 end
 
 -- What a search asks, as one line: the text and the picked ids. Search is lit while this is not
@@ -108,7 +120,7 @@ function Who.Send(text)
     Who.token = (Who.token or 0) + 1
     local mine = Who.token
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social
-    pcall(F.SendWho, text, origin, Who.Filters())
+    pcall(F.SendWho, text, origin)
     C_Timer.After(Who.COOL, function() Who.Render() end)
     -- The game may let nothing through (a search it refused leaves no answer): stop waiting.
     C_Timer.After(Who.WAIT, function()
@@ -161,6 +173,25 @@ end
 function Who.Filtered()
     local page = Who.page
     return Who.AnyFilter() or (page ~= nil and (page.search:GetText() or "") ~= "")
+end
+
+-- The answer in the order the Sort by drop-down says (the game hands it over by zone): level
+-- low to high, name or class A to Z, ties by name. A copy; the game's list is left alone.
+function Who.Sorted(list)
+    local mode = Who.sort or "level"
+    local out = {}
+    for i, p in ipairs(list) do out[i] = p end
+    local function key(p)
+        if mode == "level" then return tonumber(p.level) or 0 end
+        if mode == "class" then return (p.class or ""):lower() end
+        return (p.name or ""):lower()
+    end
+    table.sort(out, function(a, b)
+        local x, y = key(a), key(b)
+        if x ~= y then return x < y end
+        return (a.name or ""):lower() < (b.name or ""):lower()
+    end)
+    return out
 end
 
 function Who.Sort(mode)
@@ -460,6 +491,7 @@ function Who.Render(page)
     local list, total = Data().Who()
     -- Asking: the old answer goes and the list says so, as Find a group does.
     if Who.searching then list, total = {}, 0 end
+    list = Who.Sorted(list)
     Who.list = list
     local s = page.stack
     s:Begin()
