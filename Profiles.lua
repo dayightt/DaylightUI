@@ -1265,7 +1265,8 @@ local function packGroup(pack)
     local items = {}
     for _, e in ipairs(Profiles.PackProfiles(pack)) do
         items[#items + 1] = { type = "button", label = e.name, text = "Add",
-            desc = (e.sub and (e.sub .. " ") or "") .. "Made the first time you add it; after that, the one you have is used as it is. Choose it above to use it.",
+            -- The pack's own line stays as written; only the fixed sentence is translated.
+            desc = (e.sub and (e.sub .. " ") or "") .. L["Made the first time you add it; after that, the one you have is used as it is. Choose it above to use it."],
             hidden = function() return type(data()[e.name]) == "table" and Profiles.PackUpdate(e.name) ~= nil end,
             func = function()
                 local made, why = Profiles.AddPresetOffering(e.name)

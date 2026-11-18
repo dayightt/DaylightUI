@@ -46,7 +46,6 @@ Tags.CHAT_TAGS = { say = "S", yell = "Y", whisper = "W", bnet = "W", party = "P"
                    raid = "R", warning = "RW", guild = "G", officer = "O" }
 Tags.TAG_LETTERS = 6
 -- Group chat by the channel type in the line's link.
-Tags.TYPES = { GUILD = "G", OFFICER = "O", PARTY = "P", RAID = "R", INSTANCE_CHAT = "I" }
 Tags.TYPE_KINDS = { GUILD = "guild", OFFICER = "officer", PARTY = "party", RAID = "raid", INSTANCE_CHAT = "instance" }
 -- Leaders share their group's link; the event tells them apart.
 Tags.LEADERS = { CHAT_MSG_PARTY_LEADER = "PL", CHAT_MSG_RAID_LEADER = "RL", CHAT_MSG_INSTANCE_CHAT_LEADER = "IL" }
