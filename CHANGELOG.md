@@ -1,3 +1,35 @@
+# DaylightUI 1.9.4
+
+Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.
+
+## New
+- World map: Hover a zone on the world map to see its level range, colored by how hard it is for you
+- Group finder: Make the group finder wide to see groups and solo players side by side
+- Cooldown Manager: Every totem shows how long it has left, and buff totems dim when you're out of their range
+- Nameplates: A crest by the name of anyone flagged for PvP, so you don't flag yourself by accident
+- Bags: Rogues get a Pick Lock button in the bag for lockboxes
+- Quests: Quests ready to hand in can gather at the bottom of the tracker
+- Social: Appear offline to your Battle.net friends from the Social window
+- Profiles: Ready-made profiles, DPS/Tank too, can be added any time and reset to how they come
+- General: Small options players asked for: chat line spacing and right-side messages, clock seconds, two more health text formats, and more
+- Plugins: Vendor plugins work in Daylight Mogul's vendor window too
+
+## Changed
+- Nameplates: TESTING A FIX FOR VANISHING NAMEPLATES: faded unit frames, party and raid frames, out-of-range players and faded bars no longer fade as one smooth picture. For now they fade the plain way, so you may see a bar show through its frame while it's faded. If your nameplates still vanish on this version, please tell us in Discord. It helps us find the cause
+- Legacy: The Legacy window's challenge filter is a drop-down and its side panels are wider, so every language fits
+- Languages: More Simplified Chinese thanks to Levis
+
+## Fixed
+- World map: Opening and closing the world map no longer freezes the game for a moment on a controller
+- Options: Dragging a slider in the options no longer makes the game stutter
+- General: Boats, zeppelins, hearths and dungeons no longer ask you to reload the layout
+- Cooldown Manager: Buff bars no longer pile onto Slice and Dice after a target change, and keybinds follow your druid form
+- Spellbook: No more blocked action bar error when the spellbook closes, or errors dragging spells in a fight
+- Bags: Swapping a full bag for a bigger one no longer asks you to free up space first
+- Chat: Links work in whisper conversations, and quest rewards follow the Experience, Money and Loot switches
+- General: Back like the game's: your BattleTag in Social, the PvP rank badge, free slots on the backpack, who bought your auction item
+- General: Little touches: hover tips on the chat icons, fewer small hitches in fights, Questie map icons only for tracked quests, and more
+
 # DaylightUI 1.9.3
 
 Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.
