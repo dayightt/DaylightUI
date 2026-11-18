@@ -1,11 +1,12 @@
--- The "Use this font for the game's text" option. Applies the Appearance font
--- to the game's own text (menus, tooltips, quest text, error popups, nameplate
--- names, combat numbers) by changing its named font objects, keeping each
--- one's size and outline. Font objects aren't protected, so this is safe in
--- combat, and no game frame is touched. Turning it off restores every face.
--- Damage numbers (DAMAGE_TEXT_FONT) follow this font unless the Damage numbers
--- page picks its own. The client reads that one only at login, so a change
--- shows after a game restart.
+-- The "Use this font for the game's text" option. Puts the Appearance font on
+-- the game's own text (menus, tooltips, quest text, popups, nameplate and
+-- speech bubble text) by changing its named font objects, keeping each one's
+-- size and outline. It runs once, at login, the way EllesmereUI's "Apply to
+-- All Game Text" does: the game's fonts are never changed while its frames are
+-- drawing with them, so switching it or picking another font shows after a
+-- /reload. Font objects that load later keep the game's face until then.
+-- Damage numbers (DAMAGE_TEXT_FONT) and the combat text over you have picks of
+-- their own on the Damage numbers page and follow them live.
 
 local ADDON_NAME, DUI = ...
 
@@ -114,8 +115,8 @@ local function setFace(obj, face)
             savedFaces[obj] = { current, flags }
             flags = ourFlags(flags)
         else
-            -- Already set (every later ADDON_LOADED walks them all again). SetFont redraws
-            -- every text using the object, so skip it.
+            -- Already set (the combat text font comes back on every repaint). SetFont
+            -- redraws every text using the object, so skip it.
             local want = ourFlags(saved[2])
             if current == face and flags == want then return end
             flags = want
@@ -150,28 +151,29 @@ local function putOn(obj, face)
     setFace(obj, face)
 end
 
--- Applies the wanted font to the game's text, or restores the game's own.
-function GameFonts.Apply()
+-- Puts the wanted font on the game's text. Only the first call of a session
+-- does anything.
+local applied = false
+function GameFonts.ApplyGameText()
+    if applied then return end
+    applied = true
     local font = GameFonts.Wanted()
-    if font then
-        if not savedGlobals then
-            savedGlobals = {}
-            for _, k in ipairs(GameFonts.GLOBALS) do savedGlobals[k] = _G[k] end
-        end
-        for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = font end
-        -- Daylight UI's own families are named fonts too: each carries a face picked
-        -- for its own text (the chat's, for one) and keeps it.
-        local own = DUI.Style.OwnFamily
-        for _, obj in ipairs(fontObjects()) do
-            if obj ~= CombatTextFont and not own(obj) then putOn(obj, font) end
-        end
-    elseif savedGlobals then
-        for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = savedGlobals[k] end
-        savedGlobals = nil
-        for obj in pairs(savedFaces) do
-            if obj ~= CombatTextFont then setFace(obj, nil) end
-        end
+    if not font then return end
+    savedGlobals = {}
+    for _, k in ipairs(GameFonts.GLOBALS) do
+        savedGlobals[k] = _G[k]
+        _G[k] = font
     end
+    -- Daylight UI's own families are named fonts too: each carries a face picked
+    -- for its own text (the chat's, for one) and keeps it.
+    local own = DUI.Style.OwnFamily
+    for _, obj in ipairs(fontObjects()) do
+        if obj ~= CombatTextFont and not own(obj) then putOn(obj, font) end
+    end
+end
+
+-- The damage number and combat text fonts, which change live.
+function GameFonts.Apply()
     -- The combat text over you has its own pick on the Damage numbers page.
     if type(CombatTextFont) == "table" then setFace(CombatTextFont, GameFonts.CombatTextWanted()) end
     -- The client reads DAMAGE_TEXT_FONT once, early in login. Before PLAYER_LOGIN
@@ -192,20 +194,14 @@ function GameFonts.Apply()
     end
 end
 
--- Daylight UI's first (Core has picked the font by then). Each game addon that loads
--- later brings its own font objects, so walk them once on the next frame no
--- matter how many loaded (dozens at login, a few per window).
-local walkQueued = false
+-- Daylight UI's first (Core has picked the font by then), for the damage font.
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
-    if not DUI.DB.sv then return end
-    if name == ADDON_NAME then return GameFonts.Apply() end
-    if walkQueued then return end
-    walkQueued = true
-    C_Timer.After(0, function()
-        walkQueued = false
-        DUI.SafeCall(GameFonts.Apply)
-    end)
+    if name == ADDON_NAME and DUI.DB.sv then GameFonts.Apply() end
 end)
 DUI.On("RepaintCore", GameFonts.Apply)
--- Once the spec's profile is active, its damage font is saved for next time.
-DUI.On("Login", GameFonts.Apply)
+-- The spec's profile is active at login: the game's text takes its font once,
+-- and its damage font is saved for next time.
+DUI.On("Login", function()
+    GameFonts.ApplyGameText()
+    GameFonts.Apply()
+end)
