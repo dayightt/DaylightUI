@@ -7480,3 +7480,5 @@ L["Your spellbook and talents in one window, in Daylight UI style."] = "Tu libro
 L["Your stances, forms, stealth and the page keys swap this bar's buttons, as in the game. When off, it always shows its own buttons. Vehicles still take it over."] = "Tus actitudes, formas, el sigilo y las teclas de página cambian los botones de esta barra, como en el juego. Si está desactivado, muestra siempre sus propios botones. Los vehículos siguen ocupándola."
 L["Zone names in the tracker"] = "Nombres de zona en el seguimiento"
 L["[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags."] = "[G] para General, [C] para Comercio, [H] para hermandad (en su verde de hermandad), [Gp] para grupo, [D] para decir, [Gr] para gritar, [Su] para susurros. Las líneas que ya están en el chat se quedan como estaban. La ventana Mostrar de una pestaña del chat define tus propias etiquetas."
+L["NEXT REWARD"] = "PRÓXIMA RECOMPENSA"
+L["At rank %d"] = "En el rango %d"

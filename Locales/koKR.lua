@@ -4904,3 +4904,5 @@ L["Your profession's recipes in one window, in Daylight UI style."] = "전문 �
 L["Your spellbook and talents in one window, in Daylight UI style."] = "마법책과 특성을 한 창에서 Daylight UI 스타일로."
 L["Zone name text size"] = "지역 이름 글자 크기"
 L["Zone names in the tracker"] = "추적기에 지역 이름 표시"
+L["NEXT REWARD"] = "다음 보상"
+L["At rank %d"] = "%d등급에서"

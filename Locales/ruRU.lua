@@ -4905,3 +4905,5 @@ L["Your profession's recipes in one window, in Daylight UI style."] = "Реце�
 L["Your spellbook and talents in one window, in Daylight UI style."] = "Ваша книга заклинаний и таланты в одном окне, в стиле Daylight UI."
 L["Zone name text size"] = "Размер текста названия зоны"
 L["Zone names in the tracker"] = "Названия зон в списке заданий"
+L["NEXT REWARD"] = "СЛЕДУЮЩАЯ НАГРАДА"
+L["At rank %d"] = "На уровне %d"

@@ -6745,3 +6745,5 @@ L["Your profession's recipes in one window, in Daylight UI style."] = "Die Rezep
 L["Your spellbook and talents in one window, in Daylight UI style."] = "Dein Zauberbuch und deine Talente in einem Fenster, im Daylight UI-Stil."
 L["Zone names in the tracker"] = "Zonennamen im Verfolger"
 L["[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags."] = "[G] für Allgemein, [T] für Handel, [G] für Gilde (von Allgemein durch sein Gildengrün unterschieden), [P] für Gruppe, [S] für Sagen, [Y] für Schreien, [W] für Flüstern. Zeilen, die bereits im Chat sind, bleiben wie sie waren. Das Anzeigen-Fenster eines Chat-Tabs legt deine eigenen Etiketten fest."
+L["NEXT REWARD"] = "NÄCHSTE BELOHNUNG"
+L["At rank %d"] = "Bei Rang %d"

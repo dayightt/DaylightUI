@@ -453,7 +453,7 @@ CW.PVP_RANKS = { "Private", "Corporal", "Sergeant", "Master Sergeant", "Sergeant
 
 -- spec.pvp: renownLevel, renownReputationEarned, renownLevelThreshold,
 -- currentWeekProgressiveMaxLevel, previousWeekProgressiveMaxLevel, maxLevel,
--- seasonEnds (seconds), season. Rank N costs N x 1000 in all.
+-- seasonEnds (seconds), season, rewards (rank -> the list GetRenownRewardsForLevel gives). Rank N costs N x 1000 in all.
 local function installPvP(spec)
     local p = spec.pvp
     _G.C_MajorFactions = {
@@ -464,6 +464,7 @@ local function installPvP(spec)
             return d
         end,
         GetTotalReputationForRenownLevel = function(_, level) return (level or 0) * 1000 end,
+        GetRenownRewardsForLevel = function(_, level) return p and p.rewards and p.rewards[level] or {} end,
     }
     _G.C_SeasonInfo = { GetTimeUntilCurrentPVPSeasonEnd = function() return p and p.seasonEnds or 0 end }
     _G.GetCurrentArenaSeason = function() return p and p.season or 0 end

@@ -7571,3 +7571,5 @@ L["When the accent color is a gradient (Daylight's, your class's or your own), e
 L["Where your custom gradient starts."] = "你的自定义渐变的起始位置。"
 L["Your cast bar fills from the right. Not while under the frame or between the frames."] = "你的施法条从右侧开始填充。位于框体下方或框体之间时不可用。"
 L["Zone levels"] = "区域等级"
+L["NEXT REWARD"] = "下一个奖励"
+L["At rank %d"] = "%d级时获得"

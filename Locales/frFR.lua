@@ -5019,3 +5019,5 @@ L["Your spellbook and talents in one window, in Daylight UI style."] = "Votre gr
 L["Zone name text size"] = "Taille du texte des noms de zone"
 L["Zone names in the tracker"] = "Noms de zone dans le suivi"
 L["[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags."] = "[G] pour Général, [T] pour Commerce, [G] pour guilde (distinguée de Général par son vert de guilde), [P] pour groupe, [S] pour dire, [Y] pour crier, [W] pour chuchotements. Les lignes déjà dans la discussion restent telles quelles. La fenêtre Afficher d'un onglet définit vos propres étiquettes."
+L["NEXT REWARD"] = "PROCHAINE RÉCOMPENSE"
+L["At rank %d"] = "Au rang %d"
