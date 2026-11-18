@@ -237,3 +237,21 @@ T.test("tour: the card goes beside the light, or in the middle of a window too b
     x, top = DUI.Tour.CardSpot({ l = 20, b = 20, r = 1900, t = 1060 }, 320, 200, 1920, 1080)
     T.eq(x, (20 + 1900 - 320) / 2); T.eq(top, (20 + 1060 + 200) / 2)
 end)
+
+T.test("tour: a longer step's text is measured whole, not cut to the last step's height", function()
+    local DUI = load({ infopanel = true, buffs = true, bags = true })
+    -- 13 px a line, 40 letters a line
+    stub.measure = function(fs) local n = #(fs:GetText() or ""); return n * 7, 13 * math.max(1, math.ceil(n / 40)) end
+    DUI.Tour.Start()
+    settle()
+    local c = DUI.Tour.card
+    for _ = 1, #DUI.Tour.List() do
+        local n = #(c.text:GetText() or "")
+        T.eq(c.text:GetHeight(), 13 * math.max(1, math.ceil(n / 40)), DUI.Tour.StepId() .. " shows every line")
+        if not DUI.Tour.Running() then break end
+        press(c.next)
+        settle()
+        if not DUI.Tour.Running() then break end
+    end
+    stub.measure = nil
+end)

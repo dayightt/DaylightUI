@@ -896,3 +896,32 @@ T.test("cast bar between the frames: a trapezoid wider at the bottom, the swing 
     T.falsy(cb.middle)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("swing: shown always, the bars leave with the unit frames at a campfire and come back after", function()
+    local _, ns = login(function() stub.swing.speeds = { 2.6, 1.8, 3.0 } end, "always")
+    local F = DaylightUI.Fade
+    local h = ns.swing
+    local r = rows(h)
+    DaylightUI:Set("UnitFrames", "swing.bars.off.detach", true)
+    DaylightUI:Set("UnitFrames", "swing.bars.off.visibility", "always")
+    stub.RunTimers()
+    T.truthy(h:IsShown(), "the group is up out of combat")
+    stub.RunOnUpdate(r.off.pop.driver, 1)
+    T.truthy(r.off.pod:IsShown(), "the bar on its own too")
+    local function settle(secs)
+        for _ = 1, 30 do
+            F.Step()
+            stub.RunOnUpdate(F.driver, secs / 30)
+            stub.Advance(secs / 30)
+        end
+    end
+    F.Hush("campfire", { "ActionBars.", "UnitFrames." })
+    settle(4)
+    T.eq(h:GetAlpha(), 0, "the group fades with the frames")
+    T.eq(r.off.pod:GetAlpha(), 0, "the bar on its own too")
+    F.Unhush("campfire")
+    settle(2)
+    T.eq(h:GetAlpha(), 1, "back")
+    T.eq(r.off.pod:GetAlpha(), 1, "back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

@@ -51,6 +51,7 @@ Kinds.CHANNELS = {
     ["buscar grupo"] = "lfg", defensamundial = "defense", ["defensa mundial"] = "defense",
     defensaglobal = "defense", ["defensa global"] = "defense", servicios = Kinds.SERVICES, novatos = "general",
     ["comercio (servicios)"] = Kinds.SERVICES, ["comercio (local)"] = Kinds.TRADE_LOCAL,
+    ["comercio local"] = Kinds.TRADE_LOCAL,
     -- German clients name them in German.
     allgemein = "general", handel = "trade", lokaleverteidigung = "defense", ["lokale verteidigung"] = "defense",
     suchenachgruppe = "lfg", ["suche nach gruppe"] = "lfg",
@@ -148,8 +149,42 @@ function Kinds.TypeOfId(id)
     return byId[id]
 end
 
+-- The game's own id for a world channel (zoneChannelID), the same in every language,
+-- so the channel's name needn't be known in the player's. Seen on the 1.8.2 client:
+-- General 1, Trade 2, Local Defense 22, Looking For Group 26, Trade (Local) 46.
+-- Services, World Defense, Newcomer and Recruitment have no id (0), so they go by
+-- their name (Kinds.CHANNELS).
+Kinds.ZONE = { [1] = "general", [2] = "trade", [22] = "defense", [26] = "lfg", [46] = Kinds.TRADE_LOCAL }
+
+-- The kind the game's id gives a channel name ("DefensaLocal", "General: Vallefresno"
+-- or "General - Elwynn Forest"), or nil if the game can't say or the id isn't known.
+-- Every channel line's tag asks, so each name's answer is kept until channels change.
+local ofZone = {}
+local function kindOfZone(base)
+    local C = C_ChatInfo
+    -- The game errors on a secret name, so a secret one has no id.
+    if type(base) ~= "string" or secret(base) then return nil end
+    local known = ofZone[base]
+    if known ~= nil then return known or nil end
+    if type(C) ~= "table" or type(C.GetChannelInfoFromIdentifier) ~= "function" then return nil end
+    local names = { string.gsub(base, "%s*%-.*$", ""), (string.gsub(base, "%s*:.*$", "")) }
+    local kind = false
+    for i = 1, 2 do
+        local info = C.GetChannelInfoFromIdentifier(names[i])
+        local zone = type(info) == "table" and info.zoneChannelID
+        if type(zone) == "number" and not secret(zone) and Kinds.ZONE[zone] then
+            kind = Kinds.ZONE[zone]
+            break
+        end
+    end
+    ofZone[base] = kind
+    return kind or nil
+end
+Kinds.OfZone = kindOfZone
+
 -- A channel's kind from its name. World channels share a kind; any other channel
--- gets its own ("ch:name") so a tab can pick it alone.
+-- gets its own ("ch:name") so a tab can pick it alone. The game's channel id decides
+-- first, then the name.
 -- Every channel line asks, so each name's kind is kept until channels change.
 -- A secret name can't be a table key and is worked out every time.
 local ofName = {}
@@ -160,7 +195,7 @@ function Kinds.OfChannel(base)
     -- Strip " - Zone" and the number the game appends to some world channel names
     -- ("LookingForGroup 84").
     local name = string.lower(string.gsub(string.gsub(base, "%s*%-.*$", ""), "%s+%d+$", ""))
-    kind = Kinds.CHANNELS[name] or ("ch:" .. name)
+    kind = (plain and kindOfZone(base)) or Kinds.CHANNELS[name] or ("ch:" .. name)
     if plain then ofName[base] = kind end
     return kind
 end
@@ -182,6 +217,7 @@ Kinds.OfNumber = kindOfNumber
 function Kinds.ChannelsChanged()
     listKind = nil
     if next(ofName) then wipe(ofName) end
+    if next(ofZone) then wipe(ofZone) end
 end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
 -- Joining or leaving a channel.

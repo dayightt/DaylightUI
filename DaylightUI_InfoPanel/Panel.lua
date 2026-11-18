@@ -147,6 +147,10 @@ function Panel.Build(mod)
     arrow.icon:SetVertexColor(Panel.ARROW_COLOR[1], Panel.ARROW_COLOR[2], Panel.ARROW_COLOR[3])
     arrow:SetScript("OnClick", function()
         DUI:Set("InfoPanel", "meter.enabled", not mod.db.meter.enabled)
+        -- A setting change waits for the fight to end, but the meter is wanted
+        -- right now. Laying out the meters alone is safe in combat: it runs
+        -- each time a fight starts.
+        if InCombatLockdown() then ns.RefreshMeters(mod) end
     end)
     arrow:SetScript("OnEnter", function(self) self.icon:SetVertexColor(Style.Accent()) end)
     arrow:SetScript("OnLeave", function(self)

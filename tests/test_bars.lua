@@ -1491,6 +1491,30 @@ T.test("paint: painting in combat never touches a secret", function()
     noBlocked()
 end)
 
+-- Each ask returns a new table: in a fight a cooldown paint runs on every button
+-- several times a second, so only the asks that can matter are made.
+T.test("paint: a cooldown paint skips the asks that can't matter", function()
+    login({ slots = { [1] = { texture = "a" }, [2] = { texture = "b", charges = true } } })
+    stub.EnterCombat()
+    local asked = {}
+    for _, n in ipairs({ "GetActionCooldown", "GetActionCharges", "GetActionLossOfControlCooldownInfo" }) do
+        local real = C_ActionBar[n]
+        C_ActionBar[n] = function(slot, ...)
+            asked[n] = asked[n] or {}
+            asked[n][slot] = true
+            return real(slot, ...)
+        end
+    end
+    stub.FireEvent("ACTIONBAR_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.deq(asked.GetActionCooldown, { [1] = true, [2] = true }, "empty slots aren't asked")
+    T.deq(asked.GetActionCharges, { [2] = true }, "charges only where the slot has them")
+    T.isnil(asked.GetActionLossOfControlCooldownInfo, "no loss of control on you, none asked")
+    stub.slots[1].loc = true
+    stub.FireEvent("LOSS_OF_CONTROL_UPDATE"); stub.RunTimers()
+    T.truthy(asked.GetActionLossOfControlCooldownInfo, "a stun: asked again")
+    T.deq(btn("main", 1).lossOfControlCooldown.__duration, { slot = 1, kind = "loc" })
+end)
+
 -- The ready ping. bumps[icon] counts icon pops.
 local function watchPings(DUI)
     local bumps, real = {}, DUI.Motion.Bump
@@ -1665,7 +1689,8 @@ T.test("ready ping: an idle sweep's Done and charges", function()
     local b1, b2 = btn("main", 1), btn("main", 2)
     done(b1.cooldown); done(b1.chargeCooldown)
     T.isnil(bumps[b1.icon], "nothing was running")
-    stub.slots[2].charges = true
+    stub.slots[2].charges = true          -- a spell only gains charges as the spells change
+    stub.FireEvent("SPELLS_CHANGED")
     cooldowns()
     stub.slots[2].charges = false
     done(b2.chargeCooldown)

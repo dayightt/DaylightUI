@@ -14,6 +14,8 @@ local A = {}
 ns.CdmAuras = A
 
 local holders = {}   -- [id] = holder frame
+-- The unit each client button watches, so a button coming up says where the aura is.
+local buttonUnit = setmetatable({}, { __mode = "k" })
 local makeFace, placeFace, paintFace   -- self-debuff face, defined below
 local selfCast                          -- counts a self debuff from your casts, below
 
@@ -276,7 +278,7 @@ local function build(h, unit, filter, ids, cand)
         sortMethod = type(SM) == "table" and SM.ExpirationOnly or nil,
         sortDirection = type(SD) == "table" and SD.Normal or nil,
         layout = layout,
-        initializeFrame = function(btn) init(h, btn) end,
+        initializeFrame = function(btn) buttonUnit[btn] = unit; init(h, btn) end,
     }
     local ok2, err = pcall(c.AddAuraGroup, c, "a", filter, opts)
     if not ok2 then h.err = tostring(err); return end
@@ -1048,13 +1050,33 @@ A.AuraChangedSoon = DUI.Soon(function() DUI.SafeCall(A.AuraChanged) end)
 -- How long after a cast its aura may still land: a spell's flight time.
 A.CAST_LANDS = 3
 
+-- Where the client's buttons show the aura right now: you first, nil when none does.
+local function shownOn(h)
+    local first
+    for btn in pairs(h.clientBtns or {}) do
+        local u = buttonUnit[btn]
+        if u == "player" then return u end
+        first = first or u
+    end
+    return first
+end
+
+-- A client button came up: the aura is on the unit that button watches. A
+-- finisher like Slice and Dice is a harmful cast whose buff lands on you, so the
+-- cast alone can't say where it is.
+function A.HeardOn(h, btn)
+    local u = btn and buttonUnit[btn]
+    if u and h.up == true then h.upUnit = shownOn(h) or u end
+end
+
 -- In combat your own cast events stay plain while the aura and its button don't,
 -- so a cast is the one reliable sign it's up. A harmful spell's aura is on the
 -- target, so switching targets clears it (A.TargetChanged).
 function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
+    h.upUnit = shownOn(h)
+        or ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a
     -- dungeon fight. A finisher lasts by the combo points it used, which are

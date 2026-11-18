@@ -2638,6 +2638,55 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
     T.eq(P.frame:IsShown(), false)
 end)
 
+-- The zone under the mouse on a continent map gets its level range after its
+-- name, colored like the game's own label (MapLevels.lua). The game writes the
+-- name into its area label only when it changes.
+T.test("skins: a hovered zone on the world map shows its level range, colored for you", function()
+    local label
+    login(function()
+        local f = window("WorldMapFrame")
+        label = CreateFrame("Frame", nil, f)
+        label.Name = label:CreateFontString(nil, "OVERLAY")
+        f.dataProviders = { [{ Label = label }] = true }
+        _G.C_Map = _G.C_Map or {}
+        C_Map.GetMapInfo = function(id)
+            if id == 1437 then return { mapType = 3, name = "Wetlands" } end
+        end
+        _G.GetQuestDifficultyColor = function(level)
+            local d = level - UnitLevel("player")
+            if d >= 5 then return QuestDifficultyColors.impossible end
+            if d >= -2 then return QuestDifficultyColors.difficult end
+            return QuestDifficultyColors.standard
+        end
+        stub.SetUnits({ player = { level = 12 } })
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local run = function() label:GetScript("OnUpdate")(label, 0) end
+    label.Name:SetText("Wetlands")
+    run()
+    T.eq(label.Name:GetText(), "Wetlands|cffff1a1a (20-30)|r", "red at level 12")
+    run()
+    T.eq(label.Name:GetText(), "Wetlands|cffff1a1a (20-30)|r", "written once, not again")
+    -- Inside the range it's yellow, as the game's own label does it.
+    stub.SetUnits({ player = { level = 25 } })
+    stub.FireEvent("PLAYER_LEVEL_UP", 25)
+    run()
+    T.eq(label.Name:GetText(), "Wetlands|cffffd100 (20-30)|r", "yellow in range")
+    -- A name without a range, or none, is left alone.
+    label.Name:SetText("Ironforge")
+    run()
+    T.eq(label.Name:GetText(), "Ironforge")
+    label.Name:SetText("")
+    run()
+    T.eq(label.Name:GetText(), "")
+    -- Switched off, the game's own name comes back.
+    label.Name:SetText("Wetlands")
+    run()
+    DaylightUI:Set("Skins", "mapLevels", false)
+    stub.RunTimers()
+    T.eq(label.Name:GetText(), "Wetlands")
+end)
+
 T.test("skins: the world map's corner grip scales it from its top-left, kept; maximized it's the game's size", function()
     local f
     login(function()

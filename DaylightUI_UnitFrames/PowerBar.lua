@@ -145,8 +145,7 @@ function PB.Layout(f, cfg, text)
     -- Set before the slant lays out, since that adds the clips.
     local cost = h.set.cost
     if cost then
-        local shaded = both and not f.flipped
-        Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, shaded and (f.growLeft == true and "right" or "left") or false)
+        Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, both and (f.growLeft == true and "right" or "left") or false)
     end
     Style.Slant(h, both and "both" or side, cut, nil, flip and (both and "both" or side) or nil)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):

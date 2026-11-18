@@ -694,7 +694,12 @@ function Fx.AuraHeard(h, what, btn)
     h.clientUp = next(h.clientBtns) ~= nil or nil
     local A = ns.CdmAuras
     if not A then return end
-    if up then A.Shown(h) elseif DOWN[what] and not h.clientUp then A.Hidden(h) end
+    if up then
+        A.Shown(h)
+        if A.HeardOn then A.HeardOn(h, btn) end
+    elseif DOWN[what] and not h.clientUp then
+        A.Hidden(h)
+    end
 end
 
 local function tune(s, on, drop)

@@ -281,6 +281,9 @@ ns.OPTIONS = { pages = {
               desc = "The size of the messages in every chat window. Each chat tab's right-click menu sets it too." },
             DaylightUI.Options.FontRow("media.font", "Chat font", "The chat window's text and the chat bubbles"),
             { type = "toggle", key = "outline", label = "Chat text outline", desc = "A thin outline on chat text." },
+            { type = "slider", key = "lineSpacing", label = "Line spacing", min = 0, max = 12, step = 1, unit = "px",
+              hidden = classicStyle,
+              desc = "Extra space between the lines of the Daylight chat box, so messages sit further apart. 0 is the game's own spacing." },
             { type = "slider", key = "tabSize", label = "Chat tab text size", min = 10, max = 18, step = 1, unit = "px",
               desc = "The size of the words on the chat tabs." },
             { type = "toggle", key = "inputSizeOwn", label = "Separate chat input text size",
@@ -301,7 +304,7 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags." },
+              desc = "[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. Right-click a chat tab and pick Channels to set your own tags." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number with the short tag: [1. G] for General, [2. T] for Trade.",
               disabled = function(get) return get("shortTags") ~= true end },

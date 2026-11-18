@@ -2127,7 +2127,8 @@ end
 -- another) keeps parallel sides. side nil or cut 0 makes it square again.
 local trailMask = setmetatable({}, { __mode = "k" })
 
-function Style.AngleTrail(bar, side, cut)
+-- under (optional, true): leans the other way, like AngleFill's.
+function Style.AngleTrail(bar, side, cut, under)
     local fill = bar:GetStatusBarTexture()
     local m = trailMask[bar]
     if not side or not cut or cut <= 0 then
@@ -2142,7 +2143,7 @@ function Style.AngleTrail(bar, side, cut)
         trailMask[bar] = m
     end
     local p = side == "right" and "LEFT" or "RIGHT"
-    m:SetTexture(TRAIL_MASK[side], "CLAMP", "CLAMP")
+    m:SetTexture(slantImage(true, side, under == true, false), "CLAMP", "CLAMP")
     m:ClearAllPoints()
     m:SetPoint("TOP" .. p, fill, "TOP" .. p, 0, 0)
     m:SetPoint("BOTTOM" .. p, fill, "BOTTOM" .. p, 0, 0)

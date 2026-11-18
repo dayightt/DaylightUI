@@ -1,5 +1,5 @@
 -- Made by tools/make_cdm_spells.py from talentsforever.com/data.json
--- (generated 2026-11-10), CC BY 4.0: https://talentsforever.com, see
+-- CC BY 4.0: https://talentsforever.com, see
 -- CdmSpells-LICENSE.txt. Spell ids and two flags only, no tooltip text.
 -- Don't edit by hand: run the tool again.
 --

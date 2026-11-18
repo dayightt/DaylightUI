@@ -361,7 +361,7 @@ end)
 T.test("upgrade step 19: a player from 1.8.1 finds the target's buffs under the frame again", function()
     -- The move check's saved player, who changed nothing, taken back to 1.8.1:
     -- the same saved data, with the unit frames' upgrade counter where 1.8.1
-    -- left it (step 19 came in 1.8.2).
+    -- left it (step 19 came in 1.8.2; the snapshot may be newer).
     local Check, data = require("release_check"), require("release_data")
     local function copy(v)
         if type(v) ~= "table" then return v end
@@ -371,7 +371,7 @@ T.test("upgrade step 19: a player from 1.8.1 finds the target's buffs under the 
     end
     local saved = copy(data.saved)
     local uf = saved.profileData["DPS/Tank"].modules.UnitFrames
-    T.eq(uf.groupFrames, 19, "the snapshot is from 1.8.2")
+    T.truthy(uf.groupFrames >= 19, "the snapshot is from 1.8.2 or later")
     uf.groupFrames = 18
     local DUI = Check.Load(saved)
     T.eq(DUI:Get("UnitFrames", "targetAuras.buffSpot"), "below")

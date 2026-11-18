@@ -909,6 +909,24 @@ T.test("installer: a loading screen's layouts event never asks for a reload", fu
     T.isnil(stub.Asked(), "no reload asked")
 end)
 
+-- Seen in game on 1.9.2 still: the login's layouts event came while the game had no
+-- active layout yet, so the check slipped to the first boat or dungeon.
+T.test("installer: a login whose layouts came late never asks on a loading screen", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    stub.Dismiss()
+    local active = saved.activeLayout
+    saved.activeLayout = 0
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- the login's, nothing active yet
+    saved.activeLayout = active
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, false)  -- a boat's loading screen
+    DUI.EditMode.Add("glitch", function() end, function() return false end)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "no reload asked")
+end)
+
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
     local DUI = login()
     DUI.Installer.Install("Healer")

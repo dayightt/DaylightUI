@@ -26,6 +26,7 @@ Browse.TOOLS_Y = 42
 Browse.TOP = 76
 Browse.SEEK = 0.8        -- s for the searching bar to fill, repeated
 Browse.SEEK_W = 140
+Browse.SPLIT_W = 800      -- list width from which groups and solo players sit side by side
 Browse.WAIT = 3          -- s to wait for the game's own search first
 Browse.need = {}         -- role -> true: only the groups that still want it (or the players who offer it)
 Browse.EVENTS = { "LFG_LIST_SEARCH_RESULTS_RECEIVED", "LFG_LIST_SEARCH_FAILED", "LFG_LIST_SEARCH_RESULT_UPDATED",
@@ -383,8 +384,13 @@ function Browse.Render(page, keep)
     for _, r in ipairs(mine) do put(r) end
     local inGroup = IsInGroup and IsInGroup() == true
     local parts = inGroup and { { L["Solo players"], solo }, { L["Groups"], groups } } or { { L["Groups"], groups }, { L["Solo players"], solo } }
-    for _, p in ipairs(parts) do
+    -- A wide window shows the two lists side by side instead of one long column.
+    Browse.both = #groups > 0 and #solo > 0
+    local split = Browse.both and s:Width() >= Browse.SPLIT_W
+    Browse.split = split
+    for i, p in ipairs(parts) do
         if #p[2] > 0 then
+            if split then s:Column(i) end
             s:Section(p[1] .. "  " .. #p[2])
             for _, r in ipairs(p[2]) do put(r) end
         end
@@ -405,6 +411,15 @@ function Browse.Render(page, keep)
     Browse.Seek(page, Browse.searching == true)
     s:ScrollTo(at)
     Browse.PaintDetail()
+end
+
+-- While the grip is dragged: the rows only stretch, unless the list just got wide or
+-- narrow enough to change its columns, which needs one refill right then.
+function Browse.Stretch(page)
+    page = page or Browse.page
+    if not page then return end
+    local split = Browse.both == true and page.stack:Width() >= Browse.SPLIT_W
+    if split ~= (Browse.split == true) then Browse.Render(page, true) else page.stack:Stretch() end
 end
 
 -- Searching bar: fills repeatedly while a search is pending.

@@ -983,8 +983,15 @@ end
 function Widget:GetUnboundedStringWidth()
     if stub.measure and type(self.__text) == "string" then return (stub.measure(self, true)) end
 end
+-- Like the client, a text held to a height measures only the lines that fit in
+-- it (the rest is cut with "..."); a height of 0 lets it grow again.
 function Widget:GetStringHeight()
-    if stub.measure and type(self.__text) == "string" then return select(2, stub.measure(self)) end
+    if stub.measure and type(self.__text) == "string" then
+        local h = select(2, stub.measure(self))
+        local cap = self.__h
+        if type(h) == "number" and type(cap) == "number" and cap > 0 and h > cap then return cap end
+        return h
+    end
 end
 
 -- The client's custom aura container. It records groups and, like the game
@@ -2978,7 +2985,8 @@ function stub.ActionSlots(slots)
         GetActionCooldownDuration = function(slot) return duration(slot, "cooldown") end,
         GetActionCharges = function(slot)
             local s = S(slot)
-            return { isActive = s ~= nil and s.charges == true, currentCharges = secret(1), maxCharges = secret(2) }
+            local has = s ~= nil and s.charges == true
+            return { isActive = has, currentCharges = secret(1), maxCharges = secret(has and 2 or 0) }
         end,
         GetActionChargeDuration = function(slot) return duration(slot, "charges") end,
         GetActionLossOfControlCooldownInfo = function(slot)
@@ -2989,6 +2997,13 @@ function stub.ActionSlots(slots)
         GetActionLossOfControlCooldownDuration = function(slot) return duration(slot, "loc") end,
         EnableActionRangeCheck = function(slot, on) stub.rangeChecks[slot] = on end,
     }
+    -- One loss of control on you per slot it locks (plain, no secret flag in the docs).
+    _G.C_LossOfControl = _G.C_LossOfControl or {}
+    C_LossOfControl.GetActiveLossOfControlDataCount = function()
+        local n = 0
+        for _, s in pairs(stub.slots) do if s.loc then n = n + 1 end end
+        return n
+    end
     -- A GCD gives a plain isOnGCD = true. A real cooldown leaves it out.
     _G.C_Spell = _G.C_Spell or {}
     C_Spell.GetSpellCooldown = function(id)
@@ -3402,7 +3417,7 @@ end
 -- Another addon's tests load their own files the same way (DaylightMogul).
 stub.LoadFiles = loadFiles
 
-stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
+stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "MapLevels.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
 
 -- Loads the core (and optionally the unit frames module) into fresh namespaces
 -- the way the client does, then fires the load events.

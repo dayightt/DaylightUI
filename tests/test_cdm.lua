@@ -3696,6 +3696,50 @@ T.test("cdm hide up: a finisher's buff runs out by the combo points it used (" .
 end)
 end
 
+-- A rogue's group of Slice and Dice, Eureka! and Venom bars, Buff only, Slide
+-- over: cast Slice and Dice in a fight, change target, and the next buff to land
+-- came up on top of Slice and Dice (a player on 1.9.2).
+for _, harmful in ipairs({ false, true }) do
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm hide up: a buff on you stays in its spot after a new target, the next one lands beside it ("
+    .. shape .. (harmful and ", game calls it harmful" or "") .. ")", function()
+    local DUI, AB, E, D, set = auraWorld(true)
+    DUI.DB.General().motion = false
+    place(D, set, 42, 1, 2)
+    for _, id in ipairs({ 41, 42 }) do
+        if shape == "bar" then set.pieces[id].shape = "bar" end
+        T.truthy(D.SetSpellValue(set, id, "hideMissing", true))
+    end
+    C_Spell.IsSpellHarmful = function() return harmful end
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local function holder(id) return shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id) end
+    local h1, h2 = holder(41), holder(42)
+    stub.combat = true
+    stub.Advance(5)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141)
+    AB.CdmEffects.AuraHeard(h1, "play", h1.containers[1].c.__groups.a.button)
+    stub.RunTimers()
+    local f1, f2 = pieceFrame(D.CurrentIndex(), 41), pieceFrame(D.CurrentIndex(), 42)
+    local sx, sy = f1.goalX, f1.goalY
+    T.eq(h1.up, true, "cast: up")
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    T.eq(h1.up, true, "a new target: still up, it's on you")
+    stub.Advance(1)
+    AB.CdmEffects.AuraHeard(h2, "play", h2.containers[1].c.__groups.a.button)
+    stub.RunTimers()
+    T.eq(h2.up, true, "the next buff: up")
+    T.truthy(f1:IsShown() and f1.goalX == sx and f1.goalY == sy, "the first stays in its spot")
+    T.truthy(f2.goalX ~= f1.goalX or f2.goalY ~= f1.goalY, "the next one beside it, not on top of it")
+    stub.combat = false
+    C_Spell.IsSpellHarmful = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+end
+
 T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
     local DUI, AB, E, D, set = auraWorld(false)
     DUI.DB.General().motion = false

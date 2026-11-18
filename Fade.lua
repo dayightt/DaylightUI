@@ -178,7 +178,7 @@ local function forced(e)
 end
 
 -- An area's frames, read at most once per check and only when needed (mouse,
--- movement, or resting faded). An area shown at full reads nothing.
+-- movement, resting faded, or reconciling whole-fade ownership).
 local function readFrames(e)
     local ok, list = pcall(e.frames)
     e.list = ok and type(list) == "table" and list or {}
@@ -304,7 +304,7 @@ local function setWhole(f, on)
     end
 end
 
--- How many frames are drawn to their own buffer right now (for reports).
+-- How many frames have buffering enabled (including hidden frames).
 function Fade.WholeCount()
     local n = 0
     for _ in pairs(wholeOn) do n = n + 1 end
@@ -346,15 +346,41 @@ function Fade.Whole(f, why, on)
     DUI.AfterCombat(wholeNow, "fade:whole")
 end
 
+-- A list may be refilled in place, so keep membership separately. Each area
+-- owns its own reason: leaving one area must not clear another area's request
+-- or the unit frames' range fade. Retain the token and membership on re-register.
+local function syncWhole(e)
+    local on = e.whole and (e.now < 1 or Fade.Read(e) ~= "never")
+    local owned = e.wholeFrames
+    if not owned then
+        if not on then return end
+        owned = {}
+        e.wholeFrames = owned
+    end
+    local pass = (e.wholePass or 0) + 1
+    e.wholePass = pass
+    if on then
+        for _, f in ipairs(listOf(e)) do
+            owned[f] = pass
+            Fade.Whole(f, e.wholeKey, true)
+        end
+    end
+    for f, seen in pairs(owned) do
+        if not on or seen ~= pass then
+            owned[f] = nil
+            Fade.Whole(f, e.wholeKey, false)
+        end
+    end
+end
+
 -- Paints every frame of the area and records which ones were painted.
 local function paint(e)
+    syncWhole(e)
     if e.held then return end
     local seen = e.seen or {}
     e.seen = seen
     local n = 0
-    local whole = e.whole and (e.now < 1 or Fade.Read(e) ~= "never")
     for _, f in ipairs(e.list) do
-        if e.whole then Fade.Whole(f, "fade", whole) end
         if e.paint then e.paint(f, e.now) else f:SetAlpha(e.now) end
         n = n + 1
         seen[n] = f
@@ -453,6 +479,9 @@ function Fade.Step()
             listOf(e)
             if newcomers(e) or now - (e.paintedAt or 0) >= Fade.REPAINT then paint(e) end
         end
+        -- A frame can leave, or its fade become Never, without any alpha change.
+        -- Only areas currently needing whole-fading read their lists here.
+        syncWhole(e)
     end
     if moving then driver:Show() end
 end
@@ -471,6 +500,8 @@ function Fade.Register(def)
     local old = entries[def.key]
     local e = { key = def.key, scope = def.scope, path = def.path, frames = def.frames, page = def.page,
                 cap = def.cap, wake = def.wake, over = def.over, paint = def.paint, float = def.float, whole = def.whole }
+    e.wholeKey = old and old.wholeKey or ("fade:" .. def.key)
+    e.wholeFrames, e.wholePass = old and old.wholeFrames, old and old.wholePass
     readFrames(e)
     local now = GetTime()
     if old then
@@ -494,7 +525,7 @@ function Fade.Register(def)
         end
     end
     entries[def.key] = e
-    if e.now ~= 1 then paint(e) end
+    if e.now ~= 1 then paint(e) else syncWhole(e) end
     if not ticker then ticker = C_Timer.NewTicker(Fade.TICK, Fade.Step) end
 end
 

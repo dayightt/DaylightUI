@@ -16,7 +16,15 @@ PvP.FACTION = 2800
 -- Our own badges (Media/pvp-rank-NN.png), white so they take the accent: one to three chevrons,
 -- a ring from the fourth rank, and a star more for each three after that.
 PvP.EMBLEM = "pvp-rank-%02d.png"
+-- The game's own art for the rank (atlases of its PvP tab): your faction's crest with no rank yet, and from
+-- rank 1 that rank's own badge. They are used when the client has them, and our badges stand in when it
+-- doesn't.
+PvP.CRESTS = { Alliance = "UI-Character-Info-Honor-Icon-Alliance", Horde = "UI-Character-Info-Honor-Icon-Horde" }
+PvP.BADGE = "UI-Character-Info-Honor-Icon-%d"
 PvP.LAST_BADGE = 14
+PvP.REWARD_ICON = 40               -- the next reward's icon
+PvP.REWARD_H = PvP.REWARD_ICON + 4  -- its row; the room is kept even with no reward, so the card doesn't jump
+PvP.REWARD_GAP = 16
 PvP.EMBLEM_SIZE = 112
 PvP.LEFT_W = 300
 PvP.CARD = ns.List.INSET           -- a card's fill: the dark inset of the stats pane and the other pages' side panes
@@ -31,6 +39,21 @@ PvP.BLOCK_H = line(PvP.LABEL_SIZE) + 8 + line(PvP.MAIN_SIZE) + 10 + (ns.List.BAR
 PvP.HONOR_H = line(PvP.LABEL_SIZE) + 10 + line(PvP.LABEL_SIZE) + 4 + 2 * PvP.ROW
 local isSecret = DUI.IsSecret
 local function plain(v) return type(v) == "number" and not isSecret(v) end
+
+-- The game's atlas for your rank (the faction crest at rank 0, that rank's badge after), and its
+-- aspect ratio, or nil if the client has none.
+local function crest(rank)
+    local atlas
+    if rank > 0 then
+        atlas = string.format(PvP.BADGE, rank)
+    else
+        local faction = type(UnitFactionGroup) == "function" and UnitFactionGroup("player")
+        atlas = type(faction) == "string" and not isSecret(faction) and PvP.CRESTS[faction]
+    end
+    local info = atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    if type(info) ~= "table" or not plain(info.width) or not plain(info.height) or info.height <= 0 then return nil end
+    return atlas, info.width / info.height
+end
 
 local function rankText(rank)
     if type(GetPVPRankText) == "function" then
@@ -67,10 +90,46 @@ function PvP.Read()
     d.today, d.yesterday = kills(GetPVPSessionStats), kills(GetPVPYesterdayStats)
     d.lifetime = kills(GetPVPLifetimeStats)
     if d.lifetime then d.lifetime[2] = nil end   -- its second number is your highest rank, not kills
+    d.reward = PvP.NextReward(d.rank, d.max)
     d.season = type(GetCurrentArenaSeason) == "function" and GetCurrentArenaSeason() or 0
     local ends = C_SeasonInfo and C_SeasonInfo.GetTimeUntilCurrentPVPSeasonEnd
     d.ends = type(ends) == "function" and ends() or 0
     return d
+end
+
+-- The next reward the ranks hold: the first rank above yours that has one. The client gives each
+-- reward its name and icon (the faction tabard is the first). nil when there is none, or the
+-- client can't say.
+function PvP.NextReward(rank, max)
+    local C = C_MajorFactions
+    if type(C) ~= "table" or type(C.GetRenownRewardsForLevel) ~= "function" then return nil end
+    for level = rank + 1, math.min(max, rank + 40) do
+        local ok, list = pcall(C.GetRenownRewardsForLevel, PvP.FACTION, level)
+        local r = ok and type(list) == "table" and list[1]
+        if type(r) == "table" then
+            for _, o in ipairs(list) do if type(o.uiOrder) == "number" and type(r.uiOrder) == "number" and o.uiOrder < r.uiOrder then r = o end end
+            -- The game's tab lists a reward by its description, which is there at once. The reward's own
+            -- name is a general one ("Rank 1 rewards"), so the item's name stands in for a reward with no
+            -- description, and an item the client hasn't loaded yet is asked for.
+            local name, icon, quality = r.name, r.icon, nil
+            if plain(r.itemID) then
+                local item, _, q = nil, nil, nil
+                if type(GetItemInfo) == "function" then item, _, q = GetItemInfo(r.itemID) end
+                if plain(q) then quality = q end
+                if type(item) == "string" and not isSecret(item) and item ~= "" then name = item
+                elseif C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, r.itemID) end
+            end
+            local words = r.description
+            if type(words) == "string" and not isSecret(words) and words ~= "" then name = words end
+            if type(icon) ~= "number" and plain(r.itemID) and type(GetItemIcon) == "function" then icon = GetItemIcon(r.itemID) end
+            if type(name) == "string" and not isSecret(name) and name ~= "" then
+                return { rank = level, name = name, quality = quality, icon = type(icon) == "number" and not isSecret(icon) and icon or nil,
+                         itemID = plain(r.itemID) and r.itemID or nil,
+                         text = type(r.description) == "string" and not isSecret(r.description) and r.description or nil }
+            end
+        end
+    end
+    return nil
 end
 
 function PvP.Ends(seconds)
@@ -140,6 +199,33 @@ function PvP.Build(page)
     page.emblem:SetSize(PvP.EMBLEM_SIZE, PvP.EMBLEM_SIZE)
     page.rankName = Style.Text(R, PvP.RANK_SIZE, "CENTER")
     page.rankSub = Style.Text(R, ns.List.TEXT, "CENTER")
+    local W = CreateFrame("Button", nil, R)
+    page.reward = W
+    DUI.Win.Parts.ItemIcon(W, PvP.REWARD_ICON)   -- the same edge and crop as the windows' other item icons
+    W.edge:SetPoint("LEFT", W, "LEFT", 0, 0)
+    W.label = Style.Text(W, PvP.LABEL_SIZE, "LEFT")
+    W.label:SetText(L["NEXT REWARD"])
+    W.name = Style.Text(W, ns.List.TEXT, "LEFT")
+    W.sub = Style.Text(W, ns.List.SMALL, "LEFT")
+    W.label:SetPoint("TOPLEFT", W.edge, "TOPRIGHT", 10, 2)
+    W.name:SetPoint("LEFT", W.edge, "RIGHT", 10, 0)
+    W.sub:SetPoint("BOTTOMLEFT", W.edge, "BOTTOMRIGHT", 10, -2)
+    W.name:SetPoint("RIGHT", W, "RIGHT", 0, 0)
+    W:SetScript("OnEnter", function(self)
+        local r = self.data
+        if not r or type(GameTooltip) ~= "table" then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if r.itemID and type(GameTooltip.SetItemByID) == "function" then GameTooltip:SetItemByID(r.itemID)
+        else
+            local Tips = DUI.Tips
+            Tips.Clear()
+            Tips.Title(r.name)
+            if r.text and r.text ~= r.name then Tips.Text(r.text) end
+            Tips.Flush(GameTooltip)
+        end
+        GameTooltip:Show()
+    end)
+    W:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
     page.blocks = {}
     block(page, 1, R).label:SetText(L["NEXT RANK"])
     block(page, 2, page.cards.week).label:SetText(L["THIS WEEK"])
@@ -175,9 +261,15 @@ function PvP.Place(page)
     -- is at the card's foot.
     local R = C.rank
     local blockTop = total - P - PvP.BLOCK_H
+    local rewardTop = blockTop - PvP.REWARD_GAP - PvP.REWARD_H
+    page.reward:ClearAllPoints()
+    page.reward:SetPoint("TOPLEFT", R, "TOPLEFT", P, -rewardTop)
+    page.reward:SetPoint("TOPRIGHT", R, "TOPRIGHT", -P, -rewardTop)
+    page.reward:SetHeight(PvP.REWARD_H)
+    local aboveTop = rewardTop - PvP.REWARD_GAP   -- the emblem and name are centered above the reward
     local group = PvP.EMBLEM_SIZE + 16 + line(PvP.RANK_SIZE) + 6 + line(ns.List.TEXT)
     page.emblem:ClearAllPoints()
-    page.emblem:SetPoint("TOP", R, "TOP", 0, -(P + math.max(0, math.floor((blockTop - 2 * P - group) / 2))))
+    page.emblem:SetPoint("TOP", R, "TOP", 0, -(P + math.max(0, math.floor((aboveTop - 2 * P - group) / 2))))
     page.rankName:ClearAllPoints()
     page.rankName:SetPoint("TOP", page.emblem, "BOTTOM", 0, -16)
     page.rankSub:ClearAllPoints()
@@ -239,18 +331,44 @@ function PvP.Refresh(page)
     local key, rgb = ns.List.OwnBar()
     -- With no rank yet the first rank's badge stands there faint, so the card isn't just a word.
     page.emblem:Show()
-    page.emblem:SetTexture(DUI.MEDIA .. string.format(PvP.EMBLEM, math.min(math.max(d.rank, 1), PvP.LAST_BADGE)))
-    if d.rank > 0 then
-        page.emblem:SetVertexColor(Style.Accent())   -- read now: follows an accent switch
-        page.emblem:SetAlpha(1)
-    else
+    local atlas, ratio = crest(d.rank)
+    if atlas then
+        -- The game's crest, in its own colors (the accent doesn't tint it), faint with no rank yet.
+        page.emblem:SetAtlas(atlas)
+        page.emblem:SetSize(math.floor(PvP.EMBLEM_SIZE * ratio + 0.5), PvP.EMBLEM_SIZE)
         page.emblem:SetVertexColor(1, 1, 1)
-        page.emblem:SetAlpha(0.2)
+        page.emblem:SetAlpha(d.rank > 0 and 1 or 0.35)
+    else
+        page.emblem:SetSize(PvP.EMBLEM_SIZE, PvP.EMBLEM_SIZE)
+        page.emblem:SetTexture(DUI.MEDIA .. string.format(PvP.EMBLEM, math.min(math.max(d.rank, 1), PvP.LAST_BADGE)))
+        if d.rank > 0 then
+            page.emblem:SetVertexColor(Style.Accent())   -- read now: follows an accent switch
+            page.emblem:SetAlpha(1)
+        else
+            page.emblem:SetVertexColor(1, 1, 1)
+            page.emblem:SetAlpha(0.2)
+        end
     end
     page.rankName:SetText(d.name)
     Style.InkText(page.rankName, "VALUE")
     Style.InkText(page.rankSub, "pop")   -- read at paint time: follows an accent change
     page.rankSub:SetText(d.rank > 0 and string.format(L["Rank %d"], d.rank) or "")
+    local W, rw = page.reward, d.reward
+    W.data = rw
+    W:SetShown(rw ~= nil)
+    if rw then
+        local Parts = DUI.Win.Parts
+        Parts.FitItemIcon(W)
+        if rw.icon then Parts.SetItemIcon(W, rw.icon, rw.quality) end
+        W.edge:SetShown(rw.icon ~= nil)
+        W.well:SetShown(rw.icon ~= nil)
+        W.icon:SetShown(rw.icon ~= nil)
+        W.name:SetText(rw.name)
+        Style.InkText(W.name, "VALUE")
+        W.sub:SetText(string.format(L["At rank %d"], rw.rank))
+        Style.InkText(W.sub, "LABEL")   -- tan, a sub line
+    end
+    Style.InkText(W.label, "LABEL")
     local b1, b2, b3 = page.blocks[1], page.blocks[2], page.blocks[3]
     b1.main:SetText(d.nextName or L["The highest rank"])
     b1.bar:SetMinMaxValues(0, d.threshold > 0 and d.threshold or 1)

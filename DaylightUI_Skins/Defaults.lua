@@ -11,6 +11,7 @@ ns.DEFAULTS = {
     mapReveal = false, -- dim the world map's unexplored areas (MapReveal.lua)
     mapLogBeside = true, -- when maximized, open the quest list beside the map instead of shrinking it
     mapRevealDim = 0.6, -- brightness of the unexplored areas
+    mapLevels = true, -- the hovered zone's level range after its name (MapLevels.lua)
     mapDungeons = true, -- world map pins (MapPins.lua): dungeon and raid entrances
     mapFlights = true,        -- your faction's flight masters
     mapTravel = true,         -- boats and zeppelins

@@ -930,6 +930,20 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantBoth", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "both", "both ends lean under")
+    -- The spell cost shade leans the same way as the fill it sits on.
+    local cost, fill = pb.set.cost, pb.set.power
+    local function sameAngle(why)
+        local s1, c1, u1 = Style.GetFillAngle(fill)
+        local s2, c2, u2 = Style.GetFillAngle(cost)
+        T.eq(s2, s1, why .. ": side"); T.eq(c2, c1, why .. ": cut"); T.eq(u2, u1, why .. ": leans under")
+    end
+    T.eq(select(3, Style.GetFillAngle(fill)), true, "the fill leans under")
+    sameAngle("leaning under")
+    DUI:Set("UnitFrames", "player.reverseFill", true)
+    stub.RunTimers()
+    T.truthy(Style.GetFillAngle(fill), "reversed, the fill takes the other end's angle")
+    sameAngle("reversed")
+    DUI:Set("UnitFrames", "player.reverseFill", false)
     DUI:Set("UnitFrames", "player.powerSlantUnder", false)
     DUI:Set("UnitFrames", "player.powerSlantBoth", false)
     stub.RunTimers()

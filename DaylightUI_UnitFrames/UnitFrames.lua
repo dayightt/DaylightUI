@@ -3740,7 +3740,7 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
         f.druidMana = on and cfg.druidMana ~= false
     end
     if f.cost then
-        UF.LayoutCost(f, side, side and cut * ph / H or 0, cfg)
+        UF.LayoutCost(f, cfg)
         if not on then
             f.costPreview = false
             f.cost:Hide()
@@ -3749,9 +3749,8 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
 end
 
 -- The spell cost shade over f.power (the player frame's and the personal
--- display's). side and cut are the power bar's angle. cfg is the frame's
--- costPreview, costColor and costAlpha.
-function UF.LayoutCost(f, side, cut, cfg)
+-- display's). cfg is the frame's costPreview, costColor and costAlpha.
+function UF.LayoutCost(f, cfg)
     local lead = f.growLeft == true and "LEFT" or "RIGHT"
     local fill = f.power:GetStatusBarTexture()
     f.cost:ClearAllPoints()
@@ -3760,12 +3759,11 @@ function UF.LayoutCost(f, side, cut, cfg)
     f.cost:SetPoint("BOTTOM" .. lead, fill, "BOTTOM" .. lead, 0, 0)
     f.cost:SetWidth(f.power:GetWidth())
     f.cost:SetReverseFill(f.growLeft ~= true)
-    -- Both ends of the band take the frame's angle, like the fill's own.
-    local fillSide = not f.flipped and side or nil
-    local dir = fillSide and (f.growLeft == true and "left" or "right") or nil
-    local c = fillSide and cut or 0
-    Style.AngleFill(f.cost, dir, c)
-    Style.AngleTrail(f.cost, dir, c)
+    -- Both ends of the band copy the fill's own moving edge (laid out just
+    -- before this), so they lean the same way, under included.
+    local dir, c, under = Style.GetFillAngle(f.power)
+    Style.AngleFill(f.cost, dir, c, under)
+    Style.AngleTrail(f.cost, dir, c, under)
     local color = cfg.costColor or { 0, 0, 0 }
     f.cost:SetStatusBarColor(color[1], color[2], color[3], cfg.costAlpha or 0.45)
     f.costPreview = cfg.costPreview ~= false
