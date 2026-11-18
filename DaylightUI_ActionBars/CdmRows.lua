@@ -614,7 +614,7 @@ function Rows.Update()
             -- on the game's buff item or Daylight UI's cooldown icon under a buff, whatever
             -- Keep its spot says (Fx.GoneUp).
             if item and not closedNow and block.collapse and Fx.Gone(item)
-                and (not always or Fx.GoneUp(item)) then
+                and (not always or Fx.GoneUp(item) or Fx.GoneForm(item)) then
                 closedNow = true
                 if Fx.GoneUp(item) then closedUp[id] = true end
             end

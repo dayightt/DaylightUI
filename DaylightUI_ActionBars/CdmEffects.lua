@@ -1142,6 +1142,9 @@ function Fx.Gone(item) return gone[item] ~= nil end
 -- Gone because its buff is up (Buff up Hide). It gives up its spot even with Keep
 -- its spot on, and keeps tracking up or down while closed (CdmRows).
 function Fx.GoneUp(item) return gone[item] == "up" end
+-- Gone because it's left out of the form you're in. Keep its spot is about missing
+-- buffs, so this one gives its spot up too.
+function Fx.GoneForm(item) return gone[item] == "form" end
 
 -- Fade / Hide on cooldown or while ready. Alpha is set here; Hide's spot is handled
 -- by CdmRows (Fx.Gone).
@@ -1166,7 +1169,8 @@ local function applyAlpha(item)
     local isGone = nil
     if not away[item] then
         if hideUp then isGone = "up"
-        elseif (mode == "hide" and not buffOnly[item]) or outOfForm then isGone = true end
+        elseif outOfForm then isGone = "form"
+        elseif mode == "hide" and not buffOnly[item] then isGone = true end
     end
     if gone[item] ~= isGone then
         gone[item] = isGone

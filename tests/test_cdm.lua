@@ -1754,6 +1754,50 @@ T.test("cdm effects: a cooldown hidden while ready slides out of its group, back
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A druid with every form's spells in one group growing from its middle: the ones
+-- left out of the form gave up nothing, so the rest sat off to one side.
+T.test("cdm effects: a spell left out of the form slides out of its group, Show missing buffs or not", function()
+    local DUI, AB, set, ess = fxWorld()
+    local D = AB.CdmData
+    DUI.DB.General().motion = false
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    cds[112] = { duration = 0 }
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "DRUID"
+    local form = 0
+    local spells = { 5487, 768 }
+    _G.GetNumShapeshiftForms = function() return #spells end
+    _G.GetShapeshiftFormInfo = function(i) return 136000 + i, form == i, true, spells[i] end
+    T.truthy(D.SetChainValue(set, 11, "grow", "center"))
+    local full = D.Layout(set)
+    local w = full[11].w
+    local gap = full[12].x - full[11].x - w
+    T.truthy(D.SetSpellValue(set, 11, "hideInCat", true))
+    pass(AB)
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    local f2 = pieceFrame(1, 12)
+    T.eq(f2.goalX, full[12].x, "caster form: in its spot")
+    form = 2
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.eq(f2.goalX, full[12].x - (w + gap) / 2, "Cat Form: the rest closes up round the middle")
+    T.truthy(D.SetChainValue(set, 11, "always", true))
+    pass(AB); stub.RunTimers()
+    T.eq(f2.goalX, full[12].x - (w + gap) / 2, "Show missing buffs keeps spots for missing buffs, not for a spell out of its form")
+    form = 0
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.eq(f2.goalX, full[12].x, "back in caster form: back in its spot")
+    -- The same as bars, stacked: the next one moves up into the spot.
+    T.truthy(D.SetShape(set, 11, "bar")); T.truthy(D.SetShape(set, 12, "bar"))
+    pass(AB); stub.RunTimers()
+    local bars = D.Layout(set)
+    local y2 = pieceFrame(1, 12).goalY
+    form = 2
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.truthy(pieceFrame(1, 12).goalY ~= y2 or pieceFrame(1, 12).goalX ~= bars[12].x, "a bar out of its form gives its spot up too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- "Not usable: Hide" (which replaced the old "Show when usable") kept its spot,
 -- leaving Grow from Middle off-center.
 T.test("cdm effects: a cooldown hidden while not usable slides out of its group, back when castable", function()
@@ -7794,6 +7838,25 @@ T.test("cdm rows: an icon shows the key that casts it, once asked, and follows t
     stub.bindings["ACTIONBUTTON2"] = { "E" }
     AB.Keys.OnEvent("UPDATE_BINDINGS"); stub.RunTimers()
     T.eq(l.text:GetText(), "E", "a new binding shows without a layout pass")
+
+    -- A druid's form change: the bar's page lands on the button a moment after the
+    -- form event, through its state driver, with no event of its own. The key
+    -- moves with it.
+    local btn = AB.Buttons.All()[2]
+    T.eq(AB.Buttons.SlotOf(btn), 2)
+    stub.slots[2] = { texture = "t", spellID = 1013 }
+    stub.slots[74] = { texture = "t", spellID = 1011 }
+    stub.bindings["ACTIONBUTTON2"] = nil
+    stub.bindings["ACTIONBUTTON3"] = { "R" }
+    AB.Keys.OnEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    AB.Buttons.All()[3]:SetAttribute("action", 74)
+    stub.RunTimers()
+    T.eq(l.text:GetText(), "R", "the key follows the page the button got after the form event")
+    stub.bindings["ACTIONBUTTON3"] = nil
+    stub.bindings["ACTIONBUTTON2"] = { "E" }
+    AB.Buttons.All()[3]:SetAttribute("action", 3)
+    stub.slots[2] = { texture = "t", spellID = 1011 }
+    AB.Keys.OnEvent("UPDATE_BINDINGS"); stub.RunTimers()
 
     D.SetLook(set, 11, "keyShown", false)
     D.Changed(); R.Refresh(); stub.RunTimers()
