@@ -6540,8 +6540,11 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     T.truthy(o, "X is bound on a usable item")
     T.eq(o.button, "RightButton")
     local s = _G[o.click]
-    T.eq(s:GetAttribute("type"), "click")
-    T.eq(s:GetAttribute("clickbutton"), at)
+    -- An item with a spell is used by bag and slot: clicking this addon's item
+    -- button ran the game's click code tainted (CloseAllBags in the use).
+    T.eq(s:GetAttribute("type"), "item")
+    T.eq(s:GetAttribute("item"), "0 1")
+    T.eq(s:GetAttribute("clickbutton"), nil)
     local said = {}
     for _, row in ipairs(DaylightUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
     said = table.concat(said, "|")
@@ -6550,6 +6553,39 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     stub.RunTimers()
     T.eq(stub.overrides.PAD3, nil, "an item a right click does nothing with leaves X alone")
     T.truthy(stub.overrides.PAD4, "Y still has more actions")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- With the mailbox open a right click attaches a usable item instead of using it,
+-- so X keeps the item button's own right click there.
+T.test("bags on a controller: X attaches a usable item at the mailbox", function()
+    local ns = login()
+    world.items[0][1].itemID = 1
+    C_Item.GetItemSpell = function(id) if id == 1 then return "Drink", 430 end end
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local at = ns.Bags.buttons[0][1]
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    _G.MailFrame = CreateFrame("Frame", "MailFrame", UIParent)
+    local f = open(ns)
+    stub.RunTimers()
+    local a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "click"); T.eq(a.clickbutton, at)
+    _G.MailFrame:Hide()
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    -- Equipping goes the same way; selling keeps the right click.
+    local equippable = C_Item.IsEquippableItem
+    C_Item.IsEquippableItem = function() return true end
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "click"); T.eq(a.clickbutton, at)
+    _G.MerchantFrame:Hide()
+    _G.MerchantFrame = nil
+    C_Item.IsEquippableItem = equippable
+    _G.MailFrame = nil
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
 end)
 
