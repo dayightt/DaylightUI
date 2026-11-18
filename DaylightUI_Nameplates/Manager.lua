@@ -165,6 +165,22 @@ function Manager.GiveBackFrame(uf, nameplate)
     if quieted[uf] then
         quieted[uf] = nil
         for _, e in ipairs(Manager.LOAD_EVENTS) do pcall(uf.RegisterEvent, uf, e) end
+        -- CompactUnitFrame_OnLoad is only the frame's baseline. The nameplate
+        -- adds two unit events and two global events in OnUnitSet, while
+        -- CompactUnitFrame_SetUnit registers its per-unit events. If a held
+        -- frame is returned without being recycled through SetUnit first (the
+        -- failed-install and platefix paths), restore those as well. Only the
+        -- event list is redone: CompactUnitFrame_RegisterEvents would also set
+        -- the game frame's OnEvent script from addon code.
+        if uf.unit then
+            if type(CompactUnitFrame_UpdateUnitEvents) == "function" then
+                pcall(CompactUnitFrame_UpdateUnitEvents, uf)
+            end
+            pcall(uf.RegisterUnitEvent, uf, "UNIT_FACTION", uf.unit, "player")
+            pcall(uf.RegisterUnitEvent, uf, "NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED", uf.unit)
+            pcall(uf.RegisterEvent, uf, "PLAYER_FOCUS_CHANGED")
+            pcall(uf.RegisterEvent, uf, "RAID_TARGET_UPDATE")
+        end
     end
     moveKeepers(uf, uf)
     if type(nameplate) == "table" and nameplate.UnitFrame == uf and not forbidden(nameplate) then
@@ -1150,7 +1166,7 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 -- names the cause and fixes it without a reload. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
-Manager.FIX_STEPS = 7
+Manager.FIX_STEPS = 8
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
 Manager.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
@@ -1185,6 +1201,7 @@ end
 -- Switches the game's plates off and on so it rebuilds them, then puts the
 -- Daylight UI plates back a moment later.
 local function offAndOn()
+    local done = Report.FixHold()
     local was = {}
     for _, name in ipairs(Manager.FIX_SHOW_CVARS) do
         local v = cvar(name)
@@ -1198,6 +1215,7 @@ local function offAndOn()
         C_Timer.After(Manager.FIX_BACK, function()
             Manager.fixPaused = nil
             DUI.SafeCall(Manager.Recheck)
+            done()
         end)
     end)
 end
@@ -1211,7 +1229,10 @@ end
 local function backWithout(part)
     handBack()
     Manager.fixWithout = part
-    if part == "pool" then return Manager.FreshPool(offAndOn) end
+    if part == "pool" then
+        local done = Report.FixHold()
+        return Manager.FreshPool(function() offAndOn(); done() end)
+    end
     offAndOn()
 end
 
@@ -1263,6 +1284,9 @@ Manager.FIX = {
         backWithout("pool")
         return "the game's plates rebuilt, Daylight UI's back on with newly built plates (wait two seconds)"
     end,
+    -- 8. The game's own switch for nameplates and speech bubbles back on. Last,
+    -- so the earlier steps keep the numbers older reports used.
+    function() return Report.InWorldBack() end,
 }
 
 -- The report once a step brought them back (or none did): which step, where and
@@ -1282,6 +1306,7 @@ function Manager.FixReport(step)
     local run = Manager.fixRun or { did = {}, before = {} }
     local out = { string.format("Daylight UI %s platefix: %s", tostring(DUI.VERSION),
         step and string.format("step %d brought them back", step) or "no step brought them back") }
+    for _, line in ipairs(Report.TraceLines(run)) do out[#out + 1] = line end
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     for _, line in ipairs(run.world or Manager.ReportWorld()) do out[#out + 1] = line end
     out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
@@ -1306,7 +1331,15 @@ function Manager.FixDone(step)
 end
 
 -- One step per run; after the last, the next run starts over at 1.
+-- How many game plates carry a Daylight UI plate, for each step's before and after.
+local function ownedCount()
+    local n = 0
+    for _ in pairs(byUnit) do n = n + 1 end
+    return n
+end
+
 function Manager.Fix()
+    if Report.FixBusy() then return Report.FIX_WAIT end
     if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
     local n = (Manager.fixStep or 0) + 1
     if n > Manager.FIX_STEPS then
@@ -1322,9 +1355,7 @@ function Manager.Fix()
         Report.FixBegin()
     end
     Manager.fixStep = n
-    local ok, did = pcall(Manager.FIX[n])
-    if not ok then did = "failed (" .. tostring(did) .. ")" end
-    if Manager.fixRun then Manager.fixRun.did[n] = did end
+    local did = Report.RunStep(Manager.fixRun, n, Manager.FIX[n], ownedCount)
     return string.format("platefix %d/%d: %s. Are the nameplates back? Yes: /dui platefix yes. "
         .. "No: /dui platefix again for the next step.", n, Manager.FIX_STEPS, did)
 end
@@ -1332,6 +1363,8 @@ end
 DUI.RegisterCommand("platefix", function(rest)
     if string.lower(rest or "") ~= "yes" then return DUI.Print(Manager.Fix()) end
     if not Manager.fixStep then return DUI.Print(L["Run /dui platefix first, while the nameplates are invisible."]) end
+    if Report.FixBusy() then return DUI.Print(Report.FIX_WAIT) end
+    Report.FixYes(Manager.fixRun, ownedCount)
     Manager.FixDone(Manager.fixStep)
     DUI.Print(L["Copy the text in the box and send it to the Daylight UI team, then /reload."])
 end, L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"])

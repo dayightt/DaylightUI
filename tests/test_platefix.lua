@@ -85,7 +85,7 @@ end)
 
 T.test("platefix: after every step with no yes, the report says none did", function()
     local NP = login()
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     local said = NP.Manager.Fix()
     T.truthy(said:find("every step", 1, true), said)
     local text = shownText()
@@ -146,6 +146,7 @@ T.test("platefix: the report carries a log of what happened before step 1", func
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
     f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.BUFFERS = true
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
@@ -199,6 +200,7 @@ T.test("platefix: the log is in the report with the Nameplates module off too", 
     _G.GetCVar = function() end
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     DaylightUI.RunCommand("platefix")
+    stub.RunTimers()
     DaylightUI.RunCommand("platefix yes")
     local text = shownText()
     T.truthy(text and text:find("What happened before step 1", 1, true), tostring(text))
@@ -224,7 +226,7 @@ T.test("platefix: step 5 puts the plates back without the stacking frame", funct
     local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
     local before = np.stackSet
     local said = runTo(NP, 1)
-    T.truthy(said:find("5/7", 1, true), said)
+    T.truthy(said:find("5/8", 1, true), said)
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
     T.truthy(np.stackSet > before, "the game's plate was pointed somewhere new")
@@ -357,6 +359,7 @@ T.test("platefix: the report names Daylight UI's modules and its own global piec
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
     f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.BUFFERS = true
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     text = table.concat(NP.Manager.ReportWorld(), "\n")
@@ -398,9 +401,7 @@ end)
 T.test("platefix: a run where no step helped ends with the dots up for the screenshot", function()
     local NP = login()
     local R = DaylightUI.PlateReport
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
-    stub.RunTimers()
-    stub.RunTimers()
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     T.truthy(R.marksOn, "up through every step")
     local printed = {}
     local was = DaylightUI.Print
@@ -458,4 +459,164 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     T.truthy(text:find("Daylight UI modules on:", 1, true), text)
     T.truthy(text:find("Nameplates module off", 1, true), text)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Speech bubbles vanish with the plates, and /reload brings both back. The
+-- client hides both under one switch of its own (SetUIVisibility on Alt+Z,
+-- SetInWorldUIVisibility alone), which Lua can't read. So the log notes every
+-- call and who made it, the report counts bubbles, and the last step turns the
+-- switch back on.
+local function withStack(text, fn)
+    local was = _G.debugstack
+    _G.debugstack = function() return text end
+    local ok, err = pcall(fn)
+    _G.debugstack = was
+    if not ok then error(err, 0) end
+end
+
+T.test("platefix: the log names who switched the plates and bubbles off", function()
+    local NP = login()
+    withStack('[string "@Interface/AddOns/DaylightUI/PlateReport.lua"]:1: in function\n'
+        .. '[string "@Interface/AddOns/SomeAfkAddon/Afk.lua"]:40: in function', function()
+        SetUIVisibility(false)
+    end)
+    UIParent:Show()
+    withStack("", function() SetInWorldUIVisibility(false) end)
+    NP.Manager.Fix()
+    local text = NP.Manager.FixReport(1)
+    local log = text:match("What happened before step 1.-Before step 1:")
+    T.truthy(log, text)
+    for _, want in ipairs({ "whole UI and plates off by SomeAfkAddon", "UI hidden", "UI shown",
+        "plates and bubbles off by a key or the client" }) do
+        T.truthy(log:find(want, 1, true), want .. " in: " .. log)
+    end
+    T.truthy(text:find("World UI: plates and bubbles switch last set off by a key or the client (switch changes: "
+        .. "off by SomeAfkAddon -0:00, off by a key or the client -0:00), UI shown true", 1, true),
+        text)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: the report counts speech bubbles", function()
+    login()
+    local shown, hidden = CreateFrame("Frame", nil, UIParent), CreateFrame("Frame", nil, UIParent)
+    hidden:Hide()
+    stub.SetBubbles({ shown, hidden })
+    local line = DaylightUI.PlateReport.WorldUI()
+    T.truthy(line:find("speech bubbles 2 (1 visible)", 1, true), line)
+    T.truthy(line:find("never set this session", 1, true), line)
+end)
+
+T.test("platefix: the last step brings the switch for plates and bubbles back", function()
+    local NP = login()
+    SetUIVisibility(false)
+    UIParent:Show()
+    T.falsy(stub.inWorldUI, "the UI is back, plates and bubbles aren't")
+    local said
+    for _ = 1, NP.Manager.FIX_STEPS do
+        said = NP.Manager.Fix()
+        stub.RunTimers()
+        stub.RunTimers()
+    end
+    T.truthy(said:find("8/8", 1, true) and said:find("off and back on", 1, true), said)
+    T.truthy(stub.inWorldUI, "plates and bubbles back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Caught live once: the plates and a fresh bubble were there and "visible" to
+-- Lua, the switch was never touched, and nothing drew. Setting it on when it's
+-- already on may do nothing, so the step switches it off and then back on.
+T.test("platefix: the last step switches plates and bubbles off, then back on", function()
+    local NP = login()
+    local calls, was = {}, _G.SetInWorldUIVisibility
+    _G.SetInWorldUIVisibility = function(v) calls[#calls + 1] = v; was(v) end
+    for _ = 1, NP.Manager.FIX_STEPS - 1 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    local said = NP.Manager.Fix()
+    T.eq(calls[1], false, "off first")
+    T.eq(#calls, 1, "on only after a moment")
+    stub.RunTimers()
+    _G.SetInWorldUIVisibility = was
+    T.eq(calls[2], true, "then back on")
+    T.truthy(stub.inWorldUI)
+    T.truthy(said:find("off and back on", 1, true), said)
+    T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: with the Nameplates module off, the last step turns the switch back on too", function()
+    stub.Load({ before = function()
+        _G.C_NamePlate = { GetNamePlateForUnit = function() end }
+        stub.units = { player = { name = "Me", class = "PRIEST", isPlayer = true } }
+    end })
+    _G.SetCVar = function() end
+    _G.GetCVar = function() end
+    SetInWorldUIVisibility(false)
+    local R = DaylightUI.PlateReport
+    for _ = 1, #R.FIX do R.Fix(); stub.RunTimers() end
+    T.truthy(stub.inWorldUI)
+end)
+
+T.test("platefix: a refused switch says why, and tries the whole UI's switch", function()
+    login()
+    local was = _G.SetInWorldUIVisibility
+    _G.SetInWorldUIVisibility = function() error("blocked") end
+    SetUIVisibility(false)
+    UIParent:Show()
+    local said = DaylightUI.PlateReport.InWorldBack()
+    _G.SetInWorldUIVisibility = was
+    T.truthy(said:find("UI switch turned on", 1, true), said)
+    T.truthy(stub.inWorldUI)
+    _G.SetUIVisibility, was = function() error("no") end, _G.SetUIVisibility
+    _G.SetInWorldUIVisibility = function() error("blocked") end
+    said = DaylightUI.PlateReport.InWorldBack()
+    _G.SetUIVisibility = was
+    _G.SetInWorldUIVisibility = function(v) stub.inWorldUI = v == true end
+    T.truthy(said:find("refused", 1, true) and said:find("blocked", 1, true), said)
+end)
+
+-- Steps 3 and 5 to 8 finish a moment after they're typed. Running the next one
+-- (or answering yes) before then mixes two steps, so "step N brought them
+-- back" would name the wrong one.
+T.test("platefix: the next step waits until the last one has finished", function()
+    local NP = login()
+    for _ = 1, 2 do NP.Manager.Fix() end
+    NP.Manager.Fix() -- step 3 switches the game's plates off and back on, then puts ours back
+    local said = NP.Manager.Fix()
+    T.truthy(said:find("still finishing", 1, true), said)
+    T.eq(NP.Manager.fixStep, 3, "no step used up")
+    DaylightUI.RunCommand("platefix yes")
+    T.isnil(shownText(), "no report while a step is running")
+    stub.RunTimers()
+    stub.RunTimers()
+    said = NP.Manager.Fix()
+    T.truthy(said:find("platefix 4/", 1, true), said)
+end)
+
+-- The report's sections freeze at step 1. A short line per step says what the
+-- show switches and plate counts were before and after it, and at "yes", near
+-- the top so a long report's cut can't reach it.
+T.test("platefix: the report traces each step's switches and plates near the top", function()
+    local NP, cvars = login()
+    cvars.nameplateShowFriendlyPlayers, cvars.nameplateShowFriendlyNpcs = "1", "0"
+    C_NamePlate.GetNamePlates = function() return { C_NamePlate.GetNamePlateForUnit("nameplate1") } end
+    for _ = 1, 3 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    cvars.nameplateShowEnemies = "0"
+    DaylightUI.RunCommand("platefix yes")
+    local text = shownText()
+    T.truthy(text, "the copy box is up")
+    local trace = text:find("Each step, before => after", 1, true)
+    T.truthy(trace and trace < text:find("  1. the plate size", 1, true), text)
+    T.truthy(text:find("  3: E1 FP1 FN0 G1 O0 => E1 FP1 FN0 G1 O1", 1, true), text)
+    T.truthy(text:find("  At yes: E0 FP1 FN0 G1 O1", 1, true), text)
+end)
+
+T.test("platefix: switch changes stay in the report after the log has filled", function()
+    local NP = login()
+    withStack("", function() SetInWorldUIVisibility(false) end)
+    for i = 1, 30 do stub.FireEvent("CVAR_UPDATE", "someSetting" .. i, "1") end
+    withStack("", function() SetInWorldUIVisibility(true) end)
+    NP.Manager.Fix()
+    local text = NP.Manager.FixReport(1)
+    T.falsy(text:match("What happened before step 1.-plates and bubbles off.-Before step 1:"), "gone from the log")
+    T.truthy(text:find("switch changes: off by a key or the client -0:00, on by a key or the client -0:00", 1, true),
+        text)
 end)

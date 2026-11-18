@@ -561,28 +561,30 @@ end
 
 -- A dragged window's saved position, stored per profile as db.spot = { x, y }
 -- (top-center, pixel snapped). db() returns the module's db or nil before it
--- loads; place(f) puts the window back at its default spot.
+-- loads; place(f) puts the window back at its default spot. key (default
+-- "spot") lets a second window of the same module keep its own.
 --   S.Get()      saved { x, y } or nil
 --   S.Save(x, y) for Win.Drag's save
 --   S.Reset()    true if a spot was cleared. Protected windows move back
 --                after combat.
-function Win.Spot(f, db, place)
+function Win.Spot(f, db, place, key)
+    key = key or "spot"
     local S = {}
     function S.Get()
         local d = db()
-        local s = d and d.spot
+        local s = d and d[key]
         if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
         return nil
     end
     function S.Save(x, y)
         local d = db()
-        if d then d.spot = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
+        if d then d[key] = { DUI.Pixel.Snap(UIParent, x), DUI.Pixel.Snap(UIParent, y) } end
     end
     local function back() if Feel.IsOpen(f) then place(f) end end
     function S.Reset()
         local d = db()
-        if not (d and d.spot) then return false end
-        d.spot = nil
+        if not (d and d[key]) then return false end
+        d[key] = nil
         if Win.Held(f) then
             DUI.AfterCombat(back, "winSpot:" .. tostring(f))
         else

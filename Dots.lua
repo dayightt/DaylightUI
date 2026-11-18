@@ -207,6 +207,7 @@ local byMob = {} -- mob key -> { [spell name] = dot }
 local sent = {} -- cast GUID -> { key, at }, the mob a cast was aimed at
 local counted = 0             -- combo points counted from builders
 local comboAtSend             -- combo points read when a finisher was sent
+local lastFinisher            -- { id, points, at }: the last finisher cast and the points it used
 local pendingBuilder -- { key, points, at }: a builder whose outcome isn't known yet
 local pendingCast -- { key, name, dot, previous, at }: a DoT cast whose outcome isn't known yet
 local lastOutcome             -- { key, avoided, action, school, at }
@@ -266,7 +267,7 @@ end
 
 function Dots.Forget()
     byMob, sent = {}, {}
-    counted, comboAtSend = 0, nil
+    counted, comboAtSend, lastFinisher = 0, nil, nil
     pendingBuilder, pendingCast, lastOutcome, lastHit = nil, nil, nil, nil
     stopTicker()
     changed()
@@ -493,6 +494,7 @@ local function onCast(castGUID, id)
     if finisher then
         points = comboAtSend or (counted > 0 and counted or nil)
         comboAtSend, counted, pendingBuilder = nil, 0, nil
+        lastFinisher = { id = id, points = points, at = GetTime() }
     end
     local total, school, duration, stated = Dots.Parse(desc, points)
     if not total or not key then return end
@@ -780,6 +782,15 @@ events:SetScript("OnEvent", function(_, event, unit, a, b, c, d)
         if not isSecret(a) then onStopped(a) end
     end
 end)
+
+-- The combo points a finisher was cast with, for a buff whose length depends on
+-- them (Slice and Dice). Asked from the same cast event, so it answers whether
+-- this file has heard the cast yet or not. nil = not known.
+function Dots.Combo(id)
+    local f = lastFinisher
+    if f and f.id == id and GetTime() - f.at < 1 then return f.points end
+    return readCombo() or comboAtSend or (counted > 0 and counted or nil)
+end
 
 local wanted = {}
 local listening = false

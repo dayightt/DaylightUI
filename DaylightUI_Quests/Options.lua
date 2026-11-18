@@ -103,6 +103,8 @@ ns.OPTIONS = { pages = {
               desc = "The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight." },
             { type = "toggle", key = "foldReady", label = "Fold ready quests",
               desc = "A quest ready to hand in shows its title alone. A timed quest never folds." },
+            { type = "toggle", key = "readyLast", label = "Ready quests at the bottom",
+              desc = "Quests ready to hand in leave their zones and gather in a Ready to turn in section under the rest, so the quests still to do stay on top. Nothing moves in a fight." },
             { type = "dropdown", key = "instances", label = "Tracker in dungeons and raids", values = INSTANCE_MODES, order = { "zone", "fold", "hide", "none" },
               desc = "What the tracker does when you enter a dungeon, raid or battleground. It comes back as you leave. This zone only keeps the quests for where you are; the All button over the list shows the rest until you leave." },
             { type = "toggle", key = "hoverDim", label = "Dim other quests on hover",
@@ -265,6 +267,8 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "colors.focus", label = "Custom priority quest color",
               desc = "The priority quest's color while Priority quest color is set to One color.",
               hidden = function(get) return get("colors.focusMode") ~= "custom" end },
+            { type = "toggle", key = "colors.focusTitle", label = "Priority quest title in its color",
+              desc = "The priority quest's title takes the Priority quest color too, so it stands out in the tracker and the quest log." },
         } },
         { label = "Progress bars", items = {
             { type = "dropdown", key = "colors.barMode", label = "Progress bar color", values = BAR_MODES,

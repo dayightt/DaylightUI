@@ -44,6 +44,7 @@ ns.DEFAULTS = {
     worldChannelsFirst = true, -- world channels keep the first numbers when an addon joins its own first (Kinds.WorldFirst)
     channelNumbers = false, -- numbered channels keep their number: [1. G], [2. T]
     -- channelTags: custom short tags per kind, set in the chat options (Tags.lua). No default.
+    tagLetters = "english",   -- the letters short tags start from: "english", or "native" (the game's words in the player's language)
     classColors = true, -- class-colored names (the game's own setting)
     levels = false,     -- "[60] Name": a level beside each name the game has given (Levels.lua)
     timestamps = "game", -- "game" uses the game's setting, "none" turns it off, else a time format
@@ -66,9 +67,12 @@ ns.DEFAULTS = {
     boxInputAt = "bottom", -- same for the Daylight chat box: inside its bottom, lines rising over it
     textSize = 0, -- text size for every chat window (0 = the game's per-window size)
     outline = false,        -- an outline on chat text
+    lineSpacing = 0,        -- extra pixels between the lines of the Daylight chat box
     tabSize = 13, -- tab label size
     inputSizeOwn = false, -- off: edit box text matches the message size
     inputSize = 14, -- used when inputSizeOwn is on
+    align = "left", -- messages line up on the left or the right edge (Daylight chat box)
+    sideAlign = "left", -- the same for the second panel
     sideTextSizeOwn = false, -- off: second panel text matches the message size
     sideTextSize = 14, -- used when sideTextSizeOwn is on
     bubbles = true, -- restyle speech bubbles too

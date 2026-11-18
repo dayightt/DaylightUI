@@ -2028,6 +2028,27 @@ end
 
 -- An NPC's emote is its text with the name apart (arg 2). A line the game made without
 -- the name gets it in the box, after the timestamp.
+-- Turning Experience off left "Experience gained: 975." from a quest in the tab:
+-- the game sends quest rewards as system messages.
+T.test("chat daylight: a quest's experience, money and item lines go by their own switches", function()
+    local _, box = daylight()
+    local Kinds = stub.chatModule.Kinds
+    _G.ERR_QUEST_REWARD_EXP_I = "Experience gained: %d."    -- the game's GlobalStrings
+    _G.ERR_QUEST_REWARD_MONEY_S = "Received %s."
+    _G.ERR_QUEST_REWARD_ITEM_S = "Received item: %s."
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975.")), "progress")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "19:31:43 Experience gained: 975.")), "progress", "after a time stamp")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received 4 Silver.")), "money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received item: |cff1eff00|Hitem:1|h[Shovel]|h|r.")), "loot",
+        "an item, not money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble")), "system")
+    -- A tab with System on and Experience off no longer shows it.
+    local tab = { name = "T", kinds = { system = true }, v = Kinds.VERSION }
+    T.falsy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975."))))
+    T.truthy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble"))))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: an NPC emote the game made without its name gets the name", function()
     local Box, box = daylight()
     local function emote(text, name, id)
@@ -2376,6 +2397,38 @@ T.test("chat daylight: Show Message on a hidden message shows it in the box", fu
     -- Switching tabs fills the box from its kept lines: the message stays shown.
     CH.Box.Pick(CH.Box.Picked())
     T.truthy(string.find(boxTexts(box)[2], "hello there", 1, true), "kept")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In a whisper conversation an item link and the game's Show Message did nothing:
+-- its lines were plain text with no link frame under them.
+T.test("chat daylight: a whisper conversation's links are the game's click, and Show Message shows it there", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local hidden = "Message from Robb is potentially inappropriate. |Hcensoredmessage:77|h[Show Message]|h"
+    _G.CHAT_WHISPER_GET = "%s whispers: "   -- the game's GlobalStrings
+    stub.FireEvent("CHAT_MSG_WHISPER", hidden, "Robb", "", "", "", "", 0, 0, "", 0, 77, "Player-1-0002")
+    local args = { hidden, "Robb", n = 14 }
+    args[11] = 77
+    ChatFrame1:AddMessage(hidden, 1, 1, 1, 3, nil, nil, "CHAT_MSG_WHISPER", args)
+    _G.SetItemRef = function(link)
+        local id = tonumber(string.match(link, "^censoredmessage:(%d+)"))
+        if not id then return end
+        ChatFrame1:TransformMessages(function(_, _, _, _, _, _, _, _, a) return a[11] == id end,
+            function(_, r, g, b, infoID, accessID, typeID, event, a, ...)
+                return "|Hplayer:Robb|h[Robb]|h whispers: hello there |Hreportcensoredmessage:77|h[Report]|h", r, g, b,
+                    infoID, accessID, typeID, event, a, ...
+            end)
+    end
+    CH.Convo.Open("w:Robb")
+    local t = CH.Convo.Thread()
+    local row = t.rows[1]
+    T.truthy(row and row.__links, "the line sits on the game's own link frame")
+    T.falsy(row:IsMouseEnabled(), "the wheel still reaches the list")
+    row:GetScript("OnHyperlinkClick")(row, "censoredmessage:77", "[Show Message]", "LeftButton")
+    T.eq(CH.Talk.Get("w:Robb").msgs[1].text, "hello there", "the conversation shows the message")
+    T.eq(t.rows[1].text:GetText(), "hello there", "redrawn")
+    CH.Convo.Close()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -2954,6 +3007,59 @@ T.test("chat daylight: the short tags page has a box per chat kind and channel, 
     _G.GetChannelList = list
 end)
 
+-- The letters of the short tags: English ones, or the game's words in the player's language.
+T.test("chat daylight: Tag letters starts as English, can be switched, and its boxes show a tooltip", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    T.eq(Tags.letters, "english", "English until asked otherwise")
+    local item
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.key == "tagLetters" then item = it end end
+        end
+    end
+    T.truthy(item, "the options have the drop-down")
+    T.deq(item.order, { "english", "native" })
+    for _, k in ipairs(item.order) do T.truthy(item.values[k], "a label for " .. k) end
+    T.truthy(item.disabled(function() return false end), "off with Short tags off")
+    T.falsy(item.disabled(function() return true end), "on with Short tags on")
+    local old = { CHAT_MSG_SAY = _G.CHAT_MSG_SAY }
+    _G.CHAT_MSG_SAY = "Decir"
+    DaylightUI:Set("Chat", "tagLetters", "native")
+    stub.RunTimers()
+    T.eq(Tags.letters, "native", "a change reaches the tags at once")
+    T.eq(Tags.Default("say"), "D", "the game's word, in the player's language")
+    DaylightUI:Set("Chat", "tagLetters", "english")
+    stub.RunTimers()
+    T.eq(Tags.Default("say"), "S", "back to the English letters")
+    _G.CHAT_MSG_SAY = old.CHAT_MSG_SAY
+    -- The tooltip on a tag box shows (it was only filled before).
+    local tip = GameTooltip
+    local shown = false
+    local owned
+    GameTooltip = { SetOwner = function(_, o) owned = o end, Show = function() shown = true end, Hide = function() end,
+                    IsOwned = function() return true end }
+    local tips = DaylightUI.Tips
+    local saved = { Title = tips.Title, Text = tips.Text, Flush = tips.Flush, Clear = tips.Clear }
+    tips.Title, tips.Text, tips.Flush, tips.Clear = function() end, function() end, function() end, function() end
+    local tagItem
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.label == "Your own short tags" then tagItem = it end end
+        end
+    end
+    local row = CreateFrame("Frame")
+    tagItem.build(row); tagItem.update(row)
+    local line
+    for side = 1, 2 do for _, l in ipairs(row.columns[side]) do if l:IsShown() and not line then line = l end end end
+    T.truthy(line, "a tag box")
+    line.box:GetScript("OnEnter")(line.box)
+    T.truthy(shown, "its tooltip is shown, not only filled")
+    GameTooltip = tip
+    tips.Title, tips.Text, tips.Flush, tips.Clear = saved.Title, saved.Text, saved.Flush, saved.Clear
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a tab's Show lists the channels you're in, each its own switch", function()
     local Box, box = daylight()
     local Tabs, Filter, Kinds = stub.chatModule.Tabs, stub.chatModule.Filter, stub.chatModule.Kinds
@@ -3204,21 +3310,22 @@ T.test("chat daylight: world channels are known by the game's id, not their name
     T.eq(Kinds.OfChannel("Comercio local - Ventormenta"), Kinds.TRADE_LOCAL, "Spanish Trade (Local)")
     T.eq(Kinds.OfChannel("General: Vallefresno"), "general", "a colon zone")
     T.eq(Kinds.OfChannel("BuscarGrupo"), "lfg", "Spanish Looking For Group")
-    T.eq(Tags.Standard("DefensaLocal", 3), "DL", "its tag, not the bare number: the name's letters")
-    T.eq(Tags.Standard("Comercio local", 4), "CL")
-    T.eq(Tags.Standard("Comercio", 2), "C")
-    T.eq(Tags.Standard("BuscarGrupo", 5), "BG")
-    T.eq(Tags.Standard("General: Vallefresno", 1), "G")
-    T.eq(Tags.Initials("Defensa de la ciudad"), "DC", "short words left out")
-    T.eq(Tags.Initials("LocalDefense"), "LD")
-    T.eq(Tags.Initials("Trade (Local)"), "TL")
-    T.eq(Tags.Initials("\229\133\172\228\188\154"), "\229\133\172", "the first character of a Chinese name")
+    T.eq(Tags.Standard("BuscarGrupo", 5), "LFG")
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD", "its tag, not the bare number")
+    T.eq(Tags.Standard("Comercio local", 4), "TL")
+    T.eq(Tags.Standard("Comercio", 2), "T")
+    -- World Defense and Newcomer have no id and share a kind with Local Defense and
+    -- General, but keep their own tags.
+    T.eq(Tags.Standard("WorldDefense", 7), "WD")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N")
     -- The game can't say: the names still work, in any case.
     _G.C_ChatInfo = nil
     Kinds.ChannelsChanged()
     T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "by name without the game's help")
     T.eq(Tags.Standard("DefensaLocal", 3), "LD")
     T.eq(Tags.Standard("Comercio local", 4), "TL", "Trade (Local) in Spanish, by name")
+    T.eq(Tags.Standard("WorldDefense", 7), "WD", "World Defense by name")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N", "Newcomer by name")
     -- A secret name is never sent to the game, which errors on one.
     local asked = false
     _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function() asked = true end }
@@ -3231,11 +3338,40 @@ T.test("chat daylight: world channels are known by the game's id, not their name
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- A chat kind's tag comes from the game's own word for it, the first in the order
--- keeping the short one when two start the same.
-T.test("chat daylight: chat kinds take their default tag from the game's words", function()
+-- In the player's language the letters come from the name the game gives the channel.
+T.test("chat daylight: world channels take the letters of their own name when asked for", function()
+    daylight()
+    local CH = stub.chatModule
+    local Kinds, Tags = CH.Kinds, CH.Tags
+    local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
+    local old = _G.C_ChatInfo
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function(n) return ids[n] and { zoneChannelID = ids[n] } or nil end }
+    Kinds.ChannelsChanged()
+    Tags.Apply({ shortTags = true, tagLetters = "native" })
+    T.eq(Tags.Standard("DefensaLocal", 3), "DL", "its tag, not the bare number: the name's letters")
+    T.eq(Tags.Standard("Comercio local", 4), "CL")
+    T.eq(Tags.Standard("Comercio", 2), "C")
+    T.eq(Tags.Standard("BuscarGrupo", 5), "BG")
+    T.eq(Tags.Standard("General: Vallefresno", 1), "G")
+    T.eq(Tags.Initials("Defensa de la ciudad"), "DC", "short words left out")
+    T.eq(Tags.Initials("LocalDefense"), "LD")
+    T.eq(Tags.Initials("Trade (Local)"), "TL")
+    T.eq(Tags.Initials("公会"), "公", "the first character of a Chinese name")
+    -- Back to the English letters, which is what the setting starts as.
+    Tags.Apply({ shortTags = true })
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD", "English letters again")
+    T.eq(Tags.Standard("Comercio", 2), "T")
+    _G.C_ChatInfo = old
+    Kinds.ChannelsChanged()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In the player's language a chat kind's tag comes from the game's own word for it, the first in
+-- the order keeping the short one when two start the same.
+T.test("chat daylight: chat kinds take their default tag from the game's words when asked for", function()
     daylight()
     local Tags = stub.chatModule.Tags
+    Tags.Apply({ shortTags = true, tagLetters = "native" })
     local saved = {}
     local names = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "WHISPER", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_GUILD",
         "CHAT_MSG_OFFICER", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_RAID_WARNING", "CHAT_WHISPER_INFORM_GET", "CHAT_SAY_GET" }
@@ -3267,6 +3403,13 @@ T.test("chat daylight: chat kinds take their default tag from the game's words",
     Tags.ResetDefaults()
     T.eq(Tags.Default("say"), "S")
     T.eq(Tags.Default("warning"), "RW")
+    T.eq(Tags.Default("to"), "To")
+    for _, n in ipairs(names) do _G[n] = saved[n] end
+    -- In English letters the game's words don't matter: the letters it always had.
+    Tags.Apply({ shortTags = true })
+    words({ CHAT_MSG_PARTY = "Grupo", CHAT_MSG_YELL = "Gritar", CHAT_WHISPER_INFORM_GET = "A %s: " })
+    T.eq(Tags.Default("party"), "P", "English letters, in a Spanish client")
+    T.eq(Tags.Default("yell"), "Y")
     T.eq(Tags.Default("to"), "To")
     for _, n in ipairs(names) do _G[n] = saved[n] end
     Tags.ResetDefaults()
@@ -3469,6 +3612,37 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
     T.eq(select(3, box:GetFont()), "OUTLINE")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: line spacing spreads the box's lines, and 0 is the game's own", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    local gap
+    box.SetSpacing = function(_, v) gap = v end
+    Box.Font()
+    T.eq(gap, 0, "untouched: the game's own spacing")
+    DUI:Set("Chat", "lineSpacing", 6)
+    stub.RunTimers()
+    T.eq(gap, 6, "the chosen pixels")
+    DUI:Set("Chat", "lineSpacing", -3)
+    stub.RunTimers()
+    T.eq(gap, 0, "never negative")
+    DUI:Set("Chat", "lineSpacing", 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: messages line up on the left, or the right when asked", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    Box.Font()
+    T.eq(box:GetJustifyH(), "LEFT", "left by default")
+    DUI:Set("Chat", "align", "right")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "RIGHT", "right once picked")
+    DUI:Set("Chat", "align", "left")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "LEFT")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4098,7 +4272,7 @@ T.test("chat daylight: the game's chat menu button sits on the header's icon onc
     btn:GetScript("OnLeave")(btn)
     DaylightUI.Motion.On = on
 
-    T.truthy(string.find(Menu.Tip(), "emotes", 1, true))
+    T.eq(Menu.Tip(), "Chat menu", "short: what it does is in the line under it")
     _G.GetNumLanguages = function() return 2 end
     T.truthy(string.find(Menu.Tip(), "Common", 1, true), "more than one language: says which you speak")
     _G.GetNumLanguages = nil
@@ -4147,6 +4321,62 @@ T.test("chat daylight: the voice chat icon is off by default and opens the game'
     T.falsy(icon:IsShown(), "off again")
     M.On = on
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a header icon's tooltip shows at once, with its name and what it does", function()
+    local Box = daylight()
+    local Tips = DaylightUI.Tips
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    function tip:IsOwned(o) return self.owner == o end
+    local saved = { Title = Tips.Title, Text = Tips.Text, Flush = Tips.Flush }
+    local got
+    Tips.Title = function(t) got = { title = t } end
+    Tips.Text = function(t) if got then got.desc = t end end
+    Tips.Flush = function() end
+    for _, name in ipairs({ "whispers", "voice", "menu", "copy", "lock", "options" }) do
+        local icon = Box.main.icons[name]
+        if icon then
+            got = nil
+            icon.IsMouseOver = function() return true end
+            icon:GetScript("OnEnter")(icon)
+            T.falsy(got, name .. ": waits for the mouse to rest, as every icon button does")
+            stub.RunTimers()
+            T.truthy(got and got.title, name .. ": has a name")
+            T.truthy(got.desc, name .. ": and a line on what it does")
+            T.eq(tip.owner, icon, name .. ": on the icon")
+            icon:GetScript("OnLeave")(icon)
+        end
+    end
+    T.truthy(Box.main.icons.copy, "the copy icon exists")
+    Tips.Title, Tips.Text, Tips.Flush = saved.Title, saved.Text, saved.Flush
+    _G.GameTooltip = nil
+end)
+
+T.test("chat daylight: the \"+\" tab says what it adds and sits a little apart from the tabs", function()
+    local Box = daylight()
+    local plus = Box.main.plus
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    local Tips = DaylightUI.Tips
+    local saved = { Title = Tips.Title, Text = Tips.Text, Hint = Tips.Hint, Flush = Tips.Flush }
+    local words = {}
+    Tips.Title = function(t) words[#words + 1] = t end
+    Tips.Text = function(t) words[#words + 1] = t end
+    Tips.Hint = function() end
+    Tips.Flush = function() end
+    plus:GetScript("OnEnter")(plus)
+    Tips.Title, Tips.Text, Tips.Hint, Tips.Flush = saved.Title, saved.Text, saved.Hint, saved.Flush
+    _G.GameTooltip = nil
+    T.truthy(tip.shown, "the tooltip is shown, not only filled")
+    T.eq(words[1], "New tab")
+    T.eq(words[2], "Adds a chat tab, or a combat log tab.", "a line on what it adds")
+    local last
+    for _, b in ipairs(Box.main.buttons) do if b:IsShown() then last = b end end
+    T.truthy(last, "a shown tab")
+    local lastAt = select(4, last:GetPoint(1))
+    local plusAt = select(4, plus:GetPoint(1))
+    T.eq(plusAt - (lastAt + last:GetWidth()), Box.PLUS_GAP, "the gap before the plus")
 end)
 
 T.test("chat daylight: the Copy icon follows its switch, the whispers bubble its setting, the rest close up", function()

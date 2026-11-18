@@ -94,6 +94,9 @@ UF.BIG_NUMBER_DROP = 1.5  -- below center, since the digits sit high in their li
 -- dark disc with a ring and a horned helm emblem, gold or silver, glowing.
 UF.CREST = { elite = "gold", worldboss = "gold", rareelite = "gold", rare = "silver" }
 UF.CREST_COLORS = { gold = { 0.94, 0.77, 0.31 }, silver = { 0.84, 0.86, 0.90 } }
+-- With neither a portrait nor a name tab, the frame's own border carries the
+-- crest's color instead, and the status icons stand this far off its outer end.
+UF.BARE_ICON_GAP = 3
 UF.CREST_SIZE = 22
 -- Portrait rings are flat graphic bands (tools/make_elite_ring.py), their
 -- outer edge at RING_OUTER of the image's half-size. An elite's dragon wraps
@@ -2702,6 +2705,7 @@ function UF.StylePrediction(f)
     local ac = type(c.absorbColor) == "table" and c.absorbColor or P.absorbs.color
     local oc = c.overshieldPaint == "custom" and type(c.overshieldColor) == "table" and c.overshieldColor or ac
     f.overshieldOn = c.overshield ~= false
+    f.overhealOn = c.overheal ~= false
     f.overshieldReverse = c.overshieldReverse == true
     if f.heals then
         f.heals:SetStatusBarColor(hc[1], hc[2], hc[3], P.heals.alpha)
@@ -2873,8 +2877,9 @@ end
 -- capped by the client at the missing health plus UF.HEAL_OVERFLOW's fraction
 -- of the bar (the game's raid frames use 1.05), so an overheal still shows past
 -- the health's end but never longer than that (a 5 health totem once showed
--- one a whole frame long). Absorbs fit in the missing health, and what doesn't
--- fit is the overshield.
+-- one a whole frame long). With overheal off the heal stops at the missing
+-- health. Absorbs fit in the missing health, and what doesn't fit is the
+-- overshield.
 UF.HEAL_OVERFLOW = 1.25
 local function filledCalc(f, u)
     if type(CreateUnitHealPredictionCalculator) ~= "function" or type(UnitGetDetailedHealPrediction) ~= "function" then
@@ -2889,8 +2894,12 @@ local function filledCalc(f, u)
         if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
         local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
         if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
-        if calc.SetIncomingHealOverflowPercent then pcall(calc.SetIncomingHealOverflowPercent, calc, UF.HEAL_OVERFLOW) end
         f.healCalc = calc
+    end
+    local overflow = f.overhealOn == false and 1 or UF.HEAL_OVERFLOW
+    if f.healOverflow ~= overflow and calc.SetIncomingHealOverflowPercent then
+        pcall(calc.SetIncomingHealOverflowPercent, calc, overflow)
+        f.healOverflow = overflow
     end
     if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
     return calc
@@ -3073,11 +3082,13 @@ function UF.ApplyThreat(f, level, flag)
         UF.PaintElite(f)
     end
     -- No portrait: the name tab's border while it shows, else the frame's own
-    -- (tiles, party buttons without a tab, and a name row, which has none).
+    -- (tiles, party buttons without a tab, a name row, which has none, and a
+    -- frame with neither a ring nor a tab, which would show nothing at all).
     local tabOn = f.tab and f.tab:IsShown() and not f.nameRow or false
     local s = (tabOn and Style.GetShell(f.tab))
-        or ((f.spec.threatOnFrame or f.nameRow or f.backdropOn or (f.spec.group and not tabOn)) and Style.GetShell(f))
+        or ((f.spec.threatOnFrame or f.nameRow or f.backdropOn or (f.spec.group and not tabOn) or not (tabOn or ring)) and Style.GetShell(f))
         or nil
+    f.threatOn = (c or type(flag) ~= "nil") and true or false
     -- A style change can move it, so reset the shell it left.
     if f.threatShell and f.threatShell ~= s then
         if f.threatSecret then Style.PaintShellColors(f.threatShell) end
@@ -3103,6 +3114,21 @@ function UF.ApplyThreat(f, level, flag)
         local band = f.threatBand
         band[1], band[2], band[3] = c[1] * k, c[2] * k, c[3] * k
         Style.SetShellColors(s, c, band)
+    else
+        UF.PaintEliteEdge(f, s)
+    end
+end
+
+-- The frame's border at rest: an elite's gold or silver outline when it has
+-- neither a ring nor a tab to show its crest (UF.ApplyCrest), else the usual.
+function UF.PaintEliteEdge(f, s)
+    local e = s == Style.GetShell(f) and f.eliteEdge or nil
+    if e then
+        local k = UF.THREAT_BAND_DIM
+        f.eliteBand = f.eliteBand or {}
+        local band = f.eliteBand
+        band[1], band[2], band[3] = e[1] * k, e[2] * k, e[3] * k
+        Style.SetShellColors(s, e, band)
     else
         Style.SetShellColors(s, nil, nil)
     end
@@ -3304,6 +3330,32 @@ function UF.LayoutStatus(f, cfg)
             icons.role:SetSize(z, z)
             -- The inner shoulder: rest's spot, mirrored to the other side.
             icons.role:SetPoint("CENTER", p, "CENTER", -out * R * 0.82 + rn.x, R * 0.82 + rn.y)
+        end
+    elseif not (f.tab and f.tab:IsShown()) then
+        -- Neither a portrait nor a name tab: the icons stand in a column beside
+        -- the frame's outer end, where the portrait would be, so they still show
+        -- with the name on the bar.
+        local H = f:GetHeight()
+        local z = math.min((f.tabHeight or UF.TAB_HEIGHT) * 0.9, H / 3)
+        local outer = outerRight and "RIGHT" or "LEFT"
+        local inner = outerRight and "LEFT" or "RIGHT"
+        icons.leader:SetSize(z * (scale.leader or 1), z * (scale.leader or 1))
+        icons.rest:SetSize(z * (scale.rest or 1), z * (scale.rest or 1))
+        icons.pvp:SetSize(z * 1.15 * (scale.pvp or 1), z * 1.15 * (scale.pvp or 1))
+        local R = Pixel.Snap(f, H * UF.PORTRAIT_SIZE * (f.portraitScale or 1) / 2)
+        icons.level:SetSize(R * UF.STATUS.level.size, R * UF.STATUS.level.size)
+        -- Past the level badge, which sticks out of the outer bottom corner.
+        local badge = (f.showLevel ~= false and not f.levelSpot) and icons.level:GetWidth() / 2 or 0
+        local gap = out * (badge + UF.BARE_ICON_GAP)
+        icons.leader:SetPoint("TOP" .. inner, f, "TOP" .. outer, gap + ln.x, ln.y)
+        icons.rest:SetPoint(inner, f, outer, gap, 0)
+        icons.pvp:SetPoint("BOTTOM" .. inner, f, "BOTTOM" .. outer, gap, 0)
+        icons.level:SetPoint("CENTER", f, "BOTTOM" .. outer, 0, 0)
+        Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        if icons.role then
+            local r = f.rolePicked or z
+            icons.role:SetSize(r, r)
+            icons.role:SetPoint(inner, f, outer, gap + rn.x, rn.y)
         end
     else
         -- Crown and Zzz at name text size. The level badge as big as it would
@@ -3688,7 +3740,7 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
         f.druidMana = on and cfg.druidMana ~= false
     end
     if f.cost then
-        UF.LayoutCost(f, side, side and cut * ph / H or 0, cfg)
+        UF.LayoutCost(f, cfg)
         if not on then
             f.costPreview = false
             f.cost:Hide()
@@ -3697,9 +3749,8 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
 end
 
 -- The spell cost shade over f.power (the player frame's and the personal
--- display's). side and cut are the power bar's angle. cfg is the frame's
--- costPreview, costColor and costAlpha.
-function UF.LayoutCost(f, side, cut, cfg)
+-- display's). cfg is the frame's costPreview, costColor and costAlpha.
+function UF.LayoutCost(f, cfg)
     local lead = f.growLeft == true and "LEFT" or "RIGHT"
     local fill = f.power:GetStatusBarTexture()
     f.cost:ClearAllPoints()
@@ -3708,12 +3759,11 @@ function UF.LayoutCost(f, side, cut, cfg)
     f.cost:SetPoint("BOTTOM" .. lead, fill, "BOTTOM" .. lead, 0, 0)
     f.cost:SetWidth(f.power:GetWidth())
     f.cost:SetReverseFill(f.growLeft ~= true)
-    -- Both ends of the band take the frame's angle, like the fill's own.
-    local fillSide = not f.flipped and side or nil
-    local dir = fillSide and (f.growLeft == true and "left" or "right") or nil
-    local c = fillSide and cut or 0
-    Style.AngleFill(f.cost, dir, c)
-    Style.AngleTrail(f.cost, dir, c)
+    -- Both ends of the band copy the fill's own moving edge (laid out just
+    -- before this), so they lean the same way, under included.
+    local dir, c, under = Style.GetFillAngle(f.power)
+    Style.AngleFill(f.cost, dir, c, under)
+    Style.AngleTrail(f.cost, dir, c, under)
     local color = cfg.costColor or { 0, 0, 0 }
     f.cost:SetStatusBarColor(color[1], color[2], color[3], cfg.costAlpha or 0.45)
     f.costPreview = cfg.costPreview ~= false
@@ -3945,7 +3995,15 @@ function UF.ApplyCrest(f, c)
             if not onRing then p.eye:Hide(); p.eyeCore:Hide() end
             UF.PaintElite(f)
         end
-        f.crest:SetShown(f.crestShown and not onRing and f.tab:IsShown())
+        local tabShown = f.tab:IsShown() or f.backdropOn == true
+        f.crest:SetShown(f.crestShown and not onRing and tabShown)
+        -- With no ring and no tab the badge has nowhere to sit, so the frame's
+        -- own border takes its color.
+        local edge = (f.crestShown and not onRing and not tabShown) and UF.CREST_COLORS[kind] or nil
+        if edge ~= f.eliteEdge then
+            f.eliteEdge = edge
+            if f.threatShell and not f.threatOn then UF.PaintEliteEdge(f, f.threatShell) end
+        end
         if f.status then
             local m = f.crestShown and UF.ELITE_RING_COLORS[kind] or UF.LEVEL_RING
             f.status.icons.level:SetVertexColor(m[1], m[2], m[3], 1)

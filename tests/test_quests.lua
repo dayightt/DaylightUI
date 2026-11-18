@@ -1563,6 +1563,25 @@ T.test("quests tracker: the priority quest's icon is painted in our gradient", f
     T.rgb(ring1.__vertex, ns.Look.RING)
 end)
 
+T.test("quests tracker: with the switch on, the priority quest's title takes the priority color", function()
+    local Tr, ns, settle = tracker({ quests = { STEW, QW.quest(2, "B") }, focus = 1 })
+    local function title(id) return Tr.frames["quest:" .. id].lines.title.label.__textColor end
+    local level = { title(1)[1], title(1)[2], title(1)[3] }
+    DaylightUI:Set("Quests", "colors.focusMode", "custom")
+    DaylightUI:Set("Quests", "colors.focus", { 0.2, 0.4, 0.6 })
+    settle()
+    T.rgb(title(1), level, "off by default: its level color")
+    DaylightUI:Set("Quests", "colors.focusTitle", true)
+    settle()
+    T.rgb(title(1), { 0.2, 0.4, 0.6 }, "the priority color")
+    QW.state.focus = 2
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); settle()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)   -- the title eases to its new color
+    T.rgb(title(2), { 0.2, 0.4, 0.6 }, "follows the new priority")
+    T.rgb(title(1), level, "the old one back to its level color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("quests clicks: the menu, with Share only in a group", function()
     local Tr, ns = tracker({ quests = { STEW } })
     local q = Tr.shown[3].quest
@@ -2712,6 +2731,29 @@ T.test("fold ready: a ready quest shows its title alone", function()
     stub.RunTimers()
     T.eq(#Tr.frames["quest:1"].block.lines, 1)
     T.truthy(#Tr.frames["quest:2"].block.lines > 1, "a timed quest never folds")
+end)
+
+T.test("ready last: quests ready to hand in gather in their own section after the rest, not in a fight", function()
+    local Tr = tracker({ quests = { QW.quest(1, "A", { complete = true }), QW.quest(2, "B", { objs = kills(1) }),
+        QW.quest(3, "C", { zone = "Elwynn Forest", complete = true }) } })
+    DaylightUI:Set("Quests", "sort", "zone")
+    stub.RunTimers()
+    local before = order(Tr)
+    DaylightUI:Set("Quests", "readyLast", true)
+    stub.RunTimers()
+    local now = order(Tr)
+    T.eq(now[1], 2, "the quest still to do on top")
+    T.eq(#now, 3, "nothing lost")
+    local header
+    for _, b in ipairs(Tr.shown) do if b.kind == "header" and b.id == "ready" then header = b end end
+    T.truthy(header, "a Ready to turn in section")
+    T.eq(header.count, "2")
+    for _, b in ipairs(Tr.shown) do
+        if b.kind == "quest" and b.quest.id ~= 2 then T.truthy(b.y > header.y, "ready ones under it") end
+    end
+    DaylightUI:Set("Quests", "readyLast", false)
+    stub.RunTimers()
+    T.deq(order(Tr), before, "off: back in their zones")
 end)
 
 -- A dungeon's quests and one from outside it, tracked; inside, the game's

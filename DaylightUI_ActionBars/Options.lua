@@ -347,6 +347,15 @@ local look = {
         { type = "dropdown", key = "bagBar", label = "Bag bar", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of bag buttons. Your bag keys still open your bags when it's hidden." },
         menuSize("bagBar", "Bag bar size"),
+        { type = "toggle", label = "Free bag slots on the backpack",
+          desc = "The game's own setting: how many empty slots you have left, written on the backpack button, so you can see your bag space without opening your bags.",
+          get = function() return type(GetCVar) == "function" and GetCVar("displayFreeBagSlots") == "1" end,
+          set = function(v)
+              if type(SetCVar) == "function" then SetCVar("displayFreeBagSlots", v and "1" or "0") end
+              -- Not one of Daylight UI's settings, so tell the options window directly.
+              DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+          end,
+          disabled = function(get) return get("bagBar") == "hidden" end },
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of small buttons that open your character, spellbook, talents and other windows. Their keys still work when it's hidden." },
         menuSize("microMenu", "Micro menu size"),
@@ -533,6 +542,24 @@ local timersOff = function(get) return get("totemTimers") ~= true end
 local timerItems = {
     { type = "toggle", key = "totemTimers", label = "Show totem timers",
       desc = "A countdown icon for each totem you have down." },
+    { type = "slider", key = "totemTimersSize", label = "Size", min = 50, max = 200, step = 5,
+      desc = "How big the totem timers are, in percent.", disabled = timersOff },
+    { type = "slider", key = "totemTimersGap", label = "Spacing", min = 0, max = 20, step = 1,
+      desc = "The space between two totem timers.", disabled = timersOff },
+    { type = "toggle", key = "totemTimersElements", label = "Color by element",
+      desc = "Each timer's edge in its element's color: fire, earth, water or air. Off, they share the usual border color.",
+      disabled = timersOff },
+    { type = "toggle", key = "totemTimersSwipe", label = "Show the sweep",
+      desc = "A dark sweep across each icon as its totem runs out.", disabled = timersOff },
+    { type = "toggle", key = "totemTimersShowTime", label = "Show time left",
+      desc = "How long each totem has left, on its icon.", disabled = timersOff },
+    { type = "dropdown", key = "totemTimersTimePos", label = "Time left position",
+      values = { top = "Top", middle = "Middle", bottom = "Bottom" }, order = { "top", "middle", "bottom" },
+      desc = "Where the time sits: on the icon's top edge, across its middle, or on its bottom edge.",
+      disabled = function(get) return timersOff(get) or get("totemTimersShowTime") ~= true end },
+    { type = "slider", key = "totemTimersTimeSize", label = "Time left text size", min = 8, max = 20, step = 1,
+      desc = "Text size of the time left on each totem timer.",
+      disabled = function(get) return timersOff(get) or get("totemTimersShowTime") ~= true end },
 }
 for _, item in ipairs(DaylightUI.Fade.Items("totemTimersFade.", nil, timersOff)) do timerItems[#timerItems + 1] = item end
 layoutGroups[#layoutGroups + 1] = { label = "Totem timers",

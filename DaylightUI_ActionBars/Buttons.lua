@@ -202,6 +202,28 @@ local function sweep(cd, on, duration)
     if on then cd:SetCooldownFromDurationObject(duration) else cd:Clear() end
 end
 
+-- Is any loss of control on you? The count is a plain number, no table. A count
+-- that can't be read says yes, so the buttons ask for themselves as before.
+function Buttons.LossOfControl()
+    local L = C_LossOfControl
+    local n = type(L) == "table" and type(L.GetActiveLossOfControlDataCount) == "function"
+        and L.GetActiveLossOfControlDataCount()
+    if type(n) ~= "number" or DUI.IsSecret(n) then return true end
+    return n > 0
+end
+
+-- Slots known to have no charges, learned where the charge count can be read.
+-- Forgotten when a slot or the spells change.
+local noCharges = {}
+function Buttons.NoteCharges(slot, charges)
+    if type(charges) ~= "table" then return end
+    local most = charges.maxCharges
+    if type(most) == "number" and not DUI.IsSecret(most) and most <= 1 then noCharges[slot] = true end
+end
+function Buttons.ForgetCharges(slot)
+    if type(slot) == "number" and slot ~= 0 then noCharges[slot] = nil else wipe(noCharges) end
+end
+
 -- The spell a slot casts, directly or through a macro.
 local function spellOf(slot)
     local kind, id = GetActionInfo(slot)
@@ -292,17 +314,29 @@ Buttons.PAINTERS = {
     end },
     -- Only isActive and shouldReplaceNormalCooldown are tested (never secret). The
     -- times go to the sweep whole, as a duration object.
+    -- Each ask hands back a new table, and in a fight this runs on every button
+    -- several times a second, so the asks that can't matter are skipped: an empty
+    -- slot, loss of control while none is on you, charges on a slot without any.
     { name = "cooldown", fn = function(btn, slot)
         local AB = C_ActionBar
         if type(AB) ~= "table" or not AB.GetActionCooldown then return end
-        local loc = AB.GetActionLossOfControlCooldownInfo and AB.GetActionLossOfControlCooldownInfo(slot)
+        if type(GetActionTexture(slot)) == "nil" then
+            sweep(btn.lossOfControlCooldown, false)
+            sweep(btn.cooldown, false)
+            sweep(btn.chargeCooldown, false)
+            if ns.Ping then ns.Ping.Note(btn, slot) end
+            return
+        end
+        local loc = Buttons.LossOfControl() and AB.GetActionLossOfControlCooldownInfo
+            and AB.GetActionLossOfControlCooldownInfo(slot)
         local locOn = type(loc) == "table" and loc.isActive == true
         sweep(btn.lossOfControlCooldown, locOn, locOn and AB.GetActionLossOfControlCooldownDuration(slot))
         local info = AB.GetActionCooldown(slot)
         local on = type(info) == "table" and info.isActive == true
             and not (locOn and loc.shouldReplaceNormalCooldown == true)
         sweep(btn.cooldown, on, on and AB.GetActionCooldownDuration(slot))
-        local charges = AB.GetActionCharges and AB.GetActionCharges(slot)
+        local charges = not noCharges[slot] and AB.GetActionCharges and AB.GetActionCharges(slot)
+        Buttons.NoteCharges(slot, charges)
         local chOn = type(charges) == "table" and charges.isActive == true
         sweep(btn.chargeCooldown, chOn, chOn and AB.GetActionChargeDuration(slot))
         if ns.Ping then ns.Ping.Note(btn, slot, info, charges) end
@@ -469,8 +503,10 @@ local TARGET = only("usable", "range")
 -- or a function of the event's arguments.
 Buttons.EVENTS = {
     ACTIONBAR_SLOT_CHANGED = function(slot)
+        Buttons.ForgetCharges(slot)
         if type(slot) ~= "number" or slot == 0 then Buttons.PaintAll() else Buttons.PaintSlot(slot) end
     end,
+    SPELLS_CHANGED = function() Buttons.ForgetCharges() end,
     ACTIONBAR_UPDATE_STATE = only("checked", "flash"),
     START_AUTOREPEAT_SPELL = only("checked", "flash"),
     STOP_AUTOREPEAT_SPELL = only("checked", "flash"),
@@ -549,6 +585,9 @@ function Buttons.Wire()
             if name == "action" then
                 Buttons.SlotsChanged()
                 Buttons.Queue(self)
+                -- A druid's page lands here a moment after the form event, so the
+                -- keys shown on Cooldown Manager icons are worked out again.
+                if ns.Keys then ns.Keys.OnEvent("ActionChanged") end
             end
         end)
     end

@@ -191,7 +191,8 @@ T.test("target cast text starts after the angled cut and fits the power bar", fu
     local h, f = ns.targetCastbar, ns.frames.target
     local _, _, _, x = h.text:GetPoint(1)
     T.near(x, ns.CastBar.PAD + f.cut, nil, "clear of the cut")
-    T.eq(h.text.__font[2], 9, "shrunk to fit the power bar")
+    local fit = ns.CastBar.FitText(ns.DEFAULTS.target.powerHeight)
+    T.eq(h.text.__font[2], math.min(ns.DEFAULTS.targetCastbar.spell.size, fit), "sized to fit the power bar")
 end)
 
 T.test("no line along the health bar's top", function()
@@ -311,6 +312,7 @@ end)
 
 T.test("friendly units out of range fade; unchecked ones and enemies don't", function()
     local DUI, ns = login()
+    DUI.Fade.BUFFERS = true
     local f = ns.frames.target
     stub.units.target = { name = "Pal", isPlayer = true, class = "MAGE", friend = true, party = true, inRange = false }
     ns.UF.UpdateRange(f)

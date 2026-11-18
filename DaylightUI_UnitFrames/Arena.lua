@@ -65,7 +65,7 @@ function Arena.Create()
     -- A carrier appeared, went out of sight or left. Redraw their frame.
     DUI.RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit)
         local d = db()
-        if d and d.arena.enabled then ns.Blizzard.Hide("CompactArenaFrame") end
+        if d and d.arena.enabled then ns.Blizzard.HideArena() end
         for _, b in ipairs(Arena.buttons) do
             if b.unitToken == unit and not b.test then UF.UpdateAll(b, true) end
         end

@@ -1201,6 +1201,26 @@ function Journal.Veil(on)
     skipOnPad(frames, on)
 end
 
+-- The game's quest list under the journal rebuilds itself whenever a quest pin
+-- on the map is entered or left (QuestLogScrollFrameMixin:OnMapCanvasPinEnter
+-- and Leave). With a controller the map "leaves" every pin it takes off
+-- (MapCanvasMixin:UnregisterPin), so each open and close rebuilt the hidden list
+-- once per quest pin: half a second with 19 pins. Nobody sees that list while
+-- the journal covers it, so it stops listening. Taking a callback out of the
+-- registry is plain addon use (the journal adds its own the same way). Putting
+-- the game's back from here would run it tainted, so switching the journal off
+-- leaves it out until the next reload: only the game's list's row light on a
+-- hovered pin waits for that.
+Journal.LIST_PIN_EVENTS = { "MapCanvas.QuestPin.OnEnter", "MapCanvas.QuestPin.OnLeave" }
+local listQuiet = false
+function Journal.QuietList()
+    if listQuiet then return end
+    local qs, reg = _G.QuestScrollFrame, _G.EventRegistry
+    if type(qs) ~= "table" or type(reg) ~= "table" or type(reg.UnregisterCallback) ~= "function" then return end
+    listQuiet = true
+    for _, e in ipairs(Journal.LIST_PIN_EVENTS) do pcall(reg.UnregisterCallback, reg, e, qs) end
+end
+
 local function searchBox(page)
     local E = DUI.Win.EDGE
     local e = DUI.Widgets.Input(page, { search = true, maxLetters = 60, hint = SEARCH or L["Search"],
@@ -1300,6 +1320,7 @@ function Journal.Apply()
     ns.Bridge.WatchHover((on or spot) and Journal.IconHover or nil)
     if on then
         if not Journal.Build() then return end
+        Journal.QuietList()
         Journal.Veil(true)
         f:Show()
         if f:IsVisible() then Journal.Refresh(true) end

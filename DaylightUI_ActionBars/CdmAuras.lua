@@ -14,6 +14,8 @@ local A = {}
 ns.CdmAuras = A
 
 local holders = {}   -- [id] = holder frame
+-- The unit each client button watches, so a button coming up says where the aura is.
+local buttonUnit = setmetatable({}, { __mode = "k" })
 local makeFace, placeFace, paintFace   -- self-debuff face, defined below
 local selfCast                          -- counts a self debuff from your casts, below
 
@@ -276,7 +278,7 @@ local function build(h, unit, filter, ids, cand)
         sortMethod = type(SM) == "table" and SM.ExpirationOnly or nil,
         sortDirection = type(SD) == "table" and SD.Normal or nil,
         layout = layout,
-        initializeFrame = function(btn) init(h, btn) end,
+        initializeFrame = function(btn) buttonUnit[btn] = unit; init(h, btn) end,
     }
     local ok2, err = pcall(c.AddAuraGroup, c, "a", filter, opts)
     if not ok2 then h.err = tostring(err); return end
@@ -314,6 +316,7 @@ local function setup(h, id)
     end
     local ids = A.SpellIDs(id)
     h.ids = ids
+    A.KeepCombo(ids)
     if custom and C.IsPet(id) then
         -- Your pet isn't an aura: drawn by the addon, up while it's out and alive.
         h.petWatch = true
@@ -761,8 +764,11 @@ local function watchEnd(h)
         h.endsAt = nil
         local was = h.up
         -- The client's button still showing it means someone refreshed it: the
-        -- button goes away by itself when it really ends.
-        if readable() or h.selfDebuff then A.IsUp(h) elseif was and not h.clientUp then h.up = false end
+        -- button goes away by itself when it really ends. Not for a finisher timed
+        -- by its combo points: only your own cast puts it up, so its clock is right.
+        if readable() or h.selfDebuff then A.IsUp(h)
+        elseif was and (h.exactEnd or not h.clientUp) then h.up = false end
+        h.exactEnd = nil
         paintFace(h)
         if h.up ~= was and h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
     end)
@@ -787,6 +793,43 @@ local function textLasts(sid)
     for _, pat in ipairs(TEXT_LASTS) do
         local n = tonumber(string.match(desc, pat))
         if n and n > 0 then return n end
+    end
+end
+
+-- A finisher's length by the combo points it was cast with, from its text:
+-- "Lasts longer per combo point: 1 point : 9 seconds  2 points: 12 seconds..."
+-- (Slice and Dice; Rupture's "25 damage over 8 secs" too). Points past the
+-- list take the last entry. nil when the text has no such list.
+local POINT = "(%d+) points?%s*:"
+local function pointLasts(sid, points)
+    if type(points) ~= "number" then return nil end
+    local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
+    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
+    local byPoints, top, at = {}, 0, 1
+    while true do
+        local s, e, p = string.find(desc, POINT, at)
+        if not s then break end
+        local nextAt = string.find(desc, POINT, e + 1) or (#desc + 1)
+        local secs
+        for n in string.gmatch(string.sub(desc, e + 1, nextAt - 1), "(%d+%.?%d*) sec") do secs = tonumber(n) end
+        p = tonumber(p)
+        if p and secs and secs > 0 then
+            byPoints[p] = secs
+            if p > top then top = p end
+        end
+        at = nextAt
+    end
+    if top == 0 then return nil end
+    return byPoints[math.max(1, math.min(points, top))] or byPoints[top]
+end
+A.PointLasts = pointLasts
+
+-- A holder of a spell that lasts by combo points needs the combo count kept
+-- (DUI.Dots), whether or not DoTs are shown anywhere.
+function A.KeepCombo(ids)
+    if not (DUI.Dots and DUI.Dots.Want) then return end
+    for sid in pairs(ids or {}) do
+        if pointLasts(sid, 1) then return DUI.Dots.Want("cdm", true) end
     end
 end
 
@@ -1007,18 +1050,42 @@ A.AuraChangedSoon = DUI.Soon(function() DUI.SafeCall(A.AuraChanged) end)
 -- How long after a cast its aura may still land: a spell's flight time.
 A.CAST_LANDS = 3
 
+-- Where the client's buttons show the aura right now: you first, nil when none does.
+local function shownOn(h)
+    local first
+    for btn in pairs(h.clientBtns or {}) do
+        local u = buttonUnit[btn]
+        if u == "player" then return u end
+        first = first or u
+    end
+    return first
+end
+
+-- A client button came up: the aura is on the unit that button watches. A
+-- finisher like Slice and Dice is a harmful cast whose buff lands on you, so the
+-- cast alone can't say where it is.
+function A.HeardOn(h, btn)
+    local u = btn and buttonUnit[btn]
+    if u and h.up == true then h.upUnit = shownOn(h) or u end
+end
+
 -- In combat your own cast events stay plain while the aura and its button don't,
 -- so a cast is the one reliable sign it's up. A harmful spell's aura is on the
 -- target, so switching targets clears it (A.TargetChanged).
 function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    h.upUnit = ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
+    h.upUnit = shownOn(h)
+        or ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a
-    -- dungeon fight.
+    -- dungeon fight. A finisher lasts by the combo points it used, which are
+    -- secret in a fight, so Daylight UI's own count says how long this one is.
     h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid)
-    h.endsAt = h.auraLasts and h.auraLasts > 0 and (at or GetTime()) + h.auraLasts or nil
+    local exact = DUI.Dots and pointLasts(sid, DUI.Dots.Combo(sid))
+    local lasts = exact or h.auraLasts
+    h.exactEnd = exact ~= nil or nil
+    h.endsAt = lasts and lasts > 0 and (at or GetTime()) + lasts or nil
     h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
     watchEnd(h)
     if ns.CdmRows then ns.CdmRows.Refresh() end

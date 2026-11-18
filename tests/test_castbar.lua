@@ -131,7 +131,7 @@ T.test("a bar placed into another bar covers it, opaque, with text that fits", f
     T.truthy(h:GetFrameLevel() > power:GetFrameLevel(), "drawn over the power bar")
     T.eq(h.bg.__color[4], 1, "opaque backing")
     T.isnil(DaylightUI.Style.GetShell(h), "no border of its own")
-    T.eq(h.text.__font[2], math.min(ns.DEFAULTS.targetCastbar.spell.size, math.floor(ns.DEFAULTS.target.powerHeight * ns.CastBar.INSET_TEXT + 0.5)))
+    T.eq(h.text.__font[2], math.min(ns.DEFAULTS.targetCastbar.spell.size, ns.CastBar.FitText(ns.DEFAULTS.target.powerHeight)))
     local _, _, _, _, y = h.text:GetPoint(1)
     T.truthy(y > 0, "lifted to sit centered")
     T.isnil(h.icon)
@@ -158,7 +158,7 @@ T.test("inside a frame a text size the player picked is kept, the default fits t
     local _, ns = stub.Load({ module = true, login = false })
     local target = CreateFrame("Frame", nil, UIParent)
     local h = ns.CastBar.Create("target", target, CreateFrame("StatusBar", nil, target))
-    local fit = math.floor(ns.DEFAULTS.target.powerHeight * ns.CastBar.INSET_TEXT + 0.5)
+    local fit = ns.CastBar.FitText(ns.DEFAULTS.target.powerHeight)
     ns.CastBar.Layout(h, { enabled = true, spell = { size = 20 }, time = { size = 12 } }, ns.DEFAULTS.target)
     T.eq(h.text.__font[2], 20, "the picked spell name size")
     T.eq(h.time.__font[2], math.min(12, fit), "the default time size still fits the power bar")
@@ -412,35 +412,32 @@ T.test("a cast bar of its own can flip its angles to lean under, wider at the bo
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("a cast bar left between the player and target frames stays there, on its own with flipped angles", function()
+T.test("the player's cast bar between the frames fills the gap, both ends flipped", function()
     local DUI, ns = stub.Load({ module = true })
     stub.RunTimers()
     local pf, tf, h = ns.frames.player, ns.frames.target, ns.playerCastbar
-    -- The fake game has no screen layout: give the frames their spots (scale 1).
-    UIParent.__center = { 960, 540 }
-    function pf:GetRight() return 800 end
-    function pf:GetTop() return 400 end
-    function tf:GetLeft() return 1120 end
     DUI:Set("UnitFrames", "playerCastbar.at", "middle")
     stub.RunTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local cfg = ns.module.db.playerCastbar
-    T.eq(cfg.at, "free", "on its own now")
-    T.eq(cfg.slant, true); T.eq(cfg.slantLeft, true); T.eq(cfg.slantUnder, true)
-    T.eq(DaylightUI.Style.GetSlant(h).under, "both", "wider at the bottom, as it was")
-    -- The same spot: centered in the gap, its top level with the frames', each
-    -- bottom corner CB.AT_GAP from the frame beside it.
-    local H = 2 * math.floor(cfg.height / 2 + 0.5)
-    local cut = H * ns.UF.SLANT
-    local dx = ns.CastBar.AT_GAP - cut
-    T.near(cfg.width, (1120 - dx) - (800 + dx), 0.5, "as wide as the gap")
-    local pos = DaylightUI.DB.Positions()[h.moverKey]
-    T.near(pos[1], 0, 0.01, "centered between the frames")
-    T.near(pos[2], 400 - H / 2 - 540, 0.01, "top level with the player frame")
-    -- Done once: picking another spot later sticks.
-    DUI:Set("UnitFrames", "playerCastbar.at", "below")
-    stub.RunTimers()
-    T.eq(cfg.at, "below")
+    T.eq(ns.module.db.playerCastbar.at, "middle", "stays between the frames")
+    T.truthy(h.middle)
+    T.eq(DaylightUI.Style.GetSlant(h).under, "both", "wider at the bottom")
+    local _, rel1 = h:GetPoint(1)
+    local _, rel2 = h:GetPoint(2)
+    T.eq(rel1, pf); T.eq(rel2, tf)
+end)
+
+T.test("upgrade step 20: a bar 1.9.1 moved off the spot between the frames goes back", function()
+    local _, ns = stub.Load({ module = true })
+    local moved = { playerCastbar = { at = "free", width = 120, slant = true, slantLeft = true, slantUnder = true } }
+    ns.UPGRADE_STEPS[20](moved)
+    T.eq(moved.playerCastbar.at, "middle")
+    T.isnil(moved.playerCastbar.slantLeft); T.isnil(moved.playerCastbar.slantUnder)
+    -- A free bar the player shaped another way stays free.
+    local own = { playerCastbar = { at = "free", slantLeft = true } }
+    ns.UPGRADE_STEPS[20](own)
+    T.eq(own.playerCastbar.at, "free"); T.eq(own.playerCastbar.slantLeft, true)
+    ns.UPGRADE_STEPS[20]({})
 end)
 
 T.test("cast bars: with the Gradients page's pairs, an interrupt gets its own pair", function()
@@ -933,6 +930,20 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantBoth", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "both", "both ends lean under")
+    -- The spell cost shade leans the same way as the fill it sits on.
+    local cost, fill = pb.set.cost, pb.set.power
+    local function sameAngle(why)
+        local s1, c1, u1 = Style.GetFillAngle(fill)
+        local s2, c2, u2 = Style.GetFillAngle(cost)
+        T.eq(s2, s1, why .. ": side"); T.eq(c2, c1, why .. ": cut"); T.eq(u2, u1, why .. ": leans under")
+    end
+    T.eq(select(3, Style.GetFillAngle(fill)), true, "the fill leans under")
+    sameAngle("leaning under")
+    DUI:Set("UnitFrames", "player.reverseFill", true)
+    stub.RunTimers()
+    T.truthy(Style.GetFillAngle(fill), "reversed, the fill takes the other end's angle")
+    sameAngle("reversed")
+    DUI:Set("UnitFrames", "player.reverseFill", false)
     DUI:Set("UnitFrames", "player.powerSlantUnder", false)
     DUI:Set("UnitFrames", "player.powerSlantBoth", false)
     stub.RunTimers()

@@ -190,7 +190,7 @@ ns.DEFAULTS = {
     portraits = { icons = "daylight", classIcons = {} },   -- a pick per class token
     range = { enabled = true, alpha = 0.45, groupOwn = false, alphaGroup = 0.45, spell = "none" },
     -- The leader drawer beside the group frames (Leader.lua).
-    leader = { enabled = true, show = "tank" },
+    leader = { enabled = true, show = "tank", opens = "auto" },
     -- The pull timer's big number (Pull.lua).
     pull = { enabled = true },
     -- Your bars at your feet, like Legion's personal resource display
@@ -259,7 +259,7 @@ ns.DEFAULTS = {
     colors = { health = "classGradient", mirrorGradient = true, healthColor = { 0.35, 0.75, 0.35 }, backBrightness = 0.4,
                power = "gradient", powerColor = { 0.3, 0.5, 0.95 }, name = "white",
                threat = "health", threatColor = { 0.92, 0.2, 0.18 }, threatWarn = { 1.0, 0.55, 0.12 },
-               healColor = { 0.55, 0.95, 0.6 }, absorbColor = { 0.85, 0.92, 1.0 }, absorbStyle = "stripes",
+               healColor = { 0.55, 0.95, 0.6 }, absorbColor = { 0.85, 0.92, 1.0 }, absorbStyle = "stripes", overheal = true,
                overshield = true, overshieldReverse = false, overshieldPaint = "shield",
                overshieldColor = { 0.85, 0.92, 1.0 }, overshieldStyle = "shield",
                dotTint = { 0, 0, 0, 0.45 },

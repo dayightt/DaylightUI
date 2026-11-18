@@ -229,7 +229,8 @@ function Lfg.Resized(_, _, live)
     if not (f and Win.IsOpen(f)) then return end
     if live then
         local page = f.pages[f.current]
-        if page and page.stack then page.stack:Stretch() end
+        if f.current == "find" then ns.Browse.Stretch(page)
+        elseif page and page.stack then page.stack:Stretch() end
         if f.current == "list" then ns.Listing.FitNote() end
         return
     end

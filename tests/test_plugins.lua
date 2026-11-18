@@ -43,6 +43,37 @@ T.test("plugins: what a plugin is comes from its .toc when it doesn't say, color
     T.falsy(p.off, "made for this DaylightUI")
 end)
 
+T.test("plugins: the (DaylightUI Plugin) tag is left off the title shown, and a plugin without it is named on General > Plugins", function()
+    local DUI = withPlugin(function(DUI)
+        stub.addonMeta.Tagged = { Title = "|cff33ff99Raid Notes|r (DaylightUI Plugin)" }
+        stub.addonMeta.Loose = { Title = "Loose Bars" }
+        stub.addonMeta.NoToc = {}
+        DUI.RegisterPlugin("Tagged")
+        DUI.RegisterPlugin("Loose")
+        DUI.RegisterPlugin("NoToc", { title = "Given (Daylight UI plugin)" })
+    end)
+    local P = DUI.Plugins
+    T.eq(P.list.Tagged.title, "Raid Notes")
+    T.falsy(P.list.Tagged.untagged)
+    T.eq(P.list.Loose.title, "Loose Bars")
+    T.truthy(P.list.Loose.untagged, "its AddOns list name lacks the tag")
+    T.eq(P.list.NoToc.title, "Given", "the tag comes off a given title too")
+    T.falsy(P.list.NoToc.untagged, "no .toc to judge")
+    T.falsy(P.list.Loose.off, "still runs")
+    local function says(name)
+        for _, g in ipairs(DUI.Options.GetPage("plugins").groups) do
+            if g.label == P.list[name].title then
+                for _, it in ipairs(g.items) do
+                    local t = type(it.label) == "function" and it.label() or it.label
+                    if type(t) == "string" and t:find("(DaylightUI Plugin)", 1, true) then return t end
+                end
+            end
+        end
+    end
+    T.eq(says("Loose"), 'Its name in the AddOns list should read "Loose Bars (DaylightUI Plugin)": every plugin\'s does.')
+    T.isnil(says("Tagged"))
+end)
+
 T.test("plugins: a plugin's modules get its own section under the Plugins heading, their settings in the profile", function()
     local DUI = withPlugin(function(DUI)
         DaylightUI:RegisterPlugin("MyPlugin", { title = "My Plugin", author = "Ann", needs = { 1, 0 },

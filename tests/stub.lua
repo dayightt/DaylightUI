@@ -968,6 +968,8 @@ function Widget:SetCooldown(start, duration, modRate)
 end
 -- A Cooldown fed a duration object, which the client then runs by itself.
 function Widget:SetCooldownFromDurationObject(d, clearIfZero) self.__duration = d end
+-- A Cooldown cleared: no time left on it, as in the client.
+function Widget:Clear() self.__cooldown, self.__duration = nil, nil end
 function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__type) .. ">") end
 -- Measuring text errors on a secret, as in the client.
 -- stub.measure(fs) returns width, height from real font metrics when a tool sets
@@ -983,8 +985,15 @@ end
 function Widget:GetUnboundedStringWidth()
     if stub.measure and type(self.__text) == "string" then return (stub.measure(self, true)) end
 end
+-- Like the client, a text held to a height measures only the lines that fit in
+-- it (the rest is cut with "..."); a height of 0 lets it grow again.
 function Widget:GetStringHeight()
-    if stub.measure and type(self.__text) == "string" then return select(2, stub.measure(self)) end
+    if stub.measure and type(self.__text) == "string" then
+        local h = select(2, stub.measure(self))
+        local cap = self.__h
+        if type(h) == "number" and type(cap) == "number" and cap > 0 and h > cap then return cap end
+        return h
+    end
 end
 
 -- The client's custom aura container. It records groups and, like the game
@@ -1305,6 +1314,7 @@ function stub.MessageFrame(f)
     function f:SetFont(file, size, flags) self.font = { file, size, flags } end
     function f:GetFont() local t = self.font or {}; return t[1], t[2], t[3] end
     function f:SetJustifyH(j) self.justifyH = j end
+    function f:GetJustifyH() return self.justifyH or "LEFT" end
     function f:SetShadowOffset(x, y) self.shadowOffset = { x, y } end
     function f:SetShadowColor(...) self.shadowColor = { ... } end
     function f:AddOnDisplayRefreshedCallback(fn) table.insert(self.onDisplayRefreshedCallbacks, fn) end
@@ -2449,6 +2459,21 @@ end
 -- answers by spell id. nil means the check is invalid, which is what the game
 -- answers for strangers and enemies.
 stub.knownSpells = {}
+-- Totem slots: stub.totems[slot] = { spell = id, duration = object } while a totem
+-- stands. Like the client, GetTotemDuration gives the object while one stands and
+-- nothing once the slot empties (never secret), and GetTotemInfo reports an emptied
+-- slot as having a totem (spell 0) and gives its spell as a secret in a fight.
+stub.totems = {}
+_G.GetTotemDuration = function(slot)
+    local t = stub.totems[slot]
+    return t and t.duration or nil
+end
+_G.GetTotemInfo = function(slot)
+    local t = stub.totems[slot]
+    local spell = t and t.spell or 0
+    if stub.combat then spell = stub.Secret(spell) end
+    return true, "", 0, 0, 0, 1, spell
+end
 _G.C_SpellBook = _G.C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return stub.knownSpells[id] == true end
 _G.C_Spell = _G.C_Spell or {}
@@ -2704,6 +2729,17 @@ _G.GetCursorPosition = function() return stub.cursorPos[1], stub.cursorPos[2] en
 -- forbidden with __forbidden = true, as in an instance.
 _G.C_ChatBubbles = { GetAllChatBubbles = function() return stub.bubbles or {} end }
 function stub.SetBubbles(list) stub.bubbles = list end
+
+-- The client's switch for what it draws in the world: nameplates and speech
+-- bubbles. SetUIVisibility (Alt+Z) hides it along with UIParent, and the game
+-- always calls SetUIVisibility(true) beside UIParent:Show() to bring both back.
+-- SetInWorldUIVisibility flips it alone (Blizzard_Commentator). Lua can't read it.
+stub.inWorldUI = true
+_G.SetInWorldUIVisibility = function(v) stub.inWorldUI = v == true end
+_G.SetUIVisibility = function(v)
+    stub.inWorldUI = v == true
+    if v then UIParent:Show() else UIParent:Hide() end
+end
 
 -- stub.SetAuras("player", "HELPFUL", { { name=, icon=, spellId=, expirationTime=, ... }, ... }).
 -- Each read hands out a fresh copy, as the client does.
@@ -2967,7 +3003,8 @@ function stub.ActionSlots(slots)
         GetActionCooldownDuration = function(slot) return duration(slot, "cooldown") end,
         GetActionCharges = function(slot)
             local s = S(slot)
-            return { isActive = s ~= nil and s.charges == true, currentCharges = secret(1), maxCharges = secret(2) }
+            local has = s ~= nil and s.charges == true
+            return { isActive = has, currentCharges = secret(1), maxCharges = secret(has and 2 or 0) }
         end,
         GetActionChargeDuration = function(slot) return duration(slot, "charges") end,
         GetActionLossOfControlCooldownInfo = function(slot)
@@ -2978,6 +3015,13 @@ function stub.ActionSlots(slots)
         GetActionLossOfControlCooldownDuration = function(slot) return duration(slot, "loc") end,
         EnableActionRangeCheck = function(slot, on) stub.rangeChecks[slot] = on end,
     }
+    -- One loss of control on you per slot it locks (plain, no secret flag in the docs).
+    _G.C_LossOfControl = _G.C_LossOfControl or {}
+    C_LossOfControl.GetActiveLossOfControlDataCount = function()
+        local n = 0
+        for _, s in pairs(stub.slots) do if s.loc then n = n + 1 end end
+        return n
+    end
     -- A GCD gives a plain isOnGCD = true. A real cooldown leaves it out.
     _G.C_Spell = _G.C_Spell or {}
     C_Spell.GetSpellCooldown = function(id)
@@ -3007,10 +3051,12 @@ function stub.Reset()
     stub.units, stub.loadedAddOns, stub.unknownEvents = {}, {}, {}
     stub.spells = {}
     stub.keyDownCVar = nil
+    stub.inWorldUI, stub.bubbles = true, nil
     stub.installedAddOns = {}
     stub.addonMeta = {}
     stub.addonState = {}
     stub.combat, stub.noAuraContainer = false, false
+    stub.totems = {}
     stub.privateAnchors, stub.privateAnchorSeq = {}, 0
     stub.refuseAuraFilters = nil
     stub.restrictions, stub.inRestrictionDispatch = {}, false
@@ -3390,7 +3436,7 @@ end
 -- Another addon's tests load their own files the same way (DaylightMogul).
 stub.LoadFiles = loadFiles
 
-stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
+stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "MapLevels.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
 
 -- Loads the core (and optionally the unit frames module) into fresh namespaces
 -- the way the client does, then fires the load events.

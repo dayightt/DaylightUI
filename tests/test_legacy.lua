@@ -208,6 +208,15 @@ T.test("legacy challenges: opens on your class's category, done ones first, poin
     clean()
 end)
 
+T.test("legacy challenges: the filter chips say Incomplete and Completed, not Not yet and Done", function()
+    local ns = load()
+    local C = ns.Challenges
+    T.eq(C.FILTER_WORD.todo, "Incomplete")
+    T.eq(C.FILTER_WORD.done, "Completed")
+    T.truthy(C.FILTER_WORD.todo ~= DaylightUI.L["Not yet"], "its own words")
+    T.truthy(C.FILTER_WORD.done ~= DaylightUI.L["Done"], "its own words")
+end)
+
 -- Matches the game's GetChallengeIndices. "Not yet" skips the done range, which
 -- also holds ones earned by other characters. "Done" keeps only your own.
 T.test("legacy challenges: the chips filter the game's way", function()
@@ -296,6 +305,18 @@ T.test("legacy challenges: a newly earned one marks its category and the tab unt
     clean()
 end)
 
+-- Seen in game: the Legacy button kept its new mark for good. The game marks any
+-- achievement earned as an unread challenge, in its own category, and only opening
+-- that category clears it, but one the list doesn't show can't be opened.
+T.test("legacy challenges: an unread one in a category the list doesn't show is cleared on Challenges", function()
+    local ns = load()
+    LegacyChallengesUnviewed[9001] = 777
+    local f = open(ns, "challenges")
+    T.falsy(LegacyChallengeViewedUtil.HasAnyUnviewedChallenges(), "the game's mark is gone once Challenges opens")
+    T.eq(plain(f.tabs[2].text:GetText()), "Challenges")
+    clean()
+end)
+
 T.test("legacy challenges: a tracked challenge's click opens ours on it", function()
     local ns = load()
     local f = open(ns)
@@ -330,6 +351,55 @@ T.test("legacy trees: three trees, spent and to spend; the tree on the spellbook
     T.eq(t.node.row, 0)
     T.eq(tileOf(ns, 7106).node.row, 3, "the grid's step read from the nodes (400 here)")
     T.eq(tileOf(ns, 7105).node.col, 1)
+    clean()
+end)
+
+T.test("legacy trees: the cap is a short line by the number, its sentence the hint on the box", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "trees")
+    local page = ns.Trees.page
+    local p = ns.Data.Points()
+    T.truthy(p.cap, "the world gives a season cap")
+    T.eq(page.leftCap:GetText(), "/ " .. p.cap, "short, it can't run out of the box")
+    T.eq(page.leftTip, string.format(DaylightUI.L["At most %d this season"], p.cap), "the sentence is the hint")
+    -- With the game's own words, those win.
+    _G.LEGACY_POINTS_AVAILABLE = "Puntos disponibles: %s"
+    _G.LEGACY_POINTS_SEASONAL_CAP = "Máximo de %d p. esta temporada"
+    ns.Trees.RenderList()
+    T.eq(page.leftLabel:GetText(), "Puntos disponibles", "the game's label, without its number")
+    T.eq(page.leftTip, string.format("Máximo de %d p. esta temporada", p.cap), "the game's sentence")
+    _G.LEGACY_POINTS_AVAILABLE, _G.LEGACY_POINTS_SEASONAL_CAP = nil, nil
+    T.truthy(page.leftBox:GetScript("OnEnter"), "hover shows it")
+    clean()
+end)
+
+T.test("legacy trees: the points label comes out of the game's sentence wherever the number is", function()
+    local ns = load()
+    local S = ns.Trees.SpendWord
+    local fallback = DaylightUI.L["To spend"]
+    T.eq(S("Puntos disponibles: %s"), "Puntos disponibles", "number last")
+    T.eq(S("%s Punkte verfügbar"), "Punkte verfügbar", "number first")
+    T.eq(S("Verfügbar: %d"), "Verfügbar", "a %d")
+    T.eq(S("|cffffffff%s|r pts"), "pts", "color codes out")
+    T.eq(S("可用点数：%s"), "可用点数", "the full-width colon")
+    T.eq(S("Disponibles: %s puntos"), fallback, "words on both sides: our own")
+    T.eq(S("%s"), fallback, "nothing but the number: our own")
+    T.eq(S("Sin numero"), fallback, "no number in it: our own")
+    T.eq(S(nil), fallback, "a client without it: our own")
+end)
+
+T.test("legacy challenges: the filter is a drop-down with the game's words", function()
+    local ns = load()
+    local f = open(ns, "challenges")
+    local C = ns.Challenges
+    T.isnil(C.page.chips, "no chips")
+    T.truthy(C.page.filter.chevron, "a menu button")
+    T.eq(C.page.filter.text:GetText(), C.FILTER_WORD.all)
+    T.eq(table.concat(C.FILTERS, ","), "all,done,todo", "the game's order")
+    C.Filter("todo")
+    T.eq(C.page.filter.text:GetText(), C.FILTER_WORD.todo, "shows the one picked")
+    C.Filter("all")
     clean()
 end)
 

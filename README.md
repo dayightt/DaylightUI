@@ -45,7 +45,7 @@ Thanks for wanting to help. Translations are welcome too: the strings live in `L
 
 Daylight UI has one vision: **simple, smooth and immersive.** Fewer things on screen, each one easy to read. Everything moves softly instead of popping. The game world stays the star. A feature that doesn't serve that won't go into the main addon, however good it is on its own. That rules out busy displays, walls of numbers, options that only make sense to a few players, and anything that pulls your eyes off the game.
 
-**Big features should be plugins.** If you want to add something large (a new window, a new kind of tracker, a whole system), build it as a plugin: your own addon that runs on top of Daylight UI and looks like part of it. Plugins can put pieces on Daylight UI's frames, paint them, get their own section in the options window, and keep their settings in Daylight UI's profiles. Start with the [plugin guide in `API.md`](API.md#a-plugin-of-your-own) and its [quick start](API.md#quick-start).
+**Big features should be plugins.** If you want to add something large (a new window, a new kind of tracker, a whole system), build it as a plugin: your own addon that runs on top of Daylight UI and looks like part of it. Plugins can put pieces on Daylight UI's frames, paint them, get their own section in the options window, and keep their settings in Daylight UI's profiles. Start with the [plugin guide in `API.md`](API.md#a-plugin-of-your-own) and its [quick start](API.md#quick-start). Name it `Your Plugin (DaylightUI Plugin)`, in its `.toc` Title and wherever you upload it.
 
 Small features that fit the vision are welcome as pull requests. Ask on [Discord](https://discord.gg/eeSYZDd6ar) before you start, so you know it fits.
 

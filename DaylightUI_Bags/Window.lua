@@ -512,8 +512,7 @@ function Window.PadMore(b)
         elseif k == "destroy" then
             Window.PadDestroy(b)
         elseif k == "share" then
-            local U = ChatFrameUtil
-            if U and not U.InsertLink(info.hyperlink) then U.OpenChat(info.hyperlink) end
+            DUI.Pad.Share(info.hyperlink, b)
         end
     end, nil, { confirm = { destroy = true } })
 end
@@ -1458,6 +1457,8 @@ local function bagWindow()
               desc = L["Click, then click an item to disenchant it. Not during a fight."], onClick = function() end },
             { key = "comprehendButton", icon = ns.Comprehend.ICON, title = ns.Comprehend.Title,
               desc = L["Click, then click a scroll to comprehend it. Not during a fight."], onClick = function() end },
+            { key = "pickLockButton", icon = ns.PickLock.ICON, title = ns.PickLock.Title,
+              desc = L["Click, then click a lockbox to pick its lock. Not during a fight."], onClick = function() end },
         },
     })
     ns.window = f
@@ -1478,6 +1479,7 @@ function ns.Build(mod)
         registerEvents()
         ns.Disenchant.Register(f)
         ns.Comprehend.Register(f)
+        ns.PickLock.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
         ns.Move.Register()

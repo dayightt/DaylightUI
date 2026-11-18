@@ -788,6 +788,7 @@ T.test("questions: asked in Daylight UI's own box, never the game's pop-ups", fu
     T.truthy(f and f:IsShown(), "the box shows")
     T.eq(f.text:GetText(), "Clear every fight?")
     T.eq(W.Asking().key, "a")
+    T.eq(f.room, false, "it floats over the open windows, which stay where they are")
     T.isnil(stub.popup, "not the game's pop-up")
     f.foot.buttons[2]:Click()
     T.eq(said, "no")

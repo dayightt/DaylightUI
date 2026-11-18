@@ -88,6 +88,24 @@ they don't exist until login.
 - Each `DaylightUI_<Name>` folder is its own addon and can be switched off on its own.
 - `API.md` is the public API for plugin authors.
 
+## Open issue: nameplates that disappear
+
+Some players see every nameplate vanish until a reload. The cause is not known yet, so please don't
+send a fix that only guesses at it. What has been checked so far:
+
+- Fade's whole-frame buffers (`Fade.Whole`) could be left on frames that had left an area, because
+  ownership was tracked through lists that areas refill in place. That is fixed: each area now owns
+  its own request and releases only that one. It was a real bug, but nothing shows it caused the
+  vanishing plates.
+- A frame the nameplate module gives back to the game without going through `SetUnit` again now gets
+  its nameplate events back (faction, behind-camera, focus, raid target, and its unit events).
+- Step 5 of `/dui platefix` rebuild the plates and set each game plate as its own stacking box.
+  A player's plates came back at that step, but friendly plates showed up too, and before it the
+  enemy and both friendly plate switches all read off. So the result doesn't point to stacking or
+  buffers on its own.
+
+If you can make plates vanish on demand, the steps to do it are worth more than a patch.
+
 ## Bug reports
 
 Open an issue with what you were doing, what you expected, and the error text if there was one

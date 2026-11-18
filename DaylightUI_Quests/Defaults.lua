@@ -31,6 +31,7 @@ ns.DEFAULTS = {
     filter = "all",           -- all (tracked) | zone | log (every quest in the log, without adding watches)
     sort = "recent",          -- recent (a quest that progresses moves to the top with its zone) | zone | level | near | ready
     foldReady = false,        -- a ready quest shows only its title (never for timed ones)
+    readyLast = false,        -- ready quests in their own section after the rest
     instances = "zone",       -- in a dungeon or raid: zone (this zone only) | fold | hide | none (applied on the loading screen)
     objColors = "plain",      -- objective text: plain | done (green once done) | count (red to green)
     hoverDim = true,          -- dim the other quests while one is hovered
@@ -98,6 +99,7 @@ ns.DEFAULTS = {
         timerUrgent = { 0.89, 0.33, 0.30 },
         focusMode = "accent",       -- priority quest icon: accent | daylight | gradient | class | custom
         focus = { 0.64, 0.37, 0.78 },
+        focusTitle = false,         -- the priority quest's title in that color too
         barMode = "accent",         -- accent | class | custom
         bar = { 0.72, 0.70, 0.66 },
     },

@@ -448,11 +448,7 @@ end
 
 function Data.Whisper(name)
     if type(name) ~= "string" or name == "" then return end
-    if type(ChatFrameUtil) == "table" and type(ChatFrameUtil.SendTell) == "function" then
-        ChatFrameUtil.SendTell(name)
-    elseif type(ChatFrame_SendTell) == "function" then
-        ChatFrame_SendTell(name)
-    end
+    DUI.Pad.Whisper({ name = name })
 end
 
 function Data.Invite(name)

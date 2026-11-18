@@ -56,7 +56,8 @@ print(API.major, API.minor)   -- 1, 10
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
 
-Add `## OptionalDeps: DaylightUI` (or `Dependencies`) to your `.toc` so Daylight UI loads first.
+Add `## OptionalDeps: DaylightUI` (or `Dependencies`) to your `.toc` so Daylight UI loads first. A
+plugin's Title ends in `(DaylightUI Plugin)` ([Naming](#a-plugin-of-your-own)).
 
 ## Quick start
 
@@ -228,7 +229,8 @@ window closes. After every fill (money or bags changed, a search, a skill-up) ea
 `FrameStyled`: that's your cue to repaint, since Daylight UI just painted it again. A tile that keeps
 its index but holds another vendor's item gets `FrameUnitChanged` with the same `unit`: read
 `API.ShopItem` again. These windows can be switched off (or replaced by DaylightMogul's); then there
-are no tiles or lines at all.
+are no tiles or lines at all, except at the vendor: DaylightMogul's vendor window hands its tiles over
+as `"shoptile"` frames the same way, and `me.FilterShop` works on its shelf too.
 
 ### Hear when they change
 
@@ -982,6 +984,19 @@ DaylightUI:RegisterModule("MyAddonBars", { plugin = "MyAddon", label = "Bars", d
 
 Title, author, version and website come from your `.toc` (`Title`, `Author`, `Version`,
 `X-Website`) when you leave them out. General > Plugins lists every plugin with its author.
+
+**Naming.** Every plugin's `.toc` Title must read `Your Plugin (DaylightUI Plugin)`, and use the
+same name where you upload it (CurseForge, Wago, GitHub). Players can then tell at a glance in the
+AddOns list and on download sites what needs Daylight UI.
+
+```
+## Title: Raid Notes (DaylightUI Plugin)
+## Dependencies: DaylightUI
+```
+
+Inside Daylight UI the tag is left off (your section already sits under Plugins), so this one
+shows as "Raid Notes". A plugin without the tag still runs, but General > Plugins says its name
+doesn't follow the rule.
 
 ## The game's rules still apply
 

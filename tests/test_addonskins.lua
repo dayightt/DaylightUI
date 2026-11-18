@@ -329,6 +329,42 @@ T.test("questie: its tracker off while ours draws, back when ours is gone", func
     _G.Questie = nil
 end)
 
+T.test("questie: untracked quests' map icons hide while ours tracks, back as they were when ours is gone", function()
+    local redrawn = 0
+    login(function()
+        stub.installedAddOns.Questie, stub.loadedAddOns.Questie = true, true
+        _G.Questie = { db = { profile = { trackerEnabled = true, hideUntrackedQuestsMapIcons = false } } }
+    end)
+    local keys = {}
+    for _, a in ipairs(DaylightUI.QuestieAside.LIST) do keys[a.key] = a end
+    local entry = keys.hideUntrackedQuestsMapIcons
+    T.truthy(entry, "in the list")
+    local was = entry.ours
+    local redraw = DaylightUI.QuestieAside.RedrawIcons
+    DaylightUI.QuestieAside.RedrawIcons = function() redrawn = redrawn + 1 end
+    local p = Questie.db.profile
+    entry.ours = function() return true end
+    DaylightUI.QuestieAside.Run()
+    T.eq(p.hideUntrackedQuestsMapIcons, true, "untracked quests leave the maps")
+    T.eq(redrawn, 1, "Questie redraws its icons")
+    DaylightUI.QuestieAside.Run()
+    T.eq(redrawn, 1, "nothing changed: not again")
+    entry.ours = function() return false end
+    DaylightUI.QuestieAside.Run()
+    T.eq(p.hideUntrackedQuestsMapIcons, false, "the player's own value back")
+    T.eq(redrawn, 2)
+    -- The player had it on already: left on, nothing noted.
+    p.hideUntrackedQuestsMapIcons = true
+    entry.ours = function() return true end
+    DaylightUI.QuestieAside.Run()
+    T.falsy((DaylightUI.DB.Root().questieOff or {}).hideUntrackedQuestsMapIcons)
+    entry.ours = function() return false end
+    DaylightUI.QuestieAside.Run()
+    T.eq(p.hideUntrackedQuestsMapIcons, true, "theirs stays on")
+    entry.ours, DaylightUI.QuestieAside.RedrawIcons = was, redraw
+    _G.Questie = nil
+end)
+
 T.test("questie: its tracker steps aside with the Skins module off too (the core does it)", function()
     stub.Load({ before = function()
         stub.installedAddOns.Questie, stub.loadedAddOns.Questie = true, true

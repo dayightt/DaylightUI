@@ -95,7 +95,15 @@ function M.world()
     local totem = CreateFrame("Button", nil, tf)
     totem:SetSize(37, 37)
     totem.Icon = CreateFrame("Frame", nil, totem)
+    totem.Icon:SetSize(22, 22)
+    totem.Icon:SetPoint("CENTER")
     totem.Icon.Texture = totem.Icon:CreateTexture()
+    -- The game gives its sweep a circle atlas (TotemButtonMixin:OnLoad).
+    local cd = CreateFrame("Cooldown", nil, totem.Icon)
+    function cd:SetSwipeTexture(t) self.__swipe = t end
+    function cd:SetTexCoordRange(lo, hi) self.__range = { lo, hi } end
+    cd.__swipe = "CircleMask"
+    totem.Icon.Cooldown = cd
     totem.Border = totem:CreateTexture()
     totem.Duration = totem:CreateFontString()
     totem.slot = 1
@@ -125,7 +133,11 @@ function M.world()
     local summon = CreateFrame("Button", "MultiCastSummonSpellButton", mc)
     summon:SetSize(30, 30)
     summon:SetPoint("BOTTOMLEFT", mc, "BOTTOMLEFT", 3, 3)
-    for i = 1, 4 do
+    -- The totem pick list (a plain frame on the bar, MultiCastActionBarFrame.xml).
+    local flyout = CreateFrame("Frame", "MultiCastFlyoutFrame", mc)
+    flyout:Hide()
+    -- Three totem sets of 4 (NUM_MULTI_CAST_PAGES), each over the same 4 slots.
+    for i = 1, 12 do
         local b = CreateFrame("Button", "MultiCastActionButton" .. i, mc)
         b:SetSize(30, 30)
         b.icon = b:CreateTexture()

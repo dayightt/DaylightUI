@@ -31,6 +31,9 @@ function BW.Calls(kind)
     return out
 end
 
+-- Panel layout attributes written by addon code (SetUIPanelAttribute below).
+function BW.TaintedPanel() return S().taintedPanel or {} end
+
 -- The game's own code runs untainted, so what it does always works (secure code
 -- in the fake game, stub.inSecure).
 local function asGame(fn, ...)
@@ -53,8 +56,13 @@ local function registry()
         UnregisterCallback = function(_, e, owner)
             for i = #(cbs[e] or {}), 1, -1 do if cbs[e][i][2] == owner then table.remove(cbs[e], i) end end
         end,
+        -- Every callback here is an addon's, so it runs tainted even when the
+        -- game's own code fired the event.
         TriggerEvent = function(_, e, ...)
+            local game = S().game
+            S().game = 0
             for _, c in ipairs(cbs[e] or {}) do c[1](c[2], ...) end
+            S().game = game
         end,
     }
 end
@@ -112,9 +120,18 @@ local function install()
         end
         f:Hide()
     end
+    -- The game stores it with SetAttributeNoHandler (UIParentPanelManager.lua), and
+    -- an attribute keeps its writer's taint: an addon's write is read again while
+    -- the game opens the book, and that opening, its spell slots included, then
+    -- runs tainted (SetCooldown refuses their secret cooldowns, dragging a spell
+    -- is blocked). Writes from outside the game's own code are kept in taintedPanel.
     _G.SetUIPanelAttribute = function(f, key, value)
         S().panel[f] = S().panel[f] or {}
         S().panel[f][key] = value
+        S().taintedPanel = S().taintedPanel or {}
+        if (S().game or 0) == 0 then
+            S().taintedPanel[#S().taintedPanel + 1] = tostring(f:GetName()) .. "." .. key
+        end
     end
     _G.GetUIPanel = function() return nil end
     _G.PlayerSpellsUtil = {

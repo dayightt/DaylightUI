@@ -31,7 +31,7 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- Spanish clients name the channels in Spanish.
                   Comercio = "T", Defensalocal = "LD", Buscargrupo = "LFG", Defensamundial = "WD",
                   Defensaglobal = "WD", Reclutamiento = "GR", Novatos = "N", Servicios = "TS",
-                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL",
+                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL", Comerciolocal = "TL",
                   -- German clients name them in German.
                   Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
@@ -135,6 +135,7 @@ local defaults
 function Tags.ResetDefaults() defaults = nil end
 
 local function built()
+    -- The game's own words (see above), unless the English letters are asked for.
     local out, used = {}, {}
     for _, kind in ipairs(Tags.CHAT_ORDER) do
         local word = _G[Tags.CHAT_WORDS[kind]]
@@ -155,29 +156,49 @@ local function built()
     return out
 end
 
+-- The tag letters setting: "english" (the default; the letters Daylight UI has always used) or
+-- "native" (the initials of the game's words in the player's language).
+function Tags.Native() return Tags.letters == "native" end
+
 -- A chat kind's default tag; "to" is your sent whispers.
 function Tags.Default(kind)
+    if not Tags.Native() then return Tags.CHAT_TAGS[kind] or (kind == "to" and "To") or nil end
     defaults = defaults or built()
     return defaults[kind]
 end
 
--- A world channel's standard tag: the letters of its name when the game gives it an id
--- (Kinds.ZONE), else the kind's own (KIND_TAGS).
+-- A world channel's standard tag. The game's id decides when it has one (the same in every
+-- language). In English letters that is the kind's own tag (KIND_TAGS); in the player's language it is
+-- the initials of the name the game gives that channel. Otherwise the channel's name decides, in any
+-- letter case. The channel's kind isn't used there: World Defense and Newcomer share a kind with
+-- Local Defense and General but have their own tags.
 local ofName = {}
 function Tags.ResetNames() if next(ofName) then ofName = {} end end
 
+-- Tags.CHANNELS by lower-case word, built on first use.
+local byWord
+local function standardByName(base)
+    if not byWord then
+        byWord = {}
+        for k, v in pairs(Tags.CHANNELS) do byWord[string.lower(k)] = v end
+    end
+    return byWord[string.lower(base)]
+end
+
 function Tags.OfName(name)
     if type(name) ~= "string" or secret(name) then return nil end
-    local tag = ofName[name]
-    if tag then return tag end
-    local base = string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", "")
-    local Kinds = ns.Kinds
-    if Kinds.ZoneKind(base) then
-        tag = Tags.Initials((string.gsub(base, "%s*:.*$", "")))
+    local base = string.match(name, "^(.-) %- ") or name
+    local zone = ns.Kinds.OfZone(base)
+    if zone and Tags.Native() then
+        local tag = ofName[name]
+        if tag == nil then
+            tag = Tags.Initials((string.gsub(string.gsub(base, "%s*:.*$", ""), "%s+%d+$", ""))) or false
+            ofName[name] = tag
+        end
+        return tag or Tags.KIND_TAGS[zone]
     end
-    tag = tag or Tags.KIND_TAGS[Kinds.OfChannel(base)] or false
-    ofName[name] = tag
-    return tag or nil
+    if zone then return Tags.KIND_TAGS[zone] end
+    return standardByName((string.gsub(string.gsub(base, "%s+%d+$", ""), "%s", "")))
 end
 
 -- "[1. General - Zone]"
@@ -365,6 +386,9 @@ function Tags.Apply(cfg)
     Tags.enabled = cfg.shortTags and true or false
     Tags.numbers = cfg.channelNumbers and true or false
     Tags.own = type(cfg.channelTags) == "table" and cfg.channelTags or {}
+    -- The letters of the defaults: the game's words in the player's language, or the English ones.
+    local letters = cfg.tagLetters == "native" and "native" or "english"
+    if letters ~= Tags.letters then Tags.letters = letters; Tags.ResetDefaults(); Tags.ResetNames() end
     -- A tag set on a since-renamed kind (Kinds.RENAMED) moves to the new name.
     for old, real in pairs(ns.Kinds and ns.Kinds.RENAMED or {}) do
         if Tags.own[old] then

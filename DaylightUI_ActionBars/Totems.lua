@@ -2,7 +2,8 @@
 -- frame, which the unit frames hide, so they move to Daylight UI's: just above its right end,
 -- clear of the name tab, unless moved in unlock mode (TIMERS_KEY). They're styled
 -- like the buff bar's icons (square element-colored edge, inner shade, time on the
--- top edge). The classic totem bar (MultiCastActionBarFrame) takes the stance bar's
+-- top edge, or middle, or bottom). Their size, spacing, time text, sweep and
+-- colors come from the Totem timers card (Totems.Timers). The classic totem bar (MultiCastActionBarFrame) takes the stance bar's
 -- spot by default, since a shaman has no stance bar. It sits in its own holder
 -- (Totems.KIND, settings db.bars.totem) and gets the buttons' skin.
 
@@ -22,12 +23,29 @@ Totems.TIMERS_KEY = "actionbars.totemtimers"
 local BORDER_PX = 2
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local TIME_COLOR = DUI.Style.INK.VALUE
--- A fixed size: the icon's measured width is unreliable while the game lays the
--- timers out, and sizing from it came out huge.
-local TIME_SIZE = 11
+-- Where the time sits on the icon, as on the buff bar.
+Totems.TIME_SPOTS = { top = "TOP", middle = "CENTER", bottom = "BOTTOM" }
 -- Slot order in the game: fire, earth, water, air.
 local ELEMENTS = { { 0.9, 0.35, 0.15 }, { 0.6, 0.45, 0.25 }, { 0.2, 0.55, 0.95 }, { 0.7, 0.85, 0.95 } }
 local dressed = setmetatable({}, { __mode = "k" })
+
+-- The timers' own settings, with their defaults before the module is ready. The
+-- time's size is a setting, never measured: the icon's width is unreliable while
+-- the game lays the timers out, and sizing from it came out huge.
+function Totems.Timers()
+    local db = ns.Settings()
+    if type(db) ~= "table" then db = {} end
+    local function num(v, d) return type(v) == "number" and v or d end
+    return {
+        size = num(db.totemTimersSize, 100),
+        gap = num(db.totemTimersGap, 2),
+        showTime = db.totemTimersShowTime ~= false,
+        timePos = Totems.TIME_SPOTS[db.totemTimersTimePos] and db.totemTimersTimePos or "top",
+        timeSize = num(db.totemTimersTimeSize, 11),
+        swipe = db.totemTimersSwipe ~= false,
+        elements = db.totemTimersElements ~= false,
+    }
+end
 
 -- Only a shaman has the totem bar; for anyone else it's never touched.
 function Totems.IsShaman()
@@ -114,6 +132,11 @@ end
 
 -- If the game won't give the time, its own text shows instead.
 local function tick(btn, d, fs)
+    if d.noTime then
+        d.time:SetText("")
+        if fs then fs:SetAlpha(0) end
+        return
+    end
     local left = timeLeft(btn.slot or (btn.GetID and btn:GetID()))
     if left then
         d.time:SetText(Totems.Time(left))
@@ -124,31 +147,46 @@ local function tick(btn, d, fs)
     end
 end
 
--- How much closer together the timers sit than the game's own spacing (their rim art
--- is hidden, so its gap looks too wide).
-Totems.TIMER_TIGHTEN = 4
-
--- Each timer is made a little narrower (its icon stays centered) so the game's own
--- layout packs them closer. Never through the frame's `spacing` or Daylight UI's own call to
+-- The space between two timers' borders comes from each timer's width (its icon
+-- stays centered), so the game's own layout spaces them as set. Never through the frame's `spacing` or Daylight UI's own call to
 -- its Layout: a Daylight UI value on the game's frame taints its layout and
 -- PlayerFrame_AdjustAttachments after it (blocked actions in a fight). A button new
--- to the game's pool is only narrowed after the game laid it out at full width
--- (TotemFrameMixin:Update runs Layout at once), so it reports that, and SkinTimers
--- then shifts the timers after it by what it lost (Totems.CloseUp). Pooled buttons
--- keep their width, so the game's later layouts are already tight.
-local function tightenTimer(btn, d)
-    d.baseW = d.baseW or btn:GetWidth()
-    local want = d.baseW - Totems.TIMER_TIGHTEN
-    if want > 0 and btn:GetWidth() ~= want then
-        local lost = btn:GetWidth() - want
+-- to the game's pool (or one whose spacing setting just changed) is only resized
+-- after the game laid it out at its old width (TotemFrameMixin:Update runs Layout at
+-- once), so it reports the difference, and SkinTimers then shifts the timers after
+-- it by that (Totems.CloseUp). Pooled buttons keep their width, so the game's later
+-- layouts already match.
+function Totems.TimerWidth(tf, iconW, T, gap)
+    local spacing = type(tf) == "table" and tonumber(rawget(tf, "spacing")) or -6
+    return math.floor(iconW + 2 * T + gap - spacing + 0.5)
+end
+
+local function fitTimer(btn, d, opts)
+    local icon = btn.Icon
+    local iconW = icon.GetWidth and icon:GetWidth()
+    if not (type(iconW) == "number" and iconW > 0) then iconW = 22 end
+    local want = Totems.TimerWidth(btn:GetParent(), iconW, d.T, opts.gap)
+    local cur = btn:GetWidth()
+    if want > 0 and cur ~= want then
         btn:SetWidth(want)
-        return lost
+        return cur - want
     end
     return 0
 end
 
+-- The game rounds its sweep with a circle atlas (TotemButtonMixin:OnLoad). The icon
+-- is square here, so the sweep is too, over the cropped icon.
+local function squareSweep(cd, tex, on)
+    if type(cd) ~= "table" or not cd.SetSwipeTexture then return end
+    cd:SetSwipeTexture(WHITE, 0, 0, 0, 0.65)
+    if cd.SetTexCoordRange then cd:SetTexCoordRange({ x = 0, y = 0 }, { x = 1, y = 1 }) end
+    if cd.SetDrawSwipe then cd:SetDrawSwipe(on) end
+    cd:ClearAllPoints()
+    cd:SetAllPoints(tex)
+end
+
 -- A totem timer button. The game's Icon frame holds the texture.
-local function skinTotem(btn)
+local function skinTotem(btn, opts)
     local icon = btn.Icon
     local tex = type(icon) == "table" and (icon.Texture or icon.texture)
     if type(tex) ~= "table" or not tex.SetTexture then return end
@@ -177,11 +215,11 @@ local function skinTotem(btn)
             end
         end
         DUI.Style.CropIcon(tex)
-        d.edge = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
-        d.edge:SetTexture(WHITE)
-        local px = DUI.Pixel.Px(btn, BORDER_PX)
-        d.edge:SetPoint("TOPLEFT", tex, "TOPLEFT", -px, px)
-        d.edge:SetPoint("BOTTOMRIGHT", tex, "BOTTOMRIGHT", px, -px)
+        -- The edge is a lean shell (outline, rounded corners, soft shadow) like the
+        -- unit frames' auras, on a frame just outside the icon.
+        d.ring = CreateFrame("Frame", nil, btn)
+        d.ring:SetFrameLevel(icon:GetFrameLevel() + 1)
+        d.ring:EnableMouse(false)
         -- Solid black under the art so the world never shows through it.
         d.back = btn:CreateTexture(nil, "BACKGROUND", nil, 0)
         d.back:SetColorTexture(0, 0, 0, 1)
@@ -205,39 +243,56 @@ local function skinTotem(btn)
             tick(btn, d, d.fs)
         end)
     end
-    styleTime(d.time, TIME_SIZE)
+    d.T = DUI.Pixel.Px(btn, BORDER_PX)
+    d.ring:ClearAllPoints()
+    d.ring:SetPoint("TOPLEFT", tex, "TOPLEFT", -d.T, d.T)
+    d.ring:SetPoint("BOTTOMRIGHT", tex, "BOTTOMRIGHT", d.T, -d.T)
+    if not d.shell then
+        d.shell = DUI.Style.Shell(d.ring, { noBackground = true, noBevel = true, borderPx = BORDER_PX, lean = true })
+    end
+    local spot = Totems.TIME_SPOTS[opts.timePos]
+    d.noTime = not opts.showTime
+    d.timeSize = opts.timeSize
+    styleTime(d.time, opts.timeSize)
     d.time:ClearAllPoints()
-    d.time:SetPoint("CENTER", tex, "TOP", 0, 0)
+    d.time:SetPoint("CENTER", tex, spot, 0, 0)
+    squareSweep(icon.Cooldown, tex, opts.swipe)
     -- Every update, since the game may re-anchor the time and slots reuse buttons.
     local fs = btn.Duration or btn.duration
     -- The game's own time, kept styled for when Daylight UI's can't show.
     if type(fs) == "table" and fs.SetFont then
         d.fs = fs
         if fs:GetParent() ~= d.top then fs:SetParent(d.top) end
-        styleTime(fs, TIME_SIZE)
+        styleTime(fs, opts.timeSize)
         if not d.hooked then
             d.hooked = true
             local busy = false
             local function again(self)
                 if busy then return end
                 busy = true
-                styleTime(self, TIME_SIZE)
+                styleTime(self, d.timeSize)
                 busy = false
             end
             hooksecurefunc(fs, "SetTextColor", again)
             hooksecurefunc(fs, "SetFontObject", again)
         end
         fs:ClearAllPoints()
-        fs:SetPoint("CENTER", tex, "TOP", 0, 0)
+        fs:SetPoint("CENTER", tex, spot, 0, 0)
         fs:SetDrawLayer("OVERLAY", 7)
     end
     tick(btn, d, d.fs)
-    local lost = tightenTimer(btn, d)
+    local lost = fitTimer(btn, d, opts)
     local slot = btn.slot or (btn.GetID and btn:GetID())
-    local e = type(slot) == "number" and ELEMENTS[slot]
-    local r, g, b
-    if e then r, g, b = DUI.Style.Soften(e[1], e[2], e[3]) else r, g, b = DUI.Style.Neutral() end
-    d.edge:SetVertexColor(r, g, b, 1)
+    local e = opts.elements and type(slot) == "number" and ELEMENTS[slot]
+    if d.shell then
+        -- Without element colors the edge wears the shells' own border color.
+        if e then
+            local r, g, b = DUI.Style.Soften(e[1], e[2], e[3])
+            DUI.Style.SetShellColors(d.shell, { r, g, b })
+        else
+            DUI.Style.SetShellColors(d.shell, nil)
+        end
+    end
     return lost
 end
 
@@ -256,7 +311,7 @@ function Totems.CloseUp(tf, lost)
     table.sort(list, function(a, b) return (a.layoutIndex or 0) < (b.layoutIndex or 0) end)
     local shift = 0
     for _, btn in ipairs(list) do
-        if shift > 0 and btn:GetNumPoints() == 1 then
+        if shift ~= 0 and btn:GetNumPoints() == 1 then
             local p, rel, rp, x, y = btn:GetPoint(1)
             if type(x) == "number" and not isSecret(x) and not isSecret(y) then
                 btn:ClearAllPoints()
@@ -265,16 +320,17 @@ function Totems.CloseUp(tf, lost)
         end
         shift = shift + (lost[btn] or 0)
     end
-    if shift > 0 and not (InCombatLockdown() and tf:IsProtected()) then tf:SetWidth(tf:GetWidth() - shift) end
+    if shift ~= 0 and not (InCombatLockdown() and tf:IsProtected()) then tf:SetWidth(tf:GetWidth() - shift) end
 end
 
 function Totems.SkinTimers()
     local tf = TotemFrame
     if not tf then return end
     local lost
+    local opts = Totems.Timers()
     for _, child in ipairs({ tf:GetChildren() }) do
-        local n = skinTotem(child)
-        if n and n > 0 and child:IsShown() then
+        local n = skinTotem(child, opts)
+        if n and n ~= 0 and child:IsShown() then
             lost = lost or {}
             lost[child] = n
         end
@@ -297,6 +353,7 @@ local function placeTimers(tf, player)
         return
     end
     tf:SetParent(UIParent)
+    tf:SetScale(Totems.Timers().size / 100)
     tf:ClearAllPoints()
     local saved = DUI.DB.Positions()[Totems.TIMERS_KEY]
     if saved then
@@ -315,7 +372,12 @@ function Totems.LayoutBar(mc, shape)
     local prev
     for i = 1, 12 do
         local b = _G["MultiCastActionButton" .. i]
-        if type(b) == "table" and b.SetPoint then
+        local over = i > 4 and _G["MultiCastActionButton" .. (i - 4)]
+        if type(b) == "table" and b.SetPoint and over then
+            -- The second and third totem sets lie over the same 4 slots as the first.
+            b:ClearAllPoints()
+            b:SetPoint("CENTER", over, "CENTER", 0, 0)
+        elseif type(b) == "table" and b.SetPoint then
             if prev then
                 b:ClearAllPoints()
                 if shape.vertical then
@@ -435,6 +497,10 @@ function Totems.Apply()
         for _, name in ipairs(Totems.MULTICAST) do
             if _G[name] then ns.Skin.SetBar(_G[name], "totem"); ns.Skin.Apply(_G[name]) end
         end
+        -- The totem pick list opens over whatever sits beside the bar, such as a
+        -- Cooldown Manager icon's glow. It's a plain frame, so this is safe.
+        local flyout = _G.MultiCastFlyoutFrame
+        if type(flyout) == "table" and flyout.SetFrameStrata then flyout:SetFrameStrata("DIALOG") end
     end
 end
 

@@ -311,7 +311,7 @@ function Legacy.PadSetup(f)
     f.padKeys = {
         { key = "X", label = SOCIAL_SHARE_TEXT or L["Link in chat"],
           when = function(b) return f.current == "challenges" and type(b) == "table" and b.ch ~= nil end,
-          run = function(b) ns.Data.Link(b.ch.id, true) end },
+          run = function(b) ns.Data.Link(b.ch.id, true, b) end },
         { key = "X", label = GAMEPAD_TALENT_APPLY or L["Apply"],
           when = function() return f.current == "trees" and spend() and spend().HasChanges() end,
           run = function() if spend().Apply() then ns.Trees.Buttons() end end },

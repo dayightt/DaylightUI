@@ -1491,6 +1491,30 @@ T.test("paint: painting in combat never touches a secret", function()
     noBlocked()
 end)
 
+-- Each ask returns a new table: in a fight a cooldown paint runs on every button
+-- several times a second, so only the asks that can matter are made.
+T.test("paint: a cooldown paint skips the asks that can't matter", function()
+    login({ slots = { [1] = { texture = "a" }, [2] = { texture = "b", charges = true } } })
+    stub.EnterCombat()
+    local asked = {}
+    for _, n in ipairs({ "GetActionCooldown", "GetActionCharges", "GetActionLossOfControlCooldownInfo" }) do
+        local real = C_ActionBar[n]
+        C_ActionBar[n] = function(slot, ...)
+            asked[n] = asked[n] or {}
+            asked[n][slot] = true
+            return real(slot, ...)
+        end
+    end
+    stub.FireEvent("ACTIONBAR_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.deq(asked.GetActionCooldown, { [1] = true, [2] = true }, "empty slots aren't asked")
+    T.deq(asked.GetActionCharges, { [2] = true }, "charges only where the slot has them")
+    T.isnil(asked.GetActionLossOfControlCooldownInfo, "no loss of control on you, none asked")
+    stub.slots[1].loc = true
+    stub.FireEvent("LOSS_OF_CONTROL_UPDATE"); stub.RunTimers()
+    T.truthy(asked.GetActionLossOfControlCooldownInfo, "a stun: asked again")
+    T.deq(btn("main", 1).lossOfControlCooldown.__duration, { slot = 1, kind = "loc" })
+end)
+
 -- The ready ping. bumps[icon] counts icon pops.
 local function watchPings(DUI)
     local bumps, real = {}, DUI.Motion.Bump
@@ -1665,7 +1689,8 @@ T.test("ready ping: an idle sweep's Done and charges", function()
     local b1, b2 = btn("main", 1), btn("main", 2)
     done(b1.cooldown); done(b1.chargeCooldown)
     T.isnil(bumps[b1.icon], "nothing was running")
-    stub.slots[2].charges = true
+    stub.slots[2].charges = true          -- a spell only gains charges as the spells change
+    stub.FireEvent("SPELLS_CHANGED")
     cooldowns()
     stub.slots[2].charges = false
     done(b2.chargeCooldown)
@@ -2329,6 +2354,23 @@ T.test("totem bar: size, spacing and direction apply live", function()
     DaylightUI:Set("ActionBars", "bars.totem.vertical", true)
     local p, _, rp, _, y = MultiCastActionButton2:GetPoint(1)
     T.eq(p, "TOP"); T.eq(rp, "BOTTOM"); T.eq(y, -6)
+end)
+
+-- A shaman switching to Call of the Ancestors saw its 4 buttons to the right of
+-- the 4 slots. The game's sets 2 and 3 (buttons 5-8, 9-12) lie over the same
+-- slots as set 1 (MultiCastActionBarFrame_Update: pageOffset + slotIndex).
+T.test("totem bar: every totem set sits over the same 4 slots", function()
+    login({ class = "SHAMAN" })
+    DaylightUI:Set("ActionBars", "bars.totem.pad", 6)
+    for i = 5, 12 do
+        local p, rel, rp, x, y = _G["MultiCastActionButton" .. i]:GetPoint(1)
+        T.eq(rel, _G["MultiCastActionButton" .. (i - 4)], "button " .. i .. " on the one 4 before it")
+        T.eq(p, "CENTER"); T.eq(rp, "CENTER"); T.eq(x, 0); T.eq(y, 0)
+    end
+    local _, rel = MultiCastActionButton4:GetPoint(1)
+    T.eq(rel, MultiCastActionButton3, "the first set still runs across")
+    -- A Cooldown Manager glow beside the bar covered the totem pick list.
+    T.eq(MultiCastFlyoutFrame:GetFrameStrata(), "DIALOG", "the pick list opens above the Cooldown Manager")
 end)
 
 T.test("options: the Bar Layout page has one card for every bar (Settings for), from the bars' data", function()

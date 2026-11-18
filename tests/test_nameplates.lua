@@ -2389,6 +2389,21 @@ T.test("nameplates: a held frame handed to a plate without ours is the game's ag
     T.falsy(stub.nameplates.Manager.IsHeld(uf))
 end)
 
+T.test("nameplates: giving an active frame back restores its nameplate-specific events", function()
+    local NP = login()
+    local p = added("nameplate1")
+    local np, uf = p.nameplate, p.gameFrame
+    uf.unit = "nameplate1"
+    NP.Manager.GiveBackFrame(uf, np)
+    T.truthy(uf:IsEventRegistered("UNIT_FACTION"), "faction changes are observed again")
+    T.eq(uf.__unitEvents.UNIT_FACTION[1], "nameplate1", "filtered to this unit")
+    T.eq(uf.__unitEvents.UNIT_FACTION[2], "player", "and the player")
+    T.truthy(uf:IsEventRegistered("NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED"), "camera changes are observed again")
+    T.eq(uf.__unitEvents.NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED[1], "nameplate1", "filtered to this unit")
+    T.truthy(uf:IsEventRegistered("PLAYER_FOCUS_CHANGED"), "focus changes are observed again")
+    T.truthy(uf:IsEventRegistered("RAID_TARGET_UPDATE"), "raid target changes are observed again")
+end)
+
 T.test("options: nameplates are split into tabs and every setting has one home", function()
     login()
     local section
@@ -4308,6 +4323,25 @@ T.test("nameplates: a player of the other faction gets the faction crest by the 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: the PvP flag crest shows by anyone flagged, NPCs too, when switched on", function()
+    login()
+    local DUI = DaylightUI
+    stub.units.player.faction = "Horde"
+    stub.units.nameplate3 = { name = "Stormwind Guard", reaction = 2, hostile = true, faction = "Alliance", pvp = true,
+        health = 50, maxHealth = 100 }
+    stub.units.nameplate4 = { name = "Kobold", reaction = 2, hostile = true, health = 50, maxHealth = 100 }
+    local guard, mob = added("nameplate3"), added("nameplate4")
+    T.falsy(guard.factionIcon:IsShown(), "off by default")
+    DUI:Set("Nameplates", "pvpIcon", true); stub.RunTimers()
+    T.truthy(guard.factionIcon:IsShown(), "a flagged NPC gets its faction's crest")
+    T.eq(guard.factionIcon.__atlas, "UI-HUD-UnitFrame-Player-PVP-AllianceIcon")
+    T.falsy(mob.factionIcon:IsShown(), "an unflagged mob none")
+    stub.units.nameplate3.pvp = false
+    stub.FireEvent("UNIT_FACTION", "nameplate3"); stub.RunTimers()
+    T.falsy(guard.factionIcon:IsShown(), "unflagged: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: custom friendly names: players, NPCs and the other faction each in their picked color", function()
     login()
     local DUI = DaylightUI
@@ -4358,7 +4392,7 @@ T.test("nameplates: /dui platefix step 1 sets the plate size and click area agai
     size = nil
     local text = NP.Manager.Fix()
     T.truthy(size, "the size set again")
-    T.truthy(text:find("platefix 1/7", 1, true), text)
+    T.truthy(text:find("platefix 1/8", 1, true), text)
 end)
 
 T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none until step 3 is done", function()
@@ -4376,7 +4410,7 @@ T.test("nameplates: /dui platefix step 2 hands every plate back, and takes none 
     T.isnil(NP.Manager.byUnit.nameplate1, "the 2 s check leaves them too")
     -- 3: off and on again, then ours back.
     local text = NP.Manager.Fix()
-    T.truthy(text:find("platefix 3/7", 1, true), text)
+    T.truthy(text:find("platefix 3/8", 1, true), text)
     T.eq(cvars.nameplateShowEnemies, "0", "off a moment")
     stub.RunTimers()
     T.eq(cvars.nameplateShowEnemies, "1", "back on")
@@ -4397,9 +4431,10 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
     for _ = 5, NP.Manager.FIX_STEPS do
         NP.Manager.Fix()
         stub.RunTimers()
+        stub.RunTimers()
     end
     T.truthy(NP.Manager.Fix():find("every step", 1, true), "the end")
-    T.truthy(NP.Manager.Fix():find("platefix 1/7", 1, true), "and round again")
+    T.truthy(NP.Manager.Fix():find("platefix 1/8", 1, true), "and round again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

@@ -324,6 +324,7 @@ function Menus.SkinBag(btn)
         local fs = btn[k]
         Style.DressText(fs, 11)
     end
+    Menus.PaintBagCount(btn)
     -- The game restores its art in the button's UpdateTextures, which runs from the
     -- global SetItemButtonTexture/SetItemButtonQuality (a bag slot update) and from
     -- the button's own events (the key ring's BAG_UPDATE). Follow those, never with
@@ -331,6 +332,17 @@ function Menus.SkinBag(btn)
     followBags()
     if btn.HookScript then btn:HookScript("OnEvent", bagArt) end
     bagArt(btn)
+end
+
+-- The backpack's free slot count is a number a glance needs, so it takes the
+-- accent. The game only ever sets its text, so the color stays.
+function Menus.PaintBagCount(btn)
+    if btn == nil then
+        for b in pairs(skinned) do Menus.PaintBagCount(b) end
+        return
+    end
+    local fs = btn.FreeSlots
+    if type(fs) == "table" and fs.SetTextColor then Style.InkText(fs, "pop") end
 end
 
 function Menus.IsSkinned(btn) return skinned[btn] ~= nil end

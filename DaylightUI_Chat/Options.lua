@@ -130,10 +130,12 @@ local function tagLine(row, side)
     line.text:SetPoint("RIGHT", line.box, "LEFT", -8, 0)
     line.box:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        DaylightUI.Tips.Clear()
         DaylightUI.Tips.Title(line.words or "")
         DaylightUI.Tips.Text(string.format(L["The short tag before these messages. Left empty it stays [%s]."],
             line.standard or ""))
         DaylightUI.Tips.Flush()
+        GameTooltip:Show()
     end)
     line.box:HookScript("OnLeave", function() GameTooltip:Hide() end)
     line.side = side
@@ -333,6 +335,10 @@ ns.OPTIONS = { pages = {
               desc = "The size of the messages on the second chat panel.",
               hidden = function(get) return classicStyle(get) or get("sideTextSizeOwn") ~= true end,
               disabled = sideOff },
+            { type = "dropdown", key = "sideAlign", label = "Second panel message alignment",
+              values = { left = "Left", right = "Right" }, order = { "left", "right" },
+              desc = "Which edge the second panel's messages line up on, for a loot or combat log panel on the right side of your screen.",
+              hidden = classicStyle, disabled = sideOff },
             { type = "dropdown", key = "sideHides", label = "Second panel hides",
               values = SIDE_HIDES, order = SIDE_HIDES_ORDER,
               desc = "When the second panel gets out of the way, on its own: keep a loot or combat log panel up while the main chat floats away, or the other way round. Idle time and how long messages stay are the main chat's.",
@@ -370,6 +376,13 @@ ns.OPTIONS = { pages = {
               desc = "The size of the messages in every chat window. Each chat tab's right-click menu sets it too." },
             DaylightUI.Options.FontRow("media.font", "Chat font", "The chat window's text and the chat bubbles"),
             { type = "toggle", key = "outline", label = "Chat text outline", desc = "A thin outline on chat text." },
+            { type = "slider", key = "lineSpacing", label = "Line spacing", min = 0, max = 12, step = 1, unit = "px",
+              hidden = classicStyle,
+              desc = "Extra space between the lines of the Daylight chat box, so messages sit further apart. 0 is the game's own spacing." },
+            { type = "dropdown", key = "align", label = "Message alignment",
+              values = { left = "Left", right = "Right" }, order = { "left", "right" },
+              hidden = classicStyle,
+              desc = "Which edge the messages line up on. Right suits a chat on the right side of your screen." },
             { type = "slider", key = "tabSize", label = "Chat tab text size", min = 10, max = 18, step = 1, unit = "px",
               desc = "The size of the words on the chat tabs." },
             { type = "toggle", key = "inputSizeOwn", label = "Separate chat input text size",
@@ -390,9 +403,14 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "Replaces the channel and chat names before each message with a short tag, made from the first letters of its name in your language. Lines already in chat stay as they were. Set your own tags in the list below." },
+              desc = "Replaces the channel and chat names before each message with a short tag, such as [G] for General or [P] for party. Lines already in chat stay as they were. Pick the letters below, and set your own tags in the list." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number in front of the short tag.",
+              disabled = function(get) return get("shortTags") ~= true end },
+            { type = "dropdown", key = "tagLetters", label = "Tag letters",
+              values = { english = "English", native = "Your language" },
+              order = { "english", "native" },
+              desc = "The letters the short tags start from. English: G, P, R, S, W, Y, and T or LD for channels. Your language: the first letters of the words the game uses in yours, so a Spanish client reads G for Grupo and B for Banda. A tag you type in the list below always wins.",
               disabled = function(get) return get("shortTags") ~= true end },
             shortTagList,
             { type = "toggle", key = "worldChannelsFirst", label = "General and Trade first", since = "1.8.0",
