@@ -7,8 +7,8 @@
 -- tiles and share its mover scale, test part and fade. "Show groups up to"
 -- filters them by their owner's group, and "Sort frames by" orders them by their
 -- owner's class or name; the pet header can't sort by assigned role, so the
--- role sorts (and Group) keep them by their owner's group. Each tile wears its
--- owner's class color.
+-- role sorts (and Group) keep them by their owner's group. Tiles stay the
+-- friendly green, so pets read apart from players.
 --
 -- The block has no mover of its own. Its holder hangs off the raid header's far
 -- edge, which the header sizes to the members shown, so the pets follow a
@@ -36,9 +36,9 @@ RP.SORT_ATTRS = {
 }
 
 RP.SAMPLES = {
-    { name = "Wolf", powerToken = "FOCUS", class = "HUNTER" }, { name = "Imp", powerToken = "ENERGY", class = "WARLOCK" },
-    { name = "Voidwalker", powerToken = "ENERGY", class = "WARLOCK" }, { name = "Cat", powerToken = "FOCUS", class = "HUNTER" },
-    { name = "Felhunter", powerToken = "ENERGY", class = "WARLOCK" }, { name = "Boar", powerToken = "FOCUS", class = "HUNTER" },
+    { name = "Wolf", powerToken = "FOCUS" }, { name = "Imp", powerToken = "ENERGY" },
+    { name = "Voidwalker", powerToken = "ENERGY" }, { name = "Cat", powerToken = "FOCUS" },
+    { name = "Felhunter", powerToken = "ENERGY" }, { name = "Boar", powerToken = "FOCUS" },
 }
 
 local function db() return ns.module and ns.module.db end
@@ -52,24 +52,13 @@ end
 function RP.SampleFor(i)
     local s = RP.SAMPLES[(i - 1) % #RP.SAMPLES + 1]
     local hp = 100 - ((i * 29) % 50)
-    return { name = s.name, class = s.class, health = hp, healthValue = hp * 20, power = 70, powerValue = 70,
+    return { name = s.name, reaction = 5, health = hp, healthValue = hp * 20, power = 70, powerValue = 70,
              powerToken = s.powerToken }
-end
-
--- The owner of a group pet's unit: raidpet3 -> raid3, partypet2 -> party2, pet -> player.
-function RP.OwnerOf(unit)
-    if type(unit) ~= "string" then return nil end
-    if unit == "pet" then return "player" end
-    local kind, n = unit:match("^(%a+)pet(%d+)$")
-    if kind == "raid" or kind == "party" then return kind .. n end
 end
 
 RP.group = ns.Group.New({
     key = "raidPet", name = "DaylightUIRaidPet", spec = RP.SPEC, maxCount = Raid.GROUPS * Raid.PER_GROUP,
     template = "SecureGroupPetHeaderTemplate", home = "raid", apiKind = "partypet", sortAttrs = RP.SORT_ATTRS,
-    -- Each tile wears its owner's class color (UF.OwnerClass), read as it's drawn
-    -- since a tile keeps its unit when the roster moves owners around.
-    dress = function(b) b.petOwner = RP.OwnerOf end,
     auraGroups = true,
     attrs = { showRaid = true, showParty = false, showPlayer = true, showSolo = false,
               useOwnerUnit = false, filterOnPet = false },

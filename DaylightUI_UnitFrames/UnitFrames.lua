@@ -2692,14 +2692,6 @@ local function classOf(unit)
 end
 UF.ClassOf = classOf
 
--- A pet tile's owner's class token: a party pet's kept one, or a raid pet's read
--- from its owner's unit now (f.petOwner maps its unit to the owner's). nil otherwise.
-function UF.OwnerClass(f)
-    if f.ownerClass then return f.ownerClass end
-    local owner = f.petOwner and not f.test and f.petOwner(f.unitToken)
-    return owner and classOf(owner) or nil
-end
-
 function UF.UnitColor(unit)
     local isPlayer = UnitIsPlayer(unit)
     if isSecret(isPlayer) then
@@ -4165,9 +4157,8 @@ function UF.UpdateIdentity(f)
     if f.spec and f.spec.group then f.flagSig = UF.FlagSig(u) end
     identityUnit, identityToken = type(u) == "string" and u or nil, nil
     local r, g, b = UF.UnitColor(u)
-    -- A party or raid pet in its owner's class color (PartyPets.lua, RaidPets.lua).
-    local owner = UF.OwnerClass(f)
-    if owner then r, g, b = Style.ClassColor(owner) end
+    -- A party pet in its owner's class color (PartyPets.lua).
+    if f.ownerClass then r, g, b = Style.ClassColor(f.ownerClass) end
     if f.state then r, g, b = UF.StateColor(f.state) end
     UF.PaintHealth(f, r, g, b)
     UF.ApplyHiddenClass(f)

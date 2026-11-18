@@ -114,23 +114,18 @@ T.test("raid pets: they follow Sort frames by where the pet header can", functio
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- Every pet tile came out reaction green. Each wears its owner's class color now,
--- read from the owner's unit as it's drawn.
-T.test("raid pets: each tile wears its owner's class color", function()
+-- Pet tiles stay the friendly green, not their owner's class color, so a pet
+-- reads apart from a player.
+T.test("raid pets: tiles stay the friendly green", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "raid.showPets", true)
     stub.RunTimers()
-    T.eq(ns.RaidPets.OwnerOf("raidpet3"), "raid3")
-    T.eq(ns.RaidPets.OwnerOf("partypet2"), "party2")
-    T.eq(ns.RaidPets.OwnerOf("pet"), "player")
-    T.isnil(ns.RaidPets.OwnerOf("target"))
     stub.units.raid3 = { name = "Rexx", isPlayer = true, class = "HUNTER", raid = true }
     stub.units.raidpet3 = { name = "Wolf", friend = true, health = 30, maxHealth = 60 }
     local b = petTile(ns, "raidpet3")
-    T.eq(ns.UF.OwnerClass(b), "HUNTER", "its owner's class")
-    -- The roster moves a warlock onto raid3: same tile, same unit, the new owner's class.
-    stub.units.raid3 = { name = "Mio", isPlayer = true, class = "WARLOCK", raid = true }
-    T.eq(ns.UF.OwnerClass(b), "WARLOCK")
+    T.isnil(b.ownerClass, "no owner class")
+    T.isnil(ns.RaidPets.SampleFor(1).class, "samples friendly too")
+    T.eq(ns.RaidPets.SampleFor(1).reaction, 5)
     stub.units.raid3, stub.units.raidpet3 = nil, nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
