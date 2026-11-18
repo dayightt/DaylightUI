@@ -25,6 +25,7 @@ ignore:
   - screenshots
   - tools
   - .github
+  - .issue80-test-builds
   - .pkgmeta
   - CONTRIBUTING.md
   - .gitignore
