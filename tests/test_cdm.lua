@@ -5377,6 +5377,66 @@ T.test("cdm track: a totem's buff is learned by its name without the word Totem"
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A totem first dropped in a fight: auras can't be read there, so its buff is
+-- looked up as the fight ends while the totem still stands, and the piece dims
+-- out of range from then on, that same totem included.
+T.test("cdm track: a totem dropped in a fight learns its buff when the fight ends", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = D.Current()
+    AB.CdmSpells.SHAMAN = { { 8075, 8160, aura = true }, { 8071, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 13 } }, { [0] = { 13 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 8075, selfAura = true, hasAura = true }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local realName = C_Spell.GetSpellName
+    C_Spell.GetSpellName = function(id)
+        if id == 8075 or id == 8160 then return "Strength of Earth Totem" end
+        return realName(id)
+    end
+    -- Slot 2 (earth).
+    local earth
+    local realDur, realInfo = _G.GetTotemDuration, _G.GetTotemInfo
+    _G.GetTotemDuration = function(slot) if slot == 2 then return earth end end
+    _G.GetTotemInfo = function(slot)
+        return slot == 2 and earth ~= nil, "", 0, 0, 0, 1, stub.Secret(slot == 2 and earth and earth.spell or 0)
+    end
+    Own.Forget()
+    D.AddPiece(set, 13, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetAuras("player", "HELPFUL", { { name = "Strength of Earth", spellId = 8076 } })
+    -- Dropped in a fight, then the totem gone before it ends: nothing learned.
+    stub.EnterCombat()
+    earth = { spell = 8075 }
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8075)
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 2); stub.RunTimers()
+    T.isnil(Own.AuraOf(8075), "in a fight: not read")
+    earth = nil
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 2)
+    stub.LeaveCombat(); stub.RunTimers()
+    T.isnil(Own.AuraOf(8075), "gone by the end of the fight: nothing to read")
+    -- Dropped in a fight and still standing when it ends: learned then.
+    stub.EnterCombat()
+    earth = { spell = 8075 }
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 8075)
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 2); stub.RunTimers()
+    T.isnil(Own.AuraOf(8075), "still in the fight")
+    T.falsy(Own.Frame(13).totemBuff, "no dim yet")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.truthy(Own.AuraOf(8075) and Own.AuraOf(8075)[8076], "learned as the fight ended")
+    T.truthy(Own.Frame(13).totemBuff, "and the piece dims out of range from now on")
+    T.eq(Own.Frame(13).Icon:GetAlpha(), Own.TOTEM_DIM, "this same totem included")
+    C_Spell.GetSpellName = realName
+    _G.GetTotemDuration, _G.GetTotemInfo = realDur, realInfo
+    _G.GetSpellBaseCooldown = nil
+    DUI.DB.Character().cdmAuraIDs = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Rend as a bar with Background color "Solid color" black: the empty bar stayed light gray.
 T.test("cdm bars: an aura bar's empty part takes the background color (the spell's or its group's)", function()
     local DUI, AB, set = barsWorld()

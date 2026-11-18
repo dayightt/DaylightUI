@@ -378,13 +378,39 @@ function Own.LearnAura(sid)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
+-- Totems dropped in a fight before their buff was learned: [cast spell id] = true.
+-- Auras can't be read there, so each is looked up once the fight ends, if it
+-- still stands (Own.LearnAfterCombat).
+local totemsToLearn = {}
+
 local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
-    if type(sid) ~= "number" or isSecret(sid) or InCombatLockdown() then return end
+    if type(sid) ~= "number" or isSecret(sid) then return end
+    if InCombatLockdown() then
+        local C = ns.CdmCustom
+        if C and C.Totem(sid) and not C.TotemBuffKnown(sid) then totemsToLearn[sid] = true end
+        return
+    end
     -- The aura lands a moment after the cast event.
     C_Timer.After(Own.AURA_LOOK_DELAY, function() DUI.SafeCall(Own.LearnAura, sid) end)
 end)
+
+-- After a fight: each totem dropped in it with its buff unknown, still standing,
+-- has its buff looked up now. One gone or already learned is dropped from the list.
+function Own.LearnAfterCombat()
+    local C = ns.CdmCustom
+    if not C then return end
+    for sid in pairs(totemsToLearn) do
+        if C.TotemBuffKnown(sid) or not C.TotemUp(sid) then
+            totemsToLearn[sid] = nil
+        else
+            Own.LearnAura(sid)
+            if C.TotemBuffKnown(sid) then totemsToLearn[sid] = nil end
+        end
+    end
+end
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() DUI.SafeCall(Own.LearnAfterCombat) end)
 
 -- Cooldowns whose buff holds charges, every rank. The game's cooldown icon shows the
 -- buff but never its count (its cooldown items only draw spell charges, see
