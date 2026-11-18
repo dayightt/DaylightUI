@@ -51,9 +51,9 @@ end
 -- only sets it in OnShow, which never runs while parked.
 function Follow.WriteWidth()
     local g = Follow.Game()
-    if not (g and Follow.parked and type(SetUIPanelAttribute) == "function") then return end
+    if not (g and Follow.parked) then return end
     local w = ns.Window.Width() * DUI.Win.Scale(ns.Setting("scale")) + ns.Window.GAP
-    pcall(SetUIPanelAttribute, g, "width", math.floor(w + 0.5))
+    DUI.Win.PanelAttr(g, "width", math.floor(w + 0.5))
 end
 
 -- Out of combat only. Waits while the game's window is un-parked (currency transfer).
@@ -208,10 +208,8 @@ function Follow.Release()
     if ns.Slots then ns.Slots.Return() end
     Follow.parked = false
     g:SetParent(UIParent)
-    if type(SetUIPanelAttribute) == "function" then
         local own = type(UIPanelWindows) == "table" and UIPanelWindows.CharacterFrame
-        pcall(SetUIPanelAttribute, g, "width", type(own) == "table" and own.width or nil)
-    end
+    DUI.Win.PanelAttr(g, "width", type(own) == "table" and own.width or nil)
     if DUI.Pad then DUI.Pad.Remember(g) end
     DUI.Fire("GameWindowBack", "character", "character", g)   -- the skins dress it now it shows as itself
 end
