@@ -86,21 +86,30 @@ T.test("windows: a game window shown before it could be parked stays the game's"
     T.eq(Win.Followers.Parked(def, "talk"), true, "parked once it closed")
 end)
 
-T.test("windows: a parked window handed back for a fight gets the game's own width back, and is parked again after", function()
+T.test("windows: parking, combat handoff and release preserve the game's panel layout", function()
     local DUI = stub.Load()
     local Win = DUI.Win
     local game = CreateFrame("Frame", "TestPanelWindow", UIParent)
+    game:SetSize(640, 480)
+    game:SetPoint("TOP", UIParent, "TOP", 0, -100)
+    game:SetAttribute("UIPanelLayout-width", 640)
+    game:SetAttribute("UIPanelLayout-area", "center")
     game:Hide()
-    local widths = {}
-    _G.SetUIPanelAttribute = function(f, key, v) if f == game and key == "width" then widths[#widths + 1] = v or "none" end end
-    _G.UIPanelWindows = { TestPanelWindow = { area = "center" } }   -- no width of its own, so the frame's width is used
+    local writes = {}
+    _G.SetUIPanelAttribute = function(f, key, v)
+        writes[#writes + 1] = { f, key, v }
+        f:SetAttribute("UIPanelLayout-" .. key, v)
+    end
+    _G.UIPanelWindows = { TestPanelWindow = { area = "center" } }
     local def = Win.Follow({ key = "fight", frames = { w = function() return game end }, veil = { w = true }, width = function() return 300 end })
     T.eq(game:GetParent(), Win.Followers.veil)
-    T.deq(widths, { 320 }, "ours, plus the gap")
+    Win.Followers.WriteWidth(def)
+    T.deq(writes, {}, "parking and a layout refresh leave native attributes alone")
     T.eq(Win.Followers.Unpark(def, "w"), true)
     T.eq(game:GetParent(), UIParent)
-    T.deq(widths, { 320, "none" }, "the game's own again")
+    T.deq(writes, {}, "handoff does not write a restore value")
     stub.EnterCombat()
+    Win.Followers.WriteWidth(def)
     Win.Followers.Tick()
     T.eq(game:GetParent(), UIParent, "not in the fight")
     stub.LeaveCombat()
@@ -108,6 +117,22 @@ T.test("windows: a parked window handed back for a fight gets the game's own wid
     T.eq(game:GetParent(), Win.Followers.veil, "parked again after it")
     game:Show()
     T.eq(Win.Followers.Unpark(def, "w"), false, "a shown one stays")
+    T.eq(Win.Followers.Lend(def, "w"), true)
+    T.eq(game:GetParent(), UIParent)
+    T.eq(Win.Followers.Reclaim(def, "w"), true)
+    T.eq(game:GetParent(), Win.Followers.veil)
+    T.eq(Win.Followers.Release(def, "w"), true)
+    T.eq(game:GetParent(), UIParent)
+    game:Hide()
+    Win.Followers.Tick()
+    T.eq(Win.Followers.Release(def, "w"), true, "a closed window can also be released")
+    stub.RunTimers()
+    T.deq(writes, {}, "no restore, reclaim or deferred width writes")
+    T.eq(game:GetAttribute("UIPanelLayout-width"), 640)
+    T.eq(game:GetAttribute("UIPanelLayout-area"), "center")
+    T.eq(game:GetWidth(), 640); T.eq(game:GetHeight(), 480)
+    T.eq(select(2, game:GetPoint(1)), UIParent)
+    T.eq(select(5, game:GetPoint(1)), -100)
     _G.UIPanelWindows = nil
 end)
 

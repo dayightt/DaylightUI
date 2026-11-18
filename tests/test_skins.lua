@@ -1276,8 +1276,12 @@ end)
 -- to its bottom left, the title and the X in the window's corners.
 T.test("skins: the flight map's title and X sit where our windows have them, with the same room round the map", function()
     local f, route, button, title, close
+    local panelAttr, panelWrites = { width = 590, height = 608 }, 0
     login(function()
         f = CreateFrame("Frame", "TaxiFrame", UIParent)
+        _G.SetUIPanelAttribute = function(frame, name, value)
+            if frame == f then panelWrites = panelWrites + 1; panelAttr[name] = value end
+        end
         f:SetSize(590, 608)
         f.InsetBg = f:CreateTexture("TaxiFrameInsetBg")
         f.InsetBg:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -24)
@@ -1336,6 +1340,8 @@ T.test("skins: the flight map's title and X sit where our windows have them, wit
     f:Hide(); f:Show(); stub.RunTimers()
     T.eq(f:GetWidth(), m + 580 + m, "the room made again")
     T.eq(f:GetHeight(), Win.COMPACT + m + 580 + m)
+    T.eq(panelWrites, 0, "sizing and reopening never write the native panel attributes")
+    T.deq(panelAttr, { width = 590, height = 608 }, "the native layout size stays unchanged")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4418,6 +4424,7 @@ end)
 -- rules and the coin box are their own frames.
 T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its pet slots our item look", function()
     local f, slot, bar, stabled, panelAttr, ownSelect, ownUpdate
+    local panelWrites = 0
     login(function()
         f = window("PetStableFrame")
         slot = CreateFrame("CheckButton", "PetStableCurrentPet", f)
@@ -4475,8 +4482,10 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
             end
             return { name = "Kaelen", level = 18, familyName = "Ave rapaz", loyaltyName = "Mejor amigo", loyaltyLevel = 6 }
         end }
-        panelAttr = {}
-        _G.SetUIPanelAttribute = function(frame, name, value) panelAttr[name] = value end
+        panelAttr = { width = 384, height = 522 }
+        _G.SetUIPanelAttribute = function(frame, name, value)
+            if frame == f then panelWrites = panelWrites + 1; panelAttr[name] = value end
+        end
         stub.loadedAddOns.Blizzard_StableUI = true
     end)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -4491,8 +4500,8 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     T.eq(_G.PetStableMoneyFrame.Border:GetAlpha(), 0, "the coin box gone")
     T.eq(f:GetWidth(), 448, "a little narrower than the wide pass")
     T.eq(f:GetHeight(), 570, "taller than the game's frame")
-    T.eq(panelAttr.width, 448, "the game's panel layout is told through its own call")
-    T.eq(panelAttr.height, 570, "the layout keeps that size")
+    T.eq(panelWrites, 0, "the skin does not write native panel attributes")
+    T.deq(panelAttr, { width = 384, height = 522 }, "the native layout size stays unchanged")
     local own = type(_G.UIPanelWindows) == "table" and _G.UIPanelWindows.PetStableFrame
     T.falsy(own and (own.width or own.height), "nothing written into the game's own panel table")
     local _, _, _, _, my = f.modelScene:GetPoint(1)
@@ -4579,4 +4588,9 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     f.__center = { 500, 400 }
     barDrag:GetScript("OnDragStop")(barDrag)
     T.truthy(stub.skins.WindowMove.Spot("PetStableFrame"), "its spot saved")
+    for _ = 1, 3 do f:Hide(); f:Show(); stub.RunTimers() end
+    T.eq(f:GetWidth(), 448, "reopening keeps the skin's size")
+    T.eq(f:GetHeight(), 570)
+    T.eq(panelWrites, 0, "refreshing, dragging and reopening never write native panel attributes")
+    T.deq(panelAttr, { width = 384, height = 522 })
 end)

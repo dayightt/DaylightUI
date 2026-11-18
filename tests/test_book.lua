@@ -160,12 +160,23 @@ T.test("book: switched off for fights, as a fight starts the game's book is hand
     T.eq(open(B), true, "ours again out of combat")
 end)
 
-T.test("book: switched off for fights, the panel width is ours while parked and the game's in the fight", function()
-    load({ loaded = true, fightBook = false })
-    local w = BW.state.panel[PlayerSpellsFrame]
-    T.eq(w and w.width, 620)
+T.test("book: switched off for fights, native panel width is never overridden or restored", function()
+    local B = load({ fightBook = false })
+    local writes, set = {}, SetUIPanelAttribute
+    _G.SetUIPanelAttribute = function(f, key, value)
+        writes[#writes + 1] = { key, value }
+        return set(f, key, value)
+    end
+    BW.LoadBook()
+    B.Apply()
+    T.deq(writes, {})
     stub.EnterCombat()
-    T.isnil(BW.state.panel[PlayerSpellsFrame].width, "the game's own (none: the frame's width)")
+    B.Apply()
+    stub.LeaveCombat()
+    frame(2)
+    T.eq(PlayerSpellsFrame:GetParent(), veil())
+    T.deq(writes, {}, "load, refresh, combat and repark do not write panel attributes")
+    T.isnil(BW.state.panel[PlayerSpellsFrame], "native frame width remains the fallback")
 end)
 
 T.test("book: switched off for fights, ours open as the fight starts stays ours; its X waits for the fight's end to close the game's", function()
@@ -426,11 +437,24 @@ T.test("book: a page dragged wider by the grip opens at that size again", functi
     T.near(f:GetWidth(), 600, 0.5, "the spellbook keeps its own")
 end)
 
-T.test("book: talents open as a side panel like the spellbook (the game's \"center\" closes every other window)", function()
-    load()
+T.test("book: page changes and handoffs keep the game's chosen panel area", function()
+    local B = load()
+    local writes, set = {}, SetUIPanelAttribute
+    _G.SetUIPanelAttribute = function(f, key, value)
+        writes[#writes + 1] = { key, value }
+        return set(f, key, value)
+    end
     BW.Open(BW.TALENTS)
     frame()
-    T.eq(BW.state.panel[PlayerSpellsFrame].area, "centerOrLeft", "talents move aside, nothing closes")
+    T.eq(BW.state.panel[PlayerSpellsFrame].area, "center", "native talents keep their panel behavior")
+    B.GiveAway()
+    T.eq(PlayerSpellsFrame:GetParent(), UIParent)
+    B.TakeBack()
+    frame()
+    T.eq(PlayerSpellsFrame:GetParent(), veil())
+    B.Show("spells")
+    B.Apply()
+    T.eq(BW.state.panel[PlayerSpellsFrame].area, "center", "our page and handoffs do not change the native tab's area")
     BW.Open(BW.SPELLBOOK)
     frame()
     T.eq(BW.state.panel[PlayerSpellsFrame].area, "centerOrLeft")
@@ -439,4 +463,6 @@ T.test("book: talents open as a side panel like the spellbook (the game's \"cent
     BW.Inspect("target")
     frame()
     T.eq(BW.state.panel[PlayerSpellsFrame].area, "center", "an inspect is the game's own window")
+    T.deq(writes, { { "area", "center" }, { "area", "centerOrLeft" }, { "area", "center" } },
+        "only the three native open operations set panel attributes")
 end)

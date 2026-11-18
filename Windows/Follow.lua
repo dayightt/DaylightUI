@@ -5,7 +5,6 @@
 -- IsShown every frame and report changes.
 --
 --   Win.Follow({ key = "npc", frames = { gossip = function() return GossipFrame end, ... },
---                width = function() return 400 end,          -- panel width the window takes
 --                changed = function(kind, shown) ... end,    -- a game window was shown or hidden
 --                onPark = function(kind, frame, parked) ... end })  -- optional: parked (true) or given back
 --                pin = function(kind, frame) ... end      -- optional: each poll while parked and shown, out of combat
@@ -41,7 +40,6 @@ Follow.veil:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", -64, -64)
 Follow.veil:SetAlpha(0)
 Follow.veil:SetClipsChildren(true)
 Follow.veil:EnableMouse(false)
-Follow.GAP = 20   -- space between the window and the next game window
 Follow.AWAY = 10000    -- offsets this large mean the window was moved off screen on purpose
 Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
 
@@ -53,29 +51,11 @@ local function frameOf(def, kind)
     return type(f) == "table" and f or nil
 end
 
--- Tell the game's panel layout how wide the Daylight UI window is so the next panel opens
--- beside it. The game sets this in an OnShow that never runs while parked.
--- In combat this is blocked (ADDON_ACTION_BLOCKED on SetAttributeNoHandler,
--- which pcall doesn't catch), so it waits until after combat.
-local function writeWidth(def, f)
-    if not def.width or type(SetUIPanelAttribute) ~= "function" then return end
-    if InCombatLockdown() then
-        DUI.AfterCombat(function() Follow.WriteWidth(def) end, "follow:width:" .. def.key)
-        return
-    end
-    pcall(SetUIPanelAttribute, f, "width", math.floor(def.width() + Follow.GAP + 0.5))
-end
-
--- Restore the game's own panel width (from UIPanelWindows, or nil for the
--- frame's own width) so it doesn't keep the Daylight UI width.
+-- Restore the parent and notify observers. The game's panel layout is left alone.
 local function giveBack(def, kind, f)
     f:SetParent(UIParent)
     def.parked[kind] = nil
     if DUI.Pad then DUI.Pad.Remember(f) end
-    if def.width and type(SetUIPanelAttribute) == "function" then
-        local own = type(UIPanelWindows) == "table" and UIPanelWindows[f:GetName() or ""]
-        pcall(SetUIPanelAttribute, f, "width", type(own) == "table" and own.width or nil)
-    end
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, false) end
     DUI.Fire("GameWindowBack", def.key, kind, f)   -- the skins dress it now it shows as itself
 end
@@ -87,7 +67,6 @@ local function park(def)
             and not (def.leave and def.leave(kind)) then
             f:SetParent(def.veil and def.veil[kind] and Follow.veil or Follow.hidden)
             def.parked[kind] = true
-            writeWidth(def, f)
             if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
         end
     end
@@ -115,7 +94,6 @@ function Follow.Reclaim(def, kind)
     def.lent[kind] = nil
     f:SetParent(Follow.veil)
     def.parked[kind] = true
-    writeWidth(def, f)
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
     return true
 end
@@ -202,10 +180,7 @@ function Win.Follow(def)
     return def
 end
 
--- Call when the window is resized or rescaled.
-function Follow.WriteWidth(def)
-    for kind in pairs(def.frames) do
-        local f = frameOf(def, kind)
-        if f and def.parked[kind] then writeWidth(def, f) end
-    end
-end
+-- Compatibility entry point for window resize callers. This experiment leaves
+-- native panel widths to the game, including on release and after combat.
+-- Daylight UI windows still size themselves; no native layout work is queued.
+function Follow.WriteWidth() end

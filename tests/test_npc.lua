@@ -37,7 +37,7 @@ T.test("npc: the game's gossip and quest windows are parked out of sight", funct
     local N = load()
     T.eq(GossipFrame:GetParent(), DaylightUI.Win.Followers.hidden)
     T.eq(QuestFrame:GetParent(), DaylightUI.Win.Followers.hidden)
-    T.eq(NW.state.panel["GossipFrame.width"], 420, "the panel room: ours plus the gap")
+    T.isnil(NW.state.panel["GossipFrame.width"], "parking leaves native panel width untouched")
     T.eq(N.frame:IsShown(), false)
 end)
 

@@ -126,7 +126,6 @@ function Book.Show(page)
     Win.PickTab(f, page)
     header(f, page)
     Win.ShowPage(f, page)
-    if Book.follow then Win.Followers.WriteWidth(Book.follow) end
 end
 
 function Book.Open(page)
@@ -191,7 +190,6 @@ end
 
 -- The game switched tabs, from a key press or an inspect.
 function Book.OnTabSet(_, _, tabID)
-    Book.SideArea()
     if ns.Fight and ns.Fight.Holds() then return end
     if not (Book.follow and Win.Followers.Shown(Book.follow, "book")) then return end
     local g = Book.Game()
@@ -200,17 +198,6 @@ function Book.OnTabSet(_, _, tabID)
     if not page then return end
     if not Win.IsOpen(Book.frame) then return Book.Open(page) end   -- closed by its X in combat while the game frame stayed up
     if page ~= Book.frame.current then Book.Show(page) end
-end
-
--- TrySetTab makes the talents tab a "center" panel, which closes every other
--- window. This window can share the screen, so use the spellbook's
--- "centerOrLeft" instead. Inspects keep the game's setting, and the call is
--- refused in combat.
-function Book.SideArea()
-    local g = Book.Game()
-    if not g or not DUI.bookOwnWindow or InCombatLockdown() or type(SetUIPanelAttribute) ~= "function" then return end
-    if not Book.Ours(g) then return end
-    pcall(SetUIPanelAttribute, g, "area", "centerOrLeft")
 end
 
 -- Arm the secure layer, or hand the game its book for this fight.
@@ -254,7 +241,6 @@ function Book.TakeBack()
     if InCombatLockdown() then return DUI.AfterCombat(Book.TakeBack, "book:takeback") end
     if not DUI.bookOwnWindow or not Book.Ours(g) then return end
     Win.Followers.Reclaim(Book.follow, "book")
-    Book.SideArea()
 end
 
 -- The game's book sits under this one (or will when it opens), so the Skins
@@ -330,7 +316,6 @@ function Book.Apply()
     elseif ns.Spells then ns.Spells.dirty = true end   -- refill on next use, including combat cast buttons
     local training = f.pages.training
     if training and training:IsVisible() then ns.Training.Refresh() end   -- repaint accent and gold
-    if Book.follow then Win.Followers.WriteWidth(Book.follow) end
 end
 
 -- ---------------------------------------------------------------------
@@ -431,8 +416,7 @@ function Book.Build(mod)
         if Win.IsOpen(f) then header(f, f.current) end
     end)
     Book.follow = Win.Follow({ key = "book", frames = { book = Book.Game }, veil = { book = true }, changed = Book.Changed,
-        leave = function() return not DUI.bookOwnWindow end,
-        width = function() return (Book.PageSize(f.current or "spells")) * Win.Scale(ns.Setting("scale")) end })
+        leave = function() return not DUI.bookOwnWindow end })
     Book.Apply()
     return f
 end

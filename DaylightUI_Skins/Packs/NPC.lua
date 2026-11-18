@@ -386,11 +386,6 @@ local function taxiLayout(f)
     local w, h = f:GetWidth(), f:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" or math.abs(w - width) > 0.01 or math.abs(h - height) > 0.01 then
         f:SetSize(width, height)
-        -- The panel manager places its neighbours by these.
-        if type(_G.SetUIPanelAttribute) == "function" then
-            pcall(_G.SetUIPanelAttribute, f, "width", width)
-            pcall(_G.SetUIPanelAttribute, f, "height", height)
-        end
     end
     local close = f.CloseButton
     if type(close) == "table" and close.SetPoint then
