@@ -5082,6 +5082,79 @@ T.test("cdm: a totem with no buff shows the totem's time while it stands (Searin
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Windfury Totem's buff is only on you in range of the totem. Its piece shows the
+-- totem's time, grayed and dimmed, with the buff's own button over it in full color
+-- while you have it, and the time over both.
+T.test("cdm: a totem with a buff shows the totem's time, dimmed out of range of its buff (Windfury Totem)", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard, AB.CdmAuras
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = D.Current()
+    AB.CdmSpells.SHAMAN = { { 8512, 10613, 10614, aura = true }, { 3599, 6363, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 12 } }, { [0] = { 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 10614, selfAura = true, hasAura = true }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    -- Slot 4 (air): its duration while a totem stands.
+    local air
+    local realDur, realInfo = _G.GetTotemDuration, _G.GetTotemInfo
+    _G.GetTotemDuration = function(slot) if slot == 4 then return air end end
+    _G.GetTotemInfo = function(slot)
+        return slot == 4 and air ~= nil, "", 0, 0, 0, 1, stub.Secret(slot == 4 and air and air.spell or 0)
+    end
+    local function cast(sid) stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-" .. sid, sid) end
+    local function totemUpdate() stub.FireEvent("PLAYER_TOTEM_UPDATE", 4); stub.RunTimers() end
+    Own.Forget()
+    D.AddPiece(set, 12, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    -- Buff not taught yet: the totem's time alone.
+    T.eq(Own.Track(12, set.pieces[12]), "totem", "buff not known yet: Totem")
+    T.eq(R.DrawnBy(12), "totem icon")
+    -- A cast taught it (CdmOwn.LearnAura): the Windfury Totem aura, 8515.
+    DUI.DB.Character().cdmAuraIDs = { [8512] = { [8515] = true } }
+    Own.Forget()
+    R.Refresh(); stub.RunTimers()
+    T.eq(Own.Track(12, set.pieces[12]), "both", "buff known: Totem and buff")
+    T.eq(R.DrawnBy(12), "totem and buff icon")
+    local icon = Own.Frame(12)
+    T.truthy(icon.totem and icon.totemBuff)
+    local holder = A.Frame(12)
+    T.truthy(holder and holder:IsShown(), "the buff's button over the icon")
+    T.truthy(A.SpellIDs(12)[8515], "it watches the taught aura")
+    T.isnil(icon.Cooldown.__duration, "no totem: no time")
+    T.eq(icon.Icon:GetAlpha(), 1, "no totem: full")
+    -- Dropped: the totem's time, the icon dimmed under the buff's button, the time on top.
+    air = { spell = 10614 }
+    cast(10614); totemUpdate()
+    T.eq(icon.Cooldown.__duration, air, "dropped: the totem's time")
+    T.eq(icon.Icon:GetAlpha(), Own.TOTEM_DIM, "dimmed: shows when the buff isn't covering it")
+    T.truthy(icon.Cooldown:GetFrameLevel() > holder:GetFrameLevel(), "the time over the buff's button")
+    -- Gone: full again.
+    air = nil
+    totemUpdate()
+    T.eq(icon.Icon:GetAlpha(), 1)
+    -- The card offers Totem and buff, and the header says so.
+    local shown
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.item and r.item.key == "cdm.card.buffTotemTrack" then shown = r.show(set, 12, set.pieces[12]) end
+        if r.item and r.item.key == "cdm.card.track" then
+            T.falsy(r.show(set, 12, set.pieces[12]), "not the plain buff dropdown")
+        end
+    end
+    T.truthy(shown, "What it shows: Totem and buff")
+    -- Buff only: the game's aura alone. Cooldown: the game's icon.
+    T.truthy(D.SetSpellValue(set, 12, "track", "buff"))
+    T.eq(Own.Track(12, set.pieces[12]), "buff")
+    T.truthy(D.SetSpellValue(set, 12, "track", "cooldown"))
+    T.eq(Own.Track(12, set.pieces[12]), "cooldown")
+    _G.GetTotemDuration, _G.GetTotemInfo = realDur, realInfo
+    _G.GetSpellBaseCooldown = nil
+    DUI.DB.Character().cdmAuraIDs = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Eureka! (a Gnome racial) gives a buff the game doesn't flag, so its card had no
 -- What it shows choice.
 T.test("cdm card: Eureka! can pick its buff", function()

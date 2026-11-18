@@ -332,8 +332,10 @@ local function claim(item)
             -- land or end; and a buff's charges (Shield Block, Holy Shield;
             -- Own.Stacks).
             local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
-            -- A totem (Track "totem") is timed by Daylight UI from its slot.
-            cooldown = t ~= nil and (t == "totem" or pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
+            -- A totem (Track "totem", or "both" for Totem and buff) is timed by Daylight UI from its slot.
+            local C = ns.CdmCustom
+            local totem = t == "totem" or (t == "both" and C ~= nil and C.Totem(Own.SpellOf(id)) ~= nil)
+            cooldown = t ~= nil and (totem or pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
                 or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
                 or Fx.Get(p, "buffEndSound") ~= "none" or Fx.Get(p, "clipGlow") == true
                 or (t == "both" and (not follows or Own.Stacks(id) or blind)))
@@ -401,6 +403,11 @@ local HOLDS = { ["aura icon"] = true, ["aura bar"] = true, ["aura and cooldown b
 local function drawOurs(id, p, block, f, always, aura, track)
     local set, Own = passSet, ns.CdmOwn
     local item
+    -- A totem with its buff known (CdmOwn.Track "both"): Totem and buff. A bar
+    -- shows the totem's time alone.
+    local C = ns.CdmCustom
+    local buffTotem = track == "both" and C ~= nil and Own ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
+    if buffTotem and block.kind == "bar" then track, buffTotem = "totem", false end
     if block.kind == "bar" then
         local Bars = ns.CdmBars
         if not Bars then return nil end
@@ -455,16 +462,18 @@ local function drawOurs(id, p, block, f, always, aura, track)
         drawn[id] = "own icon"
     end
     -- A totem's icon or bar runs on the totem's time (CdmCustom.TotemUp).
-    local totem = track == "totem" or nil
-    if item and item.totem ~= totem then
-        item.totem = totem
+    local totem = (track == "totem" or buffTotem) or nil
+    if item and (item.totem ~= totem or item.totemBuff ~= (buffTotem or nil)) then
+        item.totem, item.totemBuff = totem, buffTotem or nil
         if block.kind == "bar" then
             if ns.CdmBars then ns.CdmBars.UpdateCooldown(item) end
         else
             Own.Update(item)
         end
     end
-    if totem and item then drawn[id] = block.kind == "bar" and "totem bar" or "totem icon" end
+    if totem and item then
+        drawn[id] = buffTotem and "totem and buff icon" or block.kind == "bar" and "totem bar" or "totem icon"
+    end
     return item
 end
 

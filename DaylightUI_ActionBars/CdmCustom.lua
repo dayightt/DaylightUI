@@ -135,6 +135,14 @@ Custom.SUMMONS = { [1293241] = { lasts = 18, most = 2 } }
 -- Searing and Magma Totem. The spell list flags them as buffs. Their pieces show
 -- the totem's time while it stands (Custom.TotemUp).
 Custom.TOTEMS = { [3599] = 1, [8190] = 1 }
+-- Every totem's slot, by rank 1 id (1 fire, 2 earth, 3 water, 4 air). A totem whose
+-- buff is known shows the totem's time with the buff over it (Totem and buff).
+Custom.TOTEM_SLOTS = {
+    [3599] = 1, [8190] = 1, [8227] = 1, [8181] = 1,                      -- Searing, Magma, Flametongue, Frost Resistance
+    [2484] = 2, [5730] = 2, [8071] = 2, [8075] = 2, [8143] = 2,          -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor
+    [8170] = 3, [8184] = 3, [5394] = 3, [5675] = 3, [16190] = 3, [8166] = 3, -- Disease Cleansing, Fire Resistance, Healing Stream, Mana Spring, Mana Tide, Poison Cleansing
+    [8835] = 4, [8177] = 4, [10595] = 4, [6495] = 4, [8512] = 4, [15107] = 4, -- Grace of Air, Grounding, Nature Resistance, Sentry, Windfury, Windwall
+}
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
@@ -329,18 +337,36 @@ function Custom.KeyOfSpell(sid)
     end
 end
 
--- Any rank of a TOTEMS totem: its slot and family key, or nil.
+-- Any rank of any totem: its slot and family key, or nil.
 function Custom.Totem(sid)
     local k = type(sid) == "number" and not isSecret(sid) and Custom.KeyOfSpell(sid)
     local f = k and index[k]
-    local slot = f and Custom.TOTEMS[f.ids[1]]
+    local slot = f and (Custom.TOTEM_SLOTS[f.ids[1]] or Custom.TOTEMS[f.ids[1]])
     if slot then return slot, k end
 end
 
--- Which TOTEMS totem stands in each slot: [slot] = family key. The slot's spell is
+-- Whether a cast of any rank of this totem has taught its buff (CdmOwn.AuraOf).
+-- Until then its buff's id isn't known, so nothing could show it.
+function Custom.TotemBuffKnown(sid)
+    local _, k = Custom.Totem(sid)
+    local Own = ns.CdmOwn
+    if not (k and Own and Own.AuraOf) then return false end
+    for _, id in ipairs(index[k].ids) do
+        if Own.AuraOf(id) then return true end
+    end
+    return false
+end
+
+-- Any rank of a totem that puts no buff on you (TOTEMS): its slot and family key.
+function Custom.TotemNoBuff(sid)
+    local slot, k = Custom.Totem(sid)
+    if slot and Custom.TOTEMS[index[k].ids[1]] then return slot, k end
+end
+
+-- Which totem stands in each slot: [slot] = family key. The slot's spell is
 -- secret in a fight, but your own casts aren't, so a cast says which totem went in.
 local standing = {}
-local castAt = {}   -- [slot] = when a TOTEMS totem was last cast into it
+local castAt = {}   -- [slot] = when a totem was last cast into it
 Custom.TOTEM_CAST_WINDOW = 1   -- seconds from the cast to its slot's update
 
 -- The totem's duration while this spell's totem stands, else nil. Whether the
@@ -375,8 +401,8 @@ totems:SetScript("OnEvent", function(_, event, a, _, sid)
         standing[slot] = nil
         return
     end
-    -- A totem went in that wasn't just cast from the list (another fire totem):
-    -- read its spell where it can be, else it isn't one of ours.
+    -- A totem went in with no cast of ours just before it: read its spell where it
+    -- can be, else it isn't one we know.
     if GetTime() - (castAt[slot] or 0) > Custom.TOTEM_CAST_WINDOW then
         local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
         local _, key = Custom.Totem(okI and plain(spell) or nil)

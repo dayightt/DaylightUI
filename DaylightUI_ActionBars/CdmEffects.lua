@@ -969,7 +969,7 @@ local function totemUp(item)
         local d = C and C.TotemUp(Fx.SpellOf(item))
         if type(d) == "nil" or d == false then return false end
     else
-        if not (C and C.Totem(Fx.SpellOf(item))) then return false end
+        if not (C and C.TotemNoBuff(Fx.SpellOf(item))) then return false end
         if type(item.GetTotemData) ~= "function" then return false end
         local ok, totem = pcall(item.GetTotemData, item)
         if not ok or type(totem) == "nil" then return false end

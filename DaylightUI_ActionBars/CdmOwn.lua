@@ -99,8 +99,16 @@ function Own.Track(id, p, known)
     -- A totem with no buff (CdmCustom.TOTEMS) shows the totem's time while it
     -- stands, or with Cooldown picked stays the game's icon. A pick from before
     -- (Both, Buff only) reads as Totem.
-    if C and C.Totem(Own.SpellOf(id)) then
+    if C and C.TotemNoBuff(Own.SpellOf(id)) then
         return not (type(p) == "table" and p.track == "cooldown") and "totem" or nil
+    end
+    -- Any other totem shows the totem's time too. Once a cast of any rank has taught its buff,
+    -- the buff covers the icon while you have it (Totem and buff, "both"), so the
+    -- icon shows when you're out of its range. Buff only and Cooldown stay as picked.
+    if C and C.Totem(Own.SpellOf(id)) then
+        local t = Own.Picked(p)
+        if t == "cooldown" or t == "buff" then return t end
+        return C.TotemBuffKnown(Own.SpellOf(id)) and "both" or "totem"
     end
     -- No buff known yet: a plain cooldown, unless the player picked something else.
     -- The buff is watched by the spell's own id until a cast teaches the real one.
@@ -442,13 +450,25 @@ end
 
 function Own.Frame(id) return frames[id] end
 
+Own.TOTEM_DIM = 0.5          -- icon alpha while a totem stands and you lack its buff
+Own.TOTEM_TIME_LEVEL = 20    -- the totem's time over the buff's button (CdmAuras.Over: +10)
+
 function Own.Update(f)
     local sid = f.cooldownInfo and f.cooldownInfo.spellID
     if not sid or type(f.Cooldown) ~= "table" then return end
     local ok, dur
     local C = ns.CdmCustom
+    -- Totem and buff lifts the time over the buff's button; anything else has it
+    -- back at its own level, at full opacity.
+    f.cdLevel = f.cdLevel or (f.Cooldown:GetFrameLevel() - f:GetFrameLevel())
+    local buffed = f.totem == true and f.totemBuff == true
+    f.Cooldown:SetFrameLevel(f:GetFrameLevel() + (buffed and Own.TOTEM_TIME_LEVEL or f.cdLevel))
+    if not buffed then f.Icon:SetAlpha(1) end
     if f.totem and C then                  -- a totem: its time while it stands
         ok, dur = true, C.TotemUp(sid)
+        -- Totem and buff: dimmed while the totem stands, under the buff's button,
+        -- which covers it in full color while you have the buff. The time stays on top.
+        f.Icon:SetAlpha(f.totemBuff and type(dur) ~= "nil" and Own.TOTEM_DIM or 1)
     elseif C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
         local _, d = C.ItemCooldown(f.cooldownID)
         ok, dur = true, d
