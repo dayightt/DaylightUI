@@ -26,6 +26,8 @@ DUI.PatchNotes = {
             { "General", "Daylight UI's questions no longer push open windows aside" },
             { "Quests", "The quest tracker's box leaves room for the All and This zone buttons" },
             { "General", "Taking a boat, zeppelin or hearth, or entering a dungeon, no longer asks you to reload Daylight UI's layout" },
+            { "Unit Frames", "The swing timer fades away with your other frames when you sit at a campfire" },
+            { "Unit Frames", "The game's own flag carrier bars no longer show under the minimap next to Daylight UI's in battlegrounds" },
         },
     },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",
