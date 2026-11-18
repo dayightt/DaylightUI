@@ -4512,6 +4512,7 @@ L["Extra auras left / right"] = "Доп. эффекты влево / вправ�
 L["Extra auras up / down"] = "Доп. эффекты вверх / вниз"
 L["Extra scale for every other plate while you have a target. Plate size by threat (Nameplates > Threat) wins while it's on."] = "Дополнительный масштаб для всех остальных индикаторов, пока у вас есть цель. Пока включен размер индикатора по угрозе (Индикаторы > Угроза), он важнее."
 L["Extra scale for your target's plate, on top of Nameplate scale."] = "Дополнительный масштаб индикатора цели, сверх «Масштаба индикаторов»."
+L["Extra space between the lines of the Daylight chat box, so messages sit further apart. 0 is the game's own spacing."] = "Дополнительное расстояние между строками окна чата Daylight, чтобы сообщения стояли дальше друг от друга. 0 — интервал самой игры."
 L["Fade out world tooltips"] = "Исчезание подсказок в мире"
 L["Fade the marker and arrow in a fight"] = "Приглушать маркер и стрелку в бою"
 L["Finding a group, listing yourself and the who list, in one window, in Daylight UI style."] = "Поиск группы, заявка о себе и список «Кто» в одном окне в стиле Daylight UI."
