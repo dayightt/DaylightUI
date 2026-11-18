@@ -463,7 +463,13 @@ end
 
 function CD.PaintKey(item, block, name)
     local text, t = CD.KeyText(block, name)
-    if not text then return CD.ClearKey(item) end
+    if not text then
+        -- Stay on the list: a spell off the bar for a moment (a form change) gets
+        -- its key back on the next repaint.
+        CD.ClearKey(item)
+        keyed[item] = { block, name }
+        return
+    end
     local l = keyLabels[item]
     if not l then
         l = CreateFrame("Frame", nil, item)

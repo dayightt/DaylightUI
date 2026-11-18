@@ -26,8 +26,8 @@ Donators.LIST = {
     "Allkamet",
     "Torrent",
     "SPARQ",
-    "Pownzerfaust",
     "Somebody",
+    "Pownzerfaust",
     "Tih Tahz",
     "Thorvald87",
     "Popatuna",
@@ -61,6 +61,10 @@ Donators.LIST = {
     "Extra Shmitty",
     "Korvaethryn",
     "Goodums",
+    "Zylbar",
+    "Narnia",
+    "amshagar",
+    "HappyS",
     "ramnokri",
     "Shady",
     "Diaper Daddy",
@@ -103,6 +107,10 @@ Donators.MONTHLY = {
     "Korvaethryn",
     "Goodums",
     "eterion1234",
+    "Zylbar",
+    "Narnia",
+    "amshagar",
+    "HappyS",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"

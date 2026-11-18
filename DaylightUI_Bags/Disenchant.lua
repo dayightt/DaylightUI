@@ -1,5 +1,5 @@
--- Spell buttons in the bag's tool row: Disenchant, and Comprehend Scroll for
--- characters who know it. Click one to get the targeting hand, then click an
+-- Spell buttons in the bag's tool row: Disenchant, Comprehend Scroll and Pick
+-- Lock, each for characters who know it. Click one to get the targeting hand, then click an
 -- item, same as casting from the spellbook.
 --
 -- Casting needs a secure button, and a secure button inside the bag would keep
@@ -87,3 +87,7 @@ ns.Disenchant = Tool({ spell = 13262, icon = "ui-disenchant.png",
 -- A WoW: Forever spell, learned from a trainer, cast on a scroll in the bags.
 ns.Comprehend = Tool({ spell = 1296017, icon = "ui-micro-quests.png",
     name = "DaylightUIBagComprehend", key = "comprehendButton", title = L["Comprehend Scroll"] })
+
+-- A rogue's Pick Lock, cast on a lockbox in the bags.
+ns.PickLock = Tool({ spell = 1804, icon = "ui-lock.png",
+    name = "DaylightUIBagPickLock", key = "pickLockButton", title = L["Pick Lock"] })

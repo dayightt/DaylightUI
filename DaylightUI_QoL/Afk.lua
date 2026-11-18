@@ -47,7 +47,7 @@ local function call(fn, ...)
     if ok then return a, b, c, d end
 end
 
-local function plain(v) return v ~= nil and not secret(v) end
+local function plain(v) return type(v) ~= "nil" and not secret(v) end
 
 local function wanted() return mod and mod.db and mod.db.afkScreen ~= false end
 

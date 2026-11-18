@@ -2814,6 +2814,29 @@ T.test("fold ready: a ready quest shows its title alone", function()
     T.truthy(#Tr.frames["quest:2"].block.lines > 1, "a timed quest never folds")
 end)
 
+T.test("ready last: quests ready to hand in gather in their own section after the rest, not in a fight", function()
+    local Tr = tracker({ quests = { QW.quest(1, "A", { complete = true }), QW.quest(2, "B", { objs = kills(1) }),
+        QW.quest(3, "C", { zone = "Elwynn Forest", complete = true }) } })
+    DaylightUI:Set("Quests", "sort", "zone")
+    stub.RunTimers()
+    local before = order(Tr)
+    DaylightUI:Set("Quests", "readyLast", true)
+    stub.RunTimers()
+    local now = order(Tr)
+    T.eq(now[1], 2, "the quest still to do on top")
+    T.eq(#now, 3, "nothing lost")
+    local header
+    for _, b in ipairs(Tr.shown) do if b.kind == "header" and b.id == "ready" then header = b end end
+    T.truthy(header, "a Ready to turn in section")
+    T.eq(header.count, "2")
+    for _, b in ipairs(Tr.shown) do
+        if b.kind == "quest" and b.quest.id ~= 2 then T.truthy(b.y > header.y, "ready ones under it") end
+    end
+    DaylightUI:Set("Quests", "readyLast", false)
+    stub.RunTimers()
+    T.deq(order(Tr), before, "off: back in their zones")
+end)
+
 -- A dungeon's quests and one from outside it, tracked; inside, the game's
 -- zone is the dungeon's name.
 local function dungeon(opts)

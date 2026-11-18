@@ -33,7 +33,8 @@ Social.page = "friends"   -- page to open on: the last one shown this session
 
 -- Status labels and their dot colors (header and friend rows).
 Social.STATUS = { "on", "away", "busy" }
-Social.STATUS_WORD = { on = L["Available"], away = L["Away"], busy = L["Busy"], off = L["Offline"] }
+Social.STATUS_WORD = { on = L["Available"], away = L["Away"], busy = L["Busy"], off = L["Offline"],
+    hidden = L["Appearing offline"] }
 function Social.StatusColor(status)
     local I = Style.INK
     return status == "on" and I.GOOD or status == "away" and I.WARN or status == "busy" and I.BAD or I.OFF
@@ -121,11 +122,11 @@ function Social.CopyTag()
         input = { initial = tag, locked = true } })
 end
 
--- Available, Away, Busy, broadcast: only from a click (the calls require one).
+-- Available, Away, Busy, appear offline, broadcast: only from a click (the calls require one).
 function Social.StatusMenu(owner)
-    local keys = { "on", "away", "busy", "broadcast" }
+    local keys = { "on", "away", "busy", "hidden", "broadcast" }
     local values = { on = Social.STATUS_WORD.on, away = Social.STATUS_WORD.away, busy = Social.STATUS_WORD.busy,
-        broadcast = L["Broadcast..."] }
+        hidden = L["Appear offline"], broadcast = L["Broadcast..."] }
     DUI.Widgets.OpenMenu(owner, keys, values, (ns.Data.Me()), function(k)
         if k == "broadcast" then
             local _, now = ns.Data.Me()
