@@ -30,6 +30,7 @@ DUI.PatchNotes = {
             { "Unit Frames", "The game's own flag carrier bars no longer show under the minimap next to Daylight UI's in battlegrounds" },
             { "Info panel", "The tab beside the minimap opens and folds the damage meter in combat too" },
             { "Tooltips", "Macro tooltips keep Daylight UI's look in a fight too" },
+            { "Cooldown Manager", "Buff bars no longer stack on top of Slice and Dice after you change or clear your target" },
         },
     },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",
