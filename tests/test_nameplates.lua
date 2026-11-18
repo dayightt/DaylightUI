@@ -4209,7 +4209,7 @@ T.test("nameplates: /dui platecheck says what the game answers about the camera,
     T.truthy(text:find("behindCamera=true", 1, true), text)
     T.truthy(text:find("nameplate2: friendly, player=true", 1, true), text)
     T.truthy(text:find("behindCamera=false", 1, true), text)
-    T.truthy(text:find("box=ours", 1, true), "whether the game plate has its stacking frame")
+    T.truthy(text:find("boxRequested=ours", 1, true), "which stacking frame was requested")
 end)
 
 T.test("nameplates: /dui plateprobe hands each plate it can reach its own stacking frame", function()

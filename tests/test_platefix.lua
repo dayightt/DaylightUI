@@ -145,7 +145,6 @@ T.test("platefix: the report carries a log of what happened before step 1", func
     DaylightUI.Fade.SetUIAlpha(1)
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
-    f.SetIsFrameBuffer = function() end
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
@@ -356,7 +355,6 @@ T.test("platefix: the report names Daylight UI's modules and its own global piec
     T.truthy(text:find("UIParent alpha 1.00", 1, true), text)
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
-    f.SetIsFrameBuffer = function() end
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     text = table.concat(NP.Manager.ReportWorld(), "\n")

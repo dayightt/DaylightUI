@@ -3,4 +3,7 @@
     <Binding name="DAYLIGHTUI_SHOWALL" category="BINDING_HEADER_DAYLIGHTUI">
         if DaylightUI and DaylightUI.FadeShowAll then DaylightUI.FadeShowAll() end
     </Binding>
+    <Binding name="DAYLIGHTUI_PLATECAPTURE" category="BINDING_HEADER_DAYLIGHTUI">
+        if DaylightUI and DaylightUI.RunCommand then DaylightUI.RunCommand("platecapture") end
+    </Binding>
 </Bindings>

@@ -533,12 +533,28 @@ local function openGame(F, page)
     F.Tick()
 end
 
-T.test("character follow: at login the game's window is parked and told our width", function()
-    local F, ns = following()
+-- Observe the native layout API without modelling the client's protected state.
+local function watchNativePanel()
+    CW.state.panel.width, CW.state.panel.height = 384, 512
+    local calls, set = {}, SetUIPanelAttribute
+    _G.SetUIPanelAttribute = function(frame, key, value)
+        if frame == CharacterFrame then calls[#calls + 1] = { key, value } end
+        return set(frame, key, value)
+    end
+    return function()
+        T.eq(#calls, 0, "no native panel attribute writes, including restores")
+        T.deq(CW.state.panel, { width = 384, height = 512 }, "the native layout attributes stay unchanged")
+    end
+end
+
+T.test("character follow: at login the game's window is parked without changing its layout attributes", function()
+    local check
+    local F, ns = following(nil, { before = function() check = watchNativePanel() end })
     T.eq(CharacterFrame:GetParent(), F.hidden)
     T.eq(F.hidden:GetParent(), UIParent, "under UIParent: keeps its scale and spot")
     T.eq(F.parked, true)
-    T.eq(CW.state.panel.width, 980)
+    T.eq(ns.window:GetWidth(), 960, "our window still has its own width")
+    check()
 end)
 
 T.test("character follow: a /reload in combat parks once combat ends", function()
@@ -548,12 +564,18 @@ T.test("character follow: a /reload in combat parks once combat ends", function(
     T.eq(F.parked, true)
 end)
 
-T.test("character follow: icons only and scale change the width the game is told", function()
-    local _, _, DUI = following()
+T.test("character follow: icons only and scale resize ours without changing native layout attributes", function()
+    local check
+    local _, ns, DUI = following(nil, { before = function() check = watchNativePanel() end })
     DUI:Set("Character", "names", false)
-    T.eq(CW.state.panel.width, 760)
+    T.eq(ns.window:GetWidth(), 740)
     DUI:Set("Character", "scale", 1.2)
-    T.eq(CW.state.panel.width, 908)
+    T.eq(ns.window:GetScale(), 1.2)
+    stub.EnterCombat()
+    DUI:Set("Character", "names", true)
+    stub.LeaveCombat()
+    T.eq(ns.window:GetWidth(), 960, "our layout still updates across combat")
+    check()
 end)
 
 T.test("character follow: the game opens, ours opens on the same page", function()
@@ -1972,9 +1994,9 @@ T.test("character currency: the pane, the backpack switch, folding", function()
 end)
 
 T.test("character currency: the transfer opens the game's own page, then ours comes back", function()
-    local _, ns = load({ currency = currency() })
+    local check
+    local _, ns = load({ currency = currency() }, { before = function() check = watchNativePanel() end })
     local page = openPage(ns, "TokenFrame")
-    CW.state.panel.width = nil
     page.pane.button:Click()
     T.eq(ns.Follow.parked, false)
     T.eq(CharacterFrame:GetParent(), UIParent)
@@ -1989,7 +2011,7 @@ T.test("character currency: the transfer opens the game's own page, then ours co
     T.eq(ns.Follow.parked, true)
     T.eq(CharacterFrame:GetParent(), ns.Follow.hidden)
     T.eq(ns.Slots.lent, true)
-    T.eq(CW.state.panel.width, 980, "our width told again")
+    check()
 end)
 
 T.test("character currency: no transfer in combat", function()
@@ -2051,7 +2073,8 @@ end)
 
 -- The player's pick between the two windows (Win.Swap), switched live.
 T.test("character swap: the header's swap button hands over to the game's window and it stays picked", function()
-    local _, ns = load()
+    local check
+    local _, ns = load(nil, { before = function() check = watchNativePanel() end })
     local F = ns.Follow
     ToggleCharacter("ReputationFrame")
     F.Tick()
@@ -2077,11 +2100,13 @@ T.test("character swap: the header's swap button hands over to the game's window
     F.Tick()
     T.falsy(ns.Window.IsOpen(), "C opens the game's window")
     T.truthy(CharacterFrame:IsVisible())
+    check()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("character swap: the game's window's link switches back to Daylight UI's, no reload", function()
-    local _, ns = load(nil, { login = false })
+    local check
+    local _, ns = load(nil, { login = false, before = function() check = watchNativePanel() end })
     DaylightUI.DB.Active().modules.Character = { enabled = false }
     stub.FireEvent("PLAYER_LOGIN")
     stub.RunTimers()
@@ -2104,6 +2129,7 @@ T.test("character swap: the game's window's link switches back to Daylight UI's,
     ToggleCharacter("SkillsFrame")
     ns.Follow.Tick()
     T.falsy(ns.Window.IsOpen(), "C closes it as before")
+    check()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

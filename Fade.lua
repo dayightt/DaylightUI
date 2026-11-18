@@ -24,6 +24,11 @@ local _, DUI = ...
 local Fade = {}
 DUI.Fade = Fade
 
+-- Issue 80 experiment, selected when packaging the build, before any area loads.
+-- Skip every framebuffer setter (both on and off), while keeping flattening,
+-- ownership and alpha behavior. This is not a fix or a runtime switch.
+local EXPERIMENT_NO_FRAMEBUFFERS = false
+
 Fade.TICK = 0.1 -- how often goals are checked
 Fade.OUT = 0.6 -- seconds to fade all the way out
 Fade.IN = 0.35 -- and to come all the way back
@@ -284,30 +289,99 @@ end
 -- it. It only changes out of combat (bars and tiles are protected), so an
 -- area that can fade keeps it on even at full, ready for a fight.
 local wholeDue = {}
-local wholeOn = setmetatable({}, { __mode = "k" })
 local wholeAll = setmetatable({}, { __mode = "k" })
+local bufferRequests, bufferSkipped = 0, 0
 
 -- A frame drawn to its own buffer keeps its own opacity, not UIParent's (seen in
 -- game: unit frames stayed over the AFK screen). While the whole UI is faded,
 -- by the AFK screen or another addon, buffers come off so everything fades together.
 local uiAway = false
 
+local function setBuffer(f, on, buffer)
+    bufferRequests = bufferRequests + 1
+    if EXPERIMENT_NO_FRAMEBUFFERS then
+        bufferSkipped = bufferSkipped + 1
+        return true
+    end
+    return pcall(buffer, f, on)
+end
+
 local function setWhole(f, on)
-    local flat, buffer = f.SetFlattensRenderLayers, f.SetIsFrameBuffer
-    if type(flat) ~= "function" or type(buffer) ~= "function" then return end
+    local flat = f.SetFlattensRenderLayers
+    local buffer = not EXPERIMENT_NO_FRAMEBUFFERS and f.SetIsFrameBuffer
+    if type(flat) ~= "function" or (not EXPERIMENT_NO_FRAMEBUFFERS and type(buffer) ~= "function") then return end
     local ok
-    if on then ok = pcall(flat, f, true) and pcall(buffer, f, true)
-    else ok = pcall(buffer, f, false) and pcall(flat, f, false) end
+    if on then ok = pcall(flat, f, true) and setBuffer(f, true, buffer)
+    else ok = setBuffer(f, false, buffer) and pcall(flat, f, false) end
     if ok then
+        -- In the experiment this is transition bookkeeping, not native buffer state.
         f.fadeWhole = on
-        wholeOn[f] = on or nil
     end
 end
 
--- How many frames have buffering enabled (including hidden frames).
+-- Read only our tracked roots, including roots that no longer have a request.
+-- Explicit and effective flattening are distinct native flags. Missing, secret
+-- or refused reads stay unknown; no frame names or error text leave this audit.
+function Fade.BufferAudit()
+    local out = { noFrameBuffers = EXPERIMENT_NO_FRAMEBUFFERS, tracked = 0, requested = 0,
+        requestedUnknown = 0, requests = bufferRequests, skipped = bufferSkipped,
+        enabled = 0, bufferUnknown = 0, flattened = 0, flattenUnknown = 0,
+        effectiveFlattened = 0, effectiveUnknown = 0, unknown = 0, errors = 0 }
+    local function read(f, method)
+        local ok, v = pcall(function()
+            local fn = f[method]
+            if type(fn) ~= "function" then error("unavailable") end
+            return fn(f)
+        end)
+        if not ok then out.errors = out.errors + 1; return nil end
+        if isSecret(v) or type(v) ~= "boolean" then return nil end
+        return v
+    end
+    for f in pairs(wholeAll) do
+        out.tracked = out.tracked + 1
+        local ok, requested = pcall(function()
+            local whys = f.fadeWhy
+            return type(whys) == "table" and next(whys) ~= nil
+        end)
+        if not ok then
+            out.errors = out.errors + 1
+            out.requestedUnknown = out.requestedUnknown + 1
+        elseif requested then out.requested = out.requested + 1 end
+        local active = read(f, "IsFrameBuffer")
+        local flat = read(f, "GetFlattensRenderLayers")
+        local effective = read(f, "GetEffectivelyFlattensRenderLayers")
+        if active == nil then out.bufferUnknown = out.bufferUnknown + 1
+        elseif active then out.enabled = out.enabled + 1 end
+        if flat == nil then out.flattenUnknown = out.flattenUnknown + 1
+        elseif flat then out.flattened = out.flattened + 1 end
+        if effective == nil then out.effectiveUnknown = out.effectiveUnknown + 1
+        elseif effective then out.effectiveFlattened = out.effectiveFlattened + 1 end
+        if not ok or active == nil or flat == nil or effective == nil then out.unknown = out.unknown + 1 end
+    end
+    return out
+end
+
+DUI.RegisterCommand("platebufferstatus", function()
+    local a, L = Fade.BufferAudit(), DUI.L
+    DUI.Print(string.format(L["platebufferstatus: startup buffer block=%s; roots=%d requested=%d unknown requests=%d; setter requests=%d skipped=%d"],
+        a.noFrameBuffers and "on" or "off", a.tracked, a.requested, a.requestedUnknown, a.requests, a.skipped))
+    DUI.Print(string.format(L["platebufferstatus: native buffers=%d unknown=%d; flat=%d unknown=%d; effective flat=%d unknown=%d; unknown roots=%d read errors=%d"],
+        a.enabled, a.bufferUnknown, a.flattened, a.flattenUnknown, a.effectiveFlattened, a.effectiveUnknown, a.unknown, a.errors))
+end)
+
+local function readBuffer(f) return f:IsFrameBuffer() end
+
+-- The recorder uses the same minimal native readback in both builds. Full
+-- flattening/ownership audit is only requested explicitly by BufferAudit.
+-- Any unreadable root makes the total unknown, including hidden roots.
 function Fade.WholeCount()
-    local n = 0
-    for _ in pairs(wholeOn) do n = n + 1 end
+    local n, unknown = 0, false
+    for f in pairs(wholeAll) do
+        local ok, active = pcall(readBuffer, f)
+        if not ok or isSecret(active) or type(active) ~= "boolean" then unknown = true
+        elseif active then n = n + 1 end
+    end
+    if unknown then return nil end
     return n
 end
 

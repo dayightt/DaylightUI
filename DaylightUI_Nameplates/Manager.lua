@@ -1066,17 +1066,215 @@ Manager.CHECK_DETAIL = 6 -- plates listed in full; a crowd would flood the chat
 
 local asked, state = Report.Asked, Report.State
 
+-- A small, read-only snapshot for the opt-in recorder. Only fixed keys and
+-- primitive state leave this function, except identity (the core uses that
+-- reference for consecutive samples and must never serialize it).
+local function captureValue(fn, ...)
+    if isSecret(fn) or type(fn) ~= "function" then return nil, false end
+    local ok, value = pcall(fn, ...)
+    if not ok or isSecret(value) then return nil, false end
+    return value, true
+end
+
+local function captureField(object, key)
+    if isSecret(object) or type(object) ~= "table" then return nil, false end
+    return captureValue(function() return object[key] end)
+end
+
+local function captureRead(object, method, kind)
+    local fn = captureField(object, method)
+    local value, ok = captureValue(fn, object)
+    if not ok or type(value) ~= kind then return nil end
+    if kind == "number" and (value ~= value or value <= -math.huge or value >= math.huge) then return nil end
+    return value
+end
+
+local function captureAccess(object)
+    return captureRead(object, "IsForbidden", "boolean") == false
+        and captureRead(object, "CanBeAccessedInContext", "boolean") == true
+end
+
+function Manager.CaptureState(unit, np)
+    local out = { owned = false }
+    if isSecret(unit) or type(unit) ~= "string" then return out end
+    local p = captureField(byUnit, unit)
+    if type(p) == "table" then out.owned, out.identity = true, p end
+    if not captureAccess(np) then return out end
+    out.nativeShown = captureRead(np, "IsShown", "boolean")
+    out.nativeVisible = captureRead(np, "IsVisible", "boolean")
+    out.nativeAlpha = captureRead(np, "GetEffectiveAlpha", "number")
+    out.nativeScale = captureRead(np, "GetEffectiveScale", "number")
+    if not out.owned or not captureAccess(p) then return out end
+    out.oursShown = captureRead(p, "IsShown", "boolean")
+    out.oursVisible = captureRead(p, "IsVisible", "boolean")
+    out.oursAlpha = captureRead(p, "GetEffectiveAlpha", "number")
+    out.oursScale = captureRead(p, "GetEffectiveScale", "number")
+    out.width = captureRead(p, "GetWidth", "number")
+    out.height = captureRead(p, "GetHeight", "number")
+    local parent, parentOK = captureValue(captureField(p, "GetParent"), p)
+    local cached, cachedOK = captureField(p, "nameplate")
+    if parentOK and cachedOK then out.attached = parent == np and cached == np end
+    for field, key in pairs({ barShown = "hp", nameShown = "name", badgeShown = "badge" }) do
+        local child = captureField(p, key)
+        if captureAccess(child) then out[field] = captureRead(child, "IsShown", "boolean") end
+    end
+    local minion = captureField(p, "minion")
+    if type(minion) == "boolean" then out.minion = minion end
+    local laid = captureField(p, "laid")
+    local nameOnly = captureField(laid, "nameOnly")
+    if type(nameOnly) == "boolean" then out.nameOnly = nameOnly end
+
+    -- Plate.ShowNow deliberately hides these. A sticky softOnly flag stays set
+    -- until a show-setting/friendliness recheck, even after the soft target moves.
+    for _, key in ipairs({ "testHidden", "fixPaused", "fixStep", "fixWithout" }) do
+        local value, ok = captureField(Manager, key)
+        if not ok then return out end
+        if value then out.expected = false; return out end
+    end
+    for _, key in ipairs({ "isSample", "corpse", "softOnly" }) do
+        local value, ok = captureField(p, key)
+        if not ok then return out end
+        if value then out.expected = false; return out end
+    end
+    local assigned = captureField(p, "unit")
+    local generation = captureField(laid, "gen")
+    if assigned ~= unit or generation ~= ns.Plate.gen then return out end
+    local goal = captureField(p, "dimGoal")
+    if type(goal) ~= "number" or goal ~= goal or goal == math.huge or goal == -math.huge then return out end
+    if goal <= 0.05 then out.expected = false; return out end
+    local exists = captureValue(UnitExists, unit)
+    local widgets = captureValue(UnitNameplateShowsWidgetsOnly, unit)
+    local dead = captureValue(UnitIsDead, unit)
+    local player = captureValue(UnitIsPlayer, unit)
+    if exists == false or widgets == true or (dead == true and player == false) then
+        out.expected = false; return out
+    end
+    if exists ~= true or widgets ~= false or type(dead) ~= "boolean" or type(player) ~= "boolean" then return out end
+    -- Match Plate.IsFriendly without using its unknown-as-enemy fallback.
+    local attack = captureValue(UnitCanAttack, "player", unit)
+    local friendly
+    if attack == true then friendly = false
+    elseif attack == false then
+        local ghost = captureValue(UnitIsDeadOrGhost, "player")
+        if ghost == false then friendly = true
+        elseif ghost == true then
+            local friend = captureValue(UnitIsFriend, "player", unit)
+            if type(friend) == "boolean" then friendly = friend end
+        end
+    end
+    if friendly == nil then return out end
+    local cvar = friendly and (player and "nameplateShowFriendlyPlayers" or "nameplateShowFriendlyNpcs")
+        or "nameplateShowEnemies"
+    local shown = captureValue(GetCVar, cvar)
+    if shown == "0" then out.expected = false; return out end
+    if shown ~= "1" then return out end
+    if not friendly then
+        local minionUnit = captureValue(UnitIsMinion, unit)
+        if type(minionUnit) ~= "boolean" then return out end
+        if minionUnit then
+            local minions = captureValue(GetCVar, "nameplateShowEnemyMinions")
+            if minions == "0" then out.expected = false; return out end
+            if minions ~= "1" then return out end
+        end
+    end
+    local behind = captureValue(captureField(C_NamePlateManager, "IsNamePlateUnitBehindCamera"), unit)
+    if behind == true or out.nativeShown == false or out.nativeVisible == false
+        or (out.nativeAlpha and out.nativeAlpha <= 0.05) or (out.nativeScale and out.nativeScale <= 0) then
+        out.expected = false; return out
+    end
+    if behind ~= false or out.nativeShown ~= true or out.nativeVisible ~= true
+        or not out.nativeAlpha or not out.nativeScale then return out end
+    out.expected = true
+    -- Parent identity, explicit visibility and opacity are root invariants.
+    -- hp/name are intentionally both hidden for a badge; never infer a fault
+    -- from those content flags or from this root's normal 1x1 layout size.
+    if out.attached == nil or out.oursShown == nil or out.oursVisible == nil
+        or out.oursAlpha == nil or out.oursScale == nil then return out end
+    if out.attached == false then out.reason = "owned_detached"
+    elseif out.oursShown == false then out.reason = "owned_hidden"
+    elseif out.oursVisible == false then out.reason = "owned_invisible"
+    elseif out.oursAlpha == 0 then out.reason = "owned_alpha_zero" end
+    return out
+end
+
+-- The ownership tables record what we requested. The game's separate CVar
+-- callbacks can replace the actual click anchors after its frame is parked.
+-- Read only references here; never inspect names, coordinates, or secret values.
+local function readClicks(np, uf)
+    local ok, owner = pcall(function()
+        local get = np.GetHitTestPoints
+        if isSecret(get) or type(get) ~= "function" then return "unknown" end
+        local anchors = get(np)
+        if isSecret(anchors) or type(anchors) ~= "table" then return "unknown" end
+        local count, last = 0, 0
+        for key in pairs(anchors) do
+            if isSecret(key) or type(key) ~= "number" or key < 1 or key % 1 ~= 0 then return "unknown" end
+            count, last = count + 1, math.max(last, key)
+        end
+        if last ~= count then return "unknown" end -- malformed or sparse array
+        if count == 0 then return "none" end
+        local ours, game = false, false
+        for i = 1, count do
+            local anchor = anchors[i]
+            if isSecret(anchor) or type(anchor) ~= "table" then return "unknown" end
+            local target = anchor.relativeTo
+            if isSecret(target) or type(target) ~= "table" then return "unknown" end
+            if target == clickOf[np] then
+                ours = true
+            else
+                local native = target == np
+                -- Native anchors can name a FontString or health bar under the
+                -- parked game frame. A bounded walk also refuses cyclic parents.
+                for _ = 1, 32 do
+                    if target == uf then native = true; break end
+                    if target == np then break end
+                    local parent = target.GetParent
+                    if isSecret(parent) or type(parent) ~= "function" then break end
+                    target = parent(target)
+                    if isSecret(target) or type(target) ~= "table" then break end
+                end
+                if not native then return "unknown" end
+                game = true
+            end
+        end
+        return ours and (game and "mixed" or "ours") or "game"
+    end)
+    return ok and owner or "unknown"
+end
+
+local function expectedClicks(unit)
+    local widgets = plain(UnitNameplateShowsWidgetsOnly, unit)
+    if widgets == true then return "none" end
+    if widgets ~= false then return "unknown" end
+    local player = plain(UnitIsPlayer, unit)
+    if player == false then return "ours" end
+    if player ~= true then return "unknown" end
+    local friend = plain(UnitIsFriend, "player", unit)
+    if friend == false then return "ours" end
+    if friend ~= true then return "unknown" end
+    local nameOnly = plain(GetCVar, Manager.NAME_ONLY_CVAR)
+    if nameOnly == "1" then return "none" end
+    return nameOnly == "0" and "ours" or "unknown"
+end
+
 -- One plate's lines, and whether it looks wrong.
 function Manager.CheckOne(unit, np)
     if forbidden(np) then return { unit .. ": the game keeps this plate from addons (forbidden)" }, true end
     local lines, wrong = Report.PlateHead(unit, np)
     local uf = np.UnitFrame
-    if type(uf) == "table" then
-        local okP, parent = pcall(uf.GetParent, uf)
-        lines[#lines + 1] = string.format("  game frame onPlate=%s held=%s clicks=%s box=%s", tostring(okP and parent == np),
-            tostring(held[uf] == true), clickOf[np] and "ours" or "game's", stackOf[np] and "ours" or "none")
-    end
     local p = byUnit[unit]
+    if not isSecret(uf) and type(uf) == "table" then
+        local okP, parent = pcall(uf.GetParent, uf)
+        local clicks = readClicks(np, uf)
+        local expected = p and p.nameplate == np and Manager.fixWithout ~= "hide" and expectedClicks(unit) or "unknown"
+        lines[#lines + 1] = string.format("  game frame onPlate=%s held=%s clicks=%s clicksExpected=%s boxRequested=%s",
+            tostring(okP and not isSecret(parent) and parent == np), tostring(held[uf] == true), clicks, expected,
+            stackOf[np] and "ours" or "none")
+        if expected == "ours" and clicks ~= "ours" and clicks ~= "unknown" then
+            lines[#lines + 1] = "  click area differs from the expected Daylight UI area"
+            wrong = true
+        end
+    end
     if not p then
         lines[#lines + 1] = "  no plate of ours, refused=" .. tostring(refused[np] == true)
         return lines, true

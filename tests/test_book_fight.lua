@@ -213,6 +213,11 @@ end)
 
 T.test("book fight: after the fight, ours opened in it gets the game's book back under it", function()
     local ns = load({ loaded = true })
+    local writes, set = {}, SetUIPanelAttribute
+    _G.SetUIPanelAttribute = function(f, key, value)
+        writes[#writes + 1] = { key, value }
+        return set(f, key, value)
+    end
     stub.EnterCombat()
     BW.Key("N")
     settle()
@@ -225,6 +230,8 @@ T.test("book fight: after the fight, ours opened in it gets the game's book back
     T.eq(PlayerSpellsFrame:IsShown(), true, "the game's book opened again, parked")
     T.eq(PlayerSpellsFrame:GetTab(), BW.TALENTS)
     T.eq(PlayerSpellsFrame:GetParent(), veil())
+    T.eq(BW.state.panel[PlayerSpellsFrame].area, "center")
+    T.deq(writes, { { "area", "center" } }, "only the native reopen writes its area; no addon width or area writes")
     BW.Escape()
     settle()
     T.eq(open(ns), false, "Escape closes both again")

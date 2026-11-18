@@ -132,10 +132,6 @@ local function sizeStable(f)
         return
     end
     f:SetSize(STABLE_W, STABLE_H)
-    if type(_G.SetUIPanelAttribute) == "function" then
-        pcall(_G.SetUIPanelAttribute, f, "width", STABLE_W)
-        pcall(_G.SetUIPanelAttribute, f, "height", STABLE_H)
-    end
 end
 
 local function placeSlots(f)

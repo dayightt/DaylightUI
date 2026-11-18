@@ -46,15 +46,9 @@ function Follow.CurrentPage()
     return "character"
 end
 
--- Tells the game's panel layout this window's width so the next panel opens
--- beside it. The layout reads the panel attribute, not GetWidth, and the game
--- only sets it in OnShow, which never runs while parked.
-function Follow.WriteWidth()
-    local g = Follow.Game()
-    if not (g and Follow.parked and type(SetUIPanelAttribute) == "function") then return end
-    local w = ns.Window.Width() * DUI.Win.Scale(ns.Setting("scale")) + ns.Window.GAP
-    pcall(SetUIPanelAttribute, g, "width", math.floor(w + 0.5))
-end
+-- This diagnostic build leaves the game's panel attributes untouched. Keep the
+-- callback for Window.Apply, which still lays out and scales our own window.
+function Follow.WriteWidth() end
 
 -- Out of combat only. Waits while the game's window is un-parked (currency transfer).
 function Follow.Park()
@@ -195,7 +189,7 @@ function Follow.Start()
 end
 
 -- The player picked the game's own window. A parked one comes back for good, with
--- its slot buttons and its own panel width; an open one shows as itself where
+-- its slot buttons; an open one shows as itself where
 -- this window was. Out of combat only (Win.Swap waits for the fight to end).
 function Follow.Release()
     Follow.given = true
@@ -208,10 +202,6 @@ function Follow.Release()
     if ns.Slots then ns.Slots.Return() end
     Follow.parked = false
     g:SetParent(UIParent)
-    if type(SetUIPanelAttribute) == "function" then
-        local own = type(UIPanelWindows) == "table" and UIPanelWindows.CharacterFrame
-        pcall(SetUIPanelAttribute, g, "width", type(own) == "table" and own.width or nil)
-    end
     if DUI.Pad then DUI.Pad.Remember(g) end
     DUI.Fire("GameWindowBack", "character", "character", g)   -- the skins dress it now it shows as itself
 end
