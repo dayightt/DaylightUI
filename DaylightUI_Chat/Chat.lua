@@ -93,7 +93,7 @@ local function font(obj, size, flags)
     if type(obj) ~= "table" or not obj.GetFont then return end
     local file, current, currentFlags = obj:GetFont()
     size = size or current
-    flags = flags or ""
+    flags = Style.Slug(flags)
     if type(size) ~= "number" then return end
     local want = Style.FontFile(ns.MEDIA.font)
     if file ~= want or size ~= current or (currentFlags or "") ~= flags then obj:SetFont(want, size, flags) end

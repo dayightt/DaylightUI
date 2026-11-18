@@ -581,7 +581,7 @@ function A.SetAmount(h, on, text)
             -- Above the client's button.
             h.amount:SetFrameLevel(h:GetFrameLevel() + 20)
             local t = text or h.text
-            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Outline())
+            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Slug(Style.Outline()))
             local c = t and t.cdColor or Style.INK.VALUE
             h.amount.text:SetTextColor(c[1], c[2], c[3])
         end
@@ -710,7 +710,7 @@ function placeFace(h)
     f.icon:SetPoint("TOPLEFT", f.box, "TOPLEFT", T, -T)
     f.icon:SetSize(math.max(1, size - 2 * T), math.max(1, size - 2 * T))
     local t = h.text
-    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Outline())
+    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Slug(Style.Outline()))
     local cc = t and t.countColor or Skin.COUNT_COLOR
     f.count:SetTextColor(cc[1], cc[2], cc[3])
     if t then ns.Cooldowns.PlaceCount(f.count, f.icon, t.countSpot) end

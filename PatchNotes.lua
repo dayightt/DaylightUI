@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        changed = {
+            { "General", "Outlined text is drawn the way the game draws its own text in the world, so outlines look crisper" },
+        },
         fixed = {
             { "General", "\"Use this font for the game's text\" no longer changes the combat text over you or the names over people's heads, and the range dot on hotkeys stays a dot" },
         },

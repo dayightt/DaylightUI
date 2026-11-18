@@ -101,7 +101,7 @@ end
 -- again after it does.
 local function styleTime(fs, size)
     local S = DUI.Style
-    fs:SetFont(S.FontFile(ns.MEDIA.font), size, S.Outline())
+    fs:SetFont(S.FontFile(ns.MEDIA.font), size, S.Slug(S.Outline()))
     fs:SetShadowOffset(S.TEXT_SHADOW[1], S.TEXT_SHADOW[2])
     fs:SetShadowColor(0, 0, 0, S.TEXT_SHADOW[3])
     fs:SetTextColor(TIME_COLOR[1], TIME_COLOR[2], TIME_COLOR[3])

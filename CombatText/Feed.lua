@@ -218,7 +218,7 @@ local function paintWarnLook()
     local s = CT.Get("streams.notes")
     local face = DUI.GameFonts.CombatTextWanted() or Style.FONT
     for _, fs in ipairs({ warn.health, warn.mana }) do
-        fs:SetFont(face, s.size * (tonumber(DUI.DB.General().fontScale) or 1), CT.Get("outline") or "")
+        fs:SetFont(face, s.size * (tonumber(DUI.DB.General().fontScale) or 1), DUI.Style.Slug(CT.Get("outline")))
         fs:SetTextColor(c[1], c[2], c[3])
         fs:SetShadowOffset(1, -1)
         fs:SetShadowColor(0, 0, 0, 0.75)
