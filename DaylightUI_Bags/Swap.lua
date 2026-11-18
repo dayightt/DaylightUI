@@ -5,8 +5,8 @@
 -- bag or quiver takes what it can, and at a banker the bank takes the rest (a
 -- chat line says how many). A chat line also says when there still isn't room.
 -- Never in combat. The new bag must come from the bags themselves (not the bank
--- or another bag slot); anything else is left to the game. So is a plain bag with
--- room for everything in the old one: the game swaps it and carries the items over.
+-- or another bag slot); anything else is left to the game. So is a plain bag at
+-- least as big as the old one: the game swaps it and carries the items over.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -209,9 +209,10 @@ function Swap.Try(bag, inv)
     if #contents(bag) == 0 then return false end      -- empty, the game swaps it itself
     local from = heldFrom(id)
     if not from then return false end
-    -- A plain bag with room for all of it: the game swaps them and moves the items in.
+    -- A plain bag at least as big as the old one: the game swaps them and moves the
+    -- items in. A smaller one goes through the emptying, even when the items would fit.
     local size = plainBag(id) and bagSize(from.bag, from.slot)
-    if size and size >= #contents(bag) then return false end
+    if size and size >= ns.Bags.Size(bag) then return false end
     local t = { bag = bag, inv = inv, id = id, new = from, tries = 0, used = {}, banked = 0 }
     local _, short = plan(bag, nil, id)
     if short > 0 and not ns.Stack.Next() then
