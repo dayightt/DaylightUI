@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "Unit frames", "Each unit frame's page has its own Name and Cast bar tabs, with the cast bar in the preview" },
             { "Group finder", "Role badges in the group finder, the raid page and chat match the party and raid frames" },
             { "Profiles", "The Immersive preset shows the micro menu in the corner, faded until you mouse over it" },
+            { "Chat", "Speech bubbles in the Daylight look are now laid over the game's own instead of reshaping them" },
             { "Languages", "Many more German texts thanks to WalAffe, and more Simplified Chinese thanks to Levis" },
         },
         fixed = {
