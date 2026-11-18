@@ -1,4 +1,4 @@
-# DaylightUI 1.9.4.2
+# DaylightUI 1.9.4.3
 
 Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.
 
