@@ -1,0 +1,55 @@
+local stub = require("stub")
+local RW = require("rollworld")
+
+-- Loot roll counts and tooltips (QoL/RollData.lua, RollTally.lua,
+-- RollSample.lua), on the fake loot rolls of tests/rollworld.lua.
+
+T.test("loot rolls world: the loot history lists each encounter's drops with their rolls", function()
+    stub.Load({ before = RW.Install })
+    RW.SetDrop(7, 2, { link = RW.SWORD, rolls = { { "Dusk", "ROGUE", "greed", 40 } } })
+    RW.SetDrop(7, 1, { link = RW.CLOAK, rolls = { { "Brannoc", "WARRIOR", "need", 87, winner = true },
+        { "Corvina", "PALADIN", "none", secret = { playerName = true } } } })
+    local encounters = C_LootHistory.GetAllEncounterInfos()
+    T.eq(#encounters, 1)
+    T.eq(encounters[1].encounterID, 7)
+    local drops = C_LootHistory.GetSortedDropsForEncounter(7)
+    T.eq(#drops, 2, "both drops")
+    T.eq(drops[1].lootListKey, 2, "in the order they were first set")
+    local cloak = drops[2]
+    T.eq(cloak.itemHyperlink, RW.CLOAK)
+    T.eq(cloak.rollInfos[1].state, Enum.EncounterLootDropRollState.NeedMainSpec)
+    T.eq(cloak.winner, cloak.rollInfos[1], "the winner's roll")
+    T.truthy(issecretvalue(cloak.rollInfos[2].playerName), "a field the game keeps secret")
+    T.eq(cloak.rollInfos[2].state, Enum.EncounterLootDropRollState.NoRoll)
+end)
+
+T.test("loot rolls world: a roll opens a popup, and its buttons show the game's own tooltip", function()
+    stub.Load({ before = RW.Install })
+    local started
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("START_LOOT_ROLL")
+    f:SetScript("OnEvent", function(_, _, id) started = id end)
+    RW.Open({ rollID = 11, link = RW.CLOAK, canNeed = false })
+    T.truthy(RW.Popup(1):IsShown())
+    T.eq(started, 11, "START_LOOT_ROLL")
+    T.eq(GetLootRollItemLink(11), RW.CLOAK)
+    T.eq(GroupLootContainer.rollFrames[1], RW.Popup(1))
+    T.deq(RW.LineTexts(RW.Hover(RW.Button(1, "need"))), { "Need", RW.CANT_NEED })
+    RW.Unhover(RW.Button(1, "need"))
+    T.deq(RW.Lines(), {}, "gone on leave")
+    RW.Open({ rollID = 12, link = RW.SWORD, frame = 2, queued = true })
+    T.eq(started, 11, "a popup from the queue sends no event")
+    RW.Close(11)
+    T.falsy(RW.Popup(1):IsShown())
+end)
+
+T.test("loot rolls world: the loot roll skin dresses the fake popups", function()
+    stub.Load({ skins = true, before = RW.Install })
+    stub.RunTimers()
+    RW.Open({ rollID = 11, link = RW.CLOAK })
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local S = stub.skins
+    T.truthy(S.LootRoll.Of(RW.Popup(1)), "the skin's pieces on it")
+    T.eq(RW.Button(1, "need"):GetWidth(), S.LootRoll.BUTTON, "its buttons the skin's size")
+end)
