@@ -10,7 +10,7 @@ DUI.ADDON_NAME = ADDON_NAME
 
 -- What the core files define. If one is missing at login (an update caught
 -- halfway) a single line is printed. tests/test_guards.lua keeps this in sync.
-DUI.CORE_PARTS = { "DB", "Pixel", "Style", "Tips", "GameFonts", "DamageText", "Motion", "Sound", "Pad", "Media", "Health", "Threat", "Interrupt", "Spots", "Dots", "PrivateAuras", "Taint", "BugReport", "PlateReport", "Gradients", "BarFx", "Movers",
+DUI.CORE_PARTS = { "DB", "Pixel", "Style", "Tips", "GameFonts", "DamageText", "Motion", "Sound", "Pad", "Media", "Health", "Threat", "Interrupt", "Spots", "Dots", "PrivateAuras", "Taint", "BugReport", "PlateReport", "PlateRenderProbe", "PlateCapture", "Gradients", "BarFx", "Movers",
     "GameMovers", "PTRButton", "QuestieAside", "PrettyAside", "OpenMap", "CombatText", "Fade", "FadeUpgrade", "EditMode", "Options", "OptionsTheme", "Widgets", "SampleStrip",
     "OptionsNav", "OptionsResults", "OptionsPanel", "Installer", "InstallerDraft", "InstallerPages", "InstallerCards",
     "InstallerUI", "InstallerSteps", "InstallerPlugins", "Profiles", "Alts", "Plugins", "APIReport", "Donators", "Notes", "TestBox", "Win", "Tour" }

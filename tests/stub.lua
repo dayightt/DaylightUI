@@ -466,6 +466,9 @@ end
 function Widget:SetID(id) self.__id = id end
 function Widget:GetID() return self.__id or 0 end
 function Widget:SetFrameLevel(l) self.__level = l end
+-- Native buffer flag readback only; the stub does not simulate rendering.
+function Widget:SetIsFrameBuffer(v) self.__frameBuffer = v and true or false end
+function Widget:IsFrameBuffer() return self.__frameBuffer == true end
 function Widget:SetFrameStrata(s) self.__strata = s end
 -- A frame without its own strata takes its parent's, like the client.
 function Widget:GetFrameStrata()
@@ -3361,7 +3364,7 @@ function stub.WrapSecrets()
     end
 end
 
-stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
+stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "PlateRenderProbe.lua", "PlateCapture.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerUI.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",

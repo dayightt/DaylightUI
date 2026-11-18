@@ -699,6 +699,9 @@ R.FIX = {
 
 local fixStep, fixRun
 
+-- A passive observer must ignore changes deliberately made by platefix.
+function R.FixActive() return fixStep ~= nil end
+
 function R.FixReport(step)
     local run = fixRun or { did = {}, before = {} }
     local out = { string.format("Daylight UI %s platefix (%s): %s", tostring(DUI.VERSION), R.OFF,

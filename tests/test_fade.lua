@@ -1428,6 +1428,7 @@ local function counted(f)
         self.buffer = on
         self.calls[#self.calls + 1] = "buffer"
     end
+    function f:IsFrameBuffer() return self.buffer == true end
     return f
 end
 
