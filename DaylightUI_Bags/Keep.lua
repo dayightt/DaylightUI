@@ -137,6 +137,13 @@ local function plan(list)
         end
     end
     table.sort(loose, before)
+    -- The game's "clean up toward the end" switch: fill from the last open slot back.
+    local rev = C_Container and C_Container.GetSortBagsRightToLeft
+    if type(rev) == "function" and rev() == true then
+        for i = 1, math.floor(#targets / 2) do
+            targets[i], targets[#targets + 1 - i] = targets[#targets + 1 - i], targets[i]
+        end
+    end
     -- More items than open slots: the still-empty kept slots take the rest.
     for _, at in ipairs(spare) do
         if #targets < #loose then targets[#targets + 1] = at end

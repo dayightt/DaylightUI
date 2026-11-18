@@ -158,16 +158,20 @@ function Leader.Wanted(db)
     return testing() or Leader.Rank() ~= nil or (Leader.asked == true and Leader.MayOpen()) or shownToMember(db)
 end
 
--- Where the card opens from the tab, toward the screen's middle. side is
--- "right" when the tab is left of the middle, else "left". down is true when
--- it's above the middle (the card hangs from its top), otherwise the card
--- rises from its bottom, so it stays on screen.
+-- Where the card opens from the tab: the leader.opens setting's side, or on
+-- "auto" toward the screen's middle ("right" when the tab is left of the
+-- middle, else "left"). down is true when it's above the middle (the card
+-- hangs from its top), otherwise the card rises from its bottom, so it stays
+-- on screen.
 function Leader.Side(frame)
+    local db = Leader.db
+    local pick = db and db.leader and db.leader.opens
     local x, y
     if frame then x, y = frame:GetCenter() end
-    if type(x) ~= "number" then return "right", true end
+    if type(x) ~= "number" then return (pick == "left" and "left" or "right"), true end
     local r = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
     local side = x * r <= UIParent:GetWidth() / 2 and "right" or "left"
+    if pick == "left" or pick == "right" then side = pick end
     return side, y * r >= UIParent:GetHeight() / 2
 end
 

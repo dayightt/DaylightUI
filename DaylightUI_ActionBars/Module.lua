@@ -17,6 +17,6 @@ DaylightUI:RegisterModule("ActionBars", {
     OnSettingChanged = function(mod, path) ns.Bars.SettingChanged(mod, path) end,
     OnStyleChanged = function(mod)
         ns.Bars.Refresh(mod)
-        if mod.db.skinMenus then ns.Menus.PaintMicro() end
+        if mod.db.skinMenus then ns.Menus.PaintMicro(); ns.Menus.PaintBagCount() end
     end,
 })

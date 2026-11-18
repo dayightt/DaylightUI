@@ -1587,8 +1587,38 @@ local function dropShopFilter(e)
 end
 Report.DropShopFilter = dropShopFilter
 
+-- DaylightMogul's vendor window, when it stands in for ours (DUI.vendorMogul),
+-- is the shelf plugins see: its tiles are "shoptile" frames (API.ShopItem,
+-- GetPart, FrameStyled, as ours) and FilterShop runs on its list. Mogul's
+-- Bridge/Shop.lua calls these, pinned by tests/test_mogul_contract.lua.
+--   MogulShop.Hook(parts, refill)  parts(tile) -> { icon, name }; refill() fills its shelf again
+--   MogulShop.Tiles(list)          after each fill: { { frame, tab, index, id, link } } on show
+--   MogulShop.Clear()              its window closed
+--   MogulShop.Filter(items)        the shelf without what plugins leave off
+local MogulShop = {}
+DUI.MogulShop = MogulShop
+local mogulRefill
+function MogulShop.Hook(parts, refill)
+    if type(parts) ~= "function" or type(refill) ~= "function" then return end
+    mogulRefill = refill
+    Report.Parts("shoptile", parts)
+    Report.Repainter("shoptile", refill, true)
+end
+function MogulShop.Tiles(list)
+    for _, t in ipairs(type(list) == "table" and list or {}) do
+        if type(t) == "table" and type(t.frame) == "table" and (t.tab == "buy" or t.tab == "buyback") and t.index then
+            Report.Row("shoptile", t.frame, t.tab .. ":" .. t.index,
+                { tab = t.tab, index = t.index, id = t.id, link = t.link }, false)
+        end
+    end
+    Report.ListDone("shoptile")
+end
+function MogulShop.Clear() Report.ListClear("shoptile") end
+function MogulShop.Filter(items) return Report.FilterShop(items) end
+
 -- Fills the vendor window's shelf again (a plugin's filter changed).
 function API.RefreshShop()
+    if mogulRefill then DUI.SafeCall(mogulRefill) end
     local Npc = DUI.Npc
     local Shop = type(Npc) == "table" and Npc.Shop
     if type(Shop) == "table" and type(Shop.Refresh) == "function" then DUI.SafeCall(Shop.Refresh, true) end

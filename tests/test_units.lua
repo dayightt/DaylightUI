@@ -312,6 +312,7 @@ end)
 
 T.test("friendly units out of range fade; unchecked ones and enemies don't", function()
     local DUI, ns = login()
+    DUI.Fade.BUFFERS = true
     local f = ns.frames.target
     stub.units.target = { name = "Pal", isPlayer = true, class = "MAGE", friend = true, party = true, inRange = false }
     ns.UF.UpdateRange(f)
