@@ -769,6 +769,25 @@ T.test("info panel: the meter can wait for a group, for combat, or both", functi
     T.truthy(P.meterArea:IsShown(), "test mode always shows it")
 end)
 
+T.test("info panel: the fold tab opens and folds the meter in a fight too", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    local click = P.arrow:GetScript("OnClick")
+    click(P.arrow)
+    settle()
+    T.falsy(P.meterArea:IsShown(), "folded")
+    stub.EnterCombat()
+    click(P.arrow)
+    settle()
+    T.truthy(P.meterArea:IsShown(), "opens at once in a fight, not after it")
+    click(P.arrow)
+    settle()
+    T.falsy(P.meterArea:IsShown(), "folds at once in a fight too")
+    stub.LeaveCombat()
+    settle()
+    T.falsy(P.meterArea:IsShown(), "still folded after the fight")
+end)
+
 T.test("info panel: joining a group keeps, asks about, or resets the fights", function()
     local DUI = login()
     stub.meter.fights = { { sessionID = 1 } }

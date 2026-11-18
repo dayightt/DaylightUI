@@ -3185,6 +3185,47 @@ T.test("chat daylight: a tab remembers the channel you last talked in, whispers 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's own channel id names a world channel, whatever the language calls it.
+T.test("chat daylight: world channels are known by the game's id, not their name", function()
+    daylight()
+    local CH = stub.chatModule
+    local Kinds, Tags = CH.Kinds, CH.Tags
+    local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
+    local old = _G.C_ChatInfo
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function(n) return ids[n] and { zoneChannelID = ids[n] } or nil end }
+    Kinds.ChannelsChanged()
+    T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "Spanish Local Defense")
+    T.eq(Kinds.OfChannel("Comercio local - Ventormenta"), Kinds.TRADE_LOCAL, "Spanish Trade (Local)")
+    T.eq(Kinds.OfChannel("General: Vallefresno"), "general", "a colon zone")
+    T.eq(Kinds.OfChannel("BuscarGrupo"), "lfg", "Spanish Looking For Group")
+    T.eq(Tags.Standard("BuscarGrupo", 5), "LFG")
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD", "its tag, not the bare number")
+    T.eq(Tags.Standard("Comercio local", 4), "TL")
+    T.eq(Tags.Standard("Comercio", 2), "T")
+    -- World Defense and Newcomer have no id and share a kind with Local Defense and
+    -- General, but keep their own tags.
+    T.eq(Tags.Standard("WorldDefense", 7), "WD")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N")
+    -- The game can't say: the names still work, in any case.
+    _G.C_ChatInfo = nil
+    Kinds.ChannelsChanged()
+    T.eq(Kinds.OfChannel("DefensaLocal"), "defense", "by name without the game's help")
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD")
+    T.eq(Tags.Standard("Comercio local", 4), "TL", "Trade (Local) in Spanish, by name")
+    T.eq(Tags.Standard("WorldDefense", 7), "WD", "World Defense by name")
+    T.eq(Tags.Standard("NewcomerChat", 8), "N", "Newcomer by name")
+    -- A secret name is never sent to the game, which errors on one.
+    local asked = false
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function() asked = true end }
+    local name = stub.Secret("Comercio")
+    Kinds.ChannelsChanged()
+    T.eq(Tags.OfName(name), nil)
+    T.eq(asked, false, "the game was not asked about a secret name")
+    _G.C_ChatInfo = old
+    Kinds.ChannelsChanged()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game prints "Changed Channel: [6. LookingForGroup 84]". The number after the
 -- name must not make it a channel of its own.
 T.test("chat daylight: LookingForGroup with a number after it is still LFG", function()
@@ -3381,6 +3422,23 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
     T.eq(select(3, box:GetFont()), "OUTLINE")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: line spacing spreads the box's lines, and 0 is the game's own", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    local gap
+    box.SetSpacing = function(_, v) gap = v end
+    Box.Font()
+    T.eq(gap, 0, "untouched: the game's own spacing")
+    DUI:Set("Chat", "lineSpacing", 6)
+    stub.RunTimers()
+    T.eq(gap, 6, "the chosen pixels")
+    DUI:Set("Chat", "lineSpacing", -3)
+    stub.RunTimers()
+    T.eq(gap, 0, "never negative")
+    DUI:Set("Chat", "lineSpacing", 0)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -4076,8 +4134,11 @@ T.test("chat daylight: a header icon's tooltip shows at once, with its name and 
         local icon = Box.main.icons[name]
         if icon then
             got = nil
-            icon:GetScript("OnEnter")(icon)   -- no timer to run: it is up on entering
-            T.truthy(got and got.title, name .. ": has a name at once")
+            icon.IsMouseOver = function() return true end
+            icon:GetScript("OnEnter")(icon)
+            T.falsy(got, name .. ": waits for the mouse to rest, as every icon button does")
+            stub.RunTimers()
+            T.truthy(got and got.title, name .. ": has a name")
             T.truthy(got.desc, name .. ": and a line on what it does")
             T.eq(tip.owner, icon, name .. ": on the icon")
             icon:GetScript("OnLeave")(icon)

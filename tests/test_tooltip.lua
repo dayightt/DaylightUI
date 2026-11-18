@@ -1351,6 +1351,35 @@ T.test("tooltip: a macro's spell lines get the same look as the spell's, without
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- In a fight (the global cooldown) a macro's lines and colors all read secret,
+-- like a spell's. Its data's lines say which one is the spell's description.
+T.test("tooltip: in a fight a macro's spell description still turns white", function()
+    local was = Enum.TooltipDataLineType
+    login(function()
+        itemWorld()
+        Enum.TooltipDataType.Macro = 25
+        Enum.TooltipDataLineType = { SpellName = 13, SpellDescription = 34 }   -- the game's TooltipInfoSharedDocumentation
+    end)
+    local at = withLines(GameTooltip)
+    local INK = DaylightUI.Style.INK
+    fill(GameTooltip, Enum.TooltipDataType.Macro, { id = 3, lines = { { type = 13 }, {}, { type = 34 } } }, {
+        { stub.Secret("Smite"), stub.Secret("Rank 4"), 1, 1, 1, 0.5, 0.5, 0.5 },
+        { stub.Secret("95 Mana"), stub.Secret("30 yd range"), 1, 1, 1, 1, 1, 1 },
+        { stub.Secret("Smite an enemy for 82 to 91 Holy damage."), nil, 1, 0.82, 0 },
+    })
+    T.rgb(at(3).__textColor, INK.TEXT, "the description our text color")
+    T.rgb(at(2).__textColor, { 1, 1, 1 }, "a secret white line left, as a spell's is")
+    -- A macro that uses an item has no spell lines: its last line is the item's.
+    fill(GameTooltip, Enum.TooltipDataType.Macro, { id = 4, lines = { {}, {}, {} } }, {
+        { stub.Secret("Hearthstone"), nil, 1, 1, 1 },
+        { stub.Secret("Use: Returns you to your home."), nil, 0, 1, 0 },
+        { stub.Secret("A flavor line."), nil, 1, 0.82, 0 },
+    })
+    T.rgb(at(3).__textColor, { 1, 0.82, 0 }, "an item's lines keep the game's colors")
+    Enum.TooltipDataLineType = was
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Mend Pet: "while you focus" once painted its heal Focus orange. A power word
 -- only colors a number when it comes right after it.
 T.test("tooltip: a heal with 'focus' later in the sentence stays a heal; an aura's sentence our text color", function()

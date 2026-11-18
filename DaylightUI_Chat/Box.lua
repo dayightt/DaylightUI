@@ -972,6 +972,8 @@ function Box.Font()
             Style.SetFace(frame, Style.FontFile(ns.MEDIA.font), size, cfg.outline and "OUTLINE" or "", 0.9)
             frame:SetShadowOffset(1, -1)
             frame:SetShadowColor(0, 0, 0, 0.9)
+            local gap = cfg.lineSpacing
+            frame:SetSpacing(type(gap) == "number" and gap > 0 and gap or 0)
         end
     end
 end
