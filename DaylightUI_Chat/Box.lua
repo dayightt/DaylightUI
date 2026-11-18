@@ -39,6 +39,7 @@ Box.DEDUPE = 0.25 -- seconds within which the same plain line from another windo
 Box.ANSWER = 5 -- seconds a system line after a query counts as its answer
 Box.FORGET = 10 -- seconds a line's id or text is remembered for that
 Box.TAB_PAD = 12 -- padding around a tab's label
+Box.PLUS_GAP = 8  -- space between the last tab and the "+"
 Box.LIFT = 30 -- px the lines rise while typing, the edit box under them
 Box.FOOT = 30 -- footer height, where the game's edit box sits
 Box.ACTION_GAP = 6 -- gap between header icons
@@ -935,18 +936,21 @@ local function layoutTabs(P)
         P.plus:SetScript("OnClick", function(self) ns.Tabs.NewMenu(self, P == side) end)
         P.plus:HookScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            DUI.Tips.Clear()
             DUI.Tips.Title(DUI.L["New tab"])
+            DUI.Tips.Text(DUI.L["Adds a chat tab, or a combat log tab."])
             DUI.Tips.Hint(DUI.L["Drag a tab to move it. Right-click: what it shows, rename, remove"])
             if maxScroll(P) > 0 then DUI.Tips.Hint(DUI.L["Mouse wheel or right-drag: slide the tabs"]) end
             DUI.Tips.Flush()
+            GameTooltip:Show()
         end)
         P.plus:HookScript("OnLeave", function() GameTooltip:Hide() end)
     end
     P.plus.FitWidth(Box.TAB_PAD)
     P.plus:ClearAllPoints()
-    P.plus:SetPoint("BOTTOMLEFT", P.rail, "BOTTOMLEFT", x, 0)
+    P.plus:SetPoint("BOTTOMLEFT", P.rail, "BOTTOMLEFT", x + Box.PLUS_GAP, 0)
     P.plus:SetPoint("TOP", P.rail, "TOP")
-    P.railWidth = x + P.plus:GetWidth()
+    P.railWidth = x + Box.PLUS_GAP + P.plus:GetWidth()
     P.rail:SetWidth(math.max(1, P.railWidth))
     fitStrip(P)
     -- Scroll a newly picked tab into view.
@@ -1076,19 +1080,25 @@ function Box.BuildActions(P)
     P.actions:SetSize(1, ns.Chat.TAB_ROOM)
     -- The bubble belongs to the main panel, where the whisper tiles are.
     local list = {
-        P == main and { "whispers", "ui-chat.png", L["Whispers"], function() ns.Hub.Toggle() end } or false,
-        P == main and { "voice", "ui-voice.png", L["Voice chat and channels"], Box.ToggleVoice } or false,
-        P == main and { "menu", "ui-micro-menu.png", ns.ChatMenu.Tip } or false, -- the game's button sits over it
-        { "copy", "ui-copy.png", L["Copy chat"], function() ns.Copy.Show(P.frame) end },
-        { "lock", "ui-unlock.png", function() return cfg and cfg.locked and L["Unlock the chat: drag the tab row to move it, a corner to size it"] or L["Lock the chat's spot and size"] end,
-          function() DUI:Set("Chat", "locked", not (cfg and cfg.locked)) end },
-        { "options", "ui-options.png", L["Chat options"], function() DUI.OptionsPanel.Show("Chat.chat") end },
+        P == main and { "whispers", "ui-chat.png", L["Whispers"], function() ns.Hub.Toggle() end,
+          L["Your whisper conversations. The number is how many have unread messages."] } or false,
+        P == main and { "voice", "ui-voice.png", L["Voice chat and channels"], Box.ToggleVoice,
+          L["Opens the game's voice chat and channels window."] } or false,
+        P == main and { "menu", "ui-micro-menu.png", ns.ChatMenu.Tip, nil,
+          L["Say, yell, language and emotes, from the game's own chat menu."] } or false, -- the game's button sits over it
+        { "copy", "ui-copy.png", L["Copy chat"], function() ns.Copy.Show(P.frame) end,
+          L["Opens the chat's text so you can select it and copy it with Ctrl+C."] },
+        { "lock", "ui-unlock.png", function() return cfg and cfg.locked and L["Unlock the chat"] or L["Lock the chat"] end,
+          function() DUI:Set("Chat", "locked", not (cfg and cfg.locked)) end,
+          function() return cfg and cfg.locked and L["Drag the tab row to move it and a corner to resize it."] or L["Keeps its spot and size so a stray drag can't move it."] end },
+        { "options", "ui-options.png", L["Chat options"], function() DUI.OptionsPanel.Show("Chat.chat") end,
+          L["Tabs, look, filters and the rest of the chat's settings."] },
     }
     P.icons, P.iconOrder = {}, {}
     for i = 1, #list do
         local a = list[i]
         if a then
-            P.icons[a[1]] = W.IconButton(P.actions, a[2], a[3], a[4])
+            P.icons[a[1]] = W.IconButton(P.actions, a[2], a[3], a[4], nil, a[5])
             P.iconOrder[#P.iconOrder + 1] = a[1]
         end
     end

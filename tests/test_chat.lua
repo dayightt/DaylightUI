@@ -4121,7 +4121,7 @@ T.test("chat daylight: the game's chat menu button sits on the header's icon onc
     btn:GetScript("OnLeave")(btn)
     DaylightUI.Motion.On = on
 
-    T.truthy(string.find(Menu.Tip(), "emotes", 1, true))
+    T.eq(Menu.Tip(), "Chat menu", "short: what it does is in the line under it")
     _G.GetNumLanguages = function() return 2 end
     T.truthy(string.find(Menu.Tip(), "Common", 1, true), "more than one language: says which you speak")
     _G.GetNumLanguages = nil
@@ -4170,6 +4170,62 @@ T.test("chat daylight: the voice chat icon is off by default and opens the game'
     T.falsy(icon:IsShown(), "off again")
     M.On = on
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a header icon's tooltip shows at once, with its name and what it does", function()
+    local Box = daylight()
+    local Tips = DaylightUI.Tips
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    function tip:IsOwned(o) return self.owner == o end
+    local saved = { Title = Tips.Title, Text = Tips.Text, Flush = Tips.Flush }
+    local got
+    Tips.Title = function(t) got = { title = t } end
+    Tips.Text = function(t) if got then got.desc = t end end
+    Tips.Flush = function() end
+    for _, name in ipairs({ "whispers", "voice", "menu", "copy", "lock", "options" }) do
+        local icon = Box.main.icons[name]
+        if icon then
+            got = nil
+            icon.IsMouseOver = function() return true end
+            icon:GetScript("OnEnter")(icon)
+            T.falsy(got, name .. ": waits for the mouse to rest, as every icon button does")
+            stub.RunTimers()
+            T.truthy(got and got.title, name .. ": has a name")
+            T.truthy(got.desc, name .. ": and a line on what it does")
+            T.eq(tip.owner, icon, name .. ": on the icon")
+            icon:GetScript("OnLeave")(icon)
+        end
+    end
+    T.truthy(Box.main.icons.copy, "the copy icon exists")
+    Tips.Title, Tips.Text, Tips.Flush = saved.Title, saved.Text, saved.Flush
+    _G.GameTooltip = nil
+end)
+
+T.test("chat daylight: the \"+\" tab says what it adds and sits a little apart from the tabs", function()
+    local Box = daylight()
+    local plus = Box.main.plus
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    local Tips = DaylightUI.Tips
+    local saved = { Title = Tips.Title, Text = Tips.Text, Hint = Tips.Hint, Flush = Tips.Flush }
+    local words = {}
+    Tips.Title = function(t) words[#words + 1] = t end
+    Tips.Text = function(t) words[#words + 1] = t end
+    Tips.Hint = function() end
+    Tips.Flush = function() end
+    plus:GetScript("OnEnter")(plus)
+    Tips.Title, Tips.Text, Tips.Hint, Tips.Flush = saved.Title, saved.Text, saved.Hint, saved.Flush
+    _G.GameTooltip = nil
+    T.truthy(tip.shown, "the tooltip is shown, not only filled")
+    T.eq(words[1], "New tab")
+    T.eq(words[2], "Adds a chat tab, or a combat log tab.", "a line on what it adds")
+    local last
+    for _, b in ipairs(Box.main.buttons) do if b:IsShown() then last = b end end
+    T.truthy(last, "a shown tab")
+    local lastAt = select(4, last:GetPoint(1))
+    local plusAt = select(4, plus:GetPoint(1))
+    T.eq(plusAt - (lastAt + last:GetWidth()), Box.PLUS_GAP, "the gap before the plus")
 end)
 
 T.test("chat daylight: the Copy icon follows its switch, the whispers bubble its setting, the rest close up", function()

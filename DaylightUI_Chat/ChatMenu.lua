@@ -95,7 +95,7 @@ function ChatMenu.Tip()
     local eb = box()
     local count = _G.GetNumLanguages and _G.GetNumLanguages() or 0
     if eb and eb.language and count > 1 then
-        return string.format(L["Chat menu: emotes and languages (speaking %s)"], eb.language)
+        return string.format(L["Chat menu (speaking %s)"], eb.language)
     end
-    return L["Chat menu: emotes and languages"]
+    return L["Chat menu"]
 end
