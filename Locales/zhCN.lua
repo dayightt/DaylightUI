@@ -7616,12 +7616,12 @@ L["Which way the card opens from the crown tab. The middle of the screen keeps i
 
 -- More translated lines.
 L["An item's tooltip lists how many each of your characters has in their bags and bank, with a total. Turn it off if another addon already shows them."] = "物品的鼠标提示会列出你的每个角色在背包和银行中各有多少个，并给出总数。如果其他插件已经显示这些信息，请关闭此项。"
-L["Bought by"] = "购买自"
+L["Bought by"] = "买家"
 L["Click, then click a lockbox to pick its lock. Not during a fight."] = "点击后，再点击一个锁箱以撬开它的锁。战斗中不可用。"
 L["Item counts on tooltips"] = "鼠标提示中的物品数量"
 L["Pick Lock"] = "撬锁"
 L["PvP flag crest"] = "PvP 标记徽章"
 L["Quests ready to hand in leave their zones and gather in a Ready to turn in section under the rest, so the quests still to do stay on top. Nothing moves in a fight."] = "可交付的任务会离开其所在区域，集中到下方“可交付”区域，这样仍需完成的任务就保持在顶部。战斗中任何内容都不会移动。"
 L["Ready quests at the bottom"] = "可交付任务置于底部"
-L["Sold by"] = "出售自"
+L["Sold by"] = "卖家"
 L["The same Alliance or Horde crest by the name of anyone flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you."] = "在所有已开启 PvP 标记的玩家和 NPC 的名字旁显示相同的联盟或部落徽章，这样你在攻击前就能判断是否会为你开启 PvP 标记。"
