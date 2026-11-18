@@ -12,12 +12,7 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased" },
-    { version = "1.9.4.2", date = "2026-11-18", summary = "Fixes an error from speech bubbles in 1.9.4.1.",
-        fixed = {
-            { "Chat", "Speech bubbles no longer cause an error when someone nearby talks" },
-        },
-    },
-    { version = "1.9.4.1", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
+    { version = "1.9.4.2", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
         new = {
             { "Unit frames", "Choose how many buff and debuff icons sit in each row, on every frame" },
             { "Chat", "Short chat tags in your game's language, and each tag can be changed in the chat options" },
