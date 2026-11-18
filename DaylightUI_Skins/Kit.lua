@@ -596,8 +596,18 @@ local function fitFocusGlow(glow)
     end
 end
 
+-- A window can keep its glow on a child, named by FocusFrameParent (the world
+-- map's BorderFrame, the guild roster's Border), as the game's
+-- FocusFramesInterfaceMixin:GetFocusFrameRoot does.
+local function glowOf(frame)
+    if not isTable(frame) then return nil end
+    local key = rawget(frame, "FocusFrameParent")
+    local root = type(key) == "string" and isTable(frame[key]) and frame[key] or frame
+    return root.FrameGlow
+end
+
 function Kit.FocusGlow(frame)
-    local glow = isTable(frame) and frame.FrameGlow
+    local glow = glowOf(frame)
     if not isTable(glow) or not glow.SetAlpha or not once("focusGlow", glow) then return end
     Kit.Hide(glow.HeaderGlowTexture)
     fitFocusGlow(glow)

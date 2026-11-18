@@ -2186,6 +2186,23 @@ T.test("skins: the game menu's controller focus glow has no header piece and kee
     _G.GetCVar = getCVar
 end)
 
+-- The world map keeps its focus glow on its BorderFrame (FocusFrameParent in
+-- Blizzard_WorldMap.xml), so it stayed at full strength with Focus Opacity at 0.
+T.test("skins: a glow kept on a child (the world map's BorderFrame) keeps the opacity too", function()
+    local getCVar = _G.GetCVar
+    _G.GetCVar = function(k) if k == "GamepadFocusStateOpacity" then return "0" end end
+    login()
+    local Kit = stub.skins.Kit
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.FocusFrameParent = "BorderFrame"
+    f.BorderFrame = CreateFrame("Frame", nil, f)
+    f.BorderFrame.FrameGlow = CreateFrame("Frame", nil, f.BorderFrame)
+    f.BorderFrame.FrameGlow.GlowTexture = f.BorderFrame.FrameGlow:CreateTexture()
+    Kit.FocusGlow(f)
+    T.eq(f.BorderFrame.FrameGlow:GetAlpha(), 0, "the saved opacity on the child's glow")
+    _G.GetCVar = getCVar
+end)
+
 -- The achievements title sits in its header art's plaque (Header.Title in
 -- Blizzard_AchievementUI.xml) and is moved into the title row too.
 T.test("skins: the achievements' header title goes in the title row", function()
