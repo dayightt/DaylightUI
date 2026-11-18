@@ -1544,6 +1544,27 @@ T.test("quests items: a fight with something other than what the item was used o
     done()
 end)
 
+T.test("quests items: a use with no fight after it is forgotten, so a later fight with the same name fades", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.Advance(ns.Items.FORGET + 1); stub.RunTimers()   -- no fight followed
+    stub.EnterCombat()
+    T.eq(faded(), 0, "a later gazelle fight fades as usual")
+    stub.LeaveCombat()
+    done()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: a fight that starts a moment after the use still keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()   -- the salve's fight starts before the forget timer is due
+    stub.RunTimers()     -- the stub runs every pending timer here: it fires mid-fight
+    T.eq(faded(), 1, "still shown: the timer leaves a fight alone")
+    stub.LeaveCombat()
+    done()
+end)
+
 T.test("quests items: another spell's cast doesn't count as the item's use", function()
     local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
     stub.FireEvent("UNIT_SPELLCAST_SENT", "player", GAZELLE, "Cast-2", 133)

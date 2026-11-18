@@ -19,6 +19,7 @@ Items.GAP = 10              -- between a button and the list
 Items.RANGE_TICK = 0.2
 Items.OUT_OF_RANGE = { 1, 0.35, 0.35 }
 Items.PLATES = 40           -- nameplate units checked for who you are fighting
+Items.FORGET = 5            -- seconds a used-on name is kept when no fight follows
 
 local buttons, want = {}, {}
 Items.buttons = buttons
@@ -78,8 +79,10 @@ end
 -- The name of what a quest item was last used on keeps it shown while everything
 -- fighting you has that name. A fight with anything else fades it as usual.
 local usedOn = nil
+local usedOnBy = nil   -- which use set it, so an older use's timer leaves a newer one alone
 
-local function plain(v) return v ~= nil and not secret(v) end
+-- type() first: comparing a secret value, even with nil, is an error.
+local function plain(v) return type(v) ~= "nil" and not secret(v) end
 
 local function itemSpell(link)
     local id = type(link) == "string" and tonumber(link:match("item:(%d+)"))
@@ -93,8 +96,8 @@ local function foe(unit)
     if UnitExists(unit) ~= true then return false end
     local ok, fighting = pcall(UnitAffectingCombat, unit)
     if not (ok and plain(fighting) and fighting == true) then return false end
-    local okT, status = pcall(UnitThreatSituation, "player", unit)
-    return okT and plain(status) and type(status) == "number"
+    local Threat = DUI.Threat
+    return Threat ~= nil and Threat.Level("player", unit) ~= nil
 end
 
 -- nil: not fighting you. Otherwise whether its name is the one the item was used on
@@ -125,12 +128,23 @@ DUI.RegisterEvent("UNIT_SPELLCAST_SENT", function(_, unit, target, _, spellID)
     for id in pairs(want) do
         local btn = buttons[id]
         if btn and itemSpell(btn.link) == spellID then
-            if plain(target) and type(target) == "string" and target ~= "" then usedOn = target end
+            if plain(target) and type(target) == "string" and target ~= "" then
+                usedOn = target
+                -- No fight within a few seconds: forget it, so a later fight with
+                -- something of the same name fades as usual.
+                local mine = {}
+                usedOnBy = mine
+                C_Timer.After(Items.FORGET, function()
+                    if usedOnBy ~= mine then return end
+                    if InCombatLockdown() or (DUI.Fade and DUI.Fade.fighting) then return end
+                    usedOn, usedOnBy = nil, nil
+                end)
+            end
             return
         end
     end
 end)
-DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() usedOn = nil end)
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() usedOn, usedOnBy = nil, nil end)
 
 function Items.Any()
     for id in pairs(want) do if buttons[id] and buttons[id]:IsShown() then return true end end
