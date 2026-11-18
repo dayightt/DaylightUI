@@ -37,4 +37,5 @@ Voice.lua
 Choice.lua
 GiverTips.lua
 Options.lua
+Debug.lua
 Module.lua
