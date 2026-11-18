@@ -85,7 +85,7 @@ end)
 
 T.test("platefix: after every step with no yes, the report says none did", function()
     local NP = login()
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     local said = NP.Manager.Fix()
     T.truthy(said:find("every step", 1, true), said)
     local text = shownText()
@@ -200,6 +200,7 @@ T.test("platefix: the log is in the report with the Nameplates module off too", 
     _G.GetCVar = function() end
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     DaylightUI.RunCommand("platefix")
+    stub.RunTimers()
     DaylightUI.RunCommand("platefix yes")
     local text = shownText()
     T.truthy(text and text:find("What happened before step 1", 1, true), tostring(text))
@@ -400,9 +401,7 @@ end)
 T.test("platefix: a run where no step helped ends with the dots up for the screenshot", function()
     local NP = login()
     local R = DaylightUI.PlateReport
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
-    stub.RunTimers()
-    stub.RunTimers()
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     T.truthy(R.marksOn, "up through every step")
     local printed = {}
     local was = DaylightUI.Print
@@ -491,7 +490,8 @@ T.test("platefix: the log names who switched the plates and bubbles off", functi
         "plates and bubbles off by a key or the client" }) do
         T.truthy(log:find(want, 1, true), want .. " in: " .. log)
     end
-    T.truthy(text:find("World UI: plates and bubbles switch last set off by a key or the client, UI shown true", 1, true),
+    T.truthy(text:find("World UI: plates and bubbles switch last set off by a key or the client (switch changes: "
+        .. "off by SomeAfkAddon -0:00, off by a key or the client -0:00), UI shown true", 1, true),
         text)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -571,4 +571,52 @@ T.test("platefix: a refused switch says why, and tries the whole UI's switch", f
     _G.SetUIVisibility = was
     _G.SetInWorldUIVisibility = function(v) stub.inWorldUI = v == true end
     T.truthy(said:find("refused", 1, true) and said:find("blocked", 1, true), said)
+end)
+
+-- Steps 3 and 5 to 8 finish a moment after they're typed. Running the next one
+-- (or answering yes) before then mixes two steps, so "step N brought them
+-- back" would name the wrong one.
+T.test("platefix: the next step waits until the last one has finished", function()
+    local NP = login()
+    for _ = 1, 2 do NP.Manager.Fix() end
+    NP.Manager.Fix() -- step 3 switches the game's plates off and back on, then puts ours back
+    local said = NP.Manager.Fix()
+    T.truthy(said:find("still finishing", 1, true), said)
+    T.eq(NP.Manager.fixStep, 3, "no step used up")
+    DaylightUI.RunCommand("platefix yes")
+    T.isnil(shownText(), "no report while a step is running")
+    stub.RunTimers()
+    stub.RunTimers()
+    said = NP.Manager.Fix()
+    T.truthy(said:find("platefix 4/", 1, true), said)
+end)
+
+-- The report's sections freeze at step 1. A short line per step says what the
+-- show switches and plate counts were before and after it, and at "yes", near
+-- the top so a long report's cut can't reach it.
+T.test("platefix: the report traces each step's switches and plates near the top", function()
+    local NP, cvars = login()
+    cvars.nameplateShowFriendlyPlayers, cvars.nameplateShowFriendlyNpcs = "1", "0"
+    C_NamePlate.GetNamePlates = function() return { C_NamePlate.GetNamePlateForUnit("nameplate1") } end
+    for _ = 1, 3 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    cvars.nameplateShowEnemies = "0"
+    DaylightUI.RunCommand("platefix yes")
+    local text = shownText()
+    T.truthy(text, "the copy box is up")
+    local trace = text:find("Each step, before => after", 1, true)
+    T.truthy(trace and trace < text:find("  1. the plate size", 1, true), text)
+    T.truthy(text:find("  3: E1 FP1 FN0 G1 O0 => E1 FP1 FN0 G1 O1", 1, true), text)
+    T.truthy(text:find("  At yes: E0 FP1 FN0 G1 O1", 1, true), text)
+end)
+
+T.test("platefix: switch changes stay in the report after the log has filled", function()
+    local NP = login()
+    withStack("", function() SetInWorldUIVisibility(false) end)
+    for i = 1, 30 do stub.FireEvent("CVAR_UPDATE", "someSetting" .. i, "1") end
+    withStack("", function() SetInWorldUIVisibility(true) end)
+    NP.Manager.Fix()
+    local text = NP.Manager.FixReport(1)
+    T.falsy(text:match("What happened before step 1.-plates and bubbles off.-Before step 1:"), "gone from the log")
+    T.truthy(text:find("switch changes: off by a key or the client -0:00, on by a key or the client -0:00", 1, true),
+        text)
 end)
