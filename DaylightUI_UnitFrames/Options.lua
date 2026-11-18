@@ -1494,10 +1494,10 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Auras", "Extras" }
 local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
-    ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
+    ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
@@ -1508,7 +1508,41 @@ local function tabOf(label)
     end
     return "Extras"
 end
+-- The name's rows (TEXT_ORDER's first block) leave the Text card for a Name card of their
+-- own, ahead of the name tab's, so everything about a frame's name is on the Name tab.
+local NAME_ORDER_END = 30
+local function nameCard(groups)
+    local out, at, named = {}, nil, nil
+    for _, g in ipairs(groups) do
+        if g.label == "Text" and type(g.items) == "table" and not named then
+            -- Only the rows TEXT_ORDER lists as the name's go to the Name card. A row it doesn't
+            -- know stays on Text, so a text row added later can't slip onto the Name tab.
+            local name, rest = {}, {}
+            for _, it in ipairs(g.items) do
+                local r = type(it.key) == "string" and TEXT_ORDER[fieldOf(it.key)]
+                if r and r < NAME_ORDER_END then name[#name + 1] = it else rest[#rest + 1] = it end
+            end
+            if #name > 0 then
+                named = { label = "Name", desc = "How this frame's name looks and where it sits: its text, color and size, and the tab behind it.", items = name }
+                g.items = rest
+            end
+        end
+    end
+    for _, g in ipairs(groups) do
+        if g.label == "Name tab" and named then out[#out + 1] = named; named = nil; at = true end
+        if not (g.label == "Text" and #g.items == 0) then out[#out + 1] = g end
+    end
+    if named then
+        -- No name tab card: the Name card sits where the Text card was.
+        for i, g in ipairs(out) do
+            if g.label == "Text" then table.insert(out, i, named); named = nil; break end
+        end
+    end
+    if named then out[#out + 1] = named end
+    return out
+end
 local function tabbed(groups)
+    groups = nameCard(groups)
     local rank = {}
     for i, t in ipairs(TAB_ORDER) do rank[t] = i end
     local list = {}

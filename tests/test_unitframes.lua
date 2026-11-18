@@ -1697,6 +1697,36 @@ T.test("unit frames: the pet's name stays on its bar by default; Name on the bar
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Every frame's name settings are on a Name tab of their own, apart from its health and power
+-- texts, and the name tab's card sits with them.
+T.test("unit frames: each frame has a Name tab with its name rows, and Text keeps the rest", function()
+    local DUI = stub.Load({ module = true })
+    local NAME = { showName = true, nameColor = true, nameLimitLen = true, namePos = true, nameX = true, nameY = true }
+    local TEXTY = { showPercent = true, healthText = true, showPowerText = true }
+    local function field(it) return type(it.key) == "string" and string.match(it.key, "%.([^%.]+)$") end
+    for _, id in ipairs({ "player", "target", "focus", "party", "arena", "targettarget", "focustarget", "partyTarget", "pet", "raid" }) do
+        local page = DUI.Options.GetPage("UnitFrames." .. id)
+        T.truthy(page, id .. " has its page")
+        local nameCard, textCard, tabCard
+        for _, g in ipairs(page.groups) do
+            if g.label == "Name" then nameCard = g elseif g.label == "Text" then textCard = g elseif g.label == "Name tab" then tabCard = g end
+        end
+        T.truthy(nameCard, id .. ": a Name card")
+        T.eq(nameCard.tab, "Name", id .. ": on the Name tab")
+        if tabCard then T.eq(tabCard.tab, "Name", id .. ": the name tab's card sits with it") end
+        local found = {}
+        for _, it in ipairs(nameCard.items) do found[field(it) or ""] = true end
+        T.truthy(found.showName and found.nameColor and found.nameLimitLen, id .. ": the name's rows are there")
+        if textCard then
+            T.eq(textCard.tab, "Text")
+            for _, it in ipairs(textCard.items) do
+                T.falsy(NAME[field(it) or ""], id .. ": " .. tostring(it.key) .. " left the Text card")
+            end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("unit frames: the target's name on the bar goes to any spot, nudged; in its tab it stays", function()
     local DUI, ns = stub.Load({ module = true })
     stub.units.target = { name = "Bandit", reaction = 2, level = 12, health = 50, maxHealth = 100, marker = 8 }

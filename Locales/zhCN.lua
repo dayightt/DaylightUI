@@ -7078,6 +7078,7 @@ L["How tall the ranged bar is. Only when detached on its own."] = "远程计时�
 L["How the health text is written. Missing health shows nothing while the unit is at full."] = "生命值文字的显示方式。单位满血时“缺失”不显示任何内容。"
 L["How the health text is written. Missing health shows nothing while you're at full."] = "生命值文字的显示方式。你满血时“缺失”不显示任何内容。"
 L["How thick the border round each pip is. 0 leaves none."] = "每个点周围边框的粗细。设为0则无边框。"
+L["How this frame's name looks and where it sits: its text, color and size, and the tab behind it."] = "此框体名称的外观和位置：文字、颜色、大小，以及它后面的标签。"
 L["How wide every other plate is while you have a target, as a share of Health bar width. Plate size by threat (Nameplates > Threat) wins while it's on."] = "你有目标时其他每个姓名板的宽度，以“生命条宽度”的比例表示。开启“按威胁值调整姓名板尺寸”（姓名板 > 威胁值）时以其为准。"
 L["How wide the main hand bar is. Only when detached on its own."] = "主手计时条的宽度。仅在单独分离时有效。"
 L["How wide the off hand bar is. Only when detached on its own."] = "副手计时条的宽度。仅在单独分离时有效。"
