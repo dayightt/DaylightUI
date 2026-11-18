@@ -313,6 +313,15 @@ local function install()
             if not stub.HardwareOnly("C_BattleNet.SetDND") then return end
             record("SetDND", on); S().dnd = on; later("BN_INFO_CHANGED")
         end,
+        SetAppearOffline = function(on)
+            if not stub.HardwareOnly("C_BattleNet.SetAppearOffline") then return end
+            record("SetAppearOffline", on); S().hidden = on; later("BN_INFO_CHANGED")
+        end,
+        GetAccountInfoByGUID = function(guid)
+            if guid ~= UnitGUID("player") then return nil end
+            return { battleTag = "Curt#1674", isAFK = S().afk == true, isDND = S().dnd == true,
+                gameAccountInfo = { isOnline = true, isAppearOffline = S().hidden == true, clientProgram = "WoW" } }
+        end,
         SetCustomMessage = function(text)
             if not stub.HardwareOnly("C_BattleNet.SetCustomMessage") then return end
             record("SetCustomMessage", text); S().broadcast = text; later("BN_CUSTOM_MESSAGE_CHANGED")

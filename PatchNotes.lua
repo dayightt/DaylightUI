@@ -21,6 +21,7 @@ DUI.PatchNotes = {
             { "Unit Frames", "Two more health and power text formats: the full number with the percent (4,100 | 62%), and the percent first (62% | 4.1K) for a mirrored look" },
             { "Chat", "Messages can line up on the right edge, in the main chat and the second panel (Chat, Messages)" },
             { "Unit Frames", "Choose which way the leader tools open: toward the middle of the screen, left or right (Unit Frames, Raid)" },
+            { "Social", "Appear offline to your Battle.net friends from the status menu in the Social window" },
         },
         changed = {
             { "Nameplates", "TESTING A FIX FOR VANISHING NAMEPLATES: faded unit frames, party and raid frames, out-of-range players and faded bars no longer fade as one smooth picture. For now they fade the plain way, so you may see a bar show through its frame while it's faded. If your nameplates still vanish on this version, please tell us in Discord. It helps us find the cause" },
