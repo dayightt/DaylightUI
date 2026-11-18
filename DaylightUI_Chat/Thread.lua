@@ -106,7 +106,21 @@ end
 local function rowOf(t, i)
     local r = t.rows[i]
     if r then return r end
-    r = CreateFrame("Frame", nil, t.child)
+    -- Made from the game's link frame, so a click on an item, a name or a hidden
+    -- message's Show Message is the game's own, as in its chat windows.
+    local ok
+    ok, r = pcall(CreateFrame, "Frame", nil, t.child, "InlineHyperlinkFrameTemplate")
+    if not ok or type(r) ~= "table" then r = CreateFrame("Frame", nil, t.child) end
+    if r.SetHyperlinksEnabled then
+        r:SetHyperlinksEnabled(true)
+        r:EnableMouse(false) -- links still take clicks; the wheel reaches the list
+        r:SetScript("OnHyperlinkEnter", function(f, link) ns.LinkTips.OnEnter(f, link) end)
+        r:SetScript("OnHyperlinkLeave", function(f) ns.LinkTips.OnLeave(f) end)
+        r:HookScript("OnHyperlinkClick", function(_, link)
+            DUI.SafeCall(ns.Links.Censored, link)
+            DUI.SafeCall(ns.Links.NameClicked, link)
+        end)
+    end
     r.label = Style.Text(r, Style.SIZE.small, "LEFT")
     r.label:SetWordWrap(false)
     Style.InkText(r.label, "LABEL")

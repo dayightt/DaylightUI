@@ -2028,6 +2028,27 @@ end
 
 -- An NPC's emote is its text with the name apart (arg 2). A line the game made without
 -- the name gets it in the box, after the timestamp.
+-- Turning Experience off left "Experience gained: 975." from a quest in the tab:
+-- the game sends quest rewards as system messages.
+T.test("chat daylight: a quest's experience, money and item lines go by their own switches", function()
+    local _, box = daylight()
+    local Kinds = stub.chatModule.Kinds
+    _G.ERR_QUEST_REWARD_EXP_I = "Experience gained: %d."    -- the game's GlobalStrings
+    _G.ERR_QUEST_REWARD_MONEY_S = "Received %s."
+    _G.ERR_QUEST_REWARD_ITEM_S = "Received item: %s."
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975.")), "progress")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "19:31:43 Experience gained: 975.")), "progress", "after a time stamp")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received 4 Silver.")), "money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received item: |cff1eff00|Hitem:1|h[Shovel]|h|r.")), "loot",
+        "an item, not money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble")), "system")
+    -- A tab with System on and Experience off no longer shows it.
+    local tab = { name = "T", kinds = { system = true }, v = Kinds.VERSION }
+    T.falsy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975."))))
+    T.truthy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble"))))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: an NPC emote the game made without its name gets the name", function()
     local Box, box = daylight()
     local function emote(text, name, id)
@@ -2376,6 +2397,38 @@ T.test("chat daylight: Show Message on a hidden message shows it in the box", fu
     -- Switching tabs fills the box from its kept lines: the message stays shown.
     CH.Box.Pick(CH.Box.Picked())
     T.truthy(string.find(boxTexts(box)[2], "hello there", 1, true), "kept")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In a whisper conversation an item link and the game's Show Message did nothing:
+-- its lines were plain text with no link frame under them.
+T.test("chat daylight: a whisper conversation's links are the game's click, and Show Message shows it there", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local hidden = "Message from Robb is potentially inappropriate. |Hcensoredmessage:77|h[Show Message]|h"
+    _G.CHAT_WHISPER_GET = "%s whispers: "   -- the game's GlobalStrings
+    stub.FireEvent("CHAT_MSG_WHISPER", hidden, "Robb", "", "", "", "", 0, 0, "", 0, 77, "Player-1-0002")
+    local args = { hidden, "Robb", n = 14 }
+    args[11] = 77
+    ChatFrame1:AddMessage(hidden, 1, 1, 1, 3, nil, nil, "CHAT_MSG_WHISPER", args)
+    _G.SetItemRef = function(link)
+        local id = tonumber(string.match(link, "^censoredmessage:(%d+)"))
+        if not id then return end
+        ChatFrame1:TransformMessages(function(_, _, _, _, _, _, _, _, a) return a[11] == id end,
+            function(_, r, g, b, infoID, accessID, typeID, event, a, ...)
+                return "|Hplayer:Robb|h[Robb]|h whispers: hello there |Hreportcensoredmessage:77|h[Report]|h", r, g, b,
+                    infoID, accessID, typeID, event, a, ...
+            end)
+    end
+    CH.Convo.Open("w:Robb")
+    local t = CH.Convo.Thread()
+    local row = t.rows[1]
+    T.truthy(row and row.__links, "the line sits on the game's own link frame")
+    T.falsy(row:IsMouseEnabled(), "the wheel still reaches the list")
+    row:GetScript("OnHyperlinkClick")(row, "censoredmessage:77", "[Show Message]", "LeftButton")
+    T.eq(CH.Talk.Get("w:Robb").msgs[1].text, "hello there", "the conversation shows the message")
+    T.eq(t.rows[1].text:GetText(), "hello there", "redrawn")
+    CH.Convo.Close()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

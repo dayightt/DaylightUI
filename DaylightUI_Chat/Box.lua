@@ -363,8 +363,8 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
     if not secret(text) and (type(text) ~= "string" or text == "") then return end
     if not fresh(cf, text, args) then return end
     if type(event) == "nil" then event = ns.Kinds.Heard(cf) end
+    local _, kind = ns.Kinds.Of(id, event, args, text)
     text = named(text, event, args)
-    local _, kind = ns.Kinds.Of(id, event, args)
     -- Whispers that a conversation keeps go to their own window, not the chat.
     -- Locked (secret) whispers and away, busy and offline notices still show here.
     if (kind == "whisper" or kind == "bnet") and ns.Talk.On() and cfg.whispersIn == "window"
@@ -409,17 +409,22 @@ end
 -- The game hides a message it finds inappropriate behind a "Show Message" link.
 -- Its click rewrites that line only in the game's own windows (TransformMessages,
 -- which no AddMessage hook sees), so the box takes the new text from there.
-function Box.Rewritten(id)
+-- A game window's line by its id: its text, event and event arguments.
+function Box.GameLine(id)
     if type(id) ~= "number" or id <= 0 then return end
-    local text, event
     for cf in pairs(hooked) do
         local n = type(cf.GetNumMessages) == "function" and cf:GetNumMessages() or 0
         for i = n, 1, -1 do
             local t, _, _, _, _, _, _, ev, args = cf:GetMessageInfo(i)
-            if lineOf(args) == id then text, event = t, ev; break end
+            if lineOf(args) == id then return t, ev, args end
         end
-        if text ~= nil then break end
     end
+end
+
+function Box.Rewritten(id)
+    if type(id) ~= "number" or id <= 0 then return end
+    if ns.Talk then DUI.SafeCall(ns.Talk.Rewritten, id) end
+    local text, event = Box.GameLine(id)
     if text == nil or (not secret(text) and type(text) ~= "string") then return end
     if secret(event) or type(event) ~= "string" then event = nil end
     local changed = false
