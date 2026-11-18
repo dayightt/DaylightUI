@@ -468,6 +468,27 @@ local function hookTitle()
     return string.format(SIDE_NAME[p.side] or "%s", Ed().SpellName(p.parent) or L["Unknown spell"])
 end
 
+-- Attaching keeps the group where it is.
+local function attachTo()
+    local Tether = ns.CdmTether
+    local item = chain("tether", { type = "dropdown", label = "Attach to",
+        desc = "Which frame this group follows. It keeps its spot beside that frame as the frame moves, but still shows and fades by its own rules.",
+        shownAs = function(v) return Tether.Name(v) end,
+        offShown = function(v) return Tether.IsUnavailable(v) end })
+    local readSavedTether = item.get
+    item.get = function()
+        local value = readSavedTether()
+        if Data.IsFrameKey(value) then return value end
+        return Tether.NONE
+    end
+    item.choices = function() return Tether.Choices(item.get()) end
+    item.set = function(value)
+        local set, id = picked()
+        if id and Tether.Attach(set, id, value) then changed() end
+    end
+    return item
+end
+
 local function chainTitle()
     local set, id = picked()
     if not id then return "" end
@@ -701,6 +722,7 @@ Card.ROWS = {
     },
     chain = {
         { head = chainTitle, show = always },
+        { show = always, stacked = true, item = attachTo() },
         { box = "position", show = always },
         { show = always, item = chain("spacing", { type = "slider", label = "Spacing", min = 0, max = 16, step = 1, unit = "px" }) },
         { show = always, item = chain("grow", { type = "dropdown", label = "Grow from",
@@ -830,8 +852,13 @@ end
 Card.NUDGE_H = 22
 Card.REMOVE_H = 26
 
--- The chain's position: unlock mode's nudges (Left, Up, Down, Right) and X / Y boxes
--- (the chain's middle relative to screen center, same as unlock mode).
+local function showMeasuredFrom(field)
+    local selected = Ed().Selected()
+    if selected == nil then return end
+    W().Tooltip(field, L["Position"], ns.CdmTether.MeasuredFrom(Ed().Set(), selected))
+end
+
+-- Unlock mode's nudges and X / Y boxes: the chain's middle from its lead's point, else screen center.
 local function buildPosition(f, inner)
     local w = W()
     local box = CreateFrame("Frame", nil, f)
@@ -866,6 +893,8 @@ local function buildPosition(f, inner)
         e:SetPoint("BOTTOMRIGHT", box, "BOTTOMLEFT", (i - 1) * (half + 8) + half, 0)
         e:SetScript("OnEscapePressed", function(self) self:ClearFocus(); box.Refresh() end)
         e:SetScript("OnEnterPressed", typed)
+        e:HookScript("OnEnter", showMeasuredFrom)
+        e:HookScript("OnLeave", function() w.HideTooltip() end)
         return e
     end
     box.x = field("X", 1)
@@ -1044,6 +1073,9 @@ local function build()
             elseif r.item.type == "button" then
                 r.frame = buttonRow(f, r.item, r.half and (col - 6) / 2 or col)
                 r.height = r.frame:GetHeight() + 4
+            elseif r.stacked then
+                r.frame = w.CompactRow(f, PAGE, r.item, col)
+                r.height = r.frame.height
             else
                 r.frame = w.CompactRow(f, PAGE, r.item, col, { inline = true, control = Card.CONTROL, height = Card.ROW_H })
                 r.height = r.frame.height

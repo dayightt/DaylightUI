@@ -30,6 +30,7 @@ Bars.lua
 Cooldowns.lua
 BuffBars.lua
 CdmData.lua
+CdmTether.lua
 CdmSpells.lua
 CdmCustom.lua
 CdmEffects.lua
