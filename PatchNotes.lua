@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "World map", "Hover a zone on the world map to see its level range next to its name, colored by how hard it is for you" },
+            { "Group finder", "Make the group finder wide and groups and solo players sit side by side" },
         },
         fixed = {
             { "Action bars", "Action bars make far less throwaway memory in fights, for fewer small hitches" },

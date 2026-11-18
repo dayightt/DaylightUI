@@ -170,19 +170,31 @@ function Stack:Begin()
     end
     self.used, self.pieces = {}, {}
     self.y = 0
+    self.cols, self.colAt = nil, nil
     self.bar.Stop()
     self.scroll:SetVerticalScroll(0)
     self.at = 0
     Win.CastersOff(self.scroll)   -- rows get new contents on refill
 end
 
--- Place a block under the previous one, `gap` px apart.
+-- Place a block under the previous one, `gap` px apart (in the picked column when
+-- the list is split, Stack:Column).
 local function put(s, b, h, gap)
-    s.y = s.y + (#s.pieces > 0 and (gap or Parts.GAP) or 0)
+    local c = s.colAt
+    local first = #s.pieces == 0
+    if c then first = s.cols.n[c] == 0 and not s.cols.gap; s.cols.n[c] = s.cols.n[c] + 1 end
+    s.y = s.y + (first and 0 or (gap or Parts.GAP))
     b:ClearAllPoints()
-    b:SetPoint("TOPLEFT", s.child, "TOPLEFT", 0, -s.y)
-    b:SetSize(s:Width(), h)
-    b.col = nil   -- full width, for Stack:Stretch
+    if c then
+        local half = math.floor((s:Width() - Parts.GAP) / 2)
+        b:SetPoint("TOPLEFT", s.child, "TOPLEFT", (c - 1) * (half + Parts.GAP), -s.y)
+        b:SetSize(half, h)
+        b.col, b.colY = c, s.y
+    else
+        b:SetPoint("TOPLEFT", s.child, "TOPLEFT", 0, -s.y)
+        b:SetSize(s:Width(), h)
+        b.col = nil   -- full width, for Stack:Stretch
+    end
     b.stackY = s.y   -- top offset in the list, for Stack:Reveal
     s.y = s.y + h
     s.pieces[#s.pieces + 1] = b
@@ -190,6 +202,29 @@ local function put(s, b, h, gap)
 end
 
 function Stack:Gap(px) self.y = self.y + (px or 8) end
+
+-- Two lists side by side on a wide window: Stack:Column(1) or (2) picks where the next
+-- pieces go, each column growing on its own; Stack:Column() goes back to one column
+-- under the taller of the two.
+function Stack:Column(i)
+    local cols = self.cols
+    if not i then
+        if cols then
+            cols[self.colAt] = self.y
+            self.y = math.max(cols[1], cols[2])
+            self.cols, self.colAt = nil, nil
+        end
+        return
+    end
+    if not cols then
+        cols = { self.y, self.y, n = { 0, 0 }, gap = #self.pieces > 0 }
+        self.cols = cols
+    else
+        cols[self.colAt] = self.y
+    end
+    self.colAt = i
+    self.y = cols[i]
+end
 
 -- A custom block, built by make(parent) and pooled by kind. key identifies
 -- it across refills for Stack:Ease.
@@ -236,6 +271,7 @@ function Stack:Stretch()
                 b:ClearAllPoints()
                 b:SetPoint("TOPLEFT", self.child, "TOPLEFT", half + Parts.GAP, -b.colY)
             end
+            if b.Stretch then b.Stretch(half) end
         else
             b:SetWidth(w)
             if b.Stretch then b.Stretch(w) end
@@ -245,6 +281,7 @@ function Stack:Stretch()
 end
 
 function Stack:End()
+    self:Column()
     self.height = self.y
     self.child:SetSize(self:Width(), math.max(1, self.y))
     self.bar.Update()

@@ -236,6 +236,28 @@ T.test("lfg: Find a group's tab searches the dungeons at your level and lists gr
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("lfg: a wide window puts groups and solo players side by side", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local stack = ns.Browse.page.stack
+    local list = rows(stack, "group")
+    for _, b in ipairs(list) do T.falsy(b.col, "one column at the window's own width") end
+    -- The fake game has no layout: the list's width is given, as a grip drag would.
+    stack.scroll.GetWidth = function() return ns.Browse.SPLIT_W + 40 end
+    ns.Browse.Render(nil, true)
+    list = rows(stack, "group")
+    T.eq(#list, 3)
+    T.eq(list[1].col, 1, "the group on the left")
+    T.eq(list[2].col, 2, "solo players on the right")
+    T.eq(list[3].col, 2)
+    T.near(list[2].colY, list[1].colY, 0.5, "both lists start at the same height")
+    local half = math.floor((stack:Width() - DaylightUI.Win.Parts.GAP) / 2)
+    T.near(list[1]:GetWidth(), half, 0.5, "each half the list")
+    T.near(stack.height, list[3].colY + list[3]:GetHeight(), 0.5, "the list as tall as its taller column")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("lfg: on a controller Y refreshes Find a group, the menu button opens the gear's options", function()
     local ns = load()
     local f = open(ns)
