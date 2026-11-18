@@ -12,7 +12,8 @@ local ADDON_NAME, DUI = ...
 local GameFonts = {}
 DUI.GameFonts = GameFonts
 
-GameFonts.GLOBALS = { "STANDARD_TEXT_FONT", "UNIT_NAME_FONT", "NAMEPLATE_FONT" }
+-- NAMEPLATE_FONT stays the game's: the plates' text follows their font objects.
+GameFonts.GLOBALS = { "STANDARD_TEXT_FONT", "UNIT_NAME_FONT" }
 
 local savedGlobals -- the client's own paths, saved the first time they're replaced
 local savedFaces = {} -- font object -> the { face, flags } it had before
@@ -123,6 +124,32 @@ local function setFace(obj, face)
     pcall(obj.SetFont, obj, face, size, flags)
 end
 
+-- Many of the game's fonts are families, one font per alphabet (the nameplate
+-- and speech bubble ones among them). A SetFont on the family itself changes
+-- none of them, so each member takes the face on its own, keeping its own
+-- flags. An alphabet the face can't draw keeps the game's.
+local function takes(alphabet, face)
+    if alphabet == "roman" then return true end
+    if alphabet == "russian" then return DUI.Style.HasCyrillic(face) end
+    return false
+end
+
+local CJK = { koKR = true, zhCN = true, zhTW = true }
+
+local function putOn(obj, face)
+    if type(obj.GetFontObjectForAlphabet) == "function" then
+        for _, alphabet in ipairs(DUI.Style.ALPHABETS) do
+            local ok, member = pcall(obj.GetFontObjectForAlphabet, obj, alphabet)
+            if ok and type(member) == "table" and member ~= obj and takes(alphabet, face) then
+                setFace(member, face)
+            end
+        end
+        -- The family's own font is what GetFont reads and copies take.
+        if CJK[type(GetLocale) == "function" and GetLocale() or ""] then return end
+    end
+    setFace(obj, face)
+end
+
 -- Applies the wanted font to the game's text, or restores the game's own.
 function GameFonts.Apply()
     local font = GameFonts.Wanted()
@@ -136,7 +163,7 @@ function GameFonts.Apply()
         -- for its own text (the chat's, for one) and keeps it.
         local own = DUI.Style.OwnFamily
         for _, obj in ipairs(fontObjects()) do
-            if obj ~= CombatTextFont and not own(obj) then setFace(obj, font) end
+            if obj ~= CombatTextFont and not own(obj) then putOn(obj, font) end
         end
     elseif savedGlobals then
         for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = savedGlobals[k] end

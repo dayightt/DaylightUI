@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "General", "Using your font on the game's text changes the game's nameplates and speech bubbles more gently, and Russian, Korean and Chinese letters keep drawing" },
+        },
+    },
     { version = "1.9.4.3", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
         new = {
             { "Unit frames", "Choose how many buff and debuff icons sit in each row, on every frame" },
