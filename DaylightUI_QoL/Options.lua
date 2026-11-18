@@ -41,6 +41,12 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "lootSparkles", label = "Show quest item sparkles",
               desc = "Lootable quest objects sparkle, and so do quest givers (the game has no setting for one alone). The game only sparkles with its outline around what you point at off, so this keeps that outline off. Turning this off puts the outline back; the sparkle may stay until you restart the game." },
         } },
+        { label = "Loot rolls", items = {
+            { type = "toggle", key = "rollCounts", since = "1.9.6", label = "Roll counts on loot rolls",
+              desc = "Each button on a group loot roll shows how many players picked it so far: Need (with off-spec Need), Greed or Pass. Blank while nobody has." },
+            { type = "toggle", key = "rollTooltip", since = "1.9.6", label = "Who rolled what in the button tooltip",
+              desc = "Pointing at a loot roll's button lists who picked it, in class colors with their roll and the winner in green, then who hasn't picked yet." },
+        } },
         { label = "Cursor ring", items = {
             { type = "toggle", key = "cursorRing", label = "Ring around the cursor",
               desc = "A ring follows your mouse cursor, so it's easy to find in a busy fight." },

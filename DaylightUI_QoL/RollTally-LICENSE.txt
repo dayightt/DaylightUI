@@ -1,11 +1,12 @@
-Loot roll counts attribution (RollData.lua)
+Loot roll counts attribution (RollData.lua, RollTally.lua)
 
 Adapted from BetterGroupLoot by Karl-HeinzSchneider
 Source: https://github.com/Karl-HeinzSchneider/WoW-BetterGroupLoot
 Licensed under the MIT License, below.
 
 Changed for DaylightUI: the loot history reader and the pairing of drops with
-roll popups (RollData.lua), rewritten to add to the game's own roll popups.
+roll popups (RollData.lua), and the tooltip's sections (RollTally.lua),
+rewritten to add to the game's own roll popups.
 BetterGroupLoot's own roll frames, Edit Mode support and libraries are not used.
 
 MIT License

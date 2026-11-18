@@ -9,10 +9,11 @@ local stub = require("stub")
 local RW = {}
 
 -- Item links: a cloak, the same cloak with a suffix (same item, another link),
--- a sword.
+-- a sword, a ring.
 RW.CLOAK = "|cffa335ee|Hitem:21701::::::::60:::::|h[Cloak of the Sleeping Wyrm]|h|r"
 RW.CLOAK_OF_THE_BEAR = "|cff0070dd|Hitem:21701::::::1179::60:::::|h[Cloak of the Sleeping Wyrm of the Bear]|h|r"
 RW.SWORD = "|cffa335ee|Hitem:21702::::::::60:::::|h[Wyrmfang Blade]|h|r"
+RW.RING = "|cff0070dd|Hitem:21703::::::::60:::::|h[Signet of the Fallen]|h|r"
 
 RW.POPUPS = 4   -- GroupLootFrame1-4, as in the game's XML
 RW.CANT_NEED = "You can't need this item."

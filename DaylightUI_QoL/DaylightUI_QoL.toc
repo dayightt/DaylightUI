@@ -36,5 +36,6 @@ Campfire.lua
 Fishing.lua
 CursorRing.lua
 RollData.lua
+RollTally.lua
 Options.lua
 Module.lua

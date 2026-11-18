@@ -140,6 +140,8 @@ ns.DEFAULTS = {
     lootFeedBorderColor = "normal", -- normal | quality | accent | custom
     lootFeedBorderCustom = { DaylightUI.Style.ACCENT[1], DaylightUI.Style.ACCENT[2], DaylightUI.Style.ACCENT[3] },
     lootFeedShine = true,   -- the light that runs across a new line
+    rollCounts = true,      -- how many picked each choice, on each loot roll button (RollTally.lua)
+    rollTooltip = true,     -- who picked it, then who has yet to, in the button's tooltip
     flightTimer = true,     -- a bar with the time left while on a flight path
     flightTimerSlant = true, -- its angled end; off = straight
     fishClick = false,      -- a quick right-click on the world casts Fishing with a pole in hand (Fishing.lua)
