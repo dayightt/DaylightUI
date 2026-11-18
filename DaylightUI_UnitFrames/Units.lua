@@ -275,7 +275,7 @@ function ns.FocusAuraRoom(db)
     local fc = db.focusCastbar
     local at, room = CB.At("focus", fc), fc.height + CB.AT_GAP
     if fc.enabled and at == "above" then return room, 0 end
-    if fc.enabled and at == "below" then return 0, room end
+    if fc.enabled and (at == "below" or at == "slide") then return 0, room end
     return 0, 0
 end
 
@@ -418,8 +418,9 @@ function ns.Refresh(mod, path)
         local fc = db.focusCastbar
         local fAt = CB.At("focus", fc)
         CB.Layout(ns.focusCastbar, { enabled = fc.enabled and fAt == "power", spell = fc.spell, time = fc.time }, db.focus)
+        local fSlides = fAt == "slide"
         CB.Layout(ns.focusCastbarFree, { enabled = fc.enabled and fAt ~= "power", at = fAt, x = fc.x, y = fc.y,
-                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fc.slant, slantLeft = fc.slantLeft, slantUnder = fc.slantUnder,
+                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fSlides or fc.slant, slantLeft = fc.slantLeft, slantUnder = not fSlides and fc.slantUnder,
                                          spell = fc.spell, time = fc.time, reverseFill = fc.reverseFill, strata = fc.strata })
         DUI.Movers.Suspend("unitframes.focusCastbar", fAt ~= "free")
         -- The display first, since your cast bar and swing bars may stand under it.
@@ -935,6 +936,7 @@ function ns.Build(mod)
         ns.focusCastbar = CB.Create("focus", focus, focus.power)
         ns.focusCastbarFree = CB.Create("focus")
         ns.focusCastbarFree.near = focus
+        ns.focusCastbarFree.under, ns.focusCastbarFree.hangAt = focus, "slide"
         ns.focusCastbarFree.moverKey = "unitframes.focusCastbar"
         DUI.Movers.Register(ns.focusCastbarFree, "unitframes.focusCastbar", "Focus Cast Bar",
             { "TOP", "DaylightUIFrame_focus", "BOTTOM", 0, -40 })

@@ -2657,7 +2657,7 @@ ns.OPTIONS = { pages = {
         { label = "Focus cast bar", items = {
             { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
               desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
-            atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode."),
+            atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode. Under the frame it slides out during a cast, and the buffs below keep room for it."),
             nudge("focus", "x"),
             nudge("focus", "y"),
             fitRow("focus"),
