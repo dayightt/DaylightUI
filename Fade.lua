@@ -292,6 +292,11 @@ local wholeAll = setmetatable({}, { __mode = "k" })
 -- by the AFK screen or another addon, buffers come off so everything fades together.
 local uiAway = false
 
+-- Frame buffers are switched off for now, to see whether they're what stops the
+-- game drawing nameplates for some players. Everything above still keeps track
+-- of who asks for one, so true brings them straight back.
+Fade.BUFFERS = false
+
 local function setWhole(f, on)
     local flat, buffer = f.SetFlattensRenderLayers, f.SetIsFrameBuffer
     if type(flat) ~= "function" or type(buffer) ~= "function" then return end
@@ -316,7 +321,7 @@ local function wholeNow()
         wholeDue[f] = nil
         -- A frame asked once to stay whole-off never made its list of reasons.
         local whys = f.fadeWhy
-        local on = whys ~= nil and next(whys) ~= nil and not uiAway
+        local on = Fade.BUFFERS and whys ~= nil and next(whys) ~= nil and not uiAway
         if (f.fadeWhole == true) ~= on then setWhole(f, on) end
     end
 end

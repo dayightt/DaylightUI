@@ -19,6 +19,7 @@ DUI.PatchNotes = {
             { "Profiles", "Ready-made profiles, DPS/Tank too, can be added any time and reset to how they come (Profiles, Ready-made)" },
         },
         changed = {
+            { "Nameplates", "TESTING A FIX FOR VANISHING NAMEPLATES: faded unit frames, party and raid frames, out-of-range players and faded bars no longer fade as one smooth picture. For now they fade the plain way, so you may see a bar show through its frame while it's faded. If your nameplates still vanish on this version, please tell us in Discord. It helps us find the cause" },
             { "Legacy", "The Legacy window's challenge filter is a drop-down and its side panels are wider, so every language fits" },
         },
         fixed = {

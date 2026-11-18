@@ -146,6 +146,7 @@ T.test("platefix: the report carries a log of what happened before step 1", func
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
     f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.BUFFERS = true
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
@@ -357,6 +358,7 @@ T.test("platefix: the report names Daylight UI's modules and its own global piec
     local f = CreateFrame("Frame", nil, UIParent)
     f.SetFlattensRenderLayers = function() end
     f.SetIsFrameBuffer = function() end
+    DaylightUI.Fade.BUFFERS = true
     DaylightUI.Fade.Whole(f, "test", true)
     stub.RunTimers()
     text = table.concat(NP.Manager.ReportWorld(), "\n")
