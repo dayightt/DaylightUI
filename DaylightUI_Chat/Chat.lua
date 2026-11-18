@@ -53,6 +53,7 @@ Chat.TAB_TEXT = Style.SIZE.body -- tab label size before settings load (tabSize 
 Chat.GRIP = 16 -- resize grip size
 Chat.MIN = { 250, 100 } -- resize limits (same range as the Width and Height sliders)
 Chat.MAX = { 1000, 600 }
+Chat.SIDE_MIN = { 150, 100 } -- the second panel has no typing box, so it can be narrower
 Chat.AWAKE = 1.5 -- floating: seconds the panel stays after the mouse leaves
 Chat.INPUT = { borderPx = 2, flat = true, noBevel = true, bgAlpha = 0.9 } -- edit box backdrop, solid over the tabs
 Chat.TAB_ART = { "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
