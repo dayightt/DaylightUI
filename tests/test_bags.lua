@@ -2077,6 +2077,46 @@ T.test("bags: stacks show apart while trading, at the mail and auction house, or
     T.isnil(first.dluiCount)
 end)
 
+-- In game: a mouse right-click on a usable item ran the slot's own click, the game's
+-- click code ran tainted, and the use left the game's state tainted until a reload.
+-- One secure button follows the pointer and uses the item by bag and slot.
+T.test("bags: a right-click goes through a secure use on the slot under the pointer, out of combat only", function()
+    local ns = login()
+    local f = open(ns)
+    local at = ns.Bags.buttons[0][1]
+    local enter, leave = at:GetScript("OnEnter"), at:GetScript("OnLeave")
+    local mods = false
+    local isMod = _G.IsModifierKeyDown
+    _G.IsModifierKeyDown = function() return mods end
+    enter(at)
+    local u = _G.DaylightUIBagUse
+    T.truthy(u and u:IsShown(), "on the hovered slot")
+    T.eq(u:GetAttribute("type2"), "item")
+    T.eq(u:GetAttribute("item"), "0 1", "that slot, by bag and slot")
+    T.eq(u:GetFrameStrata(), "HIGH", "a strata above the bag's, so raising the bag on a click can't cover it")
+    leave(at)
+    T.falsy(u:IsShown(), "off when the pointer leaves")
+    mods = true
+    enter(at)
+    T.falsy(u:IsShown(), "a modified right-click keeps the slot's own click")
+    mods = false
+    _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+    enter(at)
+    T.falsy(u:IsShown(), "at a vendor a right-click sells: the slot's own click")
+    _G.MerchantFrame:Hide(); _G.MerchantFrame = nil
+    enter(at)
+    T.truthy(u:IsShown())
+    stub.EnterCombat()
+    T.falsy(u:IsShown(), "off as a fight starts, before the lockdown")
+    leave(at); enter(at)
+    T.falsy(u:IsShown(), "and nothing in the fight")
+    stub.LeaveCombat()
+    enter(at)
+    T.truthy(u:IsShown(), "back after the fight")
+    leave(at)
+    _G.IsModifierKeyDown = isMod
+end)
+
 T.test("bags: a trade opens the bags and closes them again; bags already open stay open", function()
     local ns = catLogin()
     if ns.window:IsShown() then ns.OpenClose.CloseAll(); stub.RunTimers(); stub.FinishFade(ns.window) end
