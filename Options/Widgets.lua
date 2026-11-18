@@ -1974,7 +1974,8 @@ W.SCROLL = { width = 4, track = { 1, 1, 1, 0.04 }, thumb = { 1, 1, 1, 0.22 }, th
 -- opts: x (gap right of sf), step (px per notch), wheel = false (the caller
 -- handles the wheel and calls bar.Wake() or bar.Wheel(delta)), read() ->
 -- at, max, view (for lists that aren't ScrollFrames, any units), write(v),
--- onScroll(v), parent.
+-- onScroll(v), parent, rest (alpha while it overflows but nothing is going
+-- on; 0 for a panel on the screen that should stay clean until hovered).
 -- bar.Update() redraws now after a refill or jump; a slow poll catches the
 -- rest. bar.Lock(on) blocks drag and wheel so only the owner scrolls it.
 function W.Scroll(sf, opts)
@@ -2138,7 +2139,7 @@ function W.Scroll(sf, opts)
         local over = sf:IsMouseOver() == true or bar:IsMouseOver() == true
         if over then lastMove = GetTime() end
         if (bar.max or 0) <= 0 then show(0)
-        else show((over or GetTime() - lastMove < S.linger) and 1 or S.rest) end
+        else show((over or GetTime() - lastMove < S.linger) and 1 or (opts.rest or S.rest)) end
     end)
     bar:SetScript("OnHide", function()
         grab, shown = nil, 0
