@@ -27,6 +27,8 @@ use its functions, and add to or change how it looks and works in game,
 and you may share profiles you made with it. Your addon is your own work
 under your own license. It must not include copies of DaylightUI's code
 or art (except the logo, below), and needs DaylightUI installed to run.
+A plugin's name, in its .toc Title and wherever it's uploaded, must end
+in "(DaylightUI Plugin)", for example "Raid Notes (DaylightUI Plugin)".
 
 Plugins and profile packs must stay free: you may ask for donations
 (Ko-fi, Patreon, a tip link and the like), but every part of what you

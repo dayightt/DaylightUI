@@ -52,7 +52,7 @@ ns.DEFAULTS = {
     -- unless ownLook. redUnusable, showSet and showJunk are left out on purpose: with
     -- ownLook they read nil (off), and a saved copy is never judged usable.
     viewer = { enabled = true, columns = 14, ownLook = false, iconSize = 35, spacing = 2, scale = 1, view = "categories",
-               emptySlots = "all", greyPoor = true, showBind = true, showLevel = false },
+               emptySlots = "all", greyPoor = true, showBind = true, showLevel = false, tipCounts = true },
     -- position = { left, top } in UI units; nil means the default spot
 }
 

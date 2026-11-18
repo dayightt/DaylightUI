@@ -261,6 +261,8 @@ end
 -- game's own tooltip says enough.
 function Saved.OnTip(tip, data)
     if tip ~= GameTooltip or type(data) ~= "table" then return end
+    local viewer = ns.Setting("viewer")
+    if type(viewer) == "table" and viewer.tipCounts == false then return end
     local id = data.id
     if type(id) ~= "number" or (issecretvalue and issecretvalue(id)) then return end
     local s = savedCounts()

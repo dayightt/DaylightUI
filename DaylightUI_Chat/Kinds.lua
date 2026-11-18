@@ -339,8 +339,36 @@ DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", function()
     C_Timer.After(1, Kinds.WorldFirst)
 end)
 
+-- A quest's reward lines ("Experience gained: 975.", "Received 4 Silver.") come
+-- as system messages, so the Experience and Money switches never reached them.
+-- The game's own wording, turned into patterns once.
+-- In order: an item's line would match the money one too. Matched at the line's
+-- end, since the game's time stamp may come first.
+Kinds.SYSTEM_AS = { { "ERR_QUEST_REWARD_EXP_I", "progress" }, { "ERR_QUEST_REWARD_ITEM_S", "loot" },
+    { "ERR_QUEST_REWARD_ITEM_MULT_IS", "loot" }, { "ERR_QUEST_REWARD_MONEY_S", "money" } }
+local systemAs
+local function patternOf(fmt)
+    local p = string.gsub(fmt, "[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+    p = string.gsub(p, "%%%%%d?%$?[ds]", function(spec) return spec:find("d") and "%d+" or ".+" end)
+    return p .. "$"
+end
+function Kinds.SystemKind(text)
+    if type(text) ~= "string" or secret(text) then return nil end
+    if not systemAs then
+        systemAs = {}
+        for _, pick in ipairs(Kinds.SYSTEM_AS) do
+            local name, kind = pick[1], pick[2]
+            local fmt = _G[name]
+            if type(fmt) == "string" and fmt ~= "" then systemAs[#systemAs + 1] = { patternOf(fmt), kind } end
+        end
+    end
+    for _, s in ipairs(systemAs) do
+        if string.find(text, s[1]) then return s[2] end
+    end
+end
+
 -- The line's chat type ("GUILD", "CHANNEL"...) and kind.
-function Kinds.Of(id, event, args)
+function Kinds.Of(id, event, args, text)
     local t
     if type(event) == "string" and not secret(event) then t = string.match(event, "^CHAT_MSG_(.+)$") end
     t = t or Kinds.TypeOfId(id)
@@ -348,7 +376,9 @@ function Kinds.Of(id, event, args)
     -- Other people's community lines arrive by their own event, as a channel line
     -- with the same number and name (ChatFrameOverrides.lua).
     if t == "CHANNEL" or t == "COMMUNITIES_CHANNEL" or string.find(t, "^CHANNEL%d") then return t, channelKind(args) end
-    return t, Kinds.BY_TYPE[t] or "system"
+    local kind = Kinds.BY_TYPE[t] or "system"
+    if kind == "system" then kind = Kinds.SystemKind(text) or kind end
+    return t, kind
 end
 
 -- Default tabs for a new chat box: everything, guild, trade and loot (named with

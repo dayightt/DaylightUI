@@ -244,6 +244,14 @@ T.test("windows: a row click picks it with a click sound; a disabled footer butt
     T.eq(foot:Press(1), false); T.eq(accepted, 0)
     foot:Set({ { text = "Accept", primary = true, onClick = function() accepted = accepted + 1 end } })
     T.eq(foot:Press(1), true); T.eq(accepted, 1)
+    -- onRightClick: a right-click does that, never onClick (a button without one ignores it)
+    local right = 0
+    foot:Set({ { text = "Queue 3", onClick = function() accepted = accepted + 1 end, onRightClick = function() right = right + 1 end } })
+    foot.buttons[1]:GetScript("OnClick")(foot.buttons[1], "RightButton")
+    T.eq(right, 1); T.eq(accepted, 1)
+    foot:Set({ { text = "Accept", onClick = function() accepted = accepted + 1 end } })
+    foot.buttons[1]:GetScript("OnClick")(foot.buttons[1], "RightButton")
+    T.eq(accepted, 1, "no onRightClick: a right-click does nothing")
     -- Same order as the game: main button on the left, leave on the right.
     foot:Set({ { text = "Accept", primary = true }, { text = "Decline", tone = "no" } })
     local p, rel = foot.buttons[1]:GetPoint(1)

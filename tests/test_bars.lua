@@ -2356,6 +2356,23 @@ T.test("totem bar: size, spacing and direction apply live", function()
     T.eq(p, "TOP"); T.eq(rp, "BOTTOM"); T.eq(y, -6)
 end)
 
+-- A shaman switching to Call of the Ancestors saw its 4 buttons to the right of
+-- the 4 slots. The game's sets 2 and 3 (buttons 5-8, 9-12) lie over the same
+-- slots as set 1 (MultiCastActionBarFrame_Update: pageOffset + slotIndex).
+T.test("totem bar: every totem set sits over the same 4 slots", function()
+    login({ class = "SHAMAN" })
+    DaylightUI:Set("ActionBars", "bars.totem.pad", 6)
+    for i = 5, 12 do
+        local p, rel, rp, x, y = _G["MultiCastActionButton" .. i]:GetPoint(1)
+        T.eq(rel, _G["MultiCastActionButton" .. (i - 4)], "button " .. i .. " on the one 4 before it")
+        T.eq(p, "CENTER"); T.eq(rp, "CENTER"); T.eq(x, 0); T.eq(y, 0)
+    end
+    local _, rel = MultiCastActionButton4:GetPoint(1)
+    T.eq(rel, MultiCastActionButton3, "the first set still runs across")
+    -- A Cooldown Manager glow beside the bar covered the totem pick list.
+    T.eq(MultiCastFlyoutFrame:GetFrameStrata(), "DIALOG", "the pick list opens above the Cooldown Manager")
+end)
+
 T.test("options: the Bar Layout page has one card for every bar (Settings for), from the bars' data", function()
     local DUI = login()
     local page = DUI.Options.GetPage("ActionBars.barlayout")

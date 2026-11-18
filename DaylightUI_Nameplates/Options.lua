@@ -229,6 +229,8 @@ ns.OPTIONS = { pages = {
               desc = "Reaction: every enemy name in red, players too, so friend and foe tell apart at a glance. Or players in their class color, a class gradient, or plain white." },
             { type = "toggle", key = "factionIcon", label = "Other faction's crest",
               desc = "An Alliance or Horde crest by the names of players of the other faction, on enemy and friendly plates alike." },
+            { type = "toggle", key = "pvpIcon", label = "PvP flag crest",
+              desc = "The same Alliance or Horde crest by the name of anyone flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you." },
         }, spotItems("Name", { spot = "namePos", x = "nameX", y = "nameY" })) },
         { label = "Health text", items = with({
             { type = "toggle", key = "percent", label = "Health text",

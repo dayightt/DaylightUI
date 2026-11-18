@@ -25,8 +25,9 @@ local isSecret = DUI.IsSecret
 UF.DARK_FILL = { 0.14, 0.14, 0.14 }
 UF.HEALTH_FORMATS, UF.HEALTH_FORMAT_ORDER = Health.FORMATS, Health.FORMAT_ORDER
 UF.POWER_FORMATS = { value = "Power (2.3K)", percent = "Percent (80)", valuemax = "Power / max (2.3K / 2.9K)",
-                     both = "Power and percent (2.3K | 80%)", full = "Power (2,300)" }
-UF.POWER_FORMAT_ORDER = { "value", "full", "percent", "valuemax", "both" }
+                     both = "Power and percent (2.3K | 80%)", full = "Power (2,300)",
+                     fullboth = "Full power and percent (2,300 | 80%)", percentboth = "Percent and power (80% | 2.3K)" }
+UF.POWER_FORMAT_ORDER = { "value", "full", "percent", "valuemax", "both", "fullboth", "percentboth" }
 UF.POWER_TEXT_POS = { inner = "Inner end", center = "Center", outer = "Outer end" }
 UF.POWER_TEXT_POS_ORDER = { "inner", "center", "outer" }
 UF.GradientAt = Health.GradientAt
@@ -402,6 +403,10 @@ function UF.PowerFormat(format, u, sign)
         return "%s / %s", Health.Number(UnitPower(u)), Health.Number(UnitPowerMax(u))
     elseif format == "both" and hasPct then
         return "%s | %.0f%%", Health.Number(UnitPower(u)), UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "fullboth" and hasPct then
+        return "%s | %.0f%%", Health.Whole(UnitPower(u)), UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "percentboth" and hasPct then
+        return "%.0f%% | %s", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100), Health.Number(UnitPower(u))
     end
     return "%s", Health.Number(UnitPower(u))
 end

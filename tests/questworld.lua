@@ -312,6 +312,16 @@ function QW.map()
     qm.QuestsFrame = CreateFrame("Frame", nil, qm)
     qm.QuestsFrame:SetAllPoints(qm)
     qm.QuestsFrame:EnableMouse(true)
+    -- The game's own quest list (QuestLogScrollFrameMixin:OnLoad): it rebuilds
+    -- itself whenever a quest pin on the map is entered or left. Its rebuilds are
+    -- counted in QW.state.listRebuilds.
+    local qs = CreateFrame("ScrollFrame", "QuestScrollFrame", qm)
+    QW.state.listRebuilds = 0
+    _G.QuestLogQuests_Update = function() QW.state.listRebuilds = QW.state.listRebuilds + 1 end
+    function qs:OnMapCanvasPinEnter() QuestLogQuests_Update() end
+    function qs:OnMapCanvasPinLeave() QuestLogQuests_Update() end
+    EventRegistry:RegisterCallback("MapCanvas.QuestPin.OnEnter", qs.OnMapCanvasPinEnter, qs)
+    EventRegistry:RegisterCallback("MapCanvas.QuestPin.OnLeave", qs.OnMapCanvasPinLeave, qs)
     qm:Hide()
     -- The map's canvas (MapCanvasMixin: ScrollContainer.Child), the map it shows,
     -- its pin level table, and its own code the journal must never call (the game's

@@ -2028,6 +2028,27 @@ end
 
 -- An NPC's emote is its text with the name apart (arg 2). A line the game made without
 -- the name gets it in the box, after the timestamp.
+-- Turning Experience off left "Experience gained: 975." from a quest in the tab:
+-- the game sends quest rewards as system messages.
+T.test("chat daylight: a quest's experience, money and item lines go by their own switches", function()
+    local _, box = daylight()
+    local Kinds = stub.chatModule.Kinds
+    _G.ERR_QUEST_REWARD_EXP_I = "Experience gained: %d."    -- the game's GlobalStrings
+    _G.ERR_QUEST_REWARD_MONEY_S = "Received %s."
+    _G.ERR_QUEST_REWARD_ITEM_S = "Received item: %s."
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975.")), "progress")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "19:31:43 Experience gained: 975.")), "progress", "after a time stamp")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received 4 Silver.")), "money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Received item: |cff1eff00|Hitem:1|h[Shovel]|h|r.")), "loot",
+        "an item, not money")
+    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble")), "system")
+    -- A tab with System on and Experience off no longer shows it.
+    local tab = { name = "T", kinds = { system = true }, v = Kinds.VERSION }
+    T.falsy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Experience gained: 975."))))
+    T.truthy(Kinds.Shows(tab, select(2, Kinds.Of(nil, "CHAT_MSG_SYSTEM", {}, "Quest accepted: Scramble"))))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: an NPC emote the game made without its name gets the name", function()
     local Box, box = daylight()
     local function emote(text, name, id)
@@ -2376,6 +2397,38 @@ T.test("chat daylight: Show Message on a hidden message shows it in the box", fu
     -- Switching tabs fills the box from its kept lines: the message stays shown.
     CH.Box.Pick(CH.Box.Picked())
     T.truthy(string.find(boxTexts(box)[2], "hello there", 1, true), "kept")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In a whisper conversation an item link and the game's Show Message did nothing:
+-- its lines were plain text with no link frame under them.
+T.test("chat daylight: a whisper conversation's links are the game's click, and Show Message shows it there", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local hidden = "Message from Robb is potentially inappropriate. |Hcensoredmessage:77|h[Show Message]|h"
+    _G.CHAT_WHISPER_GET = "%s whispers: "   -- the game's GlobalStrings
+    stub.FireEvent("CHAT_MSG_WHISPER", hidden, "Robb", "", "", "", "", 0, 0, "", 0, 77, "Player-1-0002")
+    local args = { hidden, "Robb", n = 14 }
+    args[11] = 77
+    ChatFrame1:AddMessage(hidden, 1, 1, 1, 3, nil, nil, "CHAT_MSG_WHISPER", args)
+    _G.SetItemRef = function(link)
+        local id = tonumber(string.match(link, "^censoredmessage:(%d+)"))
+        if not id then return end
+        ChatFrame1:TransformMessages(function(_, _, _, _, _, _, _, _, a) return a[11] == id end,
+            function(_, r, g, b, infoID, accessID, typeID, event, a, ...)
+                return "|Hplayer:Robb|h[Robb]|h whispers: hello there |Hreportcensoredmessage:77|h[Report]|h", r, g, b,
+                    infoID, accessID, typeID, event, a, ...
+            end)
+    end
+    CH.Convo.Open("w:Robb")
+    local t = CH.Convo.Thread()
+    local row = t.rows[1]
+    T.truthy(row and row.__links, "the line sits on the game's own link frame")
+    T.falsy(row:IsMouseEnabled(), "the wheel still reaches the list")
+    row:GetScript("OnHyperlinkClick")(row, "censoredmessage:77", "[Show Message]", "LeftButton")
+    T.eq(CH.Talk.Get("w:Robb").msgs[1].text, "hello there", "the conversation shows the message")
+    T.eq(t.rows[1].text:GetText(), "hello there", "redrawn")
+    CH.Convo.Close()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3442,6 +3495,20 @@ T.test("chat daylight: line spacing spreads the box's lines, and 0 is the game's
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat daylight: messages line up on the left, or the right when asked", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    Box.Font()
+    T.eq(box:GetJustifyH(), "LEFT", "left by default")
+    DUI:Set("Chat", "align", "right")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "RIGHT", "right once picked")
+    DUI:Set("Chat", "align", "left")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "LEFT")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a combat log tab shows the game's combat log in the chat's place", function()
     local selected
     local Box, box = daylight(function()
@@ -4068,7 +4135,7 @@ T.test("chat daylight: the game's chat menu button sits on the header's icon onc
     btn:GetScript("OnLeave")(btn)
     DaylightUI.Motion.On = on
 
-    T.truthy(string.find(Menu.Tip(), "emotes", 1, true))
+    T.eq(Menu.Tip(), "Chat menu", "short: what it does is in the line under it")
     _G.GetNumLanguages = function() return 2 end
     T.truthy(string.find(Menu.Tip(), "Common", 1, true), "more than one language: says which you speak")
     _G.GetNumLanguages = nil
@@ -4117,6 +4184,62 @@ T.test("chat daylight: the voice chat icon is off by default and opens the game'
     T.falsy(icon:IsShown(), "off again")
     M.On = on
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a header icon's tooltip shows at once, with its name and what it does", function()
+    local Box = daylight()
+    local Tips = DaylightUI.Tips
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    function tip:IsOwned(o) return self.owner == o end
+    local saved = { Title = Tips.Title, Text = Tips.Text, Flush = Tips.Flush }
+    local got
+    Tips.Title = function(t) got = { title = t } end
+    Tips.Text = function(t) if got then got.desc = t end end
+    Tips.Flush = function() end
+    for _, name in ipairs({ "whispers", "voice", "menu", "copy", "lock", "options" }) do
+        local icon = Box.main.icons[name]
+        if icon then
+            got = nil
+            icon.IsMouseOver = function() return true end
+            icon:GetScript("OnEnter")(icon)
+            T.falsy(got, name .. ": waits for the mouse to rest, as every icon button does")
+            stub.RunTimers()
+            T.truthy(got and got.title, name .. ": has a name")
+            T.truthy(got.desc, name .. ": and a line on what it does")
+            T.eq(tip.owner, icon, name .. ": on the icon")
+            icon:GetScript("OnLeave")(icon)
+        end
+    end
+    T.truthy(Box.main.icons.copy, "the copy icon exists")
+    Tips.Title, Tips.Text, Tips.Flush = saved.Title, saved.Text, saved.Flush
+    _G.GameTooltip = nil
+end)
+
+T.test("chat daylight: the \"+\" tab says what it adds and sits a little apart from the tabs", function()
+    local Box = daylight()
+    local plus = Box.main.plus
+    local tip = fakeTooltip()
+    function tip:Show() self.shown = true end
+    local Tips = DaylightUI.Tips
+    local saved = { Title = Tips.Title, Text = Tips.Text, Hint = Tips.Hint, Flush = Tips.Flush }
+    local words = {}
+    Tips.Title = function(t) words[#words + 1] = t end
+    Tips.Text = function(t) words[#words + 1] = t end
+    Tips.Hint = function() end
+    Tips.Flush = function() end
+    plus:GetScript("OnEnter")(plus)
+    Tips.Title, Tips.Text, Tips.Hint, Tips.Flush = saved.Title, saved.Text, saved.Hint, saved.Flush
+    _G.GameTooltip = nil
+    T.truthy(tip.shown, "the tooltip is shown, not only filled")
+    T.eq(words[1], "New tab")
+    T.eq(words[2], "Adds a chat tab, or a combat log tab.", "a line on what it adds")
+    local last
+    for _, b in ipairs(Box.main.buttons) do if b:IsShown() then last = b end end
+    T.truthy(last, "a shown tab")
+    local lastAt = select(4, last:GetPoint(1))
+    local plusAt = select(4, plus:GetPoint(1))
+    T.eq(plusAt - (lastAt + last:GetWidth()), Box.PLUS_GAP, "the gap before the plus")
 end)
 
 T.test("chat daylight: the Copy icon follows its switch, the whispers bubble its setting, the rest close up", function()

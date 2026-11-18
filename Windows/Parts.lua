@@ -1297,14 +1297,21 @@ local function button(foot, i)
     local b = foot.buttons[i]
     if b then return b end
     b = DUI.Widgets.Button(foot.frame, "", 28)
-    b:SetScript("OnClick", function(self)
-        if self.spec and not self.spec.off and self.spec.onClick then self.spec.onClick(self) end
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:SetScript("OnClick", function(self, mouse)
+        local spec = self.spec
+        if not spec or spec.off then return end
+        if mouse == "RightButton" then
+            if spec.onRightClick then spec.onRightClick(self) end
+            return
+        end
+        if spec.onClick then spec.onClick(self) end
     end)
     foot.buttons[i] = b
     return b
 end
 
--- list: { { text, primary, tone, off, onClick, key, beside } }, left to right,
+-- list: { { text, primary, tone, off, onClick, onRightClick, key, beside } }, left to right,
 -- following the game's layout: the primary action in the left corner, the rest
 -- packed to the right with the last (Goodbye, Decline) in the right corner.
 -- beside places a button right after the previous one instead.

@@ -5,7 +5,8 @@
 -- bag or quiver takes what it can, and at a banker the bank takes the rest (a
 -- chat line says how many). A chat line also says when there still isn't room.
 -- Never in combat. The new bag must come from the bags themselves (not the bank
--- or another bag slot); anything else is left to the game.
+-- or another bag slot); anything else is left to the game. So is a plain bag at
+-- least as big as the old one: the game swaps it and carries the items over.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -31,6 +32,36 @@ local function heldBag()
     if type(get) ~= "function" then return nil end
     local ok, _, _, _, _, _, classID = pcall(get, id)
     return ok and Swap.BAG_CLASSES[classID] and id or nil
+end
+
+-- How many slots the plain bag in bag/slot has, read from its tooltip's size line
+-- (CONTAINER_SLOTS, "%d Slot %s"), or nil when it can't be read.
+local function sizePattern()
+    local f = type(CONTAINER_SLOTS) == "string" and CONTAINER_SLOTS or "%d Slot %s"
+    f = f:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1"):gsub("%%d", "(%%d+)"):gsub("%%s", ".-")
+    return "^" .. f .. "$"
+end
+local function bagSize(bag, slot)
+    local tip = C_TooltipInfo and C_TooltipInfo.GetBagItem
+    if type(tip) ~= "function" then return nil end
+    local ok, data = pcall(tip, bag, slot)
+    if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+    local pattern = sizePattern()
+    for _, line in ipairs(data.lines) do
+        local text = type(line) == "table" and line.leftText
+        if type(text) == "string" and not DUI.IsSecret(text) then
+            local n = tonumber(text:match(pattern))
+            if n then return n end
+        end
+    end
+end
+
+-- A plain bag (not a quiver or profession bag), which takes any item.
+local function plainBag(itemID)
+    local get = C_Item and C_Item.GetItemInfoInstant
+    if type(get) ~= "function" then return false end
+    local ok, _, _, _, _, _, classID, subclassID = pcall(get, itemID)
+    return ok and classID == 1 and subclassID == 0
 end
 
 -- Where the held bag came from. Its slot stays locked while it's held.
@@ -178,6 +209,10 @@ function Swap.Try(bag, inv)
     if #contents(bag) == 0 then return false end      -- empty, the game swaps it itself
     local from = heldFrom(id)
     if not from then return false end
+    -- A plain bag at least as big as the old one: the game swaps them and moves the
+    -- items in. A smaller one goes through the emptying, even when the items would fit.
+    local size = plainBag(id) and bagSize(from.bag, from.slot)
+    if size and size >= ns.Bags.Size(bag) then return false end
     local t = { bag = bag, inv = inv, id = id, new = from, tries = 0, used = {}, banked = 0 }
     local _, short = plan(bag, nil, id)
     if short > 0 and not ns.Stack.Next() then

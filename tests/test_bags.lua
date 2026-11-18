@@ -399,6 +399,14 @@ T.test("bags: item tooltips count each character's bags and bank, the account ba
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: the tooltip counts switch off", function()
+    local ns = countWorld()
+    DaylightUI:Set("Bags", "viewer.tipCounts", false)
+    T.eq(#tipRows(ns, { id = 1 }), 0, "nothing added")
+    DaylightUI:Set("Bags", "viewer.tipCounts", true)
+    T.eq(#tipRows(ns, { id = 1 }), 5, "back on")
+end)
+
 T.test("bags: item counts show only when another character has some", function()
     local ns = countWorld()
     T.eq(#tipRows(ns, { id = 6 }), 0, "only in this character's bags: nothing added")
@@ -1360,6 +1368,34 @@ T.test("bags: hovering a bag in the strip lights every slot in it, empty ones to
     T.eq(B.buttons[0][1]:GetAlpha(), 1)
 end)
 
+-- A bag swapped while the mouse rests on its slot: the tooltip kept the old bag.
+T.test("bags: a hovered bag slot's tooltip follows a swap under the mouse", function()
+    local ns = login()
+    open(ns)
+    DaylightUI:Set("Bags", "showSlots", true); stub.RunTimers()   -- the strip shows
+    local bag1 = ns.Slots.strip.slots[1]
+    T.truthy(ns.Slots.strip:IsVisible(), "the strip is up")
+    local owner, shown, asked = nil, false, 0
+    local tip = GameTooltip
+    local realOwner, realSetOwner, realShown, realInv, realShow, realHide =
+        tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide
+    tip.SetOwner = function(_, o) owner = o end
+    tip.GetOwner = function() return owner end
+    tip.Show = function() shown = true end
+    tip.Hide = function() shown = false end
+    tip.IsShown = function() return shown end
+    tip.SetInventoryItem = function() asked = asked + 1; return true end
+    bag1:GetScript("OnEnter")(bag1)
+    T.eq(asked, 1, "hovered")
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "swapped under the mouse: shown again")
+    bag1:GetScript("OnLeave")(bag1)
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "not hovered: left alone")
+    tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide =
+        realOwner, realSetOwner, realShown, realInv, realShow, realHide
+end)
+
 T.test("bags: the strip's key button shows and hides the keyring, and is there only when the game has one", function()
     local ns = login({ keyring = true })
     ns.module.db.showKeyring = nil
@@ -1503,6 +1539,33 @@ T.test("bags: a recipe learned turns its other copies red; a level up fills once
     ns.Items.Fill = fill
     T.eq(fills, #ns.Bags.Slots(), "one fill per slot")
     C_Item.IsUsableItem = nil
+end)
+
+T.test("bags: a recipe your profession skill is too low for wears the red, not one whose made item needs a level", function()
+    local ns = login()
+    -- Seen in game: IsUsableItem says yes to a cooking recipe with the skill too low;
+    -- only the recipe's own red "Requires Cooking (110)" line tells.
+    local RED, WHITE = { r = 1, g = 0.125, b = 0.125 }, { r = 1, g = 1, b = 1 }
+    _G.ITEM_MIN_SKILL = "Requires %s (%d)"
+    C_Item.GetItemInfoInstant = function() return 1, "Recipe", "Cooking", "", 1, ns.Items.RECIPE, 5 end
+    C_Item.IsUsableItem = function() return true end
+    local skill = RED
+    _G.C_TooltipInfo = { GetBagItem = function(bag, slot)
+        return { lines = { { leftText = "Recipe: Big Bear Steak", leftColor = WHITE },
+                           { leftText = "Big Bear Steak", leftColor = WHITE },
+                           { leftText = "Requires Level 50", leftColor = RED },
+                           { leftText = "Use: Teaches you how to cook a Big Bear Steak.", leftColor = WHITE },
+                           { leftText = "Requires Cooking (110)", leftColor = skill } } }
+    end }
+    open(ns)
+    local recipe = ns.Bags.buttons[0][1]
+    T.truthy(recipe.dluiUnusable, "skill too low: red")
+    skill = WHITE
+    ns.Items.ForgetUsable()
+    ns.FillAll(); stub.RunTimers()
+    T.falsy(recipe.dluiUnusable, "the made item's red level alone doesn't count")
+    C_Item.IsUsableItem = nil
+    _G.C_TooltipInfo = nil
 end)
 
 T.test("bags: an item not loaded yet isn't judged usable or not until it loads", function()
@@ -1701,6 +1764,33 @@ T.test("bags: the secure Disenchant button goes where ours is, each time the mou
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     stub.secure = false
     _G.IsPlayerSpell = nil
+end)
+
+T.test("bags: the Pick Lock button: shown to rogues who know it, last beside the search, casting Pick Lock", function()
+    local ns = login()
+    local PL = ns.PickLock
+    T.eq(PL.SPELL, 1804)
+    local known = {}
+    _G.IsPlayerSpell = function(id) return known[id] == true end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.pickLockButton
+    T.falsy(b:IsShown(), "not known: no button")
+    known[PL.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(b:IsShown())
+    T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
+    T.truthy(tostring(b.icon:GetTexture()):find("ui%-lock%.png"), "a flat icon like the rest of the row")
+    b.GetLeft, b.GetBottom = function() return 360 end, function() return 300 end
+    b:SetSize(28, 28)
+    stub.secure = true
+    b:GetScript("OnEnter")(b)
+    local o = PL.caster.button
+    T.truthy(o and o:IsShown(), "the secure button lies over it")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), PL.SPELL)
+    stub.secure = nil
+    _G.IsPlayerSpell = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: the Comprehend Scroll button: shown to those who know it, beside Disenchant; hovered, it casts the spell", function()
@@ -4614,6 +4704,59 @@ local function fillBackpack(leave)
     end
 end
 
+-- The held bag's tooltip size line ("12 Slot Bag").
+-- Returns a function that puts the game's back.
+local function bagTooltip(slots)
+    _G.C_TooltipInfo = _G.C_TooltipInfo or {}
+    local real = C_TooltipInfo.GetBagItem
+    C_TooltipInfo.GetBagItem = function(bag, slot)
+        local it = world.items[bag] and world.items[bag][slot]
+        if it and it.itemID == 50 then
+            return { lines = { { leftText = "Traveler's Bag" }, { leftText = slots .. " Slot Bag" } } }
+        end
+        return { lines = {} }
+    end
+    return function() C_TooltipInfo.GetBagItem = real end
+end
+
+-- A 10 slot bag full of items, swapped for a 12 slot one with the other bags full:
+-- the game swaps them itself and moves the items into the new bag (seen in game),
+-- so Daylight UI leaves the drop to it instead of asking for free slots.
+T.test("bags: a bag at least as big as the old one is left to the game", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)                                       -- no free slots at all
+    local restore = bagTooltip(14)                        -- the old bag has 12
+    C_Container.PickupContainerItem(0, 3)
+    T.falsy(ns.Swap.Try(1, 31), "left to the game")
+    T.eq(#world.printed, 0, tostring(world.printed[1]))
+    T.eq(world.puts, 0, "Daylight UI moved nothing")
+    restore()
+end)
+
+-- Only a bigger bag was seen swapping in game, so a smaller one empties first even
+-- when the items would fit in it.
+T.test("bags: a smaller bag that would hold the items still empties the old one first", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)
+    local restore = bagTooltip(8)                         -- 8 slots, 3 items, old bag 12
+    C_Container.PickupContainerItem(0, 3)
+    T.truthy(ns.Swap.Try(1, 31), "handled here")
+    restore()
+end)
+
+T.test("bags: a bag too small for the old one's items still empties it first", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)
+    local restore = bagTooltip(2)                         -- 2 slots, 3 items
+    C_Container.PickupContainerItem(0, 3)
+    T.truthy(ns.Swap.Try(1, 31), "handled here")
+    T.truthy(world.printed[1] and world.printed[1]:find("free 3 more slots", 1, true), tostring(world.printed[1]))
+    restore()
+end)
+
 T.test("bags: a full bag swap merges half stacks first when that makes the room", function()
     local ns = login()
     swapWorld()
@@ -5650,6 +5793,23 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     f.sort:GetScript("OnClick")(f.sort)
     for _ = 1, 5 do stub.RunTimers() end
     T.eq(picks, 0, "nothing to do")
+end)
+
+T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()
+    local ns = login({ view = "grid" })
+    keepWorld()
+    local rev = true
+    C_Container.GetSortBagsRightToLeft = function() return rev end
+    local f = open(ns)
+    ns.Keep.Toggle(0, 3, 30)
+    f.sort:GetScript("OnClick")(f.sort)
+    for _ = 1, 10 do stub.RunTimers() end
+    local last = ns.Bags.NumSlots(1)
+    T.eq(world.items[0][3].itemName, "Cherry", "the kept item never moved")
+    T.eq(world.items[1][last].itemName, "Apple", "the first item in the very last slot")
+    T.eq(world.items[1][last - 1].itemName, "Banana")
+    T.isnil(world.items[0][1], "the front left empty")
+    C_Container.GetSortBagsRightToLeft = nil
 end)
 
 T.test("bags: a kept item that wandered off comes back; a kept slot with its item gone stays free", function()

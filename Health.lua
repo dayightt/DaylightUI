@@ -12,8 +12,9 @@ DUI.Health = Health
 Health.FORMATS = {
     percent = "Percent (62)", value = "Health (4.1K)", valuemax = "Health / max (4.1K / 6.6K)",
     both = "Health and percent (4.1K | 62%)", missing = "Missing (-2.5K)", full = "Health (1,400)",
+    fullboth = "Full health and percent (4,100 | 62%)", percentboth = "Percent and health (62% | 4.1K)",
 }
-Health.FORMAT_ORDER = { "percent", "value", "full", "valuemax", "both", "missing" }
+Health.FORMAT_ORDER = { "percent", "value", "full", "valuemax", "both", "fullboth", "percentboth", "missing" }
 
 -- The full number with separators regardless of the General `numbers`
 -- setting. Accepts a secret, like Health.Number's "full" style.
@@ -146,6 +147,8 @@ function Health.Format(format, u, sign)
     if format == "full" then return "%s", whole(UnitHealth(u)) end
     if format == "valuemax" then return "%s / %s", short(UnitHealth(u)), short(UnitHealthMax(u)) end
     if format == "both" then return "%s | %.0f%%", short(UnitHealth(u)), percent(u) end
+    if format == "fullboth" then return "%s | %.0f%%", whole(UnitHealth(u)), percent(u) end
+    if format == "percentboth" then return "%.0f%% | %s", percent(u), short(UnitHealth(u)) end
     if format == "missing" then return "-%s", short(missing(u)) end
     return sign and "%.0f%%" or "%.0f", percent(u)
 end
@@ -165,6 +168,8 @@ function Health.FormatSample(format, pct, value, sign)
     if format == "full" then return "%s", whole(value) end
     if format == "valuemax" then return "%s / %s", short(value), short(max) end
     if format == "both" then return "%s | %.0f%%", short(value), pct end
+    if format == "fullboth" then return "%s | %.0f%%", whole(value), pct end
+    if format == "percentboth" then return "%.0f%% | %s", pct, short(value) end
     if format == "missing" then return "-%s", short(max - value) end
     return sign and "%.0f%%" or "%.0f", pct
 end

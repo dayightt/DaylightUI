@@ -6,6 +6,10 @@
 -- setting turned off this way is remembered in DB.Root().questieOff[key], and when
 -- Daylight UI's goes away again (module off, setting off, another tracker addon)
 -- Questie's comes back. Settings the player turned off themselves stay off.
+-- One works the other way round: "Hide icons of untracked quests" is turned on
+-- while Daylight UI's tracker is in charge, so a quest left out of the tracker
+-- leaves the maps too. With its own tracker off, Questie reads "tracked" from
+-- the game's quest watches, which is what Daylight UI's tracker lists.
 -- While Skins' Questie option is on, its objective icons use Daylight UI's white symbols
 -- (QA.ICONS, written the way Questie's own icon options write them), with each
 -- quest colored by Questie's "Unique Map Icon Colors". The player's own picks
@@ -31,6 +35,12 @@ QA.LIST = {
     { key = "trackerEnabled", ours = function() return DUI.questsOwnTracker == true and DUI:Get("Quests", "tracker") ~= false end },
     -- Daylight UI's quest lines in NPC tooltips (Quests GiverTips.lua, on unless turned off).
     { key = "showQuestsInNpcTooltip", ours = function() return questsOn() and DUI:Get("Quests", "mapQuests.tooltip") ~= false end },
+    -- Untracked quests off the maps. Not with the "whole log" filter: it lists
+    -- every quest without watching any, so Questie would hide them all.
+    { key = "hideUntrackedQuestsMapIcons", value = true, icons = true, ours = function()
+        return questsOn() and DUI.questsOwnTracker == true and DUI:Get("Quests", "tracker") ~= false
+            and DUI:Get("Quests", "filter") ~= "log"
+    end },
     -- No longer used, kept so settings once turned off here get turned back on.
     { key = "enableMapIcons", ours = never },
     { key = "enableMiniMapIcons", ours = never },
@@ -51,6 +61,62 @@ local function skinOn()
     local m = DUI.GetModule and DUI:GetModule("Skins")
     return isTable(m) and m.enabled == true and DUI:Get("Skins", "addonSkins.questie") ~= false
 end
+
+-- Questie hides and shows its drawn icons only when asked (its own option does
+-- the same), and draws an untracked quest's icons only once they may show.
+local function module(name)
+    local L = _G.QuestieLoader
+    if not isTable(L) or type(L.ImportModule) ~= "function" then return nil end
+    local m = L:ImportModule(name)
+    return isTable(m) and m or nil
+end
+
+function QA.RedrawIcons()
+    local TL, QQ, AQ = module("ThreadLib"), module("QuestieQuest"), module("ActiveQuests")
+    if not (TL and QQ and AQ) or type(TL.ThreadInstant) ~= "function" or type(AQ.Iterate) ~= "function"
+        or type(QQ.ShowQuestIcons) ~= "function" or type(QQ.HideQuestIcons) ~= "function"
+        or type(QQ.PopulateObjectiveNotes) ~= "function" then return end
+    QA.Hurry()
+    TL.ThreadInstant(function()
+        for _, acceptance in AQ.Iterate() do
+            if isTable(acceptance) and acceptance.quest then QQ:PopulateObjectiveNotes(acceptance.quest) end
+        end
+        QQ:ShowQuestIcons()
+        QQ:HideQuestIcons()
+    end)
+end
+
+
+-- Questie draws new map icons from a queue, 24 every 0.2 s, so a quest with
+-- hundreds of spawns spreads over the map for seconds. That used to happen
+-- once at login; with untracked quests hidden it happens on every track.
+-- For a short while after a watch change, work the queue every frame instead.
+QA.HURRY_FOR, QA.HURRY_PER_FRAME = 2, 4
+local hurry, hurryUntil
+
+local function hurryTick()
+    local M = module("QuestieMap")
+    if not M or type(M.ProcessQueue) ~= "function" or GetTime() > hurryUntil then
+        hurry:SetScript("OnUpdate", nil)
+        return
+    end
+    for _ = 1, QA.HURRY_PER_FRAME do M.ProcessQueue() end
+end
+
+function QA.Hurry()
+    local q = _G.Questie
+    local db = isTable(q) and isTable(q.db) and q.db.profile
+    if not isTable(db) or db.hideUntrackedQuestsMapIcons ~= true or db.trackerEnabled ~= false then return end
+    if not module("QuestieMap") then return end
+    hurry = hurry or CreateFrame("Frame")
+    QA.hurryFrame = hurry
+    hurryUntil = GetTime() + QA.HURRY_FOR
+    hurry:SetScript("OnUpdate", function() DUI.SafeCall(hurryTick) end)
+end
+
+DUI.RegisterEvent("QUEST_WATCH_LIST_CHANGED", function(_, _, added)
+    if added then QA.Hurry() end
+end)
 
 local function icons(q, db, root)
     local kept = root.questieIcons
@@ -84,18 +150,23 @@ function QA.Run()
     if not isTable(root) then return false end
     root.questieOff = root.questieOff or {}
     local off = root.questieOff
+    local redraw = false
     for _, a in ipairs(QA.LIST) do
+        local want = a.value == true
         if a.ours() then
-            if db[a.key] ~= false then
-                db[a.key] = false
+            if db[a.key] ~= want then
+                db[a.key] = want
                 off[a.key] = true
+                redraw = redraw or a.icons
             end
         elseif off[a.key] then
-            db[a.key] = true
+            db[a.key] = not want
             off[a.key] = nil
+            redraw = redraw or a.icons
         end
     end
     if next(off) == nil then root.questieOff = nil end
+    if redraw then DUI.AfterCombat(function() DUI.SafeCall(QA.RedrawIcons) end, "questie icons") end
     icons(q, db, root)
     return true
 end

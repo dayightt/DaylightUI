@@ -410,6 +410,25 @@ T.test("npc immersive: the game's error text stays while the UI is away", functi
     T.eq(e:IsIgnoringParentAlpha(), false, "its own flag given back")
 end)
 
+T.test("npc immersive: the card drags by its header and keeps its own spot; a right-click puts it back", function()
+    local N, ns = load()
+    ns.module.db.look = "immersive"
+    NW.Quest("COMPLETE", NW.Candles())
+    frame(); settle()
+    local sc = N.scene
+    T.truthy(sc:GetScript("OnDragStart"), "drags like the talk window")
+    ns.Scene.spot.Save(400, -120)
+    T.isnil(ns.module.db.spot, "the talk window's spot untouched")
+    ns.Scene.Place()
+    local p, rel = sc:GetPoint(1)
+    T.eq(p, "TOP", "on the dragged spot")
+    T.eq(rel, UIParent)
+    T.truthy(ns.Scene.spot.Reset(), "a reset clears it")
+    ns.Scene.Place()
+    T.eq((sc:GetPoint(1)), "RIGHT", "back on the right")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game counts at the press; a list read earlier can be short.
 T.test("npc: hand-in: choices that came after the page was read still need a pick", function()
     local N = load()

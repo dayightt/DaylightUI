@@ -29,7 +29,7 @@ Tracker.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPT
 -- These can arrive in bursts (a whole raid turning in), so they wait and get one check.
 Tracker.WAITS = { QUEST_LOG_UPDATE = true, UNIT_QUEST_LOG_CHANGED = true, GROUP_ROSTER_UPDATE = true }
 -- Settings whose change re-lays the list with a fade instead of a jump.
-Tracker.FADE_PATHS = { filter = true, instances = true, zoneNames = true, hideDone = true, sort = true, foldReady = true, emptyHeader = true }
+Tracker.FADE_PATHS = { filter = true, instances = true, zoneNames = true, hideDone = true, sort = true, foldReady = true, readyLast = true, emptyHeader = true }
 Tracker.NEAR_EVERY = 5            -- seconds between nearest-first checks
 Tracker.DIM = 0.5                 -- other quests' alpha while one is hovered
 
@@ -128,7 +128,7 @@ function Tracker.Options()
              recent = db.sort == "recent" and Tracker.Recent() or nil, near = Tracker.near,
              frozen = InCombatLockdown() and Tracker.order or nil,
              frozenZones = InCombatLockdown() and Tracker.zoneOrder or nil,
-             foldReady = db.foldReady, emptyHeader = db.emptyHeader }
+             foldReady = db.foldReady, readyLast = db.readyLast, emptyHeader = db.emptyHeader }
 end
 
 -- Only the current zone: the player's filter, or a dungeon's own view (instances

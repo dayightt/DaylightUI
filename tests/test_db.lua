@@ -66,6 +66,41 @@ T.test("Set on a module stores the value and calls OnSettingChanged", function()
     T.eq(got, "size=3")
 end)
 
+T.test("a slider held down tells the module at a steady pace, ending on the last value", function()
+    local DUI = stub.Load()
+    local calls, last = 0, nil
+    DUI:RegisterModule("Demo", { defaults = { size = 1 },
+        OnSettingChanged = function(_, path, v) calls, last = calls + 1, v end })
+    DUI.Options.sliderHeld = true
+    for i = 1, 50 do DUI:Set("Demo", "size", i) end
+    T.eq(DUI:Get("Demo", "size"), 50, "the value is stored at every step")
+    T.eq(calls, 0, "the module isn't refreshed at every step")
+    stub.RunTimers()
+    T.eq(calls, 1, "once")
+    T.eq(last, 50, "with the last value")
+    DUI.Options.sliderHeld = false
+    DUI:Set("Demo", "size", 7)
+    T.eq(calls, 2, "released, it's at once again")
+    T.eq(last, 7)
+end)
+
+T.test("a General slider held down repaints the style once, when it's let go", function()
+    local DUI = stub.Load()
+    local repaints = 0
+    DUI.On("RepaintCore", function() repaints = repaints + 1 end)
+    DUI.Options.sliderHeld = true
+    for i = 1, 30 do DUI:Set("general", "borderPx", i % 5 + 1) end
+    stub.RunTimers()
+    T.eq(repaints, 0, "nothing while it's held")
+    DUI.Options.sliderHeld = false
+    DUI.FlushHeldStyle()
+    stub.RunTimers()
+    T.eq(repaints, 1, "one repaint for the whole drag")
+    DUI:Set("general", "borderPx", 4)
+    stub.RunTimers()
+    T.eq(repaints, 2, "not held: next frame as before")
+end)
+
 T.test("Set in combat stores now and applies after combat", function()
     local DUI = stub.Load()
     local calls = 0
