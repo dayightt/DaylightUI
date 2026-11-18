@@ -591,8 +591,10 @@ local function fitFocusGlow(glow)
     local a = focusCVar("GamepadFocusStateOpacity")
     if a then glow:SetAlpha(a) end
     local c = FOCUS_COLORS[focusCVar("GamepadFocusStateColor") or 0]
-    if c and isTable(glow.GlowTexture) and glow.GlowTexture.SetVertexColor then
-        glow.GlowTexture:SetVertexColor(c[1], c[2], c[3])
+    if not c then return end
+    local textures = isTable(glow.glowTextures) and glow.glowTextures or { glow.GlowTexture }
+    for _, t in ipairs(textures) do
+        if isTable(t) and t.SetVertexColor then t:SetVertexColor(c[1], c[2], c[3]) end
     end
 end
 
@@ -612,6 +614,32 @@ function Kit.FocusGlow(frame)
     Kit.Hide(glow.HeaderGlowTexture)
     fitFocusGlow(glow)
     if glow.HookScript then glow:HookScript("OnShow", fitFocusGlow) end
+end
+
+-- Every glow, skinned window or not (menus, the shop): each one registers with
+-- CVarCallbackRegistry for the opacity setting, as itself, so that list is
+-- all of them. 2 is CallbackRegistry's CallbackType.Function, which is local.
+function Kit.FitFocusGlows()
+    local r = _G.CVarCallbackRegistry
+    if not isTable(r) or type(r.GetCallbacksByEvent) ~= "function" then return end
+    local ok, glows = pcall(r.GetCallbacksByEvent, r, 2, "GamepadFocusStateOpacity")
+    if not ok or not isTable(glows) then return end
+    for glow in pairs(glows) do
+        if isTable(glow) and glow.SetAlpha and not (glow.IsForbidden and glow:IsForbidden()) then fitFocusGlow(glow) end
+    end
+end
+
+-- Once at start, then each time the controller's focus moves, which is when a
+-- glow shows (the game fires Gamepad.RefreshFrameFocus; EventRegistry runs each
+-- callback on its own, so nothing here reaches the game's code).
+local watchingGlows = false
+function Kit.WatchFocusGlows()
+    if watchingGlows then return end
+    watchingGlows = true
+    Kit.FitFocusGlows()
+    if isTable(_G.EventRegistry) and _G.EventRegistry.RegisterCallback then
+        _G.EventRegistry:RegisterCallback("Gamepad.RefreshFrameFocus", Kit.FitFocusGlows, Kit)
+    end
 end
 
 -- Dresses a game window: strips its art, adds the window look behind it, sets
