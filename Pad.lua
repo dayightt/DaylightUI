@@ -1212,6 +1212,8 @@ local function combatActive()
     return type(R) == "table" and T and R.IsAddOnRestrictionActive(T.Combat) == true
 end
 
+local relist = {} -- the game's own windows handed back for the fight, still shown
+
 -- Called while the game still listens. Inside the restriction's own event it
 -- reports "not active", and PLAYER_REGEN_DISABLED fires before lockdown.
 local function handBack()
@@ -1222,6 +1224,18 @@ local function handBack()
     Pad.HideHints()
     local m = manager()
     if not m or combatActive() then return end
+    -- The game's own windows (the world map) would keep the D-pad through the fight.
+    local list = m.shownFrames
+    if type(list) == "table" then
+        local copy = {}
+        for i, f in ipairs(list) do copy[i] = f end
+        for _, f in ipairs(copy) do
+            if type(f) == "table" and not followed[f] and not forgetting[f] and not told[f] then
+                m:FrameHidden(f)
+                if f.IsShown and f:IsShown() then relist[#relist + 1] = f end
+            end
+        end
+    end
     for frame in pairs(told) do
         told[frame] = nil
         m:FrameHidden(frame)
@@ -1233,6 +1247,15 @@ local function takeBack()
     local asked = waiting
     waiting = {}
     for _, fn in pairs(asked) do fn() end
+    -- The game's windows first, so a Daylight UI window open across the fight is announced last.
+    local back = relist
+    relist = {}
+    local m = manager()
+    if m and not InCombatLockdown() then
+        for _, f in ipairs(back) do
+            if f:IsShown() and not followed[f] and not forgetting[f] then m:FrameShown(f) end
+        end
+    end
     for frame in pairs(followed) do sync(frame) end
     -- A box still taken (the quest journal open through the fight) gets its keys back.
     local t = Pad.taken
