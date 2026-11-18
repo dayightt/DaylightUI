@@ -824,15 +824,17 @@ T.test("profiles: Ready-made adds DPS/Tank when it isn't saved, and Reset puts a
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("the DPS/Tank and Healer setups show the micro menu in the corner, the Immersive Preset doesn't", function()
+T.test("every ready-made setup shows the micro menu in the corner, the Immersive Preset's until the mouse", function()
     local DUI = login()
-    for _, name in ipairs({ "DPS/Tank", "Healer" }) do
+    for _, name in ipairs({ "DPS/Tank", "Healer", "Immersive Preset" }) do
         local ab = DUI.Profiles.ReadyData(name).modules.ActionBars
         T.eq(ab.microMenu, "shown", name)
         T.eq(ab.microMenuCorner, true, name)
     end
-    local ab = DUI.Profiles.ReadyData("Immersive Preset").modules.ActionBars
-    T.truthy(ab.microMenu ~= "shown", "immersive: still hidden")
+    T.isnil(DUI.Profiles.ReadyData("DPS/Tank").modules.ActionBars.microMenuFade, "DPS/Tank: the default, always there")
+    local fade = DUI.Profiles.ReadyData("Immersive Preset").modules.ActionBars.microMenuFade
+    T.eq(fade.mode, "always", "immersive: waits for the mouse")
+    T.eq(fade.alpha, 0.2, "immersive: faint, not gone, so it can be found")
 end)
 
 T.test("Healer spots fit a smaller screen: pulled in with the width, the player row over a full raid", function()
@@ -956,7 +958,8 @@ T.test("the Immersive Preset setup is ordinary settings: each one it sets is a r
     local function walk(scope, t, path)
         for k, v in pairs(t) do
             local at = path and (path .. "." .. k) or k
-            if type(v) == "table" then walk(scope, v, at) else
+            if type(v) == "table" then walk(scope, v, at)
+            elseif at ~= "microMenuCorner" then -- where the micro menu starts, not a setting (unlock mode moves it)
                 n = n + 1
                 T.truthy(keys[scope .. "|" .. at], scope .. " " .. at .. " is a row on its page")
             end

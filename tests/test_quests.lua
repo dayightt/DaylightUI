@@ -1472,6 +1472,108 @@ T.test("quests items: out of range tints the icon", function()
     T.rgb(ns.Items.buttons[1].icon.__vertex, ns.Items.OUT_OF_RANGE)
 end)
 
+-- Fade's check, then two seconds of frames.
+local function faded()
+    local F = DaylightUI.Fade
+    F.Step()
+    for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    return DaylightUIQuestTracker:GetAlpha()
+end
+
+local function fadeInCombat()
+    DaylightUI:Set("Quests", "fade.mode", "combat")
+    DaylightUI:Set("Quests", "fade.alpha", 0)
+    DaylightUI:Set("Quests", "fade.delay", 0)
+end
+
+-- Seen in game: the salve for the sickly gazelles puts the player in combat with
+-- the gazelle for about 30 s, and an "In combat" fade hid the whole tracker until
+-- it ended.
+local GAZELLE = "Sickly Gazelle"
+local SALVE_SPELL = 4321
+
+-- The item's spell, cast on target (UNIT_SPELLCAST_SENT names it).
+local function useItem(target)
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", target, "Cast-1", SALVE_SPELL)
+end
+
+-- A unit in a fight with the player (in combat, the player on its threat list).
+local function foe(name) return { name = name, combat = true, threat = 0 } end
+
+local function itemWorld(units)
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
+    local spell = C_Item.GetItemSpell
+    C_Item.GetItemSpell = function(id) if id == 5862 then return "Salve", SALVE_SPELL end end
+    stub.SetUnits(units)
+    fadeInCombat()
+    return Tr, ns, function() C_Item.GetItemSpell = spell end
+end
+
+T.test("quests items: fighting what the item was used on keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    T.eq(faded(), 1, "out of combat: shown")
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 1, "the gazelle's fight: still shown")
+    stub.LeaveCombat()
+    T.eq(faded(), 1, "after it")
+    stub.EnterCombat()
+    T.eq(faded(), 0, "the next fight, without a use: fades as usual")
+    stub.LeaveCombat()
+    done()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: something else joining the fight fades the tracker", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 1)
+    stub.units.nameplate1 = foe("Kolkar Bloodcharger")
+    T.eq(faded(), 0, "a Kolkar attacks: a real fight")
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: a fight with something other than what the item was used on fades it", function()
+    local Tr, ns, done = itemWorld({ target = foe("Kolkar Bloodcharger") })
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: a use with no fight after it is forgotten, so a later fight with the same name fades", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.Advance(ns.Items.FORGET + 1); stub.RunTimers()   -- no fight followed
+    stub.EnterCombat()
+    T.eq(faded(), 0, "a later gazelle fight fades as usual")
+    stub.LeaveCombat()
+    done()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: a fight that starts a moment after the use still keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()   -- the salve's fight starts before the forget timer is due
+    stub.RunTimers()     -- the stub runs every pending timer here: it fires mid-fight
+    T.eq(faded(), 1, "still shown: the timer leaves a fight alone")
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: another spell's cast doesn't count as the item's use", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", GAZELLE, "Cast-2", 133)
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+    done()
+end)
+
 local function click(Tr, key, button)
     local f = Tr.frames[key]
     f:GetScript("OnClick")(f, button or "LeftButton")

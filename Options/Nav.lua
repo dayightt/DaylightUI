@@ -23,13 +23,14 @@ Nav.LOGO = { 136, 34 }      -- wordmark size (the image is 4:1)
 Nav.PAGES_TOP = 136         -- page list offset from the column's top
 Nav.ICON_ALPHA = { on = 1, off = 0.6, empty = 0.25 }
 
--- Scroll bar sits inside the list's right edge.
-local function scrollArea(parent)
+-- Scroll bar sits inside the list's right edge. barOpts (optional) places it
+-- elsewhere: { x = gap right of the area, parent = frame it draws on }.
+local function scrollArea(parent, barOpts)
     local sf = CreateFrame("ScrollFrame", nil, parent)
     local child = CreateFrame("Frame", nil, sf)
     child:SetHeight(1)
     sf:SetScrollChild(child)
-    sf.bar = W.Scroll(sf, { x = -8, step = 40 })
+    sf.bar = W.Scroll(sf, { x = barOpts and barOpts.x or -8, parent = barOpts and barOpts.parent, step = 40 })
     return sf, child
 end
 
@@ -350,7 +351,9 @@ local function buildRail(nav, frame)
     rail.bg:SetAllPoints(rail)
     rail.bg:SetColorTexture(C.sidebar[1], C.sidebar[2], C.sidebar[3], 1)
     nav.rail = rail
-    nav.railScroll, nav.railChild = scrollArea(rail)
+    -- The rail's bar sits just past its edge, in the page list's empty margin,
+    -- so it never covers the current section's band.
+    nav.railScroll, nav.railChild = scrollArea(rail, { x = 2, parent = frame })
     nav.railScroll:SetAllPoints(rail)
     nav.railChild:SetWidth(Nav.RAIL)
 end

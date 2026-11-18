@@ -964,7 +964,8 @@ function Tracker.Build(mod)
         end,
         over = function()
             return view:IsMouseOver() == true or (ns.Items ~= nil and ns.Items.Hovered())
-        end }
+        end,
+        wake = function() return ns.Items ~= nil and ns.Items.Awake() end }
     for _, e in ipairs(Tracker.EVENTS) do
         DUI.RegisterEvent(e, function(event, ...) Tracker.OnEvent(event, ...) end)
     end

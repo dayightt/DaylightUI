@@ -8229,3 +8229,59 @@ T.test("bags: the search tooltip shows the player's own keywords, the ones the b
     T.truthy(all:find("boe & q>común, comida | poción, gear & !conjunto", 1, true), "the example uses them")
     for k, v in pairs(saved) do rawset(S.WORD, k, v) end
 end)
+
+-- A stand-in for the game's controller list (FrameControlsManager): the windows
+-- it lists, and for each close whether it left the list empty. Emptying it from
+-- addon code is what the game refuses.
+local function padList()
+    local m = { shown = {}, emptied = {} }
+    function m:GetActiveFrame() return self.shown[#self.shown] end
+    function m:FrameShown(frame)
+        for _, f in ipairs(self.shown) do if f == frame then return end end
+        table.insert(self.shown, frame)
+    end
+    function m:FrameHidden(frame)
+        for i, f in ipairs(self.shown) do
+            if f == frame then table.remove(self.shown, i); break end
+        end
+        self.emptied[frame] = #self.shown == 0
+    end
+    _G.GamepadMode = { FrameControlsManager = m }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    return m
+end
+local function listed(m, frame)
+    for _, f in ipairs(m.shown) do if f == frame then return true end end
+    return false
+end
+local function noPad() _G.GamepadMode, _G.InputUtil = nil, nil end
+
+T.test("bags: walking away from a merchant with the bag open tells the controller while the merchant is still listed", function()
+    local ns = login()
+    local m = padList()
+    local merchant = CreateFrame("Frame", nil, UIParent)
+    local f = open(ns)
+    stub.RunTimers()
+    T.eq(listed(m, f), true, "the bag is listed")
+    -- Only the two windows that matter: the game's merchant window and the bag.
+    m.shown = { merchant, f }
+    -- Walking away: the game closes its bags first, then its merchant window.
+    CloseAllBags()
+    m:FrameHidden(merchant)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(listed(m, f), false, "the bag left the list")
+    T.eq(m.emptied[f], false, "it left while the merchant was still listed, so its close never emptied the list")
+    noPad()
+end)
+
+T.test("bags: in a fight, Win.Held reads the bag's table of held slots without calling it", function()
+    local ns = login()
+    local f = open(ns)
+    T.eq(type(f.held), "table", "the bag keeps its held slots in a table")
+    stub.EnterCombat()
+    local ok, held = pcall(DaylightUI.Win.Held, f)
+    T.eq(ok, true, "no error grabbing the bag in a fight")
+    T.eq(held, f:IsProtected() == true)
+    stub.LeaveCombat()
+end)
+
