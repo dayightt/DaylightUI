@@ -1,3 +1,10 @@
+# DaylightUI 1.9.4.2
+
+Fixes an error from speech bubbles in 1.9.4.1.
+
+## Fixed
+- Chat: Speech bubbles no longer cause an error when someone nearby talks
+
 # DaylightUI 1.9.4.1
 
 Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.
