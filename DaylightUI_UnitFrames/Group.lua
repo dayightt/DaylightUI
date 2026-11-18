@@ -83,7 +83,8 @@ local INIT = [[
 --   template          the header's template (default SecureGroupHeaderTemplate)
 --   home              the group whose mover scale, test part and fade it shares (default key)
 --   apiKind           the API frame kind its buttons report as (default key)
---   plainSort         true: roster order only (the pet header can't group by role or class)
+--   sortAttrs         { [sortBy] = attrs, default = attrs }: its own header's sorting
+--                     in place of SORT_ATTRS (the pet header has no ASSIGNEDROLE)
 --   previewMax        how many samples to build (default maxCount)
 --   wantsPreview()    -> false: no samples built in test mode (default true)
 function Group.New(opts)
@@ -385,12 +386,9 @@ function Group:ApplyDirection(cfg)
     end
     -- Tiles per line: by group (five), or members listed in order.
     local per = Group.PerLine(cfg)
-    local sort = Group.SORT_ATTRS[cfg.sortBy]
-    if self.opts.plainSort then
-        h:SetAttribute("groupBy", nil)
-        h:SetAttribute("groupingOrder", nil)
-        h:SetAttribute("sortMethod", "INDEX")
-    elseif sort then
+    local own = self.opts.sortAttrs
+    local sort = own and (own[cfg.sortBy] or own.default) or Group.SORT_ATTRS[cfg.sortBy]
+    if sort then
         h:SetAttribute("groupBy", sort.groupBy)
         h:SetAttribute("groupingOrder", sort.groupingOrder)
         h:SetAttribute("sortMethod", sort.sortMethod)

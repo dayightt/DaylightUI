@@ -165,8 +165,9 @@ end
 local function gradientKey(f)
     local s = f.test
     if not s then
-        -- A party pet in its owner's colors (PartyPets.lua).
-        if f.ownerClass and DUI.Gradients.Has(f.ownerClass) then return f.ownerClass end
+        -- A party or raid pet in its owner's colors (PartyPets.lua, RaidPets.lua).
+        local owner = UF.OwnerClass(f)
+        if owner and DUI.Gradients.Has(owner) then return owner end
         local key = DUI.Gradients.KeyFor(f.unitToken)
         -- A class hidden here but readable from the unit's group token.
         local isPlayer = key == "FALLBACK" and UnitIsPlayer(f.unitToken)

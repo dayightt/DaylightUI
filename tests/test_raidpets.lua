@@ -20,7 +20,7 @@ T.test("raid pets: the game's pet header, off until switched on", function()
     DUI:Set("UnitFrames", "raid.showPets", true)
     stub.RunTimers()
     T.eq(h.__stateDriver.visibility, "[@raid1,exists] show; hide")
-    T.isnil(h:GetAttribute("groupBy"), "roster order")
+    T.eq(h:GetAttribute("groupBy"), "GROUP", "by the owner's group")
     T.eq(h:GetAttribute("sortMethod"), "INDEX")
     T.eq(h:GetAttribute("unitWidth"), ns.Raid.header:GetAttribute("unitWidth"), "raid tile size")
     DUI:Set("UnitFrames", "raid.enabled", false)
@@ -91,4 +91,55 @@ T.test("raid pets: test mode shows sample pets beside the sample raid", function
     DUI.SetTestMode(false)
     T.falsy(ns.RaidPets.group.preview[1]:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The pet header sorts by the owner's group, class or name (its ROLE is the raid's
+-- main tank or assist, and it has no ASSIGNEDROLE), so the pets follow "Sort frames
+-- by" where they can and keep the owner's group otherwise.
+T.test("raid pets: they follow Sort frames by where the pet header can", function()
+    local DUI, ns = login()
+    local h = ns.RaidPets.header
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    for sortBy, want in pairs({ class = "CLASS", name = false, role = "GROUP", grouprole = "GROUP", group = "GROUP" }) do
+        DUI:Set("UnitFrames", "raid.sortBy", sortBy)
+        stub.RunTimers()
+        if want then
+            T.eq(h:GetAttribute("groupBy"), want, sortBy)
+        else
+            T.isnil(h:GetAttribute("groupBy"), sortBy)
+            T.eq(h:GetAttribute("sortMethod"), "NAME", sortBy .. ": by the owner's name")
+        end
+        T.truthy(h:GetAttribute("groupBy") ~= "ASSIGNEDROLE", sortBy .. ": never a grouping the pet header lacks")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Every pet tile came out reaction green. Each wears its owner's class color now,
+-- read from the owner's unit as it's drawn.
+T.test("raid pets: each tile wears its owner's class color", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    T.eq(ns.RaidPets.OwnerOf("raidpet3"), "raid3")
+    T.eq(ns.RaidPets.OwnerOf("partypet2"), "party2")
+    T.eq(ns.RaidPets.OwnerOf("pet"), "player")
+    T.isnil(ns.RaidPets.OwnerOf("target"))
+    stub.units.raid3 = { name = "Rexx", isPlayer = true, class = "HUNTER", raid = true }
+    stub.units.raidpet3 = { name = "Wolf", friend = true, health = 30, maxHealth = 60 }
+    local b = petTile(ns, "raidpet3")
+    T.eq(ns.UF.OwnerClass(b), "HUNTER", "its owner's class")
+    -- The roster moves a warlock onto raid3: same tile, same unit, the new owner's class.
+    stub.units.raid3 = { name = "Mio", isPlayer = true, class = "WARLOCK", raid = true }
+    T.eq(ns.UF.OwnerClass(b), "WARLOCK")
+    stub.units.raid3, stub.units.raidpet3 = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("raid pets: a pet tile is a raid tile without role, leader or group threat", function()
+    local _, ns = login()
+    local R, P = ns.Raid.SPEC, ns.RaidPets.SPEC
+    for k, v in pairs(R) do
+        if k ~= "role" and k ~= "leaderIcon" and k ~= "groupThreat" then T.eq(P[k], v, k) end
+    end
+    T.isnil(P.role); T.isnil(P.leaderIcon); T.isnil(P.groupThreat)
 end)
