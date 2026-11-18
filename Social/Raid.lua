@@ -500,7 +500,9 @@ function Raid.Build(page)
     local title = Style.Text(page.noRaid, Style.SIZE.head, "CENTER")
     -- The game's own explanation of raids (RAID_DESCRIPTION) goes under the button and takes the place of our
     -- one line, so the block starts higher.
+    -- Without its own color codes (it wraps some lines in white), like QoL's Campfire does with its text.
     local about = type(RAID_DESCRIPTION) == "string" and RAID_DESCRIPTION ~= "" and RAID_DESCRIPTION or nil
+    if about then about = about:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
     title:SetPoint("CENTER", page.noRaid, "CENTER", 0, about and 110 or 40)
     title:SetText(L["You're not in a raid."])
     Style.InkText(title, "LABEL")
@@ -521,8 +523,15 @@ function Raid.Build(page)
     if says then page.noRaidPieces[2] = says end
     page.noRaidPieces[#page.noRaidPieces + 1] = page.convert
     if about then
-        page.about = Style.Text(page.noRaid, Style.SIZE.body, "CENTER")
-        page.about:SetPoint("TOP", page.convert, "BOTTOM", 0, -22)
+        -- The game's text says nothing about who can convert, so a short line says why the button may be dimmed.
+        page.leaderOnly = Style.Text(page.noRaid, Style.SIZE.small, "CENTER")
+        page.leaderOnly:SetPoint("TOP", page.convert, "BOTTOM", 0, -8)
+        page.leaderOnly:SetText(L["Only the party leader can do this."])
+        Style.InkText(page.leaderOnly, "LABEL")
+        page.noRaidPieces[#page.noRaidPieces + 1] = page.leaderOnly
+        -- Four paragraphs with "-" bullets: left aligned like the game draws it, the block centered on the page.
+        page.about = Style.Text(page.noRaid, Style.SIZE.body, "LEFT")
+        page.about:SetPoint("TOP", page.leaderOnly, "BOTTOM", 0, -18)
         page.about:SetWidth(Raid.ABOUT_W)
         page.about:SetText(about)
         Style.InkText(page.about, "TEXT")   -- a sentence, like the line it replaces

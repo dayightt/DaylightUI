@@ -23,6 +23,7 @@ L["How every cast bar (yours, target's, focus's and party's) is filled: one colo
 L["How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Unit Frames > Look."] = "L'inclinaison de l'extrémité en biais, barres ancrées comprises. À 0, l'Angle d'inclinaison de Cadres d'unité > Aspect s'applique."
 L["Item and spell lines"] = "Lignes d'objets et de sorts"
 L["Marks"] = "Marques"
+L["Only the party leader can do this."] = "Seul le chef de groupe peut le faire."
 L["Opens the Gradients page, where the Casts pairs are."] = "Ouvre la page Dégradés, où se trouvent les paires des Incantations."
 L["Opens the Gradients page, where the Swing timers pairs are."] = "Ouvre la page Dégradés, où se trouvent les paires des Minuteurs de frappe."
 L["Player and creature lines"] = "Lignes des joueurs et créatures"

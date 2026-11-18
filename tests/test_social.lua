@@ -883,19 +883,22 @@ end)
 
 T.test("social: not in a raid: the game's own explanation of raids shows under the button", function()
     local old = _G.RAID_DESCRIPTION
-    _G.RAID_DESCRIPTION = "Raids are groups of more than 5 players."
+    _G.RAID_DESCRIPTION = "Raids are groups of more than 5 players.\n|cffffffff- Up to 40.|r"
     local ns = load()
     open(ns, SW.TAB.RaidList)
     local page = ns.Raid.page
     T.truthy(page.about, "the text")
-    T.eq(page.about:GetText(), "Raids are groups of more than 5 players.", "as the game words it")
+    T.eq(page.about:GetText(), "Raids are groups of more than 5 players.\n- Up to 40.", "as the game words it, without its own colors")
+    T.eq(page.about:GetJustifyH(), "LEFT", "left aligned, like the game draws it")
+    T.truthy(page.leaderOnly and page.leaderOnly:IsShown(), "a line on who can convert")
+    T.eq(page.leaderOnly:GetText(), "Only the party leader can do this.")
     T.truthy(page.about:IsShown())
     T.eq(page.about:GetFont() and select(2, page.about:GetFont()), DaylightUI.Style.SIZE.body, "body size, a sentence")
     local c, r, g, b = DaylightUI.Style.INK.TEXT, page.about:GetTextColor()
     T.near(r, c[1], 0.01, "in the sentence color")
     T.near(g, c[2], 0.01)
     T.near(b, c[3], 0.01)
-    T.eq(#page.noRaidPieces, 3, "title, button and the text: our own line is not there")
+    T.eq(#page.noRaidPieces, 4, "title, button, the leader line and the text: our own line is not there")
     _G.RAID_DESCRIPTION = nil
     local ns2 = load()
     open(ns2, SW.TAB.RaidList)
