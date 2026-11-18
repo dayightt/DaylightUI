@@ -26,6 +26,10 @@ local function chatWindow(i, docked)
     cf.ScrollBar = CreateFrame("Frame", nil, cf)
     cf.ScrollBar:Show()
     cf.ScrollToBottomButton = CreateFrame("Button", nil, cf)
+    -- The template's button over the whole window: in the IM chat style a click on it
+    -- makes this window's box the one you type in (FloatingChatFrameClickAnywhereButtonMixin).
+    cf.clickAnywhereButton = CreateFrame("Button", name .. "ClickAnywhereButton", cf)
+    cf.clickAnywhereButton:EnableMouse(true)
     for _, e in ipairs(SHOWN) do cf:RegisterEvent(e) end
     cf.channelList, cf.zoneChannelList = {}, {}
     -- Its lines as the window keeps them, added and rewritten in place. Each is
@@ -4316,6 +4320,27 @@ T.test("chat daylight: the header's icons and the footer: counts on tabs, lock, 
     CH.Chat.Hold(true)
     local _, rel = ChatFrame1EditBox:GetPoint(1)
     T.eq(rel, Box.Field(), "the game's box over the footer's field")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A window pulled out of the dock before the Daylight box was on stays parked out of
+-- sight, but in the IM chat style its invisible click-anywhere button still made its
+-- own box the one you type in, and that box opened over the lines where the old
+-- window sat.
+T.test("chat box: a pulled-out window's typing box opens in the footer, and its click-anywhere is parked", function()
+    local Box = daylight()
+    local CH = stub.chatModule
+    stub.RunTimers()
+    CH.Chat.Pass()
+    T.falsy(ChatFrame3.isDocked, "set up undocked")
+    T.eq(select(2, ChatFrame3EditBox:GetPoint(1)), Box.Field(), "its box over the footer's field")
+    T.falsy(ChatFrame3.clickAnywhereButton:IsMouseEnabled(), "its click-anywhere takes no clicks")
+    T.falsy(ChatFrame1.clickAnywhereButton:IsMouseEnabled(), "nor the main window's")
+    DaylightUI:Set("Chat", "style", "classic")
+    stub.RunTimers()
+    CH.Chat.Pass()
+    T.eq(select(2, ChatFrame3EditBox:GetPoint(1)), ChatFrame3, "Classic: back under its own window")
+    T.truthy(ChatFrame3.clickAnywhereButton:IsMouseEnabled(), "and its click-anywhere is the game's again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

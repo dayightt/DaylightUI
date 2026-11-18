@@ -16,6 +16,9 @@ DUI.PatchNotes = {
             { "Plugins", "Other addons can add their own choices to a quest's right-click menu" },
             { "Unit frames", "Choose how many buff and debuff icons sit in each row on every frame, from the player and target to party and raid" },
         },
+        fixed = {
+            { "Chat", "The typing box no longer opens in the middle of the Daylight chat box, over your messages, after clicking the chat" },
+        },
     },
     { version = "1.9.4", date = "2026-11-18", summary = "Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.",
         new = {
