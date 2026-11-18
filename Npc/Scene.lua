@@ -336,6 +336,8 @@ function Scene.Place()
     local W, H = UIParent:GetWidth() or 1024, UIParent:GetHeight() or 768
     f.spec.w = math.floor(math.min(Scene.MAX_W, math.max(Scene.MIN_W, W * Scene.WIDE)) / k)
     f.spec.h = math.floor(H * Scene.TALL / k)
+    local s = Scene.spot and Scene.spot.Get()
+    if s then return Win.PlaceTop(f, s[1], s[2]) end
     f:ClearAllPoints()
     f:SetPoint("RIGHT", UIParent, "RIGHT", -W * Scene.RIGHT / k, 0)
 end
@@ -361,6 +363,11 @@ function Scene.Build(talk)
     f.onClose = ns.Window.Goodbye
     f:SetIgnoreParentAlpha(true)   -- stays visible while the UI fades
     f.room = false   -- other windows don't move aside for it
+    -- Dragged by its header like the talk window, its spot kept apart from that
+    -- window's. A right-click on the header puts it back on the right.
+    Scene.spot = Win.Spot(f, function() return ns.module and ns.module.db end, function() Scene.Place() end, "sceneSpot")
+    Win.Drag(f, { save = function(x, y) Scene.spot.Save(x, y) end, reset = function() return Scene.spot.Reset() end })
+    DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = function() return Scene.spot.Reset() end   -- /dui reset
     Win.AddPage(f, "talk", talk)   -- roomier Build, shared Fill
     Win.Build(f, "talk")
     Win.Keys(f, ns.Window.OnKey)

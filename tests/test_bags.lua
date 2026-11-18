@@ -399,6 +399,14 @@ T.test("bags: item tooltips count each character's bags and bank, the account ba
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("bags: the tooltip counts switch off", function()
+    local ns = countWorld()
+    DaylightUI:Set("Bags", "viewer.tipCounts", false)
+    T.eq(#tipRows(ns, { id = 1 }), 0, "nothing added")
+    DaylightUI:Set("Bags", "viewer.tipCounts", true)
+    T.eq(#tipRows(ns, { id = 1 }), 5, "back on")
+end)
+
 T.test("bags: item counts show only when another character has some", function()
     local ns = countWorld()
     T.eq(#tipRows(ns, { id = 6 }), 0, "only in this character's bags: nothing added")
@@ -1505,6 +1513,33 @@ T.test("bags: a recipe learned turns its other copies red; a level up fills once
     C_Item.IsUsableItem = nil
 end)
 
+T.test("bags: a recipe your profession skill is too low for wears the red, not one whose made item needs a level", function()
+    local ns = login()
+    -- Seen in game: IsUsableItem says yes to a cooking recipe with the skill too low;
+    -- only the recipe's own red "Requires Cooking (110)" line tells.
+    local RED, WHITE = { r = 1, g = 0.125, b = 0.125 }, { r = 1, g = 1, b = 1 }
+    _G.ITEM_MIN_SKILL = "Requires %s (%d)"
+    C_Item.GetItemInfoInstant = function() return 1, "Recipe", "Cooking", "", 1, ns.Items.RECIPE, 5 end
+    C_Item.IsUsableItem = function() return true end
+    local skill = RED
+    _G.C_TooltipInfo = { GetBagItem = function(bag, slot)
+        return { lines = { { leftText = "Recipe: Big Bear Steak", leftColor = WHITE },
+                           { leftText = "Big Bear Steak", leftColor = WHITE },
+                           { leftText = "Requires Level 50", leftColor = RED },
+                           { leftText = "Use: Teaches you how to cook a Big Bear Steak.", leftColor = WHITE },
+                           { leftText = "Requires Cooking (110)", leftColor = skill } } }
+    end }
+    open(ns)
+    local recipe = ns.Bags.buttons[0][1]
+    T.truthy(recipe.dluiUnusable, "skill too low: red")
+    skill = WHITE
+    ns.Items.ForgetUsable()
+    ns.FillAll(); stub.RunTimers()
+    T.falsy(recipe.dluiUnusable, "the made item's red level alone doesn't count")
+    C_Item.IsUsableItem = nil
+    _G.C_TooltipInfo = nil
+end)
+
 T.test("bags: an item not loaded yet isn't judged usable or not until it loads", function()
     local ns = login()
     -- Before it loads, the game's tooltip is one red line ("Retrieving item information").
@@ -1701,6 +1736,33 @@ T.test("bags: the secure Disenchant button goes where ours is, each time the mou
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     stub.secure = false
     _G.IsPlayerSpell = nil
+end)
+
+T.test("bags: the Pick Lock button: shown to rogues who know it, last beside the search, casting Pick Lock", function()
+    local ns = login()
+    local PL = ns.PickLock
+    T.eq(PL.SPELL, 1804)
+    local known = {}
+    _G.IsPlayerSpell = function(id) return known[id] == true end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.pickLockButton
+    T.falsy(b:IsShown(), "not known: no button")
+    known[PL.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(b:IsShown())
+    T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
+    T.truthy(tostring(b.icon:GetTexture()):find("ui%-lock%.png"), "a flat icon like the rest of the row")
+    b.GetLeft, b.GetBottom = function() return 360 end, function() return 300 end
+    b:SetSize(28, 28)
+    stub.secure = true
+    b:GetScript("OnEnter")(b)
+    local o = PL.caster.button
+    T.truthy(o and o:IsShown(), "the secure button lies over it")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), PL.SPELL)
+    stub.secure = nil
+    _G.IsPlayerSpell = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: the Comprehend Scroll button: shown to those who know it, beside Disenchant; hovered, it casts the spell", function()

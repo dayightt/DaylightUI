@@ -409,6 +409,8 @@ ns.OPTIONS = { pages = {
         { label = "Bank and alts", items = {
             { type = "toggle", key = "viewer.enabled", label = "Bank and alts window", disabled = off,
               desc = "Each character's bags are saved when you log out, and its bank each time you visit a banker. See them anywhere: right-click the bag icon at the top of your bags, or /dui bank. When off, Alts leaves that menu and nothing new is saved." },
+            { type = "toggle", key = "viewer.tipCounts", label = "Item counts on tooltips", disabled = off,
+              desc = "An item's tooltip lists how many each of your characters has in their bags and bank, with a total. Turn it off if another addon already shows them." },
         } },
         { label = "Layout", items = {
             { type = "toggle", label = "Same look as your bags", disabled = viewerOff,

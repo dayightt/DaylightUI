@@ -806,6 +806,42 @@ local function notAboutUse(text)
     return prefix ~= nil and prefix ~= "" and text:sub(1, #prefix) == prefix
 end
 
+-- The game's "Requires Cooking (110)" line as a pattern, built once from its
+-- own words so it reads in every language.
+local skillLine
+local function skillPattern()
+    if skillLine == nil then
+        skillLine = false
+        if type(ITEM_MIN_SKILL) == "string" then
+            local p = ITEM_MIN_SKILL:gsub("([%(%)%.%[%]%+%-%*%?%^%$])", "%%%1")
+            skillLine = "^" .. p:gsub("%%s", ".+"):gsub("%%d", "%%d+") .. "$"
+        end
+    end
+    return skillLine or nil
+end
+
+-- A recipe the game calls usable can still need more profession skill: its
+-- own red "Requires <profession> (<skill>)" line says so. Other red lines
+-- belong to the item it makes (its level), so they don't count.
+local function recipeSkillTooLow(bag, slot)
+    local pattern = skillPattern()
+    if not (pattern and C_TooltipInfo and C_TooltipInfo.GetBagItem) then return false end
+    local ok, tip = pcall(C_TooltipInfo.GetBagItem, bag, slot)
+    if not ok or type(tip) ~= "table" or isSecret(tip.lines) or type(tip.lines) ~= "table" then return nil end
+    for _, line in ipairs(tip.lines) do
+        if type(line) == "table" then
+            local text = line.leftText
+            if isSecret(text) then return nil end
+            if type(text) == "string" and text:find(pattern) then
+                local r = red(line.leftColor)
+                if r == nil then return nil end
+                if r then return true end
+            end
+        end
+    end
+    return false
+end
+
 local function readUnusable(bag, slot, link)
     -- Not loaded yet: the tooltip is a single red "Retrieving item information" line.
     -- Unknown for now; the slot's fill after loading asks again.
@@ -817,7 +853,8 @@ local function readUnusable(bag, slot, link)
         if not C_Item.IsUsableItem then return false end
         local ok, usable = pcall(C_Item.IsUsableItem, link)
         if not ok or isSecret(usable) then return nil end
-        return not usable
+        if not usable then return true end
+        return recipeSkillTooLow(bag, slot)
     end
     local equip = C_Item.IsEquippableItem and C_Item.IsEquippableItem(link)
     local spell = C_Item.GetItemSpell and C_Item.GetItemSpell(link)
