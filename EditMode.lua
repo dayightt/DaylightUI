@@ -550,7 +550,13 @@ end)
 -- again, so nothing would ask it to install. Once in the world, check whether
 -- the game has its layouts by now and the event hasn't been handled.
 local askedOnEntry = false
-DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isInitialLogin, isReloadingUi)
+    -- A loading screen after login: the login's checks are over even if the game
+    -- had no active layout for them yet. Later layouts events are the loading
+    -- screens' own, which can read the active layout wrong for a moment.
+    if isInitialLogin == false and isReloadingUi == false then
+        profileChecked, staleChecked = true, true
+    end
     if askedOnEntry or #parts == 0 or not (C_EditMode and C_EditMode.GetLayouts) then return end
     local info = C_EditMode.GetLayouts()
     if type(info) ~= "table" or type(info.layouts) ~= "table" or (info.activeLayout or 0) < 1 then return end

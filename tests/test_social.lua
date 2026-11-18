@@ -1428,3 +1428,55 @@ T.test("social: a friend in a group has Request invite where it would say Invite
     _G.GetDisplayedInviteType = nil
     clean()
 end)
+
+T.test("social: your BattleTag is in the header on every tab, and a click shows it selected to copy", function()
+    local ns = load()
+    local f = open(ns, "friends")
+    T.eq(ns.Friends.page.copyTag, nil, "not a Friends piece: the search keeps its room")
+    T.truthy(f.tag:IsShown(), "your tag is there")
+    T.eq(f.tag.text:GetText(), "Curt#1674")
+    local _, rel = f.tagDot:GetPoint(1)
+    T.eq(rel, f.status, "right after the status, on its row")
+    local _, tagAt = f.tag:GetPoint(1)
+    T.eq(tagAt, f.tagDot, "the tag follows the separator")
+    local _, onlineAt = f.online:GetPoint(1)
+    T.eq(onlineAt, f.tag, "and the friends online follow the tag")
+    local _, stop = f.tag.text:GetPoint(2)
+    T.eq(stop, f.tabs[1], "the text stops short of the tabs, whatever the window's measures")
+    for _, id in ipairs({ "allies", "requests", "raid" }) do
+        stub.Key(function() ns.Window.ShowTab(id, true) end)
+        frame(20)
+        T.truthy(f.tag:IsShown(), id .. " shows it too")
+    end
+    local W, was, got = DaylightUI.Widgets, DaylightUI.Widgets.Tooltip, {}
+    W.Tooltip = function(owner, title, desc) got[owner] = { title, desc } end
+    for _, w in ipairs({ { f.status, "Change status" }, { f.tag, "Copy your BattleTag" } }) do
+        w[1]:GetScript("OnEnter")(w[1])
+        T.eq(got[w[1]] and got[w[1]][1], w[2], "its title")
+        T.truthy(type(got[w[1]][2]) == "string" and got[w[1]][2] ~= "", w[2] .. ": and a description")
+    end
+    W.Tooltip = was
+    stub.Key(function() f.tag:GetScript("OnClick")(f.tag) end)
+    frame(5)
+    local ask = DaylightUI.Widgets.Asking()
+    T.truthy(ask, "the box with the tag")
+    T.eq(ask.input.initial, "Curt#1674")
+    T.eq(ask.input.locked, true, "selected for Ctrl+C, not editable")
+    DaylightUI.Widgets.Answer(true)
+    frame(5)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    clean()
+end)
+
+T.test("social: without a BattleTag (not connected) the header has none", function()
+    local old = _G.BNGetInfo
+    local ns = load()
+    _G.BNGetInfo = function() return 1, nil, nil, "", false, false, false end
+    local f = open(ns, "friends")
+    T.eq(f.tag:IsShown(), false)
+    T.eq(f.tagDot:IsShown(), false, "no lone separator either")
+    local _, onlineAt = f.online:GetPoint(1)
+    T.eq(onlineAt, f.status, "the friends online follow the status")
+    _G.BNGetInfo = old
+    clean()
+end)

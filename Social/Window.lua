@@ -62,7 +62,9 @@ function Social.Header()
     f.statusDot:SetVertexColor(c[1], c[2], c[3], 1)
     f.status.SetLabel(Social.STATUS_WORD[status])
     local on = ns.Data.Online()
+    local _, _, tag = ns.Data.Me()
     f.online:SetText("·  " .. string.format(L["%s online"], Win.Parts.Hex({ Style.Pop() }) .. on .. "|r"))
+    Social.LayTag(f, tag)
     -- Requests: count on its tab, in the accent.
     local n = #ns.Data.Invites()
     local tab = Social.Tab("requests")
@@ -85,6 +87,38 @@ function Social.FitTitle()
     local room = 40 + (f.headerRoom or 0)
     for _, b in ipairs(f.tabs or {}) do room = room + b:GetWidth() + Win.TAB_GAP end
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
+end
+
+-- Your own BattleTag right after your status, on every tab (so: status · BattleTag · friends online), as a
+-- link that shows it selected in a box, ready for Ctrl+C (an addon can't call CopyToClipboard: the game
+-- blocks it). It sits on the status row, so it lines up with the status, and nothing here measures the
+-- window: the tag's text stops short of the tabs, so one that doesn't fit is cut with "...", and the first
+-- paint after a /reload is right. Without a BattleTag (not connected) the friends online follow the status.
+function Social.LayTag(f, tag)
+    f.tag:SetShown(tag ~= nil)
+    f.tagDot:SetShown(tag ~= nil)
+    local after = f.status
+    if tag then
+        f.tag.SetLabel(tag)
+        f.tagDot:ClearAllPoints()
+        f.tagDot:SetPoint("LEFT", f.status, "RIGHT", 6, 0)
+        f.tag:ClearAllPoints()
+        f.tag:SetPoint("LEFT", f.tagDot, "RIGHT", 6, 0)
+        f.tag.text:ClearAllPoints()
+        f.tag.text:SetPoint("LEFT", f.tag, "LEFT", 0, 0)
+        if f.tabs and f.tabs[1] then f.tag.text:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0) end
+        after = f.tag
+    end
+    f.online:ClearAllPoints()
+    f.online:SetPoint("LEFT", after, "RIGHT", 6, 0)
+    if f.tabs and f.tabs[1] then f.online:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0) end
+end
+
+function Social.CopyTag()
+    local _, _, tag = ns.Data.Me()
+    if not tag then return end
+    DUI.Widgets.Ask({ key = "battletag", text = L["Your BattleTag. Press Ctrl+C to copy it."], yes = CLOSE or L["Close"], no = false,
+        input = { initial = tag, locked = true } })
 end
 
 -- Available, Away, Busy, broadcast: only from a click (the calls require one).
@@ -110,10 +144,27 @@ local function makeStatus(f)
     f.status = DUI.Widgets.Link(f, Style.SIZE.small)
     f.status:SetPoint("LEFT", f.statusDot, "RIGHT", 5, 0)
     f.status:SetScript("OnClick", function(self) Social.StatusMenu(self) end)
+    f.status:HookScript("OnEnter", function(self)
+        DUI.Widgets.Tooltip(self, L["Change status"], L["Set yourself as Available, Away or Busy for your Battle.net friends, or send them a broadcast."])
+    end)
+    f.status:HookScript("OnLeave", function() DUI.Widgets.HideTooltip() end)
     f.online = Style.Text(f, Style.SIZE.small, "LEFT")
     f.online:SetPoint("LEFT", f.status, "RIGHT", 6, 0)
     f.online:SetWordWrap(false)
     Style.InkText(f.online, "LABEL")
+    f.tagDot = Style.Text(f, Style.SIZE.small, "LEFT")
+    f.tagDot:SetText("·")
+    Style.InkText(f.tagDot, "LABEL")
+    f.tagDot:Hide()
+    f.tag = DUI.Widgets.Link(f, Style.SIZE.small)
+    f.tag.text.english = true   -- a name, not a word
+    f.tag.text:SetWordWrap(false)
+    f.tag:SetScript("OnClick", function() Social.CopyTag() end)
+    f.tag:HookScript("OnEnter", function(self)
+        DUI.Widgets.Tooltip(self, L["Copy your BattleTag"], L["Shows your BattleTag selected, to copy it with Ctrl+C and give it to a friend."])
+    end)
+    f.tag:HookScript("OnLeave", function() DUI.Widgets.HideTooltip() end)
+    f.tag:Hide()
 end
 
 -- Pages
@@ -358,6 +409,7 @@ function Social.Build(mod)
         { id = "requests", text = L["Requests"] }, { id = "raid", text = RAID or L["Raid"] } },
         function(id) Social.ShowTab(id, true) end)
     f.online:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0)   -- stops short of the tabs (long translations get cut instead of overlapping)
+    Social.LayTag(f, (select(3, ns.Data.Me())))   -- the tabs exist now: your tag stops short of them too
     -- Controller: the game's friends list has no buttons of its own, so this one
     -- follows its Communities window. Y is a row's menu and X the footer's main
     -- button (every window's); A on a raid member targets them.

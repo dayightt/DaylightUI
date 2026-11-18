@@ -4160,6 +4160,8 @@ local function askBuild()
     local Win = DUI.Win
     local f = Win.New({ name = "DaylightUIAsk", w = W.ASK_W, h = 160, strata = "DIALOG", compact = true })
     f.onClose = function() askAnswer(false) end
+    -- A question floats over the others: the windows that are open stay where they are, not slide aside for it.
+    f.room = false
     f.text = Style.Text(f.host, SIZE.body, "LEFT")
     f.text:SetPoint("TOPLEFT", f, "TOPLEFT", Win.EDGE, -(Win.COMPACT + W.ASK_TOP))
     f.text:SetWidth(W.ASK_W - 2 * Win.EDGE)

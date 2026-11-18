@@ -30,6 +30,40 @@ T.test("a carrier seen draws their name; the game's arena frame is parked", func
     T.eq(CompactArenaFrame:GetParent(), ns.Blizzard.hiddenParent)
 end)
 
+-- The game's flag carrier frames on this client (Blizzard_Deprecated_ArenaUI):
+-- a right-managed container whose match frames show themselves on
+-- ARENA_OPPONENT_UPDATE and show the container, which the right-side frame
+-- manager then takes back under its own parent.
+local function gameCarrierFrames()
+    local managed = CreateFrame("Frame", "UIParentRightManagedFrameContainer", UIParent)
+    local outer = CreateFrame("Frame", "ArenaEnemyFramesContainer", managed)
+    outer:SetScript("OnShow", function(self) self:SetParent(managed) end)
+    local match = CreateFrame("Frame", "ArenaEnemyMatchFramesContainer", outer)
+    match:RegisterEvent("PLAYER_ENTERING_WORLD")
+    match:SetScript("OnEvent", function() outer:Show() end)
+    for i = 1, 5 do
+        local f = CreateFrame("Button", "ArenaEnemyMatchFrame" .. i, match)
+        f:Hide()
+        f:RegisterEvent("ARENA_OPPONENT_UPDATE")
+        f:SetScript("OnEvent", function(self, _, unit, what)
+            if unit == "arena" .. i and what == "seen" then self:Show(); outer:Show() end
+        end)
+        local pet = CreateFrame("Button", "ArenaEnemyMatchFrame" .. i .. "PetFrame", f)
+        pet:RegisterEvent("ARENA_OPPONENT_UPDATE")
+        pet:SetScript("OnEvent", function() f:Show(); outer:Show() end)
+    end
+end
+
+T.test("the game's own flag carrier frames stay hidden while a carrier is seen", function()
+    login(gameCarrierFrames)
+    stub.units.arena1 = { name = "Cromz", class = "WARRIOR", isPlayer = true, enemy = true, reaction = 2,
+                          health = 40, maxHealth = 100 }
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.FireEvent("ARENA_OPPONENT_UPDATE", "arena1", "seen")
+    T.falsy(ArenaEnemyFramesContainer:IsVisible(), "the game's carrier bars under the minimap")
+    T.falsy(ArenaEnemyMatchFrame1:IsVisible())
+end)
+
 T.test("test mode shows two sample carriers, then hands them back", function()
     local DUI, ns = login()
     T.truthy(DUI.SetTestMode(true))
