@@ -719,8 +719,18 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     local b2 = CreateFrame("Frame", nil, UIParent)
     b2.__forbidden = true
     stub.SetBubbles({ b1, b2 })
+    -- The client refuses text on a font string with no font yet.
+    stub.FontRule = true
+    local errs = 0
+    local onError = DaylightUI.SafeCall
+    DaylightUI.SafeCall = function(fn, ...)
+        local ok = pcall(fn, ...)
+        if not ok then errs = errs + 1 end
+    end
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
+    DaylightUI.SafeCall, stub.FontRule = onError, nil
+    T.eq(errs, 0, "no error drawing a new bubble")
     local mine = Bubbles.OverlayOf(b1)
     T.truthy(mine, "drawn")
     T.eq(mine:GetParent(), UIParent, "on UIParent, outside the world layer")

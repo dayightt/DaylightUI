@@ -48,6 +48,12 @@ local function setGameAlpha(child, a)
     if child then pcall(child.SetAlpha, child, a) end
 end
 
+local function face(f)
+    local size = (ns.module and ns.module.db and ns.module.db.bubbleSize) or 12
+    Style.SetFace(f.text, Style.FontFile(ns.MEDIA.font), size, Style.Outline())
+    return size
+end
+
 local function newOverlay()
     local f = CreateFrame("Frame", nil, UIParent)
     -- Under the rest of the UI, as the game's bubbles are.
@@ -56,14 +62,15 @@ local function newOverlay()
     f.text = f:CreateFontString(nil, "OVERLAY")
     f.text:SetPoint("CENTER")
     f.text:SetWordWrap(true)
+    -- The client refuses words on a font string that has no font yet.
+    face(f)
     f:Hide()
     Style.Shell(f)
     return f
 end
 
 local function layout(f)
-    local size = (ns.module and ns.module.db and ns.module.db.bubbleSize) or 12
-    Style.SetFace(f.text, Style.FontFile(ns.MEDIA.font), size, Style.Outline())
+    local size = face(f)
     local wrap = Bubbles.WRAP * size / 12
     f.text:SetWidth(wrap)
     local w = f.text.GetUnboundedStringWidth and f.text:GetUnboundedStringWidth() or f.text:GetStringWidth()
