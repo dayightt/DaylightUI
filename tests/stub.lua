@@ -968,6 +968,8 @@ function Widget:SetCooldown(start, duration, modRate)
 end
 -- A Cooldown fed a duration object, which the client then runs by itself.
 function Widget:SetCooldownFromDurationObject(d, clearIfZero) self.__duration = d end
+-- A Cooldown cleared: no time left on it, as in the client.
+function Widget:Clear() self.__cooldown, self.__duration = nil, nil end
 function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__type) .. ">") end
 -- Measuring text errors on a secret, as in the client.
 -- stub.measure(fs) returns width, height from real font metrics when a tool sets
@@ -2457,6 +2459,21 @@ end
 -- answers by spell id. nil means the check is invalid, which is what the game
 -- answers for strangers and enemies.
 stub.knownSpells = {}
+-- Totem slots: stub.totems[slot] = { spell = id, duration = object } while a totem
+-- stands. Like the client, GetTotemDuration gives the object while one stands and
+-- nothing once the slot empties (never secret), and GetTotemInfo reports an emptied
+-- slot as having a totem (spell 0) and gives its spell as a secret in a fight.
+stub.totems = {}
+_G.GetTotemDuration = function(slot)
+    local t = stub.totems[slot]
+    return t and t.duration or nil
+end
+_G.GetTotemInfo = function(slot)
+    local t = stub.totems[slot]
+    local spell = t and t.spell or 0
+    if stub.combat then spell = stub.Secret(spell) end
+    return true, "", 0, 0, 0, 1, spell
+end
 _G.C_SpellBook = _G.C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return stub.knownSpells[id] == true end
 _G.C_Spell = _G.C_Spell or {}
@@ -3039,6 +3056,7 @@ function stub.Reset()
     stub.addonMeta = {}
     stub.addonState = {}
     stub.combat, stub.noAuraContainer = false, false
+    stub.totems = {}
     stub.privateAnchors, stub.privateAnchorSeq = {}, 0
     stub.refuseAuraFilters = nil
     stub.restrictions, stub.inRestrictionDispatch = {}, false
