@@ -870,3 +870,23 @@ T.test("questions: Reload is a secure /reload click, and waits out a fight", fun
     T.eq(W.Asking() and W.Asking().key, "reload")
     W.Answer(false)
 end)
+
+-- The role badges are Daylight UI's own art, the same sheet the party frames use.
+T.test("role badges use Media/roles.png, as a badge and inline in text", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    local b = W.Role(UIParent, 16)
+    T.eq(b.art:GetTexture(), DUI.MEDIA .. "roles.png", "the sheet")
+    b.Set("TANK")
+    T.truthy(b:IsShown(), "a role shows")
+    local l, r, t, bt = b.art:GetTexCoord()
+    T.deq({ l, r, t, bt }, { 0, 0.5, 0, 0.5 }, "tank is the top left quarter")
+    b.Set("HEALER", true)
+    T.truthy(b.art:IsDesaturated(), "an open spot is gray")
+    T.near(b.art:GetAlpha(), W.ROLE_OPEN, 0.001, "and faint")
+    b.Set("NONE")
+    T.falsy(b:IsShown(), "anything else hides it")
+    local text = W.RoleText("DAMAGER", 12)
+    T.eq(text, "|T" .. DUI.MEDIA .. "roles.png:12:12:0:0:128:128:0:64:64:128|t", "inline, the bottom left quarter")
+    T.eq(W.RoleText("NONE"), "", "no art for anything else")
+end)
