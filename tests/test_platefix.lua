@@ -53,7 +53,7 @@ T.test("platefix: yes after a step opens a report naming that step", function()
     DaylightUI.RunCommand("platefix yes")
     local text = shownText()
     T.truthy(text, "the copy box is up")
-    T.truthy(text:find("step 2 brought them back", 1, true), text)
+    T.truthy(text:find("player reported recovery after step 2", 1, true), text)
     T.truthy(text:find("  1. the plate size", 1, true), "what step 1 did")
     T.truthy(text:find("  2. ", 1, true), "what step 2 did")
     T.truthy(text:find("Before step 1:", 1, true), "the plates as they were")
@@ -343,7 +343,7 @@ T.test("platefix: the report is plain text the copy box can show, and goes to ch
     T.truthy(#text <= NP.Manager.REPORT_MAX)
     T.truthy(text:find("Stacking enemy=true friendly=false", 1, true), "the stacking setting in words")
     local chat = table.concat(printed, "\n")
-    T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
+    T.truthy(chat:find("player reported recovery after step 1", 1, true), "the report is in chat as well: " .. chat)
 end)
 
 -- The report says which parts of Daylight UI were on, and the live state of the
@@ -455,7 +455,7 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     T.truthy(table.concat(printed, "\n"):find("screenshot", 1, true), "the end asks for the screenshot")
     DaylightUI.Print = was
     local text = shownText()
-    T.truthy(text and text:find("step 2 brought them back", 1, true), tostring(text))
+    T.truthy(text and text:find("player reported recovery after step 2", 1, true), tostring(text))
     T.truthy(text:find("Daylight UI modules on:", 1, true), text)
     T.truthy(text:find("Nameplates module off", 1, true), text)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -533,10 +533,16 @@ T.test("platefix: the last step switches plates and bubbles off, then back on", 
     local said = NP.Manager.Fix()
     T.eq(calls[1], false, "off first")
     T.eq(#calls, 1, "on only after a moment")
+    T.isnil(NP.Manager.fixRun.trace[NP.Manager.FIX_STEPS].after)
+    stub.EnterCombat()
     stub.RunTimers()
     _G.SetInWorldUIVisibility = was
     T.eq(calls[2], true, "then back on")
     T.truthy(stub.inWorldUI)
+    T.truthy(InCombatLockdown(), "the literal world-visibility restore does not wait for combat")
+    T.falsy(DaylightUI.PlateReport.FixBusy())
+    T.truthy(NP.Manager.fixRun.trace[NP.Manager.FIX_STEPS].after)
+    stub.LeaveCombat()
     T.truthy(said:find("off and back on", 1, true), said)
     T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -551,8 +557,31 @@ T.test("platefix: with the Nameplates module off, the last step turns the switch
     _G.GetCVar = function() end
     SetInWorldUIVisibility(false)
     local R = DaylightUI.PlateReport
-    for _ = 1, #R.FIX do R.Fix(); stub.RunTimers() end
+    for _ = 1, #R.FIX - 1 do R.Fix(); stub.RunTimers() end
+    R.Fix()
+    T.truthy(R.FixBusy())
+    stub.EnterCombat()
+    stub.RunTimers()
     T.truthy(stub.inWorldUI)
+    T.falsy(R.FixBusy(), "the fallback world switch restores even when combat starts meanwhile")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: the standalone world-switch helper completes without recorder callbacks", function()
+    login()
+    local calls, was = {}, _G.SetInWorldUIVisibility
+    _G.SetInWorldUIVisibility = function(on) calls[#calls + 1] = on; was(on) end
+    local said = DaylightUI.PlateReport.InWorldBack()
+    T.eq(#calls, 1)
+    T.eq(calls[1], false)
+    T.noerror(function() stub.RunTimers() end)
+    _G.SetInWorldUIVisibility = was
+    T.eq(#calls, 2)
+    T.eq(calls[2], true)
+    T.truthy(stub.inWorldUI)
+    T.truthy(said:find("off and back on", 1, true), said)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("platefix: a refused switch says why, and tries the whole UI's switch", function()

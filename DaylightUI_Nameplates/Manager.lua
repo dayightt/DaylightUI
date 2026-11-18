@@ -41,15 +41,16 @@ function Manager.Spares() return #spare end
 -- The old ones stay hidden where they are and are never put on a plate again.
 -- A few are built each frame: all 40 in one frame froze the game for a moment.
 -- done runs once the last one is built.
+-- later optionally supplies the diagnostic's guarded, combat-safe scheduler.
 Manager.FRESH_PER_FRAME = 4
-function Manager.FreshPool(done)
+function Manager.FreshPool(done, later)
     for i = #spare, 1, -1 do spare[i] = nil end
     local left = Manager.PREPARE
     local function step()
         local n = math.min(left, Manager.FRESH_PER_FRAME)
         Manager.Prepare(n)
         left = left - n
-        if left > 0 then return C_Timer.After(0, step) end
+        if left > 0 then return (later or C_Timer.After)(0, step) end
         if done then done() end
     end
     step()
@@ -1165,21 +1166,14 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 -- /dui platefix: run while every plate is invisible. In that state the game's
 -- plates exist, are shown at alpha 1, yet nothing on them draws (even a texture
 -- made directly on one, with the Daylight UI plates hidden too); /reload fixes it, and it never
--- happens without Daylight UI. Each run undoes one thing Daylight UI does to the game's
--- plates and asks whether they're back: the first step that brings them back
--- names the cause and fixes it without a reload. Out of combat only (the game
+-- happens without Daylight UI. Each step changes part of the setup and asks
+-- whether the player sees plates again. Steps retain earlier changes, so a
+-- reported recovery does not identify the cause by itself. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
 Manager.FIX_STEPS = 8
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
-Manager.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
-
-local function cvar(name)
-    if type(GetCVar) ~= "function" then return nil end
-    local ok, v = pcall(GetCVar, name)
-    return ok and type(v) == "string" and v or nil
-end
 
 local function gameDefault(name)
     local fn = C_CVar and C_CVar.GetCVarDefault
@@ -1202,42 +1196,36 @@ local function handBack()
     return #units
 end
 
--- Switches the game's plates off and on so it rebuilds them, then puts the
--- Daylight UI plates back a moment later.
-local function offAndOn()
-    local done = Report.FixHold()
-    local was = {}
-    for _, name in ipairs(Manager.FIX_SHOW_CVARS) do
-        local v = cvar(name)
-        if v then
-            was[name] = v
-            pcall(SetCVar, name, "0")
-        end
-    end
-    C_Timer.After(Manager.FIX_GAP, function()
-        for name, v in pairs(was) do pcall(SetCVar, name, v) end
-        C_Timer.After(Manager.FIX_BACK, function()
+-- Restores the saved show switches, then rechecks Daylight UI's plates. The
+-- completion snapshot is taken only after both operations have finished.
+local function offAndOn(done, current, pendingSuffix, completedSuffix)
+    local did = Report.CycleShowSwitches(Manager.FIX_GAP, current, done, function(failure, detail)
+        Report.FixLater(Manager.FIX_BACK, current, done, function()
             Manager.fixPaused = nil
-            DUI.SafeCall(Manager.Recheck)
-            done()
+            Manager.Recheck()
+            done(failure, detail .. completedSuffix)
         end)
     end)
+    return did .. pendingSuffix
 end
 
--- Steps 5 to 7. Step 3 showed the game's rebuilt plates draw until the Daylight UI
--- plates go back on, so each of these rebuilds them the same way and then puts
--- the plates back with one part of that left out (Manager.fixWithout): "stack"
--- hands the game no stacking frame, "hide" leaves the game's own frame
--- showing underneath, "pool" uses plates built just now instead of the ones
--- from login. One part at a time, so the step that works names the part.
-local function backWithout(part)
+-- Steps 5 to 7 reuse that cycle, retaining the earlier steps' changes.
+local function backWithout(part, done, current)
     handBack()
     Manager.fixWithout = part
     if part == "pool" then
-        local done = Report.FixHold()
-        return Manager.FreshPool(function() offAndOn(); done() end)
+        Manager.FreshPool(function()
+            if current() then
+                offAndOn(done, current, "; will recheck newly built Daylight UI plates",
+                    "; newly built Daylight UI plates rechecked")
+            end
+        end, function(delay, fn) Report.FixLater(delay, current, done, fn) end)
+        return "building fresh plates, then will cycle the saved show switches and recheck Daylight UI's plates"
     end
-    offAndOn()
+    local mode = part == "stack" and " with each game plate spaced by itself"
+        or " with the game's own frame left showing underneath (say which of the two you see)"
+    return offAndOn(done, current, "; will recheck Daylight UI's plates" .. mode,
+        "; Daylight UI's plates rechecked" .. mode)
 end
 
 Manager.FIX = {
@@ -1254,10 +1242,9 @@ Manager.FIX = {
     function()
         return string.format("%d plates handed back to the game", handBack())
     end,
-    -- 3. Toggle the game's plates off and on so it rebuilds them, then put Daylight UI's back.
-    function()
-        offAndOn()
-        return "the game's plates switched off and on (Daylight UI's go back on a second later)"
+    -- 3. Cycle the saved show switches, then put Daylight UI's plates back.
+    function(done, current)
+        return offAndOn(done, current, "; will recheck Daylight UI's plates", "; Daylight UI's plates rechecked"), true
     end,
     -- 4. Reset the plate settings Daylight UI changes to the game's defaults (Daylight UI sets its
     -- own again on the next /reload).
@@ -1271,26 +1258,22 @@ Manager.FIX = {
         end
         return string.format("%d plate settings back to the game's defaults", done)
     end,
-    -- 5. Rebuilt, then back on with each game plate spaced by itself, not by a
+    -- 5. Cycle, then back on with each game plate spaced by itself, not by a
     -- frame of Daylight UI's.
-    function()
-        backWithout("stack")
-        return "the game's plates rebuilt, Daylight UI's back on with each game plate spaced by itself (wait two seconds)"
+    function(done, current)
+        return backWithout("stack", done, current), true
     end,
-    -- 6. Rebuilt, then back on with the game's own frame left showing underneath.
-    function()
-        backWithout("hide")
-        return "the game's plates rebuilt, Daylight UI's back on over the game's own, which stay visible "
-            .. "(wait two seconds, and say which of the two you see)"
+    -- 6. Cycle, then back on with the game's own frame left showing underneath.
+    function(done, current)
+        return backWithout("hide", done, current), true
     end,
-    -- 7. Rebuilt, then back on using plates built just now.
-    function()
-        backWithout("pool")
-        return "the game's plates rebuilt, Daylight UI's back on with newly built plates (wait two seconds)"
+    -- 7. Cycle, then back on using plates built just now.
+    function(done, current)
+        return backWithout("pool", done, current), true
     end,
     -- 8. The game's own switch for nameplates and speech bubbles back on. Last,
     -- so the earlier steps keep the numbers older reports used.
-    function() return Report.InWorldBack() end,
+    function(done, current) return Report.InWorldBack(done, current) end,
 }
 
 -- The report once a step brought them back (or none did): which step, where and
@@ -1309,7 +1292,7 @@ end
 function Manager.FixReport(step)
     local run = Manager.fixRun or { did = {}, before = {} }
     local out = { string.format("Daylight UI %s platefix: %s", tostring(DUI.VERSION),
-        step and string.format("step %d brought them back", step) or "no step brought them back") }
+        step and string.format("player reported recovery after step %d", step) or "no step brought them back") }
     for _, line in ipairs(Report.TraceLines(run)) do out[#out + 1] = line end
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     for _, line in ipairs(run.world or Manager.ReportWorld()) do out[#out + 1] = line end
@@ -1324,6 +1307,7 @@ Manager.Printable = Report.Printable
 
 -- Shows the report in a copy box (the profiles' one) and ends the round.
 function Manager.FixDone(step)
+    if Report.FixBusy() then return Report.FIX_WAIT end
     local text = Manager.FixReport(step)
     Manager.fixStep, Manager.fixRun = nil, nil
     DUI.Profiles.ShowText(L["Nameplate report"], L["Ctrl+C to copy, then paste it in a bug report on the Daylight UI Discord. "
@@ -1359,7 +1343,11 @@ function Manager.Fix()
         Report.FixBegin()
     end
     Manager.fixStep = n
-    local did = Report.RunStep(Manager.fixRun, n, Manager.FIX[n], ownedCount)
+    local run = Manager.fixRun
+    local did = Report.RunStep(run, n, Manager.FIX[n], ownedCount, function() return Manager.fixRun == run end)
+    if run.pending then
+        return string.format("platefix %d/%d started: %s. %s", n, Manager.FIX_STEPS, did, Report.FIX_WAIT)
+    end
     return string.format("platefix %d/%d: %s. Are the nameplates back? Yes: /dui platefix yes. "
         .. "No: /dui platefix again for the next step.", n, Manager.FIX_STEPS, did)
 end
