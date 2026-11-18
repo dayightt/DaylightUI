@@ -2572,7 +2572,7 @@ local FOCUS_CAST = {
     { label = "Focus cast bar", items = {
         { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
           desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
-        atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode. Under the frame it slides out during a cast, and the buffs below keep room for it."),
+        atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode."),
         nudge("focus", "x"),
         nudge("focus", "y"),
         fitRow("focus"),
@@ -2774,7 +2774,7 @@ ns.OPTIONS = { pages = {
     } },
 
     { id = "castbars", label = "Cast Bars", preview = { "castbars", "target", "focus", "party" },
-      sample = function(parent) return ns.PageSample.NewCasts(parent) end, desc = "How every cast bar is animated, filled and colored, and what interrupts show. Each bar's own settings are on its frame's page, under the Cast bar tab.", groups = {
+      sample = function(parent) return ns.PageSample.NewCasts(parent) end, desc = "Animation, fill, colors and interrupts for every cast bar. Each bar's own settings are on its frame's page.", groups = {
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
             { id = "player", label = "Your cast bar", base = "playerCastbar.barFx.", kind = "cast", gate = off("playerCastbar.enabled") },
             { id = "target", label = "Target cast bar", base = "targetCastbar.barFx.", kind = "cast", gate = off("targetCastbar.enabled") },

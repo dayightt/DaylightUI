@@ -20,6 +20,7 @@ local PageSample = {}
 ns.PageSample = PageSample
 
 PageSample.PAD = 6           -- room kept around the frame (crown, ring shadow)
+PageSample.CHIP_ROOM = 34    -- the Cast Bars page's chips sit at the top: the bar starts below them
 PageSample.OFF_ALPHA = 0.35  -- a frame turned off (its Show) is drawn faded
 PageSample.PARTY_COUNT = 1   -- party members drawn: one, carrying every piece (two made Design mode confusing)
 
@@ -824,13 +825,9 @@ local function castLayout(kind, c)
              reverseFill = c.reverseFill, fitFrame = false, spell = c.spell, time = c.time, shell = c.shell }
 end
 
--- CB.Layout with the real player frame out of reach: the player's bar would hang under that one.
+-- CB.Layout for a preview bar: it reads h.preview and leaves the real frames alone.
 local function layoutBar(h, cfg, parentCfg)
-    local saved = ns.frames
-    ns.frames = nil
-    local ok, err = pcall(ns.CastBar.Layout, h, cfg, parentCfg)
-    ns.frames = saved
-    if not ok then error(err, 0) end
+    ns.CastBar.Layout(h, cfg, parentCfg)
 end
 
 -- One bar of a kind in a stage (a frame): made once, drawn from the settings each time.
@@ -844,8 +841,10 @@ local function castBar(stage, kind)
 end
 
 -- Draws bar h of a kind centered in box, shrunk to fit width by maxH (never grown past zoom).
--- Returns the height used.
-local function drawCast(s, h, kind, width, maxH)
+-- top: room kept free above it (the chips). Returns the height used.
+local function drawCast(s, h, kind, width, maxH, top)
+    top = top or 0
+    maxH = maxH - top
     local d = db()
     local c = d and d[kind .. "Castbar"]
     if not c then h:Hide() return 0 end
@@ -859,11 +858,11 @@ local function drawCast(s, h, kind, width, maxH)
     h:SetScale(math.max(scale, 0.1))
     h:ClearAllPoints()
     local used = math.min(maxH, math.ceil(hh * scale) + 2 * pad)
-    s.frame:SetSize(width, used)
-    h:SetPoint("CENTER", s.frame, "CENTER", 0, 0)
+    s.frame:SetSize(width, used + top)
+    h:SetPoint("CENTER", s.frame, "CENTER", 0, -top / 2)
     h:SetAlpha(c.enabled == false and PageSample.OFF_ALPHA or 1)
     h:Show()
-    return used
+    return used + top
 end
 
 -- The bar's spot on the strip, with whichever of its settings the page has.
@@ -1069,7 +1068,7 @@ function PageSample.NewCasts(parent)
     function s.Refresh(width, maxH)
         for kind, h in pairs(s.bars) do if kind ~= s.view then h:Hide() end end
         s.bars[s.view] = s.bars[s.view] or castBar(s.frame, s.view)
-        return drawCast(s, s.bars[s.view], s.view, width, maxH)
+        return drawCast(s, s.bars[s.view], s.view, width, maxH, PageSample.CHIP_ROOM)
     end
     -- Display only: each bar's own settings are on its frame's page.
     function s.Parts() return {} end

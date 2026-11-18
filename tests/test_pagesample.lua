@@ -646,3 +646,22 @@ T.test("the Cast Bars page's strip has one chip for each kind of bar", function(
     T.eq(#s.Parts(), 0, "display only")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("the Cast Bars page's bar keeps room for the chips above it, and never touches the real frames", function()
+    local DUI, ns = load()
+    local page = DUI.Options.GetPage("UnitFrames.castbars")
+    local box = CreateFrame("Frame", nil, UIParent)
+    local s = page.sample(box)
+    s.SetView("player")
+    local used = s.Refresh(600, 200)
+    local h = s.bars.player
+    T.truthy(h.preview, "a preview bar: CB.Layout reads that")
+    local _, _, _, _, y = h:GetPoint(1)
+    T.truthy(y and y < 0, "centered below the middle, under the chips")
+    T.truthy(used >= ns.PageSample.CHIP_ROOM, "the room is part of its height")
+    local frames = ns.frames
+    s.Refresh(600, 200)
+    T.eq(ns.frames, frames, "ns.frames is not swapped out")
+    T.falsy(h.under, "not hung under the real player frame")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
