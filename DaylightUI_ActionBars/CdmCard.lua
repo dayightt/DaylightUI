@@ -260,7 +260,11 @@ local function isCooldown(_, id, p)
     return not (known and known.aura)
 end
 -- Shows a buff or debuff, alone or with its cooldown, so the missing rows apply.
-local function hasBuff(set, id, p) return isBuff(set, id, p) or not isCooldown(set, id, p) end
+-- A totem with no buff (Track "totem") has none to show.
+local function hasBuff(set, id, p)
+    if ns.CdmOwn and ns.CdmOwn.Track(id, p) == "totem" then return false end
+    return isBuff(set, id, p) or not isCooldown(set, id, p)
+end
 -- Shows only its buff. That's the one kind with anything to show or hide while the
 -- buff is down; the others show their cooldown.
 local function buffOnly(set, id, p) return hasBuff(set, id, p) and not isCooldown(set, id, p) end

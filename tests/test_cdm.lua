@@ -5158,6 +5158,11 @@ T.test("cdm card: a totem with no buff offers Totem or Cooldown (Tremor Totem)",
     T.truthy(shown["cdm.card.totemTrack"], "Totem or Cooldown")
     T.falsy(shown["cdm.card.buffTotemTrack"], "no Totem and buff")
     T.falsy(shown["cdm.card.track"], "no Buff only")
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.head == DUI.L["Buff up"] or r.head == DUI.L["Buff missing"] then
+            T.falsy(r.show(set, 15, set.pieces[15]), r.head .. ": no buff to show")
+        end
+    end
     _G.GetSpellBaseCooldown = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
