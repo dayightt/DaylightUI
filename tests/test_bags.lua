@@ -1368,6 +1368,34 @@ T.test("bags: hovering a bag in the strip lights every slot in it, empty ones to
     T.eq(B.buttons[0][1]:GetAlpha(), 1)
 end)
 
+-- A bag swapped while the mouse rests on its slot: the tooltip kept the old bag.
+T.test("bags: a hovered bag slot's tooltip follows a swap under the mouse", function()
+    local ns = login()
+    open(ns)
+    DaylightUI:Set("Bags", "showSlots", true); stub.RunTimers()   -- the strip shows
+    local bag1 = ns.Slots.strip.slots[1]
+    T.truthy(ns.Slots.strip:IsVisible(), "the strip is up")
+    local owner, shown, asked = nil, false, 0
+    local tip = GameTooltip
+    local realOwner, realSetOwner, realShown, realInv, realShow, realHide =
+        tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide
+    tip.SetOwner = function(_, o) owner = o end
+    tip.GetOwner = function() return owner end
+    tip.Show = function() shown = true end
+    tip.Hide = function() shown = false end
+    tip.IsShown = function() return shown end
+    tip.SetInventoryItem = function() asked = asked + 1; return true end
+    bag1:GetScript("OnEnter")(bag1)
+    T.eq(asked, 1, "hovered")
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "swapped under the mouse: shown again")
+    bag1:GetScript("OnLeave")(bag1)
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "not hovered: left alone")
+    tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide =
+        realOwner, realSetOwner, realShown, realInv, realShow, realHide
+end)
+
 T.test("bags: the strip's key button shows and hides the keyring, and is there only when the game has one", function()
     local ns = login({ keyring = true })
     ns.module.db.showKeyring = nil
@@ -4675,6 +4703,47 @@ local function fillBackpack(leave)
         end
     end
 end
+
+-- The held bag's tooltip size line ("12 Slot Bag").
+-- Returns a function that puts the game's back.
+local function bagTooltip(slots)
+    _G.C_TooltipInfo = _G.C_TooltipInfo or {}
+    local real = C_TooltipInfo.GetBagItem
+    C_TooltipInfo.GetBagItem = function(bag, slot)
+        local it = world.items[bag] and world.items[bag][slot]
+        if it and it.itemID == 50 then
+            return { lines = { { leftText = "Traveler's Bag" }, { leftText = slots .. " Slot Bag" } } }
+        end
+        return { lines = {} }
+    end
+    return function() C_TooltipInfo.GetBagItem = real end
+end
+
+-- A 10 slot bag full of items, swapped for a 12 slot one with the other bags full:
+-- the game swaps them itself and moves the items into the new bag (seen in game),
+-- so Daylight UI leaves the drop to it instead of asking for free slots.
+T.test("bags: a bag with room for everything in the old one is left to the game", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)                                       -- no free slots at all
+    local restore = bagTooltip(12)
+    C_Container.PickupContainerItem(0, 3)
+    T.falsy(ns.Swap.Try(1, 31), "left to the game")
+    T.eq(#world.printed, 0, tostring(world.printed[1]))
+    T.eq(world.puts, 0, "Daylight UI moved nothing")
+    restore()
+end)
+
+T.test("bags: a bag too small for the old one's items still empties it first", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)
+    local restore = bagTooltip(2)                         -- 2 slots, 3 items
+    C_Container.PickupContainerItem(0, 3)
+    T.truthy(ns.Swap.Try(1, 31), "handled here")
+    T.truthy(world.printed[1] and world.printed[1]:find("free 3 more slots", 1, true), tostring(world.printed[1]))
+    restore()
+end)
 
 T.test("bags: a full bag swap merges half stacks first when that makes the room", function()
     local ns = login()
