@@ -7,7 +7,7 @@ DaylightUI:RegisterModule("Quests", {
     label = "Quest Tracker",
     order = 122,
     ns = ns,
-    parts = { "Blizzard", "Data", "Layout", "Look", "Rows", "Animate", "Items", "Clicks", "Details", "Journal", "Scroll", "Tracker", "Progress", "Nav", "Spots", "Route", "Arrow", "Bridge", "Gather", "Voice", "Choice", "GiverTips", "Debug" },
+    parts = { "Blizzard", "Data", "Layout", "Look", "Rows", "Animate", "Items", "Clicks", "Details", "Journal", "Scroll", "Tracker", "Progress", "Nav", "Spots", "Route", "Arrow", "Bridge", "Gather", "Voice", "Choice", "GiverTips" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
