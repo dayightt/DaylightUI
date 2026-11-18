@@ -133,7 +133,11 @@ function M.world()
     local summon = CreateFrame("Button", "MultiCastSummonSpellButton", mc)
     summon:SetSize(30, 30)
     summon:SetPoint("BOTTOMLEFT", mc, "BOTTOMLEFT", 3, 3)
-    for i = 1, 4 do
+    -- The totem pick list (a plain frame on the bar, MultiCastActionBarFrame.xml).
+    local flyout = CreateFrame("Frame", "MultiCastFlyoutFrame", mc)
+    flyout:Hide()
+    -- Three totem sets of 4 (NUM_MULTI_CAST_PAGES), each over the same 4 slots.
+    for i = 1, 12 do
         local b = CreateFrame("Button", "MultiCastActionButton" .. i, mc)
         b:SetSize(30, 30)
         b.icon = b:CreateTexture()

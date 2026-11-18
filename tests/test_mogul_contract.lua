@@ -160,3 +160,41 @@ T.test("mogul contract: VERSION is a string (Mogul's Bridge/Version.lua compares
     stub.Load()
     T.eq(type(DaylightUI.VERSION), "string", "DaylightUI.VERSION")
 end)
+
+-- Mogul's vendor window stands in for ours: its tiles are "shoptile" frames for
+-- plugins (API.ShopItem, GetPart, FrameStyled) and plugins' FilterShop runs on
+-- its shelf. DaylightMogul's Bridge/Shop.lua calls exactly these.
+T.test("mogul contract: MogulShop hands Mogul's tiles to plugins and runs their shop filters", function()
+    local DUI = stub.Load({ module = true })
+    stub.RunTimers()
+    local API = DUI.API
+    local MS = DaylightUI.MogulShop
+    T.eq(type(MS), "table", "MogulShop")
+    local refills = 0
+    local tile = CreateFrame("Button")
+    tile.icon = tile:CreateTexture()
+    tile.name = tile:CreateFontString()
+    MS.Hook(function(b) return { icon = b.icon, name = b.name } end, function() refills = refills + 1 end)
+    local made, styled = {}, 0
+    API.On("FrameMade", function(kind, frame, unit) if kind == "shoptile" then made[#made + 1] = unit end end, "Books")
+    API.On("FrameStyled", function(kind) if kind == "shoptile" then styled = styled + 1 end end, "Books")
+    MS.Tiles({ { frame = tile, tab = "buy", index = 3, id = 9180, link = "|Hitem:9180|h[Grimoire]|h" } })
+    T.deq(made, { "buy:3" })
+    T.eq(styled, 1, "FrameStyled after each fill")
+    local tab, index, id = API.ShopItem(tile)
+    T.eq(tab, "buy"); T.eq(index, 3); T.eq(id, 9180)
+    T.truthy(API.GetPart(tile, "icon") == tile.icon, "its parts by name")
+    T.truthy(API.GetShopTile("buy", 3) == tile)
+    -- a plugin's filter runs on Mogul's shelf, and its refresh fills Mogul's again
+    local list = { { index = 1, name = "Grimoire of Firebolt" }, { index = 2, name = "Bread" } }
+    local h = API.For("Books").FilterShop(function(item) return item.name ~= "Bread" end)
+    local before = refills
+    local out = MS.Filter(list)
+    T.eq(#out, 1); T.eq(out[1].index, 1)
+    API.RefreshShop()
+    T.truthy(refills > before, "RefreshShop fills Mogul's shelf")
+    API.Off(h)
+    -- the window closes: the tile lets go
+    MS.Clear()
+    T.isnil(API.GetShopTile("buy", 3))
+end)

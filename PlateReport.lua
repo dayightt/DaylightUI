@@ -265,7 +265,7 @@ local function watchSwitch(fn, label)
     hooksecurefunc(fn, function(v)
         local on
         if not DUI.IsSecret(v) then on = v == true end
-        local by = R.Caller()
+        local by = R.cycling and "/dui platefix" or R.Caller()
         R.inWorld, R.inWorldBy = on, by
         R.Note(string.format("%s %s by %s", label, on == nil and "?" or on and "on" or "off", by))
     end)
@@ -297,13 +297,31 @@ function R.WorldUI()
         tostring(R.CVar("chatBubbles")), tostring(R.CVar("chatBubblesParty")))
 end
 
--- A platefix step: the switch back on. Harmless when it's on already.
+local function inWorld(on)
+    R.cycling = true
+    local ok, err = pcall(SetInWorldUIVisibility, on)
+    R.cycling = nil
+    return ok, err
+end
+
+-- A platefix step: the switch off, then back on a moment later. Plates have
+-- been seen there and "visible" with the switch never touched, yet not drawn,
+-- so setting it on while it's already on may change nothing in the client.
 function R.InWorldBack()
     local why
     if type(SetInWorldUIVisibility) == "function" then
-        local ok, err = pcall(SetInWorldUIVisibility, true)
-        if ok then return "the game's switch for nameplates and speech bubbles turned on" end
+        local ok, err = inWorld(false)
+        if ok then
+            C_Timer.After(R.FIX_GAP, function()
+                local back, err2 = inWorld(true)
+                if back then return end
+                R.Note("plates and bubbles refused back on: " .. R.Printable(tostring(err2), R.MARK_WHY))
+                if type(SetUIVisibility) == "function" and UIParent:IsShown() then pcall(SetUIVisibility, true) end
+            end)
+            return "the game's switch for nameplates and speech bubbles turned off and back on (wait a second)"
+        end
         why = err
+        if inWorld(true) then return "the game's switch for nameplates and speech bubbles turned on" end
     end
     if type(SetUIVisibility) == "function" and UIParent:IsShown() then
         local ok, err = pcall(SetUIVisibility, true)

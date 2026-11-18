@@ -784,6 +784,46 @@ T.test("profiles: a ready-made profile offers to bring the current one's action 
     T.isnil(stub.Asked(), "already made")
 end)
 
+T.test("profiles: Ready-made adds DPS/Tank when it isn't saved, and Reset puts a ready-made one back", function()
+    local DUI = login()
+    local P, O = DUI.Profiles, DUI.Options
+    local page = O.GetPage("profiles")
+    local function button(name, text)
+        for _, g in ipairs(page.groups) do
+            for _, item in ipairs(g.items) do
+                if item.label == name and item.text == text then return item end
+            end
+        end
+    end
+    -- The setup guide made only the Immersive Preset: no saved DPS/Tank.
+    T.eq(P.AddPreset("Immersive Preset"), "Immersive Preset")
+    T.falsy(DUI.DB.Saved("DPS/Tank"))
+    local add = button("DPS/Tank", "Add")
+    T.falsy(O.IsHidden(page, add), "DPS/Tank can be added")
+    T.truthy(O.IsHidden(page, button("DPS/Tank", "Reset")), "nothing to reset yet")
+    add.func()
+    T.truthy(DUI.DB.Saved("DPS/Tank"), "added")
+    T.truthy(O.IsHidden(page, add), "Add hidden once it's there")
+    -- Changed by the player, then reset.
+    local t = DaylightUIDB.profileData["Immersive Preset"]
+    t.general.borderPx = 9
+    t.general.fadeOpenWorldOnly = false
+    t.positions["unitframes.player"] = { 1, 2 }
+    t.modules.Buffs.history = { mine = 1 }
+    local reset = button("Immersive Preset", "Reset")
+    T.falsy(O.IsHidden(page, reset), "Reset shown")
+    T.truthy(O.IsHidden(page, button("Immersive Preset", "Add")), "Add hidden")
+    T.truthy(reset.confirm, "a second click: it overwrites the player's changes")
+    reset.func()
+    T.eq(DaylightUIDB.profileData["Immersive Preset"], t, "the same profile")
+    T.eq(t.general.borderPx, DUI.DB.GENERAL_DEFAULTS.borderPx, "back to the default")
+    T.eq(t.general.fadeOpenWorldOnly, true, "and the preset's own settings")
+    T.isnil(t.positions["unitframes.player"], "moved frames back")
+    T.eq(t.modules.Buffs.history.mine, 1, "what's learned as you play stays its own")
+    T.falsy(P.ResetPreset("Nope"), "only a saved one")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("the DPS/Tank and Healer setups show the micro menu in the corner, the Immersive Preset doesn't", function()
     local DUI = login()
     for _, name in ipairs({ "DPS/Tank", "Healer" }) do
@@ -929,7 +969,7 @@ T.test("the Immersive Preset setup is ordinary settings: each one it sets is a r
     local btn
     for _, g in ipairs(O.GetPage("profiles").groups) do
         for _, item in ipairs(g.items) do
-            if item.type == "button" and item.label == "Immersive Preset" then btn = item end
+            if item.type == "button" and item.label == "Immersive Preset" and item.text == "Add" then btn = item end
         end
     end
     T.truthy(btn, "an Immersive Preset button")

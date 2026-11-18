@@ -1044,7 +1044,7 @@ Data.SPELL_FIELDS = {
     onReady = { values = { "show", "fade", "hide" } },
     onUnusable = { values = { "show", "fade", "hide" } },
     onShort = { values = { "show", "fade", "hide" } },
-    track = { values = { "both", "cooldown", "buff" } },
+    track = { values = { "both", "cooldown", "buff", "totem" } },
     cdAlpha = { min = 0, max = 1 },
     barMode = { values = { "block", "solid", "gradient" }, bar = true },
     fillBy = { values = { "shield", "time" }, bar = true }, shieldAmount = { bool = true },

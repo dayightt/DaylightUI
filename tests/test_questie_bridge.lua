@@ -187,3 +187,52 @@ T.test("aside: without Questie nothing keeps asking", function()
     DaylightUI.QuestieAside.Run = run
     T.eq(asked, 0)
 end)
+
+T.test("aside: untracked quests leave Questie's maps while ours tracks, not with the whole-log filter", function()
+    local log = {}
+    local modules = {
+        ThreadLib = { ThreadInstant = function(fn) fn() end },
+        ActiveQuests = { Iterate = function() return pairs({ [5] = { quest = { Id = 5 } } }) end },
+        QuestieQuest = {
+            PopulateObjectiveNotes = function(_, q) log[#log + 1] = "draw" .. q.Id end,
+            ShowQuestIcons = function() log[#log + 1] = "show" end,
+            HideQuestIcons = function() log[#log + 1] = "hide" end,
+        },
+    }
+    load(function() questie(modules) end)
+    local p = Questie.db.profile
+    DaylightUI.questsOwnTracker = true   -- the fake game has no tracker of its own to switch off
+    DaylightUI.Fire("QuestMapsChanged")
+    T.eq(p.hideUntrackedQuestsMapIcons, true, "Questie hides untracked quests' icons")
+    T.eq(table.concat(log, " "), "draw5 show hide", "and redraws the ones already drawn")
+    DaylightUI:Set("Quests", "filter", "log")
+    T.eq(p.hideUntrackedQuestsMapIcons, false, "the whole log is listed, nothing watched: all show")
+    DaylightUI:Set("Quests", "filter", "zone")
+    T.eq(p.hideUntrackedQuestsMapIcons, true)
+    DaylightUI.questsOwnTracker = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("aside: a newly tracked quest's icons draw in a few frames, not Questie's slow queue", function()
+    local drawn = 0
+    local map = { ProcessQueue = function() drawn = drawn + 1 end }
+    load(function() questie({ QuestieMap = map }) end)
+    local p = Questie.db.profile
+    p.trackerEnabled, p.hideUntrackedQuestsMapIcons = false, true
+    stub.FireEvent("QUEST_WATCH_LIST_CHANGED", 5, false)
+    T.isnil(DaylightUI.QuestieAside.hurryFrame, "untracking draws nothing new")
+    stub.FireEvent("QUEST_WATCH_LIST_CHANGED", 5, true)
+    local f = DaylightUI.QuestieAside.hurryFrame
+    stub.RunOnUpdate(f, 0.016)
+    T.eq(drawn, DaylightUI.QuestieAside.HURRY_PER_FRAME, "the queue worked every frame")
+    stub.Advance(DaylightUI.QuestieAside.HURRY_FOR + 0.1)
+    stub.RunOnUpdate(f, 0.016)
+    T.isnil(f.__scripts.OnUpdate, "and it stops again: nothing runs while idle")
+    -- Questie's own settings: its tracker on draws every quest anyway.
+    p.trackerEnabled = true
+    drawn = 0
+    stub.FireEvent("QUEST_WATCH_LIST_CHANGED", 6, true)
+    stub.RunOnUpdate(f, 0.016)
+    T.eq(drawn, 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

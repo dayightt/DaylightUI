@@ -7,7 +7,7 @@ local function DUI_money(c) return DaylightUI.MoneyString(math.abs(c)) end
 
 local LETTERS = {
     { sender = "Alliance Auction House", subject = "Auction successful: Heavy Leather (20)", money = 48500,
-      invoice = { type = "seller", item = "Heavy Leather", bid = 51000, deposit = 50, cut = 2550, count = 20 } },
+      invoice = { type = "seller", item = "Heavy Leather", player = "Ysella Brightwind", bid = 51000, deposit = 50, cut = 2550, count = 20 } },
     { sender = "Brannoc Ironhide", subject = "Ore money", money = 15000 },
     { sender = "Thaxton Ashby", subject = "Hello" },
 }
@@ -281,6 +281,7 @@ T.test("inbox: a sale letter picked reads as a receipt; Take takes its gold", fu
     for _, b in ipairs(ns.Inbox.letter.stack.used) do if b:IsShown() and b.text and not b.lineSpec then text[#text + 1] = stub.Text(b.text) end end
     local all = table.concat(text, "\n")
     T.truthy(all:find("Sold for", 1, true) and all:find("You keep", 1, true), all)
+    T.truthy(all:find("Bought by", 1, true) and all:find("Ysella Brightwind", 1, true), "who bought it: " .. all)
     press(ns, "Take")
     settle()
     T.eq(GetMoney(), 48500)

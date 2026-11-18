@@ -1493,11 +1493,12 @@ local function nameCard(groups)
     local out, at, named = {}, nil, nil
     for _, g in ipairs(groups) do
         if g.label == "Text" and type(g.items) == "table" and not named then
-            local name, rest, last = {}, {}, 0
+            -- Only the rows TEXT_ORDER lists as the name's go to the Name card. A row it doesn't
+            -- know stays on Text, so a text row added later can't slip onto the Name tab.
+            local name, rest = {}, {}
             for _, it in ipairs(g.items) do
                 local r = type(it.key) == "string" and TEXT_ORDER[fieldOf(it.key)]
-                if r then last = r end
-                if last > 0 and last < NAME_ORDER_END then name[#name + 1] = it else rest[#rest + 1] = it end
+                if r and r < NAME_ORDER_END then name[#name + 1] = it else rest[#rest + 1] = it end
             end
             if #name > 0 then
                 named = { label = "Name", desc = "How this frame's name looks and where it sits: its text, color and size, and the tab behind it.", items = name }
@@ -2465,6 +2466,10 @@ local function raidPage(size)
             { type = "dropdown", key = "leader.show", label = "Show leader tools", anySize = true,
               values = LEADER_SHOW, order = { "lead", "tank", "party" },
               desc = "Who else gets the crown tab in a party, for the markers: the party's tank, or everyone. Ready check and the pull timer stay with the leader. In a raid only the leader and assists can mark.",
+              disabled = function(get) return get("leader.enabled") ~= true or (get("raid.enabled") ~= true and get("party.enabled") ~= true) end },
+            { type = "dropdown", key = "leader.opens", label = "Leader tools open toward", anySize = true,
+              values = { auto = "The middle of the screen", left = "The left", right = "The right" }, order = { "auto", "left", "right" },
+              desc = "Which way the card opens from the crown tab. The middle of the screen keeps it on screen wherever you move the tab.",
               disabled = function(get) return get("leader.enabled") ~= true or (get("raid.enabled") ~= true and get("party.enabled") ~= true) end },
             { type = "toggle", key = "pull.enabled", label = "Pull timer", anySize = true,
               desc = "A big number in the middle of your screen counts down any pull your group starts, in place of the game's bar. Move it in unlock mode. In a dungeon or raid the game may keep its own bar for a countdown someone else starts." },

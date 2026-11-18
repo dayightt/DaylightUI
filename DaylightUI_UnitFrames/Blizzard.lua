@@ -136,6 +136,33 @@ function Blizzard.WarnConflicts()
     DUI.WarnIfLoaded("EllesmereUIUnitFrames", "EllesmereUI Unit Frames", DUI.L["frames"])
 end
 
+-- Battleground flag carriers. On this client the game shows them with the old
+-- arena frames (ArenaEnemyMatchFrame1-5 in ArenaEnemyFramesContainer, under the
+-- minimap), not CompactArenaFrame. Each match frame and its pet frame show
+-- themselves, and the container, on their own events, and a shown container
+-- is taken back by the right-side frame manager. So their events go quiet too,
+-- or the bars come back the moment a carrier is seen.
+Blizzard.ARENA_MAX = 5
+
+local function silence(frame)
+    if type(frame) ~= "table" then return end
+    unregister(frame)
+    for _, key in ipairs(CHILD_KEYS) do unregister(frame[key]) end
+end
+
+function Blizzard.HideArena()
+    Blizzard.Hide("CompactArenaFrame")
+    if not _G.ArenaEnemyFramesContainer then return end
+    silence(_G.ArenaEnemyMatchFramesContainer)
+    silence(_G.ArenaEnemyPrepFramesContainer)
+    for i = 1, Blizzard.ARENA_MAX do
+        silence(_G["ArenaEnemyMatchFrame" .. i])
+        silence(_G["ArenaEnemyMatchFrame" .. i .. "PetFrame"])
+        silence(_G["ArenaEnemyPrepFrame" .. i])
+    end
+    Blizzard.Hide("ArenaEnemyFramesContainer")
+end
+
 -- Turning a DaylightUI frame off later does not bring Blizzard's back until
 -- the next reload.
 function Blizzard.Apply(db)
@@ -152,9 +179,9 @@ function Blizzard.Apply(db)
         Blizzard.Hide("CompactRaidFrameContainer")
         Blizzard.Hide("CompactRaidFrameManager")
     end
-    -- The game's arena frame shows enemy flag carriers. It's created on first
-    -- use, so Arena.lua asks again when a carrier turns up.
-    if db.arena.enabled then Blizzard.Hide("CompactArenaFrame") end
+    -- The game's frames for enemy flag carriers. CompactArenaFrame is created
+    -- on first use, so Arena.lua asks again when a carrier turns up.
+    if db.arena.enabled then Blizzard.HideArena() end
     if db.combo.enabled then Blizzard.HideCastBar("ComboFrame") end
     if db.playerCastbar.enabled then
         Blizzard.HideCastBar("PlayerCastingBarFrame")

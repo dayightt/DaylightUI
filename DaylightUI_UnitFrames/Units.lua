@@ -967,6 +967,12 @@ function ns.Build(mod)
                 DUI.Movers.Register(ns.swing.pods[o[1]], ns.Swing.MOVERS[o[1]], o[2], { "BOTTOM", nil, "BOTTOM", 0, o[3] })
                 DUI.Movers.Suspend(ns.Swing.MOVERS[o[1]], true)
             end
+            -- No fade setting of its own, so it only leaves with the unit
+            -- frames when they are hushed (sitting at a campfire).
+            local swing = ns.swing
+            local parts = { swing, swing.pods.main, swing.pods.off, swing.pods.ranged }
+            DUI.Fade.Register{ key = "UnitFrames.swing", scope = "UnitFrames", path = "swing.fade", page = "UnitFrames.swing",
+                frames = function() return parts end, paint = ns.Swing.PaintFade, float = false }
         end
         -- Enemy flag carriers in a battleground (Arena.lua).
         ns.Arena.Create()

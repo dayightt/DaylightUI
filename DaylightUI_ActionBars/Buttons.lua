@@ -585,6 +585,9 @@ function Buttons.Wire()
             if name == "action" then
                 Buttons.SlotsChanged()
                 Buttons.Queue(self)
+                -- A druid's page lands here a moment after the form event, so the
+                -- keys shown on Cooldown Manager icons are worked out again.
+                if ns.Keys then ns.Keys.OnEvent("ActionChanged") end
             end
         end)
     end
