@@ -1472,6 +1472,52 @@ T.test("quests items: out of range tints the icon", function()
     T.rgb(ns.Items.buttons[1].icon.__vertex, ns.Items.OUT_OF_RANGE)
 end)
 
+-- Fade's check, then two seconds of frames.
+local function faded()
+    local F = DaylightUI.Fade
+    F.Step()
+    for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    return DaylightUIQuestTracker:GetAlpha()
+end
+
+local function fadeInCombat()
+    DaylightUI:Set("Quests", "fade.mode", "combat")
+    DaylightUI:Set("Quests", "fade.alpha", 0)
+    DaylightUI:Set("Quests", "fade.delay", 0)
+end
+
+-- Seen in game: the salve for the sickly gazelles puts the player in combat for
+-- about 30 s, and an "In combat" fade hid the whole tracker until it ended.
+T.test("quests items: a fight the item's use starts keeps the tracker shown until it ends", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
+    fadeInCombat()
+    T.eq(faded(), 1, "out of combat: shown")
+    local btn = ns.Items.buttons[1]
+    btn:GetScript("PostClick")(btn, "LeftButton")
+    stub.Advance(1)
+    stub.EnterCombat()
+    stub.Advance(ns.Items.USE_WAKE + 20)
+    T.eq(faded(), 1, "the use's own fight: still shown")
+    stub.LeaveCombat()
+    T.eq(faded(), 1, "after it")
+    stub.EnterCombat()
+    T.eq(faded(), 0, "the next fight fades it as usual")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: a fight long after a use still fades the tracker", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
+    fadeInCombat()
+    local btn = ns.Items.buttons[1]
+    btn:GetScript("PostClick")(btn, "LeftButton")
+    stub.Advance(ns.Items.USE_WAKE + 1)
+    T.eq(ns.Items.Awake(), false, "a use with no fight after it is forgotten")
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+end)
+
 local function click(Tr, key, button)
     local f = Tr.frames[key]
     f:GetScript("OnClick")(f, button or "LeftButton")

@@ -18,6 +18,7 @@ Items.SIZE = 24
 Items.GAP = 10              -- between a button and the list
 Items.RANGE_TICK = 0.2
 Items.OUT_OF_RANGE = { 1, 0.35, 0.35 }
+Items.USE_WAKE = 5          -- seconds after a use in which a fight starting counts as the use's own
 
 local buttons, want = {}, {}
 Items.buttons = buttons
@@ -69,8 +70,29 @@ local function make(id)
         end
     end)
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("PostClick", function() Items.Used() end)
     return b
 end
+
+-- Some quest items put you in combat with what they're used on (the salve on a
+-- sickly gazelle), and an "In combat" fade would then hide the tracker being used.
+-- A use keeps it shown until that fight ends.
+local usedAt, usedFight = nil, false
+
+function Items.Used()
+    usedAt = GetTime()
+    if InCombatLockdown() then usedFight = true end
+end
+
+function Items.Awake()
+    if usedFight then return true end
+    return usedAt ~= nil and GetTime() - usedAt < Items.USE_WAKE
+end
+
+DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+    if usedAt and GetTime() - usedAt < Items.USE_WAKE then usedFight = true end
+end)
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() usedAt, usedFight = nil, false end)
 
 function Items.Any()
     for id in pairs(want) do if buttons[id] and buttons[id]:IsShown() then return true end end
