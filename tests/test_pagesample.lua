@@ -553,3 +553,115 @@ T.test("the player's level badge shows on its preview and drags in Design mode",
     T.truthy(part.move and part.move.spotKey == "player.levelPos", "it moves by levelPos")
     T.eq(part.move.xKey, "player.levelX")
 end)
+
+-- A Cast bar chip next to the Frame one: the bar on its own, drawn from its settings.
+T.test("cast bars on a frame's strip: a chip shows the bar, with its settings behind a click", function()
+    local DUI, ns = load()
+    for _, id in ipairs({ "player", "target", "focus" }) do
+        DUI:Set("UnitFrames", id .. "Castbar.at", "free")
+        local s = sample(ns, id)
+        local views = s.Views()
+        T.eq(#views, 2, id .. ": Frame and Cast bar chips")
+        T.eq(views[1].key, "frame"); T.truthy(views[1].on)
+        T.eq(views[2].label, "Cast bar")
+        s.SetView("cast")
+        local h = s.Refresh(600, 120)
+        T.truthy(h > 0 and h <= 120, id .. ": the bar's height " .. tostring(h))
+        T.truthy(s.castBar:IsShown(), id .. ": the bar shows")
+        T.truthy(s.castBar.test, id .. ": with the test cast in it")
+        local parts = s.Parts()
+        T.eq(#parts, 1, id .. ": one spot")
+        T.eq(parts[1].label, "Cast bar")
+        local have = {}
+        for _, k in ipairs(parts[1].keys) do have[k] = true end
+        T.truthy(have[id .. "Castbar.at"] and have[id .. "Castbar.height"], id .. ": its own settings")
+        s.SetView("frame")
+        s.Refresh(600, 120)
+        T.falsy(s.castBar:IsShown(), id .. ": back to the frame")
+        T.truthy(#s.Parts() > 1, id .. ": the frame's parts again")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a bar that isn't on its own shows on the frame's strip, with no chip, and moves and resizes there", function()
+    local DUI, ns = load()
+    for _, id in ipairs({ "player", "target", "focus" }) do
+        for _, at in ipairs({ "above", "below" }) do
+            DUI:Set("UnitFrames", id .. "Castbar.at", at)
+            local s = sample(ns, id)
+            T.eq(#s.Views(), 0, id .. " " .. at .. ": no chip")
+            s.Refresh(600, 200)
+            T.truthy(s.castShown and s.castShown:IsShown() and s.castShown.test, id .. " " .. at .. ": the bar shows on the frame")
+            local part = byLabel(s.Parts())["Cast bar"]
+            T.truthy(part, id .. " " .. at .. ": a spot for it")
+            if id == "player" and at == "below" then
+                T.falsy(part.move, "the player's bar hangs under its frame: no nudge")
+            else
+                T.eq(part.move.xKey, id .. "Castbar.x"); T.eq(part.move.yKey, id .. "Castbar.y")
+                T.eq(part.size.keys.h, id .. "Castbar.height")
+                T.falsy(part.size.keys.w, "as wide as the frame: the width has no grip")
+                DUI:Set("UnitFrames", id .. "Castbar.fitFrame", false)
+                s.Refresh(600, 200)
+                T.eq(byLabel(s.Parts())["Cast bar"].size.keys.w, id .. "Castbar.width", "its own width: a grip")
+                DUI:Set("UnitFrames", id .. "Castbar.fitFrame", true)
+            end
+            T.truthy(byLabel(s.Parts())["Health bar"], id .. ": the frame's parts stay")
+        end
+    end
+    -- Hung under the frame it doesn't nudge, and on the frame's power bar it is the bar itself.
+    DUI:Set("UnitFrames", "targetCastbar.at", "slide")
+    local s = sample(ns, "target"); s.Refresh(600, 200)
+    local part = byLabel(s.Parts())["Cast bar"]
+    T.truthy(part and not part.move, "slide: no nudge")
+    DUI:Set("UnitFrames", "targetCastbar.at", "power")
+    s = sample(ns, "target"); s.Refresh(600, 200)
+    T.truthy(s.castShown == s.casts.inside or s.castShown == s.casts.near, "power: a bar shows")
+    T.truthy(byLabel(s.Parts())["Cast bar"], "power: a spot for it")
+    -- Party: always on its member.
+    s = sample(ns, "party")
+    T.eq(#s.Views(), 0, "party: no chip")
+    DUI:Set("UnitFrames", "partyCastbar.enabled", true)
+    s.Refresh(600, 200)
+    T.truthy(s.castShown and s.castShown:IsShown(), "party: its bar shows on the member")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("the Cast Bars page's strip has one chip for each kind of bar", function()
+    local DUI, ns = load()
+    local page = DUI.Options.GetPage("UnitFrames.castbars")
+    T.truthy(page.sample, "it has a strip now")
+    local box = CreateFrame("Frame", nil, UIParent)
+    local s = page.sample(box)
+    local views = s.Views()
+    T.eq(#views, 4)
+    for _, kind in ipairs({ "player", "target", "focus", "party" }) do
+        s.SetView(kind)
+        local h = s.Refresh(600, 120)
+        T.truthy(h > 0, kind .. ": drawn")
+        T.truthy(s.bars[kind]:IsShown() and s.bars[kind].kind == kind)
+        for other, bar in pairs(s.bars) do
+            if other ~= kind then T.falsy(bar:IsShown(), other .. " hidden") end
+        end
+    end
+    T.eq(#s.Parts(), 0, "display only")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("the Cast Bars page's bar keeps room for the chips above it, and never touches the real frames", function()
+    local DUI, ns = load()
+    local page = DUI.Options.GetPage("UnitFrames.castbars")
+    local box = CreateFrame("Frame", nil, UIParent)
+    local s = page.sample(box)
+    s.SetView("player")
+    local used = s.Refresh(600, 200)
+    local h = s.bars.player
+    T.truthy(h.preview, "a preview bar: CB.Layout reads that")
+    local _, _, _, _, y = h:GetPoint(1)
+    T.truthy(y and y < 0, "centered below the middle, under the chips")
+    T.truthy(used >= ns.PageSample.CHIP_ROOM, "the room is part of its height")
+    local frames = ns.frames
+    s.Refresh(600, 200)
+    T.eq(ns.frames, frames, "ns.frames is not swapped out")
+    T.falsy(h.under, "not hung under the real player frame")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
