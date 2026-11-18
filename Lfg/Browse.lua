@@ -385,7 +385,9 @@ function Browse.Render(page, keep)
     local inGroup = IsInGroup and IsInGroup() == true
     local parts = inGroup and { { L["Solo players"], solo }, { L["Groups"], groups } } or { { L["Groups"], groups }, { L["Solo players"], solo } }
     -- A wide window shows the two lists side by side instead of one long column.
-    local split = #groups > 0 and #solo > 0 and s:Width() >= Browse.SPLIT_W
+    Browse.both = #groups > 0 and #solo > 0
+    local split = Browse.both and s:Width() >= Browse.SPLIT_W
+    Browse.split = split
     for i, p in ipairs(parts) do
         if #p[2] > 0 then
             if split then s:Column(i) end
@@ -409,6 +411,15 @@ function Browse.Render(page, keep)
     Browse.Seek(page, Browse.searching == true)
     s:ScrollTo(at)
     Browse.PaintDetail()
+end
+
+-- While the grip is dragged: the rows only stretch, unless the list just got wide or
+-- narrow enough to change its columns, which needs one refill right then.
+function Browse.Stretch(page)
+    page = page or Browse.page
+    if not page then return end
+    local split = Browse.both == true and page.stack:Width() >= Browse.SPLIT_W
+    if split ~= (Browse.split == true) then Browse.Render(page, true) else page.stack:Stretch() end
 end
 
 -- Searching bar: fills repeatedly while a search is pending.

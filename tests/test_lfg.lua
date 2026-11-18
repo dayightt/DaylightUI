@@ -255,6 +255,19 @@ T.test("lfg: a wide window puts groups and solo players side by side", function(
     local half = math.floor((stack:Width() - DaylightUI.Win.Parts.GAP) / 2)
     T.near(list[1]:GetWidth(), half, 0.5, "each half the list")
     T.near(stack.height, list[3].colY + list[3]:GetHeight(), 0.5, "the list as tall as its taller column")
+    -- Mid-drag it switches as the list crosses the width, and only then refills.
+    local renders, render = 0, ns.Browse.Render
+    ns.Browse.Render = function(...) renders = renders + 1; return render(...) end
+    stack.scroll.GetWidth = function() return ns.Browse.SPLIT_W + 60 end
+    ns.Window.Resized(nil, nil, true)
+    T.eq(renders, 0, "still wide: the rows only stretch")
+    stack.scroll.GetWidth = function() return ns.Browse.SPLIT_W - 40 end
+    ns.Window.Resized(nil, nil, true)
+    T.eq(renders, 1, "narrow: one refill right away")
+    T.falsy(rows(stack, "group")[2].col, "back to one column while still dragging")
+    ns.Window.Resized(nil, nil, true)
+    T.eq(renders, 1, "no more refills while it stays narrow")
+    ns.Browse.Render = render
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
