@@ -326,10 +326,18 @@ local function wholeNow()
     end
 end
 
--- Checks whether UIParent is faded and moves the buffers with it.
+-- Checks whether UIParent is faded and moves the buffers with it. Any change
+-- of its alpha is told once ("UIAlpha"), whoever made it: another addon fading
+-- the whole UI is seen on the next step, and a repeat of the same alpha is not
+-- told again.
+local uiSeen = 1
 function Fade.CheckUIAway()
     local a = UIParent:GetAlpha()
     if type(a) ~= "number" or (issecretvalue and issecretvalue(a)) then return end
+    if a ~= uiSeen then
+        uiSeen = a
+        DUI.Fire("UIAlpha", a)
+    end
     local away = a < 0.999
     if away == uiAway then return end
     uiAway = away
@@ -749,12 +757,20 @@ function Fade.MapIconScale()
 end
 
 -- UIParent's own alpha, for whatever fades the whole UI (the AFK screen, the
--- NPC scene). 3D models ignore their parents' alpha, UIParent's too, so this
--- tells everyone ("UIAlpha") and whoever draws a model sets the model's own.
-function Fade.SetUIAlpha(a)
-    UIParent:SetAlpha(a)
+-- NPC scene). 3D models ignore their parents' alpha, UIParent's too, so
+-- CheckUIAway tells everyone ("UIAlpha") and whoever draws a model sets the
+-- model's own.
+--
+-- owner: who is fading it ("afk", "npc"). Each keeps its own alpha and the UI
+-- shows the lowest, so one putting the UI back doesn't undo the other's fade.
+local uiWants = {}
+function Fade.SetUIAlpha(a, owner)
+    owner = owner or "ui"
+    uiWants[owner] = (type(a) == "number" and a < 1) and a or nil
+    local low = 1
+    for _, v in pairs(uiWants) do if v < low then low = v end end
+    UIParent:SetAlpha(low)
     Fade.CheckUIAway()
-    DUI.Fire("UIAlpha", a)
 end
 
 local dotsGone = false

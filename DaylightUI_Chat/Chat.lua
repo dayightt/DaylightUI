@@ -667,9 +667,12 @@ function Chat.Layout()
     ns.Copy.Place(panel, inset, Chat.TAB_ROOM)
     ns.Tiles.Place(panel, inset, Chat.TAB_ROOM)
     ns.Box.Layout()
-    -- Put it back in the new spot.
-    if type(_G.ChatFrame1) == "table" then _G.ChatFrame1:ClearAllPoints() end
-    Chat.Hold(true)
+    -- The main window hangs on the chat's spot and follows it by itself. The edit
+    -- boxes sit at an inset, so they're placed again only when it or their spot
+    -- changed: the game's chat frames aren't touched on a repaint that changed nothing.
+    local laid = inset .. "|" .. Chat.InputAt()
+    Chat.Hold(Chat.laid ~= laid)
+    Chat.laid = laid
 end
 
 -- ---------------------------------------------------------------------
