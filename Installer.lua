@@ -44,7 +44,7 @@ Installer.TIPS = {
 Installer.ROLE_TEXT = {
     ["DPS/Tank"] = L["Party on the left, you and your target low in the middle."],
     Healer = L["Your party and raid as square tiles under you, dispels easy to spot."],
-    ["Immersive Preset"] = L["Calm for questing: bars and your frame fade after a fight. All shown in dungeons."],
+    ["Immersive Preset"] = L["Calm for questing: bars and your frame fade after a fight, the micro menu waits for the mouse. All shown in dungeons."],
 }
 -- The ready-made setups the welcome and the role page offer, in order.
 Installer.READY = { "DPS/Tank", "Healer", "Immersive Preset" }
