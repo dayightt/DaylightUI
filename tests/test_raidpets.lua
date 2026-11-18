@@ -138,3 +138,32 @@ T.test("raid pets: a pet tile is a raid tile without role, leader or group threa
     end
     T.isnil(P.role); T.isnil(P.leaderIcon); T.isnil(P.groupThreat)
 end)
+
+-- The owner's name in a small line under the pet's: <Owner>.
+T.test("raid pets: the owner's name under the pet's, kept current", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "raid.showPets", true)
+    stub.RunTimers()
+    stub.units.raid3 = { name = "Rexx", isPlayer = true, class = "HUNTER", raid = true }
+    stub.units.raidpet3 = { name = "Wolf", friend = true, health = 30, maxHealth = 60 }
+    local b = petTile(ns, "raidpet3")
+    stub.RunTimers()
+    T.truthy(b.ownerText and b.ownerText:IsShown(), "shown")
+    T.eq(b.ownerText.__text, "<Rexx>")
+    T.eq(select(2, b.ownerText:GetPoint(1)), b.nameText, "under the pet's name")
+    -- The roster moves someone else onto raid3.
+    stub.units.raid3 = { name = "Mio", isPlayer = true, class = "WARLOCK", raid = true }
+    stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.RunTimers()
+    T.eq(b.ownerText.__text, "<Mio>", "follows the roster")
+    -- No owner for the unit: hidden.
+    stub.units.raid3 = nil
+    stub.FireEvent("UNIT_PET", "raid3"); stub.RunTimers()
+    T.falsy(b.ownerText:IsShown())
+    stub.units.raidpet3 = nil
+    -- Samples carry an owner too.
+    DUI.SetTestMode(true)
+    local s = ns.RaidPets.group.preview[1]
+    T.eq(s.ownerText.__text, "<Rock>")
+    DUI.SetTestMode(false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

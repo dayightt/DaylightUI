@@ -8,13 +8,15 @@
 -- filters them by their owner's group, and "Sort frames by" orders them by their
 -- owner's class or name; the pet header can't sort by assigned role, so the
 -- role sorts (and Group) keep them by their owner's group. Tiles stay the
--- friendly green, so pets read apart from players.
+-- friendly green, so pets read apart from players, with the owner's name in a
+-- small line under the pet's (<Owner>).
 --
 -- The block has no mover of its own. Its holder hangs off the raid header's far
 -- edge, which the header sizes to the members shown, so the pets follow a
 -- small raid instead of the room kept for eight groups.
 
 local _, ns = ...
+local DUI = DaylightUI
 local UF = ns.UF
 local Raid = ns.Raid
 
@@ -36,10 +38,11 @@ RP.SORT_ATTRS = {
 }
 
 RP.SAMPLES = {
-    { name = "Wolf", powerToken = "FOCUS" }, { name = "Imp", powerToken = "ENERGY" },
-    { name = "Voidwalker", powerToken = "ENERGY" }, { name = "Cat", powerToken = "FOCUS" },
-    { name = "Felhunter", powerToken = "ENERGY" }, { name = "Boar", powerToken = "FOCUS" },
+    { name = "Wolf", owner = "Rock", powerToken = "FOCUS" }, { name = "Imp", owner = "Jasnah", powerToken = "ENERGY" },
+    { name = "Voidwalker", owner = "Shallan", powerToken = "ENERGY" }, { name = "Cat", owner = "Teft", powerToken = "FOCUS" },
+    { name = "Felhunter", owner = "Navani", powerToken = "ENERGY" }, { name = "Boar", owner = "Sigzil", powerToken = "FOCUS" },
 }
+RP.OWNER_SIZE = DUI.Style.SIZE.tiny   -- the owner line under the pet's name
 
 local function db() return ns.module and ns.module.db end
 
@@ -52,8 +55,51 @@ end
 function RP.SampleFor(i)
     local s = RP.SAMPLES[(i - 1) % #RP.SAMPLES + 1]
     local hp = 100 - ((i * 29) % 50)
-    return { name = s.name, reaction = 5, health = hp, healthValue = hp * 20, power = 70, powerValue = 70,
-             powerToken = s.powerToken }
+    return { name = s.name, owner = s.owner, reaction = 5, health = hp, healthValue = hp * 20, power = 70,
+             powerValue = 70, powerToken = s.powerToken }
+end
+
+-- The owner of a group pet's unit: raidpet3 -> raid3, partypet2 -> party2, pet -> player.
+function RP.OwnerOf(unit)
+    if type(unit) ~= "string" then return nil end
+    if unit == "pet" then return "player" end
+    local kind, n = unit:match("^(%a+)pet(%d+)$")
+    if kind == "raid" or kind == "party" then return kind .. n end
+end
+
+-- The owner line under a pet tile's name: <Owner>, from the owner's unit (a
+-- sample's from its sample). The name can be secret, so it only goes to
+-- SetFormattedText.
+function RP.PaintOwner(b)
+    local fs = b.ownerText
+    if not fs then return end
+    local name
+    if b.test then
+        name = b.test.owner
+    else
+        local owner = RP.OwnerOf(b.unitToken)
+        if owner and UnitExists(owner) then name = DUI.UnitName(owner, "raid") end
+    end
+    if type(name) == "nil" then
+        fs:Hide()
+        return
+    end
+    fs:SetFormattedText("<%s>", name)
+    fs:Show()
+end
+
+-- Gives a pet tile (real or sample) its owner line, under its name.
+local function dressOwner(b)
+    local fs = DUI.Style.Text(b.nameText:GetParent(), RP.OWNER_SIZE, "CENTER")
+    fs:SetPoint("TOP", b.nameText, "BOTTOM", 0, -1)
+    DUI.Style.InkText(fs, "LABEL")
+    fs:Hide()
+    b.ownerText = fs
+    if not b.preview then
+        b:HookScript("OnAttributeChanged", function(self, name)
+            if name == "unit" then RP.PaintOwner(self) end
+        end)
+    end
 end
 
 RP.group = ns.Group.New({
@@ -80,6 +126,10 @@ RP.group = ns.Group.New({
         local G = ns.Group
         return G.IN_RAID .. (Raid.InParty(db().raid) and G.IN_PARTY or "") .. " show; hide"
     end,
+    dress = dressOwner,
+    layoutButton = function(b) RP.PaintOwner(b) end,   -- also its first paint, once it has a unit
+    showSample = function(b) RP.PaintOwner(b) end,
+    hideSample = function(b) if b.ownerText then b.ownerText:Hide() end end,
     sampleFor = function(i) return RP.SampleFor(i) end,
     sampleUnit = function(i) return "raidpet" .. i end,
 })
@@ -135,3 +185,11 @@ function RP.Layout(cfg, text, range)
     RP.holder:SetFrameStrata(ns.StrataOf(d.raid))
     RP.Place(cfg)
 end
+
+-- A pet came or went, or the roster moved owners around: every owner line again.
+local function paintAll()
+    for _, b in ipairs(RP.buttons) do RP.PaintOwner(b) end
+end
+DUI.RegisterEvent("GROUP_ROSTER_UPDATE", paintAll)
+DUI.RegisterEvent("UNIT_PET", paintAll)
+DUI.RegisterEvent("UNIT_NAME_UPDATE", paintAll)
