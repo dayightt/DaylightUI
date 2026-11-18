@@ -90,13 +90,20 @@ end
 -- several of these functions in a row).
 local pending = false
 function OC.Follow()
+    -- The game closed its bags (walking away from a merchant): tell it now, inside
+    -- its own close, while the NPC window is still listed. A frame later the bag
+    -- would be the last window listed and emptying the list gets refused.
+    local w = ns.window
+    if w and w:IsShown() and not OC.held and DUI.Pad and not OC.AnyOpen() then DUI.Pad.Leaving(w) end
     if pending then return end
     pending = true
     C_Timer.After(0, function()
         pending = false
         local f = ns.window
         if not f then return end
-        if OC.AnyOpen() or OC.held then f:Show()
+        if OC.AnyOpen() or OC.held then
+            f:Show()
+            if DUI.Pad then DUI.Pad.Returning(f) end   -- closed and reopened in one frame
         elseif DUI.Motion then DUI.Motion.Vanish(f)
         else f:Hide() end
         if f:IsShown() then OC.MoveTips() end
@@ -195,6 +202,17 @@ function OC.Take()
     DUI.RegisterEvent("TRADE_CLOSED", function()
         if OC.tradeOpened and (OC.held or OC.AnyOpen()) then OC.CloseAll() end
         OC.tradeOpened = nil
+    end)
+    -- On a controller the bag closes as a fight starts, so the D-pad goes to the
+    -- fight. Hidden at once, not faded: the fade's Hide would land after lockdown
+    -- starts, refused with protected item slots.
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
+        local w = ns.window
+        if not (w and w:IsShown() and DUI.Pad and DUI.Pad.On()) then return end
+        DUI.Pad.LeavingForFight(w)
+        OC.held = nil
+        OC.CloseGame()
+        w:Hide()
     end)
     -- This bag closed some other way (Escape): close the game's bags too.
     local f = ns.window
