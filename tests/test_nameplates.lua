@@ -4431,6 +4431,7 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
     for _ = 5, NP.Manager.FIX_STEPS do
         NP.Manager.Fix()
         stub.RunTimers()
+        stub.RunTimers()
     end
     T.truthy(NP.Manager.Fix():find("every step", 1, true), "the end")
     T.truthy(NP.Manager.Fix():find("platefix 1/8", 1, true), "and round again")

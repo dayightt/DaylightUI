@@ -3,7 +3,7 @@ local _, DUI = ...
 if DUI.LOCALE ~= "zhCN" then return end
 local L = DUI.L
 
--- Simplified Chinese localization maintained by Finn; checked against DaylightUI 1.6.7.
+-- Simplified Chinese localization maintained by Levis; checked against DaylightUI 1.6.7.
 L["  %s (on %s)"] = "  %s（在%s上）"
 L["  %s (on %s) - caster is a %s"] = "  %s（在%s上）- 施法者是%s"
 L["/dui rep - preview the reputation banner"] = "/dui rep - 预览声望横幅"
@@ -4977,7 +4977,7 @@ L["try again in a moment"] = "请稍后再试"
 L["whisper"] = "密语"
 
 
--- DaylightUI 1.6.7 additions and corrections, checked by Finn.
+-- DaylightUI 1.6.7 additions and corrections, checked by Levis.
 L["%d quests to turn in"] = "%d 个可交任务"
 L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"] = "/dui platefix - 在姓名板不可见时运行，每次执行一步，并说明哪一步恢复了显示"
 L["A green part after your experience shows what the quests you can turn in will give. Hover the bar for the total."] = "经验条后的绿色部分显示可交任务将提供的经验。将鼠标悬停在经验条上可查看总数。"
@@ -5167,7 +5167,7 @@ L["Undercity, Tirisfal"] = "幽暗城，提瑞斯法林地"
 L["Valormok, Azshara"] = "瓦罗莫克，艾萨拉"
 L["Zoram'gar Outpost, Ashenvale"] = "佐拉姆加前哨站，灰谷"
 
--- DaylightUI 1.6.9 additions and corrections, checked by Finn.
+-- DaylightUI 1.6.9 additions and corrections, checked by Levis.
 L["%d groups: %s%s."] = "%d 个分组：%s%s。"
 L["%d of %d"] = "%d / %d"
 L["%s and %s"] = "%s 和 %s"
@@ -5690,7 +5690,7 @@ L["while you prowl"] = "潜行时"
 L["you have no groups of your own yet"] = "你还没有自己的分组"
 L["Search, or try quest, food, rare"] = "搜索，或输入：任务、食物、稀有"
 
--- DaylightUI 1.7 additions, reviewed by Finn.
+-- DaylightUI 1.7 additions, reviewed by Levis.
 L["%s · %s"] = "%s · %s"
 L["%sClick|r%s: details  ·  |r%sShift-click|r%s: report|r"] = "%s点击|r%s：详情  ·  |r%sShift+点击|r%s：报告|r"
 L["A border and shadow around the window."] = "为窗口添加边框和阴影。"
@@ -7616,12 +7616,12 @@ L["Which way the card opens from the crown tab. The middle of the screen keeps i
 
 -- More translated lines.
 L["An item's tooltip lists how many each of your characters has in their bags and bank, with a total. Turn it off if another addon already shows them."] = "物品的鼠标提示会列出你的每个角色在背包和银行中各有多少个，并给出总数。如果其他插件已经显示这些信息，请关闭此项。"
-L["Bought by"] = "购买自"
+L["Bought by"] = "买家"
 L["Click, then click a lockbox to pick its lock. Not during a fight."] = "点击后，再点击一个锁箱以撬开它的锁。战斗中不可用。"
 L["Item counts on tooltips"] = "鼠标提示中的物品数量"
 L["Pick Lock"] = "撬锁"
 L["PvP flag crest"] = "PvP 标记徽章"
 L["Quests ready to hand in leave their zones and gather in a Ready to turn in section under the rest, so the quests still to do stay on top. Nothing moves in a fight."] = "可交付的任务会离开其所在区域，集中到下方“可交付”区域，这样仍需完成的任务就保持在顶部。战斗中任何内容都不会移动。"
 L["Ready quests at the bottom"] = "可交付任务置于底部"
-L["Sold by"] = "出售自"
+L["Sold by"] = "卖家"
 L["The same Alliance or Horde crest by the name of anyone flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you."] = "在所有已开启 PvP 标记的玩家和 NPC 的名字旁显示相同的联盟或部落徽章，这样你在攻击前就能判断是否会为你开启 PvP 标记。"
