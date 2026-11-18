@@ -305,7 +305,7 @@ function Tabs.SizeMenu(owner)
         end })
 end
 
--- New tab picked: a plain one opens its Show window; a combat log has nothing to set.
+-- New tab picked: a plain one opens its Channels window; a combat log has nothing to set.
 function Tabs.New(owner, combat, onSide)
     local n = Tabs.Add(combat, onSide)
     ns.Box.Pick(n, true)

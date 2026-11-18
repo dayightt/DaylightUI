@@ -304,7 +304,7 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. A chat tab's Show window sets your own tags." },
+              desc = "[G] for General, [T] for Trade, [G] for guild (told apart from General by its guild green), [P] for party, [S] for say, [Y] for yell, [W] for whispers. Lines already in chat stay as they were. Right-click a chat tab and pick Channels to set your own tags." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number with the short tag: [1. G] for General, [2. T] for Trade.",
               disabled = function(get) return get("shortTags") ~= true end },

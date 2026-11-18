@@ -158,18 +158,27 @@ Kinds.ZONE = { [1] = "general", [2] = "trade", [22] = "defense", [26] = "lfg", [
 
 -- The kind the game's id gives a channel name ("DefensaLocal", "General: Vallefresno"
 -- or "General - Elwynn Forest"), or nil if the game can't say or the id isn't known.
+-- Every channel line's tag asks, so each name's answer is kept until channels change.
+local ofZone = {}
 local function kindOfZone(base)
     local C = C_ChatInfo
     -- The game errors on a secret name, so a secret one has no id.
     if type(base) ~= "string" or secret(base) then return nil end
+    local known = ofZone[base]
+    if known ~= nil then return known or nil end
     if type(C) ~= "table" or type(C.GetChannelInfoFromIdentifier) ~= "function" then return nil end
     local names = { string.gsub(base, "%s*%-.*$", ""), (string.gsub(base, "%s*:.*$", "")) }
+    local kind = false
     for i = 1, 2 do
         local info = C.GetChannelInfoFromIdentifier(names[i])
         local zone = type(info) == "table" and info.zoneChannelID
-        if type(zone) == "number" and not secret(zone) and Kinds.ZONE[zone] then return Kinds.ZONE[zone] end
+        if type(zone) == "number" and not secret(zone) and Kinds.ZONE[zone] then
+            kind = Kinds.ZONE[zone]
+            break
+        end
     end
-    return nil
+    ofZone[base] = kind
+    return kind or nil
 end
 Kinds.OfZone = kindOfZone
 
@@ -208,6 +217,7 @@ Kinds.OfNumber = kindOfNumber
 function Kinds.ChannelsChanged()
     listKind = nil
     if next(ofName) then wipe(ofName) end
+    if next(ofZone) then wipe(ofZone) end
 end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
 -- Joining or leaving a channel.

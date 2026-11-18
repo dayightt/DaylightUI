@@ -15,9 +15,16 @@ DUI.PatchNotes = {
         new = {
             { "World map", "Hover a zone on the world map to see its level range next to its name, colored by how hard it is for you" },
             { "Group finder", "Make the group finder wide and groups and solo players sit side by side" },
+            { "Chat", "A Line spacing slider spreads out the messages in the chat box (Chat, Messages)" },
+            { "Profiles", "Ready-made profiles, DPS/Tank too, can be added any time and reset to how they come (Profiles, Ready-made)" },
         },
         fixed = {
             { "Action bars", "Action bars make far less throwaway memory in fights, for fewer small hitches" },
+            { "Character", "The PvP page shows your rank's own badge and what the next rank gives, like the game's" },
+            { "Social", "Your BattleTag is in the Social window's header again, a click copies it" },
+            { "Chat", "Local Defense and Trade (Local) get their short tag in every language, not only English" },
+            { "General", "Daylight UI's questions no longer push open windows aside" },
+            { "Quests", "The quest tracker's box leaves room for the All and This zone buttons" },
         },
     },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",

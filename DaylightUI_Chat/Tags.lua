@@ -35,7 +35,7 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- German clients name them in German.
                   Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
--- kind, written whole, set in a tab's Show window, Filter.lua). A custom tag wins;
+-- kind, written whole, set in a tab's Channels window, Filter.lua). A custom tag wins;
 -- an empty box falls back to the standard one. Standard tags are also the edit
 -- box hint when you're not in that channel. Group leaders get an L added (PL),
 -- sent whispers stay [To], emotes have no tag.

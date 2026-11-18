@@ -795,8 +795,10 @@ end
 -- reload. Returns true, or false and a reason.
 function Profiles.ResetPreset(name)
     if not DUI.DB.Saved(name) then return false, string.format(L["there's no profile called %s"], tostring(name)) end
-    local new, why = Profiles.ReadyData(name, DUI.DB.Fill(data()[name]))
+    local old = data()[name]
+    local new, why = Profiles.ReadyData(name, DUI.DB.Fill(old))
     if not new then return false, why end
+    if old.pendingLayout then new.pendingLayout = old.pendingLayout end
     Profiles.Replace(name, new)
     if name == DUI.DB.ActiveName() then Profiles.AskReload() end
     return true
@@ -1351,7 +1353,7 @@ local profilesPage = DUI.Options.RegisterPage({
         } },
         { label = "Profiles", desc = "Kept for every character on this account, each with its own Edit Mode layout.",
           items = { list } },
-        { label = "Ready-made", desc = "Built from DPS/Tank (the standard profile) the first time you add one; after that, the one you have is used as it is.", items = readyMade({
+        { label = "Ready-made", desc = "Built from DPS/Tank (the standard profile) the first time you add one; after that, the one you have is used as it is. Reset puts it back the way it comes.", items = readyMade({
             { "DPS/Tank", "The standard profile, as it comes. Choose it above to use it. "
                   .. "If the profile you're on has moved action bars, it offers to bring them along." },
             { "Healer", "DPS/Tank with your party and raid as square tiles under you (you included, missing health on them, dispels easy to see), and your frame and your target's raised a little. Everything it sets is on the Party and Raid pages; move any of them in unlock mode. Choose it above to use it. "
