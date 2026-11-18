@@ -2844,6 +2844,8 @@ local function fillRow(r, n)
     elseif open.armed == k then
         r.text:SetText(L["Click again"])
         W.TextColor(r.text, Style.INK.WARN)   -- "Click again" in INK.WARN
+    elseif opts.off and opts.off[k] then
+        W.TextColor(r.text, C.faint)
     -- Menus of switches mark "on" with the tick alone. Coloring every on row
     -- in the accent turned the whole list one color.
     elseif picked and not opts.checked then W.TextAccent(r.text) else W.TextColor(r.text, C.text) end
@@ -2926,6 +2928,7 @@ end
 --   onRightClick = function(key): a row's right-click.
 --   confirm = { [key] = true }: ask "Click again" first, for deletes.
 --   more = { [key] = true }: the row opens a submenu.
+--   off = { [key] = true }: shown faint, still clickable.
 local cursorSpot
 function W.OpenMenu(owner, keys, values, current, onPick, width, opts)
     if not menu then
@@ -3194,6 +3197,7 @@ function W.dropdown(row, page, item)
         -- what General is set to, see Registry's MediaPick).
         local name = (item.shownAs and item.shownAs(v)) or values[v] or (DUI.Media and DUI.Media.SharedName(v))
         b.text:SetText(Options.Text(name or (item.fallback and values[item.fallback]) or ""))
+        W.TextColor(b.text, (item.offShown and item.offShown(v)) and C.faint or C.text)
     end
     b:SetScript("OnEnter", function()
         W.Tint(b.bg, C.controlHover)
@@ -3220,8 +3224,8 @@ function W.dropdown(row, page, item)
             W.CloseMenu()
             return
         end
-        -- choices() may return a third value: headings (W.OpenMenu's titles).
-        local values, keys, titles = choices()
+        -- choices() may also return W.OpenMenu's titles and off.
+        local values, keys, titles, off = choices()
         local shown = {}
         for k, text in pairs(values) do shown[k] = Options.Text(text) end
         W.OpenMenu(b, keys, shown, Options.Get(page, item), function(k)
@@ -3231,7 +3235,8 @@ function W.dropdown(row, page, item)
             if item.onPick then item.onPick(k) end
             -- Rows outside the panel (the setup guide) aren't redrawn by it.
             if row.Refresh then row.Refresh() end
-        end, nil, (item.preview or item.hover or titles) and { preview = item.preview, fetch = item.fetch, onHover = item.hover, titles = titles } or nil)
+        end, nil, (item.preview or item.hover or titles or off)
+            and { preview = item.preview, fetch = item.fetch, onHover = item.hover, titles = titles, off = off } or nil)
     end)
     row.control = b
 end

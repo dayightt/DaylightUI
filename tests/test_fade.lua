@@ -1631,3 +1631,15 @@ T.test("fade: two whole-UI fades each keep theirs, the UI shows the lowest", fun
     F.SetUIAlpha(1, "npc")
     T.eq(UIParent:GetAlpha(), 1, "both done: the UI is back")
 end)
+
+T.test("fade: HasHold reports a module's hold on an area, and nothing for an unknown one", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    area(DUI, "heldArea", { mode = "always", alpha = 0, mouseover = true, delay = 0 }, { frame() })
+    T.eq(F.HasHold("heldArea"), false, "not held after registering")
+    F.Hold("heldArea", true)
+    T.eq(F.HasHold("heldArea"), true, "held")
+    F.Hold("heldArea", false)
+    T.eq(F.HasHold("heldArea"), false, "let go")
+    T.eq(F.HasHold("noSuchArea"), false, "an unknown area is never held")
+end)

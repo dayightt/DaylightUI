@@ -869,3 +869,110 @@ T.test("preview: thin bars, so it starts zoomed in, never past its room", functi
     s.Refresh(200, 160)
     T.truthy(s.p:GetWidth() * s.p:GetScale() <= 200, "a narrow room shrinks it")
 end)
+
+-- Revealed for the layout editor.
+
+local function reveal(DUI, PR, on) DUI.Fire("RevealFrame", PR.KEY, on) end
+
+local function stepFade(DUI, seconds)
+    for _ = 1, seconds * 4 do stub.Advance(0.25); DUI.Fade.Step(); DUI.Fade.Animate(0.25) end
+end
+
+local function registeredEvents(frame)
+    local events = {}
+    for event, registered in pairs(frame.__events) do
+        if registered then events[event] = true end
+    end
+    return events
+end
+
+local function outwardState(DUI, PR)
+    local h = PR.frame
+    return { point = { h:GetPoint(1) }, shown = h:IsShown(), alpha = h:GetAlpha(), fadeHeld = DUI.Fade.HasHold(PR.FADE),
+             sample = h.test, revealed = PR.revealed, events = registeredEvents(h), following = PR.follow:IsShown() }
+end
+
+T.test("revealed while off: the sample at full alpha where it stands, through other shows and hides; ended, hidden and quiet again", function()
+    local DUI, ns, PR = login(nil, nil, false)
+    local h = PR.frame
+    local point = { h:GetPoint(1) }
+    local s = pageSample(ns)
+    reveal(DUI, PR, true)
+    T.eq(stub.Plain(h.healthBar.__value), PR.SAMPLE.health, "the sample shows though switched off")
+    T.deq({ h:GetPoint(1) }, point, "where it stands")
+    PR.UpdateShown()
+    DUI.SetTestMode(true)
+    DUI.SetTestMode(false)
+    T.truthy(h:IsShown() and h.test, "the shown rule and test mode ending leave the sample shown")
+    stepFade(DUI, 10)
+    T.eq(h:GetAlpha(), 1, "the fade stepping on leaves it at full")
+    s.Refresh(600, 160)
+    T.eq(s.p:GetAlpha(), ns.PageSample.OFF_ALPHA, "the page's own preview still drawn as off")
+    reveal(DUI, PR, false)
+    T.falsy(h:IsShown(), "hidden again")
+    CameraZoomIn(1)
+    T.falsy(PR.follow:IsShown(), "a zoom wakes nothing")
+end)
+
+T.test("revealed while on and faded, a fight starting: full alpha; ended, the fade's alpha now and your own health back", function()
+    local DUI, _, PR = login()
+    local h = PR.frame
+    stepFade(DUI, 10)
+    T.eq(DUI.Fade.State(PR.FADE), 0, "out of a fight with no target: faded")
+    reveal(DUI, PR, true)
+    stub.combat = true
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    stepFade(DUI, 2)
+    T.eq(h:GetAlpha(), 1, "the fade stepping on leaves it at full")
+    local fadeNow = DUI.Fade.State(PR.FADE)
+    T.truthy(fadeNow > 0, "the fight brought the fade up meanwhile")
+    reveal(DUI, PR, false)
+    stub.combat = false
+    T.eq(h:GetAlpha(), fadeNow, "the fade's alpha now, not the faded one")
+    T.eq(stub.Plain(h.healthBar.__value), 60, "your own health again, not the sample's")
+end)
+
+local DISPLAY_STARTS = {
+    { "switched off", function() local DUI, _, PR = login(nil, nil, false); return DUI, PR end },
+    { "on and faded", function() local DUI, _, PR = login(); stepFade(DUI, 10); return DUI, PR end },
+    { "in test mode", function() local DUI, _, PR = login(); DUI.SetTestMode(true); stepFade(DUI, 2); return DUI, PR end },
+    { "switched off in test mode", function() local DUI, _, PR = login(nil, nil, false); DUI.SetTestMode(true); return DUI, PR end },
+    { "dead", function()
+        local DUI, _, PR = login()
+        stub.units.player.dead = true
+        stub.FireEvent("PLAYER_DEAD")
+        T.falsy(PR.frame:IsShown(), "dead: hidden")
+        return DUI, PR
+    end },
+}
+
+T.test("a reveal, even sent twice, is ended by one end: the display exactly as before", function()
+    for _, start in ipairs(DISPLAY_STARTS) do
+        for reveals = 1, 2 do
+            local DUI, PR = start[2]()
+            local label = start[1] .. ", revealed " .. reveals .. "x"
+            local before = outwardState(DUI, PR)
+            for _ = 1, reveals do reveal(DUI, PR, true) end
+            T.truthy(PR.frame:IsShown() and PR.frame.test and PR.frame:GetAlpha() == 1, label .. ": revealed")
+            reveal(DUI, PR, false)
+            T.deq(outwardState(DUI, PR), before, label)
+            DUI.SetTestMode(false)
+        end
+    end
+end)
+
+T.test("someone else's hold on the display's fade: kept past a reveal; let go during one, the fade's own alpha", function()
+    local DUI, _, PR = login()
+    stepFade(DUI, 10)
+    DUI.Fade.Hold(PR.FADE, true)
+    PR.frame:SetAlpha(0.4)
+    reveal(DUI, PR, true)
+    reveal(DUI, PR, false)
+    T.truthy(DUI.Fade.HasHold(PR.FADE), "still held")
+    T.eq(PR.frame:GetAlpha(), 0.4, "at the alpha its holder left")
+    reveal(DUI, PR, true)
+    DUI.Fade.Hold(PR.FADE, false)
+    reveal(DUI, PR, false)
+    T.falsy(DUI.Fade.HasHold(PR.FADE), "nobody holds it")
+    T.eq(PR.frame:GetAlpha(), DUI.Fade.State(PR.FADE), "at the fade's alpha, not the 0.4 the old hold had left")
+end)

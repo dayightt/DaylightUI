@@ -30,9 +30,11 @@ Data.BAR_LOOK = { color = "class", icon = true, text = 11, time = true }
 -- (buffs that aren't up still show), close the gap of a hidden piece, and the gap
 -- between pieces (a piece's own gap wins). Then when the chain shows: only in a
 -- group, only with a target, not while mounted, and where (anywhere | instance =
--- dungeons, raids, battlegrounds, arenas | world).
+-- dungeons, raids, battlegrounds, arenas | world). tether: the lead's Unlock Frames key, or false;
+-- the root's top-left sits tetherX, tetherY from the lead's tetherAt point.
 Data.CHAIN = { grow = "start", combat = false, always = false, collapse = true, spacing = Data.GAP,
-    group = false, target = false, mounted = false, where = "any" }
+    group = false, target = false, mounted = false, where = "any",
+    tether = false, tetherAt = "CENTER", tetherX = 0, tetherY = 0 }
 
 -- The game's info for a cooldown id. GetCooldownViewerCooldownInfo builds a new
 -- table on every call, and the pieces ask for it many times per pass, so in a fight
@@ -168,6 +170,10 @@ local function oldOrigin(g)
     local pos = DUI.DB and DUI.DB.Positions and DUI.DB.Positions()["cdm.s" .. tostring(g)]
     if DUI.Movers and DUI.Movers.Valid and DUI.Movers.Valid(pos) then return pos[1], pos[2] end
     return Data.ORIGIN[1], Data.ORIGIN[2]
+end
+
+local function isFiniteNumber(v)
+    return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
 end
 
 -- Brings a saved layout up to the current format (old formats, renamed keys).
@@ -1065,8 +1071,7 @@ end
 -- Moves id's chain so its first piece's top-left is at x, y (whole numbers). Used by
 -- the editor's nudges and typed positions.
 function Data.MoveChain(set, id, x, y)
-    local function finite(n) return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge end
-    if not (set.pieces[id] and finite(x) and finite(y)) then return false end
+    if not (set.pieces[id] and isFiniteNumber(x) and isFiniteNumber(y)) then return false end
     local p = set.pieces[Data.Root(set, id)]
     Data.Changed()
     p.x, p.y = floor(x + 0.5), floor(y + 0.5)
@@ -1181,6 +1186,8 @@ Data.BAR_TEXT_KEYS = { "nameSize", "nameColor", "timeSize", "timeColor" }
 Data.CHAIN_FIELDS = {
     grow = { "start", "center", "end" }, combat = true, always = true, collapse = true, spacing = { 0, 16 },
     group = true, target = true, mounted = true, where = { "any", "instance", "world" },
+    tether = { key = true }, tetherX = { -4096, 4096 }, tetherY = { -4096, 4096 },
+    tetherAt = { "CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" },
 }
 -- Spell options (defaults live in CdmEffects). icon / bar = that shape only.
 Data.SPELL_FIELDS = {
@@ -1234,6 +1241,16 @@ local function isRGB(c)
     return type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number"
 end
 
+-- Not checked to exist, so keys of plugins that aren't loaded are kept.
+local function isFrameKey(v)
+    return type(v) == "string" and #v > 0 and #v <= 128 and not v:find("%c")
+end
+Data.IsFrameKey = isFrameKey
+
+local function isNumberRange(spec)
+    return type(spec) == "table" and type(spec[1]) == "number"
+end
+
 -- Checks a value against a field. Returns the value to keep, or nil when it's bad.
 -- A custom gradient ({ count, c1 to c5 }, as General's accentGradient): a copy
 -- with the count kept to 2 to 5 and every color it holds checked, or nil.
@@ -1267,11 +1284,21 @@ local function check(spec, v)
         local a = v[4]
         if a ~= nil and type(a) ~= "number" then return nil end
         return { v[1], v[2], v[3], max(0, min(1, a or 1)) }
-    elseif type(spec[1]) == "number" then
+    elseif spec.key then
+        if v == false or isFrameKey(v) then return v end
+    elseif isNumberRange(spec) then
         if type(v) == "number" and v == v then return max(spec[1], min(spec[2], floor(v + 0.5))) end
     elseif oneOf(spec, v) then
         return v
     end
+end
+
+-- Nil when malformed. Non-finite numbers are refused, not clamped to the limit.
+function Data.SavedChainValue(key, value)
+    local spec = Data.CHAIN_FIELDS[key]
+    if spec == nil then return nil end
+    if isNumberRange(spec) and not isFiniteNumber(value) then return nil end
+    return check(spec, value)
 end
 
 -- Sets one look key, either for the whole chain (whole = true, which clears the
@@ -1312,9 +1339,8 @@ end
 -- Sets one chain toggle (Data.CHAIN), from any piece in it. A new spacing applies to
 -- every piece and clears their own gaps.
 function Data.SetChainValue(set, id, key, value)
-    local spec = Data.CHAIN_FIELDS[key]
-    if not (set.pieces[id] and spec) then return false end
-    value = check(spec, value)
+    if not set.pieces[id] then return false end
+    value = Data.SavedChainValue(key, value)
     if value == nil then return false end
     Data.Changed()
     local c = Data.Chain(set, id)

@@ -609,6 +609,25 @@ T.test("test mode samples are built the first time test mode shows them", functi
     T.eq(ns.Party.preview[1], first, "built once, then reused")
 end)
 
+T.test("a group previews when revealed, or in test mode with its part ticked or a sweep running", function()
+    local DUI, ns = login()
+    local group = ns.Party.group
+    -- { revealed, test mode, part ticked, sweeping, previews }
+    local cases = {
+        { false, false, true, false, false }, { false, false, false, false, false }, { false, false, true, true, false },
+        { false, true, true, false, true }, { false, true, false, false, false }, { false, true, false, true, true },
+        { true, false, true, false, true }, { true, false, false, false, true }, { true, true, false, false, true },
+    }
+    for _, case in ipairs(cases) do
+        group.revealed, DUI.testMode, group.sweep = case[1] or nil, case[2], case[4] and {} or nil
+        DUI.SetTestPartShown("party", case[3])
+        T.eq(group:Previewing(), case[5], string.format("revealed %s, test mode %s, part ticked %s, sweeping %s",
+            tostring(case[1]), tostring(case[2]), tostring(case[3]), tostring(case[4])))
+    end
+    group.revealed, DUI.testMode, group.sweep = nil, false, nil
+    DUI.SetTestPartShown("party", true)
+end)
+
 -- ---------------------------------------------------------------------
 -- The game's group header (SecureGroupHeaders.lua, copied where it matters)
 -- with the client's bug: a button it makes during a fight never gets its

@@ -685,6 +685,11 @@ function Fade.Hold(key, on)
     if not on then readFrames(e); paint(e) end
 end
 
+function Fade.HasHold(key)
+    local e = entries[key]
+    return e ~= nil and e.held == true
+end
+
 -- A feature quiets some areas for a while (the campfire hides bars and unit
 -- frames while you sit). Every area whose key starts with one of prefixes
 -- slowly eases to 0 out of combat. The mouse, a fight, unlock, test mode and

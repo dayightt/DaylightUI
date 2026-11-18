@@ -12,6 +12,7 @@ local L = DUI.L
 local CD = ns.Cooldowns
 local Data = ns.CdmData
 local Fx = ns.CdmEffects
+local Tether = ns.CdmTether
 
 local Rows = {}
 ns.CdmRows = Rows
@@ -26,7 +27,7 @@ local AURA_VIEWERS = { BuffIconCooldownViewer = true, BuffBarCooldownViewer = tr
 
 
 local weak = { __mode = "k" }
-local frames = {}                          -- [g] = { layout = frame, pieces = { [id] = frame } }
+local frames = {}                          -- [g] = { layout, pieces[id], tethers[root] }, all frames
 local claimed = setmetatable({}, weak)     -- item -> piece id
 local sizes = setmetatable({}, weak)       -- bar item -> { w, h }
 local faded = setmetatable({}, weak)       -- item -> true
@@ -87,7 +88,7 @@ function Rows.Init()
         f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         f:SetSize(1, 1)
         f:Hide()
-        frames[g] = { layout = f, pieces = {} }
+        frames[g] = { layout = f, pieces = {}, tethers = {} }
     end
 end
 
@@ -135,6 +136,68 @@ local function pieceFrame(g, id)
     return t[id]
 end
 
+local function usable(item)
+    return not (InCombatLockdown() and item.IsProtected and item:IsProtected())
+end
+
+-- Queues one layout pass for the fight's end.
+local function heldUntilFightEnds(f)
+    if usable(f) then return false end
+    DUI.AfterCombat(Rows.Refresh, "cdm:tether")
+    return true
+end
+
+local function rememberTetherAnchor(f, relative, relativePoint, x, y)
+    f.tetherRel, f.tetherPoint, f.tetherX, f.tetherY = relative, relativePoint, x, y
+end
+
+local function hangAtSavedSpot(f, layout, left, top)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", layout, "CENTER", left, top)
+    rememberTetherAnchor(f, layout, "CENTER", left, top)
+end
+
+-- The client refuses anchors to some frames; a refused anchor isn't remembered, so the next pass retries.
+local function hangOffLead(f, leadFrame, relativePoint, x, y)
+    f:ClearAllPoints()
+    if not pcall(f.SetPoint, f, "TOPLEFT", leadFrame, relativePoint, x, y) then return false end
+    rememberTetherAnchor(f, leadFrame, relativePoint, x, y)
+    return true
+end
+
+-- Spans an attached group's shown pieces, so the client moves them with the lead in combat
+-- and clamps the whole group on screen.
+local function tetherFrame(g, root)
+    local tethers = frames[g].tethers
+    local f = tethers[root]
+    if not f then
+        f = CreateFrame("Frame", "DaylightUICdmTether" .. g .. "_" .. tostring(root), frames[g].layout)
+        f:SetClampedToScreen(true)
+        tethers[root] = f
+    end
+    return f
+end
+
+local function holdsFrame(framesByKey, f)
+    for _, member in pairs(framesByKey) do
+        if member == f then return true end
+    end
+    return false
+end
+
+-- Anything hung off these can't be a group's lead.
+function Rows.IsCdmFrame(f)
+    if type(f) ~= "table" then return false end
+    if Rows.pieceInfo[f] then return true end
+    for _, talentSetFrames in pairs(frames) do
+        if talentSetFrames.layout == f or holdsFrame(talentSetFrames.pieces, f)
+            or holdsFrame(talentSetFrames.tethers, f) then
+            return true
+        end
+    end
+    return false
+end
+
 -- Plugins (DaylightUI.API, kind "cdmpiece"): each shown piece's frame (Daylight UI's,
 -- whatever draws the spell inside it), by its key, with what it shows. Two
 -- tables kept and swapped, so a pass makes no garbage.
@@ -172,10 +235,6 @@ function Rows.PieceOf(spellID)
         local info = Rows.pieceInfo[f]
         if info and (info.spellID == spellID or key == tostring(spellID)) then return f end
     end
-end
-
-local function usable(item)
-    return not (InCombatLockdown() and item.IsProtected and item:IsProtected())
 end
 
 -- A shield placed as a bar that fills by the shield left (CdmBars.IsShield). Only
@@ -285,20 +344,117 @@ local function place(item, block, f, button)
     end
 end
 
--- Moves a piece to its spot. One already showing that moves (its chain closing up,
--- or opening for a piece coming back) glides; one just shown snaps. Piece frames
--- are Daylight UI's, so the items anchored to them follow, in fights too.
-local function put(f, layout, x, y)
-    if f.goalX == x and f.goalY == y and f.atX then return end
-    f.goalX, f.goalY = x, y
+-- x, y are from the layout's center; relative sits originX, originY from it. A move glides,
+-- a new anchor snaps. Items anchored to piece frames follow, in combat too.
+local function put(f, relative, relativePoint, originX, originY, x, y)
+    local sameAnchor = f.goalRelative == relative and f.goalPoint == relativePoint
+    if sameAnchor and f.goalOriginX == originX and f.goalOriginY == originY
+        and f.goalX == x and f.goalY == y and f.atX then
+        return
+    end
+    f.goalRelative, f.goalPoint, f.goalX, f.goalY = relative, relativePoint, x, y
+    f.goalOriginX, f.goalOriginY = originX, originY
     local fx, fy = x, y
-    if f.atX and f:IsShown() and not (InCombatLockdown() and f:IsProtected()) then fx, fy = f.atX, f.atY end
+    if sameAnchor and f.atX and f:IsShown() and not (InCombatLockdown() and f:IsProtected()) then
+        fx, fy = f.atX, f.atY
+    end
     f.moveKey = f.moveKey or {}
     DUI.Motion.Tween(f.moveKey, 0, 1, (fx == x and fy == y) and 0 or DUI.Motion.NORMAL, function(p)
         f.atX, f.atY = fx + (x - fx) * p, fy + (y - fy) * p
         f:ClearAllPoints()
-        f:SetPoint("TOPLEFT", layout, "CENTER", f.atX, f.atY)
+        f:SetPoint("TOPLEFT", relative, relativePoint, f.atX - originX, f.atY - originY)
     end)
+end
+
+-- By root piece; reused across passes, which run on every aura change.
+local attachedChains = {}
+
+local function forgetAttachedChains()
+    for _, chain in pairs(attachedChains) do
+        chain.key, chain.left, chain.tether = nil, nil, nil
+    end
+end
+
+local function readAttachedChains(set)
+    forgetAttachedChains()
+    for _, root in ipairs(Data.Index(set).roots) do
+        local key, offsetX, offsetY, at = Tether.Of(set, root)
+        if key then
+            local chain = attachedChains[root]
+            if not chain then
+                chain = {}
+                attachedChains[root] = chain
+            end
+            local p = set.pieces[root]
+            chain.key, chain.at, chain.offsetX, chain.offsetY = key, at, offsetX, offsetY
+            chain.rootX, chain.rootY = tonumber(p.x) or 0, tonumber(p.y) or 0
+        end
+    end
+end
+
+local function coverBox(set, id, box)
+    local chain = attachedChains[Data.Root(set, id)]
+    if not (chain and chain.key) then return end
+    local right, bottom = box.x + box.w, box.y - box.h
+    if chain.left == nil then
+        chain.left, chain.top, chain.right, chain.bottom = box.x, box.y, right, bottom
+        return
+    end
+    chain.left, chain.top = math.min(chain.left, box.x), math.max(chain.top, box.y)
+    chain.right, chain.bottom = math.max(chain.right, right), math.min(chain.bottom, bottom)
+end
+
+local function sizeTether(f, width, height)
+    if f.tetherW == width and f.tetherH == height then return end
+    f:SetSize(width, height)
+    f.tetherW, f.tetherH = width, height
+end
+
+-- Falls back to the saved spot when there's no lead or the client refuses it.
+local function anchorTether(f, layout, chain)
+    if heldUntilFightEnds(f) then return end
+    f.extentLeft, f.extentTop = chain.left, chain.top
+    sizeTether(f, math.max(1, chain.right - chain.left), math.max(1, chain.top - chain.bottom))
+    f:Show()
+    local leadFrame = Tether.Lead(chain.key)
+    local relative, relativePoint, x, y = layout, "CENTER", chain.left, chain.top
+    if leadFrame then
+        relative, relativePoint = leadFrame, chain.at
+        x, y = chain.offsetX + (chain.left - chain.rootX), chain.offsetY + (chain.top - chain.rootY)
+    end
+    if f.tetherRel == relative and f.tetherPoint == relativePoint and f.tetherX == x and f.tetherY == y then return end
+    if not (leadFrame and hangOffLead(f, leadFrame, relativePoint, x, y)) then
+        hangAtSavedSpot(f, layout, chain.left, chain.top)
+    end
+end
+
+local function hideTether(f)
+    if not f:IsShown() or heldUntilFightEnds(f) then return end
+    f:Hide()
+end
+
+local function anchorTethers(g, layout)
+    for root, chain in pairs(attachedChains) do
+        if chain.key and chain.left then
+            local f = tetherFrame(g, root)
+            anchorTether(f, layout, chain)
+            if f:IsShown() then chain.tether = f end
+        end
+    end
+    for root, f in pairs(frames[g].tethers) do
+        local chain = attachedChains[root]
+        if not (chain and chain.tether == f) then hideTether(f) end
+    end
+end
+
+local function putPiece(f, set, id, layout, x, y)
+    local chain = attachedChains[Data.Root(set, id)]
+    local tether = chain and chain.tether
+    if tether then
+        put(f, tether, "TOPLEFT", tether.extentLeft, tether.extentTop, x, y)
+    else
+        put(f, layout, "CENTER", 0, 0, x, y)
+    end
 end
 
 -- One pass's scratch tables, wiped at its start. A pass runs on every aura shown or
@@ -734,6 +890,9 @@ function Rows.Update()
         for id, f in pairs(fr.pieces) do
             if not (show and set.pieces[id]) then f:Hide() end
         end
+        if not show then
+            for _, f in pairs(fr.tethers) do hideTether(f) end
+        end
     end
 
     -- Claim items by piece.
@@ -896,6 +1055,11 @@ function Rows.Update()
         end
         local layout = frames[g].layout
         local boxes = Data.Layout(set, shown)
+        -- Closed-up buffs count by their closed box, so they never push a group off the screen edge.
+        readAttachedChains(set)
+        for id in pairs(items) do coverBox(set, id, boxes[id]) end
+        for id in pairs(closed) do coverBox(set, id, boxes[id]) end
+        anchorTethers(g, layout)
         -- A closed-up Daylight UI buff stays shown where it gave up its spot, with
         -- nothing visible while down, so its button comes up there the moment the
         -- buff does. The game's item saying "up" reopens the spot.
@@ -909,14 +1073,14 @@ function Rows.Update()
             local side = set.pieces[id] and set.pieces[id].side
             local x, y = b.x, b.y
             if side == "up" then y = y + h elseif side == "left" then x = x - w end
-            put(f, layout, x, y)
+            putPiece(f, set, id, layout, x, y)
             f:SetSize(w, h)
             f:Show()
             place(item, blocks[id], f, set.pieces[id])
         end
         for id, item in pairs(items) do
             local b, f = boxes[id], pieceFrame(g, id)
-            put(f, layout, b.x, b.y)
+            putPiece(f, set, id, layout, b.x, b.y)
             f:SetSize(b.w, b.h)
             f:Show()
             place(item, blocks[id], f, set.pieces[id])
@@ -1149,12 +1313,23 @@ DUI.RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function() Rows.Refresh() end)
 DUI.RegisterEvent("SPELLS_CHANGED", function() Rows.Refresh() end)
 -- "Hide out of combat" blocks show and hide with combat.
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() Rows.Refresh() end)
-DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() Rows.Refresh() end)
+-- Leads built or moved in combat can be followed now.
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    Tether.Stale()
+    Rows.Refresh()
+end)
 -- The other show rules only need the alpha pass.
 for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "GROUP_ROSTER_UPDATE", "PLAYER_MOUNT_DISPLAY_CHANGED",
     "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do
     DUI.RegisterEvent(e, function() Rows.Away() end)
 end
-DUI.On("SettingChanged", function(scope, path)
-    if scope == "ActionBars" and type(path) == "string" and path:sub(1, 3) == "cdm" then Rows.Refresh() end
+-- A group at its saved spot may follow the moved frame now.
+DUI.On("MoverApplied", function()
+    Tether.Stale()
+    Rows.Refresh()
+end)
+-- Any setting may switch, show or hide a lead.
+DUI.On("SettingChanged", function()
+    Tether.Stale()
+    Rows.Refresh()
 end)

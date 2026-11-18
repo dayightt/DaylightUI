@@ -1,4 +1,6 @@
 -- Test helpers not tied to one part of the addon.
+local stub = require("stub")
+
 local M = {}
 
 local GARBAGE_ROUNDS = 3
@@ -36,6 +38,34 @@ function M.visibleMenuRowOf(W, key)
     end
 end
 
+function M.menuRowOf(W, key)
+    local row = M.visibleMenuRowOf(W, key)
+    if row then return row end
+    W.ScrollMenu(-1000)
+    row = M.visibleMenuRowOf(W, key)
+    if row then return row end
+    W.ScrollMenu(1000)
+    return M.visibleMenuRowOf(W, key)
+end
+
+function M.countBlockedActions()
+    local errorsBefore = #stub.errors
+    return function()
+        local blocked = 0
+        for index = errorsBefore + 1, #stub.errors do
+            if tostring(stub.errors[index]):find("ADDON_ACTION_", 1, true) then blocked = blocked + 1 end
+        end
+        return blocked
+    end
+end
+
+function M.indexOf(list, value)
+    for index, listed in ipairs(list) do
+        if listed == value then return index end
+    end
+    return nil
+end
+
 M.SHIFTED = true
 
 function M.withShiftHeld(shifted, work)
@@ -44,6 +74,44 @@ function M.withShiftHeld(shifted, work)
     local ok, err = pcall(work)
     _G.IsShiftKeyDown = isShiftKeyDown
     if not ok then error(err, 0) end
+end
+
+function M.countCalls(frame, method)
+    local counter = { calls = 0 }
+    local original = frame[method]
+    frame[method] = function(...)
+        counter.calls = counter.calls + 1
+        return original(...)
+    end
+    function counter.restore() frame[method] = original end
+    return counter
+end
+
+function M.recordTooltips(W)
+    local tooltips, showTooltip, hideTooltip = { shown = {}, hidden = 0 }, W.Tooltip, W.HideTooltip
+    W.Tooltip = function(owner, title, body)
+        tooltips.shown[#tooltips.shown + 1] = { owner, title, body }
+        return showTooltip(owner, title, body)
+    end
+    W.HideTooltip = function()
+        tooltips.hidden = tooltips.hidden + 1
+        return hideTooltip()
+    end
+    function tooltips.restore() W.Tooltip, W.HideTooltip = showTooltip, hideTooltip end
+    return tooltips
+end
+
+-- The relative frame is compared by identity: frames hold their parents, so can't be deep-compared.
+function M.expectAnchor(frame, expected, context, index)
+    local point, relative, relativePoint, x, y = frame:GetPoint(index or 1)
+    T.deq({ point, relativePoint, x, y }, { expected[1], expected[3], expected[4], expected[5] }, context)
+    T.truthy(relative == expected[2], context .. ": anchored to " .. tostring(relative and relative.GetName and relative:GetName()))
+end
+
+function M.recordReveals(DUI)
+    local reveals = {}
+    DUI.On("RevealFrame", function(key, on) reveals[#reveals + 1] = { key, on } end)
+    return reveals
 end
 
 return M
