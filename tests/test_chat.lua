@@ -2841,13 +2841,12 @@ T.test("chat daylight: group lines get role icons and no whisper or invite links
     local _, box = daylight(function()
         _G.C_PartyInfo = _G.C_PartyInfo or {}
         _G.C_PartyInfo.InviteUnit = function(n) invited = n end
-        -- The game's own (TextureUtil in Blizzard_SharedXMLBase): an inline atlas.
-        _G.CreateAtlasMarkup = function(atlas, w, h) return ("|A:%s:%d:%d|a"):format(atlas, h or 0, w or 0) end
     end)
     channelLine(ChatFrame1, "LF2M SFM need tank and healer", "Torvik", 1, "LookingForGroup")
     local text = boxTexts(box)[1]
     T.isnil(string.find(text, "daylightchat:", 1, true), "no links of ours on the line")
-    local _, icons = string.gsub(text, "|A:", "")
+    -- Daylight UI's own role art (Media/roles.png), inline as a texture.
+    local _, icons = string.gsub(text, "|T[^|]-roles%.png", "")
     T.eq(icons, 2, "one role icon each for tank and healer (never one inside another's name)")
     T.truthy(string.find(text, "|cff%x%x%x%x%x%xtank|r"), "tank in its color")
     T.truthy(string.find(text, "|cff%x%x%x%x%x%xhealer|r"), "healer in its color")

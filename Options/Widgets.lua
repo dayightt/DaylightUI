@@ -4014,13 +4014,17 @@ function W.Chips(parent, onPick)
     return chips
 end
 
--- Role badge for the group finder using the game's round role art: filled
--- when the role is taken, a faint ring when it's open. b.Set(role, open)
+-- Role badge in Daylight UI's own art (Media/roles.png, the badges the party frames
+-- use): filled when the role is taken, a faint ring when it's open. b.Set(role, open)
 -- takes TANK, HEALER or DAMAGER and hides for anything else.
 -- W.RoleText(role, size) is the same art inline in text (tooltips).
 W.ROLE = 16
-W.ROLE_ART = { TANK = "groupfinder-icon-role-large-tank", HEALER = "groupfinder-icon-role-large-heal",
-    DAMAGER = "groupfinder-icon-role-large-dps" }
+W.ROLE_SHEET = "roles.png"   -- 128 x 128, one role to a quarter
+W.ROLE_COORDS = {             -- left, right, top, bottom
+    TANK = { 0, 0.5, 0, 0.5 },
+    HEALER = { 0.5, 1, 0, 0.5 },
+    DAMAGER = { 0, 0.5, 0.5, 1 },
+}
 W.ROLE_OPEN = 0.3   -- an open spot's art: see-through and without color
 
 function W.Role(parent, size)
@@ -4028,11 +4032,12 @@ function W.Role(parent, size)
     b:SetSize(size or W.ROLE, size or W.ROLE)
     b.art = b:CreateTexture(nil, "ARTWORK")
     b.art:SetAllPoints(b)
+    b.art:SetTexture(MEDIA .. W.ROLE_SHEET)
     function b.Set(role, open)
-        local atlas = W.ROLE_ART[role]
-        b:SetShown(atlas ~= nil)
-        if not atlas then return end
-        b.art:SetAtlas(atlas)
+        local c = W.ROLE_COORDS[role]
+        b:SetShown(c ~= nil)
+        if not c then return end
+        b.art:SetTexCoord(c[1], c[2], c[3], c[4])
         b.art:SetDesaturated(open == true)
         b.art:SetAlpha(open and W.ROLE_OPEN or 1)
     end
@@ -4040,9 +4045,11 @@ function W.Role(parent, size)
 end
 
 function W.RoleText(role, size)
-    local atlas = W.ROLE_ART[role]
-    if not atlas or type(CreateAtlasMarkup) ~= "function" then return "" end
-    return CreateAtlasMarkup(atlas, size or 14, size or 14)
+    local c = W.ROLE_COORDS[role]
+    if not c then return "" end
+    size = size or 14
+    return string.format("|T%s%s:%d:%d:0:0:128:128:%d:%d:%d:%d|t", MEDIA, W.ROLE_SHEET, size, size,
+        c[1] * 128, c[2] * 128, c[3] * 128, c[4] * 128)
 end
 
 -- A question in Daylight UI's own box (DaylightUIAsk), built on the window kit.
