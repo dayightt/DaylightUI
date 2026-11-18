@@ -573,6 +573,29 @@ local function topLine(frame)
 end
 function Kit.TopLineOf(frame) return topLines[frame] end
 
+-- The controller's focus glow (FrameGlowMixin). Its header piece outlines the
+-- game's dialog header, which our windows don't have. The game applies Focus
+-- Opacity only when it changes, so it's read again each time the glow shows.
+local function focusOpacity()
+    local get = (type(C_CVar) == "table" and C_CVar.GetCVar) or GetCVar
+    if type(get) ~= "function" then return nil end
+    local ok, v = pcall(get, "GamepadFocusStateOpacity")
+    return ok and tonumber(v) or nil
+end
+
+local function fitFocusGlow(glow)
+    local a = focusOpacity()
+    if a then glow:SetAlpha(a) end
+end
+
+function Kit.FocusGlow(frame)
+    local glow = isTable(frame) and frame.FrameGlow
+    if not isTable(glow) or not glow.SetAlpha or not once("focusGlow", glow) then return end
+    Kit.Hide(glow.HeaderGlowTexture)
+    fitFocusGlow(glow)
+    if glow.HookScript then glow:HookScript("OnShow", fitFocusGlow) end
+end
+
 -- Dresses a game window: strips its art, adds the window look behind it, sets
 -- the title font, a W.Close button, and a darker inset. opts:
 --   noBackground  border only (map windows)
@@ -609,6 +632,7 @@ function Kit.Window(frame, opts)
     Kit.Close(frame.CloseButton or named)
     if isTable(frame.TitleContainer) then Kit.Close(frame.TitleContainer.CloseButton) end
     Kit.Close(frame.ClosePanelButton)
+    Kit.FocusGlow(frame)
     local inset = frame.Inset or (type(name) == "string" and _G[name .. "Inset"])
     if inset then Kit.Inset(inset) end
     -- Fade in on open (out of combat; hiding stays the game's). Not for map
