@@ -189,12 +189,22 @@ T.test("lfg: closing ours hides the game's; the game's key again closes ours", f
     T.falsy(DaylightUI.Win.IsOpen(f), "ours follows")
 end)
 
-T.test("lfg: the category chips list what's there at your level", function()
+-- The names the category drop-down offers.
+local function categoryChoices(ns)
+    local names = {}
+    for _, c in ipairs(ns.Data.Categories()) do names[#names + 1] = c.name end
+    return table.concat(names, ", ")
+end
+
+T.test("lfg: the category drop-down lists what's there at your level", function()
     local ns = load()
     open(ns)
-    local chips = {}
-    for _, b in ipairs(ns.Listing.page.catChips) do if b:IsShown() then chips[#chips + 1] = b.text:GetText() end end
-    T.eq(table.concat(chips, ", "), "Dungeons, Quests & Zones, Custom", "Raids: nothing at level 14")
+    T.eq(categoryChoices(ns), "Dungeons, Quests & Zones, Custom", "Raids: nothing at level 14")
+    local page = ns.Listing.page
+    T.truthy(page.cat.chevron, "a drop-down, no chips")
+    T.eq(page.catLabel:GetText(), "Category")
+    T.eq(page.sortByLabel:GetText(), "Sort by")
+    T.eq(page.cat.text:GetText(), ns.Listing.CategoryWord())
 end)
 
 T.test("lfg: the header's gear shows every level, as the game's finder's does", function()
@@ -211,9 +221,7 @@ T.test("lfg: the header's gear shows every level, as the game's finder's does", 
     stub.Key(function() pick(keys[1]) end)
     frame(5)
     T.eq(opts.checked(keys[1]), true)
-    local chips = {}
-    for _, b in ipairs(ns.Listing.page.catChips) do if b:IsShown() then chips[#chips + 1] = b.text:GetText() end end
-    T.truthy(table.concat(chips, ", "):find("Raids", 1, true), "Raids at level 14 once every level shows")
+    T.truthy(categoryChoices(ns):find("Raids", 1, true), "Raids at level 14 once every level shows")
 end)
 
 T.test("lfg: Find a group's tab searches the dungeons at your level and lists groups, then solo players", function()
@@ -314,38 +322,97 @@ T.test("lfg: picking an activity narrows the list without searching again", func
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- Seen in game in French: "Champs de bataille" and "Personnalisé" ran past the
--- window's edge. Long names wrap to a second row and the activity button and
--- list move down under them.
-T.test("lfg: long category names wrap inside the window", function()
-    local names = {}
-    for id, c in pairs(LW.CATEGORIES) do names[id] = c.name end
-    LW.CATEGORIES[2].name, LW.CATEGORIES[116].name = "Donjons", "Champs de bataille et zones"
-    LW.CATEGORIES[120].name = "Personnalisé"
-    local ok, err = pcall(function()
-        local ns = load()
-        open(ns)
-        tab(ns, "find")
-        local page = ns.Browse.page
-        local right, bottom = ns.Browse.Width(page) - ns.Browse.EDGE, 0
-        for _, b in ipairs(page.chips) do
-            if b:IsShown() then
-                local _, _, _, x, y = b:GetPoint(1)
-                T.truthy(x + b:GetWidth() <= right, b.text:GetText() .. " ends at " .. (x + b:GetWidth()) .. " of " .. right)
-                bottom = math.max(bottom, -y + b:GetHeight())
-            end
-        end
-        local _, _, _, _, ay = page.act:GetPoint(1)
-        T.truthy(-ay > bottom, "the activity button under the last row")
-        local sy
-        for n = 1, page.stack.scroll:GetNumPoints() do
-            local p, _, _, _, py = page.stack.scroll:GetPoint(n)
-            if p == "TOPLEFT" then sy = py end
-        end
-        T.truthy(-sy >= -ay + page.act:GetHeight(), "the list under the activity button")
-    end)
-    for id, n in pairs(names) do LW.CATEGORIES[id].name = n end
-    if not ok then error(err, 0) end
+-- Category and activity are drop-downs, each with its word over it, so no name can run
+-- past the window's edge in any language.
+T.test("lfg: category and activity are labeled drop-downs; the list sits under them", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local page = ns.Browse.page
+    T.isnil(page.chips, "no chips")
+    -- The filters sit in a panel with a bar down its left edge, and the list under it.
+    T.truthy(page.panel.fill:IsShown() and page.panel.edge:IsShown(), "the panel and its side bar")
+    local function top(f) for n = 1, f:GetNumPoints() do local pt, _, _, _, py = f:GetPoint(n); if pt == "TOPLEFT" then return py end end end
+    T.truthy(-top(page.stack.scroll) >= -top(page.panel) + page.panel:GetHeight(), "the list under the panel")
+    T.truthy(-select(5, page.refresh:GetPoint(1)) + page.refresh:GetHeight() <= -top(page.panel) + page.panel:GetHeight(), "Refresh inside it")
+    T.truthy(page.cat.chevron and page.act.chevron, "menu buttons")
+    T.truthy(type(page.cat:GetWidth()) == "number" and page.cat:GetWidth() > 100, "the layout gives each a width")
+    T.truthy(type(page.act:GetWidth()) == "number" and page.act:GetWidth() > 100)
+    -- The roles: each button has its badge and its word, under the drop-downs.
+    T.eq(page.rolesLabel:GetText(), "Roles")
+    for _, b in ipairs(page.needs) do
+        T.truthy(b.icon and b.text:GetText() ~= "", "badge and word: " .. tostring(b.text:GetText()))
+    end
+    T.eq(page.needs[1].text:GetText(), "Tank")
+    T.eq(page.catLabel:GetText(), "Category")
+    T.eq(page.actLabel:GetText(), "Activity")
+    T.eq(page.cat.text:GetText(), "Dungeons")
+    local right = ns.Browse.Width(page) - ns.Browse.EDGE
+    local _, _, _, x = page.act:GetPoint(1)
+    T.truthy(ns.Browse.EDGE + page.cat:GetWidth() + x > 0 and x >= 0, "side by side")
+    T.truthy(ns.Browse.EDGE + page.cat:GetWidth() + page.act:GetWidth() < right, "inside the window")
+    local sy
+    for n = 1, page.stack.scroll:GetNumPoints() do
+        local pt, _, _, _, py = page.stack.scroll:GetPoint(n)
+        if pt == "TOPLEFT" then sy = py end
+    end
+    local _, _, _, _, cy = page.cat:GetPoint(1)
+    T.truthy(-sy >= -cy + page.cat:GetHeight(), "the list under the drop-downs")
+    -- The category menu lists them all. Picking one only sets it: Refresh lights up, and it is
+    -- Refresh that searches.
+    local before = #LW.Calls("Search")
+    page.cat:Click()
+    local row
+    for i = 1, 6 do
+        local r = DaylightUI.Widgets.MenuRow(i)
+        if r and r:IsShown() and r.text:GetText() == "Quests & Zones" then row = r end
+    end
+    T.truthy(row, "Quests & Zones in the menu")
+    stub.Key(function() row:Click() end)
+    T.eq(page.cat.text:GetText(), "Quests & Zones")
+    T.eq(#LW.Calls("Search"), before, "a new category asks nothing by itself")
+    T.truthy(page.refresh.active, "Refresh is lit: what is set is not what was searched")
+    stub.Key(function() page.refresh:GetScript("OnClick")(page.refresh) end)
+    T.truthy(#LW.Calls("Search") > before, "Refresh searches the new category")
+    -- Reset: the first category again, searched at once.
+    frame(20)
+    local sent = #LW.Calls("Search")
+    stub.Key(function() page.reset:GetScript("OnClick")(page.reset) end)
+    T.eq(page.cat.text:GetText(), "Dungeons", "back to the first category")
+    T.truthy(#LW.Calls("Search") > sent, "and it searches")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: Find's drop-downs follow the window while it is dragged, never past the panel", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local page = ns.Browse.page
+    local function span(width)
+        page:GetScript("OnSizeChanged")(page, width, 500)
+        return page.cat:GetWidth() + page.act:GetWidth()
+    end
+    local wide, narrow = span(900), span(480)
+    T.truthy(narrow < wide, "narrower window, narrower drop-downs")
+    T.truthy(narrow + DaylightUI.Widgets.CHIP_GAP <= 480 - 2 * 16 - 2 * 12, "both and their gap fit the panel: " .. narrow)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: Find's buttons drop under the roles when the window is too narrow to hold them beside", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local B, page = ns.Browse, ns.Browse.page
+    local function y(f) return select(5, f:GetPoint(1)) end
+    page:GetScript("OnSizeChanged")(page, 1100, 500)
+    T.falsy(B.below, "wide: roles and buttons on one row")
+    T.eq(select(2, page.reset:GetPoint(1)), page.refresh, "Reset anchored beside Refresh")
+    local tall = page.panel:GetHeight()
+    page:GetScript("OnSizeChanged")(page, 400, 500)
+    T.truthy(B.below, "narrow: the buttons drop under")
+    T.truthy(page.panel:GetHeight() > tall, "the panel grows to hold them")
+    T.truthy(y(page.refresh) < y(page.needs[1]), "Refresh below the roles")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("lfg: hovering a group shows the whole party", function()
@@ -395,7 +462,8 @@ T.test("lfg: the sub line colors level, zone and playstyle; the note has its own
     T.truthy(sub:find(Hex(Style.INK.WARN) .. "Westfall|r", 1, true), "the zone: " .. sub)
     T.truthy(sub:find(Hex(Style.INK.GOOD) .. "Relaxed|r", 1, true), "the playstyle: " .. sub)
     T.falsy(sub:find("need dps", 1, true), "the note left the sub line")
-    T.eq(row.note:GetText(), "need dps")
+    T.eq((row.note:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), "Note: need dps", "Note:, then the note")
+    T.truthy(row.note:GetText():find("^|c%x%x%x%x%x%x%x%xNote:|r need dps$"), "the word apart, in the tan of the labels")
     T.truthy(row.note:IsShown())
     T.eq(row:GetHeight(), ns.Rows.GROUP_NOTE, "a note makes the row taller")
     T.falsy(quiet.note:IsShown(), "no note, no line")
@@ -453,22 +521,36 @@ T.test("lfg: after listing, Find names what was searched; Refresh keeps it, Show
     T.eq(#LW.Calls("GameSearch"), 1, "the game searched your listing's activity")
     T.eq(B.page.act.text:GetText(), listed, "the activity button names what was searched, not All activities")
     T.eq(B.page.refresh.text:GetText(), "Refresh", "Refresh never changes its meaning")
-    T.truthy(B.page.all:IsShown(), "Show all, its own button, while the list is narrowed")
-    T.eq(B.page.all.text:GetText(), "Show all")
+    T.truthy(B.page.all and B.page.all:IsShown(), "Show all, its own button, while narrowed")
     local before = #rows(B.page.stack, "group")
     stub.Key(function() B.page.refresh:GetScript("OnClick")(B.page.refresh) end)
     frame(20)
     local s = LW.Calls("Search")
     T.eq(table.concat(s[#s][2], ","), listedIDs(ns), "Refresh searches what's shown again")
     T.eq(B.page.act.text:GetText(), listed, "still narrowed")
-    T.truthy(B.page.all:IsShown())
     stub.Key(function() B.page.all:GetScript("OnClick")(B.page.all) end)
     frame(20)
     s = LW.Calls("Search")
     T.eq(#s[#s][2], #ns.Data.Filtered(2), "every activity of the category")
     T.eq(B.page.act.text:GetText(), "All activities")
-    T.falsy(B.page.all:IsShown(), "Show all fades away once everything shows")
     T.truthy(#rows(B.page.stack, "group") > before, "the other groups show")
+end)
+
+T.test("lfg: a search the game never answers stops saying Searching... and says it failed", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "find")
+    local B = ns.Browse
+    LW.state.silentSearch = true
+    stub.Key(function() B.Refresh() end)
+    T.eq(B.page.note:GetText(), "Searching...")
+    T.truthy(B.page.seek:IsShown(), "the bar")
+    stub.RunTimers()
+    T.falsy(B.searching, "no longer waiting")
+    T.eq(B.page.note:GetText(), "The search failed. Try Refresh.")
+    T.falsy(B.page.seek:IsShown())
+    LW.state.silentSearch = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- Unlisting from your own opened row on Find removes the row at once, without
@@ -590,17 +672,20 @@ T.test("lfg: List yourself lends the game's note box into ours and gives it back
     local roles = {}
     for _, b in ipairs(page.roleChips) do if b:IsShown() then roles[#roles + 1] = b.text:GetText() end end
     T.eq(#roles, 3, "any role, whatever the class or spec: the game's page offers all three")
-    -- Compact enough to show many dungeons: labels beside their rows, a one-line
-    -- note, the category as the list's heading.
+    -- Compact enough to show many dungeons: the words over their controls, the note the window's
+    -- last block.
     local oy
     for n = 1, page.stack.scroll:GetNumPoints() do
         local p, _, _, _, py = page.stack.scroll:GetPoint(n)
         if p == "TOPLEFT" then oy = py end
     end
-    T.truthy(-oy <= 210, "the activities start high: " .. tostring(-oy))
+    T.truthy(-oy <= 360, "the activities start high: " .. tostring(-oy))
     T.eq(page.rolesHead:GetText(), "Roles")
-    local _, _, _, rx = page.roleChips[1]:GetPoint(1)
-    T.eq(rx, ns.Listing.EDGE + ns.Listing.IN + ns.Listing.LABEL_W, "the buttons beside their label")
+    local _, _, _, rx, ry = page.roleChips[1]:GetPoint(1)
+    T.eq(rx, ns.Listing.EDGE + ns.Listing.IN, "the buttons start at the panel's edge")
+    local _, _, _, _, hy = page.rolesHead:GetPoint(1)
+    T.truthy(-ry > -hy, "the word over its buttons")
+    T.eq(page.noteBox:GetPoint(1), "BOTTOMLEFT", "the note box is at the window's bottom")
     ns.Window.Close()
     frame(20)
     T.eq(LFGListingComment:GetParent(), LFGListingFrame.ActivityView, "given back")
@@ -620,11 +705,18 @@ T.test("lfg: tick an activity, write a note, List me: listed, and Find a group s
     frame(2)
     T.truthy(L.page.foot.buttons[1].spec.off, "no playstyle yet")
     T.eq(L.page.why:GetText(), "Select Playstyle (required)", "the game's words")
+    T.eq(L.page.style.text:GetText(), "—", "a dash until one is picked")
+    -- The playstyle drop-down lists the four, and picking one shows it.
+    local Wd = DaylightUI.Widgets
+    local was, keys, values, pick = Wd.OpenMenu
+    Wd.OpenMenu = function(_, k, v, _, onPick) keys, values, pick = k, v, onPick end
+    L.StyleMenu(L.page.style)
+    Wd.OpenMenu = was
     local styles = {}
-    for _, b in ipairs(L.page.styleChips) do if b:IsShown() then styles[#styles + 1] = b.text:GetText() end end
+    for _, k in ipairs(keys) do styles[#styles + 1] = values[k] end
     T.eq(table.concat(styles, ", "), "Learning, Relaxed, Competitive, Carry Offered")
-    L.page.styleChips[3]:GetScript("OnClick")(L.page.styleChips[3])
-    T.truthy(L.page.styleChips[3].active, "picked")
+    pick(keys[3])
+    T.eq(L.page.style.text:GetText(), "Competitive", "picked")
     T.falsy(L.page.foot.buttons[1].spec.off, "something ticked, a playstyle picked")
     T.eq(L.page.foot.buttons[1].text:GetText(), "List me")
     stub.Key(function() L.page.foot.buttons[1]:GetScript("OnClick")(L.page.foot.buttons[1]) end)
@@ -641,32 +733,31 @@ T.test("lfg: tick an activity, write a note, List me: listed, and Find a group s
     T.isnil(blocked(), tostring(blocked()))
 end)
 
-T.test("lfg: List yourself sorts activities by level or A to Z, and keeps the pick", function()
+T.test("lfg: List yourself sorts activities by level or A to Z from a drop-down, and keeps the pick", function()
     local ns = load()
     open(ns)
     tab(ns, "list")
     local L = ns.Listing
     T.eq(texts(rows(L.page.stack, "act")), "Wailing Caverns | Ragefire Chasm", "by level at first")
-    T.eq(L.page.sort.text:GetText(), "Sort: Level")
-    T.truthy(L.page.sort:IsShown(), "the button beside the categories")
-    local _, _, _, _, sortTop = L.page.sort:GetPoint(1)
-    local _, _, _, _, chipTop = L.page.catChips[1]:GetPoint(1)
-    T.eq(sortTop, chipTop, "level with the category buttons")
-    local openMenu, opened = DaylightUI.Widgets.OpenMenu, false
-    DaylightUI.Widgets.OpenMenu = function() opened = true end
-    L.page.sort:GetScript("OnClick")(L.page.sort)
-    DaylightUI.Widgets.OpenMenu = openMenu
-    T.falsy(opened, "two orders: a click flips, no menu")
+    T.eq(L.page.sortBy.text:GetText(), "Level")
+    T.truthy(L.page.sortBy.chevron, "a menu button")
+    local _, _, _, sx, sortTop = L.page.sortBy:GetPoint(1)
+    local _, _, _, cx, catTop = L.page.cat:GetPoint(1)
+    T.eq(sx, cx, "lined up with the category drop-down")
+    T.truthy(sortTop < catTop, "a row under it, in the same panel")
+    local _, _, _, _, panelTop = L.page.saved:GetPoint(1)
+    T.truthy(-sortTop < -panelTop + L.page.saved:GetHeight(), "inside the panel")
+    L.PickSort("name")
     frame(5)
     T.eq(DaylightUI:Get("GroupFinder", "activitySort"), "name", "saved")
     T.eq(texts(rows(L.page.stack, "act")), "Ragefire Chasm | Wailing Caverns", "A to Z")
-    T.eq(L.page.sort.text:GetText(), "Sort: Name")
+    T.eq(L.page.sortBy.text:GetText(), "Name")
     -- Find's activity menu follows the same order.
     T.eq(ns.Data.Groups(2)[1].acts[1].name, "Ragefire Chasm")
-    L.page.sort:GetScript("OnClick")(L.page.sort)
+    L.PickSort("level")
     frame(5)
-    T.eq(DaylightUI:Get("GroupFinder", "activitySort"), "level", "a second click flips back")
-    T.eq(L.page.sort.text:GetText(), "Sort: Level")
+    T.eq(DaylightUI:Get("GroupFinder", "activitySort"), "level")
+    T.eq(L.page.sortBy.text:GetText(), "Level")
 end)
 
 T.test("lfg: listed, the page offers Update and Unlist", function()
@@ -809,7 +900,7 @@ T.test("lfg: handed the lead with the page open, the list makes room and wakes",
     LW.Group(3, true)
     stub.FireEvent("PARTY_LEADER_CHANGED")
     frame(2)
-    T.truthy(L.page.styleChips[1]:IsShown(), "the playstyle row came")
+    T.truthy(L.page.style:IsShown(), "the playstyle drop-down came")
     T.truthy(listTop() > was, "the list moved down under it")
     T.falsy(L.page.stack.used[1].spec.dim, "yours to tick now")
 end)
@@ -1340,52 +1431,150 @@ T.test("lfg: the role squares keep the groups that still want that role", functi
     T.eq(#rows(B.page.stack, "group"), all, "off again: all of them")
 end)
 
-T.test("lfg: List yourself keeps its settings in one panel with a line between the rows", function()
+T.test("lfg: List yourself keeps its filters in one panel, each with its word over it", function()
     local ns = load()
     open(ns)
     tab(ns, "list")
     local page = ns.Listing.page
     T.truthy(page.saved.fill:IsShown(), "the panel")
     local ink = DaylightUI.Style.INK
-    T.truthy(page.npfText:GetText() ~= nil, "the switch's label")
+    T.eq(page.npfText:GetText(), "New player friendly", "a short word over the switch")
     local r, g, b = page.npfText:GetTextColor()
     local lr, lg, lb = page.rolesHead:GetTextColor()
     T.eq(r .. g .. b, lr .. lg .. lb, "the same color as the other labels")
     local tr, tg, tb = ink.LABEL[1], ink.LABEL[2], ink.LABEL[3]
     T.truthy(math.abs(r - tr) < 0.01 and math.abs(g - tg) < 0.01 and math.abs(b - tb) < 0.01, "tan, not the accent")
-    local lines = 0
-    for _, t in ipairs(page.rules) do if t:IsShown() then lines = lines + 1 end end
-    T.eq(lines, 3, "roles | playstyle | note | switch")
-    local _, _, _, _, panelTop = page.saved:GetPoint(1)
+    local function y(f) return select(5, f:GetPoint(1)) end
+    page:GetScript("OnSizeChanged")(page, 1000, 600)   -- a wide window: all three on one row
+    T.truthy(y(page.cat) < y(page.catLabel), "Category's word over its drop-down")
+    T.truthy(y(page.sortBy) < y(page.sortByLabel), "Sort by's word over its drop-down")
+    T.truthy(y(page.style) < y(page.styleLabel), "Playstyle's word over its drop-down")
+    T.eq(y(page.style), y(page.cat), "Playstyle, Category and Sort by on one row")
+    T.truthy(y(page.roleChips[1]) < y(page.cat), "the roles under the filters")
     local _, _, _, x = page.roleChips[1]:GetPoint(1)
     T.truthy(x >= ns.Listing.EDGE + ns.Listing.IN, "the chips sit inside the panel")
-    local _, _, _, _, boxY = page.noteBox:GetPoint(1)
-    T.truthy(-boxY > -panelTop and -boxY < -panelTop + page.saved:GetHeight(), "the note box is inside it")
+    local _, _, _, _, panelTop = page.saved:GetPoint(1)
+    T.truthy(-y(page.roleChips[1]) < -panelTop + page.saved:GetHeight(), "the roles are inside it")
+    T.eq(page.npf:GetPoint(1), "BOTTOMLEFT", "the new-player switch is at the window's bottom, under the note")
+    T.eq(select(2, page.npfText:GetPoint(1)), page.npf, "its word beside it")
+    -- The note is not in the panel: it is the window's last block, two lines tall.
+    T.truthy(-y(page.stack.scroll) >= -panelTop + page.saved:GetHeight(), "the list under the panel")
+    T.truthy(page.noteBox:GetHeight() >= 40 and page.noteBox:GetHeight() <= 50, "two lines tall")
 end)
 
-T.test("lfg: List yourself lays its buttons out for the width the window is about to have", function()
+T.test("lfg: List yourself's drop-downs fill the panel for the width the window is about to have", function()
     local ns = load()
     local f = open(ns)
     tab(ns, "list")
     local page = ns.Listing.page
-    local function rowsOf()
-        local ys = {}
-        for _, c in ipairs(page.catChips) do
-            if c:IsShown() then local _, _, _, _, y = c:GetPoint(1); ys[y] = true end
-        end
-        local n = 0
-        for _ in pairs(ys) do n = n + 1 end
-        return n
-    end
     -- On the first open the page is still at its old width while the window grows to the
-    -- saved, wider size: the four categories should fit in a row for the width coming.
-    page.GetWidth = function() return 200 end   -- narrow: the categories would wrap
+    -- saved, wider size: the drop-downs take the width coming.
+    page.GetWidth = function() return 200 end
     f.goalW = f:GetWidth() + 500
     ns.Listing.Render(page)
-    T.eq(rowsOf(), 1, "one row of categories")
+    T.truthy(page.cat:GetWidth() > 120, "wide for the window coming, not the page as it is")
+    T.eq(page.cat:GetWidth(), page.sortBy:GetWidth(), "the same width")
     f.goalW = ns.Window.W
     ns.Listing.Render(page)
-    T.truthy(rowsOf() >= 1)
+    T.truthy(page.cat:GetWidth() >= 120)
+end)
+
+T.test("lfg: List yourself's filters follow the window while it is dragged, two columns while they fit", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    local page = ns.Listing.page
+    local function y(f) return select(5, f:GetPoint(1)) end
+    page:GetScript("OnSizeChanged")(page, 1000, 600)
+    T.eq(y(page.cat), y(page.sortBy), "wide: Category and Sort by side by side")
+    T.eq(y(page.style), y(page.cat), "and Playstyle with them")
+    local wideW = page.cat:GetWidth()
+    local wideTop = y(page.stack.scroll)
+    page:GetScript("OnSizeChanged")(page, 300, 600)
+    T.truthy(y(page.sortBy) < y(page.cat) and y(page.cat) < y(page.style), "narrow: one under the other")
+    T.truthy(y(page.roleChips[1]) < y(page.sortBy), "the roles under all of them")
+    T.truthy(page.cat:GetWidth() == page.sortBy:GetWidth() and page.cat:GetWidth() <= 300 - 2 * (ns.Listing.EDGE + ns.Listing.IN), "each the panel's width")
+    T.truthy(y(page.stack.scroll) < wideTop, "the list starts lower")
+    T.eq(page.noteBox:GetPoint(1), "BOTTOMLEFT", "the note stays at the bottom")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: List yourself's voice chat is the game's own drop-down, borrowed under ours", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    local page = ns.Listing.page
+    local dd = _G.LFGListingFrameActivityViewVoiceChatDropdown
+    T.truthy(page.voice:IsShown(), "a drop-down for it")
+    T.eq(page.voiceLabel:GetText(), "Voice chat")
+    T.eq(page.voice.text:GetText(), "None", "it shows the game's choice")
+    T.eq(dd:GetParent(), page, "the game's drop-down is borrowed")
+    T.eq(select(2, dd:GetPoint(1)), page.voice, "lying under ours")
+    dd.text = "Discord"
+    ns.Listing.SyncVoice()
+    T.eq(page.voice.text:GetText(), "Discord", "following it")
+    -- Our button opens a menu of ours with the game's choices, and a pick goes through the game's
+    -- own element, so its drop-down keeps the choice.
+    local Wd = DaylightUI.Widgets
+    local was, keys, values, pick, current = Wd.OpenMenu
+    Wd.OpenMenu = function(_, k, v, c, onPick) keys, values, pick, current = k, v, onPick, c end
+    page.voice:GetScript("OnClick")(page.voice)
+    Wd.OpenMenu = was
+    T.eq(#keys, 3, "the game's three choices")
+    T.eq(values[2], "Discord")
+    T.eq(current, 2, "the one now chosen")
+    pick(3)
+    T.eq(page.voice.text:GetText(), "Other", "ours shows the choice at once")
+    stub.RunTimers()
+    T.eq(dd:GetText(), "Other", "the game's drop-down took it")
+    T.eq(#LW.Calls("VoiceMenu"), 0, "the game's own menu did not open, even when it is slow to show the choice")
+    -- The game's drop-down slow to show the choice: ours does not jump back before it does.
+    dd.elements[1].Pick = function() C_Timer.After(1, function() dd.text = "None" end) end
+    Wd.OpenMenu = function(_, k, v, c, onPick) pick = onPick end
+    page.voice:GetScript("OnClick")(page.voice)
+    Wd.OpenMenu = was
+    pick(1)
+    T.eq(page.voice.text:GetText(), "None")
+    T.eq(#LW.Calls("VoiceMenu"), 0, "no menu opened while it takes its time")
+    stub.RunTimers()
+    T.eq(page.voice.text:GetText(), "None", "and it ends where the game does")
+    -- A pick that fails outright opens the game's own menu.
+    dd.elements[1].Pick = function() error("no") end
+    Wd.OpenMenu = function(_, k, v, c, onPick) pick = onPick end
+    page.voice:GetScript("OnClick")(page.voice)
+    Wd.OpenMenu = was
+    pick(1)
+    T.eq(#LW.Calls("VoiceMenu"), 1, "the game's menu is the fallback")
+    local function y(f) return select(5, f:GetPoint(1)) end
+    page:GetScript("OnSizeChanged")(page, 1100, 600)
+    T.eq(y(page.voice), y(page.cat), "on the filters' row")
+    ns.Window.Close()
+    frame(20)
+    T.eq(dd:GetParent(), LFGListingFrame.ActivityView, "given back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("lfg: the new-player switch has a short word, and the game's own sentence as its tooltip", function()
+    local sentence = "Indica que aceptas a jugadores nuevos en tu grupo y que estas dispuesto a hacer de guia."
+    _G.LFG_LIST_NEW_PLAYER_FRIENDLY_TOOLTIP = sentence
+    _G.LFG_LIST_NEW_PLAYER_FRIENDLY = "Nuevos jugadores"
+    local ns = load()
+    local ok, err = pcall(function()
+        open(ns)
+        tab(ns, "list")
+        local page = ns.Listing.page
+        T.eq(page.npfText:GetText(), "Nuevos jugadores", "short, not the whole sentence")
+        local W = DaylightUI.Widgets
+        local was, got = W.Tooltip, {}
+        W.Tooltip = function(_, title, body) got = { title, body } end
+        local hook = page.npf:GetScript("OnEnter")
+        if hook then hook(page.npf) end
+        W.Tooltip = was
+        T.eq(got[1], "Nuevos jugadores")
+        T.eq(got[2], sentence, "the explanation on hover")
+    end)
+    _G.LFG_LIST_NEW_PLAYER_FRIENDLY_TOOLTIP, _G.LFG_LIST_NEW_PLAYER_FRIENDLY = nil, nil
+    if not ok then error(err, 0) end
 end)
 
 T.test("lfg: List yourself's role buttons carry a badge, and the panel is padded the same all round", function()
@@ -1398,13 +1587,12 @@ T.test("lfg: List yourself's role buttons carry a badge, and the panel is padded
     T.falsy((b.text:GetText() or ""):find("|T", 1, true) or (b.text:GetText() or ""):find("|A", 1, true), "none drawn inside the text")
     local pad = ns.Listing.IN
     local _, _, _, _, top = page.saved:GetPoint(1)
-    local _, _, _, cx, cy = page.roleChips[1]:GetPoint(1)
-    T.eq(-cy - (-top), pad, "the same room above the first row")
-    T.eq(cx - ns.Listing.EDGE - ns.Listing.LABEL_W, pad, "and at the left (the label's edge)")
-    local _, _, _, rx = page.npf:GetPoint(1)
-    T.eq(-rx - ns.Listing.EDGE, pad, "and at the right")
-    local _, _, _, _, ny = page.npf:GetPoint(1)
-    T.near(-ny + page.npf:GetHeight() + pad, -top + page.saved:GetHeight(), 0.5, "and under the last row")
+    local _, _, _, _, hy = page.styleLabel:GetPoint(1)
+    T.eq(-hy - (-top), pad, "the same room above the first row (its word)")
+    local _, _, _, cx = page.roleChips[1]:GetPoint(1)
+    T.eq(cx - ns.Listing.EDGE, pad, "and at the left")
+    local _, _, _, _, ry = page.roleChips[1]:GetPoint(1)
+    T.near(-ry + page.roleChips[1]:GetHeight() + pad, -top + page.saved:GetHeight(), 0.5, "and under the last row, the roles")
 end)
 
 -- The gear's "Show all levels" switch.

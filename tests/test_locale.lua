@@ -379,6 +379,8 @@ T.test("pseudo sweep: the group finder window", function()
     end
     local bad = {}
     LW.Toggle(1)
+    local voice = _G.LFGListingFrameActivityViewVoiceChatDropdown
+    if voice then allow(voice:GetText()) end   -- the game's voice chat drop-down shows its own word
     stub.RunTimers()
     DUI.Win.Followers.Tick()
     T.truthy(DUI.Win.IsOpen(G.frame), "the group finder opened")
