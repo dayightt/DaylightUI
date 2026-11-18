@@ -417,6 +417,61 @@ T.test("summon: a party tile shows one too", function()
     T.truthy(b.summonIcon and b.summonIcon:IsShown())
 end)
 
+T.test("rez: a dead raid tile shows the angel while cast, green once it lands, gone when alive", function()
+    local DUI, ns = login("leader")
+    DUI:Set("general", "motion", false)
+    local b = raidTile(ns, "raid2", { name = "Adolin", isPlayer = true, class = "WARRIOR", dead = true, health = 0 })
+    T.falsy(b.rezIcon:IsShown(), "nothing before a rez")
+    stub.units.raid2.rez = true
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    T.truthy(b.rezIcon:IsShown())
+    T.eq(b.rezIcon:GetTexture(), DUI.MEDIA .. "status-rez.png")
+    local _, rel, rp = b.rezIcon:GetPoint(1)
+    T.eq(rel, b.health)
+    T.eq(rp, "LEFT", "on the bar's left by default")
+    T.eq(select(1, b.rezIcon:GetVertexColor()), (DUI.Style.Pop()), "in the accent while cast")
+    -- The cast lands: the game stops saying so, but they still have the offer.
+    stub.units.raid2.rez = nil
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    T.truthy(b.rezIcon:IsShown(), "kept while they can accept")
+    T.eq(select(2, b.rezIcon:GetVertexColor()), DUI.Style.INK.GOOD[2], "landed in the good color")
+    -- They accept: alive again, the angel goes.
+    stub.units.raid2.dead, stub.units.raid2.health = false, 10
+    stub.FireEvent("UNIT_HEALTH", "raid2")
+    stub.RunTimers()
+    T.falsy(b.rezIcon:IsShown(), "gone once alive")
+end)
+
+T.test("rez: an offer nobody accepts runs out, and the switch turns it off", function()
+    local DUI, ns = login("leader")
+    DUI:Set("general", "motion", false)
+    local b = raidTile(ns, "raid2", { name = "Adolin", isPlayer = true, class = "WARRIOR", dead = true, health = 0 })
+    stub.units.raid2.rez = true
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    stub.units.raid2.rez = nil
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    T.truthy(b.rezIcon:IsShown())
+    stub.Advance(ns.UF.REZ_OFFER + 1)
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    T.falsy(b.rezIcon:IsShown(), "the offer ran out")
+    stub.units.raid2.rez = true
+    DUI:Set("UnitFrames", "raid.showRez", false)
+    stub.FireEvent("INCOMING_RESURRECT_CHANGED", "raid2")
+    stub.RunTimers()
+    T.falsy(b.rezIcon:IsShown(), "off: nothing")
+end)
+
+T.test("rez: the Party and Raid pages' preview tiles show one", function()
+    local _, ns = login("leader")
+    T.eq(ns.Raid.FullSample().rez, "cast")
+    T.eq(ns.Party.FullSample().rez, "cast")
+end)
+
 T.test("ready check: the Raid page's preview tile shows one", function()
     local _, ns = login("leader")
     local s = ns.Raid.FullSample()

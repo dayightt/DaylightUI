@@ -191,7 +191,7 @@ local classIconPicker = {
 }
 
 -- Where each tile icon sits and how big it is, for raid tiles and party frames,
--- one list per icon (role, marker, leader, dispel, ready, summon) so a page can
+-- one list per icon (role, marker, leader, dispel, ready, summon, rez) so a page can
 -- put each with its own switch. k maps a key to its setting, dis is the "page
 -- is off" check. skip (optional) leaves out items the page already has
 -- (markerSize) or relabels the px crown (leaderPxLabel, leaderPxDesc). home
@@ -273,7 +273,19 @@ local function iconItems(k, dis, skip, home)
           desc = "How big the summon icon is.", unit = "px", disabled = summonOff },
     }
     nudges(summon, "summon", "Summon", summonOff, "summon icon")
-    return { role = role, marker = marker, leader = leader, dispel = dispel, ready = ready, summon = summon }
+    local rezOff = gated("showRez")
+    local rez = {
+        { type = "toggle", key = k("showRez"), label = "Rez icon",
+          desc = "An angel on a dead member while someone casts a rez on them, in your accent, then green while they can accept it. Saves two healers rezzing the same player.",
+          disabled = dis },
+        { type = "dropdown", key = k("rezPos"), label = "Rez position", values = SPOT_VALUES,
+          desc = "Where the rez icon sits on each frame, or just outside it.",
+          order = ns.Spots.ORDER, disabled = rezOff },
+        { type = "slider", key = k("rezSize"), label = "Rez size", min = 6, max = 32, step = 1,
+          desc = "How big the rez icon is.", unit = "px", disabled = rezOff },
+    }
+    nudges(rez, "rez", "Rez", rezOff, "rez icon")
+    return { role = role, marker = marker, leader = leader, dispel = dispel, ready = ready, summon = summon, rez = rez }
 end
 
 -- Whether a group frame has neither portrait nor name tab showing (so level
@@ -2120,8 +2132,8 @@ local function framePage(id, label, desc, opts)
             items = cat({ row("showMarker"), row("markerSize") }, icons.marker) }
         groups[#groups + 1] = { label = "Leader crown", desc = "A crown on the party leader's frame." .. home,
             items = cat({ row("showLeader"), row("leaderSize") }, icons.leader) }
-        groups[#groups + 1] = { label = "Ready check and summon", desc = "Answers to a ready check, and who's being summoned, on each party frame.",
-            items = cat(icons.ready, icons.summon) }
+        groups[#groups + 1] = { label = "Ready check, summon and rez", desc = "Answers to a ready check, who's being summoned, and who's being rezzed, on each party frame.",
+            items = cat(icons.ready, icons.summon, icons.rez) }
     end
     if opts.layout then
         table.insert(groups, 1, { label = "Layout", items = {
@@ -2443,8 +2455,8 @@ local function raidPage(size)
     }, auraCards(function(s) return "raid." .. s end, "raid.enabled"), {
         { label = "Dispels", desc = "How a debuff you can remove shows on each raid tile: an icon, a highlight or a glow.",
           items = dispelItems(function(s) return "raid." .. s end, "raid.enabled", 24, "tile", raidIcons.dispel) },
-        { label = "Icon positions and sizes", desc = "Where the role, marker and crown sit on a tile, and the ready check and summon icons.",
-          items = cat(raidIcons.role, raidIcons.marker, raidIcons.leader, raidIcons.ready, raidIcons.summon) },
+        { label = "Icon positions and sizes", desc = "Where the role, marker and crown sit on a tile, and the ready check, summon and rez icons.",
+          items = cat(raidIcons.role, raidIcons.marker, raidIcons.leader, raidIcons.ready, raidIcons.summon, raidIcons.rez) },
         barFxCard("raid", offAny("raid.enabled", "raid.showPower"), off("raid.enabled"), false,
                   function(key) return DaylightUI:Get("UnitFrames", ns.Raid.MapKey(key, size)) end,
                   size ~= 10 and function() return ns.Raid.Locked(size) end or nil),

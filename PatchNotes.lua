@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         fixed = {
             { "Chat", "The typing box no longer opens in the middle of the Daylight chat box, over your messages, after clicking the chat" },
             { "Cooldown Manager", "Weakened Soul added to the Cooldown Manager shows again after you shield yourself" },
+            { "Unit frames", "Party and raid frames show an angel on a dead player who's being rezzed, so two healers don't rez the same person" },
         },
     },
     { version = "1.9.4", date = "2026-11-18", summary = "Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.",
