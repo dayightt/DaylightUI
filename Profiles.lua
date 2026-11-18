@@ -700,13 +700,14 @@ end
 -- Always built clean from the defaults plus its own settings and positions,
 -- never copied from the saved DPS/Tank (a player may have changed that, and
 -- every new character would get those changes under a card that shows the
--- standard layout). Returns nil and a reason on failure.
-function Profiles.ReadyData(key)
+-- standard layout). What sharing leaves out comes from `keep` (a profile
+-- table), else the active profile. Returns nil and a reason on failure.
+function Profiles.ReadyData(key, keep)
     local entry = Profiles.PackOf(key)
     if entry then
         local p, why = Profiles.PackProfile(entry)
         if not p then return nil, why end
-        local t = Profiles.Build(p)
+        local t = Profiles.Build(p, nil, keep)
         t.positions = packPositions(entry, p)
         t.fromPack = { id = entry.pack.id, name = entry.name, version = entry.pack.version }
         return t
@@ -714,7 +715,7 @@ function Profiles.ReadyData(key)
     local preset = Profiles.PRESETS[key]
     if not preset then return nil, string.format(L["there's no ready-made profile called %s"], tostring(key)) end
     local t = Profiles.Build({ general = {}, modules = DUI.DB.StandardStart(), positions = {},
-                               layout = EditMode.Export(DUI.DB.DEFAULT) })
+                               layout = EditMode.Export(DUI.DB.DEFAULT) }, nil, keep)
     merge(t.modules, preset)
     if Profiles.PRESET_GENERAL[key] then merge(t.general, Profiles.PRESET_GENERAL[key]) end
     local at = Profiles.PRESET_POSITIONS[key]
@@ -783,6 +784,19 @@ function Profiles.UpdateFromPack(name)
     new.pendingLayout = t.pendingLayout
     new.fromPack = { id = entry.pack.id, name = entry.name, version = entry.pack.version }
     -- In place, since the active profile is this very table.
+    Profiles.Replace(name, new)
+    if name == DUI.DB.ActiveName() then Profiles.AskReload() end
+    return true
+end
+
+-- Puts a saved ready-made profile back the way it comes (Profiles.ReadyData):
+-- its settings and frame positions replace the player's, what sharing leaves
+-- out stays, and its Edit Mode layout is kept. The active profile asks to
+-- reload. Returns true, or false and a reason.
+function Profiles.ResetPreset(name)
+    if not DUI.DB.Saved(name) then return false, string.format(L["there's no profile called %s"], tostring(name)) end
+    local new, why = Profiles.ReadyData(name, DUI.DB.Fill(data()[name]))
+    if not new then return false, why end
     Profiles.Replace(name, new)
     if name == DUI.DB.ActiveName() then Profiles.AskReload() end
     return true
@@ -1285,6 +1299,35 @@ local function profileGroups(base)
     return groups
 end
 
+-- Our ready-made profiles ({ name, desc }): Add while one isn't saved (the
+-- setup guide may have made only one, or it was deleted), Reset once it is.
+local function readyMade(list)
+    local items = {}
+    for _, e in ipairs(list) do
+        local name = e[1]
+        items[#items + 1] = { type = "button", label = name, text = "Add", desc = e[2],
+            hidden = function() return DUI.DB.Saved(name) end,
+            func = function()
+                local made, why = Profiles.AddPresetOffering(name)
+                if said(made, why, L["Couldn't add it: %s."]) then
+                    DUI.Print(string.format(L["The profile %s is ready. Choose it for this character (or a talent set) to use it."], made))
+                    refresh()
+                end
+            end }
+        items[#items + 1] = { type = "button", label = name, text = "Reset", confirm = true,
+            desc = "Puts this profile back the way it comes: its settings and frame positions replace yours. Your Edit Mode layout stays as it is.",
+            hidden = function() return not DUI.DB.Saved(name) end,
+            func = function()
+                local ok, why = Profiles.ResetPreset(name)
+                if said(ok, why, L["Couldn't reset it: %s."]) then
+                    DUI.Print(string.format(L["%s is back the way it comes."], name))
+                    refresh()
+                end
+            end }
+    end
+    return items
+end
+
 local PAGE_GROUPS -- the page's own cards, with the packs' placed among them
 local profilesPage = DUI.Options.RegisterPage({
     id = "profiles", section = "core", label = "Profiles", scope = "general", defaults = DUI.DB.GENERAL_DEFAULTS,
@@ -1308,28 +1351,14 @@ local profilesPage = DUI.Options.RegisterPage({
         } },
         { label = "Profiles", desc = "Kept for every character on this account, each with its own Edit Mode layout.",
           items = { list } },
-        { label = "Ready-made", desc = "Built from DPS/Tank (the standard profile) the first time you add one; after that, the one you have is used as it is.", items = {
-            { type = "button", label = "Healer", text = "Add",
-              desc = "DPS/Tank with your party and raid as square tiles under you (you included, missing health on them, dispels easy to see), and your frame and your target's raised a little. Everything it sets is on the Party and Raid pages; move any of them in unlock mode. Choose it above to use it. "
-                  .. "If the profile you're on has moved action bars, it offers to bring them along.",
-              func = function()
-                  local made, why = Profiles.AddPresetOffering("Healer")
-                  if said(made, why, L["Couldn't add it: %s."]) then
-                      DUI.Print(string.format(L["The profile %s is ready. Choose it for this character (or a talent set) to use it."], made))
-                      refresh()
-                  end
-              end },
-            { type = "button", label = "Immersive Preset", text = "Add",
-              desc = "DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Fade, Fade only in the open world). Choose it above to use it. "
-                  .. "If the profile you're on has moved action bars, it offers to bring them along.",
-              func = function()
-                  local made, why = Profiles.AddPresetOffering("Immersive Preset")
-                  if said(made, why, L["Couldn't add it: %s."]) then
-                      DUI.Print(string.format(L["The profile %s is ready. Choose it for this character (or a talent set) to use it."], made))
-                      refresh()
-                  end
-              end },
-        } },
+        { label = "Ready-made", desc = "Built from DPS/Tank (the standard profile) the first time you add one; after that, the one you have is used as it is.", items = readyMade({
+            { "DPS/Tank", "The standard profile, as it comes. Choose it above to use it. "
+                  .. "If the profile you're on has moved action bars, it offers to bring them along." },
+            { "Healer", "DPS/Tank with your party and raid as square tiles under you (you included, missing health on them, dispels easy to see), and your frame and your target's raised a little. Everything it sets is on the Party and Raid pages; move any of them in unlock mode. Choose it above to use it. "
+                  .. "If the profile you're on has moved action bars, it offers to bring them along." },
+            { "Immersive Preset", "DPS/Tank made calm for questing: your action bars and your own frame fade a while after a fight (back under the mouse, in a fight or when you're hurt), the damage meter starts folded (one click on the panel's tab brings it out), the minimap is a little smaller and the XP bar shows its percent. Nothing fades in dungeons, raids, battlegrounds or arenas (General > Fade, Fade only in the open world). Choose it above to use it. "
+                  .. "If the profile you're on has moved action bars, it offers to bring them along." },
+        }) },
         { label = "Share", desc = "Settings, frame positions and the Edit Mode layout; not what's learned as you play.", items = {
             { type = "button", label = "Export", text = "Export",
               desc = "The profile in use as text to copy and share.", func = function() Profiles.ShowExport() end },

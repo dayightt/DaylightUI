@@ -31,7 +31,7 @@ Tags.CHANNELS = { General = "G", Trade = "T", LocalDefense = "LD", LookingForGro
                   -- Spanish clients name the channels in Spanish.
                   Comercio = "T", Defensalocal = "LD", Buscargrupo = "LFG", Defensamundial = "WD",
                   Defensaglobal = "WD", Reclutamiento = "GR", Novatos = "N", Servicios = "TS",
-                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL",
+                  ["Comercio(Servicios)"] = "TS", ["Comercio(Local)"] = "TL", Comerciolocal = "TL",
                   -- German clients name them in German.
                   Allgemein = "G", Handel = "T", LokaleVerteidigung = "LD", SucheNachGruppe = "LFG" }
 -- Custom tags per channel or chat kind come from the channelTags setting (keyed by
@@ -78,12 +78,34 @@ local function ownTag(num, name)
     return kind and Tags.own[kind] or nil
 end
 
+-- Tags.CHANNELS by lower-case word, built on first use.
+local byWord
+local function standardByName(base)
+    if not byWord then
+        byWord = {}
+        for k, v in pairs(Tags.CHANNELS) do byWord[string.lower(k)] = v end
+    end
+    return byWord[string.lower(base)]
+end
+
+-- A world channel's standard tag. The game's id decides when it has one (the same
+-- in every language); otherwise the channel's name does, in any letter case. The
+-- channel's kind isn't used: World Defense and Newcomer share a kind with Local
+-- Defense and General but have their own tags.
+function Tags.OfName(name)
+    if type(name) ~= "string" or secret(name) then return nil end
+    local base = string.match(name, "^(.-) %- ") or name
+    local zone = ns.Kinds.OfZone(base)
+    if zone then return Tags.KIND_TAGS[zone] end
+    return standardByName((string.gsub(string.gsub(base, "%s+%d+$", ""), "%s", "")))
+end
+
 -- "[1. General - Zone]"
 local function channel(open, inner, close)
     local num, name = string.match(inner, "^(%d+)%. (.+)$")
     name = name or inner
     local base = string.gsub(string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", ""), "%s", "")
-    local tag = ownTag(num, name) or Tags.CHANNELS[base]
+    local tag = ownTag(num, name) or Tags.OfName(name) or Tags.CHANNELS[base]
     if tag and num and Tags.numbers then tag = num .. ". " .. tag end
     return open .. "[" .. (tag or num or name) .. "]" .. close
 end
@@ -168,7 +190,7 @@ function Tags.Own(kind) return Tags.own[kind] end
 -- Fallback tag for a channel: its word, else its number.
 function Tags.Standard(name, id)
     local base = string.gsub(string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", ""), "%s", "")
-    return Tags.CHANNELS[base] or tostring(id)
+    return Tags.OfName(name) or Tags.CHANNELS[base] or tostring(id)
 end
 
 -- Brackets and pipes would break the line's link. Empty means the standard tag.
