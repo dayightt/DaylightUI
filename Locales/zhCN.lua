@@ -3,7 +3,7 @@ local _, DUI = ...
 if DUI.LOCALE ~= "zhCN" then return end
 local L = DUI.L
 
--- Simplified Chinese localization maintained by Finn; checked against DaylightUI 1.6.7.
+-- Simplified Chinese localization maintained by Levis; checked against DaylightUI 1.6.7.
 L["  %s (on %s)"] = "  %s（在%s上）"
 L["  %s (on %s) - caster is a %s"] = "  %s（在%s上）- 施法者是%s"
 L["/dui rep - preview the reputation banner"] = "/dui rep - 预览声望横幅"
@@ -4977,7 +4977,7 @@ L["try again in a moment"] = "请稍后再试"
 L["whisper"] = "密语"
 
 
--- DaylightUI 1.6.7 additions and corrections, checked by Finn.
+-- DaylightUI 1.6.7 additions and corrections, checked by Levis.
 L["%d quests to turn in"] = "%d 个可交任务"
 L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"] = "/dui platefix - 在姓名板不可见时运行，每次执行一步，并说明哪一步恢复了显示"
 L["A green part after your experience shows what the quests you can turn in will give. Hover the bar for the total."] = "经验条后的绿色部分显示可交任务将提供的经验。将鼠标悬停在经验条上可查看总数。"
@@ -5167,7 +5167,7 @@ L["Undercity, Tirisfal"] = "幽暗城，提瑞斯法林地"
 L["Valormok, Azshara"] = "瓦罗莫克，艾萨拉"
 L["Zoram'gar Outpost, Ashenvale"] = "佐拉姆加前哨站，灰谷"
 
--- DaylightUI 1.6.9 additions and corrections, checked by Finn.
+-- DaylightUI 1.6.9 additions and corrections, checked by Levis.
 L["%d groups: %s%s."] = "%d 个分组：%s%s。"
 L["%d of %d"] = "%d / %d"
 L["%s and %s"] = "%s 和 %s"
@@ -5690,7 +5690,7 @@ L["while you prowl"] = "潜行时"
 L["you have no groups of your own yet"] = "你还没有自己的分组"
 L["Search, or try quest, food, rare"] = "搜索，或输入：任务、食物、稀有"
 
--- DaylightUI 1.7 additions, reviewed by Finn.
+-- DaylightUI 1.7 additions, reviewed by Levis.
 L["%s · %s"] = "%s · %s"
 L["%sClick|r%s: details  ·  |r%sShift-click|r%s: report|r"] = "%s点击|r%s：详情  ·  |r%sShift+点击|r%s：报告|r"
 L["A border and shadow around the window."] = "为窗口添加边框和阴影。"
