@@ -73,9 +73,17 @@ function Manager.Take()
     return ns.Plate.Create(home)
 end
 
--- Off the game's plate, back to the spares.
+-- Off the game's plate, back to the spares. The game plate keeps its stacking
+-- frame but it's emptied (hidden, pinned nowhere), as EllesmereUI does, so a unit
+-- the game puts on that plate next is spaced by nothing left from this one.
 function Manager.Release(p)
     if forbidden(p) then return end
+    local s = p.stack
+    if s and not forbidden(s) then
+        s:ClearAllPoints()
+        s:Hide()
+        s.y = nil -- pinned again on the next PlaceStack
+    end
     p:Hide()
     p:ClearAllPoints()
     p:SetParent(home)
@@ -371,6 +379,9 @@ end
 -- and VARIABLES_LOADED still does once.
 Manager.RECLAIM_EVENTS = { DISPLAY_SIZE_CHANGED = true, VARIABLES_LOADED = true, CVAR_UPDATE = true }
 function Manager.Reclaim()
+    -- The game's options update also put its own plate size on: Daylight UI's
+    -- goes back, as EllesmereUI does after UpdateNamePlateOptions.
+    Manager.ApplySize(true)
     for _, p in pairs(byUnit) do
         if type(p.nameplate) == "table" then
             Manager.HideGameFrame(p.nameplate, p)
@@ -653,7 +664,6 @@ function Manager.Refresh()
     Manager.WantDots()
     if ns.Combo then ns.Combo.gen = ns.Combo.gen + 1 end -- and the combo pips
     Manager.ApplySize()
-    Manager.ApplyScales()
     Manager.Each(function(p)
         if p.unit then
             ns.Plate.Layout(p)
@@ -665,6 +675,54 @@ function Manager.Refresh()
     ns.Range.Apply()
     Manager.UpdateTargets()
     Manager.CountFocus()
+end
+
+-- What the plates take from the General settings and the screen, as one string.
+-- A repaint with the same answer (the screen or UI scale events fire one with
+-- nothing new for plates) leaves every plate and the game's plate settings alone.
+local function sigOf(v, out)
+    if type(v) ~= "table" then
+        out[#out + 1] = tostring(v)
+        return
+    end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    for _, k in ipairs(keys) do
+        out[#out + 1] = tostring(k)
+        sigOf(v[k], out)
+    end
+end
+
+-- A shared font or bar can arrive after login without a setting changing.
+local function sharedFiles(t, out)
+    if type(t) ~= "table" then return end
+    local Media = DUI.Media
+    for _, v in pairs(t) do
+        if type(v) == "string" and Media.SharedName(v) then
+            out[#out + 1] = tostring(Media.Fetch("statusbar", v)) .. tostring(Media.Fetch("font", v))
+        end
+    end
+end
+
+function Manager.StyleSig()
+    local out = {}
+    local g = DUI.DB.General()
+    sigOf(g, out)
+    sharedFiles(g, out)
+    sharedFiles(ns.cfg and ns.cfg.media, out)
+    out[#out + 1] = tostring(UIParent:GetEffectiveScale())
+    out[#out + 1] = tostring(DUI.Pixel.perfect)
+    out[#out + 1] = tostring(DUI.Style.FONT)
+    return table.concat(out, "|")
+end
+
+-- The core's repaint: every plate again only when something plates draw from changed.
+function Manager.StyleChanged()
+    local sig = Manager.StyleSig()
+    if sig == Manager.styleSig then return end
+    Manager.styleSig = sig
+    Manager.Refresh()
 end
 
 -- The mouseover highlight follows the mouse; checked while it's over a plate.
@@ -708,23 +766,35 @@ local function hoverChanged()
     if on and Manager.Usable(on) then ns.Plate.UpdateHover(on) end
 end
 
+-- Writes one of the game's plate settings only when it differs: every write
+-- runs the game's CVAR_UPDATE handlers across the whole UI.
+function Manager.SetCVar(name, value)
+    if type(SetCVar) ~= "function" then return end
+    value = tostring(value)
+    if type(GetCVar) == "function" then
+        local ok, now = pcall(GetCVar, name)
+        if ok and now == value then return end
+    end
+    pcall(SetCVar, name, value)
+end
+
 -- Plate distance is the game's own setting, which it refuses to change in combat.
 Manager.RANGE_CVAR = "nameplateMaxDistance"
 function Manager.ApplyRange()
     DUI.AfterCombat(function()
-        if SetCVar then pcall(SetCVar, Manager.RANGE_CVAR, tostring(ns.cfg.range)) end
+        Manager.SetCVar(Manager.RANGE_CVAR, ns.cfg.range)
     end, "nameplates:range")
 end
 
 -- The game's own plate frames never change size: its distance scaling and target
 -- zoom are pinned to 1 (Daylight UI zooms the target itself, in one step in
 -- Plate.ApplyScale), so nothing gets resized or restacked underneath and its click
--- area doesn't grow on the target. The game refuses these in combat.
+-- area doesn't grow on the target. Set once at login, as EllesmereUI does. The
+-- game refuses these in combat.
 Manager.SCALE_CVARS = { "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }
 function Manager.ApplyScales()
     DUI.AfterCombat(function()
-        if not SetCVar then return end
-        for _, k in ipairs(Manager.SCALE_CVARS) do pcall(SetCVar, k, "1") end
+        for _, k in ipairs(Manager.SCALE_CVARS) do Manager.SetCVar(k, "1") end
     end, "nameplates:scales")
 end
 
@@ -736,7 +806,7 @@ function Manager.ApplyNameOnly()
     DUI.AfterCombat(function()
         local f = ns.cfg.friendly
         local nameOnly = not (type(f) == "table" and f.enabled)
-        if SetCVar then pcall(SetCVar, Manager.NAME_ONLY_CVAR, nameOnly and "1" or "0") end
+        Manager.SetCVar(Manager.NAME_ONLY_CVAR, nameOnly and "1" or "0")
     end, "nameplates:nameonly")
 end
 
@@ -767,9 +837,9 @@ function Manager.ApplyInstanceFriends()
                 end
                 root.friendlyPlatesWas = was
             end
-            for k in pairs(root.friendlyPlatesWas) do pcall(SetCVar, k, "0") end
+            for k in pairs(root.friendlyPlatesWas) do Manager.SetCVar(k, "0") end
         elseif type(root.friendlyPlatesWas) == "table" then
-            for k, v in pairs(root.friendlyPlatesWas) do pcall(SetCVar, k, v) end
+            for k, v in pairs(root.friendlyPlatesWas) do Manager.SetCVar(k, v) end
             root.friendlyPlatesWas = nil
         end
     end, "nameplates:instancefriends")
@@ -793,12 +863,18 @@ end
 Manager.DRIVER_OFF = { "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE" }
 -- The aura scale and debuff padding settings (lower case, as CVAR_UPDATE is compared).
 Manager.SIZE_CVARS = { nameplateaurascale = true, nameplatedebuffpadding = true }
-function Manager.ApplySize()
+-- Written only when the size changed, unless force says the game has just put
+-- its own size on (its options update, the aura CVars). The game keeps the size
+-- it was given, so the same one again would only make it lay its plates out.
+local sizeW, sizeH
+function Manager.ApplySize(force)
     local set = C_NamePlate and C_NamePlate.SetNamePlateSize
     if type(set) ~= "function" then return end
+    if force then sizeW, sizeH = nil, nil end
     DUI.AfterCombat(function()
         local w, h = Manager.PlateSize()
-        pcall(set, w, h)
+        if w == sizeW and h == sizeH then return end
+        if pcall(set, w, h) then sizeW, sizeH = w, h end
     end, "nameplates:size")
 end
 
@@ -809,19 +885,22 @@ function Manager.ApplyStacking()
     local mode = ns.cfg and ns.cfg.stacking or "game"
     if mode == "game" then return end
     local E = Enum and Enum.NamePlateStackType
-    local set = C_CVar and C_CVar.SetCVarBitfield
+    local set, get = C_CVar and C_CVar.SetCVarBitfield, C_CVar and C_CVar.GetCVarBitfield
     if not (E and set) then return end
     local on = mode == "stack"
+    local function bit(i, v)
+        if type(get) == "function" then
+            local ok, now = pcall(get, Manager.STACK_CVAR, i)
+            if ok and now == v then return end
+        end
+        pcall(set, Manager.STACK_CVAR, i, v)
+    end
+    -- Every plate already hands the game its stacking frame, stacked kind or not,
+    -- so none is handed again here.
     DUI.AfterCombat(function()
-        pcall(set, Manager.STACK_CVAR, E.Enemy, on)
-        pcall(set, Manager.STACK_CVAR, E.Friendly, on and ns.cfg.stackFriendly == true)
-        Manager.Restack()
+        bit(E.Enemy, on)
+        bit(E.Friendly, on and ns.cfg.stackFriendly == true)
     end, "nameplates:stacking")
-end
-
--- The stacking setting changed: every plate hands its frame over again.
-function Manager.Restack()
-    Manager.Each(ns.Plate.PlaceStack)
 end
 
 -- Makes every plate clickable over its whole click area (Manager.OwnClicks): the
@@ -846,6 +925,7 @@ end
 
 function Manager.Start()
     Manager.startedAt = type(GetTime) == "function" and GetTime() or nil -- for a report: time into the session
+    Manager.styleSig = Manager.StyleSig() -- plates are laid out for this look as they come up
     Manager.Prepare(Manager.PREPARE)
     Manager.PrepareClicks(Manager.PREPARE)
     Manager.PrepareStacks(Manager.PREPARE)
@@ -898,7 +978,7 @@ function Manager.Start()
     if type(driver) == "table" and type(driver.UnregisterEvent) == "function" then
         for _, e in ipairs(Manager.DRIVER_OFF) do pcall(driver.UnregisterEvent, driver, e) end
     end
-    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED" }) do
         DUI.RegisterEvent(e, function() Manager.ApplySize() end)
     end
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
@@ -924,10 +1004,9 @@ function Manager.Start()
     DUI.RegisterEvent("CVAR_UPDATE", function(_, name)
         if type(name) ~= "string" then return end
         name = name:lower()
-        if name == Manager.STACK_CVAR:lower() then return Manager.Restack() end
         if name == Manager.NAME_ONLY_CVAR:lower() then return Manager.Each(Manager.OwnClicks) end
         -- The game sets its own plate size again when these change (its CVar callbacks).
-        if Manager.SIZE_CVARS[name] then return C_Timer.After(0, Manager.ApplySize) end
+        if Manager.SIZE_CVARS[name] then return C_Timer.After(0, function() Manager.ApplySize(true) end) end
         for _, cv in pairs(ns.Plate.FRIENDLY_SHOW) do
             if cv:lower() == name then return softRecheck() end
         end
