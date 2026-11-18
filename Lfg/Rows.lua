@@ -26,6 +26,7 @@ Rows.ACTION_INSET = 8                   -- from the row's right edge
 Rows.ACTION_ICON = "ui-data-social.png"
 Rows.LINE_GAP = 3     -- space between a row's lines
 Rows.DOT = 7          -- status dot
+Rows.ICON = 28        -- a class icon at a row's left (spec.icon)
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local function W() return DUI.Widgets end
@@ -81,6 +82,10 @@ local function makeRow(parent)
     b.age = Style.Text(b, Style.SIZE.tiny, "RIGHT")
     b.age:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -8, 4)
     Style.InkText(b.age, "LABEL")
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(Rows.ICON, Rows.ICON)
+    b.icon:SetPoint("LEFT", b, "LEFT", 8, 0)
+    b.icon:Hide()
     b.badges = {}
     for i = 1, Rows.BADGES do
         local r = W().Role(b)
@@ -164,7 +169,35 @@ local function badges(b, list, top)
     return n
 end
 
--- spec: { kind (pool), height, text, color, sub, subColor, note (third line), value,
+-- The settings panel the pages share: a faint fill and a bar of the accent down its
+-- left edge. The caller sizes it. fill and edge are kept on it.
+Rows.PANEL = { 1, 1, 1, 0.035 }
+Rows.PANEL_IN = 12      -- room inside, from the panel's edges
+Rows.EDGE_W = 2         -- the side bar
+function Rows.Panel(page, panel)
+    panel = panel or CreateFrame("Frame", nil, page)
+    panel.fill = panel:CreateTexture(nil, "BACKGROUND")
+    panel.fill:SetTexture(Win.Parts.WHITE)
+    panel.fill:SetVertexColor(Rows.PANEL[1], Rows.PANEL[2], Rows.PANEL[3], Rows.PANEL[4])
+    panel.fill:SetAllPoints(panel)
+    panel.edge = panel:CreateTexture(nil, "BORDER")
+    panel.edge:SetTexture(Win.Parts.WHITE)
+    panel.edge:SetWidth(Rows.EDGE_W)
+    panel.edge:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+    panel.edge:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 0)
+    Style.PaintAccent(panel.edge, 0.9)
+    return panel
+end
+
+-- A class's icon for a row's left end: { file, l, r, t, b } as the unit frames' Class icons
+-- setting picks it, or nil without one.
+function Rows.ClassIcon(token)
+    if type(token) ~= "string" or type(DUI.ClassIcon) ~= "function" then return nil end
+    local icon = { DUI.ClassIcon(token) }
+    return icon[1] and icon or nil
+end
+
+-- spec: { kind (pool), icon ({ file, l, r, t, b }, Rows.ClassIcon), height, text, color, sub, subColor, note (third line), value,
 -- valueColor, age, roles = { { role, open } }, dot (status dot color), picked, dim, sep (a line
 -- under the row),
 -- id (identity across refills, for Stack:Ease), onClick(b), onMenu(b), onEnter(b) }
@@ -203,6 +236,13 @@ function Rows.Row(stack, spec)
         left = 10 + Rows.DOT + 7
     end
     b.dot:SetShown(spec.dot ~= nil)
+    local icon = spec.icon
+    b.icon:SetShown(icon ~= nil and icon[1] ~= nil)
+    if icon and icon[1] then
+        b.icon:SetTexture(icon[1])
+        b.icon:SetTexCoord(icon[2] or 0, icon[3] or 1, icon[4] or 0, icon[5] or 1)
+        left = 8 + Rows.ICON + 10
+    end
     b.name:ClearAllPoints()
     if b.sub:IsShown() then
         -- The lines as one block, centered on the row, so the wash has the same room

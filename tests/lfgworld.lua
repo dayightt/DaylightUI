@@ -373,17 +373,41 @@ local function install()
     }
     local who = keep(_G, "C_FriendList")
     _G.C_FriendList = setmetatable({
-        SendWho = function(text, origin)
+        SendWho = function(text, origin, filters)
             if not stub.HardwareOnly("C_FriendList.SendWho") then return end
-            record("SendWho", text, origin)
-            C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end)
+            record("SendWho", text, origin, filters)
+            if not S().silentWho then C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end) end
         end,
         GetNumWhoResults = function() return #LW.WHO, #LW.WHO end,
+        -- The game's own race filter list (what its who page's race menu shows).
+        GetWhoRaceFilters = function()
+            return { { name = "Orc", ID = 2 }, { name = "Night Elf", ID = 4 }, { name = "Human", ID = 1 } }
+        end,
         GetWhoInfo = function(i) return LW.WHO[i] end,
         SetWhoToUi = function(on) record("SetWhoToUi", on); S().whoToUi = on end,
         SortWho = function(mode, up) record("SortWho", mode, up) end,
     }, { __index = who or nil })
     Enum.SocialWhoOrigin = Enum.SocialWhoOrigin or { Unknown = 0, Social = 1, Chat = 2, Item = 3 }
+    -- The game's world map (zones for Who's zone filter) and its classes.
+    Enum.UIMapType = Enum.UIMapType or { Cosmic = 0, World = 1, Continent = 2, Zone = 3 }
+    _G.C_Map = _G.C_Map or {}
+    local maps = {
+        [947] = { { mapID = 1414, name = "Kalimdor", mapType = 2 }, { mapID = 1415, name = "Eastern Kingdoms", mapType = 2 },
+                  { mapID = 1500, name = "Zephras", mapType = 3 } },
+        [1414] = { { mapID = 1411, name = "Durotar", mapType = 3 }, { mapID = 1454, name = "Orgrimmar", mapType = 3 } },
+        [1415] = { { mapID = 1429, name = "Elwynn Forest", mapType = 3 } },
+    }
+    C_Map.GetMapChildrenInfo = function(id, kind)
+        local out = {}
+        for _, m in ipairs(maps[id] or {}) do if kind == nil or m.mapType == kind then out[#out + 1] = m end end
+        return out
+    end
+    _G.C_CreatureInfo = _G.C_CreatureInfo or {}
+    local classes = { [1] = { "Warrior", "WARRIOR" }, [8] = { "Mage", "MAGE" }, [9] = { "Warlock", "WARLOCK" } }
+    C_CreatureInfo.GetClassInfo = function(id)
+        local c = classes[id]
+        return c and { className = c[1], classFile = c[2], classID = id } or nil
+    end
 end
 
 -- spec: results (default LW.Sample()), level (14), roles, enabled (the module's
