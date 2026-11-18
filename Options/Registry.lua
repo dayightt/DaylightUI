@@ -165,12 +165,13 @@ function Options.GetPage(id)
 end
 
 -- Sections in window order, each holding its shown pages in order.
-function Options.Sections()
+-- all = true keeps hidden pages too (the options map lists them).
+function Options.Sections(all)
     local list = {}
     for _, s in pairs(sections) do
         local shown = {}
         for _, p in ipairs(s.pages) do
-            if pageShown(p) then shown[#shown + 1] = p end
+            if all or pageShown(p) then shown[#shown + 1] = p end
         end
         list[#list + 1] = setmetatable({ pages = shown }, { __index = s })
     end
@@ -250,7 +251,7 @@ function Options.AddWindowCard(mod)
                 items[#items + 1] = item
             end
         end
-        local card = { label = p.label, desc = p.desc, items = items }
+        local card = { label = p.label, desc = p.desc, items = items, module = mod.name }
         if windowsPage then
             windowsPage.groups[#windowsPage.groups + 1] = card
             DUI.Fire("OptionsChanged")
@@ -582,7 +583,7 @@ function Options.PickCard(spec)
         for _, item in ipairs(c.items) do
             local own = item.hidden
             -- Keep the original hidden() as baseHidden, the Fade page copies these rows.
-            item.inPick, item.baseHidden = true, own
+            item.inPick, item.baseHidden, item.pickLabel = true, own, c.label
             item.hidden = function(get) return state.pick ~= c.id or (own ~= nil and own(get) == true) end
             if item.key then owner[item.key] = c.id end
             for _, also in ipairs(item.alsoKeys or {}) do owner[also] = c.id end

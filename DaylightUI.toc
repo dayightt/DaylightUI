@@ -12,7 +12,7 @@
 ## X-Wago-ID: n6VYLONd
 ## Version: 1.9.3
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
-## SavedVariables: DaylightUIDB
+## SavedVariables: DaylightUIDB, DaylightUIOptionsMap
 ## AddonCompartmentFunc: DaylightUI_OpenOptions
 
 Libs\LibStub\LibStub.lua
@@ -72,6 +72,7 @@ Options\SampleStrip.lua
 Options\Nav.lua
 Options\Results.lua
 Options\Panel.lua
+Options\Map.lua
 GameMenu.lua
 Installer.lua
 InstallerDraft.lua
