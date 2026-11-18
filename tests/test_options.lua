@@ -262,10 +262,10 @@ end)
 T.test("frame pages carry a live sample; other pages don't", function()
     local DUI = stub.Load({ module = true })
     local O = DUI.Options
-    for _, id in ipairs({ "player", "target", "focus", "targettarget", "pet", "party", "raid" }) do
+    for _, id in ipairs({ "player", "target", "focus", "targettarget", "pet", "party", "raid", "castbars" }) do
         T.eq(type(O.GetPage("UnitFrames." .. id).sample), "function", id)
     end
-    for _, id in ipairs({ "UnitFrames.colors", "UnitFrames.castbars", "appearance" }) do
+    for _, id in ipairs({ "UnitFrames.colors", "appearance" }) do
         T.isnil(O.GetPage(id).sample, id)
     end
 end)

@@ -506,6 +506,12 @@ local function refreshSingle(s, width, maxH)
         up = math.max(up, tabUp(f) + top)
         down = math.max(down, bottom)
     end
+    -- Its cast bar, when it sits on the frame (withCast): what it reaches past it.
+    if s.castDraw then
+        local cUp, cDown, cOut = s.castDraw(f, d)
+        up, down = math.max(up, cUp), math.max(down, cDown)
+        out, back = math.max(out, cOut), math.max(back, cOut)
+    end
     return fit(s.frame, f, f:GetWidth(), f:GetHeight(), out, f.spec.slant == "left", up, down, width, maxH, back,
                s.Zoom())
 end
@@ -581,6 +587,11 @@ local function refreshParty(s, width, maxH)
     s.holder:SetSize(fw, fh)
     local out, up, down = reach(first)
     local gUp, gDown, gLeft, gRight = PageSample.GroupReach(cfg, first)
+    if s.castDraw then
+        local cUp, cDown, cOut = s.castDraw(first, d)
+        gUp, gDown = math.max(gUp, cUp), math.max(gDown, cDown)
+        gLeft, gRight = math.max(gLeft, cOut), math.max(gRight, cOut)
+    end
     return fit(s.frame, s.holder, fw, fh, math.max(out, gLeft), first.spec.slant == "left", math.max(up, gUp),
                math.max(down, gDown), width, maxH, gRight, s.Zoom())
 end
@@ -795,9 +806,283 @@ end
 
 -- The live sample for a unit frames page ("player", "target", ..., "party",
 -- "raid", "personal") on parent. size is a raid page's size (10, 20 or 40).
+-- Cast bars on a frame's strip. The sample is the bar on its own, drawn by the real layout (CB.Layout)
+-- from the bar's settings, with the Test mode's cast in it. A chip switches the strip between the
+-- frame and its bar; the Cast Bars page has one chip per kind of bar.
+
+PageSample.CAST_KINDS = { "player", "target", "focus", "party" }
+PageSample.CAST_LABELS = { player = "Your cast bar", target = "Target cast bar", focus = "Focus cast bar", party = "Party cast bars" }
+-- The bar's own settings a click on it can open, by field.
+PageSample.CAST_FIELDS = { "at", "x", "y", "width", "height", "showIcon", "slant", "slantLeft", "slantUnder", "reverseFill",
+                           "strata", "spell.size", "time.size", "spell.show", "time.show", "media.bar", "media.font" }
+
+-- The layout CB.Layout wants for a bar standing on its own at its own size.
+local function castLayout(kind, c)
+    local party = kind == "party"
+    return { enabled = true, at = "free", x = 0, y = 0, width = c.width, height = c.height,
+             showIcon = party and true or c.showIcon, slant = c.slant, slantLeft = c.slantLeft, slantUnder = c.slantUnder,
+             reverseFill = c.reverseFill, fitFrame = false, spell = c.spell, time = c.time, shell = c.shell }
+end
+
+-- CB.Layout with the real player frame out of reach: the player's bar would hang under that one.
+local function layoutBar(h, cfg, parentCfg)
+    local saved = ns.frames
+    ns.frames = nil
+    local ok, err = pcall(ns.CastBar.Layout, h, cfg, parentCfg)
+    ns.frames = saved
+    if not ok then error(err, 0) end
+end
+
+-- One bar of a kind in a stage (a frame): made once, drawn from the settings each time.
+local function castBar(stage, kind)
+    -- A real unit token: the color code asks the game about it (false would error there).
+    local unit = kind == "party" and "party1" or kind
+    local h = ns.CastBar.Create(unit, nil, nil, { kind = kind, parent = stage, preview = true })
+    h:EnableMouse(false)   -- display only, the strip's hotspots take the clicks
+    h.preview = true
+    return h
+end
+
+-- Draws bar h of a kind centered in box, shrunk to fit width by maxH (never grown past zoom).
+-- Returns the height used.
+local function drawCast(s, h, kind, width, maxH)
+    local d = db()
+    local c = d and d[kind .. "Castbar"]
+    if not c then h:Hide() return 0 end
+    ns.Sample.UseSettings(d)
+    h:SetScale(1)
+    layoutBar(h, castLayout(kind, c))
+    ns.CastBar.ShowSample(h, kind == "player" and ns.Test.CASTS.player or ns.Test.CASTS.target)
+    local w, hh = h:GetWidth(), h:GetHeight()
+    local pad = PageSample.PAD * 2
+    local scale = math.min(s.Zoom(), (width - 2 * pad) / math.max(w, 1), (maxH - 2 * pad) / math.max(hh, 1))
+    h:SetScale(math.max(scale, 0.1))
+    h:ClearAllPoints()
+    local used = math.min(maxH, math.ceil(hh * scale) + 2 * pad)
+    s.frame:SetSize(width, used)
+    h:SetPoint("CENTER", s.frame, "CENTER", 0, 0)
+    h:SetAlpha(c.enabled == false and PageSample.OFF_ALPHA or 1)
+    h:Show()
+    return used
+end
+
+-- The bar's spot on the strip, with whichever of its settings the page has.
+-- on a frame (owner, scale, cfg given): it also moves by its x / y nudge and resizes, when nudge is on.
+local function castPart(h, kind, id, owner, scale, cfg, nudge, lockW)
+    local have, keys = keysOn(id), {}
+    for _, field in ipairs(PageSample.CAST_FIELDS) do
+        local key = kind .. "Castbar." .. field
+        if have[key] then keys[#keys + 1] = key end
+    end
+    if #keys == 0 or not h:IsVisible() then return {} end
+    local part = { region = h, label = DUI.L["Cast bar"], keys = keys, scale = scale or h:GetScale() }
+    if owner and nudge then
+        local pre = kind .. "Castbar."
+        part.move = moveOf({}, owner, id, have, cfg, h, { home = true, x = pre .. "x", y = pre .. "y" })
+        -- As wide as its frame: the width setting is off, so only the height has a grip.
+        part.size = sizeOf({ size = { w = not lockW and pre .. "width" or nil, h = pre .. "height" } }, id, have, owner)
+    end
+    return { part }
+end
+
+-- Where a kind's bar is drawn: "alone" (standing by itself, on its own chip), "inside" (over the power
+-- bar), "near" (above or below its frame, or hung under it) or "party" (a member's own pair of bars).
+local function castSpot(kind, c)
+    local ok, at = pcall(ns.CastBar.At, kind, c)
+    if not ok then at = c.at end
+    if kind == "party" then return "party", at end
+    if at == "free" or at == "personal" or at == "middle" then return "alone", at end
+    if at == "power" then return "inside", at end
+    return "near", at
+end
+
+-- A frame's own bars on the sample: the one inside its power bar and the one beside it, made once.
+local function castBars(s, f, kind)
+    if s.casts then return s.casts end
+    local CB = ns.CastBar
+    local bars = {}
+    if kind ~= "player" and f.power then
+        bars.inside = CB.Create(kind, f, f.power, { kind = kind, preview = true })
+    end
+    bars.near = CB.Create(kind, nil, nil, { kind = kind, parent = f, preview = true })
+    bars.near.near = f
+    for _, h in pairs(bars) do
+        h:EnableMouse(false)   -- display only, the strip's hotspots take the clicks
+        h.preview = true
+    end
+    s.casts = bars
+    return bars
+end
+
+-- Draws the frame's bar on it (f, in settings d), unless it stands alone. Returns how far it reaches
+-- past the frame: up, down and to each side.
+local function castOnFrame(s, f, d, kind)
+    local c = d[kind .. "Castbar"]
+    local spot, at = "alone", nil
+    if c then spot, at = castSpot(kind, c) end
+    local bars = castBars(s, f, kind)
+    s.castShown, s.castNudge, s.castLockW = nil, false, false
+    if spot == "alone" then
+        for _, h in pairs(bars) do h:Hide() end
+        return 0, 0, 0
+    end
+    local cast = kind == "player" and ns.Test.CASTS.player or ns.Test.CASTS.target
+    local shown, up, down, out
+    up, down, out = 0, 0, 0
+    if spot == "inside" and bars.inside then
+        layoutBar(bars.inside, { enabled = true, spell = c.spell, time = c.time, insideTextSize = c.insideTextSize,
+                                 insideTextX = c.insideTextX, insideTextY = c.insideTextY }, d[kind])
+        shown = bars.inside
+    else
+        -- Hung under its frame (the player's "below", the others' "slide"): its width, no nudge.
+        -- It really hangs from the sample frame (CB.Layout's own hang), like the game's.
+        local near = bars.near
+        near.under, near.hangAt = f, kind == "player" and "below" or "slide"
+        local slides = at == "slide"
+        local hangs = at == near.hangAt
+        local hung = hangs or at == "power"
+        local x, y = hung and 0 or tonumber(c.x) or 0, hung and 0 or tonumber(c.y) or 0
+        local lay = at == "power" and "below" or at
+        layoutBar(bars.near, { enabled = true, at = lay, x = x, y = y, drop = 0, width = c.width,
+                               fitFrame = hung or c.fitFrame, height = c.height, showIcon = c.showIcon,
+                               slant = slides or c.slant, slantLeft = c.slantLeft, slantUnder = not slides and c.slantUnder,
+                               spell = c.spell, time = c.time, reverseFill = c.reverseFill, strata = c.strata,
+                               shell = c.shell })
+        shown = bars.near
+        local hh, gap = bars.near:GetHeight(), ns.CastBar.AT_GAP
+        if lay == "above" then
+            up = tabUp(f) + gap + y + hh
+        elseif hangs then
+            down = hh   -- tucked under the frame, so nothing but its own height
+        else
+            down = (f.foot or 0) + gap - y + hh
+        end
+        out = math.max(0, (bars.near:GetWidth() - f:GetWidth()) / 2 + math.abs(x))
+        s.castNudge = not hung
+        s.castLockW = c.fitFrame ~= false
+    end
+    for _, h in pairs(bars) do if h ~= shown then h:Hide() end end
+    ns.CastBar.ShowSample(shown, cast)
+    -- A hung bar is already slid out: no slide in on every redraw.
+    if shown.column and shown.slide then shown.slide:Jump(1) end
+    shown:SetAlpha(c.enabled == false and PageSample.OFF_ALPHA or 1)
+    shown:Show()
+    s.castShown = shown
+    return up, down, out
+end
+
+-- The same for a party member's bars (PartyCasts.lua lays them out and picks which shows).
+local function castOnMember(s, b, d)
+    local c, PC = d.partyCastbar, ns.PartyCasts
+    s.castShown, s.castNudge = nil, false
+    if not (c and PC) then return 0, 0, 0 end
+    if c.enabled ~= true then PC.HideSample(b) return 0, 0, 0 end
+    PC.Layout(b)
+    if not b.casts then return 0, 0, 0 end
+    local shown = PC.Shown(b)
+    for _, h in pairs(b.casts) do if h ~= shown then h:Hide() end end
+    ns.CastBar.ShowSample(shown, PC.SAMPLE)
+    shown:Show()
+    s.castShown = shown
+    local at = ns.CastBar.At("party", c)
+    local hh, ww, gap = shown:GetHeight(), shown:GetWidth(), PC.GAP or 0
+    if at == "slide" then return 0, hh, 0 end
+    if at ~= "free" then return 0, 0, 0 end
+    s.castNudge = true
+    if c.spot == "below" then return 0, hh + gap + (b.foot or 0), 0 end
+    if c.spot == "above" then return hh + gap + tabUp(b), 0, 0 end
+    return 0, 0, ww + gap + (b.ringReach or 0)
+end
+
+-- A frame page's sample, with a Cast bar chip next to a Frame one.
+local function withCast(s, id)
+    local kind = id
+    local base = { Refresh = s.Refresh, Parts = s.Parts }
+    local body = s.f or s.holder   -- what the frame is drawn in
+    s.view = "frame"
+    -- Only a bar standing on its own gets a chip: on the frame it shows with it.
+    local function alone()
+        local d = db()
+        local c = d and d[kind .. "Castbar"]
+        return kind ~= "party" and c ~= nil and castSpot(kind, c) == "alone"
+    end
+    function s.Views()
+        if not alone() then return {} end
+        local L = DUI.L
+        return { { key = "frame", label = L["Frame"], on = s.view == "frame" },
+                 { key = "cast", label = L["Cast bar"], on = s.view == "cast" } }
+    end
+    function s.SetView(key) s.view = key == "cast" and "cast" or "frame" end
+    -- The frame's refresh draws the bar on it through this.
+    function s.castDraw(f, d)
+        if kind == "party" then return castOnMember(s, f, d) end
+        return castOnFrame(s, f, d, kind)
+    end
+    local function hideOnFrame()
+        s.castShown = nil
+        for _, h in pairs(s.casts or {}) do h:Hide() end
+    end
+    function s.Refresh(width, maxH)
+        if s.view == "cast" and alone() then
+            body:Hide()
+            hideOnFrame()
+            s.castBar = s.castBar or castBar(s.frame, kind)
+            return drawCast(s, s.castBar, kind, width, maxH)
+        end
+        s.view = "frame"
+        body:Show()
+        if s.castBar then s.castBar:Hide() end
+        return base.Refresh(width, maxH)
+    end
+    function s.Parts()
+        if s.view == "cast" and s.castBar then
+            s.missing = {}
+            return castPart(s.castBar, kind, id)
+        end
+        local out = base.Parts()
+        local h = s.castShown
+        if h and h:IsVisible() then
+            local owner = s.f or s.members[1]
+            local scale = (s.f or s.holder):GetScale()
+            for _, part in ipairs(castPart(h, kind, id, owner, scale, db() and (s.f and ns.ConfigFor(db(), s.f.spec) or db().party), s.castNudge, s.castLockW)) do
+                out[#out + 1] = part
+            end
+        end
+        return out
+    end
+    return s
+end
+
+-- The Cast Bars page's sample: one bar at a time, a chip for each kind.
+function PageSample.NewCasts(parent)
+    local s = { id = "castbars", missing = {}, bars = {}, view = "player" }
+    s.frame = CreateFrame("Frame", nil, parent)
+    zoomable(s)
+    function s.Views()
+        local L, list = DUI.L, {}
+        for _, kind in ipairs(PageSample.CAST_KINDS) do
+            list[#list + 1] = { key = kind, label = L[PageSample.CAST_LABELS[kind]], on = s.view == kind }
+        end
+        return list
+    end
+    function s.SetView(key) if PageSample.CAST_LABELS[key] then s.view = key end end
+    function s.Refresh(width, maxH)
+        for kind, h in pairs(s.bars) do if kind ~= s.view then h:Hide() end end
+        s.bars[s.view] = s.bars[s.view] or castBar(s.frame, s.view)
+        return drawCast(s, s.bars[s.view], s.view, width, maxH)
+    end
+    -- Display only: each bar's own settings are on its frame's page.
+    function s.Parts() return {} end
+    return s
+end
+
 function PageSample.New(id, parent, size)
     if id == "personal" then return newPersonal(parent) end
-    if id == "party" then return newParty(parent) end
+    if id == "party" then return withCast(newParty(parent), id) end
     if id == "raid" then return newRaid(parent, size) end
-    return newSingle(id, parent)
+    local s = newSingle(id, parent)
+    for _, kind in ipairs(PageSample.CAST_KINDS) do
+        if kind == id then return withCast(s, id) end
+    end
+    return s
 end

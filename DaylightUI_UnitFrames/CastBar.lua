@@ -39,14 +39,14 @@ CB.AT_GAP = 6         -- gap between a frame and a cast bar above or below it
 -- under its frame ("below", sliding out), the target's and focus's cover the
 -- power bar ("power"). Any of them can sit above or below its frame at its own
 -- size ("above", "below") or stand on its own mover ("free"). The target's can
--- also hang under its frame ("slide"), mirroring the player's. The player's
+-- also hang under its frame ("slide"), mirroring the player's, and so can the focus's. The player's
 -- can sit between its frame and the target's ("middle"): both ends angled,
 -- wider at the bottom, each end parallel to the frame beside it, with the
 -- swing timers fanning out underneath (Swing.lua).
 CB.AT = {
     player = { "below", "above", "middle", "free" },
     target = { "power", "above", "below", "slide", "free" },
-    focus = { "power", "above", "below", "free" },
+    focus = { "power", "above", "below", "slide", "free" },
     -- Each party member's (PartyCasts.lua): "free" sits beside its frame.
     party = { "power", "slide", "free" },
 }
@@ -251,16 +251,17 @@ function CB.Create(unit, attachTo, into, opts)
         h.kickMark = DUI.Interrupt.NewMark(h.bar)
         marked[h] = true
     end
-    if type(unit) == "string" then
+    -- A preview (the options' sample) only draws the test cast: it listens to nothing.
+    if type(unit) == "string" and not opts.preview then
         for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
     end
     -- Yours counts a batch of crafts (CB.Batch).
-    if h.kind == "player" then
+    if h.kind == "player" and not opts.preview then
         pcall(h.RegisterUnitEvent, h, "UNIT_SPELLCAST_SUCCEEDED", unit)
         pcall(h.RegisterEvent, h, "UPDATE_TRADESKILL_CAST_STOPPED")
     end
     -- Something else is showing your cast (QoL's fishing water).
-    if h.kind == "player" then
+    if h.kind == "player" and not opts.preview then
         DUI.On("CastElsewhere", function(on)
             CB.elsewhere = on == true
             CB.Refresh(h)
@@ -268,7 +269,7 @@ function CB.Create(unit, attachTo, into, opts)
     end
     h:SetScript("OnEvent", function(self, event, ...) CB.OnEvent(self, event, ...) end)
     -- A frame plugins can find and paint (DaylightUI.API, kind "castbar").
-    if DUI.APIReport then DUI.APIReport.Made("castbar", h, type(unit) == "string" and unit or nil, false) end
+    if DUI.APIReport then DUI.APIReport.Made("castbar", h, type(unit) == "string" and unit or nil, opts.preview == true) end
     h:SetScript("OnUpdate", function(self, dt)
         self.elapsed = (self.elapsed or 0) + dt
         if self.elapsed < 0.05 then return end
