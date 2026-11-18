@@ -336,7 +336,7 @@ local function install()
             if not stub.HardwareOnly("C_LFGList.Search") then return end
             record("Search", cat, acts)
             S().searched = { cat = cat, acts = acts }
-            C_Timer.After(0, function() stub.FireEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED") end)
+            if not S().silentSearch then C_Timer.After(0, function() stub.FireEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED") end) end
         end,
         GetFilteredSearchResults = function()
             local q = S().searched
@@ -376,7 +376,7 @@ local function install()
         SendWho = function(text, origin)
             if not stub.HardwareOnly("C_FriendList.SendWho") then return end
             record("SendWho", text, origin)
-            C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end)
+            if not S().silentWho then C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end) end
         end,
         GetNumWhoResults = function() return #LW.WHO, #LW.WHO end,
         GetWhoInfo = function(i) return LW.WHO[i] end,

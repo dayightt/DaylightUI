@@ -353,8 +353,8 @@ function Lfg.Build(mod)
     for _, id in ipairs(Lfg.PAGES) do Win.Build(f, id) end
     f.gear = Win.HeaderIcon(f, Lfg.OPTIONS_ICON, OPTIONS or L["Options"], Lfg.OptionsMenu)
     if Lfg.swap then Lfg.swap.Icon(f) end   -- left of the gear: the game's own window instead
-    Win.Tabs(f, { { id = "list", text = L["List yourself"] }, { id = "find", text = L["Find a group"] },
-        { id = "who", text = WHO or L["Who"] } }, function(id) Lfg.ShowTab(id, true) end)
+    Win.Tabs(f, { { id = "list", text = LFG_LIST_TAB_1 or L["List yourself"] }, { id = "find", text = LFG_LIST_TAB_2 or L["Find a group"] },
+        { id = "who", text = LFG_LIST_TAB_3 or L["Who"] } }, function(id) Lfg.ShowTab(id, true) end)
     Lfg.PadKeys(f)
     Win.Drag(f, { save = Lfg.SaveSpot, reset = Lfg.ResetSpot })
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("GroupFinder", "scale", v) end)
