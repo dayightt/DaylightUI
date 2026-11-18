@@ -396,6 +396,143 @@ T.test("game text: a font family changes member by member and keeps its flags", 
     _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.SystemFont_NamePlate = nil, nil, nil
 end)
 
+-- A game font family as Blizzard_Fonts_Shared builds one: a member per alphabet,
+-- and the family's own font, which GetFont reads and copies take.
+local function fakeFamily(faces, size, flags)
+    local members = {}
+    for alphabet, face in pairs(faces) do members[alphabet] = fakeFont(face, size, flags) end
+    local fam = fakeFont(faces.roman, size, flags)
+    function fam:GetFontObjectForAlphabet(a) return members[a] end
+    return fam, members
+end
+
+local GAME_FACES = { roman = "Fonts\\FRIZQT__.TTF", russian = "Fonts\\FRIZQT___CYR.TTF", korean = "Fonts\\2002.TTF" }
+
+-- CombatTextFont inherits SystemFont_World and CombatTextFontOutline inherits
+-- SystemFont_World_ThickOutline (Blizzard_Fonts_Shared GameFontStyles.xml), so
+-- the combat text over the player draws through those families' members. The
+-- game text pass leaves CombatTextFont and SystemFont_World whole, as
+-- EllesmereUI's does: the combat text has its own font pick.
+T.test("game text: the world text family and the combat text font stay the game's", function()
+    local world, worldMembers, combat
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        _G.UNIT_NAME_FONT = "Fonts\\FRIZQT__.TTF"
+        world, worldMembers = fakeFamily(GAME_FACES, 24, "FILTER, FIXEDHEIGHT")
+        combat = fakeFont("Fonts\\FRIZQT__.TTF", 120, "FILTER, FIXEDHEIGHT")
+        _G.SystemFont_World, _G.CombatTextFont = world, combat
+        _G.SystemFont_Fixed = fakeFont("Fonts\\FRIZQT__.TTF", 20, "FIXEDHEIGHT")
+        _G.GetFonts = function() return { "SystemFont_World", "CombatTextFont", "SystemFont_Fixed" } end
+    end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    DUI:Set("general", "damage.sctFont", "game")
+    relog(setup)
+    local fira = DUI.Style.FONTS.fira.file
+    T.eq(worldMembers.roman.face, "Fonts\\FRIZQT__.TTF", "the world family's members keep the game's face")
+    T.eq(worldMembers.roman.flags, "FILTER, FIXEDHEIGHT")
+    T.eq(world.face, "Fonts\\FRIZQT__.TTF", "and the family's own font")
+    T.eq(combat.face, "Fonts\\FRIZQT__.TTF", "the combat text follows its own pick, not the game text")
+    T.eq(SystemFont_Fixed.face, fira, "other fonts take the face")
+    T.eq(SystemFont_Fixed.flags, "FIXEDHEIGHT", "and keep their own flags")
+    T.eq(UNIT_NAME_FONT, "Fonts\\FRIZQT__.TTF", "the names over heads keep the game's font")
+    T.eq(STANDARD_TEXT_FONT, fira)
+    _G.STANDARD_TEXT_FONT, _G.UNIT_NAME_FONT, _G.GetFonts = nil, nil, nil
+    _G.SystemFont_World, _G.CombatTextFont, _G.SystemFont_Fixed = nil, nil, nil
+end)
+
+-- On a Russian client every Russian text draws with a family's own font, so it
+-- takes a face only when that face has Russian letters.
+T.test("game text: on a Russian client a family keeps its own font for a face without Russian", function()
+    local real = _G.GetLocale
+    _G.GetLocale = function() return "ruRU" end
+    local fam, members
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT___CYR.TTF"
+        fam, members = fakeFamily({ roman = "Fonts\\FRIZQT___CYR.TTF", russian = "Fonts\\FRIZQT___CYR.TTF" }, 12, "")
+        _G.GameFontNormal = fam
+        _G.GetFonts = function() return { "GameFontNormal" } end
+    end
+    -- A shared-media font with no Russian letters (Daylight UI's own picks swap
+    -- in a stand-in that has them on this client).
+    local lsm = { font = { Roboto = "Interface\\Roboto.ttf" } }
+    function lsm:Fetch(kind, name) return self[kind] and self[kind][name] end
+    function lsm:List(kind) local out = {} for n in pairs(self[kind] or {}) do out[#out + 1] = n end return out end
+    function lsm:Register() return true end
+    function lsm.RegisterCallback() end
+    _G.LibStub = function(name) return name == "LibSharedMedia-3.0" and lsm or nil end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "lsm:Roboto")
+    DUI:Set("general", "gameText", true)
+    relog(setup)
+    T.eq(members.roman.face, "Interface\\Roboto.ttf", "Latin letters take it")
+    T.eq(members.russian.face, "Fonts\\FRIZQT___CYR.TTF", "Russian letters keep the game's")
+    T.eq(fam.face, "Fonts\\FRIZQT___CYR.TTF", "the family's own font keeps Russian letters")
+    _G.GetLocale, _G.LibStub = real, nil
+    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.GameFontNormal = nil, nil, nil
+end)
+
+-- The hotkey text draws the range dot (U+25CF), which most bundled fonts can't
+-- draw. NumberFontNormalSmallGray draws through the members it shares with
+-- NumberFontNormalSmall, so it's moved onto a family of the same faces first
+-- and keeps the dot, while NumberFontNormalSmall takes the face.
+T.test("game text: the hotkey font keeps its faces for the range dot", function()
+    _G.CreateFontFamily = function(_, list)
+        local faces = {}
+        for _, m in ipairs(list) do faces[m.alphabet] = m.file end
+        local fam, members = fakeFamily(faces, list[1].height, list[1].flags)
+        for _, m in ipairs(list) do members[m.alphabet].size, members[m.alphabet].flags = m.height, m.flags end
+        return fam
+    end
+    local small, smallMembers, gray
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        small, smallMembers = fakeFamily(GAME_FACES, 12, "OUTLINE")
+        gray = fakeFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+        function gray:GetFontObjectForAlphabet(a) return (self.fontObject or small):GetFontObjectForAlphabet(a) end
+        function gray:SetFontObject(f) self.fontObject = f end
+        function gray:GetTextColor() return 0.5, 0.5, 0.5, 1 end
+        function gray:SetTextColor(r, g, b) self.color = { r, g, b } end
+        _G.NumberFontNormalSmall, _G.NumberFontNormalSmallGray = small, gray
+        _G.GetFonts = function() return { "NumberFontNormalSmall", "NumberFontNormalSmallGray" } end
+    end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    relog(setup)
+    local fira = DUI.Style.FONTS.fira.file
+    T.eq(smallMembers.roman.face, fira, "the shared font takes the face")
+    T.truthy(gray.fontObject and gray.fontObject ~= small, "the hotkey font moved onto a family of its own")
+    T.eq(gray:GetFontObjectForAlphabet("roman"):GetFont(), "Fonts\\FRIZQT__.TTF", "with the game's face")
+    T.eq(select(3, gray:GetFontObjectForAlphabet("roman"):GetFont()), "OUTLINE", "and its flags")
+    T.deq(gray.color, { 0.5, 0.5, 0.5 }, "its color kept")
+    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.CreateFontFamily = nil, nil, nil
+    _G.NumberFontNormalSmall, _G.NumberFontNormalSmallGray = nil, nil
+end)
+
+-- The tooltip fonts are set from a setting, so they change in the session: on a
+-- family member by member, and only what differs (a SetFont redraws every text).
+T.test("game fonts: SetObjectFont sets a family member by member, once", function()
+    local DUI = stub.Load()
+    local fam, members = fakeFamily(GAME_FACES, 12, "OUTLINE")
+    local fira = DUI.Style.FONTS.fira.file
+    local sets = 0
+    local real = members.roman.SetFont
+    members.roman.SetFont = function(...) sets = sets + 1 return real(...) end
+    DUI.GameFonts.SetObjectFont(fam, fira, 14, "")
+    T.eq(members.roman.face, fira)
+    T.eq(members.roman.size, 14)
+    T.eq(members.russian.face, DUI.Style.HasCyrillic(fira) and fira or "Fonts\\FRIZQT___CYR.TTF")
+    T.eq(members.korean.face, "Fonts\\2002.TTF", "Korean keeps the game's face")
+    T.eq(members.korean.size, 14, "at the new size")
+    DUI.GameFonts.SetObjectFont(fam, fira, 14, "")
+    T.eq(sets, 1, "nothing set again when nothing changed")
+end)
+
 -- The scrolling combat text over the player: the client makes CombatTextFont at
 -- 120 with "FILTER, FIXEDHEIGHT" and shrinks each line with SetTextHeight. Any
 -- other face keeping those flags spaced every letter out ("B l o c k") in game;

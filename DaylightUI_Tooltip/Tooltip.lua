@@ -272,7 +272,7 @@ function Tip.ApplyFonts()
     for _, f in ipairs(Tip.FONTS) do
         local obj = _G[f.name]
         if type(obj) == "table" and obj.SetFont then
-            obj:SetFont(Style.FontFile(ns.MEDIA.font), (cfg.textSize + f.delta) * scale, "")
+            DUI.GameFonts.SetObjectFont(obj, Style.FontFile(ns.MEDIA.font), (cfg.textSize + f.delta) * scale, "")
             obj:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
             obj:SetShadowColor(0, 0, 0, 0.9)
         end

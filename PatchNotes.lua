@@ -11,7 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "General", "\"Use this font for the game's text\" no longer changes the combat text over you or the names over people's heads, and the range dot on hotkeys stays a dot" },
+        },
+    },
     { version = "1.9.4.4", date = "2026-11-18", summary = "A small fix for using your font on the game's text.",
         fixed = {
             { "General", "\"Use this font for the game's text\" now applies once as you log in and asks for a reload when switched" },

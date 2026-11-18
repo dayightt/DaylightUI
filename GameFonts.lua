@@ -13,8 +13,9 @@ local ADDON_NAME, DUI = ...
 local GameFonts = {}
 DUI.GameFonts = GameFonts
 
--- NAMEPLATE_FONT stays the game's: the plates' text follows their font objects.
-GameFonts.GLOBALS = { "STANDARD_TEXT_FONT", "UNIT_NAME_FONT" }
+-- The font for text the game makes from no font object. NAMEPLATE_FONT and
+-- UNIT_NAME_FONT (the names over heads) stay the game's, as EllesmereUI leaves them.
+GameFonts.GLOBALS = { "STANDARD_TEXT_FONT" }
 
 local savedGlobals -- the client's own paths, saved the first time they're replaced
 local savedFaces = {} -- font object -> the { face, flags } it had before
@@ -125,30 +126,124 @@ local function setFace(obj, face)
     pcall(obj.SetFont, obj, face, size, flags)
 end
 
--- Many of the game's fonts are families, one font per alphabet (the nameplate
--- and speech bubble ones among them). A SetFont on the family itself changes
--- none of them, so each member takes the face on its own, keeping its own
--- flags. An alphabet the face can't draw keeps the game's.
+-- The game's fonts the pass leaves whole. The combat text over you draws with
+-- CombatTextFont, which inherits SystemFont_World, so every member of both is
+-- left as it is: the combat text has its own pick on the Damage numbers page.
+GameFonts.KEEP = { "CombatTextFont", "SystemFont_World" }
+-- The hotkey text shows the range dot (U+25CF), which most bundled fonts can't
+-- draw, so this one keeps its own faces.
+GameFonts.KEEP_FACE = { "NumberFontNormalSmallGray" }
+
+local CJK_ALPHABET = { koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" }
+
+local function locale() return type(GetLocale) == "function" and GetLocale() or "" end
+
+-- The alphabet the client's own language draws with.
+local function clientAlphabet()
+    local l = locale()
+    return CJK_ALPHABET[l] or (l == "ruRU" and "russian") or "roman"
+end
+
+-- Whether one alphabet's member of a family takes the face. Korean and Chinese
+-- letters keep the game's: a font that draws them is the client's own, and then
+-- there's nothing to swap.
 local function takes(alphabet, face)
     if alphabet == "roman" then return true end
     if alphabet == "russian" then return DUI.Style.HasCyrillic(face) end
     return false
 end
 
-local CJK = { koKR = true, zhCN = true, zhTW = true }
+-- A family has members of its own for its Latin and Russian letters.
+local function isFamily(obj)
+    if type(obj.GetFontObjectForAlphabet) ~= "function" then return false end
+    local okR, roman = pcall(obj.GetFontObjectForAlphabet, obj, "roman")
+    local okC, russian = pcall(obj.GetFontObjectForAlphabet, obj, "russian")
+    return okR and okC and type(roman) == "table" and type(russian) == "table" and roman ~= russian
+end
 
-local function putOn(obj, face)
-    if type(obj.GetFontObjectForAlphabet) == "function" then
-        for _, alphabet in ipairs(DUI.Style.ALPHABETS) do
-            local ok, member = pcall(obj.GetFontObjectForAlphabet, obj, alphabet)
-            if ok and type(member) == "table" and member ~= obj and takes(alphabet, face) then
-                setFace(member, face)
-            end
-        end
-        -- The family's own font is what GetFont reads and copies take.
-        if CJK[type(GetLocale) == "function" and GetLocale() or ""] then return end
+local function members(obj, fn)
+    for _, alphabet in ipairs(DUI.Style.ALPHABETS) do
+        local ok, member = pcall(obj.GetFontObjectForAlphabet, obj, alphabet)
+        if ok and type(member) == "table" then fn(alphabet, member) end
     end
-    setFace(obj, face)
+end
+
+-- One member (or a plain font) takes the face at its own size and flags. A
+-- member several fonts share is set once.
+local function setMember(member, face, done)
+    if done[member] then return end
+    done[member] = true
+    if face == nil or type(member.GetFont) ~= "function" then return end
+    local ok, current, size, flags = pcall(member.GetFont, member)
+    if not ok or type(size) ~= "number" or size <= 0 or current == face then return end
+    pcall(member.SetFont, member, face, size, flags or "")
+end
+
+-- A family changes member by member: a SetFont on the family itself changes
+-- none of them. Its own font (what GetFont reads and copies take) changes only
+-- when the face draws the client's own language.
+local function putOn(obj, face, done)
+    if not isFamily(obj) then return setMember(obj, face, done) end
+    members(obj, function(alphabet, member)
+        setMember(member, takes(alphabet, face) and face or nil, done)
+    end)
+    setMember(obj, takes(clientAlphabet(), face) and face or nil, done)
+end
+
+local function leaveWhole(obj, done)
+    done[obj] = true
+    if isFamily(obj) then members(obj, function(_, member) done[member] = true end) end
+end
+
+-- A font that draws through members it shares with another family gets a
+-- family of its own made from those members' faces, so the shared members can
+-- take the face while it keeps its own. Its color and shadow come with it.
+local keptCount = 0
+local function keepFaces(obj, done)
+    if not isFamily(obj) then done[obj] = true return end
+    if type(CreateFontFamily) ~= "function" or type(obj.SetFontObject) ~= "function" then return end
+    local list = {}
+    members(obj, function(alphabet, member)
+        local ok, face, size, flags = pcall(member.GetFont, member)
+        if ok and face and type(size) == "number" and size > 0 then
+            list[#list + 1] = { alphabet = alphabet, file = face, height = size, flags = flags or "" }
+        end
+    end)
+    if #list == 0 then return end
+    keptCount = keptCount + 1
+    local okFam, fam = pcall(CreateFontFamily, "DaylightUIKeptFont" .. keptCount, list)
+    if not (okFam and type(fam) == "table") then return end
+    local r, g, b, a
+    if obj.GetTextColor then r, g, b, a = obj:GetTextColor() end
+    local sr, sg, sb, sa
+    if obj.GetShadowColor then sr, sg, sb, sa = obj:GetShadowColor() end
+    local sx, sy
+    if obj.GetShadowOffset then sx, sy = obj:GetShadowOffset() end
+    if not pcall(obj.SetFontObject, obj, fam) then return end
+    if r and obj.SetTextColor then obj:SetTextColor(r, g, b, a) end
+    if sr and obj.SetShadowColor then obj:SetShadowColor(sr, sg, sb, sa) end
+    if sx and obj.SetShadowOffset then obj:SetShadowOffset(sx, sy) end
+    leaveWhole(fam, done)
+    done[obj] = true
+end
+
+-- Gives one of the game's font objects a face, size and flags, member by member
+-- when it's a family (each member keeps its own face where the face can't draw
+-- its letters). Only what differs is set: a SetFont redraws every text using it.
+function GameFonts.SetObjectFont(obj, face, size, flags)
+    if type(obj) ~= "table" or type(obj.SetFont) ~= "function" then return end
+    flags = flags or ""
+    local function one(member, f)
+        local ok, current, currentSize, currentFlags = pcall(member.GetFont, member)
+        if not ok then return end
+        f = f or current
+        if f == nil then return end
+        if f == current and currentSize == size and (currentFlags or "") == flags then return end
+        pcall(member.SetFont, member, f, size, flags)
+    end
+    if not isFamily(obj) then return one(obj, face) end
+    members(obj, function(alphabet, member) one(member, takes(alphabet, face) and face or nil) end)
+    one(obj, takes(clientAlphabet(), face) and face or nil)
 end
 
 -- Puts the wanted font on the game's text. Only the first call of a session
@@ -164,11 +259,20 @@ function GameFonts.ApplyGameText()
         savedGlobals[k] = _G[k]
         _G[k] = font
     end
+    local done = {}
+    for _, name in ipairs(GameFonts.KEEP) do
+        local obj = _G[name]
+        if type(obj) == "table" then leaveWhole(obj, done) end
+    end
+    for _, name in ipairs(GameFonts.KEEP_FACE) do
+        local obj = _G[name]
+        if type(obj) == "table" then keepFaces(obj, done) end
+    end
     -- Daylight UI's own families are named fonts too: each carries a face picked
     -- for its own text (the chat's, for one) and keeps it.
     local own = DUI.Style.OwnFamily
     for _, obj in ipairs(fontObjects()) do
-        if obj ~= CombatTextFont and not own(obj) then putOn(obj, font) end
+        if not own(obj) and type(obj.SetFont) == "function" then putOn(obj, font, done) end
     end
 end
 
