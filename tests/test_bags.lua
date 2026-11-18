@@ -1360,6 +1360,34 @@ T.test("bags: hovering a bag in the strip lights every slot in it, empty ones to
     T.eq(B.buttons[0][1]:GetAlpha(), 1)
 end)
 
+-- A bag swapped while the mouse rests on its slot: the tooltip kept the old bag.
+T.test("bags: a hovered bag slot's tooltip follows a swap under the mouse", function()
+    local ns = login()
+    open(ns)
+    DaylightUI:Set("Bags", "showSlots", true); stub.RunTimers()   -- the strip shows
+    local bag1 = ns.Slots.strip.slots[1]
+    T.truthy(ns.Slots.strip:IsVisible(), "the strip is up")
+    local owner, shown, asked = nil, false, 0
+    local tip = GameTooltip
+    local realOwner, realSetOwner, realShown, realInv, realShow, realHide =
+        tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide
+    tip.SetOwner = function(_, o) owner = o end
+    tip.GetOwner = function() return owner end
+    tip.Show = function() shown = true end
+    tip.Hide = function() shown = false end
+    tip.IsShown = function() return shown end
+    tip.SetInventoryItem = function() asked = asked + 1; return true end
+    bag1:GetScript("OnEnter")(bag1)
+    T.eq(asked, 1, "hovered")
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "swapped under the mouse: shown again")
+    bag1:GetScript("OnLeave")(bag1)
+    stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
+    T.eq(asked, 2, "not hovered: left alone")
+    tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide =
+        realOwner, realSetOwner, realShown, realInv, realShow, realHide
+end)
+
 T.test("bags: the strip's key button shows and hides the keyring, and is there only when the game has one", function()
     local ns = login({ keyring = true })
     ns.module.db.showKeyring = nil
