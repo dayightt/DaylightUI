@@ -16,7 +16,8 @@
 -- DaylightUI:RegisterPlugin("MyPlugin", {
 --     -- title, author, version, website, desc default to the .toc fields
 --     -- (Title, Author, Version, X-Website, Notes). addon = its folder,
---     -- when that differs from the plugin's name.
+--     -- when that differs from the plugin's name. The .toc Title must read
+--     -- "My Plugin (DaylightUI Plugin)" (Plugins.TAG).
 --     needs = { 1, 0 },
 --     icon = "Interface\\AddOns\\MyPlugin\\icon.png",   -- white on transparent, tinted with color
 --     color = { 0.4, 0.8, 0.6 },                         -- or "66cc99"
@@ -75,6 +76,18 @@ function Plugins.Fits(needs, title)
     return false, string.format(L["%s was made for an older DaylightUI and is off: look for an update of it."], title)
 end
 
+-- Every plugin's .toc Title reads "Name (DaylightUI Plugin)", so players can tell
+-- in the AddOns list and on download sites what needs Daylight UI. Inside
+-- Daylight UI the tag is left off: its section already sits under Plugins.
+Plugins.TAG = "(DaylightUI Plugin)"
+
+-- The title without the tag, and whether the tag was there.
+function Plugins.SplitTitle(title)
+    local bare = string.match(title, "^(.-)%s*%(%s*[Dd]aylight%s?[Uu][Ii]%s+[Pp]lugin%s*%)$")
+    if bare and bare ~= "" then return bare, true end
+    return title, false
+end
+
 local function color(v)
     if type(v) == "table" and type(v[1]) == "number" and type(v[2]) == "number" and type(v[3]) == "number" then
         return { v[1], v[2], v[3] }
@@ -95,9 +108,13 @@ function Plugins.Register(name, spec, extra)
     if spec ~= nil and type(spec) ~= "table" then pluginError("the second argument is a table of what it is") end
     spec = spec or {}
     local addon = str(spec.addon) or name
+    local tocTitle, tagged = meta(addon, "Title"), false
+    if tocTitle then tocTitle, tagged = Plugins.SplitTitle(tocTitle) end
     local p = {
         name = name, addon = addon,
-        title = str(spec.title) or meta(addon, "Title") or name,
+        title = Plugins.SplitTitle(str(spec.title) or tocTitle or name),
+        -- Only judged when the .toc can be read: that's the name players see.
+        untagged = tocTitle ~= nil and not tagged,
         author = str(spec.author) or meta(addon, "Author"),
         version = spec.version ~= nil and tostring(spec.version) or meta(addon, "Version"),
         website = str(spec.website) or meta(addon, "X-Website"),
@@ -272,6 +289,11 @@ local function pluginGroup(p)
     end
     if p.website then
         items[#items + 1] = { type = "text", label = function() return string.format(L["Website: %s"], p.website) end }
+    end
+    if p.untagged then
+        items[#items + 1] = { type = "text", label = function()
+            return string.format(L["Its name in the AddOns list should read \"%s %s\": every plugin's does."], p.title, Plugins.TAG)
+        end }
     end
     items[#items + 1] = changesRow(p.name)
     items[#items + 1] = addonSwitch(p.addon)
