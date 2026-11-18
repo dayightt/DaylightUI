@@ -7571,3 +7571,10 @@ L["Your cast bar fills from the right. Not while under the frame or between the 
 L["Zone levels"] = "区域等级"
 L["NEXT REWARD"] = "下一个奖励"
 L["At rank %d"] = "%d级时获得"
+
+-- DaylightUI translations from synced zhcn-fork.lua.
+L["%s is back the way it comes."] = "%s 已恢复为初始状态。"
+L["Couldn't reset it: %s."] = "无法重置：%s。"
+L["DPS/Tank"] = "DPS/坦克"
+L["Puts this profile back the way it comes: its settings and frame positions replace yours. Your Edit Mode layout stays as it is."] = "将此配置恢复为初始状态：其设置和框体位置会覆盖你的内容。你的编辑模式布局保持不变。"
+L["The standard profile, as it comes. Choose it above to use it. If the profile you're on has moved action bars, it offers to bring them along."] = "标准配置的初始状态。在上方选择即可使用。如果当前配置移动过动作条，会询问是否一并带上。"
