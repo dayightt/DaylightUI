@@ -450,7 +450,7 @@ end
 
 function Own.Frame(id) return frames[id] end
 
-Own.TOTEM_DIM = 0.5          -- icon alpha while a totem stands and you lack its buff
+Own.TOTEM_DIM = 0.3          -- icon alpha while a totem stands and you lack its buff
 Own.TOTEM_TIME_LEVEL = 20    -- the totem's time over the buff's button (CdmAuras.Over: +10)
 
 function Own.Update(f)
