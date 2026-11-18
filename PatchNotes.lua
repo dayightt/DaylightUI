@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
+            { "Plugins", "Vendor plugins work in Daylight Mogul's vendor window too" },
             { "World map", "Hover a zone on the world map to see its level range next to its name, colored by how hard it is for you" },
             { "Group finder", "Make the group finder wide and groups and solo players sit side by side" },
             { "Chat", "A Line spacing slider spreads out the messages in the chat box (Chat, Messages)" },

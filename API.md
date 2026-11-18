@@ -229,7 +229,8 @@ window closes. After every fill (money or bags changed, a search, a skill-up) ea
 `FrameStyled`: that's your cue to repaint, since Daylight UI just painted it again. A tile that keeps
 its index but holds another vendor's item gets `FrameUnitChanged` with the same `unit`: read
 `API.ShopItem` again. These windows can be switched off (or replaced by DaylightMogul's); then there
-are no tiles or lines at all.
+are no tiles or lines at all, except at the vendor: DaylightMogul's vendor window hands its tiles over
+as `"shoptile"` frames the same way, and `me.FilterShop` works on its shelf too.
 
 ### Hear when they change
 
