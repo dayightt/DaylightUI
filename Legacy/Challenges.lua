@@ -419,7 +419,7 @@ end
 
 function Challenges.Filter(id, quiet)
     Data().show = id
-    Challenges.page.filter.text:SetText(Challenges.FILTER_WORD[id])
+    Challenges.page.filter.SetLabel(Challenges.FILTER_WORD[id])
     if not quiet then Challenges.Render(true) end
 end
 
@@ -460,7 +460,7 @@ function Challenges.Build(page)
     page.filter:SetPoint("TOPRIGHT", side, "TOPRIGHT", -Challenges.EDGE, -44)
     page.filter.text:SetPoint("RIGHT", page.filter.chevron, "LEFT", -6, 0)
     page.filter.text:SetWordWrap(false)
-    page.filter.text:SetText(Challenges.FILTER_WORD[Data().show] or Challenges.FILTER_WORD.all)
+    page.filter.SetLabel(Challenges.FILTER_WORD[Data().show] or Challenges.FILTER_WORD.all)
     page.filter:SetScript("OnClick", function(self)
         W().OpenMenu(self, Challenges.FILTERS, Challenges.FILTER_WORD, Data().show,
             function(id) Challenges.Filter(id) end, math.max(120, self:GetWidth()))

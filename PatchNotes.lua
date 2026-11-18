@@ -18,7 +18,14 @@ DUI.PatchNotes = {
             { "Chat", "A Line spacing slider spreads out the messages in the chat box (Chat, Messages)" },
             { "Profiles", "Ready-made profiles, DPS/Tank too, can be added any time and reset to how they come (Profiles, Ready-made)" },
         },
+        changed = {
+            { "Legacy", "The Legacy window's challenge filter is a drop-down and its side panels are wider, so every language fits" },
+        },
         fixed = {
+            { "World map", "Opening and closing the world map no longer freezes the game for a moment on a controller" },
+            { "Options", "Dragging a slider in the options no longer makes the game stutter" },
+            { "Chat", "The chat's header icons and the + tab say what they do when you hover them" },
+            { "Social", "The Raid page explains raids in the game's own words when you're not in one" },
             { "Action bars", "Action bars make far less throwaway memory in fights, for fewer small hitches" },
             { "Character", "The PvP page shows your rank's own badge and what the next rank gives, like the game's" },
             { "Social", "Your BattleTag is in the Social window's header again, a click copies it" },
@@ -36,6 +43,7 @@ DUI.PatchNotes = {
             { "Action bars", "Switching totem sets keeps the new totems over the same four slots, and the totem list opens above the Cooldown Manager" },
             { "Chat", "Links and Show Message work in a whisper conversation" },
             { "Chat", "A quest's experience, money and item lines follow the Experience, Money and Loot switches, not System" },
+            { "Spellbook", "No more blocked action bar error when the spellbook closes, or cooldown errors when dragging spells from it in combat" },
         },
     },
     { version = "1.9.3", date = "2026-11-17", summary = "Totem timers in the Daylight UI look, an Overheal switch, the cast bar's old spot back, and a round of fixes.",

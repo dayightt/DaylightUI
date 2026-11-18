@@ -6268,7 +6268,7 @@ L["The size of the whole interface, the game's windows too. Daylight UI keeps it
 L["UI scale"] = "UI 缩放"
 L["Which end of the frame the stripe sits in. On an angled end it follows the angle."] = "条纹位于框体的哪一端。在斜角端会沿斜角走向。"
 
--- DaylightUI translations from merged zhcn-fork.lua.
+-- More translated lines.
 L["%s: an aura filter needs a key, a label and a list of spell ids."] = "%s：光环过滤器需要 key、标签和法术 ID 列表。"
 L["%s: the game doesn't let aura filter %s pick out any of its spells on group members."] = "%s：游戏不允许光环过滤器 %s 在小队成员身上筛选其任何法术。"
 L["A small frame beside each party member showing who they're targeting."] = "在每个小队成员旁显示一个小框体，显示其当前目标。"
@@ -6563,7 +6563,7 @@ L["the vendor's items"] = "商人的物品"
 L["unit frames"] = "单位框体"
 L["works on every unit"] = "对所有单位生效"
 
--- DaylightUI translations from merged zhcn-fork.lua.
+-- More translated lines.
 L["%s (drag items here)"] = "%s（将物品拖到这里）"
 L["%s an item to move it to another group, lock it so it's never sold, or sell it as junk. %s at the top shows your bank and your other characters' bags from anywhere."] = "%s物品可将其移到其他分组、锁定以免被出售，或标记为垃圾出售。顶部的%s按钮可随时查看你的银行和其他角色的背包。"
 L["Bag by bag"] = "逐个背包"
@@ -6672,7 +6672,7 @@ L["Right-click: your alts"] = "右键点击：你的小号"
 L["Show the bag's header"] = "显示背包标题栏"
 L["Your bank, from anywhere."] = "随时随地查看你的银行。"
 
--- DaylightUI translations from merged zhcn-fork.lua.
+-- More translated lines.
 L["Delete %d extra shards"] = "删除 %d 个多余碎片"
 
 -- DaylightUI translations from AI translation.
@@ -7580,7 +7580,7 @@ L["Zone levels"] = "区域等级"
 L["NEXT REWARD"] = "下一个奖励"
 L["At rank %d"] = "%d级时获得"
 
--- DaylightUI translations from synced zhcn-fork.lua.
+-- More translated lines.
 L["%s is back the way it comes."] = "%s 已恢复为初始状态。"
 L["Couldn't reset it: %s."] = "无法重置：%s。"
 L["DPS/Tank"] = "DPS/坦克"

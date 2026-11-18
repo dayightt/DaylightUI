@@ -851,6 +851,8 @@ function DUI:Set(scope, path, value)
             if DUI.Options and DUI.Options.sliderHeld and C_Timer then
                 tellModuleHeld(scope, mod, path, value)
             else
+                -- A plain change after the slider let go wins over the held step still waiting.
+                heldLast[scope .. ":" .. path] = nil
                 tellModule(scope, mod, path, value)
             end
         end
