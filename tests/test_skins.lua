@@ -2154,11 +2154,14 @@ end)
 
 -- The controller's focus glow on the game menu (FrameGlowMixin): its piece
 -- around the dialog header framed nothing once the header was gone, and the
--- game set the glow's opacity only when the setting changed, so after a login
--- it showed at full strength even at 0.
-T.test("skins: the game menu's controller focus glow has no header piece and keeps its opacity", function()
+-- game set the glow's opacity and color only when the setting changed, so after
+-- a login it showed at full strength even at 0, in the art's own color.
+T.test("skins: the game menu's controller focus glow has no header piece and keeps its opacity and color", function()
     local getCVar, opacity = _G.GetCVar, "0"
-    _G.GetCVar = function(k) if k == "GamepadFocusStateOpacity" then return opacity end end
+    _G.GetCVar = function(k)
+        if k == "GamepadFocusStateOpacity" then return opacity end
+        if k == "GamepadFocusStateColor" then return "3" end
+    end
     login(function()
         local f = window("GameMenuFrame")
         f.TitleContainer = nil
@@ -2175,6 +2178,8 @@ T.test("skins: the game menu's controller focus glow has no header piece and kee
     T.eq(glow.HeaderGlowTexture:GetAlpha(), 0, "no outline where the game's header was")
     T.eq(glow.GlowTexture:GetAlpha(), 1, "the window's own glow stays")
     T.eq(glow:GetAlpha(), 0, "the saved opacity, from the start")
+    local r, g, b = glow.GlowTexture:GetVertexColor()
+    T.eq(r, 0.3); T.eq(g, 0.5); T.eq(b, 1, "the saved Focus Color (blue), from the start")
     opacity = "0.6"
     GameMenuFrame:Show(); glow:Show()
     T.eq(glow:GetAlpha(), 0.6, "read again as it shows")

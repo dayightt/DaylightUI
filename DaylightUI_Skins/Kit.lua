@@ -575,17 +575,25 @@ function Kit.TopLineOf(frame) return topLines[frame] end
 
 -- The controller's focus glow (FrameGlowMixin). Its header piece outlines the
 -- game's dialog header, which our windows don't have. The game applies Focus
--- Opacity only when it changes, so it's read again each time the glow shows.
-local function focusOpacity()
+-- Opacity and Focus Color only when they change, so both are read again each
+-- time the glow shows.
+local function focusCVar(name)
     local get = (type(C_CVar) == "table" and C_CVar.GetCVar) or GetCVar
     if type(get) ~= "function" then return nil end
-    local ok, v = pcall(get, "GamepadFocusStateOpacity")
+    local ok, v = pcall(get, name)
     return ok and tonumber(v) or nil
 end
 
+-- The game's own colors for the Focus Color choices; 0 keeps the art's color.
+local FOCUS_COLORS = { { 1, 0.9, 0.4 }, { 0, 0, 0 }, { 0.3, 0.5, 1 } }
+
 local function fitFocusGlow(glow)
-    local a = focusOpacity()
+    local a = focusCVar("GamepadFocusStateOpacity")
     if a then glow:SetAlpha(a) end
+    local c = FOCUS_COLORS[focusCVar("GamepadFocusStateColor") or 0]
+    if c and isTable(glow.GlowTexture) and glow.GlowTexture.SetVertexColor then
+        glow.GlowTexture:SetVertexColor(c[1], c[2], c[3])
+    end
 end
 
 function Kit.FocusGlow(frame)
