@@ -103,7 +103,6 @@ Donators.MONTHLY = {
     "Alen Šabanagić",
     "Hugo Romao PT",
     "Pradeesh",
-    "Doyal_Christopher",
     "Korvaethryn",
     "Goodums",
     "eterion1234",
