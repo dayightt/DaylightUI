@@ -20,7 +20,7 @@ end
 function R.CVar(name)
     if type(GetCVar) ~= "function" then return nil end
     local ok, v = pcall(GetCVar, name)
-    return ok and type(v) == "string" and v or nil
+    return ok and not DUI.IsSecret(v) and type(v) == "string" and v or nil
 end
 
 -- Text an edit box shows as it is: control bytes become "?", a "|" is doubled
@@ -661,6 +661,111 @@ function R.MarkSaid(n, refused, why)
         R.MARK_SECONDS) .. R.RefusedSaid(refused, why)
 end
 
+-- Small, immutable observations kept with the run, outside the noisy event log.
+-- Counts describe active unit plates, not whether the client painted them.
+function R.StepSnapshot(owned)
+    local flags = {}
+    for i, name in ipairs(R.FIX_SHOW_CVARS) do
+        local v = R.CVar(name)
+        flags[i] = (v == "0" or v == "1") and v or "?"
+    end
+    local count, get = 0, C_NamePlate and C_NamePlate.GetNamePlateForUnit
+    if type(get) ~= "function" then count = "?"
+    else
+        local secure = issecure and issecure() or false
+        for i = 1, 40 do
+            local ok, np = pcall(get, "nameplate" .. i, secure)
+            if not ok or DUI.IsSecret(np) then count = "?"; break end
+            if np ~= nil and type(np) ~= "table" then count = "?"; break end
+            if type(np) == "table" then count = count + 1 end
+        end
+    end
+    local out = string.format("E=%s FP=%s FN=%s G=%s", flags[1], flags[2], flags[3], tostring(count))
+    if owned then
+        local ours = 0
+        for _ in pairs(owned) do ours = ours + 1 end
+        out = out .. " O=" .. ours
+    end
+    return out
+end
+
+function R.TraceLines(run)
+    local out = { "Step states (E enemy, FP friendly player, FN friendly NPC; G game, O ours):" }
+    for n, row in ipairs(run.trace or {}) do
+        out[#out + 1] = string.format("  %d: %s => %s%s", n, row.before, row.after or "pending",
+            row.failed and " (failed)" or "")
+    end
+    if run.atYes then out[#out + 1] = "At yes: " .. run.atYes end
+    return out
+end
+
+R.FIX_PENDING = "platefix: the current step is still running; wait for the completed message before continuing or saying yes."
+
+-- Async work receives a guarded completion callback. Neither stale callbacks
+-- nor repeat completions can change a later step or a different run.
+function R.RunFixStep(run, n, owned, action, isCurrent)
+    run.trace = run.trace or {}
+    local row = { before = R.StepSnapshot(owned) }
+    run.trace[n], run.pending = row, n
+    local starting = true
+    local function current() return isCurrent() and run.pending == n end
+    local function done(err, detail)
+        if not current() then return end
+        row.after, row.failed = R.StepSnapshot(owned), err ~= nil
+        if err then run.did[n] = "failed (" .. R.Printable(tostring(err), R.MARK_WHY) .. ")" end
+        if not err and detail then run.did[n] = detail end
+        run.pending = nil
+        if not starting then
+            DUI.Print(string.format("platefix step %d completed%s. Are the nameplates back? Yes: /dui platefix yes. "
+                .. "No: /dui platefix for the next step.", n, err and " with an error" or ""))
+        end
+    end
+    local ok, did, pending = pcall(action, done, current)
+    if ok then
+        if not row.failed then run.did[n] = did end
+        if not pending then done() end
+    else done(did) end
+    starting = false
+    return run.did[n]
+end
+
+-- Timer work waits through combat and remains pending. Errors complete the
+-- observation as failed instead of leaving the diagnostic stuck forever.
+function R.FixLater(delay, current, done, fn)
+    C_Timer.After(delay, function()
+        if not current() then return end
+        DUI.AfterCombat(function()
+            if not current() then return end
+            local ok, err = pcall(fn)
+            if not ok then done(err) end
+        end)
+    end)
+end
+
+-- Save and restore the exact show switches, including zero. A restore is not
+-- evidence that any plate was rebuilt or rendered. Try every saved restore
+-- even if an earlier setter failed, and carry the failure to completion.
+function R.CycleShowSwitches(gap, current, done, resumed)
+    local was, failure = {}, nil
+    local function write(name, value)
+        local ok, err = pcall(SetCVar, name, value)
+        if not ok then failure = failure or tostring(err) end
+    end
+    for _, name in ipairs(R.FIX_SHOW_CVARS) do
+        local v = R.CVar(name)
+        if v then was[name] = v; write(name, "0")
+        else failure = failure or ("could not read " .. name) end
+    end
+    R.FixLater(gap, current, done, function()
+        for name, v in pairs(was) do write(name, v) end
+        if resumed then resumed(failure) else done(failure) end
+    end)
+    local allOff = true
+    for _, name in ipairs(R.FIX_SHOW_CVARS) do if was[name] ~= "0" then allOff = false end end
+    return allOff and "all three show switches were off; restored off"
+        or "show switches restored to their previous values"
+end
+
 local function gameDefault(name)
     local fn = C_CVar and C_CVar.GetCVarDefault
     if type(fn) ~= "function" then return nil end
@@ -669,20 +774,12 @@ local function gameDefault(name)
 end
 
 R.FIX = {
-    -- 1. The game's show switches off and on, so it builds its plates again.
-    function()
-        local was = {}
-        for _, name in ipairs(R.FIX_SHOW_CVARS) do
-            local v = R.CVar(name)
-            if v then
-                was[name] = v
-                pcall(SetCVar, name, "0")
-            end
-        end
-        C_Timer.After(R.FIX_GAP, function()
-            for name, v in pairs(was) do pcall(SetCVar, name, v) end
+    -- 1. Briefly clear the show switches, then restore their saved values.
+    function(done, current)
+        local did = R.CycleShowSwitches(R.FIX_GAP, current, done, function(err)
+            R.FixLater(0, current, done, function() done(err) end)
         end)
-        return "the game's plates switched off and on (" .. R.OFF .. ")"
+        return did .. " (" .. R.OFF .. ")", true
     end,
     -- 2. The plate settings Daylight UI can change, back to the game's defaults.
     function()
@@ -705,7 +802,8 @@ function R.FixActive() return fixStep ~= nil end
 function R.FixReport(step)
     local run = fixRun or { did = {}, before = {} }
     local out = { string.format("Daylight UI %s platefix (%s): %s", tostring(DUI.VERSION), R.OFF,
-        step and string.format("step %d brought them back", step) or "no step brought them back") }
+        step and string.format("player reported recovery after step %d", step) or "no step brought them back") }
+    for _, line in ipairs(R.TraceLines(run)) do out[#out + 1] = line end
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     for _, line in ipairs(run.world or R.World()) do out[#out + 1] = line end
     out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
@@ -716,6 +814,8 @@ function R.FixReport(step)
 end
 
 local function fixDone(step)
+    if fixRun and fixRun.pending then return DUI.Print(R.FIX_PENDING) end
+    if step and fixRun then fixRun.atYes = R.StepSnapshot() end
     local text = R.FixReport(step)
     fixStep, fixRun = nil, nil
     DUI.Profiles.ShowText(L["Nameplate report"], L["Ctrl+C to copy, then paste it in a bug report on the Daylight UI Discord. "
@@ -725,6 +825,7 @@ local function fixDone(step)
 end
 
 function R.Fix()
+    if fixRun and fixRun.pending then return R.FIX_PENDING end
     if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
     local n = (fixStep or 0) + 1
     if n > #R.FIX then
@@ -737,9 +838,9 @@ function R.Fix()
         R.FixBegin()
     end
     fixStep = n
-    local ok, did = pcall(R.FIX[n])
-    if not ok then did = "failed (" .. tostring(did) .. ")" end
-    fixRun.did[n] = did
+    local run = fixRun
+    local did = R.RunFixStep(run, n, nil, R.FIX[n], function() return fixRun == run end)
+    if run.pending then return string.format("platefix %d/%d started: %s. %s", n, #R.FIX, did, R.FIX_PENDING) end
     return string.format("platefix %d/%d: %s. Are the nameplates back? Yes: /dui platefix yes. "
         .. "No: /dui platefix again for the next step.", n, #R.FIX, did)
 end
@@ -753,6 +854,7 @@ function R.RegisterFallback()
     DUI.RegisterCommand("platefix", function(rest)
         if string.lower(rest or "") ~= "yes" then return DUI.Print(R.Fix()) end
         if not fixStep then return DUI.Print(L["Run /dui platefix first, while the nameplates are invisible."]) end
+        if fixRun and fixRun.pending then return DUI.Print(R.FIX_PENDING) end
         fixDone(fixStep)
         DUI.Print(L["Copy the text in the box and send it to the Daylight UI team, then /reload."])
     end, L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"])

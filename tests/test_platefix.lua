@@ -53,7 +53,7 @@ T.test("platefix: yes after a step opens a report naming that step", function()
     DaylightUI.RunCommand("platefix yes")
     local text = shownText()
     T.truthy(text, "the copy box is up")
-    T.truthy(text:find("step 2 brought them back", 1, true), text)
+    T.truthy(text:find("player reported recovery after step 2", 1, true), text)
     T.truthy(text:find("  1. the plate size", 1, true), "what step 1 did")
     T.truthy(text:find("  2. ", 1, true), "what step 2 did")
     T.truthy(text:find("Before step 1:", 1, true), "the plates as they were")
@@ -85,7 +85,9 @@ end)
 
 T.test("platefix: after every step with no yes, the report says none did", function()
     local NP = login()
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
+    for _ = 1, NP.Manager.FIX_STEPS do
+        NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers()
+    end
     local said = NP.Manager.Fix()
     T.truthy(said:find("every step", 1, true), said)
     local text = shownText()
@@ -198,6 +200,7 @@ T.test("platefix: the log is in the report with the Nameplates module off too", 
     _G.GetCVar = function() end
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     DaylightUI.RunCommand("platefix")
+    stub.RunTimers()
     DaylightUI.RunCommand("platefix yes")
     local text = shownText()
     T.truthy(text and text:find("What happened before step 1", 1, true), tostring(text))
@@ -340,7 +343,7 @@ T.test("platefix: the report is plain text the copy box can show, and goes to ch
     T.truthy(#text <= NP.Manager.REPORT_MAX)
     T.truthy(text:find("Stacking enemy=true friendly=false", 1, true), "the stacking setting in words")
     local chat = table.concat(printed, "\n")
-    T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
+    T.truthy(chat:find("player reported recovery after step 1", 1, true), "the report is in chat as well: " .. chat)
 end)
 
 -- The report says which parts of Daylight UI were on, and the live state of the
@@ -396,7 +399,9 @@ end)
 T.test("platefix: a run where no step helped ends with the dots up for the screenshot", function()
     local NP = login()
     local R = DaylightUI.PlateReport
-    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix() end
+    for _ = 1, NP.Manager.FIX_STEPS do
+        NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers()
+    end
     stub.RunTimers()
     stub.RunTimers()
     T.truthy(R.marksOn, "up through every step")
@@ -452,7 +457,7 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     T.truthy(table.concat(printed, "\n"):find("screenshot", 1, true), "the end asks for the screenshot")
     DaylightUI.Print = was
     local text = shownText()
-    T.truthy(text and text:find("step 2 brought them back", 1, true), tostring(text))
+    T.truthy(text and text:find("player reported recovery after step 2", 1, true), tostring(text))
     T.truthy(text:find("Daylight UI modules on:", 1, true), text)
     T.truthy(text:find("Nameplates module off", 1, true), text)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
