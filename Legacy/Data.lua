@@ -321,6 +321,12 @@ function Data.Steps(id)
     return out
 end
 
+-- Whether it has any steps, without reading each one.
+function Data.HasSteps(id)
+    local n = call(GetAchievementNumCriteria, id)
+    return type(n) == "number" and n > 0
+end
+
 -- Tracking, same as the achievement window's checkbox (C_ContentTracking).
 local function trackType()
     local E = Enum and Enum.ContentTrackingType

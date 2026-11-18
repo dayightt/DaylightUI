@@ -332,6 +332,66 @@ T.test("pad: a second window alone takes the focus", function()
     clearAll()
 end)
 
+-- A fight ends with the bag (a second window) still open and no other Daylight
+-- UI window open. The game can still have one of its own windows active then;
+-- the bag takes the focus anyway, so the D-pad reaches it.
+T.test("pad: after a fight, a second window still open takes the focus when no other Daylight UI window is open", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    stub.RunTimers()
+    local guide = DUI.InstallerUI.Frame()   -- open since login: close it, so the bag is alone
+    if guide then guide:Hide() end
+    fresh(m)
+    local bag = CreateFrame("Frame", nil, UIParent); bag:Hide()
+    bag.padSecond = true
+    DUI.Pad.Follow(bag)
+    bag:Show()
+    stub.RunTimers()
+    T.eq(m.focused, bag)
+    stub.SetRestriction("Combat", true)
+    stub.EnterCombat()
+    T.eq(has(m, bag), false, "handed back as the fight starts")
+    -- One of the game's own windows is active in the game's list as the fight ends.
+    local game = CreateFrame("Frame", nil, UIParent)
+    table.insert(m.shown, game)
+    m.focused = game
+    stub.SetRestriction("Combat", false)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(has(m, bag), true)
+    T.eq(m.focused, bag, "the bag has the focus, not the game's window")
+    T.eq(m.refused, 0)
+    clearAll()
+end)
+
+T.test("pad: after a fight, another Daylight UI window open keeps the focus and the second window is listed", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    stub.RunTimers()
+    local guide = DUI.InstallerUI.Frame()   -- open since login: close it, so only these two count
+    if guide then guide:Hide() end
+    fresh(m)
+    local first = CreateFrame("Frame", nil, UIParent); first:Hide()
+    local bag = CreateFrame("Frame", nil, UIParent); bag:Hide()
+    bag.padSecond = true
+    DUI.Pad.Follow(first)
+    DUI.Pad.Follow(bag)
+    first:Show()
+    stub.RunTimers()
+    bag:Show()
+    stub.RunTimers()
+    T.eq(m.focused, first)
+    stub.SetRestriction("Combat", true)
+    stub.EnterCombat()
+    stub.SetRestriction("Combat", false)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(has(m, first), true)
+    T.eq(has(m, bag), true)
+    T.eq(m.focused, first, "the second window doesn't take the focus from the other")
+    clearAll()
+end)
+
 T.test("pad: a window's own buttons are bound only while it has the focus, and act on the stop", function()
     local DUI = stub.Load()
     fresh(strict(true))

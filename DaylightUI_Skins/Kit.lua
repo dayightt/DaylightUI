@@ -573,6 +573,37 @@ local function topLine(frame)
 end
 function Kit.TopLineOf(frame) return topLines[frame] end
 
+-- The controller's focus glow (FrameGlowMixin). Its header piece outlines the
+-- game's dialog header, which our windows don't have. The game applies Focus
+-- Opacity and Focus Color only when they change, so both are read again each
+-- time the glow shows.
+local function focusCVar(name)
+    local get = (type(C_CVar) == "table" and C_CVar.GetCVar) or GetCVar
+    if type(get) ~= "function" then return nil end
+    local ok, v = pcall(get, name)
+    return ok and tonumber(v) or nil
+end
+
+-- The game's own colors for the Focus Color choices; 0 keeps the art's color.
+local FOCUS_COLORS = { { 1, 0.9, 0.4 }, { 0, 0, 0 }, { 0.3, 0.5, 1 } }
+
+local function fitFocusGlow(glow)
+    local a = focusCVar("GamepadFocusStateOpacity")
+    if a then glow:SetAlpha(a) end
+    local c = FOCUS_COLORS[focusCVar("GamepadFocusStateColor") or 0]
+    if c and isTable(glow.GlowTexture) and glow.GlowTexture.SetVertexColor then
+        glow.GlowTexture:SetVertexColor(c[1], c[2], c[3])
+    end
+end
+
+function Kit.FocusGlow(frame)
+    local glow = isTable(frame) and frame.FrameGlow
+    if not isTable(glow) or not glow.SetAlpha or not once("focusGlow", glow) then return end
+    Kit.Hide(glow.HeaderGlowTexture)
+    fitFocusGlow(glow)
+    if glow.HookScript then glow:HookScript("OnShow", fitFocusGlow) end
+end
+
 -- Dresses a game window: strips its art, adds the window look behind it, sets
 -- the title font, a W.Close button, and a darker inset. opts:
 --   noBackground  border only (map windows)
@@ -609,6 +640,7 @@ function Kit.Window(frame, opts)
     Kit.Close(frame.CloseButton or named)
     if isTable(frame.TitleContainer) then Kit.Close(frame.TitleContainer.CloseButton) end
     Kit.Close(frame.ClosePanelButton)
+    Kit.FocusGlow(frame)
     local inset = frame.Inset or (type(name) == "string" and _G[name .. "Inset"])
     if inset then Kit.Inset(inset) end
     -- Fade in on open (out of combat; hiding stays the game's). Not for map

@@ -1494,10 +1494,10 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Text", "Auras", "Extras" }
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras" }
 local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
-    ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", ["Name tab"] = "Text", Debuffs = "Auras", Buffs = "Auras",
+    ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
@@ -1508,12 +1508,46 @@ local function tabOf(label)
     end
     return "Extras"
 end
+-- The name's rows (TEXT_ORDER's first block) leave the Text card for a Name card of their
+-- own, ahead of the name tab's, so everything about a frame's name is on the Name tab.
+local NAME_ORDER_END = 30
+local function nameCard(groups)
+    local out, at, named = {}, nil, nil
+    for _, g in ipairs(groups) do
+        if g.label == "Text" and type(g.items) == "table" and not named then
+            -- Only the rows TEXT_ORDER lists as the name's go to the Name card. A row it doesn't
+            -- know stays on Text, so a text row added later can't slip onto the Name tab.
+            local name, rest = {}, {}
+            for _, it in ipairs(g.items) do
+                local r = type(it.key) == "string" and TEXT_ORDER[fieldOf(it.key)]
+                if r and r < NAME_ORDER_END then name[#name + 1] = it else rest[#rest + 1] = it end
+            end
+            if #name > 0 then
+                named = { label = "Name", desc = "How this frame's name looks and where it sits: its text, color and size, and the tab behind it.", items = name }
+                g.items = rest
+            end
+        end
+    end
+    for _, g in ipairs(groups) do
+        if g.label == "Name tab" and named then out[#out + 1] = named; named = nil; at = true end
+        if not (g.label == "Text" and #g.items == 0) then out[#out + 1] = g end
+    end
+    if named then
+        -- No name tab card: the Name card sits where the Text card was.
+        for i, g in ipairs(out) do
+            if g.label == "Text" then table.insert(out, i, named); named = nil; break end
+        end
+    end
+    if named then out[#out + 1] = named end
+    return out
+end
 local function tabbed(groups)
+    groups = nameCard(groups)
     local rank = {}
     for i, t in ipairs(TAB_ORDER) do rank[t] = i end
     local list = {}
     for i, g in ipairs(groups) do
-        g.tab = tabOf(g.label)
+        g.tab = g.tab or tabOf(g.label)
         list[i] = { g = g, i = i }
     end
     table.sort(list, function(a, b)
@@ -2163,6 +2197,16 @@ local function framePage(id, label, desc, opts)
     -- The page's "Test frame" switch shows just this frame (not for the player,
     -- which is always real). Its live sample sits above its settings.
     local preview = id ~= "player" and { id } or nil
+    -- A page with a Cast bar tab shows its cast in the test, so the tab has something to look at
+    -- (your own frame has no test switch: it is always real).
+    if opts.castCards and preview then preview[#preview + 1] = "castbars" end
+    -- Its cast bar's cards: their own tab.
+    if opts.castCards then
+        for _, card in ipairs(opts.castCards) do
+            card.tab = "Cast bar"
+            groups[#groups + 1] = card
+        end
+    end
     groups[#groups + 1] = barFxCard(id, (opts.power or opts.powerToggle) and powerOff or nil, shown, opts.pets)
     groups[#groups + 1] = copyCard(id)
     return { id = id, label = label, desc = desc, groups = tabbed(groups), preview = preview,
@@ -2465,18 +2509,164 @@ local function raidPage(size)
                    size ~= 10 and function() return ns.Raid.Locked(size) end or nil) })) }
 end
 
+-- Each cast bar's cards, which sit on its frame's page under the Cast bar tab (framePage).
+-- The player's border card says whose it is, since the frame has a border card of its own.
+local function castShell(bar)
+    local card = shellCard(bar, bar .. ".enabled", true)
+    card.label = "Cast bar border and shadow"
+    return card
+end
+local PLAYER_CAST = {
+    { label = "Player cast bar", items = {
+        { type = "toggle", key = "playerCastbar.enabled", label = "Show your cast bar",
+          desc = "Replaces the game's own cast bar." },
+        atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Between your frame and the target's it fills the gap, both ends angled like the frames beside it, with the swing timers fanning out under it. Above the frame or on its own it has its own size."),
+        { type = "dropdown", key = "playerCastbar.from", label = "Your cast bar slides out from",
+          values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
+          desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
+          disabled = function(get)
+              return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
+                  or get("player.powerSlantUnder") == true
+          end },
+        nudge("player", "x"),
+        nudge("player", "y"),
+        { type = "slider", key = "playerCastbar.width", label = "Your cast bar width", min = 80, max = 500, step = 1,
+          desc = "How wide your cast bar is. Not while under the frame or between the frames: there it fills the space it has.", disabled = notMiddleOwn },
+        { type = "slider", key = "playerCastbar.height", label = "Your cast bar height", min = 8, max = 40, step = 1,
+          desc = "How tall your cast bar is.", disabled = off("playerCastbar.enabled") },
+        barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[1],
+        barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[2],
+        fontRow("playerCastbar.media.font", "Your cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
+        { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
+          desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot, or between the frames.", disabled = notMiddleOwn },
+        { type = "toggle", key = "playerCastbar.slant", label = "Your cast bar angled right end",
+          desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle, and between the frames both ends lean. When off, its ends are straight.",
+          disabled = off("playerCastbar.enabled") },
+        { type = "toggle", key = "playerCastbar.slantLeft", label = "Your cast bar angled left end",
+          desc = "Cuts the left end at an angle, leaning like the target frame's end. Not while under the frame, between the frames or under the personal display.",
+          disabled = function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end },
+        flipRow("player", "your", notMiddleOwn),
+        { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
+          desc = "Your cast bar fills from the right. Not while under the frame or between the frames.", disabled = notMiddleOwn },
+        strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
+            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
+            " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
+    } },
+    castShell("playerCastbar"),
+    castTextCard("player", "Player", "your"),
+}
+local TARGET_CAST = {
+    { label = "Target cast bar", items = {
+        { type = "toggle", key = "targetCastbar.enabled", label = "Show the target cast bar",
+          desc = "Your target's casts, while they last." },
+        atChoice("target", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode. Under the frame it slides out during a cast, and the buffs below keep room for it."),
+        nudge("target", "x"),
+        nudge("target", "y"),
+        fitRow("target"),
+        { type = "slider", key = "targetCastbar.width", label = "Target cast bar width", min = 80, max = 500, step = 1,
+          desc = "How wide your target's cast bar is. Not inside the frame, or while it matches the frame's width.",
+          disabled = notOwnWidth("target") },
+        { type = "slider", key = "targetCastbar.height", label = "Target cast bar height", min = 8, max = 40, step = 1,
+          desc = "How tall your target's cast bar is. Not inside the frame, where it takes the power bar's place.",
+          disabled = notOwnSize("target") },
+        barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[1],
+        barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[2],
+        fontRow("targetCastbar.media.font", "Target cast bar font", "The spell name and time on your target's cast bar", off("targetCastbar.enabled")),
+        { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
+          desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("target") },
+        { type = "toggle", key = "targetCastbar.slant", label = "Target cast bar angled right end",
+          desc = "Cuts the right end of your target's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("target") },
+        { type = "toggle", key = "targetCastbar.slantLeft", label = "Target cast bar angled left end",
+          desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("target") },
+        flipRow("target", "your target's", notOwnBar("target")),
+        { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
+          desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("target") },
+        strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
+            notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead."),
+    } },
+    castTextCard("target", "Target", "your target's", true),
+}
+local FOCUS_CAST = {
+    { label = "Focus cast bar", items = {
+        { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
+          desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
+        atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode."),
+        nudge("focus", "x"),
+        nudge("focus", "y"),
+        fitRow("focus"),
+        { type = "slider", key = "focusCastbar.width", label = "Focus cast bar width", min = 80, max = 500, step = 1,
+          desc = "How wide your focus's cast bar is. Not inside the frame, or while it matches the frame's width.",
+          disabled = notOwnWidth("focus") },
+        { type = "slider", key = "focusCastbar.height", label = "Focus cast bar height", min = 8, max = 40, step = 1,
+          desc = "How tall your focus's cast bar is. Not inside the frame, where it takes the power bar's place.",
+          disabled = notOwnSize("focus") },
+        barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[1],
+        barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[2],
+        fontRow("focusCastbar.media.font", "Focus cast bar font", "The spell name and time on your focus's cast bar", off("focusCastbar.enabled")),
+        { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
+          desc = "The spell's icon at the end of your focus's cast bar. Not while it sits inside the frame.",
+          disabled = notOwnSize("focus") },
+        { type = "toggle", key = "focusCastbar.slant", label = "Focus cast bar angled right end",
+          desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
+          disabled = notOwnSize("focus") },
+        { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
+          desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
+          disabled = notOwnSize("focus") },
+        flipRow("focus", "your focus's", notOwnSize("focus")),
+        { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
+          desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
+          disabled = notOwnSize("focus") },
+        strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
+            notOwnSize("focus"), " Inside the frame, it draws with the frame instead."),
+    } },
+    castTextCard("focus", "Focus", "your focus's"),
+}
+local PARTY_CAST = {
+    { label = "Party cast bars", items = {
+        { type = "toggle", key = "partyCastbar.enabled", label = "Show party cast bars",
+          desc = "Each party member's casts on their own frame, while they last. They use the target cast bar's colors." },
+        atChoice("party", "Inside the frame it covers the power bar (in the Ribbon style, or with power bars off, it slides out under the frame instead). Under the frame it slides out during a cast: give it room with the party's spacing. Detached, it's a bar you size here, beside each frame."),
+        { type = "dropdown", key = "partyCastbar.spot", label = "Party cast bar side", values = ns.PartyCasts.SPOTS, order = ns.PartyCasts.SPOT_ORDER,
+          desc = "Which side of each party frame a detached cast bar sits on.", disabled = notOwnBar("party") },
+        { type = "slider", key = "partyCastbar.x", label = "Party cast bar left / right", min = -200, max = 200, step = 1, unit = "px",
+          desc = "Moves the detached cast bars sideways from their side.", disabled = notOwnBar("party") },
+        { type = "slider", key = "partyCastbar.y", label = "Party cast bar up / down", min = -100, max = 100, step = 1, unit = "px",
+          desc = "Moves the detached cast bars up or down from their side.", disabled = notOwnBar("party") },
+        { type = "slider", key = "partyCastbar.width", label = "Party cast bar width", min = 40, max = 400, step = 1,
+          desc = "How wide each detached cast bar is. Under the frame it matches the frame's width.",
+          disabled = notOwnBar("party") },
+        { type = "slider", key = "partyCastbar.height", label = "Party cast bar height", min = 6, max = 40, step = 1,
+          desc = "How tall each party cast bar is, inside its border. Not inside the frame, where it takes the power bar's place.",
+          disabled = notOwnSize("party") },
+        barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[1],
+        barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[2],
+        fontRow("partyCastbar.media.font", "Party cast bar font", "The spell name and time on the party's cast bars", off("partyCastbar.enabled")),
+        { type = "toggle", key = "partyCastbar.showIcon", label = "Party cast bar spell icon",
+          desc = "The spell's icon at the end of each detached cast bar.", disabled = notOwnBar("party") },
+        { type = "toggle", key = "partyCastbar.slant", label = "Party cast bar angled end",
+          desc = "Cuts the end of each detached cast bar at an angle. When off, its end is straight.", disabled = notOwnBar("party") },
+        { type = "toggle", key = "partyCastbar.reverseFill", label = "Party cast bar fills right to left",
+          desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
+    } },
+    castTextCard("party", "Party", "each party member's", true),
+}
+
 ns.OPTIONS = { pages = {
     framePage("player", "Player", "Your own frame.",
-        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
+        { castCards = PLAYER_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
           slantDesc = "Cuts the right end at an angle; the bars and an attached cast bar follow it." }),
     framePage("target", "Target", "Mirrors the player frame, with raid markers, the elite crest, and its buffs and debuffs.",
-        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
+        { castCards = TARGET_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
           slantDesc = "Cuts the left end at an angle; the bars follow it." }),
     framePage("focus", "Focus", "The unit you set as focus.",
-        { power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
+        { castCards = FOCUS_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
           auras = FOCUS_AURA_GROUPS }),
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles (Portrait None and Name on the bar). Set how they line up, what shows, and move them as one in unlock mode.",
-        { power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
+        { castCards = PARTY_CAST, power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
           layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it.",
           showDesc = "Turn the party frames on or off. While Use raid frames in a party (Unit Frames > Raid 10) is on, the raid frames show in a party instead and the rows on this page do nothing." }),
@@ -2605,137 +2795,8 @@ ns.OPTIONS = { pages = {
         } },
     } },
 
-    { id = "castbars", label = "Cast Bars", preview = { "castbars", "target", "focus", "party" }, desc = "Spell casts for you, your target, focus and party.", groups = {
-        { label = "Player cast bar", items = {
-            { type = "toggle", key = "playerCastbar.enabled", label = "Show your cast bar",
-              desc = "Replaces the game's own cast bar." },
-            atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Between your frame and the target's it fills the gap, both ends angled like the frames beside it, with the swing timers fanning out under it. Above the frame or on its own it has its own size."),
-            { type = "dropdown", key = "playerCastbar.from", label = "Your cast bar slides out from",
-              values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
-              desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
-              disabled = function(get)
-                  return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
-                      or get("player.powerSlantUnder") == true
-              end },
-            nudge("player", "x"),
-            nudge("player", "y"),
-            { type = "slider", key = "playerCastbar.width", label = "Your cast bar width", min = 80, max = 500, step = 1,
-              desc = "How wide your cast bar is. Not while under the frame or between the frames: there it fills the space it has.", disabled = notMiddleOwn },
-            { type = "slider", key = "playerCastbar.height", label = "Your cast bar height", min = 8, max = 40, step = 1,
-              desc = "How tall your cast bar is.", disabled = off("playerCastbar.enabled") },
-            barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[1],
-            barRows("playerCastbar.media.bar", "your cast bar", "Your cast bar", off("playerCastbar.enabled"))[2],
-            fontRow("playerCastbar.media.font", "Your cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
-            { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
-              desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot, or between the frames.", disabled = notMiddleOwn },
-            { type = "toggle", key = "playerCastbar.slant", label = "Your cast bar angled right end",
-              desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle, and between the frames both ends lean. When off, its ends are straight.",
-              disabled = off("playerCastbar.enabled") },
-            { type = "toggle", key = "playerCastbar.slantLeft", label = "Your cast bar angled left end",
-              desc = "Cuts the left end at an angle, leaning like the target frame's end. Not while under the frame, between the frames or under the personal display.",
-              disabled = function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end },
-            flipRow("player", "your", notMiddleOwn),
-            { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
-              desc = "Your cast bar fills from the right. Not while under the frame or between the frames.", disabled = notMiddleOwn },
-            strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
-                function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
-                " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
-        } },
-        shellCard("playerCastbar", "playerCastbar.enabled", true),
-        castTextCard("player", "Player", "your"),
-        { label = "Target cast bar", items = {
-            { type = "toggle", key = "targetCastbar.enabled", label = "Show the target cast bar",
-              desc = "Your target's casts, while they last." },
-            atChoice("target", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode. Under the frame it slides out during a cast, and the buffs below keep room for it."),
-            nudge("target", "x"),
-            nudge("target", "y"),
-            fitRow("target"),
-            { type = "slider", key = "targetCastbar.width", label = "Target cast bar width", min = 80, max = 500, step = 1,
-              desc = "How wide your target's cast bar is. Not inside the frame, or while it matches the frame's width.",
-              disabled = notOwnWidth("target") },
-            { type = "slider", key = "targetCastbar.height", label = "Target cast bar height", min = 8, max = 40, step = 1,
-              desc = "How tall your target's cast bar is. Not inside the frame, where it takes the power bar's place.",
-              disabled = notOwnSize("target") },
-            barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[1],
-            barRows("targetCastbar.media.bar", "your target's cast bar", "Target cast bar", off("targetCastbar.enabled"))[2],
-            fontRow("targetCastbar.media.font", "Target cast bar font", "The spell name and time on your target's cast bar", off("targetCastbar.enabled")),
-            { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
-              desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
-              disabled = notOwnBar("target") },
-            { type = "toggle", key = "targetCastbar.slant", label = "Target cast bar angled right end",
-              desc = "Cuts the right end of your target's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
-              disabled = notOwnBar("target") },
-            { type = "toggle", key = "targetCastbar.slantLeft", label = "Target cast bar angled left end",
-              desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
-              disabled = notOwnBar("target") },
-            flipRow("target", "your target's", notOwnBar("target")),
-            { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
-              desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
-              disabled = notOwnBar("target") },
-            strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
-                notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead."),
-        } },
-        castTextCard("target", "Target", "your target's", true),
-        { label = "Focus cast bar", items = {
-            { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
-              desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
-            atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode."),
-            nudge("focus", "x"),
-            nudge("focus", "y"),
-            fitRow("focus"),
-            { type = "slider", key = "focusCastbar.width", label = "Focus cast bar width", min = 80, max = 500, step = 1,
-              desc = "How wide your focus's cast bar is. Not inside the frame, or while it matches the frame's width.",
-              disabled = notOwnWidth("focus") },
-            { type = "slider", key = "focusCastbar.height", label = "Focus cast bar height", min = 8, max = 40, step = 1,
-              desc = "How tall your focus's cast bar is. Not inside the frame, where it takes the power bar's place.",
-              disabled = notOwnSize("focus") },
-            barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[1],
-            barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[2],
-            fontRow("focusCastbar.media.font", "Focus cast bar font", "The spell name and time on your focus's cast bar", off("focusCastbar.enabled")),
-            { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
-              desc = "The spell's icon at the end of your focus's cast bar. Not while it sits inside the frame.",
-              disabled = notOwnSize("focus") },
-            { type = "toggle", key = "focusCastbar.slant", label = "Focus cast bar angled right end",
-              desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
-              disabled = notOwnSize("focus") },
-            { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
-              desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
-              disabled = notOwnSize("focus") },
-            flipRow("focus", "your focus's", notOwnSize("focus")),
-            { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
-              desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
-              disabled = notOwnSize("focus") },
-            strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
-                notOwnSize("focus"), " Inside the frame, it draws with the frame instead."),
-        } },
-        castTextCard("focus", "Focus", "your focus's"),
-        { label = "Party cast bars", items = {
-            { type = "toggle", key = "partyCastbar.enabled", label = "Show party cast bars",
-              desc = "Each party member's casts on their own frame, while they last. They use the target cast bar's colors." },
-            atChoice("party", "Inside the frame it covers the power bar (in the Ribbon style, or with power bars off, it slides out under the frame instead). Under the frame it slides out during a cast: give it room with the party's spacing. Detached, it's a bar you size here, beside each frame."),
-            { type = "dropdown", key = "partyCastbar.spot", label = "Party cast bar side", values = ns.PartyCasts.SPOTS, order = ns.PartyCasts.SPOT_ORDER,
-              desc = "Which side of each party frame a detached cast bar sits on.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.x", label = "Party cast bar left / right", min = -200, max = 200, step = 1, unit = "px",
-              desc = "Moves the detached cast bars sideways from their side.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.y", label = "Party cast bar up / down", min = -100, max = 100, step = 1, unit = "px",
-              desc = "Moves the detached cast bars up or down from their side.", disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.width", label = "Party cast bar width", min = 40, max = 400, step = 1,
-              desc = "How wide each detached cast bar is. Under the frame it matches the frame's width.",
-              disabled = notOwnBar("party") },
-            { type = "slider", key = "partyCastbar.height", label = "Party cast bar height", min = 6, max = 40, step = 1,
-              desc = "How tall each party cast bar is, inside its border. Not inside the frame, where it takes the power bar's place.",
-              disabled = notOwnSize("party") },
-            barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[1],
-            barRows("partyCastbar.media.bar", "the party's cast bars", "Party cast bar", off("partyCastbar.enabled"))[2],
-            fontRow("partyCastbar.media.font", "Party cast bar font", "The spell name and time on the party's cast bars", off("partyCastbar.enabled")),
-            { type = "toggle", key = "partyCastbar.showIcon", label = "Party cast bar spell icon",
-              desc = "The spell's icon at the end of each detached cast bar.", disabled = notOwnBar("party") },
-            { type = "toggle", key = "partyCastbar.slant", label = "Party cast bar angled end",
-              desc = "Cuts the end of each detached cast bar at an angle. When off, its end is straight.", disabled = notOwnBar("party") },
-            { type = "toggle", key = "partyCastbar.reverseFill", label = "Party cast bar fills right to left",
-              desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
-        } },
-        castTextCard("party", "Party", "each party member's", true),
+    { id = "castbars", label = "Cast Bars", preview = { "castbars", "target", "focus", "party" },
+      sample = function(parent) return ns.PageSample.NewCasts(parent) end, desc = "Animation, fill, colors and interrupts for every cast bar. Each bar's own settings are on its frame's page.", groups = {
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
             { id = "player", label = "Your cast bar", base = "playerCastbar.barFx.", kind = "cast", gate = off("playerCastbar.enabled") },
             { id = "target", label = "Target cast bar", base = "targetCastbar.barFx.", kind = "cast", gate = off("targetCastbar.enabled") },
