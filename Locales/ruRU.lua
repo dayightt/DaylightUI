@@ -23,6 +23,7 @@ L["How every cast bar (yours, target's, focus's and party's) is filled: one colo
 L["How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Unit Frames > Look."] = "Насколько наклонен скошенный край, включая пристыкованные полосы. При 0 используется угол наклона из Рамки портретов > Вид."
 L["Item and spell lines"] = "Строки предметов и заклинаний"
 L["Marks"] = "Метки"
+L["Only the party leader can do this."] = "Это может сделать только лидер группы."
 L["Opens the Gradients page, where the Casts pairs are."] = "Открывает страницу Градиенты, где находятся пары для заклинаний."
 L["Opens the Gradients page, where the Swing timers pairs are."] = "Открывает страницу Градиенты, где находятся пары для таймеров ударов."
 L["Player and creature lines"] = "Строки игроков и существ"

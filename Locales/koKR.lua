@@ -23,6 +23,7 @@ L["How every cast bar (yours, target's, focus's and party's) is filled: one colo
 L["How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Unit Frames > Look."] = "기울어진 끝이 얼마나 기울지 정합니다(붙은 바 포함). 0이면 개체창 > 모양의 기울기 각도를 따릅니다."
 L["Item and spell lines"] = "아이템 및 주문 줄"
 L["Marks"] = "표시"
+L["Only the party leader can do this."] = "파티장만 할 수 있습니다."
 L["Opens the Gradients page, where the Casts pairs are."] = "시전 색 쌍이 있는 그라데이션 페이지를 엽니다."
 L["Opens the Gradients page, where the Swing timers pairs are."] = "평타 타이머 색 쌍이 있는 그라데이션 페이지를 엽니다."
 L["Player and creature lines"] = "플레이어 및 생물 줄"
