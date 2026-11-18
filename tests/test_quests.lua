@@ -1486,36 +1486,71 @@ local function fadeInCombat()
     DaylightUI:Set("Quests", "fade.delay", 0)
 end
 
--- Seen in game: the salve for the sickly gazelles puts the player in combat for
--- about 30 s, and an "In combat" fade hid the whole tracker until it ended.
-T.test("quests items: a fight the item's use starts keeps the tracker shown until it ends", function()
+-- Seen in game: the salve for the sickly gazelles puts the player in combat with
+-- the gazelle for about 30 s, and an "In combat" fade hid the whole tracker until
+-- it ended.
+local GAZELLE = "Sickly Gazelle"
+local SALVE_SPELL = 4321
+
+-- The item's spell, cast on target (UNIT_SPELLCAST_SENT names it).
+local function useItem(target)
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", target, "Cast-1", SALVE_SPELL)
+end
+
+-- A unit in a fight with the player (in combat, the player on its threat list).
+local function foe(name) return { name = name, combat = true, threat = 0 } end
+
+local function itemWorld(units)
     local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
+    local spell = C_Item.GetItemSpell
+    C_Item.GetItemSpell = function(id) if id == 5862 then return "Salve", SALVE_SPELL end end
+    stub.SetUnits(units)
     fadeInCombat()
+    return Tr, ns, function() C_Item.GetItemSpell = spell end
+end
+
+T.test("quests items: fighting what the item was used on keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
     T.eq(faded(), 1, "out of combat: shown")
-    local btn = ns.Items.buttons[1]
-    btn:GetScript("PostClick")(btn, "LeftButton")
-    stub.Advance(1)
+    useItem(GAZELLE)
     stub.EnterCombat()
-    stub.Advance(ns.Items.USE_WAKE + 20)
-    T.eq(faded(), 1, "the use's own fight: still shown")
+    T.eq(faded(), 1, "the gazelle's fight: still shown")
     stub.LeaveCombat()
     T.eq(faded(), 1, "after it")
     stub.EnterCombat()
-    T.eq(faded(), 0, "the next fight fades it as usual")
+    T.eq(faded(), 0, "the next fight, without a use: fades as usual")
     stub.LeaveCombat()
+    done()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("quests items: a fight long after a use still fades the tracker", function()
-    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
-    fadeInCombat()
-    local btn = ns.Items.buttons[1]
-    btn:GetScript("PostClick")(btn, "LeftButton")
-    stub.Advance(ns.Items.USE_WAKE + 1)
-    T.eq(ns.Items.Awake(), false, "a use with no fight after it is forgotten")
+T.test("quests items: something else joining the fight fades the tracker", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 1)
+    stub.units.nameplate1 = foe("Kolkar Bloodcharger")
+    T.eq(faded(), 0, "a Kolkar attacks: a real fight")
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: a fight with something other than what the item was used on fades it", function()
+    local Tr, ns, done = itemWorld({ target = foe("Kolkar Bloodcharger") })
+    useItem(GAZELLE)
     stub.EnterCombat()
     T.eq(faded(), 0)
     stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: another spell's cast doesn't count as the item's use", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", GAZELLE, "Cast-2", 133)
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+    done()
 end)
 
 local function click(Tr, key, button)

@@ -18,7 +18,7 @@ Items.SIZE = 24
 Items.GAP = 10              -- between a button and the list
 Items.RANGE_TICK = 0.2
 Items.OUT_OF_RANGE = { 1, 0.35, 0.35 }
-Items.USE_WAKE = 5          -- seconds after a use in which a fight starting counts as the use's own
+Items.PLATES = 40           -- nameplate units checked for who you are fighting
 
 local buttons, want = {}, {}
 Items.buttons = buttons
@@ -70,29 +70,67 @@ local function make(id)
         end
     end)
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-    b:SetScript("PostClick", function() Items.Used() end)
     return b
 end
 
 -- Some quest items put you in combat with what they're used on (the salve on a
 -- sickly gazelle), and an "In combat" fade would then hide the tracker being used.
--- A use keeps it shown until that fight ends.
-local usedAt, usedFight = nil, false
+-- The name of what a quest item was last used on keeps it shown while everything
+-- fighting you has that name. A fight with anything else fades it as usual.
+local usedOn = nil
 
-function Items.Used()
-    usedAt = GetTime()
-    if InCombatLockdown() then usedFight = true end
+local function plain(v) return v ~= nil and not secret(v) end
+
+local function itemSpell(link)
+    local id = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+    if not (id and C_Item and C_Item.GetItemSpell) then return nil end
+    local ok, _, spell = pcall(C_Item.GetItemSpell, id)
+    return ok and plain(spell) and spell or nil
+end
+
+-- A unit in a fight with you: in combat, with you on its threat list.
+local function foe(unit)
+    if UnitExists(unit) ~= true then return false end
+    local ok, fighting = pcall(UnitAffectingCombat, unit)
+    if not (ok and plain(fighting) and fighting == true) then return false end
+    local okT, status = pcall(UnitThreatSituation, "player", unit)
+    return okT and plain(status) and type(status) == "number"
+end
+
+-- nil: not fighting you. Otherwise whether its name is the one the item was used on
+-- (a name that can't be read counts as another).
+local function sameFoe(unit)
+    if not foe(unit) then return nil end
+    local ok, name = pcall(UnitName, unit)
+    return ok and plain(name) and name == usedOn
 end
 
 function Items.Awake()
-    if usedFight then return true end
-    return usedAt ~= nil and GetTime() - usedAt < Items.USE_WAKE
+    -- Fade.fighting: PLAYER_REGEN_DISABLED, where the fade checks first, comes before the lockdown.
+    if not usedOn or not (InCombatLockdown() or (DUI.Fade and DUI.Fade.fighting)) then return false end
+    local seen = false
+    local same = sameFoe("target")
+    if same == false then return false end
+    seen = seen or same == true
+    for i = 1, Items.PLATES do
+        same = sameFoe("nameplate" .. i)
+        if same == false then return false end
+        seen = seen or same == true
+    end
+    return seen
 end
 
-DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-    if usedAt and GetTime() - usedAt < Items.USE_WAKE then usedFight = true end
+DUI.RegisterEvent("UNIT_SPELLCAST_SENT", function(_, unit, target, _, spellID)
+    if not (plain(unit) and unit == "player" and plain(spellID)) then return end
+    for id in pairs(want) do
+        local btn = buttons[id]
+        if btn and itemSpell(btn.link) == spellID then
+            if plain(target) and type(target) == "string" and target ~= "" then usedOn = target end
+            return
+        end
+    end
 end)
-DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() usedAt, usedFight = nil, false end)
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() usedOn = nil end)
 
 function Items.Any()
     for id in pairs(want) do if buttons[id] and buttons[id]:IsShown() then return true end end
