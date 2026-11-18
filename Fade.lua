@@ -1088,6 +1088,9 @@ function Fade.Welcome()
         welcome:SetSize(600, W.size * 2)
         welcome.text = Style.Text(welcome, W.size, "CENTER")
         welcome.text:SetPoint("CENTER")
+        -- At this size the drop shadow doubles the outline on the lower right
+        -- and smudges the letters, so the outline alone frames them.
+        welcome.text:SetShadowOffset(0, 0)
         Fade.welcome = welcome
     end
     local name = DUI.UnitName("player", "player")
