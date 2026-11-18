@@ -51,6 +51,7 @@ L["The unit's level by the bar; ?? for one far above you, + for an elite."] = "�
 L["This frame's own health color, so it can look unlike the others. Same as the Look page follows the color every frame shares."] = "Собственный цвет здоровья этой рамки, чтобы она отличалась от других. Как на странице Вид — общий цвет всех рамок."
 L["This frame's own name color. Same as the Look page follows the name color every frame shares."] = "Собственный цвет имени этой рамки. Как на странице Вид — общий цвет имен всех рамок."
 L["This frame's own power color. Same as the Look page follows the color every frame shares."] = "Собственный цвет ресурса этой рамки. Как на странице Вид — общий цвет всех рамок."
+L["To spend"] = "Можно потратить"
 L["Used when the combo points color on Unit Frames > Combo Points & Range is a gradient: All points fills every pip with one pair, Point 1 to 5 give each pip its own."] = "Используется, когда цвет приемов серии в Рамки портретов > Приемы серии и дальность — градиент: Все приемы заполняет каждое деление одной парой, Прием 1–5 дают каждому делению свою."
 L["Where the role, marker and crown sit on a tile, and the ready check and summon icons."] = "Где на плитке находятся роль, метка и корона, а также значки проверки готовности и призыва."
 L["Your BattleTag. Press Ctrl+C to copy it."] = "Ваш BattleTag. Нажмите Ctrl+C, чтобы скопировать."

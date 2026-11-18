@@ -259,24 +259,6 @@ T.test("legacy challenges: a click opens its steps; the track switch tracks it",
     clean()
 end)
 
-T.test("legacy challenges: a row with nothing more to show does not open", function()
-    local ns = load()
-    LW.state.untrackable = { [1103] = true }   -- no track switch to show either
-    open(ns, "challenges")
-    local C = ns.Challenges
-    C.Pick(11)
-    frame(2)
-    local function row(name)
-        for _, b in ipairs(shownOf(C.page.list, "ch")) do if b.ch.name == name then return b end end
-    end
-    local plain = row("Ice Is Nice")
-    T.falsy(plain.expandable, "no steps, nothing to track, one line: nothing to open")
-    plain:GetScript("OnClick")(plain)
-    T.isnil(C.opened, "a click opens nothing")
-    T.truthy(row("Portal Master").expandable, "steps: it opens")
-    clean()
-end)
-
 T.test("legacy challenges: one the game can't track has no track switch", function()
     local ns = load()
     LW.state.untrackable = { [1102] = true }
@@ -390,6 +372,21 @@ T.test("legacy trees: the cap is a short line by the number, its sentence the hi
     _G.LEGACY_POINTS_AVAILABLE, _G.LEGACY_POINTS_SEASONAL_CAP = nil, nil
     T.truthy(page.leftBox:GetScript("OnEnter"), "hover shows it")
     clean()
+end)
+
+T.test("legacy trees: the points label comes out of the game's sentence wherever the number is", function()
+    local ns = load()
+    local S = ns.Trees.SpendWord
+    local fallback = DaylightUI.L["To spend"]
+    T.eq(S("Puntos disponibles: %s"), "Puntos disponibles", "number last")
+    T.eq(S("%s Punkte verfügbar"), "Punkte verfügbar", "number first")
+    T.eq(S("Verfügbar: %d"), "Verfügbar", "a %d")
+    T.eq(S("|cffffffff%s|r pts"), "pts", "color codes out")
+    T.eq(S("可用点数：%s"), "可用点数", "the full-width colon")
+    T.eq(S("Disponibles: %s puntos"), fallback, "words on both sides: our own")
+    T.eq(S("%s"), fallback, "nothing but the number: our own")
+    T.eq(S("Sin numero"), fallback, "no number in it: our own")
+    T.eq(S(nil), fallback, "a client without it: our own")
 end)
 
 T.test("legacy challenges: the filter is a drop-down with the game's words", function()

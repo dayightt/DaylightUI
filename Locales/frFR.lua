@@ -51,6 +51,7 @@ L["The unit's level by the bar; ?? for one far above you, + for an elite."] = "L
 L["This frame's own health color, so it can look unlike the others. Same as the Look page follows the color every frame shares."] = "La couleur de vie propre à ce cadre, pour qu'il diffère des autres. Comme la page Aspect suit la couleur commune à tous les cadres."
 L["This frame's own name color. Same as the Look page follows the name color every frame shares."] = "La couleur de nom propre à ce cadre. Comme la page Aspect suit la couleur de nom commune à tous les cadres."
 L["This frame's own power color. Same as the Look page follows the color every frame shares."] = "La couleur de ressource propre à ce cadre. Comme la page Aspect suit la couleur commune à tous les cadres."
+L["To spend"] = "À dépenser"
 L["Used when the combo points color on Unit Frames > Combo Points & Range is a gradient: All points fills every pip with one pair, Point 1 to 5 give each pip its own."] = "Utilisé quand la couleur des points de combo dans Cadres d'unité > Points de combo et portée est un dégradé : Tous les points remplit chaque point avec une paire, Point 1 à 5 donnent à chaque point la sienne."
 L["Where the role, marker and crown sit on a tile, and the ready check and summon icons."] = "Où se placent le rôle, la marque et la couronne sur une case, ainsi que les icônes d'appel et d'invocation."
 L["Your BattleTag. Press Ctrl+C to copy it."] = "Votre BattleTag. Appuyez sur Ctrl+C pour le copier."

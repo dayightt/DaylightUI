@@ -36,14 +36,26 @@ local function W() return DUI.Widgets end
 local function Data() return ns.Data end
 local function Talents() return DUI.Book.Talents end
 local function TD() return DUI.Book.TalentData end
--- The game's own words for the points card: "Puntos disponibles: %s" without its
--- number as the label, and the season cap sentence as the hint.
-function Trees.SpendWord()
-    local g = _G.LEGACY_POINTS_AVAILABLE
+-- The label of the points card from the game's own sentence ("Puntos disponibles: %s"), without its
+-- number. The number can come last, first, or be a %d, and the sentence can carry color codes:
+-- whichever side of it has words is the label. With words on both sides there is no clean label
+-- to cut out, so that one case keeps our own "To spend" (translated in every locale).
+local FULLWIDTH_COLON = string.char(239, 188, 154)
+local function trimLabel(s)
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    s = s:gsub("^[%s:·,]+", ""):gsub("[%s:·,]+$", "")
+    s = s:gsub("^" .. FULLWIDTH_COLON, ""):gsub(FULLWIDTH_COLON .. "$", "")
+    return (s:gsub("^[%s:·,]+", ""):gsub("[%s:·,]+$", ""))
+end
+function Trees.SpendWord(g)
+    if g == nil then g = _G.LEGACY_POINTS_AVAILABLE end
     if type(g) == "string" then
-        local word = g:gsub("%%s%s*$", ""):gsub("[%s:]+$", "")
-        if word:sub(-3) == string.char(239, 188, 154) then word = word:sub(1, -4) end
-        if word ~= "" and word ~= g then return word end
+        local a, b = g:match("^(.-)%%%d*%$?[sd](.*)$")
+        if a then
+            a, b = trimLabel(a), trimLabel(b)
+            if a == "" and b ~= "" then return b end
+            if b == "" and a ~= "" then return a end
+        end
     end
     return L["To spend"]
 end
@@ -362,15 +374,7 @@ function Trees.Build(page)
     left:SetHeight(Trees.LEFT_H - 28)
     left:EnableMouse(true)
     page.leftBox = left
-    left.outline = left:CreateTexture(nil, "BACKGROUND", nil, -2)
-    left.outline:SetAllPoints(left)
-    left.outline:SetTexture(WHITE)
-    left.outline:SetVertexColor(1, 1, 1, 0.08)
-    left.fill = left:CreateTexture(nil, "BACKGROUND", nil, -1)
-    left.fill:SetPoint("TOPLEFT", left, "TOPLEFT", 1, -1)
-    left.fill:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -1, 1)
-    left.fill:SetTexture(WHITE)
-    left.fill:SetVertexColor(0.07, 0.07, 0.08, 1)
+    Style.Shell(left, {})   -- like the other cards: it follows the look settings
     page.leftLabel = Style.Text(left, Style.SIZE.small, "LEFT")
     page.leftLabel:SetPoint("TOPLEFT", left, "TOPLEFT", 10, -8)
     page.leftLabel:SetPoint("RIGHT", left, "RIGHT", -10, 0)

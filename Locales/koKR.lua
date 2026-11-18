@@ -51,6 +51,7 @@ L["The unit's level by the bar; ?? for one far above you, + for an elite."] = "�
 L["This frame's own health color, so it can look unlike the others. Same as the Look page follows the color every frame shares."] = "다른 프레임과 다르게 보이도록 이 프레임 자체의 생명력 색을 정합니다. 모양 페이지와 같게는 모든 프레임이 함께 쓰는 색을 따릅니다."
 L["This frame's own name color. Same as the Look page follows the name color every frame shares."] = "이 프레임 자체의 이름 색입니다. 모양 페이지와 같게는 모든 프레임이 함께 쓰는 이름 색을 따릅니다."
 L["This frame's own power color. Same as the Look page follows the color every frame shares."] = "이 프레임 자체의 자원 색입니다. 모양 페이지와 같게는 모든 프레임이 함께 쓰는 색을 따릅니다."
+L["To spend"] = "사용할 포인트"
 L["Used when the combo points color on Unit Frames > Combo Points & Range is a gradient: All points fills every pip with one pair, Point 1 to 5 give each pip its own."] = "개체창 > 연계 점수 및 사거리의 연계 점수 색이 그라데이션일 때 쓰입니다. 모든 점수는 모든 칸을 한 쌍으로 채우고, 점수 1~5는 칸마다 따로 정합니다."
 L["Where the role, marker and crown sit on a tile, and the ready check and summon icons."] = "타일에서 역할, 징표, 왕관이 놓이는 위치와 전투 준비 확인 및 소환 아이콘의 위치입니다."
 L["Your BattleTag. Press Ctrl+C to copy it."] = "내 배틀태그입니다. Ctrl+C를 눌러 복사하세요."

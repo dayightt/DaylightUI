@@ -183,13 +183,12 @@ local function makeRow(parent)
     b.trackText:SetPoint("LEFT", b.track, "RIGHT", 8, 0)
     b.trackText:SetText(TRACK_ACHIEVEMENT or L["Track"])
     Style.InkText(b.trackText, "LABEL")
-    b:SetScript("OnEnter", function(self) if self.expandable ~= false then Win.Parts.Light(self.hi, true) end end)
+    b:SetScript("OnEnter", function(self) Win.Parts.Light(self.hi, true) end)
     b:SetScript("OnLeave", function(self) Win.Parts.Light(self.hi, false) end)
     b:SetScript("OnClick", function(self)
         local c = self.ch
         if not c then return end
         if IsModifiedClick and IsModifiedClick("CHATLINK") then return Data().Link(c.id) end
-        if not self.expandable then return end
         sound("click")
         Challenges.Open(Challenges.opened ~= c.id and c.id or nil)
     end)
@@ -250,22 +249,8 @@ local function measure(page, c, w, open)
     return math.max(Challenges.ROW, math.floor(h + 0.5)), steps, dh
 end
 
--- Whether opening a challenge shows anything more: steps, a track switch, or a
--- description the closed row cuts to one line. One with none stays as it is.
-function Challenges.HasMore(page, c, w)
-    if #Data().Steps(c.id) > 0 then return true end
-    if not c.done and Data().Trackable(c.id) then return true end
-    local m = page.measure
-    m:SetWidth(w - (8 + Challenges.ICON + 10) - 70)
-    m:SetText(c.desc)
-    local h = m:GetStringHeight()
-    return type(h) == "number" and h > 18
-end
-
 local function fillRow(b, c, open, steps, dh, w)
     b.ch = c
-    b.expandable = open or Challenges.HasMore(Challenges.page, c, w)
-    if not b.expandable then Win.Parts.Light(b.hi, false) end
     local done = c.done
     b.icon:SetTexture(c.icon or 134400)
     b.icon:SetDesaturated(not done and not open)
