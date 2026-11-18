@@ -236,8 +236,21 @@ local function always() return true end
 local function isBuff(_, id, p) return ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, p) ~= nil end
 -- Every game spell can pick what it shows, a buff known yet or not: the buff of one
 -- picked blind is watched by the spell's own id until a cast teaches the real one.
+-- A totem with no buff (CdmCustom.TOTEMS) picks Totem or Cooldown instead.
+-- Both from the game's list or Daylight UI's own.
+local function totemSpell(_, id)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.TotemNoBuff(Own.SpellOf(id)) ~= nil
+end
+-- Any other totem picks Totem and buff, Buff only or Cooldown.
+local function buffTotem(_, id)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
+        and C.TotemNoBuff(Own.SpellOf(id)) == nil
+end
 local function gameSpell(_, id)
     return ns.CdmOwn ~= nil and not (ns.CdmCustom and ns.CdmCustom.Is(id)) and ns.CdmOwn.Entry(id) ~= nil
+        and not totemSpell(_, id) and not buffTotem(_, id)
 end
 -- A cooldown, or a buff tracked with its cooldown (matches the card's header).
 local function isCooldown(_, id, p)
@@ -247,7 +260,11 @@ local function isCooldown(_, id, p)
     return not (known and known.aura)
 end
 -- Shows a buff or debuff, alone or with its cooldown, so the missing rows apply.
-local function hasBuff(set, id, p) return isBuff(set, id, p) or not isCooldown(set, id, p) end
+-- A totem with no buff (Track "totem") has none to show.
+local function hasBuff(set, id, p)
+    if ns.CdmOwn and ns.CdmOwn.Track(id, p) == "totem" then return false end
+    return isBuff(set, id, p) or not isCooldown(set, id, p)
+end
 -- Shows only its buff. That's the one kind with anything to show or hide while the
 -- buff is down; the others show their cooldown.
 local function buffOnly(set, id, p) return hasBuff(set, id, p) and not isCooldown(set, id, p) end
@@ -295,7 +312,11 @@ local BUFF_DOWN = { type = "dropdown", key = "cdm.card.buffDown", label = "Visib
     end }
 -- A custom spell with both a cooldown and a buff (Bloodrage) shows one of them
 -- (CdmCustom.Track). The game's spells use Track above.
-local function canTrack(_, id) return ns.CdmCustom ~= nil and ns.CdmCustom.CanTrack(id) == true end
+-- Totems pick from their own rows (TOTEM_TRACK, BUFF_TOTEM_TRACK).
+local function canTrack(_, id)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    return C ~= nil and C.CanTrack(id) == true and not (Own and C.Totem(Own.SpellOf(id)))
+end
 local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What it shows",
     values = { both = "Both", cooldown = "Cooldown", aura = "Buff only" }, order = { "both", "cooldown", "aura" },
     desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up.",
@@ -308,7 +329,7 @@ local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What 
         if id and Data.SetTrack(set, id, v) then changed() end
     end }
 -- The header's word for what the piece shows.
-local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], buff = L["Buff or debuff"] }
+local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], buff = L["Buff or debuff"], totem = L["Totem"] }
 
 -- Track: what a buff spell shows (CdmOwn.Track; unset means its guess).
 local function track(item)
@@ -332,6 +353,25 @@ local function track(item)
         if Data.SetSpellValue(set, id, "track", v) then changed() end
     end
     return item
+end
+-- A totem with no buff: its time while it stands, or the game's own icon.
+local TOTEM_TRACK = track({ type = "dropdown", label = "What it shows",
+    values = { totem = "Totem", cooldown = "Cooldown" }, order = { "totem", "cooldown" },
+    desc = "Totem shows the totem's time while it stands. Cooldown shows the game's own icon." })
+TOTEM_TRACK.key = "cdm.card.totemTrack"
+-- A totem with a buff: the totem's time with the buff over it, the buff alone,
+-- or the game's own icon. Its buff is known after the first cast, so until then
+-- Totem and buff shows the totem's time alone.
+local BUFF_TOTEM_TRACK = track({ type = "dropdown", label = "What it shows",
+    values = { both = "Totem and buff", buff = "Buff only", cooldown = "Cooldown" }, order = { "both", "buff", "cooldown" },
+    desc = "Totem and buff shows the totem's time while it stands, grayed and dimmed while you're out of range of its buff. Buff only shows it just while the buff is on you. Cooldown shows the game's own icon." })
+BUFF_TOTEM_TRACK.key = "cdm.card.buffTotemTrack"
+do
+    local get = BUFF_TOTEM_TRACK.get
+    BUFF_TOTEM_TRACK.get = function()
+        local t = get()
+        return (t == "totem" or t == "aura") and "both" or t
+    end
 end
 -- A sound row: the game's Cooldown Manager list plus more (Sound.AlertChoices).
 -- Plays when the mouse rests on a row and again when it's picked.
@@ -552,6 +592,8 @@ Card.ROWS = {
             values = { both = "Both", cooldown = "Cooldown", buff = "Buff only" },
             order = { "both", "cooldown", "buff" },
             desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up." }) },
+        { show = totemSpell, item = TOTEM_TRACK },
+        { show = buffTotem, item = BUFF_TOTEM_TRACK },
         { show = canTrack, item = OWN_TRACK },
         { head = L["When ready"], show = isCooldown },
         { show = isCooldown, item = spell("onReady", { type = "dropdown", label = "Visibility",
@@ -1110,7 +1152,9 @@ function Card.Draw()
     f.name:SetText(E.SpellName(id) or L["Unknown spell"])
     local known = ns.CdmOwn and ns.CdmOwn.Entry(id)
     local t = ns.CdmOwn and ns.CdmOwn.Track(id, p)
-    f.kind:SetText(t and KIND[t] or known and known.aura and L["Buff or debuff"] or L["Cooldown"])
+    local kind = t and KIND[t]
+    if t == "both" and buffTotem(nil, id) then kind = L["Totem and buff"] end
+    f.kind:SetText(kind or known and known.aura and L["Buff or debuff"] or L["Cooldown"])
     f.asIcon.SetOn(p.shape ~= "bar")
     f.asBar.SetOn(p.shape == "bar")
     for t, b in pairs(ui.tabs) do b.Pick(t == tab, f:IsShown()) end

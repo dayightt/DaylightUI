@@ -960,11 +960,51 @@ local function blindShot(item)
     return ok and ns.Ping.ShotBlind(info)
 end
 
+-- A totem standing: true, false, or nil when the game won't say. Only for the
+-- totems with no buff (CdmCustom.TOTEMS); other totems keep their own cooldown.
+-- Daylight UI's own totem icons and bars (item.totem) ask CdmCustom.TotemUp. The
+-- game's item keeps an emptied slot as its totem (the client reports an empty slot
+-- as having one), so its slot is asked whether it still returns a duration, which
+-- is never secret. In a fight the item's totem data is a secret table: no telling.
+local totemCheck = false
+local function totemUp(item)
+    if type(GetTotemDuration) ~= "function" then return false end
+    local C = ns.CdmCustom
+    if item.totem then
+        local d = C and C.TotemUp(Fx.SpellOf(item))
+        if type(d) == "nil" or d == false then return false end
+    else
+        if not (C and C.TotemNoBuff(Fx.SpellOf(item))) then return false end
+        if type(item.GetTotemData) ~= "function" then return false end
+        local ok, totem = pcall(item.GetTotemData, item)
+        if not ok or type(totem) == "nil" then return false end
+        if secret(totem) then return nil end
+        local slot = type(totem) == "table" and totem.slot
+        if type(slot) ~= "number" or secret(slot) then return false end
+        local okD, d = pcall(GetTotemDuration, slot)
+        if not okD or type(d) == "nil" then return false end
+    end
+    -- No event marks a totem running out, so look again while one stands.
+    if not totemCheck then
+        totemCheck = true
+        C_Timer.After(Fx.TOTEM_CHECK, function()
+            totemCheck = false
+            Fx.Soon(false)
+        end)
+    end
+    return true
+end
+Fx.TOTEM_CHECK = 0.5   -- seconds between looks while a totem stands
+
 -- On cooldown, not just the global cooldown? nil when the game won't say.
 -- ending = asked as the item's cooldown frame ran out.
 function Fx.OnCooldown(item, ending)
     local C = ns.CdmCustom
     if C and C.ItemOf(item.cooldownID) then return (C.ItemCooldown(item.cooldownID)) end
+    -- A standing totem counts as its cooldown, as the game's own icon times it.
+    -- So When ready Hide shows a totem only while it stands.
+    local up = totemUp(item)
+    if up ~= false or item.totem then return up end
     local sid = Fx.SpellOf(item)
     if not sid or type(C_Spell) ~= "table" then return nil end
     if type(C_Spell.GetSpellCharges) == "function" then
@@ -1142,6 +1182,9 @@ function Fx.Gone(item) return gone[item] ~= nil end
 -- Gone because its buff is up (Buff up Hide). It gives up its spot even with Keep
 -- its spot on, and keeps tracking up or down while closed (CdmRows).
 function Fx.GoneUp(item) return gone[item] == "up" end
+-- Gone because it's left out of the form you're in. Keep its spot is about missing
+-- buffs, so this one gives its spot up too.
+function Fx.GoneForm(item) return gone[item] == "form" end
 
 -- Fade / Hide on cooldown or while ready. Alpha is set here; Hide's spot is handled
 -- by CdmRows (Fx.Gone).
@@ -1166,7 +1209,8 @@ local function applyAlpha(item)
     local isGone = nil
     if not away[item] then
         if hideUp then isGone = "up"
-        elseif (mode == "hide" and not buffOnly[item]) or outOfForm then isGone = true end
+        elseif outOfForm then isGone = "form"
+        elseif mode == "hide" and not buffOnly[item] then isGone = true end
     end
     if gone[item] ~= isGone then
         gone[item] = isGone
@@ -1450,6 +1494,8 @@ DUI.RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED", procSoon)
 
 DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", cooldownSoon)
 DUI.RegisterEvent("SPELL_UPDATE_CHARGES", cooldownSoon)
+-- A totem going down or up: the game's icon times it (Fx.OnCooldown).
+DUI.RegisterEvent("PLAYER_TOTEM_UPDATE", cooldownSoon)
 -- Items added by ID (CdmCustom): their cooldown and their bag count, which shows on
 -- Daylight UI's icons and bars (none left grays them).
 DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", cooldownSoon)

@@ -176,19 +176,20 @@ function GetMinimapShape() return Map.Round() and "ROUND" or "SQUARE" end
 -- The data texts' clock (DataTexts.lua loads after this file: read when
 -- the clock is drawn, never at load).
 local function readClock(useServer) return ns.DataTexts.ReadClock(useServer) end
-local function formatClock(h, m, twentyFour) return ns.DataTexts.FormatClock(h, m, twentyFour) end
+local function formatClock(h, m, twentyFour, s) return ns.DataTexts.FormatClock(h, m, twentyFour, s) end
 
 local function clockOnEnter(self)
     local cfg = Map.cfg and Map.cfg.clock
     if not cfg then return end
     GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-    local lh, lm = readClock(false)
+    local lh, lm, ls = readClock(false)
     local sh, sm = readClock(true)
+    if not cfg.seconds then ls = nil end
     local Tips = DUI.Tips
     Tips.Clear()
     Tips.Title(L["Time"])
-    Tips.Line(L["Local"], formatClock(lh, lm, cfg.twentyFour))
-    Tips.Line(L["Server"], formatClock(sh, sm, cfg.twentyFour))
+    Tips.Line(L["Local"], formatClock(lh, lm, cfg.twentyFour, ls))
+    Tips.Line(L["Server"], formatClock(sh, sm, cfg.twentyFour, ls))
     Tips.Flush(GameTooltip)
     GameTooltip:Show()
 end
@@ -211,7 +212,7 @@ local function ensureClock(mm)
 end
 
 -- Redraws the shown time; started on a light ticker once the map's up.
--- Written only when the minute (or the 12/24-hour choice) has changed.
+-- Written only when the shown time (or the 12/24-hour choice) has changed.
 function Map.UpdateClock()
     local f = Map.clock
     local cfg = Map.cfg and Map.cfg.clock
@@ -221,12 +222,13 @@ function Map.UpdateClock()
         f.h = nil
         return
     end
-    local h, m = readClock(cfg.useServer)
+    local h, m, s = readClock(cfg.useServer)
+    if not cfg.seconds then s = nil end
     local twentyFour = cfg.twentyFour
-    if f.h ~= nil and h == f.h and m == f.m and twentyFour == f.twentyFour then return end
-    f.h, f.m, f.twentyFour = h, m, twentyFour
+    if f.h ~= nil and h == f.h and m == f.m and s == f.s and twentyFour == f.twentyFour then return end
+    f.h, f.m, f.s, f.twentyFour = h, m, s, twentyFour
     f:Show()
-    f.text:SetText(formatClock(h, m, twentyFour))
+    f.text:SetText(formatClock(h, m, twentyFour, s))
 end
 
 -- ---------------------------------------------------------------------
@@ -490,7 +492,7 @@ function Map.PlaceBottom(mm)
     local clock, fps = Map.clock, Map.fps
     if not (clock and fps) then return end
     local cfg = Map.cfg or {}
-    sizeText(clock, cfg.clock, 70)
+    sizeText(clock, cfg.clock, cfg.clock and cfg.clock.seconds and 90 or 70)
     sizeText(fps, cfg.fps, 50)
     local showClock = cfg.clock and cfg.clock.enabled
     local showFps = cfg.fps and cfg.fps.enabled

@@ -47,6 +47,13 @@ Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
 
 local list = {}
 
+-- Every write Daylight UI makes to the game's panel layout goes through here,
+-- so all of them can be found and changed in one place.
+function Win.PanelAttr(f, key, value)
+    if type(SetUIPanelAttribute) ~= "function" then return end
+    pcall(SetUIPanelAttribute, f, key, value)
+end
+
 local function frameOf(def, kind)
     local get = def.frames[kind]
     local f = get and get()
@@ -58,12 +65,12 @@ end
 -- In combat this is blocked (ADDON_ACTION_BLOCKED on SetAttributeNoHandler,
 -- which pcall doesn't catch), so it waits until after combat.
 local function writeWidth(def, f)
-    if not def.width or type(SetUIPanelAttribute) ~= "function" then return end
+    if not def.width then return end
     if InCombatLockdown() then
         DUI.AfterCombat(function() Follow.WriteWidth(def) end, "follow:width:" .. def.key)
         return
     end
-    pcall(SetUIPanelAttribute, f, "width", math.floor(def.width() + Follow.GAP + 0.5))
+    Win.PanelAttr(f, "width", math.floor(def.width() + Follow.GAP + 0.5))
 end
 
 -- Restore the game's own panel width (from UIPanelWindows, or nil for the
@@ -72,9 +79,9 @@ local function giveBack(def, kind, f)
     f:SetParent(UIParent)
     def.parked[kind] = nil
     if DUI.Pad then DUI.Pad.Remember(f) end
-    if def.width and type(SetUIPanelAttribute) == "function" then
+    if def.width then
         local own = type(UIPanelWindows) == "table" and UIPanelWindows[f:GetName() or ""]
-        pcall(SetUIPanelAttribute, f, "width", type(own) == "table" and own.width or nil)
+        Win.PanelAttr(f, "width", type(own) == "table" and own.width or nil)
     end
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, false) end
     DUI.Fire("GameWindowBack", def.key, kind, f)   -- the skins dress it now it shows as itself

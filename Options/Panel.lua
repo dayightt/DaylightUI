@@ -23,6 +23,7 @@ Panel.BUG_ICON = 18          -- the Report a bug icon beside the chips
 Panel.JUMP_MARGIN = 8        -- space kept above a setting we jump to
 Panel.MIN_QUERY = 2          -- letters needed before search results show
 Panel.SLIDE = 12             -- slide-in distance for a page switch, px
+Panel.REDRAW_EVERY = 0.05      -- longest a slider drag redraws the preview, seconds (20 a second)
 -- Page area width. PatchNotesUI reads it; updated on resize.
 Panel.CONTENT_WIDTH = Panel.SIZE[1] - 2 - Nav.RAIL - Nav.LIST - Panel.CONTENT_LEFT - Panel.CONTENT_RIGHT
 
@@ -271,6 +272,23 @@ local function buildScroll()
         local mod = page and DUI:GetModule(page.scope)
         if mod and type(mod.db) == "table" then DUI.DB.SetPath(mod.db, Options.Key(page, key), value) end
     end
+    -- A drag fires many times a frame on a fast machine and each redraw lays the whole sample out
+    -- again, so redraw at most REDRAW_EVERY seconds apart: the first at once, the rest as one
+    -- trailing redraw, so the preview always ends on the last value.
+    local lastDraw, queued = -1, false
+    local function redrawNow()
+        lastDraw, queued = GetTime(), false
+        if sampleStrip:IsShown() and sampleStrip.lastWidth then
+            sampleStrip.Redraw(sampleStrip.lastWidth, sampleStrip.lastRoom)
+        end
+    end
+    local function redrawSoon()
+        local wait = Panel.REDRAW_EVERY - (GetTime() - lastDraw)
+        if wait <= 0 or not C_Timer then return redrawNow() end
+        if queued then return end
+        queued = true
+        C_Timer.After(wait, redrawNow)
+    end
     -- Same quiet write for a slider being dragged on a page with a preview.
     -- The slider saves for real on release (Options.Preview).
     Options.previewer = function(page, item, value)
@@ -281,7 +299,7 @@ local function buildScroll()
             return false
         end
         DUI.DB.SetPath(into, Options.Key(page, item.key), value)
-        sampleStrip.Redraw(sampleStrip.lastWidth, sampleStrip.lastRoom)
+        redrawSoon()
         return true
     end
     -- One chip per card; picking one shows that card alone.
@@ -1109,8 +1127,23 @@ function Panel.Nav() return nav end
 function Panel.NavButton(sectionId) return nav and nav.sectionButtons[sectionId] end
 function Panel.PageButton(pageId) return nav and nav.pageButtons[pageId] end
 
+-- Every setting change lays the whole window out again. A slider held down on a page with no preview
+-- changes a setting at every step, many times a frame on a fast machine, so these refreshes keep
+-- Panel.REDRAW_EVERY apart: the first at once, the rest as one trailing refresh.
+local lastRefresh, refreshQueued = -1, false
 local function refreshIfShown()
-    if Panel.IsShown() then Panel.Refresh() end
+    if not Panel.IsShown() then return end
+    local wait = Panel.REDRAW_EVERY - (GetTime() - lastRefresh)
+    if not DUI.Options.sliderHeld or wait <= 0 or not C_Timer then
+        lastRefresh = GetTime()
+        return Panel.Refresh()
+    end
+    if refreshQueued then return end
+    refreshQueued = true
+    C_Timer.After(wait, function()
+        refreshQueued, lastRefresh = false, GetTime()
+        if Panel.IsShown() then Panel.Refresh() end
+    end)
 end
 
 -- General changes trigger a style repaint next frame, and StyleChanged below

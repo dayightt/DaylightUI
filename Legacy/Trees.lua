@@ -22,10 +22,10 @@ local Trees = {}
 ns.Trees = Trees
 
 Trees.EDGE = 16
-Trees.SIDE = 210
+Trees.SIDE = 260
 Trees.TOP = 44            -- search row above the tree
 Trees.FOOT = 56
-Trees.LEFT_H = 74         -- height of "To spend" under the tree list
+Trees.LEFT_H = 88         -- height of "To spend" under the tree list
 Trees.COMMIT_WAIT = 5     -- s before an unanswered Apply counts as failed
 Trees.SPAN = 20           -- max tree span in tiles (beyond it: a retired node)
 
@@ -36,6 +36,35 @@ local function W() return DUI.Widgets end
 local function Data() return ns.Data end
 local function Talents() return DUI.Book.Talents end
 local function TD() return DUI.Book.TalentData end
+-- The label of the points card from the game's own sentence ("Puntos disponibles: %s"), without its
+-- number. The number can come last, first, or be a %d, and the sentence can carry color codes:
+-- whichever side of it has words is the label. With words on both sides there is no clean label
+-- to cut out, so that one case keeps our own "To spend" (translated in every locale).
+local FULLWIDTH_COLON = string.char(239, 188, 154)
+local function trimLabel(s)
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    s = s:gsub("^[%s:·,]+", ""):gsub("[%s:·,]+$", "")
+    s = s:gsub("^" .. FULLWIDTH_COLON, ""):gsub(FULLWIDTH_COLON .. "$", "")
+    return (s:gsub("^[%s:·,]+", ""):gsub("[%s:·,]+$", ""))
+end
+function Trees.SpendWord(g)
+    if g == nil then g = _G.LEGACY_POINTS_AVAILABLE end
+    if type(g) == "string" then
+        local a, b = g:match("^(.-)%%%d*%$?[sd](.*)$")
+        if a then
+            a, b = trimLabel(a), trimLabel(b)
+            if a == "" and b ~= "" then return b end
+            if b == "" and a ~= "" then return a end
+        end
+    end
+    return L["To spend"]
+end
+
+function Trees.CapWord(cap)
+    local g = _G.LEGACY_POINTS_SEASONAL_CAP
+    return string.format(type(g) == "string" and g or L["At most %d this season"], cap)
+end
+
 local function hex(c) return Win.Parts.Hex(c) end
 local function pop(n) return hex({ Style.Pop() }) .. tostring(n) .. "|r" end
 
@@ -220,7 +249,10 @@ function Trees.RenderList()
     local p = Data().Points()
     page.left:SetText(tostring(p.left))
     Style.InkText(page.left, p.left > 0 and "pop" or "OFF")
-    page.leftHint:SetText(p.cap and string.format(L["At most %d this season"], p.cap) or "")
+    -- The cap is a quiet "/ 1" by the number; the sentence is a tip on the box.
+    page.leftCap:SetText(p.cap and ("/ " .. p.cap) or "")
+    page.leftTip = p.cap and Trees.CapWord(p.cap) or nil
+    page.leftLabel:SetText(Trees.SpendWord())
 end
 
 function Trees.Pick(i)
@@ -334,22 +366,30 @@ function Trees.Build(page)
     side.rule:SetPoint("TOPRIGHT", side, "TOPRIGHT", 0, -8)
     side.rule:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", 0, 8)
     page.list = Win.Parts.Stack(side, { top = 12, bottom = Trees.LEFT_H + 12 })
-    -- Points to spend, under the trees.
+    -- Points to spend, under the trees: a small card with the label above a big
+    -- number. The cap beside it is short, and the sentence about it is the hint on hover.
     local left = CreateFrame("Frame", nil, side)
     left:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", Trees.EDGE, 14)
     left:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", -Trees.EDGE, 14)
-    left:SetHeight(Trees.LEFT_H - 14)
+    left:SetHeight(Trees.LEFT_H - 28)
+    left:EnableMouse(true)
     page.leftBox = left
+    Style.Shell(left, {})   -- like the other cards: it follows the look settings
     page.leftLabel = Style.Text(left, Style.SIZE.small, "LEFT")
-    page.leftLabel:SetPoint("TOPLEFT", left, "TOPLEFT", 0, 0)
-    page.leftLabel:SetText(L["To spend"])
+    page.leftLabel:SetPoint("TOPLEFT", left, "TOPLEFT", 10, -8)
+    page.leftLabel:SetPoint("RIGHT", left, "RIGHT", -10, 0)
+    page.leftLabel:SetWordWrap(false)
+    page.leftLabel:SetText(Trees.SpendWord())
     Style.InkText(page.leftLabel, "LABEL")
     page.left = Style.Text(left, 22, "LEFT")   -- display art: the number is the point
-    page.left:SetPoint("TOPLEFT", page.leftLabel, "BOTTOMLEFT", 0, -4)
-    page.leftHint = Style.Text(left, Style.SIZE.small, "LEFT")
-    page.leftHint:SetPoint("TOPLEFT", page.left, "BOTTOMLEFT", 0, -4)
-    page.leftHint:SetPoint("RIGHT", left, "RIGHT", 0, 0)
-    Style.InkText(page.leftHint, "LABEL")
+    page.left:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT", 10, 8)
+    page.leftCap = Style.Text(left, Style.SIZE.small, "LEFT")
+    page.leftCap:SetPoint("BOTTOMLEFT", page.left, "BOTTOMRIGHT", 6, 2)
+    Style.InkText(page.leftCap, "LABEL")
+    left:SetScript("OnEnter", function(self)
+        if page.leftTip then W().Tooltip(self, Trees.SpendWord(), page.leftTip) end
+    end)
+    left:SetScript("OnLeave", function() W().HideTooltip() end)
     local main = CreateFrame("Frame", nil, page)
     main:SetPoint("TOPLEFT", side, "TOPRIGHT", 0, 0)
     main:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)

@@ -88,9 +88,32 @@ function Own.HasAura(id, k)
     return (ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)) or Own.QuietAura(id)
 end
 
+-- A totem piece's track (CdmCustom.TOTEMS and TOTEM_SLOTS), from the game's list or
+-- Daylight UI's own (custom). nil leaves the piece to its plain path: the game's
+-- icon, or for Daylight UI's own a cooldown or buff by CdmCustom.Track.
+local function totemTrack(sid, p, custom)
+    local pick = type(p) == "table" and p.track or nil
+    if type(p) == "table" and p.hideMissing == true then pick = "buff" end
+    -- No buff: the totem's time while it stands. A pick from before (Both, Buff
+    -- only) reads as Totem.
+    if ns.CdmCustom.TotemNoBuff(sid) then return pick ~= "cooldown" and "totem" or nil end
+    -- A buff: the totem's time with the buff covering the icon while you have it,
+    -- so the icon shows when you're out of range. Buff only and Cooldown stay as picked.
+    if pick == "cooldown" or pick == "buff" or pick == "aura" then
+        if custom then return nil end
+        return pick == "aura" and "buff" or pick
+    end
+    return "both"
+end
+
 function Own.Track(id, p, known)
     local C = ns.CdmCustom
-    if C and C.Is(id) then
+    local custom = C ~= nil and C.Is(id)
+    if C and not (custom and C.IsPet(id)) and C.Totem(Own.SpellOf(id)) then
+        if not custom and not (known or Own.Known())[id] then return nil end
+        return totemTrack(Own.SpellOf(id), p, custom)
+    end
+    if custom then
         -- A spell of the addon's own list shows one thing (CdmCustom.Track), or both.
         return C.Track(id) == "both" and "both" or nil
     end
@@ -317,6 +340,14 @@ local function auraFrom(sid)
     local name
     local okN, n = pcall(C_Spell.GetSpellName, sid)
     if okN and type(n) == "string" and not isSecret(n) then name = n end
+    -- A totem's buff is often named without the word Totem (Strength of Earth
+    -- Totem puts up Strength of Earth), so that name is tried too.
+    local bare
+    local C = ns.CdmCustom
+    if name and C and C.Totem(sid) then
+        bare = name:gsub("%s*Totem%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")
+        if bare == name or bare == "" then bare = nil end
+    end
     for _, look in ipairs(LOOKS) do
         local a
         if type(U.GetUnitAuraBySpellID) == "function" then
@@ -327,9 +358,11 @@ local function auraFrom(sid)
                 a = got
             end
         end
-        if not a and name and type(U.GetAuraDataBySpellName) == "function" then
-            local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, name, look.filter)
-            if ok and type(got) == "table" then a = got end
+        for _, nm in ipairs({ name, bare }) do
+            if not a and type(U.GetAuraDataBySpellName) == "function" then
+                local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, nm, look.filter)
+                if ok and type(got) == "table" then a = got end
+            end
         end
         local found = a and plainNumber(a.spellId)
         if found then return found end
@@ -354,13 +387,39 @@ function Own.LearnAura(sid)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
 
+-- Totems dropped in a fight before their buff was learned: [cast spell id] = true.
+-- Auras can't be read there, so each is looked up once the fight ends, if it
+-- still stands (Own.LearnAfterCombat).
+local totemsToLearn = {}
+
 local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
-    if type(sid) ~= "number" or isSecret(sid) or InCombatLockdown() then return end
+    if type(sid) ~= "number" or isSecret(sid) then return end
+    if InCombatLockdown() then
+        local C = ns.CdmCustom
+        if C and C.Totem(sid) and not C.TotemBuffKnown(sid) then totemsToLearn[sid] = true end
+        return
+    end
     -- The aura lands a moment after the cast event.
     C_Timer.After(Own.AURA_LOOK_DELAY, function() DUI.SafeCall(Own.LearnAura, sid) end)
 end)
+
+-- After a fight: each totem dropped in it with its buff unknown, still standing,
+-- has its buff looked up now. One gone or already learned is dropped from the list.
+function Own.LearnAfterCombat()
+    local C = ns.CdmCustom
+    if not C then return end
+    for sid in pairs(totemsToLearn) do
+        if C.TotemBuffKnown(sid) or not C.TotemUp(sid) then
+            totemsToLearn[sid] = nil
+        else
+            Own.LearnAura(sid)
+            if C.TotemBuffKnown(sid) then totemsToLearn[sid] = nil end
+        end
+    end
+end
+DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() DUI.SafeCall(Own.LearnAfterCombat) end)
 
 -- Cooldowns whose buff holds charges, every rank. The game's cooldown icon shows the
 -- buff but never its count (its cooldown items only draw spell charges, see
@@ -436,12 +495,26 @@ end
 
 function Own.Frame(id) return frames[id] end
 
+Own.TOTEM_DIM = 0.3          -- icon alpha while a totem stands and you lack its buff
+Own.TOTEM_TIME_LEVEL = 20    -- the totem's time over the buff's button (CdmAuras.Over: +10)
+
 function Own.Update(f)
     local sid = f.cooldownInfo and f.cooldownInfo.spellID
     if not sid or type(f.Cooldown) ~= "table" then return end
     local ok, dur
     local C = ns.CdmCustom
-    if C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
+    -- Totem and buff lifts the time over the buff's button; anything else has it
+    -- back at its own level, at full opacity.
+    f.cdLevel = f.cdLevel or (f.Cooldown:GetFrameLevel() - f:GetFrameLevel())
+    local buffed = f.totem == true and f.totemBuff == true
+    f.Cooldown:SetFrameLevel(f:GetFrameLevel() + (buffed and Own.TOTEM_TIME_LEVEL or f.cdLevel))
+    if not buffed then f.Icon:SetAlpha(1) end
+    if f.totem and C then                  -- a totem: its time while it stands
+        ok, dur = true, C.TotemUp(sid)
+        -- Totem and buff: dimmed while the totem stands, under the buff's button,
+        -- which covers it in full color while you have the buff. The time stays on top.
+        f.Icon:SetAlpha(f.totemBuff and type(dur) ~= "nil" and Own.TOTEM_DIM or 1)
+    elseif C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
         local _, d = C.ItemCooldown(f.cooldownID)
         ok, dur = true, d
         local n = C.ItemCount(f.cooldownID)

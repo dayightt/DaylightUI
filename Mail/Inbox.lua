@@ -360,13 +360,17 @@ end
 local function receipt(s, l)
     local v = l.invoice
     local function row(label, value) s:Text(Win.Parts.Hex(Style.INK.LABEL) .. label .. "|r   " .. value, { color = Style.INK.TEXT, gap = 4 }) end
+    -- The other side of the sale, like the game's letter shows it.
+    local who = type(v.player) == "string" and v.player ~= "" and Win.Parts.Hex(Style.INK.VALUE) .. v.player .. "|r"
     if v.type == "seller" or v.type == "seller_temp_invoice" then
+        if who then row(L["Bought by"], who) end
         row(L["Sold for"], money(v.bid))
         if v.cut > 0 then row(L["Auction house cut"], Win.Parts.Hex(Style.INK.DAMAGE) .. "-" .. DUI.Widgets.Money(v.cut, { color = false }) .. "|r") end
         if v.deposit > 0 then row(L["Deposit back"], money(v.deposit)) end
         row(L["You keep"], money(v.bid - v.cut + v.deposit))
         if v.type == "seller_temp_invoice" then row(L["Gold on its way"], "") end
     else
+        if who then row(L["Sold by"], who) end
         row(L["Bought for"], money(v.bid))
     end
 end

@@ -90,7 +90,7 @@ ns.DEFAULTS = {
     -- shape: "square" or "round" (a rotating map is always round).
     map = { enabled = true, size = 226, shape = "square", buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
              alphaOwn = false, alpha = 0.85, border = true,
-             clock = { enabled = true, twentyFour = true, useServer = false, textSize = 11, color = ink(INK.VALUE) },
+             clock = { enabled = true, twentyFour = true, seconds = false, useServer = false, textSize = 11, color = ink(INK.VALUE) },
              fps = { enabled = false, textSize = 11, color = ink(INK.VALUE) },      -- next to the clock
              coords = { enabled = true, textSize = 11, color = ink(INK.VALUE) },    -- top of the map
              -- Zone name. colorBy "pvp" uses the zone's PvP color, "custom" uses `color`.

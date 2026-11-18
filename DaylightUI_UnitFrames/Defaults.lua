@@ -190,7 +190,7 @@ ns.DEFAULTS = {
     portraits = { icons = "daylight", classIcons = {} },   -- a pick per class token
     range = { enabled = true, alpha = 0.45, groupOwn = false, alphaGroup = 0.45, spell = "none" },
     -- The leader drawer beside the group frames (Leader.lua).
-    leader = { enabled = true, show = "tank" },
+    leader = { enabled = true, show = "tank", opens = "auto" },
     -- The pull timer's big number (Pull.lua).
     pull = { enabled = true },
     -- Your bars at your feet, like Legion's personal resource display
