@@ -177,6 +177,7 @@ ns.DEFAULTS = {
     -- default. Friendly plates keep "class".
     nameColor = "reaction",
     factionIcon = true, -- opposite faction crest by a player's name, any plate (Plate.ShowFaction)
+    pvpIcon = false, -- the same crest by the name of anyone flagged for PvP, NPCs too (Plate.PvPFaction)
     threatFill = "plain", -- "plain" (the three colors below) or "pair" (Gradients' THREAT_ON/WARN/LOST)
     threatAggro = { 0.92, 0.2, 0.18 }, -- attacking you
     threatWarn = { 1.0, 0.55, 0.12 }, -- about to switch targets

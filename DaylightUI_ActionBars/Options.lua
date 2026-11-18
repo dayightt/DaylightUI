@@ -347,6 +347,15 @@ local look = {
         { type = "dropdown", key = "bagBar", label = "Bag bar", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of bag buttons. Your bag keys still open your bags when it's hidden." },
         menuSize("bagBar", "Bag bar size"),
+        { type = "toggle", label = "Free bag slots on the backpack",
+          desc = "The game's own setting: how many empty slots you have left, written on the backpack button, so you can see your bag space without opening your bags.",
+          get = function() return type(GetCVar) == "function" and GetCVar("displayFreeBagSlots") == "1" end,
+          set = function(v)
+              if type(SetCVar) == "function" then SetCVar("displayFreeBagSlots", v and "1" or "0") end
+              -- Not one of Daylight UI's settings, so tell the options window directly.
+              DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+          end,
+          disabled = function(get) return get("bagBar") == "hidden" end },
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of small buttons that open your character, spellbook, talents and other windows. Their keys still work when it's hidden." },
         menuSize("microMenu", "Micro menu size"),

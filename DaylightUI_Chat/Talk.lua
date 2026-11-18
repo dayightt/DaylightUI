@@ -110,16 +110,50 @@ local function trim()
 end
 
 -- Adds a line to a conversation (me = sent by you).
-function Talk.Add(c, text, me)
+function Talk.Add(c, text, me, line)
     seq = seq + 1
     c.at = seq
     c.closed = nil
-    table.insert(c.msgs, { t = time(), me = me or nil, text = text })
+    if type(line) ~= "number" or secret(line) or line <= 0 then line = nil end
+    table.insert(c.msgs, { t = time(), me = me or nil, text = text, line = line })
     if not c.bn then saved()[c.key] = c end
     while #c.msgs > Talk.MAX do table.remove(c.msgs, 1) end
     if not me and ns.Box.On() and not ns.Convo.Showing(c.key) and not ns.Hub.Showing(c.key) then c.unread = (c.unread or 0) + 1 end
     trim()
     DUI.Fire("ChatTalk", c.key, me and "sent" or "heard")
+end
+
+-- The words of a whisper line the game rewrote, without its "Robb whispers: "
+-- in front (the game's own wording, CHAT_WHISPER_GET and the like) and its
+-- Report link behind.
+function Talk.ShownWords(text, event)
+    if type(text) ~= "string" or secret(text) or type(event) ~= "string" or secret(event) then return end
+    local kind = string.match(event, "^CHAT_MSG_(.+)$")
+    local fmt = kind and _G["CHAT_" .. kind .. "_GET"]
+    if type(fmt) ~= "string" then return end
+    local after = string.match(fmt, "%%s(.*)$")
+    if not after or after == "" then return end
+    local at = string.find(text, after, 1, true)
+    if not at then return end
+    local words = string.sub(text, at + #after)
+    words = string.gsub(words, "%s*|Hreportcensoredmessage.-|h.-|h", "")
+    if words == "" or string.find(words, "|Hcensoredmessage", 1, true) then return end
+    return words
+end
+
+-- The game showed a message it had hidden (Show Message): the conversation
+-- takes the shown words from the game's window, where the line now holds them.
+function Talk.Rewritten(id)
+    local words = Talk.ShownWords(ns.Box.GameLine(id))
+    if not words then return end
+    for key, c in pairs(convos) do
+        for _, m in ipairs(c.msgs or {}) do
+            if m.line == id and m.text ~= words then
+                m.text = words
+                DUI.Fire("ChatTalk", key)
+            end
+        end
+    end
 end
 
 function Talk.Read(c)
@@ -206,7 +240,7 @@ local function heard(event, text, sender, ...)
         c = make(nameKey(sender), sender)
         learn(c, select(10, ...))    -- arg12: the sender's GUID
     end
-    Talk.Add(c, text, me)
+    Talk.Add(c, text, me, select(9, ...))   -- arg11: the line's id
     -- Whatever sent it (the card, the game's box), you're clearly not away.
     if me then awaySent[c.key] = GetTime() else Talk.Away(c) end
 end

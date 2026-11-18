@@ -212,7 +212,14 @@ end
 function Slots.Refresh()
     local strip = Slots.strip
     if not strip or not strip:IsVisible() then return end   -- IsShown is true for a closed window's strip too
-    for _, b in ipairs(strip.slots) do paint(b) end
+    for _, b in ipairs(strip.slots) do
+        paint(b)
+        -- A bag swapped under a resting mouse: its tooltip shows the new bag.
+        if GameTooltip:IsShown() and GameTooltip:GetOwner() == b then
+            local enter = b:GetScript("OnEnter")
+            if enter then enter(b) end
+        end
+    end
 end
 
 function Slots.Apply()

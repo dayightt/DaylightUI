@@ -51,6 +51,7 @@ Kinds.CHANNELS = {
     ["buscar grupo"] = "lfg", defensamundial = "defense", ["defensa mundial"] = "defense",
     defensaglobal = "defense", ["defensa global"] = "defense", servicios = Kinds.SERVICES, novatos = "general",
     ["comercio (servicios)"] = Kinds.SERVICES, ["comercio (local)"] = Kinds.TRADE_LOCAL,
+    ["comercio local"] = Kinds.TRADE_LOCAL,
     -- German clients name them in German.
     allgemein = "general", handel = "trade", lokaleverteidigung = "defense", ["lokale verteidigung"] = "defense",
     suchenachgruppe = "lfg", ["suche nach gruppe"] = "lfg",
@@ -148,8 +149,42 @@ function Kinds.TypeOfId(id)
     return byId[id]
 end
 
+-- The game's own id for a world channel (zoneChannelID), the same in every language,
+-- so the channel's name needn't be known in the player's. Seen on the 1.8.2 client:
+-- General 1, Trade 2, Local Defense 22, Looking For Group 26, Trade (Local) 46.
+-- Services, World Defense, Newcomer and Recruitment have no id (0), so they go by
+-- their name (Kinds.CHANNELS).
+Kinds.ZONE = { [1] = "general", [2] = "trade", [22] = "defense", [26] = "lfg", [46] = Kinds.TRADE_LOCAL }
+
+-- The kind the game's id gives a channel name ("DefensaLocal", "General: Vallefresno"
+-- or "General - Elwynn Forest"), or nil if the game can't say or the id isn't known.
+-- Every channel line's tag asks, so each name's answer is kept until channels change.
+local ofZone = {}
+local function kindOfZone(base)
+    local C = C_ChatInfo
+    -- The game errors on a secret name, so a secret one has no id.
+    if type(base) ~= "string" or secret(base) then return nil end
+    local known = ofZone[base]
+    if known ~= nil then return known or nil end
+    if type(C) ~= "table" or type(C.GetChannelInfoFromIdentifier) ~= "function" then return nil end
+    local names = { string.gsub(base, "%s*%-.*$", ""), (string.gsub(base, "%s*:.*$", "")) }
+    local kind = false
+    for i = 1, 2 do
+        local info = C.GetChannelInfoFromIdentifier(names[i])
+        local zone = type(info) == "table" and info.zoneChannelID
+        if type(zone) == "number" and not secret(zone) and Kinds.ZONE[zone] then
+            kind = Kinds.ZONE[zone]
+            break
+        end
+    end
+    ofZone[base] = kind
+    return kind or nil
+end
+Kinds.OfZone = kindOfZone
+
 -- A channel's kind from its name. World channels share a kind; any other channel
--- gets its own ("ch:name") so a tab can pick it alone.
+-- gets its own ("ch:name") so a tab can pick it alone. The game's channel id decides
+-- first, then the name.
 -- Every channel line asks, so each name's kind is kept until channels change.
 -- A secret name can't be a table key and is worked out every time.
 local ofName = {}
@@ -160,7 +195,7 @@ function Kinds.OfChannel(base)
     -- Strip " - Zone" and the number the game appends to some world channel names
     -- ("LookingForGroup 84").
     local name = string.lower(string.gsub(string.gsub(base, "%s*%-.*$", ""), "%s+%d+$", ""))
-    kind = Kinds.CHANNELS[name] or ("ch:" .. name)
+    kind = (plain and kindOfZone(base)) or Kinds.CHANNELS[name] or ("ch:" .. name)
     if plain then ofName[base] = kind end
     return kind
 end
@@ -182,6 +217,7 @@ Kinds.OfNumber = kindOfNumber
 function Kinds.ChannelsChanged()
     listKind = nil
     if next(ofName) then wipe(ofName) end
+    if next(ofZone) then wipe(ofZone) end
 end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
 -- Joining or leaving a channel.
@@ -303,8 +339,36 @@ DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", function()
     C_Timer.After(1, Kinds.WorldFirst)
 end)
 
+-- A quest's reward lines ("Experience gained: 975.", "Received 4 Silver.") come
+-- as system messages, so the Experience and Money switches never reached them.
+-- The game's own wording, turned into patterns once.
+-- In order: an item's line would match the money one too. Matched at the line's
+-- end, since the game's time stamp may come first.
+Kinds.SYSTEM_AS = { { "ERR_QUEST_REWARD_EXP_I", "progress" }, { "ERR_QUEST_REWARD_ITEM_S", "loot" },
+    { "ERR_QUEST_REWARD_ITEM_MULT_IS", "loot" }, { "ERR_QUEST_REWARD_MONEY_S", "money" } }
+local systemAs
+local function patternOf(fmt)
+    local p = string.gsub(fmt, "[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+    p = string.gsub(p, "%%%%%d?%$?[ds]", function(spec) return spec:find("d") and "%d+" or ".+" end)
+    return p .. "$"
+end
+function Kinds.SystemKind(text)
+    if type(text) ~= "string" or secret(text) then return nil end
+    if not systemAs then
+        systemAs = {}
+        for _, pick in ipairs(Kinds.SYSTEM_AS) do
+            local name, kind = pick[1], pick[2]
+            local fmt = _G[name]
+            if type(fmt) == "string" and fmt ~= "" then systemAs[#systemAs + 1] = { patternOf(fmt), kind } end
+        end
+    end
+    for _, s in ipairs(systemAs) do
+        if string.find(text, s[1]) then return s[2] end
+    end
+end
+
 -- The line's chat type ("GUILD", "CHANNEL"...) and kind.
-function Kinds.Of(id, event, args)
+function Kinds.Of(id, event, args, text)
     local t
     if type(event) == "string" and not secret(event) then t = string.match(event, "^CHAT_MSG_(.+)$") end
     t = t or Kinds.TypeOfId(id)
@@ -312,7 +376,9 @@ function Kinds.Of(id, event, args)
     -- Other people's community lines arrive by their own event, as a channel line
     -- with the same number and name (ChatFrameOverrides.lua).
     if t == "CHANNEL" or t == "COMMUNITIES_CHANNEL" or string.find(t, "^CHANNEL%d") then return t, channelKind(args) end
-    return t, Kinds.BY_TYPE[t] or "system"
+    local kind = Kinds.BY_TYPE[t] or "system"
+    if kind == "system" then kind = Kinds.SystemKind(text) or kind end
+    return t, kind
 end
 
 -- Default tabs for a new chat box: everything, guild, trade and loot (named with

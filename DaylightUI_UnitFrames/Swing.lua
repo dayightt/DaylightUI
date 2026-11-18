@@ -752,7 +752,7 @@ function ST.Create()
         row.pod = pod
         row.pop = DUI.Motion.Slider(function(sl)
             if not row.alone then return end
-            pod:SetAlpha(sl.p)
+            pod:SetAlpha(sl.p * (pod.fadeNow or 1))
             ST.PlaceAlone(row)
         end, { parent = pod, dur = DUI.Motion.NORMAL,
             done = function(sl) if sl.p == 0 then pod:Hide() end end })
@@ -794,6 +794,19 @@ function ST.Create()
     end, { parent = h, dur = DUI.Motion.FAST, p = 0 })
     h:Hide()
     return h
+end
+
+-- The fade engine's alpha for the swing timer. A bar on its own keeps its own
+-- fade-in as it rises, so the two are multiplied there.
+function ST.PaintFade(f, a)
+    if f == ns.swing then return f:SetAlpha(a) end
+    f.fadeNow = a
+    for _, row in ipairs(ns.swing and ns.swing.rows or {}) do
+        if row.pod == f then
+            return f:SetAlpha(row.alone and row.pop.p * a or a)
+        end
+    end
+    f:SetAlpha(a)
 end
 
 -- A bar on its own in its piece: below its spot by whatever is left of its
@@ -1254,7 +1267,7 @@ function ST.Layout(h, cfg, castbar)
             -- Back in the group: its piece goes away and the row returns.
             row.pop:Jump(0)
             row.pod:Hide()
-            row.pod:SetAlpha(1)
+            row.pod:SetAlpha(row.pod.fadeNow or 1)
         end
         row.alone, row.cfg = alone or nil, alone and own or nil
         local parent = alone and row.pod or h

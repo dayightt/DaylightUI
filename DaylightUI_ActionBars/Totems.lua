@@ -372,7 +372,12 @@ function Totems.LayoutBar(mc, shape)
     local prev
     for i = 1, 12 do
         local b = _G["MultiCastActionButton" .. i]
-        if type(b) == "table" and b.SetPoint then
+        local over = i > 4 and _G["MultiCastActionButton" .. (i - 4)]
+        if type(b) == "table" and b.SetPoint and over then
+            -- The second and third totem sets lie over the same 4 slots as the first.
+            b:ClearAllPoints()
+            b:SetPoint("CENTER", over, "CENTER", 0, 0)
+        elseif type(b) == "table" and b.SetPoint then
             if prev then
                 b:ClearAllPoints()
                 if shape.vertical then
@@ -492,6 +497,10 @@ function Totems.Apply()
         for _, name in ipairs(Totems.MULTICAST) do
             if _G[name] then ns.Skin.SetBar(_G[name], "totem"); ns.Skin.Apply(_G[name]) end
         end
+        -- The totem pick list opens over whatever sits beside the bar, such as a
+        -- Cooldown Manager icon's glow. It's a plain frame, so this is safe.
+        local flyout = _G.MultiCastFlyoutFrame
+        if type(flyout) == "table" and flyout.SetFrameStrata then flyout:SetFrameStrata("DIALOG") end
     end
 end
 

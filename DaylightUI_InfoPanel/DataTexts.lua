@@ -173,26 +173,33 @@ function DT.ReadSystem()
     return math.floor(fps + 0.5), math.max(num(home), num(world))
 end
 
--- Returns hour, minute from server time (always 24-hour) or the local clock.
--- The minimap clock uses this too.
+-- Returns hour, minute, second from server time (always 24-hour) or the local
+-- clock. The server only gives hours and minutes; its seconds match the local
+-- ones, so those are used for both. The minimap clock uses this too.
 function DT.ReadClock(useServer)
-    if useServer and type(GetGameTime) == "function" then return GetGameTime() end
-    return tonumber(date("%H")), tonumber(date("%M"))
+    local s = tonumber(date("%S"))
+    if useServer and type(GetGameTime) == "function" then
+        local h, m = GetGameTime()
+        return h, m, s
+    end
+    return tonumber(date("%H")), tonumber(date("%M")), s
 end
 
 -- Follows the minimap clock's server/local setting.
 local function clock()
     local c = DUI:Get("InfoPanel", "map.clock") or {}
-    local h, m = DT.ReadClock(c.useServer)
-    return h, m, c.twentyFour ~= false
+    local h, m, s = DT.ReadClock(c.useServer)
+    return h, m, c.twentyFour ~= false, c.seconds and s or nil
 end
 
-function DT.FormatClock(h, m, twentyFour)
+-- Seconds are shown only when s is given.
+function DT.FormatClock(h, m, twentyFour, s)
     if type(h) ~= "number" or type(m) ~= "number" then return "" end
-    if twentyFour then return string.format("%02d:%02d", h, m) end
+    local sec = type(s) == "number" and string.format(":%02d", s) or ""
+    if twentyFour then return string.format("%02d:%02d%s", h, m, sec) end
     local h12 = h % 12
     if h12 == 0 then h12 = 12 end
-    return string.format("%d:%02d %s", h12, m, h >= 12 and (TIMEMANAGER_PM or "PM") or (TIMEMANAGER_AM or "AM"))
+    return string.format("%d:%02d%s %s", h12, m, sec, h >= 12 and (TIMEMANAGER_PM or "PM") or (TIMEMANAGER_AM or "AM"))
 end
 
 -- Percent through the level, or nil at the level cap.
@@ -1022,12 +1029,12 @@ DT.TEXTS = {
             return s, s
         end,
         tip = function()
-            local _, _, twentyFour = clock()
+            local _, _, twentyFour, sec = clock()
             tipTitle(L["Time"])
-            line(L["Local"], DT.FormatClock(tonumber(date("%H")), tonumber(date("%M")), twentyFour))
+            line(L["Local"], DT.FormatClock(tonumber(date("%H")), tonumber(date("%M")), twentyFour, sec))
             if type(GetGameTime) == "function" then
                 local h, m = GetGameTime()
-                line(L["Server"], DT.FormatClock(h, m, twentyFour))
+                line(L["Server"], DT.FormatClock(h, m, twentyFour, sec))
             end
         end },
     xp = { name = "Experience", events = { "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UPDATE_EXHAUSTION" },

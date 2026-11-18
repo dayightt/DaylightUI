@@ -4323,6 +4323,25 @@ T.test("nameplates: a player of the other faction gets the faction crest by the 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: the PvP flag crest shows by anyone flagged, NPCs too, when switched on", function()
+    login()
+    local DUI = DaylightUI
+    stub.units.player.faction = "Horde"
+    stub.units.nameplate3 = { name = "Stormwind Guard", reaction = 2, hostile = true, faction = "Alliance", pvp = true,
+        health = 50, maxHealth = 100 }
+    stub.units.nameplate4 = { name = "Kobold", reaction = 2, hostile = true, health = 50, maxHealth = 100 }
+    local guard, mob = added("nameplate3"), added("nameplate4")
+    T.falsy(guard.factionIcon:IsShown(), "off by default")
+    DUI:Set("Nameplates", "pvpIcon", true); stub.RunTimers()
+    T.truthy(guard.factionIcon:IsShown(), "a flagged NPC gets its faction's crest")
+    T.eq(guard.factionIcon.__atlas, "UI-HUD-UnitFrame-Player-PVP-AllianceIcon")
+    T.falsy(mob.factionIcon:IsShown(), "an unflagged mob none")
+    stub.units.nameplate3.pvp = false
+    stub.FireEvent("UNIT_FACTION", "nameplate3"); stub.RunTimers()
+    T.falsy(guard.factionIcon:IsShown(), "unflagged: gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: custom friendly names: players, NPCs and the other faction each in their picked color", function()
     login()
     local DUI = DaylightUI

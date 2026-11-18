@@ -204,26 +204,54 @@ function Layout.Build(snap, o, measure)
     end
     local total = 0
     for _, g in ipairs(snap.groups) do total = total + #g.quests end
+    local function shownZone(g)
+        return o.filter ~= "zone" or g.name == snap.zone or (snap.here and snap.here[g.name])
+    end
+    -- Quests ready to hand in can gather in their own section after the rest.
+    -- Never mid-fight: nothing moves under the mouse until it ends.
+    local ready, rest = {}, {}
+    if o.readyLast and not o.frozen then
+        for _, g in ipairs(snap.groups) do
+            local keep = {}
+            for _, q in ipairs(g.quests) do
+                if q.state == "ready" then
+                    if shownZone(g) then ready[#ready + 1] = q end
+                else
+                    keep[#keep + 1] = q
+                end
+            end
+            rest[g] = keep
+        end
+    end
+    local function questsOf(g) return rest[g] or g.quests end
     if total > 0 or o.emptyHeader then
         header("quests", L["Quests"], snap.logCount .. "/" .. snap.logMax)
         if not folds.quests then
             Layout.SortZones(snap.groups, o)
             for _, g in ipairs(snap.groups) do
-                if o.filter ~= "zone" or g.name == snap.zone or (snap.here and snap.here[g.name]) then
+                if #questsOf(g) > 0 and shownZone(g) then
                     -- A zone can only be folded while its name shows, otherwise nothing could unfold it.
                     local folded = false
                     if o.zoneNames then
                         local key = "zone:" .. g.name
                         folded = folds[key] == true
                         local h = Layout.ZONE_TOP + lineH(o.sizes.zone, DaylightUI.Style.Upper(g.name), o.width - Layout.TITLE_X - 30, measure) + Layout.ZONE_GAP
-                        push({ key = key, kind = "zone", id = key, label = g.name, folded = folded, count = #g.quests, h = h })
+                        push({ key = key, kind = "zone", id = key, label = g.name, folded = folded, count = #questsOf(g), h = h })
                     end
                     if not folded then
-                        Layout.Sort(g.quests, o)
-                        for _, q in ipairs(g.quests) do push(questBlock(q, o, measure, gap)) end
+                        local list = questsOf(g)
+                        Layout.Sort(list, o)
+                        for _, q in ipairs(list) do push(questBlock(q, o, measure, gap)) end
                     end
                 end
             end
+        end
+    end
+    if #ready > 0 then
+        header("ready", L["Ready to turn in"], tostring(#ready))
+        if not folds.ready then
+            Layout.Sort(ready, o)
+            for _, q in ipairs(ready) do push(questBlock(q, o, measure, gap)) end
         end
     end
     if #snap.achievements > 0 then

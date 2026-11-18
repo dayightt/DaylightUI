@@ -917,6 +917,23 @@ local function dataYellow(lines, i)
     return isYellow(r, g, b) and true or false
 end
 
+-- The data's own line types, where they read plain. A macro fills the tooltip
+-- with its spell's lines (or its item's) under the Macro type, so these tell a
+-- spell's description apart when every line reads secret.
+local function lineType(lines, i)
+    local line = lines and lines[i]
+    return type(line) == "table" and plain(line.type) or nil
+end
+local function hasSpellLines(lines)
+    local kinds = Enum and Enum.TooltipDataLineType
+    if not (lines and kinds) then return false end
+    for i = 1, #lines do
+        local t = lineType(lines, i)
+        if t ~= nil and (t == kinds.SpellName or t == kinds.SpellDescription) then return true end
+    end
+    return false
+end
+
 local SIDES = { "Left", "Right" } -- never written to
 function Tip.PaintSpell(tip, data)
     if type(tip.NumLines) ~= "function" or type(tip.GetName) ~= "function" then return end
@@ -930,7 +947,10 @@ function Tip.PaintSpell(tip, data)
     local dataLines = type(data) == "table" and type(data.lines) == "table" and data.lines or nil
     local lastData = dataLines and #dataLines or nil
     local types = Enum and Enum.TooltipDataType
-    local isSpell = type(data) == "table" and types ~= nil and plain(data.type) == types.Spell
+    local kind = type(data) == "table" and types ~= nil and plain(data.type) or nil
+    local isSpell = kind ~= nil and (kind == types.Spell
+        or (kind == types.Macro and hasSpellLines(dataLines)))
+    local descType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SpellDescription
     for i = 2, tip:NumLines() or 0 do
         local left = Tip.Line(tip, i)
         local lt = type(left) == "table" and left.GetText and left:GetText()
@@ -956,6 +976,7 @@ function Tip.PaintSpell(tip, data)
                 if not isSecret(r) then yellow = isYellow(r, g, b)
                 elseif side == "Left" then
                     yellow = dataYellow(dataLines, i)
+                    if yellow == nil and descType ~= nil and lineType(dataLines, i) == descType then yellow = true end
                     if yellow == nil then yellow = isSpell and i == lastData end
                 end
                 if yellow then fs:SetTextColor(INK.TEXT[1], INK.TEXT[2], INK.TEXT[3]) end

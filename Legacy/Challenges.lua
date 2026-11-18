@@ -1,6 +1,6 @@
 -- Legacy window, Challenges page. Categories on the left (the player's class first, as
 -- in the game), each with a done count and a dot when a newly earned challenge is
--- waiting there, plus a search and All / Not yet / Done chips (the game's filter menu).
+-- waiting there, plus a search and the game's filter as a drop-down.
 -- On the right, Legacy Points from challenges as a bar, then each challenge: icon, name,
 -- one-line description and points; completed ones in full color with the date. Clicking
 -- one expands it: full description, steps in two columns (counted steps as bars), and a
@@ -22,7 +22,7 @@ local Challenges = {}
 ns.Challenges = Challenges
 
 Challenges.EDGE = 16
-Challenges.SIDE = 236          -- category column width
+Challenges.SIDE = 270          -- category column width
 Challenges.TOP = 76            -- search and chips above the categories
 Challenges.SUM = 52            -- points bar above the challenges
 Challenges.CAT = 26
@@ -30,9 +30,12 @@ Challenges.ROW = 54            -- collapsed challenge row
 Challenges.ICON = 34
 Challenges.STEP = 22           -- step line
 Challenges.STEP_BAR = 30       -- counted step: text and a bar
-Challenges.FILTERS = { "all", "todo", "done" }
+Challenges.FILTERS = { "all", "done", "todo" }   -- the game's order: All, Completed, Incomplete
 Challenges.STEPS_WAIT = 0.5     -- s to let a burst of counted steps settle before repainting
-Challenges.FILTER_WORD = { all = ALL or L["All"], todo = L["Not yet"], done = L["Done"] }
+-- The game's own achievement filter words, as its window words them: "Incomplete"
+-- and "Completed", not the "Not yet" and "Done" that other windows use.
+Challenges.FILTER_WORD = { all = ACHIEVEMENTFRAME_FILTER_ALL or ALL or L["All"], todo = ACHIEVEMENTFRAME_FILTER_INCOMPLETE or L["Incomplete"],
+                           done = ACHIEVEMENTFRAME_FILTER_COMPLETED or L["Completed"] }
 
 Challenges.folds = {}          -- collapsed parent categories (this session)
 
@@ -335,7 +338,7 @@ function Challenges.RenderList(keep)
     if at then s:ScrollTo(at) end
     local text = page.search:GetText() or ""
     page.note:SetShown(#list == 0)
-    page.note:SetText(text ~= "" and L["No challenges match."] or L["No challenges yet."])
+    page.note:SetText(text ~= "" and (LEGACY_NO_CHALLENGES or L["No challenges match."]) or L["No challenges yet."])
     -- Points from challenges: earned out of the maximum.
     local p = Data().Points()
     local max = p.max or p.cap
@@ -416,7 +419,7 @@ end
 
 function Challenges.Filter(id, quiet)
     Data().show = id
-    for k, b in pairs(Challenges.page.chips) do b.SetOn(k == id) end
+    Challenges.page.filter.SetLabel(Challenges.FILTER_WORD[id])
     if not quiet then Challenges.Render(true) end
 end
 
@@ -451,17 +454,17 @@ function Challenges.Build(page)
         end })
     page.search:SetPoint("TOPLEFT", side, "TOPLEFT", Challenges.EDGE, -10)
     page.search:SetPoint("TOPRIGHT", side, "TOPRIGHT", -Challenges.EDGE, -10)
-    page.chips = {}
-    local x = Challenges.EDGE
-    for _, id in ipairs(Challenges.FILTERS) do
-        local b = W().Chip(side, Challenges.FILTER_WORD[id])
-        b.FitWidth()
-        b:SetPoint("TOPLEFT", side, "TOPLEFT", x, -44)
-        b:SetScript("OnClick", function() Challenges.Filter(id) end)
-        b.SetOn(Data().show == id)
-        page.chips[id] = b
-        x = x + b:GetWidth() + W().CHIP_GAP
-    end
+    -- The filter is a drop-down, as in the game's own window.
+    page.filter = W().MenuButton(side, "", 26)
+    page.filter:SetPoint("TOPLEFT", side, "TOPLEFT", Challenges.EDGE, -44)
+    page.filter:SetPoint("TOPRIGHT", side, "TOPRIGHT", -Challenges.EDGE, -44)
+    page.filter.text:SetPoint("RIGHT", page.filter.chevron, "LEFT", -6, 0)
+    page.filter.text:SetWordWrap(false)
+    page.filter.SetLabel(Challenges.FILTER_WORD[Data().show] or Challenges.FILTER_WORD.all)
+    page.filter:SetScript("OnClick", function(self)
+        W().OpenMenu(self, Challenges.FILTERS, Challenges.FILTER_WORD, Data().show,
+            function(id) Challenges.Filter(id) end, math.max(120, self:GetWidth()))
+    end)
     page.cats = Win.Parts.Stack(side, { top = Challenges.TOP, bottom = 12 })
     -- Points from challenges, above the list.
     local sum = CreateFrame("Frame", nil, main)
@@ -523,8 +526,7 @@ function Challenges.Fill(page)
 end
 
 function Challenges.Pieces(page)
-    local out = { page.search }
-    for _, id in ipairs(Challenges.FILTERS) do out[#out + 1] = page.chips[id] end
+    local out = { page.search, page.filter }
     for i, p in ipairs(page.catPieces or {}) do
         if i > 10 then break end
         out[#out + 1] = p

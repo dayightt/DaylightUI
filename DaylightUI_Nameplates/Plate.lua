@@ -1737,7 +1737,7 @@ function Plate.UpdateNameColor(p)
     Plate.UpdateName(p)
     Plate.UpdateClassText(p)
     Plate.ShowGroupMark(p, (c.partyMark or "none") ~= "none" and Plate.InGroup(p))
-    Plate.ShowFaction(p, c.factionIcon == true and Plate.OtherFaction(u))
+    Plate.ShowFaction(p, (c.factionIcon == true and Plate.OtherFaction(u)) or (c.pvpIcon == true and Plate.PvPFaction(u)))
     Plate.Painted(p)
 end
 
@@ -2049,6 +2049,14 @@ function Plate.OtherFaction(u)
     if type(theirs) ~= "string" or type(mine) ~= "string" then return nil end
     if theirs ~= mine and Plate.FACTION_ATLAS[theirs] and Plate.FACTION_ATLAS[mine] then return theirs end
     return nil
+end
+
+-- The faction of a unit flagged for PvP (player or NPC: a town guard you'd
+-- flag yourself attacking), else nil. Hidden in a PvP match, where it's secret.
+function Plate.PvPFaction(u)
+    if not u or plain(UnitIsPVP, u) ~= true then return nil end
+    local theirs = plain(UnitFactionGroup, u)
+    return type(theirs) == "string" and Plate.FACTION_ATLAS[theirs] and theirs or nil
 end
 
 function Plate.ShowFaction(p, faction)
