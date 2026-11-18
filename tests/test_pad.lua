@@ -1292,3 +1292,50 @@ T.test("pad chat: sharing with a mouse and no box open opens one with the link, 
     T.deq(calls[#calls], { "OpenChat", "|Hitem:6948|h[Hearthstone]|h" })
     done(); clear()
 end)
+
+-- The world map, a game window on the controller's list, would keep the D-pad
+-- through a fight. Only the map comes off: the game's pop-ups stay listed (they
+-- keep where focus returns to), and the map goes back on once the fight is over.
+T.test("pad: the world map comes off the controller's list for a fight and back on after; the game's pop-ups stay", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    fresh(m)
+    local oldMap = _G.WorldMapFrame
+    local map = CreateFrame("Frame", nil, UIParent)
+    local popup = CreateFrame("Frame", nil, UIParent)
+    _G.WorldMapFrame = map
+    m:FrameShown(map)             -- the game lists its own windows
+    m:FrameShown(popup, true)
+    stub.SetRestriction("Combat", true)
+    stub.EnterCombat()
+    T.eq(has(m, map), false, "the map is off the list for the fight")
+    T.eq(has(m, popup), true, "a pop-up stays")
+    T.eq(m.refused, 0)
+    stub.SetRestriction("Combat", false)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(has(m, map), true, "the map is back once the fight is over")
+    T.eq(m.refused, 0)
+    _G.WorldMapFrame = oldMap
+    clearAll()
+end)
+
+T.test("pad: a world map closed in the fight isn't put back on the list", function()
+    local DUI = stub.Load()
+    local m = strict(true)
+    fresh(m)
+    local oldMap = _G.WorldMapFrame
+    local map = CreateFrame("Frame", nil, UIParent)
+    _G.WorldMapFrame = map
+    m:FrameShown(map)
+    stub.SetRestriction("Combat", true)
+    stub.EnterCombat()
+    map:Hide()
+    stub.SetRestriction("Combat", false)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(has(m, map), false)
+    _G.WorldMapFrame = oldMap
+    clearAll()
+end)
+

@@ -1224,15 +1224,16 @@ local function handBack()
     Pad.HideHints()
     local m = manager()
     if not m or combatActive() then return end
-    -- The game's own windows (the world map) would keep the D-pad through the fight.
-    local list = m.shownFrames
-    if type(list) == "table" then
-        local copy = {}
-        for i, f in ipairs(list) do copy[i] = f end
-        for _, f in ipairs(copy) do
-            if type(f) == "table" and not followed[f] and not forgetting[f] and not told[f] then
-                m:FrameHidden(f)
-                if f.IsShown and f:IsShown() then relist[#relist + 1] = f end
+    -- The world map, a game window, would keep the D-pad through the fight. Only
+    -- the map: the game's pop-ups would lose where focus returns to, and loot
+    -- rolls showing at a pull need the D-pad.
+    local map, list = _G.WorldMapFrame, m.shownFrames
+    if type(map) == "table" and type(list) == "table" and not followed[map] and not forgetting[map] and not told[map] then
+        for _, f in ipairs(list) do
+            if f == map then
+                m:FrameHidden(map)
+                if map:IsShown() then relist[#relist + 1] = map end
+                break
             end
         end
     end
@@ -1247,7 +1248,7 @@ local function takeBack()
     local asked = waiting
     waiting = {}
     for _, fn in pairs(asked) do fn() end
-    -- The game's windows first, so a Daylight UI window open across the fight is announced last.
+    -- The map first, so a Daylight UI window open across the fight is announced last.
     local back = relist
     relist = {}
     local m = manager()
