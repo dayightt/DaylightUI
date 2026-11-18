@@ -2480,6 +2480,10 @@ function W.Slider(parent, spec)
     end
     s:HookScript("OnMouseUp", save)
     s:HookScript("OnHide", save)
+    -- While one is held, the window refreshes at a steady pace, not at every step (Panel's refreshIfShown).
+    s:HookScript("OnMouseDown", function() Options.sliderHeld = true end)
+    s:HookScript("OnMouseUp", function() Options.sliderHeld = false; DUI.FlushHeldStyle() end)
+    s:HookScript("OnHide", function() Options.sliderHeld = false; DUI.FlushHeldStyle() end)
 
     local updating = false
     local function paintFill(v)
