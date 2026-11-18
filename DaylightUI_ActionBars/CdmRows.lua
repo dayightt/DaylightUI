@@ -463,8 +463,11 @@ local function drawOurs(id, p, block, f, always, aura, track)
     end
     -- A totem's icon or bar runs on the totem's time (CdmCustom.TotemUp).
     local totem = (track == "totem" or buffTotem) or nil
-    if item and (item.totem ~= totem or item.totemBuff ~= (buffTotem or nil)) then
-        item.totem, item.totemBuff = totem, buffTotem or nil
+    -- It dims only once a cast has taught its buff (CdmCustom.TotemBuffKnown): until
+    -- then nothing could cover it, so it stays full.
+    local dims = (buffTotem and C.TotemBuffKnown(Own.SpellOf(id))) or nil
+    if item and (item.totem ~= totem or item.totemBuff ~= dims) then
+        item.totem, item.totemBuff = totem, dims
         if block.kind == "bar" then
             if ns.CdmBars then ns.CdmBars.UpdateCooldown(item) end
         else

@@ -102,13 +102,13 @@ function Own.Track(id, p, known)
     if C and C.TotemNoBuff(Own.SpellOf(id)) then
         return not (type(p) == "table" and p.track == "cooldown") and "totem" or nil
     end
-    -- Any other totem shows the totem's time too. Once a cast of any rank has taught its buff,
-    -- the buff covers the icon while you have it (Totem and buff, "both"), so the
-    -- icon shows when you're out of its range. Buff only and Cooldown stay as picked.
+    -- Every other totem is Totem and buff ("both"): the totem's time, with its buff
+    -- covering the icon while you have it, so the icon shows when you're out of
+    -- range. Buff only and Cooldown stay as picked.
     if C and C.Totem(Own.SpellOf(id)) then
         local t = Own.Picked(p)
         if t == "cooldown" or t == "buff" then return t end
-        return C.TotemBuffKnown(Own.SpellOf(id)) and "both" or "totem"
+        return "both"
     end
     -- No buff known yet: a plain cooldown, unless the player picked something else.
     -- The buff is watched by the spell's own id until a cast teaches the real one.
@@ -331,6 +331,14 @@ local function auraFrom(sid)
     local name
     local okN, n = pcall(C_Spell.GetSpellName, sid)
     if okN and type(n) == "string" and not isSecret(n) then name = n end
+    -- A totem's buff is often named without the word Totem (Strength of Earth
+    -- Totem puts up Strength of Earth), so that name is tried too.
+    local bare
+    local C = ns.CdmCustom
+    if name and C and C.Totem(sid) then
+        bare = name:gsub("%s*Totem%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")
+        if bare == name or bare == "" then bare = nil end
+    end
     for _, look in ipairs(LOOKS) do
         local a
         if type(U.GetUnitAuraBySpellID) == "function" then
@@ -341,9 +349,11 @@ local function auraFrom(sid)
                 a = got
             end
         end
-        if not a and name and type(U.GetAuraDataBySpellName) == "function" then
-            local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, name, look.filter)
-            if ok and type(got) == "table" then a = got end
+        for _, nm in ipairs({ name, bare }) do
+            if not a and type(U.GetAuraDataBySpellName) == "function" then
+                local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, nm, look.filter)
+                if ok and type(got) == "table" then a = got end
+            end
         end
         local found = a and plainNumber(a.spellId)
         if found then return found end

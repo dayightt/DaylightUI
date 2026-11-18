@@ -5109,9 +5109,10 @@ T.test("cdm: a totem with a buff shows the totem's time, dimmed out of range of 
     Own.Forget()
     D.AddPiece(set, 12, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
-    -- Buff not taught yet: the totem's time alone.
-    T.eq(Own.Track(12, set.pieces[12]), "totem", "buff not known yet: Totem")
-    T.eq(R.DrawnBy(12), "totem icon")
+    -- Buff not taught yet: Totem and buff all the same, never dimmed.
+    T.eq(Own.Track(12, set.pieces[12]), "both", "buff not known yet: Totem and buff")
+    T.eq(R.DrawnBy(12), "totem and buff icon")
+    T.falsy(Own.Frame(12).totemBuff, "nothing to cover it yet: no dim")
     -- A cast taught it (CdmOwn.LearnAura): the Windfury Totem aura, 8515.
     DUI.DB.Character().cdmAuraIDs = { [8512] = { [8515] = true } }
     Own.Forget()
@@ -5338,6 +5339,40 @@ T.test("cdm track: a placed spell's buff is learned from a cast, by name when it
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-4", 111); stub.RunTimers()
     T.truthy(Own.AuraOf(111) and Own.AuraOf(111)[111], "found by id")
     _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Strength of Earth Totem puts up Strength of Earth: no id and no name in common,
+-- so its buff was never learned and the piece never got Totem and buff.
+T.test("cdm track: a totem's buff is learned by its name without the word Totem", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = D.Current()
+    AB.CdmSpells.SHAMAN = { { 8075, 8160, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 13 } }, { [0] = { 13 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+        return { spellID = 8075, selfAura = true, hasAura = true }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local realName = C_Spell.GetSpellName
+    C_Spell.GetSpellName = function(id)
+        if id == 8075 or id == 8160 then return "Strength of Earth Totem" end
+        return realName(id)
+    end
+    Own.Forget()
+    D.AddPiece(set, 13, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(Own.Track(13, set.pieces[13]), "both", "Totem and buff before its buff is known")
+    stub.SetAuras("player", "HELPFUL", { { name = "Strength of Earth", spellId = 8076 } })
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-soe", 8075); stub.RunTimers()
+    T.truthy(Own.AuraOf(8075) and Own.AuraOf(8075)[8076], "found as Strength of Earth")
+    T.truthy(AB.CdmCustom.TotemBuffKnown(8075), "now it dims out of range")
+    C_Spell.GetSpellName = realName
+    _G.GetSpellBaseCooldown = nil
+    DUI.DB.Character().cdmAuraIDs = nil
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
