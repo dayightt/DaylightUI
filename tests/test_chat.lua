@@ -3495,6 +3495,20 @@ T.test("chat daylight: line spacing spreads the box's lines, and 0 is the game's
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat daylight: messages line up on the left, or the right when asked", function()
+    local Box, box = daylight()
+    local DUI = DaylightUI
+    Box.Font()
+    T.eq(box:GetJustifyH(), "LEFT", "left by default")
+    DUI:Set("Chat", "align", "right")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "RIGHT", "right once picked")
+    DUI:Set("Chat", "align", "left")
+    stub.RunTimers()
+    T.eq(box:GetJustifyH(), "LEFT")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a combat log tab shows the game's combat log in the chat's place", function()
     local selected
     local Box, box = daylight(function()

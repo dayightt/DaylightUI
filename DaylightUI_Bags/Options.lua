@@ -309,6 +309,18 @@ ns.OPTIONS = { pages = {
             backRows[1], backRows[2],
             { type = "toggle", key = "autoStack", label = "Stack items when the bag opens", disabled = off,
               desc = "Opening your bag fills up part stacks of the same item (15 and 5 Linen Cloth become 20), so no slot is wasted. Not in combat, or while you trade or have the mailbox or auction house open." },
+            { type = "toggle", label = "Clean up toward the end", disabled = off,
+              desc = "The game's own setting: Clean Up packs your items into the last slots of your bags, so the empty slots sit at the top and what you loot next shows up in front of them. Best in the Grid view.",
+              get = function()
+                  local get = C_Container and C_Container.GetSortBagsRightToLeft
+                  return type(get) == "function" and get() == true
+              end,
+              set = function(v)
+                  local set = C_Container and C_Container.SetSortBagsRightToLeft
+                  if type(set) == "function" then set(v == true) end
+                  -- Not one of Daylight UI's settings, so tell the options window directly.
+                  DUI.Fire("SettingChanged", "Bags", "sortRightToLeft", v)
+              end },
             { type = "toggle", key = "reagentMerged", label = "Mix profession bag with other bags", disabled = off,
               desc = "Profession bag slots follow your other bags' slots. When off, they get their own section below a thin line." },
             { type = "toggle", key = "showKeyring", label = "Show keyring", disabled = off,

@@ -1658,6 +1658,35 @@ T.test("action bars: the bag bar and micro menu are skinned, unless turned off",
     T.eq(QuestLogMicroButton.Background:GetAlpha(), 1)
 end)
 
+T.test("action bars: the free bag slots switch is the game's displayFreeBagSlots, its count in the accent", function()
+    local cvars = { displayFreeBagSlots = "0" }
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world(); menuButtons()
+        local pack = CreateFrame("Button", "MainMenuBarBackpackButton", BagsBar)
+        pack.icon = pack:CreateTexture()
+        pack.FreeSlots = pack:CreateFontString()
+        _G.GetCVar = function(k) return cvars[k] end
+        _G.SetCVar = function(k, v) cvars[k] = v end
+    end })
+    local item
+    for _, page in ipairs(stub.actionbars.OPTIONS.pages) do
+        for _, g in ipairs(page.groups) do
+            for _, it in ipairs(g.items) do
+                if it.label == "Free bag slots on the backpack" then item = it end
+            end
+        end
+    end
+    T.truthy(item, "on the bag bar card")
+    T.eq(item.get(), false)
+    item.set(true)
+    T.eq(cvars.displayFreeBagSlots, "1")
+    T.eq(item.get(), true)
+    local r, g, b = MainMenuBarBackpackButton.FreeSlots:GetTextColor()
+    local ar, ag, ab = DUI.Style.Pop()
+    T.truthy(math.abs(r - ar) + math.abs(g - ag) + math.abs(b - ab) < 1e-6, "the count painted in the accent")
+    _G.GetCVar, _G.SetCVar = nil, nil
+end)
+
 T.test("action bars: a button shape leaves the micro menu and bag bar framed", function()
     -- A shape is drawn only by the action buttons' own pieces, so these keep the
     -- square shell, background and all (a player saw them go see-through).

@@ -1312,6 +1312,7 @@ function stub.MessageFrame(f)
     function f:SetFont(file, size, flags) self.font = { file, size, flags } end
     function f:GetFont() local t = self.font or {}; return t[1], t[2], t[3] end
     function f:SetJustifyH(j) self.justifyH = j end
+    function f:GetJustifyH() return self.justifyH or "LEFT" end
     function f:SetShadowOffset(x, y) self.shadowOffset = { x, y } end
     function f:SetShadowColor(...) self.shadowColor = { ... } end
     function f:AddOnDisplayRefreshedCallback(fn) table.insert(self.onDisplayRefreshedCallbacks, fn) end

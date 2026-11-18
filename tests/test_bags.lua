@@ -5652,6 +5652,23 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     T.eq(picks, 0, "nothing to do")
 end)
 
+T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()
+    local ns = login({ view = "grid" })
+    keepWorld()
+    local rev = true
+    C_Container.GetSortBagsRightToLeft = function() return rev end
+    local f = open(ns)
+    ns.Keep.Toggle(0, 3, 30)
+    f.sort:GetScript("OnClick")(f.sort)
+    for _ = 1, 10 do stub.RunTimers() end
+    local last = ns.Bags.NumSlots(1)
+    T.eq(world.items[0][3].itemName, "Cherry", "the kept item never moved")
+    T.eq(world.items[1][last].itemName, "Apple", "the first item in the very last slot")
+    T.eq(world.items[1][last - 1].itemName, "Banana")
+    T.isnil(world.items[0][1], "the front left empty")
+    C_Container.GetSortBagsRightToLeft = nil
+end)
+
 T.test("bags: a kept item that wandered off comes back; a kept slot with its item gone stays free", function()
     local ns = login({ view = "grid" })
     keepWorld()

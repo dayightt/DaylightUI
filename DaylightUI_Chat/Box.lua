@@ -979,6 +979,8 @@ function Box.Font()
             frame:SetShadowColor(0, 0, 0, 0.9)
             local gap = cfg.lineSpacing
             frame:SetSpacing(type(gap) == "number" and gap > 0 and gap or 0)
+            local align = P == side and cfg.sideAlign or cfg.align
+            frame:SetJustifyH(align == "right" and "RIGHT" or "LEFT")
         end
     end
 end
