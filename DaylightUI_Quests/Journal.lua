@@ -758,7 +758,11 @@ end
 local function ringOn(child, map, questID)
     local pin = Journal.PinFor(map, questID)
     if not pin then return end
-    if not ring then ring = makeRing(child); Journal.ring = ring end
+    -- Creating a frame under a window SmartNavigation manages is refused in combat.
+    if not ring then
+        if InCombatLockdown() then return end
+        ring = makeRing(child); Journal.ring = ring
+    end
     ring:ClearAllPoints()
     ring:SetPoint("CENTER", pin, "CENTER", 0, 0)
     -- The pin keeps its size as the map zooms (its own scale); match it.
@@ -782,6 +786,7 @@ function Journal.Light(questID)
     ringOn(child, map, questID)
     if Journal.noBlob then return end
     if not blob then
+        if InCombatLockdown() then return end
         blob = makeBlob(child, map)
         if not blob then Journal.noBlob = true; return end   -- this client can't create one; the ring and ping still work
         Journal.blob = blob
