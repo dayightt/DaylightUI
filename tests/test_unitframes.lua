@@ -1697,6 +1697,81 @@ T.test("unit frames: the pet's name stays on its bar by default; Name on the bar
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Every frame's name settings are on a Name tab of their own, apart from its health and power
+-- texts, and the name tab's card sits with them.
+T.test("unit frames: each frame has a Name tab with its name rows, and Text keeps the rest", function()
+    local DUI = stub.Load({ module = true })
+    local NAME = { showName = true, nameColor = true, nameLimitLen = true, namePos = true, nameX = true, nameY = true }
+    local TEXTY = { showPercent = true, healthText = true, showPowerText = true }
+    local function field(it) return type(it.key) == "string" and string.match(it.key, "%.([^%.]+)$") end
+    for _, id in ipairs({ "player", "target", "focus", "party", "arena", "targettarget", "focustarget", "partyTarget", "pet", "raid" }) do
+        local page = DUI.Options.GetPage("UnitFrames." .. id)
+        T.truthy(page, id .. " has its page")
+        local nameCard, textCard, tabCard
+        for _, g in ipairs(page.groups) do
+            if g.label == "Name" then nameCard = g elseif g.label == "Text" then textCard = g elseif g.label == "Name tab" then tabCard = g end
+        end
+        T.truthy(nameCard, id .. ": a Name card")
+        T.eq(nameCard.tab, "Name", id .. ": on the Name tab")
+        if tabCard then T.eq(tabCard.tab, "Name", id .. ": the name tab's card sits with it") end
+        local found = {}
+        for _, it in ipairs(nameCard.items) do found[field(it) or ""] = true end
+        T.truthy(found.showName and found.nameColor and found.nameLimitLen, id .. ": the name's rows are there")
+        if textCard then
+            T.eq(textCard.tab, "Text")
+            for _, it in ipairs(textCard.items) do
+                T.falsy(NAME[field(it) or ""], id .. ": " .. tostring(it.key) .. " left the Text card")
+            end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Each cast bar's settings are on its frame's page, under a Cast bar tab, and the Cast Bars page
+-- keeps what every bar shares.
+T.test("unit frames: a Cast bar tab on the player, target, focus and party pages", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    local BAR = { player = "playerCastbar", target = "targetCastbar", focus = "focusCastbar", party = "partyCastbar" }
+    for id, bar in pairs(BAR) do
+        local page = O.GetPage("UnitFrames." .. id)
+        local keys, tabs = {}, {}
+        for _, g in ipairs(page.groups) do
+            if g.tab == "Cast bar" then
+                tabs[#tabs + 1] = g.label
+                for _, it in ipairs(g.items) do if it.key then keys[it.key] = true end end
+            end
+        end
+        T.truthy(#tabs >= 2, id .. ": its cast bar and its text")
+        T.truthy(keys[bar .. ".enabled"] and keys[bar .. ".at"] and keys[bar .. ".height"], id .. ": the bar's own rows")
+        T.truthy(keys[bar .. ".spell.size"] and keys[bar .. ".time.size"], id .. ": and its text sizes")
+    end
+    -- The test shows the casts while one of these pages is open.
+    for id in pairs(BAR) do
+        if id == "player" then goto skip end
+        local shows = false
+        for _, part in ipairs(O.GetPage("UnitFrames." .. id).preview or {}) do shows = shows or part == "castbars" end
+        T.truthy(shows, id .. ": the test shows its cast bar")
+        ::skip::
+    end
+    -- The player's cast bar border says whose it is, apart from the frame's own.
+    local labels = {}
+    for _, g in ipairs(O.GetPage("UnitFrames.player").groups) do labels[g.label] = (labels[g.label] or 0) + 1 end
+    T.eq(labels["Border and shadow"], 1, "the frame's border card, once")
+    T.eq(labels["Cast bar border and shadow"], 1, "the cast bar's own")
+    -- The Cast Bars page has only what is shared: no bar's own rows.
+    for _, g in ipairs(O.GetPage("UnitFrames.castbars").groups) do
+        for _, it in ipairs(g.items) do
+            T.falsy(type(it.key) == "string" and string.match(it.key, "^%a+Castbar%.at$"), "no bar's position row on the shared page")
+        end
+    end
+    -- Design mode's Options button for a cast bar lands on that setting of its frame's page.
+    local page, key = DUI.Movers.OptionsOf("unitframes.targetCastbar")
+    T.eq(page, "UnitFrames.target")
+    T.eq(key, "targetCastbar.at")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("unit frames: the target's name on the bar goes to any spot, nudged; in its tab it stays", function()
     local DUI, ns = stub.Load({ module = true })
     stub.units.target = { name = "Bandit", reaction = 2, level = 12, health = 50, maxHealth = 100, marker = 8 }

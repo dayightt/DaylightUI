@@ -409,10 +409,13 @@ Profiles.PRESETS = {
     -- bars and your own frames float (hidden out of combat, back in combat or
     -- when something changes), and the info panel and quest tracker dim in
     -- combat. The meter only shows in a group, the minimap is slightly smaller,
-    -- and NPC talk is immersive. Its General part (PRESET_GENERAL) shows
-    -- everything inside dungeons, raids, battlegrounds and arenas.
+    -- and NPC talk is immersive. The micro menu sits in the corner as in
+    -- DPS/Tank but waits for the mouse, faint (0.2) so a new player finds it.
+    -- Its General part (PRESET_GENERAL) shows everything inside dungeons,
+    -- raids, battlegrounds and arenas.
     ["Immersive Preset"] = {
         ActionBars = {
+            microMenu = "shown", microMenuCorner = true, microMenuFade = { mode = "always", alpha = 0.2, delay = 2 },
             bars = {
                 main = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },
                 bar2 = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },
@@ -1262,7 +1265,8 @@ local function packGroup(pack)
     local items = {}
     for _, e in ipairs(Profiles.PackProfiles(pack)) do
         items[#items + 1] = { type = "button", label = e.name, text = "Add",
-            desc = (e.sub and (e.sub .. " ") or "") .. "Made the first time you add it; after that, the one you have is used as it is. Choose it above to use it.",
+            -- The pack's own line stays as written; only the fixed sentence is translated.
+            desc = (e.sub and (e.sub .. " ") or "") .. L["Made the first time you add it; after that, the one you have is used as it is. Choose it above to use it."],
             hidden = function() return type(data()[e.name]) == "table" and Profiles.PackUpdate(e.name) ~= nil end,
             func = function()
                 local made, why = Profiles.AddPresetOffering(e.name)

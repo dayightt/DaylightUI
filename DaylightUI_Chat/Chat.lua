@@ -615,10 +615,13 @@ function Chat.Hold(force)
     -- whole block ("below").
     local at = Chat.InputAt()
     local rel = at == "below" and holder or panel
+    -- The Daylight box hides every game window, pulled-out ones too, so whichever
+    -- window's box the game opens has to land in the footer.
+    local all = ns.Box.On()
     for _, w in ipairs(Chat.Frames()) do
         local eb = _G[w:GetName() .. "EditBox"] or w.editBox
         if type(eb) == "table" then
-            if w == cf or w.isDocked then placeInput(eb, at, rel, force)
+            if w == cf or w.isDocked or all then placeInput(eb, at, rel, force)
             elseif ebAt[eb] then giveBack(eb, w) end
         end
     end

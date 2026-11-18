@@ -708,6 +708,11 @@ local function registerEvents()
         for _, b in ns.Group.Buttons() do UF.UpdateSummon(b) end
     end
     DUI.RegisterEvent("INCOMING_SUMMON_CHANGED", function() later(summons) end)
+    -- A rez cast on a member starting or stopping (UF.UpdateRez), batched too.
+    local function rezzes()
+        for _, b in ns.Group.Buttons() do UF.UpdateRez(b) end
+    end
+    DUI.RegisterEvent("INCOMING_RESURRECT_CHANGED", function() later(rezzes) end)
     -- A roster change can put someone new on a button that keeps its unit token
     -- ("party2"), so the header never re-sends it. Re-read them all, batched
     -- into one pass on the next frame since a filling raid sends dozens at

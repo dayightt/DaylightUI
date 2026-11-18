@@ -1,3 +1,29 @@
+# DaylightUI 1.9.4.3
+
+Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.
+
+## New
+- Unit frames: Choose how many buff and debuff icons sit in each row, on every frame
+- Chat: Short chat tags in your game's language, and each tag can be changed in the chat options
+- Plugins: Other addons can add their own choices to a quest's right-click menu
+
+## Changed
+- Unit frames: Each unit frame's page has its own Name and Cast bar tabs, with the cast bar in the preview
+- Group finder: Role badges in the group finder, the raid page and chat match the party and raid frames
+- Profiles: The Immersive preset shows the micro menu in the corner, faded until you mouse over it
+- Chat: Speech bubbles in the Daylight look are now laid over the game's own instead of reshaping them
+- Languages: Many more German texts thanks to WalAffe, and more Simplified Chinese thanks to Levis
+
+## Fixed
+- Unit frames: Party and raid frames show an angel while a dead player is being rezzed, like the game's
+- Nameplates: Fixed a rare nameplate that showed nothing at all: the game's own plate shows there now
+- Chat: The typing box no longer opens over your messages in the middle of the chat box
+- Cooldown Manager: Weakened Soul added to the Cooldown Manager shows again after you shield yourself
+- Quests: The quest tracker stays shown when a quest item pulls you into a fight with what you used it on
+- Controller: Walking away from a vendor with your bags open no longer leaves the D-pad stuck
+- Controller: The focus glow keeps your Focus Opacity and Color after a reload, and no empty box covers the game menu's title
+- General: Little touches: the options window stays tidy when narrow, and finished Legacy challenges no longer open when clicked
+
 # DaylightUI 1.9.4
 
 Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.

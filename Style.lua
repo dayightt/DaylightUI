@@ -2484,6 +2484,7 @@ local function hasCyrillic(file)
     local name = string.match(string.lower(file), "([^\\/]+)$")
     return Style.CYRILLIC[name or ""] == true
 end
+Style.HasCyrillic = hasCyrillic
 
 -- The client may hand a path back with other slashes or case.
 local function samePath(a, b)

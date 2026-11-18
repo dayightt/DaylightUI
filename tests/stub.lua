@@ -2531,6 +2531,13 @@ _G.C_IncomingSummon = {
         return Enum.SummonStatus[x and x.summon or "None"] or 0
     end,
 }
+-- A rez being cast on a unit: its own rez = true. Only the cast shows: it
+-- drops back to false the moment the rez lands, as in game.
+_G.UnitHasIncomingResurrection = function(u)
+    assert(not isSecret(u), "UnitHasIncomingResurrection: secret unit")
+    local x = U(u)
+    return x ~= nil and x.rez == true
+end
 _G.HasLFGRestrictions = function() return stub.lfgGroup == true end
 _G.UnitInBattleground = function(u) if u == "player" and stub.inBattleground then return 1 end end
 -- Group calls the game marks HasRestrictions do nothing for addon code in a fight
