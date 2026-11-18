@@ -68,8 +68,8 @@ function RP.OwnerOf(unit)
 end
 
 -- The owner line under a pet tile's name: <Owner>, from the owner's unit (a
--- sample's from its sample). The name can be secret, so it only goes to
--- SetFormattedText.
+-- sample's from its sample), or <Unknown> when the owner can't be found. The
+-- name can be secret, so it only goes to SetFormattedText.
 function RP.PaintOwner(b)
     local fs = b.ownerText
     if not fs then return end
@@ -80,10 +80,7 @@ function RP.PaintOwner(b)
         local owner = RP.OwnerOf(b.unitToken)
         if owner and UnitExists(owner) then name = DUI.UnitName(owner, "raid") end
     end
-    if type(name) == "nil" then
-        fs:Hide()
-        return
-    end
+    if type(name) == "nil" then name = DUI.L["Unknown"] end
     fs:SetFormattedText("<%s>", name)
     fs:Show()
 end

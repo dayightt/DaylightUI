@@ -155,10 +155,11 @@ T.test("raid pets: the owner's name under the pet's, kept current", function()
     stub.units.raid3 = { name = "Mio", isPlayer = true, class = "WARLOCK", raid = true }
     stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.RunTimers()
     T.eq(b.ownerText.__text, "<Mio>", "follows the roster")
-    -- No owner for the unit: hidden.
+    -- No owner to be found: <Unknown>.
     stub.units.raid3 = nil
     stub.FireEvent("UNIT_PET", "raid3"); stub.RunTimers()
-    T.falsy(b.ownerText:IsShown())
+    T.truthy(b.ownerText:IsShown())
+    T.eq(b.ownerText.__text, "<" .. DUI.L["Unknown"] .. ">")
     stub.units.raidpet3 = nil
     -- Samples carry an owner too.
     DUI.SetTestMode(true)
