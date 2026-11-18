@@ -300,6 +300,10 @@ function Manager.Added(unit)
     -- its own plate for this unit.
     if not DUI.SafeCall(ns.Plate.Attach, p, nameplate) or not Manager.Usable(p) then
         refused[nameplate] = true
+        -- An earlier handout may already have parked the game's current frame.
+        DUI.SafeCall(function()
+            if not forbidden(nameplate) then Manager.GiveBackFrame(nameplate.UnitFrame, nameplate) end
+        end)
         Manager.Abandon(p)
         return
     end
