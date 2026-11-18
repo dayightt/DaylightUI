@@ -26,7 +26,7 @@ end
 local function auraSlots(into)
     for _, k in ipairs(ns.AURA_SLOTS) do
         into[k] = { show = false, what = "debuffs", debuffWhich = "dispel", buffWhich = "heals", spot = "topleft",
-                    grow = "right", size = 14, max = 3, rows = 1, spacing = 2, x = 0, y = 0, timers = false,
+                    grow = "right", size = 14, max = 3, rows = 1, perRow = 0, spacing = 2, x = 0, y = 0, timers = false,
                     shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true }
     end
     return into
@@ -133,11 +133,11 @@ ns.DEFAULTS = {
                   -- Debuff tooltips on: what's on a party member matters
                   -- more than a mouseover cast while the cursor is over an icon.
                   debuffs = { show = true, which = "all", spot = "below", grow = "left", size = 18, max = 4,
-                              rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 8, countSize = 10, counts = true },
-                  cc = { show = false, spot = "center", grow = "center", size = 18, max = 1, rows = 1, spacing = 2,
+                              rows = 1, perRow = 0, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 8, countSize = 10, counts = true },
+                  cc = { show = false, spot = "center", grow = "center", size = 18, max = 1, rows = 1, perRow = 0, spacing = 2,
                          x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = true, timeSize = 9, countSize = 10, counts = true },
                   buffs = { show = true, which = "heals", spot = "below", grow = "right", size = 14, max = 4,
-                            rows = 1, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
+                            rows = 1, perRow = 0, spacing = 2, x = 0, y = 0, timers = true, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
               }),
               -- Header layout: down or across, frames per line, sorting, you.
               direction = "columns", perLine = 5, groupSpacing = 4, sortBy = "role", hideSelf = true, showSolo = false,
@@ -173,12 +173,12 @@ ns.DEFAULTS = {
                  -- Calm by default: two small debuffs in the corner, crowd control
                  -- in the middle only while it lasts, no timer numbers.
                  debuffs = { show = true, which = "all", spot = "bottomright", grow = "left", size = 12, max = 2,
-                             rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
-                 cc = { show = true, spot = "center", grow = "center", size = 16, max = 1, rows = 1, spacing = 2,
+                             rows = 1, perRow = 0, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
+                 cc = { show = true, spot = "center", grow = "center", size = 16, max = 1, rows = 1, perRow = 0, spacing = 2,
                         x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 9, countSize = 10, counts = true },
                  -- bottomleft matches the old tile buffs' "below". An upgrade step leaves an unsaved spot at this.
                  buffs = { show = false, which = "heals", spot = "bottomleft", grow = "right", size = 14, max = 4,
-                           rows = 1, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
+                           rows = 1, perRow = 0, spacing = 2, x = 0, y = 0, timers = false, shortTimers = false, swipe = false, tooltips = false, timeSize = 8, countSize = 10, counts = true },
              }),
              showPercent = false, slant = false, showPower = true, powerHeight = 3, showMarker = true,
              predictHeals = true, predictAbsorbs = true, showThreat = true, showDispel = true, dispelSize = 12, dispelHighlight = "none", dispelGlow = true, dispelAlpha = 0.3, dispelOnlyMine = true, dispelPos = "topright", dispelX = 0, dispelY = 0, rolePos = "bottomleft", roleSize = 11, roleX = 0, roleY = 0, markerPos = "bottomright", markerSize = 11, markerX = 0, markerY = 0, leaderPos = "topleft", leaderPx = 11, leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0,
@@ -202,7 +202,7 @@ ns.DEFAULTS = {
                  -- Its own rows, shaped like playerAuras: off, over the bars, buffs from the left, debuffs from the right.
                  auras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                            buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
-                           buffSize = 20, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
+                           buffSize = 20, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2, debuffPerRow = 0, buffPerRow = 0,
                            debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                            debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                            debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
@@ -213,7 +213,7 @@ ns.DEFAULTS = {
     targetAuras = { debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                     buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, debuffs = true, debuffFilter = "all",
                     maxDebuffs = 8, maxOtherDebuffs = 4, buffSize = 16, buffs = true, maxBuffs = 6,
-                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 4, buffRows = 3,
+                    debuffSpacing = 3, buffSpacing = 3, debuffRows = 4, buffRows = 3, debuffPerRow = 0, buffPerRow = 0,
                     debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                     debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                     debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
@@ -222,7 +222,7 @@ ns.DEFAULTS = {
     focusAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                    buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 22, debuffFilter = "mine",
                    maxDebuffs = 6, maxOtherDebuffs = 3, buffSize = 16, maxBuffs = 6,
-                   debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 1,
+                   debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 1, debuffPerRow = 0, buffPerRow = 0,
                    debuffTimeSize = 11, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                    debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                    debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
@@ -231,7 +231,7 @@ ns.DEFAULTS = {
     petAuras = { debuffs = false, buffs = false, debuffSpot = "below", debuffGrow = "left", debuffX = 0, debuffY = 0,
                  buffSpot = "below", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 18, debuffFilter = "all",
                  maxDebuffs = 4, buffSize = 14, maxBuffs = 4,
-                 debuffSpacing = 2, buffSpacing = 2, debuffRows = 1, buffRows = 1,
+                 debuffSpacing = 2, buffSpacing = 2, debuffRows = 1, buffRows = 1, debuffPerRow = 0, buffPerRow = 0,
                  debuffTimeSize = 10, buffTimeSize = 8, debuffCountSize = 9, buffCountSize = 9,
                  debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                  debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true, buffFilter = "all" },
@@ -241,7 +241,7 @@ ns.DEFAULTS = {
     -- the left end, debuffs from the right. All debuffs on you form one group.
     playerAuras = { debuffs = false, buffs = false, debuffSpot = "above", debuffGrow = "left", debuffX = 0, debuffY = 0,
                     buffSpot = "above", buffGrow = "right", buffX = 0, buffY = 0, debuffSize = 26, maxDebuffs = 8,
-                    buffSize = 16, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2,
+                    buffSize = 16, maxBuffs = 8, debuffSpacing = 3, buffSpacing = 3, debuffRows = 2, buffRows = 2, debuffPerRow = 0, buffPerRow = 0,
                     debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                     debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                     debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },

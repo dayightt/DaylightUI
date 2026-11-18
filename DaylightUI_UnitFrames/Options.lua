@@ -447,7 +447,11 @@ local function groupRows(items, g, dis, noTimers, gone, kind)
         { type = "slider", key = g("max"), label = one .. " max shown", min = 1, max = 12, step = 1,
           desc = "The most icons this group shows at once.", disabled = dis },
         { type = "slider", key = g("rows"), label = one .. " rows", min = 1, max = 4, step = 1,
-          desc = "The icons wrap onto up to this many rows.", disabled = dis },
+          desc = "The icons wrap onto up to this many rows. Not used while icons per row is set.",
+          disabled = function(get) return (dis and dis(get)) or (tonumber(get(g("perRow"))) or 0) > 0 end },
+        { type = "slider", key = g("perRow"), label = one .. " icons per row", since = "1.9.5", min = 0, max = 12, step = 1,
+          desc = "How many icons sit side by side before the next row starts. 0 spreads them evenly over the rows. Inside the frame a row never runs past its edge.",
+          disabled = dis },
         { type = "slider", key = g("spacing"), label = one .. " spacing", min = 0, max = 12, step = 1, unit = "px",
           desc = "The gap between icons.", disabled = dis },
         { type = "toggle", key = g("timers"), label = "Time left on " .. many, desc = "The time left as a number on each icon.",
@@ -972,6 +976,9 @@ local function unitAuraCards(prefix, own, desc)
                               desc = "The gap between debuff icons.", unit = "px", disabled = dOff }
     debuffs[#debuffs + 1] = { type = "slider", key = k("debuffRows"), label = "Debuff rows", min = 1, max = 6, step = 1,
                               desc = "The debuffs wrap onto up to this many rows.", disabled = dOff }
+    debuffs[#debuffs + 1] = { type = "slider", key = k("debuffPerRow"), label = "Debuffs per row", since = "1.9.5", min = 0, max = 16, step = 1,
+                              desc = "How many debuff icons sit side by side before the next row starts. 0 fits them to the frame's width.",
+                              disabled = dOff }
     debuffs[#debuffs + 1] = { type = "slider", key = k("debuffTimeSize"), label = "Debuff time left text size", min = 6, max = 20, step = 1,
                               desc = "How big the time left is on each debuff icon.", disabled = dOff }
     debuffs[#debuffs + 1] = { type = "slider", key = k("debuffCountSize"), label = "Debuff stack count size", min = 6, max = 20, step = 1,
@@ -986,6 +993,9 @@ local function unitAuraCards(prefix, own, desc)
           desc = "The gap between buff icons.", disabled = bOff },
         { type = "slider", key = k("buffRows"), label = "Buff rows", min = 1, max = 6, step = 1,
           desc = "The buffs wrap onto up to this many rows.", disabled = bOff },
+        { type = "slider", key = k("buffPerRow"), label = "Buffs per row", since = "1.9.5", min = 0, max = 16, step = 1,
+          desc = "How many buff icons sit side by side before the next row starts. 0 fits them to the frame's width.",
+          disabled = bOff },
         { type = "slider", key = k("buffTimeSize"), label = "Buff time left text size", min = 6, max = 20, step = 1,
           desc = "How big the time left is on each buff icon.", disabled = bOff },
         { type = "slider", key = k("buffCountSize"), label = "Buff stack count size", min = 6, max = 20, step = 1,
