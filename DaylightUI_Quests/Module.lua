@@ -77,6 +77,8 @@ DaylightUI:RegisterModule("Quests", {
             return
         end
         if ns.Tracker and ns.Tracker.built then ns.Tracker.Apply(path) end
+        -- Questie hides untracked quests' map icons except with the whole-log filter.
+        if path == "filter" then DaylightUI.Fire("QuestMapsChanged") end
         -- The journal uses the tracker's colors and tags.
         if ns.Journal then ns.Journal.OnStyleChanged() end
     end,
