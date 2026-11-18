@@ -4722,15 +4722,27 @@ end
 -- A 10 slot bag full of items, swapped for a 12 slot one with the other bags full:
 -- the game swaps them itself and moves the items into the new bag (seen in game),
 -- so Daylight UI leaves the drop to it instead of asking for free slots.
-T.test("bags: a bag with room for everything in the old one is left to the game", function()
+T.test("bags: a bag at least as big as the old one is left to the game", function()
     local ns = login()
     swapWorld()
     fillBackpack(0)                                       -- no free slots at all
-    local restore = bagTooltip(12)
+    local restore = bagTooltip(14)                        -- the old bag has 12
     C_Container.PickupContainerItem(0, 3)
     T.falsy(ns.Swap.Try(1, 31), "left to the game")
     T.eq(#world.printed, 0, tostring(world.printed[1]))
     T.eq(world.puts, 0, "Daylight UI moved nothing")
+    restore()
+end)
+
+-- Only a bigger bag was seen swapping in game, so a smaller one empties first even
+-- when the items would fit in it.
+T.test("bags: a smaller bag that would hold the items still empties the old one first", function()
+    local ns = login()
+    swapWorld()
+    fillBackpack(0)
+    local restore = bagTooltip(8)                         -- 8 slots, 3 items, old bag 12
+    C_Container.PickupContainerItem(0, 3)
+    T.truthy(ns.Swap.Try(1, 31), "handled here")
     restore()
 end)
 
