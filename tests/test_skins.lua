@@ -2152,6 +2152,35 @@ T.test("skins: the game menu's header title goes in the title row", function()
     T.eq(title.__font[1], DaylightUI.Style.FONT, "our font")
 end)
 
+-- The controller's focus glow on the game menu (FrameGlowMixin): its piece
+-- around the dialog header framed nothing once the header was gone, and the
+-- game set the glow's opacity only when the setting changed, so after a login
+-- it showed at full strength even at 0.
+T.test("skins: the game menu's controller focus glow has no header piece and keeps its opacity", function()
+    local getCVar, opacity = _G.GetCVar, "0"
+    _G.GetCVar = function(k) if k == "GamepadFocusStateOpacity" then return opacity end end
+    login(function()
+        local f = window("GameMenuFrame")
+        f.TitleContainer = nil
+        f.Header = CreateFrame("Frame", nil, f)
+        f.Header.Text = f.Header:CreateFontString()
+        f.FrameGlow = CreateFrame("Frame", nil, f)
+        f.FrameGlow.GlowTexture = f.FrameGlow:CreateTexture()
+        f.FrameGlow.HeaderGlowTexture = f.FrameGlow:CreateTexture()
+        f.FrameGlow:Hide()
+        f:Hide()
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local glow = GameMenuFrame.FrameGlow
+    T.eq(glow.HeaderGlowTexture:GetAlpha(), 0, "no outline where the game's header was")
+    T.eq(glow.GlowTexture:GetAlpha(), 1, "the window's own glow stays")
+    T.eq(glow:GetAlpha(), 0, "the saved opacity, from the start")
+    opacity = "0.6"
+    GameMenuFrame:Show(); glow:Show()
+    T.eq(glow:GetAlpha(), 0.6, "read again as it shows")
+    _G.GetCVar = getCVar
+end)
+
 -- The achievements title sits in its header art's plaque (Header.Title in
 -- Blizzard_AchievementUI.xml) and is moved into the title row too.
 T.test("skins: the achievements' header title goes in the title row", function()
