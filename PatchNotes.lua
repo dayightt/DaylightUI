@@ -11,9 +11,11 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased",
+    { version = "Unreleased" },
+    { version = "1.9.4.4", date = "2026-11-18", summary = "A small fix for using your font on the game's text.",
         fixed = {
-            { "General", "Using your font on the game's text now puts it on once as you log in, more gently, and Russian, Korean and Chinese letters keep drawing. Switching it asks for a reload" },
+            { "General", "\"Use this font for the game's text\" now applies once as you log in and asks for a reload when switched" },
+            { "General", "With it on, Russian, Korean and Chinese letters in the game's text keep drawing" },
         },
     },
     { version = "1.9.4.3", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
