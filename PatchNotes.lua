@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", changed = {
+    { version = "Unreleased", new = {
+        { "Nameplates", "Friendly players can show their class icon by their name, in the icon style you picked for each class (Nameplates, Friendly)" },
+    }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
     }, fixed = {
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },

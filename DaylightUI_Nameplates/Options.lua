@@ -638,9 +638,17 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "friendly.partyCustom", label = "Group color",
               desc = "The color of your party and raid members' names (with Group names on) and of the Group mark.",
               disabled = function(get) return get("friendly.partyName") ~= true and get("friendly.partyMark") == "none" end },
+        }), with(since("1.9.7", {
+            { type = "dropdown", key = "friendly.classIcon", label = "Class icon",
+              values = { none = "None", before = "Before name", after = "After name", above = "Above name" },
+              order = { "none", "before", "after", "above" },
+              desc = "A friendly player's class icon by their name, the one picked for that class under Unit Frames > Look > Class icons, so you can spot the healer in a crowd. Above name needs the name over the bar (or no bar); on or under it, the icon goes before the name." },
+            { type = "slider", key = "friendly.classIconSize", label = "Class icon size", min = 0, max = 32, step = 1,
+              desc = "How big the class icon is. Set to 0 to follow the name size.",
+              disabled = function(get) return get("friendly.classIcon") == "none" end },
         }), spotItems("Friendly name", { spot = "friendly.namePos", x = "friendly.nameX", y = "friendly.nameY" }, false,
             off("friendly.enabled"),
-            "Over, under, beside or on a friendly plate's health bar. Without the health bar the name stays centered."))) },
+            "Over, under, beside or on a friendly plate's health bar. Without the health bar the name stays centered.")))) },
         { label = "Guild names", items = with({
             { type = "toggle", key = "friendly.guild", label = "Friendly guild names",
               desc = "A friendly player's <guild> under their name, smaller." },

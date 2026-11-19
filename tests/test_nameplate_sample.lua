@@ -132,6 +132,22 @@ T.test("nameplate sample: the friendly page shows a friendly player", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplate sample: a name-only plate's fit takes in the guild line under it and the class icon over it", function()
+    local DUI, ns = load()
+    local s = sample(ns, "friendly")
+    local p = s.p
+    local Plate = ns.Plate
+    local c = Plate.Cfg(p)
+    local half = Plate.NameSize(p, c) / 2 - p.hp:GetHeight() / 2
+    T.eq(p.spotReach.down, half + 1 + p.subPx, "the guild line hangs under the centered name")
+    DUI:Set("Nameplates", "friendly.classIcon", "above")
+    s.Refresh(600, 200)
+    T.truthy(p.classIcon:IsShown(), "the icon is up")
+    T.eq(p.spotReach.up, half + Plate.ClassIconSize(p, c) + Plate.CLASS_ICON_LIFT, "the icon over it")
+    T.truthy(labels(s.Parts())["Class icon"], "a part of its own")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplate sample: threat shows on its own page only", function()
     local DUI, ns = load()
     DUI:Set("Nameplates", "threat", true)

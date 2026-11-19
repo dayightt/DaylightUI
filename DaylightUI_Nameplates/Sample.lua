@@ -188,6 +188,8 @@ Sample.PARTS = {
         "friendly.guildColor", "friendly.guildCustom", "friendly.guildSize",
         "friendly.roleColor", "friendly.roleCustom", "friendly.roleSize" },
       move = NAME_MOVE }, -- hangs off the name, so they move together
+    { label = "Class icon", at = at("classIcon"), keys = { "friendly.classIcon", "friendly.classIconSize" },
+      move = NAME_MOVE },
     { label = "Quest mark", at = function(p) return { p.quest, p.questCount } end,
       keys = { "quest", "questCount", "questPos", "questX", "questY" },
       move = { spot = QUEST("Pos"), x = QUEST("X"), y = QUEST("Y") } },
@@ -422,6 +424,7 @@ local function paintNames(p, c, u)
     if not Plate.Owned("name") then name = nameColor(p, c, u) end
     p.name:SetText(name)
     Plate.ShowGroupMark(p, u.party == true and (c.partyMark or "none") ~= "none")
+    Plate.ShowClassIcon(p, u.class)
     -- An enemy player represents the other faction (factionIcon).
     local other
     if u.otherFaction and c.factionIcon == true then

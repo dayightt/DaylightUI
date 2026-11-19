@@ -398,6 +398,17 @@ function Plate.Create(parent, sample)
     -- Opposite faction crest by a player's name (factionIcon).
     p.factionIcon = words:CreateTexture(nil, "OVERLAY")
     p.factionIcon:Hide()
+    -- A friendly player's class icon by the name (friendly.classIcon), on a soft
+    -- dark halo so it reads over a bright sky or a busy city.
+    local cls = CreateFrame("Frame", nil, words)
+    cls.halo = cls:CreateTexture(nil, "ARTWORK")
+    cls.halo:SetTexture(Plate.GLOW)
+    cls.halo:SetVertexColor(0, 0, 0, Plate.CLASS_ICON_HALO)
+    cls.halo:SetPoint("CENTER")
+    cls.icon = cls:CreateTexture(nil, "OVERLAY")
+    cls.icon:SetAllPoints(cls)
+    cls:Hide()
+    p.classIcon = cls
     p.nameFrame = words
     p.name = Style.Text(words, 11, "CENTER", Plate.MEDIA.fonts.name)
     p.name:SetWordWrap(false)
@@ -1746,6 +1757,7 @@ function Plate.UpdateNameColor(p)
     Plate.UpdateName(p)
     Plate.UpdateClassText(p)
     Plate.ShowGroupMark(p, (c.partyMark or "none") ~= "none" and Plate.InGroup(p))
+    Plate.ShowClassIcon(p, Plate.ClassIconToken(p))
     Plate.ShowFaction(p, (c.factionIcon == true and Plate.OtherFaction(u)) or (c.pvpIcon == true and Plate.PvPFaction(u)))
     Plate.Painted(p)
 end
@@ -1761,6 +1773,7 @@ function Plate.UpdateName(p)
     p.name:SetText(text)
     -- Things next to the name follow its new width.
     if p.groupMarkOn then Plate.PlaceGroupMark(p) end
+    if p.classIconOn then Plate.PlaceClassIcon(p) end
     if p.factionOn then Plate.PlaceFaction(p) end
 end
 
@@ -2093,13 +2106,119 @@ function Plate.PlaceFaction(p)
     local nameSize = Plate.NameSize(p, c)
     local size = math.max(8, math.floor(nameSize * Plate.FACTION_SCALE + 0.5))
     local gap = Plate.FACTION_GAP
-    local mark = p.groupMarks and p.groupMarks.before
-    if p.groupMarkOn and mark and (c.partyMark == "before" or c.partyMark == "around") then
-        gap = gap + math.max(6, math.floor(nameSize * Plate.GROUP_MARK_SCALE + 0.5)) + Plate.GROUP_MARK_GAP
-    end
+    gap = gap + Plate.GroupMarkRoom(p, c, "before") + Plate.ClassIconRoom(p, c, "before")
     icon:SetSize(size, size)
     icon:ClearAllPoints()
     icon:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
+    return true
+end
+
+-- How far the group mark reaches out from the name on one side, with its gap.
+function Plate.GroupMarkRoom(p, c, side)
+    local mode = c.partyMark
+    if not (p.groupMarkOn and p.groupMarks) then return 0 end
+    if not ((mode == "around" and side ~= "above") or (mode == "before" and side == "before")) then return 0 end
+    return math.max(6, math.floor(Plate.NameSize(p, c) * Plate.GROUP_MARK_SCALE + 0.5)) + Plate.GROUP_MARK_GAP
+end
+
+-- Class icon by a friendly player's name (friendly.classIcon "before" or "after"):
+-- the icon picked for that class in the unit frames' Class icons setting, so it
+-- matches the party and raid frames. NPCs have no class and get none.
+Plate.CLASS_ICON_SCALE = 1.3 -- size, as a fraction of the name's, when its own size is 0
+Plate.CLASS_ICON_GAP = 3
+Plate.CLASS_ICON_HALO = 0.55 -- the dark halo's strength
+Plate.CLASS_ICON_HALO_SIZE = 1.7 -- the halo's size, as a fraction of the icon's
+Plate.CLASS_ICON_LIFT = 1 -- above the name: the gap under it
+Plate.CLASS_ICON_SIDES = { before = true, after = true, above = true }
+
+-- The file and coordinates for a class's icon: the unit frames' pick, or
+-- Daylight UI's own set when that module is off.
+function Plate.ClassIconArt(token)
+    if type(DUI.ClassIcon) == "function" then
+        local file, l, r, t, b = DUI.ClassIcon(token)
+        if file then return file, l or 0, r or 1, t or 0, b or 1 end
+    end
+    if type(token) ~= "string" or not DUI.Gradients.CLASS_IDS[token] then return nil end
+    return DUI.MEDIA .. "class\\" .. string.lower(token) .. ".tga", 0, 1, 0, 1
+end
+
+-- The side the icon goes on for this plate, or nil.
+-- "above" only where the name has open sky over it (name-only, or a spot over
+-- the bar); on or under the bar it would sit on the bar, so it goes before the name.
+function Plate.ClassIconSide(p, c)
+    if not p.friendly then return nil end
+    local side = c.classIcon
+    if not Plate.CLASS_ICON_SIDES[side] then return nil end
+    if side == "above" and not (Plate.NameOnly(p, c) or Plate.ABOVE[c.namePos]) then return "before" end
+    return side
+end
+
+-- The class of a friendly player plate's unit when it's plain, else nil. Where the
+-- game hides it the plate shows no icon: a hidden class can't pick a file.
+function Plate.ClassIconToken(p)
+    local u = p.unit
+    if not u or plain(UnitIsPlayer, u) ~= true then return nil end
+    local token = plain(UnitClassBase, u)
+    return type(token) == "string" and token or nil
+end
+
+function Plate.ClassIconSize(p, c)
+    local own = c.classIconSize or 0
+    if own > 0 then return own end
+    return math.max(8, math.floor(Plate.NameSize(p, c) * Plate.CLASS_ICON_SCALE + 0.5))
+end
+
+-- How far the class icon reaches out from the name on one side, with its gap
+-- (for what sits past it: the faction crest).
+function Plate.ClassIconRoom(p, c, side)
+    if not p.classIconOn or Plate.ClassIconSide(p, c) ~= side then return 0 end
+    return Plate.ClassIconSize(p, c) + (side == "above" and Plate.CLASS_ICON_LIFT or Plate.CLASS_ICON_GAP)
+end
+
+-- token: the unit's class, or nil for none.
+function Plate.ShowClassIcon(p, token)
+    local cls = p.classIcon
+    if not cls then return end
+    local c = Plate.Cfg(p)
+    local file, l, r, t, b
+    if token and Plate.ClassIconSide(p, c) and p.name:IsShown() then file, l, r, t, b = Plate.ClassIconArt(token) end
+    if file then
+        cls.icon:SetTexture(file)
+        cls.icon:SetTexCoord(l, r, t, b)
+        p.classIconOn = Plate.PlaceClassIcon(p)
+    else
+        p.classIconOn = false
+    end
+    -- Over the name it takes room from what stacks above it (your buffs).
+    local up = Plate.ClassIconRoom(p, c, "above")
+    if p.spotSig and p.spotSig.classUp ~= up then Plate.PlaceSpots(p) end
+    if p.classIconOn or cls:IsShown() then
+        local M = DUI.Motion
+        M.AlphaTo(cls, p.classIconOn and 1 or 0, M.FAST, true)
+    end
+end
+
+-- Beside the name, past the group mark on that side.
+function Plate.PlaceClassIcon(p)
+    local cls = p.classIcon
+    local edge = cls and Plate.PlaceNameEdge(p)
+    if not edge then return false end
+    local c = Plate.Cfg(p)
+    local side = Plate.ClassIconSide(p, c)
+    if not side then return false end
+    local size = Plate.ClassIconSize(p, c)
+    local gap = Plate.CLASS_ICON_GAP + Plate.GroupMarkRoom(p, c, side)
+    cls:SetSize(size, size)
+    local halo = math.floor(size * Plate.CLASS_ICON_HALO_SIZE + 0.5)
+    cls.halo:SetSize(halo, halo)
+    cls:ClearAllPoints()
+    if side == "above" then
+        cls:SetPoint("BOTTOM", edge, "TOP", 0, Plate.CLASS_ICON_LIFT)
+    elseif side == "before" then
+        cls:SetPoint("RIGHT", edge, "LEFT", -gap, 0)
+    else
+        cls:SetPoint("LEFT", edge, "RIGHT", gap, 0)
+    end
     return true
 end
 
@@ -2109,7 +2228,7 @@ local function room(p, piece, c, w, h)
     if piece == "name" then
         if not p.name:IsShown() then return false end
         -- One pixel above the name too, where the rows have always started.
-        local up = Plate.NameSize(p, c) + 1
+        local up = Plate.NameSize(p, c) + 1 + Plate.ClassIconRoom(p, c, "above")
         if p.sub:IsShown() then up = up + 1 + p.subPx end
         return true, p.isSample and math.min(w + 20, textWidth(p.name, w)) or w + 20, up
     elseif piece == "quest" then
@@ -2179,6 +2298,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         name:SetPoint("CENTER", p, "CENTER", 0, 0)
         sub:SetPoint("TOP", name, "BOTTOM", 0, -1)
         if p.groupMarkOn then Plate.PlaceGroupMark(p) end
+        if p.classIconOn then Plate.PlaceClassIcon(p) end
         if p.factionOn then Plate.PlaceFaction(p) end
         return
     end
@@ -2199,6 +2319,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         sub:SetPoint("TOP" .. H, name, "BOTTOM" .. H, 0, -1)
     end
     if p.groupMarkOn then Plate.PlaceGroupMark(p) end
+    if p.classIconOn then Plate.PlaceClassIcon(p) end
     if p.factionOn then Plate.PlaceFaction(p) end
 end
 
@@ -2284,7 +2405,13 @@ local function place(p, x, piece)
     elseif x.used[spot] then
         local far = x.used[spot] + lead + up
         x.used[spot] = far
-        if r then
+        if r and piece == "name" and x.nameOnly then
+            -- A name-only plate's name sits on the plate's middle, not over the bar: the
+            -- class icon reaches up from it, the guild line down.
+            local half = Plate.NameSize(p, x.c) / 2 - x.h / 2
+            r.up = math.max(r.up, half + Plate.ClassIconRoom(p, x.c, "above"))
+            r.down = math.max(r.down, half + (p.sub:IsShown() and 1 + p.subPx or 0))
+        elseif r then
             if Plate.ABOVE[spot] then r.up = math.max(r.up, far + math.max(0, ny))
             else r.down = math.max(r.down, far + math.max(0, -ny)) end
             if spot ~= "above" and spot ~= "below" then
@@ -2307,6 +2434,7 @@ function Plate.PlaceSpots(p)
     local lift = Combo and Combo.Lift(p) or 0
     local drop = (Combo and Combo.Drop(p) or 0) + ns.Power.Drop(p)
     local sub, quest, count, marker = p.sub:IsShown(), p.quest:IsShown(), p.questCount:IsShown(), p.marker:IsShown()
+    local classUp = Plate.ClassIconRoom(p, c, "above")
     local s = p.spotSig
     if not s then
         s = {}
@@ -2314,11 +2442,12 @@ function Plate.PlaceSpots(p)
         p.spotsStale = true
     end
     if not p.spotsStale and s.sub == sub and s.subPx == p.subPx and s.quest == quest and s.count == count and s.marker == marker
-        and s.lift == lift and s.drop == drop then
+        and s.lift == lift and s.drop == drop and s.classUp == classUp then
         return
     end
     p.spotsStale = nil
     s.sub, s.subPx, s.quest, s.count, s.marker, s.lift, s.drop = sub, p.subPx, quest, count, marker, lift, drop
+    s.classUp = classUp
 
     local x = p.spotCtx
     if not x then

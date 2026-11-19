@@ -185,6 +185,15 @@ local RECIPES = {
         DUI.OptionsPanel.Show(which == "friendly" and "Nameplates.friendly" or "Nameplates.bars")
         return _G.DaylightUIOptions
     end },
+    plateclass = { about = "the nameplates' Friendly page with the class icon by the name, zoomed in [after|above: that side of the name] [bar: with the health bar]", open = function(DUI, how)
+        DUI:Set("Nameplates", "friendly.classIcon", (how == "after" or how == "above") and how or "before")
+        DUI:Set("Nameplates", "friendly.enabled", how == "bar")
+        stub.RunTimers()
+        stub.nameplates.Sample.zoom = 3
+        DUI.OptionsPanel.Show("Nameplates.friendly")
+        stub.RunTimers()
+        return _G.DaylightUIOptions
+    end },
     platecircle = { about = "the nameplates' Target page with the outline light on, zoomed in [a style: comet|breathe|twinkle|shine]", open = function(DUI, style)
         DUI:Set("Nameplates", "targetLight", style or "circle")
         stub.RunTimers()

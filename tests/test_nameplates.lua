@@ -4423,6 +4423,67 @@ T.test("nameplates: the PvP flag crest shows by anyone flagged, NPCs too, when s
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: a friendly player's class icon sits by the name, in the picked icon style", function()
+    login()
+    local DUI = DaylightUI
+    local set = function(k, v) DUI:Set("Nameplates", k, v) end
+    stub.units.nameplate3 = { name = "Stabitha", isPlayer = true, class = "ROGUE", hostile = true, reaction = 2,
+        health = 50, maxHealth = 100 }
+    stub.units.nameplate4 = { name = "Innkeeper Allison", reaction = 5, health = 100, maxHealth = 100 }
+    local friend, foe, npc = added("nameplate2"), added("nameplate3"), added("nameplate4")
+    T.falsy(friend.classIcon:IsShown(), "off by default")
+    set("friendly.classIcon", "before"); stub.RunTimers()
+    T.truthy(friend.classIcon:IsShown(), "on a friendly player")
+    T.eq(friend.classIcon.icon:GetTexture(), DUI.MEDIA .. "class\\mage.tga", "Daylight UI's own with the unit frames off")
+    local point, rel, relPoint = friend.classIcon:GetPoint(1)
+    T.eq(rel, friend.nameEdge, "by the name's letters")
+    T.eq(point .. relPoint, "RIGHTLEFT", "before the name")
+    T.falsy(foe.classIcon:IsShown(), "never on an enemy plate")
+    T.falsy(npc.classIcon:IsShown(), "an NPC has no class")
+    set("friendly.classIcon", "after"); stub.RunTimers()
+    point, rel, relPoint = friend.classIcon:GetPoint(1)
+    T.eq(point .. relPoint, "LEFTRIGHT", "after the name")
+    set("friendly.classIcon", "above"); stub.RunTimers()
+    point, rel, relPoint = friend.classIcon:GetPoint(1)
+    T.eq(point .. relPoint, "BOTTOMTOP", "over a name-only plate's name")
+    set("friendly.enabled", true); set("friendly.namePos", "left"); stub.RunTimers()
+    point, rel, relPoint = friend.classIcon:GetPoint(1)
+    T.eq(point .. relPoint, "RIGHTLEFT", "a name on the bar keeps it before the name, off the bar")
+    set("friendly.enabled", false); set("friendly.namePos", "above"); stub.RunTimers()
+    set("friendly.classIconSize", 20); stub.RunTimers()
+    T.eq(friend.classIcon:GetWidth(), 20, "its own size")
+    -- The icon picked for the class on the unit frames wins.
+    local was = DUI.ClassIcon
+    DUI.ClassIcon = function(token) return "picked\\" .. token, 0, 0.5, 0, 0.5 end
+    stub.nameplates.Plate.UpdateNameColor(friend)
+    DUI.ClassIcon = was
+    T.eq(friend.classIcon.icon:GetTexture(), "picked\\MAGE", "the unit frames' pick for the class")
+    set("friendly.classIcon", "none"); stub.RunTimers()
+    T.falsy(friend.classIcon:IsShown(), "switched off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the class icon keeps clear of the group mark and the faction crest", function()
+    login()
+    local DUI = DaylightUI
+    local Plate = stub.nameplates.Plate
+    DUI:Set("Nameplates", "friendly.classIcon", "before")
+    DUI:Set("Nameplates", "friendly.partyMark", "before")
+    stub.units.player.faction = "Horde"
+    stub.units.nameplate2.faction = "Alliance"
+    stub.units.nameplate2.party = true
+    stub.RunTimers()
+    local p = added("nameplate2")
+    local c = Plate.Cfg(p)
+    T.truthy(p.classIcon:IsShown() and p.factionIcon:IsShown(), "both up")
+    local _, _, _, x = p.classIcon:GetPoint(1)
+    T.eq(x, -(Plate.CLASS_ICON_GAP + Plate.GroupMarkRoom(p, c, "before")), "past the group mark")
+    local _, _, _, fx = p.factionIcon:GetPoint(1)
+    T.eq(fx, -(Plate.FACTION_GAP + Plate.GroupMarkRoom(p, c, "before") + Plate.ClassIconRoom(p, c, "before")),
+        "the crest past the class icon")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: custom friendly names: players, NPCs and the other faction each in their picked color", function()
     login()
     local DUI = DaylightUI
