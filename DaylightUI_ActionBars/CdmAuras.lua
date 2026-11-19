@@ -907,6 +907,12 @@ local function learn(h, a, unit)
         local was = charges()[h.id]
         if not was or n > was then charges()[h.id] = n end
     end
+    -- What's left of a buff your hits use up, for counting them in a fight.
+    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+    if hk then
+        h.hitsLeft = (n and n > 0 and n) or hk.charges
+        h.lastHit = nil
+    end
     local dur, ends = plain(a.duration), plain(a.expirationTime)
     if not dur then return end
     h.auraLasts = dur
@@ -1097,6 +1103,8 @@ function A.Cast(h, sid, at)
     h.exactEnd = exact ~= nil or nil
     h.endsAt = lasts and lasts > 0 and (at or GetTime()) + lasts or nil
     h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
+    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+    h.hitsLeft, h.lastHit = hk and hk.charges or nil, nil
     watchEnd(h)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
@@ -1359,19 +1367,34 @@ function A.Hidden(h)
 end
 
 -- Blocked hits (UNIT_COMBAT "BLOCK", or "WOUND" flagged BLOCK / BLOCK_REDUCED;
--- action and flag stay plain) use up a charge of block buffs. When the last is
--- gone the buff is down. Only used where auras can't be read.
+-- action, flag and school stay plain) use up a charge of block buffs, and any
+-- hit that lands ("WOUND") one of a buff your hits use up (Own.Hits). When the
+-- last is gone the buff is down. Only used where auras can't be read.
 local blocks = CreateFrame("Frame")
 blocks:RegisterUnitEvent("UNIT_COMBAT", "player")
-blocks:SetScript("OnEvent", function(_, _, _, action, flag)
+blocks:SetScript("OnEvent", function(_, _, _, action, flag, _, school)
     if isSecret(action) or isSecret(flag) or readable() then return end
-    if not (action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))) then return end
+    local blocked = action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))
+    local hit = action == "WOUND"
+    if not (blocked or hit) then return end
+    local physical = not isSecret(school) and school == 1
+    local now = GetTime()
     each(function(h)
-        if h.up == true and h.blocksLeft then
+        if h.up ~= true then return end
+        if blocked and h.blocksLeft then
             h.blocksLeft = h.blocksLeft - 1
             if h.blocksLeft <= 0 then
                 h.blocksLeft = nil
                 DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "blocked")
+            end
+        end
+        local hk = hit and h.hitsLeft and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+        if hk and (physical or not hk.melee) and not (hk.gap and h.lastHit and now - h.lastHit < hk.gap) then
+            h.lastHit = now
+            h.hitsLeft = h.hitsLeft - 1
+            if h.hitsLeft <= 0 then
+                h.hitsLeft = nil
+                DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "used up")
             end
         end
     end)

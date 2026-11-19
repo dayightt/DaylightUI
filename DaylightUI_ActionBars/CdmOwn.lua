@@ -434,6 +434,22 @@ function Own.Stacks(id)
     return sid ~= nil and STACKS[sid] == true
 end
 
+-- Buffs that hits on you use up, from the game's spell data (SpellAuraOptions):
+-- Lightning Shield's 3 balls go one per hit of any kind, at most one every 3.5
+-- seconds; Touch of Weakness goes on the next melee hit. In a fight nothing else
+-- says they ended early.
+Own.HITS = {}
+for _, sid in ipairs({ 324, 325, 905, 945, 8134, 10431, 10432 }) do
+    Own.HITS[sid] = { charges = 3, gap = 3.5 }
+end
+for _, sid in ipairs({ 2652, 19261, 19262, 19264, 19265, 19266 }) do
+    Own.HITS[sid] = { charges = 1, melee = true }
+end
+function Own.Hits(id)
+    local sid = Own.SpellOf(id)
+    return sid ~= nil and Own.HITS[sid] or nil
+end
+
 -- A gear slot cooldown (trinkets) with nothing equipped there. The game lists one on
 -- every character; the tray leaves it out.
 function Own.EmptySlot(id)

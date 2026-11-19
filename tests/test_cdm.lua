@@ -7785,6 +7785,56 @@ T.test("cdm custom: in a dungeon fight a buff of ours runs out by the clock from
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Lightning Shield set to show only while missing stayed hidden all fight after
+-- its balls were gone: the client's button gave no word, and its 10 minutes ran
+-- on. Hits that land use them up (3, one every 3.5 s at most, the game's data);
+-- Touch of Weakness goes on the next melee hit.
+T.test("cdm custom: in a fight a buff your hits use up ends at the last hit", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    D.AddPiece(set, "s6673", "icon", 0, 0)
+    D.AddPiece(set, "s2687", "icon", 0, -96)
+    D.Hook(set, "s2687", "s6673", "right")
+    local full = D.Layout(set)
+    refresh(AB)
+    local f2 = pieceFrame(1, "s2687")
+    local hits = AB.CdmOwn.Hits
+    local kind = AB.CdmOwn.HITS[10432]
+    AB.CdmOwn.Hits = function(id) if id == "s6673" then return kind end end
+    local function up(n)
+        stub.combat = false
+        stub.SetRestriction("Map", false)
+        stub.auras.player = { HELPFUL = { { spellId = 6673, applications = n, duration = 600, expirationTime = GetTime() + 600 } } }
+        AB.CdmAuras.AuraChanged(); stub.RunTimers()
+        T.eq(f2.goalX, full["s2687"].x, "up: its spot")
+        stub.SetRestriction("Map", true)
+        stub.combat = true
+        AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    end
+    local function hit(school) stub.FireEvent("UNIT_COMBAT", "player", "WOUND", "", 100, school); stub.RunTimers() end
+    up(3)
+    hit(8)
+    hit(1)
+    T.eq(f2.goalX, full["s2687"].x, "two hits at once fire one ball")
+    stub.Advance(4); hit(1)
+    T.eq(f2.goalX, full["s2687"].x, "two balls gone, one left")
+    stub.Advance(4); hit(8)
+    T.eq(f2.goalX, 0, "the third: used up, the next one slides over")
+    -- Touch of Weakness: a spell hit leaves it, the next melee hit takes it.
+    kind = AB.CdmOwn.HITS[2652]
+    up(0)
+    hit(32)
+    T.eq(f2.goalX, full["s2687"].x, "a spell hit leaves it")
+    hit(1)
+    T.eq(f2.goalX, 0, "the melee hit used it up")
+    AB.CdmOwn.Hits = hits
+    stub.combat = false
+    stub.SetRestriction("Map", false)
+    stub.auras.player = { HELPFUL = {} }
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm custom: the Seal placed as an icon and a bar watches every seal on you, named Seal", function()
     local DUI, AB, D, set = customRows()
     stub.SetUnits({ player = { class = "PALADIN" } })
