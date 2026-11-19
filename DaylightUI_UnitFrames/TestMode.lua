@@ -21,7 +21,7 @@ Test.UNITS = { "target", "focus", "pet", "targettarget", "focustarget" }
 Test.SAMPLES = {
     target = { name = "Torol Sadeas", reaction = 2, health = 62, healthValue = 3120, power = 45, powerValue = 1800, powerToken = "MANA",
                classification = "elite", marker = 8, portraitClass = "WARRIOR", threat = "aggro", threatPct = 100, level = 27,
-               dots = 24, dotSkull = true, pvp = true },
+               dots = 24, dotSkull = true, pvp = true, leader = true },
     focus = { name = "Navani", class = "PRIEST", health = 70, healthValue = 1840, power = 70, powerValue = 1680, powerToken = "MANA",
               marker = 4, portraitClass = "PRIEST", heals = 12, absorbs = 8, level = 25, leader = true, pvp = true },
     pet = { name = "Syl", reaction = 5, health = 91, healthValue = 880, portraitClass = "HUNTER" },

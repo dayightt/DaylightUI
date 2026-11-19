@@ -99,6 +99,12 @@ PageSample.PARTS = {
     { label = "Raid marker", at = at("marker"), keys = { "%s.showMarker", "%s.markerSize", "%s.markerPos" },
       move = { spot = "%s.markerPos", x = "%s.markerX", y = "%s.markerY" }, size = { s = "%s.markerSize" } },
     { label = "Elite crest", at = at("crest"), keys = { "%s.showClassification" } },
+    -- Only the target's has one. A spot of its own, or its own mover (threatTagAt) which the
+    -- sample doesn't have.
+    { label = "Threat tag", at = at("threatTag"), keys = { "%s.threatTag", "%s.threatTagPos", "%s.threatTagAt", "%s.threatTagWidth", "%s.threatTagHeight",
+                                                          "%s.threatTagSize", "%s.threatTagColor", "%s.threatTagBox", "%s.threatTagSlant", "%s.media.threatFont" },
+      move = { spot = "%s.threatTagPos", x = "%s.threatTagX", y = "%s.threatTagY" },
+      size = { w = "%s.threatTagWidth", h = "%s.threatTagHeight" } },
     { label = "Level", at = status("level"), keys = { "%s.showLevel", "%s.levelPos", "%s.levelStyle", "%s.levelShape", "%s.levelRingWidth", "%s.levelWidthPx", "%s.levelHeightPx", "%s.levelTextPx", "%s.levelColor", "%s.levelRing" },
       move = { spot = "%s.levelPos", x = "%s.levelX", y = "%s.levelY" } },
     -- With the name or portrait. A party button's moves to a spot (UF.IconSpot).

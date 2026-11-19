@@ -561,6 +561,16 @@ T.test("the player's level badge shows on its preview and drags in Design mode",
     T.truthy(part2, "still on the preview as just the number")
 end)
 
+T.test("the target's threat tag shows on its preview and drags in Design mode", function()
+    local DUI, ns = load()
+    local s = sample(ns, "target")
+    local part
+    for _, p in ipairs(s.Parts()) do if p.label == "Threat tag" then part = p end end
+    T.truthy(part, "the tag is on the preview")
+    T.eq(part.move.spotKey, "target.threatTagPos", "it moves by threatTagPos")
+    T.eq(part.move.xKey, "target.threatTagX")
+end)
+
 -- A Cast bar chip next to the Frame one: the bar on its own, drawn from its settings.
 T.test("cast bars on a frame's strip: a chip shows the bar, with its settings behind a click", function()
     local DUI, ns = load()

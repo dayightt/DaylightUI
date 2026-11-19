@@ -268,12 +268,12 @@ UF.ICON_HOME = "home"
 UF.HOME_CORNER = { markerPos = "bottomright", leaderPos = "topleft", rolePos = "bottomleft" }
 
 -- An icon's spot (a Spots spot), or nil for home. home: the frame currently
--- has one. Only party buttons (spec.cornerIcons) move an icon away from home.
--- The player's and target's marker always stays with the name.
+-- has one. Only party buttons (spec.cornerIcons) move an icon away from home,
+-- except the raid marker, which any frame can move.
 function UF.IconSpot(f, cfg, key, home)
     local spot = cfg[key]
     local valid = ns.Spots.Valid(spot)
-    if home and not (valid and f.spec.cornerIcons) then return nil end
+    if home and not (valid and (f.spec.cornerIcons or key == "markerPos")) then return nil end
     return valid and spot or UF.HOME_CORNER[key]
 end
 
@@ -281,9 +281,17 @@ UF.NO_NUDGE = { x = 0, y = 0 }
 
 -- A size the player picked, or nil while it's still the default (an icon at
 -- home then takes the size that fits there, like the marker in a tab).
+-- An icon's size on the frame as it is drawn now, in pixels (what its size slider shows until you pick one).
+function UF.IconSize(id, key)
+    local f = ns.frames and ns.frames[id]
+    local icon = f and f.status and f.status.icons[key]
+    local w = icon and icon:GetWidth()
+    return type(w) == "number" and w > 0 and math.floor(w + 0.5) or 12
+end
+
 function UF.PickedSize(v, default)
     local n = tonumber(v)
-    return n and n ~= default and n or nil
+    return n and n > 0 and n ~= default and n or nil
 end
 
 -- A ready check answer on a group tile (UF.UpdateReady): flat white icons,
@@ -905,6 +913,13 @@ function UF.LayoutThreatTag(f, cfg, side)
             -- Clear of the frame's angled end, outlines overlapping like the name tab.
             tag:SetPoint("BOTTOM" .. inner, f, "TOP" .. inner, (inner == "LEFT" and 1 or -1) * (f.cut or 0) + nx, -Pixel.Px(f, 1) + ny)
         end
+    end
+    -- A spot of its own on or around the frame (target.threatTagPos), nudged from there.
+    local spot = not free and ns.Spots.Valid(cfg.threatTagPos) and cfg.threatTagPos or nil
+    if spot then
+        local at = ns.Spots.Layout(spot, "center", ns.AuraGroups.Box(f, cfg), { x = nx, y = ny })
+        tag:ClearAllPoints()
+        tag:SetPoint(at.point, f, at.relPoint, at.x, at.y)
     end
     tag:SetSize(w, h)
     if f.spec.slant then Style.Slant(tag, side, cut) end
@@ -1626,6 +1641,9 @@ function UF.Layout(f, cfg, text, keepSize)
     f.pvpNudge = { x = tonumber(cfg.pvpX) or 0, y = tonumber(cfg.pvpY) or 0 }
     f.restNudge = { x = tonumber(cfg.restX) or 0, y = tonumber(cfg.restY) or 0 }
     f.iconScale = { leader = (cfg.leaderSize or 1), rest = (cfg.restSize or 1), pvp = (cfg.pvpSize or 1) }
+    -- Sizes picked in pixels (0 or none: the usual size for the frame).
+    f.pvpPx, f.restPx = UF.PickedSize(cfg.pvpPx), UF.PickedSize(cfg.restPx)
+    f.leaderStatusPx = not f.leaderIcon and UF.PickedSize(cfg.leaderPx) or nil
     -- The level's look: a badge (shape, ring, size) or just the number, and the
     -- digits' size and color. A size of 0 is the usual one for the frame.
     f.levelLook = { number = cfg.levelStyle == "number", shape = UF.PORTRAIT_SHAPES[cfg.levelShape] and cfg.levelShape or "round",
@@ -3569,6 +3587,9 @@ function UF.LayoutStatus(f, cfg)
             end
         end
     end
+    if f.leaderStatusPx then icons.leader:SetSize(f.leaderStatusPx, f.leaderStatusPx) end
+    if f.pvpPx then icons.pvp:SetSize(f.pvpPx, f.pvpPx) end
+    if f.restPx then icons.rest:SetSize(f.restPx, f.restPx) end
     placeIcon(icons.leader, f.leaderStatusSpot, ln, true)
     placeIcon(icons.pvp, f.pvpSpot, f.pvpNudge)
     placeIcon(icons.rest, f.restSpot, f.restNudge)
@@ -3631,6 +3652,7 @@ function UF.UpdateStatus(f, sample, animate)
     if sample then
         leader = sample.leader == true
         pvp = sample.pvp == true
+        resting = sample.rest == true
         faction = sample.faction
     else
         leader = plainFlag(UnitIsGroupLeader, u)

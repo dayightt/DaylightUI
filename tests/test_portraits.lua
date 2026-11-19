@@ -621,6 +621,55 @@ T.test("the crown, the PvP flag and the Zzz move to a spot of their own, or nudg
     end
 end)
 
+T.test("the crown, PvP flag and Zzz take a size in pixels, and the page's sample shows them", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Me", isPlayer = true, class = "PALADIN", level = 8 }
+    end)
+    local f = ns.frames.player
+    local icons = f.status.icons
+    ns.UF.UpdateAll(f, true)
+    for _, key in ipairs({ "leader", "pvp", "rest" }) do
+        T.truthy(ns.UF.IconSize("player", key) >= 1, key .. " reports its drawn size")
+        DUI:Set("UnitFrames", "player." .. (key == "leader" and "leaderPx" or key .. "Px"), 23)
+        stub.RunTimers()
+        ns.UF.UpdateAll(f, true)
+        T.eq(icons[key]:GetWidth(), 23, key .. " 23 px wide")
+        DUI:Set("UnitFrames", "player." .. (key == "leader" and "leaderPx" or key .. "Px"), 0)
+    end
+    T.truthy(ns.Sample.You().leader and ns.Sample.You().rest, "the sample leads and rests, so the icons show")
+end)
+
+T.test("the target's raid marker moves to a spot of its own", function()
+    local DUI, ns = login(function() stub.units.target = { name = "Grell", isPlayer = false, reaction = 2, raidTarget = 8 } end)
+    local f = ns.frames.target
+    ns.UF.UpdateAll(f, true)
+    T.eq(select(2, f.marker:GetPoint(1)), f.tab, "in the name tab to start")
+    DUI:Set("UnitFrames", "target.markerPos", "outbottomleft")
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    T.truthy(f.markerSpot, "a spot of its own")
+    DUI:Set("UnitFrames", "target.markerPos", "home")
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    T.falsy(f.markerSpot, "back with the name")
+end)
+
+T.test("the threat tag takes a spot of its own, or stays where the frame puts it", function()
+    local DUI, ns = login(function() stub.units.target = { name = "Grell", isPlayer = false, reaction = 2 } end)
+    local f = ns.frames.target
+    ns.UF.UpdateAll(f, true)
+    local _, rel = f.threatTag:GetPoint(1)
+    DUI:Set("UnitFrames", "target.threatTagPos", "outbottomleft")
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    local p, rel2 = f.threatTag:GetPoint(1)
+    T.eq(rel2, f, "on the frame's spot")
+    DUI:Set("UnitFrames", "target.threatTagPos", "home")
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    T.truthy(f.threatTag:GetPoint(1), "back where the frame puts it")
+end)
+
 T.test("other units' levels are colored by difficulty; skull-level units show a skull", function()
     local _, ns = login()
     local f = ns.frames.target
