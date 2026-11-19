@@ -23,6 +23,8 @@ DUI.PatchNotes = {
             { "Info panel", "Friends and guild members in the info panel's tooltips show in their class colors instead of all white" },
             { "Nameplates", "Long /dui platefix reports keep the details of the missing plate and the latest events before the check" },
             { "Nameplates", "Nameplates and speech bubbles come back after loading screens, flights, cinematics and the AFK screen when they had gone missing, and the last /dui platefix step brings them back without a /reload" },
+            { "Chat", "The game's Chat Style option stays on what you picked instead of switching to IM" },
+            { "Chat", "Replying to a whisper in a battleground no longer shows an error after you clicked a channel name in chat or opened the Combat Log tab" },
         },
     },
     { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",

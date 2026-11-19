@@ -9,9 +9,9 @@
 --
 -- A combat log tab ({ combat = true }) shows the game's combat log window
 -- (ChatFrame2, with its filter bar) in the chat's place. The game docks it in the
--- main window's spot, so selecting the tab selects it in the dock and leaving
--- selects the main window again. On the second panel it's held in that panel's
--- place instead (Tabs.HoldLog).
+-- main window's spot; selecting the tab shows it there without selecting it in
+-- the dock, and leaving hides it again. On the second panel it's held in that
+-- panel's place instead (Tabs.HoldLog).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -353,9 +353,21 @@ end
 -- The combat log in the chat's place
 -- ---------------------------------------------------------------------
 
-local function select(cf)
-    if type(FCFDock_SelectWindow) == "function" and GENERAL_CHAT_DOCK and type(cf) == "table" then
-        FCFDock_SelectWindow(GENERAL_CHAT_DOCK, cf)
+-- The combat log is shown in place, never selected in the game's dock. Selecting
+-- it from here made the dock hide ChatFrame1, and its edit box then picked the
+-- game's next chat box under Daylight UI's taint: the REPLY key read that and
+-- errored on a secret whisperer's name in a battleground. The dock may hide the
+-- log again when it lays out its tabs, so the watcher shows it back (Tabs.HoldLog).
+local function docked()
+    if type(FCFDock_GetSelectedWindow) ~= "function" or not GENERAL_CHAT_DOCK then return nil end
+    return FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
+end
+
+local function showLog(cl, on)
+    if on then
+        if not cl:IsShown() then cl:Show() end
+    elseif cl:IsShown() and docked() ~= cl then
+        cl:Hide()
     end
 end
 
@@ -371,13 +383,13 @@ function Tabs.ShowCombatLog(on, host)
     if on ~= Tabs.combatShown then
         Tabs.combatShown = on
         if on then
-            select(cl)
+            showLog(cl, true)
             ns.Box.Unpark(cl)
             local bar = _G.CombatLogQuickButtonFrame_Custom
             if type(bar) == "table" and bar.SetIgnoreParentAlpha then bar:SetIgnoreParentAlpha(true) end
         else
             ns.Box.Park(cl)
-            select(_G.ChatFrame1)
+            showLog(cl, false)
         end
     end
     Tabs.HoldLog()
@@ -398,6 +410,7 @@ end
 function Tabs.HoldLog()
     local cl = _G.ChatFrame2
     if type(cl) ~= "table" then return end
+    if Tabs.combatShown then showLog(cl, true) end
     local area = Tabs.logSide and ns.Box.side.area
     if area then
         logMoved = true
