@@ -651,7 +651,9 @@ T.test("angle: its own lean, else the shared one, and docked bars lean with it",
     local h = PR.frame
     T.eq(PR.Angle(), ns.UF.SLANT, "untouched, the Slant angle")
     local before = h.cut
-    DUI:Set("UnitFrames", "personal.angle", 0.5)
+    DUI:Set("UnitFrames", "personal.lean", 0.5)
+    T.eq(PR.Angle(), ns.UF.SLANT, "an angle without its switch is ignored")
+    DUI:Set("UnitFrames", "personal.ownAngle", true)
     T.eq(PR.Angle(), 0.5)
     T.truthy(h.cut > before, "the cut grows")
     DUI:Set("UnitFrames", "personal.castbar", true)
@@ -660,8 +662,8 @@ T.test("angle: its own lean, else the shared one, and docked bars lean with it",
         if f == ns.playerCastbar then cuts[#cuts + 1] = cut end
         return slant(f, side, cut, ...)
     end
-    DUI:Set("UnitFrames", "personal.angle", 0.6)
-    DUI:Set("UnitFrames", "personal.angle", 0.1)
+    DUI:Set("UnitFrames", "personal.lean", 0.6)
+    DUI:Set("UnitFrames", "personal.lean", 0.1)
     DUI.Style.Slant = slant
     T.truthy(#cuts >= 2 and cuts[#cuts] < cuts[1], "the docked cast bar leans with it")
     DUI:Set("UnitFrames", "personal.slant", false)

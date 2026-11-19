@@ -816,14 +816,14 @@ end
 PageSample.CAST_KINDS = { "player", "target", "focus", "party" }
 PageSample.CAST_LABELS = { player = "Your cast bar", target = "Target cast bar", focus = "Focus cast bar", party = "Party cast bars" }
 -- The bar's own settings a click on it can open, by field.
-PageSample.CAST_FIELDS = { "at", "x", "y", "width", "height", "showIcon", "slant", "slantLeft", "slantUnder", "reverseFill",
+PageSample.CAST_FIELDS = { "at", "x", "y", "width", "height", "showIcon", "slant", "slantLeft", "slantUnder", "slantUnderLeft", "ownAngle", "lean", "reverseFill",
                            "strata", "spell.size", "time.size", "spell.show", "time.show", "media.bar", "media.font" }
 
 -- The layout CB.Layout wants for a bar standing on its own at its own size.
 local function castLayout(kind, c)
     local party = kind == "party"
     return { enabled = true, at = "free", x = 0, y = 0, width = c.width, height = c.height,
-             showIcon = party and true or c.showIcon, slant = c.slant, slantLeft = c.slantLeft, slantUnder = c.slantUnder,
+             showIcon = party and true or c.showIcon, slant = c.slant, slantLeft = c.slantLeft, slantUnder = c.slantUnder, slantUnderLeft = c.slantUnderLeft, ownAngle = c.ownAngle, lean = c.lean,
              reverseFill = c.reverseFill, fitFrame = false, spell = c.spell, time = c.time, shell = c.shell }
 end
 
@@ -945,7 +945,7 @@ local function castOnFrame(s, f, d, kind)
         local lay = at == "power" and "below" or at
         layoutBar(bars.near, { enabled = true, at = lay, x = x, y = y, drop = 0, width = c.width,
                                fitFrame = hung or c.fitFrame, height = c.height, showIcon = c.showIcon,
-                               slant = slides or c.slant, slantLeft = c.slantLeft, slantUnder = not slides and c.slantUnder,
+                               slant = slides or c.slant, slantLeft = c.slantLeft, slantUnder = not slides and c.slantUnder, slantUnderLeft = not slides and c.slantUnderLeft, ownAngle = c.ownAngle, lean = c.lean,
                                spell = c.spell, time = c.time, reverseFill = c.reverseFill, strata = c.strata,
                                shell = c.shell })
         shown = bars.near
