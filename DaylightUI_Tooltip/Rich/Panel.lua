@@ -32,8 +32,8 @@ Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, item = 290, compare = 230, spell = 270, other = 280 }
-Panel.FIXED = { unit = true, item = true, compare = true, spell = true }
+Panel.WIDTH = { unit = 300, item = 290, compare = 230, spell = 270, cooldown = 200, other = 280 }
+Panel.FIXED = { unit = true, item = true, compare = true, spell = true, cooldown = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
@@ -106,8 +106,8 @@ function Panel.For(tip)
         t:SetTexture("Interface\\Buttons\\WHITE8X8")
         t:Hide()
     end
-    p.pool = { text = {}, tex = {}, bar = {}, tag = {}, tile = {}, icon = {}, buff = {} }
-    p.used = { text = 0, tex = 0, bar = 0, tag = 0, tile = 0, icon = 0, buff = 0 }
+    p.pool = { text = {}, tex = {}, bar = {}, timer = {}, tag = {}, tile = {}, icon = {}, buff = {} }
+    p.used = { text = 0, tex = 0, bar = 0, timer = 0, tag = 0, tile = 0, icon = 0, buff = 0 }
     -- The quality light's sweep: a short bright band along the top light, soft
     -- at both ends, run once as the card shows.
     p.track = CreateFrame("Frame", nil, p)
@@ -122,6 +122,11 @@ function Panel.For(tip)
         t:SetPoint(i == 1 and "TOPLEFT" or "TOPRIGHT", p.sweep, i == 1 and "TOPLEFT" or "TOPRIGHT")
         t:SetPoint(i == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT", p.sweep, "BOTTOM")
     end
+    -- Every piece lives in here, so the card's words can fade in while its
+    -- frame stays put.
+    p.body = CreateFrame("Frame", nil, p)
+    p.body:SetAllPoints(p)
+    p.body:EnableMouse(false)
     p.items, p.count = {}, 0
     panels[tip] = p
     Panel.Level(p)
@@ -137,6 +142,7 @@ function Panel.Level(p)
         level = 2
     end
     p:SetFrameLevel(level - 1)
+    p.body:SetFrameLevel(level)
     p.shell:SetFrameLevel(level - 2)
     if p.shell.over then p.shell.over:SetFrameLevel(level - 1) end
 end
@@ -168,8 +174,10 @@ local makers = {
         f.tile = f:CreateTexture(nil, "BACKGROUND", nil, 1)
         f.tile:SetTexture("Interface\\Buttons\\WHITE8X8")
         f.tile:SetAllPoints(f)
-        f.art = f:CreateTexture(nil, "ARTWORK")
-        f.edge = f:CreateTexture(nil, "ARTWORK", nil, 1)
+        f.art = f:CreateTexture(nil, "ARTWORK", nil, 1)
+        -- The quality outline: a square a pixel bigger than the art, under it,
+        -- so only its ring shows.
+        f.edge = f:CreateTexture(nil, "ARTWORK", nil, -1)
         f.edge:SetTexture("Interface\\Buttons\\WHITE8X8")
         f.glow = f:CreateTexture(nil, "BACKGROUND")
         f.glow:SetTexture(DUI.MEDIA .. "glow.png")
@@ -191,6 +199,9 @@ local makers = {
         return f
     end,
     bar = function(p) return Panel.MakeBar(p) end,
+    -- A bar the client drains by itself (a cooldown): kept apart, as nothing
+    -- takes a running timer off a bar again.
+    timer = function(p) return Panel.MakeBar(p) end,
     tag = function(p) return W().Tag(p, font()) end,
     tile = function(p) return W().Tile(p, font()) end,
 }
@@ -220,10 +231,14 @@ end
 
 -- spec: unit with health = true (its health, colored by the health curve) or
 -- power = true (its power); else value and max. pair { lo, hi } paints the
--- fill. Values may be secret: they only go into the bar.
+-- fill. Values may be secret: they only go into the bar. duration: a duration
+-- object the client drains the bar by, with no Lua running each frame.
 function Panel.PaintBar(bar, spec)
     local unit = spec.unit
-    if unit and spec.health then
+    if spec.duration then
+        local E = Enum
+        bar:SetTimerDuration(spec.duration, E.StatusBarInterpolation.Immediate, E.StatusBarTimerDirection.RemainingTime)
+    elseif unit and spec.health then
         bar:SetMinMaxValues(0, UnitHealthMax(unit))
         bar:SetValue(UnitHealth(unit))
     elseif unit and spec.power then
@@ -256,7 +271,7 @@ local function take(p, kind)
     local list = p.pool[kind]
     local r = list[n]
     if not r then
-        r = makers[kind](p)
+        r = makers[kind](p.body or p)
         list[n] = r
     end
     r:ClearAllPoints()
@@ -305,8 +320,9 @@ end
 -- spec: icon (file or id), iconSize, iconCoords ({ l, r, t, b }, else the
 -- square crop), iconTile ({ lo, hi }: a gradient tile behind it), iconInset
 -- (the art this far inside the tile), iconEdge ({ r, g, b }: an outline and glow),
--- title, titleColor, titleSize, right, rightColor, tags = { { text, color } },
--- sub (a line under the title), wash ({ r, g, b }: the banner's light).
+-- iconGap (between the icon and the words, 12), title, titleColor, titleSize,
+-- right, rightColor, tags = { { text, color } }, sub (a line under the title),
+-- wash ({ r, g, b }: the banner's light).
 function Panel.Header(p, spec)
     local item = add(p, { kind = "header", spec = spec })
     if spec.icon then
@@ -415,7 +431,7 @@ end
 -- (above, right: text, or fn(fs) that writes it, secret or not).
 function Panel.Bar(p, spec)
     local item = add(p, { kind = "bar", h = spec.h or 4, spec = spec })
-    local bar = take(p, "bar")
+    local bar = take(p, spec.duration and "timer" or "bar")
     Panel.PaintBar(bar, spec)
     item.bar = bar
     if spec.caption then
@@ -473,15 +489,16 @@ function Panel.Tags(p, tags)
     end
 end
 
--- hints: { { key, what }, ... }: the key in the accent, what it does TEXT.
+-- hints: { { key, what, color? }, ... }: the key in the accent (or its own
+-- color: a spell's school), what it does TEXT.
 function Panel.Hints(p, hints)
     local item = add(p, { kind = "hints", list = {} })
     local Hex = DUI.Win.Parts.Hex
     local r, g, b = Style.Accent()
-    local key = Hex({ r, g, b })
+    local accent = Hex({ r, g, b })
     for i, h in ipairs(hints) do
         local fs = text(p, Style.SIZE.small, Style.INK.TEXT)
-        fs:SetText(key .. h[1] .. "|r " .. h[2])
+        fs:SetText((h[3] and Hex(h[3]) or accent) .. h[1] .. "|r " .. h[2])
         item.list[i] = fs
     end
 end
@@ -502,7 +519,7 @@ local function natural(item)
         local w = widthOf(item.title) + (item.right and (12 + widthOf(item.right)) or 0)
         if item.sub then w = math.max(w, widthOf(item.sub)) end
         if item.tags then w = math.max(w, tagsWidth(item.tags)) end
-        local icon = item.icon and ((item.spec.iconSize or 36) + 12) or 0
+        local icon = item.icon and ((item.spec.iconSize or 36) + (item.spec.iconGap or 12)) or 0
         return icon + w
     elseif k == "row" then
         return widthOf(item.label) + (item.value and (16 + widthOf(item.value)) or 0)
@@ -550,7 +567,7 @@ function place.header(p, item, y, inner)
         ic.glow:SetPoint("TOPLEFT", ic, "TOPLEFT", -12, 12)
         ic.glow:SetPoint("BOTTOMRIGHT", ic, "BOTTOMRIGHT", 12, -12)
         Style.CutCorner(ic, Panel.ICON_CUT, ic.edge)
-        x = x + s + 12
+        x = x + s + (spec.iconGap or 12)
         h = s
     end
     local th = lineHeight(item.title, item.title.size)
@@ -741,6 +758,7 @@ function Panel.Finish(p)
     end
     local h = math.floor(y + Panel.PAD_BOTTOM + 0.5)
     p.wantW, p.wantH = w, h
+    Panel.Pin(p)
     Panel.PaintLight(p)
     Panel.PaintWash(p)
     p.shell:Show()
@@ -842,11 +860,47 @@ function Panel.Sweep(p, c)
     M.Sweep(p.sweep, p.track, { width = Panel.SWEEP_W, dur = M.SLOW, inset = Panel.SWEEP_W / 2, key = p.sweep })
 end
 
+-- The card at its own size from the first frame, pinned at the corner the
+-- tooltip is anchored by (the one that stays put as it resizes): the tooltip
+-- may take its padding a frame late, and a card stretched over it showed
+-- itself rearranging.
+function Panel.Pin(p)
+    local tip, point = p.tip, "TOPLEFT"
+    if tip:GetNumPoints() == 1 then
+        local at = tip:GetPoint(1)
+        if type(at) == "string" and not isSecret(at) then point = at end
+    end
+    if p.pinned ~= point then
+        p:ClearAllPoints()
+        p:SetPoint(point, tip, point, 0, 0)
+        p.pinned = point
+    end
+    p:SetSize(p.wantW, p.wantH)
+end
+
+-- New content in a card that's already showing (another bag slot, another
+-- enemy): its words fade in over FAST, the frame stays. Not in a fight: what
+-- a fight needs shows at once.
+function Panel.FadeBody(p)
+    local M = DUI.Motion
+    if InCombatLockdown() or not M.On() then
+        M.AlphaTo(p.body, 1, 0)
+        return
+    end
+    p.body:SetAlpha(0)
+    M.AlphaTo(p.body, 1, M.FAST)
+end
+
 -- Only the frame (a secret line): no pieces, sized by the game.
 function Panel.Chrome(p)
     Panel.Begin(p, p.kind, p.lightPair, p.lightFade)
     p.chrome = true
     p.wantW, p.wantH = nil, nil
+    if p.pinned then
+        p:ClearAllPoints()
+        p:SetAllPoints(p.tip)
+        p.pinned = nil
+    end
     Panel.PaintLight(p)
     Panel.PaintWash(p)
     p:Show()

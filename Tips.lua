@@ -194,12 +194,12 @@ local function powerIn(s)
 end
 Tips.PowerIn = function(s) return type(s) == "string" and powerIn(string.lower(s)) or nil end
 
--- The color for a number of this kind (nil kind means the accent).
-function Tips.NumberColor(kind)
+-- The color for a number of this kind (nil kind means `other`, else the accent).
+function Tips.NumberColor(kind, other)
     if kind == "heal" then return INK.GOOD end
     if kind == "damage" then return INK.DAMAGE end
     if type(kind) == "string" and kind ~= "" then return { Style.PowerColor(kind) } end
-    return { Style.Pop() }
+    return other or { Style.Pop() }
 end
 
 -- The spans of the game's escape codes that carry digits of their own: the
@@ -228,8 +228,9 @@ end
 
 -- Returns text with its numbers colored. Only standalone numbers, and only on
 -- a line without its own color codes (a |r would end that color early). Plain
--- strings only, never a secret.
-function Tips.Numbers(text)
+-- strings only, never a secret. other: the color for a number that is none of
+-- those (a spell card gives its school's), else the accent.
+function Tips.Numbers(text, other)
     if type(text) ~= "string" or DUI.IsSecret(text) or text:find("|[cC]") then return text end
     local W = words()
     local low = string.lower(text)
@@ -275,7 +276,7 @@ function Tips.Numbers(text)
     for _, x in ipairs(nums) do
         out[#out + 1] = text:sub(at, x.s - 1)
         if x.glued then out[#out + 1] = " " end
-        out[#out + 1] = DUI.Win.Parts.Hex(Tips.NumberColor(x.kind)) .. x.n .. "|r"
+        out[#out + 1] = DUI.Win.Parts.Hex(Tips.NumberColor(x.kind, other)) .. x.n .. "|r"
         at = x.e
     end
     out[#out + 1] = text:sub(at)

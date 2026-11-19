@@ -59,6 +59,15 @@ function Rich.Cleared(tip)
     if s then s.data, s.dirty = nil, true end
 end
 
+-- The frame only, around the game's own lines (a secret line): its lines come
+-- back, a spell's painted the way the skinned look paints them.
+local function frameOnly(tip, s, p)
+    Panel.Unmute(p)
+    Panel.Chrome(p)
+    showBar(tip, true)
+    if s.kind == "spell" then ns.Tooltip.PaintSpell(tip, s.data) end
+end
+
 -- Shown: built now if a fill is waiting, then fitted.
 function Rich.Shown(tip)
     if not Rich.On(tip) then return Rich.Off(tip) end
@@ -70,24 +79,33 @@ end
 
 -- Once a frame while shown (Tip.OnUpdate). Rebuilds when lines came or went
 -- since the last build (another addon's AddLine) or the fight pill comes or
--- goes (a fight, Shift), fits the game's tooltip, and keeps a unit's bars live.
+-- goes (a fight, Shift), or a spell's math (Shift) or cooldown, fits the game's
+-- tooltip, and keeps a unit's bars and a cooldown's countdown live.
 Rich.BAR_EVERY = 0.1
 function Rich.Step(tip)
     local s = state[tip]
     if not s then return end
     if s.dirty then return Rich.Build(tip) end
     local Pill = ns.RichPill
-    if s.unit and (s.pill == true) ~= Pill.Wanted(tip, s.unit) then return Rich.Build(tip) end
+    if s.unit or s.world then
+        local want = (s.unit and Pill.Wanted(tip, s.unit)) or (s.world and Pill.WantedWorld(tip)) or false
+        if (s.pill == true) ~= want then return Rich.Build(tip) end
+    end
     if s.pill then return Pill.Step(tip, s.unit) end
     local p = Panel.Get(tip)
-    if not (p and p:IsShown()) then return end
+    -- Showing with no card and no pill (nothing marked it for a build): one now.
+    if not (p and p:IsShown()) then return Rich.Build(tip) end
     local n = tip.NumLines and tip:NumLines()
     if not isSecret(n) and n ~= s.lines then return Rich.Build(tip) end
+    local sp = s.spell
+    if sp and not p.chrome then
+        local Spells = ns.RichSpells
+        if Spells.WantsMath(sp) ~= (sp.math == true) then return Rich.Build(tip) end
+        if sp.ends and Spells.Tick(p, sp) then return Rich.Build(tip) end
+    end
     if not Panel.Fit(p) then
         -- The size went secret since the build: the frame only.
-        Panel.Unmute(p)
-        Panel.Chrome(p)
-        showBar(tip, true)
+        frameOnly(tip, s, p)
     end
     if s.unit and not p.chrome then
         local now = GetTime()
@@ -110,9 +128,11 @@ function Rich.Hidden(tip)
     endPill(tip, s)
     -- The data stays until the tooltip is cleared: an owner may fill it, hide
     -- it and show it again at once, and that show must build the card.
+    -- A build already asked for (the game may clear a tooltip before hiding
+    -- it) stays asked for.
     if s then
-        s.dirty = s.data ~= nil
-        s.lines, s.unit, s.swept = nil, nil, nil
+        s.dirty = s.dirty or s.data ~= nil
+        s.lines, s.unit, s.world, s.swept, s.key, s.spell = nil, nil, nil, nil, nil, nil
     end
     Panel.Release(Panel.Get(tip))
     ns.Tooltip.ShowShell(tip, true)
@@ -340,6 +360,14 @@ function Rich.Sweep(tip, s, p, item)
     if (item.quality or 0) >= ns.RichItems.EPIC then Panel.Sweep(p, item.color) end
 end
 
+-- Things in the world that aren't units: in a fight they share the pill.
+local function worldThing(data)
+    local t = type(data) == "table" and data.type or nil
+    if isSecret(t) or t == nil then return false end
+    local E = Enum and Enum.TooltipDataType
+    return t == (E and E.Corpse or 3) or t == (E and E.Object or 4)
+end
+
 function Rich.Build(tip)
     local s = stateOf(tip)
     s.dirty = false
@@ -349,9 +377,10 @@ function Rich.Build(tip)
     Panel.Level(p)
     local kind = Rich.Kind(s.data)
     local unit = kind == "unit" and Read.Unit(tip) or nil
-    s.unit = unit
+    s.unit, s.kind, s.spell = unit, kind, nil
     -- In a fight a unit is the pill by the cursor, the tooltip itself out of sight.
-    if unit and ns.RichPill.Wanted(tip, unit) then
+    s.world = not unit and worldThing(s.data) or nil
+    if (unit and ns.RichPill.Wanted(tip, unit)) or (s.world and ns.RichPill.WantedWorld(tip)) then
         if p:IsShown() then Panel.Release(p) end
         s.pill = true
         ns.RichPill.Show(tip, unit)
@@ -360,19 +389,24 @@ function Rich.Build(tip)
     endPill(tip, s)
     local light, fade = Rich.Light(tip, s.data, kind)
     local n, lines, secret = Read.Lines(tip, s.data)
+    -- Something new while the card shows (not a refill of the same thing):
+    -- its words fade in.
+    local key = not secret and n >= 1 and lines[1].left and (kind .. "|" .. lines[1].left) or nil
+    local fresh = p:IsShown() and key ~= nil and key ~= s.key
+    s.key = key
     s.lines = tip.NumLines and tip:NumLines() or 0
     if isSecret(s.lines) then s.lines = nil end
     Panel.Begin(p, kind, light, fade)
     if secret then
-        Panel.Unmute(p)
-        Panel.Chrome(p)
-        showBar(tip, true)
+        frameOnly(tip, s, p)
     else
         local item
         if unit and ns.RichPlayers.Is(unit) then
             ns.RichPlayers.Card(p, tip, unit, s.data, n, lines)
         elseif kind == "item" then
             item = ns.RichItems.Build(p, tip, s.data, n, lines, light, fade)
+        elseif kind == "spell" and ns.RichSpells.Is(s.data) then
+            s.spell = ns.RichSpells.Build(p, tip, s.data, n, lines)
         else
             Rich.Generic(p, n, lines, unit)
             Panel.Finish(p)
@@ -381,11 +415,10 @@ function Rich.Build(tip)
         showBar(tip, unit == nil)
         p.fitTried = nil
         if not Panel.Fit(p) then
-            Panel.Unmute(p)
-            Panel.Chrome(p)
-            showBar(tip, true)
-        elseif item then
-            Rich.Sweep(tip, s, p, item)
+            frameOnly(tip, s, p)
+        else
+            if item then Rich.Sweep(tip, s, p, item) end
+            if fresh then Panel.FadeBody(p) end
         end
     end
     Tip.ShowShell(tip, false)

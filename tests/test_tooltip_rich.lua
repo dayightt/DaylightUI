@@ -125,7 +125,8 @@ T.test("rich tooltip: a card over the muted game tooltip, carried by it", functi
     local p = Panel.Get(GameTooltip)
     T.truthy(p and p:IsShown(), "the card shows with the tooltip")
     T.eq(p:GetParent(), GameTooltip, "a child: the tooltip's alpha, fade, scale and spot carry it")
-    T.eq(p.__points[1][1], "ALL", "laid over the whole tooltip")
+    T.eq(p.__points[1][2], GameTooltip, "pinned to the tooltip")
+    T.eq(p:GetWidth(), p.wantW, "at the card's own size")
     T.truthy(p:GetFrameLevel() < GameTooltip:GetFrameLevel(), "under the tooltip's own text (the frame-only look)")
     T.isnil(p:GetScript("OnUpdate"), "nothing of its own runs every frame")
     T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's lines muted")
@@ -936,23 +937,460 @@ T.test("rich tooltip: compare tooltips refilled in the main tooltip's update are
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: a compare tooltip gone for a moment doesn't fade in again", function()
-    login("rich")
+-- Seen in game: the card could be seen arranging itself as it showed. It's
+-- its own size from the first frame, pinned at the corner the tooltip is
+-- anchored by, even before the tooltip has taken its padding.
+T.test("rich tooltip: the card is its own size at once, pinned where the tooltip is anchored", function()
+    local _, Panel = login("rich")
+    items()
+    local tip = GameTooltip
+    -- The client taking the padding a frame late.
+    local orig = tip.SetPadding
+    tip.SetPadding = function() end
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip:ClearAllPoints()
+    tip:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -100, 100)
+    fillItem(tip, "greaves", GREAVES)
+    local p = Panel.Get(tip)
+    T.eq(p.__points[1][1], "BOTTOMRIGHT", "pinned at the tooltip's own corner")
+    T.eq(p.__points[1][2], tip)
+    T.eq(p:GetWidth(), p.wantW, "its own width")
+    T.eq(p:GetHeight(), p.wantH, "and height, whatever the tooltip's size now")
+    tip.SetPadding = orig
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: something new in a showing card fades its words in; a refill doesn't", function()
+    local _, Panel = login("rich")
     items()
     local M = DaylightUI.Motion
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local p = Panel.Get(GameTooltip)
+    T.eq(p.body:GetAlpha(), 1, "a first show: the tooltip's own fade does it")
+    -- The 0.2 s refill of the same item.
+    fillItem(GameTooltip, "greaves", GREAVES)
+    update()
+    T.eq(p.body:GetAlpha(), 1, "a refill: no fade")
+    -- Another bag slot.
+    fillItem(GameTooltip, "legplates", LEGPLATES)
+    update()
+    T.eq(p.body:GetAlpha(), 0, "new content starts clear")
+    T.eq(p.shell:GetAlpha(), 1, "the frame stays")
+    local d = M.Driver()
+    if d then stub.RunOnUpdate(d, M.FAST + 0.02) end
+    T.eq(p.body:GetAlpha(), 1, "there after FAST")
+    -- In a fight: at once.
+    stub.EnterCombat()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    update()
+    T.eq(p.body:GetAlpha(), 1, "in a fight it shows at once")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Spells: the board's spell card, the math on Shift, the cooldown card on an
+-- action button, and the frame alone in a fight. The game's own words
+-- (GlobalStrings) and what C_Spell answers for the spells this test knows.
+local WHITE_LINE, RANK_GRAY = { 1, 1, 1 }, { 0.5, 0.5, 0.5 }
+
+local function spells()
+    _G.MANA, _G.DAMAGE, _G.SHIFT_KEY_TEXT = "Mana", "Damage", "Shift"
+    _G.STRING_SCHOOL_FROST, _G.STRING_SCHOOL_SHADOW, _G.STRING_SCHOOL_ARCANE = "Frost", "Shadow", "Arcane"
+    Enum.TooltipDataType.UnitAura, Enum.TooltipDataType.Macro = 7, 25
+    Enum.TooltipDataLineType = { SpellName = 13, SpellDescription = 34 }
+    stub.spells = {
+        [116] = { name = "Frostbolt", icon = 135846, cast = 2500, cost = 120 },
+        [172] = { name = "Corruption", icon = 136118, cast = 0, cost = 35 },
+    }
+    C_Spell.GetSpellTexture = function(id) local s = stub.spells[id]; return s and s.icon end
+    C_Spell.GetSpellName = function(id) local s = stub.spells[id]; return s and s.name end
+    C_Spell.GetSpellInfo = function(id)
+        local s = stub.spells[id]
+        return s and { name = s.name, castTime = s.cast, spellID = id }
+    end
+    C_Spell.GetSpellPowerCost = function(id)
+        local s = stub.spells[id]
+        return s and { { type = 0, name = "MANA", cost = s.cost } }
+    end
+    stub.spellPower = 40
+    _G.GetSpellBonusDamage = function() return stub.spellPower end
+    _G.GetSpellBonusHealing = function() return stub.spellPower end
+end
+
+-- The game filling the tooltip with a spell (owner: what it's on, else the
+-- screen), then Show. Each line { left, right, color, rightColor } or text.
+local function fillSpell(id, list, kind, owner, dataLines)
+    local tip = GameTooltip
+    tip:SetOwner(owner or UIParent, "ANCHOR_NONE")
+    local own = {}
+    for i, t in ipairs(list) do
+        if type(t) == "table" then
+            local c, rc = t[3] or WHITE_LINE, t[4] or WHITE_LINE
+            tip:AddDoubleLine(t[1], t[2], c[1], c[2], c[3], rc[1], rc[2], rc[3])
+        else
+            tip:AddLine(t)
+        end
+        own[i] = {}
+    end
+    local data = { type = kind or Enum.TooltipDataType.Spell, id = id, lines = dataLines or own }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:Show()
+end
+
+local FROSTBOLT = {
+    { "Frostbolt", "Rank 4", WHITE_LINE, RANK_GRAY },
+    { "120 Mana", "30 yd range" },
+    "2.5 sec cast",
+    { "Launches a bolt of frost at the enemy, causing 412 to 448 Frost damage and slowing movement speed by 40% for 9 sec.",
+      nil, YELLOW },
+}
+
+T.test("rich tooltip: a spell's card, as the board lays it out", function()
+    local Tip, Panel = login("rich")
+    spells()
+    fillSpell(116, FROSTBOLT)
+    local p = Panel.Get(GameTooltip)
+    local Style, INK = DaylightUI.Style, DaylightUI.Style.INK
+    T.eq(p.kind, "spell")
+    T.near(GameTooltip:GetWidth(), 270 * p:GetScale(), 0.01, "the board's 270, fitted")
+    local frost = Tip.SCHOOL_COLORS.Frost
+    T.rgb(p.lightPair[1], frost, "the top light in the school's color")
+    local head = p.items[1]
+    T.eq(stub.Text(head.title), "Frostbolt")
+    T.eq(head.icon:GetWidth(), 36, "a 36 px icon")
+    T.eq(head.icon.art:GetTexture(), 135846)
+    T.eq(stub.Text(head.tags[1].text), "FROST")
+    T.rgb({ head.tags[1].text:GetTextColor() }, frost, "the school tag in its color")
+    T.eq(stub.Text(head.tags[2].text), "RANK 4")
+    T.rgb({ head.tags[2].text:GetTextColor() }, INK.LABEL)
+    local tiles = kinds(p, "tiles")[1].list
+    T.eq(#tiles, 3)
+    T.eq(stub.Text(tiles[1].value), "2.5 sec")
+    T.eq(stub.Text(tiles[1].caption), "CAST")
+    T.eq(stub.Text(tiles[2].value), "120 Mana")
+    T.rgb({ tiles[2].value:GetTextColor() }, { Style.PowerColor("MANA") }, "the cost in its power color")
+    T.eq(stub.Text(tiles[3].value), "30 yd")
+    T.eq(stub.Text(tiles[3].caption), "RANGE")
+    local H = DaylightUI.Win.Parts.Hex
+    local desc = stub.Text(kinds(p, "text")[1].fs)
+    T.truthy(desc:find(H(INK.DAMAGE) .. "412|r to " .. H(INK.DAMAGE) .. "448|r", 1, true), "damage soft red: " .. desc)
+    T.truthy(desc:find(H(frost) .. "40|r%", 1, true), "the slow in the school's color")
+    T.truthy(desc:find(H(frost) .. "9|r sec", 1, true), "its duration too")
+    local hint = stub.Text(kinds(p, "hints")[1].list[1])
+    T.eq(hint, H(frost) .. "Shift|r the math", "Shift the math, the key in the school's color")
+    T.eq(GameTooltipTextLeft4:GetAlpha(), 0, "the game's lines muted under the card")
+    T.eq(GameTooltipTextLeft4:GetText(), FROSTBOLT[4][1], "and not repainted: the card reads the game's colors")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a spell's cooldown takes the range's tile", function()
+    local _, Panel = login("rich")
+    spells()
+    fillSpell(172, {
+        "Corruption",
+        { "35 Mana", "30 yd range" },
+        { "Instant", "8 sec cooldown" },
+        { "Corrupts the target, causing 40 Shadow damage over 12 sec.", nil, YELLOW },
+    })
+    local p = Panel.Get(GameTooltip)
+    local tiles = kinds(p, "tiles")[1].list
+    T.eq(stub.Text(tiles[1].value), "Instant")
+    T.eq(stub.Text(tiles[3].value), "8 sec")
+    T.eq(stub.Text(tiles[3].caption), "COOLDOWN")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: Shift lays a spell out as the math, and back", function()
+    local Tip, Panel = login("rich")
+    spells()
+    fillSpell(116, FROSTBOLT)
+    local p = Panel.Get(GameTooltip)
+    local INK = DaylightUI.Style.INK
+    stub.shift = true
+    update()
+    T.eq(stub.Text(p.items[1].fs), "Frostbolt", "Name · the math")
+    T.eq(stub.Text(p.items[1].tail), "· the math")
+    local rows = kinds(p, "row")
+    T.eq(stub.Text(rows[1].label), "Base")
+    T.eq(stub.Text(rows[1].value), "412 to 448", "the description's range")
+    local H = DaylightUI.Win.Parts.Hex
+    -- Frostbolt's own share (its slow costs it), not the rule's 2.5 / 3.5.
+    T.eq(stub.Text(rows[2].label), "Spell power " .. H(INK.OFF) .. "(81%)|r")
+    T.eq(stub.Text(rows[2].value), "+33", "40 spell power at 81%")
+    T.rgb({ rows[2].value:GetTextColor() }, INK.GOOD)
+    local tiles = kinds(p, "tiles")[1].list
+    T.eq(stub.Text(tiles[1].value), "185", "(430 + 33) over its 2.5 sec cast")
+    T.eq(stub.Text(tiles[1].caption), "DAMAGE / SEC")
+    T.rgb({ tiles[1].value:GetTextColor() }, Tip.SCHOOL_COLORS.Frost)
+    T.eq(stub.Text(tiles[2].value), "3.9", "463 per 120 mana")
+    T.eq(stub.Text(tiles[2].caption), "PER MANA")
+    T.eq(stub.Text(rows[3].label), "Spell ID 116")
+    T.eq(stub.Text(rows[3].value), "Frost · Bolt")
+    T.rgb({ rows[3].label:GetTextColor() }, INK.OFF)
+    T.eq(#kinds(p, "rule"), 2)
+    stub.shift = false
+    update()
+    T.eq(p.items[1].kind, "header", "the card again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: the spell power rule, and no number when it isn't known", function()
+    login("rich")
+    spells()
+    local S = stub.tooltip.RichSpells
+    local function shape(desc, castKind, castSecs)
+        return S.Shape({ desc = { desc }, castKind = castKind, castSecs = castSecs })
+    end
+    local dot = shape("Corrupts the target, causing 40 Shadow damage over 12 sec.", "instant")
+    T.eq(dot.kind, "over")
+    T.near(S.Coefficient(nil, dot), 12 / 15, 1e-9, "over time: its duration over 15")
+    local aoe = shape("Causes 34 to 38 Arcane damage to all enemies within 10 yards.", "instant")
+    T.truthy(aoe.area)
+    T.near(S.Coefficient(nil, aoe, 0), 1.5 / 3.5 * 0.5, 1e-9, "an instant area spell: the GCD's share, halved")
+    local slow = shape("Hurls a fiery ball for 600 to 700 Fire damage.", "cast", 6)
+    T.near(S.Coefficient(nil, slow, 6), 1, 1e-9, "never more than all of it")
+    local hybrid = shape("Burns the enemy for 11 Fire damage and then an additional 20 Fire damage over 15 sec.", "cast", 2)
+    T.eq(hybrid.kind, "hybrid")
+    T.isnil(S.Coefficient(nil, hybrid, 2), "a hit and a burn: not known without its own number")
+    local heal = shape("Heals the target of 45 damage over 15 sec.", "instant")
+    T.truthy(heal.heal, "a heal, though the game calls it damage")
+    local channel = shape("Causes 26 Arcane damage each second for 3 sec.", "channeled")
+    T.eq(channel.kind, "channel")
+    T.eq(channel.ticks, 3)
+    T.near(S.Coefficient(nil, channel), 3 / 3.5, 1e-9)
+    -- Another language: the base alone.
+    local was = DaylightUI.LOCALE
+    DaylightUI.LOCALE = "deDE"
+    local de = shape("Verursacht 40 Schattenschaden im Verlauf von 12 Sek.", "instant")
+    T.isnil(de and S.Coefficient(nil, de), "words it can't read: no spell power number")
+    DaylightUI.LOCALE = was
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The action button the tooltip is on: its slot, as the game's buttons keep it.
+local function actionButton(slot)
+    local b = CreateFrame("Button", nil, UIParent)
+    b.action = slot
+    return b
+end
+
+T.test("rich tooltip: a spell cooling down on an action button shows when it's ready, the client draining the bar", function()
+    local _, Panel = login("rich")
+    spells()
+    stub.ActionSlots({ [5] = { spellID = 116, cooldown = true, cdStart = GetTime() - 5.8, cdDuration = 10 } })
+    fillSpell(116, FROSTBOLT, nil, actionButton(5))
+    local p = Panel.Get(GameTooltip)
+    local INK = DaylightUI.Style.INK
+    T.eq(p.kind, "cooldown")
+    T.eq(p.wantW, 200, "the board's 200")
+    local lo, hi = DaylightUI.Gradients.PairFrom(INK.WARN)
+    T.rgb(p.lightPair[1], hi, "a warn top light")
+    T.eq(stub.Text(p.items[1].fs), "Frostbolt")
+    local ready = kinds(p, "row")[1]
+    T.eq(stub.Text(ready.label), "Ready in")
+    T.eq(stub.Text(ready.value), "4.2 sec")
+    T.rgb({ ready.value:GetTextColor() }, INK.WARN)
+    local bar = kinds(p, "bar")[1]
+    T.eq(bar.h, 4)
+    local timer = bar.bar.__timer
+    T.truthy(timer and timer[1].slot == 5 and timer[1].kind == "cooldown", "the action's own cooldown duration")
+    T.eq(timer[3], Enum.StatusBarTimerDirection.RemainingTime, "drains as it comes back")
+    T.isnil(bar.bar:GetScript("OnUpdate"), "the client drains it: no Lua each frame")
+    T.isnil(p:GetScript("OnUpdate"))
+    stub.Advance(1)
+    update()
+    T.eq(stub.Text(kinds(p, "row")[1].value), "3.2 sec", "counts down from the tooltip's own update")
+    stub.Advance(4)
+    update()
+    T.eq(p.kind, "spell", "ready: the card again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a recharging spell shows its charges; the global cooldown alone shows the card", function()
+    local _, Panel = login("rich")
+    spells()
+    stub.ActionSlots({
+        [5] = { spellID = 116, charges = true, chargesNow = 1, chargesMax = 2, chargeStart = GetTime() - 2, chargeDuration = 8 },
+        [6] = { spellID = 116, cooldown = true, gcd = true, cdStart = GetTime(), cdDuration = 1.5 },
+    })
+    fillSpell(116, FROSTBOLT, nil, actionButton(5))
+    local p = Panel.Get(GameTooltip)
+    local INK = DaylightUI.Style.INK
+    T.eq(p.kind, "cooldown")
+    local rows = kinds(p, "row")
+    T.eq(stub.Text(rows[1].value), "6.0 sec", "the next charge")
+    T.eq(stub.Text(rows[2].label), "Charges")
+    T.eq(stub.Text(rows[2].value), "1 " .. DaylightUI.Win.Parts.Hex(INK.LABEL) .. "/ 2|r")
+    T.eq(kinds(p, "bar")[1].bar.__timer[1].kind, "charges", "the charge's own duration")
+    fillSpell(116, FROSTBOLT, nil, actionButton(6))
+    update()
+    T.eq(p.kind, "spell", "the global cooldown: no cooldown card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: in a fight a spell is the frame around the game's lines, painted as before, no math", function()
+    local _, Panel = login("rich")
+    spells()
+    stub.shift = true
+    local desc = stub.Secret("Causes 12 damage every 3 sec.")
+    fillSpell(172, {
+        { stub.Secret("Corruption"), nil },
+        { stub.Secret("Instant"), nil },
+        { desc, nil, YELLOW },
+    })
+    local p = Panel.Get(GameTooltip)
+    T.truthy(p.chrome, "the frame only")
+    T.eq(p.count, 0, "no pieces, no math")
+    T.eq(GameTooltipTextLeft3:GetAlpha(), 1, "the game's lines show")
+    T.rgb(GameTooltipTextLeft3.__textColor, DaylightUI.Style.INK.TEXT, "the description painted as the skinned look does")
+    T.eq(GameTooltipTextLeft3:GetText(), desc, "its text left as the game gave it")
+    update()
+    T.truthy(p.chrome, "Shift held changes nothing")
+    stub.shift = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: the Spell ID line and other addons' lines go under a rule", function()
+    local _, Panel = login("rich")
+    spells()
+    DaylightUI:Set("Tooltip", "showIDs", true)
+    stub.RunTimers()
+    fillSpell(116, FROSTBOLT)
+    update()
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    T.eq(stub.Text(rows[#rows].label), "Spell ID")
+    T.eq(stub.Text(rows[#rows].value), "116")
+    T.eq(#kinds(p, "rule"), 1)
+    GameTooltip:AddLine("Rank 3 known by your alt")
+    update()
+    T.truthy(stub.Text(kinds(p, "text")[2].fs):find("known by your alt", 1, true), "another addon's line, after it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: an aura and a macro's spell get the card, no math; an item macro the plain one", function()
+    local _, Panel = login("rich")
+    spells()
+    fillSpell(10157, {
+        "Arcane Intellect",
+        "Increases Intellect by 31 for all party members.",
+        "29 min remaining",
+    }, Enum.TooltipDataType.UnitAura)
+    local p = Panel.Get(GameTooltip)
+    T.eq(p.kind, "spell")
+    T.truthy(stub.Text(kinds(p, "text")[1].fs):find("Increases Intellect by", 1, true), "the aura's sentence")
+    T.eq(stub.Text(kinds(p, "text")[2].fs), "29 min remaining", "the time left small")
+    T.eq(#kinds(p, "tiles"), 0, "no strip")
+    T.eq(#kinds(p, "hints"), 0, "no math for an aura")
+    -- A macro casting Frostbolt: its lines carry the spell's line types.
+    stub.ActionSlots({ [7] = { macro = 3, texture = 135846 } })
+    fillSpell(3, FROSTBOLT, Enum.TooltipDataType.Macro, actionButton(7), { { type = 13 }, {}, {}, { type = 34 } })
+    update()
+    T.eq(p.kind, "spell")
+    T.eq(p.items[1].icon.art:GetTexture(), 135846, "the icon from its action slot")
+    T.eq(#kinds(p, "hints"), 0, "its id is the macro's: no math")
+    fillSpell(4, { "Hearthstone", { "Use: Returns you to your home.", nil, { 0, 1, 0 } } }, Enum.TooltipDataType.Macro, nil,
+        { {}, {} })
+    update()
+    T.eq(#kinds(p, "tiles"), 0)
+    T.eq(stub.Text(p.items[1].title), "Hearthstone", "an item macro: the plain card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game (a frame by frame recording): the character window's stat
+-- tooltips are only the game's own lines, no data. The game clears the
+-- tooltip, hides it and shows it again with new lines: the card has to come.
+T.test("rich tooltip: a tooltip with no data, cleared and hidden before it shows, still gets its card", function()
+    local Tip, Panel = login("rich")
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip:AddLine("Agility 75")
+    tip:Show()
+    update()
+    -- The next stat: cleared first, then hidden, then shown with its lines.
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip:Hide()
+    tip:AddLine("Strength 133")
+    tip:Show()
+    tip:AddLine("Increases attack power by 266.")
+    tip:Show()
+    update()
+    local p = Panel.Get(tip)
+    T.truthy(p:IsShown(), "the card")
+    T.eq(stub.Text(p.items[1].title), "Strength 133")
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's lines out of sight")
+    T.falsy(Tip.Shell(tip):IsShown(), "and the skinned look")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in the same recording: hovering one bag item after another, the main
+-- tooltip and its compare hide together and show together a moment later.
+-- The compare fades in with the main one, not at full while it fades.
+T.test("rich tooltip: a compare tooltip fades in with its main tooltip", function()
+    login("rich")
+    items()
     local shop = ShoppingTooltip1
     fillItem(GameTooltip, "greaves", GREAVES)
-    stub.Advance(1)
     compare(shop, CHANGES)
-    T.eq(shop:GetAlpha(), 0, "a real show fades in")
+    local M = DaylightUI.Motion
     local d = M.Driver()
     if d then stub.RunOnUpdate(d, M.NORMAL + 0.05) end
-    T.eq(shop:GetAlpha(), 1)
-    -- The game's refill every 0.2 s: hidden, then back a frame later.
-    stub.Advance(0.2)
-    shop:Hide()
-    stub.Advance(0.02)
+    stub.Advance(0.3)
+    GameTooltip:Hide()
+    shop:Hide() -- as the game's GameTooltip_OnHide (TooltipComparisonManager:Clear)
+    stub.Advance(0.05)
     compare(shop, CHANGES)
-    T.eq(shop:GetAlpha(), 1, "no new fade: it never really left")
+    fillItem(GameTooltip, "greaves", GREAVES)
+    T.eq(GameTooltip:GetAlpha(), 0, "the main tooltip fades in")
+    T.eq(shop:GetAlpha(), 0, "and its compare with it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game in a fight: the game filled the tooltip with the thing behind
+-- a creature (an object, its lines secret) and then the creature, a frame
+-- apart, and the pill and the whole card took turns. In a fight anything in
+-- the world is the pill.
+T.test("rich tooltip: in a fight a world object is the pill too, so it never swaps with the card", function()
+    local Tip, Panel = login("rich")
+    stub.units.mouseover = { name = "Southsea Swashbuckler", isPlayer = false, reaction = 2, health = 87, maxHealth = 100 }
+    stub.EnterCombat()
+    local function world(kind, set)
+        local tip = GameTooltip
+        GameTooltip_SetDefaultAnchor(tip, UIParent)
+        tip.__unit = kind == Enum.TooltipDataType.Unit and "mouseover" or nil
+        set(tip)
+        local data = { type = kind }
+        for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+        for _, fn in ipairs(post[kind] or {}) do fn(tip, data) end
+        tip:Show()
+        update()
+    end
+    world(Enum.TooltipDataType.Unit, function(t) t:AddLine("Southsea Swashbuckler") end)
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(pill:IsShown())
+    -- The object behind it, its lines secret in a fight.
+    world(4, function(t)
+        t:AddLine("Ox Bones")
+        t:AddLine("Quest item")
+        GameTooltipTextLeft1:SetText(stub.Secret("Ox Bones"))
+        GameTooltipTextLeft2:SetText(stub.Secret("Quest item"))
+    end)
+    T.truthy(pill:IsShown(), "still the pill")
+    T.eq(stub.Text(pill.name), "Ox Bones", "with the object's name")
+    T.falsy(pill.bar:IsShown(), "no health for an object")
+    T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
+    local p = Panel.Get(GameTooltip)
+    T.truthy(not p or not p:IsShown(), "no card or frame")
+    -- Back on the creature.
+    world(Enum.TooltipDataType.Unit, function(t) t:AddLine("Southsea Swashbuckler") end)
+    T.eq(stub.Text(pill.name), "Southsea Swashbuckler")
+    T.truthy(pill.bar:IsShown(), "its health again")
+    -- Shift: the full card, for an object too.
+    world(4, function(t) t:AddLine("Ox Bones") end)
+    stub.shift = true
+    update()
+    T.falsy(pill:IsShown(), "Shift: no pill")
+    T.truthy(Panel.Get(GameTooltip):IsShown(), "the card")
+    stub.shift = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

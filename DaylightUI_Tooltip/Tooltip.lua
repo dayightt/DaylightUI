@@ -1000,7 +1000,7 @@ local function lineType(lines, i)
     local line = lines and lines[i]
     return type(line) == "table" and plain(line.type) or nil
 end
-local function hasSpellLines(lines)
+function Tip.HasSpellLines(lines)
     local kinds = Enum and Enum.TooltipDataLineType
     if not (lines and kinds) then return false end
     for i = 1, #lines do
@@ -1025,7 +1025,7 @@ function Tip.PaintSpell(tip, data)
     local types = Enum and Enum.TooltipDataType
     local kind = type(data) == "table" and types ~= nil and plain(data.type) or nil
     local isSpell = kind ~= nil and (kind == types.Spell
-        or (kind == types.Macro and hasSpellLines(dataLines)))
+        or (kind == types.Macro and Tip.HasSpellLines(dataLines)))
     local descType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SpellDescription
     for i = 2, tip:NumLines() or 0 do
         local left = Tip.Line(tip, i)
@@ -1162,9 +1162,10 @@ function Tip.PluginsShown(kind, tip, data)
 end
 
 -- A spell or aura: its ID line with IDs on. Left out when the game keeps it
--- secret (an aura in a boss fight or battleground).
+-- secret (an aura in a boss fight or battleground). The rich card reads the
+-- game's own colors and paints the lines itself only in a fight.
 function Tip.OnSpellLines(tip, data)
-    if skinned[tip] then Tip.PaintSpell(tip, data) end
+    if skinned[tip] and not ns.Rich.On(tip) then Tip.PaintSpell(tip, data) end
     if not (skinned[tip] and cfg and cfg.showIDs and type(data) == "table") then return end
     Tip.AddID(tip, Tip.SPELL_ID, data.id)
 end
@@ -1464,15 +1465,10 @@ function Tip.FadeStep(tip)
     if s and holds(tip, s) then tip:SetAlpha(s.v) end
 end
 
--- A compare tooltip the game refills (every 0.2 s while Shift is held) can be
--- gone for a frame or two before it's back: that's not a new show.
-Tip.REFADE = 0.1
 function Tip.FadeIn(tip)
     local hidden = hiddenAt[tip]
     hiddenAt[tip] = nil
-    local now = GetTime()
-    if hidden == now then return Tip.FadeStep(tip) end
-    if hidden and type(tip.CompareHeader) == "table" and now - hidden < Tip.REFADE then return end
+    if hidden == GetTime() then return Tip.FadeStep(tip) end
     fades[tip] = nil
     local M = DUI.Motion
     if muted[tip] or not M.On() or InCombatLockdown() then return end
@@ -1651,7 +1647,7 @@ function Tip.Build(mod)
             -- type. Its id is the macro's, so it gets the look but no Spell ID.
             if types and types.Macro then
                 TDP.AddTooltipPostCall(types.Macro, function(tip, data)
-                    if skinned[tip] then DUI.SafeCall(Tip.PaintSpell, tip, data) end
+                    if skinned[tip] and not ns.Rich.On(tip) then DUI.SafeCall(Tip.PaintSpell, tip, data) end
                 end)
             end
         end

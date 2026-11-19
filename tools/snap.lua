@@ -450,7 +450,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -538,6 +538,35 @@ local RECIPES = {
                 tip:Show()
                 tip:GetScript("OnUpdate")(tip, 0.02)
                 return look == "pill" and _G.DaylightUITooltipPill or tip
+            end
+            if look == "spell" or look == "math" or look == "cooldown" then
+                -- The board's spell, line for line as the game writes it.
+                _G.MANA, _G.DAMAGE, _G.STRING_SCHOOL_FROST = "Mana", "Damage", "Frost"
+                C_Spell.GetSpellTexture = function() return 135846 end
+                C_Spell.GetSpellName = function() return "Rimecall" end
+                C_Spell.GetSpellInfo = function(id) return { name = "Rimecall", castTime = 2500, spellID = id } end
+                C_Spell.GetSpellPowerCost = function() return { { type = 0, name = "MANA", cost = 120 } } end
+                _G.GetSpellBonusDamage = function() return 40 end
+                if look == "cooldown" then
+                    stub.ActionSlots({ [5] = { spellID = 116, cooldown = true, cdStart = GetTime() - 5.8, cdDuration = 10,
+                        charges = true, chargesNow = 1, chargesMax = 2 } })
+                    local button = CreateFrame("Button", nil, UIParent)
+                    button.action = 5
+                    tip:SetOwner(button, "ANCHOR_NONE")
+                    tip:ClearAllPoints()
+                    tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+                end
+                tip:AddDoubleLine("Rimecall", "Rank 4", 1, 1, 1, 0.5, 0.5, 0.5)
+                tip:AddDoubleLine("120 Mana", "30 yd range")
+                tip:AddLine("2.5 sec cast")
+                tip:AddLine("Hurls a shard of ice for 412 to 448 Frost damage and slows the target by 40% for 9 sec.", 1, 0.82, 0)
+                local data = { type = 1, id = 116, lines = { {}, {}, {}, {} } }
+                for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
+                for _, fn in ipairs(SNAP_TIP_POST[1] or {}) do fn(tip, data) end
+                tip:Show()
+                if look == "math" then stub.shift = true end
+                tip:GetScript("OnUpdate")(tip, 0.02)
+                return tip
             end
             -- The board's item, line for line as the game writes it.
             tip:AddLine("Dawnforged Greaves", 0.64, 0.21, 0.93)

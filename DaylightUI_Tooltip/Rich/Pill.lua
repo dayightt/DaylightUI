@@ -36,10 +36,22 @@ function Pill.Wanted(tip, unit)
     local cfg = Tip.Config()
     local mode = cfg and cfg.pill or "combat"
     if mode == "never" or type(unit) ~= "string" or Pill.KeyHeld(cfg) then return false end
+    -- unit "": something in the world that isn't a unit (Pill.WantedWorld).
     -- Hidden in combat by its own switch: that wins.
     if Tip.HideNow(tip) then return false end
     if mode == "always" then return true end
     return InCombatLockdown() or DUI.Restricted()
+end
+
+-- Anything else in the world under the mouse (an object, a corpse) gets the
+-- pill too while a unit would: the game can flip the tooltip between a
+-- creature and the thing behind it from one frame to the next, and a pill
+-- swapping with the whole card read as the two fighting. Only the world's
+-- tooltip (its owner the world, which reads secret in a fight).
+function Pill.WantedWorld(tip)
+    local owner = tip.GetOwner and tip:GetOwner()
+    if not isSecret(owner) and owner ~= UIParent then return false end
+    return Pill.Wanted(tip, "")
 end
 
 local function lineHeight() return Style.SIZE.body + ns.RichPanel.LINE_EXTRA end
@@ -150,6 +162,25 @@ function Pill.Fill(unit)
     DUI.Health.Write(f.pct, "percent", unit, true)
 end
 
+-- Its words for something that isn't a unit: the tooltip's first line as the
+-- game shows it (its text and color may be secret: both only go into the
+-- text), no health.
+function Pill.FillWorld(tip)
+    local f = Pill.Frame()
+    local first = ns.Tooltip.Line(tip, 1)
+    local most = Pill.W - 2 * Pill.PAD_X
+    f.name:SetWidth(most)
+    if type(first) == "table" and first.GetText then
+        f.name:SetText(first:GetText())
+        f.name:SetTextColor(first:GetTextColor())
+    else
+        f.name:SetText("")
+    end
+    paintLight(f.light, nil)
+    f.pct:SetText("")
+    f.bar:Hide()
+end
+
 -- Where the tooltip would be, by the Tooltip position setting: at the cursor,
 -- at Daylight UI's tooltip spot growing from its corner, or where the tooltip's
 -- owner put it.
@@ -177,10 +208,16 @@ function Pill.Place(tip)
     f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
 end
 
--- Shown at once (a fight never waits for a fade), the tooltip muted.
+-- Shown at once (a fight never waits for a fade), the tooltip muted. No
+-- unit: something else in the world (Pill.FillWorld).
 function Pill.Show(tip, unit)
     local f = Pill.Frame()
-    Pill.Fill(unit)
+    if unit then
+        f.bar:Show()
+        Pill.Fill(unit)
+    else
+        Pill.FillWorld(tip)
+    end
     f.next = GetTime() + ns.Rich.BAR_EVERY
     f.leaving = nil
     -- Snapped back in, any fade out still running stopped.
@@ -197,6 +234,7 @@ function Pill.Step(tip, unit)
     local f = Pill.frame
     if not (f and f:IsShown()) then return end
     Pill.Place(tip)
+    if not unit then return end
     local now = GetTime()
     if now >= (f.next or 0) and not f.leaving then
         f.next = now + ns.Rich.BAR_EVERY

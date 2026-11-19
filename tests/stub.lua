@@ -3208,8 +3208,11 @@ function stub.ActionSlots(slots)
     -- Action slots: stub.slots[slot] = { texture, count, text, usable (false:
     -- can't be used now), noMana, current, autorepeat, attack, equipped,
     -- cooldown, gcd (the cooldown is only the GCD), charges, loc, locReplaces,
-    -- inRange, flyout, spellID, macro, item }. In combat, counts and cooldown
-    -- times come back secret and isOnGCD is missing, as in the client.
+    -- inRange, flyout, spellID, macro, item, cdStart/cdDuration (the cooldown's
+    -- times, else 100 and 10), chargesNow/chargesMax/chargeStart/chargeDuration
+    -- (else 1 of 2, the next one coming at the cooldown's times) }. In combat,
+    -- counts and cooldown times come back secret and isOnGCD is missing, as in
+    -- the client.
     -- stub.spellCooldowns[spellID] = "gcd" or "real" for C_Spell.
     stub.slots = slots or { [2] = { texture = "tex2", spellID = 2 }, [3] = { texture = "tex3", spellID = 3 } }
     stub.overlay, stub.rangeChecks, stub.macroSpells, stub.spellCooldowns = {}, {}, {}, {}
@@ -3268,14 +3271,18 @@ function stub.ActionSlots(slots)
         end,
         GetActionCooldown = function(slot)
             local s = S(slot)
-            return { isActive = s ~= nil and s.cooldown == true, isEnabled = true, startTime = secret(100), duration = secret(10),
+            return { isActive = s ~= nil and s.cooldown == true, isEnabled = true,
+                     startTime = secret(s and s.cdStart or 100), duration = secret(s and s.cdDuration or 10),
                      isOnGCD = (not stub.combat and s ~= nil and s.gcd == true) or nil }
         end,
         GetActionCooldownDuration = function(slot) return duration(slot, "cooldown") end,
         GetActionCharges = function(slot)
             local s = S(slot)
             local has = s ~= nil and s.charges == true
-            return { isActive = has, currentCharges = secret(1), maxCharges = secret(has and 2 or 0) }
+            return { isActive = has, currentCharges = secret(has and s.chargesNow or 1),
+                     maxCharges = secret(has and (s.chargesMax or 2) or 0),
+                     cooldownStartTime = secret(has and (s.chargeStart or s.cdStart) or 100),
+                     cooldownDuration = secret(has and (s.chargeDuration or s.cdDuration) or 10) }
         end,
         GetActionChargeDuration = function(slot) return duration(slot, "charges") end,
         GetActionLossOfControlCooldownInfo = function(slot)
@@ -3781,7 +3788,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end
