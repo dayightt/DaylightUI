@@ -1151,6 +1151,66 @@ T.test("info panel: the minimap moves into the panel, square, cluster hidden", f
     T.eq(rel, P.mapArea)
 end)
 
+-- The game's frames on the map are placed once and left alone while they're
+-- where they belong. Re-parenting, re-pointing or re-sizing them on every style
+-- repaint, loading screen, roster change or mail was needless work on the
+-- game's own frames in play, and on the map itself it dropped its picture.
+T.test("info panel: a repaint or the place events leave the game's map frames alone when they're already in place", function()
+    login(function()
+        CreateFrame("Button", "QueueStatusButton", UIParent)
+        CreateFrame("Frame", "AddonCompartmentFrame", MinimapCluster)
+    end)
+    DaylightUI:Set("InfoPanel", "map.drawer", false)
+    stub.RunTimers()
+    T.eq(QueueStatusButton:GetParent(), Minimap, "the queue eye on the map")
+    T.eq(AddonCompartmentFrame:GetParent(), Minimap, "the compartment on the map")
+    local WRITES = { "SetParent", "ClearAllPoints", "SetPoint", "SetAllPoints", "SetSize", "SetWidth", "SetHeight",
+                     "SetScale", "SetFrameLevel", "SetFrameStrata", "SetAlpha", "EnableMouse", "EnableMouseWheel",
+                     "SetScript", "SetMaskTexture", "SetFixedFrameStrata", "SetFixedFrameLevel",
+                     "SetQuestBlobRingScalar", "SetQuestBlobRingAlpha", "SetTaskBlobRingScalar" }
+    local cluster = MinimapCluster
+    local frames = { Minimap = Minimap, MinimapCluster = cluster, IndicatorFrame = cluster.IndicatorFrame,
+                     MailFrame = cluster.IndicatorFrame.MailFrame, Tracking = cluster.Tracking,
+                     GameTimeFrame = GameTimeFrame, QueueStatusButton = QueueStatusButton,
+                     AddonCompartmentFrame = AddonCompartmentFrame, DurabilityFrame = DurabilityFrame }
+    local writes, saved = {}, {}
+    for name, f in pairs(frames) do
+        saved[f] = {}
+        for _, m in ipairs(WRITES) do
+            local real = f[m]
+            if type(real) == "function" then
+                saved[f][m] = rawget(f, m) or false
+                f[m] = function(self, ...)
+                    writes[#writes + 1] = name .. ":" .. m
+                    return real(self, ...)
+                end
+            end
+        end
+    end
+    DaylightUI.NotifyStyleChanged()
+    stub.RunTimers()
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UPDATE_PENDING_MAIL",
+                         "EDIT_MODE_LAYOUTS_UPDATED", "PLAYER_SPECIALIZATION_CHANGED" }) do
+        stub.FireEvent(e)
+        stub.RunTimers()
+    end
+    for f, list in pairs(saved) do
+        for m, was in pairs(list) do rawset(f, m, was or nil) end
+    end
+    T.eq(#writes, 0, "no writes to the game's frames: " .. table.concat(writes, ", "))
+    -- Moved away by the game, each is still put back.
+    QueueStatusButton:ClearAllPoints(); QueueStatusButton:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.eq(select(2, QueueStatusButton:GetPoint(1)), Minimap, "the queue eye back on the map")
+    GameTimeFrame:SetParent(cluster)
+    GameTimeFrame:Hide(); GameTimeFrame:Show()
+    stub.RunTimers()
+    T.eq(GameTimeFrame:GetParent(), Minimap, "the calendar back on the map")
+end)
+
 T.test("info panel: turning with you, the map is round (the game turns its mask with it); back to a square after", function()
     login()
     local Map = stub.infopanel.Minimap
@@ -1316,7 +1376,7 @@ T.test("info panel: in a fight a protected map waits, the mail icon doesn't, not
     mail:ClearAllPoints(); mail:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     stub.errors = {}
     stub.combat = true
-    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     stub.RunTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     T.eq(select(2, mail:GetPoint(1)), Minimap, "the mail icon needs no wait")

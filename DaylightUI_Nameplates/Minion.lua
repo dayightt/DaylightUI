@@ -202,6 +202,6 @@ end
 -- to change it in combat.
 function Minion.Apply()
     DUI.AfterCombat(function()
-        if SetCVar then pcall(SetCVar, Minion.CVAR, ns.cfg.minions == false and "0" or "1") end
+        ns.Manager.SetCVar(Minion.CVAR, ns.cfg.minions == false and "0" or "1")
     end, "nameplates:minions")
 end

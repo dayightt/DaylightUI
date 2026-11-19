@@ -221,8 +221,9 @@ ns.OPTIONS = { pages = {
             { type = "toggle", label = "Rotate as you turn",
               desc = "The game's own setting: the map turns with you, so the way you face is always up. When off, north is always up.",
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true end,
-              set = function(v)
-                  if type(SetCVar) == "function" then SetCVar("rotateMinimap", v and "1" or "0") end
+              -- A game setting, so it's written out of a fight only.
+              set = function(v) DaylightUI.AfterCombat(function()
+                  if type(SetCVar) == "function" then pcall(SetCVar, "rotateMinimap", v and "1" or "0") end
                   -- The game reapplies this from its Edit Mode layout at login,
                   -- so write it there too or it resets after a reload.
                   local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting
@@ -231,7 +232,7 @@ ns.OPTIONS = { pages = {
                   end
                   -- Not one of Daylight UI's settings, so notify the options window directly.
                   DaylightUI.Fire("SettingChanged", "InfoPanel", "map.rotate", v)
-              end,
+              end, "infopanel:rotate") end,
               default = function() return false end,
               disabled = off("map.enabled") },
             { type = "dropdown", key = "map.shape", label = "Minimap shape", since = "1.8.0",

@@ -410,7 +410,7 @@ local function layoutShield(h)
     s.fx = s.fx or {}
     CD.TrackFx(h, s, s.fx, true)
     local t = CD.BarText(block)
-    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Outline())
+    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Slug(Style.Outline()))
     CD.Ink(s.text, t.timeColor)
     s.text:SetAlpha(ns.CdmEffects.Get(h.button, "shieldAmount") ~= false and 1 or 0)
     local Fx = ns.CdmEffects
@@ -537,10 +537,10 @@ function B.LayoutButton(h, btn, parts)
     local back, v = CD.BackOf(h.button, block)
     if back then CD.PaintBack(parts.backTex, back, v) end
     local text = CD.BarText(block)
-    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Outline())
+    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Slug(Style.Outline()))
     CD.Ink(parts.time, text.timeColor)
     parts.time:SetAlpha((not block or Look(block, "time") ~= false) and 1 or 0)
-    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Outline())
+    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Slug(Style.Outline()))
     local cc = Skin.COUNT_COLOR
     parts.count:SetTextColor(cc[1], cc[2], cc[3])
     -- The fill: bar texture, then the block's or spell's color.

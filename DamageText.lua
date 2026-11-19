@@ -120,13 +120,16 @@ function DT.Shown(what)
     return v ~= 0
 end
 
+-- Like every game setting Daylight UI writes, never from inside a fight.
 function DT.SetShown(what, on)
     if type(SetCVar) ~= "function" then return end
-    for _, name in ipairs(DT.SHOW[what]) do
-        if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
-    end
-    -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
-    DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)
+    DUI.AfterCombat(function()
+        for _, name in ipairs(DT.SHOW[what]) do
+            if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
+        end
+        -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
+        DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)
+    end, "damagetext:show:" .. what)
 end
 
 function DT.ShownDefault(what)
@@ -189,7 +192,7 @@ function DT.Sample(parent)
         local fs = table.remove(spare) or f:CreateFontString(nil, "OVERLAY")
         local size = crit and look.crit or look.size
         if fs.file ~= look.file or fs.size ~= size then
-            fs:SetFont(look.file, size, "OUTLINE")
+            fs:SetFont(look.file, size, DUI.Style.Slug("OUTLINE"))
             fs.file, fs.size = look.file, size
         end
         local amount = crit and math.random(1800, 3200) or math.random(300, 1200)

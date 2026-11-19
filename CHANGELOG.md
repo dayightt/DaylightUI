@@ -1,4 +1,12 @@
-# DaylightUI 1.9.4.1
+# DaylightUI 1.9.4.4
+
+A small fix for using your font on the game's text.
+
+## Fixed
+- General: "Use this font for the game's text" now applies once as you log in and asks for a reload when switched
+- General: With it on, Russian, Korean and Chinese letters in the game's text keep drawing
+
+# DaylightUI 1.9.4.3
 
 Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.
 

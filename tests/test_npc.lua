@@ -1673,7 +1673,39 @@ T.test("npc immersive: the camera comes in over your shoulder, the warning quiet
     T.eq(cv.test_cameraTargetFocusInteractEnable, "0")
     T.eq(DaylightUIDB.npcCamera, nil)
     stub.RunTimers()
-    T.eq(handlers.EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED, _G.GameEvent.HandleExperimentalCVarConfirmationNeeded, "the game's warning handed back")
+    -- Registering the game's handler from addon code would leave it tainted, and the
+    -- warning would then open the game's pop-up under that taint.
+    T.isnil(handlers.EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED, "the game's warning never registered back from addon code")
+    local quieted = handlers.quieted
+    NW.Gossip(GOSSIP)
+    frame(); settle()
+    N.Goodbye(); settle()
+    stub.RunTimers()
+    T.eq(handlers.quieted, quieted, "silenced once, not around every change")
+end)
+
+T.test("npc: the plain window look leaves the game's camera calls alone", function()
+    -- Other modules (the personal resource display) hook these too, so count only
+    -- the NPC window's own hooks.
+    local hooked = {}
+    local realHook = _G.hooksecurefunc
+    _G.hooksecurefunc = function(a, b, c)
+        local src = debug.getinfo(2, "S").source or ""
+        if type(a) == "string" and src:find("Npc.Scene%.lua") then hooked[a] = true end
+        return realHook(a, b, c)
+    end
+    local ok, err = pcall(function()
+        local N = load()
+        local _, handlers = camera({})
+        NW.Gossip(GOSSIP)
+        frame(); settle()
+        N.Goodbye(); settle()
+        stub.FireEvent("PLAYER_REGEN_DISABLED")
+        T.isnil(next(hooked), "no camera call hooked")
+        T.isnil(handlers.quieted, "the game's warning untouched")
+    end)
+    _G.hooksecurefunc = realHook
+    if not ok then error(err, 0) end
 end)
 
 T.test("npc immersive: a fight or a logout mid-talk puts your camera back at once", function()

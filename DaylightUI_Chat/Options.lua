@@ -315,7 +315,7 @@ ns.OPTIONS = { pages = {
               set = function(v) ns.Tabs.ShowSide(v) end,
               hidden = classicStyle,
               desc = "A second chat box with its own tabs, for loot, guild or a combat log. Right-click a chat tab to move it over, or drag it onto the other panel. Typing and whispers stay in the main chat." },
-            { type = "slider", key = "sideWidth", label = "Second panel width", min = 250, max = 1000, step = 1, unit = "px",
+            { type = "slider", key = "sideWidth", label = "Second panel width", min = 150, max = 1000, step = 1, unit = "px",
               desc = "You can also drag the panel's bottom-right corner to size it.",
               hidden = classicStyle, disabled = sideOff },
             { type = "slider", key = "sideHeight", label = "Second panel height", min = 100, max = 600, step = 1, unit = "px",

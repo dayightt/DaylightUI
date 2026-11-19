@@ -607,13 +607,31 @@ T.test("chat: the game's scroll bar stays out of sight; its jump arrow takes no 
     T.falsy(ChatFrame1.ScrollToBottomButton:IsMouseEnabled(), "the arrow takes no clicks at rest")
 end)
 
+-- A repaint also comes from a screen or UI scale change. With nothing about
+-- the chat changed, the game's chat window and edit box keep their anchors.
+T.test("chat: a repaint that changed nothing leaves the game's chat window anchors alone", function()
+    local DUI = login()
+    stub.RunTimers()
+    local clears = 0
+    for _, f in ipairs({ ChatFrame1, ChatFrame1EditBox }) do
+        local real = f.ClearAllPoints
+        f.ClearAllPoints = function(...) clears = clears + 1 return real(...) end
+    end
+    DUI.NotifyStyleChanged()
+    stub.RunTimers()
+    T.eq(clears, 0, "nothing placed again")
+    DUI:Set("Chat", "inputAt", "below"); DUI:Set("Chat", "boxInputAt", "top")
+    stub.RunTimers()
+    T.truthy(clears > 0, "a real change still moves the box")
+end)
+
 T.test("chat: a text size and outline for every window", function()
     local DUI = login()
     DUI:Set("Chat", "textSize", 16)
     DUI:Set("Chat", "outline", true)
     stub.RunTimers()
     T.eq(select(2, ChatFrame1:GetFont()), 16, "the size set")
-    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE")
+    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE, SLUG")
 end)
 
 T.test("chat: the input box and its \"Say:\" follow the text size, and go back at 0", function()
@@ -623,7 +641,7 @@ T.test("chat: the input box and its \"Say:\" follow the text size, and go back a
     stub.RunTimers()
     T.eq(select(2, ChatFrame1EditBox:GetFont()), 18, "the typed text at the size set")
     T.eq(select(2, ChatFrame1EditBox.header:GetFont()), 18, "the header too")
-    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE", "outlined like the lines")
+    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE, SLUG", "outlined like the lines")
     DUI:Set("Chat", "textSize", 0)
     DUI:Set("Chat", "outline", false)
     stub.RunTimers()
@@ -719,8 +737,18 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     local b2 = CreateFrame("Frame", nil, UIParent)
     b2.__forbidden = true
     stub.SetBubbles({ b1, b2 })
+    -- The client refuses text on a font string with no font yet.
+    stub.FontRule = true
+    local errs = 0
+    local onError = DaylightUI.SafeCall
+    DaylightUI.SafeCall = function(fn, ...)
+        local ok = pcall(fn, ...)
+        if not ok then errs = errs + 1 end
+    end
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
+    DaylightUI.SafeCall, stub.FontRule = onError, nil
+    T.eq(errs, 0, "no error drawing a new bubble")
     local mine = Bubbles.OverlayOf(b1)
     T.truthy(mine, "drawn")
     T.eq(mine:GetParent(), UIParent, "on UIParent, outside the world layer")
@@ -756,6 +784,68 @@ T.test("chat: a bubble that goes out of sight takes its look along and gets it b
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
     T.eq(Bubbles.OverlayOf(b1).text:GetText(), "Something new", "a new line in the same bubble")
+end)
+
+T.test("chat: a bubble's stand-in lets go of the game's frame as it goes", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Over here")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    local mine = Bubbles.OverlayOf(b1)
+    T.eq(select(2, mine:GetPoint(1)), art, "follows the balloon while it talks")
+    b1:Hide()
+    for i = 1, mine:GetNumPoints() do
+        local _, rel = mine:GetPoint(i)
+        T.truthy(rel ~= art and rel ~= b1, "fading out, no longer hung on the game's world frame")
+    end
+    stub.Advance(1)
+    stub.RunTimers()
+    T.falsy(mine:IsShown())
+    T.eq(mine:GetNumPoints(), 0, "hidden with no anchor left on the game's frame")
+end)
+
+T.test("chat: speech bubbles are left to the game inside an instance, and handed back on the way in", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Outside")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b1):IsShown())
+    stub.SetInstance("party")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 1, "the game's own bubble back")
+    T.falsy(Bubbles.OverlayOf(b1):IsShown())
+    local b2, art2 = makeBubble("Inside")
+    stub.SetBubbles({ b2 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    b1:Hide(); b1:Show()
+    stub.RunTimers()
+    T.isnil(Bubbles.OverlayOf(b2), "not drawn inside")
+    T.eq(art2:GetAlpha(), 1)
+    T.eq(art:GetAlpha(), 1, "a hooked one showing again inside is left alone too")
+    stub.SetInstance("none")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.Advance(1)
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b2) and Bubbles.OverlayOf(b2):IsShown(), "drawn again outside")
+end)
+
+T.test("chat: logging out hands every bubble back", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Bye")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0)
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(art:GetAlpha(), 1, "the game's balloon back before the reload")
 end)
 
 T.test("chat: a bubble with secret words is left to the game", function()
@@ -3677,7 +3767,7 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     W.OpenMenu = open
     T.eq(DUI:Get("Chat", "textSize"), 18)
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
-    T.eq(select(3, box:GetFont()), "OUTLINE")
+    T.eq(select(3, box:GetFont()), "OUTLINE, SLUG")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

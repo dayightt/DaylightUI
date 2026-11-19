@@ -287,6 +287,9 @@ function Plate.Create(parent, sample)
     -- The game scales each plate its own way (simplified ones way down). This one
     -- is the UI scale times the Scale setting (Plate.ApplyScale).
     if p.SetIgnoreParentScale and not p.isSample then p:SetIgnoreParentScale(true) end
+    -- Drawn as one batch with everything on it, as EllesmereUI's plates are: 20 to
+    -- 40 of these move every frame.
+    if p.SetFlattensRenderLayers and not p.isSample then p:SetFlattensRenderLayers(true) end
     p:SetSize(1, 1)
 
     local hp = CreateFrame("Frame", nil, p)

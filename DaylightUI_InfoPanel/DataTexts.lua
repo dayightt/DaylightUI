@@ -1344,6 +1344,18 @@ function DT.Keys(d)
     return out
 end
 
+-- What a strip listens for: its texts and their events. The same answer
+-- means its events are already registered.
+function DT.EventsKey(keys)
+    local parts = {}
+    for _, k in ipairs(keys) do
+        local t = DT.TEXTS[k]
+        parts[#parts + 1] = k .. "=" .. tostring(t) .. ":" .. table.concat(t.events or {}, ",")
+            .. "/" .. table.concat(t.unitEvents or {}, ",")
+    end
+    return table.concat(parts, ";")
+end
+
 -- Draws a slot's text with its accent spot. n overrides the number for
 -- texts that count up.
 local function drawText(s, t, n)
@@ -1704,8 +1716,16 @@ function DT.New(S, opts)
         cfg = c
         if not area then return end
         local on = c.enabled == true and area:IsShown()
-        events:UnregisterAllEvents()
-        for k in pairs(byEvent) do byEvent[k] = nil end
+        -- A style repaint calls this too, with the same texts. Their events
+        -- and the guild roster request only change with the texts themselves.
+        local keys = on and DT.Keys(c) or nil
+        local wired = on and DT.EventsKey(keys) or false
+        local rewire = wired ~= S.wired
+        S.wired = wired
+        if rewire then
+            events:UnregisterAllEvents()
+            for k in pairs(byEvent) do byEvent[k] = nil end
+        end
         if not on then
             S.keys = nil
             poll(false)
@@ -1714,7 +1734,6 @@ function DT.New(S, opts)
             return
         end
         for _, t in ipairs(seps) do t.x = nil end
-        local keys = DT.Keys(c)
         S.keys = keys
         local polled = false
         local guild = false
@@ -1734,20 +1753,22 @@ function DT.New(S, opts)
             s:EnableMouseWheel(t.wheel ~= nil)
             if t.poll then polled = true end
             if key == "social" or key == "guild" then guild = true end
-            for _, e in ipairs(t.events or {}) do
-                byEvent[e] = byEvent[e] or {}
-                byEvent[e][key] = true
-                pcall(events.RegisterEvent, events, e)
-            end
-            for _, e in ipairs(t.unitEvents or {}) do   -- player only
-                byEvent[e] = byEvent[e] or {}
-                byEvent[e][key] = true
-                pcall(events.RegisterUnitEvent, events, e, "player")
+            if rewire then
+                for _, e in ipairs(t.events or {}) do
+                    byEvent[e] = byEvent[e] or {}
+                    byEvent[e][key] = true
+                    pcall(events.RegisterEvent, events, e)
+                end
+                for _, e in ipairs(t.unitEvents or {}) do   -- player only
+                    byEvent[e] = byEvent[e] or {}
+                    byEvent[e][key] = true
+                    pcall(events.RegisterUnitEvent, events, e, "player")
+                end
             end
         end
         poll(polled)
         -- The guild online count arrives with the roster.
-        if guild and call(_G.IsInGuild) == true then call(api("C_GuildInfo", "GuildRoster")) end
+        if rewire and guild and call(_G.IsInGuild) == true then call(api("C_GuildInfo", "GuildRoster")) end
         -- Slots were reset above, so this also lays out the strip.
         S.Update()
     end

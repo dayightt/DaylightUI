@@ -863,9 +863,11 @@ end
 local function keepStateFonts(btn, fs)
     local face = Style.ButtonFace(fs)
     if not face then return end
-    btn:SetNormalFontObject(face)
-    btn:SetHighlightFontObject(face)
-    btn:SetDisabledFontObject(face)
+    -- The face is cached per font, so a style change that changed nothing finds
+    -- it already set. Writing it again would make the client redo the label for no reason.
+    if btn:GetNormalFontObject() ~= face then btn:SetNormalFontObject(face) end
+    if btn:GetHighlightFontObject() ~= face then btn:SetHighlightFontObject(face) end
+    if btn:GetDisabledFontObject() ~= face then btn:SetDisabledFontObject(face) end
 end
 
 -- Quiet controls: the same looks with no hooks that the game's own code can

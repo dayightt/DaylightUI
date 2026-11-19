@@ -11,8 +11,27 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
-    { version = "1.9.4.1", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
+    { version = "Unreleased",
+        changed = {
+            { "General", "Outlined text is drawn the way the game draws its own text in the world, so outlines look crisper" },
+            { "Chat", "The second chat panel can be made narrower, down to 150 px" },
+        },
+        fixed = {
+            { "General", "\"Use this font for the game's text\" no longer changes the combat text over you or the names over people's heads, and the range dot on hotkeys stays a dot" },
+            { "General", "Alt-tabbing, loading screens and screen or UI scale changes no longer make Daylight UI set up the game's nameplates, minimap, chat and tooltips all over again" },
+            { "General", "Daylight UI no longer changes your max camera distance setting every time you log in" },
+            { "Buffs", "Your buffs and debuffs no longer all bounce at once when you loot something" },
+            { "QoL", "The big level number on the level-up screen is no longer cut off at the top and bottom" },
+            { "QoL", "Closing the AFK screen while an NPC conversation has the UI faded no longer brings the UI back early" },
+        },
+    },
+    { version = "1.9.4.4", date = "2026-11-18", summary = "A small fix for using your font on the game's text.",
+        fixed = {
+            { "General", "\"Use this font for the game's text\" now applies once as you log in and asks for a reload when switched" },
+            { "General", "With it on, Russian, Korean and Chinese letters in the game's text keep drawing" },
+        },
+    },
+    { version = "1.9.4.3", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
         new = {
             { "Unit frames", "Choose how many buff and debuff icons sit in each row, on every frame" },
             { "Chat", "Short chat tags in your game's language, and each tag can be changed in the chat options" },

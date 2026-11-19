@@ -242,6 +242,39 @@ T.test("skins: a button keeps the Daylight font under the mouse, after it and wh
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A style change (every General change, every UI scale or window size change)
+-- put the three font objects back on every skinned game button of the session,
+-- even when each already had them. Only a button whose font really changed is written.
+T.test("skins: a style change with nothing new leaves a button's state fonts alone", function()
+    login(function()
+        local big = CreateFont("GameFontHighlightLarge")
+        big:SetFont("Fonts\\FRIZQT__.TTF", 16, "")
+        local b = TradeFrameTradeButton
+        b:SetNormalFontObject(big)
+        b:SetHighlightFontObject(big)
+        b:SetDisabledFontObject(big)
+    end)
+    local b = TradeFrameTradeButton
+    local face = b:GetNormalFontObject()
+    T.truthy(face and face ~= _G.GameFontHighlightLarge, "dressed")
+    local writes = 0
+    for _, m in ipairs({ "SetNormalFontObject", "SetHighlightFontObject", "SetDisabledFontObject" }) do
+        local real = b[m]
+        rawset(b, m, function(self, f) writes = writes + 1; return real(self, f) end)
+    end
+    DaylightUI.Fire("StyleChanged")
+    T.eq(writes, 0, "already wearing the Daylight face")
+    b:Disable(); b:Enable()
+    T.eq(writes, 0, "nor on enable and disable")
+    DaylightUI:Set("general", "font", "fira")
+    stub.RunTimers()
+    T.truthy(writes > 0, "a new font is still written")
+    T.truthy(b:GetNormalFontObject() ~= face, "the new face")
+    for _, m in ipairs({ "SetNormalFontObject", "SetHighlightFontObject", "SetDisabledFontObject" }) do rawset(b, m, nil) end
+    DaylightUI:Set("general", "font", nil)
+    stub.RunTimers()
+end)
+
 -- The game menu's buttons come from a pool. Each time the menu opens, AddButton
 -- (MainMenuFrameTemplates.lua) clears their OnEnter/OnLeave before showing them.
 -- That removed the skin's hooks, so from the second opening on hover lit nothing.
