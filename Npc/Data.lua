@@ -16,6 +16,24 @@ local function call(f, ...) if fn(f) then return f(...) end end
 Data.YELLOW = { 1, 0.82, 0.25 }
 Data.TRIVIAL = DUI.Style.INK.OFF
 
+-- Levels the NPC's list gave, by quest, for a quest page the game can't name a level for.
+Data.levels = {}
+
+-- A quest's level, or nil when the game doesn't know it.
+function Data.QuestLevel(questID)
+    if type(questID) ~= "number" or questID <= 0 then return nil end
+    if C_QuestLog and fn(C_QuestLog.GetQuestDifficultyLevel) then
+        local level = C_QuestLog.GetQuestDifficultyLevel(questID)
+        if type(level) == "number" and level > 0 then return level end
+    end
+    return Data.levels[questID]
+end
+
+local function remember(q)
+    if type(q.questID) == "number" and type(q.level) == "number" and q.level > 0 then Data.levels[q.questID] = q.level end
+    return q
+end
+
 -- The game's level-based difficulty color, or nil.
 local function levelColor(level)
     if type(level) ~= "number" or level <= 0 or not fn(GetQuestDifficultyColor) then return nil end
@@ -36,10 +54,7 @@ end
 -- So an orange or red from the level math wins, otherwise use the log's color.
 function Data.QuestColor(questID, level, trivial)
     if trivial then return Data.TRIVIAL end
-    if type(level) ~= "number" and type(questID) == "number" and C_QuestLog and fn(C_QuestLog.GetQuestDifficultyLevel) then
-        local ok, l = pcall(C_QuestLog.GetQuestDifficultyLevel, questID)
-        if ok then level = l end
-    end
+    if type(level) ~= "number" then level = Data.QuestLevel(questID) end
     local byLevel = levelColor(level)
     if tooHigh(byLevel) then return plain(byLevel) end
     if type(questID) == "number" and C_PlayerInfo and fn(C_PlayerInfo.GetContentDifficultyQuestForPlayer) and fn(GetDifficultyColor) then
@@ -69,14 +84,14 @@ function Data.Gossip()
     local G = C_GossipInfo or {}
     local t = { text = call(G.GetText) or "", quests = {}, options = {} }
     for _, q in ipairs(call(G.GetAvailableQuests) or {}) do
-        t.quests[#t.quests + 1] = { kind = "available", title = q.title, level = q.questLevel, trivial = q.isTrivial,
+        t.quests[#t.quests + 1] = remember({ kind = "available", title = q.title, level = q.questLevel, trivial = q.isTrivial,
             questID = q.questID, legendary = q.isLegendary, frequency = q.frequency, repeatable = q.repeatable,
-            important = q.isImportant, meta = q.isMeta, infoID = q.questInfoID }
+            important = q.isImportant, meta = q.isMeta, infoID = q.questInfoID })
     end
     for _, q in ipairs(call(G.GetActiveQuests) or {}) do
-        t.quests[#t.quests + 1] = { kind = "active", title = q.title, level = q.questLevel, trivial = q.isTrivial,
+        t.quests[#t.quests + 1] = remember({ kind = "active", title = q.title, level = q.questLevel, trivial = q.isTrivial,
             questID = q.questID, complete = q.isComplete == true, legendary = q.isLegendary, frequency = q.frequency,
-            repeatable = q.repeatable, important = q.isImportant, meta = q.isMeta, infoID = q.questInfoID }
+            repeatable = q.repeatable, important = q.isImportant, meta = q.isMeta, infoID = q.questInfoID })
     end
     local opts = call(G.GetOptions) or {}
     table.sort(opts, function(a, b) return (a.orderIndex or 0) < (b.orderIndex or 0) end)
@@ -94,12 +109,13 @@ function Data.Greeting()
     for i = 1, call(GetNumAvailableQuests) or 0 do
         local trivial, frequency, repeatable, legendary, questID = call(GetAvailableQuestInfo, i)
         t.quests[#t.quests + 1] = { kind = "available", index = i, title = call(GetAvailableTitle, i), trivial = trivial,
-            questID = questID, frequency = frequency, repeatable = repeatable, legendary = legendary }
+            questID = questID, level = Data.QuestLevel(questID), frequency = frequency, repeatable = repeatable, legendary = legendary }
     end
     for i = 1, call(GetNumActiveQuests) or 0 do
         local title, complete = call(GetActiveTitle, i)
+        local questID = call(GetActiveQuestID, i)
         t.quests[#t.quests + 1] = { kind = "active", index = i, title = title, complete = complete == true,
-            trivial = call(IsActiveQuestTrivial, i), questID = call(GetActiveQuestID, i) }
+            trivial = call(IsActiveQuestTrivial, i), questID = questID, level = Data.QuestLevel(questID) }
     end
     return t
 end
@@ -252,6 +268,7 @@ function Data.Quest(mode)
         t.money = call(GetRewardMoney) or 0
         t.xp = call(GetRewardXP) or 0
     end
-    t.color = Data.QuestColor(t.questID)
+    t.level = Data.QuestLevel(t.questID)
+    t.color = Data.QuestColor(t.questID, t.level)
     return t
 end

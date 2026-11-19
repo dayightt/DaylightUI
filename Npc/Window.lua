@@ -336,16 +336,19 @@ local function keyFor(n)
     return n <= 9 and tostring(n) or ""   -- past 9, blank space only so rows line up
 end
 
+-- A quest's name with its level after it, in the quest's difficulty color.
+local function withLevel(title, level, color)
+    title = title or ""
+    if type(level) ~= "number" or level <= 0 then return title end
+    return title .. "  " .. Parts.Hex(color or DUI.Style.INK.LABEL) .. level .. "|r"
+end
+
 local function questRows(s, quests, n, air)
     for _, q in ipairs(quests) do
         n = n + 1
         local icon, atlas, iconColor = questIcon(q)
         local color = q.kind == "active" and not q.complete and Npc.BUSY or ns.Data.QuestColor(q.questID, q.level, q.trivial)
-        local text = q.title or ""
-        if q.level and q.level > 0 then
-            local lc = ns.Data.QuestColor(q.questID, q.level, q.trivial) or DUI.Style.INK.LABEL
-            text = text .. "  " .. Parts.Hex(lc) .. q.level .. "|r"
-        end
+        local text = withLevel(q.title, q.level, ns.Data.QuestColor(q.questID, q.level, q.trivial))
         if air > 0 then s:Gap(air) end
         Npc.rows[n] = s:Row({ text = text, color = color, icon = icon, atlas = atlas, iconColor = iconColor, key = keyFor(n),
             onClick = function() pickQuest(q) end })
@@ -385,7 +388,7 @@ function Npc.Fill(page)
             end
         end
     else
-        s:Text(d.title, { size = Npc.TITLE_SIZE, color = d.color })
+        s:Text(withLevel(d.title, d.level, d.color), { size = Npc.TITLE_SIZE, color = d.color })
         said = s:Text(d.text, say)
         if S.mode == "detail" and d.objective ~= "" then
             s:Section(L["Objectives"])
@@ -658,7 +661,7 @@ function Npc.SampleQuest(ready)
     local boots = { kind = "choice", index = 1, name = L["Walking Boots"], texture = SAMPLE_ICON, quality = 2, sell = 120 }
     local band = { kind = "choice", index = 2, name = L["Herbalist's Band"], texture = SAMPLE_ICON, quality = 2, sell = 340 }
     local blade = { kind = "choice", index = 3, name = L["Mine Clearer's Blade"], texture = SAMPLE_ICON, quality = 1, sell = 90 }
-    return { mode = ready and "reward" or "detail", title = L["Kobold Candles"], color = ns.Data.YELLOW,
+    return { mode = ready and "reward" or "detail", title = L["Kobold Candles"], level = 6, color = ns.Data.YELLOW,
         text = ready and L["Eight candles, and hardly a dent in them! Here, pick something for your trouble."]
             or L["The kobolds in the mine carry candles on their heads to see in the dark. Bring me eight of them and I'll make it worth your while."],
         objective = L["Bring 8 Large Candles to William Pestle in Goldshire."],

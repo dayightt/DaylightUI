@@ -388,6 +388,11 @@ local function installQuest()
     _G.C_QuestLog = _G.C_QuestLog or {}
     _G.C_QuestLog.GetLogIndexForQuestID = function(id) return logged(id) and 1 or nil end
     _G.C_QuestLog.RequestLoadQuestByID = function(id) record("RequestLoadQuestByID", id) end
+    -- The quest's `level`; 0 for a quest the client knows nothing of, as the game answers.
+    _G.C_QuestLog.GetQuestDifficultyLevel = function(id)
+        local q = Q()
+        return q.questID == id and q.level or 0
+    end
     _G.HaveQuestData = function(id) local l = logged(id); return l ~= nil and not l.loading end
     _G.GetNumQuestLogChoices = function(id)
         local l = logged(id)

@@ -270,7 +270,7 @@ return {
         ["Mail/Window.lua"] = 1,
         ["Media.lua"] = 5,
         ["Motion.lua"] = 1,
-        ["Npc/Data.lua"] = 6,
+        ["Npc/Data.lua"] = 5,
         ["Npc/Module.lua"] = 1,
         ["Npc/Scene.lua"] = 2,
         ["Npc/Shop.lua"] = 5,
