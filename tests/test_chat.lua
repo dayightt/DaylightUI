@@ -1292,13 +1292,16 @@ T.test("chat: a link's compare can wait for Shift", function()
     local suppressed
     _G.GameTooltip_SuppressAutomaticCompareItem = function(t) suppressed = t end
     callbacks["ChatFrame.OnHyperlinkEnter"](ChatFrame1, "item:1")
+    T.eq(suppressed, tip, "off by default: only Shift compares")
+    callbacks["ChatFrame.OnHyperlinkLeave"](ChatFrame1)
+    suppressed = nil
+    DaylightUI:Set("Chat", "linkTooltipCompare", true)
+    stub.RunTimers()
+    callbacks["ChatFrame.OnHyperlinkEnter"](ChatFrame1, "item:1")
     T.isnil(suppressed, "on: as the game's setting says")
     callbacks["ChatFrame.OnHyperlinkLeave"](ChatFrame1)
     DaylightUI:Set("Chat", "linkTooltipCompare", false)
     stub.RunTimers()
-    callbacks["ChatFrame.OnHyperlinkEnter"](ChatFrame1, "item:1")
-    T.eq(suppressed, tip, "off: only Shift compares")
-    callbacks["ChatFrame.OnHyperlinkLeave"](ChatFrame1)
     _G.GameTooltip_SuppressAutomaticCompareItem = nil
     _G.GameTooltip = nil
 end)

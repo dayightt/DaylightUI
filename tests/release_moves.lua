@@ -8,7 +8,9 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {},
+    values = {
+        ["Chat.linkTooltipCompare"] = "The worn gear beside every chat item link covered the chat; Shift still shows it, so everyone gets the calmer hover.",
+    },
     frames = {},
     plates = {},
 }
