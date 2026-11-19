@@ -124,7 +124,7 @@ function Who.Send(text)
     Who.token = (Who.token or 0) + 1
     local mine = Who.token
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social
-    pcall(F.SendWho, text, origin)
+    DUI.SafeCall(F.SendWho, text, origin)
     C_Timer.After(Who.COOL, function() Who.Render() end)
     -- The game may let nothing through (a search it refused leaves no answer): stop waiting.
     C_Timer.After(Who.WAIT, function()
@@ -201,7 +201,7 @@ end
 function Who.Sort(mode)
     Who.sort = mode
     local F = friends()
-    if F and F.SortWho then pcall(F.SortWho, mode) end
+    if F and F.SortWho then DUI.SafeCall(F.SortWho, mode) end
     Who.Render()
 end
 
@@ -260,9 +260,8 @@ end
 function Who.Races()
     local out = {}
     local F = friends()
-    local ok, filters = false, nil
-    if F and F.GetWhoRaceFilters then ok, filters = pcall(F.GetWhoRaceFilters) end
-    if ok and type(filters) == "table" then
+    local filters = F and F.GetWhoRaceFilters and F.GetWhoRaceFilters()
+    if type(filters) == "table" then
         for _, f in ipairs(filters) do
             if type(f) == "table" and type(f.name) == "string" and type(f.ID) == "number" then out[#out + 1] = { f.ID, f.name } end
         end
@@ -277,12 +276,11 @@ function Who.Classes()
     local out = {}
     local info = (C_CreatureInfo and C_CreatureInfo.GetClassInfo) or (C_ClassInfo and C_ClassInfo.GetClassInfo)
     local all = C_SpecializationInfo and C_SpecializationInfo.GetAllClassIDs
-    local ok, list = false, nil
-    if all then ok, list = pcall(all) end
-    if info and ok and type(list) == "table" then
+    local list = all and all()
+    if info and type(list) == "table" then
         for _, id in ipairs(list) do
-            local good, c = pcall(info, id)
-            if good and type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
+            local c = info(id)
+            if type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
         end
     end
     table.sort(out, function(a, b) return a[2] < b[2] end)
@@ -299,9 +297,9 @@ function Who.ZoneTree()
     local T = Enum and Enum.UIMapType or { World = 1, Continent = 2, Zone = 3 }
     local function children(id, kind, deep)
         if not (M and M.GetMapChildrenInfo) then return {} end
-        local ok, list = pcall(M.GetMapChildrenInfo, id, kind, deep)
+        local list = M.GetMapChildrenInfo(id, kind, deep)
         local out = {}
-        if ok and type(list) == "table" then
+        if type(list) == "table" then
             for _, m in ipairs(list) do
                 if type(m) == "table" and type(m.mapID) == "number" and type(m.name) == "string" and m.name ~= "" then
                     out[#out + 1] = { m.mapID, m.name }
@@ -469,8 +467,7 @@ function Who.LevelWord(level)
     local colored = Win.Parts.Hex({ Style.Pop() }) .. level .. "|r"
     local t = _G.UNIT_LEVEL_TEMPLATE
     if type(t) == "string" then
-        local ok, words = pcall(string.format, t, level)
-        if ok and type(words) == "string" then return (words:gsub(tostring(level), colored, 1)) end
+        return ((string.format(t, level):gsub(tostring(level), colored, 1)))
     end
     return (LEVEL or L["Level"]) .. " " .. colored
 end
@@ -625,11 +622,11 @@ function Who.Build(page)
         side = function(open) ns.Window.SetSide("who", open) end, fit = function(p) Who.Fit(page, p) end })
     page:HookScript("OnShow", function()
         local F = friends()
-        if F and F.SetWhoToUi then pcall(F.SetWhoToUi, true) end
+        if F and F.SetWhoToUi then DUI.SafeCall(F.SetWhoToUi, true) end
     end)
     page:HookScript("OnHide", function()
         local F = friends()
-        if F and F.SetWhoToUi then pcall(F.SetWhoToUi, false) end
+        if F and F.SetWhoToUi then DUI.SafeCall(F.SetWhoToUi, false) end
     end)
     DUI.RegisterEvent("UI_ERROR_MESSAGE", function(_, _, message) Who.Refused(message) end)
     DUI.RegisterEvent("WHO_LIST_UPDATE", function()
