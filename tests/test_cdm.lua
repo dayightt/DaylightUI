@@ -8657,9 +8657,9 @@ T.test("cdm bars: each bar can have its own animation, unset follows the shared 
 end)
 
 -- Skysight's data links both its buffs: Elemental Blessing (30 s) and, on a node,
--- Charged (1 h). On its piece Charged hid the short buff and the cooldown. Each
--- buff now has a tray piece of its own, and the racial's piece leaves Charged out.
-T.test("cdm custom: a Skyborne racial's buffs get tray pieces, and its own piece leaves the node buff out", function()
+-- Charged (1 h). On its piece Charged hid the short buff and the cooldown. Charged
+-- now has a tray piece of its own, and the racial's piece leaves it out.
+T.test("cdm custom: a Skyborne racial's node buff gets a tray piece, and its own piece leaves it out", function()
     local DUI, AB, E, D, set, _, _, icons = auraWorld(true, { 31 })
     DUI.DB.General().motion = false
     local C = AB.CdmCustom
@@ -8673,7 +8673,7 @@ T.test("cdm custom: a Skyborne racial's buffs get tray pieces, and its own piece
     listed = {}
     for _, e in ipairs(C.Tray()) do listed[e.id] = e end
     T.truthy(listed.s1270893 and listed.s1270893.aura, "Charged listed, as a buff")
-    T.truthy(listed.s1259688 and listed.s1259688.aura, "Elemental Blessing listed, as a buff")
+    T.falsy(listed.s1259688, "Elemental Blessing stays on Skysight's piece")
     T.falsy(listed.s1259691, "not the other faction's")
     T.truthy(C.Entry("s1270893"), "counts as known")
     T.falsy(C.CanTrack("s1270893"), "no cooldown to pick")
