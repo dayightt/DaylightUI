@@ -497,6 +497,30 @@ T.test("craft: the spell icons stop at the row's end", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- More profession spells than the row holds (a player with two professions and
+-- every secondary one): the open profession's own come first, so Cooking's can
+-- still be dragged from the Cooking window, and the icons shrink to fit them all.
+T.test("craft: with more spells than fit, the open profession's come first and all of them show", function()
+    local profs = PW.Sample()
+    local cooking
+    for i = 1, 4 do
+        profs[#profs + 1] = { name = "Prof" .. i, skillLine = 900 + i, icon = 136249, spellID = 9000 + i, rank = 10, max = 75, recipes = {} }
+        cooking = profs[#profs]
+    end
+    local ns = load({ profs = profs })
+    open(ns, cooking.skillLine)
+    local row = ns.Spells.row
+    local shown = {}
+    for _, b in ipairs(row.icons) do if b:IsShown() then shown[#shown + 1] = b end end
+    T.eq(shown[1].spell.spellID, cooking.spellID, "the open profession's spell first")
+    T.eq(#shown, #ns.Spells.Read(), "every spell has an icon")
+    local last = shown[#shown]
+    local _, _, _, x = last:GetPoint(1)
+    local room = ns.List.W - 2 * DaylightUI.Win.Parts.EDGE
+    T.truthy(x + last:GetWidth() <= room, "inside the row")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("craft: only gathering professions: the list doesn't say you have none", function()
     local profs = PW.Sample()
     profs[1].craftingUI = false

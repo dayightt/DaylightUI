@@ -29,24 +29,33 @@ local function bank()
     return Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
 end
 
--- { { slot, bank, spellID, icon, name } } in the game's profession order.
-function Spells.Read()
-    local out = {}
+-- { { slot, bank, spellID, icon, name } } in the game's profession order, the
+-- profession with skill line `first` (the open one) ahead of the rest, so its
+-- spells are never the ones left out of a full row.
+function Spells.Read(first)
+    local out, ahead = {}, 0
     if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return out end
     if not (C_SpellBook and type(C_SpellBook.GetSpellBookItemInfo) == "function") then return out end
     local spell = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell
     local list = { GetProfessions() }
-    for i = 1, 7 do
+    for i = 1, table.maxn(list) do
         local idx = list[i]
         if idx then
-            local _, _, _, _, n, offset = GetProfessionInfo(idx)
+            local _, _, _, _, n, offset, skillLine = GetProfessionInfo(idx)
             n, offset = num(n), num(offset)
+            local lead = first ~= nil and num(skillLine) == first
             for k = 1, (n and offset) and math.min(n, 2) or 0 do   -- the game's book shows two at most
                 local slot = offset + k
                 local info = C_SpellBook.GetSpellBookItemInfo(slot, bank())
                 if type(info) == "table" and not info.isPassive and (spell == nil or info.itemType == spell) then
-                    out[#out + 1] = { slot = slot, bank = bank(), spellID = num(info.spellID),
-                                      icon = info.iconID, name = info.name }
+                    local s = { slot = slot, bank = bank(), spellID = num(info.spellID),
+                                icon = info.iconID, name = info.name }
+                    if lead then
+                        ahead = ahead + 1
+                        table.insert(out, ahead, s)
+                    else
+                        out[#out + 1] = s
+                    end
                 end
             end
         end
@@ -214,11 +223,16 @@ function Spells.MakeSkillUp(row)
     return link
 end
 
--- As many as fit (Spells.Read rarely returns more than six).
+-- Every spell, the open profession's first. With more than the row holds at full
+-- size (two professions and every secondary one) the icons shrink, down to
+-- Spells.MIN_ICON; past that, the last ones are left out.
+Spells.MIN_ICON = 20
+Spells.MIN_GAP = 3
 function Spells.Fill()
     local row = Spells.row
     if not row then return end
-    local list = Spells.Read()
+    local open = ns.Data and ns.Data.Profession and ns.Data.Profession()
+    local list = Spells.Read(open and open.id)
     local w = row:GetWidth()
     if type(w) ~= "number" or w <= 0 then w = ns.List.W - 2 * Win.Parts.EDGE end
     local training = Spells.Training() ~= nil
@@ -237,7 +251,13 @@ function Spells.Fill()
     end
     w = w - right
     local lead = Spells.Lead()
-    local fit = math.max(0, math.floor((w - lead + Spells.GAP) / (Spells.ICON + Spells.GAP)))
+    local gap, size = Spells.GAP, Spells.ICON
+    local function fits() return math.max(0, math.floor((w - lead + gap) / (size + gap))) end
+    if fits() < #list then
+        gap = Spells.MIN_GAP
+        size = math.min(Spells.ICON, math.max(Spells.MIN_ICON, math.floor((w - lead + gap) / #list - gap)))
+    end
+    local fit = fits()
     for i = 1, math.max(#list, #row.icons) do
         local s = i <= fit and list[i] or nil
         local b = row.icons[i]
@@ -245,7 +265,10 @@ function Spells.Fill()
             b = makeIcon(row)
             row.icons[i] = b
         end
-        if b then b:SetPoint("LEFT", row, "LEFT", lead + (i - 1) * (Spells.ICON + Spells.GAP), 0) end
+        if b then
+            b:SetSize(size, size)
+            b:SetPoint("LEFT", row, "LEFT", lead + (i - 1) * (size + gap), 0)
+        end
         if b then
             b.spell = s
             if s then b.icon:SetTexture(s.icon) end

@@ -27,6 +27,7 @@ DUI.PatchNotes = {
         { "Damage meter", "No more Lua errors from the meter's top line in a fight when the group's total is shown" },
         { "Group finder", "Groups for some dungeons, like The Shaper's Terrace, no longer list more open spots than the dungeon has room for" },
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },
+        { "Professions", "The Abilities row shows the open profession's spells first and fits more of them, so Cooking's can always be dragged to a bar" },
         { "Party and raid frames", "No more Lua errors after someone leaves the party or raid" },
         { "World map", "With OpenMap, the map fades in on its first open after a reload instead of jumping in" },
     } },
