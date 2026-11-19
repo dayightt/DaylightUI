@@ -3422,7 +3422,7 @@ function stub.ActionSlots(slots)
 end
 
 -- Globals Reset clears (the addon under test and its saved variables). Another addon that copies this file changes the list.
-stub.RESET_GLOBALS = { "DaylightUIDB", "DaylightUI", "SLASH_DAYLIGHTUI1" }
+stub.RESET_GLOBALS = { "DaylightUIDB", "DaylightUIAuctionDB", "DaylightUI", "SLASH_DAYLIGHTUI1" }
 -- stub.feelOwner is the table whose .Win.Feel FinishFade settles (nil = DaylightUI).
 stub.feelOwner = nil
 -- loadFiles(dir, files, addonName, ns, after) loads an addon's files like the client (defined below).
@@ -3908,6 +3908,12 @@ function stub.Load(opts)
         loadFiles("DaylightUI_QoL/", { "Defaults.lua", "Delete.lua", "Loot.lua", "Trainer.lua", "Quests.lua", "Gossip.lua", "Cinematics.lua", "Tutorials.lua", "AfkFacts.lua", "Afk.lua", "Camera.lua", "Sparkles.lua", "Tracking.lua", "Errors.lua", "ErrorText.lua", "FlightPaths.lua", "Flight.lua", "LootFeed.lua", "LevelUp.lua", "ZoneTitle.lua", "RepBanner.lua", "Campfire.lua", "Fishing.lua", "CursorRing.lua", "Options.lua", "Module.lua" }, "DaylightUI_QoL", Q)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_QoL")
         stub.qol = Q
+    end
+    if opts.auctionhouse then
+        local AH = {}
+        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
+        stub.FireEvent("ADDON_LOADED", "DaylightUI_AuctionHouse")
+        stub.auctionhouse = AH
     end
     if opts.chat then
         local CH = {}

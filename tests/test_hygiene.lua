@@ -207,7 +207,7 @@ T.test("hygiene: the tests load every shipped file, in the .toc's order", functi
     local quests = QW.world({ quests = {} })
     stub.ForgetCompiled()
     local ok, err = pcall(stub.Load, { module = true, actionbars = true, buffs = true, skins = true, bags = true,
-        nameplates = true, tooltip = true, qol = true, chat = true, infopanel = true, quests = true,
+        nameplates = true, tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true,
         before = function() ABW.world(); quests() end })
     _G.loadfile = realLoadfile
     stub.ForgetCompiled()

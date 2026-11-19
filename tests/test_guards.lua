@@ -6,7 +6,7 @@ local ALLOW = require("guards_allow")
 -- New module: add its .toc here.
 local TOCS = {
     "DaylightUI.toc",
-    "DaylightUI_ActionBars/DaylightUI_ActionBars.toc", "DaylightUI_Bags/DaylightUI_Bags.toc",
+    "DaylightUI_ActionBars/DaylightUI_ActionBars.toc", "DaylightUI_AuctionHouse/DaylightUI_AuctionHouse.toc", "DaylightUI_Bags/DaylightUI_Bags.toc",
     "DaylightUI_Buffs/DaylightUI_Buffs.toc", "DaylightUI_Chat/DaylightUI_Chat.toc",
     "DaylightUI_InfoPanel/DaylightUI_InfoPanel.toc", "DaylightUI_Nameplates/DaylightUI_Nameplates.toc",
     "DaylightUI_QoL/DaylightUI_QoL.toc", "DaylightUI_Quests/DaylightUI_Quests.toc", "DaylightUI_Skins/DaylightUI_Skins.toc",

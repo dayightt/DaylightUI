@@ -28,7 +28,7 @@ local BUDGET = { solo = 1900, fight = 3700 }
 local FASTEST_TICKER = 0.1
 
 local ALL = { module = true, actionbars = true, buffs = true, skins = true, bags = true, nameplates = true,
-              tooltip = true, qol = true, chat = true, infopanel = true, quests = true }
+              tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true }
 
 -- Frames whose OnUpdate runs in game now: shown, all parents shown.
 local function drivers()

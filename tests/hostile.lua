@@ -20,7 +20,7 @@ local H = {}
 -- in battlegrounds.
 
 local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true,
-              qol = true, chat = true, infopanel = true, skins = true, quests = true }
+              qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true }
 
 local CLASSES = { "WARRIOR", "PRIEST", "MAGE", "ROGUE", "DRUID", "HUNTER", "SHAMAN", "WARLOCK", "PALADIN" }
 local DISPELS = { "Magic", "Curse", "Disease", "Poison" }
