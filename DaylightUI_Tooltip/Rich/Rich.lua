@@ -61,11 +61,16 @@ function Rich.Shown(tip)
 end
 
 -- Once a frame while shown (Tip.OnUpdate). Rebuilds when lines came or went
--- since the last build (another addon's AddLine), then fits the game's tooltip.
+-- since the last build (another addon's AddLine) or the fight pill comes or
+-- goes (a fight, Shift), fits the game's tooltip, and keeps a unit's bars live.
+Rich.BAR_EVERY = 0.1
 function Rich.Step(tip)
     local s = state[tip]
     if not s then return end
     if s.dirty then return Rich.Build(tip) end
+    local Pill = ns.RichPill
+    if s.unit and (s.pill == true) ~= Pill.Wanted(tip, s.unit) then return Rich.Build(tip) end
+    if s.pill then return Pill.Step(tip, s.unit) end
     local p = Panel.Get(tip)
     if not (p and p:IsShown()) then return end
     local n = tip.NumLines and tip:NumLines()
@@ -74,14 +79,31 @@ function Rich.Step(tip)
         -- The size went secret since the build: the frame only.
         Panel.Unmute(p)
         Panel.Chrome(p)
+        ns.Tooltip.ShowBar(true)
     end
+    if s.unit and not p.chrome then
+        local now = GetTime()
+        if now >= (s.nextBars or 0) then
+            s.nextBars = now + Rich.BAR_EVERY
+            Panel.UpdateBars(p)
+        end
+    end
+end
+
+local function endPill(tip, s)
+    if not (s and s.pill) then return end
+    s.pill = false
+    ns.RichPill.Hide()
+    if ns.Tooltip.Muted(tip) == "pill" then ns.Tooltip.Unmute(tip) end
 end
 
 function Rich.Hidden(tip)
     local s = state[tip]
-    if s then s.dirty, s.data, s.lines = false, nil, nil end
+    endPill(tip, s)
+    if s then s.dirty, s.data, s.lines, s.unit = false, nil, nil, nil end
     Panel.Release(Panel.Get(tip))
     ns.Tooltip.ShowShell(tip, true)
+    ns.Tooltip.ShowBar(true)
 end
 
 -- A setting changed: built again before the next draw, or put away.
@@ -97,9 +119,11 @@ end
 function Rich.Off(tip)
     local p = Panel.Get(tip)
     if not (p or state[tip]) then return end
+    endPill(tip, state[tip])
     if p and p:IsShown() then Panel.Release(p) end
     state[tip] = nil
     ns.Tooltip.ShowShell(tip, true)
+    ns.Tooltip.ShowBar(true)
 end
 
 -- What the card's top light is: an item's quality, a unit's class or
@@ -159,19 +183,12 @@ local function valueColor(line)
     return rgb(c)
 end
 
--- The game's lines in the card's look: the first as the title, a line with
+-- The tooltip's lines from line `from` on, in the card's look: a line with
 -- two sides as a row, any other as a sentence, an empty one as a gap. The
 -- colors go through the same rules as the skinned look (Tips.GameSide).
-function Rich.Generic(p, n, lines)
+function Rich.Lines(p, n, lines, from)
     local Tips = DUI.Tips
-    local first = lines[1]
-    if n >= 1 and first.left then
-        local color = first.hasLC and rgb(first.lc) or nil
-        if color and Tips.GameColor(color[1], color[2], color[3]) == "white" then color = nil end
-        Panel.Header(p, { title = first.left, titleColor = color,
-            right = first.right, rightColor = first.hasRC and rgb(first.rc) or nil })
-    end
-    for i = 2, n do
+    for i = from, n do
         local line = lines[i]
         if not line.left and not line.right then
             Panel.Gap(p, 4)
@@ -184,13 +201,45 @@ function Rich.Generic(p, n, lines)
     end
 end
 
+-- Any tooltip without a card of its own: the first line as the title, the
+-- rest as Rich.Lines. A creature also gets its health in its reaction's pair.
+function Rich.Generic(p, n, lines, unit)
+    local first = lines[1]
+    if n >= 1 and first.left then
+        local color = first.hasLC and rgb(first.lc) or nil
+        -- The game's white or yellow heading reads as the card's white title;
+        -- a color of its own (quality, class) stays.
+        local kind = color and DUI.Tips.GameColor(color[1], color[2], color[3])
+        if kind == "white" or kind == "yellow" then color = nil end
+        Panel.Header(p, { title = first.left, titleColor = color,
+            right = first.right, rightColor = first.hasRC and rgb(first.rc) or nil })
+    end
+    Rich.Lines(p, n, lines, 2)
+    if unit then
+        local pair = ns.RichPlayers.ClassPair(unit)
+        Panel.Gap(p, ns.RichPlayers.BEFORE_BARS)
+        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
+    end
+end
+
 function Rich.Build(tip)
     local s = stateOf(tip)
     s.dirty = false
     if not Rich.On(tip) then return Rich.Off(tip) end
+    local Tip = ns.Tooltip
     local p = Panel.For(tip)
     Panel.Level(p)
     local kind = Rich.Kind(s.data)
+    local unit = kind == "unit" and Read.Unit(tip) or nil
+    s.unit = unit
+    -- In a fight a unit is the pill by the cursor, the tooltip itself out of sight.
+    if unit and ns.RichPill.Wanted(tip, unit) then
+        if p:IsShown() then Panel.Release(p) end
+        s.pill = true
+        ns.RichPill.Show(tip, unit)
+        return
+    end
+    endPill(tip, s)
     local light, fade = Rich.Light(tip, s.data, kind)
     local n, lines, secret = Read.Lines(tip, s.data)
     s.lines = tip.NumLines and tip:NumLines() or 0
@@ -199,15 +248,22 @@ function Rich.Build(tip)
     if secret then
         Panel.Unmute(p)
         Panel.Chrome(p)
+        Tip.ShowBar(true)
     else
-        Rich.Generic(p, n, lines)
-        Panel.Finish(p)
+        if unit and ns.RichPlayers.Is(unit) then
+            ns.RichPlayers.Card(p, tip, unit, s.data, n, lines)
+        else
+            Rich.Generic(p, n, lines, unit)
+            Panel.Finish(p)
+        end
         Panel.Mute(p)
+        Tip.ShowBar(unit == nil)
         p.fitTried = nil
         if not Panel.Fit(p) then
             Panel.Unmute(p)
             Panel.Chrome(p)
+            Tip.ShowBar(true)
         end
     end
-    ns.Tooltip.ShowShell(tip, false)
+    Tip.ShowShell(tip, false)
 end

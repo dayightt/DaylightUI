@@ -16,6 +16,8 @@ Defaults.lua
 Tooltip.lua
 Rich\Read.lua
 Rich\Panel.lua
+Rich\Players.lua
+Rich\Pill.lua
 Rich\Rich.lua
 Options.lua
 Module.lua

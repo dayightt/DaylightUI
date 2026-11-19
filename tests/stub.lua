@@ -1619,6 +1619,8 @@ function stub.RunTimers()
 end
 
 _G.InCombatLockdown = function() return stub.combat end
+-- stub.shift: Shift held.
+_G.IsShiftKeyDown = function() return stub.shift == true end
 -- What the cursor holds: stub.cursor = { "spell", id } or nil.
 _G.GetCursorInfo = function() local c = stub.cursor; if c then return c[1], c[2] end end
 _G.ClearCursor = function() stub.cursor = nil end
@@ -2753,8 +2755,13 @@ _G.IsMounted = function() return stub.mounted == true end
 -- API), the player's race and shapeshift form (nil = none). Tests set
 -- stub.cameraZoom, stub.race and stub.formID.
 _G.GetCameraZoom = function() return stub.cameraZoom or 15 end
+-- Any unit's race, as the client: a unit's race = "Night Elf" (players only).
 _G.UnitRace = function(u)
-    if u ~= "player" then return nil end
+    if u ~= "player" then
+        local x = U(u)
+        if not (x and x.race) then return nil end
+        return x.race, x.race, 1
+    end
     local race = stub.race or "Human"
     return race, race, 1
 end
@@ -2824,7 +2831,8 @@ _G.GetRaidRosterInfo = function(i)
     if not x then return nil end
     return x.name, 0, x.subgroup or 1
 end
-_G.GetGuildInfo = function(u) local x = U(u); return x and x.guild end
+-- name, rank name, rank index, as the client's.
+_G.GetGuildInfo = function(u) local x = U(u); if x then return x.guild, x.guildRank, x.guildRank and 1 or nil end end
 _G.UnitThreatSituation = function(u, mob)
     local x = U(u)
     if not mob then return x and x.threat end
@@ -3249,7 +3257,7 @@ function stub.Reset()
     stub.installedAddOns = {}
     stub.addonMeta = {}
     stub.addonState = {}
-    stub.combat, stub.noAuraContainer = false, false
+    stub.combat, stub.noAuraContainer, stub.shift = false, false, nil
     stub.totems = {}
     stub.privateAnchors, stub.privateAnchorSeq = {}, 0
     stub.refuseAuraFilters = nil
@@ -3704,7 +3712,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end

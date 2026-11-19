@@ -347,7 +347,15 @@ function Tip.StyleBar()
         Tip.barEdge:SetPoint("TOPLEFT", bar, "TOPLEFT", -px, px)
         Tip.barEdge:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", px, -px)
     end
-    bar:SetAlpha(cfg.healthBar and 1 or 0)
+    Tip.ShowBar(not Tip.barHidden)
+end
+
+-- The health bar under the tooltip, as its setting says, or put away (the
+-- rich card draws its own).
+function Tip.ShowBar(on)
+    local bar = GameTooltipStatusBar
+    Tip.barHidden = not on
+    if type(bar) == "table" and bar.SetAlpha then bar:SetAlpha((on and cfg and cfg.healthBar) and 1 or 0) end
 end
 
 -- Whether the health bar uses a gradient: set here, or matching the unit
@@ -471,11 +479,23 @@ end
 
 -- Extra lines: a player's guild rank after their guild, and who the unit is
 -- targeting (in their color). Nothing the game hides is read.
+-- A player's guild and rank, plain, or nil.
+function Tip.GuildOf(unit)
+    if not GetGuildInfo then return nil end
+    local ok, guild, rank = pcall(GetGuildInfo, unit)
+    guild, rank = ok and plain(guild) or nil, ok and plain(rank) or nil
+    if type(guild) ~= "string" or guild == "" then return nil end
+    if type(rank) ~= "string" or rank == "" then rank = nil end
+    return guild, rank
+end
+
+-- Why a tooltip is muted ("combat", "gone", "pill"), or nil.
+function Tip.Muted(tip) return muted[tip] end
+
 function Tip.AddExtras(tip, unit)
-    if cfg.guildRank and GetGuildInfo then
-        local ok, guild, rank = pcall(GetGuildInfo, unit)
-        guild, rank = ok and plain(guild) or nil, ok and plain(rank) or nil
-        if type(guild) == "string" and type(rank) == "string" and rank ~= "" then
+    if cfg.guildRank then
+        local guild, rank = Tip.GuildOf(unit)
+        if guild and rank then
             for i = 2, 4 do
                 local line = Tip.Line(tip, i)
                 local text = line and plain(line:GetText())
@@ -486,6 +506,8 @@ function Tip.AddExtras(tip, unit)
             end
         end
     end
+    -- The rich card draws the buffs and the target itself.
+    if ns.Rich.On(tip) then return end
     if cfg.buffs and plain(UnitIsPlayer(unit)) == true and plain(UnitIsFriend("player", unit)) == true then
         local rows = Tip.BuffIcons(unit)
         if rows then
@@ -532,17 +554,28 @@ local function buffIcon(icon)
     end
     return t
 end
-function Tip.BuffIcons(unit)
+-- The icons of a unit's buffs (a reused list) and how many, or nil.
+local buffList = {}
+function Tip.BuffList(unit)
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return nil end
-    local icons = {}
+    local n = 0
     for i = 1, Tip.BUFF_MAX do
         local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")
         if not ok or type(a) ~= "table" then break end
         local icon = plain(a.icon)
         if icon == nil then return nil end -- secret, none of it is readable
-        icons[#icons + 1] = buffIcon(icon)
+        n = n + 1
+        buffList[n] = icon
     end
-    if #icons == 0 then return nil end
+    if n == 0 then return nil end
+    return buffList, n
+end
+
+function Tip.BuffIcons(unit)
+    local list, n = Tip.BuffList(unit)
+    if not list then return nil end
+    local icons = {}
+    for i = 1, n do icons[i] = buffIcon(list[i]) end
     local rows = {}
     for i = 1, #icons, Tip.BUFF_ROW do
         rows[#rows + 1] = table.concat(icons, " ", i, math.min(#icons, i + Tip.BUFF_ROW - 1))
@@ -1687,6 +1720,7 @@ function Tip.Refresh(mod)
         if p then ns.RichPanel.Repaint(p) end
         ns.Rich.Refresh(tip)
     end
+    ns.RichPill.Layout()
     -- Following the cursor, there's nothing to place, so no handle.
     DUI.Movers.Suspend(Tip.MOVER_KEY, cfg.anchor == "cursor")
 end

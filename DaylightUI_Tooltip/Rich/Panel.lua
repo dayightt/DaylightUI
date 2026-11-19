@@ -30,10 +30,15 @@ Panel.ICON_CUT = 8
 Panel.LIGHT_H = 2      -- the colored line along the top
 Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
+-- Each kind's card is as wide as its board; anything else is as wide as it
+-- needs, up to "other".
 Panel.WIDTH = { unit = 300, item = 290, spell = 270, other = 280 }
+Panel.FIXED = { unit = true, item = true, spell = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
+Panel.SHADE = 0.45     -- a bar colored from a curve: its dark end, as black over the fill
+Panel.BUFF, Panel.BUFF_GAP = 22, 4
 Panel.WASH_ALPHA = 0.22
 -- Lines measured with no font metrics (the tests) are this tall per size.
 Panel.LINE_EXTRA = 3
@@ -43,12 +48,18 @@ local panels = setmetatable({}, { __mode = "k" }) -- tooltip -> panel
 local function W() return DUI.Widgets end
 local function font() return ns.MEDIA and ns.MEDIA.font end
 
--- The text size setting moves every size of the card with it.
-local function size(s)
+-- The card is laid out in the boards' own numbers (title 18, rows 13, 300
+-- wide) and drawn at Panel.CARD, so its rows sit near a tooltip's usual text
+-- size (12) and its title near a tooltip's heading: at 1 it read far bigger
+-- than every other tooltip. The tooltip text size setting (12 by default)
+-- scales the whole card with it.
+Panel.CARD = 0.85
+function Panel.Scale()
     local cfg = ns.Tooltip.Config()
-    local delta = (cfg and tonumber(cfg.textSize) or 12) - 12
-    return s + delta
+    return Panel.CARD * (cfg and tonumber(cfg.textSize) or 12) / 12
 end
+
+local function size(s) return s end
 
 local function lineHeight(fs, s)
     local h = fs:GetStringHeight()
@@ -93,8 +104,8 @@ function Panel.For(tip)
         t:SetTexture("Interface\\Buttons\\WHITE8X8")
         t:Hide()
     end
-    p.pool = { text = {}, tex = {}, bar = {}, tag = {}, tile = {}, icon = {} }
-    p.used = { text = 0, tex = 0, bar = 0, tag = 0, tile = 0, icon = 0 }
+    p.pool = { text = {}, tex = {}, bar = {}, tag = {}, tile = {}, icon = {}, buff = {} }
+    p.used = { text = 0, tex = 0, bar = 0, tag = 0, tile = 0, icon = 0, buff = 0 }
     p.items, p.count = {}, 0
     panels[tip] = p
     Panel.Level(p)
@@ -137,31 +148,92 @@ local makers = {
     icon = function(p)
         local f = CreateFrame("Frame", nil, p)
         f:EnableMouse(false)
+        -- A tile behind art that doesn't fill the square (a round class icon).
+        f.tile = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+        f.tile:SetTexture("Interface\\Buttons\\WHITE8X8")
+        f.tile:SetAllPoints(f)
         f.art = f:CreateTexture(nil, "ARTWORK")
-        f.art:SetAllPoints(f)
         f.edge = f:CreateTexture(nil, "ARTWORK", nil, 1)
         f.edge:SetTexture("Interface\\Buttons\\WHITE8X8")
         f.glow = f:CreateTexture(nil, "BACKGROUND")
         f.glow:SetTexture(DUI.MEDIA .. "glow.png")
         f.glow:SetBlendMode("ADD")
-        Style.CutCorner(f, Panel.ICON_CUT, f.art)
+        Style.CutCorner(f, Panel.ICON_CUT, f.art, f.tile)
         return f
     end,
-    bar = function(p)
-        local bar = CreateFrame("StatusBar", nil, p)
-        bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-        bar.back = bar:CreateTexture(nil, "BACKGROUND", nil, 1)
-        bar.back:SetAllPoints(bar)
-        bar.back:SetColorTexture(0, 0, 0, 0.6)
-        bar.edge = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
-        local b = Style.BORDER
-        bar.edge:SetColorTexture(b[1], b[2], b[3], 1)
-        bar:SetMinMaxValues(0, 1)
-        return bar
+    -- A buff: the icon inside a black edge and a thin warm ring.
+    buff = function(p)
+        local f = CreateFrame("Frame", nil, p)
+        f:EnableMouse(false)
+        f.ring = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+        f.edge = f:CreateTexture(nil, "BACKGROUND", nil, 2)
+        local band, b = Style.BAND, Style.BORDER
+        f.ring:SetColorTexture(band[1], band[2], band[3], 1)
+        f.edge:SetColorTexture(b[1], b[2], b[3], 1)
+        f.edge:SetAllPoints(f)
+        f.art = f:CreateTexture(nil, "ARTWORK")
+        return f
     end,
+    bar = function(p) return Panel.MakeBar(p) end,
     tag = function(p) return W().Tag(p, font()) end,
     tile = function(p) return W().Tile(p, font()) end,
 }
+
+-- A thin bar in the card's look: black under it, a dark outline, the fill a
+-- gradient with an angled end. Also the fight pill's.
+function Panel.MakeBar(parent)
+    local bar = CreateFrame("StatusBar", nil, parent)
+    bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    bar.back = bar:CreateTexture(nil, "BACKGROUND", nil, 1)
+    bar.back:SetAllPoints(bar)
+    bar.back:SetColorTexture(0, 0, 0, 0.6)
+    bar.edge = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
+    local b = Style.BORDER
+    bar.edge:SetColorTexture(b[1], b[2], b[3], 1)
+    -- Over a fill colored from the health curve (a secret color, so no dark
+    -- end can be worked out from it): black fading out, left to right.
+    bar.shade = bar:CreateTexture(nil, "ARTWORK", nil, 3)
+    bar.shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bar.shade:SetVertexColor(1, 1, 1, 1)
+    if bar.shade.SetGradient and CreateColor then
+        bar.shade:SetGradient("HORIZONTAL", CreateColor(0, 0, 0, Panel.SHADE), CreateColor(0, 0, 0, 0))
+    end
+    Style.FollowFill(bar, bar.shade)
+    bar:SetMinMaxValues(0, 1)
+    return bar
+end
+
+-- spec: unit with health = true (its health, colored by the health curve) or
+-- power = true (its power); else value and max. pair { lo, hi } paints the
+-- fill. Values may be secret: they only go into the bar.
+function Panel.PaintBar(bar, spec)
+    local unit = spec.unit
+    if unit and spec.health then
+        bar:SetMinMaxValues(0, UnitHealthMax(unit))
+        bar:SetValue(UnitHealth(unit))
+    elseif unit and spec.power then
+        bar:SetMinMaxValues(0, UnitPowerMax(unit))
+        bar:SetValue(UnitPower(unit))
+    else
+        bar:SetMinMaxValues(0, spec.max or 1)
+        bar:SetValue(spec.value or 0)
+    end
+    local fill = bar:GetStatusBarTexture()
+    if unit and spec.health and not spec.pair and DUI.Health.GradientCurve() then
+        fill:SetVertexColor(1, 1, 1, 1)
+        DUI.Health.ApplyGradient(bar, unit)
+        bar.shade:Show()
+    elseif unit and spec.health and not spec.pair then
+        -- No color curve in this client: the full-health green.
+        local lo, hi = DUI.Gradients.PairFrom(Style.INK.GOOD)
+        DUI.Gradients.PaintPair(fill, lo, hi)
+        bar.shade:Hide()
+    else
+        local pair = spec.pair
+        if pair then DUI.Gradients.PaintPair(fill, pair[1], pair[2]) end
+        bar.shade:Hide()
+    end
+end
 
 local function take(p, kind)
     local n = p.used[kind] + 1
@@ -214,7 +286,9 @@ function Panel.Begin(p, kind, light, fade)
     p.chrome = false
 end
 
--- spec: icon (file or id), iconSize, iconEdge ({ r, g, b }: an outline and glow),
+-- spec: icon (file or id), iconSize, iconCoords ({ l, r, t, b }, else the
+-- square crop), iconTile ({ lo, hi }: a gradient tile behind it), iconInset
+-- (the art this far inside the tile), iconEdge ({ r, g, b }: an outline and glow),
 -- title, titleColor, titleSize, right, rightColor, tags = { { text, color } },
 -- sub (a line under the title), wash ({ r, g, b }: the banner's light).
 function Panel.Header(p, spec)
@@ -222,7 +296,19 @@ function Panel.Header(p, spec)
     if spec.icon then
         local ic = take(p, "icon")
         ic.art:SetTexture(spec.icon)
-        Style.CropIcon(ic.art)
+        local c = spec.iconCoords
+        if c then ic.art:SetTexCoord(c[1], c[2], c[3], c[4]) else Style.CropIcon(ic.art) end
+        local inset = spec.iconInset or 0
+        ic.art:ClearAllPoints()
+        ic.art:SetPoint("TOPLEFT", ic, "TOPLEFT", inset, -inset)
+        ic.art:SetPoint("BOTTOMRIGHT", ic, "BOTTOMRIGHT", -inset, inset)
+        local tile = spec.iconTile
+        ic.tile:SetShown(tile ~= nil)
+        if tile then
+            ic.tile:SetVertexColor(1, 1, 1, 1)
+            ic.tile:SetGradient("VERTICAL", CreateColor(tile[1][1], tile[1][2], tile[1][3], 1),
+                CreateColor(tile[2][1], tile[2][2], tile[2][3], 1))
+        end
         local e = spec.iconEdge
         ic.edge:SetShown(e ~= nil)
         ic.glow:SetShown(e ~= nil)
@@ -297,15 +383,12 @@ function Panel.Section(p, title, color)
     item.fs:SetText(Style.Upper(title or ""))
 end
 
--- spec: value, max (the bar's range; either may be secret), pair { lo, hi },
--- h (7 or 4), caption (above, left), pct (above, right: text or secret).
+-- spec: as Panel.PaintBar, plus h (7 or 4), caption (above, left) and pct
+-- (above, right: text, or fn(fs) that writes it, secret or not).
 function Panel.Bar(p, spec)
-    local item = add(p, { kind = "bar", h = spec.h or 4 })
+    local item = add(p, { kind = "bar", h = spec.h or 4, spec = spec })
     local bar = take(p, "bar")
-    bar:SetMinMaxValues(0, spec.max or 1)
-    bar:SetValue(spec.value or 0)
-    local pair = spec.pair
-    if pair then DUI.Gradients.PaintPair(bar:GetStatusBarTexture(), pair[1], pair[2]) end
+    Panel.PaintBar(bar, spec)
     Style.AngleFill(bar, "right", math.max(2, item.h * 0.7))
     item.bar = bar
     if spec.caption then
@@ -315,8 +398,31 @@ function Panel.Bar(p, spec)
     if spec.pct then
         local r, g, b = Style.Accent()
         item.pct = text(p, Style.SIZE.tiny, { r, g, b })
-        item.pct:SetText(spec.pct)
+        if type(spec.pct) == "function" then spec.pct(item.pct) else item.pct:SetText(spec.pct) end
         item.pct:SetJustifyH("RIGHT")
+    end
+end
+
+-- The card's unit bars and their numbers again (health while it shows).
+function Panel.UpdateBars(p)
+    for i = 1, p.count do
+        local item = p.items[i]
+        if item.kind == "bar" and item.spec.unit then
+            Panel.PaintBar(item.bar, item.spec)
+            if item.pct and type(item.spec.pct) == "function" then item.spec.pct(item.pct) end
+        end
+    end
+end
+
+-- icons: a list of icon files or ids (n of them), in rows of as many as fit
+-- (a player's buffs).
+function Panel.Icons(p, icons, n)
+    local item = add(p, { kind = "icons", list = {} })
+    for i = 1, n or #icons do
+        local f = take(p, "buff")
+        f.art:SetTexture(icons[i])
+        Style.CropIcon(f.art)
+        item.list[i] = f
     end
 end
 
@@ -383,6 +489,9 @@ local function natural(item)
         local w = 0
         for _, t in ipairs(item.list) do w = math.max(w, widthOf(t.value), widthOf(t.caption)) end
         return #item.list * (w + 2 * W().TILE_PAD) + (#item.list - 1) * Panel.TILE_GAP
+    elseif k == "icons" then
+        local n = math.min(#item.list, 10)
+        return n * (Panel.BUFF + Panel.BUFF_GAP) - Panel.BUFF_GAP
     elseif k == "tags" then
         return tagsWidth(item.list)
     end
@@ -419,6 +528,9 @@ function place.header(p, item, y, inner)
     -- The words sit in the middle of the icon's height when shorter.
     local top = y + math.max(0, (h - col) / 2)
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
+    -- Never past the card's edge (or the level beside it): cut short with "...".
+    local room = inner + Panel.PAD_X - x - (item.right and (12 + widthOf(item.right)) or 0)
+    if widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
         item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -(top + th - lineHeight(item.right, item.right.size)))
@@ -519,6 +631,25 @@ function place.tags(p, item, y, inner)
     return (row + 1) * W().TAG_H + row * 4
 end
 
+function place.icons(p, item, y, inner)
+    local s, gap = Panel.BUFF, Panel.BUFF_GAP
+    local per = math.max(1, math.floor((inner + gap) / (s + gap)))
+    local one = DUI.Pixel.Px(p, 1)
+    for i, f in ipairs(item.list) do
+        local col, row = (i - 1) % per, math.floor((i - 1) / per)
+        f:SetSize(s, s)
+        f:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X + col * (s + gap), -(y + row * (s + gap)))
+        f.ring:ClearAllPoints()
+        f.ring:SetPoint("TOPLEFT", f, "TOPLEFT", -one, one)
+        f.ring:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", one, -one)
+        f.art:ClearAllPoints()
+        f.art:SetPoint("TOPLEFT", f, "TOPLEFT", one, -one)
+        f.art:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -one, one)
+    end
+    local rows = math.ceil(#item.list / per)
+    return rows * s + math.max(0, rows - 1) * gap
+end
+
 function place.hints(p, item, y)
     if #item.list == 0 then return 0 end
     for i, fs in ipairs(item.list) do
@@ -531,10 +662,13 @@ local SPACED = { rule = false, gap = false }
 
 -- Lays the card out. Returns its width and height.
 function Panel.Finish(p)
+    p:SetScale(Panel.Scale())
     local widest = 0
     for i = 1, p.count do widest = math.max(widest, natural(p.items[i])) end
     local most = Panel.WIDTH[p.kind] or Panel.WIDTH.other
-    local w = math.floor(math.min(most, math.max(Panel.MIN_W, widest + 2 * Panel.PAD_X)) + 0.5)
+    -- Rounded up: a card a fraction short of its widest text cut it with "...".
+    local w = math.ceil(math.min(most, math.max(Panel.MIN_W, widest + 2 * Panel.PAD_X)))
+    if Panel.FIXED[p.kind] then w = most end
     local inner = w - 2 * Panel.PAD_X
     local y, last = Panel.PAD_TOP, nil
     for i = 1, p.count do
@@ -638,7 +772,9 @@ function Panel.Fit(p)
     if p.chrome or not p.wantW then return true end
     local w, h = tip:GetWidth(), tip:GetHeight()
     if isSecret(w) or isSecret(h) or type(w) ~= "number" or type(h) ~= "number" then return false end
-    local dw, dh = p.wantW - w, p.wantH - h
+    -- The card's size in the tooltip's own units.
+    local k = p:GetScale() or 1
+    local dw, dh = p.wantW * k - w, p.wantH * k - h
     if math.abs(dw) < 0.5 and math.abs(dh) < 0.5 then return true end
     -- Tried once already this fill and it didn't move: the client won't take
     -- that padding. Leave it rather than ask every frame.

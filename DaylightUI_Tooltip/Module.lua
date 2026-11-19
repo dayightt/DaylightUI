@@ -10,7 +10,7 @@ DaylightUI:RegisterModule("Tooltip", {
     -- The module's parts, so a file missing after an update disables the
     -- module with one line in chat instead of erroring.
     ns = ns,
-    parts = { "Tooltip", "RichRead", "RichPanel", "Rich" },
+    parts = { "Tooltip", "RichRead", "RichPanel", "RichPlayers", "RichPill", "Rich" },
     label = "Tooltips",
     order = 140,
     defaults = ns.DEFAULTS,

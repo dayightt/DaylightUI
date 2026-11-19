@@ -171,6 +171,11 @@ local RECIPES = {
         if tab then AB.CdmCard.SetTab(tab) end
         return _G.DaylightUICdmEditor
     end },
+    unlockbar = { about = "unlock mode's bar at the top of the screen (Lock, snaps, Areas, Cooldown Manager, Hide)", open = function(DUI)
+        DUI.Movers.Unlock()
+        stub.RunTimers()
+        return DUI.Movers.LockButton().bar
+    end },
     platepower = { about = "the nameplates' Health & Names page with the power bar on, zoomed in [friendly: the Friendly page]", open = function(DUI, which)
         DUI:Set("Nameplates", "power", true)
         DUI:Set("Nameplates", "friendly.enabled", true)
@@ -436,7 +441,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -493,6 +498,25 @@ local RECIPES = {
             tip:SetOwner(UIParent, "ANCHOR_NONE")
             tip:ClearAllPoints()
             tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            if look == "player" or look == "pill" then
+                stub.units.mouseover = look == "player" and { name = "Aelindra", lastName = "Moonvale", class = "MAGE",
+                    isPlayer = true, level = 60, race = "Night Elf", guild = "Dawnwatch", guildRank = "Officer",
+                    health = 100, maxHealth = 100, power = 72, maxPower = 100, powerToken = "MANA", friend = true }
+                    or { name = "Gorvak", isPlayer = false, reaction = 2, health = 31, maxHealth = 100 }
+                stub.units.mouseovertarget = look == "player" and { name = "Gorvak", isPlayer = false, reaction = 2 } or stub.units.player
+                function tip:GetUnit() return nil, "mouseover" end
+                if look == "pill" then stub.EnterCombat(); stub.cursorPos = { 900, 600 } end
+                DUI:Set("Tooltip", "buffs", true)
+                stub.SetAuras("mouseover", "HELPFUL", { { icon = 135932 }, { icon = 135987 }, { icon = 136078 }, { icon = 135964 } })
+                tip:AddLine(look == "player" and "Aelindra" or "Gorvak")
+                tip:AddLine("Level 60")
+                local data = { type = 2, lines = { {}, {} } }
+                for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
+                for _, fn in ipairs(SNAP_TIP_POST[2] or {}) do fn(tip, data) end
+                tip:Show()
+                tip:GetScript("OnUpdate")(tip, 0.02)
+                return look == "pill" and _G.DaylightUITooltipPill or tip
+            end
             tip:AddLine("Dawnforged Greaves", 0.64, 0.21, 0.93)
             tip:AddLine("Binds when equipped")
             tip:AddDoubleLine("Legs", "Plate")

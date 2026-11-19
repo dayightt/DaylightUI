@@ -139,14 +139,14 @@ T.test("rich tooltip: the game's tooltip takes the card's size", function()
     -- A short line: the card is wider than the game's own lines (padding grows it).
     fill(Enum.TooltipDataType.Spell, { "Ice", "Cold." })
     local p = Panel.Get(GameTooltip)
-    T.near(GameTooltip:GetWidth(), p.wantW, 0.01, "as wide as the card")
-    T.near(GameTooltip:GetHeight(), p.wantH, 0.01, "as tall")
+    T.near(GameTooltip:GetWidth(), p.wantW * p:GetScale(), 0.01, "as wide as the card")
+    T.near(GameTooltip:GetHeight(), p.wantH * p:GetScale(), 0.01, "as tall")
     -- Long lines: the game's would be wider than the card, so its padding
     -- goes below zero and it shrinks to the card.
     fill(Enum.TooltipDataType.Spell, { "Arcane Missiles", string.rep("A very long line of words. ", 4) })
     update()
-    T.near(GameTooltip:GetWidth(), p.wantW, 0.01, "still the card's width")
-    T.near(GameTooltip:GetHeight(), p.wantH, 0.01)
+    T.near(GameTooltip:GetWidth(), p.wantW * p:GetScale(), 0.01, "still the card's width")
+    T.near(GameTooltip:GetHeight(), p.wantH * p:GetScale(), 0.01)
     local r = GameTooltip:GetPadding()
     T.truthy(r < 0, "a negative padding shrinks it")
     -- Once fitted, a frame later nothing is asked again.
@@ -171,7 +171,7 @@ T.test("rich tooltip: lines another addon adds after the fill join the card", fu
     T.eq(p.count, 3, "rebuilt with it before the next draw")
     T.eq(stub.Text(p.items[3].value), "12s")
     T.eq(GameTooltipTextLeft3:GetAlpha(), 0, "its line muted too")
-    T.near(GameTooltip:GetHeight(), p.wantH, 0.01, "and fitted again")
+    T.near(GameTooltip:GetHeight(), p.wantH * p:GetScale(), 0.01, "and fitted again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -250,5 +250,172 @@ T.test("rich tooltip: the shared tag and value tile", function()
     T.eq(stub.Text(tile.value), "2.5 sec")
     T.eq(stub.Text(tile.caption), "CAST")
     T.eq(Style.GetCut(tile), W.TILE_CUT, "its corner cut")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Players: the board's banner, rows, bars and buffs.
+local function player(extra)
+    stub.units.mouseover = { name = "Aelindra", lastName = "Moonvale", class = "MAGE", isPlayer = true, level = 60,
+        race = "Night Elf", guild = "Dawnwatch", guildRank = "Officer", health = 80, maxHealth = 100,
+        power = 50, maxPower = 100, powerToken = "MANA", friend = true }
+    stub.units.mouseovertarget = { name = "Gorvak", isPlayer = false, reaction = 2 }
+    for k, v in pairs(extra or {}) do stub.units.mouseover[k] = v end
+end
+
+local function hover(unit, lines)
+    fill(Enum.TooltipDataType.Unit, lines, function(t) t.__unit = unit end)
+    update() -- a refill of a shown tooltip builds before the next draw
+end
+
+T.test("rich tooltip: a player's card, banner first", function()
+    local Tip, Panel = login("rich")
+    player()
+    local data = { type = Enum.TooltipDataType.Unit, lines = { {}, {}, {} } }
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Aelindra")
+    tip:AddLine("Level 60 Night Elf Mage")
+    tip:AddLine("<Dawnwatch>")
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:AddDoubleLine("Raider score", "2140") -- another addon's, after the post-calls
+    tip:Show()
+    local p = Panel.Get(tip)
+    local head = p.items[1]
+    T.eq(head.kind, "header")
+    local title = stub.Text(head.title)
+    T.truthy(title:find("^Aelindra ") and title:find("Moonvale"), "first and last name: " .. title)
+    T.truthy(title:find(DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL), 1, true), "the last name tan")
+    T.truthy(head.icon and head.icon.tile:IsShown(), "the class icon on its class tile")
+    T.eq(#head.tags, 2)
+    T.eq(stub.Text(head.tags[1].text), "MAGE", "spec unknown: the class")
+    T.eq(stub.Text(head.tags[2].text), "60 · NIGHT ELF")
+    T.truthy(p.washColor, "the banner's class light")
+    local rows = {}
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "row" then rows[stub.Text(it.label)] = stub.Text(it.value) end
+    end
+    T.truthy(rows.Guild and rows.Guild:find("Dawnwatch") and rows.Guild:find("Officer"), "guild and rank")
+    T.eq(rows.Targeting, "Gorvak")
+    T.eq(rows["Raider score"], "2140", "another addon's line, in the card")
+    T.isnil(rows["Item level"], "never inspected: no item level")
+    local bars = 0
+    for i = 1, p.count do if p.items[i].kind == "bar" then bars = bars + 1 end end
+    T.eq(bars, 2, "health and power")
+    T.eq(GameTooltipStatusBar:GetAlpha(), 0, "the game's bar under the tooltip put away")
+    T.eq(GameTooltipTextLeft4:GetAlpha(), 0, "the addon's own line muted: it's in the card")
+    -- Targeting you.
+    stub.units.mouseovertarget = stub.units.player
+    hover("mouseover", { "Aelindra" })
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "row" and stub.Text(it.label) == "Targeting" then
+            T.eq(stub.Text(it.value), "You")
+            T.near(({ it.value:GetTextColor() })[1], DaylightUI.Style.INK.WARN[1], 1e-6, "in WARN")
+        end
+    end
+    -- Back to Simple: the game's bar as its setting says.
+    DaylightUI:Set("Tooltip", "style", "simple")
+    stub.RunTimers()
+    update()
+    T.eq(GameTooltipStatusBar:GetAlpha(), 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a friendly player's buffs, out of combat only", function()
+    local _, Panel = login("rich")
+    DaylightUI:Set("Tooltip", "buffs", true)
+    stub.RunTimers()
+    player()
+    stub.SetAuras("mouseover", "HELPFUL", { { spellId = 1, icon = 111 }, { spellId = 2, icon = 222 } })
+    hover("mouseover", { "Aelindra" })
+    local p = Panel.Get(GameTooltip)
+    local icons
+    for i = 1, p.count do if p.items[i].kind == "icons" then icons = p.items[i] end end
+    T.truthy(icons, "a row of buff icons")
+    T.eq(#icons.list, 2)
+    T.eq(GameTooltip:NumLines(), 1, "no icon lines added to the game's tooltip")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows the card", function()
+    local Tip, Panel = login("rich")
+    player()
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, health = 31, maxHealth = 100 }
+    stub.units.mouseovertarget = stub.units.player
+    stub.EnterCombat()
+    hover("mouseover", { "Ridgeback Boar", "Level 23 Beast" })
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(pill and pill:IsShown(), "the pill shows")
+    T.eq(pill:GetWidth(), 200)
+    T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
+    T.eq(Tip.Muted(GameTooltip), "pill")
+    T.eq(stub.Text(pill.name), "Ridgeback Boar")
+    T.truthy(pill.on:IsShown(), "on you")
+    T.isnil(pill:GetScript("OnUpdate"), "nothing of its own every frame")
+    local p = Panel.Get(GameTooltip)
+    T.truthy(not p or not p:IsShown(), "no card under it")
+    -- It follows the cursor.
+    stub.cursorPos = { 500, 300 }
+    update()
+    local x = pill.__points[1][4]
+    stub.cursorPos = { 600, 300 }
+    update()
+    T.truthy(pill.__points[1][4] > x, "moved with the cursor")
+    -- Shift: the full card at once.
+    stub.shift = true
+    update()
+    T.falsy(pill:IsShown())
+    T.isnil(Tip.Muted(GameTooltip))
+    T.truthy(Panel.Get(GameTooltip):IsShown(), "the card")
+    stub.shift = false
+    update()
+    T.truthy(pill:IsShown(), "let go: the pill again")
+    -- The fight over: the card.
+    stub.LeaveCombat()
+    update()
+    T.falsy(pill:IsShown())
+    T.truthy(Panel.Get(GameTooltip):IsShown())
+    stub.EnterCombat()
+    update()
+    T.truthy(pill:IsShown())
+    GameTooltip:Hide()
+    T.falsy(pill:IsShown(), "gone with the tooltip")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: the pill can be never or always", function()
+    local Tip = login("rich")
+    player()
+    DaylightUI:Set("Tooltip", "pill", "never")
+    stub.RunTimers()
+    stub.EnterCombat()
+    hover("mouseover", { "Aelindra" })
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(not pill or not pill:IsShown(), "never")
+    stub.LeaveCombat()
+    DaylightUI:Set("Tooltip", "pill", "always")
+    stub.RunTimers()
+    hover("mouseover", { "Aelindra" })
+    pill = _G.DaylightUITooltipPill
+    T.truthy(pill and pill:IsShown(), "always, out of a fight too")
+    local r = ({ pill.name:GetTextColor() })[1]
+    T.near(r, (DaylightUI.Style.ClassColor("MAGE")), 1e-6, "a player's name in their class color")
+    T.falsy(pill.on:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the mail icon's "Unread mail from:" cut short with "...", in
+-- the game's yellow.
+T.test("rich tooltip: a short card's title is never cut, a yellow heading is white", function()
+    local _, Panel = login("rich")
+    fill(99, { { "Unread mail from:", nil, 1, 0.82, 0 }, "Thrall" })
+    local p = Panel.Get(GameTooltip)
+    local title = p.items[1].title
+    T.eq(title:GetWidth(), 0, "no width set: nothing cut")
+    T.near(({ title:GetTextColor() })[1], DaylightUI.Style.INK.TITLE[1], 1e-6, "white")
+    T.eq(stub.Text(p.items[2].fs), "Thrall", "the senders under it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

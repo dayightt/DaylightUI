@@ -16,6 +16,8 @@ local function text(fs)
     if type(fs) ~= "table" or not fs.GetText then return nil end
     if fs.IsShown and fs:IsShown() == false then return nil end
     local t = fs:GetText()
+    -- A secret is handed back as it is: comparing one errors.
+    if isSecret(t) then return t end
     if t == "" then return nil end
     return t
 end

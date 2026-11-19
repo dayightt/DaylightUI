@@ -15,6 +15,10 @@ ns.OPTIONS = { pages = {
               values = { rich = "Rich", simple = "Simple" }, order = { "rich", "simple" },
               desc = "Rich: Daylight UI's own cards, with a colored light along the top and everything laid out as rows. "
                   .. "Simple: the game's tooltips in the Daylight UI look. In a fight Rich keeps its frame around the game's own lines." },
+            { type = "dropdown", key = "pill", label = "Fight pill", since = "1.9.7",
+              values = { combat = "In combat", always = "Always", never = "Never" }, order = { "combat", "always", "never" },
+              desc = "A player or creature as one small line by the cursor: their name, their health and a thin bar. Hold Shift to see the full card.",
+              hidden = function(get) return get("style") ~= "rich" end },
         } },
         { label = "Placement", items = {
             { type = "dropdown", key = "anchor", label = "Tooltip position",
