@@ -114,27 +114,6 @@ local function frame()
         return set(self, t)
     end
     listing.ActivityView.Comment = comment
-    -- The game's voice chat drop-down (a DropdownButton: its text and its menu).
-    local voice = CreateFrame("Frame", "LFGListingFrameActivityViewVoiceChatDropdown", listing.ActivityView)
-    voice:SetSize(120, 24)
-    voice.text = "None"
-    voice.GetText = function(self) return self.text end
-    voice.UpdateText = function() end
-    voice.OpenMenu = function() record("VoiceMenu") end
-    -- Its menu description: radio rows with their text, picked through the element.
-    voice.GenerateMenu = function() end
-    voice.elements = {}
-    for _, text in ipairs({ "None", "Discord", "Other" }) do
-        voice.elements[#voice.elements + 1] = { text = text,
-            GetText = function(el) return el.text end,
-            Pick = function(el) voice.text = el.text end }
-    end
-    voice.GetMenuDescription = function(self)
-        return { EnumerateElementDescriptions = function()
-            local i = 0
-            return function() i = i + 1; if self.elements[i] then return i, self.elements[i] end end
-        end }
-    end
     p.ListingFrame, p.BrowseFrame, p.WhoFrame = listing, browse, who
     -- The game's listing page (LFGListingMixin:OnEvent): a new listing searches
     -- its activities on the browse tab.
@@ -442,7 +421,6 @@ function LW.world(spec)
         LW.state = { calls = {}, results = spec.results or LW.Sample(), level = (spec.level == nil) and 14 or (spec.level or nil),
             roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {} }
         _G.LFGParentFrame, _G.LFGListingFrame, _G.LFGBrowseFrame, _G.LFGWhoListFrame, _G.LFGListingComment = nil, nil, nil, nil, nil
-        _G.LFGListingFrameActivityViewVoiceChatDropdown = nil
         install()
         DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { GroupFinder = { enabled = spec.enabled ~= false } } } } }
     end

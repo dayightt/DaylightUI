@@ -1,4 +1,4 @@
--- Find a group: category buttons and an activity button with Refresh on top, then the
+-- Find a group: category buttons, an activity drop-down and the roles in one filter panel, then the
 -- last search's listings in the game's order. The player's own first, then groups and
 -- solo players (reversed while in a group). Hovering a listing shows the whole party in
 -- a tooltip. Clicking picks it and opens a detail card beside the list (Social's,
@@ -22,11 +22,11 @@ ns.Browse = Browse
 
 Browse.EDGE = 16
 Browse.PANEL_Y = 10      -- the filters' panel
-Browse.LABEL_Y = 22      -- the small words over each drop-down
-Browse.DROP_Y = 36       -- the drop-downs' row
-Browse.TOOLS_Y = 68      -- the roles and Refresh row
-Browse.PANEL_H = 94
-Browse.TOP = 114
+Browse.LABEL_Y = 22      -- the small word over the category buttons
+Browse.CHIPS_Y = 36      -- the category buttons' first row
+Browse.PANEL_PAD = 12    -- under the panel's last row
+Browse.TOP_GAP = 10      -- from the panel to the list
+Browse.TOP = 170         -- the list's top before the bar is laid out (one row of categories)
 Browse.SEEK = 0.8        -- s for the searching bar to fill, repeated
 Browse.SEEK_W = 140
 Browse.SPLIT_W = 800      -- list width from which groups and solo players sit side by side
@@ -36,7 +36,7 @@ Browse.need = {}         -- role -> true: only the groups that still want it (or
 Browse.EVENTS = { "LFG_LIST_SEARCH_RESULTS_RECEIVED", "LFG_LIST_SEARCH_FAILED", "LFG_LIST_SEARCH_RESULT_UPDATED",
     "LFG_LIST_AVAILABILITY_UPDATE", "GROUP_ROSTER_UPDATE", "LFG_LIST_ACTIVE_ENTRY_UPDATE" }
 
--- The words over the drop-downs: the game's own where it has them.
+-- The words over the buttons and the drop-down: the game's own where it has them.
 function Browse.CatWord() return _G.CATEGORY or L["Category"] end
 function Browse.ActWord() return _G.LFG_LIST_ACTIVITY or L["Activity"] end
 
@@ -152,10 +152,9 @@ function Browse.Soon()
     end)
 end
 
--- The bar: a Category and an Activity drop-down, each with its word over it, and under
--- them the Roles buttons on the left and, on the right, Show all (while narrowed to the
--- listing's activities), Reset and Refresh. Nothing here searches by itself: the drop-downs
--- only set what the next search asks, and Refresh (or Reset) goes to the game.
+-- The bar: the category buttons with their word over them (a click picks one and searches it),
+-- under them the Activity drop-down with its word, and under that the Roles buttons on the left
+-- and, on the right, Show all (while narrowed to the listing's activities), Reset and Refresh.
 
 -- Page width (the target width while the window is resizing).
 function Browse.Width(page)
@@ -167,14 +166,37 @@ end
 local function layoutBar(page, width)
     local W_ = W()
     local R = ns.Rows
-    Browse.down = 0
     local room = Browse.room or 0
     local x = Browse.EDGE + R.PANEL_IN          -- inside the panel
     local inner = (width or Browse.Width(page)) - room - 2 * Browse.EDGE - 2 * R.PANEL_IN
-    local half = math.floor((inner - W_.CHIP_GAP) / 2)
+    local h, gap = W_.CHIP_HEIGHT, W_.CHIP_GAP
     page.panel:ClearAllPoints()
     page.panel:SetPoint("TOPLEFT", page, "TOPLEFT", Browse.EDGE, -Browse.PANEL_Y)
     page.panel:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - room, -Browse.PANEL_Y)
+    -- The category buttons wrap onto more rows as the window narrows.
+    page.catLabel:ClearAllPoints()
+    page.catLabel:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -Browse.LABEL_Y)
+    local cx, cy = 0, Browse.CHIPS_Y
+    for _, b in ipairs(page.chips) do
+        if b:IsShown() then
+            b.FitWidth(0)
+            local w = math.min(b:GetWidth(), inner)
+            b:SetWidth(w)
+            if cx > 0 and cx + w > inner then cx, cy = 0, cy + h + gap end
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", page, "TOPLEFT", x + cx, -cy)
+            cx = cx + w + gap
+        end
+    end
+    -- Under them, the activity (its word over it), then the roles and the buttons.
+    local actLabelY = cy + h + 12
+    local actY = actLabelY + 14
+    local toolsY = actY + h + 10
+    page.actLabel:ClearAllPoints()
+    page.actLabel:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -actLabelY)
+    page.act:SetWidth(math.min(inner, math.max(180, math.floor((inner - gap) / 2))))
+    page.act:ClearAllPoints()
+    page.act:SetPoint("TOPLEFT", page, "TOPLEFT", x, -actY)
     -- The roles and the three buttons share one row while they fit; when the window is too
     -- narrow the buttons drop to a row of their own under the roles, and the panel grows.
     local rolesW = (page.rolesLabel:GetStringWidth() or 0) + W_.CHIP_GAP * 2
@@ -187,46 +209,53 @@ local function layoutBar(page, width)
     local btnsW = page.refresh:GetWidth() + page.reset:GetWidth() + page.all:GetWidth() + 3 * W_.CHIP_GAP
     local drop = rolesW + btnsW > inner and (W_.CHIP_HEIGHT + W_.CHIP_GAP) or 0
     Browse.below = drop > 0
-    page.panel:SetHeight(Browse.PANEL_H + drop)
-    page.cat:SetWidth(half)
-    page.act:SetWidth(half)
-    page.catLabel:ClearAllPoints()
-    page.catLabel:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -Browse.LABEL_Y)
-    page.cat:ClearAllPoints()
-    page.cat:SetPoint("TOPLEFT", page, "TOPLEFT", x, -Browse.DROP_Y)
-    page.actLabel:ClearAllPoints()
-    page.actLabel:SetPoint("TOPLEFT", page.cat, "TOPRIGHT", W_.CHIP_GAP + 2, Browse.DROP_Y - Browse.LABEL_Y)
-    page.act:ClearAllPoints()
-    page.act:SetPoint("TOPLEFT", page.cat, "TOPRIGHT", W_.CHIP_GAP, 0)
+    local panelH = toolsY + drop + h + Browse.PANEL_PAD - Browse.PANEL_Y
+    page.panel:SetHeight(panelH)
+    local listTop = Browse.PANEL_Y + panelH + Browse.TOP_GAP
     page.refresh:ClearAllPoints()
-    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - R.PANEL_IN - room, -(Browse.TOOLS_Y + drop))
+    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - R.PANEL_IN - room, -(toolsY + drop))
     page.reset:ClearAllPoints()
     page.reset:SetPoint("RIGHT", page.refresh, "LEFT", -W_.CHIP_GAP, 0)
     page.all:ClearAllPoints()
     page.all:SetPoint("RIGHT", page.reset, "LEFT", -W_.CHIP_GAP, 0)
     page.rolesLabel:ClearAllPoints()
-    page.rolesLabel:SetPoint("LEFT", page, "TOPLEFT", x + 2, -(Browse.TOOLS_Y + W_.CHIP_HEIGHT / 2))
+    page.rolesLabel:SetPoint("LEFT", page, "TOPLEFT", x + 2, -(toolsY + h / 2))
     local after = page.rolesLabel
     for _, b in ipairs(page.needs) do
         b:ClearAllPoints()
         b:SetPoint("LEFT", after, "RIGHT", after == page.rolesLabel and W_.CHIP_GAP * 2 or W_.CHIP_GAP, 0)
         after = b
     end
-    page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Win.Parts.EDGE, -(Browse.TOP + drop))
+    page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Win.Parts.EDGE, -listTop)
 end
 
 function Browse.PaintChips(page)
     page = page or Browse.page
-    local name
-    for _, c in ipairs(Data().Categories()) do if c.id == Browse.cat then name = c.name end end
-    page.cat.text:SetText(name or "")
+    local cats = Data().Categories()
+    for i, c in ipairs(cats) do
+        local b = page.chips[i]
+        if not b then
+            b = W().Button(page, "", W().CHIP_HEIGHT)
+            b:SetScript("OnClick", function(self) Browse.PickCat(self.cat) end)
+            page.chips[i] = b
+        end
+        b.cat = c.id
+        b.text:SetText(c.name)
+        b.SetActive(c.id == Browse.cat)
+        b:Show()
+    end
+    for i = #cats + 1, #page.chips do page.chips[i]:Hide() end
     layoutBar(page)
     local narrow = not Browse.act and Browse.narrow
     local actName = Browse.act and Data().ActivityName(Browse.act)
     if narrow then
         actName = #narrow == 1 and Data().ActivityName(narrow[1]) or string.format(L["%d activities"], #narrow)
     end
-    page.act.text:SetText(actName or L["All activities"])
+    -- Through SetLabel so the word fades when the pick changes; the button keeps the width the
+    -- layout gave it.
+    local aw = page.act:GetWidth()
+    page.act.SetLabel(actName or L["All activities"])
+    page.act:SetWidth(aw)
     page.act.SetActive(actName ~= nil)
     page.act:SetShown(Browse.cat ~= nil)
     page.actLabel:SetShown(Browse.cat ~= nil)
@@ -234,28 +263,16 @@ function Browse.PaintChips(page)
     page.all.SetOff(Browse.searching == true)
     page.reset.SetOff(Browse.searching == true)
     page.refresh.SetOff(Browse.searching == true or Browse.cat == nil)
-    -- Lit when what is set is not what was searched (the category changed, or the level filter):
-    -- searching again shows the change.
+    -- Lit when what is set is not what was searched (the level filter changed): searching
+    -- again shows the change.
     page.refresh.SetActive(Browse.stale == true)
 end
 
-function Browse.CategoryMenu(owner)
-    local keys, values = {}, {}
-    for _, c in ipairs(Data().Categories()) do
-        keys[#keys + 1] = c.id
-        values[c.id] = c.name
-    end
-    W().OpenMenu(owner, keys, values, Browse.cat, Browse.PickCat, owner:GetWidth())
-end
-
--- Category: only set it. Refresh then searches it, so the filters can be changed one after the
--- other without a search for each.
+-- A category button picks it and searches it (clicking the lit one refreshes).
 function Browse.PickCat(id)
-    if id ~= Browse.cat then
-        Browse.act, Browse.narrow, Browse.stale = nil, nil, true
-    end
+    if id ~= Browse.cat then Browse.act, Browse.narrow, Browse.open = nil, nil, nil end
     Browse.cat = id
-    Browse.Render()
+    Browse.Search()
 end
 
 -- Back to the first category with nothing narrowed, and search it at once.
@@ -500,7 +517,7 @@ end
 function Browse.Build(page)
     Browse.page = page
     page.panel = ns.Rows.Panel(page)
-    -- Their width is set by the bar's layout (half the room each).
+    -- Its width is set by the bar's layout.
     local function dropdown(onClick)
         local b = W().MenuButton(page, "", W().CHIP_HEIGHT)
         b.text:SetPoint("RIGHT", b.chevron, "LEFT", -6, 0)
@@ -515,7 +532,7 @@ function Browse.Build(page)
         return fs
     end
     page.catLabel = word(Browse.CatWord())
-    page.cat = dropdown(function(self) Browse.CategoryMenu(self) end)
+    page.chips = {}   -- one button per category, made as they are first shown
     page.actLabel = word(Browse.ActWord())
     page.rolesLabel = word(_G.ROLES or L["Roles"])
     page.act = dropdown(function(self) Browse.ActivityMenu(self) end)
@@ -529,7 +546,7 @@ function Browse.Build(page)
     page.all.FitWidth(0)
     page.all:SetScript("OnClick", function() Browse.ShowAll() end)
     page.all:Hide()
-    -- The drop-downs and buttons follow the window while it is dragged.
+    -- The buttons and the drop-down follow the window while it is dragged.
     page:HookScript("OnSizeChanged", function(self, width) layoutBar(self, width) end)
     -- Role buttons, each with its badge and its word as on List yourself: show only the
     -- groups that still want a tank, a healer or damage (any of those lit), or the
@@ -600,7 +617,9 @@ end
 function Browse.Pieces(page)
     local out = {}
     out[#out + 1] = page.panel
-    out[#out + 1] = page.cat
+    for _, b in ipairs(page.chips) do
+        if b:IsShown() then out[#out + 1] = b end
+    end
     out[#out + 1] = page.act
     out[#out + 1] = page.rolesLabel
     for _, b in ipairs(page.needs) do out[#out + 1] = b end
