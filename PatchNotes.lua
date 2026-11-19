@@ -11,7 +11,12 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "Nameplates", "Long /dui platefix reports keep the details of the missing plate and the latest events before the check" },
+            { "Nameplates", "Nameplates and speech bubbles come back after loading screens, flights, cinematics and the AFK screen when they had gone missing, and the last /dui platefix step brings them back without a /reload" },
+        },
+    },
     { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",
         new = {
             { "QoL", "The loot feed can stay on screen as a log of your recent loot you can scroll back through (Loot feed style)" },

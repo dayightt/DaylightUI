@@ -235,7 +235,7 @@ local uiOut = false
 DUI.On("UIAlpha", function(a)
     if type(a) ~= "number" then return end
     if a <= 0.01 and not uiOut then uiOut = true; R.Note("UI faded out")
-    elseif a >= 0.99 and uiOut then uiOut = false; R.Note("UI back") end
+    elseif a >= 0.99 and uiOut then uiOut = false; R.Note("UI back"); R.Restore("UI faded back") end
 end)
 
 -- The client draws nameplates and speech bubbles under one switch of its own,
@@ -274,8 +274,9 @@ local function watchSwitch(fn, label)
     hooksecurefunc(fn, function(v)
         local on
         if not DUI.IsSecret(v) then on = v == true end
-        local by = R.cycling and "/dui platefix" or R.Caller()
+        local by = R.cycling and "/dui platefix" or R.restoring or R.Caller()
         R.inWorld, R.inWorldBy = on, by
+        if R.restoring then return end
         local list = R.switches
         list[#list + 1] = { at = clock(), on = on, by = by }
         if #list > R.SWITCH_KEEP then table.remove(list, 1) end
@@ -285,7 +286,26 @@ end
 watchSwitch("SetUIVisibility", "whole UI and plates")
 watchSwitch("SetInWorldUIVisibility", "plates and bubbles")
 UIParent:HookScript("OnHide", function() R.Note("UI hidden") end)
-UIParent:HookScript("OnShow", function() R.Note("UI shown") end)
+UIParent:HookScript("OnShow", function() R.Note("UI shown"); R.Restore("UI shown") end)
+
+-- Loading screens, landing from a flight, cinematics and fades of the whole UI
+-- are where the switch has been left off while the UI came back. Turning it on
+-- again there is safe to repeat: the game's Commentator code does it every
+-- frame. Never while the UI is hidden, so the player's own Alt+Z stays off.
+-- These calls aren't kept among the switch changes, or they'd push out the
+-- ones that tell who turned it off.
+function R.Restore(after)
+    if not UIParent:IsShown() or InCombatLockdown() then return end
+    R.restoring = "Daylight UI after " .. after
+    if type(SetUIVisibility) == "function" then pcall(SetUIVisibility, true) end
+    if type(SetInWorldUIVisibility) == "function" then pcall(SetInWorldUIVisibility, true) end
+    R.restoring = nil
+end
+local RESTORE_AFTER = {
+    LOADING_SCREEN_DISABLED = "a loading screen", PLAYER_CONTROL_GAINED = "control came back",
+    CINEMATIC_STOP = "a cinematic", STOP_MOVIE = "a movie",
+}
+for event, what in pairs(RESTORE_AFTER) do DUI.RegisterEvent(event, function() R.Restore(what) end) end
 
 -- Speech bubbles go with the plates, so the report counts them too (only
 -- anyone talking nearby gives one), with the game's bubble settings.
@@ -337,11 +357,18 @@ function R.InWorldBack()
                 local back, err2 = inWorld(true)
                 if not back then
                     R.Note("plates and bubbles refused back on: " .. R.Printable(tostring(err2), R.MARK_WHY))
-                    if type(SetUIVisibility) == "function" and UIParent:IsShown() then pcall(SetUIVisibility, true) end
+                end
+                -- The whole UI's switch too, every time: with both, a player
+                -- gets the plates back here without a /reload.
+                if type(SetUIVisibility) == "function" and UIParent:IsShown() then
+                    R.cycling = true
+                    pcall(SetUIVisibility, true)
+                    R.cycling = nil
                 end
                 done()
             end)
-            return "the game's switch for nameplates and speech bubbles turned off and back on (wait a second)"
+            return "the game's switch for nameplates and speech bubbles turned off and back on, then the UI's"
+                .. " switch on (wait a second)"
         end
         why = err
         if inWorld(true) then return "the game's switch for nameplates and speech bubbles turned on" end
@@ -825,20 +852,33 @@ R.FIX = {
     function() return R.InWorldBack() end,
 }
 
+-- Keep the plate as it was when the player saw the problem, then the outcome of
+-- every step. A busy event log or a long addon list can fill the copy box.
+function R.BuildFixReport(title, run, world)
+    local out = { title }
+    for _, line in ipairs(R.TraceLines(run)) do out[#out + 1] = line end
+    out[#out + 1] = "Before step 1:"
+    for _, line in ipairs(run.before) do out[#out + 1] = line end
+    for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
+    out[#out + 1] = "What happened before step 1 (most recent first, minutes:seconds before it):"
+    local log = run.log or {}
+    for i = #log, 1, -1 do out[#out + 1] = log[i] end
+    out[#out + 1] = ""
+    for _, line in ipairs(world) do out[#out + 1] = line end
+    local text = R.Printable(table.concat(out, "\n"))
+    if #text <= R.REPORT_MAX then return text end
+    local omitted = "\n[Further report lines omitted]"
+    local prefix = text:sub(1, R.REPORT_MAX - #omitted + 1)
+    return prefix:match("^(.*)\n") .. omitted
+end
+
 local fixStep, fixRun
 
 function R.FixReport(step)
     local run = fixRun or { did = {}, before = {} }
-    local out = { string.format("Daylight UI %s platefix (%s): %s", tostring(DUI.VERSION), R.OFF,
-        step and string.format("step %d brought them back", step) or "no step brought them back") }
-    for _, line in ipairs(R.TraceLines(run)) do out[#out + 1] = line end
-    for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
-    for _, line in ipairs(run.world or R.World()) do out[#out + 1] = line end
-    out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
-    for _, line in ipairs(run.log or {}) do out[#out + 1] = line end
-    out[#out + 1] = "Before step 1:"
-    for _, line in ipairs(run.before) do out[#out + 1] = line end
-    return R.Printable(table.concat(out, "\n"), R.REPORT_MAX)
+    local title = string.format("Daylight UI %s platefix (%s): %s", tostring(DUI.VERSION), R.OFF,
+        step and string.format("step %d brought them back", step) or "no step brought them back")
+    return R.BuildFixReport(title, run, run.world or R.World())
 end
 
 local function fixDone(step)

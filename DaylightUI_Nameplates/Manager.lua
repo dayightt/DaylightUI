@@ -1377,7 +1377,6 @@ Manager.FIX = {
 -- the plates as they were before step 1 while still invisible. One text, short
 -- enough for one Discord message.
 Manager.REPORT_PLATES = 1 -- plates listed in full (a report holds 4000 characters, and the log needs room)
-Manager.REPORT_MAX = 3800
 -- Where the player is, how the game is shown, what of Daylight UI is on and
 -- the other addons (the core's report, DUI.PlateReport).
 function Manager.ReportWorld()
@@ -1387,19 +1386,10 @@ end
 -- step: the one that brought them back, nil if none did.
 function Manager.FixReport(step)
     local run = Manager.fixRun or { did = {}, before = {} }
-    local out = { string.format("Daylight UI %s platefix: %s", tostring(DUI.VERSION),
-        step and string.format("step %d brought them back", step) or "no step brought them back") }
-    for _, line in ipairs(Report.TraceLines(run)) do out[#out + 1] = line end
-    for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
-    for _, line in ipairs(run.world or Manager.ReportWorld()) do out[#out + 1] = line end
-    out[#out + 1] = "What happened before step 1 (minutes:seconds before it):"
-    for _, line in ipairs(run.log or {}) do out[#out + 1] = line end
-    out[#out + 1] = "Before step 1:"
-    for _, line in ipairs(run.before) do out[#out + 1] = line end
-    return Manager.Printable(table.concat(out, "\n"), Manager.REPORT_MAX)
+    local title = string.format("Daylight UI %s platefix: %s", tostring(DUI.VERSION),
+        step and string.format("step %d brought them back", step) or "no step brought them back")
+    return Report.BuildFixReport(title, run, run.world or Manager.ReportWorld())
 end
-
-Manager.Printable = Report.Printable
 
 -- Shows the report in a copy box (the profiles' one) and ends the round.
 function Manager.FixDone(step)
