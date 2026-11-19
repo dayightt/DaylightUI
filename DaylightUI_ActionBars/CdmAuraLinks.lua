@@ -259,7 +259,6 @@ ns.CdmAuraLinks = {
     [436863] = { 436970 }, -- [DNT] Combat Dummy III
     [437032] = { 1242853 }, -- Soul Harvest
     [438541] = { 438538 }, -- Charge
-    [439431] = { 8233, 8236, 10484, 16361 }, -- Windfury Weapon
     [439748] = { 439768 }, -- Starfall
     [440113] = { 440114, 440495 }, -- Sudden Death
     [440484] = { 440493 }, -- Fresh Meat

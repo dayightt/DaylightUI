@@ -24,6 +24,7 @@ APPLY_AURAS = {6, 35, 65, 128, 129}       # apply aura, to the party, raid, frie
 TRIGGERS = {64}                           # trigger spell
 TRIGGER_AURAS = {23, 42, 226}             # periodic trigger, proc trigger, periodic dummy trigger
 SHELL_AURAS = TRIGGER_AURAS | {4}         # and dummy
+WEAPON_ENCHANTS = {54, 360}               # temporary weapon enchant; 360 on the imbue casts (Rockbiter 8017)
 MAX_CLASSLESS = 2
 # SpellClassOptions columns: spell id, family set.
 SCO_SPELL, SCO_FAMILY = 0, 2
@@ -181,6 +182,9 @@ def main(folder):
     def applies_aura(sid):
         return any(c[EFF_EFFECT] in APPLY_AURAS for c in effects.get(sid, []))
 
+    def enchants(sid):
+        return any(c[EFF_EFFECT] in WEAPON_ENCHANTS for c in effects.get(sid, []))
+
     # A talent-style passive: every effect is a dummy or trigger aura on itself,
     # so what it does shows up as another spell (Improved Stormstrike, Poised).
     def shell(sid):
@@ -197,7 +201,12 @@ def main(folder):
             if t and t != sid and applies_aura(t) and not shell(t) and (
                     c[EFF_EFFECT] in TRIGGERS or (c[EFF_EFFECT] in APPLY_AURAS and c[EFF_AURA] in TRIGGER_AURAS)):
                 out.add(t)
-        if shell(sid):
+        # A weapon imbue's name (Windfury Weapon) marks the enchant on the weapon,
+        # which is no aura. Its same-name auras are procs (the extra swing's
+        # attack power), so they'd light the piece only for that swing. Only the
+        # class's own imbue cast counts: a rune item's enchant (Cobra Slayer) doesn't.
+        imbue = any(enchants(o) and family.get(o) == fam for o in by_name.get(names[sid], []))
+        if shell(sid) and not imbue:
             same = [o for o in by_name.get(names[sid], []) if o != sid and applies_aura(o) and not shell(o)]
             out.update(o for o in same if family.get(o) == fam)
             # Classless ones count only when few: NPCs share names like Lightning Shield.
