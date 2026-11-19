@@ -665,7 +665,8 @@ function place.header(p, item, y, inner)
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
     -- Never past the card's edge (or the level beside it): cut short with "...".
     local room = inner + padX(p) - x - (item.right and (12 + widthOf(item.right)) or 0)
-    if widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
+    -- A secret name can't be measured: it gets the whole room, cut there.
+    if isSecret(item.spec.title) or widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
         item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right.size)))

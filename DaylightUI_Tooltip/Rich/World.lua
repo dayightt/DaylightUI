@@ -5,8 +5,8 @@
 -- other thing in the world (a mailbox, a chest): its name and the game's lines.
 --
 -- Everything is read from the tooltip's own lines and the unit. In a fight a
--- creature is the fight pill (Rich.Build); with its lines secret the card is
--- only its frame.
+-- creature is the fight pill (Rich.Build); with its lines secret (a dungeon)
+-- its card comes from the unit alone.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -248,7 +248,7 @@ function World.DropShown(r, tags)
     for _, t in ipairs(tags) do
         if type(t[1]) == "string" then shown[t[1]:lower()] = true end
     end
-    if type(r.title) == "string" then shown[Bare(r.title):lower()] = true end
+    if type(r.title) == "string" and not isSecret(r.title) then shown[Bare(r.title):lower()] = true end
     if type(r.sub) == "string" then shown[r.sub:lower()] = true end
     local kept = {}
     for _, i in ipairs(r.facts) do
@@ -265,6 +265,8 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local own = ownCount(data, n)
     local level, levelColor = World.Level(unit)
     local r = World.ReadMob(lines, own, level)
+    -- No lines (the game hid them): its name from the unit, maybe secret.
+    if n == 0 then r.title = DUI.UnitName(unit, "tooltip") or "" end
     local pair = ns.RichPlayers.ClassPair(unit)
     Panel.Begin(p, "mob", light)
     p.padTop = World.PAD_TOP

@@ -79,6 +79,8 @@ end
 
 -- The frame only, around the game's own lines (a secret line): its lines come
 -- back, a spell's painted the way the skinned look paints them.
+local NO_LINES = {}
+
 local function frameOnly(tip, s, p)
     Panel.Unmute(p)
     Panel.Chrome(p)
@@ -167,7 +169,7 @@ function Rich.Step(tip)
         if Spells.WantsMath(sp) ~= (sp.math == true) then return Rich.Build(tip) end
         if sp.ends and Spells.Tick(p, sp) then return Rich.Build(tip) end
     end
-    if not Panel.Fit(p) then
+    if not Panel.Fit(p) and not s.fromUnit then
         -- The size went secret since the build: the frame only.
         frameOnly(tip, s, p)
     end
@@ -548,6 +550,12 @@ function Rich.Build(tip)
     end
     endPill(tip, s)
     local n, lines, secret = Read.Lines(tip, s.data)
+    -- Under a map or PvP restriction every line of a unit's tooltip is secret
+    -- (every dungeon, out of combat too). Its card is built from the unit
+    -- alone then, so it looks the same as anywhere else.
+    local fromUnit = secret and unit ~= nil
+    s.fromUnit = fromUnit
+    if fromUnit then n, lines, secret = 0, NO_LINES, false end
     s.seen = s.seen or {}
     -- A refill with the very same lines as the card shows (an item's, every
     -- 0.2 s): nothing to build. Rebuilding made heaps of garbage and the game
@@ -600,7 +608,9 @@ function Rich.Build(tip)
         Panel.Mute(p)
         showBar(tip, unit == nil)
         p.fitTried = nil
-        if not Panel.Fit(p) then
+        -- A card built from the unit keeps its own size when the tooltip's
+        -- can't be read: the tooltip is out of sight under it anyway.
+        if not Panel.Fit(p) and not fromUnit then
             frameOnly(tip, s, p)
         else
             if item then Rich.Sweep(tip, s, p, item) end

@@ -29,7 +29,7 @@ function Pill.KeyHeld(cfg)
     return type(fn) == "function" and fn() == true
 end
 
--- pill = "combat" (in a fight and under restrictions), "always" or "never";
+-- pill = "combat" (in a fight), "always" or "never";
 -- holding pillKey shows the full card any time.
 function Pill.Wanted(tip, unit)
     local Tip = ns.Tooltip
@@ -40,7 +40,9 @@ function Pill.Wanted(tip, unit)
     -- Hidden in combat by its own switch: that wins.
     if Tip.HideNow(tip) then return false end
     if mode == "always" then return true end
-    return InCombatLockdown() or DUI.Restricted()
+    -- A fight only: a restricted map (every dungeon) keeps the whole card
+    -- between pulls, built from the unit when the game hides its lines.
+    return InCombatLockdown()
 end
 
 -- Anything else in the world under the mouse (an object, a corpse) gets the
