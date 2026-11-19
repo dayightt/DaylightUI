@@ -1294,8 +1294,8 @@ end
 -- The game's own settings behind the chat settings
 -- ---------------------------------------------------------------------
 
--- Class-colored names, timestamps and the typing-only ("IM") edit box are game
--- settings; only set when the chat setting differs.
+-- Class-colored names, timestamps and whisper tabs are game settings; only set
+-- when the chat setting differs.
 local function setCVar(name, value)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     local ok, current = pcall(GetCVar, name)
@@ -1307,9 +1307,8 @@ function Chat.ApplySettings()
     if not cfg then return end
     setCVar("chatClassColorOverride", cfg.classColors and "0" or "1")
     if cfg.timestamps and cfg.timestamps ~= "game" then setCVar("showTimestamps", cfg.timestamps) end
-    -- The edit box sits over the tab row, so it's only up while typing. Chat.Input
-    -- fades it; never Hide() the game's box, its OnHide would run tainted.
-    setCVar("chatStyle", "im")
+    -- The game's Chat Style (Classic or IM) is the player's own pick and is never
+    -- changed here: Chat.Input shows the edit box only while typing in either one.
     -- Whispers: each person in their own docked tab (flashing on new ones) plus the
     -- main tab, or only the main tab. The Daylight chat box shows whispers itself,
     -- so inline only.

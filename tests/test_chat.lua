@@ -242,6 +242,31 @@ T.test("chat: class colors and timestamps are the game's own settings", function
     T.eq(stub.cvars.showTimestamps, "%I:%M %p ", "a 12-hour clock with AM/PM")
 end)
 
+-- The game's Chat Style (Options, Social) is the player's own pick: it was set to
+-- IM at every login, so a player who chose Classic lost it, with Daylight UI's
+-- chat switched off too.
+T.test("chat: the game's chat style stays the one the player picked", function()
+    for _, style in ipairs({ "classic", "daylight" }) do
+        for _, pick in ipairs({ "classic", "im" }) do
+            login(function()
+                stub.cvars.chatStyle = pick
+                if style == "daylight" then
+                    _G.ChatTypeInfo = { SYSTEM = { id = 1, r = 1, g = 1, b = 0 }, SAY = { id = 4, r = 1, g = 1, b = 1 } }
+                end
+            end, style)
+            DaylightUI:Set("Chat", "classColors", false)
+            stub.RunTimers()
+            T.eq(stub.cvars.chatStyle, pick, style .. " chat box, " .. pick .. " picked: left as it is")
+        end
+    end
+    -- Classic style types in ChatFrame1's box only, which the game hides when
+    -- you're done: it still lands where the chat types.
+    login(function() stub.cvars.chatStyle = "classic" end, "daylight")
+    stub.chatModule.Chat.Pass()
+    T.eq(select(2, ChatFrame1EditBox:GetPoint(1)), stub.chatModule.Box.Field(), "in the footer")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat: whispers show their time in the Timestamps format", function()
     login()
     local Chat = stub.chatModule.Chat
@@ -5880,4 +5905,45 @@ T.test("chat daylight: a plugin's formatter changes or drops a line; its links c
     T.truthy(string.find(link, "|Hdaylightchat:plugin:Chatty:fish:42|h[Show fish]|h", 1, true))
     stub.chatModule.Extras.OnLink("daylightchat:plugin:Chatty:fish:42")
     T.eq(got, "fish:42")
+end)
+
+-- The game's won line names the item and the count, not the price. The total
+-- quoted just before the buy goes on it, split by the count.
+T.test("chat: a won commodity auction says what each one cost", function()
+    _G.ERR_AUCTION_COMMODITY_WON_S = "You won an auction for %s x%d"
+    local _, box = daylight()
+    local Money = DaylightUI.Widgets.Money
+    local function last() return boxTexts(box)[box:GetNumMessages()] end
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 345, 4830)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Linen Cloth x14 (" .. Money(345) .. " each)", "4830 over 14, rounded")
+    stub.Advance(1)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Linen Cloth x14", "the quote went with its line")
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 500, 500)
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x1", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x1", "one alone: nothing to split")
+    stub.Advance(1)
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 10, stub.Secret(900))
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x3", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x3", "a secret total is left alone")
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 300, 900)
+    stub.FireEvent("AUCTION_HOUSE_CLOSED")
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x3", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x3", "the house closed: no price")
+    _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat: Classic windows get the price of each one too", function()
+    _G.ERR_AUCTION_COMMODITY_WON_S = "You won an auction for %s x%d"
+    login()
+    stub.chatModule.Chat.Pass()
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 345, 4830)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    ChatFrame1:FakeRefresh()
+    local want = "You won an auction for Linen Cloth x14 (" .. DaylightUI.Widgets.Money(345) .. " each)"
+    T.eq(ChatFrame1.visibleLines[1]:GetText(), want)
+    _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
