@@ -2739,16 +2739,19 @@ _G.IsEveryoneAssistant = function() return stub.everyoneAssist == true end
 -- A ready check answer: a unit's own ready = "ready" | "notready" | "waiting".
 _G.GetReadyCheckStatus = function(u) local x = U(u); return x and x.ready end
 -- A summon on its way: a unit's own summon = "Pending" | "Accepted" | "Declined"
--- (Enum.SummonStatus names). Both calls refuse a secret unit token, as in game.
+-- (Enum.SummonStatus names). Both calls refuse a secret or missing unit token,
+-- as in game.
 _G.Enum.SummonStatus = { None = 0, Pending = 1, Accepted = 2, Declined = 3 }
 _G.C_IncomingSummon = {
     HasIncomingSummon = function(u)
         assert(not isSecret(u), "HasIncomingSummon: secret unit")
+        needUnit(u, "HasIncomingSummon", "local hasIncoming = C_IncomingSummon.HasIncomingSummon(unit)")
         local x = U(u)
         return x ~= nil and type(x.summon) == "string"
     end,
     IncomingSummonStatus = function(u)
         assert(not isSecret(u), "IncomingSummonStatus: secret unit")
+        needUnit(u, "IncomingSummonStatus", "local status = C_IncomingSummon.IncomingSummonStatus(unit)")
         local x = U(u)
         return Enum.SummonStatus[x and x.summon or "None"] or 0
     end,
@@ -2887,14 +2890,27 @@ C_Secrets.ShouldUnitThreatValuesBeSecret = function(u, mob) return stub.ThreatSe
 C_Secrets.ShouldUnitThreatStateBeSecret = function(u, mob) return stub.ThreatSecret("threatState", u, mob) end
 _G.UnitGetIncomingHeals = function(u) local x = U(u); return x and x.incoming end
 _G.UnitGetTotalAbsorbs = function(u) local x = U(u); return x and x.absorbs end
-_G.UnitIsDead = function(u) local x = U(u); if x then return x.dead == true end return false end
-_G.UnitIsDeadOrGhost = function(u) local x = U(u); if x then return x.dead == true or x.ghost == true end return false end
+-- Death and connection checks refuse a missing unit, as in game.
+_G.UnitIsDead = function(u)
+    needUnit(u, "UnitIsDead", "local result = UnitIsDead(unit)")
+    local x = U(u); if x then return x.dead == true end return false
+end
+_G.UnitIsDeadOrGhost = function(u)
+    needUnit(u, "UnitIsDeadOrGhost", "local result = UnitIsDeadOrGhost(unit)")
+    local x = U(u); if x then return x.dead == true or x.ghost == true end return false
+end
 -- The engine keeps a plate on a corpse you can loot (the loot sparkle and the
 -- interact icon need one). The game's plate then shows only its widgets
 -- (UpdateWidgetsOnlyMode in Blizzard_NamePlateUnitFrame, read at SetUnit).
 _G.UnitNameplateShowsWidgetsOnly = function(u) local x = U(u); return x ~= nil and x.widgetsOnly == true end
-_G.UnitIsGhost = function(u) local x = U(u); if x then return x.ghost == true end return false end
-_G.UnitIsConnected = function(u) local x = U(u); if x and x.offline ~= nil then return not x.offline end return true end
+_G.UnitIsGhost = function(u)
+    needUnit(u, "UnitIsGhost", "local result = UnitIsGhost(unit)")
+    local x = U(u); if x then return x.ghost == true end return false
+end
+_G.UnitIsConnected = function(u)
+    needUnit(u, "UnitIsConnected", "local isConnected = UnitIsConnected(unit)")
+    local x = U(u); if x and x.offline ~= nil then return not x.offline end return true
+end
 -- Reset takes every hook off again, newest first. A hook left on a global kept
 -- that whole loaded world alive (75 MB per Load, all walked by the garbage
 -- collector) and ran for every world before it.

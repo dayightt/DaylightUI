@@ -3590,9 +3590,10 @@ function UF.UpdateSummon(f, sample)
     local icon = f.summonIcon
     if not icon then return end
     local status
+    -- A tile the header just emptied has no unit, and the game refuses a nil one.
     if sample then
         status = sample.summon
-    elseif C_IncomingSummon and plain(C_IncomingSummon.HasIncomingSummon, f.unitToken) then
+    elseif f.unitToken and C_IncomingSummon and plain(C_IncomingSummon.HasIncomingSummon, f.unitToken) then
         status = plain(C_IncomingSummon.IncomingSummonStatus, f.unitToken)
     end
     local ink = f.showSummon ~= false and type(status) == "number" and UF.SUMMON[status]
@@ -3633,6 +3634,11 @@ end
 -- and clears the same way.
 local function rezState(f)
     local u = f.unitToken
+    -- A tile the header just emptied has no unit, and the game refuses a nil one.
+    if not u then
+        f.rezCast, f.rezUntil = nil, nil
+        return nil
+    end
     if plain(UnitHasIncomingResurrection, u) == true then
         f.rezCast, f.rezUntil = true, nil
         return "cast"

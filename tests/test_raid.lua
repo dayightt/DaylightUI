@@ -1233,6 +1233,37 @@ T.test("raid threat: a tile the header emptied stays quiet on a threat change", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- An emptied tile stays in the button list, hidden, for good. Solo afterwards,
+-- every pass over the tiles still reaches it: your own threat, a resting or
+-- leader change, a fight starting and ending, roles, ready checks, marks.
+T.test("group tiles: an emptied party or raid tile stays quiet on every pass over the tiles", function()
+    local DUI, ns = login()
+    stub.SetGroup(true, true, 10)
+    stub.units.raid3 = { name = "Teft", isPlayer = true, class = "WARRIOR", threat = 3, leader = true, pvp = true }
+    stub.units.party2 = { name = "Rock", isPlayer = true, class = "HUNTER", threat = 3, leader = true, pvp = true }
+    local r = tile(ns, "raid3")
+    local p = CreateFrame("Button", "DaylightUIPartyHeaderUnitButton2", ns.Party.header)
+    p:SetAttribute("unit", "party2")
+    ns.Party.header.initialConfigFunction(ns.Party.header, p:GetName())
+    stub.RunTimers()
+    for _, b in ipairs({ r, p }) do b:Hide(); b:SetAttribute("unit", nil) end
+    stub.units.raid3, stub.units.party2 = nil, nil
+    stub.SetGroup(false, false, 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    for _, e in ipairs({ "UNIT_THREAT_SITUATION_UPDATE", "UNIT_THREAT_LIST_UPDATE", "PLAYER_UPDATE_RESTING",
+        "PARTY_LEADER_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+        "PLAYER_ROLES_ASSIGNED", "READY_CHECK", "READY_CHECK_FINISHED", "RAID_TARGET_UPDATE",
+        "GROUP_ROSTER_UPDATE", "PLAYER_TARGET_CHANGED", "INCOMING_RESURRECT_CHANGED", "INCOMING_SUMMON_CHANGED" }) do
+        stub.FireEvent(e, "player")
+        stub.RunTimers()
+        T.eq(#stub.errors, 0, e .. ": " .. tostring(stub.errors[1]))
+    end
+    stub.FireEvent("UNIT_FACTION", "player")
+    DUI.Fire("NamesChanged")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("raid flags: a tile repaints only when tapped or the reaction changed", function()
     local DUI, ns = login()
     stub.SetGroup(true, true, 10)
