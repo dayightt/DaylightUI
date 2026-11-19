@@ -672,6 +672,7 @@ function Widget:GetThickness() return self.__thickness or 1 end
 -- Texture
 -- One picture at a time: an atlas replaces a color texture and the reverse.
 function Widget:SetAtlas(a) self.__atlas = a; self.__texture = nil; self.__color = nil end
+function Widget:GetAtlas() return self.__atlas end
 function Widget:SetTexCoord(...) self.__texCoord = { ... } end
 function Widget:GetTexCoord() return unpack(self.__texCoord or { 0, 0, 0, 1, 1, 0, 1, 1 }) end
 -- Takes a secret cell, as in game; a missing one (plain or secret) errors.
@@ -927,6 +928,8 @@ function stub.MouseLeave(b)
     local fn = b.__scripts and b.__scripts.OnLeave
     if fn then fn(b) end
 end
+-- IsMouseOver() with no insets: true while stub.MouseEnter has the mouse on it.
+function Widget:IsMouseOver() return self.__over == true end
 -- Buttons are enabled unless disabled, and run OnEnable/OnDisable on a change.
 function Widget:IsEnabled() return self.__disabled ~= true end
 function Widget:SetEnabled(on)
@@ -1788,6 +1791,11 @@ _G.UnitPowerMax = function(u, kind)
 end
 _G.UnitPowerType = function(u) local x = U(u); return x and x.powerType or 0, x and x.powerToken or "MANA" end
 _G.UnitClassification = function(u) local x = U(u); return x and x.classification or "normal" end
+-- A creature's kind as the game names it ("Beast"), and its id.
+_G.UnitCreatureType = function(u)
+    local x = U(u)
+    if x then return x.creatureType, x.creatureTypeID end
+end
 _G.UnitIsBossMob = function(u) local x = U(u); return x ~= nil and x.boss == true end
 _G.GetRaidTargetIndex = function(u) local x = U(u); return x and x.raidTarget end
 _G.GetComboPoints = function() return stub.comboPoints or 0 end
@@ -2625,7 +2633,12 @@ _G.C_AddOns = {
         return on and 2 or 0
     end,
 }
-_G.SetPortraitTexture = function(tex, unit) tex.__portraitUnit = unit end
+-- Refuses a secret unit, as the game's docs say. The third argument leaves
+-- the round mask off (a square face).
+_G.SetPortraitTexture = function(tex, unit, square)
+    if issecretvalue and issecretvalue(unit) then error("SetPortraitTexture: secret argument") end
+    tex.__portraitUnit, tex.__portraitSquare = unit, square == true
+end
 _G.UnitIsUnit = function(a, b)
     local x, y = U(a), U(b)
     return a == b or (x ~= nil and x == y)
@@ -3097,6 +3110,24 @@ stub.QUALITY_COLORS = {
 local function itemArg(name, v)
     if issecretvalue and issecretvalue(v) then error(name .. ": secret argument") end
     return stub.items and stub.items[v]
+end
+-- The character's skills as C_SkillInfo lists them, headers and lines in the
+-- game's order: stub.SetSkills{ { name = "Professions", isHeader = true },
+-- { name = "Herbalism", rank = 125, maxRank = 150 } }. Each answer has the
+-- docs' SkillLineAttributes fields.
+function stub.SetSkills(list)
+    _G.C_SkillInfo = type(_G.C_SkillInfo) == "table" and _G.C_SkillInfo or {}
+    C_SkillInfo.GetNumSkillLines = function() return #list end
+    C_SkillInfo.GetSkillLineInfo = function(i)
+        if issecretvalue and issecretvalue(i) then error("GetSkillLineInfo: secret argument") end
+        local s = list[i]
+        if not s then return nil end
+        return { skillID = s.skillID or i, name = s.name or "", isHeader = s.isHeader == true,
+            isCollapsed = s.isCollapsed == true, rank = s.rank or 0, tempPoints = 0, modifier = s.modifier or 0,
+            maxRank = s.maxRank or 0, isAbandonable = false, stepCost = 0, rankCost = 0, minLevel = 0, costType = 0,
+            parentSkillLineID = s.parentSkillLineID or 0, skillLineCategoryID = s.skillLineCategoryID or 11,
+            description = "" }
+    end
 end
 function stub.SetItems(list)
     stub.items = list
@@ -3714,7 +3745,7 @@ end
 -- Another addon's tests load their own files the same way (DaylightMogul).
 stub.LoadFiles = loadFiles
 
-stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "MapLevels.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
+stub.SKINS_FILES = { "Defaults.lua", "Kit.lua", "Engine.lua", "Packs/NPC.lua", "Packs/Spells.lua", "Packs/Social.lua", "Packs/Collections.lua", "Packs/System.lua", "Packs/Breath.lua", "Packs/LossOfControl.lua", "Rolls/Chat.lua", "Rolls/Data.lua", "Rolls/Card.lua", "Rolls/Sample.lua", "Rolls/Stack.lua", "Packs/Game/Spellbook.lua", "Packs/Game/Character.lua", "Packs/Game/Npc.lua", "Packs/Game/Inspect.lua", "Packs/Game/Lfg.lua", "Packs/Game/Mail.lua", "Packs/Game/Social.lua", "Packs/Game/Legacy.lua", "Packs/Addons/Ace3.lua", "Packs/Addons/Questie.lua", "Packs/Addons/RXPGuides.lua", "Packs/Addons/ForeverDungeonJournal.lua", "Packs/Addons/NeedRoll.lua", "Packs/Addons/DBM.lua", "Packs/Addons/BigWigs.lua", "Packs/Addons/Attune.lua", "Packs/Addons/OPie.lua", "Packs/Addons/PrettyTooltip.lua", "Packs/Addons/Bagnon.lua", "Packs/Addons/Baganator.lua", "MapMove.lua", "MapRevealData.lua", "MapReveal.lua", "MapPinsData.lua", "MapPins.lua", "MapLevels.lua", "WindowScale.lua", "WindowMove.lua", "Options.lua", "Module.lua" }
 
 -- Loads the core (and optionally the unit frames module) into fresh namespaces
 -- the way the client does, then fires the load events.
@@ -3788,7 +3819,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/World.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end
