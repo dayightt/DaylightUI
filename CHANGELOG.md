@@ -1,3 +1,34 @@
+# DaylightUI 1.9.6
+
+Full quest details on hover, a flight timer that floats over the world, totem pieces for shamans, and a big batch of fixes.
+
+## New
+- Quests: Hover a quest in the tracker to see its full details, story and rewards (Quest tooltip detail)
+- NPC window: A Back button on quests picked from an NPC's list
+- Chat: Winning several of an item at the auction house shows what each one cost
+- Cooldown Manager: Shamans can add one piece per totem element, showing the totem that's down and its time
+- Action bars: Pick the micro menu's icon color, and show every bag slot on the bag bar
+- Buffs: Buffs and debuffs beside the minimap can be moved up or down (Buffs, Bar)
+
+## Changed
+- Flight timer: The flight timer floats over the world with your route, knows every flight's time from your first trip, and welcomes you where you land
+- Info panel: The experience bar has its own options page, border and shadow
+- Group finder: The role filters say what they show, and row tooltips stay on screen
+- Chat: New profiles start with short chat tags in your own language
+
+## Fixed
+- General: The thin text outline is thin again: 1.9.5 drew every outline much heavier
+- General: Opening a game window during a fight no longer causes an "action blocked" error
+- Nameplates: Nameplates and speech bubbles come back after loading screens, flights and cinematics, and totems show their picture right away
+- Cooldown Manager: Totem pieces, Slice and Dice, and gaps in bar stacks and 2x2 grids work right again
+- Action bars: Grouped spells like Summon Demon open their list again, and a hidden micro menu stays hidden on flights
+- Spellbook: The talents key works with the world map open, and no more floods of spellbook errors in fights
+- Character: Picking a title works again, reputation numbers show when you hover a faction, and controller tooltips show
+- Chat: Chat Style stays on what you picked, and replying to a whisper in a battleground no longer errors
+- Unit frames: Name tabs set to Fit the name fit again, and round corners no longer cover the bars' ends
+- World map: Quest rings show in fights, quest area outlines fade with the map, and the D-pad works with the map open
+- General: Smaller fixes: the mailbox's Send button, barber shop menus, bank piles, the cursor ring's cooldown, the experience bar's width, class colors in the info panel, controller focus glow colors
+
 # DaylightUI 1.9.5
 
 A scrollable loot log, crisper outlined text, and a batch of fixes.
