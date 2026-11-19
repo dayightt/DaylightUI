@@ -1503,8 +1503,9 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Level", "Text", "Cast bar", "Auras", "Extras" }
-local TAB_OF = { Portrait = "Portrait", Level = "Level", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Level", "Icons", "Text", "Cast bar", "Auras", "Extras" }
+local TAB_OF = { Portrait = "Portrait", Level = "Level", ["Leader crown"] = "Icons", ["PvP flag"] = "Icons", Resting = "Icons",
+    ["Raid marker"] = "Icons", ["Elite and rare crest"] = "Icons", ["Role icon"] = "Icons", ["Ready check, summon and rez"] = "Icons", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
@@ -2001,26 +2002,64 @@ local function framePage(id, label, desc, opts)
         needHome = " Needs the portrait or the name tab."
         homeDis = function(get) return shown(get) or noHomeFn(get) end
     end
+    -- Every icon a frame can show gets a card on the Icons tab: its switch, its
+    -- place, its nudges and its size. An icon this frame can't have shows grayed,
+    -- so you can tell where it lives.
+    local iconCards = {}
+    local function placeRows(key, label, off, what, sizeRow)
+        local rows = {
+            { type = "dropdown", key = k(key .. "Pos"), label = label .. " position", values = HOME_SPOTS, order = HOME_ORDER,
+              desc = "Where the " .. what .. " sits: where this frame puts it (with the portrait or name tab), or any spot on or around the frame. You can also drag it in Design mode.",
+              disabled = off },
+            { type = "slider", key = k(key .. "X"), label = label .. " left / right", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the " .. what .. " sideways from its position.", disabled = off },
+            { type = "slider", key = k(key .. "Y"), label = label .. " up / down", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the " .. what .. " up or down from its position.", disabled = off },
+        }
+        rows[#rows + 1] = sizeRow
+        return rows
+    end
+    local function unavailable(label, why)
+        iconCards[#iconCards + 1] = { label = label, desc = why, items = { { type = "toggle", key = k("showUnavailable." .. label),
+            label = label, desc = why, disabled = function() return true end,
+            get = function() return false end, set = function() end } } }
+    end
     if opts.portrait then
-        extras[#extras + 1] = { type = "toggle", key = k("showPvP"), label = "PvP flag",
-            desc = "Crossed swords, tinted by faction, while the unit is flagged for PvP." .. needHome, disabled = homeDis }
-        extras[#extras + 1] = { type = "slider", key = k("pvpSize"), label = "PvP flag size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the PvP flag is.", disabled = homeDis }
+        local pvpOff = function(get) return homeDis(get) or get(k("showPvP")) == false end
+        local items = { { type = "toggle", key = k("showPvP"), label = "PvP flag",
+            desc = "Crossed swords, tinted by faction, while the unit is flagged for PvP." .. needHome, disabled = homeDis } }
+        for _, row in ipairs(placeRows("pvp", "PvP flag", pvpOff, "PvP flag",
+            { type = "slider", key = k("pvpSize"), label = "PvP flag size", min = 0.5, max = 2, step = 0.05, unit = "%",
+              desc = "How big the PvP flag is.", disabled = pvpOff })) do items[#items + 1] = row end
+        iconCards[#iconCards + 1] = { label = "PvP flag", desc = "Crossed swords while the unit is flagged for PvP." .. needHome, items = items }
     end
     -- A party frame's role, marker and crown each get a card of their own,
-    -- headed by its switch (see the tile cards below); other frames keep them here.
+    -- headed by its switch (see the tile cards below).
     local iconRows, levelRows = {}, nil
-    local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item else extras[#extras + 1] = item end end
+    local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item end end
     if opts.marker then
+        local markerOff = offAny(k("enabled"), k("showMarker"))
         iconRow({ type = "toggle", key = k("showMarker"), label = "Raid marker",
             desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown })
         iconRow({ type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
-            desc = "How big the raid marker is.", disabled = offAny(k("enabled"), k("showMarker")) })
+            desc = "How big the raid marker is.", disabled = markerOff })
+        if not opts.tile then
+            iconCards[#iconCards + 1] = { label = "Raid marker", desc = "Skull, cross and the rest, shown in the name tab before the name.", items = {
+                { type = "toggle", key = k("showMarker"), label = "Raid marker",
+                  desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown },
+                { type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
+                  desc = "How big the raid marker is.", disabled = markerOff } } }
+        end
+    elseif opts.portrait then
+        unavailable("Raid marker", "Not on this frame.")
     end
     if opts.crest then
-        extras[#extras + 1] = { type = "toggle", key = k("showClassification"), label = "Elite and rare crest",
-            desc = "Gold for elites and bosses, silver for rares: a dragon around the portrait, or a small horned-helm crest on the name tab when portraits are off.",
-            disabled = shown }
+        iconCards[#iconCards + 1] = { label = "Elite and rare crest", desc = "A gold or silver crest on an elite or a rare.", items = {
+            { type = "toggle", key = k("showClassification"), label = "Elite and rare crest",
+              desc = "Gold for elites and bosses, silver for rares: a dragon around the portrait, or a small horned-helm crest on the name tab when portraits are off.",
+              disabled = shown } } }
+    elseif opts.portrait then
+        unavailable("Elite and rare crest", "Only on the target's frame.")
     end
     if opts.portrait then
         -- Everything about the level badge sits on its own tab.
@@ -2076,7 +2115,16 @@ local function framePage(id, label, desc, opts)
         iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
             desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })
         iconRow({ type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the leader's crown is.", disabled = opts.tile and offAny(k("enabled"), k("showLeader")) or shown })
+            desc = "How big the leader's crown is.", disabled = offAny(k("enabled"), k("showLeader")) })
+        if not opts.tile then
+            local crownOff = offAny(k("enabled"), k("showLeader"))
+            local items = { { type = "toggle", key = k("showLeader"), label = "Leader crown",
+                desc = "A crown on top of the portrait ring (or over the name tab) while the unit leads the group.", disabled = shown } }
+            for _, row in ipairs(placeRows("leader", "Leader crown", crownOff, "leader's crown",
+                { type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
+                  desc = "How big the leader's crown is.", disabled = crownOff })) do items[#items + 1] = row end
+            table.insert(iconCards, 1, { label = "Leader crown", desc = "A crown while the unit leads the group.", items = items })
+        end
     end
     if opts.combat then
         extras[#extras + 1] = { type = "toggle", key = k("druidMana"), label = "Druid mana in forms",
@@ -2104,10 +2152,15 @@ local function framePage(id, label, desc, opts)
             order = { "off", "spark", "trail", "line" },
             desc = "After you cast a spell that costs mana, a light crosses your mana bar for the 5 seconds until your Spirit regen is back. Shows on your player frame and personal display.",
             disabled = powerSpellOff, hidden = function() return not ns.PowerBar.HasMana() end }
-        extras[#extras + 1] = { type = "toggle", key = k("showResting"), label = "Resting",
-            desc = "Zzz on your portrait ring while you rest in an inn or city.", disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("restSize"), label = "Resting size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the resting Zzz is.", disabled = shown }
+        local restOff = offAny(k("enabled"), k("showResting"))
+        local items = { { type = "toggle", key = k("showResting"), label = "Resting",
+            desc = "Zzz on your portrait ring while you rest in an inn or city.", disabled = shown } }
+        for _, row in ipairs(placeRows("rest", "Resting", restOff, "resting Zzz",
+            { type = "slider", key = k("restSize"), label = "Resting size", min = 0.5, max = 2, step = 0.05, unit = "%",
+              desc = "How big the resting Zzz is.", disabled = restOff })) do items[#items + 1] = row end
+        iconCards[#iconCards + 1] = { label = "Resting", desc = "Zzz while you rest in an inn or city.", items = items }
+    elseif opts.portrait then
+        unavailable("Resting", "Only on your own frame.")
     end
     if opts.combat then
         extras[#extras + 1] = { type = "toggle", key = k("showThreat"), label = "Red ring in combat",
@@ -2195,6 +2248,7 @@ local function framePage(id, label, desc, opts)
         for _, item in ipairs(targetItems(k, k("enabled"))) do extras[#extras + 1] = item end
     end
     if #extras > 0 then groups[#groups + 1] = { label = "Extras", items = extras } end
+    for _, card in ipairs(iconCards) do groups[#groups + 1] = card end
     if levelRows then
         groups[#groups + 1] = { label = "Level", desc = "The unit's level: a badge or just the number, its size, color, font and place." .. needHome, items = levelRows }
     end

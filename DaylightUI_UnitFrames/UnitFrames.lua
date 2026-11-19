@@ -1618,6 +1618,13 @@ function UF.Layout(f, cfg, text, keepSize)
     -- "ring" means the portrait's foot (or the frame's corner), else a Spots spot.
     f.levelSpot = ns.Spots.Valid(cfg.levelPos) and cfg.levelPos or nil
     f.levelNudge = { x = tonumber(cfg.levelX) or 0, y = tonumber(cfg.levelY) or 0 }
+    -- The crown (on a frame without corner icons), the PvP flag and the Zzz: a spot,
+    -- or "home" (nil) where the frame puts them, nudged from there.
+    local function spotOf(v) return ns.Spots.Valid(v) and v or nil end
+    f.leaderStatusSpot = not f.leaderIcon and spotOf(cfg.leaderPos) or nil
+    f.pvpSpot, f.restSpot = spotOf(cfg.pvpPos), spotOf(cfg.restPos)
+    f.pvpNudge = { x = tonumber(cfg.pvpX) or 0, y = tonumber(cfg.pvpY) or 0 }
+    f.restNudge = { x = tonumber(cfg.restX) or 0, y = tonumber(cfg.restY) or 0 }
     f.iconScale = { leader = (cfg.leaderSize or 1), rest = (cfg.restSize or 1), pvp = (cfg.pvpSize or 1) }
     -- The level's look: a badge (shape, ring, size) or just the number, and the
     -- digits' size and color. A size of 0 is the usual one for the frame.
@@ -3545,6 +3552,26 @@ function UF.LayoutStatus(f, cfg)
         local z = f.leaderPicked * (scale.leader or 1)
         icons.leader:SetSize(z, z)
     end
+    -- The crown, PvP flag and Zzz at a spot of their own, or nudged from home
+    -- (the crown is nudged from home above).
+    local box
+    local function placeIcon(icon, spot, nudge, nudged)
+        if spot then
+            box = box or ns.AuraGroups.Box(f, cfg)
+            local at = ns.Spots.Layout(spot, "center", box, nudge)
+            icon:ClearAllPoints()
+            icon:SetPoint(at.point, f, at.relPoint, at.x, at.y)
+        elseif not nudged and (nudge.x ~= 0 or nudge.y ~= 0) then
+            local point, rel, relPoint, x, y = icon:GetPoint(1)
+            if point then
+                icon:ClearAllPoints()
+                icon:SetPoint(point, rel, relPoint, x + nudge.x, y + nudge.y)
+            end
+        end
+    end
+    placeIcon(icons.leader, f.leaderStatusSpot, ln, true)
+    placeIcon(icons.pvp, f.pvpSpot, f.pvpNudge)
+    placeIcon(icons.rest, f.restSpot, f.restNudge)
     if f.levelSpot then
         local at = ns.Spots.Layout(f.levelSpot, "center", ns.AuraGroups.Box(f, cfg), f.levelNudge)
         icons.level:ClearAllPoints()

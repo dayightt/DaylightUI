@@ -592,6 +592,35 @@ T.test("the level badge moves to a spot of its own, circle and digits together",
     T.eq(rel, f.portrait, "back on the portrait")
 end)
 
+T.test("the crown, the PvP flag and the Zzz move to a spot of their own, or nudge from home", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Me", isPlayer = true, class = "PALADIN", level = 8 }
+    end)
+    local f = ns.frames.player
+    local icons = f.status.icons
+    ns.UF.UpdateAll(f, true)
+    for key, name in pairs({ leader = "leader", pvp = "pvp", rest = "rest" }) do
+        local _, rel, _, x, y = icons[key]:GetPoint(1)
+        T.eq(rel, f.portrait, name .. " at the portrait to start")
+        DUI:Set("UnitFrames", "player." .. (key == "rest" and "rest" or key) .. "X", 7)
+        stub.RunTimers()
+        ns.UF.UpdateAll(f, true)
+        local _, _, _, nx = icons[key]:GetPoint(1)
+        T.eq(nx, x + 7, name .. " nudged from home")
+        DUI:Set("UnitFrames", "player." .. key .. "X", 0)
+        DUI:Set("UnitFrames", "player." .. key .. "Pos", "outbottomleft")
+        stub.RunTimers()
+        ns.UF.UpdateAll(f, true)
+        _, rel = icons[key]:GetPoint(1)
+        T.eq(rel, f, name .. " on the frame's spot")
+        DUI:Set("UnitFrames", "player." .. key .. "Pos", "home")
+        stub.RunTimers()
+        ns.UF.UpdateAll(f, true)
+        _, rel = icons[key]:GetPoint(1)
+        T.eq(rel, f.portrait, name .. " back home")
+    end
+end)
+
 T.test("other units' levels are colored by difficulty; skull-level units show a skull", function()
     local _, ns = login()
     local f = ns.frames.target

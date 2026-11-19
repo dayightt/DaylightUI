@@ -643,12 +643,12 @@ T.test("Reset page armed on one page is plain again on the next", function()
     T.falsy(b.armed, "hidden: disarmed")
 end)
 
-T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Level, Text, Cast bar, Auras and Extras", function()
+T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Level, Icons, Text, Cast bar, Auras and Extras", function()
     local DUI = stub.Load({ module = true })
     local P = DUI.OptionsPanel
     P.Show("UnitFrames.party")
     local pf = P.PageFrame()
-    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Name", "Level", "Text", "Cast bar", "Auras", "Extras" })
+    T.deq(pf.tabs, { "Basics", "Bars", "Portrait", "Name", "Level", "Icons", "Text", "Cast bar", "Auras", "Extras" })
     T.eq(pf.tab, "Basics")
     T.eq(pf.Find("party.width").tab, "Basics", "size in Basics")
     T.eq(pf.Find("party.direction").tab, "Basics", "layout in Basics")
@@ -658,6 +658,8 @@ T.test("tabs: the frame pages open on Basics, the rest in Bars, Name, Level, Tex
     T.eq(pf.Find("party.nameColor").tab, "Name", "the name's rows on their own tab")
     T.eq(pf.Find("party.levelWidthPx").tab, "Level", "the level's rows on theirs")
     T.eq(pf.Find("partyCastbar.at").tab, "Cast bar", "the cast bar's rows on theirs")
+    T.eq(pf.Find("party.pvpPos").tab, "Icons", "the PvP flag.s place on the icons tab")
+    T.eq(pf.Find("party.leaderPos").tab, "Icons", "the crown.s place too")
     T.eq(pf.Find("party.indicators.show").tab, "Auras")
     local rows = 0
     for _, card in ipairs(pf.cards) do

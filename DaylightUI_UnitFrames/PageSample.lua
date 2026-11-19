@@ -106,8 +106,10 @@ PageSample.PARTS = {
       move = { spot = "%s.leaderPos", x = "%s.leaderX", y = "%s.leaderY" } },
     { label = "Leader crown", at = at("leaderIcon"), keys = { "%s.showLeader", "%s.leaderPos", "%s.leaderPx" },
       move = { spot = "%s.leaderPos", x = "%s.leaderX", y = "%s.leaderY" }, size = { s = "%s.leaderPx" } },
-    { label = "PvP flag", at = status("pvp"), keys = { "%s.showPvP", "%s.pvpSize" } },
-    { label = "Resting", at = status("rest"), keys = { "%s.showResting", "%s.restSize" } },
+    { label = "PvP flag", at = status("pvp"), keys = { "%s.showPvP", "%s.pvpSize", "%s.pvpPos" },
+      move = { spot = "%s.pvpPos", x = "%s.pvpX", y = "%s.pvpY" } },
+    { label = "Resting", at = status("rest"), keys = { "%s.showResting", "%s.restSize", "%s.restPos" },
+      move = { spot = "%s.restPos", x = "%s.restX", y = "%s.restY" } },
     { label = "Role icon", at = roleRegion, keys = { "%s.showRole", "%s.rolePos", "%s.roleSize" },
       move = { spot = "%s.rolePos", x = "%s.roleX", y = "%s.roleY" }, size = { s = "%s.roleSize" } },
     -- Only the pet page's sample has one (f.happiness). Hidden while the
