@@ -9,7 +9,6 @@ local _, ns = ...
 local DUI = DaylightUI
 local Style = DUI.Style
 local isSecret = DUI.IsSecret
-local L = DUI.L
 
 local Pill = {}
 ns.RichPill = Pill
@@ -55,9 +54,11 @@ function Pill.Frame()
     local font = ns.MEDIA and ns.MEDIA.font
     f.name = Style.Text(f, Style.SIZE.body, "LEFT", font)
     f.name:SetWordWrap(false)
-    f.on = Style.Text(f, Style.SIZE.body, "LEFT", font)
-    f.on:SetWordWrap(false)
-    Style.InkText(f.on, "LABEL")
+    -- Measures how wide the health can get ("100%"): the health itself is
+    -- secret and can't be measured.
+    f.room = Style.Text(f, Style.SIZE.body, "RIGHT", font)
+    f.room:SetText("100%")
+    f.room:SetAlpha(0)
     f.pct = Style.Text(f, Style.SIZE.body, "RIGHT", font)
     f.pct:SetWordWrap(false)
     Style.InkText(f.pct, "VALUE")
@@ -83,8 +84,8 @@ function Pill.Layout()
     f.pct:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -Pill.PAD_TOP)
     f.name:ClearAllPoints()
     f.name:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
-    f.on:ClearAllPoints()
-    f.on:SetPoint("LEFT", f.name, "RIGHT", 4, 0)
+    f.room:ClearAllPoints()
+    f.room:SetPoint("TOPRIGHT", f.pct, "TOPRIGHT", 0, 0)
     f.bar:ClearAllPoints()
     f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -(Pill.PAD_TOP + lineHeight() + Pill.BAR_GAP))
     f.bar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -(Pill.PAD_TOP + lineHeight() + Pill.BAR_GAP))
@@ -108,13 +109,25 @@ local function paintLight(tex, pair)
 end
 
 -- Its words and bar for a unit. A player: class-colored name, the bar by
--- health; a creature: white name, "· on you" when it targets you, the bar in
--- its reaction's pair.
+-- health; a creature: its name white, or orange while it's on you, the bar
+-- in its reaction's pair. The name is cut short with "..." before it can
+-- reach the health.
+Pill.NAME_GAP = 8
 function Pill.Fill(unit)
     local f = Pill.Frame()
     local Tip = ns.Tooltip
     local player = plain(UnitIsPlayer(unit)) == true
-    f.name:SetText(DUI.UnitName(unit, "tooltip"))
+    local name = DUI.UnitName(unit, "tooltip")
+    f.name:SetText(name)
+    local room = f.room:GetStringWidth()
+    if isSecret(room) or type(room) ~= "number" then room = 30 end
+    local most = Pill.W - 2 * Pill.PAD_X - room - Pill.NAME_GAP
+    if isSecret(name) then
+        f.name:SetWidth(most)
+    else
+        local w = f.name:GetStringWidth()
+        f.name:SetWidth((type(w) == "number" and not isSecret(w) and w > most) and most or 0)
+    end
     local r, g, b
     if player then r, g, b = Tip.UnitColor(unit) end
     if r then
@@ -122,12 +135,11 @@ function Pill.Fill(unit)
     elseif player and DUI.Gradients and type(DUI.Gradients.HiddenClassID(unit)) ~= "nil" then
         -- A class the game hides (battlegrounds): its color as the client gives it.
         f.name:SetTextColor(DUI.Gradients.HiddenClassColor(unit))
+    elseif not player and plain(UnitIsUnit(unit .. "target", "player")) == true then
+        Style.InkText(f.name, "WARN")
     else
         Style.InkText(f.name, "TITLE")
     end
-    local onYou = not player and plain(UnitIsUnit(unit .. "target", "player")) == true
-    f.on:SetText(onYou and ("· " .. L["on you"]) or "")
-    f.on:SetShown(onYou)
     local pair = ns.RichPlayers.ClassPair(unit)
     paintLight(f.light, pair)
     f.barPair = (not player) and pair or nil

@@ -353,7 +353,14 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
     T.eq(Tip.Muted(GameTooltip), "pill")
     T.eq(stub.Text(pill.name), "Ridgeback Boar")
-    T.truthy(pill.on:IsShown(), "on you")
+    T.near(({ pill.name:GetTextColor() })[1], DaylightUI.Style.INK.WARN[1], 1e-6, "on you: its name orange")
+    -- Seen in game: a long name ran into the health.
+    stub.units.mouseover.name = "Southsea Dock Worker of the Long Name Coast"
+    hover("mouseover", { "Southsea Dock Worker of the Long Name Coast" })
+    T.truthy(pill.name:GetWidth() > 0 and pill.name:GetWidth() <= 200 - 2 * 12 - 4 * 7 - 8, "cut short before the health")
+    stub.units.mouseover.name = "Ridgeback Boar"
+    hover("mouseover", { "Ridgeback Boar" })
+    T.eq(pill.name:GetWidth(), 0, "a short one keeps its own width")
     T.isnil(pill:GetScript("OnUpdate"), "nothing of its own every frame")
     local p = Panel.Get(GameTooltip)
     T.truthy(not p or not p:IsShown(), "no card under it")
@@ -403,7 +410,7 @@ T.test("rich tooltip: the pill can be never or always", function()
     T.truthy(pill and pill:IsShown(), "always, out of a fight too")
     local r = ({ pill.name:GetTextColor() })[1]
     T.near(r, (DaylightUI.Style.ClassColor("MAGE")), 1e-6, "a player's name in their class color")
-    T.falsy(pill.on:IsShown())
+    T.near(({ pill.name:GetTextColor() })[1], (DaylightUI.Style.ClassColor("MAGE")), 1e-6, "not on anyone: its own color")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
