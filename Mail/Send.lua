@@ -434,6 +434,13 @@ function Send.Build(page)
     DUI.RegisterEvent("MAIL_FAILED", refused)
     -- A send the client never answered ends with the mailbox, or Send would stay off until /reload.
     DUI.RegisterEvent("MAIL_CLOSED", refused)
+    -- A letter to someone outside your friends and guild first asks in the client's
+    -- secure transfer box. Cancelling it sends nothing and fires no MAIL_FAILED: the
+    -- box only calls this global to wake the game's own Send button, and Daylight UI's follows it.
+    if type(_G.SendMailFrame_EnableSendMailButton) == "function" then
+        hooksecurefunc("SendMailFrame_EnableSendMailButton", refused)
+    end
+    DUI.RegisterEvent("SECURE_TRANSFER_CANCEL", refused)
     DUI.RegisterEvent("UI_ERROR_MESSAGE", function(_, kind, msg)
         if S.sending and Send.MailError(kind) then refused(); if type(msg) == "string" then Send.Say(msg, "WARN") end end
     end)
