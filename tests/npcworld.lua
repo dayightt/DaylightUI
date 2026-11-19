@@ -349,17 +349,13 @@ local function installGossip()
         end,
         ForceGossip = function() return false end,
     }
-    -- Talking to the NPC again, as a right-click does: the open quest ends and the
-    -- server sends the NPC's list again (its last gossip). Not checked in game yet.
+    -- Talking to an NPC is the game's own UI's alone: from addon code the client refuses
+    -- it outright, out of a fight too, with "has been blocked from an action only
+    -- available to the Blizzard UI" (ADDON_ACTION_FORBIDDEN, seen in game). Nothing runs.
     _G.C_PlayerInteractionManager = {
         InteractUnit = function(unit, exact)
             record("InteractUnit", unit, exact)
-            if not UnitExists(unit) then return false end
-            later(function()
-                if _G.QuestFrame:IsShown() then stub.FireEvent("QUEST_FINISHED") end
-                stub.FireEvent("GOSSIP_SHOW")
-            end)
-            return true
+            stub.errors[#stub.errors + 1] = "ADDON_ACTION_FORBIDDEN: InteractUnit()"
         end,
     }
 end

@@ -123,41 +123,16 @@ function Npc.Goodbye()
 end
 
 local function pickQuest(q)
-    if S.sample then
-        S.fromList = true
-        return Npc.Show(q.kind == "active" and "reward" or "detail", Npc.SampleQuest(q.kind == "active"))
-    end
+    if S.sample then return Npc.Show(q.kind == "active" and "reward" or "detail", Npc.SampleQuest(q.kind == "active")) end
     -- A row from the previous page: the NPC moved on before the window did.
     if S.mode ~= "gossip" and not q.index then return end
     if not firstPress() then return end
-    S.fromList = #(Npc.rows or {}) > 1
     hold()
     if S.mode == "gossip" then
         if q.kind == "active" then C_GossipInfo.SelectActiveQuest(q.questID) else C_GossipInfo.SelectAvailableQuest(q.questID) end
     else
         if q.kind == "active" then SelectActiveQuest(q.index) else SelectAvailableQuest(q.index) end
     end
-end
-
--- Back to the giver's list from a quest page. The game has no call for it, so this
--- talks to the NPC again, as a right-click on them would. Only offered when the quest
--- came from a list of more than one, and not under the client's restrictions, where
--- InteractUnit is held back.
-function Npc.CanGoBack()
-    if not S.fromList then return false end
-    if S.sample then return true end
-    local P = C_PlayerInteractionManager
-    return type(P) == "table" and type(P.InteractUnit) == "function" and not DUI.Restricted()
-end
-
-function Npc.Back()
-    if not Npc.CanGoBack() then return end
-    if S.sample then return Npc.Sample() end
-    if not firstPress() then return end
-    local unit = UnitExists("npc") and "npc" or UnitExists("questnpc") and "questnpc"
-    if not unit then return end
-    hold()   -- the list comes back in the same window
-    C_PlayerInteractionManager.InteractUnit(unit, true)
 end
 
 local function pickOption(o)
@@ -438,13 +413,6 @@ local function acceptKeyName()
 end
 local function escName() if ns.Setting("keys") ~= false and not DUI.Pad.On() then return L["Esc"] end end
 
--- Back sits just before the last button (Decline, Goodbye, Later) when there's a list
--- to go back to.
-local function withBack(list)
-    if Npc.CanGoBack() then table.insert(list, #list, { text = BACK or L["Back"], onClick = Npc.Back }) end
-    return list
-end
-
 -- Footer buttons for this page, left to right, main one first (Parts.Footer).
 function Npc.Buttons()
     local m, d = S.mode, S.data
@@ -453,11 +421,11 @@ function Npc.Buttons()
         return { { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye } }
     elseif m == "detail" then
         if d.auto then return { { text = OKAY or L["Okay"], primary = true, key = ok, onClick = Npc.Accept } } end
-        return withBack({ { text = L["Accept"], primary = true, key = ok, onClick = Npc.Accept },
-                 { text = L["Decline"], tone = "no", key = esc, onClick = Npc.Goodbye } })
+        return { { text = L["Accept"], primary = true, key = ok, onClick = Npc.Accept },
+                 { text = L["Decline"], tone = "no", key = esc, onClick = Npc.Goodbye } }
     elseif m == "progress" then
-        return withBack({ { text = CONTINUE or L["Continue"], primary = true, off = not d.completable, key = ok, onClick = Npc.Continue },
-                 { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye } })
+        return { { text = CONTINUE or L["Continue"], primary = true, off = not d.completable, key = ok, onClick = Npc.Continue },
+                 { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye } }
     elseif m == "reward" then
         if Npc.RewardsStuck() then
             return { { text = CLOSE or L["Close"], primary = true, key = ok, onClick = Npc.Goodbye } }
@@ -467,8 +435,8 @@ function Npc.Buttons()
         local text = pending and (RETRIEVING_ITEM_INFO or L["Loading..."]) or off and L["Choose a reward"] or L["Complete"]
         S.pendingShown = pending
         if S.confirm and (d.cost or 0) > 0 and DUI.MoneyString then text = string.format(L["Pay %s"], DUI.MoneyString(d.cost)) end
-        return withBack({ { text = text, primary = true, off = off, key = ok, onClick = Npc.Complete },
-                 { text = L["Later"], key = esc, onClick = Npc.Goodbye } })
+        return { { text = text, primary = true, off = off, key = ok, onClick = Npc.Complete },
+                 { text = L["Later"], key = esc, onClick = Npc.Goodbye } }
     end
     return {}
 end
@@ -600,7 +568,6 @@ function Npc.Show(mode, data, sample)
     Npc.open = f
     local opening = not Win.IsOpen(f)
     if sample ~= nil then S.sample = sample elseif opening then S.sample = false end
-    if Npc.KIND[mode] ~= "quest" or mode == "greeting" then S.fromList = nil end   -- Back only from a quest page
     S.mode, S.data, S.choice, S.confirm = mode, data, nil, false
     S.holdUntil, S.sentUntil = 0, 0
     S.itemWaits = {}
@@ -645,7 +612,7 @@ end
 function Npc.Close()
     local f = Npc.frame
     if not f then return end
-    S.mode, S.data, S.fromList = nil, nil, nil
+    S.mode, S.data = nil, nil
     for _, w in ipairs({ f, Npc.scene }) do
         Win.KeysOn(w, false)
         Win.Close(w)
