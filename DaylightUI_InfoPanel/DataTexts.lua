@@ -1446,7 +1446,7 @@ function DT.DigitSlack(s, str)
         local w = fs:GetStringWidth() or 0
         if w > widest then wide, widest = tostring(d), w end
     end
-    -- The same text with every digit (outside colour codes) as the widest
+    -- The same text with every digit (outside color codes) as the widest
     -- one; a clock under ten minutes (9:59) gets the digit 10:00 will have.
     local colors = {}
     local tmp = str:gsub("|c%x%x%x%x%x%x%x%x", function(c) colors[#colors + 1] = c return "\1" end)
