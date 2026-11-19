@@ -3442,8 +3442,8 @@ function UF.FitLevelBox(f)
     local box, text = st.icons.level, st.levelText
     local es = st:GetEffectiveScale()
     if type(es) ~= "number" or es <= 0 or not text.GetStringWidth then return end
-    local ok, tw = pcall(text.GetStringWidth, text)
-    if not ok or type(tw) ~= "number" or isSecret(tw) or tw <= 0 then return end
+    local tw = text:GetStringWidth()
+    if type(tw) ~= "number" or isSecret(tw) or tw <= 0 then return end
     local bw = math.floor((f.levelBaseW or box:GetWidth()) * es + 0.5)
     local aw = math.floor(tw * es + 0.5)
     if (bw - aw) % 2 == 0 then bw = bw + 1 end
