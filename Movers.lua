@@ -964,7 +964,7 @@ function Movers.Grid() return grid end
 -- listed.
 Movers.OPTIONS = {
     chat = { "Chat.chat" }, tooltip = { "Tooltip.tooltip" },
-    infopanel = { "InfoPanel.panel" }, ["infopanel.xp"] = { "InfoPanel.panel" },
+    infopanel = { "InfoPanel.panel" }, ["infopanel.xp"] = { "InfoPanel.xp" },
     ["infopanel.meter"] = { "InfoPanel.meter" }, ["infopanel.meter.*"] = { "InfoPanel.meter" },
     ["infopanel.threat"] = { "InfoPanel.meter" }, ["infopanel.tracker"] = { "InfoPanel.tracker" },
     ["quests.tracker"] = { "Quests.tracker" }, ["quests.arrow"] = { "Quests.navigation" },

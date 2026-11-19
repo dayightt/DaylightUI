@@ -684,7 +684,7 @@ function ns.Build(mod)
     Panel.inCombat = InCombatLockdown()
     local list = {}   -- (one table, refilled: the fade asks often)
     DUI.Fade.Register{ key = "InfoPanel.panel", scope = "InfoPanel", path = "fade",
-        page = { "InfoPanel.panel", "InfoPanel.data", "InfoPanel.meter" },
+        page = { "InfoPanel.panel", "InfoPanel.data", "InfoPanel.meter", "InfoPanel.xp" },
         frames = function()
             for i = #list, 1, -1 do list[i] = nil end
             list[1] = Panel.holder

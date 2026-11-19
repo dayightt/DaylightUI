@@ -78,7 +78,7 @@ local function shellGroup(id, label, gate, attached)
     local k = function(s) return id .. ".shell." .. s end
     local dis = function(get) return get(gate) ~= true or get(k("own")) ~= true end
     return { label = label,
-        desc = attached and "Attached to the info panel, the bar's box follows the panel's border (the Info panel border switch on General, and General > Appearance). Turn on its own look to set a border, corners and shadow just for this bar."
+        desc = attached and "Attached to the info panel, the bar follows the panel's border. Turn on its own look to give it a border, corners and shadow of its own."
             or "This bar's own outline, corners and shadow. When off, it follows General > Appearance.",
         items = {
             { type = "toggle", key = k("own"), label = "Own border and shadow", disabled = off(gate),
