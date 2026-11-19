@@ -657,29 +657,35 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.near(({ head.icon.edge:GetVertexColor() })[1], EPIC[1], 1e-6)
     T.eq(stub.Text(head.tags[1].text), "ILVL 66")
     T.eq(stub.Text(head.tags[2].text), "LEGS · PLATE")
+    T.eq(stub.Text(head.tags[3].text), "BINDS WHEN EQUIPPED", "its binding a tag under its name, as the game puts it")
     T.truthy(p.washDown and p.wash[1]:IsShown(), "the quality washing down from the top")
     T.truthy(p.lightFade, "the light fades out along its right part")
-    -- Rows, stats, set, foot.
+    -- One list of numbers, all rows: armor, then each stat.
     local rows = kinds(p, "row")
-    T.eq(stub.Text(rows[1].label), "Armor")
-    T.eq(stub.Text(rows[1].value), "742")
-    local lines = kinds(p, "line")
     local Tip = stub.tooltip.Tooltip
-    local hex = DaylightUI.Win.Parts.Hex
-    T.eq(stub.Text(lines[1].fs), hex(Tip.STAT_COLORS.Strength) .. "+24|r Strength", "the number in its stat's color")
-    T.eq(stub.Text(lines[2].fs), hex(Tip.STAT_COLORS.Stamina) .. "+31|r Stamina")
-    T.eq(stub.Text(lines[3].fs), hex(DaylightUI.Style.INK.GOOD) .. "+1%|r Crit", "an Equip line, short")
-    T.eq(stub.Text(lines[3].tail), "· from Equip", "with where it comes from")
-    T.truthy(stub.Text(lines[4].fs):find("^DAWNFORGED BATTLEGEAR "), "the set's name")
-    T.truthy(stub.Text(lines[4].fs):find("2/5", 1, true), "its count")
+    local function row(i, label, value, color)
+        T.eq(stub.Text(rows[i].label), label)
+        T.eq(stub.Text(rows[i].value), value)
+        if color then T.near(({ rows[i].value:GetTextColor() })[1], color[1], 1e-6, label .. " in its stat's color") end
+    end
+    row(1, "Armor", "742")
+    row(2, "Strength", "+24", Tip.STAT_COLORS.Strength)
+    row(3, "Stamina", "+31", Tip.STAT_COLORS.Stamina)
+    row(4, "Crit", "+1%", Tip.STAT_COLORS.Crit)
+    T.eq(stub.Text(rows[4].note), "Equip", "an Equip line's stat says so before its value")
+    T.isnil(rows[2].note)
+    local lines = kinds(p, "line")
+    T.truthy(stub.Text(lines[1].fs):find("^DAWNFORGED BATTLEGEAR "), "the set's name")
+    T.truthy(stub.Text(lines[1].fs):find("2/5", 1, true), "its count")
     local texts = kinds(p, "text")
     local said = {}
     for _, t in ipairs(texts) do said[#said + 1] = stub.Text(t.fs) end
-    T.eq(said[1], "Binds when equipped", "the other facts, small and tan, under the stats")
-    T.eq(said[2], "+40 Attack Power", "a bonus you have, short")
-    T.near(({ texts[2].fs:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6)
-    T.eq(said[3], "(4) 5% chance on hit to heal you for 120.", "one you don't")
-    T.near(({ texts[3].fs:GetTextColor() })[1], DaylightUI.Style.INK.OFF[1], 1e-6)
+    T.eq(said[1], "+40 Attack Power", "a bonus you have, short")
+    T.near(({ texts[1].fs:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6)
+    T.eq(said[2], "(4) 5% chance on hit to heal you for 120.", "one you don't")
+    T.near(({ texts[2].fs:GetTextColor() })[1], DaylightUI.Style.INK.OFF[1], 1e-6)
+    T.eq(#said, 2, "nothing else in words")
+    for _, t in ipairs(said) do T.falsy(t:find("Binds", 1, true), "the binding only in its tag") end
     for _, t in ipairs(said) do
         T.falsy(t:find("Dawnforged Helm", 1, true), "the set's pieces left out: the count says it")
         T.falsy(t:find("Item Level", 1, true), "item level only in its tag")
@@ -689,7 +695,7 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.truthy(stub.Text(foot.value):find("3", 1, true) and stub.Text(foot.value):find("42", 1, true), "the sell price")
     T.falsy(stub.Text(foot.value):find("Sell Price", 1, true))
     T.eq(#kinds(p, "hints"), 0, "no key hints: the card is what you read")
-    T.eq(#kinds(p, "rule"), 3, "a rule between each part: base, what it does, set, foot")
+    T.eq(#kinds(p, "rule"), 2, "a rule between the parts: the numbers, the words, the foot")
     for i = 1, GameTooltip:NumLines() do T.eq(_G["GameTooltipTextLeft" .. i]:GetAlpha(), 0, "the game's lines muted") end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -816,8 +822,8 @@ T.test("rich tooltip: a compare tooltip is the same card as the item's, its chan
     local rows = kinds(p, "row")
     T.eq(stub.Text(rows[1].label), "Armor", "the same rows as the item's")
     T.eq(stub.Text(rows[1].value), "646")
-    local lines = kinds(p, "line")
-    T.truthy(stub.Text(lines[1].fs):find("+16|r Strength", 1, true), "and the same stat lines")
+    T.eq(stub.Text(rows[2].label), "Strength", "and the same stat rows")
+    T.eq(stub.Text(rows[2].value), "+16")
     local last = p.items[p.count]
     T.eq(last.kind, "tags", "the changes last")
     T.eq(#last.list, 4)
@@ -903,9 +909,8 @@ T.test("rich tooltip: a sell price line another addon rewrote keeps its coins", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- Seen in game: so many rules the card wasted space. Rules only
--- where the board has them: under the base rows, between the stats and a
--- set, and over the foot.
+-- Seen in game: so many rules the card wasted space. A rule only between
+-- the card's parts: its numbers, what it says in words, its foot.
 T.test("rich tooltip: rules only between the card's big parts", function()
     local _, Panel = login("rich")
     items()
@@ -914,11 +919,11 @@ T.test("rich tooltip: rules only between the card's big parts", function()
         "Sell Price: 1|A:coin-gold:0:0|a 25|A:coin-silver:0:0|a" }
     fillItem(GameTooltip, "greaves", list, function(t) t:AddDoubleLine("AH price", "1g 25s") end)
     local p = Panel.Get(GameTooltip)
-    T.eq(#kinds(p, "rule"), 2, "armor | stats and facts | the foot with other addons' lines")
-    -- The board's set item: armor | stats | set | foot.
+    T.eq(#kinds(p, "rule"), 2, "armor and stats | requirements | the foot with other addons' lines")
+    -- The board's set item: armor and stats | set | foot.
     fillItem(GameTooltip, "greaves", GREAVES)
     update()
-    T.eq(#kinds(p, "rule"), 3)
+    T.eq(#kinds(p, "rule"), 2)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1740,14 +1745,27 @@ T.test("rich tooltip: an item's effects sit a little apart from its stats", func
     fillItem(GameTooltip, "greaves", { { "Ring of Thorns", nil, { 0, 0.44, 0.87 } }, "+8 Stamina",
         { "Equip: When struck in melee combat, has a 10% chance of stealing 39 life from the target enemy.", nil, { 0.1, 1, 0.1 } } })
     local p = Panel.Get(GameTooltip)
-    local stat, gap
-    for i = 1, p.count do
-        local it = p.items[i]
-        if it.kind == "line" then stat = i end
-        if stat and i == stat + 1 then gap = it end
-    end
-    T.truthy(gap and gap.kind == "gap", "a gap after the stats")
-    T.eq(gap.h, stub.tooltip.RichItems.GROUP_GAP)
+    local stat
+    for i = 1, p.count do if p.items[i].kind == "row" then stat = i end end
+    T.eq(p.items[stat + 1].kind, "rule", "a rule after the stats")
     T.eq(p.items[stat + 2].kind, "text", "then the effect")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Binding and Unique are tags under the name. Long ones go on a second row
+-- rather than past the card's edge.
+T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up", "Unique",
+        { "Legs", "Plate" }, "742 Armor" })
+    local head = Panel.Get(GameTooltip).items[1]
+    T.eq(#head.tags, 4)
+    T.eq(stub.Text(head.tags[3].text), "BINDS WHEN PICKED UP")
+    T.eq(stub.Text(head.tags[4].text), "UNIQUE")
+    T.eq(head.tags[1].row, 1)
+    T.truthy(head.tags[4].row > 1, "the last ones on another row")
+    local room = 290 - 2 * 16 - 44 - 12
+    for _, tag in ipairs(head.tags) do T.truthy(tag.at + tag:GetWidth() <= room + 0.5, "never past the edge") end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

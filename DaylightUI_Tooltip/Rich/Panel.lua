@@ -35,6 +35,7 @@ Panel.MIN_W = 160
 Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
 Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true, cooldown = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
+Panel.TAG_ROW_GAP = 4  -- between two rows of a header's tags
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
 Panel.SHADE = 0.45     -- a bar colored from a curve: its dark end, as black over the fill
@@ -377,7 +378,8 @@ function Panel.Header(p, spec)
 end
 
 -- A label on the left, its value on the right. s: their text size (body).
-function Panel.Row(p, label, value, valueColor, labelColor, s)
+-- note: a small word right before the value, in noteColor (a stat's "Equip").
+function Panel.Row(p, label, value, valueColor, labelColor, s, note, noteColor)
     local item = add(p, { kind = "row" })
     item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL)
     item.label:SetText(label or "")
@@ -385,6 +387,10 @@ function Panel.Row(p, label, value, valueColor, labelColor, s)
         item.value = text(p, s or Style.SIZE.body, valueColor or Style.INK.VALUE)
         item.value:SetText(value)
         item.value:SetJustifyH("RIGHT")
+        if note then
+            item.note = text(p, Style.SIZE.tiny, noteColor or Style.INK.LABEL)
+            item.note:SetText(note)
+        end
     end
 end
 
@@ -528,6 +534,7 @@ local function natural(item)
         return icon + w
     elseif k == "row" then
         return widthOf(item.label) + (item.value and (16 + widthOf(item.value)) or 0)
+            + (item.note and (Panel.NOTE_GAP + widthOf(item.note)) or 0)
     elseif k == "text" or k == "section" then
         return widthOf(item.fs)
     elseif k == "line" then
@@ -579,7 +586,21 @@ function place.header(p, item, y, inner)
     local col = th
     if item.sub then col = col + 2 + lineHeight(item.sub, item.sub.size) end
     local tagGap = spec.tagGap or 5
-    if item.tags and #item.tags > 0 then col = col + tagGap + W().TAG_H end
+    local tagRows = 0
+    if item.tags and #item.tags > 0 then
+        -- As many rows as the tags need beside the icon.
+        local room, tx = inner + padX(p) - x, 0
+        tagRows = 1
+        for _, tag in ipairs(item.tags) do
+            local w = tag:GetWidth()
+            if tx > 0 and tx + w > room then
+                tagRows, tx = tagRows + 1, 0
+            end
+            tag.row, tag.at = tagRows, tx
+            tx = tx + w + Panel.TAG_GAP
+        end
+        col = col + tagGap + tagRows * W().TAG_H + (tagRows - 1) * Panel.TAG_ROW_GAP
+    end
     -- The words sit in the middle of the icon's height when shorter.
     local top = y + math.max(0, (h - col) / 2)
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
@@ -595,24 +616,28 @@ function place.header(p, item, y, inner)
         item.sub:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(ty + 2))
         ty = ty + 2 + lineHeight(item.sub, item.sub.size)
     end
-    if item.tags and #item.tags > 0 then
-        local tx = x
+    if tagRows > 0 then
         for _, tag in ipairs(item.tags) do
-            tag:SetPoint("TOPLEFT", p, "TOPLEFT", tx, -(ty + tagGap))
-            tx = tx + tag:GetWidth() + Panel.TAG_GAP
+            tag:SetPoint("TOPLEFT", p, "TOPLEFT", x + tag.at, -(ty + tagGap + (tag.row - 1) * (W().TAG_H + Panel.TAG_ROW_GAP)))
         end
-        ty = ty + tagGap + W().TAG_H
+        ty = ty + tagGap + tagRows * W().TAG_H + (tagRows - 1) * Panel.TAG_ROW_GAP
     end
     item.h = math.max(h, ty - y)
     return item.h
 end
 
+Panel.NOTE_GAP = 6
 function place.row(p, item, y)
     item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = lineHeight(item.label, item.label.size)
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
-        item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
+        if item.note then
+            -- The value as wide as its text, the note on its baseline before it.
+            item.note:SetPoint("BOTTOMRIGHT", item.value, "BOTTOMLEFT", -Panel.NOTE_GAP, 0)
+        else
+            item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
+        end
         h = math.max(h, lineHeight(item.value, item.value.size))
     end
     return h

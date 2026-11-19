@@ -20,10 +20,10 @@ ns.RichItems = Items
 
 Items.ICON = 44
 Items.PAD_TOP = 16
-Items.AFTER_HEADER = 12
+Items.AFTER_HEADER = 10
 Items.TAG_GAP = 6       -- between the title and its tags
-Items.ROW_GAP = 3
-Items.RULE_GAP = 13     -- a rule's 10 px each side plus the rows' own 3
+Items.ROW_GAP = 5       -- one rhythm for every row
+Items.RULE_GAP = 8      -- each side of a rule
 Items.EPIC = 4          -- the quality light sweeps from here up
 Items.AFTER_TAG = 8     -- a compare card's Equipped tag, then the header
 Items.MIN_QUALITY = 2   -- uncommon and up: the name, light and outline in its color
@@ -131,12 +131,22 @@ local function trigger(t)
     end
 end
 
--- A stat line in the card's look: the number in its stat's color, the name
--- in the sentence color, and a smaller tail after it when given ("from Equip").
-local function statLine(p, num, name, color, tail)
-    local Panel = ns.RichPanel
-    Panel.Line(p, hex(color) .. num .. "|r " .. name, Style.INK.TEXT, nil,
-        tail and string.format(L["· %s"], tail) or nil, Style.INK.LABEL)
+-- A stat as a row like every other number on the card: its name the label,
+-- the number in its stat's color; one from an Equip line says so before it.
+local function statRow(p, num, name, color, equip)
+    ns.RichPanel.Row(p, name, num, color, Style.INK.LABEL, nil, equip and L["Equip"] or nil, Style.INK.GOOD)
+end
+
+-- The game's binding lines and Unique: facts about the item itself, shown
+-- as tags under its name (where the game puts them too).
+local function isBadge(line, t)
+    if line.type == (Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.ItemBinding or 20) then return true end
+    for _, word in ipairs({ ITEM_SOULBOUND or "Soulbound", ITEM_BIND_ON_PICKUP or "Binds when picked up",
+        ITEM_BIND_ON_EQUIP or "Binds when equipped", ITEM_BIND_ON_USE or "Binds when used", ITEM_BIND_QUEST or "Quest Item",
+        ITEM_UNIQUE or "Unique", ITEM_UNIQUE_EQUIPPABLE or "Unique-Equipped", ITEM_ACCOUNTBOUND, ITEM_BNETACCOUNTBOUND }) do
+        if type(word) == "string" and t == word then return true end
+    end
+    return false
 end
 
 -- A row from a line like "Speed 2.60": the words as its label, the number its value.
@@ -154,7 +164,6 @@ local function sort(n, lines, own, info, groups, skip)
     local inSet = false
     local sellWord = type(SELL_PRICE) == "string" and SELL_PRICE or "Sell Price"
     local sellType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice or 11
-    local ownWord = L["from Equip"]
     for i = 2, n do
         local line = lines[i]
         local left, right = line.left, line.right
@@ -176,6 +185,8 @@ local function sort(n, lines, own, info, groups, skip)
             end
         elseif not mine then
             if not (skip and skip[i]) then groups.other[#groups.other + 1] = i end
+        elseif isBadge(line, t) then
+            info.badges[#info.badges + 1] = t
         elseif info.slot and t == info.slot then
             -- Shown in the slot tag.
             info.slotWord = right and Items.Words(right) or nil
@@ -185,22 +196,22 @@ local function sort(n, lines, own, info, groups, skip)
             foot.durability = t
         elseif t:find(P.armor) then
             local v = t:match(P.armor)
-            groups.base[#groups.base + 1] = function(p) ns.RichPanel.Row(p, ARMOR or L["Armor"], v) end
+            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, ARMOR or L["Armor"], v) end
         elseif t:find(P.block) then
             local v = t:match(P.block)
-            groups.base[#groups.base + 1] = function(p) ns.RichPanel.Row(p, BLOCK or L["Block"], v) end
+            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, BLOCK or L["Block"], v) end
         elseif t:find(P.damage) then
             local lo, hi = t:match(P.damage)
-            groups.base[#groups.base + 1] = function(p)
+            groups.list[#groups.list + 1] = function(p)
                 ns.RichPanel.Row(p, DAMAGE or L["Damage"], string.format(L["%s - %s"], lo, hi))
             end
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
             if words then
-                groups.base[#groups.base + 1] = function(p) ns.RichPanel.Row(p, words, num) end
+                groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, words, num) end
             end
         elseif t:find(P.dps) then
             local v = t:match(P.dps)
-            groups.base[#groups.base + 1] = function(p) ns.RichPanel.Row(p, L["Damage per second"], v) end
+            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, L["Damage per second"], v) end
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
             inSet = true
@@ -230,7 +241,8 @@ local function sort(n, lines, own, info, groups, skip)
                 for part in (short .. "\n"):gmatch("(.-)\n") do
                     local num, name = Items.Stat(part)
                     if num then
-                        groups.stats[#groups.stats + 1] = function(p) statLine(p, num, name, Style.INK.GOOD, ownWord) end
+                        local color = Tip.StatColor(name) or Style.INK.GOOD
+                        groups.list[#groups.list + 1] = function(p) statRow(p, num, name, color, true) end
                     end
                 end
             elseif word then
@@ -243,12 +255,12 @@ local function sort(n, lines, own, info, groups, skip)
         elseif Items.Stat(t) and not right and not isRed(c) then
             local num, name = Items.Stat(t)
             local color = Tip.StatColor(name) or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
-            groups.stats[#groups.stats + 1] = function(p) statLine(p, num, name, color) end
+            groups.list[#groups.list + 1] = function(p) statRow(p, num, name, color) end
         elseif ns.Rich.IsFlavor(line) then
-            groups.facts[#groups.facts + 1] = function(p) ns.Rich.Flavor(p, line) end
+            groups.quote[#groups.quote + 1] = function(p) ns.Rich.Flavor(p, line) end
         else
-            -- Binding, unique, requirements, classes: small, tan, a
-            -- requirement you don't meet in red.
+            -- Requirements, classes, anything else the game says: small, tan,
+            -- a requirement you don't meet in red.
             local color = isRed(c) and Style.INK.BAD or Style.INK.LABEL
             local words = right and (t .. "  " .. Items.Words(right)) or t
             groups.facts[#groups.facts + 1] = function(p) ns.RichPanel.Text(p, words, color, Style.SIZE.small) end
@@ -269,7 +281,8 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     p.washDown = true
     local first = lines[1]
     local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
-    local groups = { base = {}, stats = {}, effects = {}, set = {}, facts = {}, other = {} }
+    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, other = {} }
+    info.badges = {}
     local foot = sort(n, lines, math.min(own, n), info, groups, compare and compare.skip)
     if compare then
         Panel.Tags(p, { { compare.label, Style.INK.LABEL } })
@@ -294,13 +307,14 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         what = info.sub and info.sub ~= info.kind and string.format(L["%s · %s"], info.kind, info.sub) or info.kind
     end
     if what then tags[#tags + 1] = { what, Style.INK.LABEL } end
+    for _, badge in ipairs(info.badges) do tags[#tags + 1] = { badge, Style.INK.LABEL } end
     Panel.Header(p, { icon = info.icon, iconSize = Items.ICON, iconEdge = info.color,
         title = first and first.left or "", titleColor = titleColor, tags = tags, tagGap = Items.TAG_GAP,
         wash = info.color })
     Panel.Gap(p, Items.AFTER_HEADER)
-    -- The card's parts, a rule between each that has something: the base
-    -- rows, what it does, its set, and the foot. Inside a part, groups sit a
-    -- small gap apart.
+    -- The card's parts, a rule between each that has something: the list of
+    -- numbers, then everything said in words (effects, set, other facts, the
+    -- quote last), then the foot. Inside a part, groups sit a small gap apart.
     local any = false
     local function part(...)
         local first = true
@@ -323,11 +337,8 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
             Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
         end
     end
-    part(groups.base)
-    -- What it does: its stats, its effects (a sentence each, a little apart
-    -- from the stats), then the other facts (binding, requirements) small and tan.
-    part(groups.stats, groups.effects, groups.facts)
-    part(groups.set)
+    part(groups.list)
+    part(groups.effects, groups.set, groups.facts, groups.quote)
     part(other)
     -- A compare's chips: what changes if you swap, last.
     if compare and #compare.chips > 0 then
