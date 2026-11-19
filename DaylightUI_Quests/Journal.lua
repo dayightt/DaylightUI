@@ -696,9 +696,14 @@ function Journal.BlobFollow(b, map)
     pcall(b.SetBorderAlpha, b, math.floor(Journal.BLOB_BORDER_ALPHA * a + 0.5))
 end
 
+-- The ring and the area are made with no parent and then moved onto the map's
+-- canvas. The game's controller code rescans a window it manages when a frame is
+-- created under it, and that rescan is refused in combat; moving a frame in
+-- (SetParent) doesn't rescan, so this works in a fight too.
 local function makeBlob(child, map)
-    local ok, b = pcall(CreateFrame, "QuestPOIFrame", nil, child)
+    local ok, b = pcall(CreateFrame, "QuestPOIFrame")
     if not ok or type(b) ~= "table" then return nil end
+    b:SetParent(child)
     b:SetAllPoints(child)
     b:EnableMouse(false)
     pcall(b.SetFillTexture, b, Journal.BLOB_FILL)
@@ -736,7 +741,8 @@ function Journal.PinFor(map, questID)
 end
 
 local function makeRing(child)
-    local r = CreateFrame("Frame", nil, child)
+    local r = CreateFrame("Frame")   -- no parent, then onto the canvas (see makeBlob)
+    r:SetParent(child)
     r:SetSize(Journal.RING_OUTER_SIZE, Journal.RING_OUTER_SIZE)
     r:EnableMouse(false)
     r.outer = r:CreateTexture(nil, "OVERLAY")

@@ -51,6 +51,13 @@ function Reputation.Bar(f)
     return { value = f.value - f.min, max = span, key = key, rgb = plainColor(f.reaction) }
 end
 
+-- The row's hover text: "3,600 / 12,000", or nil with no span.
+function Reputation.BarText(f)
+    local span = f.max - f.min
+    if span <= 0 then return nil end
+    return string.format("%s / %s", ns.List.Number(f.value - f.min), ns.List.Number(span))
+end
+
 function Reputation.Items(factions)
     local items = {}
     for _, f in ipairs(factions) do
@@ -61,7 +68,7 @@ function Reputation.Items(factions)
             items[#items + 1] = { kind = "row", key = "f" .. tostring(f.id or f.index), text = f.name,
                 right = Reputation.StandingName(f.reaction),
                 rightColor = ns.List.Light("REP_" .. f.reaction) or plainColor(f.reaction),
-                bar = Reputation.Bar(f), indent = f.child and 1 or 0, data = f }
+                bar = Reputation.Bar(f), barText = Reputation.BarText(f), indent = f.child and 1 or 0, data = f }
         end
     end
     return items

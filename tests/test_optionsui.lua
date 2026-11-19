@@ -448,8 +448,10 @@ end)
 T.test("a color pair hidden right now leaves its card narrow; showing it widens the card", function()
     local DUI = stub.Load({ infopanel = true })
     local P = DUI.OptionsPanel
-    P.Show("InfoPanel.panel")
+    P.Show("InfoPanel.xp")
     local pf = P.PageFrame()
+    pf.SetTab("Look")
+    pf.Layout("")
     local look
     for _, card in ipairs(pf.cards) do
         if card.group.label == "Experience bar look" then look = card end

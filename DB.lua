@@ -456,6 +456,16 @@ end
 -- Settings from before profiles (version 1) become the standard profile.
 -- Profiles saved back then (snapshots) become their own profiles, taking what
 -- snapshots left out (learned as you play) from the standard one.
+-- The short chat tags start from the player's language for new profiles (Chat's tagLetters
+-- default is "native"). A profile that existed before keeps the English letters it has always
+-- had, set once here, so nobody wakes up to new letters in party and raid chat (P becoming G...).
+-- A profile still on the old default has no value saved for it (only changes are saved).
+function DB.KeepEnglishTags(p)
+    if type(p.modules) ~= "table" then p.modules = {} end
+    if type(p.modules.Chat) ~= "table" then p.modules.Chat = {} end
+    if p.modules.Chat.tagLetters == nil then p.modules.Chat.tagLetters = "english" end
+end
+
 local function migrate(sv)
     if type(sv.profileData) ~= "table" then sv.profileData = {} end
     local pd = sv.profileData
@@ -504,6 +514,10 @@ local function migrate(sv)
         if type(p) == "table" and not p.backs1 then
             p.backs1 = true
             DB.OwnBacks(p)
+        end
+        if type(p) == "table" and not p.tagLetters1 then
+            p.tagLetters1 = true
+            DB.KeepEnglishTags(p)
         end
         if type(p) == "table" and not p.localFont1 then
             p.localFont1 = true
@@ -586,7 +600,7 @@ local function point()
     if type(pd[DB.activeName]) ~= "table" then DB.activeName = DB.Fallback() end
     if type(pd[DB.activeName]) ~= "table" then
         -- The account's first profile. Whatever the setup guide saves comes from this.
-        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, unsaved = true,
+        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, unsaved = true,
                               general = {},
                               modules = DB.StandardStart() }
         pd[DB.activeName].general.localFont = DB.NonLatinClient() or nil

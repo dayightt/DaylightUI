@@ -1214,6 +1214,8 @@ local function combatActive()
     return type(R) == "table" and T and R.IsAddOnRestrictionActive(T.Combat) == true
 end
 
+local relist = {} -- the game's own windows handed back for the fight, still shown
+
 -- Called while the game still listens. Inside the restriction's own event it
 -- reports "not active", and PLAYER_REGEN_DISABLED fires before lockdown.
 local function handBack()
@@ -1224,6 +1226,19 @@ local function handBack()
     Pad.HideHints()
     local m = manager()
     if not m or combatActive() then return end
+    -- The world map, a game window, would keep the D-pad through the fight. Only
+    -- the map: the game's pop-ups would lose where focus returns to, and loot
+    -- rolls showing at a pull need the D-pad.
+    local map, list = _G.WorldMapFrame, m.shownFrames
+    if type(map) == "table" and type(list) == "table" and not followed[map] and not forgetting[map] and not told[map] then
+        for _, f in ipairs(list) do
+            if f == map then
+                m:FrameHidden(map)
+                if map:IsShown() then relist[#relist + 1] = map end
+                break
+            end
+        end
+    end
     for frame in pairs(told) do
         told[frame] = nil
         m:FrameHidden(frame)
@@ -1235,6 +1250,15 @@ local function takeBack()
     local asked = waiting
     waiting = {}
     for _, fn in pairs(asked) do fn() end
+    -- The map first, so a Daylight UI window open across the fight is announced last.
+    local back = relist
+    relist = {}
+    local m = manager()
+    if m and not InCombatLockdown() then
+        for _, f in ipairs(back) do
+            if f:IsShown() and not followed[f] and not forgetting[f] then m:FrameShown(f) end
+        end
+    end
     -- padSecond frames last, with focus unless another Daylight UI window is open.
     local second = {}
     for frame in pairs(followed) do

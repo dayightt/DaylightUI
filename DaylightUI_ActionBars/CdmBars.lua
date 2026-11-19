@@ -165,17 +165,25 @@ end
 -- ignored (isOnGCD and isActive are never secret). With charge lines on (the
 -- default), one piece per charge.
 function B.UpdateCooldown(f)
+    local C = ns.CdmCustom
+    -- An element piece follows its slot, its icon grayed for a cooldown totem's cooldown.
+    local element = f.totem and C ~= nil and C.Element(f.cooldownID) ~= nil
+    local phase, slotDur
+    if element and f.cooldownInfo then
+        phase, slotDur = ns.CdmOwn.FollowSlot(f, f.Icon.Icon)
+        f.Icon.Icon:SetDesaturated(phase == "cooldown")
+    end
     local sid = f.cooldownInfo and f.cooldownInfo.spellID
     if not sid then return end
     local d, active, count = nil, false, ""
-    local C = ns.CdmCustom
     local item = C and C.ItemOf(f.cooldownID)
     local charges = not item and not f.totem and spellAPI("GetSpellCharges")
+    local totem = f.totem and phase ~= "cooldown"
     local okC, ch = false, nil
     if charges then okC, ch = pcall(charges, sid) end
     local most = okC and type(ch) == "table" and plainNum(ch.maxCharges)
-    if f.totem and C then   -- a totem: its time while it stands
-        d = C.TotemUp(sid)
+    if totem and C then   -- a totem: its time while it stands
+        if element then d = slotDur else d = C.TotemUp(sid) end
         active = type(d) ~= "nil"
     elseif most and most > 1 then
         active = plainBool(ch.isActive) == true

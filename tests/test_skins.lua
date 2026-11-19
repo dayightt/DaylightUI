@@ -2219,6 +2219,59 @@ T.test("skins: the game menu's controller focus glow has no header piece and kee
     _G.GetCVar = getCVar
 end)
 
+-- The world map keeps its focus glow on its BorderFrame (FocusFrameParent in
+-- Blizzard_WorldMap.xml), so it stayed at full strength with Focus Opacity at 0.
+T.test("skins: a glow kept on a child (the world map's BorderFrame) keeps the opacity too", function()
+    local getCVar = _G.GetCVar
+    _G.GetCVar = function(k) if k == "GamepadFocusStateOpacity" then return "0" end end
+    login()
+    local Kit = stub.skins.Kit
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.FocusFrameParent = "BorderFrame"
+    f.BorderFrame = CreateFrame("Frame", nil, f)
+    f.BorderFrame.FrameGlow = CreateFrame("Frame", nil, f.BorderFrame)
+    f.BorderFrame.FrameGlow.GlowTexture = f.BorderFrame.FrameGlow:CreateTexture()
+    Kit.FocusGlow(f)
+    T.eq(f.BorderFrame.FrameGlow:GetAlpha(), 0, "the saved opacity on the child's glow")
+    _G.GetCVar = getCVar
+end)
+
+-- Glows on windows no skin dresses (the minimap's tracking menu, the shop) kept
+-- full strength too. Every glow registers for the opacity setting with
+-- CVarCallbackRegistry, so they're all found there: at start, and each time the
+-- controller's focus moves (a menu's glow is made when it first opens).
+T.test("skins: every controller focus glow keeps the saved opacity, made before or after login", function()
+    local getCVar, registry, events = _G.GetCVar, _G.CVarCallbackRegistry, _G.EventRegistry
+    local listeners = {}
+    _G.EventRegistry = { RegisterCallback = function(_, event, fn, owner) listeners[event] = function() fn(owner) end end }
+    _G.GetCVar = function(k)
+        if k == "GamepadFocusStateOpacity" then return "0" end
+        if k == "GamepadFocusStateColor" then return "3" end
+    end
+    local glows = {}
+    _G.CVarCallbackRegistry = { GetCallbacksByEvent = function(_, kind, event)
+        if kind == 2 and event == "GamepadFocusStateOpacity" then return glows end
+    end }
+    local function glow()
+        local g = CreateFrame("Frame", nil, UIParent)
+        g.GlowTexture = g:CreateTexture()
+        g.glowTextures = { g.GlowTexture }
+        glows[g] = function() end
+        return g
+    end
+    local early = glow()
+    login()
+    T.eq(early:GetAlpha(), 0, "a glow made before login")
+    local r, g, b = early.GlowTexture:GetVertexColor()
+    T.eq(r, 0.3); T.eq(g, 0.5); T.eq(b, 1, "and its saved color")
+    local menu = glow()
+    T.eq(menu:GetAlpha(), 1, "a menu's glow, made later, starts at full strength")
+    T.truthy(listeners["Gamepad.RefreshFrameFocus"], "listens for the controller's focus moving")
+    listeners["Gamepad.RefreshFrameFocus"]()
+    T.eq(menu:GetAlpha(), 0, "fixed when the controller's focus moves")
+    _G.GetCVar, _G.CVarCallbackRegistry, _G.EventRegistry = getCVar, registry, events
+end)
+
 -- The achievements title sits in its header art's plaque (Header.Title in
 -- Blizzard_AchievementUI.xml) and is moved into the title row too.
 T.test("skins: the achievements' header title goes in the title row", function()

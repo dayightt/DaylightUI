@@ -250,6 +250,7 @@ function Profiles.Build(shared, from, keep)
     p.hiddenBars1 = true
     p.localFont1 = true
     p.backs1 = true
+    p.tagLetters1 = true   -- a new profile starts on the player's own letters (a copy keeps the pick it copied)
     -- A shared or blank profile picks up this client's font now, like a brand
     -- new profile does (DB.lua). A copy keeps the pick of the one it copies.
     if shared and DB.NonLatinClient() and p.general.localFont == nil then p.general.localFont = true end
