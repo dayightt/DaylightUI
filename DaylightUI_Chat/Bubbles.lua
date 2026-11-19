@@ -79,7 +79,19 @@ local function newOverlay()
     return f
 end
 
+-- The world layer ignores the UI scale, so a stand-in on UIParent would shrink
+-- with a small UI scale. Match the balloon's real size instead.
+local function matchScale(f)
+    local child = f.balloon
+    if not child then return end
+    local ok, k = pcall(child.GetEffectiveScale, child)
+    local ui = UIParent:GetEffectiveScale()
+    if not ok or type(k) ~= "number" or DUI.IsSecret(k) or k <= 0 or type(ui) ~= "number" or ui <= 0 then return end
+    f:SetScale(k / ui)
+end
+
 local function layout(f)
+    matchScale(f)
     local size = face(f)
     local wrap = Bubbles.WRAP * size / 12
     f.text:SetWidth(wrap)
@@ -154,6 +166,7 @@ local function draw(outer)
     f.token = (f.token or 0) + 1
     if not was then f:SetAlpha(0) end
     f:Show()
+    f.balloon = child
     layout(f)
     f:ClearAllPoints()
     if not pcall(f.SetPoint, f, "CENTER", child, "CENTER", 0, 0) then

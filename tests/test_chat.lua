@@ -873,6 +873,35 @@ T.test("chat: logging out hands every bubble back", function()
     T.eq(art:GetAlpha(), 1, "the game's balloon back before the reload")
 end)
 
+-- The game's bubbles sit in the world layer, which ignores the UI scale: a small
+-- UI scale must not shrink the stand-in below the game's own bubble.
+T.test("chat: a bubble's stand-in keeps the game bubble's size whatever the UI scale", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local world = CreateFrame("Frame")
+    local outer = CreateFrame("Frame", nil, world)
+    local art = CreateFrame("Frame", nil, outer)
+    local fs = art:CreateFontString()
+    fs:SetFont("GameFont", 12, "")
+    fs:SetText("Tiny?")
+    art.String = fs
+    local was = UIParent:GetScale()
+    UIParent:SetScale(0.64)
+    stub.SetBubbles({ outer })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    local mine = Bubbles.OverlayOf(outer)
+    T.truthy(mine and mine:IsShown(), "drawn")
+    T.near(mine:GetEffectiveScale(), art:GetEffectiveScale(), 0.001, "as big as the game's bubble")
+    UIParent:SetScale(1)
+    DaylightUI.Fire("STYLE_CHANGED")
+    stub.Advance(1)
+    stub.RunTimers()
+    Bubbles.Refresh()
+    T.near(mine:GetEffectiveScale(), art:GetEffectiveScale(), 0.001, "and still after the UI scale changes")
+    UIParent:SetScale(was)
+end)
+
 T.test("chat: a bubble with secret words is left to the game", function()
     login()
     local Bubbles = stub.chatModule.Bubbles

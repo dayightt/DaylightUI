@@ -171,7 +171,7 @@ return {
         ["DaylightUI_Buffs/Feel.lua"] = 2,
         ["DaylightUI_Buffs/Reminder.lua"] = 6,
         ["DaylightUI_Buffs/Scan.lua"] = 1,
-        ["DaylightUI_Chat/Bubbles.lua"] = 9,
+        ["DaylightUI_Chat/Bubbles.lua"] = 10,
         ["DaylightUI_Chat/Chat.lua"] = 4,
         ["DaylightUI_Chat/Feel.lua"] = 1,
         ["DaylightUI_Chat/Levels.lua"] = 3,
