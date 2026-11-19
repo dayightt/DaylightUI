@@ -22,6 +22,7 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Action bars", "Bars that switch page while you hold Shift can be rearranged: with your spellbook open, just drag a spell, no Shift needed" },
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },
+        { "Bags", "Quest items that are also a food or other consumable, like Kravel's Crate, always go under Quest items" },
         { "Chat", "Speech bubbles are the game's size again instead of shrinking when your UI scale is small" },
         { "Chat", "Experience from kills shows in Daylight UI's chat tabs, without turning it on in the game's own chat settings" },
         { "Damage meter", "No more Lua errors from the meter's top line in a fight when the group's total is shown" },

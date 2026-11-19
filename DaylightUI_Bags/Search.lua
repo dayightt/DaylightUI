@@ -30,6 +30,7 @@ Search.POTION = { [1] = true, [2] = true, [3] = true }  -- potions, elixirs, fla
 Search.QUALITY = { poor = 0, common = 1, uncommon = 2, rare = 3, epic = 4, legendary = 5 }
 
 local C = Search.CLASS
+Search.BIND_QUEST = Enum and Enum.ItemBind and Enum.ItemBind.Quest or 4
 
 -- Keywords: facts -> true when the item matches.
 Search.KEYWORDS = {
@@ -44,7 +45,9 @@ Search.KEYWORDS = {
     recipe = function(f) return f.classID == C.recipe end,
     key = function(f) return f.classID == C.key end,
     container = function(f) return f.classID == C.container end,
-    quest = function(f) return f.classID == C.quest or f.questItem == true end,
+    -- A quest item can be any class (Kravel's Crate is a consumable). Its "Quest
+    -- Item" binding never changes, while the slot's quest info can read false.
+    quest = function(f) return f.classID == C.quest or f.questItem == true or f.bindType == Search.BIND_QUEST end,
     junk = function(f) return f.quality == 0 end,
     -- BoE / BoU while not yet bound (bind type from GetItemInfo).
     boe = function(f) return f.bindType == 2 and f.bound ~= true end,
