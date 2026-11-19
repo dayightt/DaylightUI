@@ -3239,6 +3239,8 @@ end
 function UF.UpdateThreat(f)
     if f.test then return end
     if f.spec.groupThreat then
+        -- A tile the header just emptied has no unit, and the game refuses a nil one.
+        if not f.unitToken then UF.ApplyThreat(f, nil); return end
         -- A party member: red while anything is attacking them.
         local status = UnitThreatSituation(f.unitToken)
         if isSecret(status) then status = nil end

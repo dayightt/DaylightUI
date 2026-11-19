@@ -158,7 +158,6 @@ function Header.Update(h, m, cfg, session)
     else
         h.timer:SetText("")
     end
-    Header.PlaceFight(h)   -- the clock's width changed
     if cfg.headerTotal == true then
         local t   -- (secret in a fight: only ever asked whether it's there)
         if type(session) == "table" then t = session.totalAmount end
@@ -166,7 +165,24 @@ function Header.Update(h, m, cfg, session)
         h.total:SetText(ns.Meter.Short(t))
         Style.InkText(h.total, "pop")
     end
+    Header.PlaceFight(h)   -- the clock's and the total's widths changed
 end
+
+-- In a fight the total is secret, and a text showing a secret answers a
+-- secret width. The room is then measured on a plain number of the widest
+-- likely size, in the total's own font, on a text of its own.
+local measure
+function Header.SecretTotalWidth(h)
+    local font, size, flags = h.total:GetFont()
+    if not font then return nil end
+    measure = measure or UIParent:CreateFontString(nil, "BACKGROUND")
+    measure:Hide()
+    if measure:SetFont(font, size, flags) == false then return nil end
+    measure:SetText(Header.TOTAL_SAMPLE)
+    local w = measure:GetStringWidth()
+    if type(w) == "number" and not isSecret(w) then return w end
+end
+Header.TOTAL_SAMPLE = "888.8K"
 
 -- The fight's name reaches to the clock (or the total) at rest, and to the
 -- buttons while they're out: never cut short by buttons that aren't there.
@@ -177,9 +193,10 @@ function Header.PlaceFight(h, snap)
         room = room + h.tools:GetWidth()
     else
         local w = h.timer:GetStringWidth()
-        if type(w) == "number" and w > 0 then room = room + w + 2 end
+        if type(w) == "number" and not isSecret(w) and w > 0 then room = room + w + 2 end
         if h.total:IsShown() then
             local t = h.total:GetStringWidth()
+            if isSecret(t) then t = Header.SecretTotalWidth(h) end
             if type(t) == "number" and t > 0 then room = room + t + 8 end
         end
     end

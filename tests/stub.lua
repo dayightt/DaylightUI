@@ -1094,11 +1094,12 @@ function Widget:SetCooldownFromDurationObject(d, clearIfZero) self.__duration = 
 -- A Cooldown cleared: no time left on it, as in the client.
 function Widget:Clear() self.__cooldown, self.__duration = nil, nil end
 function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__type) .. ">") end
--- Measuring text errors on a secret, as in the client.
 -- stub.measure(fs) returns width, height from real font metrics when a tool sets
 -- it (tools/snap.lua for screenshots). Tests use 7 px per letter and no height.
+-- A text showing a secret has secret anchoring, and its width comes back
+-- secret ("SecretWhenAnchoringSecret"), as the client's.
 function Widget:GetStringWidth()
-    if isSecret(self.__text) then error("attempt to measure secret text") end
+    if isSecret(self.__text) then return stub.Secret(56) end
     if type(self.__text) ~= "string" then return 0 end
     if stub.measure then return (stub.measure(self)) end
     -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one
@@ -2867,6 +2868,7 @@ end
 -- name, rank name, rank index, as the client's.
 _G.GetGuildInfo = function(u) local x = U(u); if x then return x.guild, x.guildRank, x.guildRank and 1 or nil end end
 _G.UnitThreatSituation = function(u, mob)
+    needUnit(u, "UnitThreatSituation", "local result = UnitThreatSituation(unit [, mobGUID])")
     local x = U(u)
     if not mob then return x and x.threat end
     local e = threatEntry(u, mob)

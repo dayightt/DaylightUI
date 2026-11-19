@@ -1219,6 +1219,20 @@ T.test("raid roster: a tile the header emptied drops its crown without asking th
     T.falsy(b.leaderIcon:IsShown(), "no member, no crown")
 end)
 
+-- A threat change then redoes every tile, the emptied one too: the game
+-- refuses a missing unit for the threat state as well.
+T.test("raid threat: a tile the header emptied stays quiet on a threat change", function()
+    local DUI, ns = login()
+    stub.SetGroup(true, true, 10)
+    stub.units.raid3 = { name = "Teft", isPlayer = true, class = "WARRIOR", threat = 3 }
+    local b = tile(ns, "raid3")
+    b:SetAttribute("unit", nil)
+    stub.units.raid3 = nil
+    stub.FireEvent("UNIT_THREAT_SITUATION_UPDATE", "player")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("raid flags: a tile repaints only when tapped or the reaction changed", function()
     local DUI, ns = login()
     stub.SetGroup(true, true, 10)

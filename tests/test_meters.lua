@@ -865,6 +865,27 @@ T.test("meter header: the group's total shows when switched on, secret in a figh
     stub.LeaveCombat()
 end)
 
+-- In a fight the game hands the total over secret, and a text showing one
+-- measures secret: the fight's name must still find its room.
+T.test("meter header: a secret total leaves room for the fight's name without measuring it", function()
+    local DUI = login()
+    local M, h = stub.infopanel.Meter, header()
+    stub.meter.sources = { { name = "Kaladin", classFilename = "WARRIOR", totalAmount = 2640 } }
+    DUI:Set("InfoPanel", "meter.headerTotal", true); stub.RunTimers()
+    M.Draw()
+    local plainRoom = h.fightRoom
+    stub.EnterCombat()
+    stub.meter.total = stub.Secret(2640)
+    T.noerror(function() M.Draw() end)
+    T.noerror(function() M.Draw() end)   -- the clock measured beside the secret total
+    T.noerror(function() hover(true) end)
+    T.noerror(function() hover(false) end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(type(h.fightRoom) == "number" and h.fightRoom >= plainRoom, "the total's room kept")
+    stub.meter.total = nil
+    stub.LeaveCombat()
+end)
+
 -- ---------------------------------------------------------------------
 -- Fights: every fight, one pick for every window, back to the current
 -- ---------------------------------------------------------------------
