@@ -446,6 +446,9 @@ T.test("platefix: /dui platecheck and /dui platefix work with the Nameplates mod
     local printed = {}
     local was = DaylightUI.Print
     DaylightUI.Print = function(msg) printed[#printed + 1] = tostring(msg) end
+    DaylightUI.RunCommand("flatoff")
+    T.eq(printed[1], "flatoff: Nameplates is off")
+    printed = {}
     DaylightUI.RunCommand("platecheck")
     local check = table.concat(printed, "\n")
     T.truthy(check:find("Nameplates module off", 1, true), check)

@@ -596,6 +596,18 @@ T.test("data texts: with the Daylight gradient accent the words run down the swe
     T.truthy(ellie.lc[1] ~= ellie.rc[1] or ellie.lc[3] ~= ellie.rc[3], "a friend's name stays its class color, the place the sweep")
 end)
 
+-- Style.ClassColor hands back r, g, b (not a table), so names came out white.
+T.test("data texts: friends, guild members and alts wear their class colors", function()
+    local DUI = login()
+    local S = DUI.Style
+    socialIn4(DUI)
+    hover(4)
+    T.rgb(tipLine("Bram 60").lc, { S.ClassTextColor("WARRIOR") }, "a guild member in their class color")
+    T.rgb(tipLine("Cass 60").lc, { S.ClassTextColor("MAGE") }, "each by their own class")
+    T.rgb(tipLine("Ellie 60").lc, { S.ClassTextColor("MAGE") }, "a friend by the class name the list gives")
+    T.rgb(tipLine("Sam (Thorn)").lc, { S.ClassTextColor("WARRIOR") }, "a Battle.net friend too")
+end)
+
 -- The game's guild window (Blizzard_Communities) is load-on-demand and pulls in
 -- Blizzard_GuildControlUI (a dependency in its .toc), whose OnLoad calls the
 -- protected C_Discord.IsUserOAuthed. ToggleGuildFrame from addon code loads them

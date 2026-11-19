@@ -7691,6 +7691,9 @@ L["Tag letters"] = "标签字母"
 L["The short tags start from your language's words (G for Grupo) or from English (P for Party). A tag you type in the list always wins."] = "简短标签取自你所用语言的词（如“队”）或英文（Party 取 P）。你在列表中输入的标签始终优先。"
 L["Your language"] = "你的语言"
 L["Your own short tags"] = "自定义短标签"
+L["Quest tooltip detail"] = "任务提示详情"
+L["Full quest details"] = "完整任务详情"
+L["What a quest's tooltip shows. Objectives keeps it short; Full quest details adds the quest's story and every reward, like Quest details from its menu."] = "任务提示显示的内容。任务目标让它保持简短；完整任务详情会加上任务的故事和每一项奖励，就像其菜单中的任务详情。"
 
 -- More translated lines.
 L["Adds %d aura filter."] = "新增 %d 个光环过滤器。"

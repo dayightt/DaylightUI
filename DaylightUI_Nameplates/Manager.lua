@@ -632,6 +632,16 @@ function Manager.Each(fn)
     end
 end
 
+function Manager.ToggleFlattening()
+    local plate = ns.Plate
+    plate.flatteningOff = not plate.flatteningOff
+    Manager.Each(plate.ApplyFlattening)
+    for _, p in ipairs(spare) do
+        if not forbidden(p) then DUI.SafeCall(plate.ApplyFlattening, p) end
+    end
+    return plate.flatteningOff
+end
+
 -- You died, resurrected or loaded in: what you can attack changed without an
 -- event on the plate units. The answer can lag, so check again a moment later
 -- (Plate.UpdateFriendly does nothing if nothing changed).

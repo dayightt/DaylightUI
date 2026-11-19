@@ -474,7 +474,7 @@ function Browse.Build(page)
             Browse.Render(nil, true)
         end)
         b:HookScript("OnEnter", function(self)
-            W().Tooltip(self, ns.Listing.ROLE_WORD[role](), L["Open spot"])
+            W().Tooltip(self, ns.Listing.ROLE_WORD[role](), L["Groups with an open spot for this role, and solo players who can play it."])
         end)
         b:HookScript("OnLeave", function() W().HideTooltip() end)
         page.needs[i] = b

@@ -349,6 +349,19 @@ local function installGossip()
         end,
         ForceGossip = function() return false end,
     }
+    -- Talking to the NPC again, as a right-click does: the open quest ends and the
+    -- server sends the NPC's list again (its last gossip). Not checked in game yet.
+    _G.C_PlayerInteractionManager = {
+        InteractUnit = function(unit, exact)
+            record("InteractUnit", unit, exact)
+            if not UnitExists(unit) then return false end
+            later(function()
+                if _G.QuestFrame:IsShown() then stub.FireEvent("QUEST_FINISHED") end
+                stub.FireEvent("GOSSIP_SHOW")
+            end)
+            return true
+        end,
+    }
 end
 
 local function Q() return S().quest end

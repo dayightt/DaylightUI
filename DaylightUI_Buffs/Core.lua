@@ -100,6 +100,7 @@ BL.DEFAULTS = {
         consolidateOnlyRaid = false,
         hideBlizzardFrames = true,
         attach = true, -- follows the info panel
+        attachY = 0, -- while attached, nudged up (+) or down (-) from that spot, in px
         fade = DaylightUI.Fade.Defaults(),
         -- Text on both bars: time size (0 = follows the icon), stack count
         -- size, whether times show, and where on the icon (top | middle |
@@ -126,6 +127,7 @@ BL.DEFAULTS = {
             spacing = 3,
             columns = 8,
             attach = true,
+            attachY = 0,
             growLeft = true,
             fade = DaylightUI.Fade.Defaults(),
             showBackground = false,
