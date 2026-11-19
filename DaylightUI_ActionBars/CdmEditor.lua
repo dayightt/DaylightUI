@@ -1089,7 +1089,9 @@ local function cellFor(i)
     c:SetScript("OnEnter", function(self)
         if drag or not self.e then return end
         local e = self.e
-        local what = e.aura and L["Buff or debuff"] or L["Cooldown"]
+        local A = ns.CdmAuras
+        local what = not e.aura and L["Cooldown"]
+            or A and A.AuraWord(e.id) == "debuff" and L["Debuff"] or L["Buff"]
         local shape = e.custom and L["Pick an icon or a bar."]
             or e.kind == "bar" and L["The game shows it as a bar."] or L["The game shows it as an icon."]
         local how = e.placed and attach and L["In your layout: click to move it here."]
