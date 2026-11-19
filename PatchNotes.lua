@@ -14,8 +14,13 @@ DUI.PatchNotes = {
     { version = "Unreleased",
         new = {
             { "Nameplates", "/dui flatoff toggles layer flattening until reload to help diagnose disappearing nameplates" },
+            { "NPC window", "Quests picked from an NPC's list have a Back button, so a wrong pick no longer means saying Goodbye and talking again" },
+            { "Quests", "Hovering a quest in the tracker can show its full details, story and rewards included (Quest tooltip detail)" },
+            { "Chat", "Buying several of an item at the auction house shows what each one cost" },
+            { "Action bars", "Pick the micro menu's icon color, and turn off the dark squares behind its icons" },
         },
         fixed = {
+            { "Info panel", "Friends and guild members in the info panel's tooltips show in their class colors instead of all white" },
             { "Nameplates", "Long /dui platefix reports keep the details of the missing plate and the latest events before the check" },
             { "Nameplates", "Nameplates and speech bubbles come back after loading screens, flights, cinematics and the AFK screen when they had gone missing, and the last /dui platefix step brings them back without a /reload" },
         },

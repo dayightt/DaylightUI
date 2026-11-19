@@ -36,6 +36,7 @@ ns.DEFAULTS = {
     objColors = "plain",      -- objective text: plain | done (green once done) | count (red to green)
     hoverDim = true,          -- dim the other quests while one is hovered
     rowTips = true,           -- show a hovered quest's tooltip beside the tracker
+    rowTipKind = "short",     -- that tooltip: short (objectives) | details (quest text, objectives, every reward)
     growUp = false,           -- list grows upward from the handle (for a tracker placed low)
     emptyHeader = false,      -- show the Quests header with nothing tracked
     sound = true,             -- when a quest is ready to turn in

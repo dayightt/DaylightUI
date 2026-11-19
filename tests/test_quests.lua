@@ -1946,6 +1946,33 @@ T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but
     f:GetScript("OnLeave")(f)
 end)
 
+T.test("quests clicks: rowTipKind details puts the quest's story and every reward in the hover tooltip", function()
+    local q = QW.quest(1, "Westfall Stew", { text = "Salma needs meat for her stew.", xp = 450, objs = {
+        { text = "4/5 Stringy Vulture Meat", have = 4, need = 5 },
+    } })
+    local Tr = tracker({ quests = { q } })
+    local f = Tr.frames["quest:1"]
+    local function shown()
+        f:GetScript("OnEnter")(f)
+        local all = table.concat(GameTooltip.lines, "\n")
+        f:GetScript("OnLeave")(f)
+        return all
+    end
+    local short = shown()
+    T.eq(DaylightUI:Get("Quests", "rowTipKind"), "short", "the short tooltip by default")
+    T.falsy(short:find("Salma", 1, true), "short: no story")
+    T.truthy(short:find("Stringy Vulture Meat", 1, true), "short: the objectives")
+    DaylightUI:Set("Quests", "rowTipKind", "details")
+    local full = shown()
+    T.truthy(full:find("Salma needs meat", 1, true), "details: the story")
+    T.truthy(full:find("Stringy Vulture Meat", 1, true), "details: the objectives too")
+    T.truthy(full:find("450 XP", 1, true), "details: the experience reward")
+    T.truthy(full:find("Right-click", 1, true), "details: the click hints stay")
+    DaylightUI:Set("Quests", "rowTipKind", "short")
+    local O = DaylightUI.Options
+    T.eq(O.CountMatches(O.GetPage("Quests.tracker"), "quest tooltip detail"), 1, "options search finds the setting")
+end)
+
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()
     local done = QW.quest(2, "Done Deal", { objs = { { text = "6/6 Thing", have = 6, need = 6, done = true } } })
     local Tr, ns = tracker({ quests = { STEW, done } })
