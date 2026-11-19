@@ -56,7 +56,9 @@ local park, unpark
 function park(frame)
     if frame:GetParent() == hidden then waiting[frame] = nil; return end
     if later(frame, park) then return end
-    home[frame] = frame:GetParent()
+    -- The first spot is kept: parked again after the game handed it elsewhere
+    -- (Hide.Repark), it still goes back to its own container when shown.
+    home[frame] = home[frame] or frame:GetParent()
     frame:SetParent(hidden)
 end
 
@@ -78,6 +80,18 @@ function Hide.Apply(cfg)
         end
     end
     Hide.PlaceAll(cfg)
+end
+
+-- Parks again whatever is set to Hidden but was moved out by the game.
+function Hide.Repark(cfg)
+    for key, names in pairs(Hide.FRAMES) do
+        if (cfg[key] or "hidden") == "hidden" then
+            for _, name in ipairs(names) do
+                local f = _G[name]
+                if f then park(f) end
+            end
+        end
+    end
 end
 
 -- The frame the fade engine manages for "bagBar" or "microMenu", or nil while it's
@@ -190,6 +204,13 @@ function Hide.Movers(cfg)
     -- bar goes away (after a death, a vehicle), then runs its pass over the micro
     -- buttons. After that pass it goes back to its spot.
     if type(_G.UpdateMicroButtons) == "function" then hooksecurefunc("UpdateMicroButtons", soon) end
+    -- The game hands the micro menu itself to a full-screen window and back to
+    -- UIParent, out of the hidden frame, so a hidden one came back on a flight.
+    for _, fn in ipairs({ "MicroMenuBar_SetFullScreenFrame", "MicroMenuBar_ClearFullScreenFrame" }) do
+        if type(_G[fn]) == "function" then
+            hooksecurefunc(fn, function() if ns.db then Hide.Repark(ns.db) end end)
+        end
+    end
     -- Leaving Edit Mode puts them back at their Edit Mode spots.
     local em = _G.EditModeManagerFrame
     if type(em) == "table" and em.HookScript then em:HookScript("OnHide", soon) end

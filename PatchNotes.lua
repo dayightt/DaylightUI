@@ -18,6 +18,10 @@ DUI.PatchNotes = {
             { "Quests", "Hovering a quest in the tracker can show its full details, story and rewards included (Quest tooltip detail)" },
             { "Chat", "Buying several of an item at the auction house shows what each one cost" },
             { "Action bars", "Pick the micro menu's icon color, and turn off the dark squares behind its icons" },
+            { "Buffs", "Buffs and debuffs beside the minimap can be moved up or down (Buffs, Bar)" },
+        },
+        changed = {
+            { "Group finder", "The role filters' tooltip says what they show: groups with an open spot for that role, and solo players who can play it, and row tooltips stay on screen" },
         },
         fixed = {
             { "Info panel", "Friends and guild members in the info panel's tooltips show in their class colors instead of all white" },
@@ -33,6 +37,11 @@ DUI.PatchNotes = {
             { "Spellbook", "No more floods of spellbook errors in a fight after the spellbook was open in an earlier one" },
             { "Skins", "Drop-down lists in the barber shop have their background again" },
             { "World map", "A quest's area outline on the world map fades with the map while you move" },
+            { "Action bars", "Grouped spells like Summon Demon open their list again when clicked on a Daylight UI bar" },
+            { "Action bars", "A hidden micro menu no longer shows up again during flights" },
+            { "Info panel", "The experience bar set as wide as the action bar lines up with the bar's background, padding included" },
+            { "Bags", "Taking one stack out of a pile in the bank or bags no longer makes the rest of the pile look gone" },
+            { "QoL", "The cursor ring shows the global cooldown again after instant spells" },
         },
     },
     { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",

@@ -100,10 +100,14 @@ end
 -- A key pressing the hidden twin of a flyout slot would open the flyout on a button
 -- nobody sees, so those keys click Daylight UI's button instead. Rebuilt out of combat only,
 -- since override bindings are protected.
+-- A click on a flyout slot opens the game's SpellFlyout only on a button that holds
+-- it as its popup, which the game's buttons set up on every slot change. Daylight UI's
+-- buttons get no slot events, so each is told here (the template's UpdateFlyout).
 function Keys.UpdateFlyouts()
     local owner = Keys.Owner()
     ClearOverrideBindings(owner)
     for _, btn in ipairs(buttons()) do
+        if type(btn.UpdateFlyout) == "function" then btn:UpdateFlyout() end
         local slot = ns.Buttons.SlotOf(btn)
         if slot and GetActionInfo(slot) == "flyout" then
             for _, key in ipairs({ GetBindingKey(btn.commandName) }) do

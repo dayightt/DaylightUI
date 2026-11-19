@@ -305,10 +305,28 @@ function Panel.UpdateXPGrip(db)
     end
 end
 
+-- One of bar 1's look settings, as the action bars read it: its own override
+-- when it has one of the right kind, else the shared look.
+local function mainLook(key)
+    local base = DUI:Get("ActionBars", "look." .. key)
+    local own = DUI:Get("ActionBars", "barLooks.main." .. key)
+    if own ~= nil and type(own) == type(base) then return own end
+    return base
+end
+
+-- How far bar 1's background panel reaches past its buttons, in the bar's own
+-- units: its padding. The panel's border is drawn inside that edge. 0 with no panel.
+function Panel.BarsBackPad()
+    if mainLook("back") ~= true then return 0 end
+    local pad = mainLook("backPad")
+    return type(pad) == "number" and math.max(0, pad) or 0
+end
+
 -- The main action bar's extent in the XP bar's units: { left, right, bottom },
--- or nil while not shown. Only read, never anchored to: the buttons are protected.
+-- or nil while not shown. With a background panel behind the bar, its outer
+-- edge. Only read, never anchored to: the buttons are protected.
 function Panel.BarsSpan(xp)
-    local left, right, bottom
+    local left, right, bottom, holderScale
     -- Daylight UI's own bar 1 when the action bars draw their own, else the game's.
     local own = DUI.ActionBarButtons and DUI.ActionBarButtons("main")
     for i = 1, 12 do
@@ -321,10 +339,20 @@ function Panel.BarsSpan(xp)
                 left = left and math.min(left, l) or l
                 right = right and math.max(right, r) or r
                 bottom = bottom and math.min(bottom, y) or y
+                local parent = b:GetParent()
+                if not holderScale and type(parent) == "table" and parent.GetEffectiveScale then
+                    holderScale = parent:GetEffectiveScale()
+                end
             end
         end
     end
     if not left or right - left < 1 then return nil end
+    -- The panel only exists on Daylight UI's own bars, sized in the bar holder's units.
+    local pad = own and Panel.BarsBackPad() or 0
+    if pad > 0 then
+        pad = pad * (holderScale or xp:GetEffectiveScale()) / xp:GetEffectiveScale()
+        left, right, bottom = left - pad, right + pad, bottom - pad
+    end
     return { left = left, right = right, bottom = bottom }
 end
 
@@ -753,6 +781,13 @@ function ns.Build(mod)
     DUI.RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", afterBars)
     -- Daylight UI's own bars re-lay out live (a setting, a move): follow bar 1.
     DUI.On("ActionBarLaidOut", function(key) if key == "main" then afterBars() end end)
+    -- Its background panel's padding widens the row the bar matches.
+    DUI.On("SettingChanged", function(scope, path)
+        if scope == "ActionBars" and type(path) == "string"
+           and (string.find(path, "^look%.back") or string.find(path, "^barLooks%.main")) then
+            afterBars()
+        end
+    end)
     -- Moving past the screen's middle (auto side) or a reset flips the meter
     -- and its threat meter to the other side. Detached windows do the same.
     DUI.On("MoverApplied", function(key)
