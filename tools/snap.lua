@@ -450,7 +450,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button] [loner: a player with no guild or target]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button] [loner: a player with no guild or target] [mob: a creature with a quest] [node: an herb you can pick]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -543,6 +543,37 @@ local RECIPES = {
                 tip:Show()
                 tip:GetScript("OnUpdate")(tip, 0.02)
                 return look == "pill" and _G.DaylightUITooltipPill or tip
+            end
+            if look == "mob" then
+                -- The board's boar, with its quest.
+                stub.units.player.level = 22
+                stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, level = 23,
+                    health = 78, maxHealth = 100, creatureType = "Beast" }
+                stub.units.mouseovertarget = stub.units.player
+                function tip:GetUnit() return nil, "mouseover" end
+                DUI.Npc.Data.QuestColor = function() return { 0.5, 0.88, 0.97 } end
+                tip:AddLine("Ridgeback Boar")
+                tip:AddLine("Level 23 Beast")
+                tip:AddLine("Skinnable", 1, 0.82, 0)
+                tip:AddLine("Boar Hides for Farmer Rowan")
+                tip:AddLine(" - 6/10 Ridgeback hide")
+                tip:AddLine(" - 8/8 Boars slain")
+                local data = { type = 2, lines = { {}, {}, {}, { type = 17, id = 77 }, { type = 8 }, { type = 8 } } }
+                for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
+                for _, fn in ipairs(SNAP_TIP_POST[2] or {}) do fn(tip, data) end
+                tip:Show()
+                tip:GetScript("OnUpdate")(tip, 0.02)
+                return tip
+            end
+            if look == "node" then
+                stub.SetSkills({ { name = "Professions", isHeader = true }, { name = "Herbalism", rank = 125, maxRank = 150 } })
+                tip:AddLine("Kingsblood")
+                tip:AddLine("Herbalism", 0.25, 0.75, 0.25)
+                local data = { type = 4, lines = { {}, {} } }
+                for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
+                tip:Show()
+                tip:GetScript("OnUpdate")(tip, 0.02)
+                return tip
             end
             if look == "spell" or look == "math" or look == "cooldown" then
                 -- The board's spell, line for line as the game writes it.

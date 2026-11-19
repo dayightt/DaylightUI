@@ -32,8 +32,8 @@ Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
-Panel.FIXED = { unit = true, item = true, compare = true, spell = true, cooldown = true }
+Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
+Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true, cooldown = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
@@ -317,7 +317,7 @@ function Panel.Begin(p, kind, light, fade)
     p.chrome = false
 end
 
--- spec: icon (file or id), iconSize, iconCoords ({ l, r, t, b }, else the
+-- spec: icon (file or id) or portrait (a unit: its face), iconSize, iconCoords ({ l, r, t, b }, else the
 -- square crop), iconTile ({ lo, hi }: a gradient tile behind it), iconInset
 -- (the art this far inside the tile), iconEdge ({ r, g, b }: an outline and glow),
 -- iconGap (between the icon and the words, 12), title, titleColor, titleSize,
@@ -325,9 +325,15 @@ end
 -- wash ({ r, g, b }: the banner's light).
 function Panel.Header(p, spec)
     local item = add(p, { kind = "header", spec = spec })
-    if spec.icon then
+    if spec.icon or spec.portrait then
         local ic = take(p, "icon")
-        ic.art:SetTexture(spec.icon)
+        if spec.portrait then
+            -- Square, no round mask: the card cuts its corner itself.
+            ic.art:SetTexture(nil)
+            DUI.SafeCall(SetPortraitTexture, ic.art, spec.portrait, true)
+        else
+            ic.art:SetTexture(spec.icon)
+        end
         local c = spec.iconCoords
         if c then ic.art:SetTexCoord(c[1], c[2], c[3], c[4]) else Style.CropIcon(ic.art) end
         local inset = spec.iconInset or 0
@@ -338,8 +344,7 @@ function Panel.Header(p, spec)
         ic.tile:SetShown(tile ~= nil)
         if tile then
             ic.tile:SetVertexColor(1, 1, 1, 1)
-            ic.tile:SetGradient("VERTICAL", CreateColor(tile[1][1], tile[1][2], tile[1][3], 1),
-                CreateColor(tile[2][1], tile[2][2], tile[2][3], 1))
+            Style.Gradient(ic.tile, "VERTICAL", tile[1][1], tile[1][2], tile[1][3], 1, tile[2][1], tile[2][2], tile[2][3], 1)
         end
         local e = spec.iconEdge
         ic.edge:SetShown(e ~= nil)
@@ -408,7 +413,7 @@ function Panel.Rule(p)
     local c = Style.INK.LABEL
     t:SetVertexColor(1, 1, 1, 1)
     if t.SetGradient and CreateColor then
-        t:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], Panel.RULE_ALPHA), CreateColor(c[1], c[2], c[3], 0))
+        Style.Gradient(t, "HORIZONTAL", c[1], c[2], c[3], Panel.RULE_ALPHA, c[1], c[2], c[3], 0)
     end
     item.tex = t
 end
@@ -794,13 +799,13 @@ function Panel.PaintLight(p)
         b:SetPoint("TOPRIGHT", p, "TOPRIGHT", -one, -one)
         b:SetHeight(Panel.LIGHT_H)
         b:SetVertexColor(1, 1, 1, 1)
-        b:SetGradient("HORIZONTAL", CreateColor(hi[1], hi[2], hi[3], 1), CreateColor(hi[1], hi[2], hi[3], 0.15))
+        Style.Gradient(b, "HORIZONTAL", hi[1], hi[2], hi[3], 1, hi[1], hi[2], hi[3], 0.15)
         b:Show()
     else
         a:SetPoint("TOPRIGHT", p, "TOPRIGHT", -one, -one)
         b:Hide()
     end
-    a:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+    Style.Gradient(a, "HORIZONTAL", lo[1], lo[2], lo[3], 1, hi[1], hi[2], hi[3], 1)
     a:Show()
 end
 
@@ -831,7 +836,7 @@ function Panel.PaintWash(p)
         a:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
         a:SetHeight(h)
         a:SetVertexColor(1, 1, 1, 1)
-        a:SetGradient("VERTICAL", CreateColor(c[1], c[2], c[3], 0), CreateColor(c[1], c[2], c[3], Panel.WASH_DOWN))
+        Style.Gradient(a, "VERTICAL", c[1], c[2], c[3], 0, c[1], c[2], c[3], Panel.WASH_DOWN)
         a:Show()
         b:Hide()
         return
@@ -845,8 +850,8 @@ function Panel.PaintWash(p)
     b:SetHeight(h)
     a:SetVertexColor(1, 1, 1, 1)
     b:SetVertexColor(1, 1, 1, 1)
-    a:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], s), CreateColor(c[1], c[2], c[3], s * 0.27))
-    b:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], s * 0.27), CreateColor(c[1], c[2], c[3], 0))
+    Style.Gradient(a, "HORIZONTAL", c[1], c[2], c[3], s, c[1], c[2], c[3], s * 0.27)
+    Style.Gradient(b, "HORIZONTAL", c[1], c[2], c[3], s * 0.27, c[1], c[2], c[3], 0)
     a:Show()
     b:Show()
 end
@@ -862,8 +867,8 @@ function Panel.Sweep(p, c)
     local left, right = p.sweep.halves[1], p.sweep.halves[2]
     left:SetVertexColor(1, 1, 1, 1)
     right:SetVertexColor(1, 1, 1, 1)
-    left:SetGradient("HORIZONTAL", CreateColor(r, g, b, 0), CreateColor(r, g, b, 1))
-    right:SetGradient("HORIZONTAL", CreateColor(r, g, b, 1), CreateColor(r, g, b, 0))
+    Style.Gradient(left, "HORIZONTAL", r, g, b, 0, r, g, b, 1)
+    Style.Gradient(right, "HORIZONTAL", r, g, b, 1, r, g, b, 0)
     p.sweep:SetHeight(Panel.LIGHT_H)
     M.Sweep(p.sweep, p.track, { width = Panel.SWEEP_W, dur = M.SLOW, inset = Panel.SWEEP_W / 2, key = p.sweep })
 end

@@ -244,31 +244,17 @@ local function sort(n, lines, own, info, groups, skip)
             local num, name = Items.Stat(t)
             local color = Tip.StatColor(name) or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
             groups.stats[#groups.stats + 1] = function(p) statLine(p, num, name, color) end
+        elseif ns.Rich.IsFlavor(line) then
+            groups.facts[#groups.facts + 1] = function(p) ns.Rich.Flavor(p, line) end
         else
-            -- Binding, unique, requirements, classes, flavor text: small, tan,
-            -- a requirement you don't meet in red.
+            -- Binding, unique, requirements, classes: small, tan, a
+            -- requirement you don't meet in red.
             local color = isRed(c) and Style.INK.BAD or Style.INK.LABEL
             local words = right and (t .. "  " .. Items.Words(right)) or t
             groups.facts[#groups.facts + 1] = function(p) ns.RichPanel.Text(p, words, color, Style.SIZE.small) end
         end
     end
     return foot
-end
-
--- The keys that do something for this item: Shift shows what you have on
--- (unless the game always does), Ctrl tries it on.
-function Items.Hints(tip, link, info)
-    local hints = {}
-    if tip ~= GameTooltip or type(link) ~= "string" then return hints end
-    local always = C_CVar and type(C_CVar.GetCVarBool) == "function" and plain(C_CVar.GetCVarBool("alwaysCompareItems"))
-    if info.equip and always ~= true then
-        hints[#hints + 1] = { SHIFT_KEY_TEXT or L["Shift"], L["compare all"] }
-    end
-    local dress = C_Item and C_Item.IsDressableItemByID
-    if type(dress) == "function" and plain(dress(link)) == true then
-        hints[#hints + 1] = { CTRL_KEY_TEXT or L["Ctrl"], L["try it on"] }
-    end
-    return hints
 end
 
 -- The item card. compare (a compare tooltip's): { label, chips, skip }: the
@@ -327,9 +313,6 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
             end
         end
     end
-    -- What it does: its stats and effects, then the other facts (binding,
-    -- requirements) in small tan lines.
-    for _, add in ipairs(groups.effects) do groups.stats[#groups.stats + 1] = add end
     -- The foot: other addons' lines (a price), then durability and sell price.
     local other = {}
     for _, i in ipairs(groups.other) do other[#other + 1] = function() ns.Rich.Lines(p, i, lines, i) end end
@@ -341,7 +324,9 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         end
     end
     part(groups.base)
-    part(groups.stats, groups.facts)
+    -- What it does: its stats, its effects (a sentence each, a little apart
+    -- from the stats), then the other facts (binding, requirements) small and tan.
+    part(groups.stats, groups.effects, groups.facts)
     part(groups.set)
     part(other)
     -- A compare's chips: what changes if you swap, last.
@@ -350,13 +335,8 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         any = true
         Panel.Tags(p, compare.chips)
     end
-    local hints = Items.Hints(tip, link, info)
-    if #hints > 0 then
-        if any then Panel.Gap(p, Items.GROUP_GAP) end
-        Panel.Hints(p, hints)
-    end
     -- Nothing under the header: no room kept for it.
-    if not any and #hints == 0 and p.items[p.count].kind == "gap" then p.count = p.count - 1 end
+    if not any and p.items[p.count].kind == "gap" then p.count = p.count - 1 end
     Panel.Finish(p)
     return info
 end

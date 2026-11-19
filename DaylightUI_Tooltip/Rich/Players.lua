@@ -92,6 +92,18 @@ end
 
 local function rgb(r, g, b) return { r, g, b } end
 
+-- Who a unit is targeting, as { name, color }: "You" in WARN, anyone else in
+-- their class or reaction color. Nil when nothing, or when it's hidden.
+function Players.Target(unit)
+    local target = unit .. "target"
+    if plain(UnitExists(target)) ~= true then return nil end
+    local name = plain(DUI.UnitName(target, "tooltip"))
+    if type(name) ~= "string" then return nil end
+    if plain(UnitIsUnit(target, "player")) == true then return { L["You"], Style.INK.WARN } end
+    local r, g, b = ns.Tooltip.UnitColor(target)
+    return { name, r and rgb(r, g, b) or Style.INK.VALUE }
+end
+
 -- The rows under the banner. Returns how many it added.
 local function rows(p, unit)
     local Panel, Tip = ns.RichPanel, ns.Tooltip
@@ -109,20 +121,10 @@ local function rows(p, unit)
         Panel.Row(p, L["Item level"], tostring(level), rgb(Style.Accent()))
         added = added + 1
     end
-    local target = unit .. "target"
-    if cfg.showTarget and plain(UnitExists(target)) == true then
-        local name = plain(DUI.UnitName(target, "tooltip"))
-        if type(name) == "string" then
-            local color
-            if plain(UnitIsUnit(target, "player")) == true then
-                name, color = L["You"], Style.INK.WARN
-            else
-                local r, g, b = Tip.UnitColor(target)
-                color = r and rgb(r, g, b) or Style.INK.VALUE
-            end
-            Panel.Row(p, L["Targeting"], name, color)
-            added = added + 1
-        end
+    local target = cfg.showTarget and Players.Target(unit) or nil
+    if target then
+        Panel.Row(p, L["Targeting"], target[1], target[2])
+        added = added + 1
     end
     return added
 end

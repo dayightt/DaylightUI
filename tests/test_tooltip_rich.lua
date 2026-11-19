@@ -440,7 +440,7 @@ T.test("rich tooltip: quest lines as headings in their difficulty color, objecti
     _G.C_QuestLog = _G.C_QuestLog or {}
     C_QuestLog.GetNumQuestLogEntries = function() return 1 end
     C_QuestLog.GetInfo = function(i) return { title = "Southsea Shakedown", questID = 88 } end
-    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, health = 50, maxHealth = 100 }
+    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, level = 44, health = 50, maxHealth = 100 }
     local data = { type = Enum.TooltipDataType.Unit, lines = { {}, {}, { type = 17, id = 77 }, { type = 8 } } }
     local tip = GameTooltip
     tip:SetOwner(UIParent, "ANCHOR_NONE")
@@ -688,10 +688,7 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.eq(stub.Text(foot.label), "Durability 98 / 100")
     T.truthy(stub.Text(foot.value):find("3", 1, true) and stub.Text(foot.value):find("42", 1, true), "the sell price")
     T.falsy(stub.Text(foot.value):find("Sell Price", 1, true))
-    local hints = kinds(p, "hints")[1]
-    T.eq(#hints.list, 2, "Shift and Ctrl: both do something here")
-    T.truthy(stub.Text(hints.list[1]):find("Shift|r compare all", 1, true))
-    T.truthy(stub.Text(hints.list[2]):find("Ctrl|r try it on", 1, true))
+    T.eq(#kinds(p, "hints"), 0, "no key hints: the card is what you read")
     T.eq(#kinds(p, "rule"), 3, "a rule between each part: base, what it does, set, foot")
     for i = 1, GameTooltip:NumLines() do T.eq(_G["GameTooltipTextLeft" .. i]:GetAlpha(), 0, "the game's lines muted") end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -748,20 +745,27 @@ T.test("rich tooltip: an epic item's light sweeps once, not on every refill", fu
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: the hint row only has keys that do something", function()
+-- Seen in game: the quote ("Miners need a mining pick for digging.") read
+-- as one more line. It's in the accent, small.
+T.test("rich tooltip: a thing's quote is in the accent", function()
     local _, Panel = login("rich")
     items()
-    _G.C_CVar = { GetCVarBool = function(name) return name == "alwaysCompareItems" end }
-    fillItem(GameTooltip, "greaves", GREAVES)
-    local hints = kinds(Panel.Get(GameTooltip), "hints")[1]
-    T.eq(#hints.list, 1, "the game always compares: no Shift")
-    T.truthy(stub.Text(hints.list[1]):find("Ctrl", 1, true))
-    _G.C_CVar = nil
-    fillItem(GameTooltip, "sword", { "Thunderforge Blade" })
+    fillItem(GameTooltip, "cloth", { "Linen Cloth", { '"Woven from the finest flax."', nil, { 1, 0.82, 0 } } })
+    local p = Panel.Get(GameTooltip)
+    local quote
+    for _, t in ipairs(kinds(p, "text")) do if stub.Text(t.fs):find("flax", 1, true) then quote = t end end
+    T.truthy(quote, "the quote on the item card")
+    local r, g, b = DaylightUI.Style.Accent()
+    T.near(({ quote.fs:GetTextColor() })[1], r, 1e-6, "in the accent")
+    T.eq(quote.fs.size, DaylightUI.Style.SIZE.small)
+    -- Any other card (a world thing): the same.
+    fill(99, { "Copper Vein", { '"Miners need a mining pick for digging."', nil, 1, 0.82, 0 } })
     update()
-    hints = kinds(Panel.Get(GameTooltip), "hints")[1]
-    T.eq(#hints.list, 1, "a sword can't be tried on")
-    T.truthy(stub.Text(hints.list[1]):find("Shift", 1, true))
+    p = Panel.Get(GameTooltip)
+    quote = nil
+    for _, t in ipairs(kinds(p, "text")) do if stub.Text(t.fs):find("Miners", 1, true) then quote = t end end
+    T.truthy(quote)
+    T.near(({ quote.fs:GetTextColor() })[2], g, 1e-6, "in the accent")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1457,7 +1461,7 @@ end)
 T.test("rich tooltip: your own name under a quest is left out, a party member's stays", function()
     local _, Panel = login("rich")
     stub.units.player.name = "Daylight"
-    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, health = 50, maxHealth = 100 }
+    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, level = 44, health = 50, maxHealth = 100 }
     local data = { type = Enum.TooltipDataType.Unit, lines = { {}, { type = 17 }, { type = 18 }, { type = 8 }, { type = 18 }, { type = 8 } } }
     local tip = GameTooltip
     tip:SetOwner(UIParent, "ANCHOR_NONE")
@@ -1517,5 +1521,233 @@ T.test("rich tooltip: a player card with no rows keeps the banner's room above t
     T.truthy(header and bar, "a banner and a health bar")
     local P = stub.tooltip.RichPlayers
     T.eq(room, P.AFTER_BANNER + P.BEFORE_BARS, "the same room as around the rows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The world: the board's mob, node and other things.
+local function itemsOf(p, kind)
+    local out = {}
+    for i = 1, p.count do if p.items[i].kind == kind then out[#out + 1] = p.items[i] end end
+    return out
+end
+
+local function rowsOf(p)
+    local out = {}
+    for _, it in ipairs(itemsOf(p, "row")) do out[stub.Text(it.label)] = it end
+    return out
+end
+
+local function boar(extra)
+    stub.units.player.level = 22
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, level = 23, health = 78,
+        maxHealth = 100, creatureType = "Beast", creatureTypeID = 1 }
+    stub.units.mouseovertarget = stub.units.player
+    for k, v in pairs(extra or {}) do stub.units.mouseover[k] = v end
+end
+
+-- The game's lines for the boar (its own come first), then another addon's.
+local function hoverBoar(addon)
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Ridgeback Boar")
+    tip:AddLine("Level 23 Beast")
+    tip:AddLine("Skinnable", 1, 0.82, 0)
+    tip:AddLine("Boar Hides for Farmer Rowan")
+    tip:AddLine(" - 6/10 Ridgeback hide")
+    tip:AddLine(" - 8/8 Boars slain")
+    local data = { type = Enum.TooltipDataType.Unit,
+        lines = { {}, {}, {}, { type = 17, id = 77 }, { type = 8 }, { type = 8 } } }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    for _, t in ipairs(addon or {}) do tip:AddLine(t) end
+    tip:Show()
+    update()
+    return tip
+end
+
+local function tagWords(head)
+    local out = {}
+    for i, t in ipairs(head.tags or {}) do out[i] = stub.Text(t.text) end
+    return table.concat(out, ",")
+end
+
+T.test("rich tooltip: a mob's card, as the board lays it out", function()
+    local _, Panel = login("rich")
+    DaylightUI.Npc.Data.QuestColor = function() return { 0.5, 0.88, 0.97 } end
+    boar()
+    local p = Panel.Get(hoverBoar())
+    T.eq(p.wantW, 260, "the board's width")
+    local head = p.items[1]
+    T.eq(head.kind, "header")
+    T.eq(stub.Text(head.title), "Ridgeback Boar")
+    T.eq(head.title.size, DaylightUI.Style.SIZE.title)
+    T.eq(head.icon.art.__portraitUnit, "mouseover", "its face as the icon")
+    T.truthy(head.icon.art.__portraitSquare, "square: the card cuts the corner")
+    T.eq(stub.Text(head.right), "23", "the level on the right")
+    T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.WARN, "yellow for you: WARN")
+    T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE")
+    T.rgb({ head.tags[1].text:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "hostile in its color")
+    T.rgb({ head.tags[2].text:GetTextColor() }, DaylightUI.Style.INK.LABEL, "what it is, tan")
+    T.rgb({ head.tags[3].text:GetTextColor() }, DaylightUI.Style.INK.WARN, "skinnable in the game's skill-up color")
+    local bars = itemsOf(p, "bar")
+    T.eq(bars[1].h, 7, "health first, 7 px")
+    T.eq(bars[1].spec.unit, "mouseover")
+    T.truthy(bars[1].spec.pair, "in the reaction pair")
+    local sections = itemsOf(p, "section")
+    T.eq(#sections, 1)
+    T.eq(stub.Text(sections[1].fs), "BOAR HIDES FOR FARMER ROWAN")
+    local rows = rowsOf(p)
+    T.eq(stub.Text(rows["Ridgeback hide"].value), "6 / 10")
+    T.eq(stub.Text(rows["Boars slain"].value), "Complete")
+    T.eq(stub.Text(rows.Targeting.value), "You")
+    T.rgb({ rows.Targeting.value:GetTextColor() }, DaylightUI.Style.INK.WARN)
+    T.eq(#itemsOf(p, "rule"), 2, "a rule before the quest and before Targeting")
+    T.eq(p.items[p.count].kind, "row", "Targeting last")
+    for _, it in ipairs(itemsOf(p, "text")) do
+        T.falsy(stub.Text(it.fs):find("Level 23"), "the level line lives in the header")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a mob's rare and elite tags, a skull level, a friendly NPC's title", function()
+    local _, Panel = login("rich")
+    boar({ classification = "rareelite", level = -1 })
+    local p = Panel.Get(hoverBoar())
+    local head = p.items[1]
+    T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE,RARE,ELITE")
+    T.eq(stub.Text(head.right), "??")
+    T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.BAD)
+    -- An innkeeper: its title under its name, no quest, no skinning.
+    stub.units.mouseover = { name = "Innkeeper Farley", isPlayer = false, reaction = 5, level = 30, health = 100,
+        maxHealth = 100, creatureType = "Humanoid" }
+    stub.units.mouseovertarget = nil
+    hover("mouseover", { "Innkeeper Farley", "Innkeeper", "Level 30 Humanoid", "Stormwind" })
+    head = p.items[1]
+    T.eq(stub.Text(head.sub), "Innkeeper")
+    T.eq(tagWords(head), "FRIENDLY,HUMANOID")
+    local texts = itemsOf(p, "text")
+    T.eq(stub.Text(texts[#texts].fs), "Stormwind", "the game's other lines small, under a rule")
+    T.eq(texts[#texts].fs.size, DaylightUI.Style.SIZE.small)
+    T.isnil(rowsOf(p).Targeting, "targeting no one: no row")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: another addon's rows for a quest the game's lines show are left out, others stay", function()
+    local _, Panel = login("rich")
+    boar()
+    local p = Panel.Get(hoverBoar({
+        "[23] Boar Hides for Farmer Rowan", "   |cffffffffRidgeback hide: 6/10|r",
+        "Tusks of the Ridge", "   |cffffffffBoar tusk: 2/6|r |cff999999[22%]|r",
+        "Raider score 2140",
+    }))
+    local sections = itemsOf(p, "section")
+    T.eq(#sections, 2, "the game's quest once, the other quest")
+    T.eq(stub.Text(sections[2].fs), "TUSKS OF THE RIDGE")
+    local hides, tusks = 0, 0
+    for _, it in ipairs(itemsOf(p, "row")) do
+        if stub.Text(it.label):find("Ridgeback hide", 1, true) then hides = hides + 1 end
+        if stub.Text(it.label):find("Boar tusk", 1, true) then tusks = tusks + 1 end
+    end
+    T.eq(hides, 1, "the hide count once")
+    T.eq(tusks, 1, "the other quest's row")
+    local texts = itemsOf(p, "text")
+    T.truthy(stub.Text(texts[#texts].fs):find("^Raider score"), "another addon's line at the bottom")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a mob's type stays out when the client hides who it is", function()
+    local _, Panel = login("rich")
+    DaylightUI:Set("Tooltip", "pill", "never")
+    stub.RunTimers()
+    boar()
+    stub.SetRestriction("Map", true)
+    local p = Panel.Get(hoverBoar())
+    stub.SetRestriction("Map", false)
+    T.truthy(p:IsShown())
+    T.falsy(tagWords(p.items[1]):find("BEAST"), "no type: " .. tagWords(p.items[1]))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A node, a lock, a mailbox: things in the world that aren't units.
+local function hoverThing(lines)
+    local tip = GameTooltip
+    GameTooltip_SetDefaultAnchor(tip, UIParent)
+    tip.__unit = nil
+    for _, t in ipairs(lines) do
+        if type(t) == "table" then tip:AddLine(unpack(t)) else tip:AddLine(t) end
+    end
+    local own = {}
+    for i = 1, tip:NumLines() do own[i] = {} end
+    local data = { type = 4, lines = own }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    tip:Show()
+    update()
+    return tip
+end
+
+T.test("rich tooltip: a node's card shows your skill in its skill-up color over a thin bar", function()
+    local _, Panel = login("rich")
+    stub.SetSkills({ { name = "Professions", isHeader = true }, { name = "Herbalism", rank = 125, maxRank = 150 },
+        { name = "Mining", rank = 50, maxRank = 75 } })
+    local p = Panel.Get(hoverThing({ "Kingsblood", { "Herbalism", 0.25, 0.75, 0.25 } }))
+    T.eq(p.wantW, 210, "the board's width")
+    T.eq(p.items[1].title.size, DaylightUI.Style.SIZE.head, "title 15")
+    T.isnil(p.items[1].icon, "no icon")
+    local row = rowsOf(p).Herbalism
+    T.truthy(row, "your skill")
+    T.truthy(stub.Text(row.value):find("^125 ") and stub.Text(row.value):find("/ 150"), stub.Text(row.value))
+    T.rgb({ row.value:GetTextColor() }, DaylightUI.Style.INK.GOOD, "green: it still teaches you")
+    local bar = itemsOf(p, "bar")[1]
+    T.eq(bar.h, 4)
+    T.eq(bar.spec.value, 125)
+    T.eq(bar.spec.max, 150)
+    T.eq(#itemsOf(p, "text"), 0, "no made-up contents line")
+    T.truthy(p.lightPair[1][2] > p.lightPair[1][1], "a green top light")
+    -- A vein you can't mine yet: what it asks for, in red.
+    hoverThing({ "Iron Deposit", { "Requires Mining (75)", 1, 0.1, 0.1 } })
+    row = rowsOf(p).Mining
+    T.truthy(row, "your mining")
+    T.truthy(stub.Text(row.value):find("^50 ") and stub.Text(row.value):find("/ 75"), stub.Text(row.value))
+    T.rgb({ row.value:GetTextColor() }, DaylightUI.Style.INK.BAD)
+    T.eq(itemsOf(p, "bar")[1].spec.max, 75)
+    -- A skinnable corpse: your Skinning, found by its skill line.
+    stub.SetSkills({ { name = "Skinning", skillID = 393, rank = 80, maxRank = 150 } })
+    hoverThing({ "Ridgeback Boar", { "Skinnable", 1, 0.82, 0 } })
+    row = rowsOf(p).Skinning
+    T.truthy(row and stub.Text(row.value):find("^80 "), "your skinning")
+    T.rgb({ row.value:GetTextColor() }, DaylightUI.Style.INK.WARN)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a mailbox is its name and the game's lines, as wide as it needs", function()
+    local _, Panel = login("rich")
+    stub.SetSkills({})
+    local p = Panel.Get(hoverThing({ "Mailbox", { "Unread mail", 1, 0.82, 0 } }))
+    T.eq(p.kind, "other")
+    T.truthy(p.wantW < 210, "a small card: " .. tostring(p.wantW))
+    T.eq(p.items[1].title.size, DaylightUI.Style.SIZE.head)
+    T.eq(stub.Text(p.items[1].title), "Mailbox")
+    T.eq(#itemsOf(p, "bar"), 0)
+    T.eq(stub.Text(itemsOf(p, "text")[1].fs), "Unread mail")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: an Equip sentence sat right under the stat lines.
+T.test("rich tooltip: an item's effects sit a little apart from its stats", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Ring of Thorns", nil, { 0, 0.44, 0.87 } }, "+8 Stamina",
+        { "Equip: When struck in melee combat, has a 10% chance of stealing 39 life from the target enemy.", nil, { 0.1, 1, 0.1 } } })
+    local p = Panel.Get(GameTooltip)
+    local stat, gap
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "line" then stat = i end
+        if stat and i == stat + 1 then gap = it end
+    end
+    T.truthy(gap and gap.kind == "gap", "a gap after the stats")
+    T.eq(gap.h, stub.tooltip.RichItems.GROUP_GAP)
+    T.eq(p.items[stat + 2].kind, "text", "then the effect")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

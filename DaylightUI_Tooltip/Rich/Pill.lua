@@ -122,8 +122,7 @@ local function paintLight(tex, pair)
         pair = { lo, hi }
     end
     tex:SetVertexColor(1, 1, 1, 1)
-    tex:SetGradient("HORIZONTAL", CreateColor(pair[2][1], pair[2][2], pair[2][3], 1),
-        CreateColor(pair[1][1], pair[1][2], pair[1][3], 1))
+    Style.Gradient(tex, "HORIZONTAL", pair[2][1], pair[2][2], pair[2][3], 1, pair[1][1], pair[1][2], pair[1][3], 1)
 end
 
 -- Its words and bar for a unit. A player: class-colored name, the bar by

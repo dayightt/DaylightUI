@@ -73,6 +73,36 @@ function Read.Lines(tip, data)
     return n, lines, false
 end
 
+-- What the last build showed, line by line, in tables kept per tooltip: a
+-- refill that brings the same lines (an item's, every 0.2 s) is told apart
+-- from new content without building the card again.
+function Read.Keep(seen, n, lines)
+    seen.n = n
+    for i = 1, n do
+        local a, b = lines[i], seen[i]
+        if not b then
+            b = {}
+            seen[i] = b
+        end
+        b.left, b.right, b.type = a.left, a.right, a.type
+        b.l1, b.l2, b.l3 = a.hasLC and a.lc[1], a.hasLC and a.lc[2], a.hasLC and a.lc[3]
+        b.r1, b.r2, b.r3 = a.hasRC and a.rc[1], a.hasRC and a.rc[2], a.hasRC and a.rc[3]
+    end
+end
+
+function Read.Same(seen, n, lines)
+    if seen.n ~= n then return false end
+    for i = 1, n do
+        local a, b = lines[i], seen[i]
+        if a.left ~= b.left or a.right ~= b.right or a.type ~= b.type
+            or (a.hasLC and a.lc[1]) ~= b.l1 or (a.hasLC and a.lc[2]) ~= b.l2 or (a.hasLC and a.lc[3]) ~= b.l3
+            or (a.hasRC and a.rc[1]) ~= b.r1 or (a.hasRC and a.rc[2]) ~= b.r2 or (a.hasRC and a.rc[3]) ~= b.r3 then
+            return false
+        end
+    end
+    return true
+end
+
 -- The unit a tooltip shows, plain, or nil.
 function Read.Unit(tip)
     if type(tip.GetUnit) ~= "function" then return nil end

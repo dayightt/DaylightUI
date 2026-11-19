@@ -50,7 +50,7 @@ function Rich.Filled(tip, data)
     if not Rich.On(tip) then return end
     Rich.Hook(tip)
     local s = stateOf(tip)
-    s.data, s.dirty = data, true
+    s.data, s.dirty, s.refill = data, true, true
 end
 
 -- Emptied for new content: rebuilt from whatever comes next, data or not (an
@@ -272,6 +272,22 @@ local LT = Enum and Enum.TooltipDataLineType
 Rich.QUEST_TITLE = LT and LT.QuestTitle or 17
 Rich.QUEST_OBJECTIVE = LT and LT.QuestObjective or 8
 Rich.QUEST_PLAYER = LT and LT.QuestPlayer or 18
+Rich.FLAVOR = LT and LT.FlavorText or 37
+
+-- A thing's flavor text: the game's quote line ("Miners need a mining pick
+-- for digging."), by its line type, or a line in quotation marks.
+function Rich.IsFlavor(line)
+    if not (line and line.left) or line.right then return false end
+    if line.type == Rich.FLAVOR then return true end
+    local t = Rich.Bare(line.left)
+    return #t > 2 and t:sub(1, 1) == '"' and t:sub(-1) == '"'
+end
+
+-- The quote in the accent, small: it reads as a quote, not as one more fact.
+function Rich.Flavor(p, line)
+    local r, g, b = Style.Accent()
+    Panel.Text(p, Rich.Bare(line.left), { r, g, b }, Style.SIZE.small)
+end
 
 -- The game names whose progress a quest's lines are under its title, for a
 -- group. Your own name says nothing; a party member's does.
@@ -350,20 +366,37 @@ local function questRow(p, name, have, need, chance, done)
     end
 end
 
+-- Whether line i is part of a quest: "title", "objective", "player" (whose
+-- progress it is, in a group) or nil. n: the last line that counts.
+function Rich.QuestLine(lines, i, n)
+    local line = lines[i]
+    if not line then return nil end
+    if line.type == Rich.QUEST_PLAYER then return "player" end
+    if Rich.Objective(line) ~= nil then return "objective" end
+    if line.left and not line.right
+        and (line.type == Rich.QUEST_TITLE or (i < n and Rich.Objective(lines[i + 1]) ~= nil)) then
+        return "title"
+    end
+    return nil
+end
+
 -- The tooltip's lines from line `from` on, in the card's look: a quest as
 -- above, a line with two sides as a row, any other as a sentence, an empty
 -- one as a gap. The colors go through the same rules as the skinned look
--- (Tips.GameSide). A quest block gets a rule before and after it.
-function Rich.Lines(p, n, lines, from)
+-- (Tips.GameSide). A quest block gets a rule before and after it. skip: lines
+-- to pass over (a card that draws them its own way).
+function Rich.Lines(p, n, lines, from, skip)
     local Tips = DUI.Tips
     local inQuest = false
     for i = from, n do
         local line = lines[i]
-        local name, have, need, chance, done = Rich.Objective(line)
-        local who = line.type == Rich.QUEST_PLAYER
-        local title = not name and not who and line.left and not line.right
-            and (line.type == Rich.QUEST_TITLE or (i < n and Rich.Objective(lines[i + 1]) ~= nil))
-        if who then
+        local kind = not (skip and skip[i]) and Rich.QuestLine(lines, i, n) or nil
+        local who, title = kind == "player", kind == "title"
+        local name, have, need, chance, done
+        if kind == "objective" then name, have, need, chance, done = Rich.Objective(line) end
+        if skip and skip[i] then
+            -- Drawn elsewhere.
+        elseif who then
             -- Under a quest's title: a party member's name, small; yours, nothing.
             if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Style.INK.LABEL, Style.SIZE.small) end
         elseif title or name then
@@ -383,6 +416,8 @@ function Rich.Lines(p, n, lines, from)
                 Panel.Gap(p, 4)
             elseif line.right then
                 Panel.Row(p, line.left or "", line.right, valueColor(line))
+            elseif Rich.IsFlavor(line) then
+                Rich.Flavor(p, line)
             else
                 local t, c = Tips.GameSide(line.left, line.hasLC and line.lc or nil)
                 Panel.Text(p, t, c)
@@ -392,8 +427,8 @@ function Rich.Lines(p, n, lines, from)
 end
 
 -- Any tooltip without a card of its own: the first line as the title, the
--- rest as Rich.Lines. A creature also gets its health in its reaction's pair.
-function Rich.Generic(p, n, lines, unit)
+-- rest as Rich.Lines.
+function Rich.Generic(p, n, lines)
     local first = lines[1]
     if n >= 1 and first.left then
         local color = first.hasLC and rgb(first.lc) or nil
@@ -405,11 +440,6 @@ function Rich.Generic(p, n, lines, unit)
             right = first.right, rightColor = first.hasRC and rgb(first.rc) or nil })
     end
     Rich.Lines(p, n, lines, 2)
-    if unit then
-        local pair = ns.RichPlayers.ClassPair(unit)
-        Panel.Gap(p, ns.RichPlayers.BEFORE_BARS)
-        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
-    end
 end
 
 -- An epic item's light sweeps once as its card shows: not again on the
@@ -422,7 +452,7 @@ function Rich.Sweep(tip, s, p, item)
 end
 
 -- Things in the world that aren't units: in a fight they share the pill.
-local function worldThing(data)
+function Rich.WorldThing(data)
     local t = type(data) == "table" and data.type or nil
     if isSecret(t) or t == nil then return false end
     local E = Enum and Enum.TooltipDataType
@@ -438,9 +468,11 @@ function Rich.Build(tip)
     Panel.Level(p)
     local kind = Rich.Kind(s.data)
     local unit = kind == "unit" and Read.Unit(tip) or nil
+    local refill, lastKind, lastSpell = s.refill, s.kind, s.spell
+    s.refill = false
     s.unit, s.kind, s.spell = unit, kind, nil
     -- In a fight a unit is the pill by the cursor, the tooltip itself out of sight.
-    s.world = not unit and worldThing(s.data) or nil
+    s.world = not unit and Rich.WorldThing(s.data) or nil
     if (unit and ns.RichPill.Wanted(tip, unit)) or (s.world and ns.RichPill.WantedWorld(tip)) then
         if p:IsShown() then Panel.Release(p) end
         -- Nothing of the tooltip itself may draw under the pill: the client
@@ -456,8 +488,22 @@ function Rich.Build(tip)
         return
     end
     endPill(tip, s)
-    local light, fade = Rich.Light(tip, s.data, kind)
     local n, lines, secret = Read.Lines(tip, s.data)
+    s.seen = s.seen or {}
+    -- A refill with the very same lines as the card shows (an item's, every
+    -- 0.2 s): nothing to build. Rebuilding made heaps of garbage and the game
+    -- stalled to clear it. Never for a unit or a spell: their cards also show
+    -- things not in their lines (a target, a reaction, a cooldown).
+    if refill and not unit and kind ~= "spell" and not secret and kind == lastKind and p:IsShown() and not p.chrome
+        and Read.Same(s.seen, n, lines) then
+        s.spell = lastSpell
+        s.lines = tip.NumLines and tip:NumLines() or 0
+        if isSecret(s.lines) then s.lines = nil end
+        Panel.Mute(p)
+        return
+    end
+    if secret then s.seen.n = nil else Read.Keep(s.seen, n, lines) end
+    local light, fade = Rich.Light(tip, s.data, kind)
     -- Something new while the card shows (not a refill of the same thing):
     -- its words fade in.
     local key = not secret and n >= 1 and lines[1].left and (kind .. "|" .. lines[1].left) or nil
@@ -476,8 +522,12 @@ function Rich.Build(tip)
             item = ns.RichItems.Build(p, tip, s.data, n, lines, light, fade)
         elseif kind == "spell" and ns.RichSpells.Is(s.data) then
             s.spell = ns.RichSpells.Build(p, tip, s.data, n, lines)
+        elseif unit then
+            ns.RichWorld.Mob(p, tip, unit, s.data, n, lines, light)
+        elseif s.world then
+            ns.RichWorld.Object(p, tip, s.data, n, lines, light)
         else
-            Rich.Generic(p, n, lines, unit)
+            Rich.Generic(p, n, lines)
             Panel.Finish(p)
         end
         Panel.Mute(p)
