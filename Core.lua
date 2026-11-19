@@ -247,6 +247,21 @@ function DUI.ItemLevel(link)
     return nil
 end
 
+-- A game format string ("You receive loot: %sx%d.") as a Lua pattern with
+-- its holes as captures; positional holes ("%1$s") too. Nil for anything but
+-- a string.
+function DUI.GamePattern(fmt)
+    if type(fmt) ~= "string" then return nil end
+    -- Drop the positions first: escaping the "$" below would leave a bare "%1",
+    -- which Lua reads as a back-reference.
+    local p = fmt:gsub("%%%d+%$", "%%")
+    p = p:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
+    -- A decimal (the reputation bonus lines' "%.1f", its dot escaped above).
+    p = p:gsub("%%%d?%$?%%%.%d+f", "([%%d%%.,]+)"):gsub("%%%d?%$?f", "([%%d%%.,]+)")
+    p = p:gsub("%%%d?%$?s", "(.+)"):gsub("%%%d?%$?d", "(%%d+)")
+    return p
+end
+
 -- Runs fn; an error goes to the client's error handler instead of stopping
 -- the caller. The stack is appended to the message, since a plain pcall
 -- loses it and every report would point here. A secret message is passed on

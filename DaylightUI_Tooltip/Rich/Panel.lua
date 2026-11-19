@@ -32,14 +32,16 @@ Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, item = 290, spell = 270, other = 280 }
-Panel.FIXED = { unit = true, item = true, spell = true }
+Panel.WIDTH = { unit = 300, item = 290, compare = 230, spell = 270, other = 280 }
+Panel.FIXED = { unit = true, item = true, compare = true, spell = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
 Panel.SHADE = 0.45     -- a bar colored from a curve: its dark end, as black over the fill
 Panel.BUFF, Panel.BUFF_GAP = 22, 4
 Panel.WASH_ALPHA = 0.22
+Panel.WASH_DOWN = 0.16 -- an item's wash, top to bottom
+Panel.SWEEP_W = 70     -- the quality light's sweep
 -- Lines measured with no font metrics (the tests) are this tall per size.
 Panel.LINE_EXTRA = 3
 
@@ -106,6 +108,20 @@ function Panel.For(tip)
     end
     p.pool = { text = {}, tex = {}, bar = {}, tag = {}, tile = {}, icon = {}, buff = {} }
     p.used = { text = 0, tex = 0, bar = 0, tag = 0, tile = 0, icon = 0, buff = 0 }
+    -- The quality light's sweep: a short bright band along the top light, soft
+    -- at both ends, run once as the card shows.
+    p.track = CreateFrame("Frame", nil, p)
+    p.track:EnableMouse(false)
+    p.sweep = CreateFrame("Frame", nil, p)
+    p.sweep:EnableMouse(false)
+    p.sweep:Hide()
+    p.sweep.halves = { p.sweep:CreateTexture(nil, "OVERLAY"), p.sweep:CreateTexture(nil, "OVERLAY") }
+    for i, t in ipairs(p.sweep.halves) do
+        t:SetTexture("Interface\\Buttons\\WHITE8X8")
+        t:SetBlendMode("ADD")
+        t:SetPoint(i == 1 and "TOPLEFT" or "TOPRIGHT", p.sweep, i == 1 and "TOPLEFT" or "TOPRIGHT")
+        t:SetPoint(i == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT", p.sweep, "BOTTOM")
+    end
     p.items, p.count = {}, 0
     panels[tip] = p
     Panel.Level(p)
@@ -281,7 +297,8 @@ function Panel.Begin(p, kind, light, fade)
     p.count = 0
     p.kind = kind or "other"
     p.lightPair, p.lightFade = light, fade
-    p.washColor = nil
+    p.washColor, p.washDown = nil, nil
+    p.padX, p.padTop, p.rowGap, p.ruleGap = nil, nil, nil, nil
     p.chrome = false
 end
 
@@ -338,13 +355,13 @@ function Panel.Header(p, spec)
     p.washColor = spec.wash
 end
 
--- A label on the left, its value on the right.
-function Panel.Row(p, label, value, valueColor, labelColor)
+-- A label on the left, its value on the right. s: their text size (body).
+function Panel.Row(p, label, value, valueColor, labelColor, s)
     local item = add(p, { kind = "row" })
-    item.label = text(p, Style.SIZE.body, labelColor or Style.INK.LABEL)
+    item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL)
     item.label:SetText(label or "")
     if value and value ~= "" then
-        item.value = text(p, Style.SIZE.body, valueColor or Style.INK.VALUE)
+        item.value = text(p, s or Style.SIZE.body, valueColor or Style.INK.VALUE)
         item.value:SetText(value)
         item.value:SetJustifyH("RIGHT")
     end
@@ -355,6 +372,18 @@ function Panel.Text(p, sentence, color, s)
     local item = add(p, { kind = "text" })
     item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT, true)
     item.fs:SetText(sentence or "")
+end
+
+-- One line that never wraps, cut with "..." at the card's edge, and an
+-- optional smaller tail right after it (a stat's "from Equip").
+function Panel.Line(p, words, color, s, tail, tailColor, tailSize)
+    local item = add(p, { kind = "line" })
+    item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT)
+    item.fs:SetText(words or "")
+    if tail then
+        item.tail = text(p, tailSize or Style.SIZE.small, tailColor or Style.INK.LABEL)
+        item.tail:SetText(tail)
+    end
 end
 
 function Panel.Rule(p)
@@ -479,6 +508,8 @@ local function natural(item)
         return widthOf(item.label) + (item.value and (16 + widthOf(item.value)) or 0)
     elseif k == "text" or k == "section" then
         return widthOf(item.fs)
+    elseif k == "line" then
+        return widthOf(item.fs) + (item.tail and (4 + widthOf(item.tail)) or 0)
     elseif k == "hints" then
         local w = 0
         for _, fs in ipairs(item.list) do w = math.max(w, widthOf(fs)) end
@@ -498,10 +529,13 @@ end
 
 -- Each piece placed from the panel's top-left at y (going down) and across
 -- the inside width; returns its height.
+-- A card's own spacing (Begin clears them): padX, padTop, rowGap, ruleGap.
+local function padX(p) return p.padX or Panel.PAD_X end
+
 local place = {}
 
 function place.header(p, item, y, inner)
-    local x = Panel.PAD_X
+    local x = padX(p)
     local spec, h = item.spec, 0
     if item.icon then
         local s = spec.iconSize or 36
@@ -522,16 +556,17 @@ function place.header(p, item, y, inner)
     local th = lineHeight(item.title, item.title.size)
     local col = th
     if item.sub then col = col + 2 + lineHeight(item.sub, item.sub.size) end
-    if item.tags and #item.tags > 0 then col = col + 5 + W().TAG_H end
+    local tagGap = spec.tagGap or 5
+    if item.tags and #item.tags > 0 then col = col + tagGap + W().TAG_H end
     -- The words sit in the middle of the icon's height when shorter.
     local top = y + math.max(0, (h - col) / 2)
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
     -- Never past the card's edge (or the level beside it): cut short with "...".
-    local room = inner + Panel.PAD_X - x - (item.right and (12 + widthOf(item.right)) or 0)
+    local room = inner + padX(p) - x - (item.right and (12 + widthOf(item.right)) or 0)
     if widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
-        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -(top + th - lineHeight(item.right, item.right.size)))
+        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right, item.right.size)))
     end
     local ty = top + th
     if item.sub then
@@ -541,20 +576,20 @@ function place.header(p, item, y, inner)
     if item.tags and #item.tags > 0 then
         local tx = x
         for _, tag in ipairs(item.tags) do
-            tag:SetPoint("TOPLEFT", p, "TOPLEFT", tx, -(ty + 5))
+            tag:SetPoint("TOPLEFT", p, "TOPLEFT", tx, -(ty + tagGap))
             tx = tx + tag:GetWidth() + Panel.TAG_GAP
         end
-        ty = ty + 5 + W().TAG_H
+        ty = ty + tagGap + W().TAG_H
     end
     item.h = math.max(h, ty - y)
     return item.h
 end
 
 function place.row(p, item, y)
-    item.label:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -y)
+    item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = lineHeight(item.label, item.label.size)
     if item.value then
-        item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -y)
+        item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
         item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
         h = math.max(h, lineHeight(item.value, item.value.size))
     end
@@ -564,7 +599,7 @@ end
 function place.text(p, item, y, inner)
     local fs = item.fs
     fs:SetWidth(inner)
-    fs:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -y)
+    fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = fs:GetStringHeight()
     if type(h) == "number" and not isSecret(h) and h > 0 then return h end
     -- No metrics (the tests): as many lines as the width needs.
@@ -573,15 +608,30 @@ function place.text(p, item, y, inner)
 end
 
 function place.section(p, item, y)
-    item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -y)
+    item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     return lineHeight(item.fs, item.fs.size)
+end
+
+function place.line(p, item, y, inner)
+    local fs, tail = item.fs, item.tail
+    fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
+    local room = inner - (tail and (4 + widthOf(tail)) or 0)
+    if widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
+    local h = lineHeight(fs, fs.size)
+    if tail then
+        -- On the line's baseline.
+        tail:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 4, 0)
+        h = math.max(h, lineHeight(tail, tail.size))
+    end
+    return h
 end
 
 function place.rule(p, item, y, inner)
     local t, one = item.tex, DUI.Pixel.Px(item.tex, 1)
-    t:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -(y + Panel.RULE_GAP))
+    local gap = p.ruleGap or Panel.RULE_GAP
+    t:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + gap))
     t:SetSize(inner, one)
-    return 2 * Panel.RULE_GAP + one
+    return 2 * gap + one
 end
 
 function place.gap(_, item) return item.h end
@@ -590,13 +640,13 @@ function place.bar(p, item, y)
     local top = y
     if item.caption or item.pct then
         local s = (item.caption or item.pct).size
-        if item.caption then item.caption:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -y) end
-        if item.pct then item.pct:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -y) end
+        if item.caption then item.caption:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y) end
+        if item.pct then item.pct:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y) end
         top = y + s + Panel.LINE_EXTRA + 4
     end
     local bar = item.bar
-    bar:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -top)
-    bar:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -top)
+    bar:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -top)
+    bar:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -top)
     Panel.ShapeBar(bar, item.h)
     return top - y + item.h
 end
@@ -622,7 +672,7 @@ function place.tiles(p, item, y, inner)
     local w = (inner - (n - 1) * Panel.TILE_GAP) / math.max(1, n)
     for i, t in ipairs(item.list) do
         t:SetSize(w, W().TILE_H)
-        t:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X + (i - 1) * (w + Panel.TILE_GAP), -y)
+        t:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + (i - 1) * (w + Panel.TILE_GAP), -y)
         Style.LayoutShell(Style.GetShell(t))
     end
     return W().TILE_H
@@ -635,7 +685,7 @@ function place.tags(p, item, y, inner)
         if x > 0 and x + w > inner then
             x, row = 0, row + 1
         end
-        tag:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X + x, -(y + row * (W().TAG_H + 4)))
+        tag:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + x, -(y + row * (W().TAG_H + 4)))
         x = x + w + 4
     end
     return (row + 1) * W().TAG_H + row * 4
@@ -648,7 +698,7 @@ function place.icons(p, item, y, inner)
     for i, f in ipairs(item.list) do
         local col, row = (i - 1) % per, math.floor((i - 1) / per)
         f:SetSize(s, s)
-        f:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X + col * (s + gap), -(y + row * (s + gap)))
+        f:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + col * (s + gap), -(y + row * (s + gap)))
         f.ring:ClearAllPoints()
         f.ring:SetPoint("TOPLEFT", f, "TOPLEFT", -one, one)
         f.ring:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", one, -one)
@@ -663,7 +713,7 @@ end
 function place.hints(p, item, y)
     if #item.list == 0 then return 0 end
     for i, fs in ipairs(item.list) do
-        fs:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -(y + (i - 1) * Panel.HINT_H))
+        fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + (i - 1) * Panel.HINT_H))
     end
     return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1], item.list[1].size))
 end
@@ -677,14 +727,15 @@ function Panel.Finish(p)
     for i = 1, p.count do widest = math.max(widest, natural(p.items[i])) end
     local most = Panel.WIDTH[p.kind] or Panel.WIDTH.other
     -- Rounded up: a card a fraction short of its widest text cut it with "...".
-    local w = math.ceil(math.min(most, math.max(Panel.MIN_W, widest + 2 * Panel.PAD_X)))
+    local w = math.ceil(math.min(most, math.max(Panel.MIN_W, widest + 2 * padX(p))))
     if Panel.FIXED[p.kind] then w = most end
-    local inner = w - 2 * Panel.PAD_X
-    local y, last = Panel.PAD_TOP, nil
+    local inner = w - 2 * padX(p)
+    local y, last = p.padTop or Panel.PAD_TOP, nil
+    local rowGap = p.rowGap or Panel.ROW_GAP
     for i = 1, p.count do
         local item = p.items[i]
         -- Rows sit ROW_GAP apart; a rule or a gap brings its own room.
-        if last and SPACED[item.kind] ~= false and SPACED[last] ~= false then y = y + Panel.ROW_GAP end
+        if last and SPACED[item.kind] ~= false and SPACED[last] ~= false then y = y + rowGap end
         y = y + place[item.kind](p, item, y, inner)
         last = item.kind
     end
@@ -709,6 +760,10 @@ function Panel.PaintLight(p)
     end
     local one = DUI.Pixel.Px(p, 1)
     local lo, hi = pair[1], pair[2]
+    p.track:ClearAllPoints()
+    p.track:SetPoint("TOPLEFT", p, "TOPLEFT", one, -one)
+    p.track:SetPoint("TOPRIGHT", p, "TOPRIGHT", -one, -one)
+    p.track:SetHeight(Panel.LIGHT_H)
     a:ClearAllPoints()
     b:ClearAllPoints()
     a:SetPoint("TOPLEFT", p, "TOPLEFT", one, -one)
@@ -741,10 +796,22 @@ function Panel.PaintWash(p)
         return
     end
     local w = p.wantW or 200
-    local h = Panel.PAD_TOP + (header.h or 0) + 12
-    local s = Panel.WASH_ALPHA
     a:ClearAllPoints()
     b:ClearAllPoints()
+    if p.washDown then
+        -- An item's: its quality from the top, gone by 80% of the header's height.
+        local h = ((p.padTop or Panel.PAD_TOP) + (header.h or 0)) * 0.8
+        a:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
+        a:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+        a:SetHeight(h)
+        a:SetVertexColor(1, 1, 1, 1)
+        a:SetGradient("VERTICAL", CreateColor(c[1], c[2], c[3], 0), CreateColor(c[1], c[2], c[3], Panel.WASH_DOWN))
+        a:Show()
+        b:Hide()
+        return
+    end
+    local h = (p.padTop or Panel.PAD_TOP) + (header.h or 0) + 12
+    local s = Panel.WASH_ALPHA
     a:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
     a:SetSize(w * 0.6, h)
     b:SetPoint("TOPLEFT", a, "TOPRIGHT", 0, 0)
@@ -756,6 +823,23 @@ function Panel.PaintWash(p)
     b:SetGradient("HORIZONTAL", CreateColor(c[1], c[2], c[3], s * 0.27), CreateColor(c[1], c[2], c[3], 0))
     a:Show()
     b:Show()
+end
+
+-- The top light's sweep: a brighter band of color runs along it once, left to
+-- right, over SLOW. Nothing with Motion off or in a fight.
+Panel.SWEEP_LIFT = 0.5
+function Panel.Sweep(p, c)
+    local M = DUI.Motion
+    if InCombatLockdown() or not (p.lightPair and type(c) == "table" and M.On()) then return end
+    local k = Panel.SWEEP_LIFT
+    local r, g, b = c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k, c[3] + (1 - c[3]) * k
+    local left, right = p.sweep.halves[1], p.sweep.halves[2]
+    left:SetVertexColor(1, 1, 1, 1)
+    right:SetVertexColor(1, 1, 1, 1)
+    left:SetGradient("HORIZONTAL", CreateColor(r, g, b, 0), CreateColor(r, g, b, 1))
+    right:SetGradient("HORIZONTAL", CreateColor(r, g, b, 1), CreateColor(r, g, b, 0))
+    p.sweep:SetHeight(Panel.LIGHT_H)
+    M.Sweep(p.sweep, p.track, { width = Panel.SWEEP_W, dur = M.SLOW, inset = Panel.SWEEP_W / 2, key = p.sweep })
 end
 
 -- Only the frame (a secret line): no pieces, sized by the game.
@@ -820,6 +904,8 @@ function Panel.Mute(p)
     if type(money) == "table" then
         for _, f in pairs(money) do muteRegions(p.muted, f) end
     end
+    -- A compare tooltip's "Equipped" tab: the card says it in its own tag.
+    if type(tip.CompareHeader) == "table" then muteRegions(p.muted, tip.CompareHeader) end
 end
 
 function Panel.Unmute(p)

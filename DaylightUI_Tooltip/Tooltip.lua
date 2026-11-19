@@ -159,6 +159,10 @@ function Tip.Skin(tip)
             Tip.hookRan = true
             Tip.OnUpdate(self)
         end)
+    elseif ns.Rich.TIPS[tip.GetName and tip:GetName() or ""] then
+        -- A compare tooltip: its card is rebuilt when lines come after the
+        -- fill (the game's stat changes, other addons') and kept fitted.
+        tip:HookScript("OnUpdate", function(self) DUI.SafeCall(ns.Rich.Step, self) end)
     end
     keepUnder(tip)
     Tip.SkinHeader(tip)
@@ -730,7 +734,12 @@ Tip.GREEN_STATS = {
 function Tip.ShortStat(text)
     local prefix = type(ITEM_SPELL_TRIGGER_ONEQUIP) == "string" and ITEM_SPELL_TRIGGER_ONEQUIP or "Equip:"
     if type(text) ~= "string" or text:sub(1, #prefix) ~= prefix then return nil end
-    local rest = text:sub(#prefix + 1):gsub("^%s+", "")
+    return Tip.ShortText(text:sub(#prefix + 1):gsub("^%s+", ""))
+end
+
+-- The same for an effect's own words (after "Equip:", or a set bonus's), or nil.
+function Tip.ShortText(rest)
+    if type(rest) ~= "string" then return nil end
     for _, s in ipairs(Tip.GREEN_STATS) do
         if rest:find(s[1]) then return (rest:gsub(s[1], s[2])) end
     end
@@ -925,10 +934,12 @@ end
 function Tip.OnItemLines(tip, data)
     if skinned[tip] then Tip.PaintCoins(tip) end
     if skinned[tip] then Tip.AddQuestPrice(tip, data) end
-    if skinned[tip] and cfg and cfg.greenStats then Tip.ShortenStats(tip) end
+    -- The rich card has its own stat lines, item level tag and no stack line.
+    local rich = ns.Rich.On(tip)
+    if skinned[tip] and cfg and cfg.greenStats and not rich then Tip.ShortenStats(tip) end
     if not (skinned[tip] and cfg and (cfg.itemLevel or cfg.showIDs or cfg.stackSize)) then return end
     local link = Tip.ItemLink(tip, data)
-    if cfg.itemLevel then
+    if cfg.itemLevel and not rich then
         local level = Tip.ItemLevel(link)
         if level then
             local format, prefix = Tip.LevelFormat()
@@ -939,7 +950,7 @@ function Tip.OnItemLines(tip, data)
             end
         end
     end
-    if cfg.stackSize then Tip.AddStack(tip, link) end
+    if cfg.stackSize and not rich then Tip.AddStack(tip, link) end
     if cfg.showIDs then
         local id = type(data) == "table" and plain(data.id) or nil
         if type(id) ~= "number" and type(link) == "string" and C_Item and C_Item.GetItemInfoInstant then

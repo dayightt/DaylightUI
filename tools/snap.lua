@@ -450,7 +450,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -458,47 +458,60 @@ local RECIPES = {
                 SNAP_TIP_POST[kind] = SNAP_TIP_POST[kind] or {}
                 table.insert(SNAP_TIP_POST[kind], fn)
             end }
+            -- A tooltip's lines as the game keeps them (<name>TextLeft<i>).
+            local function lined(tip)
+                local name = tip:GetName()
+                tip.__n = 0
+                local function line(side, i)
+                    local key = name .. "Text" .. side .. i
+                    if not _G[key] then
+                        local fs = tip:CreateFontString(key)
+                        fs:SetFontObject(_G.GameTooltipText)
+                        if i == 1 and side == "Left" then fs:SetPoint("TOPLEFT", tip, "TOPLEFT", 10, -10)
+                        elseif side == "Left" then fs:SetPoint("TOPLEFT", _G[name .. "TextLeft" .. (i - 1)], "BOTTOMLEFT", 0, -2)
+                        else fs:SetPoint("RIGHT", _G[name .. "TextLeft" .. i], "RIGHT", 40, 0) end
+                        _G[key] = fs
+                    end
+                    return _G[key]
+                end
+                function tip:NumLines() return self.__n end
+                function tip:ClearLines()
+                    for i = 1, self.__n do line("Left", i):SetText(nil); line("Right", i):SetText(nil) end
+                    self.__n = 0
+                end
+                function tip:AddDoubleLine(l, r, lr, lg, lb, rr, rg, rb)
+                    self.__n = self.__n + 1
+                    local left, right = line("Left", self.__n), line("Right", self.__n)
+                    left:SetText(l); left:SetTextColor(lr or 1, lg or 1, lb or 1)
+                    right:SetText(r); right:SetTextColor(rr or 1, rg or 1, rb or 1)
+                end
+                function tip:AddLine(t, r, g, b) self:AddDoubleLine(t, nil, r, g, b) end
+                function tip:SetOwner(owner, anchor)
+                    self.__owner, self.__anchor = owner, anchor
+                    self:ClearLines()
+                    local cleared = self:GetScript("OnTooltipCleared")
+                    if cleared then cleared(self) end
+                end
+                function tip:GetOwner() return self.__owner end
+                function tip:GetAnchorType() return self.__anchor end
+                stub.TooltipSizes(tip)
+                return tip
+            end
             local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
             tip.NineSlice = CreateFrame("Frame", nil, tip)
-            tip.__n = 0
-            local function line(side, i)
-                local key = "GameTooltipText" .. side .. i
-                if not _G[key] then
-                    local fs = tip:CreateFontString(key)
-                    fs:SetFontObject(_G.GameTooltipText)
-                    if i == 1 and side == "Left" then fs:SetPoint("TOPLEFT", tip, "TOPLEFT", 10, -10)
-                    elseif side == "Left" then fs:SetPoint("TOPLEFT", _G["GameTooltipTextLeft" .. (i - 1)], "BOTTOMLEFT", 0, -2)
-                    else fs:SetPoint("RIGHT", _G["GameTooltipTextLeft" .. i], "RIGHT", 40, 0) end
-                    _G[key] = fs
-                end
-                return _G[key]
-            end
-            function tip:NumLines() return self.__n end
-            function tip:ClearLines()
-                for i = 1, self.__n do line("Left", i):SetText(nil); line("Right", i):SetText(nil) end
-                self.__n = 0
-            end
-            function tip:AddDoubleLine(l, r, lr, lg, lb, rr, rg, rb)
-                self.__n = self.__n + 1
-                local left, right = line("Left", self.__n), line("Right", self.__n)
-                left:SetText(l); left:SetTextColor(lr or 1, lg or 1, lb or 1)
-                right:SetText(r); right:SetTextColor(rr or 1, rg or 1, rb or 1)
-            end
-            function tip:AddLine(t, r, g, b) self:AddDoubleLine(t, nil, r, g, b) end
-            function tip:GetItem() return nil, "epic" end
-            function tip:SetOwner(owner, anchor)
-                self.__owner, self.__anchor = owner, anchor
-                self:ClearLines()
-                local cleared = self:GetScript("OnTooltipCleared")
-                if cleared then cleared(self) end
-            end
-            function tip:GetOwner() return self.__owner end
-            function tip:GetAnchorType() return self.__anchor end
+            lined(tip)
+            function tip:GetItem() return nil, "greaves" end
             tip:SetScript("OnShow", function(self) self:ClearPadding() end)
-            stub.TooltipSizes(tip)
             tip:Hide()
-            C_Item.GetItemQualityByID = function() return 4 end
-            C_Item.GetItemQualityColor = function() return 0.64, 0.21, 0.93 end
+            tip.shoppingTooltips = { lined(stub.CompareTooltip("ShoppingTooltip1")), lined(stub.CompareTooltip("ShoppingTooltip2")) }
+            _G.ITEM_DELTA_DESCRIPTION = "If you replace this item, the following stat changes will occur:"
+            _G.INVTYPE_LEGS, _G.EQUIPPED, _G.SHIFT_KEY_TEXT, _G.CTRL_KEY_TEXT = "Legs", "Equipped", "Shift", "Ctrl"
+            stub.SetItems({
+                greaves = { id = 19001, quality = 4, kind = "Armor", sub = "Plate", equip = "INVTYPE_LEGS",
+                    icon = 134584, class = 4, level = 66, dressable = true },
+                legplates = { id = 19002, quality = 3, kind = "Armor", sub = "Plate", equip = "INVTYPE_LEGS",
+                    icon = 134583, class = 4, level = 58, dressable = true },
+            })
         end,
         open = function(DUI, look)
             DUI:Set("Tooltip", "style", look == "simple" and "simple" or "rich")
@@ -526,22 +539,56 @@ local RECIPES = {
                 tip:GetScript("OnUpdate")(tip, 0.02)
                 return look == "pill" and _G.DaylightUITooltipPill or tip
             end
+            -- The board's item, line for line as the game writes it.
             tip:AddLine("Dawnforged Greaves", 0.64, 0.21, 0.93)
             tip:AddLine("Binds when equipped")
             tip:AddDoubleLine("Legs", "Plate")
             tip:AddLine("742 Armor")
             tip:AddLine("+24 Strength")
             tip:AddLine("+31 Stamina")
-            tip:AddLine("Equip: Improves your chance to get a critical strike by 1%.", 0, 1, 0)
             tip:AddLine("Durability 98 / 100")
-            tip:AddDoubleLine("Requires Level 58", "")
+            tip:AddLine("Requires Level 58")
+            tip:AddLine("Equip: Improves your chance to get a critical strike by 1%.", 0.1, 1, 0.1)
+            tip:AddLine(" ")
+            tip:AddLine("Dawnforged Battlegear (2/5)", 1, 0.82, 0)
+            tip:AddLine("  Dawnforged Helm", 0.5, 0.5, 0.5)
+            tip:AddLine("  Dawnforged Greaves")
+            tip:AddLine(" ")
+            tip:AddLine("Set: Increases attack power by 40.", 0.1, 1, 0.1)
+            tip:AddLine("(4) Set: 5% chance on hit to heal you for 120.", 0.5, 0.5, 0.5)
+            tip:AddLine("Sell Price: 3|A:coin-gold:0:0|a 42|A:coin-silver:0:0|a")
             if look == "secret" then GameTooltipTextLeft4:SetText(stub.Secret("742 Armor")) end
-            local data = { type = 0 }
+            local own = {}
+            for i = 1, tip:NumLines() do own[i] = {} end
+            local data = { type = 0, hyperlink = "greaves", lines = own }
             for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
             for _, fn in ipairs(SNAP_TIP_POST[0] or {}) do fn(tip, data) end
             tip:Show()
             tip:GetScript("OnUpdate")(tip, 0.02)
-            return tip
+            if look ~= "compare" then return tip end
+            -- What you have on, beside it, as the game's compare manager fills it.
+            local shop = ShoppingTooltip1
+            shop:SetOwner(tip, "ANCHOR_NONE")
+            shop.CompareHeader:Show()
+            shop.CompareHeader.Label:SetText("Equipped")
+            shop:AddLine("Tarnished Legplates", 0, 0.44, 0.87)
+            shop:AddDoubleLine("Legs", "Plate")
+            shop:AddLine("646 Armor")
+            shop:AddLine("+16 Strength")
+            local shopData = { type = 0, hyperlink = "legplates", lines = { {}, {}, {}, {} } }
+            for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(shop, shopData) end
+            for _, fn in ipairs(SNAP_TIP_POST[0] or {}) do fn(shop, shopData) end
+            shop:AddLine(" ")
+            shop:AddLine(ITEM_DELTA_DESCRIPTION, 1, 0.82, 0)
+            for _, c in ipairs({ "+8 Strength", "+11 Stamina", "+1% Crit", "-96 Armor" }) do shop:AddLine(c) end
+            shop:ClearAllPoints()
+            shop:SetPoint("TOPLEFT", tip, "TOPRIGHT", 0, 0)
+            shop:Show()
+            -- One box around both, for the picture.
+            local both = CreateFrame("Frame", nil, tip)
+            both:SetPoint("TOPLEFT", tip, "TOPLEFT", 0, 0)
+            both:SetPoint("BOTTOMRIGHT", tip, "BOTTOMRIGHT", shop:GetWidth(), 0)
+            return both
         end },
     npc = { about = "the NPC window's sample talk [immersive: the whole screen]", open = function(DUI, look)
         DUI:Set("NPC", "look", look == "immersive" and "immersive" or "window")

@@ -139,8 +139,7 @@ end
 function Players.Card(p, tip, unit, data, n, lines)
     local Panel, Tip = ns.RichPanel, ns.Tooltip
     local cfg = Tip.Config()
-    local _, token = UnitClass(unit)
-    token = plain(token)
+    local token = plain((select(2, UnitClass(unit))))
     local pair = Players.ClassPair(unit)
     local light = pair and { pair[2], pair[1] } or nil
     Panel.Begin(p, "unit", light)

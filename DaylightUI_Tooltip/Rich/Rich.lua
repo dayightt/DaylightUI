@@ -15,9 +15,16 @@ ns.Rich = Rich
 
 local Panel, Read = ns.RichPanel, ns.RichRead
 
--- The tooltips that get the card. The compare and clicked-item tooltips keep
+-- The tooltips that get the card: the main one and the compare tooltips
+-- beside it (and beside a clicked item). The clicked item's own popup keeps
 -- the skinned look for now.
-Rich.TIPS = { GameTooltip = true }
+Rich.TIPS = { GameTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
+              ItemRefShoppingTooltip1 = true, ItemRefShoppingTooltip2 = true }
+
+-- The game's health bar hangs under the main tooltip only.
+local function showBar(tip, on)
+    if tip == GameTooltip then ns.Tooltip.ShowBar(on) end
+end
 
 local state = setmetatable({}, { __mode = "k" }) -- tooltip -> { data, dirty }
 
@@ -80,7 +87,7 @@ function Rich.Step(tip)
         -- The size went secret since the build: the frame only.
         Panel.Unmute(p)
         Panel.Chrome(p)
-        ns.Tooltip.ShowBar(true)
+        showBar(tip, true)
     end
     if s.unit and not p.chrome then
         local now = GetTime()
@@ -101,10 +108,10 @@ end
 function Rich.Hidden(tip)
     local s = state[tip]
     endPill(tip, s)
-    if s then s.dirty, s.data, s.lines, s.unit = false, nil, nil, nil end
+    if s then s.dirty, s.data, s.lines, s.unit, s.swept = false, nil, nil, nil, nil end
     Panel.Release(Panel.Get(tip))
     ns.Tooltip.ShowShell(tip, true)
-    ns.Tooltip.ShowBar(true)
+    showBar(tip, true)
 end
 
 -- A setting changed: built again before the next draw, or put away.
@@ -124,7 +131,7 @@ function Rich.Off(tip)
     if p and p:IsShown() then Panel.Release(p) end
     state[tip] = nil
     ns.Tooltip.ShowShell(tip, true)
-    ns.Tooltip.ShowBar(true)
+    showBar(tip, true)
 end
 
 -- What the card's top light is: an item's quality, a unit's class or
@@ -135,10 +142,7 @@ function Rich.Light(tip, data, kind)
         local q = Tip.Quality(Tip.ItemLink(tip, data))
         local r, g, b
         if q and q >= Tip.MIN_QUALITY then r, g, b = Tip.QualityColor(q) end
-        if r then
-            local lift = { math.min(1, r * 1.15 + 0.1), math.min(1, g * 1.15 + 0.1), math.min(1, b * 1.15 + 0.1) }
-            return { lift, { r, g, b } }, true
-        end
+        if r then return { ns.RichItems.Lift({ r, g, b }), { r, g, b } }, true end
     elseif kind == "unit" then
         local unit = Read.Unit(tip)
         if unit and DUI.Gradients then
@@ -322,6 +326,15 @@ function Rich.Generic(p, n, lines, unit)
     end
 end
 
+-- An epic item's light sweeps once as its card shows: not again on the
+-- refills every 0.2 s, only for another item. Not on a compare tooltip.
+function Rich.Sweep(tip, s, p, item)
+    local key = item.color and ns.Tooltip.ItemLink(tip, s.data)
+    if not key or s.swept == key or type(tip.CompareHeader) == "table" then return end
+    s.swept = key
+    if (item.quality or 0) >= ns.RichItems.EPIC then Panel.Sweep(p, item.color) end
+end
+
 function Rich.Build(tip)
     local s = stateOf(tip)
     s.dirty = false
@@ -348,21 +361,26 @@ function Rich.Build(tip)
     if secret then
         Panel.Unmute(p)
         Panel.Chrome(p)
-        Tip.ShowBar(true)
+        showBar(tip, true)
     else
+        local item
         if unit and ns.RichPlayers.Is(unit) then
             ns.RichPlayers.Card(p, tip, unit, s.data, n, lines)
+        elseif kind == "item" then
+            item = ns.RichItems.Build(p, tip, s.data, n, lines, light, fade)
         else
             Rich.Generic(p, n, lines, unit)
             Panel.Finish(p)
         end
         Panel.Mute(p)
-        Tip.ShowBar(unit == nil)
+        showBar(tip, unit == nil)
         p.fitTried = nil
         if not Panel.Fit(p) then
             Panel.Unmute(p)
             Panel.Chrome(p)
-            Tip.ShowBar(true)
+            showBar(tip, true)
+        elseif item then
+            Rich.Sweep(tip, s, p, item)
         end
     end
     Tip.ShowShell(tip, false)

@@ -3085,6 +3085,63 @@ _G.C_Item = {
         return out
     end,
 }
+-- Items a test knows: stub.SetItems{ [link] = { id, quality, kind, sub, equip,
+-- icon, class, level, dressable } }. C_Item answers from it the way the
+-- client's does (MayReturnNothing: nothing for an unknown item), quality
+-- colors are the game's own (ColorManager's item quality table), and each
+-- refuses a secret argument as the docs say.
+stub.QUALITY_COLORS = {
+    [0] = { 0.616, 0.616, 0.616 }, [1] = { 1, 1, 1 }, [2] = { 0.118, 1, 0 }, [3] = { 0, 0.439, 0.867 },
+    [4] = { 0.639, 0.208, 0.933 }, [5] = { 1, 0.502, 0 }, [6] = { 0.902, 0.8, 0.502 }, [7] = { 0, 0.8, 1 },
+}
+local function itemArg(name, v)
+    if issecretvalue and issecretvalue(v) then error(name .. ": secret argument") end
+    return stub.items and stub.items[v]
+end
+function stub.SetItems(list)
+    stub.items = list
+    C_Item.GetItemInfoInstant = function(link)
+        local it = itemArg("GetItemInfoInstant", link)
+        if it then return it.id, it.kind, it.sub, it.equip or "", it.icon or 134400, it.class or 0 end
+    end
+    C_Item.GetItemQualityByID = function(link)
+        local it = itemArg("GetItemQualityByID", link)
+        return it and it.quality
+    end
+    C_Item.GetItemQualityColor = function(q)
+        local c = stub.QUALITY_COLORS[q] or stub.QUALITY_COLORS[1]
+        local function h(v) return math.floor(v * 255 + 0.5) end
+        return c[1], c[2], c[3], string.format("ff%02x%02x%02x", h(c[1]), h(c[2]), h(c[3]))
+    end
+    C_Item.GetDetailedItemLevelInfo = function(link)
+        local it = itemArg("GetDetailedItemLevelInfo", link)
+        if it and it.level then return it.level, false, it.level end
+    end
+    C_Item.IsDressableItemByID = function(link)
+        local it = itemArg("IsDressableItemByID", link)
+        return it ~= nil and it.dressable == true
+    end
+end
+
+-- A compare tooltip as the game's ShoppingTooltipTemplate makes it: an
+-- "Equipped" tab (CompareHeader, with its Label) on its top edge, hidden again
+-- whenever the tooltip is cleared, and no GetItem (TooltipDataHandlerMixin only).
+function stub.CompareTooltip(name)
+    local tip = new("GameTooltip", name, UIParent)
+    tip.NineSlice = new("Frame", nil, tip)
+    tip:SetFrameLevel(2)
+    local h = new("Frame", nil, tip)
+    h:SetFrameLevel(1)
+    h:SetSize(100, 22)
+    h:SetPoint("BOTTOMLEFT", tip, "TOPLEFT", 0, -1)
+    h.Label = h:CreateFontString(nil, "ARTWORK")
+    h:Hide()
+    tip.CompareHeader = h
+    tip:SetScript("OnTooltipCleared", function(self) self.CompareHeader:Hide() end)
+    tip:Hide()
+    return tip
+end
+
 -- The one temporary enchant on an inventory slot, or nothing: oils, stones,
 -- poisons (enchantType Temporary, 2). WoW Forever's shaman imbues (Imbue, 3)
 -- aren't included. The aura container's weapon slots read this
@@ -3724,7 +3781,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end
