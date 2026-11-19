@@ -177,6 +177,13 @@ T.test("quests data: items and timers ride on their quest", function()
     T.eq(q[2].timer, 252)
 end)
 
+T.test("quests data: a ready quest drops its item button", function()
+    local s = snap({ quests = {
+        QW.quest(1, "A", { complete = true, item = { link = "|Hitem:5862:|h[Seaforium]|h", icon = 1234, charges = 3 } }),
+    } })
+    T.isnil(s.groups[1].quests[1].item)
+end)
+
 T.test("quests data: tracked achievements with their unfinished criteria", function()
     local s = snap({ achievements = { { id = 9, title = "Explore Westfall", criteria = {
         { text = "Moonbrook", done = true }, { text = "Jangolode Mine" }, { text = "Murlocs", have = 2, need = 10 },
