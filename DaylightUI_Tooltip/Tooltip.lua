@@ -1340,6 +1340,16 @@ function Tip.AtButton(tip, button)
     return true
 end
 
+-- Where the fight pill goes, as the tooltip itself would: "cursor"; "handle"
+-- and the handle's corner (a default-placed tooltip at Daylight UI's spot);
+-- or "tooltip" (placed by its owner: the pill takes its spot).
+function Tip.PillSpot(tip)
+    if Tip.ByButton() then return "tooltip" end
+    if atDefault and cfg.anchor == "cursor" then return "cursor" end
+    if atDefault and Tip.anchor then return "handle", DUI.Movers.Corner(Tip.MOVER_KEY) or "BOTTOMRIGHT" end
+    return "tooltip"
+end
+
 function Tip.PlaceNow(tip)
     if Tip.ByButton() and Tip.AtButton(tip, defaultOwner) then return end
     if cfg.anchor == "cursor" then
@@ -1379,8 +1389,10 @@ end
 function Tip.OnWorldCursor()
     local tip = GameTooltip
     if not (cfg and type(tip) == "table" and tip:IsShown()) then return end
+    -- The fight pill goes the moment the mouse leaves, whatever the fade.
+    local pill = muted[tip] == "pill"
     -- Fading like the game, unless it's a unit hidden in combat.
-    if cfg.fadeOut and not Tip.HideNow(tip) then return end
+    if cfg.fadeOut and not Tip.HideNow(tip) and not pill then return end
     -- Still over a unit. The client can answer GetWorldCursor with nothing for
     -- an enemy (it vanished while hovered, reported by a player).
     if UnitExists and UnitExists("mouseover") then return end
@@ -1391,6 +1403,8 @@ function Tip.OnWorldCursor()
     -- counts as the world's (as in OnCleared), never another owner.
     local owner = tip.GetOwner and tip:GetOwner()
     if not isSecret(owner) and owner ~= UIParent then return end
+    if pill then ns.RichPill.Leave() end
+    if pill and cfg.fadeOut then return end
     Tip.Mute(tip, "gone")
     Tip.Park(tip)
 end

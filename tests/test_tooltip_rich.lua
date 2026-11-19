@@ -364,13 +364,8 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.isnil(pill:GetScript("OnUpdate"), "nothing of its own every frame")
     local p = Panel.Get(GameTooltip)
     T.truthy(not p or not p:IsShown(), "no card under it")
-    -- It follows the cursor.
-    stub.cursorPos = { 500, 300 }
-    update()
-    local x = pill.__points[1][4]
-    stub.cursorPos = { 600, 300 }
-    update()
-    T.truthy(pill.__points[1][4] > x, "moved with the cursor")
+    -- Placed where its owner put the tooltip (this one: by hand).
+    T.eq(pill.__points[1][2], GameTooltip, "the tooltip's spot")
     -- Shift: the full card at once.
     stub.shift = true
     update()
@@ -481,5 +476,58 @@ T.test("rich tooltip: a bar's track is cut at the same angle as its fill", funct
     Panel.ShapeBar(bar, 7)
     T.eq(Style.GetCut(bar), 7, "the track's corner, 45 degrees over the bar's height")
     T.eq(select(2, Style.GetFillAngle(bar)), 7, "the fill's end, the same")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: in a fight the pill rode the cursor whatever the Tooltip
+-- position, and stayed 2-3 s after the mouse left the mob.
+T.test("rich tooltip: the pill sits where the tooltip would, and goes when the mouse leaves", function()
+    local Tip = login("rich")
+    stub.units.mouseover = { name = "Southsea Swashbuckler", isPlayer = false, reaction = 2, health = 87, maxHealth = 100 }
+    stub.EnterCombat()
+    local function world()
+        local tip = GameTooltip
+        GameTooltip_SetDefaultAnchor(tip, UIParent)
+        tip.__unit = "mouseover"
+        tip:AddLine("Southsea Swashbuckler")
+        local data = { type = Enum.TooltipDataType.Unit }
+        for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+        for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+        tip:Show()
+        update()
+    end
+    world()
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(pill:IsShown())
+    T.eq(pill.__points[1][2], Tip.anchor, "Default position: at the tooltip's spot")
+    T.eq(pill.__points[1][1], "BOTTOMRIGHT", "growing from the spot's corner")
+    DaylightUI:Set("Tooltip", "anchor", "cursor")
+    stub.RunTimers()
+    world()
+    stub.cursorPos = { 500, 300 }
+    update()
+    local x = pill.__points[1][4]
+    stub.cursorPos = { 600, 300 }
+    update()
+    T.truthy(pill.__points[1][4] > x, "At the cursor: it follows the mouse")
+    -- The mouse leaves the mob: nothing under it now.
+    _G.C_TooltipInfo = _G.C_TooltipInfo or {}
+    C_TooltipInfo.GetWorldCursor = function() return nil end
+    stub.units.mouseover = nil
+    Tip.OnWorldCursor()
+    T.falsy(pill:IsShown(), "Fade out world tooltips off: gone at once")
+    -- With it on: a short fade, not the game's seconds.
+    DaylightUI:Set("Tooltip", "fadeOut", true)
+    stub.RunTimers()
+    stub.units.mouseover = { name = "Southsea Swashbuckler", isPlayer = false, reaction = 2, health = 87, maxHealth = 100 }
+    world()
+    T.truthy(pill:IsShown())
+    stub.units.mouseover = nil
+    Tip.OnWorldCursor()
+    T.truthy(pill:IsShown(), "fading")
+    local M = DaylightUI.Motion
+    local d = M.Driver()
+    if d then stub.RunOnUpdate(d, M.SLOW + 0.05) end
+    T.falsy(pill:IsShown(), "gone after SLOW")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

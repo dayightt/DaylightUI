@@ -1,5 +1,5 @@
 -- The fight pill: in a fight (and under the client's restrictions) a unit's
--- tooltip is one small line by the cursor: the name (a player's in their
+-- tooltip is one small line where the tooltip would be: the name (a player's in their
 -- class color, a creature's with "· on you" when it's on you), their health,
 -- and a thin bar. The game's tooltip stays up but out of sight (muted), so
 -- Shift brings the full card back at once. Fixed in size: nothing in it is
@@ -16,7 +16,6 @@ ns.RichPill = Pill
 Pill.W, Pill.CUT, Pill.BAR_H = 200, 8, 4
 Pill.PAD_X, Pill.PAD_TOP, Pill.PAD_BOTTOM, Pill.BAR_GAP = 12, 7, 9, 5
 Pill.CURSOR_X, Pill.CURSOR_Y = 22, -20 -- its top-left from the cursor's tip, clear of the arrow
-Pill.FADE = 0.35 -- out, once the creature it shows is no longer under the mouse
 
 local function plain(v)
     if isSecret(v) then return nil end
@@ -147,14 +146,28 @@ function Pill.Fill(unit)
     DUI.Health.Write(f.pct, "percent", unit, true)
 end
 
-function Pill.Place()
+-- Where the tooltip would be, by the Tooltip position setting: at the cursor,
+-- at Daylight UI's tooltip spot growing from its corner, or where the tooltip's
+-- owner put it.
+function Pill.Place(tip)
     local f = Pill.frame
     if not f then return end
+    local where, corner = ns.Tooltip.PillSpot(tip or GameTooltip)
+    if where ~= "cursor" then
+        local rel = where == "handle" and ns.Tooltip.anchor or (tip or GameTooltip)
+        local point = where == "handle" and corner or "TOPLEFT"
+        if f.at and f.at[1] == rel and f.at[2] == point then return end
+        f.at = { rel, point }
+        f:ClearAllPoints()
+        f:SetPoint(point, rel, point, 0, 0)
+        return
+    end
     local x, y = GetCursorPosition()
     local s = f:GetEffectiveScale()
     if type(x) ~= "number" or type(s) ~= "number" or s <= 0 then return end
     x, y = x / s + Pill.CURSOR_X, y / s + Pill.CURSOR_Y
-    if f.at and math.abs(f.at[1] - x) < 0.01 and math.abs(f.at[2] - y) < 0.01 then return end
+    local at = f.at
+    if at and type(at[1]) == "number" and math.abs(at[1] - x) < 0.01 and math.abs(at[2] - y) < 0.01 then return end
     f.at = { x, y }
     f:ClearAllPoints()
     f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
@@ -170,26 +183,34 @@ function Pill.Show(tip, unit)
     if DUI.Motion then DUI.Motion.AlphaTo(f, 1, 0) end
     f:SetAlpha(1)
     f:Show()
-    Pill.Place()
+    Pill.Place(tip)
     ns.Tooltip.Mute(tip, "pill")
 end
 
--- Each frame while it shows: follows the cursor, health kept live, and it
+-- Each frame while it shows: kept in place (the cursor moves), health kept live, and it
 -- fades out once the creature under the mouse is gone.
 function Pill.Step(tip, unit)
     local f = Pill.frame
     if not (f and f:IsShown()) then return end
-    Pill.Place()
+    Pill.Place(tip)
     local now = GetTime()
     if now >= (f.next or 0) and not f.leaving then
         f.next = now + ns.Rich.BAR_EVERY
         ns.RichPanel.PaintBar(f.bar, { unit = unit, health = true, pair = f.barPair })
         DUI.Health.Write(f.pct, "percent", unit, true)
     end
-    if unit == "mouseover" and not f.leaving and plain(UnitExists("mouseover")) == false then
-        f.leaving = true
-        if DUI.Motion and DUI.Motion.On() then DUI.Motion.AlphaTo(f, 0, Pill.FADE, true) else f:Hide() end
-    end
+    if not f.leaving and plain(UnitExists(unit)) == false then Pill.Leave() end
+end
+
+-- The mouse left it (Tip.OnWorldCursor, or its unit is gone). As world
+-- tooltips do by the "Fade out world tooltips" switch: gone at once, or a
+-- short fade.
+function Pill.Leave()
+    local f = Pill.frame
+    if not (f and f:IsShown()) or f.leaving then return end
+    f.leaving = true
+    local M, cfg = DUI.Motion, ns.Tooltip.Config()
+    if cfg and cfg.fadeOut and M and M.On() then M.AlphaTo(f, 0, M.SLOW, true) else f:Hide() end
 end
 
 function Pill.Hide()
