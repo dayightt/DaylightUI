@@ -104,16 +104,27 @@ end)
 
 T.test("platefix: the report fits one Discord report, log and all", function()
     local NP = login()
+    local addons = C_AddOns
+    _G.C_AddOns = setmetatable({
+        GetNumAddOns = function() return 65 end,
+        GetAddOnInfo = function(i) return "AnotherLoadedAddon" .. i end,
+        IsAddOnLoaded = function() return true end,
+    }, { __index = addons })
     for i = 1, 200 do
         stub.Advance(7)
-        stub.FireEvent("CVAR_UPDATE", "someLongSettingName" .. i, "1")
+        stub.FireEvent("CVAR_UPDATE", "Sound_SFXVolume", tostring(i / 201))
     end
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    local before = table.concat(NP.Manager.CheckLines(1), "\n")
+    for _ = 1, NP.Manager.FIX_STEPS do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     NP.Manager.Fix()
-    local text = NP.Manager.FixReport(1)
-    T.truthy(#text <= NP.Manager.REPORT_MAX, #text)
-    T.truthy(text:find("Before step 1:", 1, true), "the log doesn't push the plates out")
-    T.truthy(text:find("nameplate1:", 1, true), text)
-    T.eq(NP.Manager.REPORT_PLATES, 1)
+    local text = shownText()
+    _G.C_AddOns = addons
+    T.truthy(#text <= DaylightUI.PlateReport.REPORT_MAX, #text)
+    T.truthy(text:find(before, 1, true), "the complete pre-step plate snapshot survives all eight steps")
+    T.truthy(text:find("  8: ", 1, true), "the last step's counts survive")
+    T.truthy(text:find("fight over", 1, true), "the event closest to the failure survives")
+    T.truthy(text:find("[Further report lines omitted]", 1, true), "the reader knows when detail was dropped")
 end)
 
 -- Players can't say what they did before the plates went (their reasons have
@@ -161,7 +172,7 @@ T.test("platefix: the report carries a log of what happened before step 1", func
         "restriction 1=2", "AFK screen", "UI faded out", "UI back", "buffers drawn 1", "plates +1 -1" }) do
         T.truthy(text:find(want, 1, true), want .. " in: " .. text)
     end
-    local log = text:match("What happened before step 1.-Before step 1:")
+    local log = text:match("(What happened before step 1.-)\n\n")
     T.truthy(log, text)
     local _, fights = log:gsub("fight\n", "")
     T.eq(fights, 1, "the fight after step 1 isn't in it")
@@ -340,7 +351,7 @@ T.test("platefix: the report is plain text the copy box can show, and goes to ch
     T.truthy(text and #text > 0, "the box has the report")
     local ok, why = clean(text)
     T.truthy(ok, why)
-    T.truthy(#text <= NP.Manager.REPORT_MAX)
+    T.truthy(#text <= DaylightUI.PlateReport.REPORT_MAX)
     T.truthy(text:find("Stacking enemy=true friendly=false", 1, true), "the stacking setting in words")
     local chat = table.concat(printed, "\n")
     T.truthy(chat:find("step 1 brought them back", 1, true), "the report is in chat as well: " .. chat)
@@ -484,7 +495,7 @@ T.test("platefix: the log names who switched the plates and bubbles off", functi
     withStack("", function() SetInWorldUIVisibility(false) end)
     NP.Manager.Fix()
     local text = NP.Manager.FixReport(1)
-    local log = text:match("What happened before step 1.-Before step 1:")
+    local log = text:match("(What happened before step 1.-)\n\n")
     T.truthy(log, text)
     for _, want in ipairs({ "whole UI and plates off by SomeAfkAddon", "UI hidden", "UI shown",
         "plates and bubbles off by a key or the client" }) do
@@ -508,9 +519,8 @@ end)
 
 T.test("platefix: the last step brings the switch for plates and bubbles back", function()
     local NP = login()
-    SetUIVisibility(false)
-    UIParent:Show()
-    T.falsy(stub.inWorldUI, "the UI is back, plates and bubbles aren't")
+    SetInWorldUIVisibility(false)
+    T.falsy(stub.inWorldUI, "the UI is up, plates and bubbles aren't")
     local said
     for _ = 1, NP.Manager.FIX_STEPS do
         said = NP.Manager.Fix()
@@ -573,6 +583,57 @@ T.test("platefix: a refused switch says why, and tries the whole UI's switch", f
     T.truthy(said:find("refused", 1, true) and said:find("blocked", 1, true), said)
 end)
 
+-- The switch has been left off while the UI came back. After a loading screen,
+-- a landing, a cinematic, a movie, the UI showing again or a whole-UI fade
+-- returning, Daylight UI turns it back on, unless the UI is hidden (Alt+Z) or
+-- a fight is on.
+T.test("platefix: the switch comes back on after the moments it was lost", function()
+    login()
+    for _, event in ipairs({ "LOADING_SCREEN_DISABLED", "PLAYER_CONTROL_GAINED", "CINEMATIC_STOP", "STOP_MOVIE" }) do
+        SetInWorldUIVisibility(false)
+        stub.FireEvent(event)
+        T.truthy(stub.inWorldUI, event)
+    end
+    SetUIVisibility(false)
+    UIParent:Show()
+    T.truthy(stub.inWorldUI, "the UI shown again")
+    SetInWorldUIVisibility(false)
+    DaylightUI.Fire("UIAlpha", 0)
+    T.falsy(stub.inWorldUI, "not while the UI is faded out")
+    DaylightUI.Fire("UIAlpha", 1)
+    T.truthy(stub.inWorldUI, "the fade back")
+    local text = DaylightUI.PlateReport.WorldUI()
+    T.truthy(text:find("last set on by Daylight UI after UI faded back", 1, true), text)
+    T.falsy(text:find("switch changes: .-Daylight UI after"), "kept out of the switch changes: " .. text)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("platefix: the switch stays off under Alt+Z and in a fight", function()
+    login()
+    SetUIVisibility(false)
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    T.falsy(stub.inWorldUI, "Alt+Z kept")
+    T.falsy(UIParent:IsShown(), "the UI stays hidden")
+    UIParent:Show()
+    SetInWorldUIVisibility(false)
+    stub.combat = true
+    stub.FireEvent("PLAYER_CONTROL_GAINED")
+    stub.combat = false
+    T.falsy(stub.inWorldUI, "not in a fight")
+end)
+
+T.test("platefix: the last step turns the whole UI's switch on too", function()
+    login()
+    local calls, was = {}, _G.SetUIVisibility
+    _G.SetUIVisibility = function(v) calls[#calls + 1] = v; was(v) end
+    DaylightUI.PlateReport.InWorldBack()
+    T.eq(#calls, 0, "not before the cycle")
+    stub.RunTimers()
+    _G.SetUIVisibility = was
+    T.eq(calls[1], true, "after the cycle, though the plates' switch took")
+    T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
+end)
+
 -- Steps 3 and 5 to 8 finish a moment after they're typed. Running the next one
 -- (or answering yes) before then mixes two steps, so "step N brought them
 -- back" would name the wrong one.
@@ -616,7 +677,43 @@ T.test("platefix: switch changes stay in the report after the log has filled", f
     withStack("", function() SetInWorldUIVisibility(true) end)
     NP.Manager.Fix()
     local text = NP.Manager.FixReport(1)
-    T.falsy(text:match("What happened before step 1.-plates and bubbles off.-Before step 1:"), "gone from the log")
+    local log = text:match("(What happened before step 1.-)\n\n")
+    T.truthy(log, text)
+    T.falsy(log:find("plates and bubbles off", 1, true), "gone from the log")
     T.truthy(text:find("switch changes: off by a key or the client -0:00, on by a key or the client -0:00", 1, true),
         text)
+end)
+
+-- The game can refuse a call in the middle of a step. The step must say so
+-- instead of reporting what it only tried.
+T.test("platefix: step 2 counts a plate the game refused to take back as failed, and a retry still gives it back", function()
+    local NP = login()
+    local M = NP.Manager
+    local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
+    local uf = np.UnitFrame
+    T.truthy(M.IsHeld(uf), "Daylight UI holds the game's frame")
+    local setParent = uf.SetParent
+    uf.SetParent = function() error("refused") end
+    M.Fix()
+    local said = M.Fix()
+    uf.SetParent = setParent
+    T.truthy(said:find("0 of 1 plates handed back", 1, true), said)
+    T.truthy(said:find("1 refused", 1, true), said)
+    T.truthy(#stub.errors >= 1, "the refusal reached the error log")
+    T.truthy(M.IsHeld(uf), "still marked as held, so it can be given back later")
+    T.truthy(uf:GetParent() ~= np, "not on the plate")
+    M.GiveBackFrame(uf, np)
+    T.eq(uf:GetParent(), np, "the retry put it back")
+    T.falsy(M.IsHeld(uf), "and let it go")
+end)
+
+T.test("platefix: step 1 says so when the game refuses the plate size", function()
+    local NP = login()
+    C_NamePlate.SetNamePlateSize = function() error("size refused") end
+    local said = NP.Manager.Fix()
+    C_NamePlate.SetNamePlateSize = nil
+    T.truthy(said:find("refused", 1, true), said)
+    T.truthy(#stub.errors >= 1, "the refusal reached the error log")
+    local text = NP.Manager.FixReport(1)
+    T.truthy(text:find("size refused", 1, true), "the report carries the game's words")
 end)

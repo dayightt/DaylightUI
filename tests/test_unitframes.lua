@@ -283,7 +283,7 @@ local TCFG = { width = 220, height = 50, powerHeight = 13, showName = true, show
 
 T.test("elite, boss and rare units get a gold or silver crest on the tab", function()
     local f, ns = make(TARGET, TCFG)
-    for kind, col in pairs({ elite = "gold", worldboss = "gold", rareelite = "gold", rare = "silver" }) do
+    for kind, col in pairs({ elite = "gold", worldboss = "gold", rareelite = "silver", rare = "silver" }) do
         stub.units.target = { name = "Grell", isPlayer = false, reaction = 2, classification = kind }
         ns.UF.UpdateIdentity(f)
         T.truthy(f.crest:IsShown(), kind)

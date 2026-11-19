@@ -177,6 +177,13 @@ T.test("quests data: items and timers ride on their quest", function()
     T.eq(q[2].timer, 252)
 end)
 
+T.test("quests data: a ready quest drops its item button", function()
+    local s = snap({ quests = {
+        QW.quest(1, "A", { complete = true, item = { link = "|Hitem:5862:|h[Seaforium]|h", icon = 1234, charges = 3 } }),
+    } })
+    T.isnil(s.groups[1].quests[1].item)
+end)
+
 T.test("quests data: tracked achievements with their unfinished criteria", function()
     local s = snap({ achievements = { { id = 9, title = "Explore Westfall", criteria = {
         { text = "Moonbrook", done = true }, { text = "Jangolode Mine" }, { text = "Murlocs", have = 2, need = 10 },
@@ -2682,13 +2689,14 @@ T.test("clicks: ctrl makes it the priority", function()
     T.eq(#QW.Calls("map"), 0, "not the map")
 end)
 
-T.test("clicks: alt set to fold folds", function()
+T.test("clicks: alt-click folds by default, again unfolds", function()
     local Tr, ns = tracker({ quests = { STEW } })
-    DaylightUI:Set("Quests", "clicks.alt", "fold")
     QW.state.alt = true
     click(Tr, "quest:1")
-    QW.state.alt = false
     T.eq(ns.Tracker.Folds()["q1"], true)
+    click(Tr, "quest:1")
+    QW.state.alt = false
+    T.falsy(ns.Tracker.Folds()["q1"])
 end)
 
 T.test("clicks: a plain click set to nothing does nothing", function()

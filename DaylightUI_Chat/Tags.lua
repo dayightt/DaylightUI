@@ -151,12 +151,15 @@ local function built()
     local fmt = _G.CHAT_WHISPER_INFORM_GET
     local pre = type(fmt) == "string" and not secret(fmt) and string.match(fmt, "^(.-)%%s")
     pre = pre and string.gsub(pre, "^%s*(.-)%s*$", "%1")
+    -- A word too long for a tag ("你悄悄地对" on a Chinese client is the whole phrase) is "To".
+    if pre and #(string.gsub(pre, "[\128-\191]", "")) > 4 then pre = nil end
     out.to = (pre and pre ~= "" and pre) or "To"
     return out
 end
 
--- The tag letters setting: "english" (the default; the letters Daylight UI has always used) or
--- "native" (the initials of the game's words in the player's language).
+-- The tag letters setting: "native" (the default for new profiles: the initials of the game's words
+-- in the player's language) or "english" (the letters Daylight UI has always used, kept for the
+-- profiles that existed before).
 function Tags.Native() return Tags.letters == "native" end
 
 -- A chat kind's default tag; "to" is your sent whispers.

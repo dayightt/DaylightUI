@@ -1,3 +1,27 @@
+# DaylightUI 1.9.5
+
+A scrollable loot log, crisper outlined text, and a batch of fixes.
+
+## New
+- QoL: The loot feed can stay on screen as a log of your recent loot you can scroll back through (Loot feed style)
+
+## Changed
+- General: Outlined text looks crisper, drawn the way the game draws its own
+- Chat: The second chat panel can be made narrower, down to 150 px
+- Quests: Alt-click a quest in the tracker to fold it up
+- Quests: Little touches: the tracker's scroll bar only shows when you hover it, and a quest's item button goes away once it's ready to hand in
+
+## Fixed
+- General: "Use this font for the game's text" no longer changes the combat text over you, names over heads, or the range dot on hotkeys
+- General: Alt-tabbing, loading screens and UI scale changes no longer make Daylight UI redo the nameplates, minimap, chat and tooltips
+- General: Daylight UI no longer changes your max camera distance every time you log in
+- Unit frames: Rare elites wear the silver dragon on the target frame and nameplates, like in the game
+- Cooldown Manager: Lightning Shield and Touch of Weakness count as gone once hits use them up, so the recast reminder shows on time
+- Cooldown Manager: Slice and Dice no longer gets covered by the next buff in its group when you change target
+- Buffs: Your buffs and debuffs no longer all bounce at once when you loot something
+- QoL: The big number on the level-up screen is no longer cut off
+- QoL: Closing the AFK screen during an NPC conversation no longer brings the UI back early
+
 # DaylightUI 1.9.4.4
 
 A small fix for using your font on the game's text.

@@ -175,8 +175,11 @@ function Data.Quest(questID, timers, zone, index, info, focus)
         q.turnIn = q.auto and Data.AUTO or ((type(text) == "string" and text ~= "") and text or Data.READY)
     end
     q.objs = Data.Objectives(questID)
-    local link, icon, charges = call(GetQuestLogSpecialItemInfo, index)
-    if type(link) == "string" then q.item = { link = link, icon = icon, charges = charges } end
+    -- A quest that's ready to hand in has no more use for its item, so no button.
+    if q.state ~= "ready" then
+        local link, icon, charges = call(GetQuestLogSpecialItemInfo, index)
+        if type(link) == "string" then q.item = { link = link, icon = icon, charges = charges } end
+    end
     q.timer = Data.TimeLeft(questID, timers)
     if focus == nil then focus = call(api(C_SuperTrack, "GetSuperTrackedQuestID")) end
     q.focus = focus == questID

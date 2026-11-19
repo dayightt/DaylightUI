@@ -2450,10 +2450,10 @@ T.test("options: the info panel is split into tabs and every setting has one hom
         if s.id == "InfoPanel" then section = s end
     end
     T.truthy(section, "an Info Panel section")
-    T.eq(#section.pages, 6, "six tabs (every meter on one Meters page)")
+    T.eq(#section.pages, 7, "seven tabs (every meter on one Meters page)")
     local ids = {}
     for _, page in ipairs(section.pages) do ids[#ids + 1] = page.id end
-    T.eq(table.concat(ids, ","), "InfoPanel.panel,InfoPanel.meter,InfoPanel.map,InfoPanel.data,InfoPanel.databar,InfoPanel.tracker", "tab order")
+    T.eq(table.concat(ids, ","), "InfoPanel.panel,InfoPanel.xp,InfoPanel.meter,InfoPanel.map,InfoPanel.data,InfoPanel.databar,InfoPanel.tracker", "tab order")
     local seen, sliders = {}, 0
     for _, page in ipairs(section.pages) do
         for _, g in ipairs(page.groups) do
@@ -3484,4 +3484,65 @@ T.test("meter report: Send waits for the fight's end and refuses sample data", f
     stub.infopanel.Report.Refresh()
     T.truthy(f.send.off, "not the sample raid")
     DUI.SetTestMode(false)
+end)
+
+T.test("info panel: the XP and reputation bars can have their own border, corners and shadow", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    local xp = DUI.Style.GetShell(P.xp).opts
+    local was = xp.borderPx
+    T.eq(type(was), "function", "at first: the panel's thin border")
+    DUI:Set("InfoPanel", "xp.shell.borderPx", 9)
+    T.eq(xp.borderPx, was, "the sliders do nothing until Own border and shadow is on")
+    DUI:Set("InfoPanel", "xp.shell.own", true)
+    DUI:Set("InfoPanel", "xp.shell.cornerPx", 2)
+    DUI:Set("InfoPanel", "xp.shell.shadowPx", 7)
+    T.eq(xp.borderPx, 9)
+    T.eq(xp.cornerPx, 2)
+    T.eq(xp.shadowPx, 7)
+    DUI:Set("InfoPanel", "panelBorder", false)
+    T.falsy(xp.noBorder, "its own look ignores the panel's border switch")
+    DUI:Set("InfoPanel", "xp.shell.borderPx", 0)
+    T.eq(xp.noBevel, true, "no border, no bevel lines")
+    DUI:Set("InfoPanel", "xp.shell.own", false)
+    T.eq(xp.borderPx, was, "off: the panel's again")
+    T.isnil(xp.cornerPx)
+    T.isnil(xp.shadowPx)
+    T.eq(xp.noBorder, true, "and so is its border switch")
+    local rep = DUI.Style.GetShell(stub.infopanel.RepBar.frame).opts
+    DUI:Set("InfoPanel", "rep.shell.own", true)
+    DUI:Set("InfoPanel", "rep.shell.borderPx", 5)
+    T.eq(rep.borderPx, 5, "the reputation bar has its own too")
+end)
+
+T.test("info panel: the experience bar has its own options page, with the fade card", function()
+    local DUI = login()
+    local page
+    for _, p in ipairs(stub.infopanel.OPTIONS.pages) do if p.id == "xp" then page = p end end
+    T.truthy(page, "a page of its own")
+    local labels = {}
+    for _, g in ipairs(page.groups) do labels[g.label] = true end
+    local tabOf = {}
+    for _, g in ipairs(page.groups) do tabOf[g.label] = g.tab end
+    T.eq(tabOf["Experience bar"], "General")
+    T.eq(tabOf["Experience bar look"], "Look")
+    T.eq(tabOf["Experience bar border and shadow"], nil, "its border card sits after the look card, on its tab")
+    T.eq(tabOf["Experience bar size"], "Size")
+    T.eq(tabOf["Reputation bar"], "Reputation")
+    T.eq(tabOf["Experience bar fade"], "Fade")
+    T.truthy(labels["Experience bar"] and labels["Experience bar border and shadow"]
+        and labels["Reputation bar border and shadow"] and labels["Experience bar fade"])
+    for _, p in ipairs(stub.infopanel.OPTIONS.pages) do
+        if p.id == "panel" then
+            for _, g in ipairs(p.groups) do T.truthy(g.label ~= "Experience bar", "no longer on General") end
+        end
+    end
+end)
+
+T.test("info panel: the XP bar's border is never thicker than the general border", function()
+    local DUI = login()
+    local B = stub.infopanel.Panel.XP_BORDER
+    T.eq(B(2), 2, "a thin general border: as thin")
+    T.eq(B(4), 3)
+    T.eq(B(8), 4)
 end)
