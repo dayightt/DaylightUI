@@ -218,6 +218,7 @@ function Kinds.ChannelsChanged()
     listKind = nil
     if next(ofName) then wipe(ofName) end
     if next(ofZone) then wipe(ofZone) end
+    if ns.Tags and ns.Tags.ResetNames then ns.Tags.ResetNames() end
 end
 DaylightUI.RegisterEvent("CHANNEL_UI_UPDATE", Kinds.ChannelsChanged)
 -- Joining or leaving a channel.

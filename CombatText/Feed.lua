@@ -218,7 +218,7 @@ local function paintWarnLook()
     local s = CT.Get("streams.notes")
     local face = DUI.GameFonts.CombatTextWanted() or Style.FONT
     for _, fs in ipairs({ warn.health, warn.mana }) do
-        fs:SetFont(face, s.size * (tonumber(DUI.DB.General().fontScale) or 1), CT.Get("outline") or "")
+        fs:SetFont(face, s.size * (tonumber(DUI.DB.General().fontScale) or 1), DUI.Style.Slug(CT.Get("outline")))
         fs:SetTextColor(c[1], c[2], c[3])
         fs:SetShadowOffset(1, -1)
         fs:SetShadowColor(0, 0, 0, 0.75)
@@ -236,14 +236,19 @@ end
 CT.SWITCH_TRIES = 3
 local switchTries = 0
 
+-- Written out of a fight only: the game's own combat text reacts to this switch
+-- right away, and that shouldn't run from addon code mid-fight.
 local function gameSwitchOn(counted)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     if GetCVar(CT.GAME_SWITCH) ~= "0" then return end
-    if counted then
-        if switchTries >= CT.SWITCH_TRIES then return end
-        switchTries = switchTries + 1
-    end
-    pcall(SetCVar, CT.GAME_SWITCH, "1")
+    DUI.AfterCombat(function()
+        if GetCVar(CT.GAME_SWITCH) ~= "0" or CT.Get("enabled") == false then return end
+        if counted then
+            if switchTries >= CT.SWITCH_TRIES then return end
+            switchTries = switchTries + 1
+        end
+        pcall(SetCVar, CT.GAME_SWITCH, "1")
+    end, "combattext:switch")
 end
 
 local function onEvent(_, event, a1, a2, a3, a4, a5)

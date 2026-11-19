@@ -351,9 +351,12 @@ local look = {
           desc = "The game's own setting: how many empty slots you have left, written on the backpack button, so you can see your bag space without opening your bags.",
           get = function() return type(GetCVar) == "function" and GetCVar("displayFreeBagSlots") == "1" end,
           set = function(v)
-              if type(SetCVar) == "function" then SetCVar("displayFreeBagSlots", v and "1" or "0") end
-              -- Not one of Daylight UI's settings, so tell the options window directly.
-              DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+              -- A game setting, so it's written out of a fight only.
+              DUI.AfterCombat(function()
+                  if type(SetCVar) == "function" then pcall(SetCVar, "displayFreeBagSlots", v and "1" or "0") end
+                  -- Not one of Daylight UI's settings, so tell the options window directly.
+                  DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+              end, "actionbars:freeslots")
           end,
           disabled = function(get) return get("bagBar") == "hidden" end },
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,

@@ -1377,3 +1377,30 @@ T.test("data texts: speed shows how fast you go, your run speed standing still, 
     T.eq(shown()[3], "Speed 67%", "a secret is never shown or compared: the last plain one stays")
     _G.GetUnitSpeed, _G.IsSwimming, _G.IsFlying = nil, nil, nil
 end)
+
+-- A style repaint (any General change, a UI scale or window size change) lays
+-- the strip out again, but the texts and their events are the same: asking
+-- the server for the guild roster and re-registering every event then was
+-- needless work in play. Only a change to which texts show does that.
+T.test("data texts: a style repaint lays out again without asking for the roster or re-registering", function()
+    local DUI = login()
+    socialIn4(DUI)
+    local asks = stub.rosterAsks
+    local regs = 0
+    local W = stub.Widget
+    local reg, unreg = W.RegisterEvent, W.UnregisterAllEvents
+    W.RegisterEvent = function(self, ...) regs = regs + 1; return reg(self, ...) end
+    W.UnregisterAllEvents = function(self, ...) regs = regs + 1; return unreg(self, ...) end
+    DUI.NotifyStyleChanged()
+    stub.RunTimers()
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    W.RegisterEvent, W.UnregisterAllEvents = reg, unreg
+    T.eq(stub.rosterAsks, asks, "no roster request on a repaint")
+    T.eq(regs, 0, "events left as they were")
+    T.eq(shown()[4] ~= nil, true, "the strip still shows its texts")
+    -- A real change of texts still registers and asks.
+    DUI:Set("InfoPanel", "data.slot3", "guild")
+    stub.RunTimers()
+    T.truthy(stub.rosterAsks > asks, "a new guild text asks for the roster")
+end)

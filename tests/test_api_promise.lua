@@ -32,12 +32,14 @@ local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "Regis
     -- 1.9
     "AddGlowStyle",
     -- 1.10
-    "AddInstaller", "ShowInstaller" }
+    "AddInstaller", "ShowInstaller",
+    -- 1.11
+    "AddQuestMenu", "RemoveQuestMenu" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",
     "FormatChat", "ChatFormatting", "ChatLinkClicked", "DropOverride", "DropShopFilter", "DropTooltipLines",
-    "DropFormatter", "StartPainter", "Count",
+    "DropFormatter", "StartPainter", "Count", "QuestMenu", "QuestMenuClick",
     "Changes", "Changers", "Texts", "ApplyDefaults", "FrameStyles" }
 local EVENTS = { "FrameMade", "FrameUnitChanged", "FrameRemoved", "FrameStyled",
                  "StyleChanged", "SettingChanged", "TestModeChanged", "UnlockChanged", "Login" }

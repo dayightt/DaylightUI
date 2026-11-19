@@ -1151,6 +1151,66 @@ T.test("info panel: the minimap moves into the panel, square, cluster hidden", f
     T.eq(rel, P.mapArea)
 end)
 
+-- The game's frames on the map are placed once and left alone while they're
+-- where they belong. Re-parenting, re-pointing or re-sizing them on every style
+-- repaint, loading screen, roster change or mail was needless work on the
+-- game's own frames in play, and on the map itself it dropped its picture.
+T.test("info panel: a repaint or the place events leave the game's map frames alone when they're already in place", function()
+    login(function()
+        CreateFrame("Button", "QueueStatusButton", UIParent)
+        CreateFrame("Frame", "AddonCompartmentFrame", MinimapCluster)
+    end)
+    DaylightUI:Set("InfoPanel", "map.drawer", false)
+    stub.RunTimers()
+    T.eq(QueueStatusButton:GetParent(), Minimap, "the queue eye on the map")
+    T.eq(AddonCompartmentFrame:GetParent(), Minimap, "the compartment on the map")
+    local WRITES = { "SetParent", "ClearAllPoints", "SetPoint", "SetAllPoints", "SetSize", "SetWidth", "SetHeight",
+                     "SetScale", "SetFrameLevel", "SetFrameStrata", "SetAlpha", "EnableMouse", "EnableMouseWheel",
+                     "SetScript", "SetMaskTexture", "SetFixedFrameStrata", "SetFixedFrameLevel",
+                     "SetQuestBlobRingScalar", "SetQuestBlobRingAlpha", "SetTaskBlobRingScalar" }
+    local cluster = MinimapCluster
+    local frames = { Minimap = Minimap, MinimapCluster = cluster, IndicatorFrame = cluster.IndicatorFrame,
+                     MailFrame = cluster.IndicatorFrame.MailFrame, Tracking = cluster.Tracking,
+                     GameTimeFrame = GameTimeFrame, QueueStatusButton = QueueStatusButton,
+                     AddonCompartmentFrame = AddonCompartmentFrame, DurabilityFrame = DurabilityFrame }
+    local writes, saved = {}, {}
+    for name, f in pairs(frames) do
+        saved[f] = {}
+        for _, m in ipairs(WRITES) do
+            local real = f[m]
+            if type(real) == "function" then
+                saved[f][m] = rawget(f, m) or false
+                f[m] = function(self, ...)
+                    writes[#writes + 1] = name .. ":" .. m
+                    return real(self, ...)
+                end
+            end
+        end
+    end
+    DaylightUI.NotifyStyleChanged()
+    stub.RunTimers()
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UPDATE_PENDING_MAIL",
+                         "EDIT_MODE_LAYOUTS_UPDATED", "PLAYER_SPECIALIZATION_CHANGED" }) do
+        stub.FireEvent(e)
+        stub.RunTimers()
+    end
+    for f, list in pairs(saved) do
+        for m, was in pairs(list) do rawset(f, m, was or nil) end
+    end
+    T.eq(#writes, 0, "no writes to the game's frames: " .. table.concat(writes, ", "))
+    -- Moved away by the game, each is still put back.
+    QueueStatusButton:ClearAllPoints(); QueueStatusButton:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.RunTimers()
+    T.eq(select(2, QueueStatusButton:GetPoint(1)), Minimap, "the queue eye back on the map")
+    GameTimeFrame:SetParent(cluster)
+    GameTimeFrame:Hide(); GameTimeFrame:Show()
+    stub.RunTimers()
+    T.eq(GameTimeFrame:GetParent(), Minimap, "the calendar back on the map")
+end)
+
 T.test("info panel: turning with you, the map is round (the game turns its mask with it); back to a square after", function()
     login()
     local Map = stub.infopanel.Minimap
@@ -1316,7 +1376,7 @@ T.test("info panel: in a fight a protected map waits, the mail icon doesn't, not
     mail:ClearAllPoints(); mail:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     stub.errors = {}
     stub.combat = true
-    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     stub.RunTimers()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     T.eq(select(2, mail:GetPoint(1)), Minimap, "the mail icon needs no wait")
@@ -2390,10 +2450,10 @@ T.test("options: the info panel is split into tabs and every setting has one hom
         if s.id == "InfoPanel" then section = s end
     end
     T.truthy(section, "an Info Panel section")
-    T.eq(#section.pages, 6, "six tabs (every meter on one Meters page)")
+    T.eq(#section.pages, 7, "seven tabs (every meter on one Meters page)")
     local ids = {}
     for _, page in ipairs(section.pages) do ids[#ids + 1] = page.id end
-    T.eq(table.concat(ids, ","), "InfoPanel.panel,InfoPanel.meter,InfoPanel.map,InfoPanel.data,InfoPanel.databar,InfoPanel.tracker", "tab order")
+    T.eq(table.concat(ids, ","), "InfoPanel.panel,InfoPanel.xp,InfoPanel.meter,InfoPanel.map,InfoPanel.data,InfoPanel.databar,InfoPanel.tracker", "tab order")
     local seen, sliders = {}, 0
     for _, page in ipairs(section.pages) do
         for _, g in ipairs(page.groups) do
@@ -3424,4 +3484,65 @@ T.test("meter report: Send waits for the fight's end and refuses sample data", f
     stub.infopanel.Report.Refresh()
     T.truthy(f.send.off, "not the sample raid")
     DUI.SetTestMode(false)
+end)
+
+T.test("info panel: the XP and reputation bars can have their own border, corners and shadow", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    local xp = DUI.Style.GetShell(P.xp).opts
+    local was = xp.borderPx
+    T.eq(type(was), "function", "at first: the panel's thin border")
+    DUI:Set("InfoPanel", "xp.shell.borderPx", 9)
+    T.eq(xp.borderPx, was, "the sliders do nothing until Own border and shadow is on")
+    DUI:Set("InfoPanel", "xp.shell.own", true)
+    DUI:Set("InfoPanel", "xp.shell.cornerPx", 2)
+    DUI:Set("InfoPanel", "xp.shell.shadowPx", 7)
+    T.eq(xp.borderPx, 9)
+    T.eq(xp.cornerPx, 2)
+    T.eq(xp.shadowPx, 7)
+    DUI:Set("InfoPanel", "panelBorder", false)
+    T.falsy(xp.noBorder, "its own look ignores the panel's border switch")
+    DUI:Set("InfoPanel", "xp.shell.borderPx", 0)
+    T.eq(xp.noBevel, true, "no border, no bevel lines")
+    DUI:Set("InfoPanel", "xp.shell.own", false)
+    T.eq(xp.borderPx, was, "off: the panel's again")
+    T.isnil(xp.cornerPx)
+    T.isnil(xp.shadowPx)
+    T.eq(xp.noBorder, true, "and so is its border switch")
+    local rep = DUI.Style.GetShell(stub.infopanel.RepBar.frame).opts
+    DUI:Set("InfoPanel", "rep.shell.own", true)
+    DUI:Set("InfoPanel", "rep.shell.borderPx", 5)
+    T.eq(rep.borderPx, 5, "the reputation bar has its own too")
+end)
+
+T.test("info panel: the experience bar has its own options page, with the fade card", function()
+    local DUI = login()
+    local page
+    for _, p in ipairs(stub.infopanel.OPTIONS.pages) do if p.id == "xp" then page = p end end
+    T.truthy(page, "a page of its own")
+    local labels = {}
+    for _, g in ipairs(page.groups) do labels[g.label] = true end
+    local tabOf = {}
+    for _, g in ipairs(page.groups) do tabOf[g.label] = g.tab end
+    T.eq(tabOf["Experience bar"], "General")
+    T.eq(tabOf["Experience bar look"], "Look")
+    T.eq(tabOf["Experience bar border and shadow"], nil, "its border card sits after the look card, on its tab")
+    T.eq(tabOf["Experience bar size"], "Size")
+    T.eq(tabOf["Reputation bar"], "Reputation")
+    T.eq(tabOf["Experience bar fade"], "Fade")
+    T.truthy(labels["Experience bar"] and labels["Experience bar border and shadow"]
+        and labels["Reputation bar border and shadow"] and labels["Experience bar fade"])
+    for _, p in ipairs(stub.infopanel.OPTIONS.pages) do
+        if p.id == "panel" then
+            for _, g in ipairs(p.groups) do T.truthy(g.label ~= "Experience bar", "no longer on General") end
+        end
+    end
+end)
+
+T.test("info panel: the XP bar's border is never thicker than the general border", function()
+    local DUI = login()
+    local B = stub.infopanel.Panel.XP_BORDER
+    T.eq(B(2), 2, "a thin general border: as thin")
+    T.eq(B(4), 3)
+    T.eq(B(8), 4)
 end)

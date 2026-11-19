@@ -254,3 +254,16 @@ T.test("a plugin's spell list is one more Filter choice, matched by spell id; de
     ns.Auras.SetBuffsSeen(set.buffs, false)
     T.eq(h.max, 0, "yours only: off out of sight, like Only mine")
 end)
+
+T.test("icons per row sets the row's width; 0 spreads max over the rows", function()
+    local ns, tile, set = setup()
+    local over = { cc = { show = false }, debuffs = { spot = "below", grow = "right", size = 13, spacing = 2, max = 6, rows = 2 } }
+    ns.AuraGroups.Place(set, tile, cfg(over), BOX)
+    T.eq(set.debuffs:GetWidth(), 3 * 15 - 2, "6 over 2 rows: 3 a row")
+    over.debuffs.perRow = 2
+    ns.AuraGroups.Place(set, tile, cfg(over), BOX)
+    T.eq(set.debuffs:GetWidth(), 2 * 15 - 2, "2 a row, whatever the rows say")
+    over.debuffs.spot, over.debuffs.perRow = "bottomleft", 12
+    ns.AuraGroups.Place(set, tile, cfg(over), BOX)
+    T.truthy(set.debuffs:GetWidth() <= 72, "inside the tile a row stops at its edge")
+end)

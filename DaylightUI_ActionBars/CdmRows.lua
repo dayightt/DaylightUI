@@ -406,7 +406,8 @@ local function drawOurs(id, p, block, f, always, aura, track)
     -- A totem with its buff known (CdmOwn.Track "both"): Totem and buff. A bar
     -- shows the totem's time alone.
     local C = ns.CdmCustom
-    local buffTotem = track == "both" and C ~= nil and Own ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
+    local element = C ~= nil and C.Element(id) ~= nil
+    local buffTotem = track == "both" and C ~= nil and Own ~= nil and (element or C.Totem(Own.SpellOf(id)) ~= nil)
     if buffTotem and block.kind == "bar" then track, buffTotem = "totem", false end
     if block.kind == "bar" then
         local Bars = ns.CdmBars
@@ -464,8 +465,9 @@ local function drawOurs(id, p, block, f, always, aura, track)
     -- A totem's icon or bar runs on the totem's time (CdmCustom.TotemUp).
     local totem = (track == "totem" or buffTotem) or nil
     -- It dims only once a cast has taught its buff (CdmCustom.TotemBuffKnown): until
-    -- then nothing could cover it, so it stays full.
-    local dims = (buffTotem and C.TotemBuffKnown(Own.SpellOf(id))) or nil
+    -- then nothing could cover it, so it stays full. An element piece asks for each
+    -- totem as it stands (CdmOwn.Update).
+    local dims = (buffTotem and (element or C.TotemBuffKnown(Own.SpellOf(id)))) or nil
     if item and (item.totem ~= totem or item.totemBuff ~= dims) then
         item.totem, item.totemBuff = totem, dims
         if block.kind == "bar" then

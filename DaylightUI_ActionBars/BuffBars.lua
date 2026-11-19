@@ -124,7 +124,7 @@ end
 -- client has locked the button and its text.
 local function dressClock(h, btn, fs)
     btn:SetSize(h.w, h.h)
-    fs:SetFont(DUI.Style.FontFile(ns.MEDIA.font), h.size, DUI.Style.Outline())
+    fs:SetFont(DUI.Style.FontFile(ns.MEDIA.font), h.size, DUI.Style.Slug(DUI.Style.Outline()))
     CD.Ink(fs, h.color or DUI.Style.INK.VALUE)
 end
 

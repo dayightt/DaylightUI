@@ -243,7 +243,6 @@ function PR.Create()
     follow:Hide()
     follow:SetScript("OnUpdate", function(_, dt) PR.Step(dt) end)
     PR.follow = follow
-    PR.HookCamera()
 
     local list = { h }
     DUI.Movers.Register(h, PR.KEY, "Personal Display", { "TOP", nil, "CENTER", 0, -110 })
@@ -589,6 +588,8 @@ function PR.Layout(cfg)
     PR.following = cfg.enabled == true and cfg.follow ~= "fixed"
     DUI.Movers.Suspend(PR.KEY, PR.following)
     if PR.following then
+        -- The camera calls are only watched once the display follows you.
+        PR.HookCamera()
         PR.x = nil
         PR.Step(0)
         PR.Wake()

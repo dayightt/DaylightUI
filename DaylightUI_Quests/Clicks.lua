@@ -30,7 +30,7 @@ Clicks.ACTION_WORDS = { map = L["show on map"], details = L["quest details"], pr
                         link = L["link in chat"] }
 Clicks.BUTTONS = { "click", "shift", "ctrl", "alt" }
 Clicks.BUTTON_HINT = { click = L["Click: %s"], shift = L["Shift-click: %s"], ctrl = L["Ctrl-click: %s"], alt = L["Alt-click: %s"] }
-Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "none" }
+Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "fold" }
 Clicks.ACH_HINTS = { L["Click: open achievements"], L["Shift-click: stop tracking"] }
 Clicks.TIP_GAP = 44        -- keeps the tooltip clear of the item column (34 + 10)
 Clicks.ICON_HIT = 18       -- the icon area of a quest row, up to where the title starts
@@ -181,7 +181,25 @@ function Clicks.MenuText(q)
     return t
 end
 
+-- Rows other addons add (DaylightUI.API's AddQuestMenu), before Stop tracking and
+-- Abandon so those two stay at the bottom.
+function Clicks.PluginRows(q, keys, text)
+    local R = DUI.APIReport
+    if type(R) ~= "table" or not R.QuestMenu then return end
+    local tail = {}
+    while keys[#keys] == "untrack" or keys[#keys] == "abandon" do
+        table.insert(tail, 1, table.remove(keys))
+    end
+    R.QuestMenu(q, keys, text)
+    for _, k in ipairs(tail) do keys[#keys + 1] = k end
+end
+
 function Clicks.Do(k, q)
+    local R = DUI.APIReport
+    if type(k) == "string" and k:sub(1, 7) == "plugin:" then
+        if type(R) == "table" and R.QuestMenuClick then R.QuestMenuClick(k, q) end
+        return
+    end
     if k == "map" then ns.Journal.OpenTo(q.id)
     elseif k == "details" then ns.Details.Toggle(q)
     elseif k == "priority" then Clicks.Focus(q)
@@ -208,7 +226,9 @@ end
 function Clicks.Menu(q, f)
     local W = DUI.Widgets
     if not (W and W.OpenMenu) then return end
-    W.OpenMenu(f, Clicks.MenuKeys(q), Clicks.MenuText(q), nil, function(k) DUI.SafeCall(Clicks.Do, k, q) end)
+    local keys, text = Clicks.MenuKeys(q), Clicks.MenuText(q)
+    Clicks.PluginRows(q, keys, text)
+    W.OpenMenu(f, keys, text, nil, function(k) DUI.SafeCall(Clicks.Do, k, q) end)
 end
 
 -- An objective's count as a color: red, amber, green once done.

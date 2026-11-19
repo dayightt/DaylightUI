@@ -46,9 +46,10 @@ Scene.CAMERA = {             -- each CVar and its fully-in value
 }
 Scene.EASED = { test_cameraTargetFocusInteractStrengthPitch = true, test_cameraOverShoulder = true }
 -- This event shows the game's "experimental feature" warning (see
--- Blizzard_GameShared/EventRouting.lua). It's silenced only while the camera is moved.
+-- Blizzard_GameShared/EventRouting.lua). It's silenced for the session the first
+-- time the camera moves, and never registered back: a handler put back by addon
+-- code would open the game's pop-up tainted later.
 Scene.WARNING = "EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED"
-Scene.QUIET = 1              -- s the warning stays silenced after a camera change
 -- UIParent fades out; these frames stay visible: the card, plus the tooltips and
 -- popups a talk can bring up (reward tooltips and comparisons, the PvP quest prompt,
 -- the red "you must choose a reward" error).
@@ -156,21 +157,14 @@ local function kept()
     return root.npcCamera
 end
 
--- Silence the warning now and restore the game's handler Scene.QUIET s after the
--- last change.
-local quietRun = 0
+-- Silence the warning, once per session, only when the camera really moves.
+local quieted = false
 local function quiet()
+    if quieted then return end
     local G = _G.GameEvent
     if type(G) ~= "table" or type(G.UnregisterInternalEvent) ~= "function" then return end
+    quieted = true
     G.UnregisterInternalEvent(Scene.WARNING)
-    quietRun = quietRun + 1
-    local run = quietRun
-    C_Timer.After(Scene.QUIET, function()
-        if run ~= quietRun then return end
-        if type(G.RegisterInternalEvent) == "function" and type(G.HandleExperimentalCVarConfirmationNeeded) == "function" then
-            G.RegisterInternalEvent(Scene.WARNING, G.HandleExperimentalCVarConfirmationNeeded)
-        end
-    end)
 end
 Scene.Quiet = quiet
 
@@ -213,8 +207,13 @@ local function zoomHome()
 end
 
 -- The player zoomed manually (wheel and zoom keys call these), so leave the camera there.
+-- Hooked the first time the camera moves in, so players on the plain window
+-- never have the game's camera calls hooked at all.
 local CAMERA_CALLS = { "CameraZoomIn", "CameraZoomOut", "MoveViewInStart", "MoveViewOutStart", "SetView", "ResetView" }
+local cameraHooked = false
 local function hookCamera()
+    if cameraHooked then return end
+    cameraHooked = true
     for _, name in ipairs(CAMERA_CALLS) do
         if type(_G[name]) == "function" then
             hooksecurefunc(name, function()
@@ -249,6 +248,7 @@ end
 function Scene.CameraIn()
     if not on("zoom") or InCombatLockdown() or (type(IsMounted) == "function" and IsMounted()) then return end
     if not Scene.KeepCamera() then return end
+    hookCamera()
     quiet()
     for name, v in pairs(Scene.CAMERA) do
         if not Scene.EASED[name] then setCVar(name, v) end
@@ -280,7 +280,7 @@ local ownIgnore = {}   -- frame -> its original ignore-parent-alpha while the UI
 
 local function paintUI(p)
     Scene.uiAt = p
-    DUI.Fade.SetUIAlpha(1 - p)
+    DUI.Fade.SetUIAlpha(1 - p, "npc")
     -- Minimap blips ignore parent alpha, so hide the map once the UI is gone.
     DUI.Fade.MapAway("npc", p >= 1)
 end
@@ -302,7 +302,7 @@ local function uiBack(snap)
     Motion.Tween("npc:ui", Scene.uiAt, 0, snap and 0 or Motion.NORMAL, paintUI, function()
         if (Scene.uiAt or 0) > 0 then return end
         Scene.uiAt = nil
-        DUI.Fade.SetUIAlpha(1)
+        DUI.Fade.SetUIAlpha(1, "npc")
         for f, own in pairs(ownIgnore) do
             f:SetIgnoreParentAlpha(own)
             ownIgnore[f] = nil
@@ -380,7 +380,6 @@ function Scene.Build(talk)
     -- that closed mid-talk.
     f.typer:RegisterEvent("PLAYER_REGEN_DISABLED")
     f.typer:RegisterEvent("PLAYER_LOGOUT")
-    hookCamera()
     f.typer:SetScript("OnEvent", function(_, event)
         zoomHome()
         if event == "PLAYER_LOGOUT" then

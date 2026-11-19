@@ -1,18 +1,21 @@
--- The "Use this font for the game's text" option. Applies the Appearance font
--- to the game's own text (menus, tooltips, quest text, error popups, nameplate
--- names, combat numbers) by changing its named font objects, keeping each
--- one's size and outline. Font objects aren't protected, so this is safe in
--- combat, and no game frame is touched. Turning it off restores every face.
--- Damage numbers (DAMAGE_TEXT_FONT) follow this font unless the Damage numbers
--- page picks its own. The client reads that one only at login, so a change
--- shows after a game restart.
+-- The "Use this font for the game's text" option. Puts the Appearance font on
+-- the game's own text (menus, tooltips, quest text, popups, nameplate and
+-- speech bubble text) by changing its named font objects, keeping each one's
+-- size and outline. It runs once, at login, the way EllesmereUI's "Apply to
+-- All Game Text" does: the game's fonts are never changed while its frames are
+-- drawing with them, so switching it or picking another font shows after a
+-- /reload. Font objects that load later keep the game's face until then.
+-- Damage numbers (DAMAGE_TEXT_FONT) and the combat text over you have picks of
+-- their own on the Damage numbers page and follow them live.
 
 local ADDON_NAME, DUI = ...
 
 local GameFonts = {}
 DUI.GameFonts = GameFonts
 
-GameFonts.GLOBALS = { "STANDARD_TEXT_FONT", "UNIT_NAME_FONT", "NAMEPLATE_FONT" }
+-- The font for text the game makes from no font object. NAMEPLATE_FONT and
+-- UNIT_NAME_FONT (the names over heads) stay the game's, as EllesmereUI leaves them.
+GameFonts.GLOBALS = { "STANDARD_TEXT_FONT" }
 
 local savedGlobals -- the client's own paths, saved the first time they're replaced
 local savedFaces = {} -- font object -> the { face, flags } it had before
@@ -113,38 +116,175 @@ local function setFace(obj, face)
             savedFaces[obj] = { current, flags }
             flags = ourFlags(flags)
         else
-            -- Already set (every later ADDON_LOADED walks them all again). SetFont redraws
-            -- every text using the object, so skip it.
-            local want = ourFlags(saved[2])
-            if current == face and flags == want then return end
-            flags = want
+            -- Already set (the combat text font comes back on every repaint). SetFont
+            -- redraws every text using the object, so skip it. Compared with what
+            -- was set here: the client may hand the path back in another form.
+            if saved.face == face then return end
+            flags = ourFlags(saved[2])
         end
     end
-    pcall(obj.SetFont, obj, face, size, flags)
+    if pcall(obj.SetFont, obj, face, size, flags) and savedFaces[obj] then savedFaces[obj].face = face end
 end
 
--- Applies the wanted font to the game's text, or restores the game's own.
-function GameFonts.Apply()
-    local font = GameFonts.Wanted()
-    if font then
-        if not savedGlobals then
-            savedGlobals = {}
-            for _, k in ipairs(GameFonts.GLOBALS) do savedGlobals[k] = _G[k] end
-        end
-        for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = font end
-        -- Daylight UI's own families are named fonts too: each carries a face picked
-        -- for its own text (the chat's, for one) and keeps it.
-        local own = DUI.Style.OwnFamily
-        for _, obj in ipairs(fontObjects()) do
-            if obj ~= CombatTextFont and not own(obj) then setFace(obj, font) end
-        end
-    elseif savedGlobals then
-        for _, k in ipairs(GameFonts.GLOBALS) do _G[k] = savedGlobals[k] end
-        savedGlobals = nil
-        for obj in pairs(savedFaces) do
-            if obj ~= CombatTextFont then setFace(obj, nil) end
-        end
+-- The game's fonts the pass leaves whole. The combat text over you draws with
+-- CombatTextFont, which inherits SystemFont_World, so every member of both is
+-- left as it is: the combat text has its own pick on the Damage numbers page.
+GameFonts.KEEP = { "CombatTextFont", "SystemFont_World" }
+-- The hotkey text shows the range dot (U+25CF), which most bundled fonts can't
+-- draw, so this one keeps its own faces.
+GameFonts.KEEP_FACE = { "NumberFontNormalSmallGray" }
+
+local CJK_ALPHABET = { koKR = "korean", zhCN = "simplifiedchinese", zhTW = "traditionalchinese" }
+
+local function locale() return type(GetLocale) == "function" and GetLocale() or "" end
+
+-- The alphabet the client's own language draws with.
+local function clientAlphabet()
+    local l = locale()
+    return CJK_ALPHABET[l] or (l == "ruRU" and "russian") or "roman"
+end
+
+-- Whether one alphabet's member of a family takes the face. Korean and Chinese
+-- letters keep the game's: a font that draws them is the client's own, and then
+-- there's nothing to swap.
+local function takes(alphabet, face)
+    if alphabet == "roman" then return true end
+    if alphabet == "russian" then return DUI.Style.HasCyrillic(face) end
+    return false
+end
+
+-- A family has members of its own for its Latin and Russian letters.
+local function isFamily(obj)
+    if type(obj.GetFontObjectForAlphabet) ~= "function" then return false end
+    local okR, roman = pcall(obj.GetFontObjectForAlphabet, obj, "roman")
+    local okC, russian = pcall(obj.GetFontObjectForAlphabet, obj, "russian")
+    return okR and okC and type(roman) == "table" and type(russian) == "table" and roman ~= russian
+end
+
+local function members(obj, fn)
+    for _, alphabet in ipairs(DUI.Style.ALPHABETS) do
+        local ok, member = pcall(obj.GetFontObjectForAlphabet, obj, alphabet)
+        if ok and type(member) == "table" then fn(alphabet, member) end
     end
+end
+
+-- One member (or a plain font) takes the face at its own size and flags. A
+-- member several fonts share is set once.
+local function setMember(member, face, done)
+    if done[member] then return end
+    done[member] = true
+    if face == nil or type(member.GetFont) ~= "function" then return end
+    local ok, current, size, flags = pcall(member.GetFont, member)
+    if not ok or type(size) ~= "number" or size <= 0 or current == face then return end
+    pcall(member.SetFont, member, face, size, flags or "")
+end
+
+-- A family changes member by member: a SetFont on the family itself changes
+-- none of them. Its own font (what GetFont reads and copies take) changes only
+-- when the face draws the client's own language.
+local function putOn(obj, face, done)
+    if not isFamily(obj) then return setMember(obj, face, done) end
+    members(obj, function(alphabet, member)
+        setMember(member, takes(alphabet, face) and face or nil, done)
+    end)
+    setMember(obj, takes(clientAlphabet(), face) and face or nil, done)
+end
+
+local function leaveWhole(obj, done)
+    done[obj] = true
+    if isFamily(obj) then members(obj, function(_, member) done[member] = true end) end
+end
+
+-- A font that draws through members it shares with another family gets a
+-- family of its own made from those members' faces, so the shared members can
+-- take the face while it keeps its own. Its color and shadow come with it.
+local keptCount = 0
+local function keepFaces(obj, done)
+    if not isFamily(obj) then done[obj] = true return end
+    if type(CreateFontFamily) ~= "function" or type(obj.SetFontObject) ~= "function" then return end
+    local list = {}
+    members(obj, function(alphabet, member)
+        local ok, face, size, flags = pcall(member.GetFont, member)
+        if ok and face and type(size) == "number" and size > 0 then
+            list[#list + 1] = { alphabet = alphabet, file = face, height = size, flags = flags or "" }
+        end
+    end)
+    if #list == 0 then return end
+    keptCount = keptCount + 1
+    local okFam, fam = pcall(CreateFontFamily, "DaylightUIKeptFont" .. keptCount, list)
+    if not (okFam and type(fam) == "table") then return end
+    local r, g, b, a
+    if obj.GetTextColor then r, g, b, a = obj:GetTextColor() end
+    local sr, sg, sb, sa
+    if obj.GetShadowColor then sr, sg, sb, sa = obj:GetShadowColor() end
+    local sx, sy
+    if obj.GetShadowOffset then sx, sy = obj:GetShadowOffset() end
+    if not pcall(obj.SetFontObject, obj, fam) then return end
+    if r and obj.SetTextColor then obj:SetTextColor(r, g, b, a) end
+    if sr and obj.SetShadowColor then obj:SetShadowColor(sr, sg, sb, sa) end
+    if sx and obj.SetShadowOffset then obj:SetShadowOffset(sx, sy) end
+    leaveWhole(fam, done)
+    done[obj] = true
+end
+
+-- Gives one of the game's font objects a face, size and flags, member by member
+-- when it's a family (each member keeps its own face where the face can't draw
+-- its letters). Only what differs is set: a SetFont redraws every text using it.
+-- What was last set on each object here. The client may hand a path back in
+-- another form, so this is what's compared, not GetFont.
+local setOn = setmetatable({}, { __mode = "k" })
+
+function GameFonts.SetObjectFont(obj, face, size, flags)
+    if type(obj) ~= "table" or type(obj.SetFont) ~= "function" then return end
+    flags = flags or ""
+    local spec = tostring(face) .. "|" .. tostring(size) .. "|" .. flags
+    if setOn[obj] == spec then return end
+    setOn[obj] = spec
+    local function one(member, f)
+        local ok, current, currentSize, currentFlags = pcall(member.GetFont, member)
+        if not ok then return end
+        f = f or current
+        if f == nil then return end
+        if f == current and currentSize == size and (currentFlags or "") == flags then return end
+        pcall(member.SetFont, member, f, size, flags)
+    end
+    if not isFamily(obj) then return one(obj, face) end
+    members(obj, function(alphabet, member) one(member, takes(alphabet, face) and face or nil) end)
+    one(obj, takes(clientAlphabet(), face) and face or nil)
+end
+
+-- Puts the wanted font on the game's text. Only the first call of a session
+-- does anything.
+local applied = false
+function GameFonts.ApplyGameText()
+    if applied then return end
+    applied = true
+    local font = GameFonts.Wanted()
+    if not font then return end
+    savedGlobals = {}
+    for _, k in ipairs(GameFonts.GLOBALS) do
+        savedGlobals[k] = _G[k]
+        _G[k] = font
+    end
+    local done = {}
+    for _, name in ipairs(GameFonts.KEEP) do
+        local obj = _G[name]
+        if type(obj) == "table" then leaveWhole(obj, done) end
+    end
+    for _, name in ipairs(GameFonts.KEEP_FACE) do
+        local obj = _G[name]
+        if type(obj) == "table" then keepFaces(obj, done) end
+    end
+    -- Daylight UI's own families are named fonts too: each carries a face picked
+    -- for its own text (the chat's, for one) and keeps it.
+    local own = DUI.Style.OwnFamily
+    for _, obj in ipairs(fontObjects()) do
+        if not own(obj) and type(obj.SetFont) == "function" then putOn(obj, font, done) end
+    end
+end
+
+-- The damage number and combat text fonts, which change live.
+function GameFonts.Apply()
     -- The combat text over you has its own pick on the Damage numbers page.
     if type(CombatTextFont) == "table" then setFace(CombatTextFont, GameFonts.CombatTextWanted()) end
     -- The client reads DAMAGE_TEXT_FONT once, early in login. Before PLAYER_LOGIN
@@ -158,27 +298,21 @@ function GameFonts.Apply()
     end
     if damage then
         clientDamage = clientDamage or { DAMAGE_TEXT_FONT }
-        DAMAGE_TEXT_FONT = damage
+        if DAMAGE_TEXT_FONT ~= damage then DAMAGE_TEXT_FONT = damage end
     elseif clientDamage then
         DAMAGE_TEXT_FONT = clientDamage[1]
         clientDamage = nil
     end
 end
 
--- Daylight UI's first (Core has picked the font by then). Each game addon that loads
--- later brings its own font objects, so walk them once on the next frame no
--- matter how many loaded (dozens at login, a few per window).
-local walkQueued = false
+-- Daylight UI's first (Core has picked the font by then), for the damage font.
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
-    if not DUI.DB.sv then return end
-    if name == ADDON_NAME then return GameFonts.Apply() end
-    if walkQueued then return end
-    walkQueued = true
-    C_Timer.After(0, function()
-        walkQueued = false
-        DUI.SafeCall(GameFonts.Apply)
-    end)
+    if name == ADDON_NAME and DUI.DB.sv then GameFonts.Apply() end
 end)
 DUI.On("RepaintCore", GameFonts.Apply)
--- Once the spec's profile is active, its damage font is saved for next time.
-DUI.On("Login", GameFonts.Apply)
+-- The spec's profile is active at login: the game's text takes its font once,
+-- and its damage font is saved for next time.
+DUI.On("Login", function()
+    GameFonts.ApplyGameText()
+    GameFonts.Apply()
+end)

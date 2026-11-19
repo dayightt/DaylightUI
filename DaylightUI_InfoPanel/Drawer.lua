@@ -211,15 +211,20 @@ end
 local function place(f)
     local cell = cells[f]
     if not cell then return end
-    f:SetParent(cell)
+    -- The place events run this again: a button already in its square is left alone.
+    local Map = ns.Minimap
+    Map.ParentTo(f, cell)
     -- LibDBIcon resets the strata to MEDIUM later, so lock it to the cell's.
-    if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
-    f:SetFrameStrata(cell:GetFrameStrata())
-    if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
-    f:SetFrameLevel(cell:GetFrameLevel() + 3)
-    f:ClearAllPoints()
-    f:SetSize(Drawer.SIZE, Drawer.SIZE)
-    f:SetPoint("CENTER", cell, "CENTER", 0, 0)
+    local strata = cell:GetFrameStrata()
+    if f:GetFrameStrata() ~= strata or cell.lockedStrata ~= strata then
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
+        f:SetFrameStrata(strata)
+        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
+        cell.lockedStrata = strata
+    end
+    Map.LevelTo(f, cell:GetFrameLevel() + 3)
+    Map.SizeTo(f, Drawer.SIZE, Drawer.SIZE)
+    Map.PlaceAt(f, "CENTER", cell, "CENTER", 0, 0)
 end
 
 local function take(f)

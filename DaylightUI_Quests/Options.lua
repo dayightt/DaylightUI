@@ -120,7 +120,12 @@ ns.OPTIONS = { pages = {
             { type = "toggle", label = "Track new quests automatically",
               desc = "The game's own setting: a quest you accept goes straight into the tracker.",
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("autoQuestWatch") == true end,
-              set = function(v) if type(SetCVar) == "function" then SetCVar("autoQuestWatch", v and "1" or "0") end end,
+              -- A game setting, so it's written out of a fight only.
+              set = function(v)
+                  DaylightUI.AfterCombat(function()
+                      if type(SetCVar) == "function" then pcall(SetCVar, "autoQuestWatch", v and "1" or "0") end
+                  end, "quests:autowatch")
+              end,
               default = function() return true end },
         } },
         { label = "Quest progress pop-up", items = {

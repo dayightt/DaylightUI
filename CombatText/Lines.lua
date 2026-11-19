@@ -47,7 +47,7 @@ end
 local function setFace(line, size, outline)
     local face = DUI.GameFonts.CombatTextWanted() or Style.FONT
     if line.face ~= face or line.size ~= size or line.outline ~= outline then
-        line.fs:SetFont(face, size, outline)
+        line.fs:SetFont(face, size, Style.Slug(outline))
         line.face, line.size, line.outline = face, size, outline
     end
 end

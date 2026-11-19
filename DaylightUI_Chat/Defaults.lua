@@ -43,7 +43,8 @@ ns.DEFAULTS = {
     shortTags = true,       -- [G], [T], [P], [S]... instead of the channel's and speech's full words
     worldChannelsFirst = true, -- world channels keep the first numbers when an addon joins its own first (Kinds.WorldFirst)
     channelNumbers = false, -- numbered channels keep their number: [1. G], [2. T]
-    -- channelTags: custom short tags per kind, set in a tab's Channels window (Tags.lua). No default.
+    -- channelTags: custom short tags per kind, set in the chat options (Tags.lua). No default.
+    tagLetters = "native",    -- the letters short tags start from: "native" (the game's words in the player's language) or "english". Profiles from before this default keep "english" (DB.KeepEnglishTags)
     classColors = true, -- class-colored names (the game's own setting)
     levels = false,     -- "[60] Name": a level beside each name the game has given (Levels.lua)
     timestamps = "game", -- "game" uses the game's setting, "none" turns it off, else a time format

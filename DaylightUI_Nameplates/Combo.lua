@@ -77,10 +77,10 @@ function Combo.Create()
     -- arrives on the energy event, so every event reads the count but only a change
     -- moves the pips (Gradients.ComboSame); energy ticks leave the row alone.
     for _, e in ipairs({ "UNIT_POWER_FREQUENT", "UNIT_DISPLAYPOWER", "UNIT_MAXPOWER" }) do
-        pcall(row.RegisterUnitEvent, row, e, "player")
+        DUI.SafeCall(row.RegisterUnitEvent, row, e, "player")
     end
     -- Points carried to a new target keep their count without a power event.
-    pcall(row.RegisterEvent, row, "COMBO_TARGET_CHANGED")
+    DUI.SafeCall(row.RegisterEvent, row, "COMBO_TARGET_CHANGED")
     row:SetScript("OnEvent", function(self, event, _, powerType)
         if event == "UNIT_POWER_FREQUENT" and DUI.Gradients.ComboSame(self, powerType) then return end
         Combo.Place(true)

@@ -573,6 +573,75 @@ local function topLine(frame)
 end
 function Kit.TopLineOf(frame) return topLines[frame] end
 
+-- The controller's focus glow (FrameGlowMixin). Its header piece outlines the
+-- game's dialog header, which our windows don't have. The game applies Focus
+-- Opacity and Focus Color only when they change, so both are read again each
+-- time the glow shows.
+local function focusCVar(name)
+    local get = (type(C_CVar) == "table" and C_CVar.GetCVar) or GetCVar
+    if type(get) ~= "function" then return nil end
+    local ok, v = pcall(get, name)
+    return ok and tonumber(v) or nil
+end
+
+-- The game's own colors for the Focus Color choices; 0 keeps the art's color.
+local FOCUS_COLORS = { { 1, 0.9, 0.4 }, { 0, 0, 0 }, { 0.3, 0.5, 1 } }
+
+local function fitFocusGlow(glow)
+    local a = focusCVar("GamepadFocusStateOpacity")
+    if a then glow:SetAlpha(a) end
+    local c = FOCUS_COLORS[focusCVar("GamepadFocusStateColor") or 0]
+    if not c then return end
+    local textures = isTable(glow.glowTextures) and glow.glowTextures or { glow.GlowTexture }
+    for _, t in ipairs(textures) do
+        if isTable(t) and t.SetVertexColor then t:SetVertexColor(c[1], c[2], c[3]) end
+    end
+end
+
+-- A window can keep its glow on a child, named by FocusFrameParent (the world
+-- map's BorderFrame, the guild roster's Border), as the game's
+-- FocusFramesInterfaceMixin:GetFocusFrameRoot does.
+local function glowOf(frame)
+    if not isTable(frame) then return nil end
+    local key = rawget(frame, "FocusFrameParent")
+    local root = type(key) == "string" and isTable(frame[key]) and frame[key] or frame
+    return root.FrameGlow
+end
+
+function Kit.FocusGlow(frame)
+    local glow = glowOf(frame)
+    if not isTable(glow) or not glow.SetAlpha or not once("focusGlow", glow) then return end
+    Kit.Hide(glow.HeaderGlowTexture)
+    fitFocusGlow(glow)
+    if glow.HookScript then glow:HookScript("OnShow", fitFocusGlow) end
+end
+
+-- Every glow, skinned window or not (menus, the shop): each one registers with
+-- CVarCallbackRegistry for the opacity setting, as itself, so that list is
+-- all of them. 2 is CallbackRegistry's CallbackType.Function, which is local.
+function Kit.FitFocusGlows()
+    local r = _G.CVarCallbackRegistry
+    if not isTable(r) or type(r.GetCallbacksByEvent) ~= "function" then return end
+    local ok, glows = pcall(r.GetCallbacksByEvent, r, 2, "GamepadFocusStateOpacity")
+    if not ok or not isTable(glows) then return end
+    for glow in pairs(glows) do
+        if isTable(glow) and glow.SetAlpha and not (glow.IsForbidden and glow:IsForbidden()) then fitFocusGlow(glow) end
+    end
+end
+
+-- Once at start, then each time the controller's focus moves, which is when a
+-- glow shows (the game fires Gamepad.RefreshFrameFocus; EventRegistry runs each
+-- callback on its own, so nothing here reaches the game's code).
+local watchingGlows = false
+function Kit.WatchFocusGlows()
+    if watchingGlows then return end
+    watchingGlows = true
+    Kit.FitFocusGlows()
+    if isTable(_G.EventRegistry) and _G.EventRegistry.RegisterCallback then
+        _G.EventRegistry:RegisterCallback("Gamepad.RefreshFrameFocus", Kit.FitFocusGlows, Kit)
+    end
+end
+
 -- Dresses a game window: strips its art, adds the window look behind it, sets
 -- the title font, a W.Close button, and a darker inset. opts:
 --   noBackground  border only (map windows)
@@ -609,6 +678,7 @@ function Kit.Window(frame, opts)
     Kit.Close(frame.CloseButton or named)
     if isTable(frame.TitleContainer) then Kit.Close(frame.TitleContainer.CloseButton) end
     Kit.Close(frame.ClosePanelButton)
+    Kit.FocusGlow(frame)
     local inset = frame.Inset or (type(name) == "string" and _G[name .. "Inset"])
     if inset then Kit.Inset(inset) end
     -- Fade in on open (out of combat; hiding stays the game's). Not for map
@@ -831,9 +901,11 @@ end
 local function keepStateFonts(btn, fs)
     local face = Style.ButtonFace(fs)
     if not face then return end
-    btn:SetNormalFontObject(face)
-    btn:SetHighlightFontObject(face)
-    btn:SetDisabledFontObject(face)
+    -- The face is cached per font, so a style change that changed nothing finds
+    -- it already set. Writing it again would make the client redo the label for no reason.
+    if btn:GetNormalFontObject() ~= face then btn:SetNormalFontObject(face) end
+    if btn:GetHighlightFontObject() ~= face then btn:SetHighlightFontObject(face) end
+    if btn:GetDisabledFontObject() ~= face then btn:SetDisabledFontObject(face) end
 end
 
 -- Quiet controls: the same looks with no hooks that the game's own code can

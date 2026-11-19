@@ -1,7 +1,9 @@
 -- Loot feed: what you just looted, as angled ribbons in the bottom right.
 -- Looting more of the same item bumps its count instead of adding a ribbon, and
 -- money adds up on one ribbon. Skill-ups get their own ribbon, and epics arrive
--- with a burst. lootFeedFlip mirrors the whole thing to the left side.
+-- with a burst. lootFeedFlip mirrors the whole thing to the left side. As a
+-- log (lootFeedStyle) nothing times out: the last entries are kept for the
+-- character and the mouse wheel scrolls back through them.
 --
 -- Built from your own loot and money chat messages, matched through the game's
 -- format strings so it works in every language. These stay plain in chat
@@ -24,6 +26,8 @@ local Feed = {
     MAX = 6,          -- ribbons at once; the oldest makes room (setting lootFeedMax)
     HOLD = 5,         -- seconds a ribbon stays after its last loot (setting lootFeedHold)
     GRACE = 1.5,      -- seconds every ribbon stays at least after the mouse leaves
+    KEEP = 50,        -- entries a log keeps (lootFeedStyle "log")
+    BACK = 4,         -- seconds after the mouse leaves a scrolled-back log before it shows the newest again
     SLIDE = 48,       -- px it slides in from
     OUT = 24,         -- px it drifts left as it fades out
     SHINE_W = 70,
@@ -78,10 +82,16 @@ local rows, pool = {}, {}   -- rows showing, newest first; spare rows
 local sampling = false      -- the test/unlock sample is up
 local hovered = nil         -- the row under the mouse: nothing leaves meanwhile
 local acc = 0
+local log                   -- a log's entries, newest first, kept with the character
+local offset = 0            -- how many entries a log is scrolled back
+local backAt                -- when a scrolled-back log returns to the newest
+local sampleList            -- the sample as log entries
+local shownMode             -- the style the rows on screen were made for
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.lootFeed == true end
 local function db(key) return mod and mod.db and mod.db[key] end
 local function on(key) return db(key) ~= false end
+local function logMode() return db("lootFeedStyle") == "log" end
 
 -- Seconds a ribbon stays, from the setting.
 function Feed.Hold()
@@ -333,6 +343,7 @@ end
 -- The item's own tooltip; money and the sample have no link: the name alone.
 local function enter(row)
     hovered = row
+    backAt = nil
     local e = row.entry
     if not (e and GameTooltip) or e.money or e.skill then return end
     GameTooltip:SetOwner(row, flipped() and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
@@ -354,6 +365,10 @@ local function leaveMouse(row)
     for _, r in ipairs(rows) do
         if r.untilT and r.untilT < soon then r.untilT = soon end
     end
+    if logMode() and offset > 0 then
+        backAt = GetTime() + Feed.BACK
+        Feed.Wake()
+    end
 end
 
 local function makeRow()
@@ -364,6 +379,11 @@ local function makeRow()
     if row.SetMouseClickEnabled then row:SetMouseClickEnabled(false) end
     row:SetScript("OnEnter", enter)
     row:SetScript("OnLeave", leaveMouse)
+    -- A log scrolls with the wheel: up goes back in time when the newest
+    -- line is at the bottom, down when it's on top.
+    row:SetScript("OnMouseWheel", function(_, delta)
+        Feed.Scroll((delta > 0) ~= (db("lootFeedGrow") == "down"))
+    end)
     row.shell = Style.Shell(row, shellOpts())
     slant(row)
     -- The icon in an outline of its quality, a dark well under it (the
@@ -585,39 +605,185 @@ local function showing()
     return n
 end
 
+-- More of the same: adds e into the entry already there. Returns the rank
+-- a skill had, for its count-up.
+local function merge(cur, e)
+    local wasRank = cur.rank
+    if e.money then
+        cur.money = cur.money + e.money
+    elseif e.skill then
+        cur.rank, cur.max = e.rank, e.max or cur.max
+    else
+        cur.count = cur.count + e.count
+    end
+    if e.icon then cur.icon = e.icon end
+    if e.link then cur.link = e.link end
+    return wasRank
+end
+
+-- A shown entry that just grew: its count swells, the ribbon bumps and shines.
+local function grew(row, wasRank)
+    local e = row.entry
+    fill(row)
+    -- The count swells and settles by its font size, never a Scale
+    -- animation: that stretched the drawn letters (huge, pixelated, stuck).
+    if not e.money then
+        local size = textSize() - 1
+        Motion.Tween(row.count, size * 1.6, size, Motion.NORMAL, function(v)
+            Style.SetTextSize(row.count, v)
+        end)
+    end
+    Motion.Bump(row, 1.04, Motion.FAST)
+    if e.skill then rollSkill(row, wasRank) end
+    shine(row)
+end
+
+local function newRow(e, untilT)
+    local row = table.remove(pool) or makeRow()
+    row.entry, row.untilT = e, untilT
+    row:SetAlpha(1)
+    row:EnableMouseWheel(logMode())
+    fill(row)
+    row:Show()
+    return row
+end
+
+-- Fresh loot landing (not a log row scrolled into view): a skill counts
+-- up, an epic bursts, the light runs across.
+local function landed(row)
+    local e = row.entry
+    if e.skill then rollSkill(row, e.rank - 1) end
+    epic(row)
+    shine(row)
+end
+
+local function onUpdate(_, dt)
+    acc = acc + (dt or 0)
+    if acc < Feed.TICK then return end
+    acc = 0
+    Feed.Tick()
+end
+
+-- The holder's ticker back on. A log stops it while nothing waits on time.
+function Feed.Wake()
+    if holder and not holder:GetScript("OnUpdate") then holder:SetScript("OnUpdate", onUpdate) end
+end
+
+-- What a log shows: the sample while test or unlock mode wants it, else the log.
+local function viewList()
+    if sampling then
+        if not sampleList then
+            sampleList = {}
+            for i, s in ipairs(Feed.SAMPLE) do
+                local e = Feed.SampleEntry(s)
+                e.count = e.count or 1
+                sampleList[i] = e
+            end
+        end
+        return sampleList
+    end
+    return log or {}
+end
+
+-- A log's rows made to match the entries in view: rows scrolled out leave,
+-- rows scrolled in slide in, the ones staying glide to their new spots.
+local function sync()
+    if not holder then return end
+    local list = viewList()
+    local max = Feed.Max()
+    offset = math.max(0, math.min(offset, #list - max))
+    local want, keep = {}, {}
+    for i = offset + 1, math.min(#list, offset + max) do
+        want[#want + 1] = list[i]
+        keep[list[i]] = true
+    end
+    for i = #rows, 1, -1 do
+        local r = rows[i]
+        if r and not r.leaving and not keep[r.entry] then leave(r, true) end
+    end
+    local have, going = {}, {}
+    for _, r in ipairs(rows) do
+        if r.leaving then going[#going + 1] = r else have[r.entry] = r end
+    end
+    for i = #rows, 1, -1 do rows[i] = nil end
+    local fresh = {}
+    for _, e in ipairs(want) do
+        local r = have[e]
+        if not r then
+            r = newRow(e)
+            fresh[#fresh + 1] = r
+        end
+        rows[#rows + 1] = r
+    end
+    for _, r in ipairs(going) do rows[#rows + 1] = r end
+    layout()
+    for _, r in ipairs(fresh) do slideIn(r) end
+    if #want > 0 then holder:Show() else Feed.Wake() end   -- the ticker rests an empty holder
+end
+
+local function rowOf(e)
+    for _, r in ipairs(rows) do
+        if r.entry == e and not r.leaving then return r end
+    end
+end
+
+-- A loot into the log: more of the same within the line time adds to its
+-- entry, anything else is a new newest entry. Scrolled back, the view stays put.
+local function addLog(e)
+    if not log then return end
+    e.at = time()
+    local since = e.at - Feed.Hold()
+    for _, cur in ipairs(log) do
+        if cur.key == e.key and (cur.at or 0) >= since then
+            cur.at = e.at
+            local wasRank = merge(cur, e)
+            local row = not sampling and rowOf(cur)
+            if row then grew(row, wasRank) end
+            return row
+        end
+    end
+    table.insert(log, 1, e)
+    while #log > Feed.KEEP do table.remove(log) end
+    if offset > 0 then offset = offset + 1 end
+    sync()
+    local row = not sampling and rowOf(e)
+    if row then landed(row) end
+    return row
+end
+
+-- Steps a log one entry older or newer.
+function Feed.Scroll(older)
+    if not logMode() or sampling then return end
+    offset = offset + (older and 1 or -1)
+    sync()
+end
+
+-- Empties the log.
+function Feed.Clear()
+    if log then
+        for i = #log, 1, -1 do log[i] = nil end
+    end
+    offset, backAt = 0, nil
+    if logMode() then sync() end
+end
+
+function Feed.Log() return log end
+function Feed.Offset() return offset end
+
 -- Adds one loot: { key, name, quality, icon, count } or { money = copper }.
 -- With `hold` it stays until the sample ends (test and unlock mode).
 function Feed.Add(e, hold)
     if not holder then return end
     e.key = e.money and "money" or (e.key or e.name)
     e.count = e.count or 1
+    Feed.Wake()
+    if logMode() and not hold then return addLog(e) end
     local until_ = not hold and (GetTime() + Feed.Hold()) or nil
     local row = find(e.key)
     if row then
-        local cur = row.entry
-        local wasRank = cur.rank
-        if e.money then
-            cur.money = cur.money + e.money
-        elseif e.skill then
-            cur.rank, cur.max = e.rank, e.max or cur.max
-        else
-            cur.count = cur.count + e.count
-        end
-        if e.icon then cur.icon = e.icon end
-        if e.link then cur.link = e.link end
+        local wasRank = merge(row.entry, e)
         row.untilT = until_
-        fill(row)
-        -- The count swells and settles by its font size, never a Scale
-        -- animation: that stretched the drawn letters (huge, pixelated, stuck).
-        if not e.money then
-            local size = textSize() - 1
-            Motion.Tween(row.count, size * 1.6, size, Motion.NORMAL, function(v)
-                Style.SetTextSize(row.count, v)
-            end)
-        end
-        Motion.Bump(row, 1.04, Motion.FAST)
-        if e.skill then rollSkill(row, wasRank) end
-        shine(row)
+        grew(row, wasRank)
         return row
     end
     while showing() >= Feed.Max() do
@@ -625,17 +791,11 @@ function Feed.Add(e, hold)
             if not rows[i].leaving then leave(rows[i], true) break end
         end
     end
-    row = table.remove(pool) or makeRow()
-    row.entry, row.untilT = e, until_
-    row:SetAlpha(1)
+    row = newRow(e, until_)
     table.insert(rows, 1, row)
-    fill(row)
-    row:Show()
     layout()
     slideIn(row)
-    if e.skill then rollSkill(row, e.rank - 1) end
-    epic(row)
-    shine(row)
+    landed(row)
     holder:Show()
     return row
 end
@@ -660,7 +820,13 @@ function Feed.Tick()
         local due = row and row.untilT and (together and last or row.untilT)
         if row and not hovered and not row.leaving and due and now >= due then leave(row) end
     end
+    if backAt and not hovered and now >= backAt then
+        backAt, offset = nil, 0
+        sync()
+    end
     if #rows == 0 and holder then holder:Hide() end
+    -- A log's lines never time out: nothing to tick until it's scrolled back.
+    if holder and logMode() and not backAt then holder:SetScript("OnUpdate", nil) end
 end
 
 -- ---------------------------------------------------------------------
@@ -743,6 +909,8 @@ local function sampleEntry(s)
         count = s.count, money = s.money }
 end
 
+Feed.SampleEntry = sampleEntry
+
 local function sampleWanted()
     if not enabled() then return false end
     if DUI.testMode and DUI.TestPartShown(Feed.TEST_PART) then return true end
@@ -754,6 +922,12 @@ function Feed.Sample()
     local want = sampleWanted()
     if want == sampling then return end
     sampling = want
+    if logMode() then
+        offset, backAt = 0, nil
+        sync()
+        Feed.Wake()
+        return
+    end
     if want then
         for i = #Feed.SAMPLE, 1, -1 do Feed.Add(sampleEntry(Feed.SAMPLE[i]), true) end
     else
@@ -766,15 +940,20 @@ end
 -- Plays the sample in one after another, as a looted mob would.
 function Feed.Preview()
     if not holder then return end
+    -- In a log, the preview's lines are dropped from it at the next login.
+    local function add(e)
+        e.preview = logMode() or nil
+        Feed.Add(e)
+    end
     for i, s in ipairs(Feed.SAMPLE) do
-        C_Timer.After((i - 1) * 0.28, function() Feed.Add(sampleEntry(s)) end)
+        C_Timer.After((i - 1) * 0.28, function() add(sampleEntry(s)) end)
     end
     C_Timer.After(#Feed.SAMPLE * 0.28 + 0.4, function()
-        Feed.Add(sampleEntry(Feed.SAMPLE[3]))
-        Feed.Add({ money = 37 })
+        add(sampleEntry(Feed.SAMPLE[3]))
+        add({ money = 37 })
         local skill = sampleEntry(Feed.SAMPLE[5])
         skill.rank = skill.rank + 1
-        Feed.Add(skill)
+        add(skill)
     end)
 end
 
@@ -784,14 +963,25 @@ local function build()
     holder:SetSize(Feed.MAX_W, Feed.Max() * (Feed.ROW_H + Feed.GAP) - Feed.GAP)
     holder:SetFrameStrata("MEDIUM")
     holder:Hide()
-    holder:SetScript("OnUpdate", function(_, dt)
-        acc = acc + (dt or 0)
-        if acc < Feed.TICK then return end
-        acc = 0
-        Feed.Tick()
-    end)
+    holder:SetScript("OnUpdate", onUpdate)
     DUI.Movers.Register(holder, Feed.MOVER, "Loot feed", { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -40, 200 },
         { active = enabled })
+    -- Only a log stays on screen, so only a log fades with the rest of the UI.
+    local list, none = { holder }, {}
+    DUI.Fade.Register{ key = "QoL.loot", scope = "QoL", path = "lootFeedFade", page = "QoL.loot",
+        frames = function() return logMode() and list or none end }
+end
+
+-- The log kept with the character; a preview's lines are dropped.
+local function loadLog()
+    local c = DUI.DB.Character()
+    local kept = type(c.lootLog) == "table" and c.lootLog or {}
+    for i = #kept, 1, -1 do
+        local e = kept[i]
+        if type(e) ~= "table" or e.preview or not (e.money or e.name) then table.remove(kept, i) end
+    end
+    c.lootLog = kept
+    log = kept
 end
 
 -- Every ribbon, shown or spare, in the current settings (shell, text size,
@@ -802,12 +992,24 @@ local function restyle()
         slant(row)
         Style.SetTextSize(row.name, textSize())
         Style.SetTextSize(row.count, textSize() - 1)
+        row:EnableMouseWheel(logMode())
         if row.entry then fill(row) end
     end
     for _, row in ipairs(rows) do dress(row) end
     for _, row in ipairs(pool) do dress(row) end
     if not holder then return end
     holder:SetHeight(Feed.Max() * (Feed.ROW_H + Feed.GAP) - Feed.GAP)
+    -- A new style: the lines made for the old one leave, the sample is
+    -- put up again in the new one's way.
+    local mode = logMode()
+    if mode ~= shownMode then
+        shownMode = mode
+        for i = #rows, 1, -1 do if rows[i] then leave(rows[i], true) end end
+        offset, backAt, sampling = 0, nil, false
+        if not mode then holder:SetAlpha(1) end   -- the fade engine has let go of it
+        Feed.Wake()
+    end
+    if mode then sync() end
     while showing() > Feed.Max() do
         for i = #rows, 1, -1 do
             if not rows[i].leaving then leave(rows[i], true) break end
@@ -846,7 +1048,12 @@ function Feed.Enable(m)
             if enabled() then Feed.Preview() end
         end, L["/dui loot - preview the loot feed"])
     end
-    if enabled() then build() end
+    if not log then loadLog() end
+    if enabled() then
+        build()
+        shownMode = logMode()
+        if shownMode then sync() end
+    end
 end
 
 function Feed.Refresh(m)

@@ -355,6 +355,8 @@ function BarMixin:ApplyGroups()
     local c = self.frame
     if not c then return end
     self:InvalidateMembers()
+    -- Setting a group's filters makes the client show every icon again.
+    BL.Feel.Hush()
     if self:IsDebuff() then
         self:ApplyDebuffGroups()
         self:Restyle()

@@ -194,6 +194,17 @@ T.test("combat text: the game's switch turned off later is turned back on, so th
     done()
 end)
 
+T.test("combat text: the game's switch turned off in a fight is turned back on after it", function()
+    local DUI, _, cvars = load()
+    stub.EnterCombat()
+    cvars.enableFloatingCombatText = "0"
+    stub.FireEvent("CVAR_UPDATE", "enableFloatingCombatText", "0")
+    T.eq(cvars.enableFloatingCombatText, "0", "never written in a fight")
+    stub.LeaveCombat()
+    T.eq(cvars.enableFloatingCombatText, "1", "on again once it ends")
+    done()
+end)
+
 T.test("combat text: something that keeps turning the game's switch off doesn't start a loop", function()
     local DUI, _, cvars = load()
     local writes = 0

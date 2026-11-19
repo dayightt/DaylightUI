@@ -238,15 +238,17 @@ local function isBuff(_, id, p) return ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, 
 -- picked blind is watched by the spell's own id until a cast teaches the real one.
 -- A totem with no buff (CdmCustom.TOTEMS) picks Totem or Cooldown instead.
 -- Both from the game's list or Daylight UI's own.
+-- An element piece (CdmCustom.TOTEM_ELEMENTS) picks nothing: it shows whichever totem stands.
 local function totemSpell(_, id)
     local C, Own = ns.CdmCustom, ns.CdmOwn
-    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.TotemNoBuff(Own.SpellOf(id)) ~= nil
+    return C ~= nil and Own ~= nil and not C.Element(id) and Own.Entry(id) ~= nil
+        and C.TotemNoBuff(Own.SpellOf(id)) ~= nil
 end
 -- Any other totem picks Totem and buff, Buff only or Cooldown.
 local function buffTotem(_, id)
     local C, Own = ns.CdmCustom, ns.CdmOwn
-    return C ~= nil and Own ~= nil and Own.Entry(id) ~= nil and C.Totem(Own.SpellOf(id)) ~= nil
-        and C.TotemNoBuff(Own.SpellOf(id)) == nil
+    return C ~= nil and Own ~= nil and not C.Element(id) and Own.Entry(id) ~= nil
+        and C.Totem(Own.SpellOf(id)) ~= nil and C.TotemNoBuff(Own.SpellOf(id)) == nil
 end
 local function gameSpell(_, id)
     return ns.CdmOwn ~= nil and not (ns.CdmCustom and ns.CdmCustom.Is(id)) and ns.CdmOwn.Entry(id) ~= nil
@@ -1154,6 +1156,7 @@ function Card.Draw()
     local t = ns.CdmOwn and ns.CdmOwn.Track(id, p)
     local kind = t and KIND[t]
     if t == "both" and buffTotem(nil, id) then kind = L["Totem and buff"] end
+    if ns.CdmCustom and ns.CdmCustom.Element(id) then kind = L["Totem"] end
     f.kind:SetText(kind or known and known.aura and L["Buff or debuff"] or L["Cooldown"])
     f.asIcon.SetOn(p.shape ~= "bar")
     f.asBar.SetOn(p.shape == "bar")
