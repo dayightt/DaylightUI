@@ -2986,6 +2986,26 @@ T.test("threat meter: slides out of the meter's left edge in combat in a group, 
     stub.SetGroup(false)
 end)
 
+T.test("threat meter: as the tank there's no pull line and your 100% fills the bar", function()
+    login()
+    local TM = stub.infopanel.ThreatMeter
+    threatParty()
+    stub.units.target.threatList = {
+        player = { status = 3, scaled = 100, raw = 100, value = 10000 },
+        party1 = { status = 0, scaled = 21, raw = 21, value = 2100 },
+    }
+    stub.EnterCombat()
+    threatSettle()
+    TM.Draw()
+    local rows = threatRows()
+    T.eq(rows[1].amount:GetText(), "100%")
+    T.falsy(TM.line:IsShown(), "no pull line for the tank")
+    local _, top = rows[1].bar:GetMinMaxValues()
+    T.near(rows[1].bar:GetValue(), top, 1e-6, "the top row fills the bar: no room kept for a line that isn't there")
+    stub.LeaveCombat()
+    stub.SetGroup(false)
+end)
+
 T.test("threat meter: solo it stays in; its tab slides it out and back by hand", function()
     login()
     local TM = stub.infopanel.ThreatMeter

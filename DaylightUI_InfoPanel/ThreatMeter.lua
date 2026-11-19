@@ -29,7 +29,7 @@ TM.GLYPH = { 6, 2, 2 }      -- the tab's little meter mark: bar width, height, g
 TM.PAD = 3                  -- inside the window's border
 TM.PAGE = "InfoPanel.meter"   -- the Meters page; its sample shows while the threat meter is picked there
 -- Header: the accent (a pop, repainted on a style change); "No target": a warm label.
-TM.ROOM = 1.3               -- the bars' top over the highest mark: the pull line clear of the bars' end and the numbers there
+TM.ROOM = 1.3               -- with a pull line, the bars' top over the highest mark: the line clear of the bars' end and the numbers there
 TM.MIN_ROWS = 2             -- the window is never shorter than this many rows
 TM.ARROW_CLEAR = 4          -- the window this close above the panel's fold tab counts as over it
 TM.BELOW_GAP = 4
@@ -269,9 +269,12 @@ function TM.Collect(maxRows, mob, sample)
     elseif tankValue and not (me and me.tank) then
         pull = tankValue * DUI.Threat.PULL
     end
-    if pull and pull > top then top = pull end
-    -- Room past the highest mark: the pull line never sits flush at the bars' end, where it hid.
-    top = top * TM.ROOM
+    -- With a pull line, leave room past the highest mark so the line never sits
+    -- flush at the bars' end under the numbers. Without one, the top row fills.
+    if pull then
+        if pull > top then top = pull end
+        top = top * TM.ROOM
+    end
     if top <= 0 then top = 1 end
     return list, false, pull, top
 end

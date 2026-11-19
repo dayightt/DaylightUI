@@ -29,7 +29,7 @@ DUI.PatchNotes = {
         { "Chat", "Lines with an item link are no longer cut down to just [G] or the channel name when a chat addon like Prat is on" },
         { "Chat", "Experience from kills shows in Daylight UI's chat tabs, without turning it on in the game's own chat settings" },
         { "Damage meter", "No more Lua errors from the meter's top line in a fight when the group's total is shown" },
-        { "Threat meter", "The threat meter keeps updating in dungeons instead of stopping until a reload" },
+        { "Threat meter", "The threat meter keeps updating in dungeons instead of stopping until a reload, and the tank's bar at 100% fills all the way" },
         { "Info panel", "With the game's controller mode on, clicking the gold, bags, gear or friends text no longer leaves \"action blocked\" errors while you walk around" },
         { "NPC window", "No more \"action blocked\" error from the Back button on quest pages: the game doesn't allow it, so the button is gone" },
         { "Group finder", "Groups for some dungeons, like The Shaper's Terrace, no longer list more open spots than the dungeon has room for" },
