@@ -70,6 +70,8 @@ function Pill.Frame()
     f.light = f:CreateTexture(nil, "ARTWORK", nil, 2)
     f.light:SetTexture("Interface\\Buttons\\WHITE8X8")
     local font = ns.MEDIA and ns.MEDIA.font
+    f.level = Style.Text(f, Style.SIZE.body, "LEFT", font)
+    f.level:SetWordWrap(false)
     f.name = Style.Text(f, Style.SIZE.body, "LEFT", font)
     f.name:SetWordWrap(false)
     -- Measures how wide the health can get ("100%"): the health itself is
@@ -100,8 +102,9 @@ function Pill.Layout()
     f.light:SetHeight(ns.RichPanel.LIGHT_H)
     f.pct:ClearAllPoints()
     f.pct:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -Pill.PAD_TOP)
-    f.name:ClearAllPoints()
-    f.name:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
+    f.level:ClearAllPoints()
+    f.level:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
+    Pill.PlaceName(f, f.lw or 0)
     f.room:ClearAllPoints()
     f.room:SetPoint("TOPRIGHT", f.pct, "TOPRIGHT", 0, 0)
     f.bar:ClearAllPoints()
@@ -125,20 +128,46 @@ local function paintLight(tex, pair)
     Style.Gradient(tex, "HORIZONTAL", pair[2][1], pair[2][2], pair[2][3], 1, pair[1][1], pair[1][2], pair[1][3], 1)
 end
 
--- Its words and bar for a unit. A player: class-colored name, the bar by
--- health; a creature: its name in its reaction's color (hostile red, neutral
+-- The name sits after the level (lw wide, 0 for none).
+Pill.LEVEL_GAP = 5
+function Pill.PlaceName(f, lw)
+    f.lw = lw
+    f.name:ClearAllPoints()
+    f.name:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X + (lw > 0 and lw + Pill.LEVEL_GAP or 0), -Pill.PAD_TOP)
+end
+
+-- The level in front of the name, in how hard the unit is for you (the
+-- creature card's colors). Its width, 0 when the level isn't known.
+local function fillLevel(f, unit)
+    local text, ink = ns.RichWorld.Level(unit)
+    f.level:SetText(text or "")
+    if ink then f.level:SetTextColor(ink[1], ink[2], ink[3]) end
+    local w = text and f.level:GetStringWidth() or 0
+    if isSecret(w) or type(w) ~= "number" then w = 0 end
+    Pill.PlaceName(f, w)
+    return w > 0 and w + Pill.LEVEL_GAP or 0
+end
+
+-- Its words and bar for a unit: its level, then a player's name in their
+-- class color, a creature's in its reaction's color (hostile red, neutral
 -- yellow, friendly green), the bar in that pair. The name is cut short with "..." before it can
 -- reach the health.
 Pill.NAME_GAP = 8
-function Pill.Fill(unit)
+function Pill.Fill(unit, tip)
     local f = Pill.Frame()
     local Tip = ns.Tooltip
     local player = plain(UnitIsPlayer(unit)) == true
+    local lw = fillLevel(f, unit)
     local name = DUI.UnitName(unit, "tooltip")
+    if type(name) == "nil" then
+        -- No name from the unit: the game's own first line names it.
+        local first = tip and Tip.Line(tip, 1)
+        name = type(first) == "table" and first.GetText and first:GetText() or ""
+    end
     f.name:SetText(name)
     local room = f.room:GetStringWidth()
     if isSecret(room) or type(room) ~= "number" then room = 30 end
-    local most = Pill.W - 2 * Pill.PAD_X - room - Pill.NAME_GAP
+    local most = Pill.W - 2 * Pill.PAD_X - room - Pill.NAME_GAP - lw
     if isSecret(name) then
         f.name:SetWidth(most)
     else
@@ -168,6 +197,8 @@ function Pill.FillWorld(tip)
     local f = Pill.Frame()
     local first = ns.Tooltip.Line(tip, 1)
     local most = Pill.W - 2 * Pill.PAD_X
+    f.level:SetText("")
+    Pill.PlaceName(f, 0)
     f.name:SetWidth(most)
     if type(first) == "table" and first.GetText then
         f.name:SetText(first:GetText())
@@ -213,7 +244,7 @@ function Pill.Show(tip, unit)
     local f = Pill.Frame()
     if unit then
         f.bar:Show()
-        Pill.Fill(unit)
+        Pill.Fill(unit, tip)
     else
         Pill.FillWorld(tip)
     end
