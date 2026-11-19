@@ -743,6 +743,36 @@ T.test("lfg: tick an activity, write a note, List me: listed, and Find a group s
     T.isnil(blocked(), tostring(blocked()))
 end)
 
+T.test("lfg: List yourself's voice chat is a row of buttons with the game's words, sent with the listing", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    local L = ns.Listing
+    local words = {}
+    for _, b in ipairs(L.page.voiceChips) do if b:IsShown() then words[#words + 1] = b.text:GetText() end end
+    T.eq(table.concat(words, ", "), "None, Voice chat (Legacy), Voice chat (Discord), Other")
+    T.truthy(L.page.voiceHead:IsShown(), "its word over the buttons")
+    T.truthy(chipOf(L.page.voiceChips, "None").active, "none until one is picked")
+    local acts = rows(L.page.stack, "act")
+    acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
+    L.PickStyle(1)
+    local discord = chipOf(L.page.voiceChips, "Voice chat (Discord)")
+    discord:GetScript("OnClick")(discord)
+    T.truthy(chipOf(L.page.voiceChips, "Voice chat (Discord)").active and not chipOf(L.page.voiceChips, "None").active, "picked")
+    stub.Key(L.Post)
+    T.eq(LW.Calls("CreateListing")[1][1].voiceMode, 2, "Discord goes with a new listing")
+    frame(20)
+    L.voice = nil   -- a new session: the page reads it back from your listing
+    tab(ns, "list")
+    T.eq(L.voice, 2, "your listing's voice chat")
+    T.truthy(L.page.foot.buttons[1].spec.off, "nothing changed yet")
+    L.PickVoice(1)
+    T.falsy(L.page.foot.buttons[1].spec.off, "another voice chat is a change")
+    stub.Key(L.Post)
+    T.eq(LW.Calls("UpdateListing")[1][1].voiceMode, 1, "and goes with the update")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("lfg: List yourself sorts activities by level or A to Z from buttons, and keeps the pick", function()
     local ns = load()
     open(ns)

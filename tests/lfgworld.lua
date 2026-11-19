@@ -200,12 +200,13 @@ local function entryInfo()
     local e = S().entry
     if not e then return nil end
     return { activityIDs = { unpack(e.activityIDs) }, comment = e.comment, newPlayerFriendly = e.newPlayerFriendly,
-        generalPlaystyle = e.generalPlaystyle, duration = 1800 }
+        generalPlaystyle = e.generalPlaystyle, voiceMode = e.voiceMode or 0, duration = 1800 }
 end
 
 local function setEntry(t, created)
     local style = (t.generalPlaystyle and t.generalPlaystyle ~= 0) and t.generalPlaystyle or (S().entry and S().entry.generalPlaystyle)
-    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = LW.Note(), newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style }
+    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = LW.Note(), newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style,
+        voiceMode = t.voiceMode or 0 }
     local me = { id = 99, activityIDs = S().entry.activityIDs, age = 0, comment = S().entry.comment, hasSelf = true, generalPlaystyle = style,
         members = { { name = "Sunwalker", classFilename = "SHAMAN", level = 14, assignedRole = "DAMAGER", lfgRoles = S().roles } } }
     for i, r in ipairs(S().results) do if r.id == 99 then table.remove(S().results, i); break end end
@@ -387,6 +388,7 @@ local function install()
         SetWhoToUi = function(on) record("SetWhoToUi", on); S().whoToUi = on end,
         SortWho = function(mode, up) record("SortWho", mode, up) end,
     }, { __index = who or nil })
+    Enum.LFGEntryVoiceMode = Enum.LFGEntryVoiceMode or { None = 0, Legacy = 1, Discord = 2, Custom = 3 }
     Enum.SocialWhoOrigin = Enum.SocialWhoOrigin or { Unknown = 0, Social = 1, Chat = 2, Item = 3 }
     -- The game's world map (zones for Who's zone filter) and its classes.
     Enum.UIMapType = Enum.UIMapType or { Cosmic = 0, World = 1, Continent = 2, Zone = 3 }

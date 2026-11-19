@@ -63,6 +63,7 @@ function Listing.Load()
     Listing.npf = e.newPlayerFriendly == true
     local style = Data().Plain(e.generalPlaystyle)
     if Data().PlaystyleWord(style) then Listing.style = style end
+    Listing.voice = Data().Plain(e.voiceMode)
     return true
 end
 
@@ -85,6 +86,7 @@ function Listing.Changed()
     for _, id in ipairs(ids) do if not was[id] then return true end end
     if (e.newPlayerFriendly == true) ~= (Listing.npf == true) then return true end
     if Data().Plain(e.generalPlaystyle) ~= Listing.style then return true end
+    if (Data().Plain(e.voiceMode) or 0) ~= (Listing.voice or 0) then return true end
     local note = Data().Plain(e.comment)
     if type(note) == "string" and note ~= Listing.NoteText() then return true end
     return false
@@ -135,7 +137,8 @@ function Listing.Post()
     local ids = picked()
     local e = Data().Entry()
     if e and #ids == 0 then return Listing.Unlist() end
-    local spec = { activityIDs = ids, newPlayerFriendly = Listing.npf == true, generalPlaystyle = Listing.style }
+    local spec = { activityIDs = ids, newPlayerFriendly = Listing.npf == true, generalPlaystyle = Listing.style,
+        voiceMode = Listing.voice or 0 }
     Listing.posting = e and "update" or "create"
     Data().Ask(e and "UpdateListing" or "CreateListing", spec)
     Data().SetRoles(Listing.Roles())
@@ -203,6 +206,13 @@ end
 function Listing.PickStyle(id)
     if not Data().CanEdit() then return end
     Listing.style = id
+    Listing.Paint()
+end
+
+-- Voice chat (kept for the session; a listing loads its own).
+function Listing.PickVoice(mode)
+    if not Data().CanEdit() then return end
+    Listing.voice = mode
     Listing.Paint()
 end
 
@@ -435,6 +445,11 @@ local function top(page, width)
     local sorts = {}
     for _, k in ipairs(Data().SORTS) do sorts[#sorts + 1] = { id = k, text = Listing.SORT_WORD[k](), lit = k == Data().SortMode() } end
     choiceChips(page, "styleChips", styles, Listing.PickStyle, not canEdit)
+    local voices, modes = {}, Data().VoiceModes()
+    for _, m in ipairs(modes) do voices[#voices + 1] = { id = m, text = Data().VOICE_WORD[m](), lit = (Listing.voice or 0) == m } end
+    choiceChips(page, "voiceChips", voices, Listing.PickVoice, not canEdit)
+    page.voiceHead:SetShown(canEdit and #modes > 0)
+    for _, b in ipairs(page.voiceChips) do if not canEdit then b:Hide() end end
     choiceChips(page, "catChips", cats, Listing.PickCat)
     choiceChips(page, "sortChips", sorts, Listing.PickSort)
     page.styleHead:SetShown(canEdit)
@@ -457,7 +472,13 @@ local function top(page, width)
         if canEdit then place({ style }) end
         place({ sort })
     end
-    place({ { "catLabel", page.catChips } })
+    local cat, voice = { "catLabel", page.catChips }, { "voiceHead", page.voiceChips }
+    if canEdit and #modes > 0 and rowWidth(page.catChips) + Listing.CELL_GAP + rowWidth(page.voiceChips) <= inner then
+        place({ cat, voice })
+    else
+        place({ cat })
+        if canEdit and #modes > 0 then place({ voice }) end
+    end
     -- Roles, under the filters: solo, the ones listed with; in a group, the single role (leader
     -- or not). All three are offered to everyone like the game's page; ones not recommended for
     -- the class are just dimmer, with the game's text on hover.
@@ -693,8 +714,9 @@ function Listing.Build(page)
     end
     word("styleHead", GROUP_FINDER_FILTER_PLAYSTYLE or L["Playstyle"])
     word("catLabel", _G.CATEGORY or L["Category"])
+    word("voiceHead", _G.VOICE_CHAT or L["Voice chat"])
     word("sortByLabel", _G.WHO_SORT_LABEL or L["Sort by"])
-    page.styleChips, page.catChips, page.sortChips = {}, {}, {}
+    page.styleChips, page.catChips, page.sortChips, page.voiceChips = {}, {}, {}, {}
     page.stack = Win.Parts.Stack(page, { top = 200, bottom = Listing.NOTE_Y + Listing.NOTE_H + Listing.DROP_LABEL + Listing.LIST_AIR })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
     page.note:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 40, Listing.NOTE_Y + Listing.NOTE_H + Listing.DROP_LABEL + 40)
@@ -743,7 +765,7 @@ end
 function Listing.Pieces(page)
     local out = {}
     for _, b in ipairs(page.roleChips) do if b:IsShown() then out[#out + 1] = b end end
-    for _, list in ipairs({ page.styleChips, page.catChips, page.sortChips }) do
+    for _, list in ipairs({ page.styleChips, page.voiceChips, page.catChips, page.sortChips }) do
         for _, b in ipairs(list) do if b:IsShown() then out[#out + 1] = b end end
     end
     out[#out + 1] = page.noteBox
