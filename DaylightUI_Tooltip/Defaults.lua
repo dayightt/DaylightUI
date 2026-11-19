@@ -24,7 +24,7 @@ ns.DEFAULTS = {
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,
     scale = 1,
-    textSize = 12,
+    textSize = 13,
     bgAlpha = 0.92,
     -- On by default, unlike the windows: tooltips stay a little more solid
     -- than the shared window opacity, as they always were.

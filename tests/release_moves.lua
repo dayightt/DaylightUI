@@ -9,6 +9,7 @@
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
     values = {
+        ["Tooltip.textSize"] = "Tooltip text read small next to the windows; one size up for everyone on the default, nothing moves on screen.",
         ["Chat.linkTooltipCompare"] = "The worn gear beside every chat item link covered the chat; Shift still shows it, so everyone gets the calmer hover.",
     },
     frames = {},

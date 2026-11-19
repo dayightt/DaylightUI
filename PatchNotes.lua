@@ -22,6 +22,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
         { "Tooltip", "Tooltips fade out softly when the mouse leaves instead of vanishing at once" },
+        { "Tooltip", "Tooltip text is a little bigger and easier to read, and so is an item's sell price" },
         { "Tooltip", "Quests in an NPC's tooltip mark dungeon and elite quests with a short D or E, so long quest names fit" },
         { "Chat", "Hovering an item link in chat shows just that item. Hold Shift to compare it with your gear, or turn the compare back on in Chat options" },
     }, fixed = {
