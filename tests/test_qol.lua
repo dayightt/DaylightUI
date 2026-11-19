@@ -2022,15 +2022,20 @@ T.test("cursor ring: the accent's gradient, a comet running round, casts, the fl
     local gcd = stub.Duration(1.5)
     _G.C_Spell = _G.C_Spell or {}
     local was, read = C_Spell.GetSpellCooldownDuration, C_Spell.GetSpellCooldown
-    C_Spell.GetSpellCooldownDuration = function(id) return id == R.GCD_SPELL and gcd or nil end
-    C_Spell.GetSpellCooldown = function()
+    -- Forever reports the global cooldown on 29515 only: 61304 answers nothing there.
+    C_Spell.GetSpellCooldownDuration = function(id) return id == 29515 and gcd or nil end
+    C_Spell.GetSpellCooldown = function(id)
+        if id ~= 29515 then return nil end
         return { isActive = true, isOnGCD = true, startTime = stub.Secret(50), duration = stub.Secret(1.5) }
     end
     stub.FireEvent("SPELL_UPDATE_COOLDOWN")
     T.eq(f.gcd.__duration, gcd)
     C_Spell.GetSpellCooldownDuration = was
     -- Plain times (out of a fight): its start and length.
-    C_Spell.GetSpellCooldown = function() return { isActive = true, startTime = 50, duration = 1.5 } end
+    C_Spell.GetSpellCooldown = function(id)
+        if id ~= 29515 then return nil end
+        return { isActive = true, startTime = 50, duration = 1.5 }
+    end
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     T.eq(f.gcd.__cooldown[1], 50); T.eq(f.gcd.__cooldown[2], 1.5)
     C_Spell.GetSpellCooldown = read
