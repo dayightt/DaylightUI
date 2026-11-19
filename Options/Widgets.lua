@@ -3956,7 +3956,8 @@ W.TAG_FILL = { 1, 1, 1 }
 
 -- A tag: a short fact in small capitals inside a slanted outline, its text in
 -- the color of what it means (a class, a quality, a school; LABEL for a plain
--- fact). t.Set(text, color) fills it and fits its width.
+-- fact). t.Set(text, color, edge) fills it and fits its width; edge tints its
+-- outline (nil puts the plain one back, as tags are reused).
 function W.Tag(parent, font)
     local t = CreateFrame("Frame", nil, parent)
     t:SetHeight(W.TAG_H)
@@ -3969,10 +3970,12 @@ function W.Tag(parent, font)
     t.text = Style.Text(t, SIZE.small, "CENTER", font)
     t.text:SetPoint("CENTER", t, "CENTER", 0, 0)
     t.text:SetWordWrap(false)
-    function t.Set(text, color)
+    function t.Set(text, color, edge)
         t.text:SetText(Style.Upper(text or ""))
         local c = color or Style.INK.LABEL
         t.text:SetTextColor(c[1], c[2], c[3])
+        local s = Style.GetShell(t)
+        if s then Style.SetShellColors(s, edge or Style.BAND_LIT) end
         t.FitWidth()
     end
     function t.FitWidth()

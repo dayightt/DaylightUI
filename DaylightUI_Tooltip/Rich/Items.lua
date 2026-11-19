@@ -47,6 +47,24 @@ end
 
 local function hex(c) return DUI.Win.Parts.Hex(c) end
 
+-- Cloth, leather, mail and plate each in a color of their own, so the armor
+-- type reads at a glance: keyed by the item's armor subclass, not its word,
+-- so it works in every language.
+Items.ARMOR_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Armor or 4
+Items.ARMOR_COLORS = {
+    [1] = { 0.82, 0.68, 1.00 }, -- cloth, violet
+    [2] = { 0.96, 0.68, 0.42 }, -- leather, amber
+    [3] = { 0.46, 0.86, 0.78 }, -- mail, teal
+    [4] = { 1.00, 0.85, 0.50 }, -- plate, gold
+}
+
+-- An armor tag's outline: its color, half toward the plain outline so the
+-- word stays the brightest part.
+function Items.ArmorEdge(c)
+    local e = Style.BAND_LIT
+    return { (c[1] + e[1]) / 2, (c[2] + e[2]) / 2, (c[3] + e[3]) / 2 }
+end
+
 -- A quality color's light end, as the top light starts and the name shows.
 function Items.Lift(c)
     return { math.min(1, c[1] * 1.15 + 0.1), math.min(1, c[2] * 1.15 + 0.1), math.min(1, c[3] * 1.15 + 0.1) }
@@ -68,10 +86,14 @@ function Items.Info(link)
     end
     info.level = Tip.ItemLevel(link)
     if C_Item and type(C_Item.GetItemInfoInstant) == "function" then
-        local _, kind, sub, equip, icon = C_Item.GetItemInfoInstant(link)
+        local _, kind, sub, equip, icon, class, subClass = C_Item.GetItemInfoInstant(link)
         kind, sub, equip, icon = plain(kind), plain(sub), plain(equip), plain(icon)
         if type(kind) == "string" and kind ~= "" then info.kind = kind end
         if type(sub) == "string" and sub ~= "" then info.sub = sub end
+        -- A cloak counts as cloth but every class wears one: no color there.
+        if plain(class) == Items.ARMOR_CLASS and equip ~= "INVTYPE_CLOAK" then
+            info.armor = Items.ARMOR_COLORS[plain(subClass)]
+        end
         if type(equip) == "string" and equip ~= "" and not DUI.NO_LEVEL[equip] then
             info.equip = equip
             local slot = _G[equip]
@@ -327,7 +349,13 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     elseif info.kind then
         what = info.sub and info.sub ~= info.kind and string.format(L["%s · %s"], info.kind, info.sub) or info.kind
     end
-    if what then tags[#tags + 1] = { what, Style.INK.LABEL } end
+    if info.slot and info.armor and (info.slotWord or info.sub) then
+        -- The slot and its armor type apart, the armor type in its color.
+        tags[#tags + 1] = { info.slot, Style.INK.LABEL }
+        tags[#tags + 1] = { info.slotWord or info.sub, info.armor, Items.ArmorEdge(info.armor) }
+    elseif what then
+        tags[#tags + 1] = { what, Style.INK.LABEL }
+    end
     for _, badge in ipairs(info.badges) do tags[#tags + 1] = { badge, Style.INK.LABEL } end
     Panel.Header(p, { icon = info.icon, iconSize = Items.ICON, iconEdge = info.color,
         title = first and first.left or "", titleColor = titleColor, tags = tags, tagGap = Items.TAG_GAP,

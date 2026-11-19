@@ -583,9 +583,9 @@ local function items()
     _G.INVTYPE_LEGS, _G.INVTYPE_WEAPON = "Legs", "One-Hand"
     stub.SetItems({
         greaves = { id = 19001, quality = 4, kind = "Armor", sub = "Plate", equip = "INVTYPE_LEGS", icon = 135000,
-            class = 4, level = 66, dressable = true },
+            class = 4, subClass = 4, level = 66, dressable = true },
         legplates = { id = 19002, quality = 3, kind = "Armor", sub = "Plate", equip = "INVTYPE_LEGS", icon = 135001,
-            class = 4, level = 58, dressable = true },
+            class = 4, subClass = 4, level = 58, dressable = true },
         sword = { id = 19003, quality = 3, kind = "Weapon", sub = "Swords", equip = "INVTYPE_WEAPON", icon = 135002,
             class = 2, level = 60 },
         cloth = { id = 2589, quality = 1, kind = "Tradeskill", sub = "Cloth", icon = 132889, class = 7 },
@@ -658,8 +658,11 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.truthy(head.icon.edge:IsShown() and head.icon.glow:IsShown(), "in a quality outline and glow")
     T.near(({ head.icon.edge:GetVertexColor() })[1], EPIC[1], 1e-6)
     T.eq(stub.Text(head.tags[1].text), "ILVL 66")
-    T.eq(stub.Text(head.tags[2].text), "LEGS · PLATE")
-    T.eq(stub.Text(head.tags[3].text), "BINDS WHEN EQUIPPED", "its binding a tag under its name, as the game puts it")
+    T.eq(stub.Text(head.tags[2].text), "LEGS")
+    T.eq(stub.Text(head.tags[3].text), "PLATE", "the armor type a tag of its own")
+    local plate = stub.tooltip.RichItems.ARMOR_COLORS[4]
+    T.near(({ head.tags[3].text:GetTextColor() })[2], plate[2], 1e-6, "in plate's color")
+    T.eq(stub.Text(head.tags[4].text), "BINDS WHEN EQUIPPED", "its binding a tag under its name, as the game puts it")
     T.truthy(p.washDown and p.wash[1]:IsShown(), "the quality washing down from the top")
     T.truthy(p.lightFade, "the light fades out along its right part")
     -- One column of numbers, number first at the left edge, as the game
@@ -844,7 +847,8 @@ T.test("rich tooltip: a compare tooltip is the same card as the item's, its chan
     T.near(({ head.title:GetTextColor() })[3], stub.tooltip.RichItems.Lift({ 0, 0.439, 0.867 })[3], 1e-6, "in its quality")
     T.truthy(head.icon and head.icon:IsShown(), "its icon")
     T.eq(stub.Text(head.tags[1].text), "ILVL 58")
-    T.eq(stub.Text(head.tags[2].text), "LEGS · PLATE")
+    T.eq(stub.Text(head.tags[2].text), "LEGS")
+    T.eq(stub.Text(head.tags[3].text), "PLATE")
     local lines = kinds(p, "line")
     T.truthy(stub.Text(lines[1].fs):find("646|r Armor", 1, true), "the same number lines as the item's")
     T.truthy(stub.Text(lines[2].fs):find("+16|r Strength", 1, true))
@@ -1784,11 +1788,11 @@ T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row",
     fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up", "Unique",
         { "Legs", "Plate" }, "742 Armor" })
     local head = Panel.Get(GameTooltip).items[1]
-    T.eq(#head.tags, 4)
-    T.eq(stub.Text(head.tags[3].text), "BINDS WHEN PICKED UP")
-    T.eq(stub.Text(head.tags[4].text), "UNIQUE")
+    T.eq(#head.tags, 5)
+    T.eq(stub.Text(head.tags[4].text), "BINDS WHEN PICKED UP")
+    T.eq(stub.Text(head.tags[5].text), "UNIQUE")
     T.eq(head.tags[1].row, 1)
-    T.truthy(head.tags[4].row > 1, "the last ones on another row")
+    T.truthy(head.tags[5].row > 1, "the last ones on another row")
     local room = 290 - 2 * 16 - 44 - 12
     for _, tag in ipairs(head.tags) do T.truthy(tag.at + tag:GetWidth() <= room + 0.5, "never past the edge") end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2223,7 +2227,7 @@ T.test("other addons: a plugin's row, bar, tag, section and tiles on the card", 
     T.truthy((by.bar or 0) >= 1, "the bar")
     T.truthy((by.section or 0) >= 1, "the heading")
     T.eq(collected, "3 / 8", "the bar's row")
-    T.eq(#p.items[1].tags, 4, "the tag in the header, after the card's own three")
+    T.eq(#p.items[1].tags, 5, "the tag in the header, after the card's own four")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

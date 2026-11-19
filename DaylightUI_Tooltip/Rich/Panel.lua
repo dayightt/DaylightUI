@@ -379,7 +379,7 @@ end
 -- square crop), iconTile ({ lo, hi }: a gradient tile behind it), iconInset
 -- (the art this far inside the tile), iconEdge ({ r, g, b }: an outline and glow),
 -- iconGap (between the icon and the words, 12), title, titleColor, titleSize,
--- right, rightColor, rightSize (body), tags = { { text, color } }, sub (a line under the title),
+-- right, rightColor, rightSize (body), tags = { { text, color, edge? } }, sub (a line under the title),
 -- wash ({ r, g, b }: the banner's light).
 function Panel.Header(p, spec)
     local item = add(p, { kind = "header", spec = spec })
@@ -430,7 +430,7 @@ function Panel.Header(p, spec)
         for _, list in ipairs({ spec.tags or false, extra or false }) do
             for _, t in ipairs(list or {}) do
                 local tag = take(p, "tag")
-                tag.Set(t[1], t[2])
+                tag.Set(t[1], t[2], t[3])
                 item.tags[#item.tags + 1] = tag
             end
         end
@@ -555,7 +555,7 @@ function Panel.Tags(p, tags)
     local item = add(p, { kind = "tags", list = {} })
     for i, t in ipairs(tags) do
         local tag = take(p, "tag")
-        tag.Set(t[1], t[2])
+        tag.Set(t[1], t[2], t[3])
         item.list[i] = tag
     end
 end

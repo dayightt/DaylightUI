@@ -3160,7 +3160,7 @@ function stub.SetItems(list)
     stub.items = list
     C_Item.GetItemInfoInstant = function(link)
         local it = itemArg("GetItemInfoInstant", link)
-        if it then return it.id, it.kind, it.sub, it.equip or "", it.icon or 134400, it.class or 0 end
+        if it then return it.id, it.kind, it.sub, it.equip or "", it.icon or 134400, it.class or 0, it.subClass or 0 end
     end
     C_Item.GetItemQualityByID = function(link)
         local it = itemArg("GetItemQualityByID", link)
