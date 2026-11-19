@@ -1,18 +1,27 @@
 local stub = require("stub")
 
--- The flight timer (QoL/Flight.lua): a bar while on a flight path, with the
--- time left from routes learned on earlier flights.
+-- The flight timer (QoL/Flight.lua): a banner while on a flight path, with the
+-- time left from your own earlier flights or the game's path lengths.
 
-local onTaxi, taken, mapNodes
+local onTaxi, taken, mapNodes, hops
 
 -- A flight master in Stormwind (slot 1, node 2) with Ironforge (slot 2, node 6)
--- reachable. ids = false means a client without C_TaxiMap (names only).
+-- and Menethil Harbor (slot 3, node 7, by way of Ironforge) reachable.
+-- ids = false means a client without C_TaxiMap (names only).
 local function world(ids)
     onTaxi, taken = false, {}
     mapNodes = {
         { slotIndex = 1, nodeID = 2, name = "Stormwind, Elwynn", state = 0 },
         { slotIndex = 2, nodeID = 6, name = "Ironforge, Dun Morogh", state = 1 },
+        { slotIndex = 3, nodeID = 7, name = "Menethil Harbor, Wetlands", state = 1 },
     }
+    -- Each slot's hops as { from slot, to slot }, like the flight master's map.
+    hops = { [2] = { { 1, 2 } }, [3] = { { 1, 2 }, { 2, 3 } } }
+    _G.GetNumRoutes = function(slot) return hops[slot] and #hops[slot] or 0 end
+    _G.TaxiGetNodeSlot = function(slot, i, source)
+        local h = hops[slot] and hops[slot][i]
+        return h and (source and h[1] or h[2])
+    end
     _G.UnitOnTaxi = function(unit) return unit == "player" and onTaxi end
     _G.TakeTaxiNode = function(slot) taken[#taken + 1] = slot end
     _G.TaxiRequestEarlyLanding = function() end
@@ -48,11 +57,15 @@ end
 local function bar() return _G.DaylightUIFlightTimer end
 local function shown() local h = bar(); return h ~= nil and h:IsShown() end
 
--- Opens the map, picks Ironforge and takes off.
-local function fly(F)
+-- No path times from the game's table: every route is one you have to fly first.
+local function noPaths() stub.qol.FlightPaths = {} end
+
+-- Opens the map, picks Ironforge (or another slot) and takes off.
+local function fly(F, slot)
+    slot = slot or 2
     stub.FireEvent("TAXIMAP_OPENED", 1)
-    TakeTaxiNode(2)
-    T.eq(taken[1], 2, "the game's TakeTaxiNode still runs")
+    TakeTaxiNode(slot)
+    T.eq(taken[#taken], slot, "the game's TakeTaxiNode still runs")
     onTaxi = true
     F.Tick()
 end
@@ -60,6 +73,12 @@ end
 local function land(F)
     onTaxi = false
     F.Tick()
+    settle()
+end
+
+-- After "Arrived" has held, it leaves.
+local function leave()
+    stub.RunTimers()
     settle()
 end
 
@@ -74,42 +93,70 @@ T.test("flight: on by default, the option is on the QoL page", function()
     T.truthy(found, "the toggle is on the page")
 end)
 
-T.test("flight: an unknown route shows Learning and counts up, then is learned on landing", function()
+T.test("flight: a route with no time anywhere counts up, then is learned on landing", function()
     local F = login()
+    noPaths()
     fly(F)
     settle()
-    T.truthy(shown(), "the bar is up")
-    local box = bar().box
+    T.truthy(shown(), "the banner is up")
+    local box = bar().f
     T.eq(box.name:GetText(), "Ironforge", "destination, short name")
-    T.eq(box.time:GetText(), "Learning... 0:00")
+    T.eq(box.from:GetText(), "Stormwind", "where from, short name")
+    T.eq(box.time:GetText(), "0:00", "no Learning word, just the clock")
     stub.Advance(83)
     F.Tick()
-    T.eq(box.time:GetText(), "Learning... 1:23")
+    T.eq(box.time:GetText(), "1:23")
     land(F)
-    T.falsy(shown(), "glides out on landing")
+    T.truthy(shown(), "stays a moment on landing")
+    T.eq(box.time:GetText(), "Arrived")
+    leave()
+    T.falsy(shown(), "then glides out")
     T.eq(F.Routes()["2>6"], 83, "the route's time, keyed by the two node ids")
     T.isnil(DaylightUI.DB.Character().flight, "the in-flight note is cleared")
+end)
+
+T.test("flight: a first flight counts down from the game's path length", function()
+    local F = login()
+    stub.qol.FlightPaths = { ["2>6"] = 60, ["7>6"] = 40 }
+    fly(F, 3)
+    local box = bar().f
+    T.eq(box.name:GetText(), "Menethil Harbor")
+    T.eq(box.time:GetText(), "1:40", "both legs added up, the second known only the other way")
+    T.truthy(box.stops[1] and box.stops[1]:IsShown(), "a dot for the stop at Ironforge")
+    T.near(select(4, box.stops[1]:GetPoint(1)), 0.6 * F.WIDTH, 0.01, "at its share of the way")
+    stub.Advance(70)
+    F.Tick()
+    T.eq(box.time:GetText(), "0:30")
+    land(F)
+    T.eq(F.Routes()["2>7"], 70, "your own time is learned all the same")
+    leave()
+    fly(F, 3)
+    T.eq(box.time:GetText(), "1:10", "and beats the path's guess next time")
+end)
+
+T.test("flight: the shipped path table covers Stormwind to Ironforge", function()
+    local F = login()
+    fly(F)
+    T.eq(bar().f.time:GetText(), F.FormatTime(stub.qol.FlightPaths["2>6"]))
 end)
 
 T.test("flight: a learned route shows the time left and fills as you fly", function()
     local F = login()
     F.Routes()["2>6"] = 100
     fly(F)
-    local box = bar().box
+    local box = bar().f
     T.eq(box.time:GetText(), "1:40")
     stub.Advance(40)
     F.Tick()
     T.eq(box.time:GetText(), "1:00")
-    T.near(select(1, box.time:GetTextColor()), DaylightUI.Style.INK.VALUE[1], 0.001, "time warm")
+    T.near(select(1, box.time:GetTextColor()), (DaylightUI.Style.Pop()), 0.001, "the time in the accent")
     stub.Advance(55)
     F.Tick()
     T.near(select(1, box.time:GetTextColor()), DaylightUI.Style.INK.WARN[1], 0.001, "under 10 s: amber")
     stub.Advance(-55)
     F.Tick()
-    T.near(select(1, box.time:GetTextColor()), DaylightUI.Style.INK.VALUE[1], 0.001, "back to warm")
-    local lo, hi = box.bar:GetMinMaxValues()
-    T.eq(lo, 0) T.eq(hi, 100)
-    T.near(box.bar:GetValue(), 40, 0.01)
+    T.near(select(1, box.time:GetTextColor()), (DaylightUI.Style.Pop()), 0.001, "back to the accent")
+    T.near(box.bar:GetValue(), 0.4, 0.001, "two fifths of the way")
     stub.Advance(65)
     F.Tick()
     T.eq(box.time:GetText(), "Almost there", "past the learned time")
@@ -119,6 +166,7 @@ end)
 
 T.test("flight: without the client's flight point list, names are the key", function()
     local F = login(false)
+    noPaths()
     fly(F)
     stub.Advance(30)
     land(F)
@@ -141,9 +189,10 @@ end)
 
 T.test("flight: a route flown only the other way counts down from that time", function()
     local F = login()
+    noPaths()
     F.Routes()["6>2"] = 90
     fly(F)
-    T.eq(bar().box.time:GetText(), "1:30", "the way back's time, not Learning")
+    T.eq(bar().f.time:GetText(), "1:30", "the way back's time")
     stub.Advance(95)
     land(F)
     T.eq(F.Routes()["2>6"], 95, "this way is learned on landing")
@@ -213,7 +262,7 @@ T.test("flight: a /reload mid-flight carries on from the take-off", function()
     stub.FireEvent("PLAYER_ENTERING_WORLD")
     settle()
     T.truthy(shown())
-    T.eq(bar().box.time:GetText(), "1:10")
+    T.eq(bar().f.time:GetText(), "1:10")
 end)
 
 T.test("flight: a saved flight is dropped when you're no longer on a taxi", function()
@@ -231,61 +280,18 @@ T.test("flight: test mode shows a sample, and it has a mover", function()
     DaylightUI.SetTestMode(true)
     settle()
     T.truthy(shown(), "sample in test mode")
-    T.eq(bar().box.name:GetText(), "Stormwind")
+    T.eq(bar().f.name:GetText(), "Stormwind")
     DaylightUI.SetTestMode(false)
     settle()
     T.falsy(shown(), "gone with test mode")
 end)
 
-T.test("flight: switching the angled end off in play takes every mask off, the bar hidden or shown", function()
-    login()
-    local function masked(f, out)
-        out = out or {}
-        for _, r in ipairs({ f:GetRegions() }) do
-            if r.__masks and #r.__masks > 0 then out[#out + 1] = r end
-        end
-        for _, c in ipairs({ f:GetChildren() }) do masked(c, out) end
-        return out
-    end
-    local h = bar()
-    T.truthy(#masked(h) > 0, "angled: the pieces are masked")
-    DaylightUI:Set("QoL", "flightTimerSlant", false)
-    T.eq(#masked(h), 0, "off while hidden: nothing masked")
-    DaylightUI:Set("QoL", "flightTimerSlant", true)
-    DaylightUI.SetTestMode(true)
+T.test("flight: an early landing leaves at once, with no Arrived", function()
+    local F = login()
+    fly(F)
     settle()
-    T.truthy(#masked(h) > 0, "angled again")
-    -- In game the client kept the cut after RemoveMaskTexture, so what was a mask
-    -- now holds nothing that could cut.
-    local function cutters(f, out)
-        out = out or {}
-        for _, r in ipairs({ f:GetRegions() }) do
-            if r.cutting then out[#out + 1] = r end
-        end
-        for _, c in ipairs({ f:GetChildren() }) do cutters(c, out) end
-        return out
-    end
-    T.truthy(#cutters(h) > 0, "angled: the masks hold the cut")
-    DaylightUI:Set("QoL", "flightTimerSlant", false)
-    T.eq(#masked(h), 0, "off while shown: nothing masked")
-    T.eq(#cutters(h), 0, "every mask blanked")
-    DaylightUI.SetTestMode(false)
-end)
-
-T.test("flight: the angled end has its own switch; off, the end and the fill are straight", function()
-    login()
-    local Style = DaylightUI.Style
-    DaylightUI.SetTestMode(true)
-    settle()
-    local box = bar().box
-    T.truthy(Style.GetSlant(box).cut > 0, "angled by default")
-    local room = select(4, box.time:GetPoint(1))
-    DaylightUI:Set("QoL", "flightTimerSlant", false)
-    T.eq(Style.GetSlant(box).cut, 0, "straight end")
-    local mask = Style.GetFillMask(box.bar)
-    T.truthy(not mask or not mask.added, "the fill straight too")
-    T.truthy(select(4, box.time:GetPoint(1)) > room, "the time moves into the room the cut kept")
-    DaylightUI:Set("QoL", "flightTimerSlant", true)
-    T.truthy(Style.GetSlant(box).cut > 0, "angled again")
-    DaylightUI.SetTestMode(false)
+    stub.Advance(30)
+    TaxiRequestEarlyLanding()
+    land(F)
+    T.falsy(shown())
 end)

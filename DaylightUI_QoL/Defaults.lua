@@ -140,8 +140,7 @@ ns.DEFAULTS = {
     lootFeedBorderColor = "normal", -- normal | quality | accent | custom
     lootFeedBorderCustom = { DaylightUI.Style.ACCENT[1], DaylightUI.Style.ACCENT[2], DaylightUI.Style.ACCENT[3] },
     lootFeedShine = true,   -- the light that runs across a new line
-    flightTimer = true,     -- a bar with the time left while on a flight path
-    flightTimerSlant = true, -- its angled end; off = straight
+    flightTimer = true,     -- the destination and time left while on a flight path
     fishClick = false,      -- a quick right-click on the world casts Fishing with a pole in hand (Fishing.lua)
     fishScene = true,       -- water along the bottom while the line is in, a splash on the catch (Fishing.lua)
     forgeScene = true,      -- an anvil and a molten tide while you smith, sparks on each item (Fishing.lua)

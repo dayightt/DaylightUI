@@ -1,31 +1,39 @@
--- Flight timer: a bar at the top of the screen with the destination and time
--- left while on a flight path. Times are learned from your own flights and
--- saved per account by route. An unknown route counts down from the way back's
--- time when that one is known, else shows "Learning..." and counts up.
+-- Flight timer: while on a flight path, a banner floats near the top of the
+-- screen with the destination, the route as a line with a dot for each stop,
+-- a light gliding along it and the time left.
+--
+-- The time: your own last flight of that route when you have one (saved per
+-- account), else the game's own path lengths (FlightPaths.lua) added up over
+-- the stops the flight master's map says the flight makes. A route neither
+-- covers is timed on the way and learned on landing.
 -- The destination comes from a post-hook on the global TakeTaxiNode.
 
 local _, ns = ...
 local DUI = DaylightUI
 local L = DUI.L
-local Style, Pixel, Motion = DUI.Style, DUI.Pixel, DUI.Motion
+local Style, Motion = DUI.Style, DUI.Motion
 
 local Flight = {
-    WIDTH = 260, HEIGHT = 20,
-    SLANT = 0.6,        -- the angled end's cut, as a share of the height (the breath bar's)
-    TEXT = 12,
-    PAD = 8,            -- text inset from the ends
+    WIDTH = 320,
+    NAME = 22,          -- the destination's size: display text, like the level-up's
+    LINE = 3,           -- the route line's thickness
+    DOT = 7,            -- a stop on the line
+    SPARK = 26,         -- the light at the front of the fill
+    FLARE = 90,         -- the flash over the name on landing
     RISE = 10,          -- px it glides down as it comes in
+    LANDED = 1.4,       -- seconds "Arrived" holds before it leaves
     TICK = 0.1,         -- seconds between updates while flying
     START_WAIT = 10,    -- seconds after picking a flight point to wait for take-off
     MIN_LEARN = 5,      -- a shorter "flight" is a hiccup, not a route: not learned
     RESUME_MAX = 3600,  -- a saved flight older than this is stale (after a /reload)
-    LEARNING_ALPHA = 0.35,  -- the fill while a route is being learned (no progress to show)
-    SOON = 10,              -- seconds left under which the time turns amber
+    SOON = 10,          -- seconds left under which the time turns amber
+    GLOW = DUI.MEDIA .. "char-glow.png",
+    CIRCLE = DUI.MEDIA .. "shape-circle.png",
     MOVER = "qol.flight",
     GRADIENT = "TIMER_FLIGHT",
     TEST_PART = "flight",
     -- The test-mode sample.
-    SAMPLE = { name = L["Stormwind"], total = 102, elapsed = 41 },
+    SAMPLE = { name = L["Stormwind"], from = L["Ironforge"], total = 102, elapsed = 41, stops = { 0.55 } },
 }
 ns.Flight = Flight
 ns.features[#ns.features + 1] = Flight
@@ -38,9 +46,10 @@ end
 
 local mod, wired, holder
 local nodes, here = {}, nil   -- the open taxi map's points: slot -> { name, id }; where you are
-local pending                  -- { key, back, name, at }: picked, not in the air yet
-local flight                   -- { key, name, start, total?, early? }: in the air
+local pending                  -- { key, back, name, from, guess, stops, at }: picked, not in the air yet
+local flight                   -- { key, name, from, start, total?, stops, early? }: in the air
 local vis = 0                  -- 0 hidden .. 1 fully in
+local landing = 0              -- each landing's id: a new flight stops the old one's timer
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.flightTimer == true end
 
@@ -82,60 +91,126 @@ function Flight.FormatTime(s)
     return DUI.FormatClock(math.max(0, math.floor((s or 0) + 0.5)))
 end
 
+-- One leg's time from the game's path table; a leg listed only the other way
+-- flies the same line back.
+local function leg(a, b)
+    local P = ns.FlightPaths
+    if not (P and a and b) then return nil end
+    return P[a .. ">" .. b] or P[b .. ">" .. a]
+end
+
+-- The legs the game will fly to a slot, as node ids: the flight master's map
+-- gives each hop's two slots. Nil when the map doesn't say.
+function Flight.Hops(slot)
+    if type(GetNumRoutes) ~= "function" or type(TaxiGetNodeSlot) ~= "function" then return nil end
+    local n = GetNumRoutes(slot)
+    if type(n) ~= "number" or n < 1 then return nil end
+    local hops = {}
+    for i = 1, n do
+        local a = nodes[TaxiGetNodeSlot(slot, i, true)]
+        local b = nodes[TaxiGetNodeSlot(slot, i, false)]
+        if not (a and a.id and b and b.id) then return nil end
+        hops[i] = { a.id, b.id }
+    end
+    return hops
+end
+
+-- The guessed time over those legs, and where each stop falls along the way
+-- (0..1). Without the legs, the straight path between the two points.
+function Flight.Guess(from, to, hops)
+    if not hops then
+        if from and to and from.id and to.id then hops = { { from.id, to.id } } else return nil end
+    end
+    local total, at = 0, {}
+    for i, h in ipairs(hops) do
+        local s = leg(h[1], h[2])
+        if not s then return nil end
+        total = total + s
+        if i < #hops then at[i] = total end
+    end
+    if total <= 0 then return nil end
+    for i = 1, #at do at[i] = at[i] / total end
+    return total, at
+end
+
 -- ---------------------------------------------------------------------
--- The bar
+-- The banner
 -- ---------------------------------------------------------------------
 
-local function layout()
-    if not holder then return end
-    local box = holder.box
-    local T = Pixel.Px(box, Style.BorderPx(box))
-    local height = 2 * Pixel.Snap(holder, Flight.HEIGHT / 2)
-    local width = 2 * Pixel.Snap(holder, Flight.WIDTH / 2)
-    holder:SetSize(width, height)
-    box:SetSize(width, height)
-    local cut = (mod and mod.db and mod.db.flightTimerSlant == false) and 0 or Pixel.Snap(box, height * Flight.SLANT)
-    Style.Slant(box, "right", cut)
-    Style.AngleFill(box.bar, "right", cut * (height - 2 * T) / height)
-    box.bar:ClearAllPoints()
-    box.bar:SetPoint("TOPLEFT", box, "TOPLEFT", T, -T)
-    box.bar:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -T, T)
-    box.time:ClearAllPoints()
-    box.time:SetPoint("RIGHT", box, "RIGHT", -(cut + Flight.PAD), 0)
-    box.name:ClearAllPoints()
-    box.name:SetPoint("LEFT", box, "LEFT", Flight.PAD, 0)
-    box.name:SetPoint("RIGHT", box.time, "LEFT", -Flight.PAD, 0)
+local function dot(parent, size)
+    local t = parent:CreateTexture(nil, "OVERLAY")
+    t:SetTexture(Flight.CIRCLE)
+    t:SetSize(size, size)
+    return t
 end
 
 local function paint()
     if not holder then return end
     local G = DUI.Gradients
-    if G then G.Paint(holder.box.bar, G.Has(Flight.GRADIENT) and Flight.GRADIENT or "FALLBACK") end
+    if G then G.Paint(holder.f.bar, G.Has(Flight.GRADIENT) and Flight.GRADIENT or "FALLBACK") end
+    local f = holder.f
+    f.spark:SetVertexColor(Style.SplashAt(0.85))
+    f.flare:SetVertexColor(Style.SplashAt(0.85))
+    Style.PaintAccentText(f.label, Style.Upper(L["Flying to"]))
 end
 
 local function build()
     if holder then return end
     holder = CreateFrame("Frame", "DaylightUIFlightTimer", UIParent)
-    holder:SetSize(Flight.WIDTH, Flight.HEIGHT)
+    holder:SetSize(Flight.WIDTH, 80)
+    holder:EnableMouse(false)
     holder:Hide()
-    local box = CreateFrame("Frame", nil, holder)
-    holder.box = box
-    box:SetPoint("TOP", holder, "TOP", 0, 0)
-    Style.Shell(box)
-    Style.Slant(box, nil, 0)
-    box.bar = Style.Bar(box)
-    Style.Clip(box, box.bar:GetStatusBarTexture(), "inner")
-    Style.Clip(box, Style.BarBack(box.bar), "inner")
-    local overlay = CreateFrame("Frame", nil, box)
-    overlay:SetAllPoints(box)
-    overlay:SetFrameLevel(box.bar:GetFrameLevel() + 3)
-    box.name = Style.Text(overlay, Flight.TEXT, "LEFT")
-    box.name:SetWordWrap(false)
-    box.time = Style.Text(overlay, Flight.TEXT, "RIGHT")
-    Style.InkText(box.name, "VALUE")
-    Style.InkText(box.time, "VALUE")
-    box.time.flightWarn = false
-    layout()
+    local f = CreateFrame("Frame", nil, holder)
+    holder.f = f
+    f:SetSize(Flight.WIDTH, 80)
+    f:SetPoint("TOP", holder, "TOP", 0, 0)
+
+    f.label = Style.Text(f, Style.SIZE.small, "CENTER")
+    f.label:SetPoint("TOP", f, "TOP", 0, 0)
+    f.name = Style.Text(f, Flight.NAME, "CENTER")
+    f.name:SetPoint("TOP", f.label, "BOTTOM", 0, -3)
+    f.name:SetWidth(Flight.WIDTH)
+    f.name:SetWordWrap(false)
+    Style.InkText(f.name, "TITLE")
+
+    f.flare = f:CreateTexture(nil, "BACKGROUND")
+    f.flare:SetTexture(Flight.GLOW)
+    f.flare:SetSize(Flight.FLARE * 2.4, Flight.FLARE)
+    f.flare:SetPoint("CENTER", f.name, "CENTER", 0, 0)
+    f.flare:SetBlendMode("ADD")
+    f.flare:Hide()
+
+    f.bar = Style.Bar(f)
+    f.bar:SetHeight(Flight.LINE)
+    f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(Flight.NAME + 30))
+    f.bar:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -(Flight.NAME + 30))
+
+    local over = CreateFrame("Frame", nil, f)
+    over:SetAllPoints(f)
+    over:SetFrameLevel(f.bar:GetFrameLevel() + 3)
+    f.over = over
+    f.start = dot(over, Flight.DOT)
+    f.start:SetPoint("CENTER", f.bar, "LEFT", 0, 0)
+    f.finish = dot(over, Flight.DOT + 3)
+    f.finish:SetPoint("CENTER", f.bar, "RIGHT", 0, 0)
+    f.stops = {}
+    f.spark = over:CreateTexture(nil, "ARTWORK")
+    f.spark:SetTexture(Flight.GLOW)
+    f.spark:SetBlendMode("ADD")
+    f.spark:SetSize(Flight.SPARK, Flight.SPARK)
+    f.spark:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    f.head = dot(over, Flight.DOT)
+    f.head:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    f.head:SetVertexColor(1, 1, 1, 1)
+
+    f.from = Style.Text(f, Style.SIZE.small, "LEFT")
+    f.from:SetPoint("TOPLEFT", f.bar, "BOTTOMLEFT", 0, -8)
+    f.from:SetPoint("RIGHT", f, "CENTER", -8, 0)
+    f.from:SetWordWrap(false)
+    Style.InkText(f.from, "LABEL")
+    f.time = Style.Text(f, Style.SIZE.head, "RIGHT")
+    f.time:SetPoint("TOPRIGHT", f.bar, "BOTTOMRIGHT", 0, -6)
+    f.time.tone = nil
     paint()
     DUI.Movers.Register(holder, Flight.MOVER, "Flight timer", { "TOP", nil, "TOP", 0, -88 },
         { active = enabled })
@@ -148,36 +223,71 @@ local function setText(fs, text)
     fs:SetText(text)
 end
 
--- What the bar shows: a flight's name, how far along, the time text.
-local function show(name, elapsed, total)
-    local box = holder.box
-    setText(box.name, Flight.ShortName(name))
-    local fill = box.bar:GetStatusBarTexture()
-    if total and total > 0 then
-        box.bar:SetMinMaxValues(0, total)
-        box.bar:SetValue(math.min(elapsed, total))
-        fill:SetAlpha(1)
-        local left = total - elapsed
-        setText(box.time, left > 0 and Flight.FormatTime(left) or L["Almost there"])
-        local warn = left > 0 and left < Flight.SOON
-        if box.time.flightWarn ~= warn then
-            box.time.flightWarn = warn
-            Style.InkText(box.time, warn and "WARN" or "VALUE")
+local function tone(fs, role)
+    if fs.tone == role then return end
+    fs.tone = role
+    Style.InkText(fs, role)
+end
+
+-- A dot for each stop between, lit once you're past it.
+local function placeStops(stops, p)
+    local f = holder.f
+    stops = stops or {}
+    for i = 1, math.max(#stops, #f.stops) do
+        local at = stops[i]
+        local d = f.stops[i]
+        if at then
+            if not d then d = dot(f.over, Flight.DOT - 1); f.stops[i] = d end
+            d:ClearAllPoints()
+            -- The fixed width, not GetWidth: the line may not be laid out yet on its first show.
+            d:SetPoint("CENTER", f.bar, "LEFT", at * Flight.WIDTH, 0)
+            d:Show()
+        elseif d then
+            d:Hide()
         end
-    else
-        box.bar:SetMinMaxValues(0, 1)
-        box.bar:SetValue(1)
-        fill:SetAlpha(Flight.LEARNING_ALPHA)
-        setText(box.time, L["Learning... %s"]:format(Flight.FormatTime(elapsed)))
     end
+    local lr, lg, lb = Style.SplashAt(0.85)
+    local dim = Style.INK.LABEL
+    local function light(t, passed)
+        if passed then t:SetVertexColor(lr, lg, lb, 1) else t:SetVertexColor(dim[1], dim[2], dim[3], 0.9) end
+    end
+    light(f.start, true)
+    for i, at in ipairs(stops) do light(f.stops[i], p >= at) end
+    light(f.finish, p >= 1)
+end
+
+-- What the banner shows: where to, from where, how far along, the time.
+local function show(name, from, elapsed, total, stops)
+    local f = holder.f
+    setText(f.name, Flight.ShortName(name))
+    setText(f.from, Flight.ShortName(from))
+    local p
+    if total and total > 0 then
+        p = math.min(1, elapsed / total)
+        local left = total - elapsed
+        setText(f.time, left > 0 and Flight.FormatTime(left) or L["Almost there"])
+        tone(f.time, (left > 0 and left < Flight.SOON) and "WARN" or "pop")
+        f.spark:Show()
+        f.head:Show()
+    else
+        -- No time to count down from: the clock counts up, the line waits empty.
+        p = 0
+        setText(f.time, Flight.FormatTime(elapsed))
+        tone(f.time, "VALUE")
+        f.spark:Hide()
+        f.head:Hide()
+    end
+    f.bar:SetMinMaxValues(0, 1)
+    f.bar:SetValue(p)
+    placeStops(stops, p)
 end
 
 -- The glide: alpha and a short drop from above, from wherever it is.
 local function place(p)
     vis = p
-    holder.box:SetAlpha(p)
-    holder.box:ClearAllPoints()
-    holder.box:SetPoint("TOP", holder, "TOP", 0, Flight.RISE * (1 - p))
+    holder.f:SetAlpha(p)
+    holder.f:ClearAllPoints()
+    holder.f:SetPoint("TOP", holder, "TOP", 0, Flight.RISE * (1 - p))
 end
 
 local function glide(on)
@@ -197,7 +307,7 @@ local function sampleWanted()
     return DUI.Movers and DUI.Movers.unlocked == true
 end
 
--- Shows or hides the bar for what's going on now, and fills it in.
+-- Shows or hides the banner for what's going on now, and fills it in.
 function Flight.Update()
     if not enabled() then
         if holder and holder:IsShown() then glide(false) end
@@ -205,15 +315,36 @@ function Flight.Update()
     end
     build()
     if flight then
-        show(flight.name, GetTime() - flight.start, flight.total)
+        landing = landing + 1
+        show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops)
+    elseif landing < 0 then
+        return  -- "Arrived" is up; it leaves by itself
     elseif sampleWanted() then
         local s = Flight.SAMPLE
-        show(s.name, s.elapsed, s.total)
+        show(s.name, s.from, s.elapsed, s.total, s.stops)
     else
         glide(false)
         return
     end
     glide(true)
+end
+
+-- Landed: the line fills, the name flares, "Arrived", then it leaves.
+local function arrive()
+    if not (holder and holder:IsShown()) then return Flight.Update() end
+    local f = holder.f
+    f.bar:SetValue(1)
+    placeStops(nil, 1)
+    for _, d in ipairs(f.stops) do d:Hide() end
+    setText(f.time, L["Arrived"])
+    tone(f.time, "GOOD")
+    Motion.Flash(f.flare, Motion.SLOW * 2)
+    landing = -1
+    C_Timer.After(Flight.LANDED, function()
+        if landing ~= -1 then return end
+        landing = 0
+        Flight.Update()
+    end)
 end
 
 -- ---------------------------------------------------------------------
@@ -233,24 +364,26 @@ local function land()
     if f.key and not f.early and took >= Flight.MIN_LEARN then
         Flight.Routes()[f.key] = math.floor(took + 0.5)
     end
-    Flight.Update()
+    if f.early then Flight.Update() else arrive() end
 end
 
--- A route flown only the other way shows that flight's time: close enough to
--- count down from, and this one is learned on landing all the same.
-local function knownTime(key, back)
+-- Your own last flight of the route first; then the game's paths; then the
+-- way back's flight, close enough to count down from.
+local function knownTime(key, back, guess)
     local routes = Flight.Routes()
-    return (key and routes[key]) or (back and routes[back]) or nil
+    return (key and routes[key]) or guess or (back and routes[back]) or nil
 end
 
 local function remember()
-    saved({ key = flight.key, back = flight.back, name = flight.name, early = flight.early or nil,
+    saved({ key = flight.key, back = flight.back, name = flight.name, from = flight.from,
+            guess = flight.guess, stops = flight.stops, early = flight.early or nil,
             wall = time() - (GetTime() - flight.start) })
 end
 
 local function takeOff(p, start)
-    flight = { key = p.key, back = p.back, name = p.name, start = start or GetTime(), early = p.early }
-    flight.total = knownTime(p.key, p.back)
+    flight = { key = p.key, back = p.back, name = p.name, from = p.from, guess = p.guess,
+               stops = p.stops, start = start or GetTime(), early = p.early }
+    flight.total = knownTime(p.key, p.back, p.guess)
     pending = nil
     remember()
     Flight.Update()
@@ -259,7 +392,9 @@ end
 function Flight.Tick()
     if flight then
         if not onTaxi() then land() return end
-        if holder and holder:IsShown() then show(flight.name, GetTime() - flight.start, flight.total) end
+        if holder and holder:IsShown() then
+            show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops)
+        end
     elseif pending then
         if onTaxi() then takeOff(pending)
         elseif GetTime() - pending.at > Flight.START_WAIT then pending = nil stopDriver() end
@@ -325,7 +460,9 @@ function Flight.OnTake(slot)
         to = { name = TaxiNodeName(slot) }
     end
     if not (to and type(to.name) == "string" and to.name ~= "") then return end
-    pending = { key = Flight.Key(here, to), back = Flight.Key(to, here), name = to.name, at = GetTime() }
+    local guess, stops = Flight.Guess(here, to, Flight.Hops(slot))
+    pending = { key = Flight.Key(here, to), back = Flight.Key(to, here), name = to.name,
+                from = here and here.name or nil, guess = guess, stops = stops, at = GetTime() }
     startDriver()
 end
 
@@ -340,7 +477,9 @@ function Flight.Resume(login)
         saved(false)
         return
     end
-    takeOff({ key = s.key, back = s.back, name = s.name, early = s.early or login or nil }, GetTime() - ago)
+    takeOff({ key = s.key, back = s.back, name = s.name, from = s.from, guess = s.guess,
+              stops = type(s.stops) == "table" and s.stops or nil, early = s.early or login or nil },
+            GetTime() - ago)
     startDriver()
 end
 
@@ -372,13 +511,8 @@ function Flight.Enable(m)
         DUI.On("TestModeChanged", Flight.Update)
         DUI.On("TestPartChanged", function(key) if key == Flight.TEST_PART then Flight.Update() end end)
         DUI.On("UnlockChanged", Flight.Update)
-        local function restyle()
-            if not holder then return end
-            layout()
-            paint()
-        end
-        DUI.On("StyleChanged", restyle)
-        DUI.On("SettingChanged", function(scope) if scope == "general" then restyle() end end)
+        DUI.On("StyleChanged", paint)
+        DUI.On("SettingChanged", function(scope) if scope == "general" then paint() end end)
     end
     if enabled() then build() end
     Flight.Resume()
@@ -389,9 +523,9 @@ function Flight.Refresh(m)
     if not enabled() then
         pending = nil
         if flight then flight = nil stopDriver() end
+        landing = 0
     else
         Flight.Resume()
     end
-    layout()
     Flight.Update()
 end

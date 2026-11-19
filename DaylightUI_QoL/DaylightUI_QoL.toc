@@ -27,6 +27,7 @@ Sparkles.lua
 Tracking.lua
 Errors.lua
 ErrorText.lua
+FlightPaths.lua
 Flight.lua
 LootFeed.lua
 LevelUp.lua

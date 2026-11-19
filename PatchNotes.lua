@@ -23,6 +23,7 @@ DUI.PatchNotes = {
             { "Info panel", "The experience bar has its own options page, with its own border and shadow (Info panel, Experience bar)" },
         },
         changed = {
+            { "Flight timer", "The flight timer floats over the world with your route and its stops, and knows every flight's time from your first trip instead of showing \"Learning...\"" },
             { "Group finder", "The role filters' tooltip says what they show: groups with an open spot for that role, and solo players who can play it, and row tooltips stay on screen" },
             { "Chat", "New profiles start with short chat tags in your own language; profiles you already have keep the English letters" },
         },
