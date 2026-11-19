@@ -97,6 +97,35 @@ T.test("guards: no shipped file breaks a rule that broke the game before", funct
     if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
 end)
 
+-- A bare pcall throws its error away, so nothing ever reaches BugSack and the
+-- tests (which count reported errors) pass over a call that fails. A call that
+-- does something goes through DUI.SafeCall, which reports and goes on. A bare
+-- pcall is only for a read the client may refuse on purpose (a secret value, a
+-- forbidden frame, a locked aura button). Each file may hold only as many as it
+-- has in guards_allow.lua's pcalls list; that list only ever goes down.
+local function barePcalls(path)
+    local n = 0
+    for line in io.lines(path) do
+        for _ in (" " .. code(line)):gmatch("[^%w_%.:]pcall%(") do n = n + 1 end
+    end
+    return n
+end
+
+T.test("guards: no new bare pcall hides an error (use DUI.SafeCall)", function()
+    local bad, budget = {}, ALLOW.pcalls or {}
+    for _, path in ipairs(shippedFiles()) do
+        local n, max = barePcalls(path), budget[path] or 0
+        if n > max then
+            bad[#bad + 1] = string.format("%s has %d bare pcall(s), %d allowed: use DUI.SafeCall for a call"
+                .. " that does something; only a read the client may refuse on purpose stays a pcall", path, n, max)
+        elseif n < max then
+            bad[#bad + 1] = string.format('%s has %d bare pcall(s): lower its line in guards_allow.lua to ["%s"] = %d,',
+                path, n, path, n)
+        end
+    end
+    if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)
+
 -- Hooks on a game object's own methods caused the "call a nil value" floods,
 -- so each one needs a reviewed reason.
 -- Catches hooksecurefunc(obj, "Method", fn) and hooksecurefunc(obj, m, fn),
