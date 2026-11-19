@@ -1368,6 +1368,43 @@ T.test("bags: hovering a bag in the strip lights every slot in it, empty ones to
     T.eq(B.buttons[0][1]:GetAlpha(), 1)
 end)
 
+-- The bag closing under a resting mouse (a vendor walked away from, Escape)
+-- sends no leave, and the other bags stayed dimmed through every later open.
+T.test("bags: a bag hovered in the strip as the window closes leaves nothing dimmed", function()
+    local ns = login()
+    local f = open(ns)
+    DaylightUI:Set("Bags", "showSlots", true); stub.RunTimers()   -- the strip shows
+    local B, Items, Slots = ns.Bags, ns.Items, ns.Slots
+    local bag1 = Slots.strip.slots[1]
+    stub.MouseEnter(bag1)
+    T.eq(B.buttons[0][1]:GetAlpha(), Slots.DIM, "dimmed while the bag is hovered")
+    f:Hide()
+    stub.RunTimers()
+    open(ns)
+    T.eq(B.buttons[0][1]:GetAlpha(), 1, "the next open shows every slot whole")
+    T.falsy(Items.Parts(B.buttons[1][7]).lit, "and no bag still outlined")
+end)
+
+-- A bag update re-shows a hovered bag's tooltip, but only while the mouse is
+-- really there: after leaving, it lit that bag again with no leave to follow.
+T.test("bags: a bag update never lights a strip bag the mouse has left", function()
+    local ns = login()
+    open(ns)
+    DaylightUI:Set("Bags", "showSlots", true); stub.RunTimers()
+    local B, Slots = ns.Bags, ns.Slots
+    local bag1 = Slots.strip.slots[1]
+    local tip = GameTooltip
+    local realOwner, realShown, realHide = tip.GetOwner, tip.IsShown, tip.Hide
+    tip.GetOwner = function() return bag1 end
+    tip.IsShown = function() return true end   -- still fading out, or held by another addon
+    tip.Hide = function() end
+    stub.MouseEnter(bag1)
+    stub.MouseLeave(bag1)
+    stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    T.eq(B.buttons[0][1]:GetAlpha(), 1, "the mouse is elsewhere: nothing dims")
+    tip.GetOwner, tip.IsShown, tip.Hide = realOwner, realShown, realHide
+end)
+
 -- A bag swapped while the mouse rests on its slot: the tooltip kept the old bag.
 T.test("bags: a hovered bag slot's tooltip follows a swap under the mouse", function()
     local ns = login()
@@ -1385,11 +1422,11 @@ T.test("bags: a hovered bag slot's tooltip follows a swap under the mouse", func
     tip.Hide = function() shown = false end
     tip.IsShown = function() return shown end
     tip.SetInventoryItem = function() asked = asked + 1; return true end
-    bag1:GetScript("OnEnter")(bag1)
+    stub.MouseEnter(bag1)
     T.eq(asked, 1, "hovered")
     stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
     T.eq(asked, 2, "swapped under the mouse: shown again")
-    bag1:GetScript("OnLeave")(bag1)
+    stub.MouseLeave(bag1)
     stub.FireEvent("BAG_CONTAINER_UPDATE"); stub.RunTimers()
     T.eq(asked, 2, "not hovered: left alone")
     tip.GetOwner, tip.SetOwner, tip.IsShown, tip.SetInventoryItem, tip.Show, tip.Hide =
@@ -1617,6 +1654,16 @@ T.test("bags: an item whose bind type isn't loaded yet gets it once it loads", f
     loaded["0:6"]()
     T.eq(ns.Items.Parts(late).bind:GetText(), "BoU", "filled in once loaded")
     _G.Item = nil
+end)
+
+-- Kravel's Crate is a consumable bound as a quest item. The slot's quest info
+-- read false at times, and it landed under Consumables.
+T.test("bags: an item bound as a quest item is a quest item, whatever its class", function()
+    local ns = login()
+    local crate = { classID = 0, subClassID = 8, quality = 1, name = "Kravel's Crate", bindType = 4, questItem = false }
+    T.truthy(ns.Search.Parse("quest")(crate), "the quest search finds it")
+    T.truthy(ns.Categories.TESTS.quest(crate), "in Quest items")
+    T.falsy(ns.Categories.TESTS.junk({ classID = 0, quality = 0, bindType = 4 }), "never Junk")
 end)
 
 T.test("bags: the search language: kinds, quality, names, # for keywords only", function()

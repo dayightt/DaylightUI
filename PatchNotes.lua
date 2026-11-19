@@ -24,6 +24,7 @@ DUI.PatchNotes = {
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },
         { "Cooldown Manager", "Buff and debuff glows, sounds and hiding stay right in a fight: no more buffs shown as missing while they're up, or left on after they ended" },
         { "Bags", "Quest items that are also a food or other consumable, like Kravel's Crate, always go under Quest items" },
+        { "Bags", "Your bag no longer stays dimmed after you hover a bag in the bag row, at a vendor or anywhere else" },
         { "Chat", "Speech bubbles are the game's size again instead of shrinking when your UI scale is small, and no longer stay invisible after a dungeon" },
         { "Chat", "Lines with an item link are no longer cut down to just [G] or the channel name when a chat addon like Prat is on" },
         { "Chat", "Experience from kills shows in Daylight UI's chat tabs, without turning it on in the game's own chat settings" },

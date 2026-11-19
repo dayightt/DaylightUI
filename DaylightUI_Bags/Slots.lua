@@ -81,10 +81,19 @@ function Slots.NewButton(strip, o)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         o.tip(self)
         GameTooltip:Show()
+        self.lighting = true
         Slots.Light(o.slots(), o.lit())
     end)
-    b:SetScript("OnLeave", function()
+    b:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
+        self.lighting = nil
+        Slots.Light(o.slots(), nil)
+    end)
+    -- No leave comes when the window closes under the mouse, and the other bags
+    -- stayed dimmed through every later open.
+    b:SetScript("OnHide", function(self)
+        if not self.lighting then return end
+        self.lighting = nil
         Slots.Light(o.slots(), nil)
     end)
     return b
@@ -215,8 +224,10 @@ function Slots.Refresh()
     for _, b in ipairs(strip.slots) do
         -- The key has no bag behind it: painting it would show an empty bag slot.
         if not b.keyring then paint(b) end
-        -- A bag swapped under a resting mouse: its tooltip shows the new bag.
-        if GameTooltip:IsShown() and GameTooltip:GetOwner() == b then
+        -- A bag swapped under a resting mouse: its tooltip shows the new bag. Only
+        -- while the mouse is really there: a tooltip can outlast the leave, and
+        -- entering then lit that bag with no leave to undo it.
+        if b:IsMouseOver() and GameTooltip:IsShown() and GameTooltip:GetOwner() == b then
             local enter = b:GetScript("OnEnter")
             if enter then enter(b) end
         end
