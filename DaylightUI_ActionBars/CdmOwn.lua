@@ -219,12 +219,7 @@ function Own.HasCooldown(sid)
     return ms > 1500
 end
 
-local function infoOf(id)
-    local CV = _G.C_CooldownViewer
-    if type(CV) ~= "table" or type(CV.GetCooldownViewerCooldownInfo) ~= "function" then return nil end
-    local ok, info = pcall(CV.GetCooldownViewerCooldownInfo, id)
-    if ok and type(info) == "table" then return info end
-end
+local function infoOf(id) return ns.CdmData.Info(id) end
 
 local function plainNumber(v)
     if type(v) == "number" and not isSecret(v) then return v end

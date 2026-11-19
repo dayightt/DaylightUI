@@ -34,6 +34,34 @@ Data.BAR_LOOK = { color = "class", icon = true, text = 11, time = true }
 Data.CHAIN = { grow = "start", combat = false, always = false, collapse = true, spacing = Data.GAP,
     group = false, target = false, mounted = false, where = "any" }
 
+-- The game's info for a cooldown id. GetCooldownViewerCooldownInfo builds a new
+-- table on every call, and the pieces ask for it many times per pass, so in a fight
+-- that was most of the module's garbage. The game's own Cooldown Manager keeps one
+-- copy per id and only reads it again on these events (its settings data provider),
+-- so this does the same. Read only: the table is shared.
+Data.INFO_EVENTS = {
+    "SPELLS_CHANGED", "TRAIT_CONFIG_UPDATED", "ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+    "ACTIVE_COMBAT_CONFIG_CHANGED", "ACTIVE_TALENT_GROUP_CHANGED", "COOLDOWN_VIEWER_TABLE_HOTFIXED",
+    "PLAYER_PVP_TALENT_UPDATE", "PLAYER_EQUIPMENT_CHANGED", "COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED",
+}
+local infoCache, infoFrom = {}, nil
+function Data.ForgetInfo() wipe(infoCache) end
+for _, e in ipairs(Data.INFO_EVENTS) do DUI.RegisterEvent(e, Data.ForgetInfo) end
+
+function Data.Info(id)
+    local CV = _G.C_CooldownViewer
+    local get = type(CV) == "table" and CV.GetCooldownViewerCooldownInfo
+    if type(get) ~= "function" or id == nil or isSecret(id) then return nil end
+    if get ~= infoFrom then wipe(infoCache); infoFrom = get end
+    local info = infoCache[id]
+    if info then return info end
+    local ok
+    ok, info = pcall(get, id)
+    if not ok or type(info) ~= "table" then return nil end
+    infoCache[id] = info
+    return info
+end
+
 -- A piece's icon text keys (Data.TEXT_KEYS, or Data.BAR_TEXT_KEYS for bars), with
 -- unset ones left out.
 function Data.TextOf(set, id, keys)

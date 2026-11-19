@@ -2907,6 +2907,33 @@ T.test("cdm own icons: a pass in combat reads the game's spell list once", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's info call makes a new table each time; passes in a fight asked it
+-- thousands of times a minute, so each id is read once until spells change.
+T.test("cdm info: each cooldown id is read once until the game's spells change", function()
+    local DUI, AB, E, D = editorWorld()
+    withCategories({ [0] = { 11, 12, 14, 15 }, [2] = { 41 } }, { [0] = { 11, 12, 14, 15 }, [2] = { 41 } })
+    local reads, spell = 0, 114
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        reads = reads + 1
+        return { spellID = id == 14 and spell or 100 + id }
+    end
+    C_Spell.GetSpellTexture = function() return 1234 end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    local set = D.Current()
+    addBlock(D, set, "icon")
+    place(D, set, 14, 1, 1); place(D, set, 15, 1, 2); place(D, set, 41, 1, 3)
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    reads = 0
+    for _ = 1, 5 do AB.CdmRows.Update() end
+    T.eq(reads, 0, "passes reuse what was read")
+    T.eq(AB.CdmOwn.SpellOf(14), 114)
+    spell = 214
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
+    T.eq(AB.CdmOwn.SpellOf(14), 214, "read again once spells change")
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm own icons: a placed known spell gets our frame with a cooldown, auras don't, release hides it", function()
     local DUI, AB, E, D = editorWorld()
     withCategories({ [0] = { 11, 12, 14 }, [2] = { 41 } }, { [0] = { 11, 12, 14 }, [2] = { 41 } })
