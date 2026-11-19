@@ -123,8 +123,8 @@ end
 -- A plain result from fn, or nil on an error or a secret.
 local function plain(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, v = pcall(fn, ...)
-    if not ok or isSecret(v) then return nil end
+    local v = fn(...)
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -132,8 +132,8 @@ end
 local function raidGroup(u)
     local index = tonumber(string.match(u, "^raid(%d+)$")) or plain(UnitInRaid, u)
     if type(index) ~= "number" or type(GetRaidRosterInfo) ~= "function" then return nil end
-    local ok, _, _, group = pcall(GetRaidRosterInfo, index)
-    if not ok or isSecret(group) or type(group) ~= "number" then return nil end
+    local _, _, group = GetRaidRosterInfo(index)
+    if isSecret(group) or type(group) ~= "number" then return nil end
     return group
 end
 
@@ -208,8 +208,7 @@ function PART.guild(f, u, fs, s)
     if s then
         guild = L["Guild"]
     elseif type(GetGuildInfo) == "function" then
-        local ok, g = pcall(GetGuildInfo, u)
-        if ok then guild = g end
+        guild = GetGuildInfo(u)
     end
     if type(guild) == "nil" then return nil end
     return INK.LABEL, "<%s>", guild
@@ -421,7 +420,7 @@ function Texts.AddKind(spec)
             end
             if not pluginEvents[event] then
                 pluginEvents[event] = {}
-                pcall(eventFrame.RegisterEvent, eventFrame, event)
+                DUI.SafeCall(eventFrame.RegisterEvent, eventFrame, event)
             end
             pluginEvents[event][key] = true
         end

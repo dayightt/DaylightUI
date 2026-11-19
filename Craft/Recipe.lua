@@ -296,6 +296,61 @@ function Recipe.Acts(s, r)
     return b
 end
 
+-- A recipe's cooldown, worded the way the game's recipe page does it: charges when it
+-- has them, else the time left (a daily one under a day says it resets at midnight).
+-- Nil when it's ready.
+Recipe.CD_TICK = 30   -- s between repaints of the time left
+
+local function timeLeft(sec)
+    if type(SecondsToTime) == "function" then
+        local s = SecondsToTime(sec, sec >= 60, false, 2)
+        if type(s) == "string" and s ~= "" then return s end
+    end
+    local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
+    if d > 0 then return string.format(L["%d d %d h"], d, h) end
+    if h > 0 then return string.format(L["%d h %d min"], h, m) end
+    if m > 0 then return string.format(L["%d min"], m) end
+    return string.format(L["%d sec"], math.ceil(sec))
+end
+
+function Recipe.CooldownWords(id)
+    local left, isDay, charges, max = ns.Data.Cooldown(id)
+    local Hex, INK = Win.Parts.Hex, Style.INK
+    if max and max > 0 and charges and (charges > 0 or not left) then
+        local have = Hex({ Style.Pop() }) .. string.format("%d/%d", charges, max) .. "|r"
+        if charges < max and left then
+            return Hex(INK.LABEL) .. string.format(L["Charges: %s, the next in %s"], have .. Hex(INK.LABEL),
+                Hex(INK.VALUE) .. timeLeft(left) .. "|r")
+        end
+        return Hex(INK.LABEL) .. string.format(L["Charges: %s"], have)
+    end
+    if not left then return nil end
+    if isDay and left <= 86400 then
+        return Hex(INK.BAD) .. (COOLDOWN_EXPIRES_AT_MIDNIGHT or L["Cooldown expires at midnight"]) .. "|r"
+    end
+    return Hex(INK.LABEL) .. (COOLDOWN_REMAINING or L["Cooldown remaining:"]) .. "|r " .. Hex(INK.BAD) .. timeLeft(left) .. "|r"
+end
+
+-- Keeps the time left current while the recipe is shown; once it's ready the list
+-- reads again, which drops the line and frees Create.
+function Recipe.WatchCooldown(r, line)
+    local token = {}
+    Recipe.cdWatch = token
+    if not (line and C_Timer) then return end
+    C_Timer.After(Recipe.CD_TICK, function()
+        if Recipe.cdWatch ~= token or ns.Make.recipe ~= r then return end
+        local pane = Recipe.pane
+        if not (pane and pane:IsVisible()) then return end
+        local words = Recipe.CooldownWords(r.id)
+        if words then
+            line.text:SetText(words)
+            Recipe.WatchCooldown(r, line)
+        else
+            ns.List.Soon(0)
+        end
+    end)
+end
+
 function Recipe.Build(pane)
     Recipe.pane = pane
     pane.stack = Win.Parts.Stack(pane, { top = 12, bottom = ns.Make.FOOT })
@@ -325,6 +380,9 @@ function Recipe.Fill(pane, r, keepScroll)
         sub = ns.Data.SkillWords(r.difficulty), subColor = ns.Data.Color(r.difficulty),
         value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip })
     Recipe.Acts(s, r)
+    local cd = Recipe.CooldownWords(r.id)
+    pane.cooldown = cd and s:Text(cd, { color = INK.TEXT, size = Style.SIZE.small, gap = 8 }) or nil
+    Recipe.WatchCooldown(r, pane.cooldown)
     Recipe.Range(s, r)
     local desc = call("GetRecipeDescription", r.id, {})
     if type(desc) == "string" and not secret(desc) and desc ~= "" then

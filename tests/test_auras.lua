@@ -58,6 +58,17 @@ T.test("settings pick the debuff filter and set both counts", function()
     T.eq(set.buffs.__groups.buffs.max, 0)
 end)
 
+-- The client asserts when a count goes to a group the container never added
+-- (GetRequiredAuraGroup): the whole-lot "others" debuffs and the lazy buff picks.
+T.test("counts only go to groups the container has", function()
+    local set, ns = setup()
+    ns.Auras.Apply(set, CFG)
+    ns.Auras.Apply(set, copy(CFG, { debuffFilter = "mine" }))
+    T.isnil(set.debuffs.__groups.others)
+    T.isnil(set.buffs.__groups.purge)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("spacing settings reach each group's layout", function()
     local set, ns = setup()
     ns.Auras.Apply(set, copy(CFG, { debuffSpacing = 7, buffSpacing = 0 }))

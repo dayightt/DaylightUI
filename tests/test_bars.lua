@@ -1951,6 +1951,28 @@ T.test("keys: a flyout slot's keys click our button; the rest stay the game's", 
     T.isnil(stub.overrides["4"], "not a flyout any more")
 end)
 
+-- A click on a flyout slot runs the game's SpellFlyout:Toggle, which opens only on
+-- a button whose popup is set (FlyoutButtonMixin:TogglePopup). The game's buttons
+-- set it in UpdateAction on a slot change; ours get no slot events, so a flyout
+-- dragged onto a bar clicked with only the press animation.
+T.test("bars: a flyout dragged onto a bar opens when clicked", function()
+    login({ bindings = BINDINGS })
+    local b = btn("main", 4)
+    T.falsy(b:HasPopup(), "a plain slot has no popup")
+    stub.slots[4] = { texture = "summon", flyout = 10 }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 4)
+    stub.RunTimers()
+    T.truthy(b:HasPopup(), "the dragged flyout can open")
+    b:TogglePopup()
+    T.truthy(b:IsPopupOpen(), "SpellFlyout opens on the button")
+    b:ClosePopup()
+    stub.slots[4] = { texture = "frostbolt", spellID = 4 }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 4)
+    stub.RunTimers()
+    T.falsy(b:HasPopup(), "a spell again: no popup")
+    noBlocked()
+end)
+
 T.test("keys: flyout keys change after combat, never in it", function()
     login({ bindings = BINDINGS })
     stub.EnterCombat()
@@ -2582,6 +2604,30 @@ T.test("info panel: the experience bar measures our bar 1 when the new bars run"
     local span = stub.infopanel.Panel.BarsSpan(CreateFrame("Frame", nil, UIParent))
     -- The buttons are at 70%, so their own units times 0.7.
     T.near(span.left, 100 * 0.7); T.near(span.right, (100 + 11 * 40 + 30) * 0.7); T.near(span.bottom, 20 * 0.7)
+end)
+
+T.test("info panel: the experience bar matches bar 1's background panel, padding included", function()
+    stub.Load({ actionbars = true, infopanel = true, before = function() ABW.newWorld() end })
+    for i, b in ipairs(DaylightUI.ActionBarButtons("main")) do
+        local x = 100 + (i - 1) * 40
+        function b:GetLeft() return x end
+        function b:GetRight() return x + 30 end
+        function b:GetBottom() return 20 end
+    end
+    local P = stub.infopanel.Panel
+    local xp = CreateFrame("Frame", nil, UIParent)
+    local bare = P.BarsSpan(xp)
+    DaylightUI:Set("ActionBars", "look.back", true)
+    DaylightUI:Set("ActionBars", "look.backPad", 6)
+    local span = P.BarsSpan(xp)
+    T.near(span.left, bare.left - 6); T.near(span.right, bare.right + 6); T.near(span.bottom, bare.bottom - 6)
+    -- Bar 1's own look wins over the shared one.
+    DaylightUI:Set("ActionBars", "barLooks.main.backPad", 10)
+    span = P.BarsSpan(xp)
+    T.near(span.right, bare.right + 10, 0.01, "bar 1's own padding")
+    DaylightUI:Set("ActionBars", "barLooks.main.back", false)
+    span = P.BarsSpan(xp)
+    T.near(span.right, bare.right, 0.01, "no panel on bar 1, just its buttons")
 end)
 
 T.test("default on: an account that never set the switch gets the new bars; moved bars convert", function()

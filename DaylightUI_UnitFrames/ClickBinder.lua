@@ -271,8 +271,7 @@ end
 -- PostClick (mouse up, the macro may have run on the way down) turns binding
 -- on and moves the options window aside.
 local function makeOpener()
-    local ok, o = pcall(CreateFrame, "Button", "DaylightUIClickCastOpener", UIParent, "SecureActionButtonTemplate")
-    if not ok or type(o) ~= "table" then return nil end
+    local o = CreateFrame("Button", "DaylightUIClickCastOpener", UIParent, "SecureActionButtonTemplate")
     o:SetAttribute("type", "macro")
     o:SetAttribute("macrotext", "/click " .. B.BOOK_BUTTON)
     o:RegisterForClicks("AnyUp", "AnyDown")

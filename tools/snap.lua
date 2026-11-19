@@ -129,6 +129,14 @@ local RECIPES = {
                     DUI.Installer.pages.finish.RunChecklist(true)
                     stub.RunTimers()
                 end
+            elseif page then
+                -- A page of "do it myself" (the tour path), scrolled to its end.
+                DUI.Installer.Start("tour")
+                DUI.Installer.Go(page)
+                stub.RunTimers()
+                local sf = _G.DaylightUIInstaller and _G.DaylightUIInstaller.scroll
+                local child = sf and sf:GetScrollChild()
+                if child then sf:SetVerticalScroll(math.max(0, math.min(child:GetHeight() - sf:GetHeight(), 520))) end
             end
             return _G.DaylightUIInstaller
         end },
@@ -170,6 +178,21 @@ local RECIPES = {
         stub.RunTimers()
         stub.nameplates.Sample.zoom = 3     -- big enough to judge a 4 px bar
         DUI.OptionsPanel.Show(which == "friendly" and "Nameplates.friendly" or "Nameplates.bars")
+        return _G.DaylightUIOptions
+    end },
+    platecircle = { about = "the nameplates' Target page with the outline light on, zoomed in [a style: comet|breathe|twinkle|shine]", open = function(DUI, style)
+        DUI:Set("Nameplates", "targetLight", style or "circle")
+        stub.RunTimers()
+        stub.nameplates.Sample.zoom = 3
+        DUI.OptionsPanel.Show("Nameplates.target")
+        stub.RunTimers()
+        local d = DUI.Motion.Driver()
+        for _ = 1, 6 do if d then stub.RunOnUpdate(d, 0.1) end end
+        local f = EnumerateFrames()
+        while f do
+            if f:IsVisible() and f.GetScript and f:GetScript("OnUpdate") then stub.RunOnUpdate(f, 0.35) end
+            f = EnumerateFrames(f)
+        end
         return _G.DaylightUIOptions
     end },
     tour = { about = "the tour's card on a stop [ask: the question after setup] [meter|datatexts|buffs|unlock|options]", open = function(DUI, stop)
@@ -318,7 +341,7 @@ local RECIPES = {
         fr:SetPoint("CENTER", UIParent, "CENTER", 0, 0)   -- it follows the game's window, which has no place here
         return fr
     end },
-    bags = { about = "the bag window, narrow [slot size]", open = function(DUI, size)
+    bags = { about = "the bag window, narrow [slot size] [plain: header off]", open = function(DUI, size)
         stub.RunTimers()
         _G.C_Container = setmetatable({
             GetContainerNumSlots = function(id) return id == 0 and 20 or 0 end,
@@ -326,6 +349,7 @@ local RECIPES = {
         }, { __index = function() return function() end end })
         DUI:Set("Bags", "iconSize", tonumber(size) or 26)
         DUI:Set("Bags", "columns", 7)
+        if size == "plain" then DUI:Set("Bags", "showHeader", false) end
         stub.RunTimers()
         _G.DaylightUIBag:Show()
         stub.RunTimers()

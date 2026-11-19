@@ -364,7 +364,7 @@ end
 function Make.PadKeys(f)
     local function can(n)
         local r = Make.recipe
-        return r ~= nil and not Make.state and r.count >= n
+        return r ~= nil and not Make.state and r.count >= n and not ns.Data.Waiting(r.id)
     end
     f.padKeys = f.padKeys or {}
     table.insert(f.padKeys, { key = "X", label = function() return Make.recipe and verb(Make.recipe) or L["Create"] end,
@@ -387,9 +387,10 @@ function Make.Paint(r)
         return
     end
     local many = not r.enchant or Make.TargetFor(r) ~= nil
-    local list = { { text = verb(r), primary = true, off = r.count < 1, onClick = Make.Create } }
+    local waiting = ns.Data.Waiting(r.id)
+    local list = { { text = verb(r), primary = true, off = r.count < 1 or waiting, onClick = Make.Create } }
     if many then
-        list[2] = { text = allWords(r.count, r.enchant), off = r.count < 2, onClick = Make.CreateAll }
+        list[2] = { text = allWords(r.count, r.enchant), off = r.count < 2 or waiting, onClick = Make.CreateAll }
     end
     foot:Set(list)
     Make.box = Make.box or amountBox(foot)

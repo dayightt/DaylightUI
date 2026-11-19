@@ -361,6 +361,16 @@ local look = {
               end, "actionbars:freeslots")
           end,
           disabled = function(get) return get("bagBar") == "hidden" end },
+        { type = "toggle", label = "Show every bag slot",
+          desc = "The game's own setting: shows each of your bags next to the backpack instead of folding them away behind the arrow.",
+          get = function() return type(GetCVarBool) == "function" and GetCVarBool("expandBagBar") == true end,
+          set = function(v)
+              -- The game shows and hides its bag buttons on this change, so out of a fight only.
+              DUI.AfterCombat(function()
+                  if type(SetCVar) == "function" then DUI.SafeCall(SetCVar, "expandBagBar", v and "1" or "0") end
+              end, "actionbars:expandbags")
+          end,
+          disabled = function(get) return get("bagBar") == "hidden" end },
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,
           desc = "Shows or hides the row of small buttons that open your character, spellbook, talents and other windows. Their keys still work when it's hidden." },
         menuSize("microMenu", "Micro menu size"),
@@ -716,6 +726,11 @@ do
         })
     end
 end
+
+-- The game's arrow by the backpack flips the same setting, so keep the switch in step with it.
+DUI.RegisterEvent("EXPAND_BAG_BAR_CHANGED", function(_, on)
+    DUI.Fire("SettingChanged", "ActionBars", "expandBagBar", on)
+end)
 
 ns.OPTIONS = { pages = {
     { id = "bars", label = "Action Bars", desc = "Button look, bag bar and micro menu. Each bar's size and shape is on the Bar Layout page.",

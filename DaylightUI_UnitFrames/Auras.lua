@@ -224,9 +224,9 @@ end
 -- player.
 Auras.TILE_KINDS = { tilebuff = true, gdebuff = true, gcc = true }
 function Auras.TileMouse(btn, tips)
-    pcall(btn.EnableMouse, btn, tips == true)
-    pcall(btn.SetMouseClickEnabled, btn, false)
-    pcall(btn.SetMouseMotionEnabled, btn, tips == true)
+    DUI.SafeCall(btn.EnableMouse, btn, tips == true)
+    DUI.SafeCall(btn.SetMouseClickEnabled, btn, false)
+    DUI.SafeCall(btn.SetMouseMotionEnabled, btn, tips == true)
 end
 
 -- cure: the button belongs to a group of debuffs you can dispel (a group's `halo`).
@@ -236,7 +236,7 @@ function Auras.InitButton(btn, kind, container, cure)
     if Auras.TILE_KINDS[kind] then
         Auras.TileMouse(btn, container ~= nil and tipsOn[container] == true)
     elseif container and tipsOn[container] == false then
-        pcall(btn.EnableMouse, btn, false)
+        DUI.SafeCall(btn.EnableMouse, btn, false)
     end
     local T = Pixel.Px(btn, Auras.BORDER_PX)
     local icon = btn:CreateTexture(nil, "ARTWORK")
@@ -270,7 +270,7 @@ function Auras.InitButton(btn, kind, container, cure)
     count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
     btn:SetApplicationCount(count)
     if container and noCounts[container] then count:SetAlpha(0) end
-    pcall(btn.SetTooltipAnchorPoint, btn, Auras.TOOLTIP_ANCHOR)
+    DUI.SafeCall(btn.SetTooltipAnchorPoint, btn, Auras.TOOLTIP_ANCHOR)
     if not BUFF_KINDS[kind] then
         -- A square edge the size of the button, behind the icon, tinted by the
         -- client from the aura's dispel type. It's the debuff's whole border,
@@ -491,16 +491,16 @@ function Auras.SetOwnSize(c, width, gap)
     if kind and Auras.KINDS[kind] then
         for _, g in ipairs(Auras.KINDS[kind].groups) do
             if c.dluiGroups and c.dluiGroups[g.key] then
-                pcall(c.SetAuraGroupLayout, c, g.key, groupLayout(kind, g.index, c))
+                DUI.SafeCall(c.SetAuraGroupLayout, c, g.key, groupLayout(kind, g.index, c))
             end
         end
     end
     -- Locked while auras are secret (combat, a PvP match, a boss), so sized once that lifts.
     DUI.AfterRestrictions(function()
         for btn, parts in pairs(ownButtons(c)) do
-            pcall(btn.SetSize, btn, s[1], s[2])
-            pcall(parts.icon.SetTexCoord, parts.icon, iconCoords(s[1], s[2]))
-            if parts.halo then pcall(Style.PlaceAuraHalo, parts.halo, btn, s[1]) end
+            DUI.SafeCall(btn.SetSize, btn, s[1], s[2])
+            DUI.SafeCall(parts.icon.SetTexCoord, parts.icon, iconCoords(s[1], s[2]))
+            if parts.halo then DUI.SafeCall(Style.PlaceAuraHalo, parts.halo, btn, s[1]) end
         end
     end, "auras:ownsize:" .. tostring(c))
     return s
@@ -511,7 +511,7 @@ end
 -- restrictions lift since they're locked. The client owns these texts, so they
 -- stay out of the style repaint sets (Style.SetTextSize tracks them).
 local function sizeText(fs, size)
-    pcall(Style.SetTextSize, fs, size)
+    DUI.SafeCall(Style.SetTextSize, fs, size)
     Style.Untrack(fs)
 end
 
@@ -538,8 +538,8 @@ function Auras.SetTimers(c, on)
         local f = formatterOf(c)
         for btn, parts in pairs(ownButtons(c)) do
             if parts.time then
-                pcall(Style.SetAuraTime, btn, parts.time, nil, f)
-                if not f then pcall(parts.time.SetShown, parts.time, on) end
+                DUI.SafeCall(Style.SetAuraTime, btn, parts.time, nil, f)
+                if not f then DUI.SafeCall(parts.time.SetShown, parts.time, on) end
             end
         end
     end, "auras:timers:" .. tostring(c))
@@ -553,7 +553,7 @@ function Auras.SetCounts(c, on)
     noCounts[c] = not on or nil
     DUI.AfterRestrictions(function()
         for _, parts in pairs(ownButtons(c)) do
-            if parts.count then pcall(parts.count.SetAlpha, parts.count, on and 1 or 0) end
+            if parts.count then DUI.SafeCall(parts.count.SetAlpha, parts.count, on and 1 or 0) end
         end
     end, "auras:counts:" .. tostring(c))
 end
@@ -566,7 +566,7 @@ function Auras.SetSwipe(c, on)
     swipeOn[c] = on
     DUI.AfterRestrictions(function()
         for _, parts in pairs(ownButtons(c)) do
-            if parts.cd then pcall(Auras.StyleSwipe, parts.cd, on) end
+            if parts.cd then DUI.SafeCall(Auras.StyleSwipe, parts.cd, on) end
         end
     end, "auras:swipe:" .. tostring(c))
 end
@@ -582,7 +582,7 @@ function Auras.SetTips(c, on)
         for btn, parts in pairs(ownButtons(c)) do
             -- A tile's icons never take clicks. The target's and player's
             -- rows keep what the client gives them, only the hover goes.
-            if Auras.TILE_KINDS[parts.kind] then Auras.TileMouse(btn, on) else pcall(btn.EnableMouse, btn, on) end
+            if Auras.TILE_KINDS[parts.kind] then Auras.TileMouse(btn, on) else DUI.SafeCall(btn.EnableMouse, btn, on) end
         end
     end, "auras:tips:" .. tostring(c))
 end
@@ -609,7 +609,7 @@ function Auras.SetShortTimers(c, on)
     DUI.AfterRestrictions(function()
         local f = formatterOf(c)
         for btn, parts in pairs(ownButtons(c)) do
-            if parts.time then pcall(Style.SetAuraTime, btn, parts.time, nil, f) end
+            if parts.time then DUI.SafeCall(Style.SetAuraTime, btn, parts.time, nil, f) end
         end
     end, "auras:short:" .. tostring(c))
 end
@@ -618,17 +618,23 @@ end
 -- AnchorUtil.FlowDirection keys), and the maximum row length.
 function Auras.SetFlow(c, anchorPoint, hDir, vDir, line)
     if plain[c] then return end
-    pcall(call, c, { "SetFlowLayoutAnchorPoint", "SetAuraLayoutAnchorPoint" }, anchorPoint)
+    DUI.SafeCall(call, c, { "SetFlowLayoutAnchorPoint", "SetAuraLayoutAnchorPoint" }, anchorPoint)
     local fd = AnchorUtil and AnchorUtil.FlowDirection
     if fd then
-        pcall(call, c, { "SetFlowLayoutGrowthDirection", "SetAuraLayoutGrowthDirection" }, fd[hDir], fd[vDir])
+        DUI.SafeCall(call, c, { "SetFlowLayoutGrowthDirection", "SetAuraLayoutGrowthDirection" }, fd[hDir], fd[vDir])
     end
-    if line then pcall(call, c, { "SetFlowLayoutMaximumLineSize", "SetAuraLayoutRowWidth" }, line) end
+    if line then DUI.SafeCall(call, c, { "SetFlowLayoutMaximumLineSize", "SetAuraLayoutRowWidth" }, line) end
 end
 
 -- A set's row of kind ("debuff" or "buff"): its icon size and gap.
 local function rowDims(set, kind)
     return dimsOf(set[kind .. "s"], kind)
+end
+
+-- A group's count. Only groups the client has: it asserts on any other key,
+-- and a lazy group gets its count once it's added.
+local function setCount(c, key, n)
+    if c and c.dluiGroups and c.dluiGroups[key] then DUI.SafeCall(c.SetAuraGroupMaxFrameCount, c, key, n) end
 end
 
 -- The groups a set's row of kind is made of.
@@ -664,12 +670,12 @@ function Auras.Limit(set)
     }
     local d = set.debuffs
     for i, g in ipairs(groupsOf(set, "debuff")) do
-        pcall(d.SetAuraGroupMaxFrameCount, d, g.key, set.counts.debuff[i] or 0)
+        setCount(d, g.key, set.counts.debuff[i] or 0)
     end
     local b = set.buffs
     if b then
         for i, g in ipairs(groupsOf(set, "buff")) do
-            pcall(b.SetAuraGroupMaxFrameCount, b, g.key, set.counts.buff[i] or 0)
+            setCount(b, g.key, set.counts.buff[i] or 0)
         end
     end
 end
@@ -742,7 +748,7 @@ end
 function Auras.Refresh(set)
     if not set then return end
     for _, c in ipairs({ set.debuffs, set.buffs }) do
-        if c and c.UpdateAllAuras then pcall(c.UpdateAllAuras, c) end
+        if c and c.UpdateAllAuras then DUI.SafeCall(c.UpdateAllAuras, c) end
     end
 end
 
@@ -762,7 +768,7 @@ function Auras.SetBuffCounts(c, cfg, count)
     for _, g in ipairs(Auras.KINDS.tilebuff.groups) do
         if g.key == "mine" or g.key == "all" or (c.dluiGroups and c.dluiGroups[g.key]) then
             local hide = g.key ~= which or (g.yours and unseen[c])
-            pcall(c.SetAuraGroupMaxFrameCount, c, g.key, hide and 0 or n)
+            setCount(c, g.key, hide and 0 or n)
         end
     end
     mineKey[c] = which
@@ -774,7 +780,7 @@ function Auras.SetBuffsSeen(c, seen)
     unseen[c] = not seen
     local g = groupOf("tilebuff", mineKey[c] or "mine")
     if g and g.yours then
-        pcall(c.SetAuraGroupMaxFrameCount, c, g.key, seen and (mineCount[c] or 0) or 0)
+        setCount(c, g.key, seen and (mineCount[c] or 0) or 0)
     end
 end
 

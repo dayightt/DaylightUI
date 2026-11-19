@@ -72,6 +72,61 @@ F.QuickKeybindButtonTemplateMixin = {
     end,
     DoModeChange = function(self, on) self.__quickMode = on end,
 }
+-- The popup half of the game's FlyoutButtonMixin (Blizzard_Flyout/Flyout.lua), line for
+-- line; its arrow art is left out. The action button template mixes it in, and
+-- the button's UpdateFlyout (on an attribute change, or the game's own UpdateAction)
+-- is the only thing that hands it SpellFlyout: a secure click on a flyout slot
+-- opens SpellFlyout only when HasPopup() says so (SpellFlyoutMixin:Toggle ends in
+-- TogglePopup).
+local noop = function() end
+F.FlyoutButtonMixin = {
+    OnLoad = noop, OnHide = noop, OnEnter = noop, OnLeave = noop, OnMouseDown = noop, OnMouseUp = noop,
+    OnDragStart = noop, UpdateArrowShown = noop, UpdateArrowPosition = noop, UpdateArrowRotation = noop,
+    OnPopupToggled = noop,
+    SetPopup = function(self, popup)
+        if popup == self.popup then return end
+        self.popup = popup
+        self:UpdateArrowShown()
+    end,
+    ClearPopup = function(self)
+        if not self.popup then return end
+        self:ClosePopup()
+        self.popup = nil
+        self:UpdateArrowShown()
+    end,
+    GetPopup = function(self) return self.popup end,
+    HasPopup = function(self) return self.popup ~= nil end,
+    GetPopupDirection = function(self) return self.popupDirection or "DOWN" end,
+    SetPopupDirection = function(self, d)
+        if self.popupDirection == d then return end
+        self.popupDirection = d
+        self:UpdateArrowPosition()
+        self:UpdateArrowRotation()
+    end,
+    IsPopupOpen = function(self)
+        local popup = self.popup
+        return popup and popup:IsAttachedToButton(self)
+    end,
+    TogglePopup = function(self)
+        if self:IsPopupOpen() then
+            self.popup:DetatchFromButton()
+        elseif self:HasPopup() then
+            self.popup:AttachToButton(self)
+        end
+        self:OnPopupToggled()
+    end,
+    ClosePopup = function(self)
+        if self:IsPopupOpen() then self:TogglePopup() end
+    end,
+}
+-- The game's SpellFlyout as a popup: which button it is open on. Its other
+-- methods (Hide on a drag, ...) do nothing.
+F.SpellFlyout = setmetatable({
+    AttachToButton = function(self, b) self.attached = b end,
+    DetatchFromButton = function(self) self.attached = nil end,
+    IsAttachedToButton = function(self, b) return self.attached == b end,
+    Hide = function(self) self.attached = nil end,
+}, { __index = function() return INERT end })
 
 -- The client's namespaces (C_ActionBar, Enum, ...) as the game's code sees them:
 -- what the fake game models, then a noted stand-in for the rest.

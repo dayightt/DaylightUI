@@ -174,8 +174,8 @@ function AuraGroups.SetUnit(set, unit)
     if not set or type(unit) ~= "string" then return end
     set.unit = unit
     for _, c in AuraGroups.Containers(set) do
-        pcall(c.SetUnit, c, unit)
-        pcall(c.UpdateAllAuras, c)
+        DUI.SafeCall(c.SetUnit, c, unit)
+        DUI.SafeCall(c.UpdateAllAuras, c)
     end
     ns.Indicators.SetUnit(set, unit)
 end
@@ -235,7 +235,7 @@ local function extraContainer(set, frame, key, def)
         if c then
             c:SetFrameLevel(frame:GetFrameLevel() + 8)
             local unit = type(frame.unitToken) == "string" and frame.unitToken or set.unit
-            if type(unit) == "string" then pcall(c.SetUnit, c, unit) end
+            if type(unit) == "string" then DUI.SafeCall(c.SetUnit, c, unit) end
         end
     end
     slot[def.key] = c
@@ -351,7 +351,7 @@ local function placeOne(c, def, g, on, frame, box)
     elseif real then
         for _, kg in ipairs(ns.Auras.KINDS[def.kind].groups) do
             if c.dluiGroups[kg.key] then
-                pcall(c.SetAuraGroupMaxFrameCount, c, kg.key, kg.key == on and max or 0)
+                DUI.SafeCall(c.SetAuraGroupMaxFrameCount, c, kg.key, kg.key == on and max or 0)
             end
         end
     end
@@ -359,7 +359,7 @@ local function placeOne(c, def, g, on, frame, box)
     c:ClearAllPoints()
     c:SetPoint(L.point, frame, L.relPoint, L.x, L.y)
     c:SetSize(math.max(1, L.line), s[2])
-    if real then pcall(c.UpdateAllAuras, c) end
+    if real then DUI.SafeCall(c.UpdateAllAuras, c) end
     placed[c] = { L = L, on = on, max = max, per = per, s = s, gap = gap, timers = g.timers == true,
                   shortTimers = g.shortTimers == true, swipe = g.swipe == true, counts = g.counts ~= false, def = def }
 end

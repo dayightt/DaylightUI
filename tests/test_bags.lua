@@ -1415,6 +1415,13 @@ T.test("bags: the strip's key button shows and hides the keyring, and is there o
     T.falsy(ns.module.db.showKeyring, "again hides it")
     ns.module.db.showKeyring = nil
 
+    -- A strip refresh repaints the bag slots, never the key.
+    ns.module.db.showSlots = true
+    ns.Slots.Apply()
+    Slots.Refresh()
+    T.eq(key.icon:GetTexture(), Slots.KEY_ICON, "refreshed: still the key icon")
+    ns.module.db.showSlots = nil
+
     local ns2 = login()
     open(ns2)
     T.falsy(ns2.Slots.key:IsShown(), "no keyring in the game: no key button")

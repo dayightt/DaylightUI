@@ -91,8 +91,8 @@ local function plainOf(v) return not secret(v) and v or nil end
 -- The class's forms (nil when there are none to pick).
 function Fx.FormsOf(class)
     if class == nil then
-        local ok, _, token = pcall(UnitClass, "player")
-        class = ok and plainOf(token) or nil
+        local _, token = UnitClass("player")
+        class = plainOf(token)
     end
     return class and Fx.FORMS[class] or nil
 end
@@ -104,8 +104,8 @@ function Fx.ReadForm()
     if not list then return nil end
     local n = type(GetNumShapeshiftForms) == "function" and plainOf(GetNumShapeshiftForms()) or 0
     for i = 1, type(n) == "number" and n or 0 do
-        local ok, _, active, _, sid = pcall(GetShapeshiftFormInfo, i)
-        if ok and plainOf(active) == true and type(plainOf(sid)) == "number" and formBySpell[sid] then
+        local _, active, _, sid = GetShapeshiftFormInfo(i)
+        if plainOf(active) == true and type(plainOf(sid)) == "number" and formBySpell[sid] then
             return formBySpell[sid]
         end
     end
@@ -638,7 +638,7 @@ function Fx.MakeSlide(btn, h)
     s.show:SetOrder(2); s.show:SetSmoothing("OUT"); s.show:SetToAlpha(1)
     btn.cdmSlide, btn.cdmSlideHolder = s, h
     Fx.TuneSlide(btn)
-    pcall(btn.AddAuraShownAnimation, btn, ag)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
     if h then
         -- The buff going away. The client stops a button's shown animations
         -- whenever its aura clears (ApplyVisibility, Blizzard_CustomAuraButton.lua),
@@ -654,7 +654,7 @@ function Fx.MakeSlide(btn, h)
         -- instead when it hides the button.
         sig:SetScript("OnFinished", function() DUI.SafeCall(Fx.AuraHeard, h, "finish") end)
         sig:SetScript("OnPause", function() DUI.SafeCall(Fx.AuraHeard, h, "pause") end)
-        pcall(btn.AddAuraShownAnimation, btn, sig)
+        DUI.SafeCall(btn.AddAuraShownAnimation, btn, sig)
         -- The client plays these each time the button is given an aura, also when
         -- one aura replaces another on a button already shown (another warrior's
         -- Battle Shout over yours), where no shown animation plays.
@@ -663,7 +663,7 @@ function Fx.MakeSlide(btn, h)
             local mark = got:CreateAnimation("Translation")
             mark:SetOffset(0, 0); mark:SetDuration(0)
             got:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraHeard, h, "assign", btn) end)
-            pcall(btn.AddAuraAssignedAnimation, btn, got)
+            DUI.SafeCall(btn.AddAuraAssignedAnimation, btn, got)
         end
     end
 end
@@ -764,8 +764,8 @@ function Fx.BuffMoment(piece, item, isDown)
         -- or death clearing them all.
         local now = GetTime()
         if now - targetAt < Fx.END_QUIET or now - enteredAt < Fx.SETTLE then return end
-        local ok, dead = pcall(UnitIsDeadOrGhost, "player")
-        if ok and dead == true then return end
+        local dead = UnitIsDeadOrGhost("player")
+        if plainOf(dead) == true then return end
         playSound(item, piece, "buffEndSound")
     end
 end

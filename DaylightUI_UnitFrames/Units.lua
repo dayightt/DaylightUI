@@ -500,12 +500,12 @@ end
 -- nil when neither can be read.
 local function plain(v) return type(v) == "string" and not isSecret(v) end
 function ns.WhoOn(unit)
-    local ok, guid = pcall(UnitGUID, unit)
-    if ok and plain(guid) then return guid end
-    local okName, name, realm = pcall(UnitName, unit)
-    if not okName or not plain(name) then return nil end
-    if realm ~= nil and not plain(realm) then return nil end
-    return name .. "-" .. (realm or "")
+    local guid = UnitGUID(unit)
+    if plain(guid) then return guid end
+    local name, realm = UnitName(unit)
+    if not plain(name) then return nil end
+    if type(realm) ~= "nil" and not plain(realm) then return nil end
+    return name .. "-" .. (type(realm) == "nil" and "" or realm)
 end
 
 -- Event bursts collected into one pass on the next frame (the queued fns).
@@ -813,9 +813,8 @@ local manaWatch = CreateFrame("Frame")
 
 local function readMana(unit)
     if not UF.ShowsMana(unit) then return false end
-    local okC, cur = pcall(UnitPower, unit, UF.MANA)
-    local okM, max = pcall(UnitPowerMax, unit, UF.MANA)
-    if not (okC and okM) or isSecret(cur) or isSecret(max) or type(cur) ~= "number" or type(max) ~= "number" then return nil end
+    local cur, max = UnitPower(unit, UF.MANA), UnitPowerMax(unit, UF.MANA)
+    if isSecret(cur) or isSecret(max) or type(cur) ~= "number" or type(max) ~= "number" then return nil end
     return cur < max
 end
 

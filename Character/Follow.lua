@@ -46,15 +46,10 @@ function Follow.CurrentPage()
     return "character"
 end
 
--- Tells the game's panel layout this window's width so the next panel opens
--- beside it. The layout reads the panel attribute, not GetWidth, and the game
--- only sets it in OnShow, which never runs while parked.
-function Follow.WriteWidth()
-    local g = Follow.Game()
-    if not (g and Follow.parked) then return end
-    local w = ns.Window.Width() * DUI.Win.Scale(ns.Setting("scale")) + ns.Window.GAP
-    DUI.Win.PanelAttr(g, "width", math.floor(w + 0.5))
-end
+-- The game's CharacterFrame keeps its own panel width. It sets that layout
+-- attribute itself, so the game reads it and never the frame's size, and
+-- Daylight UI never writes one: an attribute keeps the taint of whoever wrote it,
+-- and the game's next ShowUIPanel then ran tainted (blocked in a fight).
 
 -- Out of combat only. Waits while the game's window is un-parked (currency transfer).
 function Follow.Park()
@@ -62,7 +57,6 @@ function Follow.Park()
     if not g or Follow.given or Follow.parked or g:IsShown() then return end
     g:SetParent(Follow.hidden)
     Follow.parked = true
-    Follow.WriteWidth()
     if ns.Slots then ns.Slots.Lend() end
 end
 
@@ -208,8 +202,6 @@ function Follow.Release()
     if ns.Slots then ns.Slots.Return() end
     Follow.parked = false
     g:SetParent(UIParent)
-        local own = type(UIPanelWindows) == "table" and UIPanelWindows.CharacterFrame
-    DUI.Win.PanelAttr(g, "width", type(own) == "table" and own.width or nil)
     if DUI.Pad then DUI.Pad.Remember(g) end
     DUI.Fire("GameWindowBack", "character", "character", g)   -- the skins dress it now it shows as itself
 end
@@ -223,7 +215,6 @@ function Follow.Reclaim()
     if g:IsShown() and not Follow.parked and not InCombatLockdown() then
         g:SetParent(Follow.hidden)
         Follow.parked = true
-        Follow.WriteWidth()
         if ns.Slots then ns.Slots.Lend() end
     end
     seen = false

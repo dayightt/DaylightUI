@@ -112,8 +112,7 @@ end
 local function speedOf(def)
     local raw
     if def.speed == 3 and type(UnitRangedDamage) == "function" then
-        local ok, s = pcall(UnitRangedDamage, "player")
-        if ok then raw = s end
+        raw = UnitRangedDamage("player")
     end
     if type(raw) == "nil" then raw = (select(def.speed, UnitAttackSpeed("player"))) end
     return raw, plain(raw)
@@ -123,11 +122,11 @@ end
 -- druid's idol in the ranged slot) doesn't count. nil when the client won't say.
 local function weaponInSlot(slot)
     if type(GetInventoryItemLink) ~= "function" or not (C_Item and C_Item.GetItemInfoInstant) then return nil end
-    local ok, link = pcall(GetInventoryItemLink, "player", slot)
-    if not ok or isSecret(link) then return nil end
+    local link = GetInventoryItemLink("player", slot)
+    if isSecret(link) then return nil end
     if type(link) == "nil" then return false end
-    local okI, _, _, _, _, _, class = pcall(C_Item.GetItemInfoInstant, link)
-    class = okI and plain(class) or nil
+    local _, _, _, _, _, class = C_Item.GetItemInfoInstant(link)
+    class = plain(class)
     if type(class) ~= "number" then return nil end
     return class == (Enum and Enum.ItemClass and Enum.ItemClass.Weapon or 2)
 end
@@ -155,8 +154,8 @@ end
 -- Your world latency, as a round trip in seconds.
 local function ping()
     if type(GetNetStats) ~= "function" then return ST.PING_FALLBACK end
-    local ok, _, _, _, world = pcall(GetNetStats)
-    world = ok and plain(world) or nil
+    local _, _, _, world = GetNetStats()
+    world = plain(world)
     if type(world) == "number" and world > 0 and world < 2000 then return world / 1000 end
     return ST.PING_FALLBACK
 end
@@ -169,8 +168,8 @@ local function readBowSpeed()
     if link == bowLink and bowSpeed then return bowSpeed end
     bowLink, bowSpeed = link, nil
     if not (link and C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return nil end
-    local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", 18)
-    if not (ok and type(data) == "table" and type(data.lines) == "table") then return nil end
+    local data = C_TooltipInfo.GetInventoryItem("player", 18)
+    if not (type(data) == "table" and type(data.lines) == "table") then return nil end
     local word = SPEED or "Speed"
     for _, line in ipairs(data.lines) do
         local t = plain(line.rightText)
@@ -540,10 +539,9 @@ end
 local function checkRange(h)
     for _, row in ipairs(h.rows) do
         local on = h.enabled and usable(h, row) or false
-        pcall(C_SwingTimer.EnableRangeCheck, row.def.type, on)
+        DUI.SafeCall(C_SwingTimer.EnableRangeCheck, row.def.type, on)
         if on then
-            local ok, inRange = pcall(C_SwingTimer.IsTargetWithinSwingRange, row.def.type)
-            setOutOfRange(row, ok and plain(inRange) == false)
+            setOutOfRange(row, plain(C_SwingTimer.IsTargetWithinSwingRange(row.def.type)) == false)
         else
             setOutOfRange(row, false)
         end
@@ -577,8 +575,7 @@ end
 function ST.Queued()
     if not (C_Spell and C_Spell.IsCurrentSpell) then return nil end
     for _, q in ipairs(ST.QueueList()) do
-        local ok, on = pcall(C_Spell.IsCurrentSpell, q.name)
-        if ok and plain(on) == true then return q.id, q.name end
+        if plain(C_Spell.IsCurrentSpell(q.name)) == true then return q.id, q.name end
     end
     return nil
 end
@@ -604,18 +601,15 @@ end
 -- won't say (no enemy targeted, or the answers are secret).
 local function itemInRange(id)
     if not (C_Item and C_Item.IsItemInRange) then return nil end
-    local ok, r = pcall(C_Item.IsItemInRange, id, "target")
-    if not ok then return nil end
-    r = plain(r)
+    local r = plain(C_Item.IsItemInRange(id, "target"))
     if r == true or r == 1 then return true end
     if r == false or r == 0 then return false end
     return nil
 end
 
 local function swingReach(swingType)
-    local ok, r = pcall(C_SwingTimer.IsTargetWithinSwingRange, swingType)
-    if not ok then return nil end
-    r = plain(r)
+    if not (C_SwingTimer and C_SwingTimer.IsTargetWithinSwingRange) then return nil end
+    local r = plain(C_SwingTimer.IsTargetWithinSwingRange(swingType))
     if type(r) == "boolean" then return r end
     return nil
 end
@@ -681,8 +675,7 @@ end
 -- Whether you're moving (the client's events keep it updated after this).
 local function readMoving()
     if type(GetUnitSpeed) ~= "function" then return false end
-    local ok, sp = pcall(GetUnitSpeed, "player")
-    sp = ok and plain(sp) or nil
+    local sp = plain(GetUnitSpeed("player"))
     return type(sp) == "number" and sp > 0
 end
 
@@ -757,9 +750,9 @@ function ST.Create()
         end, { parent = pod, dur = DUI.Motion.NORMAL,
             done = function(sl) if sl.p == 0 then pod:Hide() end end })
     end
-    for _, e in ipairs(EVENTS) do pcall(h.RegisterEvent, h, e) end
-    pcall(h.RegisterUnitEvent, h, "UNIT_ATTACK_SPEED", "player")
-    if #ST.QueueList() > 0 then pcall(h.RegisterEvent, h, "ACTIONBAR_UPDATE_STATE") end
+    for _, e in ipairs(EVENTS) do DUI.SafeCall(h.RegisterEvent, h, e) end
+    DUI.SafeCall(h.RegisterUnitEvent, h, "UNIT_ATTACK_SPEED", "player")
+    if #ST.QueueList() > 0 then DUI.SafeCall(h.RegisterEvent, h, "ACTIONBAR_UPDATE_STATE") end
     h:SetScript("OnEvent", onEvent)
     -- Hung under the player frame, the bars slide out from under it (or from
     -- under the cast bar) and back. Once back under they hide, and the bars

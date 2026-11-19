@@ -164,10 +164,12 @@ end
 --
 -- Names go through the twin too: a name's right-click menu opened from the box's
 -- own click carried Daylight UI's taint, and the game then blocked its Copy
--- Character Name. Channels and the links the box handles itself are left as
--- plain words in the twin: the frame takes no mouse, so a click there falls
--- through to the box, whose handlers for those want a chat window.
-Links.OWN = { channel = true, clubTicket = true, questie = true, addon = true }
+-- Character Name. Channel tags go through it as well: a left click opens the
+-- chat box with the game's OpenChat, and run from the box's own click that left
+-- the game's last chat box tainted, so replying to a whisper in a battleground
+-- errored. The links the box handles itself are left as plain words in the
+-- twin: the frame takes no mouse, so a click there falls through to the box.
+Links.OWN = { clubTicket = true, questie = true, addon = true }
 
 -- Shift-click on a name asks the game's /who; its answer belongs on the tab you
 -- asked from, so the box is told (it can't see the game's own click).

@@ -131,6 +131,7 @@ local function rowFrame(L, i)
     -- item.barText: shown on the bar while the row is hovered.
     r.barText = Style.Text(r.bar, List.SMALL, "CENTER")
     r.barText:SetPoint("CENTER", r.bar, "CENTER", 0, 0)
+    r.barText:SetTextColor(List.DIM[1], List.DIM[2], List.DIM[3])
     r.barText:Hide()
     r:SetScript("OnClick", function(self) List.Click(L, self.item) end)
     -- Only visible rows exist, so the D-pad reaching the last one scrolls the
@@ -153,12 +154,25 @@ local function rowFrame(L, i)
     return r
 end
 
--- A hovered row with a bar and item.barText shows that text on its bar.
+-- A hovered row with a bar and item.barText shows that text on its bar. It fades
+-- with the row's hover light, and keeps its words while fading out.
 function List.ShowBarText(r)
     local item = r.item
     local text = r.hovered and item and item.kind ~= "head" and item.bar and item.barText
-    r.barText:SetText(text or "")
-    r.barText:SetShown(text ~= nil and text ~= false)
+    local fs, M = r.barText, DUI.Motion
+    local on = text ~= nil and text ~= false
+    if on then fs:SetText(text) end
+    if not (M and M.On()) then
+        if M then M.Tween(fs, 0, 0, 0) end   -- cancel a running fade
+        fs:SetAlpha(1)
+        fs:SetShown(on)
+        return
+    end
+    if not on and not fs:IsShown() then return end
+    local from = fs:IsShown() and fs:GetAlpha() or 0
+    fs:Show()
+    M.Tween(fs, from, on and 1 or 0, M.FAST, function(a) fs:SetAlpha(a) end,
+        function() if not on then fs:Hide(); fs:SetAlpha(1) end end)
 end
 
 -- opts: onPick(item) for rows, onFold(item) for headers, row = row height

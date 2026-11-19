@@ -53,9 +53,9 @@ function Combo.Create(target)
         c.pips[i] = pip
     end
     DUI.Gradients.ComboSweep(c)    -- the light at max points
-    for _, e in ipairs(EVENTS) do pcall(c.RegisterUnitEvent, c, e, "player") end
+    for _, e in ipairs(EVENTS) do DUI.SafeCall(c.RegisterUnitEvent, c, e, "player") end
     -- Points carried onto a new target keep their count without a power event.
-    pcall(c.RegisterEvent, c, "COMBO_TARGET_CHANGED")
+    DUI.SafeCall(c.RegisterEvent, c, "COMBO_TARGET_CHANGED")
     -- Energy ticks and finisher spends fire the same event, so only redraw
     -- the row when the count actually changed (Gradients.ComboSame).
     c:SetScript("OnEvent", function(self, event, _, powerType)

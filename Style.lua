@@ -2429,15 +2429,6 @@ function Style.Outline()
     return type(o) == "string" and o or "OUTLINE"
 end
 
--- Outlined text draws with the game's slug renderer, the one its own world text
--- uses, so outlines stay crisp at any size and scale. Text with no outline
--- keeps the plain renderer.
-function Style.Slug(flags)
-    if type(flags) ~= "string" or flags == "" then return "" end
-    if not flags:find("OUTLINE", 1, true) or flags:find("SLUG", 1, true) then return flags end
-    return flags .. ", SLUG"
-end
-
 local flagsOf = setmetatable({}, { __mode = "k" })
 
 local fontSlot = setmetatable({}, { __mode = "k" }) -- text -> its slot (Media.RegisterSlot)
@@ -2522,7 +2513,7 @@ function Style.FontFamily(file, size, flags, shadow, color)
     if type(CreateFontFamily) ~= "function" or type(file) ~= "string"
         or type(size) ~= "number" or size <= 0 then return nil end
     size = math.floor(size * 4 + 0.5) / 4
-    flags, shadow = Style.Slug(flags), shadow or 0
+    flags, shadow = flags or "", shadow or 0
     local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow
     if color then key = key .. "|" .. color[1] .. "," .. color[2] .. "," .. color[3] end
     local fam = families[key]
@@ -2568,10 +2559,9 @@ function Style.OwnFamily(obj) return ourFamily[obj] == true end
 -- font object would reset. A text some other code already gave a plain
 -- SetFont keeps that face, so it gets a plain SetFont again.
 function Style.SetFace(fs, file, size, flags, shadow)
-    flags = Style.Slug(flags)
     local fam = Style.FontFamily(file, size, flags, shadow)
     if not (fam and fs.SetFontObject and fs.GetFontObject) then
-        fs:SetFont(file, size, flags)
+        fs:SetFont(file, size, flags or "")
         return
     end
     if fs:GetFontObject() ~= fam then
@@ -2587,7 +2577,7 @@ function Style.SetFace(fs, file, size, flags, shadow)
     local now, height = fs:GetFont()
     if isSecret(now) or isSecret(height) then return end
     if not samePath(now, file) or type(height) ~= "number" or math.abs(height - size) > 0.3 then
-        fs:SetFont(file, size, flags)
+        fs:SetFont(file, size, flags or "")
     end
 end
 
@@ -2617,7 +2607,7 @@ function Style.ButtonFace(fs)
     local fam = Style.FontFamily(file, size, flags, shadow, color)
     if fam then return fam end
     -- No font families in this client: a plain font object, Latin letters only.
-    flags = Style.Slug(flags)
+    flags = flags or ""
     local key = file .. "|" .. size .. "|" .. flags .. "|" .. shadow .. "|" .. r .. "," .. g .. "," .. b
     local made = plainFaces[key]
     if made then return made end

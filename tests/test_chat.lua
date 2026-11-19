@@ -656,7 +656,7 @@ T.test("chat: a text size and outline for every window", function()
     DUI:Set("Chat", "outline", true)
     stub.RunTimers()
     T.eq(select(2, ChatFrame1:GetFont()), 16, "the size set")
-    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE, SLUG")
+    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE")
 end)
 
 T.test("chat: the input box and its \"Say:\" follow the text size, and go back at 0", function()
@@ -666,7 +666,7 @@ T.test("chat: the input box and its \"Say:\" follow the text size, and go back a
     stub.RunTimers()
     T.eq(select(2, ChatFrame1EditBox:GetFont()), 18, "the typed text at the size set")
     T.eq(select(2, ChatFrame1EditBox.header:GetFont()), 18, "the header too")
-    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE, SLUG", "outlined like the lines")
+    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE", "outlined like the lines")
     DUI:Set("Chat", "textSize", 0)
     DUI:Set("Chat", "outline", false)
     stub.RunTimers()
@@ -2482,12 +2482,12 @@ T.test("chat daylight: a profession link is clicked through the game's own link 
     T.truthy(m and m:IsShown(), "the lines' twins are up")
     T.eq(m:GetParent(), box)
     T.eq(m:GetAlpha(), 0, "never seen: the box's own lines show")
-    T.eq(m:IsMouseEnabled(), false, "the wheel, drags and channels still reach the box")
+    T.eq(m:IsMouseEnabled(), false, "the wheel and drags still reach the box")
     T.eq(m:GetHyperlinksEnabled(), true)
     local t = twinOf(CH, box, 1)
     T.truthy(t, "the line with the link has its twin")
     T.eq(select(2, t:GetPoint(1)), box.visibleLines[1], "laid exactly over its line")
-    T.eq(t:GetText(), "[2. Trade] Robb: " .. text, "the channel is plain words, the profession a link")
+    T.eq(t:GetText(), channel .. " Robb: " .. text, "the channel and the profession both links")
 
     -- Hovering the twin's link shows the box's tooltip.
     local entered, left = {}, 0
@@ -2615,21 +2615,103 @@ T.test("chat daylight: a whisper conversation's links are the game's click, and 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("chat daylight: channels and Daylight UI's own links stay the box's click", function()
+T.test("chat daylight: Daylight UI's own links stay the box's click", function()
     local _, box = daylight()
     local CH = stub.chatModule
-    for _, link in ipairs({ "channel:CHANNEL:2", "clubTicket:ABC",
+    for _, link in ipairs({ "clubTicket:ABC",
                             "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
         box:AddMessage("|H" .. link .. "|h[x]|h")
     end
     -- A secret line (chat lockdown) is left alone too.
     box:AddMessage(stub.Secret("|Hitem:19019|h[Thunderfury]|h"))
     box:FakeRefresh()
-    for i = 1, 6 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
+    for i = 1, 5 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
     local m = CH.Links.Mirror(box)
     T.falsy(m and m:IsShown(), "nothing for the game to click")
-    T.eq(CH.Links.Twin("|Hchannel:CHANNEL:2|h[2]|h |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"),
-        "[2] |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h")
+    T.eq(CH.Links.Twin("|Hquestie:12:Bob|h[Q]|h |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"),
+        "[Q] |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The REPLY key in a battleground errored "attempt to compare local 'value' (a
+-- secret string value, while execution tainted by 'DaylightUI_Chat')": a channel
+-- tag clicked in the box ran the game's OpenChat from Daylight UI's code, which
+-- left the game's LAST_ACTIVE_CHAT_EDIT_BOX tainted for the reply to read.
+T.test("chat daylight: a channel tag's click is the game's, so a whisper reply stays clean", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    stub.Mark(nil, "LAST_ACTIVE_CHAT_EDIT_BOX", nil)
+    local opened = {}
+    -- ActivateChat inside the game's OpenChat writes the global.
+    _G.ChatFrameUtil.OpenChat = function(text)
+        opened[#opened + 1] = text
+        stub.SetLastActiveWindow(ChatFrame1EditBox)
+    end
+    -- The game's channel handler (ItemRefHandlersShared.lua), its left click.
+    _G.SetItemRef = function(link, _, button)
+        local kind, target = string.match(link, "^channel:(%a+):?(%d*)")
+        if kind and button == "LeftButton" then
+            _G.ChatFrameUtil.OpenChat("/" .. (target ~= "" and target or kind))
+        end
+    end
+    box:AddMessage("|Hchannel:CHANNEL:2|h[T]|h |Hplayer:Robb|h[Robb]|h: WTS")
+    box:AddMessage("|Hchannel:GUILD|h[G]|h Ann: hi")
+    box:FakeRefresh()
+    -- A click lands on a twin that holds the link, else on the box under it.
+    local function click(link, text)
+        for i = 1, 2 do
+            local t = twinOf(CH, box, i)
+            if t and string.find(t:GetText(), "|H" .. link .. "|h", 1, true) then
+                local m = CH.Links.Mirror(box)
+                return m:GetScript("OnHyperlinkClick")(m, link, text, "LeftButton")
+            end
+        end
+        box:GetScript("OnHyperlinkClick")(box, link, text, "LeftButton")
+    end
+    click("channel:CHANNEL:2", "[T]")
+    click("channel:GUILD", "[G]")
+    T.deq(opened, { "/2", "/GUILD" }, "the game opened the box for each channel")
+    T.noerror(function() stub.ReplyTell(stub.Secret("Robb-Realm")) end, "reply")
+    stub.Mark(nil, "LAST_ACTIVE_CHAT_EDIT_BOX", nil)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Picking the combat log tab once selected it in the dock from Daylight UI's
+-- code: the dock hid ChatFrame1, and its box's OnHide handed the game's
+-- LAST_ACTIVE_CHAT_EDIT_BOX to the combat log's box, tainted (the IM chat style).
+T.test("chat daylight: the combat log tab leaves the box a reply opens clean", function()
+    local selected
+    local Box = daylight(function()
+        -- The game's dock shows its selected window and hides the others (FCFDock_UpdateTabs).
+        _G.FCFDock_SelectWindow = function(_, cf)
+            selected = cf
+            for _, w in ipairs({ ChatFrame1, ChatFrame2 }) do w:SetShown(w == cf) end
+        end
+        _G.FCFDock_GetSelectedWindow = function() return selected end
+        selected = ChatFrame1
+        for _, n in ipairs({ 1, 2 }) do
+            local cf, eb = _G["ChatFrame" .. n], _G["ChatFrame" .. n .. "EditBox"]
+            eb:SetParent(cf)   -- the template's box is the window's child
+            cf.editBox = eb
+            stub.ChatEditBoxOnHide(eb)
+        end
+    end)
+    local CH = stub.chatModule
+    stub.Mark(nil, "LAST_ACTIVE_CHAT_EDIT_BOX", nil)
+    ChatFrame1EditBox:Show()
+    stub.SetLastActiveWindow(ChatFrame1EditBox)   -- the game's own pick
+    local i = CH.Tabs.Add(true)
+    stub.RunTimers()
+    Box.Pick(i)
+    CH.Chat.Pass()
+    T.truthy(ChatFrame2:IsVisible(), "the combat log shows")
+    T.eq(ChatFrame2:GetAlpha(), 1, "and is seen")
+    T.noerror(function() stub.ReplyTell(stub.Secret("Robb-Realm")) end, "reply with the combat log picked")
+    Box.Pick(1)
+    CH.Chat.Pass()
+    T.falsy(ChatFrame2:IsShown(), "put away again")
+    T.noerror(function() stub.ReplyTell(stub.Secret("Robb-Realm")) end, "reply after")
+    stub.Mark(nil, "LAST_ACTIVE_CHAT_EDIT_BOX", nil)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3812,7 +3894,7 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     W.OpenMenu = open
     T.eq(DUI:Get("Chat", "textSize"), 18)
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
-    T.eq(select(3, box:GetFont()), "OUTLINE, SLUG")
+    T.eq(select(3, box:GetFont()), "OUTLINE")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -3852,18 +3934,25 @@ T.test("chat daylight: a combat log tab shows the game's combat log in the chat'
     local selected
     local Box, box = daylight(function()
         _G.FCFDock_SelectWindow = function(_, cf) selected = cf end
+        _G.FCFDock_GetSelectedWindow = function() return ChatFrame1 end
     end)
     local Tabs = stub.chatModule.Tabs
     local i = Tabs.Add(true)
     stub.RunTimers()
+    ChatFrame2:Hide()
     Box.Pick(i)
-    T.eq(selected, ChatFrame2, "the combat log selected in the dock")
+    T.isnil(selected, "shown in place, never selected in the dock")
+    T.truthy(ChatFrame2:IsShown(), "the combat log shows")
     T.eq(ChatFrame2:GetAlpha(), 1, "and seen")
     T.falsy(box:IsShown(), "our list away")
     stub.chatModule.Chat.Pass()
     T.eq(ChatFrame2:GetAlpha(), 1, "the watcher leaves it seen")
+    ChatFrame2:Hide()   -- the dock hides windows it hasn't selected as it lays out its tabs
+    stub.chatModule.Chat.Pass()
+    T.truthy(ChatFrame2:IsShown(), "the watcher shows it back")
     Box.Pick(1)
-    T.eq(selected, ChatFrame1, "the main window again")
+    T.isnil(selected)
+    T.falsy(ChatFrame2:IsShown(), "put away")
     T.eq(ChatFrame2:GetAlpha(), 0)
     T.truthy(box:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -5270,6 +5359,7 @@ T.test("chat second panel: its combat log tab brings the game's window there", f
     local selected
     local Box, box = daylight(function()
         _G.FCFDock_SelectWindow = function(_, cf) selected = cf end
+        _G.FCFDock_GetSelectedWindow = function() return ChatFrame1 end
     end)
     local CH = stub.chatModule
     local Tabs, side = CH.Tabs, Box.side
@@ -5277,13 +5367,14 @@ T.test("chat second panel: its combat log tab brings the game's window there", f
     local i = Tabs.Add(true, true)
     stub.RunTimers()
     Box.Pick(i)
-    T.eq(selected, ChatFrame2, "selected in the dock")
+    T.isnil(selected, "never selected in the dock")
+    T.truthy(ChatFrame2:IsShown())
     T.eq(ChatFrame2:GetAlpha(), 1, "seen")
     T.eq(select(2, ChatFrame2:GetPoint(1)), side.area, "in the second panel's place")
     T.falsy(side.frame:IsShown(), "that panel's list away")
     T.truthy(box:IsShown(), "the main panel's stays")
     Box.Pick(2)
-    T.eq(selected, ChatFrame2, "picking on the main panel leaves it")
+    T.truthy(ChatFrame2:IsShown(), "picking on the main panel leaves it")
     T.eq(ChatFrame2:GetAlpha(), 1)
     ChatFrame2:ClearAllPoints()   -- the game anchors its docked windows again
     ChatFrame2:SetAllPoints(ChatFrame1)
@@ -5300,13 +5391,15 @@ T.test("chat second panel: a combat log tab removed lets the game's window go", 
     local selected
     local Box = daylight(function()
         _G.FCFDock_SelectWindow = function(_, cf) selected = cf end
+        _G.FCFDock_GetSelectedWindow = function() return ChatFrame1 end
     end)
     local Tabs = stub.chatModule.Tabs
     Tabs.SetSide(4, true)
     local i = Tabs.Add(true, true)
     Box.Pick(i)
     Tabs.Remove(i)
-    T.eq(selected, ChatFrame1)
+    T.isnil(selected)
+    T.falsy(ChatFrame2:IsShown())
     T.eq(ChatFrame2:GetAlpha(), 0)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

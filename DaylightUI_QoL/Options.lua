@@ -28,6 +28,14 @@ for _, row in ipairs(backRows) do   -- the slider, by its key (not its place in 
     if row.key == "lootFeedAlpha" then row.desc = "How solid the ribbon behind each loot feed line is: 0 is fully see-through." end
 end
 
+-- The flight timer page's pieces.
+local FLIGHT_MOVER, WELCOME_MOVER = "qol.flight", "qol.welcome"
+local function flightOff(get) return get("flightTimer") ~= true end
+local function welcomeOff(get) return flightOff(get) or get("flightWelcome") == false end
+local flightBackRows = DaylightUI.Options.BackAlphaRows("flightAlpha", "Flight timer",
+    function(get) return flightOff(get) or get("flightBack") == false end)
+local FLIGHT_BORDER = { normal = "Daylight UI", accent = "Accent color", custom = "One color" }
+
 ns.OPTIONS = { pages = {
     { id = "qol", label = "Quality of Life",
       desc = "Small helpers for looting, quests, trainers and more.",
@@ -150,11 +158,6 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "hideTutorials", invert = true, label = "Show tutorial tips",
               desc = "The game's new-player tips (the game setting 'Tutorials'). When off, the game's tutorial tips are switched off." },
             ns.CAMERA_SLIDER,
-            { type = "toggle", key = "flightTimer", label = "Flight timer",
-              desc = "On a flight path, a bar at the top of the screen shows where you're going and the time left. Each route's time is learned the first time you fly it, for all your characters. Move it with /dui unlock." },
-            { type = "toggle", key = "flightTimerSlant", label = "Flight timer angled end",
-              desc = "Cuts the right end of the flight timer at an angle. When off, the end is straight.",
-              disabled = function(get) return get("flightTimer") ~= true end },
             { type = "toggle", key = "keepTracking", label = "Keep tracking on",
               desc = "Tracking from a spell, like Find Minerals, comes back after you log out, change zones or die. Turn it off yourself and it stays off." },
             { type = "toggle", key = "fishClick", label = "Right-click to fish",
@@ -237,6 +240,74 @@ ns.OPTIONS = { pages = {
               hidden = function(get) return get("lootFeedBorderColor") ~= "custom" end },
             { type = "toggle", key = "lootFeedShine", label = "Light across new loot feed lines", disabled = lootOff,
               desc = "A soft light in the line's color runs across it as it comes in or adds up." },
+        } },
+      } },
+    { id = "flight", label = "Flight timer",
+      desc = "Where you're going and the time left while on a flight path, and a welcome when you land.",
+      groups = {
+        { label = "Flight timer", items = {
+            { type = "toggle", key = "flightTimer", label = "Flight timer",
+              desc = "On a flight path, where you're going and the time left float near the top of the screen, with the route and its stops as a line. Every route has a time from your first flight, and your own flights keep it exact. Move it with /dui unlock." },
+            { type = "toggle", key = "flightWelcome", label = "Welcome on landing", disabled = flightOff,
+              desc = "When you land, \"Welcome to\" and the place's name slide in at the top of the screen, then fade away. Move it with /dui unlock." },
+            { type = "button", label = "Preview the welcome on landing", text = "Preview", disabled = welcomeOff,
+              desc = "Plays it now. Also /dui landing.",
+              func = function() if ns.Flight then ns.Flight.PreviewWelcome() end end },
+        } },
+        { label = "What shows", items = {
+            { type = "toggle", key = "flightLabel", label = "Show Flying to", disabled = flightOff,
+              desc = "The small \"Flying to\" above the destination." },
+            { type = "toggle", key = "flightLine", label = "Flight timer route line", disabled = flightOff,
+              desc = "The line that fills as you fly, with a light at its front. When off, only the text shows." },
+            { type = "toggle", key = "flightStops", label = "Flight timer stops",
+              desc = "A dot on the route line for each flight point the flight passes, lit once you're past it.",
+              disabled = function(get) return flightOff(get) or get("flightLine") == false end },
+            { type = "toggle", key = "flightFrom", label = "Show where you flew from", disabled = flightOff,
+              desc = "The flight point you left, under the start of the line." },
+            { type = "toggle", key = "flightTime", label = "Flight timer time left", disabled = flightOff,
+              desc = "The time until you land, under the end of the line. It turns amber in the last seconds." },
+        } },
+        { label = "Size", items = {
+            { type = "slider", label = "Flight timer scale", min = 0.5, max = 2, step = 0.05, unit = "x", disabled = flightOff,
+              desc = "The whole flight timer. Also the mouse wheel over its handle in /dui unlock.",
+              get = function() return DaylightUI.Movers.PieceScale(FLIGHT_MOVER) end,
+              set = function(v) DaylightUI.Movers.SetPieceScale(FLIGHT_MOVER, v) end,
+              default = function() return 1 end },
+            { type = "slider", key = "flightWidth", label = "Flight timer width", min = 200, max = 520, step = 10, unit = "px",
+              disabled = flightOff, desc = "How wide the flight timer and its route line are." },
+            { type = "slider", label = "Landing welcome scale", min = 0.5, max = 2, step = 0.05, unit = "x", disabled = welcomeOff,
+              desc = "The whole landing welcome. Also the mouse wheel over its handle in /dui unlock.",
+              get = function() return DaylightUI.Movers.PieceScale(WELCOME_MOVER) end,
+              set = function(v) DaylightUI.Movers.SetPieceScale(WELCOME_MOVER, v) end,
+              default = function() return 1 end },
+        } },
+        { label = "Text", items = {
+            DaylightUI.Options.FontRow("flightFont", "Flight timer font", "Every text in the flight timer and the welcome on landing", flightOff),
+            { type = "slider", key = "flightNameSize", label = "Flight destination text size", min = 14, max = 36, step = 1,
+              disabled = flightOff, desc = "How big the name of where you're going is." },
+            { type = "slider", key = "flightTextSize", label = "Flight timer small text size", min = 10, max = 18, step = 1,
+              disabled = flightOff, desc = "How big \"Flying to\" and where you flew from are." },
+            { type = "slider", key = "flightTimeSize", label = "Flight timer time text size", min = 10, max = 28, step = 1,
+              disabled = flightOff, desc = "How big the time left is." },
+            { type = "slider", key = "flightWelcomeSize", label = "Landing welcome text size", min = 18, max = 48, step = 1,
+              disabled = welcomeOff, desc = "How big the place's name is in the welcome on landing." },
+        } },
+        { label = "Background and border", items = {
+            { type = "toggle", key = "flightBack", label = "Flight timer background", disabled = flightOff,
+              desc = "The dark box behind the flight timer. When off, the text and line float on their own." },
+            flightBackRows[1], flightBackRows[2],
+            { type = "toggle", key = "flightBorder", label = "Flight timer border", disabled = flightOff,
+              desc = "A border and shadow around the flight timer's box." },
+            { type = "dropdown", key = "flightBorderColor", label = "Flight timer border color", values = FLIGHT_BORDER,
+              order = { "normal", "accent", "custom" },
+              desc = "The Daylight UI border, your accent color (General > Appearance), or a color you pick.",
+              disabled = function(get) return flightOff(get) or get("flightBorder") == false end },
+            { type = "color", key = "flightBorderCustom", label = "Custom flight timer border color",
+              desc = "The flight timer's border color when Flight timer border color is One color.",
+              disabled = function(get) return flightOff(get) or get("flightBorder") == false end,
+              hidden = function(get) return get("flightBorderColor") ~= "custom" end },
+            { type = "toggle", key = "flightAccentLine", label = "Flight timer accent line", disabled = flightOff,
+              desc = "A thin line in your accent color along the top of the box." },
         } },
       } },
     { id = "scenes", label = "Scenes",

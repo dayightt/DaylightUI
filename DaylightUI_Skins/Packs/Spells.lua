@@ -131,9 +131,9 @@ local function sizeStable(f)
         DaylightUI.AfterCombat(function() sizeStable(f) end, "skins:stable:size")
         return
     end
+    -- Its panel layout keeps the game's own size: an attribute written here
+    -- would carry this addon's taint into the game's next ShowUIPanel.
     f:SetSize(STABLE_W, STABLE_H)
-    DaylightUI.Win.PanelAttr(f, "width", STABLE_W)
-    DaylightUI.Win.PanelAttr(f, "height", STABLE_H)
 end
 
 local function placeSlots(f)

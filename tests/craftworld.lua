@@ -218,8 +218,13 @@ function PW.Cast(ok)
     if c.left > 0 then askReplace(c) end
 end
 
--- Sets a recipe's cooldown by hand in seconds left, or clears it with nil.
-function PW.Cooldown(id, seconds) S().cds[id] = seconds end
+-- Sets a recipe's cooldown by hand in seconds left, or clears it with nil. isDay:
+-- it resets at midnight; charges, max: a recipe with charges.
+function PW.Cooldown(id, seconds, isDay, charges, max)
+    S().cds[id] = seconds
+    S().cdInfo = S().cdInfo or {}
+    S().cdInfo[id] = { isDay == true, charges or 0, max or 0 }
+end
 
 function PW.SkillUp(skillLine)
     local p = prof(skillLine or S().open)
@@ -400,7 +405,8 @@ local function install()
         GetCraftableCount = function(id) local r = recipe(id); return r and craftable(r) or 0 end,
         GetRecipeCooldown = function(id)
             local left = S().cds[id]
-            return left, false, 0, 0
+            local info = S().cdInfo and S().cdInfo[id] or { false, 0, 0 }
+            return left, info[1], info[2], info[3]
         end,
         GetRecipeRequirements = function(id) local r = recipe(id); return r and r.requires or {} end,
         GetRecipeDescription = function(id) local r = recipe(id); return r and r.description or "" end,

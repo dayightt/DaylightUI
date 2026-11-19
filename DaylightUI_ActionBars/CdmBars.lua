@@ -239,7 +239,7 @@ local function dressTimer(f, block)
     local key = table.concat({ t.timeSize, tostring(time), c[1], c[2], c[3], gen }, "|")
     if f.timerAs == key then return end
     f.timerAs = key
-    pcall(f.Timer.SetHideCountdownNumbers, f.Timer, not time)
+    DUI.SafeCall(f.Timer.SetHideCountdownNumbers, f.Timer, not time)
     local fs = f.Timer.GetCountdownFontString and f.Timer:GetCountdownFontString()
     if type(fs) == "table" then
         Style.DressText(fs, t.timeSize, { slot = ns.MEDIA.font })
@@ -261,11 +261,11 @@ local function addTimer(f)
     t:SetPoint("TOPRIGHT", f.Bar, "TOPRIGHT", 0, 0)
     t:SetPoint("BOTTOMRIGHT", f.Bar, "BOTTOMRIGHT", 0, 0)
     t:SetWidth(B.TIME_W)
-    pcall(t.SetDrawSwipe, t, false)
-    pcall(t.SetDrawEdge, t, false)
-    pcall(t.SetDrawBling, t, false)
+    DUI.SafeCall(t.SetDrawSwipe, t, false)
+    DUI.SafeCall(t.SetDrawEdge, t, false)
+    DUI.SafeCall(t.SetDrawBling, t, false)
     local clock = Style.ClockFormatter()
-    if clock and t.SetCountdownFormatter then pcall(t.SetCountdownFormatter, t, clock) end
+    if clock and t.SetCountdownFormatter then DUI.SafeCall(t.SetCountdownFormatter, t, clock) end
     t:HookScript("OnCooldownDone", function() DUI.SafeCall(B.UpdateCooldown, f) end)
     f.Timer = t
     local count = f.Icon:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
@@ -418,7 +418,7 @@ local function layoutShield(h)
     s.fx = s.fx or {}
     CD.TrackFx(h, s, s.fx, true)
     local t = CD.BarText(block)
-    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Slug(Style.Outline()))
+    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Outline())
     CD.Ink(s.text, t.timeColor)
     s.text:SetAlpha(ns.CdmEffects.Get(h.button, "shieldAmount") ~= false and 1 or 0)
     local Fx = ns.CdmEffects
@@ -545,10 +545,10 @@ function B.LayoutButton(h, btn, parts)
     local back, v = CD.BackOf(h.button, block)
     if back then CD.PaintBack(parts.backTex, back, v) end
     local text = CD.BarText(block)
-    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Slug(Style.Outline()))
+    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Outline())
     CD.Ink(parts.time, text.timeColor)
     parts.time:SetAlpha((not block or Look(block, "time") ~= false) and 1 or 0)
-    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Slug(Style.Outline()))
+    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Outline())
     local cc = Skin.COUNT_COLOR
     parts.count:SetTextColor(cc[1], cc[2], cc[3])
     -- The fill: bar texture, then the block's or spell's color.
@@ -618,7 +618,7 @@ end
 -- Daylight UI's empty bar is off. Made inside the client's button, or on a Daylight UI frame
 -- for a debuff on you (the self-debuff face).
 local function makeParts(btn)
-    local function try(fn, ...) return pcall(fn, ...) end
+    local function try(fn, ...) return DUI.SafeCall(fn, ...) end
     local parts = {}
     parts.icon = btn:CreateTexture(nil, "ARTWORK")
     try(parts.icon.SetTexCoord, parts.icon, Skin.CROP[1], Skin.CROP[2], Skin.CROP[3], Skin.CROP[4])
@@ -662,7 +662,7 @@ end
 -- Built once inside the client's initializeFrame (the button locks once that
 -- returns): Daylight UI's pieces, with the bar, time and stacks handed to the client.
 local function initButton(h, btn)
-    local function try(fn, ...) return pcall(fn, ...) end
+    local function try(fn, ...) return DUI.SafeCall(fn, ...) end
     local parts = makeParts(btn)
     h.parts = h.parts or {}
     h.parts[btn] = parts
@@ -676,8 +676,8 @@ local function initButton(h, btn)
         local ok, o = pcall(U.ProcessCustomAuraButtonDurationBarOptions, opts)
         if ok and type(o) == "table" then opts = o end
     end
-    local ok, err = try(btn.SetDurationBar, btn, parts.bar, opts)
-    if not ok then h.err = tostring(err) end
+    local ok = try(btn.SetDurationBar, btn, parts.bar, opts)
+    if not ok then h.err = "SetDurationBar failed" end
     -- The client's time as M:SS, like every other bar.
     try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
     try(btn.SetApplicationCount, btn, parts.count)
@@ -705,11 +705,11 @@ function B.MakeFace(h)
     t:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
     t:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
     t:SetWidth(B.TIME_W)
-    pcall(t.SetDrawSwipe, t, false)
-    pcall(t.SetDrawEdge, t, false)
-    pcall(t.SetDrawBling, t, false)
+    DUI.SafeCall(t.SetDrawSwipe, t, false)
+    DUI.SafeCall(t.SetDrawEdge, t, false)
+    DUI.SafeCall(t.SetDrawBling, t, false)
     local clock = Style.ClockFormatter()
-    if clock and t.SetCountdownFormatter then pcall(t.SetCountdownFormatter, t, clock) end
+    if clock and t.SetCountdownFormatter then DUI.SafeCall(t.SetCountdownFormatter, t, clock) end
     f.Timer = t
     function f.SetTime(start, dur)
         local U = _G.C_DurationUtil
@@ -719,7 +719,7 @@ function B.MakeFace(h)
             local E = type(Enum) == "table" and Enum or {}
             local I = E.StatusBarInterpolation and E.StatusBarInterpolation.Immediate
             local D = E.StatusBarTimerDirection and E.StatusBarTimerDirection.RemainingTime
-            pcall(bar.SetTimerDuration, bar, f.span, I, D)
+            DUI.SafeCall(bar.SetTimerDuration, bar, f.span, I, D)
             t:SetCooldown(start, dur)
         else
             bar:SetMinMaxValues(0, 1)
@@ -769,8 +769,8 @@ local function fitAura(h, w, hh, block, button)
     if key == h.fitAs then return end
     h.fitAs = key
     for _, k in ipairs(h.containers or {}) do
-        pcall(k.c.SetAuraGroupLayout, k.c, "a", layoutFor(h))
-        pcall(k.c.SetFlowLayoutMaximumLineSize, k.c, w)
+        DUI.SafeCall(k.c.SetAuraGroupLayout, k.c, "a", layoutFor(h))
+        DUI.SafeCall(k.c.SetFlowLayoutMaximumLineSize, k.c, w)
     end
     DUI.AfterRestrictions(function() relayout(h) end, "cdm:aurabar:" .. tostring(h.id))
 end
@@ -787,7 +787,7 @@ local function setUnder(h, under)
         if not h.Timer then addTimer(h) end
         -- The client's bar over Daylight UI's cooldown and its time, the names over both.
         local level = h.Timer:GetFrameLevel() + 1
-        for _, k in ipairs(h.containers or {}) do pcall(k.c.SetFrameLevel, k.c, level) end
+        for _, k in ipairs(h.containers or {}) do DUI.SafeCall(k.c.SetFrameLevel, k.c, level) end
     else
         if h.Timer then
             h.Timer:Clear()
@@ -856,14 +856,14 @@ function B.Aura(id, parent, under, always, w, hh, block, button)
         end
         if under and h.Timer then
             local over = h.Timer:GetFrameLevel() + 1
-            for _, k in ipairs(h.containers or {}) do pcall(k.c.SetFrameLevel, k.c, over) end
+            for _, k in ipairs(h.containers or {}) do DUI.SafeCall(k.c.SetFrameLevel, k.c, over) end
         end
     end
     -- The client's bar above Daylight UI's empty one (its frames sit a level under h.under's).
     local level = h.Bar:GetFrameLevel() + 2
     for _, k in ipairs(h.containers or {}) do
-        if k.c:GetFrameLevel() < level then pcall(k.c.SetFrameLevel, k.c, level) end
-        pcall(k.c.SetEnabled, k.c, true)
+        if k.c:GetFrameLevel() < level then DUI.SafeCall(k.c.SetFrameLevel, k.c, level) end
+        DUI.SafeCall(k.c.SetEnabled, k.c, true)
     end
     h:SetAlpha(1)
     h:Show()
@@ -879,7 +879,7 @@ function B.ReleaseExcept(used)
             if not used[f] and f:IsShown() then
                 if Fx then Fx.Clear(f); Fx.Flash(f, f.Bar, false) end
                 f:Hide()
-                for _, k in ipairs(f.containers or {}) do pcall(k.c.SetEnabled, k.c, false) end
+                for _, k in ipairs(f.containers or {}) do DUI.SafeCall(k.c.SetEnabled, k.c, false) end
             end
         end
     end

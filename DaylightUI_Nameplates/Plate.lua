@@ -2961,6 +2961,9 @@ Plate.UNIT_EVENTS = {
     UNIT_LEVEL = "level", UNIT_CLASSIFICATION_CHANGED = "level",
     -- A mob changing power type (a druid's form): a caster color comes or goes.
     UNIT_DISPLAYPOWER = "kind",
+    -- A totem just put down often has no portrait yet: the client draws it once
+    -- the model has loaded and says so with these.
+    UNIT_PORTRAIT_UPDATE = "portrait", UNIT_MODEL_CHANGED = "portrait",
     -- Not UNIT_THREAT_SITUATION_UPDATE: it names the unit whose situation changed
     -- (you, a party member; the game's UnitFrame.lua matches it to the frame's
     -- feedbackUnit "player"), never the mob a plate shows.
@@ -2981,6 +2984,8 @@ function Plate.OnEvent(p, event, unit, ...)
         if event == "UNIT_MAXHEALTH" then Plate.UpdatePrediction(p) end
     elseif what == "predict" then
         Plate.UpdatePrediction(p)
+    elseif what == "portrait" then
+        if p.minion or p.minionBar then ns.Minion.Update(p) end
     elseif what == "name" then
         Plate.UpdateSub(p, true)
         Plate.UpdateColor(p) -- the name and its class copies

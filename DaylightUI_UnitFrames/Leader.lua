@@ -78,15 +78,15 @@ local isSecret = DUI.IsSecret
 
 local function plainFlag(fn, ...)
     if type(fn) ~= "function" then return false end
-    local ok, v = pcall(fn, ...)
-    return ok and not isSecret(v) and v == true
+    local v = fn(...)
+    return not isSecret(v) and v == true
 end
 
 -- Any plain truthy answer (not nil, not false).
 local function plainSome(fn, ...)
     if type(fn) ~= "function" then return false end
-    local ok, v = pcall(fn, ...)
-    return ok and not isSecret(v) and v ~= nil and v ~= false
+    local v = fn(...)
+    return not isSecret(v) and v ~= nil and v ~= false
 end
 
 local function ease(p)
@@ -136,8 +136,8 @@ end
 -- role reads as secret on a restricted map, so the last plain answer is kept
 -- and the tab doesn't vanish as you zone into a dungeon.
 function Leader.Tanking()
-    local ok, role = pcall(UnitGroupRolesAssigned, "player")
-    if not ok or isSecret(role) then return Leader.tanking == true end
+    local role = UnitGroupRolesAssigned("player")
+    if isSecret(role) then return Leader.tanking == true end
     if role ~= "TANK" and role ~= "HEALER" and role ~= "DAMAGER" then role = DUI.Installer.Role() end
     Leader.tanking = role == "TANK"
     return Leader.tanking

@@ -800,7 +800,7 @@ function Rows.Why()
     local set = Data.Get(g)
     local fr = frames[g]
     local okS, secret = false, nil
-    if C_Secrets and type(C_Secrets.ShouldAurasBeSecret) == "function" then okS, secret = pcall(C_Secrets.ShouldAurasBeSecret) end
+    if C_Secrets and type(C_Secrets.ShouldAurasBeSecret) == "function" then okS, secret = true, C_Secrets.ShouldAurasBeSecret() end
     out[#out + 1] = string.format("set %s, on %s, hideUnplaced %s, editing %s, combat %s, pieces %s, auras readable %s (restricted %s, auras secret %s)",
         word(g), word(Data.Switch("on")), word(Data.Switch("hideUnplaced")), word(Rows.editing),
         word(InCombatLockdown()), word(fr ~= nil), word(ns.CdmAuras ~= nil and ns.CdmAuras.Readable()),

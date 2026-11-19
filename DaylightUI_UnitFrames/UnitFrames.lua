@@ -518,8 +518,8 @@ end
 -- coordinates, or nil when this client has none.
 function UF.GameClassIcon(token)
     if type(token) ~= "string" or not (C_Texture and C_Texture.GetAtlasInfo) then return nil end
-    local ok, info = pcall(C_Texture.GetAtlasInfo, "classicon-" .. string.lower(token))
-    if not ok or type(info) ~= "table" or type(info.file) == "nil" then return nil end
+    local info = C_Texture.GetAtlasInfo("classicon-" .. string.lower(token))
+    if type(info) ~= "table" or type(info.file) == "nil" then return nil end
     return info.file, info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord
 end
 
@@ -1071,23 +1071,29 @@ end
 -- the client cuts it short with "...". w is the width it has otherwise (0 =
 -- none). Plain names are cut by letters (UF.LimitName) and keep w.
 local measure
+-- How wide a plain text is in fs's font, or nil. It's measured on a text of
+-- its own: once a frame's text has shown a secret name (anyone in an instance
+-- or a PvP match), the client can answer a secret width for it even after a
+-- plain name, and the tab fell back to half the frame.
+function UF.MeasureText(fs, text)
+    if type(text) ~= "string" or isSecret(text) then return nil end
+    local font, size, flags = fs:GetFont()
+    if not font then return nil end
+    measure = measure or UIParent:CreateFontString(nil, "BACKGROUND")
+    measure:Hide()
+    if measure:SetFont(font, size, flags) == false then return nil end
+    measure:SetText(text)
+    local sw = measure:GetStringWidth()
+    if type(sw) == "number" and not isSecret(sw) then return sw end
+end
+
 function UF.NameCap(f, w)
     local n = f.nameLimitLen
     if not f.nameSecret or type(n) ~= "number" or n <= 0 then return w end
-    local fs = f.nameText
-    local font, size, flags = fs:GetFont()
-    local cap
-    if font then
-        -- Measured on a text of its own: a frame's text in an instance can
-        -- answer a secret width.
-        measure = measure or UIParent:CreateFontString(nil, "BACKGROUND")
-        measure:Hide()
-        local ok = pcall(measure.SetFont, measure, font, size, flags)
-        local sample = string.rep(UF.NAME_SAMPLE, math.ceil(n / #UF.NAME_SAMPLE)):sub(1, n)
-        measure:SetText(sample)
-        local okW, sw = pcall(measure.GetStringWidth, measure)
-        if ok and okW and type(sw) == "number" and not isSecret(sw) and sw > 0 then cap = sw end
-    end
+    local size = select(2, f.nameText:GetFont())
+    local sample = string.rep(UF.NAME_SAMPLE, math.ceil(n / #UF.NAME_SAMPLE)):sub(1, n)
+    local cap = UF.MeasureText(f.nameText, sample)
+    if cap and cap <= 0 then cap = nil end
     cap = (cap or n * (size or 12) * 0.55) + 2
     if w and w > 0 then return math.min(w, cap) end
     return cap
@@ -1108,10 +1114,8 @@ function UF.SizeNameTag(f, name)
     local cap = isSecret(name) and UF.NameCap(f, 0) or 0
     if cap > 0 then w = math.min(fw, cap + extra) end
     if not isSecret(name) and name ~= nil then
-        f.nameText:SetWidth(0)
-        local ok, sw = pcall(f.nameText.GetStringWidth, f.nameText)
-        -- In an instance the width can be secret even when the text isn't.
-        if ok and type(sw) == "number" and not isSecret(sw) then w = math.min(sw + extra, fw) end
+        local sw = UF.MeasureText(f.nameText, name)
+        if sw then w = math.min(sw + extra, fw) end
     end
     w = Pixel.Snap(f, math.max(30, w))
     tag:SetWidth(w)
@@ -2303,14 +2307,14 @@ function UF.UpdateBackdrop(f)
         b.art:Hide()
         b.fade:Hide()
         b.model:Show()
-        pcall(b.model.SetUnit, b.model, u)
-        pcall(b.model.SetPortraitZoom, b.model, UF.CARD_ZOOM)
+        DUI.SafeCall(b.model.SetUnit, b.model, u)
+        DUI.SafeCall(b.model.SetPortraitZoom, b.model, UF.CARD_ZOOM)
         UF.FollowModels(f)
         return
     end
     b.model:Hide()
     if mode == "2d" then
-        pcall(SetPortraitTexture, b.art, u)
+        DUI.SafeCall(SetPortraitTexture, b.art, u)
         Style.CropIcon(b.art)
         b.art:Show()
         b.fade:Show()
@@ -2358,15 +2362,15 @@ function UF.UpdatePortrait(f)
         p.icon:Hide()
         p.rim:SetShown(not p.shapeArt)   -- a square's straight band already covers the model's edges
         p.model:Show()
-        pcall(p.model.SetUnit, p.model, u)
-        pcall(p.model.SetPortraitZoom, p.model, 1)
-        pcall(p.model.SetCamDistanceScale, p.model, UF.MODEL_CLOSER)
+        DUI.SafeCall(p.model.SetUnit, p.model, u)
+        DUI.SafeCall(p.model.SetPortraitZoom, p.model, 1)
+        DUI.SafeCall(p.model.SetCamDistanceScale, p.model, UF.MODEL_CLOSER)
         UF.FollowModels(f)
         return
     end
     p.model:Hide()
     p.rim:Hide()
-    pcall(SetPortraitTexture, p.icon, u)
+    DUI.SafeCall(SetPortraitTexture, p.icon, u)
     Style.CropIcon(p.icon)
     p.icon:SetSize(p.faceSize, p.faceSize)
     p.icon:Show()
@@ -2485,10 +2489,8 @@ function UF.SizeTab(f, name)
         if cap > 0 then w = math.min(w, cap + extra) end
     else
         -- Measure the name at its natural width, then fit it to the tab.
-        f.nameText:SetWidth(0)
-        local ok, sw = pcall(f.nameText.GetStringWidth, f.nameText)
-        -- In an instance the width can be secret even when the text isn't.
-        w = (ok and type(sw) == "number" and not isSecret(sw)) and (sw + extra) or fw * 0.5
+        local sw = UF.MeasureText(f.nameText, name)
+        w = sw and (sw + extra) or fw * 0.5
         w = math.min(w, fw * UF.TAB_MAX)
     end
     w = Pixel.Snap(f, math.max(30, w))
@@ -2531,8 +2533,8 @@ for i = 1, 4 do PARTY_TOKENS[i] = "party" .. i end
 for i = 1, 40 do RAID_TOKENS[i] = "raid" .. i end
 local function sameUnit(unit, g)
     if not UnitExists(g) then return false end
-    local ok, r = pcall(UnitIsUnit, unit, g)
-    return ok and not isSecret(r) and r == true
+    local r = UnitIsUnit(unit, g)
+    return not isSecret(r) and r == true
 end
 local function findGroupToken(unit)
     if sameUnit(unit, "player") then return "player" end
@@ -2872,8 +2874,8 @@ end
 
 local function amount(fn, u)
     if type(fn) ~= "function" then return 0 end
-    local ok, v = pcall(fn, u)
-    if not ok or type(v) == "nil" then return 0 end
+    local v = fn(u)
+    if type(v) == "nil" then return 0 end
     return v
 end
 
@@ -2904,21 +2906,21 @@ local function filledCalc(f, u)
     end
     local calc = f.healCalc
     if not calc then
-        local ok, made = pcall(CreateUnitHealPredictionCalculator)
-        if not ok or not made then return nil end
+        local made = CreateUnitHealPredictionCalculator()
+        if not made then return nil end
         calc = made
         local mode = Enum.UnitDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode.MissingHealth
-        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
+        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then DUI.SafeCall(calc.SetDamageAbsorbClampMode, calc, mode) end
         local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
-        if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
+        if type(heal) == "number" and calc.SetIncomingHealClampMode then DUI.SafeCall(calc.SetIncomingHealClampMode, calc, heal) end
         f.healCalc = calc
     end
     local overflow = f.overhealOn == false and 1 or UF.HEAL_OVERFLOW
     if f.healOverflow ~= overflow and calc.SetIncomingHealOverflowPercent then
-        pcall(calc.SetIncomingHealOverflowPercent, calc, overflow)
+        DUI.SafeCall(calc.SetIncomingHealOverflowPercent, calc, overflow)
         f.healOverflow = overflow
     end
-    if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
+    if not DUI.SafeCall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
     return calc
 end
 
@@ -2929,8 +2931,8 @@ end
 function UF.Absorbs(f, u, calc)
     calc = calc or filledCalc(f, u)
     if not calc then return amount(UnitGetTotalAbsorbs, u), nil end
-    local ok, fits, over = pcall(calc.GetDamageAbsorbs, calc)
-    if not ok or type(fits) == "nil" then return amount(UnitGetTotalAbsorbs, u), nil end
+    local fits, over = calc:GetDamageAbsorbs()
+    if type(fits) == "nil" then return amount(UnitGetTotalAbsorbs, u), nil end
     return fits, over
 end
 
@@ -2938,8 +2940,8 @@ end
 -- to the bars. Without the calculator, the whole heal.
 function UF.Heals(f, u, calc)
     if calc and calc.GetIncomingHeals then
-        local ok, fits = pcall(calc.GetIncomingHeals, calc)
-        if ok and type(fits) ~= "nil" then return fits end
+        local fits = calc:GetIncomingHeals()
+        if type(fits) ~= "nil" then return fits end
     end
     return amount(UnitGetIncomingHeals, u)
 end
@@ -3153,9 +3155,7 @@ end
 
 local function plainThreat(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, tanking, status, scaled = pcall(fn, ...)
-    if not ok then return nil end
-    return tanking, status, scaled
+    return fn(...)
 end
 
 -- The dragon: an elite's gold or silver (its rank at a glance, whatever the
@@ -3240,8 +3240,8 @@ function UF.UpdateThreat(f)
     if f.test then return end
     if f.spec.groupThreat then
         -- A party member: red while anything is attacking them.
-        local ok, status = pcall(UnitThreatSituation, f.unitToken)
-        if not ok or isSecret(status) then status = nil end
+        local status = UnitThreatSituation(f.unitToken)
+        if isSecret(status) then status = nil end
         UF.ApplyThreat(f, (status == 2 or status == 3) and "aggro" or nil)
         return
     end
@@ -3419,15 +3419,15 @@ end
 
 local function plainFlag(fn, ...)
     if type(fn) ~= "function" then return false end
-    local ok, v = pcall(fn, ...)
-    return ok and not isSecret(v) and v == true
+    local v = fn(...)
+    return not isSecret(v) and v == true
 end
 
 -- A call's plain first return, or nil on errors or a secret answer.
 local function plain(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, v = pcall(fn, ...)
-    if not ok or isSecret(v) then return nil end
+    local v = fn(...)
+    if isSecret(v) then return nil end
     return v
 end
 
@@ -3713,8 +3713,8 @@ end
 -- while it's on you.
 function UF.UpdateCombat(f)
     if not f.spec.combat or f.test then return end
-    local ok, fighting = pcall(UnitAffectingCombat, f.unitToken)
-    if not ok or isSecret(fighting) then fighting = InCombatLockdown() end
+    local fighting = UnitAffectingCombat(f.unitToken)
+    if isSecret(fighting) then fighting = InCombatLockdown() end
     UF.ApplyThreat(f, fighting == true and "aggro" or nil)
 end
 
@@ -3722,8 +3722,8 @@ end
 -- can't be tested, so the frame then just shows the unit as it is.
 local function flag(fn, u)
     if type(fn) ~= "function" then return false end
-    local ok, v = pcall(fn, u)
-    if not ok or isSecret(v) then return false end
+    local v = fn(u)
+    if isSecret(v) then return false end
     return v == true
 end
 
@@ -3907,9 +3907,9 @@ function UF.CreateCost(f, spec)
     local h = CreateFrame("Frame", nil, f)
     for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
         "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED" }) do
-        pcall(h.RegisterUnitEvent, h, e, "player")
+        DUI.SafeCall(h.RegisterUnitEvent, h, e, "player")
     end
-    pcall(h.RegisterEvent, h, "ACTIONBAR_UPDATE_STATE")
+    DUI.SafeCall(h.RegisterEvent, h, "ACTIONBAR_UPDATE_STATE")
     h:SetScript("OnEvent", function(_, event, _, _, spellID)
         if f.test then return end
         if event == "UNIT_SPELLCAST_START" then
@@ -3946,8 +3946,8 @@ end
 function UF.SpellCost(spellID, powerType)
     local api = C_Spell and C_Spell.GetSpellPowerCost
     if type(api) ~= "function" or type(spellID) == "nil" then return nil end
-    local ok, costs = pcall(api, spellID)
-    if not ok or type(costs) ~= "table" then return nil end
+    local costs = api(spellID)
+    if type(costs) ~= "table" then return nil end
     for _, c in ipairs(costs) do
         if type(c) == "table" and not isSecret(c.type) and c.type == powerType then
             local aura, has = c.requiredAuraID, c.hasRequiredAura
@@ -4212,9 +4212,9 @@ local function fullCurve(a, hi)
     if type(c) == "nil" then
         c = false
         if C_CurveUtil and C_CurveUtil.CreateCurve then
-            local ok, made = pcall(C_CurveUtil.CreateCurve)
-            if ok and made then
-                if Enum and Enum.LuaCurveType and made.SetType then pcall(made.SetType, made, Enum.LuaCurveType.Linear) end
+            local made = C_CurveUtil.CreateCurve()
+            if made then
+                if Enum and Enum.LuaCurveType and made.SetType then DUI.SafeCall(made.SetType, made, Enum.LuaCurveType.Linear) end
                 made:AddPoint(0, top / 100)
                 made:AddPoint(0.999, top / 100)
                 made:AddPoint(1, lo / 100)
@@ -4230,8 +4230,7 @@ function UF.FullHealthAlpha(u, a, hi)
     hi = type(hi) == "number" and hi or 1
     local c = fullCurve(a, hi)
     if c and UnitHealthPercent then
-        local ok, v = pcall(UnitHealthPercent, u, true, c)
-        if ok then return v end
+        return UnitHealthPercent(u, true, c)
     end
     -- No curves: plain numbers can be compared, a secret one stays shown.
     local hp, max = UnitHealth(u), UnitHealthMax(u)
@@ -4243,8 +4242,8 @@ end
 -- frame shows mana (not for a warrior, a rogue or a druid in a form).
 UF.MANA = MANA
 function UF.ShowsMana(u)
-    local ok, kind = pcall(UnitPowerType, u)
-    return ok and not isSecret(kind) and kind == MANA
+    local kind = UnitPowerType(u)
+    return not isSecret(kind) and kind == MANA
 end
 
 -- Plain mana is read as is. Secret mana (in a fight, and for some players
@@ -4253,9 +4252,8 @@ end
 -- the curve and the mana waits by its own changes instead (ns.ManaWake).
 function UF.FullManaAlpha(u, a, hi, health)
     hi = type(hi) == "number" and hi or 1
-    local okC, cur = pcall(UnitPower, u, MANA)
-    local okM, max = pcall(UnitPowerMax, u, MANA)
-    if okC and okM and type(cur) == "number" and type(max) == "number" and not isSecret(cur) and not isSecret(max) then
+    local cur, max = UnitPower(u, MANA), UnitPowerMax(u, MANA)
+    if type(cur) == "number" and type(max) == "number" and not isSecret(cur) and not isSecret(max) then
         if cur < max then return hi end
         if health then return UF.FullHealthAlpha(u, a, hi) end
         return a
@@ -4263,8 +4261,7 @@ function UF.FullManaAlpha(u, a, hi, health)
     if health then return UF.FullHealthAlpha(u, a, hi) end
     local c = fullCurve(a, hi)
     if c and UnitPowerPercent then
-        local ok, v = pcall(UnitPowerPercent, u, MANA, false, c)
-        if ok then return v end
+        return UnitPowerPercent(u, MANA, false, c)
     end
     return hi
 end
@@ -4549,7 +4546,7 @@ local UNIT_EVENTS = {
 function UF.RegisterUnitEvents(f)
     f:UnregisterAllEvents()
     if type(f.unitToken) ~= "string" then return end
-    for event in pairs(UNIT_EVENTS) do pcall(f.RegisterUnitEvent, f, event, f.unitToken) end
+    for event in pairs(UNIT_EVENTS) do DUI.SafeCall(f.RegisterUnitEvent, f, event, f.unitToken) end
 end
 
 -- On this client power doesn't wait for a tick to move. The game's own frames

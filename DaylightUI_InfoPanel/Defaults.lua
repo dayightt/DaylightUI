@@ -24,13 +24,13 @@ ns.DEFAULTS = {
           tipSide = "auto",     -- auto | left | right | above | below
           orientation = "horizontal",   -- horizontal | vertical (only when detached)
           ownFade = false,      -- false: fades with the panel; true: uses the fade below
-          shell = { own = false, borderPx = 3, cornerPx = 6, shadowPx = 4 },   -- its own border (Panel.Look)
+          shell = { own = false, borderPx = 4, cornerPx = 6, shadowPx = 4 },   -- its own border (Panel.Look)
           fade = DaylightUI.Fade.Defaults() },
     -- Standalone reputation bar for the watched faction. Uses the XP bar's
     -- texture and font.
     rep = { enabled = false, width = 207, height = 11, showName = true, showText = false, showPercent = true,
             textSize = 9, gradient = true, tipSide = "auto", orientation = "horizontal",
-            shell = { own = false, borderPx = 3, cornerPx = 6, shadowPx = 4 } },
+            shell = { own = false, borderPx = 4, cornerPx = 6, shadowPx = 4 } },
     meter = { enabled = true, width = 207, rowHeight = 22, mode = "damage", session = "current",
               inGroup = false, inCombat = false, inInstance = false, onJoin = "nothing", onInstance = "ask",
               detached = false, height = 196, border = true,   -- border of the detached window

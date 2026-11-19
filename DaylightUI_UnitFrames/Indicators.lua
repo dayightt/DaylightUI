@@ -135,10 +135,10 @@ local function restyle(c)
     DUI.AfterRestrictions(function()
         local st = c.dluiInd
         for id in pairs(c.dluiIndGroups) do
-            pcall(c.SetAuraGroupLayout, c, "s" .. id, layoutOf(st.size))
-            if c.dluiIndOthers[id] then pcall(c.SetAuraGroupLayout, c, "s" .. id .. "o", layoutOf(st.size)) end
+            DUI.SafeCall(c.SetAuraGroupLayout, c, "s" .. id, layoutOf(st.size))
+            if c.dluiIndOthers[id] then DUI.SafeCall(c.SetAuraGroupLayout, c, "s" .. id .. "o", layoutOf(st.size)) end
         end
-        for btn, p in pairs(squares[c] or {}) do pcall(dress, btn, p, st) end
+        for btn, p in pairs(squares[c] or {}) do DUI.SafeCall(dress, btn, p, st) end
     end, "indicators:" .. tostring(c))
 end
 
@@ -177,9 +177,9 @@ local function newSquare(set, frame)
     if not ok or not c then return nil end
     c:EnableMouse(false)
     c:SetFrameLevel(frame:GetFrameLevel() + 9)
-    pcall(c.SetFlowLayoutAnchorPoint, c, "TOPLEFT")
+    DUI.SafeCall(c.SetFlowLayoutAnchorPoint, c, "TOPLEFT")
     local unit = type(frame.unitToken) == "string" and frame.unitToken or set.unit
-    if type(unit) == "string" then pcall(c.SetUnit, c, unit) end
+    if type(unit) == "string" then DUI.SafeCall(c.SetUnit, c, unit) end
     c.dluiInd, c.dluiIndGroups, c.dluiIndOthers = { size = 8, r = 1, g = 1, b = 1, swipe = true, look = "square" }, {}, {}
     return c
 end
@@ -189,8 +189,8 @@ end
 local function counts(c)
     for id in pairs(c.dluiIndGroups) do
         local n = (id == c.dluiIndOn and not c.dluiUnseen) and 1 or 0
-        pcall(c.SetAuraGroupMaxFrameCount, c, "s" .. id, n)
-        if c.dluiIndOthers[id] then pcall(c.SetAuraGroupMaxFrameCount, c, "s" .. id .. "o", n) end
+        DUI.SafeCall(c.SetAuraGroupMaxFrameCount, c, "s" .. id, n)
+        if c.dluiIndOthers[id] then DUI.SafeCall(c.SetAuraGroupMaxFrameCount, c, "s" .. id .. "o", n) end
     end
 end
 
@@ -236,7 +236,7 @@ function Ind.Place(set, frame, cfg, box)
                 c.dluiIndOn = id
                 counts(c)
                 if changed then restyle(c) end
-                pcall(c.UpdateAllAuras, c)
+                DUI.SafeCall(c.UpdateAllAuras, c)
             end
         end
     end
@@ -247,8 +247,8 @@ function Ind.SetUnit(set, unit)
     if type(unit) ~= "string" or not (set and set.ind) then return end
     for _, c in pairs(set.ind) do
         if not c.plain then
-            pcall(c.SetUnit, c, unit)
-            pcall(c.UpdateAllAuras, c)
+            DUI.SafeCall(c.SetUnit, c, unit)
+            DUI.SafeCall(c.UpdateAllAuras, c)
         end
     end
 end

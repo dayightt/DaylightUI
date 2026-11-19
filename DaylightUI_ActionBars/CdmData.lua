@@ -790,9 +790,14 @@ local function lay(set, shown, out)
         local x, y = tonumber(p.x) or 0, tonumber(p.y) or 0
         local keep
         if off then
-            -- A hidden first piece closes along its rows only.
+            -- A hidden first piece closes along its rows only. The saved spot is
+            -- the top-left corner, so a row growing up or left closes onto the
+            -- bottom or right edge instead, or the piece's room stays empty.
             local axis = rowAxis(set, id)
             keep = { x = x, y = y, w = w, h = h, axis = axis }
+            local k = index.kids[id]
+            if k and axis == "y" and k.up and not k.down then y = y - h
+            elseif k and axis == "x" and k.left and not k.right then x = x + w end
             if axis == "x" then w = 0 elseif axis then h = 0 else w, h = 0, 0 end
         end
         local spacing = tonumber(Data.ChainValue(set, id, "spacing")) or Data.GAP
@@ -892,7 +897,7 @@ local function stacked(set, out, full, shown)
     end
 end
 
--- The nearest closed piece id hangs below.
+-- The nearest closed piece that id hangs below.
 local function closedAbove(set, shown, id)
     local p = set.pieces[id]
     for _ = 1, Data.ROOT_WALK do

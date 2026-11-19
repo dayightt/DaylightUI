@@ -1462,6 +1462,31 @@ T.test("action bars: the bag bar and micro menu can be shown, faded, and hidden 
     T.eq(MicroMenuContainer:GetParent(), Hide.parent, "hidden again")
 end)
 
+-- The game hands its micro menu to a full-screen window and back to UIParent
+-- (MicroMenuBar_SetFullScreenFrame and MicroMenuBar_ClearFullScreenFrame in
+-- Blizzard_MicroMenu/Mainline/MainMenuBarMicroButtons.lua), which took it out of the
+-- hidden frame: set to Hidden, it came back during flights.
+T.test("action bars: a hidden micro menu stays hidden when the game hands it around", function()
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world()
+        CreateFrame("Frame", "MicroMenu", MicroMenuContainer)
+        local fs = CreateFrame("Frame", "FullScreenThing", UIParent)
+        _G.MicroMenuBar_SetFullScreenFrame = function(frame) if frame then MicroMenu:SetParent(frame) end end
+        _G.MicroMenuBar_ClearFullScreenFrame = function() MicroMenu:SetParent(UIParent) end
+        _G.FullScreenThing = fs
+    end })
+    local Hide = stub.actionbars.Hide
+    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden by default")
+    MicroMenuBar_SetFullScreenFrame(FullScreenThing)
+    T.eq(MicroMenu:GetParent(), Hide.parent, "not on the full-screen window")
+    MicroMenuBar_ClearFullScreenFrame()
+    T.eq(MicroMenu:GetParent(), Hide.parent, "not back on UIParent either")
+    DUI:Set("ActionBars", "microMenu", "shown")
+    T.eq(MicroMenu:GetParent(), MicroMenuContainer, "shown: back in its own container")
+    MicroMenuBar_ClearFullScreenFrame()
+    T.eq(MicroMenu:GetParent(), UIParent, "shown: the game's to place")
+end)
+
 T.test("action bars: the shown bag bar and micro menu move in unlock mode and stay put", function()
     local DUI = login()
     BagsBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 10)

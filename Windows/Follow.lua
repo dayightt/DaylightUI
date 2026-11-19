@@ -47,12 +47,7 @@ Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
 
 local list = {}
 
--- Every write Daylight UI makes to the game's panel layout goes through here,
--- so all of them can be found and changed in one place.
-function Win.PanelAttr(f, key, value)
-    if type(SetUIPanelAttribute) ~= "function" then return end
-    pcall(SetUIPanelAttribute, f, key, value)
-end
+local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
 
 local function frameOf(def, kind)
     local get = def.frames[kind]
@@ -60,29 +55,54 @@ local function frameOf(def, kind)
     return type(f) == "table" and f or nil
 end
 
--- Tell the game's panel layout how wide the Daylight UI window is so the next panel opens
--- beside it. The game sets this in an OnShow that never runs while parked.
--- In combat this is blocked (ADDON_ACTION_BLOCKED on SetAttributeNoHandler,
--- which pcall doesn't catch), so it waits until after combat.
-local function writeWidth(def, f)
-    if not def.width then return end
+-- The game opens its next window beside the open one, as far over as that
+-- one's width (GetUIPanelWidth): its "width" layout attribute if it has one,
+-- else the frame's own width. Daylight UI never writes layout attributes. An
+-- attribute keeps the taint of whoever wrote it, so the game's next ShowUIPanel
+-- read it back and ran tainted, and in a fight it was then blocked from what it
+-- did next (the spellbook's action bar grids). Sizing the parked frame itself
+-- leaves nothing tainted behind. A window with a layout width of its own is
+-- left alone, since the game reads that and not the frame.
+local function ownWidth(f)
+    local own = type(UIPanelWindows) == "table" and UIPanelWindows[f:GetName() or ""]
+    if type(own) == "table" and own.width ~= nil then return true end
+    return type(f.GetAttribute) == "function" and f:GetAttribute("UIPanelLayout-width") ~= nil
+end
+
+-- Out of combat only, since another addon may have put secure buttons in it.
+local function writeWidth(def, f, kind)
+    if not def.width or ownWidth(f) then return end
     if InCombatLockdown() then
         DUI.AfterCombat(function() Follow.WriteWidth(def) end, "follow:width:" .. def.key)
         return
     end
-    Win.PanelAttr(f, "width", math.floor(def.width() + Follow.GAP + 0.5))
+    if def.home[kind] == nil then
+        local w = f:GetWidth()
+        if not plain(w) then return end
+        def.home[kind] = w
+    end
+    f:SetWidth(math.floor(def.width() + Follow.GAP + 0.5))
 end
 
--- Restore the game's own panel width (from UIPanelWindows, or nil for the
--- frame's own width) so it doesn't keep the Daylight UI width.
+-- The game's own width back, before it shows the window as itself.
+local function restoreWidth(def, kind, f)
+    local w = def.home[kind]
+    if w == nil then return end
+    if InCombatLockdown() and f:IsProtected() then
+        DUI.AfterCombat(function()
+            if not def.parked[kind] or Follow.Away(def, kind) then restoreWidth(def, kind, f) end
+        end, "follow:home:" .. def.key .. kind)
+        return
+    end
+    def.home[kind] = nil
+    f:SetWidth(w)
+end
+
 local function giveBack(def, kind, f)
     f:SetParent(UIParent)
     def.parked[kind] = nil
     if DUI.Pad then DUI.Pad.Remember(f) end
-    if def.width then
-        local own = type(UIPanelWindows) == "table" and UIPanelWindows[f:GetName() or ""]
-        Win.PanelAttr(f, "width", type(own) == "table" and own.width or nil)
-    end
+    restoreWidth(def, kind, f)
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, false) end
     DUI.Fire("GameWindowBack", def.key, kind, f)   -- the skins dress it now it shows as itself
 end
@@ -94,7 +114,7 @@ local function park(def)
             and not (def.leave and def.leave(kind)) then
             f:SetParent(def.veil and def.veil[kind] and Follow.veil or Follow.hidden)
             def.parked[kind] = true
-            writeWidth(def, f)
+            writeWidth(def, f, kind)
             if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
         end
     end
@@ -122,7 +142,7 @@ function Follow.Reclaim(def, kind)
     def.lent[kind] = nil
     f:SetParent(Follow.veil)
     def.parked[kind] = true
-    writeWidth(def, f)
+    writeWidth(def, f, kind)
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
     return true
 end
@@ -149,8 +169,6 @@ end
 
 function Follow.Parked(def, kind) return def.parked[kind] == true end
 
-local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
-
 -- Has another addon taken this parked, shown window?
 function Follow.Away(def, kind)
     local f = frameOf(def, kind)
@@ -174,6 +192,8 @@ function Follow.Tick()
             if away then on = false end
             if on ~= (def.shown[kind] == true) then
                 def.shown[kind] = on
+                -- Another addon showing it as itself gets it at the game's width.
+                if away then restoreWidth(def, kind, f) elseif on then writeWidth(def, f, kind) end
                 if def.changed then DUI.SafeCall(def.changed, kind, on, away) end
             end
             if on and DUI.Pad then DUI.Pad.KeepOff(f) end   -- keep gamepad focus off the hidden window
@@ -198,7 +218,7 @@ DUI.RegisterEvent("ADDON_LOADED", function()
 end)
 
 function Win.Follow(def)
-    def.parked, def.shown, def.lent = {}, {}, {}
+    def.parked, def.shown, def.lent, def.home = {}, {}, {}, {}
     -- Built once. Tick queues this every frame in combat while a window is
     -- unparked, and a fresh closure and string each time would be garbage.
     def.parkFn = function() park(def) end
@@ -213,6 +233,6 @@ end
 function Follow.WriteWidth(def)
     for kind in pairs(def.frames) do
         local f = frameOf(def, kind)
-        if f and def.parked[kind] then writeWidth(def, f) end
+        if f and def.parked[kind] then writeWidth(def, f, kind) end
     end
 end

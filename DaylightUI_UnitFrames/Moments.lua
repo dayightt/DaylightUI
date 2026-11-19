@@ -237,8 +237,8 @@ function Moments.EveryoneReady()
     local any = false
     for _, b in ns.Group.Buttons() do
         if live(b) and type(b.unitToken) == "string" and UnitExists(b.unitToken) then
-            local ok, s = pcall(GetReadyCheckStatus, b.unitToken)
-            if not ok or isSecret(s) or s ~= "ready" then return false end
+            local s = GetReadyCheckStatus(b.unitToken)
+            if isSecret(s) or s ~= "ready" then return false end
             any = true
         end
     end

@@ -209,7 +209,7 @@ local function placeButton(h, btn)
 end
 
 local function initButton(h, btn)
-    local function try(fn, ...) pcall(fn, ...) end
+    local function try(fn, ...) DUI.SafeCall(fn, ...) end
     -- The layout only positions the button. Without a size it stays 0x0.
     try(btn.SetSize, btn, h.size, h.size)
     h.buttons = h.buttons or {}
@@ -217,21 +217,19 @@ local function initButton(h, btn)
     local parts = {}
     h.parts = h.parts or {}
     h.parts[btn] = parts
-    local okB, box = pcall(CreateFrame, "Frame", nil, btn)
-    if okB and box then
-        parts.box = box
-        try(box.SetFrameLevel, box, math.max(0, btn:GetFrameLevel() - 1))
-        local okS, s = pcall(Style.Shell, box, Skin.ShellOpts())
-        -- Kept out of the normal style repaint because the client locks the
-        -- button. placeButton repaints it once restrictions lift.
-        if okS and s then parts.shell = s; Style.Untrack(s) end
-    end
+    local box = CreateFrame("Frame", nil, btn)
+    parts.box = box
+    try(box.SetFrameLevel, box, math.max(0, btn:GetFrameLevel() - 1))
+    local s = Style.Shell(box, Skin.ShellOpts())
+    -- Kept out of the normal style repaint because the client locks the
+    -- button. placeButton repaints it once restrictions lift.
+    if s then parts.shell = s; Style.Untrack(s) end
     local icon = btn:CreateTexture(nil, "ARTWORK")
     parts.icon = icon
     try(icon.SetTexCoord, icon, Skin.CROP[1], Skin.CROP[2], Skin.CROP[3], Skin.CROP[4])
     try(btn.SetIcon, btn, icon)
-    local ok, cd = pcall(CreateFrame, "Cooldown", nil, btn, "CooldownFrameTemplate")
-    if ok and cd then
+    local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+    if cd then
         try(cd.SetAllPoints, cd, icon)
         try(Skin.StyleCooldown, cd)
         try(btn.SetDurationCooldown, btn, cd)
@@ -246,9 +244,11 @@ local function initButton(h, btn)
     try(shade.SetAllPoints, shade, icon)
     try(shade.SetTexture, shade, Skin.SHADE_FILE)
     try(shade.SetVertexColor, shade, 0, 0, 0, Skin.SHADE)
-    local ok2, count = pcall(btn.CreateFontString, btn, nil, "OVERLAY")
-    if ok2 and count then
+    local count = btn:CreateFontString(nil, "OVERLAY")
+    if count then
         parts.count = count
+        -- The client writes the stacks in as it takes the text, so it needs a font first.
+        try(count.SetFont, count, Style.FONT, h.text and h.text.countSize or Skin.COUNT, Style.Outline())
         try(count.SetPoint, count, "BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
         try(btn.SetApplicationCount, btn, count)
     end
@@ -262,14 +262,14 @@ end
 local function build(h, unit, filter, ids, cand)
     local ok, c = pcall(CreateFrame, "AuraContainer", nil, h, "CustomAuraContainerTemplate")
     if not ok or not c then h.err = tostring(c); return end
-    pcall(c.EnableMouse, c, false)
-    pcall(c.SetAllPoints, c, h)
+    DUI.SafeCall(c.EnableMouse, c, false)
+    DUI.SafeCall(c.SetAllPoints, c, h)
     -- One button, from the holder's top left corner.
     local fd = _G.AnchorUtil and _G.AnchorUtil.FlowDirection
-    pcall(c.SetFlowLayoutAnchorPoint, c, "TOPLEFT")
-    if type(fd) == "table" then pcall(c.SetFlowLayoutGrowthDirection, c, fd.Right, fd.Down) end
+    DUI.SafeCall(c.SetFlowLayoutAnchorPoint, c, "TOPLEFT")
+    if type(fd) == "table" then DUI.SafeCall(c.SetFlowLayoutGrowthDirection, c, fd.Right, fd.Down) end
     local layout = (h.layoutFor or layoutFor)(h)
-    pcall(c.SetFlowLayoutMaximumLineSize, c, layout.elementWidth)
+    DUI.SafeCall(c.SetFlowLayoutMaximumLineSize, c, layout.elementWidth)
     local SM, SD = _G.AuraContainerSortMethod, _G.AuraContainerSortDirection
     local init = h.init or initButton
     local opts = {
@@ -282,8 +282,8 @@ local function build(h, unit, filter, ids, cand)
     }
     local ok2, err = pcall(c.AddAuraGroup, c, "a", filter, opts)
     if not ok2 then h.err = tostring(err); return end
-    pcall(c.SetUnit, c, unit)
-    pcall(c.SetEnabled, c, true)
+    DUI.SafeCall(c.SetUnit, c, unit)
+    DUI.SafeCall(c.SetEnabled, c, true)
     c:Show()
     h.containers[#h.containers + 1] = { c = c, unit = unit, selfDebuff = cand ~= nil or nil, filter = filter,
                                         maxDuration = cand and cand.maxDuration or nil }
@@ -333,6 +333,9 @@ local function setup(h, id)
         self_ = info and info.selfAura
         if type(self_) ~= "boolean" or isSecret(self_) then self_ = nil end
     end
+    -- An aura only ever on you, so a cast can't put it on the target (A.Cast).
+    local own = ownKey(id)
+    h.onYou = self_ == true or (own ~= nil and C.SelfOnly(own)) or nil
     -- Self debuffs (Arcane Blast's stack) watch your debuffs, never the target's.
     h.selfDebuff = A.SelfDebuff(id)
     if ns.CdmBars and ns.CdmBars.IsShield(id) then
@@ -387,8 +390,8 @@ end
 
 -- Shield unit: a friendly target, else the player.
 function A.ShieldUnit()
-    local ok, friend = pcall(UnitIsFriend, "player", "target")
-    if ok and not isSecret(friend) and friend == true then return "target" end
+    local friend = UnitIsFriend("player", "target")
+    if not isSecret(friend) and friend == true then return "target" end
     return "player"
 end
 
@@ -465,7 +468,7 @@ function A.Acquire(id, parent, always, size, text)
     h.underBox:SetShown(always == true)
     h.underOn = always == true
     h.overIcon = false   -- set by A.Over
-    for _, k in ipairs(h.containers) do pcall(k.c.SetEnabled, k.c, true) end
+    for _, k in ipairs(h.containers) do DUI.SafeCall(k.c.SetEnabled, k.c, true) end
     h:Show()
     return h
 end
@@ -530,8 +533,8 @@ function A.Resize(h, size, text)
         end
     end, "cdm:auras:" .. tostring(h))
     for _, k in ipairs(h.containers or {}) do
-        pcall(k.c.SetAuraGroupLayout, k.c, "a", layoutFor(h))
-        pcall(k.c.SetFlowLayoutMaximumLineSize, k.c, size)
+        DUI.SafeCall(k.c.SetAuraGroupLayout, k.c, "a", layoutFor(h))
+        DUI.SafeCall(k.c.SetFlowLayoutMaximumLineSize, k.c, size)
     end
 end
 
@@ -581,7 +584,7 @@ function A.SetAmount(h, on, text)
             -- Above the client's button.
             h.amount:SetFrameLevel(h:GetFrameLevel() + 20)
             local t = text or h.text
-            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Slug(Style.Outline()))
+            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Outline())
             local c = t and t.cdColor or Style.INK.VALUE
             h.amount.text:SetTextColor(c[1], c[2], c[3])
         end
@@ -611,7 +614,7 @@ function A.SetHideUp(h, on)
     on = on == true or nil
     if h.hideUp ~= on then
         h.hideUp = on
-        for _, k in ipairs(h.containers or {}) do pcall(k.c.SetAlpha, k.c, on and 0 or 1) end
+        for _, k in ipairs(h.containers or {}) do DUI.SafeCall(k.c.SetAlpha, k.c, on and 0 or 1) end
         paintFace(h)
     end
     if ns.Cooldowns then ns.Cooldowns.FollowHide(h) end
@@ -638,8 +641,8 @@ local function readable()
     if DUI.Restricted() then return false end
     local S = C_Secrets
     if S and type(S.ShouldAurasBeSecret) == "function" then
-        local ok, yes = pcall(S.ShouldAurasBeSecret)
-        if not ok or isSecret(yes) or yes == true then return false end
+        local yes = S.ShouldAurasBeSecret()
+        if isSecret(yes) or yes == true then return false end
     end
     return true
 end
@@ -710,7 +713,7 @@ function placeFace(h)
     f.icon:SetPoint("TOPLEFT", f.box, "TOPLEFT", T, -T)
     f.icon:SetSize(math.max(1, size - 2 * T), math.max(1, size - 2 * T))
     local t = h.text
-    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Slug(Style.Outline()))
+    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Outline())
     local cc = t and t.countColor or Skin.COUNT_COLOR
     f.count:SetTextColor(cc[1], cc[2], cc[3])
     if t then ns.Cooldowns.PlaceCount(f.count, f.icon, t.countSpot) end
@@ -990,10 +993,10 @@ end
 
 -- Your pet is out and alive. Neither answer is secret, in a fight too.
 function A.PetOut()
-    local ok, yes = pcall(UnitExists, "pet")
-    if not ok or isSecret(yes) or yes ~= true then return false end
-    local okD, dead = pcall(UnitIsDead, "pet")
-    return not (okD and not isSecret(dead) and dead == true)
+    local yes = UnitExists("pet")
+    if isSecret(yes) or yes ~= true then return false end
+    local dead = UnitIsDead("pet")
+    return not (not isSecret(dead) and dead == true)
 end
 
 function A.IsUp(h)
@@ -1104,7 +1107,8 @@ function A.Cast(h, sid, at)
     -- Where it was last seen beats the guess: Slice and Dice is a harmful cast
     -- whose buff is on you, and the client's button never says where it came up.
     h.upUnit = shownOn(h) or (h.id ~= nil and seenOn()[h.id])
-        or ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
+        or ok and harmful == true and not h.selfDebuff and not h.onYou and "target"
+        or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a
     -- dungeon fight. A finisher lasts by the combo points it used, which are
@@ -1434,7 +1438,7 @@ function A.ReleaseExcept(used)
     for id, h in pairs(holders) do
         if not used[id] and h:IsShown() then
             h:Hide()
-            for _, k in ipairs(h.containers) do pcall(k.c.SetEnabled, k.c, false) end
+            for _, k in ipairs(h.containers) do DUI.SafeCall(k.c.SetEnabled, k.c, false) end
         end
     end
 end
@@ -1451,14 +1455,14 @@ function A.Retarget()
                 local unit = A.ShieldUnit()
                 if not (unit == "player" and k.unit == "player") then
                     k.unit = unit
-                    pcall(k.c.SetUnit, k.c, k.unit)
-                    pcall(k.c.UpdateAllAuras, k.c)
+                    DUI.SafeCall(k.c.SetUnit, k.c, k.unit)
+                    DUI.SafeCall(k.c.UpdateAllAuras, k.c)
                     if ns.CdmBars then ns.CdmBars.Retarget(h, k.unit) end
                     if holders[h.id] == h then h.shieldUnit = k.unit; A.UpdateShield(h) end
                 end
             elseif k.unit == "target" then
-                pcall(k.c.SetUnit, k.c, "target")
-                pcall(k.c.UpdateAllAuras, k.c)
+                DUI.SafeCall(k.c.SetUnit, k.c, "target")
+                DUI.SafeCall(k.c.UpdateAllAuras, k.c)
             end
         end
     end)
@@ -1472,7 +1476,7 @@ function A.Rebuild()
             for _, k in ipairs(h.containers) do
                 local filters = { includeSpellIDs = h.ids }
                 if k.selfDebuff then filters = select(2, A.SelfDebuffGroup(h.id, h.ids)) end
-                pcall(k.c.SetAuraGroupCandidateFilters, k.c, "a", filters)
+                DUI.SafeCall(k.c.SetAuraGroupCandidateFilters, k.c, "a", filters)
             end
         end
     end)
@@ -1492,8 +1496,8 @@ function A.PetChanged(newPet)
         -- Same unit token, maybe a new pet: the container reads it again when told.
         for _, k in ipairs(newPet and h.containers or {}) do
             if k.unit == "pet" then
-                pcall(k.c.SetUnit, k.c, "pet")
-                pcall(k.c.UpdateAllAuras, k.c)
+                DUI.SafeCall(k.c.SetUnit, k.c, "pet")
+                DUI.SafeCall(k.c.UpdateAllAuras, k.c)
             end
         end
         -- A buff on a pet that's gone or dead is gone with it.

@@ -158,6 +158,7 @@ function LevelUp.Play(level, hp, power, talents, _, str, agi, sta, int)
     if type(level) ~= "number" or secret(level) then return end
     if ns.ZoneTitle then ns.ZoneTitle.Stop() end   -- the zone title steps aside
     if ns.RepBanner then ns.RepBanner.Stop() end   -- a reputation banner too, and plays after
+    if ns.Flight then ns.Flight.StopWelcome() end  -- and a flight's welcome
     build()
     paint()
     run = run + 1

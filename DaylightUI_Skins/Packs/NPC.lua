@@ -385,10 +385,9 @@ local function taxiLayout(f)
     })
     local w, h = f:GetWidth(), f:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" or math.abs(w - width) > 0.01 or math.abs(h - height) > 0.01 then
+        -- Its panel layout keeps the game's own size: an attribute written here
+        -- would carry this addon's taint into the game's next ShowUIPanel.
         f:SetSize(width, height)
-        -- The panel manager places its neighbours by these.
-        Win.PanelAttr(f, "width", width)
-        Win.PanelAttr(f, "height", height)
     end
     local close = f.CloseButton
     if type(close) == "table" and close.SetPoint then

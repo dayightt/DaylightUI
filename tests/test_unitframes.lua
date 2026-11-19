@@ -396,6 +396,16 @@ T.test("long names cap the tab and are cut short to fit it", function()
     T.truthy(f.tab:GetWidth() < f:GetWidth() * 0.4, "short names shrink the tab again")
 end)
 
+T.test("a name tab fits the name even when the frame's own text answers a secret width", function()
+    local f, ns = make(TARGET, TCFG)
+    -- After a secret name, the client can answer a secret width for the
+    -- frame's text though the name now shown is plain.
+    f.nameText.GetStringWidth = function() return stub.Secret(28) end
+    stub.units.target = { name = "Echo", isPlayer = true, reaction = 5 }
+    ns.UF.UpdateIdentity(f)
+    T.truthy(f.tab:GetWidth() < f:GetWidth() * 0.4, "the tab fits Echo, not half the frame")
+end)
+
 T.test("the fills' moving edges share the frame's angle", function()
     local f = make(TARGET, TCFG)
     local S = DaylightUI.Style

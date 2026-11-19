@@ -193,8 +193,9 @@ function Happiness.Read()
     if not (C_PetInfo and C_PetInfo.GetPetHappiness) then return nil end
     local _, isHunterPet = HasPetUI()
     if not isHunterPet then return nil end
-    local ok, mood, damage, loyalty = pcall(C_PetInfo.GetPetHappiness)
-    if not ok or not Happiness.COLORS[mood] then return nil end
+    if not (C_PetInfo and C_PetInfo.GetPetHappiness) then return nil end
+    local mood, damage, loyalty = C_PetInfo.GetPetHappiness()
+    if not Happiness.COLORS[mood] then return nil end
     return mood, damage, loyalty
 end
 
@@ -210,8 +211,8 @@ local function addTipLines(mood, damage, loyalty)
     elseif type(loyalty) == "number" and loyalty > 0 and GAINING_LOYALTY then
         Tips.Text(GAINING_LOYALTY, Tips.GOOD)
     end
-    local okDiet, diet = pcall(C_PetInfo.GetPetFoodTypes)
-    if okDiet and type(diet) == "table" and PET_DIET_TEMPLATE then
+    local diet = C_PetInfo.GetPetFoodTypes and C_PetInfo.GetPetFoodTypes()
+    if type(diet) == "table" and PET_DIET_TEMPLATE then
         local list = #diet > 0 and table.concat(diet, PET_FOOD_DELIMIT or ", ") or (NONE or DUI.L["None"])
         Tips.Sub(string.format(PET_DIET_TEMPLATE, list))
     end
@@ -240,8 +241,8 @@ function Happiness.Create(pet)
     -- UNIT_PET fires for every owner the client knows about, party members
     -- included, so only yours counts. UNIT_HAPPINESS stays unfiltered because
     -- the game's source doesn't show which unit token it uses on this client.
-    pcall(h.RegisterEvent, h, "UNIT_HAPPINESS")
-    pcall(h.RegisterUnitEvent, h, "UNIT_PET", "player")
+    DUI.SafeCall(h.RegisterEvent, h, "UNIT_HAPPINESS")
+    DUI.SafeCall(h.RegisterUnitEvent, h, "UNIT_PET", "player")
     h:SetScript("OnEvent", function(self) Happiness.Update(self) end)
     return h
 end
