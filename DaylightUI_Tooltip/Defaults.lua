@@ -12,7 +12,8 @@ ns.DEFAULTS = {
     -- own cards drawn over it (Rich/).
     style = "simple",
     richAlpha = 0.95, -- the rich card's background opacity
-    pill = "combat", -- a unit as one small line by the cursor: "combat" (and under restrictions), "always", "never"
+    pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
+    pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
     anchor = "game", -- "game": at Daylight UI's unlock handle (near the game's spot); "cursor": follows the mouse
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,

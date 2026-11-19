@@ -531,3 +531,26 @@ T.test("rich tooltip: the pill sits where the tooltip would, and goes when the m
     T.falsy(pill:IsShown(), "gone after SLOW")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("rich tooltip: the full card key can be another key, or none", function()
+    login("rich")
+    stub.units.mouseover = { name = "Gorvak", isPlayer = false, reaction = 2, health = 31, maxHealth = 100 }
+    stub.EnterCombat()
+    hover("mouseover", { "Gorvak" })
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(pill:IsShown())
+    DaylightUI:Set("Tooltip", "pillKey", "ctrl")
+    stub.RunTimers()
+    update()
+    stub.shift = true
+    update()
+    T.truthy(pill:IsShown(), "Shift does nothing now")
+    stub.shift, stub.ctrl = nil, true
+    update()
+    T.falsy(pill:IsShown(), "Ctrl shows the card")
+    DaylightUI:Set("Tooltip", "pillKey", "none")
+    stub.RunTimers()
+    update()
+    T.truthy(pill:IsShown(), "None: the pill stays")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

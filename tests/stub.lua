@@ -1619,8 +1619,10 @@ function stub.RunTimers()
 end
 
 _G.InCombatLockdown = function() return stub.combat end
--- stub.shift: Shift held.
+-- stub.shift, stub.ctrl, stub.alt: that key held.
 _G.IsShiftKeyDown = function() return stub.shift == true end
+_G.IsControlKeyDown = function() return stub.ctrl == true end
+_G.IsAltKeyDown = function() return stub.alt == true end
 -- What the cursor holds: stub.cursor = { "spell", id } or nil.
 _G.GetCursorInfo = function() local c = stub.cursor; if c then return c[1], c[2] end end
 _G.ClearCursor = function() stub.cursor = nil end
@@ -2681,9 +2683,18 @@ C_Spell.IsSpellInRange = function(id, u)
     if type(r) == "table" and not isSecret(r) then return r[id] end
     return r
 end
-_G.UnitIsPVP = function(u) local x = U(u); return x ~= nil and x.pvp == true end
+-- The game refuses a missing unit here (unit isn't optional in its docs), as
+-- a group tile does the moment the header takes its member away.
+local function needUnit(u, name, usage)
+    if u == nil then error("bad argument #1 to '" .. name .. "' (Usage: " .. usage .. ")", 3) end
+end
+_G.UnitIsPVP = function(u)
+    needUnit(u, "UnitIsPVP", "local result = UnitIsPVP(unit)")
+    local x = U(u); return x ~= nil and x.pvp == true
+end
 _G.UnitFactionGroup = function(u) local x = U(u); if x then return x.faction end end
 _G.UnitIsGroupLeader = function(u)
+    needUnit(u, "UnitIsGroupLeader", "local isLeader = UnitIsGroupLeader(unit [, partyCategory])")
     local x = U(u)
     if x and isSecret(x.leader) then return x.leader end
     return x ~= nil and x.leader == true
@@ -2697,6 +2708,7 @@ _G.GetTexCoordsForRoleSmallCircle = function(role) return unpack(ROLE_COORDS[rol
 _G.IsResting = function() return stub.resting == true end
 _G.IsInGroup = function() return stub.inGroup == true end
 _G.UnitIsGroupAssistant = function(u)
+    needUnit(u, "UnitIsGroupAssistant", "local isAssistant = UnitIsGroupAssistant(unit)")
     local x = U(u)
     if x and isSecret(x.assist) then return x.assist end
     return x ~= nil and x.assist == true
@@ -3257,7 +3269,7 @@ function stub.Reset()
     stub.installedAddOns = {}
     stub.addonMeta = {}
     stub.addonState = {}
-    stub.combat, stub.noAuraContainer, stub.shift = false, false, nil
+    stub.combat, stub.noAuraContainer, stub.shift, stub.ctrl, stub.alt = false, false, nil, nil, nil
     stub.totems = {}
     stub.privateAnchors, stub.privateAnchorSeq = {}, 0
     stub.refuseAuraFilters = nil

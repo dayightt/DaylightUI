@@ -22,13 +22,20 @@ local function plain(v)
     return v
 end
 
+-- The key that shows the full card while held (pillKey), or none.
+Pill.KEYS = { shift = "IsShiftKeyDown", ctrl = "IsControlKeyDown", alt = "IsAltKeyDown" }
+function Pill.KeyHeld(cfg)
+    local fn = _G[Pill.KEYS[cfg and cfg.pillKey or "shift"] or ""]
+    return type(fn) == "function" and fn() == true
+end
+
 -- pill = "combat" (in a fight and under restrictions), "always" or "never";
--- Shift shows the full card any time.
+-- holding pillKey shows the full card any time.
 function Pill.Wanted(tip, unit)
     local Tip = ns.Tooltip
     local cfg = Tip.Config()
     local mode = cfg and cfg.pill or "combat"
-    if mode == "never" or type(unit) ~= "string" or IsShiftKeyDown() then return false end
+    if mode == "never" or type(unit) ~= "string" or Pill.KeyHeld(cfg) then return false end
     -- Hidden in combat by its own switch: that wins.
     if Tip.HideNow(tip) then return false end
     if mode == "always" then return true end
