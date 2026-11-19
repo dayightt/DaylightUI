@@ -363,6 +363,31 @@ T.test("cdm data: a 2x2 with any pieces down never stacks one piece on another",
     end
 end)
 
+-- The same 2x2 as bars, which are wide and flat, so a row closing along the wrong
+-- axis shows up on them too.
+T.test("cdm data: a 2x2 of bars with any pieces down never stacks one bar on another", function()
+    local D = data()
+    local set = empty()
+    D.AddPiece(set, 1, "bar", 0, 0)
+    for _, h in ipairs(ROWS) do
+        D.AddPiece(set, h[1], "bar", 0, 0)
+        T.truthy(D.Hook(set, h[1], h[2], h[3], "center"))
+    end
+    local F = D.Layout(set)
+    T.truthy(F[2].x > F[1].x and F[3].y < F[1].y, "a 2x2 of bars")
+    local L = D.Layout(set, { [2] = true, [3] = true, [4] = true })
+    T.deq({ L[2].x, L[2].y }, { F[1].x, F[1].y }, "2 slid into 1's spot")
+    T.deq(box(L[3]), box(F[3]), "the second row stays")
+    T.deq(box(L[4]), box(F[4]))
+    for mask = 1, 14 do
+        local shown, ids = {}, {}
+        for id = 1, 4 do
+            if bit.band(mask, 2 ^ (id - 1)) ~= 0 then shown[id] = true; ids[#ids + 1] = id end
+        end
+        noOverlap(D.Layout(set, shown), shown, "bars, up: " .. table.concat(ids, " "))
+    end
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)

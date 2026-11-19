@@ -5,6 +5,7 @@
 
 local _, ns = ...
 local DUI = DaylightUI
+local L = DUI.L
 local isSecret = DUI.IsSecret
 
 local Custom = {}
@@ -92,10 +93,10 @@ Custom.PETS = {
 -- Shaman element pieces: one per totem slot, showing whichever totem stands there,
 -- then a cooldown totem's cooldown once it's gone (Custom.SlotNow).
 Custom.TOTEM_ELEMENTS = {
-    fire = { slot = 1, name = "Fire totem", icon = "Interface/Icons/Spell_Fire_Elemental_Totem" },
-    earth = { slot = 2, name = "Earth totem", icon = "Interface/Icons/Spell_Nature_EarthElemental_Totem" },
-    water = { slot = 3, name = "Water totem", icon = "Interface/Icons/Spell_Frost_SummonWaterElemental_2" },
-    air = { slot = 4, name = "Air totem", icon = "Interface/Icons/INV_Elemental_Primal_Air" },
+    fire = { slot = 1, name = L["Fire totem"], icon = "Interface/Icons/Spell_Fire_Elemental_Totem" },
+    earth = { slot = 2, name = L["Earth totem"], icon = "Interface/Icons/Spell_Nature_EarthElemental_Totem" },
+    water = { slot = 3, name = L["Water totem"], icon = "Interface/Icons/Spell_Frost_SummonWaterElemental_2" },
+    air = { slot = 4, name = L["Air totem"], icon = "Interface/Icons/INV_Elemental_Primal_Air" },
 }
 Custom.ELEMENT_ORDER = { "fire", "earth", "water", "air" }
 
@@ -251,7 +252,7 @@ local function elementFamily(list, key)
     end
     if #ids == 0 then return nil end
     return { ids = ids, cd = true, aura = true, self = true, merged = true, element = e,
-             name = DUI.L[e.name], icon = e.icon }
+             name = e.name, icon = e.icon }
 end
 
 local function build()
@@ -715,7 +716,7 @@ end
 -- can't be read in combat. The client draws the active seal's icon over this one.
 function Custom.Look(id)
     local e = Custom.Element(id)
-    if e then return DUI.L[e.name], e.icon end
+    if e then return e.name, e.icon end
     local item = Custom.ItemOf(id)
     if item and type(C_Item) == "table" then
         local okN, name = false, nil

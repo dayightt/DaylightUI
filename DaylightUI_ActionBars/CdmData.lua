@@ -897,7 +897,7 @@ local function stacked(set, out, full, shown)
     end
 end
 
--- The nearest closed piece id hangs below.
+-- The nearest closed piece that id hangs below.
 local function closedAbove(set, shown, id)
     local p = set.pieces[id]
     for _ = 1, Data.ROOT_WALK do
