@@ -274,7 +274,7 @@ ns.MESSAGE_COLORS = {
 
 ns.OPTIONS = { pages = {
     { id = "chat", label = "Chat",
-      desc = "Daylight UI's chat box in the bottom-left corner, with whispers as conversations beside it. Chat style: Classic keeps the game's own chat windows instead.",
+      desc = "Daylight UI's chat box, with whispers as conversations, or the game's own windows (Classic).",
       groups = {
         { label = "Panel", tab = "Panel", desc = "Move it in unlock mode (/dui unlock).", items = {
             { type = "dropdown", key = "style", label = "Chat style",
@@ -403,14 +403,14 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Messages", items = {
             { type = "toggle", key = "shortTags", label = "Short tags",
-              desc = "Replaces the channel and chat names before each message with a short tag, such as [G] for General or [P] for party. Lines already in chat stay as they were. Pick the letters below, and set your own tags in the list." },
+              desc = "A short tag before each message instead of the channel's or chat's name, like [G] or [P]. Lines already in chat stay as they were." },
             { type = "toggle", key = "channelNumbers", label = "Keep channel numbers",
               desc = "Numbered channels keep their number in front of the short tag.",
               disabled = function(get) return get("shortTags") ~= true end },
             { type = "dropdown", key = "tagLetters", label = "Tag letters",
               values = { english = "English", native = "Your language" },
               order = { "english", "native" },
-              desc = "The letters the short tags start from. English: G, P, R, S, W, Y, and T or LD for channels. Your language: the first letters of the words the game uses in yours, so a Spanish client reads G for Grupo and B for Banda. A tag you type in the list below always wins.",
+              desc = "The short tags start from your language's words (G for Grupo) or from English (P for Party). A tag you type in the list always wins.",
               disabled = function(get) return get("shortTags") ~= true end },
             shortTagList,
             { type = "toggle", key = "worldChannelsFirst", label = "General and Trade first", since = "1.8.0",
