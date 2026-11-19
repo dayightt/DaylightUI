@@ -32,12 +32,35 @@ local function itemLink(itemID)
     return type(link) == "string" and not secret(link) and link or nil
 end
 
+-- The open profession's learned recipe that makes an item, if any (a material you
+-- can craft yourself, like Bolt of Silk Cloth for Tailoring).
+function Recipe.MakerOf(itemID)
+    local data = ns.List.data
+    if not (data and data.byID and itemID) then return nil end
+    for id in pairs(data.byID) do
+        if ns.Data.OutputItem(id) == itemID then return id end
+    end
+    return nil
+end
+
 local function itemTip(b)
     local m = b.spec and b.spec.mat
     if not (m and GameTooltip) then return end
     GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
     if type(GameTooltip.SetItemByID) == "function" then GameTooltip:SetItemByID(m.itemID) end
+    if Recipe.MakerOf(m.itemID) then
+        DUI.Tips.Clear()
+        DUI.Tips.Hint(L["Click: show its recipe"])
+        DUI.Tips.Flush(GameTooltip)
+    end
     GameTooltip:Show()
+end
+
+-- A click on a material you can make picks its recipe.
+local function matClick(b)
+    local m = b.spec and b.spec.mat
+    local id = m and Recipe.MakerOf(m.itemID)
+    if id then ns.Window.Select(id) end
 end
 
 local function resultTip(b)
@@ -396,7 +419,7 @@ function Recipe.Fill(pane, r, keepScroll)
             local short = m.have < m.need
             items[#items + 1] = { mat = m, name = m.name or "", texture = m.icon, quality = m.quality, nameColor = INK.VALUE,
                 sub = string.format(L["%d / %d"], m.have, m.need), subColor = short and INK.BAD or INK.GOOD,
-                tooltip = itemTip, link = function() return itemLink(m.itemID) end }
+                tooltip = itemTip, onClick = matClick, link = function() return itemLink(m.itemID) end }
         end
         s:Items(items)
     end

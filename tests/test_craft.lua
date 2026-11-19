@@ -240,6 +240,27 @@ T.test("craft: a click picks another recipe; short materials in the bad color", 
     T.rgb({ tile.sub:GetTextColor() }, DaylightUI.Style.INK.BAD)
 end)
 
+T.test("craft: a material you can make jumps to its recipe; one you can't stays put", function()
+    local ns = load()
+    open(ns)
+    ns.List.lines[101]:Click()
+    frame(10)
+    local right = page(ns).recipe.stack
+    local bolt, thread
+    for _, t in ipairs(shown(right, "spec")) do
+        if t.name:GetText() == "Bolt of Silk Cloth" then bolt = t end
+        if t.name:GetText() == "Fine Thread" then thread = t end
+    end
+    T.truthy(bolt and thread, "both materials shown")
+    thread:Click()
+    frame(10)
+    T.eq(ns.Window.Picked(), 101, "a bought material: nothing to jump to")
+    bolt:Click()
+    frame(10)
+    T.eq(ns.Window.Picked(), 102, "Bolt of Silk Cloth: its recipe")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("craft: what a recipe requires, met or not", function()
     local ns = load()
     open(ns, 185)

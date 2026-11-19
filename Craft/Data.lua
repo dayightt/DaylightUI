@@ -245,6 +245,12 @@ function Data.MaterialsLine(mats)
     return table.concat(bits, ", ")
 end
 
+-- The item a recipe makes (nil for an enchant).
+function Data.OutputItem(id)
+    local s = schematic(id)
+    return s and num(s.outputItemID) or nil
+end
+
 -- Quality of the crafted item (its name color on the recipe page).
 function Data.OutputQuality(id)
     local s = schematic(id)
