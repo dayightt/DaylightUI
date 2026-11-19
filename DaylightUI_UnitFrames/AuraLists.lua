@@ -232,14 +232,17 @@ local function writeIds(id, set)
 end
 
 local function nameOf(id)
-    local ok, name = pcall(C_Spell.GetSpellName, id)
-    return ok and type(name) == "string" and name ~= "" and name or nil
+    id = tonumber(id)
+    if not id then return nil end
+    local name = C_Spell.GetSpellName(id)
+    return type(name) == "string" and name ~= "" and name or nil
 end
 AL.NameOf = nameOf
 
 local function iconOf(id)
-    local ok, icon = pcall(C_Spell.GetSpellTexture, id)
-    return ok and icon or nil
+    id = tonumber(id)
+    if not (id and C_Spell.GetSpellTexture) then return nil end
+    return C_Spell.GetSpellTexture(id)
 end
 
 -- Whether the client matches this spell on every unit (it marks it never
@@ -248,8 +251,9 @@ function AL.Everywhere(id)
     local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
     local levels = Enum and Enum.SecrecyLevel
     if not (get and levels) then return false end
-    local ok, s = pcall(get, id)
-    return ok and s == levels.NeverSecret
+    id = tonumber(id)
+    if not id then return false end
+    return get(id) == levels.NeverSecret
 end
 
 -- Spells seen on units around you, by name: { [name] = { [id] = true } }.
@@ -279,8 +283,8 @@ function AL.Scan()
         if UnitExists(unit) then
             for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
                 for i = 1, AL.SEEN_MAX do
-                    local ok, a = pcall(get, unit, i, filter)
-                    if not ok or type(a) ~= "table" then break end
+                    local a = get(unit, i, filter)
+                    if type(a) ~= "table" then break end
                     local name, id = a.name, a.spellId
                     if isSecret(name) or isSecret(id) then break end
                     remember(name, id)
@@ -302,8 +306,8 @@ local function idsNamed(name)
     local out = {}
     for id in pairs(seen[name] or {}) do out[id] = true end
     classSpells(function(id) if nameOf(id) == name then out[id] = true end end)
-    local ok, info = pcall(C_Spell.GetSpellInfo, name)
-    if ok and type(info) == "table" and type(info.spellID) == "number" then out[info.spellID] = true end
+    local info = type(name) == "string" and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(name)
+    if type(info) == "table" and type(info.spellID) == "number" then out[info.spellID] = true end
     return out
 end
 

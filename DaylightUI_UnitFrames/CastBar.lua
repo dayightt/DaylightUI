@@ -255,12 +255,12 @@ function CB.Create(unit, attachTo, into, opts)
     -- CB.Layout keeps it off the real frames.
     h.preview = opts.preview or nil
     if type(unit) == "string" and not opts.preview then
-        for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
+        for _, e in ipairs(EVENTS) do DUI.SafeCall(h.RegisterUnitEvent, h, e, unit) end
     end
     -- Yours counts a batch of crafts (CB.Batch).
     if h.kind == "player" and not opts.preview then
-        pcall(h.RegisterUnitEvent, h, "UNIT_SPELLCAST_SUCCEEDED", unit)
-        pcall(h.RegisterEvent, h, "UPDATE_TRADESKILL_CAST_STOPPED")
+        DUI.SafeCall(h.RegisterUnitEvent, h, "UNIT_SPELLCAST_SUCCEEDED", unit)
+        DUI.SafeCall(h.RegisterEvent, h, "UPDATE_TRADESKILL_CAST_STOPPED")
     end
     -- Something else is showing your cast (QoL's fishing water).
     if h.kind == "player" and not opts.preview then
@@ -290,7 +290,7 @@ function CB.SetUnit(h, unit)
     if DUI.APIReport then DUI.APIReport.Unit("castbar", h, type(unit) == "string" and unit or nil, false) end
     h:UnregisterAllEvents()
     if type(unit) == "string" then
-        for _, e in ipairs(EVENTS) do pcall(h.RegisterUnitEvent, h, e, unit) end
+        for _, e in ipairs(EVENTS) do DUI.SafeCall(h.RegisterUnitEvent, h, e, unit) end
     end
     CB.Refresh(h)
 end
@@ -934,8 +934,8 @@ end
 -- Only an enemy's cast: a friend's is never yours to interrupt.
 local function hostile(u)
     if type(u) ~= "string" or type(UnitCanAttack) ~= "function" then return false end
-    local ok, v = pcall(UnitCanAttack, "player", u)
-    return ok and not isSecret(v) and v == true
+    local v = UnitCanAttack("player", u)
+    return not isSecret(v) and v == true
 end
 
 -- Your interrupt's ready mark on a running cast (casts.kickMark). fade: the
@@ -1048,8 +1048,8 @@ local function recastsLeft(spell)
     local fn = type(ts) == "table" and ts.GetRemainingRecasts
     local n = 0
     if type(fn) == "function" then
-        local ok, v = pcall(fn)
-        if ok and plain(v) then n = v end
+        local v = fn()
+        if plain(v) then n = v end
     end
     local craft = DUI.Craft and DUI.Craft.Make
     local s = craft and craft.state

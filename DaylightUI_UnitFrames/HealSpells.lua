@@ -190,8 +190,8 @@ end
 function HealSpells.Mine()
     local out = {}
     for _, f in ipairs(HealSpells.CLASSES[classToken() or ""] or {}) do
-        local ok, name = pcall(C_Spell.GetSpellName, f[1])
-        if not ok or type(name) ~= "string" or DaylightUI.IsSecret(name) then name = tostring(f[1]) end
+        local name = C_Spell.GetSpellName(f[1])
+        if type(name) ~= "string" or DaylightUI.IsSecret(name) then name = tostring(f[1]) end
         out[#out + 1] = { id = f[1], name = name }
     end
     return out

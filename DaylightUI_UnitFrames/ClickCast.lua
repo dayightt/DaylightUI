@@ -122,8 +122,8 @@ end
 -- by plain name and follows new ranks, otherwise by name and rank.
 function CC.IsTopRank(spell, name)
     if not (C_Spell and type(C_Spell.GetSpellInfo) == "function") or type(name) ~= "string" then return true end
-    local ok, top = pcall(C_Spell.GetSpellInfo, name)
-    if not ok or type(top) ~= "table" or type(top.spellID) ~= "number" then return true end
+    local top = C_Spell.GetSpellInfo(name)
+    if type(top) ~= "table" or type(top.spellID) ~= "number" then return true end
     return top.spellID == spell
 end
 
@@ -209,7 +209,7 @@ end
 
 function CC.SetMouseover(on)
     DUI.AfterCombat(function()
-        pcall(SetCVar, CC.MOUSEOVER_CVAR, on and "1" or "0")
+        DUI.SafeCall(SetCVar, CC.MOUSEOVER_CVAR, on and "1" or "0")
         mouseoverChanged("mouseover", on == true)
     end, "clickcast:mouseover")
 end
@@ -223,8 +223,8 @@ end
 -- Same as the game's own row (ModifiedClickSettingMixin): set, then save.
 function CC.SetMouseoverKey(key)
     DUI.AfterCombat(function()
-        pcall(SetModifiedClick, CC.MOUSEOVER_CLICK, key)
-        pcall(SaveBindings, GetCurrentBindingSet())
+        DUI.SafeCall(SetModifiedClick, CC.MOUSEOVER_CLICK, key)
+        DUI.SafeCall(SaveBindings, GetCurrentBindingSet())
         mouseoverChanged("mouseoverKey", key)
     end, "clickcast:mouseoverKey")
 end

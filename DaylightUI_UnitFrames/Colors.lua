@@ -381,11 +381,8 @@ end
 local function powerAtFull(fs, u, hideFull)
     local curve = hideFull and UnitPowerPercent and Health.FullCurve()
     if curve then
-        local ok, a = pcall(UnitPowerPercent, u, nil, false, curve)
-        if ok then
-            pcall(fs.SetAlpha, fs, a)
-            return
-        end
+        fs:SetAlpha(UnitPowerPercent(u, nil, false, curve))
+        return
     end
     fs:SetAlpha(1)
 end

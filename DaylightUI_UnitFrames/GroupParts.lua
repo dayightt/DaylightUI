@@ -121,9 +121,9 @@ local function placeGlow(glow, b, G)
         t:SetPoint("TOP" .. O, b, "TOP" .. P, sign * inner, up)
         t:SetPoint("BOTTOM" .. O, b, "BOTTOM" .. P, sign * inner, -down)
         t:SetWidth(w)
-        for i = 1, 4 do pcall(t.SetVertexOffset, t, i, 0, 0) end
+        for i = 1, 4 do DUI.SafeCall(t.SetVertexOffset, t, i, 0, 0) end
         local pair = lean > 0 and { 1, 3 } or { 2, 4 }
-        for _, i in ipairs(pair) do pcall(t.SetVertexOffset, t, i, sign * math.abs(lean), 0) end
+        for _, i in ipairs(pair) do DUI.SafeCall(t.SetVertexOffset, t, i, sign * math.abs(lean), 0) end
     end
 end
 
@@ -184,7 +184,7 @@ function GP.InitDispel(btn, b, withoutType)
     if cfg then
         local size = tonumber(cfg.dispelSize) or 10
         btn:SetSize(size, size)
-        pcall(GP.StyleDispelParts, btn, b, cfg)
+        DUI.SafeCall(GP.StyleDispelParts, btn, b, cfg)
     end
 end
 
@@ -194,10 +194,9 @@ function GP.StyleDispelButton(btn, b, cfg)
     -- A forbidden button is left alone. LayoutDispel already waits out the
     -- restrictions that lock them.
     if btn.IsForbidden then
-        local ok, no = pcall(btn.IsForbidden, btn)
-        if not ok or no ~= false then return end
+        if btn:IsForbidden() ~= false then return end
     end
-    pcall(btn.glow and GP.StyleGlowParts or GP.StyleDispelParts, btn, b, cfg)
+    DUI.SafeCall(btn.glow and GP.StyleGlowParts or GP.StyleDispelParts, btn, b, cfg)
 end
 
 function GP.StyleDispelParts(btn, b, cfg)
@@ -226,7 +225,7 @@ function GP.InitGlow(btn, b, withoutType)
     -- Style it now, like InitDispel, since the button locks when this returns.
     local cfg = b.dispelCfg
     if not cfg and b.group then cfg = b.group:Config() end
-    if cfg then pcall(GP.StyleGlowParts, btn, b, cfg) end
+    if cfg then DUI.SafeCall(GP.StyleGlowParts, btn, b, cfg) end
 end
 
 function GP.StyleGlowParts(btn, b, cfg)
@@ -343,8 +342,8 @@ function GP.LayoutDispel(b, cfg)
             addGroup(c, key, g[1], size, function(btn) GP.InitDispel(btn, b, g[2]) end)
         end
         if c.dluiGroups[key] then
-            pcall(c.SetAuraGroupLayout, c, key, dispelLayout(size))
-            pcall(c.SetAuraGroupMaxFrameCount, c, key, n)
+            DUI.SafeCall(c.SetAuraGroupLayout, c, key, dispelLayout(size))
+            DUI.SafeCall(c.SetAuraGroupMaxFrameCount, c, key, n)
         end
     end
     local t = b.tint
@@ -360,8 +359,8 @@ function GP.LayoutDispel(b, cfg)
                 addGroup(t, key, g[1], 8, function(btn) GP.InitTint(btn, b, g[2]) end)
             end
             if t.dluiGroups[key] then
-                pcall(t.SetAuraGroupLayout, t, key, dispelLayout(8))
-                pcall(t.SetAuraGroupMaxFrameCount, t, key, n)
+                DUI.SafeCall(t.SetAuraGroupLayout, t, key, dispelLayout(8))
+                DUI.SafeCall(t.SetAuraGroupMaxFrameCount, t, key, n)
             end
         end
     end
@@ -376,8 +375,8 @@ function GP.LayoutDispel(b, cfg)
                 addGroup(gb, key, g[1], 8, function(btn) GP.InitGlow(btn, b, g[2]) end)
             end
             if gb.dluiGroups[key] then
-                pcall(gb.SetAuraGroupLayout, gb, key, dispelLayout(8))
-                pcall(gb.SetAuraGroupMaxFrameCount, gb, key, n)
+                DUI.SafeCall(gb.SetAuraGroupLayout, gb, key, dispelLayout(8))
+                DUI.SafeCall(gb.SetAuraGroupMaxFrameCount, gb, key, n)
             end
         end
     end
@@ -399,8 +398,8 @@ end
 
 local function pointAt(c, unit)
     if not c then return end
-    pcall(c.SetUnit, c, unit)
-    pcall(c.UpdateAllAuras, c)
+    DUI.SafeCall(c.SetUnit, c, unit)
+    DUI.SafeCall(c.UpdateAllAuras, c)
 end
 
 -- Points every aura container on the button at its unit and refreshes.
@@ -416,8 +415,8 @@ end
 -- range. A secret answer leaves them as they are.
 function GP.UpdateBuffsSeen(b)
     if type(b.unitToken) ~= "string" then return end
-    local ok, seen = pcall(UnitIsVisible, b.unitToken)
-    if not ok or isSecret(seen) then return end
+    local seen = UnitIsVisible(b.unitToken)
+    if isSecret(seen) then return end
     seen = seen == true
     ns.Auras.SetBuffsSeen(b.auraSet and b.auraSet.buffs, seen)
     ns.Indicators.SetSeen(b.auraSet, seen)
@@ -523,9 +522,9 @@ function GP.LayoutCutEdges(f, side, cut, under, T, custom, H)
             -- corner sticking out is the top one, or the bottom one at an end
             -- leaning under.
             local inTop = under == end_
-            for i = 1, 4 do pcall(t.SetVertexOffset, t, i, 0, 0) end
+            for i = 1, 4 do DUI.SafeCall(t.SetVertexOffset, t, i, 0, 0) end
             local pair = inTop and { 1, 3 } or { 2, 4 }
-            for _, i in ipairs(pair) do pcall(t.SetVertexOffset, t, i, sign * cut, 0) end
+            for _, i in ipairs(pair) do DUI.SafeCall(t.SetVertexOffset, t, i, sign * cut, 0) end
             if custom then
                 t:SetVertexColor(custom[1], custom[2], custom[3], a)
             elseif lo then
@@ -547,7 +546,7 @@ function GP.UpdateTargetMark(b)
     if not f or not b.markOn then return end
     local unit = b.unitToken
     local ok, is = false, nil
-    if type(unit) == "string" then ok, is = pcall(UnitIsUnit, unit, "target") end
+    if type(unit) == "string" then ok, is = true, UnitIsUnit(unit, "target") end
     if ok and isSecret(is) then
         b.markWas, b.markA = nil, nil
         DUI.Motion.Tween("tmark:" .. tostring(b), 0, 0, 0)   -- stops a plain fade

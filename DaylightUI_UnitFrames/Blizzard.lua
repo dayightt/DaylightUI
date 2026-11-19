@@ -122,7 +122,7 @@ function Blizzard.HideCastBar(frame)
         return
     end
     handled[frame] = true
-    if frame.SetUnit then pcall(frame.SetUnit, frame, nil) end
+    if frame.SetUnit then DUI.SafeCall(frame.SetUnit, frame, nil) end
     frame:UnregisterAllEvents()
     frame:Hide()
     -- Hide once, with events off first so its own handlers have nothing to do.

@@ -637,8 +637,9 @@ end
 -- Heal indicators (Indicators.lua): a card for the whole set, then one per
 -- square, shown while indicators are on.
 local function spellName(id)
-    local ok, name = pcall(C_Spell.GetSpellName, id)
-    if ok and type(name) == "string" and not DaylightUI.IsSecret(name) then return name end
+    id = tonumber(id)
+    local name = id and C_Spell.GetSpellName(id)
+    if type(name) == "string" and not DaylightUI.IsSecret(name) then return name end
 end
 
 -- Your spells with a range, highest rank, by name. A pick saved on another

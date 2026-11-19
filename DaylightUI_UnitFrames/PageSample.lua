@@ -444,9 +444,9 @@ end
 -- frame's units: left, right, up, down. Nothing until it has been drawn.
 local function happinessPast(h, f)
     if not (h and h:IsShown() and h.GetRect and f.GetRect) then return 0, 0, 0, 0 end
-    local okH, hl, hb, hw, hh = pcall(h.GetRect, h)
-    local okF, fl, fb, fw, fh = pcall(f.GetRect, f)
-    if not (okH and okF and type(hl) == "number" and type(fl) == "number" and type(hw) == "number") then
+    local hl, hb, hw, hh = h:GetRect()
+    local fl, fb, fw, fh = f:GetRect()
+    if not (type(hl) == "number" and type(fl) == "number" and type(hw) == "number") then
         return 0, 0, 0, 0
     end
     return math.max(0, fl - hl), math.max(0, hl + hw - fl - fw),
@@ -683,8 +683,8 @@ function PageSample.GroupReach(cfg, b)
     up, down, left, right = math.max(up, pu), math.max(down, pd), math.max(left, pl), math.max(right, pr)
     local pos = cfg.namePos
     if type(pos) == "string" and pos:find("^out") and cfg.showName ~= false then
-        local ok, w = pcall(b.nameText.GetStringWidth, b.nameText)
-        w = (ok and type(w) == "number" and w or 40) + 4
+        local w = b.nameText:GetStringWidth()
+        w = (type(w) == "number" and w or 40) + 4
         if pos:find("left$") then left = math.max(left, w) else right = math.max(right, w) end
     end
     return up, down, left, right
@@ -889,8 +889,7 @@ end
 -- Where a kind's bar is drawn: "alone" (standing by itself, on its own chip), "inside" (over the power
 -- bar), "near" (above or below its frame, or hung under it) or "party" (a member's own pair of bars).
 local function castSpot(kind, c)
-    local ok, at = pcall(ns.CastBar.At, kind, c)
-    if not ok then at = c.at end
+    local at = ns.CastBar.At(kind, c)
     if kind == "party" then return "party", at end
     if at == "free" or at == "personal" or at == "middle" then return "alone", at end
     if at == "power" then return "inside", at end

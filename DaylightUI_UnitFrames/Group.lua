@@ -263,7 +263,7 @@ function Group:Dress(b)
             -- containers aren't protected and their counts are allowed in
             -- combat. The client's locked buttons take their size once
             -- restrictions lift (Auras.lua). Done again after the fight.
-            pcall(self.LayoutAuras, self, b, cfg, text)
+            DUI.SafeCall(self.LayoutAuras, self, b, cfg, text)
             local g = self
             DUI.AfterCombat(function()
                 local c, t = g:Config()
