@@ -1287,6 +1287,32 @@ T.test("cdm: plain /dui cdm opens the layout; the dev tools take their words", f
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm: unlock mode's bar has a Cooldown Manager button that opens the layout", function()
+    local DUI, AB = editorWorld()
+    T.truthy(DUI.Movers.Unlock(), "unlocked")
+    local lock = DUI.Movers.LockButton()
+    local b = DUI.Movers.BarButtons()[1]
+    T.truthy(b and b:IsShown(), "the button shows on the bar")
+    local _, rel = b:GetPoint(1)
+    T.eq(rel, lock.areas, "after Areas")
+    local _, foldRel = lock.fold:GetPoint(1)
+    T.eq(foldRel, b, "Hide after it")
+    b:Click(); stub.RunTimers()
+    T.falsy(DUI.Movers.unlocked, "unlock mode ends")
+    T.truthy(AB.CdmEditor.IsOpen(), "the editor opens")
+    AB.CdmEditor.Close()
+
+    -- With Daylight UI's Cooldown Manager off there is nothing to open.
+    AB.Cooldowns.enabled = nil
+    DUI.Movers.Unlock()
+    T.falsy(b:IsShown(), "hidden while it's off")
+    local _, rel2 = lock.fold:GetPoint(1)
+    T.eq(rel2, lock.areas, "Hide closes up after Areas")
+    DUI.Movers.Lock()
+    AB.Cooldowns.enabled = true
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm own: the empty bar takes the spell's background color and follows changes", function()
     local DUI, AB, E, D = editorWorld()
     local set = D.Current()

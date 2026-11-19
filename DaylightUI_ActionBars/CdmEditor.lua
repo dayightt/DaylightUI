@@ -1516,7 +1516,7 @@ function build()
 end
 
 -- ---------------------------------------------------------------------
--- Opening it: /cdm, /dui cdm, the options page
+-- Opening it: /cdm, /dui cdm, the options page, unlock mode's bar
 -- ---------------------------------------------------------------------
 
 -- /cdm opens this editor instead of the game's Cooldown Manager settings, and
@@ -1545,6 +1545,13 @@ local function takeOverSlash()
 end
 
 DUI.RegisterEvent("PLAYER_LOGIN", takeOverSlash)
+
+-- Unlock mode is where players go to move things, and the cooldown layout has
+-- no handle there, so its bar gets a button that opens this editor.
+DUI.Movers.AddBarButton(L["Cooldown Manager"], function() Ed.Open() end,
+    function() return ns.Cooldowns.enabled and true or false end,
+    L["Edit your cooldown layout right on the screen. Type /cdm to open it any time."])
+
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
     if not isOpen then return end
     Ed.Close()

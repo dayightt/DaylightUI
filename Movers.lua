@@ -1325,6 +1325,62 @@ function Movers.DragBar(handle)
     handle:HookScript("OnHide", stop)
 end
 
+-- Buttons a module adds to the bar, between Areas and Hide: the cooldown
+-- layout editor has no handle of its own, so this is where a player moving
+-- frames finds it. Each shows only while its shown() says so, and a click
+-- locks first, since the editor and unlock mode both own the screen.
+local barExtras = {}
+function Movers.AddBarButton(label, onClick, shown, tip)
+    barExtras[#barExtras + 1] = { label = label, onClick = onClick, shown = shown, tip = tip }
+end
+
+function Movers.BarButtons()
+    local list = {}
+    for _, e in ipairs(barExtras) do list[#list + 1] = e.button end
+    return list
+end
+
+local function extraButton(bar, e)
+    local W = DUI.Widgets
+    local b = W.Button(bar, e.label, 30)
+    b.FitWidth(90)
+    b:SetFrameLevel(bar:GetFrameLevel() + 2)
+    b:SetScript("OnClick", function()
+        Movers.Lock()
+        DUI.SafeCall(e.onClick)
+    end)
+    if e.tip then
+        b:HookScript("OnEnter", function(self) W.Tooltip(self, e.label, e.tip) end)
+        b:HookScript("OnLeave", W.HideTooltip)
+    end
+    return b
+end
+
+-- Lines the bar's buttons up left to right, the added ones only while wanted,
+-- and sizes the pill round them.
+local function layBar()
+    local bar = lockButton.bar
+    local prev = lockButton.areas
+    local width = PILL_PAD + lockButton:GetWidth() + 8 + lockButton.snap:GetWidth()
+        + 8 + lockButton.magnet:GetWidth() + 8 + lockButton.areas:GetWidth()
+    for _, e in ipairs(barExtras) do
+        local want = not Movers.barHidden and e.shown() and true or false
+        if want and not e.button then e.button = extraButton(bar, e) end
+        if e.button then
+            e.button:SetShown(want)
+            if want then
+                e.button:ClearAllPoints()
+                e.button:SetPoint("LEFT", prev, "RIGHT", 8, 0)
+                prev = e.button
+                width = width + 8 + e.button:GetWidth()
+            end
+        end
+    end
+    lockButton.fold:ClearAllPoints()
+    lockButton.fold:SetPoint("LEFT", prev, "RIGHT", 8, 0)
+    bar:SetWidth(width + 8 + lockButton.fold:GetWidth() + PILL_PAD)
+end
+
 local function showLockButton(show)
     if show and not lockButton then
         local bar = pill()
@@ -1364,11 +1420,8 @@ local function showLockButton(show)
         local fold = DUI.Widgets.Button(bar, L["Hide"], 30)
         fold.FitWidth(80)
         fold:SetFrameLevel(bar:GetFrameLevel() + 2)
-        fold:SetPoint("LEFT", areas, "RIGHT", 8, 0)
         fold:SetScript("OnClick", function() Movers.SetBarHidden(true) end)
         lockButton.fold = fold
-        bar:SetWidth(PILL_PAD + lockButton:GetWidth() + 8 + snap:GetWidth()
-            + 8 + mag:GetWidth() + 8 + areas:GetWidth() + 8 + fold:GetWidth() + PILL_PAD)
 
         -- The tab that brings it back, small and at the very top.
         local tab = pill()
@@ -1411,6 +1464,7 @@ local function showLockButton(show)
             -- Locking puts everything away at once.
             for _, p in ipairs(parts) do p:Hide(); p:SetAlpha(1) end
             for _, c in ipairs(children) do c:Hide() end
+            for _, e in ipairs(barExtras) do if e.button then e.button:Hide() end end
             DUI.Motion.Tween(slideKey, 0, 0, 0)
             lockButton.bar.slideY, lockButton.folded = nil, nil
             placeBar(lockButton.bar)
@@ -1421,6 +1475,7 @@ local function showLockButton(show)
         local bar = not Movers.barHidden
         local setup = bar and DUI.DB.Unsaved() and true or false
         for _, child in ipairs(children) do child:SetShown(child ~= lockButton.setup or setup) end
+        layBar()
         local M = DUI.Motion
         -- Slides only when it folds or opens, not when unlock mode starts.
         local folded = not bar
