@@ -1163,6 +1163,52 @@ T.test("threat mode: a meter window picks Threat like any other mode", function(
     stub.SetGroup(false)
 end)
 
+-- In an instance the client keeps an enemy's name secret, so the mob a threat
+-- list is for comes as a secret: it goes onto the header as it is. A truth test
+-- on it errors in the client (plain Lua here can't trap that), and the draw
+-- stopped there every tick.
+T.test("threat mode: in an instance the mob's secret name still heads the list", function()
+    local DUI = login()
+    local id = W().Add("threat")
+    stub.RunTimers(); tweens()
+    local h = host(id)
+    threatParty()
+    stub.SetRestriction("Map", true)
+    stub.EnterCombat()
+    T.noerror(function() h.view.Draw() end)
+    T.eq(stub.Text(h.view.header.fight), "Sadeas", "the header names the mob")
+    T.eq(stub.Text(rows(id)[1].name), "Kaladin", "the rows drawn")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.LeaveCombat()
+    stub.SetRestriction("Map", false)
+    stub.SetGroup(false)
+end)
+
+-- Every meter draws from one shared ticker. A meter whose draw failed took the
+-- rest of that tick with it (and the client may drop a ticker whose callback
+-- errors), so the windows after it stopped redrawing until a reload.
+T.test("meters: one meter failing to draw never stops the others or the redraws", function()
+    local DUI = login()
+    local id = W().Add("threat")
+    stub.RunTimers(); tweens()
+    local h = host(id)
+    threatParty()
+    stub.EnterCombat()
+    local main = stub.infopanel.Meter
+    local realMain, realWin = main.Draw, h.view.Draw
+    local drawn = 0
+    main.Draw = function() error("a draw that fails") end
+    h.view.Draw = function() drawn = drawn + 1 end
+    stub.errors = {}
+    T.noerror(function() stub.RunTickers() end, "the ticker carries on")
+    T.truthy(drawn >= 1, "the window after it still drew")
+    T.truthy(#stub.errors > 0 and stub.errors[1]:find("a draw that fails", 1, true), "the failure reported")
+    main.Draw, h.view.Draw = realMain, realWin
+    stub.errors = {}
+    stub.LeaveCombat()
+    stub.SetGroup(false)
+end)
+
 T.test("threat windows: it can follow your focus, or your target's target when you target a friend", function()
     local DUI = login()
     local id = W().Add("threatwindow")

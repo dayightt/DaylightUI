@@ -75,6 +75,7 @@ local function world(w)
     _G.ToggleCharacter = function(page) stub.opened[#stub.opened + 1] = "character:" .. tostring(page) end
     _G.ToggleFriendsFrame = function() stub.opened[#stub.opened + 1] = "friends" end
     _G.ToggleGuildFrame = function() stub.opened[#stub.opened + 1] = "guild" end
+    _G.GamepadMode, _G.InputUtil = nil, nil   -- the mouse UI unless a test turns the controller UI on
 end
 
 local function login(w, more)
@@ -648,6 +649,135 @@ T.test("data texts: the guild window opens only through a secure click, loaded o
     T.falsy(b:IsShown(), "gone as a fight starts")
     stub.LeaveCombat()
     stub.loadedAddOns["Blizzard_Communities"] = nil
+end)
+
+-- With the controller UI on, a game window shown from addon code goes on the
+-- controller's window list under that addon's taint: ShowUIPanel's
+-- "UIParentPanelManager.ShowUIPanel" callback runs FrameControlsManager:FrameShown
+-- inside the caller's run (FrameControlsManager.lua, ContainerFrame.OpenBag for
+-- the bags), and its binding sets go on the stack tainted. From then on the game
+-- refuses its own SetPreferredGamepadInteractTarget each time the soft target
+-- changes (MainActionBarFrame.lua UpdateInteractIcons), walking through a town:
+-- "the game blocked SetPreferredGamepadInteractTarget() (DaylightUI_InfoPanel)".
+-- `listed` holds every window opened outside a secure run. The game's /click
+-- (SlashCommands.lua) clicks the named button inside the secure macro.
+local function gameWindows()
+    local listed = {}
+    local function open(what)
+        stub.opened[#stub.opened + 1] = what
+        if (stub.inSecure or 0) == 0 and DaylightUI.Pad.On() then listed[#listed + 1] = what end
+    end
+    _G.ToggleCharacter = function(page) open("character:" .. tostring(page)) end
+    _G.ToggleAllBags = function() open("bags") end
+    _G.ToggleFriendsFrame = function() open("friends") end
+    _G.SLASH_CLICK1 = "/click"
+    _G.SlashCmdList = _G.SlashCmdList or {}
+    _G.SlashCmdList.CLICK = function(msg)
+        local name, mouseButton = string.match(msg, "([^%s]+)%s+([^%s]+)")
+        local b = _G[name or msg]
+        if type(b) == "table" and b.Click then b:Click(mouseButton or "LeftButton") end
+    end
+    -- The game's own buttons: C, and the backpack (ToggleBag(0), all bags when combined).
+    CreateFrame("Button", "CharacterMicroButton", UIParent):SetScript("OnClick", function()
+        ToggleCharacter("PaperDollFrame")
+    end)
+    CreateFrame("Button", "MainMenuBarBackpackButton", UIParent):SetScript("OnClick", function() ToggleAllBags() end)
+    -- The chat's quick join button (hidden by the Chat module): friends while no toast is up.
+    local quick = CreateFrame("Button", "QuickJoinToastButton", UIParent)
+    quick:SetScript("OnClick", function() ToggleFriendsFrame(1) end)
+    quick:Hide()
+    return listed
+end
+local function padUI(on)
+    if not on then _G.GamepadMode, _G.InputUtil = nil, nil; return end
+    local nop = function() end
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = nop, FrameHidden = nop, HandlePopupShown = nop,
+                                                HandlePopupHide = nop } }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+end
+-- A click as the player makes it: the mouse comes onto the text first, so a
+-- secure button laid over it takes the click when there is one.
+local function playerClick(i, button)
+    local s = DT().slots[i]
+    s.GetLeft, s.GetBottom = function() return 1700 end, function() return 900 end
+    hover(i)
+    for _, name in ipairs({ "DaylightUIDataWindow", "DaylightUIDataGuild" }) do
+        local b = _G[name]
+        if b and b:IsShown() and b.row == s then
+            stub.SecureClick(b, button)
+            s:GetScript("OnLeave")(s)
+            return
+        end
+    end
+    s:GetScript("OnClick")(s, button)
+    s:GetScript("OnLeave")(s)
+end
+local function clearGameWindows()
+    padUI(false)
+    _G.CharacterMicroButton, _G.MainMenuBarBackpackButton, _G.QuickJoinToastButton = nil, nil, nil
+    _G.SlashCmdList.CLICK, _G.SLASH_CLICK1 = nil, nil
+end
+
+T.test("data texts: character and bags open through the game's own buttons, a secure click over the text", function()
+    socialIn4(login())
+    local listed = gameWindows()
+    padUI(true)
+    playerClick(1, "LeftButton")
+    playerClick(2, "LeftButton")
+    playerClick(2, "RightButton")
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, { "bags", "character:PaperDollFrame", "character:PaperDollFrame", "bags" })
+    T.deq(listed, {}, "every one opened as the player's own click, never from addon code")
+    local b = _G.DaylightUIDataWindow
+    T.eq(b:GetAttribute("macrotext1"), "/click MainMenuBarBackpackButton")
+    stub.EnterCombat()
+    T.falsy(b:IsShown(), "gone as a fight starts")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    clearGameWindows()
+end)
+
+T.test("data texts: on a controller nothing opens a game window from addon code, in a fight either", function()
+    local DUI = login()
+    socialIn4(DUI)
+    local listed = gameWindows()
+    padUI(true)
+    DUI:Set("InfoPanel", "data.slot3", "friends")
+    stub.RunTimers()
+    playerClick(4, "LeftButton")
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, { "friends", "friends" }, "friends opens through the game's quick join button")
+    T.deq(listed, {}, "as the player's own click")
+    hover(4)
+    T.truthy(tipText():find("Click: friends", 1, true), "so the tooltip offers it: " .. tipText())
+    T.eq(_G.DaylightUIDataGuild:GetAttribute("macrotext2"), "/click GuildMicroButton", "a right-click is still the guild")
+    DT().slots[4]:GetScript("OnLeave")(DT().slots[4])
+    -- A game without that button: no click from addon code, and none offered.
+    _G.QuickJoinToastButton = nil
+    stub.opened = {}
+    playerClick(4, "LeftButton")
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, {}, "nothing to click")
+    hover(4)
+    T.falsy(tipText():find("Click: friends", 1, true), "so the tooltip doesn't offer it: " .. tipText())
+    stub.EnterCombat()
+    local S = DT().slots
+    S[1]:GetScript("OnClick")(S[1], "LeftButton")
+    S[4]:GetScript("OnClick")(S[4], "LeftButton")
+    T.deq(listed, {}, "no secure button in a fight, and no toggle from addon code")
+    stub.LeaveCombat()
+    DUI:Set("InfoPanel", "data.slot3", "bags")
+    stub.RunTimers()
+    -- A right-click of the text's own still reaches it through the secure button.
+    DUI.DB.Root().characters["Alt-Realm"] = { money = 20000, class = "MAGE" }
+    local menu
+    local real = DUI.Widgets.OpenMenu
+    DUI.Widgets.OpenMenu = function(owner) menu = owner end
+    playerClick(1, "RightButton")
+    DUI.Widgets.OpenMenu = real
+    T.eq(menu, DT().slots[1], "gold's right-click still opens its character list")
+    T.deq(listed, {})
+    clearGameWindows()
 end)
 
 T.test("data texts: clicks open the matching window; character and social wait out combat", function()

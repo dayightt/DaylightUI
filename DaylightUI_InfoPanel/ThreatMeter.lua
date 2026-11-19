@@ -732,13 +732,17 @@ function TM.Build(mod)
         for _, row in ipairs(rows) do row.painted, row.mine = nil, nil end
     end)
     -- Five times a second: follows the options page opening, and redraws
-    -- while it's out.
-    C_Timer.NewTicker(TM.TICK, function()
-        if not cfg then return end
+    -- while it's out. The meter and the windows draw apart, so a failure in
+    -- one is reported and leaves the other, and the ticker, running.
+    local function follow()
         local goal = TM.Wanted() and 1 or 0
         if goal ~= slider.goal then TM.Update(true) end
         if clip:IsShown() and (slider.p > 0) then TM.Draw() end
-        ns.MeterFrame.ThreatTick()
+    end
+    C_Timer.NewTicker(TM.TICK, function()
+        if not cfg then return end
+        DUI.SafeCall(follow)
+        DUI.SafeCall(ns.MeterFrame.ThreatTick)
     end)
 end
 

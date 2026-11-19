@@ -479,9 +479,11 @@ local function share()
     end
     -- In a fight the numbers are read again every tick, not only when the
     -- game says they changed (its word comes less often than the numbers do).
+    -- Each meter draws on its own: one that fails is reported and can't keep
+    -- the others, or the ticker itself, from running.
     C_Timer.NewTicker(Meter.REFRESH, function()
         local fight = InCombatLockdown and InCombatLockdown() or false
-        for _, m in ipairs(all) do m.Tick(fight) end
+        for _, m in ipairs(all) do DUI.SafeCall(m.Tick, fight) end
     end)
 end
 

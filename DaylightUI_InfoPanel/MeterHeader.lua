@@ -143,7 +143,10 @@ function Header.Update(h, m, cfg, session)
     h.icon:SetVertexColor(Style.Accent())
     h.modeLink.SetLabel(md.label)
     local name, length = m.FightTitle()
-    h.fight:SetText(name or "")
+    -- A threat list's title is the mob's name, secret in an instance: it goes
+    -- straight onto the text, never truth-tested (the client refuses that).
+    if type(name) == "nil" then name = "" end
+    h.fight:SetText(name)
     if not m.fight and not m.Sample() and C_DamageMeter and C_DamageMeter.GetSessionDurationSeconds then
         local st = m.SessionType()
         if st ~= nil then

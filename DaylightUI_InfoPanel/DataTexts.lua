@@ -454,10 +454,21 @@ local function guildTip()
     if more > 0 then hint(string.format(L["and %d more"], more)) end
 end
 
+-- With the game's controller UI on, a game window opened from addon code goes
+-- on the controller's window list carrying Daylight UI's taint. The game then
+-- refuses its own SetPreferredGamepadInteractTarget every time the soft target
+-- changes (walking past NPCs), and the controller misbehaves until a reload. So
+-- on a controller the game's windows open only through the game's own buttons,
+-- clicked by a secure button over the text (DT.WindowOver); a game without
+-- that button gets no click there.
+local function padUI() return DUI.Pad ~= nil and DUI.Pad.On() == true end
+
 local function socialHint(guild)
     gap()
     local fight = InCombatLockdown()
-    hint(fight and L["Click: friends (after combat)"] or L["Click: friends"])
+    if not padUI() or DT.OpenClick("social") then
+        hint(fight and L["Click: friends (after combat)"] or L["Click: friends"])
+    end
     if guild then hint(fight and L["Right-click: guild (after combat)"] or L["Right-click: guild"]) end
 end
 
@@ -471,7 +482,8 @@ end
 -- that read it afterwards get blocked.
 local function openBags()
     local bag = _G.DaylightUIBag
-    if type(bag) == "table" and bag:IsShown() then DUI.Motion.Vanish(bag) else call(_G.ToggleAllBags) end
+    if type(bag) == "table" and bag:IsShown() then DUI.Motion.Vanish(bag)
+    elseif not padUI() then call(_G.ToggleAllBags) end
 end
 -- Right-click removes a deleted character from the gold list.
 local function goldClick(button, slot)
@@ -483,10 +495,10 @@ local function openCharacter()
         if charInFight() then DUI.Char.Follow.ToggleInFight() end
         return
     end
-    call(_G.ToggleCharacter, "PaperDollFrame")
+    if not padUI() then call(_G.ToggleCharacter, "PaperDollFrame") end
 end
 local function openFriends()
-    if InCombatLockdown() then return end
+    if InCombatLockdown() or padUI() then return end
     call(_G.ToggleFriendsFrame)
 end
 local function openMap()
@@ -793,17 +805,58 @@ function DT.GuildOver(slot)
             enter = function(s) if s.enter then s.enter(s) end end,
             leave = function(s) if s.leave then s.leave(s) end end,
             post = function(s, button)
-                if s.key == "social" and button ~= "RightButton" then openFriends() end
+                if s.key == "social" and button ~= "RightButton" and not guildCaster.friends then openFriends() end
             end })
     end
     local c = guildCaster
     if c.button and c.button.row == slot and c.button:IsShown() then return end
     c.over = slot
     if slot.key == "social" then
-        c.Over(slot, { type2 = "macro", macrotext2 = DT.GUILD_CLICK })
+        -- A left-click is friends, through the game's own button when it has one.
+        local friends = DT.OpenClick("social")
+        c.friends = friends ~= nil
+        c.Over(slot, { type1 = friends and "macro" or nil, macrotext1 = friends,
+                       type2 = "macro", macrotext2 = DT.GUILD_CLICK })
     else
         c.Over(slot, { type1 = "macro", macrotext1 = DT.GUILD_CLICK })
     end
+end
+
+-- The game's own button behind each window a text opens. A secure /click on it
+-- runs the game's code as the player's own press, so the window opens untainted.
+-- A hidden button still takes the click (the chat hides the quick join one,
+-- which opens friends while it has no toast up).
+DT.OPENS = { character = "CharacterMicroButton", bags = "MainMenuBarBackpackButton", social = "QuickJoinToastButton" }
+-- The /click for a window, or nil when the game didn't make its button.
+function DT.OpenClick(kind)
+    local name = DT.OPENS[kind]
+    if not name or type(_G[name]) ~= "table" then return nil end
+    return "/click " .. name
+end
+local windowCaster
+-- Lays that secure button over a text that opens one of the game's windows, on
+-- mouseover and out of combat only. In a fight the text's own click still runs:
+-- Daylight UI's character window opens, Daylight UI's bag closes.
+function DT.WindowOver(slot)
+    local t = DT.TEXTS[slot.key]
+    local macro = t and DT.OpenClick(t.opens)
+    if not macro or sample() or not (DUI.Win and DUI.Win.Caster) then return end
+    if not windowCaster then
+        windowCaster = DUI.Win.Caster({ name = "DaylightUIDataWindow",
+            above = function() return windowCaster and windowCaster.over end,
+            enter = function(s) if s.enter then s.enter(s) end end,
+            leave = function(s) if s.leave then s.leave(s) end end,
+            -- A right-click the text keeps for itself (a menu) goes to its own click.
+            post = function(s, button)
+                if button == "RightButton" and windowCaster.ownRight then s:GetScript("OnClick")(s, button) end
+            end })
+    end
+    local c = windowCaster
+    if c.button and c.button.row == slot and c.button:IsShown() then return end
+    local ownRight = slot.pick ~= nil or (t.right ~= nil and t.right() == true)
+    c.over, c.ownRight = slot, ownRight
+    c.Over(slot, { type1 = "macro", macrotext1 = macro,
+                   type2 = (not ownRight) and "macro" or nil, macrotext2 = (not ownRight) and macro or nil })
 end
 
 -- ---------------------------------------------------------------------
@@ -949,7 +1002,8 @@ DT.TEXTS = {
             return s, s
         end,
         ownIcon = true,   -- the text already ends in a coin icon
-        tip = goldTip, click = goldClick },
+        tip = goldTip, click = goldClick, opens = "bags",
+        right = function() return #DUI.Alts.List() > 0 end },
     durability = { name = "Durability", events = { "UPDATE_INVENTORY_DURABILITY", "PLAYER_EQUIPMENT_CHANGED" },
         count = function() return DT.ReadDurability() end,
         text = function(n)
@@ -957,7 +1011,7 @@ DT.TEXTS = {
             local v = low and value(low .. "%", gearColor(low)) or value("-")
             return word(L["Gear"] .. " ") .. v, v
         end,
-        tip = durabilityTip, click = openCharacter },
+        tip = durabilityTip, click = openCharacter, opens = "character" },
     bags = { name = "Bag space", events = { "BAG_UPDATE_DELAYED" },
         count = function() return DT.ReadBags() end,
         text = function(n)
@@ -965,7 +1019,7 @@ DT.TEXTS = {
             local v = value(tostring(free), bagsColor(free))
             return word(L["Bags"] .. " ") .. v, v
         end,
-        tip = bagsTip, click = openBags },
+        tip = bagsTip, click = openBags, opens = "bags" },
     social = { name = "Friends and guild",
         events = { "FRIENDLIST_UPDATE", "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE", "BN_CONNECTED",
                    "BN_DISCONNECTED", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE" },
@@ -995,7 +1049,7 @@ DT.TEXTS = {
             local v = value(tostring(n or DT.ReadFriends()))
             return word(L["Friends"] .. " ") .. v, v
         end,
-        tip = function() friendsTip(); socialHint(false) end, click = openFriends },
+        tip = function() friendsTip(); socialHint(false) end, click = openFriends, opens = "social" },
     guild = { name = "Guild", events = { "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE" },
         count = function() return DT.ReadGuild() end,
         text = function(n)
@@ -1125,7 +1179,7 @@ DT.TEXTS = {
             gap()
             hint(InCombatLockdown() and not charInFight() and L["Click: character window (after combat)"] or L["Click: character window"])
         end,
-        click = openCharacter },
+        click = openCharacter, opens = "character" },
     played = { name = "Time played", events = { "TIME_PLAYED_MSG" }, poll = true,
         onEvent = function(_, total, level) DT.OnPlayed(total, level) end,
         text = function()
@@ -1186,6 +1240,7 @@ DT.TEXTS = {
             statTip(L["Critical strike"], rows)
             hint(L["Right-click: pick which crit"])
         end,
+        opens = "character", right = function() return true end,
         click = function(button, slot)
             if button ~= "RightButton" then return openCharacter() end
             local db = ns.module and ns.module.db
@@ -1210,6 +1265,7 @@ DT.TEXTS = {
             statTip(L["Attack power"], rows)
             hint(L["Right-click: pick which attack power"])
         end,
+        opens = "character", right = function() return true end,
         click = function(button, slot)
             if button ~= "RightButton" then return openCharacter() end
             local db = ns.module and ns.module.db
@@ -1225,11 +1281,11 @@ DT.TEXTS = {
         tip = function()
             statTip(L["Spell power"], { { L["Spell power"], "spell", "sp" }, { L["Healing"], "spell", "heal" } })
         end,
-        click = openCharacter },
+        click = openCharacter, opens = "character" },
     hit = { name = "Chance to hit", events = STAT_EVENTS,
         text = function() return statText(L["Hit"], DT.ReadStat("attack", "hit")) end,
         tip = function() statTip(L["Chance to hit"], { { L["Chance to hit"], "attack", "hit" } }) end,
-        click = openCharacter },
+        click = openCharacter, opens = "character" },
     shards = { name = "Soul Shards", events = { "BAG_UPDATE_DELAYED" },
         count = function() return DT.ReadShards() end,
         text = function(n)
@@ -1250,7 +1306,7 @@ DT.TEXTS = {
             gap()
             hint(L["Click: bags"])
         end,
-        click = function() openBags() end },
+        click = function() openBags() end, opens = "bags" },
     ammo = { name = "Ammo", events = { "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE_DELAYED" },
         unitEvents = { "UNIT_INVENTORY_CHANGED" },   -- each shot
         count = function() return DT.ReadAmmo() end,
@@ -1271,7 +1327,7 @@ DT.TEXTS = {
             gap()
             hint(InCombatLockdown() and not charInFight() and L["Click: character window (after combat)"] or L["Click: character window"])
         end,
-        click = openCharacter },
+        click = openCharacter, opens = "character" },
     speed = { name = "Movement speed", poll = true,
         text = function()
             local sp = DT.ReadSpeed()
@@ -1291,7 +1347,7 @@ DT.TEXTS = {
             gap()
             hint(InCombatLockdown() and not charInFight() and L["Click: character window (after combat)"] or L["Click: character window"])
         end,
-        click = openCharacter },
+        click = openCharacter, opens = "character" },
     hearth = { name = "Hearthstone", poll = true,
         text = function()
             local home, left = DT.ReadHearth()
@@ -1468,7 +1524,9 @@ function DT.New(S, opts)
         DT.FlushTip()
         GameTooltip:Show()
         self.hover = true
-        if t.over and not DT.redrawing then DUI.SafeCall(t.over, self) end
+        if not DT.redrawing then
+            if t.over then DUI.SafeCall(t.over, self) elseif t.opens then DUI.SafeCall(DT.WindowOver, self) end
+        end
     end
 
     local function onLeave(self)
@@ -1503,6 +1561,7 @@ function DT.New(S, opts)
         s:SetScript("OnLeave", onLeave)
         s:SetScript("OnClick", onClick)
         s.enter, s.leave = onEnter, onLeave   -- for a secure button laid over it (hearth)
+        s.pick = opts.pick   -- a plugin panel's Shift+right-click picks the slot's text
         -- Only texts with a wheel handler (volume) take the mouse wheel.
         s:SetScript("OnMouseWheel", function(self, delta)
             local t = DT.TEXTS[self.key]
