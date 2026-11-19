@@ -885,8 +885,21 @@ function CD.Tick()
     if ns.BuffBars then DUI.SafeCall(ns.BuffBars.SyncClocks) end
 end
 
+-- The game's own Cooldown Manager has to be running: these icons are its icons,
+-- and with it switched off (Options, Gameplay Enhancements) it makes none and
+-- updates none. Set once as the UI loads, while the game's viewers are still empty.
+CD.GAME_SWITCH = "cooldownViewerEnabled"
+function CD.KeepGameOn()
+    local C = C_CVar
+    if type(C) ~= "table" or type(C.GetCVar) ~= "function" or type(C.SetCVar) ~= "function" then return end
+    local now = C.GetCVar(CD.GAME_SWITCH)
+    if now == nil or now == "1" then return end
+    C.SetCVar(CD.GAME_SWITCH, "1")
+end
+
 function CD.Apply()
     CD.enabled = true
+    DUI.SafeCall(CD.KeepGameOn)
     if ns.CdmRows then DUI.SafeCall(ns.CdmRows.Init) end
     DUI.WarnIfLoaded("EllesmereUICooldownManager", "EllesmereUI Cooldown Manager", "Cooldown Manager icons")
     if not scanner and C_Timer and C_Timer.NewTicker then scanner = C_Timer.NewTicker(CD.SCAN, CD.Tick) end

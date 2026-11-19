@@ -487,6 +487,8 @@ function Bars.Enable(mod)
     end
     ns.Skin.Wire()
     if mod.db.cooldowns then DUI.SafeCall(ns.Cooldowns.Apply) end
+    -- Also with it off, so what it added to the game's layout comes back out.
+    ns.CdmSwitch.Start()
     -- An Edit Mode part with nothing to write. The core only maintains its Edit Mode
     -- layout (new-character setup, per-profile layouts) while some part is
     -- registered, and with the info panel off there would be none.

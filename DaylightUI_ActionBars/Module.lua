@@ -8,7 +8,7 @@ DaylightUI:RegisterModule("ActionBars", {
     ns = ns,
     parts = { "Shape", "Skin", "Hide", "Menus", "Totems", "Park", "Paging", "Buttons", "Ping", "RankUp",
                "Keys", "Small", "PadSkin", "Bars", "Diag", "Cooldowns", "BuffBars", "CdmData", "CdmSpells", "CdmCustom", "CdmEffects", "CdmRows",
-               "CdmOwn", "CdmAuras", "CdmBars", "CdmEditor", "CdmCard", "CdmImport", "CdmGuide" },
+               "CdmOwn", "CdmAuras", "CdmBars", "CdmEditor", "CdmCard", "CdmImport", "CdmSwitch", "CdmGuide" },
     label = "Action Bars",
     order = 110,
     defaults = ns.DEFAULTS,
