@@ -827,3 +827,68 @@ T.test("rolls card: a folded part is never sized 0 and hides its pieces", functi
     T.falsy(card.buttonBox:IsShown(), "hidden once folded")
     for _, box in ipairs(card.boxes) do T.truthy(box:GetHeight() > 0, "no part at 0") end
 end)
+
+-- Whether a frame has a place on screen: every point leads, frame by frame, to
+-- UIParent. A frame with no points has none, and nothing hung from it shows.
+local function placed(f, seen)
+    seen = seen or {}
+    if f == UIParent then return true end
+    if seen[f] or f:GetNumPoints() == 0 then return false end
+    seen[f] = true
+    for i = 1, f:GetNumPoints() do
+        local _, rel = f:GetPoint(i)
+        if not placed(rel or f:GetParent(), seen) then return false end
+    end
+    return true
+end
+
+T.test("rolls stack: the result stays on screen when the game's popups are all gone", function()
+    -- The last pick ends the roll at once (seen in game): the game drops its last
+    -- popup, hides its roll container and clears the container's points.
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local FIVE = {
+        { name = "Faera Duskveil", class = "PRIEST" }, { name = "Saki Shimmergloom", class = "MAGE" },
+        { name = "Kevin Shiver", class = "ROGUE" }, { name = "Adorias Ashvale", class = "HUNTER" },
+        { name = "Raging Daylight", class = "WARRIOR", self = true },
+    }
+    local id = RW.Drop({ name = "Jouster's Wristguards", quality = 2, canNeed = false, players = FIVE })
+    T.truthy(placed(St.frame), "on screen while the game's popup is up")
+    for _, n in ipairs({ "Faera Duskveil", "Saki Shimmergloom", "Kevin Shiver", "Adorias Ashvale" }) do RW.Pick(id, n, "greed") end
+    cardFor(S, id).buttons.greed:Click()
+    T.falsy(_G.GroupLootContainer:IsShown(), "the game's container is gone")
+    T.truthy(placed(St.frame), "still on screen after your pick")
+    RW.Roll(id, "Saki Shimmergloom", 95); RW.Roll(id, "Raging Daylight", 5)
+    RW.Win(id, "Saki Shimmergloom")
+    tick(S, 1); settle()
+    T.truthy(St.frame:IsShown()); T.truthy(placed(St.frame), "the result shows")
+    T.truthy(cardFor(S, id).list:GetHeight() > 1, "with everyone's rolls")
+end)
+
+T.test("rolls stack: a moved Loot Rolls handle keeps the rolls at its spot", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    DaylightUI.DB.Positions()["game.GroupLootContainer"] = { 330, 147 }
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    cardFor(S, id).buttons.pass:Click()
+    T.truthy(placed(St.frame), "on screen with the container gone")
+    local point, rel, rp, x, y = St.frame:GetPoint(1)
+    T.eq(point, "BOTTOM"); T.eq(rel, UIParent); T.eq(rp, "CENTER")
+    T.near(x, 330, 0.5); T.near(y, 147 - 50, 0.5, "the bottom of the handle's first slot")
+end)
+
+T.test("rolls stack: the last roll fades out before the stack hides", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardFor(S, id)
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91); RW.Win(id, "Bram Holloway")
+    settle()
+    tick(S, St.Settings().linger + 0.2)
+    T.isnil(S.RollData.drops[id], "the roll left")
+    T.truthy(St.frame:IsShown(), "the stack stays up while its card fades")
+    T.truthy(card:IsShown() and card:GetAlpha() > 0, "the card is still fading")
+    settle()
+    T.near(card:GetAlpha(), 0, 0.01, "faded out")
+    T.falsy(St.frame:IsShown(), "then the stack hides")
+end)

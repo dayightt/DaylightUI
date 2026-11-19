@@ -41,6 +41,13 @@ GM.FRAMES = {
 
 function GM.Key(name) return "game." .. name end
 
+-- Where a frame's handle was moved to, as CENTER offsets in UIParent units, or
+-- nil while it stands where the game puts it.
+function GM.Spot(name)
+    local saved = DUI.DB.Positions()[GM.Key(name)]
+    if DUI.Movers.Valid(saved) then return saved[1], saved[2] end
+end
+
 -- name -> { parent, points }: where the game had a frame before it was moved,
 -- so a reset can put it back (the game only re-places it when it shows).
 local origin = {}
@@ -82,8 +89,8 @@ local function place(spec)
     local name = spec.name
     local f = _G[name]
     if type(f) ~= "table" then return end
-    local saved = DUI.DB.Positions()[GM.Key(name)]
-    if not DUI.Movers.Valid(saved) then saved = nil end
+    local sx, sy = GM.Spot(name)
+    local saved = sx and { sx, sy } or nil
     if not (saved or origin[name]) then return end
     if f.IsProtected and f:IsProtected() and InCombatLockdown() then
         DUI.AfterCombat(function() place(spec) end, "gamemovers:" .. name)

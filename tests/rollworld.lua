@@ -196,9 +196,16 @@ end
 function RW.GameFrames()
     local c = CreateFrame("Frame", "GroupLootContainer", UIParent)
     c:SetSize(280, 100)
-    c:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 200)
     c.rollFrames, c.waitingRolls, c.reservedSize, c.maxIndex = {}, {}, 100, 0
     c:Hide()
+    -- A managed frame (BottomManagedFrameTemplate, ManagedFrameSystem.lua): shown,
+    -- the game's bottom column takes it and places it; hidden, the column lets it
+    -- go and clears every point it had, so it has no place on screen.
+    c:SetScript("OnShow", function(self)
+        self:ClearAllPoints()
+        self:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 200)
+    end)
+    c:SetScript("OnHide", function(self) self:ClearAllPoints() end)
     for i = 1, 4 do
         local roll = CreateFrame("Frame", "GroupLootFrame" .. i, UIParent)
         roll:SetSize(277, 67)

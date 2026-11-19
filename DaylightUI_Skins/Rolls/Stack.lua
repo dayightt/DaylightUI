@@ -259,27 +259,43 @@ local function leave(rollID)
     spare[#spare + 1] = card
 end
 
--- Where the stack hangs: the Loot Rolls handle's box. Moved by its handle, the
--- game's container keeps its center while its height follows the game's
--- popups, so the box is measured from the center then; left where the game
--- lays it out, its bottom stays put.
-local function anchor()
-    local f, c, s = RollStack.frame, _G.GroupLootContainer, RollStack.Settings()
-    local up = s.grow ~= "down"
-    f:ClearAllPoints()
-    if type(c) ~= "table" then
-        f:SetPoint(up and "BOTTOM" or "TOP", UIParent, "CENTER", 0, -200)
-    else
-        local slot = type(c.reservedSize) == "number" and c.reservedSize or 100
-        if c:GetPoint(1) == "CENTER" then
-            f:SetPoint(up and "BOTTOM" or "TOP", c, "CENTER", 0, up and -slot / 2 or slot / 2)
-        else
-            f:SetPoint(up and "BOTTOM" or "TOP", c, "BOTTOM", 0, up and 0 or slot)
+-- The game's roll container the last time it had a place: the middle of its
+-- bottom edge from UIParent's bottom left, in UIParent units.
+local lastBox
+
+-- Where the stack hangs: the Loot Rolls handle's box, worked out in UIParent
+-- units and anchored to UIParent, never to the game's roll container. That one
+-- is a managed frame: when its last popup goes (your own pick can end a roll
+-- at once) the game hides it and clears all its points, and everything hung
+-- from it would vanish. Moved by its handle, the box is the first slot under
+-- the saved center; left where the game lays it out, its bottom where the
+-- game's column last had it.
+local function hangSpot(up)
+    local c, GM = _G.GroupLootContainer, DUI.GameMovers
+    local ui = UIParent:GetEffectiveScale()
+    local r = type(c) == "table" and c:GetEffectiveScale() / ui or 1
+    local slot = (type(c) == "table" and type(c.reservedSize) == "number" and c.reservedSize or 100) * r
+    local sx, sy = GM.Spot("GroupLootContainer")
+    if sx then return "CENTER", sx, up and sy - slot / 2 or sy + slot / 2 end
+    if type(c) == "table" and c:GetNumPoints() > 0 then
+        local left, bottom, width = c:GetLeft(), c:GetBottom(), c:GetWidth()
+        if type(left) == "number" and type(bottom) == "number" and type(width) == "number" then
+            lastBox = { (left + width / 2) * r, bottom * r }
         end
     end
-    local GM = DUI.GameMovers
-    local scale = DUI.Movers.Scale(GM and GM.Key("GroupLootContainer") or nil)
+    if lastBox then return "BOTTOMLEFT", lastBox[1], up and lastBox[2] or lastBox[2] + slot end
+    return "CENTER", 0, -200
+end
+
+local function anchor()
+    local f, s = RollStack.frame, RollStack.Settings()
+    local up = s.grow ~= "down"
+    local scale = DUI.Movers.Scale(DUI.GameMovers.Key("GroupLootContainer"))
     if math.abs((f:GetScale() or 1) - scale) > 0.001 then f:SetScale(scale) end
+    local rel, x, y = hangSpot(up)
+    local k = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    f:ClearAllPoints()
+    f:SetPoint(up and "BOTTOM" or "TOP", UIParent, rel, x / k, y / k)
 end
 
 local function bracket(i)
@@ -435,12 +451,19 @@ layout = function()
     layBrackets(shown, up)
 
     if #shown > 0 then
+        RollStack.closing = nil
         anchor()
         f:Show()
         if not f:GetScript("OnUpdate") then f:SetScript("OnUpdate", RollStack.OnUpdate) end
-    else
+    elseif f:IsShown() and not RollStack.closing then
+        -- The last cards fade out first; the stack hides once they're gone,
+        -- unless a new roll came up meanwhile.
         f:SetScript("OnUpdate", nil)
-        f:Hide()
+        RollStack.closing = true
+        Motion.Tween(RollStack, 0, 1, Motion.NORMAL, nil, function()
+            if RollStack.closing and #order == 0 then f:Hide() end
+            RollStack.closing = nil
+        end)
     end
 end
 
