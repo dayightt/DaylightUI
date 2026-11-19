@@ -3164,11 +3164,29 @@ T.test("chat daylight: the short tags page has a box per chat kind and channel, 
     _G.GetChannelList = list
 end)
 
--- The letters of the short tags: English ones, or the game's words in the player's language.
-T.test("chat daylight: Tag letters starts as English, can be switched, and its boxes show a tooltip", function()
+-- A sent whisper's tag is the word the game puts before the name; a whole phrase is too long for one.
+T.test("chat daylight: the sent-whisper tag falls back to To when the game's word is longer than a few letters", function()
     daylight()
     local Tags = stub.chatModule.Tags
-    T.eq(Tags.letters, "english", "English until asked otherwise")
+    local old = _G.CHAT_WHISPER_INFORM_GET
+    DaylightUI:Set("Chat", "tagLetters", "native")
+    stub.RunTimers()
+    local chinese = "你悄悄地对%s:"   -- the whole phrase before the name on a Chinese client
+    for fmt, want in pairs({ ["A %s:"] = "A", ["To %s:"] = "To", ["An %s:"] = "An", [chinese] = "To" }) do
+        _G.CHAT_WHISPER_INFORM_GET = fmt
+        Tags.ResetDefaults()
+        T.eq(Tags.Default("to"), want, fmt)
+    end
+    _G.CHAT_WHISPER_INFORM_GET = old
+    Tags.ResetDefaults()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The letters of the short tags: English ones, or the game's words in the player's language.
+T.test("chat daylight: Tag letters starts in the player's language on a new profile, can be switched, and its boxes show a tooltip", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    T.eq(Tags.letters, "native", "a new profile starts on the player's language")
     local item
     for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
         for _, card in ipairs(page.groups or {}) do
@@ -3457,6 +3475,8 @@ end)
 -- The game's own channel id names a world channel, whatever the language calls it.
 T.test("chat daylight: world channels are known by the game's id, not their name", function()
     daylight()
+    DaylightUI:Set("Chat", "tagLetters", "english")
+    stub.RunTimers()
     local CH = stub.chatModule
     local Kinds, Tags = CH.Kinds, CH.Tags
     local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
