@@ -949,3 +949,44 @@ T.test("Options leaves unlock mode for the frame's settings", function()
     panel.Show, DUI.Options.GetPage = show, get
     T.eq(opened, "General.layout")
 end)
+
+T.test("a locked piece can't be nudged, typed or reset, and its handle goes under the others", function()
+    local DUI = stub.Load()
+    local f = demo(DUI)
+    f:SetSize(100, 40)
+    local g = CreateFrame("Frame", "UnderFrame", UIParent)
+    g:SetSize(100, 40)
+    DUI.Movers.Register(g, "under", "Under", { "BOTTOM", nil, "BOTTOM", -200, 240 })
+    DUI.Movers.Unlock()
+    f.__center = { UIParent:GetWidth() / 2 + 64, UIParent:GetHeight() / 2 }
+    DUI.Movers.Save("demo")
+    T.truthy(DUI.DB.Positions().demo, "a spot saved")
+    local x0, y0 = DUI.Movers.Position("demo")
+    DUI.Movers.SetLocked("demo", true)
+    T.truthy(DUI.Movers.Locked("demo"))
+    DUI.Movers.Nudge("demo", 10, 0)
+    DUI.Movers.SetExact("demo", 300, 300)
+    local x, y = DUI.Movers.Position("demo")
+    T.eq(x, x0); T.eq(y, y0, "stays put")
+    local h = DUI.Movers.Handle("demo")
+    h:GetScript("OnMouseUp")(h, "RightButton")
+    T.truthy(DUI.DB.Positions().demo, "right-click does not reset it")
+    T.truthy(h.lock:IsShown(), "the lock mark shows")
+    -- The fake game doesn't work out edges from anchors: give both handles a box.
+    local function box(hh, l, b)
+        function hh.GetLeft() return l end
+        function hh.GetRight() return l + 100 end
+        function hh.GetBottom() return b end
+        function hh.GetTop() return b + 40 end
+    end
+    box(h, 100, 100)
+    box(DUI.Movers.Handle("under"), 150, 120)
+    T.eq(DUI.Movers.Overlapping("demo")[1], "under", "the handle beneath it is listed")
+    DUI.Movers.OpenEditor("demo")
+    T.truthy(DUI.Movers.Editor().under:IsShown(), "the editor offers it")
+    DUI.Movers.SetLocked("demo", false)
+    T.falsy(h.lock:IsShown() and h.lock:GetAlpha() > 0.99, "the mark goes")
+    h:GetScript("OnMouseUp")(h, "RightButton")
+    T.isnil(DUI.DB.Positions().demo, "unlocked: right-click resets it again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

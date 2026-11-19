@@ -346,6 +346,17 @@ end
 
 function Movers.GroupOf(key) return pieceGroups()[key] end
 
+-- Locked pieces (general.frameLocks[key] = true) stay put in unlock mode: their
+-- handle can't be dragged, nudged or reset, and it sits under the other handles,
+-- so one hidden beneath it can be reached. Moving its group still carries it.
+local function pieceLocks()
+    local g = DUI.DB.General()
+    if type(g.frameLocks) ~= "table" then g.frameLocks = {} end
+    return g.frameLocks
+end
+
+function Movers.Locked(key) return pieceLocks()[key] == true end
+
 -- The pieces in a group, in registration order.
 function Movers.Members(group)
     local out, all = {}, pieceGroups()
@@ -484,7 +495,7 @@ end
 -- own scale), then saves through Movers.Save, the same path dragging uses.
 function Movers.Nudge(key, dx, dy)
     local e = entries[key]
-    if not e then return end
+    if not e or Movers.Locked(key) then return end
     local f = moverFrame(e)
     local cx, cy = f:GetCenter()
     if not cx then return end
@@ -499,7 +510,7 @@ end
 -- Movers.Save.
 function Movers.SetExact(key, x, y)
     local e = entries[key]
-    if not e then return end
+    if not e or Movers.Locked(key) then return end
     local f = moverFrame(e)
     mark(e)
     local r = ratio(f)
@@ -825,6 +836,11 @@ local function makeHandle(e)
     -- Its group's number, in the corner.
     h.groupTag = DUI.Style.Text(h, DUI.Style.SIZE.tiny, "RIGHT")
     h.groupTag:SetPoint("TOPRIGHT", h, "TOPRIGHT", -3, -2)
+    h.lock = h:CreateTexture(nil, "OVERLAY")
+    h.lock:SetTexture(DUI.MEDIA .. "ui-lock.png")
+    h.lock:SetSize(Movers.LOCK_ICON, Movers.LOCK_ICON)
+    h.lock:SetPoint("TOPLEFT", h, "TOPLEFT", 3, -3)
+    h.lock:Hide()
     local mover = e.proxy and h or e.frame
     -- A plain click opens the editor and a drag moves the frame and saves. The
     -- game never starts a drag for a click that doesn't move, so a click is told
@@ -832,6 +848,7 @@ local function makeHandle(e)
     h:SetScript("OnMouseDown", function() h.dragging = false end)
     h:SetScript("OnDragStart", function()
         h.dragging = true
+        if Movers.Locked(e.key) then return end
         h.moving = true
         h.glide = nil
         mark(e)
@@ -858,6 +875,7 @@ local function makeHandle(e)
         end
     end)
     h:SetScript("OnDragStop", function()
+        if Movers.Locked(e.key) then return end
         h.moving = nil
         h:SetScript("OnUpdate", nil)
         mover:StopMovingOrSizing()
@@ -884,7 +902,7 @@ local function makeHandle(e)
     end
     h:SetScript("OnMouseUp", function(_, button)
         if button == "RightButton" then
-            Movers.Reset(e.key)
+            if not Movers.Locked(e.key) then Movers.Reset(e.key) end
         elseif button == "LeftButton" and not h.dragging then
             local Ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() == true
             if Ctrl and editor and editor.key and editor.key ~= e.key and DUI.Motion.Shown(editor) then
@@ -1020,6 +1038,41 @@ Movers.EDITOR_BUTTON = 56 -- width of each nudge button and X/Y box
 Movers.EDITOR_ROW = 24 -- and their height
 Movers.EDITOR_GAP = 4 -- gap between them
 Movers.EDITOR_HINT = 16 -- room for the line under the title
+Movers.LOCK_ICON = 10 -- the lock mark in a locked handle's corner
+Movers.LOCK_TINT = 0.1 -- a locked handle's accent wash (an open one's is 0.25)
+
+-- A handle's look for its lock: the mark eases in or out, the wash dims, and it
+-- goes under the other handles (back on top when unlocked).
+function Movers.PaintLock(key, instant)
+    local h = handles[key]
+    if not h then return end
+    local on = Movers.Locked(key)
+    DUI.Style.PaintAccent(h.tint, on and Movers.LOCK_TINT or 0.25)
+    DUI.Widgets.EaseShown(h.lock, on, instant)
+    if on then h:Lower() else h:Raise() end
+end
+
+function Movers.SetLocked(key, on)
+    pieceLocks()[key] = on and true or nil
+    Movers.PaintLock(key)
+    if DUI.Sound then DUI.Sound.Play("toggle") end
+end
+
+-- Shown handles whose box overlaps this one's, in screen order.
+function Movers.Overlapping(key)
+    local h, out = handles[key], {}
+    if not (h and h:IsShown()) then return out end
+    local l, r, t, b = h:GetLeft(), h:GetRight(), h:GetTop(), h:GetBottom()
+    if not (l and r and t and b) then return out end
+    for _, k in ipairs(order) do
+        local o = handles[k]
+        if k ~= key and o and o:IsShown() then
+            local ol, or_, ot, ob = o:GetLeft(), o:GetRight(), o:GetTop(), o:GetBottom()
+            if ol and or_ and ot and ob and ol < r and or_ > l and ob < t and ot > b then out[#out + 1] = k end
+        end
+    end
+    return out
+end
 Movers.ARROWS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 } }
 
 local function nudgeButton(parent, dx, dy, text)
@@ -1144,6 +1197,40 @@ local function buildEditor()
         GameTooltip:Show()
     end)
     editor.group:HookScript("OnLeave", W.HideTooltip)
+    -- Lock in place: a label and a switch on one row.
+    editor.lock = CreateFrame("Frame", nil, editor)
+    editor.lock:SetHeight(R)
+    editor.lock.label = DUI.Style.Text(editor.lock, DUI.Style.SIZE.body, "LEFT")
+    editor.lock.label:SetPoint("LEFT", editor.lock, "LEFT", 2, 0)
+    editor.lock.label:SetText(L["Lock in place"])
+    DUI.Style.InkText(editor.lock.label, "TEXT")
+    editor.lock.switch = W.Switch(editor.lock)
+    editor.lock.switch:SetPoint("RIGHT", editor.lock, "RIGHT", 0, 0)
+    editor.lock.switch:SetScript("OnClick", function()
+        if not editor.key then return end
+        Movers.SetLocked(editor.key, not Movers.Locked(editor.key))
+        Movers.RefreshEditor()
+    end)
+    editor.lock.switch:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        DUI.Tips.Clear()
+        DUI.Tips.Title(L["Lock in place"])
+        DUI.Tips.Text(L["It can't be dragged, nudged or reset by accident, and its handle goes under the others."])
+        DUI.Tips.Flush(GameTooltip)
+        GameTooltip:Show()
+    end)
+    editor.lock.switch:HookScript("OnLeave", W.HideTooltip)
+    -- Handles hidden under this one: pick one to bring it up and edit it.
+    editor.under = W.MenuButton(editor, "", R)
+    editor.under:SetScript("OnClick", function(self)
+        if not editor.key then return end
+        local keys, values = Movers.Overlapping(editor.key), {}
+        for _, k in ipairs(keys) do values[k] = L[entries[k].label] end
+        W.OpenMenu(self, keys, values, nil, function(k)
+            if handles[k] then handles[k]:Raise() end
+            Movers.OpenEditor(k)
+        end, editor:GetWidth() - 32)
+    end)
     -- Arrow keys nudge it while this is open (Shift moves a grid step). Every
     -- other key passes through to the game, and a box being typed in keeps them.
     editor:EnableKeyboard(true)
@@ -1179,6 +1266,9 @@ function Movers.RefreshEditor()
     editor.corner.SetLabel(string.format(L["Anchor: %s"], Movers.AnchorLabels()[Movers.Corner(editor.key)]))
     local g = Movers.GroupOf(editor.key)
     editor.group.SetLabel(g and string.format(L["Group %d (%d)"], g, #Movers.Members(g)) or L["No group"])
+    local locked = Movers.Locked(editor.key)
+    editor.lock.switch.SetOn(locked)
+    for _, b in ipairs({ editor.up, editor.down, editor.left, editor.right }) do b.SetOff(locked) end
     local x, y = Movers.Position(editor.key)
     if not x then return end
     editor.x:SetText(Movers.ShowOffset(x))
@@ -1197,9 +1287,12 @@ function Movers.OpenEditor(key)
     local hasOptions, corner = Movers.OptionsOf(key) ~= nil, Movers.Cornerable(key)
     editor.options:SetShown(hasOptions)
     editor.corner:SetShown(corner)
-    -- From the bottom up: Done, Options, Anchor, Group, however many there are.
+    local below = #Movers.Overlapping(key)
+    editor.under:SetShown(below > 0)
+    if below > 0 then editor.under.SetLabel(string.format(L["Frames under this (%d)"], below)) end
+    -- From the bottom up: Done, Options, Anchor, Group, Lock, Under, however many there are.
     local G, under, rows = Movers.EDITOR_GAP, hasOptions and editor.options or editor.close, 0
-    for _, b in ipairs({ corner and editor.corner or false, editor.group }) do
+    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, below > 0 and editor.under or false }) do
         if b then
             b:ClearAllPoints()
             b:SetPoint("BOTTOMLEFT", under, "TOPLEFT", 0, G)
@@ -1600,7 +1693,7 @@ function Movers.Recheck(key)
     end
     handles[key] = handles[key] or makeHandle(e)
     Movers.PlaceHandle(e, handles[key], true)
-    DUI.Style.PaintAccent(handles[key].tint, 0.25)
+    Movers.PaintLock(key, true)
     handles[key]:Show()
     Movers.PaintGroups()
 end

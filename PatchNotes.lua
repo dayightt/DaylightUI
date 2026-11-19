@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Nameplates", "Mana, rage or energy can be written on the nameplate power bar" },
         { "Nameplates", "Long nameplate names can be shortened to initials, so they no longer run over the health text" },
         { "Professions", "Click a material you can make yourself, like Bolt of Silk Cloth, to jump to its recipe" },
+        { "Unlock mode", "Lock a frame in place so it can't be moved by accident, and reach a frame hidden under another from its editor" },
         { "NPC window", "Quest pages show the quest's level next to its name" },
         { "Loot", "Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked" },
     }, changed = {
