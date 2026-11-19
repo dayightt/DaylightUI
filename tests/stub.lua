@@ -3717,7 +3717,7 @@ stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "
 stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lua", "Trees.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
-                          "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
+                          "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmAuraLinks.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
                           "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "CdmGuide.lua", "Diag.lua", "Options.lua", "Module.lua" }
 stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
                       "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }

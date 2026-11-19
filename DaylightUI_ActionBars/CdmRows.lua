@@ -403,6 +403,11 @@ local HOLDS = { ["aura icon"] = true, ["aura bar"] = true, ["aura and cooldown b
 local function drawOurs(id, p, block, f, always, aura, track)
     local set, Own = passSet, ns.CdmOwn
     local item
+    -- An icon's ring glow while up is drawn inside the client's aura button
+    -- (Fx.UpByButton), so it shows in a fight too. The lights need Daylight UI's
+    -- code to run, so they stay Daylight UI's own glow.
+    local byButton = false
+    local ring = Fx.GlowStyle(p) == "ring"
     -- A totem with its buff known (CdmOwn.Track "both"): Totem and buff. A bar
     -- shows the totem's time alone.
     local C = ns.CdmCustom
@@ -444,6 +449,8 @@ local function drawOurs(id, p, block, f, always, aura, track)
             ns.CdmAuras.Over(holder, item, block.size, text)
             ns.CdmAuras.SetAmount(holder, shieldIcon(set, id), text)
             ns.CdmAuras.SetSwipe(holder, Fx.Get(p, "noDurationSwipe"), Fx.Get(p, "reverse"))
+            ns.CdmAuras.SetUpGlow(holder, ring and Fx.UpGlows(p), Fx.Get(p, "upGlowColor"))
+            byButton = ring
             usedHolders[id] = true
             drawn[id] = "aura and cooldown icon"
         end
@@ -454,6 +461,8 @@ local function drawOurs(id, p, block, f, always, aura, track)
         ns.CdmAuras.Resize(item, block.size, text)
         ns.CdmAuras.SetAmount(item, shieldIcon(set, id), text)
         ns.CdmAuras.SetSwipe(item, Fx.Get(p, "noDurationSwipe"), Fx.Get(p, "reverse"))
+        ns.CdmAuras.SetUpGlow(item, ring and Fx.UpGlows(p), Fx.Get(p, "upGlowColor"))
+        byButton = ring
         usedHolders[id] = true
         extra[item] = true
         drawn[id] = "aura icon"
@@ -479,6 +488,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
     if totem and item then
         drawn[id] = buffTotem and "totem and buff icon" or block.kind == "bar" and "totem bar" or "totem icon"
     end
+    if item then Fx.UpByButton(item, byButton) end
     return item
 end
 

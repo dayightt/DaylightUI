@@ -319,8 +319,24 @@ local function canTrack(_, id)
     local C, Own = ns.CdmCustom, ns.CdmOwn
     return C ~= nil and C.CanTrack(id) == true and not (Own and C.Totem(Own.SpellOf(id)))
 end
+-- "debuff" when the picked piece's aura sits on the target (Stormstrike), else "buff".
+local function word()
+    local _, id = picked()
+    return id and ns.CdmAuras and ns.CdmAuras.AuraWord(id) or "buff"
+end
+local function onlyText() return word() == "debuff" and "Debuff only" or "Buff only" end
+local function upHead() return word() == "debuff" and L["Debuff up"] or L["Buff up"] end
+local function missingHead() return word() == "debuff" and L["Debuff missing"] or L["Buff missing"] end
+-- What it shows, with Buff only named for the piece's aura.
+local function trackChoices(key)
+    return function()
+        return { both = "Both", cooldown = "Cooldown", [key] = onlyText() }, { "both", "cooldown", key }
+    end
+end
+
 local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What it shows",
     values = { both = "Both", cooldown = "Cooldown", aura = "Buff only" }, order = { "both", "cooldown", "aura" },
+    choices = trackChoices("aura"),
     desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up.",
     get = function()
         local set, id = picked()
@@ -330,8 +346,12 @@ local OWN_TRACK = { type = "dropdown", key = "cdm.card.ownTrack", label = "What 
         local set, id = picked()
         if id and Data.SetTrack(set, id, v) then changed() end
     end }
--- The header's word for what the piece shows.
-local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], buff = L["Buff or debuff"], totem = L["Totem"] }
+-- The header's word for what the piece shows. A buff only piece says Buff or
+-- Debuff by where its aura lands (AuraWord).
+local KIND = { both = L["Cooldown and buff"], cooldown = L["Cooldown"], totem = L["Totem"] }
+local function auraKind(id)
+    return ns.CdmAuras and ns.CdmAuras.AuraWord(id) == "debuff" and L["Debuff"] or L["Buff"]
+end
 
 -- Track: what a buff spell shows (CdmOwn.Track; unset means its guess).
 local function track(item)
@@ -592,7 +612,7 @@ Card.ROWS = {
     show = {
         { show = gameSpell, item = track({ type = "dropdown", label = "What it shows",
             values = { both = "Both", cooldown = "Cooldown", buff = "Buff only" },
-            order = { "both", "cooldown", "buff" },
+            order = { "both", "cooldown", "buff" }, choices = trackChoices("buff"),
             desc = "Both keeps it in its spot: the buff's time while it's up, then the cooldown. Buff only shows it just while the buff is up." }) },
         { show = totemSpell, item = TOTEM_TRACK },
         { show = buffTotem, item = BUFF_TOTEM_TRACK },
@@ -636,7 +656,7 @@ Card.ROWS = {
         { show = isCooldown, item = soundRow("usableSound", "Sound when usable",
             "Plays once as you become able to cast it: Revenge after a block, Overpower after a dodge, Execute on a low target. Rage or mana coming back doesn't count.") },
         { head = L["Form or stance"], show = function(...) return isCooldown(...) and ns.CdmEffects.FormsOf() ~= nil end },
-        { head = L["Buff up"], show = hasBuff },
+        { head = upHead, show = hasBuff },
         { show = hasBuff, item = BUFF_UP },
         { show = function(...) return showsBuff(...) and opt("hideActive") ~= true end,
           item = spell("upGlow", { type = "toggle", label = "Glow",
@@ -656,7 +676,7 @@ Card.ROWS = {
         { show = function(...) return isIcon(...) and hasBuff(...) and opt("activeGlow") ~= false
               and opt("noDurationSwipe") ~= true end,
           item = spell("activeColor", { type = "color", alpha = true, label = "Highlight color" }) },
-        { head = L["Buff missing"], show = hasBuff },
+        { head = missingHead, show = hasBuff },
         { show = buffOnly, item = BUFF_DOWN },
         { show = showsBuff, item = soundRow("buffEndSound", "Sound",
             "Plays once as the buff runs out or is used up, like a Seal, so you can hear it's time to cast it again.") },
@@ -1156,8 +1176,9 @@ function Card.Draw()
     local t = ns.CdmOwn and ns.CdmOwn.Track(id, p)
     local kind = t and KIND[t]
     if t == "both" and buffTotem(nil, id) then kind = L["Totem and buff"] end
+    if t == "buff" or (not kind and known and known.aura) then kind = auraKind(id) end
     if ns.CdmCustom and ns.CdmCustom.Element(id) then kind = L["Totem"] end
-    f.kind:SetText(kind or known and known.aura and L["Buff or debuff"] or L["Cooldown"])
+    f.kind:SetText(kind or L["Cooldown"])
     f.asIcon.SetOn(p.shape ~= "bar")
     f.asBar.SetOn(p.shape == "bar")
     for t, b in pairs(ui.tabs) do b.Pick(t == tab, f:IsShown()) end

@@ -408,6 +408,37 @@ local function showGlow(item, on, button)
     lightGlow(item, Fx.Get(button or opts[item], on))
 end
 
+-- The up glow inside a client aura button (CdmAuras). The client shows the button
+-- only while its aura is up and plays its shown animations itself, so the ring
+-- turns in a fight too, where nothing tells Daylight UI the aura is up (the
+-- button runs no addon scripts). Made while the button is made, the one time it
+-- can be; painted with Fx.PaintButtonGlow once restrictions lift.
+function Fx.ButtonGlow(btn)
+    local g = glowOf(btn)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, g.anim)
+    return g
+end
+
+-- On in color c (nil = the accent), or off. Always the ring: the lights need
+-- Daylight UI's code to run.
+function Fx.PaintButtonGlow(btn, on, c)
+    local g = glows[btn]
+    if not g then return end
+    if not on then g:Hide(); return end
+    sizeGlow(g, btn)
+    paintGlow(g, type(c) == "table" and c or nil)
+    for _, key in ipairs(PIECES) do g.parts[key].clip:SetShown(key == "mid" or g.wide) end
+    g.a = 1
+    g:SetAlpha(1)
+    g:Show()
+    if not g.anim:IsPlaying() then g.anim:Play() end
+end
+
+-- Items whose up glow is drawn inside their client aura button, so the glow
+-- driven by Daylight UI's own reading stays off and the two never stack.
+local byButton = setmetatable({}, weak)
+function Fx.UpByButton(item, on) byButton[item] = on or nil end
+
 -- The same glow on anything else (an action button's queued spell, Skin.lua).
 -- c = {r,g,b}, or nil for the accent.
 function Fx.SetGlow(item, on, c)
@@ -500,11 +531,12 @@ local function clipGlows(b)
     return Fx.Get(b, "clipGlow") == true and Fx.Get(b, "hideActive") ~= true
 end
 -- The glow asked for by the buff being down (true) or up (false). due = time to
--- cast it again, which wins over the plain up glow.
-local function buffGlow(b, isDown, due)
+-- cast it again, which wins over the plain up glow. An item whose button draws
+-- the up glow (Fx.UpByButton) leaves it to the button.
+local function buffGlow(b, isDown, due, item)
     if isDown == true and missingGlows(b) then return "missingGlowColor" end
     if isDown == false and due == true and clipGlows(b) then return "clipGlowColor" end
-    if isDown == false and upGlows(b) then return "upGlowColor" end
+    if isDown == false and upGlows(b) and not byButton[item] then return "upGlowColor" end
     return false
 end
 Fx.UpGlows = upGlows
@@ -515,7 +547,7 @@ Fx.ClipGlows = clipGlows
 local function wantsGlow(item)
     local b = opts[item]
     if Fx.Get(b, "glow") ~= false and alerts[item] == true then return "glowColor" end
-    local buff = buffGlow(b, down[item], due[item])
+    local buff = buffGlow(b, down[item], due[item], item)
     if buff then return buff end
     -- Usable: Revenge after a block, Overpower after a dodge, Execute under 20%.
     -- WoW Forever fires no spell alerts, so this stands in for the proc.
@@ -716,8 +748,12 @@ end
 function Fx.TuneSlide(btn)
     local s = btn.cdmSlide
     if not s then return end
-    local on = Motion.On()
     local h = btn.cdmSlideHolder
+    -- Every full aura update rebuilds the client's buttons, and a rebuilt button
+    -- replays this, which on a proc that stays up out of a fight read as a bump on
+    -- each loot. A proc nobody casts (CdmAuras.ProcOnly) shows without it.
+    local proc = type(h) == "table" and h.id ~= nil and ns.CdmAuras ~= nil and ns.CdmAuras.ProcOnly(h.id)
+    local on = Motion.On() and not proc
     local drop = not (type(h) == "table" and h.overIcon == true)
     local key = on and (drop and "slide" or "fade") or false
     if btn.cdmSlideKey == key then return end
@@ -1357,7 +1393,7 @@ local looseLit = setmetatable({}, weak)
 function Fx.SetDown(item, button, isDown, isDue)
     down[item], due[item] = isDown, isDue
     if opts[item] then refreshNow(item); return end
-    local want = buffGlow(button, isDown, isDue)
+    local want = buffGlow(button, isDown, isDue, item)
     looseLit[item] = want and true or nil
     showGlow(item, want, button)
 end

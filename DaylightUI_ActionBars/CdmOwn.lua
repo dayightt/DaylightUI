@@ -334,9 +334,11 @@ local function placedSpells()
 end
 
 -- Your aura from this cast: on you, then your own on the target. By id first,
--- then by the spell's name.
+-- then by the spell's name. With mine, a buff on you counts only if you cast it,
+-- since no cast of yours says where it came from.
 local LOOKS = { { unit = "player", filter = "HELPFUL" }, { unit = "target", filter = "HARMFUL|PLAYER" } }
-local function auraFrom(sid)
+local function fromYou(a) return a.isFromPlayerOrPlayerPet == true or a.sourceUnit == "player" end
+local function auraFrom(sid, mine)
     local U = C_UnitAuras
     if type(U) ~= "table" then return nil end
     local name
@@ -355,14 +357,14 @@ local function auraFrom(sid)
         if type(U.GetUnitAuraBySpellID) == "function" then
             local ok, got = pcall(U.GetUnitAuraBySpellID, look.unit, sid)
             -- On the target, only your own debuff.
-            if ok and type(got) == "table" and (look.unit == "player"
-                or got.isFromPlayerOrPlayerPet == true or got.sourceUnit == "player") then
+            if ok and type(got) == "table" and ((look.unit == "player" and not mine) or fromYou(got)) then
                 a = got
             end
         end
+        local filter = (mine and look.unit == "player") and look.filter .. "|PLAYER" or look.filter
         for _, nm in ipairs({ name, bare }) do
             if not a and type(U.GetAuraDataBySpellName) == "function" then
-                local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, nm, look.filter)
+                local ok, got = pcall(U.GetAuraDataBySpellName, look.unit, nm, filter)
                 if ok and type(got) == "table" then a = got end
             end
         end
@@ -371,23 +373,49 @@ local function auraFrom(sid)
     end
 end
 
+-- Keeps a found aura for a spell. True when it's new.
+local function keep(sid, found)
+    local book = auraBook()
+    if type(book[sid]) == "table" and book[sid][found] then return false end
+    book[sid] = type(book[sid]) == "table" and book[sid] or {}
+    book[sid][found] = true
+    return true
+end
+
+local function learned()
+    known = nil
+    ns.CdmAuras.Rebuild()
+    if ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
+local function canLearn()
+    local A = ns.CdmAuras
+    return ns.Cooldowns and ns.Cooldowns.enabled and A and A.Readable and A.Readable()
+end
+
 -- After a cast of a placed spell, out of a fight: remember the aura it put up.
 Own.AURA_LOOK_DELAY = 0.3
 function Own.LearnAura(sid)
-    if not (ns.Cooldowns and ns.Cooldowns.enabled) then return end
-    local A = ns.CdmAuras
-    if not (A and A.Readable and A.Readable()) then return end
+    if not canLearn() then return end
     if not placedSpells()[sid] then return end
     local found = auraFrom(sid)
-    if not found then return end
-    local book = auraBook()
-    if type(book[sid]) == "table" and book[sid][found] then return end
-    book[sid] = type(book[sid]) == "table" and book[sid] or {}
-    book[sid][found] = true
-    known = nil
-    A.Rebuild()
-    if ns.CdmRows then ns.CdmRows.Refresh() end
+    if found and keep(sid, found) then learned() end
 end
+
+-- An aura of yours landed: any placed spell whose name it shares learns its id. A
+-- talent's buff is never cast (Improved Stormstrike), and the game can file it
+-- under the talent's id with no aura. Auras are secret in a fight, where most
+-- procs land, so the look runs again as the fight ends (PLAYER_REGEN_ENABLED).
+function Own.LearnByName()
+    if not canLearn() then return end
+    local any = false
+    for sid in pairs(placedSpells()) do
+        local found = auraFrom(sid, true)
+        if found and found ~= sid and keep(sid, found) then any = true end
+    end
+    if any then learned() end
+end
+local learnByNameSoon = DUI.Soon(function() DUI.SafeCall(Own.LearnByName) end)
 
 -- Totems dropped in a fight before their buff was learned: [cast spell id] = true.
 -- Auras can't be read there, so each is looked up once the fight ends, if it
@@ -396,7 +424,17 @@ local totemsToLearn = {}
 
 local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-casts:SetScript("OnEvent", function(_, _, _, _, sid)
+casts:RegisterUnitEvent("UNIT_AURA", "player")
+casts:RegisterEvent("PLAYER_REGEN_ENABLED")
+casts:SetScript("OnEvent", function(_, event, _, _, sid)
+    if event == "UNIT_AURA" then
+        if not InCombatLockdown() then learnByNameSoon() end
+        return
+    end
+    if event == "PLAYER_REGEN_ENABLED" then
+        learnByNameSoon()
+        return
+    end
     if type(sid) ~= "number" or isSecret(sid) then return end
     if InCombatLockdown() then
         local C = ns.CdmCustom

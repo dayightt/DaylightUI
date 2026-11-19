@@ -47,8 +47,18 @@ local function withLearned(ids)
     return ids
 end
 
+-- The buffs the client's data says this entry's spell puts up under other ids
+-- (CdmAuraLinks), when the game's entry says it has no aura: Improved Stormstrike's
+-- talent with no aura, its buff 1238931. An entry with an aura is the game's to show.
+function A.Links(id)
+    local info = infoOf(id)
+    if not info or isSecret(info.hasAura) or info.hasAura == true then return nil end
+    local base = plain(info.spellID)
+    return base and ns.CdmAuraLinks and ns.CdmAuraLinks[base] or nil
+end
+
 -- { [spellID] = true } for the spell and every rank of it (by name), learned or not,
--- and the auras seen from its casts.
+-- the auras its spell links to (A.Links), and the auras seen from its casts.
 function A.SpellIDs(id)
     local C = ns.CdmCustom
     if C and C.Is(id) then return withLearned(C.Ranks(id)) end
@@ -65,6 +75,7 @@ function A.SpellIDs(id)
         end
     end
     if own then add(own) end
+    for _, s in ipairs(A.Links(id) or {}) do ids[s] = true end
     -- Some cooldowns' auras are only known from the spell list (Bloodrage).
     local key = C and base and C.KeyOfAuraSpell(base)
     if key then
@@ -147,10 +158,26 @@ end
 -- and only for auras you cast, so a group buff or a one-copy debuff from someone
 -- else stays dark. CdmRows hands such a spell to Daylight UI's holder whenever its
 -- aura is wanted.
+-- Also when its buff is one the game's item doesn't look for: set on the card, or
+-- learned while the game's entry says it has no aura (Improved Stormstrike).
 function A.GameBlind(id)
     local own, C = ownKey(id), ns.CdmCustom
-    return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
-        or C.Shared(own) or C.Unique(own))
+    if own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
+        or C.Shared(own) or C.Unique(own)) then
+        return true
+    end
+    return A.ProcOnly(id)
+end
+
+-- A proc nobody casts: the game's entry says it has no aura (a talent), and its
+-- buff is known by another id, from the client's data (A.Links) or learned. No
+-- cast says when it lands, so in a fight nothing does.
+function A.ProcOnly(id)
+    if A.Links(id) then return true end
+    local info = infoOf(id)
+    if not info or isSecret(info.hasAura) or info.hasAura == true then return false end
+    local Own, base = ns.CdmOwn, plain(info.spellID)
+    return base ~= nil and Own ~= nil and Own.AuraOf(base) ~= nil
 end
 
 -- A buff you cast on a friend (Renew, Prayer of Mending): watched on your friendly
@@ -219,6 +246,7 @@ local function placeButton(h, btn)
     -- Hide duration swipe keeps the countdown text.
     if parts.cd then try(parts.cd.SetDrawSwipe, parts.cd, not h.noSwipe) end
     if parts.cd then try(parts.cd.SetReverse, parts.cd, h.reverse == true) end
+    try(ns.CdmEffects.PaintButtonGlow, btn, h.upGlow, h.upGlowColor)
 end
 
 local function initButton(h, btn)
@@ -268,6 +296,9 @@ local function initButton(h, btn)
     if parts.box then placeButton(h, btn) end
     if btn.SetMouseMotionEnabled then try(btn.SetMouseMotionEnabled, btn, false) end
     ns.CdmEffects.MakeSlide(btn, h)
+    -- Glow while up (Fx.ButtonGlow): the client shows it with the button, in a fight too.
+    DUI.SafeCall(function() parts.glow = ns.CdmEffects.ButtonGlow(btn) end)
+    if parts.glow then try(ns.CdmEffects.PaintButtonGlow, btn, h.upGlow, h.upGlowColor) end
 end
 
 -- h.layoutFor and h.init let other holders (CdmBars' aura bars) use their own button
@@ -628,6 +659,19 @@ function A.SetSwipe(h, hide, reverse)
     placeFace(h)
 end
 
+-- Glow (Buff up), in color c (nil = the accent), drawn inside the client's button
+-- so it shows whenever the button does (Fx.ButtonGlow).
+function A.SetUpGlow(h, on, c)
+    on = on == true or nil
+    c = type(c) == "table" and { c[1], c[2], c[3] } or nil
+    local was = h.upGlowColor
+    local same = (was == nil and c == nil)
+        or (was ~= nil and c ~= nil and was[1] == c[1] and was[2] == c[2] and was[3] == c[3])
+    if h.upGlow == on and same then return end
+    h.upGlow, h.upGlowColor = on, c
+    replace(h)
+end
+
 -- Hide (Buff up). The container goes transparent so the client's button never
 -- shows, however combat reads the aura. Keep its spot's grayed icon shows only
 -- while the aura is down.
@@ -925,6 +969,22 @@ local function seenOn()
     return c.cdmAuraOn
 end
 
+-- "debuff" when the piece's aura sits on the target, else "buff". Where it was last
+-- seen decides; before that, a harmful spell that isn't a self aura (Slice and Dice
+-- is harmful but lands on you, and is seen there once cast).
+function A.AuraWord(id)
+    local on = seenOn()[id]
+    if on then return on == "target" and "debuff" or "buff" end
+    local C = ns.CdmCustom
+    if C and C.Is(id) then return "buff" end
+    local info = infoOf(id)
+    local sid = info and plain(info.spellID)
+    local self_ = info and info.selfAura
+    if not sid or isSecret(self_) or self_ == true then return "buff" end
+    local harmful = type(C_Spell.IsSpellHarmful) == "function" and C_Spell.IsSpellHarmful(sid)
+    return not isSecret(harmful) and harmful == true and "debuff" or "buff"
+end
+
 local function learn(h, a, unit)
     h.upUnit = unit
     if h.id ~= nil then seenOn()[h.id] = unit end
@@ -1043,6 +1103,11 @@ function A.IsUp(h)
     if found(h) then
         h.up = true
         h.castAt = nil
+    elseif not readable() and h.id ~= nil and A.ProcOnly(h.id) then
+        -- Down before the fight says nothing once it lands, and nothing tells us
+        -- it did: unknown, so it keeps its spot (CdmRows) and the client's button
+        -- shows it with its glow (Fx.ButtonGlow).
+        h.up = nil
     elseif h.castAt and not h.face and not readable() and h.up ~= true and GetTime() - h.castAt <= A.CAST_LANDS then
         -- Cast while auras could still be read, and they went secret before it was
         -- seen landing: the pull that started this fight.

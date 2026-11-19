@@ -3783,6 +3783,19 @@ T.test("cdm up glow: a buff glows while it's up, on the game's item and on our o
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- An icon's ring glow while up lives in the client's aura button (Fx.ButtonGlow),
+-- which the client shows with the buff. So for an icon the glow follows the
+-- button, and Daylight UI's own reading (h.up, for sounds and Hide) is checked;
+-- a bar keeps Daylight UI's glow.
+local function upLit(AB, h, shape)
+    if shape == "bar" then return AB.CdmEffects.GlowShown(h) end
+    T.falsy(AB.CdmEffects.GlowShown(h), "no second glow of Daylight UI's own on an icon")
+    local btn = h.buttons and h.buttons[1]
+    local g = btn and AB.CdmEffects.GlowFrame(btn)
+    T.truthy(g and g:IsShown(), "the button's glow is on")
+    return h.up == true
+end
+
 T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     local DUI, AB, E, D, set = auraWorld(false)
     DUI.DB.General().motion = false
@@ -3791,13 +3804,13 @@ T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     AB.CdmRows.Refresh(); stub.RunTimers()
     local h = AB.CdmAuras.Frame(41)
     T.truthy(h.wantsUp, "it watches its buff")
-    T.truthy(AB.CdmEffects.GlowShown(h), "glows while up")
+    T.truthy(upLit(AB, h, "icon"), "glows while up")
     stub.auras.player = { HELPFUL = {} }
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "not while down")
+    T.falsy(upLit(AB, h, "icon"), "not while down")
     stub.auras.player = { HELPFUL = { { spellId = 141 } } }
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "again as it lands")
+    T.truthy(upLit(AB, h, "icon"), "again as it lands")
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -3817,30 +3830,30 @@ T.test("cdm up glow: a debuff cast to start a fight still counts as up once the 
     T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
     local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
     T.truthy(h.wantsUp)
-    T.falsy(AB.CdmEffects.GlowShown(h), "down before the pull")
+    T.falsy(upLit(AB, h, shape), "down before the pull")
     -- The cast, out of a fight: nothing on the target yet.
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pull", 141)
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "not landed yet")
+    T.falsy(upLit(AB, h, shape), "not landed yet")
     -- It lands as the fight starts: the game won't say any more.
     stub.Advance(0.5)
     stub.combat = true
     stub.auras.target = { HARMFUL = { { spellId = 141, isFromPlayerOrPlayerPet = true } } }
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "glows: the pull cast counts")
+    T.truthy(upLit(AB, h, shape), "glows: the pull cast counts")
     T.eq(h.upUnit, "target")
     T.truthy(h.endsAt and math.abs(h.endsAt - (GetTime() - 0.5) - 18) < 0.01, "18 s from the cast")
     -- A cast long before the fight doesn't count.
     stub.combat = false
     stub.auras.target = { HARMFUL = {} }
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "down after it")
+    T.falsy(upLit(AB, h, shape), "down after it")
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "early", 141)
     stub.Advance(AB.CdmAuras.CAST_LANDS + 1)
     stub.combat = true
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "a cast that missed long ago isn't taken as up")
+    T.falsy(upLit(AB, h, shape), "a cast that missed long ago isn't taken as up")
     stub.combat = false
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -4013,7 +4026,7 @@ T.test("cdm hide up: a finisher's buff runs out by the combo points it used (" .
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
     local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
-    T.falsy(AB.CdmEffects.GlowShown(h), "down: no glow")
+    T.falsy(upLit(AB, h, shape), "down: no glow")
     stub.combat = true
     local function send(sid, guid)
         stub.FireEvent("UNIT_SPELLCAST_SENT", "player", "", guid, sid)
@@ -4023,11 +4036,11 @@ T.test("cdm hide up: a finisher's buff runs out by the combo points it used (" .
     send(141, "cast-2")
     AB.CdmEffects.AuraHeard(h, "play", h.containers[1].c.__groups.a.button)
     stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "cast: glowing")
+    T.truthy(upLit(AB, h, shape), "cast: glowing")
     stub.Advance(8.5); stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "one point lasts 9 sec: still up")
+    T.truthy(upLit(AB, h, shape), "one point lasts 9 sec: still up")
     stub.Advance(1); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "ran out at 9 sec, though the button never said so")
+    T.falsy(upLit(AB, h, shape), "ran out at 9 sec, though the button never said so")
     stub.combat = false
     C_Spell.GetSpellName, C_Spell.GetSpellDescription = name, describe
     noCategories()
@@ -5857,6 +5870,275 @@ T.test("cdm track: a placed spell's buff is learned from a cast, by name when it
     stub.SetAuras("player", "HELPFUL", { { name = "Spell111", spellId = 111 } })
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-4", 111); stub.RunTimers()
     T.truthy(Own.AuraOf(111) and Own.AuraOf(111)[111], "found by id")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game can file a buff under its talent's spell with no aura (Improved
+-- Stormstrike: entry spell 1223031, buff 1238931). Nothing is cast, so the buff
+-- is learned when one of its name lands on you.
+T.test("cdm track: a placed buff whose entry names another spell is learned when its name lands on you", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = false, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    T.isnil(watched(AB, 31, "icon")[9131], "the buff's real id isn't known yet")
+    T.eq(R.DrawnBy(31), "game", "the game's item, while nothing says it can't see the buff")
+    stub.SetAuras("player", "HELPFUL", { { name = "Other", spellId = 9999, sourceUnit = "player" } })
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.isnil(Own.AuraOf(131), "no buff of that name")
+    -- Someone else's buff of that name teaches nothing.
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell131", spellId = 9131, sourceUnit = "party1" } })
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.isnil(Own.AuraOf(131), "not yours")
+    -- In a fight auras can't be read: nothing learned.
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell131", spellId = 9131, sourceUnit = "player" } })
+    stub.SetRestriction("PvPMatch", true)
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.isnil(Own.AuraOf(131), "auras secret: nothing read")
+    stub.SetRestriction("PvPMatch", false)
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.truthy(Own.AuraOf(131) and Own.AuraOf(131)[9131], "learned by name")
+    T.truthy(DUI.DB.Character().cdmAuraIDs[131][9131], "kept for this character")
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "aura icon", "the game's item can't see it, so Daylight UI's holder draws it")
+    T.truthy(watched(AB, 31, "icon")[9131], "the piece watches the real buff")
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The client's own data links a talent to the buff it puts up (CdmAuraLinks,
+-- made by tools/make_cdm_aura_links.py), so the piece works from the first proc.
+T.test("cdm track: a buff entry the game gives no aura watches the buffs its spell links to, from the start", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [2] = { 31, 32 } }, { [2] = { 31, 32 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = id == 32, selfAura = id == 32 or nil, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local was = AB.CdmAuraLinks
+    AB.CdmAuraLinks = { [131] = { 9131 }, [132] = { 9132 } }
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    D.AddPiece(set, 32, "icon", 0, -48)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "aura icon", "the game's item can't see it: Daylight UI's holder")
+    local ids = watched(AB, 31, "icon")
+    T.truthy(ids[9131] and ids[131], "the linked buff watched with the game's id, nothing learned")
+    T.isnil(Own.AuraOf(131))
+    T.eq(R.DrawnBy(32), "game", "an entry the game gives an aura keeps the game's item")
+    AB.CdmAuraLinks = was
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Glow (Buff up) on a proc nobody casts: in a fight nothing tells Daylight UI the
+-- aura is up (the client's button runs no addon scripts), so the glow lives in
+-- the button and the client shows and turns it with the button.
+T.test("cdm track: the up glow is drawn inside the client's aura button and shows with it in a fight", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Fx, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects, AB.CdmAuras
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = false, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local was = AB.CdmAuraLinks
+    AB.CdmAuraLinks = { [131] = { 9131 } }
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    T.truthy(D.SetSpellValue(set, 31, "upGlow", true))
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "aura icon")
+    local h = A.Frame(31)
+    local btn = h.buttons[1]
+    local g = Fx.GlowFrame(btn)
+    T.truthy(g, "a glow made inside the button")
+    T.truthy(g:IsShown(), "on, so it shows whenever the button does")
+    local handed = false
+    for _, ag in ipairs(btn.__shownAnims or {}) do if ag == g.anim then handed = true end end
+    T.truthy(handed, "its ring handed to the client as a shown animation")
+    stub.EnterCombat()
+    stub.AuraVisible(btn, true)
+    T.truthy(g.anim:IsPlaying(), "the client turns it as the buff lands in a fight")
+    T.falsy(Fx.GlowShown(h), "Daylight UI's own up glow stays off, so the two never stack")
+    stub.AuraVisible(btn, false)
+    T.falsy(g.anim:IsPlaying(), "stopped as the buff goes")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.truthy(D.SetSpellValue(set, 31, "upGlow", false))
+    R.Refresh(); stub.RunTimers()
+    T.falsy(g:IsShown(), "Glow off: hidden inside the button")
+    AB.CdmAuraLinks = was
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Every full aura update makes the client drop and rebuild its buttons
+-- (ResetFrameAssignments), and a rebuilt button replays its shown animations. On
+-- a proc that's up for long stretches out of a fight, the slide-in replayed as a
+-- bump on every loot. A proc nobody casts shows without one.
+T.test("cdm track: a proc nobody casts comes up without the slide-in, which rebuilt buttons replay", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmAuras
+    withCategories({ [2] = { 31, 32 } }, { [2] = { 31, 32 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = id == 32, selfAura = id == 32 or nil, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local was = AB.CdmAuraLinks
+    AB.CdmAuraLinks = { [131] = { 9131 } }
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    D.AddPiece(set, 32, "icon", 0, -48)
+    -- Glow to recast moves a plain buff to Daylight UI's holder (CdmRows claim).
+    T.truthy(D.SetSpellValue(set, 32, "clipGlow", true))
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "aura icon")
+    T.eq(R.DrawnBy(32), "aura icon")
+    T.eq(A.Frame(31).buttons[1].cdmSlideOn, false, "the proc: no slide-in")
+    T.eq(A.Frame(32).buttons[1].cdmSlideOn, true, "a plain buff keeps its slide-in")
+    AB.CdmAuraLinks = was
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A proc nobody casts can't be told up in a fight, so "down" from before the pull
+-- goes stale the moment it lands. It counts as unknown there and keeps its spot:
+-- it slid out mid-fight and bumped back in as the fight ended (Improved Stormstrike).
+T.test("cdm track: a proc nobody casts is unknown in a fight, not down, so it keeps its spot", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmAuras
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = false, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    local was = AB.CdmAuraLinks
+    AB.CdmAuraLinks = { [131] = { 9131 } }
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    T.truthy(D.SetSpellValue(set, 31, "upGlow", true))
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    R.Refresh(); stub.RunTimers()
+    local h = A.Frame(31)
+    T.eq(A.IsUp(h), false, "out of a fight with no buff: down")
+    stub.EnterCombat()
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell131", spellId = 9131, sourceUnit = "player" } })
+    A.AuraChanged(); R.Refresh(); stub.RunTimers()
+    T.isnil(A.IsUp(h), "in a fight: unknown, since nothing says when it lands")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.eq(A.IsUp(h), true, "read again as the fight ends")
+    AB.CdmAuraLinks = was
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Improved Stormstrike procs from a melee swing, so it always lands in a fight,
+-- where auras are secret. It's learned once the fight ends, if still up.
+T.test("cdm track: a buff that lands in a fight is learned by name when the fight ends", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = false, linkedSpellIDs = { 100 + id } }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    stub.EnterCombat()
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell131", spellId = 9131, sourceUnit = "player" } })
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.isnil(Own.AuraOf(131), "secret in the fight")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.truthy(Own.AuraOf(131) and Own.AuraOf(131)[9131], "learned as the fight ends, still up")
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "aura icon")
+    T.truthy(watched(AB, 31, "icon")[9131])
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Stormstrike's aura is a debuff on the target, so its card says Debuff, not Buff.
+T.test("cdm card: a piece whose aura sits on the target says Debuff only, Debuff up and Debuff missing", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own, Card, A, E = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard, AB.CdmAuras, AB.CdmEditor
+    withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = true, selfAura = id == 12 }
+    end
+    local wasHarmful = C_Spell.IsSpellHarmful
+    C_Spell.IsSpellHarmful = function(sid) return sid == 111 or sid == 112 end
+    Own.Forget()
+    D.AddPiece(set, 11, "icon", 0, 0)
+    D.AddPiece(set, 12, "icon", 0, -48)
+    R.Refresh(); stub.RunTimers()
+    T.eq(A.AuraWord(11), "debuff", "a harmful spell, not a self aura")
+    T.eq(A.AuraWord(12), "buff", "a self aura, though harmful (Slice and Dice)")
+    DUI.DB.Character().cdmAuraOn = { [12] = "target" }
+    T.eq(A.AuraWord(12), "debuff", "where it was seen decides")
+    DUI.DB.Character().cdmAuraOn = { [11] = "player" }
+    T.eq(A.AuraWord(11), "buff")
+    DUI.DB.Character().cdmAuraOn = {}
+    local function row(key)
+        for _, r in ipairs(Card.ROWS.show) do if r.item and r.item.key == key then return r end end
+    end
+    local function heads()
+        local out = {}
+        for _, r in ipairs(Card.ROWS.show) do
+            if type(r.head) == "function" then out[#out + 1] = r.head() end
+        end
+        return table.concat(out, "|")
+    end
+    local wasSet, wasSel = E.Set, E.Selected
+    E.Set = function() return set end
+    for _, c in ipairs({ { 11, "Debuff" }, { 12, "Buff" } }) do
+        E.Selected = function() return c[1] end
+        local values = row("cdm.card.track").item.choices()
+        T.eq(values.buff, c[2] .. " only", c[1] .. ": What it shows")
+        T.truthy(heads():find(c[2] .. " up", 1, true), c[1] .. ": up head")
+        T.truthy(heads():find(c[2] .. " missing", 1, true), c[1] .. ": missing head")
+    end
+    E.Set, E.Selected = wasSet, wasSel
+    C_Spell.IsSpellHarmful = wasHarmful
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- An entry the game gives an aura keeps the game's item, whatever was learned.
+T.test("cdm track: a buff entry the game links its aura to stays the game's after learning by name", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, hasAura = true, selfAura = true }
+    end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    Own.Forget()
+    D.AddPiece(set, 31, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    stub.SetUnits({ player = {}, target = { exists = true } })
+    stub.SetAuras("player", "HELPFUL", { { name = "Spell131", spellId = 9131, sourceUnit = "player" } })
+    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
+    T.truthy(Own.AuraOf(131) and Own.AuraOf(131)[9131], "learned")
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy(31), "game", "the game's item still shows it")
     _G.GetSpellBaseCooldown = nil
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
