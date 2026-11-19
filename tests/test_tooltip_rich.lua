@@ -1807,3 +1807,27 @@ T.test("rich tooltip: a card's and the pill's health keep their last value once 
     stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game, on many cards (the game menu's latency, a map pin's quest
+-- list): a row's value cut with "..." ("2...", "(Dung..."). It sat squeezed
+-- between its label and the card's edge, and a card exactly as wide as its
+-- widest row had no room left after rounding. The value takes its own width
+-- at the edge; only a label too long for what's left is shortened.
+T.test("rich tooltip: a row's value is never squeezed: it keeps its own width at the edge", function()
+    local _, Panel = login("rich")
+    fill(99, { "Performance", { "Framerate", "119 fps" }, { "Latency (home)", "24 ms" },
+        { string.rep("A very long label ", 6), "(Dungeon)" } })
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    for _, r in ipairs(rows) do
+        T.eq(#r.value.__points, 1, "the value anchored once")
+        T.eq(r.value.__points[1][1], "TOPRIGHT", "at the card's right edge")
+        T.eq(r.value:GetWidth(), 0, "as wide as its own text")
+    end
+    T.eq(rows[1].label:GetWidth(), 0, "a label that fits keeps its own width")
+    local long = rows[3]
+    local inner = p.wantW - 2 * stub.tooltip.RichPanel.PAD_X
+    T.truthy(long.label:GetWidth() > 0 and long.label:GetWidth() <= inner - long.value:GetStringWidth() - 16,
+        "a label too long is shortened, before the value")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

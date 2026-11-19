@@ -325,7 +325,7 @@ end
 -- square crop), iconTile ({ lo, hi }: a gradient tile behind it), iconInset
 -- (the art this far inside the tile), iconEdge ({ r, g, b }: an outline and glow),
 -- iconGap (between the icon and the words, 12), title, titleColor, titleSize,
--- right, rightColor, tags = { { text, color } }, sub (a line under the title),
+-- right, rightColor, rightSize (body), tags = { { text, color } }, sub (a line under the title),
 -- wash ({ r, g, b }: the banner's light).
 function Panel.Header(p, spec)
     local item = add(p, { kind = "header", spec = spec })
@@ -362,7 +362,7 @@ function Panel.Header(p, spec)
     item.title = text(p, spec.titleSize or Style.SIZE.title, spec.titleColor or Style.INK.TITLE)
     item.title:SetText(spec.title or "")
     if spec.right then
-        item.right = text(p, Style.SIZE.body, spec.rightColor or Style.INK.VALUE)
+        item.right = text(p, spec.rightSize or Style.SIZE.body, spec.rightColor or Style.INK.VALUE)
         item.right:SetText(spec.right)
     end
     if spec.sub then
@@ -534,7 +534,7 @@ local function natural(item)
         local icon = item.icon and ((item.spec.iconSize or 36) + (item.spec.iconGap or 12)) or 0
         return icon + w
     elseif k == "row" then
-        return widthOf(item.label) + (item.value and (16 + widthOf(item.value)) or 0)
+        return widthOf(item.label) + (item.value and (Panel.ROW_GAP_X + widthOf(item.value)) or 0)
     elseif k == "text" or k == "section" then
         return widthOf(item.fs)
     elseif k == "line" then
@@ -626,12 +626,17 @@ function place.header(p, item, y, inner)
     return item.h
 end
 
-function place.row(p, item, y)
+-- The value keeps its own width at the right edge; only a label too long for
+-- what's left is cut. Squeezed between the label and the edge, a value was
+-- cut with "..." whenever the card was exactly as wide as its widest row.
+Panel.ROW_GAP_X = 16
+function place.row(p, item, y, inner)
     item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = lineHeight(item.label, item.label.size)
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
-        item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
+        local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
+        if widthOf(item.label) > room + 1 then item.label:SetWidth(math.max(1, room)) end
         h = math.max(h, lineHeight(item.value, item.value.size))
     end
     return h
