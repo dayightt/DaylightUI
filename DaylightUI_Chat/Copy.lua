@@ -123,7 +123,7 @@ function Copy.Show(cf)
     -- Same font, size and outline as the chat (Box.Font).
     if type(box.edit.SetFont) == "function" then
         box.edit:SetFont(Style.FontFile(ns.MEDIA.font), ns.Chat.TextSize(),
-            Style.Slug((cfg and cfg.outline) and "OUTLINE" or ""))
+            (cfg and cfg.outline) and "OUTLINE" or "")
         box.edit:SetShadowOffset(1, -1)
         box.edit:SetShadowColor(0, 0, 0, 0.9)
     end

@@ -192,7 +192,7 @@ function DT.Sample(parent)
         local fs = table.remove(spare) or f:CreateFontString(nil, "OVERLAY")
         local size = crit and look.crit or look.size
         if fs.file ~= look.file or fs.size ~= size then
-            fs:SetFont(look.file, size, DUI.Style.Slug("OUTLINE"))
+            fs:SetFont(look.file, size, "OUTLINE")
             fs.file, fs.size = look.file, size
         end
         local amount = crit and math.random(1800, 3200) or math.random(300, 1200)
