@@ -8655,3 +8655,49 @@ T.test("cdm bars: each bar can have its own animation, unset follows the shared 
     T.eq(Data.SetSpellValue(set, 21, "fxSpeed", 2), set.pieces[21].shape == "bar", "bars only")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Skysight's data links both its buffs: Elemental Blessing (30 s) and, on a node,
+-- Charged (1 h). On its piece Charged hid the short buff and the cooldown. Charged
+-- now has a tray piece of its own, and the racial's piece leaves it out.
+T.test("cdm custom: a Skyborne racial's node buff gets a tray piece, and its own piece leaves it out", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(true, { 31 })
+    DUI.DB.General().motion = false
+    local C = AB.CdmCustom
+    stub.knownSpells = {}
+    C.Forget()
+    local listed = {}
+    for _, e in ipairs(C.Tray()) do listed[e.id] = true end
+    T.falsy(listed.s1270893, "no racial pieces without the racial")
+    stub.knownSpells = { [1259686] = true }
+    C.Forget()
+    listed = {}
+    for _, e in ipairs(C.Tray()) do listed[e.id] = e end
+    T.truthy(listed.s1270893 and listed.s1270893.aura, "Charged listed, as a buff")
+    T.falsy(listed.s1259688, "Elemental Blessing stays on Skysight's piece")
+    T.falsy(listed.s1259691, "not the other faction's")
+    T.truthy(C.Entry("s1270893"), "counts as known")
+    T.falsy(C.CanTrack("s1270893"), "no cooldown to pick")
+    T.deq(C.Ranks("s1270893"), { [1270893] = true })
+    T.truthy(C.SelfOnly("s1270893"), "watched on you only")
+    -- The racial's own piece: the game's data links both buffs.
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        if id == 31 then
+            return { spellID = 1259686, overrideSpellID = 1259686, linkedSpellIDs = { 1259688, 1270893 }, selfAura = true, hasAura = false }
+        end
+        return { spellID = 100 + id }
+    end
+    T.deq(AB.CdmAuras.SpellIDs(31), { [1259686] = true, [1259688] = true }, "Charged left out")
+    T.truthy(AB.CdmAuras.GameBlind(31), "the game's item would show Charged")
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    stub.auras.player = { HELPFUL = { { spellId = 1270893, duration = 3600, expirationTime = GetTime() + 3500,
+        sourceUnit = "player", isFromPlayerOrPlayerPet = true } } }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    T.eq(AB.CdmRows.DrawnBy(31), "aura icon", "drawn by ours")
+    local h = AB.CdmAuras.Frame(31)
+    T.truthy(h and not h.ids[1270893], "ours doesn't watch Charged")
+    stub.auras.player = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
