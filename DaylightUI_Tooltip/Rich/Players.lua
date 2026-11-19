@@ -158,8 +158,10 @@ function Players.Card(p, tip, unit, data, n, lines)
     if token then icon, coords = Players.Icon(token) end
     Panel.Header(p, { icon = icon, iconCoords = coords, iconSize = Players.ICON, iconInset = Players.ICON_INSET,
         iconTile = pair, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil })
+    -- The same room under the banner with or without rows: without it the
+    -- health sat right on the banner, inside its wash.
     Panel.Gap(p, Players.AFTER_BANNER)
-    if rows(p, unit) == 0 then p.count = p.count - 1 end -- no rows: no room for them
+    rows(p, unit)
     Panel.Gap(p, Players.BEFORE_BARS)
     Panel.Bar(p, { unit = unit, health = true, h = 7, caption = HEALTH or L["Health"],
         pct = function(fs) DUI.Health.Write(fs, "percent", unit, true) end })

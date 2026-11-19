@@ -1496,3 +1496,26 @@ T.test("rich tooltip: a sell price with no durability beside it says what it is"
     T.truthy(stub.Text(foot.value):find("48", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game: a player with no guild and no target had the banner sitting
+-- right on top of HEALTH. The bars keep the same room under the banner as
+-- when rows sit between them.
+T.test("rich tooltip: a player card with no rows keeps the banner's room above the health", function()
+    local _, Panel = login("rich")
+    player()
+    stub.units.mouseover.guild, stub.units.mouseover.guildRank = nil, nil
+    stub.units.mouseovertarget = nil
+    hover("mouseover", { "Aelindra" })
+    local p = Panel.Get(GameTooltip)
+    local room, header, bar = 0, nil, nil
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "header" then header = i end
+        if it.kind == "bar" and not bar then bar = i end
+        if header and not bar and it.kind == "gap" then room = room + it.h end
+    end
+    T.truthy(header and bar, "a banner and a health bar")
+    local P = stub.tooltip.RichPlayers
+    T.eq(room, P.AFTER_BANNER + P.BEFORE_BARS, "the same room as around the rows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

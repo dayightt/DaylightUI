@@ -450,7 +450,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button] [loner: a player with no guild or target]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -520,12 +520,17 @@ local RECIPES = {
             tip:SetOwner(UIParent, "ANCHOR_NONE")
             tip:ClearAllPoints()
             tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            local loner = look == "loner"
+            if loner then look = "player" end
             if look == "player" or look == "pill" then
                 stub.units.mouseover = look == "player" and { name = "Aelindra", lastName = "Moonvale", class = "MAGE",
                     isPlayer = true, level = 60, race = "Night Elf", guild = "Dawnwatch", guildRank = "Officer",
                     health = 100, maxHealth = 100, power = 72, maxPower = 100, powerToken = "MANA", friend = true }
                     or { name = "Gorvak", isPlayer = false, reaction = 2, health = 31, maxHealth = 100 }
                 stub.units.mouseovertarget = look == "player" and { name = "Gorvak", isPlayer = false, reaction = 2 } or stub.units.player
+                if loner then
+                    stub.units.mouseover.guild, stub.units.mouseover.guildRank, stub.units.mouseovertarget = nil, nil, nil
+                end
                 function tip:GetUnit() return nil, "mouseover" end
                 if look == "pill" then stub.EnterCombat(); stub.cursorPos = { 900, 600 } end
                 DUI:Set("Tooltip", "buffs", true)
