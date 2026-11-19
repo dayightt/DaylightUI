@@ -185,7 +185,9 @@ function RollCard.New(parent)
         local drop = card.drop
         if not (drop and GameTooltip) then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if type(GameTooltip.SetLootRollItem) == "function" and not drop.done and not drop.sample and not drop.watch then
+        -- The game's own rolls have positive ids; samples and rolls rebuilt from the
+        -- Loot History don't, so those show the item from its link.
+        if type(GameTooltip.SetLootRollItem) == "function" and not drop.done and drop.rollID > 0 then
             GameTooltip:SetLootRollItem(drop.rollID)
         elseif drop.link then
             GameTooltip:SetHyperlink(drop.link)
