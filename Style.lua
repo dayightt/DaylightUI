@@ -1246,9 +1246,35 @@ function Style.PaintShellColors(s)
     for key, tex in pairs(s.fillet) do putColor(tex, key, r, g2, b, ba, sweepBorder) end
     for side, tex in pairs(s.slantFill) do putColor(tex, side, r, g2, b, ba, sweepBorder) end
     for side, tex in pairs(s.lineSlant) do putColor(tex, side, r, g2, b, ba, sweepBorder) end
+    local cut = s.cutEdge
+    if cut then putColor(cut.outline, "BOTTOMRIGHT", r, g2, b, ba, sweepBorder) end
     r, g2, b = dc[1], dc[2], dc[3]
     for key, tex in pairs(s.band) do putColor(tex, key, r, g2, b, ba, sweepBand) end
     for side, tex in pairs(s.bandSlant) do putColor(tex, side, r, g2, b, ba, sweepBand) end
+    if cut then putColor(cut.band, "BOTTOMRIGHT", r, g2, b, ba, sweepBand) end
+end
+
+-- A cut corner's own border (Style.CutShell): a line along the cut as thick as
+-- the outline, in its color, and the band's line down its middle, both on the
+-- path half the border in from the cut. They end inside the straight edges,
+-- so the border runs on round the corner with no seam.
+local function layoutCutEdge(s, size)
+    local e = s.cutEdge
+    if not e then return end
+    local on = type(size) == "number" and size > 0
+    e.outline:SetShown(on)
+    e.band:SetShown(on and Style.IsHeavy(s))
+    if not on then return end
+    local T = DUI.Pixel.Px(s, shellBorderPx(s))
+    local one = DUI.Pixel.Px(s, 1)
+    local half = T / 2
+    local reach = size + T / math.sqrt(2) - half
+    for _, line in ipairs({ e.outline, e.band }) do
+        line:SetStartPoint("BOTTOMRIGHT", s, -reach, half)
+        line:SetEndPoint("BOTTOMRIGHT", s, -half, reach)
+    end
+    e.outline:SetThickness(T)
+    e.band:SetThickness(math.max(0, T - 2 * one))
 end
 
 -- Is a corner piece at an angled (sharp) end?
@@ -1287,6 +1313,7 @@ end
 function Style.LayoutShell(s)
     layoutCount = layoutCount + 1
     s.dirty = false
+    if s.cutEdge then layoutCutEdge(s, Style.GetCut(s:GetParent())) end
     local g = general()
     local borderPx = shellBorderPx(s)
     local T = DUI.Pixel.Px(s, borderPx)
@@ -1847,6 +1874,17 @@ function Style.CutShell(frame, size)
     Style.CutCorner(frame, size, s.bg, s.bevelBottom, s.slantFill and s.slantFill.right,
         b.BOTTOM, b.RIGHT, b.BOTTOMRIGHT, band.BOTTOM, band.RIGHT, band.BOTTOMRIGHT,
         sh.BOTTOM, sh.RIGHT, sh.BOTTOMRIGHT, f.BOTTOMRIGHT)
+    -- The border along the cut itself, without it the outline and band
+    -- stopped where the corner was cut away.
+    if not s.cutEdge and b.BOTTOM then
+        local outline = s:CreateLine(nil, "BORDER", nil, 0)
+        outline:SetTexture(WHITE)
+        local line = s:CreateLine(nil, "BORDER", nil, 1)
+        line:SetTexture(WHITE)
+        s.cutEdge = { outline = outline, band = line }
+        Style.PaintShellColors(s)
+    end
+    layoutCutEdge(s, size)
 end
 
 -- One mask per owner, kind ("clip": a clip's own line; "stop": a strip's far
