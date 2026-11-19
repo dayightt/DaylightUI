@@ -25,6 +25,7 @@ DUI.PatchNotes = {
         { "Chat", "Speech bubbles are the game's size again instead of shrinking when your UI scale is small" },
         { "Chat", "Experience from kills shows in Daylight UI's chat tabs, without turning it on in the game's own chat settings" },
         { "Damage meter", "No more Lua errors from the meter's top line in a fight when the group's total is shown" },
+        { "Group finder", "Groups for some dungeons, like The Shaper's Terrace, no longer list more open spots than the dungeon has room for" },
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },
         { "Party and raid frames", "No more Lua errors after someone leaves the party or raid" },
         { "World map", "With OpenMap, the map fades in on its first open after a reload instead of jumping in" },

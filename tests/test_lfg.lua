@@ -1197,3 +1197,22 @@ T.test("lfg: the controller's hints are refreshed as the card opens, moves and c
     T.truthy(calls > opened, "and when it moved to another group")
     P.Refresh = real
 end)
+
+-- The game's remaining counts can be off for an activity (The Shaper's Terrace
+-- gave four tanks, five healers and two damage still wanted for a five-player
+-- group of four). The game's own list draws only the activity's size, so the open
+-- places never come to more than the room left.
+T.test("lfg places: open spots never come to more than the group's size", function()
+    local ns = load()
+    local r = { size = 5, members = { {}, {}, {}, {} },
+        counts = { TANK = 1, HEALER = 0, DAMAGER = 3, TANK_REMAINING = 4, HEALER_REMAINING = 5, DAMAGER_REMAINING = 2 } }
+    local have, open = ns.Data.Places(r)
+    T.eq(have.DAMAGER, 3)
+    T.eq(open.TANK + open.HEALER + open.DAMAGER, 1, "one place left")
+    T.eq(open.HEALER, 1, "the one the five-player shape still lacks")
+    -- Counts that fit the room are the game's, as they are.
+    r.counts = { TANK = 1, HEALER = 0, DAMAGER = 2, TANK_REMAINING = 0, HEALER_REMAINING = 1, DAMAGER_REMAINING = 1 }
+    r.members = { {}, {}, {} }
+    _, open = ns.Data.Places(r)
+    T.eq(open.HEALER, 1); T.eq(open.DAMAGER, 1); T.eq(open.TANK, 0)
+end)

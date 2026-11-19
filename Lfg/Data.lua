@@ -350,12 +350,30 @@ end
 -- five-player dungeons these are the game's REMAINING counts; bigger groups just count.
 function Data.Places(r)
     local have, open = {}, {}
+    local wanted = 0
     for _, role in ipairs(Data.ROLES) do
         have[role] = plain(r.counts[role]) or 0
         open[role] = plain(r.counts[role .. "_REMAINING"]) or 0
+        wanted = wanted + open[role]
+    end
+    -- The game's remaining counts can be off for an activity (four tanks, five
+    -- healers and two damage still wanted by a five-player group of four). Its own
+    -- list draws only the activity's size, so the places never add up to more than
+    -- the room left: a five-player group's from the usual shape, others cut short.
+    local room = (r.size or 0) - #(r.members or {})
+    if (r.size or 0) > 0 and wanted > math.max(0, room) then
+        for _, role in ipairs(Data.ROLES) do
+            open[role] = r.size == 5 and math.max(0, Data.FIVE_SHAPE[role] - have[role]) or open[role]
+        end
+        local left = math.max(0, room)
+        for _, role in ipairs(Data.ROLES) do
+            open[role] = math.min(open[role], left)
+            left = left - open[role]
+        end
     end
     return have, open
 end
+Data.FIVE_SHAPE = { TANK = 1, HEALER = 1, DAMAGER = 3 }
 
 -- Does the listing have an open slot for one of the player's roles (HasRemainingSlotsForLocalPlayerRole).
 local function slotFor(r, mine)
