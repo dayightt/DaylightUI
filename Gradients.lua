@@ -495,7 +495,7 @@ function Gradients.PaintPair(tex, lo, hi, alpha)
         return
     end
     tex:SetVertexColor(1, 1, 1, 1)
-    tex:SetGradient(Gradients.Orientation(), CreateColor(a[1], a[2], a[3], al), CreateColor(b[1], b[2], b[3], al))
+    Style.Gradient(tex, Gradients.Orientation(), a[1], a[2], a[3], al, b[1], b[2], b[3], al)
     Style.NoteFill(tex, a, b)
 end
 

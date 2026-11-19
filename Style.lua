@@ -1162,6 +1162,24 @@ function Style.ShadowColors(color, a)
     return pair[1], pair[2]
 end
 
+-- A two-color gradient on a texture with no new color objects: the client's
+-- CreateColor copies ColorMixin (about 2 KB), so a gradient painted on every
+-- refill or bar update made heaps of garbage and the game stalled to clear it.
+-- Each texture keeps its own two colors and only their values change.
+local gradientColors = setmetatable({}, { __mode = "k" })
+function Style.Gradient(tex, orientation, r1, g1, b1, a1, r2, g2, b2, a2)
+    local pair = gradientColors[tex]
+    if not pair then
+        pair = { CreateColor(r1, g1, b1, a1), CreateColor(r2, g2, b2, a2) }
+        gradientColors[tex] = pair
+    else
+        local lo, hi = pair[1], pair[2]
+        lo.r, lo.g, lo.b, lo.a = r1, g1, b1, a1
+        hi.r, hi.g, hi.b, hi.a = r2, g2, b2, a2
+    end
+    tex:SetGradient(orientation, pair[1], pair[2])
+end
+
 -- A sweep's two ends as colors at alpha a, cached on the sweep table per alpha
 -- (checked against its numbers, since a caller may refill its pair) so a
 -- repaint creates none.

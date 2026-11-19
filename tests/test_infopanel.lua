@@ -286,11 +286,14 @@ T.test("info panel: the XP bar wears the accent by default", function()
     local fill = XP.bar:GetStatusBarTexture()
     T.eq(XP.colorMode, "accent")
     T.truthy(fill.__gradient, "a gradient on a one-color accent too")
-    local before = fill.__gradient[3]
+    -- The color objects are kept per texture (Style.Gradient): compare their values.
+    local c = fill.__gradient[3]
+    local before = { c.r, c.g, c.b }
     DUI:Set("general", "accent", "custom")
     DUI:Set("general", "accentColor", { 0.1, 0.9, 0.3 })
     XP.Update()
-    T.truthy(fill.__gradient[3] ~= before, "a new accent repaints it")
+    local now = fill.__gradient[3]
+    T.truthy(now.r ~= before[1] or now.g ~= before[2] or now.b ~= before[3], "a new accent repaints it")
     DUI:Set("InfoPanel", "xp.gradient", false)
     T.rgb({ XP.bar.__barColor[1], XP.bar.__barColor[2], XP.bar.__barColor[3] }, { 0.1, 0.9, 0.3 })
 end)
