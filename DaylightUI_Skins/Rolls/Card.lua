@@ -518,10 +518,16 @@ local function layButtons(card, drop, settings)
     end
 end
 
--- Whether the group list shows: the stack says so with look.open; on its own
--- a full card shows it.
-function RollCard.ListOpen(look)
-    if look.settings.list == "off" then return false end
+-- Still waiting on your pick: the card stays small, its list only a row of
+-- ticks, so your buttons are what you see.
+local function yourTurn(drop)
+    return drop ~= nil and not (drop.mine or drop.done or drop.watch)
+end
+
+-- Whether the group list shows: never before you've picked; then the stack
+-- says so with look.open, and on its own a full card shows it.
+function RollCard.ListOpen(look, drop)
+    if look.settings.list == "off" or yourTurn(drop) then return false end
     if look.open ~= nil then return look.open == true end
     return look.mode == "full"
 end
@@ -529,8 +535,8 @@ end
 -- What a card would measure, settled.
 function RollCard.Height(card, look)
     local drop, s = card.drop, look.settings
-    local open = RollCard.ListOpen(look)
-    local small = look.mode == "compact" and not open
+    local open = RollCard.ListOpen(look, drop)
+    local small = (look.mode == "compact" or yourTurn(drop)) and not open
     local h = (small and RollCard.HEAD_SMALL or RollCard.HEAD) + RollCard.SUM + RollCard.FOOT
     if not drop then return h end
     if not drop.done then h = h + RollCard.TIMER end
@@ -587,8 +593,8 @@ function RollCard.Fill(card, drop, look)
     card.sum:SetText(summary(drop))
 
     -- The list or the ticks.
-    local open = RollCard.ListOpen(look)
-    local small = look.mode == "compact" and not open
+    local open = RollCard.ListOpen(look, drop)
+    local small = (look.mode == "compact" or yourTurn(drop)) and not open
     local ticks = small and s.ticks ~= false
     card.ticks:SetShown(ticks)
     if ticks then layTicks(card, drop) else card.ticks:SetWidth(1) end

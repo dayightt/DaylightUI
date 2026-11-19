@@ -202,7 +202,8 @@ end
 -- Whether a roll's group list shows.
 local function listOpen(drop, mode)
     local s = RollStack.Settings()
-    if s.list == "off" then return false end
+    -- Until you've picked, a roll stays small: the list comes after your roll.
+    if s.list == "off" or not (drop.mine or drop.done or drop.watch) then return false end
     if hoverOnly(s) then return hovered(drop) end
     if mode == "full" then return true end
     return openCompact() == drop

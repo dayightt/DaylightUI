@@ -32,7 +32,7 @@ local function rollsPage()
             row({ type = "dropdown", key = "rolls.list", label = "Group list",
               values = { auto = "With one roll", always = "Always", hover = "On mouseover", off = "Never" },
               order = { "auto", "always", "hover", "off" },
-              desc = "When a roll shows who picked what and everyone's rolls. With one roll, the list shows while only one roll is up, and with several, on the one under your mouse or the one just won." }),
+              desc = "When a roll shows who picked what and everyone's rolls. A roll stays small until you've picked, then its list opens. With one roll up the list shows on its own, and with several, on the one under your mouse or the one just won." }),
             row({ type = "toggle", key = "rolls.compact", label = "Compact rolls when several drop",
               desc = "With more than one roll up, each shows just the item, your buttons and a row of ticks for who has picked, so several rolls fit on screen at once. When off, every roll shows in full." }),
             row({ type = "toggle", key = "rolls.fightCompact", label = "Compact rolls in a fight",
