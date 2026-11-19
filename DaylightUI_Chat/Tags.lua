@@ -283,7 +283,71 @@ function Tags.Shape(msg, event)
     local out = Tags.enabled and Tags.Shorten(msg, event) or msg
     local Levels = ns.Levels
     if Levels and Levels.on then out = Levels.Mark(out) end
+    if Tags.quote then out = Tags.Each(out) end
     return out ~= msg and out or nil
+end
+
+-- ---------------------------------------------------------------------
+-- The price of each one on a won commodity auction
+-- ---------------------------------------------------------------------
+
+-- The game's line says what you won and how many ("You won an auction for Linen
+-- Cloth x14"), never what it cost. The client quotes the total just before the
+-- buy goes through (COMMODITY_PRICE_UPDATED), so the line gets that total split
+-- by the count. The quote is kept only for the frame its line arrives in: the
+-- Daylight box and the game's redraw both read that one line, and no later line
+-- can pick up an old price.
+local usedAt
+local patterns = {}
+
+-- The game's format as a pattern, and which capture holds the count. Handles
+-- positional holes ("%2$d") too, as some languages order them differently.
+local function wonPattern(fmt)
+    if patterns[fmt] ~= nil then return patterns[fmt][1], patterns[fmt][2] end
+    local out, caps, countAt, i = {}, 0, nil, 1
+    while true do
+        local s, e, pos, kind = string.find(fmt, "%%(%d*)%$?([sd])", i)
+        out[#out + 1] = esc(string.sub(fmt, i, s and s - 1 or #fmt))
+        if not s then break end
+        caps = caps + 1
+        if kind == "d" then countAt = caps end
+        out[#out + 1] = kind == "d" and "(%d+)" or "(.-)"
+        i = e + 1
+    end
+    local pat = countAt and (table.concat(out) .. "$") or false
+    patterns[fmt] = { pat, countAt }
+    return pat, countAt
+end
+
+-- The line with " (3s 45c each)" added, or the line as it was.
+function Tags.Each(msg)
+    if not Tags.quote or type(msg) ~= "string" or secret(msg) then return msg end
+    local now = GetTime()
+    if usedAt and usedAt ~= now then Tags.quote, usedAt = nil, nil; return msg end
+    local fmt = _G.ERR_AUCTION_COMMODITY_WON_S
+    if type(fmt) ~= "string" then return msg end
+    local pat, at = wonPattern(fmt)
+    if not pat then return msg end
+    local count = tonumber(select(at, string.match(msg, pat)))
+    if not count then return msg end
+    usedAt = now
+    if count < 2 then return msg end
+    local each = math.floor(Tags.quote / count + 0.5)
+    return msg .. " " .. string.format(DaylightUI.L["(%s each)"], DaylightUI.Widgets.Money(each))
+end
+
+local function onQuote(_, _, total)
+    usedAt = nil
+    Tags.quote = (type(total) == "number" and not secret(total) and total > 0) and total or nil
+end
+local function forget() Tags.quote, usedAt = nil, nil end
+
+function Tags.ListenQuotes()
+    if Tags.quoting then return end
+    Tags.quoting = true
+    DaylightUI.RegisterEvent("COMMODITY_PRICE_UPDATED", onQuote)
+    DaylightUI.RegisterEvent("COMMODITY_PURCHASE_FAILED", forget)
+    DaylightUI.RegisterEvent("AUCTION_HOUSE_CLOSED", forget)
 end
 
 function Tags.Own(kind) return Tags.own[kind] end
@@ -335,7 +399,7 @@ local changed = {}
 -- The window just redrew. Shorten every entry added since the last redraw
 -- (newest first, stopping at the first one already seen) and update its line.
 function Tags.OnRedraw(cf)
-    if not (Tags.enabled or (ns.Levels and ns.Levels.on)) then return end
+    if not (Tags.enabled or (ns.Levels and ns.Levels.on) or Tags.quote) then return end
     local hb = cf.historyBuffer
     if type(hb) ~= "table" or type(hb.GetEntryAtIndex) ~= "function" then return end
     local e = hb:GetEntryAtIndex(1)
@@ -385,6 +449,7 @@ function Tags.Apply(cfg)
     Tags.enabled = cfg.shortTags and true or false
     Tags.numbers = cfg.channelNumbers and true or false
     Tags.own = type(cfg.channelTags) == "table" and cfg.channelTags or {}
+    Tags.ListenQuotes()
     -- The letters of the defaults: the game's words in the player's language, or the English ones.
     local letters = cfg.tagLetters == "native" and "native" or "english"
     if letters ~= Tags.letters then Tags.letters = letters; Tags.ResetDefaults(); Tags.ResetNames() end
