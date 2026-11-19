@@ -133,10 +133,11 @@ end
 
 -- Every number on the card the way the game writes it, number first at the
 -- left edge ("1,287 Armor", "+8 Stamina"): one column the eye runs down. The
--- number white, or a stat's in its color; the word in the sentence color.
--- One from an Equip line says so after it, small.
+-- number in the accent, or a stat's in its color, so it stands out from the
+-- word in the sentence color. One from an Equip line says so after it, small.
+local function popHex() return hex({ Style.Pop() }) end
 local function numLine(p, num, word, color, equip)
-    ns.RichPanel.Line(p, hex(color or Style.INK.VALUE) .. num .. "|r " .. word, Style.INK.TEXT, nil,
+    ns.RichPanel.Line(p, (color and hex(color) or popHex()) .. num .. "|r " .. word, Style.INK.TEXT, nil,
         equip and L["Equip"] or nil, Style.INK.GOOD)
 end
 
@@ -214,8 +215,13 @@ local function sort(n, lines, own, info, groups)
                 groups.list[#groups.list + 1] = function(p) numLine(p, num, words) end
             end
         elseif t:find(P.dps) then
+            -- Kept in the game's own brackets: they set it apart from the
+            -- damage and speed lines above it.
             local v = t:match(P.dps)
-            groups.list[#groups.list + 1] = function(p) numLine(p, v, L["Damage per second"]) end
+            groups.list[#groups.list + 1] = function(p)
+                ns.RichPanel.Line(p, string.format(DPS_TEMPLATE or "(%s damage per second)",
+                    popHex() .. v .. "|r"), Style.INK.TEXT)
+            end
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
             inSet = true
