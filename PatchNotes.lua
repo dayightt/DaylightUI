@@ -42,6 +42,8 @@ DUI.PatchNotes = {
             { "Info panel", "The experience bar set as wide as the action bar lines up with the bar's background, padding included" },
             { "Bags", "Taking one stack out of a pile in the bank or bags no longer makes the rest of the pile look gone" },
             { "QoL", "The cursor ring shows the global cooldown again after instant spells" },
+            { "Cooldown Manager", "A stack of bars that grows upward closes the gap when the bottom bar isn't showing" },
+            { "Cooldown Manager", "Slice and Dice cast in a fight no longer drops off and gets covered by your other buffs when you switch targets" },
         },
     },
     { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",

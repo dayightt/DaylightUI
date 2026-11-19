@@ -123,6 +123,10 @@ Custom.AURA_IDS = {
 -- Traps, by rank 1 id. Laying one down puts nothing up yet, so a cast never says
 -- the debuff is up; only the client's button does, once a mob walks in.
 Custom.TRAPS = { [1499] = true, [13795] = true, [13813] = true, [13809] = true }
+-- Spells cast at an enemy whose buff lands on you, by rank 1 id: Slice and Dice
+-- needs a target for its combo points, so the game calls it harmful, yet its buff
+-- is only ever on you. Watched on you alone.
+Custom.BUFF_ON_YOU = { [5171] = true }
 -- Spells whose buff lands on your pet (the game's data targets the pet): Bestial
 -- Wrath, Mend Pet, Intimidation, Eyes of the Beast, Health Funnel, and a pet's own
 -- Dash and Dive. Watched on your pet as well as on you.
@@ -231,7 +235,8 @@ local function build()
         local aura = group or (f.aura == true and Custom.TOTEMS[f[1]] == nil)
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = aura, group = group or nil,
                      shared = shared, unique = f.aura == true and Custom.UNIQUE[f[1]] or nil,
-                     auras = Custom.AURA_IDS[f[1]], self = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
+                     auras = Custom.AURA_IDS[f[1]],
+                     self = (Custom.SELF_DEBUFF[f[1]] ~= nil or Custom.BUFF_ON_YOU[f[1]]) or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      trap = Custom.TRAPS[f[1]], onPet = Custom.ON_PET[f[1]] }
         order[#order + 1] = k
@@ -284,7 +289,7 @@ local function useSpell(item)
     local ok, _, sid = pcall(C_Item.GetItemSpell, item)
     sid = ok and plain(sid) or nil
     if type(sid) ~= "number" and type(C_Item.RequestLoadItemDataByID) == "function" then
-        pcall(C_Item.RequestLoadItemDataByID, item)
+        DUI.SafeCall(C_Item.RequestLoadItemDataByID, item)
     end
     return type(sid) == "number" and sid or nil
 end

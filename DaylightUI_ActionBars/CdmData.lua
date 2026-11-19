@@ -747,12 +747,17 @@ local function lay(set, shown, out)
         local p = set.pieces[id]
         local w, h = Data.Dims(set, id)
         local off = shown ~= nil and not shown[id]
+        local x, y = tonumber(p.x) or 0, tonumber(p.y) or 0
         if off then
+            -- The saved spot is the top-left corner. A chain growing up or left
+            -- starts from the bottom or right edge, so it closes up onto that edge,
+            -- or the first piece's room stays empty under the rest.
             local side = runSide(set, id)
+            if side == "up" then y = y - h elseif side == "left" then x = x + w end
             if side and AXIS[side] == "x" then w = 0 elseif side then h = 0 else w, h = 0, 0 end
         end
         local spacing = tonumber(Data.ChainValue(set, id, "spacing")) or Data.GAP
-        place(id, { x = tonumber(p.x) or 0, y = tonumber(p.y) or 0, w = w, h = h }, off, off, spacing)
+        place(id, { x = x, y = y, w = w, h = h }, off, off, spacing)
     end
 end
 

@@ -126,6 +126,31 @@ T.test("cdm data: a hidden piece closes up, with one gap left", function()
     T.eq(L[13].x, 0)
 end)
 
+-- A druid's stack of bars growing up from above the target frame: with the bottom
+-- bar down, the rest stayed where they were and left its room empty under them.
+T.test("cdm data: a chain growing up or left closes up onto its first piece's far edge, bars and icons", function()
+    local D = data()
+    for _, shape in ipairs({ "bar", "icon" }) do
+        local set = empty()
+        D.AddPiece(set, 1, shape, 0, 0)
+        D.AddPiece(set, 2, shape, 0, 0); D.Hook(set, 2, 1, "up", "start")
+        D.AddPiece(set, 3, shape, 0, 0); D.Hook(set, 3, 2, "up", "start")
+        local F = D.Layout(set)
+        local L = D.Layout(set, { [2] = true, [3] = true })
+        T.eq(L[2].y, F[1].y, shape .. ": the second piece drops into the first one's spot")
+        T.eq(L[3].y, F[2].y, shape .. ": and the third into the second's")
+        L = D.Layout(set, { [3] = true })
+        T.eq(L[3].y, F[1].y, shape .. ": two down, the last one sits at the bottom")
+        -- The same growing left.
+        set = empty()
+        D.AddPiece(set, 1, shape, 0, 0)
+        D.AddPiece(set, 2, shape, 0, 0); D.Hook(set, 2, 1, "left", "start")
+        F = D.Layout(set)
+        L = D.Layout(set, { [2] = true })
+        T.eq(L[2].x + L[2].w, F[1].x + F[1].w, shape .. ": growing left, it moves into the first one's spot")
+    end
+end)
+
 -- Shield Block first in the group, one spell hooked on its left, three on its
 -- right, Grow from Middle. With Shield Block down, its two neighbors touch with
 -- no gap between them.
@@ -2893,6 +2918,27 @@ T.test("cdm sounds: a buff's sound plays as the client's button comes up, once w
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client writes the stacks into the count text as it takes it, so a text
+-- with no font yet errored and the icon never showed its stacks.
+T.test("cdm auras: the stack count has a font before the client takes it", function()
+    local DUI, AB = auraWorld(false)
+    local errs = {}
+    local onError = DUI.SafeCall
+    DUI.SafeCall = function(fn, ...)
+        local ok, err = pcall(fn, ...)
+        if not ok then errs[#errs + 1] = tostring(err) end
+        return ok
+    end
+    stub.FontRule = true
+    local ok, err = pcall(function() AB.CdmRows.Refresh(); stub.RunTimers() end)
+    stub.FontRule, DUI.SafeCall = nil, onError
+    T.truthy(ok, tostring(err))
+    T.eq(#errs, 0, tostring(errs[1]))
+    local h = AB.CdmAuras.Frame(41)
+    local btn = h and h.containers[1].c.__groups.a.button
+    T.truthy(btn and btn.__count, "the client draws the stacks")
+end)
+
 T.test("cdm auras: a self aura watches the player's buffs", function()
     local DUI, AB = auraWorld(true)
     AB.CdmRows.Refresh(); stub.RunTimers()
@@ -3866,6 +3912,86 @@ T.test("cdm hide up: a harmful cast whose buff was seen on you stays up after a 
     C_Spell.IsSpellHarmful = nil
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A rogue on 1.9.4 with Slice and Dice and Venom up, both cast in the fight: a new
+-- target put Slice and Dice down and Venom slid into its spot. Never seen out of a
+-- fight, so nothing remembered where it was; the spell list says it's on you.
+T.test("cdm hide up: Slice and Dice cast in a fight stays up after a new target, icon and bar", function()
+    for _, shape in ipairs({ "icon", "bar" }) do
+        local DUI, AB, E, D, set = auraWorld(false)
+        DUI.DB.General().motion = false
+        stub.units.player = stub.units.player or {}
+        stub.units.player.class = "ROGUE"
+        AB.CdmSpells.ROGUE = { { 5171, 6774, aura = true } }
+        AB.CdmCustom.Forget()
+        _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+            return { spellID = id == 41 and 5171 or 1316709, selfAura = false }
+        end
+        place(D, set, 42, 1, 2)
+        set.pieces[41].shape, set.pieces[42].shape = shape, shape
+        C_Spell.IsSpellHarmful = function(sid) return sid == 5171 end
+        stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local frame = shape == "bar" and AB.CdmBars.AuraFrame or AB.CdmAuras.Frame
+        local snd, venom = frame(41), frame(42)
+        T.truthy(snd and venom, shape .. ": both drawn by ours")
+        T.isnil((DUI.DB.Character().cdmAuraOn or {})[41], shape .. ": never seen where auras can be read")
+        stub.combat = true
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 5171); stub.RunTimers()
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 1316709); stub.RunTimers()
+        T.eq(snd.up, true, shape .. ": Slice and Dice up")
+        T.eq(venom.up, true, shape .. ": Venom up")
+        local _, _, _, _, before = frameOf(42):GetPoint(1)
+        stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+        stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+        T.eq(snd.up, true, shape .. ": a new target, Slice and Dice still up, it's on you")
+        local _, _, _, _, after = frameOf(42):GetPoint(1)
+        T.eq(after, before, shape .. ": Venom stays in its own spot")
+        stub.combat = false
+        C_Spell.IsSpellHarmful = nil
+        noCategories()
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
+
+-- Sap (hidden by default in the game's own Cooldown Manager) placed as a bar showed
+-- nothing on a sapped mob. It's your debuff on the target, cast out of a fight.
+T.test("cdm auras: Sap on your target shows, icon and bar", function()
+    local rules = dofile("tests/aura_rules.lua")
+    for _, shape in ipairs({ "icon", "bar" }) do
+        local DUI, AB, E, D, set = auraWorld(false)
+        DUI.DB.General().motion = false
+        stub.units.player = stub.units.player or {}
+        stub.units.player.class = "ROGUE"
+        AB.CdmSpells.ROGUE = { { 6770, 2070, 11297, aura = true } }
+        AB.CdmCustom.Forget()
+        _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function()
+            return { spellID = 6770, overrideSpellID = 11297, selfAura = false, hasAura = true }
+        end
+        set.pieces[41].shape = shape
+        stub.knownSpells = { [6770] = true, [2070] = true, [11297] = true }
+        stub.units.target = { name = "Giant Yeti", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = (shape == "bar" and AB.CdmBars.AuraFrame or AB.CdmAuras.Frame)(41)
+        T.truthy(h and h:IsShown(), shape .. ": drawn by ours")
+        local k
+        for _, c in ipairs(h.containers or {}) do if c.unit == "target" then k = c end end
+        T.truthy(k, shape .. ": watches the target")
+        local g = k.c.__groups.a
+        local sapped = { spellId = 11297, harmful = true, mine = true, fromPlayer = true, duration = 45 }
+        T.truthy(rules(g, { canAssist = false }, sapped), shape .. ": the client would show your Sap there")
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 11297)
+        stub.auras.target = { HARMFUL = { { spellId = 11297, duration = 45, expirationTime = GetTime() + 45,
+            isFromPlayerOrPlayerPet = true, isHarmful = true } } }
+        AB.CdmAuras.AuraChanged(); stub.RunTimers()
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.truthy(h:IsShown() and h:GetAlpha() > 0, shape .. ": shown while the mob is sapped")
+        T.eq(AB.CdmAuras.IsUp(h), true, shape .. ": read as up")
+        stub.auras.target = nil
+        noCategories()
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
 end)
 
 T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
