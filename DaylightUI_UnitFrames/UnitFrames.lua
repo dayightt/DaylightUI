@@ -29,6 +29,9 @@ for _, k in ipairs(ns.MEDIA_FRAMES) do
         m.fonts[t] = p .. ".font." .. t
         Media.RegisterSlot(m.fonts[t], "UnitFrames", k .. ".media." .. t .. "Font", "font")
     end
+    -- The level's digits: their own font, following the name's while "general".
+    m.fonts.level = p .. ".font.level"
+    Media.RegisterSlot(m.fonts.level, "UnitFrames", k .. ".media.levelFont", "font", m.fonts.name)
     UF.MEDIA[k] = m
 end
 local function barAndFont(id, key)
@@ -244,9 +247,6 @@ UF.ROLE_COORDS = {
 }
 UF.ROLE_SIZE = 0.62      -- as a fraction of the portrait ring's radius
 UF.LEVEL_SELF_COLOR = DUI.Style.INK.VALUE  -- warm white, like names and the big number
-UF.LEVEL_NUDGE = { 1, -0.75 }
--- Without a portrait the badge is smaller, and the digits sat low in it.
-UF.LEVEL_NUDGE_BARE = { 1, 0.75 }
 UF.LEVEL_UP_BUMP = 1.4  -- how big the level badge swells as you gain a level, easing back (SLOW)
 UF.LEVEL_LIFT = 0.3     -- difficulty colors eased toward white so they read on the dark badge
 UF.SKULL_SIZE = 0.62    -- the skull, as a fraction of the badge
@@ -1619,6 +1619,15 @@ function UF.Layout(f, cfg, text, keepSize)
     f.levelSpot = ns.Spots.Valid(cfg.levelPos) and cfg.levelPos or nil
     f.levelNudge = { x = tonumber(cfg.levelX) or 0, y = tonumber(cfg.levelY) or 0 }
     f.iconScale = { leader = (cfg.leaderSize or 1), rest = (cfg.restSize or 1), pvp = (cfg.pvpSize or 1) }
+    -- The level's look: a badge (shape, ring, size) or just the number, and the
+    -- digits' size and color. A size of 0 is the usual one for the frame.
+    f.levelLook = { number = cfg.levelStyle == "number", shape = UF.PORTRAIT_SHAPES[cfg.levelShape] and cfg.levelShape or "round",
+                    ringWidth = UF.RING_WIDTHS[cfg.levelRingWidth] and cfg.levelRingWidth or "thin",
+                    ringMode = (UF.RING_COLORS[cfg.levelRing] or cfg.levelRing == "custom") and cfg.levelRing or "light",
+                    ringCustom = cfg.levelRingCustom,
+                    wPx = tonumber(cfg.levelWidthPx) or 0, hPx = tonumber(cfg.levelHeightPx) or 0,
+                    textPx = tonumber(cfg.levelTextPx) or 0,
+                    color = cfg.levelColor or "difficulty", custom = cfg.levelCustom }
     if f.tab then
         f.tabHeight = tonumber(cfg.tabHeight) or UF.TAB_HEIGHT
         f.nameOnBar = cfg.nameOnBar == true
@@ -3273,6 +3282,102 @@ function UF.UpdateThreat(f)
     UF.ShowThreatTag(f, grouped and scaled or nil, level)
 end
 
+-- The level digits' size: the one set in pixels, else the usual size for this
+-- frame (radius R), whatever the badge's width and height.
+function UF.LevelTextSize(f, R)
+    local look = f.levelLook or {}
+    R = R / (f.portraitScale or 1)   -- the portrait growing leaves the level as it was
+    if look.textPx and look.textPx > 0 then return look.textPx end
+    return math.max(8, math.floor(R * 0.38 + 0.5))
+end
+
+-- What the level badge measures when left on its own, for the sliders to show
+-- (width = height, digits): from the live frame's portrait, else its settings.
+function UF.LevelAuto(id)
+    local f = ns.frames[id] or (id == "party" and ns.Party and ns.Party.buttons and ns.Party.buttons[1]) or nil
+    local R = f and f.portrait and f.portrait:GetWidth() / 2 or 0
+    if type(R) ~= "number" or R <= 0 then
+        local H = tonumber(DUI:Get("UnitFrames", id .. ".height")) or 30
+        R = H * UF.PORTRAIT_SIZE / 2
+    elseif f.portraitScale and f.portraitScale > 0 then
+        R = R / f.portraitScale
+    end
+    local w = math.floor(R * UF.STATUS.level.size + 0.5)
+    return w, w, math.max(8, math.floor(R * 0.38 + 0.5))
+end
+
+-- The badge is the portrait's own ring art in miniature (same shapes, ring
+-- colors and thicknesses) over a dark disc. Its ring takes the one picked; with
+-- Light, an elite's or rare's gold or silver while it has a crest.
+function UF.PaintLevelRing(f)
+    local st, look = f.status, f.levelLook
+    if not st or not st.levelBadge or not look then return end
+    local badge = st.levelBadge
+    local w, h = st.icons.level:GetSize()
+    local art = UF.ShapeArt(look.shape, f.spec.slant == "left")
+    local file, lit, ratio = UF.RingFiles(look.ringWidth, false, art)
+    -- The square's half-side is SQUARE of the ring's radius; the badge's size
+    -- is its outer edge either way.
+    local reach = art and UF.SQUARE or 1
+    local rw, rh = w / (2 * reach), h / (2 * reach)
+    badge.ring:ClearAllPoints()
+    badge.ring:SetPoint("CENTER", st.icons.level, "CENTER", 0, 0)
+    badge.ring:SetSize(2 * rw / UF.RING_OUTER, 2 * rh / UF.RING_OUTER)
+    local fw, fh = 2 * rw * ratio, 2 * rh * ratio
+    if art then fw, fh = fw * UF.SQUARE, fh * UF.SQUARE end
+    badge.fill:SetTexture(art and (DUI.MEDIA .. "portrait-" .. art .. "-hole.png") or (DUI.MEDIA .. "crest-disc.png"))
+    badge.fill:ClearAllPoints()
+    badge.fill:SetPoint("CENTER", st.icons.level, "CENTER", 0, 0)
+    badge.fill:SetSize(fw + 2, fh + 2)
+    badge.fill:SetVertexColor(0.08, 0.08, 0.09, 1)
+    local mode = look.ringMode
+    local lo, hi, sr, sg, sb
+    if mode ~= "custom" then mode, lo, hi, sr, sg, sb = ringColors(f, mode) end
+    if type(sr) ~= "nil" then
+        badge.ring:SetTexture(lit)
+        badge.ring:SetVertexColor(sr, sg, sb, 1)
+    elseif lo then
+        badge.ring:SetTexture(file)
+        badge.ring:SetVertexColor(1, 1, 1, 1)
+        badge.ring:SetGradient("VERTICAL", lo, hi)
+    else
+        local c = UF.RING_COLOR
+        if mode == "custom" and type(look.ringCustom) == "table" then
+            local o = look.ringCustom
+            c = { o[1] or o.r or 1, o[2] or o.g or 1, o[3] or o.b or 1 }
+        elseif f.levelRingBase then
+            c = f.levelRingBase
+        end
+        badge.ring:SetTexture(file)
+        badge.ring:SetVertexColor(c[1], c[2], c[3], 1)
+    end
+end
+
+-- The color the level's digits take.
+local function levelInk(f, u, sample, level)
+    local look = f.levelLook or {}
+    local mode = look.color
+    if mode == "white" then return UF.LEVEL_SELF_COLOR end
+    if mode == "custom" and type(look.custom) == "table" then
+        return { look.custom[1] or look.custom.r or 1, look.custom[2] or look.custom.g or 1, look.custom[3] or look.custom.b or 1 }
+    end
+    if mode == "class" then
+        if sample then
+            if sample.portraitClass then return { Style.ClassTextColor(sample.portraitClass) } end
+        elseif u then
+            return { UF.UnitColor(u) }
+        end
+        return UF.LEVEL_SELF_COLOR
+    end
+    local c = UF.LEVEL_SELF_COLOR
+    if u ~= "player" and type(level) == "number" and not isSecret(level) then
+        -- A sample has no unit, just its level.
+        local dc = DUI.LevelColor(not sample and u or nil, level)
+        if dc then c = { Style.Lighten(dc.r, dc.g, dc.b, UF.LEVEL_LIFT) } end
+    end
+    return c
+end
+
 function UF.CreateStatus(f)
     local st = CreateFrame("Frame", nil, f)
     st:SetAllPoints(f)
@@ -3294,10 +3399,24 @@ function UF.CreateStatus(f)
     st.skull:SetTexture(DUI.MEDIA .. "status-skull.png")
     st.skull:SetPoint("CENTER", st.icons.level, "CENTER", 0, 0)
     st.skull:Hide()
-    st.levelText = Style.Text(st, 10, "CENTER", UF.MediaOf(f.spec).fonts.name)
-    -- The font's digits carry extra space on their right and sit high in the
-    -- line, so the box is nudged to center the glyphs themselves.
-    st.levelText:SetPoint("CENTER", st.icons.level, "CENTER", UF.LEVEL_NUDGE[1], UF.LEVEL_NUDGE[2])
+    -- The badge: a dark disc under the portrait's ring art (UF.PaintLevelRing).
+    -- Two textures of the status frame itself (a child frame would cover the
+    -- digits), kept together here.
+    local badge = {}
+    badge.fill = st:CreateTexture(nil, "ARTWORK", nil, 0)
+    badge.ring = st:CreateTexture(nil, "ARTWORK", nil, 1)
+    function badge:SetShown(on)
+        self.on = on == true
+        self.fill:SetShown(self.on)
+        self.ring:SetShown(self.on)
+    end
+    function badge:IsShown() return self.on == true end
+    function badge:Hide() self:SetShown(false) end
+    badge:SetShown(false)
+    st.levelBadge = badge
+    st.levelText = Style.Text(st, 10, "CENTER", UF.MediaOf(f.spec).fonts.level)
+    -- Centered by UF.FitLevelBox once it has a size.
+    st.levelText:SetPoint("CENTER", st.icons.level, "CENTER", 0, 0)
     st.levelText:Hide()
     -- Role icons only where spec.role asks for them (party frames). Uses the
     -- badge sheet (UF.ROLE_ICON_TEXTURE), not one of the recolored status
@@ -3310,6 +3429,27 @@ function UF.CreateStatus(f)
         st.icons.role = t
     end
     f.status = st
+end
+
+-- Puts the digits on the badge's middle. The game draws text on whole screen
+-- pixels, so with a box and digits of the same parity the middle falls half a
+-- pixel to one side. The box is made a pixel wider when their widths differ by
+-- an even number of pixels, and the digits take half a pixel for the space the
+-- font leaves on their right.
+function UF.FitLevelBox(f)
+    local st, look = f.status, f.levelLook
+    if not st or not look then return end
+    local box, text = st.icons.level, st.levelText
+    local es = st:GetEffectiveScale()
+    if type(es) ~= "number" or es <= 0 or not text.GetStringWidth then return end
+    local tw = text:GetStringWidth()
+    if type(tw) ~= "number" or isSecret(tw) or tw <= 0 then return end
+    local bw = math.floor((f.levelBaseW or box:GetWidth()) * es + 0.5)
+    local aw = math.floor(tw * es + 0.5)
+    if (bw - aw) % 2 == 0 then bw = bw + 1 end
+    box:SetWidth(bw / es)
+    text:ClearAllPoints()
+    text:SetPoint("CENTER", box, "CENTER", 0.5 / es, 0)
 end
 
 -- With a portrait: crown on top, Zzz on the outer shoulder, PvP at the outer
@@ -3341,7 +3481,7 @@ function UF.LayoutStatus(f, cfg)
         icons.rest:SetPoint("CENTER", p, "CENTER", out * R * 0.82, R * 0.82)
         icons.pvp:SetPoint("CENTER", p, "CENTER", out * R * 0.82, -R * 0.82)
         icons.level:SetPoint("CENTER", p, "CENTER", 0, -R * 0.9)
-        Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        Style.SetTextSize(st.levelText, UF.LevelTextSize(f, R))
         if icons.role then
             local z = f.rolePicked or R * UF.ROLE_SIZE
             icons.role:SetSize(z, z)
@@ -3368,7 +3508,7 @@ function UF.LayoutStatus(f, cfg)
         icons.rest:SetPoint(inner, f, outer, gap, 0)
         icons.pvp:SetPoint("BOTTOM" .. inner, f, "BOTTOM" .. outer, gap, 0)
         icons.level:SetPoint("CENTER", f, "BOTTOM" .. outer, 0, 0)
-        Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        Style.SetTextSize(st.levelText, UF.LevelTextSize(f, R))
         if icons.role then
             local r = f.rolePicked or z
             icons.role:SetSize(r, r)
@@ -3391,7 +3531,7 @@ function UF.LayoutStatus(f, cfg)
         -- The PvP flag beside the name tab, level with it, on its outer side.
         icons.pvp:SetPoint(inner, f.tab, outer, (outerRight and 1 or -1) * 3, 0)
         icons.level:SetPoint("CENTER", f, "BOTTOM" .. outer, 0, 0)
-        Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        Style.SetTextSize(st.levelText, UF.LevelTextSize(f, R))
         if icons.role then
             local z = f.rolePicked or s * 0.9
             icons.role:SetSize(z, z)
@@ -3410,9 +3550,18 @@ function UF.LayoutStatus(f, cfg)
         icons.level:ClearAllPoints()
         icons.level:SetPoint(at.point, f, at.relPoint, at.x, at.y)
     end
-    local nudge = onRing and UF.LEVEL_NUDGE or UF.LEVEL_NUDGE_BARE
+    -- Its width and height in pixels, or the usual ones.
+    local look = f.levelLook or {}
+    local lw, lh = icons.level:GetSize()
+    -- The portrait's size leaves the level's as it is.
+    lw, lh = lw / (f.portraitScale or 1), lh / (f.portraitScale or 1)
+    local bw = look.wPx and look.wPx > 0 and look.wPx or lw
+    icons.level:SetSize(bw, look.hPx and look.hPx > 0 and look.hPx or lh)
+    f.levelBaseW = bw   -- what UF.FitLevelBox starts from, so it never builds on its own pixel
     st.levelText:ClearAllPoints()
-    st.levelText:SetPoint("CENTER", icons.level, "CENTER", nudge[1], nudge[2])
+    st.levelText:SetPoint("CENTER", icons.level, "CENTER", 0, 0)
+    UF.FitLevelBox(f)
+    UF.PaintLevelRing(f)
     local b = icons.level:GetWidth() * UF.SKULL_SIZE
     st.skull:SetSize(b, b)
 end
@@ -3449,6 +3598,7 @@ function UF.UpdateStatus(f, sample, animate)
         for _, t in pairs(st.icons) do t:Hide() end
         st.skull:Hide()
         st.levelText:Hide()
+        st.levelBadge:Hide()
         return
     end
     local u = f.unitToken
@@ -3477,12 +3627,20 @@ function UF.UpdateStatus(f, sample, animate)
     -- An empty group slot has no unit yet, so no level.
     if sample then level = sample.level elseif u then level = UnitLevel(u) end
     local show = f.showLevel and type(level) ~= "nil"
-    st.icons.level:SetShown(show)
+    local look = f.levelLook or {}
+    -- The art itself is never drawn (no opacity), but it stays shown with the
+    -- level: it anchors the digits and the skull, and the page's preview can
+    -- pick it to jump to the Level tab.
+    st.icons.level:SetAlpha(0)
+    st.icons.level:SetShown(show == true)
+    local badge = show and not look.number
+    st.levelBadge:SetShown(badge)
+    if badge then UF.PaintLevelRing(f) end
     local skull = show and not isSecret(level) and level < 1
     st.skull:SetShown(skull)
     st.levelText:SetShown(show and not skull)
     if not show or skull then return end
-    local c = UF.LEVEL_SELF_COLOR
+    local c = levelInk(f, u, sample, level)
     if isSecret(level) then
         st.shownLevel = nil
         st.levelText:SetFormattedText("%d", level)
@@ -3491,15 +3649,13 @@ function UF.UpdateStatus(f, sample, animate)
         -- unit, a swap passes no animate).
         if animate and type(st.shownLevel) == "number" and level > st.shownLevel then
             DUI.Motion.Bump(st.levelText, UF.LEVEL_UP_BUMP, DUI.Motion.SLOW)
-            DUI.Motion.Bump(st.icons.level, UF.LEVEL_UP_BUMP, DUI.Motion.SLOW)
+            DUI.Motion.Bump(st.levelBadge.fill, UF.LEVEL_UP_BUMP, DUI.Motion.SLOW)
+            DUI.Motion.Bump(st.levelBadge.ring, UF.LEVEL_UP_BUMP, DUI.Motion.SLOW)
         end
         st.shownLevel = level
         st.levelText:SetText(level)
-        if u ~= "player" then
-            -- A sample has no unit, just its level.
-            local dc = DUI.LevelColor(not sample and u or nil, level)
-            if dc then c = { Style.Lighten(dc.r, dc.g, dc.b, UF.LEVEL_LIFT) } end
-        end
+        UF.FitLevelBox(f)
+        if badge then UF.PaintLevelRing(f) end   -- the box may have grown a pixel
     end
     st.levelText:SetTextColor(c[1], c[2], c[3])
 end
@@ -4089,8 +4245,8 @@ function UF.ApplyCrest(f, c)
             if f.threatShell and not f.threatOn then UF.PaintEliteEdge(f, f.threatShell) end
         end
         if f.status then
-            local m = f.crestShown and UF.ELITE_RING_COLORS[kind] or UF.LEVEL_RING
-            f.status.icons.level:SetVertexColor(m[1], m[2], m[3], 1)
+            f.levelRingBase = f.crestShown and UF.ELITE_RING_COLORS[kind] or nil
+            UF.PaintLevelRing(f)
         end
         -- The tab's lit top edge. A name row has no shell to edge.
         f.tabEdge:SetShown(f.crestShown and not f.nameRow)

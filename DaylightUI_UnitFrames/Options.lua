@@ -94,6 +94,15 @@ for _, s in ipairs(ns.Spots.ORDER) do
     HOME_SPOTS[s], HOME_ORDER[#HOME_ORDER + 1] = SPOT_VALUES[s], s
 end
 -- The level badge: its own spot at the portrait's foot, or any spot.
+local LEVEL_STYLES = { badge = "Badge", number = "Number only" }
+local LEVEL_COLORS = { difficulty = "By difficulty", class = "Class color", white = "White", custom = "One color" }
+local LEVEL_RINGS = { custom = "One color" }
+local LEVEL_RING_ORDER = {}
+for _, key in ipairs(ns.UF.RING_COLOR_ORDER) do
+    LEVEL_RINGS[key] = ns.UF.RING_COLORS[key]
+    LEVEL_RING_ORDER[#LEVEL_RING_ORDER + 1] = key
+end
+LEVEL_RING_ORDER[#LEVEL_RING_ORDER + 1] = "custom"
 local LEVEL_SPOTS, LEVEL_ORDER = { ring = "On the portrait" }, { "ring" }
 for _, s in ipairs(ns.Spots.ORDER) do
     LEVEL_SPOTS[s], LEVEL_ORDER[#LEVEL_ORDER + 1] = ns.Spots.LABELS[s], s
@@ -1494,8 +1503,8 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras" }
-local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Level", "Text", "Cast bar", "Auras", "Extras" }
+local TAB_OF = { Portrait = "Portrait", Level = "Level", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
@@ -1861,7 +1870,7 @@ local function framePage(id, label, desc, opts)
             desc = "The name sits on the card's picture, at its top outer corner. Long names are cut short.",
             disabled = shown, hidden = noCard })
     end
-    text[#text + 1] = fontRow(m("nameFont"), "Name font", opts.portrait and "This frame's names, and its level badge" or "This frame's names", shown)
+    text[#text + 1] = fontRow(m("nameFont"), "Name font", "This frame's names", shown)
     if opts.healthText then
         text[#text + 1] = { type = "toggle", key = k("showPercent"), label = "Health text",
             desc = "The unit's health written on this frame.", disabled = shown }
@@ -2000,7 +2009,7 @@ local function framePage(id, label, desc, opts)
     end
     -- A party frame's role, marker and crown each get a card of their own,
     -- headed by its switch (see the tile cards below); other frames keep them here.
-    local iconRows = {}
+    local iconRows, levelRows = {}, nil
     local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item else extras[#extras + 1] = item end end
     if opts.marker then
         iconRow({ type = "toggle", key = k("showMarker"), label = "Raid marker",
@@ -2014,17 +2023,56 @@ local function framePage(id, label, desc, opts)
             disabled = shown }
     end
     if opts.portrait then
-        extras[#extras + 1] = { type = "toggle", key = k("showLevel"), label = "Level",
-            desc = "A small badge at the foot of the portrait" .. (opts.tile and "" or " (or the frame's corner without one)")
-                .. ", colored by how hard the unit is for you." .. needHome,
-            disabled = homeDis }
+        -- Everything about the level badge sits on its own tab.
         local levelOff = function(get) return homeDis(get) or get(k("showLevel")) == false end
-        extras[#extras + 1] = { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
-            order = LEVEL_ORDER, desc = "Where the level badge sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff }
-        extras[#extras + 1] = { type = "slider", key = k("levelX"), label = "Level left / right", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge sideways. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
-        extras[#extras + 1] = { type = "slider", key = k("levelY"), label = "Level up / down", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge up or down. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
+        local numberOnly = function(get) return levelOff(get) or get(k("levelStyle")) == "number" end
+        -- A size in pixels. Until you pick one it follows the portrait (saved as 0);
+        -- the slider shows what that comes to.
+        local function levelPx(field, n, label, lo, hi, desc, dis)
+            return { type = "slider", key = k(field), label = label, min = lo, max = hi, step = 1, unit = "px", desc = desc,
+                get = function()
+                    local v = tonumber(DaylightUI:Get("UnitFrames", k(field))) or 0
+                    if v > 0 then return v end
+                    return (select(n, ns.UF.LevelAuto(id)))
+                end,
+                set = function(v)
+                    if v == (select(n, ns.UF.LevelAuto(id))) then v = 0 end
+                    return DaylightUI:Set("UnitFrames", k(field), v)
+                end,
+                default = function() return (select(n, ns.UF.LevelAuto(id))) end,
+                disabled = dis }
+        end
+        local spotOff = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end
+        levelRows = {
+            { type = "toggle", key = k("showLevel"), label = "Level",
+              desc = "The unit's level, in a badge at the foot of the portrait" .. (opts.tile and "" or " (or the frame's corner without one)") .. ", colored by how hard the unit is for you." .. needHome,
+              disabled = homeDis },
+            { type = "dropdown", key = k("levelStyle"), label = "Level style", values = LEVEL_STYLES, order = { "badge", "number" },
+              desc = "A badge with a ring around the number, or just the number.", disabled = levelOff },
+            { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
+              order = LEVEL_ORDER, desc = "Where the level sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff },
+            { type = "slider", key = k("levelX"), label = "Level left / right", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges the level sideways from its position. Not while it sits on the portrait.", disabled = spotOff },
+            { type = "slider", key = k("levelY"), label = "Level up / down", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges the level up or down from its position. Not while it sits on the portrait.", disabled = spotOff },
+            { type = "dropdown", key = k("levelShape"), label = "Level shape", values = ns.UF.PORTRAIT_SHAPES, order = ns.UF.PORTRAIT_SHAPE_ORDER,
+              desc = "A round badge, a square, or a square with its outer side angled like the frame's end.", disabled = numberOnly },
+            { type = "dropdown", key = k("levelRing"), label = "Level ring color", values = LEVEL_RINGS, order = LEVEL_RING_ORDER,
+              desc = "The badge's ring, like the portrait's: light, dark, the unit's class gradient, your accent, the Daylight gradient, or a color you pick.", disabled = numberOnly },
+            { type = "color", key = k("levelRingCustom"), label = "Custom level ring color", hidden = notCustom(k("levelRing")),
+              desc = "The badge's ring color when Level ring color is One color.", disabled = numberOnly },
+            { type = "dropdown", key = k("levelRingWidth"), label = "Level ring thickness", values = ns.UF.RING_WIDTH_NAMES, order = ns.UF.RING_WIDTH_ORDER,
+              desc = "How thick the badge's ring is.", disabled = numberOnly },
+            levelPx("levelWidthPx", 1, "Level width", 6, 80, "How wide the level badge is.", numberOnly),
+            levelPx("levelHeightPx", 2, "Level height", 6, 80, "How tall the level badge is.", numberOnly),
+            levelPx("levelTextPx", 3, "Level text size", 6, 40, "How big the level's number is.", levelOff),
+            mediaRow("font", m("levelFont"), "Level font", "The level's number. General uses the name's font.", levelOff),
+            { type = "dropdown", key = k("levelColor"), label = "Level color", values = LEVEL_COLORS,
+              order = { "difficulty", "class", "white", "custom" },
+              desc = "The number's color: by how hard the unit is for you, its class, plain white, or one you pick.", disabled = levelOff },
+            { type = "color", key = k("levelCustom"), label = "Custom level color", hidden = notCustom(k("levelColor")),
+              desc = "The number's color when Level color is One color.", disabled = levelOff },
+        }
         iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
             desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })
         iconRow({ type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
@@ -2147,6 +2195,9 @@ local function framePage(id, label, desc, opts)
         for _, item in ipairs(targetItems(k, k("enabled"))) do extras[#extras + 1] = item end
     end
     if #extras > 0 then groups[#groups + 1] = { label = "Extras", items = extras } end
+    if levelRows then
+        groups[#groups + 1] = { label = "Level", desc = "The unit's level: a badge or just the number, its size, color, font and place." .. needHome, items = levelRows }
+    end
     if #tagRows > 0 then groups[#groups + 1] = { label = "Threat % tag", items = tagRows } end
     if opts.auraGroups then
         for _, card in ipairs(auraCards(k, k("enabled"))) do groups[#groups + 1] = card end

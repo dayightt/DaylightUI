@@ -552,6 +552,13 @@ T.test("the player's level badge shows on its preview and drags in Design mode",
     T.truthy(part, "the badge is on the preview")
     T.truthy(part.move and part.move.spotKey == "player.levelPos", "it moves by levelPos")
     T.eq(part.move.xKey, "player.levelX")
+    local at = part.region or (part.at and part.at(s.f))
+    T.truthy(at and at:IsShown(), "what the preview picks stays shown, whatever the badge's style")
+    DUI:Set("UnitFrames", "player.levelStyle", "number")
+    local s2 = sample(ns, "player")
+    local part2
+    for _, p in ipairs(s2.Parts()) do if p.label == "Level" then part2 = p end end
+    T.truthy(part2, "still on the preview as just the number")
 end)
 
 -- A Cast bar chip next to the Frame one: the bar on its own, drawn from its settings.
