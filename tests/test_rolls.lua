@@ -780,3 +780,23 @@ T.test("rolls card: a reused card keeps no rows for players it no longer shows",
     for _ in pairs(card.rowOf) do n = n + 1 end
     T.truthy(n <= 6, "rows reused, not one per name ever seen: " .. n)
 end)
+T.test("rolls stack: the stack stays on screen", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local room = 320
+    St.Room = function() return room end
+    local ids = {}
+    for i = 1, 4 do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+    cardFor(S, ids[1]).buttons.greed:Click()
+    local total = 0
+    for _, card in ipairs(St.Cards()) do total = total + S.RollCard.Height(card, card.look) + St.Settings().spacing end
+    T.truthy(total <= room, "the cards fit the room: " .. total)
+    T.truthy(#St.Cards() < 4, "the rest wait")
+    T.truthy(St.waiting:IsShown()); T.eq(St.waiting:GetText(), DaylightUI.L["%d more waiting"]:format(4 - #St.Cards()))
+    for _, card in ipairs(St.Cards()) do T.falsy(card.drop.mine, "rolls you still have to pick keep their place") end
+    -- The one under the mouse keeps its list; with room for it the others fold theirs.
+    room = 2000
+    St.Layout()
+    T.eq(#St.Cards(), 4, "all four with room")
+    T.truthy(St.frame:IsClampedToScreen(), "kept inside the screen as a last guard")
+end)

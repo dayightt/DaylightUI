@@ -100,6 +100,7 @@ end
 -- ---------------------------------------------------------------------
 
 local Data, Card = ns.RollData, ns.RollCard
+local fit
 local cards = {}     -- rollID -> its card
 local spare = {}     -- cards that left, ready for the next roll
 local order = {}     -- the cards in the order Shown() gives
@@ -219,6 +220,7 @@ local function makeFrame()
     if RollStack.frame then return RollStack.frame end
     local f = CreateFrame("Frame", "DaylightUIRollStack", UIParent)
     f:SetFrameStrata("DIALOG")
+    f:SetClampedToScreen(true)
     f:SetSize(300, 1)
     f:EnableMouse(false)
     f:Hide()
@@ -338,6 +340,52 @@ local function layBrackets(shown, up)
     for n = used + 1, #RollStack.brackets do RollStack.brackets[n]:Hide() end
 end
 
+-- The room left between the stack's handle and the screen's edge it grows
+-- toward, in the stack's own units; nil while that can't be measured.
+RollStack.MARGIN = 8
+function RollStack.Room()
+    local f = RollStack.frame
+    if not f then return nil end
+    local up = RollStack.Settings().grow ~= "down"
+    local edge = up and f:GetBottom() or f:GetTop()
+    local screen = up and UIParent:GetTop() or UIParent:GetBottom()
+    local mine, ui = f:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    if type(edge) ~= "number" or type(screen) ~= "number" or not mine or mine <= 0 then return nil end
+    local room = up and (screen * ui - edge * mine) or (edge * mine - screen * ui)
+    return room / mine - RollStack.MARGIN
+end
+
+local function needed(s)
+    local h, gap = 0, s.spacing or 6
+    for _, card in ipairs(order) do h = h + Card.Height(card, card.look) + gap end
+    return h + Style.SIZE.small + gap
+end
+
+-- Keeps the stack on screen: lists fold first (the one under the mouse keeps
+-- its own), then rolls past what fits wait their turn, the ones you've picked
+-- or that are over first. A roll waiting on your pick keeps its place.
+function fit(shown, s, keep)
+    local room = RollStack.Room()
+    if not room or needed(s) <= room then return shown end
+    for i, card in ipairs(order) do
+        local d = shown[i]
+        if card.look and card.look.open and not hovered(d) then
+            Card.Fill(card, d, { mode = "compact", open = false, settings = s })
+        end
+    end
+    while #order > 1 and needed(s) > room do
+        local drop = #order
+        for i = #order, 1, -1 do
+            local d = shown[i]
+            if d.done or d.mine or d.watch then drop = i break end
+        end
+        keep[shown[drop].rollID] = nil
+        table.remove(order, drop)
+        table.remove(shown, drop)
+    end
+    return shown
+end
+
 -- Fills every card and lays the stack out: new cards slide in, cards that
 -- change places glide there, leaving ones fade.
 local layout
@@ -348,6 +396,7 @@ end
 
 layout = function()
     local f = RollStack.frame
+    anchor()
     local s = RollStack.Settings()
     local shown = RollStack.Shown()
     local mode = RollStack.Mode()
@@ -364,10 +413,11 @@ layout = function()
         Card.Fill(card, d, { mode = mode, open = listOpen(d, mode), settings = s })
         card.isNew = new
     end
+    shown = fit(shown, s, keep)
     for rollID in pairs(cards) do
         if not keep[rollID] then leave(rollID) end
     end
-    local waiting = RollStack.Waiting()
+    local waiting = #all() - #shown
     RollStack.waiting:SetShown(waiting > 0)
     if waiting > 0 then RollStack.waiting:SetText(L["%d more waiting"]:format(waiting)) end
 
