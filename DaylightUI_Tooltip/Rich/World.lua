@@ -284,7 +284,7 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     p.padTop = World.PAD_TOP
     local tags = World.Tags(unit, r)
     Panel.Header(p, { portrait = unit, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = pair,
-        title = r.title, sub = r.sub, right = level, rightColor = levelColor,
+        title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     Panel.Gap(p, World.BEFORE_BAR)
     Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
