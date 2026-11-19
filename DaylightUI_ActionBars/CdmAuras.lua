@@ -1,9 +1,10 @@
 -- Aura spells the game's Cooldown Manager doesn't display. Each gets a holder in the
 -- layout slot with a client AuraContainer inside: given a unit, filter and spell ids,
 -- the client finds the aura and draws the button only while it's up. Its buttons are
--- never read. Whether the aura is up (A.IsUp) comes from spell id lookups out of
--- combat, and in combat from the game's own aura item, your casts and the last known
--- duration.
+-- never read. Whether the aura is up is the game's own Cooldown Manager item's to
+-- say (CdmRows asks it). A holder answers by itself only for what it really knows:
+-- the pet, a debuff it counts from your own casts, and an aura the game never hides.
+-- Any other buff with no item of the game's is drawn and nothing more.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -14,8 +15,6 @@ local A = {}
 ns.CdmAuras = A
 
 local holders = {}   -- [id] = holder frame
--- The unit each client button watches, so a button coming up says where the aura is.
-local buttonUnit = setmetatable({}, { __mode = "k" })
 local makeFace, placeFace, paintFace   -- self-debuff face, defined below
 local selfCast                          -- counts a self debuff from your casts, below
 
@@ -153,6 +152,13 @@ function A.GameBlind(id)
         or C.Shared(own) or C.Unique(own))
 end
 
+-- The game's item never sees this aura at all: a trap's debuff, a buff on your pet,
+-- a summoned helper. (A buff others can cast too it does see, only never theirs.)
+function A.Unseen(id)
+    local own, C = ownKey(id), ns.CdmCustom
+    return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil) or false
+end
+
 -- A buff you cast on a friend (Renew, Prayer of Mending): watched on your friendly
 -- target, else on you, as the game's own icon looks for it.
 function A.Friend(id)
@@ -177,6 +183,19 @@ function A.Follows(id)
     local F = type(_G.Enum) == "table" and _G.Enum.CooldownSetSpellFlags
     local hide = type(F) == "table" and plain(F.HideAura) or 1
     return not (flags and math.floor(flags / hide) % 2 == 1)
+end
+
+-- Every one of these spells' auras is never secret (C_Secrets), so a lookup by id
+-- answers in a fight as well.
+local function neverSecret(ids)
+    local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
+    local never = Enum and Enum.SecrecyLevel and Enum.SecrecyLevel.NeverSecret
+    if type(get) ~= "function" or never == nil or next(ids) == nil then return false end
+    for sid in pairs(ids) do
+        local ok, v = pcall(get, sid)
+        if not ok or v ~= never then return false end
+    end
+    return true
 end
 
 local function layoutFor(h)
@@ -247,10 +266,6 @@ local function initButton(h, btn)
         try(Skin.StyleCooldown, cd)
         try(btn.SetDurationCooldown, btn, cd)
         parts.cd = cd
-        -- The countdown ending is the one signal that the buff expired when
-        -- auras can't be read (combat, dungeons). Hooked here during creation
-        -- because the client refuses show/hide scripts on the button.
-        try(cd.HookScript, cd, "OnCooldownDone", function() DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "time out", btn) end)
     end
     local shade = btn:CreateTexture(nil, "ARTWORK", nil, 3)
     parts.shade = shade
@@ -291,7 +306,7 @@ local function build(h, unit, filter, ids, cand)
         sortMethod = type(SM) == "table" and SM.ExpirationOnly or nil,
         sortDirection = type(SD) == "table" and SD.Normal or nil,
         layout = layout,
-        initializeFrame = function(btn) buttonUnit[btn] = unit; init(h, btn) end,
+        initializeFrame = function(btn) init(h, btn) end,
     }
     local ok2, err = pcall(c.AddAuraGroup, c, "a", filter, opts)
     if not ok2 then h.err = tostring(err); return end
@@ -306,14 +321,7 @@ end
 -- order the game scans. Only self auras skip the target, since selfAura false
 -- doesn't mean "on the target" (Battle Shout reports false).
 local function setup(h, id)
-    h.id, h.containers, h.err, h.clientUp, h.clientBtns = id, {}, nil, nil, nil
-    h.builtAt = GetTime()    -- a buff already up appears with the new container; not a proc
-    -- When auras can't be read, wait for a buff that's already up to show its
-    -- button, then ask again. No button means down.
-    if A.Readable and not A.Readable() then
-        local quiet = (ns.CdmEffects and ns.CdmEffects.AURA_QUIET) or 0.3
-        C_Timer.After(quiet + 0.05, function() if ns.CdmRows then ns.CdmRows.Refresh() end end)
-    end
+    h.id, h.containers, h.err = id, {}, nil
     local C = ns.CdmCustom
     local custom = C ~= nil and C.Is(id)
     -- Custom pieces only build containers out of combat, since it's unclear whether
@@ -329,7 +337,8 @@ local function setup(h, id)
     end
     local ids = A.SpellIDs(id)
     h.ids = ids
-    A.KeepCombo(ids)
+    -- An aura the game never hides can be read by its id, in a fight too.
+    h.neverSecret = neverSecret(ids) or nil
     if custom and C.IsPet(id) then
         -- Your pet isn't an aura: drawn by the addon, up while it's out and alive.
         h.petWatch = true
@@ -346,9 +355,6 @@ local function setup(h, id)
         self_ = info and info.selfAura
         if type(self_) ~= "boolean" or isSecret(self_) then self_ = nil end
     end
-    -- An aura only ever on you, so a cast can't put it on the target (A.Cast).
-    local own = ownKey(id)
-    h.onYou = self_ == true or (own ~= nil and C.SelfOnly(own)) or nil
     -- Self debuffs (Arcane Blast's stack) watch your debuffs, never the target's.
     h.selfDebuff = A.SelfDebuff(id)
     if ns.CdmBars and ns.CdmBars.IsShield(id) then
@@ -670,13 +676,6 @@ end
 
 A.Readable = readable   -- /dui cdm report
 
--- After this long, a new container with no button means the aura is down
--- (matches CdmEffects' quiet time).
-local function settled(h)
-    local quiet = (ns.CdmEffects and ns.CdmEffects.AURA_QUIET) or 0.3
-    return h.builtAt ~= nil and GetTime() - h.builtAt >= quiet
-end
-
 -- Self-debuff face (h.selfDebuff): looks like the client's button but built from
 -- addon frames, so it's never locked. Driven by h.up, h.endsAt, h.auraLasts and
 -- h.selfStacks, read where plain or counted from your casts (selfCast).
@@ -782,8 +781,8 @@ function paintFace(h)
     Motion.Tween(f, from, a, Motion.FAST, function(v) f:SetAlpha(v) end)
 end
 
--- Expire the aura by the clock, since in combat nothing else reports it. One timer
--- per holder; if a recast pushed the end back, it keeps waiting.
+-- One timer per holder for the end it knows: a counted debuff's or summon's time,
+-- or the recast glow's. A later end keeps it waiting.
 local function watchEnd(h)
     if h.endTimer or not h.endsAt then return end
     h.endTimer = true
@@ -793,141 +792,33 @@ local function watchEnd(h)
         if GetTime() < goneAt(h) then return watchEnd(h) end
         h.endsAt = nil
         local was = h.up
-        -- The client's button still showing it means someone refreshed it: the
-        -- button goes away by itself when it really ends. Not for a finisher timed
-        -- by its combo points: only your own cast puts it up, so its clock is right.
-        if readable() or h.selfDebuff then A.IsUp(h)
-        elseif was and (h.exactEnd or not h.clientUp) then h.up = false end
-        h.exactEnd = nil
+        if h.face then A.IsUp(h) end
         paintFace(h)
         if h.up ~= was and h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
     end)
 end
 
--- Buff durations per piece, saved per character (cdmAuraLasts[piece id] = seconds).
--- Learned where auras can be read, so a reload inside a dungeon still knows when
--- a cast's buff runs out.
-local function book()
-    local c = DUI.DB and DUI.DB.Character()
-    if type(c) ~= "table" then return {} end
-    if type(c.cdmAuraLasts) ~= "table" then c.cdmAuraLasts = {} end
-    return c.cdmAuraLasts
-end
-
--- Fallback before a duration is learned: parse the spell text.
-local TEXT_LASTS = { "[Ff]or (%d+%.?%d*) sec", "[Ff]or up to (%d+%.?%d*) sec", "[Ll]asts (%d+%.?%d*) sec",
-    "[Oo]ver (%d+%.?%d*) sec" }
-local function textLasts(sid)
-    local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
-    for _, pat in ipairs(TEXT_LASTS) do
-        local n = tonumber(string.match(desc, pat))
-        if n and n > 0 then return n end
-    end
-end
-
--- A finisher's length by the combo points it was cast with, from its text:
--- "Lasts longer per combo point: 1 point : 9 seconds  2 points: 12 seconds..."
--- (Slice and Dice; Rupture's "25 damage over 8 secs" too). Points past the
--- list take the last entry. nil when the text has no such list.
-local POINT = "(%d+) points?%s*:"
-local function pointLasts(sid, points)
-    if type(points) ~= "number" then return nil end
-    local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
-    local byPoints, top, at = {}, 0, 1
-    while true do
-        local s, e, p = string.find(desc, POINT, at)
-        if not s then break end
-        local nextAt = string.find(desc, POINT, e + 1) or (#desc + 1)
-        local secs
-        for n in string.gmatch(string.sub(desc, e + 1, nextAt - 1), "(%d+%.?%d*) sec") do secs = tonumber(n) end
-        p = tonumber(p)
-        if p and secs and secs > 0 then
-            byPoints[p] = secs
-            if p > top then top = p end
-        end
-        at = nextAt
-    end
-    if top == 0 then return nil end
-    return byPoints[math.max(1, math.min(points, top))] or byPoints[top]
-end
-A.PointLasts = pointLasts
-
--- A holder of a spell that lasts by combo points needs the combo count kept
--- (DUI.Dots), whether or not DoTs are shown anywhere.
-function A.KeepCombo(ids)
-    if not (DUI.Dots and DUI.Dots.Want) then return end
-    for sid in pairs(ids or {}) do
-        if pointLasts(sid, 1) then return DUI.Dots.Want("cdm", true) end
-    end
-end
-
 -- Debuffs on you (Weakened Soul, Arcane Blast's stack). Containers refuse to match
 -- a debuff on an assistable unit by spell id unless the spell is never secret
 -- (AuraContainerUtil.CanApplyIdentityCandidateFilters). So match any debuff of
--- yours no longer than the spell's duration (learned, else from its text, else
+-- yours no longer than the spell's duration (from the game's data, else
 -- A.SELF_DEBUFF_CAP seconds). Returns the group filter and candidate filters.
 A.SELF_DEBUFF_CAP = 30
-local function neverSecret(ids)
-    local get = C_Secrets and C_Secrets.GetSpellAuraSecrecy
-    local never = Enum and Enum.SecrecyLevel and Enum.SecrecyLevel.NeverSecret
-    if type(get) ~= "function" or never == nil or next(ids) == nil then return false end
-    for sid in pairs(ids) do
-        local ok, v = pcall(get, sid)
-        if not ok or v ~= never then return false end
-    end
-    return true
-end
 function A.SelfDebuffGroup(id, ids)
     ids = ids or {}
     if neverSecret(ids) then return "HARMFUL", { includeSpellIDs = ids } end
-    local n = id ~= nil and book()[id] or nil
-    if not n then
-        for sid in pairs(ids) do
-            n = textLasts(sid)
-            if n then break end
-        end
+    local n
+    for sid in pairs(ids) do
+        local fact = ns.CdmCustom and ns.CdmCustom.Fact(sid)
+        n = fact and fact.lasts
+        if n then break end
     end
     return "HARMFUL|PLAYER", { maxDuration = n and (math.ceil(n) + 1) or A.SELF_DEBUFF_CAP }
 end
 
--- Buffs consumed by your blocks (Shield Block, Holy Shield). Max charges seen are
--- saved per character (cdmAuraCharges[piece id]). In a dungeon fight nothing else
--- says the buff ended early, but counting blocks does.
-local function charges()
-    local c = DUI.DB and DUI.DB.Character()
-    if type(c) ~= "table" then return {} end
-    if type(c.cdmAuraCharges) ~= "table" then c.cdmAuraCharges = {} end
-    return c.cdmAuraCharges
-end
-
--- Fallback before charges are seen: parse the spell text. Forever's Shield Block
--- blocks 2 attacks, Holy Shield has 4 charges. If nothing matches, don't count at
--- all and rely on the clock. Guessing 1 ended Shield Block after its first block.
-local TEXT_CHARGES = { "block (%d+) attacks?", "(%d+) charges?" }
-local function textCharges(sid)
-    local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
-    for _, pat in ipairs(TEXT_CHARGES) do
-        local n = tonumber(string.match(desc, pat))
-        if n and n > 0 then return n end
-    end
-end
-
--- Remember a found aura's duration and end time for casts in combat (A.Cast).
--- Where each piece's aura was last seen, saved per character (cdmAuraOn[piece id]
--- = unit), so a cast in a fight knows it after a reload too.
-local function seenOn()
-    local c = DUI.DB and DUI.DB.Character()
-    if type(c) ~= "table" then return {} end
-    if type(c.cdmAuraOn) ~= "table" then c.cdmAuraOn = {} end
-    return c.cdmAuraOn
-end
-
-local function learn(h, a, unit)
-    h.upUnit = unit
-    if h.id ~= nil then seenOn()[h.id] = unit end
+-- A found aura's stacks, length and end: a counted debuff's face shows them, and
+-- the recast glow needs the end.
+local function learn(h, a)
     local n = plain(a.applications)
     if h.selfDebuff then
         -- Read by id, so its going says it's down (a debuff that never stacks has no count).
@@ -937,20 +828,9 @@ local function learn(h, a, unit)
             if n > (h.selfMax or 0) then h.selfMax = n end
         end
     end
-    if n and n > 0 and h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) then
-        local was = charges()[h.id]
-        if not was or n > was then charges()[h.id] = n end
-    end
-    -- What's left of a buff your hits use up, for counting them in a fight.
-    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
-    if hk then
-        h.hitsLeft = (n and n > 0 and n) or hk.charges
-        h.lastHit = nil
-    end
     local dur, ends = plain(a.duration), plain(a.expirationTime)
     if not dur then return end
     h.auraLasts = dur
-    if dur > 0 and h.id ~= nil then book()[h.id] = dur end
     h.endsAt = dur > 0 and ends or nil
     watchEnd(h)
 end
@@ -970,7 +850,7 @@ local function found(h)
             -- so counting it would leave an empty spot.
             local otherDebuff = h.mineOnly and fromOther and type(a) == "table" and a.isHarmful == true
             if ok and type(a) == "table" and not otherDebuff and (k.unit == "player" or not fromOther or h.unique) then
-                learn(h, a, k.unit)
+                learn(h, a)
                 return true
             end
         end
@@ -1020,6 +900,10 @@ function A.PetOut()
     return not (not isSecret(dead) and dead == true)
 end
 
+-- Whether the holder's aura is up, for the few holders that can say so themselves:
+-- the pet piece, the pieces counted from your own casts, and an aura the game never
+-- hides (read by its id, in a fight too). Every other buff is the game's own item's
+-- to answer (CdmRows); without one nobody knows, and this returns nil.
 function A.IsUp(h)
     if type(h) ~= "table" then return nil end
     if h.petWatch then
@@ -1040,30 +924,25 @@ function A.IsUp(h)
         h.selfStacks = #left > 0 and #left or nil
         return h.up
     end
-    if found(h) then
-        h.up = true
-        h.castAt = nil
-    elseif h.castAt and not h.face and not readable() and h.up ~= true and GetTime() - h.castAt <= A.CAST_LANDS then
-        -- Cast while auras could still be read, and they went secret before it was
-        -- seen landing: the pull that started this fight.
-        local sid, at = h.castSpell, h.castAt
-        h.castAt = nil
-        A.Cast(h, sid, at)
-    elseif h.selfDebuff then
-        -- Not finding it by id means nothing, since Arcane Blast's stack can't be
-        -- tracked that way in game. It's down once the counted time runs out, or
-        -- when it was found before and is now gone where auras can be read.
-        if not (h.endsAt and goneAt(h) > GetTime()) or (h.selfRead and readable()) then
+    if h.selfDebuff then
+        if found(h) then
+            h.up, h.castAt = true, nil
+        elseif not (h.endsAt and goneAt(h) > GetTime()) or (h.selfRead and readable()) then
+            -- Not finding it by id means nothing, since Arcane Blast's stack can't be
+            -- tracked that way in game. It's down once the counted time runs out, or
+            -- when it was found before and is now gone where auras can be read.
             h.up, h.endsAt, h.selfStacks, h.selfRead = false, nil, nil, nil
         end
-    elseif readable() and #(h.containers or {}) > 0 then
-        h.up = false
-    elseif h.up == nil and #(h.containers or {}) > 0 and settled(h) then
-        -- Unreadable (dungeon, reload in combat) and no button appeared since the
-        -- container was made, so it's down. A.Shown corrects this if it lands.
-        h.up = false
+        return h.up
     end
+    if not h.neverSecret then return nil end
+    h.up = found(h)
     return h.up
+end
+
+-- Whether the holder can tell by itself if it's up, in a fight too (A.IsUp).
+function A.Knows(h)
+    return type(h) == "table" and (h.face ~= nil or h.neverSecret == true)
 end
 
 -- A buff changed. Holders that care whether they're up (h.wantsUp, set by CdmRows)
@@ -1085,12 +964,14 @@ function A.AuraChanged()
             end
             paintFace(h)
             if h.wantsUp and h.up ~= was then moved = true end
-        elseif h.wantsUp and h:IsShown() then
+        elseif h.wantsUp and h.neverSecret and h:IsShown() then
             local was = h.up
             if A.IsUp(h) ~= was then moved = true end
         end
     end)
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
+    -- An aura read where it's plain gives the recast glow its real end.
+    if A.ClipCheck then A.ClipCheck() end
 end
 
 -- Coalesce bursts of UNIT_AURA (pre-pull rebuffs, raid fights) into one pass
@@ -1100,57 +981,14 @@ A.AuraChangedSoon = DUI.Soon(function() DUI.SafeCall(A.AuraChanged) end)
 -- How long after a cast its aura may still land: a spell's flight time.
 A.CAST_LANDS = 3
 
--- Where the client's buttons show the aura right now: you first, nil when none does.
-local function shownOn(h)
-    local first
-    for btn in pairs(h.clientBtns or {}) do
-        local u = buttonUnit[btn]
-        if u == "player" then return u end
-        first = first or u
-    end
-    return first
-end
-
--- A client button came up: the aura is on the unit that button watches. A
--- finisher like Slice and Dice is a harmful cast whose buff lands on you, so the
--- cast alone can't say where it is.
-function A.HeardOn(h, btn)
-    local u = btn and buttonUnit[btn]
-    if u and h.up == true then h.upUnit = shownOn(h) or u end
-end
-
--- In combat your own cast events stay plain while the aura and its button don't,
--- so a cast is the one reliable sign it's up. A harmful spell's aura is on the
--- target, so switching targets clears it (A.TargetChanged).
-function A.Cast(h, sid, at)
-    h.up = true
-    local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    -- Where it was last seen beats the guess: Slice and Dice is a harmful cast
-    -- whose buff is on you, and the client's button never says where it came up.
-    h.upUnit = shownOn(h) or (h.id ~= nil and seenOn()[h.id])
-        or ok and harmful == true and not h.selfDebuff and not h.onYou and "target"
-        or h.onPet and "pet" or "player"
-    -- Duration: read this session, else saved, else from the spell text. Without
-    -- one it would stay up forever, since the client's button says nothing in a
-    -- dungeon fight. A finisher lasts by the combo points it used, which are
-    -- secret in a fight, so Daylight UI's own count says how long this one is.
-    h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid)
-    local exact = DUI.Dots and pointLasts(sid, DUI.Dots.Combo(sid))
-    local lasts = exact or h.auraLasts
-    h.exactEnd = exact ~= nil or nil
-    h.endsAt = lasts and lasts > 0 and (at or GetTime()) + lasts or nil
-    h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
-    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
-    h.hitsLeft, h.lastHit = hk and hk.charges or nil, nil
+-- Glow to recast is the one thing still worked out from your own cast: in a fight
+-- the game never says when an aura ends. The length is the one last read, else the
+-- game's data; a read where auras are plain replaces the end (learn).
+local function castClock(h, sid)
+    local fact = ns.CdmCustom and ns.CdmCustom.Fact(sid)
+    local lasts = h.auraLasts or (fact and fact.lasts)
+    h.endsAt = lasts and lasts > 0 and GetTime() + lasts or nil
     watchEnd(h)
-    if ns.CdmRows then ns.CdmRows.Refresh() end
-end
-
--- Max stacks parsed from the spell text ("stacks up to 4 times"). nil = no cap.
-local function textStacks(sid)
-    local ok, desc = pcall(C_Spell.GetSpellDescription, sid)
-    if not ok or type(desc) ~= "string" or isSecret(desc) then return nil end
-    return tonumber(string.match(desc, "[Ss]tacks up to (%d+) times"))
 end
 
 -- Count casts of a spell whose debuff lands on you (Arcane Blast), since the stack
@@ -1168,13 +1006,14 @@ selfCast = function(h, sid)
     end
     local now = GetTime()
     local facts = A.SelfDebuffFacts(h.id) or {}
-    h.auraLasts = h.auraLasts or (h.id ~= nil and book()[h.id]) or textLasts(sid) or facts.lasts
+    local fact = ns.CdmCustom and ns.CdmCustom.Fact(sid)
+    h.auraLasts = h.auraLasts or facts.lasts or (fact and fact.lasts)
     if h.up == true and h.endsAt and goneAt(h) > now then
-        local cap = facts.stacks or h.selfMax or textStacks(sid)
+        local cap = facts.stacks or h.selfMax or (fact and fact.stacks)
         local n = (h.selfStacks or 1) + 1
         h.selfStacks = cap and math.min(n, cap) or n
     else
-        h.up, h.upUnit, h.selfStacks = true, "player", 1
+        h.up, h.selfStacks = true, 1
         h.endsAt = h.auraLasts and h.auraLasts > 0 and now + h.auraLasts or nil
         watchEnd(h)
     end
@@ -1218,9 +1057,8 @@ local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
     if type(sid) ~= "number" or isSecret(sid) then return end
-    local plainNow = readable()
     each(function(h)
-        -- Laying a trap down puts nothing up: only the client's button says the debuff landed.
+        -- Laying a trap down puts nothing up: its debuff comes when a mob walks in.
         if h.selfFrom and h.selfFrom[sid] and h.face and A.ShieldUnit() == "player" then
             -- Another spell puts this debuff on you (Weakened Soul from your own
             -- shield), so count it under the debuff's own id.
@@ -1230,12 +1068,8 @@ casts:SetScript("OnEvent", function(_, _, _, _, sid)
                 summonCast(h)
             elseif h.face then
                 selfCast(h, sid)
-            elseif h.wantsUp and not plainNow then
-                A.Cast(h, sid)
-            elseif h.wantsUp then
-                -- Out of a fight the aura is read as it lands, unless the fight this
-                -- cast starts hides it first (A.IsUp).
-                h.castSpell, h.castAt = sid, GetTime()
+            elseif h.wantsClip then
+                castClock(h, sid)
             end
         end
     end)
@@ -1256,7 +1090,7 @@ end)
 -- cast it again is when that cast would land just as the old one ends. Your own
 -- casts stay plain in a fight, so it's worked out from them and the clock alone:
 -- when you're free (your current cast or channel, then the global cooldown) plus the
--- spell's cast time, against the end A.Cast or a read gave the holder.
+-- spell's cast time, against the end a read or your cast's clock gave the holder.
 A.GCD = 1.5
 local castEnd, castSpell, gcdEnd, gcdLen = 0, nil, 0, A.GCD
 local offGcd = {}      -- [spell id] = true for a spell seen to start no global cooldown
@@ -1306,7 +1140,7 @@ end
 -- Whether it's time to cast sid again for the aura on holder h, and if not yet,
 -- when it will be (given what you're doing now).
 function A.ClipDue(h, sid)
-    if type(h) ~= "table" or h.up ~= true or type(sid) ~= "number" then return false end
+    if type(h) ~= "table" or h.up == false or type(sid) ~= "number" then return false end
     if readable() and not found(h) then return false end
     local now, ends = GetTime(), h.endsAt
     if not ends or ends <= now then return false end
@@ -1350,6 +1184,8 @@ clipCheck = function()
     end
 end
 
+A.ClipCheck = function() if next(clipWatch) ~= nil then clipCheck() end end
+
 function A.ClipPass() for h in pairs(clipWatch) do clipWatch[h] = nil end end
 
 -- From the pass: the recast glow's answer for this holder now.
@@ -1385,73 +1221,11 @@ clipCasts:SetScript("OnEvent", function(_, event, _, _, sid)
     clipCheck()
 end)
 
--- The client's button appeared (CdmEffects' slide OnPlay). In combat this is the
--- only sign that a buff you didn't cast (a proc, someone else's) is up. With no
--- known duration it stays up until auras can be read again. Applies to every
--- holder, since a buff already up appears before the pass says what it wants.
-function A.Shown(h)
-    if h.up == true or readable() then return end
-    h.up = true
-    if ns.CdmRows then ns.CdmRows.Refresh() end
-end
-
--- The client's button went away (CdmEffects), so the buff is down.
-function A.Hidden(h)
-    -- Hiding the holder hides the button too; that isn't the buff ending.
-    if h.up == false or readable() or not h:IsVisible() then return end
-    h.up, h.endsAt = false, nil
-    if ns.CdmRows then ns.CdmRows.Refresh() end
-end
-
--- Blocked hits (UNIT_COMBAT "BLOCK", or "WOUND" flagged BLOCK / BLOCK_REDUCED;
--- action, flag and school stay plain) use up a charge of block buffs, and any
--- hit that lands ("WOUND") one of a buff your hits use up (Own.Hits). When the
--- last is gone the buff is down. Only used where auras can't be read.
-local blocks = CreateFrame("Frame")
-blocks:RegisterUnitEvent("UNIT_COMBAT", "player")
-blocks:SetScript("OnEvent", function(_, _, _, action, flag, _, school)
-    if isSecret(action) or isSecret(flag) or readable() then return end
-    local blocked = action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))
-    local hit = action == "WOUND"
-    if not (blocked or hit) then return end
-    local physical = not isSecret(school) and school == 1
-    local now = GetTime()
-    each(function(h)
-        if h.up ~= true then return end
-        if blocked and h.blocksLeft then
-            h.blocksLeft = h.blocksLeft - 1
-            if h.blocksLeft <= 0 then
-                h.blocksLeft = nil
-                DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "blocked")
-            end
-        end
-        local hk = hit and h.hitsLeft and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
-        if hk and (physical or not hk.melee) and not (hk.gap and h.lastHit and now - h.lastHit < hk.gap) then
-            h.lastHit = now
-            h.hitsLeft = h.hitsLeft - 1
-            if h.hitsLeft <= 0 then
-                h.hitsLeft = nil
-                DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "used up")
-            end
-        end
-    end)
-end)
-
--- The game's own item for this buff answered (CdmRows): up or down, and that's final.
+-- From CdmRows: what the game's own item for this buff says, up or down, and that's
+-- final. nil = there's no such item and the holder can't tell either.
 function A.Told(h, up)
     h.up = up
-    if not up then h.endsAt = nil end
-end
-
--- New target in combat: auras on the old one can no longer be tracked.
-function A.TargetChanged()
-    if readable() then return end
-    each(function(h)
-        if h.wantsUp and h.up == true and h.upUnit == "target" then
-            h.up, h.endsAt = false, nil
-            if ns.CdmRows then ns.CdmRows.Refresh() end
-        end
-    end)
+    if up == false then h.endsAt = nil end
 end
 
 function A.ReleaseExcept(used)
@@ -1507,7 +1281,6 @@ end
 -- The pet came, went or died: pet pieces show it at once.
 function A.PetChanged(newPet)
     local moved = false
-    local out = A.PetOut()
     each(function(h)
         if h.petWatch then
             local was = h.up
@@ -1521,11 +1294,6 @@ function A.PetChanged(newPet)
                 DUI.SafeCall(k.c.SetUnit, k.c, "pet")
                 DUI.SafeCall(k.c.UpdateAllAuras, k.c)
             end
-        end
-        -- A buff on a pet that's gone or dead is gone with it.
-        if not out and h.wantsUp and h.up == true and h.upUnit == "pet" then
-            h.up, h.endsAt = false, nil
-            moved = true
         end
     end)
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
@@ -1542,7 +1310,7 @@ pets:SetScript("OnEvent", function(_, event)
     DUI.SafeCall(A.PetChanged, event == "UNIT_PET")
 end)
 
-DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() A.Retarget(); A.TargetChanged(); A.AuraChanged() end)
+DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() A.Retarget(); A.AuraChanged() end)
 -- Out of combat, lookups are readable again.
 DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() A.AuraChanged() end)
 DUI.RegisterEvent("SPELLS_CHANGED", function() A.Rebuild() end)

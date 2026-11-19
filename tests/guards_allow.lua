@@ -127,7 +127,7 @@ return {
         ["DaylightUI_ActionBars/Bars.lua"] = 1,
         ["DaylightUI_ActionBars/BuffBars.lua"] = 9,
         ["DaylightUI_ActionBars/Buttons.lua"] = 1,
-        ["DaylightUI_ActionBars/CdmAuras.lua"] = 17,
+        ["DaylightUI_ActionBars/CdmAuras.lua"] = 12,
         ["DaylightUI_ActionBars/CdmBars.lua"] = 10,
         ["DaylightUI_ActionBars/CdmCustom.lua"] = 17,
         ["DaylightUI_ActionBars/CdmData.lua"] = 1,

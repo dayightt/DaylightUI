@@ -282,6 +282,12 @@ end
 local function shownMissing(set, id, p)
     return hasBuff(set, id, p) and (isCooldown(set, id, p) or downShows(set, id, p))
 end
+-- Whether anything can tell if this buff is up (CdmRows.Tracked). A buff the game
+-- has no icon for is drawn while it's up and nothing more, so the rows that need to
+-- know (Hide, the glows, the sounds) are left out for it rather than offered dead.
+local function tellsState(_, id)
+    return not (ns.CdmRows and ns.CdmRows.Tracked(id) == false)
+end
 local VISIBILITY = { values = { show = "Show", hide = "Hide" }, order = { "show", "hide" } }
 local BUFF_UP = { type = "dropdown", key = "cdm.card.buffUp", label = "Visibility",
     values = VISIBILITY.values, order = VISIBILITY.order,
@@ -637,18 +643,19 @@ Card.ROWS = {
             "Plays once as you become able to cast it: Revenge after a block, Overpower after a dodge, Execute on a low target. Rage or mana coming back doesn't count.") },
         { head = L["Form or stance"], show = function(...) return isCooldown(...) and ns.CdmEffects.FormsOf() ~= nil end },
         { head = L["Buff up"], show = hasBuff },
-        { show = hasBuff, item = BUFF_UP },
-        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true end,
+        { show = function(...) return hasBuff(...) and tellsState(...) end, item = BUFF_UP },
+        { show = function(...) return showsBuff(...) and tellsState(...) and opt("hideActive") ~= true end,
           item = spell("upGlow", { type = "toggle", label = "Glow",
             desc = "Glows while the buff is up: Clearcasting, Nightfall." }) },
-        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true and opt("upGlow") == true end,
+        { show = function(...) return showsBuff(...) and tellsState(...) and opt("hideActive") ~= true and opt("upGlow") == true end,
           item = spell("upGlowColor", { type = "color", label = "Glow color" }) },
-        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true end,
+        { show = function(...) return showsBuff(...) and not (tellsState(...) and opt("hideActive") == true) end,
           item = spell("clipGlow", { type = "toggle", label = "Glow to recast",
             desc = "Glows when it's time to cast it again: your next cast would land just as it runs out. Cast any sooner and a damage over time spell loses the ticks it had left." }) },
-        { show = function(...) return showsBuff(...) and opt("hideActive") ~= true and opt("clipGlow") == true end,
+        { show = function(...) return showsBuff(...) and not (tellsState(...) and opt("hideActive") == true)
+              and opt("clipGlow") == true end,
           item = spell("clipGlowColor", { type = "color", label = "Recast color" }) },
-        { show = showsBuff, item = soundRow("buffSound", "Sound",
+        { show = function(...) return showsBuff(...) and tellsState(...) end, item = soundRow("buffSound", "Sound",
             "Plays once as the buff lands, like Clearcasting or Nightfall.") },
         { show = function(...) return isIcon(...) and hasBuff(...) and opt("noDurationSwipe") ~= true end,
           item = spell("activeGlow", { type = "toggle", label = "Highlight",
@@ -658,11 +665,12 @@ Card.ROWS = {
           item = spell("activeColor", { type = "color", alpha = true, label = "Highlight color" }) },
         { head = L["Buff missing"], show = hasBuff },
         { show = buffOnly, item = BUFF_DOWN },
-        { show = showsBuff, item = soundRow("buffEndSound", "Sound",
+        { show = function(...) return showsBuff(...) and tellsState(...) end, item = soundRow("buffEndSound", "Sound",
             "Plays once as the buff runs out or is used up, like a Seal, so you can hear it's time to cast it again.") },
-        { show = shownMissing, item = spell("missingGlow", { type = "toggle", label = "Glow",
+        { show = function(...) return shownMissing(...) and tellsState(...) end,
+          item = spell("missingGlow", { type = "toggle", label = "Glow",
             desc = "Glows while the buff is down, to remind you to cast it." }) },
-        { show = function(...) return shownMissing(...) and opt("missingGlow") == true end,
+        { show = function(...) return shownMissing(...) and tellsState(...) and opt("missingGlow") == true end,
           item = spell("missingGlowColor", { type = "color", label = "Glow color" }) },
         { show = function(...) return isBar(...) and buffOnly(...) and opt("missing") == true end,
           item = spell("inactiveFlash", { type = "toggle", label = "Flash",

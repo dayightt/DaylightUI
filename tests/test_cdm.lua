@@ -5,8 +5,12 @@ local stub = require("stub")
 -- cooldowns and buffs. So a test's world loads without the facts, unless it asks
 -- for them with realFacts().
 local theFacts
+local realLookup
 local function loadWorld(opts)
+    stub.neverSecretAuras = {}
     local DUI = stub.Load(opts)
+    -- A test's plainAuras() ends with its world.
+    if realLookup then C_UnitAuras.GetUnitAuraBySpellID = realLookup end
     local S = stub.actionbars and stub.actionbars.CdmSpells
     if S then
         theFacts = S.FACTS
@@ -17,6 +21,28 @@ end
 local function realFacts()
     stub.actionbars.CdmSpells.FACTS = theFacts
     stub.actionbars.CdmCustom.Forget()
+end
+
+-- Makes every aura one the game never hides (C_Secrets calls it NeverSecret), so a
+-- lookup by spell id answers in a fight too, as the client's does for such an aura.
+-- For a buff the game has no item of its own for: its holder reads it by itself.
+-- Call it before the first layout pass, which is when a holder is made.
+local function plainAuras()
+    stub.neverSecretAuras = setmetatable({}, { __index = function() return true end })
+    realLookup = realLookup or C_UnitAuras.GetUnitAuraBySpellID
+    C_UnitAuras.GetUnitAuraBySpellID = function(unit, spellID)
+        for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+            local list = stub.auras[unit] and stub.auras[unit][filter]
+            for _, a in ipairs(list or {}) do
+                if a.spellId == spellID then
+                    local out = {}
+                    for k, v in pairs(a) do out[k] = v end
+                    return out
+                end
+            end
+        end
+        return nil
+    end
 end
 
 local function data()
@@ -3095,6 +3121,7 @@ end)
 
 T.test("cdm sounds: a buff's end sound plays once as it drops, not for a new target, at login or when you die", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     local Fx = AB.CdmEffects
     T.truthy(D.SetSpellValue(set, 41, "buffEndSound", "kit:316447"))
     AB.CdmRows.Refresh(); stub.RunTimers()
@@ -3121,41 +3148,6 @@ T.test("cdm sounds: a buff's end sound plays once as it drops, not for a new tar
     Fx.BuffMoment(p, h, true)
     _G.UnitIsDeadOrGhost = dead
     T.eq(#got, 1, "dying clears every buff: no sound")
-    noCategories()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("cdm sounds: a buff's sound plays as the client's button comes up, once with the rows' word", function()
-    local DUI, AB, E, D, set = auraWorld(false)
-    local Fx = AB.CdmEffects
-    T.truthy(D.SetSpellValue(set, 41, "buffSound", "kit:316447"))
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    local got = listenAlerts(DUI)
-    local h = AB.CdmAuras.Frame(41)
-    local btn = h.containers[1].c.__groups.a.button
-    local onPlay = btn.__shownAnims[1]:GetScript("OnPlay")
-    T.truthy(onPlay, "the slide tells us")
-    onPlay()
-    T.eq(#got, 0, "just entered the world: buffs already up aren't news")
-    stub.Advance(Fx.SETTLE + 1)
-    stub.combat = true
-    onPlay()
-    T.deq(got, { "kit:316447" }, "a proc mid-fight")
-    Fx.BuffMoment(set.pieces[41], h, true)
-    Fx.BuffMoment(set.pieces[41], h, false)
-    T.eq(#got, 1, "the same moment heard by two paths")
-    stub.Advance(1)
-    stub.FireEvent("PLAYER_TARGET_CHANGED")
-    onPlay()
-    T.eq(#got, 1, "a new target's debuff button isn't a proc")
-    stub.Advance(1)
-    Fx.SetAway(h, true)
-    onPlay()
-    T.eq(#got, 1, "a chain that's away stays quiet")
-    Fx.SetAway(h, false)
-    onPlay()
-    T.eq(#got, 2)
-    stub.combat = false
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -3536,6 +3528,7 @@ end)
 -- each caster keeps their own of (Rend) stays the game's: only yours counts there.
 T.test("cdm rows: a group buff someone else put on you is drawn by ours, icon and bar", function()
     local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31, 41 })
+    plainAuras()
     DUI.DB.General().motion = false
     stub.SetUnits({ player = { class = "WARRIOR" } })
     AB.CdmSpells.WARRIOR = { { 6673, 5242, aura = true }, { 772, 6546, aura = true } }
@@ -3777,6 +3770,7 @@ end)
 -- its spot off, Glow on), showed a glow around a hidden button.
 T.test("cdm missing: a glow always has its icon under it; Hide takes both", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     DUI.DB.General().motion = false
     T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
     T.truthy(D.SetSpellValue(set, 41, "missingGlow", true))
@@ -3830,6 +3824,7 @@ end)
 
 T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     DUI.DB.General().motion = false
     T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
     stub.auras.player = { HELPFUL = { { spellId = 141 } } }
@@ -3847,68 +3842,24 @@ T.test("cdm up glow: our own aura icon glows while its buff is up", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- A priest's pull: the first debuff is cast out of a fight, and it lands on the
--- target just as the fight starts, when auras can no longer be read. It never
--- glowed, while every later cast (in the fight) did.
-for _, shape in ipairs({ "icon", "bar" }) do
-T.test("cdm up glow: a debuff cast to start a fight still counts as up once the fight hides auras (" .. shape .. ")", function()
-    local DUI, AB, E, D, set = auraWorld(false)
-    DUI.DB.General().motion = false
-    if shape == "bar" then set.pieces[41].shape = "bar" end
-    T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
-    C_Spell.IsSpellHarmful = function() return true end
-    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
-    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
-    T.truthy(h.wantsUp)
-    T.falsy(AB.CdmEffects.GlowShown(h), "down before the pull")
-    -- The cast, out of a fight: nothing on the target yet.
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pull", 141)
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "not landed yet")
-    -- It lands as the fight starts: the game won't say any more.
-    stub.Advance(0.5)
-    stub.combat = true
-    stub.auras.target = { HARMFUL = { { spellId = 141, isFromPlayerOrPlayerPet = true } } }
-    stub.FireEvent("PLAYER_REGEN_DISABLED")
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "glows: the pull cast counts")
-    T.eq(h.upUnit, "target")
-    T.truthy(h.endsAt and math.abs(h.endsAt - (GetTime() - 0.5) - 18) < 0.01, "18 s from the cast")
-    -- A cast long before the fight doesn't count.
-    stub.combat = false
-    stub.auras.target = { HARMFUL = {} }
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "down after it")
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "early", 141)
-    stub.Advance(AB.CdmAuras.CAST_LANDS + 1)
-    stub.combat = true
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "a cast that missed long ago isn't taken as up")
-    stub.combat = false
-    noCategories()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-end
-
 -- Recast glow: a damage over time spell cast again early loses the ticks it had
 -- left, so it glows once the next cast would land just as it runs out. Timed from
--- your own casts, so it works in a fight where the aura can't be read.
+-- your own casts and the length in the game's data, so it works in a fight where
+-- the aura can't be read, with or without an item of the game's for the debuff.
 for _, shape in ipairs({ "icon", "bar" }) do
 T.test("cdm recast glow: lights when the next cast would land as the debuff ends (" .. shape .. ")", function()
     local DUI, AB, E, D, set = auraWorld(false)
     DUI.DB.General().motion = false
     if shape == "bar" then set.pieces[41].shape = "bar" end
     T.truthy(D.SetSpellValue(set, 41, "clipGlow", true))
-    C_Spell.IsSpellHarmful = function() return true end
-    C_Spell.GetSpellDescription = function() return "Deals damage over 18 sec." end
+    AB.CdmSpells.FACTS[141] = { lasts = 18 }
     C_Spell.GetSpellInfo = function(sid) return { castTime = sid == 141 and 2000 or 0 } end
     stub.combat = true
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     AB.CdmRows.Refresh(); stub.RunTimers()
     local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
-    T.truthy(h.wantsUp, "it watches its debuff")
+    T.truthy(h.wantsClip, "it times its debuff from your cast")
+    T.falsy(h.wantsUp, "and asks nobody whether it's up")
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 141)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.falsy(AB.CdmEffects.GlowShown(h), "18 s left: not yet")
@@ -3938,6 +3889,7 @@ end
 -- in a fight however the aura is read.
 T.test("cdm hide up: our aura holder never shows the buff, Keep its spot grays only while it's down", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     DUI.DB.General().motion = false
     T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
     T.truthy(D.SetSpellValue(set, 41, "missing", true))
@@ -3963,6 +3915,7 @@ end)
 -- hidden buff.
 T.test("cdm hide up: the keybind hides with the buff and comes back when it drops", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     DUI.DB.General().motion = false
     T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
     T.truthy(D.SetSpellValue(set, 41, "missing", true))
@@ -4002,207 +3955,13 @@ T.test("cdm hide up: the keybind hides with the buff and comes back when it drop
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("cdm hide up: in a fight your cast says it's up, its length when it runs out", function()
-    local DUI, AB, E, D, set = auraWorld(false)
-    DUI.DB.General().motion = false
-    T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
-    T.truthy(D.SetSpellValue(set, 41, "missing", true))
-    T.truthy(D.SetSpellValue(set, 41, "missingGlow", true))
-    stub.auras.player = { HELPFUL = { { spellId = 141, duration = 120, expirationTime = GetTime() + 120 } } }
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    local h = AB.CdmAuras.Frame(41)
-    stub.auras.player = { HELPFUL = {} }
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 1, "down before the fight")
-    T.truthy(AB.CdmEffects.GlowShown(h), "reminding")
-    stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 0, "cast in the fight: gone")
-    T.falsy(AB.CdmEffects.GlowShown(h), "no reminder")
-    stub.FireEvent("UNIT_AURA", "player", {}); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 0, "a blind aura look doesn't bring it back")
-    stub.Advance(121); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 1, "ran out in the fight")
-    T.truthy(AB.CdmEffects.GlowShown(h), "reminding again")
-    stub.combat = false
-    noCategories()
-    T.eq(stub.lockErrors, 0, "no locked button touched")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- Slice and Dice lasts 9 to 21 sec by its combo points, which are secret in a
--- fight: one length kept for every cast left its Buff up glow on an empty spot
--- after a short one ran out, and the client's button never said it ended.
-for _, shape in ipairs({ "icon", "bar" }) do
-T.test("cdm hide up: a finisher's buff runs out by the combo points it used (" .. shape .. ")", function()
-    local DUI, AB, E, D, set = auraWorld(true)
-    DUI.DB.General().motion = false
-    if shape == "bar" then set.pieces[41].shape = "bar" end
-    T.truthy(D.SetSpellValue(set, 41, "upGlow", true))
-    local SND = "Finishing move that increases melee attack speed by 20%. Lasts longer per combo point:\n"
-        .. " 1 point : 9 seconds\n 2 points: 12 seconds\n 3 points: 15 seconds\n 4 points: 18 seconds\n 5 points: 21 seconds"
-    local name = C_Spell.GetSpellName
-    C_Spell.GetSpellName = function(sid)
-        if sid == 141 then return "Slice and Dice" end
-        if sid == 500 then return "Sinister Strike" end
-        return name(sid)
-    end
-    local descs = { [141] = SND, [500] = "An instant strike. Awards 1 combo point." }
-    local describe = C_Spell.GetSpellDescription
-    C_Spell.GetSpellDescription = function(sid) return descs[sid] or "" end
-    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
-    T.eq(AB.CdmAuras.PointLasts(141, 1), 9); T.eq(AB.CdmAuras.PointLasts(141, 4), 18)
-    T.eq(AB.CdmAuras.PointLasts(141, 7), 21, "past the list: the last entry")
-    T.isnil(AB.CdmAuras.PointLasts(500, 1), "no list, no length")
-    DUI.DB.Character().cdmAuraLasts = { [41] = 15 }   -- last read at 3 points
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    T.eq(AB.CdmRows.DrawnBy(41), "aura " .. shape)
-    local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
-    T.falsy(AB.CdmEffects.GlowShown(h), "down: no glow")
-    stub.combat = true
-    local function send(sid, guid)
-        stub.FireEvent("UNIT_SPELLCAST_SENT", "player", "", guid, sid)
-        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", guid, sid)
-    end
-    send(500, "cast-1"); stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
-    send(141, "cast-2")
-    AB.CdmEffects.AuraHeard(h, "play", h.containers[1].c.__groups.a.button)
-    stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "cast: glowing")
-    stub.Advance(8.5); stub.RunTimers()
-    T.truthy(AB.CdmEffects.GlowShown(h), "one point lasts 9 sec: still up")
-    stub.Advance(1); stub.RunTimers()
-    T.falsy(AB.CdmEffects.GlowShown(h), "ran out at 9 sec, though the button never said so")
-    stub.combat = false
-    C_Spell.GetSpellName, C_Spell.GetSpellDescription = name, describe
-    noCategories()
-    T.eq(stub.lockErrors, 0, "no locked button touched")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-end
-
--- A rogue's group of Slice and Dice, Eureka! and Venom bars, Buff only, Slide
--- over: cast Slice and Dice in a fight, change target, and the next buff to land
--- came up on top of Slice and Dice (a player on 1.9.2).
-for _, harmful in ipairs({ false, true }) do
-for _, shape in ipairs({ "icon", "bar" }) do
-T.test("cdm hide up: a buff on you stays in its spot after a new target, the next one lands beside it ("
-    .. shape .. (harmful and ", game calls it harmful" or "") .. ")", function()
-    local DUI, AB, E, D, set = auraWorld(true)
-    DUI.DB.General().motion = false
-    place(D, set, 42, 1, 2)
-    for _, id in ipairs({ 41, 42 }) do
-        if shape == "bar" then set.pieces[id].shape = "bar" end
-        T.truthy(D.SetSpellValue(set, id, "hideMissing", true))
-    end
-    C_Spell.IsSpellHarmful = function() return harmful end
-    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    local function holder(id) return shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id) end
-    local h1, h2 = holder(41), holder(42)
-    stub.combat = true
-    stub.Advance(5)
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141)
-    AB.CdmEffects.AuraHeard(h1, "play", h1.containers[1].c.__groups.a.button)
-    stub.RunTimers()
-    local f1, f2 = pieceFrame(D.CurrentIndex(), 41), pieceFrame(D.CurrentIndex(), 42)
-    local sx, sy = f1.goalX, f1.goalY
-    T.eq(h1.up, true, "cast: up")
-    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
-    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
-    T.eq(h1.up, true, "a new target: still up, it's on you")
-    stub.Advance(1)
-    AB.CdmEffects.AuraHeard(h2, "play", h2.containers[1].c.__groups.a.button)
-    stub.RunTimers()
-    T.eq(h2.up, true, "the next buff: up")
-    T.truthy(f1:IsShown() and f1.goalX == sx and f1.goalY == sy, "the first stays in its spot")
-    T.truthy(f2.goalX ~= f1.goalX or f2.goalY ~= f1.goalY, "the next one beside it, not on top of it")
-    stub.combat = false
-    C_Spell.IsSpellHarmful = nil
-    noCategories()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-end
-end
-
--- In game the client's button never says where the buff came up, so Slice and
--- Dice, a harmful cast, was guessed onto the target again and a new target still
--- put it down (a player on 1.9.4). Where it was last seen wins over the guess.
-T.test("cdm hide up: a harmful cast whose buff was seen on you stays up after a new target", function()
-    local DUI, AB, E, D, set = auraWorld(true)
-    DUI.DB.General().motion = false
-    place(D, set, 42, 1, 2)
-    T.truthy(D.SetSpellValue(set, 41, "hideMissing", true))
-    C_Spell.IsSpellHarmful = function() return true end
-    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    local h1 = AB.CdmAuras.Frame(41)
-    -- Seen on you once where auras can be read.
-    stub.auras.player = { HELPFUL = { { spellId = 141, duration = 21, expirationTime = GetTime() + 21 } } }
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.eq(h1.upUnit, "player", "seen on you")
-    T.eq(DUI.DB.Character().cdmAuraOn[41], "player", "kept for this character, a reload too")
-    stub.auras.player = { HELPFUL = {} }
-    stub.Advance(22); AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141); stub.RunTimers()
-    T.eq(h1.up, true, "cast: up")
-    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
-    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
-    T.eq(h1.up, true, "a new target: still up, it's on you")
-    stub.combat = false
-    C_Spell.IsSpellHarmful = nil
-    noCategories()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- A rogue on 1.9.4 with Slice and Dice and Venom up, both cast in the fight: a new
--- target put Slice and Dice down and Venom slid into its spot. Never seen out of a
--- fight, so nothing remembered where it was; the spell list says it's on you.
-T.test("cdm hide up: Slice and Dice cast in a fight stays up after a new target, icon and bar", function()
-    for _, shape in ipairs({ "icon", "bar" }) do
-        local DUI, AB, E, D, set = auraWorld(false)
-        DUI.DB.General().motion = false
-        stub.units.player = stub.units.player or {}
-        stub.units.player.class = "ROGUE"
-        AB.CdmSpells.ROGUE = { { 5171, 6774, aura = true } }
-        AB.CdmCustom.Forget()
-        _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
-            return { spellID = id == 41 and 5171 or 1316709, selfAura = false }
-        end
-        place(D, set, 42, 1, 2)
-        set.pieces[41].shape, set.pieces[42].shape = shape, shape
-        C_Spell.IsSpellHarmful = function(sid) return sid == 5171 end
-        stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
-        AB.CdmRows.Refresh(); stub.RunTimers()
-        local frame = shape == "bar" and AB.CdmBars.AuraFrame or AB.CdmAuras.Frame
-        local snd, venom = frame(41), frame(42)
-        T.truthy(snd and venom, shape .. ": both drawn by ours")
-        T.isnil((DUI.DB.Character().cdmAuraOn or {})[41], shape .. ": never seen where auras can be read")
-        stub.combat = true
-        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 5171); stub.RunTimers()
-        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 1316709); stub.RunTimers()
-        T.eq(snd.up, true, shape .. ": Slice and Dice up")
-        T.eq(venom.up, true, shape .. ": Venom up")
-        local _, _, _, _, before = frameOf(42):GetPoint(1)
-        stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
-        stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
-        T.eq(snd.up, true, shape .. ": a new target, Slice and Dice still up, it's on you")
-        local _, _, _, _, after = frameOf(42):GetPoint(1)
-        T.eq(after, before, shape .. ": Venom stays in its own spot")
-        stub.combat = false
-        C_Spell.IsSpellHarmful = nil
-        noCategories()
-        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    end
-end)
-
 -- Sap (hidden by default in the game's own Cooldown Manager) placed as a bar showed
 -- nothing on a sapped mob. It's your debuff on the target, cast out of a fight.
 T.test("cdm auras: Sap on your target shows, icon and bar", function()
     local rules = dofile("tests/aura_rules.lua")
     for _, shape in ipairs({ "icon", "bar" }) do
         local DUI, AB, E, D, set = auraWorld(false)
+        plainAuras()
         DUI.DB.General().motion = false
         stub.units.player = stub.units.player or {}
         stub.units.player.class = "ROGUE"
@@ -4236,25 +3995,6 @@ T.test("cdm auras: Sap on your target shows, icon and bar", function()
     end
 end)
 
-T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
-    local DUI, AB, E, D, set = auraWorld(false)
-    DUI.DB.General().motion = false
-    T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
-    T.truthy(D.SetSpellValue(set, 41, "missing", true))
-    C_Spell.IsSpellHarmful = function() return true end
-    AB.CdmRows.Refresh(); stub.RunTimers()
-    local h = AB.CdmAuras.Frame(41)
-    stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 0)
-    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
-    T.eq(h.underBox:GetAlpha(), 1, "the new target hasn't got it")
-    stub.combat = false
-    C_Spell.IsSpellHarmful = nil
-    noCategories()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 T.test("cdm hide up: the game's hidden buff item says when it falls off in a fight, even early", function()
     local DUI, AB, E, D, ess, bars, icons = editorWorld({ 41 })
     DUI.DB.General().motion = false
@@ -4283,6 +4023,7 @@ end)
 
 T.test("cdm hide up: Cooldown and buff hides our cooldown icon while the buff is up", function()
     local DUI, AB, E, D = editorWorld()
+    plainAuras()
     DUI.DB.General().motion = false
     withCategories({ [2] = { 41 } }, { [2] = { 41 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
@@ -4310,6 +4051,7 @@ end)
 for _, shape in ipairs({ "icon", "bar" }) do
 T.test("cdm buff up: Cooldown and buff stays bright while its buff is up, fades on cooldown after (" .. shape .. ")", function()
     local DUI, AB, E, D = editorWorld()
+    plainAuras()
     DUI.DB.General().motion = false
     withCategories({ [2] = { 41 } }, { [2] = { 41 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
@@ -4341,6 +4083,7 @@ end
 -- group growing from its middle.
 T.test("cdm hide up: Cooldown and buff hidden while up gives its spot up, back when it drops", function()
     local DUI, AB, E, D = editorWorld()
+    plainAuras()
     DUI.DB.General().motion = false
     withCategories({ [2] = { 41, 42 } }, { [2] = { 41, 42 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
@@ -4373,6 +4116,7 @@ end)
 
 T.test("cdm hide up: a custom spell's aura bar hides while up", function()
     local DUI, AB, E, D, set = auraWorld(false)
+    plainAuras()
     DUI.DB.General().motion = false
     local p = set.pieces[41]
     p.shape = "bar"
@@ -7378,6 +7122,7 @@ end)
 -- counts. Each caster's Rend is their own, so another's doesn't.
 T.test("cdm auras: a one-copy debuff counts whoever cast it, a DoT only yours", function()
     local AB, C = customWorld("WARRIOR")
+    plainAuras()
     stub.SetUnits({ player = { class = "WARRIOR" }, target = { name = "Boar", enemy = true } })
     AB.CdmSpells.WARRIOR = { { 7386, 7405, aura = true }, { 772, 6546, aura = true } }
     stub.knownSpells = { [7386] = true, [772] = true }
@@ -7411,6 +7156,7 @@ end)
 -- only scans you and your target. Watched on the pet as well as on you.
 T.test("cdm custom: a buff that lands on your pet is watched on your pet", function()
     local AB, C = customWorld("HUNTER")
+    plainAuras()
     stub.SetUnits({ player = { class = "HUNTER" }, pet = { name = "Fang" } })
     AB.CdmSpells.HUNTER = { { 19574, cd = true, aura = true }, { 3045, cd = true, aura = true } }
     stub.knownSpells = { [19574] = true, [3045] = true }
@@ -7434,15 +7180,12 @@ T.test("cdm custom: a buff that lands on your pet is watched on your pet", funct
         sourceUnit = "player", isFromPlayerOrPlayerPet = true } } }
     stub.FireEvent("UNIT_AURA", "pet", { isFullUpdate = true }); stub.RunTimers()
     T.eq(h.up, true, "up on the pet")
-    T.eq(h.upUnit, "pet")
+    -- A cast is no word on the buff: only the read is.
     stub.auras.pet = {}
-    -- In a fight your cast says it's up; your pet dying takes it down.
     stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "bw", 19574); stub.RunTimers()
-    T.eq(h.up, true, "your cast: up")
-    stub.units.pet.dead = true
-    stub.FireEvent("UNIT_HEALTH", "pet"); stub.RunTimers()
-    T.eq(h.up, false, "your pet died, and the buff with it")
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "bw", 19574)
+    stub.FireEvent("UNIT_AURA", "pet", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(h.up, false, "gone from the pet, whatever you cast")
     stub.combat = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -7884,6 +7627,7 @@ end)
 -- re-centered.
 T.test("cdm custom: a buff of ours that's down slides out of its group; one we can't tell keeps its spot", function()
     local DUI, AB, D, set = customRows()
+    plainAuras()
     DUI.DB.General().motion = false
     D.AddPiece(set, "s6673", "icon", 0, 0)
     D.AddPiece(set, "s2687", "icon", 0, -96)
@@ -7902,16 +7646,17 @@ T.test("cdm custom: a buff of ours that's down slides out of its group; one we c
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
     T.eq(f2.goalX, (w + gap) / 2, "down: the rest closes up round the middle")
     T.truthy(f:IsShown() and h:IsShown(), "still listening for the buff")
-    -- In a fight it can land without your cast (a proc, or someone else's). The
-    -- client's button coming up is the only sign of it.
+    -- In a fight it can land without your cast (a proc, or someone else's).
     stub.combat = true
-    AB.CdmAuras.Shown(h); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "its button came up: back in its spot")
+    stub.auras.player = { HELPFUL = { { spellId = 6673 } } }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.eq(f2.goalX, full["s2687"].x, "it landed in the fight: back in its spot")
     T.eq(f.goalX, 0)
+    stub.auras.player = { HELPFUL = {} }
     stub.combat = false
     -- Keep its spot never slides.
     AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.eq(f2.goalX, (w + gap) / 2, "the fight over: read down again")
+    T.eq(f2.goalX, (w + gap) / 2, "it dropped: closed up again")
     T.truthy(D.SetSpellValue(set, "s6673", "missing", true))
     refresh(AB)
     T.eq(f2.goalX, full["s2687"].x, "Keep its spot")
@@ -7960,6 +7705,7 @@ end)
 -- kept its spot, so the missing one sat off to the side instead of in the middle.
 T.test("cdm custom: a buff hidden while up (Buff up Hide) gives its spot up, even with Buff missing Show", function()
     local DUI, AB, D, set = customRows()
+    plainAuras()
     DUI.DB.General().motion = false
     D.AddPiece(set, "s6673", "icon", 0, 0)
     D.AddPiece(set, "s2687", "icon", 0, -96)
@@ -7989,247 +7735,6 @@ T.test("cdm custom: a buff hidden while up (Buff up Hide) gives its spot up, eve
     T.truthy(D.SetChainValue(set, "s6673", "collapse", false))
     refresh(AB)
     T.eq(f2.goalX, full["s2687"].x, "Slide over off")
-    stub.knownSpells = {}
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- A warrior's Shield Block in a dungeon: after a reload inside, auras can't be
--- read even out of a fight, so Daylight UI never learned the buff was down and it
--- kept its spot until cast.
-T.test("cdm custom: in a dungeon a buff of ours is told up and down by its button, after a reload too", function()
-    local DUI, AB, D, set = customRows()
-    DUI.DB.General().motion = false
-    stub.SetRestriction("Map", true)
-    D.AddPiece(set, "s6673", "icon", 0, 0)
-    D.AddPiece(set, "s2687", "icon", 0, -96)
-    D.Hook(set, "s2687", "s6673", "right")
-    local full = D.Layout(set)
-    stub.auras.player = { HELPFUL = {} }
-    refresh(AB)
-    local h = AB.CdmAuras.Frame("s6673")
-    local f2 = pieceFrame(1, "s2687")
-    T.eq(f2.goalX, full["s2687"].x, "just built: can't tell yet, keeps its spot")
-    -- No button came up for it, so the buff isn't there. The holder asks for a pass
-    -- once that's had time; the fake game runs a timer at once whatever its delay,
-    -- so it's asked here.
-    stub.Advance(1)
-    refresh(AB)
-    T.eq(f2.goalX, 0, "no button came up: down, the next one slides over")
-    local btn = h.containers[1].c.__groups.a.button
-    stub.AuraVisible(btn, true); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast: its button came up")
-    stub.AuraVisible(btn, false); stub.RunTimers()
-    T.eq(f2.goalX, 0, "ran out: its button went away")
-    -- In a fight (where it also held its spot): cast, then it runs out and the
-    -- client stops the button's shown animations.
-    stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 6673); stub.RunTimers()
-    stub.AuraVisible(btn, true); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast in the fight: back in its spot")
-    stub.AuraVisible(btn, false); stub.RunTimers()
-    T.eq(f2.goalX, 0, "ran out in the fight: the next one slides over")
-    T.truthy(table.concat(h.heard, " "):find("stop", 1, true), "the report says what was heard")
-    -- Its countdown ending says so too, with no animation heard.
-    local anims = btn.__shownAnims
-    btn.__shownAnims = {}
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 6673); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast again: back")
-    local done = h.parts[btn].cd:GetScript("OnCooldownDone")
-    T.truthy(done, "the countdown is heard")
-    done(); stub.RunTimers()
-    T.eq(f2.goalX, 0, "its time ran out: slides over")
-    T.truthy(table.concat(h.heard, " "):find("time out", 1, true))
-    btn.__shownAnims = anims
-    stub.AuraVisible(btn, false)
-    -- The holder hiding with its chain isn't the buff going.
-    stub.AuraVisible(btn, true); stub.RunTimers()
-    h:Hide()
-    T.eq(h.up, true, "a hidden holder: still up")
-    h:Show()
-    stub.combat = false
-    stub.SetRestriction("Map", false)
-    stub.knownSpells = {}
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- Battle Shout in a fight: another warrior shouts again while yours is still up.
--- The client keeps the same button up with the new time and sends no signal, so
--- the clock from your own cast must not take it down: the button decides.
-T.test("cdm custom: in a fight a buff someone else refreshed stays up while its button does", function()
-    local DUI, AB, D, set = customRows()
-    DUI.DB.General().motion = false
-    D.AddPiece(set, "s6673", "icon", 0, 0)
-    stub.auras.player = { HELPFUL = {} }
-    refresh(AB)
-    local h = AB.CdmAuras.Frame("s6673")
-    h.wantsUp = true
-    local btn = h.containers[1].c.__groups.a.button
-    stub.combat = true
-    stub.SetRestriction("Map", true)
-    h.auraLasts = 120
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 6673); stub.RunTimers()
-    stub.AuraVisible(btn, true); stub.RunTimers()
-    T.eq(h.up, true, "your shout: up")
-    -- Past your shout's end, the other warrior's is still on you.
-    stub.Advance(125); stub.RunTimers()
-    T.eq(h.up, true, "their shout keeps the button up: still up")
-    stub.AuraVisible(btn, false); stub.RunTimers()
-    T.eq(h.up, false, "their shout ran out: down")
-    -- Their shout replaces yours on the shown button: only the assigned animation
-    -- plays, after your old timer was heard ending.
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 6673); stub.RunTimers()
-    stub.AuraAssign(btn, true); stub.RunTimers()
-    T.eq(h.up, true, "your shout again: up")
-    h.parts[btn].cd:GetScript("OnCooldownDone")(); stub.RunTimers()
-    stub.AuraAssign(btn, true); stub.RunTimers()
-    T.eq(h.up, true, "their shout replaced yours on the same button: up")
-    -- Theirs lands on another button before yours clears.
-    AB.CdmEffects.AuraHeard(h, "assign", {}); stub.RunTimers()
-    stub.AuraAssign(btn, false); stub.RunTimers()
-    T.eq(h.up, true, "yours cleared after theirs came up elsewhere: still up")
-    -- With no button heard at all, your cast's clock still ends it.
-    h.clientBtns, h.clientUp = nil, nil
-    local anims = btn.__shownAnims
-    btn.__shownAnims = {}
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 6673); stub.RunTimers()
-    T.eq(h.up, true, "cast again: up")
-    stub.Advance(125); stub.RunTimers()
-    T.eq(h.up, false, "no button heard: the clock ends it")
-    btn.__shownAnims = anims
-    stub.combat = false
-    stub.SetRestriction("Map", false)
-    stub.knownSpells = {}
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- Shield Block in a dungeon fight: the client's button gave no sign at all, so
--- after the cast it read as up for good and held an empty spot. Your cast is
--- plain, and its length is the one the buff had the last time it could be read,
--- else the spell's text.
-T.test("cdm custom: in a dungeon fight a buff of ours runs out by the clock from your cast", function()
-    local DUI, AB, D, set = customRows()
-    DUI.DB.General().motion = false
-    D.AddPiece(set, "s6673", "icon", 0, 0)
-    D.AddPiece(set, "s2687", "icon", 0, -96)
-    D.Hook(set, "s2687", "s6673", "right")
-    local full = D.Layout(set)
-    -- Seen once where auras can be read, its length is kept for this character.
-    stub.auras.player = { HELPFUL = { { spellId = 6673, duration = 5, expirationTime = GetTime() + 5 } } }
-    refresh(AB)
-    T.eq(DUI.DB.Character().cdmAuraLasts["s6673"], 5, "its length kept")
-    stub.auras.player = { HELPFUL = {} }
-    stub.Advance(6); AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    -- A reload inside a dungeon: a new holder with nothing read.
-    AB.CdmAuras.Frame("s6673").auraLasts = nil
-    stub.SetRestriction("Map", true)
-    stub.combat = true
-    local f2 = pieceFrame(1, "s2687")
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 6673); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast: its spot")
-    stub.Advance(6); stub.RunTimers()
-    T.eq(f2.goalX, 0, "five seconds on: run out, the next one slides over")
-    -- Never seen readable, so the spell's own text gives the length.
-    DUI.DB.Character().cdmAuraLasts = nil
-    AB.CdmAuras.Frame("s6673").auraLasts = nil
-    local desc = C_Spell.GetSpellDescription
-    C_Spell.GetSpellDescription = function() return "Increases your chance to block by 75% for 5 sec." end
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 6673); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast again")
-    stub.Advance(6); stub.RunTimers()
-    T.eq(f2.goalX, 0, "its text said five seconds")
-    C_Spell.GetSpellDescription = desc
-    -- A buff your blocks use up (Shield Block, Holy Shield) ends at the last block
-    -- instead of breaking when the charges run out.
-    local stacks = AB.CdmOwn.Stacks
-    AB.CdmOwn.Stacks = function(id) return id == "s6673" end
-    stub.combat = false
-    stub.SetRestriction("Map", false)
-    stub.auras.player = { HELPFUL = { { spellId = 6673, applications = 2, duration = 5, expirationTime = GetTime() + 5 } } }
-    AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    T.eq(DUI.DB.Character().cdmAuraCharges["s6673"], 2, "its charges kept (Improved Shield Block)")
-    stub.auras.player = { HELPFUL = {} }
-    stub.Advance(6); AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    stub.SetRestriction("Map", true)
-    stub.combat = true
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-3", 6673); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "cast")
-    stub.FireEvent("UNIT_COMBAT", "player", "WOUND", "BLOCK_REDUCED", 120, 1); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "one block: a charge left")
-    stub.FireEvent("UNIT_COMBAT", "player", "WOUND", "CRITICAL", 300, 1); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "a hit that wasn't blocked takes none")
-    stub.FireEvent("UNIT_COMBAT", "player", "BLOCK", "", 0, 1); stub.RunTimers()
-    T.eq(f2.goalX, 0, "the second block: used up, the next one slides over")
-    -- It used to fold down early, after one block. When never seen readable, its
-    -- text says how many (WoW Forever's Shield Block blocks 2 attacks), never a
-    -- guessed 1.
-    DUI.DB.Character().cdmAuraCharges = nil
-    C_Spell.GetSpellDescription = function() return "Increases chance to block by 75% for 7 sec, but will only block 2 attacks." end
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-4", 6673); stub.RunTimers()
-    stub.FireEvent("UNIT_COMBAT", "player", "BLOCK", "", 0, 1); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "one block: its text said two")
-    stub.FireEvent("UNIT_COMBAT", "player", "BLOCK", "", 0, 1); stub.RunTimers()
-    T.eq(f2.goalX, 0, "the second: used up")
-    -- No count anywhere: blocks aren't counted and the clock ends it.
-    C_Spell.GetSpellDescription = function() return "Increases chance to block." end
-    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-5", 6673); stub.RunTimers()
-    stub.FireEvent("UNIT_COMBAT", "player", "BLOCK", "", 0, 1); stub.RunTimers()
-    T.eq(f2.goalX, full["s2687"].x, "no count known: a block doesn't end it")
-    stub.Advance(8); stub.RunTimers()
-    T.eq(f2.goalX, 0, "its time does")
-    C_Spell.GetSpellDescription = desc
-    AB.CdmOwn.Stacks = stacks
-    stub.combat = false
-    stub.SetRestriction("Map", false)
-    stub.knownSpells = {}
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
--- Lightning Shield set to show only while missing stayed hidden all fight after
--- its balls were gone: the client's button gave no word, and its 10 minutes ran
--- on. Hits that land use them up (3, one every 3.5 s at most, the game's data);
--- Touch of Weakness goes on the next melee hit.
-T.test("cdm custom: in a fight a buff your hits use up ends at the last hit", function()
-    local DUI, AB, D, set = customRows()
-    DUI.DB.General().motion = false
-    D.AddPiece(set, "s6673", "icon", 0, 0)
-    D.AddPiece(set, "s2687", "icon", 0, -96)
-    D.Hook(set, "s2687", "s6673", "right")
-    local full = D.Layout(set)
-    refresh(AB)
-    local f2 = pieceFrame(1, "s2687")
-    local hits = AB.CdmOwn.Hits
-    local kind = AB.CdmOwn.HITS[10432]
-    AB.CdmOwn.Hits = function(id) if id == "s6673" then return kind end end
-    local function up(n)
-        stub.combat = false
-        stub.SetRestriction("Map", false)
-        stub.auras.player = { HELPFUL = { { spellId = 6673, applications = n, duration = 600, expirationTime = GetTime() + 600 } } }
-        AB.CdmAuras.AuraChanged(); stub.RunTimers()
-        T.eq(f2.goalX, full["s2687"].x, "up: its spot")
-        stub.SetRestriction("Map", true)
-        stub.combat = true
-        AB.CdmAuras.AuraChanged(); stub.RunTimers()
-    end
-    local function hit(school) stub.FireEvent("UNIT_COMBAT", "player", "WOUND", "", 100, school); stub.RunTimers() end
-    up(3)
-    hit(8)
-    hit(1)
-    T.eq(f2.goalX, full["s2687"].x, "two hits at once fire one ball")
-    stub.Advance(4); hit(1)
-    T.eq(f2.goalX, full["s2687"].x, "two balls gone, one left")
-    stub.Advance(4); hit(8)
-    T.eq(f2.goalX, 0, "the third: used up, the next one slides over")
-    -- Touch of Weakness: a spell hit leaves it, the next melee hit takes it.
-    kind = AB.CdmOwn.HITS[2652]
-    up(0)
-    hit(32)
-    T.eq(f2.goalX, full["s2687"].x, "a spell hit leaves it")
-    hit(1)
-    T.eq(f2.goalX, 0, "the melee hit used it up")
-    AB.CdmOwn.Hits = hits
-    stub.combat = false
-    stub.SetRestriction("Map", false)
-    stub.auras.player = { HELPFUL = {} }
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -8291,6 +7796,7 @@ end)
 -- the aura holders never said whether the buff was down.
 T.test("cdm custom: Glow when not active lights our aura icon and bar while the buff is down", function()
     local DUI, AB, D, set = customRows()
+    plainAuras()
     stub.SetUnits({ player = { class = "PALADIN" } })
     AB.CdmSpells.PALADIN = { { 20375, 20915, aura = true }, { 20154, 20287, aura = true } }
     stub.knownSpells = { [20154] = true }
@@ -9279,6 +8785,7 @@ end)
 -- target's debuffs, nothing ever showed.
 T.test("cdm facts: Prayer of Mending is watched by its buff's own ids on your friendly target, icon and bar", function()
     local DUI, AB, E, D = editorWorld()
+    plainAuras()
     DUI.DB.General().motion = false
     stub.SetUnits({ player = { class = "PRIEST" }, target = { name = "Friend", friend = true } })
     AB.CdmSpells.PRIEST = { { 401859, 1240826, 1240827, cd = true, aura = true }, { 589, 594, aura = true } }
@@ -9414,6 +8921,83 @@ T.test("cdm state: a piece finds the game's buff item of its spell, and its down
         T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": the glow goes")
         stub.LeaveCombat()
         stub.auras.player = nil
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A buff the game has no item for and hides in fights: nothing can say whether it's
+-- up, so it's drawn while it's up and nothing more. Its glows, Hide and sounds stay
+-- off everywhere (a glow that works in town and not in a fight reads as a bug), and
+-- the card leaves those rows out.
+T.test("cdm state: a buff nothing can tell about is drawn and nothing more, its state rows left out (icon and bar)", function()
+    local DUI, AB, E, D, set = auraWorld(false)
+    DUI.DB.General().motion = false
+    T.truthy(D.SetSpellValue(set, 41, "missingGlow", true))
+    T.truthy(D.SetSpellValue(set, 41, "missing", true))
+    T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
+    local function row(key)
+        for _, r in ipairs(AB.CdmCard.ROWS.show) do if r.item and r.item.key == key then return r end end
+    end
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 41, "bar") end
+        -- Down, and readable out of a fight: still not asked.
+        stub.auras.player = { HELPFUL = {} }
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(41) or AB.CdmAuras.Frame(41)
+        T.truthy(h and h:IsShown(), shape .. ": drawn")
+        T.eq(AB.CdmRows.Tracked(41), false, shape .. ": nothing tells its state")
+        T.isnil(h.up, shape .. ": no answer rather than a guessed one")
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": no missing glow out of a fight")
+        T.falsy(h.hideUp, shape .. ": its button isn't hidden, it's all there is to see")
+        stub.EnterCombat()
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "c-" .. shape, 141); stub.RunTimers()
+        T.isnil(h.up, shape .. ": your cast says nothing about it")
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": nor a glow in one")
+        stub.LeaveCombat()
+        for _, key in ipairs({ "cdm.card.buffUp", "cdm.card.upGlow", "cdm.card.buffSound",
+            "cdm.card.buffEndSound", "cdm.card.missingGlow" }) do
+            T.falsy(row(key).show(set, 41, set.pieces[41]), shape .. ": " .. key .. " left out of the card")
+        end
+        T.truthy(row("cdm.card.buffDown").show(set, 41, set.pieces[41]), shape .. ": Show or Hide while missing stays")
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Battle Shout is a buff another warrior can put on you, which the game's item doesn't
+-- count. Where the game hides auras in a fight nothing can read theirs, so your own
+-- being up or down (the game's item) is the best word there is, and the reminder to
+-- cast it keeps working in a fight.
+T.test("cdm state: a buff others can cast too takes the game's item for your own (icon and bar)", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31, 41 })
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "WARRIOR" } })
+    AB.CdmSpells.WARRIOR = { { 6673, 5242, aura = true } }
+    stub.knownSpells = { [6673] = true }
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31, 41 } }, { [2] = { 31, 41 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = id == 31 and 6673 or 100 + id }
+    end
+    place(D, set, 31, 1, 1)
+    T.truthy(D.SetSpellValue(set, 31, "missingGlow", true))
+    T.truthy(D.SetSpellValue(set, 31, "missing", true))
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        icons[1]:SetIsActive(false)
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(31) or AB.CdmAuras.Frame(31)
+        T.truthy(h, shape .. ": drawn by ours")
+        T.eq(AB.CdmRows.Tracked(31), true, shape .. ": the game's item answers for yours")
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": yours is down, it glows")
+        stub.EnterCombat()
+        icons[1]:SetIsActive(true); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": cast in the fight: up")
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": the glow goes")
+        icons[1]:SetIsActive(false); stub.RunTimers()
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": it ran out in the fight: glowing again")
+        stub.LeaveCombat()
     end
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))

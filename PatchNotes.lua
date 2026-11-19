@@ -22,6 +22,7 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Action bars", "Bars that switch page while you hold Shift can be rearranged: with your spellbook open, just drag a spell, no Shift needed" },
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },
+        { "Cooldown Manager", "Buff and debuff glows, sounds and hiding stay right in a fight: no more buffs shown as missing while they're up, or left on after they ended" },
         { "Bags", "Quest items that are also a food or other consumable, like Kravel's Crate, always go under Quest items" },
         { "Chat", "Speech bubbles are the game's size again instead of shrinking when your UI scale is small" },
         { "Chat", "Experience from kills shows in Daylight UI's chat tabs, without turning it on in the game's own chat settings" },

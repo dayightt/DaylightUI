@@ -500,10 +500,11 @@ local function clipGlows(b)
     return Fx.Get(b, "clipGlow") == true and Fx.Get(b, "hideActive") ~= true
 end
 -- The glow asked for by the buff being down (true) or up (false). due = time to
--- cast it again, which wins over the plain up glow.
+-- cast it again, which wins over the plain up glow. It runs on your own cast's
+-- clock, so it lights with no word on the buff too, only never on a known "down".
 local function buffGlow(b, isDown, due)
     if isDown == true and missingGlows(b) then return "missingGlowColor" end
-    if isDown == false and due == true and clipGlows(b) then return "clipGlowColor" end
+    if isDown ~= true and due == true and clipGlows(b) then return "clipGlowColor" end
     if isDown == false and upGlows(b) then return "upGlowColor" end
     return false
 end
@@ -625,8 +626,6 @@ function Fx.MakeSlide(btn, h)
     -- there ("blocked by secret aspects").
     if type(btn.AddAuraShownAnimation) ~= "function" then return end
     local ag = btn:CreateAnimationGroup()
-    -- Set here while the button can still be written to; it runs in fights.
-    if h then ag:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraShown, h, btn) end) end
     local s = {}
     s.up = ag:CreateAnimation("Translation")
     s.up:SetOrder(1); s.up:SetDuration(0)
@@ -639,67 +638,6 @@ function Fx.MakeSlide(btn, h)
     btn.cdmSlide, btn.cdmSlideHolder = s, h
     Fx.TuneSlide(btn)
     DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
-    if h then
-        -- The buff going away. The client stops a button's shown animations
-        -- whenever its aura clears (ApplyVisibility, Blizzard_CustomAuraButton.lua),
-        -- in fights and dungeons too, where auras can't be read. A loop with no
-        -- movement plays as long as the aura is up, so its OnStop is the signal
-        -- (CdmAuras.Hidden). Not yet confirmed in game.
-        local sig = btn:CreateAnimationGroup()
-        sig:SetLooping("REPEAT")
-        local hold = sig:CreateAnimation("Translation")
-        hold:SetOffset(0, 0); hold:SetDuration(1)
-        sig:SetScript("OnStop", function() DUI.SafeCall(Fx.AuraHeard, h, "stop", btn) end)
-        -- Only logged in the report: whether the client ends the loop this way
-        -- instead when it hides the button.
-        sig:SetScript("OnFinished", function() DUI.SafeCall(Fx.AuraHeard, h, "finish") end)
-        sig:SetScript("OnPause", function() DUI.SafeCall(Fx.AuraHeard, h, "pause") end)
-        DUI.SafeCall(btn.AddAuraShownAnimation, btn, sig)
-        -- The client plays these each time the button is given an aura, also when
-        -- one aura replaces another on a button already shown (another warrior's
-        -- Battle Shout over yours), where no shown animation plays.
-        if type(btn.AddAuraAssignedAnimation) == "function" then
-            local got = btn:CreateAnimationGroup()
-            local mark = got:CreateAnimation("Translation")
-            mark:SetOffset(0, 0); mark:SetDuration(0)
-            got:SetScript("OnPlay", function() DUI.SafeCall(Fx.AuraHeard, h, "assign", btn) end)
-            DUI.SafeCall(btn.AddAuraAssignedAnimation, btn, got)
-        end
-    end
-end
-
--- What the buff's button reported: "play" = up; "stop" (shown animations stopped),
--- "time out" (countdown ended) and "blocked" (your blocks used up its charges,
--- CdmAuras) = down. "finish" and "pause" only go in the report. The last few are
--- kept for /dui cdm report, to see which ones the client really sends in a fight
--- or a dungeon.
-local DOWN = { stop = true, ["time out"] = true, blocked = true, ["used up"] = true }
-function Fx.AuraHeard(h, what, btn)
-    h.heard = h.heard or {}
-    table.insert(h.heard, string.format("%s %.1f%s", what, GetTime(), InCombatLockdown() and " fight" or ""))
-    if #h.heard > 8 then table.remove(h.heard, 1) end
-    -- Which of the client's buttons show the aura, each on its own: when another
-    -- player's aura replaces yours it can land on a new button before the old one
-    -- clears, and the old one ending mustn't take the new one down. Someone else
-    -- refreshing it sends nothing at all, so this outlasts your own cast's clock.
-    -- A holder hidden with its chain stops the animations too, which isn't the aura ending.
-    h.clientBtns = h.clientBtns or setmetatable({}, { __mode = "k" })
-    local up = what == "play" or what == "assign"
-    local down = DOWN[what] and (what ~= "stop" or h:IsVisible())
-    if up then
-        h.clientBtns[btn or h] = true
-    elseif down then
-        if btn then h.clientBtns[btn] = nil else wipe(h.clientBtns) end
-    end
-    h.clientUp = next(h.clientBtns) ~= nil or nil
-    local A = ns.CdmAuras
-    if not A then return end
-    if up then
-        A.Shown(h)
-        if A.HeardOn then A.HeardOn(h, btn) end
-    elseif DOWN[what] and not h.clientUp then
-        A.Hidden(h)
-    end
 end
 
 local function tune(s, on, drop)
@@ -728,12 +666,11 @@ end
 -- Like a proc addon: a per-spell sound the moment it matters. Each fires on the
 -- change, never while the state holds, and a piece sounds at most once per
 -- SOUND_GAP however many moments land together (ready and usable are one moment on
--- most spells, and a buff can be reported by two paths). A chain that's hidden (its
--- show rules, the editor) stays quiet along with its icons.
+-- most spells). A chain that's hidden (its show rules, the editor) stays quiet along
+-- with its icons.
 Fx.SOUND_GAP = 0.5
 Fx.ARM_MIN = 2           -- seconds; a cast's OnCooldownDone sooner than this was only the GCD
 Fx.SETTLE = 2            -- seconds after entering the world; buffs already up aren't news
-Fx.AURA_QUIET = 0.3      -- seconds after a new target or container; its buttons coming up aren't news
 Fx.END_QUIET = 0.5       -- seconds after a new target; its debuffs leaving view didn't end
 
 local heard = setmetatable({}, weak)      -- piece -> when it last sounded
@@ -768,19 +705,6 @@ function Fx.BuffMoment(piece, item, isDown)
         if plainOf(dead) == true then return end
         playSound(item, piece, "buffEndSound")
     end
-end
-
--- The client's aura button came up for a new aura (the slide's OnPlay). In a fight
--- that's the only signal of a proc when no game item shows that buff.
-function Fx.AuraShown(h, btn)
-    -- A buff that slid out of its group comes back (CdmRows).
-    Fx.AuraHeard(h, "play", btn)
-    local p = h.soundPiece
-    if not p or not h:IsShown() then return end
-    local now = GetTime()
-    if now - enteredAt < Fx.SETTLE or now - targetAt < Fx.AURA_QUIET
-        or now - (h.builtAt or 0) < Fx.AURA_QUIET then return end
-    playSound(h.soundItem or h, p, "buffSound")
 end
 
 DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function() enteredAt = GetTime() end)

@@ -57,6 +57,10 @@ end
 -- cooldown bar", "aura icon", "own icon", "stand-in", or nil (nothing).
 function Rows.DrawnBy(id) return drawn[id] end
 function Rows.Bars() return ns.CdmBars end
+-- Whether anything can tell if placed spell id's buff is up: true, false (it's drawn
+-- and nothing more, so the card leaves its state rows out), or nil when the last
+-- pass didn't draw it.
+function Rows.Tracked(id) return Rows.tracked[id] end
 
 -- Every item the game's viewers hold right now that has an id.
 function Rows.EachItem(fn)
@@ -305,6 +309,10 @@ local buffItems = {}
 local auraKind = setmetatable({}, weak)
 local usedOwn, usedHolders, usedHolds, usedBars = {}, {}, {}, {}
 local shown, downs, told = {}, {}, {}
+-- id -> whether anything can tell if the piece's buff is up (the game's own item, or
+-- its holder by itself). false = drawn and nothing more: no state options apply.
+local tracked = {}
+Rows.tracked = tracked
 -- id -> Daylight UI's aura holder whose buff is down and gave up its spot (slide over).
 local closed = {}
 -- id -> true when it closed because it's up and hidden (Buff up Hide).
@@ -328,12 +336,17 @@ local INFO_SPELLS = { "spellID", "overrideSpellID", "overrideTooltipSpellID", "l
 
 -- The game's item that tells whether piece id's buff is up, and whether it's a buff
 -- item (else a cooldown icon showing its aura). nil when the game has none for it,
--- or has one that can't see this aura (CdmAuras.GameBlind).
+-- or has one that can't see this aura.
 local function truthItem(id, holder)
+    local A = ns.CdmAuras
     -- A piece Daylight UI draws from its own knowledge (the pet, a debuff on you)
-    -- isn't an aura the game's item looks for.
+    -- isn't an aura the game's item looks for. Nor is a trap's debuff or a pet's buff.
     if holder and holder.face then return nil end
-    if ns.CdmAuras and ns.CdmAuras.GameBlind(id) then return nil end
+    if A and A.Unseen(id) then return nil end
+    -- A buff someone else can put up too (Battle Shout): the item only counts your
+    -- own cast. Where the holder can read it whoever cast it, that's the better
+    -- word; where it can't, yours being up or down is the best there is.
+    if A and A.GameBlind(id) and A.Knows(holder) then return nil end
     local item = auraItems[id] or (elsewhereAura[id] and elsewhere[id]) or nil
     if item then return item, true end
     if auraHolders[id] then return auraHolders[id], false end
@@ -600,7 +613,7 @@ function Rows.Update()
     wipe(extra); wipe(shown); wipe(items)
     -- id -> true when its buff is down, false when up (nil: not a buff, or can't
     -- tell yet because CdmAuras.IsUp has no answer).
-    wipe(downs); wipe(closed); wipe(closedUp); wipe(clips)
+    wipe(downs); wipe(closed); wipe(closedUp); wipe(clips); wipe(tracked)
     if ns.CdmAuras then ns.CdmAuras.ClipPass() end
     if on then
         local Own = ns.CdmOwn
@@ -647,22 +660,29 @@ function Rows.Update()
                 elseif ns.CdmAuras and ns.CdmAuras.Follows(id) and not ns.CdmAuras.GameBlind(id) then
                     up = itemUp(item, false)
                 end
-                if up ~= nil then downs[id] = not up end
+                if up ~= nil then downs[id], tracked[id] = not up, true end
             end
-            -- Daylight UI's aura holder (icon or bar): the missing glow and Hide (Buff up) ask
-            -- CdmAuras.IsUp, unless the game's item already answered.
+            -- Daylight UI's aura holder (icon or bar). Whether its buff is up is the
+            -- game's own item's to say, else the holder's where it really knows
+            -- (CdmAuras.Knows). A buff nothing can tell about is drawn and nothing
+            -- more: every option that needs its state stays off.
             local holder = item and ns.CdmAuras and (HOLDS[drawn[id]] and item
                 or drawn[id] == "aura and cooldown icon" and ns.CdmAuras.Frame(id))
             local closedNow = false
             if holder then
-                local hide = Fx.Get(p, "hideActive") == true
-                local sound = Fx.Get(p, "buffSound") ~= "none"
+                local seen, auraItem = truthItem(id, holder)
+                local up
+                if seen then up = itemUp(seen, auraItem) end
+                local knows = up ~= nil or ns.CdmAuras.Knows(holder)
+                tracked[id] = knows
+                local hide = knows and Fx.Get(p, "hideActive") == true
+                local sound = knows and Fx.Get(p, "buffSound") ~= "none"
                 -- An end sound needs the ups as well as the downs.
-                local ends = Fx.Get(p, "buffEndSound") ~= "none"
+                local ends = knows and Fx.Get(p, "buffEndSound") ~= "none"
                 -- "Slide over when a buff drops": a Daylight UI buff that's down gives
                 -- up its spot like the game's own (which hide). Not a shield bar,
                 -- which stays as an empty bar, nor a bar with its cooldown under it.
-                local canSlide = block.collapse and HOLDS[drawn[id]] == true
+                local canSlide = knows and block.collapse and HOLDS[drawn[id]] == true
                     and drawn[id] ~= "aura and cooldown bar"
                 local slides = canSlide and not always
                     and not (byShield(set, id, block.kind) and Fx.Get(p, "hideMissing") ~= true)
@@ -670,33 +690,35 @@ function Rows.Update()
                 -- whatever Keep its spot says, since that's about while it's missing.
                 -- Otherwise a missing buff set to Show stayed off the group's middle.
                 local hideSlides = canSlide and hide
-                local glowUp = Fx.UpGlows(p)
+                local glowUp = knows and Fx.UpGlows(p)
                 local clip = Fx.ClipGlows(p)
                 -- A cooldown with its buff over it, faded or hidden on cooldown or
                 -- while ready: while the buff is up it shows (CdmEffects), so it
                 -- needs the ups too.
-                local cdFx = drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
+                local cdFx = knows and drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
                     and (Fx.Get(p, "onCd") ~= "show" or Fx.Get(p, "onReady") ~= "show"
                         or Fx.Get(p, "onUnusable") ~= "show" or Fx.Get(p, "onShort") ~= "show")
-                holder.wantsUp = (hide or sound or ends or slides or glowUp or clip or cdFx or Fx.Get(p, "missingGlow") == true) or nil
-                holder.soundPiece, holder.soundItem = sound and p or nil, sound and item or nil
+                local missing = knows and Fx.Get(p, "missingGlow") == true
+                holder.wantsUp = (hide or sound or ends or slides or glowUp or cdFx or missing) or nil
+                -- Glow to recast runs on your own cast's clock (CdmAuras.Clip), so it
+                -- works with no word on the buff too; a "down" still turns it off.
+                holder.wantsClip = clip or nil
+                if up ~= nil then
+                    ns.CdmAuras.Told(holder, up)
+                elseif knows then
+                    -- Asked only when an option needs it; the holder keeps its own
+                    -- answer fresh on aura and cast events.
+                    if holder.wantsUp then up = ns.CdmAuras.IsUp(holder) else up = holder.up end
+                else
+                    ns.CdmAuras.Told(holder, nil)
+                end
                 if holder.wantsUp then
-                    -- The game's own item for this buff is the only word needed, up
-                    -- or down. Without one the holder says what it can.
-                    local seen, auraItem = truthItem(id, holder)
-                    local up
-                    if seen then up = itemUp(seen, auraItem) end
-                    if up ~= nil then
-                        ns.CdmAuras.Told(holder, up)
-                    else
-                        up = ns.CdmAuras.IsUp(holder)
-                    end
-                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or clip or cdFx))) then downs[id] = not up end
-                    if clip and up == true then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
+                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or cdFx))) then downs[id] = not up end
                     -- Only a known "down"; an unknown one keeps its spot.
                     closedNow = (slides and up == false) or (hideSlides and up == true)
                     if closedNow and up == true then closedUp[id] = true end
                 end
+                if clip and up ~= false then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
                 ns.CdmAuras.SetHideUp(holder, hide)
             end
             if item and drawn[id] == "game" and always and k and (k.aura or block.kind == "bar") and not item:IsShown() then
@@ -726,8 +748,8 @@ function Rows.Update()
         local layout = frames[g].layout
         local boxes = Data.Layout(set, shown)
         -- A closed-up Daylight UI buff stays shown where it gave up its spot, with
-        -- nothing visible while down. Its holder keeps listening, and the client's
-        -- button coming up there (CdmAuras.Shown) reopens the spot.
+        -- nothing visible while down, so its button comes up there the moment the
+        -- buff does. The game's item saying "up" reopens the spot.
         for id, item in pairs(closed) do
             local b, f = boxes[id], pieceFrame(g, id)
             -- Its closed box has no size, and its corner is where its parent's edge
@@ -900,9 +922,8 @@ function Rows.Why()
         local h = closed[id] or (HOLDS[drawn[id]] and item) or nil
         local buff = ""
         if h then
-            buff = string.format(", buff up %s (asked %s, slid out %s, containers %s, heard %s)", word(h.up), word(h.wantsUp),
-                word(closed[id] ~= nil), word(type(h.containers) == "table" and #h.containers),
-                type(h.heard) == "table" and #h.heard > 0 and table.concat(h.heard, " / ") or "nothing")
+            buff = string.format(", buff up %s (asked %s, tracked %s, slid out %s, containers %s)", word(h.up), word(h.wantsUp),
+                word(tracked[id]), word(closed[id] ~= nil), word(type(h.containers) == "table" and #h.containers))
             if type(h.containers) == "table" and ns.CdmAuras then
                 local okW, line = pcall(ns.CdmAuras.Why, h)
                 buff = buff .. ", " .. (okW and line or ("why failed: " .. tostring(line)))
