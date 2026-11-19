@@ -2564,6 +2564,34 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     T.eq(R.frame:IsShown(), false)
 end)
 
+-- The client draws the game's quest area pin (a Blob) at its own alpha, so it
+-- stayed at full strength while the map faded as you moved (seen in game).
+T.test("skins: the game's quest area on the world map fades with the map", function()
+    local f, blob, fill, border
+    login(function()
+        f = window("WorldMapFrame")
+        blob = CreateFrame("Frame", nil, f)
+        blob.SetFillAlpha = function(_, v) fill = v end
+        blob.SetBorderAlpha = function(_, v) border = v end
+        blob:SetScript("OnUpdate", function() end)    -- QuestBlobPinMixin:OnUpdate
+        f.EnumeratePinsByTemplate = function(_, template)
+            local done = template ~= "QuestBlobPinTemplate"
+            return function() if not done then done = true; return blob end end
+        end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    f:Show()
+    local tick = blob:GetScript("OnUpdate")
+    f:SetAlpha(0.5)                                    -- the game's map fade while moving
+    tick(blob, 0.016)
+    T.eq(fill, 64, "half faded map: half the fill")
+    T.eq(border, 96, "and half the outline")
+    f:SetAlpha(1)
+    tick(blob, 0.016)
+    T.eq(fill, 128, "back with the map")
+    T.eq(border, 192)
+end)
+
 -- The world map's pins (MapPins.lua). Entrances and flight masters placed by the
 -- client, plus the addon's boats and zeppelins. Pins on the same spot merge into
 -- one, and pins keep their size as the map zooms.
@@ -3161,6 +3189,34 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
         T.truthy(ours, "our look behind it")
         T.eq(m.text.__textColor[1], 0.5, "the game's colors kept")
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The barber shop hides UIParent and makes its own frame the top one
+-- (SetAlternateTopLevelParent, Blizzard_BarberShopUI). Its menus have no parent,
+-- so a look parented to UIParent was hidden and the list drew over the rows.
+T.test("skins: a menu opened in the barber shop gets its look on the barber shop's frame", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local Kit = stub.skins.Kit
+    local barber = CreateFrame("Frame", "BarberShopFrame")
+    _G.GetAppropriateTopLevelParent = function() return barber end
+    UIParent:Hide()
+    local menu = CreateFrame("Frame")                  -- the game's menus have no parent
+    menu.bg = menu:CreateTexture()
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local holder
+    for _, c in ipairs({ barber:GetChildren() }) do if Kit.ShellOf(c) then holder = c end end
+    local seen = holder and holder:IsVisible()
+    UIParent:Show()
+    _G.GetAppropriateTopLevelParent = nil
+    T.truthy(holder, "our look on the barber shop's frame, not the hidden UIParent")
+    T.truthy(seen, "and seen")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
