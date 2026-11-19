@@ -169,6 +169,7 @@ local function normalize(set, ox, oy)
                 for _, q in ipairs(Data.Subtree(set, root)) do set.pieces[q].missing = true end
             end
             c.always = nil
+            Data.Changed()
         end
     end
     -- "Only when usable" was a When ready choice; now it's When not usable's Hide.

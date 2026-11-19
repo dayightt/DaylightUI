@@ -31,7 +31,8 @@ local claimed = setmetatable({}, weak)     -- item -> piece id
 local sizes = setmetatable({}, weak)       -- bar item -> { w, h }
 local faded = setmetatable({}, weak)       -- item -> true
 local ours = setmetatable({}, weak)        -- Daylight UI's own bar (CdmBars) -> piece id, this pass
-local blocks = {}                          -- [id] = the piece's block of one (Data.PieceBlock), this pass
+local blocks = {}                          -- [id] = the piece's block of one (Data.PieceBlock)
+local blocksSet, blocksVersion             -- the set and Data.version the blocks were made from
 local drawn = {}                           -- [cooldownID] = what shows it, this pass (Rows.DrawnBy)
 local hooked = setmetatable({}, weak)
 local pending, ready = false, false
@@ -573,9 +574,16 @@ function Rows.Update()
     -- pieces yet (the game keeps adding newly learned spells).
     local hide = Data.Switch("on") and Data.Switch("hideUnplaced")
 
-    for k in pairs(blocks) do blocks[k] = nil end
-    if on then
-        for id in pairs(set.pieces) do blocks[id] = Data.PieceBlock(set, id) end
+    -- A block comes from the saved layout alone, and every write to it goes through
+    -- Data.Changed. Passes run on every aura change in a fight, so the blocks are
+    -- kept until the layout or the set in use changes.
+    local want = on and set or nil
+    if blocksSet ~= want or blocksVersion ~= Data.version then
+        for k in pairs(blocks) do blocks[k] = nil end
+        if on then
+            for id in pairs(set.pieces) do blocks[id] = Data.PieceBlock(set, id) end
+        end
+        blocksSet, blocksVersion = want, Data.version
     end
 
     -- Only this set's layout shows.

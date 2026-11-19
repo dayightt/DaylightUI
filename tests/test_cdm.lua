@@ -1177,7 +1177,7 @@ T.test("cdm rows: a hidden item closes up its chain", function()
     T.eq(select(4, pieceFrame(1, 13):GetPoint(1)), 40)
     T.falsy(pieceFrame(1, 11):IsShown(), "its frame hides")
     D.Chain(set, 11).collapse = false
-    R.Refresh(); stub.RunTimers()
+    D.Changed(); R.Refresh(); stub.RunTimers()
     local x = select(4, pieceFrame(1, 12):GetPoint(1))
     T.truthy(x >= 0 and x < 40, "a shown piece glides, it doesn't jump")
     stub.RunOnUpdate(DUI.Motion.Driver(), 1)
@@ -1640,7 +1640,9 @@ local function glowRGB(t)
     return v and { v[1], v[2], v[3] } or {}
 end
 
-local function pass(AB) AB.CdmRows.Refresh(); stub.RunTimers() end
+-- Tests write settings straight into the set, so they tell the layout it changed
+-- as Data's setters do.
+local function pass(AB) AB.CdmData.Changed(); AB.CdmRows.Refresh(); stub.RunTimers() end
 
 T.test("cdm effects: a spell's own glow style runs lights round it in place of the ring, sized to it", function()
     local DUI, AB, set, ess = fxWorld()
@@ -2997,6 +2999,36 @@ T.test("cdm own icons: a pass in combat reads the game's spell list once", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A pass runs on every aura change in a fight. A piece's block comes from its saved
+-- settings alone, so making it again each pass was most of the pass's garbage.
+T.test("cdm rows: passes reuse each piece's block until the layout changes", function()
+    local DUI, AB, ess = rowsWorld()
+    local D, R = AB.CdmData, AB.CdmRows
+    local set = D.Current()
+    D.AddChain(set, { 11, 12 }, "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local b = R.BlockOf(ess[1])
+    T.truthy(b, "the item sits in its piece's block")
+    local made, real = 0, D.PieceBlock
+    D.PieceBlock = function(...) made = made + 1; return real(...) end
+    stub.combat = true
+    for _ = 1, 5 do R.Update() end
+    T.eq(made, 0, "no new blocks while nothing changed")
+    T.truthy(R.BlockOf(ess[1]) == b, "the same block")
+    D.SetLook(set, 11, "size", 44)
+    R.Update()
+    T.truthy(made > 0, "a layout change makes them again")
+    T.eq(R.BlockOf(ess[1]).size, 44)
+    stub.combat = false
+    D.PieceBlock = real
+    -- The text look worked out from a block is kept with it, until the bars' look changes.
+    local CD, block = AB.Cooldowns, R.BlockOf(ess[1])
+    T.truthy(CD.TextLook(block) == CD.TextLook(block), "kept")
+    DUI:Set("ActionBars", "look.countSize", 17); stub.RunTimers()
+    T.eq(CD.TextLook(block).countSize, 17, "the bars' new count size")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game's info call makes a new table each time; passes in a fight asked it
 -- thousands of times a minute, so each id is read once until spells change.
 T.test("cdm info: each cooldown id is read once until the game's spells change", function()
@@ -3235,7 +3267,7 @@ T.test("cdm block options: only in combat is alpha, out of combat, for every kin
     stub.FireEvent("PLAYER_REGEN_ENABLED"); stub.RunTimers()
     T.eq(h:GetAlpha(), 0); T.eq(ess[1]:GetAlpha(), 0)
     chainOf(set, 1).combat = false
-    AB.CdmRows.Refresh(); stub.RunTimers(); eased(DUI)
+    D.Changed(); AB.CdmRows.Refresh(); stub.RunTimers(); eased(DUI)
     T.eq(AB.CdmOwn.Frame(14):GetAlpha(), 1, "our own icon back when turned off")
     T.eq(h:GetAlpha(), 1, "off: shown out of combat")
     T.eq(ess[1]:GetAlpha(), 1)

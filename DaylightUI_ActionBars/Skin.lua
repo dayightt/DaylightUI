@@ -348,11 +348,14 @@ function Skin.BorderOf(L)
     return nil
 end
 
--- Takes the action bar settings (db.look, db.barLooks).
+-- Takes the action bar settings (db.look, db.barLooks). Skin.version counts the
+-- changes, so whatever is worked out from the look can be kept until it moves.
+Skin.version = 0
 function Skin.Configure(db)
     local look = type(db) == "table" and db.look
     if type(look) ~= "table" then return end
     Skin.shared = look
+    Skin.version = Skin.version + 1
     for k in pairs(looks) do looks[k] = nil end
     -- The module-wide values: the Cooldown Manager's look.
     local C = Skin.LookFor("cdm")

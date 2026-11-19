@@ -236,25 +236,49 @@ local textOf = setmetatable({}, { __mode = "k" })   -- item -> its resolved text
 local movedCount = setmetatable({}, { __mode = "k" }) -- count text -> true once moved off the game's spot
 function CD.TextOf(item) return textOf[item] end
 
+-- Both text looks are asked for each piece on every layout pass, which runs on
+-- every aura change in a fight. A block stays the same until the layout changes,
+-- so each block's answer is kept until then, or until the action bars' look
+-- changes (Skin.version). Read only: the tables are shared.
+local textLooks = setmetatable({}, { __mode = "k" })   -- block -> CD.TextLook's answer
+local barTexts = setmetatable({}, { __mode = "k" })    -- block -> CD.BarText's answer
+local keptFor                                          -- the Skin.version they were made in
+
+local function kept(cache, block)
+    if keptFor ~= Skin.version then
+        wipe(textLooks); wipe(barTexts)
+        keptFor = Skin.version
+    end
+    return type(block) == "table" and cache[block] or nil
+end
+
 -- The block's text keys with the fallbacks filled in.
 function CD.TextLook(block)
+    local made = kept(textLooks, block)
+    if made then return made end
     local t = type(block) == "table" and block.iconText or {}
     local low = t.low == true
-    return { numbers = t.cdNumbers == nil and Skin.cooldownNumbers or t.cdNumbers == true,
+    made = { numbers = t.cdNumbers == nil and Skin.cooldownNumbers or t.cdNumbers == true,
         cdSize = t.cdSize or Skin.COOLDOWN_SIZE, countSize = t.countSize or Skin.COUNT,
         countSpot = CD.COUNT_SPOTS[t.countSpot] and t.countSpot or "br",
         low = low, lowAt = t.lowAt or CD.LOW_AT, lowColor = t.lowColor or Style.INK.BAD,
         cdColor = t.cdColor or Skin.LookFor("cdm").cooldownTextColor, countColor = t.countColor or Skin.COUNT_COLOR }
+    if type(block) == "table" then textLooks[block] = made end
+    return made
 end
 
 -- A bar's text (the card's Look > Bar): its name's and time's own size and color,
 -- else the block's text size in white.
 function CD.BarText(block)
+    local made = kept(barTexts, block)
+    if made then return made end
     local t = type(block) == "table" and block.barText or {}
     local size = type(block) == "table" and ns.CdmData.Look(block, "text") or CD.TEXT
     local w = Style.INK.VALUE
-    return { nameSize = t.nameSize or size, timeSize = t.timeSize or size,
+    made = { nameSize = t.nameSize or size, timeSize = t.timeSize or size,
         nameColor = t.nameColor or w, timeColor = t.timeColor or w }
+    if type(block) == "table" then barTexts[block] = made end
+    return made
 end
 
 -- Colors a text (pcall'd: some belong to the client and lock under restrictions).
