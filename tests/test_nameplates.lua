@@ -1118,6 +1118,27 @@ T.test("nameplates: a quest target gets the gold mark until it's done", function
     stub.tooltips = nil
 end)
 
+-- The game's own tooltip lists quest lines inside dungeons too (seen in game),
+-- so the mark shows there; a line that reads secret is skipped.
+T.test("nameplates: a quest mob in a dungeon still gets the mark", function()
+    login(function()
+        _G.IsInInstance = function() return true, "party" end
+        stub.tooltips = { nameplate1 = { lines = {
+            { type = 17, leftText = "Twilight Mementos" },
+            { type = 8, leftText = "Twilight Bangle: 0/8" },
+        } } }
+    end)
+    local p = added("nameplate1")
+    T.truthy(p.quest:IsShown(), "marked inside the dungeon")
+    T.eq(p.questCount:GetText(), "0/8")
+    stub.tooltips.nameplate1.lines[2].leftText = stub.Secret("Twilight Bangle: 0/8")
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.falsy(p.quest:IsShown(), "a secret line counts for nothing")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.IsInInstance = function() return false end
+    stub.tooltips = nil
+end)
+
 -- In a group the game puts each member's name over their objectives. This
 -- client's players have last names: the line can carry the whole name while
 -- UnitName gives only the first.

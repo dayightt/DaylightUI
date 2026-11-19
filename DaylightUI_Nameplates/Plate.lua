@@ -2724,8 +2724,9 @@ function Plate.IsMyQuestLine(text, me)
     return rest == "" or rest:find("^[%s%-]") ~= nil
 end
 
+-- Read inside dungeons too: the game's tooltip lists quest lines there, and any
+-- line that comes back secret is skipped below.
 function Plate.IsQuestUnit(u)
-    if plain(IsInInstance) == true then return false end
     -- Players are never quest targets, so their tooltips aren't read.
     if plain(UnitIsPlayer, u) == true or Plate.NoQuests() then return false end
     if C_Secrets and C_Secrets.ShouldUnitIdentityBeSecret and plain(C_Secrets.ShouldUnitIdentityBeSecret, u) ~= false then
