@@ -42,6 +42,7 @@ ns.DEFAULTS = {
     height = 16,
     castHeight = 14,
     nameSize = 13,
+    shortNames = false, -- long names shortened to initials but the last word ("S. C. Commander"), friendly plates too
     percent = true, -- health percent on the bar
     level = true, -- unit level at the bar's other end
     levelColor = "difficulty", -- "difficulty" (the game's gray, green, yellow, orange, red), "white", "accent", "custom"
@@ -115,6 +116,9 @@ ns.DEFAULTS = {
     powerGap = 2, -- ...gap under the health bar
     powerColor = "type", -- ...color: "type" (the power type's pair from the Gradients page) or "custom"
     powerCustom = { 0.3, 0.52, 0.95 }, -- ...color for "custom"
+    powerText = false, -- power as text on the power bar
+    powerFormat = "percent", -- ...written as one of Health.POWER_FORMATS
+    powerTextSize = 0, -- ...0 = follows the power bar's height
     minions = true, -- enemy pets and totems as a round badge (turns on the game's switch for their plates)
     minionStyle = "badge", -- ...round "badge", or slim "bar" with the portrait beside it
     minionSize = 30, -- ...badge size

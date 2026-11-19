@@ -71,7 +71,7 @@ local I = "Interface\\Icons\\"
 Sample.ENEMY = {
     name = "Torol Sadeas", key = "HOSTILE", reaction = 2, level = 27, classification = "elite", health = 62, healthValue = 3120,
     heals = 8, absorbs = 6, dots = 24, marker = 8, quest = "4/10", combo = 3,
-    power = 70, powerToken = "MANA", -- a caster, so the power bar shows whatever its setting
+    power = 70, powerValue = 2380, powerToken = "MANA", -- a caster, so the power bar shows whatever its setting
     cast = { text = L["Shadow Bolt"], icon = I .. "Spell_Shadow_ShadowBolt", value = 0.35, time = "1.4", kick = 0.7,
              target = "Kaladin", targetClass = "WARRIOR" },
     debuffs = {
@@ -86,7 +86,7 @@ Sample.ENEMY = {
 Sample.FRIEND = {
     name = "Navani", class = "PRIEST", key = "PRIEST", reaction = 5, guild = "Bridge Four", level = 25, health = 90, healthValue = 1840,
     party = true, -- in your group, so Group names applies to her
-    heals = 6, absorbs = 0, power = 55, powerToken = "MANA",
+    heals = 6, absorbs = 0, power = 55, powerValue = 1650, powerToken = "MANA",
     helps = {
         { icon = I .. "Spell_Holy_Renew", time = "12s" },
         { icon = I .. "Spell_Holy_WordFortitude", time = "29m" },
@@ -396,7 +396,7 @@ end
 
 -- The name's color, and its text (per-letter colors for a class gradient).
 local function nameColor(p, c, u)
-    local name = u.name
+    local name = Plate.ShortName(u.name, c)
     if u.party and c.partyName == true then
         local t = c.partyCustom
         p.name:SetTextColor(t[1], t[2], t[3])
@@ -420,7 +420,7 @@ end
 -- Name in its color (as Plate.UpdateNameColor), plus the guild line. A plugin's
 -- name keeps its color.
 local function paintNames(p, c, u)
-    local name = u.name
+    local name = Plate.ShortName(u.name, c)
     if not Plate.Owned("name") then name = nameColor(p, c, u) end
     p.name:SetText(name)
     Plate.ShowGroupMark(p, u.party == true and (c.partyMark or "none") ~= "none")

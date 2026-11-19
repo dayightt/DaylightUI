@@ -160,6 +160,33 @@ function Health.Write(fs, format, u, sign, hideFull)
     if hideFull or format == "missing" then hideAtFull(fs, u) else fs:SetAlpha(1) end
 end
 
+-- Power text formats (unit frames and nameplates).
+Health.POWER_FORMATS = { value = "Power (2.3K)", percent = "Percent (80)", valuemax = "Power / max (2.3K / 2.9K)",
+                         both = "Power and percent (2.3K | 80%)", full = "Power (2,300)",
+                         fullboth = "Full power and percent (2,300 | 80%)", percentboth = "Percent and power (80% | 2.3K)" }
+Health.POWER_FORMAT_ORDER = { "value", "full", "percent", "valuemax", "both", "fullboth", "percentboth" }
+
+-- A unit's power as a format and its values (fmt, a, b), all may be secret and go
+-- straight into SetFormattedText. sign adds a % after the Percent format. Where the
+-- client can't give a percent, the plain number.
+function Health.PowerFormat(format, u, sign)
+    local hasPct = UnitPowerPercent and CurveConstants
+    if format == "percent" and hasPct then
+        return sign and "%.0f%%" or "%.0f", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "full" then
+        return "%s", whole(UnitPower(u))
+    elseif format == "valuemax" then
+        return "%s / %s", short(UnitPower(u)), short(UnitPowerMax(u))
+    elseif format == "both" and hasPct then
+        return "%s | %.0f%%", short(UnitPower(u)), UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "fullboth" and hasPct then
+        return "%s | %.0f%%", whole(UnitPower(u)), UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100)
+    elseif format == "percentboth" and hasPct then
+        return "%.0f%% | %s", UnitPowerPercent(u, nil, false, CurveConstants.ScaleTo100), short(UnitPower(u))
+    end
+    return "%s", short(UnitPower(u))
+end
+
 -- Health.Format for test mode samples, from a given percent and value.
 function Health.FormatSample(format, pct, value, sign)
     value = value or pct

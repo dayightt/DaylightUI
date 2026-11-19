@@ -1393,7 +1393,7 @@ function Plate.UpdateClassText(p)
     end
     local ct = classText(p)
     ct.sel:SetValue(id)
-    local name = DUI.UnitName(u, "nameplates")
+    local name = Plate.ShortName(DUI.UnitName(u, "nameplates"), Plate.Cfg(p))
     for token, win in pairs(ct.wins) do
         win:Show()
         local fs, sub = ct.name[token], ct.sub[token]
@@ -1762,10 +1762,32 @@ function Plate.UpdateNameColor(p)
     Plate.Painted(p)
 end
 
+-- Shorten long names: a name longer than SHORT_AT letters keeps its last word
+-- whole and the capitalized words before it as initials, so "Scarlet Crusade
+-- Commander" reads "S. C. Commander"; small words like "of" go. A secret name
+-- can't be looked at and is left as it is (placeName still cuts it to its room).
+Plate.SHORT_AT = 16
+Plate.SHORT_ROOM = 0.22 -- share of the bar kept for the health text (each end for a centered name)
+function Plate.ShortName(text, c)
+    if not (c and c.shortNames == true) or type(text) ~= "string" or isSecret(text) then return text end
+    if (strlenutf8 and strlenutf8(text) or #text) <= Plate.SHORT_AT then return text end
+    local words = {}
+    for w in text:gmatch("%S+") do words[#words + 1] = w end
+    if #words < 2 then return text end
+    local out = {}
+    for i = 1, #words - 1 do
+        local first = words[i]:match("^[%z\1-\127\194-\244][\128-\191]*")
+        -- A lowercase joining word ("of", "the") is dropped, not made an initial.
+        if first and first:lower() ~= first then out[#out + 1] = first .. "." end
+    end
+    out[#out + 1] = words[#words]
+    return table.concat(out, " ")
+end
+
 -- The name, each letter in the unit's gradient when chosen (not on a name a
 -- plugin holds: the letters would carry Daylight UI's colors over its own).
 function Plate.UpdateName(p)
-    local text = DUI.UnitName(p.unit, "nameplates")
+    local text = Plate.ShortName(DUI.UnitName(p.unit, "nameplates"), Plate.Cfg(p))
     if Plate.Cfg(p).nameColor == "classGradient" and DUI.Gradients and not p.groupName
         and not Plate.Owned("name") then
         text = DUI.Gradients.Text(DUI.Gradients.KeyFor(p.unit), text)
@@ -2304,6 +2326,14 @@ local function placeName(p, L, rel, spot, nameOnly, w)
     end
     local H = sideOf(L.point)
     local width = Plate.OUTSIDE[spot] and 0 or L.line
+    -- With Shorten long names, a name on the bar leaves the health text its end of
+    -- the bar (cut short by the client, so a secret name works too).
+    local c = Plate.Cfg(p)
+    if width > 0 and c.shortNames == true and p.percent:IsShown()
+        and not Plate.OUTSIDE[c.percentPos or "right"] then
+        local share = H == "" and 1 - 2 * Plate.SHORT_ROOM or 1 - Plate.SHORT_ROOM
+        width = math.max(1, width * share)
+    end
     name:SetWidth(width)
     sub:SetWidth(width)
     -- Kept to pass along (to the class text copies), since nothing should read it back

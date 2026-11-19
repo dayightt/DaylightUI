@@ -4783,3 +4783,40 @@ T.test("nameplates: a repaint with nothing changed for plates leaves them alone"
     NP.Plate.Layout = real
     T.truthy(layouts > 0, "a General change still reaches every plate")
 end)
+
+T.test("nameplates: power text on the power bar, off as shipped; a secret amount written whole", function()
+    login()
+    local mob = stub.units.nameplate1
+    mob.power, mob.maxPower = 40, 100
+    local p = added("nameplate1")
+    DaylightUI:Set("Nameplates", "power", true)
+    stub.RunTimers()
+    T.falsy(p.power.text:IsShown(), "off by default")
+    DaylightUI:Set("Nameplates", "powerText", true)
+    stub.RunTimers()
+    T.truthy(p.power.text:IsShown(), "on: shown on the bar")
+    T.truthy(p.power.text:GetText():find("40", 1, true), "the amount written")
+    DaylightUI:Set("Nameplates", "powerFormat", "valuemax")
+    stub.RunTimers()
+    T.eq(p.power.text:GetText(), "40 / 100")
+    mob.power = stub.Secret(25)
+    stub.FireEvent("UNIT_POWER_UPDATE", "nameplate1", "MANA")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: Shorten long names keeps the last word, initials before it; short and secret names stay", function()
+    local ns = login()
+    local P = ns.Plate
+    local c = { shortNames = true }
+    T.eq(P.ShortName("Scarlet Crusade Commander", c), "S. C. Commander")
+    T.eq(P.ShortName("Captain of the Stormwind Guard", c), "C. S. Guard", "joining words go")
+    T.eq(P.ShortName("Defias Pillager", c), "Defias Pillager", "short enough: whole")
+    T.eq(P.ShortName("Scarlet Crusade Commander", { shortNames = false }), "Scarlet Crusade Commander", "off: whole")
+    local secret = stub.Secret("Scarlet Crusade Commander")
+    T.eq(P.ShortName(secret, c), secret, "a secret name is handed on untouched")
+    stub.units.nameplate1.name = "Scarlet Crusade Commander"
+    DaylightUI:Set("Nameplates", "shortNames", true)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    T.eq(p.name:GetText(), "S. C. Commander")
+end)

@@ -36,6 +36,13 @@ function Power.Create(p)
     DUI.BarFx.Track(f.bar, "power", "plate", nil, nil, ns.Plate.FxCfg(p, "power"))
     f.bar:SetMinMaxValues(0, 1)
     f.bar:SetValue(0)
+    -- Power text (powerText), over the fill like the health text.
+    local over = CreateFrame("Frame", nil, f)
+    over:SetAllPoints(f)
+    over:SetFrameLevel(f.bar:GetFrameLevel() + 3)
+    f.text = Style.Text(over, 8, "CENTER", ns.Plate.MEDIA.fonts.health)
+    f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.text:Hide()
     f:Hide()
     p.power = f
 end
@@ -109,6 +116,9 @@ function Power.Layout(p, cut)
     ns.Body.Layout(f.body, line > 0 and line * (hh + o.gap) / total or 0, line)
     ns.Body.FitBar(f.body, f.bar)
     ns.Plate.BackAlpha(f.bar)
+    local ts = c.powerTextSize or 0
+    Style.SetTextSize(f.text, ts > 0 and ts or math.max(8, math.floor(h * 1.2 + 0.5)))
+    f.text:SetShown(c.powerText == true)
     f.laidGen = ns.Plate.gen
 end
 
@@ -140,12 +150,21 @@ function Power.Update(p, instant)
     local _, token = UnitPowerType(u)
     Power.Paint(p, token)
     Style.SetBarValue(bar, UnitPower(u), instant)
+    Power.WriteText(p)
+end
+
+-- The power text, written whole (secret in a fight) by the client.
+function Power.WriteText(p)
+    local fs = p.power.text
+    if not fs:IsShown() then return end
+    fs:SetFormattedText(DUI.Health.PowerFormat(ns.Plate.Cfg(p).powerFormat or "percent", p.unit, true))
 end
 
 -- Plain power change: only the value moves.
 function Power.Value(p)
     if not p.powerOn then return end
     Style.SetBarValue(p.power.bar, UnitPower(p.unit))
+    Power.WriteText(p)
 end
 
 -- Power events only while the bar shows; otherwise 40 plates' regen ticks add up.
@@ -197,6 +216,12 @@ function Power.ShowSample(p, u)
     local bar = p.power.bar
     bar:SetMinMaxValues(0, 100)
     Style.SetBarValue(bar, u.power or 0, true)
+    local fs = p.power.text
+    if fs:IsShown() then
+        -- Rage and energy run 0 to 100, so only mana has a value of its own.
+        local value = (u.powerToken == nil or u.powerToken == "MANA") and u.powerValue or nil
+        fs:SetFormattedText(DUI.Health.FormatSample(ns.Plate.Cfg(p).powerFormat or "percent", u.power or 0, value, true))
+    end
     Power.Paint(p, u.powerToken)
     p.power:SetAlpha(1)
 end
