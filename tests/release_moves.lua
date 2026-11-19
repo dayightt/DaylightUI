@@ -8,7 +8,9 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {},
+    values = {
+        ["Quests.clicks.alt"] = "Alt-click did nothing before; folding a quest by default only adds a click, it takes none away.",
+    },
     frames = {},
     plates = {},
 }

@@ -2689,13 +2689,14 @@ T.test("clicks: ctrl makes it the priority", function()
     T.eq(#QW.Calls("map"), 0, "not the map")
 end)
 
-T.test("clicks: alt set to fold folds", function()
+T.test("clicks: alt-click folds by default, again unfolds", function()
     local Tr, ns = tracker({ quests = { STEW } })
-    DaylightUI:Set("Quests", "clicks.alt", "fold")
     QW.state.alt = true
     click(Tr, "quest:1")
-    QW.state.alt = false
     T.eq(ns.Tracker.Folds()["q1"], true)
+    click(Tr, "quest:1")
+    QW.state.alt = false
+    T.falsy(ns.Tracker.Folds()["q1"])
 end)
 
 T.test("clicks: a plain click set to nothing does nothing", function()
