@@ -107,6 +107,18 @@ end
 function Read.Unit(tip)
     if type(tip.GetUnit) ~= "function" then return nil end
     local _, unit = tip:GetUnit()
-    if isSecret(unit) or type(unit) ~= "string" then return nil end
+    if isSecret(unit) then return Read.WorldUnit(tip) end
+    if type(unit) ~= "string" then return nil end
     return unit
+end
+
+-- Under a map or PvP restriction the game hands back a creature's token
+-- secret (it finds it with UnitTokenFromGUID). The world's tooltip is always
+-- about the unit under the mouse, so that one is it.
+function Read.WorldUnit(tip)
+    if tip ~= GameTooltip then return nil end
+    local owner = tip.GetOwner and tip:GetOwner()
+    if not isSecret(owner) and owner ~= UIParent then return nil end
+    if UnitExists("mouseover") ~= true then return nil end
+    return "mouseover"
 end
