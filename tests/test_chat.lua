@@ -242,6 +242,31 @@ T.test("chat: class colors and timestamps are the game's own settings", function
     T.eq(stub.cvars.showTimestamps, "%I:%M %p ", "a 12-hour clock with AM/PM")
 end)
 
+-- The game's Chat Style (Options, Social) is the player's own pick: it was set to
+-- IM at every login, so a player who chose Classic lost it, with Daylight UI's
+-- chat switched off too.
+T.test("chat: the game's chat style stays the one the player picked", function()
+    for _, style in ipairs({ "classic", "daylight" }) do
+        for _, pick in ipairs({ "classic", "im" }) do
+            login(function()
+                stub.cvars.chatStyle = pick
+                if style == "daylight" then
+                    _G.ChatTypeInfo = { SYSTEM = { id = 1, r = 1, g = 1, b = 0 }, SAY = { id = 4, r = 1, g = 1, b = 1 } }
+                end
+            end, style)
+            DaylightUI:Set("Chat", "classColors", false)
+            stub.RunTimers()
+            T.eq(stub.cvars.chatStyle, pick, style .. " chat box, " .. pick .. " picked: left as it is")
+        end
+    end
+    -- Classic style types in ChatFrame1's box only, which the game hides when
+    -- you're done: it still lands where the chat types.
+    login(function() stub.cvars.chatStyle = "classic" end, "daylight")
+    stub.chatModule.Chat.Pass()
+    T.eq(select(2, ChatFrame1EditBox:GetPoint(1)), stub.chatModule.Box.Field(), "in the footer")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat: whispers show their time in the Timestamps format", function()
     login()
     local Chat = stub.chatModule.Chat
@@ -607,13 +632,31 @@ T.test("chat: the game's scroll bar stays out of sight; its jump arrow takes no 
     T.falsy(ChatFrame1.ScrollToBottomButton:IsMouseEnabled(), "the arrow takes no clicks at rest")
 end)
 
+-- A repaint also comes from a screen or UI scale change. With nothing about
+-- the chat changed, the game's chat window and edit box keep their anchors.
+T.test("chat: a repaint that changed nothing leaves the game's chat window anchors alone", function()
+    local DUI = login()
+    stub.RunTimers()
+    local clears = 0
+    for _, f in ipairs({ ChatFrame1, ChatFrame1EditBox }) do
+        local real = f.ClearAllPoints
+        f.ClearAllPoints = function(...) clears = clears + 1 return real(...) end
+    end
+    DUI.NotifyStyleChanged()
+    stub.RunTimers()
+    T.eq(clears, 0, "nothing placed again")
+    DUI:Set("Chat", "inputAt", "below"); DUI:Set("Chat", "boxInputAt", "top")
+    stub.RunTimers()
+    T.truthy(clears > 0, "a real change still moves the box")
+end)
+
 T.test("chat: a text size and outline for every window", function()
     local DUI = login()
     DUI:Set("Chat", "textSize", 16)
     DUI:Set("Chat", "outline", true)
     stub.RunTimers()
     T.eq(select(2, ChatFrame1:GetFont()), 16, "the size set")
-    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE")
+    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE, SLUG")
 end)
 
 T.test("chat: the input box and its \"Say:\" follow the text size, and go back at 0", function()
@@ -623,7 +666,7 @@ T.test("chat: the input box and its \"Say:\" follow the text size, and go back a
     stub.RunTimers()
     T.eq(select(2, ChatFrame1EditBox:GetFont()), 18, "the typed text at the size set")
     T.eq(select(2, ChatFrame1EditBox.header:GetFont()), 18, "the header too")
-    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE", "outlined like the lines")
+    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE, SLUG", "outlined like the lines")
     DUI:Set("Chat", "textSize", 0)
     DUI:Set("Chat", "outline", false)
     stub.RunTimers()
@@ -719,8 +762,18 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     local b2 = CreateFrame("Frame", nil, UIParent)
     b2.__forbidden = true
     stub.SetBubbles({ b1, b2 })
+    -- The client refuses text on a font string with no font yet.
+    stub.FontRule = true
+    local errs = 0
+    local onError = DaylightUI.SafeCall
+    DaylightUI.SafeCall = function(fn, ...)
+        local ok = pcall(fn, ...)
+        if not ok then errs = errs + 1 end
+    end
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
+    DaylightUI.SafeCall, stub.FontRule = onError, nil
+    T.eq(errs, 0, "no error drawing a new bubble")
     local mine = Bubbles.OverlayOf(b1)
     T.truthy(mine, "drawn")
     T.eq(mine:GetParent(), UIParent, "on UIParent, outside the world layer")
@@ -756,6 +809,68 @@ T.test("chat: a bubble that goes out of sight takes its look along and gets it b
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
     T.eq(Bubbles.OverlayOf(b1).text:GetText(), "Something new", "a new line in the same bubble")
+end)
+
+T.test("chat: a bubble's stand-in lets go of the game's frame as it goes", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Over here")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    local mine = Bubbles.OverlayOf(b1)
+    T.eq(select(2, mine:GetPoint(1)), art, "follows the balloon while it talks")
+    b1:Hide()
+    for i = 1, mine:GetNumPoints() do
+        local _, rel = mine:GetPoint(i)
+        T.truthy(rel ~= art and rel ~= b1, "fading out, no longer hung on the game's world frame")
+    end
+    stub.Advance(1)
+    stub.RunTimers()
+    T.falsy(mine:IsShown())
+    T.eq(mine:GetNumPoints(), 0, "hidden with no anchor left on the game's frame")
+end)
+
+T.test("chat: speech bubbles are left to the game inside an instance, and handed back on the way in", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Outside")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b1):IsShown())
+    stub.SetInstance("party")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 1, "the game's own bubble back")
+    T.falsy(Bubbles.OverlayOf(b1):IsShown())
+    local b2, art2 = makeBubble("Inside")
+    stub.SetBubbles({ b2 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    b1:Hide(); b1:Show()
+    stub.RunTimers()
+    T.isnil(Bubbles.OverlayOf(b2), "not drawn inside")
+    T.eq(art2:GetAlpha(), 1)
+    T.eq(art:GetAlpha(), 1, "a hooked one showing again inside is left alone too")
+    stub.SetInstance("none")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.Advance(1)
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b2) and Bubbles.OverlayOf(b2):IsShown(), "drawn again outside")
+end)
+
+T.test("chat: logging out hands every bubble back", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Bye")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0)
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(art:GetAlpha(), 1, "the game's balloon back before the reload")
 end)
 
 T.test("chat: a bubble with secret words is left to the game", function()
@@ -3074,11 +3189,29 @@ T.test("chat daylight: the short tags page has a box per chat kind and channel, 
     _G.GetChannelList = list
 end)
 
--- The letters of the short tags: English ones, or the game's words in the player's language.
-T.test("chat daylight: Tag letters starts as English, can be switched, and its boxes show a tooltip", function()
+-- A sent whisper's tag is the word the game puts before the name; a whole phrase is too long for one.
+T.test("chat daylight: the sent-whisper tag falls back to To when the game's word is longer than a few letters", function()
     daylight()
     local Tags = stub.chatModule.Tags
-    T.eq(Tags.letters, "english", "English until asked otherwise")
+    local old = _G.CHAT_WHISPER_INFORM_GET
+    DaylightUI:Set("Chat", "tagLetters", "native")
+    stub.RunTimers()
+    local chinese = "你悄悄地对%s:"   -- the whole phrase before the name on a Chinese client
+    for fmt, want in pairs({ ["A %s:"] = "A", ["To %s:"] = "To", ["An %s:"] = "An", [chinese] = "To" }) do
+        _G.CHAT_WHISPER_INFORM_GET = fmt
+        Tags.ResetDefaults()
+        T.eq(Tags.Default("to"), want, fmt)
+    end
+    _G.CHAT_WHISPER_INFORM_GET = old
+    Tags.ResetDefaults()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The letters of the short tags: English ones, or the game's words in the player's language.
+T.test("chat daylight: Tag letters starts in the player's language on a new profile, can be switched, and its boxes show a tooltip", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    T.eq(Tags.letters, "native", "a new profile starts on the player's language")
     local item
     for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
         for _, card in ipairs(page.groups or {}) do
@@ -3367,6 +3500,8 @@ end)
 -- The game's own channel id names a world channel, whatever the language calls it.
 T.test("chat daylight: world channels are known by the game's id, not their name", function()
     daylight()
+    DaylightUI:Set("Chat", "tagLetters", "english")
+    stub.RunTimers()
     local CH = stub.chatModule
     local Kinds, Tags = CH.Kinds, CH.Tags
     local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
@@ -3677,7 +3812,7 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     W.OpenMenu = open
     T.eq(DUI:Get("Chat", "textSize"), 18)
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
-    T.eq(select(3, box:GetFont()), "OUTLINE")
+    T.eq(select(3, box:GetFont()), "OUTLINE, SLUG")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -5790,4 +5925,45 @@ T.test("chat daylight: a plugin's formatter changes or drops a line; its links c
     T.truthy(string.find(link, "|Hdaylightchat:plugin:Chatty:fish:42|h[Show fish]|h", 1, true))
     stub.chatModule.Extras.OnLink("daylightchat:plugin:Chatty:fish:42")
     T.eq(got, "fish:42")
+end)
+
+-- The game's won line names the item and the count, not the price. The total
+-- quoted just before the buy goes on it, split by the count.
+T.test("chat: a won commodity auction says what each one cost", function()
+    _G.ERR_AUCTION_COMMODITY_WON_S = "You won an auction for %s x%d"
+    local _, box = daylight()
+    local Money = DaylightUI.Widgets.Money
+    local function last() return boxTexts(box)[box:GetNumMessages()] end
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 345, 4830)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Linen Cloth x14 (" .. Money(345) .. " each)", "4830 over 14, rounded")
+    stub.Advance(1)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Linen Cloth x14", "the quote went with its line")
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 500, 500)
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x1", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x1", "one alone: nothing to split")
+    stub.Advance(1)
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 10, stub.Secret(900))
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x3", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x3", "a secret total is left alone")
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 300, 900)
+    stub.FireEvent("AUCTION_HOUSE_CLOSED")
+    ChatFrame1:AddMessage("You won an auction for Wool Cloth x3", 1, 1, 0, 1)
+    T.eq(last(), "You won an auction for Wool Cloth x3", "the house closed: no price")
+    _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat: Classic windows get the price of each one too", function()
+    _G.ERR_AUCTION_COMMODITY_WON_S = "You won an auction for %s x%d"
+    login()
+    stub.chatModule.Chat.Pass()
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 345, 4830)
+    ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
+    ChatFrame1:FakeRefresh()
+    local want = "You won an auction for Linen Cloth x14 (" .. DaylightUI.Widgets.Money(345) .. " each)"
+    T.eq(ChatFrame1.visibleLines[1]:GetText(), want)
+    _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

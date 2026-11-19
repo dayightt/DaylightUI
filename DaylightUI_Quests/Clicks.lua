@@ -30,7 +30,7 @@ Clicks.ACTION_WORDS = { map = L["show on map"], details = L["quest details"], pr
                         link = L["link in chat"] }
 Clicks.BUTTONS = { "click", "shift", "ctrl", "alt" }
 Clicks.BUTTON_HINT = { click = L["Click: %s"], shift = L["Shift-click: %s"], ctrl = L["Ctrl-click: %s"], alt = L["Alt-click: %s"] }
-Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "none" }
+Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "fold" }
 Clicks.ACH_HINTS = { L["Click: open achievements"], L["Shift-click: stop tracking"] }
 Clicks.TIP_GAP = 44        -- keeps the tooltip clear of the item column (34 + 10)
 Clicks.ICON_HIT = 18       -- the icon area of a quest row, up to where the title starts
@@ -241,18 +241,36 @@ end
 
 -- Same look as every DUI.Tips tooltip, with the clicks in the accent.
 -- hints: the clicks for the row it belongs to (the tracker's by default).
+-- With rowTipKind "details" it also carries the quest's story and every reward,
+-- read the same way as the Quest details card.
 function Clicks.QuestTip(q, hints)
     local GT, Tips = GameTooltip, DUI.Tips
     local look = ns.Tracker.Look()
+    local full = DUI:Get("Quests", "rowTipKind") == "details"
     Tips.Clear()
-    if not (IsInGroup and IsInGroup() and GT.SetQuestPartyProgress
-            and pcall(GT.SetQuestPartyProgress, GT, q.id, false, false)) then
+    local party = IsInGroup and IsInGroup() and GT.SetQuestPartyProgress
+            and pcall(GT.SetQuestPartyProgress, GT, q.id, false, false)
+    if not party then
         Tips.Title(q.title, ns.Look.TitleColor(look, q))
         Tips.Sub(L["Level %s · %s"]:format(tostring(q.level or "?"), q.zone or ""))
+    end
+    local story = full and ns.Details.Text(q)
+    if story then Tips.Text(story) end
+    if not party then
+        if story and #q.objs > 0 then Tips.Gap() end
         for _, o in ipairs(q.objs) do
             local right = o.kind == "count" and (o.have .. "/" .. o.need) or (o.kind == "bar" and (o.pct .. "%")) or ""
             Tips.Line(o.text, right, objColor(o))
         end
+    end
+    if full then
+        local rewards = ns.Details.Rewards(q.id)
+        if #rewards > 0 then
+            Tips.Gap()
+            Tips.Sub(L["Rewards"])
+            for _, line in ipairs(rewards) do Tips.Text(line, Tips.VALUE) end
+        end
+    elseif not party then
         local ok, money = pcall(GetQuestLogRewardMoney, q.id)
         if ok and type(money) == "number" and money > 0 then
             Tips.Gap()

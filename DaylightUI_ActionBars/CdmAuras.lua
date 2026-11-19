@@ -581,7 +581,7 @@ function A.SetAmount(h, on, text)
             -- Above the client's button.
             h.amount:SetFrameLevel(h:GetFrameLevel() + 20)
             local t = text or h.text
-            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Outline())
+            h.amount.text:SetFont(Style.FONT, t and t.cdSize or Skin.COUNT, Style.Slug(Style.Outline()))
             local c = t and t.cdColor or Style.INK.VALUE
             h.amount.text:SetTextColor(c[1], c[2], c[3])
         end
@@ -710,7 +710,7 @@ function placeFace(h)
     f.icon:SetPoint("TOPLEFT", f.box, "TOPLEFT", T, -T)
     f.icon:SetSize(math.max(1, size - 2 * T), math.max(1, size - 2 * T))
     local t = h.text
-    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Outline())
+    f.count:SetFont(Style.FONT, t and t.countSize or Skin.COUNT, Style.Slug(Style.Outline()))
     local cc = t and t.countColor or Skin.COUNT_COLOR
     f.count:SetTextColor(cc[1], cc[2], cc[3])
     if t then ns.Cooldowns.PlaceCount(f.count, f.icon, t.countSpot) end
@@ -892,8 +892,18 @@ local function textCharges(sid)
 end
 
 -- Remember a found aura's duration and end time for casts in combat (A.Cast).
+-- Where each piece's aura was last seen, saved per character (cdmAuraOn[piece id]
+-- = unit), so a cast in a fight knows it after a reload too.
+local function seenOn()
+    local c = DUI.DB and DUI.DB.Character()
+    if type(c) ~= "table" then return {} end
+    if type(c.cdmAuraOn) ~= "table" then c.cdmAuraOn = {} end
+    return c.cdmAuraOn
+end
+
 local function learn(h, a, unit)
     h.upUnit = unit
+    if h.id ~= nil then seenOn()[h.id] = unit end
     local n = plain(a.applications)
     if h.selfDebuff then
         -- Read by id, so its going says it's down (a debuff that never stacks has no count).
@@ -906,6 +916,12 @@ local function learn(h, a, unit)
     if n and n > 0 and h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) then
         local was = charges()[h.id]
         if not was or n > was then charges()[h.id] = n end
+    end
+    -- What's left of a buff your hits use up, for counting them in a fight.
+    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+    if hk then
+        h.hitsLeft = (n and n > 0 and n) or hk.charges
+        h.lastHit = nil
     end
     local dur, ends = plain(a.duration), plain(a.expirationTime)
     if not dur then return end
@@ -1085,7 +1101,9 @@ end
 function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    h.upUnit = shownOn(h)
+    -- Where it was last seen beats the guess: Slice and Dice is a harmful cast
+    -- whose buff is on you, and the client's button never says where it came up.
+    h.upUnit = shownOn(h) or (h.id ~= nil and seenOn()[h.id])
         or ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a
@@ -1097,6 +1115,8 @@ function A.Cast(h, sid, at)
     h.exactEnd = exact ~= nil or nil
     h.endsAt = lasts and lasts > 0 and (at or GetTime()) + lasts or nil
     h.blocksLeft = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Stacks(h.id) and (charges()[h.id] or textCharges(sid)) or nil
+    local hk = h.id ~= nil and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+    h.hitsLeft, h.lastHit = hk and hk.charges or nil, nil
     watchEnd(h)
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
@@ -1359,19 +1379,34 @@ function A.Hidden(h)
 end
 
 -- Blocked hits (UNIT_COMBAT "BLOCK", or "WOUND" flagged BLOCK / BLOCK_REDUCED;
--- action and flag stay plain) use up a charge of block buffs. When the last is
--- gone the buff is down. Only used where auras can't be read.
+-- action, flag and school stay plain) use up a charge of block buffs, and any
+-- hit that lands ("WOUND") one of a buff your hits use up (Own.Hits). When the
+-- last is gone the buff is down. Only used where auras can't be read.
 local blocks = CreateFrame("Frame")
 blocks:RegisterUnitEvent("UNIT_COMBAT", "player")
-blocks:SetScript("OnEvent", function(_, _, _, action, flag)
+blocks:SetScript("OnEvent", function(_, _, _, action, flag, _, school)
     if isSecret(action) or isSecret(flag) or readable() then return end
-    if not (action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))) then return end
+    local blocked = action == "BLOCK" or (action == "WOUND" and (flag == "BLOCK" or flag == "BLOCK_REDUCED"))
+    local hit = action == "WOUND"
+    if not (blocked or hit) then return end
+    local physical = not isSecret(school) and school == 1
+    local now = GetTime()
     each(function(h)
-        if h.up == true and h.blocksLeft then
+        if h.up ~= true then return end
+        if blocked and h.blocksLeft then
             h.blocksLeft = h.blocksLeft - 1
             if h.blocksLeft <= 0 then
                 h.blocksLeft = nil
                 DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "blocked")
+            end
+        end
+        local hk = hit and h.hitsLeft and ns.CdmOwn and ns.CdmOwn.Hits(h.id)
+        if hk and (physical or not hk.melee) and not (hk.gap and h.lastHit and now - h.lastHit < hk.gap) then
+            h.lastHit = now
+            h.hitsLeft = h.hitsLeft - 1
+            if h.hitsLeft <= 0 then
+                h.hitsLeft = nil
+                DUI.SafeCall(ns.CdmEffects.AuraHeard, h, "used up")
             end
         end
     end)

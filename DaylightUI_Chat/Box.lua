@@ -172,7 +172,7 @@ end
 -- The box's copy of the line, with short tags and levels when enabled and chat
 -- isn't locked down.
 local function shape(text, event)
-    if secret(text) or not (ns.Tags.enabled or ns.Levels.on) or ns.Tags.Protected() then return text end
+    if secret(text) or not (ns.Tags.enabled or ns.Levels.on or ns.Tags.quote) or ns.Tags.Protected() then return text end
     if secret(event) or type(event) ~= "string" then event = nil end
     text = ns.Tags.Shape(text, event) or text
     if not ns.Tags.enabled then return text end
@@ -1368,6 +1368,7 @@ function Box.BuildSide()
         { scale = function(s) C.sideScale = s; holder:SetScale(s) end, active = Box.SideWanted, bottom = true })
     side.grip = C.MakeGrip({ holder = holder, parent = body, panel = panel, name = "DaylightUIChatSideGrip",
         edges = function() local both = 2 * (C.inset or 0); return both, both end,
+        bounds = function() return C.SIDE_MIN[1], C.SIDE_MIN[2], C.MAX[1], C.MAX[2] end,
         sizing = function(on) C.sideSizing = on or nil end,
         done = function(width, height)
             DUI.Movers.Save("chat.side")

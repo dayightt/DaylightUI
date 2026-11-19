@@ -17,6 +17,7 @@ local LevelUp = {
     FLARE = 110,        -- the flash when the number lands
     NUMBER = 64, LABEL = 13, GAINS = 14,
     ROLL = 34,          -- px the numbers travel in the roll
+    PAD = 24,           -- room in the roll's clip above and below the number
     HOLD = 6.6,         -- seconds before it drifts away (7 s in all with the fade)
     DRIFT = 16,         -- px it rises as it goes
     GLOW = DUI.MEDIA .. "char-glow.png",
@@ -72,9 +73,12 @@ local function build()
     f.flare:Hide()
 
     -- The number roll: the old and new level inside a clip, like an odometer.
+    -- The clip reaches PAD past the number on both sides, so a thick outline or
+    -- a tall display font isn't shaved off at the top and bottom.
+    local pad = LevelUp.PAD
     f.roll = CreateFrame("Frame", nil, f)
-    f.roll:SetSize(240, LevelUp.NUMBER + 10)
-    f.roll:SetPoint("BOTTOM", f, "CENTER", 0, 6)
+    f.roll:SetSize(240, LevelUp.NUMBER + 10 + pad * 2)
+    f.roll:SetPoint("BOTTOM", f, "CENTER", 0, 6 - pad)
     f.roll:SetClipsChildren(true)
     f.old = Style.Text(f.roll, LevelUp.NUMBER, "CENTER")
     f.new = Style.Text(f.roll, LevelUp.NUMBER, "CENTER")
@@ -82,7 +86,7 @@ local function build()
     f.new:SetTextColor(1, 0.95, 0.85)
 
     f.label = Style.Text(f, LevelUp.LABEL, "CENTER")
-    f.label:SetPoint("BOTTOM", f.roll, "TOP", 0, 0)
+    f.label:SetPoint("BOTTOM", f.roll, "TOP", 0, -pad)
 
     f.gains = Style.Text(f, LevelUp.GAINS, "CENTER")
     f.gains:SetPoint("TOP", f, "CENTER", 0, -12)

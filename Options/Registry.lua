@@ -1198,10 +1198,11 @@ Options.RegisterPage({
               hidden = function() return not DUI.DB.NonLatinClient() end,
               desc = "Uses the game's own font in place of Daylight UI's fonts, which only have Latin letters. "
                   .. "The options window changes after /reload." },
-            { type = "toggle", key = "gameText", label = "Use this font for the game's text",
+            { type = "toggle", key = "gameText", label = "Use this font for the game's text", reload = true,
               hidden = function(get) return get("font") == "game" or DUI.DB.UseLocalFont() end,
               desc = "Puts this font on the game's own text as well: menus, tooltips, quest text, popups, nameplate names. "
-                  .. "Sizes and outlines stay the game's." },
+                  .. "Sizes and outlines stay the game's. It's put on once as you log in, so a change here, "
+                  .. "or a new font above, shows on the game's text after a /reload." },
             { type = "dropdown", key = "textOutline", label = "Text outline",
               values = { OUTLINE = "Thin", THICKOUTLINE = "Thick", [""] = "None" }, order = { "OUTLINE", "THICKOUTLINE", "" },
               desc = "A dark edge around the letters on Daylight UI's frames, so text stays readable over a busy world. Combat text has its own (General > Combat text)." },

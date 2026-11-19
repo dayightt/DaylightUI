@@ -68,6 +68,11 @@ ns.DEFAULTS = {
     -- Bar animation (the core's BarFx.lua) on the Cooldown Manager's bars.
     cdmBarFx = DaylightUI.BarFx.Defaults(),
     skinMenus = true,       -- bag bar and micro menu in the buttons' look (Menus.lua)
+    -- The micro menu's icons in that look: "accent" (one sweep along the row),
+    -- "class" or "custom" (microIconCustom), and the dark tiles behind them.
+    microIconColor = "accent",
+    microIconCustom = { 1, 1, 1 },
+    microBackgrounds = true,
     cooldowns = true,       -- Cooldown Manager icons in the same look
     cdmKeybinds = false,    -- keybind on every icon (a piece's keyShown overrides it)
     readyPing = true,       -- a button coming off a real cooldown (not the GCD) pops and flashes

@@ -921,6 +921,7 @@ function Widget:GetReverseFill() return self.__reverse end
 -- drawn, not reversed.
 function Widget:SetDrawSwipe(v) self.__drawSwipe = v == true end
 function Widget:GetDrawSwipe() if self.__drawSwipe == nil then return true end return self.__drawSwipe end
+function Widget:SetSwipeColor(r, g, b, a) self.__swipeColor = { r, g, b, a } end
 function Widget:SetReverse(v) self.__cdReverse = v == true end
 function Widget:GetReverse() return self.__cdReverse == true end
 function Widget:SetClipsChildren(v) self.__clips = v == true end

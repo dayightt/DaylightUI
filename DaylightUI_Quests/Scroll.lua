@@ -23,7 +23,8 @@ function Scroll.Build(v, c)
     view, content = v, c
     -- Shared scroll bar. The wheel is handled here (for the combat hold below, and the
     -- view's wheel turns off when the list fits); the glide is the bar's.
-    bar = DUI.Widgets.Scroll(v, { wheel = false, x = Scroll.THUMB_GAP, step = Scroll.STEP,
+    -- rest = 0: the tracker sits on the game screen, so the bar only shows on hover.
+    bar = DUI.Widgets.Scroll(v, { wheel = false, x = Scroll.THUMB_GAP, step = Scroll.STEP, rest = 0,
         read = function()
             local most = math.max(0, total - visible)
             return math.min(Scroll.offset, most), most, visible   -- pulled back, the bar already shows it

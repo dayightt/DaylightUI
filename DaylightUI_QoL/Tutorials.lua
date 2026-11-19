@@ -20,7 +20,10 @@ local function apply(on, keep)
     applied = on
     if keep then ns.KeepCVar("showTutorials") end
     local v = on and "0" or (ns.GiveBackCVar("showTutorials") or "1")
-    if type(SetCVar) == "function" then SetCVar("showTutorials", v) end
+    -- Written only when it differs, so a login with it already off changes nothing.
+    if type(SetCVar) == "function" and not (type(GetCVar) == "function" and GetCVar("showTutorials") == v) then
+        pcall(SetCVar, "showTutorials", v)
+    end
     if on then hideFrames() end
 end
 

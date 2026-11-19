@@ -1612,3 +1612,43 @@ T.test("fade: a departed request queued in combat never enables a buffer afterwa
     T.falsy(f.buffer, "the queued enable was withdrawn before it could run")
     T.eq(F.WholeCount(), 0)
 end)
+
+-- 3D models ignore UIParent's alpha, so whoever draws one listens for "UIAlpha".
+-- Another addon fading the whole UI has to be told too, not only the AFK screen
+-- and the NPC scene, and a repeat of the same alpha moves nothing.
+T.test("fade: UIAlpha fires for any change of UIParent's alpha, once per change", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local heard = {}
+    DUI.On("UIAlpha", function(a) heard[#heard + 1] = a end)
+    F.SetUIAlpha(0.5)
+    T.eq(#heard, 1, "a change is told")
+    T.eq(heard[1], 0.5)
+    F.SetUIAlpha(0.5)
+    T.eq(#heard, 1, "the same alpha again is not")
+    F.SetUIAlpha(1)
+    T.eq(#heard, 2)
+    UIParent:SetAlpha(0.3)
+    F.Step()
+    T.eq(#heard, 3, "another addon's fade is seen on the next step")
+    T.eq(heard[3], 0.3)
+    F.Step()
+    T.eq(#heard, 3, "and told once")
+    UIParent:SetAlpha(1)
+    F.Step()
+    T.eq(heard[4], 1, "its return too")
+end)
+
+-- The AFK screen and the NPC scene both fade the whole UI. One of them putting
+-- the UI back must not undo the other's fade.
+T.test("fade: two whole-UI fades each keep theirs, the UI shows the lowest", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    F.SetUIAlpha(0, "npc")
+    F.SetUIAlpha(0.3, "afk")
+    T.eq(UIParent:GetAlpha(), 0, "the lowest wins")
+    F.SetUIAlpha(1, "afk")
+    T.eq(UIParent:GetAlpha(), 0, "the AFK screen closing leaves the NPC scene's fade")
+    F.SetUIAlpha(1, "npc")
+    T.eq(UIParent:GetAlpha(), 1, "both done: the UI is back")
+end)

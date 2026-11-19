@@ -2148,7 +2148,7 @@ T.test("nameplates: enemy plates stack unless you choose otherwise, friendly one
     local bits = {}
     login(function() stackWorld(bits) end)
     T.eq(bits[1], true, "enemies stack as shipped")
-    T.eq(bits[2], false, "friendly plates overlap")
+    T.falsy(bits[2], "friendly plates overlap")
 end)
 
 T.test("nameplates: every plate hands the game its stacking frame, as Platynator does", function()
@@ -2290,6 +2290,8 @@ local function driver()
         setUnit(np)
     end
     function d:UpdateNamePlateOptions()
+        -- The game sets its own plate size here (UpdateNamePlateSize).
+        if C_NamePlate.SetNamePlateSize then C_NamePlate.SetNamePlateSize(110, 45) end
         for _, np in pairs(plates) do
             if np.UnitFrame then setUnit(np) end
         end
@@ -2324,32 +2326,39 @@ T.test("nameplates: the frame the game hands a plate after our handler is taken 
     T.eq(np.__hit, stub.nameplates.Manager.clickOf[np])
 end)
 
-T.test("nameplates: the game's driver no longer redoes every plate on display or option changes", function()
+T.test("nameplates: the game's driver keeps its events and our plates are taken back after it", function()
     local NP = login(driver)
-    T.falsy(NamePlateDriverFrame:IsEventRegistered("DISPLAY_SIZE_CHANGED"), "switched off, as Platynator does")
-    T.falsy(NamePlateDriverFrame:IsEventRegistered("CVAR_UPDATE"))
-    T.truthy(NamePlateDriverFrame:IsEventRegistered("NAME_PLATE_UNIT_REMOVED"), "the rest left to the game")
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE", "NAME_PLATE_UNIT_REMOVED" }) do
+        T.truthy(NamePlateDriverFrame:IsEventRegistered(e), e .. " left to the game")
+    end
     added("nameplate1")
     added("nameplate2")
-    -- VARIABLES_LOADED still runs it once: every frame gets its events and click
-    -- area back, and is taken off again right after.
-    driverEvent("VARIABLES_LOADED")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    for i = 1, 2 do
-        T.falsy(plates[i].UnitFrame:IsEventRegistered("UNIT_HEALTH"), i .. ": quiet again")
-        T.eq(plates[i].__hit, NP.Manager.clickOf[plates[i]], i .. ": clicked on ours again")
-        T.falsy(plates[i].UnitFrame:GetParent() == plates[i], i .. ": still off its plate")
+    -- Each options update gives every frame its click area back, and it's taken off again right after.
+    for _, args in ipairs({ { "VARIABLES_LOADED" }, { "DISPLAY_SIZE_CHANGED" }, { "CVAR_UPDATE", "nameplateShowClassColor" } }) do
+        driverEvent(unpack(args))
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        for i = 1, 2 do
+            T.falsy(plates[i].UnitFrame:IsEventRegistered("UNIT_HEALTH"), args[1] .. " " .. i .. ": quiet again")
+            T.eq(plates[i].__hit, NP.Manager.clickOf[plates[i]], args[1] .. " " .. i .. ": clicked on ours again")
+            T.falsy(plates[i].UnitFrame:GetParent() == plates[i], args[1] .. " " .. i .. ": still off its plate")
+        end
     end
+    -- Any other CVar leaves the plates alone.
+    local reclaim, ran = NP.Manager.Reclaim, 0
+    NP.Manager.Reclaim = function() ran = ran + 1 end
+    driverEvent("CVAR_UPDATE", "cameraDistanceMaxZoomFactor")
+    NP.Manager.Reclaim = reclaim
+    T.eq(ran, 0, "not taken back for a CVar the driver ignores")
 end)
 
-T.test("nameplates: the plate size is set again when the screen or UI scale changes", function()
+T.test("nameplates: the screen or UI scale changing keeps the plate size, written once", function()
     local sizes = 0
     login(function() C_NamePlate.SetNamePlateSize = function() sizes = sizes + 1 end end)
-    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED" }) do
         local before = sizes
         stub.FireEvent(e)
         stub.RunTimers()
-        T.truthy(sizes > before, e)
+        T.eq(sizes, before, e .. ": the same size, nothing written")
     end
     -- The game sets its own size again from these two settings (its CVar callbacks).
     local before = sizes
@@ -3177,8 +3186,10 @@ T.test("nameplates: our plate moving on leaves the first game plate's stacking f
     T.eq(plates[2].__stack:GetParent(), plates[2])
     T.eq(plates[1].__stack, first, "the first still points at its own")
     T.eq(first:GetParent(), plates[1], "which never left it")
-    local _, rel = first:GetPoint(1)
-    T.eq(rel, plates[1], "nor is it pinned anywhere else")
+    -- Emptied as ours left, EllesmereUI's way: the next unit on that game plate is
+    -- spaced by nothing of Daylight UI's until a plate of ours sizes it again.
+    T.falsy(first:IsShown(), "hidden")
+    T.eq(first:GetNumPoints(), 0, "and pinned nowhere")
 end)
 
 T.test("nameplates: a plate of ours that can't be used any more leaves the game plate's stacking frame on it", function()
@@ -4548,4 +4559,126 @@ T.test("nameplates: target arrows (off by default) point at your target from bot
     T.falsy(a.top:IsShown(), "untargeted: gone")
     T.eq(select(2, p.name:GetFont()), before, "the name back to the rest's size")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Matched to EllesmereUI call for call: what Daylight UI hands the game's plates,
+-- and how often, during play.
+
+T.test("nameplates: a plate leaving empties its game plate's stacking frame", function()
+    login()
+    added("nameplate1")
+    local np = plates[1]
+    local box = np.__stack
+    T.truthy(box:IsShown(), "sized and shown while ours is on it")
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    T.falsy(box:IsShown(), "hidden once ours left")
+    T.eq(box:GetNumPoints(), 0, "unpinned")
+    T.eq(box:GetParent(), np, "still the game plate's own")
+    added("nameplate1")
+    T.truthy(box:IsShown(), "back for the next unit")
+    local _, rel = box:GetPoint(1)
+    T.eq(rel, np, "pinned to its game plate again")
+end)
+
+T.test("nameplates: the game's plate scales are written once at login, never on a repaint", function()
+    local writes, cvars = 0, {}
+    local getWas, setWas = _G.GetCVar, _G.SetCVar
+    login(function()
+        _G.GetCVar = function(k) return cvars[k] end
+        _G.SetCVar = function(k, v)
+            cvars[k] = v
+            if k == "nameplateMinScale" then writes = writes + 1 end
+        end
+    end)
+    T.eq(writes, 1, "once at login")
+    DaylightUI:Set("Nameplates", "width", DaylightUI:Get("Nameplates", "width") + 4)
+    stub.nameplates.Manager.Refresh()
+    stub.RunTimers()
+    T.eq(writes, 1, "a setting or style change leaves them alone")
+    _G.GetCVar, _G.SetCVar = getWas, setWas
+end)
+
+T.test("nameplates: the plate size is written only when it changes or the game reset it", function()
+    local sizes = 0
+    local NP = login(function()
+        driver()
+        C_NamePlate.SetNamePlateSize = function() sizes = sizes + 1 end
+    end)
+    local before = sizes
+    NP.Manager.Refresh()
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(sizes, before, "a repaint or a loading screen with the same size writes nothing")
+    DaylightUI:Set("Nameplates", "clickPad", DaylightUI:Get("Nameplates", "clickPad") + 2)
+    stub.RunTimers()
+    T.eq(sizes, before + 1, "a new size is written once")
+end)
+
+T.test("nameplates: the game's own options update gets the plate size set back", function()
+    local size
+    local NP = login(function()
+        driver()
+        C_NamePlate.SetNamePlateSize = function(w, h) size = { w, h } end
+    end)
+    local w, h = NP.Manager.PlateSize()
+    driverEvent("VARIABLES_LOADED") -- the game sets its own size in it
+    stub.RunTimers()
+    T.near(size[1], w, 1e-6, "ours again, as EllesmereUI does after UpdateNamePlateOptions")
+    T.near(size[2], h, 1e-6)
+end)
+
+T.test("nameplates: the stacking setting changing doesn't hand every plate its frame again", function()
+    local bits = {}
+    login(function() stackWorld(bits) end)
+    added("nameplate1")
+    local hands, np = 0, plates[1]
+    local real = np.SetStackingBoundsFrame
+    np.SetStackingBoundsFrame = function(self, f) hands = hands + 1; return real(self, f) end
+    bits[1] = false
+    stub.FireEvent("CVAR_UPDATE", "nameplateStackingTypes")
+    DaylightUI:Set("Nameplates", "stacking", "overlap")
+    stub.RunTimers()
+    T.eq(hands, 0, "handed once, when the plate came up")
+end)
+
+T.test("nameplates: plates on the game's plates flatten their layers, as EllesmereUI's do", function()
+    local flat, real = {}, _G.CreateFrame
+    login(function()
+        _G.CreateFrame = function(...)
+            local f = real(...)
+            f.SetFlattensRenderLayers = function(self, on) flat[self] = on end
+            return f
+        end
+    end)
+    _G.CreateFrame = real
+    local p = added("nameplate1")
+    T.eq(flat[p], true)
+    T.eq(flat[p.hp], nil, "only the plate itself")
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], false, "the player command switches the visible plate off")
+    local nextPlate = added("nameplate2")
+    T.eq(flat[nextPlate], false, "a plate taken from the spare pool stays off")
+    stub.EnterCombat()
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], false, "combat leaves the toggle alone")
+    stub.LeaveCombat()
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], true)
+    T.eq(flat[nextPlate], true)
+end)
+
+
+T.test("nameplates: a repaint with nothing changed for plates leaves them alone", function()
+    local NP = login()
+    added("nameplate1")
+    stub.RunTimers()
+    local layouts, real = 0, NP.Plate.Layout
+    NP.Plate.Layout = function(...) layouts = layouts + 1; return real(...) end
+    DaylightUI.RepaintStyle()
+    stub.RunTimers()
+    T.eq(layouts, 0, "the same look: nothing laid out again")
+    DaylightUI:Set("general", "borderPx", (DaylightUI:Get("general", "borderPx") or 2) + 1)
+    stub.RunTimers()
+    NP.Plate.Layout = real
+    T.truthy(layouts > 0, "a General change still reaches every plate")
 end)

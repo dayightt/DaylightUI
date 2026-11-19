@@ -673,7 +673,7 @@ end
 -- CdmAuras) = down. "finish" and "pause" only go in the report. The last few are
 -- kept for /dui cdm report, to see which ones the client really sends in a fight
 -- or a dungeon.
-local DOWN = { stop = true, ["time out"] = true, blocked = true }
+local DOWN = { stop = true, ["time out"] = true, blocked = true, ["used up"] = true }
 function Fx.AuraHeard(h, what, btn)
     h.heard = h.heard or {}
     table.insert(h.heard, string.format("%s %.1f%s", what, GetTime(), InCombatLockdown() and " fight" or ""))
@@ -891,7 +891,8 @@ local function applyTint(item)
     if type(cd) ~= "table" or type(cd.SetSwipeColor) ~= "function" then return end
     local b = opts[item]
     local want
-    if b and kinds[item] == "icon" and fromAura(item) then
+    -- An element piece's standing totem counts as a buff's time (CdmOwn.FollowSlot).
+    if b and kinds[item] == "icon" and (fromAura(item) or item.slotPhase == "totem") then
         if Fx.Get(b, "activeGlow") == false or Fx.Get(b, "noDurationSwipe") == true then
             want = NO_SWIPE
         else
@@ -967,6 +968,16 @@ end
 -- as having one), so its slot is asked whether it still returns a duration, which
 -- is never secret. In a fight the item's totem data is a secret table: no telling.
 local totemCheck = false
+local function watchTotems()
+    -- No event marks a totem running out, so look again while one stands.
+    if totemCheck then return end
+    totemCheck = true
+    C_Timer.After(Fx.TOTEM_CHECK, function()
+        totemCheck = false
+        Fx.Soon(false)
+    end)
+end
+
 local function totemUp(item)
     if type(GetTotemDuration) ~= "function" then return false end
     local C = ns.CdmCustom
@@ -984,15 +995,24 @@ local function totemUp(item)
         local okD, d = pcall(GetTotemDuration, slot)
         if not okD or type(d) == "nil" then return false end
     end
-    -- No event marks a totem running out, so look again while one stands.
-    if not totemCheck then
-        totemCheck = true
-        C_Timer.After(Fx.TOTEM_CHECK, function()
-            totemCheck = false
-            Fx.Soon(false)
-        end)
-    end
+    watchTotems()
     return true
+end
+
+-- An element piece (CdmCustom.SlotNow): "totem", "cooldown" or nil. A slot that
+-- changed since it was drawn is drawn again first, so its spell is current.
+local function slotPhase(item)
+    local C = ns.CdmCustom
+    if not (item.totem and C and C.Element(item.cooldownID)) then return false end
+    local sid, phase = C.SlotNow(item.cooldownID)
+    if sid ~= item.slotSpell or phase ~= item.slotPhase then
+        if kinds[item] == "bar" then
+            if ns.CdmBars then ns.CdmBars.UpdateCooldown(item) end
+        elseif ns.CdmOwn then
+            ns.CdmOwn.Update(item)
+        end
+    end
+    return phase
 end
 Fx.TOTEM_CHECK = 0.5   -- seconds between looks while a totem stands
 
@@ -1002,9 +1022,15 @@ function Fx.OnCooldown(item, ending)
     local C = ns.CdmCustom
     if C and C.ItemOf(item.cooldownID) then return (C.ItemCooldown(item.cooldownID)) end
     -- A standing totem counts as its cooldown, as the game's own icon times it.
-    -- So When ready Hide shows a totem only while it stands.
-    local up = totemUp(item)
-    if up ~= false or item.totem then return up end
+    -- So When ready Hide shows a totem only while it stands. An element piece's
+    -- cooldown totem, once gone, is timed by its spell's cooldown below.
+    local phase = slotPhase(item)
+    if phase == "totem" then watchTotems(); return true end
+    if phase == nil then return false end
+    if phase == false then
+        local up = totemUp(item)
+        if up ~= false or item.totem then return up end
+    end
     local sid = Fx.SpellOf(item)
     if not sid or type(C_Spell) ~= "table" then return nil end
     if type(C_Spell.GetSpellCharges) == "function" then
@@ -1101,10 +1127,13 @@ local function usableMoment(item)
     if was == false and now then playSound(item, opts[item], "usableSound") end
 end
 
--- Gray: true, false, or nil for the game's own.
+-- Gray: true, false, or nil for the game's own. An element piece's cooldown totem,
+-- once gone, is gray unless Gray out keeps it in color.
 local function wantGrey(item)
     local d = Fx.Get(opts[item], "desat")
-    if kinds[item] ~= "icon" or d == "game" then return nil end
+    if kinds[item] ~= "icon" then return nil end
+    if item.slotPhase == "cooldown" and d ~= "color" then return true end
+    if d == "game" then return nil end
     if d == "color" then return false end
     return cdState[item] == true
 end
@@ -1200,6 +1229,12 @@ local function applyAlpha(item)
         mode = Fx.Get(b, "onUnusable")
     elseif state == false and short[item] and Fx.Get(b, "onShort") ~= "show" then
         mode = Fx.Get(b, "onShort")
+    end
+    -- An element piece with nothing in its slot and no cooldown running hides like
+    -- When ready Hide, except in test mode.
+    if state == false and item.totem and not DUI.testMode and ns.CdmCustom
+        and ns.CdmCustom.Element(item.cooldownID) then
+        mode = "hide"
     end
     -- Every Hide gives up its spot (Not usable and Short too; a group growing from
     -- its middle stayed off-center otherwise), as does Buff up Hide on the game's
@@ -1501,6 +1536,8 @@ DUI.RegisterEvent("PLAYER_TOTEM_UPDATE", cooldownSoon)
 DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", cooldownSoon)
 DUI.RegisterEvent("BAG_UPDATE_DELAYED", cooldownSoon)
 DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() Fx.UpdateAll() end)
+-- Test mode shows the empty element pieces.
+DUI.On("TestModeChanged", function() Fx.UpdateAll() end)
 
 -- A new form, stance or stealth updates what's shown at once (fight info never
 -- waits).

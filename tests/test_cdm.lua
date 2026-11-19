@@ -238,6 +238,106 @@ T.test("cdm data: every row of a group growing from its middle stays centered", 
     T.eq(L[6].x, F[6].x, "the bottom row's too")
 end)
 
+-- Two shown boxes that cover each other. Boxes that only touch don't.
+local function overlaps(a, b)
+    return a.x < b.x + b.w and b.x < a.x + a.w and a.y - a.h < b.y and b.y - b.h < a.y
+end
+
+local function noOverlap(L, shown, why)
+    local ids = {}
+    for id in pairs(shown) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for i = 1, #ids do
+        for j = i + 1, #ids do
+            T.falsy(overlaps(L[ids[i]], L[ids[j]]),
+                why .. ": " .. ids[i] .. " and " .. ids[j] .. " on top of each other")
+        end
+    end
+end
+
+-- Four icons snapped into a 2x2: 1 top-left (first), 2 top-right, 3 bottom-left,
+-- 4 bottom-right. hooks = { { id, parent, side } }.
+local function grid(D, hooks, grow)
+    local set = empty()
+    D.AddPiece(set, 1, "icon", 0, 0)
+    for _, h in ipairs(hooks) do
+        D.AddPiece(set, h[1], "icon", 0, 0)
+        T.truthy(D.Hook(set, h[1], h[2], h[3], "center"))
+    end
+    if grow then D.SetChainValue(set, 1, "grow", grow) end
+    local F = D.Layout(set)
+    T.deq({ F[1].x, F[1].y, F[2].x, F[2].y, F[3].x, F[3].y, F[4].x, F[4].y },
+        { 0, 0, 40, 0, 0, -40, 40, -40 }, "a 2x2")
+    return set, F
+end
+
+local ROWS = { { 2, 1, "right" }, { 3, 1, "down" }, { 4, 3, "right" } }
+
+-- A player's 2x2 with Slide over: the first spell gave up its spot, and the second
+-- row rose into the first, one spell on top of another.
+T.test("cdm data: a 2x2's hidden first piece: its row-mate takes its spot, the second row stays", function()
+    local D = data()
+    local set, F = grid(D, ROWS)
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "start")
+    T.deq({ L[2].x, L[2].y }, { 0, 0 }, "2 slid into 1's spot")
+    T.deq(box(L[3]), box(F[3]), "3 kept its spot")
+    T.deq(box(L[4]), box(F[4]), "4 kept its spot")
+end)
+
+T.test("cdm data: a 2x2's hidden first piece, growing from the middle or the end", function()
+    local D = data()
+    local set, F = grid(D, ROWS, "center")
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "center")
+    T.deq({ L[2].x, L[2].y }, { 20, 0 }, "2 alone in the middle of the top row")
+    T.deq(box(L[3]), box(F[3])); T.deq(box(L[4]), box(F[4]))
+    D.SetChainValue(set, 1, "grow", "end")
+    L = D.Layout(set, shown)
+    noOverlap(L, shown, "end")
+    T.deq(box(L[2]), box(F[2]), "the top row's far end stays")
+    T.deq(box(L[3]), box(F[3])); T.deq(box(L[4]), box(F[4]))
+end)
+
+T.test("cdm data: a 2x2 built in columns: its hidden first piece's column-mate takes its spot", function()
+    local D = data()
+    local set, F = grid(D, { { 3, 1, "down" }, { 2, 1, "right" }, { 4, 2, "down" } })
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "columns")
+    T.deq({ L[3].x, L[3].y }, { 0, 0 }, "3 slid up into 1's spot")
+    T.deq(box(L[2]), box(F[2]), "the other column stays")
+    T.deq(box(L[4]), box(F[4]))
+end)
+
+-- Every way to snap a 2x2 with its first piece top-left, every grow, every set of
+-- pieces down: no two shown pieces cover each other.
+T.test("cdm data: a 2x2 with any pieces down never stacks one piece on another", function()
+    local D = data()
+    local shapes = {
+        ROWS,
+        { { 2, 1, "right" }, { 3, 1, "down" }, { 4, 2, "down" } },
+        { { 2, 1, "right" }, { 4, 2, "down" }, { 3, 4, "left" } },
+        { { 3, 1, "down" }, { 4, 3, "right" }, { 2, 4, "up" } },
+    }
+    for n, hooks in ipairs(shapes) do
+        for _, grow in ipairs({ "start", "center", "end" }) do
+            local set, F = grid(D, hooks, grow)
+            for mask = 1, 14 do
+                local shown, ids = {}, {}
+                for id = 1, 4 do
+                    if bit.band(mask, 2 ^ (id - 1)) ~= 0 then shown[id] = true; ids[#ids + 1] = id end
+                end
+                local L = D.Layout(set, shown)
+                local why = "shape " .. n .. ", " .. grow .. ", up: " .. table.concat(ids, " ")
+                noOverlap(L, shown, why)
+            end
+        end
+    end
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)
@@ -3836,6 +3936,37 @@ T.test("cdm hide up: a buff on you stays in its spot after a new target, the nex
 end)
 end
 end
+
+-- In game the client's button never says where the buff came up, so Slice and
+-- Dice, a harmful cast, was guessed onto the target again and a new target still
+-- put it down (a player on 1.9.4). Where it was last seen wins over the guess.
+T.test("cdm hide up: a harmful cast whose buff was seen on you stays up after a new target", function()
+    local DUI, AB, E, D, set = auraWorld(true)
+    DUI.DB.General().motion = false
+    place(D, set, 42, 1, 2)
+    T.truthy(D.SetSpellValue(set, 41, "hideMissing", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h1 = AB.CdmAuras.Frame(41)
+    -- Seen on you once where auras can be read.
+    stub.auras.player = { HELPFUL = { { spellId = 141, duration = 21, expirationTime = GetTime() + 21 } } }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.eq(h1.upUnit, "player", "seen on you")
+    T.eq(DUI.DB.Character().cdmAuraOn[41], "player", "kept for this character, a reload too")
+    stub.auras.player = { HELPFUL = {} }
+    stub.Advance(22); AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141); stub.RunTimers()
+    T.eq(h1.up, true, "cast: up")
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    T.eq(h1.up, true, "a new target: still up, it's on you")
+    stub.combat = false
+    C_Spell.IsSpellHarmful = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
     local DUI, AB, E, D, set = auraWorld(false)
@@ -7785,6 +7916,56 @@ T.test("cdm custom: in a dungeon fight a buff of ours runs out by the clock from
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Lightning Shield set to show only while missing stayed hidden all fight after
+-- its balls were gone: the client's button gave no word, and its 10 minutes ran
+-- on. Hits that land use them up (3, one every 3.5 s at most, the game's data);
+-- Touch of Weakness goes on the next melee hit.
+T.test("cdm custom: in a fight a buff your hits use up ends at the last hit", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    D.AddPiece(set, "s6673", "icon", 0, 0)
+    D.AddPiece(set, "s2687", "icon", 0, -96)
+    D.Hook(set, "s2687", "s6673", "right")
+    local full = D.Layout(set)
+    refresh(AB)
+    local f2 = pieceFrame(1, "s2687")
+    local hits = AB.CdmOwn.Hits
+    local kind = AB.CdmOwn.HITS[10432]
+    AB.CdmOwn.Hits = function(id) if id == "s6673" then return kind end end
+    local function up(n)
+        stub.combat = false
+        stub.SetRestriction("Map", false)
+        stub.auras.player = { HELPFUL = { { spellId = 6673, applications = n, duration = 600, expirationTime = GetTime() + 600 } } }
+        AB.CdmAuras.AuraChanged(); stub.RunTimers()
+        T.eq(f2.goalX, full["s2687"].x, "up: its spot")
+        stub.SetRestriction("Map", true)
+        stub.combat = true
+        AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    end
+    local function hit(school) stub.FireEvent("UNIT_COMBAT", "player", "WOUND", "", 100, school); stub.RunTimers() end
+    up(3)
+    hit(8)
+    hit(1)
+    T.eq(f2.goalX, full["s2687"].x, "two hits at once fire one ball")
+    stub.Advance(4); hit(1)
+    T.eq(f2.goalX, full["s2687"].x, "two balls gone, one left")
+    stub.Advance(4); hit(8)
+    T.eq(f2.goalX, 0, "the third: used up, the next one slides over")
+    -- Touch of Weakness: a spell hit leaves it, the next melee hit takes it.
+    kind = AB.CdmOwn.HITS[2652]
+    up(0)
+    hit(32)
+    T.eq(f2.goalX, full["s2687"].x, "a spell hit leaves it")
+    hit(1)
+    T.eq(f2.goalX, 0, "the melee hit used it up")
+    AB.CdmOwn.Hits = hits
+    stub.combat = false
+    stub.SetRestriction("Map", false)
+    stub.auras.player = { HELPFUL = {} }
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm custom: the Seal placed as an icon and a bar watches every seal on you, named Seal", function()
     local DUI, AB, D, set = customRows()
     stub.SetUnits({ player = { class = "PALADIN" } })
@@ -8572,5 +8753,210 @@ T.test("cdm bars: each bar can have its own animation, unset follows the shared 
     T.eq(Fx.StyleOf(own.Bar), "flow")
     T.eq(Data.SetSpellValue(set, 11, "fxStyle", "sparkles"), false, "an unknown style is refused")
     T.eq(Data.SetSpellValue(set, 21, "fxSpeed", 2), set.pieces[21].shape == "bar", "bars only")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- One piece per totem element (fire, earth, water, air): it shows whichever totem
+-- stands in its slot, then a cooldown totem's cooldown, and hides with nothing to show.
+local function elementWorld()
+    local DUI, AB, set, w = barsWorld()
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = AB.CdmData.Current()
+    AB.CdmSpells.SHAMAN = {
+        { 2484, cd = true, aura = true },       -- Earthbind
+        { 8071, 8154, aura = true },            -- Stoneskin
+        { 8512, 10613, aura = true },           -- Windfury
+        { 3599, 6363, aura = true },            -- Searing
+    }
+    stub.knownSpells = { [2484] = true, [8071] = true, [8154] = true, [8512] = true, [10613] = true,
+        [3599] = true, [6363] = true }
+    C_Spell.GetSpellTexture = function(sid) return "tex" .. tostring(sid) end
+    AB.CdmCustom.Forget()
+    AB.CdmOwn.Forget()
+    return DUI, AB, set, w
+end
+
+local elementCasts = 0
+local function dropTotem(slot, sid, combat)
+    if combat then stub.combat = true end
+    stub.totems[slot] = sid and { spell = sid, duration = { sid = sid } } or nil
+    if sid then
+        elementCasts = elementCasts + 1
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "element-" .. elementCasts, sid)
+    end
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", slot); stub.RunTimers()
+    if combat then stub.combat = false end
+end
+
+T.test("cdm custom: a shaman gets a piece per totem element, with the element's name and icon", function()
+    local AB, C = customWorld("SHAMAN")
+    AB.CdmSpells.SHAMAN = {
+        { 2484, cd = true, aura = true },       -- Earthbind
+        { 8071, 8154, aura = true },            -- Stoneskin
+        { 3599, aura = true },                  -- Searing
+    }
+    stub.knownSpells = { [2484] = true, [8071] = true, [3599] = true }
+    C.Forget()
+    for _, k in ipairs({ "fire", "earth", "water", "air" }) do T.truthy(C.Is(k), k) end
+    T.eq((C.Look("earth")), "Earth totem")
+    T.eq(select(2, C.Look("earth")), C.TOTEM_ELEMENTS.earth.icon, "the element's icon, not one totem's")
+    T.eq(C.TOTEM_ELEMENTS.air.icon, "Interface/Icons/INV_Elemental_Primal_Air")
+    T.eq(AB.CdmEditor.SpellTexture("earth"), C.TOTEM_ELEMENTS.earth.icon, "the editor shows the element")
+    local tray = {}
+    for _, e in ipairs(C.Tray()) do tray[e.id] = true end
+    T.truthy(tray.earth, "earth in the tray"); T.truthy(tray.fire, "fire in the tray")
+    T.falsy(tray.water, "no water totem known: not offered")
+    local r = C.Ranks("earth")
+    T.truthy(r[2484] and r[8071] and r[8154], "every earth totem, cooldown totems too")
+    T.falsy(r[3599], "not a fire totem")
+    T.falsy(C.CanTrack("earth"), "no What it shows")
+    T.eq(C.KeyOfSpell(8071), "s8071", "each totem keeps its own piece")
+    T.eq(select(2, C.Totem(8154)), "s8071")
+    T.isnil(C.Totem(2484), "a cooldown totem stays off the timed list")
+    T.eq(C.SlotOf(2484), 2); T.eq(C.SlotOf(8154), 2); T.eq(C.SlotOf(3599), 1)
+    local _, W = customWorld("PALADIN")
+    T.isnil(W.Family("earth"), "only shamans")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece follows the totem in its slot (Stoneskin, then Earthbind)", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx, C = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects, AB.CdmCustom
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    D.AddPiece(set, "s8071", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(Own.Track("earth", set.pieces.earth), "both", "Totem and buff")
+    T.eq(R.DrawnBy("earth"), "totem and buff icon")
+    local icon = Own.Frame("earth")
+    T.eq(icon.Icon:GetTexture(), C.TOTEM_ELEMENTS.earth.icon, "nothing yet: the element's icon")
+    T.isnil(icon.Cooldown.__duration)
+    T.truthy(Fx.Gone(icon), "empty slot: hidden")
+    dropTotem(2, 8154)
+    T.eq(icon.Icon:GetTexture(), "tex8154", "Stoneskin's icon, its standing rank")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration, "Stoneskin's time")
+    T.falsy(Fx.Gone(icon), "shown")
+    local r, g, b = DUI.Style.Accent()
+    local tint = icon.Cooldown.__swipeColor
+    T.truthy(tint and tint[1] == r and tint[2] == g and tint[3] == b, "totem time: the accent swipe")
+    T.eq(Own.Frame("s8071").Cooldown.__duration, stub.totems[2].duration, "Stoneskin's own piece too")
+    dropTotem(2, 2484)
+    T.eq(icon.Icon:GetTexture(), "tex2484", "Earthbind took the slot")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration, "Earthbind's time")
+    T.isnil(Own.Frame("s8071").Cooldown.__duration, "Stoneskin's piece: not Earthbind's time")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece dims under a known totem buff and grays per Gray out (Windfury)", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmAuras
+    DUI.DB.Character().cdmAuraIDs = { [8512] = { [8515] = true } }
+    D.AddPiece(set, "air", "icon", 0, 0)
+    D.AddPiece(set, "fire", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.truthy(A.SpellIDs("air")[8515], "watches the taught buff")
+    dropTotem(4, 10613)
+    local icon = Own.Frame("air")
+    T.truthy(A.Frame("air") and A.Frame("air"):IsShown(), "the buff's button over the icon")
+    T.eq(icon.Icon:GetAlpha(), Own.TOTEM_DIM, "dimmed while you lack the buff")
+    T.falsy(icon.Icon:IsDesaturated(), "Gray out unset: in color")
+    T.truthy(D.SetSpellValue(set, "air", "desat", "grey"))
+    R.Refresh(); stub.RunTimers()
+    T.truthy(icon.Icon:IsDesaturated(), "Gray out: grayed while it stands")
+    dropTotem(1, 6363)
+    T.eq(Own.Frame("fire").Icon:GetAlpha(), 1, "a totem with no buff: just its time")
+    T.eq(Own.Frame("fire").Cooldown.__duration, stub.totems[1].duration)
+    DUI.DB.Character().cdmAuraIDs = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece shows a cooldown totem's cooldown after it ends, then hides", function()
+    local DUI, AB, set, w = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local icon = Own.Frame("earth")
+    w.cds[2484] = { isActive = true, isOnGCD = false, duration = 15 }
+    w.durs[2484] = { cd = 2484 }
+    dropTotem(2, 2484)
+    T.falsy(icon.Icon:IsDesaturated(), "standing: in color")
+    dropTotem(2, nil)
+    T.eq(icon.Icon:GetTexture(), "tex2484", "Earthbind's icon")
+    T.eq(icon.Cooldown.__duration, w.durs[2484], "its cooldown")
+    T.truthy(icon.Icon:IsDesaturated(), "grayed on cooldown")
+    T.deq(icon.Cooldown.__swipeColor, AB.Skin.SWIPE, "the skin's cooldown swipe, not the accent")
+    T.falsy(Fx.Gone(icon), "shown while it cools down")
+    w.cds[2484] = { isActive = false, isOnGCD = false, duration = 0 }
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.truthy(Fx.Gone(icon), "ready and no totem: hidden")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an empty element piece hides, and shows its element in test mode", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx, C = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects, AB.CdmCustom
+    stub.knownSpells[5394] = true
+    AB.CdmSpells.SHAMAN[#AB.CdmSpells.SHAMAN + 1] = { 5394, aura = true }   -- Healing Stream
+    C.Forget()
+    D.AddPiece(set, "water", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local icon = Own.Frame("water")
+    T.truthy(Fx.Gone(icon), "nothing cast: hidden")
+    T.eq(icon:GetAlpha(), 0)
+    DUI.SetTestMode(true); stub.RunTimers()
+    T.falsy(Fx.Gone(icon), "test mode: shown")
+    T.eq(icon.Icon:GetTexture(), C.TOTEM_ELEMENTS.water.icon, "with the element's icon")
+    DUI.SetTestMode(false); stub.RunTimers()
+    T.truthy(Fx.Gone(icon), "test mode off: hidden again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece follows a totem dropped in a fight by its cast", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    dropTotem(2, 8154, true)
+    local icon = Own.Frame("earth")
+    T.eq(icon.Icon:GetTexture(), "tex8154", "the cast says which totem")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration)
+    T.falsy(Fx.Gone(icon))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece as a bar runs on the totem's time", function()
+    local DUI, AB, set = elementWorld()
+    local D, R = AB.CdmData, AB.CdmRows
+    D.AddPiece(set, "earth", "bar", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy("earth"), "totem bar")
+    local bar = AB.CdmBars.CooldownFrame("earth")
+    T.isnil(bar.Timer.__duration, "nothing yet")
+    dropTotem(2, 8071)
+    T.eq(bar.Timer.__duration, stub.totems[2].duration, "the totem's time")
+    T.eq(bar.Icon.Icon:GetTexture(), "tex8071", "the totem's icon")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+T.test("cdm: a slot update in a fight keeps the totems your casts placed", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "fire", "icon", 0, 0)
+    D.AddPiece(set, "earth", "icon", 40, 0)
+    D.AddPiece(set, "s8071", "icon", 80, 0)
+    R.Refresh(); stub.RunTimers()
+    dropTotem(2, 8154)
+    dropTotem(1, 6363)
+    stub.Advance(5); stub.RunTimers()
+    -- In a fight Searing runs out, and the game updates the earth slot as well.
+    stub.combat = true
+    stub.totems[1] = nil
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 1)
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 2)
+    stub.RunTimers()
+    T.truthy(Fx.Gone(Own.Frame("fire")), "fire gone")
+    T.falsy(Fx.Gone(Own.Frame("earth")), "earth still up")
+    T.eq(Own.Frame("earth").Icon:GetTexture(), "tex8154", "still Stoneskin")
+    T.eq(Own.Frame("s8071").Cooldown.__duration, stub.totems[2].duration, "Stoneskin's own piece keeps its time")
+    stub.combat = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -259,7 +259,7 @@ function Cast.Layout(p, cut)
     -- The light uses the fill's angled moving edge too (same mask).
     local fm = Style.GetFillMask(c.bar)
     if fm and c.lightMask ~= fm then
-        if pcall(c.light.AddMaskTexture, c.light, fm) then c.lightMask = fm end
+        if DUI.SafeCall(c.light.AddMaskTexture, c.light, fm) then c.lightMask = fm end
     end
 end
 

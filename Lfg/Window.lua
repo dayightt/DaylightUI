@@ -285,9 +285,12 @@ function Lfg.LevelsChanged()
     if f and Win.IsOpen(f) then Lfg.Apply() end
 end
 
+-- A game setting, so it's written out of a fight only.
 function Lfg.SetAllLevels(on)
-    SetCVar(Lfg.ALL_LEVELS, on and "1" or "0")
-    Lfg.LevelsChanged()
+    DUI.AfterCombat(function()
+        pcall(SetCVar, Lfg.ALL_LEVELS, on and "1" or "0")
+        Lfg.LevelsChanged()
+    end, "lfg:levels")
 end
 
 function Lfg.OptionsMenu(owner)

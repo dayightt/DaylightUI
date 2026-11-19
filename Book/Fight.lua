@@ -224,7 +224,8 @@ t:SetAttribute("_onclick", Fight.TOGGLE)
     -- Safety net: if the window closes behind the layer's back, an open layer
     -- would leave invisible cast buttons on screen, so reopen the window.
     f:HookScript("OnHide", function()
-        if Fight.Holds() and not Win.IsOpen(f) then ns.Window.Open(Fight.h:GetAttribute("page")) end
+        if Fight.Holds() and not Win.IsOpen(f) then return ns.Window.Open(Fight.h:GetAttribute("page")) end
+        if not Win.IsOpen(f) then Fight.DropKeys() end
     end)
 end
 
@@ -312,6 +313,7 @@ end
 -- Returns false when the game's book should take over for this fight.
 function Fight.Arm()
     if Fight.armed then return true end
+    Fight.DropKeys()
     if not Fight.On() then return false end
     local W = ns.Window
     local f = W.frame
@@ -352,6 +354,50 @@ function Fight.Disarm()
     Fight.point = nil
     if ns.Spells then ns.Spells.Freeze(false) end
     return true
+end
+
+-- After the fight, a window opened in it has no game book under it. Opening the
+-- game's book from here would run it with this addon's taint: it fills its spell
+-- slots under that taint, and in the next fight each cooldown update errors
+-- (SetCooldown refuses the secret cooldown). So the game's keys stay with this
+-- window, on plain buttons now, until it closes or the game's book shows.
+Fight.AFTER = { spells = Fight.NAME .. "AfterSpells", talents = Fight.NAME .. "AfterTalents",
+    close = Fight.NAME .. "AfterClose" }
+
+function Fight.AfterKey(page)
+    local W = ns.Window
+    local f = W.frame
+    if page == "close" or (Win.IsOpen(f) and f.current == page) then W.Close() else W.Open(page) end
+end
+
+function Fight.KeepKeys()
+    if InCombatLockdown() then return end
+    local o = Fight.after
+    if not o then
+        o = CreateFrame("Frame")
+        Fight.after = o
+        for page, name in pairs(Fight.AFTER) do
+            local b = CreateFrame("Button", name, o)
+            b:SetScript("OnClick", function() Fight.AfterKey(page) end)
+        end
+    end
+    ClearOverrideBindings(o)
+    for _, k in ipairs(Fight.KEYS) do
+        for _, key in ipairs({ GetBindingKey(k[1]) }) do
+            if type(key) == "string" and key ~= "" then SetOverrideBindingClick(o, false, key, Fight.AFTER[k[2]]) end
+        end
+    end
+    for _, key in ipairs({ GetBindingKey("TOGGLEGAMEMENU") }) do
+        if type(key) == "string" and key ~= "" then SetOverrideBindingClick(o, false, key, Fight.AFTER.close) end
+    end
+    Fight.kept = true
+end
+
+function Fight.DropKeys()
+    if not Fight.kept then return end
+    if InCombatLockdown() then return DUI.AfterCombat(Fight.DropKeys, "book:keys") end
+    Fight.kept = false
+    ClearOverrideBindings(Fight.after)
 end
 
 -- In combat the window opens where the layer is pinned. Returns false when

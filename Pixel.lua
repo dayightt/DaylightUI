@@ -68,48 +68,79 @@ function Pixel.GameScale()
     if type(v) == "number" and v == v then return clampScale(v) end
 end
 
--- Puts the saved scale on UIParent. tell: run the areas' UI_SCALE_CHANGED
--- handlers, which the client doesn't fire for a scale set from code.
+-- Puts the saved scale on UIParent. It is set even when it looks the same,
+-- since the client may have just put its own on; the areas are told only when
+-- it really changed. tell: run the areas' UI_SCALE_CHANGED handlers, which the
+-- client doesn't fire for a scale set from code.
+local telling = false
 local function applyScale(tell)
     local s = Pixel.UIScale()
-    if not s or math.abs((UIParent:GetScale() or 1) - s) < 0.0001 then return end
+    if not s then return end
+    local changed = math.abs((UIParent:GetScale() or 1) - s) >= 0.0001
     UIParent:SetScale(s)
-    if tell then DUI.RunEvent("UI_SCALE_CHANGED") end
+    if not changed then return end
+    if tell then
+        telling = true
+        DUI.RunEvent("UI_SCALE_CHANGED")
+        telling = false
+    end
     DUI.NotifyStyleChanged()
+end
+
+-- UIParent can't be resized in a fight, a reload in one included.
+local function applySoon(tell)
+    DUI.AfterCombat(function() applyScale(tell) end, "uiscale")
 end
 
 function Pixel.SetUIScale(v)
     if type(v) ~= "number" or v ~= v then return end
     DUI.DB.Root().uiScale = clampScale(v)
-    DUI.AfterCombat(function() applyScale(true) end, "uiscale")
+    applySoon(true)
+end
+
+-- Reads the screen size again; repaints only when a pixel's size changed.
+local function rereadScreen()
+    local before = Pixel.perfect
+    Pixel.Refresh()
+    if Pixel.perfect ~= before then DUI.NotifyStyleChanged() end
 end
 
 DUI.On("RepaintCore", Pixel.Refresh)
 
+-- Set as early as the saved value exists, then again at login.
+local loggedIn = false
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
-    if name == ADDON_NAME then applyScale(false) end
+    if name == ADDON_NAME then applySoon(false) end
 end)
--- The client puts its own scale on during login, after ADDON_LOADED.
+-- The client puts its own scale on during login, after ADDON_LOADED, so the
+-- login is where the saved one goes back for good. Before it, the client's
+-- own changes are left to this.
 DUI.RegisterEvent("PLAYER_LOGIN", function()
-    DUI.AfterCombat(function() applyScale(true) end, "uiscale")
+    loggedIn = true
+    applySoon(true)
 end)
+-- Loading screens don't set the scale (the client tells through
+-- UI_SCALE_CHANGED when it changes one); the first one keeps the scale the
+-- game had, so nothing changes size when this starts.
 DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
     local root = DUI.DB.Root()
     if root.uiScale == nil then
         root.uiScale = clampScale(UIParent:GetScale() or 1)
         root.uiScaleGame = root.uiScale
     end
-    DUI.AfterCombat(function() applyScale(true) end, "uiscale")
+    rereadScreen()
 end)
 -- Handlers of this event registered after this one (every area's) run at the
 -- right scale when it is put back at once. In a fight it waits, and the areas
 -- are told again once it is back.
 DUI.RegisterEvent("UI_SCALE_CHANGED", function()
-    if InCombatLockdown() then
-        DUI.AfterCombat(function() applyScale(true) end, "uiscale")
-    else
-        applyScale(false)
+    Pixel.Refresh()
+    if loggedIn and not telling then
+        if InCombatLockdown() then applySoon(true) else applyScale(false) end
     end
     DUI.NotifyStyleChanged()
 end)
-DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() DUI.NotifyStyleChanged() end)
+DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function()
+    Pixel.Refresh()
+    DUI.NotifyStyleChanged()
+end)

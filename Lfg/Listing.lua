@@ -624,7 +624,11 @@ function Listing.Build(page)
     page.npf = W().Switch(page)
     page.npf:SetScript("OnClick", function()
         Listing.npf = not Listing.npf
-        if type(SetCVar) == "function" then pcall(SetCVar, "lfgNewPlayerFriendly", Listing.npf and "1" or "0") end
+        -- A game setting, so it's written out of a fight only.
+        local on = Listing.npf
+        DUI.AfterCombat(function()
+            if type(SetCVar) == "function" then pcall(SetCVar, "lfgNewPlayerFriendly", on and "1" or "0") end
+        end, "lfg:npf")
         page.npf.SetOn(Listing.npf)
         Listing.PaintFooter()
     end)

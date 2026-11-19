@@ -39,7 +39,7 @@ function Body.Lean(tex, dx)
     dx = dx or 0
     if leanOf[tex] == dx or not tex.SetVertexOffset then return end
     leanOf[tex] = dx
-    pcall(tex.SetVertexOffset, tex, 4, dx, 0)
+    DUI.SafeCall(tex.SetVertexOffset, tex, 4, dx, 0)
 end
 
 -- frame: what the border goes around (its size is set before each Layout).
@@ -187,8 +187,8 @@ local function placeShadow(b)
     sh.RIGHT:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", S - inX, rBottom)
     if sh.RIGHT.SetVertexOffset then
         -- Vertex 1 is upper left, 3 upper right: shear the top out along the cut.
-        pcall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 1, lean, 0)
-        pcall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 3, lean, 0)
+        DUI.SafeCall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 1, lean, 0)
+        DUI.SafeCall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 3, lean, 0)
     end
     local full, none = Style.ShadowColors(nil, a)
     -- VERTICAL: first color at the bottom; HORIZONTAL: first color at the left.

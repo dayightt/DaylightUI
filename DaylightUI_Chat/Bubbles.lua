@@ -22,9 +22,19 @@ local hooked = setmetatable({}, WEAK)
 local shown = setmetatable({}, WEAK)    -- bubbles drawn by a frame right now
 local childOf = setmetatable({}, WEAK)  -- the bubble's balloon, kept to hand it back
 
+-- Inside an instance the client makes its bubbles forbidden, so they're left to
+-- the game there, even pooled ones hooked outside before.
+local inside = false
+
 local function on()
     local mod = ns.module
-    return mod and mod.db and mod.db.bubbles == true
+    return not inside and mod and mod.db and mod.db.bubbles == true
+end
+
+local function inInstance()
+    if type(IsInInstance) ~= "function" then return false end
+    local isIn, kind = IsInInstance()
+    return isIn == true and kind ~= "none"
 end
 
 -- Every touch of the game's frame goes through pcall: the client can make a
@@ -48,6 +58,12 @@ local function setGameAlpha(child, a)
     if child then pcall(child.SetAlpha, child, a) end
 end
 
+local function face(f)
+    local size = (ns.module and ns.module.db and ns.module.db.bubbleSize) or 12
+    Style.SetFace(f.text, Style.FontFile(ns.MEDIA.font), size, Style.Outline())
+    return size
+end
+
 local function newOverlay()
     local f = CreateFrame("Frame", nil, UIParent)
     -- Under the rest of the UI, as the game's bubbles are.
@@ -56,14 +72,15 @@ local function newOverlay()
     f.text = f:CreateFontString(nil, "OVERLAY")
     f.text:SetPoint("CENTER")
     f.text:SetWordWrap(true)
+    -- The client refuses words on a font string that has no font yet.
+    face(f)
     f:Hide()
     Style.Shell(f)
     return f
 end
 
 local function layout(f)
-    local size = (ns.module and ns.module.db and ns.module.db.bubbleSize) or 12
-    Style.SetFace(f.text, Style.FontFile(ns.MEDIA.font), size, Style.Outline())
+    local size = face(f)
     local wrap = Bubbles.WRAP * size / 12
     f.text:SetWidth(wrap)
     local w = f.text.GetUnboundedStringWidth and f.text:GetUnboundedStringWidth() or f.text:GetStringWidth()
@@ -74,18 +91,37 @@ local function layout(f)
     f:SetSize(f.text:GetWidth() + 2 * Bubbles.PAD, h + 2 * Bubbles.PAD)
 end
 
+-- Lets go of the game's frame: a stand-in that's fading out stays where it is,
+-- pinned to UIParent, so nothing of Daylight UI hangs on the world layer once the
+-- bubble is done.
+local function unpin(f)
+    local ok, x, y = pcall(f.GetCenter, f)
+    f:ClearAllPoints()
+    if not ok or type(x) ~= "number" or type(y) ~= "number" or DUI.IsSecret(x) or DUI.IsSecret(y) then
+        return false
+    end
+    f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
+    return true
+end
+
+local function hide(f)
+    f:Hide()
+    f:ClearAllPoints()
+end
+
 -- Gives the game its bubble back and lets the stand-in fade away.
 local function release(outer, child)
     local f = overlay[outer]
     shown[outer] = nil
     setGameAlpha(child or childOf[outer], 1)
-    if not f or not f:IsShown() then return end
+    if not f then return end
+    if not f:IsShown() then return hide(f) end
     f.token = (f.token or 0) + 1
     local token = f.token
-    if not Motion.On() then f:Hide(); return end
+    if not Motion.On() or not unpin(f) then return hide(f) end
     Motion.Fade(f, f:GetAlpha(), 0, Motion.FAST)
     C_Timer.After(Motion.FAST, function()
-        if f.token == token then f:Hide() end
+        if f.token == token then hide(f) end
     end)
 end
 
@@ -121,7 +157,7 @@ local function draw(outer)
     layout(f)
     f:ClearAllPoints()
     if not pcall(f.SetPoint, f, "CENTER", child, "CENTER", 0, 0) then
-        f:Hide()
+        hide(f)
         return release(outer, child)
     end
     shown[outer] = true
@@ -192,4 +228,11 @@ function Bubbles.Build(mod)
     for _, e in ipairs(Bubbles.EVENTS) do DUI.RegisterEvent(e, onMessage) end
     -- A loading screen can turn the pooled bubbles forbidden: give them back first.
     DUI.RegisterEvent("LOADING_SCREEN_ENABLED", Bubbles.ReleaseAll)
+    inside = inInstance()
+    DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        inside = inInstance()
+        if inside then Bubbles.ReleaseAll() end
+    end)
+    -- A pooled bubble can outlive a reload: never leave one faded out.
+    DUI.RegisterEvent("PLAYER_LOGOUT", Bubbles.ReleaseAll)
 end

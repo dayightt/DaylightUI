@@ -15,6 +15,7 @@ local function xpFadeCard()
         { type = "toggle", key = "xp.ownFade", label = "Experience bar has its own fade",
           desc = "When off, the experience bar fades with the panel. When on, it follows the settings here, attached or separate." } })
     card.label = "Experience bar fade"
+    card.tab = "Fade"
     return card
 end
 local function noClock(get) return get("map.enabled") ~= true or get("map.clock.enabled") ~= true end
@@ -70,6 +71,27 @@ end
 -- XP bar sliders match the resize grip's range.
 local XP_MIN, XP_MAX = ns.Panel.XP_MIN, ns.Panel.XP_MAX
 
+-- A bar's own border, corners and shadow (<id>.shell, Panel.Look). Off, the bar
+-- follows the Info panel border switch (attached to the panel) or
+-- General > Appearance (on its own).
+local function shellGroup(id, label, gate, attached)
+    local k = function(s) return id .. ".shell." .. s end
+    local dis = function(get) return get(gate) ~= true or get(k("own")) ~= true end
+    return { label = label,
+        desc = attached and "Attached to the info panel, the bar's box follows the panel's border (the Info panel border switch on General, and General > Appearance). Turn on its own look to set a border, corners and shadow just for this bar."
+            or "This bar's own outline, corners and shadow. When off, it follows General > Appearance.",
+        items = {
+            { type = "toggle", key = k("own"), label = "Own border and shadow", disabled = off(gate),
+              desc = "Gives the bar the border, corners and shadow below. When off, it takes the panel's style (attached) or General > Appearance's (separate)." },
+            { type = "slider", key = k("borderPx"), label = "Border thickness", min = 0, max = 16, step = 1, unit = "px",
+              desc = "0 leaves just the bar, with no outline round it.", disabled = dis },
+            { type = "slider", key = k("cornerPx"), label = "Corner rounding", min = 0, max = 24, step = 1, unit = "px",
+              desc = "How round the bar's corners are. 0 keeps them sharp.", disabled = dis },
+            { type = "slider", key = k("shadowPx"), label = "Shadow size", min = 0, max = 12, step = 1, unit = "px",
+              desc = "How far the bar's shadow spreads. 0 leaves no shadow.", disabled = dis },
+        } }
+end
+
 -- Panel background opacity, shared by the meter and threat meter windows.
 local backRows = DaylightUI.Options.BackAlphaRows("panelAlpha", "Info panel")
 backRows[2].desc = "How see-through the experience bar's box and the meters' own windows are (a meter window can have its own, on its page)."
@@ -77,14 +99,19 @@ local mapBack = DaylightUI.Options.BackAlphaRows("map.alpha", "Minimap box", off
 mapBack[2].desc = "How see-through the box around the minimap (and the damage meter in it) is: 0 is fully see-through."
 ns.OPTIONS = { pages = {
     { id = "panel", label = "General",
-      desc = "The top-right panel: experience bar on top, damage meter and minimap below. Move it in unlock mode.",
+      desc = "The top-right panel: experience bar on top, damage meter and minimap below. Move it in unlock mode. The experience bar has its own page.",
       groups = {
         { label = "Background", desc = "The experience bar's box, and the meters' and threat meter's own windows. The minimap's box has its own on the Minimap page. At 0 opacity the boxes disappear; the bars still show.", items = {
             backRows[1], backRows[2],
             { type = "toggle", key = "panelBorder", label = "Info panel border",
               desc = "A border and shadow around the experience bar's box and the threat meter's window." },
         } },
-        { label = "Experience bar", desc = "At the level cap it shows the reputation you're watching. Before that, it turns to that faction for a few seconds when you gain reputation, and while the mouse is over it.", items = {
+        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade on the Experience bar page. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
+      } },
+    { id = "xp", label = "Experience bar",
+      desc = "What the experience and reputation bars show, how they look and where they sit.",
+      groups = {
+        { tab = "General", label = "Experience bar", desc = "At the level cap it shows the reputation you're watching. Before that, it turns to that faction for a few seconds when you gain reputation, and while the mouse is over it.", items = {
             { type = "toggle", key = "xp.enabled", label = "Show the experience bar",
               desc = "The experience bar on top of the panel, or reputation at the level cap." },
             { type = "toggle", key = "xp.gameBar", label = "Use the game's experience bar instead",
@@ -123,7 +150,7 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("xp.enabled") },
         } },
-        { label = "Experience bar look", items = {
+        { tab = "Look", label = "Experience bar look", items = {
             { type = "toggle", key = "xp.gradient", label = "Experience bar gradient",
               desc = "The bar shades from dark to bright instead of one flat color. Reputation gets one per standing, editable on the Gradients page.",
               disabled = off("xp.enabled") },
@@ -145,7 +172,8 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.BarRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
             DaylightUI.Options.BackRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
         } },
-        { label = "Experience bar size", items = {
+        shellGroup("xp", "Experience bar border and shadow", "xp.enabled", true),
+        { tab = "Size", label = "Experience bar size", items = {
             { type = "toggle", key = "xp.detached", label = "Separate experience bar",
               desc = "Takes the bar off the panel and puts it under your action bars. Move it in unlock mode; drag its corner to resize.",
               disabled = off("xp.enabled") },
@@ -165,7 +193,7 @@ ns.OPTIONS = { pages = {
               desc = "How tall the experience bar is, on the panel or on its own.",
               disabled = off("xp.enabled") },
         } },
-        { label = "Reputation bar", desc = "The reputation you're watching, always, on its own bar. Pick the faction on the Reputation page of the character window. Move it in unlock mode; drag its corner to resize.", items = {
+        { tab = "Reputation", label = "Reputation bar", desc = "The reputation you're watching, always, on its own bar. Pick the faction on the Reputation page of the character window. Move it in unlock mode; drag its corner to resize.", items = {
             { type = "toggle", key = "rep.enabled", label = "Show a separate reputation bar",
               desc = "A bar of its own for the faction you're watching. While it's on, the experience bar no longer turns to reputation when you gain some." },
             { type = "dropdown", key = "rep.orientation", label = "Reputation bar orientation",
@@ -199,7 +227,7 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("rep.enabled") },
         } },
-        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade in the Experience bar fade card on this page. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
+        shellGroup("rep", "Reputation bar border and shadow", "rep.enabled"),
         xpFadeCard(),
       } },
     ns.MeterOptions.Page(),
@@ -221,8 +249,9 @@ ns.OPTIONS = { pages = {
             { type = "toggle", label = "Rotate as you turn",
               desc = "The game's own setting: the map turns with you, so the way you face is always up. When off, north is always up.",
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true end,
-              set = function(v)
-                  if type(SetCVar) == "function" then SetCVar("rotateMinimap", v and "1" or "0") end
+              -- A game setting, so it's written out of a fight only.
+              set = function(v) DaylightUI.AfterCombat(function()
+                  if type(SetCVar) == "function" then pcall(SetCVar, "rotateMinimap", v and "1" or "0") end
                   -- The game reapplies this from its Edit Mode layout at login,
                   -- so write it there too or it resets after a reload.
                   local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting
@@ -231,7 +260,7 @@ ns.OPTIONS = { pages = {
                   end
                   -- Not one of Daylight UI's settings, so notify the options window directly.
                   DaylightUI.Fire("SettingChanged", "InfoPanel", "map.rotate", v)
-              end,
+              end, "infopanel:rotate") end,
               default = function() return false end,
               disabled = off("map.enabled") },
             { type = "dropdown", key = "map.shape", label = "Minimap shape", since = "1.8.0",

@@ -224,3 +224,36 @@ T.test("a bar texture saved as the window color goes back to the window bar back
     T.eq(kept.general.windowTint, "class", "a real color pick stays")
     T.eq(kept.general.windowBack, "glass")
 end)
+
+-- The short chat tags start from the player's language on a new profile; a profile that existed
+-- before keeps the English letters, once.
+T.test("existing profiles keep the English chat tag letters, new ones start in the player's language", function()
+    local DUI = stub.Load({ before = function()
+        DaylightUIDB = { version = 2, profileData = {
+            Old = { modules = { Chat = { panelShown = false } } },
+            NoChat = { modules = {} },
+            Picked = { modules = { Chat = { tagLetters = "native" } } } } }
+    end })
+    local pd = DaylightUIDB.profileData
+    T.eq(pd.Old.modules.Chat.tagLetters, "english", "an existing profile keeps today's letters")
+    T.eq(pd.NoChat.modules.Chat.tagLetters, "english", "even one that never loaded the chat")
+    T.eq(pd.Picked.modules.Chat.tagLetters, "native", "a pick of theirs is left alone")
+    T.eq(pd.Old.tagLetters1, true)
+    pd.Old.modules.Chat.tagLetters = nil
+    DUI.DB.Init()
+    T.isnil(pd.Old.modules.Chat.tagLetters, "only once")
+end)
+
+T.test("a fresh install and a new profile are not set to English chat tags", function()
+    local DUI = stub.Load()
+    local pd = DaylightUIDB.profileData
+    local first = pd[DUI.DB.DEFAULT]
+    T.eq(first.tagLetters1, true, "marked as already past the one-time step")
+    T.isnil(type(first.modules.Chat) == "table" and first.modules.Chat.tagLetters or nil, "no English forced")
+    DUI.DB.Init()
+    T.isnil(type(first.modules.Chat) == "table" and first.modules.Chat.tagLetters or nil, "and not on the next load either")
+    DUI.Profiles.Create("Fresh")
+    local p = DaylightUIDB.profileData.Fresh
+    T.truthy(p, "a profile is made")
+    T.eq(p.tagLetters1, true, "a new profile is marked too")
+end)

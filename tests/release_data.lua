@@ -1676,6 +1676,8 @@ return {
           },
           ["since"] = 1700000000,
         },
+        ["lootLog"] = {
+        },
         ["mailName"] = "Me",
         ["whispers"] = {
         },
@@ -1683,7 +1685,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "1.9.4.1",
+    ["notesSeen"] = "1.9.5",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -3578,6 +3580,13 @@ return {
     ["QoL.lootFeedBorderCustom.1"] = 0.72,
     ["QoL.lootFeedBorderCustom.2"] = 0.7,
     ["QoL.lootFeedBorderCustom.3"] = 0.66,
+    ["QoL.lootFeedFade.alpha"] = 0,
+    ["QoL.lootFeedFade.delay"] = 4.5,
+    ["QoL.lootFeedFade.mode"] = "never",
+    ["QoL.lootFeedFade.mouseover"] = true,
+    ["QoL.lootFeedFade.opacity"] = 1,
+    ["QoL.lootFeedFade.target"] = false,
+    ["QoL.lootFeedFade.targetEnemy"] = false,
     ["QoL.lootFeedFlip"] = false,
     ["QoL.lootFeedFont"] = "general",
     ["QoL.lootFeedGrow"] = "up",
@@ -3591,6 +3600,7 @@ return {
     ["QoL.lootFeedSkills"] = true,
     ["QoL.lootFeedSlant"] = true,
     ["QoL.lootFeedSlantSide"] = "both",
+    ["QoL.lootFeedStyle"] = "fade",
     ["QoL.lootFeedTextSize"] = 13,
     ["QoL.lootFeedTogether"] = false,
     ["QoL.lootSparkles"] = false,
@@ -3610,7 +3620,7 @@ return {
     ["Quests.boxAlphaOwn"] = false,
     ["Quests.boxBorder"] = true,
     ["Quests.capsTitles"] = false,
-    ["Quests.clicks.alt"] = "none",
+    ["Quests.clicks.alt"] = "fold",
     ["Quests.clicks.click"] = "map",
     ["Quests.clicks.ctrl"] = "priority",
     ["Quests.clicks.shift"] = "untrack",
@@ -7726,5 +7736,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "1.9.4.1",
+  ["version"] = "1.9.5",
 }

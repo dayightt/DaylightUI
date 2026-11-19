@@ -1413,7 +1413,21 @@ local MENU_UNDER = {
     TOOLTIP = "FULLSCREEN_DIALOG", FULLSCREEN_DIALOG = "FULLSCREEN", FULLSCREEN = "DIALOG",
     DIALOG = "HIGH", HIGH = "MEDIUM", MEDIUM = "LOW", LOW = "BACKGROUND",
 }
+-- The game gives a menu no parent and shows it over the screen's top frame:
+-- UIParent, or the barber shop's own while it hides UIParent. The panel goes on
+-- that same frame, or the hidden UIParent took it out of sight with it.
+local function menuParent(menu)
+    local p = menu.GetParent and menu:GetParent()
+    if p then return p end
+    if type(GetAppropriateTopLevelParent) == "function" then
+        p = GetAppropriateTopLevelParent()
+        if type(p) == "table" then return p end
+    end
+    return UIParent
+end
 local function placeMenuShell(menu, holder)
+    local parent = menuParent(menu)
+    if holder:GetParent() ~= parent then holder:SetParent(parent) end
     local strata = menu.GetFrameStrata and menu:GetFrameStrata()
     holder:SetFrameStrata(MENU_UNDER[strata] or "MEDIUM")
     local level = menu.GetFrameLevel and menu:GetFrameLevel()
@@ -1427,8 +1441,7 @@ local function dressMenu(Kit, menu)
     Kit.Strip(menu)
     local holder = menuShell[menu]
     if not holder then
-        local parent = menu.GetParent and menu:GetParent() or UIParent
-        holder = CreateFrame("Frame", nil, parent)
+        holder = CreateFrame("Frame", nil, menuParent(menu))
         holder:EnableMouse(false)
         holder.includeInLayout = false
         holder.ignoreInLayout = true

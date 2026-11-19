@@ -17,7 +17,8 @@ local FILTERS = { all = "All tracked quests", zone = "This zone only", log = "Ev
 local SORTS = { recent = "Most recent progress", zone = "Zone order", level = "Level", near = "Nearest first", ready = "Ready first" }
 local INSTANCE_MODES = { zone = "This zone only", fold = "Fold to the header", hide = "Hide", none = "Leave as it is" }
 local JOURNAL_SORTS = { log = "Quest log order", level = "Level", ready = "Ready first", watched = "Tracked first" }
-local TITLE_MODES = { difficulty = "By difficulty", one = "One color" }
+local TIP_KINDS = { short = "Objectives", details = "Full quest details" }
+local TITLE_MODES ={ difficulty = "By difficulty", one = "One color" }
 local BAR_MODES = { accent = "Accent color", class = "Class color", custom = "One color" }
 local MARKER_LOOKS = { beacon = "Beacon", pillar = "Light pillar", minimal = "Minimal" }
 local FOCUS_MODES ={ accent = "Accent color", daylight = "Daylight gradient", gradient = "Class gradient", class = "Class color", custom = "One color" }
@@ -111,6 +112,9 @@ ns.OPTIONS = { pages = {
               desc = "The quest under the mouse stays bright, the others ease dimmer." },
             { type = "toggle", key = "rowTips", label = "Show quest tooltips",
               desc = "A quest under the mouse shows its objectives and clicks beside the tracker. When off, nothing shows and clicks work the same." },
+            { type = "dropdown", key = "rowTipKind", label = "Quest tooltip detail", values = TIP_KINDS, order = { "short", "details" },
+              desc = "What a quest's tooltip shows. Objectives keeps it short; Full quest details adds the quest's story and every reward, like Quest details from its menu.",
+              disabled = off("rowTips") },
             { type = "toggle", key = "emptyHeader", label = "Show the header with no quests",
               desc = "The Quests header stays when nothing is tracked, so you can see where the tracker is." },
             clickPick("click", "Click on a quest", "What a click on a quest in the tracker does. Clicking its icon always makes it your priority, and right-click opens its menu."),
@@ -120,7 +124,12 @@ ns.OPTIONS = { pages = {
             { type = "toggle", label = "Track new quests automatically",
               desc = "The game's own setting: a quest you accept goes straight into the tracker.",
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("autoQuestWatch") == true end,
-              set = function(v) if type(SetCVar) == "function" then SetCVar("autoQuestWatch", v and "1" or "0") end end,
+              -- A game setting, so it's written out of a fight only.
+              set = function(v)
+                  DaylightUI.AfterCombat(function()
+                      if type(SetCVar) == "function" then pcall(SetCVar, "autoQuestWatch", v and "1" or "0") end
+                  end, "quests:autowatch")
+              end,
               default = function() return true end },
         } },
         { label = "Quest progress pop-up", items = {
