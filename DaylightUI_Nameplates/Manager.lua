@@ -164,12 +164,21 @@ local function gameClicks(nameplate)
     DUI.SafeCall(uf.UpdateHitTestArea, uf, NamePlateSetupOptions)
 end
 
+-- Runs fn like DUI.SafeCall (an error reaches the error log, the caller goes on),
+-- and also hands back the error's first line, so /dui platefix can say what failed.
+function Manager.Try(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if ok then return true end
+    DUI.SafeCall(error, err, 0)
+    return false, string.sub(string.match(tostring(err), "^[^\n]*") or "", 1, 120)
+end
+
 -- Gives a held frame back to the game: its events, its widgets and, when it's on
 -- a plate (nameplate given), its spot and click area there, as the game sets
--- them when it hands a frame out.
+-- them when it hands a frame out. Returns false and the error when the game
+-- refused the move: the frame then stays held, so a later try still gives it back.
 function Manager.GiveBackFrame(uf, nameplate)
     if type(uf) ~= "table" or not uf.SetParent or forbidden(uf) or not held[uf] then return end
-    held[uf] = nil
     if quieted[uf] then
         quieted[uf] = nil
         for _, e in ipairs(Manager.LOAD_EVENTS) do DUI.SafeCall(uf.RegisterEvent, uf, e) end
@@ -193,12 +202,17 @@ function Manager.GiveBackFrame(uf, nameplate)
     moveKeepers(uf, uf)
     if type(nameplate) == "table" and nameplate.UnitFrame == uf and not forbidden(nameplate) then
         if uf:GetParent() ~= nameplate then
-            uf:SetParent(nameplate)
-            uf:ClearAllPoints()
-            uf:SetAllPoints(nameplate)
+            local ok, err = Manager.Try(function()
+                uf:SetParent(nameplate)
+                uf:ClearAllPoints()
+                uf:SetAllPoints(nameplate)
+            end)
+            if not ok then return false, err end
         end
         gameClicks(nameplate)
     end
+    held[uf] = nil
+    return true
 end
 
 -- Where a plate is clicked, Platynator's way: one frame of Daylight UI's per
@@ -1248,17 +1262,24 @@ local function gameDefault(name)
 end
 
 -- Hands every plate back to the game and takes none again until told to.
+-- Returns how many it tried, how many made it back, and the first error.
 local function handBack()
     Manager.fixPaused = true
     local units = {}
     for unit in pairs(byUnit) do units[#units + 1] = unit end
+    local back, first = 0, nil
     for _, unit in ipairs(units) do
         local p = byUnit[unit]
         local np, uf = p.nameplate, p.gameFrame
-        DUI.SafeCall(Manager.Removed, unit)
-        DUI.SafeCall(Manager.GiveBackFrame, uf, np)
+        local ok, err = Manager.Try(Manager.Removed, unit)
+        if ok then
+            local gave, why
+            ok, err = Manager.Try(function() gave, why = Manager.GiveBackFrame(uf, np) end)
+            if ok and gave == false then ok, err = false, why end
+        end
+        if ok then back = back + 1 else first = first or err end
     end
-    return #units
+    return #units, back, first
 end
 
 -- Switches the game's plates off and on so it rebuilds them, then puts the
@@ -1303,15 +1324,20 @@ Manager.FIX = {
     -- 1. Reapply the plate size and click insets given to the game.
     function()
         local set = C_NamePlate and C_NamePlate.SetNamePlateSize
-        if type(set) == "function" then pcall(set, Manager.PlateSize()) end
+        local ok, err = true, nil
+        if type(set) == "function" then ok, err = Manager.Try(set, Manager.PlateSize()) end
         Manager.ApplyClickable()
         Manager.Each(Manager.OwnClicks)
+        if not ok then return "the game refused the plate size (" .. err .. "), click area set again" end
         return "the plate size and click area set again"
     end,
     -- 2. Hand every game plate back as it was (Daylight UI's off, its own frame back on it
     -- with its events and click area), and take none again until step 3 is done.
     function()
-        return string.format("%d plates handed back to the game", handBack())
+        local tried, back, err = handBack()
+        if back == tried then return string.format("%d plates handed back to the game", tried) end
+        return string.format("%d of %d plates handed back to the game, %d refused (%s)", back, tried, tried - back,
+            tostring(err))
     end,
     -- 3. Toggle the game's plates off and on so it rebuilds them, then put Daylight UI's back.
     function()

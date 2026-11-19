@@ -683,3 +683,37 @@ T.test("platefix: switch changes stay in the report after the log has filled", f
     T.truthy(text:find("switch changes: off by a key or the client -0:00, on by a key or the client -0:00", 1, true),
         text)
 end)
+
+-- The game can refuse a call in the middle of a step. The step must say so
+-- instead of reporting what it only tried.
+T.test("platefix: step 2 counts a plate the game refused to take back as failed, and a retry still gives it back", function()
+    local NP = login()
+    local M = NP.Manager
+    local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
+    local uf = np.UnitFrame
+    T.truthy(M.IsHeld(uf), "Daylight UI holds the game's frame")
+    local setParent = uf.SetParent
+    uf.SetParent = function() error("refused") end
+    M.Fix()
+    local said = M.Fix()
+    uf.SetParent = setParent
+    T.truthy(said:find("0 of 1 plates handed back", 1, true), said)
+    T.truthy(said:find("1 refused", 1, true), said)
+    T.truthy(#stub.errors >= 1, "the refusal reached the error log")
+    T.truthy(M.IsHeld(uf), "still marked as held, so it can be given back later")
+    T.truthy(uf:GetParent() ~= np, "not on the plate")
+    M.GiveBackFrame(uf, np)
+    T.eq(uf:GetParent(), np, "the retry put it back")
+    T.falsy(M.IsHeld(uf), "and let it go")
+end)
+
+T.test("platefix: step 1 says so when the game refuses the plate size", function()
+    local NP = login()
+    C_NamePlate.SetNamePlateSize = function() error("size refused") end
+    local said = NP.Manager.Fix()
+    C_NamePlate.SetNamePlateSize = nil
+    T.truthy(said:find("refused", 1, true), said)
+    T.truthy(#stub.errors >= 1, "the refusal reached the error log")
+    local text = NP.Manager.FixReport(1)
+    T.truthy(text:find("size refused", 1, true), "the report carries the game's words")
+end)
