@@ -87,7 +87,10 @@ end
 local function copyText(g, n, src, l0, t0)
     if not (type(src) == "table" and src:IsShown()) then return n end
     local words = src:GetText()
-    if words == nil or words == "" then return n end
+    -- A line the game filled with a secret (under restrictions) can't be
+    -- compared, and its spot can't be read either: no ghost then.
+    if isSecret(words) then return false end
+    if type(words) == "nil" or words == "" then return n end
     local l, t, w, h = src:GetLeft(), src:GetTop(), src:GetWidth(), src:GetHeight()
     if not (num(l) and num(t) and num(w) and num(h)) then return false end
     n = n + 1
@@ -115,7 +118,8 @@ end
 local function copyIcon(g, n, src, l0, t0)
     if not (type(src) == "table" and src:IsShown()) then return n end
     local file = src:GetTexture()
-    if file == nil then return n end
+    if isSecret(file) then return false end
+    if type(file) == "nil" then return n end
     local l, t, w, h = src:GetLeft(), src:GetTop(), src:GetWidth(), src:GetHeight()
     if not (num(l) and num(t) and num(w) and num(h)) then return false end
     n = n + 1

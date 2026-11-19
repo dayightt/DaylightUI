@@ -132,6 +132,11 @@ T.test("no value from a secret API is truth-tested or compared without a secret 
                     if name ~= "_" then live[name] = n; tracked = tracked + 1 end
                 end
             end
+            -- A tooltip line read back is secret whenever the game set a secret
+            -- on it (in a fight, and under restrictions between fights too).
+            local read = path:find("^DaylightUI_Tooltip/")
+                and code:match("^%s*local%s+([%w_]+)%s*=%s*[%w_%.%[%]]+:GetText%(%)%s*$")
+            if read then live[read] = n; tracked = tracked + 1 end
             for name, from in pairs(live) do
                 local e = esc(name)
                 if code:find("issecretvalue%(%s*" .. e .. "%s*%)") or code:find("[Ss]ecret%(%s*" .. e .. "%s*%)")
