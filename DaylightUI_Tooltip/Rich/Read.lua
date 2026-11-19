@@ -28,17 +28,19 @@ local function color(fs)
     return r, g, b
 end
 
--- The data's line types, by line, when the data has them plain.
+-- The data's line type and id (a quest title's quest), by line, when plain.
 local function typeOf(data, i)
     local list = type(data) == "table" and data.lines
     local line = type(list) == "table" and list[i]
-    local t = type(line) == "table" and line.type or nil
-    if isSecret(t) then return nil end
-    return t
+    if type(line) ~= "table" then return nil end
+    local t, id = line.type, line.id
+    if isSecret(t) then t = nil end
+    if isSecret(id) or type(id) ~= "number" then id = nil end
+    return t, id
 end
 
 -- Returns the number of lines, the list (lines[i] = { left, right, lc, rc,
--- type }; lc and rc are { r, g, b } or nil) and whether any line is secret.
+-- type, id }; lc and rc are { r, g, b } or nil) and whether any line is secret.
 -- A secret line stops the read: nothing about its size can be known then.
 function Read.Lines(tip, data)
     local Tip = ns.Tooltip
@@ -54,7 +56,8 @@ function Read.Lines(tip, data)
             line = { lc = {}, rc = {} }
             lines[i] = line
         end
-        line.left, line.right, line.type = lt, rt, typeOf(data, i)
+        line.left, line.right = lt, rt
+        line.type, line.id = typeOf(data, i)
         line.hasLC, line.hasRC = false, false
         if lt then
             local r, g, b = color(left)

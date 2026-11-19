@@ -185,7 +185,6 @@ function Panel.MakeBar(parent)
     local bar = CreateFrame("StatusBar", nil, parent)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     bar.back = bar:CreateTexture(nil, "BACKGROUND", nil, 1)
-    bar.back:SetAllPoints(bar)
     bar.back:SetColorTexture(0, 0, 0, 0.6)
     bar.edge = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
     local b = Style.BORDER
@@ -389,7 +388,6 @@ function Panel.Bar(p, spec)
     local item = add(p, { kind = "bar", h = spec.h or 4, spec = spec })
     local bar = take(p, "bar")
     Panel.PaintBar(bar, spec)
-    Style.AngleFill(bar, "right", math.max(2, item.h * 0.7))
     item.bar = bar
     if spec.caption then
         item.caption = text(p, Style.SIZE.tiny, Style.INK.LABEL)
@@ -599,12 +597,24 @@ function place.bar(p, item, y)
     local bar = item.bar
     bar:SetPoint("TOPLEFT", p, "TOPLEFT", Panel.PAD_X, -top)
     bar:SetPoint("TOPRIGHT", p, "TOPRIGHT", -Panel.PAD_X, -top)
-    bar:SetHeight(item.h)
+    Panel.ShapeBar(bar, item.h)
+    return top - y + item.h
+end
+
+-- A bar's height and its right end, cut at 45 degrees: the fill's moving end
+-- and the track behind it at the same angle, so a full bar ends in one clean
+-- slant instead of the fill's cut against a square black corner. The outline
+-- sits inside the track, under the fill.
+function Panel.ShapeBar(bar, h)
+    bar:SetHeight(h)
     local one = DUI.Pixel.Px(bar, 1)
     bar.edge:ClearAllPoints()
-    bar.edge:SetPoint("TOPLEFT", bar, "TOPLEFT", -one, one)
-    bar.edge:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", one, -one)
-    return top - y + item.h
+    bar.edge:SetAllPoints(bar)
+    bar.back:ClearAllPoints()
+    bar.back:SetPoint("TOPLEFT", bar, "TOPLEFT", one, -one)
+    bar.back:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -one, one)
+    Style.AngleFill(bar, "right", h)
+    Style.CutCorner(bar, h, bar.back, bar.edge)
 end
 
 function place.tiles(p, item, y, inner)

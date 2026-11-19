@@ -419,3 +419,60 @@ T.test("rich tooltip: a short card's title is never cut, a yellow heading is whi
     T.eq(stub.Text(p.items[2].fs), "Thrall", "the senders under it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game: a creature's quest lines came through as plain sentences.
+T.test("rich tooltip: quest lines as headings in their difficulty color, objectives with bars", function()
+    local _, Panel = login("rich")
+    DaylightUI.Npc.Data.QuestColor = function(id) return id == 77 and { 0.1, 0.9, 0.1 } or { 0.9, 0.5, 0.1 } end
+    _G.C_QuestLog = _G.C_QuestLog or {}
+    C_QuestLog.GetNumQuestLogEntries = function() return 1 end
+    C_QuestLog.GetInfo = function(i) return { title = "Southsea Shakedown", questID = 88 } end
+    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, health = 50, maxHealth = 100 }
+    local data = { type = Enum.TooltipDataType.Unit, lines = { {}, {}, { type = 17, id = 77 }, { type = 8 } } }
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Southsea Pirate")
+    tip:AddLine("Level 44")
+    tip:AddLine("Pirate Hats Ahoy!")                    -- the game's quest title (typed)
+    tip:AddLine(" - 0/20 Southsea Pirate Hat")          -- the game's objective (typed)
+    tip:AddLine("Southsea Shakedown")                   -- Questie's: text only
+    tip:AddLine("   |cffffffffSouthsea Pirate: 3/10|r |cff999999[37%]|r")
+    tip:AddLine("   |cffffffffBuccaneer slain: 5/5|r")
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:Show()
+    local p = Panel.Get(tip)
+    local sections, rows, bars, rules = {}, {}, 0, 0
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "section" then sections[#sections + 1] = it end
+        if it.kind == "row" then rows[#rows + 1] = it end
+        if it.kind == "bar" and it.spec.value then bars = bars + 1 end
+        if it.kind == "rule" then rules = rules + 1 end
+    end
+    T.eq(#sections, 2, "two quests")
+    T.eq(stub.Text(sections[1].fs), "PIRATE HATS AHOY!")
+    T.near(({ sections[1].fs:GetTextColor() })[2], 0.9, 1e-6, "its difficulty color from the quest id")
+    T.near(({ sections[2].fs:GetTextColor() })[1], 0.9, 1e-6, "Questie's: found by name in the log")
+    T.eq(#rows, 3)
+    T.eq(stub.Text(rows[1].label), "Southsea Pirate Hat")
+    T.eq(stub.Text(rows[1].value), "0 / 20")
+    T.truthy(stub.Text(rows[2].label):find("37%%"), "Questie's drop chance kept beside it")
+    T.eq(stub.Text(rows[3].value), "Complete", "a finished one")
+    T.near(({ rows[3].label:GetTextColor() })[1], DaylightUI.Style.INK.OFF[1], 1e-6, "dimmed")
+    T.eq(bars, 2, "a bar under each one still going")
+    T.eq(rules, 1, "a rule before the quests")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: a full health bar's angled end showed a black corner.
+T.test("rich tooltip: a bar's track is cut at the same angle as its fill", function()
+    login("rich")
+    local Panel, Style = stub.tooltip.RichPanel, DaylightUI.Style
+    local bar = Panel.MakeBar(UIParent)
+    Panel.ShapeBar(bar, 7)
+    T.eq(Style.GetCut(bar), 7, "the track's corner, 45 degrees over the bar's height")
+    T.eq(select(2, Style.GetFillAngle(bar)), 7, "the fill's end, the same")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

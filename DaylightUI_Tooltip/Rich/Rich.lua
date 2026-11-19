@@ -8,6 +8,7 @@ local _, ns = ...
 local DUI = DaylightUI
 local Style = DUI.Style
 local isSecret = DUI.IsSecret
+local L = DUI.L
 
 local Rich = {}
 ns.Rich = Rich
@@ -183,20 +184,119 @@ local function valueColor(line)
     return rgb(c)
 end
 
--- The tooltip's lines from line `from` on, in the card's look: a line with
--- two sides as a row, any other as a sentence, an empty one as a gap. The
--- colors go through the same rules as the skinned look (Tips.GameSide).
+-- ---------------------------------------------------------------------
+-- Quest lines: the game's own (typed QuestTitle and QuestObjective in the
+-- data) and Questie's (text only: a count like 6/10, its drop chance [37%]).
+-- A quest's name is a small heading in its difficulty color, each objective
+-- a row with its count in the accent over a thin bar; a finished one dims,
+-- with "Complete".
+-- ---------------------------------------------------------------------
+
+local LT = Enum and Enum.TooltipDataLineType
+Rich.QUEST_TITLE = LT and LT.QuestTitle or 17
+Rich.QUEST_OBJECTIVE = LT and LT.QuestObjective or 8
+
+-- A line's words alone: no color codes, icons, leading spaces or dash.
+function Rich.Bare(t)
+    t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", "")
+    return (t:gsub("^%s+", ""):gsub("^%-%s*", ""):gsub("%s+$", ""))
+end
+
+-- An objective line: its name, have, need (nil when it shows no count),
+-- drop chance, done. nil when the line isn't one.
+function Rich.Objective(line)
+    if not line or line.right or not line.left then return nil end
+    local t = Rich.Bare(line.left)
+    local chance = t:match("%[([%d%.]+%%)%]")
+    t = t:gsub("%s*%[[%d%.]+%%%]", "")
+    local have, need, name = t:match("^(%d+)%s*/%s*(%d+)%s+(.+)$")
+    if not have then name, have, need = t:match("^(.-):%s*(%d+)%s*/%s*(%d+)$") end
+    if not have then
+        if line.type == Rich.QUEST_OBJECTIVE then return t, nil, nil, chance, false end
+        return nil
+    end
+    have, need = tonumber(have), tonumber(need)
+    return name, have, need, chance, need > 0 and have >= need
+end
+
+-- A quest's difficulty color: from its id when the data has one, else found
+-- by its name in your quest log (Questie's titles may lead with "[44]").
+local logTitles = {}
+function Rich.QuestColor(id, title)
+    local Data = DUI.Npc and DUI.Npc.Data
+    if not (Data and Data.QuestColor) then return nil end
+    local level
+    if not id and C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        local want = Rich.Bare(title):gsub("^%[[^%]]*%]%s*", "")
+        for i = 1, C_QuestLog.GetNumQuestLogEntries() do
+            local info = C_QuestLog.GetInfo(i)
+            local t = type(info) == "table" and not info.isHeader and info.title
+            if type(t) == "string" and not isSecret(t) and t == want then
+                id, level = info.questID, info.level
+                break
+            end
+        end
+    end
+    if not id then return nil end
+    return Data.QuestColor(id, level)
+end
+
+local function accentPair()
+    local lo, hi = Style.AccentPair()
+    if lo then return { lo, hi } end
+    local r, g, b = Style.Accent()
+    local a, z = DUI.Gradients.PairFrom({ r, g, b })
+    return { a, z }
+end
+
+local function questRow(p, name, have, need, chance, done)
+    local Hex = DUI.Win.Parts.Hex
+    local label = name
+    if chance and not done then label = name .. " " .. Hex(Style.INK.LABEL) .. chance .. "|r" end
+    if done then
+        Panel.Row(p, label, L["Complete"], Style.INK.GOOD, Style.INK.OFF)
+    elseif have then
+        local r, g, b = Style.Accent()
+        Panel.Row(p, label, string.format(L["%d / %d"], have, need), { r, g, b }, Style.INK.TEXT)
+        Panel.Bar(p, { value = have, max = need, pair = accentPair(), h = 4 })
+    else
+        Panel.Text(p, name, Style.INK.TEXT)
+    end
+end
+
+-- The tooltip's lines from line `from` on, in the card's look: a quest as
+-- above, a line with two sides as a row, any other as a sentence, an empty
+-- one as a gap. The colors go through the same rules as the skinned look
+-- (Tips.GameSide). A quest block gets a rule before and after it.
 function Rich.Lines(p, n, lines, from)
     local Tips = DUI.Tips
+    local inQuest = false
     for i = from, n do
         local line = lines[i]
-        if not line.left and not line.right then
-            Panel.Gap(p, 4)
-        elseif line.right then
-            Panel.Row(p, line.left or "", line.right, valueColor(line))
+        local name, have, need, chance, done = Rich.Objective(line)
+        local title = not name and line.left and not line.right
+            and (line.type == Rich.QUEST_TITLE or (i < n and Rich.Objective(lines[i + 1]) ~= nil))
+        if title or name then
+            if not inQuest and p.count > 0 then Panel.Rule(p) end
+            inQuest = true
+            if title then
+                Panel.Section(p, Rich.Bare(line.left), Rich.QuestColor(line.id, line.left))
+            else
+                questRow(p, name, have, need, chance, done)
+            end
         else
-            local t, c = Tips.GameSide(line.left, line.hasLC and line.lc or nil)
-            Panel.Text(p, t, c)
+            if inQuest then
+                Panel.Rule(p)
+                inQuest = false
+            end
+            if not line.left and not line.right then
+                Panel.Gap(p, 4)
+            elseif line.right then
+                Panel.Row(p, line.left or "", line.right, valueColor(line))
+            else
+                local t, c = Tips.GameSide(line.left, line.hasLC and line.lc or nil)
+                Panel.Text(p, t, c)
+            end
         end
     end
 end

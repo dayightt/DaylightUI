@@ -1482,6 +1482,8 @@ function Tip.PaintQuestRow(text)
 end
 
 function Tip.PaintQuestRows(tip)
+    -- The rich card lays these rows out itself (Rich.Lines).
+    if ns.Rich.On(tip) then return end
     local n = plain(tip:NumLines())
     if type(n) ~= "number" or n == Tip.questLines then return end
     Tip.questLines = n
