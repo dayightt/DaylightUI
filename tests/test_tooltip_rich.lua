@@ -1849,3 +1849,47 @@ T.test("rich tooltip: a creature's lines that repeat what the header shows are l
     T.eq(#itemsOf(p, "rule"), 1, "one rule, above it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The card goes to the tooltip's fading ghost as it is, and comes back hidden
+-- once the fade ends, or at once when the tooltip shows again.
+T.test("rich tooltip: the card fades out with the ghost, then goes home", function()
+    local Tip, Panel = login("rich")
+    local G = stub.tooltip.TipGhost
+    local M = DaylightUI.Motion
+    local function tick(dt)
+        local d = M.Driver()
+        if d then stub.RunOnUpdate(d, dt) end
+    end
+    local tip = GameTooltip
+    local function up()
+        tip:Hide()
+        stub.Advance(1)
+        fill(99, { "Mailbox", "Your mail." })
+        function tip:GetRect() return 400, 240, 160, 60 end
+        stub.Advance(0.02)
+        update()
+        tick(M.NORMAL * 2)
+    end
+    up()
+    local p = Panel.Get(tip)
+    T.truthy(p:IsShown())
+    tip:Hide()
+    local g = G.Of(tip)
+    T.truthy(g and g:IsShown(), "a ghost")
+    T.eq(p:GetParent(), g, "carrying the card")
+    T.truthy(p:IsShown(), "still showing while it fades")
+    T.falsy(g.box:IsShown(), "no copied box under it")
+    tick(M.NORMAL * 2)
+    T.falsy(g:IsShown())
+    T.eq(p:GetParent(), tip, "the card back with its tooltip")
+    T.falsy(p:IsShown(), "hidden, as the tooltip is")
+    up()
+    tip:Hide()
+    tick(M.NORMAL / 2)
+    stub.Advance(0.1)
+    fill(99, { "Mailbox", "Your mail." })
+    T.eq(p:GetParent(), tip, "shown again: the card comes home first")
+    T.truthy(p:IsShown(), "and is built again")
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's lines stay muted under it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

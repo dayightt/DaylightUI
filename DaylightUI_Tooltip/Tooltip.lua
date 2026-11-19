@@ -138,11 +138,14 @@ function Tip.Skin(tip)
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
     if type(tip.CloseButton) == "table" then DUI.Widgets.DressClose(tip.CloseButton) end
+    -- First: a ghost still fading hands the rich card back before it's built.
+    tip:HookScript("OnShow", function(self) Tip.ghostFrom[self] = ns.TipGhost.Cancel(self) end)
     tip:HookScript("OnShow", keepUnder)
     tip:HookScript("OnShow", function(self) Tip.Settle(self); Tip.HideArt(self); Tip.KeepMuted(self); Tip.Place(self); Tip.OnCompareShown(self) end)
     tip:HookScript("OnShow", function(self) DUI.SafeCall(ns.Rich.Shown, self) end)
     tip:HookScript("OnShow", Tip.FadeIn)
     tip:HookScript("OnHide", function(self)
+        DUI.SafeCall(ns.TipGhost.Take, self)
         Tip.OnFadeHide(self); Tip.ResetColors(self); Tip.Unmute(self)
         DUI.SafeCall(ns.Rich.Hidden, self)
     end)
@@ -190,6 +193,8 @@ function Tip.SkinHeader(tip)
     headers[tip] = s
     if type(h.Label) == "table" then Style.InkText(h.Label, "LABEL") end
 end
+
+function Tip.HeaderShell(tip) return headers[tip] end
 
 -- The skinned look's shell and header tab, shown or not: the rich card
 -- draws its own.
@@ -369,6 +374,16 @@ function Tip.BarGradient()
     local mode = cfg.barGradient
     if mode == "frames" then return DUI:Get("UnitFrames", "colors.health") == "classGradient" end
     return mode == "gradient"
+end
+
+-- Another bar painted like the health bar right now (the fading copy of it).
+function Tip.PaintLike(other, bar)
+    if barKey then DUI.Gradients.Paint(other, barKey)
+    elseif barR then other:SetStatusBarColor(barR, barG, barB)
+    else
+        local r, g, b, a = bar:GetStatusBarColor()
+        if type(r) == "number" then other:SetStatusBarColor(r, g, b, a) end
+    end
 end
 
 -- The unit's color, or its class (or reaction) gradient pair.
@@ -1417,6 +1432,7 @@ function Tip.OnWorldCursor()
     if not isSecret(owner) and owner ~= UIParent then return end
     if pill then ns.RichPill.Leave() end
     if pill and cfg.fadeOut then return end
+    DUI.SafeCall(ns.TipGhost.Take, tip)
     Tip.Mute(tip, "gone")
     Tip.Park(tip)
 end
@@ -1447,6 +1463,8 @@ local fades = setmetatable({}, { __mode = "k" }) -- tooltip -> { v = current alp
 -- flicker five times a second) and let a running fade continue. GetTime is
 -- constant within a frame.
 local hiddenAt = setmetatable({}, { __mode = "k" })
+-- The alpha its fading ghost was at as it showed again (Tip.Skin's first OnShow).
+Tip.ghostFrom = setmetatable({}, { __mode = "k" })
 
 function Tip.OnFadeHide(tip) hiddenAt[tip] = GetTime() end
 
@@ -1468,16 +1486,19 @@ end
 function Tip.FadeIn(tip)
     local hidden = hiddenAt[tip]
     hiddenAt[tip] = nil
+    -- Its ghost was still fading: the new one rises from there, not from nothing.
+    local from = Tip.ghostFrom[tip] or 0
+    Tip.ghostFrom[tip] = nil
     if hidden == GetTime() then return Tip.FadeStep(tip) end
     fades[tip] = nil
     local M = DUI.Motion
     if muted[tip] or not M.On() or InCombatLockdown() then return end
-    local s = { v = 0 }
+    local s = { v = from }
     fades[tip] = s
-    tip:SetAlpha(0)
+    tip:SetAlpha(from)
     M.Tween(s, 0, 1, M.NORMAL, function(e)
         if fades[tip] ~= s or not holds(tip, s) then return end
-        local v = e * e
+        local v = from + (1 - from) * e * e
         s.v = v
         tip:SetAlpha(v)
         if e >= 1 then fades[tip] = nil end
@@ -1542,9 +1563,13 @@ function Tip.OnUpdate(tip)
     local shops = tip.shoppingTooltips
     if type(shops) == "table" then
         for _, shop in ipairs(shops) do
-            if type(shop) == "table" and shop:IsShown() then DUI.SafeCall(ns.Rich.Step, shop) end
+            if type(shop) == "table" and shop:IsShown() then
+                DUI.SafeCall(ns.Rich.Step, shop)
+                ns.TipGhost.Note(shop)
+            end
         end
     end
+    ns.TipGhost.Note(tip)
 end
 
 -- Driven from Daylight UI's own frame because the game stops the tooltip's OnUpdate while

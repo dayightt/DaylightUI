@@ -1017,5 +1017,6 @@ function Panel.Release(p)
         tip:SetPadding(0, 0, tonumber(l) or 0, tonumber(t) or 0)
     end
     p.wantW, p.wantH, p.fitTried = nil, nil, nil
-    p:Hide()
+    -- Lent to the tooltip's fading ghost: it hides the card as it hands it back.
+    if not ns.TipGhost.Holds(p) then p:Hide() end
 end

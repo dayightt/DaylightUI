@@ -1849,3 +1849,139 @@ T.test("tooltip: plugins add lines in Daylight UI's look, once each, after its o
     DaylightUI.API.Off(broken)
     T.isnil(me.AddTooltipLines("weather", function() end), "an unknown kind is refused")
 end)
+
+-- The game hides a tooltip itself (an owner's OnLeave) and it can't be held
+-- open, so a copy of it fades out where it was drawn. Never in combat, never
+-- with Motion off, never when its spots are secret.
+T.test("tooltip: fades out as a ghost where it was, as the game hides it", function()
+    local Tip = login()
+    local G = stub.tooltip.TipGhost
+    local M = DaylightUI.Motion
+    local function tick(dt)
+        local d = M.Driver()
+        if d then stub.RunOnUpdate(d, dt) end
+    end
+    local tip = GameTooltip
+    local line = withLines(tip)
+    local function place(f, l, t, w, h)
+        function f:GetLeft() return l end
+        function f:GetTop() return t end
+        function f:GetWidth() return w end
+        function f:GetHeight() return h end
+        function f:GetRect() return l, t - h, w, h end
+    end
+    local function up()
+        tip:Hide()
+        stub.Advance(1)
+        fill(tip, Enum.TooltipDataType.Item, {}, { "Linen Cloth", { "Sell", "1s" } })
+        tip:Show()
+        place(tip, 400, 300, 160, 60)
+        place(line(1), 410, 290, 80, 14)
+        place(line(2), 410, 270, 30, 12)
+        place(line(2, "Right"), 520, 270, 30, 12)
+        line(2, "Right"):SetJustifyH("RIGHT")
+        stub.Advance(0.02)
+        tip:GetScript("OnUpdate")(tip, 0.02) -- drawn once
+        tick(M.NORMAL * 2)
+    end
+    local function words(g)
+        local out = {}
+        for _, fs in ipairs(g.texts) do
+            if fs:IsShown() then out[fs:GetText()] = fs end
+        end
+        return out
+    end
+    up()
+    Tip.Tint(tip, 0.9, 0.1, 0.1)
+    tip:Hide()
+    local g = G.Of(tip)
+    T.truthy(g and g:IsShown(), "a ghost where it was")
+    T.eq(g:GetAlpha(), 1, "at the alpha it had")
+    local pt, rel, rp, x, y = g:GetPoint(1)
+    T.eq(pt .. rp .. x .. "," .. y, "BOTTOMLEFTBOTTOMLEFT400,240", "on its last drawn spot")
+    T.eq(rel, UIParent)
+    T.eq(g:GetWidth(), 160)
+    local w = words(g)
+    T.truthy(w["Linen Cloth"], "its lines")
+    local function spot(fs)
+        local a, to, b, fx, fy = fs:GetPoint(1)
+        T.eq(to, g)
+        return a .. ">" .. b .. " " .. fx .. "," .. fy
+    end
+    T.eq(spot(w["Linen Cloth"]), "TOPLEFT>TOPLEFT 10,-10", "where they were")
+    T.eq(spot(w["1s"]), "TOPRIGHT>TOPLEFT 150,-30", "a right line by its right edge")
+    T.rgb(g.shell.opts.borderColor, { 0.9, 0.1, 0.1 }, "in the border color it had")
+    T.isnil(rawget(tip, "SetAlpha"), "the game's tooltip itself never touched")
+    tick(M.NORMAL / 2)
+    T.truthy(g:GetAlpha() > 0 and g:GetAlpha() < 1, "fading")
+    tick(M.NORMAL)
+    T.falsy(g:IsShown(), "gone after NORMAL")
+
+    -- Shown again mid-fade: the ghost goes and the new one rises from there.
+    up()
+    tip:Hide()
+    tick(M.NORMAL / 2)
+    local at = g:GetAlpha()
+    stub.Advance(0.1)
+    tip:Show()
+    T.falsy(g:IsShown(), "the ghost goes as it shows again")
+    T.near(tip:GetAlpha(), at, 0.01, "rising from where the ghost was")
+    tick(M.NORMAL)
+    T.eq(tip:GetAlpha(), 1)
+
+    -- Hidden and shown again in one frame: never drawn as gone.
+    up()
+    tip:Hide()
+    tip:Show()
+    T.falsy(g:IsShown(), "a refill leaves no ghost")
+
+    up()
+    stub.combat = true
+    tip:Hide()
+    T.falsy(g:IsShown(), "in combat it just goes")
+    stub.combat = false
+    up()
+    DaylightUI.DB.General().motion = false
+    tip:Hide()
+    T.falsy(g:IsShown(), "motion off: it just goes")
+    DaylightUI.DB.General().motion = nil
+    up()
+    function GameTooltipTextLeft1:GetLeft() return stub.Secret(410) end
+    tip:Hide()
+    T.falsy(g:IsShown(), "a line's spot secret: it just goes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("tooltip: leaving something in the world, its ghost fades as it's muted", function()
+    local Tip = login()
+    stub.RunTimers()
+    local G = stub.tooltip.TipGhost
+    local tip = GameTooltip
+    withLines(tip)
+    _G.C_TooltipInfo = { GetWorldCursor = function() return nil end }
+    stub.units.mouseover = nil
+    GameTooltip_SetDefaultAnchor(tip, UIParent)
+    fill(tip, Enum.TooltipDataType.Unit, {}, { "Wolf" })
+    tip:Show()
+    function tip:GetRect() return 400, 240, 160, 60 end
+    function tip:GetLeft() return 400 end
+    function tip:GetTop() return 300 end
+    for _, side in ipairs({ "Left", "Right" }) do
+        local fs = _G["GameTooltipText" .. side .. "1"]
+        function fs:GetLeft() return 410 end
+        function fs:GetTop() return 290 end
+        function fs:GetWidth() return 40 end
+        function fs:GetHeight() return 14 end
+    end
+    stub.Advance(0.02)
+    tip:GetScript("OnUpdate")(tip, 0.02)
+    local d = DaylightUI.Motion.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+    tip:FadeOut()
+    stub.FireEvent("WORLD_CURSOR_TOOLTIP_UPDATE", 0)
+    stub.RunTimers()
+    T.eq(tip:GetAlpha(), 0, "the tooltip itself out of sight at once")
+    T.truthy(G.Of(tip) and G.Of(tip):IsShown(), "its ghost fades instead")
+    tip:GetScript("OnHide")(tip)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

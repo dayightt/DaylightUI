@@ -20,7 +20,9 @@ Rich\Players.lua
 Rich\Items.lua
 Rich\Spells.lua
 Rich\World.lua
+Rich\Foreign.lua
 Rich\Pill.lua
 Rich\Rich.lua
+Ghost.lua
 Options.lua
 Module.lua

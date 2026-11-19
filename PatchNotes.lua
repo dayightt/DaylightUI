@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Loot", "Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked" },
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
+        { "Tooltip", "Tooltips fade out softly when the mouse leaves instead of vanishing at once" },
     }, fixed = {
         { "Action bars", "Bars that switch page while you hold Shift can be rearranged: with your spellbook open, just drag a spell, no Shift needed" },
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },
