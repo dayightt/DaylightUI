@@ -3493,6 +3493,25 @@ T.test("nameplates: a friendly totem is a badge instead of its name, a friendly 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: a totem put down for the first time gets its picture once the game has it", function()
+    login(function() stub.spells = { [5394] = { name = "Healing Stream Totem" } } end)
+    stub.units.nameplate3 = { name = "Healing Stream Totem", minion = true, reaction = 5, health = 5, maxHealth = 5 }
+    -- A model the client hasn't loaded yet draws no portrait; it sends
+    -- UNIT_PORTRAIT_UPDATE (or UNIT_MODEL_CHANGED) once it has.
+    local real = _G.SetPortraitTexture
+    _G.SetPortraitTexture = function() end
+    local p = added("nameplate3")
+    T.truthy(p.badge:IsShown(), "a badge")
+    T.eq(p.badge.icon.__portraitUnit, nil, "no picture yet")
+    _G.SetPortraitTexture = real
+    stub.FireEvent("UNIT_PORTRAIT_UPDATE", "nameplate3")
+    T.eq(p.badge.icon.__portraitUnit, "nameplate3", "the picture once the game has it")
+    p.badge.icon.__portraitUnit = nil
+    stub.FireEvent("UNIT_MODEL_CHANGED", "nameplate3")
+    T.eq(p.badge.icon.__portraitUnit, "nameplate3", "and when its model changes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: friendly plates off in instances hands the player's own switches back on the way out", function()
     local cvars = { nameplateShowFriendlyPlayers = "1", nameplateShowFriendlyNpcs = "0" }
     login(function()

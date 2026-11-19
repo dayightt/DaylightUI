@@ -46,6 +46,7 @@ DUI.PatchNotes = {
             { "Cooldown Manager", "Slice and Dice cast in a fight no longer drops off and gets covered by your other buffs when you switch targets" },
             { "Unit frames", "Name tabs set to Fit the name fit the name again instead of stretching wide" },
             { "Unit frames", "Very round corners on a thick frame border no longer cover the ends of the health and power bars" },
+            { "Nameplates", "Totems you put down show their picture right away instead of an empty ring" },
         },
     },
     { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",
