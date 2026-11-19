@@ -144,11 +144,33 @@ local function dot(parent, size)
     return t
 end
 
+-- A long flight moves the line well under a pixel a frame: snapped to the
+-- pixel grid, the fill, its gradient layer, its edge masks and the light
+-- would hop a pixel at a time. Done after every paint, which can make new layers.
+local function free(t)
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+    if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    if t.GetNumMaskTextures then
+        for i = 1, t:GetNumMaskTextures() do
+            local m = t:GetMaskTexture(i)
+            if m then free(m) end
+        end
+    end
+end
+
+local function unsnap(f)
+    for _, r in ipairs({ f.bar:GetRegions() }) do free(r) end
+    free(f.bar:GetStatusBarTexture())
+    free(f.spark)
+    free(f.head)
+end
+
 local function paint()
     if not holder then return end
     local G = DUI.Gradients
     if G then G.Paint(holder.f.bar, G.Has(Flight.GRADIENT) and Flight.GRADIENT or "FALLBACK") end
     local f = holder.f
+    unsnap(f)
     f.spark:SetVertexColor(Style.SplashAt(0.85))
     f.flare:SetVertexColor(Style.SplashAt(0.85))
     Style.PaintAccentText(f.label, Style.Upper(L["Flying to"]))
@@ -202,16 +224,6 @@ local function build()
     f.head = dot(over, Flight.DOT)
     f.head:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
     f.head:SetVertexColor(1, 1, 1, 1)
-    -- A long flight moves the line well under a pixel a frame: snapped to the
-    -- pixel grid, the fill and its light would hop a pixel at a time.
-    local function free(t)
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
-        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
-    end
-    for _, r in ipairs({ f.bar:GetRegions() }) do free(r) end
-    free(f.bar:GetStatusBarTexture())
-    free(f.spark)
-    free(f.head)
 
     f.from = Style.Text(f, Style.SIZE.small, "LEFT")
     f.from:SetPoint("TOPLEFT", f.bar, "BOTTOMLEFT", 0, -8)
