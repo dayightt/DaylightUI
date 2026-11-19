@@ -590,8 +590,9 @@ local function items()
 end
 
 -- The game filling a tooltip with an item: its lines (each { left, right,
--- color } or text), its data's own lines, the post-calls, then Show.
-local function fillItem(tip, link, list, after)
+-- color } or text), its data's own lines (types: line types by index), the
+-- post-calls, then Show.
+local function fillItem(tip, link, list, after, types)
     tip:SetOwner(UIParent, "ANCHOR_NONE")
     tip.__link = link
     local own = {}
@@ -602,7 +603,7 @@ local function fillItem(tip, link, list, after)
         else
             tip:AddLine(t)
         end
-        own[i] = {}
+        own[i] = { type = types and types[i] or nil }
     end
     local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = own }
     for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
@@ -673,11 +674,11 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     local texts = kinds(p, "text")
     local said = {}
     for _, t in ipairs(texts) do said[#said + 1] = stub.Text(t.fs) end
-    T.eq(said[1], "+40 Attack Power", "a bonus you have, short")
-    T.near(({ texts[1].fs:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6)
-    T.eq(said[2], "(4) 5% chance on hit to heal you for 120.", "one you don't")
-    T.near(({ texts[2].fs:GetTextColor() })[1], DaylightUI.Style.INK.OFF[1], 1e-6)
-    T.eq(said[3], "Binds when equipped", "the other facts, small and tan")
+    T.eq(said[1], "Binds when equipped", "the other facts, small and tan, under the stats")
+    T.eq(said[2], "+40 Attack Power", "a bonus you have, short")
+    T.near(({ texts[2].fs:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6)
+    T.eq(said[3], "(4) 5% chance on hit to heal you for 120.", "one you don't")
+    T.near(({ texts[3].fs:GetTextColor() })[1], DaylightUI.Style.INK.OFF[1], 1e-6)
     for _, t in ipairs(said) do
         T.falsy(t:find("Dawnforged Helm", 1, true), "the set's pieces left out: the count says it")
         T.falsy(t:find("Item Level", 1, true), "item level only in its tag")
@@ -690,7 +691,7 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.eq(#hints.list, 2, "Shift and Ctrl: both do something here")
     T.truthy(stub.Text(hints.list[1]):find("Shift|r compare all", 1, true))
     T.truthy(stub.Text(hints.list[2]):find("Ctrl|r try it on", 1, true))
-    T.eq(#kinds(p, "rule"), 5, "a rule between each part")
+    T.eq(#kinds(p, "rule"), 3, "a rule between each part: base, what it does, set, foot")
     for i = 1, GameTooltip:NumLines() do T.eq(_G["GameTooltipTextLeft" .. i]:GetAlpha(), 0, "the game's lines muted") end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -847,5 +848,111 @@ T.test("rich tooltip: compare tooltips keep the skinned look in Simple", functio
     T.truthy(not p or not p:IsShown(), "no card")
     T.eq(ShoppingTooltip1.CompareHeader:GetAlpha(), 1, "the tab shows")
     T.truthy(Tip.Shell(ShoppingTooltip1):IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the icon a solid square of the quality color (the outline
+-- drawn over the art), the art showing for a moment before its mask loaded.
+T.test("rich tooltip: an item's quality outline sits under its art", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local ic = Panel.Get(GameTooltip).items[1].icon
+    local artLayer, artSub = ic.art:GetDrawLayer()
+    local edgeLayer, edgeSub = ic.edge:GetDrawLayer()
+    T.eq(artLayer, edgeLayer)
+    T.truthy(artSub > edgeSub, "the art on top, the outline a ring around it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game with DaylightMogul: it rewrites the game's Sell Price line as
+-- "Vendor price" with the coins on the right, and the foot read "ce".
+T.test("rich tooltip: a sell price line another addon rewrote keeps its coins", function()
+    local _, Panel = login("rich")
+    items()
+    local list = { { "Chromite Greaves", nil, { 0.118, 1, 0 } }, "Soulbound", { "Feet", "Plate" }, "294 Armor",
+        "Durability 51 / 55", { "Vendor price", "1g 25s" } }
+    fillItem(GameTooltip, "greaves", list, nil, { [6] = 11 })
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    local foot = rows[#rows]
+    T.eq(stub.Text(foot.label), "Durability 51 / 55")
+    T.eq(stub.Text(foot.value), "1g 25s", "the coins from its right side")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: so many rules the card wasted space. Rules only
+-- where the board has them: under the base rows, between the stats and a
+-- set, and over the foot.
+T.test("rich tooltip: rules only between the card's big parts", function()
+    local _, Panel = login("rich")
+    items()
+    local list = { { "Chromite Greaves", nil, { 0.118, 1, 0 } }, "Soulbound", { "Legs", "Plate" }, "294 Armor",
+        "+4 Strength", "+12 Stamina", "Durability 51 / 55", "Requires Level 40",
+        "Sell Price: 1|A:coin-gold:0:0|a 25|A:coin-silver:0:0|a" }
+    fillItem(GameTooltip, "greaves", list, function(t) t:AddDoubleLine("AH price", "1g 25s") end)
+    local p = Panel.Get(GameTooltip)
+    T.eq(#kinds(p, "rule"), 2, "armor | stats and facts | the foot with other addons' lines")
+    -- The board's set item: armor | stats | set | foot.
+    fillItem(GameTooltip, "greaves", GREAVES)
+    update()
+    T.eq(#kinds(p, "rule"), 3)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A fill, then a hide and a show in the same frame (an owner refilling it):
+-- the card must be built on that show, never the skinned look.
+T.test("rich tooltip: a fill then a quick hide and show still gets its card", function()
+    local Tip, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local p = Panel.Get(GameTooltip)
+    fillItem(GameTooltip, "legplates", LEGPLATES, function(t) t:Hide() end)
+    T.truthy(p:IsShown(), "the card")
+    T.eq(stub.Text(p.items[1].title), "Tarnished Legplates", "for what it shows now")
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's lines muted")
+    T.falsy(Tip.Shell(GameTooltip):IsShown(), "the skinned look out of sight")
+    -- Hidden and shown with nothing new: the same card again.
+    GameTooltip:Hide()
+    GameTooltip:Show()
+    T.truthy(p:IsShown())
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game refills the compare tooltips from the main tooltip's own update
+-- (an item button's UpdateTooltip, every 0.2 s while Shift is held): their
+-- cards are rebuilt then, before anything is drawn.
+T.test("rich tooltip: compare tooltips refilled in the main tooltip's update are rebuilt before the draw", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    compare(ShoppingTooltip1, CHANGES)
+    local p = Panel.Get(ShoppingTooltip1)
+    -- Refilled with one change less, while shown, then the main tooltip's update.
+    compare(ShoppingTooltip1, { "+8 Strength" })
+    update()
+    T.eq(#kinds(p, "tags")[2].list, 1, "rebuilt in the same frame")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a compare tooltip gone for a moment doesn't fade in again", function()
+    login("rich")
+    items()
+    local M = DaylightUI.Motion
+    local shop = ShoppingTooltip1
+    fillItem(GameTooltip, "greaves", GREAVES)
+    stub.Advance(1)
+    compare(shop, CHANGES)
+    T.eq(shop:GetAlpha(), 0, "a real show fades in")
+    local d = M.Driver()
+    if d then stub.RunOnUpdate(d, M.NORMAL + 0.05) end
+    T.eq(shop:GetAlpha(), 1)
+    -- The game's refill every 0.2 s: hidden, then back a frame later.
+    stub.Advance(0.2)
+    shop:Hide()
+    stub.Advance(0.02)
+    compare(shop, CHANGES)
+    T.eq(shop:GetAlpha(), 1, "no new fade: it never really left")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

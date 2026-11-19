@@ -1464,10 +1464,15 @@ function Tip.FadeStep(tip)
     if s and holds(tip, s) then tip:SetAlpha(s.v) end
 end
 
+-- A compare tooltip the game refills (every 0.2 s while Shift is held) can be
+-- gone for a frame or two before it's back: that's not a new show.
+Tip.REFADE = 0.1
 function Tip.FadeIn(tip)
     local hidden = hiddenAt[tip]
     hiddenAt[tip] = nil
-    if hidden == GetTime() then return Tip.FadeStep(tip) end
+    local now = GetTime()
+    if hidden == now then return Tip.FadeStep(tip) end
+    if hidden and type(tip.CompareHeader) == "table" and now - hidden < Tip.REFADE then return end
     fades[tip] = nil
     local M = DUI.Motion
     if muted[tip] or not M.On() or InCombatLockdown() then return end
@@ -1535,6 +1540,15 @@ function Tip.OnUpdate(tip)
     Tip.FadeStep(tip)
     Tip.Place(tip)
     DUI.SafeCall(ns.Rich.Step, tip)
+    -- Its compare tooltips are refilled from inside this update (an item
+    -- button's UpdateTooltip, every 0.2 s with Shift held), after their own
+    -- update may have run this frame: their cards catch up before the draw.
+    local shops = tip.shoppingTooltips
+    if type(shops) == "table" then
+        for _, shop in ipairs(shops) do
+            if type(shop) == "table" and shop:IsShown() then DUI.SafeCall(ns.Rich.Step, shop) end
+        end
+    end
 end
 
 -- Driven from Daylight UI's own frame because the game stops the tooltip's OnUpdate while

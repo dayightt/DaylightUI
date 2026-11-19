@@ -108,7 +108,12 @@ end
 function Rich.Hidden(tip)
     local s = state[tip]
     endPill(tip, s)
-    if s then s.dirty, s.data, s.lines, s.unit, s.swept = false, nil, nil, nil, nil end
+    -- The data stays until the tooltip is cleared: an owner may fill it, hide
+    -- it and show it again at once, and that show must build the card.
+    if s then
+        s.dirty = s.data ~= nil
+        s.lines, s.unit, s.swept = nil, nil, nil
+    end
     Panel.Release(Panel.Get(tip))
     ns.Tooltip.ShowShell(tip, true)
     showBar(tip, true)

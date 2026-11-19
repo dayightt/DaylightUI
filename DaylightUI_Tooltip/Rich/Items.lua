@@ -28,6 +28,7 @@ Items.EPIC = 4          -- the quality light sweeps from here up
 Items.COMPARE_PAD_X = 14
 Items.AFTER_TAG = 8     -- the compare card's tag, then the name
 Items.MIN_QUALITY = 2   -- uncommon and up: the name, light and outline in its color
+Items.GROUP_GAP = 8     -- between two groups that share a part (no rule)
 
 -- A loss shows a real minus sign; these fonts have none, so they keep "-".
 Items.MINUS = "\226\136\146"
@@ -166,7 +167,14 @@ local function sort(n, lines, own, info, groups)
             inSet = false
         elseif line.type == sellType or t:sub(1, #sellWord) == sellWord then
             -- The sell price (the game's or a quest reward's, added after).
-            foot.money = (left:sub(#sellWord + 1):gsub("^%s*:%s*", ""))
+            -- Another addon may have rewritten it with the coins on the right
+            -- ("Vendor price"), so they're taken from there when it has them.
+            local at = left:find(sellWord, 1, true)
+            if right then
+                foot.money = right
+            elseif at then
+                foot.money = (left:sub(at + #sellWord):gsub("^%s*:%s*", ""))
+            end
         elseif not mine then
             groups.other[#groups.other + 1] = i
         elseif info.slot and t == info.slot then
@@ -299,33 +307,39 @@ function Items.Card(p, tip, data, n, lines, light, fade)
         title = first and first.left or "", titleColor = titleColor, tags = tags, tagGap = Items.TAG_GAP,
         wash = info.color })
     Panel.Gap(p, Items.AFTER_HEADER)
-    -- The groups, a rule between each that has something.
+    -- The card's parts, a rule between each that has something: the base
+    -- rows, what it does, its set, and the foot. Inside a part, groups sit a
+    -- small gap apart.
     local any = false
-    local function group(list)
-        if #list == 0 then return end
-        if any then Panel.Rule(p) end
-        any = true
-        for _, add in ipairs(list) do add(p) end
+    local function part(...)
+        local first = true
+        for g = 1, select("#", ...) do
+            local list = select(g, ...)
+            if #list > 0 then
+                if first and any then Panel.Rule(p) elseif not first then Panel.Gap(p, Items.GROUP_GAP) end
+                first, any = false, true
+                for _, add in ipairs(list) do add(p) end
+            end
+        end
     end
-    group(groups.base)
-    -- Effects follow the stats with no rule between: both say what it does.
+    -- What it does: its stats and effects, then the other facts (binding,
+    -- requirements) in small tan lines.
     for _, add in ipairs(groups.effects) do groups.stats[#groups.stats + 1] = add end
-    group(groups.stats)
-    group(groups.set)
-    group(groups.facts)
-    if #groups.other > 0 then
-        if any then Panel.Rule(p) end
-        any = true
-        for _, i in ipairs(groups.other) do ns.Rich.Lines(p, i, lines, i) end
-    end
+    -- The foot: other addons' lines (a price), then durability and sell price.
+    local other = {}
+    for _, i in ipairs(groups.other) do other[#other + 1] = function() ns.Rich.Lines(p, i, lines, i) end end
     if foot.durability or foot.money then
-        if any then Panel.Rule(p) end
-        any = true
-        Panel.Row(p, foot.durability or "", foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
+        other[#other + 1] = function()
+            Panel.Row(p, foot.durability or "", foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
+        end
     end
+    part(groups.base)
+    part(groups.stats, groups.facts)
+    part(groups.set)
+    part(other)
     local hints = Items.Hints(tip, link, info)
     if #hints > 0 then
-        if any then Panel.Rule(p) end
+        if any then Panel.Gap(p, Items.GROUP_GAP) end
         Panel.Hints(p, hints)
     end
     -- Nothing under the header: no room kept for it.
