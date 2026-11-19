@@ -115,8 +115,8 @@ local function paintLight(tex, pair)
 end
 
 -- Its words and bar for a unit. A player: class-colored name, the bar by
--- health; a creature: its name white, or orange while it's on you, the bar
--- in its reaction's pair. The name is cut short with "..." before it can
+-- health; a creature: its name in its reaction's color (hostile red, neutral
+-- yellow, friendly green), the bar in that pair. The name is cut short with "..." before it can
 -- reach the health.
 Pill.NAME_GAP = 8
 function Pill.Fill(unit)
@@ -134,15 +134,12 @@ function Pill.Fill(unit)
         local w = f.name:GetStringWidth()
         f.name:SetWidth((type(w) == "number" and not isSecret(w) and w > most) and most or 0)
     end
-    local r, g, b
-    if player then r, g, b = Tip.UnitColor(unit) end
+    local r, g, b = Tip.UnitColor(unit)
     if r then
         f.name:SetTextColor(r, g, b)
     elseif player and DUI.Gradients and type(DUI.Gradients.HiddenClassID(unit)) ~= "nil" then
         -- A class the game hides (battlegrounds): its color as the client gives it.
         f.name:SetTextColor(DUI.Gradients.HiddenClassColor(unit))
-    elseif not player and plain(UnitIsUnit(unit .. "target", "player")) == true then
-        Style.InkText(f.name, "WARN")
     else
         Style.InkText(f.name, "TITLE")
     end

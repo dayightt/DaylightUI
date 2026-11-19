@@ -353,7 +353,8 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
     T.eq(Tip.Muted(GameTooltip), "pill")
     T.eq(stub.Text(pill.name), "Ridgeback Boar")
-    T.near(({ pill.name:GetTextColor() })[1], DaylightUI.Style.INK.WARN[1], 1e-6, "on you: its name orange")
+    -- Seen in game: an orange name on a hostile mob read as neutral.
+    T.near(({ pill.name:GetTextColor() })[1], (DaylightUI.Style.ReactionColor(2)), 1e-6, "its name in its reaction's color")
     -- Seen in game: a long name ran into the health.
     stub.units.mouseover.name = "Southsea Dock Worker of the Long Name Coast"
     hover("mouseover", { "Southsea Dock Worker of the Long Name Coast" })
