@@ -117,12 +117,12 @@ local quieted = setmetatable({}, { __mode = "k" })
 
 local function quiet(uf)
     if type(uf.UnregisterAllEvents) ~= "function" then return end
-    pcall(uf.UnregisterAllEvents, uf)
+    DUI.SafeCall(uf.UnregisterAllEvents, uf)
     quieted[uf] = true
     local cast = uf.castBar
     if type(cast) ~= "table" and type(uf.CastBarsContainer) == "table" then cast = uf.CastBarsContainer.castBar end
     if type(cast) == "table" and type(cast.UnregisterAllEvents) == "function" and not forbidden(cast) then
-        pcall(cast.UnregisterAllEvents, cast)
+        DUI.SafeCall(cast.UnregisterAllEvents, cast)
     end
 end
 
@@ -161,7 +161,7 @@ local function gameClicks(nameplate)
     local uf = nameplate.UnitFrame
     if type(uf) ~= "table" or forbidden(uf) or type(uf.UpdateHitTestArea) ~= "function" then return end
     if type(NamePlateSetupOptions) ~= "table" then return end
-    pcall(uf.UpdateHitTestArea, uf, NamePlateSetupOptions)
+    DUI.SafeCall(uf.UpdateHitTestArea, uf, NamePlateSetupOptions)
 end
 
 -- Gives a held frame back to the game: its events, its widgets and, when it's on
@@ -172,7 +172,7 @@ function Manager.GiveBackFrame(uf, nameplate)
     held[uf] = nil
     if quieted[uf] then
         quieted[uf] = nil
-        for _, e in ipairs(Manager.LOAD_EVENTS) do pcall(uf.RegisterEvent, uf, e) end
+        for _, e in ipairs(Manager.LOAD_EVENTS) do DUI.SafeCall(uf.RegisterEvent, uf, e) end
         -- CompactUnitFrame_OnLoad is only the frame's baseline. The nameplate
         -- adds two unit events and two global events in OnUnitSet, while
         -- CompactUnitFrame_SetUnit registers its per-unit events. If a held
@@ -182,12 +182,12 @@ function Manager.GiveBackFrame(uf, nameplate)
         -- the game frame's OnEvent script from addon code.
         if uf.unit then
             if type(CompactUnitFrame_UpdateUnitEvents) == "function" then
-                pcall(CompactUnitFrame_UpdateUnitEvents, uf)
+                DUI.SafeCall(CompactUnitFrame_UpdateUnitEvents, uf)
             end
-            pcall(uf.RegisterUnitEvent, uf, "UNIT_FACTION", uf.unit, "player")
-            pcall(uf.RegisterUnitEvent, uf, "NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED", uf.unit)
-            pcall(uf.RegisterEvent, uf, "PLAYER_FOCUS_CHANGED")
-            pcall(uf.RegisterEvent, uf, "RAID_TARGET_UPDATE")
+            DUI.SafeCall(uf.RegisterUnitEvent, uf, "UNIT_FACTION", uf.unit, "player")
+            DUI.SafeCall(uf.RegisterUnitEvent, uf, "NAME_PLATE_UNIT_BEHIND_CAMERA_CHANGED", uf.unit)
+            DUI.SafeCall(uf.RegisterEvent, uf, "PLAYER_FOCUS_CHANGED")
+            DUI.SafeCall(uf.RegisterEvent, uf, "RAID_TARGET_UPDATE")
         end
     end
     moveKeepers(uf, uf)
@@ -266,19 +266,17 @@ end
 function Manager.Unclickable(unit)
     if plain(UnitNameplateShowsWidgetsOnly, unit) == true then return true end
     if plain(UnitIsPlayer, unit) ~= true or plain(UnitIsFriend, "player", unit) ~= true then return false end
-    local ok, v = pcall(GetCVar, Manager.NAME_ONLY_CVAR)
-    return ok and v == "1"
+    return GetCVar(Manager.NAME_ONLY_CVAR) == "1"
 end
 
 function Manager.OwnClicks(p)
     local np, unit = p.nameplate, p.unit
     if type(np) ~= "table" or not unit or forbidden(np) or Manager.fixWithout == "hide" then return end
-    local okC, can = pcall(np.CanChangeHitTestPoints, np)
-    if not okC or can ~= true then return end
+    if np:CanChangeHitTestPoints() ~= true then return end
     if Manager.Unclickable(unit) then
-        pcall(np.ClearAllHitTestPoints, np)
+        DUI.SafeCall(np.ClearAllHitTestPoints, np)
     else
-        pcall(np.SetAllHitTestPoints, np, clickFrame(np))
+        DUI.SafeCall(np.SetAllHitTestPoints, np, clickFrame(np))
     end
 end
 
@@ -289,8 +287,8 @@ function Manager.Added(unit)
     if plain(UnitIsUnit, unit, "player") == true then return end
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
     if not get then return end
-    local ok, nameplate = pcall(get, unit, issecure and issecure() or false)
-    if not ok or type(nameplate) ~= "table" then return end
+    local nameplate = get(unit, issecure and issecure() or false)
+    if type(nameplate) ~= "table" then return end
     -- Some plates (friendly players' in some places) belong to the game alone.
     -- Touching one is an error, so they're left as the game draws them.
     if forbidden(nameplate) then return end
@@ -365,7 +363,7 @@ end
 function Manager.Abandon(p)
     ns.Cast.Forget(p)
     if Manager.Usable(p) then
-        pcall(ns.Plate.Uninstall, p)
+        DUI.SafeCall(ns.Plate.Uninstall, p)
         Manager.Release(p)
     else
         pcall(p.Hide, p)
@@ -398,8 +396,7 @@ function Manager.FrameHandedOut(unit)
     if not nameplate then
         local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
         if not get then return end
-        local ok, np = pcall(get, unit, issecure and issecure() or false)
-        nameplate = ok and np
+        nameplate = get(unit, issecure and issecure() or false)
     end
     if type(nameplate) ~= "table" or forbidden(nameplate) then return end
     local uf = nameplate.UnitFrame
@@ -635,8 +632,8 @@ end
 -- or phase change swaps every unit around you with no loading screen, and which
 -- events the engine sends then is up to it. A plate left on a unit that's gone, or
 -- a unit with no plate, would stay wrong until it left view. Correct plates are
--- left alone; only differences do any work. A secret or failed answer counts as
--- no difference.
+-- left alone; only differences do any work. A secret answer counts as no
+-- difference.
 Manager.SYNC_EVERY = 2
 function Manager.Sync()
     if Manager.fixPaused then return end
@@ -644,14 +641,13 @@ function Manager.Sync()
     if not get then return end
     local secure = issecure and issecure() or false
     for unit, p in pairs(byUnit) do
-        local ok, np = pcall(get, unit, secure)
-        if plain(UnitExists, unit) == false or (ok and np ~= p.nameplate) then Manager.Removed(unit) end
+        if plain(UnitExists, unit) == false or get(unit, secure) ~= p.nameplate then Manager.Removed(unit) end
     end
     for i = 1, Manager.PREPARE do
         local unit = "nameplate" .. i
         if not byUnit[unit] and plain(UnitExists, unit) == true then
-            local ok, np = pcall(get, unit, secure)
-            if ok and type(np) == "table" and not refused[np] then DUI.SafeCall(Manager.Added, unit) end
+            local np = get(unit, secure)
+            if type(np) == "table" and not refused[np] then DUI.SafeCall(Manager.Added, unit) end
         end
     end
 end
@@ -744,13 +740,11 @@ end)
 local function hoverChanged()
     local lit = ns.Plate.hovered
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
-    local ok, np = false, nil
-    if get then ok, np = pcall(get, "mouseover", issecure and issecure() or false) end
-    if not ok then
+    if not get then
         Manager.Each(ns.Plate.UpdateHover)
         return
     end
-    local on
+    local np, on = get("mouseover", issecure and issecure() or false), nil
     if type(np) == "table" then
         for _, p in pairs(byUnit) do
             if p.nameplate == np then on = p break end
@@ -770,10 +764,9 @@ function Manager.SetCVar(name, value)
     if type(SetCVar) ~= "function" then return end
     value = tostring(value)
     if type(GetCVar) == "function" then
-        local ok, now = pcall(GetCVar, name)
-        if ok and now == value then return end
+        if GetCVar(name) == value then return end
     end
-    pcall(SetCVar, name, value)
+    DUI.SafeCall(SetCVar, name, value)
 end
 
 -- Plate distance is the game's own setting, which it refuses to change in combat.
@@ -817,8 +810,7 @@ end
 Manager.FRIENDLY_CVARS = { "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
 function Manager.InInstance()
     if type(IsInInstance) ~= "function" then return false end
-    local ok, inside = pcall(IsInInstance)
-    return ok and inside == true
+    return IsInInstance() == true
 end
 function Manager.ApplyInstanceFriends()
     DUI.AfterCombat(function()
@@ -830,8 +822,8 @@ function Manager.ApplyInstanceFriends()
             if type(root.friendlyPlatesWas) ~= "table" then
                 local was = {}
                 for _, k in ipairs(Manager.FRIENDLY_CVARS) do
-                    local ok, v = pcall(GetCVar, k)
-                    if ok and type(v) == "string" then was[k] = v end
+                    local v = GetCVar(k)
+                    if type(v) == "string" then was[k] = v end
                 end
                 root.friendlyPlatesWas = was
             end
@@ -871,7 +863,7 @@ function Manager.ApplySize(force)
     DUI.AfterCombat(function()
         local w, h = Manager.PlateSize()
         if w == sizeW and h == sizeH then return end
-        if pcall(set, w, h) then sizeW, sizeH = w, h end
+        if DUI.SafeCall(set, w, h) then sizeW, sizeH = w, h end
     end, "nameplates:size")
 end
 
@@ -887,10 +879,9 @@ function Manager.ApplyStacking()
     local on = mode == "stack"
     local function bit(i, v)
         if type(get) == "function" then
-            local ok, now = pcall(get, Manager.STACK_CVAR, i)
-            if ok and now == v then return end
+            if get(Manager.STACK_CVAR, i) == v then return end
         end
-        pcall(set, Manager.STACK_CVAR, i, v)
+        DUI.SafeCall(set, Manager.STACK_CVAR, i, v)
     end
     -- Every plate already hands the game its stacking frame, stacked kind or not,
     -- so none is handed again here.
@@ -909,7 +900,7 @@ function Manager.ApplyClickable()
     DUI.AfterCombat(function()
         for _, kind in ipairs({ T.Enemy, T.Friendly }) do
             local i = Manager.CLICK_INSET
-            if kind ~= nil then pcall(M.SetNamePlateHitTestInsets, kind, i, i, i, i) end
+            if kind ~= nil then DUI.SafeCall(M.SetNamePlateHitTestInsets, kind, i, i, i, i) end
         end
     end, "nameplates:clickable")
 end

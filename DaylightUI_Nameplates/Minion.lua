@@ -147,9 +147,9 @@ end
 function Minion.Update(p)
     local b, u = p.badge, p.unit
     if not u then return end
-    if p.minionBar then pcall(SetPortraitTexture, b.mini, u) end
+    if p.minionBar then DUI.SafeCall(SetPortraitTexture, b.mini, u) end
     if not p.minion then return end
-    pcall(SetPortraitTexture, b.icon, u)
+    DUI.SafeCall(SetPortraitTexture, b.icon, u)
     local element = Minion.Element(u)
     local col = element and Minion.COLORS[element]
     local r, g, bl
