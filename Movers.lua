@@ -39,6 +39,11 @@ end
 -- opts.corner: the point it stays pinned by until the player picks one
 -- (default CENTER). opts.onCorner(key): for a proxy that places itself,
 -- called when one is picked.
+-- opts.size(): the handle's width and height, for a proxy whose frame's own
+-- size isn't what the player sees (a game container that grows per popup).
+-- opts.onDrag(x, y): a proxy whose frame isn't moved by the handle, told the
+-- handle's spot each frame it moves (dragged, snapped, reset), so something
+-- shown there can come along.
 -- opts.bottom: starts at the screen's bottom edge with its default function
 -- taking its height from Movers.Above, and glides when that room changes.
 -- default: { point, rel, relPoint, x, y } for a frame never moved, or a
@@ -52,7 +57,8 @@ function Movers.Register(frame, key, label, default, opts)
                      minW = opts and opts.minW, minH = opts and opts.minH,
                      active = opts and opts.active, scale = opts and opts.scale,
                      corner = opts and opts.corner, onCorner = opts and opts.onCorner,
-                     bottom = opts and opts.bottom }
+                     bottom = opts and opts.bottom,
+                     size = opts and opts.size, onDrag = opts and opts.onDrag }
     order[#order + 1] = key
     if proxy then
         if type(opts.scale) == "function" then Movers.Apply(key) end
@@ -304,6 +310,7 @@ local function place(f, x, y)
 end
 
 local function follow(e, x, y)
+    if e.onDrag then DUI.SafeCall(e.onDrag, x, y) end
     if not e.follow or InCombatLockdown() then return end
     -- The game hangs some bars off others (bar 1 off bar 2), so pin the other
     -- following frames where they are to keep them from coming along.
@@ -759,7 +766,12 @@ function Movers.PlaceHandle(e, h, live)
     local r = ratio(e.frame)
     -- The minimum sizes stand in for a frame that isn't up yet, drawn at the piece's size too.
     local s = Movers.Scalable(e.key) and Movers.Scale(e.key) or 1
-    h:SetSize(math.max(e.frame:GetWidth() * r, (e.minW or 0) * s), math.max(e.frame:GetHeight() * r, (e.minH or 0) * s))
+    local w, hh
+    if e.size then w, hh = e.size() end
+    if not (w and hh) then
+        w, hh = math.max(e.frame:GetWidth() * r, (e.minW or 0) * s), math.max(e.frame:GetHeight() * r, (e.minH or 0) * s)
+    end
+    h:SetSize(w, hh)
     local saved = savedAt(e.key)
     local x, y
     if live and e.follow and e.frame:IsVisible() then
@@ -828,9 +840,9 @@ local function makeHandle(e)
         h.others = DUI.DB.General().magnet ~= false and otherRects(e.key, e.crew) or nil
         -- A following proxy's real frame tracks the handle as it moves, the rest of a
         -- group follows the piece, and the magnet's guides show the snap it would take.
-        if e.follow or h.others or e.crew then
+        if e.follow or e.onDrag or h.others or e.crew then
             h:SetScript("OnUpdate", function()
-                if e.follow then
+                if e.follow or e.onDrag then
                     local x, y = liveOffset(h)
                     if x then follow(e, x, y) end
                 end

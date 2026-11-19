@@ -24,8 +24,10 @@ DUI.GameMovers = GM
 -- game creates them once, so a fight never sees them unscaled).
 -- toasts: frames that only anchor to it. It keeps its size and each toast is
 -- sized as it shows.
+GM.ROLL_W = 300 -- a roll card's width, so the Loot Rolls handle covers one
+
 GM.FRAMES = {
-    { name = "GroupLootContainer", label = "Loot Rolls", minW = 280, minH = 100,
+    { name = "GroupLootContainer", label = "Loot Rolls", minW = GM.ROLL_W, minH = 100, slot = true,
       pieces = { "GroupLootFrame1", "GroupLootFrame2", "GroupLootFrame3", "GroupLootFrame4",
                  "BonusRollLootWonFrame", "BonusRollMoneyWonFrame", "DaylightUIRollStack" } },
     -- Every toast stacks up from it, including the "You won" loot ones.
@@ -46,6 +48,47 @@ function GM.Key(name) return "game." .. name end
 function GM.Spot(name)
     local saved = DUI.DB.Positions()[GM.Key(name)]
     if DUI.Movers.Valid(saved) then return saved[1], saved[2] end
+end
+
+-- Loot rolls stack from one slot, the first popup's place, whatever the
+-- game's container grows to (a slot per popup, around its center once moved).
+-- The handle stands over that slot and Daylight UI's roll cards hang from it.
+local near      -- defined below with standsAt
+local rollLive  -- the handle's spot while it's being moved
+local rollSeen  -- where the game's column last had the container's bottom
+
+-- The first roll slot's center as CENTER offsets in UIParent units, and its
+-- width and height.
+function GM.RollSlot()
+    local c, name = _G.GroupLootContainer, "GroupLootContainer"
+    local s = DUI.Movers.Scale(GM.Key(name))
+    local r = type(c) == "table" and c:GetEffectiveScale() / UIParent:GetEffectiveScale() or s
+    local w = GM.ROLL_W * s
+    local h = (type(c) == "table" and type(c.reservedSize) == "number" and c.reservedSize or 100) * r
+    if rollLive then return rollLive[1], rollLive[2], w, h end
+    local sx, sy = GM.Spot(name)
+    if sx then return sx, sy, w, h end
+    if type(c) == "table" and c:GetNumPoints() > 0 then
+        local left, bottom, width = c:GetLeft(), c:GetBottom(), c:GetWidth()
+        if type(left) == "number" and type(bottom) == "number" and type(width) == "number" then
+            local x, y = (left + width / 2) * r - UIParent:GetWidth() / 2, bottom * r - UIParent:GetHeight() / 2
+            if not (rollSeen and near(rollSeen[1], x) and near(rollSeen[2], y)) then
+                rollSeen = { x, y }
+                -- A handle up while the game first lays its column out moves to it.
+                local hd = DUI.Movers.Handle(GM.Key(name))
+                if hd and hd:IsShown() and not hd.moving and not hd.glide then
+                    DUI.Movers.PlaceHandle(DUI.Movers.Get(GM.Key(name)), hd)
+                end
+            end
+        end
+    end
+    if rollSeen then return rollSeen[1], rollSeen[2] + h / 2, w, h end
+    return 0, -200 + h / 2, w, h
+end
+
+local function rollDrag(x, y)
+    rollLive = { x, y }
+    DUI.Fire("RollSlotMoved")
 end
 
 -- name -> { parent, points }: where the game had a frame before it was moved,
@@ -70,7 +113,7 @@ end
 -- placed again after every loading screen and every toast, and most of the
 -- time the game hasn't touched them, so nothing needs writing. A secret
 -- answer counts as "not there" and the frame is written as before.
-local function near(a, b)
+near = function(a, b)
     return type(a) == "number" and not DUI.IsSecret(a) and math.abs(a - b) < 0.01
 end
 local function standsAt(f, x, y, w, h)
@@ -148,6 +191,7 @@ local function sized(spec, s)
         for _, name in ipairs(spec.pieces) do scaleTo(_G[name], s) end
     end
     DUI.SafeCall(place, spec)
+    if spec.slot then DUI.Fire("RollSlotMoved") end
 end
 
 -- Toasts come from a pool, created as needed and parented to UIParent, so
@@ -352,8 +396,17 @@ function GM.Setup()
             DUI.Movers.Register(f, key, spec.label, nil, { proxy = true,
                 minW = spec.minW, minH = spec.minH,
                 scale = function(s) sized(spec, s) end,
-                home = spec.fit and function() return fitHome(spec) end or nil,
-                onMoved = function() DUI.SafeCall(place, spec) end })
+                home = spec.fit and function() return fitHome(spec) end
+                    or spec.slot and function() return GM.RollSlot() end or nil,
+                size = spec.slot and function() return select(3, GM.RollSlot()) end or nil,
+                onDrag = spec.slot and rollDrag or nil,
+                onMoved = function()
+                    DUI.SafeCall(place, spec)
+                    if spec.slot then
+                        rollLive = nil
+                        DUI.Fire("RollSlotMoved")
+                    end
+                end })
             if f.HookScript then f:HookScript("OnShow", soon) end
             DUI.SafeCall(place, spec)
         end

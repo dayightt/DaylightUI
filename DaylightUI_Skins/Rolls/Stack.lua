@@ -259,32 +259,14 @@ local function leave(rollID)
     spare[#spare + 1] = card
 end
 
--- The game's roll container the last time it had a place: the middle of its
--- bottom edge from UIParent's bottom left, in UIParent units.
-local lastBox
-
--- Where the stack hangs: the Loot Rolls handle's box, worked out in UIParent
--- units and anchored to UIParent, never to the game's roll container. That one
--- is a managed frame: when its last popup goes (your own pick can end a roll
--- at once) the game hides it and clears all its points, and everything hung
--- from it would vanish. Moved by its handle, the box is the first slot under
--- the saved center; left where the game lays it out, its bottom where the
--- game's column last had it.
+-- Where the stack hangs: the first roll slot, the one the Loot Rolls handle
+-- stands over (core GameMovers). Anchored to UIParent, never to the game's
+-- roll container. That one is a managed frame: when its last popup goes (your
+-- own pick can end a roll at once) the game hides it and clears all its
+-- points, and everything hung from it would vanish.
 local function hangSpot(up)
-    local c, GM = _G.GroupLootContainer, DUI.GameMovers
-    local ui = UIParent:GetEffectiveScale()
-    local r = type(c) == "table" and c:GetEffectiveScale() / ui or 1
-    local slot = (type(c) == "table" and type(c.reservedSize) == "number" and c.reservedSize or 100) * r
-    local sx, sy = GM.Spot("GroupLootContainer")
-    if sx then return "CENTER", sx, up and sy - slot / 2 or sy + slot / 2 end
-    if type(c) == "table" and c:GetNumPoints() > 0 then
-        local left, bottom, width = c:GetLeft(), c:GetBottom(), c:GetWidth()
-        if type(left) == "number" and type(bottom) == "number" and type(width) == "number" then
-            lastBox = { (left + width / 2) * r, bottom * r }
-        end
-    end
-    if lastBox then return "BOTTOMLEFT", lastBox[1], up and lastBox[2] or lastBox[2] + slot end
-    return "CENTER", 0, -200
+    local x, y, _, h = DUI.GameMovers.RollSlot()
+    return "CENTER", x, up and y - h / 2 or y + h / 2
 end
 
 local function anchor()
@@ -515,6 +497,11 @@ function RollStack.Apply()
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() RollStack.Layout() end)
     DUI.On("StyleChanged", RollStack.Refresh)
     DUI.On("TestModeChanged", RollStack.Refresh)
+    -- The Loot Rolls handle moving (dragged, snapped, nudged, reset, sized):
+    -- the cards come along as it goes.
+    DUI.On("RollSlotMoved", function()
+        if RollStack.frame and RollStack.frame:IsShown() then DUI.SafeCall(anchor) end
+    end)
     DUI.On("TestPartChanged", function(key) if key == "rolls" then RollStack.Refresh() end end)
     Data.Rebuild(now())
     RollStack.Layout()

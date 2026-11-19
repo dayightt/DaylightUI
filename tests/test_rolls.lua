@@ -877,6 +877,49 @@ T.test("rolls stack: a moved Loot Rolls handle keeps the rolls at its spot", fun
     T.near(x, 330, 0.5); T.near(y, 147 - 50, 0.5, "the bottom of the handle's first slot")
 end)
 
+T.test("rolls stack: in unlock mode the Loot Rolls handle stays one slot and the rolls follow it", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local key = "game.GroupLootContainer"
+    DaylightUI.DB.Positions()[key] = { 330, 147 }
+    T.truthy(DaylightUI.Movers.Unlock())
+    local h = DaylightUI.Movers.Handle(key)
+    T.truthy(h and h:IsShown(), "the handle is up")
+    for i = 1, 3 do RW.Drop({ name = "Band of Accuria " .. i, link = RING, players = SEVEN }) end
+    T.near(_G.GroupLootContainer:GetHeight(), 300, 0.5, "the game's container grew a slot per popup")
+    DaylightUI.Movers.PlaceHandle(DaylightUI.Movers.Get(key), h)
+    T.near(h:GetHeight(), 100, 0.5, "the handle stays the first slot, where the rolls hang")
+    local _, _, _, hx, hy = h:GetPoint(1)
+    local _, _, _, x, y = St.frame:GetPoint(1)
+    T.near(x, hx, 0.5); T.near(y, hy - 50, 0.5, "the rolls start at the handle's bottom")
+    -- Dragged: the rolls come along each frame, not on the next roll change.
+    -- The fake game has no layout, so the handle is told where it is.
+    h.GetCenter = function() return UIParent:GetWidth() / 2 - 200, UIParent:GetHeight() / 2 + 40 end
+    h:GetScript("OnDragStart")(h)
+    h:GetScript("OnUpdate")(h, 0.016)
+    _, _, _, x, y = St.frame:GetPoint(1)
+    T.near(x, -200, 0.5); T.near(y, 40 - 50, 0.5, "the rolls follow while it's dragged")
+    h:GetScript("OnDragStop")(h)
+    stub.RunTimers()
+    local saved = DaylightUI.DB.Positions()[key]
+    _, _, _, x, y = St.frame:GetPoint(1)
+    T.near(x, saved[1], 0.5); T.near(y, saved[2] - 50, 0.5, "and stay at the spot it was dropped on")
+    DaylightUI.Movers.Lock()
+end)
+
+T.test("rolls stack: an unmoved Loot Rolls handle stands over where the rolls hang", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local key = "game.GroupLootContainer"
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.truthy(DaylightUI.Movers.Unlock())
+    local h = DaylightUI.Movers.Handle(key)
+    local _, _, _, hx, hy = h:GetPoint(1)
+    local _, _, _, x, y = St.frame:GetPoint(1)
+    T.near(x, hx, 0.5); T.near(y, hy - h:GetHeight() / 2, 0.5)
+    DaylightUI.Movers.Lock()
+end)
+
 T.test("rolls stack: the last roll fades out before the stack hides", function()
     local S, RW = rollsLogin()
     local St = S.RollStack
