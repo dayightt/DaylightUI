@@ -392,7 +392,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         -- A sell price alone (a quest reward has no durability) says what it is.
         local label = foot.durability or (type(SELL_PRICE) == "string" and SELL_PRICE or L["Sell price"])
         other[#other + 1] = function()
-            Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
+            Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small, Style.SIZE.head)
         end
     end
     part(groups.list)

@@ -438,13 +438,14 @@ function Panel.Header(p, spec)
     p.washColor = spec.wash
 end
 
--- A label on the left, its value on the right. s: their text size (body).
-function Panel.Row(p, label, value, valueColor, labelColor, s)
+-- A label on the left, its value on the right. s: their text size (body);
+-- valueSize lets the value stand out bigger than its label (a sell price).
+function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize)
     local item = add(p, { kind = "row" })
     item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL)
     item.label:SetText(label or "")
     if value and value ~= "" then
-        item.value = text(p, s or Style.SIZE.body, valueColor or Style.INK.VALUE)
+        item.value = text(p, valueSize or s or Style.SIZE.body, valueColor or Style.INK.VALUE)
         item.value:SetText(value)
         item.value:SetJustifyH("RIGHT")
     end
@@ -691,14 +692,17 @@ end
 -- cut with "..." whenever the card was exactly as wide as its widest row.
 Panel.ROW_GAP_X = 16
 function place.row(p, item, y, inner)
-    item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = lineHeight(item.label.size)
+    local drop = 0
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
         local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
         if widthOf(item.label) > room + 1 then item.label:SetWidth(math.max(1, room)) end
-        h = math.max(h, lineHeight(item.value.size))
+        -- A bigger value: the label sits on the same baseline, not up at its top.
+        local vh = lineHeight(item.value.size)
+        if vh > h then drop, h = vh - h, vh end
     end
+    item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + drop))
     return h
 end
 
