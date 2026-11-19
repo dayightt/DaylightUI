@@ -31,6 +31,13 @@ local function chatWindow(i, docked)
     cf.clickAnywhereButton = CreateFrame("Button", name .. "ClickAnywhereButton", cf)
     cf.clickAnywhereButton:EnableMouse(true)
     for _, e in ipairs(SHOWN) do cf:RegisterEvent(e) end
+    -- Its message groups, read by the game's ChatFrameMixin:ContainsMessageGroup.
+    cf.messageTypeList = {}
+    for _, e in ipairs(SHOWN) do cf.messageTypeList[#cf.messageTypeList + 1] = e:sub(10) end
+    function cf:ContainsMessageGroup(group)
+        for _, g in pairs(self.messageTypeList) do if g == group then return true end end
+        return false
+    end
     cf.channelList, cf.zoneChannelList = {}, {}
     -- Its lines as the window keeps them, added and rewritten in place. Each is
     -- also the game's history entry (PackageEntry): `message` is [1], the values
@@ -2370,6 +2377,43 @@ T.test("chat daylight: a loot line finds its tab by its event, whatever type num
     Box.Pick(4)
     T.eq(table.concat(boxTexts(box), "|"), text, "in the Loot tab; the next line isn't taken for loot")
     T.isnil(Kinds.Heard(ChatFrame1), "used once")
+end)
+
+-- The game's default chat settings send experience from kills only to the
+-- combat log window, which the box never reads: the box takes those lines from
+-- the event itself, once, and only while no window it reads carries them.
+local function dropGroup(cf, group)
+    for i, g in pairs(cf.messageTypeList) do if g == group then cf.messageTypeList[i] = nil end end
+end
+T.test("chat daylight: experience from kills shows though only the combat log carries it", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
+    end)
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then dropGroup(cf, "COMBAT_XP_GAIN") end
+    end
+    local text = "Young Wolf dies, you gain 45 experience."
+    stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", text, "", "", "", "", "", 0, 0, "", 0, 0)
+    Box.Pick(1)
+    local texts = table.concat(boxTexts(box), "|")
+    T.truthy(texts:find("you gain 45 experience", 1, true), "in Everything: " .. texts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a window that carries experience lines keeps them single", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
+    end)
+    local Kinds = stub.chatModule.Kinds
+    local text = "Young Wolf dies, you gain 45 experience."
+    stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", text, "", "", "", "", "", 0, 0, "", 0, 0)
+    Kinds.Filter(ChatFrame1, "CHAT_MSG_COMBAT_XP_GAIN", text)
+    ChatFrame1:AddMessage(text, 0.4, 0.4, 1, 9)
+    Box.Pick(1)
+    local n = 0
+    for _, t in ipairs(boxTexts(box)) do if t:find("you gain 45 experience", 1, true) then n = n + 1 end end
+    T.eq(n, 1, "once")
 end)
 
 T.test("chat daylight: more tabs than fit slide on a clipped rail, never over the header's icons", function()

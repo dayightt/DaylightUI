@@ -445,6 +445,35 @@ function Box.Watch(cf)
     hooksecurefunc(cf, "AddMessage", function(...) DUI.SafeCall(Box.Feed, ...) end)
 end
 
+-- The game's default chat settings send experience from kills (and a few other
+-- gains) only to the combat log window, which the box never reads, so those lines
+-- never arrived. When none of the windows it reads carries the line's group, the
+-- box takes it from the event, worded and colored as the game's window would show
+-- it (the text as is, in the type's color). Only reads the windows.
+Box.GAIN_EVENTS = { "CHAT_MSG_COMBAT_XP_GAIN", "CHAT_MSG_COMBAT_HONOR_GAIN", "CHAT_MSG_COMBAT_FACTION_CHANGE",
+    "CHAT_MSG_COMBAT_MISC_INFO", "CHAT_MSG_LOOT", "CHAT_MSG_MONEY", "CHAT_MSG_CURRENCY", "CHAT_MSG_SKILL",
+    "CHAT_MSG_OPENING", "CHAT_MSG_TRADESKILLS", "CHAT_MSG_PET_INFO", "CHAT_MSG_TARGETICONS" }
+local fromEvent = {}   -- stands in for a window when the box hears a line itself
+
+local function carried(group)
+    for cf in pairs(hooked) do
+        if type(cf.ContainsMessageGroup) == "function" and cf:ContainsMessageGroup(group) then return true end
+    end
+    return false
+end
+
+function Box.HearGain(event, text)
+    if not Box.On() or type(event) ~= "string" or secret(text) or type(text) ~= "string" then return end
+    local group = event:sub(10)
+    if carried(group) then return end
+    local info = type(ChatTypeInfo) == "table" and ChatTypeInfo[group]
+    if type(info) ~= "table" then return end
+    Box.Feed(fromEvent, text, info.r, info.g, info.b, info.id, nil, nil, event)
+end
+for _, e in ipairs(Box.GAIN_EVENTS) do
+    DUI.RegisterEvent(e, function(event, text) Box.HearGain(event, text) end)
+end
+
 -- ---------------------------------------------------------------------
 -- The game's chat, hidden
 -- ---------------------------------------------------------------------
