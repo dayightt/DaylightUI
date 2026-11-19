@@ -16,6 +16,7 @@ DUI:RegisterModule("GroupFinder", {
     OnEnable = function(mod)
         ns.module = mod
         ns.Window.SwapInit()
+        ns.Listing.WatchRole()
         if ns.Window.Ours() then ns.Window.Build(mod) end
     end,
     OnSettingChanged = function()

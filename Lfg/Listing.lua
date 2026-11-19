@@ -187,13 +187,62 @@ end
 -- flips back (the game's own buttons do the same). In a group: one role, lit once the
 -- game confirms (PLAYER_ROLES_ASSIGNED).
 function Listing.ToggleRole(role)
-    if Data().Grouped() then return Data().SetGroupRole(role) end
+    if Data().Grouped() then
+        Listing.keep = nil
+        return Data().SetGroupRole(role)
+    end
     local roles = Listing.Roles()
     local key = Data().ROLE_KEY[role]
     roles[key] = not roles[key]
     if not (roles.tank or roles.healer or roles.dps) then roles[key] = true end
     if not Data().SetRoles(roles) then Listing.roles = nil end
     Listing.Paint()
+end
+
+-- When a group forms the client gives everyone Damage (seen in game, and DBM's role
+-- check says the same), so a player listed as a tank who invited someone became Damage.
+-- If that happens while listed, the group role goes back to a role they listed with.
+-- Only right after the group forms: a role they pick later is theirs.
+Listing.KEEP_FOR = 10    -- seconds the client has to hand out its role
+Listing.KEEP_ORDER = { "TANK", "HEALER", "DAMAGER" }
+
+function Listing.WatchRole()
+    Listing.solo = { grouped = Data().Grouped() }
+    local function seen()
+        local grouped = Data().Grouped()
+        if not grouped then
+            local listed = type(C_LFGList) == "table" and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() == true
+            Listing.solo = { grouped = false, listed = listed, roles = Data().Roles() }
+            Listing.keep = nil
+        elseif not Listing.solo.grouped then
+            Listing.solo.grouped = true
+            if Listing.solo.listed then
+                Listing.keep = { roles = Listing.solo.roles, untilT = GetTime() + Listing.KEEP_FOR }
+            end
+        end
+        Listing.KeepRole()
+    end
+    for _, e in ipairs({ "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED", "LFG_LIST_ACTIVE_ENTRY_UPDATE", "LFG_LIST_ROLE_UPDATE" }) do
+        DUI.RegisterEvent(e, seen)
+    end
+    seen()
+end
+
+function Listing.KeepRole()
+    local keep = Listing.keep
+    if not keep then return end
+    if GetTime() > keep.untilT or not Data().Grouped() then Listing.keep = nil return end
+    local now = Data().GroupRole()
+    local key = now and Data().ROLE_KEY[now]
+    if key and keep.roles[key] then return end
+    for _, role in ipairs(Listing.KEEP_ORDER) do
+        if keep.roles[Data().ROLE_KEY[role]] then
+            DUI.AfterCombat(function()
+                if Listing.keep == keep then Data().SetGroupRole(role) end
+            end, "lfg:role")
+            return
+        end
+    end
 end
 
 -- Playstyle (kept for the session, like the game's page).

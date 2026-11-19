@@ -173,6 +173,13 @@ function LW.Group(n, lead)
     stub.FireEvent("GROUP_ROSTER_UPDATE")
 end
 
+-- The client hands you a group role by itself. Seen in game: Damage for everyone when a
+-- group forms (DBM's role check says the same of this client).
+function LW.ClientRole(role)
+    S().role = role
+    stub.FireEvent("PLAYER_ROLES_ASSIGNED")
+end
+
 -- A listing out there changes (a member joins, it's delisted).
 function LW.Update(id, change)
     local r = result(id)
@@ -251,11 +258,12 @@ local function install()
         return leader and leader(u, ...) or false
     end
     _G.UnitIsGroupAssistant = _G.UnitIsGroupAssistant or function() return false end
-    -- Your role in a group. The game's listing page menu calls UnitSetRole
-    -- (HasRestrictions in the docs, so a click runs it), and the game answers with the event.
+    -- Your role in a group. The game's listing page menu calls UnitSetRole and the game
+    -- answers with the event. No click needed: DBM sets it from a timer after a group
+    -- forms, out of combat only (HasRestrictions in the docs).
     _G.UnitGroupRolesAssigned = function(u) return u == "player" and S().role or "NONE" end
     _G.UnitSetRole = function(u, role)
-        if not stub.HardwareOnly("UnitSetRole") then return false end
+        if InCombatLockdown() then return false end
         record("UnitSetRole", u, role)
         S().role = role
         stub.FireEvent("PLAYER_ROLES_ASSIGNED")

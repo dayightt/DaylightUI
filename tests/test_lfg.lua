@@ -791,6 +791,52 @@ T.test("lfg: in a group you pick your one role, leader or not", function()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "; "))
 end)
 
+-- Listed alone as a tank, you invite someone: the client makes everyone Damage as the
+-- group forms, and the tank who listed came out as Damage.
+T.test("lfg: listed as a tank, inviting someone keeps you the tank", function()
+    load()
+    LW.state.roles = { tank = true, healer = false, dps = false }
+    LW.state.entry = { activityIDs = { 1 } }
+    stub.FireEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+    LW.Group(2, true)
+    LW.ClientRole("DAMAGER")
+    T.eq(LW.state.role, "TANK", "the role you listed with, not the client's Damage")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "; "))
+end)
+
+T.test("lfg: the group role is left alone when it's one you listed, or one you pick", function()
+    local ns = load()
+    LW.state.roles = { tank = true, healer = false, dps = true }
+    LW.state.entry = { activityIDs = { 1 } }
+    stub.FireEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+    LW.Group(2, true)
+    LW.ClientRole("DAMAGER")
+    T.eq(LW.state.role, "DAMAGER", "Damage was one of yours")
+    LW.ClientRole("HEALER")
+    T.eq(LW.state.role, "TANK", "a role you didn't list goes back to one you did")
+    stub.Key(function() ns.Listing.ToggleRole("HEALER") end)
+    LW.ClientRole("HEALER")
+    T.eq(LW.state.role, "HEALER", "your own pick stays")
+end)
+
+T.test("lfg: not listed, the client's group role stays; in a fight it waits", function()
+    load()
+    LW.state.roles = { tank = true, healer = false, dps = false }
+    LW.Group(2, true)
+    LW.ClientRole("DAMAGER")
+    T.eq(#LW.Calls("UnitSetRole"), 0, "nothing listed: nothing to keep")
+    LW.Group(1, true)
+    LW.state.entry = { activityIDs = { 1 } }
+    stub.FireEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+    stub.EnterCombat()
+    LW.Group(2, true)
+    LW.ClientRole("DAMAGER")
+    T.eq(LW.state.role, "DAMAGER", "not in a fight")
+    stub.LeaveCombat()
+    T.eq(LW.state.role, "TANK", "right after it")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "; "))
+end)
+
 T.test("lfg: handed the lead with the page open, the list makes room and wakes", function()
     local ns = load()
     open(ns)
