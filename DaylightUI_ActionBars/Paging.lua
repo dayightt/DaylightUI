@@ -29,6 +29,10 @@ end
 -- stance bar). Travel and Aquatic have no bar of their own (page 1).
 Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
 
+-- A prowling cat gets a bar of its own from the game (bonus bar 2, page 8), which
+-- paging by form alone can't see, so a druid's rule gives Prowl that page first.
+Paging.PROWL_PAGE = 8
+
 -- A priest's Shadowform is a real form, but as in Classic it has no bonus bar and
 -- no place on the stance bar (GetNumShapeshiftForms says 0). The macro conditions
 -- still call it form 1, so it pages bar 1 as [form:1], the page a druid's form 1 gets.
@@ -99,6 +103,9 @@ Paging.CLAUSES = {
     function()
         local forms = Paging.FormConds()
         local rule = "[bonusbar:1] 7; [bonusbar:2] 8; [bonusbar:3] 9; [bonusbar:4] 10; [bonusbar:5] 11"
+        if Paging.Class() == "DRUID" then
+            rule = "[bonusbar:1,stealth] " .. Paging.PROWL_PAGE .. "; " .. rule
+        end
         if forms then
             -- Cat (7) before Bear (9), since Cat's place on the stance bar may come after.
             rule = bonusRule(rule, forms)
@@ -317,14 +324,16 @@ end
 -- In the order they're checked: a held modifier beats a form, Prowl comes before Cat
 -- Form. On Forever every class's form N is bonus bar N (bar 1's rule).
 -- class = only that class has it. held = bar 1 has it too (Paging.HeldRule): the
--- modifiers, and your target being friendly or one you can attack.
+-- modifiers, and your target being friendly or one you can attack. ownPage = the
+-- page bar 1 shows in it when that isn't 6 + its bonus bar.
 Paging.STATES = {
     { id = "shift", held = true, cond = "[mod:shift]", name = "Shift", when = "while you hold Shift" },
     { id = "ctrl", held = true, cond = "[mod:ctrl]", name = "Ctrl", when = "while you hold Ctrl" },
     { id = "alt", held = true, cond = "[mod:alt]", name = "Alt", when = "while you hold Alt" },
     { id = "help", held = true, cond = "[help]", name = "Friendly target", when = "while your target is friendly" },
     { id = "harm", held = true, cond = "[harm]", name = "Enemy target", when = "while your target is one you can attack" },
-    { id = "prowl", class = "DRUID", cond = "[bonusbar:1,stealth]", name = "Prowl", when = "while you prowl" },
+    { id = "prowl", class = "DRUID", cond = "[bonusbar:1,stealth]", name = "Prowl", when = "while you prowl",
+      ownPage = Paging.PROWL_PAGE },
     { id = "cat", class = "DRUID", cond = "[bonusbar:1]", name = "Cat Form", when = "in Cat Form" },
     { id = "bear", class = "DRUID", cond = "[bonusbar:3]", name = "Bear Form", when = "in Bear Form" },
     { id = "stealth", class = "ROGUE", cond = "[bonusbar:1]", name = "Stealth", when = "in Stealth" },

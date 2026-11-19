@@ -965,8 +965,9 @@ T.test("paging: the page list names each bar's page and your forms' pages on bar
     for n = 1, 8 do T.eq(names[n], "Action Bar " .. n, "bar " .. n .. " in its place") end
     T.eq(names[9], "Action Bar 1 in Cat Form")
     T.eq(names[10], "Action Bar 1 in Bear Form")
+    T.eq(names[11], "Action Bar 1 in Prowl", "the page the game gives a prowling cat")
     local spare = {}
-    for i = 11, #names do
+    for i = 12, #names do
         spare[#spare + 1] = tonumber(names[i]:match("^Spare page (%d+)$"))
         T.truthy(spare[#spare], names[i] .. " is a spare page")
         if #spare > 1 then T.truthy(spare[#spare] > spare[#spare - 1], "spare pages in number order") end
@@ -1115,6 +1116,34 @@ T.test("paging: a druid's bars 2-8 page by the form too; forms learned build it 
     T.eq(pageOf(MultiBarLeftButton1), 11)
     stub.SetConditions({})
     noBlocked()
+end)
+
+-- The game's bar 1 goes to page 8 while a cat prowls (the bonus bar Prowl gets on
+-- Forever). Paging by form alone kept the cat's page 7 there.
+T.test("paging: a prowling druid's bar 1 shows the Prowl page, as the game's does", function()
+    login({ class = "DRUID", formSpells = DRUID_FORMS })
+    local h = holder("main")
+    stub.SetConditions({ ["form:3"] = true })
+    T.eq(h:GetAttribute("actionpage"), 7, "Cat Form")
+    stub.SetConditions({ ["form:3"] = true, stealth = true })
+    T.eq(h:GetAttribute("actionpage"), 8, "Prowl")
+    T.eq(keyPage(1), 8, "and the keys cast it")
+    DaylightUI:Set("ActionBars", "bars.main.paging.shift", 13)
+    stub.SetConditions({ ["form:3"] = true, stealth = true, ["mod:shift"] = true })
+    T.eq(h:GetAttribute("actionpage"), 13, "a held key's page beats it")
+    DaylightUI:Set("ActionBars", "bars.main.paging.shift", 0)
+    stub.SetConditions({ ["form:1"] = true, stealth = true })
+    T.eq(h:GetAttribute("actionpage"), 9, "only a cat prowls")
+    stub.SetConditions({})
+    T.eq(h:GetAttribute("actionpage"), 1)
+    noBlocked()
+end)
+
+T.test("paging: a rogue's Stealth stays on page 7", function()
+    login({ class = "ROGUE" })
+    stub.SetConditions({ ["bonusbar:1"] = true, stealth = true })
+    T.eq(holder("main"):GetAttribute("actionpage"), 7)
+    stub.SetConditions({})
 end)
 
 T.test("paging: Bear and Dire Bear are one form: either page bar 1 to the bear bar", function()

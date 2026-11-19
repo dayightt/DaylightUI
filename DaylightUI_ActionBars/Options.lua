@@ -448,6 +448,9 @@ local function pageChoices()
         local n = tonumber(string.match(state.cond, "^%[bonusbar:(%d)%]$"))
         if n and Paging.Has(state) then add(6 + n, string.format(L["Action Bar 1 in %s"], L[state.name])) end
     end
+    for _, state in ipairs(Paging.STATES) do
+        if state.ownPage and Paging.Has(state) then add(state.ownPage, string.format(L["Action Bar 1 in %s"], L[state.name])) end
+    end
     for page = 1, Paging.PAGES do add(page, string.format(L["Spare page %d"], page)) end
     return values, order
 end
