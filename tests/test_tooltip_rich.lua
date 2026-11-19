@@ -1831,3 +1831,21 @@ T.test("rich tooltip: a row's value is never squeezed: it keeps its own width at
         "a label too long is shortened, before the value")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game: a crawfish showed HUMANOID as a tag and "Humanoid" again as a
+-- small line, its type on a line of its own under "Level 40".
+T.test("rich tooltip: a creature's lines that repeat what the header shows are left out", function()
+    local _, Panel = login("rich")
+    stub.units.player.level = 40
+    stub.units.mouseover = { name = "Jumbo Crawfish", isPlayer = false, reaction = 4, level = 40, health = 100,
+        maxHealth = 100, creatureType = "Humanoid", classification = "elite" }
+    stub.units.mouseovertarget = nil
+    hover("mouseover", { "Jumbo Crawfish", "Level 40", "Humanoid", "NEUTRAL", "Elite", "Jumbo Crawfish", "Coastal" })
+    local p = Panel.Get(GameTooltip)
+    T.eq(tagWords(p.items[1]), "NEUTRAL,HUMANOID,ELITE")
+    local said = {}
+    for _, it in ipairs(itemsOf(p, "text")) do said[#said + 1] = stub.Text(it.fs) end
+    T.eq(table.concat(said, ","), "Coastal", "only what the header doesn't say")
+    T.eq(#itemsOf(p, "rule"), 1, "one rule, above it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

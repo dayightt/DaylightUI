@@ -222,7 +222,7 @@ end
 -- level its title ("Innkeeper"), any other a fact.
 function World.ReadMob(lines, own, level)
     local Bare, W = ns.Rich.Bare, World.Words()
-    local r = { title = lines[1] and lines[1].left or "", tags = {}, facts = {}, taken = {} }
+    local r = { title = lines[1] and lines[1].left or "", tags = {}, facts = {}, taken = {}, lines = lines }
     local levelAt
     if level then
         local want = string.format(W.level, level)
@@ -273,6 +273,25 @@ function World.Tags(unit, r)
     return tags
 end
 
+-- Leaves out the facts whose words the header already shows (the client may
+-- put the creature's type, its reaction or "Elite" on a line of its own).
+function World.DropShown(r, tags)
+    local Bare = ns.Rich.Bare
+    local shown = {}
+    for _, t in ipairs(tags) do
+        if type(t[1]) == "string" then shown[t[1]:lower()] = true end
+    end
+    if type(r.title) == "string" then shown[Bare(r.title):lower()] = true end
+    if type(r.sub) == "string" then shown[r.sub:lower()] = true end
+    local kept = {}
+    for _, i in ipairs(r.facts) do
+        local line = r.lines[i]
+        local t = not line.right and line.left and Bare(line.left):lower() or nil
+        if not (t and shown[t]) then kept[#kept + 1] = i end
+    end
+    r.facts = kept
+end
+
 -- Builds a creature's card (board "A mob, for you").
 function World.Mob(p, tip, unit, data, n, lines, light)
     local Panel, Rich = ns.RichPanel, ns.Rich
@@ -283,6 +302,7 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     Panel.Begin(p, "mob", light)
     p.padTop = World.PAD_TOP
     local tags = World.Tags(unit, r)
+    World.DropShown(r, tags)
     Panel.Header(p, { portrait = unit, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = pair,
         title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
