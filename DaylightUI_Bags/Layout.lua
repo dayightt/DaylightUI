@@ -1542,6 +1542,12 @@ function Layout.Hold(window)
                     window.crossing.placed[moveTo] = true
                     window.crossing.placed[b] = true
                 end
+                -- A stack that faded out when it joined the pile is still see-through
+                -- until the next layout, so it would take the spot unseen.
+                if window.fading and window.fading[moveTo] then
+                    window.fading[moveTo] = nil
+                    DUI.Motion.AlphaTo(ns.Items.Fader(moveTo), 1, 0)
+                end
                 moveTo:SetSize(e.size, e.size)
                 moveTo:ClearAllPoints()
                 moveTo:SetPoint("TOPLEFT", moveTo:GetParent(), "TOPLEFT", e.x, e.y)
