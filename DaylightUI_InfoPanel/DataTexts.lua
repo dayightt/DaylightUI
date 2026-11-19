@@ -1291,7 +1291,7 @@ DT.TEXTS = {
             hint(InCombatLockdown() and not charInFight() and L["Click: character window (after combat)"] or L["Click: character window"])
         end,
         click = openCharacter },
-    hearth = { name = "Hearthstone", poll = true,
+    hearth = { name = "Hearthstone", poll = true, steady = true,
         text = function()
             local home, left = DT.ReadHearth()
             local where = home or L["Hearthstone"]
@@ -1432,6 +1432,34 @@ function DT.CountNumber(s, t, changed, now)
     end, function() settle(s) end)
 end
 
+-- Extra width that makes a counting text (hearth cooldown) as wide as its
+-- widest digits would be, so each tick of the clock does not move the texts
+-- beside it. Only texts flagged steady; the slot's text is put back after.
+function DT.DigitSlack(s, str)
+    local t = DT.TEXTS[s.key]
+    if not (t and t.steady) or type(str) ~= "string" then return 0 end
+    local fs = s.text
+    -- The widest digit of the font.
+    local wide, widest = "0", 0
+    for d = 0, 9 do
+        fs:SetText(tostring(d))
+        local w = fs:GetStringWidth() or 0
+        if w > widest then wide, widest = tostring(d), w end
+    end
+    -- The same text with every digit (outside color codes) as the widest
+    -- one; a clock under ten minutes (9:59) gets the digit 10:00 will have.
+    local colors = {}
+    local tmp = str:gsub("|c%x%x%x%x%x%x%x%x", function(c) colors[#colors + 1] = c return "\1" end)
+    tmp = tmp:gsub("(%f[%d]%d:%d%d)", "0%1"):gsub("%d", wide)
+    tmp = tmp:gsub("\1", function() return table.remove(colors, 1) end)
+    fs:SetText(str)
+    local cur = fs:GetStringWidth() or 0
+    fs:SetText(tmp)
+    local full = fs:GetStringWidth() or 0
+    fs:SetText(str)
+    return math.max(0, full - cur)
+end
+
 -- Builds a strip of texts into S. DT is the panel's strip; DataBar.lua makes
 -- more. opts.tip(slot) places the tooltip, opts.hover(slot, on) reports
 -- mouseover, opts.spot(t) maps a position on the strip to the accent.
@@ -1536,8 +1564,9 @@ function DT.New(S, opts)
         -- Measure both versions, then drop labels one at a time (biggest
         -- saving first) until everything fits.
         local function measure(s, short)
-            s.text:SetText(short and s.short or s.long)
-            return s.text:GetStringWidth() or 0
+            local str = short and s.short or s.long
+            s.text:SetText(str)
+            return (s.text:GetStringWidth() or 0) + DT.DigitSlack(s, str)
         end
         local words = cfg.labels == true
         local sum = 0
@@ -1582,6 +1611,9 @@ function DT.New(S, opts)
             s:SetSize(math.max(1, s.w + gap), h)
             s.textW = math.max(1, math.min(s.w + 1, cap) - s.iconW)
             s.text:SetWidth(s.rollText and 0 or s.textW)
+            -- Left-aligned in its fixed box, so digits never nudge the words.
+            local st = DT.TEXTS[s.key]
+            s.text:SetJustifyH(st and st.steady and "LEFT" or "CENTER")
             s:Show()
             x = x + s.w + gap
             local t = sep(i)
@@ -1606,11 +1638,11 @@ function DT.New(S, opts)
         if not (s.wLong and s.wShort) then return false end
         local fs = s.text
         fs:SetText(s.short)
-        local ws = fs:GetStringWidth() or 0
+        local ws = (fs:GetStringWidth() or 0) + DT.DigitSlack(s, s.short)
         local wl = ws
         if cfg.labels == true then
             fs:SetText(s.long)
-            wl = fs:GetStringWidth() or 0
+            wl = (fs:GetStringWidth() or 0) + DT.DigitSlack(s, s.long)
         end
         fs:SetText(s.isShort and s.short or s.long)
         return math.abs(ws - s.wShort) < 0.5 and math.abs(wl - s.wLong) < 0.5
