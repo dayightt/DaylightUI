@@ -86,6 +86,17 @@ function A.SpellIDs(id)
             end
         end
     end
+    -- The aura's own ids from the game's data, when the cast's id isn't the aura's
+    -- (Bloodrage, Prayer of Mending).
+    local more
+    for s in pairs(ids) do
+        local fact = C and C.Fact(s)
+        for _, a in ipairs(fact and fact.auras or {}) do
+            more = more or {}
+            more[a] = true
+        end
+    end
+    for a in pairs(more or {}) do ids[a] = true end
     return withLearned(ids)
 end
 
@@ -140,6 +151,13 @@ function A.GameBlind(id)
     local own, C = ownKey(id), ns.CdmCustom
     return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
         or C.Shared(own) or C.Unique(own))
+end
+
+-- A buff you cast on a friend (Renew, Prayer of Mending): watched on your friendly
+-- target, else on you, as the game's own icon looks for it.
+function A.Friend(id)
+    local own = ownKey(id)
+    return own ~= nil and ns.CdmCustom.Friend(own) or false
 end
 
 -- A debuff the target carries one copy of: anyone's counts (CdmCustom.UNIQUE).
@@ -365,6 +383,14 @@ local function setup(h, id)
         makeFace(h)
         if A.Readable() then A.IsUp(h) end
         paintFace(h)
+        return
+    end
+    if self_ ~= true and A.Friend(id) then
+        -- One container that follows your friendly target (A.Retarget), else
+        -- watches you. Only your own cast counts on someone else.
+        build(h, A.ShieldUnit(), "HELPFUL|PLAYER", ids)
+        local k = h.containers[#h.containers]
+        if k then k.follow = true end
         return
     end
     build(h, "player", "HELPFUL", ids)
@@ -1444,7 +1470,7 @@ function A.Retarget()
         for _, k in ipairs(h.containers or {}) do
             -- Same unit token, new unit. The container only re-reads on an aura
             -- change or when told.
-            if k.shield then
+            if k.shield or k.follow then
                 -- Still on you (enemy or no target): leave it alone, or the
                 -- client rebuilds its button and the bar flashes.
                 local unit = A.ShieldUnit()
@@ -1452,8 +1478,10 @@ function A.Retarget()
                     k.unit = unit
                     DUI.SafeCall(k.c.SetUnit, k.c, k.unit)
                     DUI.SafeCall(k.c.UpdateAllAuras, k.c)
-                    if ns.CdmBars then ns.CdmBars.Retarget(h, k.unit) end
-                    if holders[h.id] == h then h.shieldUnit = k.unit; A.UpdateShield(h) end
+                    if k.shield then
+                        if ns.CdmBars then ns.CdmBars.Retarget(h, k.unit) end
+                        if holders[h.id] == h then h.shieldUnit = k.unit; A.UpdateShield(h) end
+                    end
                 end
             elseif k.unit == "target" then
                 DUI.SafeCall(k.c.SetUnit, k.c, "target")

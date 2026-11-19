@@ -213,10 +213,15 @@ function Own.HasCooldown(sid)
     if not sid then return false end
     if Own.Learned(sid) then return true end
     local get = _G.GetSpellBaseCooldown or (C_Spell and C_Spell.GetSpellBaseCooldown)
-    if type(get) ~= "function" then return false end
-    local ok, ms = pcall(get, sid)
-    if not ok or type(ms) ~= "number" or isSecret(ms) then return false end
-    return ms > 1500
+    if type(get) == "function" then
+        local ok, ms = pcall(get, sid)
+        if ok and type(ms) == "number" and not isSecret(ms) and ms > 1500 then return true end
+    end
+    -- Where the call is missing or says none, the game's own spell data. It counts
+    -- a cooldown shared by a group of spells (the shocks, Charge, Kick), so such a
+    -- spell isn't drawn one way before its first cast and another way after.
+    local fact = ns.CdmCustom and ns.CdmCustom.Fact(sid)
+    return fact ~= nil and fact.cd ~= nil
 end
 
 local function infoOf(id) return ns.CdmData.Info(id) end

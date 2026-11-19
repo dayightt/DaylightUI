@@ -1,7 +1,26 @@
 local stub = require("stub")
 
+-- The made-up spell ids in these tests (100 + a cooldown id, small numbers) are real
+-- spells in the game's spell facts (CdmSpells.FACTS), which would give them real
+-- cooldowns and buffs. So a test's world loads without the facts, unless it asks
+-- for them with realFacts().
+local theFacts
+local function loadWorld(opts)
+    local DUI = stub.Load(opts)
+    local S = stub.actionbars and stub.actionbars.CdmSpells
+    if S then
+        theFacts = S.FACTS
+        S.FACTS = {}
+    end
+    return DUI
+end
+local function realFacts()
+    stub.actionbars.CdmSpells.FACTS = theFacts
+    stub.actionbars.CdmCustom.Forget()
+end
+
 local function data()
-    stub.Load({ actionbars = true })
+    loadWorld({ actionbars = true })
     return stub.actionbars.CdmData
 end
 
@@ -442,7 +461,7 @@ end)
 
 -- A logged-in Warrior (profiles are per class).
 local function profileWorld(class)
-    local DUI = stub.Load({ actionbars = true })
+    local DUI = loadWorld({ actionbars = true })
     stub.units.player = stub.units.player or { isPlayer = true, name = "Tester" }
     stub.units.player.class = class or "WARRIOR"
     return DUI, stub.actionbars.CdmData
@@ -591,7 +610,7 @@ local function inBlock(i, ids)
 end
 
 T.test("cdm data: the old profile layouts move to saved copies, once", function()
-    local DUI = stub.Load({ actionbars = true })
+    local DUI = loadWorld({ actionbars = true })
     local D = stub.actionbars.CdmData
     local root = DUI.DB.Root()
     root.cdmMoved, root.cdmSaved = nil, nil
@@ -666,7 +685,7 @@ end)
 -- From a player's report: two characters with the same first name shared one
 -- entry in 1.6.3, and after 1.6.4 the second one's CDM was empty.
 local function boopy(last, class, db)
-    local DUI = stub.Load({ actionbars = true, before = function()
+    local DUI = loadWorld({ actionbars = true, before = function()
         _G.GetRealmName = function() return "R" end
         stub.units.player = { name = "Boopy", lastName = last, isPlayer = true, class = class }
         DaylightUIDB = db or DaylightUIDB
@@ -715,7 +734,7 @@ local function nightzFile()
             install = "installed", cdm = { use = { "p2" } } } } }
 end
 local function nightz(last, class, db)
-    local DUI = stub.Load({ actionbars = true, before = function()
+    local DUI = loadWorld({ actionbars = true, before = function()
         _G.GetRealmName = function() return "R" end
         stub.units.player = { name = "Nightz", lastName = last, isPlayer = true, class = class }
         DaylightUIDB = db
@@ -934,7 +953,7 @@ end
 -- buffIcons: ids for a Tracked Buffs icon viewer too (5th in the items).
 local function rowsWorld(buffIcons)
     local ess, bars, icons
-    local DUI = stub.Load({ actionbars = true, before = function()
+    local DUI = loadWorld({ actionbars = true, before = function()
         fakeRegistry()
         _, ess = fakeViewer("EssentialCooldownViewer", { 11, 12, 13 })
         _, bars = fakeViewer("BuffBarCooldownViewer", { 21, 22 })
@@ -1508,7 +1527,7 @@ end)
 -- alert manager is faked, and each icon's swipe is recorded.
 local function fxWorld()
     local ess, bars
-    local DUI = stub.Load({ actionbars = true, before = function()
+    local DUI = loadWorld({ actionbars = true, before = function()
         _, ess = fakeViewer("EssentialCooldownViewer", { 11, 12, 13 })
         _, bars = fakeViewer("BuffBarCooldownViewer", { 21, 22 })
         -- The game's alert manager keeps the alert and fires the glow event.
@@ -1607,7 +1626,7 @@ end)
 
 T.test("cdm effects: the game's alert manager is never hooked", function()
     local hidden
-    stub.Load({ actionbars = true, before = function()
+    loadWorld({ actionbars = true, before = function()
         hidden = function() end
         _G.ActionButtonSpellAlertManager = { ShowAlert = function() end, HideAlert = hidden }
     end })
@@ -4565,7 +4584,7 @@ end)
 -- only draws as icons. Essential 11, 12; Tracked Buffs 31 (yours), 32; Tracked Bars 21.
 local function barsWorld()
     local ess, icons, bars
-    local DUI = stub.Load({ actionbars = true, before = function()
+    local DUI = loadWorld({ actionbars = true, before = function()
         fakeRegistry()
         _, ess = fakeViewer("EssentialCooldownViewer", { 11, 12 })
         _, icons = fakeViewer("BuffIconCooldownViewer", { 31, 32 })
@@ -6147,7 +6166,7 @@ end)
 
 T.test("cdm switched off: the game's Cooldown Manager and its /cdm are left alone", function()
     local gameOpened = false
-    stub.Load({ actionbars = true, login = false, before = function()
+    loadWorld({ actionbars = true, login = false, before = function()
         fakeRegistry()
         fakeViewer("EssentialCooldownViewer", { 11, 12 })
         _G.SLASH_COOLDOWNVIEWER1 = "/cdm"
@@ -7125,7 +7144,7 @@ end)
 -- The addon's own spell list (CdmSpells, made by tools/make_cdm_spells.py)
 
 T.test("cdm spells: every class has families of ids, no id twice in a class, group buffs name their class", function()
-    stub.Load({ actionbars = true })
+    loadWorld({ actionbars = true })
     local S = stub.actionbars.CdmSpells
     T.truthy(type(S) == "table", "the list loads")
     for _, token in ipairs({ "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }) do
@@ -7180,7 +7199,7 @@ end)
 -- A warrior with Battle Shout (two of three ranks), Bloodrage (cooldown and
 -- buff) and Sweeping Strikes (not learned), and Fortitude from a priest.
 local function customWorld(class)
-    stub.Load({ actionbars = true })
+    loadWorld({ actionbars = true })
     stub.SetUnits({ player = { class = class or "WARRIOR" } })
     local AB = stub.actionbars
     AB.CdmSpells.WARRIOR = {
@@ -9162,5 +9181,90 @@ T.test("cdm: a slot update in a fight keeps the totems your casts placed", funct
     T.eq(Own.Frame("earth").Icon:GetTexture(), "tex8154", "still Stoneskin")
     T.eq(Own.Frame("s8071").Cooldown.__duration, stub.totems[2].duration, "Stoneskin's own piece keeps its time")
     stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game's own spell data (CdmSpells.FACTS, made by tools/make_cdm_facts.py)
+
+-- The spell list's aura flag was read from tooltip text: "interrupting for 2 sec"
+-- made Earth Shock a spell with a debuff, and Stealth, whose tooltip names no time,
+-- one without a buff.
+T.test("cdm facts: an interrupt's lockout is no debuff, and a buff the tooltip never timed is one", function()
+    local AB, C = customWorld("SHAMAN")
+    AB.CdmSpells.SHAMAN = { { 8042, 8044, cd = true, aura = true }, { 8050, 8052, cd = true, aura = true },
+        { 8071, 8154, aura = true } }
+    AB.CdmSpells.ROGUE = { { 1766, 1767, cd = true, aura = true }, { 1784, 1785, cd = true } }
+    stub.knownSpells = { [8042] = true, [8050] = true, [8071] = true }
+    realFacts()
+    T.falsy(C.Family("s8042").aura, "Earth Shock: its 2 sec is the interrupt")
+    T.isnil(C.KeyOfAuraSpell(8042), "so the game's Earth Shock icon gets no buff invented for it")
+    T.truthy(C.Family("s8050").aura, "Flame Shock burns")
+    T.truthy(C.Family("s8071").aura, "a totem's buff isn't in the spell's own data: the list's word stands")
+    T.eq(C.Track("s8042"), "cooldown")
+    stub.SetUnits({ player = { class = "ROGUE" } })
+    stub.knownSpells = { [1766] = true, [1784] = true }
+    C.Forget()
+    T.falsy(C.Family("s1766").aura, "Kick")
+    T.truthy(C.Family("s1784").aura, "Stealth")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The shocks, Prayer of Mending, Charge, Kick: a third of the game's Cooldown
+-- Manager spells keep their cooldown on a group of spells, not on the spell.
+T.test("cdm facts: a cooldown shared by a group of spells counts before any cast teaches it", function()
+    local AB = customWorld("SHAMAN")
+    local Own = AB.CdmOwn
+    realFacts()
+    local had = _G.GetSpellBaseCooldown
+    _G.GetSpellBaseCooldown = nil
+    T.truthy(Own.HasCooldown(8042), "the game's call missing: Earth Shock")
+    _G.GetSpellBaseCooldown = function() return 0, 1500 end
+    T.truthy(Own.HasCooldown(8050), "the call says none: Flame Shock")
+    T.truthy(Own.HasCooldown(401859), "Prayer of Mending")
+    T.falsy(Own.HasCooldown(772), "Rend has none")
+    T.falsy(Own.HasCooldown(99999999), "a spell the data doesn't know")
+    _G.GetSpellBaseCooldown = function() return 30000 end
+    T.truthy(Own.HasCooldown(99999999), "the call's own answer still counts")
+    _G.GetSpellBaseCooldown = had
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Prayer of Mending's buff is another spell than its cast (401877, not 401859) and
+-- sits on the friend you cast it on. Watched by the cast's ids on you and among your
+-- target's debuffs, nothing ever showed.
+T.test("cdm facts: Prayer of Mending is watched by its buff's own ids on your friendly target, icon and bar", function()
+    local DUI, AB, E, D = editorWorld()
+    DUI.DB.General().motion = false
+    stub.SetUnits({ player = { class = "PRIEST" }, target = { name = "Friend", friend = true } })
+    AB.CdmSpells.PRIEST = { { 401859, 1240826, 1240827, cd = true, aura = true }, { 589, 594, aura = true } }
+    stub.knownSpells = { [401859] = true, [589] = true }
+    realFacts()
+    local C = AB.CdmCustom
+    T.truthy(C.Ranks("s401859")[401877], "the buff's id, not only the cast's")
+    T.truthy(C.Friend("s401859"))
+    T.falsy(C.Friend("s589"), "Shadow Word: Pain is a debuff")
+    local set = D.Current()
+    D.AddPiece(set, "s401859", "icon", 0, 0)
+    set.pieces["s401859"].track = "aura"
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, "s401859", "bar") end
+        stub.units.target = { name = "Friend", friend = true }
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = shape == "bar" and AB.CdmBars.AuraFrame("s401859") or AB.CdmAuras.Frame("s401859")
+        T.truthy(h, shape .. ": drawn by ours")
+        T.eq(#h.containers, 1, shape .. ": one container")
+        T.eq(h.containers[1].unit, "target", shape .. ": on your friendly target")
+        T.eq(h.containers[1].c.__groups.a.filter, "HELPFUL|PLAYER", shape .. ": your own cast")
+        stub.auras.target = { HELPFUL = { { spellId = 401877, duration = 30, expirationTime = GetTime() + 30,
+            applications = 5, sourceUnit = "player", isFromPlayerOrPlayerPet = true } } }
+        T.eq(AB.CdmAuras.IsUp(h), true, shape .. ": found by the buff's id")
+        stub.auras.target = nil
+        stub.units.target = { name = "Mob" }
+        stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+        T.eq(h.containers[1].unit, "player", shape .. ": an enemy target: watched on you")
+        stub.units.target = { name = "Friend", friend = true }
+        stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+        T.eq(h.containers[1].unit, "target", shape .. ": a friend again")
+    end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

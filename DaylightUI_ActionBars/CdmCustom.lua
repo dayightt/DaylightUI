@@ -25,6 +25,46 @@ local function plain(v)
     return not isSecret(v) and v or nil
 end
 
+-- What the game's own data says about a spell (CdmSpells.FACTS): its base cooldown,
+-- where its buff or debuff lands, how long it lasts and under which spell ids. nil
+-- for a spell the data doesn't cover.
+function Custom.Fact(sid)
+    local F = ns.CdmSpells and ns.CdmSpells.FACTS
+    return type(sid) == "number" and F and F[sid] or nil
+end
+
+-- A family's facts, over every rank: where its aura lands (nil = none found),
+-- whether every rank only hits or interrupts, and the aura's own spell ids.
+local function familyFacts(f)
+    local on, known, hits, auras = nil, 0, 0, nil
+    for _, sid in ipairs(f) do
+        local fact = Custom.Fact(sid)
+        if fact then
+            known = known + 1
+            on = on or fact.on
+            if fact.noaura then hits = hits + 1 end
+            for _, a in ipairs(fact.auras or {}) do
+                auras = auras or {}
+                auras[#auras + 1] = a
+            end
+        end
+    end
+    return on, known > 0 and hits == known, auras
+end
+
+-- The hand-listed aura ids and the data's, as one list.
+local function allAuras(first, more)
+    local hand = Custom.AURA_IDS[first]
+    if not (hand and more) then return hand or more end
+    local out, seen = {}, {}
+    for _, list in ipairs({ hand, more }) do
+        for _, a in ipairs(list) do
+            if not seen[a] then seen[a] = true; out[#out + 1] = a end
+        end
+    end
+    return out
+end
+
 -- Paladin "seal" piece: watches every rank of every seal and shows whichever is up.
 -- The client draws that seal's icon and time. Listed by rank 1 id, Righteousness
 -- last so its rank is the fallback look.
@@ -267,11 +307,18 @@ local function build()
         if type(f) ~= "table" or type(f[1]) ~= "number" then return end
         local k = "s" .. f[1]
         if index[k] or (f.passive and not Custom.AURA_IDS[f[1]]) then return end
-        local shared = f.aura == true and (Custom.SHARED[f[1]] or fromGroup[f[1]]) or nil
-        local aura = group or (f.aura == true and Custom.TOTEMS[f[1]] == nil)
+        -- The list's aura flag was read from tooltip text. The game's data wins
+        -- where it says more: an aura the text never mentioned (Stealth), or a
+        -- spell that only hits or interrupts (Kick's "for 5 sec" is no debuff).
+        local on, onlyHits, more = familyFacts(f)
+        local has = on ~= nil or (f.aura == true and not onlyHits)
+        local shared = has and (Custom.SHARED[f[1]] or fromGroup[f[1]]) or nil
+        local aura = group or (has and Custom.TOTEMS[f[1]] == nil)
         index[k] = { ids = withMore(f), cd = f.cd == true and not group, aura = aura, group = group or nil,
-                     shared = shared, unique = f.aura == true and Custom.UNIQUE[f[1]] or nil,
-                     auras = Custom.AURA_IDS[f[1]],
+                     shared = shared, unique = has and Custom.UNIQUE[f[1]] or nil,
+                     auras = allAuras(f[1], more),
+                     -- A buff you put on a friend (Renew, Prayer of Mending).
+                     friend = (on == "friend" and not group and not shared) or nil,
                      self = (Custom.SELF_DEBUFF[f[1]] ~= nil or Custom.BUFF_ON_YOU[f[1]]) or nil,
                      harm = Custom.SELF_DEBUFF[f[1]] ~= nil or nil,
                      trap = Custom.TRAPS[f[1]], onPet = Custom.ON_PET[f[1]] }
@@ -704,6 +751,13 @@ end
 function Custom.Unique(id)
     local f = Custom.Family(id)
     return f ~= nil and f.unique == true
+end
+
+-- Its buff lands on a friend you cast it on (Renew, Prayer of Mending), not
+-- only on you.
+function Custom.Friend(id)
+    local f = Custom.Family(id)
+    return f ~= nil and f.friend == true
 end
 
 -- Its buff lands on your pet (Bestial Wrath).
