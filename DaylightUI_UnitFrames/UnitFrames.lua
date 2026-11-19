@@ -92,7 +92,7 @@ UF.BIG_NUMBER_INSET = 3   -- gap from the angled end
 UF.BIG_NUMBER_DROP = 1.5  -- below center, since the digits sit high in their line
 -- Elite, rare and boss units get a crest on the name tab's outer corner: a
 -- dark disc with a ring and a horned helm emblem, gold or silver, glowing.
-UF.CREST = { elite = "gold", worldboss = "gold", rareelite = "gold", rare = "silver" }
+UF.CREST = { elite = "gold", worldboss = "gold", rareelite = "silver", rare = "silver" }
 UF.CREST_COLORS = { gold = { 0.94, 0.77, 0.31 }, silver = { 0.84, 0.86, 0.90 } }
 -- With neither a portrait nor a name tab, the frame's own border carries the
 -- crest's color instead, and the status icons stand this far off its outer end.

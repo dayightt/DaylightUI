@@ -1766,7 +1766,7 @@ Plate.DRAGON = { file = DUI.MEDIA .. "plate-dragon.png", tex = 128, px = 32,
                  w = 3.15625, h = 2.4375, endX = 2.2636, topY = 1.1636 }
 -- The unit frames' elite colors (UF.ELITE_RING_COLORS); bosses are gold too.
 Plate.DRAGON_COLORS = { gold = { 1.0, 0.8, 0.33 }, silver = { 0.84, 0.87, 0.92 } }
-Plate.DRAGON_KIND = { elite = "gold", rareelite = "gold", worldboss = "gold", rare = "silver" }
+Plate.DRAGON_KIND = { elite = "gold", rareelite = "silver", worldboss = "gold", rare = "silver" }
 
 function Plate.LayoutDragon(p, h, allowed)
     local D, t = Plate.DRAGON, p.dragon

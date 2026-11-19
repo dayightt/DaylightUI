@@ -20,6 +20,7 @@ DUI.PatchNotes = {
             { "General", "\"Use this font for the game's text\" no longer changes the combat text over you or the names over people's heads, and the range dot on hotkeys stays a dot" },
             { "General", "Alt-tabbing, loading screens and screen or UI scale changes no longer make Daylight UI set up the game's nameplates, minimap, chat and tooltips all over again" },
             { "General", "Daylight UI no longer changes your max camera distance setting every time you log in" },
+            { "Unit frames", "Rare elites wear the silver dragon on the target frame and nameplates, like in the game, instead of the gold one" },
             { "Buffs", "Your buffs and debuffs no longer all bounce at once when you loot something" },
             { "QoL", "The big level number on the level-up screen is no longer cut off at the top and bottom" },
             { "QoL", "Closing the AFK screen while an NPC conversation has the UI faded no longer brings the UI back early" },
