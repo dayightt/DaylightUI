@@ -628,13 +628,10 @@ function Manager.Recheck()
     Manager.Each(ns.Plate.UpdateFriendly)
 end
 
--- Reconciles the plates with what the game shows now, as a /reload would. A layer
--- or phase change swaps every unit around you with no loading screen, and which
--- events the engine sends then is up to it. A plate left on a unit that's gone, or
--- a unit with no plate, would stay wrong until it left view. Correct plates are
--- left alone; only differences do any work. A secret answer counts as no
--- difference.
-Manager.SYNC_EVERY = 2
+-- Reconciles the plates with what the game shows now, as a /reload would, after
+-- a death, a resurrection or a loading screen (Manager.Recheck). A plate left on
+-- a unit that's gone, or a unit with no plate, would stay wrong until it left
+-- view. Correct plates are left alone; only differences do any work.
 function Manager.Sync()
     if Manager.fixPaused then return end
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
@@ -1053,7 +1050,6 @@ function Manager.Start()
         local unit = "nameplate" .. i
         if plain(UnitExists, unit) == true then DUI.SafeCall(Manager.Added, unit) end
     end
-    C_Timer.NewTicker(Manager.SYNC_EVERY, function() DUI.SafeCall(Manager.Sync) end)
     ns.Range.Apply()
 end
 
