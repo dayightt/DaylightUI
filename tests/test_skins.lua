@@ -2236,7 +2236,7 @@ T.test("skins: a glow kept on a child (the world map's BorderFrame) keeps the op
     _G.GetCVar = getCVar
 end)
 
--- Glows on windows no skin dresses (the minimap's tracking menu, the shop) kept
+-- Glows on windows no skin dresses (the minimap's tracking menu) kept
 -- full strength too. Every glow registers for the opacity setting with
 -- CVarCallbackRegistry, so they're all found there: at start, and each time the
 -- controller's focus moves (a menu's glow is made when it first opens).

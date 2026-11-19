@@ -616,7 +616,7 @@ function Kit.FocusGlow(frame)
     if glow.HookScript then glow:HookScript("OnShow", fitFocusGlow) end
 end
 
--- Every glow, skinned window or not (menus, the shop): each one registers with
+-- Every glow, skinned window or not (the menus too): each one registers with
 -- CVarCallbackRegistry for the opacity setting, as itself, so that list is
 -- all of them. 2 is CallbackRegistry's CallbackType.Function, which is local.
 function Kit.FitFocusGlows()
