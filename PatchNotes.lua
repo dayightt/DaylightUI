@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
     }, fixed = {
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },
+        { "Raid frames", "No more Lua error when someone leaves the party or raid" },
     } },
     { version = "1.9.6", date = "2026-11-19", summary = "Full quest details on hover, a flight timer that floats over the world, totem pieces for shamans, and a big batch of fixes.",
         new = {

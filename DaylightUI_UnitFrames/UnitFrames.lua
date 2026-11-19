@@ -3457,7 +3457,8 @@ function UF.UpdateStatus(f, sample, animate)
         leader = sample.leader == true
         pvp = sample.pvp == true
         faction = sample.faction
-    else
+    elseif u then
+        -- An empty group slot has no unit, and these checks refuse a nil one.
         leader = plainFlag(UnitIsGroupLeader, u)
         resting = u == "player" and plainFlag(IsResting)
         pvp = plainFlag(UnitIsPVP, u)
@@ -3512,7 +3513,12 @@ function UF.UpdateLeader(f, sample, animate)
     -- A frame with a status set shows its crown there, unless it sits at a
     -- spot (corner mode, or moved, see UF.IconSpot).
     local leader
-    if sample then leader = sample.leader == true else leader = plainFlag(UnitIsGroupLeader, f.unitToken) end
+    -- A tile the header just emptied has no unit, and the game refuses a nil one.
+    if sample then
+        leader = sample.leader == true
+    elseif f.unitToken then
+        leader = plainFlag(UnitIsGroupLeader, f.unitToken)
+    end
     local hide = f.hideLeaderFight and UF.fighting
     if not f.leaderSpot then
         f.leaderIcon:Hide()

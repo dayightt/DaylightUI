@@ -1203,6 +1203,22 @@ T.test("raid heals: a tile that loses its member before the read stays quiet", f
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The roster pass then redraws the emptied tile's crown, role and status: the
+-- game refuses a missing unit for the leader and PvP checks.
+T.test("raid roster: a tile the header emptied drops its crown without asking the game", function()
+    local DUI, ns = login()
+    stub.SetGroup(true, true, 10)
+    stub.units.raid3 = { name = "Teft", isPlayer = true, class = "WARRIOR", leader = true, pvp = true }
+    local b = tile(ns, "raid3")
+    T.truthy(b.leaderIcon:IsShown(), "the leader's crown")
+    b:SetAttribute("unit", nil)
+    stub.units.raid3 = nil
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(b.leaderIcon:IsShown(), "no member, no crown")
+end)
+
 T.test("raid flags: a tile repaints only when tapped or the reaction changed", function()
     local DUI, ns = login()
     stub.SetGroup(true, true, 10)
